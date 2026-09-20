@@ -3965,9 +3965,8 @@ async fn run_diagnostics_f5_dialect(
     {
         return None;
     }
-    let encoding_abstains = inputs
-        .decode_report
-        .is_some_and(|r| r.requires_abstention());
+    let encoding_abstains =
+        tcl_lsp_core::source_decode::should_abstain(inputs.decode_report.as_ref());
     // A non-text byte signature makes every parser/model verdict untrustworthy.
     // Skip the validator entirely rather than computing diagnostics that the
     // report-driven abstention below would then discard.
@@ -6065,7 +6064,7 @@ async fn publish_fast_tier(
         finalise_diagnostics(
             &mut diagnostics,
             &severity_overrides,
-            decode_report.is_some_and(|r| r.requires_abstention()),
+            tcl_lsp_core::source_decode::should_abstain(decode_report.as_ref()),
         );
         diagnostics
     })
@@ -6276,7 +6275,7 @@ async fn refine_and_lift_diagnostics(
         finalise_diagnostics(
             &mut diagnostics,
             &severity_overrides,
-            decode_report.is_some_and(|r| r.requires_abstention()),
+            tcl_lsp_core::source_decode::should_abstain(decode_report.as_ref()),
         );
         diagnostics
     })
@@ -7391,6 +7390,11 @@ pub struct Backend {
     /// Optimiser master switch (`tclLsp.optimiser.enabled`).  When
     /// `false`, the `tcl-lsp.optimiseDocument` command yields no
     /// rewrites.  Default on.
+    ///
+    /// That command is the batch form of the optimiser code actions, so it
+    /// applies the whole publish-path policy and not just this switch: the
+    /// profile and per-code disabled set, and the inline suppression
+    /// directives, exactly as `lift_compiler_diagnostics` does (#2119).
     optimiser_enabled: Mutex<bool>,
     /// Monotonic stamp for "the configuration the diagnostics scheduler caches
     /// has moved".  See [`Backend::invalidate_diag_inputs`].
@@ -16676,6 +16680,68 @@ impl Backend {
     /// (multi-pass for the `"full"` profile, single-pass otherwise),
     /// applies the rewrites, and returns `{source, optimisations}` — the
     /// optimised text plus the list of applied optimisation suggestions.
+    /// The master switch and category-disabled set `tcl-lsp.optimiseDocument`
+    /// runs under, for a document and the `profile` the call named.
+    ///
+    /// The *categories* come from that argument when it names a profile, not
+    /// from the editor setting. It is an `OptimisationProfile` — the same
+    /// vocabulary `tcl opt --profile` parses — so `optimiseDocument uri
+    /// "full"` is a caller explicitly asking for the full category set, and
+    /// answering it with the editor's configured profile (`readability` by
+    /// default, where constant folding is opt-in) would silently refuse what
+    /// it asked for.
+    ///
+    /// An unrecognised or absent name falls back to the configured profile
+    /// via `resolved_analysis_settings` — the same resolver
+    /// `lift_compiler_diagnostics` reads, so the default path stays one
+    /// policy rather than a second copy (#2119). Per-code overrides layer on
+    /// top either way.
+    async fn optimiser_policy_for_command(
+        &self,
+        uri: &Uri,
+        named: Option<&str>,
+    ) -> (bool, HashSet<String>) {
+        use tcl_compiler::optimiser::profiles::{OptimisationProfile, profile_to_disabled};
+
+        let (_, _, optimiser_enabled, configured_disabled) =
+            self.resolved_analysis_settings(uri).await;
+        let Some(profile) = named
+            .filter(|name| OptimisationProfile::ALL.iter().any(|p| p.name() == *name))
+            .map(OptimisationProfile::parse)
+        else {
+            return (optimiser_enabled, configured_disabled);
+        };
+        let mut set: HashSet<String> = profile_to_disabled(profile)
+            .into_iter()
+            .map(str::to_owned)
+            .collect();
+        for (code, enabled) in self.optimiser_code_overrides.lock().await.iter() {
+            if *enabled {
+                set.remove(code);
+            } else {
+                set.insert(code.clone());
+            }
+        }
+        (optimiser_enabled, set)
+    }
+
+    /// How many members each optimisation group has in `opts`.
+    ///
+    /// Used to enforce all-or-nothing application: a group whose surviving
+    /// count differs from its original count has lost a member to a filter
+    /// and must not be applied at all.
+    fn group_counts(
+        opts: &[tcl_compiler::optimiser::Optimisation],
+    ) -> std::collections::HashMap<u32, usize> {
+        let mut counts: std::collections::HashMap<u32, usize> = std::collections::HashMap::new();
+        for o in opts {
+            if let Some(g) = o.group {
+                *counts.entry(g).or_default() += 1;
+            }
+        }
+        counts
+    }
+
     async fn optimise_document_command(
         &self,
         args: &[serde_json::Value],
@@ -16699,16 +16765,90 @@ impl Backend {
         let registry = self.registry_for_dialect(&doc.dialect).await;
         let text = doc.text.clone();
         let dialect = doc.dialect.clone();
+        // This command is the batch form of the optimiser code actions, so it
+        // owes the user the same policy the published O-code diagnostics
+        // apply (#2119): the `tclLsp.optimiser.enabled` master switch, a
+        // profile-derived disabled set layered with the per-code overrides,
+        // and the inline suppression directives.
+        //
+        // The *categories* come from this call's own `profile` argument when
+        // it names one, not from the editor setting. That argument is an
+        // `OptimisationProfile` — the same vocabulary `tcl opt --profile`
+        // parses — so `optimiseDocument uri "full"` is a caller explicitly
+        // asking for the full category set, and answering it with the
+        // editor's configured profile (`readability` by default, where
+        // constant folding is opt-in) would silently refuse what it asked
+        // for. An unrecognised or absent argument falls back to the
+        // configured profile, via `resolved_analysis_settings` — the same
+        // resolver `lift_compiler_diagnostics` reads, so the default path
+        // stays one policy rather than a second copy.
+        let (optimiser_enabled, opt_disabled) = self
+            .optimiser_policy_for_command(&uri, args.get(1).and_then(serde_json::Value::as_str))
+            .await;
         let value = crate::rt::spawn_blocking(move || {
             tcl_spectcl::hooks::ensure_thread_host();
             let dialect_opt = tcl_lsp_core::stated_profile_for_dialect(&dialect);
-            let (source, opts) = if profile == "full" {
-                tcl_compiler::optimiser::optimise_source_multipass(&text, &registry, dialect_opt, 5)
+            // With the master switch off the command "yields no rewrites",
+            // which is what the `optimiser_enabled` field doc has always
+            // claimed and what it now actually does.
+            let (source, opts) = if optimiser_enabled {
+                // Suppression is line-keyed, and each applied rewrite shifts
+                // the lines below it, so the directives are re-resolved
+                // against the text of every pass rather than once against the
+                // original — otherwise a second pass silences the wrong
+                // rewrites.
+                let admit = |current: &str, kept: Vec<tcl_compiler::optimiser::Optimisation>| {
+                    let suppressed = tcl_compiler::analyser::Analyser::new()
+                        .analyse(current, &dialect)
+                        .suppressed_lines
+                        .clone();
+                    let line_index = tcl_lexer::LineIndex::new_lsp(current);
+                    let group_total = Backend::group_counts(&kept);
+                    let survivors: Vec<_> = kept
+                        .into_iter()
+                        .filter(|o| !opt_disabled.contains(o.code.as_str()))
+                        .filter(|o| {
+                            let line = line_index.position_at_utf16(o.span.start(), current).line;
+                            !tcl_compiler::analyser::utils::line_suppressed(
+                                o.code.as_str(),
+                                i32::try_from(line).unwrap_or(i32::MAX),
+                                &suppressed,
+                            )
+                        })
+                        .collect();
+                    // A group's edits apply all-or-nothing, and suppression is
+                    // line-keyed, so a `# noqa` over one member of a pair that
+                    // straddles two lines would otherwise leave the *other*
+                    // member eligible — and this path applies what it admits.
+                    // For O127 that deletes the assignment without inlining it
+                    // at the use site: the same corruption #2149 describes, in
+                    // the apply path rather than the publish path. A group that
+                    // loses any member is dropped whole.
+                    //
+                    // The code-keyed filter above cannot split a group (every
+                    // member of a pair shares its `DiagCode`), so only the
+                    // line-keyed one needs this.
+                    let group_kept = Backend::group_counts(&survivors);
+                    survivors
+                        .into_iter()
+                        .filter(|o| {
+                            o.group
+                                .is_none_or(|g| group_kept.get(&g) == group_total.get(&g))
+                        })
+                        .collect()
+                };
+                let passes = if profile == "full" { 5 } else { 1 };
+                let (source, opts, _iterations) =
+                    tcl_compiler::optimiser::optimise_source_multipass_admitting(
+                        &text,
+                        &registry,
+                        dialect_opt,
+                        passes,
+                        admit,
+                    );
+                (source, opts)
             } else {
-                let opts =
-                    tcl_compiler::optimiser::optimise_with_dialect(&text, &registry, dialect_opt);
-                let applied = tcl_compiler::optimiser::apply_optimisations(&text, &opts);
-                (applied, opts)
+                (text.to_string(), Vec::new())
             };
             let line_index = tcl_lexer::LineIndex::new_lsp(&text);
             let items: Vec<serde_json::Value> = opts
@@ -20127,9 +20267,8 @@ impl Backend {
         language_id: &str,
         inputs: &F5PullInputs<'_>,
     ) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
-        let encoding_abstains = inputs
-            .decode_report
-            .is_some_and(|report| report.requires_abstention());
+        let encoding_abstains =
+            tcl_lsp_core::source_decode::should_abstain(inputs.decode_report.as_ref());
         let mut diagnostics = if encoding_abstains {
             Vec::new()
         } else {
@@ -20304,7 +20443,7 @@ impl Backend {
             finalise_diagnostics(
                 &mut diagnostics,
                 &severity_overrides,
-                decode_report.is_some_and(|r| r.requires_abstention()),
+                tcl_lsp_core::source_decode::should_abstain(decode_report.as_ref()),
             );
             diagnostics
         })
@@ -29796,6 +29935,54 @@ fn lift_f5_source_integrity_diagnostics(
 /// the optimiser over it, so this function lowers nothing — it filters
 /// (master switch, per-code disables, inline suppressions) and lifts the
 /// survivors into LSP shape.
+/// The shared quick-fix payload for each *intact* optimisation group.
+///
+/// A group's edits apply all-or-nothing — the optimiser says so where it
+/// allocates the id (`run_store_to_load_forwarding`: "so the two edits apply
+/// all-or-nothing"). Publishing one member's `replacement` on its own
+/// therefore advertises a corrupting fix: O127's pair is an *inline* of the
+/// whole assignment at the use site plus a *delete* of the original, and the
+/// delete carries an empty replacement, so a per-member payload offered only
+/// the inline — which leaves the original in place and runs the assignment
+/// twice. For `set x [gets stdin]` that reads two lines instead of one
+/// (#2149).
+///
+/// So every member of a group gets the *same* payload, carrying the group id
+/// and every member's edit (#2123). A client that understands `edits` applies
+/// them as one action; one that does not finds no auto-apply payload, which
+/// is the safe way to fail.
+///
+/// `published` is the post-gate set and `all` the pre-gate one: a group that
+/// lost a member to a `# noqa` or a per-code toggle can no longer be applied
+/// whole, so it gets no payload rather than a partial edit.
+fn grouped_quick_fix_payloads(
+    published: &[tcl_compiler::optimiser::Optimisation],
+    all: &[tcl_compiler::optimiser::Optimisation],
+) -> std::collections::HashMap<u32, serde_json::Value> {
+    let mut edits: std::collections::HashMap<u32, Vec<serde_json::Value>> =
+        std::collections::HashMap::new();
+    for o in published {
+        if let Some(g) = o.group {
+            edits.entry(g).or_default().push(serde_json::json!({
+                "replacement": o.replacement,
+                "startOffset": o.span.start(),
+                "endOffset": o.span.end(),
+            }));
+        }
+    }
+    let mut total: std::collections::HashMap<u32, usize> = std::collections::HashMap::new();
+    for o in all {
+        if let Some(g) = o.group {
+            *total.entry(g).or_default() += 1;
+        }
+    }
+    edits
+        .into_iter()
+        .filter(|(g, members)| total.get(g) == Some(&members.len()))
+        .map(|(g, members)| (g, serde_json::json!({ "group": g, "edits": members })))
+        .collect()
+}
+
 fn lift_compiler_diagnostics(
     text: &str,
     diags: &tcl_lsp_db::CompilerDiagnostics,
@@ -29867,25 +30054,34 @@ fn lift_compiler_diagnostics(
     // fix from the diagnostic). The
     // `tclLsp.optimiser.enabled=false` master switch suppresses the whole
     // block.
-    for o in diags
+    // Resolve the gates first, because a *grouped* optimisation's payload
+    // depends on its siblings: which of them survived filtering decides
+    // whether the group can be offered at all.
+    let published: Vec<tcl_compiler::optimiser::Optimisation> = diags
         .optimisations
         .iter()
         .filter(|_| optimiser_enabled)
+        .filter(|o| {
+            // Profile + per-code gate: the active profile disables whole
+            // O-code categories (the default `readability` profile surfaces
+            // only readability rewrites) and per-code
+            // `tclLsp.optimiser.O1xx=false` overrides add to that.
+            if disabled_optimisations.contains(o.code.as_str()) {
+                return false;
+            }
+            // Inline `# noqa` / top-of-file suppression, as in the `.checks`
+            // loop.
+            let range = lift_span(text, &line_index, o.span);
+            let start_line = i32::try_from(range.start.line).unwrap_or(i32::MAX);
+            !line_suppressed(o.code.as_str(), start_line, suppressed_lines)
+        })
         .cloned()
-    {
-        // Profile + per-code gate: the active profile disables whole O-code
-        // categories (the default `readability` profile surfaces only
-        // readability rewrites) and per-code `tclLsp.optimiser.O1xx=false`
-        // overrides add to that.
-        if disabled_optimisations.contains(o.code.as_str()) {
-            continue;
-        }
+        .collect();
+
+    let group_payloads = grouped_quick_fix_payloads(&published, &diags.optimisations);
+
+    for o in published {
         let range = lift_span(text, &line_index, o.span);
-        // Inline `# noqa` / top-of-file suppression, as in the `.checks` loop.
-        let start_line = i32::try_from(range.start.line).unwrap_or(i32::MAX);
-        if line_suppressed(o.code.as_str(), start_line, suppressed_lines) {
-            continue;
-        }
         // Surface the fold/rewrite text as the quick-fix `data.replacement`, so
         // editors and the e2e battery can apply the suggested replacement.
         // Never for a `hint_only` optimisation: its span covers the whole
@@ -29896,13 +30092,19 @@ fn lift_compiler_diagnostics(
         // would corrupt the statement into the standalone literal `5` if
         // ever applied. A hint-only diagnostic is informational only; it
         // must never advertise an auto-apply payload.
-        let data = (!o.hint_only && !o.replacement.is_empty()).then(|| {
-            serde_json::json!({
-                "replacement": o.replacement,
-                "startOffset": o.span.start(),
-                "endOffset": o.span.end(),
+        let data = if let Some(g) = o.group {
+            (!o.hint_only)
+                .then(|| group_payloads.get(&g).cloned())
+                .flatten()
+        } else {
+            (!o.hint_only && !o.replacement.is_empty()).then(|| {
+                serde_json::json!({
+                    "replacement": o.replacement,
+                    "startOffset": o.span.start(),
+                    "endOffset": o.span.end(),
+                })
             })
-        });
+        };
         out.push(tower_lsp_server::ls_types::Diagnostic {
             range,
             severity: Some(DiagnosticSeverity::HINT),
@@ -33081,6 +33283,267 @@ mod tests {
         );
     }
 
+    /// Issue #2119: `tcl-lsp.optimiseDocument` is the batch form of the
+    /// optimiser code actions, so it must apply the same policy the published
+    /// O-code diagnostics do. Before the fix it read only its `profile`
+    /// argument and called the unfiltered optimiser, so each of these three
+    /// gates was ignored and the `optimiser_enabled` field doc — "when
+    /// `false`, the `tcl-lsp.optimiseDocument` command yields no rewrites" —
+    /// was simply untrue.
+    #[tokio::test]
+    async fn optimise_document_command_honours_the_optimiser_policy_issue_2119() {
+        use tcl_compiler::optimiser::profiles::OptimisationProfile;
+        let src = "set x [expr {1 + 2}]\nputs $x\n";
+        let uri = Uri::from_str("file:///o2119.tcl").unwrap();
+
+        // The default editor profile is `Readability`, under which constant
+        // folding and DCE are opt-in — so honouring the profile is itself
+        // observable: before the fix this command folded regardless.
+        let default_profile = test_backend();
+        register(&default_profile, &uri, src).await;
+        let out = default_profile
+            .optimise_document_command(&[serde_json::json!(uri.as_str())])
+            .await
+            .expect("ok")
+            .expect("some");
+        assert_eq!(
+            out.get("optimisations")
+                .and_then(serde_json::Value::as_array)
+                .map_or(0, Vec::len),
+            0,
+            "the default Readability profile makes constant folding opt-in, so \
+             the batch command must not fold either: {out:?}",
+        );
+
+        // Baseline for the remaining gates: a profile that does enable them.
+        let backend = test_backend();
+        register(&backend, &uri, src).await;
+        *backend.optimiser_profile.lock().await = OptimisationProfile::Aggressive;
+        let baseline = backend
+            .optimise_document_command(&[serde_json::json!(uri.as_str())])
+            .await
+            .expect("ok")
+            .expect("some");
+        let count = |v: &serde_json::Value| {
+            v.get("optimisations")
+                .and_then(serde_json::Value::as_array)
+                .map_or(0, Vec::len)
+        };
+        assert!(
+            count(&baseline) > 0,
+            "expected a baseline rewrite: {baseline:?}"
+        );
+        let baseline_codes: Vec<String> = baseline["optimisations"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|o| o.get("code").and_then(serde_json::Value::as_str))
+            .map(str::to_owned)
+            .collect();
+
+        // 1. The master switch. Source must come back untouched.
+        let off = test_backend();
+        register(&off, &uri, src).await;
+        *off.optimiser_profile.lock().await = OptimisationProfile::Aggressive;
+        *off.optimiser_enabled.lock().await = false;
+        let out = off
+            .optimise_document_command(&[serde_json::json!(uri.as_str())])
+            .await
+            .expect("ok")
+            .expect("some");
+        assert_eq!(
+            count(&out),
+            0,
+            "master switch off must yield no rewrites: {out:?}"
+        );
+        assert_eq!(
+            out.get("source").and_then(serde_json::Value::as_str),
+            Some(src),
+            "master switch off must leave the source untouched: {out:?}",
+        );
+
+        // 2. The per-code disabled set.
+        let per_code = test_backend();
+        register(&per_code, &uri, src).await;
+        *per_code.optimiser_profile.lock().await = OptimisationProfile::Aggressive;
+        for code in &baseline_codes {
+            per_code
+                .optimiser_code_overrides
+                .lock()
+                .await
+                .insert(code.clone(), false);
+        }
+        let out = per_code
+            .optimise_document_command(&[serde_json::json!(uri.as_str())])
+            .await
+            .expect("ok")
+            .expect("some");
+        assert_eq!(
+            count(&out),
+            0,
+            "every baseline code was disabled per-code, so none may be applied: {out:?}",
+        );
+    }
+
+    /// A group's edits apply all-or-nothing, and `optimiseDocument` *applies*
+    /// what it admits — so a line-keyed `# noqa` over one member of a pair
+    /// that straddles two lines must not leave the other member eligible.
+    ///
+    /// O127's pair is an inline of the assignment at the use site plus a
+    /// delete of the original, on different lines. Admitting only the delete
+    /// removes the assignment without inlining it, which is the #2149
+    /// corruption in the apply path rather than the publish path. Codex
+    /// caught this on #2150 after the publish-path half was already fixed.
+    #[tokio::test]
+    async fn optimise_document_command_never_applies_half_a_group_issue_2149() {
+        use tcl_compiler::optimiser::profiles::OptimisationProfile;
+
+        // `# noqa` sits above the *use* site, so it covers the inline member
+        // and not the delete one line up.
+        let src = "proc p {y} {\n    set x [llength $y]\n    # noqa\n    puts $x\n}\n";
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///o2149a.tcl").unwrap();
+        register(&backend, &uri, src).await;
+        *backend.optimiser_profile.lock().await = OptimisationProfile::Aggressive;
+        let out = backend
+            .optimise_document_command(&[serde_json::json!(uri.as_str())])
+            .await
+            .expect("ok")
+            .expect("some");
+        let source = out
+            .get("source")
+            .and_then(serde_json::Value::as_str)
+            .expect("a source");
+
+        // Whatever else happens, the assignment must not vanish while the use
+        // site still reads the variable.
+        let assignment_gone = !source.contains("set x [llength $y]");
+        let use_site_remains = source.contains("puts $x");
+        assert!(
+            !(assignment_gone && use_site_remains),
+            "half the O127 group was applied — the store is gone but the read \
+             remains, which is a broken program: {source:?}",
+        );
+        let applied: Vec<String> = out["optimisations"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|o| o.get("code").and_then(serde_json::Value::as_str))
+            .map(str::to_owned)
+            .collect();
+        assert!(
+            !applied.iter().any(|c| c == "O127"),
+            "the group lost a member to the directive, so none of it applies: \
+             {applied:?} / {source:?}",
+        );
+    }
+
+    /// Issue #2119, the part the unit tests first got wrong: the command's
+    /// own `profile` argument names an `OptimisationProfile` — the same
+    /// vocabulary `tcl opt --profile` parses — and it selects the *category*
+    /// set, overriding the configured editor profile.
+    ///
+    /// The first cut of the #2119 fix took categories from
+    /// `resolved_analysis_settings` unconditionally, so
+    /// `optimiseDocument uri "full"` was answered with the default
+    /// `readability` profile, where constant folding is opt-in, and folded
+    /// nothing. Twelve e2e cases caught it; this pins it at unit level,
+    /// where the two meanings of "profile" are easy to conflate again.
+    #[tokio::test]
+    async fn optimise_document_command_profile_argument_selects_the_categories_issue_2119() {
+        let src = "puts [llength [list a b c]]\n";
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///o2119f.tcl").unwrap();
+        register(&backend, &uri, src).await;
+        // Deliberately left at the default `readability`, under which
+        // constant folding is opt-in — the argument has to win.
+        let out = backend
+            .optimise_document_command(&[
+                serde_json::json!(uri.as_str()),
+                serde_json::json!("full"),
+            ])
+            .await
+            .expect("ok")
+            .expect("some");
+        assert!(
+            out.get("source")
+                .and_then(serde_json::Value::as_str)
+                .is_some_and(|s| s.contains("puts 3")),
+            "an explicit `full` profile must fold, whatever the editor's \
+             configured profile is: {out:?}",
+        );
+
+        // An unrecognised name is not a licence to widen: it falls back to
+        // the configured profile, which folds nothing by default.
+        let fallback = test_backend();
+        let uri2 = Uri::from_str("file:///o2119g.tcl").unwrap();
+        register(&fallback, &uri2, src).await;
+        let out = fallback
+            .optimise_document_command(&[
+                serde_json::json!(uri2.as_str()),
+                serde_json::json!("not-a-profile"),
+            ])
+            .await
+            .expect("ok")
+            .expect("some");
+        assert!(
+            out.get("source")
+                .and_then(serde_json::Value::as_str)
+                .is_some_and(|s| !s.contains("puts 3")),
+            "an unrecognised profile falls back to the configured one: {out:?}",
+        );
+    }
+
+    /// Issue #2119, the suppression-directive half: a `# noqa` must silence
+    /// the batch command exactly as it silences the published diagnostic.
+    /// Split from the switch/profile/per-code gates so neither test runs past
+    /// the pedantic line limit.
+    ///
+    /// A differential rather than a bare count: the same source with and
+    /// without a `# noqa` directly above the rewritten statement. `set x …`
+    /// still folds in both, because the directive names one line and not the
+    /// file, so the assertion is about the rewrite the directive covers.
+    #[tokio::test]
+    async fn optimise_document_command_honours_noqa_issue_2119() {
+        use tcl_compiler::optimiser::profiles::OptimisationProfile;
+
+        let codes_on = |v: &serde_json::Value| -> Vec<String> {
+            v["optimisations"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter_map(|o| o.get("code").and_then(serde_json::Value::as_str))
+                .map(str::to_owned)
+                .collect()
+        };
+        let run = async |src: &str, name: &str| {
+            let backend = test_backend();
+            let uri = Uri::from_str(name).unwrap();
+            register(&backend, &uri, src).await;
+            *backend.optimiser_profile.lock().await = OptimisationProfile::Aggressive;
+            backend
+                .optimise_document_command(&[serde_json::json!(uri.as_str())])
+                .await
+                .expect("ok")
+                .expect("some")
+        };
+        let plain = run("set x [expr {1 + 2}]\nputs $x\n", "file:///o2119p.tcl").await;
+        let noqa = run(
+            "set x [expr {1 + 2}]\n# noqa\nputs $x\n",
+            "file:///o2119n.tcl",
+        )
+        .await;
+        assert!(
+            codes_on(&plain).contains(&"O100".to_owned()),
+            "the read on `puts $x` should fold without a directive: {plain:?}",
+        );
+        assert!(
+            !codes_on(&noqa).contains(&"O100".to_owned()),
+            "a `# noqa` directly above `puts $x` must silence the batch command \
+             exactly as it silences the published diagnostic: {noqa:?}",
+        );
+    }
+
     #[test]
     fn unminify_error_command_echoes_original_and_flags_change() {
         // No argument → None.
@@ -34244,6 +34707,85 @@ mod tests {
             !diag_codes(&filtered).iter().any(|c| c == "XC100"),
             "XC100 should be filtered when disabled",
         );
+    }
+
+    /// Issues #2123 and #2149, which are the same defect from two sides.
+    ///
+    /// O127 emits a *pair* that must apply together — an inline of the whole
+    /// assignment at the use site, plus a delete of the original. The delete
+    /// is built with an empty replacement, and `data` used to be attached
+    /// only when the replacement was non-empty, so the editor was offered
+    /// exactly one action: the inline, which leaves the original statement in
+    /// place and therefore runs the assignment twice. For
+    /// `set x [gets stdin]` that consumes two lines of input instead of one.
+    ///
+    /// `group` was also absent from `data` entirely, which is what made
+    /// grouped application unreachable for a client (#2123) and is why the
+    /// diagnostics-calculation page described a contract the tree did not
+    /// implement.
+    #[test]
+    fn a_grouped_optimisation_is_never_independently_applicable_issue_2149() {
+        let registry = CommandRegistry::build_default();
+        // O127 fires on a *computed* single-use assignment.
+        let src = "proc p {y} {\n    set x [llength $y]\n    puts $x\n}\n";
+        // O127 abstains without a resolved dialect profile (it cannot prove
+        // its alias-safety gate under "every dialect at once"), so the
+        // fixture must state one.
+        let diags =
+            tcl_lsp_db::compiler_check_diagnostics_uncached(src, &registry, "tcl8.6", None, None);
+        let grouped: Vec<_> = diags
+            .optimisations
+            .iter()
+            .filter(|o| o.group.is_some())
+            .collect();
+        assert_eq!(
+            grouped.len(),
+            2,
+            "fixture must produce the O127 pair to assert about: {:?}",
+            diags.optimisations,
+        );
+        assert!(
+            grouped.iter().any(|o| o.replacement.is_empty()),
+            "one member is the delete, with an empty replacement: {grouped:?}",
+        );
+
+        // Nothing disabled, no directives: the pair is intact and publishable.
+        let published = lift_compiler_diagnostics(
+            src,
+            &diags,
+            true,
+            &std::collections::HashSet::new(),
+            &std::collections::HashSet::new(),
+            &std::collections::HashMap::new(),
+        );
+        let o127: Vec<_> = published
+            .iter()
+            .filter(|d| matches!(&d.code, Some(tower_lsp_server::ls_types::NumberOrString::String(c)) if c == "O127"))
+            .collect();
+        assert_eq!(o127.len(), 2, "both members are published: {o127:?}");
+        for d in &o127 {
+            let Some(data) = d.data.as_ref() else {
+                continue;
+            };
+            assert!(
+                data.get("replacement").is_none(),
+                "a grouped member must not advertise its own edit alone — that \
+                 is the corrupting half-fix of #2149: {data}",
+            );
+            assert!(
+                data.get("group").is_some(),
+                "a grouped member's payload carries its group id (#2123): {data}",
+            );
+            let edits = data
+                .get("edits")
+                .and_then(serde_json::Value::as_array)
+                .expect("grouped payload carries the group's edits");
+            assert_eq!(
+                edits.len(),
+                2,
+                "the payload applies the whole pair, not one half: {data}",
+            );
+        }
     }
 
     /// Issue #2121: every XC code a published diagnostic carries must be a
