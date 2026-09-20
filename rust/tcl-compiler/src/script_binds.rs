@@ -47,9 +47,23 @@
 //!
 //! The registry already knows every binding spelling — `ArgRole::VarWrite`
 //! for an output operand, `ArgRole::LoopVarList` for a loop's own variables —
-//! and knows which words are scripts (`ArgRole::Body`, `OpaqueScript`), so
-//! this walks the word as a script, asks the registry per invocation, and
-//! recurses into the script-shaped words. No command is named here.
+//! so this walks the word as a script, asks the registry per invocation, and
+//! recurses into the nested bodies. No command is named here.
+//!
+//! Two things the walk has to get right, or it silences findings rather than
+//! false ones:
+//!
+//! * **Only a same-frame body counts.** `proc p {} {set x 1}` binds `x` in
+//!   `p`'s frame, so a `$x` beside it in the outer script still reads the
+//!   enclosing frame's variable. `plain_body_arg_indices` is the registry's
+//!   generic answer for that — every `BodyKind::Plain` body, and none of the
+//!   `Structural` ones (`proc`, `uplevel`, `namespace eval`, the `oo::`
+//!   definers). `ArgRole::OpaqueScript` is excluded too: by contract it is
+//!   not executed here at all.
+//! * **A variable list is a Tcl list.** `foreach {{first last}} …` binds one
+//!   variable named `first last`; splitting the word on whitespace yields
+//!   `{first` and `last}` and matches neither, leaving the false W210 this
+//!   module exists to remove.
 
 use tcl_registry::{ArgRole, CommandRegistry};
 
@@ -109,6 +123,7 @@ fn binds(
     if depth == 0 {
         return false;
     }
+    let list_rules = tcl_syntax::word_rules::WordValueRules::of_profile(registry.profile());
     for segment in crate::segmenter::segment_commands_with_offset_and_config(script, 0, config) {
         let Some((command, args)) = segment.texts.split_first() else {
             continue;
@@ -134,21 +149,38 @@ fn binds(
             return true;
         }
         // A loop's own variables: `foreach {k v} $pairs …` binds `k` and `v`.
+        //
+        // Split with the dialect's own list grammar, as the SSA
+        // loop-variable harvester does, not on whitespace:
+        // `foreach {{first last}} …` binds one variable whose name contains a
+        // space, and a whitespace split reads it as the two fragments
+        // `{first` and `last}` and finds neither.
         if at(ArgRole::LoopVarList)
             .into_iter()
             .filter_map(|index| args.get(index))
-            .any(|list| {
-                list.split_whitespace()
-                    .any(|word| crate::naming::normalise_var_name(word) == name)
-            })
+            .filter_map(|list| list_rules.split_list(list).ok())
+            .flatten()
+            .any(|word| crate::naming::normalise_var_name(&word) == name)
         {
             return true;
         }
-        // A script-shaped word binds in the same frame its own command runs
-        // in, which for a body role is this one.
-        if [ArgRole::Body, ArgRole::OpaqueScript]
+        // Recurse only into a body that runs in *this* script's own frame.
+        //
+        // `plain_body_arg_indices` is the registry's generic answer to "is a
+        // dispatch nested in this body argument still the same context as the
+        // caller": it keeps `if` / `while` / `foreach` / `catch` / `eval` and
+        // drops every `BodyKind::Structural` body. That distinction is the
+        // whole question here. `proc p {} {set x 1}; puts $x` binds `x` in
+        // *p's* frame, so the `$x` beside it is still a read of the enclosing
+        // one and must keep its W210 — descending into `proc`'s body would
+        // silence a real finding. `uplevel`, `namespace eval` and the `oo::`
+        // definers are excluded for the same reason.
+        //
+        // `ArgRole::OpaqueScript` goes with it: the registry's contract is
+        // that such a word is not executed here at all.
+        if registry
+            .plain_body_arg_indices(command, &args)
             .into_iter()
-            .flat_map(&at)
             .filter_map(|index| args.get(index))
             .any(|body| binds(body, name, ownership, registry, config, depth - 1))
         {
@@ -215,6 +247,32 @@ mod tests {
     #[test]
     fn an_array_element_write_binds_the_array() {
         assert!(binds("foreach k $ks { set map($k) 1 }\nparray map", "map"));
+    }
+
+    /// A definition body binds in the frame it will later run in, not in the
+    /// script that defines it — so the `$x` beside the `proc` is still a read
+    /// of the enclosing frame and must keep its finding. Descending into a
+    /// `BodyKind::Structural` body silenced it.
+    #[test]
+    fn a_definition_body_does_not_bind_in_the_defining_script() {
+        assert!(!binds("proc p {} {set x 1}\nputs $x", "x"));
+        assert!(!binds("namespace eval ns { set y 1 }\nputs $y", "y"));
+        assert!(!binds("uplevel 1 { set z 1 }\nputs $z", "z"));
+        // The same-frame bodies next to them still do bind.
+        assert!(binds("if {1} { set a 1 }\nputs $a", "a"));
+        assert!(binds("catch { set b 1 }\nputs $b", "b"));
+    }
+
+    /// A `foreach` variable list is a Tcl list, so one element may itself
+    /// contain whitespace. Splitting the word on spaces found neither
+    /// fragment.
+    #[test]
+    fn a_loop_variable_list_is_split_as_a_tcl_list() {
+        assert!(binds("foreach {{first last}} $rows { }", "first last"));
+        assert!(!binds("foreach {{first last}} $rows { }", "first"));
+        // The ordinary spelling is unchanged.
+        assert!(binds("foreach {k v} $pairs { }", "k"));
+        assert!(binds("foreach {k v} $pairs { }", "v"));
     }
 
     /// A one-argument `set` reads its operand rather than binding it, so it
