@@ -83,7 +83,26 @@ pub fn reverse<O: ValueOps>(ops: &mut O, s: &O::Value) -> O::Value {
     ops.new_string(out)
 }
 
-/// `string repeat str count` — `count` (clamped at 0) copies.
+/// `string repeat str count` — `count` (clamped at 0) copies, with the result
+/// size put to the allocator before anything is written.
+///
+/// The bound reproduces `TclStringRepeat`'s order of business (tclsh 9.0.4
+/// `generic/tclStringObj.c`), which matters because the three checks disagree
+/// about the same input:
+///
+/// 1. a zero-length string is *any* count's own answer — `string repeat {}
+///    9223372036854775807` is the empty string, not an error, because C returns
+///    before it ever looks at `count`;
+/// 2. `count > TCL_SIZE_MAX - 1` is `max size for a Tcl value (…) exceeded`;
+/// 3. anything else that will not fit is `string size overflow: unable to alloc
+///    N bytes`, where `N` is `count * length` computed in `Tcl_Size` and
+///    therefore **wrapping** — tclsh 9.0.4 really does report `string repeat ab
+///    5000000000000000000` as `unable to alloc -8446744073709551616 bytes`, so
+///    the byte count here wraps too rather than reporting the true product.
+///
+/// `length` is the **byte** length of the string rep, matching C's non-unichar
+/// branch: tclsh 9.0.4 reports `string repeat \u00e9 100000000000` as
+/// `200000000000 bytes`, two per character, not one.
 pub fn repeat<O: ValueOps>(
     ops: &mut O,
     s: &O::Value,
@@ -94,8 +113,39 @@ pub fn repeat<O: ValueOps>(
         return Ok(ops.empty());
     }
     let src = ops.as_str(s);
+    let len = i64::try_from(src.len()).unwrap_or(i64::MAX);
+    if len == 0 {
+        return Ok(ops.empty());
+    }
+    if n > i64::MAX - 1 {
+        return Err(CmdError::new(format!(
+            "max size for a Tcl value ({} bytes) exceeded",
+            i64::MAX
+        )));
+    }
+    let total = n.wrapping_mul(len);
+    let overflow = || {
+        CmdError::new(format!(
+            "string size overflow: unable to alloc {total} bytes"
+        ))
+    };
+    // C has no fixed ceiling here: `TclStringRepeat` *attempts* the allocation
+    // and reports `string size overflow` only when the allocator refuses, so
+    // its real limit is the host's memory — tclsh 9.0.4 builds `string repeat
+    // ab 2000000000` (4 GB) on a large enough box. Ask the allocator the same
+    // question rather than picking a cap of our own, which would turn away a
+    // script C serves; `try_reserve_exact` turns the refusal into an error the
+    // two embedding runtimes can report instead of an abort they cannot
+    // recover from (the unbounded `str::repeat` this replaces aborted the
+    // process with `memory allocation of 200000000000 bytes failed`).
+    let capacity = usize::try_from(total).map_err(|_| overflow())?;
+    let mut out = String::new();
+    out.try_reserve_exact(capacity).map_err(|_| overflow())?;
     let n = usize::try_from(n).unwrap_or(0);
-    Ok(ops.new_string(src.repeat(n)))
+    for _ in 0..n {
+        out.push_str(&src);
+    }
+    Ok(ops.new_string(out))
 }
 
 /// The result form of [`compare`].
@@ -307,6 +357,55 @@ pub fn simple_lower(c: char) -> char {
         return fit(c, m);
     }
     simple(c, c.to_lowercase())
+}
+
+/// The character at byte offset `i` of `bytes`, with its encoded length — one
+/// `TclUtfToUCS4` step.
+///
+/// A byte that does not begin a well-formed UTF-8 sequence yields that byte's
+/// own value as the character and advances one, as C does, so a key that is not
+/// valid UTF-8 still walks (byte by byte) instead of derailing the caller.
+pub(crate) fn utf8_char_at(bytes: &[u8], i: usize) -> Option<(char, usize)> {
+    let b0 = *bytes.get(i)?;
+    let len = match b0 {
+        0xC0..=0xDF => 2,
+        0xE0..=0xEF => 3,
+        0xF0..=0xF7 => 4,
+        // ASCII, a stray continuation byte, or an invalid lead byte: one byte,
+        // valued as itself.
+        _ => return Some((char::from(b0), 1)),
+    };
+    match bytes.get(i..i + len).map(core::str::from_utf8) {
+        Some(Ok(s)) => s.chars().next().map(|c| (c, len)),
+        _ => Some((char::from(b0), 1)),
+    }
+}
+
+/// The `-nocase` fold of a whole UTF-8 string — `Tcl_UtfToLower`, i.e. every
+/// character through [`simple_lower`], re-encoded.
+///
+/// This is the byte-shaped face of the crate's *one* case fold, for the
+/// comparison cores that carry their keys as bytes ([`crate::sort`],
+/// [`crate::lsearch`], [`crate::switch`]) rather than as `char`s. It is the
+/// fold, not a second one: the per-character mapping is `simple_lower` and
+/// nothing else, over the same [`utf8_char_at`] walk
+/// [`crate::sort::dictionary_compare`] uses.
+///
+/// Folding then comparing the *encodings* is the same verdict as C's
+/// `TclUtfCasecmp`, which walks characters and compares
+/// `Tcl_UniCharToLower(c1) - Tcl_UniCharToLower(c2)`: UTF-8 is order-preserving,
+/// so byte-lexicographic order over folded UTF-8 is code-point order over folded
+/// characters.
+#[must_use]
+pub fn fold_lower_bytes(bytes: &[u8]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut buf = [0u8; 4];
+    let mut i = 0;
+    while let Some((c, len)) = utf8_char_at(bytes, i) {
+        out.extend_from_slice(simple_lower(c).encode_utf8(&mut buf).as_bytes());
+        i += len;
+    }
+    out
 }
 
 /// `Tcl_UniCharToTitle` — the simple titlecase mapping of one character, which
@@ -1048,5 +1147,57 @@ mod tests {
         assert_eq!(last_of("an", "banana", Some("2")), 1);
         // No match → -1.
         assert_eq!(last_of("z", "banana", None), -1);
+    }
+
+    fn repeat_of(s: &str, count: &str) -> Result<String, CmdError> {
+        let mut ops = StrOps;
+        repeat(&mut ops, &s.to_owned(), &count.to_owned())
+    }
+
+    #[test]
+    fn string_repeat_bounds_the_result_before_allocating() {
+        // Regression (#2127): `repeat` used to hand `count` straight to
+        // `str::repeat`, so `string repeat ab 100000000000` attempted a 200 GB
+        // allocation. C refuses first — tclsh 9.0.4/9.1b0:
+        //   % string repeat ab 100000000000
+        //   string size overflow: unable to alloc 200000000000 bytes
+        let err = repeat_of("ab", "100000000000").expect_err("bounded");
+        assert_eq!(
+            err.message(),
+            "string size overflow: unable to alloc 200000000000 bytes"
+        );
+        // The byte count is the *byte* length of the string rep, not the
+        // character count: tclsh 9.0.4 reports `string repeat \u00e9
+        // 100000000000` as 200000000000 bytes too.
+        let err = repeat_of("\u{e9}", "100000000000").expect_err("bounded");
+        assert_eq!(
+            err.message(),
+            "string size overflow: unable to alloc 200000000000 bytes"
+        );
+        // `count * length` is computed in `Tcl_Size` and wraps, and C reports
+        // the wrapped value verbatim — tclsh 9.0.4:
+        //   % string repeat ab 5000000000000000000
+        //   string size overflow: unable to alloc -8446744073709551616 bytes
+        let err = repeat_of("ab", "5000000000000000000").expect_err("bounded");
+        assert_eq!(
+            err.message(),
+            "string size overflow: unable to alloc -8446744073709551616 bytes"
+        );
+        // `count > TCL_SIZE_MAX - 1` is a different message — tclsh 9.0.4:
+        //   % string repeat ab 9223372036854775807
+        //   max size for a Tcl value (9223372036854775807 bytes) exceeded
+        let err = repeat_of("ab", "9223372036854775807").expect_err("bounded");
+        assert_eq!(
+            err.message(),
+            "max size for a Tcl value (9223372036854775807 bytes) exceeded"
+        );
+        // …but an empty string short-circuits before either check, so even that
+        // count is the empty string and not an error (tclsh 9.0.4:
+        // `string repeat {} 9223372036854775807` → {}).
+        assert_eq!(repeat_of("", "9223372036854775807").unwrap(), "");
+        // Ordinary repeats are untouched.
+        assert_eq!(repeat_of("ab", "3").unwrap(), "ababab");
+        assert_eq!(repeat_of("ab", "0").unwrap(), "");
+        assert_eq!(repeat_of("ab", "-1").unwrap(), "");
     }
 }

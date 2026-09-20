@@ -31,6 +31,8 @@
 
 use core::cmp::Ordering;
 
+use crate::string::{self, utf8_char_at};
+
 /// A non-command comparison mode for `lsort`/`lsearch`.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum SortMode {
@@ -130,26 +132,40 @@ pub fn dictionary_compare(left: &[u8], right: &[u8]) -> Ordering {
             }
             continue;
         }
-        match (left.get(li).copied(), right.get(ri).copied()) {
-            (Some(l), Some(r)) => {
-                let (ll, rl) = (l.to_ascii_lowercase(), r.to_ascii_lowercase());
-                if ll != rl {
-                    return ll.cmp(&rl);
-                }
-                if secondary == 0 && l != r {
-                    secondary = i64::from(l) - i64::from(r);
-                }
-                li += 1;
-                ri += 1;
+        // Outside a digit run C steps a *character*, not a byte, and folds it
+        // with `Tcl_UniCharToLower` (#2125): tclsh 8.4.20 onwards sort
+        // `[list \u00c0 \u00e1 \u00c2]` as `\u00c0 \u00e1 \u00c2`, which is
+        // folded order (\u00e0, \u00e1, \u00e2) — byte order would give `\u00c0 \u00c2 \u00e1`.
+        let (Some((l, ln)), Some((r, rn))) = (utf8_char_at(left, li), utf8_char_at(right, ri))
+        else {
+            // One side (or both) has run out. C leaves the character loop here
+            // and compares the *bytes* at the two cursors — one of them the
+            // terminating NUL — so this exit stays byte-wise.
+            let byte = |b: Option<&u8>| b.map_or(0i64, |&c| i64::from(c));
+            let diff = byte(left.get(li)) - byte(right.get(ri));
+            if diff != 0 {
+                return diff.cmp(&0);
             }
-            (l, r) => {
-                let diff = l.map_or(0i64, i64::from) - r.map_or(0i64, i64::from);
-                if diff != 0 {
-                    return diff.cmp(&0);
-                }
-                return secondary.cmp(&0);
+            return secondary.cmp(&0);
+        };
+        let (ll, rl) = (string::simple_lower(l), string::simple_lower(r));
+        if ll != rl {
+            return ll.cmp(&rl);
+        }
+        // C's secondary is the *case* verdict, not the code-point difference:
+        // "upper on the left" sorts first whichever way the two code points
+        // happen to run. They only differ for a script whose uppercase sits
+        // above its lowercase (Georgian Mtavruli), but C's rule is the one to
+        // reproduce.
+        if secondary == 0 {
+            if l.is_uppercase() && r.is_lowercase() {
+                secondary = -1;
+            } else if r.is_uppercase() && l.is_lowercase() {
+                secondary = 1;
             }
         }
+        li += ln;
+        ri += rn;
     }
 }
 
@@ -167,7 +183,11 @@ pub fn key_compare(mode: SortMode, nocase: bool, a: &[u8], b: &[u8]) -> Ordering
             .unwrap_or(Ordering::Equal),
         SortMode::Ascii => {
             if nocase {
-                a.to_ascii_lowercase().cmp(&b.to_ascii_lowercase())
+                // Full-range fold, as C's `TclUtfCasecmp` (#2125): tclsh
+                // 8.5.19 onwards sort `[list \u00c9 \u00e9 a B]` as
+                // `a B \u00c9 \u00e9` — the two E-acutes compare *equal* and
+                // keep input order. An ASCII fold leaves them unequal.
+                string::fold_lower_bytes(a).cmp(&string::fold_lower_bytes(b))
             } else {
                 a.cmp(b)
             }
@@ -248,6 +268,85 @@ mod tests {
         assert_eq!(
             key_compare(SortMode::Integer, false, b"x", b"0"),
             Ordering::Equal
+        );
+    }
+
+    #[test]
+    fn nocase_and_dictionary_fold_the_full_unicode_range() {
+        // Regression (#2125): both folds were `to_ascii_lowercase`, so every
+        // non-ASCII letter compared by raw bytes.
+        //
+        // tclsh 8.5.19 / 8.6.18 / 9.0.4 / 9.1b0:
+        //   % lsort -nocase [list É é a B]   ;# a B É é
+        // i.e. the two E-acutes compare *equal* and keep input order.
+        assert_eq!(
+            key_compare(
+                SortMode::Ascii,
+                true,
+                "\u{c9}".as_bytes(),
+                "\u{e9}".as_bytes()
+            ),
+            Ordering::Equal
+        );
+        assert_eq!(
+            key_compare(
+                SortMode::Ascii,
+                true,
+                "\u{410}".as_bytes(),
+                "\u{430}".as_bytes()
+            ),
+            Ordering::Equal
+        );
+        // `İ` folds to `i` (`Tcl_UniCharToLower`), so the fold must be the
+        // simple 1:1 mapping, not Rust's full one. tclsh 8.5.19 onwards:
+        //   % lsort -nocase [list İ i]   ;# İ i  (equal, input order)
+        assert_eq!(
+            key_compare(SortMode::Ascii, true, "\u{130}".as_bytes(), b"i"),
+            Ordering::Equal
+        );
+        // A folded difference still orders by the folded code points, not the
+        // raw ones: tclsh sorts [list À á Â] as À á
+        // Â under both -nocase and -dictionary (à < á < â),
+        // where a byte fold would put Â (0xc2) before á (0xe1).
+        assert_eq!(
+            key_compare(
+                SortMode::Ascii,
+                true,
+                "\u{e1}".as_bytes(),
+                "\u{c2}".as_bytes()
+            ),
+            Ordering::Less
+        );
+        assert_eq!(
+            dictionary_compare("\u{e1}".as_bytes(), "\u{c2}".as_bytes()),
+            Ordering::Less
+        );
+        assert_eq!(
+            dictionary_compare("\u{c9}".as_bytes(), "\u{e9}".as_bytes()),
+            Ordering::Less // equal folded; `-dictionary`'s upper-first secondary
+        );
+        assert_eq!(
+            dictionary_compare("\u{130}".as_bytes(), b"i"),
+            Ordering::Less // equal folded, upper on the left
+        );
+        // Case-sensitive comparison is untouched.
+        assert_eq!(
+            key_compare(
+                SortMode::Ascii,
+                false,
+                "\u{c9}".as_bytes(),
+                "\u{e9}".as_bytes()
+            ),
+            Ordering::Less
+        );
+        // Non-UTF-8 keys still compare instead of derailing the walk.
+        assert_eq!(
+            key_compare(SortMode::Ascii, true, &[0xffu8], &[0xffu8]),
+            Ordering::Equal
+        );
+        assert_eq!(
+            dictionary_compare(&[0xffu8, b'a'], &[0xffu8, b'A']),
+            Ordering::Greater
         );
     }
 }

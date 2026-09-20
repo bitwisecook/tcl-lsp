@@ -68,6 +68,13 @@ fn run(src: &str) -> (bool, String) {
 /// `tclsh` 9.0.3.
 const CASES: &[(&str, &str)] = &[
     (r#"regexp ab*c aaabbbccc"#, "1"),
+    // `-about` end to end, including the `re_info` flag list the engine
+    // records as it compiles — the half that needs `AreEngine::info_names`,
+    // and the half Tcl's own `regexp-20.2` cannot discriminate because its
+    // pattern has no flags. tclsh8.6.18 and tclsh9.0.4 agree on all three.
+    (r#"regexp -about {a(b)c}"#, "1 {}"),
+    (r#"regexp -about {(?:a)}"#, "0 REG_UNONPOSIX"),
+    (r#"regexp -about {}"#, "0 {REG_UUNSPEC REG_UEMPTYMATCH}"),
     (r#"regexp -inline {a(b*)c} xabbbcx"#, "abbbc bbb"),
     (r#"regexp -indices -inline {a(b*)c} xabbbcx"#, "{1 5} {2 4}"),
     (r#"regexp -all -inline {[0-9]+} "a12b345c""#, "12 345"),

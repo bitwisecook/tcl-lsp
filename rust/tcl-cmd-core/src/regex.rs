@@ -40,6 +40,7 @@
 //! Semantics follow tclsh 9.0, which `runtime/rust`'s linked ARE engine
 //! reproduces exactly.
 
+use tcl_dialect::TclVersion;
 use tcl_syntax::value::ValueOps;
 
 use crate::prefix::OptionTable;
@@ -88,6 +89,24 @@ pub trait RegexEngine {
 
     /// Number of capturing subexpressions (so the whole match plus this many).
     fn nsub(re: &Self::Regex) -> usize;
+
+    /// The `re_info` flag names the engine recorded while compiling, in
+    /// `re_info` bit order — the second element of `regexp -about`
+    /// (`REG_UBACKREF`, `REG_ULOOKAHEAD`, `REG_UBOUNDS`, `REG_UBRACES`,
+    /// `REG_UBSALNUM`, `REG_UPBOTCH`, `REG_UBBS`, `REG_UNONPOSIX`,
+    /// `REG_UUNSPEC`, `REG_UUNPORT`, `REG_ULOCALE`, `REG_UEMPTYMATCH`,
+    /// `REG_UIMPOSSIBLE`, `REG_USHORTEST`; `TclRegAbout` in `tclRegexp.c`).
+    ///
+    /// Defaulted to "none recorded" rather than made required: `re_info` is
+    /// the compiler's own bookkeeping — which constructs the pattern used —
+    /// and nothing out here can recompute it from the pattern bytes without
+    /// being a second ARE parser. An engine that tracks it (the Tcl ARE engine
+    /// does, as `tcl_regex::Regex::info`) overrides this; one that does not
+    /// still answers `-about` with the right subexpression count, which is the
+    /// half of the answer every caller actually branches on.
+    fn info_names(_re: &Self::Regex) -> Vec<&'static str> {
+        Vec::new()
+    }
 
     /// Find the leftmost match in `cps` (the whole subject as codepoints) at or
     /// after character `offset`. `notbol` requests that `^` not match at
@@ -322,20 +341,48 @@ pub fn regexp<O: ValueOps, E: RegexEngine>(
         }
     }
 
-    if about {
-        return Err(RegexError(b"regexp -about is not yet supported".to_vec()));
-    }
     let rest = &args[i..];
-    if rest.len() < 2 {
+    // C: `(objc - i) < (2 - about)`. `-about` never looks at a subject, so the
+    // pattern alone is enough — tclsh 8.4.20/8.5.19/8.6.18/9.0.4/9.1b0 all
+    // answer `regexp -about {a(b)c}` with `1 {}` and give the same answer for
+    // `regexp -about {(a)} extraarg`, while bare `regexp -about` is still a
+    // wrong-# args.
+    if rest.len() + usize::from(about) < 2 {
         return Err(wrong_args(REGEXP_USAGE));
     }
-    if inline && rest.len() > 2 {
+    // C tests `-inline` against the *exact* remaining count and does it before
+    // branching to `-about`, so `regexp -about -inline {(a)}` is the mix error
+    // rather than an about answer (tclsh 8.4.20–9.1b0). Without `-about` the
+    // arity check above has already forced `>= 2`, so `!= 2` is the old `> 2`.
+    if inline && rest.len() != 2 {
         return Err(RegexError(
             b"regexp match variables not allowed when using -inline".to_vec(),
         ));
     }
 
     let pattern = rest[0];
+    if about {
+        // `TclRegAbout` (`tclRegexp.c`): a two-element list of the
+        // subexpression count and the engine's `re_info` flag names. The
+        // compile flags still apply — `regexp -about -expanded {a b}` is
+        // `0 REG_UNONPOSIX` on every release — but nothing else about the
+        // command runs: no subject decode, no `-start`, no match loop, and
+        // `-indices`/`-all` are simply ignored (all tclsh-verified, 8.4.20
+        // through 9.1b0).
+        let re = E::compile(pattern, c.flags).map_err(|d| compile_error(&d))?;
+        let nsubs = i64::try_from(E::nsub(&re)).unwrap_or(i64::MAX);
+        let count = ops.new_int(nsubs);
+        let flags: Vec<O::Value> = E::info_names(&re)
+            .into_iter()
+            .map(|name| ops.new_str(name))
+            .collect();
+        let info = ops.new_list(flags);
+        // `Inline` is "the command result *is* this value, and no match
+        // variable is written", which is exactly `-about`'s contract too — so
+        // it carries the answer rather than the result enum gaining a variant
+        // every adapter would have to learn.
+        return Ok(RegexpResult::Inline(ops.new_list(vec![count, info])));
+    }
     let str_bytes = rest[1];
     let (cps, byteoff) = decode_utf8(str_bytes);
     let char_len = cps.len();
@@ -472,15 +519,29 @@ const REGSUB_USAGE: &[u8] = b"regsub ?-option ...? exp string subSpec ?varName?"
 // `TCL_EXACT` like `regexp`'s — and here even tclsh's bytecode compiler
 // (`TclCompileRegsubCmd`) only fast-paths a literal `-all`, so `regsub` is
 // exact-only in every context.
-const RS_ALL: usize = 0;
-const RS_COMMAND: usize = 1;
-const RS_EXPANDED: usize = 2;
-const RS_LINE: usize = 3;
-const RS_LINESTOP: usize = 4;
-const RS_LINEANCHOR: usize = 5;
-const RS_NOCASE: usize = 6;
-const RS_START: usize = 7;
-const REGSUB_NAMES: [&str; 9] = [
+//
+// Unlike `regexp`'s, this table *changed shape* at 9.0: TIP #463 inserted
+// `-command` after `-all` and shifted `-nocase` into alphabetical order. The
+// error noun moved too — `Tcl_GetIndexFromObj`'s `msg` argument is `"switch"`
+// through 8.5 and `"option"` from 8.6 (`tclCmdMZ.c:576` / `:481` / `:521`) —
+// and both are visible in the message a pre-9.0 `regsub -command` earns:
+//
+//   tclsh8.4.20 / 8.5.19: bad switch "-command": must be -all, -nocase,
+//       -expanded, -line, -linestop, -lineanchor, -start, or --
+//   tclsh8.6.18:          bad option "-command": must be -all, -nocase,
+//       -expanded, -line, -linestop, -lineanchor, -start, or --
+//   tclsh9.0.4 / 9.1b0:   regsub -command {a} abc {string toupper} -> Abc
+const REGSUB_NAMES_8: [&str; 8] = [
+    "-all",
+    "-nocase",
+    "-expanded",
+    "-line",
+    "-linestop",
+    "-lineanchor",
+    "-start",
+    "--",
+];
+const REGSUB_NAMES_9: [&str; 9] = [
     "-all",
     "-command",
     "-expanded",
@@ -491,60 +552,179 @@ const REGSUB_NAMES: [&str; 9] = [
     "-start",
     "--",
 ];
-const REGSUB_OPTIONS: OptionTable<'static> = OptionTable::exact_only("option", &REGSUB_NAMES);
+const REGSUB_OPTIONS_8_4: OptionTable<'static> = OptionTable::exact_only("switch", &REGSUB_NAMES_8);
+const REGSUB_OPTIONS_8_6: OptionTable<'static> = OptionTable::exact_only("option", &REGSUB_NAMES_8);
+const REGSUB_OPTIONS_9_0: OptionTable<'static> = OptionTable::exact_only("option", &REGSUB_NAMES_9);
 
-/// Drive `regsub` over the engine `E`. `args` is the command's arguments
-/// **without** the command name. The result string + count + optional var name
-/// are returned for the adapter to apply.
+/// The `regsub` option table for `version`.
+fn regsub_options(version: TclVersion) -> &'static OptionTable<'static> {
+    if version >= TclVersion::V9_0 {
+        &REGSUB_OPTIONS_9_0
+    } else if version >= TclVersion::V8_6 {
+        &REGSUB_OPTIONS_8_6
+    } else {
+        &REGSUB_OPTIONS_8_4
+    }
+}
+
+/// A `regsub` failure once a `-command` prefix can be evaluated: either
+/// `regsub`'s own diagnostic, or the callback's error passed through.
+///
+/// The evaluation error stays the adapter's own type (as [`crate::lsort`]'s
+/// `sort_command` keeps its comparator's): a script failure carries a Tcl
+/// return code, an `errorCode` and an `errorInfo` trailer — C appends
+/// `\n    (-command substitution computation script)` to the latter — and none
+/// of that is expressible as this module's ready-to-report message bytes.
+pub enum RegsubError<Err> {
+    /// An option, argument, pattern or command-prefix error from `regsub`.
+    Regex(RegexError),
+    /// The `-command` prefix's evaluation failed.
+    Eval(Err),
+}
+
+impl<Err> From<RegexError> for RegsubError<Err> {
+    fn from(e: RegexError) -> Self {
+        RegsubError::Regex(e)
+    }
+}
+
+/// Split a `-command` prefix into its words (C's `TclListObjGetElements` on
+/// `objv[2]`), rejecting an empty one.
+///
+/// tclsh 9.0.4 / 9.1b0:
+///   % regsub -command {a} abc {}
+///   command prefix must be a list of at least one element
+fn command_prefix(subspec: &[u8]) -> Result<Vec<Vec<u8>>, RegexError> {
+    let text = core::str::from_utf8(subspec)
+        .map_err(|_| RegexError(b"command prefix must be a valid list".to_vec()))?;
+    let words = tcl_syntax::list::split_list(text)
+        .map_err(|e| RegexError(e.message().as_bytes().to_vec()))?;
+    if words.is_empty() {
+        return Err(RegexError(
+            b"command prefix must be a list of at least one element".to_vec(),
+        ));
+    }
+    Ok(words
+        .into_iter()
+        .map(|w| w.into_owned().into_bytes())
+        .collect())
+}
+
+/// Scan `regsub`'s leading options against `options`, returning the shared
+/// compile/`-all`/`-start` state, whether `-command` was given, and the index
+/// of the first non-option argument.
 ///
 /// # Errors
-/// Option/arg/compile errors as ready-to-report [`RegexError`] messages.
-pub fn regsub<E: RegexEngine>(args: &[&[u8]]) -> Result<RegsubResult, RegexError> {
+/// A bad option, in `options`' own noun and enumeration.
+fn regsub_option_scan(
+    args: &[&[u8]],
+    options: &OptionTable<'static>,
+) -> Result<(Common, bool, usize), RegexError> {
     let mut c = Common::default();
-
+    let mut command = false;
     let mut i = 0;
     while i < args.len() {
         let name = args[i];
         if name.first() != Some(&b'-') {
             break;
         }
-        let idx = REGSUB_OPTIONS.index_of(name).map_err(RegexError)?;
+        let idx = options.index_of(name).map_err(RegexError)?;
         i += 1;
-        match idx {
-            RS_ALL => c.all = true,
-            RS_COMMAND => {
-                return Err(RegexError(b"regsub -command is not yet supported".to_vec()));
-            }
-            RS_EXPANDED => c.flags.expanded = true,
-            RS_LINE => {
+        // Matched by name, not by table index: the 8.x and 9.x tables list the
+        // same options in different orders (see the tables above), so an index
+        // means nothing without knowing which one answered.
+        match options.names()[idx] {
+            "-all" => c.all = true,
+            "-command" => command = true,
+            "-expanded" => c.flags.expanded = true,
+            "-line" => {
                 c.flags.linestop = true;
                 c.flags.lineanchor = true;
             }
-            RS_LINESTOP => c.flags.linestop = true,
-            RS_LINEANCHOR => c.flags.lineanchor = true,
-            RS_NOCASE => c.flags.nocase = true,
-            RS_START => match args.get(i) {
+            "-linestop" => c.flags.linestop = true,
+            "-lineanchor" => c.flags.lineanchor = true,
+            "-nocase" => c.flags.nocase = true,
+            "-start" => match args.get(i) {
                 Some(v) => {
                     c.start = Some(v.to_vec());
                     i += 1;
                 }
                 // A trailing `-start` ends the options (C's `goto
-                // endOfForLoop`); the arity check below then reports it.
+                // endOfForLoop`); the caller's arity check then reports it.
                 None => break,
             },
             // `--`: explicit end of options.
             _ => break,
         }
     }
+    Ok((c, command, i))
+}
+
+/// Drive `regsub` over the engine `E`, **without** a script evaluator. `args`
+/// is the command's arguments without the command name; the result string +
+/// count + optional var name are returned for the adapter to apply.
+///
+/// The option table is 9.0's (this crate's baseline), so `-command` parses —
+/// but serving it means running a Tcl command prefix, which this entry point
+/// has no way to do. It therefore refuses, and, like C, only once a
+/// substitution is actually due: a `-command` call whose pattern never matches
+/// still returns the subject unchanged, and an unusable command prefix is still
+/// rejected up front, both as tclsh 9.0.4 does. A caller that *can* evaluate —
+/// a runtime rather than the registry's const-folder — calls [`regsub_eval`]
+/// instead and gets `-command` for real.
+///
+/// # Errors
+/// Option/arg/compile errors as ready-to-report [`RegexError`] messages.
+pub fn regsub<E: RegexEngine>(args: &[&[u8]]) -> Result<RegsubResult, RegexError> {
+    regsub_eval::<E, RegexError>(args, TclVersion::V9_0, |_| {
+        Err(RegexError(b"regsub -command is not yet supported".to_vec()))
+    })
+    .map_err(|e| match e {
+        RegsubError::Regex(e) | RegsubError::Eval(e) => e,
+    })
+}
+
+/// Drive `regsub` over the engine `E` for `version`, evaluating a `-command`
+/// prefix through `eval`.
+///
+/// `eval` receives the whole command word list — the prefix's own words
+/// followed by the matched text and each submatch (a non-participating
+/// submatch is the empty string) — exactly as C hands it to `Tcl_EvalObjv`,
+/// and returns the replacement text. It is called once per substitution, so a
+/// `-all` run calls it per match; a pattern that never matches never calls it.
+///
+/// `version` selects C's option table and the noun its errors use, so
+/// `-command` is refused before 9.0 in that release's own words rather than
+/// served or refused generically.
+///
+/// # Errors
+/// [`RegsubError::Regex`] for `regsub`'s own diagnostics, [`RegsubError::Eval`]
+/// for a failing command prefix.
+pub fn regsub_eval<E: RegexEngine, Err>(
+    args: &[&[u8]],
+    version: TclVersion,
+    mut eval: impl FnMut(&[Vec<u8>]) -> Result<Vec<u8>, Err>,
+) -> Result<RegsubResult, RegsubError<Err>> {
+    let (c, command, i) = regsub_option_scan(args, regsub_options(version))?;
 
     let rest = &args[i..];
     if rest.len() < 3 || rest.len() > 4 {
-        return Err(wrong_args(REGSUB_USAGE));
+        return Err(wrong_args(REGSUB_USAGE).into());
     }
     let pattern = rest[0];
     let str_bytes = rest[1];
     let subspec = rest[2];
     let var = rest.get(3).map(|&v| v.to_vec());
+
+    // C splits and checks the command prefix *before* the match loop, so an
+    // unusable prefix is an error even when the pattern never matches (tclsh
+    // 9.0.4: `regsub -command {z} abc {}` is still `command prefix must be a
+    // list of at least one element`).
+    let prefix = if command {
+        Some(command_prefix(subspec)?)
+    } else {
+        None
+    };
 
     let (cps, byteoff) = decode_utf8(str_bytes);
     let char_len = cps.len();
@@ -574,8 +754,26 @@ pub fn regsub<E: RegexEngine>(args: &[&[u8]]) -> Result<RegsubResult, RegexError
         let m0 = matches[0];
         // Text before this match.
         result.extend_from_slice(&str_bytes[byteoff[offset]..byteoff[m0.so]]);
-        // The substitution spec, with `&`/`\N` expanded.
-        apply_subspec(&mut result, subspec, &matches, nsubs, str_bytes, &byteoff);
+        if let Some(prefix) = prefix.as_ref() {
+            // `-command`: the prefix's words, then the whole match and each
+            // submatch as further words, evaluated as one command whose result
+            // is the replacement (C builds the same word list for
+            // `Tcl_EvalObjv`).
+            let mut words = prefix.clone();
+            words.extend((0..=nsubs).map(|k| match matches.get(k) {
+                Some(rm) if rm.so != NO_MATCH => {
+                    slice_match(str_bytes, &byteoff, rm.so, rm.eo).to_vec()
+                }
+                // A submatch that did not participate is an empty word, not a
+                // missing one (tclsh 9.0.4: `regsub -command {(a)|(b)} ab cap`
+                // passes `a a {}`).
+                _ => Vec::new(),
+            }));
+            result.extend_from_slice(&eval(&words).map_err(RegsubError::Eval)?);
+        } else {
+            // The substitution spec, with `&`/`\N` expanded.
+            apply_subspec(&mut result, subspec, &matches, nsubs, str_bytes, &byteoff);
+        }
 
         // Advance, always consuming at least one char on an empty match.
         if m0.eo == offset {
@@ -720,5 +918,329 @@ mod tests {
         assert_eq!(slice_match(bytes, &byteoff, 4, 1), b"");
         // The `NO_MATCH` sentinel as an index → empty (never indexes).
         assert_eq!(slice_match(bytes, &byteoff, NO_MATCH, NO_MATCH), b"");
+    }
+
+    /// A throwaway `ValueOps` whose `new_list` renders real Tcl list syntax, so
+    /// an assertion reads exactly as tclsh prints the answer.
+    #[derive(Default)]
+    struct ListOps;
+
+    impl ValueOps for ListOps {
+        type Value = String;
+        fn new_str(&mut self, s: &str) -> String {
+            s.to_owned()
+        }
+        fn new_int(&mut self, n: i64) -> String {
+            n.to_string()
+        }
+        fn new_double(&mut self, f: f64) -> String {
+            tcl_syntax::number::format_double(f)
+        }
+        fn new_bool(&mut self, b: bool) -> String {
+            (if b { "1" } else { "0" }).to_owned()
+        }
+        fn new_list(&mut self, items: Vec<String>) -> String {
+            tcl_syntax::list::join_list(items)
+        }
+        fn as_str(&mut self, v: &String) -> std::rc::Rc<str> {
+            std::rc::Rc::from(v.as_str())
+        }
+        fn as_int(&mut self, v: &String) -> Result<i64, tcl_syntax::value::ValueError> {
+            v.parse()
+                .map_err(|_| tcl_syntax::value::ValueError::NotInteger(v.clone()))
+        }
+        fn as_double(&mut self, _v: &String) -> Result<f64, tcl_syntax::value::ValueError> {
+            Ok(0.0)
+        }
+        fn as_bool(&mut self, _v: &String) -> Result<bool, tcl_syntax::value::ValueError> {
+            Ok(false)
+        }
+        fn list_elements(
+            &mut self,
+            v: &String,
+        ) -> Result<Vec<String>, tcl_syntax::value::ValueError> {
+            Ok(v.split_whitespace().map(str::to_owned).collect())
+        }
+    }
+
+    /// A stand-in engine for the *plumbing* tests. `regexp -about` and `regsub
+    /// -command` are pure plumbing over `nsub` / `info_names` / `exec`, so a
+    /// deliberately trivial provider exercises them without dragging the real
+    /// ARE engine (a different crate) into this one's unit tests.
+    ///
+    /// Its pattern language: the text matches **literally** once `(` and `)`
+    /// are dropped, `nsub` is the number of `(`, and every participating
+    /// subexpression reports the whole match. A pattern of `!bad` fails to
+    /// compile, so the compile-error path is reachable.
+    struct LiteralEngine;
+
+    struct LiteralRe {
+        text: Vec<i32>,
+        nsub: usize,
+    }
+
+    impl RegexEngine for LiteralEngine {
+        type Regex = LiteralRe;
+
+        fn compile(pattern: &[u8], _flags: RegexFlags) -> Result<LiteralRe, Vec<u8>> {
+            if pattern == b"!bad" {
+                return Err(b"brackets [] not balanced".to_vec());
+            }
+            let (cps, _) = decode_utf8(pattern);
+            Ok(LiteralRe {
+                nsub: cps.iter().filter(|&&c| c == i32::from(b'(')).count(),
+                text: cps
+                    .into_iter()
+                    .filter(|&c| c != i32::from(b'(') && c != i32::from(b')'))
+                    .collect(),
+            })
+        }
+
+        fn nsub(re: &LiteralRe) -> usize {
+            re.nsub
+        }
+
+        fn exec(
+            re: &mut LiteralRe,
+            cps: &[i32],
+            offset: usize,
+            _notbol: bool,
+        ) -> Option<Vec<RegMatch>> {
+            let n = re.text.len();
+            let at =
+                (offset..=cps.len().checked_sub(n)?).find(|&i| cps[i..i + n] == re.text[..])?;
+            let whole = RegMatch { so: at, eo: at + n };
+            Some(core::iter::repeat_n(whole, re.nsub + 1).collect())
+        }
+    }
+
+    /// The same engine with `re_info` flags, to prove `-about` renders the
+    /// engine's list in the engine's order.
+    struct FlaggyEngine;
+
+    impl RegexEngine for FlaggyEngine {
+        type Regex = LiteralRe;
+        fn compile(pattern: &[u8], flags: RegexFlags) -> Result<LiteralRe, Vec<u8>> {
+            LiteralEngine::compile(pattern, flags)
+        }
+        fn nsub(re: &LiteralRe) -> usize {
+            re.nsub
+        }
+        fn info_names(_re: &LiteralRe) -> Vec<&'static str> {
+            vec!["REG_UNONPOSIX", "REG_ULOCALE"]
+        }
+        fn exec(
+            re: &mut LiteralRe,
+            cps: &[i32],
+            offset: usize,
+            notbol: bool,
+        ) -> Option<Vec<RegMatch>> {
+            LiteralEngine::exec(re, cps, offset, notbol)
+        }
+    }
+
+    fn about(args: &[&[u8]]) -> Result<String, String> {
+        let mut ops = ListOps;
+        match regexp::<ListOps, LiteralEngine>(&mut ops, args) {
+            Ok(RegexpResult::Inline(v)) => Ok(v),
+            Ok(RegexpResult::Count { count, .. }) => Ok(count.to_string()),
+            Err(RegexError(m)) => Err(String::from_utf8_lossy(&m).into_owned()),
+        }
+    }
+
+    #[test]
+    fn regexp_about_reports_the_subexpression_count_and_info_list() {
+        // Regression (#2124): `-about` was refused outright with `regexp -about
+        // is not yet supported`, on every release. tclsh 8.4.20, 8.5.19,
+        // 8.6.18, 9.0.4 and 9.1b0 all answer:
+        //   % regexp -about {a(b)c}        ;# 1 {}
+        //   % regexp -about abc            ;# 0 {}
+        //   % regexp -about {(a)(b)}       ;# 2 {}
+        //   % regexp -about {(a)} extraarg ;# 1 {}   (the subject is ignored)
+        assert_eq!(about(&[b"-about", b"a(b)c"]).unwrap(), "1 {}");
+        assert_eq!(about(&[b"-about", b"abc"]).unwrap(), "0 {}");
+        assert_eq!(about(&[b"-about", b"(a)(b)"]).unwrap(), "2 {}");
+        assert_eq!(about(&[b"-about", b"(a)", b"extraarg"]).unwrap(), "1 {}");
+        assert_eq!(about(&[b"-about", b"--", b"(a)"]).unwrap(), "1 {}");
+        // `-all`/`-indices`/`-start` are ignored in about mode, and `-nocase`
+        // only reaches the compile.
+        assert_eq!(about(&[b"-all", b"-about", b"(a)"]).unwrap(), "1 {}");
+        assert_eq!(about(&[b"-about", b"-indices", b"(a)"]).unwrap(), "1 {}");
+        assert_eq!(
+            about(&[b"-about", b"-start", b"3", b"(a)"]).unwrap(),
+            "1 {}"
+        );
+        // The engine's `re_info` names become the second element, in order.
+        let mut ops = ListOps;
+        let Ok(RegexpResult::Inline(v)) =
+            regexp::<ListOps, FlaggyEngine>(&mut ops, &[b"-about", b"(a)"])
+        else {
+            panic!("-about must answer")
+        };
+        assert_eq!(v, "1 {REG_UNONPOSIX REG_ULOCALE}");
+    }
+
+    #[test]
+    fn regexp_about_keeps_cs_arity_and_inline_rules() {
+        // C's arity bound is `(objc - i) < (2 - about)`, so `-about` needs the
+        // pattern and nothing more, but a bare `regexp -about` is still a
+        // wrong-# args (tclsh 8.6.18/9.0.4/9.1b0 word it with `?-option ...?`).
+        assert_eq!(
+            about(&[b"-about"]).unwrap_err(),
+            "wrong # args: should be \"regexp ?-option ...? exp string \
+             ?matchVar? ?subMatchVar ...?\""
+        );
+        assert_eq!(
+            about(&[b"-about", b"--"]).unwrap_err(),
+            "wrong # args: should be \"regexp ?-option ...? exp string \
+             ?matchVar? ?subMatchVar ...?\""
+        );
+        // C checks `-inline` before branching to `-about`, so the mix error
+        // wins — tclsh 8.4.20 through 9.1b0:
+        //   % regexp -about -inline {(a)}
+        //   regexp match variables not allowed when using -inline
+        assert_eq!(
+            about(&[b"-about", b"-inline", b"(a)"]).unwrap_err(),
+            "regexp match variables not allowed when using -inline"
+        );
+        // A bad pattern is still a compile error, not an about answer.
+        assert_eq!(
+            about(&[b"-about", b"!bad"]).unwrap_err(),
+            "cannot compile regular expression pattern: brackets [] not balanced"
+        );
+        // Without `-about`, the ordinary two-argument minimum still applies.
+        assert_eq!(
+            about(&[b"(a)"]).unwrap_err(),
+            "wrong # args: should be \"regexp ?-option ...? exp string \
+             ?matchVar? ?subMatchVar ...?\""
+        );
+    }
+
+    fn regsub_at(version: TclVersion, args: &[&[u8]]) -> Result<(String, i64), String> {
+        let joined = |argv: &[Vec<u8>]| {
+            let words: Vec<String> = argv
+                .iter()
+                .map(|w| String::from_utf8_lossy(w).into_owned())
+                .collect();
+            Ok::<Vec<u8>, String>(format!("<{}>", words.join("|")).into_bytes())
+        };
+        match regsub_eval::<LiteralEngine, String>(args, version, joined) {
+            Ok(r) => Ok((String::from_utf8_lossy(&r.text).into_owned(), r.count)),
+            Err(RegsubError::Regex(RegexError(m))) => Err(String::from_utf8_lossy(&m).into_owned()),
+            Err(RegsubError::Eval(e)) => Err(e),
+        }
+    }
+
+    #[test]
+    fn regsub_command_is_refused_before_9_0_in_cs_own_words() {
+        // Regression (#2124): `-command` was refused with `regsub -command is
+        // not yet supported` on every release, where C has three answers.
+        //
+        // tclsh8.4.20 and tclsh8.5.19 (`Tcl_GetIndexFromObj`'s noun is
+        // "switch" until 8.6, and the table has no `-command`):
+        //   % regsub -command {a} abc {string toupper}
+        //   bad switch "-command": must be -all, -nocase, -expanded, -line,
+        //   -linestop, -lineanchor, -start, or --
+        for v in [TclVersion::V8_4, TclVersion::V8_5] {
+            assert_eq!(
+                regsub_at(v, &[b"-command", b"a", b"abc", b"up"]).unwrap_err(),
+                "bad switch \"-command\": must be -all, -nocase, -expanded, \
+                 -line, -linestop, -lineanchor, -start, or --",
+                "{v:?}"
+            );
+        }
+        // tclsh8.6.18 — same table, the noun becomes "option":
+        //   % regsub -command {a} abc {string toupper}
+        //   bad option "-command": must be -all, -nocase, -expanded, -line,
+        //   -linestop, -lineanchor, -start, or --
+        assert_eq!(
+            regsub_at(TclVersion::V8_6, &[b"-command", b"a", b"abc", b"up"]).unwrap_err(),
+            "bad option \"-command\": must be -all, -nocase, -expanded, -line, \
+             -linestop, -lineanchor, -start, or --"
+        );
+        // The rest of the 8.x enumeration is the 8.x table too, not 9.0's —
+        // tclsh8.6.18 `regsub -bogus a b c` prints exactly the same list.
+        assert_eq!(
+            regsub_at(TclVersion::V8_6, &[b"-bogus", b"a", b"abc", b"x"]).unwrap_err(),
+            "bad option \"-bogus\": must be -all, -nocase, -expanded, -line, \
+             -linestop, -lineanchor, -start, or --"
+        );
+        // …while 9.0's own enumeration carries `-command` and puts `-nocase`
+        // last but one (tclsh9.0.4 / 9.1b0 `regsub -bogus a b c`).
+        assert_eq!(
+            regsub_at(TclVersion::V9_0, &[b"-bogus", b"a", b"abc", b"x"]).unwrap_err(),
+            "bad option \"-bogus\": must be -all, -command, -expanded, -line, \
+             -linestop, -lineanchor, -nocase, -start, or --"
+        );
+    }
+
+    #[test]
+    fn regsub_command_evaluates_the_prefix_from_9_0() {
+        // tclsh9.0.4 / 9.1b0 serve `-command` by appending the match and its
+        // submatches to the prefix and substituting the result:
+        //   % proc cap args {return "<[join $args |]>"}
+        //   % regsub -command {(a)(b)} xabcy cap   ;# x<ab|a|b>cy
+        //   % regsub -all -command {b} abc {list X} ;# aX bc
+        for v in [TclVersion::V9_0, TclVersion::V9_1] {
+            assert_eq!(
+                regsub_at(v, &[b"-command", b"(a)(b)", b"xabcy", b"cap"]).unwrap(),
+                ("x<cap|ab|ab|ab>cy".to_owned(), 1),
+                "{v:?}"
+            );
+            // The prefix is a *list*, so its words arrive as separate words.
+            assert_eq!(
+                regsub_at(v, &[b"-command", b"b", b"abc", b"list X"]).unwrap(),
+                ("a<list|X|b>c".to_owned(), 1),
+                "{v:?}"
+            );
+            // `-all` evaluates once per match.
+            assert_eq!(
+                regsub_at(v, &[b"-all", b"-command", b"b", b"abcb", b"f"]).unwrap(),
+                ("a<f|b>c<f|b>".to_owned(), 2),
+                "{v:?}"
+            );
+            // A pattern that never matches returns the subject and never
+            // evaluates (tclsh9.0.4: `regsub -command {z} abc {string toupper}`
+            // → `abc`).
+            assert_eq!(
+                regsub_at(v, &[b"-command", b"z", b"abc", b"f"]).unwrap(),
+                ("abc".to_owned(), 0),
+                "{v:?}"
+            );
+            // …but an unusable prefix is still rejected, match or no match
+            // (tclsh9.0.4: `regsub -command {z} abc {}`).
+            assert_eq!(
+                regsub_at(v, &[b"-command", b"z", b"abc", b""]).unwrap_err(),
+                "command prefix must be a list of at least one element",
+                "{v:?}"
+            );
+            // Without `-command` the subspec is still expanded, not evaluated.
+            assert_eq!(
+                regsub_at(v, &[b"b", b"abc", b"[&]"]).unwrap(),
+                ("a[b]c".to_owned(), 1),
+                "{v:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn regsub_without_an_evaluator_still_refuses_command() {
+        // The evaluator-free `regsub` keeps 9.0's option table (the VM's own
+        // tests pin that enumeration) and refuses only when a substitution is
+        // actually due — so a non-matching `-command` call still answers.
+        let refused = regsub::<LiteralEngine>(&[b"-command", b"a", b"abc", b"f"])
+            .err()
+            .map(|RegexError(m)| String::from_utf8_lossy(&m).into_owned());
+        assert_eq!(
+            refused.as_deref(),
+            Some("regsub -command is not yet supported")
+        );
+        let Ok(r) = regsub::<LiteralEngine>(&[b"-command", b"z", b"abc", b"f"]) else {
+            panic!("a non-matching -command needs no evaluator")
+        };
+        assert_eq!(
+            (String::from_utf8_lossy(&r.text).into_owned(), r.count),
+            ("abc".to_owned(), 0)
+        );
     }
 }
