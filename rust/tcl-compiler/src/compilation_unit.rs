@@ -1048,7 +1048,9 @@ impl ModuleWideFacts {
             // call to a procedure that declares it `global` can reassign it
             // mid-run even though the top-level body never says `global`
             // itself. See `crate::var_observability::scan_module_global_names`.
-            top_level_extra_escaping: crate::var_observability::scan_module_global_names(ir_module),
+            top_level_extra_escaping: crate::var_observability::scan_module_global_names(
+                ir_module, registry,
+            ),
             traced_variable_names: ir_module.traced_variables.iter().cloned().collect(),
         }
     }
