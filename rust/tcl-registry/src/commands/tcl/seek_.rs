@@ -53,10 +53,11 @@ const FORMS: &[FormSpec] = &[FormSpec {
 /// closed set can't express unique-prefix matching, so this is
 /// completion/hover data only; `seek` has no `closed_value_args` entry
 /// for this position. (`chan seek`'s own sibling subcommand spec in
-/// `chan_.rs` currently *does* mark this position `closed_value_args`
-/// with a comment claiming "exact match required" — that claim did not
-/// hold up under the same empirical check; out of scope to fix here since
-/// it lives in a different command's file.)
+/// `chan_.rs` keeps `closed_value_args` for this position, but pairs it
+/// with `arg_values_accept_prefix` — the subcommand-level mechanism the
+/// top-level path has no twin for — so the two spellings agree on
+/// abbreviations, and `chan seek` additionally reports a value that is no
+/// prefix at all, which bare `seek` cannot express.)
 const ORIGIN_VALUES: &[ArgValue] = &[
     ArgValue {
         value: "start",

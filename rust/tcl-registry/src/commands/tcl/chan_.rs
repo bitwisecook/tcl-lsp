@@ -368,22 +368,27 @@ const EVENT_VALUES: &[ArgValue] = &[
     },
 ];
 
-/// `chan seek`'s `origin` positional argument (index 2). Exact match
-/// required.
+/// `chan seek`'s `origin` positional argument (index 2). Real tclsh
+/// accepts any unique abbreviation of the three words down to a single
+/// letter (`chan seek $c 0 s`), and raises `bad origin "bogus": must be
+/// start, current, or end` for anything else — so the set is closed, but
+/// matched by unique prefix (`arg_values_accept_prefix`), exactly as
+/// `chan close`'s `direction` is.  The bare `seek` spec in `seek_.rs`
+/// records the empirical check behind this.
 const SEEK_ORIGIN_VALUES: &[ArgValue] = &[
     ArgValue {
         value: "start",
-        detail: "offset bytes from the start of the file or device. Default when origin is omitted.",
+        detail: "offset bytes from the start of the file or device. Default when origin is omitted. Any unique abbreviation down to \"s\" is also accepted.",
         ..ArgValue::DEFAULT
     },
     ArgValue {
         value: "current",
-        detail: "offset bytes from the current access position.",
+        detail: "offset bytes from the current access position. Any unique abbreviation down to \"c\" is also accepted.",
         ..ArgValue::DEFAULT
     },
     ArgValue {
         value: "end",
-        detail: "offset bytes from the end of the file or device.",
+        detail: "offset bytes from the end of the file or device. Any unique abbreviation down to \"e\" is also accepted.",
         ..ArgValue::DEFAULT
     },
 ];
@@ -729,6 +734,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arg_roles: &[(0, ArgRole::Channel)],
         arg_values: &[(2, SEEK_ORIGIN_VALUES)],
         closed_value_args: &[2],
+        arg_values_accept_prefix: true,
         return_type: Some(TclType::String),
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,
