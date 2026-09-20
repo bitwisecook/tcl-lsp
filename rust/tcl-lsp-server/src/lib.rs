@@ -7391,6 +7391,11 @@ pub struct Backend {
     /// Optimiser master switch (`tclLsp.optimiser.enabled`).  When
     /// `false`, the `tcl-lsp.optimiseDocument` command yields no
     /// rewrites.  Default on.
+    ///
+    /// That command is the batch form of the optimiser code actions, so it
+    /// applies the whole publish-path policy and not just this switch: the
+    /// profile and per-code disabled set, and the inline suppression
+    /// directives, exactly as `lift_compiler_diagnostics` does (#2119).
     optimiser_enabled: Mutex<bool>,
     /// Monotonic stamp for "the configuration the diagnostics scheduler caches
     /// has moved".  See [`Backend::invalidate_diag_inputs`].
@@ -16699,16 +16704,56 @@ impl Backend {
         let registry = self.registry_for_dialect(&doc.dialect).await;
         let text = doc.text.clone();
         let dialect = doc.dialect.clone();
+        // This command is the batch form of the optimiser code actions, so it
+        // owes the user the same policy the published O-code diagnostics
+        // apply (#2119): the `tclLsp.optimiser.enabled` master switch, the
+        // profile plus per-code disabled set, and the inline suppression
+        // directives. Reading them from `resolved_analysis_settings` is what
+        // keeps it one policy rather than a second copy that can drift from
+        // `lift_compiler_diagnostics`.
+        let (_, _, optimiser_enabled, opt_disabled) = self.resolved_analysis_settings(&uri).await;
         let value = crate::rt::spawn_blocking(move || {
             tcl_spectcl::hooks::ensure_thread_host();
             let dialect_opt = tcl_lsp_core::stated_profile_for_dialect(&dialect);
-            let (source, opts) = if profile == "full" {
-                tcl_compiler::optimiser::optimise_source_multipass(&text, &registry, dialect_opt, 5)
+            // With the master switch off the command "yields no rewrites",
+            // which is what the `optimiser_enabled` field doc has always
+            // claimed and what it now actually does.
+            let (source, opts) = if optimiser_enabled {
+                // Suppression is line-keyed, and each applied rewrite shifts
+                // the lines below it, so the directives are re-resolved
+                // against the text of every pass rather than once against the
+                // original — otherwise a second pass silences the wrong
+                // rewrites.
+                let admit = |current: &str, kept: Vec<tcl_compiler::optimiser::Optimisation>| {
+                    let suppressed = tcl_compiler::analyser::Analyser::new()
+                        .analyse(current, &dialect)
+                        .suppressed_lines
+                        .clone();
+                    let line_index = tcl_lexer::LineIndex::new_lsp(current);
+                    kept.into_iter()
+                        .filter(|o| !opt_disabled.contains(o.code.as_str()))
+                        .filter(|o| {
+                            let line = line_index.position_at_utf16(o.span.start(), current).line;
+                            !tcl_compiler::analyser::utils::line_suppressed(
+                                o.code.as_str(),
+                                i32::try_from(line).unwrap_or(i32::MAX),
+                                &suppressed,
+                            )
+                        })
+                        .collect()
+                };
+                let passes = if profile == "full" { 5 } else { 1 };
+                let (source, opts, _iterations) =
+                    tcl_compiler::optimiser::optimise_source_multipass_admitting(
+                        &text,
+                        &registry,
+                        dialect_opt,
+                        passes,
+                        admit,
+                    );
+                (source, opts)
             } else {
-                let opts =
-                    tcl_compiler::optimiser::optimise_with_dialect(&text, &registry, dialect_opt);
-                let applied = tcl_compiler::optimiser::apply_optimisations(&text, &opts);
-                (applied, opts)
+                (text.to_string(), Vec::new())
             };
             let line_index = tcl_lexer::LineIndex::new_lsp(&text);
             let items: Vec<serde_json::Value> = opts
@@ -33078,6 +33123,158 @@ mod tests {
                 .await
                 .expect("ok")
                 .is_none()
+        );
+    }
+
+    /// Issue #2119: `tcl-lsp.optimiseDocument` is the batch form of the
+    /// optimiser code actions, so it must apply the same policy the published
+    /// O-code diagnostics do. Before the fix it read only its `profile`
+    /// argument and called the unfiltered optimiser, so each of these three
+    /// gates was ignored and the `optimiser_enabled` field doc — "when
+    /// `false`, the `tcl-lsp.optimiseDocument` command yields no rewrites" —
+    /// was simply untrue.
+    #[tokio::test]
+    async fn optimise_document_command_honours_the_optimiser_policy_issue_2119() {
+        use tcl_compiler::optimiser::profiles::OptimisationProfile;
+        let src = "set x [expr {1 + 2}]\nputs $x\n";
+        let uri = Uri::from_str("file:///o2119.tcl").unwrap();
+
+        // The default editor profile is `Readability`, under which constant
+        // folding and DCE are opt-in — so honouring the profile is itself
+        // observable: before the fix this command folded regardless.
+        let default_profile = test_backend();
+        register(&default_profile, &uri, src).await;
+        let out = default_profile
+            .optimise_document_command(&[serde_json::json!(uri.as_str())])
+            .await
+            .expect("ok")
+            .expect("some");
+        assert_eq!(
+            out.get("optimisations")
+                .and_then(serde_json::Value::as_array)
+                .map_or(0, Vec::len),
+            0,
+            "the default Readability profile makes constant folding opt-in, so \
+             the batch command must not fold either: {out:?}",
+        );
+
+        // Baseline for the remaining gates: a profile that does enable them.
+        let backend = test_backend();
+        register(&backend, &uri, src).await;
+        *backend.optimiser_profile.lock().await = OptimisationProfile::Aggressive;
+        let baseline = backend
+            .optimise_document_command(&[serde_json::json!(uri.as_str())])
+            .await
+            .expect("ok")
+            .expect("some");
+        let count = |v: &serde_json::Value| {
+            v.get("optimisations")
+                .and_then(serde_json::Value::as_array)
+                .map_or(0, Vec::len)
+        };
+        assert!(
+            count(&baseline) > 0,
+            "expected a baseline rewrite: {baseline:?}"
+        );
+        let baseline_codes: Vec<String> = baseline["optimisations"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|o| o.get("code").and_then(serde_json::Value::as_str))
+            .map(str::to_owned)
+            .collect();
+
+        // 1. The master switch. Source must come back untouched.
+        let off = test_backend();
+        register(&off, &uri, src).await;
+        *off.optimiser_profile.lock().await = OptimisationProfile::Aggressive;
+        *off.optimiser_enabled.lock().await = false;
+        let out = off
+            .optimise_document_command(&[serde_json::json!(uri.as_str())])
+            .await
+            .expect("ok")
+            .expect("some");
+        assert_eq!(
+            count(&out),
+            0,
+            "master switch off must yield no rewrites: {out:?}"
+        );
+        assert_eq!(
+            out.get("source").and_then(serde_json::Value::as_str),
+            Some(src),
+            "master switch off must leave the source untouched: {out:?}",
+        );
+
+        // 2. The per-code disabled set.
+        let per_code = test_backend();
+        register(&per_code, &uri, src).await;
+        *per_code.optimiser_profile.lock().await = OptimisationProfile::Aggressive;
+        for code in &baseline_codes {
+            per_code
+                .optimiser_code_overrides
+                .lock()
+                .await
+                .insert(code.clone(), false);
+        }
+        let out = per_code
+            .optimise_document_command(&[serde_json::json!(uri.as_str())])
+            .await
+            .expect("ok")
+            .expect("some");
+        assert_eq!(
+            count(&out),
+            0,
+            "every baseline code was disabled per-code, so none may be applied: {out:?}",
+        );
+    }
+
+    /// Issue #2119, the suppression-directive half: a `# noqa` must silence
+    /// the batch command exactly as it silences the published diagnostic.
+    /// Split from the switch/profile/per-code gates so neither test runs past
+    /// the pedantic line limit.
+    ///
+    /// A differential rather than a bare count: the same source with and
+    /// without a `# noqa` directly above the rewritten statement. `set x …`
+    /// still folds in both, because the directive names one line and not the
+    /// file, so the assertion is about the rewrite the directive covers.
+    #[tokio::test]
+    async fn optimise_document_command_honours_noqa_issue_2119() {
+        use tcl_compiler::optimiser::profiles::OptimisationProfile;
+
+        let codes_on = |v: &serde_json::Value| -> Vec<String> {
+            v["optimisations"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter_map(|o| o.get("code").and_then(serde_json::Value::as_str))
+                .map(str::to_owned)
+                .collect()
+        };
+        let run = async |src: &str, name: &str| {
+            let backend = test_backend();
+            let uri = Uri::from_str(name).unwrap();
+            register(&backend, &uri, src).await;
+            *backend.optimiser_profile.lock().await = OptimisationProfile::Aggressive;
+            backend
+                .optimise_document_command(&[serde_json::json!(uri.as_str())])
+                .await
+                .expect("ok")
+                .expect("some")
+        };
+        let plain = run("set x [expr {1 + 2}]\nputs $x\n", "file:///o2119p.tcl").await;
+        let noqa = run(
+            "set x [expr {1 + 2}]\n# noqa\nputs $x\n",
+            "file:///o2119n.tcl",
+        )
+        .await;
+        assert!(
+            codes_on(&plain).contains(&"O100".to_owned()),
+            "the read on `puts $x` should fold without a directive: {plain:?}",
+        );
+        assert!(
+            !codes_on(&noqa).contains(&"O100".to_owned()),
+            "a `# noqa` directly above `puts $x` must silence the batch command \
+             exactly as it silences the published diagnostic: {noqa:?}",
         );
     }
 

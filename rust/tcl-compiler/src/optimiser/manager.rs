@@ -854,15 +854,44 @@ pub fn optimise_source_multipass_filtered<S: std::hash::BuildHasher>(
     max_iterations: usize,
     disabled: &std::collections::HashSet<String, S>,
 ) -> (String, Vec<Optimisation>, usize) {
+    optimise_source_multipass_admitting(source, registry, dialect, max_iterations, |_, kept| {
+        kept.into_iter()
+            .filter(|o| !disabled.contains(o.code.as_str()))
+            .collect()
+    })
+}
+
+/// The general form behind [`optimise_source_multipass_filtered`]: `admit`
+/// decides, once per pass, which of that pass's candidates are applied.
+///
+/// It is handed the text the pass actually ran over, not the original source,
+/// because a *line-keyed* rule cannot be resolved once up front. Suppression
+/// directives (`# noqa`, `# tcl-lsp: disable=`) name a line, and every applied
+/// rewrite shifts the lines below it — so a policy resolved against the
+/// original numbering would, from the second pass on, silence the wrong
+/// rewrites. Re-resolving per pass is what keeps a directive attached to the
+/// statement its author wrote it above.
+///
+/// A code-keyed rule has no such problem, which is why the `disabled`-set
+/// wrapper can ignore the text argument entirely.
+#[must_use]
+pub fn optimise_source_multipass_admitting<F>(
+    source: &str,
+    registry: &CommandRegistry,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    max_iterations: usize,
+    mut admit: F,
+) -> (String, Vec<Optimisation>, usize)
+where
+    F: FnMut(&str, Vec<Optimisation>) -> Vec<Optimisation>,
+{
     let mut current = source.to_owned();
     let mut all: Vec<Optimisation> = Vec::new();
     let mut iterations = 0;
     for _ in 0..max_iterations {
         iterations += 1;
-        let kept: Vec<Optimisation> = optimise_with_dialect(&current, registry, dialect)
-            .into_iter()
-            .filter(|o| !disabled.contains(o.code.as_str()))
-            .collect();
+        let candidates = optimise_with_dialect(&current, registry, dialect);
+        let kept = admit(&current, candidates);
         if kept.is_empty() {
             break;
         }
