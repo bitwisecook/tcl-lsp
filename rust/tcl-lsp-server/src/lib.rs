@@ -29839,6 +29839,54 @@ fn lift_f5_source_integrity_diagnostics(
 /// the optimiser over it, so this function lowers nothing — it filters
 /// (master switch, per-code disables, inline suppressions) and lifts the
 /// survivors into LSP shape.
+/// The shared quick-fix payload for each *intact* optimisation group.
+///
+/// A group's edits apply all-or-nothing — the optimiser says so where it
+/// allocates the id (`run_store_to_load_forwarding`: "so the two edits apply
+/// all-or-nothing"). Publishing one member's `replacement` on its own
+/// therefore advertises a corrupting fix: O127's pair is an *inline* of the
+/// whole assignment at the use site plus a *delete* of the original, and the
+/// delete carries an empty replacement, so a per-member payload offered only
+/// the inline — which leaves the original in place and runs the assignment
+/// twice. For `set x [gets stdin]` that reads two lines instead of one
+/// (#2149).
+///
+/// So every member of a group gets the *same* payload, carrying the group id
+/// and every member's edit (#2123). A client that understands `edits` applies
+/// them as one action; one that does not finds no auto-apply payload, which
+/// is the safe way to fail.
+///
+/// `published` is the post-gate set and `all` the pre-gate one: a group that
+/// lost a member to a `# noqa` or a per-code toggle can no longer be applied
+/// whole, so it gets no payload rather than a partial edit.
+fn grouped_quick_fix_payloads(
+    published: &[tcl_compiler::optimiser::Optimisation],
+    all: &[tcl_compiler::optimiser::Optimisation],
+) -> std::collections::HashMap<u32, serde_json::Value> {
+    let mut edits: std::collections::HashMap<u32, Vec<serde_json::Value>> =
+        std::collections::HashMap::new();
+    for o in published {
+        if let Some(g) = o.group {
+            edits.entry(g).or_default().push(serde_json::json!({
+                "replacement": o.replacement,
+                "startOffset": o.span.start(),
+                "endOffset": o.span.end(),
+            }));
+        }
+    }
+    let mut total: std::collections::HashMap<u32, usize> = std::collections::HashMap::new();
+    for o in all {
+        if let Some(g) = o.group {
+            *total.entry(g).or_default() += 1;
+        }
+    }
+    edits
+        .into_iter()
+        .filter(|(g, members)| total.get(g) == Some(&members.len()))
+        .map(|(g, members)| (g, serde_json::json!({ "group": g, "edits": members })))
+        .collect()
+}
+
 fn lift_compiler_diagnostics(
     text: &str,
     diags: &tcl_lsp_db::CompilerDiagnostics,
@@ -29910,25 +29958,34 @@ fn lift_compiler_diagnostics(
     // fix from the diagnostic). The
     // `tclLsp.optimiser.enabled=false` master switch suppresses the whole
     // block.
-    for o in diags
+    // Resolve the gates first, because a *grouped* optimisation's payload
+    // depends on its siblings: which of them survived filtering decides
+    // whether the group can be offered at all.
+    let published: Vec<tcl_compiler::optimiser::Optimisation> = diags
         .optimisations
         .iter()
         .filter(|_| optimiser_enabled)
+        .filter(|o| {
+            // Profile + per-code gate: the active profile disables whole
+            // O-code categories (the default `readability` profile surfaces
+            // only readability rewrites) and per-code
+            // `tclLsp.optimiser.O1xx=false` overrides add to that.
+            if disabled_optimisations.contains(o.code.as_str()) {
+                return false;
+            }
+            // Inline `# noqa` / top-of-file suppression, as in the `.checks`
+            // loop.
+            let range = lift_span(text, &line_index, o.span);
+            let start_line = i32::try_from(range.start.line).unwrap_or(i32::MAX);
+            !line_suppressed(o.code.as_str(), start_line, suppressed_lines)
+        })
         .cloned()
-    {
-        // Profile + per-code gate: the active profile disables whole O-code
-        // categories (the default `readability` profile surfaces only
-        // readability rewrites) and per-code `tclLsp.optimiser.O1xx=false`
-        // overrides add to that.
-        if disabled_optimisations.contains(o.code.as_str()) {
-            continue;
-        }
+        .collect();
+
+    let group_payloads = grouped_quick_fix_payloads(&published, &diags.optimisations);
+
+    for o in published {
         let range = lift_span(text, &line_index, o.span);
-        // Inline `# noqa` / top-of-file suppression, as in the `.checks` loop.
-        let start_line = i32::try_from(range.start.line).unwrap_or(i32::MAX);
-        if line_suppressed(o.code.as_str(), start_line, suppressed_lines) {
-            continue;
-        }
         // Surface the fold/rewrite text as the quick-fix `data.replacement`, so
         // editors and the e2e battery can apply the suggested replacement.
         // Never for a `hint_only` optimisation: its span covers the whole
@@ -29939,13 +29996,19 @@ fn lift_compiler_diagnostics(
         // would corrupt the statement into the standalone literal `5` if
         // ever applied. A hint-only diagnostic is informational only; it
         // must never advertise an auto-apply payload.
-        let data = (!o.hint_only && !o.replacement.is_empty()).then(|| {
-            serde_json::json!({
-                "replacement": o.replacement,
-                "startOffset": o.span.start(),
-                "endOffset": o.span.end(),
+        let data = if let Some(g) = o.group {
+            (!o.hint_only)
+                .then(|| group_payloads.get(&g).cloned())
+                .flatten()
+        } else {
+            (!o.hint_only && !o.replacement.is_empty()).then(|| {
+                serde_json::json!({
+                    "replacement": o.replacement,
+                    "startOffset": o.span.start(),
+                    "endOffset": o.span.end(),
+                })
             })
-        });
+        };
         out.push(tower_lsp_server::ls_types::Diagnostic {
             range,
             severity: Some(DiagnosticSeverity::HINT),
@@ -34439,6 +34502,85 @@ mod tests {
             !diag_codes(&filtered).iter().any(|c| c == "XC100"),
             "XC100 should be filtered when disabled",
         );
+    }
+
+    /// Issues #2123 and #2149, which are the same defect from two sides.
+    ///
+    /// O127 emits a *pair* that must apply together — an inline of the whole
+    /// assignment at the use site, plus a delete of the original. The delete
+    /// is built with an empty replacement, and `data` used to be attached
+    /// only when the replacement was non-empty, so the editor was offered
+    /// exactly one action: the inline, which leaves the original statement in
+    /// place and therefore runs the assignment twice. For
+    /// `set x [gets stdin]` that consumes two lines of input instead of one.
+    ///
+    /// `group` was also absent from `data` entirely, which is what made
+    /// grouped application unreachable for a client (#2123) and is why the
+    /// diagnostics-calculation page described a contract the tree did not
+    /// implement.
+    #[test]
+    fn a_grouped_optimisation_is_never_independently_applicable_issue_2149() {
+        let registry = CommandRegistry::build_default();
+        // O127 fires on a *computed* single-use assignment.
+        let src = "proc p {y} {\n    set x [llength $y]\n    puts $x\n}\n";
+        // O127 abstains without a resolved dialect profile (it cannot prove
+        // its alias-safety gate under "every dialect at once"), so the
+        // fixture must state one.
+        let diags =
+            tcl_lsp_db::compiler_check_diagnostics_uncached(src, &registry, "tcl8.6", None, None);
+        let grouped: Vec<_> = diags
+            .optimisations
+            .iter()
+            .filter(|o| o.group.is_some())
+            .collect();
+        assert_eq!(
+            grouped.len(),
+            2,
+            "fixture must produce the O127 pair to assert about: {:?}",
+            diags.optimisations,
+        );
+        assert!(
+            grouped.iter().any(|o| o.replacement.is_empty()),
+            "one member is the delete, with an empty replacement: {grouped:?}",
+        );
+
+        // Nothing disabled, no directives: the pair is intact and publishable.
+        let published = lift_compiler_diagnostics(
+            src,
+            &diags,
+            true,
+            &std::collections::HashSet::new(),
+            &std::collections::HashSet::new(),
+            &std::collections::HashMap::new(),
+        );
+        let o127: Vec<_> = published
+            .iter()
+            .filter(|d| matches!(&d.code, Some(tower_lsp_server::ls_types::NumberOrString::String(c)) if c == "O127"))
+            .collect();
+        assert_eq!(o127.len(), 2, "both members are published: {o127:?}");
+        for d in &o127 {
+            let Some(data) = d.data.as_ref() else {
+                continue;
+            };
+            assert!(
+                data.get("replacement").is_none(),
+                "a grouped member must not advertise its own edit alone — that \
+                 is the corrupting half-fix of #2149: {data}",
+            );
+            assert!(
+                data.get("group").is_some(),
+                "a grouped member's payload carries its group id (#2123): {data}",
+            );
+            let edits = data
+                .get("edits")
+                .and_then(serde_json::Value::as_array)
+                .expect("grouped payload carries the group's edits");
+            assert_eq!(
+                edits.len(),
+                2,
+                "the payload applies the whole pair, not one half: {data}",
+            );
+        }
     }
 
     /// Issue #2121: every XC code a published diagnostic carries must be a
