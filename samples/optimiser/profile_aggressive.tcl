@@ -58,7 +58,7 @@ set second beta
 
 # O113: strength reduction
 proc square {r} {
-    return [expr {$r ** 2}]
+    return [expr {$r * $r}]
 }
 
 # --- Pattern recognition (O104, O119) ---
@@ -128,7 +128,7 @@ proc sum_list {lst} {
 
 
 # -------------
-# optimised: 45 rewrite(s)
+# optimised: 46 rewrite(s)
 # O102  Forward literal load of 'count' from its single reaching definition
 # O114  Use incr instead of set/expr
 # O117  Simplify string length zero-check
@@ -164,6 +164,7 @@ proc sum_list {lst} {
 # O103  Fold pure-proc call to '::passthrough' to its constant return
 # O116  Fold constant list command
 # O118  Fold constant lindex command
+# O110  Simplify expression (instcombine)
 # O100  Fold return of constant variable
 # O101  Fold constant expression
 # O123  Proc 'sum_list' is a candidate for accumulator-style rewriting

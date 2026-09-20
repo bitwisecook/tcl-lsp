@@ -52,9 +52,20 @@ Adds constant folding and pattern recognition on top of readability:
 - String build chains folded into a single `set` (O104)
 - Consecutive `set`s packed into `lassign` (O119)
 - Expression canonicalisation (O110 InstCombine) and strength reduction (O113).
-  The sample's `# O113` stanza writes its expression as `return [expr {$r ** 2}]`
-  and is **not** rewritten: no expression rewriter visits a `return` body
-  (issue #1962). The same expression in a `set` becomes `$r * $r`.
+  The sample's `# O113` stanza writes its expression as `return [expr {$r ** 2}]`.
+  A `return` body is now visited by the same rewriters as a `set` body
+  (issue #1962, fixed), and that proc **on its own** is rewritten to
+  `return [expr {$r * $r}]` under this profile.
+  It is still unrewritten *here*, for the reason already noted at the top of
+  `input.tcl`: the `factorial` stanza's unresolvable command head switches off
+  the module-wide `expr`-trust gate, and only `aggressive` gets past it, because
+  its first pass rewrites that call to `tailcall` and its second pass then finds
+  `expr` trusted again. So the stanza demonstrates the rewrite under
+  `aggressive` only — see that profile's section below.
+  Note also that the rewrite is reported as **O110**, not O113: instcombine runs
+  before strength reduction and claims `$r ** 2` → `$r * $r`. That is true of
+  the `set` form too, and always has been; the stanza's `# O113` label names the
+  family, not the code that fires.
 
 Shows "this could be simpler" without deleting any code. Dead stores from
 constant propagation remain in the output — the code is simplified but not
@@ -109,8 +120,10 @@ non-literal `candidate` assignment separates `route` from the other two. The
 `lassign` in the committed output is the O119 stanza's own
 `set a 1; set b 2; set c 3`.
 
-The aggressive profile finds **42 rewrites** on the sample input against 24 in
-single-pass `full`. It is the only profile that folds the arithmetic through:
+The aggressive profile finds **46 rewrites** on the sample input against 24 in
+single-pass `full`. (This figure read 42 until #1962; the committed golden
+already said 45 before that fix, so it had drifted by three independently —
+the readability, standard and full counts above were and remain correct.) It is the only profile that folds the arithmetic through:
 `set half 15`, `set threshold 40`, `set colours {red green blue}`,
 `set second beta`, and the whole `set count 0; incr count; puts $count` stanza
 down to `puts 1`. Convergence is typically 3-4 iterations even for large
