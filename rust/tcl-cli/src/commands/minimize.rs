@@ -382,7 +382,12 @@ pub fn run_minimize(input: &InputArgs, no_rename: bool, json: bool) -> anyhow::R
         // Per document, like `diag`: the reproducer is reduced under the same
         // dialect the diagnostic was reported under.
         let dialect = document.effective_dialect(explicit_dialect);
-        match minimize_diagnostic(&document.source, code, rename, dialect) {
+        // A lone-CR document must reduce under the same reading `diag` gave
+        // the finding under: the raw form parses as one command under the
+        // lexer's whitespace treatment of `\r`, which would make the
+        // reducer minimise a mis-parse rather than the diagnostic it was
+        // asked for (#1953).
+        match minimize_diagnostic(&document.analysis_source(), code, rename, dialect) {
             Ok(r) => results.push(MinimizeItem {
                 file: document.label.clone(),
                 code: r.code,
