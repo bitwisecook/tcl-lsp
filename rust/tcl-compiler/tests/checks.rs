@@ -2587,6 +2587,60 @@ mod catch_body_defs_no_false_w210 {
     }
 }
 
+// W210 — a brace-quoted script word of a command the registry does not
+// describe (#2117).
+//
+// Tcl substitutes nothing inside `{…}`, so such a word is only a read of this
+// frame if the script runs here *and* the name is not its own. The second half
+// used to be read as "contains a top-level `set NAME`", which is one binding
+// spelling out of many: a `set` one block deeper, a `foreach` loop variable,
+// and a `catch` output operand all read as "never binds it", and every name a
+// test body bound drew a warning anchored at the command word.
+//
+// tclsh 8.6.18 / 9.0.4: `proc mycmd {args} {}` then the bodies below run
+// without error — nothing reads an unset variable.
+mod undescribed_script_word_bindings_no_false_w210 {
+    use super::*;
+
+    /// The reported shape, reduced: one unknown command, one script word,
+    /// three names bound three different ways.
+    #[test]
+    fn a_nested_set_a_loop_variable_and_a_catch_operand_are_not_read_before_set() {
+        let src = "mycmd one {a case} -body {\n\
+                   \x20   foreach it {1 2 3} { set last $it }\n\
+                   \x20   catch {risky} err\n\
+                   \x20   list $last $err $it\n\
+                   }\n";
+        assert_eq!(count(src, D, "W210"), 0, "{:?}", codes(src, D));
+    }
+
+    /// `tcltest`'s bare spelling is the one the reporter hit: the
+    /// `tcltest::test` spelling lowers to a barrier and was always silent,
+    /// while `test` — undescribed — took the word path.
+    #[test]
+    fn a_tcltest_body_is_silent_in_either_spelling() {
+        let body = "-body {\n\
+                    \x20   foreach it {1 2 3} { set last $it }\n\
+                    \x20   list $last\n\
+                    } -result 3\n";
+        for head in ["test one {a test} ", "tcltest::test one {a test} "] {
+            let src = format!("package require tcltest\n{head}{body}");
+            assert_eq!(count(&src, D, "W210"), 0, "{:?}", codes(&src, D));
+        }
+    }
+
+    /// The control: a name the word never binds is still a read of this
+    /// frame, because an unknown command may `uplevel` the script.
+    #[test]
+    fn a_name_the_word_never_binds_still_warns() {
+        let src = "mycmd -body {\n\
+                   \x20   foreach it {1 2 3} { set last $it }\n\
+                   \x20   puts $never_set\n\
+                   }\n";
+        assert_eq!(count(src, D, "W210"), 1, "{:?}", codes(src, D));
+    }
+}
+
 // W210 — `unset` of a global does NOT suppress a later read (FIXED).
 //
 // tclsh ground truth: `proc clear {} {unset ::x}` then top-level `puts $x`
