@@ -970,6 +970,11 @@ fn format_positional_mode_star_and_mixing() {
         "format {%d %1$d} 5 6",
         "cannot mix \"%\" and \"%n$\" conversion specifiers",
     );
+    // A zero selector is grammatical and rejected as an *index*, not as a
+    // malformed specifier — the `0` is not re-read as a zero-pad flag
+    // (#2076). tclsh8.6.18 / tclsh9.0.4 both report this.
+    err_eq("format {%0$d} a b", "\"%n$\" argument index out of range");
+    err_eq("format {%0$s} a b", "\"%n$\" argument index out of range");
 }
 
 /// A format string that ends with an incomplete specifier (a width but no

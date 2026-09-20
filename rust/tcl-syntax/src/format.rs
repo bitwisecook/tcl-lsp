@@ -147,6 +147,16 @@ pub struct Spec {
     /// conversion draws its value from `args[n-1]` instead of the next
     /// sequential argument (`format {%2$d-%1$d} 10 20` → `20-10`). `None` for
     /// the ordinary sequential form.
+    ///
+    /// **`Some(0)` is reachable**, and deliberately so: `%0$d` is grammatical
+    /// — C Tcl parses the selector and then rejects the *index*, with
+    /// `"%n$" argument index out of range` (tclsh8.6.18 / tclsh9.0.4,
+    /// `format {%0$d} a b`). Refusing it here would instead re-read `0` as a
+    /// zero-pad flag and leave `$` as the verb, reporting `bad field
+    /// specifier` — a different error for the same input. So the 1-based →
+    /// 0-based conversion is the consumer's, and a consumer that subtracts
+    /// must do so checked; `tcl_cmd_core::format` raises C Tcl's own message
+    /// on the underflow.
     pub arg_index: Option<usize>,
     /// The C size modifier, if present. A `ll` / `L` modifier selects Tcl's
     /// bignum path; in particular, its combination with `u` raises before Tcl
@@ -330,6 +340,10 @@ pub fn parse_spec_with_limit(fmt: &[u8], i: &mut usize, max_field: usize) -> Opt
 /// Parse an optional positional selector `n$` (1-based) at `*i`. Advances `i`
 /// past `n$` and returns `Some(n)` only when a digit run is immediately
 /// followed by `$`; otherwise leaves `i` unchanged (the digits are a width).
+///
+/// The digit run has no lower bound, so `%0$d` yields `Some(0)` — see
+/// [`FormatSpec::arg_index`] for why that is the grammar C Tcl implements and
+/// what the consumer owes.
 fn parse_arg_index(fmt: &[u8], i: &mut usize) -> Option<usize> {
     let mut j = *i;
     let mut n = 0usize;
@@ -456,6 +470,30 @@ mod tests {
         assert!(is_verb(b'b'));
         assert!(!is_verb(b'q'));
         assert!(!is_verb(b'a'));
+    }
+
+    /// `%0$d` is grammatical: the selector parses, and it is the *index* C
+    /// Tcl rejects one layer up. Rejecting it here would re-read `0` as a
+    /// zero-pad flag and report `bad field specifier` for a different reason
+    /// (#2076).
+    #[test]
+    fn a_zero_positional_selector_parses_and_is_the_consumers_to_reject() {
+        let mut i = 0;
+        let spec = parse_spec(b"0$d", &mut i).expect("a zero selector is still a complete spec");
+        assert_eq!(spec.arg_index, Some(0));
+        assert_eq!(spec.verb, b'd');
+        assert_eq!(spec.width, None, "the digits are the selector, not a width");
+
+        // The ordinary form is unchanged, and a digit run with no `$` is
+        // still a width.
+        let mut i = 0;
+        assert_eq!(
+            parse_spec(b"2$d", &mut i).expect("positional").arg_index,
+            Some(2)
+        );
+        let mut i = 0;
+        let width_only = parse_spec(b"2d", &mut i).expect("width");
+        assert_eq!((width_only.arg_index, width_only.width), (None, Some(2)));
     }
 
     #[test]

@@ -1313,7 +1313,6 @@ class TclLspSettingsPanel {
         }
     }
 
-    @Suppress("UnstableApiUsage")
     /**
      * The profile selector, with the link that clears every per-code override
      * beside it.
@@ -1352,6 +1351,7 @@ class TclLspSettingsPanel {
      * are sent to the running server via workspace/configuration and
      * don't need a restart.
      */
+    @Suppress("UnstableApiUsage")
     private fun restartLspServers() {
         for (project in ProjectManager.getInstance().openProjects) {
             if (project.isDisposed) continue

@@ -579,7 +579,7 @@ fn parameter_ceiling(
     };
     let mut ceiling_by_hop: Vec<usize> = Vec::new();
 
-    for hop in 0..12 {
+    for _ in 0..12 {
         let mut next = param_class.clone();
         let mut changed = false;
         for u in units {
@@ -644,7 +644,6 @@ fn parameter_ceiling(
         if !changed {
             break;
         }
-        let _ = hop;
     }
 
     (param_class, ceiling_by_hop)
