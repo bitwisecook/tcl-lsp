@@ -381,6 +381,21 @@ class TclLspSettingsPanel {
     private val diagIAPP7002 = JBCheckBox("IAPP7002: iApp presentation field is never referenced by the i...")
     private val diagIAPP7003 = JBCheckBox("IAPP7003: iApp presentation #include file could not be resolved")
 
+    // Diagnostics — XC Translatability
+    private val diagXC100 = JBCheckBox("XC100: iRule construct translates to an XC configuration ob...")
+    private val diagXC101 = JBCheckBox("XC101: iRule construct translates to an XC L7 route")
+    private val diagXC102 = JBCheckBox("XC102: iRule construct translates to an XC service policy rule")
+    private val diagXC103 = JBCheckBox("XC103: iRule construct translates to an XC header action")
+    private val diagXC105 = JBCheckBox("XC105: iRule data-group match translates to an XC service p...")
+    private val diagXC106 = JBCheckBox("XC106: iRule construct translates to an XC WAF exclusion rule")
+    private val diagXC107 = JBCheckBox("XC107: No XC action needed")
+    private val diagXC200 = JBCheckBox("XC200: Construct is only partially translatable")
+    private val diagXC201 = JBCheckBox("XC201: iRules event has no XC equivalent")
+    private val diagXC203 = JBCheckBox("XC203: Conditional logic is only partially translatable")
+    private val diagXC250 = JBCheckBox("XC250: iRules event maps to a separate XC feature rather th...")
+    private val diagXC300 = JBCheckBox("XC300: Dynamic or procedural construct has no XC equivalent")
+    private val diagXC301 = JBCheckBox("XC301: L4/protocol-specific command has no XC equivalent")
+
     // Diagnostics — SslicTcl
     private val diagSSLIC1001 = JBCheckBox("SSLIC1001: SslicTcl declaration is not valid Tcl syntax or has ...")
     private val diagSSLIC1002 = JBCheckBox("SSLIC1002: SslicTcl declaration uses substitution or argument e...")
@@ -647,6 +662,17 @@ class TclLspSettingsPanel {
                     diagBIGIP6007, diagBIGIP6008, diagBIGIP6009, diagBIGIP6010, diagBIGIP6011, diagBIGIP6012,
                     diagBIGIP6013, diagBIGIP6014, diagBIGIP6038, diagBIGIP6039, diagIAPP7001, diagIAPP7002,
                     diagIAPP7003,
+                ),
+            ),
+        )
+
+        builder.addComponent(TitledSeparator("Diagnostics — XC Translatability"))
+        builder.addComponent(
+            ReflowingGrid(
+                listOf(
+                    diagXC100, diagXC101, diagXC102, diagXC103, diagXC105, diagXC106,
+                    diagXC107, diagXC200, diagXC201, diagXC203, diagXC250, diagXC300,
+                    diagXC301,
                 ),
             ),
         )
@@ -946,6 +972,19 @@ class TclLspSettingsPanel {
             diagIAPP7001.isSelected != s.diagnosticIAPP7001 ||
             diagIAPP7002.isSelected != s.diagnosticIAPP7002 ||
             diagIAPP7003.isSelected != s.diagnosticIAPP7003 ||
+            diagXC100.isSelected != s.diagnosticXC100 ||
+            diagXC101.isSelected != s.diagnosticXC101 ||
+            diagXC102.isSelected != s.diagnosticXC102 ||
+            diagXC103.isSelected != s.diagnosticXC103 ||
+            diagXC105.isSelected != s.diagnosticXC105 ||
+            diagXC106.isSelected != s.diagnosticXC106 ||
+            diagXC107.isSelected != s.diagnosticXC107 ||
+            diagXC200.isSelected != s.diagnosticXC200 ||
+            diagXC201.isSelected != s.diagnosticXC201 ||
+            diagXC203.isSelected != s.diagnosticXC203 ||
+            diagXC250.isSelected != s.diagnosticXC250 ||
+            diagXC300.isSelected != s.diagnosticXC300 ||
+            diagXC301.isSelected != s.diagnosticXC301 ||
             diagSSLIC1001.isSelected != s.diagnosticSSLIC1001 ||
             diagSSLIC1002.isSelected != s.diagnosticSSLIC1002 ||
             diagSSLIC1003.isSelected != s.diagnosticSSLIC1003 ||
@@ -1241,6 +1280,19 @@ class TclLspSettingsPanel {
         s.diagnosticIAPP7001 = diagIAPP7001.isSelected
         s.diagnosticIAPP7002 = diagIAPP7002.isSelected
         s.diagnosticIAPP7003 = diagIAPP7003.isSelected
+        s.diagnosticXC100 = diagXC100.isSelected
+        s.diagnosticXC101 = diagXC101.isSelected
+        s.diagnosticXC102 = diagXC102.isSelected
+        s.diagnosticXC103 = diagXC103.isSelected
+        s.diagnosticXC105 = diagXC105.isSelected
+        s.diagnosticXC106 = diagXC106.isSelected
+        s.diagnosticXC107 = diagXC107.isSelected
+        s.diagnosticXC200 = diagXC200.isSelected
+        s.diagnosticXC201 = diagXC201.isSelected
+        s.diagnosticXC203 = diagXC203.isSelected
+        s.diagnosticXC250 = diagXC250.isSelected
+        s.diagnosticXC300 = diagXC300.isSelected
+        s.diagnosticXC301 = diagXC301.isSelected
         s.diagnosticSSLIC1001 = diagSSLIC1001.isSelected
         s.diagnosticSSLIC1002 = diagSSLIC1002.isSelected
         s.diagnosticSSLIC1003 = diagSSLIC1003.isSelected
@@ -1581,6 +1633,19 @@ class TclLspSettingsPanel {
         diagIAPP7001.isSelected = s.diagnosticIAPP7001
         diagIAPP7002.isSelected = s.diagnosticIAPP7002
         diagIAPP7003.isSelected = s.diagnosticIAPP7003
+        diagXC100.isSelected = s.diagnosticXC100
+        diagXC101.isSelected = s.diagnosticXC101
+        diagXC102.isSelected = s.diagnosticXC102
+        diagXC103.isSelected = s.diagnosticXC103
+        diagXC105.isSelected = s.diagnosticXC105
+        diagXC106.isSelected = s.diagnosticXC106
+        diagXC107.isSelected = s.diagnosticXC107
+        diagXC200.isSelected = s.diagnosticXC200
+        diagXC201.isSelected = s.diagnosticXC201
+        diagXC203.isSelected = s.diagnosticXC203
+        diagXC250.isSelected = s.diagnosticXC250
+        diagXC300.isSelected = s.diagnosticXC300
+        diagXC301.isSelected = s.diagnosticXC301
         diagSSLIC1001.isSelected = s.diagnosticSSLIC1001
         diagSSLIC1002.isSelected = s.diagnosticSSLIC1002
         diagSSLIC1003.isSelected = s.diagnosticSSLIC1003

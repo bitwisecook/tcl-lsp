@@ -27978,10 +27978,10 @@ fn lift_xc_diagnostics(
     use tower_lsp_server::ls_types::{DiagnosticSeverity, NumberOrString};
     f5_xc::get_xc_diagnostics(source)
         .into_iter()
-        .filter(|d| !disabled.contains(&d.code))
+        .filter(|d| !disabled.contains(d.code.as_str()))
         .filter(|d| {
             !line_suppressed(
-                &d.code,
+                d.code.as_str(),
                 i32::try_from(d.range.start.line).unwrap_or(i32::MAX),
                 suppressed,
             )
@@ -28001,7 +28001,7 @@ fn lift_xc_diagnostics(
                 f5_xc::XcSeverity::Hint => DiagnosticSeverity::HINT,
                 f5_xc::XcSeverity::Info => DiagnosticSeverity::INFORMATION,
             }),
-            code: Some(NumberOrString::String(d.code.clone())),
+            code: Some(NumberOrString::String(d.code.as_str().to_owned())),
             code_description: None,
             source: Some("tcl-lsp".to_string()),
             message: d.message,
@@ -34244,6 +34244,51 @@ mod tests {
             !diag_codes(&filtered).iter().any(|c| c == "XC100"),
             "XC100 should be filtered when disabled",
         );
+    }
+
+    /// Issue #2121: every XC code a published diagnostic carries must be a
+    /// known [`DiagCode`], because that lookup is the only thing
+    /// `apply_diagnostic_tags` has to go on — a code outside the table is
+    /// skipped outright and can never carry a `DiagnosticTag`, nor answer any
+    /// other code-table query. Before the fix `DiagCode::from_str("XC100")`
+    /// was `Err`, so this assertion failed on the very first lifted
+    /// diagnostic.
+    #[test]
+    fn published_xc_codes_are_known_diag_codes_issue_2121() {
+        use core::str::FromStr as _;
+        use tcl_core_types::{DiagCode, DiagSection};
+
+        // An iRule exercising a translated, a partial and an untranslatable
+        // construct, so the lifted set spans XC1xx / XC2xx / XC3xx.
+        let src = concat!(
+            "when HTTP_REQUEST {\n",
+            "    pool my_pool\n",
+            "    if { [HTTP::uri] contains [expr {rand()}] } { pool other }\n",
+            "    while { 1 } { pool third }\n",
+            "}\n",
+            "when CLIENT_ACCEPTED {\n",
+            "    TCP::collect\n",
+            "}\n",
+        );
+        let mut diagnostics =
+            lift_xc_diagnostics(src, &HashSet::new(), &std::collections::HashMap::new());
+        assert!(
+            !diagnostics.is_empty(),
+            "the fixture must produce XC diagnostics to assert about",
+        );
+        // The publish path attaches tags from the code table; it must be able
+        // to resolve every code it sees here.
+        apply_diagnostic_tags(&mut diagnostics);
+        for code in diag_codes(&diagnostics) {
+            let parsed = DiagCode::from_str(&code).unwrap_or_else(|_| {
+                panic!("published XC code {code} is outside the DiagCode table")
+            });
+            assert_eq!(
+                parsed.diag_section(),
+                Some(DiagSection::Xc),
+                "{code} must sit in the xc section",
+            );
+        }
     }
 
     /// The opt-in `xcDiagnostics` toggle gates whether XC100-301 reach the

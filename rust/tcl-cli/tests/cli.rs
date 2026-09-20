@@ -466,6 +466,73 @@ fn opt_leaves_a_word_operator_alone_in_plain_tcl() {
     );
 }
 
+/// Companion to #2120: fixing the cross-file fold must not change what the
+/// output *is*. README and `kcs-feature-tcl-verb-cli` document
+/// `tcl opt src/ -o build/optimised.tcl` as optimising a tree "into one
+/// output script", so the rendered text stays a program: no `# file:` banner
+/// may precede it, or a leading `#!` is pushed off byte zero and the result
+/// is no longer executable. Per-file attribution belongs in the trailing
+/// comment block, which cannot corrupt the script.
+#[test]
+fn opt_over_several_inputs_keeps_the_first_shebang_at_byte_zero() {
+    let out = String::from_utf8(run_tcl(&[
+        "opt",
+        "--source",
+        "#!/usr/bin/env tclsh\nset a [expr {1 + 1}]\nputs $a",
+        "--source",
+        "set b [expr {2 + 2}]\nputs $b",
+    ]))
+    .expect("utf-8 output");
+    assert!(
+        out.starts_with("#!/usr/bin/env tclsh"),
+        "the first input's shebang must stay at byte 0 so the bundled script \
+         is still executable: {out}"
+    );
+    // The attribution still has to be somewhere — in the comment block.
+    assert!(
+        out.contains("# optimised:"),
+        "the rewrite summary must still be reported: {out}"
+    );
+}
+
+/// Regression for #2120: `tcl opt` over several inputs used to concatenate
+/// them into one program before optimising, so a `set` in the first file
+/// could be constant-propagated into a read in the second and the first
+/// file's now-"unused" store eliminated as dead — even though the two files
+/// are never run in the same scope. Each input must be optimised on its own.
+#[test]
+fn opt_does_not_fold_a_store_across_a_file_boundary() {
+    let out = String::from_utf8(run_tcl(&[
+        "opt",
+        "--source",
+        "set shared_value 42",
+        "--source",
+        "puts $shared_value",
+    ]))
+    .expect("utf-8 output");
+    assert!(
+        out.contains("puts $shared_value"),
+        "the second input never sees the first input's assignment at run \
+         time, so the read must stay a variable read, not fold to a literal: \
+         {out}"
+    );
+    assert!(
+        !out.contains("puts 42"),
+        "the old concatenating path forwarded the literal across the file \
+         boundary: {out}"
+    );
+    assert!(
+        out.contains("set shared_value 42"),
+        "the first input's store must survive — it is not dead just because \
+         a *different* file never reads it: {out}"
+    );
+    assert!(
+        !out.contains("O109"),
+        "the old path eliminated the store as a dead store once the fold \
+         made it look unused: {out}"
+    );
+}
+
 /// Like [`run_tcl`] but tolerates a non-zero exit — `diag` returns 1 whenever
 /// it reports a problem-severity finding, which is not a harness failure.
 fn run_tcl_allow_failure(args: &[&str]) -> Vec<u8> {

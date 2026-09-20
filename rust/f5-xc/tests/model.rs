@@ -22,6 +22,7 @@
 
 use f5_xc::model::TranslateStatus;
 use f5_xc::{render_json, render_terraform, translate_irule};
+use tcl_core_types::DiagCode;
 
 /// Find the route whose origin pool has the given name.
 fn route_for_pool<'a>(
@@ -142,12 +143,9 @@ fn untranslatable_event_is_flagged() {
     let src = "when CLIENT_ACCEPTED {\n    set foo 1\n}";
     let result = translate_irule(src);
     assert_eq!(result.untranslatable_count(), 1);
-    assert!(
-        result
-            .items
-            .iter()
-            .any(|i| i.status == TranslateStatus::Untranslatable && i.diagnostic_code == "XC201")
-    );
+    assert!(result.items.iter().any(
+        |i| i.status == TranslateStatus::Untranslatable && i.diagnostic_code == DiagCode::Xc201
+    ));
     assert!(result.coverage_pct.abs() < 1e-9);
 }
 

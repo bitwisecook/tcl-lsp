@@ -89,6 +89,8 @@ pub enum DiagSection {
     IrulesVariable,
     /// BIG-IP configuration-model checks.
     Bigip,
+    /// F5 Distributed Cloud (XC) translatability findings.
+    Xc,
     /// `SslicTcl` declarative TLS-document checks.
     Sslic,
     /// `tclpkg` package-manager diagnostics.
@@ -112,6 +114,7 @@ impl DiagSection {
             Self::IrulesSecurity => "irules_security",
             Self::IrulesVariable => "irules_variable",
             Self::Bigip => "bigip",
+            Self::Xc => "xc",
             Self::Sslic => "sslictcl",
             Self::Tclpkg => "tclpkg",
         }
@@ -454,6 +457,27 @@ diagnostic_codes! {
     Iapp7001 => "IAPP7001", diag(Bigip, true, "iApp implementation references a presentation field that is not defined.");
     Iapp7002 => "IAPP7002", diag(Bigip, true, "iApp presentation field is never referenced by the implementation.");
     Iapp7003 => "IAPP7003", diag(Bigip, true, "iApp presentation `#include` file could not be resolved.");
+    // The `XC###` family is the iRule -> F5 Distributed Cloud translatability
+    // report (`f5-xc`), surfaced inline by the LSP.  `XC1##` are translated
+    // constructs (published at hint severity), `XC2##` partial ones and
+    // `XC3##` untranslatable ones (both informational) — the severity rule
+    // lives with the producer in `f5_xc::diagnostics`.  They are ordinary
+    // user-configurable codes: the server already honours
+    // `tclLsp.diagnostics.<CODE> = false` for them.  `XC104` and `XC202` are
+    // deliberately absent — no producer has ever emitted them.
+    Xc100 => "XC100", diag(Xc, true, "iRule construct translates to an XC configuration object.");
+    Xc101 => "XC101", diag(Xc, true, "iRule construct translates to an XC L7 route.");
+    Xc102 => "XC102", diag(Xc, true, "iRule construct translates to an XC service policy rule.");
+    Xc103 => "XC103", diag(Xc, true, "iRule construct translates to an XC header action.");
+    Xc105 => "XC105", diag(Xc, true, "iRule data-group match translates to an XC service policy rule — each data-group entry may need a rule of its own.");
+    Xc106 => "XC106", diag(Xc, true, "iRule construct translates to an XC WAF exclusion rule.");
+    Xc107 => "XC107", diag(Xc, true, "No XC action needed — the iRule construct is already XC's default behaviour.");
+    Xc200 => "XC200", diag(Xc, true, "Construct is only partially translatable — the match criteria cannot be determined statically.");
+    Xc201 => "XC201", diag(Xc, true, "iRules event has no XC equivalent — the whole event handler is untranslatable.");
+    Xc203 => "XC203", diag(Xc, true, "Conditional logic is only partially translatable — review the XC match criteria manually.");
+    Xc250 => "XC250", diag(Xc, true, "iRules event maps to a separate XC feature rather than to this configuration.");
+    Xc300 => "XC300", diag(Xc, true, "Dynamic or procedural construct has no XC equivalent — consider App Stack for this logic.");
+    Xc301 => "XC301", diag(Xc, true, "L4/protocol-specific command has no XC equivalent — consider App Stack for this logic.");
     Sslic1001 => "SSLIC1001", diag(Sslic, true, "SslicTcl declaration is not valid Tcl syntax or has an unclosed delimiter.");
     Sslic1002 => "SSLIC1002", diag(Sslic, true, "SslicTcl declaration uses substitution or argument expansion; the vocabulary is declarative.");
     Sslic1003 => "SSLIC1003", diag(Sslic, true, "SslicTcl document is missing its `sslictcl VERSION` header.");
@@ -667,8 +691,11 @@ impl DiagCode {
             b'S' => DiagFamily::Shimmer,
             b'T' => DiagFamily::Taint,
             b'O' => DiagFamily::Optimisation,
-            // `W###` (and any future prefix) fall through here; every variant's
-            // spelling begins with one of the prefixes matched above.
+            // `W###`, the host-config families (`BIGIP####`, `IAPP####`,
+            // `SSLIC####`) and the XC translatability family (`XC###`) fall
+            // through here, as does any future prefix: `DiagFamily` is the
+            // coarse severity-shaped grouping the `is_error` / `is_optimisation`
+            // gates key on, not a per-family registry.
             _ => DiagFamily::Warning,
         }
     }
@@ -1102,6 +1129,42 @@ mod tests {
         assert!(DiagCode::from_str("W122").is_err());
     }
 
+    /// Issue #2121: the `XC###` translatability family lives in the code
+    /// table like every other family, so `DiagCode::from_str` answers for it
+    /// and `lsp_tag` / `is_optimisation` / the editor-settings surface can be
+    /// asked about an XC code at all. Before the fix none of these spellings
+    /// parsed, so every XC diagnostic fell out of `apply_diagnostic_tags`
+    /// and out of every code-table query.
+    #[test]
+    fn xc_family_is_in_the_code_table_issue_2121() {
+        use core::str::FromStr;
+        // Every code `f5-xc` can construct, exactly as it is spelled on the
+        // wire. `XC104` and `XC202` are absent from the producer, so they are
+        // absent here too.
+        for s in [
+            "XC100", "XC101", "XC102", "XC103", "XC105", "XC106", "XC107", "XC200", "XC201",
+            "XC203", "XC250", "XC300", "XC301",
+        ] {
+            let code = DiagCode::from_str(s).unwrap_or_else(|_| panic!("{s} must be a DiagCode"));
+            assert_eq!(code.as_str(), s);
+            assert_eq!(
+                code.diag_section(),
+                Some(DiagSection::Xc),
+                "{s} belongs to the xc section"
+            );
+            assert!(code.default_on(), "{s} is emitted by default");
+            // User-configurable (the server honours `tclLsp.diagnostics.<CODE>`
+            // for them) and really emitted, so neither internal nor reserved.
+            assert!(!code.is_internal(), "{s} must be user-configurable");
+            assert!(!code.is_reserved(), "{s} has a real producer");
+            assert!(!code.is_optimisation(), "{s} is not an optimisation");
+            assert!(!code.description().is_empty(), "{s} needs a description");
+        }
+        // Gaps in the family are gaps in the table: no producer emits these.
+        assert!(DiagCode::from_str("XC104").is_err());
+        assert!(DiagCode::from_str("XC202").is_err());
+    }
+
     #[test]
     fn diag_section_as_str_covers_every_variant() {
         use DiagSection::*;
@@ -1118,6 +1181,7 @@ mod tests {
             (IrulesSecurity, "irules_security"),
             (IrulesVariable, "irules_variable"),
             (Bigip, "bigip"),
+            (Xc, "xc"),
             (Sslic, "sslictcl"),
             (Tclpkg, "tclpkg"),
         ] {

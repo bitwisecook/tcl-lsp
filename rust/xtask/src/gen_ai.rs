@@ -93,7 +93,9 @@ fn section_to_category(section: &str) -> &'static str {
         "security" | "irules_security" | "sslictcl" => "security",
         "shimmer" => "performance",
         "taint" => "taint",
-        "irules" | "bigip" => "irules",
+        // `xc` is the iRule -> F5 Distributed Cloud translatability family;
+        // it is an iRules finding, not a style lint.
+        "irules" | "bigip" | "xc" => "irules",
         "irules_variable" => "thread_safety",
         // warning / variable / hint / tclpkg / tk → style (tk is overridden below).
         _ => "style",

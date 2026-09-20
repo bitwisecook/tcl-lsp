@@ -77,6 +77,14 @@ fn format_config(
 }
 
 /// `tcl format` — pretty-print each input with canonical style rules.
+///
+/// Kept on `combine_sources` after #2120's investigation of `run_opt`'s
+/// concatenation bug: the formatter is a pure syntactic rewriter
+/// (`format_tcl(source) -> source`, see `formatter-engine.md`) that never
+/// folds a value from one statement into another the way the optimiser's
+/// constant propagation does, so concatenating documents before formatting
+/// cannot produce the "ran a variable's *value* across a file boundary that
+/// never shares a scope at run time" defect #2120 is about.
 pub fn run_format(
     input: &InputArgs,
     indent_size: Option<usize>,
@@ -109,6 +117,21 @@ pub fn run_format(
 ///
 /// Profile semantics: `full` (the default) is a single
 /// pass; only `aggressive` runs multi-pass to a fixpoint (max 5 iterations).
+///
+/// Unlike `format` and `minify`, each input is *analysed* as its own program —
+/// its own dialect, its own directives, its own optimiser pass — rather than
+/// concatenated with the others first. The rendered output is still one
+/// script, so `tcl opt src/ -o build/optimised.tcl` keeps doing what the
+/// README documents. Two files named on one command line
+/// never share a scope at run time (they are two separate `tclsh` loads), so
+/// folding a store in one across into a load in the other is simply wrong: it
+/// forwards a value the second file could never actually see, and can delete
+/// the first file's store as "dead" when the only "use" the optimiser found
+/// was the second file (#2120). `tcl diag`'s cross-file call-site evidence is
+/// a different, opt-in thing — analysing how programs *call* each other, not
+/// asserting they execute in one shared frame — so it does not apply here.
+/// A user who wants several files optimised as one unit can concatenate them
+/// themselves; this verb must not do it silently.
 pub fn run_opt(
     input: &InputArgs,
     profile: &str,
@@ -117,9 +140,7 @@ pub fn run_opt(
     colour: &ColourArgs,
 ) -> anyhow::Result<u8> {
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
-    let dialect = combined_effective_dialect(&documents, input.dialect_profile()?);
-    let source = combine_sources(&documents);
-    let registry = registry_for_dialect(dialect.name);
+    let explicit_dialect = input.dialect_profile()?;
 
     let profile = OptimisationProfile::parse(profile);
     let mut disabled: HashSet<String> = profile_to_disabled(profile)
@@ -143,27 +164,79 @@ pub fn run_opt(
         }
     }
 
-    // Profile spec (`profile_spec`): only `aggressive` is multi-pass (max 5 iters);
-    // every other profile (including `full`) is a single pass. Both honour the
-    // disabled set on every pass (matching `optimise_source_multipass(disabled=…)`).
-    let (optimised, optimisations, _iterations) = optimise_source_multipass_filtered(
-        &source,
-        &registry,
-        Some(dialect),
-        profile.max_iterations(),
-        &disabled,
-    );
-
     let target = OutputTarget::from_arg(input.output.as_deref());
-    let mut rendered = optimised;
-    // On stdout a comment block summarising the rewrites is appended.
-    if target.is_stdout() && !optimisations.is_empty() {
+    // Per-file is the unit of *analysis*, not of output. The rendered text
+    // stays one program, joined exactly as `combine_sources` joined the
+    // inputs, because `tcl opt src/ -o build/optimised.tcl` is documented
+    // (README, `kcs-feature-tcl-verb-cli`) as optimising a tree "into one
+    // output script": a `# file:` banner in the program text would push a
+    // leading `#!` off byte zero and stop that script being executable.
+    // Which file each rewrite came from is reported in the trailing comment
+    // summary instead, where it cannot corrupt the program.
+    //
+    // Optimising each input separately and then concatenating is safe for
+    // both readings: if the files really are loaded together the result is
+    // merely conservative (cross-file folds are missed), whereas the old
+    // optimise-the-concatenation order was *unsound* when they are not.
+    let multi_file = documents.len() > 1;
+    let mut sections: Vec<String> = Vec::with_capacity(documents.len());
+    let mut per_file: Vec<(String, Vec<String>)> = Vec::with_capacity(documents.len());
+    let mut total_rewrites = 0usize;
+
+    for document in &documents {
+        let dialect = document.effective_dialect(explicit_dialect);
+        let registry = registry_for_dialect(dialect.name);
+        let source = document.analysis_source();
+
+        // Profile spec (`profile_spec`): only `aggressive` is multi-pass (max 5
+        // iters); every other profile (including `full`) is a single pass.
+        // Both honour the disabled set on every pass (matching
+        // `optimise_source_multipass(disabled=…)`).
+        let (optimised, optimisations, _iterations) = optimise_source_multipass_filtered(
+            &source,
+            &registry,
+            Some(dialect),
+            profile.max_iterations(),
+            &disabled,
+        );
+        total_rewrites += optimisations.len();
+        per_file.push((
+            document.label.clone(),
+            optimisations
+                .iter()
+                .map(|o| format!("# {}  {}", o.code, o.message))
+                .collect(),
+        ));
+        sections.push(optimised);
+    }
+
+    // A single input keeps the pre-#2120 bytes exactly — no trim, no join.
+    let mut rendered = if multi_file {
+        sections
+            .iter()
+            .map(|s| s.trim_end_matches('\n'))
+            .collect::<Vec<_>>()
+            .join("\n\n")
+    } else {
+        sections.into_iter().next().unwrap_or_default()
+    };
+
+    // On stdout a comment block summarising the rewrites is appended. With
+    // several inputs each file's rewrites are listed under its own `# file:`
+    // line, inside the comment block.
+    if target.is_stdout() && total_rewrites > 0 {
         let mut lines = vec![
             "\n\n# -------------".to_owned(),
-            format!("# optimised: {} rewrite(s)", optimisations.len()),
+            format!("# optimised: {total_rewrites} rewrite(s)"),
         ];
-        for o in &optimisations {
-            lines.push(format!("# {}  {}", o.code, o.message));
+        for (label, entries) in &per_file {
+            if entries.is_empty() {
+                continue;
+            }
+            if multi_file {
+                lines.push(format!("# file: {label}"));
+            }
+            lines.extend(entries.iter().cloned());
         }
         rendered = format!(
             "{}\n{}\n",
@@ -172,6 +245,11 @@ pub fn run_opt(
         );
     }
 
+    // Highlighting is cosmetic styling of the rendered text, not an analysis
+    // decision, so one dialect for the whole rendered block (the same
+    // detection-order fallback `combined_effective_dialect` always used) is
+    // fine even when the inputs' own dialects differ.
+    let dialect = combined_effective_dialect(&documents, explicit_dialect);
     let use_colour = tcl_cli_support::resolve_use_colour(colour.colour, colour.no_colour, &target);
     write_highlighted_output(&target, &rendered, use_colour, DEFAULT_TAB_WIDTH, dialect)?;
 
@@ -179,7 +257,7 @@ pub fn run_opt(
         eprintln!(
             "optimised {} input(s); rewrites={}",
             documents.len(),
-            optimisations.len()
+            total_rewrites
         );
     }
     Ok(0)
@@ -228,6 +306,16 @@ pub struct MinifyOptions {
 }
 
 /// `tcl minify` — strip comments, collapse whitespace, join commands.
+///
+/// Kept on `combine_sources` after #2120's investigation of `run_opt`'s
+/// concatenation bug: unlike `opt`, whose output stays N separate files that
+/// are never run together, `minify` has no per-file output (one stream, no
+/// `--in-place`) — several inputs name a bundle that is meant to be sourced
+/// as a single deployment artifact. Once bundled, the files *do* share one
+/// runtime scope, so `--aggressive`'s optimiser pass, name compaction and
+/// cross-command aliasing over the whole bundle are correct for what this
+/// verb produces, not the same defect as `opt` folding across files that stay
+/// separate.
 pub fn run_minify(
     input: &InputArgs,
     symbol_map: Option<&Path>,

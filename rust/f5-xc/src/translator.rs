@@ -29,6 +29,7 @@ use std::collections::BTreeMap;
 use tcl_compiler::ir::{Module, Script, Statement, SwitchArm, SwitchMode, when_event_name};
 use tcl_compiler::lowering::lower_to_ir_with_config;
 use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
+use tcl_core_types::DiagCode;
 use tcl_lexer::Span;
 use tcl_registry::CommandRegistry;
 use tcl_syntax::expr::ast::{BinOp, ExprNode, UnaryOp, expr_text};
@@ -974,7 +975,7 @@ impl TranslationContext {
             irule_range: source_range,
             xc_description: format!("Origin pool: {name}"),
             note: String::new(),
-            diagnostic_code: "XC100".to_owned(),
+            diagnostic_code: DiagCode::Xc100,
         });
     }
 }
@@ -1078,7 +1079,7 @@ fn walk_statement(
                     irule_range: Some(*span),
                     xc_description: "XC service policy rule with match criteria".to_owned(),
                     note: String::new(),
-                    diagnostic_code: "XC102".to_owned(),
+                    diagnostic_code: DiagCode::Xc102,
                 });
             } else {
                 let cond_text = clauses.first().map_or_else(
@@ -1093,7 +1094,7 @@ fn walk_statement(
                     xc_description: "Conditional logic — review manually for XC match criteria"
                         .to_owned(),
                     note: "Complex condition could not be automatically mapped".to_owned(),
-                    diagnostic_code: "XC203".to_owned(),
+                    diagnostic_code: DiagCode::Xc203,
                 });
             }
         }
@@ -1114,7 +1115,7 @@ fn walk_statement(
                     "'{command}' creates dynamic behaviour with no XC equivalent. \
                      Consider App Stack for this logic."
                 ),
-                diagnostic_code: "XC300".to_owned(),
+                diagnostic_code: DiagCode::Xc300,
             });
         }
         Statement::Return { .. } => {}
@@ -1130,7 +1131,7 @@ fn walk_statement(
                 note: "XC policies are declarative, not procedural. \
                        Consider App Stack for iterative logic."
                     .to_owned(),
-                diagnostic_code: "XC300".to_owned(),
+                diagnostic_code: DiagCode::Xc300,
             });
             walk_script(body, ctx, registry, depth + 1, &EnclosingContext::default());
         }
@@ -1253,7 +1254,7 @@ fn walk_switch(
                 format!("switch {subject}"),
                 span,
                 "XC L7 routes with path matching",
-                "XC101",
+                DiagCode::Xc101,
             ));
         }
         Some("host") => {
@@ -1267,7 +1268,7 @@ fn walk_switch(
                 format!("switch {subject}"),
                 span,
                 "XC L7 routes with host matching",
-                "XC101",
+                DiagCode::Xc101,
             ));
         }
         Some("method") => {
@@ -1284,7 +1285,7 @@ fn walk_switch(
                 irule_range: Some(span),
                 xc_description: "XC service policy rules with method matching".to_owned(),
                 note: String::new(),
-                diagnostic_code: "XC102".to_owned(),
+                diagnostic_code: DiagCode::Xc102,
             });
         }
         _ => {
@@ -1295,7 +1296,7 @@ fn walk_switch(
                 irule_range: Some(span),
                 xc_description: "Switch on dynamic value — needs manual XC config".to_owned(),
                 note: "Cannot statically determine match criteria".to_owned(),
-                diagnostic_code: "XC200".to_owned(),
+                diagnostic_code: DiagCode::Xc200,
             });
             // The subject is dynamic, so no arm pattern can be mapped to a
             // criterion — but the enclosing criteria still apply, so preserve
@@ -1316,7 +1317,7 @@ fn translated_route_item(
     irule_command: String,
     span: Span,
     xc_description: &str,
-    code: &str,
+    code: DiagCode,
 ) -> TranslationItem {
     TranslationItem {
         status: TranslateStatus::Translated,
@@ -1325,7 +1326,7 @@ fn translated_route_item(
         irule_range: Some(span),
         xc_description: xc_description.to_owned(),
         note: String::new(),
-        diagnostic_code: code.to_owned(),
+        diagnostic_code: code,
     }
 }
 
@@ -1387,7 +1388,7 @@ fn walk_call(
                 format!("HTTP::redirect {url}"),
                 span,
                 "XC redirect route",
-                "XC101",
+                DiagCode::Xc101,
             ));
         }
         "HTTP::respond" if !args.is_empty() => {
@@ -1421,7 +1422,7 @@ fn walk_call(
                     irule_range: Some(span),
                     xc_description: format!("XC service policy deny rule ({status_code})"),
                     note: String::new(),
-                    diagnostic_code: "XC102".to_owned(),
+                    diagnostic_code: DiagCode::Xc102,
                 });
             } else {
                 ctx.routes.push(XCRoute {
@@ -1443,7 +1444,7 @@ fn walk_call(
                     format!("HTTP::respond {status_code}"),
                     span,
                     &format!("XC direct response route ({status_code})"),
-                    "XC101",
+                    DiagCode::Xc101,
                 ));
             }
         }
@@ -1472,7 +1473,7 @@ fn walk_call(
                         irule_range: Some(span),
                         xc_description: format!("XC {target} header {operation}: {header_name}"),
                         note: String::new(),
-                        diagnostic_code: "XC103".to_owned(),
+                        diagnostic_code: DiagCode::Xc103,
                     });
                 }
             }
@@ -1486,7 +1487,7 @@ fn walk_call(
                 irule_range: Some(span),
                 xc_description: "XC service policy rule (data-group matching)".to_owned(),
                 note: "Each data-group entry may need a separate XC rule".to_owned(),
-                diagnostic_code: "XC105".to_owned(),
+                diagnostic_code: DiagCode::Xc105,
             });
         }
         "ASM::disable" => {
@@ -1505,7 +1506,7 @@ fn walk_call(
                 irule_range: Some(span),
                 xc_description: "XC WAF exclusion rule (disable App Firewall)".to_owned(),
                 note: String::new(),
-                diagnostic_code: "XC106".to_owned(),
+                diagnostic_code: DiagCode::Xc106,
             });
         }
         "ASM::enable" => {
@@ -1517,7 +1518,7 @@ fn walk_call(
                 xc_description: "No action needed — XC App Firewall is enabled by default"
                     .to_owned(),
                 note: String::new(),
-                diagnostic_code: "XC107".to_owned(),
+                diagnostic_code: DiagCode::Xc107,
             });
         }
         _ => {
@@ -1530,7 +1531,7 @@ fn walk_call(
                     irule_range: Some(span),
                     xc_description: format!("'{command}' has no XC equivalent"),
                     note: "Consider App Stack for this logic.".to_owned(),
-                    diagnostic_code: "XC300".to_owned(),
+                    diagnostic_code: DiagCode::Xc300,
                 });
             } else if UNTRANSLATABLE_PREFIXES
                 .iter()
@@ -1544,7 +1545,7 @@ fn walk_call(
                         irule_range: Some(span),
                         xc_description: format!("'{command}' has no XC equivalent"),
                         note: "L4/protocol-specific command. Consider App Stack.".to_owned(),
-                        diagnostic_code: "XC301".to_owned(),
+                        diagnostic_code: DiagCode::Xc301,
                     });
                 }
             } else if let Some(mapping) = command_xc_map(command) {
@@ -1555,7 +1556,7 @@ fn walk_call(
                     irule_range: Some(span),
                     xc_description: mapping.xc_description.to_owned(),
                     note: mapping.note.to_owned(),
-                    diagnostic_code: "XC100".to_owned(),
+                    diagnostic_code: DiagCode::Xc100,
                 });
             }
         }
@@ -1636,7 +1637,7 @@ pub fn translate_irule_with_registry(
                 irule_range: Some(proc.span),
                 xc_description: desc.to_owned(),
                 note: "This entire event handler has no XC equivalent.".to_owned(),
-                diagnostic_code: "XC201".to_owned(),
+                diagnostic_code: DiagCode::Xc201,
             });
         } else if let Some(desc) = advisory_event(&event_name) {
             ctx.items.push(TranslationItem {
@@ -1646,7 +1647,7 @@ pub fn translate_irule_with_registry(
                 irule_range: Some(proc.span),
                 xc_description: desc.to_owned(),
                 note: "This event maps to a separate XC feature.".to_owned(),
-                diagnostic_code: "XC250".to_owned(),
+                diagnostic_code: DiagCode::Xc250,
             });
         } else {
             ctx.items.push(TranslationItem {
@@ -1656,7 +1657,7 @@ pub fn translate_irule_with_registry(
                 irule_range: Some(proc.span),
                 xc_description: format!("Event '{event_name}' has no known XC equivalent."),
                 note: String::new(),
-                diagnostic_code: "XC201".to_owned(),
+                diagnostic_code: DiagCode::Xc201,
             });
         }
     }

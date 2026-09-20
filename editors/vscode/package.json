@@ -8510,8 +8510,378 @@
         }
       },
       {
-        "title": "Diagnostics — SslicTcl",
+        "title": "Diagnostics — XC Translatability",
         "order": 19,
+        "properties": {
+          "tclLsp.diagnostics.XC100": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**XC100:** iRule construct translates to an XC configuration object.",
+            "order": 0
+          },
+          "tclLsp.diagnosticSeverity.XC100": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **XC100:** iRule construct translates to an XC configuration object.",
+            "order": 0
+          },
+          "tclLsp.diagnostics.XC101": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**XC101:** iRule construct translates to an XC L7 route.",
+            "order": 1
+          },
+          "tclLsp.diagnosticSeverity.XC101": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **XC101:** iRule construct translates to an XC L7 route.",
+            "order": 1
+          },
+          "tclLsp.diagnostics.XC102": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**XC102:** iRule construct translates to an XC service policy rule.",
+            "order": 2
+          },
+          "tclLsp.diagnosticSeverity.XC102": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **XC102:** iRule construct translates to an XC service policy rule.",
+            "order": 2
+          },
+          "tclLsp.diagnostics.XC103": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**XC103:** iRule construct translates to an XC header action.",
+            "order": 3
+          },
+          "tclLsp.diagnosticSeverity.XC103": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **XC103:** iRule construct translates to an XC header action.",
+            "order": 3
+          },
+          "tclLsp.diagnostics.XC105": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**XC105:** iRule data-group match translates to an XC service policy rule — each data-group entry may need a rule of its own.",
+            "order": 4
+          },
+          "tclLsp.diagnosticSeverity.XC105": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **XC105:** iRule data-group match translates to an XC service policy rule — each data-group entry may need a rule of its own.",
+            "order": 4
+          },
+          "tclLsp.diagnostics.XC106": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**XC106:** iRule construct translates to an XC WAF exclusion rule.",
+            "order": 5
+          },
+          "tclLsp.diagnosticSeverity.XC106": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **XC106:** iRule construct translates to an XC WAF exclusion rule.",
+            "order": 5
+          },
+          "tclLsp.diagnostics.XC107": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**XC107:** No XC action needed — the iRule construct is already XC's default behaviour.",
+            "order": 6
+          },
+          "tclLsp.diagnosticSeverity.XC107": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **XC107:** No XC action needed — the iRule construct is already XC's default behaviour.",
+            "order": 6
+          },
+          "tclLsp.diagnostics.XC200": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**XC200:** Construct is only partially translatable — the match criteria cannot be determined statically.",
+            "order": 7
+          },
+          "tclLsp.diagnosticSeverity.XC200": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **XC200:** Construct is only partially translatable — the match criteria cannot be determined statically.",
+            "order": 7
+          },
+          "tclLsp.diagnostics.XC201": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**XC201:** iRules event has no XC equivalent — the whole event handler is untranslatable.",
+            "order": 8
+          },
+          "tclLsp.diagnosticSeverity.XC201": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **XC201:** iRules event has no XC equivalent — the whole event handler is untranslatable.",
+            "order": 8
+          },
+          "tclLsp.diagnostics.XC203": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**XC203:** Conditional logic is only partially translatable — review the XC match criteria manually.",
+            "order": 9
+          },
+          "tclLsp.diagnosticSeverity.XC203": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **XC203:** Conditional logic is only partially translatable — review the XC match criteria manually.",
+            "order": 9
+          },
+          "tclLsp.diagnostics.XC250": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**XC250:** iRules event maps to a separate XC feature rather than to this configuration.",
+            "order": 10
+          },
+          "tclLsp.diagnosticSeverity.XC250": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **XC250:** iRules event maps to a separate XC feature rather than to this configuration.",
+            "order": 10
+          },
+          "tclLsp.diagnostics.XC300": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**XC300:** Dynamic or procedural construct has no XC equivalent — consider App Stack for this logic.",
+            "order": 11
+          },
+          "tclLsp.diagnosticSeverity.XC300": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **XC300:** Dynamic or procedural construct has no XC equivalent — consider App Stack for this logic.",
+            "order": 11
+          },
+          "tclLsp.diagnostics.XC301": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**XC301:** L4/protocol-specific command has no XC equivalent — consider App Stack for this logic.",
+            "order": 12
+          },
+          "tclLsp.diagnosticSeverity.XC301": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **XC301:** L4/protocol-specific command has no XC equivalent — consider App Stack for this logic.",
+            "order": 12
+          }
+        }
+      },
+      {
+        "title": "Diagnostics — SslicTcl",
+        "order": 20,
         "properties": {
           "tclLsp.diagnostics.SSLIC1001": {
             "scope": "resource",
@@ -8937,7 +9307,7 @@
       },
       {
         "title": "Optimiser",
-        "order": 20,
+        "order": 21,
         "properties": {
           "tclLsp.optimiser.enabled": {
             "scope": "resource",
