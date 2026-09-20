@@ -1016,6 +1016,89 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     defaultEnabled: true,
   },
   {
+    code: "XC100",
+    section: "xc",
+    description: "iRule construct translates to an XC configuration object.",
+    defaultEnabled: true,
+  },
+  {
+    code: "XC101",
+    section: "xc",
+    description: "iRule construct translates to an XC L7 route.",
+    defaultEnabled: true,
+  },
+  {
+    code: "XC102",
+    section: "xc",
+    description: "iRule construct translates to an XC service policy rule.",
+    defaultEnabled: true,
+  },
+  {
+    code: "XC103",
+    section: "xc",
+    description: "iRule construct translates to an XC header action.",
+    defaultEnabled: true,
+  },
+  {
+    code: "XC105",
+    section: "xc",
+    description:
+      "iRule data-group match translates to an XC service policy rule — each data-group entry may need a rule of its own.",
+    defaultEnabled: true,
+  },
+  {
+    code: "XC106",
+    section: "xc",
+    description: "iRule construct translates to an XC WAF exclusion rule.",
+    defaultEnabled: true,
+  },
+  {
+    code: "XC107",
+    section: "xc",
+    description: "No XC action needed — the iRule construct is already XC's default behaviour.",
+    defaultEnabled: true,
+  },
+  {
+    code: "XC200",
+    section: "xc",
+    description:
+      "Construct is only partially translatable — the match criteria cannot be determined statically.",
+    defaultEnabled: true,
+  },
+  {
+    code: "XC201",
+    section: "xc",
+    description: "iRules event has no XC equivalent — the whole event handler is untranslatable.",
+    defaultEnabled: true,
+  },
+  {
+    code: "XC203",
+    section: "xc",
+    description:
+      "Conditional logic is only partially translatable — review the XC match criteria manually.",
+    defaultEnabled: true,
+  },
+  {
+    code: "XC250",
+    section: "xc",
+    description: "iRules event maps to a separate XC feature rather than to this configuration.",
+    defaultEnabled: true,
+  },
+  {
+    code: "XC300",
+    section: "xc",
+    description:
+      "Dynamic or procedural construct has no XC equivalent — consider App Stack for this logic.",
+    defaultEnabled: true,
+  },
+  {
+    code: "XC301",
+    section: "xc",
+    description:
+      "L4/protocol-specific command has no XC equivalent — consider App Stack for this logic.",
+    defaultEnabled: true,
+  },
+  {
     code: "SSLIC1001",
     section: "sslictcl",
     description: "SslicTcl declaration is not valid Tcl syntax or has an unclosed delimiter.",
@@ -1284,6 +1367,7 @@ export const SECTION_TITLES: Record<string, string> = {
   taint: "Diagnostics — Taint",
   irules: "Diagnostics — iRules",
   bigip: "Diagnostics — BIG-IP Configuration",
+  xc: "Diagnostics — XC Translatability",
   sslictcl: "Diagnostics — SslicTcl",
   tclpkg: "Diagnostics — Package Manager",
 };
@@ -1298,6 +1382,7 @@ export const SECTION_ORDER: string[] = [
   "taint",
   "irules",
   "bigip",
+  "xc",
   "sslictcl",
   "tclpkg",
 ];

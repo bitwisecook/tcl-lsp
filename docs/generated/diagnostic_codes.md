@@ -180,6 +180,19 @@
 | IAPP7001 | bigip | iApp implementation references a presentation field that is not defined. | ✓ |
 | IAPP7002 | bigip | iApp presentation field is never referenced by the implementation. | ✓ |
 | IAPP7003 | bigip | iApp presentation `#include` file could not be resolved. | ✓ |
+| XC100 | xc | iRule construct translates to an XC configuration object. | ✓ |
+| XC101 | xc | iRule construct translates to an XC L7 route. | ✓ |
+| XC102 | xc | iRule construct translates to an XC service policy rule. | ✓ |
+| XC103 | xc | iRule construct translates to an XC header action. | ✓ |
+| XC105 | xc | iRule data-group match translates to an XC service policy rule — each data-group entry may need a rule of its own. | ✓ |
+| XC106 | xc | iRule construct translates to an XC WAF exclusion rule. | ✓ |
+| XC107 | xc | No XC action needed — the iRule construct is already XC's default behaviour. | ✓ |
+| XC200 | xc | Construct is only partially translatable — the match criteria cannot be determined statically. | ✓ |
+| XC201 | xc | iRules event has no XC equivalent — the whole event handler is untranslatable. | ✓ |
+| XC203 | xc | Conditional logic is only partially translatable — review the XC match criteria manually. | ✓ |
+| XC250 | xc | iRules event maps to a separate XC feature rather than to this configuration. | ✓ |
+| XC300 | xc | Dynamic or procedural construct has no XC equivalent — consider App Stack for this logic. | ✓ |
+| XC301 | xc | L4/protocol-specific command has no XC equivalent — consider App Stack for this logic. | ✓ |
 | SSLIC1001 | sslictcl | SslicTcl declaration is not valid Tcl syntax or has an unclosed delimiter. | ✓ |
 | SSLIC1002 | sslictcl | SslicTcl declaration uses substitution or argument expansion; the vocabulary is declarative. | ✓ |
 | SSLIC1003 | sslictcl | SslicTcl document is missing its `sslictcl VERSION` header. | ✓ |

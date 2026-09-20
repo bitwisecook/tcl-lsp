@@ -64,6 +64,15 @@ are load-bearing:
 - Tags are attached in `finalise_diagnostics`, the one point every publish
   path funnels through (fast tier, deep push, pull provider), so the three
   cannot disagree.
+- **A code outside the table can never be tagged.** `apply_diagnostic_tags`
+  resolves the published `Diagnostic.code` through `DiagCode::from_str` and
+  skips anything it cannot parse, so a family that publishes free strings is
+  silently untaggable — and equally invisible to `is_optimisation`,
+  `refined_by_workspace`, the KCS code-table gates and the per-code settings
+  surface. Every family we publish therefore has rows in `diagnostic_codes!`,
+  including the `XC###` iRule → F5 Distributed Cloud translatability family
+  (section `xc`), whose producer carries a typed `DiagCode` end to end rather
+  than a string (issue #2121).
 
 `Unnecessary` means "you wrote this and nothing reads it" — `W211`, `W214`,
 `W220`, `O126`. It deliberately does **not** cover `W210` ("read before set")
