@@ -188,14 +188,77 @@ fn shared_math(name: &str, args: &[Value], int_width: IntWidth) -> Completion<Va
 fn m_mathfunc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let invoked = vm.invoked_name().unwrap_or_default();
     let name = invoked.rsplit("::").next().unwrap_or(invoked).to_owned();
+    let int_width = IntWidth::for_tcl_version(vm.runtime_version());
     match name.as_str() {
         "abs" => m_abs(args),
         "double" => m_double(args),
         "bool" => m_bool(args),
         "srand" => m_srand(vm, args),
         "rand" => m_rand(vm, args),
-        name => shared_math(name, args, IntWidth::for_tcl_version(vm.runtime_version())),
+        name => m_integer_conversion(name, args, int_width)
+            .unwrap_or_else(|| shared_math(name, args, int_width)),
     }
+}
+
+/// Whether `v` is already an *integer* object — the operand class C's
+/// `Tcl_GetNumberFromObj` reports as `TCL_NUMBER_INT` or `TCL_NUMBER_BIG`.
+/// A double (even an integral one such as `4.0`) is not: C converts it, so it
+/// has no integer object to hand back.
+fn is_integer_value(v: &Value) -> bool {
+    v.as_int().is_ok()
+        || matches!(
+            number::parse_whole(v.to_str().trim()),
+            Some(Number::Int(_) | Number::Big { .. })
+        )
+}
+
+/// The object-preserving integer path shared by `int`, `wide`, and `entier`
+/// (#1936), the same seam `runtime/rust`'s `cmd_mathfunc` takes.
+///
+/// C's `ExprEntierFunc` hands an already-integral operand **back as the same
+/// object**, so the result keeps the operand's own string rep:
+/// `::tcl::mathfunc::entier 0x10` is `0x10`, not `16` (tclsh 8.5-9.1). Routing
+/// it through the shared numeric dispatch instead rebuilds a canonical decimal
+/// and loses that rep. The release-specific *width* semantics are untouched and
+/// still come from the shared owner's [`IntWidth`] axis: `wide` always takes
+/// C's low-64-bit window, and `int` does too until 9.0 binds it to the same
+/// unbounded conversion as `entier`. A windowing conversion has to build a new
+/// integer, so only the unbounded one can preserve the object.
+///
+/// `None` falls through to [`shared_math`]: a float operand (which C genuinely
+/// converts, and whose exact float-to-bignum truncation lives in the shared
+/// seam), a non-number (whose refusal wording is the shared seam's), and any
+/// wrong argument count (whose arity error is too).
+///
+/// `expr` itself is unaffected: it coerces its result to numeric, so
+/// `expr {entier($h)}` stays `16` for `$h` of `0x10` exactly as C Tcl does —
+/// the preservation is visible only through the command form.
+fn m_integer_conversion(
+    name: &str,
+    args: &[Value],
+    int_width: IntWidth,
+) -> Option<Completion<Value>> {
+    let windows = match name {
+        "wide" => true,
+        "int" => int_width == IntWidth::Windowed,
+        "entier" => false,
+        _ => return None,
+    };
+    let [x] = args else { return None };
+    if !is_integer_value(x) {
+        return None;
+    }
+    Some(if windows {
+        match x.as_wide() {
+            Ok(w) => ok(Value::int(w)),
+            // Unreachable: `as_wide` narrows every integer literal, including
+            // one past `i128`. Deferring keeps the shared seam's wording
+            // rather than inventing a second one here.
+            Err(_) => return None,
+        }
+    } else {
+        ok(x.clone())
+    })
 }
 
 pub(crate) fn register(vm: &mut Vm) {

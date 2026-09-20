@@ -23,7 +23,7 @@
 //! instructions.
 
 use tcl_lexer::backslash_subst_in;
-use tcl_registry::expr_surface::RuntimeExprSurface;
+use tcl_registry::expr_surface::{MathFunctionCallTarget, RuntimeExprSurface};
 
 use super::values::parse_simple_var_ref;
 use super::{CodegenCtx, Op, Operand, bytecode_imm};
@@ -386,6 +386,59 @@ impl CodegenCtx<'_> {
         self.emit_expr_at(node, 0)
     }
 
+    /// Emit an `expr` math-function call, or defer the whole call to
+    /// `exprStk` when the target release does not dispatch one as a command.
+    ///
+    /// TIP 232 (Tcl 8.5) made `expr`'s math functions ordinary
+    /// `tcl::mathfunc::*` commands, which is what the invocation below lowers
+    /// to. Tcl 8.4 predates it: its builtins live in a fixed C function table
+    /// and no such command exists, so `expr {sqrt($x)}` — which `tclsh8.4`
+    /// evaluates to `2.0` — compiled to `invalid command name
+    /// "tcl::mathfunc::sqrt"` (#1944). The dispatch mechanism is the
+    /// registry's fact, read from the same [`RuntimeExprSurface`] owner the
+    /// interpreted `ExprEval::call` consults, never from a release comparison
+    /// here.
+    ///
+    /// Anything but the open command table defers the call whole to `exprStk`
+    /// — the lowering fallback pattern. The interpreter then reaches 8.4's
+    /// fixed table through that one registry gate, and a name absent from it
+    /// ([`MathFunctionCallTarget::FixedTableMiss`]) raises C's `unknown math
+    /// function` rather than a command-lookup miss invented here. A compile
+    /// that named no dialect has no release to gate against — see
+    /// [`Self::expr_surface`].
+    fn emit_expr_call(
+        &mut self,
+        node: &ExprNode,
+        function: &str,
+        args: &[ExprNode],
+        depth: u32,
+    ) -> bool {
+        if self.expr_surface().is_some_and(|surface| {
+            !matches!(
+                surface.math_function_call_target(function),
+                MathFunctionCallTarget::CommandTable
+            )
+        }) {
+            self.push_lit(&render_expr(node));
+            self.emit(Op::EXPR_STK, vec![]);
+            return false;
+        }
+        self.push_lit(&format!("tcl::mathfunc::{function}"));
+        for arg in args {
+            self.emit_expr_at(arg, depth + 1);
+        }
+        // invokeStk1 has a 1-byte operand; switch to invokeStk4 when
+        // arg_count exceeds u8 to avoid truncation.
+        let arg_count = bytecode_imm(1 + args.len());
+        let op = if arg_count < 256 {
+            Op::INVOKE_STK1
+        } else {
+            Op::INVOKE_STK4
+        };
+        self.emit_comment(op, vec![Operand::Imm(arg_count)], "");
+        false
+    }
+
     /// Depth-carrying core of [`Self::emit_expr`] — see that method's
     /// contract. `depth` is this node's `ExprNode` nesting level.
     fn emit_expr_at(&mut self, node: &ExprNode, depth: u32) -> bool {
@@ -506,20 +559,7 @@ impl CodegenCtx<'_> {
             }
 
             ExprNode::Call { function, args, .. } => {
-                self.push_lit(&format!("tcl::mathfunc::{function}"));
-                for arg in args {
-                    self.emit_expr_at(arg, depth + 1);
-                }
-                // invokeStk1 has a 1-byte operand; switch to invokeStk4 when
-                // arg_count exceeds u8 to avoid truncation.
-                let arg_count = bytecode_imm(1 + args.len());
-                let op = if arg_count < 256 {
-                    Op::INVOKE_STK1
-                } else {
-                    Op::INVOKE_STK4
-                };
-                self.emit_comment(op, vec![Operand::Imm(arg_count)], "");
-                false
+                self.emit_expr_call(node, function, args, depth)
             }
 
             ExprNode::Command { text, .. } => {
