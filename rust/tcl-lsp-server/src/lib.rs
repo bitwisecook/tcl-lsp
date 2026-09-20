@@ -16680,6 +16680,51 @@ impl Backend {
     /// (multi-pass for the `"full"` profile, single-pass otherwise),
     /// applies the rewrites, and returns `{source, optimisations}` — the
     /// optimised text plus the list of applied optimisation suggestions.
+    /// The master switch and category-disabled set `tcl-lsp.optimiseDocument`
+    /// runs under, for a document and the `profile` the call named.
+    ///
+    /// The *categories* come from that argument when it names a profile, not
+    /// from the editor setting. It is an `OptimisationProfile` — the same
+    /// vocabulary `tcl opt --profile` parses — so `optimiseDocument uri
+    /// "full"` is a caller explicitly asking for the full category set, and
+    /// answering it with the editor's configured profile (`readability` by
+    /// default, where constant folding is opt-in) would silently refuse what
+    /// it asked for.
+    ///
+    /// An unrecognised or absent name falls back to the configured profile
+    /// via `resolved_analysis_settings` — the same resolver
+    /// `lift_compiler_diagnostics` reads, so the default path stays one
+    /// policy rather than a second copy (#2119). Per-code overrides layer on
+    /// top either way.
+    async fn optimiser_policy_for_command(
+        &self,
+        uri: &Uri,
+        named: Option<&str>,
+    ) -> (bool, HashSet<String>) {
+        use tcl_compiler::optimiser::profiles::{OptimisationProfile, profile_to_disabled};
+
+        let (_, _, optimiser_enabled, configured_disabled) =
+            self.resolved_analysis_settings(uri).await;
+        let Some(profile) = named
+            .filter(|name| OptimisationProfile::ALL.iter().any(|p| p.name() == *name))
+            .map(OptimisationProfile::parse)
+        else {
+            return (optimiser_enabled, configured_disabled);
+        };
+        let mut set: HashSet<String> = profile_to_disabled(profile)
+            .into_iter()
+            .map(str::to_owned)
+            .collect();
+        for (code, enabled) in self.optimiser_code_overrides.lock().await.iter() {
+            if *enabled {
+                set.remove(code);
+            } else {
+                set.insert(code.clone());
+            }
+        }
+        (optimiser_enabled, set)
+    }
+
     async fn optimise_document_command(
         &self,
         args: &[serde_json::Value],
@@ -16705,12 +16750,24 @@ impl Backend {
         let dialect = doc.dialect.clone();
         // This command is the batch form of the optimiser code actions, so it
         // owes the user the same policy the published O-code diagnostics
-        // apply (#2119): the `tclLsp.optimiser.enabled` master switch, the
-        // profile plus per-code disabled set, and the inline suppression
-        // directives. Reading them from `resolved_analysis_settings` is what
-        // keeps it one policy rather than a second copy that can drift from
-        // `lift_compiler_diagnostics`.
-        let (_, _, optimiser_enabled, opt_disabled) = self.resolved_analysis_settings(&uri).await;
+        // apply (#2119): the `tclLsp.optimiser.enabled` master switch, a
+        // profile-derived disabled set layered with the per-code overrides,
+        // and the inline suppression directives.
+        //
+        // The *categories* come from this call's own `profile` argument when
+        // it names one, not from the editor setting. That argument is an
+        // `OptimisationProfile` — the same vocabulary `tcl opt --profile`
+        // parses — so `optimiseDocument uri "full"` is a caller explicitly
+        // asking for the full category set, and answering it with the
+        // editor's configured profile (`readability` by default, where
+        // constant folding is opt-in) would silently refuse what it asked
+        // for. An unrecognised or absent argument falls back to the
+        // configured profile, via `resolved_analysis_settings` — the same
+        // resolver `lift_compiler_diagnostics` reads, so the default path
+        // stays one policy rather than a second copy.
+        let (optimiser_enabled, opt_disabled) = self
+            .optimiser_policy_for_command(&uri, args.get(1).and_then(serde_json::Value::as_str))
+            .await;
         let value = crate::rt::spawn_blocking(move || {
             tcl_spectcl::hooks::ensure_thread_host();
             let dialect_opt = tcl_lsp_core::stated_profile_for_dialect(&dialect);
@@ -33286,6 +33343,62 @@ mod tests {
             count(&out),
             0,
             "every baseline code was disabled per-code, so none may be applied: {out:?}",
+        );
+    }
+
+    /// Issue #2119, the part the unit tests first got wrong: the command's
+    /// own `profile` argument names an `OptimisationProfile` — the same
+    /// vocabulary `tcl opt --profile` parses — and it selects the *category*
+    /// set, overriding the configured editor profile.
+    ///
+    /// The first cut of the #2119 fix took categories from
+    /// `resolved_analysis_settings` unconditionally, so
+    /// `optimiseDocument uri "full"` was answered with the default
+    /// `readability` profile, where constant folding is opt-in, and folded
+    /// nothing. Twelve e2e cases caught it; this pins it at unit level,
+    /// where the two meanings of "profile" are easy to conflate again.
+    #[tokio::test]
+    async fn optimise_document_command_profile_argument_selects_the_categories_issue_2119() {
+        let src = "puts [llength [list a b c]]\n";
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///o2119f.tcl").unwrap();
+        register(&backend, &uri, src).await;
+        // Deliberately left at the default `readability`, under which
+        // constant folding is opt-in — the argument has to win.
+        let out = backend
+            .optimise_document_command(&[
+                serde_json::json!(uri.as_str()),
+                serde_json::json!("full"),
+            ])
+            .await
+            .expect("ok")
+            .expect("some");
+        assert!(
+            out.get("source")
+                .and_then(serde_json::Value::as_str)
+                .is_some_and(|s| s.contains("puts 3")),
+            "an explicit `full` profile must fold, whatever the editor's \
+             configured profile is: {out:?}",
+        );
+
+        // An unrecognised name is not a licence to widen: it falls back to
+        // the configured profile, which folds nothing by default.
+        let fallback = test_backend();
+        let uri2 = Uri::from_str("file:///o2119g.tcl").unwrap();
+        register(&fallback, &uri2, src).await;
+        let out = fallback
+            .optimise_document_command(&[
+                serde_json::json!(uri2.as_str()),
+                serde_json::json!("not-a-profile"),
+            ])
+            .await
+            .expect("ok")
+            .expect("some");
+        assert!(
+            out.get("source")
+                .and_then(serde_json::Value::as_str)
+                .is_some_and(|s| !s.contains("puts 3")),
+            "an unrecognised profile falls back to the configured one: {out:?}",
         );
     }
 
