@@ -1177,10 +1177,17 @@ fn o110_reassociation() {
     // tclsh sweep: ($a + 1) + 2 == $a + 3.
     assert!(optimised("set v [expr {($a + 1) + 2}]", TCL).contains("$a + 3"));
     assert!(opt_fires("set v [expr {($a + 1) + 2}]", TCL, "O110"));
-    // NOTE (gap, sound): the same reassoc inside a `proc ... return [expr {...}]`
-    // value position is NOT folded (no code fires); leaving it is sound. Given
-    // `proc f {a} { return [expr {($a + 1) + 2}] }` no optimisation fires.
-    assert!(opt_codes("proc f {a} { return [expr {($a + 1) + 2}] }", TCL).is_empty());
+    // #1962: a `return [expr {...}]` value position now agrees with the `set`
+    // body above — the same reassoc folds there too.
+    assert!(
+        optimised("proc f {a} { return [expr {($a + 1) + 2}] }", TCL)
+            .contains("return [expr {$a + 3}]")
+    );
+    assert!(opt_fires(
+        "proc f {a} { return [expr {($a + 1) + 2}] }",
+        TCL,
+        "O110"
+    ));
 }
 
 #[test]
