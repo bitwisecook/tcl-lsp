@@ -206,25 +206,30 @@ fn render_spec<O: ValueOps>(
 ) -> Result<String, CmdError> {
     let verb = spec.verb;
     match verb {
-        b'd' | b'i' | b'u' => {
-            let n = ops.as_int(arg)?;
+        b'd' | b'i' => {
+            // The size modifier and the release pick the width; the low bits
+            // are then read signed. See `tcl_syntax::format::integer_width`.
+            let n = tcl_syntax::format::integer_width(spec.size, syntax).signed(ops.as_int(arg)?);
             let mut digits = int_digits(n, spec);
             // Tcl 9 `%#d` / `%#i` alternate form: a `0d` radix prefix on a
             // non-zero value (dropped for zero, like `%#x 0` → `0`). `%u` takes
             // no prefix. The sign and width are applied around it by
             // `pad_number`, so `%#d -42` → `-0d42`.
-            if syntax.has_decimal_prefix()
-                && spec.flags.contains(FmtFlags::HASH)
-                && matches!(verb, b'd' | b'i')
-                && n != 0
-            {
+            if syntax.has_decimal_prefix() && spec.flags.contains(FmtFlags::HASH) && n != 0 {
                 digits.insert_str(0, "0d");
             }
-            Ok(pad_number(&digits, n < 0 && verb != b'u', spec))
+            Ok(pad_number(&digits, n < 0, spec))
+        }
+        b'u' => {
+            // `%u` reads the same low bits *unsigned*: `format %u -1` is
+            // 18446744073709551615 on 8.x and 4294967295 on 9.x, and
+            // `format %hu 5000000000` is 61952 on every release.
+            let u = tcl_syntax::format::integer_width(spec.size, syntax).unsigned(ops.as_int(arg)?);
+            Ok(pad_number(&uint_digits(u, spec), false, spec))
         }
         b'x' | b'X' | b'o' | b'b' => {
-            let n = ops.as_int(arg)?;
-            Ok(pad_number(&based_digits(n, spec, syntax), false, spec))
+            let u = tcl_syntax::format::integer_width(spec.size, syntax).unsigned(ops.as_int(arg)?);
+            Ok(pad_number(&based_digits(u, spec, syntax), false, spec))
         }
         b'c' => {
             let n = ops.as_int(arg)?;
@@ -261,12 +266,16 @@ fn int_digits(n: i64, spec: &Spec) -> String {
     apply_precision(n.unsigned_abs().to_string(), spec)
 }
 
+/// Decimal digits for an already-unsigned value, honouring `.precision`.
+fn uint_digits(u: u64, spec: &Spec) -> String {
+    apply_precision(u.to_string(), spec)
+}
+
 /// Digits for `x`/`X`/`o`/`b`, with the `#` alternate-form prefix.
-fn based_digits(n: i64, spec: &Spec, syntax: tcl_dialect::NumberSyntax) -> String {
-    // reinterpret the two's-complement bit pattern as u64: `%x`/`%o`/`%b` of a
-    // negative int prints the unsigned representation, matching C's `format`.
-    #[allow(clippy::cast_sign_loss)]
-    let u = n as u64;
+fn based_digits(u: u64, spec: &Spec, syntax: tcl_dialect::NumberSyntax) -> String {
+    // `u` already carries the conversion's width: the caller read the value's
+    // low bits unsigned, which is why `%x` of a negative int prints its
+    // two's-complement pattern, matching C's `format`.
     let (mut body, prefix) = match spec.verb {
         b'x' => (
             format!("{u:x}"),
