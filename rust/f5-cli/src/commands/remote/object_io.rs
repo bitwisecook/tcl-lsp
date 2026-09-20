@@ -59,21 +59,50 @@ fn percent_encode(s: &str) -> String {
     out
 }
 
+/// Every object kind `push` and `pull` handle, with the `(module, type)` URI
+/// segments each maps to.
+///
+/// The one source of truth for the set: `cli.rs` builds both subcommands'
+/// `value_parser` from [`OBJECT_KINDS`], and [`kind_to_endpoint`] resolves
+/// against these rows. The set used to be written out three times — twice in
+/// clap and once in the match plus its error string — and the copies had
+/// drifted: clap allowed four kinds while the three monitor and data-group
+/// kinds were implemented, endpoint-mapped, and named as supported in an
+/// error the user could never reach, because clap rejected the value first
+/// (#2073).
+///
+/// Sorted, so the generated help and the error text list kinds in one order.
+pub const OBJECT_KINDS: &[(&str, (&str, &str))] = &[
+    ("data-group-internal", ("ltm", "data-group/internal")),
+    ("monitor-http", ("ltm", "monitor/http")),
+    ("monitor-tcp", ("ltm", "monitor/tcp")),
+    ("node", ("ltm", "node")),
+    ("pool", ("ltm", "pool")),
+    ("rule", ("ltm", "rule")),
+    ("virtual", ("ltm", "virtual")),
+];
+
+/// The kind names alone, for clap's `value_parser`.
+#[must_use]
+pub fn object_kind_names() -> Vec<&'static str> {
+    OBJECT_KINDS.iter().map(|&(kind, _)| kind).collect()
+}
+
 /// Map a `kind` name to its `(module, type)` URI segments, or an error string
 /// for an unknown kind.
 fn kind_to_endpoint(kind: &str) -> Result<(&'static str, &'static str), String> {
-    match kind {
-        "virtual" => Ok(("ltm", "virtual")),
-        "pool" => Ok(("ltm", "pool")),
-        "node" => Ok(("ltm", "node")),
-        "rule" => Ok(("ltm", "rule")),
-        "monitor-http" => Ok(("ltm", "monitor/http")),
-        "monitor-tcp" => Ok(("ltm", "monitor/tcp")),
-        "data-group-internal" => Ok(("ltm", "data-group/internal")),
-        other => Err(format!(
-            "unsupported object kind '{other}' (supported: ['data-group-internal', 'monitor-http', 'monitor-tcp', 'node', 'pool', 'rule', 'virtual'])"
-        )),
-    }
+    OBJECT_KINDS
+        .iter()
+        .find(|&&(name, _)| name == kind)
+        .map(|&(_, endpoint)| endpoint)
+        .ok_or_else(|| {
+            let supported = object_kind_names()
+                .iter()
+                .map(|kind| format!("'{kind}'"))
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("unsupported object kind '{kind}' (supported: [{supported}])")
+        })
 }
 
 /// The PUT/POST endpoint a `--dry-run` would target, plus the human verb label.
@@ -318,4 +347,43 @@ fn char_position(raw: &str, byte_idx: usize) -> (usize, usize, usize) {
         char_idx += 1;
     }
     (line, col, char_idx)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{OBJECT_KINDS, kind_to_endpoint, object_kind_names};
+
+    /// The CLI surface and the endpoint map are one set now. Three kinds used
+    /// to be implemented and endpoint-mapped while clap rejected the value
+    /// before `kind_to_endpoint` could run (#2073) — and the error the user
+    /// could not reach advertised them as supported.
+    #[test]
+    fn every_offered_kind_resolves_to_an_endpoint() {
+        assert_eq!(object_kind_names().len(), OBJECT_KINDS.len());
+        for kind in object_kind_names() {
+            assert!(
+                kind_to_endpoint(kind).is_ok(),
+                "`{kind}` is offered on the command line but maps to no endpoint"
+            );
+        }
+        // The three that were unreachable are the point of the fix.
+        for kind in ["monitor-http", "monitor-tcp", "data-group-internal"] {
+            assert!(object_kind_names().contains(&kind), "{kind} is offered");
+        }
+    }
+
+    /// Sorted, so clap's `possible values` and the error text agree on order.
+    #[test]
+    fn the_kind_set_is_sorted_and_its_error_lists_all_of_it() {
+        let names = object_kind_names();
+        let mut sorted = names.clone();
+        sorted.sort_unstable();
+        assert_eq!(names, sorted);
+
+        let message = kind_to_endpoint("nonesuch").expect_err("unknown kind errors");
+        assert!(message.starts_with("unsupported object kind 'nonesuch'"));
+        for kind in names {
+            assert!(message.contains(kind), "{message} must name `{kind}`");
+        }
+    }
 }
