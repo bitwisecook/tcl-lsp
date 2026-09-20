@@ -882,15 +882,29 @@ impl CoreProfileId {
             return None;
         }
         match self.family() {
-            // 8.x counts UTF-16 code units; 9.x counts Unicode scalars.
-            Family::Tcl => Some(if self.release.ordinal() >= 3 {
-                StringCharacterModel::UnicodeScalars
-            } else {
-                StringCharacterModel::Utf16CodeUnits
+            // 8.4/8.5 count BMP characters and spell a supplementary code
+            // point as its four UTF-8 bytes; 8.6 counts UTF-16 code units;
+            // 9.x counts Unicode scalars. Measured on all five builds — see
+            // [`StringCharacterModel`].
+            Family::Tcl => Some(match self.release.ordinal() {
+                0 | 1 => StringCharacterModel::BmpCharsElseUtf8Bytes,
+                2 => StringCharacterModel::Utf16CodeUnits,
+                _ => StringCharacterModel::UnicodeScalars,
             }),
             // The F5 tree forks from a real Tcl 8.4.6 — both the trunk
             // and the iRules offshoot keep the 8.x model (measurements
             // §4: every context reports patchlevel 8.4.6).
+            //
+            // **Open question, deliberately left as it was.** #2128 showed
+            // that a real 8.4 counts a supplementary code point as its four
+            // UTF-8 bytes rather than as a surrogate pair, so the fork point
+            // argues for `BmpCharsElseUtf8Bytes` here. But unlike the
+            // mathfunc and `word_size_64` facts asserted beside it, this
+            // value carries no measurement citation, and the tree holds no
+            // TMOS `string length` measurement — so changing it would swap
+            // one inference for another about a device nobody here can
+            // probe. Left at its existing value until someone runs
+            // `string length` on real TMOS.
             Family::F5Tcl | Family::F5Irules => Some(StringCharacterModel::Utf16CodeUnits),
             Family::Jim => match self.resolve_capabilities().utf8_character_model {
                 CapabilityAnswer::Yes => Some(StringCharacterModel::UnicodeScalars),
