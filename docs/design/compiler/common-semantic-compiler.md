@@ -211,10 +211,22 @@ templates with backslash processing do too. For example, `{p\\x75b}` names the
 literal variable `p\\x75b`, while bare `p\\x75b` decodes before lookup and must
 not intern `pub` in a procedure's local-variable table.
 
+When an eligible word reaches an opcode emitter,
+`registry_invocation::compiled_local_name_value` supplies its evaluated
+literal value from that same source fact. Emitters must not reuse the flattened
+argument spelling: `{{zz}}` has the variable name `{zz}`, after its outer
+grouping braces are removed.
+
 The executable statement path carries `CommandTokens` to the registered
-codegen hook so it can apply that classifier. A compatibility path with only
-flattened command text must decline the direct local form until it retains the
-same structured words; it must not recover provenance from string contents.
+codegen hook so it can apply that classifier. For a whole-word nested command
+substitution, `word_subst::whole_word_command_tokens` recovers that command's
+words through the canonical segmenter from the enclosing `WordExpr`; the value
+emitter may use the snapshot only after its argv values align with its existing
+compatibility parse. This lets nested `info exists` and `array exists` select
+the same local slot as their statement forms without treating a decoded bare
+escape as a literal name. A compatibility path with only flattened command
+text preserves its established generic emission; it must not recover
+provenance from string contents.
 
 A `ResolvedInvocation` retains both the original words and the registry's
 semantic resolution:

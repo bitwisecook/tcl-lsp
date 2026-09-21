@@ -26,7 +26,8 @@ use super::cmd_subst::{has_command_separator, is_pure_cmd_subst, parse_cmd_parts
 use super::helpers::{SubstPart, parse_subst_template};
 use super::values::{is_qualified, needs_stk_var_ref, parse_simple_var_ref, split_array_ref};
 use super::{CodegenCtx, Op, Operand};
-use crate::ir::Statement;
+use crate::ir::{Statement, WordExpr};
+use crate::word_subst::whole_word_command_tokens;
 
 /// Tag used to identify `startCommand` instructions wrapping generic
 /// invokes so the peephole pass can selectively remove them.
@@ -304,9 +305,16 @@ impl CodegenCtx<'_> {
                 name_braced,
                 value,
                 value_needs_backsubst,
+                tokens,
                 ..
             } => {
-                self.emit_assign_value(name, *name_braced, value, *value_needs_backsubst);
+                self.emit_assign_value(
+                    name,
+                    *name_braced,
+                    value,
+                    *value_needs_backsubst,
+                    tokens.as_ref().and_then(|tokens| tokens.words().get(2)),
+                );
                 true
             }
             Statement::AssignExpr {
@@ -379,6 +387,7 @@ impl CodegenCtx<'_> {
         name_braced: bool,
         value: &str,
         value_needs_backsubst: bool,
+        value_word: Option<&WordExpr>,
     ) {
         // Whether this word's escapes were decoded *here*. A decoded value is
         // finished: every marker left in it came from an escape and is data, so
@@ -418,9 +427,14 @@ impl CodegenCtx<'_> {
         } else if self.try_emit_constant_fold(&value) {
             // The shared fold emitted the value.
         } else if inline {
-            self.emit_inline_cmd_subst(&value);
+            // Assignment already owns this shape's direct inline dispatcher:
+            // it handles expanded and multi-command bodies as well as every
+            // established specialised hook.  Carry source tokens only as an
+            // optional fact for its `info` / `array` local-name decision.
+            let nested = self.nested_command_tokens(value_word);
+            self.emit_inline_cmd_subst_with_tokens(&value, nested.as_ref());
         } else {
-            self.emit_value_interpolated(&value);
+            self.emit_value_interpolated_from_word(&value, value_word);
         }
         self.store_var(name);
         self.emit(Op::POP, vec![]);
@@ -621,6 +635,12 @@ impl CodegenCtx<'_> {
     /// Full interpolation with command substitution requires the main
     /// emitter pipeline.
     pub fn emit_value_interpolated(&mut self, value: &str) {
+        self.emit_value_interpolated_from_word(value, None);
+    }
+
+    /// Emit a value while retaining a source word only for an aligned nested
+    /// command substitution. Every other value follows the established path.
+    fn emit_value_interpolated_from_word(&mut self, value: &str, word: Option<&WordExpr>) {
         // Variable reference: ${var} → load
         if let Some(var_name) = parse_simple_var_ref(value, self.braced_var) {
             self.load_var(var_name);
@@ -716,7 +736,7 @@ impl CodegenCtx<'_> {
         // A whole-word command substitution compiles inline (on the explicit
         // stack) rather than via the runtime `subst_word` fallback, so a
         // `[yield]`/`[cmd]` inside it stays yieldable in a coroutine.
-        if self.try_emit_whole_cmd_subst(value) {
+        if self.emit_inline_cmd_subst_from_word(value, word) {
             return;
         }
         // A word carrying an *escaped* marker cannot be deferred at all, even
@@ -804,6 +824,28 @@ impl CodegenCtx<'_> {
     /// runtime path. Those never carry the coroutine resume-value idiom, so
     /// nothing yieldable is lost.
     pub(crate) fn try_emit_whole_cmd_subst(&mut self, value: &str) -> bool {
+        self.try_emit_whole_cmd_subst_with_tokens(value, None)
+    }
+
+    fn nested_command_tokens(&self, word: Option<&WordExpr>) -> Option<crate::ir::CommandTokens> {
+        word.and_then(|word| {
+            whole_word_command_tokens(
+                word,
+                tcl_lexer::LexerConfig::for_profile(self.registry.profile()),
+            )
+        })
+    }
+
+    fn emit_inline_cmd_subst_from_word(&mut self, value: &str, word: Option<&WordExpr>) -> bool {
+        let nested = self.nested_command_tokens(word);
+        self.try_emit_whole_cmd_subst_with_tokens(value, nested.as_ref())
+    }
+
+    fn try_emit_whole_cmd_subst_with_tokens(
+        &mut self,
+        value: &str,
+        tokens: Option<&crate::ir::CommandTokens>,
+    ) -> bool {
         if value.contains("\\[")
             || value.contains("\\]")
             || value.contains("{*}")
@@ -821,11 +863,31 @@ impl CodegenCtx<'_> {
         let Some((head, _)) = parts.split_first() else {
             return false;
         };
-        // This string-only compatibility path deliberately remains generic.
-        // Its parsed `(text, braced)` pairs have already lost the distinction
-        // between a quoted direct name and a bare decoded escape.  The
-        // source-aware statement bridge receives `CommandTokens`; preserving
-        // the same facts for nested command substitutions is follow-up work.
+        let args = &parts[1..];
+        let source_aware = tokens.is_some_and(|tokens| {
+            tokens.words_align_with_argv_text()
+                && tokens.argv_texts.len() == parts.len()
+                && tokens
+                    .argv_texts
+                    .iter()
+                    .zip(&parts)
+                    .all(|(word, (text, _))| word == text)
+        });
+        let source_aware_introspection = source_aware
+            && match self.inline_cmd_subst_hook_candidate(&head.0, args) {
+                Some(tcl_registry::hooks::InlineCodegenHookId::InfoExists) => args.len() == 2,
+                Some(tcl_registry::hooks::InlineCodegenHookId::Array) => {
+                    args.len() == 2 && args[0].0 == "exists"
+                }
+                _ => false,
+            };
+        if source_aware && source_aware_introspection {
+            self.emit_inline_cmd_subst_with_tokens(value, tokens);
+            return true;
+        }
+        // A source snapshot may be unavailable for a compatibility caller.
+        // Preserve its established generic value emission rather than
+        // guessing from flattened text.
         self.emit_generic_cmd_subst(&head.0, &parts[1..]);
         true
     }
@@ -884,6 +946,10 @@ impl CodegenCtx<'_> {
     }
 
     fn emit_word(&mut self, a: &str, braced: bool) {
+        self.emit_word_from_source(a, braced, None);
+    }
+
+    fn emit_word_from_source(&mut self, a: &str, braced: bool, word: Option<&WordExpr>) {
         if braced {
             self.push_lit_verbatim(a);
         } else if a.contains('\\') && !has_unescaped_subst(a) {
@@ -901,7 +967,7 @@ impl CodegenCtx<'_> {
                 self.push_word_value(&tcl_lexer::backslash_subst_in(a, self.escapes));
             }
         } else {
-            self.emit_value_interpolated(a);
+            self.emit_value_interpolated_from_word(a, word);
         }
     }
 
@@ -1014,7 +1080,8 @@ impl CodegenCtx<'_> {
         self.emit_cmd_word(cmd, false);
         for (i, a) in args.iter().enumerate() {
             let braced = self.cmd_arg_braced.get(i).copied().unwrap_or(false);
-            self.emit_word(a, braced);
+            let word = tokens.and_then(|tokens| tokens.words().get(i + 1));
+            self.emit_word_from_source(a, braced, word);
         }
         self.cmd_arg_braced = Vec::new();
         let arg_count = i32::try_from(1 + args.len())

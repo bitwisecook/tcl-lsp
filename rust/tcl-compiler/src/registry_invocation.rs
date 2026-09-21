@@ -92,6 +92,22 @@ pub fn compiled_local_name_word(word: &WordExpr) -> CompiledLocalNameWord {
     }
 }
 
+/// Return the evaluated name for a source word eligible for a compiled local
+/// opcode. The same source owner supplies both the eligibility decision and
+/// the literal value so brace grouping cannot reach an opcode as data.
+#[must_use]
+pub fn compiled_local_name_value(word: &WordExpr, escapes: EscapeSyntax) -> Option<String> {
+    if compiled_local_name_word(word) != CompiledLocalNameWord::Direct {
+        return None;
+    }
+    match effective_invocation_word(word, escapes) {
+        EffectiveInvocationWord::Literal(value) => Some(value),
+        EffectiveInvocationWord::Dynamic
+        | EffectiveInvocationWord::Expanded
+        | EffectiveInvocationWord::Opaque => None,
+    }
+}
+
 impl EffectiveInvocationWord {
     /// Lend this owned fact to the registry's allocation-free vocabulary.
     #[must_use]
@@ -456,13 +472,24 @@ mod tests {
         };
         let dynamic = WordExpr::Variable {
             spelling: "$name".to_owned(),
-            source,
+            source: source.clone(),
         };
 
         assert_eq!(
             compiled_local_name_word(&raw_braced),
             CompiledLocalNameWord::Direct,
             "braces preserve the backslash as part of the variable name"
+        );
+        assert_eq!(
+            compiled_local_name_value(
+                &WordExpr::BracedLiteral {
+                    text: "{zz}".to_owned(),
+                    source: source.clone(),
+                },
+                EscapeSyntax::Tcl90,
+            ),
+            Some("{zz}".to_owned()),
+            "the source owner removes only the grouping brace pair"
         );
         assert_eq!(
             compiled_local_name_word(&bare_escape),

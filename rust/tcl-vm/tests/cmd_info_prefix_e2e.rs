@@ -1274,9 +1274,17 @@ fn info_consts_tracks_source_roles_across_inline_introspection() {
         ("{info exists {pub}; info consts}", ""),
         ("{info exists \"pub\"; info consts}", ""),
         ("{array exists pub; info consts}", ""),
+        (
+            "{list [info exists pub] [array exists pub] [info consts]}",
+            "1 0 {}",
+        ),
+        ("{list [info exists \"pub\"] [info consts]}", "1 {}"),
+        ("{list [info exists p\\x75b] [info consts]}", "1 pub"),
         ("{info exists p\\x75b; info consts}", "pub"),
         ("{set n pub; list [info exists $n] [info consts]}", "1 pub"),
+        ("{set n pub; list [array exists $n] [info consts]}", "0 pub"),
         ("{set n pub; info exists $n; info consts}", "pub"),
+        ("{list [info exists ::pub] [info consts]}", "0 pub"),
         ("{info exists ::pub; info consts}", "pub"),
         ("{list [info consts]}", "pub"),
     ] {
@@ -1288,16 +1296,57 @@ fn info_consts_tracks_source_roles_across_inline_introspection() {
     }
 }
 
+/// Assignment keeps its established whole-command dispatcher when a nested
+/// source snapshot is available. Tcl 9.0.4 returns `{{alpha beta} B 2 2 1 boom}`.
+#[test]
+fn assignment_keeps_expanded_multicommand_and_inline_dispatch() {
+    assert_eq!(
+        run("proc p {} {\
+                 set cmd [list list alpha beta]; \
+                 set expanded [{*}$cmd]; \
+                 set multi [set a A; set b B]; \
+                 set n 1; \
+                 set incremented [incr n]; \
+                 set caught [catch {error boom} result]; \
+                 list $expanded $multi $incremented $n $caught $result\
+             }; p",)
+        .1,
+        "{alpha beta} B 2 2 1 boom"
+    );
+}
+
 /// Braced names retain their raw backslashes and continuation bytes. C Tcl
 /// allocates those literal names, while the otherwise-equivalent bare escape
 /// is decoded and must use a stack lookup.
 #[test]
 fn info_exists_braced_raw_names_intern_their_literal_slots() {
-    for class in [
-        r"oo::class create C {variable {p\x75b}; constructor {} {const {p\x75b} 7}; method m {} {info exists {p\x75b}; info consts}}",
-        "oo::class create C {variable {p\\\nub}; constructor {} {const {p\\\nub} 7}; method m {} {info exists {p\\\nub}; info consts}}",
+    for (class, expected) in [
+        (
+            r"oo::class create C {variable {p\x75b}; constructor {} {const {p\x75b} 7}; method m {} {info exists {p\x75b}; info consts}}",
+            "",
+        ),
+        (
+            "oo::class create C {variable {p\\\nub}; constructor {} {const {p\\\nub} 7}; method m {} {info exists {p\\\nub}; info consts}}",
+            "",
+        ),
+        (
+            r"oo::class create C {variable {p\x75b}; constructor {} {const {p\x75b} 7}; method m {} {list [info exists {p\x75b}] [info consts]}}",
+            "1 {}",
+        ),
+        (
+            "oo::class create C {variable {p\\\nub}; constructor {} {const {p\\\nub} 7}; method m {} {list [info exists {p\\\nub}] [info consts]}}",
+            "1 {}",
+        ),
+        (
+            "oo::class create C {variable {{zz}}; constructor {} {const {{zz}} 7}; method m {} {list [info exists {{zz}}] [info consts]}}",
+            "1 {}",
+        ),
     ] {
-        assert_eq!(run(&format!("{class}; [C new] m")).1, "", "class `{class}`");
+        assert_eq!(
+            run(&format!("{class}; [C new] m")).1,
+            expected,
+            "class `{class}`"
+        );
     }
 }
 

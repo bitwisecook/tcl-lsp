@@ -272,6 +272,42 @@ pub fn nested_command_words(
     Ok(tokens)
 }
 
+/// Recover the structured words for a value word that consists solely of one
+/// command substitution.
+///
+/// A bare `[cmd …]` and a quoted `"[cmd …]"` have different outer syntax but
+/// both evaluate the same one command substitution.  Values with literal text,
+/// variables, expansion, or a braced word deliberately decline: no caller may
+/// infer a command's word form from their flattened value text.
+#[must_use]
+pub fn whole_word_command_tokens(
+    word: &WordExpr,
+    config: tcl_lexer::LexerConfig,
+) -> Option<CommandTokens> {
+    match word {
+        WordExpr::CommandSubstitution { spelling, source } => {
+            nested_command_words(spelling, source, config).ok()
+        }
+        WordExpr::Template { parts, .. } => {
+            let mut substitution = None;
+            for part in parts {
+                match part {
+                    WordPart::Text { text, .. } if text.is_empty() => {}
+                    WordPart::CommandSubstitution { spelling, source }
+                        if substitution.is_none() =>
+                    {
+                        substitution = Some((spelling, source));
+                    }
+                    _ => return None,
+                }
+            }
+            let (spelling, source) = substitution?;
+            nested_command_words(spelling, source, config).ok()
+        }
+        _ => None,
+    }
+}
+
 /// Every nested `[expr …]` in `tokens`' words, parsed, with the absolute span
 /// of the substitution it came from.
 ///
@@ -468,5 +504,57 @@ mod tests {
                 WordExpr::Literal { .. },
             ]
         ));
+    }
+
+    /// The value emitter needs the exact inner word forms for a whole nested
+    /// substitution, while a braced outer word must still decline.
+    #[test]
+    fn whole_word_command_tokens_preserve_nested_word_forms() {
+        let reg = registry();
+        let config = tcl_lexer::LexerConfig::for_profile(reg.profile());
+        for (body, expected) in [
+            ("puts [info exists {p\\x75b}]", "p\\x75b"),
+            ("puts \"[info exists pub]\"", "pub"),
+        ] {
+            let src = format!("proc f {{}} {{{body}}}");
+            let cu = CompilationUnit::build_for(&src, &reg, false);
+            let fu = cu.function("::f").expect("proc lowered");
+            let word = fu
+                .cfg
+                .blocks
+                .values()
+                .flat_map(|block| &block.statements)
+                .find_map(|stmt| match stmt {
+                    Statement::Call {
+                        tokens: Some(tokens),
+                        ..
+                    } => tokens.words().get(1),
+                    _ => None,
+                })
+                .expect("puts argument word");
+            let nested = whole_word_command_tokens(word, config).expect("nested command words");
+            assert_eq!(
+                nested.argv_texts,
+                vec!["info".to_owned(), "exists".to_owned(), expected.to_owned()]
+            );
+        }
+
+        let src = "proc f {} {puts {[info exists pub]}}";
+        let cu = CompilationUnit::build_for(src, &reg, false);
+        let fu = cu.function("::f").expect("proc lowered");
+        let word = fu
+            .cfg
+            .blocks
+            .values()
+            .flat_map(|block| &block.statements)
+            .find_map(|stmt| match stmt {
+                Statement::Call {
+                    tokens: Some(tokens),
+                    ..
+                } => tokens.words().get(1),
+                _ => None,
+            })
+            .expect("puts argument word");
+        assert!(whole_word_command_tokens(word, config).is_none());
     }
 }
