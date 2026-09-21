@@ -61,7 +61,7 @@ use tcl_compiler::ssa::{Version, build_ssa};
 use tcl_compiler::var_escape::cfg_propagation::state::CfgEscapeResult;
 use tcl_compiler::var_escape::{
     EscapeTag, ProcEscapeSummary, TOP_LEVEL_QNAME, analyse_cfg_function, analyse_var_escape,
-    analyse_var_escape_cu, cfg_result_to_summary,
+    analyse_var_escape_cu, analyse_var_escape_cu_with_registry, cfg_result_to_summary,
 };
 use tcl_registry::CommandRegistry;
 use tcl_registry::model::ingress::static_context_for;
@@ -929,4 +929,43 @@ fn cu_includes_top_level_and_proc_keys() {
     assert_eq!(summary(&s, TOP_LEVEL_QNAME).tag("x"), EscapeTag::Local);
     // The proc escapes its alias.
     assert!(summary(&s, "::p").is_frame("v"));
+}
+
+// ---------------------------------------------------------------------------
+// #2167: the CFG/SSA entry point answers from the registry it is given.
+// ---------------------------------------------------------------------------
+
+/// `analyse_var_escape_cu` is dialect-blind by construction — it reaches for
+/// the hardcoded `tcl8.6` registry. That is only harmless while the shipped
+/// profiles agree about the facts the walk consults, and they do not:
+/// `FRAMELESS_RUNTIME` is carried by `lassign`, `lrepeat`, `lreverse`,
+/// `namespace`, `puts` and `throw` under `tcl8.6` and by none of them under
+/// `f5-irules`.
+///
+/// The walk records a conservative call fallback for every head that is *not*
+/// frameless, so analysing an iRules unit under `tcl8.6` skips a fallback the
+/// correct registry would take — it **under-reports** escape, which is the
+/// direction that licenses optimisation a correct analysis would refuse.
+#[test]
+fn the_cu_entry_point_answers_from_the_registry_it_is_given() {
+    let irules = static_context_for("f5-irules").commands();
+    let src = "proc p {} { set x 1 ; puts $x ; return $x }\n";
+    let cu = CompilationUnit::build_for(src, irules, false);
+
+    let blind = analyse_var_escape_cu(&cu, true);
+    let exact = analyse_var_escape_cu_with_registry(&cu, true, irules);
+
+    assert_ne!(
+        blind, exact,
+        "the hardcoded tcl8.6 registry and the unit's own registry disagree \
+         about `puts`, so the two entry points must not answer alike"
+    );
+
+    // Same registry in, same answer out — the delegation is a pure widening,
+    // not a behaviour change for callers that were already correct.
+    assert_eq!(
+        blind,
+        analyse_var_escape_cu_with_registry(&cu, true, registry()),
+        "passing the registry the blind form uses reproduces it exactly"
+    );
 }
