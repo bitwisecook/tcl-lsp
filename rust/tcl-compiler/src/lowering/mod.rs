@@ -2746,6 +2746,19 @@ impl<'r> Lowerer<'r> {
             if body_has_dynamic_barrier(body_text, self.registry, self.config) {
                 return None;
             }
+            // Parse gate: inlining lowers the body with the LSP-lenient
+            // lowering, which gives malformed text a meaning C never gives it
+            // — `eval {set y "a"b}` would quietly mean `set y ab` instead of
+            // raising `extra characters after close-quote` (#1829).  C parses
+            // an `eval` body when the command runs, so decline the relaxation
+            // and fall back to the runtime barrier, which is the path a
+            // non-literal `eval $body` already takes and which reports the
+            // error correctly.
+            if tcl_lexer::first_parse_cut(self.guarded_body_text(body_tok, body_text), self.config)
+                .is_some()
+            {
+                return None;
+            }
         }
         let body = if body_tok.kind == TokenType::Str {
             let body_text = self.guarded_body_text(body_tok, &args[0]);
@@ -7859,15 +7872,39 @@ mod tests {
             irules_module.top_level.statements
         );
 
+        // Under the default grammar the weld makes `{a}{eval $x}` a *single*
+        // word, and that word is not valid Tcl — C answers `extra characters
+        // after close-brace` for this very body, on 8.6 and 9.0 alike. So the
+        // relaxation is declined here too, by the parse gate rather than the
+        // barrier gate (#1829): inlining would lower the malformed text with
+        // the lenient lowering and give it a meaning C never gives it.
         let tcl_module =
             lower_to_ir_with_config(source, registry, tcl_lexer::LexerConfig::default());
         assert!(
             matches!(
                 tcl_module.top_level.statements.as_slice(),
+                [Statement::Barrier { .. }]
+            ),
+            "a body that does not parse keeps the runtime barrier: {:?}",
+            tcl_module.top_level.statements
+        );
+
+        // Positive control: the relaxation is still alive. A body with no
+        // nested barrier that *does* parse must still reach the inline Block,
+        // so neither assertion above can pass merely because relaxation
+        // stopped happening at all.
+        let relaxable = lower_to_ir_with_config(
+            "eval {foo a b}",
+            registry,
+            tcl_lexer::LexerConfig::default(),
+        );
+        assert!(
+            matches!(
+                relaxable.top_level.statements.as_slice(),
                 [Statement::Block { .. }]
             ),
-            "the default grammar sees no nested barrier and relaxes to a Block: {:?}",
-            tcl_module.top_level.statements
+            "a parsing, barrier-free body still relaxes to a Block: {:?}",
+            relaxable.top_level.statements
         );
     }
 

@@ -314,6 +314,105 @@ fn plain_dispatch_try_executes_prefix_before_fatal_tail() {
     );
 }
 
+/// `eval` keeps Tcl's command-at-a-time parse boundary too (#1603): a body
+/// whose *later* commands do not parse still runs the commands ahead of them
+/// before the error is raised, exactly as a `catch`/`try` body does.
+///
+/// The literal-brace form is the one that used to escape entirely — it is
+/// inlined at compile time and lowered leniently, so `eval {set y "a"b}`
+/// quietly meant `set y ab` and the script carried on with status 0 (#1829).
+#[test]
+fn eval_executes_prefix_before_fatal_tail() {
+    // tclsh 8.6.18 / 9.0.4: `1 1 {missing "}`
+    assert_eq!(
+        run(
+            "set ::side 0; set code [catch {eval {incr ::side; set x \"}} msg]; \
+             list $code $::side $msg"
+        )
+        .1,
+        "1 1 {missing \"}",
+    );
+    // The same body reached through a variable, which never had the inlining
+    // escape but did lose the prefix.
+    // tclsh 8.6.18 / 9.0.4: `1 1 {missing "}`
+    assert_eq!(
+        run("set ::side 0; set b {incr ::side; set x \"}; \
+             set code [catch {eval $b} msg]; list $code $::side $msg")
+        .1,
+        "1 1 {missing \"}",
+    );
+    // The shape that produced a *silent wrong answer* rather than a loud one:
+    // lowered leniently, `set y "a"b` quietly meant `set y ab`, so the `eval`
+    // returned `ab` with status 0 where C raises.
+    // tclsh 8.6.18 / 9.0.4: `1 {extra characters after close-quote}`
+    assert_eq!(
+        run("set code [catch {eval {set y \"a\"b}} msg]; list $code $msg").1,
+        "1 {extra characters after close-quote}",
+    );
+    // Positive control: a literal body that parses still runs and still
+    // reports success, so neither assertion above can pass merely because
+    // `eval` started failing or stopped running its body.
+    // tclsh 8.6.18 / 9.0.4: `0 1 ok`
+    assert_eq!(
+        run(
+            "set ::side 0; set code [catch {eval {incr ::side; set x ok}} msg]; \
+             list $code $::side $msg"
+        )
+        .1,
+        "0 1 ok",
+    );
+}
+
+/// A procedure body is compiled when the procedure is **called**, so a body
+/// that does not parse neither refuses the definition nor runs with the
+/// lenient lowering's invented meaning (#1829).
+///
+/// The single asserted value pins all three facts at once: the procedure is
+/// defined (`info procs` sees it), its clean prefix runs on entry (`::side`
+/// reaches 1), and the parse error is raised after that prefix rather than at
+/// `proc` time.
+#[test]
+fn a_procedure_body_that_does_not_parse_raises_on_entry_not_at_definition() {
+    // tclsh 8.6.18 / 9.0.4: `p 1 1 {missing "}`
+    assert_eq!(
+        run("set ::side 0; proc p {} {incr ::side; set x \"}; \
+             set d [info procs p]; set code [catch {p} msg]; \
+             list $d $code $::side $msg")
+        .1,
+        "p 1 1 {missing \"}",
+    );
+    // A malformed body that is never called is not an error at all: the
+    // definition stands and the script runs on. This is the half that used to
+    // fail at `proc` time for a body reached through a variable.
+    // tclsh 8.6.18 / 9.0.4: `q survived`
+    assert_eq!(
+        run("proc q {} {set x \"}; list [info procs q] survived").1,
+        "q survived",
+    );
+    // The silent-wrong-answer shape: admitted from the enclosing module's
+    // lenient lowering, `set y "a"b` quietly meant `set y ab`, so calling `p`
+    // returned `ab` with status 0 where C raises.
+    // tclsh 8.6.18 / 9.0.4: `1 {extra characters after close-quote}`
+    assert_eq!(
+        run(
+            "proc p {} {set y \"a\"b; return $y}; set code [catch {p} msg]; \
+             list $code $msg"
+        )
+        .1,
+        "1 {extra characters after close-quote}",
+    );
+    // Positive control: a body that parses still runs on call and returns its
+    // value, so the two assertions above cannot pass because procedure bodies
+    // stopped executing.
+    // tclsh 8.6.18 / 9.0.4: `0 1 ok`
+    assert_eq!(
+        run("set ::side 0; proc r {} {incr ::side; set x ok}; \
+             set code [catch {r} msg]; list $code $::side $msg")
+        .1,
+        "0 1 ok",
+    );
+}
+
 /// The narrow nested `catch {try ... on error ...}` compiler specialisation
 /// keeps distinct live ranges for the try body and handler. Both are complete
 /// scripts: body errors reach the handler, successful handler results reach the
