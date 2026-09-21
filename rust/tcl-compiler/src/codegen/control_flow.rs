@@ -956,10 +956,7 @@ impl CodegenCtx<'_> {
         // `parse_cmd_parts` would split adjacent `{*}$args` into the literal
         // `*` and `$args`, changing the callee's argv (notably Tcltest's
         // `catch {Configure {*}$args}`).
-        let expand_syntax = self
-            .dialect
-            .is_none_or(|profile| profile.grammar.expand_syntax);
-        if expand_syntax && body.contains("{*}") {
+        if self.recognises_expand_syntax() && body.contains("{*}") {
             let expanded = parse_cmd_parts_expand(body);
             if expanded.iter().any(|(_, _, expand)| *expand) {
                 self.emit_expanded_cmd_subst(&expanded);

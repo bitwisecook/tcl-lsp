@@ -27,6 +27,6 @@ ByteCode ::f, 9 instructions, 18 bytes, 3 literals, 2 variables
     (5) loadScalar1 %v0	# var "args"
     (7) expandStkTop 3
     (12) push1 2	# "b"
-    (14) invokeExpanded
+    (14) invokeExpanded	# (expanded)
     (15) storeScalar1 %v1	# var "x"
     (17) done
