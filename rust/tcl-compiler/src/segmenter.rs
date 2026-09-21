@@ -801,32 +801,6 @@ const RECOVERY_LINE_THRESHOLD: usize = 3;
 /// `[…]` always closes — so no line-span threshold applies. `Str`
 /// (`{…}`) and `Esc` (best-effort marker for unclosed `"…"` runs)
 /// must also span at least [`RECOVERY_LINE_THRESHOLD`] lines.
-/// Byte offset of the character that opened an unterminated construct in
-/// `tokens`, if any reaches the end of `source`.
-///
-/// This is C's `parsePtr->term` for such a construct.  `TclCompileScript`
-/// logs a parse failure with
-/// `Tcl_LogCommandInfo(interp, script, commandStart, term + 1 - commandStart)`,
-/// so the `while executing` frame quotes the command text *through this
-/// character* and no further — `set x "abc\ndef` is reported as `set x "`
-/// (#2172).
-///
-/// Deliberately not [`find_suspicious_token`]: that one additionally requires
-/// a multi-line span before it will act, because it decides whether error
-/// *recovery* is worthwhile.  Locating the delimiter is a different question,
-/// and applies however short the construct is.
-#[must_use]
-pub fn unterminated_delimiter_offset(source: &str, tokens: &[Token]) -> Option<u32> {
-    let source_len = source.len();
-    tokens
-        .iter()
-        .find(|tok| {
-            matches!(tok.kind, TokenType::Str | TokenType::Esc | TokenType::Cmd)
-                && tok.span.end() as usize >= source_len
-        })
-        .map(|tok| tok.span.start())
-}
-
 fn find_suspicious_token(source: &str, tokens: &[Token]) -> Option<Token> {
     let source_len = source.len();
     for &tok in tokens {

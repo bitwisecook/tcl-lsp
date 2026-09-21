@@ -4649,8 +4649,10 @@ pub(crate) fn command_at_time_script_with_config(
             let partial_message = command
                 .partial_delimiter
                 .map(|delimiter| delimiter.missing_message().to_owned());
-            let delimiter_offset =
-                crate::segmenter::unterminated_delimiter_offset(source, &command.all_tokens);
+            // C's `parsePtr->term`, from the cut owner — never re-derived from
+            // the token stream, which cannot see which construct actually
+            // failed inside a nested one.
+            let delimiter_offset = fatal.map(|cut| cut.term);
             commands.truncate(index);
             Some((
                 start,

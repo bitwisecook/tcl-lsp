@@ -362,9 +362,30 @@ impl CompileService for BytecodeCompileService {
 /// | `set x "abc\ndef` | `set x "` |
 /// | `set x [foo bar` | `set x [` |
 ///
-/// Without a recorded delimiter offset the command runs to the end of the
-/// source, which is right for the first row and the only answer available for
-/// a cut that is not an unterminated construct.
+/// The term is checked against the message before it is trusted: the byte it
+/// points at must be the one that opens the construct the message names. Where
+/// a failure sits inside a `[…]` the cut owner reports it at the bracket,
+/// because the word-part decomposition carries no extent for the inner
+/// construct — so `set x [list "oops]` yields `missing "` with the term on the
+/// `[`. That pair cannot be C's, and rather than quote `set x [` where C
+/// quotes `set x [list "`, this drops the text and the caller logs the bare
+/// message, which is what it did before the frame existed. A wrong frame that
+/// looks right is worse than none.
+/// Whether the byte at `term` opens the construct `message` names.
+///
+/// C's term for an unterminated construct is the character that opened it, so
+/// the pair is self-checking. A message C reports *in place* — the
+/// `extra characters after …` family — constrains nothing, and is accepted.
+fn term_opens_the_named_construct(source: &str, term: usize, message: &str) -> bool {
+    let opener = match message {
+        tcl_lexer::word_parts::MISSING_QUOTE => b'"',
+        tcl_lexer::word_parts::MISSING_CLOSE_BRACE => b'{',
+        tcl_lexer::word_parts::MISSING_CLOSE_BRACKET => b'[',
+        _ => return true,
+    };
+    source.as_bytes().get(term) == Some(&opener)
+}
+
 fn fatal_tail_frame(
     source: &str,
     start: usize,
@@ -374,15 +395,23 @@ fn fatal_tail_frame(
     let end = delimiter_offset
         .map(|offset| offset as usize)
         .filter(|offset| *offset >= start)
+        .filter(|offset| term_opens_the_named_construct(source, *offset, &message))
         // Through the delimiter, not up to it; a multi-byte character there
         // would otherwise be cut mid-sequence.
-        .map_or(source.len(), |offset| {
+        .map(|offset| {
             let mut end = (offset + 1).min(source.len());
             while end < source.len() && !source.is_char_boundary(end) {
                 end += 1;
             }
             end
         });
+    // No trustworthy term, so no frame: the end of the source is a guess that
+    // is only ever *coincidentally* right (when the construct opens on the
+    // last byte). The caller then logs the bare message, which is what it did
+    // before the frame existed.
+    let Some(end) = end else {
+        return FatalTail::message_only(message);
+    };
     let command_text = source.get(start..end).unwrap_or_default().to_owned();
     let line = u32::try_from(
         source

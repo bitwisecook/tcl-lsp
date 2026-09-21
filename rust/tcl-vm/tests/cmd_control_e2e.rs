@@ -1932,6 +1932,13 @@ fn the_named_command_stops_at_the_unterminated_delimiter() {
             "missing close-brace",
             "set x {",
         ),
+        // Reported in place rather than at an opener: the term is the
+        // offending byte, and the frame stops there.
+        (
+            "set c catch; $c {set a 1; set x {a}b tail} m o; dict get $o -errorinfo",
+            "extra characters after close-brace",
+            "set x {a}b",
+        ),
         // An earlier *complete* quoted word survives verbatim: the cut is at
         // the delimiter that failed, not the first one seen.
         (
@@ -1947,4 +1954,27 @@ fn the_named_command_stops_at_the_unterminated_delimiter() {
             "script: {script:?}",
         );
     }
+}
+
+/// Where the term cannot be pinned to the construct that failed, no frame is
+/// logged at all — the bare message, as before the frame existed.
+///
+/// A failure inside a `[…]` is reported by the cut owner at the bracket,
+/// because the word-part decomposition carries no extent for the inner
+/// construct. So `set x [list "oops]` yields `missing "` with the term on the
+/// `[`, a pair that cannot be C's: C quotes `set x [list "`. Quoting `set x [`
+/// (the term as given) or `set x [list "oops]` (the rest of the source) would
+/// both be wrong, and wrong in a way that reads as right.
+///
+/// The check is that the byte the term points at opens the construct the
+/// message names. When it does not, the text is dropped.
+#[test]
+fn an_unpinnable_term_logs_no_frame_rather_than_a_wrong_one() {
+    // tclsh 9.0.4 logs `missing "` + `while executing` + `"set x [list ""`.
+    // Matching that needs an inner extent the decomposition does not carry;
+    // until it does, omitting the frame is the honest answer.
+    assert_eq!(
+        run("set c catch; $c {set a 1; set x [list \"oops]} m o; dict get $o -errorinfo").1,
+        "missing \"",
+    );
 }
