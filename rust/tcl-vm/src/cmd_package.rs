@@ -310,6 +310,9 @@ fn pkg_require(vm: &mut Vm, rest: &[Value], discover: bool) -> Completion<Value>
         }
         ProvidedStatus::Absent => {}
     }
+    if discover && let Some(version) = vm.package_loading_version(&name) {
+        return circular_dependency(&name, version, &requested, exact);
+    }
     if !discover {
         return err(format!("package {name} is not present"));
     }
@@ -385,6 +388,27 @@ fn version_conflict(
     )
 }
 
+fn circular_dependency(
+    name: &str,
+    loading_version: &str,
+    requested: &[String],
+    exact: bool,
+) -> Completion<Value> {
+    let required = if requested.is_empty() {
+        name.to_owned()
+    } else if exact {
+        format!("{name} exactly {}", requested[0])
+    } else {
+        format!("{name} {}", requested.join(" "))
+    };
+    err_with_code(
+        format!(
+            "circular package dependency: attempt to provide {name} {loading_version} requires {required}"
+        ),
+        "TCL PACKAGE CIRCULARITY",
+    )
+}
+
 struct SelectedLoader {
     version: String,
     script: String,
@@ -408,21 +432,27 @@ fn eval_package_script(vm: &mut Vm, script: &str) -> Completion<Value> {
 }
 
 fn evaluate_loader(vm: &mut Vm, name: &str, loader: &SelectedLoader) -> Completion<Value> {
+    vm.begin_package_loading(name, &loader.version);
     let completion = eval_package_script(vm, &loader.script);
+    vm.end_package_loading(name, &loader.version);
     if !completion.code.is_ok() {
+        vm.forget_package(name);
         return completion;
     }
     match vm.package_version(name).map(str::to_owned) {
         Some(provided) if cmp_version(&provided, &loader.version) == Ordering::Equal => {
             ok(Value::string(provided))
         }
-        Some(provided) => err_with_code(
-            format!(
-                "attempt to provide package {name} {} failed: package {name} {provided} provided instead",
-                loader.version
-            ),
-            "TCL PACKAGE WRONGPROVIDE",
-        ),
+        Some(provided) => {
+            vm.forget_package(name);
+            err_with_code(
+                format!(
+                    "attempt to provide package {name} {} failed: package {name} {provided} provided instead",
+                    loader.version
+                ),
+                "TCL PACKAGE WRONGPROVIDE",
+            )
+        }
         None => err_with_code(
             format!(
                 "attempt to provide package {name} {} failed: no version of package {name} provided",

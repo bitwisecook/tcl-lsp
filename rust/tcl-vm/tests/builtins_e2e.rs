@@ -1704,6 +1704,96 @@ fn package_loader_must_provide_its_selected_version() {
     );
 }
 
+/// Tcl marks the selected ifneeded name/version while its script is running.
+/// A nested require of the same package is circular even when it requests a
+/// different version, and a mutual dependency reports the original package
+/// being provided. The marker must carry Tcl's dedicated error code.
+#[test]
+fn package_require_detects_circular_ifneeded_loaders() {
+    out_eq(
+        r"package forget foo
+package ifneeded foo 1 {package require foo 1}
+catch {package require foo 1} message options
+puts [list $message [dict get $options -errorcode]]
+
+package forget foo
+package ifneeded foo 1 {package require foo 2}
+catch {package require foo 1} message options
+puts [list $message [dict get $options -errorcode]]
+
+package forget foo
+package ifneeded foo 1 {package require -exact foo 1}
+catch {package require foo 1} message options
+puts [list $message [dict get $options -errorcode]]
+
+package forget foo
+package forget bar
+package ifneeded foo 1 {package require bar 1; package provide foo 1}
+package ifneeded bar 1 {package require foo 1; package provide bar 1}
+catch {package require foo 1} message options
+puts [list $message [dict get $options -errorcode]]
+
+package forget foo
+package forget bar
+package ifneeded foo 1 {package require bar 1; package provide foo 1}
+package ifneeded foo 2 {package provide foo 2}
+package ifneeded bar 1 {package require foo 2; package provide bar 1}
+catch {package require foo 1} message options
+puts [list $message [dict get $options -errorcode]]
+",
+        r"{circular package dependency: attempt to provide foo 1 requires foo 1} {TCL PACKAGE CIRCULARITY}
+{circular package dependency: attempt to provide foo 1 requires foo 2} {TCL PACKAGE CIRCULARITY}
+{circular package dependency: attempt to provide foo 1 requires foo exactly 1} {TCL PACKAGE CIRCULARITY}
+{circular package dependency: attempt to provide foo 1 requires foo 1} {TCL PACKAGE CIRCULARITY}
+{circular package dependency: attempt to provide foo 1 requires foo 2} {TCL PACKAGE CIRCULARITY}
+",
+    );
+}
+
+/// A loader may provide its package before requiring it recursively. That
+/// nested require sees the provided version and succeeds; only an absent
+/// package is circular.
+#[test]
+fn package_require_allows_nested_require_after_provide() {
+    out_eq(
+        r"package forget P
+package ifneeded P 1 {package provide P 1; package require P 1}
+puts [list [package require P 1] [package provide P]]
+",
+        "1 1\n",
+    );
+}
+
+/// A failed loader clears the transient provided version and its active
+/// circular marker, while retaining the ifneeded registration for a retry.
+#[test]
+fn package_require_loader_failure_can_be_retried() {
+    out_eq(
+        r"package forget P
+package ifneeded P 1 {package provide P 1; error boom}
+catch {package require P 1} message options
+set afterFailure [package provide P]
+package ifneeded P 1 {package provide P 1}
+puts [list $afterFailure [package require P 1] [package provide P]]
+",
+        "{} 1 1\n",
+    );
+}
+
+/// `package forget` removes the active package record, including a loader's
+/// circular marker. A loader can therefore replace its record and require the
+/// replacement before the outer loader returns.
+#[test]
+fn package_forget_clears_active_loader_marker() {
+    out_eq(
+        r"package forget P
+package ifneeded P 1 {package forget P; package ifneeded P 1 {package provide P 1}; package require P 1}
+puts [list [package require P 1] [package provide P]]
+",
+        "1 1\n",
+    );
+}
+
 #[test]
 fn linsert_lreplace_inline() {
     out_eq("puts [linsert {a c} 1 b]\n", "a b c\n");
