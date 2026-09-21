@@ -43,7 +43,7 @@ use crate::interprocedural::InterproceduralAnalysis;
 use crate::ir::Module as IrModule;
 use crate::memory_ssa::{MemorySsaFunction, build_memory_ssa};
 use crate::rendered_properties::{RenderedValueProps, propagate_rendered_props};
-use crate::sccp::{SccpResult, sccp_with_extra_escaping};
+use crate::sccp::SccpResult;
 use crate::semantic_analysis::SemanticAnalysisBundle;
 use crate::ssa::{SsaFunction, ValueKey, build_ssa_with_config};
 use crate::taint::{TaintGraph, TaintLattice, instance_classes_for_function, propagate_taints};
@@ -412,6 +412,14 @@ struct FunctionBuildInputs<'a> {
     extra_global_escaping: &'a HashSet<String>,
     /// Whole-module variable-trace facts.
     trace_facts: ModuleTraceFacts<'a>,
+    /// Whole-module command-mutation trust
+    /// ([`crate::command_binding::ModuleCommandMutations`]) — which command
+    /// names still denote the builtin they spell. SCCP folds a builtin
+    /// command substitution only for a name this trusts, so a module with a
+    /// shadowing `proc llength …` gets no `[llength …]` fold anywhere in the
+    /// lattice rather than one that contradicts the optimiser's own
+    /// proc-call fold (#2164).
+    command_trust: &'a crate::command_binding::ModuleCommandMutations,
     /// Names auto-bound to out-of-frame *object* storage on entry — a
     /// `TclOO` method body's [`crate::ir::MethodDef::instance_vars`].  `None`
     /// for procs, lambdas, and the top level, none of which have any.  The
@@ -530,6 +538,15 @@ impl FunctionUnit {
                 known_classes,
                 extra_global_escaping: &no_extra_escaping,
                 trace_facts,
+                // The "no mutations observed" baseline
+                // ([`crate::command_binding::ModuleCommandMutations`]'s
+                // `Default`): this entry point takes a single CFG with no
+                // module to scan, so it has no rebinding to report. The
+                // compilation-unit build does have one and passes it, and
+                // [`build_procedure_units`] refuses a memoised unit built
+                // through here whenever the module's trust is not pristine —
+                // the memo key cannot carry the fact.
+                command_trust: &crate::command_binding::ModuleCommandMutations::default(),
                 object_state: None,
                 initial_global: false,
             },
@@ -549,6 +566,7 @@ impl FunctionUnit {
         extra_global_escaping: &HashSet<String>,
         trace_facts: ModuleTraceFacts<'_>,
         config: tcl_lexer::LexerConfig,
+        command_trust: &crate::command_binding::ModuleCommandMutations,
     ) -> Self {
         Self::build_full(
             "::top",
@@ -561,6 +579,7 @@ impl FunctionUnit {
                 known_classes,
                 extra_global_escaping,
                 trace_facts,
+                command_trust,
                 object_state: None,
                 initial_global: true,
             },
@@ -583,13 +602,14 @@ impl FunctionUnit {
         name: impl Into<String>,
         cfg: CfgFunction,
         method: &crate::ir::MethodDef,
-        registry: &CommandRegistry,
+        dialect: UnitDialect<'_>,
         known_classes: &HashSet<String>,
         trace_facts: ModuleTraceFacts<'_>,
-        config: tcl_lexer::LexerConfig,
+        command_trust: &crate::command_binding::ModuleCommandMutations,
     ) -> Self {
         let facts = Arc::new(MethodBodyFacts::from_method(method));
         let no_extra_escaping = HashSet::new();
+        let UnitDialect { registry, config } = dialect;
         let mut unit = Self::build_full(
             name,
             cfg,
@@ -601,6 +621,7 @@ impl FunctionUnit {
                 known_classes,
                 extra_global_escaping: &no_extra_escaping,
                 trace_facts,
+                command_trust,
                 object_state: Some(&facts.instance_vars),
                 initial_global: false,
             },
@@ -634,6 +655,7 @@ impl FunctionUnit {
             known_classes,
             extra_global_escaping,
             trace_facts,
+            command_trust,
             object_state,
             initial_global,
         } = inputs;
@@ -676,7 +698,7 @@ impl FunctionUnit {
         // profile, which is not the document's grammar for a pack-layered
         // registry or `tk`.
         let dynamic_names = crate::dynamic_names::dynamic_name_barrier(&cfg, registry, config);
-        let mut sccp = sccp_with_extra_escaping(
+        let mut sccp = crate::sccp::sccp_with_builtin_folds(
             &cfg,
             &ssa,
             param_constants,
@@ -689,6 +711,19 @@ impl FunctionUnit {
                     || dynamic_names.writes
                     || dynamic_names.destroys,
             },
+            // The trust fact, and only the trust fact: the per-command fold
+            // arms are gated on it, while the registry `const_fold` engine
+            // stays off here so this lattice's fold surface is unchanged.
+            // The optimiser's own re-run turns the engine on
+            // (`crate::optimiser::propagation`).
+            Some(crate::sccp::BuiltinFoldInputs {
+                registry,
+                mutations: command_trust,
+                dialect: None,
+                defining_class: None,
+                registry_engine: false,
+                trust: crate::sccp::FoldTrust::ObservedBindings,
+            }),
         );
         // Surface `[info exists X]` / `[array exists X]`
         // folds (parameter → exists, never-defined non-param → absent)
@@ -1194,6 +1229,22 @@ pub fn semantic_context(
     dialect.map(SemanticContext::for_profile)
 }
 
+/// Module-wide, read-only inputs the non-procedure body builds
+/// ([`CompilationUnit::build_method_units`] and
+/// [`CompilationUnit::build_body_units`]) share. Bundled so each builder
+/// takes three parameters rather than eight.
+#[derive(Clone, Copy)]
+struct BodyUnitContext<'a> {
+    registry: &'a CommandRegistry,
+    known_class_set: &'a HashSet<String>,
+    trace_facts: ModuleTraceFacts<'a>,
+    /// Whole-module command-mutation trust — see
+    /// [`FunctionBuildInputs::command_trust`].
+    command_trust: &'a crate::command_binding::ModuleCommandMutations,
+    semantic_context: Option<SemanticContext>,
+    config: tcl_lexer::LexerConfig,
+}
+
 /// Module-wide, read-only inputs [`build_procedure_units`] shares across
 /// every procedure in the loop.  Grouped into one struct so the extracted
 /// helper takes two parameters instead of a dozen.
@@ -1213,6 +1264,11 @@ struct ProcedureBuildContext<'a> {
     known_classes: &'a [String],
     traced_variable_names: &'a [String],
     trace_facts: ModuleTraceFacts<'a>,
+    /// Whole-module command-mutation trust — see
+    /// [`FunctionBuildInputs::command_trust`]. Also decides whether the
+    /// per-procedure lattice memo may be used at all: its key cannot carry
+    /// this fact.
+    command_trust: &'a crate::command_binding::ModuleCommandMutations,
     /// Procedures whose CFG has module-derived instance-option writes. Their
     /// annotated CFG cannot be reconstructed from the body-only lattice memo.
     tainted_global_writes: &'a HashMap<String, HashSet<String>>,
@@ -1283,8 +1339,15 @@ fn build_procedure_units(
             .tainted_global_writes
             .get(qname)
             .is_some_and(|writes| !writes.is_empty());
+        // The memo key (`LatticeRequest`) carries the procedure body and the
+        // closed binding lattice, but not the whole-module command-mutation
+        // scan — which is the only place a namespace-local `proc llength …`
+        // shadow is visible. A memoised unit is therefore built as if every
+        // builtin still meant what it spells, so it may only be used by a
+        // module whose trust says exactly that (#2164).
+        let memo_usable = ctx.command_trust.agrees_with_untouched_bindings();
         let memoised = match (
-            cache.as_mut(),
+            cache.as_mut().filter(|_| memo_usable),
             proc,
             ctx.cfg_context,
             encoded_pc,
@@ -1328,18 +1391,7 @@ fn build_procedure_units(
             _ => None,
         };
         let mut fu = memoised.unwrap_or_else(|| {
-            FunctionUnit::build_with_param_constants_and_classes(
-                qname,
-                cfg.clone(),
-                params,
-                UnitDialect {
-                    registry: ctx.registry,
-                    config,
-                },
-                param_constants.as_ref(),
-                ctx.known_class_set,
-                ctx.trace_facts,
-            )
+            build_procedure_unit_fresh(ctx, qname, cfg, params, param_constants.as_ref(), config)
         });
         // A memoised unit carries an offset-0 executable sidecar. Rebuild the
         // source-bearing portion after the normal CFG/SSA rebase so retained
@@ -1361,6 +1413,39 @@ fn build_procedure_units(
         procedures,
         param_constants_by_proc,
     }
+}
+
+/// Build one procedure's [`FunctionUnit`] without the memo — the path taken
+/// when no cache is installed, when the request cannot be interned, or when
+/// the module's command trust forbids a memoised unit (see
+/// [`build_procedure_units`]).
+fn build_procedure_unit_fresh(
+    ctx: &ProcedureBuildContext<'_>,
+    qname: &str,
+    cfg: &CfgFunction,
+    params: &[String],
+    param_constants: Option<
+        &std::collections::HashMap<(String, crate::ssa::Version), crate::analyses::LatticeValue>,
+    >,
+    config: tcl_lexer::LexerConfig,
+) -> FunctionUnit {
+    let no_extra_escaping = HashSet::new();
+    FunctionUnit::build_full(
+        qname,
+        cfg.clone(),
+        FunctionBuildInputs {
+            config,
+            params,
+            registry: ctx.registry,
+            param_constants,
+            known_classes: ctx.known_class_set,
+            extra_global_escaping: &no_extra_escaping,
+            trace_facts: ctx.trace_facts,
+            command_trust: ctx.command_trust,
+            object_state: None,
+            initial_global: false,
+        },
+    )
 }
 
 /// [`build_procedure_units`]'s two outputs: the units themselves, and the
@@ -1607,6 +1692,7 @@ impl CompilationUnit {
             &top_level_extra_escaping,
             trace_facts,
             options.config,
+            &command_mutations,
         )
         .with_top_level_semantic_analysis(registry, semantic_context, &ir_module.top_level);
         let caller_view = crate::unit_scope::UnitCallerView {
@@ -1627,30 +1713,23 @@ impl CompilationUnit {
                 known_classes: &known_classes,
                 traced_variable_names: &traced_variable_names,
                 trace_facts,
+                command_trust: &command_mutations,
                 tainted_global_writes: &tainted_global_writes,
             },
             cache,
             options.config,
         );
         let mut procedures = built.procedures;
-        let methods = Self::build_method_units(
-            &ir_module,
-            &extra_callers,
-            &known_class_set,
+        let body_unit_context = BodyUnitContext {
             registry,
+            known_class_set: &known_class_set,
             trace_facts,
+            command_trust: &command_mutations,
             semantic_context,
-            options.config,
-        );
-        let body_units = Self::build_body_units(
-            &ir_module,
-            &extra_callers,
-            &known_class_set,
-            registry,
-            trace_facts,
-            semantic_context,
-            options.config,
-        );
+            config: options.config,
+        };
+        let methods = Self::build_method_units(&ir_module, &extra_callers, body_unit_context);
+        let body_units = Self::build_body_units(&ir_module, &extra_callers, body_unit_context);
         let connection_scope = Self::build_connection_scope(&procedures);
         Self::drop_cross_event_existence_folds(&mut procedures, connection_scope.as_ref());
         Self {
@@ -1684,12 +1763,16 @@ impl CompilationUnit {
     fn build_method_units(
         ir_module: &IrModule,
         extra_callers: &[crate::unit_scope::ExtraCallSiteScanContext],
-        known_class_set: &HashSet<String>,
-        registry: &CommandRegistry,
-        trace_facts: ModuleTraceFacts<'_>,
-        semantic_context: Option<SemanticContext>,
-        config: tcl_lexer::LexerConfig,
+        ctx: BodyUnitContext<'_>,
     ) -> HashMap<String, FunctionUnit> {
+        let BodyUnitContext {
+            registry,
+            known_class_set,
+            trace_facts,
+            command_trust,
+            semantic_context,
+            config,
+        } = ctx;
         if ir_module.methods.is_empty() {
             return HashMap::new();
         }
@@ -1748,10 +1831,10 @@ impl CompilationUnit {
                         mqname,
                         cfg,
                         method,
-                        registry,
+                        UnitDialect { registry, config },
                         known_class_set,
                         trace_facts,
-                        config,
+                        command_trust,
                     )
                 }
                 .with_semantic_analysis(
@@ -1795,15 +1878,20 @@ impl CompilationUnit {
     fn build_body_units(
         ir_module: &IrModule,
         extra_callers: &[crate::unit_scope::ExtraCallSiteScanContext],
-        known_class_set: &HashSet<String>,
-        registry: &CommandRegistry,
-        trace_facts: ModuleTraceFacts<'_>,
-        semantic_context: Option<SemanticContext>,
-        config: tcl_lexer::LexerConfig,
+        ctx: BodyUnitContext<'_>,
     ) -> HashMap<String, FunctionUnit> {
+        let BodyUnitContext {
+            registry,
+            known_class_set,
+            trace_facts,
+            command_trust,
+            semantic_context,
+            config,
+        } = ctx;
         if ir_module.body_units.is_empty() {
             return HashMap::new();
         }
+        let no_extra_escaping = HashSet::new();
         ir_module
             .body_units
             .iter()
@@ -1820,14 +1908,21 @@ impl CompilationUnit {
                 let fu = if body_bytes > crate::ssa::DEEP_ANALYSIS_BODY_BYTES {
                     FunctionUnit::trivial_guarded(qname, cfg)
                 } else {
-                    FunctionUnit::build_with_param_constants_and_classes(
+                    FunctionUnit::build_full(
                         qname,
                         cfg,
-                        &proc.params,
-                        UnitDialect { registry, config },
-                        None,
-                        known_class_set,
-                        trace_facts,
+                        FunctionBuildInputs {
+                            config,
+                            params: &proc.params,
+                            registry,
+                            param_constants: None,
+                            known_classes: known_class_set,
+                            extra_global_escaping: &no_extra_escaping,
+                            trace_facts,
+                            command_trust,
+                            object_state: None,
+                            initial_global: false,
+                        },
                     )
                 }
                 .with_semantic_analysis(

@@ -1104,6 +1104,8 @@ fn oo_method_constants(
             mutations: &ctx.command_mutations,
             dialect: ctx.dialect,
             defining_class: Some(&frame.defining_class),
+            registry_engine: true,
+            trust: crate::sccp::FoldTrust::WholeModule,
         }),
     );
     sccp_constants_from(&sccp, &fu.ssa)
@@ -1415,6 +1417,8 @@ fn constants_with_builtin_folds(
             // No method frame here — `[self class]`-style frame facts fold
             // only in `run_oo_method_folds`' proven method re-runs.
             defining_class: None,
+            registry_engine: true,
+            trust: crate::sccp::FoldTrust::WholeModule,
         }),
     );
     for (name, text) in sccp_constants_from(&rerun, &fu.ssa) {
@@ -1617,16 +1621,30 @@ fn evaluate_proc_with_constants(
         Some(m) => (&m.traced_variables, m.has_dynamic_variable_trace),
         None => (&empty_traced, false),
     };
-    let result = crate::sccp::sccp(
+    let result = crate::sccp::sccp_with_builtin_folds(
         &callee.cfg,
         &callee.ssa,
         Some(&seed),
         policy,
+        &std::collections::HashSet::new(),
         crate::sccp::TraceInputs {
             registry,
             traced_variables,
             has_dynamic_variable_trace,
         },
+        // This re-run feeds an O103 *rewrite*, so it takes the whole-module
+        // stance. Without any trust fact — what it used before — it folded
+        // `[llength …]` with builtin semantics even where the module shadows
+        // `llength`, handing O103 a value the rest of the pipeline disagrees
+        // with (#2164).
+        Some(crate::sccp::BuiltinFoldInputs {
+            registry,
+            mutations: &ctx.command_mutations,
+            dialect: ctx.dialect,
+            defining_class: None,
+            registry_engine: false,
+            trust: crate::sccp::FoldTrust::WholeModule,
+        }),
     );
     resolve_return_constant(
         callee,
