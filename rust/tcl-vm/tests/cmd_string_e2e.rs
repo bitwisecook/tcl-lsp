@@ -818,6 +818,63 @@ fn format_pointer_precision_and_flags() {
     res_eq("format {% .4p} 42", "0x002a");
 }
 
+/// Tcl 9 bignum conversions preserve all digits rather than narrowing through
+/// the wide-integer path. The values and `BADUNSIGNED` result are from
+/// `tclsh9.0.4` and its upstream `tests/format.test` 17.5/17.6.
+#[test]
+fn format_bignum_conversions_issue_2162() {
+    res_eq("format %lld 18446744073709551616", "18446744073709551616");
+    res_eq("format %Lx 18446744073709551616", "10000000000000000");
+    res_eq(
+        "format %llu 0xabcdef0123456789abcdef",
+        "207698809136909011942886895",
+    );
+    res_eq(
+        "format %llx 0xabcdef0123456789abcdef",
+        "abcdef0123456789abcdef",
+    );
+    res_eq(
+        "format %llX 0xabcdef0123456789abcdef",
+        "ABCDEF0123456789ABCDEF",
+    );
+    for format in [
+        "%#.0lld", "%#.0llx", "%#.0llo", "%#.0llb", "%#.0Ld", "%#.0Lx", "%#.0Lo", "%#.0Lb",
+    ] {
+        res_eq(&format!("format {format} 0"), "0");
+    }
+    res_eq("format %+.0llu 0", "+0");
+    res_eq(
+        "format %llo -9223372036854775808",
+        "-1000000000000000000000",
+    );
+    res_eq(
+        "format %Lb 9223372036854775808",
+        "1000000000000000000000000000000000000000000000000000000000000000",
+    );
+    res_eq(
+        "catch {format %llu -9223372036854775808} message options; list $message [dict get $options -errorcode]",
+        "{unsigned bignum format is invalid} {TCL FORMAT BADUNSIGNED}",
+    );
+}
+
+/// Tcl 8.4 rejects the `%ll` bignum spelling before coercion. This exact
+/// diagnostic is from `tclsh8.4.20`'s upstream `tests/format.test` surface.
+#[test]
+fn format_bignum_modifier_is_rejected_in_tcl84_issue_2162() {
+    let (ok, result, _) = run_for_version("format %lld 42", tcl_dialect::TclVersion::V8_4);
+    assert!(!ok, "format %lld unexpectedly succeeded on Tcl 8.4");
+    assert_eq!(result, "bad field specifier \"l\"");
+    let (ok, result, _) = run_for_version(
+        "format %lld 0d18446744073709551616",
+        tcl_dialect::TclVersion::V8_6,
+    );
+    assert!(!ok, "Tcl 8.6 unexpectedly accepted Tcl 9's 0d prefix");
+    assert_eq!(
+        result,
+        "expected integer but got \"0d18446744073709551616\""
+    );
+}
+
 /// `format` string and character conversions.
 #[test]
 fn format_string_char_conversions() {

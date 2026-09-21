@@ -41,6 +41,15 @@ folds in "absent value = 0". Its default is fixed-`i64` with overflow →
 the seam that let `incr` be shared (§2) without the core ever naming a number
 representation.
 
+Arbitrary-precision `format` conversions use
+`ValueOps::integer_magnitude(value, radix, syntax)`. The adapter returns a sign
+and unsigned lowercase digits without a radix prefix, under the selected
+release's numeral grammar. The VM uses its bignum value model and the native
+runtime uses libtommath; neither narrows this path through `i64`. Fixed-width
+adapters retain a wide-integer default. The shared formatter owns modifier
+selection, prefixes, case, precision, padding, and the structured
+`TCL FORMAT BADUNSIGNED` error for negative unsigned bignum conversions.
+
 Notes:
 - `CompileService` (the runtime-`eval` injection point) was abstracted behind an
   associated `Module` type so the contract crate carries no bytecode dependency

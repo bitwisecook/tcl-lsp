@@ -51,6 +51,8 @@ use std::rc::Rc;
 
 use tcl_dialect::TclVersion;
 
+use crate::number::Radix;
+
 /// Count the release-defined Tcl characters in a UTF-8 string value.
 ///
 /// Rust strings cannot contain unpaired UTF-16 surrogates, but every Unicode
@@ -207,6 +209,18 @@ where
 /// is parameterised here to keep [`ValueOps::dict_pairs`]'s signature readable.
 pub type DictPairs<V> = Result<Vec<(V, V)>, ValueError>;
 
+/// An integer's sign and magnitude for arbitrary-precision formatting.
+///
+/// The magnitude has no sign or radix prefix and uses lowercase digits. The
+/// command core owns conversion prefixes, precision, and padding.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IntegerMagnitude {
+    /// Whether the integer is negative.
+    pub negative: bool,
+    /// The unsigned digits in the requested radix.
+    pub digits: String,
+}
+
 pub trait ValueOps {
     /// The runtime's value type (a cheap-to-clone handle).
     type Value: Clone;
@@ -260,6 +274,29 @@ pub trait ValueOps {
 
     /// As a wide integer (`Tcl_GetWideIntFromObj`).
     fn as_int(&mut self, v: &Self::Value) -> Result<i64, ValueError>;
+
+    /// The integer's sign and magnitude in `radix` for a bignum format path.
+    ///
+    /// Fixed-width value models use the wide-integer default. Bignum-capable
+    /// runtimes override it so `format %llx` never narrows through `i64`.
+    fn integer_magnitude(
+        &mut self,
+        v: &Self::Value,
+        radix: Radix,
+        _syntax: tcl_dialect::NumberSyntax,
+    ) -> Result<IntegerMagnitude, ValueError> {
+        let value = self.as_int(v)?;
+        let digits = match radix {
+            Radix::Bin => format!("{:b}", value.unsigned_abs()),
+            Radix::Oct => format!("{:o}", value.unsigned_abs()),
+            Radix::Dec => value.unsigned_abs().to_string(),
+            Radix::Hex => format!("{:x}", value.unsigned_abs()),
+        };
+        Ok(IntegerMagnitude {
+            negative: value.is_negative(),
+            digits,
+        })
+    }
 
     /// Parse a `string compare`/`string equal` `-length` argument.
     ///

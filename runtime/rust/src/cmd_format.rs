@@ -25,7 +25,7 @@ fn format_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             interp.set_result(value);
             Code::Ok
         }
-        Err(error) => interp.set_error(error.into_message().as_bytes()),
+        Err(error) => interp.report_cmd_error(error),
     }
 }
 
@@ -141,6 +141,74 @@ mod tests {
             // Width and precision still apply around the truncated value.
             assert_eq!(ok(i, b"format {%-6hd|} 70000"), b"4464  |");
             assert_eq!(ok(i, b"format %5.3d 7"), b"  007");
+        });
+    }
+
+    /// Tcl 9 bignum formatting keeps the exact magnitude in each supported
+    /// radix, and `u` rejects a negative bignum with C's structured code.
+    #[cfg(have_tommath)]
+    #[test]
+    fn format_bignums_issue_2162() {
+        leak_free(|i| {
+            assert_eq!(
+                ok(i, b"format %lld 18446744073709551616"),
+                b"18446744073709551616"
+            );
+            assert_eq!(
+                ok(i, b"format %Lx 18446744073709551616"),
+                b"10000000000000000"
+            );
+            assert_eq!(
+                ok(i, b"format %llu 0xabcdef0123456789abcdef"),
+                b"207698809136909011942886895"
+            );
+            assert_eq!(
+                ok(i, b"format %llx 0xabcdef0123456789abcdef"),
+                b"abcdef0123456789abcdef"
+            );
+            assert_eq!(
+                ok(i, b"format %llX 0xabcdef0123456789abcdef"),
+                b"ABCDEF0123456789ABCDEF"
+            );
+            for format in [
+                b"%#.0lld".as_slice(),
+                b"%#.0llx",
+                b"%#.0llo",
+                b"%#.0llb",
+                b"%#.0Ld",
+                b"%#.0Lx",
+                b"%#.0Lo",
+                b"%#.0Lb",
+            ] {
+                let mut source = b"format ".to_vec();
+                source.extend_from_slice(format);
+                source.extend_from_slice(b" 0");
+                assert_eq!(ok(i, &source), b"0", "{format:?}");
+            }
+            assert_eq!(ok(i, b"format %+.0llu 0"), b"+0");
+            assert_eq!(
+                ok(i, b"catch {format %llu -9223372036854775808} m o; list $m [dict get $o -errorcode]"),
+                b"{unsigned bignum format is invalid} {TCL FORMAT BADUNSIGNED}",
+            );
+        });
+    }
+
+    /// Tcl 8.4 did not admit the `ll` bignum modifier.
+    #[test]
+    fn format_bignum_modifier_is_rejected_in_tcl84_issue_2162() {
+        leak_free(|i| {
+            i.set_runtime_version(tcl_dialect::TclVersion::V8_4);
+            assert_eq!(i.eval_str(b"format %lld 42"), Code::Error);
+            assert_eq!(i.result_bytes(), b"bad field specifier \"l\"");
+            i.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+            assert_eq!(
+                i.eval_str(b"format %lld 0d18446744073709551616"),
+                Code::Error
+            );
+            assert_eq!(
+                i.result_bytes(),
+                b"expected integer but got \"0d18446744073709551616\""
+            );
         });
     }
 

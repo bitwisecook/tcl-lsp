@@ -25,8 +25,9 @@
 //!
 //! [`ValueOps`]: tcl_syntax::value::ValueOps
 
-use tcl_syntax::format::{FmtFlags, Spec, parse_spec_with_limit};
-use tcl_syntax::value::ValueOps;
+use tcl_syntax::format::{FmtFlags, SizeModifier, Spec, parse_spec_with_limit};
+use tcl_syntax::number::Radix;
+use tcl_syntax::value::{IntegerMagnitude, ValueOps};
 
 use crate::error::CmdError;
 
@@ -215,6 +216,26 @@ fn render_spec<O: ValueOps>(
     if verb == b'p' && syntax != tcl_dialect::NumberSyntax::Tcl90 {
         return Err(CmdError::new("bad field specifier \"p\""));
     }
+    if spec.size == Some(SizeModifier::LongLong) && syntax == tcl_dialect::NumberSyntax::Tcl84 {
+        return Err(CmdError::new("bad field specifier \"l\""));
+    }
+    if spec.size == Some(SizeModifier::Big) && syntax != tcl_dialect::NumberSyntax::Tcl90 {
+        return Err(CmdError::new("bad field specifier \"L\""));
+    }
+    if spec.size.is_some_and(SizeModifier::is_big)
+        && verb == b'u'
+        && syntax != tcl_dialect::NumberSyntax::Tcl90
+    {
+        return Err(CmdError::with_error_code(
+            "unsigned bignum format is invalid",
+            "TCL FORMAT BADUNSIGNED",
+        ));
+    }
+    if spec.size.is_some_and(SizeModifier::is_big)
+        && matches!(verb, b'd' | b'i' | b'u' | b'x' | b'X' | b'o' | b'b')
+    {
+        return render_bignum_spec(ops, spec, arg, syntax);
+    }
     match verb {
         b'd' | b'i' => {
             // The size modifier and the release pick the width; the low bits
@@ -287,6 +308,69 @@ fn render_spec<O: ValueOps>(
             char::from(other)
         ))),
     }
+}
+
+/// Render Tcl's `ll`/`L` bignum conversion without narrowing through `i64`.
+fn render_bignum_spec<O: ValueOps>(
+    ops: &mut O,
+    spec: &Spec,
+    arg: &O::Value,
+    syntax: tcl_dialect::NumberSyntax,
+) -> Result<String, CmdError> {
+    let radix = match spec.verb {
+        b'd' | b'i' | b'u' => Radix::Dec,
+        b'o' => Radix::Oct,
+        b'x' | b'X' => Radix::Hex,
+        b'b' => Radix::Bin,
+        _ => unreachable!("caller filters integer bignum conversions"),
+    };
+    let IntegerMagnitude {
+        negative,
+        mut digits,
+    } = ops.integer_magnitude(arg, radix, syntax)?;
+    if spec.verb == b'u' && negative {
+        return Err(CmdError::with_error_code(
+            "unsigned bignum format is invalid",
+            "TCL FORMAT BADUNSIGNED",
+        ));
+    }
+    if spec.verb == b'X' {
+        digits.make_ascii_uppercase();
+    }
+    // Unlike the fixed-width path, Tcl's bignum formatter keeps its one zero
+    // digit at precision zero (`%#.0llx 0` -> `0`), before adding any prefix.
+    if !(digits == "0" && spec.precision == Some(0)) {
+        digits = apply_precision(digits, spec);
+    }
+    let nonzero = digits.bytes().any(|b| b != b'0');
+    let prefix = match spec.verb {
+        b'd' | b'i'
+            if syntax.has_decimal_prefix() && spec.flags.contains(FmtFlags::HASH) && nonzero =>
+        {
+            "0d"
+        }
+        b'x' | b'X' if spec.flags.contains(FmtFlags::HASH) && nonzero => {
+            if spec.verb == b'X' && !syntax.has_decimal_prefix() {
+                "0X"
+            } else {
+                "0x"
+            }
+        }
+        b'o' if spec.flags.contains(FmtFlags::HASH) && nonzero => {
+            if syntax.has_decimal_prefix() {
+                "0o"
+            } else {
+                "0"
+            }
+        }
+        b'b' if spec.flags.contains(FmtFlags::HASH) && nonzero => "0b",
+        _ => "",
+    };
+    Ok(pad_number(
+        &format!("{prefix}{digits}"),
+        negative && spec.verb != b'u',
+        spec,
+    ))
 }
 
 /// Decimal digits (no sign) for an integer, honouring `.precision`.

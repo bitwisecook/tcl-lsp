@@ -30,7 +30,8 @@
 
 use std::rc::Rc;
 
-use tcl_syntax::value::{ValueError, ValueOps, string_char_len};
+use tcl_syntax::number::{self, Number, Radix};
+use tcl_syntax::value::{IntegerMagnitude, ValueError, ValueOps, string_char_len};
 
 use crate::interp::Vm;
 use crate::value::Value;
@@ -103,6 +104,36 @@ impl ValueOps for Vm {
     fn as_int(&mut self, v: &Value) -> Result<i64, ValueError> {
         v.as_int()
             .map_err(|_| ValueError::NotInteger(v.to_str().to_string()))
+    }
+
+    fn integer_magnitude(
+        &mut self,
+        v: &Value,
+        radix: Radix,
+        syntax: tcl_dialect::NumberSyntax,
+    ) -> Result<IntegerMagnitude, ValueError> {
+        let value = match number::parse_whole_with(
+            v.to_str().trim(),
+            number::ParseFlags::for_syntax(syntax),
+        ) {
+            Some(Number::Int(value)) => num_bigint::BigInt::from(value),
+            Some(Number::Big {
+                negative,
+                radix,
+                digits,
+            }) => {
+                let value = num_bigint::BigInt::parse_bytes(digits.as_bytes(), radix as u32)
+                    .ok_or_else(|| ValueError::NotInteger(v.to_str().to_string()))?;
+                if negative { -value } else { value }
+            }
+            Some(Number::Double(_) | Number::Nan { .. }) | None => {
+                return Err(ValueError::NotInteger(v.to_str().to_string()));
+            }
+        };
+        Ok(IntegerMagnitude {
+            negative: value.sign() == num_bigint::Sign::Minus,
+            digits: value.magnitude().to_str_radix(radix as u32),
+        })
     }
 
     /// The tower addition shared with `dict incr` — see the free
