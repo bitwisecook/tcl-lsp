@@ -368,11 +368,24 @@ fn cmd_eval(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // the pending eval request, which pushes a transparent script frame whose result
     // replaces this placeholder. The script frame adds the `("eval" body line N)`
     // errorInfo frame itself on error (eval-2.5; see `Frame::body_label`).
-    match vm.compile_script_cached(&script) {
-        Ok(script) => {
-            vm.pending.eval = Some((script, Some("eval"), None));
-            ok(Value::empty())
-        }
+    // A body whose *later* commands do not parse still runs its clean prefix
+    // before the error is raised (#1603): C parses one command at a time, so
+    // the malformed tail is never reached until the commands ahead of it have
+    // run.  `catch`/`try` already prepare their bodies this way.
+    match vm.prepare_script_commands(&script) {
+        Ok(prepared) => match prepared.prefix {
+            Some(unit) => {
+                vm.pending.eval = Some(crate::exec::EvalReq {
+                    script: unit,
+                    label: Some("eval"),
+                    cleanup_proc: None,
+                    fatal_tail: prepared.fatal_tail,
+                });
+                ok(Value::empty())
+            }
+            // Nothing in the body parses, so raising is all this `eval` does.
+            None => prepared.fatal_tail.map_or_else(|| ok(Value::empty()), err),
+        },
         Err(e) => err(e.message),
     }
 }
@@ -492,7 +505,12 @@ fn cmd_apply(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let script = tcl_syntax::list::join_list(words.iter().map(Value::to_str));
     match vm.compile_script_cached(&script) {
         Ok(script) => {
-            vm.pending.eval = Some((script, None, Some(name)));
+            vm.pending.eval = Some(crate::exec::EvalReq {
+                script,
+                label: None,
+                cleanup_proc: Some(name),
+                fatal_tail: None,
+            });
             ok(Value::empty())
         }
         Err(e) => {
@@ -2455,7 +2473,12 @@ fn cmd_uplevel(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     if target == cur {
         return match vm.compile_script_cached(&script) {
             Ok(script) => {
-                vm.pending.eval = Some((script, Some("uplevel"), None));
+                vm.pending.eval = Some(crate::exec::EvalReq {
+                    script,
+                    label: Some("uplevel"),
+                    cleanup_proc: None,
+                    fatal_tail: None,
+                });
                 ok(Value::empty())
             }
             Err(e) => err(e.message),

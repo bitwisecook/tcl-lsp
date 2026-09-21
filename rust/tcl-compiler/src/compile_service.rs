@@ -318,6 +318,11 @@ impl CompileService for BytecodeCompileService {
         match segmented.fatal_tail {
             Some((start, message)) => ScriptCommandPlan {
                 complete_prefix_len: start,
+                // `command_at_time_script_with_config` truncates the command
+                // list at the cut, so this is exactly the prefix's command
+                // count — zero when the *first* command is the malformed one,
+                // however much leading whitespace or comment `start` spans.
+                complete_prefix_commands: segmented.commands.len(),
                 fatal_tail: Some(CompileError(message)),
             },
             None => ScriptCommandPlan::complete(source.len()),

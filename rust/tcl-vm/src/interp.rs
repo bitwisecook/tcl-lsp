@@ -828,8 +828,8 @@ enum CommandSemantics {
 /// Deferred control requests handed from builtins to the explicit VM stack.
 #[derive(Default)]
 pub(crate) struct PendingControl {
-    /// Compiled script, error-info label, and optional temporary command cleanup.
-    pub(crate) eval: Option<(CompiledUnit, Option<&'static str>, Option<String>)>,
+    /// Body deferred by `eval`/`uplevel`/`apply` to the explicit stack.
+    pub(crate) eval: Option<crate::exec::EvalReq>,
     /// Catch body whose completion is absorbed by the catch epilogue.
     pub(crate) catch: Option<crate::exec::CatchReq>,
     /// Scanner-driven substitution request.
@@ -9100,7 +9100,17 @@ impl Vm {
         namespace: &str,
         src: &str,
     ) -> Result<CompiledUnit, TclError> {
-        if let Some((name, parameter_source)) = admission
+        // C compiles a body when the procedure is *called*, so a body whose
+        // later commands do not parse must neither refuse the definition nor
+        // run with the lenient lowering's invented meaning: compile the clean
+        // prefix and carry the error for the unit to raise on entry (#1829).
+        let (body_src, fatal_tail, _) = self.script_prefix_and_fatal_tail(src);
+        // The AOT admission path returns assembly the *enclosing module*
+        // lowered, and that lowering is the lenient one — it would hand back a
+        // body that quietly means something C never means. Only a body that
+        // parses whole may be admitted from it.
+        if fatal_tail.is_none()
+            && let Some((name, parameter_source)) = admission
             && let Some(unit) = self.module_proc(name, parameter_source, src)
         {
             return Ok(unit);
@@ -9120,7 +9130,7 @@ impl Vm {
             compiler
                 .compile_procedure_for_profile(
                     ProcedureCompileTarget {
-                        source: src,
+                        source: body_src,
                         parameters: &parameter_names,
                         namespace,
                     },
@@ -9137,7 +9147,7 @@ impl Vm {
             module = compiler
                 .compile_procedure_for_profile(
                     ProcedureCompileTarget {
-                        source: src,
+                        source: body_src,
                         parameters: &parameter_names,
                         namespace,
                     },
@@ -9165,7 +9175,9 @@ impl Vm {
             ));
         }
         self.merge_procs(&module);
-        Ok(self.compiled_unit(Rc::new(module.top_level), module.source_namespace))
+        Ok(self
+            .compiled_unit(Rc::new(module.top_level), module.source_namespace)
+            .with_fatal_tail(fatal_tail))
     }
 
     /// Compile through the explicit plain-dispatch capability and verify the
@@ -11998,8 +12010,34 @@ impl Vm {
     pub fn eval_source(&mut self, src: &str) -> Result<Completion<Value>, TclError> {
         self.claim_number_grammar();
         self.reset_error_state_for_eval();
-        let module = self.compile_cached(src)?;
-        let comp = self.run_current_module(&module);
+        // C parses one command immediately before evaluating it, so every
+        // command ahead of a malformed one runs before the parse error is
+        // raised (#1603). Compile and run that prefix, then raise.
+        let (prefix, fatal_tail, prefix_commands) = self.script_prefix_and_fatal_tail(src);
+        // No command parsed, so none ran and there is no prefix completion to
+        // carry: report the error on the channel this entry point has always
+        // used for a script it could not compile at all. Only a script that
+        // *did* run something reports through the completion below.
+        //
+        // The test is the command count, not the prefix's length: when the
+        // *first* command is the malformed one the prefix still spans any
+        // leading whitespace and comments, so ` \n set x "` has a nonzero
+        // prefix that runs nothing at all.
+        if prefix_commands == 0
+            && let Some(message) = fatal_tail
+        {
+            return Err(TclError::new(message));
+        }
+        let module = self.compile_cached(prefix)?;
+        let mut comp = self.run_current_module(&module);
+        // Only a prefix that ran to completion reaches the parse error: an
+        // error (or any non-`ok` completion) in an earlier command is what C
+        // reports, the malformed tail never being parsed at all.
+        if comp.code == Code::Ok
+            && let Some(message) = fatal_tail
+        {
+            comp = err(message);
+        }
         // Crossing back out of a nested script is a frame boundary: clear
         // `ERR_ALREADY_LOGGED` so the enclosing command (the `eval`/`[subst]`/
         // proc call site) logs its own `invoked from within` frame.
@@ -12007,6 +12045,30 @@ impl Vm {
             self.clear_error_logged();
         }
         Ok(comp)
+    }
+
+    /// Split `src` into the leading commands that parse and the parse error C
+    /// raises once they have run.
+    ///
+    /// The compiler owns the dialect-aware split ([`ScriptCommandPlan`]); this
+    /// is the non-compiling half of [`Self::prepare_script_commands`], for
+    /// callers that drive a whole module rather than a deferred activation.
+    /// Falls back to the whole source when no [`CompileService`] is attached or
+    /// the service hands back a boundary that is not a character boundary — the
+    /// caller then compiles `src` exactly as it did before.
+    fn script_prefix_and_fatal_tail<'s>(&self, src: &'s str) -> (&'s str, Option<String>, usize) {
+        let Some(compiler) = self.compiler.as_ref() else {
+            return (src, None, usize::from(!src.is_empty()));
+        };
+        let plan = compiler.script_command_plan_for_profile(src, self.dialect_profile);
+        if plan.complete_prefix_len > src.len() || !src.is_char_boundary(plan.complete_prefix_len) {
+            return (src, None, usize::from(!src.is_empty()));
+        }
+        (
+            &src[..plan.complete_prefix_len],
+            plan.fatal_tail.map(|error| error.0),
+            plan.complete_prefix_commands,
+        )
     }
 
     /// Compile a deferred/reusable script and bind its assembly to the dialect-
