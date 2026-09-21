@@ -806,6 +806,18 @@ fn format_integer_conversions() {
     res_eq("format %*d -5 42", "42   "); // negative `*` width left-justifies
 }
 
+/// Tcl 9's `%p` is an unsigned, pointer-width hexadecimal conversion. Its
+/// precision applies to the digits after `0x`; `+` and space are accepted but
+/// do not add a sign. These exact results are from tclsh9.0.4.
+#[test]
+fn format_pointer_precision_and_flags() {
+    res_eq("format %.4p 42", "0x002a");
+    res_eq("format %08.4p 42", "  0x002a");
+    res_eq("format %.0p 0", "0x0");
+    res_eq("format %+.4p 42", "0x002a");
+    res_eq("format {% .4p} 42", "0x002a");
+}
+
 /// `format` string and character conversions.
 #[test]
 fn format_string_char_conversions() {
@@ -838,6 +850,21 @@ fn format_float_conversions() {
     res_eq("format %g 1.5", "1.5");
     res_eq("format %g 100.0", "100");
     res_eq("format %g 0.0001", "0.0001");
+}
+
+/// `#` does not add a decimal point to an infinity, and uppercase float verbs
+/// uppercase the non-finite spelling. These exact results are from tclsh9.0.4.
+#[test]
+fn format_float_nonfinite_alternate_and_uppercase() {
+    res_eq("format %#.0f Inf", "inf");
+    res_eq("format %#.0e -Inf", "-inf");
+    res_eq("format %#.0g Inf", "inf");
+    res_eq("format %.0E Inf", "INF");
+    res_eq("format %.0G -Inf", "-INF");
+    res_eq("format %08f Inf", "     inf");
+    res_eq("format %08E -Inf", "    -INF");
+    res_eq("format %+08G Inf", "    +INF");
+    res_eq("format %-08g Inf", "inf     ");
 }
 
 /// `format` argument / specifier errors. (The `%5` trailing-spec and `%n$`
