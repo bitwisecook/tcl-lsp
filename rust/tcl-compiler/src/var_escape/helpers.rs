@@ -193,9 +193,28 @@ pub fn normalise_cmd_subst_head(head: &str) -> &str {
 
 /// True if *cmd* is in the audited frameless-runtime allow-list
 /// (the registry's [`Traits::FRAMELESS_RUNTIME`] commands).
+///
+/// Built from `build_default()`, so this answers for plain Tcl whatever
+/// dialect the caller is analysing. Any caller holding the unit's registry
+/// should use [`is_frameless_runtime_command_in`] instead: the trait is
+/// carried by `lassign`, `lrepeat`, `lreverse`, `namespace`, `puts` and
+/// `throw` under `tcl8.6` and by none of them under `f5-irules`.
 #[must_use]
 pub fn is_frameless_runtime_command(cmd: &str) -> bool {
     frameless_runtime_set().contains(cmd)
+}
+
+/// Registry-aware form of [`is_frameless_runtime_command`].
+///
+/// A command the registry does not know is *not* frameless — the same
+/// conservative answer the allow-list gives for a name outside it, so an
+/// unrecognised head still records a fallback rather than being waved past.
+#[must_use]
+pub fn is_frameless_runtime_command_in(cmd: &str, registry: &CommandRegistry) -> bool {
+    registry
+        .effective_semantics()
+        .command(cmd)
+        .is_some_and(|c| c.has_traits(Traits::FRAMELESS_RUNTIME))
 }
 
 /// True if *cmd* is one of the five `set` / `incr` / `append` /

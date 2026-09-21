@@ -949,23 +949,31 @@ fn cu_includes_top_level_and_proc_keys() {
 #[test]
 fn the_cu_entry_point_answers_from_the_registry_it_is_given() {
     let irules = static_context_for("f5-irules").commands();
-    let src = "proc p {} { set x 1 ; puts $x ; return $x }\n";
-    let cu = CompilationUnit::build_for(src, irules, false);
+    // A head inside a command substitution is the same command as a direct
+    // one, so both spellings must answer from the selected profile. The
+    // embedded form used to consult the plain-Tcl allow-list instead, which
+    // left the registry-aware entry point supplying incomplete evidence.
+    for src in [
+        "proc p {} { set x 1 ; puts $x ; return $x }\n",
+        "proc p {} { set x 1 ; set y [puts $x] ; return $y }\n",
+    ] {
+        let cu = CompilationUnit::build_for(src, irules, false);
 
-    let blind = analyse_var_escape_cu(&cu, true);
-    let exact = analyse_var_escape_cu_with_registry(&cu, true, irules);
+        let blind = analyse_var_escape_cu(&cu, true);
+        let exact = analyse_var_escape_cu_with_registry(&cu, true, irules);
 
-    assert_ne!(
-        blind, exact,
-        "the hardcoded tcl8.6 registry and the unit's own registry disagree \
-         about `puts`, so the two entry points must not answer alike"
-    );
+        assert_ne!(
+            blind, exact,
+            "{src}: the hardcoded tcl8.6 registry and the unit's own registry \
+             disagree about `puts`, so the two entry points must not answer alike"
+        );
 
-    // Same registry in, same answer out — the delegation is a pure widening,
-    // not a behaviour change for callers that were already correct.
-    assert_eq!(
-        blind,
-        analyse_var_escape_cu_with_registry(&cu, true, registry()),
-        "passing the registry the blind form uses reproduces it exactly"
-    );
+        // Same registry in, same answer out — the delegation is a pure
+        // widening, not a behaviour change for callers already correct.
+        assert_eq!(
+            blind,
+            analyse_var_escape_cu_with_registry(&cu, true, registry()),
+            "{src}: passing the registry the blind form uses reproduces it exactly"
+        );
+    }
 }
