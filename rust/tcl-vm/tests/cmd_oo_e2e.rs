@@ -217,6 +217,94 @@ fn info_variables_separates_public_and_private_declarations() {
     );
 }
 
+/// `variable` is a `TclOO` *slot*, not an accumulator: a leading `-set`,
+/// `-append`, `-remove` or `-clear` selects the operation.
+///
+/// Its default for bare names is `-append`, which is what makes a second
+/// `variable` call add rather than replace — and which differs from the TIP
+/// 558 property slots, whose default is `-set`. The private form shares the
+/// same slot machinery.
+#[test]
+fn variable_declarations_honour_slot_operations() {
+    // tclsh 9.0.4 / 9.1b0, one row per operation.
+    for (body, expect) in [
+        ("variable a b; variable c", "a b c"),      // bare names append
+        ("variable a b; variable -set c d", "c d"), // -set replaces
+        ("variable a; variable -append b", "a b"),
+        ("variable a b c; variable -remove b", "a c"),
+        ("variable a b; variable -clear", ""),
+        ("variable a; variable a", "a"), // duplicates collapse
+    ] {
+        assert_eq!(
+            result(&format!(
+                "oo::class create C {{ {body} }}; info class variables C"
+            )),
+            expect,
+            "public slot op in `{body}`",
+        );
+    }
+    // The private slot answers the same way through `-private`.
+    // tclsh 9.0.4 / 9.1b0: `{}` then `a c`
+    assert_eq!(
+        result(concat!(
+            "oo::class create C { private variable a b; private variable -clear }; ",
+            "oo::class create D { private variable a b c; private variable -remove b }; ",
+            "list [info class variables C -private] [info class variables D -private]"
+        )),
+        "{} {a c}",
+    );
+}
+
+/// TIP 500's block form: a lone argument to `private` is a definition
+/// *script*, so the declarations inside it are private.
+#[test]
+fn private_block_form_declares_privately() {
+    // tclsh 9.0.4 / 9.1b0: `1 X {}`
+    assert_eq!(
+        result(concat!(
+            "oo::class create C { private { variable X }; ",
+            "constructor {} {set X 1}; method g {} {return $X} }; ",
+            "list [[C new] g] [info class variables C -private] ",
+            "[info class variables C]"
+        )),
+        "1 X {}",
+    );
+}
+
+/// `my variable` and `my varname` must reach the same slot ordinary `$X`
+/// access does.
+///
+/// Targeting the unmangled `{ns}::X` instead would let `my variable X`
+/// replace the private mapping with a public one, and `my varname X` hand
+/// back a path to a different variable — so this reads the value back through
+/// both routes rather than only checking that they succeed.
+#[test]
+fn my_variable_and_varname_reach_a_private_slot() {
+    // tclsh 9.0.4 / 9.1b0: `priv priv`
+    assert_eq!(
+        result(concat!(
+            "oo::class create C { private variable X; ",
+            "constructor {} {set X priv}; ",
+            "method viaLink {} {my variable X; return $X}; ",
+            "method viaName {} {set n [my varname X]; return [set $n]} }; ",
+            "set o [C new]; list [$o viaLink] [$o viaName]"
+        )),
+        "priv priv",
+    );
+    // The name `my varname` reports is the mangled slot. The creation id is
+    // implementation-specific, so match the shape.
+    // tclsh 9.0.4: `::oo::Obj22::20 : X`
+    let (_, name, _) = run(concat!(
+        "oo::class create C { private variable X; ",
+        "constructor {} {set X priv}; method n {} {my varname X} }; ",
+        "[C new] n"
+    ));
+    assert!(
+        name.ends_with(" : X") && name.contains("::oo::"),
+        "mangled private slot, got {name}"
+    );
+}
+
 #[test]
 fn class_method_bodies_compile_per_object_private_namespace() {
     // Tcl 9.0.4 resolves unqualified method commands in each object's private

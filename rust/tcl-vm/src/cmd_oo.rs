@@ -191,6 +191,9 @@ pub(crate) struct OoState {
     counter: u64,
     /// Active method invocations (innermost last) — drives `self`/`my`/`next`.
     pub(crate) call_stack: Vec<OoFrame>,
+    /// Non-zero while a `private { … }` definition block is being evaluated,
+    /// so `variable` and `method` inside it declare privately (TIP 500).
+    pub(crate) private_depth: usize,
     /// Active definition targets (innermost last), each tagged with its level.
     def_stack: Vec<(DefTarget, usize)>,
 }
@@ -202,6 +205,7 @@ pub(crate) struct OoState {
 pub(crate) struct OoExec {
     call_stack: Vec<OoFrame>,
     def_stack: Vec<(DefTarget, usize)>,
+    private_depth: usize,
 }
 
 impl OoState {
@@ -221,6 +225,7 @@ impl OoState {
     pub(crate) fn swap_exec(&mut self, e: &mut OoExec) {
         std::mem::swap(&mut self.call_stack, &mut e.call_stack);
         std::mem::swap(&mut self.def_stack, &mut e.def_stack);
+        std::mem::swap(&mut self.private_depth, &mut e.private_depth);
     }
 }
 
@@ -310,6 +315,55 @@ pub(crate) fn register(vm: &mut Vm) {
     vm.register("property", cmd_property);
     vm.register("private", cmd_private);
     bootstrap(vm);
+}
+
+/// Apply a `TclOO` variable-slot operation to a declared-variable list.
+///
+/// `variable` (and `private variable`) is a slot, not a plain accumulator:
+/// a leading `-set`, `-append`, `-remove` or `-clear` selects the operation.
+/// Measured on tclsh 9.0.4 and 9.1b0, its default for bare names is
+/// **`-append`**, unlike the TIP 558 property slots whose default is `-set`:
+/// `oo::define C {variable a b}` then `oo::define C {variable c}` leaves
+/// `a b c`, while `variable -set c` leaves `c`. Names stay in declaration
+/// order and duplicates collapse (`variable a; variable a` leaves `a`).
+fn apply_variable_slot(list: &mut Vec<String>, args: &[Value]) -> Result<(), String> {
+    let (op, names): (String, &[Value]) = match args.split_first() {
+        Some((first, rest)) if first.to_str().starts_with('-') => {
+            (first.to_str().to_string(), rest)
+        }
+        _ => ("-append".to_owned(), args),
+    };
+    let mut new_names: Vec<String> = Vec::new();
+    for a in names {
+        let name = a.to_str().to_string();
+        if name.contains("::") {
+            return Err(format!(
+                "invalid declared variable name \"{name}\": must not contain namespace separators"
+            ));
+        }
+        new_names.push(name);
+    }
+    match op.as_str() {
+        "-set" => {
+            list.clear();
+            for n in new_names {
+                if !list.contains(&n) {
+                    list.push(n);
+                }
+            }
+        }
+        "-append" => {
+            for n in new_names {
+                if !list.contains(&n) {
+                    list.push(n);
+                }
+            }
+        }
+        "-remove" => list.retain(|n| !new_names.contains(n)),
+        "-clear" => list.clear(),
+        other => return Err(format!("unsupported slot operation \"{other}\"")),
+    }
+    Ok(())
 }
 
 /// A TIP 558 property slot (`::oo::configuresupport::{obj,}{readable,writable}properties`).
@@ -442,6 +496,21 @@ fn cmd_private(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some((verb, rest)) = args.split_first() else {
         return ok(Value::empty());
     };
+    // TIP 500 block form: a lone argument is a definition *script*, not a
+    // command name, so `private {variable X}` declares X privately. Raise the
+    // private depth for its evaluation; `variable` and `method` inside consult
+    // it. The depth is restored on every path, including an error unwinding
+    // out of the script.
+    if rest.is_empty() {
+        vm.oo.private_depth += 1;
+        let result = match vm.eval_source(&verb.to_str()) {
+            Ok(c) if c.code == Code::Return => ok(c.result),
+            Ok(c) => c,
+            Err(e) => err(e.message),
+        };
+        vm.oo.private_depth = vm.oo.private_depth.saturating_sub(1);
+        return result;
+    }
     match verb.to_str().as_ref() {
         "property" => cmd_property(vm, rest),
         "method" => {
@@ -1592,12 +1661,9 @@ fn builtin_method(vm: &mut Vm, obj_key: OoId, method: &str, args: &[Value]) -> C
                         "variable name \"{name}\" illegal: must not contain namespace separator"
                     ));
                 }
-                if let Err(error) = vm.add_link(&name, 0, &format!("{ns}::{name}")) {
-                    return crate::command::upvar_link_error(
-                        error,
-                        &format!("{ns}::{name}"),
-                        &name,
-                    );
+                let storage = frame_storage_name(vm, &ns, &name);
+                if let Err(error) = vm.add_link(&name, 0, &storage) {
+                    return crate::command::upvar_link_error(error, &storage, &name);
                 }
             }
             ok(Value::empty())
@@ -1606,7 +1672,11 @@ fn builtin_method(vm: &mut Vm, obj_key: OoId, method: &str, args: &[Value]) -> C
             let Some(a) = args.first() else {
                 return err("wrong # args: should be \"my varname varName\"");
             };
-            ok(Value::string(display(&format!("{ns}::{}", a.to_str()))))
+            ok(Value::string(display(&frame_storage_name(
+                vm,
+                &ns,
+                &a.to_str(),
+            ))))
         }
         "eval" => {
             let script = args
@@ -2018,33 +2088,41 @@ fn active_target(vm: &Vm) -> Option<(bool, OoId)> {
 /// builtin calls this first (C's `TclOODefineVariablesObjCmd` vs the core
 /// `variable`).
 pub(crate) fn maybe_declare_variable(vm: &mut Vm, args: &[Value]) -> Option<Completion<Value>> {
-    let (is_class, target) = active_target(vm)?;
-    let mut names: Vec<String> = Vec::new();
-    for a in args {
-        let name = a.to_str().to_string();
-        if name.contains("::") {
-            return Some(err(format!(
-                "invalid declared variable name \"{name}\": must not contain namespace separators"
-            )));
-        }
-        names.push(name);
-    }
-    if is_class {
-        if let Some(c) = vm.oo.classes.get_mut(&target) {
-            for n in names {
-                if !c.variables.contains(&n) {
-                    c.variables.push(n);
-                }
+    active_target(vm)?;
+    // Inside a `private { … }` block this declaration is private (TIP 500).
+    let private = vm.oo.private_depth > 0;
+    Some(declare_variable(vm, args, private))
+}
+
+/// Write one `variable` declaration into the target's public or private slot.
+fn declare_variable(vm: &mut Vm, args: &[Value], private: bool) -> Completion<Value> {
+    let Some((is_class, target)) = active_target(vm) else {
+        return err("this command can only be called from within the body of a definition");
+    };
+    let list = if is_class {
+        vm.oo.classes.get_mut(&target).map(|c| {
+            if private {
+                &mut c.private_variables
+            } else {
+                &mut c.variables
             }
-        }
-    } else if let Some(o) = vm.oo.objects.get_mut(&target) {
-        for n in names {
-            if !o.variables.contains(&n) {
-                o.variables.push(n);
+        })
+    } else {
+        vm.oo.objects.get_mut(&target).map(|o| {
+            if private {
+                &mut o.private_variables
+            } else {
+                &mut o.variables
             }
-        }
+        })
+    };
+    let Some(list) = list else {
+        return ok(Value::empty());
+    };
+    match apply_variable_slot(list, args) {
+        Ok(()) => ok(Value::empty()),
+        Err(message) => err(message),
     }
-    Some(ok(Value::empty()))
 }
 
 /// `private variable name …` inside a definition body.
@@ -2053,35 +2131,7 @@ pub(crate) fn maybe_declare_variable(vm: &mut Vm, args: &[Value]) -> Option<Comp
 /// builtin consults first; `private` has no such builtin to fall back to, so
 /// this owns both the target resolution and the declaration.
 fn def_private_variable(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    let Some((is_class, target)) = active_target(vm) else {
-        return err("this command can only be called from within the body of a definition");
-    };
-    let mut names: Vec<String> = Vec::new();
-    for a in args {
-        let name = a.to_str().to_string();
-        if name.contains("::") {
-            return err(format!(
-                "invalid declared variable name \"{name}\": must not contain namespace separators"
-            ));
-        }
-        names.push(name);
-    }
-    if is_class {
-        if let Some(c) = vm.oo.classes.get_mut(&target) {
-            for n in names {
-                if !c.private_variables.contains(&n) {
-                    c.private_variables.push(n);
-                }
-            }
-        }
-    } else if let Some(o) = vm.oo.objects.get_mut(&target) {
-        for n in names {
-            if !o.private_variables.contains(&n) {
-                o.private_variables.push(n);
-            }
-        }
-    }
-    ok(Value::empty())
+    declare_variable(vm, args, true)
 }
 
 /// The storage name a TIP 500 private variable occupies in the object's
@@ -2093,6 +2143,43 @@ fn def_private_variable(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 /// holds both `20 : X` and `22 : X`.
 fn private_storage_name(creation_id: u64, name: &str) -> String {
     format!("{creation_id} : {name}")
+}
+
+/// The object-namespace storage name for `name` as seen from the running
+/// method, mangled when the method's own provider declares it private.
+///
+/// `my variable X` and `my varname X` must reach the same slot ordinary `$X`
+/// access does. Without this they target the unmangled `{ns}::X`, so
+/// `my variable X` would replace the private mapping with a public one and
+/// `my varname X` would hand back a path to a different variable (#1933).
+fn frame_storage_name(vm: &Vm, ns: &str, name: &str) -> String {
+    let is_private = vm.oo.call_stack.last().is_some_and(|fr| {
+        fr.chain.get(fr.index).is_some_and(|step| {
+            let declared = if step.is_object {
+                vm.oo
+                    .objects
+                    .get(&step.provider)
+                    .map(|o| &o.private_variables)
+            } else {
+                vm.oo
+                    .classes
+                    .get(&step.provider)
+                    .map(|c| &c.private_variables)
+            };
+            declared.is_some_and(|d| d.iter().any(|v| v == name))
+        })
+    });
+    if !is_private {
+        return format!("{ns}::{name}");
+    }
+    let creation_id = vm
+        .oo
+        .call_stack
+        .last()
+        .and_then(|fr| fr.chain.get(fr.index))
+        .and_then(|step| vm.oo.objects.get(&step.provider))
+        .map_or(0, |o| o.creation_id);
+    format!("{ns}::{}", private_storage_name(creation_id, name))
 }
 
 /// A definition-body command (`method`, `superclass`, …). Resolves the active
