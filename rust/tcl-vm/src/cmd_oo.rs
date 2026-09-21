@@ -89,6 +89,13 @@ struct Class {
     destructor: Option<Method>,
     /// Declared instance-variable names, auto-linked into method frames.
     variables: Vec<String>,
+    /// TIP 500 private instance variables (`private variable`).
+    ///
+    /// Auto-linked into the frames of methods this class declares, but to a
+    /// *mangled* storage name rather than the bare one, so two classes in one
+    /// hierarchy may each declare `X` without sharing a slot. Hidden from the
+    /// plain `info class variables`, reported by its `-private` form.
+    private_variables: Vec<String>,
     mixins: Vec<OoId>,
     /// `export`/`unexport` overrides applied to instance methods.
     exported: BTreeSet<String>,
@@ -118,6 +125,10 @@ struct Object {
     /// (`oo::define C self method`) since a class is an object too.
     methods: BTreeMap<String, Method>,
     variables: Vec<String>,
+    /// TIP 500 per-object private instance variables
+    /// (`oo::objdefine … private variable`). See `Class::private_variables`;
+    /// here the declaring provider is the object itself.
+    private_variables: Vec<String>,
     mixins: Vec<OoId>,
     exported: BTreeSet<String>,
     unexported: BTreeSet<String>,
@@ -438,7 +449,11 @@ fn cmd_private(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             v.extend_from_slice(rest);
             def_body_cmd(vm, "method", &v)
         }
-        "variable" => def_body_cmd(vm, "variable", rest),
+        // `private variable` is not the ordinary declaration with a visibility
+        // flag: it declares into a separate set whose storage is mangled per
+        // declaring provider (TIP 500), so it cannot route through the generic
+        // definition-command switch the way the method forms do.
+        "variable" => def_private_variable(vm, rest),
         other => def_body_cmd(vm, other, rest),
     }
 }
@@ -820,6 +835,7 @@ fn bootstrap(vm: &mut Vm) {
                 creation_id: root_id.0,
                 methods: BTreeMap::new(),
                 variables: Vec::new(),
+                private_variables: Vec::new(),
                 mixins: Vec::new(),
                 exported: BTreeSet::new(),
                 unexported: BTreeSet::new(),
@@ -863,6 +879,7 @@ fn bootstrap(vm: &mut Vm) {
             creation_id: configurable_root.0,
             methods: BTreeMap::new(),
             variables: Vec::new(),
+            private_variables: Vec::new(),
             mixins: Vec::new(),
             exported: BTreeSet::new(),
             unexported: BTreeSet::new(),
@@ -1031,6 +1048,7 @@ fn oo_new(
             creation_id: object_id.0,
             methods: BTreeMap::new(),
             variables: Vec::new(),
+            private_variables: Vec::new(),
             mixins: Vec::new(),
             exported: BTreeSet::new(),
             unexported: BTreeSet::new(),
@@ -1446,24 +1464,47 @@ fn run_step_inner(
     // provider. An object-defined method sees the object's declarations; a
     // class-defined method sees that class's declarations.
     let mut decl: Vec<String> = Vec::new();
+    let mut private_decl: Vec<String> = Vec::new();
     if step.is_object {
         if let Some(o) = vm.oo.objects.get(&step.provider) {
             decl.extend(o.variables.iter().cloned());
+            private_decl.extend(o.private_variables.iter().cloned());
         }
     } else if let Some(c) = vm.oo.classes.get(&step.provider) {
         decl.extend(c.variables.iter().cloned());
+        private_decl.extend(c.private_variables.iter().cloned());
     }
-    let link_vars: Vec<(String, String)> = decl
-        .into_iter()
-        // TclOO's automatic instance-variable resolver yields to a method
-        // formal of the same name. Explicit `my variable x` still reaches the
-        // ordinary link installer and reports the collision.
-        .filter(|v| !m.params.iter().any(|param| param.name == *v))
-        .map(|v| {
-            let storage = format!("{obj_ns}::{v}");
-            (v, storage)
-        })
-        .collect();
+    // A class is an object too, so the declaring provider's creation id is in
+    // `objects` either way; it names the private storage slot below.
+    let provider_creation_id = vm
+        .oo
+        .objects
+        .get(&step.provider)
+        .map_or(0, |o| o.creation_id);
+    // TclOO's automatic instance-variable resolver yields to a method formal of
+    // the same name. Explicit `my variable x` still reaches the ordinary link
+    // installer and reports the collision.
+    let shadowed = |v: &String| m.params.iter().any(|param| param.name == *v);
+    // Privates first: a same-named public declaration must not displace the
+    // declaring provider's mangled mapping.
+    let mut link_vars: Vec<(String, String)> = Vec::new();
+    for v in private_decl {
+        if shadowed(&v) || link_vars.iter().any(|(l, _)| *l == v) {
+            continue;
+        }
+        let storage = format!(
+            "{obj_ns}::{}",
+            private_storage_name(provider_creation_id, &v)
+        );
+        link_vars.push((v, storage));
+    }
+    for v in decl {
+        if shadowed(&v) || link_vars.iter().any(|(l, _)| *l == v) {
+            continue;
+        }
+        let storage = format!("{obj_ns}::{v}");
+        link_vars.push((v, storage));
+    }
 
     let body = match &m.compiled_body {
         Some((namespace, body)) if namespace == &obj_ns => body.clone(),
@@ -2006,6 +2047,54 @@ pub(crate) fn maybe_declare_variable(vm: &mut Vm, args: &[Value]) -> Option<Comp
     Some(ok(Value::empty()))
 }
 
+/// `private variable name …` inside a definition body.
+///
+/// The public analogue is [`maybe_declare_variable`], which the `variable`
+/// builtin consults first; `private` has no such builtin to fall back to, so
+/// this owns both the target resolution and the declaration.
+fn def_private_variable(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let Some((is_class, target)) = active_target(vm) else {
+        return err("this command can only be called from within the body of a definition");
+    };
+    let mut names: Vec<String> = Vec::new();
+    for a in args {
+        let name = a.to_str().to_string();
+        if name.contains("::") {
+            return err(format!(
+                "invalid declared variable name \"{name}\": must not contain namespace separators"
+            ));
+        }
+        names.push(name);
+    }
+    if is_class {
+        if let Some(c) = vm.oo.classes.get_mut(&target) {
+            for n in names {
+                if !c.private_variables.contains(&n) {
+                    c.private_variables.push(n);
+                }
+            }
+        }
+    } else if let Some(o) = vm.oo.objects.get_mut(&target) {
+        for n in names {
+            if !o.private_variables.contains(&n) {
+                o.private_variables.push(n);
+            }
+        }
+    }
+    ok(Value::empty())
+}
+
+/// The storage name a TIP 500 private variable occupies in the object's
+/// namespace: C's `PRIVATE_VARIABLE_PATTERN`, `"<creation id> : <name>"`,
+/// where the id is the *declaring provider's*.
+///
+/// That is what keeps a `Base` and a `Derived` each declaring `X` from sharing
+/// one slot — measured on tclsh 9.0.4 and 9.1b0, an object of such a `Derived`
+/// holds both `20 : X` and `22 : X`.
+fn private_storage_name(creation_id: u64, name: &str) -> String {
+    format!("{creation_id} : {name}")
+}
+
 /// A definition-body command (`method`, `superclass`, …). Resolves the active
 /// target and applies the directive.
 fn def_body_cmd(vm: &mut Vm, verb: &str, args: &[Value]) -> Completion<Value> {
@@ -2346,14 +2435,20 @@ pub(crate) fn info_object(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 .map(|m| Value::string(display_oo(vm, *m)))
                 .collect(),
         )),
-        "variables" => ok(Value::list(
-            vm.oo.objects[&obj]
-                .variables
-                .iter()
-                .cloned()
-                .map(Value::string)
-                .collect(),
-        )),
+        "variables" => {
+            // TIP 500: the plain form reports only public declarations; the
+            // `-private` form reports only the private ones.
+            let private = extra.iter().any(|v| v.to_str().as_ref() == "-private");
+            let o = &vm.oo.objects[&obj];
+            let names = if private {
+                &o.private_variables
+            } else {
+                &o.variables
+            };
+            ok(Value::list(
+                names.iter().cloned().map(Value::string).collect(),
+            ))
+        }
         "vars" => {
             // The instance variables, glob-filtered. This reports the declared set
             // (`variable`-listed); ad-hoc `set` vars in the object
@@ -2561,14 +2656,19 @@ pub(crate) fn info_class(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             Some(m) => ok(m.body_src.clone()),
             None => ok(Value::empty()),
         },
-        "variables" => ok(Value::list(
-            vm.oo.classes[&cls]
-                .variables
-                .iter()
-                .cloned()
-                .map(Value::string)
-                .collect(),
-        )),
+        "variables" => {
+            // TIP 500, as for `info object variables`.
+            let private = extra.iter().any(|v| v.to_str().as_ref() == "-private");
+            let c = &vm.oo.classes[&cls];
+            let names = if private {
+                &c.private_variables
+            } else {
+                &c.variables
+            };
+            ok(Value::list(
+                names.iter().cloned().map(Value::string).collect(),
+            ))
+        }
         "properties" => info_class_properties(vm, cls, extra),
         _ => err(format!("unsupported info class subcommand \"{sub}\"")),
     }
@@ -2716,6 +2816,7 @@ pub(crate) fn make_class(
             creation_id: class_id.0,
             methods: BTreeMap::new(),
             variables: Vec::new(),
+            private_variables: Vec::new(),
             mixins: Vec::new(),
             exported: BTreeSet::new(),
             unexported: BTreeSet::new(),

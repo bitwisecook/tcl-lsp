@@ -102,6 +102,121 @@ fn basic_class_and_method() {
     );
 }
 
+/// TIP 500 private instance variables (#1933).
+///
+/// This is upstream Tcl 9.0.4 `var.test` **var-29.3** transcribed, with its
+/// `-result` verbatim: a private variable reads back, rejects a write and an
+/// unset because it is a constant, answers `info constant`, and is listed by a
+/// method that does not itself reference it.
+#[test]
+fn private_instance_variable_on_a_class_matches_var_29_3() {
+    // tclsh 9.0.4 / 9.1b0, and upstream var.test's own -result.
+    assert_eq!(
+        result(concat!(
+            "oo::class create Parent; ",
+            "oo::class create C { superclass Parent; private variable X; ",
+            "constructor {} { const X 123 }; ",
+            "method checkRead {} { return $X }; ",
+            "method checkWrite {} { list [catch { set X abc } msg] $msg }; ",
+            "method checkUnset {} { list [catch { unset X } msg] $msg }; ",
+            "method checkProbe {} { info constant X }; ",
+            "method checkList {} { info consts } }; ",
+            "set c [C new]; ",
+            "list [$c checkRead] [$c checkWrite] [$c checkUnset] \
+             [$c checkProbe] [$c checkList]"
+        )),
+        concat!(
+            "123 {1 {can't set \"X\": variable is a constant}} ",
+            "{1 {can't unset \"X\": variable is a constant}} 1 X"
+        ),
+    );
+}
+
+/// Upstream `var.test` **var-29.6**: the same contract for a *per-object*
+/// private declared through `oo::objdefine`, where the declaring provider is
+/// the object itself rather than a class.
+#[test]
+fn private_instance_variable_on_an_object_matches_var_29_6() {
+    // tclsh 9.0.4 / 9.1b0, and upstream var.test's own -result.
+    assert_eq!(
+        result(concat!(
+            "set c [oo::object create Instance]; ",
+            "oo::objdefine $c { private variable X; ",
+            "method init {} { const X 123 }; ",
+            "method checkRead {} { return $X }; ",
+            "method checkWrite {} { list [catch { set X abc } msg] $msg }; ",
+            "method checkUnset {} { list [catch { unset X } msg] $msg }; ",
+            "method checkProbe {} { info constant X }; ",
+            "method checkList {} { info consts } }; ",
+            "$c init; ",
+            "list [$c checkRead] [$c checkWrite] [$c checkUnset] \
+             [$c checkProbe] [$c checkList]"
+        )),
+        concat!(
+            "123 {1 {can't set \"X\": variable is a constant}} ",
+            "{1 {can't unset \"X\": variable is a constant}} 1 X"
+        ),
+    );
+}
+
+/// The point of mangling the storage name: two classes in one hierarchy may
+/// each declare a private `X` without sharing a slot.
+///
+/// Without the per-provider storage this collapses to one variable and the
+/// derived constructor's write is visible from the base's method — which is
+/// why the assertion reads both back rather than only checking that the
+/// declaration was accepted.
+#[test]
+fn same_named_private_variables_do_not_collide_across_a_hierarchy() {
+    // tclsh 9.0.4 / 9.1b0: `base derived P`
+    assert_eq!(
+        result(concat!(
+            "oo::class create Base { private variable X; variable pub; ",
+            "constructor {} {set X base; set pub P}; ",
+            "method bx {} {return $X}; method bpub {} {return $pub} }; ",
+            "oo::class create Derived { superclass Base; private variable X; ",
+            "constructor {} {next; set X derived}; method dx {} {return $X} }; ",
+            "set o [Derived new]; list [$o bx] [$o dx] [$o bpub]"
+        )),
+        "base derived P",
+    );
+    // The two privates occupy distinct mangled slots in the object namespace
+    // while the public declaration keeps its plain name. The creation ids are
+    // implementation-specific, so match the shape rather than the numbers.
+    // tclsh 9.0.4: `{::oo::Obj24::20 : X} {::oo::Obj24::22 : X} ::oo::Obj24::pub`
+    let (_, vars, _) = run(concat!(
+        "oo::class create B2 { private variable X; variable pub; ",
+        "constructor {} {set X b; set pub P} }; ",
+        "oo::class create D2 { superclass B2; private variable X; ",
+        "constructor {} {next; set X d} }; ",
+        "set o [D2 new]; ",
+        "lsort [info vars [info object namespace $o]::*]"
+    ));
+    let mangled: Vec<&str> = vars.split('{').filter(|p| p.contains(" : X")).collect();
+    assert_eq!(mangled.len(), 2, "two distinct private slots: {vars}");
+    assert!(
+        vars.ends_with("::pub"),
+        "public keeps its plain name: {vars}"
+    );
+}
+
+/// `info class|object variables` hides privates; the `-private` form reports
+/// only them.
+#[test]
+fn info_variables_separates_public_and_private_declarations() {
+    // tclsh 9.0.4 / 9.1b0: `pub X {} Y`
+    assert_eq!(
+        result(concat!(
+            "oo::class create K { variable pub; private variable X }; ",
+            "set o [oo::object create Inst]; ",
+            "oo::objdefine $o { private variable Y }; ",
+            "list [info class variables K] [info class variables K -private] ",
+            "[info object variables $o] [info object variables $o -private]"
+        )),
+        "pub X {} Y",
+    );
+}
+
 #[test]
 fn class_method_bodies_compile_per_object_private_namespace() {
     // Tcl 9.0.4 resolves unqualified method commands in each object's private
