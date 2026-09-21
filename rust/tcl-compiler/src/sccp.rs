@@ -3486,6 +3486,92 @@ mod tests {
         );
     }
 
+    /// A `rename` whose **subject** the scan cannot name distrusts every
+    /// builtin, where an unresolved command *head* does not (#2168).
+    ///
+    /// Both raise the unbounded top, which is why gating the lattice on the
+    /// whole of it was rejected in #2164 — it would take the fold in
+    /// [`only_the_rewrite_stance_declines_on_the_unbounded_top`] with it. The
+    /// distinction is whether something was definitely rebound: `rename $a {}`
+    /// moved *some* command, so no name is claimable; `someUnknownLibraryCall
+    /// x` moved nothing.
+    ///
+    /// tclsh 8.6.18 and 9.0.4 both print 99 for the repro on #2168, where the
+    /// optimiser rewrote the body to `return 3` — and its own output literally
+    /// read `rename llength {}`, having constant-propagated the operands in
+    /// the same run.
+    #[test]
+    fn an_unnameable_rename_subject_distrusts_where_an_unknown_head_does_not() {
+        let reg = registry();
+        let mut ssa = bare_ssa();
+        let stmt = assign_value_stmt(&mut ssa, "n", "[llength {a b c}]", 1);
+
+        let computed = mutations_for(
+            "set a llength
+rename $a {}
+",
+        );
+        assert!(
+            computed.has_dynamic_mutation(),
+            "a computed rename raises the unbounded top"
+        );
+        assert!(
+            !computed.observed_binding_is_the_builtin("llength"),
+            "and, unlike an unknown head, it leaves no name claimable"
+        );
+        assert_eq!(
+            evaluate_under_lattice_stance(&stmt, &ssa, &reg, &computed),
+            LatticeValue::Overdefined,
+            "the lattice must not fold a builtin a computed rename may have moved"
+        );
+
+        // Positive control, and the coverage #2164 measured: an unresolved
+        // head still raises the top yet still folds, so this change cannot
+        // have been bought by gating on `dynamic`.
+        let opaque = mutations_for(
+            "someUnknownLibraryCall x
+",
+        );
+        assert!(opaque.has_dynamic_mutation());
+        assert_eq!(
+            evaluate_under_lattice_stance(&stmt, &ssa, &reg, &opaque),
+            LatticeValue::Const(ConstValue::Int(3)),
+        );
+    }
+
+    /// The same rule for a body the source-recursive walk never sees. A proc
+    /// installed through an alias prefix is recovered only by the closed
+    /// command lattice, so its unnameable rename subject reaches the optimiser
+    /// through `mutation_projection` or not at all (#2168).
+    ///
+    /// Measured end to end before this was joined: the program below prints
+    /// **99**, and `tcl optimise` rewrote it into one printing **3** on tclsh
+    /// 8.6.18 and 9.0.4.
+    #[test]
+    fn an_unnameable_rename_subject_inside_an_alias_defined_body_also_distrusts() {
+        let reg = registry();
+        let mut ssa = bare_ssa();
+        let stmt = assign_value_stmt(&mut ssa, "n", "[llength {a b c}]", 1);
+
+        // `makep {} BODY` is `proc p {} BODY`; BODY is never walked as source.
+        let aliased = mutations_for(
+            "proc mylen {l} { return 99 }
+interp alias {} makep {} proc p
+makep {} {set a llength; set b mylen; rename $a {}; rename $b $a}
+p
+",
+        );
+        assert!(
+            !aliased.observed_binding_is_the_builtin("llength"),
+            "the projection is the only witness that the subject was unnameable"
+        );
+        assert_eq!(
+            evaluate_under_lattice_stance(&stmt, &ssa, &reg, &aliased),
+            LatticeValue::Overdefined,
+            "folding here rewrites a program meaning 99 into one meaning 3"
+        );
+    }
+
     #[test]
     fn string_length_fold_counts_in_the_selected_dialects_character_model() {
         // U+1D11E is one Tcl 9 scalar but two Tcl 8 `Tcl_UniChar` units, so the
