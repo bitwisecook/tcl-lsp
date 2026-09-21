@@ -563,7 +563,45 @@ pub struct ScriptCommandPlan {
     /// this rather than the byte length.
     pub complete_prefix_commands: usize,
     /// Parse error raised if the complete prefix finishes normally.
-    pub fatal_tail: Option<CompileError>,
+    pub fatal_tail: Option<FatalTail>,
+}
+
+/// The parse error a [`ScriptCommandPlan`]'s malformed tail raises, with the
+/// context C logs the `while executing` frame from.
+///
+/// The message alone is not enough: C's `TclCompileScript` reports a parse
+/// failure through `Tcl_LogCommandInfo`, so the frame naming the offending
+/// command is part of the error's `-errorinfo`, exactly as it is for an
+/// ordinary runtime error in the same position (#2172).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FatalTail {
+    /// The Tcl parse message (`missing "`, `missing close-brace`, …).
+    pub message: String,
+    /// Source text of the malformed command, as C quotes it.
+    ///
+    /// C slices `source[commandStart ..= parsePtr->term]` — through the
+    /// character that opened the unterminated construct, **not** to the end
+    /// of the source. Truncation to 150 bytes is the logger's job, not this
+    /// value's.
+    pub command_text: String,
+    /// One-based line of the malformed command's first byte, for the
+    /// enclosing `(procedure …)` / `("eval" body line N)` frames.
+    pub line: u32,
+}
+
+impl FatalTail {
+    /// A tail carrying only its message, for a caller with no source context.
+    ///
+    /// The frame is omitted rather than guessed: an empty quoted command is a
+    /// visible wrong answer, where a plausible one would not be.
+    #[must_use]
+    pub fn message_only(message: String) -> Self {
+        Self {
+            message,
+            command_text: String::new(),
+            line: 0,
+        }
+    }
 }
 
 impl ScriptCommandPlan {

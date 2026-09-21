@@ -298,7 +298,7 @@ impl CodegenCtx<'_> {
             }
         }
 
-        if let Some((tail_start, _)) = segmented.fatal_tail {
+        if let Some((tail_start, _, _)) = segmented.fatal_tail {
             // The enclosing body word was braced and is already a resolved Tcl
             // value. Push the malformed command suffix verbatim so none of its
             // substitutions occur before EVAL_STK reports the parse error.

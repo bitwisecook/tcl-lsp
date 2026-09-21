@@ -32,7 +32,7 @@ use std::rc::Rc;
 use tcl_bytecode::{
     ErrorRegion, ErrorStackContext, FunctionAsm, INDEX_END, Instruction, ModuleAsm, Op, Operand,
 };
-use tcl_runtime_api::{Code, Completion, ScriptCompileTarget};
+use tcl_runtime_api::{Code, Completion, FatalTail, ScriptCompileTarget};
 use tcl_syntax::expr::{BinOp, UnaryOp};
 use tcl_syntax::value::string_char_len;
 
@@ -236,7 +236,7 @@ pub(crate) struct Frame {
     /// afterwards (#1603).  Applied only to an `ok` completion: an error in an
     /// earlier command is what C reports, the malformed tail never having been
     /// parsed.  `None` for every script that parses whole.
-    fatal_tail: Option<String>,
+    fatal_tail: Option<FatalTail>,
 }
 
 /// One traced dispatch's leave-side state: the invoked command string, the
@@ -267,7 +267,7 @@ impl ExecStepScope {
 pub(crate) struct CatchCtx {
     resvar: Option<Value>,
     optvar: Option<Value>,
-    fatal_tail: Option<String>,
+    fatal_tail: Option<FatalTail>,
 }
 
 /// An `eval`/`uplevel`/`apply`-style body deferred to the explicit stack.
@@ -284,7 +284,7 @@ pub(crate) struct EvalReq {
     pub(crate) cleanup_proc: Option<String>,
     /// The parse error to raise once the body's clean prefix has run, for a
     /// body whose later commands do not parse (see [`Frame::fatal_tail`]).
-    pub(crate) fatal_tail: Option<String>,
+    pub(crate) fatal_tail: Option<FatalTail>,
 }
 
 /// A `catch` body deferred to the explicit stack: the compiled body plus the
@@ -294,7 +294,7 @@ pub(crate) struct CatchReq {
     pub(crate) script: crate::compiled::CompiledUnit,
     pub(crate) resvar: Option<Value>,
     pub(crate) optvar: Option<Value>,
-    pub(crate) fatal_tail: Option<String>,
+    pub(crate) fatal_tail: Option<FatalTail>,
 }
 
 /// A `subst` deferred to the explicit stack: the template plus its three
@@ -586,7 +586,7 @@ enum Tick {
         script: crate::compiled::CompiledUnit,
         label: Option<&'static str>,
         cleanup_proc: Option<String>,
-        fatal_tail: Option<String>,
+        fatal_tail: Option<FatalTail>,
         namespace: ScriptNamespace,
     },
     /// Run a `catch` body on the explicit stack (yieldable) via a catch
@@ -1912,10 +1912,9 @@ impl Vm {
             // runtime error in the same position.  An earlier command's own
             // completion wins, exactly as in `catch`/`try`.
             if c.code == Code::Ok
-                && let Some(message) = act.fatal_tail.take()
+                && let Some(tail) = act.fatal_tail.take()
             {
-                self.seed_error_info(message.clone());
-                c = err(message);
+                c = self.raise_fatal_tail(tail);
             }
             // An error unwinding through an inlined command body (`eval {…}`)
             // adds the body frames the uncompiled command would, before this
@@ -1953,9 +1952,9 @@ impl Vm {
             // it straight through).
             if let Some(ctx) = act.catch.take() {
                 if c.code == Code::Ok
-                    && let Some(message) = ctx.fatal_tail
+                    && let Some(tail) = ctx.fatal_tail
                 {
-                    c = crate::interp::err(message);
+                    c = self.raise_fatal_tail(tail);
                 }
                 c = self.finish_catch(c, ctx.resvar.as_ref(), ctx.optvar.as_ref());
             }
@@ -1967,9 +1966,9 @@ impl Vm {
             // exactly as for any other completed activation.
             if let Some(mut ctx) = act.try_ctx.take() {
                 if c.code == Code::Ok
-                    && let Some(message) = ctx.fatal_tail.take()
+                    && let Some(tail) = ctx.fatal_tail.take()
                 {
-                    c = crate::interp::err(message);
+                    c = self.raise_fatal_tail(tail);
                 }
                 match crate::cmd_try::advance_try(self, *ctx, c) {
                     crate::cmd_try::TryOutcome::Push(req) => {
@@ -5630,9 +5629,9 @@ impl Vm {
         if let Some(req) = self.pending.catch.take() {
             let mut comp = self.run_activation(Frame::new_script(req.script, None));
             if comp.code == Code::Ok
-                && let Some(message) = req.fatal_tail
+                && let Some(tail) = req.fatal_tail
             {
-                comp = err(message);
+                comp = self.raise_fatal_tail(tail);
             }
             return self.finish_catch(comp, req.resvar.as_ref(), req.optvar.as_ref());
         }

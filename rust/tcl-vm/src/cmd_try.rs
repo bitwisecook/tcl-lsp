@@ -37,7 +37,7 @@
 
 use std::rc::Rc;
 
-use tcl_runtime_api::{Code, Completion};
+use tcl_runtime_api::{Code, Completion, FatalTail};
 
 use crate::command::{completion_options, opt_get, options_dict};
 use crate::interp::{Vm, err, ok};
@@ -94,7 +94,7 @@ pub(crate) enum TryPhase {
 pub(crate) struct TryState {
     plan: Rc<TryPlan>,
     phase: TryPhase,
-    pub(crate) fatal_tail: Option<String>,
+    pub(crate) fatal_tail: Option<FatalTail>,
 }
 
 /// One phase of a `try` deferred to the explicit stack: the phase's compiled
@@ -314,7 +314,9 @@ fn cmd_try(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             ok(Value::empty())
         }
         Ok(prepared) => {
-            let body_completion = prepared.fatal_tail.map_or_else(|| ok(Value::empty()), err);
+            let body_completion = prepared
+                .fatal_tail
+                .map_or_else(|| ok(Value::empty()), |tail| vm.raise_fatal_tail(tail));
             match advance_after_body(vm, &plan, body_completion) {
                 TryOutcome::Push(req) => {
                     vm.pending.try_phase = Some(req);
@@ -411,7 +413,9 @@ fn advance_after_body(vm: &mut Vm, plan: &Rc<TryPlan>, body_comp: Completion<Val
                     },
                 }),
                 Ok(prepared) => {
-                    let completion = prepared.fatal_tail.map_or_else(|| ok(Value::empty()), err);
+                    let completion = prepared
+                        .fatal_tail
+                        .map_or_else(|| ok(Value::empty()), |tail| vm.raise_fatal_tail(tail));
                     advance_after_handler(vm, plan, &body_opts, completion)
                 }
                 Err(e) => finish_body_or_handler(vm, plan, err(e.message)),
@@ -472,7 +476,9 @@ fn finish_body_or_handler(
         Err(e) => return advance_after_finally(vm, outcome, err(e.message)),
     };
     let Some(script) = prepared.prefix else {
-        let completion = prepared.fatal_tail.map_or_else(|| ok(Value::empty()), err);
+        let completion = prepared
+            .fatal_tail
+            .map_or_else(|| ok(Value::empty()), |tail| vm.raise_fatal_tail(tail));
         return advance_after_finally(vm, outcome, completion);
     };
     TryOutcome::Push(TryReq {

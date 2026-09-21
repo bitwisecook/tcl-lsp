@@ -4609,8 +4609,13 @@ pub fn first_fatal_parse_cut(
 pub(crate) struct CommandAtTimeScript {
     /// Complete commands before the malformed tail (all commands when clean).
     pub(crate) commands: Vec<crate::segmenter::SegmentedCommand>,
-    /// Byte offset and Tcl parse message for the first malformed command.
-    pub(crate) fatal_tail: Option<(usize, String)>,
+    /// Byte offset and Tcl parse message for the first malformed command,
+    /// with the offset of the unclosed delimiter when there is one.
+    ///
+    /// That third field is C's `parsePtr->term`: `TclCompileScript` quotes
+    /// `source[start ..= term]` in the `while executing` frame, so it is not
+    /// derivable from the start offset or from the end of input (#2172).
+    pub(crate) fatal_tail: Option<(usize, String, Option<u32>)>,
 }
 
 /// Segment `source` using `config`, retaining only complete commands before a
@@ -4636,6 +4641,7 @@ pub(crate) fn command_at_time_script_with_config(
                             || "invalid command parse".to_owned(),
                             |cut| cut.message.to_owned(),
                         ),
+                        None,
                     )),
                 };
             };
@@ -4643,6 +4649,10 @@ pub(crate) fn command_at_time_script_with_config(
             let partial_message = command
                 .partial_delimiter
                 .map(|delimiter| delimiter.missing_message().to_owned());
+            // C's `parsePtr->term`, from the cut owner — never re-derived from
+            // the token stream, which cannot see which construct actually
+            // failed inside a nested one.
+            let delimiter_offset = fatal.map(|cut| cut.term);
             commands.truncate(index);
             Some((
                 start,
@@ -4650,11 +4660,12 @@ pub(crate) fn command_at_time_script_with_config(
                     .map(|cut| cut.message.to_owned())
                     .or(partial_message)
                     .unwrap_or_else(|| "invalid command parse".to_owned()),
+                delimiter_offset,
             ))
         }
         (Some(cut), None) => {
             commands.clear();
-            Some((0, cut.message.to_owned()))
+            Some((0, cut.message.to_owned(), None))
         }
         (None, None) => None,
     };
