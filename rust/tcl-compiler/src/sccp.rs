@@ -3539,6 +3539,39 @@ rename $a {}
         );
     }
 
+    /// The same rule for a body the source-recursive walk never sees. A proc
+    /// installed through an alias prefix is recovered only by the closed
+    /// command lattice, so its unnameable rename subject reaches the optimiser
+    /// through `mutation_projection` or not at all (#2168).
+    ///
+    /// Measured end to end before this was joined: the program below prints
+    /// **99**, and `tcl optimise` rewrote it into one printing **3** on tclsh
+    /// 8.6.18 and 9.0.4.
+    #[test]
+    fn an_unnameable_rename_subject_inside_an_alias_defined_body_also_distrusts() {
+        let reg = registry();
+        let mut ssa = bare_ssa();
+        let stmt = assign_value_stmt(&mut ssa, "n", "[llength {a b c}]", 1);
+
+        // `makep {} BODY` is `proc p {} BODY`; BODY is never walked as source.
+        let aliased = mutations_for(
+            "proc mylen {l} { return 99 }
+interp alias {} makep {} proc p
+makep {} {set a llength; set b mylen; rename $a {}; rename $b $a}
+p
+",
+        );
+        assert!(
+            !aliased.observed_binding_is_the_builtin("llength"),
+            "the projection is the only witness that the subject was unnameable"
+        );
+        assert_eq!(
+            evaluate_under_lattice_stance(&stmt, &ssa, &reg, &aliased),
+            LatticeValue::Overdefined,
+            "folding here rewrites a program meaning 99 into one meaning 3"
+        );
+    }
+
     #[test]
     fn string_length_fold_counts_in_the_selected_dialects_character_model() {
         // U+1D11E is one Tcl 9 scalar but two Tcl 8 `Tcl_UniChar` units, so the
