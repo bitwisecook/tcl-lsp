@@ -25,6 +25,9 @@
 use tcl_bytecode::EnteredCommandSite;
 use tcl_registry::hooks::InlineCodegenHookId;
 
+use crate::ir::CommandTokens;
+use crate::registry_invocation::{CompiledLocalNameWord, compiled_local_name_word};
+
 use super::emitter::bytecoded::applicable_codegen_binding;
 use super::helpers::{SubstPart, parse_subst_template, regexp_to_glob};
 use super::values::{is_qualified, parse_simple_var_ref, split_array_ref};
@@ -444,6 +447,17 @@ pub fn parse_cmd_parts_expand(text: &str) -> Vec<(String, bool, bool)> {
         i = new_i;
     }
     parts
+}
+
+/// Whether the command argument has the source form required for a direct
+/// local-name opcode.  Missing or lossy tokens decline the specialisation.
+pub(crate) fn source_direct_local_name(tokens: Option<&CommandTokens>, arg_index: usize) -> bool {
+    matches!(
+        tokens
+            .and_then(|tokens| tokens.words().get(arg_index + 1))
+            .map(compiled_local_name_word),
+        Some(CompiledLocalNameWord::Direct)
+    )
 }
 
 // CodegenCtx methods — emission helpers for command substitutions
@@ -1126,16 +1140,13 @@ impl CodegenCtx<'_> {
         &mut self,
         cmd: &str,
         args: &[String],
+        tokens: Option<&CommandTokens>,
         used_generic_invoke: &mut bool,
     ) -> bool {
         let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
         let Some((hook, binding)) = self.inline_codegen_resolution(cmd, &arg_refs) else {
             return false;
         };
-        if hook != InlineCodegenHookId::String {
-            return false;
-        }
-
         let inline_args: Vec<(String, bool)> = args
             .iter()
             .enumerate()
@@ -1146,15 +1157,36 @@ impl CodegenCtx<'_> {
                 )
             })
             .collect();
-        let previous_inline = self.used_inline_cmd_subst;
-        if !self.try_emit_inline_string_invoke_replace(
-            previous_inline,
-            cmd,
-            &binding,
-            &inline_args,
-            false,
-        ) {
-            return false;
+
+        // These hooks are also valid for a complete command statement. The
+        // statement dispatch checks the source-word facts, then reuses the
+        // value emitter's local opcode sequence instead of recognising command
+        // names itself. The result is discarded just as a normal statement
+        // invoke would discard it.
+        match hook {
+            InlineCodegenHookId::InfoExists
+                if inline_args.len() == 2 && source_direct_local_name(tokens, 1) =>
+            {
+                self.emit_inline_info_exists(&inline_args);
+            }
+            InlineCodegenHookId::Array
+                if inline_args.len() >= 2 && source_direct_local_name(tokens, 1) =>
+            {
+                self.emit_inline_array(&inline_args);
+            }
+            InlineCodegenHookId::String => {
+                let previous_inline = self.used_inline_cmd_subst;
+                if !self.try_emit_inline_string_invoke_replace(
+                    previous_inline,
+                    cmd,
+                    &binding,
+                    &inline_args,
+                    false,
+                ) {
+                    return false;
+                }
+            }
+            _ => return false,
         }
         self.emit(Op::POP, vec![]);
         *used_generic_invoke = true;
@@ -2308,7 +2340,7 @@ mod tests {
         let mut ctx = CodegenCtx::new(true, &[], &registry);
         let mut used_generic_invoke = false;
 
-        assert!(ctx.try_inline_statement_codegen("text", &args, &mut used_generic_invoke));
+        assert!(ctx.try_inline_statement_codegen("text", &args, None, &mut used_generic_invoke));
 
         assert!(used_generic_invoke);
         assert!(

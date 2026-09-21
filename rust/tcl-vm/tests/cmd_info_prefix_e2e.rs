@@ -1262,6 +1262,58 @@ fn info_consts_drops_a_projection_the_body_compiled_a_slot_for() {
     }
 }
 
+/// Statement introspection follows C Tcl's source-dependent slot behaviour.
+/// Dynamic, escaped bare, and qualified names retain stack lookup and
+/// enumeration.
+#[test]
+fn info_consts_tracks_source_roles_across_inline_introspection() {
+    const CLASS: &str =
+        "oo::class create C { variable pub; constructor {} {const pub 7}; method m {} ";
+    for (body, expect) in [
+        ("{info exists pub; info consts}", ""),
+        ("{info exists {pub}; info consts}", ""),
+        ("{info exists \"pub\"; info consts}", ""),
+        ("{array exists pub; info consts}", ""),
+        ("{info exists p\\x75b; info consts}", "pub"),
+        ("{set n pub; list [info exists $n] [info consts]}", "1 pub"),
+        ("{set n pub; info exists $n; info consts}", "pub"),
+        ("{info exists ::pub; info consts}", "pub"),
+        ("{list [info consts]}", "pub"),
+    ] {
+        assert_eq!(
+            run(&format!("{CLASS}{body} }}; [C new] m")).1,
+            expect,
+            "body `{body}`",
+        );
+    }
+}
+
+/// Braced names retain their raw backslashes and continuation bytes. C Tcl
+/// allocates those literal names, while the otherwise-equivalent bare escape
+/// is decoded and must use a stack lookup.
+#[test]
+fn info_exists_braced_raw_names_intern_their_literal_slots() {
+    for class in [
+        r"oo::class create C {variable {p\x75b}; constructor {} {const {p\x75b} 7}; method m {} {info exists {p\x75b}; info consts}}",
+        "oo::class create C {variable {p\\\nub}; constructor {} {const {p\\\nub} 7}; method m {} {info exists {p\\\nub}; info consts}}",
+    ] {
+        assert_eq!(run(&format!("{class}; [C new] m")).1, "", "class `{class}`");
+    }
+}
+
+/// A formal already owns the name's compiled slot, so direct `info exists`
+/// preserves C Tcl's local shadowing of the `TclOO` instance projection.
+#[test]
+fn info_exists_preserves_formal_shadowing_of_an_instance_projection() {
+    assert_eq!(
+        run(
+            "oo::class create C {variable pub; constructor {} {const pub 7}; method m {pub} {info exists pub; info consts}}; [C new] m shadow",
+        )
+        .1,
+        ""
+    );
+}
+
 /// A compiler temporary in the LVT is not a reference to a source variable of
 /// the same name.
 ///

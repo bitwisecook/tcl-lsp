@@ -22,12 +22,11 @@
 //! (assignments, calls, returns, barriers) with `startCommand`
 //! wrapping.
 
-use crate::ir::Statement;
-
 use super::cmd_subst::{has_command_separator, is_pure_cmd_subst, parse_cmd_parts};
 use super::helpers::{SubstPart, parse_subst_template};
 use super::values::{is_qualified, needs_stk_var_ref, parse_simple_var_ref, split_array_ref};
 use super::{CodegenCtx, Op, Operand};
+use crate::ir::Statement;
 
 /// Tag used to identify `startCommand` instructions wrapping generic
 /// invokes so the peephole pass can selectively remove them.
@@ -822,6 +821,11 @@ impl CodegenCtx<'_> {
         let Some((head, _)) = parts.split_first() else {
             return false;
         };
+        // This string-only compatibility path deliberately remains generic.
+        // Its parsed `(text, braced)` pairs have already lost the distinction
+        // between a quoted direct name and a bare decoded escape.  The
+        // source-aware statement bridge receives `CommandTokens`; preserving
+        // the same facts for nested command substitutions is follow-up work.
         self.emit_generic_cmd_subst(&head.0, &parts[1..]);
         true
     }
@@ -993,7 +997,13 @@ impl CodegenCtx<'_> {
         // Try a registered per-command codegen hook before the
         // generic invoke fallback.
         self.cmd_arg_braced = braced_flags;
-        if super::emitter::bytecoded::try_bytecoded(self, cmd, args, used_generic_invoke) {
+        if super::emitter::bytecoded::try_bytecoded_with_tokens(
+            self,
+            cmd,
+            args,
+            tokens,
+            used_generic_invoke,
+        ) {
             self.cmd_arg_braced = Vec::new();
             return;
         }

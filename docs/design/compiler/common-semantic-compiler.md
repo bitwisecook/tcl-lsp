@@ -199,6 +199,23 @@ must preserve literal, template, expansion, variable, command-substitution,
 and backslash-substitution components in evaluation order. Backends must not
 independently reparse argument strings.
 
+### Compiled local-name selection
+
+The value of a static word is not sufficient to select a local-variable
+opcode. `registry_invocation::compiled_local_name_word` is the compiler's
+source-form classifier for that decision. Plain literals, braced literals, and
+quoted text without backslash processing may use a direct local slot. A bare
+word containing a backslash, even when it decodes to the same value, uses the
+stack form; variable and command substitutions, expansion, opaque words, and
+templates with backslash processing do too. For example, `{p\\x75b}` names the
+literal variable `p\\x75b`, while bare `p\\x75b` decodes before lookup and must
+not intern `pub` in a procedure's local-variable table.
+
+The executable statement path carries `CommandTokens` to the registered
+codegen hook so it can apply that classifier. A compatibility path with only
+flattened command text must decline the direct local form until it retains the
+same structured words; it must not recover provenance from string contents.
+
 A `ResolvedInvocation` retains both the original words and the registry's
 semantic resolution:
 

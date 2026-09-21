@@ -49,6 +49,49 @@ pub enum EffectiveInvocationWord {
     Opaque,
 }
 
+/// Whether a source word may name a compiled local-variable slot.
+///
+/// This is deliberately stricter than [`EffectiveInvocationWord`]: a bare
+/// word with backslash processing has a static *value*, but C Tcl still emits
+/// the stack form for it and does not intern that value in the LVT.  Braced
+/// and quoted/plain text words whose spelling needs no backslash processing
+/// retain the direct-name form.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CompiledLocalNameWord {
+    /// The source form is eligible for a direct local-name opcode.
+    Direct,
+    /// The word must be evaluated or decoded before it can name a variable.
+    Stack,
+}
+
+/// Classify one source word for bytecode local-name selection.
+///
+/// The word-parts owner has already retained substitution and raw backslash
+/// facts in [`WordExpr`].  Consumers must ask this adapter rather than infer
+/// source provenance from compatibility argv text.  In particular, `{p\\x}`
+/// is direct (the backslash is part of the name), while bare `p\\x` is stack
+/// (the backslash is decoded before lookup).
+#[must_use]
+pub fn compiled_local_name_word(word: &WordExpr) -> CompiledLocalNameWord {
+    match word {
+        WordExpr::Literal { .. } | WordExpr::BracedLiteral { .. } => CompiledLocalNameWord::Direct,
+        WordExpr::Template { parts, .. }
+            if parts.iter().all(
+                |part| matches!(part, WordPart::Text { text, .. } if !text.contains('\\')),
+            ) =>
+        {
+            // A quoted literal reaches this arm: grouping quotes are outside
+            // its text parts, while a quoted backslash remains in one.
+            CompiledLocalNameWord::Direct
+        }
+        WordExpr::Variable { .. }
+        | WordExpr::CommandSubstitution { .. }
+        | WordExpr::Template { .. }
+        | WordExpr::Expand { .. }
+        | WordExpr::Opaque { .. } => CompiledLocalNameWord::Stack,
+    }
+}
+
 impl EffectiveInvocationWord {
     /// Lend this owned fact to the registry's allocation-free vocabulary.
     #[must_use]
@@ -387,6 +430,53 @@ mod tests {
                 EscapeSyntax::Tcl86,
             ),
             EffectiveInvocationWord::Literal(r"\x32".to_owned())
+        );
+    }
+
+    #[test]
+    fn compiled_local_name_requires_a_direct_source_word() {
+        let source = SourceSite::source(tcl_lexer::Span::new(0, 0));
+        let raw_braced = WordExpr::BracedLiteral {
+            text: r"p\x75b".to_owned(),
+            source: source.clone(),
+        };
+        let bare_escape = WordExpr::Template {
+            parts: vec![WordPart::Text {
+                text: r"p\x75b".to_owned(),
+                source: source.clone(),
+            }],
+            source: source.clone(),
+        };
+        let quoted_plain = WordExpr::Template {
+            parts: vec![WordPart::Text {
+                text: "pub".to_owned(),
+                source: source.clone(),
+            }],
+            source: source.clone(),
+        };
+        let dynamic = WordExpr::Variable {
+            spelling: "$name".to_owned(),
+            source,
+        };
+
+        assert_eq!(
+            compiled_local_name_word(&raw_braced),
+            CompiledLocalNameWord::Direct,
+            "braces preserve the backslash as part of the variable name"
+        );
+        assert_eq!(
+            compiled_local_name_word(&bare_escape),
+            CompiledLocalNameWord::Stack,
+            "bare escapes decode before variable lookup"
+        );
+        assert_eq!(
+            compiled_local_name_word(&quoted_plain),
+            CompiledLocalNameWord::Direct,
+            "quotes group a direct name without backslash processing"
+        );
+        assert_eq!(
+            compiled_local_name_word(&dynamic),
+            CompiledLocalNameWord::Stack
         );
     }
 
