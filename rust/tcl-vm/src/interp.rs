@@ -9104,7 +9104,7 @@ impl Vm {
         // later commands do not parse must neither refuse the definition nor
         // run with the lenient lowering's invented meaning: compile the clean
         // prefix and carry the error for the unit to raise on entry (#1829).
-        let (body_src, fatal_tail) = self.script_prefix_and_fatal_tail(src);
+        let (body_src, fatal_tail, _) = self.script_prefix_and_fatal_tail(src);
         // The AOT admission path returns assembly the *enclosing module*
         // lowered, and that lowering is the lenient one — it would hand back a
         // body that quietly means something C never means. Only a body that
@@ -12013,12 +12013,17 @@ impl Vm {
         // C parses one command immediately before evaluating it, so every
         // command ahead of a malformed one runs before the parse error is
         // raised (#1603). Compile and run that prefix, then raise.
-        let (prefix, fatal_tail) = self.script_prefix_and_fatal_tail(src);
+        let (prefix, fatal_tail, prefix_commands) = self.script_prefix_and_fatal_tail(src);
         // No command parsed, so none ran and there is no prefix completion to
         // carry: report the error on the channel this entry point has always
         // used for a script it could not compile at all. Only a script that
         // *did* run something reports through the completion below.
-        if prefix.is_empty()
+        //
+        // The test is the command count, not the prefix's length: when the
+        // *first* command is the malformed one the prefix still spans any
+        // leading whitespace and comments, so ` \n set x "` has a nonzero
+        // prefix that runs nothing at all.
+        if prefix_commands == 0
             && let Some(message) = fatal_tail
         {
             return Err(TclError::new(message));
@@ -12051,17 +12056,18 @@ impl Vm {
     /// Falls back to the whole source when no [`CompileService`] is attached or
     /// the service hands back a boundary that is not a character boundary — the
     /// caller then compiles `src` exactly as it did before.
-    fn script_prefix_and_fatal_tail<'s>(&self, src: &'s str) -> (&'s str, Option<String>) {
+    fn script_prefix_and_fatal_tail<'s>(&self, src: &'s str) -> (&'s str, Option<String>, usize) {
         let Some(compiler) = self.compiler.as_ref() else {
-            return (src, None);
+            return (src, None, usize::from(!src.is_empty()));
         };
         let plan = compiler.script_command_plan_for_profile(src, self.dialect_profile);
         if plan.complete_prefix_len > src.len() || !src.is_char_boundary(plan.complete_prefix_len) {
-            return (src, None);
+            return (src, None, usize::from(!src.is_empty()));
         }
         (
             &src[..plan.complete_prefix_len],
             plan.fatal_tail.map(|error| error.0),
+            plan.complete_prefix_commands,
         )
     }
 

@@ -1903,6 +1903,20 @@ impl Vm {
         c = self.validate_unwind_boundary(acts, c);
         loop {
             let mut act = acts.pop().expect("unwinding a non-empty stack");
+            // The clean prefix of a partly-malformed body has now run: raise
+            // the parse error C raises after it (#1603).  This happens *first*,
+            // before any of the completion processing below, so the deferred
+            // error is an error for all of it — error-context frames, the proc
+            // boundary and leave traces each see code 1 rather than the
+            // prefix's `ok`, and `-errorinfo` is built the same way it is for a
+            // runtime error in the same position.  An earlier command's own
+            // completion wins, exactly as in `catch`/`try`.
+            if c.code == Code::Ok
+                && let Some(message) = act.fatal_tail.take()
+            {
+                self.seed_error_info(message.clone());
+                c = err(message);
+            }
             // An error unwinding through an inlined command body (`eval {…}`)
             // adds the body frames the uncompiled command would, before this
             // activation's own proc frame (innermost first) — the compiled
@@ -1931,14 +1945,6 @@ impl Vm {
             // `eval_source` returns.
             if let Some(name) = act.cleanup_proc.take() {
                 self.take_command_unchecked(&name);
-            }
-            // The clean prefix of a partly-malformed script has now run: raise
-            // the parse error C would raise after it (#1603).  An earlier
-            // command's own completion wins, exactly as in `catch`/`try`.
-            if c.code == Code::Ok
-                && let Some(message) = act.fatal_tail.take()
-            {
-                c = err(message);
             }
             // A `catch` activation absorbs the body's completion of *any* code:
             // its epilogue binds the result / options variables and yields the
@@ -5605,14 +5611,16 @@ impl Vm {
         // a `yield` inside cannot cross it, exactly like every other
         // `invoke_command` re-entry.
         if let Some(req) = self.pending.eval.take() {
-            let mut comp = self.run_activation(Frame::new_script(req.script, req.label));
+            // Carry the deferred parse error on the frame rather than patching
+            // the completion this returns: the unwind applies it before the
+            // activation's error-context and leave-trace processing, and a
+            // nested drive must not get a different lifecycle from the
+            // trampoline's `PushScript`.
+            let mut frame = Frame::new_script(req.script, req.label);
+            frame.fatal_tail = req.fatal_tail;
+            let comp = self.run_activation(frame);
             if let Some(name) = req.cleanup_proc {
                 self.take_command_unchecked(&name);
-            }
-            if comp.code == Code::Ok
-                && let Some(message) = req.fatal_tail
-            {
-                comp = err(message);
             }
             return comp;
         }

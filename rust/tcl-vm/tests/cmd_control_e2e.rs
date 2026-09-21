@@ -413,6 +413,50 @@ fn a_procedure_body_that_does_not_parse_raises_on_entry_not_at_definition() {
     );
 }
 
+/// The deferred parse error becomes an error *before* the activation's
+/// completion processing, not after it.
+///
+/// Raising it late would let the error-context frames, the procedure
+/// boundary and leave traces all run against the prefix's `ok` completion,
+/// so `-errorinfo` would carry no trace and a leave trace would observe
+/// code 0 while the caller received code 1.
+#[test]
+fn a_deferred_parse_error_is_raised_before_the_activation_is_torn_down() {
+    // tclsh 8.6.18 / 9.0.4: `1` — the trace is seeded with the message and
+    // carries the `eval` body frame.
+    assert_eq!(
+        run("catch {eval {set a 1; set x \"}} m o; \
+             list [string match {missing \"*} [dict get $o -errorinfo]] \
+                  [string match {*(\"eval\" body line 1)*invoked from within*} \
+                               [dict get $o -errorinfo]]")
+        .1,
+        "1 1",
+    );
+    // A leave trace on a procedure whose body has a malformed tail observes
+    // the error, not the prefix's success.
+    // tclsh 8.6.18 / 9.0.4: `1|missing "`
+    assert_eq!(
+        run("proc p {} {set a 1; set x \"}; set ::seen {}; \
+             trace add execution p leave \
+                 {apply {{c code r op} {set ::seen \"$code|$r\"}}}; \
+             catch {p} m; set ::seen")
+        .1,
+        "1|missing \"",
+    );
+    // Positive control: an ordinary runtime error in the same position
+    // already behaved this way, so the assertions above cannot pass merely
+    // because leave traces or `-errorinfo` stopped working.
+    // tclsh 8.6.18 / 9.0.4: `1|BOOM`
+    assert_eq!(
+        run("proc q {} {set a 1; error BOOM}; set ::seen2 {}; \
+             trace add execution q leave \
+                 {apply {{c code r op} {set ::seen2 \"$code|$r\"}}}; \
+             catch {q} m; set ::seen2")
+        .1,
+        "1|BOOM",
+    );
+}
+
 /// The narrow nested `catch {try ... on error ...}` compiler specialisation
 /// keeps distinct live ranges for the try body and handler. Both are complete
 /// scripts: body errors reach the handler, successful handler results reach the

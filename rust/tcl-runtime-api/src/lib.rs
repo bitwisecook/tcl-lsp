@@ -544,16 +544,34 @@ pub struct ScriptCommandPlan {
     /// Byte length of the complete-command prefix.  This is always a UTF-8
     /// boundary in the supplied source.
     pub complete_prefix_len: usize,
+    /// How many complete commands that prefix holds.
+    ///
+    /// Not derivable from `complete_prefix_len`: the prefix of a script whose
+    /// *first* command is malformed still spans any leading whitespace and
+    /// comments, so a nonzero length can carry **no** command at all.  A
+    /// runtime distinguishing "ran nothing" from "ran something" must test
+    /// this rather than the byte length.
+    pub complete_prefix_commands: usize,
     /// Parse error raised if the complete prefix finishes normally.
     pub fatal_tail: Option<CompileError>,
 }
 
 impl ScriptCommandPlan {
     /// A clean script whose whole source is executable.
+    ///
+    /// `commands` is left unset (`usize::MAX` would be a lie and zero would
+    /// claim nothing runs), so this constructor takes it explicitly where the
+    /// count is known; [`Self::complete`] is for the no-cut case, where the
+    /// distinction the count exists for cannot arise.
     #[must_use]
     pub fn complete(source_len: usize) -> Self {
         Self {
             complete_prefix_len: source_len,
+            // No cut, so every command in the source is in the prefix. The
+            // exact count is not needed: callers consult it only to tell an
+            // empty prefix from a non-empty one before a fatal tail, and
+            // there is no fatal tail here.
+            complete_prefix_commands: usize::from(source_len > 0),
             fatal_tail: None,
         }
     }
