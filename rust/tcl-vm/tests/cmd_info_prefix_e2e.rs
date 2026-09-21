@@ -1262,6 +1262,53 @@ fn info_consts_drops_a_projection_the_body_compiled_a_slot_for() {
     }
 }
 
+/// A compiler temporary in the LVT is not a reference to a source variable of
+/// the same name.
+///
+/// `dict for` interns `#dictfor_spare0` for its own bookkeeping, and `catch`
+/// interns `#temp0`. A `#` prefix is legal in a Tcl variable name, so a class
+/// may declare one that collides — and C, whose corresponding slots are
+/// unnamed temporaries, still lists the projection. Comparing against every
+/// LVT entry by name would drop it.
+#[test]
+fn info_consts_ignores_compiler_temporaries_in_the_slot_test() {
+    // tclsh 9.0.4 / 9.1b0: `{{#dictfor_spare0}}` and `{{#temp0}}` — the method
+    // never mentions either name.
+    assert_eq!(
+        run(concat!(
+            "oo::class create C { variable #dictfor_spare0; ",
+            "constructor {} {const #dictfor_spare0 7}; ",
+            "method m {} {dict for {k v} {} {}; list [info consts]} }; ",
+            "[C new] m"
+        ))
+        .1,
+        "{{#dictfor_spare0}}",
+    );
+    assert_eq!(
+        run(concat!(
+            "oo::class create C { variable #temp0; ",
+            "constructor {} {const #temp0 7}; ",
+            "method m {} {catch {error x} e; list [info consts]} }; ",
+            "[C new] m"
+        ))
+        .1,
+        "{{#temp0}}",
+    );
+    // Positive control: a body that really does reference its declared
+    // variable still drops it, so the two assertions above cannot pass
+    // because the slot test stopped working altogether.
+    // tclsh 9.0.4 / 9.1b0: `7 {}`
+    assert_eq!(
+        run(concat!(
+            "oo::class create C { variable pub; constructor {} {const pub 7}; ",
+            "method m {} {dict for {k v} {} {}; list $pub [info consts]} }; ",
+            "[C new] m"
+        ))
+        .1,
+        "7 {}",
+    );
+}
+
 /// `info cmdtype commandName` — Tcl 9.0 (8.6 lacks it). `proc` for a user proc,
 /// `native` for a builtin, and "unknown command" for a missing name. The VM
 /// matches tclsh9.0.

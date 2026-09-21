@@ -420,7 +420,7 @@ impl CodegenCtx<'_> {
         // C Tcl allocates an unused companion temp right after the loop vars.
         let _spare = self
             .lvt
-            .intern(&format!("#dictfor_spare{}", self.catch_depth));
+            .intern_synthetic(&format!("#dictfor_spare{}", self.catch_depth));
         let iter_name = format!("#dictfor{}", self.catch_depth);
         let loop_lbl = self.fresh_label("dict_for_loop");
         let end_lbl = self.fresh_label("dict_for_end");
@@ -477,7 +477,7 @@ impl CodegenCtx<'_> {
 
         // Now the body's locals are interned; the iterator gets the next
         // (highest) slot. Back-patch the placeholders.
-        let iter_slot = bytecode_imm(self.lvt.intern(&iter_name));
+        let iter_slot = bytecode_imm(self.lvt.intern_synthetic(&iter_name));
         self.instructions[dict_first_idx].operands = vec![Operand::Imm(iter_slot)];
         self.instructions[dict_next_idx].operands = vec![Operand::Imm(iter_slot)];
         self.instructions[unset_idx].operands = vec![Operand::Imm(0), Operand::Imm(iter_slot)];
@@ -603,8 +603,8 @@ impl CodegenCtx<'_> {
             self.emit_dict_map_normal_exit(&iter_name, &result_name);
 
         // Now intern the result + iterator temps (highest slots) and back-patch.
-        let res_slot = bytecode_imm(self.lvt.intern(&result_name));
-        let iter_slot = bytecode_imm(self.lvt.intern(&iter_name));
+        let res_slot = bytecode_imm(self.lvt.intern_synthetic(&result_name));
+        let iter_slot = bytecode_imm(self.lvt.intern_synthetic(&iter_name));
         self.backpatch_dict_map(
             &DictMapPatch {
                 res_store: res_store_idx,
@@ -760,7 +760,7 @@ impl CodegenCtx<'_> {
 
         let dict_slot = bytecode_imm(self.lvt.intern(dict_var));
         let state_name = format!("#dictwith_state{}", self.catch_depth);
-        let state_slot = bytecode_imm(self.lvt.intern(&state_name));
+        let state_slot = bytecode_imm(self.lvt.intern_synthetic(&state_name));
         let end_lbl = self.fresh_label("dict_with_end");
 
         // Snapshot the emit state so a mid-emission bail-out (a body that does
@@ -1262,8 +1262,8 @@ impl CodegenCtx<'_> {
             .map(|name| bytecode_imm(self.lvt.intern(name)));
         let temp_result_name = format!("#temp{}", self.catch_depth);
         let temp_opts_name = format!("#temp{}", self.catch_depth + 1);
-        let temp_result_slot = bytecode_imm(self.lvt.intern(&temp_result_name));
-        let temp_opts_slot = bytecode_imm(self.lvt.intern(&temp_opts_name));
+        let temp_result_slot = bytecode_imm(self.lvt.intern_synthetic(&temp_result_name));
+        let temp_opts_slot = bytecode_imm(self.lvt.intern_synthetic(&temp_opts_name));
 
         let initial_depth = self.catch_depth;
 
