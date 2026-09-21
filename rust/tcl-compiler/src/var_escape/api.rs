@@ -41,7 +41,8 @@ use std::collections::HashMap;
 use crate::compilation_unit::CompilationUnit;
 use crate::ir::Module;
 
-use super::cfg_propagation::{CfgEscapeResult, analyse_cfg_function};
+use super::cfg_propagation::{CfgEscapeResult, analyse_cfg_function_with_registry};
+use super::helpers::default_registry;
 use super::interprocedural::solve_interprocedural_escape;
 use super::slot_resolution::populate_local_slots;
 use super::types::{EscapeTag, ProcEscapeSummary};
@@ -131,16 +132,40 @@ pub fn analyse_var_escape_with_registry(
 
 /// Per-proc escape summaries from a [`CompilationUnit`] (the flow-sensitive
 /// CFG/SSA path). Used by codegen frame analysis.
+///
+/// Dialect-blind: this answers from the `tcl8.6` registry whatever the unit
+/// was lowered under. Any caller that *holds* the unit's registry should use
+/// [`analyse_var_escape_cu_with_registry`] instead — the pairing here mirrors
+/// [`analyse_var_escape`] / [`analyse_var_escape_with_registry`].
 #[must_use]
 pub fn analyse_var_escape_cu(
     cu: &CompilationUnit,
     interprocedural: bool,
 ) -> HashMap<String, ProcEscapeSummary> {
+    analyse_var_escape_cu_with_registry(cu, interprocedural, default_registry())
+}
+
+/// Registry-aware form of [`analyse_var_escape_cu`]. This is the production
+/// entry point when lowering has already selected a dialect/profile registry.
+///
+/// The walk consults the registry for command traits (`FRAMELESS_RUNTIME`,
+/// `EXPANSION_ESCAPE_SAFE`, `FIRST_ARG_VARNAME`), semantic operation ids, and
+/// `profile()` for the lexer config it re-lowers nested bodies under — so the
+/// registry a unit was lowered with and `tcl8.6` need not agree, and an
+/// escape analysis that under-reports escaping variables licenses
+/// optimisation a correct one would refuse (#2167).
+#[must_use]
+pub fn analyse_var_escape_cu_with_registry(
+    cu: &CompilationUnit,
+    interprocedural: bool,
+    registry: &tcl_registry::CommandRegistry,
+) -> HashMap<String, ProcEscapeSummary> {
     let mut result: HashMap<String, ProcEscapeSummary> = HashMap::new();
-    let top = analyse_cfg_function(
+    let top = analyse_cfg_function_with_registry(
         &cu.top_level.cfg,
         &cu.top_level.ssa,
         std::iter::empty::<String>(),
+        registry,
     );
     result.insert(TOP_LEVEL_QNAME.to_owned(), cfg_result_to_summary(&top));
     for (qname, fu) in &cu.procedures {
@@ -150,7 +175,7 @@ pub fn analyse_var_escape_cu(
             .get(qname)
             .map(|p| p.params.clone())
             .unwrap_or_default();
-        let proc = analyse_cfg_function(&fu.cfg, &fu.ssa, params);
+        let proc = analyse_cfg_function_with_registry(&fu.cfg, &fu.ssa, params, registry);
         result.insert(qname.clone(), cfg_result_to_summary(&proc));
     }
     if interprocedural {

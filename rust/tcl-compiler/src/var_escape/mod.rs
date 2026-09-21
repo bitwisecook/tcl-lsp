@@ -48,8 +48,8 @@ pub mod types;
 pub mod walker;
 
 pub use api::{
-    TOP_LEVEL_QNAME, analyse_var_escape, analyse_var_escape_cu, analyse_var_escape_with_registry,
-    cfg_result_to_summary,
+    TOP_LEVEL_QNAME, analyse_var_escape, analyse_var_escape_cu,
+    analyse_var_escape_cu_with_registry, analyse_var_escape_with_registry, cfg_result_to_summary,
 };
 pub use cfg_propagation::{analyse_cfg_function, analyse_cfg_function_with_registry};
 pub use interprocedural::solve_interprocedural_escape;

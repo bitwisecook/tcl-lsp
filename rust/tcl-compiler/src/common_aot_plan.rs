@@ -28,7 +28,7 @@ use crate::representation_plan::{SharingState, VarStorage};
 use crate::semantic_optimisation::{SemanticOptimisationConfig, SemanticOptimisationPassId};
 use crate::ssa::{SsaBlock, SsaStatement, Symbol, ValueKey};
 use crate::types::{TypeKind, TypeLattice, TypeShape, type_join};
-use crate::var_escape::{EscapeTag, ProcEscapeSummary, analyse_var_escape_cu};
+use crate::var_escape::{EscapeTag, ProcEscapeSummary, analyse_var_escape_cu_with_registry};
 
 /// Stable identity of one CFG invocation, including an immediate command
 /// substitution nested in one argument of the enclosing statement.
@@ -541,7 +541,10 @@ impl CommonAotProofPlan {
         config: SemanticOptimisationConfig,
         environment: CommonAotEnvironment,
     ) -> Self {
-        let escape = analyse_var_escape_cu(unit, true);
+        // The registry this unit was lowered under, not `tcl8.6`: the three
+        // calls below already take it, and an escape analysis answering from
+        // a different dialect can under-report escaping variables (#2167).
+        let escape = analyse_var_escape_cu_with_registry(unit, true, registry);
         let mutations = &unit.command_mutations;
         let direct = collect_direct_calls(
             unit,
