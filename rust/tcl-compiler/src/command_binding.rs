@@ -934,6 +934,10 @@ impl ModuleCommandBindings {
             dynamic: self.opaque_binding_mutation
                 || self.namespace_resolution.dynamic
                 || self.has_redefined_procedures,
+            // The lattice's own name for "an unbounded command-*binding*
+            // effect may occur" — the same fact, excluding the resolution and
+            // redefinition axes that rebind nothing unnameable.
+            rebinding_subject_unknown: self.opaque_binding_mutation,
             // This projection is about names the closed lattice observed, not
             // about which frame observed them; the frame fact is the scan's.
             runtime_selected_frames: false,
@@ -3503,6 +3507,10 @@ pub fn analyse_command_binding<'a>(
 /// `Default` trusts everything (no names, not dynamic) — the
 /// "no mutations observed" baseline.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
+// Independent observation axes, as on `NonBindingObservationStamp`: each
+// records a different thing the scan saw, and collapsing them into an enum
+// would lose the ability to hold several at once.
+#[allow(clippy::struct_excessive_bools)]
 pub struct ModuleCommandMutations {
     /// Canonical names of core builtins some body may rebind.
     names: std::collections::HashSet<String>,
@@ -3518,6 +3526,18 @@ pub struct ModuleCommandMutations {
     /// A body performs a dynamic `rename`/alias/proc (target not
     /// statically known) → resolution of *any* name is opaque.
     dynamic: bool,
+    /// A `rename` / `interp alias` / command delete ran whose **subject** this
+    /// scan could not name — `rename $a {}`, not `foo bar`.
+    ///
+    /// Narrower than [`Self::dynamic`] on purpose. `dynamic` also rises for
+    /// reasons that rebind nothing (an unresolved command head, a changed
+    /// namespace resolution, the walk depth cap), which is why the value
+    /// lattice deliberately does not gate on it — doing so withdraws every
+    /// builtin fold from any file naming a command the registry does not know
+    /// (#2164). This axis rises *only* when something was definitely rebound
+    /// and the name is unknown, so no name can be claimed as still denoting
+    /// its builtin (#2168).
+    rebinding_subject_unknown: bool,
     /// Some body runs in a receiver- or caller-selected namespace and names a
     /// command relatively, so that name may resolve to an implementation the
     /// static module does not contain. Scoped deliberately: it disqualifies a
@@ -3640,7 +3660,13 @@ impl ModuleCommandMutations {
     /// every file that mentions a command the registry does not know.
     #[must_use]
     pub fn observed_binding_is_the_builtin(&self, command_name: &str) -> bool {
-        !self.import_shadowed(command_name) && !self.names.contains(&nqn(command_name))
+        // A rebinding whose subject this scan could not name may have moved
+        // *this* name, so nothing is claimable (#2168). Deliberately not the
+        // whole of `dynamic`, which also rises for effects that rebind nothing
+        // and whose folds #2164 measured as worth keeping.
+        !self.rebinding_subject_unknown
+            && !self.import_shadowed(command_name)
+            && !self.names.contains(&nqn(command_name))
     }
 
     /// Whether this summary reports no command-table mutation that could
@@ -3682,6 +3708,7 @@ impl ModuleCommandMutations {
             names: std::collections::HashSet::new(),
             rebound: std::collections::HashSet::new(),
             dynamic: true,
+            rebinding_subject_unknown: true,
             runtime_selected_frames: true,
             resolution_changed: true,
             opaque_namespaces: std::collections::HashSet::new(),
@@ -3701,6 +3728,7 @@ impl ModuleCommandMutations {
             rebound,
             dynamic: self.dynamic,
             runtime_selected_frames: self.runtime_selected_frames,
+            rebinding_subject_unknown: self.rebinding_subject_unknown,
             resolution_changed: self.resolution_changed,
             opaque_namespaces: {
                 let mut v: Vec<String> = self.opaque_namespaces.iter().cloned().collect();
@@ -3740,10 +3768,15 @@ impl ModuleCommandMutations {
 /// isolated fragment memo sound when a `rename` elsewhere in the file
 /// appears or disappears.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[allow(clippy::struct_excessive_bools)] // Mirrors `ModuleCommandMutations`' axes.
 pub struct CommandTrustSnapshot {
     untrusted_builtins: Vec<String>,
     rebound: Vec<String>,
     dynamic: bool,
+    /// Part of the key: a memo taken while every rebinding subject was
+    /// nameable must not be reused once a `rename $x` appears, or the fold it
+    /// carries would be replayed under a binding it never saw (#2168).
+    rebinding_subject_unknown: bool,
     /// Part of the key: a memo taken with every frame statically nameable must
     /// not be reused once a receiver-selected frame appears.
     runtime_selected_frames: bool,
@@ -3761,6 +3794,7 @@ impl CommandTrustSnapshot {
             names: self.untrusted_builtins.iter().cloned().collect(),
             rebound: self.rebound.iter().cloned().collect(),
             dynamic: self.dynamic,
+            rebinding_subject_unknown: self.rebinding_subject_unknown,
             runtime_selected_frames: self.runtime_selected_frames,
             resolution_changed: self.resolution_changed,
             opaque_namespaces: self.opaque_namespaces.iter().cloned().collect(),
@@ -3804,15 +3838,27 @@ fn collect_tampered_builtins(
 /// *also* changes the name's binding away from its textual default, so
 /// diffing against `default_binding` cannot distinguish "declared itself"
 /// from "rebound to something else".
+/// Record that a `rename` / `interp alias` / delete ran whose **subject**
+/// could not be named.
+///
+/// Every `dynamic` [`collect_proc_rebindings`] raises is one of these — an
+/// operand it could not spell — as distinct from the other `dynamic` sources
+/// (an unresolved command head, a changed namespace resolution, the walk depth
+/// cap), which rebind nothing. Both axes rise together here and only here.
+fn mark_unknown_subject(rebind: &mut RebindState<'_>) {
+    *rebind.dynamic = true;
+    *rebind.rebinding_subject_unknown = true;
+}
+
 fn collect_proc_rebindings(
     stmt: &Statement,
     namespace: &str,
     registry: &CommandRegistry,
-    rebound: &mut std::collections::HashSet<String>,
-    dynamic: &mut bool,
-    resolution: &mut bool,
-    opaque: &mut std::collections::HashSet<String>,
+    rebind: &mut RebindState<'_>,
 ) {
+    let rebound = &mut *rebind.rebound;
+    let resolution = &mut *rebind.resolution;
+    let opaque = &mut *rebind.opaque;
     if !matches!(stmt, Statement::Call { .. } | Statement::Barrier { .. }) {
         return;
     }
@@ -3825,7 +3871,7 @@ fn collect_proc_rebindings(
                 StateTransition::CommandBinding(CommandBindingTransition::Move { from, to }) => {
                     let (Some(from), Some(to)) = (literal_subject(from), literal_subject(to))
                     else {
-                        *dynamic = true;
+                        mark_unknown_subject(rebind);
                         return;
                     };
                     insert_rebound_candidates(from, namespace, rebound);
@@ -3843,14 +3889,14 @@ fn collect_proc_rebindings(
                             Some("") => true,
                             Some(_) => false,
                             None => {
-                                *dynamic = true;
+                                mark_unknown_subject(rebind);
                                 return;
                             }
                         },
                     };
                     if affects_current {
                         let Some(name) = literal_subject(name) else {
-                            *dynamic = true;
+                            mark_unknown_subject(rebind);
                             return;
                         };
                         insert_rebound_candidates(name, namespace, rebound);
@@ -3862,19 +3908,19 @@ fn collect_proc_rebindings(
                     ..
                 }) => {
                     let Some(source_interpreter) = literal_subject(source_interpreter) else {
-                        *dynamic = true;
+                        mark_unknown_subject(rebind);
                         return;
                     };
                     if source_interpreter.is_empty() {
                         let Some(alias) = literal_subject(alias) else {
-                            *dynamic = true;
+                            mark_unknown_subject(rebind);
                             return;
                         };
                         insert_rebound_candidates(alias, namespace, rebound);
                     }
                 }
                 StateTransition::CommandBinding(CommandBindingTransition::Unknown { .. }) => {
-                    *dynamic = true;
+                    mark_unknown_subject(rebind);
                     return;
                 }
                 StateTransition::Widen(widening)
@@ -3882,7 +3928,7 @@ fn collect_proc_rebindings(
                         .domains
                         .contains(&StateTransitionDomain::CommandBindings) =>
                 {
-                    *dynamic = true;
+                    mark_unknown_subject(rebind);
                     return;
                 }
                 // Resolution changes, not rebindings: no name moves, but what
@@ -3902,7 +3948,7 @@ fn collect_proc_rebindings(
                         resolution,
                         opaque,
                     ) {
-                        *dynamic = true;
+                        mark_unknown_subject(rebind);
                         return;
                     }
                 }
@@ -3948,6 +3994,10 @@ struct RebindState<'a> {
     names: &'a mut std::collections::HashSet<String>,
     rebound: &'a mut std::collections::HashSet<String>,
     dynamic: &'a mut bool,
+    /// See [`ModuleCommandMutations::rebinding_subject_unknown`]. Set only by
+    /// [`collect_proc_rebindings`], whose every `dynamic` is an unnameable
+    /// rebinding subject.
+    rebinding_subject_unknown: &'a mut bool,
     resolution: &'a mut bool,
     opaque: &'a mut std::collections::HashSet<String>,
 }
@@ -3977,15 +4027,7 @@ fn walk_body_calls(
     for stmt in &script.statements {
         match stmt {
             Statement::Call { .. } | Statement::Barrier { .. } => {
-                collect_proc_rebindings(
-                    stmt,
-                    namespace,
-                    registry,
-                    rebind.rebound,
-                    rebind.dynamic,
-                    rebind.resolution,
-                    rebind.opaque,
-                );
+                collect_proc_rebindings(stmt, namespace, registry, rebind);
                 stmt_gen(stmt, state, registry);
                 collect_tampered_builtins(state, registry, rebind.names, rebind.dynamic);
             }
@@ -4139,6 +4181,7 @@ pub(crate) fn scan_module_command_mutations_with_bindings(
     let mut names = std::collections::HashSet::new();
     let mut rebound = std::collections::HashSet::new();
     let mut dynamic = !ir_module.redefined_procedures.is_empty();
+    let mut rebinding_subject_unknown = false;
     let mut resolution_changed = false;
     let mut opaque_namespaces = std::collections::HashSet::new();
 
@@ -4151,6 +4194,7 @@ pub(crate) fn scan_module_command_mutations_with_bindings(
                 names: &mut names,
                 rebound: &mut rebound,
                 dynamic: &mut dynamic,
+                rebinding_subject_unknown: &mut rebinding_subject_unknown,
                 resolution: &mut resolution_changed,
                 opaque: &mut opaque_namespaces,
             };
@@ -4205,6 +4249,7 @@ pub(crate) fn scan_module_command_mutations_with_bindings(
         names,
         rebound,
         dynamic,
+        rebinding_subject_unknown,
         runtime_selected_frames,
         resolution_changed,
         opaque_namespaces,
