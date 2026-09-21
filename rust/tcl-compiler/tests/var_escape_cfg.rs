@@ -61,7 +61,8 @@ use tcl_compiler::ssa::{Version, build_ssa};
 use tcl_compiler::var_escape::cfg_propagation::state::CfgEscapeResult;
 use tcl_compiler::var_escape::{
     EscapeTag, ProcEscapeSummary, TOP_LEVEL_QNAME, analyse_cfg_function, analyse_var_escape,
-    analyse_var_escape_cu, analyse_var_escape_cu_with_registry, cfg_result_to_summary,
+    analyse_var_escape_cu, analyse_var_escape_cu_with_registry, analyse_var_escape_with_registry,
+    cfg_result_to_summary,
 };
 use tcl_registry::CommandRegistry;
 use tcl_registry::model::ingress::static_context_for;
@@ -973,6 +974,44 @@ fn the_cu_entry_point_answers_from_the_registry_it_is_given() {
         assert_eq!(
             blind,
             analyse_var_escape_cu_with_registry(&cu, true, registry()),
+            "{src}: passing the registry the blind form uses reproduces it exactly"
+        );
+    }
+}
+
+/// The IR-walk counterpart of the test above, and the one that reaches an
+/// optimisation decision rather than proof evidence: `pure_leaf` is the
+/// inliner's predicate, and the IR path exists to compute it.
+///
+/// A proc whose only frame-touching call sits inside a command substitution
+/// used to report `pure_leaf` under `f5-irules` where the direct spelling of
+/// the same call correctly reported false — the blind allow-list marks
+/// `puts` frameless, `f5-irules` does not (#2179).
+#[test]
+fn the_ir_entry_point_answers_pure_leaf_from_the_registry_it_is_given() {
+    let irules = static_context_for("f5-irules").commands();
+    for src in [
+        "proc p {} { set x 1 ; puts $x ; return $x }\n",
+        "proc p {} { set x 1 ; set y [puts $x] ; return $y }\n",
+    ] {
+        let module = lower_to_ir(src, irules);
+
+        let exact = analyse_var_escape_with_registry(&module, true, irules);
+        assert!(
+            !exact["::p"].pure_leaf,
+            "{src}: `puts` is not frameless under f5-irules, so `::p` is no pure leaf"
+        );
+
+        // The plain-Tcl answer is the permissive one, and is what the blind
+        // entry point still gives — the two must not agree here.
+        let blind = analyse_var_escape(&module, true);
+        assert_ne!(
+            blind, exact,
+            "{src}: the hardcoded registry and the unit's own disagree about `puts`"
+        );
+        assert_eq!(
+            blind,
+            analyse_var_escape_with_registry(&module, true, registry()),
             "{src}: passing the registry the blind form uses reproduces it exactly"
         );
     }

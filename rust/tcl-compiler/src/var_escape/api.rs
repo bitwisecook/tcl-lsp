@@ -43,7 +43,9 @@ use crate::ir::Module;
 
 use super::cfg_propagation::{CfgEscapeResult, analyse_cfg_function_with_registry};
 use super::helpers::default_registry;
-use super::interprocedural::solve_interprocedural_escape;
+use super::interprocedural::{
+    solve_interprocedural_escape, solve_interprocedural_escape_with_registry,
+};
 use super::slot_resolution::populate_local_slots;
 use super::types::{EscapeTag, ProcEscapeSummary};
 use super::walker::{analyse_script, analyse_script_with_registry};
@@ -125,7 +127,7 @@ pub fn analyse_var_escape_with_registry(
         );
     }
     if interprocedural {
-        result = solve_interprocedural_escape(&result);
+        result = solve_interprocedural_escape_with_registry(&result, registry);
     }
     populate_local_slots(&result, Some(module))
 }
@@ -179,7 +181,7 @@ pub fn analyse_var_escape_cu_with_registry(
         result.insert(qname.clone(), cfg_result_to_summary(&proc));
     }
     if interprocedural {
-        result = solve_interprocedural_escape(&result);
+        result = solve_interprocedural_escape_with_registry(&result, registry);
     }
     populate_local_slots(&result, Some(&cu.ir_module))
 }
