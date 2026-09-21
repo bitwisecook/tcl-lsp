@@ -737,6 +737,53 @@ pub fn regsub_eval<E: RegexEngine, Err>(
         .as_ref()
         .map_or(Ok(0), |spec| resolve_start_checked(spec, char_len))?;
 
+    // The **literal empty pattern** is not the general empty-match case. C
+    // diverts a metacharacter-free pattern away from the RE engine into a
+    // literal string map (`Tcl_RegsubObjCmd`'s "simple one pair string map
+    // situation") and spells the empty pattern out as its own branch of it
+    // (`if (slen == 0)`): the replacement goes before each character and never
+    // at end-of-string, so the count is exactly the subject's character length
+    // and an empty subject substitutes nothing at all.
+    //
+    // That is a `regsub` rule, not an engine rule, which is why it sits in
+    // `regsub`'s own loop rather than in the `RegexEngine` the two commands
+    // share. An RE that merely *can* match empty keeps the general rule
+    // (`regsub -all {(?:)} abc X` is still 4 / `XaXbXcX`), and `regexp -all`
+    // never sees this branch at all — it counts 3 for both patterns and still
+    // reports one match on an empty subject where `regsub` reports none. The
+    // two commands disagree at end-of-string on purpose.
+    //
+    // The guard is C's, term for term: `-all`, a resolved start of 0, no
+    // `-command`, and a subspec free of `&` and `\` — either of those sends C
+    // down the general path instead, which is why `regsub -all {} abc &`
+    // counts 4. C's remaining term, "the pattern holds none of
+    // `*+?{}()[].\|^$`", is implied by the pattern being empty. Measured
+    // identical on tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1b0.
+    if c.all
+        && offset == 0
+        && !command
+        && pattern.is_empty()
+        && !subspec.iter().any(|&b| b == b'&' || b == b'\\')
+    {
+        // Saturating: on a 32-bit target (the WASM runtime) a long subject
+        // times a long replacement can overflow `usize`, and a capacity hint
+        // must never be the thing that aborts. Too small only costs a regrow.
+        let hint = subspec
+            .len()
+            .saturating_mul(char_len)
+            .saturating_add(str_bytes.len());
+        let mut text = Vec::with_capacity(hint);
+        for i in 0..char_len {
+            text.extend_from_slice(subspec);
+            text.extend_from_slice(&str_bytes[byteoff[i]..byteoff[i + 1]]);
+        }
+        return Ok(RegsubResult {
+            text,
+            count: i64::try_from(char_len).unwrap_or(i64::MAX),
+            var,
+        });
+    }
+
     let mut result: Vec<u8> = Vec::new();
     let mut count: i64 = 0;
 
@@ -1241,6 +1288,86 @@ mod tests {
         assert_eq!(
             (String::from_utf8_lossy(&r.text).into_owned(), r.count),
             ("abc".to_owned(), 0)
+        );
+    }
+
+    #[test]
+    fn regsub_all_with_the_literal_empty_pattern_substitutes_once_per_character() {
+        // Regression (#2147): `regsub -all {} abc X` counted 4 and produced
+        // `XaXbXcX` — the general empty-match rule, one substitution before
+        // each character *and* one at end-of-string. C never runs the engine
+        // here: a metacharacter-free pattern goes down `Tcl_RegsubObjCmd`'s
+        // literal string-map path, whose empty-pattern branch walks the
+        // subject's characters and stops at the last one.
+        //
+        //   % regsub -all {} abc X r ;# 3, r is XaXbXc
+        //
+        // (tclsh 8.4.20 / 8.5.19 / 8.6.18 / 9.0.4 / 9.1b0 all agree.)
+        for v in [
+            TclVersion::V8_4,
+            TclVersion::V8_5,
+            TclVersion::V8_6,
+            TclVersion::V9_0,
+            TclVersion::V9_1,
+        ] {
+            assert_eq!(
+                regsub_at(v, &[b"-all", b"", b"abc", b"X"]).unwrap(),
+                ("XaXbXc".to_owned(), 3)
+            );
+            // One character, and a multi-character replacement, so a fix that
+            // merely subtracted one from the old count is not enough: the
+            // *text* has to lose its trailing replacement too.
+            assert_eq!(
+                regsub_at(v, &[b"-all", b"", b"a", b"YZ"]).unwrap(),
+                ("YZa".to_owned(), 1)
+            );
+            // An empty subject has no characters, so nothing is substituted —
+            // where the general rule (and `regexp -all`) still reports one
+            // empty match at offset 0.
+            assert_eq!(
+                regsub_at(v, &[b"-all", b"", b"", b"X"]).unwrap(),
+                (String::new(), 0)
+            );
+        }
+    }
+
+    #[test]
+    fn regsub_empty_pattern_special_case_keeps_cs_guard_terms() {
+        // Each row here is a way C *declines* its literal string-map path and
+        // falls back to the engine's general empty-match rule, which counts
+        // one more (a substitution at end-of-string). They are the guard's
+        // reason for existing: drop a term and its row swings to the
+        // once-per-character answer.
+        let v = TclVersion::V9_0;
+        // `&` in the substitution spec (C: `strpbrk(subSpec, "&\\")`).
+        assert_eq!(
+            regsub_at(v, &[b"-all", b"", b"abc", b"&"]).unwrap(),
+            ("abc".to_owned(), 4)
+        );
+        // A backslash in the substitution spec, same C term.
+        assert_eq!(
+            regsub_at(v, &[b"-all", b"", b"abc", br"\0"]).unwrap(),
+            ("abc".to_owned(), 4)
+        );
+        // A non-zero resolved `-start` (C: `offset == 0`).
+        assert_eq!(
+            regsub_at(v, &[b"-all", b"-start", b"1", b"", b"abc", b"X"]).unwrap(),
+            ("aXbXcX".to_owned(), 3)
+        );
+        // `-start 0` resolves to 0, so the special case *does* apply.
+        assert_eq!(
+            regsub_at(v, &[b"-all", b"-start", b"0", b"", b"abc", b"X"]).unwrap(),
+            ("XaXbXc".to_owned(), 3)
+        );
+        // `-command` (C: `command == 0`, 9.0's added term).
+        assert_eq!(
+            regsub_at(v, &[b"-all", b"-command", b"", b"abc", b"f"]).unwrap(),
+            ("<f|>a<f|>b<f|>c<f|>".to_owned(), 4)
+        );
+        // No `-all` at all: a single substitution at offset 0, untouched.
+        assert_eq!(
+            regsub_at(v, &[b"", b"abc", b"X"]).unwrap(),
+            ("Xabc".to_owned(), 1)
         );
     }
 }
