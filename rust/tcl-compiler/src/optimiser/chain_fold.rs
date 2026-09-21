@@ -238,11 +238,31 @@ struct ChainHeadTrust {
 }
 
 impl ChainHeadTrust {
+    /// Keyed on the **named-subject** half of the trust fact, not the whole
+    /// of [`ModuleCommandMutations::trusts`].
+    ///
+    /// The hazard this gate exists for is a shadowing `proc append` (or a
+    /// rename or alias onto the name), which is exactly what
+    /// `observed_binding_is_the_builtin` answers. `trusts` additionally folds
+    /// in the `dynamic` unbounded top, which a single unresolved command head
+    /// anywhere in the module raises — and that declined a legitimate
+    /// `append` chain in `samples/optimiser/input.tcl`, which shadows
+    /// nothing.
+    ///
+    /// Two reasons that is the wrong stance here. This pass had **no** trust
+    /// gate at all before, so under `dynamic` it folded unconditionally; the
+    /// named half is still strictly tighter than that. And the shared value
+    /// lattice — which feeds O100's rewrites — already uses the named half,
+    /// so gating this one harder leaves the two disagreeing about the same
+    /// question, which is the defect #2164 was about.
+    ///
+    /// The residual that leaves under a computed rename is #2168, and it
+    /// applies to both alike.
     fn of(mutations: &crate::command_binding::ModuleCommandMutations) -> Self {
         Self {
-            set: mutations.trusts("set"),
-            append: mutations.trusts("append"),
-            lappend: mutations.trusts("lappend"),
+            set: mutations.observed_binding_is_the_builtin("set"),
+            append: mutations.observed_binding_is_the_builtin("append"),
+            lappend: mutations.observed_binding_is_the_builtin("lappend"),
         }
     }
 }
