@@ -2974,6 +2974,7 @@ mod tests {
         entry_blk.statements.push(llength_call());
         entry_blk.terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
@@ -3005,6 +3006,7 @@ mod tests {
         entry_blk.statements.push(llength_call());
         entry_blk.terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
@@ -3049,6 +3051,7 @@ mod tests {
         entry_blk.statements.push(llength_call());
         entry_blk.terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
@@ -3100,6 +3103,7 @@ mod tests {
             .push(llength_call());
         cfg.blocks.get_mut(&child).unwrap().terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
@@ -3263,6 +3267,7 @@ mod tests {
         });
         cfg.blocks.get_mut(&exit).unwrap().terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
@@ -3348,6 +3353,7 @@ mod tests {
         });
         cfg.blocks.get_mut(&exit).unwrap().terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
@@ -3429,6 +3435,7 @@ mod tests {
         });
         cfg.blocks.get_mut(&exit).unwrap().terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
@@ -3483,6 +3490,7 @@ mod tests {
         let mut cfg = Function::new("::top", "entry");
         cfg.blocks.get_mut(&cfg.entry).unwrap().terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
@@ -3545,6 +3553,7 @@ mod tests {
             .push(llength_call_at(200, 210));
         cfg.blocks.get_mut(&join).unwrap().terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
@@ -3593,6 +3602,7 @@ mod tests {
             .push(llength_call());
         cfg.blocks.get_mut(&cfg.entry).unwrap().terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
@@ -3642,6 +3652,7 @@ mod tests {
             }
             cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Return {
                 value: None,
+                value_word: None,
                 span: None,
                 expr: None,
                 braced: false,
@@ -3675,6 +3686,7 @@ mod tests {
                 Statement::Return {
                     span: Span::new(0, 0),
                     value: Some("$x".into()),
+                    value_word: None,
                     expr: None,
                     command_binding: None,
                     braced: false,

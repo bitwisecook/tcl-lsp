@@ -128,6 +128,14 @@ pub fn try_lower_return(
     }
 
     let value = cmd.args.first().cloned();
+    let value_word = (cmd.args.len() == 1)
+        .then(|| {
+            cmd.tokens
+                .as_ref()
+                .and_then(|tokens| tokens.words().get(1))
+                .cloned()
+        })
+        .flatten();
     let mut expr = None;
     let mut command_binding = None;
     let mut braced = false;
@@ -179,6 +187,7 @@ pub fn try_lower_return(
     Statement::Return {
         span: cmd.span,
         value,
+        value_word,
         expr,
         command_binding,
         braced,

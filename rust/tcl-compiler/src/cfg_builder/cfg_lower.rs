@@ -694,6 +694,7 @@ impl CfgBuilder<'_> {
             if self.block_mut(block_name).terminator.is_none() {
                 self.block_mut(block_name).terminator = Some(Terminator::Return {
                     value: None,
+                    value_word: None,
                     span: Some(stmt.span()),
                     expr: None,
                     braced: false,

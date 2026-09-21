@@ -30,6 +30,7 @@
 
 use crate::cfg::{Function as CfgFunction, Terminator};
 use crate::expr_ast::ExprNode;
+use crate::word_subst::whole_word_command_tokens;
 
 use super::super::cmd_subst::is_pure_cmd_subst;
 use super::super::{CodegenCtx, Op, Operand};
@@ -193,7 +194,13 @@ impl CodegenCtx<'_> {
         block_idx: usize,
         cfg: &CfgFunction,
     ) {
-        let Terminator::Return { value, expr, .. } = term else {
+        let Terminator::Return {
+            value,
+            value_word,
+            expr,
+            ..
+        } = term
+        else {
             unreachable!("emit_proc_return called with non-Return terminator");
         };
         // Stamp the return's source span onto its instructions.
@@ -249,7 +256,13 @@ impl CodegenCtx<'_> {
             }
         } else if self.is_proc && is_cmd_subst {
             // In a proc body, a return value of [cmd ...] inlines.
-            self.emit_inline_cmd_subst(val);
+            let tokens = value_word.as_ref().and_then(|word| {
+                whole_word_command_tokens(
+                    word,
+                    tcl_lexer::LexerConfig::for_profile(self.registry.profile()),
+                )
+            });
+            self.emit_inline_cmd_subst_with_tokens(val, tokens.as_ref());
         } else {
             self.emit_value(val, true);
         }
@@ -529,6 +542,7 @@ mod tests {
         let cfg = cfg_with_blocks(&["entry"]);
         let term = Terminator::Return {
             value: Some("hello".into()),
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
@@ -544,6 +558,7 @@ mod tests {
         let cfg = cfg_with_blocks(&["entry"]);
         let term = Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,

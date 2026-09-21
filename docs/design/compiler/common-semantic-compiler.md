@@ -226,7 +226,9 @@ compatibility parse. This lets nested `info exists` and `array exists` select
 the same local slot as their statement forms without treating a decoded bare
 escape as a literal name. A compatibility path with only flattened command
 text preserves its established generic emission; it must not recover
-provenance from string contents.
+provenance from string contents. `return` carries its canonical value
+`WordExpr` through its CFG terminator for the same bridge; transforms that
+rewrite that value clear the snapshot and therefore retain generic emission.
 
 A `ResolvedInvocation` retains both the original words and the registry's
 semantic resolution:

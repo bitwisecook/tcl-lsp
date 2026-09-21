@@ -3190,6 +3190,7 @@ mod tests {
     fn make_return() -> Terminator {
         Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
@@ -3465,6 +3466,7 @@ mod tests {
         let stmt = Statement::Return {
             span: Span::new(0, 10),
             value: Some("1".into()),
+            value_word: None,
             expr: None,
             command_binding: None,
             braced: false,
@@ -4073,6 +4075,7 @@ mod tests {
         let stmt = Statement::Return {
             span: Span::new(0, 15),
             value: Some("$result".into()),
+            value_word: None,
             expr: None,
             command_binding: None,
             braced: false,
@@ -4237,6 +4240,7 @@ mod tests {
         let stmt = Statement::Return {
             span: Span::new(0, 15),
             value: Some("$y".into()),
+            value_word: None,
             expr: None,
             command_binding: None,
             braced: true,
@@ -4672,6 +4676,7 @@ mod tests {
         }
         func.blocks.get_mut(&end).unwrap().terminator = Some(Terminator::Return {
             value: Some("$($a)".into()),
+            value_word: None,
             span: None,
             expr: None,
             braced: false,

@@ -1210,6 +1210,7 @@ mod tests {
         let entry = cfg.entry;
         cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
@@ -1283,6 +1284,7 @@ mod tests {
             });
         cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
@@ -1329,6 +1331,7 @@ mod tests {
             });
         cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
@@ -1352,6 +1355,7 @@ mod tests {
         let entry = cfg.entry;
         cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
@@ -1417,6 +1421,7 @@ mod tests {
         });
         cfg.blocks.get_mut(&end).unwrap().terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,

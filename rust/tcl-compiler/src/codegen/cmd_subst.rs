@@ -1336,15 +1336,20 @@ impl CodegenCtx<'_> {
             Some(InlineCodegenHookId::Array) => parts.len() == 3 && parts[1].0 == "exists",
             _ => false,
         };
-        let source_requires_generic =
-            source_is_local_introspection && matches!(source_local_name, NestedLocalName::Stack);
-        if source_requires_generic {
-            self.used_inline_cmd_subst = false;
-            self.emit_generic_cmd_subst(&parts[0].0, &parts[1..]);
-            return;
-        }
-        if source_is_local_introspection && let NestedLocalName::Direct(name) = source_local_name {
-            parts[2].0 = name;
+        if source_is_local_introspection {
+            match source_local_name {
+                NestedLocalName::Direct(name) => parts[2].0 = name,
+                // The specialised emitters place their final name value on
+                // the stack verbatim. Without an aligned source word that
+                // proves the value is already final, that would suppress a
+                // live `$` or command substitution (notably a Return value,
+                // whose compatibility path retains no CommandTokens).
+                NestedLocalName::Stack | NestedLocalName::Unavailable => {
+                    self.used_inline_cmd_subst = false;
+                    self.emit_generic_cmd_subst(&parts[0].0, &parts[1..]);
+                    return;
+                }
+            }
         }
         let cmd = &parts[0].0;
         let args = &parts[1..];

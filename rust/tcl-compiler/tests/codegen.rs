@@ -149,6 +149,7 @@ fn toplevel_cfg(statements: Vec<Statement>) -> CfgFunction {
     blk.statements = statements;
     blk.terminator = Some(Terminator::Return {
         value: None,
+        value_word: None,
         span: None,
         expr: None,
         braced: false,
@@ -683,6 +684,7 @@ fn literal_with_embedded_stx_appears_escaped_in_disassembly() {
         });
     cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Return {
         value: None,
+        value_word: None,
         span: None,
         expr: None,
         braced: false,

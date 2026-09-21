@@ -2301,6 +2301,7 @@ mod tests {
         f.blocks.get_mut(&a).unwrap().terminator = Some(goto(b));
         f.blocks.get_mut(&b).unwrap().terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
@@ -2322,6 +2323,7 @@ mod tests {
         f.blocks.get_mut(&e).unwrap().terminator = Some(goto(join));
         f.blocks.get_mut(&join).unwrap().terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
@@ -2610,6 +2612,7 @@ mod tests {
         let entry = f.entry;
         f.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
@@ -2637,12 +2640,14 @@ mod tests {
         f.blocks.get_mut(&entry).unwrap().terminator = Some(branch(literal("1"), t, e));
         f.blocks.get_mut(&t).unwrap().terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
         });
         f.blocks.get_mut(&e).unwrap().terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
@@ -2668,12 +2673,14 @@ mod tests {
         f.blocks.get_mut(&entry).unwrap().terminator = Some(branch(literal("0"), t, e));
         f.blocks.get_mut(&t).unwrap().terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
         });
         f.blocks.get_mut(&e).unwrap().terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
@@ -2701,12 +2708,14 @@ mod tests {
         f.blocks.get_mut(&entry).unwrap().terminator = Some(branch(cond, t, e));
         f.blocks.get_mut(&t).unwrap().terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
         });
         f.blocks.get_mut(&e).unwrap().terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
@@ -3777,12 +3786,14 @@ p
         let dead = block(&mut f, "dead");
         f.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
         });
         f.blocks.get_mut(&dead).unwrap().terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,

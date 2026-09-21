@@ -535,6 +535,7 @@ mod tests {
         let entry_id = cfg.entry;
         cfg.blocks.get_mut(&entry_id).unwrap().terminator = Some(crate::cfg::Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
@@ -624,6 +625,7 @@ mod tests {
         let entry_id = cfg.entry;
         cfg.blocks.get_mut(&entry_id).unwrap().terminator = Some(crate::cfg::Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,

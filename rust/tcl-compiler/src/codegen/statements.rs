@@ -1276,6 +1276,7 @@ mod tests {
         let stmt = Statement::Return {
             span: sp(),
             value: None,
+            value_word: None,
             expr: None,
             command_binding: None,
             braced: false,

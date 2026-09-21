@@ -44,7 +44,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use tcl_lexer::Span;
 
 use crate::expr_ast::ExprNode;
-use crate::ir::{CommandBindingSite, Statement};
+use crate::ir::{CommandBindingSite, Statement, WordExpr};
 
 // Block identity
 
@@ -97,6 +97,9 @@ pub enum Terminator {
     Return {
         /// Return value text, if any.
         value: Option<String>,
+        /// Canonical source word for the return value, when lowering retained
+        /// one for a simple return form.
+        value_word: Option<WordExpr>,
         /// Source span of the return statement.
         span: Option<Span>,
         /// Parsed return expression, if any.
@@ -567,6 +570,7 @@ mod tests {
     fn make_return(value: Option<&str>) -> Terminator {
         Terminator::Return {
             value: value.map(String::from),
+            value_word: None,
             span: None,
             expr: None,
             braced: false,

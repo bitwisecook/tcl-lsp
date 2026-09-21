@@ -1296,6 +1296,43 @@ fn info_consts_tracks_source_roles_across_inline_introspection() {
     }
 }
 
+/// Return values do not retain the enclosing command's source words.  Tcl
+/// therefore evaluates a qualified name such as `::$n` at runtime instead of
+/// treating its compatibility text as the finished name for `existStk`.
+#[test]
+fn return_info_exists_keeps_unproven_names_dynamic() {
+    // tclsh 9.0.4: every row returns 1. The first is the regression: `::$n`
+    // must substitute `n`; the remaining rows ensure literal brace and
+    // backslash values still survive the generic return path unchanged.
+    for (source, expected) in [
+        (
+            "proc p {} {set n x; set ::x 1; return [info exists ::$n]}; p",
+            "1",
+        ),
+        ("proc p {} {set ::x 1; return [info exists ::x]}; p", "1"),
+        (
+            "proc p {} {set {{zz}} V; return [info exists {{zz}}]}; p",
+            "1",
+        ),
+        (
+            r"proc p {} {set {p\x75b} V; return [info exists {p\x75b}]}; p",
+            "1",
+        ),
+    ] {
+        assert_eq!(run(source).1, expected, "source `{source}`");
+    }
+
+    // tclsh 9.0.4: the literal return name interns `pub` before the prior
+    // `info consts`, so the TclOO projection is already absent.
+    assert_eq!(
+        run(
+            "oo::class create C {variable pub; constructor {} {const pub 7}; method m {} {set ::observed [info consts]; return [info exists pub]}}; set o [C new]; list [$o m] $::observed",
+        )
+        .1,
+        "1 {}"
+    );
+}
+
 /// Assignment keeps its established whole-command dispatcher when a nested
 /// source snapshot is available. Tcl 9.0.4 returns `{{alpha beta} B 2 2 1 boom}`.
 #[test]
