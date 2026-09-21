@@ -200,6 +200,26 @@ redefinition.
   builtin — the same discipline the qualified-`foreach` fallback needs (see
   [compiled-scope-and-name-lowering.md](compiled-scope-and-name-lowering.md)).
 
+### Registry terminal facts and scalar analysis
+
+The binding lattice also projects the terminal registry invocation facts at a
+call site.  A resolved terminal whose registry traits include
+`EVALUATES_CODE`, `CREATES_BARRIER`, or `CREATES_DYNAMIC_BARRIER` is a scalar
+analysis boundary: SCCP must widen values after a direct call, and before a
+host statement whose command substitution reaches that terminal.  The CFG
+represents this boundary with a non-dispatching synthetic barrier, so codegen
+does not invoke the handler twice.  The projection follows terminal alias
+resolution and applies the same rule to direct and embedded invocations; it
+does not identify handlers by command spelling.
+
+The historical may-binding state can retain a registry fallback alongside a
+source-defined procedure while recording the procedure definition's before
+and after states.  The registry fact remains conservative in that case: an
+earlier call can still reach the fallback before the source definition takes
+effect, while a later call can reach the user procedure.  A time-sensitive
+binding proof would be required before a consumer could discard the registry
+barrier without making that distinction.
+
 ## Hazards to design in (not patch)
 
 * **Re-entrancy.** An alias / rename / import may be created mid-eval (inside a

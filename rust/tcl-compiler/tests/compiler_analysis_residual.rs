@@ -1483,6 +1483,81 @@ fn g_proves_v_is_three(cu: &CompilationUnit) -> bool {
     })
 }
 
+#[test]
+fn unresolved_handler_barrier_blocks_scalar_constant_branch() {
+    // Tcl 9.0.4: the default unresolved handler may load and invoke a command
+    // which changes caller-frame state. The SCCP consumer therefore cannot
+    // retain the pre-call constant for this branch, even though the runtime
+    // invocation itself remains generic.
+    let cu = CompilationUnit::build_for(
+        "proc p {} { set x 5; missing_command; if {$x == 5} { return stale } else { return changed } }",
+        &reg(),
+        false,
+    );
+    let fu = cu.function("::p").expect("procedure");
+    assert!(
+        fu.sccp.constant_branches.is_empty(),
+        "unresolved handler barrier must prevent stale scalar branch folding: {:?}",
+        fu.sccp.constant_branches,
+    );
+}
+
+#[test]
+fn embedded_handler_barrier_blocks_host_scalar_constant_branch() {
+    let cu = CompilationUnit::build_for(
+        "proc p {} { set x 5; set result [missing_command]; if {$x == 5} { return stale } else { return changed } }",
+        &reg(),
+        false,
+    );
+    let fu = cu.function("::p").expect("procedure");
+    assert!(
+        fu.sccp.constant_branches.is_empty(),
+        "an embedded unresolved handler must invalidate host-following scalar facts",
+    );
+}
+
+#[test]
+fn known_safe_registry_handler_preserves_scalar_constant_branch() {
+    let cu = CompilationUnit::build_for(
+        "proc p {} { set x 5; string length value; if {$x == 5} { return kept } else { return changed } }",
+        &reg(),
+        false,
+    );
+    let fu = cu.function("::p").expect("procedure");
+    assert!(
+        !fu.sccp.constant_branches.is_empty(),
+        "a known safe registry handler should retain scalar precision",
+    );
+}
+
+#[test]
+fn temporal_unknown_handler_keeps_auto_load_barrier() {
+    let cu = CompilationUnit::build_for(
+        "set auto_index(missing_command) { proc missing_command {} { upvar 1 x x; set x 6 } }; proc p {} { set x 5; missing_command; if {$x == 5} { return stale } else { return changed } }; set observed [p]; proc unknown {args} { return harmless }; puts $observed",
+        &reg(),
+        false,
+    );
+    let fu = cu.function("::p").expect("procedure");
+    assert!(
+        fu.sccp.constant_branches.is_empty(),
+        "an auto-loaded caller-mutating generation must keep the unresolved barrier",
+    );
+}
+
+#[test]
+fn alias_to_unresolved_handler_keeps_terminal_barrier_effect() {
+    let cu = CompilationUnit::build_for(
+        "interp alias {} forward {} unknown\nproc p {} { set x 5; forward missing_command; if {$x == 5} { return stale } else { return changed } }",
+        &reg(),
+        false,
+    );
+    let fu = cu.function("::p").expect("procedure");
+    assert!(
+        fu.sccp.constant_branches.is_empty(),
+        "an alias reaching the registry unknown handler must keep the scalar barrier",
+    );
+}
+
 /// The per-procedure lattice memo keys on the procedure body and the closed
 /// binding lattice, neither of which can see a `proc llength …` shadow
 /// declared elsewhere in the module — so a memoised unit is built as if every

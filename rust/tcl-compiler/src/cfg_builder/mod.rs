@@ -45,6 +45,14 @@ use crate::naming::normalise_var_name;
 use self::global_write_info::GlobalWriteInfo;
 use self::upvar_info::{FrameReach, UpvarInfo};
 
+/// Registry traits whose terminal invocation can execute code or otherwise
+/// invalidate scalar facts. The command binding lattice resolves aliases and
+/// unresolved-command handlers to terminal registry targets before this set is
+/// consulted, so this remains generic and does not name `unknown` directly.
+const REGISTRY_BARRIER_TRAITS: Traits = Traits::EVALUATES_CODE
+    .union(Traits::CREATES_BARRIER)
+    .union(Traits::CREATES_DYNAMIC_BARRIER);
+
 /// Choose the [`CommandTokens`] for a "frozen" `while`/`for` runtime call.
 ///
 /// The frozen-loop barrier hands the source words (the condition expression
@@ -459,6 +467,65 @@ impl<'a> CfgBuilder<'a> {
         combined
     }
 
+    /// Whether a direct call's closed binding reaches a registry operation
+    /// whose declared barrier/evaluation traits invalidate scalar facts.
+    ///
+    /// `resolve_statement` includes terminal alias targets and the registry's
+    /// unresolved-command fallback, so the projection applies equally to a
+    /// builtin, an alias, and a missing command handled by a registered
+    /// fallback. Known safe handlers have no matching traits and keep their
+    /// existing scalar precision.
+    fn direct_registry_barrier(&self, stmt: &Statement) -> bool {
+        let Statement::Call { command, .. } = stmt else {
+            return false;
+        };
+        let Some(namespace) = self.invocation_namespace.for_head(command) else {
+            return false;
+        };
+        let resolved = self
+            .command_bindings
+            .resolve_statement(stmt, self.registry, namespace);
+        resolved
+            .iter()
+            .any(|invocation| invocation.facts.traits.intersects(REGISTRY_BARRIER_TRAITS))
+    }
+
+    /// Whether any recovered command substitution reaches a registry operation
+    /// with a barrier/evaluation trait. Substitutions execute before their
+    /// host statement, so callers place the synthetic barrier before that
+    /// host in the CFG.
+    fn embedded_registry_barrier(&self, stmt: &Statement) -> bool {
+        let embedded = crate::ir_helpers::evaluated_command_substitutions(stmt, self.registry);
+        embedded.commands.iter().any(|words| {
+            let Some(head) = words
+                .first()
+                .and_then(crate::ir_helpers::CommandWord::literal)
+            else {
+                return false;
+            };
+            let Some(namespace) = self.invocation_namespace.for_head(head) else {
+                return false;
+            };
+            self.command_bindings
+                .resolve_command_words(words, self.registry, namespace)
+                .iter()
+                .any(|facts| facts.traits.intersects(REGISTRY_BARRIER_TRAITS))
+        })
+    }
+
+    fn registry_barrier_statement(stmt: &Statement, reason: &str) -> Statement {
+        Statement::Barrier {
+            span: stmt.span(),
+            reason: reason.to_owned(),
+            command: "<registry-barrier>".to_owned(),
+            canonical_command: None,
+            args: Vec::new(),
+            tokens: Some(crate::ir::CommandTokens::marker(
+                crate::ir::SyntheticMarker::RegistryBarrier,
+            )),
+        }
+    }
+
     /// Fold one binding-resolved terminal user procedure into a caller-frame
     /// effect set. Both direct statements and parsed embedded commands enter
     /// here, so their parameter projection and barrier semantics cannot drift.
@@ -624,8 +691,13 @@ impl<'a> CfgBuilder<'a> {
         // 3. Embedded-substitution extras: walk text for
         //    `[upvar_proc arg]` / `[global_write_proc arg]` substitutions.
         let (embedded_extras, embedded_opaque_global) = self.embedded_subst_extras(&stmt);
+        let embedded_registry_barrier = self.embedded_registry_barrier(&stmt);
 
-        if direct_extras.is_empty() && embedded_extras.is_empty() && !embedded_opaque_global {
+        if direct_extras.is_empty()
+            && embedded_extras.is_empty()
+            && !embedded_opaque_global
+            && !embedded_registry_barrier
+        {
             return match direct_opaque_barrier {
                 Some(barrier) => vec![stmt, barrier],
                 None => vec![stmt],
@@ -639,16 +711,25 @@ impl<'a> CfgBuilder<'a> {
         //     program-order position the synthetic `<upvar-invalidate>`
         //     uses, so the host statement's own reads already see the
         //     widened state.
-        let opaque_barrier = embedded_opaque_global.then(|| Statement::Barrier {
-            span: stmt.span(),
-            reason: "embedded call runs an unreadable script at the global frame".to_owned(),
-            command: "<global-frame-script>".to_owned(),
-            canonical_command: None,
-            args: Vec::new(),
-            tokens: Some(crate::ir::CommandTokens::marker(
-                crate::ir::SyntheticMarker::GlobalFrameScript,
-            )),
-        });
+        let opaque_barrier = if embedded_opaque_global {
+            Some(Statement::Barrier {
+                span: stmt.span(),
+                reason: "embedded call runs an unreadable script at the global frame".to_owned(),
+                command: "<global-frame-script>".to_owned(),
+                canonical_command: None,
+                args: Vec::new(),
+                tokens: Some(crate::ir::CommandTokens::marker(
+                    crate::ir::SyntheticMarker::GlobalFrameScript,
+                )),
+            })
+        } else if embedded_registry_barrier {
+            Some(Self::registry_barrier_statement(
+                &stmt,
+                "embedded call reaches a registry-declared evaluation barrier",
+            ))
+        } else {
+            None
+        };
 
         // 3. Merge into the host statement when it's a Call.
         if let Statement::Call { defs, .. } = &mut stmt {
@@ -738,16 +819,32 @@ impl<'a> CfgBuilder<'a> {
             .is_some_and(|info| literal_head && info.opaque_global_frame);
         let source_opaque_upvar = direct_upvar.opaque_arguments;
         let opaque_variable_write = self.variable_write_projection(stmt).opaque_variable_frame;
-        if !unresolvable_upvar && !source_opaque_upvar && !opaque_global && !opaque_variable_write {
+        let registry_barrier = self.direct_registry_barrier(stmt);
+        if !unresolvable_upvar
+            && !source_opaque_upvar
+            && !opaque_global
+            && !opaque_variable_write
+            && !registry_barrier
+        {
             return None;
         }
         let reason = if unresolvable_upvar || source_opaque_upvar {
             format!("{command} upvar-aliases a dynamic caller variable")
         } else if opaque_global {
             format!("{command} runs an unreadable script at the global frame")
+        } else if registry_barrier {
+            format!("{command} reaches a registry-declared evaluation barrier")
         } else {
             format!("{command} writes a source-opaque variable name")
         };
+        if registry_barrier
+            && !unresolvable_upvar
+            && !source_opaque_upvar
+            && !opaque_global
+            && !opaque_variable_write
+        {
+            return Some(Self::registry_barrier_statement(stmt, &reason));
+        }
         Some(Statement::Barrier {
             span: *span,
             // A widening *effect*, not a command to run: the call itself is
@@ -1385,17 +1482,26 @@ impl<'a> CfgBuilder<'a> {
         self.record_caller_frame_barrier(stmt);
         self.record_alias_observed(stmt);
         let (extras, opaque) = self.embedded_subst_extras(stmt);
-        if opaque {
-            self.block_mut(current).statements.push(Statement::Barrier {
-                span: stmt.span(),
-                reason: opaque_reason.to_owned(),
-                command: "<global-frame-script>".to_owned(),
-                canonical_command: None,
-                args: Vec::new(),
-                tokens: Some(crate::ir::CommandTokens::marker(
-                    crate::ir::SyntheticMarker::GlobalFrameScript,
-                )),
-            });
+        let registry_barrier = !opaque && self.embedded_registry_barrier(stmt);
+        if opaque || registry_barrier {
+            let barrier = if registry_barrier {
+                Self::registry_barrier_statement(
+                    stmt,
+                    "embedded call reaches a registry-declared evaluation barrier",
+                )
+            } else {
+                Statement::Barrier {
+                    span: stmt.span(),
+                    reason: opaque_reason.to_owned(),
+                    command: "<global-frame-script>".to_owned(),
+                    canonical_command: None,
+                    args: Vec::new(),
+                    tokens: Some(crate::ir::CommandTokens::marker(
+                        crate::ir::SyntheticMarker::GlobalFrameScript,
+                    )),
+                }
+            };
+            self.block_mut(current).statements.push(barrier);
         }
         if !extras.is_empty() {
             self.block_mut(current).statements.push(Statement::Call {

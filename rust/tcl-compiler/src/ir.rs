@@ -402,6 +402,11 @@ pub enum SyntheticMarker {
     /// site widens. It sits *beside* the call it widens for, which is why
     /// naming the callee on it would make codegen run the callee twice.
     CallerFrameOpaque,
+    /// A registry-resolved invocation declares a dynamic evaluation or
+    /// analysis barrier. The marker sits beside the real call (or before a
+    /// host statement for an embedded substitution), so it widens scalar
+    /// facts without dispatching the command a second time.
+    RegistryBarrier,
 }
 
 /// Original parsed tokens for a command invocation.
