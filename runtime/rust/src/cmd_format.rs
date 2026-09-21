@@ -150,6 +150,25 @@ mod tests {
     #[test]
     fn format_bignums_issue_2162() {
         leak_free(|i| {
+            // Fixed-width conversions first fold arbitrary magnitudes modulo
+            // 2^64, then apply their selected width. These are the runtime
+            // adapter's direct libtommath coverage for #2204.
+            assert_eq!(
+                ok(i, b"format %I64u 18446744073709551615"),
+                b"18446744073709551615"
+            );
+            assert_eq!(ok(i, b"format %I64d 18446744073709551615"), b"-1");
+            assert_eq!(ok(i, b"format %I64d 18446744073709551616"), b"0");
+            assert_eq!(
+                ok(i, b"format %I64d 340282366920938463463374607431768211457"),
+                b"1"
+            );
+            assert_eq!(ok(i, b"format %I64d -18446744073709551617"), b"-1");
+            assert_eq!(
+                ok(i, b"format %I64u -18446744073709551617"),
+                b"18446744073709551615"
+            );
+
             assert_eq!(
                 ok(i, b"format %lld 18446744073709551616"),
                 b"18446744073709551616"

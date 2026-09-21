@@ -46,8 +46,13 @@ Arbitrary-precision `format` conversions use
 and unsigned lowercase digits without a radix prefix, under the selected
 release's numeral grammar. The VM uses its bignum value model and the native
 runtime uses libtommath; neither narrows this path through `i64`. Fixed-width
-adapters retain a wide-integer default. The shared formatter owns modifier
-selection, prefixes, case, precision, padding, and the structured
+format conversions on Tcl 8.5+/9 also use that magnitude seam: fixed-width
+`d`/`i`/`u`/`x`/`X`/`o`/`b`/`p` operands are reduced modulo 2^64 before the
+selected `short`/`int`/`wide` width is applied. Tcl 8.4 and Jim retain their
+legacy wide-integer coercion and overflow behavior. This truncation is local to
+the formatter; dynamic width and precision arguments, `%c`, and unbounded
+`ll`/`L` conversions retain their existing paths. The shared formatter owns
+modifier selection, prefixes, case, precision, padding, and the structured
 `TCL FORMAT BADUNSIGNED` error for negative unsigned bignum conversions.
 
 Notes:
