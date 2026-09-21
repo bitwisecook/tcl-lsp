@@ -9839,8 +9839,14 @@ impl Vm {
         local: &str,
         level: usize,
         target: &str,
+        compiled_slot: bool,
     ) -> Result<(), UpvarLinkError> {
-        self.add_link_with_origin(local, level, target, FrameLinkOrigin::TclOoInstance)
+        let origin = if compiled_slot {
+            FrameLinkOrigin::TclOoInstanceCompiled
+        } else {
+            FrameLinkOrigin::TclOoInstance
+        };
+        self.add_link_with_origin(local, level, target, origin)
     }
 
     fn add_link_with_origin(
@@ -9850,7 +9856,10 @@ impl Vm {
         target: &str,
         origin: FrameLinkOrigin,
     ) -> Result<(), UpvarLinkError> {
-        let target = if origin == FrameLinkOrigin::TclOoInstance {
+        let target = if matches!(
+            origin,
+            FrameLinkOrigin::TclOoInstance | FrameLinkOrigin::TclOoInstanceCompiled
+        ) {
             self.ensure_tcloo_storage_var_from(target, level)
         } else {
             self.ensure_target_var_from(target, level)
