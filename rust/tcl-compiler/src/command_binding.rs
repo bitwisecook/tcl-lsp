@@ -3621,10 +3621,40 @@ impl ModuleCommandMutations {
     /// semantics.
     #[must_use]
     pub fn trusts(&self, command_name: &str) -> bool {
-        if self.dynamic || self.import_shadowed(command_name) {
-            return false;
-        }
-        !self.names.contains(&nqn(command_name))
+        !self.dynamic && self.observed_binding_is_the_builtin(command_name)
+    }
+
+    /// The **named-subject** half of [`Self::trusts`]: whether the module's
+    /// own observed bindings leave `command_name` denoting its registry
+    /// builtin — no shadowing `proc`, no `rename` or alias onto it, no
+    /// import into a namespace this scan could not enumerate.
+    ///
+    /// Deliberately omits [`Self::dynamic`], the unbounded top, which names
+    /// no subject at all and is raised by something as ordinary as one
+    /// command head the registry cannot resolve. Every fold that *becomes a
+    /// source rewrite* still asks the full [`Self::trusts`]; this narrower
+    /// question is what the shared per-unit value lattice asks
+    /// ([`crate::sccp::FoldTrust::ObservedBindings`]), so a call the module
+    /// itself resolves to a user `proc` can never be evaluated with builtin
+    /// semantics there (#2164) — without withdrawing constant folding from
+    /// every file that mentions a command the registry does not know.
+    #[must_use]
+    pub fn observed_binding_is_the_builtin(&self, command_name: &str) -> bool {
+        !self.import_shadowed(command_name) && !self.names.contains(&nqn(command_name))
+    }
+
+    /// Whether this summary reports no command-table mutation that could
+    /// change what a *builtin* name denotes — [`Self::trusts`] then answers
+    /// `true` for every name, exactly as [`Self::default`] does.
+    ///
+    /// The per-procedure lattice memo keys on the procedure's own body plus
+    /// the closed binding lattice, and can carry neither this whole-module
+    /// scan nor the namespace-local shadows only it sees. A module this
+    /// answers `true` for agrees with a memoised unit by construction; one it
+    /// answers `false` for must be rebuilt with the fact in hand.
+    #[must_use]
+    pub fn agrees_with_untouched_bindings(&self) -> bool {
+        !self.dynamic && self.names.is_empty() && self.opaque_namespaces.is_empty()
     }
 
     /// Whether any body runs in a namespace chosen at run time while naming a

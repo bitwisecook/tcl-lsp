@@ -28,6 +28,13 @@
 //! provide, so cases that depend on that scaffolding — rather than on the
 //! regex engine — are filtered by `skip_reason` (each with a documented
 //! cause). Everything else must match `tclsh`.
+//!
+//! The `regsub-empty-2147.*` rows are ours, not `regexp.test`'s: upstream has
+//! no case separating the **literal empty pattern** from an RE that merely
+//! *can* match empty, which is exactly the pair #2147 got wrong. They are
+//! written in the same TSV shape (name / constraints / returnCodes / result
+//! codepoints / body codepoints) and their `-result` was measured on tclsh
+//! 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1b0, all five agreeing.
 
 use std::cell::RefCell;
 use std::io::Write;
