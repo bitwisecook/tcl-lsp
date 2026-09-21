@@ -1226,6 +1226,89 @@ fn info_consts_includes_only_tcloo_instance_links() {
     );
 }
 
+/// A `TclOO` instance projection is enumerated by `info consts` only while
+/// the method body has compiled **no** local slot for the name (#2173).
+///
+/// Referencing the variable interns it in the method's LVT and C then stops
+/// listing it, while a *dynamic* read compiles no slot and leaves it listed.
+/// The link itself is unaffected either way — `$pub` still reads 7 and
+/// `info constant pub` still answers 1 in the very frames that stop listing
+/// it, which is what makes this an enumeration rule rather than a scoping
+/// one.
+#[test]
+fn info_consts_drops_a_projection_the_body_compiled_a_slot_for() {
+    const CLASS: &str =
+        "oo::class create C { variable pub; constructor {} {const pub 7}; method m {} ";
+    // tclsh 9.0.4 / 9.1b0, one row per body shape.
+    for (body, expect) in [
+        // Never mentions it: listed. This is the half that must not regress —
+        // it is what upstream var-29.3/29.6 rely on via their `checkList`.
+        ("{list [info consts]}", "pub"),
+        // Reads it: a compiled slot, so not listed.
+        ("{list $pub [info consts]}", "7 {}"),
+        ("{set q $pub; list [info consts]}", "{}"),
+        // Dynamic read: no slot interned, so still listed.
+        ("{set n pub; list [set $n] [info consts]}", "7 pub"),
+        // Naming it in a comment is not a reference.
+        ("{# pub\nlist [info consts]}", "pub"),
+        // The projection still works where it is no longer enumerated.
+        ("{list $pub [info constant pub]}", "7 1"),
+    ] {
+        assert_eq!(
+            run(&format!("{CLASS}{body} }}; [C new] m")).1,
+            expect,
+            "body `{body}`",
+        );
+    }
+}
+
+/// A compiler temporary in the LVT is not a reference to a source variable of
+/// the same name.
+///
+/// `dict for` interns `#dictfor_spare0` for its own bookkeeping, and `catch`
+/// interns `#temp0`. A `#` prefix is legal in a Tcl variable name, so a class
+/// may declare one that collides — and C, whose corresponding slots are
+/// unnamed temporaries, still lists the projection. Comparing against every
+/// LVT entry by name would drop it.
+#[test]
+fn info_consts_ignores_compiler_temporaries_in_the_slot_test() {
+    // tclsh 9.0.4 / 9.1b0: `{{#dictfor_spare0}}` and `{{#temp0}}` — the method
+    // never mentions either name.
+    assert_eq!(
+        run(concat!(
+            "oo::class create C { variable #dictfor_spare0; ",
+            "constructor {} {const #dictfor_spare0 7}; ",
+            "method m {} {dict for {k v} {} {}; list [info consts]} }; ",
+            "[C new] m"
+        ))
+        .1,
+        "{{#dictfor_spare0}}",
+    );
+    assert_eq!(
+        run(concat!(
+            "oo::class create C { variable #temp0; ",
+            "constructor {} {const #temp0 7}; ",
+            "method m {} {catch {error x} e; list [info consts]} }; ",
+            "[C new] m"
+        ))
+        .1,
+        "{{#temp0}}",
+    );
+    // Positive control: a body that really does reference its declared
+    // variable still drops it, so the two assertions above cannot pass
+    // because the slot test stopped working altogether.
+    // tclsh 9.0.4 / 9.1b0: `7 {}`
+    assert_eq!(
+        run(concat!(
+            "oo::class create C { variable pub; constructor {} {const pub 7}; ",
+            "method m {} {dict for {k v} {} {}; list $pub [info consts]} }; ",
+            "[C new] m"
+        ))
+        .1,
+        "7 {}",
+    );
+}
+
 /// `info cmdtype commandName` — Tcl 9.0 (8.6 lacks it). `proc` for a user proc,
 /// `native` for a builtin, and "unknown command" for a missing name. The VM
 /// matches tclsh9.0.

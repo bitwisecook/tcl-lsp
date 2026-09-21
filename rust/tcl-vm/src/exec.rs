@@ -5784,7 +5784,11 @@ impl Vm {
             return c;
         }
         for (local, storage) in link_vars {
-            if let Err(error) = self.add_tcloo_instance_link(local, 0, storage) {
+            // Whether this body compiled a local slot for the name decides only
+            // how `info consts` enumerates the projection (#2173); the link
+            // itself is the same either way.
+            let compiled_slot = proc.body.asm.lvt.is_source_local(local);
+            if let Err(error) = self.add_tcloo_instance_link(local, 0, storage, compiled_slot) {
                 self.pop_call_frame();
                 self.pop_ns();
                 return crate::command::upvar_link_error(error, storage, local);

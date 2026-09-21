@@ -84,8 +84,18 @@ pub enum FrameLinkOrigin {
     /// An ordinary Tcl variable alias.
     #[default]
     Ordinary,
-    /// An automatic `TclOO` method-frame instance-variable projection.
+    /// An automatic `TclOO` method-frame instance-variable projection, in a
+    /// method whose compiled body has **no** local slot for the name.
     TclOoInstance,
+    /// The same projection, in a method whose body *did* compile a local slot
+    /// for the name — because it references it (`$pub`, `info exists pub`).
+    ///
+    /// The link behaves identically; the distinction exists only for
+    /// enumeration. C lists a projection the body never mentions and stops
+    /// listing one it reads, so `info consts` reports [`Self::TclOoInstance`]
+    /// and not this (#2173). A *dynamic* read (`set $n`) compiles no slot and
+    /// therefore stays the plain variant.
+    TclOoInstanceCompiled,
 }
 
 /// One array name located for the duration of an `array` ensemble operation.
