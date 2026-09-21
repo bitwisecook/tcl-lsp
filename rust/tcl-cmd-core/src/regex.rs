@@ -759,10 +759,28 @@ pub fn regsub_eval<E: RegexEngine, Err>(
     // counts 4. C's remaining term, "the pattern holds none of
     // `*+?{}()[].\|^$`", is implied by the pattern being empty. Measured
     // identical on tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1b0.
+    // …and only where one replacement per scalar is the release's own answer.
+    // The substitution count tracks `string length`, so it follows the
+    // release's `StringCharacterModel`, not the Unicode-scalar count: for
+    // U+1D11E, `regsub -all {} $s X` counts 4 on tclsh 8.4.20/8.5.19 (the
+    // scalar is never assembled, so each UTF-8 byte is a position), 2 on
+    // 8.6.18 (UTF-16 code units) and 1 on 9.0.4/9.1b0 (scalars).
+    //
+    // The emit below walks scalars, so it can only be right where the model
+    // counts scalars too — always under 9.x, and under 8.x exactly when the
+    // subject holds no supplementary scalar. Where it would not be, this
+    // declines the fast path rather than assert one release's count under
+    // another. The general loop's answer is also wrong there, differently;
+    // correcting it needs the model's *units* threaded through the emit, not
+    // just its count (#2170).
+    let scalars_are_the_models_units = std::str::from_utf8(str_bytes)
+        .is_ok_and(|text| version.string_character_model().count(text) == char_len);
+
     if c.all
         && offset == 0
         && !command
         && pattern.is_empty()
+        && scalars_are_the_models_units
         && !subspec.iter().any(|&b| b == b'&' || b == b'\\')
     {
         // Saturating: on a 32-bit target (the WASM runtime) a long subject
