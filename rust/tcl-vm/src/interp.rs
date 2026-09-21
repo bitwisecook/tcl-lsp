@@ -43,9 +43,9 @@ use tcl_runtime_api::guard::{
 };
 use tcl_runtime_api::{
     ArrayElementRead, ArrayInvalidation, ArrayReadFailure, ArrayReadMiss, ArrayTarget, Code,
-    CommandId, Commands, CompileService, Completion, FrameId, FrameLinkOrigin, Frames, Introspect,
-    Namespaces, NsId, ProcInfo, ProcParam, ProcedureCompileTarget, ProcedureDispatch, Procs,
-    ROOT_NS, ScriptCompileTarget, Traces, VarId, VarStore, VarUnsetError,
+    CommandId, Commands, CompileService, Completion, FatalTail, FrameId, FrameLinkOrigin, Frames,
+    Introspect, Namespaces, NsId, ProcInfo, ProcParam, ProcedureCompileTarget, ProcedureDispatch,
+    Procs, ROOT_NS, ScriptCompileTarget, Traces, VarId, VarStore, VarUnsetError,
 };
 use tcl_syntax::expr::{eval, parse_expr};
 
@@ -1309,7 +1309,7 @@ pub struct InterpState {
 /// tail; `fatal_tail` is raised only if that prefix finishes normally.
 pub(crate) struct PreparedScript {
     pub(crate) prefix: Option<CompiledUnit>,
-    pub(crate) fatal_tail: Option<String>,
+    pub(crate) fatal_tail: Option<FatalTail>,
 }
 
 /// Exact identity of one compiler-emitted procedure definition.
@@ -11661,6 +11661,26 @@ impl Vm {
     /// Seed the `errorInfo` trace with an explicit value and mark it logged —
     /// C's `error msg info` / `return -errorinfo`, which set the trace directly
     /// and suppress the command's own `while executing` frame.
+    /// Raise a [`ScriptCommandPlan`]'s malformed tail, logging the frame C
+    /// names the offending command in.
+    ///
+    /// C compiles a parse failure into a runtime error through
+    /// `Tcl_LogCommandInfo`, so the `while executing` / `"<command>"` pair is
+    /// part of `-errorinfo` exactly as it is for an ordinary runtime error in
+    /// the same position (#2172). Logging goes through the same helper an
+    /// ordinary command error uses, which owns the 150-byte truncation.
+    ///
+    /// A tail with no recorded command text falls back to seeding the bare
+    /// message: an empty pair of quotes would be a visible wrong answer.
+    pub(crate) fn raise_fatal_tail(&mut self, tail: FatalTail) -> Completion<Value> {
+        if tail.command_text.is_empty() {
+            self.seed_error_info(tail.message.clone());
+        } else {
+            self.log_command_info_only(&tail.command_text, &tail.message, tail.line);
+        }
+        err(tail.message)
+    }
+
     pub(crate) fn seed_error_info(&mut self, info: String) {
         self.error_info = Some(info);
         self.error_logged = true;
@@ -12033,9 +12053,13 @@ impl Vm {
         // leading whitespace and comments, so ` \n set x "` has a nonzero
         // prefix that runs nothing at all.
         if prefix_commands == 0
-            && let Some(message) = fatal_tail
+            && let Some(tail) = fatal_tail
         {
-            return Err(TclError::new(message));
+            // Nothing ran, but C still names the command that failed to parse.
+            if !tail.command_text.is_empty() {
+                self.log_command_info_only(&tail.command_text, &tail.message, tail.line);
+            }
+            return Err(TclError::new(tail.message));
         }
         let module = self.compile_cached(prefix)?;
         let mut comp = self.run_current_module(&module);
@@ -12043,9 +12067,9 @@ impl Vm {
         // error (or any non-`ok` completion) in an earlier command is what C
         // reports, the malformed tail never being parsed at all.
         if comp.code == Code::Ok
-            && let Some(message) = fatal_tail
+            && let Some(tail) = fatal_tail
         {
-            comp = err(message);
+            comp = self.raise_fatal_tail(tail);
         }
         // Crossing back out of a nested script is a frame boundary: clear
         // `ERR_ALREADY_LOGGED` so the enclosing command (the `eval`/`[subst]`/
@@ -12065,7 +12089,10 @@ impl Vm {
     /// Falls back to the whole source when no [`CompileService`] is attached or
     /// the service hands back a boundary that is not a character boundary — the
     /// caller then compiles `src` exactly as it did before.
-    fn script_prefix_and_fatal_tail<'s>(&self, src: &'s str) -> (&'s str, Option<String>, usize) {
+    fn script_prefix_and_fatal_tail<'s>(
+        &self,
+        src: &'s str,
+    ) -> (&'s str, Option<FatalTail>, usize) {
         let Some(compiler) = self.compiler.as_ref() else {
             return (src, None, usize::from(!src.is_empty()));
         };
@@ -12075,7 +12102,7 @@ impl Vm {
         }
         (
             &src[..plan.complete_prefix_len],
-            plan.fatal_tail.map(|error| error.0),
+            plan.fatal_tail,
             plan.complete_prefix_commands,
         )
     }
@@ -12134,7 +12161,7 @@ impl Vm {
         };
         Ok(PreparedScript {
             prefix,
-            fatal_tail: plan.fatal_tail.map(|error| error.0),
+            fatal_tail: plan.fatal_tail,
         })
     }
 }

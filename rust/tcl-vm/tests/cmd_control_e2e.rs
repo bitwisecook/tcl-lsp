@@ -1876,3 +1876,75 @@ fn deeply_nested_command_substitution_is_unaffected() {
     }
     assert_eq!(run(&format!("set x {src}\n")).1, "1");
 }
+
+/// A deferred parse error names the command that failed to parse, the way an
+/// ordinary runtime error in the same position does.
+///
+/// C compiles the failure through `Tcl_LogCommandInfo`, so `-errorinfo`
+/// carries a `while executing` / `"<command>"` pair. `tclvm` raised the bare
+/// message (#2172).
+#[test]
+fn a_deferred_parse_error_names_the_malformed_command() {
+    // tclsh 8.6.18 / 9.0.4, identical.
+    assert_eq!(
+        run("set c catch; $c {set a 1; set x \"} m o; dict get $o -errorinfo").1,
+        "missing \"\n    while executing\n\"set x \"\"",
+    );
+}
+
+/// The quoted text stops at the character that opened the unterminated
+/// construct, not at the end of the source.
+///
+/// C slices `source[commandStart ..= parsePtr->term]`, and for an unterminated
+/// quote `ParseQuotedString` sets `term` to the opening `"` itself — so the
+/// `abc\ndef` after it is not quoted. Reading the whole remainder instead (the
+/// obvious implementation, and what #2172 first proposed) is wrong for every
+/// row here but the first.
+#[test]
+fn the_named_command_stops_at_the_unterminated_delimiter() {
+    // All five verified against tclsh 8.6.18 and 9.0.4, which agree.
+    //
+    // The body is passed braced where it is brace-balanced and quoted where it
+    // is not — an unbalanced `{` cannot survive a braced wrapper, which is the
+    // same reason C never sees that command as a word either.
+    let cases = [
+        // Construct opens last and nothing follows: whole remainder is right.
+        (
+            "set c catch; $c {set a 1; set x \"} m o; dict get $o -errorinfo",
+            "missing \"",
+            "set x \"",
+        ),
+        // Text after the opening quote is *not* quoted.
+        (
+            "set c catch; $c \"set a 1\\nset x \\\"abc\\ndef\" m o; dict get $o -errorinfo",
+            "missing \"",
+            "set x \"",
+        ),
+        // Same for a bracket, whose body would otherwise be included.
+        (
+            "set c catch; $c {set a 1; set x [foo bar} m o; dict get $o -errorinfo",
+            "missing close-bracket",
+            "set x [",
+        ),
+        // And a brace.
+        (
+            "set c catch; $c \"set a 1\\nset x {abc def\" m o; dict get $o -errorinfo",
+            "missing close-brace",
+            "set x {",
+        ),
+        // An earlier *complete* quoted word survives verbatim: the cut is at
+        // the delimiter that failed, not the first one seen.
+        (
+            "set c catch; $c {set a 1; set x \"a\" y \"} m o; dict get $o -errorinfo",
+            "missing \"",
+            "set x \"a\" y \"",
+        ),
+    ];
+    for (script, message, named) in cases {
+        assert_eq!(
+            run(script).1,
+            format!("{message}\n    while executing\n\"{named}\""),
+            "script: {script:?}",
+        );
+    }
+}

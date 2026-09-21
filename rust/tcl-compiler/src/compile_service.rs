@@ -40,8 +40,8 @@ use tcl_dialect::DialectProfile;
 use tcl_lexer::LexerConfig;
 use tcl_registry::CommandRegistry;
 use tcl_runtime_api::{
-    CompileError, CompileService, ProcedureCompileTarget, ProcedureDispatch, ScriptCommandPlan,
-    ScriptCompileTarget,
+    CompileError, CompileService, FatalTail, ProcedureCompileTarget, ProcedureDispatch,
+    ScriptCommandPlan, ScriptCompileTarget,
 };
 
 enum RegistryTarget {
@@ -316,14 +316,14 @@ impl CompileService for BytecodeCompileService {
             LexerConfig::from_grammar(profile.grammar),
         );
         match segmented.fatal_tail {
-            Some((start, message)) => ScriptCommandPlan {
+            Some((start, message, delimiter_offset)) => ScriptCommandPlan {
                 complete_prefix_len: start,
                 // `command_at_time_script_with_config` truncates the command
                 // list at the cut, so this is exactly the prefix's command
                 // count — zero when the *first* command is the malformed one,
                 // however much leading whitespace or comment `start` spans.
                 complete_prefix_commands: segmented.commands.len(),
-                fatal_tail: Some(CompileError(message)),
+                fatal_tail: Some(fatal_tail_frame(source, start, message, delimiter_offset)),
             },
             None => ScriptCommandPlan::complete(source.len()),
         }
@@ -343,6 +343,61 @@ impl CompileService for BytecodeCompileService {
             LexerConfig::from_grammar(profile.grammar),
             profile,
         )
+    }
+}
+
+/// Build the malformed tail's error with the context C's `while executing`
+/// frame quotes.
+///
+/// C reports a parse failure through
+/// `Tcl_LogCommandInfo(interp, script, parsePtr->commandStart,
+/// parsePtr->term + 1 - parsePtr->commandStart)`, so the quoted text runs from
+/// the command's first byte **through the character that opened the
+/// unterminated construct**, inclusive — not to the end of the source. The two
+/// differ whenever anything follows that character:
+///
+/// | source | C quotes |
+/// |---|---|
+/// | `set x "` | `set x "` |
+/// | `set x "abc\ndef` | `set x "` |
+/// | `set x [foo bar` | `set x [` |
+///
+/// Without a recorded delimiter offset the command runs to the end of the
+/// source, which is right for the first row and the only answer available for
+/// a cut that is not an unterminated construct.
+fn fatal_tail_frame(
+    source: &str,
+    start: usize,
+    message: String,
+    delimiter_offset: Option<u32>,
+) -> FatalTail {
+    let end = delimiter_offset
+        .map(|offset| offset as usize)
+        .filter(|offset| *offset >= start)
+        // Through the delimiter, not up to it; a multi-byte character there
+        // would otherwise be cut mid-sequence.
+        .map_or(source.len(), |offset| {
+            let mut end = (offset + 1).min(source.len());
+            while end < source.len() && !source.is_char_boundary(end) {
+                end += 1;
+            }
+            end
+        });
+    let command_text = source.get(start..end).unwrap_or_default().to_owned();
+    let line = u32::try_from(
+        source
+            .get(..start)
+            .unwrap_or_default()
+            .bytes()
+            .filter(|b| *b == b'\n')
+            .count()
+            + 1,
+    )
+    .unwrap_or(u32::MAX);
+    FatalTail {
+        message,
+        command_text,
+        line,
     }
 }
 
@@ -853,7 +908,9 @@ mod tests {
         let old = service.script_command_plan_for_profile(source, tcl84);
         assert_eq!(&source[..old.complete_prefix_len], "set side 1; ");
         assert_eq!(
-            old.fatal_tail.expect("8.4 rejects expansion syntax").0,
+            old.fatal_tail
+                .expect("8.4 rejects expansion syntax")
+                .message,
             "extra characters after close-brace"
         );
 

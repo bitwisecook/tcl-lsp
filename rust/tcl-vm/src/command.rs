@@ -384,7 +384,9 @@ fn cmd_eval(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 ok(Value::empty())
             }
             // Nothing in the body parses, so raising is all this `eval` does.
-            None => prepared.fatal_tail.map_or_else(|| ok(Value::empty()), err),
+            None => prepared
+                .fatal_tail
+                .map_or_else(|| ok(Value::empty()), |tail| vm.raise_fatal_tail(tail)),
         },
         Err(e) => err(e.message),
     }
@@ -2006,10 +2008,9 @@ fn cmd_catch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             ok(Value::empty())
         }
         Ok(prepared) => {
-            let comp = prepared.fatal_tail.map_or_else(
-                || ok(Value::empty()),
-                |message| Completion::new(Code::Error, Value::string(message), Value::empty()),
-            );
+            let comp = prepared
+                .fatal_tail
+                .map_or_else(|| ok(Value::empty()), |tail| vm.raise_fatal_tail(tail));
             vm.finish_catch(comp, resvar, optvar)
         }
         // A body that fails to *parse* is itself a catchable error: run the
