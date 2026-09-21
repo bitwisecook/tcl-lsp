@@ -91,6 +91,10 @@ entry point, or gate moves without this contract being updated.
   records the interpreter's reported value as provenance. An explicitly
   paired source-tree interpreter may name another patchlevel on the same
   release line, but its binary and `generic/tcl.h` must agree exactly.
+- `ParsedVersion::parse` owns package-version grammar: runtime commands use
+  `validate_version` and `validate_requirement` for checked Tcl errors, while
+  `compare_versions` remains a total, lenient ordering helper for static data
+  and must not validate command input.
 - The check-tcl-reference-toolchains Make target runs the hermetic
   stale-interpreter regression (including `/bin/sh` adapter execution) and the
   Rust all-axis release-fact test.

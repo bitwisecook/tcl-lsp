@@ -135,39 +135,11 @@ fn cmd_package(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         }
     };
     match sub {
-        "provide" => match rest {
-            [name] => ok(vm
-                .package_version(&name.to_str())
-                .map_or_else(Value::empty, Value::string)),
-            [name, version] => {
-                vm.provide_package(&name.to_str(), &version.to_str());
-                ok(Value::empty())
-            }
-            _ => err("wrong # args: should be \"package provide package ?version?\""),
-        },
+        "provide" => pkg_provide(vm, rest),
         "require" => pkg_require(vm, rest, true),
         "present" => pkg_require(vm, rest, false),
-        "vsatisfies" => match rest {
-            [version, reqs @ ..] if !reqs.is_empty() => {
-                let v = version.to_str();
-                let satisfied = reqs.iter().any(|r| vsatisfies(&v, &r.to_str()));
-                ok(Value::bool(satisfied))
-            }
-            _ => err(
-                "wrong # args: should be \"package vsatisfies version requirement ?requirement ...?\"",
-            ),
-        },
-        "vcompare" => match rest {
-            [v1, v2] => {
-                let order = cmp_version(&v1.to_str(), &v2.to_str());
-                ok(Value::int(match order {
-                    Ordering::Less => -1,
-                    Ordering::Equal => 0,
-                    Ordering::Greater => 1,
-                }))
-            }
-            _ => err("wrong # args: should be \"package vcompare version1 version2\""),
-        },
+        "vsatisfies" => pkg_vsatisfies(rest),
+        "vcompare" => pkg_vcompare(rest),
         "names" => {
             let mut names = vm.package_names();
             names.sort();
@@ -214,13 +186,95 @@ fn cmd_package(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     }
 }
 
+fn pkg_provide(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
+    match rest {
+        [name] => ok(vm
+            .package_version(&name.to_str())
+            .map_or_else(Value::empty, Value::string)),
+        [name, version] => {
+            let name = name.to_str().to_string();
+            let version = version.to_str().to_string();
+            if !tcl_dialect::validate_version(&version) {
+                return invalid_version(&version);
+            }
+            if let Some(provided) = vm.package_version(&name).map(str::to_owned) {
+                if cmp_version(&provided, &version) != Ordering::Equal {
+                    return err_with_code(
+                        format!(
+                            "conflicting versions provided for package \"{name}\": {provided}, then {version}"
+                        ),
+                        "TCL PACKAGE VERSIONCONFLICT",
+                    );
+                }
+                return ok(Value::empty());
+            }
+            vm.provide_package(&name, &version);
+            ok(Value::empty())
+        }
+        _ => err("wrong # args: should be \"package provide package ?version?\""),
+    }
+}
+
+fn pkg_vsatisfies(rest: &[Value]) -> Completion<Value> {
+    match rest {
+        [version, reqs @ ..] if !reqs.is_empty() => {
+            let v = version.to_str();
+            if !tcl_dialect::validate_version(&v) {
+                return invalid_version(&v);
+            }
+            for requirement in reqs {
+                if let Err(error) = tcl_dialect::validate_requirement(&requirement.to_str()) {
+                    return invalid_requirement(error);
+                }
+            }
+            let satisfied = reqs.iter().any(|r| vsatisfies(&v, &r.to_str()));
+            ok(Value::bool(satisfied))
+        }
+        _ => err(
+            "wrong # args: should be \"package vsatisfies version requirement ?requirement ...?\"",
+        ),
+    }
+}
+
+fn pkg_vcompare(rest: &[Value]) -> Completion<Value> {
+    match rest {
+        [v1, v2] => {
+            let v1 = v1.to_str();
+            if !tcl_dialect::validate_version(&v1) {
+                return invalid_version(&v1);
+            }
+            let v2 = v2.to_str();
+            if !tcl_dialect::validate_version(&v2) {
+                return invalid_version(&v2);
+            }
+            let order = cmp_version(&v1, &v2);
+            ok(Value::int(match order {
+                Ordering::Less => -1,
+                Ordering::Equal => 0,
+                Ordering::Greater => 1,
+            }))
+        }
+        _ => err("wrong # args: should be \"package vcompare version1 version2\""),
+    }
+}
+
 fn pkg_ifneeded(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     match rest {
-        [name, version] => ok(vm
-            .package_ifneeded(&name.to_str(), &version.to_str())
-            .map_or_else(Value::empty, Value::string)),
+        [name, version] => {
+            let version = version.to_str();
+            if !tcl_dialect::validate_version(&version) {
+                return invalid_version(&version);
+            }
+            ok(vm
+                .package_ifneeded(&name.to_str(), &version)
+                .map_or_else(Value::empty, Value::string))
+        }
         [name, version, script] => {
-            vm.set_package_ifneeded(&name.to_str(), &version.to_str(), &script.to_str());
+            let version = version.to_str();
+            if !tcl_dialect::validate_version(&version) {
+                return invalid_version(&version);
+            }
+            vm.set_package_ifneeded(&name.to_str(), &version, &script.to_str());
             ok(Value::empty())
         }
         _ => err("wrong # args: should be \"package ifneeded package version ?script?\""),
@@ -295,6 +349,17 @@ fn pkg_require(vm: &mut Vm, rest: &[Value], discover: bool) -> Completion<Value>
     }
     let name = name.to_str();
     let requested: Vec<String> = reqs.iter().map(|r| r.to_str().to_string()).collect();
+    if exact {
+        if !tcl_dialect::validate_version(&requested[0]) {
+            return invalid_version(&requested[0]);
+        }
+    } else {
+        for requirement in &requested {
+            if let Err(error) = tcl_dialect::validate_requirement(requirement) {
+                return invalid_requirement(error);
+            }
+        }
+    }
     let reqs: Vec<String> = if exact {
         requested
             .iter()
@@ -386,6 +451,25 @@ fn version_conflict(
         format!("version conflict for package \"{name}\": have {have}, need {need}"),
         "TCL PACKAGE VERSIONCONFLICT",
     )
+}
+
+fn invalid_version(version: &str) -> Completion<Value> {
+    err_with_code(
+        format!("expected version number but got \"{version}\""),
+        "TCL VALUE VERSION",
+    )
+}
+
+fn invalid_requirement(error: tcl_dialect::RequirementValidationError<'_>) -> Completion<Value> {
+    match error {
+        tcl_dialect::RequirementValidationError::InvalidVersion(version) => {
+            invalid_version(version)
+        }
+        tcl_dialect::RequirementValidationError::InvalidRange(requirement) => err_with_code(
+            format!("expected versionMin-versionMax but got \"{requirement}\""),
+            "TCL VALUE VERSIONRANGE",
+        ),
+    }
 }
 
 fn circular_dependency(

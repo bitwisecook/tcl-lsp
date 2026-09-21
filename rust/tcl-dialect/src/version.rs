@@ -750,10 +750,15 @@ impl<'v> ParsedVersion<'v> {
     /// 4. neither `a`, `b`, nor `.` may sit next to a `.`;
     /// 5. the last character may not be a separator.
     ///
+    /// Tcl's C checker stops at a `+` suffix. The suffix remains part of the
+    /// package's recorded spelling, but comparison and satisfaction use the
+    /// version prefix before it.
+    ///
     /// Real Tcl raises `expected version number but got "…"` where this
     /// answers `None`; every caller here turns that into the conservative
     /// static answer (unsatisfiable / unselectable) rather than a panic.
     fn parse(string: &'v str) -> Option<Self> {
+        let string = string.split_once('+').map_or(string, |(prefix, _)| prefix);
         let bytes = string.as_bytes();
         if !bytes.first().is_some_and(u8::is_ascii_digit) {
             return None;
@@ -830,6 +835,52 @@ impl<'v> ParsedVersion<'v> {
         segments.push(number_segment(&string[run_start..]));
         segments
     }
+}
+
+/// The reason a package requirement failed Tcl's version grammar.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RequirementValidationError<'v> {
+    /// A bound was not a valid package version; the borrowed value is the
+    /// exact text Tcl reports.
+    InvalidVersion(&'v str),
+    /// More than one `-` appeared in the requirement; the borrowed value is
+    /// the exact text Tcl reports.
+    InvalidRange(&'v str),
+}
+
+/// Check one package version using the same parser used by comparison and
+/// selection. Runtime commands use this checked seam to report Tcl's
+/// `TCL VALUE VERSION` error instead of duplicating the grammar.
+#[must_use]
+pub fn validate_version(version: &str) -> bool {
+    ParsedVersion::parse(version).is_some()
+}
+
+/// Check one package requirement using the same version parser as selection.
+/// An empty upper bound is valid (`min-`); a second dash is a range error.
+pub fn validate_requirement(requirement: &str) -> Result<(), RequirementValidationError<'_>> {
+    let dash = if requirement.contains('+') {
+        None
+    } else {
+        requirement.find('-')
+    };
+    let Some(dash) = dash else {
+        return validate_version(requirement)
+            .then_some(())
+            .ok_or(RequirementValidationError::InvalidVersion(requirement));
+    };
+    if requirement[dash + 1..].contains('-') {
+        return Err(RequirementValidationError::InvalidRange(requirement));
+    }
+    let (minimum, maximum) = requirement.split_at(dash);
+    if !validate_version(minimum) {
+        return Err(RequirementValidationError::InvalidVersion(minimum));
+    }
+    let maximum = &maximum[1..];
+    if !maximum.is_empty() && !validate_version(maximum) {
+        return Err(RequirementValidationError::InvalidVersion(maximum));
+    }
+    Ok(())
 }
 
 /// A digit run as a [`Segment::Number`], with C's leading-zero skip applied so
@@ -922,6 +973,9 @@ pub fn version_satisfies(version: &str, requirement: &str) -> bool {
 /// [`select_package_version`] needs so a candidate is converted once for the
 /// whole requirement list.
 fn satisfies_internal(have: &[Segment<'_>], requirement: &str) -> bool {
+    let requirement = requirement
+        .split_once('+')
+        .map_or(requirement, |(prefix, _)| prefix);
     let Some((lo, hi)) = requirement.split_once('-') else {
         return satisfies_bare(have, requirement);
     };
@@ -1128,7 +1182,31 @@ impl Ternary {
 
 #[cfg(test)]
 mod tests {
-    use super::{StringCharacterModel, TclVersion, Ternary, exact_requirement};
+    use super::{
+        RequirementValidationError, StringCharacterModel, TclVersion, Ternary, exact_requirement,
+        validate_requirement, validate_version,
+    };
+
+    #[test]
+    fn package_validation_reuses_the_version_parser() {
+        assert!(validate_version("2.3a1"));
+        assert!(!validate_version("2.a1"));
+        assert!(validate_version("2.3+platform"));
+        assert_eq!(validate_requirement("2.1-3.2"), Ok(()));
+        assert_eq!(validate_requirement("2.1-"), Ok(()));
+        assert_eq!(validate_requirement("2.1+platform"), Ok(()));
+        assert_eq!(validate_requirement("2.1+platform-3"), Ok(()));
+        assert_eq!(
+            validate_requirement("2.1-3.2-4.5"),
+            Err(RequirementValidationError::InvalidRange("2.1-3.2-4.5"))
+        );
+        assert_eq!(
+            validate_requirement("3.2-x.y"),
+            Err(RequirementValidationError::InvalidVersion("x.y"))
+        );
+        assert!(super::version_satisfies("2.1", "2.1+platform"));
+        assert!(super::version_satisfies("1.3", "1.2+-1.25"));
+    }
 
     /// The core `Tcl` provide and `[info patchlevel]` are the same build
     /// fact, so the literal in [`TclVersion::core_provided_packages`] must

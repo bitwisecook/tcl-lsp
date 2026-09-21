@@ -1704,6 +1704,36 @@ fn package_loader_must_provide_its_selected_version() {
     );
 }
 
+/// Package command version arguments use the dialect parser's checked seam,
+/// and providing a second, different version preserves Tcl's package state.
+#[test]
+fn package_version_arguments_match_tcl_validation_and_conflicts() {
+    out_eq(
+        r"catch {package provide Invalid a.b} message options
+puts [list $message [dict get $options -errorcode]]
+catch {package ifneeded Invalid xyz {}} message options
+puts [list $message [dict get $options -errorcode]]
+catch {package require Invalid 2.1-3.2-4.5} message options
+puts [list $message [dict get $options -errorcode]]
+catch {package vcompare x.y 3.4} message options
+puts [list $message [dict get $options -errorcode]]
+catch {package vsatisfies 2.1 3.2-x.y} message options
+puts [list $message [dict get $options -errorcode]]
+package provide Stable 2.3
+set same [package provide Stable 2.3.0]
+catch {package provide Stable 2.2} message options
+puts [list $same $message [dict get $options -errorcode] [package provide Stable]]
+",
+        r#"{expected version number but got "a.b"} {TCL VALUE VERSION}
+{expected version number but got "xyz"} {TCL VALUE VERSION}
+{expected versionMin-versionMax but got "2.1-3.2-4.5"} {TCL VALUE VERSIONRANGE}
+{expected version number but got "x.y"} {TCL VALUE VERSION}
+{expected version number but got "x.y"} {TCL VALUE VERSION}
+{} {conflicting versions provided for package "Stable": 2.3, then 2.2} {TCL PACKAGE VERSIONCONFLICT} 2.3
+"#,
+    );
+}
+
 /// Tcl marks the selected ifneeded name/version while its script is running.
 /// A nested require of the same package is circular even when it requests a
 /// different version, and a mutual dependency reports the original package

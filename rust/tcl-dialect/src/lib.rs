@@ -65,8 +65,9 @@ pub use library::{LibraryPin, LibraryVersion, LibraryVersionOverrides, VersionKe
 pub use profile::{DialectFileExtension, DialectProfile};
 pub use profile::{KNOWN_DIALECTS, available_dialects};
 pub use version::{
-    ByteStringEncoding, CorePackage, PackagePrefer, StringCharacterModel, TclVersion, Ternary,
-    compare_versions, exact_requirement, select_package_version, version_in_any_window,
+    ByteStringEncoding, CorePackage, PackagePrefer, RequirementValidationError,
+    StringCharacterModel, TclVersion, Ternary, compare_versions, exact_requirement,
+    select_package_version, validate_requirement, validate_version, version_in_any_window,
     version_is_stable, version_satisfies,
 };
 
