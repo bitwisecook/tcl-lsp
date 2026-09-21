@@ -84,8 +84,18 @@ pub enum FrameLinkOrigin {
     /// An ordinary Tcl variable alias.
     #[default]
     Ordinary,
-    /// An automatic `TclOO` method-frame instance-variable projection.
+    /// An automatic `TclOO` method-frame instance-variable projection, in a
+    /// method whose compiled body has **no** local slot for the name.
     TclOoInstance,
+    /// The same projection, in a method whose body *did* compile a local slot
+    /// for the name — because it references it (`$pub`, `info exists pub`).
+    ///
+    /// The link behaves identically; the distinction exists only for
+    /// enumeration. C lists a projection the body never mentions and stops
+    /// listing one it reads, so `info consts` reports [`Self::TclOoInstance`]
+    /// and not this (#2173). A *dynamic* read (`set $n`) compiles no slot and
+    /// therefore stays the plain variant.
+    TclOoInstanceCompiled,
 }
 
 /// One array name located for the duration of an `array` ensemble operation.
@@ -544,16 +554,72 @@ pub struct ScriptCommandPlan {
     /// Byte length of the complete-command prefix.  This is always a UTF-8
     /// boundary in the supplied source.
     pub complete_prefix_len: usize,
+    /// How many complete commands that prefix holds.
+    ///
+    /// Not derivable from `complete_prefix_len`: the prefix of a script whose
+    /// *first* command is malformed still spans any leading whitespace and
+    /// comments, so a nonzero length can carry **no** command at all.  A
+    /// runtime distinguishing "ran nothing" from "ran something" must test
+    /// this rather than the byte length.
+    pub complete_prefix_commands: usize,
     /// Parse error raised if the complete prefix finishes normally.
-    pub fatal_tail: Option<CompileError>,
+    pub fatal_tail: Option<FatalTail>,
+}
+
+/// The parse error a [`ScriptCommandPlan`]'s malformed tail raises, with the
+/// context C logs the `while executing` frame from.
+///
+/// The message alone is not enough: C's `TclCompileScript` reports a parse
+/// failure through `Tcl_LogCommandInfo`, so the frame naming the offending
+/// command is part of the error's `-errorinfo`, exactly as it is for an
+/// ordinary runtime error in the same position (#2172).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FatalTail {
+    /// The Tcl parse message (`missing "`, `missing close-brace`, …).
+    pub message: String,
+    /// Source text of the malformed command, as C quotes it.
+    ///
+    /// C slices `source[commandStart ..= parsePtr->term]` — through the
+    /// character that opened the unterminated construct, **not** to the end
+    /// of the source. Truncation to 150 bytes is the logger's job, not this
+    /// value's.
+    pub command_text: String,
+    /// One-based line of the malformed command's first byte, for the
+    /// enclosing `(procedure …)` / `("eval" body line N)` frames.
+    pub line: u32,
+}
+
+impl FatalTail {
+    /// A tail carrying only its message, for a caller with no source context.
+    ///
+    /// The frame is omitted rather than guessed: an empty quoted command is a
+    /// visible wrong answer, where a plausible one would not be.
+    #[must_use]
+    pub fn message_only(message: String) -> Self {
+        Self {
+            message,
+            command_text: String::new(),
+            line: 0,
+        }
+    }
 }
 
 impl ScriptCommandPlan {
     /// A clean script whose whole source is executable.
+    ///
+    /// `commands` is left unset (`usize::MAX` would be a lie and zero would
+    /// claim nothing runs), so this constructor takes it explicitly where the
+    /// count is known; [`Self::complete`] is for the no-cut case, where the
+    /// distinction the count exists for cannot arise.
     #[must_use]
     pub fn complete(source_len: usize) -> Self {
         Self {
             complete_prefix_len: source_len,
+            // No cut, so every command in the source is in the prefix. The
+            // exact count is not needed: callers consult it only to tell an
+            // empty prefix from a non-empty one before a fatal tail, and
+            // there is no fatal tail here.
+            complete_prefix_commands: usize::from(source_len > 0),
             fatal_tail: None,
         }
     }

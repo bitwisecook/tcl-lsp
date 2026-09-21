@@ -360,11 +360,11 @@ mod tests {
         assert!(r.title.to_lowercase().contains("switch"));
     }
 
-    /// Issue #1000: the same conversion must fire inside an `apply` lambda
+    /// The same conversion must fire inside an `apply` lambda
     /// body.  `apply`'s literal is `ArgRole::LambdaLiteral`, so
-    /// `find_command_at` has to split it and descend into element 1 —
-    /// before that it read the `{m}` argument list as a command name and
-    /// found no `if` at all, silently disabling this and the four other
+    /// `find_command_at` has to split it and descend into element 1;
+    /// reading the `{m}` argument list as a command name finds no `if` at
+    /// all, silently disabling this and the four other
     /// `body_words`-backed code actions there.
     #[test]
     fn inside_apply_lambda_body() {

@@ -18,7 +18,7 @@
 
 // Variant of runTest.ts that opens the multi-root workspace fixture so
 // per-folder configuration tests can verify VS Code accepts and applies
-// folder-level tclLsp.* settings (issue #230).
+// folder-level tclLsp.* settings.
 import * as path from "path";
 import * as fs from "fs";
 import { runWatchedSuite } from "./runnerWatchdog";
@@ -60,8 +60,8 @@ async function main() {
   // Materialise the per-folder ``.vscode/settings.json`` fixtures.  These
   // are gitignored (the repo-wide ``.vscode/`` rule), so they have to be
   // re-created on every test run.  Folder A and Folder B carry different
-  // ``tclLsp.formatting.maxLineLength`` (issue #230), ``tclLsp.dialect``
-  // (issue #407), ``tclLsp.style.nonAscii``, and ``tclLsp.diagnostics.W111``
+  // ``tclLsp.formatting.maxLineLength``, ``tclLsp.dialect``,
+  // ``tclLsp.style.nonAscii``, and ``tclLsp.diagnostics.W111``
   // values to exercise the per-folder resolution path.
   try {
     const projA = path.resolve(

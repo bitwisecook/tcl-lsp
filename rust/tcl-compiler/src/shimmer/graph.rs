@@ -38,7 +38,7 @@ use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
 /// and a reverse-reachability BFS for each cycle block it found — O(V·(V+E)),
 /// which on a wide loop-free CFG is pure waste (every walk crosses the whole
 /// graph and finds nothing) and took ~69 s on a 2000-branch flat proc
-/// (issue #1240).
+/// with a walk per block.
 #[must_use]
 pub fn loop_body_blocks(cfg: &CfgFunction) -> HashSet<String> {
     cycle_block_ids(cfg)
@@ -367,8 +367,8 @@ mod tests {
         assert!(!lb.contains("done"));
     }
 
-    /// A wide, loop-free CFG — the shape issue #1240 measured — must come back
-    /// empty, and must do so without walking the graph once per block.
+    /// A wide, loop-free CFG must come back empty, and must do so without
+    /// walking the graph once per block.
     #[test]
     fn loop_body_blocks_wide_acyclic_chain_is_empty() {
         let mut f = Function::new("::top", "b0");

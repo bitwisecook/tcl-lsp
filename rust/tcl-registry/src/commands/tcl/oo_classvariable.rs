@@ -48,7 +48,7 @@ const HOVER: HoverSnippet = HoverSnippet {
 
 /// Traits shared by both the core and `ooutil` entries.
 ///
-/// `CREATES_SCOPE_ALIAS` carries the fact issue #1593 turned on: like
+/// `CREATES_SCOPE_ALIAS` marks that, like
 /// `variable`, `global`, and `namespace upvar`, `classvariable` binds a
 /// local name to a cell that lives in **another frame** — here the defining
 /// class's namespace, shared by every instance. Consumers key off that one
@@ -72,7 +72,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 ///
 /// Without this, only the first word carried a `VarWrite` role, so
 /// `classvariable a b` bound `a` and left `b` looking unbound — a false
-/// W210 on the second and later names (issue #1593).
+/// W210 on the second and later names.
 static REPEATED: &[RepeatedArgLayout] = &[RepeatedArgLayout::strided(ArgRole::VarWrite, 0, 1)];
 
 /// The core Tcl 9.0+ `oo::Helpers::classvariable` — no package needed.
@@ -148,7 +148,7 @@ mod tests {
         assert_eq!(ooutil.tcllib_package, Some("oo::util"));
     }
 
-    /// Issue #1593. `classvariable` declares a cell in another frame, so
+    /// `classvariable` declares a cell in another frame, so
     /// both entries must carry the scope-alias fact every dataflow consumer
     /// keys off — without it a `classvariable Count; set Count 1` in one
     /// method drew W211 "set but never used" even though another method
@@ -164,7 +164,7 @@ mod tests {
         }
     }
 
-    /// Issue #1593. Unlike `variable name ?value?`, **every** word is a
+    /// Unlike `variable name ?value?`, **every** word is a
     /// name, so the repeated layout strides by one — otherwise
     /// `classvariable a b` bound only `a` and `$b` drew a false W210.
     #[test]

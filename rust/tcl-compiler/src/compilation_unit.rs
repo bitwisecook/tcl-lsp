@@ -43,7 +43,7 @@ use crate::interprocedural::InterproceduralAnalysis;
 use crate::ir::Module as IrModule;
 use crate::memory_ssa::{MemorySsaFunction, build_memory_ssa};
 use crate::rendered_properties::{RenderedValueProps, propagate_rendered_props};
-use crate::sccp::{SccpResult, sccp_with_extra_escaping};
+use crate::sccp::SccpResult;
 use crate::semantic_analysis::SemanticAnalysisBundle;
 use crate::ssa::{SsaFunction, ValueKey, build_ssa_with_config};
 use crate::taint::{TaintGraph, TaintLattice, instance_classes_for_function, propagate_taints};
@@ -185,6 +185,17 @@ pub struct UnitBuildOptions<'a> {
     /// asserting it enumerated the project, so the merged evidence is the
     /// whole picture.
     pub external_call_sites: Option<&'a crate::unit_scope::CallSiteEvidence>,
+    /// The document's own command declarations — its inline `# tcl-lsp:
+    /// stub` block and the nearest `<dialect>.tcl.stubs` sidecar, ingested
+    /// by
+    /// [`analyser::utils::document_declared_surface`](crate::analyser::utils::document_declared_surface).
+    ///
+    /// A stub is a per-document declaration, so it never enters the shared
+    /// `registry`; it rides here instead and is unioned with the catalogue's
+    /// answer through [`tcl_registry::model::DocumentCommandSurface`], the
+    /// one door onto a document's command surface. `None` is a document that
+    /// declares nothing.
+    pub declared_commands: Option<&'a tcl_registry::model::DeclaredSurface>,
 }
 
 /// Callback type for [`CompilationUnit::with_interprocedural_memoized`].
@@ -200,18 +211,15 @@ pub type TaintCascadeCallback<'a> =
 /// The single method-body view of `TclOO` instance state, built **once** per
 /// method unit from its typed [`crate::ir::MethodDef`] and read by every
 /// consumer that needs "which names are auto-bound in this method's frame"
-/// (issue #1174).
+/// bound in this method's frame".
 ///
-/// Before this carrier existed the same fact reached method-body analyses
-/// through three independent channels — [`FunctionUnit::build_for_method`]'s
+/// Three analyses need that fact — [`FunctionUnit::build_for_method`]'s
 /// `object_state` (the `[info exists]` fold, I230 / O100 / O101), the
-/// analyser's `emit_method_body_diagnostics` rebuilding `known_bound` from the
-/// IR for W210/W211/W220, and the optimiser's `oo_method_constants` handing
-/// `MethodDef::instance_vars` to `sccp_with_extra_escaping` — exactly the
-/// parallel-channel shape that produced issue #1129 (two copies of the
-/// existence fold sourcing parameters from different maps).  All three now
-/// read this struct off [`FunctionUnit::method_facts`], so they cannot diverge
-/// by construction.
+/// analyser's `emit_method_body_diagnostics` `known_bound` set for
+/// W210/W211/W220, and the optimiser's `oo_method_constants` escaping set —
+/// and parallel channels for it diverge (two copies of the existence fold
+/// sourcing parameters from different maps).  All three read this struct off
+/// [`FunctionUnit::method_facts`], so they cannot diverge by construction.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct MethodBodyFacts {
     /// The method's own formal parameter names, in declaration order.
@@ -269,8 +277,7 @@ pub struct FunctionUnit {
     /// because it is **span-free**: [`crate::lattice_rebase::rebase_function_unit`]
     /// never touches it, so a memoised unit taken from the salsa
     /// `function_lattice` cache and rebased to a new offset keeps the very same
-    /// lattice. Deep-copying it per procedure per read was pure waste
-    /// (issue #1159).
+    /// lattice, so it need not be deep-copied per procedure per read.
     pub def_use: Arc<DefUseResult>,
     /// SCCP result: lattice values, executable blocks, constant
     /// branches.
@@ -335,7 +342,7 @@ pub struct FunctionUnit {
     /// `ValueKey`) are unaffected.
     pub base_offset: i64,
     /// The method-body instance-state view, for a unit built from a
-    /// [`crate::ir::MethodDef`] (issue #1174) — `None` for procs, lambdas,
+    /// [`crate::ir::MethodDef`] — `None` for procs, lambdas,
     /// `namespace eval` bodies, and the top level, none of which have any.
     ///
     /// Span-free (names only), so offset rebasing never touches it.  Behind
@@ -405,14 +412,22 @@ struct FunctionBuildInputs<'a> {
     extra_global_escaping: &'a HashSet<String>,
     /// Whole-module variable-trace facts.
     trace_facts: ModuleTraceFacts<'a>,
+    /// Whole-module command-mutation trust
+    /// ([`crate::command_binding::ModuleCommandMutations`]) — which command
+    /// names still denote the builtin they spell. SCCP folds a builtin
+    /// command substitution only for a name this trusts, so a module with a
+    /// shadowing `proc llength …` gets no `[llength …]` fold anywhere in the
+    /// lattice rather than one that contradicts the optimiser's own
+    /// proc-call fold (#2164).
+    command_trust: &'a crate::command_binding::ModuleCommandMutations,
     /// Names auto-bound to out-of-frame *object* storage on entry — a
     /// `TclOO` method body's [`crate::ir::MethodDef::instance_vars`].  `None`
     /// for procs, lambdas, and the top level, none of which have any.  The
-    /// `[info exists]` fold must abstain on these (issue #1129).
+    /// `[info exists]` fold must abstain on these.
     object_state: Option<&'a HashSet<String>>,
     /// Whether this is the compilation unit's **top-level** body — the
     /// interpreter's initial global frame.  The `[info exists]` fold must
-    /// abstain on the registry's special variables there (issue #1557).
+    /// abstain on the registry's special variables there.
     initial_global: bool,
 }
 
@@ -523,6 +538,15 @@ impl FunctionUnit {
                 known_classes,
                 extra_global_escaping: &no_extra_escaping,
                 trace_facts,
+                // The "no mutations observed" baseline
+                // ([`crate::command_binding::ModuleCommandMutations`]'s
+                // `Default`): this entry point takes a single CFG with no
+                // module to scan, so it has no rebinding to report. The
+                // compilation-unit build does have one and passes it, and
+                // [`build_procedure_units`] refuses a memoised unit built
+                // through here whenever the module's trust is not pristine —
+                // the memo key cannot carry the fact.
+                command_trust: &crate::command_binding::ModuleCommandMutations::default(),
                 object_state: None,
                 initial_global: false,
             },
@@ -542,6 +566,7 @@ impl FunctionUnit {
         extra_global_escaping: &HashSet<String>,
         trace_facts: ModuleTraceFacts<'_>,
         config: tcl_lexer::LexerConfig,
+        command_trust: &crate::command_binding::ModuleCommandMutations,
     ) -> Self {
         Self::build_full(
             "::top",
@@ -554,6 +579,7 @@ impl FunctionUnit {
                 known_classes,
                 extra_global_escaping,
                 trace_facts,
+                command_trust,
                 object_state: None,
                 initial_global: true,
             },
@@ -567,22 +593,23 @@ impl FunctionUnit {
     ///
     /// The instance-variable half feeds the existence fold (a class-level
     /// `variable x` binds `x` in every method frame with no binding command
-    /// in the body, so without it `[info exists x]` folded to "always
-    /// absent" — issue #1129), and — via [`Self::method_facts`], the single
-    /// carrier built here (issue #1174) — the analyser's W210/W211/W220
-    /// `known_bound` set and the optimiser's method-constants escaping set.
+    /// in the body, so without it `[info exists x]` folds to "always
+    /// absent"), and — via [`Self::method_facts`], the single carrier built
+    /// here — the analyser's W210/W211/W220 `known_bound` set and the
+    /// optimiser's method-constants escaping set.
     #[must_use]
     pub fn build_for_method(
         name: impl Into<String>,
         cfg: CfgFunction,
         method: &crate::ir::MethodDef,
-        registry: &CommandRegistry,
+        dialect: UnitDialect<'_>,
         known_classes: &HashSet<String>,
         trace_facts: ModuleTraceFacts<'_>,
-        config: tcl_lexer::LexerConfig,
+        command_trust: &crate::command_binding::ModuleCommandMutations,
     ) -> Self {
         let facts = Arc::new(MethodBodyFacts::from_method(method));
         let no_extra_escaping = HashSet::new();
+        let UnitDialect { registry, config } = dialect;
         let mut unit = Self::build_full(
             name,
             cfg,
@@ -594,6 +621,7 @@ impl FunctionUnit {
                 known_classes,
                 extra_global_escaping: &no_extra_escaping,
                 trace_facts,
+                command_trust,
                 object_state: Some(&facts.instance_vars),
                 initial_global: false,
             },
@@ -627,6 +655,7 @@ impl FunctionUnit {
             known_classes,
             extra_global_escaping,
             trace_facts,
+            command_trust,
             object_state,
             initial_global,
         } = inputs;
@@ -649,14 +678,14 @@ impl FunctionUnit {
         // (f5-bigip, an unknown dialect) — plus whether the dialect's `expr`
         // grammar carries the iRules word operators, so `if {$x contains
         // "cd"}` folds under `f5-irules`. A hand-assembled registry without a
-        // profile keeps the historical loaded-packs octal derivation.
-        // Dynamic-name facts (issue #923 audit cluster C10): a `set $var v`
+        // profile falls back to deriving the octal rule from the loaded packs.
+        // Dynamic-name facts: a `set $var v`
         // means any name may be defined, an `unset $n` that any name may have
         // stopped existing — so the existence fold below must abstain in that
         // direction rather than hand the optimiser a wrong constant branch.
         //
         // Computed *before* SCCP because a dynamic write / destroy blinds the
-        // value lattice too (issue #1374): after `set $name v` any variable in
+        // value lattice too: after `set $name v` any variable in
         // the frame may hold any value, so no definition is a trustworthy
         // constant. Reuse the "every variable is externally mutable" switch a
         // dynamic trace target already throws — same lattice consequence, one
@@ -665,11 +694,11 @@ impl FunctionUnit {
         // the value lattice alone.
         // Split the `[…]` texts this walk re-reads under the very config the
         // lowering used, so the barrier and the IR agree on word boundaries
-        // (issue #1393) — the unit's own, not one derived from the registry's
+        // — the unit's own, not one derived from the registry's
         // profile, which is not the document's grammar for a pack-layered
         // registry or `tk`.
         let dynamic_names = crate::dynamic_names::dynamic_name_barrier(&cfg, registry, config);
-        let mut sccp = sccp_with_extra_escaping(
+        let mut sccp = crate::sccp::sccp_with_builtin_folds(
             &cfg,
             &ssa,
             param_constants,
@@ -682,6 +711,19 @@ impl FunctionUnit {
                     || dynamic_names.writes
                     || dynamic_names.destroys,
             },
+            // The trust fact, and only the trust fact: the per-command fold
+            // arms are gated on it, while the registry `const_fold` engine
+            // stays off here so this lattice's fold surface is unchanged.
+            // The optimiser's own re-run turns the engine on
+            // (`crate::optimiser::propagation`).
+            Some(crate::sccp::BuiltinFoldInputs {
+                registry,
+                mutations: command_trust,
+                dialect: None,
+                defining_class: None,
+                registry_engine: false,
+                trust: crate::sccp::FoldTrust::ObservedBindings,
+            }),
         );
         // Surface `[info exists X]` / `[array exists X]`
         // folds (parameter → exists, never-defined non-param → absent)
@@ -690,7 +732,7 @@ impl FunctionUnit {
         // `existence_constant_branches`; the SCCP pass proper has no
         // parameter/existence facts to fold them itself.  A method body's
         // instance variables are handed over too, so the fold abstains on
-        // object state instead of calling it absent (issue #1129).
+        // object state instead of calling it absent.
         sccp.constant_branches
             .extend(crate::sccp::existence_constant_branches(
                 &cfg,
@@ -781,7 +823,7 @@ impl FunctionUnit {
 
     /// Whether this function's [`Self::dynamic_names`] barrier forbids any
     /// pass that *moves, folds, or deletes* a variable's value across other
-    /// statements (issue #1374).
+    /// statements.
     ///
     /// A computed variable name (`set $name v`, `unset $n`, `[set $v]`)
     /// can create, destroy, or observe **any** variable in the frame, so no
@@ -975,6 +1017,12 @@ pub struct CompilationUnit {
     /// Surfaced by the compiler explorer's **Unit Scope** view; see
     /// [`crate::unit_scope`].
     pub caller_scope: UnitCallerScope,
+    /// The document's own command declarations
+    /// ([`UnitBuildOptions::declared_commands`]), owned so every pass that
+    /// runs *after* the build — [`Self::with_interprocedural`] above all —
+    /// asks the same surface the lowering did. Empty for a document that
+    /// declares nothing.
+    pub declared_commands: tcl_registry::model::DeclaredSurface,
 }
 
 /// The unit-scope facts a build resolved, kept on the finished
@@ -1035,7 +1083,9 @@ impl ModuleWideFacts {
             // call to a procedure that declares it `global` can reassign it
             // mid-run even though the top-level body never says `global`
             // itself. See `crate::var_observability::scan_module_global_names`.
-            top_level_extra_escaping: crate::var_observability::scan_module_global_names(ir_module),
+            top_level_extra_escaping: crate::var_observability::scan_module_global_names(
+                ir_module, registry,
+            ),
             traced_variable_names: ir_module.traced_variables.iter().cloned().collect(),
         }
     }
@@ -1055,20 +1105,15 @@ fn lower_and_build_cfg(
     PreparedCfgContext,
 ) {
     let registry = options.registry;
+    // One lowerer shape for both paths, so the document's own declarations
+    // (`UnitBuildOptions::declared_commands`) reach the memoised body-cache
+    // build and the plain one identically.
+    let lowerer = crate::lowering::Lowerer::with_config(registry, options.config)
+        .with_dialect(options.dialect)
+        .with_declared_commands(options.declared_commands);
     let mut ir_module = match body_cache {
-        Some(bc) => crate::lowering::lower_to_ir_with_body_cache(
-            source,
-            registry,
-            options.config,
-            options.dialect,
-            bc,
-        ),
-        None => crate::lowering::lower_to_ir_with_dialect(
-            source,
-            registry,
-            options.config,
-            options.dialect,
-        ),
+        Some(bc) => crate::lowering::lower_to_ir_with(lowerer.with_body_cache(bc), source),
+        None => crate::lowering::lower_to_ir_with(lowerer, source),
     };
     // Specialise Option-shape factories before any other
     // module-level passes so the synthesised child procs
@@ -1125,19 +1170,20 @@ fn resolve_unit_scope(
         &ir_module.procedures,
         &ir_module.namespace_imports,
         registry,
+        options.declared_commands,
         options
             .dialect
             .unwrap_or_else(tcl_dialect::DialectProfile::plain_tcl),
     );
     // Fold in the call sites a host with a cross-file view supplied — callers
     // in *other* files, which this single-source unit can never see for itself
-    // (issue #977). Merging is monotone: extra evidence can retract a fold,
+    // Merging is monotone: extra evidence can retract a fold,
     // never manufacture one.
     if let Some(external) = options.external_call_sites {
         call_sites.merge_from(external);
     }
-    // Which registry-declared unit boundaries this file crosses — the generic
-    // replacement for the old hardcoded `package provide` check.
+    // Which registry-declared unit boundaries this file crosses, derived from
+    // the registry rather than a hardcoded `package provide` check.
     let linkage = crate::unit_scope::scan_unit_linkage(ir_module, registry, options.dialect);
     (call_sites, linkage, extra_callers)
 }
@@ -1167,23 +1213,36 @@ fn prepared_command_trust(
 /// named no dialect — carries no environment, and the semantic bundle records
 /// its `ContextUnavailable` decline rather than inventing one.
 ///
-/// **Ledger C1 / redesign §11.2 D1 — the re-key.** This replaces the retired
-/// `semantic_dialect_set` name→`SpecSurface` projection, which selected the
-/// *exact* bit the profile's own name parsed to and therefore answered
-/// `None` (no executable facts at all) for every environment the old name
-/// ingress could not resolve — the lenient `tcl` sink and the six EDA
-/// shells — and a bare vendor surface for the composite environments. The
-/// context's authoring point is the environment's real one, which is what
-/// the deep-analysis and
-/// Explorer paths already passed, so the interactive path now agrees with
-/// them instead of seeing a narrower registry. It is `pub` so `tcl-lsp-db`'s
-/// per-item unit build reads the **same** projection instead of resolving the
-/// environment itself (P1-F wave 2).
+/// Keyed on the environment, not on a name→`SpecSurface` projection: parsing
+/// the profile's own name selects a single bit, which answers `None` (no
+/// executable facts at all) for every environment such an ingress cannot
+/// resolve — the lenient `tcl` sink and the six EDA shells — and a bare
+/// vendor surface for the composite environments. The context's authoring
+/// point is the environment's real one, the same one the deep-analysis and
+/// Explorer paths pass, so the interactive path sees the same registry rather
+/// than a narrower one. It is `pub` so `tcl-lsp-db`'s per-item unit build
+/// reads the **same** projection instead of resolving the environment itself.
 #[must_use]
 pub fn semantic_context(
     dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> Option<SemanticContext> {
     dialect.map(SemanticContext::for_profile)
+}
+
+/// Module-wide, read-only inputs the non-procedure body builds
+/// ([`CompilationUnit::build_method_units`] and
+/// [`CompilationUnit::build_body_units`]) share. Bundled so each builder
+/// takes three parameters rather than eight.
+#[derive(Clone, Copy)]
+struct BodyUnitContext<'a> {
+    registry: &'a CommandRegistry,
+    known_class_set: &'a HashSet<String>,
+    trace_facts: ModuleTraceFacts<'a>,
+    /// Whole-module command-mutation trust — see
+    /// [`FunctionBuildInputs::command_trust`].
+    command_trust: &'a crate::command_binding::ModuleCommandMutations,
+    semantic_context: Option<SemanticContext>,
+    config: tcl_lexer::LexerConfig,
 }
 
 /// Module-wide, read-only inputs [`build_procedure_units`] shares across
@@ -1205,6 +1264,11 @@ struct ProcedureBuildContext<'a> {
     known_classes: &'a [String],
     traced_variable_names: &'a [String],
     trace_facts: ModuleTraceFacts<'a>,
+    /// Whole-module command-mutation trust — see
+    /// [`FunctionBuildInputs::command_trust`]. Also decides whether the
+    /// per-procedure lattice memo may be used at all: its key cannot carry
+    /// this fact.
+    command_trust: &'a crate::command_binding::ModuleCommandMutations,
     /// Procedures whose CFG has module-derived instance-option writes. Their
     /// annotated CFG cannot be reconstructed from the body-only lattice memo.
     tainted_global_writes: &'a HashMap<String, HashSet<String>>,
@@ -1275,8 +1339,15 @@ fn build_procedure_units(
             .tainted_global_writes
             .get(qname)
             .is_some_and(|writes| !writes.is_empty());
+        // The memo key (`LatticeRequest`) carries the procedure body and the
+        // closed binding lattice, but not the whole-module command-mutation
+        // scan — which is the only place a namespace-local `proc llength …`
+        // shadow is visible. A memoised unit is therefore built as if every
+        // builtin still meant what it spells, so it may only be used by a
+        // module whose trust says exactly that (#2164).
+        let memo_usable = ctx.command_trust.agrees_with_untouched_bindings();
         let memoised = match (
-            cache.as_mut(),
+            cache.as_mut().filter(|_| memo_usable),
             proc,
             ctx.cfg_context,
             encoded_pc,
@@ -1320,18 +1391,7 @@ fn build_procedure_units(
             _ => None,
         };
         let mut fu = memoised.unwrap_or_else(|| {
-            FunctionUnit::build_with_param_constants_and_classes(
-                qname,
-                cfg.clone(),
-                params,
-                UnitDialect {
-                    registry: ctx.registry,
-                    config,
-                },
-                param_constants.as_ref(),
-                ctx.known_class_set,
-                ctx.trace_facts,
-            )
+            build_procedure_unit_fresh(ctx, qname, cfg, params, param_constants.as_ref(), config)
         });
         // A memoised unit carries an offset-0 executable sidecar. Rebuild the
         // source-bearing portion after the normal CFG/SSA rebase so retained
@@ -1353,6 +1413,39 @@ fn build_procedure_units(
         procedures,
         param_constants_by_proc,
     }
+}
+
+/// Build one procedure's [`FunctionUnit`] without the memo — the path taken
+/// when no cache is installed, when the request cannot be interned, or when
+/// the module's command trust forbids a memoised unit (see
+/// [`build_procedure_units`]).
+fn build_procedure_unit_fresh(
+    ctx: &ProcedureBuildContext<'_>,
+    qname: &str,
+    cfg: &CfgFunction,
+    params: &[String],
+    param_constants: Option<
+        &std::collections::HashMap<(String, crate::ssa::Version), crate::analyses::LatticeValue>,
+    >,
+    config: tcl_lexer::LexerConfig,
+) -> FunctionUnit {
+    let no_extra_escaping = HashSet::new();
+    FunctionUnit::build_full(
+        qname,
+        cfg.clone(),
+        FunctionBuildInputs {
+            config,
+            params,
+            registry: ctx.registry,
+            param_constants,
+            known_classes: ctx.known_class_set,
+            extra_global_escaping: &no_extra_escaping,
+            trace_facts: ctx.trace_facts,
+            command_trust: ctx.command_trust,
+            object_state: None,
+            initial_global: false,
+        },
+    )
 }
 
 /// [`build_procedure_units`]'s two outputs: the units themselves, and the
@@ -1386,11 +1479,11 @@ impl CompilationUnit {
             source,
             registry,
             defer_top_level,
-            // dialect-drift-ok: `build_for` is now a test-only entry point —
+            // dialect-drift-ok: `build_for` is a test-only entry point —
             // every production build goes through `build_for_with_config` /
             // `build_for_profile` / `build_for_dialect` with the document's
-            // own config; the workspace's test fixtures still spell the
-            // plain-Tcl default this way.
+            // own config; the workspace's test fixtures spell the plain-Tcl
+            // default this way.
             tcl_lexer::LexerConfig::default(),
         )
     }
@@ -1419,6 +1512,7 @@ impl CompilationUnit {
                 config,
                 dialect: None,
                 external_call_sites: None,
+                declared_commands: None,
             },
             None,
             None,
@@ -1460,6 +1554,7 @@ impl CompilationUnit {
                 config: tcl_lexer::LexerConfig::from_grammar(effective_dialect.grammar),
                 dialect: Some(effective_dialect),
                 external_call_sites: None,
+                declared_commands: None,
             },
             None,
             None,
@@ -1493,6 +1588,7 @@ impl CompilationUnit {
                 // `build_for_profile_retains_the_tk_set_only_bit`.
                 dialect: Some(profile),
                 external_call_sites: None,
+                declared_commands: None,
             },
             None,
             None,
@@ -1596,6 +1692,7 @@ impl CompilationUnit {
             &top_level_extra_escaping,
             trace_facts,
             options.config,
+            &command_mutations,
         )
         .with_top_level_semantic_analysis(registry, semantic_context, &ir_module.top_level);
         let caller_view = crate::unit_scope::UnitCallerView {
@@ -1616,30 +1713,23 @@ impl CompilationUnit {
                 known_classes: &known_classes,
                 traced_variable_names: &traced_variable_names,
                 trace_facts,
+                command_trust: &command_mutations,
                 tainted_global_writes: &tainted_global_writes,
             },
             cache,
             options.config,
         );
         let mut procedures = built.procedures;
-        let methods = Self::build_method_units(
-            &ir_module,
-            &extra_callers,
-            &known_class_set,
+        let body_unit_context = BodyUnitContext {
             registry,
+            known_class_set: &known_class_set,
             trace_facts,
+            command_trust: &command_mutations,
             semantic_context,
-            options.config,
-        );
-        let body_units = Self::build_body_units(
-            &ir_module,
-            &extra_callers,
-            &known_class_set,
-            registry,
-            trace_facts,
-            semantic_context,
-            options.config,
-        );
+            config: options.config,
+        };
+        let methods = Self::build_method_units(&ir_module, &extra_callers, body_unit_context);
+        let body_units = Self::build_body_units(&ir_module, &extra_callers, body_unit_context);
         let connection_scope = Self::build_connection_scope(&procedures);
         Self::drop_cross_event_existence_folds(&mut procedures, connection_scope.as_ref());
         Self {
@@ -1660,6 +1750,7 @@ impl CompilationUnit {
                 param_constants_by_proc: built.param_constants_by_proc,
                 proc_binding_trust,
             },
+            declared_commands: options.declared_commands.cloned().unwrap_or_default(),
         }
     }
 
@@ -1672,22 +1763,27 @@ impl CompilationUnit {
     fn build_method_units(
         ir_module: &IrModule,
         extra_callers: &[crate::unit_scope::ExtraCallSiteScanContext],
-        known_class_set: &HashSet<String>,
-        registry: &CommandRegistry,
-        trace_facts: ModuleTraceFacts<'_>,
-        semantic_context: Option<SemanticContext>,
-        config: tcl_lexer::LexerConfig,
+        ctx: BodyUnitContext<'_>,
     ) -> HashMap<String, FunctionUnit> {
+        let BodyUnitContext {
+            registry,
+            known_class_set,
+            trace_facts,
+            command_trust,
+            semantic_context,
+            config,
+        } = ctx;
         if ir_module.methods.is_empty() {
             return HashMap::new();
         }
-        // Issue #1177: a callee reached via `my` / `next` is a method, never
-        // in the upvar-procs table (the dispatch does not name its target),
-        // so its `upvar 1 $refvar …` caller-frame definition was invisible
-        // and every defs-based check treated the dispatch as a no-op — a
-        // false always-false I230 on `info exists` of an upvar-defined local
-        // (oracle, tclsh 9.0.4 / 8.6.14: after `my Reference? $lookup ref`
-        // returns true, `[info exists ref]` in the caller is 1).  Widen the
+        // A callee reached via `my` / `next` is a method, never in the
+        // upvar-procs table (the dispatch does not name its target), so its
+        // `upvar 1 $refvar …` caller-frame definition is invisible to a
+        // defs-based check, which would treat the dispatch as a no-op and
+        // raise a false always-false I230 on `info exists` of an
+        // upvar-defined local (on tclsh 9.0.4 / 8.6.14, after
+        // `my Reference? $lookup ref` returns true, `[info exists ref]` in
+        // the caller is 1).  Widen the
         // dispatch sites of exactly the methods whose reachable dispatch
         // surface meets a caller-frame-reaching (or unanalysable) class —
         // the same per-method barrier the optimiser's propagation gate
@@ -1726,7 +1822,7 @@ impl CompilationUnit {
                     // The guarded unit still carries its method facts: the
                     // deep lattices are skipped, but every consumer of "which
                     // names are bound in this method's frame" must read the
-                    // same carrier as the deep path (issue #1174).
+                    // same carrier as the deep path.
                     let mut fu = FunctionUnit::trivial_guarded(mqname, cfg);
                     fu.method_facts = Some(Arc::new(MethodBodyFacts::from_method(method)));
                     fu
@@ -1735,10 +1831,10 @@ impl CompilationUnit {
                         mqname,
                         cfg,
                         method,
-                        registry,
+                        UnitDialect { registry, config },
                         known_class_set,
                         trace_facts,
-                        config,
+                        command_trust,
                     )
                 }
                 .with_semantic_analysis(
@@ -1782,15 +1878,20 @@ impl CompilationUnit {
     fn build_body_units(
         ir_module: &IrModule,
         extra_callers: &[crate::unit_scope::ExtraCallSiteScanContext],
-        known_class_set: &HashSet<String>,
-        registry: &CommandRegistry,
-        trace_facts: ModuleTraceFacts<'_>,
-        semantic_context: Option<SemanticContext>,
-        config: tcl_lexer::LexerConfig,
+        ctx: BodyUnitContext<'_>,
     ) -> HashMap<String, FunctionUnit> {
+        let BodyUnitContext {
+            registry,
+            known_class_set,
+            trace_facts,
+            command_trust,
+            semantic_context,
+            config,
+        } = ctx;
         if ir_module.body_units.is_empty() {
             return HashMap::new();
         }
+        let no_extra_escaping = HashSet::new();
         ir_module
             .body_units
             .iter()
@@ -1807,14 +1908,21 @@ impl CompilationUnit {
                 let fu = if body_bytes > crate::ssa::DEEP_ANALYSIS_BODY_BYTES {
                     FunctionUnit::trivial_guarded(qname, cfg)
                 } else {
-                    FunctionUnit::build_with_param_constants_and_classes(
+                    FunctionUnit::build_full(
                         qname,
                         cfg,
-                        &proc.params,
-                        UnitDialect { registry, config },
-                        None,
-                        known_class_set,
-                        trace_facts,
+                        FunctionBuildInputs {
+                            config,
+                            params: &proc.params,
+                            registry,
+                            param_constants: None,
+                            known_classes: known_class_set,
+                            extra_global_escaping: &no_extra_escaping,
+                            trace_facts,
+                            command_trust,
+                            object_state: None,
+                            initial_global: false,
+                        },
                     )
                 }
                 .with_semantic_analysis(
@@ -1828,12 +1936,11 @@ impl CompilationUnit {
             .collect()
     }
 
-    /// Cross-event existence post-pass: `existence_constant_branches` ran per
-    /// function (before the connection scope existed) and folded
-    /// `[info exists VAR]` → false for any VAR not defined *in that event*.
-    /// That is unsound for an iRules cross-event variable (set in another
-    /// `when` handler), so drop those folds from `::when::*` procs now that the
-    /// connection scope is known — otherwise O101 rewrites
+    /// Cross-event existence post-pass: `existence_constant_branches` runs per
+    /// function and folds `[info exists VAR]` → false for any VAR not defined
+    /// *in that event*. That is unsound for an iRules cross-event variable
+    /// (set in another `when` handler), so drop those folds from `::when::*`
+    /// procs once the connection scope is known — otherwise O101 rewrites
     /// `if {[info exists ans_cleared]}` to `if {0}` even though a sibling event
     /// set it (a miscompile).
     fn drop_cross_event_existence_folds(
@@ -1884,7 +1991,7 @@ impl CompilationUnit {
         // cb` instance-method callback becomes a call-graph / reachability edge.
         let object_types = crate::object_types::object_handle_classes(&self, registry);
         // The unit's own proven command-identity facts, so the call-graph scan
-        // classifies a rebound head as the command it is (issue #1275).
+        // classifies a rebound head as the command it is.
         let identities = crate::realm::document_realm_bindings_with_config(
             &self.source,
             tcl_lexer::LexerConfig::for_profile(dialect),
@@ -1896,6 +2003,7 @@ impl CompilationUnit {
             dialect,
             crate::interprocedural::ObjectTypeMap(&object_types),
             &identities,
+            Some(&self.declared_commands),
             &self.cfg_module,
         );
 
@@ -1960,7 +2068,7 @@ impl CompilationUnit {
     ) -> Self {
         let object_types = crate::object_types::object_handle_classes(&self, registry);
         // The unit's own proven command-identity facts, so the call-graph scan
-        // classifies a rebound head as the command it is (issue #1275).
+        // classifies a rebound head as the command it is.
         let identities = crate::realm::document_realm_bindings_with_config(
             &self.source,
             tcl_lexer::LexerConfig::for_profile(dialect),
@@ -1972,6 +2080,7 @@ impl CompilationUnit {
             dialect,
             crate::interprocedural::ObjectTypeMap(&object_types),
             &identities,
+            Some(&self.declared_commands),
             &self.cfg_module,
         );
 
@@ -2255,8 +2364,8 @@ fn collect_known_classes(source: &str, registry: &CommandRegistry) -> HashSet<St
     // `oo::class` / `itcl::class` (both contain "class") **or** by another stock
     // `TclOO` metaclass — `oo::configurable` / `oo::abstract` / `oo::singleton`,
     // none of which contain the word "class" — so also admit any `oo::` head
-    // (issue #797: an `oo::configurable` class was skipped here, leaving its
-    // `[Class new]` untyped).  snit definers (`snit::type` / `snit::widget` /
+    // — skipping one would leave its `[Class new]` untyped.  snit definers
+    // (`snit::type` / `snit::widget` /
     // `snit::widgetadaptor`) contain neither "class" nor "oo::", so admit
     // `snit::` too, or a pure-snit file's `[Name create obj]` stays untyped.
     if !source.contains("class") && !source.contains("oo::") && !source.contains("snit::") {
@@ -2378,8 +2487,8 @@ mod tests {
         );
     }
 
-    /// Issue #1174: every method unit carries exactly one instance-state
-    /// carrier (`method_facts`), and its content matches the typed IR — the
+    /// Every method unit carries exactly one instance-state carrier
+    /// (`method_facts`), and its content matches the typed IR — the
     /// invariant that keeps the existence fold (I230/O100/O101), the
     /// W210/W211/W220 `known_bound` set, and the optimiser's method-constants
     /// escaping set reading the same struct.
@@ -2405,7 +2514,7 @@ mod tests {
         assert_eq!(facts.params, ir.params);
     }
 
-    /// TN for #1174: bodies with no object state — the top level and plain
+    /// TN: bodies with no object state — the top level and plain
     /// procedures — carry no `method_facts`, so no consumer can mistake a
     /// proc frame for a method frame.
     #[test]
@@ -2672,10 +2781,9 @@ mod tests {
 
     #[test]
     fn switch_glob_arm_body_read_counts_as_param_use() {
-        // A `switch -glob`/`-regexp` arm body is now a
-        // real analysed CFG region (it used to vanish into a barrier).
-        // A parameter referenced *only* inside a glob-arm body therefore
-        // has a live def-use chain — the precise path behind W214.
+        // A `switch -glob`/`-regexp` arm body is a real analysed CFG region,
+        // so a parameter referenced *only* inside a glob-arm body has a live
+        // def-use chain — the precise path behind W214.
         // Multi-arg arm form (the single-braced-body form is a separate,
         // pre-existing lowering gap affecting every mode equally).
         for (mode, pat) in [("-glob", "a*"), ("-regexp", "a.*")] {
@@ -2853,22 +2961,19 @@ mod tests {
         assert_eq!(count, cu.procedures.len() + 1);
     }
 
-    /// Issue #969 / interprocedural call-site literal seeding (TP/FP/TN/FN
-    /// suite for [`collect_call_site_constants`] / [`params_constants_from_call_sites`]).
+    /// Interprocedural call-site literal seeding (TP/FP/TN/FN suite for
+    /// [`collect_call_site_constants`] / [`params_constants_from_call_sites`]).
     mod call_site_param_constants {
         use super::*;
         use crate::analyses::LatticeValue;
 
         /// FN regression: a call from inside a `TclOO` method body to an
         /// ordinary user proc is a real caller with a differing argument,
-        /// but methods are built in a *separate* pass that runs after (and
-        /// was invisible to) the call-site scan — the same "call site
-        /// silently vanishes from the evidence" failure as issue #969's own
-        /// root cause, reached through a method body instead of
-        /// namespace-blind recursion or a `catch`/`uplevel` body. Before
-        /// `build_extra_call_site_scan_contexts`, this scan only ever saw
-        /// the one external `helper a` call, so it wrongly seeded `mode` as
-        /// the constant `"a"`.
+        /// but methods are built in a *separate* pass that runs after the
+        /// call-site scan. Without
+        /// `build_extra_call_site_scan_contexts` the scan sees only the one
+        /// external `helper a` call and wrongly seeds `mode` as the constant
+        /// `"a"`.
         #[test]
         fn call_site_inside_tcloo_method_body_is_not_missed() {
             let reg = registry();
@@ -2894,11 +2999,8 @@ mod tests {
         /// FN regression: a call reached only via a `namespace import` alias
         /// is a real caller with a differing argument, but
         /// `resolve_internal_call` alone only tries the caller's own
-        /// namespace and the global one — it doesn't know about imports. The
-        /// same "call site silently vanishes from the evidence" failure as
-        /// issue #969's own root cause, reached through an imported bare
-        /// name instead of namespace-blind recursion, a `catch`/`uplevel`
-        /// body, or a `TclOO` method body.
+        /// namespace and the global one — it doesn't know about imports, so
+        /// the call site would vanish from the evidence.
         #[test]
         fn call_site_via_namespace_import_alias_is_not_missed() {
             let reg = registry();
@@ -2961,7 +3063,7 @@ mod tests {
             );
         }
 
-        /// FP guard (issue #977): adding `namespace export *` to the very
+        /// FP guard: adding `namespace export *` to the very
         /// same source must stop the fold — and, unlike a `source` boundary,
         /// must keep stopping it even when a host supplies a workspace view.
         /// An export publishes `::lib::helper` for *any* other unit to import
@@ -2987,7 +3089,7 @@ mod tests {
             }
         }
 
-        /// Pinning test for issue #979: a proc reached only through a
+        /// A proc reached only through a
         /// `namespace ensemble` `-map` redirection is a real caller the
         /// call-site scan cannot resolve — it has no model of ensemble
         /// dispatch. tclsh8.6/9.0-confirmed: with `namespace ensemble
@@ -2998,12 +3100,11 @@ mod tests {
         /// registry marks `namespace ensemble` with `Traits::EXPORTS_COMMAND`,
         /// which `params_constants_from_call_sites` treats as a boundary
         /// publishing the file's commands to callers it cannot enumerate, so
-        /// the whole module declines seeding. Sound but blunt — and a future
-        /// registry edit narrowing that trait (or a precision follow-up that
-        /// starts resolving *some* ensemble maps) would silently reopen
-        /// issue #969's exact false-fold shape here. This test guards that
-        /// mechanism, whatever replaces it: the fold must stay off unless a
-        /// real ensemble-map resolution lands.
+        /// the whole module declines seeding. Sound but blunt — narrowing
+        /// that trait, or resolving *some* ensemble maps, would silently
+        /// reopen the false-fold shape here. This test guards the mechanism,
+        /// whatever replaces it: the fold must stay off unless a real
+        /// ensemble-map resolution exists.
         #[test]
         fn ensemble_map_redirected_caller_does_not_fold_issue_979() {
             let reg = registry();
@@ -3030,7 +3131,7 @@ mod tests {
             }
         }
 
-        /// FP guard (Codex review, PR #970): a `TclOO` method body resolves
+        /// FP guard: a `TclOO` method body resolves
         /// bare commands against the GLOBAL namespace, never the class's own
         /// namespace — tclsh8.6-confirmed live: `[::foo::Widget new] go`
         /// (method body `helper b`) calls `::helper`, never
@@ -3083,7 +3184,7 @@ mod tests {
             );
         }
 
-        /// FN regression (issue #980, Codex review of PR #970): `uplevel #0
+        /// FN regression: `uplevel #0
         /// { … }`'s body resolves bare commands against the GLOBAL
         /// namespace — tclsh8.6/9.0-confirmed live: `uplevel #0 { helper b
         /// }` inside `::foo::runIt` prints `GLOBAL helper mode=b`, never the
@@ -3091,10 +3192,10 @@ mod tests {
         /// `Statement::UpFrame`'s body survives CFG construction as a block
         /// *statement*, which `scan_cfg_callers` (walking only
         /// `Call`/`Barrier`) skips entirely, so this real, differing call
-        /// site vanished from `::helper`'s evidence and its one remaining
-        /// caller's `"a"` folded the condition.
+        /// site would vanish from `::helper`'s evidence, leaving its one
+        /// remaining caller's `"a"` to fold the condition.
         ///
-        /// `build_extra_call_site_scan_contexts` now builds a bare CFG for
+        /// `build_extra_call_site_scan_contexts` builds a bare CFG for
         /// every *absolute* shift-`0` `UpFrame` body, resolved as `"::top"`
         /// — mirroring how a `TclOO` method body is forced global.
         ///
@@ -3139,14 +3240,13 @@ mod tests {
             );
         }
 
-        /// MISCOMPILE regression (adversarial review): `uplevel 0 { … }` is
-        /// the *relative* current-frame form and must NOT be treated as the
-        /// absolute global form. Lowering encoded `#0` and `0` as the same
-        /// `frame_shift == 0`, so this body was resolved against `"::top"`
-        /// and `::foo::helper` lost its only varying call site — folding a
-        /// branch that real Tcl reaches both ways.
+        /// MISCOMPILE regression: `uplevel 0 { … }` is the *relative*
+        /// current-frame form and must NOT be treated as the absolute global
+        /// form. Encoding `#0` and `0` as the same `frame_shift == 0` resolves
+        /// this body against `"::top"`, losing `::foo::helper`'s only varying
+        /// call site — folding a branch that real Tcl reaches both ways.
         ///
-        /// Oracle (tclsh8.6 and tclsh9.0, `review-probes/up1.tcl`): inside
+        /// On tclsh8.6 and tclsh9.0: inside
         /// `::foo::runIt`, `uplevel #0 { helper b }` prints `GLOBAL helper`
         /// while `uplevel 0 { helper c }` prints `FOO helper`.
         #[test]
@@ -3177,7 +3277,7 @@ mod tests {
             );
         }
 
-        /// Approximation pin (issue #980): a *relative* `uplevel N { … }`
+        /// Approximation pin: a *relative* `uplevel N { … }`
         /// keeps resolving against the enclosing unit's own namespace. The
         /// target frame's namespace depends on the live call stack, so this
         /// is a deliberate, permanent approximation — but it must stay an
@@ -3212,7 +3312,7 @@ mod tests {
         }
 
         /// FN guard for the `Traits::DEFINES_PROCEDURE` body-recursion skip
-        /// (issue #980): a definition body is no longer re-walked from the
+        /// a definition body is not re-walked from the
         /// definition site, so its call sites must still arrive through the
         /// defined procedure's *own* CFG. A conditionally-defined proc is
         /// the shape most at risk — its `proc` call is not a plain top-level
@@ -3240,7 +3340,7 @@ mod tests {
             );
         }
 
-        /// FP guard (Codex review, PR #970): `namespace eval ::other { … }`
+        /// FP guard: `namespace eval ::other { … }`
         /// runs its body in `::other`, never the enclosing proc's own
         /// namespace — tclsh8.6-confirmed live: a bare call inside such a
         /// block, nested arbitrarily deep inside an unrelated proc, still
@@ -3289,8 +3389,8 @@ mod tests {
         /// vanished from `::foo::helper`'s evidence, folding a branch real
         /// Tcl reaches both ways.
         ///
-        /// Oracle (tclsh8.6 and tclsh9.0, `review-probes/ap3_run.tcl`):
-        /// inside `::foo::runIt`, `apply {{x} { helper $x } ::foo} b`
+        /// On tclsh8.6 and tclsh9.0: inside `::foo::runIt`,
+        /// `apply {{x} { helper $x } ::foo} b`
         /// returns 2 — the `else` arm of `::foo::helper` — while the direct
         /// `::foo::helper a` returns 1.
         #[test]
@@ -3358,8 +3458,8 @@ mod tests {
         /// diagnostic, and the O101/O107 optimiser suggestions, all key off.
         /// Build `src` under a **closed world**: an empty cross-file evidence
         /// set, which is the host asserting "I enumerated the project and no
-        /// other file calls into this one".  The pre-issue-#977 semantics for
-        /// a file that is genuinely the whole program.
+        /// other file calls into this one" — the semantics for a file that is
+        /// genuinely the whole program.
         fn build_closed_world(src: &str, reg: &CommandRegistry) -> CompilationUnit {
             let empty = crate::unit_scope::CallSiteEvidence::default();
             CompilationUnit::build_with_options(
@@ -3370,6 +3470,7 @@ mod tests {
                     config: tcl_lexer::LexerConfig::default(),
                     dialect: None,
                     external_call_sites: Some(&empty),
+                    declared_commands: None,
                 },
             )
         }
@@ -3381,14 +3482,13 @@ mod tests {
                 .any(|b| b.condition.contains(needle))
         }
 
-        /// FN (was silently wrong before the fix): a proc declared inside a
-        /// `namespace eval` block recurses into itself by its *bare* name.
-        /// The old resolver only ever tried global-qualified spellings of the
-        /// command word, so it could never match the proc's namespaced
-        /// qualified name — the recursive call (whose argument necessarily
-        /// varies call to call) silently vanished from the call-site scan,
-        /// leaving only the one external caller's literal `0` visible.
-        /// `params_constants_from_call_sites` then (wrongly) seeded `count`
+        /// FN: a proc declared inside a `namespace eval` block recurses into
+        /// itself by its *bare* name. A resolver that only tries
+        /// global-qualified spellings of the command word can never match the
+        /// proc's namespaced qualified name — the recursive call (whose
+        /// argument necessarily varies call to call) vanishes from the
+        /// call-site scan, leaving only the one external caller's literal `0`
+        /// visible. `params_constants_from_call_sites` would then seed `count`
         /// as the compile-time constant `0`, folding the always-alternating
         /// `$count & 1` parity check to a fixed `false` — exactly the
         /// reported false positive.
@@ -3419,11 +3519,9 @@ mod tests {
             );
         }
 
-        /// TN control: the same shape at the *top level* (no namespace) was
-        /// already sound before the fix (a bare recursive call already
-        /// resolved to the right, un-namespaced qualified name), and must
-        /// stay sound after it — the fix must not regress the case it
-        /// didn't need to change.
+        /// TN control: the same shape at the *top level* (no namespace),
+        /// where a bare recursive call resolves to the right un-namespaced
+        /// qualified name on its own, must stay sound.
         #[test]
         fn top_level_recursive_proc_parity_check_is_not_constant_folded() {
             let reg = registry();
@@ -3473,8 +3571,8 @@ mod tests {
         /// never be conflated by a bare same-namespace call — `::a::go`'s
         /// only caller passes `"same"`; `::b::go`'s only caller passes
         /// `"different"`. Each must fold to *its own* literal, not the
-        /// other's (which the old namespace-blind resolver could not even
-        /// attempt, since it never matched either bare call to a real proc).
+        /// other's — a namespace-blind resolver matches neither bare call to a
+        /// real proc.
         #[test]
         fn sibling_namespace_procs_with_same_leaf_name_are_not_conflated() {
             let reg = registry();
@@ -3699,10 +3797,10 @@ mod tests {
             );
         }
 
-        /// FP guard (Codex review, PR #970): `package provide` merely
-        /// *mentioned* in a comment must not disable the interprocedural
-        /// seed — the guard now checks the lowered IR for a real, resolved
-        /// invocation, not a raw-text substring match over the whole file.
+        /// FP guard: `package provide` merely *mentioned* in a comment must
+        /// not disable the interprocedural seed — the guard checks the lowered
+        /// IR for a real, resolved invocation, not a raw-text substring match
+        /// over the whole file.
         #[test]
         fn package_provide_mentioned_only_in_a_comment_does_not_disqualify() {
             let reg = registry();
@@ -3723,10 +3821,10 @@ mod tests {
             );
         }
 
-        /// FN guard (Codex review, PR #970): a real `package provide`
-        /// invocation must still disqualify the seed even when it's spelled
-        /// with unusual whitespace or fully namespace-qualified — cases the
-        /// old `source.contains("package provide")` substring check missed.
+        /// FN guard: a real `package provide` invocation must still
+        /// disqualify the seed even when it is spelled with unusual
+        /// whitespace or fully namespace-qualified — cases a
+        /// `source.contains("package provide")` substring check would miss.
         #[test]
         fn package_provide_with_unusual_spelling_still_disqualifies() {
             let reg = registry();
@@ -3747,17 +3845,16 @@ mod tests {
             );
         }
 
-        /// Issue #977 (the two-file repro, verbatim): `lib.tcl` has **no**
-        /// `package provide`, so PR #970's guard never fires; its only two
-        /// visible callers both pass `"prod"`, so `mode` was seeded as that
-        /// constant and the condition folded — even though `main.tcl`
-        /// `source`s it and calls `helper dev`.
+        /// Two-file repro: `lib.tcl` has **no** `package provide`, so the
+        /// provide guard never fires; its only two visible callers both pass
+        /// `"prod"`, so seeding `mode` as that constant folds the condition —
+        /// even though `main.tcl` `source`s it and calls `helper dev`.
         mod cross_file {
             use super::*;
             use crate::unit_scope::CallSiteEvidence;
 
-            /// `lib.tcl` from the issue: a plain library file, no `package
-            /// provide`, whose in-file callers agree.
+            /// A plain library file, no `package provide`, whose in-file
+            /// callers agree.
             const LIB: &str = "
                 proc helper {mode} {
                     if {$mode eq \"prod\"} { set r 1 } else { set r 2 }
@@ -3766,8 +3863,8 @@ mod tests {
                 helper prod
             ";
 
-            /// `main.tcl` from the issue: sources the library and calls its
-            /// proc with a literal `lib.tcl` never sees.
+            /// Sources the library and calls its proc with a literal
+            /// `lib.tcl` never sees.
             const MAIN: &str = "
                 source lib.tcl
                 helper dev
@@ -3780,6 +3877,7 @@ mod tests {
                 crate::unit_scope::scan_source_call_sites(
                     other,
                     reg,
+                    None,
                     tcl_registry::model::ingress::resolve_environment("").analyser_profile(),
                     &known,
                     &[],
@@ -3799,6 +3897,7 @@ mod tests {
                         config: tcl_lexer::LexerConfig::default(),
                         dialect: None,
                         external_call_sites: Some(evidence),
+                        declared_commands: None,
                     },
                 )
             }
@@ -3898,7 +3997,7 @@ mod tests {
             /// FN guard — a cross-file `rename` moves `helper`'s binding, so
             /// a call reaching it need not be one any scan attributed to it.
             /// `command_mutations` only sees the file being compiled, so
-            /// without this the rebinding was invisible across files.
+            /// without this the rebinding is invisible across files.
             #[test]
             fn cross_file_rename_poisons_the_callee() {
                 let reg = registry();
@@ -4006,11 +4105,9 @@ mod smoke {
     }
 }
 
-/// The property the review found missing: a unit built for the *string*
-/// `"jim"` is built under Jim's grammar and hands codegen the name `jim` —
-/// not the permissive fallback's grammar and the name `tcl`, which is what
-/// every ingress produced before the projected profile existed, so the
-/// centralised resolution was never asked about Jim at all.
+/// A unit built for the *string* `"jim"` is built under Jim's grammar and
+/// hands codegen the name `jim` — not the permissive fallback's grammar and
+/// the name `tcl`, which would bypass the centralised resolution entirely.
 #[cfg(test)]
 mod jim_ingress_tests {
     use super::*;

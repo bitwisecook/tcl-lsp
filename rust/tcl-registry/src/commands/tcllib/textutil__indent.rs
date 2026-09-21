@@ -26,7 +26,7 @@
 //! via `namespace import -force adjust::indent` (tcllib-2.0
 //! `modules/textutil/textutil.tcl`) — real and callable, but only after
 //! `package require textutil`, never after `package require
-//! textutil::adjust` alone (issue #923 idx 3/4; confirmed against tclsh
+//! textutil::adjust` alone (confirmed against tclsh
 //! 9.0.4 + real tcllib-2.0).
 use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {

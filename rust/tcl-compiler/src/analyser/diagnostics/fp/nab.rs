@@ -176,12 +176,11 @@ fn fp_nab_05_braced_switch_form_should_not_fire_w304() {
 
 #[test]
 fn fp_nab_05_dynamic_two_arg_switch_form_should_not_fire_w304() {
-    // FN regression: the exemption used to require the trailing word be a
-    // braced `Str` literal, missing the equally-safe dynamic 2-arg form —
-    // C Tcl's own `TclNRSwitchObjCmd` never scans either trailing word as
-    // an option once only `string` + pattern-list remain (`objc - 2`
-    // bound), regardless of whether the pattern list is a literal or a
-    // variable/command substitution.
+    // The exemption covers the dynamic 2-arg form as well as a braced `Str`
+    // literal: C Tcl's own `TclNRSwitchObjCmd` never scans either trailing word
+    // as an option once only `string` + pattern-list remain (`objc - 2` bound),
+    // regardless of whether the pattern list is a literal or a variable/command
+    // substitution.
     let src = "proc f {x} { set cases {a {puts A} b {puts B}}; switch $x $cases }";
     assert!(
         !fires(src, D, "W304"),
@@ -318,8 +317,8 @@ fn fp_nab_11_stub_registered_command_silent() {
 }
 
 // Option-value Body role: a Tk `-command` script value is recursively analysed
-// like a positional body (Phase 3), so a structure-dependent lint that requires
-// parsing the inner command — W100, unbraced `expr` — fires inside it.
+// like a positional body, so a structure-dependent lint that requires parsing
+// the inner command — W100, unbraced `expr` — fires inside it.
 #[test]
 fn tk_command_option_body_is_analysed() {
     let src = "button .b -command {expr $x+1}";

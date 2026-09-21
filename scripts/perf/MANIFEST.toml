@@ -16,7 +16,7 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-# Pinned corpus for the cross-version performance benchmark (issue #1181).
+# Pinned corpus for the cross-version performance benchmark.
 #
 # Every entry is pinned to an exact commit so a benchmark run in a year's
 # time measures the same bytes as one today. A graph that compares v2.1.5
@@ -33,11 +33,11 @@
 # refuses to plot results from two different revisions on one graph.
 revision = 1
 
-# --- georgtree: heavy TclOO, SPICE tooling -----------------------------------
+# georgtree: heavy TclOO, SPICE tooling.
 # SpiceGenTcl is load-bearing for the benchmark, not just bulk: it is the
 # smallest corpus member that builds a real `source` forest (17 `source`
 # statements) *and* package edges (7 `package require`) at once, which is the
-# shape that exposes the `RunOrder::alternatives` fast-path miss in #1297.
+# shape that exposes a `RunOrder::alternatives` fast-path miss.
 [[repo]]
 name = "SpiceGenTcl"
 url = "https://github.com/georgtree/SpiceGenTcl"
@@ -86,7 +86,7 @@ url = "https://github.com/georgtree/extexpr"
 commit = "1d53317eb9a71886a79fc7cad88bbdc12ee16e1d"
 group = "georgtree"
 
-# --- nico-robert -------------------------------------------------------------
+# nico-robert.
 [[repo]]
 name = "ticklecharts"
 url = "https://github.com/nico-robert/ticklecharts"
@@ -123,7 +123,7 @@ url = "https://github.com/nico-robert/implottk"
 commit = "505b824ac966479ec51444eab7b43ad552ca47cd"
 group = "nico-robert"
 
-# --- tcltk core --------------------------------------------------------------
+# tcltk core.
 [[repo]]
 name = "tcllib"
 url = "https://github.com/tcltk/tcllib"
@@ -142,7 +142,7 @@ url = "https://github.com/tcltk/tk"
 commit = "7005f92520a03c7bec78ea521f96258d3365e4aa"
 group = "tcltk"
 
-# --- aplsimple ---------------------------------------------------------------
+# aplsimple.
 [[repo]]
 name = "pave"
 url = "https://github.com/aplsimple/pave"
@@ -155,7 +155,7 @@ url = "https://github.com/aplsimple/alited"
 commit = "a1fae46fb7a7f27624d149ac9f56eabbf43a04df"
 group = "aplsimple"
 
-# --- other large public Tcl projects ------------------------------------------
+# Other large public Tcl projects.
 [[repo]]
 name = "XilinxTclStore"
 url = "https://github.com/Xilinx/XilinxTclStore"
@@ -168,7 +168,7 @@ url = "https://github.com/OSVVM/OSVVM-Scripts"
 commit = "60a2751c1d2087e6e58671585d3649cd5eb0b93d"
 group = "other"
 
-# --- iRules corpus (issue #1181) ----------------------------------------------
+# iRules corpus.
 #
 # The iRules dialect had no pinned corpus at all: everything above is plain
 # Tcl/TclOO, so nothing here exercised `when` blocks, the `HTTP::`/`LB::`/`TCP::`
@@ -281,7 +281,7 @@ url = "https://github.com/erkac/f5-irules"
 commit = "96ce76edde28e1295b5b50888cacaee149d48d29"
 group = "irules-community"
 
-# --- private corpus -----------------------------------------------------------
+# Private corpus.
 #
 # Publicly *sourced* (≈620 iRules gathered from 60+ upstream repos) but held in
 # a private repo, so it is skipped unless `--include-private` is passed and the
@@ -294,23 +294,23 @@ commit = "7bbe00d8e2b7c9c7ffa38497a298a23ad2c1c80a"
 group = "private"
 visibility = "private"
 
-# --- benchmark scopes ---------------------------------------------------------
+# Benchmark scopes.
 #
 # The full corpus is ~2400 .tcl files, which is the right scale for the
 # workspace-scan and steady-state memory measurements but too slow to run the
 # per-check suite against on every release. `bench.py --scope` selects one.
 #
 # `small` is deliberately the georgtree group alone: it is the smallest scope
-# that still contains SpiceGenTcl, so it reproduces #1297 while running in
-# seconds rather than minutes.
+# that still contains SpiceGenTcl, so it reproduces that fast-path miss while
+# running in seconds rather than minutes.
 
 # Files that must be opened by every run when present, regardless of the
 # seeded selection. These pin *known pathological shapes* so a suite that
 # happens to seed onto four easy files cannot report a clean bill of health:
-# `tcl_tools/mathutil.tcl` is the 26 s `references` / `codeLens/resolve` case
-# in #1297 (top-level `proc`s resolved against SpiceGenTcl's source+package
-# graph). Add an entry here whenever a perf issue is found, so the graph
-# tracks it from then on.
+# `tcl_tools/mathutil.tcl` is a 26 s `references` / `codeLens/resolve` case
+# (top-level `proc`s resolved against SpiceGenTcl's source+package graph).
+# Add an entry here whenever a perf issue is found, so the graph tracks it
+# from then on.
 [anchors]
 paths = [
   "georgtree/tcl_tools/mathutil.tcl",
@@ -350,7 +350,7 @@ groups = [
   "private",
 ]
 
-# --- versions under test ------------------------------------------------------
+# Versions under test.
 #
 # `get_server.py` resolves each of these to a binary: a published release asset
 # where one exists, otherwise a build from the tag. Native `tcl-lsp-server`

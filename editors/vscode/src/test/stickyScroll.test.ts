@@ -25,7 +25,7 @@ import { getDocUri, activate, pollUntil } from "./helper";
 // outline model → folding-range provider → indentation heuristic.  A
 // *non-empty* outline stops the chain, so registering a document-symbol
 // provider silently replaces the indentation heuristic the user had before
-// the extension was installed (issue #1122).  For Tcl code the outline is
+// the extension was installed.  For Tcl code the outline is
 // definitions only — a script whose top level is `if` / `for` / `foreach`
 // contributes nothing sticky, so sticky scroll goes blank.  Our folding
 // ranges cover exactly those blocks, so Tcl languages default to the
@@ -40,7 +40,7 @@ import { getDocUri, activate, pollUntil } from "./helper";
 // override identifier at all.  VS Code splits `[tcl8.4]` on the dot while
 // building the default-configuration value tree, throws a TypeError, and drops
 // every remaining override in the same `configurationDefaults` block — ours
-// and, since the tree is shared, any other extension's (issue #1122).  That is
+// and, since the tree is shared, any other extension's.  That is
 // why the four version-pinned ids were renamed `tcl8.4` → `tcl84` and why a
 // dotted id must never be reintroduced.  The "no contributed language id
 // contains a dot" test below is the guard.
@@ -137,8 +137,8 @@ function findDocumentSymbol(
 // TclOO class fixture whose body closes at end-of-file with no trailing
 // newline -- the boundary shape VS Code's isValidRange rejects when a
 // provider's range points one line past the document. Same class shape as
-// the on-disk `meter-2.0.tm` fixture (which mirrors the file shape from
-// issue #1122 with invented identifiers -- the reporter's file and names
+// the on-disk `meter-2.0.tm` fixture (which mirrors the shape of a real
+// reported file with invented identifiers -- the reporter's file and names
 // are not public), minus the code that normally trails the class.
 const METER_EOF_VARIANT = [
   "oo::class create ::example::meter::Meter {",
@@ -174,7 +174,7 @@ suite("Sticky Scroll", () => {
     // default-configuration value tree, throws a TypeError, and abandons every
     // remaining override in that block.  The damage is not even limited to us —
     // the defaults tree is shared, so one dotted id can silently strip other
-    // extensions' defaults too (issue #1122).  This is why the version-pinned
+    // extensions' defaults too.  This is why the version-pinned
     // dialect ids are `tcl84` / `tcl85` / `tcl90` / `tcl91` rather than
     // `tcl8.4` / … .  Do not reintroduce a dotted id; the *dialect* strings
     // (`tcl8.4`) are a separate namespace and keep their dots.
@@ -213,9 +213,9 @@ suite("Sticky Scroll", () => {
   }
 
   test("BIG-IP config stanzas fold, so sticky scroll has real lines to pin", async () => {
-    // A `.conf` is not Tcl, so it used to produce only comment folds and the
-    // folding model would have had nothing to stick.  Folding now runs off
-    // the stanza tree, at every nesting depth.
+    // A `.conf` is not Tcl, so folding must not rely on comment folds alone:
+    // it runs off the stanza tree, at every nesting depth, giving the
+    // folding model real lines to stick to.
     await activate(getDocUri("folding.tcl"));
 
     const doc = await vscode.workspace.openTextDocument({
@@ -299,7 +299,7 @@ suite("Sticky Scroll", () => {
     );
   });
 
-  // Issue #1122's reporter file is a TclOO Tcl module (`meter-2.0.tm`, language
+  // The fixture `meter-2.0.tm` is a TclOO Tcl module (language
   // id `tcl`). These tests replicate VS Code's actual sticky candidate
   // pipeline (see the `buildStickyFoldingTree` block comment above) against
   // real folding-provider output for that shape, rather than only checking

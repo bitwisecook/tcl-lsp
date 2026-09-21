@@ -34,7 +34,7 @@
 //! - [`registry`] — [`CommandRegistry`] lookup facade.
 //! - [`commands`] — one file per command, one directory per dialect.
 //! - [`events`] — iRules event metadata (176 events, firing order, flow chains).
-//! - [`profiles`] — F5 profile types (65 profiles), protocol namespaces (113),
+//! - [`profiles`] — F5 profile types (66 profiles), protocol namespaces (113),
 //!   and stack modification commands.
 //! - [`special_vars`] — dialect-versioned interpreter-provided variables
 //!   (`auto_path`, `env`, `tcl_platform`, the iRules `static::` namespace).
@@ -109,6 +109,7 @@ pub mod snapshot;
 pub mod spec;
 pub mod special_vars;
 pub mod state_transition;
+pub mod substitution;
 pub mod symbol_def;
 pub mod taint;
 pub mod tk_geometry;

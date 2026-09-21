@@ -2,7 +2,7 @@
 # tcltest's `test` to emit each case's (name, constraints, returnCodes, result,
 # body) instead of running it. Run under the `tcltest` shell:
 #
-#   tmp/tcl9.0.3/unix/tcltest \
+#   tmp/tcl9.0.4/unix/tcltest \
 #       rust/tcl-vm/tests/data/dump_regexp_cmd.tcl <file.test> > out.tsv
 #
 # Strings (result + body) are emitted as comma-separated codepoints. The Rust

@@ -224,7 +224,7 @@ impl<'a> Lowerer<'a> {
         // on a catalogue row by name. `DialectProfile::find` answers `None`
         // for an environment with a Tcl ladder and no row — `jim` — so a
         // name lookup here would hand this pass the permissive fallback and
-        // lower a Jim unit as Tcl 9.0, which is the hole #1731 closed. The
+        // lower a Jim unit as Tcl 9.0. The
         // context's id is already the ingress's canonical one, so this is a
         // keyed lookup, not a second resolution of a user string, and
         // `unit_profile` is the same door `CompilationUnit::build_for_dialect`
@@ -278,7 +278,7 @@ impl<'a> Lowerer<'a> {
         }
     }
 
-    // -- values and operations ------------------------------------------------
+    // Values and operations.
 
     fn new_value(&mut self, ty: NativeType, rep: Representation) -> NativeValueId {
         let id = NativeValueId(u32::try_from(self.values.len()).expect("value count fits u32"));
@@ -413,7 +413,7 @@ impl<'a> Lowerer<'a> {
         dst
     }
 
-    // -- cells ----------------------------------------------------------------
+    // Cells.
 
     fn record_cell(
         &mut self,
@@ -487,7 +487,7 @@ impl<'a> Lowerer<'a> {
         }
     }
 
-    // -- driver ---------------------------------------------------------------
+    // Driver.
 
     fn lower(&mut self) -> NativeFunction {
         let function = self.input.function;
@@ -800,7 +800,7 @@ impl<'a> Lowerer<'a> {
         .with_block(block)
     }
 
-    // -- invocations ----------------------------------------------------------
+    // Invocations.
 
     fn lower_invoke(
         &mut self,
@@ -996,7 +996,7 @@ impl<'a> Lowerer<'a> {
         self.record_cell(place, CellAccessKind::Update, barrier, shadow.is_some());
     }
 
-    // -- already-lowered operations -------------------------------------------
+    // Already-lowered operations.
 
     #[allow(clippy::too_many_lines)]
     fn lower_lowered(&mut self, operation: &LoweredOperation) -> StatementOutcome {
@@ -1197,7 +1197,7 @@ impl<'a> Lowerer<'a> {
         }
     }
 
-    // -- words ----------------------------------------------------------------
+    // Words.
 
     fn words_lowerable(&self, words: &[WordExpr], depth: u32) -> Result<(), NativeLoweringDecline> {
         if depth > MAX_WORD_DEPTH {
@@ -1363,7 +1363,7 @@ impl<'a> Lowerer<'a> {
             && !self.input.module.traced_commands.contains(name)
     }
 
-    // -- expressions ----------------------------------------------------------
+    // Expressions.
 
     /// Lower an expression, falling back to the runtime expression intrinsic
     /// over the rendered expression when it has no native shape.
@@ -2007,8 +2007,7 @@ fn word_is_literally(word: &WordExpr, recorded: &str) -> bool {
 /// operands do not exist.
 ///
 /// Shared by the native tier and the general wasm tier because it is one rule:
-/// a second copy is a second thing to go out of step, and the general tier had
-/// no check at all (issue #1896).
+/// a second copy is a second thing to go out of step.
 pub(crate) fn definition_words_are_written_out(
     words: &[WordExpr],
     params_raw: &str,

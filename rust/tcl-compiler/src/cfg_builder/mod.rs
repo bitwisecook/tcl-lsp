@@ -287,7 +287,7 @@ pub(crate) struct CfgBuilder<'a> {
 ///
 /// Shares [`crate::depth_guard::MAX_SOURCE_NEST_DEPTH`] with the lowering
 /// and analyser body walks — one budget, derived from a measured per-level
-/// stack cost, rather than three copies of a hand-picked 256 (issue #1654).
+/// stack cost, rather than three copies of a hand-picked 256.
 ///
 /// Through the normal pipeline this cap is **unreachable**: `lowering`'s
 /// copy of the same number already bounds the IR handed here, so a
@@ -555,7 +555,7 @@ impl<'a> CfgBuilder<'a> {
     /// through an `upvar` alias or an `uplevel` write, so the dead-store /
     /// unused-assignment passes never delete a store such a callee can
     /// observe (`set callervar 5; get` where `get` runs `upvar 1 callervar
-    /// m; return $m` — issue #1193's upvar differential).  The names land on
+    /// m; return $m`).  The names land on
     /// [`crate::cfg::Function::alias_observed_vars`]; recording them as
     /// *reads* on the call statement instead would fabricate
     /// read-before-set uses (a false W210) for the pure out-param shape.
@@ -634,7 +634,7 @@ impl<'a> CfgBuilder<'a> {
 
         // 2b. An embedded call to a proc that runs an unreadable script at
         //     the global frame (`set y [setter]` where `setter` does
-        //     `uplevel #0 $body`, issue #1198): no def list can enumerate
+        //     `uplevel #0 $body`): no def list can enumerate
         //     what it clobbers, so prepend an opaque barrier — the same
         //     program-order position the synthetic `<upvar-invalidate>`
         //     uses, so the host statement's own reads already see the
@@ -708,8 +708,8 @@ impl<'a> CfgBuilder<'a> {
     /// caller-frame effect has no sound per-name def list: a callee whose
     /// `upvar` caller-side name is unresolvable (`upvar 1 $computed x`) can
     /// write ANY caller variable, and a callee that runs an unreadable
-    /// script at the global frame (`uplevel #0 $body`, issue #1198) can
-    /// write or read ANY global/namespace name.
+    /// script at the global frame (`uplevel #0 $body`) can write or read ANY
+    /// global/namespace name.
     fn opaque_call_barrier(&self, stmt: &Statement) -> Option<Statement> {
         let Statement::Call {
             command,
@@ -752,9 +752,9 @@ impl<'a> CfgBuilder<'a> {
             span: *span,
             // A widening *effect*, not a command to run: the call itself is
             // already in the statement stream immediately beside this barrier,
-            // so naming the callee here made codegen invoke it a second time
-            // (issue #1602 — `proc p {} { upvar 1 {a b} v ; puts "u=$v" }; p`
-            // printed `u=…` twice on the VM where tclsh 8.6.14 / 9.0.4 print it
+            // so naming the callee here would make codegen invoke it a second
+            // time: `proc p {} { upvar 1 {a b} v ; puts "u=$v" }; p` would print
+            // `u=…` twice on the VM where tclsh 8.6.14 / 9.0.4 print it
             // once; `proc setter {body} { uplevel #0 $body }; setter {set q 1}`
             // failed with `wrong # args` from the re-invoke). The typed
             // `SyntheticMarker` on the tokens is what stops codegen
@@ -887,8 +887,8 @@ impl<'a> CfgBuilder<'a> {
     /// reached via a bare `mutate` statement.
     ///
     /// The second return is `true` when any embedded callee's summary
-    /// carries [`GlobalWriteInfo::opaque_global_frame`] (`uplevel #0 $body`,
-    /// issue #1198) — no def list can enumerate that, so the caller must
+    /// carries [`GlobalWriteInfo::opaque_global_frame`] (`uplevel #0 $body`)
+    /// — no def list can enumerate that, so the caller must
     /// widen with an opaque barrier.
     fn global_write_defs_from_commands(
         &self,
@@ -925,8 +925,8 @@ impl<'a> CfgBuilder<'a> {
         (defs, opaque)
     }
 
-    /// Condition-position command-substitution out-vars (issue #923 idx
-    /// 122): unions the registry's `ArgRole::VarWrite` scan
+    /// Condition-position command-substitution out-vars: unions the
+    /// registry's `ArgRole::VarWrite` scan
     /// ([`crate::ir_helpers::condition_command_out_vars`]) with the same
     /// known-upvar-proc /
     /// known-global-writer resolution every *other* embedded-substitution
@@ -940,7 +940,7 @@ impl<'a> CfgBuilder<'a> {
     /// upvar write) completes before the body ever runs
     /// (tclsh9.0/8.6-verified).
     /// The second return is `true` when a condition-embedded callee runs an
-    /// unreadable script at the global frame (issue #1198): the caller must
+    /// unreadable script at the global frame: the caller must
     /// then push an opaque barrier alongside the `<cond>` defs, because no
     /// def list can enumerate what the condition's evaluation clobbers.
     fn condition_out_vars(&self, condition: &ExprNode) -> (Vec<String>, bool) {
@@ -1241,8 +1241,8 @@ impl<'a> CfgBuilder<'a> {
     /// `while` themselves never declare. So a `catch`/`regexp`/`scan`
     /// result var, or a known upvar/global-writing user proc's write,
     /// reached only through the frozen condition (`while {[getopt argv
-    /// $opts opt arg]} { ... }`, tcllib's `cmdline::getoptions` — issue
-    /// #923 idx 122) was invisible to the def-use graph: the read inside
+    /// $opts opt arg]} { ... }`, tcllib's `cmdline::getoptions`) would be
+    /// invisible to the def-use graph: the read inside
     /// the (un-lowered, but still textually-scanned) body looked
     /// read-before-set even though the condition's own command
     /// substitution completes — including the write — before the body
@@ -1601,7 +1601,7 @@ impl<'a> CfgBuilder<'a> {
             // keeping the emitted bytecode byte-identical to C Tcl. Mirrors the
             // `array for` split above. Without the inlined body, a command-name or
             // brace-nested `$var` read the shallow barrier-word scan can't see is
-            // lost, so the loop's outer reads look dead (issue #833).
+            // lost, so the loop's outer reads look dead.
             if self.faithful_exceptions {
                 return self.lower_foreach(stmt, current);
             }
@@ -1756,9 +1756,9 @@ impl<'a> CfgBuilder<'a> {
 /// tail, **and** by any `::`-boundary suffix in between: written from
 /// `::other`, the word `demo::setdef` resolves relative to the current
 /// namespace first and then falls back to `::demo::setdef`, so that
-/// spelling has to key the same summary (issue #923 audit idx 59, where the
-/// relative-qualified spelling silently missed the caller-frame defs while
-/// the bare and absolute spellings both worked).
+/// spelling has to key the same summary — otherwise the relative-qualified
+/// spelling silently misses the caller-frame defs the bare and absolute
+/// spellings pick up.
 ///
 /// Registering a suffix is the same over-approximation the bare tail
 /// already was: a same-named proc in a different namespace can claim the
@@ -1821,7 +1821,7 @@ fn detect_upvar_procs_with_bindings(
     // not be decided by the `HashMap`'s random per-process seed — this map is part
     // of the `CfgContext` folded into every procedure's `function_lattice` memo
     // key, and a nondeterministic winner makes the per-procedure cache hit or miss
-    // by luck of the process start (issue #1035 follow-up).
+    // by luck of the process start.
     let mut entries: Vec<(&String, &crate::ir::Procedure)> = module.procedures.iter().collect();
     entries.sort_by(|a, b| a.0.cmp(b.0));
     let mut own: Vec<(&String, &crate::ir::Procedure, UpvarInfo)> = Vec::new();
@@ -1843,7 +1843,7 @@ fn detect_upvar_procs_with_bindings(
 
     // One hop, no fixpoint: `uplevel <caller frame> [list callee …]` puts
     // the callee's own caller-frame effects into *this* proc's caller
-    // (issue #1019). Composing against the *own-body* summaries — not the
+    // Composing against the *own-body* summaries — not the
     // composed ones — bounds the walk at a single level by construction, so
     // a recursive or mutually-recursive forward cannot diverge. A two-hop
     // chain is left to the opaque-widening path, which is the safe
@@ -1871,8 +1871,8 @@ fn detect_upvar_procs_with_bindings(
             }
         }
         // The second one-hop composition: an **ordinary** call to a proc that
-        // reaches past its own caller lands in *this* proc's caller (issue
-        // #1019 / issue #923 idx 24).  Oracle, identical on tclsh 9.0.4 and
+        // reaches past its own caller lands in *this* proc's caller.
+        // Identical on tclsh 9.0.4 and
         // 8.6.16: `proc setUp2 {var} {uplevel 2 [list set $var 99]}` /
         // `proc middle {} {setUp2 answer}` / `proc outer {} {middle; return
         // $answer}` — `outer` returns `99`, so `answer` really is assigned in
@@ -3135,10 +3135,9 @@ mod tests {
         }])
     }
 
-    /// Drift guard: the registry-derived classification sets must equal
-    /// the name lists this file used to hardcode, so a future trait
-    /// stamping change is a conscious CFG-shape decision rather than a
-    /// silent one.
+    /// Drift guard: the registry-derived classification sets must equal the
+    /// name lists pinned here, so a trait stamping change is a conscious
+    /// CFG-shape decision rather than a silent one.
     #[test]
     fn registry_derived_cfg_classes_match_previous_hardcodes() {
         fn sorted(classes: &CfgCommandClasses, traits: Traits) -> Vec<&str> {
@@ -3239,7 +3238,7 @@ mod tests {
         );
     }
 
-    /// The classification helpers keep each site's historical name
+    /// The classification helpers keep each site's own name
     /// normalisation: the terminator / throw / tailcall checks trim
     /// leading `:` runs (so canonical `::error` classifies), while
     /// [`CfgBuilder::lower_loop_jump`] matches the raw word (so
@@ -3660,7 +3659,7 @@ mod tests {
         );
     }
 
-    /// Regression coverage for issue #996: `escaping_loop_jumps` and the
+    /// `escaping_loop_jumps` and the
     /// mutually-recursive `switch_escaping_jumps` recurse once per nested
     /// `if`/`switch`/`Block`/`UpFrame`/`try` body, with no depth cap of
     /// their own before this fix. Transitively bounded to
@@ -3796,7 +3795,7 @@ mod tests {
         assert!(cfg.procedures["::caller"].caller_frame_barrier.writes);
     }
 
-    // Issue #923 idx 18 (revisited after PR #1020 review): a wrapper proc
+    // A wrapper proc
     // that reaches an already-known upvar proc through a *plain* call
     // (`real_worker $fvar $nvar $script`, not `uplevel`) does NOT itself
     // become an upvar-write target for its own caller — tclsh9.0/8.6-
@@ -3804,17 +3803,14 @@ mod tests {
     // the variable in a statement separate from the call, i.e. genuinely
     // outside any `uplevel`'d script argument). A plain call only shares
     // *values*, not stack frames: `real_worker`'s own `upvar 1` reaches the
-    // wrapper's frame, not the wrapper's caller's frame — an earlier
-    // version of this fix treated every such pass-through as transitive,
-    // which was disproven by re-testing with the read moved outside the
-    // uplevel'd script (see the reverted commit's own follow-up fix for
-    // the story). The real tcllib idiom this finding was mined from
+    // wrapper's frame, not the wrapper's caller's frame; treating such a
+    // pass-through as transitive is wrong, as reading the variable outside
+    // any uplevel'd script shows. The tcllib idiom
     // (`page::util::flow`) reaches its own worker via `uplevel 1 [list
-    // ... ]`, not a plain call — genuinely propagating one frame further,
-    // confirmed separately against tclsh9.0 — but modelling that shape
-    // soundly (accounting for the wrapper's own uplevel level composed
-    // with the callee's own upvar level) is out of scope here; tracked at
-    // https://github.com/bitwisecook/tcl-lsp/issues/1019.
+    // ... ]`, not a plain call — that genuinely propagates one frame further,
+    // confirmed against tclsh9.0 — but modelling it soundly (composing the
+    // wrapper's own uplevel level with the callee's upvar level) is not done
+    // here.
 
     #[test]
     fn detect_upvar_procs_does_not_propagate_through_a_plain_call_wrapper() {
@@ -3866,13 +3862,13 @@ mod tests {
         );
     }
 
-    /// Issue #1019 / issue #923 audit idx 24: the *other* half of the rule
+    /// The *other* half of the rule
     /// the two tests above pin. A level-**1** effect stops at the wrapper's
     /// own frame, but a level that lands past the callee's caller reaches
     /// this proc's caller through an ordinary call, so the wrapper really
     /// does become a caller-frame writer.
     ///
-    /// Oracle, byte-identical on tclsh 9.0.4 and 8.6.16:
+    /// Byte-identical on tclsh 9.0.4 and 8.6.16:
     ///
     /// ```tcl
     /// proc setUp2 {var} { uplevel 2 [list set $var 99] }
@@ -3899,7 +3895,7 @@ mod tests {
         );
     }
 
-    /// Tcl 9.0.4 oracle:
+    /// On tclsh 9.0.4:
     ///
     /// ```tcl
     /// proc far {} {uplevel 2 {set x 2}}
@@ -4427,7 +4423,7 @@ mod tests {
         assert_eq!(cmd, "<upvar-invalidate>");
     }
 
-    /// Tcl 9.0.4 oracle:
+    /// On tclsh 9.0.4:
     ///
     /// ```tcl
     /// proc far {name} {upvar 1 $name v; set v 2; return ok}
@@ -4544,7 +4540,7 @@ mod tests {
         );
     }
 
-    // Issue #923 idx 122: a known upvar proc's call-by-name write reached
+    // A known upvar proc's call-by-name write reached
     // only through a nested `[...]` (a wrapping command around it, or a
     // loop/branch condition) must still be recovered — real tcllib
     // `cmdline::getoptions` repro: `while {[set err [getopt argv $opts
@@ -4622,8 +4618,8 @@ mod tests {
 
     #[test]
     fn frozen_for_condition_carries_upvar_proc_defs() {
-        // TP — the `for` loop's identical frozen-barrier path (issue #923
-        // idx 122 applies equally to `for {...} [cond] {...} {...}`).
+        // TP — the `for` loop's identical frozen-barrier path: the same rule
+        // applies to `for {...} [cond] {...} {...}`.
         let module = lower_module(
             "proc getopt {ovar} { upvar 1 $ovar opt; set opt 1 }\n\
              for {} {[getopt opt]} {} { puts $opt }",

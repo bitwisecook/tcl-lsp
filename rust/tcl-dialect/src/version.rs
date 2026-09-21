@@ -47,18 +47,52 @@ pub enum ByteStringEncoding {
 
 /// Character-counting model used by Tcl string operations.
 ///
-/// Tcl 8 stores `Tcl_UniChar` as a 16-bit unit, so a supplementary-plane
-/// character occupies a surrogate pair and contributes two to `string
-/// length`. Tcl 9 widened `Tcl_UniChar` and counts Unicode scalar values.
+/// Three-valued, because the releases are. Measured with
+/// `string length [encoding convertfrom utf-8 …]` on tclsh 8.4.20, 8.5.19,
+/// 8.6.18, 9.0.4 and 9.1b0:
+///
+/// | sequence | 8.4, 8.5 | 8.6 | 9.x |
+/// |---|---|---|---|
+/// | 2-byte (`é`, `U+00E9`) | 1 | 1 | 1 |
+/// | 3-byte (`€`, `U+20AC`) | 1 | 1 | 1 |
+/// | 4-byte (`😀`, `U+1F600`) | **4** | 2 | 1 |
+///
+/// Tcl 8.6 stores `Tcl_UniChar` as a 16-bit unit, so a supplementary-plane
+/// character occupies a surrogate pair and contributes two. Tcl 9 widened
+/// `Tcl_UniChar` and counts Unicode scalar values.
+///
+/// 8.4 and 8.5 are neither: their internal UTF-8 caps a character at three
+/// bytes (`TCL_UTF_MAX` 3), so a supplementary code point is never assembled
+/// into a character at all and each of its four bytes counts as one. That is
+/// *not* byte counting — `é` and `€` still count as one apiece, which is why
+/// this is its own variant rather than the `Bytes` model a Jim build without
+/// `JIM_UTF8` would need (there `é` would count two).
+///
+/// `string index` shows the same split from the other side: at index 0 of
+/// that four-byte string, 8.4/8.5 answer code point 240 (`0xF0`, the raw
+/// UTF-8 lead byte), 8.6 answers 55357 (`0xD83D`, the high surrogate), and
+/// 9.x answers 128512 (`U+1F600`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StringCharacterModel {
-    /// Tcl 8.x: count UTF-16 code units.
+    /// Tcl 8.4-8.5: count BMP characters, but a supplementary code point
+    /// counts as its four UTF-8 bytes (`TCL_UTF_MAX` 3).
+    BmpCharsElseUtf8Bytes,
+    /// Tcl 8.6: count UTF-16 code units.
     Utf16CodeUnits,
     /// Tcl 9.x: count Unicode scalar values.
     UnicodeScalars,
 }
 
 impl StringCharacterModel {
+    /// Every model, so a consumer reasoning across releases cannot silently
+    /// miss one — the two-valued unanimity rule this replaced was wrong for
+    /// any profile spanning 8.4 or 8.5.
+    pub const ALL: &'static [Self] = &[
+        Self::BmpCharsElseUtf8Bytes,
+        Self::Utf16CodeUnits,
+        Self::UnicodeScalars,
+    ];
+
     /// The number of Tcl characters `value` holds under this model.
     ///
     /// The one place the counting rule lives, so a compile-time fold and a
@@ -66,25 +100,36 @@ impl StringCharacterModel {
     #[must_use]
     pub fn count(self, value: &str) -> usize {
         match self {
+            // A BMP scalar is one character; anything above it was never
+            // assembled, so it contributes its UTF-8 byte count (always 4).
+            Self::BmpCharsElseUtf8Bytes => value
+                .chars()
+                .map(|c| if (c as u32) > 0xFFFF { c.len_utf8() } else { 1 })
+                .sum(),
             Self::Utf16CodeUnits => value.encode_utf16().count(),
             Self::UnicodeScalars => value.chars().count(),
         }
     }
 
     /// The character count `model` defines, or — when no release is selected —
-    /// the count both models agree on, if they agree.
+    /// the count **every** model agrees on, if they all agree.
     ///
     /// A dialect that names no runtime release still counts every string
-    /// outside the supplementary planes identically under both models, so a
-    /// consumer keeps those answers and gives up only the genuinely ambiguous
-    /// ones rather than declining wholesale.
+    /// outside the supplementary planes identically under all three models, so
+    /// a consumer keeps those answers and gives up only the genuinely
+    /// ambiguous ones rather than declining wholesale.
+    ///
+    /// Unanimity is over `ALL`, not over a hardcoded pair: a rule written from
+    /// the 8.6/9.0 pair alone answers 2 for a supplementary character under a
+    /// profile that also spans 8.4, where the real answer is 4.
     #[must_use]
     pub fn count_for(model: Option<Self>, value: &str) -> Option<usize> {
         if let Some(model) = model {
             return Some(model.count(value));
         }
-        let scalars = Self::UnicodeScalars.count(value);
-        (scalars == Self::Utf16CodeUnits.count(value)).then_some(scalars)
+        let mut counts = Self::ALL.iter().map(|m| m.count(value));
+        let first = counts.next()?;
+        counts.all(|c| c == first).then_some(first)
     }
 }
 
@@ -266,7 +311,7 @@ impl TclVersion {
     /// upstream release each of this project's engines was re-derived from —
     /// the tarballs under `tmp/` — so `tcl-vm` and `runtime/rust` cannot
     /// report different patch levels for the same emulated release by each
-    /// keeping their own table (issue #1328's centralisation finding).
+    /// keeping their own table.
     ///
     /// A release line the engines have no pinned reference build for reports
     /// `.0`, which is the honest answer: the line's semantics are modelled,
@@ -331,7 +376,7 @@ impl TclVersion {
     /// `package require` failure into a later `invalid command name`.
     ///
     /// The `Tcl` version below is always [`Self::patchlevel`] (8.4 aside),
-    /// which is the engines' *pinned* build — 8.6.16 — while the 8.6
+    /// which is the engines' *pinned* build, while the 8.6
     /// interpreter the row above was measured on is 8.6.14. The patch digit
     /// is the one thing in the table that names a build rather than a
     /// release rule; `core_package_tracks_the_patch_level` pins the
@@ -410,7 +455,11 @@ impl TclVersion {
     #[must_use]
     pub const fn string_character_model(self) -> StringCharacterModel {
         match self {
-            Self::V8_4 | Self::V8_5 | Self::V8_6 => StringCharacterModel::Utf16CodeUnits,
+            // 8.4/8.5 cap a character at three UTF-8 bytes, so a
+            // supplementary code point is never assembled and counts as its
+            // four bytes — measured 4, where the 8.6 surrogate model says 2.
+            Self::V8_4 | Self::V8_5 => StringCharacterModel::BmpCharsElseUtf8Bytes,
+            Self::V8_6 => StringCharacterModel::Utf16CodeUnits,
             Self::V9_0 | Self::V9_1 => StringCharacterModel::UnicodeScalars,
         }
     }
@@ -492,7 +541,7 @@ impl TclVersion {
     /// line satisfy it, **none** of them, or some" — a requirement's satisfying
     /// set is a version interval (`package(n)`: `min` … `max`), and so is a
     /// release line, so the three answers are decided by two endpoint tests
-    /// plus one containment test (issue #1126 item 3):
+    /// plus one containment test:
     ///
     /// | line vs requirement interval | answer |
     /// |---|---|
@@ -635,8 +684,7 @@ const PATCH_CEILING: &str = "99999999999999999999";
 /// So a component of any length compares exactly: `package vcompare
 /// 9223372036854775807 9223372036854775808` is `-1` on both interpreters, and
 /// a forty-digit component still orders correctly.  Parsing into any fixed
-/// integer width would collapse everything past that width into one value
-/// (issue #1090 review, finding 2).
+/// integer width would collapse everything past that width into one value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Segment<'v> {
     /// The `a` (alpha) separator — C's `-2`, below every other segment.
@@ -874,32 +922,45 @@ pub fn version_satisfies(version: &str, requirement: &str) -> bool {
 /// [`select_package_version`] needs so a candidate is converted once for the
 /// whole requirement list.
 fn satisfies_internal(have: &[Segment<'_>], requirement: &str) -> bool {
-    use core::cmp::Ordering;
     let Some((lo, hi)) = requirement.split_once('-') else {
-        // No dash: a simple version. The requirement is padded with an alpha
-        // segment, and the candidate must be equal or greater *without* the
-        // difference landing in the major component — which is what bounds a
-        // bare `X.Y` at the next major without naming an upper bound.
-        let Some(mut req) = ParsedVersion::parse(requirement).map(|p| p.segments) else {
-            return false;
-        };
-        req.push(Segment::Alpha);
-        let (ord, is_major) = compare_internal(have, &req);
-        return ord == Ordering::Equal || (ord == Ordering::Greater && !is_major);
+        return satisfies_bare(have, requirement);
     };
     // `CheckRequirement`: at most one dash.
     if hi.contains('-') {
         return false;
     }
+    satisfies_range(have, lo, (!hi.is_empty()).then_some(hi))
+}
+
+/// The no-dash arm: a simple version. The requirement is padded with an alpha
+/// segment, and the candidate must be equal or greater *without* the
+/// difference landing in the major component — which is what bounds a bare
+/// `X.Y` at the next major without naming an upper bound.
+fn satisfies_bare(have: &[Segment<'_>], requirement: &str) -> bool {
+    use core::cmp::Ordering;
+    let Some(mut req) = ParsedVersion::parse(requirement).map(|p| p.segments) else {
+        return false;
+    };
+    req.push(Segment::Alpha);
+    let (ord, is_major) = compare_internal(have, &req);
+    ord == Ordering::Equal || (ord == Ordering::Greater && !is_major)
+}
+
+/// The `min-max` arm, taking the two bounds rather than the string that
+/// spells them — so a caller holding a window already split in two
+/// ([`version_in_any_window`]) does not have to `format!` it back together
+/// only for this to split it again.
+fn satisfies_range(have: &[Segment<'_>], lo: &str, hi: Option<&str>) -> bool {
+    use core::cmp::Ordering;
     let Some(min) = ParsedVersion::parse(lo).map(|p| p.segments) else {
         return false;
     };
-    if hi.is_empty() {
+    let Some(hi) = hi else {
         // `min-` — open-ended above.
         let mut min = min;
         min.push(Segment::Alpha);
         return compare_internal(have, &min).0 != Ordering::Less;
-    }
+    };
     let Some(max) = ParsedVersion::parse(hi).map(|p| p.segments) else {
         return false;
     };
@@ -913,6 +974,29 @@ fn satisfies_internal(have: &[Segment<'_>], requirement: &str) -> bool {
     max.push(Segment::Alpha);
     compare_internal(&min, have).0 != Ordering::Greater
         && compare_internal(have, &max).0 == Ordering::Less
+}
+
+/// Whether `version` falls in any of the half-open `windows`, each given as
+/// its `(from, until)` bounds — [`version_satisfies`] against `"from-until"`
+/// (or `"from-"` for an open window), without spelling that requirement out.
+///
+/// The spec-surface gate asks this on every registry lookup, once per
+/// authored availability row, and it used to `format!` the requirement string
+/// and re-parse `version` for each one. Both are gone: the candidate is
+/// converted once for the whole list and each bound is read where it already
+/// sits (issue #2021, where the registry's version parsing showed up in the
+/// workspace-scan profile).
+///
+/// An empty `windows` is "no window", so `false` — the "admits everything"
+/// reading belongs to the caller that knows an empty list means unrestricted.
+#[must_use]
+pub fn version_in_any_window(version: &str, windows: &[(&str, Option<&str>)]) -> bool {
+    let Some(have) = ParsedVersion::parse(version) else {
+        return false;
+    };
+    windows
+        .iter()
+        .any(|&(from, until)| satisfies_range(&have.segments, from, until))
 }
 
 /// The requirement string `package require -exact NAME VERSION` builds:
@@ -1188,7 +1272,7 @@ mod tests {
     }
 
     /// TN — a patch-level requirement the line's *major/minor* already settles
-    /// is decided, not abstained on (issue #1126 item 3).
+    /// is decided, not abstained on.
     ///
     /// Oracle (`tclsh8.6`, `[package provide Tcl]` = 8.6.14): `vsatisfies
     /// 8.6.14 9.0.1` = 0, `vsatisfies 8.6.14 8.6.0` = 1 — and no 8.6.x
@@ -1268,8 +1352,7 @@ mod tests {
             Ternary::Yes,
         );
         // Both requirements name the 9 line, which no 8.6.x reaches — so the
-        // OR is a decided `No`, not the abstention the old three-component
-        // rule produced (issue #1126 item 3).
+        // OR is a decided `No`, not an abstention.
         assert_eq!(
             TclVersion::V8_6.satisfies_any_ternary(&["9.0.1", "9"]),
             Ternary::No,
@@ -1283,7 +1366,7 @@ mod tests {
         );
     }
 
-    /// Per-rule TP/FP/TN/FN for the four requirement forms, issue #1090.
+    /// Per-rule TP/FP/TN/FN for the four requirement forms.
     ///
     /// The whole grid lives in the pinned corpus
     /// (`tests/data/package_version_oracle.txt`); these are the rows that name
@@ -1333,7 +1416,7 @@ mod tests {
         }
     }
 
-    /// `select_package_version`'s two selection axes, issue #1090: highest
+    /// `select_package_version`'s two selection axes: highest
     /// acceptable version, and `package prefer`'s stable-first tie-break.
     #[test]
     fn selection_takes_the_highest_acceptable_preferring_stable() {
@@ -1403,6 +1486,55 @@ mod tests {
             TclVersion::V9_0.string_character_model(),
             StringCharacterModel::UnicodeScalars
         );
+    }
+
+    /// Issue #2128: the counting model is three-valued, not two. Each row is
+    /// a witness measured with
+    /// `string length [encoding convertfrom utf-8 …]` on the real tclsh of
+    /// that release, under `LANG=C.UTF-8`.
+    ///
+    /// The supplementary character is the discriminator; `é` and `€` are here
+    /// to pin that 8.4/8.5 are *not* byte counting, which is the reading that
+    /// would otherwise seem to fit the 4.
+    #[test]
+    fn string_character_model_is_three_valued_issue_2128() {
+        let two_byte = "\u{00E9}"; // é
+        let three_byte = "\u{20AC}"; // €
+        let supplementary = "\u{1F600}"; // 😀
+
+        for (version, expected_supplementary) in [
+            (TclVersion::V8_4, 4),
+            (TclVersion::V8_5, 4),
+            (TclVersion::V8_6, 2),
+            (TclVersion::V9_0, 1),
+            (TclVersion::V9_1, 1),
+        ] {
+            let model = version.string_character_model();
+            assert_eq!(
+                model.count(supplementary),
+                expected_supplementary,
+                "{version:?} counts a supplementary character",
+            );
+            // Every release agrees on everything inside the BMP.
+            assert_eq!(model.count(two_byte), 1, "{version:?} counts é");
+            assert_eq!(model.count(three_byte), 1, "{version:?} counts €");
+        }
+
+        // 8.4/8.5 must be their own variant, not the 8.6 one.
+        assert_eq!(
+            TclVersion::V8_4.string_character_model(),
+            StringCharacterModel::BmpCharsElseUtf8Bytes,
+        );
+        assert_ne!(
+            TclVersion::V8_4.string_character_model(),
+            TclVersion::V8_6.string_character_model(),
+        );
+
+        // Unanimity is over all three models. A BMP string is still folded
+        // without a stated release; a supplementary one is not, where the old
+        // 8.6/9.0-pair rule would have answered 2 and been wrong for 8.4.
+        assert_eq!(StringCharacterModel::count_for(None, three_byte), Some(1));
+        assert_eq!(StringCharacterModel::count_for(None, supplementary), None);
     }
 
     #[test]

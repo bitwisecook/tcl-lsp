@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Guardrail for the **interned garbage collector** invariant (issue #1299).
+//! Guardrail for the **interned garbage collector** invariant.
 //!
 //! Six interned structs in this crate key on content that changes as a
 //! procedure body is edited — `ItemBodyKey`, `FnLatticeKey`, `ProcBodyKey`,

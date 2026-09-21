@@ -137,10 +137,10 @@ suite("Single bare-variable body (FP-STY-14)", () => {
   });
 });
 
-// FP-RBS control-flow family (PR #634) — imprecise control-flow modelling.
+// FP-RBS control-flow family — imprecise control-flow modelling.
 //
-// PR #634 fixed a family of false W210 (read-before-set) rooted in control-flow
-// modelling.  The fixture's silent cases are a `tailcall`-terminated branch
+// False W210 (read-before-set) rooted in control-flow
+// modelling must not fire.  The fixture's silent cases are a `tailcall`-terminated branch
 // (line 3), a non-empty-literal `foreach` (line 7), and a `while 1` whose only
 // exit is a `break` (line 11) — none may fire W210.  The empty-literal
 // `foreach` (line 15) never runs its body, so `$y` is genuinely unset and MUST
@@ -174,7 +174,7 @@ suite("Control-flow read-before-set (PR #634)", () => {
     }
   });
 
-  // FP-RBS-19 (#756): a may-run loop whose body defines the variable is assumed
+  // FP-RBS-19: a may-run loop whose body defines the variable is assumed
   // to run, so the after-loop reads (`return $acc` on line 21, `puts $y` on
   // line 25) must stay silent — while the provably-empty foreach read (line 15)
   // still fires.
@@ -303,7 +303,7 @@ suite("Expanded subcommand position (FP-STY-18)", () => {
 //   • `arrayelems` (lines 14–18): `arr(n)` (int) and `arr(label)` (string)
 //     collapse onto one symbol but are independent slots — no S100/S101.
 //   • `numeric` (lines 23–34): a Numeric/String oscillation seeded by an Int
-//     entry, previously masked to OVERDEFINED by `type_join` — now fires S102.
+//     entry that `type_join` would otherwise mask to OVERDEFINED — fires S102.
 suite("Command/variable indirection + numeric shimmer (FP-SH-13/15/18)", () => {
   const docUri = getDocUri("shimmerIndirection.tcl");
 
@@ -376,7 +376,7 @@ suite("Variable-name positions (W212/W216)", () => {
   });
 });
 
-// The `Tcl_ConcatObj` eval family (issue #1051).
+// The `Tcl_ConcatObj` eval family.
 //
 // `eval`, `uplevel`, `namespace eval`, and `interp eval` evaluate the
 // *concatenation* of every trailing script word, so analysing only the first

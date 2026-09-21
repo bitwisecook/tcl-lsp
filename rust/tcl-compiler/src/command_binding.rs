@@ -179,6 +179,7 @@ struct NonBindingObservationStamp {
     opaque_domain: bool,
     opaque_binding_mutation: bool,
     dynamic_proc_binding: bool,
+    unnameable_rebinding_subject: bool,
     namespace_changed: bool,
     namespace_dynamic: bool,
     namespace_rebound_count: usize,
@@ -246,7 +247,7 @@ pub struct ModuleCommandBindings {
     /// Sparse flow-sensitive binding state. Analysis forks this state for
     /// every executable root, while most roots leave the command table
     /// unchanged. Copy-on-write keeps those forks allocation-cheap and
-    /// detaches only at the centralized replacement/join seams below.
+    /// detaches only at the centralised replacement/join seams below.
     bindings: Arc<HashMap<String, BTreeSet<MayBinding>>>,
     /// Binding state reachable between executable roots. Unlike `bindings`,
     /// this excludes transient pre/post states within a top-level or body
@@ -271,6 +272,13 @@ pub struct ModuleCommandBindings {
     /// unavailable/autoloaded body can affect builtin folding without proving
     /// that every retained procedure name was rebound.
     dynamic_proc_binding: bool,
+    /// A `rename` / `interp alias` / command delete transition ran whose
+    /// **subject** this lattice could not name. Narrower again than
+    /// [`Self::dynamic_proc_binding`], which also rises for a runtime-selected
+    /// executable root and for a widened command-binding domain — neither of
+    /// which moves a binding. Only this dimension may withdraw the claim that
+    /// an untouched name still denotes its builtin (#2168).
+    unnameable_rebinding_subject: bool,
     /// Namespace resolution transitions selected after alias-prefix and
     /// command-binding resolution. This is historical rather than final-state
     /// data: restoring a path/import later cannot make an earlier fold sound.
@@ -292,14 +300,12 @@ pub struct ModuleCommandBindings {
     /// procedure identity.
     rebound_names: BTreeSet<String>,
     /// Flow-insensitive, namespace-candidate rebound names for procedure
-    /// call-site trust. This retains the legacy scanner's conservative
-    /// local-or-global interpretation without weakening the exact binding
-    /// resolver above.
+    /// call-site trust: a conservative local-or-global interpretation, kept
+    /// separate so it cannot weaken the exact binding resolver above.
     proc_rebound_names: BTreeSet<String>,
     /// `Module` records a duplicate procedure declaration even when each
-    /// source body was readable and could be replayed. The optimiser's
-    /// historical trust contract deliberately treats that metadata as a
-    /// whole-domain mutation.
+    /// source body was readable and could be replayed. The optimiser's trust
+    /// contract deliberately treats that metadata as a whole-domain mutation.
     has_redefined_procedures: bool,
 }
 
@@ -314,6 +320,7 @@ impl PartialEq for ModuleCommandBindings {
             && self.opaque_domain == other.opaque_domain
             && self.opaque_binding_mutation == other.opaque_binding_mutation
             && self.dynamic_proc_binding == other.dynamic_proc_binding
+            && self.unnameable_rebinding_subject == other.unnameable_rebinding_subject
             && self.namespace_resolution == other.namespace_resolution
             && self.procedure_bodies == other.procedure_bodies
             && self.rebound_names == other.rebound_names
@@ -341,6 +348,7 @@ impl ModuleCommandBindings {
             && self.opaque_domain == other.opaque_domain
             && self.opaque_binding_mutation == other.opaque_binding_mutation
             && self.dynamic_proc_binding == other.dynamic_proc_binding
+            && self.unnameable_rebinding_subject == other.unnameable_rebinding_subject
             && self.namespace_resolution == other.namespace_resolution
             && (Arc::ptr_eq(&self.procedure_bodies, &other.procedure_bodies)
                 || self.procedure_bodies == other.procedure_bodies)
@@ -354,6 +362,7 @@ impl ModuleCommandBindings {
             opaque_domain: self.opaque_domain,
             opaque_binding_mutation: self.opaque_binding_mutation,
             dynamic_proc_binding: self.dynamic_proc_binding,
+            unnameable_rebinding_subject: self.unnameable_rebinding_subject,
             namespace_changed: self.namespace_resolution.changed,
             namespace_dynamic: self.namespace_resolution.dynamic,
             namespace_rebound_count: self.namespace_resolution.rebound_names.len(),
@@ -378,6 +387,7 @@ impl std::hash::Hash for ModuleCommandBindings {
         self.opaque_domain.hash(state);
         self.opaque_binding_mutation.hash(state);
         self.dynamic_proc_binding.hash(state);
+        self.unnameable_rebinding_subject.hash(state);
         self.namespace_resolution.hash(state);
         self.procedure_bodies.hash(state);
         self.rebound_names.hash(state);
@@ -510,6 +520,13 @@ impl ModuleCommandBindings {
     fn mark_dynamic_proc_binding(&mut self) {
         self.mark_opaque_binding_mutation();
         self.dynamic_proc_binding = true;
+    }
+
+    /// Record that a binding *transition* moved something this lattice cannot
+    /// name, so no name in the module can be claimed as untouched (#2168).
+    fn mark_unnameable_rebinding_subject(&mut self) {
+        self.mark_dynamic_proc_binding();
+        self.unnameable_rebinding_subject = true;
     }
 
     fn record_proc_rebound_candidates(
@@ -688,7 +705,7 @@ impl ModuleCommandBindings {
     /// user procedures and registry-backed targets are reported; consumers
     /// select the semantic domain they own from [`ResolvedCommandTarget`].
     /// A source-aware statement keeps substitution and expansion opaque, while
-    /// a hand-built statement without tokens retains the legacy all-literal
+    /// a hand-built statement without tokens falls back to the all-literal
     /// argument view.
     pub(crate) fn for_each_resolved_invocation<F>(
         &self,
@@ -936,6 +953,21 @@ impl ModuleCommandBindings {
             dynamic: self.opaque_binding_mutation
                 || self.namespace_resolution.dynamic
                 || self.has_redefined_procedures,
+            // The narrowest of the three binding-opacity flags, deliberately.
+            // `opaque_binding_mutation` also rises for an opaque substitution,
+            // a non-literal head, an unresolvable head namespace and the walk
+            // depth cap; `dynamic_proc_binding` adds a runtime-selected
+            // executable root (every `oo` method body) and a widened binding
+            // domain. None of those move a binding, and gating folds on them
+            // is the cost #2164 measured and refused. Only a transition that
+            // moved a subject this lattice could not name may withdraw the
+            // claim that an untouched name still denotes its builtin.
+            rebinding_subjects: RebindingSubjects::from_unnameable(
+                self.unnameable_rebinding_subject,
+            ),
+            // This projection is about names the closed lattice observed, not
+            // about which frame observed them; the frame fact is the scan's.
+            runtime_selected_frames: false,
             resolution_changed: self.namespace_resolution.changed,
             opaque_namespaces: self
                 .namespace_resolution
@@ -947,10 +979,10 @@ impl ModuleCommandBindings {
     }
 
     /// Project the prepared lattice into the narrower trust fact used when a
-    /// call site wants to seed a retained procedure's parameters. This keeps
-    /// the legacy contract: only an explicit rebinding or a dynamic
-    /// command-binding transition disqualifies the declared procedure
-    /// identity; source/lookup/body opacity alone does not.
+    /// call site wants to seed a retained procedure's parameters: only an
+    /// explicit rebinding or a dynamic command-binding transition
+    /// disqualifies the declared procedure identity; source/lookup/body
+    /// opacity alone does not.
     #[must_use]
     pub(crate) fn proc_binding_trust_projection(&self) -> ProcBindingTrustProjection {
         ProcBindingTrustProjection {
@@ -974,6 +1006,7 @@ impl ModuleCommandBindings {
         baseline.opaque_domain = false;
         baseline.opaque_binding_mutation = false;
         baseline.dynamic_proc_binding = false;
+        baseline.unnameable_rebinding_subject = false;
         baseline.bindings.clone_from(&self.root_boundary_bindings);
         let mut retained_roots = RetainedBindingRoots::default();
         let execution_namespace = crate::ir::ExecutionNamespace::exact(namespace);
@@ -1263,6 +1296,10 @@ impl ModuleCommandBindings {
         }
         if other.dynamic_proc_binding && !self.dynamic_proc_binding {
             self.dynamic_proc_binding = true;
+            changed = true;
+        }
+        if other.unnameable_rebinding_subject && !self.unnameable_rebinding_subject {
+            self.unnameable_rebinding_subject = true;
             changed = true;
         }
         changed |= self.namespace_resolution.join(&other.namespace_resolution);
@@ -2745,14 +2782,14 @@ fn apply_may_binding_transition(
             arguments,
         } => {
             let Some(source_interpreter) = source_interpreter.literal() else {
-                bindings.mark_dynamic_proc_binding();
+                bindings.mark_unnameable_rebinding_subject();
                 return;
             };
             if !matches!(source_interpreter, "" | "{}") {
                 return;
             }
             let Some(alias) = alias.literal() else {
-                bindings.mark_dynamic_proc_binding();
+                bindings.mark_unnameable_rebinding_subject();
                 return;
             };
             bindings.record_proc_rebound_candidates(alias, namespace);
@@ -2784,7 +2821,7 @@ fn apply_may_binding_transition(
         }
         CommandBindingTransition::Move { from, to } => {
             let (Some(from), Some(to)) = (from.literal(), to.literal()) else {
-                bindings.mark_dynamic_proc_binding();
+                bindings.mark_unnameable_rebinding_subject();
                 return;
             };
             bindings.record_proc_rebound_candidates(from, namespace);
@@ -2792,16 +2829,16 @@ fn apply_may_binding_transition(
                 bindings.record_proc_rebound_candidates(to, namespace);
             }
             let Some(from_namespace) = namespace.for_head(from) else {
-                bindings.mark_dynamic_proc_binding();
+                bindings.mark_unnameable_rebinding_subject();
                 return;
             };
             let Some(to_key) = qualify_execution_name(namespace, to) else {
-                bindings.mark_dynamic_proc_binding();
+                bindings.mark_unnameable_rebinding_subject();
                 return;
             };
             let from_keys = bindings.source_keys(from, from_namespace);
             if from_keys.len() != 1 {
-                bindings.mark_dynamic_proc_binding();
+                bindings.mark_unnameable_rebinding_subject();
             }
             let mut moved = BTreeSet::new();
             for from_key in from_keys {
@@ -2826,7 +2863,7 @@ fn apply_may_binding_transition(
         CommandBindingTransition::Delete { interpreter, name } => {
             let affects_current = match interpreter.as_ref().and_then(TransitionSubject::literal) {
                 None if interpreter.is_some() => {
-                    bindings.mark_dynamic_proc_binding();
+                    bindings.mark_unnameable_rebinding_subject();
                     return;
                 }
                 None | Some("" | "{}") => true,
@@ -2836,7 +2873,7 @@ fn apply_may_binding_transition(
                 return;
             }
             let Some(name) = name.literal() else {
-                bindings.mark_dynamic_proc_binding();
+                bindings.mark_unnameable_rebinding_subject();
                 return;
             };
             bindings.record_proc_rebound_candidates(name, namespace);
@@ -2849,12 +2886,12 @@ fn apply_may_binding_transition(
                 namespace.for_head(name)
             };
             let Some(deletion_namespace) = deletion_namespace else {
-                bindings.mark_dynamic_proc_binding();
+                bindings.mark_unnameable_rebinding_subject();
                 return;
             };
             let keys = bindings.source_keys(name, deletion_namespace);
             if keys.len() != 1 {
-                bindings.mark_dynamic_proc_binding();
+                bindings.mark_unnameable_rebinding_subject();
             }
             for key in keys {
                 bindings.rebound_names.insert(key.clone());
@@ -2889,7 +2926,7 @@ fn apply_may_binding_transition(
                 bindings.mark_opaque_binding_mutation();
             }
         }
-        CommandBindingTransition::Unknown { .. } => bindings.mark_dynamic_proc_binding(),
+        CommandBindingTransition::Unknown { .. } => bindings.mark_unnameable_rebinding_subject(),
     }
 }
 
@@ -3189,8 +3226,8 @@ fn apply_registry_transitions(
 /// Apply `stmt`'s command-table mutation to `state` in place.
 ///
 /// Registry-declared [`StateTransition`] facts are authoritative for ordinary
-/// definitions, renames, deletions, and aliases.  Unstamped legacy mutators
-/// widen conservatively instead of being re-decoded here.  Runtime object
+/// definitions, renames, deletions, and aliases.  An unstamped mutator
+/// widens conservatively instead of being re-decoded here.  Runtime object
 /// receiver calls remain a small separate path because their source head is a
 /// value, not a statically registered command.
 fn stmt_gen(stmt: &Statement, state: &mut State, registry: &CommandRegistry) {
@@ -3487,6 +3524,45 @@ pub fn analyse_command_binding<'a>(
     }
 }
 
+/// Whether every command-*binding* subject this scan saw could be named.
+///
+/// A two-state fact rather than a fourth `bool` beside [`ModuleCommandMutations::dynamic`]:
+/// the states carry the meaning at the use site, and both this summary and
+/// its memo key stay inside `clippy::pedantic`'s bool budget without an
+/// `#[allow]`.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+pub enum RebindingSubjects {
+    /// Every `rename` / `interp alias` / delete subject was one this scan
+    /// could spell, so the names it did not record still denote what they did.
+    #[default]
+    AllNameable,
+    /// At least one was not — `rename $a {}`, not `rename foo bar`. The
+    /// subject may have been *this* name, so no name is claimable (#2168).
+    SomeUnnameable,
+}
+
+impl RebindingSubjects {
+    /// `SomeUnnameable` when *either* side saw one — the join over the axis.
+    #[must_use]
+    fn join(self, other: Self) -> Self {
+        if self == Self::SomeUnnameable || other == Self::SomeUnnameable {
+            Self::SomeUnnameable
+        } else {
+            Self::AllNameable
+        }
+    }
+
+    /// The axis a `bool`-valued observation stands for.
+    #[must_use]
+    fn from_unnameable(unnameable: bool) -> Self {
+        if unnameable {
+            Self::SomeUnnameable
+        } else {
+            Self::AllNameable
+        }
+    }
+}
+
 /// Conservative, flow-insensitive summary of command rebindings across a
 /// whole module — the input to the optimiser's builtin-fold trust gate.
 ///
@@ -3517,6 +3593,27 @@ pub struct ModuleCommandMutations {
     /// A body performs a dynamic `rename`/alias/proc (target not
     /// statically known) → resolution of *any* name is opaque.
     dynamic: bool,
+    /// A `rename` / `interp alias` / command delete ran whose **subject** this
+    /// scan could not name — `rename $a {}`, not `foo bar`.
+    ///
+    /// Narrower than [`Self::dynamic`] on purpose. `dynamic` also rises for
+    /// reasons that rebind nothing (an unresolved command head, a changed
+    /// namespace resolution, the walk depth cap), which is why the value
+    /// lattice deliberately does not gate on it — doing so withdraws every
+    /// builtin fold from any file naming a command the registry does not know
+    /// (#2164). This axis rises *only* when something was definitely rebound
+    /// and the name is unknown, so no name can be claimed as still denoting
+    /// its builtin (#2168).
+    rebinding_subjects: RebindingSubjects,
+    /// Some body runs in a receiver- or caller-selected namespace and names a
+    /// command relatively, so that name may resolve to an implementation the
+    /// static module does not contain. Scoped deliberately: it disqualifies a
+    /// fact derived *inside* such a frame ([`Self::has_runtime_selected_frames`]),
+    /// and says nothing about the top level or a procedure, which resolve in
+    /// namespaces this scan can name. A body that also *changes* a binding
+    /// from such a frame sets [`Self::dynamic`] instead, because the subject
+    /// it moved is one this scan cannot spell.
+    runtime_selected_frames: bool,
     /// A body changes how a namespace *resolves* command names, without
     /// renaming anything: `namespace import`/`forget`, `namespace path`,
     /// `namespace unknown`, `namespace ensemble`, or a namespace delete.
@@ -3611,23 +3708,75 @@ impl ModuleCommandMutations {
     /// semantics.
     #[must_use]
     pub fn trusts(&self, command_name: &str) -> bool {
-        if self.dynamic || self.import_shadowed(command_name) {
-            return false;
-        }
-        !self.names.contains(&nqn(command_name))
+        !self.dynamic && self.observed_binding_is_the_builtin(command_name)
+    }
+
+    /// The **named-subject** half of [`Self::trusts`]: whether the module's
+    /// own observed bindings leave `command_name` denoting its registry
+    /// builtin — no shadowing `proc`, no `rename` or alias onto it, no
+    /// import into a namespace this scan could not enumerate.
+    ///
+    /// Deliberately omits [`Self::dynamic`], the unbounded top, which names
+    /// no subject at all and is raised by something as ordinary as one
+    /// command head the registry cannot resolve. Every fold that *becomes a
+    /// source rewrite* still asks the full [`Self::trusts`]; this narrower
+    /// question is what the shared per-unit value lattice asks
+    /// ([`crate::sccp::FoldTrust::ObservedBindings`]), so a call the module
+    /// itself resolves to a user `proc` can never be evaluated with builtin
+    /// semantics there (#2164) — without withdrawing constant folding from
+    /// every file that mentions a command the registry does not know.
+    #[must_use]
+    pub fn observed_binding_is_the_builtin(&self, command_name: &str) -> bool {
+        // A rebinding whose subject this scan could not name may have moved
+        // *this* name, so nothing is claimable (#2168). Deliberately not the
+        // whole of `dynamic`, which also rises for effects that rebind nothing
+        // and whose folds #2164 measured as worth keeping.
+        self.rebinding_subjects == RebindingSubjects::AllNameable
+            && !self.import_shadowed(command_name)
+            && !self.names.contains(&nqn(command_name))
+    }
+
+    /// Whether this summary reports no command-table mutation that could
+    /// change what a *builtin* name denotes — [`Self::trusts`] then answers
+    /// `true` for every name, exactly as [`Self::default`] does.
+    ///
+    /// The per-procedure lattice memo keys on the procedure's own body plus
+    /// the closed binding lattice, and can carry neither this whole-module
+    /// scan nor the namespace-local shadows only it sees. A module this
+    /// answers `true` for agrees with a memoised unit by construction; one it
+    /// answers `false` for must be rebuilt with the fact in hand.
+    #[must_use]
+    pub fn agrees_with_untouched_bindings(&self) -> bool {
+        !self.dynamic && self.names.is_empty() && self.opaque_namespaces.is_empty()
+    }
+
+    /// Whether any body runs in a namespace chosen at run time while naming a
+    /// command relatively.
+    ///
+    /// A receiver-local command can shadow such a head, so nothing derived
+    /// inside one of those frames is trustworthy — not even a fact that reads
+    /// no variable, such as the `TclOO` frame constant. Consumers that fold
+    /// *inside* a method body ask this in addition to [`Self::trusts`]; the
+    /// top level and procedures do not, because a receiver namespace cannot
+    /// change what a name resolves to in a namespace this scan can spell.
+    #[must_use]
+    pub const fn has_runtime_selected_frames(&self) -> bool {
+        self.runtime_selected_frames
     }
 
     /// The everything-is-untrusted lattice top: `trusts` /
     /// `trusts_proc_binding` answer `false` for every name. The sound
     /// stand-in when a consumer has **no whole-module view at all** (the
-    /// analyser's isolated per-item body pass, issue #1132) — folding with
-    /// builtin semantics is then never permitted.
+    /// analyser's isolated per-item body pass) — folding with builtin
+    /// semantics is then never permitted.
     #[must_use]
     pub fn distrust_all() -> Self {
         Self {
             names: std::collections::HashSet::new(),
             rebound: std::collections::HashSet::new(),
             dynamic: true,
+            rebinding_subjects: RebindingSubjects::SomeUnnameable,
+            runtime_selected_frames: true,
             resolution_changed: true,
             opaque_namespaces: std::collections::HashSet::new(),
         }
@@ -3645,6 +3794,8 @@ impl ModuleCommandMutations {
             untrusted_builtins,
             rebound,
             dynamic: self.dynamic,
+            runtime_selected_frames: self.runtime_selected_frames,
+            rebinding_subjects: self.rebinding_subjects,
             resolution_changed: self.resolution_changed,
             opaque_namespaces: {
                 let mut v: Vec<String> = self.opaque_namespaces.iter().cloned().collect();
@@ -3680,7 +3831,7 @@ impl ModuleCommandMutations {
 /// A canonical (sorted), hashable form of [`ModuleCommandMutations`], so
 /// the whole-module trust fact can ride inside a memoisation key — the
 /// analyser's per-item body pass carries it on each deferred body whose
-/// text could fold a command substitution (issue #1132), keeping the
+/// text could fold a command substitution, keeping the
 /// isolated fragment memo sound when a `rename` elsewhere in the file
 /// appears or disappears.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -3688,6 +3839,13 @@ pub struct CommandTrustSnapshot {
     untrusted_builtins: Vec<String>,
     rebound: Vec<String>,
     dynamic: bool,
+    /// Part of the key: a memo taken while every rebinding subject was
+    /// nameable must not be reused once a `rename $x` appears, or the fold it
+    /// carries would be replayed under a binding it never saw (#2168).
+    rebinding_subjects: RebindingSubjects,
+    /// Part of the key: a memo taken with every frame statically nameable must
+    /// not be reused once a receiver-selected frame appears.
+    runtime_selected_frames: bool,
     /// Part of the key: a memo taken with namespace command resolution
     /// unperturbed must not be reused once a `namespace import` appears.
     resolution_changed: bool,
@@ -3702,6 +3860,8 @@ impl CommandTrustSnapshot {
             names: self.untrusted_builtins.iter().cloned().collect(),
             rebound: self.rebound.iter().cloned().collect(),
             dynamic: self.dynamic,
+            rebinding_subjects: self.rebinding_subjects,
+            runtime_selected_frames: self.runtime_selected_frames,
             resolution_changed: self.resolution_changed,
             opaque_namespaces: self.opaque_namespaces.iter().cloned().collect(),
         }
@@ -3729,6 +3889,18 @@ fn collect_tampered_builtins(
     }
 }
 
+/// Record that a `rename` / `interp alias` / delete ran whose **subject**
+/// could not be named.
+///
+/// Every `dynamic` [`collect_proc_rebindings`] raises is one of these — an
+/// operand it could not spell — as distinct from the other `dynamic` sources
+/// (an unresolved command head, a changed namespace resolution, the walk depth
+/// cap), which rebind nothing. Both axes rise together here and only here.
+fn mark_unknown_subject(rebind: &mut RebindState<'_>) {
+    *rebind.dynamic = true;
+    *rebind.rebinding_subjects = RebindingSubjects::SomeUnnameable;
+}
+
 /// Record the proc-binding-relevant names touched by a `rename` or `interp
 /// alias` statement: the *source* name (vacated — no longer denotes what it
 /// used to) and, for a static target, the *destination* name (now denoting
@@ -3748,11 +3920,11 @@ fn collect_proc_rebindings(
     stmt: &Statement,
     namespace: &str,
     registry: &CommandRegistry,
-    rebound: &mut std::collections::HashSet<String>,
-    dynamic: &mut bool,
-    resolution: &mut bool,
-    opaque: &mut std::collections::HashSet<String>,
+    rebind: &mut RebindState<'_>,
 ) {
+    let rebound = &mut *rebind.rebound;
+    let resolution = &mut *rebind.resolution;
+    let opaque = &mut *rebind.opaque;
     if !matches!(stmt, Statement::Call { .. } | Statement::Barrier { .. }) {
         return;
     }
@@ -3765,7 +3937,7 @@ fn collect_proc_rebindings(
                 StateTransition::CommandBinding(CommandBindingTransition::Move { from, to }) => {
                     let (Some(from), Some(to)) = (literal_subject(from), literal_subject(to))
                     else {
-                        *dynamic = true;
+                        mark_unknown_subject(rebind);
                         return;
                     };
                     insert_rebound_candidates(from, namespace, rebound);
@@ -3783,14 +3955,14 @@ fn collect_proc_rebindings(
                             Some("") => true,
                             Some(_) => false,
                             None => {
-                                *dynamic = true;
+                                mark_unknown_subject(rebind);
                                 return;
                             }
                         },
                     };
                     if affects_current {
                         let Some(name) = literal_subject(name) else {
-                            *dynamic = true;
+                            mark_unknown_subject(rebind);
                             return;
                         };
                         insert_rebound_candidates(name, namespace, rebound);
@@ -3802,19 +3974,19 @@ fn collect_proc_rebindings(
                     ..
                 }) => {
                     let Some(source_interpreter) = literal_subject(source_interpreter) else {
-                        *dynamic = true;
+                        mark_unknown_subject(rebind);
                         return;
                     };
                     if source_interpreter.is_empty() {
                         let Some(alias) = literal_subject(alias) else {
-                            *dynamic = true;
+                            mark_unknown_subject(rebind);
                             return;
                         };
                         insert_rebound_candidates(alias, namespace, rebound);
                     }
                 }
                 StateTransition::CommandBinding(CommandBindingTransition::Unknown { .. }) => {
-                    *dynamic = true;
+                    mark_unknown_subject(rebind);
                     return;
                 }
                 StateTransition::Widen(widening)
@@ -3822,7 +3994,7 @@ fn collect_proc_rebindings(
                         .domains
                         .contains(&StateTransitionDomain::CommandBindings) =>
                 {
-                    *dynamic = true;
+                    mark_unknown_subject(rebind);
                     return;
                 }
                 // Resolution changes, not rebindings: no name moves, but what
@@ -3842,7 +4014,7 @@ fn collect_proc_rebindings(
                         resolution,
                         opaque,
                     ) {
-                        *dynamic = true;
+                        mark_unknown_subject(rebind);
                         return;
                     }
                 }
@@ -3888,6 +4060,10 @@ struct RebindState<'a> {
     names: &'a mut std::collections::HashSet<String>,
     rebound: &'a mut std::collections::HashSet<String>,
     dynamic: &'a mut bool,
+    /// See [`ModuleCommandMutations::rebinding_subjects`]. Set only by
+    /// [`collect_proc_rebindings`], whose every `dynamic` is an unnameable
+    /// rebinding subject.
+    rebinding_subjects: &'a mut RebindingSubjects,
     resolution: &'a mut bool,
     opaque: &'a mut std::collections::HashSet<String>,
 }
@@ -3917,15 +4093,7 @@ fn walk_body_calls(
     for stmt in &script.statements {
         match stmt {
             Statement::Call { .. } | Statement::Barrier { .. } => {
-                collect_proc_rebindings(
-                    stmt,
-                    namespace,
-                    registry,
-                    rebind.rebound,
-                    rebind.dynamic,
-                    rebind.resolution,
-                    rebind.opaque,
-                );
+                collect_proc_rebindings(stmt, namespace, registry, rebind);
                 stmt_gen(stmt, state, registry);
                 collect_tampered_builtins(state, registry, rebind.names, rebind.dynamic);
             }
@@ -3982,6 +4150,69 @@ fn walk_body_calls(
     }
 }
 
+/// Whether `script` declares anything that could change what a command name
+/// resolves to, at any nesting depth.
+///
+/// This is the question a body in an unnameable frame poses to the *rest* of
+/// the module. A mutation there names its subject relatively, so it lands in a
+/// namespace this scan cannot spell and no recorded name survives it. A body
+/// that mutates nothing moves no name, whatever it calls, and leaves the names
+/// the top level and the procedures resolve exactly as they were.
+///
+/// Registry-driven, like the walk it guards: a statement counts because its
+/// declared state transitions touch command bindings or namespace resolution,
+/// never because of the command's name. `Define` counts alongside the rest —
+/// a `proc` in such a frame lands in a namespace this scan cannot spell, so
+/// the widened stance is the right answer for it too.
+///
+/// Descends through [`crate::ir_helpers::nested_bodies`], the same inventory
+/// [`crate::ir_helpers::requires_runtime_command_namespace`] walks, so the two
+/// cannot disagree about which bodies belong to the frame. That inventory
+/// covers the statically lowered `eval` and `uplevel` forms (`Statement::Block`
+/// and `Statement::UpFrame`) as well as the structured ones, so a rebinding
+/// hidden in `eval {rename ::string ::saved}` still widens.
+///
+/// Hitting the depth cap answers `true`: an unwalkable body is treated as one
+/// that mutates.
+fn declares_command_binding_effect(
+    script: &crate::ir::Script,
+    registry: &CommandRegistry,
+    depth: u32,
+) -> bool {
+    if crate::optimiser::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) {
+        return true;
+    }
+    script.statements.iter().any(|stmt| {
+        statement_declares_command_binding_effect(stmt, registry)
+            || crate::ir_helpers::nested_bodies(stmt)
+                .into_iter()
+                .any(|body| declares_command_binding_effect(body, registry, depth + 1))
+    })
+}
+
+/// The single-statement half of [`declares_command_binding_effect`].
+fn statement_declares_command_binding_effect(stmt: &Statement, registry: &CommandRegistry) -> bool {
+    let Some(facts) = invocation_facts(stmt, registry) else {
+        return false;
+    };
+    let Some(transitions) = facts.state_transitions.declared() else {
+        return false;
+    };
+    transitions
+        .facts()
+        .iter()
+        .any(|fact| match &fact.transition {
+            StateTransition::CommandBinding(_) | StateTransition::Namespace(_) => true,
+            StateTransition::Widen(widening) => widening
+                .domains
+                .contains(&StateTransitionDomain::CommandBindings),
+            StateTransition::Interpreter(_)
+            | StateTransition::VariableCellAlias(_)
+            | StateTransition::Trace(_)
+            | StateTransition::ObjectDispatch(_) => false,
+        })
+}
+
 /// Summarise command-table mutations across the whole module — a
 /// CFG-free recursive IR walk over the top-level script *and* every proc
 /// / method body, so it can run before per-function CFGs are built.
@@ -4016,10 +4247,12 @@ pub(crate) fn scan_module_command_mutations_with_bindings(
     let mut names = std::collections::HashSet::new();
     let mut rebound = std::collections::HashSet::new();
     let mut dynamic = !ir_module.redefined_procedures.is_empty();
+    let mut rebinding_subjects = RebindingSubjects::AllNameable;
     let mut resolution_changed = false;
     let mut opaque_namespaces = std::collections::HashSet::new();
 
     let mut has_runtime_selected_root = false;
+    let mut runtime_selected_frames = false;
     {
         let mut visit = |script: &crate::ir::Script, namespace: &str| {
             let mut state = State::default();
@@ -4027,6 +4260,7 @@ pub(crate) fn scan_module_command_mutations_with_bindings(
                 names: &mut names,
                 rebound: &mut rebound,
                 dynamic: &mut dynamic,
+                rebinding_subjects: &mut rebinding_subjects,
                 resolution: &mut resolution_changed,
                 opaque: &mut opaque_namespaces,
             };
@@ -4046,7 +4280,17 @@ pub(crate) fn scan_module_command_mutations_with_bindings(
                     // the ordinary scan. The closed binding analysis below still
                     // retains exact absolute transitions in opaque bodies.
                     if crate::ir_helpers::requires_runtime_command_namespace(script, registry) {
-                        has_runtime_selected_root = true;
+                        // Nothing derived inside the frame is trustworthy: the
+                        // receiver's namespace can shadow any head it names.
+                        runtime_selected_frames = true;
+                        // Only a binding change carries beyond the frame. Its
+                        // subject resolves where this scan cannot look, so no
+                        // name in the module survives it. A body that merely
+                        // calls commands moves nothing, and the names the rest
+                        // of the module resolves keep their meaning.
+                        if declares_command_binding_effect(script, registry, 0) {
+                            has_runtime_selected_root = true;
+                        }
                     } else {
                         visit(script, "::");
                     }
@@ -4056,14 +4300,19 @@ pub(crate) fn scan_module_command_mutations_with_bindings(
     }
     dynamic |= has_runtime_selected_root;
 
-    // The source-recursive legacy walk above sees bodies retained in `Module`,
-    // while this owner also recovers bodies installed through alias prefixes.
+    // The source-recursive walk above sees bodies retained in `Module`, while
+    // this owner also recovers bodies installed through alias prefixes.
     // Project its closed may-state into the same optimiser trust summary so
     // every compiler consumer agrees about those runtime-created procedures.
     let projected = command_bindings.mutation_projection(registry);
     names.extend(projected.names);
     rebound.extend(projected.rebound);
     dynamic |= projected.dynamic;
+    // Joined like every other axis: the source-recursive walk never sees a
+    // body installed through an alias prefix, so for those the projection is
+    // the *only* witness that a rebinding subject was unnameable. Taking the
+    // local value alone re-opens #2168 one level down.
+    rebinding_subjects = rebinding_subjects.join(projected.rebinding_subjects);
     resolution_changed |= projected.resolution_changed;
     opaque_namespaces.extend(projected.opaque_namespaces);
 
@@ -4071,6 +4320,8 @@ pub(crate) fn scan_module_command_mutations_with_bindings(
         names,
         rebound,
         dynamic,
+        rebinding_subjects,
+        runtime_selected_frames,
         resolution_changed,
         opaque_namespaces,
     }
@@ -4116,6 +4367,121 @@ mod tests {
         assert!(
             m.trusts_proc_binding("::lib::helper"),
             "the imported-from namespace still folds"
+        );
+    }
+
+    /// A `TclOO` method runs in the receiver's namespace, chosen at run time,
+    /// so a command it names relatively may resolve to an object-local
+    /// implementation. That uncertainty belongs to the frame: it disqualifies
+    /// facts derived inside the body, and leaves the names the top level and
+    /// the procedures resolve untouched.
+    #[test]
+    fn an_ordinary_method_body_scopes_its_opacity_to_its_own_frame() {
+        let reg = CommandRegistry::build_default();
+        for body in [
+            "puts hi",
+            "my helper",
+            "next",
+            "set y 1",
+            "if {1} { puts hi }",
+        ] {
+            let src = format!(
+                "oo::class create ::A {{\n    method m {{}} {{ {body} }}\n}}\nproc p {{}} {{ return 1 }}\n"
+            );
+            let cu = CompilationUnit::build_for(&src, &reg, false);
+            let m = scan_module_command_mutations(&cu.ir_module, &reg);
+            assert!(
+                m.has_runtime_selected_frames(),
+                "{body}: the frame itself stays opaque"
+            );
+            assert!(
+                m.trusts("string"),
+                "{body}: a builtin the module never touches must stay trusted"
+            );
+            assert!(
+                m.trusts_proc_binding("::p"),
+                "{body}: a proc declared outside the class must stay trusted"
+            );
+        }
+    }
+
+    /// A binding change from such a frame names its subject where this scan
+    /// cannot look, so it carries past the frame and no name in the module
+    /// survives it.
+    #[test]
+    fn a_binding_change_in_a_runtime_selected_frame_distrusts_the_module() {
+        let reg = CommandRegistry::build_default();
+        for body in [
+            "rename puts myputs",
+            "proc helper {} { return 1 }",
+            "interp alias {} shout {} puts",
+            "namespace import ::lib::*",
+        ] {
+            let src = format!(
+                "oo::class create ::A {{\n    method m {{}} {{ {body} }}\n}}\nproc p {{}} {{ return 1 }}\n"
+            );
+            let cu = CompilationUnit::build_for(&src, &reg, false);
+            let m = scan_module_command_mutations(&cu.ir_module, &reg);
+            assert!(
+                !m.trusts_proc_binding("::p"),
+                "{body}: an unspellable subject must distrust the module"
+            );
+        }
+    }
+
+    /// A rebinding does not stop carrying past the frame because it sits in a
+    /// statically lowered `eval` or `uplevel`. Those lower to
+    /// `Statement::Block` / `Statement::UpFrame`, whose bodies are part of the
+    /// frame like any other nested script: `m` really does remove `::string`,
+    /// so a fold of `[string length x]` elsewhere would be a miscompile.
+    #[test]
+    fn a_rebinding_inside_a_lowered_eval_or_uplevel_still_distrusts_the_module() {
+        let reg = CommandRegistry::build_default();
+        for body in [
+            "puts hi; eval {rename ::string ::saved}",
+            "puts hi; uplevel 1 {rename ::string ::saved}",
+            "puts hi; if {1} { eval {rename ::string ::saved} }",
+        ] {
+            let src = format!(
+                "oo::class create ::A {{\n    method m {{}} {{ {body} }}\n}}\nproc p {{}} {{ return 1 }}\n"
+            );
+            let cu = CompilationUnit::build_for(&src, &reg, false);
+            let m = scan_module_command_mutations(&cu.ir_module, &reg);
+            assert!(
+                !m.trusts("string"),
+                "{body}: a rebinding in a lowered body must distrust the module"
+            );
+        }
+    }
+
+    /// A body whose commands all resolve absolutely is namespace-invariant, so
+    /// it takes the ordinary scan and leaves no frame opacity behind.
+    #[test]
+    fn an_absolute_only_method_body_leaves_no_frame_opacity() {
+        let reg = CommandRegistry::build_default();
+        let src =
+            "oo::class create ::A {\n    method m {} { ::puts hi }\n}\nproc p {} { return 1 }\n";
+        let cu = CompilationUnit::build_for(src, &reg, false);
+        let m = scan_module_command_mutations(&cu.ir_module, &reg);
+        assert!(!m.has_runtime_selected_frames());
+        assert!(m.trusts_proc_binding("::p"));
+        assert!(m.trusts("puts"));
+    }
+
+    /// The frame fact is part of the memo key: a summary taken with every
+    /// frame statically nameable must not be reused once one is not.
+    #[test]
+    fn the_frame_fact_survives_a_snapshot_round_trip() {
+        let reg = CommandRegistry::build_default();
+        let src = "oo::class create ::A {\n    method m {} { puts hi }\n}\n";
+        let cu = CompilationUnit::build_for(src, &reg, false);
+        let m = scan_module_command_mutations(&cu.ir_module, &reg);
+        assert!(m.has_runtime_selected_frames());
+        assert!(m.snapshot().to_mutations().has_runtime_selected_frames());
+        assert_ne!(
+            m.snapshot(),
+            ModuleCommandMutations::default().snapshot(),
+            "the frame fact must distinguish the two summaries"
         );
     }
 
@@ -4251,10 +4617,10 @@ mod tests {
         external_proc.traits |= tcl_registry::Traits::LOADS_EXTERNAL_UNIT;
         reg.insert(external_proc);
 
-        // The leading command ensures the historical state already exists
-        // when the exact definition runs. The former one-key fast path then
-        // suppressed the ordinary observation and lost the external-unit
-        // opacity which accompanied the otherwise-exact Define(Procedure).
+        // The leading command ensures the observed state already exists when
+        // the exact definition runs. A one-key fast path here would suppress
+        // the ordinary observation and lose the external-unit opacity that
+        // accompanies the otherwise-exact Define(Procedure).
         let cu =
             CompilationUnit::build_for("set marker 1\nproc created {} {return ok}", &reg, false);
         let bindings = ModuleCommandBindings::analyse(&cu.ir_module, &reg);
@@ -5382,13 +5748,13 @@ Dog create d",
         assert!(!m2.trusts("string") && !m2.trusts("lappend"));
     }
 
-    /// Regression coverage for issue #996: `walk_body_calls` recurses once
+    /// `walk_body_calls` recurses once
     /// per nested `if`/`for`/`while`/`foreach`/`catch`/`try`/`switch`
-    /// body, with no depth cap of its own before this fix. Transitively
-    /// bounded to `MAX_LOWER_NEST_DEPTH` (256) by the lowering pass today,
+    /// body, with no depth cap of its own. Transitively
+    /// bounded to `MAX_LOWER_NEST_DEPTH` (256) by the lowering pass,
     /// so this is defence-in-depth / consistency with every other
     /// full-tree walker in this crate, not a currently-reproducible
-    /// crash. 1000 levels of source nesting is comfortably past this new
+    /// crash. 1000 levels of source nesting is comfortably past this
     /// cap; the assertion is that `scan_module_command_mutations` returns
     /// at all, not what it returns. Spawns its own big-stack thread since
     /// the lexer/CST/segmenter stages upstream of the lowering cap still

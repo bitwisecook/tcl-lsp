@@ -43,7 +43,7 @@ private val LOG = Logger.getInstance(TclLspPackAssociations::class.java)
 
 /**
  * Registers the file extensions discovered SpecTcl packs claim, and retires
- * them again when the pack that claimed them goes away (issue #1650).
+ * them again when the pack that claimed them goes away.
  *
  * The advertised set arrives two ways, both carrying the same
  * `pack_file_extensions` array: pushed on `tcl-lsp/specPacksReloaded` once a

@@ -16,8 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Residual-coverage port tests for two small `tcl-lsp-core` files that the
-//! existing suites leave in the high-80s%:
+//! Residual coverage for two small `tcl-lsp-core` files:
 //!
 //! * `src/file_ops.rs` — `compute_rename_edits` (rewrite `source FILE`
 //!   literals on rename): `file://` URI / percent-decoding edges, the
@@ -47,7 +46,7 @@ use tcl_lsp_core::workspace_index::WorkspaceIndex;
 // file_ops.rs — `source`-literal rename edits + URI / path helpers.
 //
 // The module's only public entry is `compute_rename_edits`; the private
-// helpers (`uri_to_path`, `percent_decode`, `source_resolves_to`,
+// helpers (`uri_to_path`, `percent_decode`, `matched_base`,
 // `compute_new_literal`, `normpath`, `relpath`, `content_span`) are driven
 // through it. Each test below targets a specific branch / edge by choosing
 // fixtures that route execution through it.
@@ -71,7 +70,7 @@ fn rename_unrelated_index_yields_no_edits() {
 #[test]
 fn rename_non_file_old_uri_declines() {
     // A non-`file:` `old_uri` is unrenameable — the `let-else` at the top
-    // returns an empty vec before scanning the index (line 44 branch).
+    // returns an empty vec before scanning the index.
     let idx = index_of("file:///proj/main.tcl", "source lib/old.tcl\n");
     // `untitled:` old URI: `uri_to_path` → None → decline.
     let edits = compute_rename_edits("untitled:Untitled-1", "file:///proj/lib/new.tcl", &idx, &[]);
@@ -107,7 +106,7 @@ fn rename_skips_substituted_source_path() {
 #[test]
 fn rename_literal_pointing_elsewhere_is_left_alone() {
     // A literal `source other.tcl` that does not resolve to the renamed
-    // file → `source_resolves_to` false → no edit.
+    // file → `matched_base` is `None` → no edit.
     let idx = index_of("file:///proj/main.tcl", "source other.tcl\n");
     let edits = compute_rename_edits(
         "file:///proj/lib/old.tcl",
@@ -172,7 +171,7 @@ fn rename_braced_and_quoted_literals_edit_content_only() {
 
 #[test]
 fn rename_absolute_literal_becomes_new_absolute_path() {
-    // An absolute literal resolves only to itself (`source_resolves_to`
+    // An absolute literal resolves only to itself (`matched_base`'s
     // leading-`/` branch) and rewrites to the new absolute path
     // (`compute_new_literal` leading-`/` branch).
     let idx = index_of("file:///proj/main.tcl", "source /proj/lib/old.tcl\n");
@@ -193,7 +192,7 @@ fn rename_resolves_relative_literal_via_workspace_root() {
     // not match; with one the roots branch in `matched_base` hits and the
     // rewrite re-relativises against the *same* base it matched under (the
     // root) — so it stays root-relative (`helper2.tcl`), not `../helper2.tcl`
-    // (which would resolve elsewhere at runtime, issue 178).
+    // (which would resolve elsewhere at runtime).
     let idx = index_of("file:///proj/sub/main.tcl", "source helper.tcl\n");
     let no_root = compute_rename_edits(
         "file:///proj/helper.tcl",
@@ -593,7 +592,7 @@ fn bigip_backslash_escape_inside_body_does_not_unbalance() {
 #[test]
 fn bigip_escaped_quote_inside_quoted_body_span_is_respected() {
     // A `\"` *inside* a quoted span in the body drives the inner
-    // `if bytes[pos] == b'\\' && pos + 1 < length` skip (line 122): the
+    // `if bytes[pos] == b'\\' && pos + 1 < length` skip: the
     // escaped quote does not close the quoted span, so the `}` that follows
     // the closing real `"` is the stanza closer. Both stanzas survive.
     let src = "ltm rule /Common/r {\n    set x \"a\\\"}b\"\n}\nltm pool /Common/p {\n}\n";

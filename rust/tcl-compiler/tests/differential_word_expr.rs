@@ -20,16 +20,16 @@
 //!
 //! `CommandTokens::from_segmented` — the builder every production lowering
 //! calls — builds every word's `WordExpr` from
-//! `tcl_lexer::word_parts::decompose_spanned` (issue #1785). Before that it
-//! mapped the lexer's fragment tokens one-for-one, and that walk is frozen
-//! here as the **independent oracle** so the two can be compared forever:
-//! over a crafted edge-case table under both release axes, over `samples/`,
-//! and over `tmp/tcllib-2.0` when it is present.
+//! `tcl_lexer::word_parts::decompose_spanned`. Before that it mapped the
+//! lexer's fragment tokens one-for-one, and that walk is frozen here as the
+//! **independent oracle** so the two can be compared forever: over a crafted
+//! edge-case table under both release axes, over `samples/`, and over
+//! `tmp/tcllib-2.0` when it is present.
 //!
 //! Every comparison runs the *shipping* builder and, beside it, the owner
 //! invoked directly: they must agree word-for-word, so this harness cannot
 //! go green on a production path that quietly stopped going through the
-//! owner (the gap a reviewer caught when `from_word` shipped dead).
+//! owner — the gap that let `from_word` ship dead.
 //!
 //! The comparison is exact up to the oracle's enumerated artefacts —
 //! [`canonical`] documents each one — so a new divergence is a real
@@ -523,7 +523,7 @@ fn parse_errors_carry_c_tcls_message() {
     );
 }
 
-/// The frozen fragment walk: a byte-for-byte copy of the pre-#1785
+/// The frozen fragment walk: a byte-for-byte copy of the earlier
 /// `WordExpr::from_fragments` / `WordPart::from_fragment` /
 /// `is_plain_bare_literal`, mapping each lexer fragment token to one part.
 mod frozen_oracle {
@@ -639,7 +639,7 @@ mod frozen_oracle {
 /// ordinary text, so a lone `ExprSugar` token decomposes to a single `Text`
 /// part and would be promoted to a literal carrying its own spelling — after
 /// which native/WASM lowering emits `$(1+2)` rather than evaluating it. The
-/// pre-#1785 fragment walk fell through to a `Template` whose only part was
+/// earlier fragment walk fell through to a `Template` whose only part was
 /// opaque, which blocked that; [`WordOpacity::DialectSubstitution`] restores
 /// the same conservatism through the owner.
 ///

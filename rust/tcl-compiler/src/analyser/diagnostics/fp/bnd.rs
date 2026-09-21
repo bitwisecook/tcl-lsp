@@ -17,7 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! BND family — bounds / intervals (W230/W231/W232/W233), driven by the
-//! Phase-3 interval domain.
+//! interval domain.
 
 use super::D;
 use crate::analyser::Analyser;

@@ -40,13 +40,13 @@
 #               publishing docs.
 #
 # Authenticates via VSCE_PAT, which `vsce publish` reads from the environment
-# (the keyless Azure/OIDC path was rolled back after it proved unreliable).
+# (the laptop fallback `make publish-vsix` prefers keyless `az login`).
 #
 # Channel (scripts/release/prerelease.sh is the single source of truth): an
 # odd-minor 2.x tag (v2.1.x) publishes with --pre-release so it lands on the
-# Marketplace pre-release channel; 1.x and even-minor 2.x (v2.2.0) publish
-# to the normal channel, keeping 1.x the default install for everyone who
-# hasn't opted into pre-releases.
+# Marketplace pre-release channel; an even-minor 2.x tag (v2.2.0) publishes
+# to the normal channel and is the default install for everyone who hasn't
+# opted into pre-releases.
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"

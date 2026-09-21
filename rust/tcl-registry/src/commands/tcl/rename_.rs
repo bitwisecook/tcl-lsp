@@ -85,8 +85,8 @@ pub fn spec() -> CommandSpec {
         analyser_hook: Some(crate::hooks::AnalyserHookId::Rename),
         world_effects: Some(WorldEffectDescriptor::EMPTY),
         // The command-table mutation is declared **once**, by naming the
-        // stock descriptor (ledger C8). The former `command_table_effect`
-        // stamp beside it was the same fact in a second vocabulary.
+        // stock descriptor, rather than also stamping
+        // `command_table_effect` with the same fact in a second vocabulary.
         state_transitions: Some(crate::state_transition::command_binding::RENAMES_COMMANDS),
         ..CommandSpec::DEFAULT
     }

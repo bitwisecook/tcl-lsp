@@ -3012,9 +3012,9 @@ mod non_dash_prefixed_interpolation {
 
     #[test]
     fn dynamic_leading_piece_inherits_original() {
-        // FIXED (lattice-join identity): `${uri}/suffix` inherits PATH_PREFIXED
-        // and suppresses T102 — clean is the join identity, so the interpolation
-        // no longer drops the colour.
+        // Lattice-join identity: `${uri}/suffix` inherits PATH_PREFIXED and
+        // suppresses T102 — clean is the join identity, so the interpolation
+        // does not drop the colour.
         assert!(
             of_code(
                 "set uri [HTTP::uri]\nset z ${uri}/suffix\nregexp $z test",

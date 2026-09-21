@@ -134,26 +134,24 @@ fn related_one_hop<'g>(
 
 /// Resolve the [`Root`] that owns `config_uri`: the active root if its uri
 /// matches, else a named root.
-/// Used to validate that an object came from a config (and, in non-merge
-/// mode, to pick the source-scoped graph). Merge mode widens the graph to
-/// every loaded source via [`EvalContext::merged_graph`] instead.
-fn root_for_uri<'c>(ctx: &'c EvalContext, config_uri: &str) -> Result<&'c Rc<Root>, QueryError> {
+/// Used to validate that an object came from a config and to pick the graph
+/// to walk. The root serves a namespace-wide graph under `--merge` and a
+/// source-scoped one otherwise, so callers do not branch on merge mode.
+fn root_for_uri(ctx: &EvalContext, config_uri: &str) -> Result<Rc<Root>, QueryError> {
     if config_uri.is_empty() {
         return Err(QueryError::builtin(
             "graph builtins require an object loaded from a config",
         ));
     }
     if ctx.root.uri == config_uri {
-        return Ok(&ctx.root);
+        return Ok(Rc::clone(&ctx.root));
     }
     if let Some(root) = ctx.named_roots.get(config_uri) {
-        return Ok(root);
+        return Ok(Rc::clone(root));
     }
-    // In merge mode the object may originate from a sibling source that is
-    // only bound as a merge root (not as a `$name`); accept it.
-    if ctx.merge_mode
-        && let Some(root) = ctx.merge_roots.iter().find(|r| r.uri == config_uri)
-    {
+    // Under `--merge` the object may originate from a sibling source that is
+    // only part of the merged namespace (not bound as a `$name`); accept it.
+    if let Some(root) = ctx.merged_roots().into_iter().find(|r| r.uri == config_uri) {
         return Ok(root);
     }
     Err(QueryError::builtin(
@@ -175,14 +173,7 @@ fn object_relative_refs(
         )));
     };
     let root = root_for_uri(ctx, &obj.config_uri)?;
-    // Merge mode joins every loaded source's graph so a reference in one
-    // file resolves into an object in another; otherwise stay scoped to
-    // the originating source.
-    let graph = if ctx.merge_mode {
-        ctx.merged_graph()
-    } else {
-        root.graph()
-    };
+    let graph = root.graph();
     let related = related_one_hop(&graph, &obj.full_path, direction);
     let out: Vec<Value> = related
         .into_iter()
@@ -210,15 +201,7 @@ fn bi_references_to(args: &[Value], ctx: &mut EvalContext) -> Result<Value, Quer
     if target.is_empty() {
         return Ok(Value::List(Vec::new()));
     }
-    // Merge mode joins every loaded source's graph so a cross-file referrer
-    // resolves, matching `refs` / `referenced_by`; a single-root graph would
-    // miss (or per-root duplicate) cross-file referrers under `--merge`
-    // (issue 195).
-    let graph = if ctx.merge_mode {
-        ctx.merged_graph()
-    } else {
-        ctx.root.graph()
-    };
+    let graph = ctx.root.graph();
     let related = related_one_hop(&graph, target, Direction::Reverse);
     let mut seen: Vec<String> = Vec::new();
     for node in related {

@@ -31,7 +31,7 @@
 //!
 //! * [`NativeStore`] is the native implementation and is a literal delegation
 //!   to `std::fs` — the same calls, in the same order, returning the same
-//!   `io::Error`s the call sites used to make for themselves. A native server
+//!   `io::Error`s a direct call site would. A native server
 //!   built with this module behaves byte-identically to one built without it;
 //!   that is the whole specification of `NativeStore`, and any cleverness
 //!   added to it (caching, path rewriting, normalisation) breaks it.
@@ -103,10 +103,10 @@ use std::sync::Mutex;
 ///
 /// `is_dir` and `is_file` are the two questions `std::fs::FileType` answers,
 /// and they are **both false** for a symlink — the walks that consult them (the
-/// workspace scan and `.tclspec` discovery) asked `file_type().is_dir()` /
-/// `.is_file()` before this trait existed, so a symlink was neither descended
-/// into nor indexed. Collapsing them to one flag would silently start indexing
-/// symlinked sources.
+/// workspace scan and `.tclspec` discovery) ask `file_type().is_dir()` /
+/// `.is_file()`, so a symlink is neither descended into nor indexed.
+/// Collapsing them to one flag would silently start indexing symlinked
+/// sources.
 ///
 /// The package-index scan is the counter-example, and it is why these are not
 /// the only kind test in the trait: it asked `path.is_dir()` on the entry, a
@@ -210,7 +210,7 @@ pub trait SourceStore: std::fmt::Debug + Send + Sync {
     /// Read a file through the shared lossy decoder.
     ///
     /// The counterpart of [`crate::source_decode::read_source_file`], and the
-    /// reason it exists (issue #1326): a closed file with one ill-formed byte
+    /// reason it exists: a closed file with one ill-formed byte
     /// must still contribute its procs, its `source` edges, and its symbols,
     /// so decoding is lossy and only the *read* can fail.
     ///
@@ -224,9 +224,8 @@ pub trait SourceStore: std::fmt::Debug + Send + Sync {
 
 /// The real filesystem — a direct delegation to `std::fs`.
 ///
-/// Every method is the call the corresponding site made before this trait
-/// existed. Nothing is cached, rewritten, or normalised: the native server's
-/// behaviour is defined to be `std::fs`'s.
+/// Every method is the plain `std::fs` call. Nothing is cached, rewritten, or
+/// normalised: the native server's behaviour is defined to be `std::fs`'s.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct NativeStore;
 

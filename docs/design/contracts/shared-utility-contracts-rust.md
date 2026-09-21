@@ -46,6 +46,7 @@ entry point, or gate moves without this contract being updated.
 | array-index source scan | `rust/tcl-lexer/src/ranges.rs`; `rust/tcl-dialect/src/grammar.rs` | `scan_array_index`; `ArrayIndexSyntax` | `LexerGrammar::array_index` per release | none |
 | word substitution components | `rust/tcl-lexer/src/word_parts.rs` | `decompose`; `decompose_spanned`; `scan_var_ref`; `command_subst_close`; `quoted_word_close`; `SubstFlags`; `WordPart`; `SpannedPart`; `WordBody`; `VarRef`; `RawVarRef`; `MISSING_QUOTE`; `MISSING_CLOSE_BRACKET`; `MISSING_CLOSE_BRACE`; `MISSING_PAREN`; `EXTRA_AFTER_CLOSE_BRACE` | `LexerConfig` per emulated release (`${...}` close rule, array-index source mask, escape grammar); compiled-word vs source-word `$` spelling | none |
 | indices | `rust/tcl-cmd-core/src/index.rs` | `resolve_with`; `drill` | grammar-parameterised, inheriting the number axis | none |
+| binary field grammar | `rust/tcl-cmd-core/src/binary.rs` | `specifiers`; `Specifier`; `is_specifier`; `signedness_available`; `specifier_min_version` | field letters per release (`t n m r R q Q` are 8.5+); the TIP 275 unsigned suffix (`u` only, after any field letter) per resolved release | none |
 | option words / subcommands | `rust/tcl-cmd-core/src/prefix.rs`; `rust/tcl-cmd-core/src/ensemble.rs`; `rust/tcl-registry/src/hover.rs`; `rust/tcl-registry/src/spec.rs` | `OptionTable`; `OptionSpec`; `SubCommand`; `first_positional_index`; `ensemble::EnsembleToken`; `ensemble::InvocationLayout`; `ensemble::invocation_layout`; `ensemble::UNKNOWN_DELETED_MESSAGE`; `ensemble::UNKNOWN_DELETED_ERROR_CODE`; `ensemble::CREATE_OPTIONS`; `ensemble::CONFIG_OPTIONS`; `ensemble::SUBCOMMANDS`; `ensemble::resolve_subcommand`; `ensemble::subcommand_choices`; `ensemble::unknown_subcommand_message`; `ensemble::validate_map_targets` | option surface per release/dialect; ensemble token lifecycle and invocation layout invariant | `xtask-option-registry-drift` |
 | trace argument decoding | `rust/tcl-cmd-core/src/trace.rs` | `TraceKind`; `resolve_option`; `resolve_type`; `parse_ops`; `parse_legacy_variable_ops`; `legacy_ops_letters`; `callback_op_word` | option surface per release (the 8.x-only `variable`/`vdelete`/`vinfo` forms) | none |
 | sort numeric parsing | `rust/tcl-cmd-core/src/sort.rs` | `parse_wide`; `parse_real` | `NumberSyntax` per release | none |
@@ -66,6 +67,7 @@ entry point, or gate moves without this contract being updated.
 | C Tcl conformance oracles | `rust/tcl-test-support/src/lib.rs` | `reference_patchlevel`; `reference_source_tag`; `locate_tclsh`; `available_tclshs`; `run_script`; `locate_source_tree`; `Tclsh`; `TclSourceTree`; `ScriptOutcome` | exact interpreter/source agreement and provenance for the selected release line | none |
 | interpreter platform bootstrap | `rust/tcl-platform/src/lib.rs` | `bootstrap::Values`; `bootstrap::Snapshot`; `bootstrap::snapshot`; `bootstrap::entries`; `bootstrap::HOST_ARRAYS`; `bootstrap::HOST_PATH_GLOBALS`; `bootstrap::safe_scrub_keys`; `bootstrap::SHARED_LIBRARY_EXTENSION` | key, selected-host snapshot, rebootstrap-clear, safe-scrub, and canonical Unix shared-library suffix invariant; runtime identity supplied per engine | none |
 | shared plain types | `rust/tcl-core-types/src/lib.rs`; `rust/tcl-core-types/src/diag_code.rs` | `OoId`; `DiagCode` | interpreter-local OO identity and diagnostic codes are invariant across dialects | `xtask-diag-tables` |
+| diagnostic suppression directives | `rust/tcl-compiler/src/analyser/utils.rs` | `parse_file_suppression`; `parse_noqa_marker`; `parse_noqa_line_suppressions_for_dialect`; `apply_preceding_noqa`; `line_suppressed`; `FILE_SUPPRESS_KEY` | directive shapes are release-invariant; the noqa pre-scan segments under the document dialect's `LexerConfig` | none |
 | SslicTcl declaration model | `rust/tcl-sslictcl/src/model.rs` | `SslicModel`; `TlsFacts`; `Policy` | vocabulary version (`dsl::SUPPORTED_VOCABULARY`); no Tcl release axis — the document is never evaluated | none |
 | SslicTcl document loading | `rust/tcl-sslictcl/src/dsl.rs`; `rust/tcl-sslictcl/src/vocabulary.rs` | `load_with_diagnostics`; `DslDiagnostic`; `DECLARATIONS` | vocabulary version; open/closed block rule per declaration | none |
 | SslicTcl finding identity | `rust/tcl-sslictcl/src/policy.rs` | `evaluate_policy`; `PolicyFinding` | invariant `(check id, endpoint)` identity; the `grade` id is reserved | none |
@@ -318,13 +320,13 @@ entry point, or gate moves without this contract being updated.
   (`MISSING_CLOSE_BRACE_FOR_VAR`, owned here too), not a benign miss, and
   an `Option` let each consumer invent its own recovery: the VM emitted the
   whole `${...}` literally and the WASM runtime swallowed the rest of the
-  template. Evaluating engines must raise; only a tokenizer may recover
-  (the lexer runs the name to end-of-input so it can keep tokenizing
+  template. Evaluating engines must raise; only a tokeniser may recover
+  (the lexer runs the name to end-of-input so it can keep tokenising
   half-typed source). The 9.x rule also *widens* what is unterminated —
   `${a\}` and `${a{b}` close under 8.x but not under 9.x.
 
   Scope — the surfaces consolidated on this owner are now the
-  `subst`/tokenizer surface (#1457), the compiled-word decoders
+  `subst`/tokeniser surface (#1457), the compiled-word decoders
   (`segmenter` / `values` / `helpers`, #1568), the **expression** sub-lexer
   `expr_lexer::variable` (#1601 — an `expr` body is parsed out of an
   ordinary Tcl word, so `expr {${a{b}c} + 1}` must resolve the reference
@@ -707,6 +709,33 @@ entry point, or gate moves without this contract being updated.
   ranking in code actions. Re-homing into `tcl-syntax` was assessed
   July 2026 and declined — no compiler-independent consumer exists;
   revisit only if one appears.
+
+### `tcl-compiler` — diagnostic suppression directives
+
+- `analyser::utils` owns both halves of the `# noqa` / `# tcl-lsp: disable=…`
+  contract: the pre-scans that build the analyser's `suppressed_lines` map
+  (`parse_file_suppression` for the top-of-file directive, recorded against the
+  `FILE_SUPPRESS_KEY` sentinel line; `parse_noqa_line_suppressions_for_dialect`
+  and `apply_preceding_noqa` for an inline directive, recorded against every
+  line the *following* command occupies), and `line_suppressed`, the one
+  predicate that reads it.
+- `parse_noqa_marker` is the one grammar for an inline directive, shared by
+  both pre-scans: a `noqa:` marker at a word boundary carries the codes it
+  names, a comment whose whole body is `noqa` carries the `"*"` wildcard, and
+  a comment that merely mentions the word carries nothing. A consumer that
+  matched the bare substring instead would silence every finding on the
+  command below `# do not use noqa here`.
+- The analyser records the map but does not filter with it — only the surface
+  that renders a finding knows which line it lands on — so every consumer asks
+  through `line_suppressed`: the language server's analyser, compiler-check,
+  optimiser, source-style, XC and SslicTcl lifts, the `diag` / `lint` /
+  `validate` CLI verbs, and the W305 producer that the non-Tcl F5 adapters
+  share. That is what makes a directive mean the same thing in the editor and
+  on the command line, as
+  [`docs/kcs/kcs-howto-suppress-diagnostics.md`](../../kcs/kcs-howto-suppress-diagnostics.md)
+  promises. A surface that reimplements the check drifts on the wildcard entry
+  or the file-level bucket, which silences a different set of findings than
+  the directive names.
 
 ### `tcl-core-types` + `tcl-runtime-api` — command-table identity
 

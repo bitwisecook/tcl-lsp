@@ -17,7 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! Cross-version vectors for the deprecated `trace variable|vdelete|vinfo`
-//! forms (issue #1444).
+//! forms.
 //!
 //! C compiles them behind `#ifndef TCL_REMOVE_OBSOLETE_TRACES`
 //! (`tclTrace.c` 8.6.16:198-206); Tcl 9.0 dropped them, so the very same

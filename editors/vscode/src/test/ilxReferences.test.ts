@@ -17,7 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 /**
- * The JavaScript end of the iRulesLX method relation (issue #1707).
+ * The JavaScript end of the iRulesLX method relation.
  *
  * The provider itself is exercised against a stub client rather than a live
  * server: what has to hold here is the client-side contract — which documents

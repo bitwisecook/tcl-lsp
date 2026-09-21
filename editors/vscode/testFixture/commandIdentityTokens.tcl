@@ -1,4 +1,4 @@
-# Issue #1185 — a command head's grammar follows its effective identity, not
+# A command head's grammar follows its effective identity, not
 # its spelling.  Every line below is real, working Tcl (verified on tclsh
 # 9.0.4 and 8.6.16).
 #

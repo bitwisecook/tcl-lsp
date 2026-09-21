@@ -58,15 +58,14 @@
 //! trade here rather than an oversight: a `Pack` is built out of `&'static`
 //! data leaked once at load ([`crate::loader`]'s "`&'static` by leaking"),
 //! so re-loading an edited pack leaks a *fresh* set either way. Serving the
-//! memo is therefore strictly less allocation than re-evaluating, and the
-//! real fix for both is registry generations (redesign §11.2 D10), which
-//! retires the leak and this note with it.
+//! memo is therefore strictly less allocation than re-evaluating; the
+//! underlying leak is a registry-generations gap (redesign §11.2 D10).
 //!
 //! It is worth being precise about what is *not* here, because the design
 //! promises more: "resolved drafts plus hook bytecode". Hook bodies are
 //! carried as text and every pack hook installs as an abstaining function
 //! pointer (see [`crate::loader`]) — there is no bytecode to cache until hook
-//! bodies run on the VM (phase 5).
+//! bodies run on the VM.
 //!
 //! ## How it hooks into the loader
 //!
@@ -141,8 +140,8 @@ fn override_of<T>(read: impl Fn(&(PathBuf, bool)) -> T) -> Option<T> {
 /// The on-disk format version. Bumped when the byte layout below changes; an
 /// entry written by any other version is simply not read.
 ///
-/// Bumped to 2 when the memo key gained its BOM-disposition byte (issue
-/// #1635): a version-1 entry's per-entry records are one byte shorter, so
+/// Bumped to 2 when the memo key gained its BOM-disposition byte:
+/// a version-1 entry's per-entry records are one byte shorter, so
 /// reading one as version 2 would misalign every field after the first. The
 /// cache is disposable by contract, so an unread entry costs one reparse.
 const FORMAT: u8 = 2;
@@ -364,7 +363,7 @@ pub fn clear() -> std::io::Result<()> {
 /// The BOM disposition is in the key because it changes the answer, not just
 /// the input: the same bytes segment differently as a file (a leading U+FEFF is
 /// a prologue) and as a nested block (it is data), so a key without it would
-/// describe two different results identically (issue #1635).
+/// describe two different results identically.
 ///
 /// The memo is **load-bearing within one load** as well as across processes:
 /// the evaluation loader segments the same text more than once on purpose —

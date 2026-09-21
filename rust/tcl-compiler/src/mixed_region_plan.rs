@@ -359,8 +359,8 @@ pub enum InvocationSelection {
 /// Common proof summary attached to a selected guarded candidate.
 ///
 /// Fields are private because static registry facts cannot construct this
-/// evidence. A future common proof pass will provide a provenance-gated
-/// constructor when live identity and guard-domain analysis is available.
+/// evidence: it is built only by common analysis that holds live identity and
+/// guard-domain proof, through a provenance-gated guarded plan.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GuardedSelectionEvidence {
     operation: SemanticOperationId,
@@ -459,7 +459,7 @@ pub enum GuardedCandidateDecline {
     DirectCalleeIdentityUnavailable,
     /// The semantic optimisation pass was not explicitly enabled.
     PassDisabled,
-    /// This first boxed-intrinsic slice does not yet claim this intrinsic.
+    /// The boxed intrinsic fast path does not implement this intrinsic.
     UnsupportedIntrinsic {
         /// Registry-owned intrinsic identity that remains on the generic path.
         intrinsic: IntrinsicId,
@@ -475,7 +475,7 @@ pub enum GuardedCandidateDecline {
     GuardPlanInvalid(GuardedPlanError),
     /// Static registry resolution has no live dispatch-stability proof.
     DispatchStabilityUnavailable {
-        /// Mutable domains that a future proof or guard must cover.
+        /// Mutable domains a proof or guard must cover.
         dependencies: DispatchDependencies,
     },
 }
@@ -663,7 +663,7 @@ fn refine_guarded_boxed_intrinsic(
     let intrinsic_candidate = &mut region.candidates[1];
     debug_assert_eq!(intrinsic_candidate.kind, GuardedCandidateKind::Intrinsic);
 
-    // The first slice is deliberately narrow. `StringLength` consumes and
+    // The boxed fast path is deliberately narrow: `StringLength` consumes and
     // returns boxed Tcl values through the runtime intrinsic contract; no
     // native representation, frame, or suspension state crosses this region.
     if intrinsic != IntrinsicId::StringLength {

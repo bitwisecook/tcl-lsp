@@ -20,11 +20,9 @@
 //! (single-document surface). Verifies `prepare` resolves the proc at the
 //! cursor, `incoming_calls` finds callers, and `outgoing_calls` finds callees.
 //!
-//! C-Tcl proof: the call graph is real Tcl — every snippet is a runnable
-//! script whose `proc` bodies invoke each other (e.g. `proc main {} { greet }`
-//! calls `greet`, and the top level calls `greet`). The cross-document tests
-//! (`extra_documents=`) exercise a workspace-index surface absent from this
-//! single-document Rust API and are noted as out-of-surface.
+//! The call graph is real Tcl: every snippet is a runnable script whose `proc`
+//! bodies invoke each other (e.g. `proc main {} { greet }` calls `greet`, and
+//! the top level calls `greet`).
 
 use tcl_compiler::analyser::Analyser;
 use tcl_lsp_core::call_hierarchy::{CallHierarchyItem, incoming_calls, outgoing_calls, prepare};
@@ -120,7 +118,7 @@ fn outgoing_calls_find_callees() {
 
 #[test]
 fn recursive_proc_calls_itself() {
-    // tclsh: `fact` calls itself — outgoing includes greet-of-self.
+    // tclsh: `fact` calls itself, so its outgoing calls include itself.
     let src =
         "proc fact {n} { if {$n <= 1} { return 1 }\n return [expr {$n * [fact [expr {$n-1}]]}] }\n";
     let it = items(src, 0, 6);

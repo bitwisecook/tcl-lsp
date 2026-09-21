@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-// Authoring a `.sslictcl` document in the editor host (#1543, epic #1524).
+// Authoring a `.sslictcl` document in the editor host.
 //
 // The native e2e suite (`rust/tcl-lsp-server/tests/e2e/sslictcl.rs`) proves
 // the *server* answers a `.sslictcl` document. What it cannot prove is the

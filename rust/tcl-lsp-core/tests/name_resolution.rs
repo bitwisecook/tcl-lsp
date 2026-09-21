@@ -16,16 +16,15 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! TP/FP/TN/FN matrix for issues #954-#958 (Rust LSP), unit level.
+//! TP/FP/TN/FN matrix for name resolution in the Rust LSP, unit level.
 //!
-//! Each issue is exercised across the confusion matrix:
+//! Each dispatch shape is exercised across the confusion matrix:
 //!   * **TP** — the feature fires where it should (the call *is* a reference,
 //!     the token *is* a parameter, the read *is* suppressed).
 //!   * **FP guard** — a look-alike that must *not* fire (a different class /
 //!     method / function, a non-`pkgIndex` file, a `$lambda` variable).
 //!   * **TN** — nothing relevant present, nothing emitted.
-//!   * **FN** (the regression) — the exact shape each issue reported, which
-//!     used to be missed and now resolves.
+//!   * **FN** — the shape most easily missed, which must still resolve.
 //!
 //! `references`/`semantic_tokens` come from `tcl-lsp-core`; W210 diagnostics
 //! from the `tcl-compiler` analyser directly.
@@ -123,7 +122,7 @@ fn kind_of(src: &str, dialect: &str, needle: &str) -> Option<String> {
     None
 }
 
-// ───────────────────────── #956 — `$obj method` references ────────────────
+// `$obj method` references.
 
 mod obj_method_dispatch {
     use super::*;
@@ -180,7 +179,7 @@ mod obj_method_dispatch {
         assert_eq!(refs_at(src, 1, 11), vec![1], "declaration only");
     }
 
-    /// FN→TP (issue #957's general form): an external `$obj method` /
+    /// FN→TP: an external `$obj method` /
     /// `NAME method` dispatch nested inside `if` / `foreach` at the
     /// top level (not inside any proc/method) is a reference too — the
     /// top-level scan region gets the same `Plain`-`BodyKind` recursion
@@ -203,13 +202,11 @@ mod obj_method_dispatch {
         assert_eq!(refs_at(src, 1, 11), vec![1], "no `other` leakage");
     }
 
-    /// FN→TP regression for the *exact* issue #956 repro: a `variable` and
-    /// `constructor` declared before the `method`, with the method body
-    /// reading the instance variable.  The previous investigation of #956
-    /// tested a simplified `Bar956` fixture without these members and
-    /// concluded the count was already correct — true for the count, but
-    /// the codeLens *command* was still empty (fixed separately in
-    /// `tcl-lsp-core::code_lens` / `tcl-lsp-server`); this locks in that
+    /// FN→TP: a `variable` and `constructor` declared before the `method`,
+    /// with the method body reading the instance variable.  A fixture without
+    /// those members gets the reference count right while leaving the
+    /// codeLens *command* empty, which is decided in
+    /// `tcl-lsp-core::code_lens` / `tcl-lsp-server`; this locks in that
     /// find-references itself was never affected by the extra members.
     #[test]
     fn fn_to_tp_exact_issue_956_repro_with_constructor_and_variable() {
@@ -223,17 +220,16 @@ mod obj_method_dispatch {
     }
 }
 
-// ─────────────────── classmethod dispatch on the class's own command ──────
+// Classmethod dispatch on the class's own command.
 
 mod classmethod_dispatch {
     use super::*;
 
     /// FN→TP: a `classmethod` dispatches on the *class's own* command
-    /// (`Factory make`) — never on an instance.  Before this fix,
-    /// `find_obj_method_call_sites` only tracked instance handles, so a
-    /// classmethod's reference count and codeLens were always "0
-    /// references" regardless of how many times it was actually called —
-    /// the common (in fact only) classmethod dispatch shape was invisible.
+    /// (`Factory make`) — never on an instance.  Tracking instance handles
+    /// alone leaves `find_obj_method_call_sites` reporting "0 references" for
+    /// a classmethod however often it is called, since that is its only
+    /// dispatch shape.
     #[test]
     fn tp_bare_class_command_dispatch_is_a_reference() {
         let src = "oo::class create Factory {\n    classmethod make {} {\n        return [Factory new]\n    }\n}\nFactory make\n";
@@ -244,7 +240,6 @@ mod classmethod_dispatch {
 
     /// FN→TP: the reverse direction of the previous test — cursor on the
     /// *call site* itself (`Factory make`, line 5), not the declaration.
-    /// Previously resolved to nothing at all (Codex review on #971, P2):
     /// `$obj`/`my` resolution doesn't match a bare two-word receiver, and
     /// the declaration-side resolver requires the cursor inside the class
     /// body, so Find References / Rename triggered from the actual dispatch
@@ -323,13 +318,13 @@ mod classmethod_dispatch {
         );
     }
 
-    /// FN→TP (issue #990): [incr Tcl]'s class-scoped `proc` maps to the same
+    /// FN→TP: [incr Tcl]'s class-scoped `proc` maps to the same
     /// `class_methods` bucket as `classmethod`/`typemethod`, but itcl
     /// dispatches it as a single `::`-qualified identifier
     /// (`Factory::make`), never the two-word `Factory make` form the
-    /// `cmd_set` scan matches — so that call site used to be invisible.  It
-    /// is now resolved through the qualified-name path instead, keyed on the
-    /// definer family, and the two-word scan still never matches it.
+    /// `cmd_set` scan matches.  It resolves through the qualified-name path
+    /// instead, keyed on the definer family; the two-word scan never matches
+    /// it.
     #[test]
     fn fn_to_tp_itcl_class_proc_colon_dispatch_is_a_reference() {
         let src = "itcl::class Factory {\n    proc make {} {\n        return 1\n    }\n}\nFactory::make\n";
@@ -359,7 +354,7 @@ mod classmethod_dispatch {
     }
 }
 
-// ────────── #990 — [incr Tcl] `Factory::make` class-proc dispatch ──────────
+// [incr Tcl] `Factory::make` class-proc dispatch.
 
 /// itcl gives every class a real namespace of the same name and installs its
 /// class-scoped `proc`s as ordinary commands inside it, so `Factory`'s `proc
@@ -570,7 +565,7 @@ mod itcl_class_proc_dispatch {
     }
 }
 
-// ───────────────────────── #957 — `my method` references ──────────────────
+// `my method` references.
 
 mod my_method_dispatch {
     use super::*;
@@ -631,8 +626,7 @@ mod my_method_dispatch {
         assert_eq!(refs_at(src, 1, 11), vec![1], "bare head is not a dispatch");
     }
 
-    /// FN→TP (issue #957's general form, reopened after the `[...]`-only
-    /// fix): a `my method` dispatch nested inside `if` / `while` /
+    /// FN→TP: a `my method` dispatch nested inside `if` / `while` /
     /// `foreach` / `try` / `catch` / `eval` bodies is a reference.  The
     /// registry-driven `Plain`-`BodyKind` recursion (`plain_body_arg_indices`)
     /// covers every same-frame body generically — no per-command-name
@@ -820,7 +814,7 @@ mod my_method_dispatch {
     }
 }
 
-// ─────────────── #957 (general form) — `next` / `nextto` references ───────
+// `next` / `nextto` references.
 
 mod next_dispatch {
     use super::*;
@@ -864,7 +858,7 @@ mod next_dispatch {
     }
 }
 
-// ─────────────────── #958 — `::tcl::mathfunc` expr functions ──────────────
+// `::tcl::mathfunc` expr functions.
 
 mod mathfunc_expr {
     use super::*;
@@ -902,7 +896,7 @@ mod mathfunc_expr {
     }
 }
 
-// ─────────────────────── #955 — pkgIndex `$dir` W210 ──────────────────────
+// `pkgIndex.tcl` `$dir` W210.
 
 mod pkgindex_dir {
     use super::*;
@@ -962,7 +956,7 @@ mod pkgindex_dir {
     }
 }
 
-// ──────────────────────── #954 — apply lambda tokens ──────────────────────
+// Apply lambda tokens.
 
 mod apply_lambda {
     use super::*;
@@ -1005,13 +999,12 @@ mod apply_lambda {
     }
 }
 
-// ───────────── #1019 idx 16 — non-identifier method names ─────────────
+// Non-identifier method names.
 
-/// Tcl puts no character restriction on a method name.  The cursor-word
-/// rule used to stop at `-`, `<`, and `>`, so a hyphenated method and TIP
-/// 558's generated property accessors (`<ReadProp-NAME>` /
-/// `<WriteProp-NAME>`) were truncated to a name no class declares, and never
-/// resolved from a call site.
+/// Tcl puts no character restriction on a method name.  A cursor-word rule
+/// stopping at `-`, `<`, and `>` truncates a hyphenated method, and TIP 558's
+/// generated property accessors (`<ReadProp-NAME>` / `<WriteProp-NAME>`), to
+/// a name no class declares, so neither resolves from a call site.
 ///
 /// Oracle (tclsh 8.6.14 + 9.0.4): `method with-dash`, `method a.b`, and
 /// `method <ReadProp-x>` all define real, dispatchable methods, and
@@ -1069,12 +1062,12 @@ mod non_identifier_method_names {
     }
 }
 
-// ─────── #981 — namespace-aware bare class-command dispatch matching ───────
+// Namespace-aware bare class-command dispatch matching.
 
 /// A bare `Factory make` is resolved the way Tcl resolves it — current
 /// namespace first, then global — instead of by matching the class's simple
 /// name as text.  Two classes sharing a tail name in different namespaces are
-/// therefore no longer cross-linked, which matters because since #1047 this
+/// therefore not cross-linked, which matters because this
 /// one scanner feeds references, rename (including consumer-document edits),
 /// the code lens count and click, and call hierarchy: a wrong match rewrites
 /// real code.
@@ -1204,7 +1197,7 @@ mod namespace_scoped_class_dispatch {
         assert_eq!(refs_at(src, 2, 15), vec![2, 5], "decl + `rex make`");
     }
 
-    /// TN + TP, the object-command half of #981 (closed by PR C3).
+    /// TN + TP, the object-command half.
     ///
     /// `CLASS create NAME` binds `NAME` in the **creation site's** namespace,
     /// so `::a::Factory create rex` and `::b::Widget create rex` are two
@@ -1217,10 +1210,9 @@ mod namespace_scoped_class_dispatch {
     /// global b: b-made        ;# ::b::rex make
     /// ```
     ///
-    /// Before this fix `created_instance_commands` was a flat bare-name set:
-    /// `::b::Widget::make` counted (and renamed) `::a`'s `rex make`, while
-    /// `::a::Factory::make` lost its own call site entirely to
-    /// last-write-wins.
+    /// A flat bare-name `created_instance_commands` set would have
+    /// `::b::Widget::make` count (and rename) `::a`'s `rex make`, while
+    /// `::a::Factory::make` loses its own call site to last-write-wins.
     #[test]
     fn tn_object_command_dispatch_is_scoped_to_its_creation_namespace() {
         let src = concat!(
@@ -1253,8 +1245,8 @@ mod namespace_scoped_class_dispatch {
 
     /// FN→TP: an **explicit** `namespace import` creates a real command in the
     /// importing namespace, so a bare dispatch through the imported name is a
-    /// reference to the source class's method.  Post-#1047 this one scanner
-    /// also drives rename, so missing it left the call site stale.
+    /// reference to the source class's method.  This one scanner
+    /// also drives rename, so missing it leaves the call site stale.
     ///
     /// Oracle (tclsh 9.0.4, probe `ns981.tcl`):
     ///
@@ -1284,7 +1276,7 @@ mod namespace_scoped_class_dispatch {
     }
 
     /// TN (deliberate boundary): a **wildcard** import is not followed.
-    /// Reproducing it needs the export-gated import snapshot of issue #1027 —
+    /// Reproducing it needs the export-gated import snapshot —
     /// which commands existed in `::a` when the import ran — and inventing
     /// aliases without it would match sites the runtime never dispatches.
     /// Documented in this module's limitations list.

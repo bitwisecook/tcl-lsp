@@ -1,4 +1,4 @@
-# Caller-frame injection via `uplevel` (issue #923 audit idx 24 / idx 38).
+# Caller-frame injection via `uplevel`.
 #
 # Verified on tclsh 9.0.4 and 8.6.16, byte-identical — the file prints
 #   99

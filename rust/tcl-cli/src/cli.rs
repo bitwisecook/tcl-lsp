@@ -32,7 +32,7 @@ use clap::builder::{PossibleValue, PossibleValuesParser};
 use clap::{Args, Parser, Subcommand};
 use tcl_dialect::DialectProfile;
 
-/// The enumerated `--dialect` values, projected from the profile catalog: one
+/// The enumerated `--dialect` values, projected from the profile catalogue: one
 /// visible entry per canonical profile carrying its `display_name` as the
 /// value help, plus the additive `tk` ingress, with every registered alias
 /// (`irules`, `tcl-irule`) accepted but hidden.
@@ -41,10 +41,9 @@ use tcl_dialect::DialectProfile;
 /// enumerating it in `--help` narrows nothing: an unrecognised spelling was
 /// already an input error, it is now reported with the list of names.
 fn dialect_possible_values() -> Vec<PossibleValue> {
-    // T1: the `+ tk` special case is the *payload* ledger row T1 retires
-    // (P1) — an environment enumeration has different contents, so
-    // re-keying it changes `--help` rather than refactoring it. The `tk`
-    // name itself now resolves through the one ingress seam.
+    // `tk` has no catalogue profile by design, so it is added explicitly
+    // here rather than coming from the profile catalogue iteration below;
+    // it resolves through the one ingress seam.
     let tk = tcl_cli_support::environment::profile_for_dialect("tk");
     DialectProfile::all()
         .iter()
@@ -692,7 +691,7 @@ pub struct SpecUpgradeShape {
     /// registration calls at the house layout, through the same renderer
     /// `tcl spec export` uses. Comments and author layout do not survive
     /// it. A programmed pack (one whose `speclib` body runs rather than
-    /// registers) is refused whole, never rewritten (design E-R12), and a
+    /// registers) is refused whole, never rewritten, and a
     /// partially upgraded file keeps its TODO markers instead.
     #[arg(long)]
     pub restyle: bool,

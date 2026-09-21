@@ -16,8 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The cross-check that keeps the parse-error cut policy *one* policy
-//! (issue #1787).
+//! The cross-check that keeps the parse-error cut policy *one* policy.
 //!
 //! `tcl_lexer::first_parse_cut` answers the cut from source, for a compile
 //! front-end that must know which commands run before the error. This crate
@@ -49,10 +48,9 @@ fn owner_cut(src: &str, config: LexerConfig) -> Option<(usize, &'static str)> {
     tcl_lexer::first_parse_cut(src, config).map(|cut| (cut.command, cut.message))
 }
 
-/// The malformed shapes, one per message C can raise, plus the two the
-/// warning-stream scan the owner replaced answered wrongly, the one it could
-/// not see at all, and the close-quote weld this crate once pinned as a
-/// divergence (#1828).
+/// The malformed shapes, one per message C can raise, plus edge cases a
+/// naive warning-stream scan could answer wrongly or miss entirely, and the
+/// close-quote weld this crate pins as a divergence.
 const SHEET: &[&str] = &[
     "puts pre; puts \"x${abc\"",
     "puts pre; puts \"unterminated",
@@ -60,7 +58,7 @@ const SHEET: &[&str] = &[
     "puts pre; set y {a}b",
     "puts pre; puts $a(",
     "puts pre; puts \"a\"b",
-    // The close-quote weld in every token shape the lexer gives it (#1828):
+    // The close-quote weld in every token shape the lexer gives it:
     // the empty `""` whose span sits on its closer, a bare closing marker
     // after a `$x` and after a `[…]`, and a weld a level down.
     "puts pre; set y \"\"b",

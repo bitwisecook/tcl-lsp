@@ -18,8 +18,8 @@
 
 //! `report::stylearguments` — introspect a style's formal arguments.
 //
-// VERIFIED: tcllib report(n).  `::report::stylearguments styleName` returns the
-// list of arguments associated with the style.  `package require Tcl 8.5 9`.
+// tcllib report(n): `::report::stylearguments styleName` returns the list of
+// arguments associated with the style. `package require Tcl 8.5 9`.
 
 use crate::prelude::*;
 

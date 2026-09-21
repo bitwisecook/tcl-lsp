@@ -165,8 +165,7 @@ fn definition_external_call_to_unexported_method_yields_nothing_945() {
     // [Vault new]; $v _secret` → `unknown method "_secret": must be
     // destroy` — a default-unexported method (name not matching the C
     // rule `[a-z]*`) is NOT externally callable, so go-to-definition on
-    // the external call resolves to nothing rather than the declaration
-    // (issue #945 fault 4).
+    // the external call resolves to nothing rather than the declaration.
     let src = "oo::class create Vault {\n    \
                    method _secret {} { return hidden }\n\
                }\n\
@@ -183,8 +182,8 @@ fn definition_external_call_to_unexported_method_yields_nothing_945() {
 #[test]
 fn definition_my_call_reaches_unexported_method_945() {
     // tclsh 9.0.4: `my _secret` from inside another method of the class
-    // dispatches fine — internal access reaches unexported methods
-    // (issue #945 fault 4's access-context split).
+    // dispatches fine — internal access reaches unexported methods, which is
+    // the access-context split.
     let src = "oo::class create Vault {\n    \
                    method _secret {} { return hidden }\n    \
                    method probe {} { return [my _secret] }\n\
@@ -233,8 +232,7 @@ fn definition_explicit_export_flips_external_visibility_945() {
 fn definition_selects_the_dispatch_entry_not_the_override_family_945() {
     // tclsh 9.0.4: a `Dog` instance's `speak` enters `Dog::speak`
     // (`info object call` = Dog then Animal).  Go-to-definition returns
-    // the dispatch entry only — never both family members (issue #945
-    // fault 6).
+    // the dispatch entry only — never both family members.
     let src = "oo::class create Animal {\n    \
                    method speak {} { return animal }\n\
                }\n\
@@ -289,8 +287,7 @@ fn per_object_methods_do_not_collide_across_scopes_945() {
     // tclsh 9.0.4: two unrelated locals both named `o` in different procs
     // are different objects — `$o m` in `b` runs b's override (`a=a b=b`).
     // The per-object lookup keys by binding identity, so b's dispatch
-    // resolves b's `oo::objdefine` (line 8), never a's (line 3) — issue
-    // #945 fault 5.
+    // resolves b's `oo::objdefine` (line 8), never a's (line 3).
     let src = "oo::class create C {}\n\
                proc a {} {\n    \
                    set o [C new]\n    \

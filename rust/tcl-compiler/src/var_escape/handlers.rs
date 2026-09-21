@@ -306,9 +306,9 @@ pub fn handle_info(args: &[String], state: &mut EscapeState) {
     // `info` subcommand.  `info default procname arg varname` stores the
     // argument's default into `varname` in the current frame, so it must escape
     // even though `default` otherwise only reads interpreter-global state — the
-    // safe-subcommand short-circuit below would drop it (issue 151).  Fully
-    // registry-driven via the subcommand's `arg_roles`: no subcommand name or
-    // argument index is hardcoded here.
+    // safe-subcommand short-circuit below would drop it.  Fully registry-driven
+    // via the subcommand's `arg_roles`: no subcommand name or argument index is
+    // hardcoded here.
     let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
     for idx in
         default_registry().arg_indices_for_role("info", &arg_refs, tcl_registry::ArgRole::VarWrite)
@@ -540,7 +540,7 @@ mod tests {
     fn info_default_escapes_its_varname_target() {
         // `info default procname arg varname` writes `varname` in the current
         // frame (registry VarWrite arg role) — it must escape even though
-        // `default` is otherwise an interpreter-global read (issue 151).
+        // `default` is otherwise an interpreter-global read.
         let mut s = EscapeState::default();
         handle_info(&args_of(&["default", "myproc", "argA", "outvar"]), &mut s);
         assert!(

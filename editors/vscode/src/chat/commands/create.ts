@@ -51,7 +51,6 @@ export async function handleCreate(ctx: CommandContext): Promise<vscode.ChatResu
 
   ctx.response.progress("Generating iRule...");
 
-  // Step 1: Ask LLM to generate initial iRule
   const llmResponse = await sendContextualRequest(
     ctx,
     `Create an F5 BIG-IP iRule that does the following:\n\n${description}\n\n` +
@@ -82,10 +81,8 @@ export async function handleCreate(ctx: CommandContext): Promise<vscode.ChatResu
     initialCode = buildFallbackCreateIrule(description);
   }
 
-  // Step 2: Run agentic validation loop
   const result = await runAgenticLoop(ctx, initialCode, undefined, { targetDialect: "f5-irules" });
 
-  // Step 3: Present result
   ctx.response.markdown(`## Generated iRule\n\n\`\`\`tcl\n${result.finalCode}\n\`\`\`\n`);
 
   if (result.clean) {
@@ -104,7 +101,6 @@ export async function handleCreate(ctx: CommandContext): Promise<vscode.ChatResu
     );
   }
 
-  // Step 4: Offer to insert into editor
   ctx.response.button({
     command: "tclLsp.insertIrule",
     title: "Insert into new file",

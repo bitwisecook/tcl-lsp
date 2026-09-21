@@ -42,7 +42,7 @@ regsub -all {<[^>]+>} $html {} stripped
 regsub {^(\d{3})-(\d{4})$} $phone {(\1) \2} formatted
 regsub -nocase {(error|warn|info)} $line {[\1]} tagged
 
-# regexp patterns (full BRE/ARE sub-tokenization)
+# regexp patterns (full BRE/ARE sub-tokenisation)
 
 regexp {^[A-Z][a-z]+$} $word
 regexp {^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$} $ip

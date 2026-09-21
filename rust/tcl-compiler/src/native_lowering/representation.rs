@@ -16,8 +16,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The value-representation lattice (plan §3.4) and the interval proofs that
-//! let native integer arithmetic drop its overflow edge.
+//! The value-representation lattice and the interval proofs that let native
+//! integer arithmetic drop its overflow edge.  See
+//! `docs/design/compiler/wasm-native-lowering-plan.md` §3.4.
 //!
 //! A representation says what the emitter may assume about a value without
 //! testing it at run time. `NativeInt` carries the closed interval the value
@@ -180,7 +181,7 @@ pub const fn cmp_op(op: BinOp) -> Option<CmpOp> {
     }
 }
 
-/// Whether both bounds of an interval are finite.
+/// The interval's bounds, when both are known and the interval is non-empty.
 #[must_use]
 pub const fn bounded(interval: Interval) -> Option<(i64, i64)> {
     match (interval.lo, interval.hi) {

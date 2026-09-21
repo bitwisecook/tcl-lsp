@@ -17,7 +17,7 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-# Turnkey runner for the issue #829 robustness stress suite: the
+# Turnkey runner for the robustness stress suite: the
 # direct-infrastructure salsa concurrency example, then all three LSP-API
 # scenarios against the real server binary. See README.md in this directory
 # for what each half exercises.

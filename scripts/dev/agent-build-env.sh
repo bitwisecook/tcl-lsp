@@ -24,9 +24,9 @@
 # does not disambiguate workspace-member crates built from different worktree
 # paths of the same workspace (same package name/version/features), so
 # concurrent builds race on the same deps/ outputs.  A test run can then pass
-# or fail against code that is not in the tree being tested.  See the
-# docs/kcs/kcs-issue-parallel-worktree-builds-serve-stale-artefacts.md and
-# issue #1052 for the observed failure modes.
+# or fail against code that is not in the tree being tested.  See
+# docs/kcs/kcs-issue-parallel-worktree-builds-serve-stale-artefacts.md for
+# the observed failure modes.
 #
 # This helper pins the build environment for the current worktree:
 #

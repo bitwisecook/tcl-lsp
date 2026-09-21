@@ -54,7 +54,7 @@ use crate::cfg::{BlockId, Function as CfgFunction};
 use crate::ir::Statement;
 use crate::lowering::variable_trace_write_indices;
 use crate::naming::normalise_var_name;
-use crate::var_escape::helpers::{default_registry, invocation_facts};
+use crate::var_escape::helpers::invocation_facts;
 use crate::var_scoping::my_variable_declaration_indices;
 
 bitflags! {
@@ -164,9 +164,9 @@ pub(crate) fn stmt_gen(stmt: &Statement, state: &mut State, registry: &CommandRe
     // subcommand word. An instance variable's intrep is externally
     // determined (the constructor / other methods can set it to anything),
     // so a use-site / merge / loop-oscillation check must treat it as
-    // escaping — the same protection FP-SH-02 / FP-SH-16 give a bare
-    // `variable`. Whether the head *is* the self-dispatch keyword comes from
-    // the registry, not a name literal (issue #1050); `get` resolves the
+    // escaping — the same protection a bare `variable` gets. Whether the head
+    // *is* the self-dispatch keyword comes from
+    // the registry, not a name literal; `get` resolves the
     // `::`-qualified spelling itself.
     if registry.method_dispatch_keyword(canon)
         == Some(tcl_registry::MethodDispatchKind::SelfDispatch)
@@ -336,13 +336,23 @@ fn collect_escaping(state: &State, names: &mut std::collections::HashSet<String>
 /// (see `CompilationUnit::build_for_with_config`) as `extra_escaping` to
 /// close that gap; per-procedure/method scoping needs no such widening —
 /// each already protects its own declared aliases flow-sensitively.
+///
+/// `registry` resolves the alias grammar
+/// ([`StateTransition::VariableCellAlias`] onto
+/// [`VariableAliasTarget::Global`]), so — exactly as for
+/// [`analyse_var_observability`] below — the same dialect the caller lowered
+/// `ir_module` under must be passed. A mismatched registry is worse here
+/// than there: a name this scan *misses* is a name the top level is told
+/// does not escape, which licenses folding a value another procedure
+/// reassigns through `global`. There is deliberately no default-registry
+/// fallback inside this function.
 #[must_use]
 pub fn scan_module_global_names(
     ir_module: &crate::ir::Module,
+    registry: &CommandRegistry,
 ) -> std::collections::HashSet<String> {
     use crate::ir::{Script, Statement, for_each_statement};
     let mut names = std::collections::HashSet::new();
-    let registry = default_registry();
     let mut visit = |script: &Script| {
         for_each_statement(script, &mut |stmt| {
             let (Statement::Call { .. } | Statement::Barrier { .. }) = stmt else {
@@ -647,14 +657,14 @@ mod tests {
     #[test]
     fn scan_module_global_names_finds_proc_body_global() {
         let c = cu("proc ::p {} { global n\nset n 2 }");
-        let names = scan_module_global_names(&c.ir_module);
+        let names = scan_module_global_names(&c.ir_module, &registry());
         assert!(names.contains("n"), "{names:?}");
     }
 
     #[test]
     fn scan_module_global_names_ignores_local_and_namespace_vars() {
         let c = cu("proc ::p {} { set x 1\nvariable v\nset v 2 }");
-        let names = scan_module_global_names(&c.ir_module);
+        let names = scan_module_global_names(&c.ir_module, &registry());
         assert!(names.is_empty(), "{names:?}");
     }
 
@@ -663,14 +673,14 @@ mod tests {
         // A `global` declaration buried inside a conditional body must still
         // be found — the scan is flow-insensitive (any occurrence counts).
         let c = cu("proc ::p {} { if {1} { global n\nset n 2 } }");
-        let names = scan_module_global_names(&c.ir_module);
+        let names = scan_module_global_names(&c.ir_module, &registry());
         assert!(names.contains("n"), "{names:?}");
     }
 
     #[test]
     fn scan_module_global_names_finds_declaration_in_method_body() {
         let c = cu("oo::class create C {\n method m {} { global n\nset n 2 }\n}");
-        let names = scan_module_global_names(&c.ir_module);
+        let names = scan_module_global_names(&c.ir_module, &registry());
         assert!(names.contains("n"), "{names:?}");
     }
 
@@ -684,7 +694,235 @@ mod tests {
         // `17`, so missing this name here would let SCCP/O102 fold the
         // final read to the stale literal `4`.
         let c = cu("proc ::helper {} { uplevel #0 { global n\nset n 2 } }");
-        let names = scan_module_global_names(&c.ir_module);
+        let names = scan_module_global_names(&c.ir_module, &registry());
         assert!(names.contains("n"), "{names:?}");
+    }
+
+    // ---- registry-threading coverage (issue #1788) ----
+    //
+    // `scan_module_global_names` used to resolve its alias facts against a
+    // hardcoded `tcl8.6` registry. Every test below therefore has to turn on
+    // a registry whose answer *differs* from `tcl8.6`'s, or it would pass
+    // just as happily with the defect in place.
+    //
+    // No shipped dialect profile gives `global` a different alias grammar —
+    // `global` carries the identical `VariableCellAlias`/`Global`
+    // transition on 8.4 through 9.1, iRules, tmsh and every EDA profile — so
+    // the difference has to come from the other axis the registry varies on:
+    // a command a *custom* registry carries and the plain 8.6 one does not
+    // (a `SpecTcl` workspace pack, an authored overlay). That is the axis the
+    // issue names, and it is the axis on which a missed name is a miscompile.
+
+    /// The `global`-shaped alias fact, declared by a command no shipped
+    /// `tcl8.6` registry knows: argument 0 becomes a local alias of the
+    /// same-named global cell.
+    ///
+    /// Authored as registry data, per the registry rule — nothing in
+    /// `scan_module_global_names` knows this command's name.
+    fn overlay_alias_transitions(
+        arguments: tcl_registry::InvocationArguments<'_>,
+    ) -> tcl_registry::StateTransitions {
+        let mut transitions = tcl_registry::StateTransitions::default();
+        if let Some(variable) = tcl_registry::TransitionSubject::from_argument(arguments, 0) {
+            transitions.push(StateTransition::VariableCellAlias(
+                tcl_registry::VariableCellAliasTransition {
+                    local: variable.clone(),
+                    target: VariableAliasTarget::Global { variable },
+                    writes_value: false,
+                },
+            ));
+        }
+        transitions
+    }
+
+    /// A one-command overlay spec named `bindglobal`, available on `surface`.
+    fn overlay_alias_spec(
+        surface: &'static [tcl_dialect::model::SpecSurface],
+    ) -> tcl_registry::CommandSpec {
+        tcl_registry::CommandSpec {
+            name: "bindglobal",
+            surface: Some(surface),
+            arity: tcl_registry::Arity::any(),
+            arg_roles: &[(0, tcl_registry::ArgRole::VarWrite)],
+            assigns_variable_at: Some(0),
+            state_transitions: Some(tcl_registry::StateTransitionDescriptor {
+                resolver: Some(overlay_alias_transitions),
+                ..tcl_registry::StateTransitionDescriptor::EMPTY
+            }),
+            ..tcl_registry::CommandSpec::DEFAULT
+        }
+    }
+
+    /// `dialect`'s cached registry plus the `bindglobal` overlay, keyed so the
+    /// two surfaces never share a cache generation.
+    fn overlay_registry(
+        dialect: &str,
+        key: u64,
+        surface: &'static [tcl_dialect::model::SpecSurface],
+    ) -> std::sync::Arc<CommandRegistry> {
+        let profile = tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();
+        tcl_registry::registry_for_profile_with_overlay(profile, key, move |registry| {
+            registry.insert(overlay_alias_spec(surface));
+        })
+    }
+
+    /// The module the tests scan: a procedure aliases the top level's `n`
+    /// through the overlay command, then reassigns it. A scan that misses
+    /// `n` tells the top-level SCCP build `n` never escapes, which licenses
+    /// folding the final read to the stale literal `1`.
+    const OVERLAY_SOURCE: &str = "set g 4\nproc helper {} { bindglobal g\nset g 17 }\nputs $g\n";
+
+    #[test]
+    fn scan_uses_the_callers_registry_not_a_default_one() {
+        // Availability everywhere, so only "which registry" can explain a
+        // difference.
+        let reg = overlay_registry(
+            "tcl9.0",
+            0x1788_0001,
+            tcl_dialect::model::SpecSurface::ALL_TCL,
+        );
+        let c = CompilationUnit::build_for(OVERLAY_SOURCE, &reg, false);
+
+        let names = scan_module_global_names(&c.ir_module, &reg);
+        assert!(
+            names.contains("g"),
+            "the caller's registry declares `bindglobal`'s global alias, so `g` \
+             must escape: {names:?}",
+        );
+
+        // Control: the registry the defect hardcoded cannot see this
+        // command at all, so it answers the unsound empty set. This is the
+        // difference the test turns on.
+        let baseline = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let baseline_names = scan_module_global_names(&c.ir_module, baseline);
+        assert!(
+            !baseline_names.contains("g"),
+            "control: a plain tcl8.6 registry must not know `bindglobal`: {baseline_names:?}",
+        );
+    }
+
+    #[test]
+    fn scan_follows_the_resolved_release_profile() {
+        // The same authored transition, gated to Tcl 9.0+. The scan must
+        // answer per the release the unit resolved to.
+        let on = overlay_registry(
+            "tcl9.0",
+            0x1788_0002,
+            tcl_dialect::model::SpecSurface::TCL90_PLUS,
+        );
+        let off = overlay_registry(
+            "tcl8.6",
+            0x1788_0002,
+            tcl_dialect::model::SpecSurface::TCL90_PLUS,
+        );
+
+        let on_unit = CompilationUnit::build_for(OVERLAY_SOURCE, &on, false);
+        let on_names = scan_module_global_names(&on_unit.ir_module, &on);
+        assert!(
+            on_names.contains("g"),
+            "tcl9.0 is inside the declared surface, so `g` escapes: {on_names:?}",
+        );
+
+        let off_unit = CompilationUnit::build_for(OVERLAY_SOURCE, &off, false);
+        let off_names = scan_module_global_names(&off_unit.ir_module, &off);
+        assert!(
+            !off_names.contains("g"),
+            "tcl8.6 is outside the declared surface, so nothing aliases `g`: {off_names:?}",
+        );
+    }
+
+    #[test]
+    fn scan_default_tcl9_behaviour_is_unchanged() {
+        // The shipped answer for plain `global` is release-invariant: the
+        // threading must not move Tcl 9.0.4 (or any other profile) off it.
+        let src = "set n 1\nproc ::p {} { global n\nset n 2 }\np\nputs $n";
+        for dialect in [
+            "tcl9.0",
+            "tcl9.1",
+            "tcl8.6",
+            "tcl8.5",
+            "tcl8.4",
+            "f5-irules",
+        ] {
+            let reg = tcl_registry::model::ingress::static_context_for(dialect).commands();
+            let c = CompilationUnit::build_for(src, reg, false);
+            let names = scan_module_global_names(&c.ir_module, reg);
+            assert!(names.contains("n"), "{dialect}: {names:?}");
+            assert_eq!(names.len(), 1, "{dialect}: {names:?}");
+        }
+    }
+
+    /// Caller 1 — `CompilationUnit`'s `ModuleWideFacts`. The top-level SCCP
+    /// lattice must treat `g` as externally mutable because the *registry*
+    /// says `bindglobal` aliases it, the same protection
+    /// `top_level_var_touched_by_callee_global_is_overdefined` pins for the
+    /// core `global` command.
+    #[test]
+    fn top_level_sccp_respects_a_registry_declared_alias() {
+        let reg = overlay_registry(
+            "tcl9.0",
+            0x1788_0001,
+            tcl_dialect::model::SpecSurface::ALL_TCL,
+        );
+        let cu = CompilationUnit::build_for(OVERLAY_SOURCE, &reg, false);
+        let sym = cu
+            .top_level
+            .ssa
+            .var_symbol("g")
+            .expect("top-level `g` should be interned");
+        let lattice: Vec<_> = cu
+            .top_level
+            .sccp
+            .values
+            .iter()
+            .filter(|((s, _), _)| *s == sym)
+            .collect();
+        assert!(
+            lattice
+                .iter()
+                .all(|(_, lv)| !matches!(lv, crate::analyses::LatticeValue::Const(_))),
+            "`g` is aliased by a registry-declared transition, so no lattice \
+             entry may be Const: {lattice:?}",
+        );
+    }
+
+    /// Caller 2 — `optimiser::propagation::run`. Its own
+    /// `top_level_extra_escaping` must come from the unit's registry, or the
+    /// pass proposes rewriting `puts $g` to the stale literal `puts 4`.
+    #[test]
+    fn propagation_does_not_fold_a_registry_declared_alias_target() {
+        let reg = overlay_registry(
+            "tcl9.0",
+            0x1788_0001,
+            tcl_dialect::model::SpecSurface::ALL_TCL,
+        );
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
+        let folds: Vec<_> =
+            crate::optimiser::optimise_raw_for_profile(OVERLAY_SOURCE, &reg, Some(profile))
+                .into_iter()
+                .filter(|o| matches!(o.code.as_str(), "O100" | "O102"))
+                .map(|o| (o.code.to_string(), o.span.start(), o.replacement))
+                .collect();
+        assert!(
+            folds.is_empty(),
+            "`g` may be reassigned through the registry-declared alias, so the \
+             final read must not be forwarded: {folds:?}",
+        );
+
+        // Control: a registry without that command has no reason to hold
+        // back, and does propose the (for this unit, wrong) literal — so the
+        // assertion above is about the registry, not about propagation
+        // happening to be silent here.
+        let baseline = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
+        let baseline_folds: Vec<_> =
+            crate::optimiser::optimise_raw_for_profile(OVERLAY_SOURCE, baseline, Some(profile))
+                .into_iter()
+                .filter(|o| matches!(o.code.as_str(), "O100" | "O102"))
+                .collect();
+        assert!(
+            !baseline_folds.is_empty(),
+            "control: a registry that cannot see `bindglobal` does fold",
+        );
     }
 }

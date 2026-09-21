@@ -48,13 +48,12 @@
 // ordinary list.
 //
 // Tcl 9.1 moves the command's body behind a new public
-// `Tcl_ListObjReverse()` API (declared in `tcl.decls`, stub slot 693) —
-// and this is more than the refactor it looks like, a fact the previous
-// pass's "no observable script-level behaviour change from 9.0" framing
-// missed: the new `generic/tclListTypes.c` (confirmed absent — HTTP 404
-// — from both the `core-9-0-4` and `core-8-6-16` trees; first appears at
-// `core-9-1-b0`) gives that function a second, independent abstract-list
-// fast path alongside the 9.0 reverseProc-delegation one above. Past the
+// `Tcl_ListObjReverse()` API (declared in `tcl.decls`, stub slot 693).
+// This is more than a rename of the entry point: the new
+// `generic/tclListTypes.c` (confirmed absent — HTTP 404 — from both the
+// `core-9-0-4` and `core-8-6-16` trees; first appears at `core-9-1-b0`)
+// gives that function a second, independent abstract-list fast path
+// alongside the 9.0 reverseProc-delegation one above. Past the
 // reverseProc check, `Tcl_ListObjReverse` takes a lazy path — a
 // `"reversedList"` view mapping index `i` to `len-1-i` on the original
 // object, instead of eagerly copying — whenever the value has 100 or
@@ -107,7 +106,7 @@ pub fn spec() -> CommandSpec {
         traits: Traits::FRAMELESS_RUNTIME | Traits::PURE | Traits::CSE_CANDIDATE,
         // Added in Tcl 8.5 (TIP 272) — absent from the 8.4 manpage tree and
         // from `generic/tclCmdIL.c` in the 8.4.20 source; see the module
-        // doc comment above for the full cross-version/cross-dialect audit.
+        // doc comment above for the full version and dialect history.
         surface: Some(SpecSurface::TCL85_PLUS),
         arity: Arity::exact(1),
         return_type: Some(TclType::List),

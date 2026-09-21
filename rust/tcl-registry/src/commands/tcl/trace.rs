@@ -185,10 +185,10 @@ const TRACE_INFO_RESULT_DOMAINS: &[WorldStateDomain] = &[
 
 const TRACE_EFFECT_COVERAGE: &[TransitionEffectCoverage] = &[
     TransitionEffectCoverage {
-        // `trace` still has its long-standing `InterpState` side effect while
-        // consumers migrate to trace-specific domains. The resolved
-        // transition owns the write portion for successful add/remove calls;
-        // its residual legacy read remains conservative migration debt.
+        // `trace` still has its long-standing `InterpState` side effect
+        // alongside trace-specific domains. The resolved transition owns
+        // the write portion for successful add/remove calls; the read
+        // portion stays on the legacy side effect, conservatively.
         source: WorldEffectWriteSource::LegacySideEffect(SideEffectTarget::InterpState),
         domains: &[WorldStateDomain::InterpreterPolicy],
     },

@@ -692,8 +692,7 @@ namespace eval ::state {
         }
 
         proc _match_ip {records value} {
-            # Simplified IP matching -- exact match only for now
-            # TODO: CIDR subnet matching
+            # IP matching is exact-value only; it does not match CIDR subnets.
             foreach {k v} $records {
                 if {$k eq $value} { return 1 }
             }

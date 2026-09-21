@@ -62,8 +62,8 @@ pub const MAX_SHAPE_DEPTH: usize = 3;
 /// Element facts for a `List` / `Dict` shape.
 ///
 /// Faithful to the runtime: container elements are shared `Tcl_Obj`s, so a
-/// computed element keeps its intrep inside the container (oracle-verified,
-/// type-tracking.md corpus) — `[list [expr {1+1}] "x y"]` genuinely is a list
+/// computed element keeps its intrep inside the container (verified against
+/// tclsh; see type-tracking.md) — `[list [expr {1+1}] "x y"]` genuinely is a list
 /// whose first element carries a numeric intrep.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Elements {
@@ -571,8 +571,8 @@ impl fmt::Display for TypeLattice {
             Repr::Union(set) => match set.as_slice() {
                 [one] => write!(f, "{one}"),
                 many => {
-                    // The two-member rendering keeps the historical
-                    // `SHIMMERED(a, b)` spelling; wider unions enumerate.
+                    // Two members render as `SHIMMERED(a, b)`; wider unions
+                    // enumerate.
                     write!(f, "SHIMMERED(")?;
                     for (i, shape) in many.iter().enumerate() {
                         if i > 0 {
@@ -691,8 +691,8 @@ mod tests {
     }
 
     /// Two disjoint shimmer pairs merge member-wise: the numeric members
-    /// collapse (`Int ⊔ Double = Numeric`) and the containers survive —
-    /// previously OVERDEFINED.
+    /// collapse (`Int ⊔ Double = Numeric`) and the containers survive, rather
+    /// than the whole union going OVERDEFINED.
     #[test]
     fn different_shimmered_pairs_merge_memberwise() {
         let a = TypeLattice::shimmered(TclType::Int, TclType::List);

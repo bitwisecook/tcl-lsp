@@ -154,9 +154,9 @@ impl std::error::Error for ValueError {}
 ///
 /// That mattered: the rule existed in three independent copies plus one place
 /// it had been *missed*, where `dict get {a 1 a 2} a` folded to `1` while both
-/// tclsh oracles say `2` (issues #1427, #1591, #1608). Callers must not
-/// re-implement the walk; the cross-crate parity gate
-/// `dict_canonicalisation_parity` fails when a copy reappears and diverges.
+/// tclsh oracles say `2`. Callers must not re-implement the walk; the
+/// cross-crate parity gate `dict_canonicalisation_parity` fails when a copy
+/// reappears and diverges.
 ///
 /// The odd-length check belongs to the caller: what an unpaired trailing
 /// element means (an error, or a declined fold) differs per layer.

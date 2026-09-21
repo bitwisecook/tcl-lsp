@@ -19,7 +19,7 @@
 //! Dialect detection heuristics (and re-exports of the dialect vocabulary).
 //!
 //! The dialect *types* — `SpecSurface`, [`KNOWN_DIALECTS`], the
-//! `DialectProfile` catalog — live in the foundational `tcl-dialect` crate
+//! `DialectProfile` catalogue — live in the foundational `tcl-dialect` crate
 //! (dialect-profile-model.md §3) so layers below the registry (tcl-lexer,
 //! tcl-syntax) consume the same source of truth. They are re-exported here
 //! for the registry's own convenience and for backwards compatibility.
@@ -73,8 +73,8 @@ fn has_word(haystack: &str, word: &str) -> bool {
 ///
 /// `wish` is here because a `#!/usr/bin/wish8.6` script is a Tcl 8.6 script by
 /// the same reasoning `tclsh8.6` is — Tk is a *library* in this model, not a
-/// dialect profile, so the shell name only ever contributes the version
-/// (issue #1625). A bare `#!/usr/bin/wish` therefore still falls through to
+/// dialect profile, so the shell name only ever contributes the version.
+/// A bare `#!/usr/bin/wish` therefore still falls through to
 /// the content tiers, exactly as a bare `tclsh` does.
 const SHEBANG_TCL_SHELLS: &[&str] = &["tclsh", "wish"];
 
@@ -388,12 +388,12 @@ pub const DETECT_SCAN_BYTES: usize = 8192;
 /// watched-file filter and rename filter read it; the `tcl` CLI's directory
 /// discovery reads it; and `cargo xtask gen-vscode-package` generates the VS
 /// Code extension's `workspaceContains` activation glob from it. Each of those
-/// used to keep its own list and two of the three had drifted — the activation
-/// glob named nine of the twelve (issue #1242).
+/// risks keeping its own list and drifting out of sync with it — an
+/// activation glob naming only nine of the twelve is exactly that failure mode.
 ///
 /// Lower-case by convention; every consumer compares case-insensitively (a
 /// glob consumer folds case per character, since `workspaceContains` matches
-/// case-sensitively on Linux — issue #1215).
+/// case-sensitively on Linux).
 ///
 /// This is deliberately **not** the same question as
 /// [`dialect_from_extension`], which maps an extension to a *dialect* and
@@ -403,24 +403,22 @@ pub const TCL_SOURCE_EXTENSIONS: &[&str] = &[
     "tcl", "tk", "itcl", "tm", "irul", "irule", "iapp", "iappimpl", "impl", "exp", "apl", "test",
     // The long spellings of the two extensions above that every editor
     // registers: `.irules` is owned by `f5-irules` and `.expect` by `expect`
-    // in the profile catalog, so a file with either name opens as project
-    // source in VS Code / JetBrains / Sublime / Zed. They were simply missed
-    // when their short forms were listed, which left them registered by the
-    // editors but never *indexed* — `is_tcl_source`, the watched-file glob,
-    // the rename filter and the CLI directory walk all skipped them, so
-    // cross-file references and rename silently missed those files until one
-    // was opened (issue #1625).
+    // in the profile catalogue, so a file with either name opens as project
+    // source in VS Code / JetBrains / Sublime / Zed. Without an entry here,
+    // `is_tcl_source`, the watched-file glob, the rename filter and the CLI
+    // directory walk would all skip them, so cross-file references and
+    // rename would silently miss such files until one happened to be opened.
     "irules", "expect",
     // `.tmsh` is an F5 tmsh *script* — Tcl the user writes and keeps beside
     // the rest of a project, in the same sense `.exp` is, and unlike the EDA
-    // vendor suffixes below. It was omitted here, which left the
-    // `workspaceContains` activation glob without it: a workspace whose only
-    // Tcl files were `.tmsh` was never indexed (issue #1625).
+    // vendor suffixes below. Without it here, the `workspaceContains`
+    // activation glob would omit it: a workspace whose only Tcl files were
+    // `.tmsh` would never be indexed.
     "tmsh",
     // SpecTcl packs (`spec-packs.md`): a `.tclspec` is one Tcl script, sits
     // beside the code it describes, and is indexed like any other source.
     "tclspec",
-    // SslicTcl TLS declarations (#1543): a `.sslictcl` is one Tcl script that
+    // SslicTcl TLS declarations: a `.sslictcl` is one Tcl script that
     // is read and never evaluated, kept beside the deployment it describes,
     // and indexed like any other source.
     "sslictcl",
@@ -432,8 +430,8 @@ pub const TCL_SOURCE_EXTENSIONS: &[&str] = &[
 /// Glob consumers that have no case-insensitivity option match against the
 /// platform file system: case-insensitively on Windows and macOS,
 /// case-**sensitively** on Linux. That is true of LSP
-/// `workspace/didChangeWatchedFiles` registrations (issue #1215) and of VS
-/// Code's `workspaceContains` activation events (issue #1242) alike, so both
+/// `workspace/didChangeWatchedFiles` registrations and of VS
+/// Code's `workspaceContains` activation events alike, so both
 /// build their glob here.
 ///
 /// Brace-expanding the casings (`{tcl,TCL}`) does not fix it — `Upper.Tcl` is
@@ -453,7 +451,7 @@ pub fn tcl_source_glob_any_case() -> String {
 /// factored out because the same problem appears wherever a *name* rather
 /// than an extension has to be matched case-insensitively by a consumer with
 /// no case-insensitivity option — VS Code's contributed `filenamePatterns`
-/// being the case that motivated splitting it out (issue #1625).
+/// being the case that motivated splitting it out.
 #[must_use]
 pub fn fold_case_in_glob(literal: &str) -> String {
     literal
@@ -529,8 +527,7 @@ pub fn register_pack_extension_dialects(pairs: impl IntoIterator<Item = (String,
 /// files the toolchain reaches on its own — the LSP workspace scan, the
 /// watched-file admission filter, the rename filter, the CLI directory walk —
 /// read the static constant alone, so closed files stayed unindexed and
-/// external edits never refreshed references or definitions (issue #1626,
-/// review finding P1-3).
+/// external edits never refreshed references or definitions.
 ///
 /// Two kinds of extension are filtered out, for different reasons.
 /// [`TCL_SOURCE_EXTENSIONS`] entries, because a consumer unions this with that
@@ -616,7 +613,7 @@ fn pack_extension_dialect(ext: &str) -> Option<&'static str> {
     guard.as_ref()?.get(ext).copied()
 }
 
-/// The dialect owning the whole basename `base` per the catalog's
+/// The dialect owning the whole basename `base` per the catalogue's
 /// `filenames` axis (`bigip.conf` → `f5-bigip`), or `None`.
 ///
 /// A basename claim is the more specific of the two static tiers — the files
@@ -638,9 +635,9 @@ fn catalog_filename_dialect(base: &str) -> Option<&'static str> {
     .copied()
 }
 
-/// The dialect owning `ext` per the [`tcl_dialect::DialectProfile`] catalog —
+/// The dialect owning `ext` per the [`tcl_dialect::DialectProfile`] catalogue —
 /// the `file_extensions` axis each profile declares (`xdc` →
-/// `xilinx-eda-tcl`). Built once; the catalog's invariant tests guarantee
+/// `xilinx-eda-tcl`). Built once; the catalogue's invariant tests guarantee
 /// one owner per extension.
 fn catalog_extension_dialect(ext: &str) -> Option<&'static str> {
     static MAP: std::sync::OnceLock<std::collections::HashMap<&'static str, &'static str>> =
@@ -663,7 +660,7 @@ fn catalog_extension_dialect(ext: &str) -> Option<&'static str> {
 ///
 /// Pack-declared routing ([`register_pack_extension_dialects`]) is consulted
 /// first, so a loaded pack owns its extensions; the
-/// [`tcl_dialect::DialectProfile`] catalog's per-profile `file_extensions`
+/// [`tcl_dialect::DialectProfile`] catalogue's per-profile `file_extensions`
 /// are the no-packs fallback and the home of everything no pack declares.
 /// Deliberate non-mappings stay deliberate: `.svrf` (Calibre rule decks) is
 /// a declarative DSL, not Tcl, so it falls through to content/default; the
@@ -685,9 +682,9 @@ pub fn dialect_from_extension(filename: &str) -> Option<&'static str> {
     if base.ends_with(".invs_setup.tcl") || base.ends_with(".genus_setup.tcl") {
         return Some("cadence-eda-tcl");
     }
-    // The catalog's whole-basename tier (`bigip.conf`), ahead of the
+    // The catalogue's whole-basename tier (`bigip.conf`), ahead of the
     // extension tier: a file claimed by name has no extension worth
-    // claiming (issue #1625).
+    // claiming.
     if let Some(dialect) = catalog_filename_dialect(base.as_str()) {
         return Some(dialect);
     }
@@ -1337,7 +1334,7 @@ mod detect_tests {
         );
     }
 
-    /// Issue #1625: the Tk shell names a Tcl version exactly as `tclsh` does.
+    /// The Tk shell names a Tcl version exactly as `tclsh` does.
     /// Tk is modelled as a library, not a dialect, so a `wish` shebang
     /// contributes only its version — and a *bare* `wish` contributes nothing,
     /// falling through to the content tiers like a bare `tclsh`.
@@ -1363,7 +1360,7 @@ mod detect_tests {
         );
     }
 
-    /// Issue #1625: the catalog's whole-basename axis routes the BIG-IP
+    /// The catalogue's whole-basename axis routes the BIG-IP
     /// config files, which have no extension worth claiming — a bare `.conf`
     /// belongs to every unrelated config file on the machine.
     #[test]
@@ -1383,7 +1380,7 @@ mod detect_tests {
         assert_eq!(dialect_from_extension("bigip.conf.bak"), None);
     }
 
-    /// Issue #1625: the long spellings every editor registers are indexed
+    /// The long spellings every editor registers are indexed
     /// too, and so is the tmsh script extension — they were registered but
     /// never walked, so cross-file references silently missed them.
     #[test]
@@ -1411,7 +1408,7 @@ mod detect_tests {
     /// scan indexes it. If they could disagree, a file would be indexed but
     /// not watched (so external edits never refresh it) or watched but not
     /// indexed (so its events are admitted and then dropped) — the exact
-    /// half-wired state review finding P1-3 was about.
+    /// half-wired state this guards against.
     ///
     /// Asserts nothing about *which* packs are loaded, so it is safe beside
     /// the process-global routing table other tests share.

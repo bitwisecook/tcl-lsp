@@ -67,7 +67,7 @@
 //! 2. **`tk` resolves as an environment, not a synthesised profile.** The
 //!    old ingress recognised `tk` by `DialectProfile::find` and built
 //!    `TK_PROFILE`; here it is the `tk` environment, which places the `Tk`
-//!    package **ambient** (P3), so every Tk fact — availability, the
+//!    package **ambient**, so every Tk fact — availability, the
 //!    authoring point, the Tk-checks activation, W120's silence — is one
 //!    placement query on the resolved context, and
 //!    [`DocumentEnvironment::unit_profile`] still hands back the same
@@ -96,7 +96,7 @@ use crate::model::context::{KeyedVersions, ResolvedContext};
 
 /// The **live** environment registry: the compiled seed set at
 /// generation 0 until a pack registers environments through
-/// [`crate::model::registration::register_environments`] (the P2
+/// [`crate::model::registration::register_environments`] (the
 /// dynamic-environment channel), then each registration's rebuilt
 /// registry at the next generation. Every resolve below reads the live
 /// value, so a registered environment becomes resolvable — and its
@@ -137,9 +137,9 @@ pub fn resolve_environment(name: &str) -> DocumentEnvironment {
 }
 
 /// Whether `name` resolves to a real environment — the one name
-/// *validator* (ledger rows F9/T1/T5: the settings, `setDialect`, and CLI
-/// ingresses that must reject an unknown spelling rather than silently
-/// serve the lenient fallback [`resolve_environment`] hands back).
+/// *validator* for the settings, `setDialect`, and CLI ingresses that must
+/// reject an unknown spelling rather than silently serve the lenient
+/// fallback [`resolve_environment`] hands back.
 #[must_use]
 pub fn is_known_environment_name(name: &str) -> bool {
     environments().resolve(name).is_some()
@@ -157,8 +157,8 @@ impl DocumentEnvironment {
     /// Whether this is the `tk` environment — an **identity** question
     /// (the `wish` ingress), never an availability one.
     ///
-    /// P3 moved every availability reader off this predicate and onto the
-    /// placement queries on the resolved context: "is Tk in this
+    /// Every availability reader lives on the
+    /// placement queries on the resolved context, not this predicate: "is Tk in this
     /// document's world?" is `ResolvedContext::package_active("Tk")`, "is
     /// it there without a `package require`?" is
     /// `ResolvedContext::ambient_package("Tk")`, and "could this
@@ -181,14 +181,14 @@ impl DocumentEnvironment {
     }
 
     /// The interned profile the analyser threads for this environment —
-    /// wave-1 interop (retired with ledger C1's re-type; P1-G deleted the
-    /// name validators it replaced): the catalogue environments map to
+    /// interop (retired with ledger C1's re-type, in place of the name
+    /// validators it replaced): the catalogue environments map to
     /// their same-named profile; the model-only ids (`tcl`, `tk`) map to
     /// the permissive fallback, exactly as the old name ingress resolved
     /// them.
     ///
-    /// **The `tk` asymmetry against [`Self::unit_profile`] is permanent**
-    /// (P3 ruling). It is not an availability split any more — the
+    /// **The `tk` asymmetry against [`Self::unit_profile`] is permanent.**
+    /// It is not an availability split any more — the
     /// context derives the point, so both faces answer the same
     /// availability question — but a *catalogue* one, and the
     /// classification rule (§2) is what fixes it: `tk` is a package plus
@@ -279,7 +279,7 @@ impl DocumentEnvironment {
     /// opposed to a legacy alias it also answers to.
     ///
     /// The editor-side ingress (an LSP `languageId`, a contributed file
-    /// association) is a claim about a *contributed identity*, review B7's
+    /// association) is a claim about a *contributed identity*, under the
     /// fixed-identity rule: `irules` resolves to the `f5-irules`
     /// environment everywhere a dialect *name* is accepted, but it is not a
     /// language id any editor contributes, and an ingress that took it as
@@ -494,10 +494,10 @@ pub fn static_context_for_profile(profile: &DialectProfile) -> &'static ContextR
 /// generation's [`ResolvedContext`].
 ///
 /// This is what an availability, option, floor, or subcommand question
-/// about a *document* is asked of. **P3 collapsed it onto
-/// `static_context_for(name).context()`**: the two used to differ for
-/// exactly one environment, `tk`, whose additive `TK` bit was injected
-/// over the derivation here; the ambient Tk placement derives it now, so
+/// about a *document* is asked of. **This collapses onto
+/// `static_context_for(name).context()`**: the two differ for
+/// exactly one environment, `tk`, whose additive `TK` bit would otherwise
+/// be injected over the derivation here; the ambient Tk placement derives it, so
 /// there is one context per generation and this face is a borrow of it —
 /// no second leak map, no second value that could drift.
 #[must_use]
@@ -681,17 +681,12 @@ mod tests {
     }
 
     /// The **document mask** the LSP's availability queries answer under
-    /// equals the mask the old `ProfileQueries` read off the threaded
-    /// profile, for every profile an ingress can produce — the catalogue,
-    /// the additive `tk`, and the permissive sink every unknown name lands
-    /// on.
+    /// equals the mask derived for every profile an ingress can produce —
+    /// the catalogue, the additive `tk`, and the permissive sink every
+    /// unknown name lands on.
     ///
-    /// **P3**: this now holds *by derivation* for every environment, `tk`
-    /// included. Waves 1-2 could only hold it by injection — the document
-    /// context replaced the derived point with the threaded profile's,
-    /// because `tk`'s derivation had no way to produce Tk. The ambient Tk
-    /// placement produces it, so the injection door and the second leaked
-    /// document-context value are both deleted, and the generation's own
+    /// This holds *by derivation* for every environment, `tk` included: the
+    /// ambient Tk placement produces it directly, so the generation's own
     /// context *is* the document context.
     #[test]
     fn the_document_point_matches_the_threaded_profile() {

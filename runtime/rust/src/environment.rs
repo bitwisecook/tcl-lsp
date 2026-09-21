@@ -17,15 +17,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! The C-ABI runtime's dialect ingress — this engine's face of the one
-//! shared seam, [`tcl_registry::model::ingress`] (centralisation contract
-//! R-a, retirement-ledger rows C2/B1; P1-F wave 3, the backend lane).
+//! shared seam, [`tcl_registry::model::ingress`].
 //!
 //! The same three helpers `tcl-vm`'s `crate::environment` carries, for the
-//! same reason: both engines used to resolve a dialect *name* with
-//! `DialectProfile::by_name` (or, in `codegen_abi`, with a raw
-//! `DialectProfile::find`), reach the registry with `registry_for_profile`,
-//! and read `profile.availability_mask` at each availability question.
-//! All three now go through the resolved environment.
+//! same reason: resolving a dialect *name* with `DialectProfile::by_name`
+//! (or, in `codegen_abi`, with a raw `DialectProfile::find`), reaching the
+//! registry with `registry_for_profile`, and reading
+//! `profile.availability_mask` independently at each availability question
+//! would let the two engines drift apart. All three go through the
+//! resolved environment instead.
 //!
 //! Behaviour is unchanged by construction. The only dialect names this
 //! runtime accepts are the closed set [`TclVersion::dialect_profile_name`]
@@ -36,10 +36,9 @@
 //! equal to the threaded profile's `availability_mask` for every profile
 //! an ingress can produce.
 //!
-//! Post-P1-G (which deleted the name validators and old cache doors):
-//! the `&'static DialectProfile` these helpers take and hand back
-//! retires with ledger C1's re-type, and the interpreter's pin then
-//! carries a [`tcl_registry::model::DocumentEnvironment`] instead.
+//! The `&'static DialectProfile` these helpers take and hand back is
+//! narrower than the interpreter's own pin, which carries a
+//! [`tcl_registry::model::DocumentEnvironment`] instead.
 //!
 //! [`TclVersion::dialect_profile_name`]: tcl_dialect::TclVersion::dialect_profile_name
 

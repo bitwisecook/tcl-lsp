@@ -20,7 +20,7 @@ import * as assert from "assert";
 import * as vscode from "vscode";
 import { getDocUri, activate, waitForDiagnostics, pollUntil } from "./helper";
 
-// Issue #806 — report::defstyle style scripts expose the report configuration
+// report::defstyle style scripts expose the report configuration
 // methods (top/data/columns/…) as scoped commands.  They must not be flagged as
 // unknown commands, while a genuine typo still is, and they hover with their
 // scoped-environment documentation.

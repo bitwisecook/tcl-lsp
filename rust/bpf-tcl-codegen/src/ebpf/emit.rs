@@ -726,7 +726,7 @@ fn emit_term(term: &Term, pend: &mut Vec<Pending>) {
 /// operands of the same sign and diverge only when exactly one operand is
 /// negative: `-7 / 2` is `-3` here (truncation) where Tcl yields `-4` (floor),
 /// and `-7 % 2` is `-1` here where Tcl yields `1`. This narrower, verifier-
-/// native contract is deliberate and documented (issue #1202); the front-end
+/// native contract is deliberate and documented; the front-end
 /// does not silently pretend to be Tcl. `BPF_SDIV` / `BPF_SMOD` are encoded as
 /// `DIV` / `MOD` with `off == 1`; the plain unsigned forms (off 0) reinterpret
 /// a negative operand as a huge unsigned value, giving a catastrophically

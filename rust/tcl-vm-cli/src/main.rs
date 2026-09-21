@@ -48,7 +48,7 @@ use tcl_vm::{CompileService, Value, Vm};
 /// (and for the top-level script the driver runs): the real Rust compiler
 /// pipeline (lower → CFG → bytecode). Matches the `eval` / `run_test` examples.
 ///
-/// Built from one resolved [`DialectProfile`] (issue #1462): the registry,
+/// Built from one resolved [`DialectProfile`]: the registry,
 /// the lexer grammar (`{*}` expansion, the `${…}` delimiting rule), and the
 /// expression dialect all come from the emulated release, so `--tcl-version
 /// 8.4` rejects `{*}` exactly as `tclsh8.4` does.
@@ -158,13 +158,12 @@ fn new_vm(version: Option<TclVersion>) -> Vm {
 fn configure_vm(mut vm: Vm, version: Option<TclVersion>) -> Vm {
     // Default to the plain-Tcl 9.0 profile; `--tcl-version <x.y>` selects
     // another release's profile. The profile is resolved once and drives
-    // BOTH halves (issue #1462): the runtime semantics (below) and the
-    // compiler's grammar/registry (`Svc::for_profile`).
-    // Both dialect *names* resolve through the one ingress seam.
+    // BOTH halves: the runtime semantics (below) and the compiler's
+    // grammar/registry (`Svc::for_profile`). Both dialect *names* resolve
+    // through the one ingress seam.
     //
-    // P1: ledger row B11's other half — letting `--tcl-version` name a
-    // non-plain-Tcl environment — is a payload change (a new flag spelling
-    // and a wider acceptance set), not a refactor, so the ingress stays
+    // Letting `--tcl-version` name a non-plain-Tcl environment would need a
+    // new flag spelling and a wider acceptance set, so the ingress stays
     // release-only here and only its resolution moves.
     let release = version.unwrap_or_else(|| {
         tcl_registry::model::resolve_environment("tcl9.0")
@@ -419,7 +418,7 @@ mod tests {
 
     #[test]
     fn tcl_version_flag_gates_grammar_and_command_surface() {
-        // Issue #1462: `{*}` expansion is TIP 157 (8.5+). The braced catch
+        // `{*}` expansion is TIP 157 (8.5+). The braced catch
         // body recompiles at run time through the CLI's compile service, so
         // under an 8.4 pin the 8.4 grammar rejects it with the genuine
         // tclsh8.4 message — as a *catchable* error, matching C Tcl's
@@ -434,7 +433,7 @@ mod tests {
         let out90 = drive_at(expand, Some(TclVersion::V9_0));
         assert!(out90.contains("% 2"), "9.0 expands {{*}}: {out90:?}");
 
-        // Issue #1463: `lassign` is 8.5+, so an 8.4-pinned VM resolves it
+        // `lassign` is 8.5+, so an 8.4-pinned VM resolves it
         // like tclsh8.4 — to an invalid command name.
         let lassign = "catch {lassign {a b} x} m\nset m\n";
         let out84 = drive_at(lassign, Some(TclVersion::V8_4));

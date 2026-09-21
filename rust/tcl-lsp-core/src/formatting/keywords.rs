@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Keyword normalisation for the formatter (#1232, #1233).
+//! Keyword normalisation for the formatter.
 //!
 //! Two rewrites, both driven by the registry's abbreviation model
 //! ([`tcl_registry::abbrev`]) so the formatter can only ever change a word
@@ -45,7 +45,7 @@
 //!   role — [`tcl_registry::ArgRole::consumes_boolean`] is the single query,
 //!   so every option that declares
 //!   [`tcl_registry::ArgRole::Boolean`] is covered and a new one is covered
-//!   the day it is declared (issue #1256). The word is consumed through
+//!   the day it is declared. The word is consumed through
 //!   `Tcl_GetBooleanFromObj` and its bytes are never otherwise observable. A
 //!   value-definition site (`set flag yes`) keeps its bytes, because `$flag`
 //!   may later meet `eq "yes"`, a `switch` arm, or a log line — `true` and
@@ -55,8 +55,8 @@
 //!   spellings that are unambiguously boolean: `-validate yes` normalises,
 //!   `-validate 0` keeps its bytes because the command reads it as a number,
 //!   and the `0/1` form has nothing safe to write there at all.
-//! * The rewrite must hold across the document's target release range as well
-//!   (issue #1257): the option word has to name the *same* option, carrying
+//! * The rewrite must hold across the document's target release range as
+//!   well: the option word has to name the *same* option, carrying
 //!   the *same* boolean role, in every release of the range. An option a
 //!   later release removes, renames the prefix of, or re-roles is left alone.
 //!
@@ -116,7 +116,7 @@ impl BooleanSite {
     /// The site a declared role describes.
     ///
     /// [`ArgRole::consumes_boolean`] is the single query for "is this word
-    /// consumed as a boolean" (issue #1256) — reading it here is what makes
+    /// consumed as a boolean" — reading it here is what makes
     /// every declared boolean option a rewrite site, and a newly declared one
     /// a site the day it lands, with no list to keep in step.
     fn of(role: Option<ArgRole>) -> Self {
@@ -180,7 +180,7 @@ enum RangeTable<'a> {
 }
 
 /// Whether `word` still resolves to `canonical` in **every** release of the
-/// document's target range (issue #1257).
+/// document's target range.
 ///
 /// The target release has already answered `Unique(canonical)` — this is the
 /// forward-compatibility half: a prefix unique today can become ambiguous
@@ -189,8 +189,8 @@ enum RangeTable<'a> {
 /// source that a newer interpreter reads differently.
 ///
 /// An empty range (the default, and every vendor dialect with no core release
-/// row) means "no range was declared", so the target's own answer stands — the
-/// pre-existing behaviour. A release that no longer carries the command
+/// row) means "no range was declared", so the target's own answer stands. A
+/// release that no longer carries the command
 /// contributes an empty table, which can never vouch for the word, so the
 /// rewrite is abandoned. The keyword table `scope` names on `cmd_name`'s spec
 /// in one specific `release`, filtered by that release's own dialect bit —
@@ -201,7 +201,7 @@ enum RangeTable<'a> {
 /// Takes the release's registry as a parameter rather than reaching for
 /// [`crate::context_for_dialect`] itself, so the range machinery can
 /// be exercised against a synthetic spec in tests — the process-wide cache
-/// only ever holds the real registry data, never a fixture (issue #1268).
+/// only ever holds the real registry data, never a fixture.
 fn release_table(
     release: &str,
     registry: &CommandRegistry,
@@ -236,7 +236,7 @@ fn release_table(
 /// the single-release primitive [`resolves_across_range`] folds over the
 /// whole target range, and [`positional_site_across_range`] reuses it to gate
 /// a subcommand-scoped positional site exactly the way an option's value is
-/// gated by its own `dialects` field (issue #1268).
+/// gated by its own `dialects` field.
 fn resolves_in_release(
     release: &str,
     registry: &CommandRegistry,
@@ -252,7 +252,7 @@ fn resolves_in_release(
 }
 
 /// Whether `word` still resolves to `canonical` in **every** release of the
-/// document's target range (issue #1257).
+/// document's target range.
 ///
 /// The target release has already answered `Unique(canonical)` — this is the
 /// forward-compatibility half: a prefix unique today can become ambiguous
@@ -261,8 +261,8 @@ fn resolves_in_release(
 /// source that a newer interpreter reads differently.
 ///
 /// An empty range (the default, and every vendor dialect with no core release
-/// row) means "no range was declared", so the target's own answer stands — the
-/// pre-existing behaviour: `releases` is already empty in that case
+/// row) means "no range was declared", so the target's own answer stands:
+/// `releases` is already empty in that case
 /// ([`tcl_registry::version_range::core_releases_in`]), and `.all()` over an
 /// empty iterator is vacuously `true`. A release that no longer carries the
 /// command contributes an empty table, which can never vouch for the word, so
@@ -295,7 +295,7 @@ fn options_for_scope<'a>(spec: &'a CommandSpec, scope: RangeTable<'_>) -> &'a [O
 }
 
 /// The boolean site every release of the document's target range agrees on for
-/// the value of `canonical` (issue #1257), starting from the target release's
+/// the value of `canonical`, starting from the target release's
 /// own verdict in `target`.
 ///
 /// The word already resolves to `canonical` in the target, and
@@ -331,7 +331,7 @@ fn boolean_site_across_range(
 /// The [`BooleanSite`] [`CommandRegistry::arg_indices_for_role`] declares at
 /// `index` of a call to `cmd_name` with `args` — the one place a release's own
 /// verdict comes from, whether `index` is a plain positional word, a
-/// repeated-tail word, or an option's value (issue #1268).
+/// repeated-tail word, or an option's value.
 ///
 /// Reads straight off the registry's uniform role query rather than
 /// re-deriving the fact from an option lookup, so a spec that declares
@@ -366,7 +366,7 @@ fn declared_boolean_site_at(
 /// The boolean site every release of the document's target range agrees on
 /// for a **positional** argument index — [`boolean_site_across_range`]'s
 /// counterpart for a plain positional or repeated-tail word rather than an
-/// option's value (issue #1268).
+/// option's value.
 ///
 /// [`CommandRegistry::arg_indices_for_role`] has no dialect awareness of its
 /// own: it resolves a subcommand word by exact-or-abbreviated match with no
@@ -447,9 +447,9 @@ struct OptionScope {
 
 /// Resolve an ensemble's subcommand word, pushing its expansion rewrite when
 /// one applies, and return the option scope it selects along with the word's
-/// canonical spelling — the caller seeds its canonicalized-argument copy from
+/// canonical spelling — the caller seeds its canonicalised-argument copy from
 /// this even when `expand_abbreviations` never pushes the rewrite, since the
-/// positional boolean pass (issue #1268) needs it to name the same subcommand
+/// positional boolean pass needs it to name the same subcommand
 /// [`CommandRegistry::arg_indices_for_role`] would resolve by exact match.
 ///
 /// `None` when the word is ambiguous or unknown — the formatter never guesses,
@@ -488,10 +488,10 @@ fn subcommand_scope(
 }
 
 /// The option-word half of [`rewrites_for_command`]: expands an abbreviated
-/// option name (issues #1232/#1233) and classifies each option's value word
+/// option name and classifies each option's value word
 /// as a boolean site by the same [`declared_boolean_site_at`] query the
-/// positional pass uses (issue #1268), preserving the dialect and
-/// target-range gates (#1256/#1257) around it.
+/// positional pass uses, preserving the dialect and
+/// target-range gates around it.
 ///
 /// Every word index an option consumes as its value is marked `claimed`, so
 /// [`push_positional_boolean_rewrites`] never reclassifies it as a bare
@@ -569,9 +569,8 @@ fn scan_options(
             claimed[value_idx] = true;
         }
         // The option's value word, when the registry *declares* the position
-        // boolean (issue #1256, driven from `arg_indices_for_role` per issue
-        // #1268) and every release of the target range agrees about both the
-        // option and its role (issue #1257).
+        // boolean (driven from `arg_indices_for_role`) and every release of
+        // the target range agrees about both the option and its role.
         if consumed == 1 && config.boolean_form != BooleanForm::Preserve && touchable(i + 1) {
             let value_index = i + 1;
             let canonical_refs: Vec<&str> = canonical_args.iter().map(String::as_str).collect();
@@ -602,7 +601,7 @@ fn scan_options(
     }
 }
 
-/// The positional / repeated-tail half of the gap (issue #1268):
+/// The positional / repeated-tail half of the gap:
 /// [`CommandRegistry::arg_indices_for_role`] answers uniformly across
 /// positional roles, repeated tails, and option values; [`scan_options`]
 /// already claimed every option-value index, so whatever boolean-role index
@@ -679,10 +678,9 @@ pub(crate) fn rewrites_for_command(
         !dynamic.get(i).copied().unwrap_or(false) && args.get(i).is_some_and(|a| is_static_word(a))
     };
 
-    // The registry packs the document's target range spans (issue #1257),
-    // computed once so every per-release check below — subcommand words,
-    // option words, and now positional/repeated-tail boolean sites (issue
-    // #1268) — walks the same list.
+    // The registry packs the document's target range spans, computed once so
+    // every per-release check below — subcommand words, option words, and
+    // positional/repeated-tail boolean sites — walks the same list.
     let release_names = tcl_registry::version_range::core_releases_in(config.target_range());
     let releases: Vec<(&str, &CommandRegistry)> = release_names
         .iter()
@@ -690,12 +688,12 @@ pub(crate) fn rewrites_for_command(
         .collect();
 
     let mut out: Vec<KeywordRewrite> = Vec::new();
-    // A copy of `args` used only to query `CommandRegistry::arg_indices_for_role`
-    // (issue #1268): the subcommand word and any recognised option word are
-    // replaced by their canonical spelling so the registry's exact-match role
-    // query sees an abbreviated `-noc`/subcommand prefix the way the option
-    // scan's own abbreviation table already did. Genuine positional words are
-    // never touched here.
+    // A copy of `args` used only to query
+    // `CommandRegistry::arg_indices_for_role`: the subcommand word and any
+    // recognised option word are replaced by their canonical spelling so the
+    // registry's exact-match role query sees an abbreviated
+    // `-noc`/subcommand prefix the way the option scan's own abbreviation
+    // table does. Genuine positional words are never touched here.
     let mut canonical_args: Vec<String> = args.to_vec();
     // Argument indices the option scan below already classified (an option's
     // value word) — the positional pass past it must not reclassify them.
@@ -1009,9 +1007,9 @@ mod tests {
         );
     }
 
-    /// Issue #1268: the option scan only ever reaches a boolean value through
-    /// an `-option`; a plain positional argument was never classified at all.
-    /// `CommandRegistry::arg_indices_for_role` already answers the role
+    /// The option scan only reaches a boolean value through an `-option`, so
+    /// a plain positional argument needs its own classification.
+    /// `CommandRegistry::arg_indices_for_role` answers the role
     /// question for a positional the same way it does for an option's value,
     /// so a spec that declares `ArgRole::Boolean` at a fixed argument index
     /// is now a rewrite site the day it is declared — no core built-in does
@@ -1050,7 +1048,7 @@ mod tests {
     }
 
     /// The `NumericOrBoolean` licence (word-forms only, never a numeric
-    /// spelling) applies identically at a positional site (issue #1268) —
+    /// spelling) applies identically at a positional site —
     /// the positional counterpart of
     /// [`a_numeric_or_boolean_option_value_is_rewritten_through_the_registry`].
     #[test]
@@ -1085,9 +1083,9 @@ mod tests {
     }
 
     /// A subcommand-scoped positional boolean must honour both preserved
-    /// guarantees (issue #1268): the per-release **dialect** gate (a
+    /// guarantees: the per-release **dialect** gate (a
     /// subcommand a release does not carry is never a rewrite site there) and
-    /// the target-**range** agreement check (#1257) — even though
+    /// the target-**range** agreement check — even though
     /// `CommandRegistry::arg_indices_for_role` itself has no dialect
     /// awareness at all and would resolve the subcommand word by exact match
     /// regardless of release.
@@ -1132,7 +1130,7 @@ mod tests {
         // subcommand scan itself abstains, same as an ambiguous/unknown word.
         assert!(run(Some(SurfaceQuery::core(Family::Tcl, "8.6")), None).is_empty());
 
-        // The range-agreement half (#1257), exercised directly: a range
+        // The range-agreement half, exercised directly: a range
         // spanning a release that drops the subcommand drags the verdict to
         // `None` even though the *target* release (9.0) alone accepts it —
         // `arg_indices_for_role` would otherwise find the subcommand by exact
@@ -1164,8 +1162,7 @@ mod tests {
         );
     }
 
-    /// The option path's own dialect gate keeps working post-refactor
-    /// (issue #1268 preserves #1257's guarantee): a range spanning a release
+    /// The option path's own dialect gate: a range spanning a release
     /// that does not carry the option drags the verdict to `None`, and a
     /// range confined to releases that do all agree.
     #[test]

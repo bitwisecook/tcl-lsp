@@ -94,6 +94,56 @@ mod tests {
         });
     }
 
+    /// #1782: a size modifier and the release pick the integer width, and
+    /// the low bits are then read signed for `d`/`i` and unsigned for
+    /// `u`/`x`/`o`/`b`. Every expectation here is a transcript from the
+    /// matching real tclsh (8.4.20 / 8.5.19 / 8.6.18 / 9.0.4 / 9.1b0).
+    ///
+    /// Three defects, one rule. Before this, `format %hd 5000000000` gave
+    /// `5000000000` on every release, `format %u -1` gave `1`, and the
+    /// unmodified width was 64-bit even under Tcl 9.
+    #[test]
+    fn integer_conversions_honour_width_and_signedness_issue_1782() {
+        leak_free(|i| {
+            // `h` is C `short` — 16 bits on every release and platform.
+            for version in [
+                tcl_dialect::TclVersion::V8_4,
+                tcl_dialect::TclVersion::V8_6,
+                tcl_dialect::TclVersion::V9_0,
+            ] {
+                i.set_runtime_version(version);
+                assert_eq!(ok(i, b"format %hd 5000000000"), b"-3584", "{version:?}");
+                assert_eq!(ok(i, b"format %hd 32768"), b"-32768", "{version:?}");
+                assert_eq!(ok(i, b"format %hd -32769"), b"32767", "{version:?}");
+                assert_eq!(ok(i, b"format %hu 5000000000"), b"61952", "{version:?}");
+                assert_eq!(ok(i, b"format %hx 5000000000"), b"f200", "{version:?}");
+                assert_eq!(ok(i, b"format %ho 5000000000"), b"171000", "{version:?}");
+                // `h` does not reach `%c`.
+                assert_eq!(ok(i, b"format %hc 65"), b"A", "{version:?}");
+            }
+
+            // The unmodified width is the release's: `long` before Tcl 9,
+            // `int` from it.
+            i.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+            assert_eq!(ok(i, b"format %d 5000000000"), b"5000000000");
+            assert_eq!(ok(i, b"format %d 4294967296"), b"4294967296");
+            assert_eq!(ok(i, b"format %u -1"), b"18446744073709551615");
+            assert_eq!(ok(i, b"format %x -1"), b"ffffffffffffffff");
+
+            i.set_runtime_version(tcl_dialect::TclVersion::V9_0);
+            assert_eq!(ok(i, b"format %d 5000000000"), b"705032704");
+            assert_eq!(ok(i, b"format %d 4294967296"), b"0");
+            assert_eq!(ok(i, b"format %u -1"), b"4294967295");
+            assert_eq!(ok(i, b"format %x -1"), b"ffffffff");
+            // `l` is the wide path, so it keeps all 64 bits under Tcl 9 too.
+            assert_eq!(ok(i, b"format %ld 5000000000"), b"5000000000");
+
+            // Width and precision still apply around the truncated value.
+            assert_eq!(ok(i, b"format {%-6hd|} 70000"), b"4464  |");
+            assert_eq!(ok(i, b"format %5.3d 7"), b"  007");
+        });
+    }
+
     #[test]
     fn format_overflow_width_errors_not_panics() {
         leak_free(|i| {

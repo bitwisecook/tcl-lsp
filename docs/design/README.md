@@ -208,6 +208,9 @@ feeds, and the `f5` CLI.
   `ILX::call` / `ILX::notify` method word reaches the `ILXServer.addMethod`
   registration that implements it, the workspace-directory association rule,
   and the JavaScript forms that abstain.
+- [xc-translation-output-contract.md](f5/xc-translation-output-contract.md) —
+  the three renderings of one XC translation, the Console document shape,
+  and the DNS-1035 name derivation every rendering shares.
 - [sslictcl-vocabulary.md](f5/sslictcl-vocabulary.md) — the `.sslictcl`
   vocabulary-1 reference: every declaration and member, the value domains,
   the open/closed rule, the never-evaluated guarantee, the

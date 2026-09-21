@@ -233,8 +233,14 @@ where
         }
         match opts.mode {
             Mode::Exact => {
+                // C's `-exact -nocase` arm is `TclUtfCasecmp` (`tclCmdMZ.c`'s
+                // `Tcl_SwitchObjCmd`), a full-range `Tcl_UniCharToLower` fold —
+                // not an ASCII one. tclsh 8.5.19/8.6.18/9.0.4/9.1b0 all select
+                // the arm for `switch -nocase -- \u00e9 {\u00c9 {…}}`, and for
+                // `İ` against `i`; an ASCII fold matches neither (#2125).
                 let hit = if opts.nocase {
-                    pat.eq_ignore_ascii_case(&val_str)
+                    crate::string::fold_lower_bytes(pat.as_bytes())
+                        == crate::string::fold_lower_bytes(val_str.as_bytes())
                 } else {
                     *pat == *val_str
                 };
@@ -521,8 +527,8 @@ mod tests {
 
     #[test]
     fn select_exact_still_matches_after_guard() {
-        // Regression guard: the empty-list early-return must not disturb normal
-        // selection. A trailing `default` and a literal hit both still work.
+        // The empty-list early-return must not disturb normal selection. A
+        // trailing `default` and a literal hit both still work.
         let mut ops = StrOps;
         let opts = exact_opts();
         let value = String::from("b");
@@ -541,5 +547,41 @@ mod tests {
             Selection::Matched { index, .. } => assert_eq!(index, 2),
             Selection::NoMatch => panic!("expected default to match"),
         }
+    }
+
+    #[test]
+    fn switch_nocase_exact_folds_the_full_unicode_range() {
+        // Regression (#2125): the `-exact -nocase` arm folded with
+        // `eq_ignore_ascii_case`, so any non-ASCII letter failed to match.
+        // C folds with `Tcl_UniCharToLower` over the whole range — tclsh
+        // 8.5.19, 8.6.18, 9.0.4 and 9.1b0 all agree:
+        //   % switch -nocase -- é {É {return arm} default {return none}}
+        //   arm
+        //   % switch -nocase -- i {İ {return arm} default {return none}}
+        //   arm
+        let mut ops = StrOps;
+        let opts = Options {
+            nocase: true,
+            ..exact_opts()
+        };
+        let hit = |ops: &mut StrOps, value: &str, pat: &str| {
+            let pats = vec![pat.to_owned()];
+            matches!(
+                select::<_, NoEngine, _>(ops, &opts, &value.to_owned(), &pats).unwrap(),
+                Selection::Matched { .. }
+            )
+        };
+        assert!(hit(&mut ops, "\u{e9}", "\u{c9}"));
+        assert!(hit(&mut ops, "\u{c9}", "\u{e9}"));
+        assert!(hit(&mut ops, "\u{430}", "\u{410}")); // Cyrillic a / A
+        // `İ` (dotted capital I) folds to plain `i` under
+        // `Tcl_UniCharToLower`, which is why the fold must be the simple 1:1
+        // mapping and not Rust's full one (that expands to `i` + U+0307).
+        assert!(hit(&mut ops, "i", "\u{130}"));
+        // Still no false positives.
+        assert!(!hit(&mut ops, "\u{e9}", "\u{e8}"));
+        assert!(!hit(&mut ops, "ab", "abc"));
+        // And ASCII keeps working.
+        assert!(hit(&mut ops, "AbC", "aBc"));
     }
 }

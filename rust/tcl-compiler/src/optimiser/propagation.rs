@@ -70,7 +70,9 @@ use tcl_registry::CommandRegistry;
 
 use super::helpers::expr_simplify::{NumericCtx, operand_types, try_unwrap_expr_in_expr};
 use super::helpers::literals::{is_safe_word, is_static_var_word};
-use super::helpers::spans::{full_quoted_string_span, quoted_word_rewrite_span};
+use super::helpers::spans::{
+    full_quoted_string_span, full_rewrite_span, line_delete_span, quoted_word_rewrite_span,
+};
 use super::{Optimisation, PassContext};
 
 /// Run the propagation pass across every function.
@@ -86,17 +88,35 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     // The top-level body's extra escaping set (names some other procedure
     // declares `global`) — shared by the top-level constants projection
     // below and by `run_load_forwarding`.
-    let top_level_extra_escaping =
-        crate::var_observability::scan_module_global_names(&cu.ir_module);
+    //
+    // `scan_module_global_names` resolves the `global` alias grammar through
+    // the registry, so it answers only for the dialect `cu` was lowered
+    // under — and a *missing* name is the unsound direction here: it tells
+    // the top level a name does not escape, licensing a fold of a value some
+    // other procedure reassigns through `global`. So this deliberately has no
+    // default-dialect fallback: with no registry the top-level body is left
+    // un-propagated rather than propagated against a guess.
+    //
+    // Every production entry point does set `ctx.registry` —
+    // `super::manager::build_pass_context` is the single chokepoint every
+    // `optimise*` / `find_dead_stores` entry builds through — so this `None`
+    // arm is reachable only from a hand-built `PassContext` in a pass-level
+    // unit test, and a test that wants top-level coverage wires the registry
+    // the way this pass's own `run_pass` helper does.
+    let top_level_extra_escaping = ctx.registry.map(|registry| {
+        crate::var_observability::scan_module_global_names(&cu.ir_module, registry)
+    });
     let no_extra_escaping = std::collections::HashSet::new();
-    run_function(
-        ctx,
-        cu,
-        &cu.top_level,
-        &cu.ir_module.top_level,
-        "::",
-        &top_level_extra_escaping,
-    );
+    if let Some(top_level_extra_escaping) = &top_level_extra_escaping {
+        run_function(
+            ctx,
+            cu,
+            &cu.top_level,
+            &cu.ir_module.top_level,
+            "::",
+            top_level_extra_escaping,
+        );
+    }
     for (qname, fu) in &cu.procedures {
         let Some(proc) = cu.ir_module.procedures.get(qname) else {
             continue;
@@ -120,13 +140,15 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     // module `Module::traced_variables`/`has_dynamic_variable_trace` facts),
     // or it would forward a stale literal past a call that reassigns or
     // traces the "sole" def.
-    if let Some(registry) = ctx.registry {
+    if let (Some(registry), Some(top_level_extra_escaping)) =
+        (ctx.registry, &top_level_extra_escaping)
+    {
         let trace = crate::sccp::TraceInputs {
             registry,
             traced_variables: &cu.ir_module.traced_variables,
             has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
         };
-        run_load_forwarding(ctx, &cu.top_level, &top_level_extra_escaping, trace);
+        run_load_forwarding(ctx, &cu.top_level, top_level_extra_escaping, trace);
         for fu in cu.procedures.values() {
             run_load_forwarding(ctx, fu, &no_extra_escaping, trace);
         }
@@ -232,8 +254,8 @@ fn run_load_forwarding(
     // A computed variable name (`set $name …`) in this frame can rewrite
     // any variable between a "sole" reaching definition and its use, under
     // a spelling neither the def-use chains nor `has_intervening_barrier`
-    // can see — so the whole function abstains (issue #1374), the same
-    // barrier O109 / O126 elimination and SCCP already consult.
+    // can see — so the whole function abstains, on the same barrier
+    // O109 / O126 elimination and SCCP consult.
     if fu.dynamic_barrier_blocks_value_motion() {
         return;
     }
@@ -286,7 +308,7 @@ fn run_load_forwarding(
         // single reaching definition is written out as a literal, O100 inlines
         // a constant SCCP proved. `set a 1; incr a` is the second — the
         // defining statement computes its value — so it is folded, not
-        // forwarded (issue #1934).
+        // forwarded.
         let (code, literal) = match def_stmt {
             Statement::AssignConst { value, .. } => (DiagCode::O102, value.clone()),
             Statement::AssignValue { value, .. }
@@ -469,11 +491,10 @@ fn report_load_forward(
     // No operand word was found to target, so the span is the whole consuming
     // statement — and `literal` is not a valid replacement for it. Record the
     // hint with no replacement rather than a payload that would corrupt the
-    // statement if anything ever applied it: `set a 1; incr a` once recorded
-    // `1` over the whole of `incr a`, which reads as a one-click rewrite to a
-    // bare `1` in command position wherever a surface shows the payload
-    // without the flag (issue #1934). The appliers already filter `hint_only`;
-    // this makes the data model agree with them.
+    // statement if anything ever applied it: `1` recorded over the whole of
+    // `incr a` reads as a one-click rewrite to a bare `1` in command position
+    // wherever a surface shows the payload without the flag. The appliers
+    // filter `hint_only`; this keeps the data model in agreement with them.
     let mut opt = Optimisation::new(
         code,
         message.to_owned(),
@@ -511,7 +532,7 @@ fn run_store_to_load_forwarding(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
     // Like O102, O127 moves a value across statements. A dynamic or opaque
     // variable name can change either the stored name or a name read by the
     // expression under an unseen spelling, so this whole-function rewrite
-    // must honour the same fail-closed barrier (issue #1497).
+    // must honour the same fail-closed barrier.
     if fu.dynamic_barrier_blocks_value_motion() {
         return;
     }
@@ -813,7 +834,13 @@ fn build_forward_edits(
     {
         return None;
     }
-    let stmt_text = &source[ds as usize..de as usize];
+    // The def span follows the lexer's inner-end convention, so a value word
+    // that is quoted, braced, or bracketed leaves its closer outside. Both the
+    // replayed text and the deletion extent need the whole written statement,
+    // or the closer is copied without its opener and dropped from its own
+    // line.
+    let def_span = full_rewrite_span(source, def_span);
+    let stmt_text = &source[def_span.start() as usize..def_span.end() as usize];
     let inline = Optimisation::new(
         DiagCode::O127,
         format!("Inline single-use variable `${def_name}`"),
@@ -910,29 +937,6 @@ fn locate_use_var(tokens: &CommandTokens, var_name: &str) -> Option<(tcl_lexer::
     None
 }
 
-/// Extend a statement span to cover the whole source line — the
-/// leading indentation back to the previous newline and the trailing
-/// newline — so deleting the store removes its line cleanly.
-fn line_delete_span(source: &str, span: tcl_lexer::Span) -> tcl_lexer::Span {
-    let bytes = source.as_bytes();
-    let mut start = span.start() as usize;
-    // Walk back over leading spaces / tabs on the line.
-    while start > 0 && matches!(bytes[start - 1], b' ' | b'\t') {
-        start -= 1;
-    }
-    let mut end = span.end() as usize;
-    // Consume a single trailing newline (and a preceding CR).
-    if end < bytes.len() && bytes[end] == b'\n' {
-        end += 1;
-    } else if end + 1 < bytes.len() && bytes[end] == b'\r' && bytes[end + 1] == b'\n' {
-        end += 2;
-    }
-    tcl_lexer::Span::new(
-        u32::try_from(start).unwrap_or(span.start()),
-        u32::try_from(end).unwrap_or(span.end()),
-    )
-}
-
 /// True when `[start, end)` overlaps any of the recorded ranges.
 fn ranges_overlap(ranges: &[(u32, u32)], start: u32, end: u32) -> bool {
     ranges.iter().any(|&(s, e)| start < e && s < end)
@@ -955,7 +959,6 @@ fn simple_var_ref_matches(text: &str, var_name: &str) -> bool {
 }
 
 /// The statically-proven facts about the `TclOO` method frame a body runs in
-/// (issue #1080).
 ///
 /// Built once per method body by [`oo_frame_for`], which is where every
 /// abstention lives; by the time an `OoFrame` exists, each field is a value
@@ -970,8 +973,15 @@ struct OoFrame {
 /// `method`'s provable frame facts, or `None` to abstain.
 ///
 /// Folding direction is abstain-toward-no-fold: a wrong fold is a correctness
-/// bug, a missed fold only a lost optimisation. Three gates, each pinned to
+/// bug, a missed fold only a lost optimisation. Four gates, each pinned to
 /// the oracle transcript on [`tcl_registry::OoContextFact::DefiningClass`]:
+///
+/// * **A frame chosen at run time.** A body naming any command relatively —
+///   bare `my`, bare `puts` — runs where a receiver-local command can shadow
+///   that head, so nothing derived inside it is trustworthy, the frame
+///   constant included. That fact is scoped to such frames
+///   (`ModuleCommandMutations::has_runtime_selected_frames`) rather than
+///   distrusting every name in the module.
 ///
 /// * **Class-object implementations.** `self class` *raises* ("method not
 ///   defined by a class") inside an `oo::objdefine` instance method and inside
@@ -995,6 +1005,12 @@ fn oo_frame_for(
     mutations: &crate::command_binding::ModuleCommandMutations,
 ) -> Option<OoFrame> {
     use crate::ir::MethodKind;
+    // A method body that names any command relatively runs where a
+    // receiver-local command can shadow that head, so no fact derived inside
+    // it is trustworthy — including a frame constant that reads no variable.
+    if mutations.has_runtime_selected_frames() {
+        return None;
+    }
     if method.kind == MethodKind::ClassMethod {
         return None;
     }
@@ -1010,15 +1026,15 @@ fn oo_frame_for(
 }
 
 /// The method-local constants a method body may propagate, or an empty map
-/// when it may propagate none (issue #1097).
+/// when it may propagate none.
 ///
 /// This applies `elimination.rs`'s escaping model to the propagation
 /// lattice.  `elimination.rs` already knows that a `TclOO` instance variable
 /// escapes the method frame — it feeds
 /// [`crate::ir::MethodDef::instance_vars`] through the same channel iRules
 /// cross-event state uses, so a state-mutating `set ivar …` is never deleted
-/// as a dead store.  The propagation lattice had no such model, which is why
-/// this walk used to carry an unconditionally empty constants map.
+/// as a dead store.  The propagation lattice needs the same model, or this
+/// walk can only carry an empty constants map.
 ///
 /// SCCP is therefore **re-run** for the method with those names in its
 /// escaping set, rather than the shared [`FunctionUnit::sccp`] being rebuilt
@@ -1026,9 +1042,8 @@ fn oo_frame_for(
 /// from them (`set a $ivar ; set b $a`), which no filter on a projected map
 /// could do — but it is a deliberately propagation-only view.  The unit's own
 /// lattice stays as built, because other consumers read facts an instance
-/// variable legitimately carries (the object-collection element typing of
-/// issue #797 harvests `dict set pins $k [Pin new]` out of exactly such a
-/// name).
+/// variable legitimately carries (object-collection element typing harvests
+/// `dict set pins $k [Pin new]` out of exactly such a name).
 ///
 /// What survives the projection is provably method-local: a name the class
 /// never declares as state, never aliased by `variable` / `my variable` /
@@ -1056,12 +1071,11 @@ fn oo_method_constants(
     // This re-run bypasses the unit build's dynamic-name widening of the
     // SCCP escaping switch, so apply the same abstention here: a computed
     // variable name in the body makes no method-local constant trustworthy
-    // (issue #1374).
     if fu.dynamic_barrier_blocks_value_motion() {
         return std::collections::HashMap::new();
     }
-    // The re-run also carries the registry builtin-fold context (issue
-    // #1134): `set base [self class]; set ns [namespace qualifiers $base]`
+    // The re-run also carries the registry builtin-fold context:
+    // `set base [self class]; set ns [namespace qualifiers $base]`
     // folds to fixpoint *inside* the lattice, so `base` and `ns` both
     // project as method-local constants rather than the chain stopping
     // after the first O129 suggestion. The frame's defining class is
@@ -1070,7 +1084,7 @@ fn oo_method_constants(
     //
     // The escaping set is the unit's own `method_facts` carrier — the same
     // struct the existence fold and the W-family diagnostics read — never a
-    // second lookup of `MethodDef::instance_vars` (issue #1174).
+    // second lookup of `MethodDef::instance_vars`.
     let Some(facts) = fu.method_facts.as_deref() else {
         return std::collections::HashMap::new();
     };
@@ -1090,6 +1104,8 @@ fn oo_method_constants(
             mutations: &ctx.command_mutations,
             dialect: ctx.dialect,
             defining_class: Some(&frame.defining_class),
+            registry_engine: true,
+            trust: crate::sccp::FoldTrust::WholeModule,
         }),
     );
     sccp_constants_from(&sccp, &fu.ssa)
@@ -1098,20 +1114,18 @@ fn oo_method_constants(
 /// Fold the command substitutions in every `TclOO` method body that the
 /// enclosing method frame makes constant — `[self class]`, anything built
 /// purely out of it (`[namespace qualifiers [self class]]` folds in one step,
-/// since the builtin fold resolves nested substitutions first), and — since
-/// issue #1097 — anything built out of a *provably method-local* variable as
-/// well.
+/// since the builtin fold resolves nested substitutions first), and anything
+/// built out of a *provably method-local* variable as well.
 ///
-/// Still deliberately narrower than [`run_function`]: no O103 static-proc-call
-/// fold and no `namespace`-relative chain resolution runs here.  What issue
-/// #1097 switched on is the constants map, which used to be unconditionally
-/// empty because the propagation lattice had no model of which names are
-/// object state; [`oo_method_constants`] is that model.
+/// Deliberately narrower than [`run_function`]: no O103 static-proc-call fold
+/// and no `namespace`-relative chain resolution runs here.  The constants map
+/// comes from [`oo_method_constants`], which models which names are object
+/// state.
 fn run_oo_method_folds(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     if ctx.registry.is_none() {
         return;
     }
-    // The PER-METHOD dispatch barrier (issue #1164): a method is barred
+    // The PER-METHOD dispatch barrier: a method is barred
     // only when its dispatches can actually reach a caller-frame-reaching
     // (or unreadable) method — see `super::method_barrier`. The registry is
     // present (checked above), so unwrap-by-default to an all-barred
@@ -1171,7 +1185,7 @@ fn walk_oo_statement(
             tokens: Some(t), ..
         } => {
             // O100 / O129-in-interpolation over the method-local constants
-            // (empty unless issue #1097's escaping model proved some name
+            // (empty unless the escaping model proved some name
             // method-local), then the frame-constant cmd-sub folds.
             visit_call_tokens(ctx, t, constants);
             visit_oo_frame_folds(ctx, t, frame, constants);
@@ -1331,9 +1345,9 @@ fn run_function(
     // A computed or opaque variable name can rewrite any local binding under
     // a spelling absent from SCCP's per-name lattice.  Do not let its raw
     // constants reach the text-level folds below: unlike
-    // `run_load_forwarding`, this path used to bypass the shared dynamic-name
-    // guard and could emit (for example) `return 1` after a depth-capped
-    // nested substitution may have run `set $name 2` (issue #1497).
+    // `run_load_forwarding`, this path would otherwise bypass the shared
+    // dynamic-name guard and could emit (for example) `return 1` after a
+    // depth-capped nested substitution may have run `set $name 2`.
     if fu.dynamic_barrier_blocks_value_motion() {
         return;
     }
@@ -1353,7 +1367,7 @@ fn run_function(
 }
 
 /// The function's projected constants map, widened with the registry
-/// builtin-fold lattice (issue #1134).
+/// builtin-fold lattice.
 ///
 /// The baseline is the shared [`FunctionUnit::sccp`] projection
 /// ([`sccp_constants_for`]) — untouched, so every existing single-hop fold
@@ -1403,6 +1417,8 @@ fn constants_with_builtin_folds(
             // No method frame here — `[self class]`-style frame facts fold
             // only in `run_oo_method_folds`' proven method re-runs.
             defining_class: None,
+            registry_engine: true,
+            trust: crate::sccp::FoldTrust::WholeModule,
         }),
     );
     for (name, text) in sccp_constants_from(&rerun, &fu.ssa) {
@@ -1605,16 +1621,30 @@ fn evaluate_proc_with_constants(
         Some(m) => (&m.traced_variables, m.has_dynamic_variable_trace),
         None => (&empty_traced, false),
     };
-    let result = crate::sccp::sccp(
+    let result = crate::sccp::sccp_with_builtin_folds(
         &callee.cfg,
         &callee.ssa,
         Some(&seed),
         policy,
+        &std::collections::HashSet::new(),
         crate::sccp::TraceInputs {
             registry,
             traced_variables,
             has_dynamic_variable_trace,
         },
+        // This re-run feeds an O103 *rewrite*, so it takes the whole-module
+        // stance. Without any trust fact — what it used before — it folded
+        // `[llength …]` with builtin semantics even where the module shadows
+        // `llength`, handing O103 a value the rest of the pipeline disagrees
+        // with (#2164).
+        Some(crate::sccp::BuiltinFoldInputs {
+            registry,
+            mutations: &ctx.command_mutations,
+            dialect: ctx.dialect,
+            defining_class: None,
+            registry_engine: false,
+            trust: crate::sccp::FoldTrust::WholeModule,
+        }),
     );
     resolve_return_constant(
         callee,
@@ -1688,11 +1718,11 @@ fn const_value_text(cv: &ConstValue) -> String {
 /// `return` terminator, **or** a reachable fall-through to the function's
 /// implicit exit (a block with no terminator: Tcl's "the result of the last
 /// command executed" rule for a proc that runs off the end of its body
-/// without a `return` on that path). Ignoring the fall-through case here
-/// used to let a proc with `if {…} { return K }` plus a trailing
-/// unconditional statement fold to `K` even when the fall-through path was
-/// *also* reachable and produced a different value — a miscompile, not
-/// just a missed optimisation (confirmed against tclsh 9.0.4: a proc whose
+/// without a `return` on that path). Ignoring the fall-through case would let
+/// a proc with `if {…} { return K }` plus a trailing unconditional statement
+/// fold to `K` even when the fall-through path is *also* reachable and
+/// produces a different value — a miscompile, not just a missed optimisation
+/// (confirmed against tclsh 9.0.4: a proc whose
 /// `if` condition itself isn't foldable, e.g. it depends on another call's
 /// result, leaves both the `return` and the fall-through paths executable
 /// under SCCP). A void return, an unfoldable return/tail, or disagreeing
@@ -1933,10 +1963,9 @@ fn const_to_env_value(c: &ConstValue) -> crate::tcl_expr_eval::EnvValue {
 /// call non-static (returns `None`).
 ///
 /// Shares [`literal_words`]'s proper Tcl-aware tokeniser rather than a naive
-/// `split_whitespace` — the two used to duplicate this exact tokenising
-/// logic, with this one *more conservatively* (and incorrectly, for a
-/// braced multi-word argument) rejecting words `literal_words` already
-/// folds soundly for the O129 builtin cmd-sub path.
+/// `split_whitespace`, so a braced multi-word argument (one clean literal in
+/// real Tcl) is not rejected here while `literal_words` folds it soundly for
+/// the O129 builtin cmd-sub path.
 fn parse_static_call_args(
     ctx: &PassContext<'_>,
     inner: &str,
@@ -1972,8 +2001,8 @@ fn parse_static_call_args(
 ///
 /// Shared with the analyser's identical same-file resolution chase
 /// (`Analyser::resolve_indirect_call_target`) so the two can't diverge on
-/// the same rule — a relative dotted word (`inner::p`) previously resolved
-/// straight to `::inner::p` here, rooted at global, when real Tcl (and the
+/// the same rule: a relative dotted word (`inner::p`) must not resolve
+/// straight to `::inner::p`, rooted at global, because real Tcl (and the
 /// analyser side) tries the *current* namespace first
 /// (`{namespace}::inner::p`); two procs of that shape in different
 /// namespaces could fold a call to the wrong one's constant return.
@@ -2196,7 +2225,6 @@ fn try_substitute_assign_expr(
         expr_has_command_subst, expr_uses_shadowed_mathfunc, instcombine_expr_typed,
         substitute_expr_constants,
     };
-    use super::helpers::spans::full_rewrite_span;
     use crate::expr_parser::parse_expr_for_profile;
     use crate::tcl_expr_eval::{
         Env, eval_tcl_expr_with_octal_and_dialect, format_tcl_value, leading_zero_is_octal,
@@ -2407,7 +2435,7 @@ fn visit_call_cmd_subst_folds(
                 None,
             )
         {
-            // `list` / `lindex` keep their historical diagnostic codes
+            // `list` / `lindex` report their own diagnostic codes
             // (O116 / O118) for editor granularity; everything else reports
             // the general O129.
             let (code, message) = match inner.split_whitespace().next() {
@@ -2553,8 +2581,8 @@ fn try_o129_fold(
     Some(render_propagation_word(&folded))
 }
 
-/// The shared core of the O129 fold, now delegated to the module-wide
-/// engine [`crate::const_subst::ConstSubstCtx`] (issues #1132 / #1134): the
+/// The shared core of the O129 fold, delegated to the module-wide
+/// engine [`crate::const_subst::ConstSubstCtx`]: the
 /// cmd-sub head resolves to its spec (or subcommand), all args must be
 /// clean literals, and the registry fold runs via
 /// [`tcl_registry::CommandSpec::run_const_fold`], returning the **raw**
@@ -2593,7 +2621,7 @@ fn fold_builtin_cmd_subst_raw(
 /// O129 const-fold — see
 /// [`crate::const_subst::ConstSubstCtx::literal_words`] for the exact
 /// contract (this is the same engine, parameterised with the optimiser's
-/// constants map and whole-module trust oracle).
+/// constants map and whole-module trust table).
 fn literal_words(
     inner: &str,
     constants: &std::collections::HashMap<String, String>,
@@ -2930,9 +2958,9 @@ fn substitute_dollar_refs(
         let (name, new_i) = if bytes[i] == b'{' {
             // The name starts just past the `${`; its closer is the shared
             // owner's, under this document's release rule. Reading it with a
-            // fixed first-`}` scan named a *different* variable than the one
-            // the lexer spanned, so this rewrite could inline the constant of
-            // some other name into the string (issue #1604).
+            // fixed first-`}` scan would name a *different* variable than the
+            // one the lexer spanned, letting this rewrite inline the constant
+            // of some other name into the string.
             let start = i + 1;
             let tcl_lexer::BracedVarEnd::Closed(end) =
                 tcl_lexer::braced_var_name_end(bytes, start, braced_var)
@@ -3134,6 +3162,7 @@ mod tests {
             None,
             crate::interprocedural::ObjectTypeMap::none(),
             crate::realm::CommandBindingRealm::none(),
+            None,
         );
         assert!(
             ia.procedures.contains_key("::ns::inner"),
@@ -3174,6 +3203,7 @@ mod tests {
             None,
             crate::interprocedural::ObjectTypeMap::none(),
             crate::realm::CommandBindingRealm::none(),
+            None,
         );
         assert!(
             ia.procedures.contains_key("::a::foo"),
@@ -3196,6 +3226,7 @@ mod tests {
             None,
             crate::interprocedural::ObjectTypeMap::none(),
             crate::realm::CommandBindingRealm::none(),
+            None,
         );
         assert_eq!(
             resolve_proc_qname("foo", "::a::b::c", &ia2).as_deref(),
@@ -3223,6 +3254,7 @@ mod tests {
             None,
             crate::interprocedural::ObjectTypeMap::none(),
             crate::realm::CommandBindingRealm::none(),
+            None,
         );
         assert!(ia.procedures.contains_key("::ns2::inner"));
         assert!(ia.procedures.contains_key("::ns::ns2::inner"));
@@ -3333,8 +3365,8 @@ mod tests {
 
     // internal helpers
 
-    /// Issue #1604 — the `${…}` closer comes from the shared owner, so the
-    /// constant this rewrite inlines belongs to the name the lexer spanned.
+    /// The `${…}` closer comes from the shared owner, so the constant this
+    /// rewrite inlines belongs to the name the lexer spanned.
     ///
     /// The rewritten text is written back into the document as an O100 fix, so
     /// resolving the wrong name substitutes some other variable's value into
@@ -3475,6 +3507,7 @@ mod tests {
         )
         .with_interprocedural(&registry, None);
         let mut ctx = PassContext::new(&cu.source, cu.interproc.clone().unwrap_or_default());
+        ctx.registry = Some(&registry);
         run(&mut ctx, &cu);
         assert!(
             ctx.optimisations.iter().any(|o| o.code == DiagCode::O103),
@@ -3581,6 +3614,7 @@ mod tests {
             "proc ::tcl::mathfunc::abs {x} { return 999 }\nproc f {} { return [expr {abs(-5)}] }";
         let cu = CompilationUnit::build_for(source, &reg, false).with_interprocedural(&reg, None);
         let mut ctx = PassContext::new(&cu.source, cu.interproc.clone().unwrap_or_default());
+        ctx.registry = Some(&reg);
         run(&mut ctx, &cu);
         assert!(
             ctx.optimisations.iter().all(|o| o.code != DiagCode::O101),
@@ -3608,6 +3642,10 @@ mod tests {
         let reg = registry();
         let cu = CompilationUnit::build_for(source, &reg, false);
         let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
+        // Same production wiring `run_pass` above documents: the top-level
+        // body's `scan_module_global_names` set is registry-resolved, so a
+        // context without a registry is deliberately not propagated at all.
+        ctx.registry = Some(&reg);
         ctx.command_mutations =
             crate::command_binding::scan_module_command_mutations(&cu.ir_module, &reg);
         run(&mut ctx, &cu);
@@ -3768,7 +3806,7 @@ mod tests {
         );
     }
 
-    /// Issue #1934 — a definition whose value SCCP proved still forwards.
+    /// A definition whose value SCCP proved still forwards.
     ///
     /// `set a 1; incr a` leaves `a` provably `2`, and that is what a use of it
     /// should see. O102 only ever recognised a *syntactic* literal as a
@@ -3808,8 +3846,8 @@ mod tests {
         );
     }
 
-    /// Issue #1934 — a variable-*name* argument is not an operand, so no
-    /// propagation code may target it.
+    /// A variable-*name* argument is not an operand, so no propagation code
+    /// may target it.
     ///
     /// `set a 1; incr a` has one reaching literal for `a`, and `incr a`'s only
     /// mention of `a` names the cell it mutates. Forwarding the literal there
@@ -3858,7 +3896,7 @@ mod tests {
         );
     }
 
-    // Issue #1374 — a computed variable name (`set $name 2`) between the
+    // A computed variable name (`set $name 2`) between the
     // "sole" reaching def and the use can rewrite `x` under a spelling the
     // def-use chains cannot see: `f x` prints 2 in tclsh, so forwarding the
     // literal 1 (via O102's chain scan or O100's SCCP projection) is a
@@ -3873,7 +3911,7 @@ mod tests {
         );
     }
 
-    /// Issue #1497 — the native-stack depth cap is not evidence that no
+    /// The native-stack depth cap is not evidence that no
     /// dynamic write exists below it. Keep the actual O100/O102 consumer in
     /// this regression: the source mutation is hidden past the cap, yet it
     /// must still prevent forwarding the stale `x = 1` into the return.
@@ -3908,11 +3946,10 @@ mod tests {
     }
 
     // Regression: a top-level `global` name reassigned by a proc call must
-    // never be folded as if its "sole reaching def" were stable — confirmed
-    // against tclsh 8.6/9.0 as a real miscompile before this guard existed
-    // (`set tcl_precision 4; proc helper {} {global tcl_precision; set
-    // tcl_precision 17}; helper; puts $tcl_precision` prints `17`, not the
-    // `4` the optimiser used to propose).  See
+    // never be folded as if its "sole reaching def" were stable — on tclsh
+    // 8.6/9.0, `set tcl_precision 4; proc helper {} {global tcl_precision;
+    // set tcl_precision 17}; helper; puts $tcl_precision` prints `17`, not
+    // the `4` a sole-reaching-def fold would give.  See
     // `crate::var_observability::scan_module_global_names`.
     #[test]
     fn o102_does_not_forward_top_level_global_reassigned_by_callee() {
@@ -4083,6 +4120,7 @@ mod tests {
         let cu = CompilationUnit::build_for(source, &registry, false)
             .with_interprocedural(&registry, None);
         let mut ctx = PassContext::new(&cu.source, cu.interproc.clone().unwrap_or_default());
+        ctx.registry = Some(&registry);
         run(&mut ctx, &cu);
         let o103s: Vec<_> = ctx
             .optimisations
@@ -4108,6 +4146,7 @@ mod tests {
         let cu = CompilationUnit::build_for(source, &registry, false)
             .with_interprocedural(&registry, None);
         let mut ctx = PassContext::new(&cu.source, cu.interproc.clone().unwrap_or_default());
+        ctx.registry = Some(&registry);
         run(&mut ctx, &cu);
         let o103s: Vec<_> = ctx
             .optimisations
@@ -4137,6 +4176,7 @@ mod tests {
         let cu = CompilationUnit::build_for(source, &registry, false)
             .with_interprocedural(&registry, None);
         let mut ctx = PassContext::new(&cu.source, cu.interproc.clone().unwrap_or_default());
+        ctx.registry = Some(&registry);
         run(&mut ctx, &cu);
         let o103s: Vec<_> = ctx
             .optimisations
@@ -4165,6 +4205,7 @@ mod tests {
         )
         .with_interprocedural(&registry, None);
         let mut ctx = PassContext::new(&cu.source, cu.interproc.clone().unwrap_or_default());
+        ctx.registry = Some(&registry);
         run(&mut ctx, &cu);
         let o103s: Vec<_> = ctx
             .optimisations
@@ -4207,11 +4248,10 @@ mod tests {
 
     #[test]
     fn o103_folds_arg_sensitive_passthrough_with_braced_multiword_literal() {
-        // Precision: `parse_static_call_args` now shares `literal_words`'s
-        // proper Tcl-aware tokeniser instead of a naive `split_whitespace`,
-        // so a braced multi-word call argument (`{a b}` — one clean literal
-        // argument in real Tcl, previously misread as two whitespace-split
-        // words and conservatively rejected) folds too.
+        // `parse_static_call_args` shares `literal_words`'s proper Tcl-aware
+        // tokeniser rather than a naive `split_whitespace`, so a braced
+        // multi-word call argument (`{a b}` — one clean literal argument in
+        // real Tcl) folds too.
         use tcl_registry::CommandRegistry;
         let registry = CommandRegistry::build_default();
         let cu = CompilationUnit::build_for(
@@ -4350,6 +4390,7 @@ mod tests {
         let cu =
             CompilationUnit::build_for(src, &registry, false).with_interprocedural(&registry, None);
         let mut ctx = PassContext::new(&cu.source, cu.interproc.clone().unwrap_or_default());
+        ctx.registry = Some(&registry);
         run(&mut ctx, &cu);
         assert!(
             ctx.optimisations
@@ -4379,6 +4420,7 @@ mod tests {
         let cu =
             CompilationUnit::build_for(src, &registry, false).with_interprocedural(&registry, None);
         let mut ctx = PassContext::new(&cu.source, cu.interproc.clone().unwrap_or_default());
+        ctx.registry = Some(&registry);
         run(&mut ctx, &cu);
         assert!(
             ctx.optimisations
@@ -4591,7 +4633,7 @@ mod tests {
         // brace-quoted by `render_propagation_word`.
         assert_eq!(fold("puts [concat a b c]"), vec!["{a b c}".to_string()]);
         assert_eq!(fold("puts [join {a b c} -]"), vec!["a-b-c".to_string()]);
-        // `lindex` / `list` keep their historical codes (O118 / O116) for
+        // `lindex` / `list` report their own codes (O118 / O116) for
         // editor granularity, so filter by those rather than O129.
         let fold_code = |src: &str, code: &str| -> Vec<String> {
             crate::optimiser::optimise_raw(src, &registry(), None)
@@ -4655,10 +4697,10 @@ mod tests {
         assert!(fold("proc ::p {} { return 1 }\nputs [::p]").is_empty());
     }
 
-    /// Issue #1424: the folded command substitution carries its own quoted
-    /// argument, so the rewrite span has to cross that inner `"b"`. A
-    /// scanner that stopped at the first unescaped `"` produced a span
-    /// covering only `"a[string toupper "`, and applying the fix left the
+    /// The folded command substitution carries its own quoted argument, so
+    /// the rewrite span has to cross that inner `"b"`. A scanner that stops
+    /// at the first unescaped `"` produces a span covering only
+    /// `"a[string toupper "`, and applying the fix leaves the
     /// tail `b"]c"` behind as a stray fragment. Applying the rewrite must
     /// yield well-formed source.
     #[test]
@@ -4677,12 +4719,11 @@ mod tests {
         assert_eq!(rewritten, "puts \"aBc\"\n");
     }
 
-    /// Review on PR #1481, same #1424 lineage: a `"…"` word holding a
-    /// command-position comment reached across a backslash-newline
-    /// continuation. `tclsh` prints `x3abc`; the O129 rewrite printed
-    /// `x3ab""b"c`.
+    /// A `"…"` word holding a command-position comment reaches across a
+    /// backslash-newline continuation. `tclsh` prints `x3abc`; a rewrite that
+    /// mis-spans the word prints `x3ab""b"c`.
     ///
-    /// Both the canonical lexer and `close_quote_offset` now keep command
+    /// Both the canonical lexer and `close_quote_offset` keep command
     /// position across the continuation and reach the final `"`, so the safe
     /// rewrite folds only the first command substitution and preserves the
     /// commented-out closer verbatim.
@@ -4837,8 +4878,10 @@ mod tests {
 
     #[test]
     fn run_passes_dispatches_propagation() {
-        let cu = CompilationUnit::build_for("set x 9\nputs $x", &registry(), false);
+        let reg = registry();
+        let cu = CompilationUnit::build_for("set x 9\nputs $x", &reg, false);
         let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
+        ctx.registry = Some(&reg);
         super::super::run_passes(&mut ctx, &cu, &[super::super::PassId::Propagation]);
         assert!(
             ctx.optimisations.iter().any(|o| o.code == DiagCode::O100),

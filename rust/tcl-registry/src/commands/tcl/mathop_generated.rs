@@ -23,17 +23,17 @@
 //! **Derived** from `tcl_syntax::expr::operators` (`BinOp::spec()`/
 //! `UnaryOp::spec()`) — the single source of truth for which operators
 //! exist, their dialect gating, and whether they have a mathop command form
-//! at all — rather than hand-typed per this file's own former precedent
-//! (~84 literal `CommandSpec` entries, prone to exactly the drift issue #984
-//! found: missing `lt`/`le`/`gt`/`ge`, bogus `&&`/`||`/`@` entries that were
-//! never real `::tcl::mathop` members in any released Tcl).
+//! at all — rather than hand-typed per-file `CommandSpec` entries, which
+//! risk exactly this drift: missing `lt`/`le`/`gt`/`ge`, or bogus
+//! `&&`/`||`/`@` entries that were never real `::tcl::mathop` members in
+//! any released Tcl.
 //!
 //! `max`/`min` are correctly **absent** here for the same underlying reason
 //! `&&`/`||` are: neither is a `BinOp`/`UnaryOp` grammar operator at all —
 //! `max`/`min` are `expr` *math functions* (`mathfunc_generated.rs`), an
 //! unrelated Tcl feature (verified against tclsh 8.6/9.0 — `info commands
 //! ::tcl::mathop::*` never lists them). A bare `max`/`min` registry entry
-//! that looked like a real builtin previously made a user `proc max {...}`
+//! that looked like a real builtin would make a user `proc max {...}`
 //! — ordinary, working Tcl, since bare `max` never resolves without an
 //! explicit `namespace import ::tcl::mathop::*` the ensemble doesn't even
 //! define — read as "renaming a builtin" by the optimiser's
@@ -54,7 +54,7 @@ use tcl_syntax::expr::operators::{ALL_BIN_OPS, ALL_UNARY_OPS, CommandArity, Oper
 /// memoising here is what makes those leaks a one-off: `build_default()` is not
 /// a once-per-process call — the CFG builder and the optimiser's fold paths
 /// rebuild a registry per invocation — so building the specs afresh each time
-/// leaked the whole ensemble on every rebuild (issue #1035).
+/// leaked the whole ensemble on every rebuild.
 pub fn specs() -> Vec<CommandSpec> {
     static SPECS: OnceLock<Vec<CommandSpec>> = OnceLock::new();
     SPECS
@@ -148,9 +148,10 @@ fn to_registry_arity(a: CommandArity) -> Arity {
 ///
 /// Bounded **only** because [`specs`] memoises its result: this runs once per
 /// process, over a small fixed set (3 spellings x ~30 gated operators).  It is
-/// *not* bounded by registry construction being a one-off — it isn't (issue
-/// #1035: a per-CFG-build `CommandRegistry::build_default()` leaked the whole
-/// ensemble on every keystroke).  Any new caller must go through [`specs`].
+/// *not* bounded by registry construction being a one-off — it isn't: a
+/// per-CFG-build `CommandRegistry::build_default()` leaks the whole
+/// ensemble on every rebuild otherwise.  Any new caller must go through
+/// [`specs`].
 fn leak(s: String) -> &'static str {
     &*s.leak()
 }
@@ -165,7 +166,7 @@ mod tests {
     use super::specs;
     use tcl_dialect::model::SpecSurface;
 
-    /// Issue #1035: `specs()` `Box::leak`s its `&'static` name / synopsis /
+    /// `specs()` `Box::leak`s its `&'static` name / synopsis /
     /// snippet strings, so it must build them **once per process** — every
     /// later call has to hand back the same allocations.  `CommandRegistry`
     /// construction is not a one-off (the CFG builder and the optimiser's fold
@@ -191,16 +192,16 @@ mod tests {
         }
     }
 
-    /// Adversarial-review finding: `specs()`'s translation from
+    /// `specs()`'s translation from
     /// `OperatorSpec` to `CommandSpec` (`push_spellings`/`to_registry_arity`)
-    /// had no test of its own — only `tcl_syntax::expr::operators`'s layer-1
+    /// has no test of its own — only `tcl_syntax::expr::operators`'s layer-1
     /// unit tests exercised `spec()`/`mathop_shape`, never this file's own
     /// plumbing. A future bug in `push_spellings`'s dialect/arity conversion
     /// (an off-by-one, an accidentally-dropped prefix, a mis-mapped
     /// `since_to_dialects`-style arm) could land here undetected.
     ///
-    /// Directly reproduces issue #984's exact regression: `lt`/`le`/`gt`/`ge`
-    /// (TIP 461, Tcl 9.0+) must be present in all three spellings and gated
+    /// Guards against `lt`/`le`/`gt`/`ge`
+    /// (TIP 461, Tcl 9.0+) going missing: they must be present in all three spellings and gated
     /// to `TCL90_PLUS`; `&&`/`||`/`@` (never real `tcl::mathop` commands in
     /// any released Tcl) must be absent in every spelling.
     #[test]
@@ -232,7 +233,7 @@ mod tests {
     }
 
     /// `max`/`min` are `expr` math functions, not `tcl::mathop` grammar
-    /// operators (see the module doc's #984 note) — and the iRules-only word
+    /// operators (see the module doc) — and the iRules-only word
     /// operators (`and`/`or`/`contains`/…) have no command form at all
     /// (`mathop_shape: None`). Neither family should ever appear here.
     #[test]

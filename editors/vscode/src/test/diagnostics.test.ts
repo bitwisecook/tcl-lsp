@@ -119,7 +119,7 @@ suite("Diagnostics", () => {
     const config = vscode.workspace.getConfiguration("tclLsp.diagnosticSeverity");
     try {
       // Default: `set x 1` is an unused variable at hint severity (the faint
-      // underline #941 is about).
+      // underline).
       const base = await waitForDiagnostics(uri, {
         predicate: (d) => d.some((x) => codeOf(x) === "W211"),
       });
@@ -212,7 +212,7 @@ suite("Diagnostics", () => {
   });
 
   test("W123 flags a rename whose source command does not exist", async () => {
-    // Issue #923 audit idx 5. `rename OLD NEW` requires OLD to resolve;
+    // `rename OLD NEW` requires OLD to resolve;
     // tclsh 9.0.4 and 8.6.16 both abort the fixture at line 8 with
     // `can't rename "definitelyNotDefinedAnywhere": command doesn't exist`,
     // and the delete form (`rename X {}`, line 9) with `can't delete
@@ -479,7 +479,7 @@ suite("Diagnostics", () => {
       // have applied before analysing.  Kept inside the `try` so a wait
       // timeout still restores the setting in `finally`.  20s, matching
       // waitForDeepDiagnostics's default: under the full suite's background
-      // load (workspace warm-up, the #844 progressive diagnostics race, …)
+      // load (workspace warm-up, the progressive diagnostics race, …)
       // this round-trip routinely needs more than the 5s generic default.
       await waitForEffectiveConfig(cleanUri, (cfg) => cfg.optimiser_enabled === false, {
         label: "optimiser.enabled = false",
@@ -721,7 +721,7 @@ suite("Diagnostics", () => {
     );
   });
 
-  // Issue #777: object commands bound by `CLASS create NAME` and iterated via
+  // Object commands bound by `CLASS create NAME` and iterated via
   // `foreach elem [list c1 l1 …]` are known commands, so dispatching `$elem`
   // must not fire W307. Analysis has settled once the unknown-class commands
   // (`C`/`L`) surface their own W123.
@@ -736,10 +736,9 @@ suite("Diagnostics", () => {
     // The W123 predicate above is the settle signal for the negative check
     // below: the unknown classes `C`/`L` must surface W123 for this fixture, so
     // once it lands the absence of W307 is meaningful rather than "not analysed
-    // yet".  `waitForDiagnostics` rejects if it never lands (issue #1274), so
-    // the bare `!includes("W307")` can no longer pass vacuously against an
-    // unsettled set — this used to need a re-assertion here because the helper
-    // resolved leniently on timeout instead.
+    // yet".  `waitForDiagnostics` rejects if it never lands, so
+    // the bare `!includes("W307")` cannot pass vacuously against an
+    // unsettled set.
     assert.ok(
       !codes.includes("W307"),
       `dispatch over created object names must not fire W307, got [${codes}]`,
@@ -747,8 +746,8 @@ suite("Diagnostics", () => {
   });
 
   // Same-file proc-call arity: calling a same-file proc with the wrong
-  // number of arguments previously produced no diagnostic at all — the
-  // E002/E003 arity check was wired only to the builtin command registry.
+  // number of arguments must produce an E002/E003 diagnostic — the arity
+  // check covers same-file procs as well as the builtin command registry.
   // The fixture also covers `forward NAME my TARGET ?ARG…?`, the TclOO
   // idiom for forwarding to a sibling method (a bare method name is never
   // a valid forward target — confirmed against tclsh 9.0.4).
@@ -784,8 +783,8 @@ suite("Diagnostics", () => {
   });
 
   // TclOO constructor calls (`ClassName new` / `ClassName create`) and
-  // direct `apply {{params} body}` lambda calls previously produced no
-  // arity diagnostic at all, however wrong the argument count.
+  // direct `apply {{params} body}` lambda calls must produce an arity
+  // diagnostic when the argument count is wrong.
   test("E002/E003 fire for TclOO constructor calls and apply lambdas", async () => {
     const uri = getDocUri("diagnostics-arity-tcloo-ctor.tcl");
     await activate(uri);
@@ -908,7 +907,7 @@ suite("Diagnostics", () => {
       `an E001 should report the missing TclOO method on bare '$o', got: ${e001.map((d) => d.message)}`,
     );
 
-    // Issue #1200: the command-substitution head — `[Dog new]` used bare
+    // The command-substitution head — `[Dog new]` used bare
     // as a command — is the same zero-word dispatch failure.
     const bareCtor = e001On(lineOf("\n[Dog new]\n"));
     assert.ok(
@@ -916,7 +915,7 @@ suite("Diagnostics", () => {
       `an E001 should fire on the bare '[Dog new]' head, got: ${e001.map((d) => d.message)}`,
     );
 
-    // Issues #1143/#1200: `b` is typed only by the object-type lattice's
+    // `b` is typed only by the object-type lattice's
     // method-return edge (`set b [$m make]`) — the bare `$b` still fires,
     // and the well-formed `$b bark` right above it must be clean (no W307).
     const bareLattice = e001On(lineOf("\n$b\n"));
@@ -932,7 +931,7 @@ suite("Diagnostics", () => {
     );
   });
 
-  // Issue #832: `autoloadLibrary.tcl` calls two commands the workspace's
+  // `autoloadLibrary.tcl` calls two commands the workspace's
   // `rbclib/tclIndex` auto-loads (`Rbc_ActiveLegend` / `Rbc_ZoomStack`, the
   // BLT/Rbc idiom) with no `package require`, plus one genuinely-unknown
   // command. The package database resolves the library commands exactly as
@@ -1030,12 +1029,12 @@ suite("Diagnostics", () => {
     );
   });
 
-  // Regression: the "stolen close brace" heuristic used to fire on whichever
-  // `}` was LAST in the swallowed text, even when that text spanned more
+  // The "stolen close brace" heuristic must not fire on whichever
+  // `}` is LAST in the swallowed text when that text spans more
   // than one top-level statement (here a sibling `proc` swallowed along with
-  // the `if` that actually stole the brace). Applying that fix parsed clean
-  // but silently nested the sibling proc inside the unclosed one instead of
-  // closing it where the missing brace belongs. Pure brace-counting can't
+  // the `if` that actually stole the brace): applying a fix there would parse
+  // clean but silently nest the sibling proc inside the unclosed one instead
+  // of closing it where the missing brace belongs. Pure brace-counting can't
   // safely pick a location once more than one statement is swallowed, so
   // this must fall back to the generic (fix-less) E200 instead of guessing.
   test("E103 abstains when the missing brace swallows more than one statement", async () => {

@@ -17,7 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! Hand-maintained BIG-IP object-spec data modules (one per tmsh module
-//! word) — see each module's doc comment for provenance and issue #1404.
+//! word) — see each module's doc comment for provenance.
 //! Aggregated by [`all_specs`]; `cargo xtask bigip-data-schema --check`
 //! guards their internal consistency.
 use super::BigipObjectSpec;

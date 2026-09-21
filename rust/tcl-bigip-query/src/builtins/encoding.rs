@@ -135,7 +135,7 @@ fn bi_fromjson(args: &[Value]) -> Result<Value, QueryError> {
 ///
 /// `depth` is the nesting level of this call (0 at the top); past
 /// [`MAX_VALUE_WALK_DEPTH`] this returns `Value::Null` in place of the
-/// over-deep subtree instead of recursing further (issue #996). Every
+/// over-deep subtree instead of recursing further. Every
 /// current caller (`fromjson`, `http_body_json`, `json_load`, `json_parse`,
 /// …) builds `j` via `serde_json::from_str`, which already enforces its own
 /// ~128-level default recursion limit before `json_to_value` ever sees the
@@ -256,7 +256,7 @@ mod tests {
     /// constructing the fixture itself cannot trip `serde_json::from_str`'s
     /// own ~128-level default recursion limit the way parsing equivalent
     /// JSON *text* would — this is exactly the shape that limit does not
-    /// protect `json_to_value` against (issue #996).
+    /// protect `json_to_value` against.
     fn deep_json_array(depth: usize) -> serde_json::Value {
         let mut v = serde_json::Value::Number(0.into());
         for _ in 0..depth {
@@ -265,10 +265,10 @@ mod tests {
         v
     }
 
-    /// Regression coverage for issue #996: `json_to_value` recurses once
-    /// per nested JSON array/object level, with no depth cap before this
-    /// fix. 5000 is comfortably past `MAX_VALUE_WALK_DEPTH` (64); the
-    /// assertion is that it returns at all, not what it returns.
+    /// Regression coverage: `json_to_value` recurses once
+    /// per nested JSON array/object level, so it needs a depth cap. 5000 is
+    /// comfortably past `MAX_VALUE_WALK_DEPTH` (64); the assertion is that
+    /// it returns at all, not what it returns.
     #[test]
     fn deeply_nested_json_to_value_does_not_crash() {
         let j = deep_json_array(5000);

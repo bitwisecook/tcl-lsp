@@ -16,15 +16,14 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Issue #1556 — `tclLsp.diagnostics.exclude`: files matching a configured
-//! glob publish **no** diagnostics at all.
+//! `tclLsp.diagnostics.exclude`: files matching a configured glob publish
+//! **no** diagnostics at all.
 //!
 //! Both assertions key on the server's own `diagnostics excluded` timing
 //! marker (via [`Lsp::await_diagnostics_excluded`]) rather than a
-//! version-tagged publish, for the same reason the master-switch test does
-//! (issue #1135): a config change never bumps the document version, so a
-//! pre-exclusion publish and the exclusion's empty one are otherwise
-//! indistinguishable.
+//! version-tagged publish, for the same reason the master-switch test does:
+//! a config change never bumps the document version, so a pre-exclusion
+//! publish and the exclusion's empty one are otherwise indistinguishable.
 
 use crate::common::{Lsp, unique_uri};
 

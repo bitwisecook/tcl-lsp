@@ -28,7 +28,7 @@
 //!
 //! The thin [`crate::hover::FormSpec`] survives for hover and
 //! completion text, where only the synopsis matters; the descriptors
-//! defined here drive compiler routing in ARCH2.
+//! defined here drive compiler routing.
 
 use crate::abbrev::PrefixMatching;
 use crate::arg_role::ArgRole;

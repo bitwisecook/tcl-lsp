@@ -1,17 +1,14 @@
-# _registry_data.tcl -- AUTO-GENERATED from Python command registry
+# _registry_data.tcl -- the TMM command surface this harness simulates.
 #
-# DO NOT EDIT.  Regenerate with:
-#   python -m tooling.irule_test.codegen_registry_data
+# Hand-maintained: no generator produces this file. `cargo xtask
+# gen-irule-test-data` writes only `_event_data.tcl` and `_mock_stubs.tcl`.
 #
-# Source: compiler/registry/
-#
-# `tooling.irule_test.codegen_registry_data` no longer exists (Python was
-# fully retired from this codebase) -- there is no regeneration step. The
-# `tcl::mathop::{&&,||,@}` entries below (bogus operators, never real Tcl
-# commands -- see rust/tcl-registry/src/commands/tcl/mathop_generated.rs)
-# and the missing `tcl::mathop::{lt,le,gt,ge}` entries (real Tcl 9.0+
-# TIP 461 operators) were hand-fixed for issue #984 to match the registry.
-# The rest of this file's data has not been re-audited against the registry.
+# The `tcl::mathop::{lt,le,gt,ge}` entries are the real Tcl 9.0+ TIP 461
+# operators. `tcl::mathop::{&&,||,@}` are not Tcl commands and must not be
+# reintroduced here -- see
+# rust/tcl-registry/src/commands/tcl/mathop_generated.rs for the operator
+# set the registry actually declares. Entries beyond the mathop block have
+# not been checked against the registry.
 #
 # Copyright (c) 2024 tcl-lsp contributors.  MIT licence.
 
@@ -262,7 +259,17 @@ namespace eval ::tmm {
 namespace eval ::tmm::expr_ops {
 
     # TMM custom infix expression operators for expr rewriting.
-    # Derived from: compiler.registry.operators.IRULES_OPERATOR_HOVER
+    #
+    # Authority for the word-form operator set and for each operator's
+    # binding power is the F5 dialect model -- F5_TCL_WORDS and
+    # F5_TCL_PRECEDENCE_ROWS in rust/tcl-dialect/src/model/expr_grammar.rs,
+    # measured in docs/design/f5/bigip-irule-parser-measurements.md (§4a).
+    #
+    # _gen_operators is the subset the rewriter turns into helper-proc
+    # calls: the string comparisons that have no plain-Tcl spelling.  The
+    # trunk's tenth word form, the bare `matches`, is deliberately absent --
+    # its semantics are an open measurement (§12 of the same document), so
+    # the harness does not guess one.
 
     variable _gen_operators {
         contains
@@ -271,6 +278,26 @@ namespace eval ::tmm::expr_ops {
         matches_glob
         matches_regex
         starts_with
+    }
+
+    # The word-form boolean operators, each paired with the plain-Tcl
+    # operator it is exactly equivalent to.
+    #
+    #   `or`  carries ||'s binding power (4, 5) and `and` carries &&'s
+    #   (6, 7) in F5_TCL_PRECEDENCE_ROWS; both short-circuit, because
+    #   rust/tcl-syntax/src/expr/eval.rs evaluates WordAnd/WordOr through
+    #   exactly the And/Or arms.  `not` is prefix unary like `!` --
+    #   unaryop_from_text in rust/tcl-syntax/src/expr/parser.rs maps it to
+    #   UnaryOp::WordNot, which shares the single UNARY_BP with `!`.
+    #
+    # The rewriter substitutes the symbol rather than calling a helper proc:
+    # a proc call would evaluate both operands eagerly and so lose the
+    # short-circuit.
+
+    variable _gen_boolean_operators {
+        and  &&
+        or   ||
+        not  !
     }
 
     # All TMM expression operators (including boolean aliases).

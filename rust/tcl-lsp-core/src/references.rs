@@ -40,7 +40,7 @@
 //!   the `Write` / `Read` distinction;
 //!   command-invocation matches
 //!   stay `Text` because the analyser's
-//!   `command_invocations` doesn't currently surface read /
+//!   `command_invocations` does not surface read /
 //!   write semantics on call-head matches.
 //!
 //! Class-member references: when the cursor sits
@@ -74,13 +74,12 @@
 //!   written head against the call site's own lexical namespace with C Tcl's
 //!   rule (current namespace, then `namespace path`, then global — see
 //!   [`CommandReceivers::class_head_matches`]), so two classes sharing a
-//!   simple name in different namespaces are never cross-linked (issue
-//!   #981).  A `CLASS create NAME` **object command** now resolves the same
-//!   way: the analyser records each creation site's namespace
+//!   simple name in different namespaces are never cross-linked.
+//!   A `CLASS create NAME` **object command** resolves the same way: the analyser records each creation site's namespace
 //!   (`AnalysisResult::instance_command_bindings`), so `::a::Factory create
 //!   rex` binds `::a::rex` and `::b::Widget create rex` binds `::b::rex`, and
-//!   a bare `rex make` reaches whichever its own namespace resolves to — the
-//!   object-command half of #981, closed by PR C3.  An object command bound
+//!   a bare `rex make` reaches whichever its own namespace resolves to.  An
+//!   object command bound
 //!   by a *registry* object factory (a Tk widget path, a tcllib naming
 //!   factory) carries no creating user class, so it keeps the bare-name
 //!   match; it has no class identity to mis-attribute in the first place.
@@ -90,7 +89,7 @@
 //!   for the class-identity test ([`explicit_import_aliases`]).  A **wildcard**
 //!   import (`namespace import ::a::*`) is **not**: reproducing it needs the
 //!   export-gated import *snapshot* — which commands existed in `::a` when the
-//!   import ran — that issue #1027 tracks, and treating every exported command
+//!   import ran — and treating every exported command
 //!   as imported regardless of definition order would invent aliases the
 //!   runtime never created.  So a wildcard-imported class's bare dispatch is
 //!   still not matched, and a rename still leaves it stale.
@@ -134,7 +133,7 @@
 //! [`nested_dispatch_regions`].  Recursion is entirely registry-driven
 //! ([`tcl_registry::CommandRegistry::plain_body_arg_indices`],
 //! [`tcl_registry::CaseListSpec`]); no command name is hardcoded in the
-//! walkers themselves (issue #957's general form).
+//! walkers themselves.
 //!
 //! The `$obj`-dispatch scan goes one step further for its *command*-receiver
 //! half — a class command (`Factory make`) or an object command bound by
@@ -202,8 +201,8 @@ pub(crate) fn proc_reference_spans(
 /// The reference-side statement of the fact go-to-definition applies in
 /// `resolve_called_proc`: `-force` *replaces* the importing namespace's own
 /// command, so from the import onward a bare call does not reach the local
-/// definition and must not be listed among its references (issue #1116 item
-/// 1). Without it the two providers contradict each other on the very same
+/// definition and must not be listed among its references.
+/// Without it the two providers contradict each other on the very same
 /// cursor — definition jumps to the import's source while find-references
 /// still files the call under the definition the import deleted.
 ///
@@ -262,7 +261,7 @@ fn indirect_names_reaching(
 /// command-table mutation — `interp alias {} sayHi {} greet` makes every
 /// `[sayHi]` a real call site of `greet` (tclsh 8.6.16/9.0.4: both calls
 /// execute `greet`'s body), and `rename greet hello` makes every later
-/// `hello` one (issue #923 idx 21).
+/// `hello` one.
 ///
 /// Order-gated against the offset that established the chain, so a call
 /// written *before* the alias — which tclsh answers with `invalid command
@@ -275,7 +274,7 @@ fn indirect_names_reaching(
 /// tclsh 8.6.14/9.0.4: `oldp` → `first`, `p` → `second`).  Attributing the
 /// `oldp` call sites to whichever declaration currently wins the name `p`
 /// would merge two distinct commands' reference sets and double the winner's
-/// code-lens count (PR #1075 review, P2).  Classes pass `None`: a class name
+/// code-lens count.  Classes pass `None`: a class name
 /// has exactly one declaration, so there is no identity to disambiguate.
 ///
 /// Additive to the shared matching rule and deliberately **not** wired into
@@ -324,33 +323,9 @@ fn invocation_references_via_indirection(
     })
 }
 
-/// Whether a single call site `inv` references a named proc/class
-/// definition — simple name `def_name`, fully-qualified name
-/// `def_qualified` (whose lookup key is `qname`).
-///
-/// This is the **single** matching rule behind every proc/class-oriented
-/// consumer: Find-All-References ([`proc_reference_spans`],
-/// [`class_reference_spans`]), the code-lens reference count
-/// (`code_lens::code_lenses`), Rename (`rename::rename_proc`,
-/// `rename::rename_class`), and Call Hierarchy
-/// (`call_hierarchy::invocation_targets`) all resolve through this one
-/// function (via [`invocation_references_proc`] / [`invocation_references_class`])
-/// so none of them can disagree about whether a given call site is a
-/// reference — a rename that rewrote a call the reference finder does not
-/// report would corrupt a *different* same-named definition, and a
-/// call-hierarchy edge that disagreed with the reference count would be a
-/// visible inconsistency in the same editor session.
-///
-/// A bare simple-name call (`helper`) counts only when it resolves to this
-/// definition, or — since the analyser resolves a namespace-internal call to
-/// the global guess (`::helper`) — when it sits in this definition's own
-/// namespace; that namespace gate keeps `helper` inside `namespace eval b`
-/// from matching `::a::helper`. Qualified spellings and a
-/// resolved-qualified-name hit always count. Comparisons ignore the leading
-/// `::`.
 /// Whether call site `inv` reaches the definition named `def_name` /
 /// `def_qualified` **only** through an in-scope, same-document wildcard
-/// `namespace import NS::*` (issue #923 idx 18) — a case
+/// `namespace import NS::*` — a case
 /// [`invocation_references_named`] can never catch, since a glob import
 /// creates no real command at any of the call's candidate names for the
 /// analyser's own resolution to have recorded.
@@ -369,16 +344,16 @@ fn invocation_references_via_indirection(
 /// `invocations_of`-based edit gathering).
 ///
 /// The whole import **lifecycle** is applied, not just "some import matches":
-/// the export snapshot at that import's own position (issue #1027), the
+/// the export snapshot at that import's own position, the
 /// non-`-force` conflict that makes an import install nothing, a `namespace
 /// forget` or a deletion of the source command that takes the alias away
 /// again, and an import *chain* that reaches the definition through an
-/// intermediate namespace (issue #1103). All of it comes from the one shared
+/// intermediate namespace. All of it comes from the one shared
 /// entry point go-to-definition resolves through
 /// (`definition::import_chain_target`), so references and definition cannot
 /// disagree about what a call site reaches. Testing "some import matches" and
-/// "the final export set covers the name" as two independent conditions — as
-/// this originally did — gets both directions wrong.
+/// "the final export set covers the name" as two independent conditions gets
+/// both directions wrong.
 #[must_use]
 fn invocation_references_via_wildcard_import(
     analysis: &AnalysisResult,
@@ -403,6 +378,30 @@ fn invocation_references_via_wildcard_import(
         .is_some_and(|source_ns| source_ns.trim_start_matches("::") == target_ns)
 }
 
+/// Whether a single call site `inv` references a named proc/class
+/// definition — simple name `def_name`, fully-qualified name
+/// `def_qualified` (whose lookup key is `qname`).
+///
+/// This is the **single** matching rule behind every proc/class-oriented
+/// consumer: Find-All-References ([`proc_reference_spans`],
+/// [`class_reference_spans`]), the code-lens reference count
+/// (`code_lens::code_lenses`), Rename (`rename::rename_proc`,
+/// `rename::rename_class`), and Call Hierarchy
+/// (`call_hierarchy::invocation_targets`) all resolve through this one
+/// function (via [`invocation_references_proc`] / [`invocation_references_class`])
+/// so none of them can disagree about whether a given call site is a
+/// reference — a rename that rewrote a call the reference finder does not
+/// report would corrupt a *different* same-named definition, and a
+/// call-hierarchy edge that disagreed with the reference count would be a
+/// visible inconsistency in the same editor session.
+///
+/// A bare simple-name call (`helper`) counts only when it resolves to this
+/// definition, or — since the analyser resolves a namespace-internal call to
+/// the global guess (`::helper`) — when it sits in this definition's own
+/// namespace; that namespace gate keeps `helper` inside `namespace eval b`
+/// from matching `::a::helper`. Qualified spellings and a
+/// resolved-qualified-name hit always count. Comparisons ignore the leading
+/// `::`.
 #[must_use]
 pub(crate) fn invocation_references_named(
     analysis: &AnalysisResult,
@@ -429,8 +428,7 @@ pub(crate) fn invocation_references_named(
     // real corpus usage: nico-robert/ticklecharts) is bare-callable from
     // every method body in the program via TclOO's own fixed runtime
     // namespace path — a search member `call_ns` alone can't represent,
-    // since it's a single accumulated namespace string, not a path (issue
-    // #923 idx 56, main audit wave).
+    // since it's a single accumulated namespace string, not a path.
     let call_reaches_target = call_ns == target_ns
         || (target_ns == "oo::Helpers"
             && tcl_compiler::analyser::innermost_scope_reaches_oo_helpers(
@@ -482,8 +480,7 @@ pub(crate) fn invocation_references_named(
 /// (`definition::indirect_definition_target`): that one asks "where
 /// does this call site really land?", this one asks "is *this* declaration
 /// still what the name holds?". Both read the one indirection walk, so the
-/// two directions of navigation cannot disagree about the same document
-/// (issue #923 idx 89).
+/// two directions of navigation cannot disagree about the same document.
 ///
 /// Oracle (tclsh 8.6.16 and 9.0.4, byte-identical):
 ///
@@ -496,9 +493,8 @@ pub(crate) fn invocation_references_named(
 ///
 /// The `::ttk::spinbox` proc body is unreachable under that name from the
 /// alias onward, so the call is not one of its references — and renaming it
-/// must not rewrite that word. Rewriting it (which is what the edit set did
-/// before this gate) turns the same script into `themed ttk::spinbox: .sb`:
-/// a rename that silently changes which body runs.
+/// must not rewrite that word. Rewriting it would turn the same script into
+/// `themed ttk::spinbox: .sb`: a rename that silently changes which body runs.
 ///
 /// # Two ordering facts, both required
 ///
@@ -544,7 +540,7 @@ fn definition_displaced_from_its_name(
 ///
 /// Gated by [`definition_displaced_from_its_name`]: a call written after an
 /// `interp alias` / `rename` that took this proc's own name over reaches the
-/// binding's target, not this proc (issue #923 idx 89).
+/// binding's target, not this proc.
 #[must_use]
 pub(crate) fn invocation_references_proc(
     analysis: &AnalysisResult,
@@ -630,7 +626,7 @@ pub fn references(
 /// `program` is `None` for a host without one, which reproduces [`references`]
 /// exactly. It matters because a `namespace import -force` whose covering
 /// `namespace export` lives in another file changes *which* definition a bare
-/// call is a reference to (issue #1116 item 1), and find-references has to
+/// call is a reference to, and find-references has to
 /// answer that the same way go-to-definition does.
 #[must_use]
 pub fn references_in_program(
@@ -663,9 +659,9 @@ pub fn references_in_program(
 
     // A `$`-led read is definitive even when nothing resolved: Tcl's variable
     // and command namespaces are disjoint, so falling through to the bareword
-    // resolvers below answered a caller-frame `$dataset` read with the
-    // declaration of an unrelated same-named TclOO method (issue #923 audit
-    // idx 58).  `variable_references` returns `None` for both "not a variable
+    // resolvers below would answer a caller-frame `$dataset` read with the
+    // declaration of an unrelated same-named TclOO method.
+    // `variable_references` returns `None` for both "not a variable
     // position" and "a variable that resolved to nothing", so the stop has to
     // be made here, on the token kind.
     if crate::caller_frame::substituted_var_read_at(
@@ -681,7 +677,7 @@ pub fn references_in_program(
     }
 
     // Namespace references — a word the registry marks
-    // `ArgRole::NamespaceName` (issue #1088).  Checked before every bareword
+    // `ArgRole::NamespaceName`.  Checked before every bareword
     // resolver below because it is span-precise: the cursor is provably
     // inside a namespace-name argument, so a class or proc that happens to
     // share the spelling must not claim it.  Namespaces are their own symbol
@@ -727,7 +723,7 @@ pub fn references_in_program(
     }
 
     // `<ensemble> <subcommand>` — a static `namespace ensemble create
-    // -map`/`-subcommands` mapping (issue #923 idx 106). Checked before
+    // -map`/`-subcommands` mapping. Checked before
     // `proc_references`: real Tcl never independently looks up `make` as a
     // command (only the pair `widget make` dispatches), so a coincidental
     // same-named proc elsewhere in the workspace — which `proc_references`'s
@@ -743,7 +739,7 @@ pub fn references_in_program(
     }
 
     // `Factory::make` — [incr Tcl]'s colon-qualified class-proc dispatch
-    // (issue #990). Tried *after* `proc_references` so an ordinary
+    // Tried *after* `proc_references` so an ordinary
     // namespace-qualified proc call of the same spelling keeps priority:
     // this only ever fires when nothing resolves as a proc and the written
     // word's parent namespace really is an itcl class declaring that member.
@@ -762,8 +758,8 @@ pub fn references_in_program(
         return out;
     }
 
-    // `constructor` / `destructor` keyword — the next-chain reference story
-    // (issue #992); neither has a name to dispatch on, so no `my`/`$obj`
+    // `constructor` / `destructor` keyword — the next-chain reference
+    // story; neither has a name to dispatch on, so no `my`/`$obj`
     // call-site scan applies the way it does for a method. Tried *before*
     // the ordinary class-member lookup below: a class may legally also
     // declare a `method`/`property` literally named `constructor` or
@@ -771,7 +767,7 @@ pub fn references_in_program(
     // independent), and `class_member_references`'s cursor-outside-any-span
     // fallback (see `resolve_member_span`) would otherwise claim a cursor
     // sitting on the special keyword token for that unrelated same-named
-    // member instead (Codex review on #1011, P2). This resolver only ever
+    // member instead. This resolver only ever
     // matches when the cursor sits strictly on the keyword's own name span,
     // so trying it first never steals a real member reference.
     if let Some(out) = constructor_or_destructor_references(&ctx, &word) {
@@ -788,7 +784,7 @@ pub fn references_in_program(
 
 /// References for the **namespace** the cursor names — every other spelling
 /// of it in this document, plus its declaring `namespace eval` blocks when
-/// `include_declaration` (issue #1088).
+/// `include_declaration`.
 ///
 /// `None` means the cursor is not on a namespace-name word at all, so the
 /// caller falls through.  `Some` is definitive, empty vector included: once
@@ -882,12 +878,11 @@ struct RefCtx<'a> {
     analysis: &'a AnalysisResult,
     include_declaration: bool,
     /// Everything outside this document that a call-site resolution may
-    /// consult — in practice the whole-program export oracle (issue #1116
-    /// item 1). Default (`document_only`) for a host with no workspace index.
+    /// consult — in practice the whole-program export oracle. Default
+    /// (`document_only`) for a host with no workspace index.
     resolution: crate::definition::CallResolution<'a>,
 }
 
-/// Build `decl + references` ranges for a variable at the cursor.
 /// Find-All-References for a **caller-frame** variable — one no statement in
 /// this frame assigns because a callee creates it here through `upvar`.
 ///
@@ -915,7 +910,7 @@ fn caller_frame_references(
     // The caller's whole-program view, not a fresh document-only one: which
     // proc a binding's call-site word reaches is itself a call resolution, so
     // dropping the oracle here would let find-references disagree with
-    // go-to-definition on a `-force`-shadowed callee (issue #1116 item 1).
+    // go-to-definition on a `-force`-shadowed callee.
     let resolution = resolution.with_registry(crate::registry_for_dialect_profile(dialect));
     let bindings = crate::caller_frame::caller_frame_bindings(
         analysis,
@@ -953,6 +948,7 @@ fn caller_frame_references(
     Some(out)
 }
 
+/// Build `decl + references` ranges for a variable at the cursor.
 fn variable_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
     let RefCtx {
         source,
@@ -968,10 +964,10 @@ fn variable_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
     let byte_offset = crate::definition::byte_offset_at(line_index, source, line, character);
     // Resolved through the shared gate, not the raw character scan: the
     // occurrence must be one Tcl actually substitutes — a `$name`-shaped
-    // substring in a comment or a data brace is not a reference (issue #923
-    // idx 24), and neither is the `$n` inside a brace-quoted *name* word
-    // (`set {$n} 1`), which falls through to the declaration-span search in
-    // the final `else` so it answers the literal cell (PR #1106 review, P2).
+    // substring in a comment or a data brace is not a reference, and neither
+    // is the `$n` inside a brace-quoted *name* word (`set {$n} 1`), which
+    // falls through to the declaration-span search in the final `else` so it
+    // answers the literal cell.
     let var_def = if let Some(var_name) = crate::definition::substituting_var_at_position(
         source,
         dialect,
@@ -990,8 +986,7 @@ fn variable_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
             Some(def) => def,
             // Nothing in this frame assigns it — but a callee may create it
             // here through `upvar`, in which case the call-site word that
-            // names it and every `$name` read are one variable (issue #923
-            // audit idx 58).
+            // names it and every `$name` read are one variable.
             None => return caller_frame_references(ctx, byte_offset, &var_name),
         }
     } else if let Some(binding) = crate::caller_frame::binding_at_offset(
@@ -1016,8 +1011,7 @@ fn variable_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
         // result-var), not a `$`-prefixed read. See
         // `var_def_at_declaration_offset`'s own doc for why this needs a
         // dedicated byte-offset span search rather than the ordinary
-        // scope-chain walk (issue #923 differential-audit finding idx 9,
-        // main audit wave).
+        // scope-chain walk.
         crate::definition::var_def_at_declaration_offset(&analysis.global_scope, byte_offset)?
     };
     let mut out = Vec::new();
@@ -1101,7 +1095,7 @@ fn class_references(ctx: &RefCtx<'_>, word: &str) -> Option<Vec<LspRange>> {
         out.push(span_to_range(source, line_index, class_def.name_span));
     }
     // `superclass <C>` / `mixin <C>` (and `forward … TARGET`) usages are
-    // ordinary command references now — the analyser records each as a
+    // ordinary command references — the analyser records each as a
     // `command_invocation` resolved in the referencing class's namespace — so
     // `class_reference_spans` (over `command_invocations`) already covers them,
     // in this document and, via the workspace index, across files.  Rename and
@@ -1133,9 +1127,9 @@ fn proc_references(ctx: &RefCtx<'_>, word: &str) -> Option<Vec<LspRange>> {
     // call site could surface an unrelated same-named proc's reference set).
     // The caller's whole-program view, not a fresh document-only one: the
     // span pass below already filters with `ctx.resolution`, so resolving the
-    // *target* without it made this function disagree with itself — it would
-    // seed from the local definition a `-force` import deleted and then drop
-    // every span that definition owns (issue #1116 item 1).
+    // *target* without it would make this function disagree with itself: it
+    // would seed from the local definition a `-force` import deleted and then
+    // drop every span that definition owns.
     let (qname, proc_def) = crate::definition::resolve_proc_target_at(
         analysis,
         source,
@@ -1158,8 +1152,8 @@ fn proc_references(ctx: &RefCtx<'_>, word: &str) -> Option<Vec<LspRange>> {
 /// sits on the subcommand word of a `<ensemble> <subcommand>` call and it
 /// resolves through a static `namespace ensemble create -map`/
 /// `-subcommands` mapping, surface the target proc's declaration plus every
-/// call site — the reference twin of `definition()`'s identical check
-/// (issue #923 idx 106). The actual per-call-site matching needs no new
+/// call site — the reference twin of `definition()`'s identical check.
+/// The actual per-call-site matching needs no new
 /// code: `proc_reference_spans` already matches on `resolved_qualified_name`
 /// (not `inv.name == def_name`), and `record_ensemble_subcommand_invocation`
 /// (analyser side) already carries the target's resolved name on every
@@ -1229,10 +1223,10 @@ fn instance_method_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
     // `$obj m` names an instance *variable* whose class is known; `my m` /
     // `[self] m` / `[self object] m` are internal dispatches whose receiver
     // is the class whose body lexically encloses the call, and they also
-    // reach unexported methods (issue #923 idx 34: find-references at a
-    // `my duplListCheck` call site returned nothing at all, because
-    // `analysis.instance_classes` has no entry named `my`; issue #1322 for
-    // the `[self]` spellings, which the same gap affected identically).
+    // reach unexported methods.  Without them find-references at a
+    // `my duplListCheck` call site answers nothing at all, because
+    // `analysis.instance_classes` has no entry named `my` — and likewise for
+    // the `[self]` spellings.
     let line_index_local = tcl_lexer::LineIndex::new(source);
     let cursor = crate::definition::byte_offset_at(&line_index_local, source, line, character);
     let (class_q, external) =
@@ -1253,9 +1247,9 @@ fn instance_method_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
         };
     // The class that actually *declares* the implementation this call
     // reaches — which is not the receiver's own class when the method comes
-    // from a `mixin` or a `superclass` (issue #923 idx 34/35: the reference
-    // scan keyed off the receiver class alone and gave up whenever the
-    // method was purely inherited, while go-to-definition resolved it).
+    // from a `mixin` or a `superclass`: a scan keyed off the receiver class
+    // alone gives up whenever the method is purely inherited, while
+    // go-to-definition resolves it.
     // One shared linearisation walk with definition and hover.
     let provider_q = crate::oo_dispatch::method_dispatch_provider(
         analysis,
@@ -1292,7 +1286,7 @@ fn instance_method_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
 /// the class's own command, never an instance, so it is never found by
 /// `$obj`/`my` resolution.  Without this, Find References / Rename
 /// triggered from the actual dispatch site (as opposed to the declaration
-/// or a code lens) silently found nothing (Codex review on #971, P2).
+/// or a code lens) silently finds nothing.
 fn classmethod_call_site_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
     let RefCtx {
         source,
@@ -1329,7 +1323,7 @@ fn classmethod_call_site_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
 }
 
 /// Build references for a `Factory::make` call site — [incr Tcl]'s
-/// colon-qualified class-proc dispatch (issue #990).
+/// colon-qualified class-proc dispatch.
 ///
 /// itcl's class-scoped `proc` is its equivalent of `TclOO`'s `classmethod`,
 /// but it is invoked as a *single* `::`-qualified command word, not as a
@@ -1542,17 +1536,17 @@ pub(crate) fn method_references_for_class(
     // object itself for a classmethod — the two tables never merge
     // (confirmed against tclsh 9.0.4), so the re-segmented body set must
     // stay scoped to the same table `is_classmethod` selects on both sides
-    // (see `collect_member_bodies_scoped`) — mixing them let a classmethod
+    // (see `collect_member_bodies_scoped`) — mixing them lets a classmethod
     // wrongly "reach" an unrelated instance method (or vice versa) whenever
-    // the two happened to share a name.
+    // the two happen to share a name.
     //
     // For a plain method, scan `class_q`'s own bodies **and** the bodies of
     // every subclass that *inherits* this definition — a class whose MRO
     // resolves `method` to `class_q` (i.e. it does not override).  A pure
     // inheritor is not itself a rename family member (it declares no copy of
     // `method`), but its `my method` calls dispatch to `class_q`'s
-    // definition, so they must rename with it; omitting them left those call
-    // sites pointing at the old name.  A subclass that *overrides* `method`
+    // definition, so they must rename with it; omitting them leaves those
+    // call sites pointing at the old name.  A subclass that *overrides* `method`
     // resolves to itself, not `class_q`, so its bodies are handled under its
     // own family entry — never here.  A classmethod has no equivalent
     // inheriting-subclass walk here: unlike the instance MRO, there's no
@@ -1589,8 +1583,8 @@ pub(crate) fn method_references_for_class(
             // `mixin` branch decides for itself, so whether a captured
             // `[self]` object command reaches *this* declaration is a fact
             // about that receiver's external dispatch — not about the
-            // provider's own visibility, and not the same question `my` asks
-            // (issue #1705).  Oracle, byte-identical on tclsh 8.6.16 and
+            // provider's own visibility, and not the same question `my` asks.
+            // Oracle, byte-identical on tclsh 8.6.16 and
             // 9.0.4: with `MChild {superclass MBase; unexport m}` mixed into
             // `D {superclass A}`, `my m` inside `D` reaches `MBase::m` while
             // `[list [self] m]` reaches `A::m`.
@@ -1659,7 +1653,7 @@ pub(crate) fn method_references_for_class(
 /// references, prepare-rename, and rename therefore cannot infer a callback
 /// target from looser syntax than the code lens uses.
 ///
-/// An **inherited** provider is a normal answer (issue #1705): the walk
+/// An **inherited** provider is a normal answer: the walk
 /// applies the receiver's own effective export state, so a captured `[self]`
 /// callback in a subclass joins the provider's edit family exactly when
 /// `method_references_for_class` collects it from the other direction, and
@@ -1787,8 +1781,7 @@ pub fn method_next_dispatch_spans(
     // `<constructor>` / `<destructor>` name the two slots that have no
     // method-table entry of their own; every other name is looked up in the
     // bucket the caller selected. Without the synthetic labels, references
-    // to a constructor never surfaced an inheriting subclass's `next` call
-    // (issue #923 idx 37).
+    // to a constructor never surface an inheriting subclass's `next` call.
     let member = match method {
         tcl_compiler::analyser::class_hierarchy::CONSTRUCTOR_MEMBER => {
             class_def.constructors.last()
@@ -1826,26 +1819,24 @@ fn canonicalise_class_name(analysis: &AnalysisResult, owner: &str, name: &str) -
 /// document — whose target resolves (via the class hierarchy's MRO) to
 /// `class_q`'s own effective constructor: a subclass constructor chaining
 /// up to its superclass's is a name-independent but still meaningful
-/// "referenced by an overriding subclass" relationship (issue #992), the
+/// "referenced by an overriding subclass" relationship, the
 /// constructor counterpart of [`method_next_dispatch_spans`]. Constructors
 /// have no name-based dispatch, so this next-chain scan is the *whole*
 /// reference story for one — no `my`/`$obj` call-site scan applies, unlike
 /// [`method_references_for_class`]. Returns `None` when `class_q` declares
 /// no explicit constructor.
 ///
-/// Not gated by `DefinerFamily` (Codex review on #1011, P1): `next` /
-/// `nextto` and the MRO this walks (`ClassHierarchy::mro_map`, built by
-/// `tcloo_linearise` for every `ClassDef` alike) are `TclOO`-specific —
-/// Snit / [incr Tcl] classes have different chaining models the registry
-/// doesn't even register a `next`/`nextto` command for. This is not a new
-/// gap: [`method_next_dispatch_spans`] / [`ClassHierarchy::next_provider`]
-/// have run unconditionally across every definer family since they were
-/// introduced, with no existing itcl/Snit exclusion (unlike
+/// Not gated by `DefinerFamily`: `next` / `nextto` and the MRO this walks
+/// (`ClassHierarchy::mro_map`, built by `tcloo_linearise` for every
+/// `ClassDef` alike) are `TclOO`-specific — Snit / [incr Tcl] classes have
+/// different chaining models the registry does not even register a
+/// `next`/`nextto` command for.  [`method_next_dispatch_spans`] /
+/// [`ClassHierarchy::next_provider`] likewise run across every definer
+/// family, with no itcl/Snit exclusion (unlike
 /// `find_obj_method_call_sites`'s classmethod dispatch-shape check, which
-/// *does* consult `is_itcl_class` for an unrelated concern). Gating only
-/// the constructor/destructor path here would be an inconsistent partial
-/// fix, not a real one — a proper fix scopes the whole next/nextto
-/// reference system by family, out of scope for this change.
+/// *does* consult `is_itcl_class` for an unrelated concern), so gating only
+/// the constructor/destructor path here would be inconsistent: scoping the
+/// whole next/nextto reference system by family is the coherent alternative.
 pub(crate) fn constructor_next_chain_references(
     source: &str,
     dialect: &'static tcl_dialect::DialectProfile,
@@ -1926,7 +1917,7 @@ pub(crate) fn destructor_next_chain_references(
 /// directly), so the caller supplies it from the workspace index's
 /// [`WorkspaceMethod`](crate::workspace_index::WorkspaceMethod) `kind`
 /// instead.  Empty when `method` is not a classmethod, or the caller has no
-/// workspace index (same behaviour as before this parameter existed).
+/// workspace index.
 #[must_use]
 pub fn obj_method_call_sites(
     source: &str,
@@ -2266,7 +2257,7 @@ fn scan_my_method_body(ctx: MyMethodScan<'_>, body_span: tcl_lexer::Span, sink: 
 /// (`Plain`-`BodyKind`) control-flow / `eval` body argument
 /// ([`nested_dispatch_regions`]) so a dispatch nested inside `return [my …]`,
 /// an `if` / `while` / `foreach` / `switch` / `try` / `catch` body, or any
-/// combination of the two, is found too (issue #957). This is the same
+/// combination of the two, is found too. This is the same
 /// recursion [`scan_obj_method_region`] performs, keeping intra-class `my`
 /// dispatch and external `$obj` dispatch at parity.  The declaration span
 /// (`ctx.skip`) and already-seen spans are elided.  `depth` guards against
@@ -2302,9 +2293,9 @@ fn scan_my_method_region(
             // Registry query, not a `== "my"` literal: the self-dispatch
             // keyword is spec data, so a dialect that gains or loses it
             // propagates through `tcl-registry` rather than through this
-            // walker (issue #1050). `[self]`/`[self object]` reaches the
-            // same target through a different registry query — a bracketed
-            // command substitution, not a dispatch keyword (issue #1322).
+            // walker. `[self]`/`[self object]` reaches the same target through
+            // a different registry query — a bracketed command substitution,
+            // not a dispatch keyword.
             // Checked against `cmd.texts[0]`, not a `source[h_start..h_end]`
             // slice: a `Cmd`-kind token's span excludes its closing `]`
             // (`tcl_lexer`'s own convention — `texts` is where the
@@ -2433,7 +2424,7 @@ fn callback_targets_from_command(
         // command* as the comparator and passes `compare` as a separate
         // argument. Reading the word as if it were the callback slot invents a
         // reference to `compare` — and Rename would rewrite it. The compiler's
-        // own prefix scan has gated on this since #978
+        // own prefix scan gates on this
         // (`signature_scan::command_prefix`); this scan had not.
         if !positions_are_literal_through(cmd, idx + 1) {
             continue;
@@ -2483,7 +2474,7 @@ fn callback_targets_from_command(
 /// unreliable — not just the expanded word itself. Checking the whole prefix
 /// is what makes `[namespace code {*}[list my tick]]` abstain: the expansion
 /// is at the wrapper's body position, and after it `namespace code` has two
-/// arguments and errors rather than dispatching anything (issue #1704).
+/// arguments and errors rather than dispatching anything.
 ///
 /// `expand_word` is `None` for the overwhelming majority of commands — no word
 /// uses expansion — and a per-word flag list otherwise.
@@ -2768,7 +2759,7 @@ fn exact_self_receiver_call(ctx: MyMethodScan<'_>, receiver: &str) -> bool {
 /// `BodyKind`) control-flow / `eval` bodies via [`nested_dispatch_regions`],
 /// exactly like [`scan_my_method_region`] / [`scan_obj_method_region`] — a
 /// `next` inside an `if` / `while` / `foreach` / `switch` / `try` / `catch`
-/// body is found too (issue #957's general form).
+/// body is found too.
 ///
 /// Thin wrapper over [`scan_next_dispatch_sites_with_target`] that drops the
 /// `nextto` target argument — a method's `next`/`nextto` is flagged as a
@@ -2858,7 +2849,7 @@ fn scan_next_dispatch_region_with_target(
             if h_end <= source.len() && h_start < h_end {
                 let h = &source[h_start..h_end];
                 // The next-chain keywords come from the registry
-                // (`TCLOO_NEXT_CHAIN`), not a name list (issue #1050).
+                // (`TCLOO_NEXT_CHAIN`), not a name list.
                 if crate::definition::method_dispatch_keyword_in(dialect, h)
                     == Some(tcl_registry::MethodDispatchKind::NextChain)
                 {
@@ -2872,7 +2863,7 @@ fn scan_next_dispatch_region_with_target(
                     // quoted. Slicing the raw span instead left a literal
                     // `{`/`"` in the target text, which
                     // `canonicalise_class_name` could never resolve to a
-                    // real class (Codex review on #1011, P2).
+                    // real class.
                     // Only the spelling that declares an `ArgRole::Name` at
                     // argument 0 names an explicit resume-from class —
                     // `nextto`'s structural marker, per `TCLOO_NEXT_CHAIN`'s
@@ -2906,7 +2897,7 @@ pub struct InheritedReceiverFacts<'a> {
     pub extra_classmethod_cmd_names: &'a [String],
     /// Whether this receiver can dispatch `method` **externally**, so a
     /// captured `[self]` object command in its bodies really reaches the
-    /// declaration (issue #1705).  A subclass-only document cannot decide that
+    /// declaration.  A subclass-only document cannot decide that
     /// alone: its own `export` / `unexport` stub is local, but the provider's
     /// declared visibility is next door.  A `my` capture needs no such
     /// permission and is collected either way.
@@ -3084,8 +3075,7 @@ use crate::definition::is_itcl_class;
 /// Every call site in this document that dispatches `class_q`'s [incr Tcl]
 /// class-scoped `proc` named `member` — the single `::`-qualified
 /// `Factory::make` shape, which is a *different call shape entirely* from
-/// the two-word `Factory make` dispatch `classmethod` / `typemethod` use
-/// (issue #990).
+/// the two-word `Factory make` dispatch `classmethod` / `typemethod` use.
 ///
 /// Each returned span covers only the call's final `::`-segment (the `make`
 /// of `Factory::make`), so a rename rewrites the member name and leaves the
@@ -3175,7 +3165,7 @@ fn dispatch_receivers<'a>(
     //
     // A name the analyser recorded a *namespace-qualified* binding for is
     // matched by resolving the written head against the call site's own
-    // namespace (issue #981).  The bare-name set below is kept only for names
+    // namespace.  The bare-name set below is kept only for names
     // with no such binding — the registry object-factories (Tk widget paths,
     // tcllib naming factories) and the external-package `create NAME` shape,
     // neither of which carries a creating user class to attribute a dispatch
@@ -3238,7 +3228,7 @@ fn dispatch_receivers<'a>(
     // resolving it against the call site's own namespace
     // ([`CommandReceivers::class_head_matches`]), not by name-set membership,
     // so a bare `Factory` inside `namespace eval ::b` reaches `::b::Factory`
-    // and never `::a::Factory` (issue #981).
+    // and never `::a::Factory`.
     //
     // The definer-family check matters because [incr Tcl]'s class-scoped
     // `proc` lands in this same `class_methods` bucket (so the declaration
@@ -3254,7 +3244,7 @@ fn dispatch_receivers<'a>(
     // confirmed against tclsh 9.0.4/8.6), a plain stock-`TclOO` `self
     // method` is visible ONLY on the exact class that declared it, so the
     // inheriting-subclass half of this loop is skipped for those
-    // (`MethodDef::is_self_method`, issue #923 idx 120).
+    // (`MethodDef::is_self_method`).
     if is_classmethod
         && let Some(cq_method) = analysis
             .all_classes
@@ -3289,7 +3279,7 @@ fn dispatch_receivers<'a>(
 }
 
 /// The classes whose instances dispatch `class_q`'s copy of `method`, for the
-/// object-type-lattice half of the `$v method` scan (issue #994 C5b):
+/// object-type-lattice half of the `$v method` scan:
 /// `class_q` itself plus every class that *inherits* (does not override) the
 /// definition — the same inheritance rule as `dispatch_receivers`' `var_set`.
 ///
@@ -3332,10 +3322,10 @@ fn lattice_dispatch_family(
 /// and a `classmethod` of the *same name* (they occupy separate dispatch
 /// tables — the instance's and the class object's own), so "does
 /// `class_methods` contain this name" cannot answer "which one does the
-/// caller mean" when both do (Codex review on #971, P2).
+/// caller mean" when both do.
 ///
 /// A same-document call (`extra_cmd_names` empty) derives everything from
-/// `analysis` directly, as before.  The cross-file *pure-consumer* path
+/// `analysis` directly.  The cross-file *pure-consumer* path
 /// ([`obj_method_call_sites`]) cannot: a document that only calls `Factory
 /// make` and never declares/extends `Factory` has no `::Factory` entry in
 /// its own `all_classes` for the local classmethod check below to find, so
@@ -3438,7 +3428,7 @@ fn find_obj_method_call_sites_with_extra_cmd_names(
 ///   set, never by comparing the text.  So, with a class in `::a` and
 ///   another in `::b`, a bare `Factory make` written inside `namespace eval
 ///   ::b` reaches `::b::Factory` and is *not* attributed to `::a::Factory`
-///   (issue #981; pinned against tclsh 8.6.14 and 9.0.4, which answer
+///   (pinned against tclsh 8.6.14 and 9.0.4, which answer
 ///   `b-made` there, `invalid command name "Factory"` where no candidate
 ///   exists, and the global class where only that exists).
 ///
@@ -3446,8 +3436,7 @@ fn find_obj_method_call_sites_with_extra_cmd_names(
 ///   NAME`, by the **qualified** name the creation site's namespace produced
 ///   (`AnalysisResult::instance_command_bindings`).  Matched by the same
 ///   namespace resolution as `class_targets`, so `::a::Factory create rex`
-///   and `::b::Widget create rex` are two commands, not one name (issue
-///   #981's object-command half).
+///   and `::b::Widget create rex` are two commands, not one name.
 ///
 /// * `object_commands` — the residual bare-name set, for instance commands
 ///   with **no** qualified binding: those bound by a registry object factory
@@ -3462,8 +3451,8 @@ struct CommandReceivers {
     /// resolving a written head against the call site's own namespace, the
     /// same rule `class_targets` uses.  Populated from
     /// [`tcl_compiler::analyser::AnalysisResult::instance_command_bindings`],
-    /// which records the creation site's namespace (issue #981's
-    /// object-command half): `::a::Factory create rex` binds `::a::rex` and
+    /// which records the creation site's namespace: `::a::Factory create rex`
+    /// binds `::a::rex` and
     /// `::b::Widget create rex` binds `::b::rex`, and a bare `rex make`
     /// reaches whichever of the two its own namespace resolves to — never
     /// both, as the bare-name set below could not help doing.
@@ -3500,8 +3489,8 @@ struct CommandReceivers {
 ///
 /// **Wildcard imports are deliberately excluded.**  `namespace import ::a::*`
 /// needs the export-gated import *snapshot* model (which commands existed in
-/// `::a` at the moment the import ran, filtered by `namespace export`) — issue
-/// #1027.  Half-building it here, by treating every exported command as
+/// `::a` at the moment the import ran, filtered by `namespace export`).
+/// Half-building it here, by treating every exported command as
 /// imported regardless of definition order, would invent aliases the runtime
 /// never created.  A pattern containing any glob metacharacter is skipped.
 fn explicit_import_aliases(analysis: &AnalysisResult) -> FxHashMap<String, String> {
@@ -3656,7 +3645,7 @@ struct ObjMethodScan<'a> {
     var_set: &'a FxHashSet<&'a str>,
     /// [`lattice_dispatch_family`] — the classes a `$v` receiver's
     /// scope-keyed lattice binding must singleton-resolve to for the site to
-    /// count when `var_set` has no entry for it (issue #994 C5b).
+    /// count when `var_set` has no entry for it.
     lattice_family: &'a FxHashSet<String>,
     receivers: &'a CommandReceivers,
     method: &'a str,
@@ -3741,7 +3730,7 @@ fn scan_obj_method_body(
 /// same-frame (`Plain` `BodyKind`) control-flow / `eval` body argument
 /// ([`nested_dispatch_regions`]), so a dispatch nested inside an `if` /
 /// `while` / `foreach` / `switch` / `try` / `catch` body is found too
-/// (issue #957's general form).  `var_set` holds the bare names of
+/// `var_set` holds the bare names of
 /// in-scope instance variables.  `depth` guards against runaway recursion
 /// — see [`MAX_DISPATCH_SCAN_DEPTH`].
 fn scan_obj_method_region(
@@ -3862,10 +3851,10 @@ pub(crate) const MAX_DISPATCH_SCAN_DEPTH: tcl_core_types::RecursionLimit =
 /// eval`, …) are *not* descended here — those run in a different scope, so a
 /// call written inside one is not a same-context dispatch from this site
 /// (see [`tcl_registry::CommandRegistry::plain_body_arg_indices`]). This is
-/// the one general mechanism behind the fix for issue #957 (a `my method`
-/// call nested in `if` / `while` / `foreach` / `switch` / `try` / `catch` /
-/// `eval` was invisible to Find-References, the code-lens reference count,
-/// and Rename) — registry-driven, so it needs no per-command-name branch
+/// the one general mechanism that keeps a `my method` call nested in `if` /
+/// `while` / `foreach` / `switch` / `try` / `catch` / `eval` visible to
+/// Find-References, the code-lens reference count, and Rename —
+/// registry-driven, so it needs no per-command-name branch
 /// here and covers any command whose spec declares a `Plain` body role, not
 /// just the control-flow keywords a hand-written list would enumerate.
 pub(crate) fn nested_dispatch_regions(
@@ -3952,9 +3941,9 @@ pub(crate) fn nested_dispatch_regions_with_identities(
 /// (`rex bark`) is an ordinary command and resolves the same from a
 /// `namespace eval` body, an `apply` lambda, or the top level, so a dispatch
 /// written in one of them is a real reference to the method — Find All
-/// References, rename, the code lens, and the call hierarchy all missed those
-/// sites before (adversarial review of #1047, item 2; all three shapes
-/// verified dispatching under tclsh 9.0.4).  A `$var` receiver does not
+/// References, rename, the code lens, and the call hierarchy would otherwise
+/// miss those sites (all three shapes verified dispatching under tclsh
+/// 9.0.4).  A `$var` receiver does not
 /// survive the boundary — `$f` inside `namespace eval ::zz` names `::zz::f`,
 /// and inside an `apply` lambda a fresh local — so the caller drops
 /// `var_set` for the descended subtree
@@ -4043,7 +4032,7 @@ pub(crate) fn dispatch_scan_regions(
 /// `export` naming a method that no longer exists leaves the *renamed*
 /// method unexported, so `$obj NewName` fails at run time (`unknown method
 /// "Bar": must be destroy` — tclsh 9.0.4 and 8.6.16, identical).  A rename
-/// that rewrote only the declaration and the call sites therefore broke the
+/// that rewrites only the declaration and the call sites therefore breaks the
 /// program; rewriting these words is what keeps it running.
 ///
 /// Which member keywords carry method references is **registry data** (the
@@ -4345,7 +4334,7 @@ fn class_highlights(
 ) -> Option<Vec<(LspRange, HighlightKind)>> {
     let cursor_off = crate::definition::byte_offset_at(line_index, source, line, character);
     // Declaration-span hit, else the namespace-aware candidate resolution —
-    // never a namespace-blind `c.name == word` first-hit scan (the M1
+    // never a namespace-blind `c.name == word` first-hit scan (the
     // wrong-symbol drift class).
     let (qname, class_def) =
         crate::definition::resolve_class_target_at(analysis, resolution, cursor_off, word)?;
@@ -4395,8 +4384,7 @@ pub fn document_highlights(
 /// Highlighting is find-references narrowed to one document, so it must pick
 /// the same target: a bare call a live `namespace import -force` shadows is
 /// not an occurrence of the local definition, and which definition it *does*
-/// reach can only be settled with whole-program export knowledge (issue #1116
-/// item 1).
+/// reach can only be settled with whole-program export knowledge.
 #[must_use]
 pub fn document_highlights_in_program(
     source: &str,
@@ -4588,14 +4576,14 @@ mod tests {
     #[test]
     fn references_reach_the_call_site_from_the_stale_original_in_a_foreach_rename_reinstall_idiom()
     {
-        // TP — issue #923 idx 86, mirroring the same-file precedent set by
-        // `references_reach_the_call_site_from_a_shadowed_duplicate_proc_decl_same_document`
-        // (idx 31): cursor on a superseded declaration resolves by *name*,
+        // TP — mirroring the same-file precedent set by
+        // `references_reach_the_call_site_from_a_shadowed_duplicate_proc_decl_same_document`:
+        // cursor on a superseded declaration resolves by *name*,
         // landing on whichever declaration currently wins under that name
         // — not the stale span the cursor happened to start on. Here the
         // "shadowing" declaration is the `tk/library/accessibility.tcl`
-        // rename-and-reinstall idiom's own per-element wrapper (issue #923
-        // idx 86), reached only by simulating each literal `foreach`
+        // rename-and-reinstall idiom's own per-element wrapper, reached only
+        // by simulating each literal `foreach`
         // element rather than by a second textual `proc` statement.
         let src = "proc button {args} {return orig_button}\n\
                    proc entry {args} {return orig_entry}\n\
@@ -4624,11 +4612,10 @@ mod tests {
 
     #[test]
     fn references_reach_a_method_return_captured_dispatch_site() {
-        // Issue #994 C5b / #1143: `b` is typed only by the object-type
-        // lattice (`set b [$a make]`, the method-return edge) — the
-        // analyser's `instance_classes` never binds it, so before the
-        // unification Find References on `greet` missed the `$b greet` site
-        // that semantic tokens and hover already resolved.
+        // `b` is typed only by the object-type lattice (`set b [$a make]`, the
+        // method-return edge) — the analyser's `instance_classes` never binds
+        // it, so only the lattice reading lets Find References reach the `$b
+        // greet` site that semantic tokens and hover resolve.
         let src = "oo::class create A { method make {} { ::return [::B new] } }\n\
                    oo::class create B { method greet {} { ::return \"hi\" } }\n\
                    set a [A new]\n\
@@ -4723,7 +4710,7 @@ mod tests {
 
     #[test]
     fn references_include_wildcard_imported_bareword_call_same_document() {
-        // TP (same-document) — issue #923 idx 18: a wildcard `namespace
+        // TP (same-document) — a wildcard `namespace
         // import ::Foo::*` reaches an exported proc via a bare call with no
         // real command recorded at any of the call's own candidate names,
         // so `invocation_references_named`'s ordinary rule can never catch
@@ -4751,13 +4738,13 @@ mod tests {
 
     #[test]
     fn references_keep_a_wildcard_imported_call_after_a_later_export_clear() {
-        // TP, issue #1027 direction A — the import bound `p` while `::src`
+        // TP, direction A — the import bound `p` while `::src`
         // still exported it; the later `namespace export -clear` does not
         // revoke that alias (oracle tclsh 8.6.14/9.0.4: `::dst::p` still
-        // runs, `info commands ::dst::*` still lists it). Before the
-        // per-import-site snapshot, the export gate read the *final* export
-        // set — which the `-clear` had emptied — and find-references
-        // silently dropped this real call site.
+        // runs, `info commands ::dst::*` still lists it). Without the
+        // per-import-site snapshot the export gate reads the *final* export
+        // set — which the `-clear` has emptied — and find-references silently
+        // drops this real call site.
         let src = "namespace eval src {\n    proc p {} { return P }\n    namespace export p\n}\nnamespace eval dst {\n    namespace import ::src::*\n    p\n}\nnamespace eval src {\n    namespace export -clear\n}\n";
         let analysis = analyse(src);
         // Cursor on the `p` declaration (line 1, col 9).
@@ -4779,11 +4766,11 @@ mod tests {
 
     #[test]
     fn references_exclude_a_wildcard_imported_call_the_import_predates_the_export_of() {
-        // FP guard (CRITICAL), issue #1027 direction B — `::src` exports `p`
+        // FP guard (CRITICAL), direction B — `::src` exports `p`
         // only *after* `::dst` imported `::src::*`, so real Tcl never binds
         // `::dst::p` at all (oracle: `invalid command name "::dst::p"`) and
         // the bare `p` inside `::dst` is not a call to `::src::p`. Reading
-        // the final export set reported it as one.
+        // the final export set would report it as one.
         let src = "namespace eval src {\n    proc p {} { return P }\n}\nnamespace eval dst {\n    namespace import ::src::*\n    p\n}\nnamespace eval src {\n    namespace export p\n}\n";
         let analysis = analyse(src);
         // Cursor on the `p` declaration (line 1, col 9).
@@ -4806,7 +4793,7 @@ mod tests {
 
     #[test]
     fn references_drop_a_call_after_a_namespace_forget() {
-        // TN, issue #1103 behaviour 1 — the alias the import installed is
+        // TN, the `namespace forget` behaviour — the alias the import installed is
         // gone by the time the second `p` runs (oracle: `invalid command
         // name "p"`), so that call is not a reference to `::src::p`. The
         // call *before* the forget still is.
@@ -4835,7 +4822,7 @@ mod tests {
 
     #[test]
     fn references_drop_a_conflicting_unforced_imports_call_site() {
-        // FP guard (CRITICAL), issue #1103 behaviour 2 — `::dst` already has
+        // FP guard (CRITICAL), the import-conflict behaviour — `::dst` already has
         // its own `p`, so the non-`-force` import errors and installs
         // nothing (oracle: `can't import command "p": already exists`, and
         // `namespace origin ::dst::p` → `::dst::p`). The bare `p` inside
@@ -4883,11 +4870,11 @@ mod tests {
 
     #[test]
     fn references_include_a_call_through_an_import_chain() {
-        // TP, issue #1103 behaviour 4 — `::A` imports `::B::*`, `::B`
+        // TP, the import-chain behaviour — `::A` imports `::B::*`, `::B`
         // imported `::C::*` and re-exported; the bare `p` in `::A` runs
         // `::C::p` (oracle: `namespace origin ::A::p` → `::C::p`), so it is
-        // a reference to it. The middle hop is in no `all_procs`, so this
-        // previously found nothing.
+        // a reference to it. The middle hop is in no `all_procs`, so a
+        // single-hop walk finds nothing.
         let src = "namespace eval C {\n    proc p {} { return CP }\n    namespace export p\n}\nnamespace eval B {\n    namespace import ::C::*\n    namespace export p\n}\nnamespace eval A {\n    namespace import ::B::*\n    p\n}\n";
         let analysis = analyse(src);
         // Cursor on `::C::p`'s declaration (line 1, col 9).
@@ -4909,7 +4896,7 @@ mod tests {
 
     #[test]
     fn references_include_bare_call_to_a_proc_installed_into_oo_helpers() {
-        // Issue #923 idx 56 (main audit wave, high severity): a proc
+        // A proc
         // installed directly into `::oo::Helpers` (the documented "TclOO
         // Tricks" idiom — nico-robert/ticklecharts installs `classvar` /
         // `callback` this way) becomes bare-callable from every TclOO
@@ -4938,7 +4925,7 @@ mod tests {
 
     #[test]
     fn references_exclude_a_top_level_bare_call_with_the_same_name_as_an_oo_helpers_proc() {
-        // FP guard (issue #923 idx 56): a bare call outside any TclOO
+        // FP guard: a bare call outside any TclOO
         // method body must not be treated as reaching a proc installed in
         // `::oo::Helpers` — real tclsh raises "invalid command name" there
         // (`::oo::Helpers` is on a *method body's* runtime namespace path
@@ -4965,16 +4952,15 @@ mod tests {
 
     #[test]
     fn references_from_in_proc_global_alias_reach_the_callers_canonical_set() {
-        // Issue #923 idx 68 (main audit wave, high severity, pix corpus):
-        // reduces the real `isEqual`/`tolComp` shape from
+        // Reduces the real `isEqual`/`tolComp` shape from
         // nico-robert/pix's test/data_b64.test — a proc aliases a top-level
         // cell via `global`, and the caller overrides it via a plain `set
         // ::name` before invoking the proc. tclsh proves `tolComp` (via
         // `global`) and `::tolComp` (the caller's `set`) are the identical
         // storage cell. Querying from the in-proc `$tolComp` read must reach
-        // the caller's `set ::tolComp` — before this fix, `collect_alias_spans`
-        // only ever found *other aliases* of the same target, never the
-        // target's own canonical (non-aliased) declaration.
+        // the caller's `set ::tolComp`: `collect_alias_spans` on its own finds
+        // *other aliases* of the same target, never the target's own canonical
+        // (non-aliased) declaration.
         let src =
             "proc use {} {\n    global tolComp\n    return $tolComp\n}\nset ::tolComp 0.05\nuse\n";
         let analysis = analyse(src);
@@ -5004,11 +4990,11 @@ mod tests {
 
     #[test]
     fn references_from_the_callers_canonical_set_reach_the_in_proc_global_alias() {
-        // The reverse direction of the test above (issue #923 idx 68): before
-        // this fix, querying from the caller's own `set ::tolComp` returned
-        // only its own 2 spans (decl + any top-level reads), missing every
-        // in-proc `global tolComp` occurrence — since a plain `set` has no
-        // `link_target` of its own to search alias records by.
+        // The reverse direction of the test above: querying from the caller's
+        // own `set ::tolComp` must not return only its own 2 spans (decl + any
+        // top-level reads) and miss every in-proc `global tolComp` occurrence,
+        // which is what a plain `set` — with no `link_target` of its own to
+        // search alias records by — would otherwise do.
         let src =
             "proc use {} {\n    global tolComp\n    return $tolComp\n}\nset ::tolComp 0.05\nuse\n";
         let analysis = analyse(src);
@@ -5039,11 +5025,11 @@ mod tests {
 
     #[test]
     fn references_unify_global_alias_and_canonical_set_when_the_set_is_unqualified() {
-        // Issue #923 idx 68's second repro: an *unqualified* `set tolComp
+        // A second repro: an *unqualified* `set tolComp
         // 0.05` at global scope reproduces the identical split, ruling out
         // the `::`-prefix as the sole cause — `handle_set_command` never
         // calls `set_var_link_target` regardless of how the name is spelled,
-        // so the gap (and the fix) is the same either way.
+        // so the shape is the same either way.
         let src =
             "proc use {} {\n    global tolComp\n    return $tolComp\n}\nset tolComp 0.05\nuse\n";
         let analysis = analyse(src);
@@ -5070,7 +5056,7 @@ mod tests {
 
     #[test]
     fn references_do_not_conflate_unrelated_same_named_cells_in_different_namespaces() {
-        // FP guard (issue #923 idx 68): the new canonical-cell fold-in must
+        // FP guard: the canonical-cell fold-in must
         // still be exact-qualified-name matched — two unrelated top-level
         // `tolComp` cells living in different namespaces, neither aliasing
         // the other, must never be unioned together just because they share
@@ -5096,12 +5082,10 @@ mod tests {
 
     #[test]
     fn references_for_a_multi_list_foreach_second_varlist_now_reach_every_use() {
-        // Issue #923 idx 70 (main audit wave, high severity, pix corpus):
-        // before the `handle_foreach_command` fix, the first loop's own
-        // `name` (the second varList of `foreach dirName {...} name {...}
-        // {...}`) was never bound at all, so `references()` from *any* use
-        // inside the first loop's body fell through to whatever *other*
-        // same-named `VarDef` existed anywhere in the flat top-level scope
+        // Unless the first loop's own `name` (the second varList of `foreach
+        // dirName {...} name {...} {...}`) is bound, `references()` from *any*
+        // use inside the first loop's body falls through to whatever *other*
+        // same-named `VarDef` exists anywhere in the flat top-level scope
         // — here, a second, later, textually unrelated `foreach name
         // {...}` — returning only that second loop's own 2 spans and
         // omitting every actual first-loop span, including the query site
@@ -5109,7 +5093,7 @@ mod tests {
         // scope (correctly modelling Tcl's lack of block scoping), so at
         // the top level these two loops' `name` genuinely share one global
         // storage cell — same as any two sequential top-level `set name
-        // ...` statements — so the fully correct fixed reference set spans
+        // ...` statements — so the correct reference set spans
         // *both* loops, not just the first: the bug was under-reporting
         // (missing the first loop's spans entirely), not over-reporting.
         let src = "foreach dirName {src src {src core}} name {alpha beta gamma} {\n    puts \"$dirName $name\"\n    if {$name eq \"pixutils\"} { puts skip }\n}\nforeach name {examples color changes} {\n    puts $name.ruff\n}\n";
@@ -5164,14 +5148,11 @@ mod tests {
 
     #[test]
     fn references_reach_the_call_site_from_a_shadowed_duplicate_proc_decl_same_document() {
-        // TN-shaped regression guard — issue #923 idx 31 (main audit wave):
-        // this same-document path was already correct before that fix
-        // (`resolve_proc_target_at`'s own fallback resolves the word text
-        // via ordinary namespace lookup when the direct declaration-span
-        // match misses, landing on the current winner regardless of which
-        // occurrence's span the cursor sits on); pinned here so the
-        // cross-document fix landing alongside it never regresses this
-        // already-working case.
+        // TN-shaped guard: `resolve_proc_target_at`'s own fallback resolves
+        // the word text via ordinary namespace lookup when the direct
+        // declaration-span match misses, landing on the current winner
+        // regardless of which occurrence's span the cursor sits on.  Pinned so
+        // the cross-document tier cannot change this same-document answer.
         let src = "proc List2array {lst} { return ONE }\nproc List2array {lst} { return TWO }\nList2array x\n";
         let analysis = analyse(src);
         // Cursor on the SHADOWED (first) declaration (line 0, col 6).
@@ -5190,18 +5171,18 @@ mod tests {
 
     #[test]
     fn references_include_the_renames_own_old_word() {
-        // TP — issue #923 idx 39 (main audit wave): `rename OLD NEW`'s own
+        // TP — `rename OLD NEW`'s own
         // `OLD` word is a genuine reference to the proc it names
         // (tclsh9.0/8.6-verified: `rename` requires `OLD` to exist,
         // "can't rename ...: command doesn't exist" otherwise) — the real
         // corpus shape is a tcltest `-setup`/`-body`/`-cleanup` idiom
         // (georgtree_tclopt test/arbitaryTest.tcl:46/113's `proc gaussfunc`
-        // / `rename gaussfunc ""`). Go-to-definition/hover already resolved
-        // this token (independent cursor-token walk); `references` missed
-        // it entirely, so a rename built on the same list left this
-        // occurrence pointing at a now-nonexistent command — a previously
-        // passing tcltest crashes with "can't delete ...: command doesn't
-        // exist" purely from applying the LSP's own rename edit.
+        // / `rename gaussfunc ""`). Go-to-definition/hover resolve this token
+        // through their own cursor-token walk; if `references` missed it, a
+        // rename built on the same list would leave the occurrence pointing at
+        // a now-nonexistent command — a passing tcltest then crashes with
+        // "can't delete ...: command doesn't exist" purely from applying the
+        // LSP's own rename edit.
         let src = "proc helperFunc {x} { return [expr {$x * 2}] }\nhelperFunc 21\nrename helperFunc \"\"\n";
         let analysis = analyse(src);
         let refs = references(
@@ -5245,13 +5226,12 @@ mod tests {
 
     #[test]
     fn references_include_unbraced_if_body_bareword_call() {
-        // TP — differential-audit finding idx 61 (main audit wave,
-        // nico-robert_ticklecharts): `if {$cond} mymod::foo` (an unbraced
-        // if-then body — a single, statically-known bareword, valid Tcl
-        // and used ~50 times in the real corpus this way) was invisible
-        // to `command_invocations` entirely, since `analyse_body` only
-        // ever recurses a braced (`Str`-kind) body. `references` from the
-        // declaration silently missed it — go-to-definition and hover
+        // TP — `if {$cond} mymod::foo` (an unbraced if-then body — a single,
+        // statically-known bareword, valid Tcl and used ~50 times in the
+        // nico-robert_ticklecharts corpus this way) is invisible to
+        // `command_invocations` whenever `analyse_body` recurses only a braced
+        // (`Str`-kind) body, and `references` from the
+        // declaration then misses it — go-to-definition and hover
         // still found it (they resolve independently off the cursor
         // token), producing a dangerous asymmetry: a `rename` built on
         // this same list would silently miss rewriting the call site.
@@ -5302,11 +5282,11 @@ mod tests {
         // Was an FP guard against treating `$cb` as a static call to a
         // command literally *named* `$cb` — that concern still holds (this
         // test's own name reflects it), but real tclsh9.0/8.6-verified
-        // behavior is that `if {1} $cb` (a bare-`$var` `if`-body, evaluated
+        // behaviour is that `if {1} $cb` (a bare-`$var` `if`-body, evaluated
         // as a script exactly like `eval`/`uplevel`'s bodies) genuinely
         // calls `foo` when `$cb` holds that constant value — printing
-        // "CALLED" for a `proc foo {} { puts CALLED }`. Issue #923 idx 94
-        // wires up exactly this dispatch (`dispatch_one_body_argument`'s
+        // "CALLED" for a `proc foo {} { puts CALLED }`. The analyser wires up
+        // exactly this dispatch (`dispatch_one_body_argument`'s
         // `TokenType::Var` branch, generic across every `ArgRole::Body`
         // argument, not just `eval`/`uplevel`'s), so `foo`'s own reference
         // set correctly grows to include this call site — the failure mode
@@ -5374,7 +5354,7 @@ mod tests {
 
     #[test]
     fn ensemble_subcommand_references_include_decl_and_both_call_sites() {
-        // TP — issue #923 idx 106: references on an ensemble subcommand call
+        // TP — references on an ensemble subcommand call
         // site must return the target proc's declaration plus every call
         // site — proves the automatic pickup via
         // `proc_reference_spans`/`invocation_references_named`'s
@@ -5410,7 +5390,7 @@ mod tests {
         );
     }
 
-    /// Issue #1611 — the analyser's own dispatch recording resolves the
+    /// The analyser's own dispatch recording resolves the
     /// subcommand the way the ensemble does, so an **abbreviated** call site
     /// is a reference too. Oracle (tclsh 8.6.16 / 9.0.4): with `-map {foo
     /// ::e::Foo}` and the default `-prefixes 1`, `e fo` returns `foo: bar`.
@@ -5459,7 +5439,7 @@ mod tests {
         );
     }
 
-    /// Issue #923 idx 85 — the ensemble is created by
+    /// The ensemble is created by
     /// `namespace ensemble create -map` inside a proc declared with a
     /// fully-qualified name at top level, with no enclosing `namespace eval`,
     /// so it homes to `::app::widget`. Both reference directions must reach
@@ -5574,7 +5554,7 @@ mod tests {
         );
     }
 
-    // Constructor / destructor next-chain references (issue #992).
+    // Constructor / destructor next-chain references.
 
     #[test]
     fn constructor_next_chain_reference_from_direct_subclass() {
@@ -5678,7 +5658,7 @@ mod tests {
 
     #[test]
     fn constructor_next_chain_reference_via_braced_nextto_target() {
-        // Regression (Codex review on #1011, P2): `nextto {Grandparent}` (a
+        // `nextto {Grandparent}` (a
         // braced target, functionally identical to the bare form) must
         // resolve exactly like `constructor_next_chain_reference_via_nextto_explicit_target`'s
         // bare `nextto Grandparent` — the decoded word, not the raw
@@ -5742,7 +5722,7 @@ mod tests {
 
     #[test]
     fn constructor_keyword_resolves_its_own_next_chain_even_with_a_same_named_method() {
-        // Regression (Codex review on #1011, P2): a class can also declare a
+        // A class can also declare a
         // `method` literally named `constructor` — an independent, ordinary
         // member sharing a name with the special keyword form. A cursor on
         // the special `constructor` keyword must still resolve its own
@@ -5789,10 +5769,9 @@ mod tests {
 
     #[test]
     fn references_from_proc_param_bareword_declaration_include_every_use() {
-        // TP — differential-audit finding idx 9 (main audit wave): a cursor
-        // on a proc parameter's own bareword name (not a `$`-prefixed
-        // read) previously returned zero references, even though the same
-        // query from any `$name` read resolved the full set.
+        // TP — a cursor on a proc parameter's own bareword name (not a
+        // `$`-prefixed read) must return the same reference set a query from
+        // any `$name` read resolves.
         let src = "proc greet {name} { return $name }\ngreet hi\n";
         let analysis = analyse(src);
         // Cursor on `name` inside the parameter list (col 12-16).
@@ -6053,18 +6032,13 @@ mod tests {
 
     #[test]
     fn idx63_two_block_class_my_dispatch_already_fixed_by_idx52() {
-        // Issue #923 idx 63 (main audit wave, high severity): the finding's
-        // own primary, corpus-verified claim — "go-to-definition AND
-        // find-references both return zero results" for a `my
-        // methodName` call when the class is created via `oo::class
-        // create` with no body and every method (including the call site
-        // itself) is added via a *separate*, later `oo::define ClassName
-        // { ... }` block (the finding's own minimal repro shape, matching
-        // the real corpus's `ticklecharts::chart`). This is the exact
-        // root cause idx 52 already fixed (`class_body_spans` /
-        // `enclosing_class_at`) — verified here independently, pinned as
-        // a permanent regression using idx 63's own repro shape. No
-        // production changes in this commit for this part of the finding.
+        // Go-to-definition and find-references must both answer for a `my
+        // methodName` call when the class is created via `oo::class create`
+        // with no body and every method (including the call site itself) is
+        // added via a *separate*, later `oo::define ClassName { ... }` block —
+        // the real corpus's `ticklecharts::chart` shape.  The load-bearing
+        // machinery is `class_body_spans` / `enclosing_class_at`, pinned here
+        // from the `my`-dispatch direction.
         let src = "oo::class create foo::widget {\n    variable _x\n    constructor {} { set _x 0 }\n}\noo::define foo::widget {\n    method bar {} { return \"bar-value\" }\n    method baz {} { return [my bar] }\n}\nputs [[foo::widget new] baz]\n";
         let analysis = analyse(src);
         // `definition` at the `my bar` call site (line 6, col 31).
@@ -6260,14 +6234,13 @@ mod tests {
 
     #[test]
     fn references_for_method_reach_a_my_dispatch_call_inside_a_switch_arm() {
-        // Issue #923 idx 63 (main audit wave, high severity): a `my
-        // methodName` call written inside a `switch` arm body is a
+        // A `my methodName` call written inside a `switch` arm body is a
         // genuine, statically-known call site (tclsh9.0/8.6-verified) —
         // the real corpus shape (`ticklecharts::chart`'s `Add` dispatcher:
         // `switch ... { barSeries { my AddBarSeries {*}$args } ... }`).
-        // `scan_my_method_region`'s `[...]`-substitution recursion never
+        // `scan_my_method_region`'s `[...]`-substitution recursion alone never
         // reaches a switch arm's braced body (it isn't a command
-        // substitution), so this was invisible to find-references even
+        // substitution), which would leave this invisible to find-references even
         // though go-to-definition (an independent cursor-token walk)
         // already resolved it.
         let src = "oo::class create widget {\n    method bar {} { return \"bar-value\" }\n    method dispatch {args} {\n        switch -exact -- [lindex $args 0] {\n            bar { my bar {*}[lrange $args 1 end] }\n        }\n    }\n}\n";
@@ -6327,8 +6300,7 @@ mod tests {
 
     #[test]
     fn references_from_decl_reach_my_dispatch_when_class_extended_via_separate_oo_define() {
-        // Issue #923 idx 52 (main audit wave, high severity): `Gadget` is
-        // created via `oo::class create` with no body; every method
+        // `Gadget` is created via `oo::class create` with no body; every method
         // (including the `my Helper` call site) is added via a *separate*,
         // later `oo::define Gadget { ... }` block — the real corpus shape
         // (`ticklecharts::chart`). References from the `Helper` declaration
@@ -6355,7 +6327,7 @@ mod tests {
 
     #[test]
     fn references_from_decl_reach_a_self_bracket_dispatch_call_site() {
-        // Issue #1322: `[self] m` is TclOO's own same-object dispatch
+        // `[self] m` is TclOO's own same-object dispatch
         // idiom — reaches the enclosing class exactly like `my m`, but
         // through a bracketed command substitution. References from the
         // declaration must reach it, not silently return only the
@@ -6381,7 +6353,7 @@ mod tests {
 
     #[test]
     fn references_from_decl_reach_a_list_built_self_callback() {
-        // Issue #1701: `bind` receives a deferred script built as a Tcl list.
+        // `bind` receives a deferred script built as a Tcl list.
         // `[self]` is substituted while the method frame is live, leaving an
         // object-command prefix that later dispatches `animTick` externally.
         let src = "package require Tk\noo::class create C {\n    method animTick {} { return 1 }\n    method anim {wl} {\n        bind $wl <ButtonPress-1> [list [self] animTick %x %y]\n    }\n}\n";
@@ -6421,7 +6393,7 @@ mod tests {
 
     #[test]
     fn references_reach_a_list_built_self_after_callback() {
-        // Real #1181 corpus shape: Pave and Zesty both schedule methods this
+        // A real corpus shape: Pave and Zesty both schedule methods this
         // way. `after` exposes its script through the same registry Body role
         // as `bind`, so no scheduler-specific branch belongs in this scan.
         let src = "oo::class create C {\n    method tick {} { return 1 }\n    method wire {} {\n        after idle [list [self] tick]\n    }\n}\n";
@@ -6439,9 +6411,8 @@ mod tests {
         );
     }
 
-    /// Issues #1703 / #1704 asked for "at least one tcllib-shaped fixture",
-    /// and the suite met that only with hand-written imitations. This reads
-    /// the real files the issues cite.
+    /// A tcllib-shaped fixture read from the real files rather than a
+    /// hand-written imitation.
     ///
     /// Gated on corpus presence with a loud skip, matching
     /// `rust/tcl-lsp-db/tests/compiler_check_corpus.rs`.
@@ -6453,14 +6424,12 @@ mod tests {
         );
         // (file, method declared in the file, a method named by a callback
         // prefix inside it). `cat.tcl` is the `after … [namespace code [list
-        // my Post $c]]` shape from #1703; `httpd.tcl` is the `socket -server
-        // [namespace code [list my connect]]` CommandPrefix shape.
-        // `httpd.tcl` carries the `socket -server [namespace code [list my
-        // connect]]` shape the issues also cite, but it defines its classes
-        // with `::clay::define`, which the analyser records no class for at
-        // all — `all_classes` is empty for that file, so there is no method to
-        // navigate from and the shape is unreachable for reasons that have
-        // nothing to do with callback prefixes. Filed as #1956 rather than
+        // my Post $c]]` shape.  `httpd.tcl` carries the `socket -server
+        // [namespace code [list my connect]]` CommandPrefix shape, but it
+        // defines its classes with `::clay::define`, which the analyser records
+        // no class for at all — `all_classes` is empty for that file, so there
+        // is no method to navigate from and the shape is unreachable for
+        // reasons that have nothing to do with callback prefixes, so it is not
         // asserted here.
         let (relative, method) = ("modules/virtchannel_base/cat.tcl", "Post");
         {
@@ -6502,7 +6471,7 @@ mod tests {
         }
     }
 
-    /// Issue #1704 — a `{*}`-expanded callback word must abstain.
+    /// A `{*}`-expanded callback word must abstain.
     ///
     /// `{*}` splices the word's value into the argument list, so the registry's
     /// role indices no longer describe where anything landed. Reading the word
@@ -6518,7 +6487,7 @@ mod tests {
             "oo::class create C {\n    method compare {a b} { return 0 }\n    method sort {items} {\n        lsort -command {*}[list [self] compare] $items\n    }\n}\n",
             // Same rule for a Body slot, where the arity happens to work out.
             "oo::class create C {\n    method tick {} { return 1 }\n    method wire {} {\n        after idle {*}[list [self] tick]\n    }\n}\n",
-            // Codex review on #1957: inside a `WRAPS_COMMAND_PREFIX` wrapper.
+            // Inside a `WRAPS_COMMAND_PREFIX` wrapper:
             // `namespace code` then has two arguments and errors rather than
             // dispatching anything, so there is nothing to reference.
             "oo::class create C {\n    method tick {} { return 1 }\n    method wire {} {\n        after idle [namespace code {*}[list my tick]]\n    }\n}\n",
@@ -6564,7 +6533,7 @@ mod tests {
 
     #[test]
     fn references_reach_namespace_wrapped_my_callback_even_when_private() {
-        // #1703 / tcllib's virtchannel_base shape: the registry declares
+        // tcllib's virtchannel_base shape: the registry declares
         // `namespace code` as a WRAPS_COMMAND_PREFIX and `list` as a
         // BUILDS_COMMAND_PREFIX.  `my` keeps private current-object dispatch,
         // unlike a captured `[self]` object command.
@@ -6602,7 +6571,7 @@ mod tests {
 
     #[test]
     fn a_mixin_branch_decides_its_own_providers_visibility() {
-        // Codex review on PR #1726.  A mixin that inherits the member from its
+        // A mixin that inherits the member from its
         // own superclass and unexports the name empties *its* branch only —
         // the spine still answers.  tclsh 8.6.16 / 9.0.4 both run `A`'s body:
         //   oo::class create MChild { superclass MBase } ; unexport m
@@ -6932,7 +6901,7 @@ mod tests {
 
     #[test]
     fn inherited_callback_joins_the_providers_reference_set() {
-        // #1705: a captured `[self]` object command in an inheriting class
+        // A captured `[self]` object command in an inheriting class
         // reaches the provider's exported implementation — tclsh 8.6.16 /
         // 9.0.4 both run `Base`'s body for `[list [Child new] tick]`.  Both
         // directions must agree on that, or rename would edit one and not the
@@ -7150,13 +7119,13 @@ mod tests {
         );
     }
 
-    // class-command dispatch (issue #923 idx 120): `CLASS method` for a
+    // class-command dispatch: `CLASS method` for a
     // classmethod / `self method`, a receiver set entirely separate from
     // `$obj method` / `NAME method` instance dispatch above.
 
     #[test]
     fn find_obj_method_call_sites_matches_class_command_and_inheriting_subclass() {
-        // TP — both the finding's own repro (`ActiveRecord find`) and its
+        // TP — both the plain shape (`ActiveRecord find`) and its
         // inherited-via-superclass sibling (`Table find`, ooutil's
         // `classmethod` propagates to a subclass's own bound command).
         let src = "oo::class create ActiveRecord {\n    classmethod find {args} { return \"found $args\" }\n}\noo::class create Table {\n    superclass ActiveRecord\n}\nTable find foo bar\nActiveRecord find foo bar\n";
@@ -7179,9 +7148,9 @@ mod tests {
         }
     }
 
-    /// TP (adversarial review of #1047, item 2): a bare class-command
-    /// dispatch written inside an `apply` lambda body or a `namespace eval`
-    /// body — at the top level or nested inside a method — is a real call.
+    /// TP — a bare class-command dispatch written inside an `apply` lambda
+    /// body or a `namespace eval` body — at the top level or nested inside a
+    /// method — is a real call.
     /// All three shapes were confirmed dispatching under tclsh 9.0.4
     /// (`MAKE CALLED` printed three times).
     #[test]
@@ -7242,8 +7211,7 @@ mod tests {
 
     /// TN — a bare (backslash-escaped) `apply` body element is decoded
     /// before `apply` evaluates it, so its source slice is not the script
-    /// that runs; the scan must not re-parse it in place (Codex review on
-    /// #1047).
+    /// that runs; the scan must not re-parse it in place.
     #[test]
     fn find_obj_method_call_sites_skips_escaped_lambda_body_element() {
         let src = "oo::class create Factory {\n\
@@ -7357,7 +7325,7 @@ mod tests {
 
     #[test]
     fn references_from_cursor_on_bare_obj_command_call_site() {
-        // Codex #881 (symmetry): invoking Find All References with the cursor
+        // Symmetry: invoking Find All References with the cursor
         // ON the `bark` token of a bare `rex bark` dispatch must resolve — not
         // only the declaration-based peek.  `rex` is at col 0, `bark` at col 4.
         let src = "oo::class create Dog {\n    method bark {} {}\n}\nDog create rex\nrex bark\n";
@@ -7397,8 +7365,8 @@ mod tests {
     }
 
     // tcl::OptProc — the `opt` package's automatic-option-parsing proc
-    // definer (issue #923 idx 90): the missing analyser hook previously left
-    // the call site unreachable from the declaration.
+    // definer: without its analyser hook the call site is unreachable from
+    // the declaration.
 
     #[test]
     fn references_from_opt_proc_declaration_reach_the_call_site() {
@@ -7420,10 +7388,9 @@ mod tests {
 
     #[test]
     fn references_reach_a_proc_dispatched_through_an_eval_of_a_list_computed_var() {
-        // Issue #923 idx 94: the finding's own minimal repro — `eval $cmdD`
-        // where `$cmdD` is built via `[list greetD World]` — previously
-        // returned only the declaration; the call site living inside
-        // `eval $cmdD` was invisible.
+        // `eval $cmdD`, where `$cmdD` is built via `[list greetD World]`, is a
+        // real call site: without the constant-value dispatch it is invisible
+        // and only the declaration comes back.
         let src = "proc greetD {n} {puts \"D $n\"}\nset cmdD [list greetD World]\neval $cmdD\n";
         let analysis = analyse(src);
         // Line 0 — cursor on `greetD`'s declaration name (col 6).

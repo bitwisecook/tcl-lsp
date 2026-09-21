@@ -153,31 +153,23 @@ suite("Rename Symbol", () => {
     );
   });
 
-  // M8: a rename triggered from a consumer-only document — the command is
+  // A rename triggered from a consumer-only document — the command is
   // defined in the auto-loaded library file, not locally — resolves through
   // the workspace oracle and rewrites the library declaration alongside the
-  // consumer's call site.  (Previously the empty in-document rename aborted
-  // the whole request.)
+  // consumer's call site.
   test("rename from a consumer document rewrites the auto-loaded library definition (M8)", async () => {
     const uri = getDocUri("autoloadLibrary.tcl");
     await activate(uri);
 
-    // No log-line wait needed here (issue #1003): the server's autoload
-    // resolution (`ensure_autoload_indexed`) now blocks out any in-flight
+    // No log-line wait needed here: the server's autoload
+    // resolution (`ensure_autoload_indexed`) blocks out any in-flight
     // `scan_workspace_folders` internally before consulting the package
     // database, so the rename request below is correct regardless of when
     // it lands relative to that scan — including immediately after
     // `activate`, before any workspace-wide scan has necessarily finished.
-    // (An earlier version of this test waited for this document's own
-    // `[timing] workspace_state.update` log line, which was both the wrong
-    // signal for the actual dependency — that per-document commit is
-    // unrelated to the workspace-wide package-database scan the autoload
-    // tier needs — and unreliable in a full suite run, where an earlier
-    // test can already have opened this same fixture, leaving no *new*
-    // line for a fresh `since` cursor to ever match.)
 
     // `Rbc_ActiveLegend .g` — line 0; the definition lives in
-    // rbclib/graph.tcl (line 2, after two comment lines).  A single rename now
+    // rbclib/graph.tcl (line 2, after two comment lines).  A single rename
     // resolves the whole edit set (the library file is merged synchronously by
     // the autoload tier within this request).
     const pos = new vscode.Position(0, 3);
@@ -206,21 +198,21 @@ suite("Rename Symbol", () => {
     );
   });
 
-  // Issue #923 finding idx 79 — the rename **safety gate**.
+  // The rename **safety gate**.
   //
   // `$other` in `Vector3d`'s copy constructor really is a `Vector3d` at run
   // time (tclsh 9.0.4 / 8.6.16 both print `7 9 7 9` for this fixture), but it
   // comes from `[lindex $args 0]` behind a runtime `info object isa` test, so
-  // the analyser has no class binding for it.  Renaming `X` used to emit an
-  // edit set touching only the declaration and the `export` list; applying it
-  // and re-running gives, on both interpreters:
+  // the analyser has no class binding for it.  An edit set that touched only
+  // the declaration and the `export` list, leaving the dispatch site
+  // unrenamed, would break both interpreters:
   //
   //   unknown method "X": must be Get, GetX, Y or destroy
   //       while executing
   //   "$other X"
   //
-  // The server now refuses with an LSP error, so VS Code surfaces the reason
-  // instead of quietly applying nothing.  This test is the editor-facing half:
+  // The server refuses with an LSP error instead, so VS Code surfaces the
+  // reason instead of quietly applying nothing.  This test is the editor-facing half:
   // the command must *reject*, not resolve to an empty edit.
   test("rename refuses a method dispatched on an untracked receiver", async () => {
     const uri = getDocUri("renameUntrackedReceiver.tcl");
@@ -284,7 +276,7 @@ suite("Rename Symbol", () => {
     );
   });
 
-  // Issue #923: renaming a class must rewrite every `superclass` site that
+  // Renaming a class must rewrite every `superclass` site that
   // names it, or the inheritance graph is silently broken.  In `oo-shapes.tcl`
   // both `Dog` and `Cat` declare `superclass Animal`.
   test("rename of a class rewrites its superclass sites", async () => {

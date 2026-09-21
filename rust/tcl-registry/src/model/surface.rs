@@ -31,7 +31,7 @@
 //!
 //! [`declarations_for_spec`] derives the rows mechanically from the old
 //! fields (`dialects`, `required_package`, `tcllib_package`, `lifecycle`),
-//! so the compiled catalogue needs no re-authoring in P1. The equivalence
+//! so the compiled catalogue needs no re-authoring. The equivalence
 //! sweeps in [`crate::model::assembly`] pin the translation to the old
 //! `supports_dialect`/`ProfileQueries::is_available` semantics for every
 //! compiled spec under every catalogue profile.
@@ -100,7 +100,7 @@ pub enum Provider {
 
 /// A typed build capability a predicate can require — the probe columns of
 /// [`tcl_dialect::model::CapabilitySet`], named so a declaration can gate
-/// on one (review B1/B5).
+/// on one.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BuildCapability {
     /// The build counts characters rather than bytes.
@@ -128,8 +128,8 @@ pub enum CapabilityPredicate {
     /// `required_package` gate for a closed-world package
     /// (`profile_queries::package_available`): the spec's dialect-derived
     /// rows stay the availability carriers, and this predicate keeps them
-    /// from resolving where the closed-world package is not shipped. When
-    /// packs migrate (P2) such specs become genuine
+    /// from resolving where the closed-world package is not shipped. Once
+    /// packs migrate, such specs become genuine
     /// [`Provider::Package`]-rowed declarations and the predicate form
     /// retires.
     RequiresPackage(PackageId),
@@ -163,7 +163,7 @@ pub struct SurfaceDeclaration {
 /// [`PackageId`] carries each environment's **own** command surface,
 /// mirroring the old `DialectProfile::vendor_surface`.
 ///
-/// This is a **documented P2 seam**: today the environments for `spectcl`
+/// This is a **documented interim seam**: today the environments for `spectcl`
 /// and `bpf` place no packages at all and the F5/expect environments place
 /// their keyed catalogue packs under other names, so these surface
 /// packages need an activation home until the command packs
@@ -174,7 +174,7 @@ pub struct SurfaceDeclaration {
 /// `f5-irules` is absent by design — its surface translates to
 /// [`Provider::Core`]`(`[`Family::F5Irules`]`)`, not to a package. The
 /// `tk` environment is also absent: `Tk` is a hosted library activated by
-/// its placement, never a closed-world vendor surface (review B11).
+/// its placement, never a closed-world vendor surface.
 ///
 /// [`PackagePlacement`]: tcl_dialect::model::PackagePlacement
 pub const VENDOR_SURFACE_BRIDGE: &[(&str, &str)] = &[
@@ -339,7 +339,7 @@ pub(crate) fn hosted_placement_packages() -> &'static HashSet<String> {
 /// packages) is **not** closed-world, and a `required_package` gate on one
 /// never hides the command (W120 nags about the missing require instead).
 ///
-/// **P3 (the Tk pilot).** `Tk` is the case that forces the "and hosted
+/// **The Tk pilot.** `Tk` is the case that forces the "and hosted
 /// nowhere" conjunct to be written down. It is ambient under the `tk`
 /// environment (`wish` has already loaded it) *and* hosted under every
 /// plain-Tcl environment (`tclsh` needs the `package require`) — a library
@@ -367,7 +367,7 @@ pub fn is_closed_world_package(package: &str) -> bool {
 /// A package no environment runs ambiently is an ordinary installable
 /// library (`Itcl`, every tcllib module): nothing in the model knows where
 /// it is or is not present, so its declarations carry no package conjunct
-/// and W120 owns the nag, exactly as before. **P3** brings `Tk` into this
+/// and W120 owns the nag, exactly as before. `Tk` is in this
 /// set — `wish` runs it ambiently — which is what routes all 68 Tk specs
 /// through [`ResolvedContext::package_active`].
 ///
@@ -443,7 +443,7 @@ fn row(provider: Provider, applicable: VersionSet, history: ItemHistory) -> Surf
 /// A [`Provider::Package`] row for `name`, applicable over the package's
 /// **declared** version set.
 ///
-/// For a tcllib module (P5) that set is the union of the trains its
+/// For a tcllib module that set is the union of the trains its
 /// `pkgIndex.tcl` offers — `md5` is `[1.4.6, 2) ∪ [2.0.9, 3)`, not one
 /// span and not one point — read from
 /// [`crate::model::tcllib::module_version_set`]. For every other package
@@ -649,9 +649,9 @@ mod tests {
     #[test]
     fn none_dialects_translate_to_every_provider_the_old_mask_admitted() {
         let rows = declarations_for_spec(&spec_with(None));
-        // Four core families (`f5-tcl` joined the tree in the F5
-        // reclassification, measurements §4a) + eight vendor packages
-        // (`sslictcl` joined with the `.sslictcl` authoring dialect, #1543).
+        // Four core families (`f5-tcl` joined the tree per the §4a
+        // measurements) + eight vendor packages
+        // (`sslictcl` joined with the `.sslictcl` authoring dialect).
         assert_eq!(rows.len(), 12);
         for family in Family::ALL {
             assert!(
@@ -691,7 +691,7 @@ mod tests {
         ));
     }
 
-    /// **P5.** A tcllib module's package row is applicable over the
+    /// A tcllib module's package row is applicable over the
     /// module's own **trains**, not over the whole axis: the version
     /// range is a property of the declaration, on the module's own axis,
     /// and a parallel-train module contributes two disjoint ranges.

@@ -25,7 +25,7 @@
 //! how new entries are found — is `docs/design/compiler/fp-sweep.md`.
 //!
 //! Where the analyser legitimately diverges from a catalogue entry's expected
-//! verdict — a different structure, or a feature not yet implemented — the
+//! verdict — a different structure, or a feature it does not implement — the
 //! test captures the *actual* behaviour and the divergence is called out in a
 //! comment (and, when it is a genuine residual false positive, marked
 //! `#[ignore]` with the FP id so it is tracked, not silently green). See

@@ -664,9 +664,8 @@ fn cert_fields_and_chain_parsed_from_ucs_filestore() {
 }
 
 // Two devices whose filestores use the SAME `cache-path` for DIFFERENT certs
-// must each resolve to their own PEM. Before per-source keying, one flat
-// `{cache_path: pem}` map meant the later device clobbered the earlier one and
-// both cert tabs showed the same subject/chain.
+// must each resolve to their own PEM: the cert-PEM map is keyed per source URI
+// so a cache-path shared across devices can never collide.
 #[test]
 fn multi_ucs_shared_cache_path_does_not_collide() {
     // Two distinct real certs (different CNs) out of the chain fixture.

@@ -353,7 +353,7 @@ pub fn member_param_indices_in(
 ///
 /// The grammar has always carried [`ArgRole::Name`]; the semantic-token walk
 /// simply never consumed it, so a member's declared name fell through to the
-/// default literal classification and painted as a plain `string` (#898 §2).
+/// default literal classification and painted as a plain `string`.
 #[must_use]
 pub fn member_name_indices(
     grammar: &DefinitionBodyGrammar,
@@ -539,7 +539,7 @@ fn flat_member_indices(
 }
 
 /// The index of the first *value* argument of a slot member call — `1` when
-/// the member is a slot ([`MemberSpec::slot`], issue #1169) and `args[0]` is
+/// the member is a slot ([`MemberSpec::slot`]) and `args[0]` is
 /// an explicit slot-operation word (`variable -set c`, `filter -append f`),
 /// else `0`.  The operation word names no variable / method / class, so the
 /// walker must not paint it as one; a `-word` that is *not* a recognised

@@ -30,7 +30,7 @@
 //! inspect, document, serialise, or exhaustively test. Every LSP consumer
 //! that needed one of these layouts therefore re-derived it by hand from the
 //! command's *name* — three separate copies of the stride arithmetic in the
-//! semantic-token walk alone (issue #1185).
+//! semantic-token walk alone.
 //!
 //! [`RepeatedArgLayout`] is that layout as data. It feeds
 //! [`crate::CommandRegistry::arg_indices_for_role`] like any other role
@@ -90,7 +90,7 @@ pub struct RepeatedArgLayout {
     /// variable when the statement executes". A `conditional_binding: true`
     /// layout must never
     /// use it: doing so is exactly the mechanism that produced the `dict
-    /// update` W210 false positive investigated for issue #1247/#1278 —
+    /// update` W210 false positive —
     /// `VarWrite` fed an unconditional SSA def, which pre-empted the
     /// key-aware suppression `harvest_dict_with_suppression`
     /// (`tcl-compiler/src/analyser/diagnostics/helpers.rs`) had already
@@ -99,7 +99,7 @@ pub struct RepeatedArgLayout {
     /// One consumer reads a *second* role as a definite def and subtracts
     /// this flag by hand: `ssa::defs_of_with_registry` takes an opaque
     /// [`ArgRole::LoopVarList`] barrier position as a loop-variable binding
-    /// (issue #1380 — a `{*}`-expanded `foreach`/`lmap` barriers, and its
+    /// (a `{*}`-expanded `foreach`/`lmap` barriers, and its
     /// body's reads of the loop variable would otherwise draw W210), and
     /// skips the whole role for a command whose layout declares this flag.
     /// That is why the check below stays keyed to `VarWrite` alone: a

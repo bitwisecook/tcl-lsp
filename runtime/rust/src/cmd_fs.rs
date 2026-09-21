@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Filesystem commands (M2 / L2) — `source`, `file`, `glob`, `pwd`, `cd`.
+//! Filesystem commands — `source`, `file`, `glob`, `pwd`, `cd`.
 //!
 //! All filesystem and working-directory access goes through the capability host
 //! ([`Interp::host`](crate::interp::Interp)) — the [`tcl_platform`]
@@ -24,7 +24,8 @@
 //! build gets the std-backed `NativeHost`; the WASM targets get a restricted
 //! host (a no-VFS browser answers `false`/"unsupported"). C refs:
 //! `tclIOUtil.c`/`tclFileName.c` (`source`/`glob`), `tclFCmd.c`/`tclFileName.c`
-//! (`file`). Toward loading the real `init.tcl`/`tcltest.tcl` (the M2 gate).
+//! (`file`). This groundwork is required to load the real
+//! `init.tcl`/`tcltest.tcl`.
 //!
 //! Path handling is `/`-separated (Tcl's portable convention); fine on Unix /
 //! WASI.
@@ -49,7 +50,7 @@ fn as_str(b: &[u8]) -> &str {
     core::str::from_utf8(b).unwrap_or("")
 }
 
-// -- source ----------------------------------------------------------------
+// source
 
 /// `source ?-encoding name? ?-nopkg? fileName` — read and evaluate a file.
 /// We are UTF-8 internally so `-encoding` is accepted and ignored; `-nopkg`
@@ -84,7 +85,7 @@ fn source_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
 }
 
-// -- file ------------------------------------------------------------------
+// file
 
 /// Runtime arity declarations (arguments after the `file` subcommand). The
 /// command-backing gate parses this table and compares it with the registry;
@@ -141,7 +142,7 @@ fn file_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // affect abbreviation uniqueness. The release name is a dialect *name*,
     // so it goes through the one ingress seam (`crate::environment`); the
     // ensemble is read off that environment's registry generation and gated
-    // on its document authoring mask (ledger row B1).
+    // on its document authoring mask.
     let profile =
         crate::environment::profile_for_dialect(interp.runtime_version().dialect_profile_name());
     let dialect = Some(crate::environment::surface_point(profile));
@@ -1031,7 +1032,7 @@ fn normalize(p: &[u8], cwd: &[u8]) -> Vec<u8> {
     out
 }
 
-// -- pwd / cd --------------------------------------------------------------
+// pwd / cd
 
 fn pwd_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 1 {
@@ -1068,7 +1069,7 @@ fn cd_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
 }
 
-// -- glob ------------------------------------------------------------------
+// glob
 
 /// `glob`'s option words, in C table order (`globOptions[]`, `tclFileName.c`),
 /// resolved with `Tcl_GetIndexFromObj(…, "option", 0)`: `-n`/`-d`/`-j`
@@ -1081,8 +1082,8 @@ fn cd_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// it through the owner changes no accept/reject decision — it only makes the
 /// words abbreviate, and turns the lone `-` from `bad` into `ambiguous`. The
 /// bytecode VM's `glob` is a separate, deliberately non-erroring
-/// simplification and is *not* converted (issue #1607; see the contract's
-/// "Known deliberate exceptions").
+/// simplification and is *not* converted (see the contract's "Known
+/// deliberate exceptions").
 const GLOB_OPTIONS: tcl_cmd_core::prefix::OptionTable<'static, &[u8]> =
     tcl_cmd_core::prefix::OptionTable::abbreviating(
         "option",
@@ -1318,7 +1319,7 @@ mod tests {
         i.result_bytes()
     }
 
-    /// Issue #1607: `file`'s ensemble miss sentence — the
+    /// `file`'s ensemble miss sentence — the
     /// `unknown or ambiguous subcommand "` prefix and the comma-before-`or`
     /// join — is `tcl_cmd_core::ensemble`'s, not this module's. The visible
     /// name set still comes from the registry, so it stays release-gated.
@@ -1618,7 +1619,7 @@ mod tests {
         std::fs::remove_dir_all(&dir).ok();
     }
 
-    /// Issue #1607: `glob`'s option words are a
+    /// `glob`'s option words are a
     /// `Tcl_GetIndexFromObj(…, "option", 0)` table (`globOptions[]`,
     /// `tclFileName.c`). This scan already rejected an unknown option exactly
     /// as C does — it just matched every name exactly, so nothing abbreviated

@@ -16,8 +16,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-// Issue #976: interprocedural call-site literal seeding was unsound across
-// dynamic dispatch — `set cmd helper; $cmd dev` reached a proc the scan had
+// Interprocedural call-site literal seeding must stay sound across
+// dynamic dispatch — `set cmd helper; $cmd dev` must not reach a proc the scan had
 // already seeded from its literal call sites. The deep TP/FP/TN/FN coverage
 // lives in `unit_scope.rs` / `compilation_unit.rs` unit tests and the
 // native `e2e` suite; these prove the same behaviour arrives through a real

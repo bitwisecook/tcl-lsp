@@ -34,16 +34,11 @@
 //!
 //! Limitations:
 //!
-//! * Namespace-body enclosing ranges.  Needs a flat list of
-//!   namespace scope body spans on the analyser side; today
-//!   they only live in the scope tree, which the selection-
-//!   range provider doesn't walk.
+//! * Namespace bodies contribute no enclosing link: their spans
+//!   live only in the analyser's scope tree, which this provider
+//!   does not walk.
 //! * Partial commands use the segmenter's recovery span; an unfinished edit
 //!   may therefore have a wider command link until its closer is written.
-//! * Containment-invariant validation against VS Code's
-//!   requirement that each parent strictly contains its
-//!   child; the chain is built so parents always contain
-//!   children by construction.
 
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
@@ -132,12 +127,11 @@ pub fn selection_range_for_dialect(
         }
     });
 
-    // Command-segment link normally sits between the word and the
-    // line.  A multiline command instead becomes the direct parent;
-    // a physical line cannot contain it.
-    // line range (otherwise the chain would have two
-    // identical-shape links, which the LSP client treats as
-    // a no-op grow).
+    // The command-segment link normally sits between the word and the line.
+    // It is dropped when it coincides with the line range, which would leave
+    // the chain with two identical links — a no-op grow to the LSP client.
+    // A multiline command instead becomes the direct parent; a physical line
+    // cannot contain it.
     let line_index = LineIndex::new(source);
     let cursor_offset = byte_offset_at(&line_index, source, line, character);
     let mut command_is_multiline = false;
@@ -559,12 +553,31 @@ mod tests {
         }
     }
 
+    /// An empty document yields exactly one link, not none — the old name
+    /// said the opposite, and its `x || !x` assertion was true of every
+    /// value, so it tested only that the call returned (#2072).
+    ///
+    /// One link rather than two is the load-bearing part: the line range and
+    /// the whole-document range both come out as `(0,0)-(0,0)` here, and
+    /// `dedup` collapses them. Without that collapse the client is handed a
+    /// chain whose "grow" step does not grow — commenting out the `dedup`
+    /// call makes this fail with `left: 2, right: 1`.
     #[test]
-    fn empty_source_returns_empty_chain() {
+    fn empty_source_still_yields_a_document_range() {
         let ranges = selection_range("", 0, 0, None);
-        // No word, no lines really — but we still emit a doc
-        // range; check we don't panic and the chain is well-formed.
-        assert!(ranges.is_empty() || !ranges.is_empty());
+        assert_eq!(ranges.len(), 1, "{ranges:?}");
+        let doc = &ranges[0];
+        assert_eq!(
+            (
+                doc.range.start_line,
+                doc.range.start_character,
+                doc.range.end_line,
+                doc.range.end_character
+            ),
+            (0, 0, 0, 0),
+            "the one range covers the whole (empty) document"
+        );
+        assert!(doc.parent_index.is_none(), "it is the outermost range");
     }
 
     #[test]
@@ -574,8 +587,6 @@ mod tests {
         // No word match; we still get line + doc ranges.
         assert!(ranges.len() >= 2);
     }
-
-    // command-segment link
 
     #[test]
     fn command_segment_inserted_between_word_and_line_with_semicolon() {
@@ -699,8 +710,6 @@ mod tests {
             range.range.start_character == 0 && range.range.end_character == utf16_len(src)
         }));
     }
-
-    // enclosing-body links
 
     fn analyse(source: &str) -> AnalysisResult {
         let mut a = tcl_compiler::analyser::Analyser::new();

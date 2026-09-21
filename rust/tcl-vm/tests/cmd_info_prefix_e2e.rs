@@ -23,8 +23,8 @@
 //! `info tclversion` == 9.0 / `info patchlevel` == 9.0.4, so tclsh9.0 is the
 //! primary oracle; where the two C versions agree the comment says "both".
 //!
-//! Former divergences from C Tcl on valid input (`*_bug` tests) now assert the
-//! correct tclsh behaviour and pass, guarding the fix against regression.
+//! Tests named `*_bug` assert the correct tclsh behaviour on inputs where a
+//! divergence from C Tcl would otherwise show.
 //! Features the VM genuinely stubs (accepted no-op / "unknown subcommand"
 //! where tclsh does real work) are marked `// UNIMPLEMENTED:` and asserted
 //! against the VM's actual (documented) behaviour, not tclsh's.
@@ -223,7 +223,7 @@ fn prefix_match_ambiguous_and_bad() {
     assert_eq!(msg, r#"bad option "z": no valid options"#);
 }
 
-/// Issue #1607: `tcl::prefix` is itself a `TclMakeEnsemble` command, and
+/// `tcl::prefix` is itself a `TclMakeEnsemble` command, and
 /// `tcl::prefix match`'s own options are a `Tcl_GetIndexFromObj(…, "option", 0)`
 /// table (`matchOptions[]`, `tclIndexObj.c`) — both were matched exactly here.
 ///
@@ -579,7 +579,7 @@ fn info_dispatch_and_abbreviation() {
 /// every other subcommand this suite exercises is implemented and covered
 /// above.
 ///
-/// Since #1607 the miss is composed by `tcl_cmd_core::ensemble`, so it carries
+/// The miss is composed by `tcl_cmd_core::ensemble`, so it carries
 /// tclsh9.0.4's full `must be` clause — the name itself still appears there,
 /// because the word *resolved* against the ensemble table and only then found
 /// no implementation.
@@ -768,12 +768,12 @@ fn namespace_inscope() {
 const SHAPE_NS: &str = "namespace eval foo \
      {proc shape {args} {return [llength $args]:[join $args ,]}}; ";
 
-/// Issue #1056 — the differential pair that separates `namespace inscope` from
+/// The differential pair that separates `namespace inscope` from
 /// the rest of the `Tcl_ConcatObj` eval family. `inscope` appends its trailing
 /// words as **list elements** (`NamespaceInscopeCmd` builds a list object and
 /// concatenates its string rep), so `{a b}` reaches `puts` as one argument;
 /// `namespace eval` space-joins, so the same words become two and `puts`
-/// reports a bad channel. The VM used to space-join in both.
+/// reports a bad channel. Space-joining in both would be wrong.
 #[test]
 fn namespace_inscope_appends_list_args_where_eval_concatenates() {
     // tclsh (both): prints "a b" — a single argument.
@@ -1226,6 +1226,89 @@ fn info_consts_includes_only_tcloo_instance_links() {
     );
 }
 
+/// A `TclOO` instance projection is enumerated by `info consts` only while
+/// the method body has compiled **no** local slot for the name (#2173).
+///
+/// Referencing the variable interns it in the method's LVT and C then stops
+/// listing it, while a *dynamic* read compiles no slot and leaves it listed.
+/// The link itself is unaffected either way — `$pub` still reads 7 and
+/// `info constant pub` still answers 1 in the very frames that stop listing
+/// it, which is what makes this an enumeration rule rather than a scoping
+/// one.
+#[test]
+fn info_consts_drops_a_projection_the_body_compiled_a_slot_for() {
+    const CLASS: &str =
+        "oo::class create C { variable pub; constructor {} {const pub 7}; method m {} ";
+    // tclsh 9.0.4 / 9.1b0, one row per body shape.
+    for (body, expect) in [
+        // Never mentions it: listed. This is the half that must not regress —
+        // it is what upstream var-29.3/29.6 rely on via their `checkList`.
+        ("{list [info consts]}", "pub"),
+        // Reads it: a compiled slot, so not listed.
+        ("{list $pub [info consts]}", "7 {}"),
+        ("{set q $pub; list [info consts]}", "{}"),
+        // Dynamic read: no slot interned, so still listed.
+        ("{set n pub; list [set $n] [info consts]}", "7 pub"),
+        // Naming it in a comment is not a reference.
+        ("{# pub\nlist [info consts]}", "pub"),
+        // The projection still works where it is no longer enumerated.
+        ("{list $pub [info constant pub]}", "7 1"),
+    ] {
+        assert_eq!(
+            run(&format!("{CLASS}{body} }}; [C new] m")).1,
+            expect,
+            "body `{body}`",
+        );
+    }
+}
+
+/// A compiler temporary in the LVT is not a reference to a source variable of
+/// the same name.
+///
+/// `dict for` interns `#dictfor_spare0` for its own bookkeeping, and `catch`
+/// interns `#temp0`. A `#` prefix is legal in a Tcl variable name, so a class
+/// may declare one that collides — and C, whose corresponding slots are
+/// unnamed temporaries, still lists the projection. Comparing against every
+/// LVT entry by name would drop it.
+#[test]
+fn info_consts_ignores_compiler_temporaries_in_the_slot_test() {
+    // tclsh 9.0.4 / 9.1b0: `{{#dictfor_spare0}}` and `{{#temp0}}` — the method
+    // never mentions either name.
+    assert_eq!(
+        run(concat!(
+            "oo::class create C { variable #dictfor_spare0; ",
+            "constructor {} {const #dictfor_spare0 7}; ",
+            "method m {} {dict for {k v} {} {}; list [info consts]} }; ",
+            "[C new] m"
+        ))
+        .1,
+        "{{#dictfor_spare0}}",
+    );
+    assert_eq!(
+        run(concat!(
+            "oo::class create C { variable #temp0; ",
+            "constructor {} {const #temp0 7}; ",
+            "method m {} {catch {error x} e; list [info consts]} }; ",
+            "[C new] m"
+        ))
+        .1,
+        "{{#temp0}}",
+    );
+    // Positive control: a body that really does reference its declared
+    // variable still drops it, so the two assertions above cannot pass
+    // because the slot test stopped working altogether.
+    // tclsh 9.0.4 / 9.1b0: `7 {}`
+    assert_eq!(
+        run(concat!(
+            "oo::class create C { variable pub; constructor {} {const pub 7}; ",
+            "method m {} {dict for {k v} {} {}; list $pub [info consts]} }; ",
+            "[C new] m"
+        ))
+        .1,
+        "7 {}",
+    );
+}
+
 /// `info cmdtype commandName` — Tcl 9.0 (8.6 lacks it). `proc` for a user proc,
 /// `native` for a builtin, and "unknown command" for a missing name. The VM
 /// matches tclsh9.0.
@@ -1469,9 +1552,9 @@ fn namespace_inscope_zero_args() {
     );
 }
 
-/// Issue #1607: `info` and `file` are `TclMakeEnsemble` commands, so both the
-/// prefix scan and the miss message belong to `tcl_cmd_core::ensemble`. The VM
-/// used to emit the sentence without its `must be` clause.
+/// `info` and `file` are `TclMakeEnsemble` commands, so both the
+/// prefix scan and the miss message belong to `tcl_cmd_core::ensemble`, so the
+/// miss carries the full `must be` clause.
 ///
 /// tclsh 9.0.4:
 ///   info {}   -> unknown or ambiguous subcommand "": must be args, body,
@@ -1522,7 +1605,7 @@ fn info_and_file_ensemble_misses_carry_the_full_option_list() {
     );
 }
 
-/// Issue #1607 follow-up: `file`'s table is the *selected release's* surface,
+/// `file`'s table is the *selected release's* surface,
 /// not a pinned Tcl 9 list. `home`, `tempdir` and `tildeexpand` arrive in 9.0,
 /// and their presence changes the verdict for words that have nothing to do
 /// with them — `file te` is a unique prefix of `tempfile` under 8.6 and
@@ -1592,7 +1675,7 @@ fn file_subcommand_table_follows_the_emulated_release() {
     );
 }
 
-/// Issue #1607 follow-up, the rest of the class: every `TclMakeEnsemble`
+/// The rest of the class: every `TclMakeEnsemble`
 /// table this engine resolves against is a *release* fact, and the VM is
 /// release-selectable. A 9-only name must not dispatch under an earlier pin,
 /// and — the half that hides — must not change the prefix verdict for a word

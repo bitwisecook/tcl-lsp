@@ -35,7 +35,7 @@
 //! matches a realistic packet on a little-endian host. A user field may
 //! opt out with an explicit trailing `le`/`native` word
 //! (`field NAME OFFSET WIDTHBITS ?be|le|native?`); `native` exists only as a
-//! temporary compatibility mode for synthetic host-order test packets.
+//! compatibility mode for synthetic host-order test packets.
 //!
 //! A user profile body may contain **only** `field` declarations — anything
 //! else is rejected rather than silently dropped.

@@ -28,7 +28,7 @@ use crate::representation_plan::{SharingState, VarStorage};
 use crate::semantic_optimisation::{SemanticOptimisationConfig, SemanticOptimisationPassId};
 use crate::ssa::{SsaBlock, SsaStatement, Symbol, ValueKey};
 use crate::types::{TypeKind, TypeLattice, TypeShape, type_join};
-use crate::var_escape::{EscapeTag, ProcEscapeSummary, analyse_var_escape_cu};
+use crate::var_escape::{EscapeTag, ProcEscapeSummary, analyse_var_escape_cu_with_registry};
 
 /// Stable identity of one CFG invocation, including an immediate command
 /// substitution nested in one argument of the enclosing statement.
@@ -174,7 +174,7 @@ pub enum DirectProcBodyDecline {
 /// Whether every registry spelling of one semantic operation retains its
 /// declared binding in this module.
 ///
-/// This target-neutral query is shared by common proof construction and legacy
+/// This target-neutral query is shared by common proof construction and the
 /// backends. Consumers never name Tcl commands themselves.
 #[must_use]
 pub fn semantic_operation_binding_is_trusted(
@@ -541,7 +541,10 @@ impl CommonAotProofPlan {
         config: SemanticOptimisationConfig,
         environment: CommonAotEnvironment,
     ) -> Self {
-        let escape = analyse_var_escape_cu(unit, true);
+        // The registry this unit was lowered under, not `tcl8.6`: the three
+        // calls below already take it, and an escape analysis answering from
+        // a different dialect can under-report escaping variables (#2167).
+        let escape = analyse_var_escape_cu_with_registry(unit, true, registry);
         let mutations = &unit.command_mutations;
         let direct = collect_direct_calls(
             unit,
@@ -1981,9 +1984,8 @@ mod tests {
     #[test]
     fn dialect_tcloo_and_variable_trace_premises_are_retained() {
         let registry = tcl_registry::CommandRegistry::build_default();
-        // **Enumerated delta of the ledger C1 / §11.2 D1 re-key.** This
-        // assertion used to feed a multi-dialect availability set no
-        // production caller could produce, and pin the resulting decline.
+        // An availability set spanning several dialects is not something a
+        // production caller can produce, so it is not what this pins.
         // The executable-IR vocabulary is now a resolved
         // environment, which names exactly one context or none, so an
         // ambiguous premise is unrepresentable rather than declined. The

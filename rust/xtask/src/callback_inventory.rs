@@ -687,7 +687,7 @@ fn insert_row(
     dialect: &str,
     mut candidate: InventoryRow,
 ) -> Result<()> {
-    // The serialization is an internal grouping key over every semantic
+    // The serialisation is an internal grouping key over every semantic
     // field except dialects. This merges only genuinely identical rows; a
     // lifecycle, source, form, timing, arity, or taint difference creates a
     // separate row and remains visible in the report.

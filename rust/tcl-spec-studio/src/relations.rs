@@ -215,6 +215,7 @@ pub const CLUSTERS: &[Cluster] = &[
             "creates_scope_alias",
             "variable_scope",
             "loop_list_header",
+            "substitution_resolver",
         ],
     },
     Cluster {

@@ -56,8 +56,6 @@ fn source(result: &Value) -> &str {
     result.get("source").and_then(Value::as_str).unwrap_or("")
 }
 
-// -- TestDocumentTransforms ----------------------------------------------
-
 #[test]
 fn fix_all_safe_issues_braces_a_substitution_free_expression() {
     // TP: nothing substitutes in `abs(-2)`, so `expr` receives the same
@@ -78,7 +76,7 @@ fn fix_all_safe_issues_braces_a_substitution_free_expression() {
 
 #[test]
 fn fix_all_safe_issues_leaves_a_substituted_expression_alone() {
-    // FP, and the reason issue #1195 was filed.  Under C Tcl 9.0.3 this
+    // FP: under C Tcl 9.0.3 this
     // program prints `5`: `$a` substitutes to the string `$x`, and `expr`
     // substitutes *that* to 3.  Bracing makes it an error, so the bulk pass
     // must not do it — the individually-named "Brace expr for safety and
@@ -186,7 +184,7 @@ fn optimise_returns_optimisation_offers() {
 #[test]
 fn optimise_document_preserves_set_only_tk_profile() {
     // Tk is a valid additive dialect surface, but it is intentionally absent
-    // from the catalog. The optimiser must receive its typed profile rather
+    // from the catalogue. The optimiser must receive its typed profile rather
     // than `None`, whose unknown-dialect fallback would offer Tcl 8.6's
     // `tailcall` rewrite for this recursive Tk script.
     let mut lsp = Lsp::tcl();
@@ -210,8 +208,8 @@ fn optimise_document_preserves_set_only_tk_profile() {
 
 #[test]
 fn optimise_document_does_not_forward_across_a_variable_trace() {
-    // Regression for a confirmed silent miscompile: `tcl-lsp.optimiseDocument`
-    // (`profile: "full"`) previously rewrote this to `puts 5`, dropping the
+    // `tcl-lsp.optimiseDocument`
+    // (`profile: "full"`) must not rewrite this to `puts 5`, dropping the
     // `trace add variable` read-handler's `puts "trace fired"` side effect —
     // and, for a write trace, the literal text at the `set` isn't even
     // guaranteed to be the runtime value. tclsh: prints "trace fired" then
@@ -232,9 +230,9 @@ fn optimise_document_does_not_forward_across_a_variable_trace() {
 
 #[test]
 fn optimise_document_does_not_eliminate_a_branch_guarded_by_a_cross_procedural_trace() {
-    // Regression for O107 (unreachable-code elimination): SCCP used to have
-    // no notion of variable traces at all, so it proved `if {$x}` constant
-    // (`x` is `1` at every call) and O107 deleted the "unreachable" `else`
+    // O107 (unreachable-code elimination): SCCP must account for variable
+    // traces, or it would prove `if {$x}` constant
+    // (`x` is `1` at every call) and O107 would delete the "unreachable" `else`
     // body's `puts no` — silently losing the trace-firing read of `$x` the
     // same way the O102 forward above did, but through the DCE path
     // instead. The trace is installed by a *called* proc (`setup`), not
@@ -263,11 +261,11 @@ fn optimise_document_does_not_eliminate_a_branch_guarded_by_a_cross_procedural_t
 
 #[test]
 fn minify_preserves_switch_hash_pattern_arm() {
-    // Issue #1197: a braced `switch` case list is a Tcl LIST, not a script —
+    // A braced `switch` case list is a Tcl LIST, not a script —
     // `#` is an ordinary pattern there, never a comment.  tclsh 9.0.4:
     // `switch # { # {puts matched} default {puts default} }` prints
-    // `matched`; the pre-fix minifier deleted the `#` arm and the minified
-    // script printed `default`.
+    // `matched`; the minifier must not delete the `#` arm and print
+    // `default` instead.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let src = "switch # {\n    # {puts matched}\n    default {puts default}\n}\n";
@@ -284,8 +282,8 @@ fn minify_preserves_switch_hash_pattern_arm() {
 
 #[test]
 fn minify_default_tier_adds_no_alias_variables() {
-    // Issue #1194: the default tier must stay frame-transparent — the former
-    // template deduplication injected a `set a {…}` preamble that clobbered
+    // The default tier must stay frame-transparent — template
+    // deduplication must not inject a `set a {…}` preamble that clobbers
     // any live variable `a` (observable via `puts [set a]`, traces, and
     // `info vars`).
     let mut lsp = Lsp::tcl();
@@ -302,9 +300,9 @@ fn minify_default_tier_adds_no_alias_variables() {
 
 #[test]
 fn minify_compact_preserves_public_proc_names_and_array_keys() {
-    // Issues #1192/#1193: non-isolated compact keeps procedure names (public
+    // Non-isolated compact must keep procedure names (public
     // command identities — `info procs`, `rename`, external callers) and
-    // never rewrites array member keys (Tcl data — `array get` observes
+    // never rewrite array member keys (Tcl data — `array get` observes
     // them).
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
@@ -320,10 +318,10 @@ fn minify_compact_preserves_public_proc_names_and_array_keys() {
 
 #[test]
 fn minify_preserves_switch_braced_quoted_pattern_closers() {
-    // Issue #540: a braced `{a b}` / quoted `"c d"` pattern's end was derived one
-    // char short, so the minifier dropped the closing `}` / `"` and re-emitted a
-    // truncated, unbalanced pattern. The minified document must keep both patterns
-    // intact and stay balanced.
+    // A braced `{a b}` / quoted `"c d"` pattern's end must not be derived
+    // one char short, or the minifier drops the closing `}` / `"` and
+    // re-emits a truncated, unbalanced pattern. The minified document must
+    // keep both patterns intact and stay balanced.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let src =
@@ -336,8 +334,6 @@ fn minify_preserves_switch_braced_quoted_pattern_closers() {
     assert!(out.contains("\"c d\""), "{out}");
     assert_eq!(out.matches('{').count(), out.matches('}').count(), "{out}");
 }
-
-// -- TestRegistryLookups -------------------------------------------------
 
 #[test]
 fn describe_event_known() {
@@ -385,8 +381,6 @@ fn list_irule_events_nonempty() {
         .unwrap_or_default();
     assert!(events.contains(&"HTTP_REQUEST"), "{events:?}");
 }
-
-// -- TestDiagramAndConfig ------------------------------------------------
 
 #[test]
 fn diagram_extracts_irule_events() {
@@ -509,6 +503,86 @@ fn xc_translate_items_are_status_tagged() {
         items.iter().any(|i| i["status"] == "translated"),
         "{result}"
     );
+}
+
+#[test]
+fn minimize_diagnostic_shrinks_to_the_lines_that_still_report_it() {
+    // Eight lines, six of which independently raise W211 "set but never
+    // used". A working reducer keeps one and drops the rest, so a result that
+    // is merely non-empty would not prove anything.
+    let mut lsp = Lsp::tcl();
+    let uri = "file:///minimize.tcl";
+    let source = "set a 1\nset b 2\nset c 3\nproc p {} {\n    set unused 1\n}\nset d 4\nset e 5\n";
+    lsp.open_ready(uri, source);
+
+    let result = lsp.execute_command("tcl-lsp.minimizeDiagnostic", json!([uri, "W211"]));
+    assert!(!result.is_null(), "no reproducer for W211");
+    assert_eq!(result["code"], Value::from("W211"), "{result}");
+
+    let original = result["originalLines"].as_u64().expect("originalLines");
+    let reduced = result["reducedLines"].as_u64().expect("reducedLines");
+    assert_eq!(original, 8, "{result}");
+    assert!(
+        reduced < original,
+        "nothing was removed from an eight-line document: {result}"
+    );
+
+    // The reproducer has to stand on its own, which is the whole point.
+    assert_eq!(result["reproduces"], Value::Bool(true), "{result}");
+    let minimal = result["source"].as_str().expect("source");
+    assert!(minimal.contains("set "), "{minimal:?}");
+    assert_eq!(
+        minimal.lines().count() as u64,
+        reduced,
+        "reducedLines disagrees with the source it describes: {result}"
+    );
+
+    // Line-based shrinking only, so the identifiers are the reporter's own.
+    assert_eq!(result["renamed"], Value::Bool(false), "{result}");
+}
+
+#[test]
+fn minimize_diagnostic_is_null_for_a_code_the_document_does_not_report() {
+    // Returning the whole document as its own "reproducer" would be worse
+    // than saying there is nothing to minimise.
+    let mut lsp = Lsp::tcl();
+    let uri = "file:///minimize_absent.tcl";
+    lsp.open_ready(uri, "set x 1\n");
+    let result = lsp.execute_command("tcl-lsp.minimizeDiagnostic", json!([uri, "W999"]));
+    assert!(result.is_null(), "{result}");
+}
+
+#[test]
+fn xc_translate_console_format_returns_pasteable_documents() {
+    // The Console edits one object at a time, so each document has to stand
+    // alone: `{metadata, spec}` as the object's create request takes it, with
+    // none of the bundle's other keys riding along.
+    let mut lsp = Lsp::tcl();
+    let result = lsp.execute_command("tcl-lsp.xcTranslate", json!([XC_IRULE, "console"]));
+    assert!(!result.is_null(), "{result}");
+    let objects = result["console_objects"]
+        .as_array()
+        .expect("console_objects array");
+    assert!(!objects.is_empty(), "{result}");
+
+    let types: Vec<&str> = objects
+        .iter()
+        .filter_map(|o| o["object_type"].as_str())
+        .collect();
+    assert!(types.contains(&"http_loadbalancer"), "{types:?}");
+    assert!(types.contains(&"origin_pool"), "{types:?}");
+
+    for object in objects {
+        let document = object["document"].as_object().expect("document");
+        let mut keys: Vec<&str> = document.keys().map(String::as_str).collect();
+        keys.sort_unstable();
+        assert_eq!(keys, ["metadata", "spec"], "{object}");
+        assert_eq!(document["metadata"]["name"], object["name"], "{object}");
+    }
+
+    // The two bundled renderings stay out of this format.
+    assert!(result.get("terraform").is_none(), "{result}");
+    assert!(result.get("json_api").is_none(), "{result}");
 }
 
 #[test]
@@ -661,8 +735,6 @@ fn tk_preview_fingerprints_the_editors_raw_line_endings() {
     );
 }
 
-// -- TestCommandSurface --------------------------------------------------
-
 /// Commands advertised in `executeCommandProvider` that every conforming backend
 /// must expose.
 const CORE_COMMANDS: &[&str] = &[
@@ -677,6 +749,13 @@ const CORE_COMMANDS: &[&str] = &[
     "tcl-lsp.diagramData",
     "tcl-lsp.tkPreview",
     "tcl-lsp.xcTranslate",
+    "tcl-lsp.listRules",
+    "tcl-lsp.extractRule",
+    "tcl-lsp.writeRuleBack",
+    "tcl-lsp.extractLinkedObjects",
+    "tcl-lsp.bigipCleanup",
+    "tcl-lsp.minimizeDiagnostic",
+    "tcl-lsp.renamePartition",
 ];
 
 #[test]
@@ -711,7 +790,7 @@ fn minify_compact_round_trip() {
     // Compact renaming shortens identifiers and reports the reverse map, so a name
     // in the minified source resolves back to the original.  Proc renaming
     // needs `isolated` (the 4th argument): a proc name is a public command
-    // identity the non-isolated tier must preserve (issue #1193).
+    // identity the non-isolated tier must preserve.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     lsp.open_ready(

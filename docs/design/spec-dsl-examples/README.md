@@ -368,11 +368,11 @@ leading dot. `-name` is the extension's human-readable name for editor
 pickers (`Unified Power Format`); `-dialect` must name a canonical dialect
 profile, and routes files of that extension to the profile in dialect
 detection's extension tier — a loaded pack is the source of truth for its
-own extensions, consulted ahead of the `DialectProfile` catalog's own
+own extensions, consulted ahead of the `DialectProfile` catalogue's own
 per-profile extension declarations, which remain as the no-packs
 fallback. Bundled packs' rows also feed `cargo xtask
 gen-editor-extensions`, which generates the editors' registered
-extension/language lists from the catalog plus the packs — so a bundled
+extension/language lists from the catalogue plus the packs — so a bundled
 pack's extension ships in every editor without hand-editing a manifest.
 A `-dialect` that names no profile keeps
 the row and drops only the routing, with a notice. Both statements are
@@ -415,7 +415,7 @@ the descriptor's own field names, so nothing new has to be learnt:
 |---|---|
 | `hover` | `summary`, `synopsis`*, `description`, `source`, `example`*, `returns` |
 | `values NAME` | `value V ?-detail {…}? ?-min-tcl VER? ?-code N? ?-introduced V? ?-deprecated V? ?-retired V?`* |
-| `case_list` | `subject_args`, `two_arg_optionless_dialects`, `exact_option`, `glob_option`, `regex_option`, `nocase_option`, `end_options_option`, `fallthrough_body`, `value_options_require_regex`, `special_match_options`, `clause_flags`, `clause_regex_flag`, `clause_value_flags`, `clause_end_options_flag`, `clause_force_inline_flag`, `clause_force_list_flag`, `clause_force_list_shape` (`first_arg_only_remainder`), `allow_omitted_final_body`, `keyword_patterns {…} ?-final-only?`, `warn_unbraced_bodies` |
+| `case_list` | `subject_args`, `two_arg_optionless_surface`, `exact_option`, `glob_option`, `regex_option`, `nocase_option`, `end_options_option`, `fallthrough_body`, `value_options_require_regex`, `special_match_options`, `clause_flags`, `clause_regex_flag`, `clause_value_flags`, `clause_end_options_flag`, `clause_force_inline_flag`, `clause_force_list_flag`, `clause_force_list_shape` (`first_arg_only_remainder`), `allow_omitted_final_body`, `keyword_patterns {…} ?-final-only?`, `warn_unbraced_bodies`, `optional_subject_separator` |
 | `clause_grammar` | `head {slots}`, `repeated KEYWORD {slots}`*, `tail ?KEYWORD? {slots}` |
 | `event_requires` | `client_side`, `server_side`, `transport`, `profiles`, `also_in`, `init_only`, `flow`, `capability` |
 | `world_effects` | `composition`, `access …`*, `callback -kinds {…} -reentrancy R`, `resolver`, `dynamic_fallback` |
@@ -743,8 +743,12 @@ it, and the loader warns if a `clause_grammar` command omits it.
 Case lists are the other clause shape and stay a separate field, because
 they are a *value* (`{pattern body …}` inside one word) rather than a
 word grammar. `case_list switch` names the shipped descriptor;
-`case_list { … }` spells out all nineteen plain-data fields, which is
-what a private Expect-like command needs.
+`case_list { … }` spells out every plain-data field of the descriptor,
+which is what a private Expect-like command needs. (No count here on
+purpose: a number in prose drifts, and this one had — it said nineteen
+against eighteen elsewhere and twenty-two in the struct. The property is
+pinned by `case_list_rows_author_every_descriptor_field_issue_2140`
+instead.)
 
 ## Derivations, exactly
 
@@ -828,7 +832,7 @@ the summary is:
 | `completion` | a compiler proof obligation, not a description of the command. See the rationale below. |
 | `dispatch_dependencies` | specialisation-proof machinery whose meaning is defined by the optimiser; `fields.md` itself says "leave unset". |
 | `data_collection`, `bpf_op` | shared named descriptors, referenced by name — the boundary spec-packs.md's bucket 2 draws. `data_collection`'s descriptor is paired with protocol machinery outside the registry; `bpf_op` is a closed compiler catalogue. |
-| the `resolver` of `world_effects` / `state_transitions` | a function producing typed transition facts. The surrounding plain data *is* authorable; only the resolver is `-native`, `none`, or a derivation keyword. |
+| the `resolver` of `world_effects` / `state_transitions` | a function producing typed transition facts, so the resolver itself is `-native`, `none`, or a derivation keyword. **And the surrounding plain data is not authorable either, today** — `world_effects_value` and `state_transitions_value` read the `composition` row and drop every other row with a notice. This entry used to claim the opposite; [`spec-packs.md`](../registry/spec-packs.md) § What a pack still cannot say has always stated it correctly ("documented vocabulary the loader does not yet read"). The rows below are the vocabulary, not what lands. |
 
 ### Why `completion` is excluded and `const_fold` is not
 
@@ -993,7 +997,7 @@ silence is defined per field in the table above.
 
 **Descriptors are declarative wherever they are plain data.** Most
 `RustExpr` fields in the studio schema are plain data: `frame_effect` is
-two closed enums, `event_requires` eight scalars, `case_list` eighteen,
+two closed enums, `event_requires` eight scalars, `case_list` every field of its descriptor,
 `binds_handle` three, `defines_symbol` four, `byte_array_payload` two.
 
 **Derived hooks beat written hooks.** `if`'s two hooks come from
@@ -1169,8 +1173,8 @@ schema order. "excluded" rows carry the reason.
 | `return_type_hook` | `return_type_hook -native ID` | closed catalogue; names the algorithm that types a call whose result shape moves with the call (`lsearch -inline`, `regsub`'s positional count). `return_type` stays the one-value-per-command answer and the hook wins over it |
 | `command_table_effect` | `command_table_effect DefinesProcedure\|RenamesCommands\|CreatesAliases` |  |
 | `side_effects` | `side_effect TARGET ?-reads? ?-writes? ?-side S? ?-dialects {…}? ?-introduced V? ?-deprecated V? ?-retired V?` | one row per effect; the three releases are `SideEffect.lifecycle` |
-| `world_effects` | `world_effects none\|NAME\|{ … }` | block carries composition / access / callback / dynamic_fallback; `resolver` is reference-only |
-| `state_transitions` | `state_transitions NAME\|{ … }` | block carries composition / argument_shape / widen / covers / commit; `resolver` takes `none`, `from-frame-effect`, or `-native ID` |
+| `world_effects` | `world_effects none\|NAME\|{ … }` | block carries composition / access / callback / dynamic_fallback; `resolver` is reference-only. **Only `composition` is loaded**; the rest is documented vocabulary dropped with a notice |
+| `state_transitions` | `state_transitions NAME\|{ … }` | block carries composition / argument_shape / widen / covers / commit; `resolver` takes `none`, `from-frame-effect`, or `-native ID`. **Only `composition` is loaded**; the rest is documented vocabulary dropped with a notice |
 | `dispatch_dependencies` | **excluded** | specialisation-proof machinery whose meaning is defined by the optimiser, not by the command; fields.md itself says "leave unset" |
 | `result_stability` | `result_stability Unknown\|ReferentiallyTransparent\|Volatile\|{ReadsVersionedWorld {D …}}` |  |
 | `literal_argument_validator` | `literal_argument_validator {words ctx} { … }` \| `-native ID` | emitter verbs `invalid …` / `abstain REASON`; no call = valid |
@@ -1304,8 +1308,8 @@ schema order. "excluded" rows carry the reason.
 | `pattern_type` | `pattern_type Glob\|Regex` |  |
 | `format_string_type` | `format_string_type Sprintf\|Clock\|Binary\|Regsub` |  |
 | `side_effects` | `side_effect TARGET ?-reads? ?-writes? ?-side S? ?-dialects {…}?` | one row per effect |
-| `world_effects` | `world_effects none\|NAME\|{ … }` | block carries composition / access / callback / dynamic_fallback; `resolver` is reference-only |
-| `state_transitions` | `state_transitions NAME\|{ … }` | block carries composition / argument_shape / widen / covers / commit; `resolver` takes `none`, `from-frame-effect`, or `-native ID` |
+| `world_effects` | `world_effects none\|NAME\|{ … }` | block carries composition / access / callback / dynamic_fallback; `resolver` is reference-only. **Only `composition` is loaded**; the rest is documented vocabulary dropped with a notice |
+| `state_transitions` | `state_transitions NAME\|{ … }` | block carries composition / argument_shape / widen / covers / commit; `resolver` takes `none`, `from-frame-effect`, or `-native ID`. **Only `composition` is loaded**; the rest is documented vocabulary dropped with a notice |
 | `dispatch_dependencies` | **excluded** | specialisation-proof machinery whose meaning is defined by the optimiser, not by the command; fields.md itself says "leave unset" |
 | `result_stability` | `result_stability Unknown\|ReferentiallyTransparent\|Volatile\|{ReadsVersionedWorld {D …}}` |  |
 | `literal_argument_validator` | `literal_argument_validator {words ctx} { … }` \| `-native ID` | emitter verbs `invalid …` / `abstain REASON`; no call = valid |

@@ -150,8 +150,8 @@ pub(super) fn emit_class(
 /// A **computed** parameter-list word (`proc p [makeargs] {…}`,
 /// `proc q $params {…}`) records no parameters and sets
 /// [`SignatureProc::params_computed`], so the cross-file arity check abstains
-/// instead of demanding the one bogus argument the unresolved word used to
-/// look like (issue #1107). The literalness rule is the shared
+/// instead of counting the unresolved word as one bogus parameter.
+/// The literalness rule is the shared
 /// [`super::params::param_word_is_literal`], so this tier and the analyser
 /// tier cannot disagree.
 pub(super) fn handle_proc(
@@ -209,7 +209,7 @@ pub(super) fn handle_proc(
     }
 }
 
-/// Handler for `tcl::OptProc NAME OPTLIST BODY` (issue #923 idx 90).
+/// Handler for `tcl::OptProc NAME OPTLIST BODY`.
 ///
 /// Mirrors [`handle_proc`] exactly except for the recorded parameter
 /// list: the `opt` package's runtime always installs a plain `args`
@@ -304,12 +304,12 @@ pub(super) fn handle_namespace_eval(
 }
 
 /// Handler for `namespace forget ?PATTERN…?` — the removal half of the
-/// import edge's lifecycle log (issue #1103).
+/// import edge's lifecycle log.
 ///
 /// The scanner-side twin of `Analyser::handle_namespace_forget_command`; see
 /// that function and
 /// [`crate::signature_scan::types::SignatureNamespaceForget`] for the
-/// semantics and the oracle. Dynamic patterns are skipped (revoking an alias
+/// semantics. Dynamic patterns are skipped (revoking an alias
 /// on a guess would silently drop real references).
 pub(super) fn handle_namespace_forget(
     texts: &[String],
@@ -376,7 +376,7 @@ pub(super) fn handle_namespace_import(
         format!("::{ns_prefix}")
     };
     // Which leading words are options, and how many are consumed, is registry
-    // data — not the `-force` string match this loop used to carry. That the
+    // data, not a `-force` string match. That the
     // option word *was* consumed is exactly "`-force` was given", since
     // `IMPORT_OPTIONS` declares one option and `max_leading_option_words`
     // caps it at one.
@@ -411,8 +411,8 @@ pub(super) fn handle_namespace_import(
 ///
 /// Records a `SignaturePackageRequire`: the optional `-exact` flag is
 /// captured on the record's `exact` field (it turns the version into
-/// the degenerate range `V-V`, which selects a different release —
-/// issue #1090), and every alternative requirement is captured when present.
+/// the degenerate range `V-V`, which selects a different release), and every
+/// alternative requirement is captured when present.
 /// The subcommand word resolves through the registry's ensemble rule,
 /// so C Tcl's accepted abbreviation (`package req Tcl`) records the
 /// requirement too.
@@ -923,7 +923,7 @@ mod tests {
 
     /// The consumed leading option word *is* `-force`, read from the
     /// registry's own `IMPORT_OPTIONS` + `max_leading_option_words` rather
-    /// than matched by name (issue #1103).
+    /// than matched by name.
     #[test]
     fn handle_namespace_import_records_the_force_flag() {
         let texts = vec![
@@ -1179,7 +1179,7 @@ mod tests {
         assert_eq!(req.version.as_deref(), Some("8.6"));
         assert_eq!(req.range, Span::new(23, 26));
         // TP — the flag is recorded, not dropped: without it the resolver
-        // reads `8.6` as `[8.6, 9)` and can pick 8.6.14 (issue #1090).
+        // reads `8.6` as `[8.6, 9)` and can pick 8.6.14.
         assert!(req.exact);
     }
 

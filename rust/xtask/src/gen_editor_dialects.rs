@@ -21,7 +21,7 @@
 //!
 //! A dialect is selectable exactly when it has a canonical profile.  There is
 //! deliberately no "CLI-only" or editor-local filter: the server accepts every
-//! catalog profile in `tclLsp.dialect`, including `bpf`, `f5-tmsh`, and
+//! catalogue profile in `tclLsp.dialect`, including `bpf`, `f5-tmsh`, and
 //! `f5-bigip`.  The presentation labels below are deliberately exhaustive so
 //! adding a profile makes this generator fail until its human-facing name is
 //! chosen, rather than silently dropping the new selectable value.
@@ -212,7 +212,7 @@ fn render_sublime_package(original: &str, ds: &[EditorDialect]) -> Result<String
     ))
 }
 
-/// The compiler-explorer toolbar dropdown: every catalog profile, labelled
+/// The compiler-explorer toolbar dropdown: every catalogue profile, labelled
 /// with the profile's compact `short_name` (the toolbar has no room for the
 /// full display names), `tcl8.6` pre-selected as the explorer's default.
 fn render_compiler_explorer(original: &str, ds: &[EditorDialect]) -> Result<String> {

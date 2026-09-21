@@ -1,4 +1,4 @@
-# Issue #977 TP control — the same library shape whose project-wide callers
+# TP control — the same library shape whose project-wide callers
 # all agree on the literal, so the interprocedural seed is sound and I230
 # must still fire.
 proc agreeing_helper {mode} {

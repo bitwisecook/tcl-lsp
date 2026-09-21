@@ -31,9 +31,8 @@
 //! as the backing file both by `xtask/src/command_backing.rs`'s `STDLIB`
 //! table and by fetching the real source — at the `core-8-4-20`,
 //! `core-8-5-19`, `core-8-6-18`, `core-9-0-4`, and `core-9-1-b0` release
-//! tags. The previous stub spec's `source: "Tcl library (init.tcl)"` named
-//! the wrong file: `tclPkgSetup` lives in `package.tcl`, not `init.tcl`, in
-//! every one of the five fetched tags.
+//! tags. `tclPkgSetup` lives in `package.tcl`, not `init.tcl`, in every one
+//! of the five fetched tags.
 //!
 //! `proc tclPkgSetup {dir pkg version files} {...}` is byte-for-byte
 //! identical across all five tags but one cosmetic wrinkle: the

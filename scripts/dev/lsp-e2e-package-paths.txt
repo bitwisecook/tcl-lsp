@@ -4,6 +4,7 @@
 # dependency cannot silently skip the archive and its three consumers.
 rust/f5-xc
 rust/tcl-bigip
+rust/tcl-bigip-query
 rust/tcl-bytecode
 rust/tcl-cmd-core
 rust/tcl-compiler

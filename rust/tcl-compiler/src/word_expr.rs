@@ -20,7 +20,7 @@
 //!
 //! [`WordExpr`] is built here from [`tcl_lexer::word_parts::decompose_spanned`]
 //! — the one owner of "split a Tcl word into its substitution components" —
-//! rather than from a private walk over lexer fragments (issue #1785). The
+//! rather than from a private walk over lexer fragments. The
 //! segmenter still owns *command* and *word* boundaries: it hands this module
 //! one word's fragment tokens, and only the within-word breakdown is the
 //! owner's.
@@ -32,7 +32,7 @@
 //!   no substitution; a `"…"` run is decomposed as one region. Real Tcl rejects
 //!   anything welded to either (`extra characters after close-brace`); the
 //!   analyser accepts it so the braced part still gets diagnosed, and that
-//!   leniency is a word-boundary rule (issue #1786), not a decomposition one.
+//!   leniency is a word-boundary rule, not a decomposition one.
 //! - **Substitution boundaries** — where a `$` reference or `[…]` ends, which
 //!   `$` is data, where C stops parsing — are the owner's, under the document's
 //!   [`LexerConfig`] so the `${…}` close rule, the array-index source mask and

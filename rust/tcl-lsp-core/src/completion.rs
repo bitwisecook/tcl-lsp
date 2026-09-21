@@ -301,7 +301,7 @@ struct SwitchCompletionCtx<'a> {
 /// A two-level ensemble narrows once more: `namespace ensemble create` and
 /// `namespace ensemble configure` recognise different options, so the
 /// dispatch word at index 2 selects between them through
-/// [`SubCommand::option_scope`] (issue #1610). Offering the merged set put
+/// [`SubCommand::option_scope`]. Offering the merged set put
 /// `-command` — a guaranteed `bad option` — in `configure`'s list and left
 /// its readable `-namespace` out of it.
 ///
@@ -432,8 +432,7 @@ fn context_aware_completions(
     // bareword-vs-`$var` gate go-to-definition/hover already use — a bare
     // name only resolves when it was actually bound by a create call
     // (`created_instance_commands`), not merely because some unrelated
-    // variable of the same name happens to hold an object elsewhere
-    // (issue #927).
+    // variable of the same name happens to hold an object elsewhere.
     let line_index = tcl_lexer::LineIndex::new(source);
     if word_idx == 1
         && let Some((recv, is_dollar)) = dispatch_receiver_of(&cmd)
@@ -446,7 +445,7 @@ fn context_aware_completions(
     {
         let bucket = crate::definition::receiver_method_bucket(analysis, &recv, is_dollar);
         // Per-object member state layers over the class chain in real
-        // dispatch order (issue #1170): per-object members offered first,
+        // dispatch order: per-object members offered first,
         // an unexport masks, a later export revives.
         let object_state =
             crate::definition::object_member_state_at(analysis, source, &recv, line, character);
@@ -521,8 +520,8 @@ fn context_aware_completions(
         return Some(subcommand_completions(spec, analysis, profile, partial));
     }
     // Second-level subcommand completion — the word after a two-level
-    // ensemble's first-level subcommand (`info object <op>`, `info class <op>`,
-    // issue #798).  The first-level word is at index 1; offer its declared
+    // ensemble's first-level subcommand (`info object <op>`, `info class
+    // <op>`).  The first-level word is at index 1; offer its declared
     // `sub_subcommands` at index 2.
     if word_idx == 2
         && let Some(sub_name) = nth_word_on_line(source, line, 1)
@@ -597,9 +596,9 @@ fn option_value_completion(
     }
     // A boolean-valued option has no enumerable `values` — Tcl accepts every
     // spelling `abbrev::boolean_table` resolves, prefixes included, which a
-    // closed set cannot express. The registry says so with `ArgRole::Boolean`
-    // (issue #1256), and the vocabulary comes from the one place that models
-    // it.
+    // closed set cannot express. The registry says so with
+    // `ArgRole::Boolean`, and the vocabulary comes from the one place that
+    // models it.
     opt.value_is_boolean()
         .then(|| boolean_value_completions(partial))
 }
@@ -737,8 +736,8 @@ pub fn completions(
     let usage = document_usage_counts(analysis);
     let mut items = proc_completions(analysis, &partial, &usage);
     // Inside an `expr` expression argument the bare `expr` math functions are
-    // in scope (issue #974 defect 2) — before this they were offered nowhere
-    // at all, so `expr {si` surfaced only unrelated `simulation::*` procs.
+    // in scope; without them `expr {si` surfaces only unrelated
+    // `simulation::*` procs.
     // The context test is registry-driven (`ArgRole::Expr`); see
     // `crate::expr_context`.
     if let Some(registry) = registry
@@ -1389,13 +1388,13 @@ fn method_completions(
 /// offered (an external dispatch cannot reach private / unexported ones);
 /// `destroy` is added as a universal instance method.  A class unknown to
 /// the analysis falls through to the registry (`ObjectClassSpec` / a
-/// self-referential Tk widget spec — issue #927), which models no
+/// self-referential Tk widget spec), which models no
 /// class/instance distinction, so `bucket` is moot there.  The candidate
 /// universe behind [`method_completions`] and [`fuzzy_command_fallback`].
 ///
 /// Instance dispatch (`$obj method` / a bound `CLASS create NAME` command
 /// — [`MethodBucket::Instance`]) reaches *instance* methods only.
-/// Class-command dispatch (`CLASS method`, issue #923 idx 120 —
+/// Class-command dispatch (`CLASS method` —
 /// [`MethodBucket::Class`]) reaches class-side methods only, and an
 /// ancestor-provided `self method` (not `ooutil`'s `classmethod`, which
 /// does propagate — see [`crate::definition::MethodBucket`]'s doc) only
@@ -1424,7 +1423,7 @@ fn method_items(
     let mut items: Vec<CompletionItem> = Vec::new();
     // Per-object members first — `TclOO` layers an `oo::objdefine`d method
     // ahead of the class chain, so the receiver's own members claim their
-    // names before any class provider (issue #1170).
+    // names before any class provider.
     if bucket == MethodBucket::Instance
         && let Some(st) = object_state
     {
@@ -1444,7 +1443,7 @@ fn method_items(
         };
         // Per-object visibility flips override the declared state for this
         // receiver: an `oo::objdefine … export` revives an unexported class
-        // member, an `… unexport` masks an exported one (issue #1170).
+        // member, an `… unexport` masks an exported one.
         let flipped = |name: &str, declared_public: bool| {
             object_state.map_or(declared_public, |st| {
                 if bucket != MethodBucket::Instance {
@@ -1486,8 +1485,8 @@ fn method_items(
     // Methods the class system *generates* from declared `property` members
     // (`oo::configurable`'s `configure`) — written by no `method` body, so
     // the MRO walk above cannot see them.  The same registry-driven set the
-    // W308 existence check and the semantic-token classifier consult
-    // (issue #1362): completion offering a method those two accept is the
+    // W308 existence check and the semantic-token classifier consult:
+    // completion offering a method those two accept is the
     // whole point of sharing the predicate.  Instance-only — the accessor
     // is an instance method on the configurable class, not a class-side one.
     if bucket == MethodBucket::Instance {
@@ -1518,7 +1517,7 @@ fn method_items(
     Some(items)
 }
 
-/// The per-object leg of [`method_items`] (issue #1170): offer the
+/// The per-object leg of [`method_items`]: offer the
 /// receiver's own externally dispatchable `oo::objdefine`d members ahead of
 /// the class chain, and claim the names of its *unexported* per-object
 /// members so they cannot resurface from the class walk — an unexported
@@ -1612,9 +1611,8 @@ fn registry_method_items(
 /// resolved from the document's `package require` statements.
 ///
 /// The rule itself lives in [`crate::document_floor::DocumentFloor`], the one
-/// place a request-time provider resolves a floor. Completion is no longer its
-/// only consumer, so the definition moved to where the next one can reach it
-/// without copying it (issue #1644).
+/// place a request-time provider resolves a floor, so every consumer reads it
+/// without copying it.
 fn package_version_floor<'a>(
     analysis: &'a AnalysisResult,
     spec: &tcl_registry::CommandSpec,
@@ -1706,7 +1704,7 @@ fn switch_completions(
 /// even when iRules isn't in scope, so we keep it local instead.
 fn event_name_completions(partial: &str) -> Vec<CompletionItem> {
     let reg = tcl_registry::events::EventRegistry::build();
-    // Lifecycle rule (#1210): completion omits *retired* events and keeps
+    // Lifecycle rule: completion omits *retired* events and keeps
     // deprecated ones, labelled with their deprecating release. The target is
     // the axis default (the D5 oldest-supported release) since this entry
     // point carries no resolved BIG-IP version.
@@ -1945,7 +1943,7 @@ fn scoped_op_completions(
 
 /// Build completions for the second-level subcommands of a two-level ensemble
 /// (`info object <op>` / `info class <op>`), filtered by `partial`.  Each
-/// item's detail is the operation's one-line description (issue #798).
+/// item's detail is the operation's one-line description.
 fn sub_subcommand_completions(
     mut subs: Vec<&'static tcl_registry::SubSubCommand>,
     partial: &str,
@@ -2079,8 +2077,7 @@ fn document_usage_counts(analysis: &AnalysisResult) -> FxHashMap<String, usize> 
 }
 
 /// What kind of `TclOO` frame the completion cursor sits in — which decides
-/// whether the `oo::Helpers` family's bare spellings may be offered (issue
-/// #1026).
+/// whether the `oo::Helpers` family's bare spellings may be offered.
 ///
 /// Thin position-to-offset wrapper over the crate's single frame
 /// classifier, so completion, hover, and the analyser's W123 emitter all
@@ -2150,7 +2147,7 @@ fn builtin_completions(
         })
         // A command whose *bare* spelling only works inside a `TclOO`
         // method context (`link` / `my` / `next` / `nextto` / `self` /
-        // `classvariable` — issue #1026) is offered only there: completing
+        // `classvariable`) is offered only there: completing
         // `link` at the top level would insert a call real Tcl rejects with
         // `invalid command name`. Which commands those are is registry data
         // (`Traits::TCLOO_METHOD_CONTEXT` plus
@@ -2228,7 +2225,7 @@ fn builtin_completions(
         .collect()
 }
 
-/// `expr` math-function completions (issue #974 defect 2) — the bare names
+/// `expr` math-function completions — the bare names
 /// (`sin`, `max`, …) that are callable *only* inside an expression.
 ///
 /// Sourced from the registry's own `::tcl::mathfunc::*` specs
@@ -2421,7 +2418,7 @@ fn fuzzy_command_fallback(
     // Receiver-method context — the method universe the instance branch of
     // `context_aware_completions` declined to fuzzy-match (see
     // `method_completions`) joins the ranking here, resolved with the same
-    // `$var`-vs-bareword gate that branch applies (issue #927).
+    // `$var`-vs-bareword gate that branch applies.
     if let Some((cmd, word_idx)) = command_context_on_line(source, line, character)
         && word_idx == 1
         && let Some((recv, is_dollar)) = dispatch_receiver_of(&cmd)
@@ -2608,8 +2605,8 @@ mod tests {
 
     #[test]
     fn obj_method_completion_includes_generated_property_accessors() {
-        // Issue #1362's third consumer: W308 and the semantic-token
-        // classifier already accept the `configure` an `oo::configurable`
+        // W308 and the semantic-token
+        // classifier accept the `configure` an `oo::configurable`
         // class generates for its `property` members — completion must
         // offer the same surface, or the editor colours a method it will
         // not complete.  `cget` is not generated (`configurable.n`) and
@@ -2700,7 +2697,7 @@ mod tests {
 
     #[test]
     fn obj_method_completion_includes_a_literal_foreach_installed_method() {
-        // Issue #1277: the loop-installed names must be offered exactly
+        // The loop-installed names must be offered exactly
         // like an ordinary written method — completion, like hover /
         // definition / outline, reads the same `ClassDef::methods` table.
         let src = concat!(
@@ -2762,10 +2759,10 @@ mod tests {
 
     #[test]
     fn obj_method_completion_survives_a_self_scoped_unexport_of_the_same_name() {
-        // Issue #1098 — the user-visible symptom of the un-sided visibility
-        // flip: a class-object-side `unexport bark` also un-exported the
-        // instance method of the same name, and instance completion (which
-        // keeps only `visibility == "public"`) then dropped `bark` entirely.
+        // The visibility flip is sided: a class-object-side `unexport bark`
+        // must not un-export the instance method of the same name, or
+        // instance completion (which keeps only `visibility == "public"`)
+        // drops `bark` entirely.
         // Oracle, byte-identical on tclsh 9.0.4 and 8.6.14:
         //   oo::class create C { method m {} {return inst-m}
         //                        self { method m {} {return class-m}
@@ -2794,9 +2791,8 @@ mod tests {
 
     #[test]
     fn class_command_completion_honours_a_self_scoped_unexport() {
-        // Issue #1098, the class-side half. A `self`-scoped `unexport` used to
-        // be ignored outright (the abstention #1095 pinned), so the class
-        // command still offered a member `::Counter m` rejects at runtime;
+        // The class-side half. Ignoring a `self`-scoped `unexport` leaves the
+        // class command offering a member `::Counter m` rejects at runtime;
         // routing the flip to the class-object side makes it honour it.
         let hidden = "oo::class create Counter {\n    self {\n        method m {} {}\n        unexport m\n    }\n}\nCounter \n";
         let shown =
@@ -2822,8 +2818,8 @@ mod tests {
 
     #[test]
     fn class_command_completion_ignores_an_unwrapped_unexport() {
-        // Issue #1098, the mirror direction (and a real false positive the
-        // un-sided setter caused): an *unwrapped* `unexport` acts on the
+        // The mirror direction, and the false positive an un-sided setter
+        // causes: an *unwrapped* `unexport` acts on the
         // instance side, so a class-object-side member of that name keeps its
         // exported state. Oracle: `oo::class create E2 { self { method
         // onlyclass {} {…} } }; oo::define E2 { unexport onlyclass }` leaves
@@ -2849,7 +2845,7 @@ mod tests {
 
     #[test]
     fn obj_method_completion_layers_per_object_members_and_flips() {
-        // Issue #1170 — per-object member state reaches completion: a
+        // Per-object member state reaches completion: a
         // `oo::objdefine`d method is offered ahead of the class chain, a
         // per-object `unexport` masks a class-provided member (oracle:
         // `$d bark` → `unknown method "bark"`, tclsh 9.0.4 / 8.6.14), and a
@@ -2893,7 +2889,7 @@ mod tests {
 
     #[test]
     fn obj_method_completion_leaves_sibling_objects_untouched() {
-        // TN (CRITICAL FP guard) for #1170's layering: another instance of
+        // TN (CRITICAL FP guard) for the per-object layering: another instance of
         // the same class carries none of the first object's per-object state.
         let src = "oo::class create Dog {\n    method bark {} {}\n}\n\
                    set d [Dog new]\n\
@@ -2924,7 +2920,7 @@ mod tests {
 
     #[test]
     fn obj_method_completion_omits_an_unwrapped_deleted_method() {
-        // Issue #1101 — the same provider, destructive half. An unwrapped
+        // The same provider, destructive half. An unwrapped
         // `deletemethod` removes the instance method in real Tcl, so offering
         // it would complete a name the interpreter does not have.
         let src = "oo::class create Dog {\n    method bark {} {}\n    method sit {} {}\n    deletemethod bark\n}\nset d [Dog new]\n$d \n";
@@ -2973,8 +2969,8 @@ mod tests {
     }
 
     /// A Tk widget's bareword instance path completes its own subcommands
-    /// (a self-referential registry `object_class`, not a user class —
-    /// issue #927), same as `$var`-receiver completion above.
+    /// (a self-referential registry `object_class`, not a user class), same
+    /// as `$var`-receiver completion above.
     #[test]
     fn widget_bareword_completion_offers_subcommands() {
         let src = "ttk::treeview .t\n.t i\n";
@@ -3418,10 +3414,10 @@ mod tests {
         }
     }
 
-    /// Issue #986: `SKIP_BUILTIN_NAMES` only ever named the 10 symbolic
-    /// operators, so word-form mathop commands (`eq`/`ne`/`in`/`ni`, and the
-    /// 9.0+ `lt`/`le`/`gt`/`ge`) leaked through as completion suggestions —
-    /// a nonsensical "did you mean `eq`?" at a command position.
+    /// `SKIP_BUILTIN_NAMES` must cover the word-form mathop commands
+    /// (`eq`/`ne`/`in`/`ni`, and the 9.0+ `lt`/`le`/`gt`/`ge`) as well as the
+    /// 10 symbolic operators; otherwise they leak through as a nonsensical
+    /// "did you mean `eq`?" at a command position.
     #[test]
     fn builtin_completion_skips_word_form_operators() {
         let src = "\n";
@@ -3564,7 +3560,7 @@ mod tests {
 
     #[test]
     fn sub_subcommand_completion_surfaces_at_word_index_2() {
-        // Issue #798 fix 3: after `info object ` (word-index 2), offer the
+        // After `info object ` (word-index 2), offer the
         // OBJECT INTROSPECTION operations with their descriptions.
         let src = "info object \n";
         let analysis = analyse(src);
@@ -4487,7 +4483,7 @@ mod tests {
     #[test]
     fn option_enum_value_completion_offers_members() {
         // `button .b -relief ra` — cursor on the value word after a closed-set
-        // option offers the relief members, filtered by the partial (Phase 5).
+        // option offers the relief members, filtered by the partial.
         let src = "button .b -relief ra";
         let cur = analyse(src);
         let registry = CommandRegistry::build_default();
@@ -5008,9 +5004,9 @@ mod tests {
         // F5 reclassification (measurements §4/§4a,
         // `docs/design/f5/bigip-irule-parser-measurements.md`) — the iApps
         // host is the 8.4.6 `f5-tcl` fork, not the falsified 8.5.13
-        // hypothesis, so the 8.5+ `switch -nocase` is no longer offered
-        // there (it was the old expectation), and the 9.0-only `regsub
-        // -command` stays out. The 8.4-real `-exact` is still offered, so
+        // hypothesis, so the 8.5+ `switch -nocase` is not offered
+        // there, and the 9.0-only `regsub
+        // -command` stays out. The 8.4-real `-exact` is offered, so
         // the composed vendor mask keeps working.
         let src = "switch -\n";
         let analysis = analyse(src);

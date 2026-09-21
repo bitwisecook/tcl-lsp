@@ -32,16 +32,16 @@ use tcl_cli_support::{OutputTarget, write_text_output};
 
 /// Closed vocabulary of object kinds `f5 explain` resolves against. Threaded
 /// through [`Model::inv`]/[`Model::get`]/[`Model::resolve`] and the
-/// `kind_hint` walker in [`run_explain`], replacing what was a `&str`
-/// compared against string literals at every one of those sites (the same
-/// six spellings are enumerated as a separate, non-identical `(module,
-/// object_type)` vocabulary in `f5-cli/src/commands/diff.rs`'s `SPECIALISED`
-/// — that one is out of scope here: it has three more members and a
-/// different shape, and isn't part of this issue's verified inventory).
+/// `kind_hint` walker in [`run_explain`] instead of comparing `&str` values
+/// against string literals at each site.
+///
+/// A similar but non-identical `(module, object_type)` vocabulary exists in
+/// `f5-cli/src/commands/diff.rs`'s `SPECIALISED`: it has three more members
+/// and a different shape, and is not interchangeable with this one.
 ///
 /// `ExplainReport::kind` / `ExplainJson::kind` (the JSON/text report's `kind`
-/// field) stay `String` — that's the serialised wire output — but are now
-/// populated via [`ExplainKind::as_str`] instead of a separate literal.
+/// field) stay `String` — that's the serialised wire output — populated via
+/// [`ExplainKind::as_str`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) enum ExplainKind {
     Virtual,
@@ -474,9 +474,8 @@ pub fn run_explain(
     output: Option<&Path>,
 ) -> anyhow::Result<u8> {
     // `kind` is clap-validated to "virtual"/"pool"/"auto" (see `cli.rs`), so
-    // the parse always succeeds for the non-"auto" case; unreachable via the
-    // CLI, an unparseable value now falls back to `None` (== "auto") rather
-    // than an opaque hint nothing could ever match.
+    // the parse always succeeds for the non-"auto" case. An unparseable value
+    // falls back to `None` (== "auto") rather than an unmatchable hint.
     let kind_hint = if kind == "auto" {
         None
     } else {

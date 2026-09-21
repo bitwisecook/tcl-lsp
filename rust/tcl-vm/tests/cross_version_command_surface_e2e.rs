@@ -19,13 +19,13 @@
 //! **The emulated release governs the grammar and the command surface, not
 //! just the runtime semantics.**
 //!
-//! Issues #1462/#1463: a version-pinned VM must reject what its emulated
+//! A version-pinned VM must reject what its emulated
 //! release rejects. Two facts move together with the release:
 //!
-//! - the **lexing grammar** (#1462) — `{*}` expansion is TIP 157 (8.5+), so
+//! - the **lexing grammar** — `{*}` expansion is TIP 157 (8.5+), so
 //!   under an 8.4 pin it is a hard `extra characters after close-brace`
 //!   exactly as `tclsh8.4` reports it;
-//! - the **builtin command surface** (#1463) — `lassign` is 8.5+, `lpop` is
+//! - the **builtin command surface** — `lassign` is 8.5+, `lpop` is
 //!   9.0+, so under an older pin they resolve to `invalid command name`,
 //!   while user-defined procs (the polyfill pattern) always stay callable.
 //!
@@ -209,6 +209,56 @@ fn named_command_surface_override_cannot_hide_compiled_release_commands() {
     assert_eq!(&*completion.result.to_str(), "a");
 }
 
+/// `eval_source` reports a script it could not run *at all* through `Err`,
+/// the channel it has always used, and a script that ran a prefix before a
+/// malformed tail through the completion (#1603).
+///
+/// The boundary is whether a **command** ran, not whether the prefix has
+/// bytes: when the first command is the malformed one, the prefix still spans
+/// any leading whitespace and comments, so a byte-length test would send
+/// `" \n set x \""` down the completion channel having executed nothing.
+#[test]
+fn eval_source_reports_a_script_that_ran_nothing_through_the_error_channel() {
+    let mut vm = Vm::new();
+    vm.set_compiler(Box::new(
+        tcl_compiler::compile_service::BytecodeCompileService::default(),
+    ));
+
+    // Nothing parses at all.
+    assert!(vm.eval_source("set x \"").is_err(), "no command parsed");
+    // Nothing parses, behind leading trivia: whitespace, then a comment.
+    assert!(
+        vm.eval_source(" \n set x \"").is_err(),
+        "leading whitespace runs no command"
+    );
+    assert!(
+        vm.eval_source("# just a comment\nset x \"").is_err(),
+        "a leading comment runs no command"
+    );
+
+    // A prefix that *did* run reports through the completion, carrying the
+    // side effect the prefix performed — this is the half the `Err` channel
+    // must not swallow.
+    let completion = vm
+        .eval_source("set ::ran 1\nset x \"")
+        .expect("a script that ran a command reports through its completion");
+    assert_eq!(completion.code, Code::Error);
+    assert_eq!(&*completion.result.to_str(), "missing \"");
+    assert_eq!(
+        &*vm.eval_source("set ::ran")
+            .expect("prefix side effect")
+            .result
+            .to_str(),
+        "1",
+        "the clean prefix ran before the parse error"
+    );
+
+    // Positive control: a script that parses whole still reports success, so
+    // none of the above can pass because `eval_source` started failing.
+    let ok = vm.eval_source("set ::fine 2").expect("clean script");
+    assert!(ok.code.is_ok(), "{}", ok.result.to_str());
+}
+
 #[test]
 fn command_surface_override_rejects_a_same_release_narrower_profile() {
     let bpf = tcl_registry::model::ingress::resolve_environment("bpf").analyser_profile();
@@ -289,7 +339,7 @@ struct Vector {
 }
 
 const VECTORS: &[Vector] = &[
-    // -- #1462: the {*} expansion grammar is a compile fact --
+    // The {*} expansion grammar is a compile fact.
     Vector {
         name: "{*} expansion is a hard parse error before 8.5",
         script: "puts [llength [list {*}{a b}]]\n",
@@ -298,7 +348,7 @@ const VECTORS: &[Vector] = &[
         want_86: "2",
         want_90: "2",
     },
-    // -- #1463: the builtin surface follows the release --
+    // The builtin surface follows the release.
     Vector {
         name: "lassign arrives in 8.5",
         script: "puts [lassign {a b} x]\n",
@@ -334,9 +384,9 @@ const VECTORS: &[Vector] = &[
     // The vector above uses `dict get`, whose argument is a runtime value, so
     // it never reaches the constant folder. An **all-literal** `dict create` in
     // a value position *is* folded in codegen — and a fold is a rewrite that
-    // bypasses the runtime's availability gate entirely, so the folded form
-    // used to succeed under 8.4 while every unfoldable spelling correctly
-    // raised `invalid command name "dict"` (issue #1427).
+    // bypasses the runtime's availability gate entirely, so a naive check
+    // would let the folded form succeed under 8.4 while every unfoldable
+    // spelling correctly raises `invalid command name "dict"`.
     Vector {
         name: "a *foldable* dict create is still absent before 8.5",
         script: "puts [dict create a 1 a 2]\n",
@@ -377,7 +427,7 @@ const VECTORS: &[Vector] = &[
         want_86: "1",
         want_90: "1",
     },
-    // -- #1607: `package`'s option table follows the release --
+    // `package`'s option table follows the release.
     // `prefer` is TIP 268 (8.5); `files` is 9.0's. Byte-checked against
     // tclsh8.4.20 / 8.5.19 / 8.6.16 / 9.0.4, which this suite also re-runs
     // against any installed tclsh.
@@ -393,7 +443,7 @@ const VECTORS: &[Vector] = &[
         want_90: "1bad option \"zz\": must be files, forget, ifneeded, names, prefer, \
                   present, provide, require, unknown, vcompare, versions, or vsatisfies",
     },
-    // -- the polyfill pattern: a user proc always wins over a hidden builtin --
+    // The polyfill pattern: a user proc always wins over a hidden builtin.
     Vector {
         name: "a user-defined proc is callable at every release",
         script: "proc lassign {l args} { return polyfill }\nputs [lassign {a b} x]\n",
@@ -482,9 +532,9 @@ fn hidden_builtin_cannot_escape_through_rename_or_hide() {
 }
 
 /// Every public command-table mutation and indirection preserves the release
-/// surface.  In particular, child-interpreter hide used to mutate the parked
-/// table directly, and import used a cloned builtin without its final source
-/// identity, so both could expose `lassign` to an emulated 8.4 VM.
+/// surface. Child-interpreter hide must not mutate the parked table directly,
+/// and import must not clone a builtin without its final source identity —
+/// either would expose `lassign` to an emulated 8.4 VM.
 #[test]
 fn hidden_builtin_stays_hidden_through_children_imports_and_aliases() {
     let src = concat!(
@@ -618,7 +668,7 @@ fn profile_mutation_recompiles_cached_bodies_and_rejects_live_continuations() {
     let v84 = tcl_registry::model::ingress::resolve_environment("tcl8.4").analyser_profile();
     let v86 = tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
     let mut vm = Vm::new();
-    // TclOO is an 8.6 command surface (issue #1463), so the class factory is
+    // TclOO is an 8.6 command surface, so the class factory is
     // only reachable there; the resulting object command is script-created and
     // stays callable on every release, which is what the flips below exercise.
     vm.set_dialect_profile(v86);
@@ -817,7 +867,7 @@ fn profile_mutation_recompiles_cached_bodies_and_rejects_live_continuations() {
 fn tcloo_method_profile_refresh_is_persisted_after_the_first_call() {
     let calls = Rc::new(Cell::new(0));
     let mut vm = Vm::new();
-    // TclOO's class factory is 8.6+ (issue #1463); the object it makes is
+    // TclOO's class factory is 8.6+; the object it makes is
     // script-created and survives the flip to 8.4 below.
     vm.set_dialect_profile(
         tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
@@ -1380,7 +1430,7 @@ fn expansion_parse_error_inside_catch_is_catchable_at_8_4() {
     assert_eq!(vm_output(src, TclVersion::V9_0), "0\n2");
 }
 
-/// #1463's precision point about vendor profiles: an iRules-pinned VM
+/// A precision point about vendor profiles: an iRules-pinned VM
 /// validates against the vendor availability mask, not plain tcl8.4. Both
 /// run a Tcl 8.4 core, but the TMM sandbox (K36322151) additionally bans
 /// `source` (and `puts`, which is why the probe reports through the script

@@ -16,9 +16,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! M16.1 + M16.2 — `interp alias` loop prevention (C `TclPreventAliasLoop`,
-//! 8.6 `tclInterp.c`) and cross-interp aliases between a parent and its
-//! direct children, in both directions.
+//! `interp alias` loop prevention (C `TclPreventAliasLoop`, 8.6
+//! `tclInterp.c`) and cross-interp aliases between a parent and its direct
+//! children, in both directions.
 //!
 //! Every vector is a complete script whose stdout is compared against the
 //! bytecode VM **and** — when installed — real `tclsh8.6` / `tclsh9.0`
@@ -113,7 +113,7 @@ struct Vector {
 }
 
 const VECTORS: &[Vector] = &[
-    // -- M16.1: TclPreventAliasLoop --------------------------------------
+    // Loop prevention (`TclPreventAliasLoop`).
     Vector {
         name: "a self-alias is refused AND destroys the proc it clobbered",
         script: "proc x {} {return REAL}\n\
@@ -156,7 +156,7 @@ const VECTORS: &[Vector] = &[
                  puts [lb]\n",
         want: "LATE",
     },
-    // -- M16.2: child → parent -------------------------------------------
+    // Child-to-parent aliases.
     Vector {
         name: "a child→parent target stacks on the parent's pending frame",
         script: "proc probe {} { return [info level] }\n\
@@ -191,7 +191,7 @@ const VECTORS: &[Vector] = &[
                  interp delete c3\n",
         want: "A B C D",
     },
-    // -- M16.2: parent → child -------------------------------------------
+    // Parent-to-child aliases.
     Vector {
         name: "a parent-side alias dispatches into the child",
         script: "interp create c4\n\
@@ -201,7 +201,7 @@ const VECTORS: &[Vector] = &[
                  interp delete c4\n",
         want: "CHILD",
     },
-    // -- M16.1 × M16.2: loops across the interp boundary ------------------
+    // Loops across the interp boundary.
     Vector {
         name: "a child→parent / parent→child pair is a loop (closed parent-side)",
         script: "interp create c5\n\

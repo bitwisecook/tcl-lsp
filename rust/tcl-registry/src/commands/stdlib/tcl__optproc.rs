@@ -31,7 +31,7 @@ pub fn spec() -> CommandSpec {
         arity: Arity::exact(3),
         // `DEFINES_PROCEDURE` drives the proc-name-declaration semantic
         // token/hover override (`semantic_tokens.rs`'s `ArgOverride::ProcNameDef`)
-        // the same way it does for `proc` (issue #923 idx 90). The runtime
+        // the same way it does for `proc`. The runtime
         // installs the defined proc as an ordinary, byte-compiled Tcl proc
         // (`NOT_PROC_FACTORY`/`BYTE_COMPILED`/`NEVER_INLINE_BODY` all follow
         // `proc`'s own precedent); `LANGUAGE_KEYWORD` and
@@ -41,7 +41,7 @@ pub fn spec() -> CommandSpec {
         // `DEFERS_BODY` for the same reason `proc` carries it: this *defines*
         // a procedure, so the body is stored, never run here. tclsh 8.6.16 /
         // 9.0.4, byte-identical: `proc p {} { ::tcl::OptProc q {} {error
-        // stop}; set ::reached 1 }` sets `::reached` (issue #1672 audit).
+        // stop}; set ::reached 1 }` sets `::reached`.
         traits: Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED
             | Traits::DEFINES_PROCEDURE
@@ -55,7 +55,7 @@ pub fn spec() -> CommandSpec {
         // Runs in its own fresh call frame on each call, exactly like
         // `proc` — lets generic `body_indices_to_skip` consumers (SSA,
         // dead-store, def-use) treat it like every other structural-body
-        // definer without a string-match special case (issue #923 idx 90).
+        // definer without a string-match special case.
         body_kind: BodyKind::Structural,
         hover: Some(HoverSnippet {
             summary: "Define a proc with automatic option parsing.",

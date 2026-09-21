@@ -94,7 +94,6 @@ fn visit_catch_or_try(stmt: &Statement, names: &mut HashSet<String>) -> bool {
     }
 }
 
-// Sequential walker over known-name shapes.
 fn visit_one(stmt: &Statement, names: &mut HashSet<String>) {
     if visit_catch_or_try(stmt, names) {
         return;

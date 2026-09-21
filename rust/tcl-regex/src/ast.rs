@@ -269,7 +269,7 @@ pub fn leading_pref(node: &Node) -> Option<Pref> {
         // alternatives (`a+?|aa` on "aa" matches "aa", not the lazy "a"). The
         // branch preferences only matter once an alternative is chosen, during
         // dissection. A single-branch alternation is collapsed away by the
-        // parser (see `Parser::parse_alt`), so this arm is the ≥2-branch case;
+        // parser (see `Parser::parse_inner`), so this arm is the ≥2-branch case;
         // we still pass a lone branch through for robustness.
         Node::Alt(branches) => match branches.as_slice() {
             [only] => leading_pref(only),

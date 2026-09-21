@@ -258,6 +258,11 @@ impl SpecSurface {
 
     /// Whether `release` falls in one of this row's windows. An unstated
     /// release asks about the whole ladder, which any window meets.
+    ///
+    /// Asked on every registry lookup, once per authored row, so it hands the
+    /// bounds to [`crate::version::version_in_any_window`] rather than
+    /// `format!`-ing a `"from-until"` requirement per window and re-parsing
+    /// `release` behind each one (issue #2021).
     fn covers(&self, release: Option<&str>) -> bool {
         if self.windows.is_empty() {
             return true;
@@ -265,17 +270,7 @@ impl SpecSurface {
         let Some(release) = release else {
             return true;
         };
-        self.windows.iter().any(|&(from, until)| {
-            crate::version::version_satisfies(release, &requirement(from, until))
-        })
-    }
-}
-
-/// The requirement spelling for a half-open window.
-fn requirement(from: &str, until: Option<&str>) -> String {
-    match until {
-        Some(until) => format!("{from}-{until}"),
-        None => format!("{from}-"),
+        crate::version::version_in_any_window(release, self.windows)
     }
 }
 

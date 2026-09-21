@@ -19,7 +19,7 @@
 [package]
 name = "tcl-diagram"
 publish.workspace = true
-description = "iRule (Tcl) structural analysis for reports/CLI/MCP: control-flow diagram extraction ({events, procedures}) with a deterministic Mermaid serialiser, and dynamic object-attachment (pool/node/snatpool) name-pattern reconstruction. Independent of the LSP."
+description = "iRule (Tcl) structural analysis for reports/CLI/MCP: control-flow diagram extraction ({events, procedures}) with a deterministic serialisation for the report's elkjs renderer and the editor's Mermaid panel, and dynamic object-attachment (pool/node/snatpool) name-pattern reconstruction. Independent of the LSP."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

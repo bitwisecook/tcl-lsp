@@ -76,8 +76,8 @@ pub(super) fn registrations() -> Vec<(&'static str, BuiltinSpec)> {
 // Regex flag handling
 
 /// Translate jq-style flag letters (`i` / `x` / `s` / `m`) to the leading
-/// inline flag group the `regex` crate understands, validating each letter
-/// the way `_jq_regex_flags` does (an unknown letter raises verbatim).
+/// inline flag group the `regex` crate understands. An unknown letter raises
+/// an error naming it.
 fn jq_regex_flags(flags: &str, name: &str) -> Result<String, QueryError> {
     let mut out = String::new();
     for ch in flags.chars() {
@@ -558,14 +558,12 @@ mod tests {
 
     #[test]
     fn ascii_maps_codepoint_to_char() {
-        // ::test_ascii_codepoint_to_char
         assert_eq!(call_str(bi_ascii, &[Value::Int(65)]), "A");
     }
 
     #[test]
     fn utf8bytelength_counts_bytes_not_codepoints() {
-        // ::test_utf8bytelength_counts_bytes_not_codepoints — `é` is two
-        // UTF-8 bytes, so "héllo" is 6 bytes over 5 codepoints.
+        // `é` is two UTF-8 bytes, so "héllo" is 6 bytes over 5 codepoints.
         assert_eq!(call_int(bi_utf8bytelength, &[s("hello")]), 5);
         assert_eq!(call_int(bi_utf8bytelength, &[s("héllo")]), 6);
     }

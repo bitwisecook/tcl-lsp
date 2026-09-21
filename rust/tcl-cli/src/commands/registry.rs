@@ -27,14 +27,14 @@ use tcl_cli_support::{OutputTarget, registry_for_dialect, write_text_output};
 use tcl_dialect::DialectProfile;
 use tcl_registry::command_snapshot::{command_registry_snapshot, command_registry_snapshots};
 
-/// The plain-Tcl-version dialects `--all-dialects` snapshots, in the catalog's
+/// The plain-Tcl-version dialects `--all-dialects` snapshots, in the catalogue's
 /// stable sorted-name order.
 ///
-/// The predicate is the catalog's own "this profile is a plain Tcl release"
+/// The predicate is the catalogue's own "this profile is a plain Tcl release"
 /// fact ([`DialectProfile::const_fold_version`], `Some` only for the versioned
-/// Tcl profiles and `None` for every vendor dialect), so a new release added to
-/// the catalog is snapshotted without a second list to update — which is how
-/// the hand-written array came to be missing `tcl9.1`.
+/// Tcl profiles and `None` for every vendor dialect), so a new release added
+/// to the catalogue is snapshotted automatically, with no second list to keep
+/// in sync.
 fn tcl_dialects() -> Vec<&'static str> {
     DialectProfile::all()
         .iter()
@@ -54,8 +54,8 @@ pub fn run_registry_dump(
     // `build_default` already carries every Tcl dialect's commands, so the
     // `tcl8.6` registry serves every Tcl dialect (and `--all-dialects`).
     let json = if all_dialects {
-        // T3: the single-`tcl8.6`-registry shortcut is the payload ledger
-        // row T3 retires (P1); the name itself resolves through the seam.
+        // The single-`tcl8.6`-registry shortcut carries the payload; the
+        // name itself still resolves through the environment ingress.
         let registry =
             registry_for_dialect(tcl_cli_support::environment::profile_for_dialect("tcl8.6").name);
         command_registry_snapshots(&registry, &tcl_dialects())

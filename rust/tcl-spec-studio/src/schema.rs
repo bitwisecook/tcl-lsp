@@ -99,7 +99,8 @@ pub enum FieldKind {
     Options,
     /// `&'static [FormSpec]`.
     Forms,
-    /// `&'static [CommandForm]` — the per-form overlays of design Q12/D2.
+    /// `&'static [CommandForm]` — named invocation forms that override the
+    /// command's arity, roles and options.
     Refinements,
     /// `&'static [SideEffect]`.
     SideEffects,
@@ -538,6 +539,15 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
             hint: "Some(my_timing_resolver)",
         },
         "Callback assigning SameInvocation, Deferred, or ReferenceOnly to executable positions from the actual argument list.",
+    ),
+    f(
+        "substitution_resolver",
+        "Substitution resolver",
+        ADVANCED,
+        FieldKind::RustExpr {
+            hint: "Some(substitution::subst_substitutions)",
+        },
+        "Callback reporting which of backslash, command and variable substitution this call runs over its own argument text, for a PERFORMS_SUBSTITUTION command whose switches change the answer. Absent means every kind on every call.",
     ),
     f(
         "callback_taint_inputs",

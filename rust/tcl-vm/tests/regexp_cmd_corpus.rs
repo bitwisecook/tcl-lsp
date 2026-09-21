@@ -28,6 +28,13 @@
 //! provide, so cases that depend on that scaffolding — rather than on the
 //! regex engine — are filtered by `skip_reason` (each with a documented
 //! cause). Everything else must match `tclsh`.
+//!
+//! The `regsub-empty-2147.*` rows are ours, not `regexp.test`'s: upstream has
+//! no case separating the **literal empty pattern** from an RE that merely
+//! *can* match empty, which is exactly the pair #2147 got wrong. They are
+//! written in the same TSV shape (name / constraints / returnCodes / result
+//! codepoints / body codepoints) and their `-result` was measured on tclsh
+//! 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1b0, all five agreeing.
 
 use std::cell::RefCell;
 use std::io::Write;
@@ -103,8 +110,8 @@ fn parse_corpus() -> Vec<Case> {
 
 /// Cases that depend on `tcltest` scaffolding the VM does not implement
 /// (inter-test setup state, custom constraints, helper procs, `binary`/
-/// `encoding`/`interp` features) — not regex-engine behaviour. Each is here
-/// with a reason after manual triage.
+/// `encoding`/`interp` features) — not regex-engine behaviour. Each carries a
+/// documented reason.
 fn skip_reason(c: &Case) -> Option<&'static str> {
     // Cases guarded by a constraint we cannot evaluate (locale, knownBug,
     // build-specific) — the engine is not what is under test.
@@ -120,12 +127,6 @@ fn skip_reason(c: &Case) -> Option<&'static str> {
     // each body in isolation, with no tcltest inter-test state.
     if matches!(c.name.as_str(), "regexp-4.4" | "regexp-22.5") {
         return Some("depends on inter-test setup state");
-    }
-    // `regexp -about` and `regsub -command` are command-plumbing features in
-    // `tcl-cmd-core` (shared with the C-engine runtime), explicitly "not yet
-    // supported" there — not part of the ARE engine this crate provides.
-    if c.name == "regexp-20.2" || c.name.starts_with("regexp-27.") {
-        return Some("cmd-core option unimplemented (-about / regsub -command)");
     }
     // `-start` index parsing/validation and its `-all`/`\A` interaction live in
     // the cmd-core option-parsing + match loop, not the engine.

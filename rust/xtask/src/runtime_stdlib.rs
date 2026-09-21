@@ -116,7 +116,8 @@ pub fn run() -> Result<ExitCode> {
         bail!("vendored init.tcl does not require exact Tcl {expected_patch}");
     }
     let readme = fs::read_to_string(root.join(VENDOR_DIR).join("README.md"))?;
-    if !readme.contains(&format!("Tcl {expected_patch}")) || readme.contains("Tcl 9.0.3") {
+    let named = named_patchlevels(&readme);
+    if named.len() != 1 || !named.contains(expected_patch) {
         bail!("runtime stdlib README does not identify only Tcl {expected_patch}");
     }
     eprintln!(
@@ -126,6 +127,21 @@ pub fn run() -> Result<ExitCode> {
         manifest.source_revision
     );
     Ok(ExitCode::SUCCESS)
+}
+
+/// Every three-component Tcl patchlevel the text names, so a patchlevel left
+/// behind by an earlier vendor refresh fails the gate as loudly as a missing one.
+fn named_patchlevels(text: &str) -> BTreeSet<&str> {
+    text.match_indices("Tcl ")
+        .filter_map(|(index, marker)| {
+            let rest = &text[index + marker.len()..];
+            let end = rest
+                .find(|c: char| !c.is_ascii_digit() && c != '.')
+                .unwrap_or(rest.len());
+            let token = rest[..end].trim_end_matches('.');
+            (token.matches('.').count() == 2).then_some(token)
+        })
+        .collect()
 }
 
 fn vendored_files(directory: &std::path::Path) -> Result<BTreeSet<String>> {

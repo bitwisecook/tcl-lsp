@@ -397,8 +397,7 @@ fn extreme_item(items: &[Value], want_min: bool) -> Value {
 /// `depth` is the nesting level of this call (0 at the top); past
 /// [`value::MAX_VALUE_WALK_DEPTH`] this stops descending into `value`'s
 /// children — matching the `scalar => scalar` arm below, `body` still runs
-/// once on the (now-opaque) subtree — rather than recursing further
-/// (issue #996).
+/// once on the (now-opaque) subtree — rather than recursing further.
 fn walk(body: &Expr, value: Value, ctx: &mut EvalContext, depth: u32) -> Result<Value, QueryError> {
     let rebuilt = if value::MAX_VALUE_WALK_DEPTH.exceeded(depth) {
         value
@@ -745,9 +744,9 @@ mod recursion_tests {
             .expect("worker thread did not panic / overflow")
     }
 
-    /// Regression coverage for issue #996: the `walk` special form (`walk`
-    /// builtin body) recurses once per nested `Value` level, with no depth
-    /// cap before this fix — reachable with a fully generator-controlled
+    /// Regression coverage: the `walk` special form (`walk`
+    /// builtin body) recurses once per nested `Value` level, so it needs a
+    /// depth cap — reachable with a fully generator-controlled
     /// nesting depth (e.g. `walk(.)` over deeply nested `fromjson` input).
     /// 5000 is comfortably past `value::MAX_VALUE_WALK_DEPTH` (64); the
     /// assertion is that `walk` returns at all, not what it returns.

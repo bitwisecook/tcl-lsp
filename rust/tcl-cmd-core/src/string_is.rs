@@ -209,9 +209,9 @@ fn skip_trailing_ws(s: &str, off: usize) -> usize {
 /// across releases for free: `08` is invalid octal up to 8.6 and decimal 8 from
 /// 9.0, `1_0` and `0d1` exist only from 9.0, `0o`/`0b` only from 8.5.
 ///
-/// **`Parsed.end` is C's `-failindex`.** Verified against tclsh for every
-/// failure class: the parser stops exactly where C stops, so the reported index
-/// is simply where the parse ran out, after skipping trailing whitespace.
+/// **`Parsed.end` is C's `-failindex`.** The parser stops exactly where C stops
+/// for every failure class, so the reported index is simply where the parse ran
+/// out, after skipping trailing whitespace.
 ///
 /// | input | stops at | `-failindex` |
 /// |---|---|---|
@@ -250,11 +250,9 @@ fn scan_integer(chars: &[char], width: Width, numbers: NumberSyntax) -> (bool, i
 /// Scan a Tcl double (which also accepts every integer spelling), returning
 /// `(valid, fail_index)` under `numbers`.
 ///
-/// The hand-rolled scanner this replaced accepted only a decimal
-/// mantissa/exponent, so `string is double 0x1f` and `0o17` answered false —
-/// wrong on *every* release, since C reads a radix integer as a perfectly good
-/// double. Going through the facility fixes that along with the
-/// release-dependent spellings (`08`, `1_0`).
+/// C reads a radix integer as a perfectly good double, so `string is double
+/// 0x1f` and `0o17` are true on every release. Going through the shared numeral
+/// parser also picks up the release-dependent spellings (`08`, `1_0`).
 fn scan_double(chars: &[char], numbers: NumberSyntax) -> (bool, i64) {
     let s: String = chars.iter().collect();
     let Some(parsed) = number::parse(&s, ParseFlags::for_syntax(numbers)) else {
@@ -354,8 +352,7 @@ mod tests {
     use super::{Width, class_check, integer_class_width, scan_integer};
     use tcl_syntax::number::NumberSyntax;
 
-    /// The existing expectations were written for 9.x semantics; keep them
-    /// reading that way now the release is explicit.
+    /// These expectations are 9.x semantics, so the helper pins that release.
     fn check(class: &str, s: &str, strict: bool) -> (bool, i64) {
         class_check(class, s, strict, NumberSyntax::Tcl90)
     }
@@ -426,9 +423,7 @@ mod tests {
         }
     }
 
-    /// A radix integer is a valid `double` on every release. The hand-rolled
-    /// scanner this replaced only understood a decimal mantissa, so it answered
-    /// false here — wrong on 8.6 *and* 9.0, not merely release-blind.
+    /// A radix integer is a valid `double` on every release.
     #[test]
     fn a_radix_integer_is_a_double_on_every_release() {
         // Spelled out per grammar rather than derived: `0x` is universal while

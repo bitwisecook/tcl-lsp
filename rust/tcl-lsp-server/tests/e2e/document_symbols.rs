@@ -66,8 +66,6 @@ fn children(sym: &Value) -> Vec<Value> {
         .unwrap_or_default()
 }
 
-// -- TestDocumentSymbols -------------------------------------------------
-
 #[test]
 fn single_proc() {
     let mut lsp = Lsp::tcl();
@@ -194,8 +192,6 @@ fn proc_symbol_range_contains_selection() {
     assert!(end_line(outer) >= end_line(inner));
 }
 
-// -- TestTclOOSymbols ----------------------------------------------------
-
 #[test]
 fn class_symbol_emitted() {
     let mut lsp = Lsp::tcl();
@@ -311,8 +307,8 @@ fn classmethod_detail() {
 
 #[test]
 fn self_block_form_members_appear_in_the_outline() {
-    // Issue #1081 — TP, end to end. `self { method … }` declares exactly what
-    // `self method …` does; only the prefix spelling used to reach the outline.
+    // TP, end to end. `self { method … }` declares exactly what
+    // `self method …` does; both spellings must reach the outline.
     // Oracle (tclsh 9.0.4 / 8.6.16, identical):
     //   oo::class create ::C { self { method make {n} {…} } ; method tick {} {…} }
     //   ::C make 7               -> made-7
@@ -356,7 +352,7 @@ fn self_block_form_members_appear_in_the_outline() {
 
 #[test]
 fn self_block_deleted_member_is_absent_from_the_outline() {
-    // Issue #1095 review — TN, end to end. A member the block deletes must not
+    // TN, end to end. A member the block deletes must not
     // reach the outline. Oracle (tclsh 9.0.4 / 8.6.16, identical):
     //   oo::class create ::C1 {
     //       self { method gone {} {…} ; method kept {} {…} ; deletemethod gone }
@@ -389,7 +385,7 @@ fn self_block_deleted_member_is_absent_from_the_outline() {
 
 #[test]
 fn unwrapped_deleted_member_is_absent_from_the_outline() {
-    // Issue #1101 — TP, end to end and the user-visible symptom. An
+    // TP, end to end and the user-visible symptom. An
     // *unwrapped* `deletemethod` (no `self` / `private` wrapper, straight in
     // an `oo::define` body) really removes the instance method, so a retained
     // outline entry navigates to a name the interpreter does not have. Oracle
@@ -424,7 +420,7 @@ fn unwrapped_deleted_member_is_absent_from_the_outline() {
 
 #[test]
 fn unwrapped_delete_does_not_reach_the_class_side_of_the_outline() {
-    // Issue #1101 — TN, end to end. The unwrapped word is instance-scoped, so
+    // TN, end to end. The unwrapped word is instance-scoped, so
     // a class-object-side member of the same name keeps its outline entry.
     // (Real Tcl makes the cross-side spelling a hard definition-aborting
     // error — `method cm does not exist` — so nothing is lost by keeping it.)
@@ -453,7 +449,7 @@ fn unwrapped_delete_does_not_reach_the_class_side_of_the_outline() {
 
 #[test]
 fn self_introspection_inside_a_method_body_adds_no_symbol() {
-    // Issue #1081 — TN, end to end. `self class` / `self object` in a method
+    // TN, end to end. `self class` / `self object` in a method
     // body are introspection calls, not definer members: the outline must show
     // the method and nothing else.
     let mut lsp = Lsp::tcl();
@@ -475,7 +471,7 @@ fn self_introspection_inside_a_method_body_adds_no_symbol() {
     assert_eq!(names, ["whoami"], "unexpected outline members: {names:?}");
 }
 
-// -- tcltest test cases (issue #790) -------------------------------------
+// tcltest test cases.
 
 #[test]
 fn tcltest_imported_test_name_is_a_symbol() {
@@ -558,8 +554,6 @@ fn tcltest_constraint_and_match_mode_are_symbols() {
     assert_eq!(kind(matcher), OPERATOR);
 }
 
-// -- TestSymbolNamesNonEmpty ---------------------------------------------
-
 #[test]
 fn all_symbols_have_non_empty_names() {
     let mut lsp = Lsp::tcl();
@@ -572,9 +566,9 @@ fn all_symbols_have_non_empty_names() {
     assert!(names.iter().all(|n| !n.is_empty()), "{names:?}");
 }
 
-// Issue #934: a proc named `:` (legal Tcl — a lone colon is an ordinary name
-// character) must surface with its real name.  The 2.1.9 regression collapsed
-// the name to the empty string, which VS Code rejects with "name must not be
+// A proc named `:` (legal Tcl — a lone colon is an ordinary name
+// character) must surface with its real name. Collapsing the name to the
+// empty string is fatal: VS Code rejects it with "name must not be
 // falsy", killing the whole outline.
 #[test]
 fn colon_named_proc_has_a_non_empty_symbol_name() {
@@ -595,7 +589,6 @@ fn colon_named_proc_has_a_non_empty_symbol_name() {
     );
 }
 
-// -- TestIrulesEventHandlers ---------------------------------------------
 // An iRule's structure is its `when` blocks.  They carried no outline symbol
 // at all, so the outline, breadcrumbs and Cmd+Shift+O listed only whatever
 // variables the handlers happened to set.
@@ -659,13 +652,13 @@ fn event_handler_is_a_workspace_symbol() {
     );
 }
 
-/// Regression (#1179): the **first** `workspace/symbol` of a session must not
+/// The **first** `workspace/symbol` of a session must not
 /// answer out of a still-empty index.
 ///
 /// `initialized` pulls the client config and registers file watchers — two
 /// client round-trips — before it starts the folder scan, so a query issued
-/// straight after the handshake used to find nothing, while the identical
-/// query a moment later found everything.  The VS Code suite reproduced this
+/// straight after the handshake must not find nothing while the identical
+/// query a moment later finds everything.  The VS Code suite reproduced this
 /// as a flaky first test; this is the same race without an editor.
 #[test]
 fn workspace_symbol_waits_out_the_startup_scan() {
@@ -690,7 +683,7 @@ fn workspace_symbol_waits_out_the_startup_scan() {
     std::fs::remove_dir_all(&root).ok();
 }
 
-/// Regression (#1179): a document the editor has **just opened** must stay
+/// A document the editor has **just opened** must stay
 /// searchable.
 ///
 /// `didOpen` drops the document's index entry (its on-disk records stop being

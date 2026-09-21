@@ -290,8 +290,8 @@ fn parse_whole_int(t: &str, numbers: NumberSyntax) -> Option<i64> {
 /// to `i64::from_str` but *means* 493 up to 8.6, so accepting it would seed a
 /// wrong point interval. This mirrors SCCP's own
 /// [`crate::sccp::parse_literal_value`], which keeps a non-round-tripping
-/// leading-zero literal as a `ConstValue::String` for exactly that reason —
-/// so this function no longer undoes that abstention. Excluded spellings
+/// leading-zero literal as a `ConstValue::String` for exactly that reason,
+/// which this function must not undo. Excluded spellings
 /// yield `None` → `TOP`, which is imprecise but always sound.
 #[must_use]
 fn const_int_from_value(text: &str) -> Option<i64> {
@@ -317,8 +317,8 @@ pub(crate) fn eval_expr(
     env: &HashMap<String, Interval>,
     numbers: NumberSyntax,
 ) -> Interval {
-    // Public entry: the top of an expression tree is nesting depth 0 (issue
-    // #996 — the recursion cap lives in [`eval_expr_at`]).
+    // Public entry: the top of an expression tree is nesting depth 0; the
+    // recursion cap lives in [`eval_expr_at`].
     eval_expr_at(expr, env, 0, numbers)
 }
 
@@ -329,7 +329,7 @@ fn eval_expr_at(
     depth: u32,
     numbers: NumberSyntax,
 ) -> Interval {
-    // Native-stack safety net (issue #996): walks the `ExprNode` tree, one
+    // Native-stack safety net: walks the `ExprNode` tree, one
     // native frame per level. Past the cap, return `TOP` (the unbounded
     // interval) — the same "know nothing" answer this abstract evaluator
     // already gives for any unsupported node, so the result stays a sound
@@ -380,7 +380,7 @@ fn eval_expr_at(
 ///
 /// The `negate` (false-edge) inversion comes from [`BinOp::inverse`] — the
 /// owner table in `tcl_syntax::expr::operators` — rather than a local copy of
-/// its rows (issue #1437).  Operators the table inverts but this domain does
+/// its rows.  Operators the table inverts but this domain does
 /// not model (`eq`/`ne`, `in`/`ni`, the string orderings) invert to another
 /// unmodelled operator and fall out of the match below as `None`, exactly as
 /// they did when the local table passed them through untouched.
@@ -410,7 +410,7 @@ fn guard_interval(op: BinOp, k: i64, negate: bool) -> Option<Interval> {
         // (for `<`) or `i64::MAX` (for `>`) would overflow an unchecked `k ± 1`
         // and panic in debug/test builds. Saturating keeps a *sound* (if by one
         // value wider) interval — an over-approximation is always safe for the
-        // analysis (issue 147).
+        // analysis.
         BinOp::Lt => Some(Interval {
             lo: None,
             hi: Some(k.saturating_sub(1)),
@@ -610,7 +610,7 @@ pub fn refine_interval<S1: std::hash::BuildHasher>(
         // version flows in from a non-guarded predecessor — e.g. a `break` into
         // a loop exit that is also the header's false target, with the guard
         // variable un-redefined — where the guard does not hold, so refining
-        // would be unsound (issue 148).
+        // would be unsound.
         let target_preds = pred_counts.get(&guard_target).copied().unwrap_or(0);
         if target_preds > 1 {
             let redefined_at_target = ssa
@@ -1128,8 +1128,8 @@ mod tests {
         tcl_syntax::expr::parser::parse_expr(src, None)
     }
 
-    /// Regression coverage for issue #996: `eval_expr` recurses once per
-    /// `ExprNode` level with no depth cap before this fix. A tree built
+    /// `eval_expr` recurses once per
+    /// `ExprNode` level, so it needs a depth cap. A tree built
     /// directly is unbounded (the Pratt parser caps its own output at 256)
     /// and empirically overflowed the native stack (SIGABRT) in the low
     /// thousands of levels on a 2 MiB thread. 3000 is past that crash range
@@ -1243,11 +1243,11 @@ mod tests {
         );
     }
 
-    /// The false-edge inversion now comes from the owner table
-    /// (`BinOp::inverse`) instead of a local copy, and this pins the whole
-    /// negated row set — including the NaN-affected ordered four, whose
-    /// narrowing this domain deliberately keeps (issue #1437; see
-    /// [`guard_interval`]'s "NaN and the false edge").
+    /// The false-edge inversion comes from the owner table
+    /// (`BinOp::inverse`), not a local copy; this pins the whole negated row
+    /// set — including the NaN-affected ordered four, whose narrowing this
+    /// domain deliberately keeps (see [`guard_interval`]'s "NaN and the false
+    /// edge").
     #[test]
     fn guard_interval_negation_matches_the_owner_inverse_table() {
         let neg = |op| guard_interval(op, 5, true);
@@ -1286,7 +1286,7 @@ mod tests {
     fn guard_interval_saturates_at_i64_boundary() {
         // `value < i64::MIN` / `value > i64::MAX` would overflow an unchecked
         // `k ± 1`; saturation keeps a sound (empty-ish, one-value-wide) bound
-        // instead of panicking (issue 147).
+        // instead of panicking.
         assert_eq!(
             guard_interval(BinOp::Lt, i64::MIN, false),
             Some(Interval {

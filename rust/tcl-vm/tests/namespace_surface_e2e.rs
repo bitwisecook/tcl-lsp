@@ -16,8 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `namespace` command-surface regression vectors (issues #1442, #1446,
-//! #1451, #1453, #1463, #1583, #1584).
+//! `namespace` command-surface regression vectors.
 //!
 //! Every expectation is pinned byte-for-byte against tclsh 8.6.16 *and*
 //! tclsh 9.0.4 unless a `9.0:` comment records a deliberate release
@@ -85,7 +84,7 @@ fn run_flipping(steps: &[(&str, &str)]) -> String {
     last
 }
 
-// #1442 — `namespace which -variable` never answers with a call frame
+// `namespace which -variable` never answers with a call frame
 // (`NamespaceWhichCmd` → `Tcl_FindNamespaceVar`, tclNamesp.c:4657)
 
 #[test]
@@ -95,7 +94,7 @@ fn which_variable_ignores_proc_locals() {
         run("proc t {} {set loc 1; namespace which -variable loc}\nt"),
         ""
     );
-    // …including inside a namespace, where the VM used to answer ::ns::loc.
+    // …including inside a namespace: answering `::ns::loc` here would be wrong.
     assert_eq!(
         run("namespace eval ns {proc q {} {set loc 1; namespace which -variable loc}}\nns::q"),
         ""
@@ -193,10 +192,10 @@ fn origin_follows_import_chains() {
 
 /// The `Namespaces::command_origin` contract: `None` means "not an imported
 /// command" (C's `cmdPtr->deleteProc == DeleteImportedCmd`), so a shared core
-/// can tell the two apart. The VM used to answer `Some(self)` for every
-/// command, which happened to be invisible through `namespace origin` — it
-/// folds both onto the same answer — but left the trait unusable for anything
-/// that needs the distinction, and disagreed with the WASM runtime's impl.
+/// can tell the two apart. Answering `Some(self)` for every command would be
+/// invisible through `namespace origin` — it folds both onto the same
+/// answer — leaving the trait unusable for anything that needs the
+/// distinction, and disagreeing with the WASM runtime's implementation.
 #[test]
 fn command_origin_reports_none_for_a_command_that_was_not_imported() {
     use tcl_runtime_api::Namespaces;
@@ -235,7 +234,7 @@ fn command_origin_reports_none_for_a_command_that_was_not_imported() {
     );
 }
 
-// #1446 — `namespace export` / `import` leading-option handling
+// `namespace export` / `import` leading-option handling
 // (`NamespaceExportCmd`/`Tcl_Export`, `NamespaceImportCmd`/`Tcl_Import`)
 
 #[test]
@@ -348,7 +347,7 @@ fn namespace_import_rejects_self_and_unknown_sources() {
     );
 }
 
-// #1451 — namespace teardown (`TclTeardownNamespace`, tclNamesp.c:1084)
+// Namespace teardown (`TclTeardownNamespace`, tclNamesp.c:1084)
 
 /// A rename whose destination lands in the caller's *retained* namespace — one
 /// the running proc deleted out from under itself — leaves nothing publicly
@@ -563,8 +562,7 @@ fn namespace_teardown_uses_command_table_tcl_string_hash_order() {
     // TclTeardownNamespace snapshots nsPtr->cmdTable with
     // Tcl_FirstHashEntry/Tcl_NextHashEntry before deleting each token, so the
     // delete traces fire in the retained TCL_STRING_KEYS bucket order rather
-    // than definition or lexical order. Exact Tcl 9.0.4 oracle result (issue
-    // #1752's own vector).
+    // than definition or lexical order. Exact Tcl 9.0.4 oracle result.
     assert_eq!(
         run("set log {}
              proc rec {old new op} {lappend ::log [namespace tail $old]}
@@ -1121,7 +1119,7 @@ fn namespace_children_retains_tcls_hash_capacity_after_deletion() {
     );
 }
 
-// #1453 — ensemble option tables and subcommand resolution
+// Ensemble option tables and subcommand resolution
 // (`TclNamespaceEnsembleCmd` + `NsEnsembleImplementationCmd`, tclEnsemble.c)
 
 #[test]
@@ -2442,7 +2440,7 @@ fn ensemble_default_target_miss_names_the_rewritten_subcommand() {
     );
 }
 
-// #1463 — the availability gate covers the TclOO root object commands
+// The availability gate covers the TclOO root object commands
 
 #[test]
 fn tcloo_roots_follow_their_introducing_release() {
@@ -2483,8 +2481,7 @@ fn a_script_created_object_is_release_invariant() {
 
 #[test]
 fn a_hidden_tcloo_root_cannot_be_renamed_back_into_view() {
-    // The removal seam is gated too (#1463's earlier reopen), so the gate
-    // cannot be walked around.
+    // The removal seam is gated too, so the gate cannot be walked around.
     assert_eq!(
         run_at("catch {rename oo::class fresh} m; set m", "tcl8.4"),
         "can't rename \"oo::class\": command doesn't exist"
@@ -2546,11 +2543,11 @@ fn a_renamed_tcloo_root_still_gates_by_its_registry_identity() {
     );
 }
 
-// -- #1751: a deleted namespace outlives its last active frame --------------
+// A deleted namespace outlives its last active frame.
 
 #[test]
 fn deleting_the_running_namespace_retains_it_for_the_frame() {
-    // The issue's headline (#1751). `Tcl_DeleteNamespace` takes its
+    // `Tcl_DeleteNamespace` takes its
     // `activationCount > (nsPtr == globalNsPtr)` branch: `NS_DYING`, unlink the
     // parent edge, keep the contents for the frames still running in the token.
     // Exact Tcl 9.0.4 oracle result (identical on 8.6.16).
@@ -2719,9 +2716,9 @@ fn a_retained_token_keeps_its_variables() {
 
 #[test]
 fn retained_and_recreated_namespace_variables_have_distinct_cells() {
-    // Exact Tcl 9.0.4 oracle from #1753. This pins the variable-table half of
+    // Exact Tcl 9.0.4 oracle. This pins the variable-table half of
     // stable namespace identity; command-token retirement has separate
-    // coverage and remains tracked independently.
+    // coverage.
     assert_eq!(
         run(r"set answer [namespace eval N {
                  variable v OLD
@@ -3012,7 +3009,7 @@ fn a_command_deleted_from_a_retained_frame_reports_its_own_namespace() {
     );
 }
 
-// -- #1751: a retained token is entered by identity, never by spelling ------
+// A retained token is entered by identity, never by spelling.
 
 #[test]
 fn a_retained_procedure_runs_in_its_own_token_not_the_recreations() {

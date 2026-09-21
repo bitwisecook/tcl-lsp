@@ -246,7 +246,7 @@ suite("WASI guest URI mapping", () => {
   // filesystem path — while the URI naming it must be percent-encoded, or it
   // either fails to parse (space) or parses as something else entirely (`#`
   // becomes a fragment, `?` a query, `%20` a decoded escape). This is the
-  // aliasing class fixed in `rooted_file_uri` (c0aa8a25), one layer up.
+  // aliasing class `rooted_file_uri` guards against, one layer up.
   const hostileNames: Array<[string, string]> = [
     ["My Project", "file:///workspaces/My%20Project"],
     ["foo#bar", "file:///workspaces/foo%23bar"],

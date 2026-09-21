@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 # Contract for carrying a green pull-request result onto its merge push or
-# release tag. The optimization is safe only while it resolves one merged PR,
+# release tag. The optimisation is safe only while it resolves one merged PR,
 # compares exact Git tree identities, is bounded in time, and fails closed on
 # every API or local-Git error.
 

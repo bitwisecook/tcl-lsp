@@ -53,14 +53,6 @@ private const val COMMENT_WIDTH = 440
 private const val SCROLL_UNIT = 16
 
 /**
- * A wrapping hint under a setting.
- *
- * `FormBuilder.addTooltip` builds a plain `JBLabel` straight from the string,
- * and a `JLabel` never wraps: the longest hint on this page is 180 characters,
- * so on a single line it alone asked the settings pane for about 1200px and
- * ran off the right-hand edge.
- */
-/**
  * The stored value a tri-state optimiser box currently represents.
  *
  * `null` is the third state, and it is the important one: it means "inherit
@@ -82,6 +74,14 @@ private fun threeState(value: Boolean?): ThreeStateCheckBox.State = when (value)
     null -> ThreeStateCheckBox.State.DONT_CARE
 }
 
+/**
+ * A wrapping hint under a setting.
+ *
+ * `FormBuilder.addTooltip` builds a plain `JBLabel` straight from the string,
+ * and a `JLabel` never wraps: the longest hint on this page is 180 characters,
+ * so on a single line it alone asked the settings pane for about 1200px and
+ * ran off the right-hand edge.
+ */
 private fun FormBuilder.addWrappedComment(text: String): FormBuilder =
     addComponentToRightColumn(
         JBLabel(
@@ -263,8 +263,9 @@ class TclLspSettingsPanel {
     private val diagW150 = JBCheckBox("W150: Not available across the project's declared version-...")
     private val diagW151 = JBCheckBox("W151: Numeral changes meaning or validity across the proje...")
     private val diagW152 = JBCheckBox("W152: A registry-declared option relation is unmet")
-    private val diagW200 = JBCheckBox("W200: Signed/unsigned modifier on a binary format/binary s...")
+    private val diagW200 = JBCheckBox("W200: Unsigned (u) suffix on a binary format/binary scan f...")
     private val diagW201 = JBCheckBox("W201: Manual path concatenation")
+    private val diagW202 = JBCheckBox("W202: binary format/binary scan field letter requires a ne...")
     private val diagW230 = JBCheckBox("W230: Constant list index out of range")
     private val diagW231 = JBCheckBox("W231: Constant list index out of range")
     private val diagW232 = JBCheckBox("W232: Constant string index out of range")
@@ -380,6 +381,21 @@ class TclLspSettingsPanel {
     private val diagIAPP7002 = JBCheckBox("IAPP7002: iApp presentation field is never referenced by the i...")
     private val diagIAPP7003 = JBCheckBox("IAPP7003: iApp presentation #include file could not be resolved")
 
+    // Diagnostics — XC Translatability
+    private val diagXC100 = JBCheckBox("XC100: iRule construct translates to an XC configuration ob...")
+    private val diagXC101 = JBCheckBox("XC101: iRule construct translates to an XC L7 route")
+    private val diagXC102 = JBCheckBox("XC102: iRule construct translates to an XC service policy rule")
+    private val diagXC103 = JBCheckBox("XC103: iRule construct translates to an XC header action")
+    private val diagXC105 = JBCheckBox("XC105: iRule data-group match translates to an XC service p...")
+    private val diagXC106 = JBCheckBox("XC106: iRule construct translates to an XC WAF exclusion rule")
+    private val diagXC107 = JBCheckBox("XC107: No XC action needed")
+    private val diagXC200 = JBCheckBox("XC200: Construct is only partially translatable")
+    private val diagXC201 = JBCheckBox("XC201: iRules event has no XC equivalent")
+    private val diagXC203 = JBCheckBox("XC203: Conditional logic is only partially translatable")
+    private val diagXC250 = JBCheckBox("XC250: iRules event maps to a separate XC feature rather th...")
+    private val diagXC300 = JBCheckBox("XC300: Dynamic or procedural construct has no XC equivalent")
+    private val diagXC301 = JBCheckBox("XC301: L4/protocol-specific command has no XC equivalent")
+
     // Diagnostics — SslicTcl
     private val diagSSLIC1001 = JBCheckBox("SSLIC1001: SslicTcl declaration is not valid Tcl syntax or has ...")
     private val diagSSLIC1002 = JBCheckBox("SSLIC1002: SslicTcl declaration uses substitution or argument e...")
@@ -403,6 +419,9 @@ class TclLspSettingsPanel {
 
     // Style
     private val styleLineLength = JSpinner(SpinnerNumberModel(120, 40, 500, 10))
+
+    // Workspace scan
+    private val workspaceScanMaxFiles = JSpinner(SpinnerNumberModel(2000, 1, 1_000_000, 500))
 
     // @generated:opt-checkboxes:begin
     private val optEnabled = JBCheckBox("Enable optimiser suggestions")
@@ -567,8 +586,8 @@ class TclLspSettingsPanel {
                     diagW137, diagW138, diagW139, diagW140, diagW141, diagW142,
                     diagW143, diagW144, diagW145, diagW146, diagW147, diagW148,
                     diagW149, diagW150, diagW151, diagW152, diagW200, diagW201,
-                    diagW230, diagW231, diagW232, diagW233, diagW240, diagW241,
-                    diagW250, diagW308, diagW314, diagW315,
+                    diagW202, diagW230, diagW231, diagW232, diagW233, diagW240,
+                    diagW241, diagW250, diagW308, diagW314, diagW315,
                 ),
             ),
         )
@@ -647,6 +666,17 @@ class TclLspSettingsPanel {
             ),
         )
 
+        builder.addComponent(TitledSeparator("Diagnostics — XC Translatability"))
+        builder.addComponent(
+            ReflowingGrid(
+                listOf(
+                    diagXC100, diagXC101, diagXC102, diagXC103, diagXC105, diagXC106,
+                    diagXC107, diagXC200, diagXC201, diagXC203, diagXC250, diagXC300,
+                    diagXC301,
+                ),
+            ),
+        )
+
         builder.addComponent(TitledSeparator("Diagnostics — SslicTcl"))
         builder.addComponent(
             ReflowingGrid(
@@ -662,6 +692,18 @@ class TclLspSettingsPanel {
         // Style section
         builder.addComponent(TitledSeparator("Style"))
         builder.addLabeledComponent(JBLabel("Line length (W111 threshold):"), styleLineLength)
+
+        // Workspace scan section
+        builder.addComponent(TitledSeparator("Workspace Scan"))
+        builder.addLabeledComponent(JBLabel("Most files to index:"), workspaceScanMaxFiles)
+        builder.addWrappedComment(
+            "How many Tcl files the server reads from disk when it indexes the " +
+                "project, across every content root. Cross-file results (workspace " +
+                "symbols, go to definition into an unopened file, package require " +
+                "resolution) only cover files inside this budget; raise it for a large " +
+                "project, lower it on a slow machine. Files you open are always " +
+                "analysed regardless.",
+        )
 
         // @generated:opt-ui:begin
         builder.addComponent(TitledSeparator("Optimiser"))
@@ -829,6 +871,7 @@ class TclLspSettingsPanel {
             diagW152.isSelected != s.diagnosticW152 ||
             diagW200.isSelected != s.diagnosticW200 ||
             diagW201.isSelected != s.diagnosticW201 ||
+            diagW202.isSelected != s.diagnosticW202 ||
             diagW230.isSelected != s.diagnosticW230 ||
             diagW231.isSelected != s.diagnosticW231 ||
             diagW232.isSelected != s.diagnosticW232 ||
@@ -929,6 +972,19 @@ class TclLspSettingsPanel {
             diagIAPP7001.isSelected != s.diagnosticIAPP7001 ||
             diagIAPP7002.isSelected != s.diagnosticIAPP7002 ||
             diagIAPP7003.isSelected != s.diagnosticIAPP7003 ||
+            diagXC100.isSelected != s.diagnosticXC100 ||
+            diagXC101.isSelected != s.diagnosticXC101 ||
+            diagXC102.isSelected != s.diagnosticXC102 ||
+            diagXC103.isSelected != s.diagnosticXC103 ||
+            diagXC105.isSelected != s.diagnosticXC105 ||
+            diagXC106.isSelected != s.diagnosticXC106 ||
+            diagXC107.isSelected != s.diagnosticXC107 ||
+            diagXC200.isSelected != s.diagnosticXC200 ||
+            diagXC201.isSelected != s.diagnosticXC201 ||
+            diagXC203.isSelected != s.diagnosticXC203 ||
+            diagXC250.isSelected != s.diagnosticXC250 ||
+            diagXC300.isSelected != s.diagnosticXC300 ||
+            diagXC301.isSelected != s.diagnosticXC301 ||
             diagSSLIC1001.isSelected != s.diagnosticSSLIC1001 ||
             diagSSLIC1002.isSelected != s.diagnosticSSLIC1002 ||
             diagSSLIC1003.isSelected != s.diagnosticSSLIC1003 ||
@@ -949,6 +1005,8 @@ class TclLspSettingsPanel {
             xcDiagnosticsEnabled.isSelected != s.xcDiagnosticsEnabled ||
             // Style
             (styleLineLength.value as Int) != s.styleLineLength ||
+            // Workspace scan
+            (workspaceScanMaxFiles.value as Int) != s.workspaceScanMaxFiles ||
             // @generated:opt-dirty:begin
             optEnabled.isSelected != s.optimiserEnabled ||
             optProfile.selectedItem != s.optimiserProfile ||
@@ -1121,6 +1179,7 @@ class TclLspSettingsPanel {
         s.diagnosticW152 = diagW152.isSelected
         s.diagnosticW200 = diagW200.isSelected
         s.diagnosticW201 = diagW201.isSelected
+        s.diagnosticW202 = diagW202.isSelected
         s.diagnosticW230 = diagW230.isSelected
         s.diagnosticW231 = diagW231.isSelected
         s.diagnosticW232 = diagW232.isSelected
@@ -1221,6 +1280,19 @@ class TclLspSettingsPanel {
         s.diagnosticIAPP7001 = diagIAPP7001.isSelected
         s.diagnosticIAPP7002 = diagIAPP7002.isSelected
         s.diagnosticIAPP7003 = diagIAPP7003.isSelected
+        s.diagnosticXC100 = diagXC100.isSelected
+        s.diagnosticXC101 = diagXC101.isSelected
+        s.diagnosticXC102 = diagXC102.isSelected
+        s.diagnosticXC103 = diagXC103.isSelected
+        s.diagnosticXC105 = diagXC105.isSelected
+        s.diagnosticXC106 = diagXC106.isSelected
+        s.diagnosticXC107 = diagXC107.isSelected
+        s.diagnosticXC200 = diagXC200.isSelected
+        s.diagnosticXC201 = diagXC201.isSelected
+        s.diagnosticXC203 = diagXC203.isSelected
+        s.diagnosticXC250 = diagXC250.isSelected
+        s.diagnosticXC300 = diagXC300.isSelected
+        s.diagnosticXC301 = diagXC301.isSelected
         s.diagnosticSSLIC1001 = diagSSLIC1001.isSelected
         s.diagnosticSSLIC1002 = diagSSLIC1002.isSelected
         s.diagnosticSSLIC1003 = diagSSLIC1003.isSelected
@@ -1240,6 +1312,7 @@ class TclLspSettingsPanel {
         s.xcDiagnosticsEnabled = xcDiagnosticsEnabled.isSelected
 
         s.styleLineLength = styleLineLength.value as Int
+        s.workspaceScanMaxFiles = workspaceScanMaxFiles.value as Int
 
         // @generated:opt-apply:begin
         s.optimiserEnabled = optEnabled.isSelected
@@ -1293,15 +1366,6 @@ class TclLspSettingsPanel {
     }
 
     /**
-     * Restart the Tcl LSP server in every open project. Called after
-     * launch-affecting settings change (server path) so
-     * the user picks up the new command line without restarting the
-     * IDE. Non-launch settings (features, formatting, diagnostics, …)
-     * are sent to the running server via workspace/configuration and
-     * don't need a restart.
-     */
-    @Suppress("UnstableApiUsage")
-    /**
      * The profile selector, with the link that clears every per-code override
      * beside it.
      *
@@ -1331,6 +1395,15 @@ class TclLspSettingsPanel {
         optCodeBoxes.forEach { it.state = ThreeStateCheckBox.State.DONT_CARE }
     }
 
+    /**
+     * Restart the Tcl LSP server in every open project. Called after
+     * launch-affecting settings change (server path) so
+     * the user picks up the new command line without restarting the
+     * IDE. Non-launch settings (features, formatting, diagnostics, …)
+     * are sent to the running server via workspace/configuration and
+     * don't need a restart.
+     */
+    @Suppress("UnstableApiUsage")
     private fun restartLspServers() {
         for (project in ProjectManager.getInstance().openProjects) {
             if (project.isDisposed) continue
@@ -1459,6 +1532,7 @@ class TclLspSettingsPanel {
         diagW152.isSelected = s.diagnosticW152
         diagW200.isSelected = s.diagnosticW200
         diagW201.isSelected = s.diagnosticW201
+        diagW202.isSelected = s.diagnosticW202
         diagW230.isSelected = s.diagnosticW230
         diagW231.isSelected = s.diagnosticW231
         diagW232.isSelected = s.diagnosticW232
@@ -1559,6 +1633,19 @@ class TclLspSettingsPanel {
         diagIAPP7001.isSelected = s.diagnosticIAPP7001
         diagIAPP7002.isSelected = s.diagnosticIAPP7002
         diagIAPP7003.isSelected = s.diagnosticIAPP7003
+        diagXC100.isSelected = s.diagnosticXC100
+        diagXC101.isSelected = s.diagnosticXC101
+        diagXC102.isSelected = s.diagnosticXC102
+        diagXC103.isSelected = s.diagnosticXC103
+        diagXC105.isSelected = s.diagnosticXC105
+        diagXC106.isSelected = s.diagnosticXC106
+        diagXC107.isSelected = s.diagnosticXC107
+        diagXC200.isSelected = s.diagnosticXC200
+        diagXC201.isSelected = s.diagnosticXC201
+        diagXC203.isSelected = s.diagnosticXC203
+        diagXC250.isSelected = s.diagnosticXC250
+        diagXC300.isSelected = s.diagnosticXC300
+        diagXC301.isSelected = s.diagnosticXC301
         diagSSLIC1001.isSelected = s.diagnosticSSLIC1001
         diagSSLIC1002.isSelected = s.diagnosticSSLIC1002
         diagSSLIC1003.isSelected = s.diagnosticSSLIC1003
@@ -1578,6 +1665,7 @@ class TclLspSettingsPanel {
         xcDiagnosticsEnabled.isSelected = s.xcDiagnosticsEnabled
 
         styleLineLength.value = s.styleLineLength
+        workspaceScanMaxFiles.value = s.workspaceScanMaxFiles
 
         // @generated:opt-reset:begin
         optEnabled.isSelected = s.optimiserEnabled

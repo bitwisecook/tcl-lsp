@@ -1,4 +1,4 @@
-# Evidence gating for the `package require` suggestion (issue #1191).
+# Evidence gating for the `package require` suggestion.
 #
 # Only line 12 is an executable command head. The three lines before it
 # mention the same identifier as data — a comment, a quoted string, and an

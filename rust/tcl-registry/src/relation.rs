@@ -2,13 +2,13 @@
 //! One relation mechanism, for every "X requires / conflicts with Y" fact the
 //! registry knows.
 //!
-//! **R12** (owner ruling 2026-08-28). Before this module the registry checked
-//! the same idea five times in four vocabularies: E-R14's typed
+//! **R12** unifies what would otherwise be four separate vocabularies for
+//! the same idea: E-R14's typed
 //! [`OptionRelation`] over an invocation, `ProfileSpec`'s bare `requires` and
 //! `conflicts` slices walked by two hand-written loops, and the event graph's
-//! `implied_profiles` / `transport` slices walked by a third. Each carried its
-//! own field names, its own walker, and its own message text; none but the
-//! first had lifecycle gating or evidence-carrying diagnostics.
+//! `implied_profiles` / `transport` slices walked by a third. Each would carry
+//! its own field names, its own walker, and its own message text, and only
+//! the first would have lifecycle gating or evidence-carrying diagnostics.
 //!
 //! The core here is that first mechanism with the invocation assumption lifted
 //! out of it. A [`Relation<T>`] is a [`RelationKind`] over a subject term and a
@@ -150,7 +150,7 @@ pub enum RelationMode {
 
 /// A registry-declared relation between the parts of one subject.
 ///
-/// **The declarative half of E-R14** (owner ruling 2026-08-27), generalised
+/// **The declarative half of E-R14**, generalised
 /// over its term domain by R12. Every relation expressible here is evaluated
 /// natively by [`Self::evaluate`] — a few slice scans over facts the caller
 /// already collected — so the common case never enters the hook VM.

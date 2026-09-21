@@ -22,8 +22,6 @@ use crate::common::helpers::*;
 use crate::common::{Lsp, unique_uri};
 use serde_json::Value;
 
-// -- TestTypeDefinition --------------------------------------------------
-
 #[test]
 fn set_with_class_new() {
     let mut lsp = Lsp::tcl();
@@ -53,8 +51,6 @@ fn my_call_returns_enclosing_class() {
     assert_eq!(locs.len(), 1);
     assert_eq!(locs[0].range["start"]["line"].as_i64(), Some(0));
 }
-
-// -- TestDeclaration -----------------------------------------------------
 
 #[test]
 fn global_var_in_proc_returns_declaration_not_set() {
@@ -153,7 +149,7 @@ fn sourced_file_resolves_under_the_source_site_namespace_m9() {
     );
 }
 
-// -- Caller-frame variables (issue #923 audit idx 58) ---------------------
+// Caller-frame variables.
 
 /// The ticklecharts shape, minimised: `gridlayoutHasDataSetObj dataset` names
 /// a variable in the CALLER's frame, the callee's `upvar 1 $dts dataset`
@@ -222,7 +218,7 @@ fn references_link_the_call_site_word_and_the_caller_frame_read() {
     assert!(!from_read.contains(&9), "{from_read:?}");
 }
 
-// -- Literal caller-frame targets (issue #923 audit idx 22 / issue #1139) --
+// Literal caller-frame targets.
 
 /// The `SpiceGenTcl` shape, minimised to its proc half: the callee spells the
 /// caller-frame name **in its own body** (`upvar name name`), so no
@@ -278,9 +274,9 @@ fn references_on_a_literal_upvar_target_link_the_call_and_the_read() {
     );
 }
 
-// -- `my <method>` dispatch through a mixin (issue #923 audit idx 22) --
+// `my <method>` dispatch through a mixin.
 
-/// The `SpiceGenTcl` shape the audit reported: the callee is a **mixin**'s
+/// The `SpiceGenTcl` shape: the callee is a **mixin**'s
 /// method reached by `my NameProcess …`, and the constructor that reads
 /// `$name` never assigns it.  tclsh 9.0.4 / 8.6.16, identical: `Widget new
 /// {-base 1}` prints `name=::oo::Obj24 params=-base 1`.
@@ -378,8 +374,8 @@ fn a_mixin_dispatch_without_an_upvar_still_abstains() {
     );
 }
 
-/// Issue #923 audit idx 98: `upvar ::tk::FocusGrab($index) data` names one
-/// fixed global cell (level-independent), so every occurrence of the cell —
+/// `upvar ::tk::FocusGrab($index) data` names one fixed global cell
+/// (level-independent), so every occurrence of the cell —
 /// the `upvar` `otherVar` word, the sibling proc's `info exists` argument,
 /// its `$::tk::FocusGrab($index)` read, and its `unset` argument — is one
 /// variable.
@@ -465,8 +461,8 @@ fn a_fully_qualified_upvar_target_cross_references_between_procs() {
 }
 
 /// TN — an unbound `$`-led read abstains rather than resolving to a
-/// coincidentally same-named method.  This is the wrong-kind conflation the
-/// audit confirmed: Tcl's variable and command namespaces are disjoint.
+/// coincidentally same-named method.  Tcl's variable and command namespaces
+/// are disjoint, so conflating them here would be the wrong kind of match.
 #[test]
 fn an_unbound_dollar_read_never_resolves_to_a_same_named_method() {
     let mut lsp = Lsp::tcl();

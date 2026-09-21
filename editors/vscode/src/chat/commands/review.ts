@@ -48,10 +48,11 @@ export async function handleReview(ctx: CommandContext): Promise<vscode.ChatResu
 
   ctx.response.progress("Running security analysis...");
 
-  // Ensure dialect is f5-irules
+  // Ensure dialect is f5-irules.
   // Pinned as a *session override*, not a configuration push: a push is
-  // re-applied away by the next `workspace/configuration` pull, which can land
-  // at any time, so the pin's lifetime was arbitrary (issue #1217).
+  // re-applied away by the next `workspace/configuration` pull, which can
+  // land at any time, so a push's effect would last an unpredictable length
+  // of time.
   const pinnedDialect = getActiveDialect() !== "f5-irules";
   if (pinnedDialect) {
     await setSessionDialectOverride("f5-irules");
@@ -62,11 +63,9 @@ export async function handleReview(ctx: CommandContext): Promise<vscode.ChatResu
       doc = await ensureDocumentOpen(code);
     }
 
-    // Step 1: Get LSP diagnostics
     const diagnostics = await waitForDiagnostics(doc.uri, { timeout: 5000 });
     const categorised = categoriseDiagnostics(diagnostics);
 
-    // Step 2: Collect security-related diagnostics
     const securityDiags = [
       ...categorised.security,
       ...categorised.taint,
@@ -78,10 +77,8 @@ export async function handleReview(ctx: CommandContext): Promise<vscode.ChatResu
         ? formatDiagnosticsForLLM(securityDiags, code)
         : "No security issues detected by static analysis.";
 
-    // Step 3: Ask LLM for deeper review
     ctx.response.progress("Running LLM security review...");
 
-    // Step 4: Render combined report
     ctx.response.markdown("## Security Review\n");
 
     // Static analysis findings

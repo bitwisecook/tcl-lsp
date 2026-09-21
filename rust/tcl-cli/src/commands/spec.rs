@@ -27,8 +27,7 @@
 //!   newest sources declare, which is a fabrication.
 //! - `tcl spec upgrade` rewrites a 1.x pack's source into `SpecTcl` 2.0.
 //! - `tcl spec export` renders a pack's loaded snapshot back out as canonical
-//!   2.0 source, which for a pack written as a program is its expansion
-//!   (design E §15.1).
+//!   2.0 source, which for a pack written as a program is its expansion.
 //!
 //! Two ways to name the releases:
 //!
@@ -82,10 +81,10 @@ pub fn run(action: &SpecCommand) -> anyhow::Result<u8> {
 
 /// `tcl spec export` — a pack's snapshot as canonical `SpecTcl` source.
 ///
-/// The pack is **evaluated** (design E §1), so a programmed pack expands:
+/// The pack is **evaluated**, so a programmed pack expands:
 /// the file's loops and helper procedures run in the deterministic sandbox
 /// and what they registered is written back as straight-line declarations.
-/// A canonical pack therefore round-trips, which is the E-R11 bijection the
+/// A canonical pack therefore round-trips, which is the bijection the
 /// gates in `tcl-spectcl/tests/export.rs` hold to.
 ///
 /// Two deliberate choices, both stated in the pack's own terms:
@@ -170,13 +169,13 @@ fn run_export(args: &crate::cli::SpecExportArgs) -> anyhow::Result<u8> {
 /// renderer emits no pack-level rows and degrades opaque fields to TODO
 /// comments, so rendering a loaded pack would delete parts of it. Edits are
 /// content-range replacements located by the loader's own lexer and applied
-/// back-to-front, so author layout, comments, and delimiters survive (U8).
+/// back-to-front, so author layout, comments, and delimiters survive.
 ///
-/// The version word moves only when the body rewrite completed on that file
-/// (U1). A row whose tokens name environment *membership* rather than
-/// availability needs the P1 environment registry, so it is left
+/// The version word moves only when the body rewrite completed on that
+/// file. A row whose tokens name environment *membership* rather than
+/// availability needs the environment registry, so it is left
 /// byte-identical, marked with a `# TODO(spectcl 2.0):` comment, and the file
-/// reports as partially upgraded (U3).
+/// reports as partially upgraded.
 pub fn run_upgrade(args: &SpecUpgradeArgs) -> anyhow::Result<u8> {
     let options = UpgradeOptions {
         from: args.from.clone(),

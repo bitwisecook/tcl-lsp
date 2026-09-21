@@ -18,10 +18,10 @@
 
 //! Position-independent *green* layer of the Tcl concrete syntax tree.
 //!
-//! This is the canonical, lossless syntax representation the whole
-//! pipeline is meant to ride on — the segmenter, AOT lowering, the
-//! formatter, the minifier, and the per-command tooling.  The design is
-//! the classic red-green split (Roslyn / rust-analyzer):
+//! This is the canonical, lossless syntax representation shared by the
+//! segmenter, AOT lowering, the formatter, the minifier, and the
+//! per-command tooling.  The design is the classic red-green split
+//! (Roslyn / rust-analyzer):
 //!
 //! - **Green** (this module) is *position-independent*: a node knows
 //!   only its *width* and its children, never an absolute offset.  Two
@@ -42,12 +42,11 @@
 //! in document order reproduces the source byte-for-byte — the
 //! losslessness the formatter and minifier require.
 //!
-//! **Byte offsets.**  The Rust lexer works in byte
-//! offsets throughout (see [`tcl_lexer::Span`]), so widths here are byte
-//! lengths (`str::len`).  For ASCII these coincide with codepoint counts;
-//! for multibyte text the byte
-//! widths stay consistent with the byte offsets the red layer resolves
-//! against.
+//! **Byte offsets.**  The lexer works in byte offsets throughout (see
+//! [`tcl_lexer::Span`]), so widths here are byte lengths (`str::len`).
+//! For ASCII these coincide with codepoint counts; for multibyte text the
+//! byte widths stay consistent with the byte offsets the red layer
+//! resolves against.
 //!
 //! See `docs/design/compiler/syntax-tree.md`.
 
@@ -56,11 +55,11 @@ use tcl_lexer::TokenType;
 /// A piece of inter-token text that carries no syntactic value of its own.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TriviaKind {
-    /// Intra-line separators (lexer `SEP`, backslash-newline).
+    /// Intra-line separators (lexer `Sep`, backslash-newline).
     Whitespace,
-    /// Newline(s) / `;` command terminator (lexer `EOL`).
+    /// Newline(s) / `;` command terminator (lexer `Eol`).
     Eol,
-    /// `#` … end-of-line comment (lexer `COMMENT`).
+    /// `#` … end-of-line comment (lexer `Comment`).
     Comment,
 }
 
@@ -128,8 +127,8 @@ fn node_full_width(
 
 /// A leaf: one lexer word-fragment, with attached leading/trailing trivia.
 ///
-/// `token_type` is the lexer [`TokenType`] of the fragment
-/// (`Esc` / `Str` / `Cmd` / `Var` / `Expand`); the trivia kinds
+/// `token_type` is the lexer [`TokenType`] of the fragment (a word-fragment
+/// kind such as `Esc` / `Str` / `Cmd` / `Var` / `Expand`); the trivia kinds
 /// `Sep` / `Eol` / `Comment` never appear here — they become
 /// [`GreenTrivia`].
 ///

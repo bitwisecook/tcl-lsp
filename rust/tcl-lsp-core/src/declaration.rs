@@ -46,11 +46,10 @@ use tcl_registry::arg_role::ArgRole;
 /// deeply (but validly) nested code keeps full go-to-declaration support.
 /// Real source never nests anywhere near this.
 ///
-/// It used to be the same 256 that cap was; since issue #1654 the compiler
-/// derives its number from a stack budget and lands well below this one, so
-/// a body tree this walk receives from the analyser can no longer reach
-/// here at all. The bound stays as defence-in-depth against a tree built or
-/// received some other way — the same role
+/// The compiler derives its own number from a stack budget and lands well
+/// below this one, so a body tree this walk receives from the analyser
+/// cannot reach here at all. The bound is defence-in-depth against a tree
+/// built or received some other way — the same role
 /// `document_symbols`' `MAX_SCOPE_WALK_DEPTH` plays.
 const MAX_BODY_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::RecursionLimit(256);
 
@@ -88,7 +87,7 @@ pub fn declaration(
 
     // The document's proven command-identity facts, so a scoping statement is
     // recognised by the command a head *is* rather than the one it is spelled
-    // as (issue #1275).  Empty — and lookup-free — unless the document binds
+    // as.  Empty — and lookup-free — unless the document binds
     // something.
     let identities = tcl_compiler::realm::document_realm_bindings(source, dialect, registry);
     let scan = DeclScan {
@@ -211,7 +210,7 @@ fn collect_declarations_in_region(
         // semantic-token walk resolves it: a proven `interp alias` / `rename` /
         // `namespace import` answers with the command the head really names,
         // and a spelling whose binding was provably taken over answers with
-        // nothing, so no registry grammar is applied to it (issue #1275).
+        // nothing, so no registry grammar is applied to it.
         let written = token_text(source, head_tok.span);
         let head = identities
             .head_words(written, head_tok.span.start())
@@ -240,7 +239,7 @@ fn collect_declarations_in_region(
 
         // `apply {argList body ?ns?} …` (and any future command sharing the
         // shape) — recurse into the real body *element*, not the whole
-        // lambda literal (issue #954): re-segmenting the whole `{argList}
+        // lambda literal: re-segmenting the whole `{argList}
         // {body}` blob as a script misread the parameter word as a command
         // name, so a `global` / `variable` / `upvar` genuinely inside the
         // body was never reached (and, worse, a parameter that happened to
@@ -255,9 +254,9 @@ fn collect_declarations_in_region(
         // it is scoped to that frame alone, never to the frame containing
         // this `apply` call. Descending unconditionally would make such a
         // declaration "visible" to a cursor sitting *outside* the lambda too
-        // (codex review of #954's follow-up: `apply {{} {global x}}` inside a
-        // proc, followed by an unrelated `puts $x` in the same proc, must
-        // not resolve `$x`'s declaration into the lambda). So recurse only
+        // (`apply {{} {global x}}` inside a proc, followed by an unrelated
+        // `puts $x` in the same proc, must not resolve `$x`'s declaration
+        // into the lambda). So recurse only
         // when the cursor itself is positioned inside this specific lambda's
         // body — the analyser's scope tree has no `apply`-body scope kind for
         // `scan.visible` to reflect, so the direct span/offset containment
@@ -467,11 +466,11 @@ mod tests {
 
     #[test]
     fn global_declared_inside_apply_lambda_body_is_found() {
-        // Issue #954: `apply`'s lambda-literal argument is
+        // `apply`'s lambda-literal argument is
         // `ArgRole::LambdaLiteral`, not `Body` — recursing the whole
-        // `{argList} {body}` blob as a script (the old generic-`Body` path)
-        // misread the parameter word as a command name, so a `global`
-        // declared *inside* the real body was never reached at all.
+        // `{argList} {body}` blob as a script would misread the parameter
+        // word as a command name and never reach a `global` declared
+        // *inside* the real body.
         let src = "apply {dir {\n\
                    global x\n\
                    puts $x\n\
@@ -491,7 +490,7 @@ mod tests {
         assert_eq!(locs[0].start_line, 1);
     }
 
-    /// Codex review of #954's follow-up: an `apply` body runs in a *fresh*
+    /// An `apply` body runs in a *fresh*
     /// call frame, so a `global x` declared inside it must not leak out as a
     /// visible declaration for an unrelated `$x` reference sitting outside
     /// the lambda in the enclosing proc.
@@ -589,16 +588,16 @@ mod tests {
         );
     }
 
-    /// Issue #1275 — the declaration scan must resolve a command head's
-    /// *effective identity*, not its written spelling.
+    /// The declaration scan must resolve a command head's *effective
+    /// identity*, not its written spelling.
     ///
     /// tclsh oracle (8.6.16 and 9.0.4, byte-identical): `interp alias {} decl
     /// {} upvar` makes `decl 1 other local` alias the caller's variable;
     /// `rename upvar decl` does the same and leaves `upvar` gone; `proc upvar
     /// …` takes the name over so the built-in's grammar no longer applies.
     ///
-    /// The probe drives [`collect_declarations_in_region`] — the scan this
-    /// issue changed — rather than the public [`declaration`] entry point.
+    /// The probe drives [`collect_declarations_in_region`] rather than the
+    /// public [`declaration`] entry point.
     /// When the scan finds nothing, `declaration` falls back to plain
     /// go-to-definition, which reads the **analyser's** own scope model: a
     /// separate consumer that still resolves scope aliases by spelling, and

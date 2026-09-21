@@ -1,7 +1,7 @@
 # T3: an error out of a proc body carries the same errorInfo, errorCode and
 # TIP 348 error stack whether the body ran compiled or interpreted - the
 # `while executing` frame and the body-relative line come from the compiled
-# statement's own site (issue #1774).
+# statement's own site.
 #
 # The definitions come first so each one's `proc` statement is still dispatch
 # proven and binds its compiled body; a `catch` before them would widen the

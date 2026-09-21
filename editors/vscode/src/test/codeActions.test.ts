@@ -440,7 +440,7 @@ suite("Code Actions", () => {
     assert.strictEqual(changes[0].newText, "    # noqa: S100\n");
   });
 
-  // -- `package require` suggestions are evidence-backed (issue #1191) ------
+  // `package require` suggestions are evidence-backed.
   //
   // Applying one of these mutates package loading and runs the package's
   // initialisation code, so the lightbulb must offer it only over a command

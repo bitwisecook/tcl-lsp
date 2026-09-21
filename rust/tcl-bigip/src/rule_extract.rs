@@ -317,8 +317,7 @@ mod trailing_backslash_tests {
     fn unterminated_quote_ending_in_backslash_keeps_body() {
         // The body ends with a `\` inside an unterminated quote (and an
         // unterminated block). The scan must bounds-guard the escape skip so it
-        // does not overrun the buffer and silently produce an empty body
-        // (issue 191).
+        // does not overrun the buffer and silently produce an empty body.
         let src = "ltm rule /Common/r {\n    set x \"abc\\";
         let rules = find_embedded_rules(src);
         assert_eq!(rules.len(), 1, "the rule header is still recognised");

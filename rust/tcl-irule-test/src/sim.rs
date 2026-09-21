@@ -179,9 +179,9 @@ pub fn simulate_irule(
     }
     // The flag lives directly in the `http` state namespace
     // (`::state::http::response_committed`), set by the `HTTP::respond` /
-    // `HTTP::redirect` mocks. Reading the non-existent
-    // `::state::http::response::response_committed` errored, and `is_ok_and`
-    // swallowed the error so a committed response always read as `false`.
+    // `HTTP::redirect` mocks. `is_ok_and` swallows an eval error, so a typo'd
+    // or non-existent variable path here would silently read as `false`
+    // rather than surfacing as an error.
     out.response_committed = sess
         .eval("set ::state::http::response_committed")
         .is_ok_and(|v| v == "1" || v == "true");

@@ -287,7 +287,7 @@ struct Inner<'s> {
     i: usize,
     /// The F5-family core `expr` grammar when the dialect's runtime core is
     /// on the F5 tree, else `None` — resolved once through the profile
-    /// catalog (so the `irules` / `tcl-irule` alias spellings behave like
+    /// catalogue (so the `irules` / `tcl-irule` alias spellings behave like
     /// the canonical name). Gates the word-form operators
     /// (`starts_with`, `and`, …), which are an `f5-tcl` **trunk** fact —
     /// measured valid in tmsh and iApp `expr` too, not iRules-only

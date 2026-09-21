@@ -29,9 +29,9 @@
 //!
 //! The substrate records the reaching versions selected by a domain's CFG
 //! renamer. It does not infer those versions from block-number order: two CFG
-//! blocks with adjacent IDs need not execute consecutively. Future cell-SSA
-//! and world-SSA builders should construct the data-flow solution, then use
-//! these records for deterministic storage and queries.
+//! blocks with adjacent IDs need not execute consecutively. A domain's builder
+//! constructs the data-flow solution itself, then uses these records for
+//! deterministic storage and queries.
 
 use std::collections::BTreeMap;
 use std::fmt;
@@ -158,9 +158,9 @@ pub struct CfgStateSite {
 /// A state-operation anchor associated with one control-flow edge.
 ///
 /// `origin` describes the instruction or terminator that established the
-/// transition. It is intentionally separate from `predecessor`: synthetic
-/// CFGs may eventually attach an edge operation to a terminator-origin while
-/// retaining a different source provenance for diagnostics.
+/// transition. It is intentionally separate from `predecessor`: a synthetic
+/// CFG may attach an edge operation to a terminator origin while retaining a
+/// different source provenance for diagnostics.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct CfgEdgeStateSite {
     /// Block whose terminator selected this edge.
@@ -197,9 +197,9 @@ pub enum CfgStatePosition {
 ///
 /// State domains define their own policy. A cell domain can use structured
 /// [`crate::place::Place`] overlap, while a command/trace world can use region
-/// and interpreter wildcards. The direction is explicit because a future
-/// domain may have an asymmetric read/write relation even though the first two
-/// adapters happen to be symmetric.
+/// and interpreter wildcards. The direction is explicit because a domain may
+/// have an asymmetric read/write relation, even though the adapters here are
+/// symmetric.
 pub trait StateOverlap<L> {
     /// Return true when a write to `written` may be observed by a read of
     /// `read`.
@@ -697,7 +697,7 @@ pub mod adapters {
 
     use super::StateOverlap;
 
-    /// `Place` overlap policy for a future cell-SSA adapter.
+    /// `Place` overlap policy for a cell-SSA domain.
     #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
     pub struct PlaceOverlapPolicy;
 
@@ -1013,8 +1013,8 @@ pub mod adapters {
     ///
     /// Without this context, `Current` conservatively overlaps every named
     /// interpreter or namespace because it may resolve to that name at run
-    /// time. A future function/interpreter owner can supply stable current
-    /// identities and recover disjointness where they differ.
+    /// time. Supplying stable current identities recovers disjointness where
+    /// they differ.
     #[derive(Debug, Clone, Default, PartialEq, Eq)]
     pub struct WorldScopeContext {
         /// Stable identity of the current interpreter, when known.

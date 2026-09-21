@@ -201,7 +201,14 @@ fn render_origin_pool(pool: &XCOriginPool, namespace: &str) -> String {
             "resource \"volterra_origin_pool\" \"{}\" {{",
             hcl_ident(&pool.name)
         ),
-        format!("  name      = {}", quote(&pool.name)),
+        // The XC name is derived, so the BIG-IP path it came from is
+        // recorded here as a comment rather than as an argument: the
+        // provider's resource schema is not ours to assume.
+        format!("  # {}", crate::names::derived_from(&pool.name)),
+        format!(
+            "  name      = {}",
+            quote(&crate::names::xc_object_name(&pool.name))
+        ),
         format!("  namespace = {}", quote(namespace)),
         String::new(),
         "  # TODO: Configure origin servers".to_owned(),
@@ -348,7 +355,10 @@ fn render_service_policy(policy: &XCServicePolicy, namespace: &str) -> String {
             "resource \"volterra_service_policy\" {} {{",
             quote(&policy.name)
         ),
-        format!("  name      = {}", quote(&policy.name)),
+        format!(
+            "  name      = {}",
+            quote(&crate::names::xc_object_name(&policy.name))
+        ),
         format!("  namespace = {}", quote(namespace)),
         format!("  algo      = \"{}\"", policy.algo),
         String::new(),

@@ -24,7 +24,7 @@
 #   * ``tclsh9.0`` / ``tclsh8.6`` — Tcl interpreters used by
 #     ``scripts/capture/bytecode.sh``, the irule_test framework,
 #     and the cli_venv tests.
-#   * ``node`` / ``npm`` — the VS Code extension's TypeScript catalog
+#   * ``node`` / ``npm`` — the VS Code extension's TypeScript catalogue
 #     compile checks (``editors/vscode/node_modules/.bin/tsc``).
 #   * ``kotlinc`` — the JetBrains plugin's DiagnosticCatalog.kt compile
 #     check.
@@ -981,9 +981,9 @@ ensure_wasi_sdk() {
     # publishes **no checksums at all**.  There is no `SHA256SUMS` asset on the
     # `wasi-sdk-25` release (the URL 404s), no per-asset `.sha256`, no hashes in
     # the release body, and the GitHub API reports `digest: null` for the
-    # assets.  The same is true of every wasi-sdk release, so the sidecar this
-    # function used to fetch could never have existed — the fail-closed branch
-    # fired on every run and wasi-sdk was simply never installable.
+    # assets.  The same is true of every wasi-sdk release, so there is no
+    # sidecar to fetch and verify against — a fail-closed check against one
+    # would fire on every run, making wasi-sdk uninstallable that way.
     #
     # These values were computed from the published tarballs and then
     # corroborated against independent third parties that pin the same

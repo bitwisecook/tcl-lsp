@@ -26,8 +26,8 @@
 use f5_xc::{DEFAULT_LB_NAME, DEFAULT_NAMESPACE, OutputFormat};
 use serde_json::Value;
 
-/// Translate `source` to XC constructs and render terraform / JSON-API per
-/// `output_format` (`"terraform"` | `"json"` | `"both"`, default `"both"`).
+/// Translate `source` to XC constructs and render per `output_format`
+/// (`"terraform"` | `"json"` | `"console"` | `"both"`, default `"both"`).
 pub fn xc_translate(args: &Value) -> Value {
     let source = args.get("source").and_then(Value::as_str).unwrap_or("");
     let output_format = OutputFormat::from_arg(args.get("output_format").and_then(Value::as_str));

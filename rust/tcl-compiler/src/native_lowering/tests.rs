@@ -545,10 +545,47 @@ fn a_statement_carries_the_site_its_error_frame_names() {
 
 /// The top-level script and a procedure body are entered differently, and the
 /// lowering is the one place that decides which.
+///
+/// Both halves are asserted here. The name promised a contrast and the body
+/// only ever lowered a script, so the `ProcEntry` side — the one with the
+/// interesting contract, since `Interp::run_proc` has already pushed the
+/// frame and emitting `Script`'s prologue there would push a second one —
+/// went untested (#2072).
 #[test]
 fn the_top_level_script_and_a_procedure_body_take_different_entry_protocols() {
     let (top, _) = lower("set a 1\n", native_config()).expect("lowers");
     assert_eq!(top.protocol, EntryProtocol::Script);
+
+    let source = "proc p {x} { return $x }\np 1\n";
+    let registry = CommandRegistry::build_default();
+    let unit = CompilationUnit::build_for_dialect(source, &registry, false, "tcl9.0");
+    let body = unit.procedures.get("::p").expect("::p is a unit");
+    let facts = &body.semantic_facts;
+    let function = facts
+        .executable()
+        .function()
+        .expect("::p builds executable IR");
+    let hints = BTreeMap::new();
+    let input = LoweringInput {
+        registry: &registry,
+        context: facts.context(),
+        function,
+        source: &unit.source,
+        module: &unit.ir_module,
+        mutations: &unit.command_mutations,
+        config: native_config(),
+        escape: None,
+        top_level: false,
+        line_origin: 0,
+        entry_assumption: DispatchEntryAssumption::PristineRegistryWorld,
+        type_hints: &hints,
+    };
+    let (proc_body, _) = lower_function(&input).expect("::p lowers");
+    assert_eq!(proc_body.protocol, EntryProtocol::ProcEntry);
+    assert_ne!(
+        top.protocol, proc_body.protocol,
+        "the two entry points must not agree — that is the whole contract"
+    );
 }
 
 /// A definition may only register words the statement writes out literally.
@@ -562,10 +599,10 @@ fn the_top_level_script_and_a_procedure_body_take_different_entry_protocols() {
 ///
 /// The materialising paths only fire inside a procedure body (both consult the
 /// const map, which is empty at depth 0), and no procedure-body site is proven
-/// under `UnknownWorld` — so today the two never coincide. This lowers the
-/// enclosing body under `PristineRegistryWorld` to remove that coincidence,
-/// because it is exactly the assumption P5 proper introduces, and the point of
-/// the guard is that the invariant holds by construction rather than by luck.
+/// under `UnknownWorld`, so in the current lowering the two never coincide.
+/// This lowers the enclosing body under `PristineRegistryWorld` to remove that
+/// coincidence, so the guard is exercised as a rule that holds by construction
+/// rather than by luck.
 #[test]
 fn a_definition_declines_a_body_the_statement_does_not_write_out() {
     let source = "proc make {} {\n set body {return hello}\n proc p {x} $body\n}\nmake\n";

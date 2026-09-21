@@ -177,7 +177,7 @@ pub fn which_tmm(args: &Value) -> Value {
 /// per TMM id, so an unbounded value (a client sending e.g. `1_000_000_000_000`)
 /// would try to allocate terabytes and abort the whole MCP server. The
 /// candidate-tuple ceiling — 254 source octets × 254 source ports — is the most
-/// buckets that can ever be filled anyway (issue 199).
+/// buckets that can ever be filled anyway.
 const MAX_TMM_COUNT: i64 = 254 * 254;
 
 /// `fakecmp_suggest_sources` — source tuples that spread across every TMM.
@@ -256,7 +256,7 @@ mod suggest_sources_tests {
     fn pathological_tmm_count_is_rejected_not_allocated() {
         // A huge tmm_count must produce a validation error rather than
         // attempting a terabyte per-TMM bucket allocation that OOM-aborts the
-        // server (issue 199).
+        // server.
         let out = suggest_sources(&json!({ "tmm_count": 1_000_000_000_000i64, "count": 1 }));
         let s = out.to_string();
         assert!(s.contains("tmm_count"), "expected a tmm_count error: {s}");

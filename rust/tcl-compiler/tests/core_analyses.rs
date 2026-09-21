@@ -522,7 +522,7 @@ mod interpolation_folding {
 mod variable_shape {
     use super::*;
 
-    // --- variable-shape flow into the type table ---
+    // Variable-shape flow into the type table.
 
     #[test]
     fn namespaced_scalar_flows_with_qualified_name() {
@@ -575,7 +575,7 @@ proc wire_namespace_vars {} {
         );
     }
 
-    // --- CONSTSET lattice ---
+    // CONSTSET lattice.
 
     #[test]
     fn foreach_braced_list_constset() {
@@ -644,7 +644,7 @@ proc wire_namespace_vars {} {
         }
     }
 
-    // --- registry-based constant folding ---
+    // Registry-based constant folding.
     //
     // SCCP folds a narrow set of registry commands: `string length`, `format`,
     // and `list` over literal args (plus all `expr`-shaped arithmetic). It does
@@ -932,11 +932,11 @@ mod no_read_before_set {
 
     #[test]
     fn dict_for_body_local_set_recovered() {
-        // `dict for`/`dict map` bodies are now lowered into real CFG blocks in
-        // the analysis build (issue #833), so a body-local `set fileData $k`
-        // definitely defines `fileData` before the following `$fileData` read —
-        // no W210. (Previously the opaque barrier hid the body-local set and this
-        // safe read was a false positive.)
+        // `dict for`/`dict map` bodies are lowered into real CFG blocks in the
+        // analysis build, so a body-local `set fileData $k` definitely defines
+        // `fileData` before the following `$fileData` read — no W210. An
+        // opaque barrier here would hide the body-local set and turn this
+        // safe read into a false positive.
         let src = "proc p {} {\n    dict for {k v} {a 1 b 2} {\n        set fileData $k\n        puts $fileData\n    }\n}\n";
         assert!(
             !fires(src, "W210"),
@@ -955,7 +955,7 @@ mod no_read_before_set {
     #[test]
     fn dict_map_body_local_set_recovered() {
         // `dict map` is the lmap analogue — same body recovery as
-        // `dict_for_body_local_set_recovered` (issue #833). The body-local
+        // `dict_for_body_local_set_recovered`. The body-local
         // `set out $k` defines `out` before the `list $out` read, so no W210.
         let src = "proc p {} {\n    dict map {k v} {a 1 b 2} {\n        set out $k\n        list $out\n    }\n}\n";
         assert!(
@@ -991,7 +991,7 @@ mod no_read_before_set {
         // command substitution defines x before either arm runs (tclsh 9.0.4 /
         // 8.6.14 print `1`). The condition out-var harvest asks the registry
         // which arguments carry `ArgRole::VarWrite`, so `set` answers like
-        // `catch` / `gets` / `regexp` / `scan` always did (issue #923 idx 49).
+        // `catch` / `gets` / `regexp` / `scan` always did.
         let src = "proc p {} { if {[set x 1]} { puts $x } }\n";
         assert!(
             !fires(src, "W210"),
@@ -1100,13 +1100,13 @@ mod provably_present_folds_true {
     }
 }
 
-// Issue #1239 — `array exists PARAM` is constant **false**, not constant true.
+// `array exists PARAM` is constant **false**, not constant true.
 //
 // A formal parameter is bound as a scalar on entry (Tcl has no
-// pass-an-array-by-value), so the two existence spellings disagree on it. The
-// fold used to collapse both into one query shape and report `true` for each,
-// which inverted I230's live-branch report and made O101 fold the arm that
-// actually runs.
+// pass-an-array-by-value), so the two existence spellings disagree on it.
+// Collapsing both into one query shape and reporting `true` for each would
+// invert I230's live-branch report and make O101 fold the arm that actually
+// runs.
 //
 // tclsh-proof (8.6.16 / 9.0.4):
 //   proc f {a} { if {[array exists a]} { puts yes } else { puts no } }
@@ -1287,8 +1287,8 @@ mod soundness_gates {
     fn array_element_of_touched_array_is_not_folded() {
         // Any touch of the base array abstains the element fold — a sibling
         // element write may be `array set`-style populating the guard's key
-        // path in a shape the scan conflates (issue #1173 keeps the fold
-        // one-sided and base-name-driven).
+        // path in a shape the scan conflates, so the fold is kept one-sided
+        // and base-name-driven.
         assert!(!fires(
             "proc p {} { set A(x) 1; if {[info exists A(k)]} { puts a } else { puts b } }",
             "I230"
@@ -1297,8 +1297,8 @@ mod soundness_gates {
 
     #[test]
     fn array_element_of_never_touched_array_folds_false() {
-        // Issue #1173: an element guard on an array nothing in a
-        // barrier-free body ever creates is provably false.
+        // An element guard on an array nothing in a barrier-free body ever
+        // creates is provably false.
         // tclsh 9.0.4 / 8.6.16: `proc p {} { info exists A(k) }; p` → 0.
         let src = "proc p {} { if {[info exists A(k)]} { puts a } else { puts b } }";
         assert!(
@@ -1551,8 +1551,8 @@ mod analysis_level {
     }
 }
 
-// Issue #1109 — a brace-quoted *name* word inside a command substitution is a
-// literal name, not a substitution.
+// A brace-quoted *name* word inside a command substitution is a literal
+// name, not a substitution.
 //
 // The dead-store keep-alive scan credits every `$x` it can see inside a `[…]`
 // on purpose: an `[expr {$w}]` hides its reads from the brace-aware word

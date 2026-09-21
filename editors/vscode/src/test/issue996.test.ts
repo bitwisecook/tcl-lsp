@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-// Issue #996: the native server crashed (uncatchable SIGABRT) analysing Tcl
+// The native server must not crash (uncatchable SIGABRT) analysing Tcl
 // source nested 100-150 levels deep. The deep TP/FP/TN coverage — the exact
 // crash mechanism, the depth-cap calibration, every fixed subsystem — lives
 // in the Rust unit and native e2e suites (`docs/design/compiler/

@@ -24,8 +24,8 @@
 //! evaluating the chosen body as a transparent script (`return`/`break`/
 //! `continue` propagate).
 //!
-//! `-regexp` switches now match through the engine (previously they fell back to
-//! exact); exact switches still use the `JUMP_TABLE` opcode, so this runtime form
+//! `-regexp` switches match through the engine; exact switches still use the
+//! `JUMP_TABLE` opcode, so this runtime form
 //! is invoked for `-glob`/`-regexp`/`-nocase`/dynamic cases.
 
 use tcl_cmd_core::switch::{self as core_switch, Selection};

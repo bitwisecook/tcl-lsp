@@ -124,8 +124,8 @@ pub fn spec() -> CommandSpec {
         // command name too — and the same `numWords < 4 || (numWords%2 !=
         // 0)` minimum/parity condition (alongside an unrelated unsigned-
         // range guard) gates `TclCompileLfilterCmd`'s inline-compile path
-        // in `generic/tclCompCmds.c`. Previously `at_least(3)`, which
-        // missed this odd/even parity.
+        // in `generic/tclCompCmds.c`. A bare `at_least(3)` would
+        // miss this odd/even parity.
         arity: Arity::stepped(3, Arity::UNLIMITED, 2),
         arg_role_resolver: Some(lfilter_arg_roles),
         arg_role_resolver_roles: &[ArgRole::Body],

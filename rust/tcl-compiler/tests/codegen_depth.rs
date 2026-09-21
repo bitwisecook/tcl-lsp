@@ -69,7 +69,7 @@ use tcl_compiler::ir::{Module as IrModule, Procedure, Statement};
 use tcl_compiler::lowering::lower_to_ir;
 use tcl_registry::CommandRegistry;
 
-// ── Helpers ────────────────────────────────────────────────────────────────
+// Helpers.
 
 fn registry() -> CommandRegistry {
     CommandRegistry::build_default()
@@ -133,9 +133,7 @@ fn ctx_ops(ctx: &CodegenCtx) -> Vec<Op> {
     ctx.instructions.iter().map(|i| i.op).collect()
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// backend.rs — the `Backend` trait + `BytecodeBackend` (was 0%)
-// ═══════════════════════════════════════════════════════════════════════════
+// backend.rs — the `Backend` trait + `BytecodeBackend`.
 
 #[test]
 fn backend_lower_module_names_top_level() {
@@ -262,9 +260,7 @@ fn backend_default_and_copy() {
     );
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
 // control_flow.rs — catch lowering (emit_catch_body branches)
-// ═══════════════════════════════════════════════════════════════════════════
 
 #[test]
 fn catch_body_break_emits_break_op() {
@@ -344,10 +340,11 @@ fn catch_body_const_div_zero_emits_syntax() {
 /// and fall through"), and `-code return` is rewritten to `-code ok -level L+1`,
 /// so `TCL_RETURN` never reaches the operand.
 ///
-/// The `break`/`continue`/non-standard rows previously encoded the code *as the
-/// level* (`(0, 3)`, `(0, 4)`), which the old compensating VM read back as the
-/// right completion by accident; under C semantics they are levels, so they
-/// would have unwound N proc frames instead of breaking a loop.
+/// The `break`/`continue`/non-standard rows must not encode the code *as the
+/// level* (`(0, 3)`, `(0, 4)`): under C semantics these values are levels, so
+/// that encoding would unwind N proc frames instead of breaking a loop — only
+/// right by accident if a VM happened to compensate by reading it back as the
+/// completion.
 #[test]
 fn catch_return_operands_match_c_merge_table() {
     for (body, want) in [
@@ -530,9 +527,7 @@ fn detect_const_expr_error_non_constant_divisor() {
     assert!(detect_const_expr_error(&node).is_none());
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
 // control_flow.rs + try_blocks.rs — try/finally lowering, end-to-end
-// ═══════════════════════════════════════════════════════════════════════════
 
 #[test]
 fn try_finally_emits_dual_catch_ranges() {
@@ -620,9 +615,7 @@ fn try_finally_in_loop_still_lowers() {
     );
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
 // control_flow.rs — try/on error inline (emit_try_on_error_inline)
-// ═══════════════════════════════════════════════════════════════════════════
 
 #[test]
 fn try_on_error_inside_catch_full_dispatch() {
@@ -750,9 +743,7 @@ fn try_on_error_handler_var_is_first_slot() {
     assert!(err_idx < temp_idx, "handler var precedes temps: {lvt:?}");
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
 // cmd_subst.rs — command substitutions in various positions
-// ═══════════════════════════════════════════════════════════════════════════
 
 #[test]
 fn cmd_subst_nested_bracket_in_arg() {
@@ -1017,9 +1008,7 @@ fn list_break_no_target_does_not_match() {
     assert!(ops.contains(&Op::LIST));
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
 // control_flow.rs — nested loops, break/continue at depth, return in branches
-// ═══════════════════════════════════════════════════════════════════════════
 
 #[test]
 fn break_at_loop_depth_two_jumps_to_inner_end() {
@@ -1123,9 +1112,7 @@ fn switch_glob_routes_through_generic_invoke() {
     );
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
 // values.rs / statements.rs headroom — folding (tclsh-pinned)
-// ═══════════════════════════════════════════════════════════════════════════
 
 #[test]
 fn fold_nested_arithmetic_to_literal() {
@@ -1197,9 +1184,7 @@ fn fold_ternary_to_literal() {
     );
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
 // Hand-built CFG through the Backend trait (statements.rs / values.rs surface)
-// ═══════════════════════════════════════════════════════════════════════════
 
 /// Build a top-level `CfgFunction` whose entry block holds `statements` and
 /// returns — the by-hand CFG idiom shared with the existing suites.

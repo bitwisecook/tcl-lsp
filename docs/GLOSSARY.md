@@ -85,7 +85,7 @@ KCS tag: `lexing`.
 ### dialect
 
 The Tcl language-variant selector that picks which syntax and command
-set apply. The catalog holds nineteen profiles: the core versions
+set apply. The catalogue holds nineteen profiles: the core versions
 `tcl8.4`, `tcl8.5`, `tcl8.6`, `tcl9.0`, `tcl9.1`; the F5 flavours
 `f5-irules`, `f5-iapps`, `f5-tmsh`, `f5-bigip`; `bpf`, `expect`,
 `spectcl`, `sslictcl`; and the EDA vendors `cadence-eda-tcl`,

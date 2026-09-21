@@ -37,13 +37,13 @@
 //! leak): each generation's [`ContextRegistry::commands`] store **is** the
 //! old cache's `(profile, overlay)` `Arc`, shared by handle through the
 //! [`command_store`] interop seam so the two models cannot drift while
-//! both exist. **P2 seam, documented**: dynamic pack ingestion joins by
+//! both exist. **The pack-ingestion seam** joins by
 //! adding pack-owned declaration sources to the store inputs and bumping
 //! the environment generation in the cache key; nothing dynamic may ever
-//! be handed out as `&'static` (review B8).
+//! be handed out as `&'static`.
 //!
 //! The two equivalence sweeps in this module's tests are the acceptance
-//! gate of P1-E: for every compiled spec and every old catalogue profile,
+//! gate: for every compiled spec and every old catalogue profile,
 //! old-model visibility equals new-model visibility, and each profile's
 //! visible command-name set and per-name resolution answers are
 //! reproduced exactly (deliberate-divergence allowlist: **empty**).
@@ -105,8 +105,8 @@ struct SpecEntry {
 /// **command store** — the same per-`(environment, pack overlay)` spec
 /// store the old per-profile cache owns, shared by handle so the two
 /// models can never drift while both exist (ownership re-homes here when
-/// the old cache goes with ledger C1's re-type; P1-G already narrowed the
-/// cache to crate-internal visibility).
+/// the old cache goes with ledger C1's re-type; the cache is already
+/// crate-internal only).
 pub struct ContextRegistry {
     context: ResolvedContext,
     commands: Arc<CommandRegistry>,
@@ -266,13 +266,13 @@ impl std::fmt::Debug for ContextRegistry {
 type GenerationKey = (EnvironmentIdentity, u64, u64, u64);
 
 /// The interned catalogue profile whose command store backs
-/// `environment_id`'s generations — the wave-1 interop seam (P1-F): the
+/// `environment_id`'s generations — the interop seam: the
 /// catalogue environments share their canonical id with their old
 /// profile, and the model-only environments (`tcl`, `tk`, third-party
 /// ids) fall back to the permissive plain profile, exactly the store
 /// every unresolved dialect string read before the port. Deleted with
 /// the old cache under ledger C1's re-type, when the store becomes
-/// environment-owned (P1-G already made the cache crate-internal).
+/// environment-owned (the cache is already crate-internal).
 fn store_profile(environment_id: &str) -> &'static DialectProfile {
     DialectProfile::find(environment_id).unwrap_or_else(DialectProfile::plain_tcl)
 }
@@ -301,7 +301,7 @@ fn command_store(environment_id: &str, overlay: u64) -> Option<Arc<CommandRegist
 /// `apply_overlay`, so an overlaid environment can never alias its base's
 /// generation. Cache entries are `Arc`-owned and bounded by the resolved
 /// identities a process actually uses (a closed set today: compiled
-/// environments × keyed pins); the P2 pack-ingestion seam adds generation
+/// environments × keyed pins); the pack-ingestion seam adds generation
 /// bumps and pruning alongside dynamic sources.
 #[must_use]
 pub fn registry_for_environment(
@@ -379,7 +379,7 @@ fn prune_overlaid_generations(
 /// the resolved context the invocation executes under, when the caller
 /// has resolved one.
 ///
-/// **Invariant I4 (P1a)** — semantic hook selection requires binding
+/// **Invariant I4** — semantic hook selection requires binding
 /// proof, on the WASM backend's `ProofStatus` discipline (`Unavailable ≠
 /// permission`; only `NotRequired | Satisfied` specialise):
 ///
@@ -445,7 +445,7 @@ pub fn resolve_call_in_context<'r>(
 /// spec's subcommand-level hints (when `subcommand` resolves on it and
 /// declares any) else its command-level hints.
 ///
-/// **I4 (P1a)**: with a context carried, the head must first resolve at
+/// **I4**: with a context carried, the head must first resolve at
 /// all under the document's environment — an `Absent` binding yields no
 /// hints, and the caller's conservative unknown-read-write fallback
 /// applies (widening, never specialising). Within a proved head the
@@ -515,12 +515,12 @@ pub(crate) mod tests {
     ///
     /// Two policies land in the delta, for two reasons. `package require`
     /// is not part of the language in `bpf`, `spectcl` or `f5-irules`, so
-    /// a *placed* package (Tk, P3) is unreachable there. An iApp or tmsh
+    /// a *placed* package (Tk) is unreachable there. An iApp or tmsh
     /// script gets only what it requires (Q7), so every hosted pack is
     /// unreachable there until the source asks for it — and the sweeps
     /// analyse no source, so nothing is ever required.
     ///
-    /// This is the only divergence in the P1-E acceptance sweeps; every
+    /// This is the only divergence in the acceptance sweeps; every
     /// open world (the five plain-Tcl releases, the lenient sink, the EDA
     /// shells, `expect`) answers exactly as before.
     /// `tk_needs_an_open_world_or_an_explicit_require` pins the new answer
@@ -575,7 +575,7 @@ pub(crate) mod tests {
         )
     }
 
-    /// **Acceptance gate 1 (P1-E)**: for EVERY spec in the compiled
+    /// **Acceptance gate 1**: for EVERY spec in the compiled
     /// universe and EVERY old catalogue profile, old-model visibility
     /// (`ProfileQueries::is_available` — mask ∧ operator exclusion ∧
     /// package gate) equals new-model availability over the translated
@@ -618,7 +618,7 @@ pub(crate) mod tests {
         );
     }
 
-    /// **Acceptance gate 2 (P1-E)**: for each old profile, the
+    /// **Acceptance gate 2**: for each old profile, the
     /// corresponding environment's assembled registry has exactly the old
     /// `registry_for_profile` visible command-name set, and resolves every
     /// visible name to the same spec `best_visible` picked. Divergence
@@ -674,7 +674,7 @@ pub(crate) mod tests {
         );
     }
 
-    /// **C7 retirement gate** (I4-amended in P1a): for every head that
+    /// **C7 retirement gate** (I4-amended): for every head that
     /// **resolves** under the context, the compiler's hand-rolled
     /// side-effect spec selection (newest-first over `specs(name)`,
     /// availability filter, first spec with a subcommand- or
@@ -967,7 +967,7 @@ pub(crate) mod tests {
     }
 
     /// The new-model-only environments behave sensibly even though no old
-    /// profile pins them, and P3's placement model decides the whole Tk
+    /// profile pins them, and the placement model decides the whole Tk
     /// surface at the generation boundary: the `tk` environment ships Tk
     /// **ambient** (`wish`), every plain-Tcl environment **hosts** it
     /// (visible under the open world, W120 nagging), and a **closed**
@@ -987,7 +987,7 @@ pub(crate) mod tests {
         }
         // Closed worlds assemble no Tk at all — `package require` is not
         // part of any of these languages, so the surface was never
-        // callable there (the one enumerated P3 delta; see
+        // callable there (the one enumerated delta; see
         // `old_available_after_p3`).
         for closed in ["f5-irules", "bpf", "spectcl"] {
             let generation = new_registry_for(closed);

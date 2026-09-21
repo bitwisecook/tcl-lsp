@@ -346,8 +346,6 @@ fn report_bg_error(vm: &mut Vm, message: &str) {
     vm.report_stderr_text(&format!("{info}\n    (\"after\" script)"));
 }
 
-// -- helpers ---------------------------------------------------------------
-
 /// Join the script words with single spaces (a command *prefix*, exactly as C's
 /// `after`/`Tcl_ConcatObj` does — NOT list-quoted, so `after 0 {set x 1}` runs
 /// the body `set x 1`, and `after 0 puts hi` runs `puts hi`).

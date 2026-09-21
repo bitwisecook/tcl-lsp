@@ -111,7 +111,6 @@ const VECTORS: &[Vector] = &[
     // `TraceExecutionObjCmd` :454), so a command that does not exist is an
     // error carrying the name *as written* — unlike `trace info variable`,
     // which answers the empty list for an untraced or absent variable.
-    // Issue #1633 row 5.
     Vector {
         name: "trace info on a nonexistent command errors, as add and remove do",
         script: "puts [catch {trace info command nosuch} m]|$m\n\
@@ -515,7 +514,7 @@ const VECTORS: &[Vector] = &[
                  puts removed-ok\n",
         want: "FIRED\nremoved-ok",
     },
-    // Firing order, issue #1440. Every trace list is prepended in C
+    // Firing order. Every trace list is prepended in C
     // (`TraceVarEx` tclTrace.c:3090-3092, `Tcl_TraceCommand` :1016-1018), and
     // each firing loop walks it head→tail — so the newest registration fires
     // first everywhere except the `leave`/`leavestep` reverse scan.
@@ -766,9 +765,9 @@ const VECTORS: &[Vector] = &[
     // over while the rest of that list still fires. Only an explicit
     // `trace remove` cancels a pending callback — and once a replacement holds
     // the name, `trace remove` reaches the replacement's (empty) list instead,
-    // so it cancels nothing. Measured on tclsh 8.6.16 and 9.0.4; the VM used to
-    // decide liveness by table membership, which a re-creation silently
-    // emptied, so every older callback was skipped.
+    // so it cancels nothing. Measured on tclsh 8.6.16 and 9.0.4; deciding
+    // liveness by table membership instead would let a re-creation silently
+    // empty it, skipping every older callback.
     Vector {
         name: "a delete callback that re-creates the command does not cancel the rest of the walk",
         script: "proc foo {} { return FOO }\n\
@@ -900,8 +899,8 @@ const VECTORS: &[Vector] = &[
     // `write` alone. C's `INST_UNSET_ARRAY` passes a two-part access, so the
     // callback is told `name1 = a`, `name2 = k`, not `name1 = a(k)`.
     //
-    // Every proc body used to be compiled as a top-level *script*, so none of
-    // those arms ever ran and this vector could not have been written.
+    // Compiling every proc body as a top-level *script* instead of using its
+    // LVT-aware forms would mean none of those arms ever ran.
     Vector {
         name: "in-proc lappend/unset report the operations the compiled forms report",
         script: "proc log {n1 n2 op} { puts \"$op|$n1|$n2\" }\n\
@@ -928,10 +927,10 @@ const VECTORS: &[Vector] = &[
     },
 ];
 
-/// Former divergence from C (issue #946 fault 3), now fixed: step traces used
-/// to observe only **dispatched** commands (procs, non-inlined builtins) —
-/// commands the compiler lowers to inline opcodes (`set`, `incr`, `return`, …)
-/// never reached the dispatcher, so they did not step. C Tcl forces a
+/// Step traces observing only **dispatched** commands (procs, non-inlined
+/// builtins) would diverge from C: commands the compiler lowers to inline
+/// opcodes (`set`, `incr`, `return`, …) never reach the dispatcher, so they
+/// would not step. C Tcl forces a
 /// step-traced proc "out of bytecode" (`DONT_COMPILE_CMDS_INLINE`,
 /// `tclTrace.c`) so every inner command fires transitively — this recompiles
 /// the traced proc trace-visible on its next entry (and reverts the same way

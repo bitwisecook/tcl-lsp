@@ -40,8 +40,8 @@ pub fn start() {
 /// vocabulary) as JSON, without compiling anything.
 ///
 /// The GUI needs the dialect list to populate its dropdown *before* the
-/// first compile — otherwise the dropdown shows only the hard-coded
-/// `tcl8.6` fallback until a compile happens to land (issue #1183).
+/// first compile — otherwise the dropdown would show only the hard-coded
+/// `tcl8.6` fallback until a compile happens to land.
 #[wasm_bindgen]
 #[must_use]
 pub fn meta() -> String {

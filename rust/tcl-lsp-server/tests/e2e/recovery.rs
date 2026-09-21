@@ -167,9 +167,7 @@ fn symbol_name_list(syms: &Value) -> Vec<String> {
         .collect()
 }
 
-// --------------------------------------------------------------------------- //
-// C1 — an unterminated delimiter is flagged
-// --------------------------------------------------------------------------- //
+// C1 — an unterminated delimiter is flagged.
 
 #[test]
 fn c1_unterminated_bracket() {
@@ -207,9 +205,7 @@ fn c1_well_formed_is_not_flagged() {
     );
 }
 
-// --------------------------------------------------------------------------- //
-// C2 — recovery is non-fatal: the tail is still analysed
-// --------------------------------------------------------------------------- //
+// C2 — recovery is non-fatal: the tail is still analysed.
 
 #[test]
 fn c2_proc_after_unterminated_bracket_is_a_symbol() {
@@ -292,9 +288,7 @@ fn c2_if_with_unterminated_expr_brace_flags_its_own_malformed_clause() {
     );
 }
 
-// --------------------------------------------------------------------------- //
-// C3 — recovered token stream is well-formed
-// --------------------------------------------------------------------------- //
+// C3 — recovered token stream is well-formed.
 
 #[test]
 fn c3_command_after_break_is_tokenised() {
@@ -366,9 +360,7 @@ fn c3_crlf_document_recovers() {
     );
 }
 
-// --------------------------------------------------------------------------- //
-// C4 — no duplicate diagnostics
-// --------------------------------------------------------------------------- //
+// C4 — no duplicate diagnostics.
 
 #[test]
 fn c4_no_exact_duplicate_published() {
@@ -385,18 +377,16 @@ fn c4_no_exact_duplicate_published() {
     }
 }
 
-// --------------------------------------------------------------------------- //
-// Inert close-bracket veto (issue #560) — recovery must not fabricate a fix
-// that leaves the command incomplete.
-// --------------------------------------------------------------------------- //
+// Inert close-bracket veto: recovery must not fabricate a fix that leaves
+// the command incomplete.
 
 // The `]` command/comment-break heuristics must veto an inert offset. For
 //   set x [foo {bar
 //   puts baz}
 // the `puts` word sits *inside* the balanced brace word `{bar … baz}`, so
 // inserting `]` after `bar` yields `set x [foo {bar]…}` which C Tcl reports as
-// incomplete — an objectively wrong fix. Before #560 the bracket path lacked the
-// inert-offset veto the brace path already had. Observably, the unterminated `[`
+// incomplete — an objectively wrong fix. The bracket path needs the same
+// inert-offset veto the brace path already has. Observably, the unterminated `[`
 // is still flagged, the tail is still analysed as code, nothing is published
 // twice, and the analysis doesn't hang. The mid-word look-alike (a literal `"`
 // mid-word) still recovers normally.
@@ -474,9 +464,7 @@ fn inert_brace_word_break_tokens_well_formed() {
     );
 }
 
-// --------------------------------------------------------------------------- //
-// C5 — edits toggle recovery
-// --------------------------------------------------------------------------- //
+// C5 — edits toggle recovery.
 
 fn del_close_bracket() -> Value {
     json!([
@@ -544,15 +532,13 @@ fn c5_rapid_toggling_stays_consistent() {
     }
 }
 
-// --------------------------------------------------------------------------- //
 // Known-command generality — a break just before a call to a command the
 // *document itself* defines (a proc, a TclOO class, an `interp alias`) must
-// recover exactly as well as a break before a call to a builtin. Before this
-// fix, the "does the next line start with a known command?" recovery signal
-// only ever consulted the static registry, so real-world files — almost all
-// of which call their own procs — silently lost the rest of the document to
-// analysis whenever no *builtin* call happened to follow the break.
-// --------------------------------------------------------------------------- //
+// recover exactly as well as a break before a call to a builtin. The
+// "does the next line start with a known command?" recovery signal must not
+// consult only the static registry, or real-world files — almost all of
+// which call their own procs — would silently lose the rest of the document
+// to analysis whenever no *builtin* call happened to follow the break.
 
 #[test]
 fn user_defined_proc_recovers_the_tail_like_a_builtin() {
@@ -638,7 +624,6 @@ fn absolute_namespace_qualified_proc_call_recovers_the_tail() {
     );
 }
 
-// --------------------------------------------------------------------------- //
 // Full name-resolution hierarchy — the known-command signal recovery consults
 // extends past the registry + this-file's own procs/classes/aliases to two
 // more layers: a `rename OLD NEW` target (this file), a proc defined in a
@@ -650,7 +635,6 @@ fn absolute_namespace_qualified_proc_call_recovers_the_tail() {
 // negative case (a name from none of these sources must still fall back
 // honestly — no E001, since a line that stays swallowed opaque text is never
 // analysed at all).
-// --------------------------------------------------------------------------- //
 
 #[test]
 fn renamed_command_recovers_the_tail() {
@@ -886,15 +870,13 @@ fn undefined_name_with_package_required_falls_back_honestly() {
     let _ = std::fs::remove_dir_all(&libdir);
 }
 
-// --------------------------------------------------------------------------- //
 // Short-form unterminated quote / brace — a delimiter left open with content
 // on the *same* line as the opener (the overwhelmingly common real-world
-// typo) must be flagged exactly like a long multi-line run. Before this fix,
-// both detectors required the run to already span multiple lines, so
+// typo) must be flagged exactly like a long multi-line run: a detector that
+// requires the run to already span multiple lines would leave
 // `set x "hello` / `set x {hello` (content then EOF, or content then a
-// single line break) went completely unflagged — not even the generic
-// fallback fired.
-// --------------------------------------------------------------------------- //
+// single line break) completely unflagged — not even the generic fallback
+// firing.
 
 #[test]
 fn short_unterminated_quote_with_no_newline_is_flagged() {
@@ -960,13 +942,11 @@ fn well_formed_empty_and_short_delimiters_stay_silent() {
     }
 }
 
-// --------------------------------------------------------------------------- //
 // E200 tight highlighting — the generic fallback (fires only when neither the
 // E201/E202/E203 detectors nor E103's stolen-brace detector can pin the
 // precise delimiter) must still anchor its range at the actual unclosed
 // delimiter, not spread across the whole (possibly multi-line) partial
 // command through EOF.
-// --------------------------------------------------------------------------- //
 
 #[test]
 fn generic_fallback_does_not_span_the_whole_document() {

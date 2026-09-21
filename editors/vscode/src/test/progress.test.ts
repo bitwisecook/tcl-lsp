@@ -26,9 +26,8 @@ interface TclLspApi {
 }
 
 suite("Work-Done Progress", () => {
-  // Note: there is no `tclLsp.features.progress` setting — the server emits no
-  // `$/progress` and nothing consumed the toggle, so the phantom override was
-  // removed (issue 201).
+  // There is no `tclLsp.features.progress` setting: the server emits no
+  // `$/progress`, so there is nothing for a toggle to consume.
   test("server stays responsive during/after workspace scan", async () => {
     // The $/progress pipeline runs asynchronously on the event loop.  If
     // it blocked the event loop the test harness would time out activating

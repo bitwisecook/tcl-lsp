@@ -2,8 +2,8 @@
 # tcl-lsp — AOT WASM command-priority corpus fetcher.
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
-# Reconstitutes the git-ignored real-world corpus named in issue #1181 (the
-# "which Tcl commands matter most for the AOT WASM compiler" study). Shallow
+# Reconstitutes the git-ignored real-world corpus for the
+# "which Tcl commands matter most for the AOT WASM compiler" study. Shallow
 # (--depth 1) clones. Idempotent: skips anything already present. Records the
 # resolved HEAD commit of every repo to provenance.txt (git-ignored — the
 # design doc that consumes this corpus quotes the commits it needs directly,

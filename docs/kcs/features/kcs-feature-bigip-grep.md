@@ -34,7 +34,7 @@ f5 grep --cidr '10.0.0.0/8, 192.168.0.0/16' bigip.conf
 
 ## Options
 
-- `-e, --regex` — treat PATTERN as a regular expression (default: substring match against the object's full path).  Mutually exclusive with `--cidr`.
+- `-e, --regex` — treat PATTERN as a Rust `regex`-crate regular expression, which has no look-around or backreferences (default: substring match against the object's full path).  Mutually exclusive with `--cidr`.
 - `-c, --cidr` — treat PATTERN as one or more whitespace- or comma-separated IPv4/IPv6 addresses or CIDR ranges.  An object qualifies when any IP literal or CIDR mentioned in its full path, header, or body — including iRule script bodies — overlaps any requested network.  Mutually exclusive with `--regex`.
 - `-r, --recurse` / `--no-recurse` — walk the related-object graph from each match (the default), or return only the objects that directly match PATTERN.  Applies to every match mode.  With `--no-recurse`, `--direction` and `--max-depth` are ignored and the report's `related` list is empty.
 - `--direction {forward,reverse,both}` — which edges to walk from each match.  `forward` follows outgoing references, `reverse` incoming ones, `both` (default) walks both.

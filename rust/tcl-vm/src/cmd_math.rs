@@ -80,7 +80,7 @@ fn domain_err() -> Completion<Value> {
 }
 
 /// A shared math-function refusal as a VM completion, carrying C's verbatim
-/// message and `-errorcode` (#1581): `ARITH IOVERFLOW` for an infinity
+/// message and `-errorcode`: `ARITH IOVERFLOW` for an infinity
 /// reaching an integer conversion, `TCL VALUE DOUBLE NAN` for a NaN operand,
 /// `ARITH DOMAIN` otherwise. `Abstain` cannot occur here — the VM's backend
 /// has an arbitrary-precision rung and its release is resolved — so it falls
@@ -94,9 +94,9 @@ fn math_func_err(e: tcl_syntax::expr::mathfunc::MathFuncError) -> Completion<Val
     err_with_code(message, e.error_code())
 }
 
-/// A [`num_or_nan`] failure as a completion, with C's `-errorcode`: the VM
-/// had the right message text for a NaN and an infinity but left `errorCode`
-/// as `NONE` (#1581).
+/// A [`num_or_nan`] failure as a completion, with C's `-errorcode`. A
+/// message-only completion would have the right text for a NaN and an
+/// infinity but leave `errorCode` as `NONE`.
 fn num_err(message: String) -> Completion<Value> {
     use tcl_syntax::expr::errors;
     if message == errors::NAN_MESSAGE {
@@ -176,10 +176,9 @@ fn shared_math(name: &str, args: &[Value], int_width: IntWidth) -> Completion<Va
 /// Most functions fall through to [`shared_math`], which drives
 /// `tcl_syntax::expr::mathfunc::dispatch_with_backend` — the same shared
 /// implementation `expr` itself uses. The integer conversions
-/// (`int`/`wide`/`entier`/`round`/`isqrt`) are shared arms too since
-/// #1382/#1795 gave the shared seam an exact float-to-bignum operation
-/// (`BigIntOps::from_f64_trunc`), so `int(1e300)` and `round(1e300)` keep
-/// their exact answers there.
+/// (`int`/`wide`/`entier`/`round`/`isqrt`) are shared arms too: the shared
+/// seam has an exact float-to-bignum operation (`BigIntOps::from_f64_trunc`),
+/// so `int(1e300)` and `round(1e300)` keep their exact answers there.
 ///
 /// The arms named here are the ones whose VM bodies are deliberately *not*
 /// the shared ones: `abs` takes an i128 fast path before the bignum rung,
@@ -189,14 +188,80 @@ fn shared_math(name: &str, args: &[Value], int_width: IntWidth) -> Completion<Va
 fn m_mathfunc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let invoked = vm.invoked_name().unwrap_or_default();
     let name = invoked.rsplit("::").next().unwrap_or(invoked).to_owned();
+    let int_width = IntWidth::for_tcl_version(vm.runtime_version());
     match name.as_str() {
         "abs" => m_abs(args),
         "double" => m_double(args),
         "bool" => m_bool(args),
         "srand" => m_srand(vm, args),
         "rand" => m_rand(vm, args),
-        name => shared_math(name, args, IntWidth::for_tcl_version(vm.runtime_version())),
+        name => m_integer_conversion(name, args, int_width)
+            .unwrap_or_else(|| shared_math(name, args, int_width)),
     }
+}
+
+/// Whether `v` is already an *integer* object — the operand class C's
+/// `Tcl_GetNumberFromObj` reports as `TCL_NUMBER_INT` or `TCL_NUMBER_BIG`.
+/// A double (even an integral one such as `4.0`) is not: C converts it, so it
+/// has no integer object to hand back.
+fn is_integer_value(v: &Value) -> bool {
+    v.as_int().is_ok()
+        || matches!(
+            number::parse_whole(v.to_str().trim()),
+            Some(Number::Int(_) | Number::Big { .. })
+        )
+}
+
+/// The object-preserving integer path shared by `int`, `wide`, and `entier`
+/// (#1936), the same seam `runtime/rust`'s `cmd_mathfunc` takes.
+///
+/// C's `ExprEntierFunc` hands an already-integral operand **back as the same
+/// object**, so the result keeps the operand's own string rep:
+/// `::tcl::mathfunc::entier 0x10` is `0x10`, not `16` (tclsh 8.5-9.1). Routing
+/// it through the shared numeric dispatch instead rebuilds a canonical decimal
+/// and loses that rep. Which of the three preserves and which windows is not
+/// decided here: it is
+/// [`tcl_syntax::expr::mathfunc::integer_conversion`], the one owner both
+/// engines read, over the release's [`IntWidth`] axis. A windowing conversion
+/// has to build a new integer, so only the unbounded one can preserve the
+/// object.
+///
+/// `None` falls through to [`shared_math`]: a float operand (which C genuinely
+/// converts, and whose exact float-to-bignum truncation lives in the shared
+/// seam), a non-number (whose refusal wording is the shared seam's), and any
+/// wrong argument count (whose arity error is too).
+///
+/// `expr` itself is unaffected: it coerces its result to numeric, so
+/// `expr {entier($h)}` stays `16` for `$h` of `0x10` exactly as C Tcl does —
+/// the preservation is visible only through the command form.
+fn m_integer_conversion(
+    name: &str,
+    args: &[Value],
+    int_width: IntWidth,
+) -> Option<Completion<Value>> {
+    // The classification and its release axis belong to the shared expr owner,
+    // not to this consumer: `runtime/rust`'s `cmd_mathfunc` reads the same
+    // function, so a change to the policy cannot leave the two engines
+    // disagreeing.
+    let windows = match tcl_syntax::expr::mathfunc::integer_conversion(name, int_width)? {
+        tcl_syntax::expr::mathfunc::IntegerConversion::Window => true,
+        tcl_syntax::expr::mathfunc::IntegerConversion::Preserve => false,
+    };
+    let [x] = args else { return None };
+    if !is_integer_value(x) {
+        return None;
+    }
+    Some(if windows {
+        match x.as_wide() {
+            Ok(w) => ok(Value::int(w)),
+            // Unreachable: `as_wide` narrows every integer literal, including
+            // one past `i128`. Deferring keeps the shared seam's wording
+            // rather than inventing a second one here.
+            Err(_) => return None,
+        }
+    } else {
+        ok(x.clone())
+    })
 }
 
 pub(crate) fn register(vm: &mut Vm) {
@@ -207,7 +272,7 @@ pub(crate) fn register(vm: &mut Vm) {
     vm.declare_namespace("tcl::mathfunc");
     // Derived from `tcl_syntax::expr::mathfunc::all()` rather than a
     // hand-typed list, exactly as `runtime/rust/src/cmd_mathfunc.rs` does
-    // (ledger row B3). The hand-typed list this replaces had gone stale by
+    // A hand-typed list would risk going stale, as it did for
     // the whole TIP 745 (Tcl 9.1) C99 batch — 21 functions the shared
     // dispatch table already implemented but that were never registered as
     // commands, so `expr {cbrt(27)}` was an error under a 9.1 pin.
@@ -309,8 +374,8 @@ fn m_srand(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // but got "1.5"` (`-errorcode TCL VALUE INTEGER`, or `TCL VALUE NUMBER`
     // for a non-number), and tclsh9.0.4 raises with an *empty* message
     // because C passes a NULL interp to the conversion there. Both engines
-    // use 8.6's wording so they agree with each other (#1432); 9.0's
-    // empty-message quirk is left to the error-taxonomy work (#1581).
+    // use 8.6's wording so they agree with each other; 9.0's
+    // empty-message quirk is not reproduced here.
     let Ok(seed) = x.as_wide() else {
         return err_with_code(
             format!("expected integer but got \"{}\"", x.to_str()),

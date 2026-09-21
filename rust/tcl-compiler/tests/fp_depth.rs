@@ -280,7 +280,7 @@ mod rch_depth {
 mod helpers_depth {
     use super::*;
 
-    // --- dict with key-aware suppression (harvest_dict_with_suppression) ---
+    // Dict with key-aware suppression (harvest_dict_with_suppression).
 
     #[test]
     fn dict_with_known_key_body_read_suppressed() {
@@ -338,7 +338,7 @@ mod helpers_depth {
         );
     }
 
-    // --- qualified-variable alias tails (collect_qualified_variable_alias_tails) ---
+    // Qualified-variable alias tails (collect_qualified_variable_alias_tails).
 
     #[test]
     fn two_separate_variable_decls_both_tails_suppressed() {
@@ -385,7 +385,7 @@ proc f {} {
         );
     }
 
-    // --- unset-killed versions (whole_unset_names + phi_can_undef) ---
+    // Unset-killed versions (whole_unset_names + phi_can_undef).
 
     #[test]
     fn unset_whole_name_then_read_fires_w210() {
@@ -456,7 +456,7 @@ proc f {} {
         );
     }
 
-    // --- cmd-sub writes buried in expr (collect_expr_cmd_sub_writes) ---
+    // Cmd-sub writes buried in expr (collect_expr_cmd_sub_writes).
 
     #[test]
     fn catch_in_expr_writes_tmp_branch_condition_silent() {
@@ -484,7 +484,7 @@ proc f {} {
         );
     }
 
-    // --- dynamic upvar alias reads (issue #941) ---
+    // Dynamic upvar alias reads.
 
     #[test]
     fn dynamic_upvar_local_unconditional_read_silent_w210() {
@@ -495,9 +495,9 @@ proc f {} {
         // when the *caller* variable is missing, which is exactly the runtime
         // condition that makes the *literal*-target `upvar 1 outer v` error too
         // — and that form is (correctly) silent. tclsh 8.6/9.0 confirm the two
-        // are semantically identical, so the analyser treats them alike (#941;
-        // reverses the earlier dynamic-target override, which flagged only the
-        // dynamic form and so fired on every by-name read helper).
+        // are semantically identical, so the analyser must treat them alike:
+        // singling out the dynamic form would fire on every by-name read
+        // helper.
         let src = "proc f {name} { upvar 1 $name v\n puts $v }\n";
         assert!(
             !fires(src, D, "W210"),
@@ -536,7 +536,7 @@ proc f {} {
         );
     }
 
-    // --- globals_written_by_procs (top-level RBS suppression) ---
+    // globals_written_by_procs (top-level RBS suppression).
 
     #[test]
     fn helper_proc_set_global_suppresses_top_level_read() {
@@ -766,7 +766,7 @@ mod inj_depth {
         );
     }
 
-    // --- T102 path-prefixed vs generic taint (iRules dialect) ---
+    // T102 path-prefixed vs generic taint (iRules dialect).
 
     #[test]
     fn http_uri_via_copy_assignment_no_t102() {
@@ -1138,21 +1138,21 @@ mod obj_depth {
 //   set d {};    dict update d k v {}; info exists v   →  0   (genuinely unset)
 //
 // The analyser's key-aware suppression harvester
-// (`helpers.rs::harvest_dict_with_suppression`) previously recorded only the
-// dict KEYS for both `dict with` AND `dict update`, but for `dict update` the
-// local that gets bound is the *value-var* (`v`), not the key (`k`). It now maps
-// update's key→value-var pairs (for provably-present keys) into the suppression
-// set, so a read of the bound value-var is no longer flagged read-before-set.
-// The empty-dict case still fires (key absent → value-var genuinely unset), and
+// (`helpers.rs::harvest_dict_with_suppression`) must track dict KEYS for
+// `dict with`, but for `dict update` the local that gets bound is the
+// *value-var* (`v`), not the key (`k`). It maps `dict update`'s
+// key→value-var pairs (for provably-present keys) into the suppression set,
+// so a read of the bound value-var is not flagged read-before-set. The
+// empty-dict case still fires (key absent → value-var genuinely unset), and
 // the `dict with` analogue stays silent — the two controls below pin both ends.
 mod bug_dict_update_value_var {
     use super::*;
 
-    // FIXED: `dict update d k v { ... $v ... }` with key `k` present in the
-    // literal `{k 5}` no longer false-fires W210 on `$v`. tclsh proves `v` is
-    // bound to `5` inside the body (info exists v → 1 on 8.6 and 9.0). The
-    // harvester now maps `dict update`'s key→value-var pairs (for present keys)
-    // into the suppression set, so the read of the bound value-var is silent.
+    // `dict update d k v { ... $v ... }` with key `k` present in the literal
+    // `{k 5}` must not false-fire W210 on `$v`. tclsh proves `v` is bound to
+    // `5` inside the body (info exists v → 1 on 8.6 and 9.0). The harvester
+    // maps `dict update`'s key→value-var pairs (for present keys) into the
+    // suppression set, so the read of the bound value-var is silent.
     #[test]
     fn dict_update_known_key_value_var_should_be_silent() {
         let src = "proc f {} { set d {k 5}; dict update d k v { puts $v } }\n";
@@ -1189,20 +1189,19 @@ mod bug_dict_update_value_var {
         );
     }
 
-    // Issue #1247 depth: the FP above was re-introduced once by a registry
-    // change and caught only by the single assertion above. The mechanism is
-    // worth pinning from every side it can break from, because the harvester
-    // has three independent moving parts: the *role* the registry gives the
-    // value-var word, the *pair stride* the harvester walks, and the *dict
-    // value* it resolves (SCCP version, or the same-block literal `set`).
+    // This FP is worth pinning from every side it can break from: the
+    // harvester has three independent moving parts: the *role* the registry
+    // gives the value-var word, the *pair stride* the harvester walks, and
+    // the *dict value* it resolves (SCCP version, or the same-block literal
+    // `set`).
     //
     // The registry half is pinned in `tcl-registry`'s
     // `repeated_layouts_answer_through_arg_indices_for_role`: `dict update`'s
-    // pair locals answer `ArgRole::LoopVarList`, never `ArgRole::VarWrite`.
-    // The re-introduction was exactly that role being `VarWrite`, which makes
-    // SSA model an unconditional def of the value-var at the barrier; the def
-    // lands in `UndefSuppression::explicitly_defined`, whose `!contains`
-    // clause then gates off `dict_with_known_keys` in `suppresses_strict`.
+    // pair locals must answer `ArgRole::LoopVarList`, never
+    // `ArgRole::VarWrite`. Were that role `VarWrite`, SSA would model an
+    // unconditional def of the value-var at the barrier; the def would land
+    // in `UndefSuppression::explicitly_defined`, whose `!contains` clause
+    // then gates off `dict_with_known_keys` in `suppresses_strict`.
     // The tests below pin the same invariant from the *behaviour* side, so
     // the two layers cannot drift apart silently.
 

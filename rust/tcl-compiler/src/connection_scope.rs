@@ -200,7 +200,7 @@ pub(crate) fn scan_info_exists(text: &str, out: &mut HashSet<String>) {
 /// as a `Command` node).
 fn scan_expr_info_exists(node: &crate::expr_ast::ExprNode, out: &mut HashSet<String>, depth: u32) {
     use crate::expr_ast::ExprNode;
-    // Native-stack safety net (issue #996): walks the `ExprNode` tree, one
+    // Native-stack safety net: walks the `ExprNode` tree, one
     // native frame per level. Past the cap, stop descending — a collector
     // that returns the `info exists` reads gathered so far is the safe
     // fallback (reads buried deeper than the cap go unrecorded; never a
@@ -321,8 +321,8 @@ mod tests {
     use crate::compilation_unit::CompilationUnit;
     use tcl_registry::CommandRegistry;
 
-    /// Regression coverage for issue #996: `scan_expr_info_exists` recurses
-    /// once per `ExprNode` level with no depth cap before this fix. A tree
+    /// `scan_expr_info_exists` recurses
+    /// once per `ExprNode` level, so it needs a depth cap. A tree
     /// built directly is unbounded (the Pratt parser caps its own output at
     /// 256) and empirically overflowed the native stack (SIGABRT) in the low
     /// thousands of levels on a 2 MiB thread. 3000 is past that crash range

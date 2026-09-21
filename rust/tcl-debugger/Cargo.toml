@@ -23,10 +23,10 @@
 # backend runs the script on `tcl-vm`, calling the controller's step hook at
 # each source-line boundary; the controller decides whether to pause.
 #
-# Status: the controller (step-mode decision logic), the shared types, and the
-# backend contract are portable and land here. The live VM backend is gated on
-# `tcl-vm` exposing a per-statement debug hook with source-line + frame-level
-# info (tracked under RT-VM) — see the `backend` module.
+# The controller (step-mode decision logic), the shared types, and the backend
+# contract are portable and live here. The live VM backend needs `tcl-vm` to
+# expose a per-statement debug hook with source-line + frame-level info — see
+# the `backend` module.
 [package]
 name = "tcl-debugger"
 publish.workspace = true

@@ -279,8 +279,8 @@ mod tests {
     /// call to a *recognised* operator can coincidentally produce the exact
     /// same `WrongArgs("value ?value ...?")` message as the catch-all
     /// unrecognised-operator arm, so a runtime probe can't reliably tell
-    /// "recognised" from "not" apart. This is `eval`'s half of issue
-    /// #983/#987's registry/runtime convergence: a drift gate proving this
+    /// "recognised" from "not" apart. This is `eval`'s half of the
+    /// registry/runtime convergence drift gate, proving this
     /// match's arms still exactly match layer 1
     /// (`tcl_syntax::expr::operators`), in both directions — see the
     /// matching tests in `tcl-vm`'s and `runtime/rust`'s `cmd_mathop.rs`.

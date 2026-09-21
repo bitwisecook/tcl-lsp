@@ -42,13 +42,12 @@
 // grammar `tcl-cmd-core::index` models. The hover snippet below states the
 // 8.4-vs-8.5+ split explicitly, matching the precedent already established in
 // `lindex.rs`/`lset.rs`/ `lsearch_.rs` ("Tcl 8.4 supports only a bare integer
-// or the fixed end-integer form"); an earlier pass here had stated the fuller
-// arithmetic grammar (including `end+1`) as if true unconditionally, which is
-// wrong for 8.4 by the C source above. `tcl-cmd-core::index` (the parser this
-// command, `lindex`, and `string index` all share) accepts a base (`end` or a
-// signed integer, any radix) plus at most one trailing `+`/`-` connector and
-// integer operand — verified against the tclsh 8.6/9.0 oracle in that module's
-// own tests — not arbitrary chained arithmetic; it has no per-dialect branch,
+// or the fixed end-integer form"): stating the fuller arithmetic grammar
+// (including `end+1`) as unconditional would be wrong for 8.4, per the C
+// source above. `tcl-cmd-core::index` (the parser this command, `lindex`,
+// and `string index` all share) accepts a base (`end` or a signed integer,
+// any radix) plus at most one trailing `+`/`-` connector and integer
+// operand, not arbitrary chained arithmetic; it has no per-dialect branch,
 // so it models the 8.5+ grammar unconditionally and the 8.4 restriction is
 // documentation-only here, same as its sibling index-consuming commands.
 // (Separately, 8.4-8.6's "or any abbreviation of it" — a bare `e`/`en` also

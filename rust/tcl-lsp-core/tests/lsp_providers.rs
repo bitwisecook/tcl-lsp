@@ -62,7 +62,7 @@ use tcl_lsp_core::linked_editing_range::{WORD_PATTERN, linked_editing_ranges};
 use tcl_lsp_core::type_definition::type_definition;
 use tcl_lsp_core::type_hierarchy::prepare as type_hierarchy_prepare;
 
-// -- shared helpers --------------------------------------------------------
+// Shared helpers.
 
 fn analyse(source: &str) -> AnalysisResult {
     let mut a = Analyser::new();
@@ -242,7 +242,7 @@ fn code_lens_anchor_is_proc_name_span() {
 
 #[test]
 fn code_lens_count_matches_forward_reference() {
-    // A call BEFORE the definition is still a real call site (issue #637).
+    // A call BEFORE the definition is still a real call site.
     // tclsh: `proc foo {} {}; foo` — `foo` resolves and runs regardless of
     // source order, so the forward call counts.
     let src = "foo\nproc foo {} {}\n";
@@ -612,7 +612,7 @@ fn code_actions_catch_without_result_var_offers_fix() {
     );
     // …and it lands *after the body*, not after the `catch` keyword: applying
     // it must yield `catch { puts hi } result`, never
-    // `catch result { puts hi }` (issue #1190).
+    // `catch result { puts hi }`.
     let column = r.start_character as usize;
     assert_eq!(&src[..column], "catch { puts hi }", "range {r:?}");
 }

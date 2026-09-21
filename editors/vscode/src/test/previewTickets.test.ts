@@ -20,16 +20,16 @@ import * as assert from "assert";
 import * as vscode from "vscode";
 import { getDocUri, activate, waitForDiagnostics } from "./helper";
 
-// End-to-end regression coverage for the "preview version:" tickets that are
-// analyser / delivery bugs surfaced in VS Code:
+// End-to-end regression coverage for analyser / delivery bugs surfaced in
+// VS Code:
 //
-//   #720  `after 200 {...}` must not be flagged as an unknown subcommand (W001)
-//   #721  a single diagnostic must not be displayed twice (E003 here)
-//   #723  Tk commands behind an unknown `package require` must not draw W120
-//   #725  `$::var` (a qualified global read) must not draw "read before set" (W210)
-//   #726  a nested `[expr]` that is a command argument must not draw W114
-//   #727  go-to-definition of a method parameter resolves to the parameter name
-//   #867  `lassign` targets are list elements, not the List it returns -> no S100
+//   - `after 200 {...}` must not be flagged as an unknown subcommand (W001)
+//   - a single diagnostic must not be displayed twice (E003 here)
+//   - Tk commands behind an unknown `package require` must not draw W120
+//   - `$::var` (a qualified global read) must not draw "read before set" (W210)
+//   - a nested `[expr]` that is a command argument must not draw W114
+//   - go-to-definition of a method parameter resolves to the parameter name
+//   - `lassign` targets are list elements, not the List it returns -> no S100
 suite("Preview-version regression tickets", () => {
   const docUri = getDocUri("previewTickets.tcl");
 
@@ -44,20 +44,20 @@ suite("Preview-version regression tickets", () => {
     const diagnostics = await waitForDiagnostics(docUri, { minCount: 1 });
     const codes = diagnostics.map(codeOf);
 
-    // #720 — `after 200 {...}` is a delay, not an unknown subcommand.
+    // `after 200 {...}` is a delay, not an unknown subcommand.
     assert.ok(!codes.includes("W001"), `#720: unexpected W001 in [${codes}]`);
-    // #725 — `$::myVar` is an explicit global read, never read-before-set.
+    // `$::myVar` is an explicit global read, never read-before-set.
     assert.ok(!codes.includes("W210"), `#725: unexpected W210 in [${codes}]`);
-    // #723 — an unknown package may load Tk; the Tk commands must not draw W120.
+    // An unknown package may load Tk; the Tk commands must not draw W120.
     assert.ok(!codes.includes("W120"), `#723: unexpected W120 in [${codes}]`);
-    // #726 — the nested `[expr]` is a command argument, not an expression
+    // The nested `[expr]` is a command argument, not an expression
     // context, so it must not draw W114.
     assert.ok(!codes.includes("W114"), `#726: unexpected W114 in [${codes}]`);
-    // #867 — `lassign $point px py pz` writes list elements, not the List the
+    // `lassign $point px py pz` writes list elements, not the List the
     // command returns, so the arithmetic on them must not draw an S100 shimmer.
     assert.ok(!codes.includes("S100"), `#867: unexpected S100 in [${codes}]`);
 
-    // #721 — the genuine E003 must be present, and exactly once (no duplicate
+    // The genuine E003 must be present, and exactly once (no duplicate
     // from the server pushing *and* the client pulling the same diagnostic).
     const e003 = diagnostics.filter((d) => codeOf(d) === "E003");
     assert.strictEqual(
@@ -104,10 +104,10 @@ suite("Preview-version regression tickets", () => {
   });
 
   test("go-to-definition resolves the *second* method parameter too, not just the first", async () => {
-    // Regression for a bug the #727 test above never could have caught: it
+    // A bug the test above could not catch: it
     // only ever checks `name`, the *first* declared parameter
-    // (`method greet {name greeting}`) — which a later token-span
-    // miscomputation left working by construction while silently breaking
+    // (`method greet {name greeting}`) — a token-span
+    // miscomputation can leave that one working by construction while silently breaking
     // every parameter after it. This test targets `greeting`, the second
     // parameter, using the same fixture and the same `$greeting` usage
     // already present on line 4.

@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Issue #1707 — an iRule's `ILX::call` method word and the Node.js
+//! An iRule's `ILX::call` method word and the Node.js
 //! `ILXServer.addMethod` that implements it are one symbol, across two
 //! languages.
 //!
@@ -267,7 +267,7 @@ fn a_duplicate_registration_is_reported_not_guessed() {
 fn a_removed_method_resolves_to_nothing() {
     // The extension's *running* table has no `my_js_function` once
     // `removeMethod` has taken it out, so the earlier registration is not its
-    // definition (issue #1707 review).
+    // definition.
     let removed = format!("{EXTENSION}ilx.removeMethod('my_js_function');\n");
     let fixture = Fixture::new("removed", &removed);
     let mut lsp = fixture.serve();
@@ -287,8 +287,8 @@ fn a_removed_method_resolves_to_nothing() {
 #[test]
 fn a_handle_only_reaches_bodies_that_share_its_frame() {
     // Which bodies inherit the caller's frame is registry data
-    // (`CommandSpec::body_kind`), and only those may inherit a handle binding
-    // (issue #1707 review). A `proc` body runs in a fresh local frame, and so
+    // (`CommandSpec::body_kind`), and only those may inherit a handle binding.
+    // A `proc` body runs in a fresh local frame, and so
     // does a `when` handler — `BodyKind::Structural` on both — so a handle
     // bound outside them is *undefined* where they run and must not resolve.
     // An `if` body inside the handler is the caller's own frame, and does.
@@ -335,7 +335,7 @@ fn an_unsaved_edit_to_the_extension_is_what_navigation_reads() {
     // The extension's JavaScript is another file, and the server reads other
     // files open-buffer-first — so an `addMethod` typed but not yet saved
     // resolves, and one deleted in the editor stops resolving, however stale
-    // the bytes on disk are (issue #1707 review).
+    // the bytes on disk are.
     let fixture = Fixture::new("unsaved", EXTENSION);
     let mut lsp = fixture.serve();
     lsp.open_ready_lang(
@@ -424,10 +424,7 @@ fn ordinary_tcl_named_ilx_call_is_untouched() {
     );
 }
 
-// ---------------------------------------------------------------------------
-// The declared plugin ↔ workspace mapping, and the JavaScript-side route
-// (issue #1707 criteria 2 and 3, the halves PR #1730 left open)
-// ---------------------------------------------------------------------------
+// The declared plugin ↔ workspace mapping, and the JavaScript-side route.
 
 /// A workspace whose **directory name is not the plugin name** — the shape a
 /// `create ilx plugin P from-workspace W` leaves behind, and the one the

@@ -99,7 +99,7 @@ fi
 # explicit pin makes this harness catch a broken or missing release stamp.
 # HOME, XDG_CONFIG_HOME, ZDOTDIR, PATH, and every other AI-client switch
 # isolate the affirmative MCP/skills path from real user registrations, shell
-# startup files, and binaries (#1686).
+# startup files, and binaries.
 # shellcheck disable=SC2086
 if (
     cd "$SMOKE_ROOT" || exit 1
@@ -183,10 +183,9 @@ if [ ! -x "$mcp" ]; then
 else
     # Speak MCP to it rather than asking it for a banner. The native 2.x server
     # takes no flags at all — `--help` just starts the server, which then dies on
-    # the closed stdin — so the old banner check could only ever fail once the
-    # smoke test was pinned to a 2.x tag. Driving one `initialize` request is a
-    # stronger check anyway: it proves the server runs, speaks the protocol, and
-    # reports the version we just released, rather than that it can print text.
+    # the closed stdin — so a banner check cannot work. Driving one `initialize`
+    # request proves the server runs, speaks the protocol, and reports the
+    # version we just released, rather than that it can print text.
     init='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"smoke","version":"0"}}}'
     if reply=$(printf '%s\n' "$init" | "$mcp" 2>/dev/null | head -1) && [ -n "$reply" ]; then
         case "$reply" in

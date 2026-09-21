@@ -567,7 +567,7 @@ fn auto_path_tokeniser_brace_group_and_bracket_quirk() {
         Some("/lib"),
     );
     // A braced `[` is a literal `[`, not an open bracket — Tcl performs no
-    // substitution inside braces.  The string-token tokeniser used to lose
+    // substitution inside braces.  A string-token tokeniser would lose
     // that distinction and mis-read `{[} info script ]` as the command
     // substitution `[info script]`; with typed word tokens it is a literal
     // `[` followed by trailing words, which the expression parser rejects.
@@ -934,6 +934,7 @@ fn rebased_units(base: &str, shifted: &str) -> (CompilationUnit, CompilationUnit
                     tcl_registry::model::ingress::resolve_environment(D).analyser_profile(),
                 ),
                 external_call_sites: None,
+                declared_commands: None,
             },
             &mut |req: &tcl_compiler::compilation_unit::LatticeRequest<'_>| -> FunctionUnit {
                 let key = format!(
@@ -1413,5 +1414,105 @@ fn rch_while1_with_break_post_loop_is_reachable() {
         !o107_fires(src, D),
         "a while-1 with a break makes the post-loop block reachable; emitted {:?}",
         codes(src, D)
+    );
+}
+
+/// Build `src` through the per-procedure lattice memo, exactly the way
+/// `tcl-lsp-db`'s `function_lattice` does: a single-CFG rebuild with no
+/// whole-module command view. Returns the unit and how many times the memo
+/// callback was reached.
+fn memoised_unit(src: &str) -> (CompilationUnit, usize) {
+    let registry = reg();
+    let mut hits = 0usize;
+    let cu = CompilationUnit::build_for_memoized(
+        src,
+        tcl_compiler::compilation_unit::UnitBuildOptions {
+            registry: &registry,
+            defer_top_level: false,
+            config: tcl_lexer::LexerConfig::default(),
+            dialect: Some(tcl_registry::model::ingress::resolve_environment(D).analyser_profile()),
+            external_call_sites: None,
+            declared_commands: None,
+        },
+        &mut |req: &tcl_compiler::compilation_unit::LatticeRequest<'_>| -> FunctionUnit {
+            hits += 1;
+            let cfg = tcl_compiler::cfg_builder::build_cfg_function_with_upvars_and_config(
+                req.qname,
+                req.body,
+                true,
+                &registry,
+                req.plain_command_dispatch,
+                (
+                    req.upvar_procs.clone(),
+                    req.proc_params.clone(),
+                    req.global_write_procs.clone(),
+                    req.command_bindings.clone(),
+                ),
+                tcl_lexer::LexerConfig::default(),
+            );
+            let pc = tcl_compiler::compilation_unit::decode_param_constants(req.param_constants);
+            FunctionUnit::build_with_param_constants(
+                req.qname,
+                cfg,
+                req.params,
+                &registry,
+                pc.as_ref(),
+                tcl_lexer::LexerConfig::default(),
+            )
+        },
+    );
+    (cu, hits)
+}
+
+/// Whether `::g`'s lattice proves its local `v` is the integer 3.
+fn g_proves_v_is_three(cu: &CompilationUnit) -> bool {
+    let Some(fu) = cu.procedures.get("::g") else {
+        return false;
+    };
+    let Some(sym) = fu.ssa.var_symbol("v") else {
+        return false;
+    };
+    fu.sccp.values.iter().any(|((s, _), lv)| {
+        *s == sym
+            && matches!(
+                lv,
+                tcl_compiler::analyses::LatticeValue::Const(
+                    tcl_compiler::analyses::ConstValue::Int(3)
+                )
+            )
+    })
+}
+
+/// The per-procedure lattice memo keys on the procedure body and the closed
+/// binding lattice, neither of which can see a `proc llength …` shadow
+/// declared elsewhere in the module — so a memoised unit is built as if every
+/// builtin still meant what it spells. A module that shadows one must not be
+/// served such a unit (#2164).
+///
+/// tclsh 8.4.20 – 9.1b0 (unanimous): with the shadow, `[llength {a b c}]` is
+/// 99, so a lattice claiming `v == 3` is wrong.
+#[test]
+fn a_shadowing_module_refuses_the_memoised_lattice() {
+    let (shadowed, hits) = memoised_unit(
+        "proc llength {l} { return 99 }\nproc g {} { set v [llength {a b c}]; return $v }\n",
+    );
+    assert_eq!(
+        hits, 0,
+        "a module that shadows a builtin must not consult the memo at all"
+    );
+    assert!(
+        !g_proves_v_is_three(&shadowed),
+        "the freshly built lattice must not answer with the builtin's 3"
+    );
+
+    // Positive control: the same shape with nothing shadowed does reach the
+    // memo, and the unit it returns does prove `v == 3` — so the two
+    // assertions above measure the refusal, not an unreachable memo or a
+    // lattice that never had the fact.
+    let (control, hits) = memoised_unit("proc g {} { set v [llength {a b c}]; return $v }\n");
+    assert!(hits > 0, "the control must reach the memo");
+    assert!(
+        g_proves_v_is_three(&control),
+        "the control's memoised lattice does prove v == 3"
     );
 }

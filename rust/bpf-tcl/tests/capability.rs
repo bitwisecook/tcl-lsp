@@ -32,7 +32,7 @@ fn verdict(src: &str, len: usize) -> u64 {
     run_socket_filter(&obj, &mut pkt).expect("runs")
 }
 
-// ---- deny: default-allow, forbids the named verbs ------------------------
+// deny: default-allow, forbids the named verbs.
 
 #[test]
 fn deny_unused_verb_compiles() {
@@ -68,7 +68,7 @@ fn deny_can_forbid_a_verdict() {
     assert_eq!(err.code, BpfDiag::CapabilityDenied);
 }
 
-// ---- allow: restricts the gated set, verdicts/scalars stay free ----------
+// allow: restricts the gated set; verdicts/scalars stay free.
 
 #[test]
 fn allow_lists_the_only_gated_verbs() {
@@ -100,7 +100,7 @@ fn allow_permits_listed_verbs_and_verdicts() {
     assert_eq!(verdict(src, 16), 0);
 }
 
-// ---- the policy governs *expanded* operations ----------------------------
+// The policy governs *expanded* operations.
 
 #[test]
 fn template_cannot_smuggle_a_denied_verb() {
@@ -129,7 +129,7 @@ fn profile_field_read_is_governed_as_a_load() {
     assert_eq!(err.code, BpfDiag::CapabilityDenied);
 }
 
-// ---- malformed declarations ----------------------------------------------
+// Malformed declarations.
 
 #[test]
 fn deny_unknown_verb_rejected() {

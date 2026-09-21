@@ -51,8 +51,8 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 // `namespace eval`; (2) the "level cannot be omitted" clause reads
 // "starts with a digit or #" in the 8.4/8.5/8.6 manpages but "is an
 // integer or starts with #" in the 9.0/9.1 manpages. That wording change
-// *is* a behavioural change, and it lands in 9.0 — run, not read (issue
-// #1069; both directions pinned in
+// *is* a behavioural change, and it lands in 9.0 — run, not read (both
+// directions pinned in
 // `tcl_registry::frame_effect::FrameLevelWord::LeadingProbe`):
 //
 //   uplevel -1  {oops}   9.0.4: bad level "-1"             8.6.14: invalid command name "-1"
@@ -81,9 +81,9 @@ const FRAME_EFFECT: FrameEffectSpec = FrameEffectSpec {
 /// when a leading `level` word is present, else `0`.
 ///
 /// Delegates to [`FrameEffectSpec::level_word_len`], the single level-word
-/// rule; this file previously carried a private first-byte `#`-or-digit
-/// sniff, which rejected `+1`, `-0`, `-1`, `" 1"`, `0x1`, and `0b1` — all of
-/// which C Tcl consumes as levels (issue #1069).  An
+/// rule, rather than a private first-byte `#`-or-digit
+/// sniff, which would reject `+1`, `-0`, `-1`, `" 1"`, `0x1`, and `0b1` — all of
+/// which C Tcl consumes as levels.  An
 /// [`ArgRoleResolver`](crate::hooks) carries no dialect, so the
 /// version-invariant reading is the one asked for here: it abstains on the two
 /// spellings where the releases disagree (`-1`, `1.0`), leaving them as script
@@ -103,7 +103,7 @@ fn uplevel_script_start(args: &[&str]) -> usize {
 /// arg 0). Marks the first script word [`ArgRole::Body`] so the
 /// semantic-token layer, the green-tree descent, and every other
 /// registry-driven body consumer recurse it as a real script instead of
-/// rendering it as an opaque string (issue #837). Only a braced word
+/// rendering it as an opaque string. Only a braced word
 /// actually recurses — each consumer keeps its own `Str`-token guard — so
 /// a bare `$body` / command-substitution body stays a value here and is
 /// resolved by the compiler's const-lattice lowering instead.

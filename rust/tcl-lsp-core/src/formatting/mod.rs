@@ -189,7 +189,7 @@ pub fn range_formatting(
     let line_ending = config.resolved_line_ending(source);
     // The identity facts come from the **whole document**, not the slice: a
     // `rename` above the selection still governs what the selected commands
-    // are (issue #1275).
+    // are.
     let identities = tcl_compiler::realm::document_realm_bindings_with_config(
         &normalised,
         config.lexer_config(),

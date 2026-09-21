@@ -3,19 +3,18 @@
 # Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""Enforce the C-API ownership/error contract (issue #1404 item 3).
+"""Enforce the C-API ownership/error contract.
 
 `docs/design/runtime/c-api-ownership-contract.md` documents one row per C Tcl
 API function (`Tcl_*` / `mp_*`) naming its `Tcl_Obj` ownership and error-path
-category. Until this script, nothing checked that the contract and the actual
-exported surface agreed — the doc's own "Known gap: no enforcement" section
-said so explicitly. Two directions of drift are possible; this script closes
-the one that is cheaply and reliably checkable from this repository alone:
+category. This script checks that the contract and the actual exported
+surface agree. Two directions of drift are possible; this script closes the
+one that is cheaply and reliably checkable from this repository alone:
 
 * **export without a row** — `runtime/rust/src/capi.rs` gains a new
   `#[no_mangle] extern "C" fn Tcl_Whatever(...)` and nobody adds the matching
-  ownership row. This is a **hard failure**: "an export cannot land without
-  an ownership annotation" is exactly the gap issue #1404 names.
+  ownership row. This is a **hard failure**: an export cannot land without an
+  ownership annotation.
 
 The other direction the contract doc describes — a row naming a function the
 real `tcl.h` / `tclOO.h` / `tclTomMath.h` headers never declared, or a header
@@ -25,17 +24,17 @@ network-capable, disk-heavy step: see the `fetch-tcl-source` skill / the
 `tmp/tclX.Y.Z` layout `c-api-ownership-contract.md`'s "Sources transcribed"
 line names). This script does that comparison too, but **only when explicitly
 asked** — `--tcl-source PATH`, or the `CHECK_C_API_OWNERSHIP_TCL_SOURCE`
-environment variable — never by scanning `tmp/` on its own. A checkout
-provisioned with the documented multi-version dev sources (several
-`tmp/tclX.Y.Z` trees, exactly what a normal dev setup fetches) previously had
-this half auto-enabled by the mere *presence* of any such directory, picking
-whichever sorted first lexicographically (`tcl8.4.20` before `tcl9.0.3`) —
-silently scanning an 8.4 header surface against this repo's Tcl-9.0-era
-contract and reporting ~200 real 8.x-only functions as "missing rows" on an
-otherwise clean tree. A tree being present is not the same as a tree being
-*selected*; selection is now always a deliberate, explicit choice (point it
-at a `tcl9.0.x` tree, matching the contract doc's own "Sources transcribed"
-note, for a meaningful comparison).
+environment variable — never by scanning `tmp/` on its own. Auto-selecting a
+source tree by directory presence is unsafe: a checkout provisioned with the
+documented multi-version dev sources (several `tmp/tclX.Y.Z` trees, exactly
+what a normal dev setup fetches) has more than one candidate, and picking
+whichever sorts first lexicographically (`tcl8.4.20` before `tcl9.0.3`) would
+silently scan an 8.4 header surface against this repo's Tcl-9.0-era contract,
+reporting ~200 real 8.x-only functions as "missing rows" on an otherwise
+clean tree. A tree being present is not the same as a tree being *selected*;
+selection is always a deliberate, explicit choice (point it at a
+`tcl9.0.x` tree, matching the contract doc's own "Sources transcribed" note,
+for a meaningful comparison).
 
 `capi.rs` also exports a handful of internal bootstrap/test helpers
 (`tcl_runtime_create_interp`, `tcl_test_reset_counters`, …) that are not part
@@ -208,7 +207,7 @@ def find_header_declarations(source_root: Path) -> dict[str, list[str]]:
 
 
 #: Opt-in-only env var for the header cross-check (see `find_tcl_source`).
-#: No directory-globbing auto-detection exists any more — a `tmp/tclX.Y.Z`
+#: No directory-globbing auto-detection exists — a `tmp/tclX.Y.Z`
 #: tree being present must never, by itself, enable this half of the check.
 TCL_SOURCE_ENV_VAR = "CHECK_C_API_OWNERSHIP_TCL_SOURCE"
 
@@ -218,14 +217,14 @@ def find_tcl_source(explicit: Path | None) -> Path | None:
 
     Deliberately opt-in only: `--tcl-source` or `CHECK_C_API_OWNERSHIP_TCL_SOURCE`
     must name a tree explicitly. There is no fallback that scans `tmp/` for
-    *any* `tcl*` directory and picks one — that used to pick whichever name
-    sorted first (`tcl8.4.20` before `tcl9.0.3`), silently comparing the
-    wrong Tcl version's header surface against this repo's Tcl-9.0-era
-    ownership contract on any checkout that happened to have multiple Tcl
-    source trees fetched (the normal, documented dev setup), reporting
-    genuine 8.x-only functions as "missing rows" on an otherwise clean tree.
-    A tree merely existing under `tmp/` must never activate this check;
-    only a deliberate, explicit selection may.
+    *any* `tcl*` directory and picks one: picking whichever name sorts first
+    (`tcl8.4.20` before `tcl9.0.3`) would silently compare the wrong Tcl
+    version's header surface against this repo's Tcl-9.0-era ownership
+    contract on any checkout that happens to have multiple Tcl source trees
+    fetched (the normal, documented dev setup), reporting genuine 8.x-only
+    functions as "missing rows" on an otherwise clean tree. A tree merely
+    existing under `tmp/` must never activate this check; only a deliberate,
+    explicit selection may.
     """
     if explicit is not None:
         return explicit if explicit.is_dir() else None
@@ -236,7 +235,6 @@ def find_tcl_source(explicit: Path | None) -> Path | None:
     return None
 
 
-# --------------------------------------------------------------------------
 # Self-tests. This script has no pytest/unittest harness of its own (it is a
 # standalone dev tool, matching the other scripts/ tools' style), so its
 # regression coverage lives here as plain assert-based checks against
@@ -270,10 +268,9 @@ def _self_test_finds_an_unsafe_export(tmp_dir: Path) -> None:
 
 
 def _self_test_finds_an_export_behind_an_intervening_attribute(tmp_dir: Path) -> None:
-    """Regression test for the exact gap an adversarial review found: an
-    `#[allow(...)]` between `#[no_mangle]` and the fn item — an ordinary,
-    clippy-encouraged pattern this file's own style uses — must not hide
-    the export from the ownership-contract gate."""
+    """Regression test: an `#[allow(...)]` between `#[no_mangle]` and the fn
+    item — an ordinary, clippy-encouraged pattern this file's own style
+    uses — must not hide the export from the ownership-contract gate."""
     p = _write(
         tmp_dir,
         "sneaky.rs",
@@ -375,10 +372,9 @@ class _EnvVarGuard:
 def _self_test_tcl_source_stays_unconfigured_when_trees_are_present(
     tmp_dir: Path,
 ) -> None:
-    """Regression test for the exact gap an adversarial review found: real
-    `tmp/tclX.Y.Z`-shaped trees existing on disk — including one that would
-    have sorted first alphabetically under the old auto-detection — must
-    never, by themselves, activate the header cross-check. Only an explicit
+    """Regression test: real `tmp/tclX.Y.Z`-shaped trees existing on disk —
+    including one that would sort first alphabetically — must never, by
+    themselves, activate the header cross-check. Only an explicit
     `--tcl-source` / `CHECK_C_API_OWNERSHIP_TCL_SOURCE` selects a tree."""
     trees_dir = tmp_dir / "trees_present_but_unconfigured"
     for name in ("tcl8.4.20", "tcl8.6.18", "tcl9.0.3"):

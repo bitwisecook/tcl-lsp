@@ -23,9 +23,9 @@
 //! contract, `docs/design/contracts/numeric-tower-and-expr-semantics.md`).
 //!
 //! **Derived** from `tcl_syntax::expr::mathfunc::all()` (`MathFuncSpec`) —
-//! previously there was no registry data for math functions at all (zero
-//! hover, zero completion for `abs`/`sin`/`max`/… anywhere in the LSP; a
-//! confirmed gap, not a design choice).
+//! the sole source of hover and completion data for
+//! `abs`/`sin`/`max`/… in the LSP: a confirmed gap this module closes,
+//! not a design choice.
 //!
 //! Only the two namespace-qualified spellings (`tcl::mathfunc::name`,
 //! `::tcl::mathfunc::name`) are registered — unlike `mathop_generated.rs`'s
@@ -52,8 +52,7 @@ use tcl_syntax::expr::mathfunc::{self, MathFuncSince};
 /// spellings).
 ///
 /// Built **once per process** and cloned per call — see
-/// `mathop_generated::specs` for why memoising here is what bounds [`leak`]
-/// (issue #1035).
+/// `mathop_generated::specs` for why memoising here is what bounds [`leak`].
 #[must_use]
 pub fn specs() -> Vec<CommandSpec> {
     static SPECS: OnceLock<Vec<CommandSpec>> = OnceLock::new();
@@ -140,7 +139,7 @@ fn to_registry_arity(a: tcl_syntax::expr::operators::CommandArity) -> Arity {
 ///
 /// Bounded **only** because [`specs`] memoises its result: this runs once per
 /// process, over a small fixed set (2 spellings x ~56 functions).  Registry
-/// construction itself is *not* a one-off (issue #1035), so any new caller must
+/// construction itself is *not* a one-off, so any new caller must
 /// go through [`specs`].
 fn leak(s: String) -> &'static str {
     &*s.leak()
@@ -156,7 +155,7 @@ mod tests {
     use super::specs;
     use tcl_dialect::model::SpecSurface;
 
-    /// Issue #1035, mathfunc half — see `mathop_generated`'s twin for the full
+    /// The mathfunc half of memoisation — see `mathop_generated`'s twin for the full
     /// rationale.  `specs()` leaks `&'static` strings, so it must memoise:
     /// pointer identity across two calls is what proves it did.
     #[test]
@@ -174,15 +173,15 @@ mod tests {
         }
     }
 
-    /// Adversarial-review finding: this file's own translation from
+    /// This file's own translation from
     /// `MathFuncSpec` to `CommandSpec` (`push_spellings`/`since_to_dialects`/
-    /// `to_registry_arity`) had no test of its own — only
+    /// `to_registry_arity`) has no test of its own — only
     /// `tcl_syntax::expr::mathfunc`'s layer-1 unit tests exercised
     /// `added_in()`/`dispatch()`, never this file's own plumbing. Confirms,
     /// via a direct `specs()` query (not a full `CommandRegistry`), that
     /// this repo's first-ever mathfunc hover/completion data is actually
-    /// present and gated correctly for names issue #983/#985's follow-ups
-    /// specifically care about.
+    /// present and gated correctly for the TIP 745 names this test
+    /// specifically cares about.
     #[test]
     fn tip745_function_present_and_gated_to_tcl91() {
         for name in ["tcl::mathfunc::gamma", "::tcl::mathfunc::gamma"] {

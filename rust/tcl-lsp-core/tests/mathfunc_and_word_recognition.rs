@@ -16,10 +16,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! TP/FP/TN/FN matrix for issue #974 (`expr` math functions in hover /
-//! completion / navigation), issue #1054 (hover type inference built without
-//! the document's dialect), and the issue #923 differential-audit findings
-//! idx 24 / 30 / 48 / 54 / 103 / 104.
+//! TP/FP/TN/FN matrix for `expr` math functions in hover / completion /
+//! navigation, for hover type inference built without the document's dialect,
+//! and for sigil-free word recognition.
 //!
 //! Every oracle claim in here was checked against tclsh 9.0.4 **and** 8.6.16:
 //!
@@ -105,11 +104,10 @@ fn pos_of(src: &str, needle: &str) -> (u32, u32) {
     )
 }
 
-// Issue #974 defect 1 — hover on a bare mathfunc call inside `expr`
+// Hover on a bare mathfunc call inside `expr`.
 
-/// TP (the reported FN): `set a [expr {sin(1.0)}]` drew nothing at any column
-/// of `sin`; it must now render the same registry data the qualified spelling
-/// already did.
+/// TP: every column of `sin` in `set a [expr {sin(1.0)}]` must render the
+/// same registry data the qualified spelling does.
 #[test]
 fn tp_hover_on_a_bare_mathfunc_call_renders_registry_docs() {
     let src = "set a [expr {sin(1.0)}]\n";
@@ -254,10 +252,10 @@ fn mathfunc_hover_is_version_gated() {
     );
 }
 
-// Issue #974 defect 2 — completion inside `expr`
+// Completion inside `expr`.
 
-/// TP (the reported FN): `set a [expr {si` offered only same-prefixed procs
-/// (`simulation::*` in the audited corpus) and no math functions at all.
+/// TP: `set a [expr {si` must offer math functions, not only same-prefixed
+/// procs (`simulation::*` in the audited corpus).
 #[test]
 fn tp_completion_offers_math_functions_inside_expr() {
     let src = "proc sizzler {} {}\nset a [expr {si";
@@ -326,9 +324,9 @@ fn completion_math_functions_are_version_gated() {
     assert!(!completion_labels(g, "tcl9.0", 0, 15).contains(&"gamma".to_owned()));
 }
 
-// Issue #923 idx 30 — mathfunc call sites as first-class references
+// Mathfunc call sites as first-class references.
 
-/// The audit's own six-consumer sweep shape: a namespace-local
+/// The six-consumer sweep shape: a namespace-local
 /// `proc ::ns::tcl::mathfunc::f` override plus an *unrelated* same-named
 /// global `proc f`.  tclsh proves `f(2)` inside `::ns` reaches the override
 /// and never the global proc.
@@ -501,7 +499,7 @@ fn tp_minify_and_call_graph_handle_the_override() {
     );
 }
 
-/// TN (idx 30's secondary false positive): a **bare** call to a proc that
+/// TN: a **bare** call to a proc that
 /// lives only in a `tcl::mathfunc` namespace resolves to nothing — real Tcl
 /// raises `invalid command name "li"` for it, so claiming a definition /
 /// hover / reference there is a false positive on guaranteed-to-crash code.
@@ -555,9 +553,9 @@ puts [li 10 20]
     assert_eq!(locs[0].start_line, 3, "the global decoy: {:?}", locs[0]);
 }
 
-// Issue #923 idx 103 — mathfunc as a first-class command
+// Mathfunc as a first-class command.
 
-/// The registry data the finding asked for is present and dialect-gated, so
+/// The registry data is present and dialect-gated, so
 /// the generic per-dispatch-site availability check sees it: the qualified
 /// *command* spelling exists from 8.5 (TIP 232) and `isinf` only from 9.0.
 #[test]
@@ -587,9 +585,9 @@ fn mathfunc_command_spellings_are_registered_and_gated() {
     );
 }
 
-// Audit C4 — sigil-free / colon word recognition (idx 24, 48, 54, 104)
+// Sigil-free / colon word recognition.
 
-/// idx 48 (TP, regression pin): a variable's bare **declaring** token —
+/// TP: a variable's bare **declaring** token —
 /// `cmd` in `foreach cmd $list`, and a `set` left-hand side.
 #[test]
 fn tp_idx48_bare_declaring_token_resolves() {
@@ -614,7 +612,7 @@ fn tp_idx48_bare_declaring_token_resolves() {
     );
 }
 
-/// idx 104 (TP): a proc parameter's own name resolves to the parameter, and
+/// TP: a proc parameter's own name resolves to the parameter, and
 /// its **default-value literal** — pure data — resolves to nothing at all,
 /// rather than to a same-named command.
 #[test]
@@ -653,7 +651,7 @@ proc rfg {grab focus {destroy destroy}} {
     assert_eq!(locs[0].start_line, 0, "{:?}", locs[0]);
 }
 
-/// idx 54 (TP): `${ns}::setopt` — the literal fragment after a substitution
+/// TP: `${ns}::setopt` — the literal fragment after a substitution
 /// is the *name* `setopt`, not an absolute `::setopt`, so it resolves.
 #[test]
 fn tp_idx54_residual_name_after_a_substitution_resolves() {
@@ -681,7 +679,7 @@ proc callit {} {
     );
 }
 
-/// idx 54 residual (TP): find-references from a proc's own declaration must
+/// TP: find-references from a proc's own declaration must
 /// reach a `${ns}::name` call **inside that proc's own namespace**.
 ///
 /// The walk records the local-first candidate (`::mypkg::mypkg::setdef` for
@@ -727,7 +725,7 @@ proc mypkg::folded {} {
     );
 }
 
-/// idx 54 residual FP guard: the settle must not invent a target.  A folded
+/// FP guard: the settle must not invent a target.  A folded
 /// head naming a proc that exists in **neither** candidate namespace stays
 /// unresolved — no reference is attributed to the same-tailed proc in an
 /// unrelated namespace.
@@ -757,7 +755,7 @@ proc mypkg::folded {} {
     assert_eq!(lines, vec![1], "declaration only: {refs:?}");
 }
 
-/// idx 54 TN — the colon grammar, pinned against C Tcl: a **single** colon is
+/// TN — the colon grammar, pinned against C Tcl: a **single** colon is
 /// an ordinary name character, so it must never split a word.  Verified on
 /// tclsh 8.6 / 9.0 (`set a:b 42`, `proc p:q {x}`, `set arr(k:1) v`,
 /// `dict get $d x:y` all work), which is exactly why the fix is *not* "add
@@ -781,7 +779,7 @@ fn tn_single_colons_never_split_a_word() {
     assert_eq!(word, "arr(k:1)", "the whole element word, unsplit");
 }
 
-/// idx 24 (TP): a `$var`-shaped substring in a place Tcl never substitutes —
+/// TP: a `$var`-shaped substring in a place Tcl never substitutes —
 /// an inert comment, and a brace-quoted data word — must not resolve.
 #[test]
 fn tp_idx24_inert_dollar_refs_do_not_resolve() {
@@ -823,7 +821,7 @@ proc holder {} {
     }
 }
 
-/// idx 24 FP guard: every shape that *does* substitute still resolves —
+/// FP guard: every shape that *does* substitute still resolves —
 /// quoted words, `if` / `expr` conditions, nested bodies, `[…]`
 /// substitutions, concatenations, `${name}`, and `$arr(k)`.
 #[test]
@@ -864,7 +862,7 @@ proc p {} {
     }
 }
 
-/// idx 24 FP guard: a qualified read (`$::ns::v`) is not recorded as a
+/// FP guard: a qualified read (`$::ns::v`) is not recorded as a
 /// reference on the namespace variable, so the inertness proofs must be
 /// positive ones rather than "the analyser saw no read here".
 #[test]
@@ -876,9 +874,9 @@ fn fp_guard_idx24_qualified_reads_still_resolve() {
     assert_eq!(locs[0].start_line, 1, "{:?}", locs[0]);
 }
 
-// Codex review of PR #1073 — the two conservative proofs, sharpened
+// The two conservative inertness proofs, sharpened.
 
-/// Finding 1 (TP): a `{` **inside a bare word** is an ordinary character, so a
+/// TP: a `{` **inside a bare word** is an ordinary character, so a
 /// `#` after it is not in command position and the `$v` following it is a
 /// genuine read that hover / definition / references must still resolve.
 ///
@@ -1029,8 +1027,8 @@ proc s {a {b 1} args} { return \"s got $a $b $args\" }
     );
 }
 
-// Issue #1079 — a computed parameter list declares nothing the analyser can
-// model, so it registers no per-parameter `VarDef` and no arity
+// A computed parameter list declares nothing the analyser can model, so it
+// registers no per-parameter `VarDef` and no arity.
 //
 // Oracle (tclsh 9.0.4 and 8.6.16, identical):
 //
@@ -1043,10 +1041,10 @@ proc s {a {b 1} args} { return \"s got $a $b $args\" }
 //   proc q $params { return "q got $x $y" }
 //   puts [q 1 2]        -> q got 1 2
 //
-// The analyser used to read the unresolved word as a *one-parameter literal*
-// and register a `VarDef` whose name is the source text (`"[makeargs]"` /
-// `"$params"`) spanning that word, plus a one-argument arity that made both
-// two-argument calls above draw a false `E003 Too many arguments`.
+// Reading the unresolved word as a *one-parameter literal* registers a
+// `VarDef` whose name is the source text (`"[makeargs]"` / `"$params"`)
+// spanning that word, plus a one-argument arity that makes both two-argument
+// calls above draw a false `E003 Too many arguments`.
 
 /// TN: no `VarDef` is invented for a computed parameter-list word, in either
 /// of its two spellings.
@@ -1131,11 +1129,11 @@ fn tp_literal_parameter_lists_still_model_formals_and_arity() {
     assert_eq!(r.params.len(), 2, "{:?}", r.params);
 }
 
-// Issue #1054 — hover type inference must be built for the document's dialect
+// Hover type inference must be built for the document's dialect.
 
 /// TP: an f5-iRules word operator (`contains`) inside an `if` condition is a
 /// dialect-specific construct.  Under the iRules dialect the hover's inferred
-/// intrep for a variable in the same script must still be produced — before
+/// intrep for a variable in the same script must still be produced — with
 /// the fix the unit was lowered with the plain-Tcl lexer config and the
 /// annotation skewed or vanished.
 #[test]

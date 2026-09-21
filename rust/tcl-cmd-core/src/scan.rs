@@ -27,9 +27,14 @@
 //! assigns the values to `varName`s (returning the count, `-1` on EOF before
 //! any conversion) or, with no vars, collects them into a list (*inline* mode).
 //!
-//! Conversions: `%d`/`%i`/`%u`/`%o`/`%x`/`%b`/`%c`/`%s`/`%e`/`%f`/`%g`/`%[...]`/
-//! `%n`/`%%`, with `*` (suppress), a field width, and ignored size modifiers
-//! (`h`/`l`/`L`/…). Operates on Unicode code points (so `%c` and widths count
+//! Conversions: `%d`/`%i`/`%u`/`%o`/`%x`/`%X`/`%b`/`%c`/`%s`/`%e`/`%E`/`%f`/
+//! `%g`/`%G`/`%[...]`/`%n`/`%%`, with `*` (suppress), a field width, and
+//! ignored size modifiers (`h`/`l`/`L`/…). The uppercase spellings are real
+//! and case-equivalent to their lowercase twins, not dead arms — tclsh8.6.18
+//! and tclsh9.0.4 both answer `scan 42 %X v` with `1` and `v` `66`, and
+//! `scan 42 %E v` / `scan 42 %G v` with `42.0` (#2077). Uppercase is not a
+//! blanket rule in either command, though: neither `scan` nor `format`
+//! accepts `%F` (`format %F 1.5` → `bad field specifier "F"`). Operates on Unicode code points (so `%c` and widths count
 //! characters). The specifier *grammar* is shared
 //! ([`tcl_syntax::scan::parse_conversion`]); this module is the matcher and the
 //! cross-specifier validator that build on it.

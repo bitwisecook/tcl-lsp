@@ -233,7 +233,7 @@ pub fn spec() -> CommandSpec {
         // `scan` writes format-dependent conversions (`%d` → int, `%s` →
         // string, `%f` → double) to its targets while returning the *count*.
         // Without parsing the format the target intreps are unknown, so they
-        // must not be typed `Int` (issue #867).
+        // must not be typed `Int`.
         var_write_typing: VarWriteTyping::Destructured,
         const_fold: Some(fold_scan),
         hover: Some(HoverSnippet {
@@ -250,7 +250,7 @@ pub fn spec() -> CommandSpec {
         arg_role_resolver_roles: &[ArgRole::ScanFormat, ArgRole::VarWrite],
         // `scan`'s conversion string is the same printf-style mini-language
         // `format` writes; `scan_arg_roles` puts `ArgRole::ScanFormat` at the
-        // word (#1185).
+        // word.
         format_string_type: Some(FormatType::Sprintf),
         ..CommandSpec::DEFAULT
     }

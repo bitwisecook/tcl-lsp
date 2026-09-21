@@ -16,17 +16,16 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-// Issues #1331 and #1332 — the user-visible outcome in a multi-file workspace.
+// The user-visible outcome in a multi-file workspace.
 //
-// Both were reported by @nico-robert on #1181 against v2.1.16 / VS Code, and
-// both are things a user sees in the Problems panel:
+// Both are things a user sees in the Problems panel:
 //
-//   * #1331 — every call to a proc defined in another file carried a
+//   - every call to a proc defined in another file carried a
 //     "Unknown command" hint, and a wrong argument count to such a proc was
 //     never reported at all. W123 is severity `hint`, which is why this was
 //     quiet rather than loud, but on a real project it fires on a large
 //     fraction of all call sites.
-//   * #1332 — a file that `source`s a file doing `package require Tk` still
+//   - a file that `source`s a file doing `package require Tk` still
 //     got `"winfo" requires package require Tk`.
 //
 // The point of testing this *here* rather than only in the Rust suite is that
@@ -91,7 +90,7 @@ suite("Cross-file diagnostics in a multi-file workspace (#1331, #1332)", () => {
   const mutableCaller = getDocUri("crossFileMutableCaller.tcl");
 
   // Open the definition once, and wait for the server to have *published* it,
-  // before any test opens a caller (issue #1619).
+  // before any test opens a caller.
   //
   // `did_open` momentarily drops a document's workspace-index entry, and the
   // debounced diagnostics publish is what puts it back. A caller opened inside

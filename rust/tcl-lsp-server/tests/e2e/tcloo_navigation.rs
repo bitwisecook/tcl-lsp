@@ -20,12 +20,12 @@
 //! and the code lens must all resolve a method through the *same* workspace
 //! machinery, so what one of them sees the others see too.
 //!
-//! * Issue #993 — rename skipped **pure-consumer** documents (a file that only
-//!   calls `$obj method` / `Class method` and declares nothing), silently
-//!   leaving them bound to a name that no longer exists.
-//! * Issue #991 — the code lens's click target and its displayed count both
-//!   came from narrower resolvers than Find All References on the same
-//!   declaration, so the three disagreed on the same symbol.
+//! * Rename must reach **pure-consumer** documents too (a file that only
+//!   calls `$obj method` / `Class method` and declares nothing) — otherwise
+//!   they stay silently bound to a name that no longer exists.
+//! * The code lens's click target and its displayed count must use the same
+//!   resolver as Find All References for the same declaration, so all
+//!   three agree on the same symbol.
 //!
 //! Dispatch shapes are oracle-checked: `$f make` on an `oo::class` instance
 //! and bare `Factory make` on a 9.0 `classmethod` both dispatch to the class
@@ -110,7 +110,7 @@ fn lens_locations(command: &Value) -> Value {
         .unwrap_or(Value::Null)
 }
 
-// Issue #993 — rename must reach pure-consumer documents.
+// Rename must reach pure-consumer documents.
 
 /// TP: `consumer.tcl` only ever *calls* `Factory`'s `make`; it declares no
 /// part of the class.  Renaming from the declaration must rewrite its
@@ -178,7 +178,7 @@ fn tn_unrelated_same_named_proc_document_untouched_by_method_rename() {
 /// call site may rename; the `Widget` instance's `$g make` calls a different
 /// method that keeps its name.  The `proc make` variant above never
 /// constructs anything, so it exercises only the "document mentions no class
-/// at all" cut, not this one (adversarial review of #1047).
+/// at all" cut, not this one.
 #[test]
 fn tn_second_classes_instance_dispatch_untouched_by_method_rename() {
     let mut lsp = Lsp::tcl();
@@ -267,8 +267,8 @@ fn tp_classmethod_rename_reaches_consumer_bare_class_dispatch() {
 }
 
 /// Rename and Find All References must agree site-for-site on the consumer
-/// document — they now share one resolver, and a site one sees but the other
-/// misses is exactly the #993 corruption.
+/// document — they share one resolver, and a site one sees but the other
+/// misses is a real corruption.
 #[test]
 fn tp_consumer_rename_and_references_agree_on_the_same_sites() {
     let mut lsp = Lsp::tcl();
@@ -295,9 +295,9 @@ fn tp_consumer_rename_and_references_agree_on_the_same_sites() {
     );
 }
 
-// Issue #991 — code-lens click and count must match Find All References.
+// Code-lens click and count must match Find All References.
 
-/// Issue #1701: a Tk binding built with `[list [self] METHOD ...]` captures
+/// A Tk binding built with `[list [self] METHOD ...]` captures
 /// the current object command and later invokes the exported method.  The
 /// declaration's references, code lens, and rename must agree on that method
 /// word even though it is data inside the prefix-building `list` call.
@@ -362,7 +362,7 @@ fn tp_list_built_self_bind_callback_is_a_method_reference_everywhere() {
     );
 }
 
-/// #1704: a one-hop local constant carries a registry-declared callback
+/// A one-hop local constant carries a registry-declared callback
 /// prefix.  Every navigation provider must use the builder method span, not
 /// the later `$cb` registration as a guessed command reference.
 #[test]
@@ -404,7 +404,7 @@ fn tp_stored_callback_prefix_agrees_across_navigation_providers() {
     assert_eq!(edit_lines(&edits, &uri), vec![1, 3], "{edits:?}");
 }
 
-/// #1705: a captured `[self]` object command in an inheriting class reaches
+/// A captured `[self]` object command in an inheriting class reaches
 /// the provider's exported implementation — tclsh 8.6.16 / 9.0.4 both run
 /// `Base`'s body for `[list [Child new] tick]` — so every provider must place
 /// the occurrence in `Base::tick`'s family, from either direction.
@@ -456,7 +456,7 @@ fn tp_inherited_list_built_self_callback_joins_the_provider_family() {
     );
 }
 
-/// #1705: the receiver's own `unexport` decides, not the provider's
+/// The receiver's own `unexport` decides, not the provider's
 /// declaration.  tclsh 8.6.16 / 9.0.4 answer `[Child new] tick` with `unknown
 /// method "tick"` even though `Base` exports it, so the capture is not a call
 /// site of `Base::tick` and no provider may offer a partial edit for it.
@@ -497,7 +497,7 @@ fn tp_receiver_unexport_keeps_the_inherited_callback_out_of_the_family() {
     );
 }
 
-/// #1705: an override answers the capture, so the base's family must not
+/// An override answers the capture, so the base's family must not
 /// claim it — renaming `Base::tick` would otherwise rewrite a word that never
 /// called it.
 #[test]
@@ -532,7 +532,7 @@ fn tp_overriding_receiver_keeps_its_callback_in_its_own_family() {
     );
 }
 
-/// #1705: `Base` and `Child` in separate documents.  The workspace tier must
+/// `Base` and `Child` in separate documents.  The workspace tier must
 /// answer with the same effective provider the single-document tier does, in
 /// references, lens, rename and call hierarchy alike.
 #[test]
@@ -576,7 +576,7 @@ fn tp_cross_file_inherited_self_callback_agrees_everywhere() {
     );
 }
 
-/// #1705: the mirror of the suppression case, and the one a provider-only
+/// The mirror of the suppression case, and the one a provider-only
 /// reading gets wrong in the other direction.  `Base` unexports its own
 /// `tock`, the sibling document's `Child` exports the inherited name, and
 /// tclsh 8.6.16 / 9.0.4 run `Base`'s body for `[Child new] tock`.
@@ -606,7 +606,7 @@ fn tp_cross_file_receiver_reexport_revives_the_inherited_callback() {
     );
 }
 
-/// #1705: a class of the same simple name in an unrelated document shares no
+/// A class of the same simple name in an unrelated document shares no
 /// family, so its identically-spelled capture must stay out of the answer.
 #[test]
 fn tp_unrelated_same_named_class_keeps_its_callback_isolated() {
@@ -629,7 +629,7 @@ fn tp_unrelated_same_named_class_keeps_its_callback_isolated() {
     );
 }
 
-/// #1703: a tcllib-shaped namespace capture may wrap a command-prefix builder.
+/// A tcllib-shaped namespace capture may wrap a command-prefix builder.
 /// `my` retains current-object/private dispatch, so all navigation providers
 /// must agree even when the target was explicitly unexported.
 #[test]
@@ -671,7 +671,7 @@ fn tp_namespace_wrapped_my_callback_agrees_across_navigation_providers() {
     );
 }
 
-/// #1705: the receiver class is local but its inherited private provider is
+/// The receiver class is local but its inherited private provider is
 /// in a sibling file.  The typed `my` callback must seed the workspace MRO,
 /// so definition, references, lens, rename and hierarchy agree on `Base::read`.
 #[test]
@@ -758,11 +758,11 @@ fn tp_method_lens_click_and_count_match_find_all_references() {
     );
 }
 
-/// TP (issue #994 C5b / #1143): a receiver typed only by the compiler's
+/// TP: a receiver typed only by the compiler's
 /// object-type lattice — `set b [$a make]`, the method-return edge — must be
-/// seen identically by Find All References, the code lens, and rename.
-/// Before the unification these keyed off the weaker `instance_classes` map
-/// and missed the site that hover / semantic tokens already resolved.
+/// seen identically by Find All References, the code lens, and rename. All
+/// three must resolve it the same way hover / semantic tokens do, not
+/// through the weaker `instance_classes` map alone.
 /// tclsh9.0-verified: `[$a make]` returns the `B` instance, so `$b greet`
 /// dispatches `::B::greet`.
 #[test]
@@ -869,9 +869,9 @@ fn tp_classmethod_lens_click_and_count_reach_a_consumer_document() {
     );
 }
 
-// Issue #981 — bare class-command dispatch is namespace-scoped.
+// Bare class-command dispatch is namespace-scoped.
 
-/// TN, the issue's own repro, across files: two classes named `Factory` in
+/// TN, across files: two classes named `Factory` in
 /// `::a` and `::b`, each with its own `make`, and a consumer document that
 /// dispatches `Factory make` inside `namespace eval ::b`.  Real Tcl resolves
 /// that to `::b::Factory` (verified on tclsh 8.6.14 and 9.0.4), so a rename
@@ -912,7 +912,7 @@ fn tn_consumer_bare_dispatch_is_attributed_to_its_own_namespaces_class() {
 
 /// TP: the same consumer document *is* attributed to `::b::Factory`, so the
 /// scoping is a re-attribution, not a loss — and the cross-file consumer
-/// rename from #1047 still reaches it.
+/// rename still reaches it.
 #[test]
 fn tp_consumer_bare_dispatch_belongs_to_the_matching_namespaces_class() {
     let mut lsp = Lsp::tcl();
@@ -942,7 +942,7 @@ fn tp_consumer_bare_dispatch_belongs_to_the_matching_namespaces_class() {
     );
 }
 
-// Issue #990 — [incr Tcl]'s colon-qualified class-proc dispatch.
+// [incr Tcl]'s colon-qualified class-proc dispatch.
 
 /// TP: `Factory::make` is how [incr Tcl] dispatches a class-scoped `proc`
 /// (its equivalent of `TclOO`'s `classmethod`), and it is a *single*
@@ -1015,7 +1015,7 @@ fn tn_itcl_two_word_object_creation_is_not_a_class_proc_dispatch() {
     );
 }
 
-// Issue #1019 idx 16 — method names that are not identifiers.
+// Method names that are not identifiers.
 
 /// TP: a hyphenated method (`with-dash`) and a TIP 558 property accessor
 /// (`<ReadProp-x>`) are ordinary dispatchable method names — oracle-checked
@@ -1115,7 +1115,7 @@ fn carries_code(diags: &[Value], code: &str) -> bool {
         .any(|d| d.get("code").and_then(Value::as_str) == Some(code))
 }
 
-// Issue #1119 — the class-side visibility channel must cross files.
+// The class-side visibility channel must cross files.
 
 /// TP: `decl.tcl` declares a class-side `Cm` and immediately `self unexport`s
 /// it, so its own document cannot dispatch `C Cm` — the in-document provider
@@ -1123,11 +1123,10 @@ fn carries_code(diags: &[Value], code: &str) -> bool {
 /// resolve again.
 ///
 /// This is the class-side visibility channel end to end: the export written in
-/// one file has to reach the other file's **class-command** dispatch.  Before
-/// the channel existed a `self export` / `self unexport` was recorded nowhere
-/// the workspace index could see, so it never travelled at all — the
-/// instance-side pair is the instance-side record by contract and a class-side
-/// flip must not enter it (issue #1098/#1119).
+/// one file has to reach the other file's **class-command** dispatch. A
+/// `self export` / `self unexport` must be recorded somewhere the
+/// workspace index can see — the instance-side pair is the instance-side
+/// record by contract, and a class-side flip must not enter it.
 ///
 /// Oracle, byte-identical on tclsh 9.0.4 and 8.6.14:
 ///
@@ -1211,14 +1210,14 @@ fn tn_cross_file_self_unexport_leaves_the_instance_method_dispatchable() {
     );
 }
 
-// Issue #1168 — suppression must reach the declaring document too.
+// Suppression must reach the declaring document too.
 
 /// TP: the suppression direction of the class-side channel, queried from the
 /// **declaring document itself**.  `decl.tcl` declares and dispatches a
 /// class-side `cm`; `flip.tcl` `self unexport`s it.  The in-document provider
-/// resolves `C cm` from its local tables, so before the fix the cross-file
-/// flip suppressed the member for every document *except* the one declaring
-/// the class — exactly where the author is navigating.
+/// resolves `C cm` from its local tables, so the cross-file flip must
+/// suppress the member in the document declaring the class too, not just
+/// every other document — exactly where the author is navigating.
 ///
 /// Oracle, byte-identical on tclsh 9.0.4 and 8.6.14:
 ///
@@ -1319,7 +1318,7 @@ fn tn_declaring_document_instance_dispatch_survives_a_class_side_flip() {
     );
 }
 
-// Issue #1170 — per-object member state reaches dispatch resolution.
+// Per-object member state reaches dispatch resolution.
 
 /// TP: `oo::objdefine $o { unexport m }` masks a class-provided member for
 /// this object's external dispatch — oracle (tclsh 9.0.4 / 8.6.14):
@@ -1413,7 +1412,7 @@ fn tn_an_unexported_per_object_member_does_not_navigate_externally() {
     );
 }
 
-// Issue #1121 — the renamed destination is a navigable member.
+// The renamed destination is a navigable member.
 
 /// TP: `renamemethod old new` makes `new` a real member carrying `old`'s body
 /// (`[C new] new` -> the old body, `info class definition ::C new` -> the old
@@ -1457,7 +1456,7 @@ fn tp_renamed_member_is_navigable_under_its_new_name() {
     );
 }
 
-// Issue #1120 — W315 on a definition that cannot run.
+// W315 on a definition that cannot run.
 
 /// TP: retract-first aborts the whole class definition in real Tcl, so the
 /// file declares a class that never exists.  The server reports it — and still
@@ -1514,16 +1513,17 @@ fn tn_cross_file_stub_retraction_draws_no_w315() {
     assert!(!carries_code(&diags, "W315"), "unexpected W315: {diags:?}");
 }
 
-/// TP, issue #1119 review (Codex P2): a **pure consumer** file — one that
+/// TP: a **pure consumer** file — one that
 /// contains only `C cm` and declares no part of `C` — must resolve the
 /// class-side member of a class declared in another document.
 ///
-/// The receiver *classification* used to run on the local analysis alone:
-/// `classmethod_dispatch_class` needs the class's own `class_methods` table,
-/// and the server's workspace-oracle reanalysis supplies class **names** only.
-/// So the request fell through both receiver branches and definition /
-/// references / rename from an ordinary consumer answered nothing, even though
-/// the workspace class-side dispatch chain held the fact.
+/// The receiver *classification* must not rely on the local analysis
+/// alone: `classmethod_dispatch_class` needs the class's own
+/// `class_methods` table, but the server's workspace-oracle reanalysis
+/// supplies class **names** only. If the request falls through both
+/// receiver branches, definition / references / rename from an ordinary
+/// consumer answer nothing, even though the workspace class-side dispatch
+/// chain holds the fact.
 #[test]
 fn tp_pure_consumer_resolves_a_cross_file_class_side_member() {
     let mut lsp = Lsp::tcl();
@@ -1566,7 +1566,7 @@ fn tp_pure_consumer_resolves_a_cross_file_class_side_member() {
     );
 }
 
-// Issue #1121 review — renaming a moved member must not produce a class that
+// Renaming a moved member must not produce a class that
 // cannot run.  The moved member's declaration site IS the `renamemethod`'s
 // destination word, so the edit rewrites that word; for some new names the
 // result is a body real Tcl refuses (the shapes W315 diagnoses).
@@ -1722,7 +1722,7 @@ fn tn_renaming_a_moved_member_onto_an_earlier_deleted_name_is_allowed() {
     );
 }
 
-// Issue #1178 review — a bare receiver resolves like any other command word:
+// A bare receiver resolves like any other command word:
 // against the namespace in effect where it is written, then the global one,
 // then through `namespace import`.  A literal `C`/`::C` match missed the
 // relative spelling, which is how a namespaced class is normally called.
@@ -1840,7 +1840,7 @@ fn tn_a_not_yet_run_import_does_not_resolve_the_receiver() {
     );
 }
 
-// Issue #1019 idx 16 — a class member hovers at its own declaration.
+// A class member hovers at its own declaration.
 
 /// TP (end-to-end): hovering a method's own name token describes that method,
 /// in the `oo::class create` block **and** in a later `oo::define` block that
@@ -1890,7 +1890,7 @@ fn tp_member_declaration_hovers_in_both_class_blocks() {
     );
 
     // The declaration and its call site describe the same member the same
-    // way — the asymmetry idx 16 reported is gone in both directions.
+    // way in both directions.
     let call_site = hover_text(&lsp.hover(&uri, 7, 4));
     assert_eq!(
         reopened, call_site,

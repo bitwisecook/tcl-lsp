@@ -86,7 +86,7 @@ pub fn spec() -> CommandSpec {
         // The two-arg `gets chan varName` form writes the read *line* (a
         // String) to its target while returning the character *count* (an
         // Int).  Type the target as the line it always receives, not the
-        // count (issue #867).
+        // count.
         var_write_typing: VarWriteTyping::Fixed(TclType::String),
         side_effects: &[
             SideEffect {

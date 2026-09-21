@@ -454,14 +454,14 @@ fn const_bool(expr: &ExprNode) -> Option<bool> {
 /// short-circuit operand of `&&`/`||`/`and`/`or` and the non-selected ternary
 /// arm run only when forced by a *constant* guard.
 fn walk_eager(expr: &ExprNode, visit: &mut impl FnMut(&ExprNode)) {
-    // Public entry: the top of an expression tree is nesting depth 0 (issue
-    // #996 — the recursion cap lives in [`walk_eager_at`]).
+    // Public entry: the top of an expression tree is nesting depth 0; the
+    // recursion cap lives in [`walk_eager_at`].
     walk_eager_at(expr, visit, 0);
 }
 
 fn walk_eager_at(expr: &ExprNode, visit: &mut impl FnMut(&ExprNode), depth: u32) {
     use tcl_syntax::expr::ast::BinOp;
-    // Native-stack safety net (issue #996): walks the `ExprNode` tree, one
+    // Native-stack safety net: walks the `ExprNode` tree, one
     // native frame per level. Past the cap, stop descending — the visitor
     // simply isn't invoked on sub-expressions buried deeper than the cap
     // (a conservative under-visit only reachable past 256 levels of
@@ -701,7 +701,7 @@ struct BoundsCtx<'a> {
     intervals: HashMap<ValueKey, Interval>,
     guard_index: HashMap<ValueKey, Vec<BlockId>>,
     /// Predecessor count per block — used to require a guarded branch target
-    /// have a single entry edge before its constraint is applied (issue 148).
+    /// have a single entry edge before its constraint is applied.
     pred_counts: HashMap<BlockId, usize>,
     lengths: HashMap<ValueKey, i64>,
     str_lengths: HashMap<ValueKey, i64>,
@@ -1098,8 +1098,8 @@ fn statement_span(stmt: &Statement) -> Option<Span> {
 mod tests {
     use crate::analyser::Analyser;
 
-    /// Regression coverage for issue #996: `walk_eager` recurses once per
-    /// `ExprNode` level with no depth cap before this fix. A tree built
+    /// `walk_eager` recurses once per
+    /// `ExprNode` level, so it needs a depth cap. A tree built
     /// directly is unbounded (the Pratt parser caps its own output at 256)
     /// and empirically overflowed the native stack (SIGABRT) in the low
     /// thousands of levels on a 2 MiB thread. 3000 is past that crash range

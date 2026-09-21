@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! **Live environment registration** — the P2 seam the centralisation
+//! **Live environment registration** — the seam the centralisation
 //! contract's §1.1 documents: pack- or configuration-declared
 //! environments join the one [`EnvironmentRegistry`] the ingress
 //! ([`crate::model::ingress`]) resolves through, under the redesign's
@@ -283,14 +283,6 @@ pub fn live_environments() -> Arc<EnvironmentRegistry> {
     Arc::clone(&live_cell().lock().expect("live environment registry lock"))
 }
 
-/// Whether `provenance` is one of the untrusted tiers E-R2 gates.
-fn untrusted(provenance: Provenance) -> bool {
-    matches!(
-        provenance,
-        Provenance::WorkspaceUntrusted | Provenance::StudioOverride | Provenance::Document
-    )
-}
-
 /// Apply one extension to `definition`, additively and idempotently:
 /// detection claims already present (and placements for packages the base
 /// already places) are dropped rather than duplicated.
@@ -371,7 +363,7 @@ fn assemble(
     for extension in &contributed {
         let compiled_base = compiled.resolve(&extension.base);
         if let Some(base) = &compiled_base {
-            if untrusted(extension.provenance) {
+            if extension.provenance.is_untrusted() {
                 return Err(EnvironmentRegistrationError::UntrustedExtension {
                     base: base.id.as_str().to_owned(),
                     provenance: extension.provenance,

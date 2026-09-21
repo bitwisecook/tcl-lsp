@@ -222,8 +222,8 @@ fn array_for_is_unknown_before_tcl9() {
     );
 }
 
-/// `file home`/`tempdir`/`tildeexpand` are Tcl 9 — the row the VM's own
-/// regression was found on, pinned here for this engine too.
+/// `file home`/`tempdir`/`tildeexpand` are Tcl 9; pinned here for this engine
+/// too, matching the VM's own coverage.
 ///
 /// tclsh8.6.16:  file te x -> a channel   (`tempfile`)
 /// tclsh9.0.4:   file te x -> unknown or ambiguous subcommand "te": must be

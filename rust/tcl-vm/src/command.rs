@@ -334,7 +334,7 @@ fn cmd_source(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 /// Both the string and the field split come from
 /// [`tcl_dialect::build_info`] keyed by this VM's pinned release, so the
 /// answer tracks `--tcl-version` instead of a hardcoded `9.0.4`, and cannot
-/// disagree with `runtime/rust` (ledger row B4). The registry gates the
+/// disagree with `runtime/rust`. The registry gates the
 /// command itself to `TCL90_PLUS`, matching `tclsh8.6`, where
 /// `::tcl::build-info` is an invalid command name.
 fn cmd_build_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
@@ -368,11 +368,26 @@ fn cmd_eval(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // the pending eval request, which pushes a transparent script frame whose result
     // replaces this placeholder. The script frame adds the `("eval" body line N)`
     // errorInfo frame itself on error (eval-2.5; see `Frame::body_label`).
-    match vm.compile_script_cached(&script) {
-        Ok(script) => {
-            vm.pending.eval = Some((script, Some("eval"), None));
-            ok(Value::empty())
-        }
+    // A body whose *later* commands do not parse still runs its clean prefix
+    // before the error is raised (#1603): C parses one command at a time, so
+    // the malformed tail is never reached until the commands ahead of it have
+    // run.  `catch`/`try` already prepare their bodies this way.
+    match vm.prepare_script_commands(&script) {
+        Ok(prepared) => match prepared.prefix {
+            Some(unit) => {
+                vm.pending.eval = Some(crate::exec::EvalReq {
+                    script: unit,
+                    label: Some("eval"),
+                    cleanup_proc: None,
+                    fatal_tail: prepared.fatal_tail,
+                });
+                ok(Value::empty())
+            }
+            // Nothing in the body parses, so raising is all this `eval` does.
+            None => prepared
+                .fatal_tail
+                .map_or_else(|| ok(Value::empty()), |tail| vm.raise_fatal_tail(tail)),
+        },
         Err(e) => err(e.message),
     }
 }
@@ -470,13 +485,11 @@ pub(crate) fn build_lambda_proc(
 ///
 /// Defers the call to the *explicit* stack via the pending eval request (like
 /// `eval`/`uplevel`) rather than `Vm::eval_source`'s nested drive, so a `yield`
-/// inside the lambda body stays yieldable — `coroutine c apply {lambda}`
-/// already got this treatment (`cmd_coroutine` binds the lambda to an internal
-/// proc run on the coroutine's own stack); a bare `apply` called *from inside*
-/// a coroutine body did not (issue #1311). `cleanup_proc` carries the
-/// temporary proc's name so it is torn down once the deferred call completes,
-/// mirroring the old `vm.take_command` that ran unconditionally after
-/// `eval_source` returned.
+/// inside the lambda body stays yieldable, matching `coroutine c apply
+/// {lambda}` (`cmd_coroutine` binds the lambda to an internal proc run on the
+/// coroutine's own stack), including a bare `apply` called *from inside* a
+/// coroutine body. `cleanup_proc` carries the temporary proc's name so it is
+/// torn down once the deferred call completes, on every completion path.
 fn cmd_apply(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some((lambda, call_args)) = args.split_first() else {
         return err("wrong # args: should be \"apply lambdaExpr ?arg ...?\"");
@@ -494,7 +507,12 @@ fn cmd_apply(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let script = tcl_syntax::list::join_list(words.iter().map(Value::to_str));
     match vm.compile_script_cached(&script) {
         Ok(script) => {
-            vm.pending.eval = Some((script, None, Some(name)));
+            vm.pending.eval = Some(crate::exec::EvalReq {
+                script,
+                label: None,
+                cleanup_proc: Some(name),
+                fatal_tail: None,
+            });
             ok(Value::empty())
         }
         Err(e) => {
@@ -547,7 +565,7 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         }
     } else {
         // Reserve the exact `(namespace token, simple name)` destination.
-        // Its Tcl display can collide with another legal command (#1778), so
+        // Its Tcl display can collide with another legal command, so
         // every lifecycle map below uses this private injective key.
         let key = vm.note_rename_destination(&new_name);
         // Procedure provenance keeps a display projection for compatibility,
@@ -957,7 +975,7 @@ fn interp_invokehidden_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
 /// abbreviates `create` and the empty word — a prefix of every entry — is
 /// `ambiguous option ""`.
 ///
-/// Like the WASM runtime (#1412 item 3), the table names only the subcommands
+/// Like the WASM runtime, the table names only the subcommands
 /// this engine dispatches: `aliases`, `cancel`, and `target` need
 /// infrastructure the VM has none of, so they are dropped rather than left
 /// advertised-but-undispatchable. `slaves` is 8.x's deprecated spelling of
@@ -1049,7 +1067,7 @@ fn cmd_interp(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         "alias" => match rest {
             [src_path, src_cmd, target_path, target @ ..] if !target.is_empty() => {
                 // Routing (same-interp / parent→child / child→parent), the
-                // written-name → key qualification (#934), and C's
+                // written-name → key qualification, and C's
                 // `TclPreventAliasLoop` walk all live on the Vm.
                 let res = vm.interp_alias_create(
                     &src_path.to_str(),
@@ -1275,7 +1293,18 @@ fn cmd_expr(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         .collect::<Vec<_>>()
         .join(" ");
     match vm.eval_expr(&joined) {
-        Ok(v) => ok(v),
+        // C's `Tcl_ExprObj` finishes with the same normalisation the compiled
+        // path gets from `INST_TRY_CVT_TO_NUMERIC`, which codegen already
+        // emits over `Statement::ExprEval`. Applying it here too makes the
+        // interpreted `expr` agree with the compiled one — without it an
+        // uncompilable `expr` handed back whatever object its last step
+        // produced, so `expr $e` for `$e` of `$h`, or of
+        // `entier($h)` where `$h` is `0x10`, answered `0x10` where every
+        // tclsh answers `16`.
+        Ok(v) => match crate::expr::cvt_to_numeric(v) {
+            Ok(nv) => ok(nv),
+            Err(e) => completion_from_tcl_error(e),
+        },
         Err(e) => completion_from_tcl_error(e),
     }
 }
@@ -1329,7 +1358,7 @@ fn cmd_proc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let body_key = reg_name.clone();
     // `reg_name` is an already-constructed unrooted key. Invert it through the
     // key owner rather than parsing it again as a written word: a literal `:`
-    // namespace begins with colons but is not a root separator (#934).
+    // namespace begins with colons but is not a root separator.
     let namespace = if tcl_syntax::naming::is_qualified(name_s.as_bytes()) {
         key_holder_and_tail_unrooted(&reg_name).0
     } else {
@@ -1750,8 +1779,8 @@ pub(crate) fn cmd_const(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let name = name_v.to_str();
     let bad = |reason: &str| err(format!("can't make constant \"{name}\": {reason}"));
     // Through the one element-reference owner, not a local re-spelling of its
-    // predicate (issue #1458): the two agree today, which is exactly when a
-    // copy is cheapest to remove and most likely to drift later.
+    // predicate: the two must agree, and a local copy is exactly the kind of
+    // thing that drifts later.
     if looks_like_element(&name) {
         return bad("name refers to an element in an array");
     }
@@ -1979,10 +2008,9 @@ fn cmd_catch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             ok(Value::empty())
         }
         Ok(prepared) => {
-            let comp = prepared.fatal_tail.map_or_else(
-                || ok(Value::empty()),
-                |message| Completion::new(Code::Error, Value::string(message), Value::empty()),
-            );
+            let comp = prepared
+                .fatal_tail
+                .map_or_else(|| ok(Value::empty()), |tail| vm.raise_fatal_tail(tail));
             vm.finish_catch(comp, resvar, optvar)
         }
         // A body that fails to *parse* is itself a catchable error: run the
@@ -2177,7 +2205,7 @@ fn cmd_unset(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 }
 
 /// Whether `name` looks like an array element (`arr(k)`, `(k)`) — the test C's
-/// `TclObjLookupVarEx` applies, through the one shared owner (issue #1458).
+/// `TclObjLookupVarEx` applies, through the one shared owner.
 fn looks_like_element(name: &str) -> bool {
     tcl_syntax::naming::split_element_ref(name).is_some()
 }
@@ -2201,8 +2229,8 @@ fn name_tail(name: &str) -> &str {
 /// an element in an array` (the whole word is one element reference, index
 /// `x::y`), whereas the identical `global v(x::y)` is accepted because its
 /// scan splits at the `::` and lands on the non-element tail `y)`. Splitting
-/// `variable` the same way made all five `::`-in-index spellings silently
-/// succeed (issue #1458).
+/// `variable` the same way would make all five `::`-in-index spellings
+/// silently succeed instead of erroring.
 fn variable_name_tail(name: &str) -> &str {
     let scan_end = name.find('(').unwrap_or(name.len());
     match name[..scan_end].rfind("::") {
@@ -2218,8 +2246,8 @@ fn variable_name_tail(name: &str) -> &str {
 ///
 /// This check runs *before* the element-name guard: `variable ::nosuch::v(k)`
 /// is a missing-namespace error, not an element error, on 8.6.16 and 9.0.4
-/// alike. It closes a slice of #1588 (the VM had no parent-namespace check at
-/// all); the remaining `upvar` surface of that issue is untouched.
+/// alike. `upvar`'s own parent-namespace surface is a separate, uncovered
+/// case.
 fn missing_parent_ns(vm: &Vm, op: &str, name: &str) -> Option<Completion<Value>> {
     if vm.var_parent_exists(name) {
         return None;
@@ -2241,8 +2269,7 @@ fn lookup_var_error_code(name: &str) -> String {
 
 /// C's `MakeUpvar` refusal for a link *target name* that looks like an array
 /// element — a link is always to a scalar cell, so `upvar 0 zz (v)` and
-/// `global a(b)` are hard errors rather than silent mislinks (issue #1458's
-/// companion guard).
+/// `global a(b)` are hard errors rather than silent mislinks.
 fn bad_link_name(name: &str) -> Completion<Value> {
     err_with_code(
         format!(
@@ -2447,7 +2474,12 @@ fn cmd_uplevel(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     if target == cur {
         return match vm.compile_script_cached(&script) {
             Ok(script) => {
-                vm.pending.eval = Some((script, Some("uplevel"), None));
+                vm.pending.eval = Some(crate::exec::EvalReq {
+                    script,
+                    label: Some("uplevel"),
+                    cleanup_proc: None,
+                    fatal_tail: None,
+                });
                 ok(Value::empty())
             }
             Err(e) => err(e.message),

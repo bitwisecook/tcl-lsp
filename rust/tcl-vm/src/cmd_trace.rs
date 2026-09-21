@@ -25,11 +25,11 @@
 //! traces after a write, and unset traces before removal (callback errors
 //! ignored). A write callback's error fails the *command* but never un-stores
 //! the value — C swaps the value in before calling the traces and its error
-//! path never puts the old one back (`TclPtrSetVarIdx`, `tclVar.c`; issue
-//! #1438). See `interp.rs::fire_var_traces`.
+//! path never puts the old one back (`TclPtrSetVarIdx`, `tclVar.c`).
+//! See `interp.rs::fire_var_traces`.
 //!
 //! Command traces (`rename`/`delete`) and execution traces (`enter`/`leave`/
-//! `enterstep`/`leavestep`) fire too (M16.3), all tclsh-pinned in
+//! `enterstep`/`leavestep`) fire too, all tclsh-pinned in
 //! `tests/command_traces_e2e.rs`: names arrive fully qualified, an
 //! enter-trace error aborts the command, a leave-trace error replaces its
 //! result, rename/delete callback errors are ignored, traces follow a
@@ -54,8 +54,8 @@ pub(crate) fn register(vm: &mut Vm) {
 fn visible_options(vm: &Vm) -> Vec<&'static str> {
     // The emulated release's name resolves through the one ingress seam;
     // the option table is gated on the resolved environment's document
-    // authoring mask (ledger row B1), which is the mask the retired
-    // `by_name(name).surface_query()` read handed back.
+    // authoring mask, the same mask a `by_name(name).surface_query()` read
+    // would hand back.
     let dialect = Some(crate::environment::surface_point_for_dialect(
         vm.runtime_version().dialect_profile_name(),
     ));

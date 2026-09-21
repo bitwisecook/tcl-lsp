@@ -20,7 +20,7 @@ import * as assert from "assert";
 import * as vscode from "vscode";
 import { getDocUri, activate, waitForDiagnostics } from "./helper";
 
-// Issue #1333 — the *user-visible* half.
+// The *user-visible* half of diagnostic tag propagation.
 //
 // The server-side wire format is asserted in `issue1333_diagnostic_tags.rs`.
 // What this suite establishes is that the tag survives the round trip into

@@ -48,7 +48,7 @@ pub const fn spec() -> CommandSpec {
         // `DEFERS_BODY` — the "deferred body" the comment below already
         // states. The Tcl `after` carries it for the same reason
         // (`tcl/after_.rs`); this is the iRules spec of the same command and
-        // must not disagree with it (issue #1672 audit). No iRules oracle
+        // must not disagree with it. No iRules oracle
         // exists here, but the TMOS `after` is the Tcl one with a timer
         // wakeup, and the divergence would be the surprising claim.
         traits: Traits::DIAGRAM_ACTION.union(Traits::DEFERS_BODY),

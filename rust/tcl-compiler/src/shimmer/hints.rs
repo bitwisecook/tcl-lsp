@@ -139,8 +139,7 @@ pub fn arg_shimmer_expectation(
 /// characters `$x` and reads nothing (tclsh 9.0.4). The IR's `args` hold the
 /// *de-braced* word, which is indistinguishable there from a real `$x`, so
 /// the answer comes from the segmenter's per-word token kinds
-/// ([`CommandTokens::arg_is_braced_literal`]) rather than from the text
-/// (issue #1845).
+/// ([`CommandTokens::arg_is_braced_literal`]) rather than from the text.
 ///
 /// The exemption is
 /// [`CommandRegistry::arg_indices_evaluated_in_frame`]: `expr {$x} + 1` and
@@ -215,7 +214,7 @@ pub fn is_numeric_compatible(current: TclType, expected: TclType) -> bool {
 /// expects `expected` is a **free first conversion of an uncommitted value**,
 /// not a genuine shimmer.
 ///
-/// The Tcl object model — oracle-verified and set out in
+/// The Tcl object model — verified against tclsh and set out in
 /// [`docs/design/contracts/shimmer-reference-behaviour.md`](../../../../docs/design/contracts/shimmer-reference-behaviour.md)
 /// ("When shimmering does NOT occur → Pure string objects (`typePtr == NULL`) —
 /// first type assignment is not a shimmer") — is that a value whose intrep is
@@ -432,7 +431,7 @@ mod tests {
         // `binary decode format data` — sub arg 1 (overall arg 2) is `data`,
         // read via its string rep only: dual-ported, the intrep is KEPT
         // (tclsh-verified: `set d 4142; binary decode hex $d` leaves `d` an
-        // int), so it is no longer a shimmer position. Sub arg 0 (the
+        // int), so it is not a shimmer position. Sub arg 0 (the
         // `format` keyword, e.g. "hex") never carried the hint.
         let r = registry();
         assert_eq!(
@@ -481,8 +480,7 @@ mod tests {
     fn arg_shimmer_type_dict_getd_family_matches_dict_get() {
         // `dict getd`/`getdef`/`getwithdefault` (Tcl 9.0 TIP 342 synonyms of
         // `dict get` with a default) must carry the same Dict shimmer hint
-        // as plain `dict get` — they were previously inconsistently
-        // `shimmers: false`.
+        // as plain `dict get`.
         let r = registry();
         for sub in ["getd", "getdef", "getwithdefault", "get"] {
             assert_eq!(
@@ -584,7 +582,7 @@ mod tests {
         );
     }
 
-    /// Oracle-verified negatives: subjects read via their string rep only
+    /// Negatives verified on tclsh: subjects read via their string rep only
     /// (dual-ported — the intrep survives) carry NO shimmer hint. tclsh8.6:
     /// a list subject stays `list` through every one of these.
     #[test]
@@ -633,7 +631,7 @@ mod tests {
         assert!(is_numeric_compatible(TclType::Numeric, TclType::Int));
     }
 
-    /// Issue #1814: a `Double` intrep read in an arithmetic or boolean
+    /// A `Double` intrep read in an arithmetic or boolean
     /// context is a free numeric read — `Tcl_GetNumberFromObj` /
     /// `Tcl_GetBooleanFromObj` use the cached double in place.
     #[test]
@@ -670,7 +668,7 @@ mod tests {
 
     // --- is_uncommitted_first_conversion: TN (suppress — free first conversion)
 
-    /// TN (issue #940): a pure string literal that is a well-formed list is a
+    /// TN: a pure string literal that is a well-formed list is a
     /// free first conversion — every list-shaped constant is suppressed.
     #[test]
     fn uncommitted_pure_string_valid_list_is_free() {

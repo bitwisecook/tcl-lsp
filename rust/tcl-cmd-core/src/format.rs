@@ -136,7 +136,7 @@ fn render<O: ValueOps>(
             // (the `*` width, then the `.*` precision, then the value), leaving
             // the sequential cursor untouched; an ordinary spec consumes from the
             // running cursor `ai`. So `%2$*d` takes its width from arg 2 and its
-            // value from arg 3 (format-... ), matching tclsh.
+            // value from arg 3, matching tclsh.
             let positional = spec.arg_index.is_some();
             let mut cur = match spec.arg_index {
                 Some(n) => n
@@ -206,25 +206,30 @@ fn render_spec<O: ValueOps>(
 ) -> Result<String, CmdError> {
     let verb = spec.verb;
     match verb {
-        b'd' | b'i' | b'u' => {
-            let n = ops.as_int(arg)?;
+        b'd' | b'i' => {
+            // The size modifier and the release pick the width; the low bits
+            // are then read signed. See `tcl_syntax::format::integer_width`.
+            let n = tcl_syntax::format::integer_width(spec.size, syntax).signed(ops.as_int(arg)?);
             let mut digits = int_digits(n, spec);
             // Tcl 9 `%#d` / `%#i` alternate form: a `0d` radix prefix on a
             // non-zero value (dropped for zero, like `%#x 0` → `0`). `%u` takes
             // no prefix. The sign and width are applied around it by
             // `pad_number`, so `%#d -42` → `-0d42`.
-            if syntax.has_decimal_prefix()
-                && spec.flags.contains(FmtFlags::HASH)
-                && matches!(verb, b'd' | b'i')
-                && n != 0
-            {
+            if syntax.has_decimal_prefix() && spec.flags.contains(FmtFlags::HASH) && n != 0 {
                 digits.insert_str(0, "0d");
             }
-            Ok(pad_number(&digits, n < 0 && verb != b'u', spec))
+            Ok(pad_number(&digits, n < 0, spec))
+        }
+        b'u' => {
+            // `%u` reads the same low bits *unsigned*: `format %u -1` is
+            // 18446744073709551615 on 8.x and 4294967295 on 9.x, and
+            // `format %hu 5000000000` is 61952 on every release.
+            let u = tcl_syntax::format::integer_width(spec.size, syntax).unsigned(ops.as_int(arg)?);
+            Ok(pad_number(&uint_digits(u, spec), false, spec))
         }
         b'x' | b'X' | b'o' | b'b' => {
-            let n = ops.as_int(arg)?;
-            Ok(pad_number(&based_digits(n, spec, syntax), false, spec))
+            let u = tcl_syntax::format::integer_width(spec.size, syntax).unsigned(ops.as_int(arg)?);
+            Ok(pad_number(&based_digits(u, spec, syntax), false, spec))
         }
         b'c' => {
             let n = ops.as_int(arg)?;
@@ -261,12 +266,16 @@ fn int_digits(n: i64, spec: &Spec) -> String {
     apply_precision(n.unsigned_abs().to_string(), spec)
 }
 
+/// Decimal digits for an already-unsigned value, honouring `.precision`.
+fn uint_digits(u: u64, spec: &Spec) -> String {
+    apply_precision(u.to_string(), spec)
+}
+
 /// Digits for `x`/`X`/`o`/`b`, with the `#` alternate-form prefix.
-fn based_digits(n: i64, spec: &Spec, syntax: tcl_dialect::NumberSyntax) -> String {
-    // reinterpret the two's-complement bit pattern as u64: `%x`/`%o`/`%b` of a
-    // negative int prints the unsigned representation, matching C's `format`.
-    #[allow(clippy::cast_sign_loss)]
-    let u = n as u64;
+fn based_digits(u: u64, spec: &Spec, syntax: tcl_dialect::NumberSyntax) -> String {
+    // `u` already carries the conversion's width: the caller read the value's
+    // low bits unsigned, which is why `%x` of a negative int prints its
+    // two's-complement pattern, matching C's `format`.
     let (mut body, prefix) = match spec.verb {
         b'x' => (
             format!("{u:x}"),
@@ -318,9 +327,17 @@ fn based_digits(n: i64, spec: &Spec, syntax: tcl_dialect::NumberSyntax) -> Strin
     format!("{prefix}{body}")
 }
 
-/// Whether `verb` is a floating-point conversion (`e`/`E`/`f`/`F`/`g`/`G`).
+/// Whether `verb` is a floating-point conversion (`e`/`E`/`f`/`g`/`G`).
+///
+/// `F` is **not** one, despite C: tclsh8.6.18 and tclsh9.0.4 both answer
+/// `format %F 1.5` with `bad field specifier "F"`, and
+/// [`tcl_syntax::format::is_verb`] agrees. It used to be listed here anyway,
+/// which classified a `%F` as float for argument coercion and then dropped it
+/// through `render_spec`'s float arm — unreachable only because the grammar
+/// stopped it one layer earlier (#2077). This set and the renderer's arm are
+/// now the same six-letter answer minus `F`.
 fn is_float_verb(verb: u8) -> bool {
-    matches!(verb, b'e' | b'E' | b'f' | b'F' | b'g' | b'G')
+    matches!(verb, b'e' | b'E' | b'f' | b'g' | b'G')
 }
 
 /// Re-render a Rust exponent (`1.5e4` / `1.5e-4`) in C/Tcl style with an
@@ -391,7 +408,8 @@ fn trim_g_exp(body: &str) -> String {
     format!("{trimmed}{exp}")
 }
 
-/// Left-pad `mag` with `0` up to `.precision` digits.
+/// Left-pad `mag` with `0` up to `.precision` digits. An explicit precision of
+/// zero renders the value zero as the empty string, as C does.
 fn apply_precision(mag: String, spec: &Spec) -> String {
     match spec.precision {
         Some(p) if mag.len() < p => format!("{}{mag}", "0".repeat(p - mag.len())),

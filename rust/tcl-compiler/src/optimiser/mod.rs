@@ -67,7 +67,8 @@ pub use elimination::DeadStore;
 pub use manager::{
     apply_optimisations, finalise_optimisations, find_dead_stores, optimise, optimise_by_pass,
     optimise_raw, optimise_raw_for_profile, optimise_source_multipass,
-    optimise_source_multipass_filtered, optimise_unit, optimise_unit_raw, optimise_with_dialect,
+    optimise_source_multipass_admitting, optimise_source_multipass_filtered, optimise_unit,
+    optimise_unit_raw, optimise_with_dialect,
 };
 
 use std::collections::{HashMap, HashSet};
@@ -79,14 +80,14 @@ use crate::compilation_unit::CompilationUnit;
 
 /// Depth cap shared by every pass's `Script`/`Statement` body-recursion walk
 /// (`propagation`, `expr_simplify`, `pattern_recognition`,
-/// `structure_elimination`, `code_sinking`) — issue #996.
+/// `structure_elimination`, `code_sinking`).
 ///
 /// In the normal pipeline these passes only ever see IR produced by
 /// [`crate::lowering`], which already caps *its own* recursive descent at
 /// `MAX_LOWER_NEST_DEPTH` and emits a `Statement::Barrier` (a leaf, not a
 /// further-nested body) past that point — so a pass walking
 /// lowering-produced IR can never actually be handed more than that many
-/// levels of nesting today, and since issue #1654 that is
+/// levels of nesting, that bound being
 /// [`crate::depth_guard::MAX_SOURCE_NEST_DEPTH`], comfortably under this
 /// number rather than equal to it. This constant guards each pass
 /// independently anyway (at or above lowering's, so it never trips before
@@ -316,8 +317,7 @@ impl<'a> PassContext<'a> {
     /// resolve the closer through the owner under *this* style, not re-derive
     /// it: an optimiser that harvests `a{b` where the lexer spanned `a{b}c`
     /// misses the use, and a missed use is a wrong transform — a live write
-    /// reported dead (O109/W211) or a statement sunk past a real read
-    /// (issue #1604).
+    /// reported dead (O109/W211) or a statement sunk past a real read.
     ///
     /// With no explicit dialect the document was lexed under
     /// [`tcl_dialect::BracedVarStyle::default`], so that is what the fallback

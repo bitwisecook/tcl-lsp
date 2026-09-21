@@ -413,8 +413,7 @@ mod tests {
     #[test]
     fn delete_force_deletes_a_marker_venv() {
         // A real venv (with the marker) deletes under --force
-        // when it is not the active one — the `force` flag is now plumbed
-        // through `delete_venv` rather than ignored.
+        // when it is not the active one.
         let venv = tmp("force-del");
         std::fs::create_dir_all(&venv).unwrap();
         std::fs::write(venv.join("tclvenv.cfg"), "venv_tool = tcl-lsp\n").unwrap();

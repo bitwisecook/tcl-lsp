@@ -387,8 +387,7 @@ impl Function {
     /// Compute the predecessor map: block → set of predecessor blocks.
     ///
     /// O(V+E), and it allocates — a caller that needs the map more than once
-    /// should build it once and pass it down rather than re-deriving it
-    /// (issue #1251).
+    /// should build it once and pass it down rather than re-deriving it.
     #[must_use]
     pub fn predecessors(&self) -> HashMap<BlockId, HashSet<BlockId>> {
         self.predecessor_map()

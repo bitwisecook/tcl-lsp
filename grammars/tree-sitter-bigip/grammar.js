@@ -5,8 +5,8 @@
  * `ltm rule` body *is* Tcl (an iRule), and `injections.scm` re-parses it as
  * such, exactly as the tcl-lsp server walks it with the iRules dialect.
  *
- * Written for tcl-lsp (issue #903). Zed pointed its TMSH language at the *Tcl*
- * grammar, which produces a garbage parse tree for a file that is not Tcl.
+ * Zed pointed its TMSH language at the *Tcl* grammar, which produces a
+ * garbage parse tree for a file that is not Tcl.
  *
  * Two decisions worth knowing:
  *

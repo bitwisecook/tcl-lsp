@@ -82,7 +82,7 @@ use tcl_compiler::lowering::lower_to_ir;
 use tcl_lexer::Span;
 use tcl_registry::CommandRegistry;
 
-// ── Helpers ──
+// Helpers.
 
 fn registry() -> CommandRegistry {
     CommandRegistry::build_default()
@@ -208,9 +208,7 @@ fn emit_unaryop(op: UnaryOp) -> Vec<Op> {
     opcodes(&codegen_function(&cfg, &[], false, &registry()))
 }
 
-// ═══════════════════════════════════════════════════════════════════
 // LiteralTable / LocalVarTable
-// ═══════════════════════════════════════════════════════════════════
 
 #[test]
 fn literal_table_intern_new() {
@@ -252,9 +250,7 @@ fn local_var_table_entries() {
     assert_eq!(lvt.entries(), &["a", "b"]);
 }
 
-// ═══════════════════════════════════════════════════════════════════
 // Simple codegen
-// ═══════════════════════════════════════════════════════════════════
 
 #[test]
 fn set_const() {
@@ -304,8 +300,8 @@ fn done_at_end() {
 
 #[test]
 fn quoted_close_brace_is_string_literal_issue_130() {
-    // Regression for bitwisecook/tcl-lsp#130: `append x "}"` must intern the
-    // bare `}` character as a literal (not treat it as a delimiter).
+    // `append x "}"` must intern the bare `}` character as a literal (not
+    // treat it as a delimiter).
     let fa = top_asm("append x \"}\"");
     let lits = fa.literals.entries();
     assert!(
@@ -329,9 +325,7 @@ fn quoted_close_bracket_is_string_literal() {
     );
 }
 
-// ═══════════════════════════════════════════════════════════════════
 // Expression compilation
-// ═══════════════════════════════════════════════════════════════════
 
 #[test]
 fn expr_binary_add() {
@@ -399,12 +393,10 @@ fn standalone_expr_constant_fold() {
     assert!(fa.literals.entries().iter().any(|l| l == "5"));
 }
 
-// ═══════════════════════════════════════════════════════════════════
 // iRules expression operators
 //
 // Uses the `emit_binop`/`emit_unaryop` helpers: a hand-built CFG with an
 // `AssignExpr` carrying the binary/unary node.
-// ═══════════════════════════════════════════════════════════════════
 
 #[test]
 fn irule_contains() {
@@ -456,9 +448,7 @@ fn irule_word_not() {
     assert!(emit_unaryop(UnaryOp::WordNot).contains(&Op::IRULE_WORD_NOT));
 }
 
-// ═══════════════════════════════════════════════════════════════════
 // CFG terminators
-// ═══════════════════════════════════════════════════════════════════
 
 #[test]
 fn if_branch_has_cond_jump() {
@@ -473,14 +463,12 @@ fn fallthrough_elimination() {
     assert_eq!(count(&ops, Op::JUMP1) + count(&ops, Op::JUMP4), 0);
 }
 
-// ═══════════════════════════════════════════════════════════════════
 // Bytecoded commands
 //
 // NOTE: top-level `append` and `lappend` route through a generic invoke (no
 // APPEND_STK / lappendListStk specialisation at script scope — see the file
 // header). `string length/equal/compare` are likewise generic — see the
 // documented behaviour note in the header.
-// ═══════════════════════════════════════════════════════════════════
 
 #[test]
 fn append_toplevel_generic_invoke() {
@@ -543,9 +531,7 @@ fn string_subcommands_route_through_generic_invoke() {
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════
 // Formatting
-// ═══════════════════════════════════════════════════════════════════
 
 #[test]
 fn format_header() {
@@ -632,14 +618,12 @@ fn format_done_always_at_end() {
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════
 // Disassembly escaping
 //
 // `esc` is BYTE-WISE over UTF-8 (matches C-Tcl's disassembler), not
 // codepoint-wise. The named/NUL/C0/DEL/quote/ASCII cases are unaffected; the
 // high-BMP / supplementary cases assert the byte-wise expectation (see file
 // header note 3).
-// ═══════════════════════════════════════════════════════════════════
 
 #[test]
 fn esc_named_controls_use_short_forms() {
@@ -709,9 +693,7 @@ fn literal_with_embedded_stx_appears_escaped_in_disassembly() {
     assert!(text.contains("\\u0000\\u0002-"));
 }
 
-// ═══════════════════════════════════════════════════════════════════
 // Procedures
-// ═══════════════════════════════════════════════════════════════════
 
 #[test]
 fn proc_params_in_lvt() {
@@ -792,9 +774,7 @@ fn proc_with_default_args() {
     assert!(ir.procedures.contains_key("::greet"));
 }
 
-// ═══════════════════════════════════════════════════════════════════
 // Nested control flow
-// ═══════════════════════════════════════════════════════════════════
 
 #[test]
 fn if_inside_for() {
@@ -863,9 +843,7 @@ fn foreach_inside_for() {
     assert!(ops.contains(&Op::STR_EQ));
 }
 
-// ═══════════════════════════════════════════════════════════════════
 // Complex expressions
-// ═══════════════════════════════════════════════════════════════════
 
 #[test]
 fn ternary_in_expr() {
@@ -969,9 +947,7 @@ fn partial_fold_mixed_const_var() {
     assert!(!ops.contains(&Op::MULT));
 }
 
-// ═══════════════════════════════════════════════════════════════════
 // Switch edge cases
-// ═══════════════════════════════════════════════════════════════════
 
 #[test]
 fn switch_fallthrough_stays_irswitch() {
@@ -1065,9 +1041,7 @@ fn switch_with_return_in_arms() {
     assert!(ops.contains(&Op::JUMP_TABLE) || has_cond_jump(&ops));
 }
 
-// ═══════════════════════════════════════════════════════════════════
 // Loop control flow
-// ═══════════════════════════════════════════════════════════════════
 
 #[test]
 fn break_in_while() {
@@ -1094,9 +1068,7 @@ fn return_in_loop() {
     assert!(ops.contains(&Op::DONE) || ops.contains(&Op::RETURN_IMM));
 }
 
-// ═══════════════════════════════════════════════════════════════════
 // Exception handling
-// ═══════════════════════════════════════════════════════════════════
 
 #[test]
 fn catch_basic() {
@@ -1142,9 +1114,7 @@ fn try_on_error_with_finally() {
     assert!(proc_cfg.block_names().iter().any(|n| n.contains("finally")));
 }
 
-// ═══════════════════════════════════════════════════════════════════
 // For loop edge cases
-// ═══════════════════════════════════════════════════════════════════
 
 #[test]
 fn empty_init_clause() {
@@ -1181,9 +1151,7 @@ fn for_loop_registered_in_loop_nodes() {
     );
 }
 
-// ═══════════════════════════════════════════════════════════════════
 // While loop edge cases
-// ═══════════════════════════════════════════════════════════════════
 
 #[test]
 fn while_constant_true() {
@@ -1199,9 +1167,7 @@ fn while_complex_condition() {
     assert!(ops.contains(&Op::LT));
 }
 
-// ═══════════════════════════════════════════════════════════════════
 // Foreach edge cases
-// ═══════════════════════════════════════════════════════════════════
 
 #[test]
 fn foreach_multi_var() {
@@ -1228,9 +1194,9 @@ fn dict_for_lowers_to_loop_cfg_for_analysis_but_barriers_for_codegen() {
     // `dict for`'s body runs in the caller's frame, so the *analysis* CFG
     // (`build_cfg`, faithful_exceptions on) flattens it into a foreach-style
     // header→body→end loop — like `foreach_creates_loop_cfg` above — so the
-    // body's reads/writes and its own control flow are first-class SSA (a read
-    // nested inside an `if` in the body is no longer lost — issue #833). The
-    // *codegen* CFG (`build_cfg_codegen`, faithful off) keeps the opaque
+    // body's reads/writes and its own control flow are first-class SSA — a
+    // read nested inside an `if` in the body is not lost. The *codegen* CFG
+    // (`build_cfg_codegen`, faithful off) keeps the opaque
     // `::tcl::dict::for` barrier the inline `emit_dict_for` compiles, so the
     // emitted bytecode stays byte-identical to C Tcl. Mirrors `array for`.
     let src = "proc dict_iter {d} { dict for {k v} $d { puts \"$k: $v\" } }";
@@ -1264,9 +1230,7 @@ fn dict_for_lowers_to_loop_cfg_for_analysis_but_barriers_for_codegen() {
     assert!(has_barrier, "codegen CFG must keep the dict-for barrier");
 }
 
-// ═══════════════════════════════════════════════════════════════════
 // Variable access patterns
-// ═══════════════════════════════════════════════════════════════════
 
 #[test]
 fn proc_array_ref() {
@@ -1313,13 +1277,11 @@ fn incr_large_amount() {
     assert!(ops.contains(&Op::INCR_SCALAR1) || ops.contains(&Op::INVOKE_STK1));
 }
 
-// ═══════════════════════════════════════════════════════════════════
 // Bytecoded list commands
 //
 // Only the list commands the emitter actually specialises are asserted
 // with their opcodes; `lindex` routes through a generic invoke (no
 // LIST_INDEX_IMM specialisation) and is asserted accordingly.
-// ═══════════════════════════════════════════════════════════════════
 
 #[test]
 fn llength_bytecoded() {
@@ -1370,13 +1332,11 @@ fn lassign_bytecoded() {
     assert!(ops.contains(&Op::LIST_RANGE_IMM));
 }
 
-// ═══════════════════════════════════════════════════════════════════
 // Dict commands
 //
 // Rust emits VERIFY_DICT for the `dict create` subject normalisation but the
 // `dict get`/`dict exists` lookup itself routes through a generic invoke
 // (no DICT_GET/DICT_EXISTS opcode selected) — asserted accordingly.
-// ═══════════════════════════════════════════════════════════════════
 
 #[test]
 fn dict_get_path() {
@@ -1401,9 +1361,7 @@ fn dict_exists_path() {
     );
 }
 
-// ═══════════════════════════════════════════════════════════════════
 // CFG structure
-// ═══════════════════════════════════════════════════════════════════
 
 #[test]
 fn linear_script_single_block() {
@@ -1537,9 +1495,7 @@ fn all_blocks_reachable() {
     );
 }
 
-// ═══════════════════════════════════════════════════════════════════
 // IR lowering edge cases
-// ═══════════════════════════════════════════════════════════════════
 
 #[test]
 fn set_integer_becomes_assign_const() {
@@ -1644,9 +1600,7 @@ fn switch_modes_tracked() {
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════
 // End-to-end pipeline
-// ═══════════════════════════════════════════════════════════════════
 
 #[test]
 fn fibonacci_proc() {
@@ -1745,9 +1699,7 @@ fn deeply_nested_procs_do_not_crash() {
     assert!(opcodes(&proc_asm(src, "::deep")).contains(&Op::DONE));
 }
 
-// ═══════════════════════════════════════════════════════════════════
 // Codegen output format validation (labels)
-// ═══════════════════════════════════════════════════════════════════
 
 #[test]
 fn labels_point_to_valid_offsets() {
@@ -1770,9 +1722,7 @@ fn labels_point_to_valid_offsets() {
     assert!(fa.labels.len() >= 2, "if/else needs at least 2 labels");
 }
 
-// ═══════════════════════════════════════════════════════════════════
 // Condition defs from command substitutions
-// ═══════════════════════════════════════════════════════════════════
 
 #[test]
 fn catch_in_if_condition() {
@@ -1803,9 +1753,7 @@ fn catch_in_while_condition() {
     assert!(has_cond_def);
 }
 
-// ═══════════════════════════════════════════════════════════════════
 // Backslash substitution
-// ═══════════════════════════════════════════════════════════════════
 
 #[test]
 fn backslash_in_set_value() {
@@ -1813,9 +1761,7 @@ fn backslash_in_set_value() {
     assert!(opcodes(&fa).contains(&Op::DONE));
 }
 
-// ═══════════════════════════════════════════════════════════════════
 // Multiple iterator groups in foreach
-// ═══════════════════════════════════════════════════════════════════
 
 fn foreach_iter_count(src: &str, proc: &str) -> usize {
     let ir = ir_for(src);
@@ -1870,9 +1816,7 @@ fn foreach_multi_var_per_group() {
     assert!(var_list.iter().any(|v| v == "v"));
 }
 
-// ═══════════════════════════════════════════════════════════════════
 // defer_top_level vs inline_loops
-// ═══════════════════════════════════════════════════════════════════
 
 #[test]
 fn top_level_foreach_deferred_is_generic_call() {
@@ -1915,9 +1859,7 @@ fn top_level_foreach_inlined() {
     );
 }
 
-// ═══════════════════════════════════════════════════════════════════
 // Frozen for/while (command-subst conditions)
-// ═══════════════════════════════════════════════════════════════════
 
 #[test]
 fn frozen_for_cmd_subst_condition() {
@@ -1947,9 +1889,7 @@ fn frozen_while_cmd_subst_condition() {
     assert!(has_barrier);
 }
 
-// ═══════════════════════════════════════════════════════════════════
 // Stress: combining everything
-// ═══════════════════════════════════════════════════════════════════
 
 #[test]
 fn kitchen_sink() {
@@ -1964,9 +1904,7 @@ fn kitchen_sink() {
     assert!(format_module_asm(&ma).contains("ByteCode ::main"));
 }
 
-// ═══════════════════════════════════════════════════════════════════
 // codegen_module sanity (mirrors integration's empty-module smoke)
-// ═══════════════════════════════════════════════════════════════════
 
 #[test]
 fn codegen_module_empty_has_top() {
@@ -1979,15 +1917,14 @@ fn codegen_module_empty_has_top() {
     assert_eq!(asm.top_level.name, "::top");
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// Command-binding trust gate (issue #1585)
+// Command-binding trust gate.
 //
 // A fold or a specialised inline emission *is* a builtin's semantics, so it
 // may only fire while the name still denotes that builtin. C Tcl reaches the
 // same answer dynamically: it compiles the specialisation unconditionally but
 // wraps every command in `INST_START_CMD`, which re-dispatches the slow way
 // once `iPtr->compileEpoch` moves (`tclExecute.c`, `instStartCmdFailed`).
-// Specialised bytecode now carries the exact source-name/registry-identity
+// Specialised bytecode carries the exact source-name/registry-identity
 // binding it assumes. The VM validates those typed dependencies at explicit
 // source-command boundaries and replays stale commands through ordinary
 // dispatch. Transformations which cannot preserve that executable provenance
@@ -1996,9 +1933,8 @@ fn codegen_module_empty_has_top() {
 // The runtime results below are pinned on tclsh 8.6.16 and 9.0.4 (byte
 // identical): `rename dict {}` then `dict create a 1 b 2` raises
 // `invalid command name "dict"` on both, and `proc format {args} {return z}`
-// then `format "%s!" hi` yields `z` on both — neither is the folded value
-// this codegen used to bake in.
-// ═══════════════════════════════════════════════════════════════════
+// then `format "%s!" hi` yields `z` on both — neither is a folded value this
+// codegen may bake in.
 
 /// The literal pool of `source`'s top-level function.
 fn top_lits(source: &str) -> Vec<String> {
@@ -2125,8 +2061,8 @@ fn the_trust_gate_is_per_name_not_whole_module() {
 /// The tests above reach `try_emit_constant_fold` from the argument path; the
 /// simplified value emitter (`emit_value_interpolated`) reaches it from the
 /// hook emitters, and `lset`'s new-value word is one such route. Both callers
-/// were separate copies of the block until the copies were merged, and this is
-/// what keeps the second route honest (issue #1585).
+/// must share the exact same fold-gate implementation, and this test is what
+/// keeps the second route honest.
 #[test]
 fn the_fold_gate_holds_through_the_simplified_value_emitter() {
     let lits = |src: &str| proc_asm(src, "::p").literals.entries().to_vec();
@@ -2160,7 +2096,7 @@ fn the_fold_gate_holds_through_the_simplified_value_emitter() {
     );
 }
 
-// -- the unit's two top-level shapes --------------------------------------
+// The unit's two top-level shapes.
 
 /// Every compiled unit carries its top level twice: as a *script* and as a
 /// *procedure body*.

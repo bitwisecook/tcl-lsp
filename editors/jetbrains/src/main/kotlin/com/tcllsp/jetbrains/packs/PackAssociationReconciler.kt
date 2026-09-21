@@ -16,9 +16,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-// The reversibility rules for pack-declared file-extension registration
-// (issue #1650), kept free of every platform type so they can be tested
-// without an IDE.
+// The reversibility rules for pack-declared file-extension registration,
+// kept free of every platform type so they can be tested without an IDE.
 //
 // A JetBrains file-type association is IDE-global — there is no
 // workspace-scoped layer to write into, the way VS Code's `files.associations`

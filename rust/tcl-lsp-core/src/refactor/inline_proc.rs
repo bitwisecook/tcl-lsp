@@ -25,7 +25,7 @@
 //! three-character *value* `a b`, because the braces are the caller's quoting
 //! and are consumed by the parse.  Splicing the written word into the body
 //! therefore changes the value the body sees — the body's `$name` produced
-//! `a b` before and produces `{a b}` afterwards (issue #1199).  Nor is a
+//! `a b` before and produces `{a b}` afterwards.  Nor is a
 //! parameter with no written argument simply absent: `proc f {{name world}}`
 //! called as `f` binds `name` to `world`, so an inlining that drops the
 //! parameter leaves the body reading an unset variable.
@@ -108,7 +108,7 @@ pub fn inline_proc(
 /// Inlining substitutes *the body of the proc the call actually reaches*, so
 /// a `namespace import -force` whose covering `namespace export` lives in
 /// another file makes inlining the local same-named proc a behaviour change,
-/// not a refactor (issue #1116 item 1). With the oracle attached the head
+/// not a refactor. With the oracle attached the head
 /// simply does not resolve locally and no action is offered — the safe
 /// answer, and the same one go-to-definition gives.
 #[must_use]
@@ -131,7 +131,7 @@ pub fn inline_proc_in_program(
     // Resolve the head exactly as the navigation providers do — the caller's
     // namespace candidates, the registry builtin gate, then the deterministic
     // simple-name fallback.  A namespace-blind `p.name == head` scan is the
-    // M1 drift class `cargo xtask resolution-drift` flags.
+    // drift class `cargo xtask resolution-drift` flags.
     let head_off = call.span.start();
     let namespace = crate::definition::namespace_context_at(
         &analysis.global_scope,
@@ -144,21 +144,7 @@ pub fn inline_proc_in_program(
     let title = format!("Inline proc '{}'", proc_def.name);
     let (call_start, call_end) = command_span_offsets(source, &call);
 
-    // The numeric-literal grammar of the dialect this document was analysed
-    // under — whether a substituted value reads as a number in an `expr`
-    // operand is release-dependent (`0o17` from 8.5, `0d99` and `1_000` from
-    // 9.0).  `AnalysisResult::dialect` carries the name the host passed to
-    // `Analyser::analyse`; an empty (default-constructed) one resolves to the
-    // permissive `plain_tcl` profile, i.e. modern rules.
-    let numbers = crate::profile_for_dialect(&analysis.dialect)
-        .grammar
-        .numbers;
-    // …and its `${…}` close rule, for the same reason: which bytes are the
-    // variable's name is release-dependent, and this transform rewrites the
-    // reference's own span (issue #1605).
-    let style = super::braced_var_style(analysis);
-
-    match plan_inline(source, &call, proc_def, registry, numbers, style, config) {
+    match plan_inline(source, &call, proc_def, analysis, registry, config) {
         Ok(new_text) => Some(Refactoring {
             title,
             edits: vec![RefactorEdit {
@@ -185,11 +171,23 @@ fn plan_inline(
     source: &str,
     call: &tcl_compiler::segmenter::SegmentedCommand,
     proc_def: &tcl_compiler::analyser::ProcDef,
+    analysis: &AnalysisResult,
     registry: &CommandRegistry,
-    numbers: NumberSyntax,
-    style: BracedVarStyle,
     config: LexerConfig,
 ) -> Result<String, String> {
+    // The numeric-literal grammar of the dialect this document was analysed
+    // under — whether a substituted value reads as a number in an `expr`
+    // operand is release-dependent (`0o17` from 8.5, `0d99` and `1_000` from
+    // 9.0).  `AnalysisResult::dialect` carries the name the host passed to
+    // `Analyser::analyse`; an empty (default-constructed) one resolves to the
+    // permissive `plain_tcl` profile, i.e. modern rules.
+    let numbers: NumberSyntax = crate::profile_for_dialect(&analysis.dialect)
+        .grammar
+        .numbers;
+    // …and its `${…}` close rule, for the same reason: which bytes are the
+    // variable's name is release-dependent, and this transform rewrites the
+    // reference's own span.
+    let style: BracedVarStyle = super::braced_var_style(analysis);
     if proc_def.params_computed {
         return Err(
             "the proc's parameter list is computed at run time, so its formals are unknown"
@@ -198,10 +196,19 @@ fn plan_inline(
     }
     let body = single_command_body(source, proc_def, config)?;
     let bindings = bind_arguments(source, call, proc_def)?;
-    reject_frame_sensitive_body(&body, registry)?;
-    reject_body_variable_writes(&body, registry)?;
+    // The body is one command, but that command carries a whole script: `if`,
+    // `foreach`, `catch`, and `switch` each hold theirs in a body argument.
+    // Every guard below asks its question of that statement tree, because a
+    // `set` or a `return` one level down moves into the caller's frame just as
+    // surely as one at the body's top level.  Spans are relative to
+    // `body.text`, which is what the substitution rewrites.
+    let walk = super::FrameWalk::new(&body.text, analysis);
+    let mut nested = Vec::new();
+    walk.nested_same_frame_commands(&body.text, &body.command, &mut nested);
+    reject_frame_sensitive_body(&body, &nested, registry)?;
+    reject_body_variable_writes(&body, &nested, registry)?;
     reject_args_reference(&body, proc_def, style)?;
-    substitute_bindings(&body, &bindings, registry, numbers, style)
+    substitute_bindings(&body, &nested, &bindings, registry, numbers, style)
 }
 
 /// One command's worth of proc body, re-segmented so its argument roles and
@@ -385,28 +392,31 @@ fn argument_value(source: &str, token: Token) -> Result<(String, bool), String> 
 /// caller's caller instead of the caller.
 fn reject_frame_sensitive_body(
     body: &BodyCommand,
+    nested: &[tcl_compiler::segmenter::SegmentedCommand],
     registry: &CommandRegistry,
 ) -> Result<(), String> {
     let unsafe_heads = registry.frame_sensitive_commands();
-    let head = body.command.name();
-    if unsafe_heads.contains(&head) {
-        return Err(format!(
-            "the body calls '{head}', which acts on the call frame — running it \
-             in the caller's frame would change what it returns from, breaks out \
-             of, or binds against"
-        ));
-    }
-    // A frame-sensitive command nested in a `[…]` substitution inside an
-    // argument is just as frame-bound as one at the head.
-    for text in body.command.args() {
-        if let Some(inner) = nested_command_head(text)
-            && unsafe_heads.contains(&inner)
-        {
+    for command in std::iter::once(&body.command).chain(nested) {
+        let head = command.name();
+        if unsafe_heads.contains(&head) {
             return Err(format!(
-                "the body evaluates '{inner}', which acts on the call frame — \
-                 running it in the caller's frame would change what it binds \
-                 against"
+                "the body calls '{head}', which acts on the call frame — running it \
+                 in the caller's frame would change what it returns from, breaks out \
+                 of, or binds against"
             ));
+        }
+        // A frame-sensitive command nested in a `[…]` substitution inside an
+        // argument is just as frame-bound as one at the head.
+        for text in command.args() {
+            if let Some(inner) = nested_command_head(text)
+                && unsafe_heads.contains(&inner)
+            {
+                return Err(format!(
+                    "the body evaluates '{inner}', which acts on the call frame — \
+                     running it in the caller's frame would change what it binds \
+                     against"
+                ));
+            }
         }
     }
     Ok(())
@@ -432,24 +442,47 @@ fn nested_command_head(text: &str) -> Option<&str> {
 /// variables, and anything else a spec declares, without listing any of them.
 fn reject_body_variable_writes(
     body: &BodyCommand,
+    nested: &[tcl_compiler::segmenter::SegmentedCommand],
     registry: &CommandRegistry,
 ) -> Result<(), String> {
-    let args: Vec<&str> = body.command.args().iter().map(String::as_str).collect();
-    let writes = registry.arg_indices_for_role(body.command.name(), &args, ArgRole::VarWrite);
-    if writes.is_empty() {
-        return Ok(());
-    }
-    Err(format!(
-        "the body assigns a variable ('{}' writes to '{}'), which would leak \
-         into — and could overwrite — a variable of the same name in the caller",
-        body.command.name(),
-        writes
+    for command in std::iter::once(&body.command).chain(nested) {
+        let head = command.name();
+        let args: Vec<&str> = command.args().iter().map(String::as_str).collect();
+        let writes: Vec<&str> = registry
+            .arg_indices_for_role(head, &args, ArgRole::VarWrite)
             .iter()
             .filter_map(|index| args.get(*index))
             .copied()
-            .collect::<Vec<_>>()
-            .join("', '")
-    ))
+            .collect();
+        if !writes.is_empty() {
+            return Err(format!(
+                "the body assigns a variable ('{head}' writes to '{}'), which would \
+                 leak into — and could overwrite — a variable of the same name in \
+                 the caller",
+                writes.join("', '")
+            ));
+        }
+        // A loop's own binding leaks exactly as an assignment does, and it is
+        // a `LoopVarList` word rather than a `VarWrite` one: `foreach n {1 2 3}
+        // {…}` leaves `n` behind in whatever frame runs it.
+        for index in registry.arg_indices_for_role(head, &args, ArgRole::LoopVarList) {
+            let Some(word) = args.get(index) else {
+                continue;
+            };
+            let Ok(names) = tcl_syntax::list::split_list(word) else {
+                continue;
+            };
+            if !names.is_empty() {
+                return Err(format!(
+                    "the body binds '{}' on every iteration of its '{head}', which \
+                     would leak into — and could overwrite — a variable of the same \
+                     name in the caller",
+                    names.join("', '")
+                ));
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Refuse a body that reads the variadic `args` list.
@@ -486,13 +519,21 @@ fn reject_args_reference(
 /// changing what it means.
 fn substitute_bindings(
     body: &BodyCommand,
+    nested: &[tcl_compiler::segmenter::SegmentedCommand],
     bindings: &[Binding],
     registry: &CommandRegistry,
     numbers: NumberSyntax,
     style: BracedVarStyle,
 ) -> Result<String, String> {
     let references = variable_references(&body.text, style);
-    let expr_ranges = expr_argument_ranges(&body.command, registry);
+    // The occurrences come from the whole body text, so the expression
+    // positions have to as well: `puts [expr {$n eq "abc"}]` puts its operand
+    // one level below the body's own command, and substituting a bareword
+    // there would make `expr` read it as a function name.
+    let expr_ranges: Vec<(usize, usize)> = std::iter::once(&body.command)
+        .chain(nested)
+        .flat_map(|command| expr_argument_ranges(command, registry))
+        .collect();
     let mut replacements: Vec<(usize, usize, String)> = Vec::new();
     for binding in bindings {
         let occurrences: Vec<&(String, usize, usize)> = references
@@ -577,7 +618,7 @@ fn expr_argument_ranges(
 /// longer token being half-rewritten.
 /// Every `$name` / `${name}` reference in `text`, with the byte span of the
 /// whole reference — the span this transform rewrites, so it must be the
-/// span the document's own release would parse (issue #1605).
+/// span the document's own release would parse.
 fn variable_references(text: &str, style: BracedVarStyle) -> Vec<(String, usize, usize)> {
     super::variable_reference_spans(text, style)
 }
@@ -667,6 +708,55 @@ mod tests {
         )
     }
 
+    // -- FP: a body's nested statements are guarded like its top level ----
+
+    /// The body is one command, but that command carries a script. A `set`
+    /// inside it lands in the caller's frame just as a top-level one would.
+    ///
+    /// Oracle (tclsh 8.6.18 and 9.0.4 alike): `total` is 99 after the call in
+    /// the original and 0 if the body is inlined, so the extraction is refused.
+    #[test]
+    fn fp_refuses_a_write_nested_in_a_body() {
+        let src =
+            "proc reset {} {\n    if {1} {\n        set total 0\n    }\n}\nset total 99\nreset\n";
+        let reason = outcome(src, "reset\n").unwrap_err();
+        assert!(reason.contains("assigns a variable"), "{reason}");
+    }
+
+    /// A loop's own binding leaks exactly as an assignment does, and it is a
+    /// `LoopVarList` word rather than a `VarWrite` one.
+    ///
+    /// Oracle: `n` keeps its old value after the call and holds 3 if the body
+    /// is inlined.
+    #[test]
+    fn fp_refuses_a_loop_binding_in_the_body() {
+        let src = "proc show {} {\n    foreach n {1 2 3} {\n        puts $n\n    }\n}\nshow\n";
+        let reason = outcome(src, "show\n").unwrap_err();
+        assert!(reason.contains("on every iteration"), "{reason}");
+    }
+
+    /// A frame-sensitive command one level down is still frame-bound: a
+    /// `return` inside an `if` body would return from the *caller* once
+    /// inlined.
+    #[test]
+    fn fp_refuses_a_frame_sensitive_command_nested_in_a_body() {
+        let src = "proc grab {} {\n    if {1} {\n        global config\n    }\n}\ngrab\n";
+        let reason = outcome(src, "grab\n").unwrap_err();
+        assert!(reason.contains("acts on the call frame"), "{reason}");
+    }
+
+    /// An expression operand one level below the body's own command is still
+    /// an expression operand.
+    ///
+    /// Oracle: `check abc` prints 1, while `puts [expr {abc eq "abc"}]` fails
+    /// with `invalid bareword "abc"` on tclsh 8.6.18 and 9.0.4.
+    #[test]
+    fn fp_refuses_a_bareword_bound_to_a_nested_expression_operand() {
+        let src = "proc check {n} {\n    puts [expr {$n eq \"abc\"}]\n}\ncheck abc\n";
+        let reason = outcome(src, "check abc").unwrap_err();
+        assert!(reason.contains("expression operand"), "{reason}");
+    }
+
     // -- TP: binding is performed and the result is correct ---------------
 
     #[test]
@@ -724,11 +814,11 @@ mod tests {
         assert!(result.ends_with("puts 1$nn\n"), "{result}");
     }
 
-    // -- FP: refusals that keep behaviour ---------------------------------
+    // FP: refusals that keep behaviour.
 
     #[test]
     fn fp_refuses_a_braced_argument_whose_value_is_not_a_plain_word() {
-        // The issue's second reproducer.  Original prints `hello a b`; the
+        // Original prints `hello a b`; the
         // textual splice emitted `puts "hello {a b}"`, printing the braces.
         let src = "proc greet {name} {\n    puts \"hello $name\"\n}\ngreet {a b}\n";
         let reason = outcome(src, "greet {a b}").unwrap_err();
@@ -821,7 +911,7 @@ mod tests {
         assert!(reason.contains("computed"), "{reason}");
     }
 
-    // -- TN: nothing to offer ---------------------------------------------
+    // TN: nothing to offer.
 
     #[test]
     fn tn_no_action_on_a_builtin_call() {
@@ -838,7 +928,7 @@ mod tests {
         assert!(at("\n\n", "\n").is_none());
     }
 
-    // -- Unit-level predicates --------------------------------------------
+    // Unit-level predicates.
 
     #[test]
     fn plain_word_rejects_every_parser_significant_character() {
@@ -939,7 +1029,7 @@ mod tests {
         assert_eq!(names, vec!["n", "nn", "n"]);
     }
 
-    /// Issue #1605 — inline-proc **rewrites** each reference's own byte
+    /// Inline-proc **rewrites** each reference's own byte
     /// span, so the span must be the one the document's release parses. On a
     /// 9.x document `${a{b}c}` is one reference spanning all 8 bytes; on 8.x
     /// it ends at the first `}` and the trailing `c}` is word text that must

@@ -1,4 +1,4 @@
-# Fixture for issue #1305 — a `rename`d metaclass command manufactures
+# Fixture — a `rename`d metaclass command manufactures
 # nothing. Line numbers are load-bearing — the companion test
 # (issue1305RenamedMetaclass.test.ts) asserts on them.
 namespace eval ::R {}

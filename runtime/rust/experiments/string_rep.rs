@@ -16,8 +16,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! EXPERIMENT (throwaway): how to do char-indexed access on a UTF-8 Tcl string,
-//! and how to append, without an O(n^2) cliff (the low-O() tenet).
+//! Benchmark: how to do char-indexed access on a UTF-8 Tcl string, and how to
+//! append, without an O(n^2) cliff.
 //!
 //! `string index`/`length`/`range` are CHARACTER-indexed; UTF-8 makes naive
 //! char access O(n). But most Tcl strings are ASCII (byte index == char index).
@@ -27,7 +27,7 @@
 //!   A  ASCII fast path: if all-ASCII, byte index == char index (O(1)); else I
 //! And append (building a string by repeated concat):
 //!   R  reallocate an exact buffer each append (today's set_owned_string)
-//!   V  push onto a Vec with amortized capacity
+//!   V  push onto a Vec with amortised capacity
 //!
 //! Built to wasm32-wasip1, run under wasmtime (the real target).
 //!   rustc -O --edition 2021 --target wasm32-wasip1 string_rep.rs -o /tmp/s.wasm && wasmtime /tmp/s.wasm
@@ -143,7 +143,7 @@ fn bench_append(n: usize) {
     }
     let realloc = t.elapsed().as_micros();
 
-    // V: amortized Vec
+    // V: amortised Vec
     let t = Instant::now();
     let mut v: Vec<u8> = Vec::new();
     for _ in 0..n {

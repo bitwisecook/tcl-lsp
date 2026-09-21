@@ -176,8 +176,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
 ];
 
-/// Shared by `add`, `replace`, and `lookup`: `-notouch` plus the subtable
-/// selector and the generic option-list terminator. Per
+/// Shared by `add`, `replace`, and `lookup`: `-notouch`, `-georedundancy`,
+/// the subtable selector, and the generic option-list terminator. Per
 /// <https://clouddocs.f5.com/api/irules/table.html> these three take no
 /// other options.
 const SUBTABLE_OPTIONS: &[OptionSpec] = &[
@@ -327,7 +327,7 @@ const MUSTEXIST_OPTIONS: &[OptionSpec] = &[
 ];
 
 /// `delete`: no `-notouch` (a deletion doesn't touch a lifetime) — just the
-/// subtable selector, `-all`, and the terminator.
+/// subtable selector, `-georedundancy`, `-all`, and the terminator.
 const DELETE_OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-subtable",
@@ -367,8 +367,8 @@ const DELETE_OPTIONS: &[OptionSpec] = &[
     },
 ];
 
-/// `timeout` and `lifetime`: no `-notouch` — the subtable selector plus
-/// `-remaining` for the query form.
+/// `timeout` and `lifetime`: no `-notouch` — the subtable selector,
+/// `-georedundancy`, and `-remaining` for the query form.
 const REMAINING_OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-subtable",

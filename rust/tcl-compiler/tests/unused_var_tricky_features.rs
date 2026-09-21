@@ -17,9 +17,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! Variable-lifecycle diagnostics (W210 / W211 / W220) across the *tricky* Tcl
-//! surfaces of issue #941: `upvar` pass-by-reference, cross-scope globals,
-//! namespaces, `variable`, `eval`, `trace`, `TclOO`, `interp`, the `::tcl` /
-//! `::mathop` namespaces, and `args` parameters.
+//! surfaces: `upvar` pass-by-reference, cross-scope globals, namespaces,
+//! `variable`, `eval`, `trace`, `TclOO`, `interp`, the `::tcl` / `::mathop`
+//! namespaces, and `args` parameters.
 //!
 //! ## Why these live together
 //!
@@ -54,8 +54,8 @@ use tcl_compiler::ir::Statement;
 use tcl_registry::CommandRegistry;
 use tcl_registry::model::ingress::static_context_for;
 
-/// Default dialect: the C Tcl 9 truth oracle (issue #941). The scoping
-/// constructs exercised here behave identically on 8.4–9.0.
+/// Default dialect: the C Tcl 9 truth oracle. The scoping constructs
+/// exercised here behave identically on 8.4–9.0.
 const D: &str = "tcl9.0";
 
 /// Every diagnostic code the full user-facing pipeline surfaces for `src`
@@ -96,13 +96,13 @@ fn lifecycle_silent(src: &str) -> bool {
         .any(|c| matches!(c.as_str(), "W210" | "W211" | "W213" | "W220"))
 }
 
-// upvar — dynamic-target pass-by-reference (the #941 headline FP)
+// upvar — dynamic-target pass-by-reference.
 //
 // `upvar ?level? otherVar myVar` binds the *local* `myVar` to the caller-frame
 // variable named by `otherVar`. `otherVar` may be a literal *or* a runtime
 // value (`$name`); the two are semantically identical — each errors only when
-// the caller variable is missing. The analyser used to flag the dynamic form
-// alone, firing on the single most common Tcl pass-by-reference idiom.
+// the caller variable is missing. The analyser must not single out the
+// dynamic form, which is the single most common Tcl pass-by-reference idiom.
 mod upvar_dynamic_target {
     use super::*;
 
@@ -228,7 +228,7 @@ mod cross_scope_globals {
 
     #[test]
     fn tp_namespaced_read_does_not_mask_unrelated_bare_global() {
-        // TP (regression, code-review finding): a proc reading a *namespaced*
+        // TP: a proc reading a *namespaced*
         // variable `$::n::cfg` must not be mistaken for a read of the
         // unrelated bare global `::cfg` merely because they share a tail
         // name — the two are different storage cells. Collapsing a
@@ -360,8 +360,8 @@ mod read_before_set_tps {
         ));
     }
 
-    /// Issue #1403 — safe read-modify-write is a registry and dialect fact,
-    /// rather than a blanket `reads_own_defs` exemption. Tcl 8.6's declared
+    /// Safe read-modify-write is a registry and dialect fact, rather than a
+    /// blanket `reads_own_defs` exemption. Tcl 8.6's declared
     /// self-initialisers are silent, while `incr` under Tcl 8.4 keeps W210.
     #[test]
     fn safe_on_uninit_is_lowered_from_the_active_dialect_profile() {

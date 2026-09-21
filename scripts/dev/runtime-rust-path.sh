@@ -6,13 +6,13 @@
 
 # Decide whether one repository-relative path can change standalone
 # `runtime/rust` semantics. Exit 0 for relevant, 1 for unrelated, and 2 when
-# the request itself is unusable so CI can fail closed (issue #1768).
+# the request itself is unusable so CI can fail closed.
 #
 # `runtime/rust` is its OWN cargo workspace: the root
 # `cargo test --workspace --all-features` never runs its unit suite, and
 # `wasm-real-link` builds and links it without executing a single one of those
 # tests. So a standalone-runtime semantic regression can land with every root
-# partition green — which is exactly what #1768 was filed for.
+# partition green unless this classifier catches the change.
 #
 # The case list below is the runtime's LOCAL PACKAGE CLOSURE (the crate itself
 # plus every path dependency `cargo metadata` resolves for it), its external

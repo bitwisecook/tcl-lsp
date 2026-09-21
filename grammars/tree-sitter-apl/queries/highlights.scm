@@ -1,8 +1,8 @@
 ; APL (F5 iApp presentation) highlights for Zed.
 ;
-; Backed by `grammars/tree-sitter-apl`. Before this, Zed's APL language pointed
-; at the *Tcl* grammar and shipped no query file at all, so an APL file got no
-; highlighting and — had it been queried — a garbage parse tree (issue #903).
+; Backed by `grammars/tree-sitter-apl`. Without it, Zed's APL language would
+; point at the *Tcl* grammar and ship no query file at all, so an APL file
+; would get no highlighting and — if queried — a garbage parse tree.
 ;
 ; The captures mirror the semantic-token types the server emits for APL, so the
 ; tree-sitter paint and the LSP paint agree rather than fighting.

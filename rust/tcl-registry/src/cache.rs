@@ -58,8 +58,7 @@ static REGISTRIES: OnceLock<Mutex<RegistryTable>> = OnceLock::new();
 ///
 /// For callers that genuinely need no dialect layering and reached for
 /// `build_default()` to say so.  `build_default()` is a *constructor*, not an
-/// accessor: it rebuilds several hundred `CommandSpec`s (and, before issue
-/// #1035, leaked the generated `tcl::mathop` / `tcl::mathfunc` ensembles) on
+/// accessor: it rebuilds several hundred `CommandSpec`s on
 /// every call.  Hot paths that run per CFG build — so, per keystroke — were
 /// calling it directly; they want this.
 ///
@@ -153,9 +152,9 @@ pub(crate) fn registry_for_profile(profile: &'static DialectProfile) -> &'static
 /// profile yet, and a registry without them is what the process had a moment
 /// ago anyway.
 ///
-/// It exists because the **analyser** needs it. Since the EDA vendor libraries
-/// became bundled loadables (`docs/design/registry/spec-packs.md`), "which commands
-/// exist" is no longer answerable from compiled-in data alone, and the
+/// It exists because the **analyser** needs it. Because the EDA vendor libraries
+/// are bundled loadables (`docs/design/registry/spec-packs.md`), "which commands
+/// exist" is not answerable from compiled-in data alone, and the
 /// analyser — which resolves its own registry from its `DialectProfile` — has
 /// to be able to reach the pack-carrying entry without depending on the
 /// loader crate that sits above it.
@@ -245,11 +244,10 @@ pub fn registry_for_profile_with_overlay(
 /// entry (one per dialect profile, a closed set) and the overlay being built
 /// right now.
 ///
-/// This is the *reclaiming* half of the change described in the memory note
-/// above: removing the entry drops the table's reference, so the generation is
-/// freed as soon as the last consumer holding a handle to it finishes. It is
-/// still also a table bound — lookups stay cheap — but it is no longer only
-/// that.
+/// This both bounds the table — lookups stay cheap — and is the
+/// *reclaiming* half of the memory behaviour described above: removing the
+/// entry drops the table's reference, so the generation is freed as soon as
+/// the last consumer holding a handle to it finishes.
 ///
 /// Retaining `current` is load-bearing, not tidiness: a reload builds all ~17
 /// dialect profiles for one pack key in a loop, so a sweep that dropped every
@@ -271,8 +269,8 @@ const OVERLAY_LIMIT: usize = 64;
 
 /// Every command a safe interpreter hides, sorted.
 ///
-/// The generic query behind both engines' `interp create -safe` (ledger row
-/// B2, issue #945 fault 7): the set is `Traits::SAFE_INTERP_HIDDEN`, and no
+/// The generic query behind both engines' `interp create -safe`: the set is
+/// `Traits::SAFE_INTERP_HIDDEN`, and no
 /// consumer spells a command name. C's own set is `CmdInfo` rows lacking
 /// `CMD_IS_SAFE` plus the whole-command rows of `unsafeEnsembleCommands`
 /// (`tclBasic.c`), which is exactly what the trait records.

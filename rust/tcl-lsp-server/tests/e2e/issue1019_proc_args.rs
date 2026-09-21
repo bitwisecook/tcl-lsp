@@ -16,12 +16,11 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Issue #1019 differential audit, `proc_args` group — the end-to-end tier.
+//! `proc_args` group, end-to-end tier: idx 11 / 28 / 37 / 62 / 67 / 104.
 //!
-//! Findings idx 11 / 28 / 37 / 62 / 67 / 104.  Each of these was already
-//! fixed in the providers and covered by unit tests, but had no test at the
-//! wire tier — or, for idx 28, was fixed only for the single-file shape while
-//! the corpus shape is cross-file.  Every claim below is pinned against
+//! Each of these is already covered by provider-level unit tests, but not at
+//! the wire tier — or, for idx 28, only for the single-file shape, while the
+//! corpus shape is cross-file.  Every claim below is pinned against
 //! tclsh 9.0.4 and 8.6.16, which agree byte-for-byte; each test records the
 //! transcript it was written against.
 
@@ -57,7 +56,7 @@ fn codes(diags: &[Value]) -> Vec<String> {
         .collect()
 }
 
-// -- idx 11: a proc named after a package-gated registry command ---------
+// idx 11: a proc named after a package-gated registry command.
 
 // FP guard.  georgtree/argparse's own implementation file defines `proc
 // ::argparse {args}` — the entry point of the `argparse` *package*, which the
@@ -145,7 +144,7 @@ fn tp_arity_still_fires_for_a_package_command_the_document_requires() {
 }
 
 // TP control for the W113 half: redefining a real core built-in still warns.
-// It is the *package-gated* exclusion that idx 11 added, not a blanket one.
+// The idx 11 exclusion is package-gated, not blanket.
 #[test]
 fn tp_redefining_a_core_builtin_still_fires_w113() {
     let mut lsp = Lsp::tcl();
@@ -158,7 +157,7 @@ fn tp_redefining_a_core_builtin_still_fires_w113() {
     );
 }
 
-// -- idx 28: cross-file mixin / inherited method hover -------------------
+// idx 28: cross-file mixin / inherited method hover.
 
 // TP.  SpiceGenTcl's shape: `Utility` (the mixin) and `Model` live in the
 // library file, `RModel` in the device file, and `RModel`'s constructor calls
@@ -261,7 +260,7 @@ fn tn_cross_file_hover_abstains_for_a_method_no_class_provides() {
     );
 }
 
-// -- idx 37: `next` inside a constructor ---------------------------------
+// idx 37: `next` inside a constructor.
 
 // TP, the definition half (the arity half already has an e2e test).
 // `next` in a constructor dispatches to the superclass's *constructor*, which
@@ -305,7 +304,7 @@ fn tp_next_in_a_constructor_resolves_to_the_superclass_constructor() {
     );
 }
 
-// -- idx 62: a bare `[list procName ...]` command-prefix callback --------
+// idx 62: a bare `[list procName ...]` command-prefix callback.
 
 // TP.  ticklecharts' shape: a `trace add variable` write callback built with
 // a bare `[list procName baked args]` — no `namespace code` wrapper, and with
@@ -374,7 +373,7 @@ fn tn_a_list_built_callback_head_that_names_nothing_resolves_to_nothing() {
     );
 }
 
-// -- idx 67: a qualified proc written outside its namespace block --------
+// idx 67: a qualified proc written outside its namespace block.
 
 // TP.  pix's shape: `namespace eval ::pix { namespace eval svg {} }` opens the
 // namespaces, and `proc pix::svg::parse {...}` is written afterwards at the
@@ -448,7 +447,7 @@ fn tn_a_qualified_proc_whose_namespace_is_never_opened_stays_put() {
     );
 }
 
-// -- idx 104: a parameter whose name shadows a command -------------------
+// idx 104: a parameter whose name shadows a command.
 
 // TP.  Tk's `library/tk.tcl` shape: `proc ::tk::RestoreFocusGrab {grab focus
 // {destroy destroy}}` — the third parameter is named `destroy` and defaults

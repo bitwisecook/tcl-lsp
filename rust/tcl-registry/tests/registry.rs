@@ -207,7 +207,7 @@ fn nine_oh_only_commands_gated_by_dialect() {
 #[test]
 fn var_write_typing_declares_destructuring_writers() {
     // The registry is the single source of truth for how a command types the
-    // variables it *writes* — distinct from what it *returns* (issue #867).
+    // variables it *writes* — distinct from what it *returns*.
     // A destructuring writer returns a leftover list / match count while
     // writing element-wise pieces, so the compiler must read this rather than
     // broadcast the return type onto the targets.
@@ -219,7 +219,7 @@ fn var_write_typing_declares_destructuring_writers() {
             .var_write_typing()
     };
 
-    // `lassign` writes its container's *elements* positionally — the P3
+    // `lassign` writes its container's *elements* positionally — the
     // element-inference fact, so a committed `[list ...]` source types each
     // target from its element shape.
     assert_eq!(

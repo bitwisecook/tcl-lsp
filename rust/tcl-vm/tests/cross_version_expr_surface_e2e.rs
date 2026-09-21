@@ -19,13 +19,13 @@
 //! **The `expr` operator set follows the emulated release, however the
 //! expression reaches the engine.**
 //!
-//! `expr` has two entry points and they used to apply opposite dialect
-//! discipline (issue #1435). A braced body codegen could specialise compiled to
+//! `expr` has two entry points, and applying opposite dialect discipline to
+//! them is a real hazard. A braced body codegen could specialise compiled to
 //! an opcode — `Op::from_binop` is total over `BinOp`, so `**`, `in`/`ni` and
-//! the TIP-461 string-ordering operators always got one — and the emulating VM
-//! executed it whatever release it was pretending to be. The same source
-//! reaching the interpreted `exprStk` path was validated against the release's
-//! own operator table first and rejected.
+//! the TIP-461 string-ordering operators always get one — and the emulating VM
+//! would execute it whatever release it was pretending to be, while the same
+//! source reaching the interpreted `exprStk` path is validated against the
+//! release's own operator table first and rejected.
 //!
 //! That split is invisible until the two forms are compared: both return a
 //! well-typed value, one of them from an operator the release cannot parse. The
@@ -272,10 +272,10 @@ fn expr_operator_set_follows_the_compiled_release() {
     }
 }
 
-/// The core of issue #1435: a source-identical `expr` must not get two
+/// A source-identical `expr` must not get two
 /// different release disciplines depending only on whether codegen could inline
 /// it. The interpreted path has always validated against the release's operator
-/// table; this asserts the compiled one now reaches the same verdict.
+/// table; this asserts the compiled one reaches the same verdict.
 #[test]
 fn compiled_and_interpreted_expr_agree_on_every_release() {
     for v in VECTORS {
@@ -316,4 +316,167 @@ fn a_pre_floor_operator_is_not_constant_folded() {
     let src = "if {[catch {expr {2 ** 3}} r]} { puts rejected } else { puts $r }\n";
     assert_eq!(vm_output(src, TclVersion::V8_4), REJECTED);
     assert_eq!(vm_output(src, TclVersion::V8_5), "8");
+}
+
+/// **The math-function *dispatch mechanism* follows the emulated release too**
+/// (#1944).
+///
+/// The same compiled/interpreted split as the operator vectors above, one layer
+/// down. TIP 232 (Tcl 8.5) turned `expr`'s builtin functions into ordinary
+/// `tcl::mathfunc::*` commands; Tcl 8.4 has only a fixed C function table and
+/// no such command exists, which `tclsh8.4` confirms:
+///
+/// ```text
+/// $ tclsh8.4
+/// % set x 4; expr {sqrt($x)}
+/// 2.0
+/// % llength [info commands ::tcl::mathfunc::*]
+/// 0
+/// % ::tcl::mathfunc::sqrt 4
+/// invalid command name "::tcl::mathfunc::sqrt"
+/// ```
+///
+/// Codegen lowered every `ExprNode::Call` through the command table regardless,
+/// so an 8.4 compile of source tclsh8.4 evaluates fine failed with
+/// `invalid command name "tcl::mathfunc::sqrt"` while the interpreted spelling
+/// — which asks the registry's `RuntimeExprSurface` and reaches 8.4's fixed
+/// table — answered `2.0`.
+struct FunctionVector {
+    name: &'static str,
+    /// The expression body, as it appears inside `expr { … }`.
+    expr: &'static str,
+    /// Tcl 8.4: the fixed pre-TIP-232 function table.
+    want_84: &'static str,
+    /// Tcl 8.5 and later: the open `tcl::mathfunc::*` command table.
+    want_tip232: &'static str,
+}
+
+/// Every value is `tclsh` output, read with
+/// `set x 4; catch {expr {…}} r; puts $r` on each binary.
+const FUNCTION_VECTORS: &[FunctionVector] = &[
+    FunctionVector {
+        name: "sqrt is in 8.4's fixed function table",
+        expr: "sqrt($x)",
+        want_84: "2.0",
+        want_tip232: "2.0",
+    },
+    FunctionVector {
+        name: "int is in 8.4's fixed function table",
+        expr: "int($x)",
+        want_84: "4",
+        want_tip232: "4",
+    },
+    FunctionVector {
+        name: "a nested call still reaches the fixed table",
+        expr: "sqrt($x) + int(2.9)",
+        want_84: "4.0",
+        want_tip232: "4.0",
+    },
+    FunctionVector {
+        name: "8.4 reports a fixed-table miss as an unknown function",
+        expr: "frobnicate($x)",
+        want_84: "unknown math function \"frobnicate\"",
+        want_tip232: "invalid command name \"tcl::mathfunc::frobnicate\"",
+    },
+];
+
+/// The compiled spelling: a braced body, which codegen specialises.
+const FN_COMPILED: &str = "set x 4\ncatch {expr {@expr@}} r\nputs $r\n";
+
+/// The interpreted spelling: the expression text arrives in a variable, so it
+/// can only go through `exprStk` and `Vm::eval_expr`.
+const FN_INTERPRETED: &str = "set x 4\nset e {@expr@}\ncatch {expr $e} r\nputs $r\n";
+
+#[test]
+fn math_function_dispatch_follows_the_compiled_release() {
+    for v in FUNCTION_VECTORS {
+        for (version, want) in [
+            (TclVersion::V8_4, v.want_84),
+            (TclVersion::V8_5, v.want_tip232),
+            (TclVersion::V8_6, v.want_tip232),
+            (TclVersion::V9_0, v.want_tip232),
+            (TclVersion::V9_1, v.want_tip232),
+        ] {
+            assert_eq!(
+                vm_output(&script(FN_COMPILED, v.expr), version),
+                want,
+                "[{version:?}] {} (compiled)",
+                v.name
+            );
+        }
+    }
+}
+
+/// The compiled and interpreted spellings must reach the same verdict: the
+/// interpreted one already consulted `RuntimeExprSurface`, and #1944 was
+/// exactly the two disagreeing under an 8.4 pin.
+#[test]
+fn compiled_and_interpreted_math_functions_agree_on_every_release() {
+    for v in FUNCTION_VECTORS {
+        for version in [
+            TclVersion::V8_4,
+            TclVersion::V8_5,
+            TclVersion::V8_6,
+            TclVersion::V9_0,
+            TclVersion::V9_1,
+        ] {
+            let interpreted = vm_output(&script(FN_INTERPRETED, v.expr), version);
+            assert_eq!(
+                vm_output(&script(FN_COMPILED, v.expr), version),
+                interpreted,
+                "[{version:?}] {} (compiled vs interpreted)",
+                v.name
+            );
+        }
+    }
+}
+
+/// Byte-compare both spellings against every real `tclsh` on `PATH`, which is
+/// what keeps [`FUNCTION_VECTORS`] honest.
+#[test]
+fn math_function_vectors_match_real_tclsh_when_available() {
+    let mut checked = 0usize;
+    for version in [
+        TclVersion::V8_4,
+        TclVersion::V8_5,
+        TclVersion::V8_6,
+        TclVersion::V9_0,
+        TclVersion::V9_1,
+    ] {
+        let bin = format!("tclsh{}", version.version_string());
+        for v in FUNCTION_VECTORS {
+            for template in [FN_COMPILED, FN_INTERPRETED] {
+                let src = script(template, v.expr);
+                let Some(want) = tclsh_output(&bin, &src) else {
+                    continue;
+                };
+                assert_eq!(
+                    vm_output(&src, version),
+                    want,
+                    "[{version:?}] {} vs real {bin}",
+                    v.name
+                );
+                checked += 1;
+            }
+        }
+    }
+    if checked == 0 {
+        eprintln!("no system tclsh found — pinned expectations still verified");
+    }
+}
+
+/// Run `src` under a real tclsh, or `None` when that binary isn't available.
+fn tclsh_output(bin: &str, src: &str) -> Option<String> {
+    use std::io::Write as _;
+    let mut child = std::process::Command::new(bin)
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .ok()?;
+    if let Some(stdin) = child.stdin.as_mut() {
+        let _ = stdin.write_all(src.as_bytes());
+    }
+    let out = child.wait_with_output().ok()?;
+    Some(String::from_utf8_lossy(&out.stdout).trim().to_string())
 }

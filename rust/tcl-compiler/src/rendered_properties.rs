@@ -65,7 +65,7 @@ bitflags! {
         /// No properties known.
         const NONE                = 0;
 
-        // -- may properties (union at joins) --
+        // May properties (union at joins).
         /// Rendered literal text contains `/`.
         const HAS_FORWARD_SLASH   = 1 << 0;
         /// Rendered literal text contains `\\` (path separator).
@@ -83,7 +83,7 @@ bitflags! {
         /// line, or display text, not a single filesystem path token.
         const HAS_LITERAL_SPACE   = 1 << 11;
 
-        // -- provenance bits (propagated explicitly by commands) --
+        // Provenance bits (propagated explicitly by commands).
         /// Value passed through `subst` / `URI::decode` / `b64decode`.
         const WAS_UNESCAPED       = 1 << 6;
         /// Value was already `WAS_UNESCAPED` then unescaped again.
@@ -92,7 +92,7 @@ bitflags! {
         /// (`-normalized` getters, `file normalize`, …).
         const FULLY_NORMALISED    = 1 << 8;
 
-        // -- must properties (intersection at joins) --
+        // Must properties (intersection at joins).
         /// First rendered literal character is `/`.
         const STARTS_WITH_SLASH   = 1 << 9;
         /// First rendered literal character is `-`.
@@ -454,10 +454,10 @@ fn scan_escape(text: &str, start: usize, leading_resolved: bool) -> EscapeScan {
     }
 
     // Render the *exact* escape via the canonical backslash decoder, then
-    // derive the property bits from what it actually produces.  This is the
-    // key fix over the old hand-rolled table: a numeric / hex / unicode /
-    // octal escape (`\x2f`, `/`, `\057`) renders to `/` and therefore
-    // sets `HAS_FORWARD_SLASH` (its absence caused W201 false-negatives).
+    // derive the property bits from what it actually produces: a numeric /
+    // hex / unicode / octal escape (`\x2f`, `/`, `\057`) renders to `/` and
+    // therefore sets `HAS_FORWARD_SLASH`, whose absence would be a W201
+    // false-negative.
     let advance = escape_byte_len(bytes, start);
     let rendered = tcl_lexer::backslash_subst(&text[start..start + advance]);
 
@@ -580,9 +580,9 @@ fn evaluate_value(
     // Pure command substitution → interpolated value. The source *word*
     // carries no literal slash/backslash/CRLF/space — only the fact that
     // it is interpolated (`HAS_INTERPOLATION`), refined with semantic
-    // registry hints.
-    // (a minimal baseline, not the conservative lattice top — using `top`
-    // here over-reported every may-flag for command-substitution values).
+    // registry hints.  This is a minimal baseline, not the conservative
+    // lattice top, which would report every may-flag for a
+    // command-substitution value.
     if let Some((cmd, args)) = parse_command_substitution_with_config(
         stripped,
         tcl_lexer::LexerConfig::for_profile(registry.profile()),
@@ -727,7 +727,7 @@ fn evaluate_def(
 
 /// Run rendered-properties propagation over one SSA function.
 ///
-/// Returns a map from `(variable_name, ssa_version)` to its
+/// Returns a map from `(variable symbol, SSA version)` to its
 /// `RenderedValueProps`. Entries absent from the map are implicitly
 /// `RenderedValueProps::bottom()`.
 ///
@@ -908,7 +908,7 @@ mod tests {
         // a bare (block-less) SSA function suffices for symbol resolution.
         let ssa = SsaFunction::trivial("::top", BlockId(0), vec!["entry".into()]);
         // `[list 1 2 3]` is opaque interpolation — only HAS_INTERPOLATION,
-        // never the full may-mask (the old over-report).
+        // never the full may-mask.
         let p = evaluate_value("[list 1 2 3]", &uses, &props, &registry, &ssa);
         assert_eq!(p.may, RenderedProperties::HAS_INTERPOLATION);
         assert_eq!(p.must, RenderedProperties::NONE);
@@ -1035,7 +1035,7 @@ mod tests {
     }
 
     /// A hex / octal / unicode escape that renders to `/` must set
-    /// `HAS_FORWARD_SLASH` — its absence caused W201 false-negatives.
+    /// `HAS_FORWARD_SLASH` — its absence is a W201 false-negative.
     #[test]
     fn numeric_escapes_rendering_to_slash_set_forward_slash() {
         for src in ["\\x2f", "\\x2Fetc", "\\057", "\\u002f", "\\U0000002f"] {
@@ -1051,7 +1051,7 @@ mod tests {
     }
 
     /// A hex escape that renders to a null / CRLF byte sets the matching
-    /// may-bit (it did not before, the table only knew `\0` and `\n`/`\r`).
+    /// may-bit.
     #[test]
     fn numeric_escapes_render_null_and_crlf() {
         assert!(
@@ -1067,7 +1067,7 @@ mod tests {
     }
 
     /// A non-slash escape (`\t`) renders to a tab — none of the tracked
-    /// content bits should be set (the old table over-set `HAS_BACKSLASH`).
+    /// content bits should be set.
     #[test]
     fn tab_escape_sets_no_content_bits() {
         let p = scan_value_text("a\\tb");

@@ -2,9 +2,8 @@ proc demonstrate {arg1 arg2 arg3 arg4 arg5 arg6 arg7} {
     return "$arg1 $arg2 $arg3 $arg4 $arg5 $arg6 $arg7"
 }
 
-# Too many arguments for the same-file proc — must fire E003 (this used to
-# produce no diagnostic at all, even though an out-of-range variable
-# reference inside the proc body correctly fires W210).
+# Too many arguments for the same-file proc — must fire E003, even though an
+# out-of-range variable reference inside the proc body correctly fires W210.
 demonstrate one two three four five six seven eight
 
 # A correctly-arg-counted call to a different same-file proc must stay

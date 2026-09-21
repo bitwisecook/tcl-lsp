@@ -32,7 +32,7 @@ use std::rc::Rc;
 use tcl_bytecode::{
     ErrorRegion, ErrorStackContext, FunctionAsm, INDEX_END, Instruction, ModuleAsm, Op, Operand,
 };
-use tcl_runtime_api::{Code, Completion, ScriptCompileTarget};
+use tcl_runtime_api::{Code, Completion, FatalTail, ScriptCompileTarget};
 use tcl_syntax::expr::{BinOp, UnaryOp};
 use tcl_syntax::value::string_char_len;
 
@@ -204,7 +204,7 @@ pub(crate) struct Frame {
     /// Set on an **each-loop** activation: a scanner-driven frame (no bytecode,
     /// like `subst`) running a `foreach`/`lmap` runtime-fallback loop, one
     /// iteration's body per yieldable child script frame, folding each result
-    /// back in by `each_loop`'s collect/continue/break rules (issue #1311).
+    /// back in by `each_loop`'s collect/continue/break rules.
     each_loop: Option<Box<EachLoopState>>,
     /// Set on a **try-phase** activation: runs one phase (body/handler/
     /// `finally`) of a `try` construct's real bytecode (unlike `subst`/
@@ -212,7 +212,7 @@ pub(crate) struct Frame {
     /// normally). On completion, `Vm::unwind` calls `cmd_try::advance_try`
     /// with the taken state, which decides whether to push a fresh try-phase
     /// activation for the next phase or deliver the construct's final
-    /// completion (issue #1311).
+    /// completion.
     ///
     /// A completed phase is transparent to the caller's enclosing loop when
     /// no handler/finally clause consumes its `break`/`continue`, just like an
@@ -226,10 +226,17 @@ pub(crate) struct Frame {
     /// Fired (and step scopes popped) as the owning frame unwinds.
     exec_leave: Vec<ExecLeaveCtx>,
     /// A command name to delete once this activation completes, regardless of
-    /// completion code — `apply`'s temporary lambda proc (issue #1311), torn
+    /// completion code — `apply`'s temporary lambda proc, torn
     /// down the same way whether the call returned, errored, or unwound a
     /// `break`/`continue`/`return`. `None` for every other script activation.
     cleanup_proc: Option<String>,
+    /// The parse error to raise once this activation's commands have run, for
+    /// a script whose *later* commands do not parse.  C parses one command at
+    /// a time, so the clean prefix runs first and this is what it raises
+    /// afterwards (#1603).  Applied only to an `ok` completion: an error in an
+    /// earlier command is what C reports, the malformed tail never having been
+    /// parsed.  `None` for every script that parses whole.
+    fatal_tail: Option<FatalTail>,
 }
 
 /// One traced dispatch's leave-side state: the invoked command string, the
@@ -260,17 +267,34 @@ impl ExecStepScope {
 pub(crate) struct CatchCtx {
     resvar: Option<Value>,
     optvar: Option<Value>,
-    fatal_tail: Option<String>,
+    fatal_tail: Option<FatalTail>,
+}
+
+/// An `eval`/`uplevel`/`apply`-style body deferred to the explicit stack.
+///
+/// Parked in `Vm.pending.eval` by the builtin and drained into a transparent
+/// script activation, whose result replaces the builtin's placeholder.
+pub(crate) struct EvalReq {
+    pub(crate) script: crate::compiled::CompiledUnit,
+    /// The `errorInfo` body-frame label (`Some("eval")`/`Some("uplevel")`), or
+    /// `None` for a command substitution.
+    pub(crate) label: Option<&'static str>,
+    /// A command name to delete once the activation completes — `apply`'s
+    /// temporary lambda proc.
+    pub(crate) cleanup_proc: Option<String>,
+    /// The parse error to raise once the body's clean prefix has run, for a
+    /// body whose later commands do not parse (see [`Frame::fatal_tail`]).
+    pub(crate) fatal_tail: Option<FatalTail>,
 }
 
 /// A `catch` body deferred to the explicit stack: the compiled body plus the
-/// variable names to bind once it completes. Mirrors `pending_eval`'s tuple, but
+/// variable names to bind once it completes. Mirrors [`EvalReq`], but
 /// its completion is absorbed (see [`Frame::catch`]).
 pub(crate) struct CatchReq {
     pub(crate) script: crate::compiled::CompiledUnit,
     pub(crate) resvar: Option<Value>,
     pub(crate) optvar: Option<Value>,
-    pub(crate) fatal_tail: Option<String>,
+    pub(crate) fatal_tail: Option<FatalTail>,
 }
 
 /// A `subst` deferred to the explicit stack: the template plus its three
@@ -292,11 +316,11 @@ pub(crate) struct EachLoopGroup {
 }
 
 /// A `foreach`/`lmap` runtime-fallback loop deferred to the explicit stack:
-/// each iteration's body runs as a yieldable child script frame (issue #1311
-/// — this is what a value-consumed `lmap`, e.g. `set r [lmap x {1 2} { yield
-/// $x }]`, needs: reached via generic command dispatch rather than the
-/// compiler's inline `LMAP_COLLECT` loop, its body used to run through
-/// `Vm::eval_source`'s nested drive). Parked in `Vm.pending.each_loop` by
+/// each iteration's body runs as a yieldable child script frame. A
+/// value-consuming `lmap`, e.g. `set r [lmap x {1 2} { yield $x }]`, is
+/// reached via generic command dispatch rather than the compiler's inline
+/// `LMAP_COLLECT` loop, so its body needs this yieldable path rather than
+/// `Vm::eval_source`'s nested drive. Parked in `Vm.pending.each_loop` by
 /// `each_loop` and drained into an each-loop activation (see
 /// [`Frame::each_loop`]).
 pub(crate) struct EachLoopReq {
@@ -359,6 +383,7 @@ impl Frame {
             profile_generation,
             command_epoch,
             compiler,
+            fatal_tail,
         } = unit;
         let off2idx = Rc::new(build_off2idx(&asm));
         let foreach_pairs = Rc::new(pair_foreach(&asm));
@@ -389,6 +414,9 @@ impl Frame {
             try_ctx: None,
             exec_leave: Vec::new(),
             cleanup_proc: None,
+            // A unit compiled from only the clean prefix of a malformed body
+            // carries the error to raise once that prefix has run.
+            fatal_tail,
         }
     }
 
@@ -558,6 +586,7 @@ enum Tick {
         script: crate::compiled::CompiledUnit,
         label: Option<&'static str>,
         cleanup_proc: Option<String>,
+        fatal_tail: Option<FatalTail>,
         namespace: ScriptNamespace,
     },
     /// Run a `catch` body on the explicit stack (yieldable) via a catch
@@ -575,7 +604,7 @@ enum Tick {
     /// (yieldable) via an each-loop activation ([`Frame::new_each_loop`]); each
     /// iteration's body runs as a child script frame and is folded back by
     /// `each_loop`'s collect/continue/break rules. Drained from
-    /// `Vm.pending.each_loop` (issue #1311).
+    /// `Vm.pending.each_loop`.
     PushEachLoop {
         req: EachLoopReq,
         placeholder: crate::compiled::CompiledUnit,
@@ -583,7 +612,7 @@ enum Tick {
     /// Run one phase (body/handler/`finally`) of a `try` on the explicit stack
     /// (yieldable) via a try-phase activation ([`Frame::new_try`]); its
     /// completion decides the next phase via `cmd_try::advance_try`. Drained
-    /// from `Vm.pending.try_phase` (issue #1311).
+    /// from `Vm.pending.try_phase`.
     PushTry {
         req: crate::cmd_try::TryReq,
         initial_options: Value,
@@ -702,7 +731,7 @@ fn dict_from_pairs_with_hash_bucket_count(
 /// `list element in braces followed by "c" instead of space` /
 /// `TCL VALUE LIST JUNK` from `llength` gives the `dict …` /
 /// `TCL VALUE DICTIONARY JUNK` pair from `dict size`. The shared codec speaks
-/// list, so the noun is swapped back on the dict side (issue #1573).
+/// list, so the noun is swapped back on the dict side.
 ///
 /// `missing value to go with key` is already dict-specific, but C still tags it
 /// `TCL VALUE DICTIONARY` where this VM left it `NONE`.
@@ -740,9 +769,9 @@ pub(crate) fn dict_parse_err(message: &str) -> Completion<Value> {
 /// the WASM runtime see: first-occurrence position, **last value winning** on a
 /// duplicate key (`SetDictFromAny`, tclDictObj.c(9.0.4):589, feeding
 /// `Tcl_DictObjPut`'s hash overwrite). Decoding the list rep straight into
-/// `chunks_exact(2)` pairs instead — as these opcodes used to — leaves both
-/// values of a duplicate key in the list, and every `find` then reads or
-/// rewrites the *first* one (issue #1427).
+/// `chunks_exact(2)` pairs instead would leave both values of a duplicate key
+/// in the list, so every `find` would read or rewrite the *first* one instead
+/// of the canonical last.
 impl Vm {
     /// The dict's canonical ordered `(key-string, value)` pairs.
     ///
@@ -751,8 +780,8 @@ impl Vm {
     /// `FindElement`, so `dict size {a 1 {b}c d}` says `dict element in braces
     /// …` with `errorCode` `TCL VALUE DICTIONARY JUNK`. The shared codec is
     /// list-worded (it is the *list* element codec), so the noun is restored
-    /// here — the one place every VM dict path now decodes through, which is
-    /// what makes this a single fix rather than eleven (issue #1573).
+    /// here — the one place every VM dict path decodes through, so the wording
+    /// only needs to be right in one place.
     pub(crate) fn dict_pairs(
         &mut self,
         v: &Value,
@@ -917,9 +946,9 @@ fn ilen(n: usize) -> i64 {
 ///
 /// `end-N` encodes as `INDEX_END - N` and `end+N` as `INDEX_END + N`
 /// (`parse_tcl_index`), so an end-relative index occupies a band *around*
-/// `INDEX_END`, not just `<= INDEX_END`. Detecting only `<= INDEX_END` (the old
-/// test) misread `end+N` as a huge negative plain index, so e.g. `lrange $l
-/// end+1 0` and `lrange $l 0 end+1` disagreed with the uncompiled command
+/// `INDEX_END`, not just `<= INDEX_END`. Detecting only `<= INDEX_END` would
+/// misread `end+N` as a huge negative plain index, so e.g. `lrange $l
+/// end+1 0` and `lrange $l 0 end+1` would disagree with the uncompiled command
 /// (lrange-5 battery). The band's half-width `1 << 29` sits midway between
 /// `INDEX_END` (`-2^30`) and 0: any plausible `end±N` lands inside it, while no
 /// realistic literal plain index is that far negative.
@@ -964,16 +993,14 @@ fn get_at(items: &[Value], i: isize) -> Value {
 /// `0..=len` where `len` appends a fresh (possibly nested) slot. Error messages
 /// match tclsh 9.0 (the reference standard).
 ///
-/// Issue #996: this used to recurse once per path segment natively, with no
-/// depth cap — trivially inflated via a long flat index path (`INST_LSET_FLAT`
-/// / `lset listVar {*}[lrepeat 100000 0] v`). Empirically (a throwaway
-/// `zzz_probe_depth lset <depth>` harness, deleted before this fix landed),
-/// unguarded input overflowed the native stack (SIGABRT) between depth 1800
-/// and 2000 on a 2 MiB thread. Rewritten iteratively — an explicit
-/// work-stack instead of one native call per index — which eliminates the
-/// native-stack risk entirely rather than just capping it: walk down `path`
-/// recording each level's element vector and the index being set (or
-/// appended to), then rebuild bottom-up. This is on the hot bytecode path
+/// Recursing once per path segment natively has no depth cap: an unguarded
+/// long flat index path (`INST_LSET_FLAT` / `lset listVar {*}[lrepeat 100000
+/// 0] v`) overflows the native stack (SIGABRT, empirically between depth 1800
+/// and 2000 on a 2 MiB thread). This walks `path` with an explicit
+/// work-stack instead of one native call per index, which eliminates the
+/// native-stack risk entirely rather than just capping it: it records each
+/// level's element vector and the index being set (or
+/// appended to) walking down, then rebuilds bottom-up. This is on the hot bytecode path
 /// (`INST_LSET_LIST`/`INST_LSET_FLAT`), so the signature (and its two
 /// `exec.rs` callers) is unchanged.
 pub(crate) fn lset_descend(
@@ -1103,7 +1130,7 @@ fn bin(f: &mut Frame, op: BinOp) -> Result<(), Completion<Value>> {
         // `-errorcode` on the arithmetic failures (`ARITH DIVZERO`,
         // `ARITH DOMAIN`), and a bare `err` would drop it, leaving the
         // compiled `expr {…}` path reporting `NONE` where the dynamic
-        // `expr $e` path reports the real code (#1428).
+        // `expr $e` path reports the real code.
         Err(e) => Err(crate::command::completion_from_tcl_error(e)),
     }
 }
@@ -1145,8 +1172,8 @@ fn land_lor(f: &mut Frame, is_and: bool) -> Result<(), Completion<Value>> {
 
 /// A boolean-coercion failure with the `-errorcode` C stamps: `TCL VALUE
 /// DOUBLE NAN` for a NaN in a boolean context, `TCL VALUE NUMBER` for a value
-/// that is neither a number nor a boolean word. Both were `NONE` before
-/// #1581.
+/// that is neither a number nor a boolean word. Without this, both would
+/// default to `NONE`.
 fn boolean_operand_error(e: crate::TclError) -> Completion<Value> {
     let code = if e.message == tcl_syntax::expr::errors::NAN_MESSAGE {
         tcl_syntax::expr::errors::NAN_CODE
@@ -1164,7 +1191,7 @@ fn un(f: &mut Frame, op: UnaryOp) -> Result<(), Completion<Value>> {
             Ok(())
         }
         // Keeps C's `-errorcode` (`ARITH DOMAIN <description>` for an
-        // operand-type error); a bare `err` dropped it (#1581).
+        // operand-type error); a bare `err` would drop it.
         Err(e) => Err(crate::command::completion_from_tcl_error(e)),
     }
 }
@@ -1201,8 +1228,8 @@ fn irule(f: &mut Frame, op: BinOp) -> Result<(), Completion<Value>> {
 
 /// The Tcl `wrong # args` usage message for a proc.
 fn proc_usage(proc: &ProcDef) -> String {
-    // `proc.name` is the VM's unrooted key: construction-inverse tail
-    // (#934) — an `rsplit` would misread a lone-colon name.
+    // `proc.name` is the VM's unrooted key: construction-inverse tail —
+    // an `rsplit` would misread a lone-colon name.
     let simple = proc.usage_name.as_deref().map_or_else(
         || crate::interp::key_holder_and_tail_unrooted(&proc.name).1,
         str::to_owned,
@@ -1302,8 +1329,7 @@ impl Vm {
     /// Deep-copies `asm` into the `Rc` the activation needs. A fallback embedder
     /// invoking the same body repeatedly should hold a
     /// [`FunctionHandle`](crate::embed::FunctionHandle) and call
-    /// [`Vm::invoke_function`] instead, which pays that copy once (issue
-    /// #1373 finding 3).
+    /// [`Vm::invoke_function`] instead, which pays that copy once.
     pub fn run_function(&mut self, asm: &FunctionAsm) -> Completion<Value> {
         if !self.dialect_profile().is_fallback() {
             return err(format!(
@@ -1434,10 +1460,12 @@ impl Vm {
                 script,
                 label,
                 cleanup_proc,
+                fatal_tail,
                 namespace,
             } => {
                 let mut frame = Frame::new_script(script, label);
                 frame.cleanup_proc = cleanup_proc;
+                frame.fatal_tail = fatal_tail;
                 if let ScriptNamespace::CommandBoundary(namespace) = namespace {
                     match self.enter_replay_namespace(namespace) {
                         Ok(previous) => frame.replay_namespace_restore = previous,
@@ -1875,6 +1903,19 @@ impl Vm {
         c = self.validate_unwind_boundary(acts, c);
         loop {
             let mut act = acts.pop().expect("unwinding a non-empty stack");
+            // The clean prefix of a partly-malformed body has now run: raise
+            // the parse error C raises after it (#1603).  This happens *first*,
+            // before any of the completion processing below, so the deferred
+            // error is an error for all of it — error-context frames, the proc
+            // boundary and leave traces each see code 1 rather than the
+            // prefix's `ok`, and `-errorinfo` is built the same way it is for a
+            // runtime error in the same position.  An earlier command's own
+            // completion wins, exactly as in `catch`/`try`.
+            if c.code == Code::Ok
+                && let Some(tail) = act.fatal_tail.take()
+            {
+                c = self.raise_fatal_tail(tail);
+            }
             // An error unwinding through an inlined command body (`eval {…}`)
             // adds the body frames the uncompiled command would, before this
             // activation's own proc frame (innermost first) — the compiled
@@ -1898,9 +1939,9 @@ impl Vm {
                 c = self.settle_exec_leaves(&mut act.exec_leave, c);
             }
             // `apply`'s temporary lambda proc is torn down here, once its script
-            // activation completes — on every completion code, mirroring the old
+            // activation completes — on every completion code, matching a
             // nested-drive `cmd_apply`'s unconditional `vm.take_command` after
-            // `eval_source` returned (issue #1311).
+            // `eval_source` returns.
             if let Some(name) = act.cleanup_proc.take() {
                 self.take_command_unchecked(&name);
             }
@@ -1911,9 +1952,9 @@ impl Vm {
             // it straight through).
             if let Some(ctx) = act.catch.take() {
                 if c.code == Code::Ok
-                    && let Some(message) = ctx.fatal_tail
+                    && let Some(tail) = ctx.fatal_tail
                 {
-                    c = crate::interp::err(message);
+                    c = self.raise_fatal_tail(tail);
                 }
                 c = self.finish_catch(c, ctx.resvar.as_ref(), ctx.optvar.as_ref());
             }
@@ -1922,12 +1963,12 @@ impl Vm {
             // directly — `act` itself is already gone, unlike `each_loop`'s
             // parent-stays-put pattern) or the whole `try` is done, in which
             // case `c` becomes its completion and unwinding continues below
-            // exactly as for any other completed activation (issue #1311).
+            // exactly as for any other completed activation.
             if let Some(mut ctx) = act.try_ctx.take() {
                 if c.code == Code::Ok
-                    && let Some(message) = ctx.fatal_tail.take()
+                    && let Some(tail) = ctx.fatal_tail.take()
                 {
-                    c = crate::interp::err(message);
+                    c = self.raise_fatal_tail(tail);
                 }
                 match crate::cmd_try::advance_try(self, *ctx, c) {
                     crate::cmd_try::TryOutcome::Push(req) => {
@@ -1970,9 +2011,9 @@ impl Vm {
             }
             // An `each_loop` (`foreach`/`lmap` runtime-fallback) activation's body
             // child (`act`) just completed: fold its result into the enclosing
-            // loop's iteration state (issue #1311 — this is what makes a
+            // loop's iteration state — this is what makes a
             // value-consumed `lmap`, e.g. `set r [lmap x {1 2} { yield $x }]`,
-            // yieldable). `Resume` re-ticks the loop frame for the next iteration
+            // yieldable. `Resume` re-ticks the loop frame for the next iteration
             // (or its final result, once exhausted); `Unwind` drops it and keeps
             // unwinding (an error, or an uncaught `return`).
             if acts.last().is_some_and(|p| p.each_loop.is_some()) {
@@ -2243,6 +2284,7 @@ impl Vm {
                     script,
                     label: None,
                     cleanup_proc: None,
+                    fatal_tail: None,
                     namespace: ScriptNamespace::Inherit,
                 },
                 Err(e) => Tick::Return(err(e.message)),
@@ -2299,6 +2341,7 @@ impl Vm {
             script: body,
             label: None,
             cleanup_proc: None,
+            fatal_tail: None,
             namespace: ScriptNamespace::Inherit,
         }
     }
@@ -2477,6 +2520,7 @@ impl Vm {
                     script: self.compiled_unit(child, instr.source_command_namespace.clone()),
                     label: None,
                     cleanup_proc: None,
+                    fatal_tail: None,
                     namespace: ScriptNamespace::CommandBoundary(
                         instr.source_command_namespace.clone(),
                     ),
@@ -2551,7 +2595,7 @@ impl Vm {
         };
 
         match instr.op {
-            // -- stack --
+            // Stack.
             Op::PUSH1 | Op::PUSH4 => {
                 let raw = usize::try_from(imm0(instr))
                     .ok()
@@ -2645,6 +2689,7 @@ impl Vm {
                                 .compiled_unit(child, instr.source_command_namespace.clone()),
                             label: None,
                             cleanup_proc: None,
+                            fatal_tail: None,
                             namespace: ScriptNamespace::CommandBoundary(
                                 instr.source_command_namespace.clone(),
                             ),
@@ -2692,7 +2737,7 @@ impl Vm {
                 }
             }
 
-            // -- variables (stack form, by name) --
+            // Variables (stack form, by name)
             // The `*ScalarStk` opcodes share their C `TEBCresume` case with the
             // general `*Stk` form (the compiler emits them when the name is known
             // to carry no `(index)` part), so they are the same arm here.
@@ -2726,7 +2771,7 @@ impl Vm {
                 }
             }
 
-            // -- variables (LVT form, proc bodies) --
+            // Variables (LVT form, proc bodies)
             Op::LOAD_SCALAR1 | Op::LOAD_SCALAR4 => {
                 let name = lvt_name(imm0(instr));
                 match try_op!(self.read_var_traced(&name)) {
@@ -2817,7 +2862,7 @@ impl Vm {
                 f.stack.push(Value::bool(self.exists_var_traced(&full)));
             }
 
-            // -- arrays --
+            // Arrays.
             Op::LOAD_ARRAY_STK => {
                 let key = pop(f).to_str();
                 let name = pop(f).to_str();
@@ -2890,7 +2935,7 @@ impl Vm {
             Op::ARRAY_MAKE_STK => {
                 let name = pop(f).to_str();
                 // The element-reference test comes from the one owner rather
-                // than a local re-spelling of its predicate (issue #1458).
+                // than a local re-spelling of its predicate.
                 if tcl_syntax::naming::split_element_ref(&name).is_some() {
                     return Tick::Return(err(format!(
                         "can't array set \"{name}\": variable isn't array"
@@ -2899,7 +2944,7 @@ impl Vm {
                 try_op!(self.ensure_array(&name));
             }
 
-            // -- lists (inline opcodes) --
+            // Lists (inline opcodes)
             Op::LIST => {
                 let n = usize::try_from(imm0(instr)).unwrap_or(0);
                 if f.stack.len() < n {
@@ -3006,7 +3051,7 @@ impl Vm {
                 try_op!(self.unset_array_elem_checked(&name, &key, complain));
             }
 
-            // -- append / lappend (LVT scalar + array forms) --
+            // Append / lappend (LVT scalar + array forms)
             Op::APPEND_SCALAR1 | Op::APPEND_SCALAR4 => {
                 let name = lvt_name(imm0(instr));
                 let v = pop(f);
@@ -3087,7 +3132,7 @@ impl Vm {
                 f.stack.push(stored);
             }
 
-            // -- append / lappend (stack form, by name) --
+            // Append / lappend (stack form, by name)
             // `set_var`/`get_var` resolve an `a(k)` name to the element, exactly
             // as C's `TclObjLookupVarEx(part1, NULL)` parses the name.
             Op::APPEND_STK => {
@@ -3208,7 +3253,7 @@ impl Vm {
                 f.stack.push(stored);
             }
 
-            // -- const (TIP 677) --
+            // Const (TIP 677)
             // `constImm`/`constStk` reuse the `const` command's core so the
             // silent re-`const` no-op and the three error messages
             // (`can't make constant "n": …`) stay in one place.
@@ -3284,7 +3329,7 @@ impl Vm {
                 }
             }
 
-            // -- concat (stack form): Tcl-concat the top N values. --
+            // Concat (stack form): Tcl-concat the top N values.
             Op::CONCAT_STK => {
                 let n = usize::try_from(imm0(instr)).unwrap_or(0);
                 let take = f.stack.len().saturating_sub(n);
@@ -3673,7 +3718,7 @@ impl Vm {
                 ));
             }
 
-            // -- dict validation: consumes the (dup'd) TOS, validates even length --
+            // Dict validation: consumes the (dup'd) TOS, validates even length.
             Op::VERIFY_DICT => {
                 let top = pop(f);
                 match top.as_list() {
@@ -3685,7 +3730,7 @@ impl Vm {
                 }
             }
 
-            // -- arithmetic / bitwise / shift --
+            // Arithmetic / bitwise / shift.
             Op::ADD => try_op!(bin(f, BinOp::Add)),
             Op::SUB => try_op!(bin(f, BinOp::Sub)),
             Op::MULT => try_op!(bin(f, BinOp::Mul)),
@@ -3700,7 +3745,7 @@ impl Vm {
             Op::LAND => try_op!(land_lor(f, true)),
             Op::LOR => try_op!(land_lor(f, false)),
 
-            // -- comparisons --
+            // Comparisons.
             Op::EQ => try_op!(cmp(f, BinOp::Eq)),
             Op::NEQ => try_op!(cmp(f, BinOp::Ne)),
             Op::LT => try_op!(cmp(f, BinOp::Lt)),
@@ -3724,7 +3769,7 @@ impl Vm {
                 }));
             }
 
-            // -- iRules dialect operators --
+            // iRules dialect operators.
             // The F5 word operators (`contains`/`starts_with`/`ends_with`/
             // `equals`/`matches`/`matches_glob`/`matches_regex`/`and`/`or`/
             // `not`), which
@@ -3744,7 +3789,7 @@ impl Vm {
             Op::IRULE_WORD_OR => try_op!(irule(f, BinOp::WordOr)),
             Op::IRULE_WORD_NOT => try_op!(un(f, UnaryOp::WordNot)),
 
-            // -- string ops (inline; char-based, mirroring the reference VM) --
+            // String ops (inline; char-based, mirroring the reference VM)
             Op::STR_LEN => {
                 let s = pop(f).to_str();
                 f.stack.push(Value::int(ilen(string_char_len(
@@ -3895,7 +3940,7 @@ impl Vm {
                 f.stack.push(Value::string(out));
             }
 
-            // -- numeric/boolean coercion checks (expr result validation) --
+            // Numeric/boolean coercion checks (expr result validation)
             Op::TRY_CVT_TO_NUMERIC => {
                 // Canonical normalisation (C Tcl `INST_TRY_CVT_TO_NUMERIC`): a
                 // numeric result's string rep is regenerated from the number
@@ -3934,13 +3979,13 @@ impl Vm {
                 f.stack.push(Value::bool(is_bool));
             }
 
-            // -- unary --
+            // Unary.
             Op::UMINUS => try_op!(un(f, UnaryOp::Neg)),
             Op::UPLUS => try_op!(un(f, UnaryOp::Pos)),
             Op::BITNOT => try_op!(un(f, UnaryOp::BitNot)),
             Op::NOT | Op::LNOT => try_op!(un(f, UnaryOp::Not)),
 
-            // -- control flow --
+            // Control flow.
             Op::JUMP1 | Op::JUMP4 => {
                 if let Some(idx) = jump_target(&asm, &f.off2idx, instr) {
                     f.pc = idx;
@@ -3980,7 +4025,7 @@ impl Vm {
                 }
             }
 
-            // -- break / continue --
+            // Break / continue.
             Op::BREAK => {
                 return Tick::Return(Completion::new(Code::Break, Value::empty(), Value::empty()));
             }
@@ -3992,7 +4037,7 @@ impl Vm {
                 ));
             }
 
-            // -- return --
+            // Return.
             // `SYNTAX` shares `RETURN_IMM`'s arm in C too (`tclExecute.c:2287`
             // falls through the two labels): both carry `(code, level)`
             // immediates and read `OBJ_AT_TOS` as the return-options dict,
@@ -4059,7 +4104,7 @@ impl Vm {
                 }
             }
 
-            // -- command dispatch / expr --
+            // Command dispatch / expr.
             Op::INVOKE_STK1 | Op::INVOKE_STK4 => {
                 let argc = usize::try_from(imm0(instr)).unwrap_or(0);
                 if f.stack.len() < argc || argc == 0 {
@@ -4085,7 +4130,7 @@ impl Vm {
                 }
             }
 
-            // -- {*} argument expansion --
+            // {*} argument expansion.
             // `EXPAND_START` records the current stack depth: every word pushed
             // after it belongs to the command being built. `EXPAND_STKTOP`
             // expands the top word (a list) in place. `INVOKE_EXPANDED` recovers
@@ -4200,7 +4245,7 @@ impl Vm {
                 }
             }
 
-            // -- dicts (LVT form, proc bodies) --
+            // Dicts (LVT form, proc bodies)
             // `dict set var k1 ?k2 …? value` — operands [Imm(N), Imm(slot)];
             // stack holds the N keys then the value. Writes the variable and
             // leaves the new dict on the stack (the codegen POPs it).
@@ -4556,7 +4601,7 @@ impl Vm {
                 return Tick::Tailcall(words);
             }
 
-            // -- termination --
+            // Termination.
             Op::DONE => {
                 return Tick::Return(Completion::new(
                     Code::Ok,
@@ -4633,6 +4678,7 @@ impl Vm {
                             script,
                             label: None,
                             cleanup_proc: None,
+                            fatal_tail: None,
                             namespace: ScriptNamespace::Inherit,
                         };
                     }
@@ -4640,7 +4686,7 @@ impl Vm {
                 }
             }
 
-            // -- introspection (C Tcl's "general introspector" instructions) --
+            // Introspection (C Tcl's "general introspector" instructions)
             // Each routes through the same core its command form uses, so the
             // compiled and dispatched paths cannot drift.
             Op::CURRENT_NAMESPACE => {
@@ -4734,7 +4780,7 @@ impl Vm {
                 f.stack.push(crate::cmd_coro::current_coroutine(self));
             }
 
-            // -- TclOO (C's "start of TclOO support instructions" block) --
+            // TclOO (C's "start of TclOO support instructions" block)
             // Each routes through the core its command form uses: `self object`,
             // `info object class`/`namespace`/`isa object`, `next`, `nextto`. The
             // context checks are the opcodes' own, since C's compiled forms report
@@ -4837,8 +4883,7 @@ impl Vm {
         entered: Option<&EnteredCommand>,
     ) -> Result<Option<Tick>, Completion<Value>> {
         // Every dispatched command is charged against the `commands` limit
-        // before anything runs, so an armed budget bounds the work exactly
-        // (issue #1373 finding 1).
+        // before anything runs, so an armed budget bounds the work exactly.
         if let Some(exceeded) = self.charge_command() {
             return Err(exceeded);
         }
@@ -5212,11 +5257,12 @@ impl Vm {
         // An `eval`/`uplevel`/`apply`-style builtin defers its body to the
         // explicit stack (yieldable): drain it into a `PushScript`, whose
         // frame result replaces this builtin's placeholder (as for yield).
-        if let Some((script, label, cleanup_proc)) = self.pending.eval.take() {
+        if let Some(req) = self.pending.eval.take() {
             return Ok(Some(Tick::PushScript {
-                script,
-                label,
-                cleanup_proc,
+                script: req.script,
+                label: req.label,
+                cleanup_proc: req.cleanup_proc,
+                fatal_tail: req.fatal_tail,
                 namespace: ScriptNamespace::Inherit,
             }));
         }
@@ -5235,7 +5281,7 @@ impl Vm {
         }
         // A `foreach`/`lmap` runtime-fallback loop defers to a
         // scanner-driven each-loop frame, whose iterations run yieldably
-        // as child frames (see `Frame::each_loop`, issue #1311).
+        // as child frames (see `Frame::each_loop`).
         if let Some(req) = self.pending.each_loop.take() {
             return Ok(Some(Tick::PushEachLoop {
                 req,
@@ -5243,8 +5289,7 @@ impl Vm {
             }));
         }
         // A `try` defers its body (and, from `advance_try`, each
-        // subsequent phase) to a try-phase frame (see `Frame::try_ctx`,
-        // issue #1311).
+        // subsequent phase) to a try-phase frame (see `Frame::try_ctx`).
         if let Some(req) = self.pending.try_phase.take() {
             return Ok(Some(Tick::PushTry {
                 req,
@@ -5339,7 +5384,7 @@ impl Vm {
                 // there at its global frame/namespace, then switches back with
                 // the completion — errors propagate catchably.  This works
                 // whether this interp is at top level or re-entered deeper on
-                // the stack (issue #946 fault 1: no more C-stack-busy).
+                // the stack: there is no shared C stack to be busy.
                 let mut argv: Vec<Value> = (*target).clone();
                 argv.extend_from_slice(&words[1..]);
                 let res = self.invoke_alias_words(target_interp, &argv);
@@ -5569,9 +5614,16 @@ impl Vm {
         // trampoline to push onto), so run the body via a nested drive —
         // a `yield` inside cannot cross it, exactly like every other
         // `invoke_command` re-entry.
-        if let Some((script, label, cleanup_proc)) = self.pending.eval.take() {
-            let comp = self.run_activation(Frame::new_script(script, label));
-            if let Some(name) = cleanup_proc {
+        if let Some(req) = self.pending.eval.take() {
+            // Carry the deferred parse error on the frame rather than patching
+            // the completion this returns: the unwind applies it before the
+            // activation's error-context and leave-trace processing, and a
+            // nested drive must not get a different lifecycle from the
+            // trampoline's `PushScript`.
+            let mut frame = Frame::new_script(req.script, req.label);
+            frame.fatal_tail = req.fatal_tail;
+            let comp = self.run_activation(frame);
+            if let Some(name) = req.cleanup_proc {
                 self.take_command_unchecked(&name);
             }
             return comp;
@@ -5582,9 +5634,9 @@ impl Vm {
         if let Some(req) = self.pending.catch.take() {
             let mut comp = self.run_activation(Frame::new_script(req.script, None));
             if comp.code == Code::Ok
-                && let Some(message) = req.fatal_tail
+                && let Some(tail) = req.fatal_tail
             {
-                comp = err(message);
+                comp = self.raise_fatal_tail(tail);
             }
             return self.finish_catch(comp, req.resvar.as_ref(), req.optvar.as_ref());
         }
@@ -5695,9 +5747,9 @@ impl Vm {
             // Cross-interp alias: switch to the target interp and run the words
             // there.  Identical to the bytecode path — a cross-interp alias
             // works from a native re-entry (coroutine resume, `lsort
-            // -command`, `invoke_command`), which used to error
-            // `cannot invoke parent-interp alias: C stack busy` (issue #946
-            // fault 1).
+            // -command`, `invoke_command`), unlike C Tcl's shared C stack,
+            // where the same re-entry raises `cannot invoke parent-interp
+            // alias: C stack busy`.
             Command::CrossAlias {
                 target: target_interp,
                 words: target,
@@ -5736,7 +5788,11 @@ impl Vm {
             return c;
         }
         for (local, storage) in link_vars {
-            if let Err(error) = self.add_tcloo_instance_link(local, 0, storage) {
+            // Whether this body compiled a local slot for the name decides only
+            // how `info consts` enumerates the projection (#2173); the link
+            // itself is the same either way.
+            let compiled_slot = proc.body.asm.lvt.is_source_local(local);
+            if let Err(error) = self.add_tcloo_instance_link(local, 0, storage, compiled_slot) {
                 self.pop_call_frame();
                 self.pop_ns();
                 return crate::command::upvar_link_error(error, storage, local);
@@ -6016,18 +6072,15 @@ mod tests {
         assert_eq!(top_pairs(&nested), [("a".into(), "c 2".into())]);
     }
 
-    /// Regression coverage for issue #996: `lset_descend` recurses once per
-    /// index in `lset`'s (possibly nested) index path, with no depth cap
-    /// before this fix — it backs the compiled `INST_LSET_LIST`/
-    /// `INST_LSET_FLAT` opcodes, so a flat index path is trivially inflated
-    /// via `lset listVar {*}[lrepeat 100000 0] v`. Empirically (a
-    /// throwaway `zzz_probe_depth lset <depth>` harness, deleted before
-    /// this fix landed), unguarded input overflowed the native stack
-    /// (SIGABRT) between depth 1800 and 2000 on a 2 MiB thread (`cargo
-    /// test`'s per-test default). Rewritten iteratively (no depth cap at
-    /// all); 2000 is comfortably past that crash range, and the result is
-    /// checked for exact correctness at this depth (descending back down
-    /// the same index path lands on the value that was set), not merely
+    /// `lset_descend` backs the compiled `INST_LSET_LIST`/`INST_LSET_FLAT`
+    /// opcodes; a naive implementation recursing once per index in `lset`'s
+    /// (possibly nested) index path has no depth cap, so a flat index path is
+    /// trivially inflated via `lset listVar {*}[lrepeat 100000 0] v`,
+    /// overflowing the native stack (SIGABRT) between depth 1800 and 2000 on
+    /// a 2 MiB thread (`cargo test`'s per-test default). The iterative
+    /// implementation has no such cap; this test checks exact correctness at
+    /// depth 2000, comfortably past that crash range — descending back down
+    /// the same index path lands on the value that was set, not merely
     /// survival.
     ///
     /// Deliberately NOT 50,000+: constructing (and, at the end of this
@@ -6038,7 +6091,7 @@ mod tests {
     /// for construction+drop alone, independent of any operation performed
     /// on the value). That is a separate, genuinely unbounded-depth concern
     /// in `Value`'s representation itself, not in `lset_descend`'s
-    /// now-iterative logic — out of scope for this fix.
+    /// iterative logic, and this test does not cover it.
     #[test]
     fn deeply_nested_lset_survives_and_is_correct() {
         const DEPTH: usize = 2_000;

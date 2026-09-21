@@ -17,12 +17,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! Differential tests for the BIG-IP graph **node** extraction via
-//! `build_bigip_object_graph`.
+//! `build_objects_for_source`.
 //!
 //! Builds nodes for a representative `bigip.conf` and asserts each node's
 //! identity, resolved kind, byte offsets, and source range match a golden
 //! captured from the graph builder. Self-contained — no external fixture
-//! generator at test time. (Edges are a separate, later increment.)
+//! generator at test time.
 
 use tcl_bigip::graph::{GraphContext, build_objects_for_source};
 

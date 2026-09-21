@@ -178,6 +178,7 @@ pub fn witness_command_spec(spec: &CommandSpec) {
         command_prefixes: _,
         command_prefix_resolver: _,
         script_timing_resolver: _,
+        substitution_resolver: _,
         callback_taint_inputs: _,
         return_type: _,
         return_type_hook: _,
@@ -306,6 +307,10 @@ pub const COMMAND_SPEC: &[Field] = &[
     f(
         "script_timing_resolver",
         Surface::Key("script_timing_resolver"),
+    ),
+    f(
+        "substitution_resolver",
+        Surface::Key("substitution_resolver"),
     ),
     f("return_type", Surface::Key("return_type")),
     f("return_type_hook", Surface::Key("return_type_hook")),
@@ -961,7 +966,7 @@ pub fn witness_handle_binding_spec(spec: &HandleBindingSpec) {
     } = spec;
 }
 
-/// Where the studio surfaces each [`HandleBindingSpec`] field (issue #1185).
+/// Where the studio surfaces each [`HandleBindingSpec`] field.
 pub const HANDLE_BINDING_SPEC: &[Field] = &[
     f("name_from", Surface::Expression("binds_handle")),
     f("class_from", Surface::Expression("binds_handle")),
@@ -1554,7 +1559,7 @@ mod tests {
         );
     }
 
-    // -- the plain-data descriptors really round-trip ------------------------
+    // The plain-data descriptors really round-trip.
     //
     // Each literal below is written twice: once as Rust the compiler accepts,
     // and once as the string the studio renders for it. If the two ever
@@ -1758,7 +1763,7 @@ mod tests {
     }
 
     /// A descriptor the registry really declares survives the round trip —
-    /// `set`'s handle binding (issue #1185), seeded from the live registry.
+    /// `set`'s handle binding, seeded from the live registry.
     #[test]
     fn a_live_registry_binding_round_trips() {
         let registry = tcl_registry::registry::CommandRegistry::build_default();

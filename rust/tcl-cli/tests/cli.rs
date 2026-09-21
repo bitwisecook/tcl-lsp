@@ -394,11 +394,10 @@ fn minify_symbol_map_written_for_plain_minify() {
     let _ = std::fs::remove_file(&tmp);
 }
 
-/// Issue #977: `tcl diag` over several inputs is a multi-file compilation, so
-/// a call in one file must be visible to another file's interprocedural
-/// constant seed.  On its own, the library's two agreeing callers make
-/// `$mode eq "prod"` fold (I230); adding the file that calls it with `dev`
-/// must retract that.
+/// `tcl diag` over several inputs is a multi-file compilation, so a call in
+/// one file must be visible to another file's interprocedural constant seed.
+/// On its own, the library's two agreeing callers make `$mode eq "prod"`
+/// fold (I230); adding the file that calls it with `dev` must retract that.
 #[test]
 fn diag_shares_call_sites_across_inputs() {
     let lib = fixtures_dir().join("issue977Lib.tcl");
@@ -421,12 +420,13 @@ fn diag_shares_call_sites_across_inputs() {
     );
 }
 
-/// Issue #1048: the transform verbs auto-detect a document's dialect, so an
-/// iRule folds the same with and without an explicit `--dialect`.
+/// The transform verbs auto-detect a document's dialect, so an iRule folds
+/// the same with and without an explicit `--dialect`.
 ///
-/// Before the fix `dialect_or_default()` returned `tcl8.6` whenever the flag
-/// was absent, so the optimiser ran the file as plain Tcl: `contains` was not
-/// an operator, the condition never folded, and no `O101` was reported.
+/// If `dialect_or_default()` fell back to `tcl8.6` whenever the flag was
+/// absent, the optimiser would run the file as plain Tcl: `contains` would
+/// not be an operator, the condition would never fold, and no `O101` would
+/// be reported.
 #[test]
 fn opt_detects_the_irules_dialect_without_the_flag() {
     let input = fixtures_dir().join("wordOperator.irule");
@@ -466,6 +466,73 @@ fn opt_leaves_a_word_operator_alone_in_plain_tcl() {
     );
 }
 
+/// Companion to #2120: fixing the cross-file fold must not change what the
+/// output *is*. README and `kcs-feature-tcl-verb-cli` document
+/// `tcl opt src/ -o build/optimised.tcl` as optimising a tree "into one
+/// output script", so the rendered text stays a program: no `# file:` banner
+/// may precede it, or a leading `#!` is pushed off byte zero and the result
+/// is no longer executable. Per-file attribution belongs in the trailing
+/// comment block, which cannot corrupt the script.
+#[test]
+fn opt_over_several_inputs_keeps_the_first_shebang_at_byte_zero() {
+    let out = String::from_utf8(run_tcl(&[
+        "opt",
+        "--source",
+        "#!/usr/bin/env tclsh\nset a [expr {1 + 1}]\nputs $a",
+        "--source",
+        "set b [expr {2 + 2}]\nputs $b",
+    ]))
+    .expect("utf-8 output");
+    assert!(
+        out.starts_with("#!/usr/bin/env tclsh"),
+        "the first input's shebang must stay at byte 0 so the bundled script \
+         is still executable: {out}"
+    );
+    // The attribution still has to be somewhere — in the comment block.
+    assert!(
+        out.contains("# optimised:"),
+        "the rewrite summary must still be reported: {out}"
+    );
+}
+
+/// Regression for #2120: `tcl opt` over several inputs used to concatenate
+/// them into one program before optimising, so a `set` in the first file
+/// could be constant-propagated into a read in the second and the first
+/// file's now-"unused" store eliminated as dead — even though the two files
+/// are never run in the same scope. Each input must be optimised on its own.
+#[test]
+fn opt_does_not_fold_a_store_across_a_file_boundary() {
+    let out = String::from_utf8(run_tcl(&[
+        "opt",
+        "--source",
+        "set shared_value 42",
+        "--source",
+        "puts $shared_value",
+    ]))
+    .expect("utf-8 output");
+    assert!(
+        out.contains("puts $shared_value"),
+        "the second input never sees the first input's assignment at run \
+         time, so the read must stay a variable read, not fold to a literal: \
+         {out}"
+    );
+    assert!(
+        !out.contains("puts 42"),
+        "the old concatenating path forwarded the literal across the file \
+         boundary: {out}"
+    );
+    assert!(
+        out.contains("set shared_value 42"),
+        "the first input's store must survive — it is not dead just because \
+         a *different* file never reads it: {out}"
+    );
+    assert!(
+        !out.contains("O109"),
+        "the old path eliminated the store as a dead store once the fold \
+         made it look unused: {out}"
+    );
+}
+
 /// Like [`run_tcl`] but tolerates a non-zero exit — `diag` returns 1 whenever
 /// it reports a problem-severity finding, which is not a harness failure.
 fn run_tcl_allow_failure(args: &[&str]) -> Vec<u8> {
@@ -474,6 +541,95 @@ fn run_tcl_allow_failure(args: &[&str]) -> Vec<u8> {
         .output()
         .expect("failed to spawn tcl binary")
         .stdout
+}
+
+/// `# noqa` silences a diagnostic for `tcl diag` exactly as it does in the
+/// editor (`docs/kcs/kcs-howto-suppress-diagnostics.md`): the directive covers
+/// the analyser families (`W210`) and the compiler-check families (`S100`)
+/// alike, because both surfaces ask the one shared `line_suppressed` helper.
+///
+/// A comment that merely mentions the word is not a directive, so the finding
+/// below it still fires.
+///
+/// The control is the same fixture with its directive lines stripped: every
+/// code the markers silence must come back, or this test would pass on a
+/// `diag` that had simply stopped reporting.
+#[test]
+fn diag_honours_noqa_directives_the_way_the_editor_does() {
+    let fixture = fixtures_dir().join("noqaSuppression.tcl");
+    let source = std::fs::read_to_string(&fixture).expect("fixture is readable");
+
+    let marked = diag_messages(&["diag", "--json", fixture.to_str().unwrap()]);
+    for silenced in [
+        // `# noqa: W210` — the named analyser code.
+        "suppressedByCode",
+        // bare `# noqa` — every code on the following command.
+        "suppressedByBareNoqa",
+        // `# noqa: S100` — a compiler-check code from the other lift.
+        "dictValue",
+    ] {
+        assert!(
+            !marked.iter().any(|m| m.contains(silenced)),
+            "a preceding noqa must silence the finding on `{silenced}`: {marked:?}"
+        );
+    }
+    assert!(
+        marked.iter().any(|m| m.contains("reportedWithoutAMarker")),
+        "an unmarked W210 must still be reported: {marked:?}"
+    );
+    assert!(
+        marked.iter().any(|m| m.contains("reportedBesideProse")),
+        "a comment that only mentions the word is not a directive: {marked:?}"
+    );
+    assert!(
+        marked.iter().any(|m| m.contains("otherDict")),
+        "an unmarked S100 must still be reported: {marked:?}"
+    );
+
+    let unmarked: String = source
+        .lines()
+        .filter(|line| !line.trim_start().starts_with("# noqa"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let without_markers = diag_messages(&["diag", "--json", "--source", &unmarked]);
+    for reported in [
+        "suppressedByCode",
+        "suppressedByBareNoqa",
+        "reportedWithoutAMarker",
+        "reportedBesideProse",
+        "dictValue",
+        "otherDict",
+    ] {
+        assert!(
+            without_markers.iter().any(|m| m.contains(reported)),
+            "without its marker the finding on `{reported}` must fire: {without_markers:?}"
+        );
+    }
+}
+
+/// Every diagnostic message a `diag --json` run reports, across all its files.
+fn diag_messages(args: &[&str]) -> Vec<String> {
+    let report: serde_json::Value =
+        serde_json::from_slice(&run_tcl_allow_failure(args)).expect("diag JSON");
+    report
+        .as_array()
+        .expect("diag reports an array of files")
+        .iter()
+        .flat_map(|file| {
+            file["diagnostics"]
+                .as_array()
+                .expect("diagnostics array")
+                .iter()
+                .map(|d| {
+                    format!(
+                        "{} {}",
+                        d["code"].as_str().unwrap_or_default(),
+                        d["message"].as_str().unwrap_or_default()
+                    )
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect()
 }
 
 /// A `.sslictcl` document terminated with lone `\r` must draw the same loader
@@ -507,17 +663,102 @@ fn diag_reads_a_cr_terminated_sslictcl_document_the_way_the_editor_does() {
     );
 }
 
-/// Issue #1799 — every code on the `tcl diag` path, not only `SSLIC1xxx`,
-/// must read the analysis form of a lone-CR document.
+/// `tcl diag` runs the source-text pass the editor publishes, so a style
+/// finding is not something you have to open an editor to see.
 ///
-/// The loader branch normalised for itself (#1794) and left the analyser and
-/// compiler-checks passes reading the raw bytes. That diverged from the editor
-/// twice over: the lexer treats a bare `\r` as horizontal whitespace, so the
-/// whole file parsed as one command — inventing findings and hiding real ones —
-/// and `LineIndex` starts a line only after a `\n`, so whatever survived was
-/// reported at line 1.
+/// W111 / W112 / W115 / W118 come from the same `source_style` orchestrator the
+/// server's style lift calls, and the byte-backed W107 / W109 ride with them.
+#[test]
+fn diag_reports_the_source_style_findings_the_editor_publishes() {
+    let messages = diag_messages(&["diag", "--json", "--source", "set x 1   \nset y $x\n"]);
+    assert!(
+        messages.iter().any(|m| m.starts_with("W112")),
+        "trailing whitespace must be reported: {messages:?}"
+    );
+
+    let long = format!("set x \"{}\"\nputs $x\n", "a".repeat(200));
+    let long_messages = diag_messages(&["diag", "--json", "--source", &long]);
+    assert!(
+        long_messages.iter().any(|m| m.starts_with("W111")),
+        "an over-long line must be reported: {long_messages:?}"
+    );
+}
+
+/// A top-of-file `# tcl-lsp: disable=…` silences a code for every pass, not
+/// only the analyser's own.
 ///
-/// The reproducer is the issue's own: an unclosed bracket on the second line.
+/// The analyser folds the directive into its internal disabled set, so its
+/// codes obeyed it already; the source-text and compiler-check passes are
+/// filtered by the caller, which is where the directive has to reach them.
+#[test]
+fn diag_honours_a_file_directive_across_every_pass() {
+    let source = "# tcl-lsp: disable=W112\nset x 1   \nputs $x\n";
+    let messages = diag_messages(&["diag", "--json", "--source", source]);
+    assert!(
+        !messages.iter().any(|m| m.starts_with("W112")),
+        "a file-level directive must silence the style pass too: {messages:?}"
+    );
+
+    let without = diag_messages(&["diag", "--json", "--source", "set x 1   \nputs $x\n"]);
+    assert!(
+        without.iter().any(|m| m.starts_with("W112")),
+        "without the directive the same document reports it: {without:?}"
+    );
+}
+
+/// A file whose bytes are not UTF-8 text reports the integrity code alone, and
+/// a file-level directive silences it by name or by the `*` wildcard.
+///
+/// `*` is the spelling `# tcl-lsp: disable=*` records, and it governs this
+/// family as it governs every other. The document below is NUL-interleaved,
+/// which is what makes the analysis abstain: everything derived from the
+/// decoded text would describe positions the file does not have.
+#[test]
+fn diag_honours_a_file_directive_on_an_abstaining_document() {
+    let nul_run = "\u{0}".repeat(80);
+    let plain = format!("set x 1\n{nul_run}");
+    let by_name = format!("# tcl-lsp: disable=W109\nset x 1\n{nul_run}");
+    let by_wildcard = format!("# tcl-lsp: disable=*\nset x 1\n{nul_run}");
+
+    let plain_rows = tcl_diag_rows("abstain-plain", &plain);
+    assert_eq!(
+        plain_rows
+            .iter()
+            .map(|(code, _)| code.as_str())
+            .collect::<Vec<_>>(),
+        ["W109"],
+        "an abstaining document reports the integrity code and nothing else"
+    );
+    assert!(
+        tcl_diag_rows("abstain-named", &by_name).is_empty(),
+        "`disable=W109` must silence it"
+    );
+    assert!(
+        tcl_diag_rows("abstain-wildcard", &by_wildcard).is_empty(),
+        "`disable=*` must silence it too"
+    );
+}
+
+/// The rows a lone-CR document and its `\n` twin must agree on: everything
+/// except `W118`, the one lint whose subject *is* the line terminators.
+fn without_line_ending_lint(rows: &[(String, u64)]) -> Vec<(String, u64)> {
+    rows.iter()
+        .filter(|(code, _)| code != "W118")
+        .cloned()
+        .collect()
+}
+
+/// Every code on the `tcl diag` path, not only `SSLIC1xxx`, must read the
+/// analysis form of a lone-CR document.
+///
+/// If the analyser and compiler-checks passes read the raw bytes instead
+/// (even with the loader branch normalising for itself), that diverges from
+/// the editor twice over: the lexer treats a bare `\r` as horizontal
+/// whitespace, so the whole file parses as one command — inventing findings
+/// and hiding real ones — and `LineIndex` starts a line only after a `\n`,
+/// so whatever survives is reported at line 1.
+///
+/// The reproducer is an unclosed bracket on the second line.
 #[test]
 fn diag_reads_a_cr_terminated_tcl_document_the_way_the_editor_does() {
     let lf = "set a 1\nset b [\nputs $a\n";
@@ -531,13 +772,28 @@ fn diag_reads_a_cr_terminated_tcl_document_the_way_the_editor_does() {
         "the `\\n` form is the reference reading: {lf_rows:?}"
     );
     assert_eq!(
-        cr_rows, lf_rows,
+        without_line_ending_lint(&cr_rows),
+        without_line_ending_lint(&lf_rows),
         "a lone-CR document must read identically to the `\\n` one"
     );
-    // The two specific ways the raw form diverged, named so a regression is
-    // legible rather than just "the vectors differ".
+    // The terminators themselves are the one legitimate difference: the CR form
+    // is not the expected `\n`, so it earns the W118 its twin cannot.
     assert!(
-        cr_rows.iter().all(|(_, line)| *line > 1),
+        cr_rows.iter().any(|(code, _)| code == "W118"),
+        "the CR form's terminators must be reported: {cr_rows:?}"
+    );
+    assert!(
+        !lf_rows.iter().any(|(code, _)| code == "W118"),
+        "the `\\n` form's terminators are the expected ones: {lf_rows:?}"
+    );
+    // The two specific ways the raw form diverged, named so a regression is
+    // legible rather than just "the vectors differ". W118 is exempt: it is a
+    // whole-file verdict anchored at the top of the document, not a finding
+    // about the line it sits on.
+    assert!(
+        without_line_ending_lint(&cr_rows)
+            .iter()
+            .all(|(_, line)| *line > 1),
         "no finding may collapse onto line 1: {cr_rows:?}"
     );
     assert!(
@@ -546,7 +802,7 @@ fn diag_reads_a_cr_terminated_tcl_document_the_way_the_editor_does() {
     );
 }
 
-/// #1799 review — dialect *detection* must read the analysis form too.
+/// Dialect *detection* must read the analysis form too.
 ///
 /// `detect_dialect`'s directive, shebang and version-guard tiers scan by line,
 /// and Rust's `lines()` splits on `\n` only, so on the raw form of an old-Mac
@@ -562,7 +818,8 @@ fn diag_detects_the_dialect_of_a_cr_terminated_document() {
     let cr_rows = tcl_diag_rows("dialect-cr", &cr);
 
     assert_eq!(
-        cr_rows, lf_rows,
+        without_line_ending_lint(&cr_rows),
+        without_line_ending_lint(&lf_rows),
         "the dialect a lone-CR document resolves to must match its `\\n` twin"
     );
     assert!(
@@ -571,9 +828,9 @@ fn diag_detects_the_dialect_of_a_cr_terminated_document() {
     );
 }
 
-/// #1799 review — the cross-file evidence scans must read the analysis form.
+/// The cross-file evidence scans must read the analysis form too.
 ///
-/// `tcl diag a.tcl b.tcl` is one compilation (#977): the declared-procedure set
+/// `tcl diag a.tcl b.tcl` is one compilation: the declared-procedure set
 /// and the call-site scan decide what may be folded. On the raw form of a
 /// lone-CR pair both scans parse each file as one command, so the caller in the
 /// second file is invisible and the fold the pair should retract survives.
@@ -683,15 +940,301 @@ fn sslictcl_diag_rows(tag: &str, text: &str) -> Vec<(String, u64)> {
     rows
 }
 
+/// Write `text` to a scratch `doc.tcl` and run `tcl` with `args` against it
+/// (the path is appended last), returning stdout. Mirrors the scratch-file
+/// shape [`tcl_diag_rows`] uses, for verbs other than `diag`.
+fn run_tcl_on_scratch_doc(tag: &str, text: &str, args: &[&str]) -> Vec<u8> {
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("clock")
+        .as_nanos();
+    let dir = std::env::temp_dir().join(format!("tcl-cli-cr-{tag}-{nanos}"));
+    std::fs::create_dir_all(&dir).expect("scratch dir");
+    let path = dir.join("doc.tcl");
+    std::fs::write(&path, text).expect("write document");
+
+    let mut full: Vec<&str> = args.to_vec();
+    let path_str = path.to_str().expect("utf-8 path").to_owned();
+    full.push(&path_str);
+    let out = run_tcl_allow_failure(&full);
+    std::fs::remove_dir_all(&dir).ok();
+    out
+}
+
+/// `tcl find-legacy` (`rust/tcl-cli/src/commands/misc.rs`) must analyse the
+/// normalised form of a lone-CR document (#1953): raw, the whole document
+/// mis-parses as one command, so a legacy pattern past the first line is
+/// either missed entirely or reported at the wrong line.
+#[test]
+fn find_legacy_reads_a_cr_terminated_tcl_document_the_way_the_editor_does() {
+    let lf = "set x 1\nset y [expr $x+1]\nputs $y\n";
+    let cr = lf.replace('\n', "\r");
+
+    let lf_out = run_tcl_on_scratch_doc("legacy-lf", lf, &["find-legacy", "--json"]);
+    let cr_out = run_tcl_on_scratch_doc("legacy-cr", &cr, &["find-legacy", "--json"]);
+    let lf_json: serde_json::Value = serde_json::from_slice(&lf_out).expect("find-legacy JSON");
+    let cr_json: serde_json::Value = serde_json::from_slice(&cr_out).expect("find-legacy JSON");
+
+    assert_eq!(
+        lf_json["issues"][0]["code"], "W100",
+        "the `\\n` form is the reference reading: {lf_json}"
+    );
+    assert_eq!(
+        lf_json["issues"][0]["line"], 2,
+        "the unbraced expr sits on line 2: {lf_json}"
+    );
+    assert_eq!(
+        cr_json, lf_json,
+        "a lone-CR document must report the same legacy pattern at the same line as its `\\n` twin"
+    );
+}
+
+/// `tcl minimize` (`rust/tcl-cli/src/commands/minimize.rs`) must reduce the
+/// normalised form of a lone-CR document (#1953): raw, the document mis-parses
+/// as one command, so the target diagnostic never fires and reduction fails
+/// outright rather than reproducing a wrong minimal snippet.
+#[test]
+fn minimize_reduces_a_cr_terminated_document_the_way_the_editor_does() {
+    let lf = "set a 1\nset b 2\nputs $a\n";
+    let cr = lf.replace('\n', "\r");
+
+    // `tcl minimize FILE CODE [--json]`: CODE is the final positional
+    // argument (`InputArgs::inputs.split_last()`), so the scratch path must
+    // come *before* it — `run_tcl_on_scratch_doc` appends its path last and
+    // would leave CODE looking like a second input file.
+    let minimize = |tag: &str, text: &str| -> Vec<u8> {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos();
+        let dir = std::env::temp_dir().join(format!("tcl-cli-minimize-{tag}-{nanos}"));
+        std::fs::create_dir_all(&dir).expect("scratch dir");
+        let path = dir.join("doc.tcl");
+        std::fs::write(&path, text).expect("write document");
+        let out = run_tcl_allow_failure(&[
+            "minimize",
+            path.to_str().expect("utf-8 path"),
+            "W211",
+            "--json",
+        ]);
+        std::fs::remove_dir_all(&dir).ok();
+        out
+    };
+    let lf_out = minimize("lf", lf);
+    let cr_out = minimize("cr", &cr);
+    let lf_json: serde_json::Value = serde_json::from_slice(&lf_out)
+        .unwrap_or_else(|e| panic!("minimize JSON: {e}\n{lf_out:?}"));
+    let cr_json: serde_json::Value = serde_json::from_slice(&cr_out)
+        .unwrap_or_else(|e| panic!("minimize JSON: {e}\n{cr_out:?}"));
+
+    assert_eq!(
+        lf_json[0]["reproduces"], true,
+        "the `\\n` form is the reference reading: {lf_json}"
+    );
+    assert_eq!(
+        lf_json[0]["source"], "set a 2",
+        "W211 minimises to the unused-set alone: {lf_json}"
+    );
+    assert_eq!(
+        cr_json[0]["source"], lf_json[0]["source"],
+        "a lone-CR document must minimise to the same reproducer as its `\\n` twin: {cr_json}"
+    );
+    assert_eq!(cr_json[0]["reproduces"], true);
+}
+
+/// `tcl callgraph` (`rust/tcl-cli/src/commands/graphs.rs`, shared by
+/// `symbols` / `symbolgraph` / `dataflow` through the same `combine_sources`
+/// call) must analyse the normalised form of a lone-CR document (#1953): raw,
+/// both `proc` definitions collapse into one mis-parsed command and the whole
+/// call graph comes back empty.
+#[test]
+fn callgraph_reads_a_cr_terminated_tcl_document_the_way_the_editor_does() {
+    let lf = "proc foo {} {\n    bar\n}\nproc bar {} {\n    puts hi\n}\nfoo\n";
+    let cr = lf.replace('\n', "\r");
+
+    let lf_out = run_tcl_on_scratch_doc("cg-lf", lf, &["callgraph", "--json"]);
+    let cr_out = run_tcl_on_scratch_doc("cg-cr", &cr, &["callgraph", "--json"]);
+    let lf_json: serde_json::Value = serde_json::from_slice(&lf_out).expect("callgraph JSON");
+    let cr_json: serde_json::Value = serde_json::from_slice(&cr_out).expect("callgraph JSON");
+
+    assert_eq!(
+        lf_json["nodes"].as_array().expect("nodes").len(),
+        2,
+        "the `\\n` form is the reference reading: {lf_json}"
+    );
+    // Neither side names its input file, so the two payloads must agree
+    // byte-for-byte once both are read as the analyser reads them.
+    assert_eq!(
+        cr_json, lf_json,
+        "a lone-CR document's call graph must match its `\\n` twin: {cr_json}"
+    );
+}
+
+/// `tcl diff` (`rust/tcl-cli/src/commands/diff.rs`) must combine and analyse
+/// the normalised form of each side (#1953): raw, a lone-CR side mis-parses as
+/// one command while its `\n` twin parses as three, so the AST/IR/CFG layers
+/// report a structural difference between two documents that are the same
+/// script under a different line ending.
+#[test]
+fn diff_treats_a_lone_cr_document_as_identical_to_its_lf_twin() {
+    let lf = "set a 1\nset b 2\nputs $a\n";
+    let cr = lf.replace('\n', "\r");
+
+    let out = run_tcl_allow_failure(&[
+        "diff",
+        "--left-source",
+        lf,
+        "--right-source",
+        &cr,
+        "--show",
+        "all",
+        "--json",
+    ]);
+    let report: serde_json::Value = serde_json::from_slice(&out).expect("diff JSON");
+
+    assert_eq!(
+        report["equal"], true,
+        "a lone-CR document and its `\\n` twin carry the same script, so every \
+         layer must report equal rather than a spurious structural diff: {report}"
+    );
+    for layer in ["ast", "ir", "cfg"] {
+        assert_eq!(
+            report["layers"][layer]["equal"], true,
+            "layer `{layer}` must not diverge on line-ending alone: {report}"
+        );
+    }
+}
+
+/// `tcl pkg discover` (`rust/tcl-cli/src/commands/pkg_discover.rs`) must scan
+/// the normalised form of a lone-CR document (#1953): raw, the whole document
+/// mis-parses as one command, so every `package require` after the first line
+/// is invisible to discovery.
+#[test]
+fn pkg_discover_reads_a_cr_terminated_tcl_document_the_way_the_editor_does() {
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("clock")
+        .as_nanos();
+    let dir = std::env::temp_dir().join(format!("tcl-cli-pkg-discover-cr-{nanos}"));
+    std::fs::create_dir_all(&dir).expect("scratch dir");
+    std::fs::write(
+        dir.join("tclpkg.tcl"),
+        "package demo-app\nversion 0.1.0\ntcl >=8.6\n",
+    )
+    .expect("write manifest");
+
+    let lf = "set x 1\nputs $x\npackage require json 1.0\nputs done\npackage require http 2.9\n";
+    let cr = lf.replace('\n', "\r");
+    std::fs::write(dir.join("lf.tcl"), lf).expect("write lf source");
+    std::fs::write(dir.join("cr.tcl"), &cr).expect("write cr source");
+
+    let discover = |source: &str| -> Vec<(String, u64)> {
+        let manifest = dir.join("tclpkg.tcl");
+        let out = run_tcl_allow_failure(&[
+            "pkg",
+            "discover",
+            dir.join(source).to_str().expect("utf-8 path"),
+            "--manifest",
+            manifest.to_str().expect("utf-8 path"),
+            "--json",
+        ]);
+        let report: serde_json::Value = serde_json::from_slice(&out)
+            .unwrap_or_else(|e| panic!("pkg discover JSON: {e}\n{out:?}"));
+        report["requirements"]
+            .as_array()
+            .expect("requirements array")
+            .iter()
+            .map(|r| {
+                (
+                    r["name"].as_str().expect("name").to_owned(),
+                    r["line"].as_u64().expect("line"),
+                )
+            })
+            .collect()
+    };
+
+    let lf_requirements = discover("lf.tcl");
+    let cr_requirements = discover("cr.tcl");
+    std::fs::remove_dir_all(&dir).ok();
+
+    assert_eq!(
+        lf_requirements,
+        vec![("json".to_owned(), 3), ("http".to_owned(), 5)],
+        "the `\\n` form is the reference reading"
+    );
+    assert_eq!(
+        cr_requirements, lf_requirements,
+        "a lone-CR document must discover the same requirements at the same lines \
+         as its `\\n` twin: {cr_requirements:?}"
+    );
+}
+
+/// `tcl compwasm` (`rust/tcl-cli/src/commands/compile.rs`) must build the
+/// `CompilationUnit` from the normalised form of a lone-CR document (#1953):
+/// raw, the document mis-parses as one command, so the compiled module never
+/// defines the `proc` at all — a mis-parse is not just a wrong report here,
+/// it is wrong emitted code.
+#[test]
+fn compwasm_compiles_a_cr_terminated_document_the_way_the_editor_does() {
+    let lf = "proc foo {} {\n    return 1\n}\nputs [foo]\n";
+    let cr = lf.replace('\n', "\r");
+
+    let wat_for = |tag: &str, text: &str| -> String {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos();
+        let dir = std::env::temp_dir().join(format!("tcl-cli-compwasm-{tag}-{nanos}"));
+        std::fs::create_dir_all(&dir).expect("scratch dir");
+        let src_path = dir.join("doc.tcl");
+        std::fs::write(&src_path, text).expect("write document");
+        let wasm_path = dir.join("out.wasm");
+        let wat_path = dir.join("out.wat");
+        let output = Command::new(env!("CARGO_BIN_EXE_tcl"))
+            .args([
+                "compwasm",
+                src_path.to_str().expect("utf-8 path"),
+                "-o",
+                wasm_path.to_str().expect("utf-8 path"),
+                "--wat-output",
+                wat_path.to_str().expect("utf-8 path"),
+            ])
+            .output()
+            .expect("failed to spawn tcl binary");
+        assert!(
+            output.status.success(),
+            "tcl compwasm exited {:?}\nstderr: {}",
+            output.status.code(),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let wat = std::fs::read_to_string(&wat_path).expect("read WAT output");
+        std::fs::remove_dir_all(&dir).ok();
+        wat
+    };
+
+    let lf_wat = wat_for("lf", lf);
+    let cr_wat = wat_for("cr", &cr);
+
+    assert!(
+        lf_wat.contains("$::foo"),
+        "the `\\n` form is the reference reading and must compile `foo` as a \
+         function: {lf_wat}"
+    );
+    assert_eq!(
+        cr_wat, lf_wat,
+        "a lone-CR document must compile to the same module as its `\\n` twin"
+    );
+}
+
 /// The committed `samples/optimiser/` outputs are what the current optimiser
 /// produces, byte for byte.
 ///
-/// Nothing compared them to a run, so they spent the Python optimiser's whole
-/// retirement documenting behaviour the toolchain no longer had — down to
-/// showing an `incr` rewrite the Rust optimiser declines and a footer format
-/// that no longer exists (issue #1789). The regeneration loop in
-/// `samples/optimiser/README.md` is exactly this test, so a pass that changes
-/// what any profile emits fails here until the samples are refreshed with it.
+/// Without a test comparing them to a real run, committed samples can drift
+/// from actual behaviour undetected — e.g. showing an `incr` rewrite the
+/// current optimiser declines, or a footer format it no longer emits. The
+/// regeneration loop in `samples/optimiser/README.md` is exactly this test,
+/// so a pass that changes what any profile emits fails here until the
+/// samples are refreshed with it.
 #[test]
 fn samples_optimiser_profiles_are_regenerated() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");

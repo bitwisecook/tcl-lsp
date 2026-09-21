@@ -54,8 +54,6 @@ use crate::ir::Statement;
 use crate::registry_invocation::{RegistryInvocationResolution, resolve_command_tokens};
 use crate::ssa::{SsaFunction, Version};
 
-// MemoryLocationKind / MemoryLocation
-
 /// Classification of a memory location.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum MemoryLocationKind {
@@ -140,8 +138,6 @@ impl MemoryLocation {
     }
 }
 
-// AliasSet
-
 /// A group of memory locations that may alias each other.
 ///
 /// For example, if `upvar 1 caller_x local_x` is in scope then
@@ -150,10 +146,10 @@ impl MemoryLocation {
 pub struct AliasSet {
     /// Locations merged into this set. Ordered for stable output.
     pub locations: BTreeSet<MemoryLocation>,
-    /// Reason describing why the set was formed — e.g. `"upvar"`,
-    /// `"global"`, `"variable"`, or a combination (comma-separated,
-    /// sorted) when multiple detection paths merged into the same
-    /// set.
+    /// Reason describing why the set was formed — e.g. `"global-cell"`,
+    /// `"caller-frame-cell"`, `"namespace-cell"`, or a combination
+    /// (comma-separated, sorted) when several detection paths merged into
+    /// the same set; `"alias"` when no path recorded one.
     pub reason: String,
 }
 
@@ -185,8 +181,6 @@ impl AliasSet {
         self.locations.iter().any(|l| l.name == name)
     }
 }
-
-// MemoryOpKind / MemoryOp
 
 /// Kind of memory operation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -287,8 +281,6 @@ impl MemoryOp {
     }
 }
 
-// MemorySsaFunction
-
 /// Memory-SSA annotations for a single function.
 ///
 /// Produced by `build_memory_ssa`. Carries:
@@ -330,8 +322,6 @@ impl MemorySsaFunction {
         out
     }
 }
-
-// Detection helpers
 
 /// One precise alias pair materialised from a registry transition fact.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -531,8 +521,6 @@ pub fn is_clobber(
         _ => false,
     }
 }
-
-// compute_aliases + build_memory_ssa
 
 /// Union-find over [`MemoryLocation`] values with per-root reason
 /// aggregation. Used by [`compute_aliases`] to merge aliases
@@ -740,8 +728,8 @@ pub fn build_memory_ssa(
             // the statement's own defs bump the counter.  A self-referential
             // aliased write (`upvar c x; set x [expr {$x + 1}]`) reads the
             // *incoming* version of `x`, not the one it is defining — tagging
-            // the use with the post-def `version_counter` recorded the write as
-            // the read's own reaching def (issue 154).
+            // the use with the post-def `version_counter` would record the
+            // write as the read's own reaching def.
             let reaching_version = version_counter;
 
             for &sym in stmt_ssa.defs.keys() {
@@ -877,8 +865,6 @@ mod tests {
         assert!(names.contains("b"));
         assert_eq!(names.len(), 2);
     }
-
-    // -- MemoryOp + MemorySsaFunction + detection --
 
     fn call(cmd: &str, args: &[&str]) -> Statement {
         let args: Vec<String> = args.iter().map(|arg| (*arg).to_owned()).collect();
@@ -1047,11 +1033,10 @@ mod tests {
         ));
     }
 
-    /// The old hardcoded name list spelt these as the compound strings
-    /// `"interp eval"` / `"namespace eval"`, which a bare `command` field
-    /// never matches — so the subcommand-resolved forms silently escaped
-    /// the clobber classification.  The registry path resolves the
-    /// subcommand word (unique prefixes included) and reads its traits.
+    /// A code-evaluating subcommand must be classified as a clobber. Matching
+    /// a compound spelling such as `"interp eval"` against a bare `command`
+    /// field never fires; the registry path instead resolves the subcommand
+    /// word (unique prefixes included) and reads its traits.
     #[test]
     fn is_clobber_resolves_code_evaluating_subcommands() {
         let reg = CommandRegistry::build_default();
@@ -1090,8 +1075,6 @@ mod tests {
         };
         assert!(is_clobber(&computed_subcommand, &reg, Some(test_context())));
     }
-
-    // -- compute_aliases + build_memory_ssa --
 
     use crate::ssa::{SsaBlock, SsaStatement};
 
@@ -1337,8 +1320,8 @@ mod tests {
         // `set shared [expr {$shared + 1}]` that both reads and writes `shared`
         // in one statement. The read must carry the version *reaching* the
         // statement, strictly below the version the statement defines — tagging
-        // it with the post-def counter recorded the write as its own reaching
-        // def (issue 154).
+        // it with the post-def counter would record the write as its own
+        // reaching def.
         let entry = BlockId(0);
         let mut ssa = SsaFunction::trivial("::test", entry, vec!["entry".into()]);
         let shared = ssa.intern_var("shared");

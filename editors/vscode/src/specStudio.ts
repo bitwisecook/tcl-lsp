@@ -142,7 +142,7 @@ class SpecStudioSession implements vscode.Disposable {
    * highlighting, completion or hover in the very buffer the studio exists to
    * give feedback on. The per-document override is the seam that does not
    * disturb any other open buffer, unlike the two session-global dialect
-   * commands (issue #1931).
+   * commands.
    */
   private async applySampleDialect(dialect: string | undefined): Promise<void> {
     const uri = this.documents.get("sample")!;

@@ -29,10 +29,8 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFileManager
 import java.security.MessageDigest
 
-// ---------------------------------------------------------------------------
 // Document-modifying commands. The LSP server returns a WorkspaceEdit that
 // lsp4j applies in-place, so the action just dispatches the command.
-// ---------------------------------------------------------------------------
 
 class OptimiseDocumentAction : TclLspActionBase() {
     override val commandId = "tcl-lsp.optimiseDocument"
@@ -67,10 +65,8 @@ class FixAllSafeIssuesAction : TclLspActionBase() {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Analysis commands that return generated content. The result is opened in a
 // scratch editor so the user can save / iterate on it.
-// ---------------------------------------------------------------------------
 
 class TkPreviewAction : TclLspActionBase() {
     override val commandId = "tcl-lsp.tkPreview"
@@ -654,11 +650,9 @@ private fun JsonObject.string(name: String): String? =
 private fun JsonObject.array(name: String): JsonArray? =
     get(name)?.takeIf { it.isJsonArray }?.asJsonArray
 
-// ---------------------------------------------------------------------------
 // URI-as-input commands. extractLinkedObjects + bigipCleanup both want the
 // current document's URI plus a default options dict; the server fills in
 // the rest from the parsed config.
-// ---------------------------------------------------------------------------
 
 class BigipCleanupAction : TclLspActionBase() {
     override val commandId = "tcl-lsp.bigipCleanup"
@@ -678,9 +672,7 @@ class ExtractLinkedObjectsAction : TclLspActionBase() {
     override fun resultExtension(result: Any?): String = "json"
 }
 
-// ---------------------------------------------------------------------------
 // Information / catalogue queries. No document context required.
-// ---------------------------------------------------------------------------
 
 class ListIruleEventsAction : TclLspActionBase() {
     override val commandId = "tcl-lsp.listIruleEvents"
@@ -705,9 +697,7 @@ class GetEffectiveConfigAction : TclLspActionBase() {
     override fun resultExtension(result: Any?): String = "json"
 }
 
-// ---------------------------------------------------------------------------
 // Prompt-driven catalogue lookups.
-// ---------------------------------------------------------------------------
 
 class DescribeIruleEventAction : TclLspActionBase() {
     override val commandId = "tcl-lsp.describeIruleEvent"

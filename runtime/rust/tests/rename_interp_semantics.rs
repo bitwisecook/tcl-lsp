@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Oracle-pinned regression coverage for the r6a-rename-interp lane (#1412).
+//! Oracle-pinned regression coverage for `rename`/`interp` command handling.
 //!
 //! Every expected message/result below was taken from a real `rename`/`interp`
 //! call against `tclsh9.0` (9.0.4), and cross-checked against `tclsh8.6`
@@ -26,7 +26,7 @@
 
 use tcl_runtime::interp::{Code, Interp};
 
-/// item 1: `rename` onto an occupied destination refuses and leaves both
+/// `rename` onto an occupied destination refuses and leaves both
 /// commands intact (`can't rename to "X": command already exists`), rather
 /// than silently destroying the destination.
 ///
@@ -51,7 +51,7 @@ fn rename_onto_occupied_destination_refuses_and_leaves_both_intact() {
     assert_eq!(interp.result_bytes(), b"B".as_slice());
 }
 
-/// item 1, self-rename corner: C's `TclRenameCommand` checks the
+/// The self-rename corner: C's `TclRenameCommand` checks the
 /// destination's hash table *before* removing the source, so a same-slot
 /// self-rename finds the source itself occupying the slot and refuses too.
 ///
@@ -75,7 +75,7 @@ fn rename_onto_its_own_name_also_refuses() {
     assert_eq!(interp.result_bytes(), b"F".as_slice());
 }
 
-/// item 2: `rename` across namespaces re-homes a proc — C's
+/// `rename` across namespaces re-homes a proc — C's
 /// `TclRenameCommand` reassigns `cmdPtr->nsPtr`, so `namespace current`
 /// inside the body reports the *new* namespace, not the definition-time one.
 ///
@@ -97,7 +97,7 @@ fn rename_across_namespaces_rehomes_a_proc() {
     assert_eq!(interp.result_bytes(), b"::dst".as_slice());
 }
 
-/// item 3: `interp`'s bad-option list must advertise only subcommands it
+/// `interp`'s bad-option list must advertise only subcommands it
 /// dispatches. `target` is cheap (this runtime's two alias shapes make the
 /// interp-path trivial to compute) and now has an arm; `cancel`/`share`/
 /// `transfer` need infrastructure this runtime has none of (script
@@ -127,7 +127,7 @@ fn interp_bad_option_list_advertises_only_dispatched_subcommands() {
     // via the fallthrough).
     assert_eq!(interp.eval_str(b"catch {interp cancel} e; set e"), Code::Ok);
     assert!(interp.result_bytes().starts_with(b"bad option \"cancel\""));
-    // Issue #1607: the list is shortened, but it is still resolved by the one
+    // The list is shortened, but it is still resolved by the one
     // `Tcl_GetIndexFromObj` matcher, so tclsh's abbreviation and ambiguity
     // verdicts hold over it.
     //
@@ -142,7 +142,7 @@ fn interp_bad_option_list_advertises_only_dispatched_subcommands() {
     assert!(interp.result_bytes().starts_with(b"ambiguous option \"\""));
 }
 
-/// item 3: `interp target path alias` — the interp-path from this interp to
+/// `interp target path alias` — the interp-path from this interp to
 /// `alias`'s target interpreter. A same-interp alias's target is the
 /// interpreter it is installed in, so `interp target {} name` for a
 /// same-interp alias returns the empty list (tclsh9.0.4-pinned:
@@ -171,9 +171,9 @@ fn interp_target_of_a_same_interp_alias_is_the_empty_path() {
     );
 }
 
-/// item 5: `interp invokehidden`'s `-namespace`/`-global` options establish
+/// `interp invokehidden`'s `-namespace`/`-global` options establish
 /// the evaluation context (resolved from the **global** namespace regardless
-/// of the caller's current one, C's `TCL_GLOBAL_ONLY`), and an unrecognized
+/// of the caller's current one, C's `TCL_GLOBAL_ONLY`), and an unrecognised
 /// option is a hard error rather than a silently-skipped no-op. There is no
 /// mutual-exclusion refusal for passing both — the issue's own claim of a
 /// `cannot use -global option and -namespace option together` error does not
@@ -209,10 +209,10 @@ fn invokehidden_rejects_unknown_options_and_namespace_is_global_anchored() {
     assert_eq!(interp.result_bytes(), b"".as_slice());
 }
 
-/// item 7: `$child subcommand` and `interp subcommand` report the same
-/// `bad option` shape on an unrecognized subcommand — `$child`'s previously
-/// said `interp subcommand "X" is not supported in this runtime`, not a
-/// tclsh error shape at all. The two lists differ (the child command object
+/// `$child subcommand` and `interp subcommand` report the same
+/// `bad option` shape on an unrecognised subcommand, rather than `$child`
+/// reporting `interp subcommand "X" is not supported in this runtime` — not
+/// a tclsh error shape at all. The two lists differ (the child command object
 /// never dispatches `children`/`create`/`delete`/`exists` — those are only
 /// ever spelled `interp <op> path`), but both are real tclsh `bad option`
 /// errors.
@@ -235,7 +235,7 @@ fn child_command_bad_option_matches_the_tclsh_shape() {
           or recursionlimit"
             .as_slice()
     );
-    // Issue #1607: the same table now abbreviates, exactly as tclsh's does.
+    // The same table abbreviates, exactly as tclsh's does.
     //
     // tclsh9.0.4:
     //   kid ev {set x 1} -> 1
@@ -246,8 +246,7 @@ fn child_command_bad_option_matches_the_tclsh_shape() {
     assert!(interp.result_bytes().starts_with(b"ambiguous option \"h\""));
 }
 
-/// item 4 (fixed before this lane started, pinned here as a regression
-/// guard): the delete form of `rename` — `rename name ""` — words its
+/// The delete form of `rename` — `rename name ""` — words its
 /// missing-source error `can't delete`, not `can't rename`.
 ///
 /// tclsh9.0.4:
@@ -266,8 +265,7 @@ fn rename_delete_form_says_cant_delete() {
     );
 }
 
-/// item 6 (fixed before this lane started, pinned here as a regression
-/// guard): `interp hide`/`expose` misses raise, and `expose` refuses an
+/// `interp hide`/`expose` misses raise, and `expose` refuses an
 /// occupied destination instead of overwriting it.
 ///
 /// tclsh9.0.4:
@@ -341,10 +339,10 @@ fn a_delete_trace_recreating_an_identical_alias_keeps_the_new_binding() {
     assert_eq!(interp.result_bytes(), b"R".as_slice());
 }
 
-/// R1: `$child hide|expose` takes the same one- *or* two-word form the
-/// ensemble does. The arm used to guard on `argv.len() == 3`, so the two-word
-/// spelling fell through to the `bad option` fallthrough and reported
-/// `bad option "hide"` — an option the same message lists as valid.
+/// `$child hide|expose` takes the same one- *or* two-word form the
+/// ensemble does. Guarding on `argv.len() == 3` alone would make the
+/// two-word spelling fall through to the `bad option` fallthrough and
+/// report `bad option "hide"` — an option the same message lists as valid.
 ///
 /// tclsh9.0.4 (and 8.6.16):
 ///   interp create kid
@@ -366,7 +364,7 @@ fn child_hide_and_expose_accept_the_two_word_form() {
     assert_eq!(interp.result_bytes(), b"lst2".as_slice());
 }
 
-/// R1, the arity errors: C's `NRChildCmd` names the *child command* in its
+/// The arity errors: C's `NRChildCmd` names the *child command* in its
 /// `wrong # args` text, never the `interp` ensemble.
 ///
 /// tclsh9.0.4 (and 8.6.16):
@@ -412,9 +410,9 @@ fn child_hide_and_expose_arity_errors_name_the_child() {
     );
 }
 
-/// R2: the shorthand goes through the same structural checks as the ensemble
-/// form. It used to call `hide_command(&cmd, &cmd)` directly, so
-/// `kid hide ::foo::bar` silently filed a namespaced command under the token
+/// The shorthand goes through the same structural checks as the ensemble
+/// form. Calling `hide_command(&cmd, &cmd)` directly instead would let
+/// `kid hide ::foo::bar` silently file a namespaced command under the token
 /// `::foo::bar` — a token C has never allowed. The last element re-reads the
 /// command to prove the refusal left it in place.
 ///
@@ -470,7 +468,7 @@ fn child_hide_and_expose_enforce_the_structural_checks() {
     );
 }
 
-/// R2b / R2c: `Tcl_ExposeCommand`'s check order is observable when more than
+/// `Tcl_ExposeCommand`'s check order is observable when more than
 /// one check applies. It tests the *destination* for `::` first, then looks the
 /// token up, then refuses an occupied destination — and it has **no**
 /// token-qualifier check at all, so a qualified token is simply a token that is
@@ -516,11 +514,11 @@ fn expose_check_order_matches_c() {
     );
 }
 
-/// R2d / R2e: `Tcl_HideCommand`'s order is the mirror question — token
+/// `Tcl_HideCommand`'s order is the mirror question — token
 /// qualifiers, *then* resolve the source, *then* reject a non-global source,
-/// *then* refuse an occupied token. The runtime used to test non-global before
-/// existence and occupancy before both, so a missing source could be reported
-/// as either of the other two.
+/// *then* refuse an occupied token. Testing non-global before existence, and
+/// occupancy before both, would let a missing source be reported as either
+/// of the other two.
 ///
 /// tclsh9.0.4 (and 8.6.16):
 ///   interp create kid
@@ -566,8 +564,8 @@ fn hide_check_order_matches_c() {
     );
 }
 
-/// R3: `$child invokehidden` parses its options. The arm used to take
-/// `argv[2]` as the command word unconditionally, so `-global` was looked up as
+/// `$child invokehidden` parses its options. Taking
+/// `argv[2]` as the command word unconditionally would look `-global` up as
 /// a hidden command name. `-global` and `-namespace ns` both switch the child's
 /// evaluation context for the one call; passing both is legal and the **last**
 /// one wins (there is no mutual-exclusion error in C — see
@@ -622,10 +620,11 @@ fn child_invokehidden_honours_global_and_namespace_and_rejects_bad_options() {
     );
 }
 
-/// R4: every arity message names the right noun, and the lenient arms count
-/// their words. `kid` alone said `"interp cmd ?arg ...?"`; `kid eval` with no
-/// script evaluated the empty string; `kid hidden extra` and its peers accepted
-/// the surplus word silently.
+/// Every arity message names the right noun, and the lenient arms count
+/// their words: `kid` alone must say `"kid cmd ?arg ...?"`, not `"interp cmd
+/// ?arg ...?"`; `kid eval` with no script must be a `wrong # args`, not
+/// evaluate the empty string; and `kid hidden extra` and its peers must
+/// reject the surplus word rather than accept it silently.
 ///
 /// tclsh9.0.4 (and 8.6.16):
 ///   interp create kid
@@ -672,9 +671,9 @@ fn child_and_interp_arity_errors_use_the_right_noun() {
     );
 }
 
-/// R6: a `rename` miss carries C's structured error code. The message was
-/// already right (item 4); only the `-errorcode` was `NONE`, because the miss
-/// went through `Interp::error` rather than `error_with_code`.
+/// A `rename` miss carries C's structured error code: routing the miss
+/// through `error_with_code` rather than `Interp::error` is what sets the
+/// `-errorcode` (the message text is already right).
 ///
 /// tclsh9.0.4 (and 8.6.16):
 ///   set out {}

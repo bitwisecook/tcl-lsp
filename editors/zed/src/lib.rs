@@ -31,16 +31,17 @@ struct TclExtension;
 
 // Helpers
 //
-// Historically the extension embedded a single native `tcl-lsp-server`
-// binary at compile time and materialised it on first use. That is
-// fundamentally broken: a Zed extension is one cross-platform WASM module,
-// so whatever host built the release (Linux x86_64 in CI) had *its* binary
-// baked in, and every other platform received a binary it could not run
-// ("%1 is not a valid Win32 application" on Windows — see issue #826).
+// Embedding a single native `tcl-lsp-server` binary at compile time and
+// materialising it on first use is fundamentally broken: a Zed extension is
+// one cross-platform WASM module, so whatever host builds the release
+// (Linux x86_64 in CI) has *its* binary baked in, and every other platform
+// receives a binary it cannot run ("%1 is not a valid Win32 application" on
+// Windows).
 //
-// Instead we detect the user's platform at runtime and download the matching
-// prebuilt binary from the GitHub release, exactly like most native Zed
-// extensions. Dev builds still fall back to a binary on PATH.
+// Instead the extension detects the user's platform at runtime and
+// downloads the matching prebuilt binary from the GitHub release, exactly
+// like most native Zed extensions. Dev builds still fall back to a binary
+// on PATH.
 
 /// True only for an exact release-tag version — three dot-separated, non-empty,
 /// all-digit components (`2.1.4`). This deliberately rejects the `0.0.0-dev`
@@ -289,7 +290,7 @@ mod tests {
 
     #[test]
     fn windows_asset_name_keeps_the_exe_suffix() {
-        // Regression guard for #826: the Windows asset must be a `.exe`.
+        // The Windows asset must be a `.exe`.
         let triple = target_triple(Os::Windows, Architecture::X8664).unwrap();
         let exe = exe_suffix(Os::Windows);
         assert_eq!(

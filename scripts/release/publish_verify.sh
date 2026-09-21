@@ -53,8 +53,6 @@ ok()   { printf '  [ok]   %s\n' "$*"; }
 warn() { printf '  [warn] %s\n' "$*"; }
 err()  { printf '  [fail] %s\n' "$*"; fail; }
 
-# ---------------------------------------------------------------- VS Code
-
 hdr "VS Code Marketplace (publish-vsix)"
 
 if [ -x "$VSCE" ]; then
@@ -75,8 +73,6 @@ elif [ -x "$VSCE" ]; then
         warn "  - run 'cd $EXT_DIR && ./node_modules/.bin/vsce login $VSCE_PUBLISHER'"
     fi
 fi
-
-# ---------------------------------------------------------------- Open VSX
 
 hdr "Open VSX (publish-openvsx)"
 
@@ -116,8 +112,6 @@ else
 fi
 
 ok "extension page: https://open-vsx.org/extension/$OVSX_NAMESPACE/tcl-lsp"
-
-# ---------------------------------------------------------------- JetBrains
 
 hdr "JetBrains Marketplace (publish-jetbrains)"
 
@@ -173,8 +167,6 @@ unset JETBRAINS_TOKEN_RESOLVED JETBRAINS_TOKEN_SRC
 
 ok "plugin page: https://plugins.jetbrains.com/plugin/31801-tcl-language-support"
 
-# ---------------------------------------------------------------- Sublime
-
 hdr "Sublime Text (Package Control)"
 
 # Nothing to publish by hand: Package Control's channel entry points at the
@@ -203,8 +195,6 @@ fi
 
 ok "SublimeLSP repository entry: editors/sublime-text/SUBMITTING.md"
 
-# ----------------------------------------------------------------- Zed
-
 hdr "Zed extensions registry (publish-zed)"
 
 if command -v gh >/dev/null 2>&1; then
@@ -229,8 +219,6 @@ if command -v gh >/dev/null 2>&1; then
 fi
 
 ok "publish_zed.sh prepares the bump locally and stops before push (no PR opened)"
-
-# ---------------------------------------------------------------- Summary
 
 hdr "Summary"
 if [ "$RC" -eq 0 ]; then

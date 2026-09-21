@@ -9,8 +9,26 @@
 set -euo pipefail
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+
+# The helper is a Linux Tank-runner artefact: it serialises on flock, reads
+# GNU stat fields, and proves an open descriptor through /proc. Say which
+# primitive is missing and stop, rather than reporting a contract failure the
+# host was never able to test. CI runs this gate on Linux.
+for primitive in flock stat; do
+    command -v "$primitive" >/dev/null 2>&1 || {
+        echo "persistent Cargo target contract: skipped — $primitive is not installed on this host" >&2
+        exit 0
+    }
+done
+if ! stat -c '%u' -- "$SCRIPT_DIR" >/dev/null 2>&1 || [ ! -d /proc/self/fd ]; then
+    echo "persistent Cargo target contract: skipped — needs GNU stat and /proc (Linux)" >&2
+    exit 0
+fi
 HELPER=$SCRIPT_DIR/persistent-cargo-target.sh
-ROOT=$(mktemp -d /tmp/tcl-lsp-persistent-target.XXXXXX)
+# The helper rejects a symlinked path component, so hand it the canonical
+# temp root — /tmp is a symlink to /private/tmp on macOS.
+ROOT=$(mktemp -d "${TMPDIR:-/tmp}/tcl-lsp-persistent-target.XXXXXX")
+ROOT=$(CDPATH= cd -- "$ROOT" && pwd -P)
 trap 'rm -rf -- "$ROOT"' EXIT HUP INT TERM
 mkdir -m 700 "$ROOT/work-a" "$ROOT/work-b"
 TARGET_ROOT=$ROOT/targets
@@ -181,6 +199,31 @@ done
 bash "$HELPER" janitor "$TARGET_ROOT" >"$ROOT/starved.out"
 grep -q 'janitor_removed=1' "$ROOT/starved.out" || fail "expired target behind prefix was starved"
 [ ! -e "$starved" ] || fail "expired target behind prefix survived"
+# TCL_LSP_TANK_SWEEP_ALL=1 is the operator sweep: it reclaims a target the
+# retention window would keep, because a host can fill with targets that are
+# all in active use (the Tank root reached 174 GiB across four live
+# registrations on a 193 GiB disk, and an age-bounded sweep freed nothing).
+# Every other guard must still hold — in particular a locked target is still
+# skipped, since a running job owns it.
+sweep_young=$(prepare sweep-young)
+[ -e "$sweep_young" ] || fail "sweep fixture was not created"
+TCL_LSP_TANK_TARGET_ROOT="$TARGET_ROOT" bash "$HELPER" janitor "$TARGET_ROOT" >"$ROOT/sweep-off.out"
+[ -e "$sweep_young" ] || fail "a young target was removed without the sweep flag"
+sweep_locked=$(prepare sweep-locked)
+exec 8>"$sweep_locked/.tcl-lsp-cargo-target.lock"
+flock -n 8
+TCL_LSP_TANK_TARGET_ROOT="$TARGET_ROOT" TCL_LSP_TANK_SWEEP_ALL=1 \
+    bash "$HELPER" janitor "$TARGET_ROOT" >"$ROOT/sweep-on.out"
+[ ! -e "$sweep_young" ] || fail "sweep-all left a young unlocked target behind"
+[ -e "$sweep_locked" ] || fail "sweep-all removed a locked target"
+grep -q 'janitor_locked=1' "$ROOT/sweep-on.out" || fail "sweep-all did not report the locked target"
+exec 8>&-
+rm -rf "$sweep_locked"
+
+expect_failure env TCL_LSP_TANK_SWEEP_ALL=2 bash "$HELPER" janitor "$TARGET_ROOT"
+grep -q 'TCL_LSP_TANK_SWEEP_ALL must be 0 or 1' "$ROOT/unexpected.err" ||
+    fail "sweep flag must reject a non-boolean value"
+
 old_one=$(prepare bounded-one)
 old_two=$(prepare bounded-two)
 touch -d '30 days ago' "$old_one/.tcl-lsp-cargo-target" "$old_two/.tcl-lsp-cargo-target"

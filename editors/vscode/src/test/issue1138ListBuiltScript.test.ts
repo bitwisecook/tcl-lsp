@@ -20,7 +20,7 @@ import * as assert from "assert";
 import * as vscode from "vscode";
 import { getDocUri, activate, setTestContent } from "./helper";
 
-// Issue #1138: a script argument built with `list` rather than written as a
+// A script argument built with `list` rather than written as a
 // literal `{...}` block was never walked as the command it provably is. Tk's
 // own `library/tk.tcl:289` is
 // `uplevel #0 [list upvar #0 ::tk::Priv.$disp ::tk::Priv]`, and the very next

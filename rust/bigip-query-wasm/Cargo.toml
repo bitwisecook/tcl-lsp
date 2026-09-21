@@ -31,7 +31,7 @@
 # Makefile target / build script), not plain `cargo`.
 #
 # The empty `[workspace]` table below is load-bearing (see the fuller comment
-# in `rust/tcl-spec-studio-wasm/Cargo.toml`, issue #1136): without it, cargo
+# in `rust/tcl-spec-studio-wasm/Cargo.toml`): without it, cargo
 # walks up past this crate looking for a `[workspace]` ancestor, and inside a
 # git worktree nested under the main checkout's directory (this repo's
 # standard parallel-agent worktree layout) it finds the *main checkout's*

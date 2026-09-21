@@ -18,8 +18,8 @@
 
 //! The studio's models, with no UI anywhere near them.
 //!
-//! `docs/design/registry/spec-packs.md`'s "Phase 2: the studio becomes the DSL's IDE"
-//! asks for exactly three things in this layer, and this module is all three:
+//! `docs/design/registry/spec-packs.md` asks for exactly three things from
+//! the studio's model layer, and this module is all three:
 //!
 //! - **[`Builtins`]** — the immutable registry the wasm ships. Reference
 //!   material, never edited, one per dialect profile.
@@ -1169,7 +1169,7 @@ impl PackStore {
         // In the *document's* vocabulary, not the renderer's newest: a block
         // spliced into a pack that declares 1.1 must be a 1.1 block, or the
         // document ends up with words newer than its own header — the
-        // inconsistency the loader reports per site (#1627). A draft that
+        // inconsistency the loader reports per site. A draft that
         // genuinely needs newer vocabulary has already raised the header by
         // the time this runs (`draft_requires_vocabulary_upgrade`).
         let one = render_spectcl::render_pack_with_version(
@@ -2524,8 +2524,8 @@ command add_parameter {\narity 1..\n}\n}\n";
 
     #[test]
     fn selecting_a_shipped_command_and_canonicalising_preserves_the_pack_version() {
-        // Browser repro: selecting `doctools::search` seeds it into a fresh
-        // 1.1 pack, then Pack DSL → Re-render canonically used to rewrite the
+        // Selecting `doctools::search` seeds it into a fresh
+        // 1.1 pack; a naive Pack DSL → Re-render canonically step would rewrite the
         // header to the renderer's newest (1.2) vocabulary. Selection itself
         // is a normal `set_command` write, so exercise the shared store rather
         // than teaching the browser a version rule of its own.

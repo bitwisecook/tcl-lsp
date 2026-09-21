@@ -18,7 +18,7 @@
 
 //! Reference-client + harsh-editing differential tests for semantic tokens.
 //!
-//! Issue #333 is an eglot painter bug, but proving that requires proving the
+//! An eglot painter bug is client-side, but proving that requires proving the
 //! *server* never drifts: a correct client, driven through brutal editing,
 //! must always be able to reconstruct exactly the tokens a cold reopen would
 //! produce. If it can, any staleness a user sees in eglot is eglot's fault,
@@ -33,15 +33,15 @@
 //!     eglot harness is compared against; and
 //!
 //!   * **harsh edit sequences** — 5000+ line files, rapid-fire incremental
-//!     edits, edit-then-undo (the exact trigger the reporter calls out in
-//!     issue #333) — after which the server's `semanticTokens/full` and the
+//!     edits, edit-then-undo (a known trigger for eglot's painter drift) —
+//!     after which the server's `semanticTokens/full` and the
 //!     reference client's reconstruction must both equal a cold reopen.
 //!
 //! If any of these fail, the server itself is losing track and the bug is
 //! (partly) ours. As long as they pass, the server tracks correctly and the
 //! elisp harness's eglot drift is upstream.
 //!
-//! # Content assertions vs latency assertions (issue #1082)
+//! # Content assertions vs latency assertions
 //!
 //! These tests mix two kinds of claim, and they are load-sensitive in opposite
 //! ways. Keeping them apart is what makes the file deterministic under CPU
@@ -55,13 +55,13 @@
 //!   **progress signal** rather than a stack of wall-clock polls: the server
 //!   logs `semantic_tokens.{full,range}_convergence.settled (uri=…, refresh=…)`
 //!   the instant a request's coarse-vs-enriched decision is made, so a waiter
-//!   keys on that (the #1072 pattern) instead of racing the debounced
+//!   keys on that settled-log pattern instead of racing the debounced
 //!   `workspace/semanticTokens/refresh` that only *sometimes* follows it.
 //!   Second, every remaining backstop in the harness is multiplied by the
 //!   machine's measured capacity (`common::load_factor`), so it stays a hang
 //!   guard rather than a speed test.
 //!
-//! * **Latency** — issue #829's guarantee that a cold/large file's *first*
+//! * **Latency** — the guarantee that a cold/large file's *first*
 //!   token response is never starved behind the whole-file analysis. This is a
 //!   real promise about the server's design, so it is not deleted, but as a
 //!   wall-clock absolute it is a claim about the *machine*, not the server.
@@ -87,7 +87,7 @@
 //! claims belong in `perf.yml`-style trend tracking — its correctness half is
 //! what the two convergence tests already pin.  The two `*_response_is_prompt`
 //! tests measure a single first response rather than looping to convergence,
-//! so they stay in CI and keep #829's promise on the merge gate.
+//! so they stay in CI and keep that promise on the merge gate.
 //!
 //! What that leaves in the merge gate is the *correctness* of the token
 //! stream — the reference client, the delta protocol, the harsh edit
@@ -330,8 +330,8 @@ const ROUND_SETTLE: Duration = Duration::from_secs(20);
 /// by the round that just settled is logged strictly after that decision. A
 /// census taken the instant the settled marker arrives therefore proves nothing
 /// — it can miss a genuinely spurious refresh simply by looking too early,
-/// which is why the request census it replaces flaked in both directions rather
-/// than failing loudly (issue #1951). A generous multiple of the debounce,
+/// so a request census taken that way flakes in both directions rather
+/// than failing loudly. A generous multiple of the debounce,
 /// load-scaled at the call site.
 const REFRESH_QUIET_WINDOW: Duration = Duration::from_secs(2);
 
@@ -356,7 +356,7 @@ fn cold_tokens(lsp: &mut Lsp, text: &str) -> Vec<SemToken> {
 /// The enriched **range** tokens for `text`'s viewport `[start, end)`: a fresh
 /// document is fully settled, then the range request's own convergence marker
 /// proves that its independent CU/analysis reads served (or matched) the
-/// enriched tier. The truth a coarse-then-converge range response (#844 Gap 4)
+/// enriched tier. The truth a coarse-then-converge range response (Gap 4)
 /// must land on.
 fn cold_range_tokens(
     lsp: &mut Lsp,
@@ -425,6 +425,8 @@ struct Convergence {
     /// How many rounds settled with the enriched read cancelled or already
     /// equal to what was served (`refresh=false`).
     no_refresh_decisions: usize,
+    /// Every settled marker observed, in round order.
+    settled: Vec<String>,
 }
 
 /// What a single convergence round asks for: `full` or a fixed viewport.
@@ -458,8 +460,8 @@ impl Tier {
 ///
 /// Each round: snapshot the request/log cursors, ask for tokens, and — if they
 /// are not yet `truth` — **await the convergence continuation's settled
-/// marker**. That marker is the explicit progress signal this loop is built on
-/// (#1072): it is logged the instant the coarse-vs-enriched decision for that
+/// marker**. That marker is the explicit progress signal this loop is built
+/// on: it is logged the instant the coarse-vs-enriched decision for that
 /// request is made, whatever the decision was, so the loop never has to guess
 /// whether a refresh is still coming. When the marker says `refresh=true` — or
 /// records a coalesced request whose holder will schedule one — the refresh
@@ -472,7 +474,7 @@ impl Tier {
 /// progress against an explicit signal, so reaching it means the server never
 /// converged at all.
 ///
-/// # Scaling (review of #1089)
+/// # Scaling
 ///
 /// The outer deadline is `scaled_timeout(budget)`, not `budget`. Every wait
 /// *inside* the loop goes through a harness `await_*`/`try_await_*` helper,
@@ -488,10 +490,10 @@ impl Tier {
 /// Handing it the leftover made its deadline a function of how long the
 /// *previous* wait took: a round that legitimately consumed the budget left it
 /// zero, and `await_server_request(.., 0, ..)` fails instantly — recreating
-/// exactly the load-sensitive failure #1082 removed. Its own budget is the
-/// honest bound anyway: by the time `refresh=true` has been logged the
-/// debounced refresh is already scheduled, so what is being timed is the
-/// refresh path, not the convergence.
+/// exactly the load-sensitive failure that scaling this budget avoids. Its
+/// own budget is the honest bound anyway: by the time `refresh=true` has
+/// been logged the debounced refresh is already scheduled, so what is
+/// being timed is the refresh path, not the convergence.
 fn converge_via_refresh(
     lsp: &mut Lsp,
     uri: &str,
@@ -506,6 +508,7 @@ fn converge_via_refresh(
         refresh_decisions: 0,
         refreshes: 0,
         no_refresh_decisions: 0,
+        settled: Vec::new(),
     };
     loop {
         let req_since = lsp.server_request_cursor();
@@ -542,6 +545,15 @@ fn converge_via_refresh(
             out.no_refresh_decisions += 1;
             continue;
         };
+        out.settled.push(settled.clone());
+        // A cancelled range read schedules a coalesced retry refresh and
+        // re-arms the coarse seam, so its marker carries
+        // `refresh=true`; it is still a retry round, not a convergence
+        // decision, and the round that follows makes the real one.
+        if matches!(tier, Tier::Range { .. }) && settled.contains("outcome=cancelled") {
+            out.no_refresh_decisions += 1;
+            continue;
+        }
         if settled.contains("refresh=true") || settled.contains("outcome=coalesced") {
             out.refresh_decisions += 1;
             // A coalesced request's holder schedules the refresh when it
@@ -559,8 +571,8 @@ fn converge_via_refresh(
             // that some workspace refresh did. Both needles, not one plus an
             // assertion on the first marker found: an unrelated subsystem's
             // refresh — a spec-pack reload's — legitimately fires in this
-            // window, and picking the first marker races against it. That race
-            // is issue #1951 itself. This is the attribution that lets a
+            // window, and picking the first marker races against it. This is
+            // the attribution that lets a
             // sibling test count only its own refreshes, and it is worth
             // nothing unless something proves the marker fires.
             lsp.await_log(
@@ -623,8 +635,6 @@ fn open_and_seed(lsp: &mut Lsp, uri: &str, text: &str) -> (Mirror, SemtokState) 
     (Mirror::new(uri, text), client)
 }
 
-// -- tests ----------------------------------------------------------------
-
 /// The reference client and the server must stay in lock-step through a mix of
 /// inserts, deletes, renames and comment toggles applied as incremental edits,
 /// checked after *every* edit.
@@ -669,8 +679,8 @@ fn reference_client_tracks_through_mixed_edits() {
 /// The server must answer a `full/delta` whose `previousResultId` matches the
 /// last stream we served with a real minimal edit — `edits` present, no full
 /// `data` re-send — like rust-analyzer. This is the payload win that keeps a
-/// client's per-edit token round-trip (and eglot's stale-repaint window,
-/// issue #333) small; a regression back to "always full" would silently undo
+/// client's per-edit token round-trip (and eglot's stale-repaint window)
+/// small; a regression back to "always full" would silently undo
 /// it, so pin the response shape.
 #[test]
 fn server_returns_real_delta_not_full_resend() {
@@ -722,7 +732,7 @@ fn server_returns_real_delta_not_full_resend() {
     );
 }
 
-/// Edit-then-undo is the exact trigger the reporter names in issue #333: make a
+/// Edit-then-undo is a known trigger for eglot's stale-repaint bug: make a
 /// change (server recomputes), then revert it (server recomputes back). The
 /// server must land on byte-identical tokens to before the edit — no residue.
 #[test]
@@ -832,7 +842,7 @@ fn large_file_latency_and_correctness() {
 
     // Edit deep in the file, then time tokens WITHOUT first waiting on
     // diagnostics — the realistic "type a char, how long until fresh tokens"
-    // path from issue #333.
+    // path.
     let mut mirror = Mirror::new(&uri, &big);
     let needle = "set v300 [expr {$v300 + 1}]";
     let pos = mirror.text.find(needle).expect("deep needle present");
@@ -859,7 +869,7 @@ fn large_file_latency_and_correctness() {
     );
     // Pathological-latency guard. A native tokeniser on ~5k lines should answer
     // in well under a second; multiple seconds means an O(n^2) regression in
-    // the token path (the issue #333 latency the reporter feels as a "hang").
+    // the token path (the kind of latency a user feels as a "hang").
     // Debug builds are ~10-20x slower than the shipped release binary, so this
     // strict gate only runs for release builds; debug runs just print timings.
     //
@@ -880,7 +890,7 @@ fn large_file_latency_and_correctness() {
     }
 }
 
-/// Issue #829: the *first* `semanticTokens/full` response for a large,
+/// The *first* `semanticTokens/full` response for a large,
 /// freshly-opened file — requested with no wait after `didOpen`, so nothing
 /// has warmed the analysis yet — must never be starved behind the whole-file
 /// analysis. This is the reported symptom verbatim: "in large files with many
@@ -937,10 +947,10 @@ fn large_file_first_semantic_tokens_response_is_prompt() {
 fn large_file_range_semantic_tokens_response_is_prompt() {
     // Mirrors the `full` test above for `semanticTokens/range`: a cold/large
     // indexed file must not block a viewport request on the whole-file
-    // compilation-unit build + incremental analysis (issue #829's residual
-    // gap for range requests -- `db_compilation_unit`/`db_file_analysis`
+    // compilation-unit build + incremental analysis. Range requests have a
+    // residual gap here: `db_compilation_unit`/`db_file_analysis`
     // compute their query to completion with no fast-path budget, unlike
-    // `semantic_tokens_full`'s race against `SEMANTIC_TOKENS_FAST_PATH_BUDGET`).
+    // `semantic_tokens_full`'s race against `SEMANTIC_TOKENS_FAST_PATH_BUDGET`.
     let mut lsp = Lsp::tcl();
     let budget = LatencyBudget::probe(&mut lsp, Duration::from_secs(10));
     let uri = unique_uri("tcl");
@@ -985,7 +995,7 @@ fn large_file_range_semantic_tokens_response_is_prompt() {
     );
 }
 
-/// Issue #829, the other half of the loop the previous test proves the start
+/// The other half of the loop the previous test proves the start
 /// of: when the first token request for a large/cold file is served from the
 /// cheap coarse tier (the enriched computation did not land within the
 /// fast-path budget), the server must eventually push
@@ -994,7 +1004,7 @@ fn large_file_range_semantic_tokens_response_is_prompt() {
 /// bulk of the semantic tokens first, then update the ones resolved in
 /// deeper analysis."
 // Deliberately NOT #[ignore]d: this is the automated stale-token convergence
-// contract (PR #1476 review). A one-shot child-process seam chooses the same
+// contract. A one-shot child-process seam chooses the same
 // coarse branch the 40 ms budget selects, while the prompt-response tests above
 // retain large cold documents and cover the real wall-clock race.
 #[test]
@@ -1015,11 +1025,11 @@ fn large_file_semantic_tokens_refresh_delivers_enriched_result() {
     // Compute the enriched truth from a settled separate document *before* the
     // document under test exists. Opening (or closing) any document mutates the
     // salsa `Project` (`set_files`), which cancels an in-flight convergence
-    // continuation — so computing the truth *after* the first request, as this
-    // test used to, could cancel the very enriched read whose refresh it then
-    // waited fifteen seconds for. That window widens with machine load, which
-    // is exactly the shape of the flake in issue #1082. Done up front it cannot
-    // interfere. (The range twin below has always done it this way.)
+    // continuation — so computing the truth *after* the first request could
+    // cancel the very enriched read whose refresh it then waits fifteen
+    // seconds for. That window widens with machine load, so doing it up
+    // front avoids the flake entirely. (The range twin below does it this
+    // way too.)
     let truth = {
         let mut oracle = Lsp::tcl();
         cold_tokens(&mut oracle, &big)
@@ -1057,18 +1067,20 @@ fn large_file_semantic_tokens_refresh_delivers_enriched_result() {
     assert_eq!(
         converged.rounds,
         converged.no_refresh_decisions + 2,
-        "apart from cancelled retries: one coarse request, one enriched re-request"
+        "apart from cancelled retries: one coarse request, one enriched re-request; \
+         settled markers: {:?}",
+        converged.settled
     );
     assert_eq!(converged.refresh_decisions, 1);
     assert_eq!(converged.refreshes, 1);
     eprintln!(
         "large_file_semantic_tokens_refresh_delivers_enriched_result: converged in {} rounds \
-         ({} refreshes; {} rounds settled with a cancelled/equal enriched read)",
-        converged.rounds, converged.refreshes, converged.no_refresh_decisions,
+         ({} refreshes; {} rounds settled with a cancelled/equal enriched read; {:?})",
+        converged.rounds, converged.refreshes, converged.no_refresh_decisions, converged.settled,
     );
 }
 
-/// #844 Gap 4: the range analogue of the `_full` convergence test above. A
+/// Gap 4: the range analogue of the `_full` convergence test above. A
 /// cold/large viewport is served the coarse tier immediately (the enriched
 /// CU/analysis overrun the 40ms budget); the server must then push a
 /// `workspace/semanticTokens/refresh` once they land and the viewport genuinely
@@ -1077,7 +1089,7 @@ fn large_file_semantic_tokens_refresh_delivers_enriched_result() {
 /// had that `_full` did not).
 // Deliberately NOT #[ignore]d: same deterministically-selected production
 // branch as the `_full` convergence test, for the range path specifically
-// (#844 Gap 4 — a skipped viewport staying coarse until the next scroll).
+// (Gap 4 — a skipped viewport staying coarse until the next scroll).
 #[test]
 fn large_file_range_semantic_tokens_converges_via_refresh() {
     // The same provably-constant regex source the `_full` test uses, so the
@@ -1136,18 +1148,20 @@ fn large_file_range_semantic_tokens_converges_via_refresh() {
     assert_eq!(
         converged.rounds,
         converged.no_refresh_decisions + 2,
-        "apart from cancelled retries: one coarse request, one enriched re-request"
+        "apart from cancelled retries: one coarse request, one enriched re-request; \
+         settled markers: {:?}",
+        converged.settled
     );
     assert_eq!(converged.refresh_decisions, 1);
     assert_eq!(converged.refreshes, 1);
     eprintln!(
         "large_file_range_semantic_tokens_converges_via_refresh: converged in {} rounds \
-         ({} refreshes; {} rounds settled with a cancelled/equal enriched read)",
-        converged.rounds, converged.refreshes, converged.no_refresh_decisions,
+         ({} refreshes; {} rounds settled with a cancelled/equal enriched read; {:?})",
+        converged.rounds, converged.refreshes, converged.no_refresh_decisions, converged.settled,
     );
 }
 
-/// #844 Gap 4 (negative): the convergence continuation must fire **no**
+/// Gap 4 (negative): the convergence continuation must fire **no**
 /// `workspace/semanticTokens/refresh` when the coarse and enriched viewports
 /// already agree. Every other Gap-4 test appends a provably-retagged construct so
 /// `enriched != served` is guaranteed whenever the comparison runs — so none of
@@ -1239,8 +1253,7 @@ fn range_semantic_tokens_no_spurious_refresh_when_converged() {
         // legitimate refresh — a spec-pack reload's, which the startup reload
         // can land inside this window — is indistinguishable from this round's
         // at the client. The marker names every reason that rode along, so this
-        // counts only the refreshes the convergence path is answerable for
-        // (issue #1951).
+        // counts only the refreshes the convergence path is answerable for.
         let convergence_refreshes = lsp
             .notifications()
             .into_iter()
@@ -1265,7 +1278,7 @@ fn range_semantic_tokens_no_spurious_refresh_when_converged() {
     }
 }
 
-// -- generators / small utils --------------------------------------------
+// Generators / small utils.
 
 /// Byte offset -> (line, character) for an ASCII string.
 fn offset_to_line_char(text: &str, offset: usize) -> (usize, usize) {

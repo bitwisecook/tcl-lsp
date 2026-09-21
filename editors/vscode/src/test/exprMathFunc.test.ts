@@ -16,10 +16,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-// Issue #974 — the `expr` math functions, as VS Code actually surfaces them.
-// Both defects were VS Code-visible: hovering a bare `sin(1.0)` inside `expr`
-// popped up nothing, and completing inside an unfinished `expr {si` offered
-// only unrelated same-prefixed procs.
+// The `expr` math functions, as VS Code actually surfaces them: hovering a
+// bare `sin(1.0)` inside `expr` must show something, and completing inside
+// an unfinished `expr {si` must offer the math functions, not only
+// unrelated same-prefixed procs.
 
 import * as assert from "assert";
 import * as vscode from "vscode";

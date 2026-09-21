@@ -634,11 +634,11 @@ export async function mountEditors(options: EditorHostOptions): Promise<EditorHo
     // `initialize` proves only that the worker booted. `Surface` sent didOpen
     // above, so explicitly request the pack's tokens now, in protocol order.
     // Monaco's semantic-token controller is intentionally asynchronous and
-    // may decline to schedule a request while its tab is initially hidden;
-    // making readiness depend on that implementation detail turned a healthy
-    // Pages deployment into a two-minute false failure. Monaco still consumes
-    // the same provider for on-screen colouring, but that is verified
-    // separately by the browser boot check.
+    // may decline to schedule a request while its tab is initially hidden, so
+    // readiness cannot depend on that implementation detail without reporting
+    // failure for an otherwise healthy deployment. Monaco still consumes the
+    // same provider for on-screen colouring, but that is verified separately
+    // by the browser boot check.
     try {
       const semanticTokens = await Promise.race([
         client.semanticTokens(DSL_URI),

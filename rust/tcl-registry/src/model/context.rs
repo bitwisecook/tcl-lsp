@@ -60,10 +60,10 @@ use crate::model::surface::{
 use tcl_dialect::model::{SurfaceQuery, surface_admits};
 // The vendor-surface summary payload: plain registry-derived data, not
 // part of the retiring profile trait, so both faces answer with the one
-// type and the parity pin can compare them directly. P1-G removed the
-// trait from the public surface (it survives crate-internally, plus a
-// cfg(test) oracle for the sweeps); the type moves here when the trait
-// goes entirely under ledger C1/F1.
+// type and the parity pin can compare them directly. The retiring trait
+// survives crate-internally, plus a cfg(test) oracle for the sweeps,
+// until it goes entirely under ledger C1/F1; the type lives here in the
+// meantime.
 use crate::profile_queries::VendorSurface;
 use crate::registry::CommandRegistry;
 use crate::spec::{CommandSpec, SubCommand, SubSubCommand};
@@ -207,7 +207,7 @@ impl FloorMap {
 
 /// A resolved context: the environment a document works against plus the
 /// per-axis floors derived from it (§5.2 step 1; steps 2–3 — workspace and
-/// document facts — join in P2 through [`ResolvedContext::require_package`]).
+/// document facts — join through [`ResolvedContext::require_package`]).
 #[derive(Debug, Clone)]
 pub struct ResolvedContext {
     /// The environment definition.
@@ -217,7 +217,7 @@ pub struct ResolvedContext {
     /// Packages explicitly required by the document/workspace — the
     /// "explicitly-floored" half of the `AmbientPlusRequire` world policy.
     /// Empty for a bare environment context; the §5.2 `package require`
-    /// scan feeds it in P2.
+    /// scan feeds it.
     required_packages: Vec<Arc<str>>,
     /// Packages a loaded `SpecTcl` pack declared ambient for this context's
     /// generation, with each declared floor verbatim — recorded by the
@@ -298,8 +298,8 @@ impl ResolvedContext {
             // patchlevel 8.4.6 (measurements §4/§4a), Jim at the Tcl 8.6
             // command set `jim_tcl.txt` says it implements a significant
             // subset of. Reading the anchor off the edge is what lets one
-            // walk serve a fork and a reimplementation without the
-            // family special case this loop used to carry. An anchor that
+            // walk serve a fork and a reimplementation without a
+            // family special case. An anchor that
             // is not a version (the iRules `tmos` line) yields no floor,
             // which is the intent. The `f5-irules` offshoot's closed
             // load-time resolution keeps its ancestor surface explicit
@@ -445,12 +445,11 @@ impl ResolvedContext {
     /// - and nothing at all under `Closed`, where `package require` is not
     ///   part of the language.
     ///
-    /// **P3 (the Tk pilot).** This is the query ledger row F4 retires
-    /// `tk_loaded` / `hosts_tk` / the `TK_PACKAGE` substring scan onto, and
-    /// the pilot is what makes it load-bearing: `Tk` is ambient under the
-    /// `tk` environment and hosted under plain Tcl, so one function answers
-    /// "is Tk in this document's world?" for both, and the two answers
-    /// differ for the right reason — the placement, not the name. Callers
+    /// **`Tk`'s placement.** This is the canonical query for "is Tk in
+    /// this document's world?": `Tk` is ambient under the `tk` environment
+    /// and hosted under plain Tcl, so one function answers it for both, and
+    /// the two answers differ for the right reason — the placement, not the
+    /// name. Callers
     /// wanting "…without a `package require`" ask
     /// [`Self::ambient_package`]; callers wanting "could this environment
     /// host it at all?" ask [`Self::can_host_package`].
@@ -526,8 +525,8 @@ impl ResolvedContext {
     ///
     /// [`Self::provider_active`] answers the ancestor channel's *carrier*
     /// question: is a `Core(Tcl)` declaration reachable from a `jim`
-    /// document at all? Yes — that edge is the whole reason P6 could
-    /// delete 76 re-authored specs. But a
+    /// document at all? Yes — that edge is what makes deleting the 76
+    /// re-authored specs sound. But a
     /// [`Lineage::Reimplementation`](tcl_dialect::model::family::Lineage)
     /// implements a *subset* of its ancestor, so the carrier alone
     /// over-admits: measured against a built `jimsh`, the inherited Tcl
@@ -660,17 +659,17 @@ impl ResolvedContext {
     /// - a package **no** environment runs as part of its own runtime
     ///   ([`is_placement_gated_package`] is false — `Itcl`, every tcllib
     ///   module) is always satisfied: the model does not know where it is
-    ///   installed, so W120 owns the nag, exactly as before;
+    ///   installed, so W120 owns the nag;
     /// - a **placement-gated** package answers [`Self::package_active`] —
     ///   the environment's ambient closure, plus (outside a closed world)
     ///   the lenient hosted rule and this document's own requires.
     ///
-    /// **P3 (the Tk pilot)**: `Tk` moves from the first class into the
-    /// second, because `wish` runs it ambiently. The single enumerated
-    /// consequence is that a **closed** world stops resolving Tk: a `.bpf`
-    /// or `.tclspec` document can no longer call `wm` (`package require`
-    /// is not part of either language, so it never could), while every
-    /// open world answers exactly as before.
+    /// `Tk` is the concrete case for the second class, because `wish` runs
+    /// it ambiently. The single enumerated consequence is that a
+    /// **closed** world does not resolve Tk: a `.bpf` or `.tclspec`
+    /// document cannot call `wm` (`package require` is not part of either
+    /// language, so it never could), while every open world resolves it as
+    /// usual.
     ///
     /// [`is_placement_gated_package`]: crate::model::surface::is_placement_gated_package
     #[must_use]
@@ -1042,9 +1041,9 @@ impl ResolvedContext {
         Some((lifecycle.introduced, lifecycle.retired))
     }
 
-    // --- §5.4 range targeting: declared target sets --------------------
+    // §5.4 range targeting: declared target sets.
     //
-    // The additive range-mode queries (P1b). A document/project that
+    // The additive range-mode queries. A document/project that
     // *declares* a multi-version target set — `tclLsp.targets`, the
     // `# tcl-lsp: supports NAME RANGE` directive (ruling R6) — records
     // it here, and the compatibility checks ask whether an item holds at
@@ -1210,7 +1209,7 @@ fn compute_authoring_scope(context: &ResolvedContext) -> AuthoringScope {
             // as 8.4.
             //
             // `jim`: the 8.6 command-set anchor (`jim_tcl.txt`), which is
-            // the whole of P6's inherit-then-override — a `jim` document
+            // the whole of jim's inherit-then-override — a `jim` document
             // resolves `set`, `if`, `proc`, `lassign`, `dict` and `lmap`
             // from the shared core specs instead of from 76
             // hand-re-authored copies.
@@ -1813,9 +1812,9 @@ mod tests {
         );
     }
 
-    // --- P3: the Tk pilot's placement model ---------------------------
+    // Tk's placement model.
 
-    /// The pilot's central claim, stated as one table: `Tk` is one
+    /// The central claim, stated as one table: `Tk` is one
     /// package whose availability is decided by **placement plus policy**,
     /// and the three answers a caller can want are three distinct queries
     /// that disagree in exactly the right places.
@@ -1859,8 +1858,8 @@ mod tests {
 
     /// `Tk` is ambient somewhere **and** hosted elsewhere, which is what
     /// keeps it out of the closed-world vocabulary: reading ambience alone
-    /// would classify it as a vendor runtime the moment the pilot placed
-    /// it, and every Tk command would vanish from plain Tcl.
+    /// would classify it as a vendor runtime, and every Tk command would
+    /// vanish from plain Tcl.
     #[test]
     fn tk_is_a_library_with_an_ambient_host_not_a_vendor_surface() {
         use crate::model::surface::{is_closed_world_package, is_placement_gated_package};
@@ -1870,7 +1869,7 @@ mod tests {
         assert!(context("tcl8.6").can_host_package("Tk"));
         assert!(!context("tcl8.6").placement_is_ambient("Tk"));
         // The vendor runtimes stay closed-world; the unplaced libraries
-        // stay ungated (W120 owns their nag, as before).
+        // stay ungated (W120 owns their nag).
         for vendor in ["f5-irules-cmds", "f5-iapps-cmds", "Expect"] {
             assert!(is_closed_world_package(vendor), "{vendor}");
         }
@@ -1924,7 +1923,7 @@ mod tests {
     }
 
     /// The **one enumerated delta** from the old model, pinned directly rather
-    /// than only as an allowlist in the P1-E sweeps: a world that is not open
+    /// than only as an allowlist in the parity sweeps: a world that is not open
     /// stops resolving the Tk surface on its own. `package require` is not
     /// part of the `bpf`, `spectcl` or `f5-irules` language, and an iApp gets
     /// only what it requires, so `wm` was never callable in any of them; the
@@ -1992,7 +1991,7 @@ mod tests {
         assert!(vendor.is_empty());
     }
 
-    /// **P6.** A `jim` context resolves the shared core surface through
+    /// A `jim` context resolves the shared core surface through
     /// its ancestry edge instead of through 76 re-authored specs: the
     /// `Core(Tcl)` provider is active, the Tcl-axis primary is the 8.6
     /// anchor, and the derived point is the 8.6 line — so
@@ -2060,7 +2059,7 @@ mod tests {
         }
     }
 
-    /// **P6, invariant I2.** A declared `jim` range gates on the jim
+    /// **Invariant I2.** A declared `jim` range gates on the jim
     /// axis and says nothing on the Tcl axis — and vice versa. The
     /// axis machinery needed no jim-specific code: `targets_from_clauses`,
     /// `ladder_releases_in` and `ladder_coverage` all read the family's
@@ -2143,7 +2142,7 @@ mod tests {
         );
     }
 
-    /// **P6.** A `Core(Jim)` declaration restricted to part of the jim
+    /// A `Core(Jim)` declaration restricted to part of the jim
     /// ladder reports exactly the covered subset — the same
     /// `available_at_targets` machinery Tk and the tcllib modules use,
     /// on a core family's own axis.
@@ -2203,7 +2202,7 @@ mod tests {
         // 5 Tcl releases + 1 f5-tcl + 1 f5-irules + 9 jim + 8 vendor
         // packages — the `f5-tcl` trunk family (measurements §4a) added
         // its row in the F5 reclassification, and `sslictcl` added its
-        // vendor package with the `.sslictcl` authoring dialect (#1543).
+        // vendor package with the `.sslictcl` authoring dialect.
         assert_eq!(specificity_breadth(&rows(None)), 24);
         // A hosted attribution row adds no specificity, mirroring the old
         // specificity, which never counted `required_package`.
@@ -2216,7 +2215,7 @@ mod tests {
         assert_eq!(specificity_breadth(&hosted), 5);
     }
 
-    /// **P1-F parity sweep 1**: every context-derived authoring fact —
+    /// **Parity sweep 1**: every context-derived authoring fact —
     /// the point, the option ceiling, the operator-head rule, the vendor
     /// provider, and every placement's ambience and static floor —
     /// reproduces the old profile's value for every catalogue profile,
@@ -2320,7 +2319,7 @@ mod tests {
         assert!(tk.placement_is_ambient("Tk"));
     }
 
-    /// **P1-F parity sweep 2**: the spec/subcommand/option availability
+    /// **Parity sweep 2**: the spec/subcommand/option availability
     /// queries answer exactly as the old `ProfileQueries` for every spec
     /// in the compiled universe under every catalogue profile — commands,
     /// each subcommand, each sub-subcommand (at no version and at a pinned
@@ -2414,7 +2413,7 @@ mod tests {
         println!("profile-query parity sweep: {checks} item checks, 0 divergences");
     }
 
-    /// **P1-F wave-4 parity pin**: the context's vendor-surface summary
+    /// **Wave-4 parity pin**: the context's vendor-surface summary
     /// reproduces `ProfileQueries::vendor_surface` for every catalogue
     /// profile, over that profile's own registry generation — the store
     /// the generated AI prompt has always read it from. At least one

@@ -68,7 +68,7 @@ fn label(sig: &Value) -> String {
         .to_owned()
 }
 
-// -- TestSignatureHelpUserProcs ------------------------------------------
+// User-defined procs.
 
 #[test]
 fn proc_first_arg() {
@@ -115,7 +115,7 @@ fn proc_with_defaults_marks_optional() {
     );
 }
 
-// -- TestSignatureHelpBuiltins -------------------------------------------
+// Builtin commands.
 
 #[test]
 fn set_command() {
@@ -151,7 +151,7 @@ fn empty_file() {
     assert!(is_empty(&lsp.signature_help(&uri, 0, 0)));
 }
 
-// -- TestSignatureHelpDocumentation --------------------------------------
+// Documentation text in the signature.
 
 #[test]
 fn set_has_documentation() {
@@ -197,7 +197,7 @@ fn proc_doc_comment_in_signature_help() {
     assert!(doc_text(&signatures(&result)[0]).contains("Says hello"));
 }
 
-// -- TestSignatureHelpSubcommands ----------------------------------------
+// Subcommand signatures.
 
 #[test]
 fn string_length() {

@@ -16,16 +16,16 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Variable-name resolution on the compiled path — issues #1602, #1616, #1578,
-//! #1745.
+//! Variable-name resolution on the compiled path.
 //!
-//! One rule underlies the first two: **a variable name is the name word's
-//! substituted *value*, resolved exactly once.** The compiled path used to get
-//! it wrong in both directions — leaving a quoted word's backslash escapes
-//! undecoded so the table key was the source spelling (#1616), and pushing an
-//! already-resolved name back through the VM's runtime word substitution so it
-//! was substituted a *second* time (#1602: `set {{a}} V` created `a` rather
-//! than `{a}`, `set {a[bogus]} V` ran `bogus`, `set {${x}} V` read `x`).
+//! One rule underlies the first two hazards below: **a variable name is the
+//! name word's substituted *value*, resolved exactly once.** A naive
+//! compiled path can get it wrong in both directions — leaving a quoted
+//! word's backslash escapes undecoded so the table key is the source
+//! spelling, or pushing an already-resolved name back through the VM's
+//! runtime word substitution so it is substituted a *second* time (`set
+//! {{a}} V` would then create `a` rather than `{a}`, `set {a[bogus]} V`
+//! would run `bogus`, `set {${x}} V` would read `x`).
 //!
 //! Two corollaries of that rule are pinned here too: the resolved name must
 //! also be pushed *byte-exactly*, because a `\<newline>` inside a resolved name
@@ -33,20 +33,21 @@
 //! fallback must build its word from the resolved halves rather than hand the
 //! VM a name whose decoded base would substitute again.
 //!
-//! #1602's other half is not a name bug at all: the CFG builder's opaque
-//! caller-frame widening named the *callee* on its `Statement::Barrier`, and
-//! codegen dispatches a barrier that names a command — so the call site was
-//! emitted twice and the callee's body ran twice. The same defect reached the
-//! VM as `invalid command name "<global-frame-script>"` for the `uplevel #0`
-//! widening, whose marker codegen did not filter either. Synthetic identity is
-//! now the typed `ir::SyntheticMarker`, because every reserved spelling is a
-//! legal Tcl command name a script may define and call — matching on the name
-//! silently dropped such a call, which is the vector below.
+//! A related hazard is not a name bug at all: the CFG builder's opaque
+//! caller-frame widening names the *callee* on its `Statement::Barrier`, and
+//! codegen dispatches a barrier that names a command — so a naive
+//! implementation emits the call site twice and runs the callee's body
+//! twice. The same defect would reach the VM as `invalid command name
+//! "<global-frame-script>"` for the `uplevel #0` widening, whose marker
+//! codegen must filter it too. Synthetic identity is the typed
+//! `ir::SyntheticMarker`, because every reserved spelling is a legal Tcl
+//! command name a script may define and call — matching on the name alone
+//! would silently drop such a call, which is the vector below.
 //!
-//! #1578 is separate: C's `Tcl_ArrayObjCmd` set path resolves its target
+//! A separate hazard: C's `Tcl_ArrayObjCmd` set path resolves its target
 //! through the standard variable lookup, which parses the name — so an
 //! element-form target (`array set (x) …`, `array set arr(k) …`) is refused
-//! before the value list is even looked at. The VM never element-parsed it.
+//! before the value list is even looked at. The VM must not element-parse it.
 //!
 //! Every vector runs through the VM at `V8_6` and `V9_0` and, when the matching
 //! real tclsh is installed, under it too — so the table cannot drift from C
@@ -133,7 +134,7 @@ struct Vector {
 }
 
 const VECTORS: &[Vector] = &[
-    // -- #1602, the name half: a resolved name is never substituted again. --
+    // The name half: a resolved name is never substituted again.
     Vector {
         name: "a braced name keeps its own braces (set {{zz}} names `{zz}`)",
         script: r"set {{zz}} V
@@ -248,7 +249,7 @@ puts [set q(b)]:[set r(\$i)]:[set s(IDX)]
         want_8x: "b:{$i}:IDX\n1:2:3",
         want_90: "b:{$i}:IDX\n1:2:3",
     },
-    // -- #1602, the barrier half: a synthetic marker must never be dispatched. --
+    // The barrier half: a synthetic marker must never be dispatched.
     Vector {
         name: "a braced-name upvar runs the proc body once, not twice",
         script: r#"set {a b} OUTER
@@ -281,7 +282,7 @@ puts "i=$i w=$w q=$q"
         want_8x: "if-yes\ni=1 w=2 q=1",
         want_90: "if-yes\ni=1 w=2 q=1",
     },
-    // -- #1616: the name is the word's value, not its source spelling. --
+    // The name is the word's value, not its source spelling.
     Vector {
         name: "a quoted / bare name word is backslash-substituted; a braced one is not",
         script: r#"set "z1\\" A
@@ -296,7 +297,7 @@ foreach n [lsort [info vars z*]] { puts "[string length $n]:$n:[set $n]" }
         want_8x: "3:z1\\:A\n3:z2}:B\n4:z3 x:C\n3:z4\\:D\n4:z5\\\\:E\n3:z6A:F\n3:z7\t:G",
         want_90: "3:z1\\:A\n3:z2}:B\n4:z3 x:C\n3:z4\\:D\n4:z5\\\\:E\n3:z6A:F\n3:z7\t:G",
     },
-    // -- #1578: `array set` refuses an element-form target. --
+    // `array set` refuses an element-form target.
     Vector {
         name: "array set rejects an element-form target before it parses the list",
         script: r"puts [catch {array set (x) {a 1}} m]:$m
@@ -322,8 +323,8 @@ puts [array get zok]:[array get {z)b}]:[array names {z(b}]
                   1:list must have an even number of elements\n\
                   0:\n0:\n0:\na 1:a 1:a",
     },
-    // -- The review round on #1602/#1616/#1578: a marker is typed, a resolved
-    //    name is pushed once and byte-exact. --
+    // A marker is typed, and a resolved
+    // name is pushed once and byte-exact.
     Vector {
         name: "a proc named like a CFG marker is still a command, not a marker",
         script: r#"proc <cond> {} { puts "hit-cond" }
@@ -398,7 +399,7 @@ puts [p]
         want_8x: "{z1 y}:LOCAL",
         want_90: "{z1 y}:LOCAL",
     },
-    // -- #1729: array element access keeps `(base, key)` as a pair. --
+    // Array element access keeps `(base, key)` as a pair.
     Vector {
         name: "array commands preserve bases containing parentheses",
         script: r#"foreach name [list {z(b} {z)b} {z(b)c}] {
@@ -425,7 +426,7 @@ puts "literal-key=[lindex [array names r] 0]"
                   z(b)c after=b 2\n\
                   literal-key=$i",
     },
-    // -- #1745: explicit-frame names use the target frame's namespace. --
+    // Explicit-frame names use the target frame's namespace.
     Vector {
         name: "relative-qualified upvar targets use the caller frame namespace",
         script: r#"namespace eval A {
@@ -461,7 +462,7 @@ puts "missing=[catch {::A2::outer} message]:$message:$::errorCode"
                   AS-DEEP AS-DEEP B\n\
                   missing=1:can't access \"rel::x\": parent namespace doesn't exist:TCL LOOKUP VARNAME rel::x",
     },
-    // -- #1582 / #1588: `upvar` resolves semantic homes before shape checks. --
+    // `upvar` resolves semantic homes before shape checks.
     Vector {
         name: "upvar validates namespace targets and rejects inverted proc links",
         script: r#"namespace eval x { variable ok READY }

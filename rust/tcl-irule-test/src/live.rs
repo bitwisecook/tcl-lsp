@@ -80,8 +80,8 @@ impl std::error::Error for SessionError {}
 
 /// The `CompileService` the VM uses to compile the orchestrator Tcl and any
 /// runtime `eval` / command substitution: the real Rust compiler pipeline,
-/// built from the iRules profile (issue #1462) so everything the harness
-/// compiles — the framework and the iRule under test alike — parses under
+/// built from the iRules profile so everything the harness compiles — the
+/// framework and the iRule under test alike — parses under
 /// the TMM's genuine Tcl 8.4.6 grammar: no TIP-157 `{*}` expansion, the 8.x
 /// first-close `${…}` rule, and the iRules-only `}{` ghost word separator.
 type Svc = BytecodeCompileService;
@@ -121,16 +121,15 @@ impl LiveSession {
         }
         let output = Rc::new(RefCell::new(Vec::new()));
         let mut vm = Vm::with_output(Box::new(Capture(Rc::clone(&output))));
-        // The iRules profile is resolved once and drives both halves
-        // (issue #1462): the compiler parses under the TMM's 8.4.6 grammar
-        // (`Svc::for_profile`), and the VM runs the release that profile
-        // pins (dialect-profile model §5.4). The VM's availability gate is
-        // the plain tcl8.4 profile rather than the bare-IRULES vendor mask:
-        // the orchestrator is host Tcl, not sandboxed iRule code — it needs
-        // `source`/`file`/`exec` (which the TMM sandbox bans) while still
-        // losing the 8.5+ surface (`dict`/`lassign`/…, issue #1463), which
-        // compat84.tcl then polyfills; the TMM sandbox itself is emulated in
-        // Tcl by tmm_shim.tcl.
+        // The iRules profile is resolved once and drives both halves: the
+        // compiler parses under the TMM's 8.4.6 grammar (`Svc::for_profile`),
+        // and the VM runs the release that profile pins. The VM's
+        // availability gate is the plain tcl8.4 profile rather than the
+        // bare-IRULES vendor mask: the orchestrator is host Tcl, not
+        // sandboxed iRule code — it needs `source`/`file`/`exec` (which the
+        // TMM sandbox bans) while still losing the 8.5+ surface
+        // (`dict`/`lassign`/…), which compat84.tcl then polyfills; the TMM
+        // sandbox itself is emulated in Tcl by tmm_shim.tcl.
         let profile = DialectProfile::irules();
         vm.set_dialect_profile(profile);
         assert!(
@@ -339,6 +338,83 @@ mod tests {
         s.eval("::orch::reset").expect("scenario reset");
         s.eval("::orch::configure -profiles {TCP HTTP}")
             .expect("scenario profiles");
+    }
+
+    /// Run the load-time rewrite (`rewrite_irule_source`) over one source
+    /// string and return what it produced.
+    fn rewrite(s: &mut LiveSession, source: &str) -> String {
+        s.eval(&format!(
+            "::tmm::expr_ops::rewrite_irule_source {}",
+            list_element(source)
+        ))
+        .expect("rewrite_irule_source")
+    }
+
+    /// The refusal a word-form unary earns in front of a custom comparison,
+    /// and the neighbouring shapes that must keep working. Split out of the
+    /// word-boolean test above only to keep that function under clippy's
+    /// line cap; it runs in the same session.
+    fn unmeasured_unary_grouping_is_refused(s: &mut LiveSession) {
+        // A word-form unary sitting
+        // directly in front of the left operand of a custom comparison has no
+        // measured grouping. `UNARY_BP` (24) in
+        // `rust/tcl-syntax/src/expr/parser.rs` is the parser's shared default
+        // for every prefix operator, not an F5 measurement: `not` is
+        // deliberately absent from `F5_TCL_PRECEDENCE_ROWS`
+        // (`lookup("not") == None`), and
+        // `docs/design/f5/bigip-irule-parser-measurements.md` pins only
+        // `if {not 0}` (§4a `expr_and_or_not`), which exercises no binding
+        // power against `starts_with` at all. So the rewriter must refuse
+        // rather than pick `not (A starts_with B)` or `(not A) starts_with B`.
+        s.eval("set ::u /v1/users").unwrap();
+        match s.eval("expr {not $u starts_with \"/skip\"}") {
+            Err(SessionError::Eval(m)) => {
+                assert!(
+                    m.contains("unmeasured"),
+                    "the refusal must say the grouping is unmeasured: {m}"
+                );
+                assert!(
+                    m.contains("not $u starts_with"),
+                    "the refusal must name the expression: {m}"
+                );
+            }
+            other => panic!("an unmeasured `not` grouping must be refused, got {other:?}"),
+        }
+        // …and at load time too, where the source rewrite runs.
+        match s.load_irule(
+            "when HTTP_REQUEST {\n  if { not [HTTP::uri] starts_with \"/skip\" } {\n    pool api_pool\n  }\n}",
+        ) {
+            Err(SessionError::Eval(m)) => assert!(
+                m.contains("unmeasured"),
+                "the load-time refusal must say the grouping is unmeasured: {m}"
+            ),
+            other => panic!("an unmeasured `not` grouping must be refused at load, got {other:?}"),
+        }
+
+        // positive controls for that refusal — the neighbouring shapes must
+        // keep working, so the refusal is narrow and not a blanket ban.
+        assert_eq!(
+            s.eval("expr {not 0}").unwrap(),
+            "1",
+            "a bare `not` must still evaluate"
+        );
+        s.eval("set ::nx 0").unwrap();
+        s.eval("set ::ny 1").unwrap();
+        assert_eq!(
+            s.eval("expr {not $nx and $ny}").unwrap(),
+            "1",
+            "`not X and Y` is measured (`and` is 6/7, below any unary) and must still evaluate"
+        );
+        assert_eq!(
+            s.eval("expr {not ($u starts_with \"/skip\")}").unwrap(),
+            "1",
+            "parenthesising the operand names the grouping and must be accepted"
+        );
+        assert_eq!(
+            s.eval("expr {$u starts_with \"/v1\"}").unwrap(),
+            "1",
+            "the custom comparison itself must still rewrite: the machinery fires"
+        );
     }
 
     /// Request-lifecycle scenarios: pool selection, the reject decision,
@@ -733,6 +809,307 @@ mod tests {
         );
     }
 
+    /// `::scf::_parse_snatpool` used to walk a `ltm snatpool` block, extract
+    /// its `members`, and drop them on the floor — the only `_parse_*` proc
+    /// that stored nothing. A virtual server's `snatpool` /
+    /// `source-address-translation pool` property names one of those objects,
+    /// so the reference had no referent to resolve against. It now stores what
+    /// it parses in the same shape `_parse_pool` uses.
+    #[test]
+    fn scf_loader_stores_parsed_snatpool_members() {
+        let dir = lib_dir();
+        let mut s = LiveSession::new(&dir).expect("session");
+        // `scf_loader.tcl` is not part of `FRAMEWORK_FILES`; `SessionPlan`
+        // sources it alongside the orchestrator, before `::orch::init` puts
+        // the TMM sandbox in the way of `source`/`file`. `::orch::init` has
+        // already run here, so reach it through the framework-internal
+        // handle the shim keeps, as the compat84 probes do.
+        s.eval(&format!(
+            "::tmm::_orig_source {{{}}}",
+            dir.join("scf_loader.tcl").display()
+        ))
+        .expect("source scf_loader");
+
+        // Drive the object parser directly rather than through
+        // `::scf::load_string`. The whole-file path goes through
+        // `::scf::_extract_blocks`, whose character scanner does not
+        // terminate on `tcl-vm` (it finishes in ~30 ms under tclsh 8.4-9.1);
+        // that is a separate, pre-existing divergence in code this change
+        // does not touch, and no test may hang on it. `load_string`'s
+        // `switch` already routes an `ltm snatpool` block straight here.
+        assert_eq!(
+            s.eval("::scf::_parse_header {ltm snatpool /Common/sp_out}")
+                .unwrap(),
+            "ltm snatpool /Common/sp_out",
+            "the header parser classifies the block as a snatpool object"
+        );
+        s.eval(
+            "::scf::_parse_snatpool /Common/sp_out {\nmembers { /Common/10.0.5.1 /Common/10.0.5.2 }\n}",
+        )
+        .expect("parse snatpool");
+
+        assert_eq!(
+            s.eval("::scf::list_snatpools").unwrap(),
+            "/Common/sp_out",
+            "the parsed snatpool object must be stored, not discarded"
+        );
+        assert_eq!(
+            s.eval("::scf::snatpool_members /Common/sp_out").unwrap(),
+            "/Common/10.0.5.1 /Common/10.0.5.2",
+            "the members the parser walks must be readable back"
+        );
+        // Resolves by short name through `_resolve_name`, exactly like a pool.
+        assert_eq!(
+            s.eval("::scf::snatpool_members sp_out").unwrap(),
+            "/Common/10.0.5.1 /Common/10.0.5.2",
+            "short-name resolution must work for snatpools as it does for pools"
+        );
+        // The `snatpool` name a virtual server records (`_parse_virtual`
+        // already stores it under the `snatpool` key) now resolves to a
+        // stored object through the same accessor.
+        assert_eq!(
+            s.eval("::scf::snatpool_members [lindex {destination /Common/10.0.0.1:80 snatpool /Common/sp_out} end]")
+                .unwrap(),
+            "/Common/10.0.5.1 /Common/10.0.5.2",
+            "the name a VS record carries must resolve to the stored snatpool"
+        );
+        // An unknown name still answers empty rather than erroring.
+        assert_eq!(s.eval("::scf::snatpool_members nope").unwrap(), "");
+        // `reset` clears the new array with the rest.
+        s.eval("::scf::reset").unwrap();
+        assert_eq!(
+            s.eval("::scf::list_snatpools").unwrap(),
+            "",
+            "reset must clear the snatpool table"
+        );
+    }
+
+    /// TMM's word-form boolean operators (`and` / `or` / `not`). Plain Tcl has
+    /// no such operators — every oracle from 8.4 to 9.1 rejects `expr {1 and
+    /// 1}` ("syntax error … extra tokens" on 8.4, "invalid bareword" on 8.5+)
+    /// — so an iRule using them reached a bare `expr` and died. They are
+    /// rewritten to the plain-Tcl operators the repository's own F5 dialect
+    /// model says they are equivalent to: `or` carries `||`'s binding power
+    /// and `and` carries `&&`'s (`F5_TCL_PRECEDENCE_ROWS` in
+    /// `rust/tcl-dialect/src/model/expr_grammar.rs`), both short-circuit
+    /// (`rust/tcl-syntax/src/expr/eval.rs` runs `WordAnd`/`WordOr` through the
+    /// `And`/`Or` arms), and `not` is prefix unary at the shared `UNARY_BP`
+    /// like `!` (`unaryop_from_text` in `rust/tcl-syntax/src/expr/parser.rs`).
+    ///
+    /// Each assertion below is written so a naive rewrite — turning the words
+    /// into helper-proc calls — would fail it: proc arguments are evaluated
+    /// eagerly, which destroys the short-circuit, and a proc call has no
+    /// binding power at all.
+    #[test]
+    fn tmm_word_boolean_operators_are_rewritten_to_their_tcl_equivalents() {
+        let mut s = LiveSession::new(&lib_dir()).expect("session");
+
+        // word_booleans_evaluate: the bare forms answer at all. Under a plain
+        // `expr` each of these is a syntax error.
+        assert_eq!(s.eval("expr {1 and 1}").unwrap(), "1");
+        assert_eq!(s.eval("expr {1 and 0}").unwrap(), "0");
+        assert_eq!(s.eval("expr {0 or 1}").unwrap(), "1");
+        assert_eq!(s.eval("expr {0 or 0}").unwrap(), "0");
+        assert_eq!(s.eval("expr {not 0}").unwrap(), "1");
+        assert_eq!(s.eval("expr {not 1}").unwrap(), "0");
+
+        // and_binds_tighter_than_or: `1 or 0 and 0` is `1 || (0 && 0)` = 1.
+        // If `and` were the looser of the two it would group as
+        // `(1 || 0) && 0` = 0, so this cell discriminates the two orderings.
+        assert_eq!(
+            s.eval("expr {1 or 0 and 0}").unwrap(),
+            "1",
+            "and must bind tighter than or, as && does against ||"
+        );
+        assert_eq!(
+            s.eval("expr {0 and 0 or 1}").unwrap(),
+            "1",
+            "and must bind tighter than or, as && does against ||"
+        );
+
+        // not_is_prefix_unary: `not 0 and 0` is `(!0) && 0` = 0. If `not`
+        // bound looser than `and` it would be `!(0 && 0)` = 1.
+        assert_eq!(
+            s.eval("expr {not 0 and 0}").unwrap(),
+            "0",
+            "not must be prefix unary, binding tighter than and"
+        );
+
+        // word_booleans_short_circuit: the right operand must not be
+        // evaluated when the left decides the answer. A helper-proc rewrite
+        // (`[_or $a $b]`) evaluates both arguments before the proc runs and
+        // fails both of these.
+        s.eval("set ::sc_probe 0").unwrap();
+        assert_eq!(s.eval("expr {1 or [incr ::sc_probe]}").unwrap(), "1");
+        assert_eq!(
+            s.eval("set ::sc_probe").unwrap(),
+            "0",
+            "or must short-circuit: the right operand ran"
+        );
+        s.eval("set ::sc_probe 0").unwrap();
+        assert_eq!(s.eval("expr {0 and [incr ::sc_probe]}").unwrap(), "0");
+        assert_eq!(
+            s.eval("set ::sc_probe").unwrap(),
+            "0",
+            "and must short-circuit: the right operand ran"
+        );
+        // …and the operand IS evaluated when the left does not decide it.
+        s.eval("set ::sc_probe 0").unwrap();
+        assert_eq!(s.eval("expr {1 and [incr ::sc_probe]}").unwrap(), "1");
+        assert_eq!(
+            s.eval("set ::sc_probe").unwrap(),
+            "1",
+            "and must still evaluate the right operand when the left is true"
+        );
+
+        // word_booleans_compose_with_the_string_operators: the load-time
+        // source rewrite has to handle both families in one condition. The
+        // `not` operand is parenthesised because an unparenthesised one
+        // would be the refused unmeasured grouping below.
+        scenario(&mut s);
+        s.eval("::orch::add_pool api_pool {10.0.1.1:8080}").unwrap();
+        s.load_irule(
+            "when HTTP_REQUEST {\n  if { [HTTP::host] eq \"api.example.com\" and not ([HTTP::uri] starts_with \"/skip\") } {\n    pool api_pool\n  }\n}",
+        )
+        .unwrap();
+        s.run_http_request("-host api.example.com -uri /v1/users")
+            .unwrap();
+        assert_eq!(
+            s.pool_selected().unwrap(),
+            "api_pool",
+            "an `and`/`not` guard in an iRule must evaluate, not raise"
+        );
+
+        // FP-guard: the same iRule must NOT select when the `not` arm is false.
+        scenario(&mut s);
+        s.eval("::orch::add_pool api_pool {10.0.1.1:8080}").unwrap();
+        s.load_irule(
+            "when HTTP_REQUEST {\n  if { [HTTP::host] eq \"api.example.com\" and not ([HTTP::uri] starts_with \"/skip\") } {\n    pool api_pool\n  }\n}",
+        )
+        .unwrap();
+        s.run_http_request("-host api.example.com -uri /skip/me")
+            .unwrap();
+        assert_eq!(
+            s.pool_selected().unwrap(),
+            "",
+            "the `not` arm must actually gate the selection"
+        );
+
+        // word_boundaries_are_respected: the operator spellings must only be
+        // recognised as whole tokens. A bare substring rewrite would maul an
+        // identifier containing `and`/`or`/`not` and a quoted literal.
+        s.eval("set ::android 7").unwrap();
+        assert_eq!(
+            s.eval("expr {$android + 1}").unwrap(),
+            "8",
+            "a variable whose name merely contains `and` must be left alone"
+        );
+        assert_eq!(
+            s.eval("expr {\"a and b\" eq \"a and b\"}").unwrap(),
+            "1",
+            "`and` inside a quoted literal is not an operator"
+        );
+
+        unmeasured_unary_grouping_is_refused(&mut s);
+    }
+
+    /// The load-time source rewrite (`rewrite_irule_source`) must only touch
+    /// expression arguments in genuine *command* positions.
+    ///
+    /// It used to scan the raw source with `\m(if|elseif|while|expr)\s*\{`,
+    /// which cannot tell a command word from a quoted string, a braced data
+    /// literal or a comment — so it rewrote Tcl *data*. That was always wrong
+    /// but rarely reached: adding the word-form booleans put the common
+    /// English words `and` / `or` / `not` into the quick-check regexp, so
+    /// ordinary iRule text now enters the rewriter. The same regexp also
+    /// missed `for`, whose test expression is its *second* argument.
+    ///
+    /// Each negative assertion below is paired with a positive control, so a
+    /// rewriter that had simply stopped working could not pass.
+    #[test]
+    fn irule_source_rewrite_only_touches_command_positions() {
+        let mut s = LiveSession::new(&lib_dir()).expect("session");
+
+        // positive control: a real command-position condition IS rewritten.
+        let cmd_position = "when HTTP_REQUEST {\n    if {1 and 0} { pool a }\n}";
+        assert!(
+            rewrite(&mut s, cmd_position).contains("1 && 0"),
+            "the rewriter must still rewrite a genuine `if` condition"
+        );
+
+        // quoted_data_is_not_a_command: `if` inside a quoted word is data.
+        let quoted = "when HTTP_REQUEST {\n    set message \"if {1 and 0}\"\n}";
+        assert_eq!(
+            rewrite(&mut s, quoted),
+            quoted,
+            "a quoted string is data, not a command position"
+        );
+
+        // braced_data_is_not_a_command: nor is a braced literal argument to a
+        // command that takes no script there.
+        let braced = "when HTTP_REQUEST {\n    set s {expr {1 and 0}}\n}";
+        assert_eq!(
+            rewrite(&mut s, braced),
+            braced,
+            "a braced data word is not a script body"
+        );
+
+        // comments_are_not_commands.
+        let commented = "when HTTP_REQUEST {\n    # if {1 and 0} explains the rule\n    set x 1\n}";
+        assert_eq!(
+            rewrite(&mut s, commented),
+            commented,
+            "a comment is not a command position"
+        );
+
+        // for_test_is_the_second_argument: `for` reaches Tcl's builtin, whose
+        // test expression it evaluates internally, so the word operators in it
+        // must be rewritten at source level (an `::for` proc override is not
+        // an option — it breaks break/continue/return propagation, which is
+        // why `install` only wraps `::expr`).
+        let for_loop =
+            "when HTTP_REQUEST {\n    for {set i 0} {$i < 3 and $ready} {incr i} { incr n }\n}";
+        let rewritten_for = rewrite(&mut s, for_loop);
+        assert!(
+            rewritten_for.contains("$i < 3 && $ready"),
+            "`for`'s test expression must be rewritten: {rewritten_for}"
+        );
+        assert!(
+            rewritten_for.contains("{set i 0}"),
+            "`for`'s initialiser must be left alone: {rewritten_for}"
+        );
+
+        // …and end to end, over the real load path. Note what this can and
+        // cannot prove: the in-process VM compiles an iRule under the F5
+        // dialect and evaluates `if` / `while` / `for` conditions with its own
+        // expression engine, which already knows the word operators — probing
+        // the session shows `if {1 and 0}` and `if {"abc" starts_with "a"}`
+        // answering correctly even with `rewrite_irule_source` stubbed out to
+        // return its argument. So a passing pool selection here is a smoke
+        // check that the rewritten source still compiles and runs, *not*
+        // evidence that the rewrite happened; the string assertions above are
+        // what bite. The logged datum is the exception — the old regexp
+        // rewrite really did maul it, so that assertion is a live guard.
+        scenario(&mut s);
+        s.eval("::orch::add_pool api_pool {10.0.1.1:8080}").unwrap();
+        s.load_irule(
+            "when HTTP_REQUEST {\n  set ready 1\n  set n 0\n  for {set i 0} {$i < 3 and $ready} {incr i} {\n    incr n\n  }\n  set message \"if {1 and 0}\"\n  log local0. $message\n  if { $n == 3 } { pool api_pool }\n}",
+        )
+        .unwrap();
+        s.run_http_request("-host api.example.com -uri /v1/users")
+            .unwrap();
+        assert_eq!(
+            s.pool_selected().unwrap(),
+            "api_pool",
+            "the rewritten source must still compile and run its three iterations"
+        );
+        let logs = s.logs().unwrap();
+        assert!(
+            logs.contains("if {1 and 0}"),
+            "the logged datum must not have been rewritten: {logs}"
+        );
+    }
+
     #[test]
     fn missing_lib_dir_errors() {
         match LiveSession::new(Path::new("/no/such/dir")) {
@@ -742,8 +1119,8 @@ mod tests {
         }
     }
 
-    /// Issues #1462/#1463 on the harness itself, sharing one session for the
-    /// bootstrap cost like the suites above.
+    /// Verifies the harness's own dialect and availability-gate behaviour,
+    /// sharing one session for the bootstrap cost like the suites above.
     ///
     /// The harness VM now really is an 8.4 surface: the 8.5+ builtins
     /// (`dict`, `lassign`, `lrepeat`, `lreverse`) are hidden by the

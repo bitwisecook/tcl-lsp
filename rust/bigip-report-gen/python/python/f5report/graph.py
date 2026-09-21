@@ -24,7 +24,8 @@ on. It consumes the already-shaped per-device model from :mod:`f5report.report`
 
 * a **graph** of typed nodes and edges — including pools referenced *inside*
   iRules (via the engine's ``.refs`` sub-object) and pool-member → node links —
-  that the topology explorer renders with Mermaid;
+  that the topology explorer renders with the orthogonal elkjs-based renderer
+  (``ElkGraph``);
 * per-virtual **listener** fields (address / prefix / port / protocol / source /
   VLANs / route-domain) that the listener-matching table ranks by specificity;
 * per-iRule **dynamic actions** — commands that change traffic processing at

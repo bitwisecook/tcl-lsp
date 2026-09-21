@@ -52,7 +52,7 @@ export async function runAgenticLoop(
   // Keep caller control over dialect. iRules workflows pin to f5-irules,
   // while general Tcl workflows keep the active dialect. Pinned as a *session
   // override* rather than a configuration push: a push is undone by the next
-  // `workspace/configuration` pull, which can happen at any time (issue #1217).
+  // `workspace/configuration` pull, which can happen at any time.
   const targetDialect = options.targetDialect;
   const switchedDialect = !!targetDialect && getActiveDialect() !== targetDialect;
   if (switchedDialect) {

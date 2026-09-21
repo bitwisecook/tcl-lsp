@@ -161,7 +161,7 @@ pub fn spec() -> CommandSpec {
             // The interpreter routes every unresolved command word here,
             // so a module that defines its own `unknown` has callers the
             // interprocedural seed must enumerate from those words rather
-            // than from direct calls alone (issue #1044).
+            // than from direct calls alone.
             | Traits::UNRESOLVED_COMMAND_HANDLER
             // The handler receives the unresolved command *name* as data
             // (and user scripts routinely redefine `unknown` to dispatch on

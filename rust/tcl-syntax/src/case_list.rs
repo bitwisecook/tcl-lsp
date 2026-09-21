@@ -48,8 +48,10 @@ use std::ops::Range;
 /// Which clause-leading flags a clause list admits.
 ///
 /// Built from the registry's `CaseListSpec` by the caller. `switch` declares no
-/// clause flags; Expect declares `-re` / `-gl` / `-ex` / `-nocase` / `-timeout`
-/// / `-i` / `--`, of which `-timeout` and `-i` consume a following value word.
+/// clause flags; Expect declares `-glob` / `-regexp` / `-exact` / `-notransfer`
+/// / `-nocase` / `-i` / `-indices` / `-iread` / `-timestamp` / `-timeout` /
+/// `-nobrace` / `--` (unique abbreviations such as `-re` resolve to them), of
+/// which `-timeout` and `-i` consume a following value word.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct CaseListShape<'a> {
     /// Flags that may precede a pattern inside the list.

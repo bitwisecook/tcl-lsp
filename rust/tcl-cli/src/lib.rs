@@ -80,7 +80,7 @@ where
 /// outside this crate's control — 8 MiB by default on Linux, but as little
 /// as 1 MiB on Windows, or whatever a container's `ulimit -s` happens to
 /// be. Running every verb on an explicitly-sized thread makes the CLI's
-/// crash behaviour independent of the ambient environment (issue #996).
+/// crash behaviour independent of the ambient environment.
 const WORKER_STACK_SIZE: usize = 64 * 1024 * 1024;
 
 /// Run `dispatch` on a dedicated thread with [`WORKER_STACK_SIZE`] of stack.

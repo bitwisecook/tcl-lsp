@@ -180,13 +180,23 @@ command-level compatibility fallback in force. In SpecTcl the body calls \
 `timing IDX SameInvocation|Deferred|ReferenceOnly`.",
     ),
     (
+        "substitution_resolver",
+        "The per-call sibling of the `PERFORMS_SUBSTITUTION` trait: use it \
+when switches decide *which* of backslash, command and variable substitution \
+the call runs over its own argument, as with `subst -novariables`. The trait \
+alone tells a consumer only that some substitution happens, which is not \
+enough to answer \"does this argument read a variable?\". Silence means every \
+kind on every call, and a call the resolver cannot read must answer every \
+kind — assuming a substitution does not happen is what loses a real read.",
+    ),
+    (
         "callback_taint_inputs",
         "Lists only callback substitutions whose bytes are externally controlled. \
 For Tk validation, `%P`, `%s`, and `%S` carry editable text; for key bindings, \
 `%A` and `%K` carry the typed character or keysym. Do not declare widget paths, \
 indices, validation actions, or reasons (`%W`, `%i`, `%d`, `%V`) here: those are \
 framework metadata, not taint sources. The callback must be deferred; dynamic \
-script construction remains intentionally unanalyzed. In SpecTcl, write an \
+script construction remains intentionally unanalysed. In SpecTcl, write an \
 option's `-callback-taint-inputs {%P %S}` or the positional \
 `callback_taint_inputs {{INDEX {%A %K}}}` table.",
     ),

@@ -24,7 +24,8 @@
 //! (`sccp`, `type_infer`, `taint`, …); this module provides only the data
 //! types that downstream consumers (diagnostics, codegen, optimiser) read.
 
-/// Maximum number of values in a `CONSTSET` before widening to `OVERDEFINED`.
+/// Maximum number of values in a [`LatticeValue::ConstSet`] before widening to
+/// [`LatticeValue::Overdefined`].
 pub const MAX_CONSTSET_SIZE: usize = 32;
 
 // SCCP constant propagation lattice

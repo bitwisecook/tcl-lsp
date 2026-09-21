@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Offset rebasing for a memoised [`FunctionUnit`] (slice 4 offset-invariance).
+//! Offset rebasing for a memoised [`FunctionUnit`].
 //!
 //! The per-procedure lattice cache keys on a procedure's **body source** (not
 //! its position), so a body that is unchanged but *shifted* (lines inserted
@@ -62,7 +62,7 @@ pub(crate) fn rebase_function_unit(fu: &mut FunctionUnit, delta: i64) {
     }
     // Inlined-body error sites carry absolute spans too; without shifting them
     // a cache-hit, offset-rebased unit keeps stale offsets for error-region
-    // mapping / explorer views — issue 149.
+    // mapping and explorer views.
     for site in &mut fu.cfg.inline_body_error_sites {
         shift(&mut site.span, delta);
     }
@@ -231,8 +231,8 @@ fn rebase_statement(stmt: &mut Statement, delta: i64) {
 }
 
 /// Rebase the span-bearing looping/catch statements (`For` / `While` /
-/// `Foreach` / `Catch`), extracted from [`rebase_statement`] to keep each
-/// function small.
+/// `Foreach` / `Catch`).  Split out of [`rebase_statement`] so each function
+/// stays small.
 fn rebase_loop_statement(stmt: &mut Statement, delta: i64) {
     match stmt {
         Statement::For {
@@ -303,8 +303,8 @@ fn rebase_loop_statement(stmt: &mut Statement, delta: i64) {
     }
 }
 
-/// Rebase the span-bearing branching statements (`If` / `Try` / `Switch`),
-/// extracted from [`rebase_statement`] to keep each function small.
+/// Rebase the span-bearing branching statements (`If` / `Try` / `Switch`).
+/// Split out of [`rebase_statement`] so each function stays small.
 fn rebase_branching_statement(stmt: &mut Statement, delta: i64) {
     match stmt {
         Statement::If {
@@ -381,8 +381,8 @@ mod tests {
     use tcl_registry::CommandRegistry;
 
     /// A cache-hit, offset-rebased unit must shift its inlined-`eval` body
-    /// spans along with every other absolute span, or error-region / explorer
-    /// consumers see stale offsets (issue 149).
+    /// spans along with every other absolute span, or error-region and
+    /// explorer consumers see stale offsets.
     #[test]
     fn rebase_shifts_inline_body_error_sites() {
         let reg = CommandRegistry::build_default();

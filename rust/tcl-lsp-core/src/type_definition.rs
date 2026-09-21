@@ -24,7 +24,7 @@
 //! - **Variable receiver** (`$obj`) — when the analyser has inferred the
 //!   variable's class (`AnalysisResult::instance_classes`, or the
 //!   object-type lattice's scope-keyed singleton via
-//!   [`crate::definition::receiver_instance_class_at`] — issue #994 C5b),
+//!   [`crate::definition::receiver_instance_class_at`]),
 //!   jump to that `ClassDef`'s name span.
 //! - **Method receiver** — when the cursor sits inside a class body on a
 //!   word that names one of that class's methods, jump to the enclosing
@@ -52,7 +52,7 @@ pub fn type_definition(
     // 1. Variable receiver: `$obj` with a known instance class —
     //    `instance_classes` first, then the object-type lattice's
     //    scope-keyed singleton at the cursor, the same accessor precedence
-    //    every dispatch consumer uses (issue #994 C5b).
+    //    every dispatch consumer uses.
     if let Some(var_name) = find_var_at_position(source, line, character) {
         let cursor = byte_offset_at(&line_index, source, line, character);
         if let Some(class_q) =
@@ -175,7 +175,7 @@ mod tests {
 
     #[test]
     fn lattice_typed_variable_jumps_to_inferred_class() {
-        // Issue #994 C5b: `b` is typed only by the object-type lattice's
+        // `b` is typed only by the object-type lattice's
         // method-return edge; go-to-type-definition must reach ::B like
         // every other dispatch consumer.
         let src = "oo::class create A { method make {} { ::return [::B new] } }\n\

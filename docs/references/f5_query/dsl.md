@@ -372,16 +372,14 @@ auto-deref on field access whenever the target kind is itself
 projected.
 
 `ltm.*`, `net.*`, `sys.*`, `cm.*`, `gtm.*`, `apm.*`, and `security.*`
-are projected and navigable — the `LTM_KINDS` / `NET_KINDS` /
-`SYS_KINDS` / `CM_KINDS` / `GTM_KINDS` / `APM_KINDS` /
-`SECURITY_KINDS` tables (looked up via `module_kinds()`) in
+are projected and navigable — the `KINDS` table in
 [`projection.rs`](../../../rust/tcl-bigip-query/src/projection.rs)
-enumerate the exact set of kinds covered per module, and the tree
-above lists them all. The tables are the contract: a kind that is
-absent is not navigable, so `gtm` covers `datacenter` / `server` /
-`pool` / `wideip` / `listener` — notably **not** `prober-pool`,
-`region`, or `rule` — and `security` covers the firewall + NAT kinds
-only.
+pairs every covered TMSH kind with the label its module container
+exposes it under, and the tree above lists them all. That table is
+the contract: a kind absent from it is not navigable, so `gtm`
+covers `datacenter` / `server` / `pool` / `wideip` / `listener` —
+notably **not** `prober-pool`, `region`, or `rule` — and `security`
+covers the firewall + NAT kinds only.
 
 `pem.*`, `auth.*`, `vcmp.*`, `cli.*`, `api-protection.*`, `asm.*`,
 `ilx.*`, `wom.*`, and `analytics.*` have **no** typed projection:
@@ -690,11 +688,18 @@ source.  Cross-file behaviour comes in two shapes:
   `$ltm.ltm.virtual[].destination = "..."` writes to the source
   bound under `$ltm`, regardless of which source was iterating.
 - **`--merge`** — every loaded source becomes one logical namespace.
-  `.ltm.virtual[]` returns virtuals from every input and `refs` /
-  `referenced_by` walk references across files; edits still route
-  back to the originating source.  Refuses to merge when two
+  `.ltm.virtual[]` returns virtuals from every input; edits still
+  route back to the originating source.  Refuses to merge when two
   sources define the same `(kind, full-path)` — namespace or
   redact the inputs first.
+
+  One namespace means one reference graph, so every reference walk
+  off any loaded source spans all of them: `refs` /
+  `referenced_by` / `references_to`, the `ltm rule` `.refs`
+  projection, `check_partition_visibility()`, and the
+  cross-partition safety check `rename()` runs before it moves an
+  object.  A `PathRef` dereference resolves the same way — see
+  [`PathRef`](#pathref) above.
 
 ## Exit codes
 

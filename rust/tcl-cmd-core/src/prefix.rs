@@ -391,7 +391,7 @@ mod tests {
         assert_eq!(lookup(&["apple", ""], b"", false), Lookup::Found(1));
     }
 
-    /// Issue #1607: `dict filter`'s type word is an [`OptionTable`] over C's
+    /// `dict filter`'s type word is an [`OptionTable`] over C's
     /// `filters[]` (`tclDictObj.c`) with the noun `filterType`, so the three
     /// types abbreviate and the empty word is `ambiguous`.
     ///
