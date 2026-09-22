@@ -97,6 +97,12 @@ fn is_frame(r: &CfgEscapeResult, name: &str) -> bool {
 // `tree_assign_or_incr`: the opaque catch body escapes every name it writes. A
 // bare top-level `set x 1` is a pure local (negative control), but the same
 // write inside a `catch {…}` body is conservatively spilled.
+//
+// Every test here goes through `cfg_result`, which builds `::top`, so the
+// `catch` is a *top-level* one and stays opaque: it is only inlined inside a
+// procedure, where its result variable could have a slot (#2207). The
+// procedure case is covered by `var_escape_residual2`'s
+// `cu_catch_literal_body_threads_its_upvar`.
 
 #[test]
 fn bare_set_is_local_control() {
@@ -109,41 +115,24 @@ fn bare_set_is_local_control() {
     );
 }
 
-/// A straight-line `catch` body is no longer opaque, so its writes need no
-/// conservative spill: the CFG holds them as ordinary statements and SSA sees
-/// them directly (#2207).
-///
-/// The semantics this used to encode are unchanged and still measured against
-/// tclsh 9.0.4 — `proc f {} { catch {set x 42}; return $x }; f` is `42`,
-/// `proc g {} { catch {incr n 2}; return $n }; g` is `2` — the write still
-/// lands in the enclosing frame. What changed is only *how* it gets there:
-/// through the ordinary local, rather than through a spill the walker added
-/// because it could not see inside.
 #[test]
-fn straight_line_catch_body_needs_no_conservative_spill() {
+fn catch_body_set_escapes_touched_name() {
+    // tclsh: `proc f {} { catch {set x 42}; return $x }; f` -> 42 — the catch'd
+    // `set` lands in f's frame.
     let r = cfg_result("catch {set x 1}");
     assert!(
-        !is_frame(&r, "x"),
-        "an inlined catch body's write is an ordinary local: {:?}",
-        r.name_tags
-    );
-    let r = cfg_result("catch {incr n 2}");
-    assert!(
-        !is_frame(&r, "n"),
-        "an inlined catch body's incr is an ordinary local: {:?}",
+        is_frame(&r, "x"),
+        "catch'd set escapes x: {:?}",
         r.name_tags
     );
 }
 
-/// A body the CFG still keeps opaque — anything that terminates its block, or
-/// nested control flow — keeps the conservative spill, which is what the rest
-/// of this module exercises.
 #[test]
-fn opaque_catch_body_still_escapes_touched_name() {
-    let r = cfg_result("catch {if {1} {set x 1}}");
+fn catch_body_incr_escapes_counter() {
+    let r = cfg_result("catch {incr n 2}");
     assert!(
-        is_frame(&r, "x"),
-        "an opaque catch body still escapes x: {:?}",
+        is_frame(&r, "n"),
+        "catch'd incr escapes n: {:?}",
         r.name_tags
     );
 }

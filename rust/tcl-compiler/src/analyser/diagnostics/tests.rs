@@ -12746,33 +12746,51 @@ fn switch_and_loop_joined_const_dispatch_records_every_may_target_945() {
 
 #[test]
 fn catch_and_try_body_writes_join_never_last_write_945() {
-    // A straight-line `catch` body now lowers to real CFG blocks (#2207), so
-    // like a `try` its φ-join keeps BOTH may-targets: the body may fail
-    // before the write (`safe` survives) or complete (`risky`).  That is the
-    // same contract this test has always enforced — no false single-target
-    // definition, so no destructive rename edit — met by precision rather
-    // than by abstaining.
+    // Two shapes, because `catch` is only inlined where its result variable
+    // could have a slot — inside a procedure (#2207).
     //
-    // The join is only sound because `lower_catch` records an exception edge
-    // from the *pre-catch* block: the body can fail at its first command, so
-    // the state before the `catch` reaches the end untouched.  Without that
-    // edge this settles to `risky` alone, which is exactly the false
-    // single-target the name warns about.
+    // At the top level it stays the opaque call with summarised defs, so the
+    // provenance walk still sees a non-literal defining statement and
+    // **abstains**: no indirect reference at all, and never a lexical map's
+    // answer (the body's `set cmd risky` presented as the unconditional
+    // value).
     let mut a = Analyser::new();
     let src = "proc safe {} {}\nproc risky {} {}\nset cmd safe\n\
                catch {\n    set cmd risky\n}\n$cmd\n";
     let r = a.analyse(src, "tcl");
     let dispatch = u32::try_from(src.rfind("$cmd").unwrap()).unwrap();
-    let heads: Vec<&str> = r
+    assert!(
+        !r.command_invocations
+            .iter()
+            .any(|i| i.indirect && i.range.start() == dispatch),
+        "an opaque top-level catch write must abstain, not settle to a single target",
+    );
+
+    // Inside a procedure the body is real CFG blocks, so the φ-join keeps
+    // BOTH may-targets — the body may fail before the write (`safe` survives)
+    // or complete (`risky`). Same contract, met by precision rather than by
+    // abstaining.
+    //
+    // The join is only sound because `lower_catch` records an exception edge
+    // from the *pre-catch* block: the body can fail at its first command.
+    // Without that edge this settles to `risky` alone, which is exactly the
+    // false single-target this test's name warns about.
+    let mut in_proc_analyser = Analyser::new();
+    let proc_src = "proc safe {} {}\nproc risky {} {}\nproc p {} {\n\
+                set cmd safe\ncatch {\n    set cmd risky\n}\n$cmd\n}\n";
+    let proc_result = in_proc_analyser.analyse(proc_src, "tcl");
+    let proc_dispatch = u32::try_from(proc_src.rfind("$cmd").unwrap()).unwrap();
+    let proc_heads: Vec<&str> = proc_result
         .command_invocations
         .iter()
-        .filter(|i| i.indirect && i.range.start() == dispatch)
+        .filter(|i| i.indirect && i.range.start() == proc_dispatch)
         .filter_map(|i| i.resolved_qualified_name.as_deref())
         .collect();
     assert!(
-        heads.contains(&"::safe") && heads.contains(&"::risky"),
-        "a catch body write must keep both may-targets, not settle to one: {heads:?}",
+        proc_heads.contains(&"::safe") && proc_heads.contains(&"::risky"),
+        "an inlined catch body keeps both may-targets, never one: {proc_heads:?}",
     );
+
     // A `try` body, by contrast, inlines with real CFG structure in
     // analysis builds, so its φ-join keeps BOTH may-targets — the body
     // may error before the write (`safe` survives) or complete

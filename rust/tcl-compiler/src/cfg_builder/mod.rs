@@ -175,6 +175,10 @@ pub(crate) struct CfgBuilder<'a> {
     /// `catch {set a 1} m o` as a plain `invokeStk`, having nowhere to put the
     /// result variable's slot.
     is_proc_body: bool,
+    /// Set when the module's own top level is a procedure body, so
+    /// `build_function` treats `::top` as one. See
+    /// [`Module::top_level_is_procedure_body`](crate::ir::Module::top_level_is_procedure_body).
+    top_level_is_proc_body: bool,
     /// Map from command name to upvar summary, used to pre-populate
     /// caller-side `defs` on calls to procs that use `upvar`.  Empty
     /// when the builder is constructed without an upvar context
@@ -352,6 +356,7 @@ impl<'a> CfgBuilder<'a> {
             loop_nodes: HashMap::new(),
             inline_loops,
             is_proc_body: false,
+            top_level_is_proc_body: false,
             upvar_procs,
             proc_params,
             global_write_procs,
@@ -1146,8 +1151,14 @@ impl<'a> CfgBuilder<'a> {
 
     /// Build a [`Function`] by lowering a script starting at a fresh
     /// entry block, then freezing all mutable blocks.
+    /// Mark this builder's `::top` as a procedure body.
+    fn with_top_level_proc_body(mut self, is_proc_body: bool) -> Self {
+        self.top_level_is_proc_body = is_proc_body;
+        self
+    }
+
     fn build_function(&mut self, name: &str, script: &Script) -> Function {
-        self.is_proc_body = name != "::top";
+        self.is_proc_body = name != "::top" || self.top_level_is_proc_body;
         let entry = self.new_block("entry");
         let tail = self.lower_script(script, &entry);
         if let Some(tail) = tail {
@@ -2284,7 +2295,8 @@ fn build_cfg_inner_with_context(
         module.top_level_namespace.clone()
     };
     let mut top_builder = new_builder(!defer_top_level)
-        .with_invocation_namespace(crate::ir::ExecutionNamespace::exact(top_namespace));
+        .with_invocation_namespace(crate::ir::ExecutionNamespace::exact(top_namespace))
+        .with_top_level_proc_body(module.top_level_kind == crate::ir::TopLevelKind::ProcedureBody);
     let top_cfg = top_builder.build_function("::top", &module.top_level);
 
     let mut proc_cfgs = HashMap::new();

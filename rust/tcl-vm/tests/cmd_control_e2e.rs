@@ -2039,3 +2039,32 @@ fn a_top_level_catch_is_not_inlined() {
     assert_eq!(run("catch {set a 1} m o; set m").1, "1");
     assert_eq!(run("catch {error boom} m; set m").1, "boom");
 }
+
+/// `info exists` in statement position compiles inline in a procedure, so the
+/// name it tests becomes a compiled local (#2207).
+///
+/// tclsh 9.0.4 emits `existScalar %v0` for a bare `info exists pub` in a
+/// procedure, against our previous `invokeStk1`.
+#[test]
+fn statement_position_info_exists_answers_like_tclsh() {
+    assert_eq!(run("proc f {} { info exists pub }; f").1, "0");
+    assert_eq!(run("proc f {} { set pub 1; info exists pub }; f").1, "1");
+    // Not the last statement: the value is discarded, the next one stands.
+    assert_eq!(
+        run("proc f {} { set pub 1; info exists pub; return done }; f").1,
+        "done"
+    );
+}
+
+/// A name the inline form cannot address keeps the dispatched path: outside a
+/// procedure there is no slot, and a qualified name is not a frame local.
+#[test]
+fn info_exists_without_a_slot_stays_dispatched() {
+    assert_eq!(run("info exists nope; set x 1").1, "1");
+    assert_eq!(run("set ::gv 1; proc f {} { info exists ::gv }; f").1, "1");
+    // A braced name resolves once and is not substituted again.
+    assert_eq!(
+        run("set {{zz}} V\nputs [info exists {{zz}}]:[set {{zz}}]\n").1,
+        ""
+    );
+}
