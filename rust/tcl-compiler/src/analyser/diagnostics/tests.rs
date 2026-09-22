@@ -10077,7 +10077,15 @@ fn w210_matchable_regexp_scan_silent() {
     // The success arm of a positive condition reads a set var.
     assert!(w210_codes("proc f {} { if {[regexp {x} y -> v]} { puts $v } }").is_empty());
     // An unknown / unsafe switch can't prove no-match → silent.
-    assert!(w210_codes("proc f {} { regexp -about {x} y v\n puts $v }").is_empty());
+    assert!(w210_codes("proc f {} { regexp -bogus {x} y v\n puts $v }").is_empty());
+    // `-about` is not such a switch: it names no match variable at all, so
+    // `v` is never written and the read is genuine. tclsh 8.4.20 / 8.6.18 /
+    // 9.0.4 all fail this program with `can't read "v"` (#2135).
+    assert!(
+        w210_codes("proc f {} { regexp -about {x} y v\n puts $v }")
+            .iter()
+            .any(|m| m.contains("'v'"))
+    );
 }
 
 #[test]
