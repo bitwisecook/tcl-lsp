@@ -374,7 +374,7 @@ fn render_spec<O: ValueOps>(
             // `format %hu 5000000000` is 61952 on every release.
             let u = tcl_syntax::format::integer_width(spec.size, syntax)
                 .unsigned(fixed_integer_value(ops, arg, syntax)?);
-            Ok(pad_number(&uint_digits(u, spec, syntax), false, spec))
+            Ok(pad_unsigned_number(&uint_digits(u, spec, syntax), spec))
         }
         b'p' => {
             // `%p` is Tcl's pointer-style hexadecimal conversion. It always
@@ -388,16 +388,12 @@ fn render_spec<O: ValueOps>(
                 tcl_syntax::format::IntegerWidth::Int
             };
             let u = width.unsigned(fixed_integer_value(ops, arg, syntax)?);
-            // Tcl keeps `%p` unsigned even when `+`/space flags are present;
-            // those flags are accepted but do not add a sign to a pointer.
-            let mut pointer_spec = *spec;
-            pointer_spec.flags.remove(FmtFlags::PLUS | FmtFlags::SPACE);
-            Ok(pad_number(&pointer_digits(u, spec), false, &pointer_spec))
+            Ok(pad_unsigned_number(&pointer_digits(u, spec), spec))
         }
         b'x' | b'X' | b'o' | b'b' => {
             let u = tcl_syntax::format::integer_width(spec.size, syntax)
                 .unsigned(fixed_integer_value(ops, arg, syntax)?);
-            Ok(pad_number(&based_digits(u, spec, syntax), false, spec))
+            Ok(pad_unsigned_number(&based_digits(u, spec, syntax), spec))
         }
         b'c' => {
             let n = ops.as_int(arg)?;
@@ -750,6 +746,17 @@ fn pad_number(body: &str, negative: bool, spec: &Spec) -> String {
     } else {
         format!("{}{sign}{body}", " ".repeat(pad))
     }
+}
+
+/// Apply width to a fixed-width unsigned conversion.
+///
+/// C Tcl accepts `+` and space on fixed-width unsigned conversions, but does
+/// not render either sign. Unbounded `ll`/`L` conversions use `pad_number`
+/// directly because they retain those signs.
+fn pad_unsigned_number(body: &str, spec: &Spec) -> String {
+    let mut unsigned_spec = *spec;
+    unsigned_spec.flags.remove(FmtFlags::PLUS | FmtFlags::SPACE);
+    pad_number(body, false, &unsigned_spec)
 }
 
 /// Apply width / left-justify to a string conversion.

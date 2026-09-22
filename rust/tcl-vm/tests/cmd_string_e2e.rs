@@ -1003,6 +1003,53 @@ fn format_pointer_precision_and_flags() {
     res_eq("format %.0p 0", "0x0");
     res_eq("format %+.4p 42", "0x002a");
     res_eq("format {% .4p} 42", "0x002a");
+    res_eq("format {%+08p % 08p} 17 17", "0x000011 0x000011");
+}
+
+/// Fixed-width unsigned conversions accept `+` and space but do not print a
+/// sign; unbounded `ll` conversions retain their existing signed behaviour.
+#[test]
+fn format_fixed_unsigned_ignores_sign_flags_issue_2223() {
+    for version in [tcl_dialect::TclVersion::V8_6, tcl_dialect::TclVersion::V9_0] {
+        for (value, expected) in [
+            ("0", "0 0 0 0 0 0 0 0 0 0"),
+            ("17", "17 17 11 11 11 11 21 21 10001 10001"),
+            ("18446744073709551616", "0 0 0 0 0 0 0 0 0 0"),
+        ] {
+            let script = format!(
+                "format {{%+u % u %+x % x %+X % X %+o % o %+b % b}} {value} {value} {value} {value} {value} {value} {value} {value} {value} {value}"
+            );
+            let (ok, result, _) = run_for_version(&script, version);
+            assert!(ok, "{version:?} script errored: {result}");
+            assert_eq!(result, expected, "{version:?}: {script}");
+        }
+        let negative = match version {
+            tcl_dialect::TclVersion::V8_6 => {
+                "18446744073709551599 18446744073709551599 ffffffffffffffef ffffffffffffffef"
+            }
+            tcl_dialect::TclVersion::V9_0 => "4294967279 4294967279 ffffffef ffffffef",
+            _ => unreachable!(),
+        };
+        let (ok, result, _) = run_for_version("format {%+u % u %+x % x} -17 -17 -17 -17", version);
+        assert!(ok, "{version:?} script errored: {result}");
+        assert_eq!(result, negative, "{version:?}");
+        let (ok, result, _) = run_for_version("format {%+08x %+#08x} 17 17", version);
+        assert!(ok, "{version:?} script errored: {result}");
+        assert_eq!(result, "00000011 0x000011", "{version:?}");
+    }
+    for value in ["0", "17"] {
+        let script = format!(
+            "format {{%+u % u %+x % x %+X % X %+o % o}} {value} {value} {value} {value} {value} {value} {value} {value}"
+        );
+        let expected = if value == "0" {
+            "0 0 0 0 0 0 0 0"
+        } else {
+            "17 17 11 11 11 11 21 21"
+        };
+        let (ok, result, _) = run_for_version(&script, tcl_dialect::TclVersion::V8_4);
+        assert!(ok, "Tcl 8.4 script errored: {result}");
+        assert_eq!(result, expected, "Tcl 8.4: {script}");
+    }
 }
 
 /// Tcl 9 fixed-width format conversions reduce bignum operands modulo 2^64
@@ -1065,6 +1112,10 @@ fn format_bignum_conversions_issue_2162() {
     res_eq(
         "format %llX 0xabcdef0123456789abcdef",
         "ABCDEF0123456789ABCDEF",
+    );
+    res_eq(
+        "format {%+llx % llx %+llx % llx} 18446744073709551616 18446744073709551616 -17 -17",
+        "+10000000000000000  10000000000000000 -11 -11",
     );
     for format in [
         "%#.0lld", "%#.0llx", "%#.0llo", "%#.0llb", "%#.0Ld", "%#.0Lx", "%#.0Lo", "%#.0Lb",

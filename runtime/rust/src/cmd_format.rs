@@ -183,6 +183,63 @@ mod tests {
                 b"18446744073709551615"
             );
 
+            for version in [tcl_dialect::TclVersion::V8_6, tcl_dialect::TclVersion::V9_0] {
+                i.set_runtime_version(version);
+                assert_eq!(
+                    ok(
+                        i,
+                        b"format {%+u % u %+x % x %+X % X %+o % o %+b % b} 0 0 0 0 0 0 0 0 0 0"
+                    ),
+                    b"0 0 0 0 0 0 0 0 0 0",
+                    "{version:?}"
+                );
+                assert_eq!(
+                    ok(i, b"format {%+u % u %+x % x %+X % X %+o % o %+b % b} 17 17 17 17 17 17 17 17 17 17"),
+                    b"17 17 11 11 11 11 21 21 10001 10001",
+                    "{version:?}"
+                );
+                assert_eq!(ok(i, b"format {%+08x %+#08x} 17 17"), b"00000011 0x000011");
+                assert_eq!(
+                    ok(
+                        i,
+                        b"format {%+u % x} 18446744073709551616 18446744073709551616"
+                    ),
+                    b"0 0",
+                    "{version:?}"
+                );
+                let negative = match version {
+                    tcl_dialect::TclVersion::V8_6 => {
+                        b"18446744073709551599 18446744073709551599 ffffffffffffffef ffffffffffffffef".as_slice()
+                    }
+                    tcl_dialect::TclVersion::V9_0 => {
+                        b"4294967279 4294967279 ffffffef ffffffef".as_slice()
+                    }
+                    _ => unreachable!(),
+                };
+                assert_eq!(
+                    ok(i, b"format {%+u % u %+x % x} -17 -17 -17 -17"),
+                    negative,
+                    "{version:?}"
+                );
+            }
+            i.set_runtime_version(tcl_dialect::TclVersion::V8_4);
+            assert_eq!(
+                ok(
+                    i,
+                    b"format {%+u % u %+x % x %+X % X %+o % o} 0 0 0 0 0 0 0 0"
+                ),
+                b"0 0 0 0 0 0 0 0"
+            );
+            assert_eq!(
+                ok(
+                    i,
+                    b"format {%+u % u %+x % x %+X % X %+o % o} 17 17 17 17 17 17 17 17"
+                ),
+                b"17 17 11 11 11 11 21 21"
+            );
+            i.set_runtime_version(tcl_dialect::TclVersion::V9_0);
+            assert_eq!(ok(i, b"format {%+08p % 08p} 17 17"), b"0x000011 0x000011");
+
             assert_eq!(
                 ok(i, b"format %lld 18446744073709551616"),
                 b"18446744073709551616"
@@ -202,6 +259,10 @@ mod tests {
             assert_eq!(
                 ok(i, b"format %llX 0xabcdef0123456789abcdef"),
                 b"ABCDEF0123456789ABCDEF"
+            );
+            assert_eq!(
+                ok(i, b"format {%+llx % llx %+llx % llx} 18446744073709551616 18446744073709551616 -17 -17"),
+                b"+10000000000000000  10000000000000000 -11 -11"
             );
             for format in [
                 b"%#.0lld".as_slice(),
