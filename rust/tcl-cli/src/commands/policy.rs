@@ -68,18 +68,6 @@ impl ConfigLayers {
         builder
     }
 
-    /// Whether every path resolves under one project layer (or none) — the
-    /// first half of the test `tcl opt` makes before folding several inputs
-    /// into one text.
-    #[must_use]
-    pub fn share_one_project<'a>(&self, paths: impl IntoIterator<Item = Option<&'a Path>>) -> bool {
-        let roots: HashSet<Option<PathBuf>> = paths
-            .into_iter()
-            .map(|path| path.and_then(config_ini::project_root_for))
-            .collect();
-        roots.len() <= 1
-    }
-
     /// The project layer for the file at `path`, read once per root.
     fn project_layer_for(&self, path: &Path) -> Option<Value> {
         let root = config_ini::project_root_for(path)?;
@@ -91,6 +79,18 @@ impl ConfigLayers {
         projects.insert(root, layer.clone());
         Some(layer)
     }
+}
+
+/// Whether every path resolves under one project layer (or none) — the
+/// first half of the test `tcl opt` makes before folding several inputs into
+/// one text.
+#[must_use]
+pub fn share_one_project<'a>(paths: impl IntoIterator<Item = Option<&'a Path>>) -> bool {
+    let roots: HashSet<Option<PathBuf>> = paths
+        .into_iter()
+        .map(|path| path.and_then(config_ini::project_root_for))
+        .collect();
+    roots.len() <= 1
 }
 
 /// The `--disable` / `--enable` flags (comma-separated, upper-cased,
@@ -159,6 +159,6 @@ mod tests {
         };
         let policy = layers.builder_for(None).build();
         assert_eq!(policy.code_reason(DiagCode::W242), Some(Reason::DefaultOff));
-        assert!(layers.share_one_project([None, None]));
+        assert!(share_one_project([None, None]));
     }
 }

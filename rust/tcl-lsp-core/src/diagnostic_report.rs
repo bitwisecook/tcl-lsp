@@ -250,7 +250,7 @@ mod tests {
         crate::profile_for_dialect("tcl9.0")
     }
 
-    fn tcl_doc<'a>(text: &'a str) -> DocumentSource<'a> {
+    fn tcl_doc(text: &str) -> DocumentSource<'_> {
         DocumentSource {
             text,
             analysis_text: text,
@@ -382,9 +382,9 @@ mod tests {
         let plain = "set x [expr {1 + 2}]\n";
         let folded = optimise_under_policy(plain, &registry, dialect, 1, &policy);
         assert!(folded.text.contains("set x 3"), "{}", folded.text);
-        assert!(folded.applied.iter().any(|o| o.code == DiagCode::O102));
+        assert!(folded.applied.iter().any(|o| o.code == DiagCode::O101));
 
-        let marked = "# noqa: O102\nset x [expr {1 + 2}]\n";
+        let marked = "# noqa: O101\nset x [expr {1 + 2}]\n";
         let kept = optimise_under_policy(marked, &registry, dialect, 1, &policy);
         assert_eq!(
             kept.text, marked,

@@ -901,3 +901,249 @@ fn samples_optimiser_profiles_are_regenerated() {
         );
     }
 }
+
+/// A scratch directory for one test, removed on drop.
+struct Scratch(PathBuf);
+
+impl Scratch {
+    fn new(tag: &str) -> Self {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos();
+        let dir = std::env::temp_dir().join(format!("tcl-cli-{tag}-{nanos}"));
+        std::fs::create_dir_all(&dir).expect("scratch dir");
+        Self(dir)
+    }
+
+    /// Write `text` at `rel` (directories created) and return its path.
+    fn write(&self, rel: &str, text: &str) -> PathBuf {
+        let path = self.0.join(rel);
+        std::fs::create_dir_all(path.parent().expect("parent")).expect("parent dir");
+        std::fs::write(&path, text).expect("write file");
+        path
+    }
+}
+
+impl Drop for Scratch {
+    fn drop(&mut self) {
+        std::fs::remove_dir_all(&self.0).ok();
+    }
+}
+
+/// Run the built `tcl` binary with `args` and `env`, tolerating a non-zero
+/// exit, and return its stdout.
+fn run_tcl_env(args: &[&str], env: &[(&str, &std::ffi::OsStr)]) -> Vec<u8> {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_tcl"));
+    command.args(args);
+    for (key, value) in env {
+        command.env(key, value);
+    }
+    command.output().expect("failed to spawn tcl binary").stdout
+}
+
+/// `(file label, code)` pairs of a `diag --json` report.
+fn diag_codes_by_file(out: &[u8]) -> Vec<(String, String)> {
+    let report: serde_json::Value = serde_json::from_slice(out).expect("diag JSON");
+    report
+        .as_array()
+        .expect("report array")
+        .iter()
+        .flat_map(|file| {
+            let label = file["file"].as_str().expect("file").to_owned();
+            file["diagnostics"]
+                .as_array()
+                .expect("diagnostics")
+                .iter()
+                .map(move |d| (label.clone(), d["code"].as_str().expect("code").to_owned()))
+        })
+        .collect()
+}
+
+/// A `while` whose counter the body never touches: W242, the one code the
+/// catalogue declares default-off.
+const UNPROVABLE_LOOP: &str = "set i 0\nwhile {$i < 3} {\n    puts $i\n}\n";
+
+/// The catalogue's default-off codes are off for `tcl diag` as they are in
+/// the editor, and `--enable` turns one on — the seed is the lowest layer,
+/// under every flag (`docs/design/compiler/diagnostic-policy.md`
+/// § Configuration).
+#[test]
+fn diag_seeds_the_default_off_codes_like_the_editor() {
+    let scratch = Scratch::new("default-off");
+    let no_config = scratch.write("config/.keep", "");
+    let xdg = no_config.parent().expect("config dir").as_os_str();
+    let env: &[(&str, &std::ffi::OsStr)] = &[("XDG_CONFIG_HOME", xdg)];
+    let off = diag_codes_by_file(&run_tcl_env(
+        &["diag", "--json", "--source", UNPROVABLE_LOOP],
+        env,
+    ));
+    assert!(
+        !off.iter().any(|(_, code)| code == "W242"),
+        "W242 is default-off and must not fire unasked: {off:?}"
+    );
+    let on = diag_codes_by_file(&run_tcl_env(
+        &[
+            "diag",
+            "--json",
+            "--enable",
+            "W242",
+            "--source",
+            UNPROVABLE_LOOP,
+        ],
+        env,
+    ));
+    assert!(
+        on.iter().any(|(_, code)| code == "W242"),
+        "`--enable W242` must reach a default-off code: {on:?}"
+    );
+}
+
+/// The project and global layers resolve per input file (issue #2063): a
+/// file under a `.tcl-lsp.ini` that turns W112 off reports none while its
+/// sibling from another directory still does. The global `config.ini` is the
+/// lowest layer, the flags sit above it, and a project file sits above both.
+/// A configuration file only turns codes off (`[diagnostics] disabled = …`),
+/// so the flag's `--enable` is what turns a code the global file disabled
+/// back on.
+#[test]
+fn diag_resolves_the_project_and_global_layers_per_input_file() {
+    let scratch = Scratch::new("layers");
+    let trailing = "set x 1   \nputs $x\n";
+    scratch.write("quiet/.tcl-lsp.ini", "[diagnostics]\ndisabled = W112\n");
+    let quiet = scratch.write("quiet/nested/a.tcl", trailing);
+    let loud = scratch.write("loud/b.tcl", trailing);
+    let config = scratch.write("xdg/tcl-lsp/config.ini", "[diagnostics]\ndisabled = W112\n");
+    let xdg = config
+        .parent()
+        .and_then(|p| p.parent())
+        .expect("xdg root")
+        .as_os_str();
+    let empty = scratch.write("empty-xdg/.keep", "");
+    let no_global = empty.parent().expect("empty xdg").as_os_str();
+
+    let per_file = diag_codes_by_file(&run_tcl_env(
+        &[
+            "diag",
+            "--json",
+            quiet.to_str().unwrap(),
+            loud.to_str().unwrap(),
+        ],
+        &[("XDG_CONFIG_HOME", no_global)],
+    ));
+    let has = |rows: &[(String, String)], file: &PathBuf, code: &str| {
+        rows.iter().any(|(label, c)| {
+            label.ends_with(file.file_name().unwrap().to_str().unwrap()) && c == code
+        })
+    };
+    assert!(
+        !has(&per_file, &quiet, "W112"),
+        "the project file above a.tcl turns W112 off: {per_file:?}"
+    );
+    assert!(
+        has(&per_file, &loud, "W112"),
+        "b.tcl sits under no project file and keeps W112: {per_file:?}"
+    );
+
+    // The global file reaches both.
+    let with_global = diag_codes_by_file(&run_tcl_env(
+        &[
+            "diag",
+            "--json",
+            quiet.to_str().unwrap(),
+            loud.to_str().unwrap(),
+        ],
+        &[("XDG_CONFIG_HOME", xdg)],
+    ));
+    assert!(
+        !has(&with_global, &quiet, "W112"),
+        "global and project both disable W112 for a.tcl: {with_global:?}"
+    );
+    assert!(
+        !has(&with_global, &loud, "W112"),
+        "the global file disables W112 for b.tcl: {with_global:?}"
+    );
+
+    // `--enable` overrules the global file, and the project file overrules
+    // the flag.
+    let enabled = diag_codes_by_file(&run_tcl_env(
+        &[
+            "diag",
+            "--json",
+            "--enable",
+            "W112",
+            quiet.to_str().unwrap(),
+            loud.to_str().unwrap(),
+        ],
+        &[("XDG_CONFIG_HOME", xdg)],
+    ));
+    assert!(
+        has(&enabled, &loud, "W112"),
+        "`--enable W112` overrules the global `disabled = W112`: {enabled:?}"
+    );
+    assert!(
+        !has(&enabled, &quiet, "W112"),
+        "the project `disabled = W112` overrules `--enable`: {enabled:?}"
+    );
+
+    // An inline `--source` has no path, so no project layer: the global
+    // file alone decides, and `--enable` in the invocation layer overrules it.
+    let inline = diag_codes_by_file(&run_tcl_env(
+        &["diag", "--json", "--source", trailing],
+        &[("XDG_CONFIG_HOME", xdg)],
+    ));
+    assert!(
+        !inline.iter().any(|(_, code)| code == "W112"),
+        "the global layer reaches an inline source: {inline:?}"
+    );
+    let flagged = diag_codes_by_file(&run_tcl_env(
+        &["diag", "--json", "--enable", "W112", "--source", trailing],
+        &[("XDG_CONFIG_HOME", xdg)],
+    ));
+    assert!(
+        flagged.iter().any(|(_, code)| code == "W112"),
+        "`--enable` sits above the global file: {flagged:?}"
+    );
+}
+
+/// `tcl opt` applies only the rewrites the document's policy shows (issue
+/// #2062): a `# noqa` on the command keeps its fold off, a top-of-file
+/// `# tcl-lsp: disable=*` keeps every rewrite off, and two inputs whose
+/// directives differ are optimised each under its own policy rather than
+/// folded into one text where the first file's directive would govern the
+/// second.
+#[test]
+fn opt_applies_only_the_rewrites_the_policy_shows() {
+    let scratch = Scratch::new("opt-policy");
+    let empty = scratch.write("xdg/.keep", "");
+    let xdg = empty.parent().expect("xdg").as_os_str();
+    let env: &[(&str, &std::ffi::OsStr)] = &[("XDG_CONFIG_HOME", xdg)];
+    // O101 folds the constant expression; a global stays a live store.
+    let folding = "set x [expr {1 + 2}]\n";
+
+    let plain = String::from_utf8(run_tcl_env(&["opt", "--source", folding], env)).unwrap();
+    assert!(plain.contains("set x 3"), "the control folds: {plain}");
+
+    let marked = format!("# noqa: O101\n{folding}");
+    let kept = String::from_utf8(run_tcl_env(&["opt", "--source", &marked], env)).unwrap();
+    assert!(
+        kept.contains("[expr {1 + 2}]"),
+        "a `# noqa` on the command keeps the fold off: {kept}"
+    );
+
+    let silenced = scratch.write("silenced.tcl", &format!("# tcl-lsp: disable=*\n{folding}"));
+    let open = scratch.write("open.tcl", folding);
+    let both = String::from_utf8(run_tcl_env(
+        &["opt", silenced.to_str().unwrap(), open.to_str().unwrap()],
+        env,
+    ))
+    .unwrap();
+    assert!(
+        both.contains("[expr {1 + 2}]"),
+        "the silenced file's expression survives: {both}"
+    );
+    assert!(
+        both.contains("set x 3"),
+        "the open file's expression folds under its own policy: {both}"
+    );
+}

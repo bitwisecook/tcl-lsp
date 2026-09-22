@@ -3,7 +3,8 @@
 Tracking document for slices 1 to 7 of
 [`docs/design/compiler/diagnostic-policy.md`](../compiler/diagnostic-policy.md)
 § *Slices* (issue #2089). Slices 1–3 are landed and accepted; slices 4–7
-stop at the hand-off point recorded in *Status at hand-off* below. Protocol: [README.md](README.md) — the tree
+are the hand-off checkpoint `5bc40e95`, made green by item DP4.0 as
+§ *DP4.0 — the checkpoint made green* records. Protocol: [README.md](README.md) — the tree
 compiles before every commit, files are staged by explicit path, every
 checkpoint is `wip(diagnostic-policy): …`, the orchestrator pushes.
 
@@ -220,10 +221,12 @@ pedantic on its own); and every catalogue gate plus `kcs-index-links`.
 
 Implementation moves to other agents from here. Everything below is in the
 checkpoint commit `wip(diagnostic-policy): slices 4–7 checkpoint — hand-off`
-on `claude/spectcl-optimization-discussion-5qhf42`, verified only as
-§ *Gate results at hand-off* says. Read this section top to bottom before
-touching anything: the code compiles, but none of the four surfaces'
-end-to-end suites has been run against it.
+(`5bc40e95`) on `claude/spectcl-optimization-discussion-5qhf42`. Item DP4.0
+then ran every suite of the five surfaces' crates against it, fixed what
+failed at its cause, landed the parity tests and made the three deletions;
+§ *DP4.0 — the checkpoint made green* at the end of this section is the
+record, and the subsections in between are the hand-off as written, with
+their "not yet" statements answered there.
 
 ### What landed
 
@@ -399,7 +402,11 @@ field is reproduced too: `code_description: None`, `source: "tcl-lsp"`,
 
 ### Half done, and where it stops
 
-- **No end-to-end suite has been run on this state.** The five crates
+As handed off; DP4.0's answer to each bullet is in brackets, and
+§ *DP4.0 — the checkpoint made green* has the detail.
+
+- **No end-to-end suite has been run on this state.** [Every suite ran and
+  passes.] The five crates
   (`tcl-lsp-core`, `tcl-lsp-server`, `tcl-cli`, `tcl-cli-support`,
   `tcl-mcp`) compile with `--all-targets` and no warnings; that is all.
 - **CLI parity tests are drafted, not in the tree.** The three tests below
@@ -407,14 +414,16 @@ field is reproduced too: `code_description: None`, `source: "tcl-lsp"`,
   never compiled: `diag_seeds_the_default_off_codes_like_the_editor`,
   `diag_resolves_the_project_and_global_layers_per_input_file` (#2063),
   `opt_applies_only_the_rewrites_the_policy_shows` (#2062). They isolate the
-  global layer with `XDG_CONFIG_HOME`.
+  global layer with `XDG_CONFIG_HOME`. [Landed, adjusted to the INI grammar
+  and to the fold's real code.]
 - **MCP parity tests are not written.** Planned, against the `*_with`
   forms with `PolicyInputs { global: json!({}), invocation }`:
   `analyze` honours an inline `# noqa` (W210 before/after), honours
   `disable`, seeds W242 off and `enable: "W242"` brings it back; `optimize`
   skips a `# noqa: O102` fold and a `# tcl-lsp: disable=*` document;
   `code_actions` offers no "Brace expr" for a `# noqa: W100` line and
-  offers the O102 fold as a `quickfix` on a shown rewrite.
+  offers the O102 fold as a `quickfix` on a shown rewrite. [Written — nine
+  tests; the fold is O101.]
 - **Not started:** the `tcl-lsp-db` `file_analysis` commit (the coordinator's
   own instruction: keep the skip, document it as the declared production
   skip; stage only those hunks — the value-transfers lane edits
@@ -423,11 +432,16 @@ field is reproduced too: `code_description: None`, `source: "tcl-lsp"`,
   `sslictcl_diagnostics::supersede_analyser_diagnostics` (no caller left;
   keep `SUPERSEDED_ANALYSER_CODES`, `dialect_overlaps` reads it),
   `InputDocument::encoding_diagnostics` (no caller left in the workspace).
+  [The three deletions are done; the `tcl-lsp-db` commit is a later item.]
 - **The style-finding lift now goes through the finding's byte span** (the
   slice-3 tracking note's deferred W107-in-a-lone-`\r`-file position
-  change): expected identical for every other code; unverified.
+  change): expected identical for every other code; unverified. [No test
+  pins the lone-`\r` W107 position; no suite regressed.]
 
 ### Remaining steps, in order
+
+Steps 1 to 7 are done (DP4.0), except the `tcl-lsp-db` commit in step 6
+and `make rust-check` in step 7; step 8 is one commit.
 
 1. `cargo test -p tcl-lsp-core --lib` and `cargo test -p tcl-lsp-core --test
    code_actions_depth --test docstring --test force_import_shadow_consumers
@@ -527,227 +541,160 @@ field is reproduced too: `code_description: None`, `source: "tcl-lsp"`,
 - `cargo check --workspace`: see the hand-off report (the value-transfers
   lane's `tcl-compiler` / `tcl-registry` edits were red for most of the
   session; the lane commits on `-p` green as instructed).
-- No test, clippy, xtask or `make rust-check` run on this state.
+- No test, clippy, xtask or `make rust-check` run on this state (DP4.0
+  ran them; below).
 
-### Drafted CLI tests
+### DP4.0 — the checkpoint made green
 
-For `rust/tcl-cli/tests/cli.rs` (uses that file's `Command`, `PathBuf`
-imports and its existing helpers):
+Item DP4.0 took the hand-off's remaining steps 1 to 7 except the
+`tcl-lsp-db` `file_analysis` commit (DP4.1's) and `make rust-check`
+(checkpoint C4's).
+Every build shared `target/` with a concurrent implementer whose
+uncommitted `tcl-compiler` and `tcl-registry` edits were in the tree while
+these suites ran; the suites pass with those edits present.
 
-```rust
-/// A scratch directory for one test, removed on drop.
-struct Scratch(PathBuf);
+**Suites** (every one green; the last run of each is on the committed
+state, except the 31 `tcl-lsp-core` integration binaries no later edit
+touched, which ran once, before the deletions):
 
-impl Scratch {
-    fn new(tag: &str) -> Self {
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .expect("clock")
-            .as_nanos();
-        let dir = std::env::temp_dir().join(format!("tcl-cli-{tag}-{nanos}"));
-        std::fs::create_dir_all(&dir).expect("scratch dir");
-        Self(dir)
-    }
+| Suite | Tests |
+|---|---|
+| `tcl-lsp-core` lib | 2309 (2311 before the two deleted functions' own tests went) |
+| `tcl-lsp-core`, the 33 integration binaries | 1218 (`lsp_edit_workspace` 37 and `code_actions_depth` 46 re-ran after the deletions) |
+| `tcl-lsp-server` lib | 570 |
+| `tcl-lsp-server` `e2e` | 1595, 5 ignored |
+| `tcl-lsp-server` `smoke` / `stdio_deadlock` / `preview_tickets_e2e` | 14 / 6 / 22 |
+| `tcl-cli` lib / `cli` / `compile_verbs` / `explorer_gui` / `pkg_verbs` / `spec_verbs` | 26 / 28 / 11 / 2 / 13 / 18 |
+| `tcl-cli-support` | 19 |
+| `tcl-mcp` | 90 |
+| `f5-xc` lib / `differential` / `model` | 22 / 1 / 23 |
+| `tcl-core-types` | 40 |
 
-    /// Write `text` at `rel` (directories created) and return its path.
-    fn write(&self, rel: &str, text: &str) -> PathBuf {
-        let path = self.0.join(rel);
-        std::fs::create_dir_all(path.parent().expect("parent")).expect("parent dir");
-        std::fs::write(&path, text).expect("write file");
-        path
-    }
-}
+The `e2e` subsets the hand-off named (`noqa`, `severity`, `sslictcl`,
+`optimiser_disable`, `xc_`, `style`, `code_actions`, `commands`, `config`,
+`diagnostics`, `diagnostic_matrix`, `bigip`, `irules`,
+`issue1326_encoding`, `issue1333_diagnostic_tags`,
+`issue1556_diagnostics_exclude`) ran inside the whole binary. None failed,
+so no code-action count or folder-config expectation needed changing.
 
-impl Drop for Scratch {
-    fn drop(&mut self) {
-        std::fs::remove_dir_all(&self.0).ok();
-    }
-}
+**Fixes, each at its cause.**
 
-/// Run the built `tcl` binary with `args` and `env`, tolerating a non-zero
-/// exit, and return its stdout.
-fn run_tcl_env(args: &[&str], env: &[(&str, &std::ffi::OsStr)]) -> Vec<u8> {
-    let mut command = Command::new(env!("CARGO_BIN_EXE_tcl"));
-    command.args(args);
-    for (key, value) in env {
-        command.env(key, value);
-    }
-    command.output().expect("failed to spawn tcl binary").stdout
-}
+1. `diagnostic_report::tests::optimise_under_policy_skips_a_rewrite_a_directive_silences`
+   asserted that the fold of `set x [expr {1 + 2}]` is O102, and its
+   `# noqa: O102` silenced nothing. The optimiser reports that fold as O101
+   ("Fold constant expression"); O102 forwards a variable's reaching
+   literal. The test, the drafted CLI test and the planned MCP tests use
+   O101.
+2. `spec_packs::a_workspace_packs_argument_roles_drive_semantic_tokens` and
+   `spec_packs::the_bundled_eda_loadables_make_their_vendor_commands_known`
+   failed on every run: the analysis never saw a workspace or bundled pack.
+   Cause: the hand-off sets every configured folder's
+   `disabled_diagnostics` to its policy's `production_skip()`, so every
+   configured folder now has its own salsa `AnalyserConfig` handle, where
+   before a folder without an analyser override read the global one. A
+   folder handle takes the pack key when `apply_folder_configs` creates it,
+   during the `initialized` configuration pull and before the startup pack
+   reload, and the reload's `sync_db_config` moved only the global handle.
+   Fix, in `sync_db_config`: the pack key is set on every live folder handle
+   too — packs are a workspace fact, which `apply_folder_configs` already
+   states. The same gap existed before for any folder with a handle of its
+   own, which includes every VS Code folder (its scoped settings always
+   carry a `diagnostics` section).
+3. The hand-off commit dropped three server unit tests whose subjects it
+   never touched — `parse_non_ascii_mode_maps_settings`,
+   `settings_non_ascii_mode_nested_and_flat`,
+   `semantic_tokens_capability_advertises_delta_and_range` — as collateral
+   of a block replacement; they are restored as they were. The same edit
+   had turned the `"http::foo\n"` literal in a `code_actions` test into a
+   real line break; restored.
 
-/// `(file label, code)` pairs of a `diag --json` report.
-fn diag_codes_by_file(out: &[u8]) -> Vec<(String, String)> {
-    let report: serde_json::Value = serde_json::from_slice(out).expect("diag JSON");
-    report
-        .as_array()
-        .expect("report array")
-        .iter()
-        .flat_map(|file| {
-            let label = file["file"].as_str().expect("file").to_owned();
-            file["diagnostics"]
-                .as_array()
-                .expect("diagnostics")
-                .iter()
-                .map(move |d| (label.clone(), d["code"].as_str().expect("code").to_owned()))
-        })
-        .collect()
-}
+**Tests landed.**
 
-/// A `while` whose counter the body never touches: W242, the one code the
-/// catalogue declares default-off.
-const UNPROVABLE_LOOP: &str = "set i 0\nwhile {$i < 3} {\n    puts $i\n}\n";
+- CLI, in `rust/tcl-cli/tests/cli.rs` with the `Scratch`, `run_tcl_env`
+  and `diag_codes_by_file` helpers:
+  `diag_seeds_the_default_off_codes_like_the_editor`,
+  `diag_resolves_the_project_and_global_layers_per_input_file` (#2063),
+  `opt_applies_only_the_rewrites_the_policy_shows` (#2062). Two adjustments
+  to the draft, both to the real behaviour. An INI file only turns codes
+  off: `insert_diagnostics` reads `[diagnostics] disabled = …` and no
+  per-code `W112 = false` / `true` key, so the layers test writes
+  `disabled = W112`, and the draft's "a project file turns the code back
+  on" — which the INI grammar cannot say — becomes the two precedence pairs
+  it can: `--enable` overrules the global file, and a project `disabled =`
+  overrules `--enable`. And the fold is O101 over `set x [expr {1 + 2}]`
+  alone: with the draft's following `puts $x` the optimiser inlines the
+  value and deletes the store (O100 and O109), so no `set x 3` or
+  `[expr …]` is left to look for.
+- MCP, in `rust/tcl-mcp/src/tools.rs` `mod policy_tests`, through the
+  `*_with` forms under a global layer parsed from INI text (never the
+  machine's `config.ini`): `analyze_honours_an_inline_noqa`,
+  `analyze_honours_disable_enable_and_the_global_file`,
+  `analyze_seeds_the_default_off_codes_and_enable_reaches_them`,
+  `analyze_reports_the_resolved_severity`,
+  `the_grouping_tools_read_the_shown_set` (`find-legacy`, `validate`),
+  `optimize_applies_only_the_rewrites_the_directives_leave_shown`,
+  `optimize_honours_the_profile_the_overrides_and_the_global_file`,
+  `code_actions_offer_nothing_for_a_silenced_finding`,
+  `code_actions_offer_a_shown_rewrite_as_a_quickfix`. The O101 rewrite
+  spans the whole statement, so its quick-fix edit is `set x 3`, and the
+  default `readability` profile keeps it off unless a layer selects `full`.
+- No new integration-test file, so the nextest shard manifest is unchanged.
 
-/// The catalogue's default-off codes are off for `tcl diag` as they are in
-/// the editor, and `--enable` turns one on — the seed is the lowest layer,
-/// under every flag (`docs/design/compiler/diagnostic-policy.md`
-/// § Configuration).
-#[test]
-fn diag_seeds_the_default_off_codes_like_the_editor() {
-    let scratch = Scratch::new("default-off");
-    let no_config = scratch.write("config/.keep", "");
-    let xdg = no_config.parent().expect("config dir").as_os_str();
-    let env: &[(&str, &std::ffi::OsStr)] = &[("XDG_CONFIG_HOME", xdg)];
-    let off = diag_codes_by_file(&run_tcl_env(
-        &["diag", "--json", "--source", UNPROVABLE_LOOP],
-        env,
-    ));
-    assert!(
-        !off.iter().any(|(_, code)| code == "W242"),
-        "W242 is default-off and must not fire unasked: {off:?}"
-    );
-    let on = diag_codes_by_file(&run_tcl_env(
-        &["diag", "--json", "--enable", "W242", "--source", UNPROVABLE_LOOP],
-        env,
-    ));
-    assert!(
-        on.iter().any(|(_, code)| code == "W242"),
-        "`--enable W242` must reach a default-off code: {on:?}"
-    );
-}
+**Deletions.** No production code referenced any of the three.
+`Policy::from_disabled_set` went with its own test; the three tests that
+used it as shorthand build an editor layer through `PolicyBuilder`.
+`sslictcl_diagnostics::supersede_analyser_diagnostics` went with its test,
+which `a_producer_owns_the_document_without_a_finding_of_its_own` already
+covers through the overlap entry; the owner manifest in
+`docs/design/contracts/shared-utility-contracts-rust.md` drops the entry
+point. `InputDocument::encoding_diagnostics` had no reference at all; two
+comments name the byte-integrity pass instead. § Today and § Anchors on the
+design page still name them, as they name the removed lifts: slice 10
+rewrites those.
 
-/// The project and global layers resolve per input file (issue #2063): a
-/// file under a `.tcl-lsp.ini` that turns W112 off reports none while its
-/// sibling from another directory still does; the global `config.ini` is
-/// the lowest layer and a project file turns a code it disabled back on.
-#[test]
-fn diag_resolves_the_project_and_global_layers_per_input_file() {
-    let scratch = Scratch::new("layers");
-    let trailing = "set x 1   \nputs $x\n";
-    scratch.write("quiet/.tcl-lsp.ini", "[diagnostics]\nW112 = false\n");
-    let quiet = scratch.write("quiet/nested/a.tcl", trailing);
-    let loud = scratch.write("loud/b.tcl", trailing);
-    let config = scratch.write("xdg/tcl-lsp/config.ini", "[diagnostics]\nW112 = false\n");
-    let xdg = config
-        .parent()
-        .and_then(|p| p.parent())
-        .expect("xdg root")
-        .as_os_str();
-    let empty = scratch.write("empty-xdg/.keep", "");
-    let no_global = empty.parent().expect("empty xdg").as_os_str();
+**Behavioural deltas confirmed.** From the hand-off's list: W242 is off on
+`tcl diag` unless a layer enables it, and the global file and each file's
+project `.tcl-lsp.ini` apply per input (CLI tests); `tcl opt` leaves a
+suppressed rewrite alone and optimises inputs whose directives differ
+separately (CLI test); the MCP diagnostics tools honour `# noqa`, the W242
+seed, the global file, `disable` / `enable` and report the resolved
+severity; `optimize` honours directives, the profile, per-code overrides,
+the global file and the master switch; `code_actions` offers a shown
+rewrite and nothing for a silenced finding (MCP tests). Not pinned by a new
+test: W305 on an abstaining CLI document, `optimiseDocument` under policy
+(the core `optimise_under_policy` test pins the shared loop), the server's
+rewrite quick-fix (no `e2e` test counts it) and the multi-root corner.
+Added by fix 2: every configured folder now has its own `AnalyserConfig`
+handle — see *Open uncertainties (DP4.0)*.
 
-    let per_file = diag_codes_by_file(&run_tcl_env(
-        &[
-            "diag",
-            "--json",
-            quiet.to_str().unwrap(),
-            loud.to_str().unwrap(),
-        ],
-        &[("XDG_CONFIG_HOME", no_global)],
-    ));
-    let has = |rows: &[(String, String)], file: &PathBuf, code: &str| {
-        rows.iter()
-            .any(|(label, c)| label.ends_with(file.file_name().unwrap().to_str().unwrap()) && c == code)
-    };
-    assert!(
-        !has(&per_file, &quiet, "W112"),
-        "the project file above a.tcl turns W112 off: {per_file:?}"
-    );
-    assert!(
-        has(&per_file, &loud, "W112"),
-        "b.tcl sits under no project file and keeps W112: {per_file:?}"
-    );
+**Open uncertainties (DP4.0).**
 
-    // The global file reaches both; a project file turns the code back on.
-    scratch.write("loud/.tcl-lsp.ini", "[diagnostics]\nW112 = true\n");
-    let with_global = diag_codes_by_file(&run_tcl_env(
-        &[
-            "diag",
-            "--json",
-            quiet.to_str().unwrap(),
-            loud.to_str().unwrap(),
-        ],
-        &[("XDG_CONFIG_HOME", xdg)],
-    ));
-    assert!(
-        !has(&with_global, &quiet, "W112"),
-        "global and project both disable W112 for a.tcl: {with_global:?}"
-    );
-    assert!(
-        has(&with_global, &loud, "W112"),
-        "a project `W112 = true` overrules the global `W112 = false`: {with_global:?}"
-    );
+- Every configured folder's own `AnalyserConfig` handle (fix 2's cause)
+  is correct now, but `db_document_symbols` reads the global handle, so a
+  document under a configured folder can be analysed twice per revision —
+  once for diagnostics under the folder handle, once for symbols under the
+  global one. A VS Code folder already had its own handle before the
+  hand-off (its scoped settings always carry a `diagnostics` section), so
+  this is not new for that client. Not measured; giving a folder the global
+  handle whenever its production skip equals the global one would restore
+  the sharing, and is a decision for the lane, not a parity fix.
 
-    // An inline `--source` has no path, so no project layer: the global
-    // file alone decides, and `--enable` in the invocation layer overrules it.
-    let inline = diag_codes_by_file(&run_tcl_env(
-        &["diag", "--json", "--source", trailing],
-        &[("XDG_CONFIG_HOME", xdg)],
-    ));
-    assert!(
-        !inline.iter().any(|(_, code)| code == "W112"),
-        "the global layer reaches an inline source: {inline:?}"
-    );
-    let flagged = diag_codes_by_file(&run_tcl_env(
-        &["diag", "--json", "--enable", "W112", "--source", trailing],
-        &[("XDG_CONFIG_HOME", xdg)],
-    ));
-    assert!(
-        flagged.iter().any(|(_, code)| code == "W112"),
-        "`--enable` sits above the global file: {flagged:?}"
-    );
-}
-
-/// `tcl opt` applies only the rewrites the document's policy shows (issue
-/// #2062): a `# noqa` on the command keeps its fold off, a top-of-file
-/// `# tcl-lsp: disable=*` keeps every rewrite off, and two inputs whose
-/// directives differ are optimised each under its own policy rather than
-/// folded into one text where the first file's directive would govern the
-/// second.
-#[test]
-fn opt_applies_only_the_rewrites_the_policy_shows() {
-    let scratch = Scratch::new("opt-policy");
-    let empty = scratch.write("xdg/.keep", "");
-    let xdg = empty.parent().expect("xdg").as_os_str();
-    let env: &[(&str, &std::ffi::OsStr)] = &[("XDG_CONFIG_HOME", xdg)];
-    let folding = "set x [expr {1 + 2}]\nputs $x\n";
-
-    let plain = String::from_utf8(run_tcl_env(&["opt", "--source", folding], env)).unwrap();
-    assert!(plain.contains("set x 3"), "the control folds: {plain}");
-
-    let marked = format!("# noqa: O102\n{folding}");
-    let kept = String::from_utf8(run_tcl_env(&["opt", "--source", &marked], env)).unwrap();
-    assert!(
-        kept.contains("[expr {1 + 2}]"),
-        "a `# noqa` on the command keeps the fold off: {kept}"
-    );
-
-    let silenced = scratch.write("silenced.tcl", &format!("# tcl-lsp: disable=*\n{folding}"));
-    let open = scratch.write("open.tcl", folding);
-    let both = String::from_utf8(run_tcl_env(
-        &["opt", silenced.to_str().unwrap(), open.to_str().unwrap()],
-        env,
-    ))
-    .unwrap();
-    assert!(
-        both.contains("[expr {1 + 2}]"),
-        "the silenced file's expression survives: {both}"
-    );
-    assert!(
-        both.contains("set x 3"),
-        "the open file's expression folds under its own policy: {both}"
-    );
-}
-```
+**Gates.** `cargo clippy -p tcl-lsp-core -p tcl-lsp-server -p tcl-cli
+-p tcl-cli-support -p tcl-mcp -p f5-xc --all-targets -- -D warnings`
+(pedantic) is clean after three fixes, none an `#[allow]`: a test helper's
+lifetime elided in `diagnostic_report`; `share_one_project` a free function
+in `commands/policy.rs`, since the method never read `self`; and the
+server's `code_action` handler (107 lines) brought under the limit by
+extracting `code_action_report`, the report the lightbulb reads.
+`cargo fmt` over the five crates. `cargo xtask diag-tables --check`,
+`diag-emission-check`, `gen-ai-diagnostics --check`,
+`gen-editor-settings --check`, `gen-vscode-package --check`,
+`gen-jetbrains-catalog --check`, `gen-editor-catalogs --check`,
+`kcs-index-links` and `owner-resolution` all pass, so nothing needed
+regenerating: the new CLI help text and MCP arguments reach no generated
+file. `cargo check --workspace` is green. Not run: `make rust-check`
+(workspace-wide, over the concurrent lanes' uncommitted crates too; the
+plan leaves it to checkpoint C4) and the `tcl-lsp-core` doc-tests.
 
 ## Plan for finishing slices 4–7 and for slices 8–10
 
@@ -3270,7 +3217,7 @@ Each item updates its row in the commit that lands it.
 
 | Item | Model | Size | Status | Commit | Gates |
 |---|---|---|---|---|---|
-| DP4.0 | opus | L | in flight | — | — |
+| DP4.0 | opus | L | done | `slices 4–7 checkpoint green` | every suite of the lane crates, the whole `e2e`, the crate clippy, the catalogue gates, `owner-resolution`, `cargo check --workspace`; `make rust-check` left to C4 |
 | DP4.1 | opus | M | not started | — | — |
 | DP4.2 | opus | S | not started | — | — |
 | DP4.3 | sonnet | S | not started | — | — |

@@ -70,7 +70,9 @@ use std::collections::{HashMap, HashSet};
 
 use tcl_compiler::analyser::{Analyser, AnalysisResult};
 use tcl_lexer::LineIndex;
-use tcl_lsp_core::diagnostic_policy::{Directives, Finding, Policy, PolicyLayer, apply};
+use tcl_lsp_core::diagnostic_policy::{
+    Directives, Finding, Policy, PolicyBuilder, PolicyLayer, apply,
+};
 use tcl_lsp_core::minify::{minify_tcl, minify_tcl_aggressive, minify_tcl_compact};
 use tcl_lsp_core::snippets::SnippetContext;
 use tcl_lsp_core::snippets::snippet_completions;
@@ -789,11 +791,13 @@ fn style_orchestrator_merges_checks_and_policy_hides_a_disabled_code() {
         .cloned()
         .map(|d| Finding::from_style(d, &src, &line_index))
         .collect();
-    let disabled: HashSet<String> = std::iter::once("W112".to_owned()).collect();
-    let report = apply(
-        findings,
-        &Policy::from_disabled_set(&disabled, PolicyLayer::Editor, Directives::none()),
-    );
+    let policy = PolicyBuilder::new()
+        .layer(
+            PolicyLayer::Editor,
+            &serde_json::json!({ "diagnostics": { "W112": false } }),
+        )
+        .build();
+    let report = apply(findings, &policy);
     let filtered = report.shown_items(all);
     assert!(
         filtered.iter().all(|d| d.code.as_str() != "W112"),

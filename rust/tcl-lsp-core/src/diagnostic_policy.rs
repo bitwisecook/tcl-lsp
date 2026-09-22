@@ -34,7 +34,6 @@
 
 use core::str::FromStr;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
-use std::hash::BuildHasher;
 
 use serde_json::Value;
 use tcl_bigip::validator::{ConfigDiagnostic, DiagSeverity};
@@ -825,45 +824,6 @@ impl Policy {
             .copied()
             .filter(|code| self.code_reason(*code).is_some())
             .collect()
-    }
-
-    /// A policy over one already-resolved disabled set recorded at `layer`,
-    /// plus `directives`, with every other step open: no seed (a resolved
-    /// set already carries [`DEFAULT_OFF_CODES`]), no severity override,
-    /// the optimiser gate open, no overlap.
-    ///
-    /// For a surface that has folded its layers into one set before the
-    /// policy step. Such a set cannot name the layer that decided a code —
-    /// `layer` is the caller's word for where the set came from — and it
-    /// cannot express "the project enables what the global file disabled";
-    /// [`PolicyBuilder`] is the path that can. A spelling the catalogue
-    /// lacks is ignored, as it is everywhere a set of strings is read.
-    #[must_use]
-    pub fn from_disabled_set<S: BuildHasher>(
-        disabled: &HashSet<String, S>,
-        layer: PolicyLayer,
-        directives: Directives,
-    ) -> Self {
-        Self {
-            codes: disabled
-                .iter()
-                .filter_map(|code| DiagCode::from_str(code).ok())
-                .map(|code| {
-                    (
-                        code,
-                        CodeDecision {
-                            enabled: false,
-                            layer,
-                        },
-                    )
-                })
-                .collect(),
-            default_off: &[],
-            optimiser: OptimiserPolicy::all_on(),
-            overlaps: Vec::new(),
-            directives,
-            ..Self::default()
-        }
     }
 }
 
@@ -1739,27 +1699,6 @@ mod policy_tests {
         assert!(directives.hit(0, DiagCode::O114));
         assert!(!directives.hit(1, DiagCode::W210));
     }
-
-    #[test]
-    fn a_flat_disabled_set_records_the_callers_layer_and_opens_every_other_gate() {
-        let disabled: HashSet<String> =
-            ["W111".to_owned(), "W999".to_owned()].into_iter().collect();
-        let policy =
-            Policy::from_disabled_set(&disabled, PolicyLayer::Invocation, Directives::none());
-        assert_eq!(
-            decision(&policy, DiagCode::W111),
-            Some(CodeDecision {
-                enabled: false,
-                layer: PolicyLayer::Invocation
-            })
-        );
-        assert_eq!(policy.codes.len(), 1, "the unknown spelling is ignored");
-        assert!(policy.default_off.is_empty());
-        assert!(policy.optimiser.enabled && policy.optimiser.disabled.is_empty());
-        assert!(policy.overlaps.is_empty());
-        assert_eq!(policy.document, DocumentGates::default());
-        assert!(policy.shimmer);
-    }
 }
 
 #[cfg(test)]
@@ -2198,8 +2137,12 @@ mod apply_tests {
             vec![DiagCode::W118]
         );
 
-        let disabled: HashSet<String> = std::iter::once("W118".to_owned()).collect();
-        let policy = Policy::from_disabled_set(&disabled, PolicyLayer::Editor, Directives::none());
+        let policy = PolicyBuilder::new()
+            .layer(
+                PolicyLayer::Editor,
+                &json!({"diagnostics": {"W118": false}}),
+            )
+            .build();
         let report = apply(findings(&style), &policy);
         assert_eq!(shown_codes(&report), vec![DiagCode::W112]);
         assert_eq!(

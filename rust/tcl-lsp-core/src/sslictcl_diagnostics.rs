@@ -37,7 +37,6 @@
 //! [`DslDiagnostic`]: tcl_sslictcl::dsl::DslDiagnostic
 //! [`Span`]: tcl_lexer::Span
 
-use tcl_compiler::analyser::Diagnostic;
 use tcl_core_types::{DiagCode, Severity};
 use tcl_dialect::DialectProfile;
 use tcl_sslictcl::dsl::{DslSeverity, load_with_diagnostics};
@@ -118,17 +117,6 @@ pub fn diagnostics(source: &str) -> Vec<Finding> {
 /// code document-wide, whether or not it emitted a finding of its own.
 pub const SUPERSEDED_ANALYSER_CODES: &[DiagCode] = &[DiagCode::W123];
 
-/// Drop the analyser diagnostics [`SUPERSEDED_ANALYSER_CODES`] names.
-///
-/// Applied by a caller that has already established [`applies_to`], on the
-/// analyser's set for the document, before it is lifted or read for
-/// quick-fixes. The server's publish paths and the CLI still call it; the
-/// overlap entry is the same rule as data, and this function retires when
-/// those adapters read the report instead.
-pub fn supersede_analyser_diagnostics(diagnostics: &mut Vec<Diagnostic>) {
-    diagnostics.retain(|d| !SUPERSEDED_ANALYSER_CODES.contains(&d.code));
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -173,7 +161,7 @@ mod tests {
 
     #[test]
     fn every_finding_carries_the_loader_span_and_the_sslictcl_producer() {
-        use crate::diagnostic_policy::{Directives, Policy, PolicyLayer, Reason, apply};
+        use crate::diagnostic_policy::{PolicyBuilder, PolicyLayer, Reason, apply};
         let findings = diagnostics(THREE_ERRORS);
         assert!(findings.iter().all(|f| f.producer == Producer::SslicTcl));
         assert!(
@@ -191,12 +179,13 @@ mod tests {
             "maybe"
         );
         // Nothing is filtered here; the policy step does that.
-        let disabled: std::collections::HashSet<String> =
-            std::iter::once("SSLIC1009".to_owned()).collect();
-        let report = apply(
-            findings,
-            &Policy::from_disabled_set(&disabled, PolicyLayer::Editor, Directives::none()),
-        );
+        let policy = PolicyBuilder::new()
+            .layer(
+                PolicyLayer::Editor,
+                &serde_json::json!({ "diagnostics": { "SSLIC1009": false } }),
+            )
+            .build();
+        let report = apply(findings, &policy);
         assert_eq!(
             report.reason_for(DiagCode::Sslic1009, span),
             Some(Reason::Disabled(PolicyLayer::Editor))
@@ -205,32 +194,6 @@ mod tests {
             report
                 .shown()
                 .any(|s| s.finding.code == DiagCode::Sslic1007)
-        );
-    }
-
-    #[test]
-    fn the_loader_supersedes_the_unknown_command_verdict() {
-        let mut analyser_diags = vec![
-            Diagnostic::new(
-                DiagCode::W123,
-                tcl_lexer::Span::new(0, 1),
-                "Unknown command 'site-owner'",
-                Severity::Hint,
-            ),
-            Diagnostic::new(
-                DiagCode::E003,
-                tcl_lexer::Span::new(2, 3),
-                "Too many arguments",
-                Severity::Error,
-            ),
-        ];
-        supersede_analyser_diagnostics(&mut analyser_diags);
-        assert_eq!(
-            analyser_diags
-                .iter()
-                .map(|d| d.code.as_str())
-                .collect::<Vec<_>>(),
-            vec!["E003"],
         );
     }
 

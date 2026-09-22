@@ -2398,6 +2398,303 @@ mod source_integrity_tests {
 }
 
 #[cfg(test)]
+mod policy_tests {
+    //! The diagnostics tools, `optimize` and `code_actions` read one report
+    //! under the global file and the call's own arguments
+    //! (`docs/design/compiler/diagnostic-policy.md` § Adapters). Every test
+    //! resolves under a global layer of its own, parsed from INI text exactly
+    //! as the user's `config.ini` is — never under the machine's.
+
+    use super::*;
+    use tcl_lsp_core::config_ini::{Layer, settings_from_ini};
+
+    /// A read of a variable nothing set: W210.
+    const UNSET_READ: &str = "puts $y\n";
+
+    /// A `while` whose counter the body never touches: W242, the one code the
+    /// catalogue declares default-off.
+    const UNPROVABLE_LOOP: &str = "set i 0\nwhile {$i < 3} {\n    puts $i\n}\n";
+
+    /// A constant expression O101 folds; a global stays a live store.
+    const FOLDING: &str = "set x [expr {1 + 2}]\n";
+
+    /// The layers a call with `args` resolves under, over `section`, with
+    /// `global_ini` as the user's `config.ini`.
+    fn inputs(args: &Value, section: &str, global_ini: &str) -> PolicyInputs {
+        PolicyInputs {
+            global: settings_from_ini(global_ini, Layer::Global),
+            invocation: invocation_layer(args, section),
+        }
+    }
+
+    /// `analyze`'s diagnostics under `global_ini`.
+    fn analyzed(args: &Value, global_ini: &str) -> Vec<Value> {
+        analyze_with(args, &inputs(args, "diagnostics", global_ini))["diagnostics"]
+            .as_array()
+            .expect("diagnostics array")
+            .clone()
+    }
+
+    fn has_code(diagnostics: &[Value], code: &str) -> bool {
+        diagnostics.iter().any(|d| d["code"] == code)
+    }
+
+    #[test]
+    fn analyze_honours_an_inline_noqa() {
+        let plain = json!({ "source": UNSET_READ, "dialect": "tcl9.0" });
+        let shown = analyzed(&plain, "");
+        assert!(
+            has_code(&shown, "W210"),
+            "the control reports W210: {shown:?}"
+        );
+
+        let marked = json!({
+            "source": format!("# noqa: W210\n{UNSET_READ}"),
+            "dialect": "tcl9.0",
+        });
+        let hidden = analyzed(&marked, "");
+        assert!(
+            !has_code(&hidden, "W210"),
+            "a `# noqa` on the command silences it: {hidden:?}"
+        );
+    }
+
+    #[test]
+    fn analyze_honours_disable_enable_and_the_global_file() {
+        let disabled = json!({ "source": UNSET_READ, "dialect": "tcl9.0", "disable": "W210" });
+        assert!(!has_code(&analyzed(&disabled, ""), "W210"));
+
+        let plain = json!({ "source": UNSET_READ, "dialect": "tcl9.0" });
+        let global = "[diagnostics]\ndisabled = W210\n";
+        assert!(
+            !has_code(&analyzed(&plain, global), "W210"),
+            "the global file reaches the tool"
+        );
+        let enabled = json!({ "source": UNSET_READ, "dialect": "tcl9.0", "enable": "W210" });
+        assert!(
+            has_code(&analyzed(&enabled, global), "W210"),
+            "`enable` sits above the global file"
+        );
+    }
+
+    #[test]
+    fn analyze_seeds_the_default_off_codes_and_enable_reaches_them() {
+        let plain = json!({ "source": UNPROVABLE_LOOP, "dialect": "tcl9.0" });
+        let seeded = analyzed(&plain, "");
+        assert!(
+            !has_code(&seeded, "W242"),
+            "W242 is default-off and must not fire unasked: {seeded:?}"
+        );
+        let enabled = json!({ "source": UNPROVABLE_LOOP, "dialect": "tcl9.0", "enable": "W242" });
+        let shown = analyzed(&enabled, "");
+        assert!(
+            has_code(&shown, "W242"),
+            "`enable: W242` reaches a default-off code: {shown:?}"
+        );
+    }
+
+    #[test]
+    fn analyze_reports_the_resolved_severity() {
+        let args = json!({ "source": UNSET_READ, "dialect": "tcl9.0" });
+        let shown = analyzed(&args, "[diagnosticSeverity]\nW210 = error\n");
+        let w210 = shown
+            .iter()
+            .find(|d| d["code"] == "W210")
+            .unwrap_or_else(|| panic!("no W210 in {shown:?}"));
+        assert_eq!(w210["severity"], "error");
+    }
+
+    #[test]
+    fn the_grouping_tools_read_the_shown_set() {
+        let unmarked = "proc check {a b} {\n    set total [expr $a + $b]\n    return $total\n}\n";
+        let marked = "proc check {a b} {\n    # noqa: W100\n    set total [expr $a + $b]\n    return $total\n}\n";
+        let legacy = |source: &str| {
+            let args = json!({ "source": source, "dialect": "tcl9.0" });
+            find_legacy_with(&args, &inputs(&args, "diagnostics", ""))
+        };
+        let control = legacy(unmarked);
+        assert!(
+            control["patterns"]
+                .as_array()
+                .expect("patterns")
+                .iter()
+                .any(|p| p["code"] == "W100"),
+            "the control reports W100: {control}"
+        );
+        let silenced = legacy(marked);
+        assert!(
+            silenced["patterns"]
+                .as_array()
+                .expect("patterns")
+                .iter()
+                .all(|p| p["code"] != "W100"),
+            "a `# noqa: W100` silences the pattern: {silenced}"
+        );
+
+        let args = json!({ "source": marked, "dialect": "tcl9.0" });
+        let grouped = validate_with(&args, &inputs(&args, "diagnostics", ""));
+        let categories = grouped["categories"].as_object().expect("categories");
+        assert!(
+            categories.values().all(|group| {
+                group["items"]
+                    .as_array()
+                    .is_none_or(|items| items.iter().all(|d| d["code"] != "W100"))
+            }),
+            "validate groups only the shown set: {grouped}"
+        );
+    }
+
+    /// `optimize` under `global_ini` for `args`.
+    fn optimized(args: &Value, global_ini: &str) -> Value {
+        optimize_with(args, &inputs(args, "optimiser", global_ini))
+    }
+
+    #[test]
+    fn optimize_applies_only_the_rewrites_the_directives_leave_shown() {
+        let plain = json!({ "source": FOLDING, "dialect": "tcl9.0" });
+        let folded = optimized(&plain, "");
+        assert_eq!(folded["optimized_source"], "set x 3\n", "{folded}");
+        assert!(
+            folded["optimizations"]
+                .as_array()
+                .expect("optimizations")
+                .iter()
+                .any(|o| o["code"] == "O101"),
+            "{folded}"
+        );
+
+        let marked = format!("# noqa: O101\n{FOLDING}");
+        let kept = optimized(&json!({ "source": marked, "dialect": "tcl9.0" }), "");
+        assert_eq!(
+            kept["optimized_source"],
+            marked.as_str(),
+            "a `# noqa` on the command keeps the fold off: {kept}"
+        );
+        assert_eq!(kept["total"], 0, "{kept}");
+
+        let whole = format!("# tcl-lsp: disable=*\n{FOLDING}");
+        let untouched = optimized(&json!({ "source": whole, "dialect": "tcl9.0" }), "");
+        assert_eq!(untouched["changed"], false, "{untouched}");
+    }
+
+    #[test]
+    fn optimize_honours_the_profile_the_overrides_and_the_global_file() {
+        let readability = optimized(
+            &json!({ "source": FOLDING, "dialect": "tcl9.0", "profile": "readability" }),
+            "",
+        );
+        assert_eq!(
+            readability["changed"], false,
+            "readability turns constant folding off: {readability}"
+        );
+        let enabled = optimized(
+            &json!({
+                "source": FOLDING,
+                "dialect": "tcl9.0",
+                "profile": "readability",
+                "enable": "O101",
+            }),
+            "",
+        );
+        assert_eq!(
+            enabled["optimized_source"], "set x 3\n",
+            "`enable` overrides the profile: {enabled}"
+        );
+        let disabled = optimized(
+            &json!({ "source": FOLDING, "dialect": "tcl9.0", "disable": "O101" }),
+            "",
+        );
+        assert_eq!(disabled["changed"], false, "{disabled}");
+
+        let plain = json!({ "source": FOLDING, "dialect": "tcl9.0" });
+        let global_off = optimized(&plain, "[optimiser]\ndisabled = O101\n");
+        assert_eq!(
+            global_off["changed"], false,
+            "the global file reaches a rewrite: {global_off}"
+        );
+        let switched_off = optimized(&plain, "[optimiser]\nenabled = false\n");
+        assert_eq!(
+            switched_off["changed"], false,
+            "the optimiser master switch reaches a rewrite: {switched_off}"
+        );
+    }
+
+    /// `code_actions` over the whole of `line` in `source`, under
+    /// `global_ini`.
+    fn actions_on_line(source: &str, line: u32, global_ini: &str) -> Vec<Value> {
+        let args = json!({
+            "source": source,
+            "dialect": "tcl9.0",
+            "start_line": line,
+            "start_character": 0,
+            "end_line": line,
+            "end_character": 80,
+        });
+        code_actions_with(&args, &inputs(&args, "diagnostics", global_ini))["actions"]
+            .as_array()
+            .expect("actions array")
+            .clone()
+    }
+
+    #[test]
+    fn code_actions_offer_nothing_for_a_silenced_finding() {
+        let brace = |actions: &[Value]| {
+            actions
+                .iter()
+                .any(|a| a["title"] == "Brace expr for safety and performance")
+        };
+        let control = actions_on_line("set a 1\nset b [expr $a + 1]\n", 1, "");
+        assert!(
+            brace(&control),
+            "the control offers the refactor: {control:?}"
+        );
+        let marked = actions_on_line("set a 1\n# noqa: W100\nset b [expr $a + 1]\n", 2, "");
+        assert!(
+            !brace(&marked),
+            "a `# noqa: W100` line offers no brace refactor: {marked:?}"
+        );
+        let disabled = actions_on_line(
+            "set a 1\nset b [expr $a + 1]\n",
+            1,
+            "[diagnostics]\ndisabled = W100\n",
+        );
+        assert!(
+            !brace(&disabled),
+            "a code the global file disables offers no refactor: {disabled:?}"
+        );
+    }
+
+    #[test]
+    fn code_actions_offer_a_shown_rewrite_as_a_quickfix() {
+        // The fold rewrites the whole statement it proved constant.
+        let fold = |actions: &[Value]| {
+            actions.iter().any(|a| {
+                a["kind"] == "quickfix"
+                    && a["edits"]
+                        .as_array()
+                        .is_some_and(|edits| edits.iter().any(|e| e["new_text"] == "set x 3"))
+            })
+        };
+        let full = "[optimiser]\nprofile = full\n";
+        let offered = actions_on_line(FOLDING, 0, full);
+        assert!(
+            fold(&offered),
+            "a shown O101 rewrite is a quick-fix: {offered:?}"
+        );
+        let marked = actions_on_line(&format!("# noqa: O101\n{FOLDING}"), 1, full);
+        assert!(
+            !fold(&marked),
+            "a silenced rewrite is not offered: {marked:?}"
+        );
+        let profile_off = actions_on_line(FOLDING, 0, "");
+        assert!(
+            !fold(&profile_off),
+            "the default profile keeps constant folding off: {profile_off:?}"
+        );
+    }
+}
+
+#[cfg(test)]
 mod docstring_tests {
     use super::*;
 

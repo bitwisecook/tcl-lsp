@@ -10809,6 +10809,11 @@ impl Backend {
     /// mode) onto the salsa `AnalyserConfig` input.  The disabled set is
     /// sorted so the input value is stable (a `HashSet` iteration order change
     /// must not look like an edit to salsa).
+    ///
+    /// The pack key also reaches every folder's own handle: packs are a
+    /// workspace fact, never a per-folder one (see
+    /// [`Self::apply_folder_configs`]), and a pack reload lands after the
+    /// configuration pull that created those handles.
     async fn sync_db_config(&self) {
         use salsa::Setter as _;
         let mut disabled: Vec<String> = self
@@ -10827,11 +10832,21 @@ impl Backend {
         // bundled vendor library and a workspace pack reaches the diagnostics
         // it was written to change.
         let pack_key = self.spec_packs().await.key;
+        let folder_handles: Vec<tcl_lsp_db::AnalyserConfig> = self
+            .folder_db_configs
+            .lock()
+            .await
+            .iter()
+            .map(|(_, handle)| *handle)
+            .collect();
         let config = *self.db_config.lock().await;
         let mut db = self.db.lock().await;
         config.set_disabled_diagnostics(&mut *db).to(disabled);
         config.set_non_ascii_mode(&mut *db).to(mode);
         config.set_spec_pack_key(&mut *db).to(pack_key);
+        for handle in folder_handles {
+            handle.set_spec_pack_key(&mut *db).to(pack_key);
+        }
         config.set_extra_commands(&mut *db).to(extra);
         config.set_generic_variable_patterns(&mut *db).to(generic);
         let bigip = self.bigip_version.lock().await.clone();
@@ -22930,6 +22945,41 @@ async fn log_range_convergence_settled(
         .await;
 }
 
+/// The one report the lightbulb reads (`docs/design/compiler/diagnostic-policy.md`
+/// § Adapters): the published analyser set, the compiler checks and the
+/// optimiser's rewrites under the document's policy, so a fix is offered for a
+/// finding the document shows and for no other.
+///
+/// The checks run uncached with the project's call-site `evidence` — the same
+/// standalone-unit caveat as the pull-diagnostics path: without it a
+/// quick-fix could offer to delete a branch the project proves reachable.
+fn code_action_report(
+    doc: &DocumentState,
+    analysis: &AnalysisResult,
+    published: &[tcl_compiler::analyser::Diagnostic],
+    registry: &CommandRegistry,
+    generic_patterns: Option<&[String]>,
+    evidence: Option<&tcl_compiler::unit_scope::CallSiteEvidence>,
+    layers: &PolicyLayers,
+) -> core_policy::Report {
+    let checks = tcl_lsp_db::compiler_check_diagnostics_uncached(
+        &doc.text,
+        registry,
+        &doc.dialect,
+        generic_patterns,
+        evidence,
+    );
+    let policy = document_policy(
+        layers,
+        doc.decode_report.as_ref(),
+        tcl_lsp_core::profile_for_dialect(&doc.dialect),
+        core_policy::Directives::from_analysis(analysis, &doc.text),
+    );
+    let mut produced = analyser_findings(published);
+    produced.extend(compiler_findings(&checks));
+    core_policy::apply(produced, &policy)
+}
+
 /// The dialect-specific code actions, appended to the generic Tcl set.
 ///
 /// BIG-IP `.conf`/`.scf` gets the rename-partition / rename-object /
@@ -25645,10 +25695,9 @@ impl LanguageServer for Backend {
         // requested range, plus fuzzy `package require`
         // suggestions for the word at the cursor.  Run on a worker.
         let registry = self.registry_for_dialect(&doc.dialect).await;
-        // The resolved per-check disabled set — the same one the diagnostics
-        // path resolves for this document (folder overrides included) — so the
-        // compiler-checks code-action path does not re-surface a quick-fix for
-        // a diagnostic the user disabled.
+        // The analyser's production-time skip, as the diagnostics path
+        // resolves it for this document; what the lightbulb *shows* is the
+        // policy step's decision over `policy_layers`.
         let (disabled_codes, _) = self.resolved_analysis_settings(&uri).await;
         let policy_layers = self.resolved_policy_layers(&uri).await;
         // The analyser diagnostics this document actually publishes.  Code
@@ -25695,35 +25744,20 @@ impl LanguageServer for Backend {
         // whether) a generated stub is inserted.
         let docstring_style = self.resolved_docstring_style(&uri).await;
         let uri_key = uri.as_str().to_owned();
-        let actions = crate::rt::spawn_blocking(move || {
+        let mut actions = crate::rt::spawn_blocking(move || {
             let program = core_definition::ProgramExports {
                 uri: &uri_key,
                 oracle: exports.as_ref(),
             };
-            let dialect_profile = tcl_lsp_core::profile_for_dialect(&dialect);
-            // One report for the whole lightbulb: the published analyser set,
-            // the compiler checks and the optimiser's rewrites under the
-            // document's policy. A fix is offered for a finding the report
-            // shows and for no other. Same standalone-unit caveat as the
-            // pull-diagnostics path for the checks: without the project's
-            // evidence a quick-fix could offer to delete a branch the project
-            // proves reachable, hence `evidence`.
-            let checks = tcl_lsp_db::compiler_check_diagnostics_uncached(
-                &doc.text,
+            let report = code_action_report(
+                &doc,
+                &analysis,
+                &published,
                 &registry,
-                &dialect,
                 generic_patterns.as_deref(),
                 evidence.as_deref(),
-            );
-            let policy = document_policy(
                 &policy_layers,
-                doc.decode_report.as_ref(),
-                dialect_profile,
-                core_policy::Directives::from_analysis(&analysis, &doc.text),
             );
-            let mut produced = analyser_findings(&published);
-            produced.extend(compiler_findings(&checks));
-            let report = core_policy::apply(produced, &policy);
             // `program` decides what an inlined call reaches; `report`
             // decides what this document shows.
             let mut actions = core_code_actions::code_actions_in_program(
@@ -25745,7 +25779,7 @@ impl LanguageServer for Backend {
             );
             let dialect_inputs = DialectActionInputs {
                 uri: &uri_str,
-                dialect: dialect_profile,
+                dialect: tcl_lsp_core::profile_for_dialect(&dialect),
                 analysis: &analysis,
                 registry: &registry,
                 context_diags: &context_diags,
@@ -25762,7 +25796,6 @@ impl LanguageServer for Backend {
         if actions.is_empty() {
             return Ok(None);
         }
-        let mut actions = actions;
         core_code_actions::retarget_newlines(&mut actions, &line_ending);
         let lifted = lift_code_actions(actions, &uri, params.context.only.as_ref());
         if lifted.is_empty() {
@@ -31844,6 +31877,41 @@ mod tests {
             &policy,
         );
         assert_eq!(alone.shown().count(), 1, "O120 survives without W110");
+    }
+
+    #[test]
+    fn parse_non_ascii_mode_maps_settings() {
+        assert_eq!(parse_non_ascii_mode("off"), NonAsciiMode::Off);
+        assert_eq!(parse_non_ascii_mode("strict"), NonAsciiMode::Strict);
+        assert_eq!(
+            parse_non_ascii_mode("confusables"),
+            NonAsciiMode::Confusables
+        );
+        assert_eq!(parse_non_ascii_mode("common"), NonAsciiMode::Common);
+        assert_eq!(parse_non_ascii_mode("bogus"), NonAsciiMode::Default);
+    }
+
+    #[test]
+    fn settings_non_ascii_mode_nested_and_flat() {
+        let nested = serde_json::json!({"tclLsp": {"style": {"nonAscii": "common"}}});
+        assert_eq!(settings_non_ascii_mode(&nested), Some(NonAsciiMode::Common));
+        let flat = serde_json::json!({"tclLsp.style.nonAscii": "off"});
+        assert_eq!(settings_non_ascii_mode(&flat), Some(NonAsciiMode::Off));
+        let none = serde_json::json!({"tclLsp": {"dialect": "tcl9.0"}});
+        assert_eq!(settings_non_ascii_mode(&none), None);
+    }
+
+    #[test]
+    fn semantic_tokens_capability_advertises_delta_and_range() {
+        use tower_lsp_server::ls_types::SemanticTokensServerCapabilities as Cap;
+        let Cap::SemanticTokensOptions(o) = semantic_tokens_capability() else {
+            panic!("expected SemanticTokensOptions");
+        };
+        assert_eq!(o.range, Some(true));
+        assert!(matches!(
+            o.full,
+            Some(SemanticTokensFullOptions::Delta { delta: Some(true) })
+        ));
     }
 
     /// `tclLsp.diagnosticSeverity.<CODE>` relabels a shown finding on the

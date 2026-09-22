@@ -23,8 +23,7 @@ use std::io::{IsTerminal, Read};
 use std::path::{Path, PathBuf};
 
 use tcl_dialect::DialectProfile;
-use tcl_lsp_core::source_decode::{DecodeReport, decode_source, encoding_integrity_diagnostics};
-use tcl_lsp_core::source_style::StyleDiagnostic;
+use tcl_lsp_core::source_decode::{DecodeReport, decode_source};
 
 /// Source file extensions the CLI accepts — the registry's single list, shared
 /// with the LSP server's workspace scan and the VS Code activation glob.
@@ -80,9 +79,11 @@ pub struct InputDocument {
     ///
     /// [`DecodeReport::is_faithful`] holds for every document read from text
     /// the caller already had — `--source`, stdin — because there were no bytes
-    /// to mis-decode; for a file it is the real verdict, and is what lets
-    /// [`encoding_diagnostics`] name a byte offset and a malformation class
-    /// instead of guessing from the U+FFFDs left behind.
+    /// to mis-decode; for a file it is the real verdict, and is what lets the
+    /// byte-integrity pass
+    /// ([`tcl_lsp_core::source_decode::encoding_integrity_diagnostics`]) name a
+    /// byte offset and a malformation class instead of guessing from the
+    /// U+FFFDs left behind.
     pub decode: DecodeReport,
 }
 
@@ -152,19 +153,6 @@ impl InputDocument {
     /// The originating file name, for the detector's extension tier.
     fn filename(&self) -> Option<&str> {
         self.path.as_deref().and_then(Path::to_str)
-    }
-
-    /// The source-text integrity findings for this document — W107 (not valid
-    /// UTF-8) and W109 (not UTF-8 text at all).
-    ///
-    /// Shares its implementation with the LSP server's publish path. The CLI
-    /// always has the source bytes. An editor can raise W107 or W109 only while
-    /// its Unicode buffer still exactly matches bytes the server read from
-    /// disk; otherwise those byte-level checks deliberately abstain. See
-    /// [`tcl_lsp_core::source_decode`].
-    #[must_use]
-    pub fn encoding_diagnostics(&self) -> Vec<StyleDiagnostic> {
-        encoding_integrity_diagnostics(&self.source, Some(&self.decode))
     }
 
     /// Whether analysis of this document should **abstain** — the bytes are not
@@ -409,7 +397,7 @@ pub fn read_input_documents(
         // The one byte -> text boundary for Tcl source: a lossy decode (so a
         // broken file is analysed rather than refused), but not a silent
         // one — `decode` carries exactly what was substituted, and
-        // `encoding_diagnostics` turns it into a real finding.
+        // the byte-integrity pass turns it into a real finding.
         let (source, decode) = decode_source(&bytes);
         documents.push(InputDocument {
             label: file_path.display().to_string(),

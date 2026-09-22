@@ -38,7 +38,7 @@ use tcl_lsp_core::diagnostic_policy::Directives;
 use tcl_lsp_core::diagnostic_report::optimise_under_policy;
 
 use crate::cli::{ColourArgs, InputArgs};
-use crate::commands::policy::{ConfigLayers, invocation_layer};
+use crate::commands::policy::{ConfigLayers, invocation_layer, share_one_project};
 
 /// Default tab-expansion width used on stdout (the CLI default).
 const DEFAULT_TAB_WIDTH: usize = 4;
@@ -139,7 +139,7 @@ pub fn run_opt(
     // (issue #2062). Otherwise each document is optimised under its own
     // policy and the outputs are joined exactly as the inputs would have
     // been.
-    let one_text = layers.share_one_project(documents.iter().map(|d| d.path.as_deref()))
+    let one_text = share_one_project(documents.iter().map(|d| d.path.as_deref()))
         && documents
             .iter()
             .all(|d| Directives::scan(&d.source, dialect).lines().is_empty());

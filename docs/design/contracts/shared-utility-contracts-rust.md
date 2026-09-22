@@ -74,7 +74,7 @@ entry point, or gate moves without this contract being updated.
 | SslicTcl finding identity | `rust/tcl-sslictcl/src/policy.rs` | `evaluate_policy`; `PolicyFinding` | invariant `(check id, endpoint)` identity; the `grade` id is reserved | none |
 | SslicTcl embedded source data | `rust/tcl-sslictcl/src/trust.rs` | `embedded_dataset` | pinned upstream revisions, recorded with hashes and licences in `data/provenance.json` | `xtask-sslictcl-data` |
 | SslicTcl declaration surface | `rust/tcl-registry/src/commands/sslictcl/mod.rs`; `rust/tcl-registry/src/definer.rs` | `sslictcl_command_specs`; `SSLICTCL_GRAMMARS` | the `sslictcl` authoring surface (`SpecSurface::SSLICTCL`); Tcl 9.0 core underneath | none |
-| SslicTcl editor projection | `rust/tcl-lsp-core/src/sslictcl_diagnostics.rs`; `rust/tcl-lsp-core/src/declaration_outline.rs` | `applies_to`; `diagnostics`; `SUPERSEDED_ANALYSER_CODES`; `supersede_analyser_diagnostics`; `is_declaration_document`; `declarations` | resolved authoring surface (the `sslictcl` package) per document | none |
+| SslicTcl editor projection | `rust/tcl-lsp-core/src/sslictcl_diagnostics.rs`; `rust/tcl-lsp-core/src/declaration_outline.rs` | `applies_to`; `diagnostics`; `SUPERSEDED_ANALYSER_CODES`; `is_declaration_document`; `declarations` | resolved authoring surface (the `sslictcl` package) per document | none |
 <!-- end-owner-resolution-manifest -->
 
 ### `tcl-dialect` + `tcl-test-support` — C Tcl reference toolchains

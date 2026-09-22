@@ -3161,17 +3161,7 @@ mod tests {
         // No analysis, no evidence — the provider declines rather than
         // falling back to scanning the text.
         let registry = tcl_registry::CommandRegistry::build_default();
-        assert!(
-            package_require_actions(
-                "http::foo
-",
-                at(0, 2),
-                &registry,
-                None,
-                &[]
-            )
-            .is_empty()
-        );
+        assert!(package_require_actions("http::foo\n", at(0, 2), &registry, None, &[]).is_empty());
     }
 
     #[test]
