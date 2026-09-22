@@ -749,3 +749,2552 @@ fn opt_applies_only_the_rewrites_the_policy_shows() {
 }
 ```
 
+## Plan for finishing slices 4–7 and for slices 8–10
+
+The execution plan from the checkpoint `5bc40e95` to the end of the page's
+§ Slices. It is written for an implementer with no other context: every item
+names its files, its Rust items with signatures, what it preserves byte for
+byte, what it changes and the page sentence or issue that mandates the
+change, the tests that pin it, the gates it touches, and the model class that
+executes it — `opus` for semantics, adapters and the truth-table design;
+`sonnet` for deletions, test scaffolding from a given shape, rendering to a
+given format, and document edits. A reviewer checks each landed item against
+its entry here and against § Review checklist. Items run in the order listed;
+an item's *after* line is its only ordering constraint beyond that. Sizes: S
+is under an hour, M is a session, L is more than one.
+
+Vocabulary used below, exactly as the tree spells it:
+
+- *the lane's crates*: `tcl-lsp-core`, `tcl-lsp-server`, `tcl-cli`,
+  `tcl-cli-support`, `tcl-mcp`, `f5-xc` (the XC conversion), plus
+  `tcl-lsp-db` for DP4.1's documentation commit alone.
+- *the crate check*: `cargo check -p tcl-lsp-core -p tcl-lsp-server -p
+  tcl-cli -p tcl-cli-support -p tcl-mcp -p f5-xc --all-targets
+  --all-features`.
+- *the crate clippy*: `cargo clippy -p tcl-lsp-core -p tcl-lsp-server -p
+  tcl-cli -p tcl-cli-support -p tcl-mcp -p f5-xc --all-targets
+  --all-features --no-deps -- -D warnings` (pedantic is the workspace lint
+  level; `--no-deps` because the value-transfers lane's in-flight
+  `tcl-compiler` is not always clean; `--all-features` so the `truth-table`
+  feature DP9.4 adds is linted), and `cargo fmt --all --check`.
+- *the catalogue gates*: `cargo xtask diag-tables --check`, `cargo xtask
+  diag-emission-check`, `cargo xtask gen-ai-diagnostics --check`, `cargo xtask
+  gen-editor-settings --check`, `cargo xtask gen-vscode-package --check`,
+  `cargo xtask gen-jetbrains-catalog --check`, `cargo xtask
+  gen-editor-catalogs --check`, `cargo xtask kcs-index-links`, `cargo xtask
+  owner-resolution`, `cargo xtask retired-api-gate`.
+- *the suites*: `cargo test -p tcl-lsp-core --lib`; `cargo test -p
+  tcl-lsp-core --test code_actions_depth --test docstring --test
+  force_import_shadow_consumers --test lsp_lens_links_symbols --test
+  lsp_providers --test lsp_edit_workspace`; `cargo test -p tcl-lsp-server
+  --lib`; `cargo test -p tcl-lsp-server --test e2e`; `cargo test -p tcl-cli`;
+  `cargo test -p tcl-cli-support`; `cargo test -p tcl-mcp`; `cargo test -p
+  f5-xc`. DP4.0 runs every `tcl-lsp-core` integration binary; each later
+  item runs these six.
+- *the e2e subsets*, in this order: `noqa`, `severity`, `sslictcl`,
+  `optimiser_disable`, `xc_`, `style`, `code_actions`, `commands`, `config`,
+  `diagnostics`, `diagnostic_matrix`, `bigip`, `irules`,
+  `issue1326_encoding`, `issue1333_diagnostic_tags`,
+  `issue1556_diagnostics_exclude`, `vscode_parity`, `spec_packs` — each as
+  `cargo test -p tcl-lsp-server --test e2e -- <subset>`.
+- *green*: the suites of every crate the item touches, the crate clippy and
+  the catalogue gates all pass, and `make rust-check` passes whenever `cargo
+  check --workspace` compiles. The other lanes can leave the workspace red; a
+  lane commit then needs the crate check and the crate clippy on its own
+  crates, which is the rule the hand-off followed.
+
+Capture every gate with `tee` to `/tmp/<gate>-diagnostic-policy.log` and
+`grep` it; a `tail` loses a mid-run failure. A cross-crate name in a doc
+comment is written in backticks, never as an intra-doc link, so `rustdoc`
+has nothing to break.
+
+### The tree at 5bc40e95 against the page's names
+
+Verified by reading the tree at `3a83a9f8` (the lane's files are unchanged
+since `5bc40e95`). Where the page's name and the tree's differ, the plan uses
+the tree's, and DP10.1 corrects the page.
+
+- Gone from `rust/tcl-lsp-server/src/lib.rs` (the page still names them in
+  § Where each step lives and § Anchors): `lift_analyser_diagnostics`,
+  `lift_compiler_diagnostics`, `lift_source_style_diagnostics`,
+  `lift_style_diagnostics`, `lift_f5_source_integrity_diagnostics`,
+  `lift_xc_diagnostics`, `extend_with_sslictcl_diagnostics`,
+  `append_brace_expr_perf_hints`, `suppress_duplicate_o120`,
+  `finalise_diagnostics`, `apply_encoding_abstention`,
+  `apply_diagnostic_tags`, `apply_severity_overrides`,
+  `retain_unsuppressed_diagnostics`, `check_actions`, and the server's
+  `DEFAULT_OFF_CODES` (now `tcl_lsp_core::config_ini`'s). Present, by line:
+  `DiagInputs` (3319), `run_diagnostics_f5_dialect` (3962), `is_fast_tier`
+  (6029, `!code.refined_by_workspace()`), `publish_fast_tier` (6041),
+  `PolicyLayers` (6099), `document_policy` (6131), `lift_report` (6156),
+  `analyser_findings` (6200), `compiler_findings` (6212), `xc_findings`
+  (6230), `LiftInputs` (6239), `f5_model_report` (6303), `skipped_codes`
+  (6329), `refine_and_lift_diagnostics` (6352), `FolderConfig` (8445),
+  `apply_initialization_options` (11179), `optimise_document_command`
+  (16841), `pull_and_apply_config_values` (18477), `apply_global_config`
+  (18737, `#[cfg(test)]`: it fills the **editor** slot of
+  `Backend::policy_layers`), `apply_global_analyser_knobs` (18976),
+  `resolved_analysis_settings` (19482), `resolved_policy_layers` (19518),
+  `f5_pull_report` (20268), `full_diagnostics_for` (20312),
+  `analysed_diagnostics_for` (20325), `published_analyser_diagnostics`
+  (20540), `did_change_configuration` (23436), `code_action` (25620),
+  `read_ini_layer` (27245), `lsp_severity` (27394), `parse_folder_config`
+  (27512), `lift_span` (27894), `model_findings`, `bigip_config_findings`,
+  `apl_presentation_findings`.
+- The server's analyser skip has two sources. A configured folder's is
+  `PolicyLayers::production_skip()` (`pull_and_apply_config_values`); the
+  session's is still `settings_disabled_diagnostics` of a payload, written in
+  `apply_global_analyser_knobs` (from the merged configuration),
+  `apply_initialization_options` and `did_change_configuration` (each from
+  the raw payload alone). `resolved_analysis_settings` adds S100–S103 and
+  S110 to it when shimmer is off, although the analyser emits no shimmer
+  code; the three Tcl publish paths declare the result through
+  `skipped_codes`, and `f5_model_report` declares it too although no
+  analyser ran. `Policy::production_skip` holds every optimisation code the
+  profile disables.
+- `optimise_document_command` adds its `Invocation` layer after the project
+  layer and turns an absent argument into `full`.
+- The code-action handler builds its report with `core_policy::apply` over
+  the published analyser set, the uncached checks and the rewrites — no
+  style pass and no loader, which is enough: no style finding carries an
+  action, and the `SslicTcl` overlap is unconditional.
+- `rust/tcl-cli/src/commands/diag.rs`: of the page's anchors only
+  `collect_rows` remains; `resolve_disabled`, `abstained_rows`,
+  `style_rows`, `push_sslictcl_rows` are gone; `diag_policy` and `rows_of`
+  are new. `rust/tcl-cli/src/commands/policy.rs` (`ConfigLayers`,
+  `invocation_layer`) is not on the page. Neither `ConfigLayers::builder_for`
+  nor the MCP's `PolicyInputs::builder` calls `PolicyBuilder::reporting`, so
+  a configuration file's `[features] diagnostics = false` reaches `tcl diag`
+  and the MCP tools. `run_opt` (`transform.rs`) folds every input into one
+  `combine_sources` text when `share_one_project` holds and no input carries
+  a directive, optimises `document.source` rather than the analysis form,
+  resolves one combined dialect, and takes its pass count from the
+  `--profile` flag.
+- `rust/tcl-cli-support/src/input.rs`: `InputDocument::encoding_diagnostics`
+  has no caller; `combine_texts` is new beside `combine_sources`.
+- `rust/tcl-lsp-core/src/code_actions.rs`: `check_diagnostic_actions` is
+  gone, surviving only as three test-section comments (`code_actions.rs`
+  lines 3217 and 3327, `tests/code_actions_depth.rs` line 773);
+  `code_actions(source, range, analysis, report: &Report)` and
+  `code_actions_in_program(source, range, analysis, report, program,
+  docstring_style)`; `rewrite_action` offers every shown non-`hint_only`
+  rewrite with a non-empty replacement, whether or not it belongs to a group.
+- `rust/tcl-lsp-core/src/diagnostic_report.rs` is not on the page:
+  `SourcePass`, `DocumentSource`, `document_report`, `with_brace_expr_hints`,
+  `OptimisedSource`, `optimise_under_policy`. `optimise_under_policy`
+  rescans each pass's directives with `Directives::scan`, which attributes a
+  `# noqa` to the next line only, where the analyser attributes it to every
+  line of the command it precedes (`apply_preceding_noqa`).
+- `rust/tcl-lsp-core/src/diagnostic_policy.rs`: `Report` is a struct (`new`,
+  `declare_skipped`, `skipped`, `shown`, `suppressed`, `outcome_for`,
+  `reason_for`, `shown_items`, `iter`, `outcomes`, `extend`, `len`,
+  `is_empty`), not the page's tuple struct; `Reason::Overlap { owner:
+  OverlapOwner }`; `Policy::document: DocumentGates`; `Policy::unrestricted`,
+  `code_reason`, `production_skip`, `from_disabled_set`; `Directives::{new,
+  from_analysis, scan, none, lines, reason_for}`; `WHOLE_FILE_CODES`;
+  `dialect_overlaps`. `Directives::hit` restates `line_suppressed`'s bucket
+  rule rather than calling it.
+- `rust/tcl-lsp-core/src/sslictcl_diagnostics.rs`:
+  `supersede_analyser_diagnostics` has no caller outside its own test.
+- `rust/tcl-lsp-core/src/config_ini.rs`: `global_layer`,
+  `project_layer_for`, `project_layer_at`, `project_root_for`
+  (`PROJECT_WALK_LIMIT` = 20) are new. `insert_diagnostics` reads
+  `disabled`, `exclude` and `generic_variable_patterns`, and
+  `insert_optimiser` reads `enabled`, `profile` and `disabled`: an INI layer
+  cannot turn a code back on, which § The five scopes and config precedence
+  promise ("project, editor and global can each turn a code **back on**").
+  `settings_severity_overrides` has no caller outside `config_ini/tests.rs`
+  since slice 4.
+- `rust/tcl-mcp/src/tools.rs`: `PolicyInputs`, `invocation_layer`,
+  `Analysed`, `analyse_under`, the `*_with` forms, `DISABLE`, `ENABLE`,
+  `OPT_DISABLE`, `OPT_ENABLE`. The diagnostics tools run the analyser alone
+  and call `apply` directly: `run_all_checks`, the style pass and the
+  `SslicTcl` projection never run for `analyze` / `validate` / `review` /
+  `find-legacy`, which is the first half of #2061's title. The crate is
+  bin-only; its suite is in-crate (`#[cfg(test)]` modules), run as the
+  `tcl-mcp::bin/tcl-mcp` shard.
+- `rust/tcl-lsp-db/src/lib.rs`: `file_analysis` (523),
+  `apply_cross_file_resolution` (1234), `apply_project_callback_arity`
+  (1285), `project_diagnostics` (1373), `file_analysis_incremental` (3288),
+  `CompilerDiagnostics` (3363), `compiler_check_diagnostics` (3401),
+  `compiler_check_diagnostics_uncached` (3446). Untouched by the checkpoint.
+  The value-transfers lane's 68 `FnLatticeKey` lines are committed
+  (`f3f9390f`); its later edits to this file (slice 4's `spec_pack_key` →
+  `compilation_unit`) are still to come. Three doc comments describe the
+  gone lifts: `CompilerDiagnostics` ("for the server to filter"),
+  `compiler_check_diagnostics` ("Byte-identical to the direct
+  `lift_compiler_diagnostics` build") and `apply_cross_file_resolution`
+  ("the LSP lift does not re-filter").
+- The analyser (`rust/tcl-compiler/src/analyser/state.rs`, lines 2041, 2427
+  and 2524) folds `parse_file_suppression` into its own
+  `disabled_diagnostics` and filters by exact code
+  (`apply_disabled_diagnostics`, `rust/tcl-compiler/src/analyser/diagnostics.rs`
+  line 1075 — the page's § Anchors puts it in `state.rs`). So `# tcl-lsp:
+  disable=W210` removes W210 at production, with no reason in the report,
+  while `# tcl-lsp: disable=*` does not (the literal `*` matches no code;
+  the policy step's `FileDirective` hides those findings). The W305 producer
+  (`bidi_control_diagnostics_with_suppressions`, `state.rs` ~2990) filters
+  by the disabled set and the directive map itself; it is `line_suppressed`'s
+  only production caller (`analyser/source_integrity.rs` line 72).
+- The xtask names the task uses: `gen_ai_diagnostics` is
+  `rust/xtask/src/gen_ai.rs` (command `gen-ai-diagnostics`, writing
+  `ai/shared/diagnostics.json`, `rust/tcl-mcp/diagnostics.json` and the
+  prompt files from the code table); `gen_editor_settings` is
+  `gen_editor_settings.rs`; `diag_tables` is `diag_tables.rs`;
+  `diag_emission` is `diag_emission.rs` (command `diag-emission-check`; its
+  `SEARCH_ROOTS` include `rust/tcl-lsp-core/src`, so a producer there is a
+  recognised emission site). No generator reads the CLI's clap definitions
+  or the MCP `TOOLS` table, and no golden pins `tcl --help`, so a new flag or
+  MCP argument regenerates nothing.
+- `scripts/dev/rust-test-binary-shards.tsv`: `tcl-lsp-server` is
+  `@exclude`d (its own e2e job), `tcl-cli::cli` is shard 4, `tcl-lsp-core`
+  (lib) shard 2, `tcl-mcp::bin/tcl-mcp` shard 5. Nothing in this plan adds an
+  integration-test binary, so the manifest is untouched; an implementer who
+  adds one adds its row in the same commit.
+- `docs/design/contracts/shared-utility-contracts-rust.md` carries the
+  `owner-resolution` manifest. Its "SslicTcl editor projection" row names
+  `supersede_analyser_diagnostics` (deleting the function means deleting the
+  name, or `cargo xtask owner-resolution` fails), and no row or owner heading
+  names the policy step.
+- The six documents slice 10 names exist at the paths the page gives.
+  `docs/design/README.md` (line 95) still calls the page a **proposal**.
+- Issues (read on GitHub): #2061 (MCP tools ignore `# noqa` and never run
+  the compiler checks; `review` can never report a taint finding; its
+  correction comment: the top-of-file directive does reach analyser codes
+  there, through the analyser's fold), #2062 (`tcl opt` and MCP `optimize`
+  apply a rewrite an inline `# noqa` silences), #2063 (`tcl diag` / `lint` /
+  `validate` ignore the project `.tcl-lsp.ini` and the global `config.ini`;
+  W242 seeding), and #2089's own correction comment.
+- The working tree at plan time carries DP4.0 in flight (the three
+  retirements, the drafted CLI tests written with `disabled = W112` and
+  O101, the MCP `policy_tests` module, the O101 correction in
+  `optimise_under_policy_skips_a_rewrite_a_directive_silences`, the
+  manifest row, a `sync_db_config` change for folder handles, the three
+  server unit tests the checkpoint dropped, and its record in the lane
+  document), and the value-transfers lane's uncommitted edits under
+  `rust/tcl-compiler/src/` and `rust/tcl-registry/src/`.
+
+### `rust` has moved under the branch
+
+The branch's merge base with `rust` is `3b5eba8a`. Since then `rust` has
+landed, in this lane's files:
+
+- #2121 (`d866e41`, PR #2148): `DiagSection::Xc` and the thirteen XC rows —
+  the same set slice 1 added — with `TranslationItem::diagnostic_code` typed
+  as `DiagCode` inside `f5-xc`, the xtask `xc` arms, regenerated catalogues,
+  and `published_xc_codes_are_known_diag_codes_issue_2121`.
+- #2120 (`3d759e66`, `5a9d8f78`, PR #2148): `tcl opt` optimises each input
+  as its own program (its own `effective_dialect`, registry and
+  `analysis_source`), joins the outputs as `combine_sources` joined the
+  inputs, keeps a single input's bytes exactly, and lists each file's
+  rewrites under a `# file: <label>` line inside the trailing summary; tests
+  `opt_does_not_fold_a_store_across_a_file_boundary` and
+  `opt_over_several_inputs_keeps_the_first_shebang_at_byte_zero`.
+- #2119 (`69fd665`, `8957d6d`, PR #2150): `optimiseDocument` honours the
+  switch, the profile's set, the per-code overrides and the directives,
+  resolved per pass from `Analyser::analyse(..).suppressed_lines`; a named
+  `profile` argument selects the categories, and an absent or unrecognised
+  one falls back to the configured profile; `optimise_source_multipass_admitting`
+  joins `rust/tcl-compiler/src/optimiser/manager.rs`.
+- #2122 (`b0d38a4`): the server's abstention sites call `should_abstain`.
+- #2123 and #2149 (`6985a9b`, `c696ebc`): every member of an intact
+  optimisation group carries `{group, edits}` in its diagnostic's `data` and
+  never the flat `replacement` / `startOffset` / `endOffset` triple; a group
+  that lost a member carries no payload; `optimiseDocument` drops a group
+  that lost a member.
+
+The checkpoint contradicts three of these: `run_opt` folds inputs (#2120);
+`lift_report`, `rewrite_action` and `optimise_under_policy` offer and apply
+half a group (#2149); `optimiseDocument` answers an absent argument with
+`full` (#2119). DP5.2, DP7.1 and DP4.2 adopt `rust`'s semantics on the
+branch, so the orchestrator's merge of `rust` resolves each conflict to the
+lane's side (§ Boundaries, `rust`), and DP10.4 finishes the reconciliation.
+
+### Goal and exit per slice
+
+| Slice | Deliverable, in the page's words | Exit evidence |
+|---|---|---|
+| 4 — Server: the LSP adapter | "`publish_fast_tier`, `refine_and_lift_diagnostics` and `analysed_diagnostics_for` … each call one function; the lifts, `finalise_diagnostics`, `suppress_duplicate_o120` and `retain_unsuppressed_diagnostics` become the adapter or disappear. `tcl-lsp.optimiseDocument` joins the same path." | DP4.0 green on every suite and on the whole `e2e`; DP4.1's `tcl-lsp-db` documentation commit; DP4.1's declared-skip tests; DP4.2's four `optimise_document_command` tests; DP4.3's pins of the folder layers, the multi-root corner and W305 on an abstaining document; DP8.2's `lifted_report` as the one call every publish path makes; the LSP pass of the truth table (DP9.5). |
+| 5 — CLI | "`collect_rows` … becomes the row adapter; `resolve_disabled` becomes the invocation layer over the seeded set; the project and global layers resolve per input file (closes #2063). `run_opt` … applies only shown rewrites, and stops folding several inputs into one `combine_sources` text when their policies differ (closes #2062)." | DP4.0's three CLI tests; DP5.1's INI tests and `diag_a_project_file_turns_a_code_back_on`; DP5.2's per-input tests (`rust`'s #2120 pair); `samples_optimiser_profiles_are_regenerated`; DP5.4's isolation; the CLI passes of the truth table (DP9.6). |
+| 6 — MCP | "`analyze`, `validate`, `review`, `find-legacy`, `optimize` and `code_actions` … read the report; the diagnostics tools gain a `disable` argument (closes #2061)." | DP4.0's `policy_tests`; DP6.1's shared producer run; DP6.2's #2061 cases (the three `review` programs, the style pass); the MCP passes of the truth table (DP9.7). |
+| 7 — Code actions | "`check_diagnostic_actions` and `code_actions` … lift fixes from shown findings only and lose their filtering parameters; a shown finding carrying `FindingData::Rewrite` becomes an offerable action instead of only a diagnostic payload." | The core integration suites green (DP4.0); DP7.1's group tests in core, server and code actions; DP7.2's multi-line directive test; DP7.3's end-to-end tests; DP8.3's lightbulb on the published report and its W115 tests; the code-action passes of the truth table (DP9.5, DP9.7). |
+| 8 — O111 as a producer | "O111 becomes a producer over that fact, emitting a `Finding` at the same span for every unbraced expression, and policy decides both independently: disabling W100 does not silence O111, and the optimiser gate reaches O111 in the one place it reaches every other O-code." | `with_brace_expr_hints` and `Report::extend` deleted; `brace_expr_hints` tested in core and on the server; `large_file_publishes_fast_tier_before_deep_tier` green; rows 39–41 of the truth table green on every surface. |
+| 9 — The truth table, `--show-suppressed`, the `suppressed` array | "One table from `(program, policy)` to `Report`, in `tcl-lsp-core` beside `apply`, is the parity gate … The table lives once and every adapter runs it." "`--show-suppressed` renders `suppressed()` too, one row per finding with its reason." "Each payload gains a `suppressed` array of `{code, range, reason}`." | `rust/tcl-lsp-core/src/diagnostic_policy/truth_table.rs` green in core; every adapter pass green (server `--lib`, `tcl-cli --test cli`, `tcl-mcp`); DP9.2 and DP9.3 tests green; the four server unit tests the page names deleted. |
+| 10 — Owner docs | The six documents "point at the policy step instead of describing the server's lifts", the `tcl-lsp-db` row "loses 'suppression policy'", the consumer list "becomes one consumer", config-precedence "records that the layers resolve in `tcl-lsp-core` and that a surface's flags are the editor layer", and the KCS how-to "can finally promise the five scopes on every surface, and document `--show-suppressed`". | `cargo xtask kcs-index-links` and `cargo xtask owner-resolution` green with the policy step's manifest row; no retired name (§ Transitional pieces) in `docs/` outside the lane documents; the page's status reads *built*; DP10.4's reconciliation with `rust` green; the lane document removed (DP10.5). |
+
+### Work items
+
+#### DP4.0 — Green the checkpoint: the hand-off's remaining steps
+
+`opus`, L, after nothing. In flight concurrently with this plan. Its scope is
+§ Status at hand-off › Remaining steps 1 to 7, restated here in the same
+terms so the implementer and the reviewer read one list, less step 6's
+`tcl-lsp-db` commit (DP4.1 makes it, beside the declared skip it
+documents) and step 7's `make rust-check` (C4 runs it once the workspace
+compiles); step 8 is one commit. The implementer's record is the lane
+document's § DP4.0 — the checkpoint made green.
+
+1. Core: `cargo test -p tcl-lsp-core --lib`, then the five integration
+   suites and `lsp_edit_workspace` (*the suites*).
+2. Server: `cargo test -p tcl-lsp-server --lib`; the e2e subsets in order;
+   the whole `--test e2e`.
+3. The three drafted CLI tests land in `rust/tcl-cli/tests/cli.rs` with
+   their helpers `Scratch`, `run_tcl_env`, `diag_codes_by_file` and the
+   constant `UNPROVABLE_LOOP`:
+   `diag_seeds_the_default_off_codes_like_the_editor`,
+   `diag_resolves_the_project_and_global_layers_per_input_file` (#2063),
+   `opt_applies_only_the_rewrites_the_policy_shows` (#2062). Gate: `cargo
+   test -p tcl-cli --test cli`.
+4. The MCP parity tests, `#[cfg(test)] mod policy_tests` in
+   `rust/tcl-mcp/src/tools.rs`, against the `*_with` forms with a global
+   layer parsed from INI text by `config_ini::settings_from_ini` (never the
+   machine's `config.ini`): `analyze_honours_an_inline_noqa`,
+   `analyze_honours_disable_enable_and_the_global_file`,
+   `analyze_seeds_the_default_off_codes_and_enable_reaches_them`,
+   `analyze_reports_the_resolved_severity`,
+   `the_grouping_tools_read_the_shown_set`,
+   `optimize_applies_only_the_rewrites_the_directives_leave_shown`,
+   `optimize_honours_the_profile_the_overrides_and_the_global_file`,
+   `code_actions_offer_nothing_for_a_silenced_finding`,
+   `code_actions_offer_a_shown_rewrite_as_a_quickfix`. Gate: `cargo test -p
+   tcl-mcp`.
+5. The crate clippy.
+6. The three retirements:
+   - `Policy::from_disabled_set` is deleted with its doc, the `policy_tests`
+     test `a_flat_disabled_set_records_the_callers_layer_and_opens_every_other_gate`
+     and the `BuildHasher` import. Its other three callers —
+     `apply_tests::the_style_pass_through_apply_keeps_the_orchestrator_rules`,
+     `sslictcl_diagnostics::tests::every_finding_carries_the_loader_span_and_the_sslictcl_producer`,
+     `lsp_edit_workspace::style_orchestrator_merges_checks_and_policy_hides_a_disabled_code`
+     — build `PolicyBuilder::new().layer(PolicyLayer::Editor,
+     &json!({"diagnostics": {"<CODE>": false}})).build()`, and the expected
+     reason stays `Reason::Disabled(PolicyLayer::Editor)`.
+   - `sslictcl_diagnostics::supersede_analyser_diagnostics` is deleted with
+     `the_loader_supersedes_the_unknown_command_verdict` and the `Diagnostic`
+     import, and its name leaves the "SslicTcl editor projection" row of
+     `docs/design/contracts/shared-utility-contracts-rust.md`. The rule's
+     coverage stands in `apply_tests::a_producer_owns_the_document_without_a_finding_of_its_own`
+     and `policy_tests::the_overlap_table_follows_the_dialect`;
+     `SUPERSEDED_ANALYSER_CODES` stays (`dialect_overlaps` reads it).
+   - `InputDocument::encoding_diagnostics` is deleted with the
+     `StyleDiagnostic` / `encoding_integrity_diagnostics` imports; the
+     `decode` field's doc and the `read_input_documents` comment name the
+     byte-integrity pass (`tcl_lsp_core::source_decode::encoding_integrity_diagnostics`)
+     instead.
+7. The catalogue gates.
+8. One commit, `wip(diagnostic-policy): …`, every file staged by path; the
+   lane document gains the record and § Progress's DP4.0 row.
+
+What DP4.0 finds, and the fix each takes (the record has the detail):
+
+- **The constant fold is O101, not O102.** `set x [expr {1 + 2}]` folds
+  under O101 ("Fold constant expression"); O102 forwards a variable's
+  reaching literal. The drafted `opt_applies_only_the_rewrites_the_policy_shows`,
+  the MCP tests and `diagnostic_report::tests::optimise_under_policy_skips_a_rewrite_a_directive_silences`
+  name O101, and the fold's quick-fix replaces the whole statement
+  (`new_text` `set x 3`). The editor's and MCP `code_actions`' default
+  `readability` profile keeps O101 off unless a layer selects `full`;
+  `tcl opt` and MCP `optimize` default to `full`.
+- **The fold's program stands alone.** `set x [expr {1 + 2}]\n` with
+  nothing after it: followed by the draft's `puts $x`, `full` inlines the
+  value and deletes the store (O100, O109), and neither `set x 3` nor
+  `[expr …]` is left to look for. Every later test in this plan that looks
+  for `set x 3` uses the same program (`FOLD`, DP9.4).
+- **The drafted INI spelling is not read.** The per-file test wrote
+  `[diagnostics]\nW112 = false` / `W112 = true`, which `insert_diagnostics`
+  ignores. DP4.0 writes the documented `disabled = W112`, and the draft's
+  "a project file turns the code back on" becomes the two precedence pairs
+  the grammar can say: `--enable W112` overrules a global disable, and a
+  project `disabled = W112` overrules `--enable`. A *file* layer turning a
+  code back on is DP5.1's.
+- **`spec_packs` e2e.** Every configured folder now carries its own
+  analyser skip, so every folder gets its own salsa `AnalyserConfig`
+  handle, and `sync_db_config` moved only the session handle's pack key:
+  `a_workspace_packs_argument_roles_drive_semantic_tokens` and
+  `the_bundled_eda_loadables_make_their_vendor_commands_known` fail. The
+  fix sets the pack key on every live folder handle in `sync_db_config` —
+  packs are a workspace fact.
+- **Three server unit tests the checkpoint dropped.** Its block
+  replacement in `rust/tcl-lsp-server/src/lib.rs` took
+  `parse_non_ascii_mode_maps_settings`,
+  `settings_non_ascii_mode_nested_and_flat` and
+  `semantic_tokens_capability_advertises_delta_and_range` with it, and
+  turned the `"http::foo\n"` literal in a `code_actions` unit test into a
+  real line break; all are restored as they were.
+- **The hand-off's `e2e` subsets pass as they stand**: no code-action
+  count or folder-config expectation changes.
+
+Rules DP4.0 keeps:
+
+- **`too_many_lines`** on `collect_rows` or `code_actions_with`: split, never
+  `#[allow]`.
+- **`samples_optimiser_profiles_are_regenerated`** stays green: for a
+  directive-free input under an empty global layer `optimise_under_policy`
+  applies what `optimise_source_multipass_filtered` applied. A red one is a
+  regression, not a regeneration.
+- **A red `gen-*` gate** is another lane's stale generated file: report it,
+  never regenerate another lane's output.
+
+Exit: steps 1 to 7 green; the record and § Progress's DP4.0 row in the
+lane document.
+
+#### DP4.1 — The analyser's skip is the policy's on every path, and the report declares it
+
+`opus`, M, after DP4.0.
+
+Files: `rust/tcl-lsp-core/src/diagnostic_policy.rs`,
+`rust/tcl-lsp-core/src/config_ini.rs`, `rust/tcl-lsp-core/src/config_ini/tests.rs`,
+`rust/tcl-lsp-server/src/lib.rs`, `rust/tcl-cli/src/commands/diag.rs`,
+`rust/tcl-mcp/src/tools.rs`; `rust/tcl-lsp-db/src/lib.rs` in a commit of
+its own (below).
+
+Core, `diagnostic_policy.rs`:
+
+- `Policy::production_skip(&self) -> BTreeSet<DiagCode>` narrows to step 4
+  of `apply`: the catalogued codes whose per-code decision is off, and the
+  `default_off` codes no layer turned on. The family gates are not in it:
+  no producer that honours a skip emits an optimisation or shimmer code —
+  the analyser emits neither, and the compiler checks and the optimiser
+  always run — so a family-gated code is never skipped and must not be
+  declared as if it were. The doc says so.
+- `pub fn gap_reason(&self, code: DiagCode) -> Option<Reason>` — why a code
+  with no finding is absent, in `apply`'s order for the steps that need no
+  span: `ReportingOff`, `Excluded`, `EncodingAbstention` (unless the code is
+  in `ABSTENTION_SURVIVORS`), `FileDirective` (the file bucket names the
+  code or `*`), then `self.code_reason(code)`.
+- `pub fn analyser_skip(&self) -> BTreeSet<DiagCode>` —
+  `self.production_skip()` plus every code the directives' file bucket
+  names that parses as a `DiagCode`: `Analyser::analyse` folds
+  `parse_file_suppression` into its own `disabled_diagnostics`, so those
+  codes go uncomputed too. `*` is not a code and is not in it.
+- `Report::declare_skipped` records `policy.gap_reason(code)` (was
+  `code_reason`).
+- `pub fn declare_analyser_skip(&mut self, policy: &Policy)` on `Report` —
+  `self.declare_skipped(policy.analyser_skip(), policy)`.
+
+Server, `lib.rs`:
+
+- Every write of `Backend::disabled_diagnostics` becomes the session layers'
+  `PolicyLayers::production_skip()`, computed after the `policy_layers`
+  write it accompanies: `apply_global_analyser_knobs` reads
+  `self.policy_layers` (both its callers set the layers first —
+  `pull_and_apply_config_values` and the `#[cfg(test)]`
+  `apply_global_config`); `apply_initialization_options` and
+  `did_change_configuration` compute it after merging the payload into
+  `layers.editor`. `Backend::with_store` and the test backend initialise
+  it, and the salsa `AnalyserConfig`'s `disabled_diagnostics`, from
+  `PolicyLayers::default().production_skip()`. `parse_folder_config` sets
+  `fc.disabled_diagnostics = Some(PolicyLayers { editor: cfg.clone(),
+  ..PolicyLayers::default() }.production_skip())` for its merged-payload
+  test seam; the pull overwrites it with the folder's own layers, as today.
+- `apply_folder_configs` gives a folder its own `AnalyserConfig` handle
+  only when one of its resolved inputs differs from the session's: the
+  sorted skip, the non-ASCII mode, the extra commands, the generic
+  variable patterns, the package provides, the BIG-IP version or the
+  targets. Since the checkpoint every configured folder carries
+  `Some(skip)`, so every one got a handle, and a document under it is
+  analysed twice per revision — for diagnostics under the folder's handle,
+  for `db_document_symbols` under the session's (DP4.0's open
+  uncertainty). A folder whose inputs equal the session's shares the
+  session's handle and its memo; the published set is identical.
+- `resolved_analysis_settings` loses the shimmer fold and its stale "so the
+  compiler-check lift drops them" comment.
+- `publish_fast_tier`, `refine_and_lift_diagnostics` and
+  `analysed_diagnostics_for` replace `report.declare_skipped(skipped_codes(&disabled),
+  &policy)` with `report.declare_analyser_skip(&policy)`. `f5_model_report`
+  declares nothing (no analyser ran) and loses its `disabled` parameter.
+  `LiftInputs::disabled`, `F5PullInputs::disabled` and
+  `PullRefinementInputs::disabled` stay: the cross-file arity predicates
+  read them. `skipped_codes` is deleted, and so is the
+  `use tcl_lsp_core::config_ini::{default_disabled_set, settings_disabled_diagnostics}`
+  import.
+
+CLI, `collect_rows`: `report.declare_skipped(skip…)` becomes
+`report.declare_analyser_skip(&policy)`; `skip` stays as the analyser's
+`with_disabled_diagnostics` input. MCP, `Analysed::report_with`: likewise,
+and the `skipped` field goes.
+
+Core, `config_ini.rs`: `default_disabled_set`,
+`settings_disabled_diagnostics` and `settings_severity_overrides` are
+deleted with their tests in `config_ini/tests.rs` and the module doc's
+sentence naming "the four readers"; `parse_severity_value` stays (the
+builder reads it).
+
+Preserved: every published diagnostic, every CLI row and every MCP payload.
+The analyser's skip loses only codes it never emits (optimisation and
+shimmer codes) and spellings the catalogue lacks.
+
+Changes: `tcl-lsp.getEffectiveConfig`'s `disabled_diagnostics` lists
+catalogued codes only — a mistyped spelling or a `*` no longer appears
+(§ The conversions: "an unparseable code is a conversion failure rather
+than a value that silently skips every table"). `Report::reason_for`
+explains an absent analyser code the file directive folded away
+(`FileDirective`), where it answered `None` — § Producers that change: "the
+policy step is told which codes the producer skipped … so a report never
+shows a gap it cannot explain".
+
+Tests:
+
+- `apply_tests::production_skip_is_every_code_the_policy_hides_without_a_finding`
+  becomes `production_skip_is_the_per_code_decision_and_the_seed`: a Global
+  W210 disable and the W242 seed are in it; O107 under the default
+  readability profile and S100 under `shimmer: false` are not.
+- `apply_tests::a_gap_reason_follows_the_step_order`: under abstention W210
+  answers `EncodingAbstention` and W109 `None`; a file bucket naming W210
+  answers `FileDirective` ahead of a Global disable of W210; reporting off
+  answers `ReportingOff` before everything.
+- `apply_tests::the_analyser_skip_adds_the_codes_the_file_directive_names`:
+  over `# tcl-lsp: disable=W210, *\n` the analyser skip holds W210 and the
+  production skip does not.
+- `diagnostic_report::tests::a_file_directive_gap_is_declared`: analyse
+  `# tcl-lsp: disable=W210\nputs $y\n` as the server does
+  (`Analyser::with_disabled_diagnostics` over the production skip), build
+  the report with `declare_analyser_skip`; no W210 finding exists and
+  `report.reason_for(DiagCode::W210, Span::new(0, 0))` is
+  `Some(Reason::FileDirective)`.
+- Server `a_folder_matching_the_session_shares_its_analyser_handle`:
+  `apply_folder_configs` with a folder whose `disabled_diagnostics` equals
+  the session skip leaves `folder_db_configs` empty; with `W100` added to
+  it, the folder has one handle. `folder_db_config_handle_is_retired_and_revived`
+  stays green unchanged.
+- Server `the_session_skip_is_the_layers_production_skip`: after
+  `apply_global_config(&json!({"diagnostics": {"W210": false, "W242": true}}))`
+  the session skip is exactly `{"W210"}`; under `{"shimmer": {"enabled":
+  false}}` `resolved_analysis_settings` returns no S-code.
+
+The `tcl-lsp-db` commit (hand-off step 6's, moved here from DP4.0), alone,
+documentation only, in `rust/tcl-lsp-db/src/lib.rs`:
+
+- `file_analysis` and `file_analysis_incremental` gain the paragraph:
+  "`config.disabled_diagnostics` is the analyser's production-time
+  skip — rule 2's permitted saving in
+  `docs/design/compiler/diagnostic-policy.md` § Producers that change:
+  the codes the document's policy turns off, which the analyser need
+  not compute. It is never a presentation filter. The surface that
+  reads this analysis declares the same set to its report, so a code
+  left uncomputed is explained rather than read as clean; what the
+  document shows is the policy step's decision."
+- `apply_cross_file_resolution`: the sentence "it is produced *after*
+  the analyser applied its own `apply_disabled_diagnostics` filter (and
+  the LSP lift does not re-filter), so the filter must be replicated
+  here" becomes "the synthesised arity codes honour the same
+  production skip as the analyser's own; whether they show is the
+  policy step's decision". `apply_project_callback_arity` and
+  `project_diagnostics` gain the same clause where they read the set.
+- `CompilerDiagnostics`: "Returned by `compiler_check_diagnostics` for
+  the server to filter (optimiser master switch / per-code disables)
+  and lift into LSP diagnostics" becomes "Unfiltered: every surface
+  converts these to findings, and the policy step decides what
+  shows".
+- `compiler_check_diagnostics`: "Byte-identical to the direct
+  `lift_compiler_diagnostics` build" becomes "Byte-identical to
+  `compiler_check_diagnostics_uncached`".
+
+Staging never uses an interactive `git add`. When `git diff
+rust/tcl-lsp-db/src/lib.rs` shows only these hunks, `git add
+rust/tcl-lsp-db/src/lib.rs`; otherwise write the diff to
+`$SCRATCH/db.patch`, delete every hunk that is not one of these,
+`git apply --cached --check $SCRATCH/db.patch && git apply --cached
+$SCRATCH/db.patch`. Before committing, `git diff --cached --stat`
+lists this one file and `git diff --cached` shows doc comments only.
+Message: `wip(diagnostic-policy): file_analysis — the disabled set is
+the declared production skip`. Gates: `cargo check -p tcl-lsp-db`,
+`cargo clippy -p tcl-lsp-db --no-deps -- -D warnings` (`doc_markdown`
+reads doc comments).
+
+Gates: *the suites* for the five crates, the e2e subsets `noqa`, `severity`,
+`config`, `diagnostics`, `sslictcl`; the crate clippy.
+
+#### DP4.2 — `optimiseDocument`'s argument follows #2119, in the editor slot
+
+`opus`, S, after DP4.0.
+
+Files: `rust/tcl-lsp-server/src/lib.rs`.
+
+- `PolicyLayers::builder_with_invocation(&self, invocation: Option<&serde_json::Value>)
+  -> core_policy::PolicyBuilder` — the global layer, the editor layer, the
+  invocation layer when `Some`, then the project layer. This is the page's
+  slot ("A surface's own flags occupy the editor layer's slot in the
+  precedence order, under the project file and over the global file"),
+  with the call's own argument over the editor's setting inside it.
+  `builder()` becomes `self.builder_with_invocation(None)`.
+- `optimise_document_command`: `named` is `args.get(1)` as a string that
+  equals some `OptimisationProfile::ALL[i].name()`; the invocation layer
+  `{"optimiser": {"profile": named}}` exists only when `named` is `Some`.
+  The pass count stays `if args.get(1).and_then(Value::as_str).unwrap_or("full")
+  == "full" { 5 } else { 1 }`.
+
+Preserved: the `{source, optimisations}` payload and its item fields; the
+pass rule.
+
+Changes, from #2119 as `rust` merged it (#2150): an absent argument
+optimises under the configured profile's categories (was `full`'s — the
+VS Code client sends none); an unrecognised name falls back to the
+configured profile (was `OptimisationProfile::parse`'s `readability`
+fallback). A project `[optimiser] profile` overrules a named argument — the
+page's slot rule; `rust`'s `optimiser_policy_for_command` lets the argument
+win over the project too (§ Open questions 2).
+
+Tests (server `--lib`, named as `rust`'s so the merge keeps one copy, and
+configured through `apply_global_config` because the branch's policy reads
+`policy_layers`, not `optimiser_profile` / `optimiser_enabled`):
+
+- `optimise_document_command_honours_the_optimiser_policy_issue_2119`: on a
+  default backend `set x [expr {1 + 2}]\nputs $x\n` yields no rewrite;
+  under `{"optimiser": {"profile": "aggressive"}}` it yields some; adding
+  `"enabled": false` leaves the source byte-identical; turning every
+  baseline code off per code applies none.
+- `optimise_document_command_profile_argument_selects_the_categories_issue_2119`:
+  `[uri, "full"]` folds `puts [llength [list a b c]]\n` to `puts 3` on a
+  default backend; `[uri, "not-a-profile"]` does not.
+- `optimise_document_command_honours_noqa_issue_2119`: the O100
+  differential — `set x [expr {1 + 2}]\n# noqa\nputs $x\n` under
+  `aggressive` applies no O100 where the unmarked control does.
+- `a_project_profile_overrules_the_command_argument`: `Backend::policy_layers`
+  set directly to a project layer `{"optimiser": {"profile":
+  "readability"}}`; `[uri, "full"]` over `set x [expr {1 + 2}]\n` returns
+  the source byte-identical (O101 is outside `readability`); the control
+  with no project layer returns `set x 3\n`.
+
+Gates: `cargo test -p tcl-lsp-server --lib -- optimise_document`; the e2e
+subsets `commands`, `config`, `diagnostic_matrix` (every e2e call passes
+`"full"` explicitly); the crate clippy.
+
+#### DP4.3 — Pin the hand-off decisions no test pins yet
+
+`sonnet`, S, after DP4.1.
+
+Files: `rust/tcl-lsp-server/src/lib.rs` (`mod tests`),
+`rust/tcl-cli/tests/cli.rs`. Four tests, no production change. DP4.0's
+record lists what no test pins; DP4.2 takes `optimiseDocument`, DP7.3 the
+server's rewrite quick-fix, and these the rest:
+
+- `a_configured_folder_resolves_its_own_three_layers`: `folder_configs`
+  holds two folders; the first carries `policy_layers: Some(PolicyLayers {
+  project: json!({"diagnostics": {"W112": false}}), ..Default::default() })`,
+  the second `policy_layers: None`. For a URI under the first,
+  `resolved_policy_layers(&uri).await.builder().build().code_reason(DiagCode::W112)`
+  is `Some(Reason::Disabled(PolicyLayer::Project))`; for a URI under the
+  second it is `None` (the session's layers). This pins the hand-off
+  decision "Folder policy layers are the folder's own three" (§ Decisions
+  taken, D2).
+- `a_secondary_root_does_not_inherit_the_primary_project_file`: the
+  session's `policy_layers.project` is `{"diagnostics": {"W112": false}}`
+  (the primary root's `.tcl-lsp.ini`); a second folder carries
+  `line_length: Some(100)` and `policy_layers: Some(PolicyLayers::default())`
+  (its own three, none with a policy section). Under that folder
+  `code_reason(DiagCode::W112)` is `None`; outside every folder it is
+  `Some(Reason::Disabled(PolicyLayer::Project))`. This pins the multi-root
+  corner (§ Open questions 7) so that the owner's answer flips one
+  assertion.
+- `apply_global_config_populates_the_editor_layer`: after
+  `apply_global_config(&json!({"diagnostics": {"W112": false}}))`,
+  `resolved_policy_layers` for any URI yields `code_reason(W112) ==
+  Some(Reason::Disabled(PolicyLayer::Editor))`, and the session skip holds
+  `W112` (DP4.1).
+
+- CLI `diag_keeps_a_bidi_control_on_an_abstaining_document`: a scratch file
+  holding the bytes `FF FE` followed by the UTF-8 text `# \u{202E}hidden\nputs
+  hi\n`, under an empty `XDG_CONFIG_HOME`; `tcl diag --json` reports exactly
+  W109 and W305 (`decode_source` decodes the tail losslessly, and W305 is
+  an abstention survivor). The control without the bidi character reports
+  W109 alone. This pins D10 end to end; the core test
+  `an_integrity_only_document_carries_the_bidi_finding` pins the pass.
+
+Gates: `cargo test -p tcl-lsp-server --lib -- resolves_its_own_three_layers
+inherit_the_primary_project_file populates_the_editor_layer`; `cargo test -p
+tcl-cli --test cli -- abstaining_document`.
+
+#### DP5.1 — An INI layer can turn a code back on
+
+`opus`, S, after DP4.0.
+
+Files: `rust/tcl-lsp-core/src/config_ini.rs` (`insert_diagnostics`,
+`insert_optimiser`), `rust/tcl-lsp-core/src/config_ini/tests.rs`,
+`rust/tcl-cli/tests/cli.rs`.
+
+Change: in `[diagnostics]`, a key whose trimmed, upper-cased spelling
+parses as a `DiagCode` and whose value `parse_bool` accepts becomes
+`{CODE: bool}` — `W242 = true` enables, `W111 = false` disables. `disabled =
+…` keeps producing `{CODE: false}`; the per-code keys are inserted after the
+`disabled` list in file order, so within one file a per-code key wins over
+`disabled` for its code. In `[optimiser]`, the same per-code keys;
+`enabled`, `profile` and `disabled` keep their meanings (no code is spelled
+like them). A per-code key whose value `parse_bool` rejects contributes
+nothing. The server's `render_config_ini` is unchanged: it writes
+`disabled = …`, which stays readable.
+
+Why: § The five scopes and their order — "project, editor and global can
+each turn a code **back on**, so a layer's contribution is a per-code
+tri-state and not a set union" — and § The truth table's "a default-off
+code turned back on at each layer". The parser reads only `disabled =`, so
+no file layer could enable W242 or overrule a lower layer's disable; the
+builder's tri-state had no INI spelling, and the KCS how-to's promise
+("a project config that enables a code overrules an editor or global
+config that disables it") held only for editor settings.
+
+Preserved: every existing INI file reads identically — no documented or
+shipped file carries a code-named key in these sections.
+
+Tests: `config_ini/tests.rs` —
+`a_per_code_key_turns_a_code_on_or_off` (`[diagnostics]\ndisabled =
+W111\nW242 = true\nw111 = true\n` → `{"W111": true, "W242": true}`);
+`an_optimiser_per_code_key_keeps_the_switch_keys` (`[optimiser]\nenabled =
+false\nO106 = true\n` → `{"enabled": false, "O106": true}`);
+`an_unparseable_per_code_value_is_ignored` (`W242 = maybe` contributes
+nothing; `W999 = true` contributes nothing). `tests/cli.rs` —
+`diag_a_project_file_turns_a_code_back_on`: a global `config.ini` with
+`[diagnostics]\ndisabled = W112` and a project `.tcl-lsp.ini` with
+`[diagnostics]\nW112 = true` → `tcl diag --json` on a file under the
+project reports W112, and a sibling outside it does not.
+
+Docs: `docs/design/contracts/xdg-config.md` (the `[diagnostics]` and
+`[optimiser]` key tables gain a "`<CODE>` — bool — turns one code on or
+off; wins over `disabled` in the same file" row); the KCS how-to's § 3
+example gains `W242 = true` (DP10.3 folds the prose). Gates: `cargo test -p
+tcl-lsp-core --lib -- config_ini`, `cargo test -p tcl-cli --test cli --
+turns_a_code_back_on`, `cargo xtask kcs-index-links`.
+
+#### DP5.2 — `tcl opt` optimises every input on its own
+
+`opus`, S, after DP4.0.
+
+Files: `rust/tcl-cli/src/commands/transform.rs` (`run_opt`),
+`rust/tcl-cli/src/commands/policy.rs`, `rust/tcl-cli/tests/cli.rs`,
+`docs/kcs/features/kcs-feature-tcl-verb-cli.md`.
+
+`run_opt` loops over the input documents. For each: `dialect =
+document.effective_dialect(explicit)`, `registry =
+registry_for_dialect(dialect.name)`, `source = document.analysis_source()`,
+`policy = layers.builder_for(document.path.as_deref()).dialect(dialect).build()`,
+and `optimise_under_policy(&source, &registry, Some(dialect),
+policy.optimiser.profile.max_iterations(), &policy)`. The output is the one
+section itself for a single input (no trim, no join) and `combine_texts`
+over the sections for several. The stdout summary is `# optimised: N
+rewrite(s)` followed, for several inputs, by a `# file: <label>` line ahead
+of each file's entries (a file with none is skipped) and, for one input, by
+the entries alone. `combined_effective_dialect` survives only to pick the
+highlighting dialect. The fold condition (`share_one_project` and the
+`Directives::scan` emptiness test) goes, and `policy::share_one_project`
+(a free function since DP4.0) is deleted with it and with its assertion in
+`a_pathless_document_has_no_project_layer`.
+
+Why: #2120, closed on `rust` by PR #2148 — "Each input is optimised as its
+own program, with its own dialect, its own directives and … its own
+project configuration" — and the page's slice 5, whose "when their
+policies differ" #2120 widens to always. This is `rust`'s `run_opt` shape
+(`3d759e66`, `5a9d8f78`) with the policy step inside it, so the merge
+resolves to this version.
+
+Preserved: the rewrites a directive-free input receives; the summary
+block's format for a single input; `--profile`, `--disable`, `--enable` as
+the invocation layer; `samples/optimiser/*`.
+
+Changes: several inputs never fold across a file boundary (#2120); a
+single input renders as its own section, untrimmed, exactly as `rust`'s
+#2120 renders it; a lone-`\r` input is optimised in its analysis form, so
+the output carries `\n` endings (#2120 as merged: `analysis_source`); the
+pass count follows the profile in force, so a project `[optimiser] profile`
+decides both the category set and the passes (§ Configuration's slot;
+§ Decisions taken, D17).
+
+Tests (`tests/cli.rs`, added verbatim from `rust` so the merge sees
+identical additions): `opt_does_not_fold_a_store_across_a_file_boundary`,
+`opt_over_several_inputs_keeps_the_first_shebang_at_byte_zero`. DP4.0's
+`opt_applies_only_the_rewrites_the_policy_shows` keeps passing (its two
+files are now always separate). `samples_optimiser_profiles_are_regenerated`
+stays green. Docs: the `opt` bullet of `kcs-feature-tcl-verb-cli.md` §
+Verb contracts replaces "Inputs are folded into one text only when their
+policies agree (one project, no directives); otherwise each is optimised on
+its own and the outputs joined" with "Each input is optimised as its own
+program under its own policy and the outputs joined; the summary names each
+file's rewrites". Gates: `cargo test -p tcl-cli`, the crate clippy.
+
+#### DP5.3 — The batch verbs read no LSP document gate
+
+`sonnet`, S, after DP4.0.
+
+Files: `rust/tcl-cli/src/commands/policy.rs` (`ConfigLayers::builder_for`),
+`rust/tcl-mcp/src/tools.rs` (`PolicyInputs::builder`).
+
+Both builders call `.reporting(true)`. `excluded` is never set on either
+surface. Doc sentence on each: "`[features]` configures the language
+server's features (`docs/design/contracts/xdg-config.md` § `[features]`); a
+batch verb reports whatever it is asked to, so neither whole-document gate
+reaches it."
+
+Why: the checkpoint lets a configuration file's `[features] diagnostics =
+false` silence `tcl diag` and the MCP tools, which nothing mandates — the
+page's rule 1 lists the steps every surface applies and neither
+whole-document gate is among them, and § Today records them as
+editor-only. This restores today's CLI behaviour (§ Open questions 4).
+
+Tests: `commands/policy.rs` —
+`a_features_toggle_does_not_silence_the_cli`: a `ConfigLayers` whose global
+layer is `{"features": {"diagnostics": false}}` builds a policy with
+`document.reporting == true`. `tools.rs` `policy_tests` —
+`the_features_toggle_is_an_editor_setting`: `analyze_with` over `puts $y\n`
+under a global layer from `[features]\ndiagnostics = false\n` still reports
+W210. Gates: `cargo test -p tcl-cli --lib`, `cargo test -p tcl-mcp`, the
+crate clippy.
+
+#### DP5.4 — The CLI tests never read the machine's `config.ini`
+
+`sonnet`, S, after DP4.0.
+
+Files: `rust/tcl-cli/tests/cli.rs`.
+
+- `fn tcl() -> Command` — `Command::new(env!("CARGO_BIN_EXE_tcl"))` with
+  `XDG_CONFIG_HOME` set to `empty_config_home()`, a process-wide empty
+  directory under `std::env::temp_dir()` created once through a
+  `std::sync::OnceLock<PathBuf>` and never removed. `config_path_for`
+  consults `XDG_CONFIG_HOME` first on every platform, so this isolates the
+  global layer on Linux, macOS and Windows alike.
+- Every spawn in the file builds on it: `run_tcl`, `run_tcl_in`,
+  `run_tcl_allow_failure`, `run_tcl_env` (whose explicit `env` pairs then
+  override the default), `diag_messages`, `multi_file_diag_text`,
+  `tcl_diag_rows`, `sslictcl_diag_rows`, and the inline spawns in
+  `command_info_discovers_the_current_projects_spec_pack`,
+  `diag_analysis_changes_when_the_current_projects_spec_pack_is_present`,
+  `minimize_missing_code_errors` and `minimize_reduced_output_still_fires`.
+- `Scratch` replaces the hand-rolled nanosecond directories in
+  `multi_file_diag_text`, `tcl_diag_rows`, `sslictcl_diag_rows` and
+  `minify_symbol_map_written_for_plain_minify` (behaviour-identical).
+
+Why: since slice 5 `diag`, `lint`, `validate` and `opt` read
+`config_ini::global_layer()`, so a developer whose `config.ini` disables a
+code sees tests fail that CI passes. Behaviour of the binary is unchanged.
+Gates: `cargo test -p tcl-cli --test cli`, the crate clippy.
+
+#### DP6.1 — One standalone producer run; the MCP diagnostics tools report the editor's set
+
+`opus`, M, after DP4.1 and DP5.3.
+
+Files: `rust/tcl-lsp-core/src/diagnostic_report.rs`,
+`rust/tcl-cli/src/commands/diag.rs`, `rust/tcl-mcp/src/tools.rs`.
+
+Core, `diagnostic_report.rs` — the producers a surface without the salsa
+database runs itself, once, so `tcl diag`, the MCP tools and the truth
+table's core pass run the same ones:
+
+```rust
+/// One document as a surface without the salsa database analyses it.
+#[derive(Debug, Clone, Copy)]
+pub struct StandaloneDocument<'a> {
+    /// The analysis form of the text (lone `\r` rewritten).
+    pub source: &'a str,
+    /// The document's path, for the analyser's file-scoped facts.
+    pub file_path: Option<&'a str>,
+    /// The document's dialect.
+    pub dialect: &'static DialectProfile,
+    /// The registry the surface resolved for the dialect.
+    pub registry: &'a CommandRegistry,
+    /// `Analyser::with_pack_overlay`'s key.
+    pub pack_overlay: u64,
+    /// Cross-file call-site evidence, when the surface gathered any.
+    pub external_call_sites: Option<&'a CallSiteEvidence>,
+}
+
+/// What [`standalone_findings`] produced.
+#[derive(Debug)]
+pub struct StandaloneFindings {
+    /// The analysis, whose directive map feeds the policy.
+    pub analysis: AnalysisResult,
+    /// The analyser's findings, then the compiler checks', converted.
+    pub produced: Vec<Finding>,
+    /// The unit the analyser and the checks shared.
+    pub unit: Arc<CompilationUnit>,
+}
+
+/// The analyser under `skip` — the policy's production skip — and the
+/// compiler checks, over one compilation unit.
+#[must_use]
+pub fn standalone_findings(
+    doc: &StandaloneDocument<'_>,
+    skip: &BTreeSet<DiagCode>,
+) -> StandaloneFindings;
+```
+
+Its body is `collect_rows`' analysed path moved down unchanged:
+`document_declared_surface(source, file_path, dialect.name)`, one
+`CompilationUnit::build_with_options` with `LexerConfig::for_profile(Some(dialect))`,
+`external_call_sites` and the declared surface; `Analyser::with_disabled_diagnostics`
+over `skip`, `with_file_path`, `with_pack_overlay`, `set_cu_override` on the
+shared unit; `run_all_checks(&unit, registry, Some(dialect))`. It reads no
+policy — rule 2 — and takes the skip as a producer input.
+
+CLI, `collect_rows`: the analysed path becomes `standalone_findings` with
+`pack_overlay: tcl_cli_support::spec_pack_key(dialect.name)`,
+`registry_for_dialect(dialect.name)`, the document's path and the evidence
+slice, then `document_report` and `declare_analyser_skip` as now.
+
+MCP, `tools.rs`:
+
+- `struct Analysed { source: String, dialect: &'static DialectProfile,
+  analysis: AnalysisResult, produced: Vec<Finding>, policy: Policy }`.
+- `analyse_under(source, dialect, inputs)` calls `registry(dialect)` first
+  (it installs the bundled loadables the overlay key names, as `analyse`
+  does), then `standalone_findings` with `source:
+  &normalise_lone_cr(source)`, `file_path: None`, `dialect:
+  crate::environment::profile_for_dialect(dialect)`, `registry:
+  &registry(dialect)`, `pack_overlay: tcl_spectcl::bundled::packs().key`,
+  `external_call_sites: None`, and the skip from
+  `inputs.builder().dialect(profile).build().production_skip()`.
+- `Analysed::report_with(&self, more: Vec<Finding>, optimiser: bool) ->
+  Report`: `produced` then `more`; the policy is `self.policy` with
+  `optimiser.enabled = optimiser`; the report is `document_report(&DocumentSource
+  { text: &self.source, analysis_text: &normalise_lone_cr(&self.source),
+  decode: None, dialect: self.dialect, pass: SourcePass::Tcl { line_length:
+  DEFAULT_LINE_LENGTH } }, produced, &policy)` with `declare_analyser_skip`.
+  `report()` is `report_with(Vec::new(), false)`: the four diagnostics tools
+  run with the optimiser off, as `tcl diag`'s `diag_policy` does, so an
+  O-code the checks emit is an `OptimiserOff` suppression, never a silently
+  missing finding (§ Decisions taken, D5).
+- `code_actions_with` drops its private unit build and `run_all_checks` call
+  and calls `report_with(rewrites, true)`, `rewrites` being
+  `optimise_with_dialect(source, &registry, Some(profile))` converted.
+- The tool descriptions of `analyze`, `validate`, `review` and
+  `find-legacy` add "including the compiler checks (S1xx, T1xx,
+  IRULE1xxx–5xxx) and the source-style pass (W111, W112, W115, W118)".
+
+Preserved: `diag_to_json`'s wire shape; `symbols`, `events`, `event_order`;
+`optimize`; `code_actions`' action JSON; the plain `analyse` for the
+non-diagnostic tools; `tcl diag`'s rows byte for byte.
+
+Changes — #2061: "The MCP tools should report the set the editor publishes
+for the same text and dialect: analyser findings plus `run_all_checks`,
+minus directives, minus disabled codes, with the same overlap rules … and
+the same default-off seeding." The four tools gain the compiler-check
+families, the style codes and, for a `sslictcl` source, the loader's
+findings; `review.taint` and the IRULE3xxx / IRULE4002 entries of
+`security` / `thread_safety` fill; `validate` gains the `style` and
+`performance` groups when present; `find-legacy` can report IRULE5001.
+W305 is not doubled: the Tcl style pass carries W107 / W109, not W305.
+
+Tests: the existing `find_legacy_tests`, `source_integrity_tests` and
+DP4.0's `policy_tests` stay green. Gates: `cargo test -p tcl-mcp`, `cargo
+test -p tcl-cli --test cli`, `cargo test -p tcl-lsp-core --lib --
+diagnostic_report`, the crate clippy. Nothing regenerates:
+`rust/tcl-mcp/diagnostics.json` is the code table's projection.
+
+#### DP6.2 — #2061's cases on the MCP tools
+
+`sonnet`, S, after DP6.1.
+
+Files: `rust/tcl-mcp/src/tools.rs`, `mod policy_tests`. Every test uses the
+`*_with` forms and DP4.0's `inputs(args, section, global_ini)` helper with
+an empty global layer.
+
+- `review_reports_the_compiler_check_families` — #2061's three programs:
+  `set cmd [gets stdin]\neval $cmd\n` (`tcl9.0`) → `taint` holds T100;
+  `when HTTP_REQUEST {\n  set host [HTTP::host]\n  HTTP::respond 200
+  content "<h1>$host</h1>"\n}\n` (`f5-irules`) → `security` holds
+  IRULE3001; `when RULE_INIT { set static::debug 0 }\n` (`f5-irules`) →
+  `thread_safety` holds IRULE4002. Negative: `set cmd safe\neval $cmd\n`
+  → `taint` is empty.
+- `analyze_reports_the_source_style_pass`: `set x 1   \n` → W112; the same
+  source under `disable: "W112"` → none.
+- `analyze_reports_the_sslictcl_loader`: `sslictcl 1\nunknown-declaration
+  {a b}\n` under `sslictcl` → SSLIC1101 and no W123.
+- `a_check_emitted_rewrite_is_suppressed_not_missing`: `if {1} { set x 1 }
+  else { set y 2 }\n` → no O100 in `diagnostics` (the diagnostics tools run
+  with the optimiser off); DP9.3 adds the `suppressed` half.
+
+Gates: `cargo test -p tcl-mcp`.
+
+#### DP7.1 — A rewrite group is shown, offered and applied whole or not at all
+
+`opus`, M, after DP4.0.
+
+Files: `rust/tcl-lsp-core/src/diagnostic_policy.rs`,
+`rust/tcl-lsp-core/src/diagnostic_report.rs`,
+`rust/tcl-lsp-core/src/code_actions.rs`, `rust/tcl-lsp-server/src/lib.rs`
+(`lift_report`).
+
+Core, `diagnostic_policy.rs`:
+
+```rust
+/// A rewrite a surface may offer: one shown ungrouped rewrite, or every
+/// member of an optimisation group all of whose members show.
+#[derive(Debug, Clone)]
+pub struct ApplicableRewrite<'a> {
+    /// The group, for a grouped rewrite.
+    pub group: Option<u32>,
+    /// The members in the producers' order — one for an ungrouped rewrite.
+    pub members: Vec<&'a Finding>,
+}
+
+impl Report {
+    /// The rewrites a surface may offer or publish as an edit. Ungrouped: a
+    /// shown `FindingData::Rewrite` that is not `hint_only` and has a
+    /// non-empty replacement. Grouped: a group every member of which shows
+    /// and none of which is `hint_only` (a member's replacement may be
+    /// empty — a deletion). A group that lost a member to the policy — a
+    /// directive on one member's line, a per-code toggle — is not
+    /// applicable at all: its edits apply all-or-nothing.
+    #[must_use]
+    pub fn applicable_rewrites(&self) -> Vec<ApplicableRewrite<'_>>;
+
+    /// `items`, one per finding in the producers' order, kept where the
+    /// finding shows and, for a grouped rewrite, where its whole group
+    /// shows — the rewrite loop's filter. Like [`Self::shown_items`], sound
+    /// because `apply` is order-stable and keeps every finding.
+    #[must_use]
+    pub fn applicable_items<T>(&self, items: Vec<T>) -> Vec<T>;
+}
+```
+
+A group's members are the report's findings carrying
+`FindingData::Rewrite { group: Some(g), .. }`; because the report keeps
+every finding, it knows each group's full size without a second list.
+
+Consumers:
+
+- `lift_report` (server): a shown rewrite's `data` is
+  `{"replacement", "startOffset", "endOffset"}` when it is an applicable
+  ungrouped rewrite; `{"group": g, "edits": [{"replacement", "startOffset",
+  "endOffset"}, …]}` — every member's edit, on every member's diagnostic —
+  when its group is applicable; and absent otherwise. This is `rust`'s
+  #2150 payload (`grouped_quick_fix_payloads`) computed from the report.
+- `code_actions.rs`: `rewrite_action(finding, …)` becomes
+  `rewrite_actions(report: &Report, source: &str, range: LspRange,
+  line_index: &LineIndex) -> Vec<CodeAction>` — one `QuickFix` per
+  applicable rewrite any member of which overlaps `range`, titled with the
+  first member's message, carrying every member's edit. It is called once
+  from `code_actions_in_program`, outside the per-finding loop.
+- `optimise_under_policy`: `report.shown_items(opts)` becomes
+  `report.applicable_items(opts)`.
+
+Preserved: every ungrouped rewrite's payload, action and application;
+`hint_only` never publishes or offers; `apply_optimisations` still skips a
+`hint_only` record, and a shown ungrouped `hint_only` record still reaches
+`OptimisedSource::applied` exactly as today, so the `tcl opt` summary and
+`samples/optimiser/*` are unchanged.
+
+Changes — #2149 and #2123, closed on `rust` by PR #2150 ("a grouped member
+must not be independently applicable"): an O127 pair publishes `{group,
+edits}` on both members and never the flat triple (was: the inline member
+alone carried the triple, offering the assignment's double evaluation); a
+pair that lost a member publishes no payload, offers no action and is not
+applied by `tcl opt`, MCP `optimize` or `optimiseDocument` (was: the other
+member was applied — a store deleted while its read remains). § Adapters,
+code actions: "A fix is offered for a shown finding and for no other."
+
+Tests:
+
+- core `apply_tests::a_group_that_lost_a_member_is_neither_offered_nor_applied`:
+  two `Optimisation`s in group 7 (an inline with a replacement, a delete
+  with an empty one) on lines 1 and 3 of a text, with `Directives::new`
+  carrying an inline bucket for line 3;
+  `applicable_rewrites()` is empty and `applicable_items(vec![0, 1])` is
+  empty; without the directive, one applicable rewrite with two members.
+- core `diagnostic_report::tests::optimise_under_policy_never_applies_half_a_group`:
+  `proc p {y} {\n    set x [llength $y]\n    # noqa\n    puts $x\n}\n` under
+  `tcl8.6` and `OptimiserPolicy::all_on()` — the output still contains `set
+  x [llength $y]` and `applied` holds no O127.
+- core `code_actions` test `a_grouped_rewrite_is_one_action_with_every_edit`:
+  the same program without the directive, full range → exactly one action
+  whose edits are the pair's.
+- server `a_grouped_optimisation_is_never_independently_applicable_issue_2149`
+  (`rust`'s name): `lift_report` over the report of `proc p {y} {\n    set x
+  [llength $y]\n    puts $x\n}\n` (`tcl8.6`, O127 needs a resolved profile)
+  gives both O127 diagnostics `data` with `group` and a two-element `edits`
+  and no `replacement` key.
+- server `optimise_document_command_never_applies_half_a_group_issue_2149`
+  (`rust`'s name): the `# noqa` program under `aggressive` keeps the
+  assignment.
+
+Gates: *the suites* for core and server, the e2e subsets `code_actions`,
+`commands`, `vscode_parity` (`test_hint_only_optimisation_diagnostic_carries_no_apply_payload`
+stays green); the crate clippy. Docs: DP10.2 aligns
+`diagnostics-calculation.md` § Grouped optimisations.
+
+#### DP7.2 — The rewrite loop reads the analyser's directive map
+
+`opus`, S, after DP7.1.
+
+Files: `rust/tcl-lsp-core/src/diagnostic_report.rs`.
+
+`optimise_under_policy` sets each pass's directives to
+`Directives::from_analysis(&Analyser::new().analyse(&current, name),
+&current)`, `name` being `dialect.map_or("", |d| d.name)`, instead of
+`Directives::scan(&current, directive_dialect)`.
+
+Why: `Directives::scan` attributes a `# noqa` to the next line only, while
+the analyser — whose map the editor's squiggles are decided under —
+attributes it to every line of the command it precedes
+(`apply_preceding_noqa`). For a rewrite inside a multi-line command the
+directive then meant one thing to the squiggle and another to `tcl opt`,
+which is #2062's complaint ("The same directive meaning two different
+things on two surfaces"). `rust`'s #2119 reads the same map per pass
+(`optimise_document_command`'s admit closure). Rule 4: "a surface with no
+analyser run scans once through the same helpers" — the rewrite loop can
+run the analyser, so it does. `Directives::scan` keeps its two callers that
+cannot: `f5_model_report` (not Tcl) and `collect_rows`' abstaining path
+(the analyser never runs on those bytes).
+
+Cost: one analysis per pass — at most five for `aggressive` and
+`optimiseDocument`'s `full`, one otherwise — on the batch paths only.
+
+Test: `diagnostic_report::tests::a_noqa_reaches_every_line_of_the_command_it_precedes`:
+`# noqa: O101\nproc p {} {\n    return [expr {1 + 2}]\n}\nputs [p]\n`
+under `tcl9.0` and `OptimiserPolicy::all_on()` — the output keeps `return
+[expr {1 + 2}]` (the directive covers the whole `proc` command, lines 1 to
+3); the unmarked control contains `return 3`. Gates: `cargo test -p tcl-lsp-core --lib --
+diagnostic_report`, `cargo test -p tcl-cli --test cli -- opt`, `cargo test
+-p tcl-mcp -- optimize`, the crate clippy.
+
+#### DP7.3 — Code-action end-to-end tests; the last name of the old lifter
+
+`sonnet`, S, after DP7.1.
+
+Files: `rust/tcl-lsp-server/tests/e2e/code_actions.rs`,
+`rust/tcl-lsp-core/src/code_actions.rs`, `rust/tcl-lsp-core/tests/code_actions_depth.rs`.
+
+- `an_optimiser_rewrite_is_offered_as_a_quick_fix`:
+  `Lsp::with_config(json!({"optimiser": {"profile": "full"}}))`, open `set x
+  [expr {1 + 2}]\n` (nothing after it, DP4.0), request code actions over
+  line 0 → an action of kind `quickfix` whose edit's `newText` is `set x 3`.
+  Negative: under the default configuration (`readability`) no such
+  action. § Adapters, code actions: "An
+  `Outcome::Shown` finding carrying `FindingData::Rewrite` is a code action
+  like any other."
+- `no_quick_fix_for_a_finding_a_noqa_silences`: `set a 1\n# noqa:
+  W100\nset y [expr $a + 1]\n` over line 2 offers no "Brace expr for safety
+  and performance"; the control without the directive offers it. "A fix is
+  offered for a shown finding and for no other."
+- The three test-section comments naming `check_diagnostic_actions`
+  (`code_actions.rs` lines 3217 and 3327, `code_actions_depth.rs` line 773)
+  become "compiler-check fixes: …"; afterwards `grep -rn
+  check_diagnostic_actions rust` is empty.
+
+Gates: `cargo test -p tcl-lsp-server --test e2e -- code_actions`, `cargo
+test -p tcl-lsp-core --test code_actions_depth`.
+
+#### DP8.1 — A fact code is never skipped at production
+
+`opus`, S, after DP4.1.
+
+Files: `rust/tcl-lsp-core/src/diagnostic_policy.rs`.
+
+```rust
+/// Codes whose findings another producer reads as a fact — O111 reads
+/// W100's sites — so the analyser computes them whatever the policy says;
+/// the policy step still decides whether they show.
+pub const FACT_CODES: &[DiagCode] = &[DiagCode::W100];
+```
+
+`Policy::production_skip()` (and so `analyser_skip()`) leaves out every code
+in `FACT_CODES`. The doc cites § Failure modes' last bullet ("The
+analyser's production-time skip is safe only because its findings are not
+read as facts") and § Producers that change ("Both rules consume the same
+unbraced-expression fact").
+
+Behaviour: with W100 disabled at a layer, the analyser computes W100 and
+the policy step suppresses it `Disabled(layer)` rather than the analyser
+skipping it; no surface's shown set changes.
+
+Test (`apply_tests`): `production_skip_never_skips_a_fact_code` — under an
+editor layer `{"diagnostics": {"W100": false}}`, `production_skip()` lacks
+W100 and `code_reason(DiagCode::W100)` is
+`Some(Reason::Disabled(PolicyLayer::Editor))`. Gates: `cargo test -p
+tcl-lsp-core --lib -- apply_tests`.
+
+#### DP8.2 — O111 as a producer; one report call on every publish path
+
+`opus`, M, after DP8.1 and DP6.1.
+
+Files: `rust/tcl-lsp-core/src/diagnostic_report.rs`,
+`rust/tcl-lsp-core/src/diagnostic_policy.rs` (`Report::extend`),
+`rust/tcl-lsp-server/src/lib.rs`.
+
+Core: `with_brace_expr_hints(report: Report, policy: &Policy) -> Report` is
+replaced by
+
+```rust
+/// The O111 producer over the unbraced-expression fact: one finding at the
+/// span of every W100 the analyser emitted, whatever policy later decides
+/// for either.
+#[must_use]
+pub fn brace_expr_hints(produced: &[Finding]) -> Vec<Finding>;
+```
+
+— for each `f` in `produced` with `f.producer == Producer::Analyser &&
+f.code == DiagCode::W100`, `Finding { code: DiagCode::O111, span: f.span,
+severity: Severity::Info, message: BRACE_EXPR_HINT.to_owned(), fixes:
+Vec::new(), data: None, producer: Producer::Optimiser }`. It reads no
+policy. `standalone_findings` inserts `brace_expr_hints` of the analyser's
+findings between them and the compiler checks', so `tcl diag`, the MCP
+tools and the truth table's core pass all carry O111. `Report::extend`
+loses its last caller and is deleted. The module doc's "transitional" O111
+paragraph describes the producer.
+
+Server: one function renders every report path —
+
+```rust
+/// One document's LSP publish set: `produced` plus the report's own
+/// producers under `layers` and `directives`, the analyser's skip declared
+/// when an analyser ran, lifted through the LSP adapter.
+fn lifted_report(
+    doc: &core_report::DocumentSource<'_>,
+    produced: Vec<core_policy::Finding>,
+    layers: &PolicyLayers,
+    directives: core_policy::Directives,
+    analysed: bool,
+) -> Vec<tower_lsp_server::ls_types::Diagnostic>;
+```
+
+(`document_policy` + `document_report` + `declare_analyser_skip` when
+`analysed` + `lift_report`). `publish_fast_tier`,
+`refine_and_lift_diagnostics`, `analysed_diagnostics_for` and
+`f5_model_report` each make one call on it — the page's "the three publish
+paths become one call each on the same function". The deep push and the
+pull build `produced` as the analyser's findings, then
+`brace_expr_hints(&produced)`, then `compiler_findings`, then the XC
+findings; `publish_fast_tier` adds no O111 (O111 stays deep-tier —
+`large_file_publishes_fast_tier_before_deep_tier` uses it as the deep
+marker, and tier membership is `is_fast_tier`'s scheduling, not policy).
+The code-action handler joins this path in DP8.3.
+
+Preserved: O111's message, severity (`Info`), span and producer; its
+deep-tier placement; `tclLsp.optimiser.enabled = false` hides it
+(`OptimiserOff`); a profile or `optimiser.O111 = false` hides it
+(`OptimiserProfile`); its place right after the analyser's findings, where
+`append_brace_expr_perf_hints` put it (the checkpoint appended it last).
+
+Changes — § Producers that change: "policy decides both independently:
+disabling W100 does not silence O111, and the optimiser gate reaches O111
+in the one place it reaches every other O-code":
+
+- `tclLsp.diagnostics.W100 = false`, `--disable W100` and `disable: "W100"`
+  keep O111 (with DP8.1).
+- `# noqa: W100` keeps O111; a bare `# noqa`, `# noqa: *` and `# noqa:
+  O111` silence it.
+- O111 reaches `tcl diag` and the MCP diagnostics tools as an
+  `OptimiserOff` suppression, visible only under `--show-suppressed` and in
+  `suppressed`.
+- A `# tcl-lsp: disable=W100` still removes O111: the analyser folds the
+  file directive into its own skip inside `tcl-compiler` (§ Open questions
+  5).
+
+Tests: core `diagnostic_report::tests` —
+`the_brace_expr_hint_follows_every_w100_the_analyser_finds` replaces
+`the_brace_expr_hint_follows_every_shown_w100`: spans equal to W100's;
+under `{"diagnostics": {"W100": false}}` W100 is `Disabled(Editor)` and
+O111 shows; under `# noqa: W100` W100 is `InlineDirective` and O111 shows;
+under `optimiser.enabled = false` O111 is `OptimiserOff`. Server: keep
+`o111_brace_expr_hint_pairs_with_w100`; add `o111_survives_a_disabled_w100`
+(`apply_global_config(&json!({"diagnostics": {"W100": false}}))`, then
+`full_diagnostics_for` carries O111 and no W100). Gates: `cargo test -p
+tcl-lsp-core --lib -- diagnostic_report`, `cargo test -p tcl-lsp-server
+--lib -- o111`, the e2e test `large_file_publishes_fast_tier_before_deep_tier`
+and the subsets `diagnostics`, `sslictcl`, `bigip`; `cargo xtask
+diag-emission-check` (O111's construction site stays under
+`rust/tcl-lsp-core/src`). The code table is unchanged (O111's description
+"paired with W100" still holds), so nothing regenerates. Docs: DP10.3 adds
+the W100 / O111 sentence to the how-to.
+
+#### DP8.3 — The lightbulb reads the published report; W115's conversion follows its finding
+
+`sonnet`, S, after DP8.2 and DP7.1.
+
+Files: `rust/tcl-lsp-server/src/lib.rs`, `rust/tcl-lsp-core/src/code_actions.rs`,
+`rust/tcl-lsp-core/tests/code_actions_depth.rs`,
+`rust/tcl-lsp-server/tests/e2e/code_actions.rs`.
+
+Server: `lifted_report` splits into `published_report(doc, produced,
+layers, directives, analysed) -> core_policy::Report` and `lift_report`,
+and stays their composition. The pull path's assembly of `produced` — the
+analyser's published findings, `brace_expr_hints`, `compiler_findings` of
+`compiler_diagnostics_for`, `xc_findings` when the XC switch is on — moves
+into one helper, `published_findings`, that `analysed_diagnostics_for` and
+`code_action` both call. `code_action` reads `published_report` of it
+under the pull path's `DocumentSource` (the client's text, the analysis
+form, the decode report, `resolved_style_line_length`), and
+`code_action_report` — DP4.0's extraction, which built its own report from
+the analyser's published set and the uncached compiler checks alone — is
+deleted. The lightbulb's report gains the style pass, the `SslicTcl`
+projection, O111, the XC findings and the declared skip; none of them
+carries a `fixes` entry, so no action appears or disappears on that
+account, and every fix is decided against the set the editor shows.
+
+Core, `code_actions.rs`: `continuation_comment_actions` takes the report
+and offers "Convert to per-line comments" only where a shown W115 overlaps
+`range`. It offered the conversion for every continued comment, whether or
+not W115 showed — against § Adapters, code actions: "A fix is offered for
+a shown finding and for no other." `code_actions_depth.rs`: `report_of`
+builds its report with `diagnostic_report::document_report` over a
+`SourcePass::Tcl` `DocumentSource`, so the continuation tests carry the
+style pass's W115; a style finding carries no `fixes`, so no other test's
+actions change.
+
+Changes: a W115 turned off at any scope or silenced by a directive offers
+no conversion (§ Adapters, code actions). Preserved: every other action.
+
+Tests:
+
+- core `code_actions` `a_conversion_follows_a_shown_w115`: over
+  `# trailing \\\nset x 1\n`, line 0, the report of `document_report`
+  under `Policy::unrestricted()` offers the conversion; under a policy
+  whose editor layer is `{"diagnostics": {"W115": false}}` it does not;
+  over `# noqa: W115\n# trailing \\\nset x 1\n`, line 1, with the
+  directives scanned, it does not.
+- server e2e `no_conversion_for_a_disabled_w115`:
+  `Lsp::with_config(json!({"diagnostics": {"W115": false}}))`, open
+  `# trailing \\\nset x 1\n`, code actions over line 0 → no action titled
+  "Convert to per-line comments". `test_simple_continuation_fix` stays the
+  positive.
+- server `the_lightbulb_reads_the_published_report`: for
+  `set x 1   \nputs $x\n` the shown codes of
+  `published_report(published_findings(…))` equal the codes
+  `full_diagnostics_for` publishes, W112 among them.
+
+Gates: `cargo test -p tcl-lsp-core --lib -- code_actions`, `cargo test -p
+tcl-lsp-core --test code_actions_depth`, `cargo test -p tcl-lsp-server
+--lib -- lightbulb`, the e2e subset `code_actions`; the crate clippy.
+
+#### DP9.1 — One spelling for every reason, and the report's gaps
+
+`sonnet`, S, after DP4.1.
+
+Files: `rust/tcl-lsp-core/src/diagnostic_policy.rs`.
+
+- `impl core::fmt::Display for Reason` — the one spelling every adapter
+  renders (CLI rows, MCP JSON) and the truth table pins:
+
+  | `Reason` | Spelling |
+  |---|---|
+  | `ReportingOff` | `reporting-off` |
+  | `Excluded` | `excluded` |
+  | `EncodingAbstention` | `encoding-abstention` |
+  | `InlineDirective { .. }` | `inline-directive` (the finding's own row carries its line) |
+  | `FileDirective` | `file-directive` |
+  | `Disabled(layer)` | `disabled:<layer>` |
+  | `DefaultOff` | `default-off` |
+  | `OptimiserOff` | `optimiser-off` |
+  | `OptimiserProfile { profile }` | `optimiser-profile:<profile.name()>` |
+  | `ShimmerOff` | `shimmer-off` |
+  | `Overlap { owner: OverlapOwner::Code(c) }` | `overlap:<c>` (e.g. `overlap:W110`) |
+  | `Overlap { owner: OverlapOwner::Producer(p) }` | `overlap:<p>` (e.g. `overlap:sslictcl`) |
+
+- `PolicyLayer::as_str(self) -> &'static str` — `global`, `editor`,
+  `invocation`, `project`.
+- `Producer::as_str(self) -> &'static str` — `analyser`, `compiler-check`,
+  `optimiser`, `source-style`, `source-decode`, `sslictcl`, `xc`,
+  `bigip-model`.
+- `Report::gaps(&self) -> impl Iterator<Item = (DiagCode, Reason)> + '_` —
+  the declared skips whose code no finding in the report carries: the codes
+  the policy turned off for this document that the report cannot show as
+  findings. A declared code that some other producer did emit is not a gap;
+  its findings carry their own reasons.
+
+Tests (`tests` module): `every_reason_has_one_stable_spelling` (each row of
+the table above, exactly); (`apply_tests`)
+`a_gap_is_a_declared_skip_no_finding_explains` — declare W210 and T100 under
+a Project disable of both, with one T100 finding in the report: `gaps()`
+yields W210 alone. Gates: `cargo test -p tcl-lsp-core --lib`.
+
+#### DP9.2 — `--show-suppressed` on `tcl diag` / `lint`
+
+`sonnet`, M, after DP9.1, DP6.1 and DP8.2.
+
+Files: `rust/tcl-cli/src/cli.rs`, `rust/tcl-cli/src/lib.rs`,
+`rust/tcl-cli/src/commands/diag.rs`, `rust/tcl-cli/tests/cli.rs`.
+
+- `cli.rs`: `#[derive(Debug, Args)] pub struct ReportArgs {
+  #[arg(long = "show-suppressed")] pub show_suppressed: bool }`, documented
+  "Also list what the policy hides — every suppressed finding with its
+  reason, and every code a layer or a top-of-file directive turned off —
+  so a missing diagnostic has an answer", flattened into `Diag` and `Lint`
+  only (the page names `tcl diag` / `lint`; `validate` lists errors and
+  takes no such flag). `lib.rs` dispatches `Command::Diag { input, diag,
+  report } | Command::Lint { input, diag, report } =>
+  commands::diag::run_diag(input, diag, report)`.
+- `diag.rs`: `collect_rows` returns `DocumentRows { shown: Vec<Row>,
+  hidden: Vec<HiddenRow> }`. `HiddenRow { line: Option<u32>, column:
+  Option<u32>, severity: Option<Severity>, code: String, message:
+  Option<String>, reason: String }` is built from `report.suppressed()`
+  (position from the finding's span, the producer's own severity, the
+  finding's message, `reason.to_string()`) and from `report.gaps()`
+  without `Reason::DefaultOff` (no position, severity or message). Rows sort
+  by `(line, column, code)` as today; gaps follow a file's positioned rows,
+  sorted by code. `run_validate` reads `shown` only.
+- Rendering with the flag, text: a suppressed finding is
+  `{file}:{line}:{column}: {"hidden":<7} {code:<8} {message} [{reason}]`,
+  interleaved with the shown rows in `(line, column, code)` order; a gap is
+  `{file}: {"hidden":<7} {code:<8} [{reason}]`. "no diagnostics" prints only
+  when no row of either kind printed. The stderr summary becomes
+  `diagnostics={n} suppressed={m} across {k} input(s)` with the flag and is
+  unchanged without it.
+- Rendering with the flag, JSON: `FileReport` gains
+  `#[serde(skip_serializing_if = "Option::is_none")] suppressed:
+  Option<Vec<SuppressedItem>>`, `SuppressedItem { line: Option<u32>,
+  column: Option<u32>, severity: Option<&'static str>, code: String,
+  message: Option<String>, reason: String }` — a gap has `null` position,
+  severity and message.
+- The exit status counts shown problems only, with or without the flag.
+
+Preserved: without the flag, every byte of text and JSON output, the stderr
+line and the exit status.
+
+Why: § Adapters, CLI rows — "`--show-suppressed` renders `suppressed()`
+too, one row per finding with its reason, which is the CLI's answer to
+'why is this not firing'". A gap row is the same answer for a code the
+analyser was told not to compute (§ Producers that change: "the skip is
+*declared* … so a report never shows a gap it cannot explain"). The
+default-off seed is omitted: it is the catalogue's baseline, identical for
+every file, and listing it on every file buries the answer (§ Decisions
+taken, D21).
+
+Tests (`tests/cli.rs`, through DP5.4's `tcl()`):
+
+- `diag_show_suppressed_lists_every_hidden_finding_with_its_reason`: the
+  `noqaSuppression.tcl` fixture with `--json --show-suppressed` → the
+  `suppressed` array holds W210 on the `suppressedByCode` line and S100 on
+  the `dictValue` line, each `"reason": "inline-directive"`; without the
+  flag the JSON has no `suppressed` key and equals today's output.
+- `diag_show_suppressed_lists_a_disabled_analyser_code_as_a_gap`: `--disable
+  W210 --show-suppressed --json --source 'puts $y'` → one entry `{"line":
+  null, "code": "W210", "reason": "disabled:invocation"}`, and no W242 entry
+  (default-off gaps are omitted).
+- `diag_show_suppressed_lists_o111_as_optimiser_off`: `set a 1\nset b [expr
+  $a + 1]\n` → W100 in `diagnostics`; O111 in `suppressed` with
+  `"optimiser-off"`.
+- `diag_show_suppressed_text_rows_keep_the_exit_status`: the text form
+  prints `hidden` rows with `[inline-directive]`, and a file whose only
+  findings are suppressed exits 0.
+
+Docs: the `diag` bullet of `kcs-feature-tcl-verb-cli.md` gains the flag
+(DP10.3 folds the how-to). Gates: `cargo test -p tcl-cli`, the crate clippy.
+
+#### DP9.3 — The MCP `suppressed` array
+
+`sonnet`, M, after DP9.1 and DP6.1.
+
+Files: `rust/tcl-mcp/src/tools.rs`.
+
+- `fn suppressed_to_json(finding: &Finding, reason: Reason, sm:
+  &SourceMap<'_>) -> Value` → `{"code", "range": byte_range(sm,
+  finding.span), "reason": reason.to_string(), "message"}`; a gap →
+  `{"code", "range": null, "reason", "message": null}`.
+- `analyze`, `validate`, `review` and `find-legacy` payloads gain
+  `"suppressed": [...]`: `report.suppressed()` then `report.gaps()` without
+  `Reason::DefaultOff`, restricted to the codes the tool's shown set is
+  drawn from — every code for `analyze` and `validate`, the
+  security / taint / thread-safety sets for `review`,
+  `tcl_cli::CONVERTIBLE_CODES` for `find-legacy`. The four tool
+  descriptions add "and a `suppressed` array: every finding the policy
+  hides, with its reason".
+
+Preserved: every existing key and value of the four payloads.
+
+Why: § Adapters, MCP JSON — "Each payload gains a `suppressed` array of
+`{code, range, reason}`, so an agent can see that a finding exists and was
+suppressed rather than concluding the code is clean". `message` is added
+beside the page's three keys: without it a suppressed W210 does not say
+which variable (§ Decisions taken, D22).
+
+Tests (`policy_tests`): `the_diagnostics_tools_list_what_the_policy_hides` —
+`# noqa: W210\nputs $y\n` → `analyze`'s `suppressed` holds `{code: W210,
+reason: inline-directive}` whose range starts on line 1 (0-based);
+`disable: "W210"` over `puts $y\n` → `{code: W210, range: null, reason:
+"disabled:invocation"}`; `review` over `set x hello\n# noqa: S100\nincr
+x\n` lists nothing (S100 is not a review code); DP6.2's
+`a_check_emitted_rewrite_is_suppressed_not_missing` gains its half — O100
+in `suppressed` with `optimiser-off`. Gates: `cargo test -p tcl-mcp`, the
+crate clippy.
+
+#### DP9.4 — The truth table and its core pass
+
+`opus`, L, after DP5.1, DP6.1, DP7.1, DP8.2 and DP9.1.
+
+Files: `rust/tcl-lsp-core/Cargo.toml`, `rust/tcl-lsp-core/src/diagnostic_policy.rs`,
+new `rust/tcl-lsp-core/src/diagnostic_policy/truth_table.rs` (AGPL
+header).
+
+**Placement.** The page: "One table from `(program, policy)` to `Report`,
+in `tcl-lsp-core` beside `apply` … The table lives once and every adapter
+runs it." The adapters' tests live in three other crates, so the table is
+compiled for them too: `tcl-lsp-core` gains the feature `truth-table = []`
+(the precedent is `tcl-irules`' `test-instrumentation`, enabled only from a
+dependant's `[dev-dependencies]`), and `diagnostic_policy.rs` declares
+`#[cfg(any(test, feature = "truth-table"))] pub mod truth_table;`. DP9.5–9.7
+enable the feature from their crates' `[dev-dependencies]`. No lockfile
+changes; `--all-features` builds (CI's nextest shards, the crate clippy)
+compile it.
+
+**Shapes.**
+
+```rust
+/// What a row expects of one code at one line.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Want {
+    /// Shown, at whatever severity the producer chose.
+    Shown,
+    /// Shown at this severity.
+    ShownAt(Severity),
+    /// A finding, suppressed for this reason.
+    Suppressed(Reason),
+    /// No finding at all; the report explains the code with this reason.
+    Gap(Reason),
+}
+
+/// One expectation. `line` is 1-based, as a reader counts; a `Gap` has none.
+#[derive(Debug, Clone, Copy)]
+pub struct Expect {
+    pub code: DiagCode,
+    pub line: Option<u32>,
+    pub want: Want,
+}
+
+/// One `(program, policy)` row.
+#[derive(Debug, Clone, Copy)]
+pub struct Row {
+    /// A stable `snake_case` name, used in every failure message.
+    pub name: &'static str,
+    pub dialect: &'static str,
+    pub program: &'static str,
+    /// Bytes decoded in place of `program`, for an abstaining document.
+    pub bytes: Option<&'static [u8]>,
+    /// The configuration by slot, each the `tclLsp` content shape as JSON
+    /// text: the user's global file, the editor slot (the editor layer on
+    /// the server, a surface's invocation layer elsewhere), the project
+    /// file.
+    pub global: Option<&'static str>,
+    pub slot: Option<&'static str>,
+    pub project: Option<&'static str>,
+    /// The shown set is exactly the `Shown` / `ShownAt` expectations.
+    pub exhaustive: bool,
+    pub expect: &'static [Expect],
+}
+
+/// Where a row is rendered.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Surface {
+    Core,
+    Lsp,
+    LspActions,
+    LspRewrite,
+    Cli,
+    CliRewrite,
+    Mcp,
+    McpActions,
+    McpRewrite,
+}
+
+pub const ROWS: &[Row];
+
+impl Row {
+    /// Whether `surface` can realise this row's configuration and program.
+    pub fn runs_on(&self, surface: Surface) -> bool;
+    /// The expectations as `surface` renders them.
+    pub fn expected(&self, surface: Surface) -> Vec<Expect>;
+    /// A layer's JSON, parsed.
+    pub fn layer(json: Option<&str>) -> serde_json::Value;
+    /// A layer written as an INI file (`[diagnostics]` per-code keys and
+    /// `exclude`, `[diagnosticSeverity]`, `[optimiser]`, `[shimmer]`,
+    /// `[features]`), for the CLI's `config.ini` / `.tcl-lsp.ini`.
+    pub fn ini(json: Option<&str>) -> String;
+    /// The slot as `--disable` / `--enable` / `--profile` arguments, and as
+    /// MCP `disable` / `enable` / `profile` values.
+    pub fn slot_flags(&self) -> SlotFlags;
+    /// The text a surface analyses: `program`, or `bytes` decoded by
+    /// `source_decode::decode_source`, with the decode report.
+    pub fn text(&self) -> (String, Option<DecodeReport>);
+}
+
+/// A row's slot as a surface's own arguments.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SlotFlags {
+    /// `diagnostics.<CODE>: false` and `optimiser.<CODE>: false`.
+    pub disable: Vec<String>,
+    /// `diagnostics.<CODE>: true` and `optimiser.<CODE>: true`.
+    pub enable: Vec<String>,
+    /// `optimiser.profile`.
+    pub profile: Option<String>,
+}
+
+/// One observed rendering of a code.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Observed {
+    pub code: DiagCode,
+    pub line: Option<u32>,
+    pub state: ObservedState,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ObservedState {
+    Shown(Option<Severity>),
+    Suppressed(String),
+    Offered(bool),
+    Applied(bool),
+}
+
+/// One offered code action, in a shape every surface can build.
+#[derive(Debug, Clone)]
+pub struct ActionView<'a> {
+    pub title: &'a str,
+    pub kind: &'a str,
+    /// Each edit's 1-based start line and new text.
+    pub edits: Vec<(u32, &'a str)>,
+}
+
+/// Whether `actions` offer the fix of the `code` finding at `line`.
+pub fn offered(code: DiagCode, line: u32, actions: &[ActionView<'_>]) -> bool;
+
+/// Compare `observed` with `row.expected(surface)`: for every code the
+/// expectations name, the observed entries of that code equal the expected
+/// ones as a multiset of `(line, state)`; codes the row does not name are
+/// ignored unless `exhaustive`, which forbids any other shown code.
+pub fn check(row: &Row, surface: Surface, observed: &[Observed]) -> Result<(), String>;
+```
+
+**Realisability (`runs_on`).** `Core` and `Lsp` run every row.
+`LspActions` runs a row with an actionable subject (W100, S100 or O101 —
+the brace refactor, the shimmer `# noqa` action, the fold quick-fix).
+`LspRewrite` runs a row with an O101 subject. `Cli` runs a row whose layers
+carry neither `features` nor `diagnostics.exclude` (the batch verbs read no
+document gate, DP5.3) and whose slot holds only `diagnostics.<CODE>`
+booleans. `Mcp` adds: no project layer (an MCP `source` has no path) and
+no `bytes` (the tools take decoded text). `McpActions` is `Mcp` with an
+actionable subject. `CliRewrite` and `McpRewrite` run a row with an O101
+subject whose slot holds only `optimiser` keys, under the same document-gate
+rule, and for `McpRewrite` the same project and bytes rules.
+
+**The surface rules (`expected`).** The expectations are written for the
+editor (`Core`), and each surface derives its own by rules that restate
+the page:
+
+- `Lsp`: `Shown` / `ShownAt` stay; `Suppressed` and `Gap` become "no
+  published diagnostic of this code at this line" (the LSP adapter may
+  publish only `shown()`).
+- `Cli`, `Mcp`: `Disabled(Editor)` becomes `Disabled(Invocation)` (the
+  flags occupy the editor layer's slot); an O-code expectation that is
+  `Shown`, `ShownAt`, `Suppressed(OptimiserProfile { .. })` or
+  `Suppressed(Overlap { .. })` becomes `Suppressed(OptimiserOff)` (the verb
+  runs with the optimiser off — step 5's first gate — and steps 1 to 4 fire
+  first, so their reasons stand); `Gap(DefaultOff)` becomes absent (not
+  rendered, D21). `Cli` alone: `Suppressed(EncodingAbstention)` becomes
+  absent (the CLI does not analyse an abstaining document; the integrity
+  pass alone runs).
+- `LspActions`, `McpActions`: each actionable subject becomes
+  `Offered(want is Shown or ShownAt)`, after the `Mcp` layer rule for
+  `McpActions` (code actions run with the optimiser on).
+- `LspRewrite`, `CliRewrite`, `McpRewrite`: each O101 subject becomes
+  `Applied(want is Shown)`.
+
+A row's program is a means. If a producer does not emit a subject code on
+it where the row says, the implementer changes the program or the line —
+never the wanted reason; a reason that does not hold is a defect to report.
+
+**The rows.** Programs by name: `TRAILING` = `set x 1   \nputs $y\n`;
+`UNSET` = `puts $y\n`; `LOOP` = `while {$x < 10} {puts hi}\n`; `SHIMMER`
+= `set x hello\nincr x\n`; `FOLD` = `set x [expr {1 + 2}]\n`; `UNBRACED` =
+`set a 1\nset b [expr $a + 1]\n`; `STREQ` = `proc p {x} {\n    if {$x ==
+"foo"} { return 1 }\n    return 0\n}\n`; `UNUSED` = `proc p {} {\n    set x
+1\n    return 0\n}\n`; `TAINT` = `set u [HTTP::uri]\nHTTP::respond 200
+content $u\n`; `SSLIC` = `sslictcl 1\nunknown-declaration {a b}\n`; `BOM`
+= the bytes `FF FE` followed by `TRAILING`; `BOM_NOQA` = the bytes `FF FE
+0A` followed by `# noqa\nset x 1   \n` (the newline puts the directive on
+a line of its own, after the two replacement characters). The dialect is `tcl9.0` unless the row says. Layers
+are JSON; `D` abbreviates `{"diagnostics": {…}}`, `O` `{"optimiser": {…}}`.
+The surfaces column is what `runs_on` computes, listed so a reviewer can
+check it.
+
+| # | Name | Program | Layers | Expectations | Surfaces |
+|---|---|---|---|---|---|
+| 1 | `reporting_off` | `TRAILING` | global `{"features": {"diagnostics": false}}` | W112@1 `Suppressed(ReportingOff)`; W210@2 `Suppressed(ReportingOff)` | Core, Lsp |
+| 2 | `excluded` | `TRAILING` | global `D {"exclude": ["*.tcl"]}` | W112@1 `Suppressed(Excluded)`; W210@2 `Suppressed(Excluded)` | Core, Lsp |
+| 3 | `encoding_abstention` | `BOM` | — | W109@1 `Shown`; W112@1 `Suppressed(EncodingAbstention)`; W210@2 `Suppressed(EncodingAbstention)`; exhaustive | Core, Lsp, Cli |
+| 4 | `abstention_beats_a_directive` | `BOM_NOQA` | — | W109@1 `Shown`; W112@3 `Suppressed(EncodingAbstention)` | Core, Lsp, Cli |
+| 5 | `inline_noqa_named` | `# noqa: W210\nputs $y\n` | — | W210@2 `Suppressed(InlineDirective { line: 1 })` | Core, Lsp, Cli, Mcp |
+| 6 | `inline_noqa_bare` | `# noqa\nset x 1   \nputs $y\n` | — | W112@2 `Suppressed(InlineDirective { line: 1 })`; W210@3 `Shown` | Core, Lsp, Cli, Mcp |
+| 7 | `inline_noqa_star` | `# noqa: *\nputs $y\n` | — | W210@2 `Suppressed(InlineDirective { line: 1 })` | Core, Lsp, Cli, Mcp |
+| 8 | `file_directive_named` | `# tcl-lsp: disable=W112\nset x 1   \nputs $y\n` | — | W112@2 `Suppressed(FileDirective)`; W210@3 `Shown` | Core, Lsp, Cli, Mcp |
+| 9 | `file_directive_star` | `# tcl-lsp: disable=*\nset x 1   \nputs $y\n` | — | W112@2 `Suppressed(FileDirective)`; W210@3 `Suppressed(FileDirective)` | Core, Lsp, Cli, Mcp |
+| 10 | `file_directive_on_an_analyser_code` | `# tcl-lsp: disable=W210\nputs $y\n` | — | W210 `Gap(FileDirective)` | Core, Lsp, Cli, Mcp |
+| 11 | `inline_noqa_on_a_check` | `set x hello\n# noqa: S100\nincr x\n` | — | S100@3 `Suppressed(InlineDirective { line: 2 })` | Core, Lsp, LspActions, Cli, Mcp, McpActions |
+| 12 | `an_unrelated_noqa_leaves_a_check` | `set x hello\n# noqa: W999\nincr x\n` | — | S100@3 `Shown` | Core, Lsp, LspActions, Cli, Mcp, McpActions |
+| 13 | `a_whole_file_code_ignores_an_inline_noqa` | `# noqa\r\nset x 1\r\n` | — | W118@1 `Shown` | Core, Lsp, Cli, Mcp |
+| 14 | `a_whole_file_code_honours_the_file_directive` | `# tcl-lsp: disable=W118\r\nset x 1\r\n` | — | W118@1 `Suppressed(FileDirective)` | Core, Lsp, Cli, Mcp |
+| 15 | `disabled_at_global` | `TRAILING` | global `D {"W112": false}` | W112@1 `Suppressed(Disabled(Global))`; W210@2 `Shown` | Core, Lsp, Cli, Mcp |
+| 16 | `disabled_in_the_slot` | `TRAILING` | slot `D {"W112": false}` | W112@1 `Suppressed(Disabled(Editor))` | Core, Lsp, Cli, Mcp |
+| 17 | `disabled_at_project` | `TRAILING` | project `D {"W112": false}` | W112@1 `Suppressed(Disabled(Project))` | Core, Lsp, Cli |
+| 18 | `a_disabled_analyser_code_is_a_gap` | `UNSET` | slot `D {"W210": false}` | W210 `Gap(Disabled(Editor))` | Core, Lsp, Cli, Mcp |
+| 19 | `default_off` | `LOOP` | — | W242 `Gap(DefaultOff)` | Core, Lsp, Cli, Mcp |
+| 20 | `default_off_turned_on_at_global` | `LOOP` | global `D {"W242": true}` | W242@1 `Shown` | Core, Lsp, Cli, Mcp |
+| 21 | `default_off_turned_on_in_the_slot` | `LOOP` | slot `D {"W242": true}` | W242@1 `Shown` | Core, Lsp, Cli, Mcp |
+| 22 | `default_off_turned_on_at_project` | `LOOP` | project `D {"W242": true}` | W242@1 `Shown` | Core, Lsp, Cli |
+| 23 | `a_project_enable_over_a_global_disable` | `TRAILING` | global `D {"W112": false}`; project `D {"W112": true}` | W112@1 `Shown` | Core, Lsp, Cli |
+| 24 | `an_inline_directive_over_a_project_enable` | `# noqa: W112\nset x 1   \n` | project `D {"W112": true}` | W112@2 `Suppressed(InlineDirective { line: 1 })` | Core, Lsp, Cli |
+| 25 | `irules_taint_flow` (`f5-irules`) | `TAINT` | — | IRULE3001@2 `Shown` | Core, Lsp, Cli, Mcp |
+| 26 | `a_check_disabled_in_the_slot` (`f5-irules`) | `TAINT` | slot `D {"IRULE3001": false}` | IRULE3001@2 `Suppressed(Disabled(Editor))` | Core, Lsp, Cli, Mcp |
+| 27 | `a_severity_override_relabels_only_its_code` | `TRAILING` | global `{"diagnosticSeverity": {"W112": "error"}}` | W112@1 `ShownAt(Error)`; W210@2 `ShownAt(Warning)` | Core, Lsp, Cli, Mcp |
+| 28 | `a_tagged_code_carries_its_tag` | `UNUSED` | — | W211@2 `Shown` (the LSP pass also checks `tags == [UNNECESSARY]`) | Core, Lsp, Cli, Mcp |
+| 29 | `shimmer_off` | `SHIMMER` | global `{"shimmer": {"enabled": false}}` | S100@2 `Suppressed(ShimmerOff)` | Core, Lsp, LspActions, Cli, Mcp, McpActions |
+| 30 | `a_rewrite_shows_under_its_profile` | `FOLD` | slot `O {"profile": "full"}` | O101@1 `Shown` | Core, Lsp, LspActions, LspRewrite, CliRewrite, McpRewrite |
+| 31 | `a_rewrite_outside_the_profile` | `FOLD` | slot `O {"profile": "readability"}` | O101@1 `Suppressed(OptimiserProfile { profile: Readability })` | Core, Lsp, LspActions, LspRewrite, CliRewrite, McpRewrite |
+| 32 | `the_optimiser_switch_reaches_a_rewrite` | `FOLD` | global `O {"enabled": false}`; slot `O {"profile": "full"}` | O101@1 `Suppressed(OptimiserOff)` | Core, Lsp, LspActions, LspRewrite, CliRewrite, McpRewrite |
+| 33 | `a_per_code_toggle_reaches_a_rewrite` | `FOLD` | slot `O {"profile": "full", "O101": false}` | O101@1 `Suppressed(OptimiserProfile { profile: Full })` | Core, Lsp, LspActions, LspRewrite, CliRewrite, McpRewrite |
+| 34 | `a_directive_over_the_profile` | `# noqa: O101\nset x [expr {1 + 2}]\n` | slot `O {"profile": "readability"}` | O101@2 `Suppressed(InlineDirective { line: 1 })` | Core, Lsp, LspActions, LspRewrite, CliRewrite, McpRewrite |
+| 35 | `a_file_directive_reaches_a_rewrite` | `# tcl-lsp: disable=*\nset x [expr {1 + 2}]\n` | slot `O {"profile": "full"}` | O101@2 `Suppressed(FileDirective)` | Core, Lsp, LspActions, LspRewrite, CliRewrite, McpRewrite |
+| 36 | `a_same_span_overlap` | `STREQ` | — | W110@2 `Shown`; O120@2 `Suppressed(Overlap { owner: Code(W110) })` | Core, Lsp, Cli, Mcp |
+| 37 | `an_overlap_needs_a_standing_owner` | `STREQ` | slot `D {"W110": false}` | W110 `Gap(Disabled(Editor))`; O120@2 `Shown` | Core, Lsp, Cli, Mcp |
+| 38 | `a_document_overlap_owned_by_a_producer` (`sslictcl`) | `SSLIC` | — | SSLIC1101@2 `Shown`; W123@2 `Suppressed(Overlap { owner: Producer(SslicTcl) })` | Core, Lsp, Cli, Mcp |
+| 39 | `o111_survives_a_disabled_w100` | `UNBRACED` | slot `D {"W100": false}` | W100@2 `Suppressed(Disabled(Editor))`; O111@2 `Shown` | Core, Lsp, LspActions, Cli, Mcp, McpActions |
+| 40 | `o111_survives_a_noqa_on_w100` | `set a 1\n# noqa: W100\nset b [expr $a + 1]\n` | — | W100@3 `Suppressed(InlineDirective { line: 2 })`; O111@3 `Shown` | Core, Lsp, LspActions, Cli, Mcp, McpActions |
+| 41 | `the_optimiser_switch_reaches_o111` | `UNBRACED` | global `O {"enabled": false}` | W100@2 `Shown`; O111@2 `Suppressed(OptimiserOff)` | Core, Lsp, LspActions, Cli, Mcp, McpActions |
+
+Coverage against § The truth table: every `Reason` (rows 1, 2, 3–4, 5–7,
+8–10 and 14, 15–18 with `Invocation` through the `Cli` / `Mcp` rule, 19,
+32 and 41, 31 and 33, 29, 36 and 38); the three precedence pairs (24, 23,
+34); the `*` wildcard in both spellings (6 and 7, 9 and 35); the
+`FILE_SUPPRESS_KEY` bucket (8, 10, 14); a default-off code turned back on at
+each layer (20, 21, 22); both `OverlapScope` kinds (36, 38); an abstaining
+document (3, 4). The four server unit tests the page names become rows 11
+and 12 (`lift_compiler_diagnostics_honours_inline_noqa_suppression`), 32
+and 33 (`…_honours_optimiser_master_switch_and_per_code`), 8
+(`lift_source_style_diagnostics_honours_file_suppression`) and 27
+(`apply_severity_overrides_relabels_only_listed_codes`).
+
+**The core pass.** `pub fn core_report(row: &Row) -> (String, Report)`,
+in `truth_table.rs`: the text and decode report from `row.text()`; the
+profile `crate::profile_for_dialect(row.dialect)` and the registry
+`tcl_registry::model::ingress::static_context_for(row.dialect).commands()`;
+a `PolicyBuilder` with the global, slot (as `PolicyLayer::Editor`) and
+project layers, `.decode(report)`, `.dialect(profile)` and `.excluded(true)`
+when a layer carries `diagnostics.exclude` (glob matching is the server's
+and `issue1556_diagnostics_exclude`'s); the production skip; then
+`standalone_findings` over the analysis form, the optimiser's rewrites
+(`optimise_with_dialect`) converted and appended — the server's producer
+set — and `document_report` with `SourcePass::Tcl { line_length:
+DEFAULT_LINE_LENGTH }` under the policy with the analysis's directives, and
+`declare_analyser_skip`. Tests in its `#[cfg(test)] mod tests`:
+
+- `every_row_holds_in_the_core_report` — for each row, the report's
+  findings of each named code, as `Observed` (the line from
+  `LineIndex::new_lsp`, `Shown` with the resolved severity or `Suppressed`
+  with `reason.to_string()`), plus each named code's `Gap` through
+  `report.gaps()`, pass `check(row, Surface::Core, …)`; every failure names
+  the row.
+- `every_reason_is_covered` — the set of reasons in `ROWS` (with the
+  `Invocation` rule applied for `Cli`) is every `Reason` variant and every
+  `PolicyLayer`, so a new variant cannot land without a row.
+
+Also, in `diagnostic_policy.rs` `policy_tests`:
+`directives_agree_with_line_suppressed` — for maps built from inline and
+file buckets of `*`, `W210` and `W112`, and each of W210, W112 and W118 at
+lines 0–3: `directives.reason_for(code, span).is_some()` equals
+`tcl_compiler::analyser::line_suppressed(code.as_str(), line, map)` for a
+code outside `WHOLE_FILE_CODES`, and `line_suppressed(code.as_str(),
+FILE_SUPPRESS_KEY, map)` for one inside. `Directives::hit` restates the
+owner's bucket rule; this test is what keeps the two equal (§ Decisions
+taken, D24).
+
+Gates: `cargo test -p tcl-lsp-core --lib`, `cargo test -p tcl-lsp-core
+--lib --features truth-table`, the crate clippy.
+
+#### DP9.5 — The LSP and code-action passes on the server
+
+`opus`, M, after DP9.4, DP4.2 and DP8.3.
+
+Files: `rust/tcl-lsp-server/Cargo.toml` (`[dev-dependencies]` `tcl-lsp-core
+= { path = "../tcl-lsp-core", features = ["truth-table"] }`),
+`rust/tcl-lsp-server/src/lib.rs`, new
+`rust/tcl-lsp-server/src/policy_truth_table.rs` (AGPL header; declared
+`#[cfg(test)] mod policy_truth_table;` in `lib.rs`).
+
+- `lib.rs`: `async fn apply_session_layers(&self, layers: &PolicyLayers)`,
+  extracted from `pull_and_apply_config_values` — it sets
+  `Backend::policy_layers`, merges `global` + `editor` (`global_editor`) and
+  then `project` (`merged`), and calls
+  `apply_global_config_with_signature_fallback(&merged, &global_editor)`.
+  The pull collapses the inlay alias per layer, calls it, and goes on to
+  the folders as today. Behaviour-preserving.
+- `policy_truth_table.rs`:
+  - `every_row_publishes_its_shown_set` — for each row that `runs_on(Lsp)`:
+    a `test_backend()`, `apply_session_layers` with the row's three layers
+    (the slot as `editor`), the document registered at
+    `file:///truth/<name>.tcl` with its text and, for a `bytes` row, its
+    decode report on the `DocumentState`; then `full_diagnostics_for` (the
+    pull path, which shares `lifted_report` with the push paths). Each
+    published diagnostic becomes `Observed { code, line: range.start.line +
+    1, state: Shown(severity) }`; `check(row, Surface::Lsp, …)`. Row 28
+    also asserts `tags == [DiagnosticTag::UNNECESSARY]`.
+  - `every_row_offers_fixes_for_shown_findings_only` — for each row that
+    `runs_on(LspActions)`: `code_action` over the whole document with an
+    empty context. `truth_table::offered(code: DiagCode, line: u32,
+    actions: &[ActionView<'_>]) -> bool` — `ActionView { title: &str, kind:
+    &str, edits: Vec<(u32, &str)> }`, each edit's 1-based start line and new
+    text, built by each pass from its own action type — decides a subject: W100 — an action titled "Brace expr
+    for safety and performance" whose edit starts on the subject's line;
+    S100 — an action whose inserted text is a `# noqa: S100` comment above
+    the subject's line; O101 — a `quickfix` whose edit's new text is `set
+    x 3`. Each subject becomes `Offered(that answer)`.
+  - `every_rewrite_row_applies_through_optimise_document` — for each row
+    that `runs_on(LspRewrite)`: the slot's `profile` as the command's
+    argument and its per-code keys in the editor layer;
+    `Applied(result.source contains "set x 3")`.
+- The four unit tests the page names are deleted, as rows 8, 11–12, 27 and
+  32–33 now cover them: `the_report_honours_an_inline_noqa_on_a_compiler_check`,
+  `the_report_honours_the_optimiser_master_switch_and_per_code_set`,
+  `the_report_honours_a_file_directive_on_the_style_pass`,
+  `the_report_relabels_a_code_the_editor_layer_overrides`. Their helpers
+  `open_policy` and `lifted_compiler_set` stay while other tests use them.
+
+Gates: `cargo test -p tcl-lsp-server --lib`, the e2e subset `config`, the
+crate clippy.
+
+#### DP9.6 — The CLI passes
+
+`sonnet`, M, after DP9.4, DP9.2 and DP5.2.
+
+Files: `rust/tcl-cli/Cargo.toml` (`[dev-dependencies]` `tcl-lsp-core` with
+`truth-table`), `rust/tcl-cli/tests/cli.rs`.
+
+- `truth_table_rows_render_through_tcl_diag` — for each row that
+  `runs_on(Cli)`: a `Scratch` with `xdg/tcl-lsp/config.ini` from
+  `Row::ini(global)`, `proj/.tcl-lsp.ini` from `Row::ini(project)` and
+  `proj/<name>.tcl` from the program or the bytes; run `tcl diag --json
+  --show-suppressed --dialect <dialect>` plus the slot's `--disable` /
+  `--enable` on the file, with `XDG_CONFIG_HOME` at `xdg`. The
+  `diagnostics` array becomes `Shown(severity)` observations and the
+  `suppressed` array `Suppressed(reason)` ones (a `null` line is a gap);
+  `check(row, Surface::Cli, …)`.
+- `truth_table_rewrite_rows_render_through_tcl_opt` — for each row that
+  `runs_on(CliRewrite)`: `tcl opt` with the slot's `--profile` and
+  `--disable` / `--enable`; `Applied(stdout contains "set x 3")`.
+
+One spawn per row; the pass is not in the smoke tier. Gates: `cargo test -p
+tcl-cli --test cli -- truth_table`.
+
+#### DP9.7 — The MCP passes
+
+`sonnet`, M, after DP9.4 and DP9.3.
+
+Files: `rust/tcl-mcp/Cargo.toml` (`[dev-dependencies]` `tcl-lsp-core` with
+`truth-table`), `rust/tcl-mcp/src/tools.rs` (`policy_tests`).
+
+- `every_row_renders_through_analyze` — for each row that `runs_on(Mcp)`:
+  `analyze_with` with the slot's `disable` / `enable` arguments and a
+  global layer `settings_from_ini(&Row::ini(global), Layer::Global)`;
+  `diagnostics` become `Shown`, `suppressed` become `Suppressed` (a `null`
+  range is a gap); lines are the 0-based `range.start.line` plus one.
+- `every_row_offers_fixes_for_shown_findings_only` — `code_actions_with` for
+  each row that `runs_on(McpActions)`, each action's JSON turned into an
+  `ActionView` and judged by `truth_table::offered`.
+- `every_rewrite_row_renders_through_optimize` — `optimize_with` for each
+  row that `runs_on(McpRewrite)`, with the slot's `profile` / `disable` /
+  `enable`; `Applied(optimized_source contains "set x 3")`.
+
+Gates: `cargo test -p tcl-mcp`.
+
+#### DP10.1 — The design page describes the built tree
+
+`opus`, M, after DP9.7.
+
+Files: `docs/design/compiler/diagnostic-policy.md`, `docs/design/README.md`.
+
+- The status block reads *built*: the vocabulary as the tree spells it —
+  `Finding`, `Producer`, `Fix`, `FindingData`, `Severity`, `Outcome`,
+  `Shown`, `Reason`, `PolicyLayer`, `CodeDecision`, `Overlap`,
+  `OverlapOwner`, `OverlapScope`, `OptimiserPolicy`, `DocumentGates`,
+  `Directives`, `Policy`, `PolicyBuilder`, `Report`, `ApplicableRewrite`,
+  `apply`, `FACT_CODES`, `WHOLE_FILE_CODES`; `diagnostic_report`'s
+  `document_report`, `standalone_findings`, `brace_expr_hints`,
+  `optimise_under_policy`; `config_ini`; the truth table; `--show-suppressed`;
+  the `suppressed` array — and the module docs as the compilable form.
+- § Today becomes "## Before the policy step (at `rust` `3b5eba8a`)", its
+  table kept as the record of what changed, with one sentence saying so;
+  § Where each step lives is rewritten for the built tree: server
+  (`PolicyLayers`, `document_policy`, `lifted_report`, `published_report`,
+  `published_findings`, `lift_report`, the
+  conversions `analyser_findings` / `compiler_findings` / `xc_findings` /
+  `model_findings` / `bigip_config_findings` / `apl_presentation_findings`,
+  `apply_session_layers`, `resolved_policy_layers`), `tcl-lsp-db` (the
+  declared production skip), CLI (`ConfigLayers`, `invocation_layer`,
+  `collect_rows`, `rows_of`, `diag_policy`, `run_opt`), MCP
+  (`PolicyInputs`, `analyse_under`, `Analysed`), core, and `tcl-compiler`
+  (the directive facts; the analyser's fold and W305 self-filter as open).
+  Both mentions of `Policy::from_disabled_set` go.
+- § The finding, § The outcome, § The policy: the sketches follow the tree
+  where it differs — `Reason::Overlap { owner: OverlapOwner }`, `Report` a
+  struct (`shown`, `suppressed`, `gaps`, `outcome_for`, `reason_for`,
+  `declare_skipped`, `declare_analyser_skip`, `applicable_rewrites`,
+  `applicable_items`), `Policy::document: DocumentGates`,
+  `Policy::production_skip` / `analyser_skip` / `gap_reason`.
+- § Configuration: the INI per-code keys (DP5.1); the invocation layer's
+  place inside the editor slot and above the editor layer, and
+  `optimiseDocument`'s named argument in it (DP4.2); the batch verbs read no
+  whole-document gate (DP5.3); the session and folder skips are the layers'
+  production skip (DP4.1).
+- § Adapters: `tcl opt` per input (#2120, DP5.2); rewrite groups whole
+  (#2149, DP7.1); the rewrite loop's directives from the analyser (DP7.2);
+  the reason spellings; `--show-suppressed`'s rows and gap rows, the
+  default-off omission; the `suppressed` element with `message`.
+- § Producers that change: O111 *built*, with `FACT_CODES`; the analyser's
+  file-directive fold declared as a gap; the W305 self-filter recorded as
+  open.
+- § The truth table: the module path, the `truth-table` feature, the
+  `Surface` rules and where each pass lives.
+- § Slices: 4 to 10 marked *built*; slice 5's "when their policies differ"
+  gains "(since #2120, always)".
+- § Failure modes gains "A rewrite group applied or offered in part — the
+  report's `applicable_rewrites` / `applicable_items` are the only doors."
+- § Anchors: remove every name § The tree at 5bc40e95 lists as gone and
+  `check_actions`, `check_diagnostic_actions`, `encoding_diagnostics`,
+  `supersede_analyser_diagnostics`, `default_disabled_set`,
+  `settings_disabled_diagnostics`, `settings_severity_overrides`,
+  `with_brace_expr_hints`; move `apply_disabled_diagnostics` to
+  `rust/tcl-compiler/src/analyser/diagnostics.rs`; add
+  `rust/tcl-lsp-core/src/diagnostic_report.rs`,
+  `rust/tcl-lsp-core/src/diagnostic_policy/truth_table.rs`,
+  `rust/tcl-cli/src/commands/policy.rs`,
+  `rust/tcl-lsp-server/src/policy_truth_table.rs` and the server names
+  above.
+- `docs/design/README.md` line 95: "**proposal** for one diagnostic policy
+  owner" becomes "one diagnostic policy owner … (built)".
+
+Gates: `cargo xtask kcs-index-links`; `grep -rn` for each name in
+§ Transitional pieces over `docs/` returns only the lane documents.
+
+#### DP10.2 — The owner documents point at the policy step
+
+`sonnet`, M, after DP10.1.
+
+Files and edits:
+
+- `docs/design/compiler/diagnostics-integration.md` — rule 1 becomes
+  "**Aggregation lives in the report.** Producers emit typed findings;
+  `diagnostic_report::document_report` joins them with the report's own
+  producers and `diagnostic_policy::apply` decides; an adapter renders
+  (`diagnostic-policy.md`)." Rule 2 becomes "**Policy has one owner.**
+  `# noqa`, `# tcl-lsp: disable=`, the five configuration scopes, the seed,
+  severity, the optimiser and shimmer switches, overlaps and abstention are
+  applied by `apply` alone, identically whatever the finding's origin or
+  the surface." Rule 5 names the overlap table (`dialect_overlaps`: W110
+  over O120 at the same span, the `SslicTcl` loader over W123
+  document-wide) instead of `suppress_duplicate_o120`. § Failure modes'
+  "A new code family added without a lift" becomes "… without a conversion
+  to `Finding`". § Anchors: the server line becomes `lifted_report`,
+  `lift_report`, `document_policy`; add `rust/tcl-lsp-core/src/diagnostic_policy.rs`
+  and `diagnostic_report.rs`.
+- `docs/design/compiler/diagnostics-calculation.md` — § Suppression: the
+  analyser builds the map; the policy step applies it and every other
+  step, for every producer on every surface; a disabled code the analyser
+  skips is declared and explained. § Grouped optimisations: `rust`'s #2123
+  text, with "a group that loses a member … its survivors are published as
+  advice with no payload" tied to `Report::applicable_rewrites`.
+- `docs/design/compiler/pass-fact-ownership-matrix.md` — the
+  `rust/tcl-lsp-db/src/lib.rs` row reads "final LSP diagnostic projection"
+  (", suppression policy" goes); a new row
+  `rust/tcl-lsp-core/src/diagnostic_policy.rs`, `diagnostic_report.rs` |
+  diagnostic policy: directives applied, the five scopes, the seed,
+  severity, optimiser and shimmer gates, overlaps, abstention; every
+  finding kept with its reason | the LSP adapter, `tcl diag` / `lint` /
+  `validate` / `opt`, the MCP tools, the code actions | `apply`,
+  `PolicyBuilder`, `document_report`.
+- `docs/design/contracts/shared-utility-contracts-rust.md` — § `tcl-compiler`
+  — diagnostic suppression directives: the consumer paragraph becomes "one
+  consumer applies the map: the policy step (`Directives::reason_for`,
+  whose bucket rule `directives_agree_with_line_suppressed` pins to
+  `line_suppressed`); the analyser's own W305 producer still filters
+  (open)". A new owner heading `### \`tcl-lsp-core\` — diagnostic policy`
+  with bullets `apply`, `PolicyBuilder`, `Report`, `document_report`,
+  `standalone_findings`, `optimise_under_policy`, `settings_from_ini`,
+  `merge_settings`, and its manifest row: owner "diagnostic policy";
+  sources `rust/tcl-lsp-core/src/diagnostic_policy.rs`;
+  `rust/tcl-lsp-core/src/diagnostic_report.rs`;
+  `rust/tcl-lsp-core/src/config_ini.rs`; entry points `apply`; `Policy`;
+  `PolicyBuilder`; `Report`; `Finding`; `Directives`; `dialect_overlaps`;
+  `document_report`; `standalone_findings`; `optimise_under_policy`;
+  `settings_from_ini`; `merge_settings`; `global_layer`;
+  `project_layer_for`; axis "the dialect's overlap table; the document's
+  configuration layers, resolved per code; the step order is
+  release-invariant"; drift gate `none`. `cargo xtask owner-resolution`
+  then fails if any of those entries loses its public declaration.
+- `docs/design/contracts/config-precedence.md` — § Precedence's
+  implementation paragraph: `PolicyBuilder` in `tcl-lsp-core` resolves the
+  three layers per code on every surface (the server, `tcl diag` / `lint` /
+  `validate` / `opt`, the MCP tools); a surface's flags take the editor
+  layer's slot, over the editor setting and under the project file; the
+  server still applies the merged layers for every non-policy setting
+  through `Backend::apply_global_config`'s path; an INI file can turn a
+  code on (DP5.1).
+
+Gates: `cargo xtask kcs-index-links`, `cargo xtask owner-resolution`.
+
+#### DP10.3 — The user documents promise the five scopes on every surface
+
+`sonnet`, M, after DP10.1.
+
+Files and edits:
+
+- `docs/kcs/kcs-howto-suppress-diagnostics.md` — § 5's example gains
+  `W242 = true` beside DP5.1's § 3 line, and § 3 gains one sentence ("a
+  per-code key turns one code on or off, and wins over `disabled` in the
+  same file"); § Precedence, which the checkpoint already extended to
+  `tcl diag` / `lint` / `validate` / `opt` and the MCP tools, gains one
+  sentence: `[features]` and `[diagnostics] exclude` are the editor's
+  alone (DP5.3); § How to tell it worked gains a bullet for the CLI and
+  the MCP tools — `tcl diag --show-suppressed` lists each hidden finding
+  as a `hidden` row with its reason and each code a layer turned off that
+  no finding carries as a gap row, and the MCP diagnostics tools return
+  the same in `suppressed` — with the reason spellings as a table naming
+  the scope each one points at; § 1 gains "Silencing W100 does not
+  silence O111 — name both codes."
+- `docs/kcs/kcs-qa-where-is-diagnostic-policy-applied.md` — the paragraph
+  beginning "Today the style pass and the SslicTcl projection are the
+  producers that have stopped filtering" becomes the built state: every
+  producer filters nothing, every surface reads one report, and
+  `--show-suppressed` / `suppressed` show what it hides.
+- `docs/kcs/features/kcs-feature-tcl-verb-cli.md` — `diag` gains
+  `--show-suppressed`; `opt` per input (DP5.2 wrote it).
+- `docs/kcs/features/kcs-feature-mcp-server.md` — the tool table notes
+  `disable` / `enable` on the diagnostics tools, the compiler checks and
+  style pass in their payloads, and the `suppressed` array.
+- `docs/design/contracts/xdg-config.md` and
+  `docs/kcs/kcs-qa-what-config-sections-are-valid.md` — the per-code keys
+  of `[diagnostics]` and `[optimiser]` (DP5.1 wrote the table rows; the Q&A
+  gains the matching bullet).
+- `docs/GLOSSARY.md` — "Diagnostic report" names its two renderings of
+  what is hidden (`--show-suppressed`, `suppressed`) and the gap: a code the
+  policy turned off that no finding carries.
+
+Gates: `cargo xtask kcs-index-links`.
+
+#### DP10.4 — Reconcile with `rust` after the orchestrator merges it
+
+`opus`, M, after the orchestrator's merge of `rust` into the branch, and
+after DP4.2, DP5.2 and DP7.1.
+
+Files: the conflict set in § Boundaries, `rust`;
+`rust/tcl-lsp-core/src/diagnostic_report.rs`.
+
+- The merge commit resolves every conflict by § Boundaries' table; this item
+  reviews it and fixes what it left: `optimise_under_policy` becomes a thin
+  wrapper over `tcl_compiler::optimiser::optimise_source_multipass_admitting`,
+  its admit closure running the analyser for the pass's directives (DP7.2),
+  the policy step, and `applicable_items` (DP7.1) — one multipass loop
+  owner, in the optimiser.
+- `rust`'s tests the lane's items ported by name (DP4.2's three
+  `optimise_document_command_*_issue_2119`, DP7.1's two `*_issue_2149`,
+  DP5.2's two `opt_*` tests) exist once each.
+  `published_xc_codes_are_known_diag_codes_issue_2121` runs over
+  `xc_findings`.
+- Every suite, the whole `e2e`, the catalogue gates and `make rust-check`.
+
+This item runs only when the orchestrator merges `rust`; until then
+§ Boundaries' table is the instruction for that merge.
+
+#### DP10.5 — Close the lane
+
+`sonnet`, S, after every other item.
+
+Per `docs/design/lanes/README.md`: the lane document's content is folded
+into the final commit's message (goal, decisions, deltas, the retired
+names, the open questions with their answers or assumptions), the file
+`docs/design/lanes/diagnostic-policy.md` is removed, and its "In flight"
+entry leaves `docs/design/lanes/README.md`. The final commit is not a `wip`
+checkpoint: `diagnostics: one policy owner below every surface (#2089)`,
+naming #2061, #2062 and #2063 as closed. Staged by path: the two lane files
+only.
+
+### Checkpoints
+
+Every item commits on its own when it is green, as `wip(diagnostic-policy):
+DPx.y — <what it does>`, staging its files by explicit path and updating
+its row in § Progress in the same commit. A slice closes with a checkpoint
+whose green is wider:
+
+| Checkpoint | After | Green means |
+|---|---|---|
+| C4 | DP4.0–DP4.3 | *the suites* for the lane's crates, the whole `e2e`, the crate clippy, the catalogue gates, `make rust-check` when the workspace compiles; `cargo check -p tcl-lsp-db` and its clippy for DP4.1's documentation commit. |
+| C5 | DP5.1–DP5.4 | `cargo test -p tcl-cli` (all targets) and `-p tcl-cli-support`, `cargo test -p tcl-lsp-core --lib -- config_ini`, `samples_optimiser_profiles_are_regenerated`, the crate clippy, `cargo xtask kcs-index-links`. |
+| C6 | DP6.1–DP6.2 | `cargo test -p tcl-mcp`, `cargo test -p tcl-cli --test cli`, `cargo test -p tcl-lsp-core --lib`, the crate clippy. |
+| C7 | DP7.1–DP7.3 | *the suites* for core and server, the e2e subsets `code_actions`, `commands`, `vscode_parity`, `config`, then the whole `e2e`; `cargo test -p tcl-cli --test cli`, `cargo test -p tcl-mcp`; the crate clippy. |
+| C8 | DP8.1–DP8.3 | *the suites* for every lane crate, `large_file_publishes_fast_tier_before_deep_tier`, the whole `e2e`, `cargo xtask diag-emission-check`, the crate clippy. |
+| C9a | DP9.1–DP9.3 | `cargo test -p tcl-lsp-core --lib`, `cargo test -p tcl-cli`, `cargo test -p tcl-mcp`; without the flag, `tcl diag`'s output is byte-identical to C8's on the CLI fixtures. |
+| C9b | DP9.4–DP9.7 | every pass green: `cargo test -p tcl-lsp-core --lib --features truth-table`, `cargo test -p tcl-lsp-server --lib`, `cargo test -p tcl-cli --test cli -- truth_table`, `cargo test -p tcl-mcp`; the crate clippy with `--all-features`; the catalogue gates; `make rust-check`. |
+| C10 | DP10.1–DP10.3 | `cargo xtask kcs-index-links`, `cargo xtask owner-resolution`; the retired-name grep. |
+| C10.4 | DP10.4 | after the orchestrator's merge of `rust`: *the suites*, the whole `e2e`, the catalogue gates, `make rust-check`, `make prep-pr`. |
+| Final | DP10.5 | C10.4's green; the lane files gone. |
+
+A checkpoint that cannot reach its green because another lane holds the
+workspace red commits on the crate check and the crate clippy, as the
+hand-off did, and says so in § Progress; the wider gates run again at the
+next checkpoint.
+
+### Transitional pieces to retire
+
+| Piece | Where | Retired by | Note |
+|---|---|---|---|
+| `Policy::from_disabled_set` | `rust/tcl-lsp-core/src/diagnostic_policy.rs` | DP4.0 (hand-off step 6) | four callers move to `PolicyBuilder`; its `policy_tests` test goes with it |
+| `sslictcl_diagnostics::supersede_analyser_diagnostics` | `rust/tcl-lsp-core/src/sslictcl_diagnostics.rs` | DP4.0 | its manifest mention leaves `shared-utility-contracts-rust.md`; `SUPERSEDED_ANALYSER_CODES` stays |
+| `InputDocument::encoding_diagnostics` | `rust/tcl-cli-support/src/input.rs` | DP4.0 | no caller in the workspace |
+| `config_ini::default_disabled_set`, `config_ini::settings_disabled_diagnostics` | `rust/tcl-lsp-core/src/config_ini.rs` | DP4.1 | the server's skip is the layers' production skip |
+| `config_ini::settings_severity_overrides` | `rust/tcl-lsp-core/src/config_ini.rs` | DP4.1 | callerless since slice 4; `parse_severity_value` stays |
+| the server's `skipped_codes`, and the shimmer fold in `resolved_analysis_settings` | `rust/tcl-lsp-server/src/lib.rs` | DP4.1 | `Report::declare_analyser_skip` |
+| `policy::share_one_project` (a free function since DP4.0) | `rust/tcl-cli/src/commands/policy.rs` | DP5.2 | #2120 |
+| `rewrite_action` (one action per finding) | `rust/tcl-lsp-core/src/code_actions.rs` | DP7.1 | becomes `rewrite_actions` over `applicable_rewrites` |
+| `Directives::scan` in `optimise_under_policy` | `rust/tcl-lsp-core/src/diagnostic_report.rs` | DP7.2 | `scan` stays for `f5_model_report` and the CLI's abstaining path |
+| the three `check_diagnostic_actions` comments | `code_actions.rs`, `tests/code_actions_depth.rs` | DP7.3 | |
+| `diagnostic_report::with_brace_expr_hints`, `Report::extend` | `diagnostic_report.rs`, `diagnostic_policy.rs` | DP8.2 | slice 8 |
+| `code_action_report` (DP4.0's extraction, a second producer set for the lightbulb) | `rust/tcl-lsp-server/src/lib.rs` | DP8.3 | the lightbulb reads `published_report` |
+| the four server unit tests the page names (in their checkpoint form `the_report_honours_an_inline_noqa_on_a_compiler_check`, `the_report_honours_the_optimiser_master_switch_and_per_code_set`, `the_report_honours_a_file_directive_on_the_style_pass`, `the_report_relabels_a_code_the_editor_layer_overrides`) | `rust/tcl-lsp-server/src/lib.rs` | DP9.5 | rows 8, 11–12, 27, 32–33 |
+| `rust`'s `optimiser_policy_for_command`, `Backend::group_counts`, `grouped_quick_fix_payloads` and its `lift_compiler_diagnostics` hunks | `rust/tcl-lsp-server/src/lib.rs` after the merge | the merge, reviewed by DP10.4 | the report path replaces them |
+| the lane document | `docs/design/lanes/diagnostic-policy.md` | DP10.5 | folded into the final commit |
+
+`Policy::unrestricted` stays: its callers are test hosts and its doc says
+so. `Report::shown_items` stays: `lsp_edit_workspace` and the style tests
+read it.
+
+### Boundaries
+
+**The value-transfers lane.** It owns `rust/tcl-registry`,
+`rust/tcl-compiler`, `rust/tcl-cmd-core`, `rust/tcl-spectcl`,
+`rust/tcl-spec-hooks` and `rust/xtask/src/value_transfers*`; this lane
+edits none of them. Shared ground:
+
+- `rust/tcl-lsp-db/src/lib.rs`: DP4.1's documentation hunks against that
+  lane's `FnLatticeKey` work (committed in `f3f9390f`) and its slice 4
+  `spec_pack_key` → `compilation_unit` change (to come). Order: whichever
+  commits second stages only its own hunks (DP4.1's procedure); neither
+  rebases the other's hunks.
+- `rust/tcl-compiler/src/analyser/`: three questions for that crate's
+  owner, never edited here — the file-directive fold (§ Open questions 5),
+  the W305 producer's self-filter (§ Open questions 5), and whether
+  `line_suppressed`'s bucket rule should gain a single-bucket form the
+  policy step can call (§ Decisions taken, D24).
+- `rust/tcl-compiler/src/optimiser/manager.rs`: `rust`'s
+  `optimise_source_multipass_admitting` arrives with the merge; DP10.4 calls
+  it and does not change it.
+- `docs/design/lanes/README.md`: both lanes edit "In flight"; each edits
+  only its own bullet.
+- The workspace is red while that lane's `tcl-compiler` edits are in
+  flight: this lane then commits on the crate check and the crate clippy
+  (`--no-deps`).
+
+**The consumer-contracts lane.** Its CC3.3 edits
+`apply_initialization_options`, `did_change_configuration`,
+`spec_pack_discovery` and `reload_spec_packs` in
+`rust/tcl-lsp-server/src/lib.rs`; its CC3.4 edits `spectcl.rs` and the
+`spectcl_check` entry of `rust/tcl-mcp/src/tools.rs`. DP4.1 edits the
+disabled-set lines of the first two functions and DP6.1 edits other
+functions of `tools.rs`. Order (that lane's B3): this lane's adapter
+commits land first — DP4.1 before CC3.3, DP6.1 before CC3.4 — and that lane
+rebases. It adds no `DiagCode`, so no catalogue regenerates on its account.
+
+**`rust`.** The orchestrator merges `rust` into the branch. The lane's
+items already carry `rust`'s semantics (DP4.2 for #2119, DP5.2 for #2120,
+DP7.1 for #2123 / #2149), so each conflict resolves as follows:
+
+| File | `rust`'s change | Resolution |
+|---|---|---|
+| `rust/tcl-core-types/src/diag_code.rs` | #2121: `DiagSection::Xc`, the thirteen XC rows, `xc_family_is_in_the_code_table_issue_2121` | One copy of the rows (the two sides agree code for code; keep `rust`'s comment block); both sides' tests. |
+| `rust/f5-xc/src/{diagnostics.rs,translator.rs,model.rs,report.rs,json_api.rs}`, `rust/f5-xc/tests/*` | #2121: `TranslationItem::diagnostic_code: DiagCode` | `rust`'s typed translator; the lane's `XcDiagnostic::span` and `From<XcDiagnostic> for Finding` stay; the lane's string-to-code step in `get_xc_diagnostics` goes where `rust`'s typing makes it redundant; `emitted_codes_are_catalogued` stays green. |
+| xtask generators (`gen_ai.rs`, `gen_editor_settings.rs`, `gen_jetbrains.rs`, `gen_vscode_package.rs`, `diag_emission.rs`) and every generated catalogue | #2121 | Either side's `xc` arms (they match); then `make codegen` regenerates every generated file — never hand-merge a generated file. The JetBrains `TclLspSettings.kt` / `TclLspSettingsPanel.kt` are hand-written on `rust`: take `rust`'s. |
+| `rust/tcl-cli/src/commands/transform.rs` | #2120 per-input `run_opt` | The lane's DP5.2 `run_opt`. |
+| `rust/tcl-cli/tests/cli.rs` | #2120's two tests | One copy (DP5.2 added them verbatim). |
+| `rust/tcl-compiler/src/optimiser/{manager.rs,mod.rs}` | `optimise_source_multipass_admitting` | `rust`'s. |
+| `rust/tcl-lsp-core/src/source_decode.rs` | `should_abstain`'s doc | `rust`'s. |
+| `rust/tcl-lsp-server/src/lib.rs` | `should_abstain` at five sites; `optimiser_policy_for_command`; `Backend::group_counts`; `optimise_document_command`'s body; `grouped_quick_fix_payloads`; `lift_compiler_diagnostics`' group changes; the `optimiser_enabled` field doc; tests `optimise_document_command_honours_the_optimiser_policy_issue_2119`, `…_profile_argument_selects_the_categories_issue_2119`, `…_honours_noqa_issue_2119`, `…_never_applies_half_a_group_issue_2149`, `a_grouped_optimisation_is_never_independently_applicable_issue_2149`, `published_xc_codes_are_known_diag_codes_issue_2121` | The lane's report path: DP4.2's `optimise_document_command`, DP7.1's `lift_report` payloads; `optimiser_policy_for_command`, `group_counts`, `grouped_quick_fix_payloads` and the `lift_compiler_diagnostics` hunks go (the function is gone); `should_abstain` stays at the two surviving sites (`run_diagnostics_f5_dialect`, `f5_pull_report`); `rust`'s field-doc sentence stays; each named test keeps the lane's body (DP4.2, DP7.1 ported them by name), and the XC test is ported onto `xc_findings`. |
+| `docs/design/compiler/diagnostics-calculation.md` | #2123's § Grouped optimisations | `rust`'s section; DP10.2 aligns § Suppression beside it. |
+| `docs/design/contracts/lsp-diagnostics-publication.md` | #2121's XC note | `rust`'s. |
+
+### Decisions taken
+
+The hand-off's decisions (§ Status at hand-off › Decisions the page does
+not state), each ruled on:
+
+- **D1. Commit order 7 → 4 → 5 → 6 — stands.** It shaped the checkpoint's
+  history only.
+- **D2. Folder policy layers are the folder's own three — stands.** With a
+  real client the scoped configuration is a superset of the unscoped one, so
+  the only change is the multi-root corner the hand-off names (§ Open
+  questions 7); the analyser's skip for such a folder comes from the same
+  layers, so skip and policy cannot disagree. DP4.3 pins both.
+- **D3. `Reason::Disabled` names `Global` / `Editor` / `Project`
+  truthfully, and the inline payloads merge into the editor layer until the
+  next pull — stands.** DP4.1 makes the session's analyser skip follow the
+  same merge.
+- **D4. `tcl diag` keeps the optimiser off by policy — stands.** An O-code
+  the checks emit is an `OptimiserOff` suppression, never dropped at
+  production; that is what makes it explainable under `--show-suppressed`.
+- **D5. The MCP diagnostics tools keep the optimiser off too (new, DP6.1).**
+  They are `tcl diag`'s peers; `code_actions` and `optimize` keep it on.
+- **D6. `tcl opt` and MCP `optimize` map `--disable` / `--enable` to
+  `optimiser.<CODE>` — stands.** They override the profile exactly as the
+  editor's `tclLsp.optimiser.<CODE>` does.
+- **D7. The MCP tools gain `enable` beside `disable` — stands.** An MCP
+  `source` has no project layer, so without it a default-off code could
+  never be turned on from a call.
+- **D8. `optimiseDocument` keeps its own pass rule — stands.** "The same
+  path" is the loop, not the pass count. Its argument now follows #2119
+  (DP4.2).
+- **D9. The rewrite quick-fix is `QuickFix`, titled with the finding's
+  message — stands.** A group is one action titled with its first member's
+  message (DP7.1).
+- **D10. `SourcePass::IntegrityOnly` serves an abstaining CLI document —
+  stands.** W305 on a mis-decoded file is the editor's abstention survivor
+  set (§ The policy, step 2: "everything but W107, W109 and W305"). DP4.3
+  pins it end to end.
+- **D11. The fast tier runs the `SslicTcl` projection — stands.** Nothing
+  mandates it; it is workspace-independent, the deep tier stays a strict
+  superset, and the loader's codes appear one publish earlier. Flagged in
+  § Behavioural deltas.
+- **D12. O111 appended after every other finding — does not stand.**
+  DP8.2 puts it right after the analyser's findings, where
+  `append_brace_expr_perf_hints` had it.
+- **D13. `run_opt` folds inputs whose policies agree — does not stand.**
+  #2120, closed on `rust`, requires every input optimised as its own
+  program (DP5.2).
+- **D14. The style-finding lift goes through the finding's byte span —
+  stands.** § Adapters: "`Span` to a UTF-16 `Range` through `lift_span`";
+  the one visible difference is W107's position in a lone-`\r` file.
+
+This plan's own decisions:
+
+- **D15. `Policy::production_skip` is step 4 alone, and every server path
+  derives the analyser's skip from its layers (DP4.1).** A family-gated
+  code is never skipped by any producer, so declaring it skipped would
+  explain a gap that does not exist; one derivation for session and folder
+  removes the second copy of the per-code tri-state
+  (`settings_disabled_diagnostics`), which rule 1 forbids.
+- **D16. The declared skip covers the analyser's own file-directive fold
+  (DP4.1).** The fold lives in `tcl-compiler`, outside this lane; declaring
+  it (`analyser_skip`, `gap_reason`) is how the report explains the gap
+  without touching the producer.
+- **D17. `tcl opt`'s pass count follows the profile in force (DP5.2).** The
+  profile that decides the category set decides the passes, so a project
+  `profile = aggressive` means what it says.
+- **D18. An INI file spells the per-code tri-state as `CODE = bool`
+  (DP5.1).** The editor's shape is per-code booleans and `[diagnosticSeverity]`
+  already takes per-code keys; an `enabled = …` list would collide with
+  `[optimiser] enabled`, the master switch.
+- **D19. The batch verbs read no whole-document gate (DP5.3).**
+  `[features]` configures the language server's features, and neither gate
+  is in the page's rule 1.
+- **D20. A configuration file's `[optimiser] enabled` and `profile` reach
+  `tcl opt`, MCP `optimize` and `optimiseDocument` through the same path;
+  a named profile is the invocation layer, above the editor layer and under
+  the project file (DP4.2).** § Adapters: "The MCP `optimize` tool and the
+  server's `tcl-lsp.optimiseDocument` command take the same path"; #2119
+  makes `optimiseDocument` honour the switch; DP4.0's
+  `optimize_honours_the_profile_the_overrides_and_the_global_file` pins the
+  switch on MCP. `tcl opt --profile` has a default, so a global `profile`
+  never reaches `tcl opt` — today's behaviour, kept.
+- **D21. `--show-suppressed` belongs to `diag` / `lint`, renders hidden
+  findings as `hidden` rows and gaps as position-less rows, and omits
+  default-off gaps (DP9.2).** `hidden` never matches a `grep ' error '`
+  pipeline; the seed is identical for every file and would bury the answer.
+- **D22. An MCP `suppressed` element carries `message` beside `{code,
+  range, reason}` (DP9.3).** Without it a suppressed W210 does not say which
+  variable.
+- **D23. Every reason has one lower-case, hyphenated spelling with an
+  optional `:detail` (DP9.1).** One rendering for the CLI, the MCP JSON and
+  the truth table, stable enough to grep.
+- **D24. `Directives::hit` keeps restating `line_suppressed`'s bucket rule,
+  pinned equal by `directives_agree_with_line_suppressed` (DP9.4).**
+  Calling the owner needs a single-bucket predicate in `tcl-compiler`,
+  which this lane does not edit; the test is the guard until that crate's
+  owner adds one.
+- **D25. The standalone producer run lives in `tcl-lsp-core`
+  (`standalone_findings`, DP6.1).** #2061's structural note asks for one
+  function below the three surfaces; `tcl diag`, the MCP tools and the
+  truth table's core pass then run one producer set.
+- **D26. W100 is a fact code: never skipped at production (DP8.1). O111
+  stays deep-tier on the server (DP8.2).** Tier membership is scheduling
+  (`is_fast_tier`), not policy, and the tiering e2e test uses O111 as the
+  deep marker.
+- **D27. The rewrite loop reads the analyser's directive map (DP7.2).** It
+  is the map the squiggles are decided under, and `rust`'s #2119 reads it
+  too; `scan` stays only where no analyser runs.
+- **D28. Group atomicity lives in the report (DP7.1).** The report keeps
+  every finding, so it knows a group's full size; one door serves the
+  payload, the action and the rewrite loop.
+- **D29. The server keeps its whole-document short-circuit (no report when
+  `features.diagnostics` is off or `diagnostics.exclude` matches).** The
+  published set is identical, and analysing a document nobody sees costs
+  real time; `ReportingOff` and `Excluded` are exercised in core (rows 1–2).
+- **D30. The truth table is written for the editor and derived for every
+  other surface by stated rules (DP9.4).** One set of hand-checked
+  expectations; the rules are the page's slot, verb-gate and abstention
+  sentences, small enough to review.
+- **D31. No new KCS note (DP10.3).** `--show-suppressed` and `suppressed`
+  are how a reader tells that a suppression worked and which scope did
+  it, so they belong in the suppression how-to's § How to tell it worked;
+  STYLE.md's "One note answers one question" keeps a second question out
+  of that note, and this is not a second question.
+- **D32. The policy step joins the `owner-resolution` manifest (DP10.2).**
+  AGENTS.md: "never add an owner-shaped implementation without updating the
+  contract and its gate".
+- **D33. The `tcl-lsp-db` change is documentation only (DP4.1).** The skip
+  stays as rule 2's saving; what changes is that it is declared.
+- **D34. The lane's open uncertainty — whether to offer the thirteen XC
+  toggles in the editor settings — is answered.** `rust`'s #2121 put the
+  same toggles into the catalogues.
+- **D35. A folder shares the session's analyser handle when its resolved
+  inputs equal the session's (DP4.1).** DP4.0 records the double analysis
+  as a decision for the lane: the checkpoint gave every configured folder
+  a handle of its own. Sharing restores one analysis per revision for
+  diagnostics and symbols alike, and changes no published diagnostic.
+
+### Open questions for the owner
+
+Each with the assumption the plan proceeds on.
+
+1. **Does a configuration file's `[optimiser] enabled = false` or `profile`
+   reach `tcl opt` and MCP `optimize`?** The page's § Today marks the
+   switch "n/a" for them; its § Adapters says they "take the same path".
+   Assumption: yes, the same path (D20; DP4.0 pins the switch on MCP).
+2. **Does a project `[optimiser] profile` overrule a named profile — `tcl
+   opt --profile`, MCP `profile`, `optimiseDocument`'s argument?** `rust`'s
+   #2150 lets `optimiseDocument`'s argument win outright. Assumption: the
+   project wins (rule 5's slot; DP4.2's `a_project_profile_overrules_the_command_argument`
+   pins it, and flips with the answer).
+3. **Should the CLI and MCP resolve the producer inputs their layers carry
+   — `[style] line_length`, `diagnostics.genericVariablePatterns`,
+   `[style] nonAscii`?** § The policy keeps producer inputs off `Policy`;
+   #2089's comment records IRULE4002's patterns as a producer-input
+   divergence. Assumption: out of this lane; a follow-up issue.
+4. **Should `tcl diag` / `lint` and the MCP tools honour `[features]
+   diagnostics = false` and `[diagnostics] exclude`?** Assumption: no
+   (D19, DP5.3).
+5. **The analyser's file-directive fold and its W305 self-filter** (rule 2:
+   "Producers emit findings and read no policy"). The fold removes a code
+   at production (so `# tcl-lsp: disable=W100` also removes O111, against
+   § Producers that change's "disabling W100 does not silence O111"); the
+   self-filter drops a W305 under a `# noqa` with no reason in the report.
+   Both are in `tcl-compiler`. Assumption: left in place; the fold is
+   declared as a gap (D16); a follow-up for that crate's owner.
+6. **The `xcDiagnostics` switch** is a production skip with no `Reason`: an
+   `f5-irules` document with the switch off has no XC finding and no
+   explanation. Assumption: left; the XC family stays outside the report
+   while its switch is off.
+7. **The multi-root corner** (D2): a secondary root with no policy section
+   of its own no longer inherits the primary root's `.tcl-lsp.ini` sections.
+   Assumption: stands; DP4.3's
+   `a_secondary_root_does_not_inherit_the_primary_project_file` pins it and
+   flips with the answer.
+8. **`--show-suppressed` on `validate`.** Assumption: not offered (D21).
+9. **Should the server build a report when reporting is off, so an editor
+   can say "diagnostics are turned off for this file"?** The page's § The
+   outcome motivates `ReportingOff` with that sentence. Assumption: no
+   (D29); the published set is the same.
+
+### Review checklist per slice
+
+Every item, every slice:
+
+- **One policy owner below every surface.** No surface filters a finding,
+  re-derives a severity, or re-checks a disabled set, a directive, the
+  optimiser switch or profile, the shimmer switch or the overlap table
+  outside `apply`. Grep the diff for `line_suppressed(`, `.retain(`,
+  `.filter(` over findings or diagnostics, `is_optimisation()` and
+  `disabled.contains` outside `diagnostic_policy.rs`; each hit is a
+  producer's own calculation (rule 2's skip, the arity predicates) or a
+  defect.
+- **Producers read no policy.** New producer code — `brace_expr_hints`,
+  `standalone_findings` — takes no `Policy`; `standalone_findings` takes
+  the skip set as an input, the way the analyser does.
+- **A suppressed finding stays in the report with its reason.** Nothing is
+  removed between a producer and `apply`; adapters read `shown()`,
+  `suppressed()`, `gaps()`, `applicable_rewrites()` and
+  `applicable_items()` only.
+- **No new `#[allow]`**; the crate clippy is pedantic-clean; a long
+  function is split.
+- **UK spelling** in identifiers and comments (optimise, behaviour,
+  catalogue, recognise, normalise, licence); the MCP tool names `analyze`
+  and `optimize` are identifiers and stay as spelled.
+- **The AGPL header** on every new source file (`truth_table.rs`,
+  `policy_truth_table.rs`), and on no fixture or generated file.
+- **The page's identifiers verbatim**: `Finding`, `Producer`, `Fix`,
+  `FindingData`, `Outcome`, `Reason`, `PolicyLayer`, `CodeDecision`,
+  `Overlap`, `OverlapOwner`, `OverlapScope`, `OptimiserPolicy`,
+  `Directives`, `Policy`, `PolicyBuilder`, `Report`, `apply`,
+  `--show-suppressed`, `suppressed`.
+- **Parity suites green**: the e2e subsets, `tcl-cli --test cli`,
+  `tcl-mcp`, the core `--lib` and integration suites.
+- **Staging by explicit path**; the message starts `wip(diagnostic-policy):`;
+  § Progress is updated in the same commit; no other lane's file is staged.
+- **Every deleted public name** is gone from `docs/` (outside the lane
+  documents) and from the `owner-resolution` manifest in the same commit.
+
+Slice-specific:
+
+- **Slice 4.** The publish paths call `lifted_report` once each (after
+  DP8.2) and nothing else decides; `Backend::disabled_diagnostics` has no
+  writer that bypasses the layers; `f5_model_report` declares no analyser
+  skip; `optimiseDocument`'s invocation layer sits between the editor and
+  project layers and exists only for a named profile. Risks: the salsa
+  `AnalyserConfig` is keyed on the skip, so a skip that changes on every
+  configuration read invalidates every file's memo — compare the sorted
+  sets before writing; the folder handles' `spec_pack_key` (DP4.0's
+  `sync_db_config` fix); a folder whose analyser inputs equal the
+  session's holding a handle of its own (D35).
+- **Slice 5.** Every `tcl` spawn in `tests/cli.rs` goes through `tcl()`; a
+  single-input `tcl opt` is byte-identical to its pre-DP5.2 output except
+  for the untrimmed tail; an INI per-code key parses case-insensitively and
+  never shadows `disabled`, `exclude`, `generic_variable_patterns`,
+  `enabled` or `profile`. Risks: `samples/optimiser/*` drifting (the
+  summary format must not change); a lone-`\r` input's endings.
+- **Slice 6.** The four diagnostics tools and `tcl diag` call the same
+  `standalone_findings`; the tools run with the optimiser off and
+  `code_actions` with it on; no W305 is doubled. Risks: the bundled-pack
+  overlay key and registry order (`registry(dialect)` before the analyser);
+  the payload growing categories an agent did not expect (#2061 mandates
+  it).
+- **Slice 7.** No path offers, publishes or applies part of a group; a
+  `hint_only` rewrite is never an edit; `tcl opt`'s summary still lists what
+  it listed. Risks: `applicable_items` and `shown_items` confused; the cost
+  of an analysis per pass on large files.
+- **Slice 8.** O111 never reaches the fast tier; W100 is computed when
+  disabled; `Report::extend` is gone; `diag-emission-check` finds O111's
+  construction site; the lightbulb and the pull build their report through
+  one helper, and no code-keyed quick-fix is offered without its shown
+  finding. Risks: the tiering e2e test's timing; the lightbulb's latency
+  with the style pass added.
+- **Slice 9.** Without `--show-suppressed` the CLI's bytes are unchanged;
+  the reason spellings match D23's table exactly; each row's expectations
+  are hand-checked, never generated from the core report; `runs_on`
+  computes the surfaces column. Risks: a row whose program no longer draws
+  its subject after a producer change (fix the program, never the reason);
+  the CLI pass's run time.
+- **Slice 10.** Every sentence about the built tree names real items; the
+  retired-name grep is clean; `owner-resolution` passes with the new row;
+  KCS notes keep STYLE.md's fourteen rules. Risk: a document promising
+  what an open question left undecided.
+
+### Behavioural deltas expected per slice
+
+Each change cites what mandates it; an entry marked **flagged** is a
+hand-off delta nothing mandates, for the owner.
+
+**Slice 4 — server.**
+
+- `tcl-lsp.optimiseDocument` honours the optimiser switch, the profile's
+  set, per-code overrides and the directives — slice 4 ("joins the same
+  path") and #2119.
+- An absent `optimiseDocument` argument uses the configured profile (was
+  `full`), and so does an unrecognised one (was `readability`) — #2119 as
+  merged on `rust`.
+- A code action offers an optimiser rewrite as a quick-fix — § Adapters,
+  code actions.
+- W107's position in a lone-`\r` file follows the finding's byte span —
+  § Adapters, LSP (D14).
+- `getEffectiveConfig`'s `disabled_diagnostics` lists catalogued codes only
+  — § The conversions (DP4.1).
+- **Flagged:** a secondary workspace root with no policy section of its own
+  no longer inherits the primary root's `.tcl-lsp.ini` sections (D2, § Open
+  questions 7).
+- **Flagged:** the fast tier publishes the `SslicTcl` loader's codes one
+  publish earlier (D11).
+
+**Slice 5 — CLI.**
+
+- W242 is off unless a layer turns it on — #2063, § Configuration
+  ("`DEFAULT_OFF_CODES` … becomes the seed of every surface's
+  resolution").
+- The global `config.ini` and each file's own `.tcl-lsp.ini` apply to
+  `diag` / `lint` / `validate` / `opt` — #2063; the shimmer switch and
+  severity overrides from those files reach `tcl diag` — rule 1.
+- W305 appears on an abstaining document — § The policy, step 2 (D10;
+  DP4.3 pins it).
+- `tcl opt` applies only the rewrites the policy shows — #2062; optimises
+  each input separately — #2120; leaves a single input's text untrimmed and
+  writes `\n` for a lone `\r` — #2120 as merged; lists each file's rewrites
+  under `# file:` — #2120 as merged; runs the profile in force's passes —
+  D17.
+- An INI file's `CODE = true` turns a code on — § The five scopes (DP5.1).
+- **Flagged:** a configuration file's `[optimiser] enabled = false` stops
+  `tcl opt` rewriting, and a project `profile` overrules `--profile`
+  (§ Open questions 1 and 2; kept).
+- **Flagged, reverted by DP5.3:** at the checkpoint a configuration file's
+  `[features] diagnostics = false` silenced `tcl diag`.
+- **Reverted by DP5.2:** the checkpoint's "fold several inputs into one text
+  when their policies agree" (#2120).
+
+**Slice 6 — MCP.**
+
+- `analyze` / `validate` / `review` / `find-legacy`: the inline `# noqa` is
+  honoured, W242 is seeded off, the global `config.ini` and `disable` /
+  `enable` apply, the reported severity is the resolved one, and the
+  compiler checks, the style pass and the `SslicTcl` loader report — #2061
+  (and #2063 for the seed).
+- `review.taint`, `security`'s IRULE3xxx and `thread_safety`'s IRULE4002
+  fill; `validate` gains `style` / `performance` groups; `find-legacy` can
+  report IRULE5001 — #2061.
+- `code_actions` offers compiler-check fixes and optimiser rewrites and
+  nothing for a silenced finding — #2061.
+- `optimize` honours directives, the global file and per-code overrides —
+  #2062, § Configuration.
+- **Flagged:** a global `[optimiser] enabled = false` stops `optimize`
+  rewriting (§ Open questions 1; DP4.0's test pins it).
+- **Flagged, reverted by DP5.3:** a global `[features] diagnostics = false`
+  silenced the diagnostics tools.
+
+**Slice 7 — code actions.**
+
+- An O127 pair publishes `{group, edits}` on both members and never the
+  flat triple; a pair that lost a member publishes no payload, offers no
+  action, and is applied by no rewrite surface — #2149, #2123.
+- A `# noqa` before a multi-line command keeps every rewrite inside it off
+  on `tcl opt`, MCP `optimize` and `optimiseDocument`, as it does the
+  squiggles — #2062 (D27).
+
+**Slice 8 — O111.**
+
+- Disabling W100, or a `# noqa: W100`, keeps O111 — § Producers that
+  change.
+- O111 sits right after the analyser's findings again (D12).
+- `tcl diag` and the MCP diagnostics tools carry O111 as an `OptimiserOff`
+  suppression, visible only through `--show-suppressed` / `suppressed`.
+- Unchanged, against the page: `# tcl-lsp: disable=W100` still removes O111
+  (§ Open questions 5).
+- A W115 turned off at any scope or silenced by a directive no longer
+  offers "Convert to per-line comments" — § Adapters, code actions ("A fix
+  is offered for a shown finding and for no other"; DP8.3).
+
+**Slice 9.**
+
+- `tcl diag` / `lint` gain `--show-suppressed`; the four MCP diagnostics
+  payloads gain `suppressed` — the page's slice 9.
+- No output changes without the flag.
+
+**Slice 10.** Documents only.
+
+### Progress
+
+Each item updates its row in the commit that lands it.
+
+| Item | Model | Size | Status | Commit | Gates |
+|---|---|---|---|---|---|
+| DP4.0 | opus | L | in flight | — | — |
+| DP4.1 | opus | M | not started | — | — |
+| DP4.2 | opus | S | not started | — | — |
+| DP4.3 | sonnet | S | not started | — | — |
+| DP5.1 | opus | S | not started | — | — |
+| DP5.2 | opus | S | not started | — | — |
+| DP5.3 | sonnet | S | not started | — | — |
+| DP5.4 | sonnet | S | not started | — | — |
+| DP6.1 | opus | M | not started | — | — |
+| DP6.2 | sonnet | S | not started | — | — |
+| DP7.1 | opus | M | not started | — | — |
+| DP7.2 | opus | S | not started | — | — |
+| DP7.3 | sonnet | S | not started | — | — |
+| DP8.1 | opus | S | not started | — | — |
+| DP8.2 | opus | M | not started | — | — |
+| DP8.3 | sonnet | S | not started | — | — |
+| DP9.1 | sonnet | S | not started | — | — |
+| DP9.2 | sonnet | M | not started | — | — |
+| DP9.3 | sonnet | M | not started | — | — |
+| DP9.4 | opus | L | not started | — | — |
+| DP9.5 | opus | M | not started | — | — |
+| DP9.6 | sonnet | M | not started | — | — |
+| DP9.7 | sonnet | M | not started | — | — |
+| DP10.1 | opus | M | not started | — | — |
+| DP10.2 | sonnet | M | not started | — | — |
+| DP10.3 | sonnet | M | not started | — | — |
+| DP10.4 | opus | M | waits for the merge of `rust` | — | — |
+| DP10.5 | sonnet | S | not started | — | — |
