@@ -97,6 +97,12 @@ fn is_frame(r: &CfgEscapeResult, name: &str) -> bool {
 // `tree_assign_or_incr`: the opaque catch body escapes every name it writes. A
 // bare top-level `set x 1` is a pure local (negative control), but the same
 // write inside a `catch {…}` body is conservatively spilled.
+//
+// Every test here goes through `cfg_result`, which builds `::top`, so the
+// `catch` is a *top-level* one and stays opaque: it is only inlined inside a
+// procedure, where its result variable could have a slot (#2207). The
+// procedure case is covered by `var_escape_residual2`'s
+// `cu_catch_literal_body_threads_its_upvar`.
 
 #[test]
 fn bare_set_is_local_control() {

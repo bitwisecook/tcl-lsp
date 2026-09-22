@@ -136,6 +136,18 @@ struct ResolvedUpvarEffects {
     frame_barrier: crate::dynamic_names::DynamicNameBarrier,
 }
 
+/// The caller-frame effects a statement's `[…]` substitutions contribute.
+#[derive(Default)]
+struct EmbeddedSubstExtras {
+    /// Variables an embedded substitution writes.
+    defs: Vec<String>,
+    /// The subset of [`Self::defs`] the embedded command reads before
+    /// writing (`[incr n]`, `[append s x]`).
+    read_before_write: Vec<String>,
+    /// An embedded callee runs an unreadable script at the global frame.
+    opaque_global: bool,
+}
+
 /// Whether a call-shaped IR statement has one statically literal command
 /// head. Computed dispatch already has its own dynamic-command handling; a
 /// runtime-selected namespace only adds uncertainty for a literal relative
@@ -169,6 +181,16 @@ pub(crate) struct CfgBuilder<'a> {
     block_ids: FxHashMap<String, BlockId>,
     loop_nodes: HashMap<String, LoopNode>,
     inline_loops: bool,
+    /// Whether the function being built is a procedure body rather than the
+    /// top-level script. Only a procedure has a local variable table, so only
+    /// there can a `catch` be inlined (#2207): C compiles a top-level
+    /// `catch {set a 1} m o` as a plain `invokeStk`, having nowhere to put the
+    /// result variable's slot.
+    is_proc_body: bool,
+    /// Set when the module's own top level is a procedure body, so
+    /// `build_function` treats `::top` as one. See
+    /// [`Module::top_level_is_procedure_body`](crate::ir::Module::top_level_is_procedure_body).
+    top_level_is_proc_body: bool,
     /// Map from command name to upvar summary, used to pre-populate
     /// caller-side `defs` on calls to procs that use `upvar`.  Empty
     /// when the builder is constructed without an upvar context
@@ -345,6 +367,8 @@ impl<'a> CfgBuilder<'a> {
             block_ids: FxHashMap::default(),
             loop_nodes: HashMap::new(),
             inline_loops,
+            is_proc_body: false,
+            top_level_is_proc_body: false,
             upvar_procs,
             proc_params,
             global_write_procs,
@@ -421,6 +445,7 @@ impl<'a> CfgBuilder<'a> {
             }
             return tcl_registry::VariableWriteProjection {
                 literal_names: Vec::new(),
+                read_before_write_names: Vec::new(),
                 opaque_variable_frame: true,
             };
         };
@@ -623,7 +648,11 @@ impl<'a> CfgBuilder<'a> {
 
         // 3. Embedded-substitution extras: walk text for
         //    `[upvar_proc arg]` / `[global_write_proc arg]` substitutions.
-        let (embedded_extras, embedded_opaque_global) = self.embedded_subst_extras(&stmt);
+        let EmbeddedSubstExtras {
+            defs: embedded_extras,
+            read_before_write: embedded_reads,
+            opaque_global: embedded_opaque_global,
+        } = self.embedded_subst_extras(&stmt);
 
         if direct_extras.is_empty() && embedded_extras.is_empty() && !embedded_opaque_global {
             return match direct_opaque_barrier {
@@ -651,7 +680,7 @@ impl<'a> CfgBuilder<'a> {
         });
 
         // 3. Merge into the host statement when it's a Call.
-        if let Statement::Call { defs, .. } = &mut stmt {
+        if let Statement::Call { defs, reads, .. } = &mut stmt {
             for d in direct_extras {
                 if !defs.contains(&d) {
                     defs.push(d);
@@ -660,6 +689,14 @@ impl<'a> CfgBuilder<'a> {
             for d in embedded_extras {
                 if !defs.contains(&d) {
                     defs.push(d);
+                }
+            }
+            // `puts [incr n]` writes `n` *and* reads the value it increments.
+            // Recording only the write makes the feeding `set n 1` look
+            // overwritten-before-read, and O109 deletes it (#2050).
+            for r in embedded_reads {
+                if !reads.contains(&r) {
+                    reads.push(r);
                 }
             }
             let mut out = Vec::new();
@@ -688,7 +725,7 @@ impl<'a> CfgBuilder<'a> {
                 canonical_command: None,
                 args: Vec::new(),
                 defs: embedded_extras,
-                reads: Vec::new(),
+                reads: embedded_reads,
                 reads_own_defs: false,
                 safe_on_uninit: false,
                 tokens: Some(crate::ir::CommandTokens::marker(
@@ -804,12 +841,55 @@ impl<'a> CfgBuilder<'a> {
         extras
     }
 
+    /// Resolve a recovered substitution's head through the module's command
+    /// bindings, so a registry-owned role question about it is asked of the
+    /// command it really reaches.
+    ///
+    /// Without this, `interp alias {} e {} expr` hid an expression word from
+    /// the in-frame descent: the raw spelling `e` has no `ArgRole::Expr`, so
+    /// the `[incr x]` of `[e {$x + [incr x]}]` was invisible and the later
+    /// read folded to the stale literal — tclsh 8.6.18 / 9.0.4 print `3` then
+    /// `2`.
+    ///
+    /// Answers only for a spelling with exactly one statically known
+    /// registry-backed target. Several possible bindings mean the role
+    /// question has no single answer, and a user procedure carries no
+    /// registry roles at all; both fall back to the raw spelling.
+    fn embedded_head_resolver(
+        &self,
+    ) -> impl Fn(&str) -> Option<crate::ir_helpers::ResolvedEmbeddedHead> + '_ {
+        |head: &str| {
+            let namespace = self.invocation_namespace.for_head(head)?;
+            if self
+                .command_bindings
+                .target_resolution_may_be_unknown(head, namespace)
+            {
+                return None;
+            }
+            let mut found = self.command_bindings.targets(head, namespace).into_iter();
+            let target = found.next()?;
+            if found.next().is_some() || !target.registry_backed {
+                return None;
+            }
+            Some(crate::ir_helpers::ResolvedEmbeddedHead {
+                command: target.command,
+                prepended: target.prepended,
+            })
+        }
+    }
+
     /// The embedded-substitution half of [`Self::upvar_invalidated`]: the
     /// caller-side defs contributed by `[…]` substitutions in the
-    /// statement's argument words (or an assignment's value), plus whether
-    /// any embedded callee runs an unreadable script at the global frame.
-    fn embedded_subst_extras(&self, stmt: &Statement) -> (Vec<String>, bool) {
-        let embedded = crate::ir_helpers::evaluated_command_substitutions(stmt, self.registry);
+    /// statement's argument words (or an assignment's value), the subset of
+    /// those the embedded command reads before writing, plus whether any
+    /// embedded callee runs an unreadable script at the global frame.
+    fn embedded_subst_extras(&self, stmt: &Statement) -> EmbeddedSubstExtras {
+        let resolve = self.embedded_head_resolver();
+        let embedded = crate::ir_helpers::evaluated_command_substitutions_with_heads(
+            stmt,
+            self.registry,
+            Some(&resolve),
+        );
         let mut embedded_extras: Vec<String> = Vec::new();
         let mut embedded_opaque_global = embedded.opaque;
         let upvar = self.upvar_effects_from_commands(&embedded.commands);
@@ -831,8 +911,12 @@ impl<'a> CfgBuilder<'a> {
         // target variable as a side effect; record it so copy / constant
         // propagation (O100) does not propagate a stale value past the
         // mutation (FP-OPT-06).
+        // The variable-effect view takes the in-frame expression words too: a
+        // `[incr x]` inside `[expr {…}]` writes `x` whatever word carried it.
+        // The call-graph consumers above deliberately do not — see
+        // `EvaluatedCommandSubstitutions::in_frame_expression_commands`.
         let writes = crate::ir_helpers::variable_write_effects_from_commands(
-            &embedded.commands,
+            embedded.all_commands(),
             self.registry,
         );
         embedded_opaque_global |= writes.opaque;
@@ -841,7 +925,11 @@ impl<'a> CfgBuilder<'a> {
                 embedded_extras.push(d);
             }
         }
-        (embedded_extras, embedded_opaque_global)
+        EmbeddedSubstExtras {
+            defs: embedded_extras,
+            read_before_write: writes.read_names,
+            opaque_global: embedded_opaque_global,
+        }
     }
 
     fn upvar_effects_from_commands(
@@ -945,8 +1033,11 @@ impl<'a> CfgBuilder<'a> {
     /// def list can enumerate what the condition's evaluation clobbers.
     fn condition_out_vars(&self, condition: &ExprNode) -> (Vec<String>, bool) {
         let mut out = crate::ir_helpers::condition_command_out_vars(condition, self.registry);
-        let embedded =
-            crate::ir_helpers::expression_command_substitutions(condition, self.registry);
+        let embedded = crate::ir_helpers::expression_command_substitutions(
+            condition,
+            self.registry,
+            Some(&self.embedded_head_resolver()),
+        );
         let upvar = self.upvar_effects_from_commands(&embedded.commands);
         let opaque_upvar = upvar.opaque_arguments;
         for d in upvar.defs {
@@ -957,7 +1048,7 @@ impl<'a> CfgBuilder<'a> {
         let (global_defs, mut opaque) = self.global_write_defs_from_commands(&embedded.commands);
         opaque |= embedded.opaque || opaque_upvar;
         let writes = crate::ir_helpers::variable_write_effects_from_commands(
-            &embedded.commands,
+            embedded.all_commands(),
             self.registry,
         );
         opaque |= writes.opaque;
@@ -1139,7 +1230,14 @@ impl<'a> CfgBuilder<'a> {
 
     /// Build a [`Function`] by lowering a script starting at a fresh
     /// entry block, then freezing all mutable blocks.
+    /// Mark this builder's `::top` as a procedure body.
+    fn with_top_level_proc_body(mut self, is_proc_body: bool) -> Self {
+        self.top_level_is_proc_body = is_proc_body;
+        self
+    }
+
     fn build_function(&mut self, name: &str, script: &Script) -> Function {
+        self.is_proc_body = name != "::top" || self.top_level_is_proc_body;
         let entry = self.new_block("entry");
         let tail = self.lower_script(script, &entry);
         if let Some(tail) = tail {
@@ -1384,7 +1482,11 @@ impl<'a> CfgBuilder<'a> {
     ) {
         self.record_caller_frame_barrier(stmt);
         self.record_alias_observed(stmt);
-        let (extras, opaque) = self.embedded_subst_extras(stmt);
+        let EmbeddedSubstExtras {
+            defs: extras,
+            read_before_write: extra_reads,
+            opaque_global: opaque,
+        } = self.embedded_subst_extras(stmt);
         if opaque {
             self.block_mut(current).statements.push(Statement::Barrier {
                 span: stmt.span(),
@@ -1404,7 +1506,7 @@ impl<'a> CfgBuilder<'a> {
                 canonical_command: None,
                 args: Vec::new(),
                 defs: extras,
-                reads: Vec::new(),
+                reads: extra_reads,
                 reads_own_defs: false,
                 safe_on_uninit: false,
                 tokens: Some(crate::ir::CommandTokens::marker(
@@ -1422,10 +1524,7 @@ impl<'a> CfgBuilder<'a> {
             Statement::For { .. } => self.lower_for_or_frozen(stmt, current),
             Statement::While { .. } => Some(self.lower_while_or_frozen(stmt, current)),
             Statement::Foreach { .. } => Some(self.lower_foreach_dispatch(stmt, current)),
-            Statement::Catch { .. } => {
-                self.emit_opaque_catch(stmt, current);
-                Some(current.to_owned())
-            }
+            Statement::Catch { .. } => Some(self.lower_catch_dispatch(stmt, current)),
             Statement::Try { .. } => Some(self.lower_try_dispatch(stmt, current)),
             Statement::Switch { .. } => Some(self.lower_switch(stmt, current)),
             Statement::Return { .. } => {
@@ -1650,6 +1749,88 @@ impl<'a> CfgBuilder<'a> {
         }
 
         self.lower_foreach(stmt, current)
+    }
+
+    /// Dispatch `Catch` — inlined into real blocks, or deferred opaque.
+    ///
+    /// Mirrors [`Self::lower_try_dispatch`]. Inlining is what lets the
+    /// ordinary emitters compile the body, so its variables reach the LVT and
+    /// the optimiser can see inside it (#2207); the opaque arm stays for the
+    /// shapes that cannot be lowered faithfully.
+    ///
+    /// `{*}` expansion keeps the opaque path: the body word is re-parsed by
+    /// the inline emitters, and `parse_cmd_parts` splits an adjacent
+    /// `{*}$args` into a literal `*` and `$args`, changing the callee's argv.
+    /// A qualified result/options variable keeps it too — those are not frame
+    /// locals, so the store the inline form emits would address the wrong
+    /// variable.
+    fn lower_catch_dispatch(&mut self, stmt: &Statement, current: &str) -> String {
+        let Statement::Catch { body, raw_args, .. } = stmt else {
+            unreachable!();
+        };
+
+        let expands = raw_args.iter().any(|arg| arg.contains("{*}"));
+        // `catch script ?resultVarName? ?optionVarName?` and no more. A fourth
+        // argument is a `wrong # args` error C raises *before* running the
+        // body; inlining would run it and silently ignore the extra word.
+        let over_arity = raw_args.len() > 3;
+        // The destination words have to be written as plain scalar locals.
+        // Lowering normalises `$dst` to `dst` and `a(key)` to `a`, so the
+        // names alone no longer say what was written: inlining
+        // `catch {…} $dst` would store into `dst` rather than into the
+        // variable it names, and `catch {…} a(key)` into a scalar `a`.
+        let indirect_destination = raw_args
+            .iter()
+            .skip(1)
+            .any(|word| !is_plain_local_destination(word));
+
+        if !self.is_proc_body
+            || raw_args.is_empty()
+            || body.statements.is_empty()
+            || expands
+            || over_arity
+            || indirect_destination
+            || !self.catch_body_is_one_block(body)
+        {
+            self.emit_opaque_catch(stmt, current);
+            return current.to_owned();
+        }
+
+        self.lower_catch(stmt, current)
+    }
+
+    /// Whether a `catch` body lowers to a single straight-line block.
+    ///
+    /// The inline emitter compiles the body itself, so that it can leave the
+    /// last statement's value on the stack for `catch`'s result variable
+    /// rather than popping it as the ordinary block walk would. That only
+    /// works while the body *is* one block: anything that terminates a block
+    /// — `error`, `throw`, `return`, `break`, `continue`, `exit` — splits the
+    /// body, and the split-off part would fall outside the exception range
+    /// and escape the `catch` entirely.
+    ///
+    /// The terminator set is the registry's [`Traits::TERMINATES_BLOCK`], not
+    /// a name list here. Nested control flow needs its own blocks for the
+    /// same reason and is rejected too.
+    fn catch_body_is_one_block(&self, body: &Script) -> bool {
+        body.statements.iter().all(|s| match s {
+            Statement::If { .. }
+            | Statement::For { .. }
+            | Statement::While { .. }
+            | Statement::Foreach { .. }
+            | Statement::Catch { .. }
+            | Statement::Try { .. }
+            | Statement::Switch { .. }
+            | Statement::Block { .. }
+            | Statement::UpFrame { .. }
+            | Statement::Barrier { .. }
+            | Statement::Return { .. } => false,
+            Statement::Call { command, .. } => !self
+                .registry
+                .get(command)
+                .is_some_and(|spec| spec.traits.contains(Traits::TERMINATES_BLOCK)),
+            _ => true,
+        })
     }
 
     /// Emit an opaque `catch` call with defs for modified variables.
@@ -2200,7 +2381,8 @@ fn build_cfg_inner_with_context(
         module.top_level_namespace.clone()
     };
     let mut top_builder = new_builder(!defer_top_level)
-        .with_invocation_namespace(crate::ir::ExecutionNamespace::exact(top_namespace));
+        .with_invocation_namespace(crate::ir::ExecutionNamespace::exact(top_namespace))
+        .with_top_level_proc_body(module.top_level_kind == crate::ir::TopLevelKind::ProcedureBody);
     let top_cfg = top_builder.build_function("::top", &module.top_level);
 
     let mut proc_cfgs = HashMap::new();
@@ -2415,6 +2597,18 @@ fn build_cfg_function_with_upvars_inner(
         builder = builder.with_oo_dispatch_widening();
     }
     builder.build_function(name, script)
+}
+
+/// Whether a `catch` destination word is a plain scalar frame local, written
+/// literally.
+///
+/// Anything needing substitution (`$dst`, `[cmd]`), an array element
+/// (`a(key)`), a qualified name (`::ns::v`) or an empty word keeps the opaque
+/// path, where the runtime resolves the word itself.
+fn is_plain_local_destination(word: &str) -> bool {
+    !word.is_empty()
+        && !word.contains("::")
+        && !word.contains(['$', '[', ']', '(', ')', '{', '}', '\\', ' ', '\t', '\n'])
 }
 
 fn command_namespace(qname: &str) -> String {
@@ -3497,9 +3691,88 @@ mod tests {
         assert_eq!(dropped.words()[1].legacy_text(), "body");
     }
 
+    /// A `catch` whose body is one straight-line block is lowered into real
+    /// blocks, so the ordinary emitters compile it: its variables reach the
+    /// LVT and the optimiser can see inside (#2207).
     #[test]
-    fn catch_emits_opaque_call() {
+    fn straight_line_catch_lowers_to_real_blocks() {
+        let func = build_test_cfg_function("::test", &straight_line_catch_script(), true);
+        let body_id = func
+            .blocks
+            .keys()
+            .find(|id| func.block_name(**id).starts_with("catch_body_"))
+            .copied()
+            .expect("expected a catch_body block");
+        // The body's own statement is in the body block, not summarised onto
+        // an opaque call.
+        assert!(
+            func.blocks[&body_id]
+                .statements
+                .iter()
+                .any(|s| matches!(s, Statement::AssignConst { name, .. } if name == "inner")),
+            "the body's write belongs to the body block",
+        );
+        // The result variable is still defined for SSA, on the block both
+        // paths reach.
+        assert!(
+            func.blocks.iter().any(|(id, blk)| {
+                func.block_name(*id).starts_with("catch_end_")
+                    && blk.statements.iter().any(|s| {
+                        matches!(
+                            s,
+                            Statement::Call { command, defs, .. }
+                                if command == "catch" && defs.iter().any(|d| d == "result")
+                        )
+                    })
+            }),
+            "result var must be defined at the merge",
+        );
+    }
+
+    /// A body that terminates its block — here an `error` — keeps the opaque
+    /// form: the split-off part would fall outside the exception range.
+    #[test]
+    fn catch_with_terminating_body_stays_opaque() {
         let script = Script::from_statements(vec![Statement::Catch {
+            span: Span::new(0, 30),
+            body: Script::from_statements(vec![Statement::Call {
+                span: Span::new(7, 14),
+                command: "error".into(),
+                canonical_command: None,
+                args: vec!["boom".into()],
+                defs: vec![],
+                reads: vec![],
+                reads_own_defs: false,
+                safe_on_uninit: false,
+                tokens: None,
+                foreach_groups: None,
+            }]),
+            body_span: Span::new(6, 15),
+            result_var: Some("result".into()),
+            options_var: None,
+            raw_args: vec!["{error boom}".into(), "result".into()],
+            tokens: None,
+        }]);
+        let func = build_test_cfg_function("::test", &script, true);
+        let entry = &func.blocks[&func.entry];
+        assert!(
+            entry.statements.iter().any(|s| matches!(
+                s,
+                Statement::Call { command, defs, .. } if command == "catch" && !defs.is_empty()
+            )),
+            "a terminating body keeps the opaque call with summarised defs",
+        );
+        assert!(
+            !func
+                .blocks
+                .keys()
+                .any(|id| func.block_name(*id).starts_with("catch_body_")),
+            "and is not lowered into blocks",
+        );
+    }
+
+    fn straight_line_catch_script() -> Script {
+        Script::from_statements(vec![Statement::Catch {
             span: Span::new(0, 30),
             body: Script::from_statements(vec![Statement::AssignConst {
                 span: Span::new(7, 14),
@@ -3513,16 +3786,7 @@ mod tests {
             options_var: None,
             raw_args: vec!["{set inner 1}".into(), "result".into()],
             tokens: None,
-        }]);
-        let func = build_test_cfg_function("::test", &script, true);
-        let entry = &func.blocks[&func.entry];
-        // Should have a Call to "catch" with defs.
-        assert!(entry.statements.iter().any(|s| matches!(
-            s,
-            Statement::Call {
-                command, defs, ..
-            } if command == "catch" && !defs.is_empty()
-        )));
+        }])
     }
 
     #[test]

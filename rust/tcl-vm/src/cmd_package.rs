@@ -666,6 +666,26 @@ mod tests {
     }
 
     #[test]
+    fn malformed_requirements_precede_an_active_loader_cycle() {
+        let mut vm = Vm::new();
+        vm.begin_package_loading("p", "1.0");
+        let malformed = package(&mut vm, &["require", "p", "invalid"]);
+        assert_eq!(malformed.code, Code::Error);
+        assert_eq!(
+            &*malformed.result.to_str(),
+            "expected version number but got \"invalid\""
+        );
+
+        let cycle = package(&mut vm, &["require", "p", "1.0"]);
+        assert_eq!(cycle.code, Code::Error);
+        assert_eq!(
+            &*cycle.result.to_str(),
+            "circular package dependency: attempt to provide p 1.0 requires p 1.0"
+        );
+        vm.end_package_loading("p", "1.0");
+    }
+
+    #[test]
     fn package_commands_apply_the_pinned_plus_suffix_policy() {
         let mut tcl8 = Vm::new();
         tcl8.set_runtime_version(TclVersion::V8_6);

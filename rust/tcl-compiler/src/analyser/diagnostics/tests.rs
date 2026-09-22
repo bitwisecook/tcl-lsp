@@ -4168,7 +4168,13 @@ fn w004_fix_removes_option_and_its_value() {
 #[test]
 fn w004_fix_removes_option_and_value_at_end_of_command() {
     let mut a = Analyser::new();
-    let src = "lsearch -stride 2";
+    // `fconfigure`, not `lsearch`: `lsearch` reserves its two trailing
+    // operands, so its option can never be the last word — `lsearch -stride 2`
+    // is a two-operand call in which `-stride` is the *list*, which tclsh
+    // 8.6.18 confirms by returning `-1` rather than rejecting the switch.
+    // `fconfigure` reserves nothing, so `-nodelay 1` really is a trailing
+    // option-and-value pair, which is what this fix shape is about.
+    let src = "fconfigure stdout -nodelay 1";
     let result = a.analyse(src, "tcl8.6");
     let w004: Vec<&Diagnostic> = result
         .diagnostics
@@ -4182,7 +4188,52 @@ fn w004_fix_removes_option_and_value_at_end_of_command() {
     // No following argument to extend through, so one separator remains
     // before the deleted range — cosmetic only (Tcl treats runs of
     // whitespace between words identically).
-    assert_eq!(applied.trim_end(), "lsearch");
+    assert_eq!(applied.trim_end(), "fconfigure stdout");
+}
+
+/// A word sitting in a command's **reserved trailing operand** is never an
+/// option candidate, whatever its shape (#2136).
+///
+/// `Tcl_SubstObjCmd` scans switches only while `i < objc - 1` and
+/// `Tcl_LsearchObjCmd` only while `i < objc - 2`, so the trailing operands are
+/// data even when spelled like a switch. Measured on tclsh 8.6.18:
+/// `puts [subst -commands]` prints `-commands`, and `puts [lsearch -stride 2]`
+/// prints `-1` — neither rejects a dialect-gated option, because neither ever
+/// reads those words as one.
+#[test]
+fn w004_does_not_scan_a_reserved_trailing_operand() {
+    for (src, dialect) in [
+        ("puts [subst -commands]", "tcl8.6"),
+        ("puts [lsearch {-stride} {-stride}]", "tcl8.4"),
+        ("lsearch -stride 2", "tcl8.6"),
+    ] {
+        let mut a = Analyser::new();
+        let result = a.analyse(src, dialect);
+        let w004: Vec<&Diagnostic> = result
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W004)
+            .collect();
+        assert!(
+            w004.is_empty(),
+            "{src}: the trailing operand is not an option: {:?}",
+            result.diagnostics
+        );
+    }
+    // Control: the same option, in a position the command really scans, is
+    // still reported.
+    let mut a = Analyser::new();
+    let result = a.analyse("lsearch -stride 2 {a b c d} b", "tcl8.4");
+    assert_eq!(
+        result
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W004)
+            .count(),
+        1,
+        "{:?}",
+        result.diagnostics
+    );
 }
 
 #[test]
@@ -12745,14 +12796,15 @@ fn switch_and_loop_joined_const_dispatch_records_every_may_target_945() {
 }
 
 #[test]
-fn catch_and_try_body_writes_abstain_never_last_write_945() {
-    // The CFG deliberately models a `catch` body as one opaque call with
-    // summarised variable defs (`emit_opaque_catch`) — the body's writes
-    // have no per-branch structure to join.  The provenance walk sees a
-    // non-literal defining statement and **abstains**: no indirect
-    // reference at all, and in particular never a lexical map's answer (the
-    // body's `set cmd risky` presented as the unconditional value).  Sound abstention is the contract:
-    // no false single-target definition, no destructive rename edit.
+fn catch_and_try_body_writes_join_never_last_write_945() {
+    // Two shapes, because `catch` is only inlined where its result variable
+    // could have a slot — inside a procedure (#2207).
+    //
+    // At the top level it stays the opaque call with summarised defs, so the
+    // provenance walk still sees a non-literal defining statement and
+    // **abstains**: no indirect reference at all, and never a lexical map's
+    // answer (the body's `set cmd risky` presented as the unconditional
+    // value).
     let mut a = Analyser::new();
     let src = "proc safe {} {}\nproc risky {} {}\nset cmd safe\n\
                catch {\n    set cmd risky\n}\n$cmd\n";
@@ -12762,8 +12814,34 @@ fn catch_and_try_body_writes_abstain_never_last_write_945() {
         !r.command_invocations
             .iter()
             .any(|i| i.indirect && i.range.start() == dispatch),
-        "an opaque catch write must abstain, not settle to a single target",
+        "an opaque top-level catch write must abstain, not settle to a single target",
     );
+
+    // Inside a procedure the body is real CFG blocks, so the φ-join keeps
+    // BOTH may-targets — the body may fail before the write (`safe` survives)
+    // or complete (`risky`). Same contract, met by precision rather than by
+    // abstaining.
+    //
+    // The join is only sound because `lower_catch` records an exception edge
+    // from the *pre-catch* block: the body can fail at its first command.
+    // Without that edge this settles to `risky` alone, which is exactly the
+    // false single-target this test's name warns about.
+    let mut in_proc_analyser = Analyser::new();
+    let proc_src = "proc safe {} {}\nproc risky {} {}\nproc p {} {\n\
+                set cmd safe\ncatch {\n    set cmd risky\n}\n$cmd\n}\n";
+    let proc_result = in_proc_analyser.analyse(proc_src, "tcl");
+    let proc_dispatch = u32::try_from(proc_src.rfind("$cmd").unwrap()).unwrap();
+    let proc_heads: Vec<&str> = proc_result
+        .command_invocations
+        .iter()
+        .filter(|i| i.indirect && i.range.start() == proc_dispatch)
+        .filter_map(|i| i.resolved_qualified_name.as_deref())
+        .collect();
+    assert!(
+        proc_heads.contains(&"::safe") && proc_heads.contains(&"::risky"),
+        "an inlined catch body keeps both may-targets, never one: {proc_heads:?}",
+    );
+
     // A `try` body, by contrast, inlines with real CFG structure in
     // analysis builds, so its φ-join keeps BOTH may-targets — the body
     // may error before the write (`safe` survives) or complete

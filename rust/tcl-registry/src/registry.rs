@@ -4376,6 +4376,7 @@ impl CommandRegistry {
         let Some(name) = words.head_literal() else {
             return VariableWriteProjection {
                 literal_names: Vec::new(),
+                read_before_write_names: Vec::new(),
                 opaque_variable_frame: true,
             };
         };
@@ -4384,6 +4385,23 @@ impl CommandRegistry {
             .resolved()
         else {
             return VariableWriteProjection::default();
+        };
+
+        // `incr` / `append` / `lappend` / `lset` / `lpop` / `ledit` fold the
+        // target's current value into the one they store, so the write is
+        // also a read of the same cell. Taken from the *resolved* invocation,
+        // so an alias or rename spelling answers like the builtin it reaches.
+        // Every VarWrite target of such a command is its read-modify-write
+        // target — none of them carries a second, write-only variable role.
+        let reads_before_write = invocation
+            .semantics
+            .traits
+            .contains(Traits::READS_BEFORE_WRITE);
+        let with_reads = |mut projection: VariableWriteProjection| {
+            if reads_before_write {
+                projection.read_before_write_names = projection.literal_names.clone();
+            }
+            projection
         };
 
         // A destroy is not a value definition. The registry's VarWrite role
@@ -4428,9 +4446,21 @@ impl CommandRegistry {
                     }
                 }
             }
-            return projection;
+            return with_reads(projection);
         }
 
+        with_reads(self.arg_role_variable_writes(name, words))
+    }
+
+    /// The [`ArgRole::VarWrite`] half of [`Self::variable_write_projection`]:
+    /// the targets named by this invocation's argument words, once the
+    /// declared-state-transition path has declined. Split out to keep each
+    /// half readable on its own.
+    fn arg_role_variable_writes(
+        &self,
+        name: &str,
+        words: InvocationWords<'_>,
+    ) -> VariableWriteProjection {
         let args = words.arguments();
         if args.exact_argv_len().is_some_and(|count| {
             self.spec_for_this_registry(name)
@@ -4446,6 +4476,7 @@ impl CommandRegistry {
         let Some(indices) = self.arg_indices_for_role_words(name, args, ArgRole::VarWrite) else {
             return VariableWriteProjection {
                 literal_names: Vec::new(),
+                read_before_write_names: Vec::new(),
                 opaque_variable_frame: self.may_have_arg_role(name, ArgRole::VarWrite),
             };
         };

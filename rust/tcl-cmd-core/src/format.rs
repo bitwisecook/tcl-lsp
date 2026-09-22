@@ -100,12 +100,16 @@ fn render<O: ValueOps>(
         let mut j = i + 1;
         let Some(mut spec) = parse_spec_with_limit(bytes, &mut j, usize::MAX) else {
             // A `%` that is not `%%` always begins a conversion — Tcl has no
-            // literal lone `%`. An incomplete one (`%`, `%5`, a trailing `%`)
-            // has no verb to consume an argument, which Tcl reports as
-            // "not enough arguments".
-            return Err(CmdError::new(
-                "not enough arguments for all format specifiers",
-            ));
+            // literal lone `%`. C Tcl checks that the conversion's argument
+            // slot exists before parsing the rest of the field: when one is
+            // available, a bare trailing `%` reaches the more specific
+            // incomplete-specifier diagnostic; without one it reports the
+            // argument mismatch first (`format %5` and `format %`).
+            return Err(CmdError::new(if ai < args.len() {
+                "format string ended in middle of field specifier"
+            } else {
+                "not enough arguments for all format specifiers"
+            }));
         };
         if spec.width.is_some_and(|width| width > MAX_RUNTIME_FIELD)
             || spec
@@ -159,8 +163,11 @@ fn render<O: ValueOps>(
             }
             if spec.precision_star {
                 let p = ops.as_int(take_arg(args, &mut cur, positional)?)?;
-                // A negative `.*` precision is treated as omitted (C).
-                spec.precision = usize::try_from(p).ok().map(|p| p.min(MAX_RUNTIME_FIELD));
+                // C Tcl keeps the precision field active and clamps a
+                // negative dynamic precision to zero. This matters for `%s`
+                // and `%c`, where an omitted precision has a different
+                // result from an explicit zero precision.
+                spec.precision = Some(usize::try_from(p).unwrap_or(0).min(MAX_RUNTIME_FIELD));
             }
             let arg = take_arg(args, &mut cur, positional)?;
             out.push_str(&render_spec(ops, &spec, arg, syntax)?);
@@ -205,6 +212,9 @@ fn render_spec<O: ValueOps>(
     syntax: tcl_dialect::NumberSyntax,
 ) -> Result<String, CmdError> {
     let verb = spec.verb;
+    if verb == b'p' && syntax != tcl_dialect::NumberSyntax::Tcl90 {
+        return Err(CmdError::new("bad field specifier \"p\""));
+    }
     match verb {
         b'd' | b'i' => {
             // The size modifier and the release pick the width; the low bits
@@ -227,6 +237,24 @@ fn render_spec<O: ValueOps>(
             let u = tcl_syntax::format::integer_width(spec.size, syntax).unsigned(ops.as_int(arg)?);
             Ok(pad_number(&uint_digits(u, spec), false, spec))
         }
+        b'p' => {
+            // `%p` is Tcl's pointer-style hexadecimal conversion. It always
+            // carries a lowercase `0x` prefix and follows the host pointer
+            // width, while an unmodified integer conversion in Tcl 9 uses C
+            // `int` width. `usize` tracks the VM's target pointer size,
+            // including wasm32.
+            let width = if usize::BITS > 32 {
+                tcl_syntax::format::IntegerWidth::Wide
+            } else {
+                tcl_syntax::format::IntegerWidth::Int
+            };
+            let u = width.unsigned(ops.as_int(arg)?);
+            // Tcl keeps `%p` unsigned even when `+`/space flags are present;
+            // those flags are accepted but do not add a sign to a pointer.
+            let mut pointer_spec = *spec;
+            pointer_spec.flags.remove(FmtFlags::PLUS | FmtFlags::SPACE);
+            Ok(pad_number(&pointer_digits(u, spec), false, &pointer_spec))
+        }
         b'x' | b'X' | b'o' | b'b' => {
             let u = tcl_syntax::format::integer_width(spec.size, syntax).unsigned(ops.as_int(arg)?);
             Ok(pad_number(&based_digits(u, spec, syntax), false, spec))
@@ -236,7 +264,7 @@ fn render_spec<O: ValueOps>(
             let ch = u32::try_from(n)
                 .ok()
                 .and_then(char::from_u32)
-                .map_or_else(String::new, |c| c.to_string());
+                .map_or_else(|| '\u{fffd}'.to_string(), |c| c.to_string());
             Ok(justify(&ch, spec))
         }
         b'f' | b'e' | b'E' | b'g' | b'G' => {
@@ -327,6 +355,19 @@ fn based_digits(u: u64, spec: &Spec, syntax: tcl_dialect::NumberSyntax) -> Strin
     format!("{prefix}{body}")
 }
 
+/// Hexadecimal `%p` digits. Tcl preserves one zero digit even for an explicit
+/// zero precision (`%.0p 0` → `0x0`), unlike the integer conversions.
+fn pointer_digits(u: u64, spec: &Spec) -> String {
+    let digits = format!("{u:x}");
+    let digits = match spec.precision {
+        Some(precision) if digits.len() < precision => {
+            format!("{}{digits}", "0".repeat(precision - digits.len()))
+        }
+        _ => digits,
+    };
+    format!("0x{digits}")
+}
+
 /// Whether `verb` is a floating-point conversion (`e`/`E`/`f`/`g`/`G`).
 ///
 /// `F` is **not** one, despite C: tclsh8.6.18 and tclsh9.0.4 both answer
@@ -357,10 +398,41 @@ fn c_style_exp(rust_e: &str) -> String {
 fn float_digits(x: f64, spec: &Spec) -> String {
     let prec = spec.precision.unwrap_or(6);
     let m = x.abs();
+    if x.is_infinite() {
+        return if matches!(spec.verb, b'E' | b'G') {
+            "INF".to_owned()
+        } else {
+            "inf".to_owned()
+        };
+    }
     match spec.verb {
-        b'f' | b'F' => format!("{m:.prec$}"),
-        b'e' => c_style_exp(&format!("{m:.prec$e}")),
-        b'E' => c_style_exp(&format!("{m:.prec$E}")),
+        b'f' | b'F' => {
+            let mut out = format!("{m:.prec$}");
+            if x.is_finite() && spec.flags.contains(FmtFlags::HASH) && !out.contains('.') {
+                out.push('.');
+            }
+            out
+        }
+        b'e' => {
+            let mut out = c_style_exp(&format!("{m:.prec$e}"));
+            if x.is_finite()
+                && spec.flags.contains(FmtFlags::HASH)
+                && !out[..out.find('e').unwrap_or(out.len())].contains('.')
+            {
+                out.insert(out.find('e').unwrap_or(out.len()), '.');
+            }
+            out
+        }
+        b'E' => {
+            let mut out = c_style_exp(&format!("{m:.prec$E}"));
+            if x.is_finite()
+                && spec.flags.contains(FmtFlags::HASH)
+                && !out[..out.find('E').unwrap_or(out.len())].contains('.')
+            {
+                out.insert(out.find('E').unwrap_or(out.len()), '.');
+            }
+            out
+        }
         // g/G (C semantics): precision P (0 → 1) is the number of significant
         // digits. Using the decimal exponent X (from an %e render at P-1
         // fractional digits), pick %e when X < -4 or X >= P, else %f with
@@ -377,12 +449,24 @@ fn float_digits(x: f64, spec: &Spec) -> String {
             let keep_zeros = spec.flags.contains(FmtFlags::HASH);
             if exp < -4 || exp >= i32::try_from(p).unwrap_or(i32::MAX) {
                 let body = c_style_exp(&format!("{m:.*e}", p - 1));
-                let out = if keep_zeros { body } else { trim_g_exp(&body) };
+                let mut out = if keep_zeros { body } else { trim_g_exp(&body) };
+                if x.is_finite() && keep_zeros {
+                    let exponent = out.find(['e', 'E']).unwrap_or(out.len());
+                    if !out[..exponent].contains('.') {
+                        out.insert(exponent, '.');
+                    }
+                }
                 if upper { out.replace('e', "E") } else { out }
             } else {
                 let fprec = usize::try_from(i32::try_from(p).unwrap_or(0) - 1 - exp).unwrap_or(0);
                 let body = format!("{m:.fprec$}");
-                if keep_zeros || !body.contains('.') {
+                if keep_zeros {
+                    if body.contains('.') {
+                        body
+                    } else {
+                        format!("{body}.")
+                    }
+                } else if !body.contains('.') {
                     body
                 } else {
                     body.trim_end_matches('0').trim_end_matches('.').to_string()
@@ -437,11 +521,18 @@ fn pad_number(body: &str, negative: bool, spec: &Spec) -> String {
         return format!("{sign}{body}");
     }
     let pad = width - len;
-    if spec.flags.contains(FmtFlags::MINUS) {
+    let float = is_float_verb(spec.verb);
+    // C's `printf` family always uses spaces for infinities and NaNs, even
+    // when the `0` flag is present. The float renderer supplies these compact
+    // spellings as the complete magnitude body.
+    let nonfinite = float && matches!(body, "inf" | "INF" | "NaN" | "NAN");
+    let zero = spec.flags.contains(FmtFlags::ZERO) && !nonfinite;
+    if zero && !float && spec.precision.is_none() {
+        let (prefix, rest) = numeric_prefix(body);
+        format!("{sign}{prefix}{}{rest}", "0".repeat(pad))
+    } else if spec.flags.contains(FmtFlags::MINUS) {
         format!("{sign}{body}{}", " ".repeat(pad))
-    } else if spec.flags.contains(FmtFlags::ZERO)
-        && (spec.precision.is_none() || is_float_verb(spec.verb))
-    {
+    } else if zero && (spec.precision.is_none() || float) {
         // C ignores the `0` flag with an explicit precision for *integer*
         // conversions, but a float's precision is its fraction width, so `0`
         // still pads (`%08.2f 3.14` → `00003.14`).
@@ -460,10 +551,28 @@ fn justify(s: &str, spec: &Spec) -> String {
     if len >= width {
         return s.to_string();
     }
-    let pad = " ".repeat(width - len);
+    let pad_char = if spec.flags.contains(FmtFlags::ZERO) {
+        '0'
+    } else {
+        ' '
+    };
+    let pad = pad_char.to_string().repeat(width - len);
     if spec.flags.contains(FmtFlags::MINUS) {
         format!("{s}{pad}")
     } else {
         format!("{pad}{s}")
+    }
+}
+
+/// Split a numeric body's radix prefix from its digits so zero padding lands
+/// after the sign and prefix, as in C Tcl (`%#08x` → `0x0000002a`).
+fn numeric_prefix(body: &str) -> (&str, &str) {
+    if body.len() >= 2
+        && body.as_bytes()[0] == b'0'
+        && matches!(body.as_bytes()[1], b'b' | b'd' | b'o' | b'x' | b'X')
+    {
+        body.split_at(2)
+    } else {
+        ("", body)
     }
 }
