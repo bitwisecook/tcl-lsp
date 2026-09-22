@@ -863,6 +863,7 @@ fn codegen_module_with_no_procs() {
         procedures: HashMap::new(),
     };
     let ir_mod = IrModule {
+        top_level_kind: tcl_compiler::ir::TopLevelKind::Script,
         plain_command_dispatch: false,
         source: String::new(),
         top_level_namespace: "::".to_owned(),

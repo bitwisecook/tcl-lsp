@@ -1132,7 +1132,10 @@ impl CodegenCtx<'_> {
         let Some((hook, binding)) = self.inline_codegen_resolution(cmd, &arg_refs) else {
             return false;
         };
-        if hook != InlineCodegenHookId::String {
+        if !matches!(
+            hook,
+            InlineCodegenHookId::String | InlineCodegenHookId::InfoExists
+        ) {
             return false;
         }
 
@@ -1146,6 +1149,35 @@ impl CodegenCtx<'_> {
                 )
             })
             .collect();
+
+        // `info exists` in statement position. C compiles it inline wherever it
+        // appears, so a bare `info exists pub` in a procedure is
+        // `existScalar %v0` against a real slot, not an `invokeStk` — which is
+        // what decides whether the name is a compiled local at all (#2207).
+        //
+        // The trailing pop discards the statement's value, as every statement's
+        // emission does; `remove_trailing_pop` takes it back off in final
+        // position, which is how C ends `proc p {} {info exists pub}` with the
+        // answer still on the stack.
+        if hook == InlineCodegenHookId::InfoExists {
+            // Only the compiled-local form. C inlines `info exists` where it
+            // has a slot to test; without one `emit_inline_info_exists` falls
+            // back to `existStk`, whose name handling is not equivalent — a
+            // braced name reaches it already resolved and comes back wrong
+            // (`set e [info exists {{zz}}]` at the top level answers 0 where
+            // tclsh answers 1, which predates this and is unrelated to
+            // statement position). Keeping to the slot form matches C and
+            // stays clear of it.
+            if inline_args.len() != 2 || !self.compiles_locals() || is_qualified(&inline_args[1].0)
+            {
+                return false;
+            }
+            self.emit_inline_info_exists(&inline_args);
+            self.emit(Op::POP, vec![]);
+            *used_generic_invoke = true;
+            self.require_command_binding(&binding);
+            return true;
+        }
         let previous_inline = self.used_inline_cmd_subst;
         if !self.try_emit_inline_string_invoke_replace(
             previous_inline,
