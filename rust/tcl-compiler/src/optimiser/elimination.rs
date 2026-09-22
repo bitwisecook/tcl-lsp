@@ -2129,4 +2129,64 @@ mod tests {
         let only_o107 = ctx.optimisations.iter().all(|o| o.code == DiagCode::O107);
         assert!(only_o107, "unexpected codes: {:?}", ctx.optimisations);
     }
+
+    /// A write the profile's registry does not have is not a write: under
+    /// `tcl8.4` there is no `lassign`, so the store ahead of one stays (#2144).
+    ///
+    /// Measured on the real interpreters. For
+    ///
+    /// ```tcl
+    /// set a old
+    /// catch {lassign {new second} a b} m
+    /// puts $a
+    /// ```
+    ///
+    /// tclsh 8.4.20 prints `old` — the body raises
+    /// `invalid command name "lassign"` before any write and `catch` swallows
+    /// it — while 8.6.18 prints `new`. O109 used to delete `set a old` under
+    /// both, and the 8.4 program then failed with
+    /// `can't read "a": no such variable`.
+    #[test]
+    fn a_write_by_a_command_the_profile_lacks_does_not_kill_the_store() {
+        let source = "set a old\ncatch {lassign {new second} a b} m\nputs $a\n";
+
+        // The registry has to be the dialect's own, as production builds it
+        // (`static_context_for_profile`): availability is a property of the
+        // loaded surface, so a default registry would still carry `lassign`.
+        let codes = |dialect: &str| {
+            let profile =
+                tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();
+            crate::optimiser::optimise_raw_for_profile(
+                source,
+                tcl_registry::model::ingress::static_context_for_profile(profile).commands(),
+                Some(profile),
+            )
+            .into_iter()
+            .map(|o| o.code)
+            .collect::<Vec<_>>()
+        };
+
+        // Under 8.4 `a` is provably still `old` at the `puts`, because the
+        // `lassign` writes nothing — so the value is forwarded and the store
+        // that fed it is then genuinely dead. The rewritten program prints
+        // `old`, which is what tclsh 8.4.20 prints.
+        let early = codes("tcl8.4");
+        assert!(
+            early.contains(&DiagCode::O102),
+            "8.4 must forward `old` — no lassign there to overwrite it: {early:?}",
+        );
+
+        // From 8.5 `lassign` really does write `a`, so its value at the `puts`
+        // is unknown and nothing may be forwarded; the store is dead on its own
+        // and the program still prints `new`.
+        let late = codes("tcl8.6");
+        assert!(
+            !late.contains(&DiagCode::O102),
+            "8.6 must not forward a value lassign overwrites: {late:?}",
+        );
+        assert!(
+            late.contains(&DiagCode::O109),
+            "but the store is still dead there: {late:?}",
+        );
+    }
 }
