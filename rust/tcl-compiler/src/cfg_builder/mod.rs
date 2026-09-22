@@ -169,6 +169,12 @@ pub(crate) struct CfgBuilder<'a> {
     block_ids: FxHashMap<String, BlockId>,
     loop_nodes: HashMap<String, LoopNode>,
     inline_loops: bool,
+    /// Whether the function being built is a procedure body rather than the
+    /// top-level script. Only a procedure has a local variable table, so only
+    /// there can a `catch` be inlined (#2207): C compiles a top-level
+    /// `catch {set a 1} m o` as a plain `invokeStk`, having nowhere to put the
+    /// result variable's slot.
+    is_proc_body: bool,
     /// Map from command name to upvar summary, used to pre-populate
     /// caller-side `defs` on calls to procs that use `upvar`.  Empty
     /// when the builder is constructed without an upvar context
@@ -345,6 +351,7 @@ impl<'a> CfgBuilder<'a> {
             block_ids: FxHashMap::default(),
             loop_nodes: HashMap::new(),
             inline_loops,
+            is_proc_body: false,
             upvar_procs,
             proc_params,
             global_write_procs,
@@ -1140,6 +1147,7 @@ impl<'a> CfgBuilder<'a> {
     /// Build a [`Function`] by lowering a script starting at a fresh
     /// entry block, then freezing all mutable blocks.
     fn build_function(&mut self, name: &str, script: &Script) -> Function {
+        self.is_proc_body = name != "::top";
         let entry = self.new_block("entry");
         let tail = self.lower_script(script, &entry);
         if let Some(tail) = tail {
@@ -1422,10 +1430,7 @@ impl<'a> CfgBuilder<'a> {
             Statement::For { .. } => self.lower_for_or_frozen(stmt, current),
             Statement::While { .. } => Some(self.lower_while_or_frozen(stmt, current)),
             Statement::Foreach { .. } => Some(self.lower_foreach_dispatch(stmt, current)),
-            Statement::Catch { .. } => {
-                self.emit_opaque_catch(stmt, current);
-                Some(current.to_owned())
-            }
+            Statement::Catch { .. } => Some(self.lower_catch_dispatch(stmt, current)),
             Statement::Try { .. } => Some(self.lower_try_dispatch(stmt, current)),
             Statement::Switch { .. } => Some(self.lower_switch(stmt, current)),
             Statement::Return { .. } => {
@@ -1650,6 +1655,85 @@ impl<'a> CfgBuilder<'a> {
         }
 
         self.lower_foreach(stmt, current)
+    }
+
+    /// Dispatch `Catch` — inlined into real blocks, or deferred opaque.
+    ///
+    /// Mirrors [`Self::lower_try_dispatch`]. Inlining is what lets the
+    /// ordinary emitters compile the body, so its variables reach the LVT and
+    /// the optimiser can see inside it (#2207); the opaque arm stays for the
+    /// shapes that cannot be lowered faithfully.
+    ///
+    /// `{*}` expansion keeps the opaque path: the body word is re-parsed by
+    /// the inline emitters, and `parse_cmd_parts` splits an adjacent
+    /// `{*}$args` into a literal `*` and `$args`, changing the callee's argv.
+    /// A qualified result/options variable keeps it too — those are not frame
+    /// locals, so the store the inline form emits would address the wrong
+    /// variable.
+    fn lower_catch_dispatch(&mut self, stmt: &Statement, current: &str) -> String {
+        let Statement::Catch {
+            body,
+            result_var,
+            options_var,
+            raw_args,
+            ..
+        } = stmt
+        else {
+            unreachable!();
+        };
+
+        let qualified_var = [result_var, options_var]
+            .into_iter()
+            .flatten()
+            .any(|name| name.contains("::"));
+        let expands = raw_args.iter().any(|arg| arg.contains("{*}"));
+
+        if !self.is_proc_body
+            || raw_args.is_empty()
+            || body.statements.is_empty()
+            || qualified_var
+            || expands
+            || !self.catch_body_is_one_block(body)
+        {
+            self.emit_opaque_catch(stmt, current);
+            return current.to_owned();
+        }
+
+        self.lower_catch(stmt, current)
+    }
+
+    /// Whether a `catch` body lowers to a single straight-line block.
+    ///
+    /// The inline emitter compiles the body itself, so that it can leave the
+    /// last statement's value on the stack for `catch`'s result variable
+    /// rather than popping it as the ordinary block walk would. That only
+    /// works while the body *is* one block: anything that terminates a block
+    /// — `error`, `throw`, `return`, `break`, `continue`, `exit` — splits the
+    /// body, and the split-off part would fall outside the exception range
+    /// and escape the `catch` entirely.
+    ///
+    /// The terminator set is the registry's [`Traits::TERMINATES_BLOCK`], not
+    /// a name list here. Nested control flow needs its own blocks for the
+    /// same reason and is rejected too.
+    fn catch_body_is_one_block(&self, body: &Script) -> bool {
+        body.statements.iter().all(|s| match s {
+            Statement::If { .. }
+            | Statement::For { .. }
+            | Statement::While { .. }
+            | Statement::Foreach { .. }
+            | Statement::Catch { .. }
+            | Statement::Try { .. }
+            | Statement::Switch { .. }
+            | Statement::Block { .. }
+            | Statement::UpFrame { .. }
+            | Statement::Barrier { .. }
+            | Statement::Return { .. } => false,
+            Statement::Call { command, .. } => !self
+                .registry
+                .get(command)
+                .is_some_and(|spec| spec.traits.contains(Traits::TERMINATES_BLOCK)),
+            _ => true,
+        })
     }
 
     /// Emit an opaque `catch` call with defs for modified variables.
@@ -3497,9 +3581,88 @@ mod tests {
         assert_eq!(dropped.words()[1].legacy_text(), "body");
     }
 
+    /// A `catch` whose body is one straight-line block is lowered into real
+    /// blocks, so the ordinary emitters compile it: its variables reach the
+    /// LVT and the optimiser can see inside (#2207).
     #[test]
-    fn catch_emits_opaque_call() {
+    fn straight_line_catch_lowers_to_real_blocks() {
+        let func = build_test_cfg_function("::test", &straight_line_catch_script(), true);
+        let body_id = func
+            .blocks
+            .keys()
+            .find(|id| func.block_name(**id).starts_with("catch_body_"))
+            .copied()
+            .expect("expected a catch_body block");
+        // The body's own statement is in the body block, not summarised onto
+        // an opaque call.
+        assert!(
+            func.blocks[&body_id]
+                .statements
+                .iter()
+                .any(|s| matches!(s, Statement::AssignConst { name, .. } if name == "inner")),
+            "the body's write belongs to the body block",
+        );
+        // The result variable is still defined for SSA, on the block both
+        // paths reach.
+        assert!(
+            func.blocks.iter().any(|(id, blk)| {
+                func.block_name(*id).starts_with("catch_end_")
+                    && blk.statements.iter().any(|s| {
+                        matches!(
+                            s,
+                            Statement::Call { command, defs, .. }
+                                if command == "catch" && defs.iter().any(|d| d == "result")
+                        )
+                    })
+            }),
+            "result var must be defined at the merge",
+        );
+    }
+
+    /// A body that terminates its block — here an `error` — keeps the opaque
+    /// form: the split-off part would fall outside the exception range.
+    #[test]
+    fn catch_with_terminating_body_stays_opaque() {
         let script = Script::from_statements(vec![Statement::Catch {
+            span: Span::new(0, 30),
+            body: Script::from_statements(vec![Statement::Call {
+                span: Span::new(7, 14),
+                command: "error".into(),
+                canonical_command: None,
+                args: vec!["boom".into()],
+                defs: vec![],
+                reads: vec![],
+                reads_own_defs: false,
+                safe_on_uninit: false,
+                tokens: None,
+                foreach_groups: None,
+            }]),
+            body_span: Span::new(6, 15),
+            result_var: Some("result".into()),
+            options_var: None,
+            raw_args: vec!["{error boom}".into(), "result".into()],
+            tokens: None,
+        }]);
+        let func = build_test_cfg_function("::test", &script, true);
+        let entry = &func.blocks[&func.entry];
+        assert!(
+            entry.statements.iter().any(|s| matches!(
+                s,
+                Statement::Call { command, defs, .. } if command == "catch" && !defs.is_empty()
+            )),
+            "a terminating body keeps the opaque call with summarised defs",
+        );
+        assert!(
+            !func
+                .blocks
+                .keys()
+                .any(|id| func.block_name(*id).starts_with("catch_body_")),
+            "and is not lowered into blocks",
+        );
+    }
+
+    fn straight_line_catch_script() -> Script {
+        Script::from_statements(vec![Statement::Catch {
             span: Span::new(0, 30),
             body: Script::from_statements(vec![Statement::AssignConst {
                 span: Span::new(7, 14),
@@ -3513,16 +3676,7 @@ mod tests {
             options_var: None,
             raw_args: vec!["{set inner 1}".into(), "result".into()],
             tokens: None,
-        }]);
-        let func = build_test_cfg_function("::test", &script, true);
-        let entry = &func.blocks[&func.entry];
-        // Should have a Call to "catch" with defs.
-        assert!(entry.statements.iter().any(|s| matches!(
-            s,
-            Statement::Call {
-                command, defs, ..
-            } if command == "catch" && !defs.is_empty()
-        )));
+        }])
     }
 
     #[test]

@@ -1978,3 +1978,64 @@ fn an_unpinnable_term_logs_no_frame_rather_than_a_wrong_one() {
         "missing \"",
     );
 }
+
+/// A straight-line `catch` body compiles into the enclosing procedure rather
+/// than being dispatched whole (#2207), so its variables are real locals.
+///
+/// Verified against tclsh 9.0.4: `proc f {} { catch {set x 42}; return $x }`
+/// is `42` on both, and the disassembly agrees instruction for instruction —
+/// `beginCatch4`, `loadScalar1`, `storeScalar1`, where before the whole body
+/// was one `invokeStk1` and `x` never reached the local table.
+#[test]
+fn a_catch_body_write_is_visible_after_the_catch() {
+    assert_eq!(run("proc f {} { catch {set x 42}; return $x }; f").1, "42");
+    assert_eq!(run("proc g {} { catch {incr n 2}; return $n }; g").1, "2");
+    assert_eq!(
+        run("proc h {} { set n 5; catch {incr n 2}; return $n }; h").1,
+        "7"
+    );
+}
+
+/// The body still runs inside the exception range: a failure is caught, and
+/// nothing the body did not reach is defined.
+#[test]
+fn an_inlined_catch_still_catches() {
+    assert_eq!(run("proc f {} { catch {error boom} }; f").1, "1");
+    assert_eq!(
+        run("proc f {} { catch {error boom} m; return $m }; f").1,
+        "boom"
+    );
+    assert_eq!(
+        run("proc f {} { catch {expr {1/0}} m; return $m }; f").1,
+        "divide by zero"
+    );
+    // The write never happened, so the name is not defined.
+    assert_eq!(
+        run("proc f {} { catch {error a}; return [info exists q] }; f").1,
+        "0"
+    );
+}
+
+/// `catch`'s own value is its return code, in every position.
+#[test]
+fn catch_returns_its_code_wherever_it_sits() {
+    assert_eq!(run("proc f {} { catch {set q 1} }; f").1, "0");
+    assert_eq!(run("proc f {} { catch {set q 1}; set z 2 }; f").1, "2");
+    assert_eq!(
+        run("proc f {} { set rc [catch {error x}]; return $rc }; f").1,
+        "1"
+    );
+    assert_eq!(
+        run("proc f {} { catch {return 42} m; return \"caught:$m\" }; f").1,
+        "caught:42"
+    );
+}
+
+/// A `catch` outside a procedure keeps the dispatched form, as C does: there
+/// is no local variable table to hold the result variable's slot, and tclsh
+/// compiles a top-level `catch {set a 1} m o` to a plain `invokeStk`.
+#[test]
+fn a_top_level_catch_is_not_inlined() {
+    assert_eq!(run("catch {set a 1} m o; set m").1, "1");
+    assert_eq!(run("catch {error boom} m; set m").1, "boom");
+}
