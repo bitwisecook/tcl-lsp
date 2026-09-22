@@ -112,10 +112,10 @@ impl ValueOps for Vm {
         radix: Radix,
         syntax: tcl_dialect::NumberSyntax,
     ) -> Result<IntegerMagnitude, ValueError> {
-        let value = match number::parse_whole_with(
-            v.to_str().trim(),
-            number::ParseFlags::for_syntax(syntax),
-        ) {
+        // `parse_whole_with` owns Tcl's ASCII numeric-whitespace rule. Rust's
+        // `str::trim` would also accept Unicode whitespace that Tcl rejects.
+        let text = v.to_str();
+        let value = match number::parse_whole_with(&text, number::ParseFlags::for_syntax(syntax)) {
             Some(Number::Int(value)) => num_bigint::BigInt::from(value),
             Some(Number::Big {
                 negative,

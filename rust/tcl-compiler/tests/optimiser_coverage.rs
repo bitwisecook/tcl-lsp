@@ -2140,9 +2140,13 @@ fn o124_unused_irule_procs() {
     assert!(!codes.iter().any(|c| c == "O121"));
     assert!(!codes.iter().any(|c| c == "O122"));
 
-    // A used proc allows other rewrites (O120 inside it); not commented out.
+    // A used proc allows other rewrites inside it; not commented out.
+    //
+    // O112 rather than O120 since #2134: `[call helper bar]` is a command
+    // substitution nested in a word, now enumerated as a call site, so `x` is
+    // known to be `bar` in the body and the `foo` branch is proven dead.
     let used = "proc helper {x} {\n    if {$x == \"foo\"} { return 1 }\n    return 0\n}\nwhen HTTP_REQUEST { set v [call helper bar] }";
-    assert!(opt_fires(used, IR, "O120"));
+    assert!(opt_fires(used, IR, "O112"));
     assert!(opt_absent(used, IR, "O124"));
 
     // O124 coexists with an in-event rewrite.

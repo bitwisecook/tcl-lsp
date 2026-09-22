@@ -201,6 +201,14 @@ pub fn spec() -> CommandSpec {
         // five fetched manpages, so `at_least(1)` with no upper bound is
         // correct for every version.
         arity: Arity::at_least(1),
+        // That one mandatory trailing `string` is never an option candidate,
+        // whatever its shape. `Tcl_SubstObjCmd` (generic/tclCmdAH.c) scans
+        // switches only while `i < objc - 1`, so the last word is the operand
+        // even when it is spelled like a switch: tclsh 8.6.18 prints
+        // `-commands` for `puts [subst -commands]` rather than rejecting a
+        // 9.1-only option, and rejects `subst -- -nocommands` with `bad
+        // option "--"` because `subst` has no `--` terminator to fall back on.
+        reserved_trailing_words: 1,
         return_type: Some(TclType::String),
         const_fold: Some(fold_subst),
         hover: Some(HoverSnippet {

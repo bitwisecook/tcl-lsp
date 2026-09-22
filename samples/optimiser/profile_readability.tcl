@@ -32,7 +32,7 @@ proc greet {name} {
 # reason is elsewhere in this file: the `factorial` stanza below stops O115
 # being reported at all in a single pass (see README.md).
 proc double_expr {x} {
-    return [expr {[expr {$x * 2}]}]
+    return [expr {$x * 2}]
 }
 
 # --- Constant folding candidates (O100, O101, O102, O103, O110, O113, O116, O118) ---
@@ -134,7 +134,8 @@ proc sum_list {lst} {
 
 
 # -------------
-# optimised: 3 rewrite(s)
+# optimised: 4 rewrite(s)
 # O114  Use incr instead of set/expr
 # O117  Simplify string length zero-check
 # O120  Use eq/ne for string comparison
+# O115  Remove redundant nested expr

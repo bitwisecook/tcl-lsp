@@ -106,6 +106,11 @@ builds, so the bytecode stays byte-identical to C Tcl.
 `foreach_start`/`foreach_step`/`foreach_end` opcodes and keeps a **top-test**
 layout — `reorder_bottom_tested` explicitly skips `foreach_header_*` blocks.
 
+The `list_braced` bit on each iterator is source-owned substitution metadata,
+retained from command tokens while lowering. Codegen pushes a braced list word
+verbatim and sends every other list word through the canonical word-value
+emitter; consumers must not infer this distinction by reparsing `list_arg`.
+
 ### `proc` definition
 
 **IR**: `Procedure` extracted from the top-level script into

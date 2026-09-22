@@ -804,6 +804,27 @@ fn format_integer_conversions() {
     res_eq("format %*d 5 42", "   42");
     res_eq("format %.*f 2 3.14159", "3.14");
     res_eq("format %*d -5 42", "42   "); // negative `*` width left-justifies
+    res_eq("format {%.*d} -1 0", "0");
+    res_eq("format {%.*x} -1 0", "0");
+    res_eq("format {%.0d} 0", "0");
+    res_eq("format {%.0x} 0", "0");
+    for (script, expected) in [
+        ("format {%.*d} -1 0", "0"),
+        ("format {%.*x} -1 0", "0"),
+        ("format {%#.0x %#.0X %#.0b} 0 0 0", "0x0 0X0 0b0"),
+    ] {
+        let (ok, result, _) = run_for_version(script, tcl_dialect::TclVersion::V8_6);
+        assert!(ok, "Tcl 8.6 script errored: {result}");
+        assert_eq!(result, expected, "for script: {script}");
+    }
+    for format in ["%.0d", "%.0x"] {
+        let (ok, result, _) = run_for_version(
+            &format!("format {{{format}}} 0"),
+            tcl_dialect::TclVersion::V8_4,
+        );
+        assert!(ok, "Tcl 8.4 script errored: {result}");
+        assert_eq!(result, "", "for script: format {format} 0");
+    }
 }
 
 /// Tcl 9's I-family modifiers select fixed 32-bit-int and 64-bit-wide paths.
@@ -999,6 +1020,31 @@ fn format_fixed_width_bignums_issue_2163() {
     res_eq("format %Id 18446744073709551615", "-1");
     res_eq("format %d 340282366920938463463374607431768211457", "1");
     res_eq("format %x 340282366920938463463374607431768211457", "1");
+
+    // Tcl accepts only ASCII numeric whitespace. Cover the fixed-width
+    // magnitude path (`%d`), bignum path (`%lld`), and direct wide-int path
+    // (`%c`) so Rust's Unicode-aware `trim` cannot leak through either seam.
+    for version in [tcl_dialect::TclVersion::V8_6, tcl_dialect::TclVersion::V9_0] {
+        for format in ["%d", "%lld", "%c"] {
+            for value in ["\u{2003}42", "42\u{2003}"] {
+                let (ok, result, _) =
+                    run_for_version(&format!("format {format} {{{value}}}"), version);
+                assert!(
+                    !ok,
+                    "{version:?} unexpectedly accepted Unicode whitespace in {format}: {value:?}"
+                );
+                assert_eq!(result, format!("expected integer but got \"{value}\""));
+            }
+        }
+        for (format, expected) in [("%d", "42"), ("%lld", "42"), ("%c", "*")] {
+            let (ok, result, _) = run_for_version(&format!("format {format} {{\t42\r}}"), version);
+            assert!(
+                ok,
+                "{version:?} rejected Tcl ASCII whitespace in {format}: {result}"
+            );
+            assert_eq!(result, expected);
+        }
+    }
 }
 
 /// Tcl 9 bignum conversions preserve all digits rather than narrowing through
@@ -1024,6 +1070,12 @@ fn format_bignum_conversions_issue_2162() {
         "%#.0lld", "%#.0llx", "%#.0llo", "%#.0llb", "%#.0Ld", "%#.0Lx", "%#.0Lo", "%#.0Lb",
     ] {
         res_eq(&format!("format {format} 0"), "0");
+    }
+    for (format, expected) in [("%#.0llx", "0x0"), ("%#.0llX", "0X0"), ("%#.0llb", "0b0")] {
+        let (ok, result, _) =
+            run_for_version(&format!("format {format} 0"), tcl_dialect::TclVersion::V8_6);
+        assert!(ok, "Tcl 8.6 script errored: {result}");
+        assert_eq!(result, expected, "for script: format {format} 0");
     }
     res_eq("format %+.0llu 0", "+0");
     res_eq(

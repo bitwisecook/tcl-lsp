@@ -1428,6 +1428,139 @@ impl CodegenCtx<'_> {
         self.place_label(&sc_label);
     }
 
+    // Inline catch compilation.
+
+    /// Open C's `catch` exception range.
+    ///
+    /// Pre-interns the result and options variables so the slots land where C
+    /// puts them: `catch {set q $x} m o` gives m=1, o=2 and only then q=3.
+    ///
+    /// Returns the `beginCatch4` index and its handler label, for
+    /// [`Self::emit_catch_region_epilogue`] to place and back-patch.
+    pub fn emit_catch_region_prologue(
+        &mut self,
+        result_var: Option<&str>,
+        options_var: Option<&str>,
+    ) -> (usize, String) {
+        for name in [result_var, options_var].into_iter().flatten() {
+            if self.is_proc && !is_qualified(name) {
+                self.lvt.intern(name);
+            }
+        }
+
+        let begin_idx = self.emit(
+            Op::BEGIN_CATCH4,
+            vec![Operand::Imm(
+                i32::try_from(self.catch_depth).expect("catch_depth fits in i32"),
+            )],
+        );
+        self.catch_depth += 1;
+        (begin_idx, self.fresh_label("catch_handler"))
+    }
+
+    /// Close the range opened by [`Self::emit_catch_region_prologue`] and
+    /// store `catch`'s results.
+    ///
+    /// Measured against `tcl::unsupported::disassemble` on 9.0.4. For
+    /// `proc p {x} { catch {set q $x} m o }` C emits, after the body:
+    ///
+    /// ```text
+    /// push1 0             # "0"      <- normal completion pushes code 0
+    /// jump1 +4
+    /// pushResult                     <- handler pushes result and code
+    /// pushReturnCode
+    /// pushReturnOpts                 <- 3-arg only, reached by both paths
+    /// endCatch
+    /// storeScalar1 %v2    # var "o"  <- options come off the top first
+    /// pop
+    /// reverse 2
+    /// storeScalar1 %v1    # var "m"
+    /// pop
+    /// ```
+    ///
+    /// Both paths arrive the same depth: normal completion leaves the body's
+    /// own result below the pushed code, the handler pushes result and code
+    /// itself.
+    pub fn emit_catch_region_epilogue(
+        &mut self,
+        begin_idx: usize,
+        handler_label: &str,
+        result_var: Option<&str>,
+        options_var: Option<&str>,
+    ) {
+        self.push_lit("0");
+        let converge = self.fresh_label("catch_converge");
+        self.emit(Op::JUMP1, vec![Operand::Label(converge.clone())]);
+
+        self.place_label(handler_label);
+        self.emit(Op::PUSH_RESULT, vec![]);
+        self.emit(Op::PUSH_RETURN_CODE, vec![]);
+
+        self.place_label(&converge);
+        if options_var.is_some() {
+            self.emit(Op::PUSH_RETURN_OPTS, vec![]);
+        }
+        self.instructions[begin_idx].catch_target = Some(handler_label.to_owned());
+
+        self.catch_depth -= 1;
+        self.emit(Op::END_CATCH, vec![]);
+
+        if let Some(ov) = options_var {
+            self.store_var(ov);
+            self.emit(Op::POP, vec![]);
+        }
+        self.emit(Op::REVERSE, vec![Operand::Imm(2)]);
+        if let Some(rv) = result_var {
+            self.store_var(rv);
+        }
+        self.emit(Op::POP, vec![]);
+
+        // `catch` in statement position: its return code is the statement's
+        // value, and every statement's value is popped. In final position
+        // `remove_trailing_pop` takes this one back off again, which is how C
+        // ends `proc p {x} {catch {…}}` with the code still on the stack.
+        self.emit(Op::POP, vec![]);
+    }
+
+    /// Emit a whole `catch` region: open the range, compile the body, close it.
+    ///
+    /// The body is emitted here rather than by the ordinary block walk because
+    /// that walk pops every statement's value, and `catch` needs the body's
+    /// last result left on the stack for its result variable. The CFG builder
+    /// only inlines a body that lowers to this one straight-line block
+    /// (`lower_catch_dispatch`), so there is never a later block to miss.
+    pub fn emit_catch_region_inline(
+        &mut self,
+        cfg: &CfgFunction,
+        catch_body_name: &str,
+        result_var: Option<&str>,
+        options_var: Option<&str>,
+    ) {
+        let body_blk = cfg
+            .block_by_name(catch_body_name)
+            .expect("catch body block present");
+
+        let (begin_idx, handler_label) = self.emit_catch_region_prologue(result_var, options_var);
+        // Only the *last* statement's value is `catch`'s result; every earlier
+        // one is discarded exactly as ordinary script execution discards it.
+        // `emit_try_body_stmt` strips the trailing pop to keep a value on the
+        // stack, so it is right for the final statement and wrong for the
+        // others — without this `catch {set x 1; set y 2}` leaves `1` under
+        // the result, and a loop around it grows the operand stack without
+        // bound. C pops after each non-final command.
+        let last = body_blk.statements.len().saturating_sub(1);
+        for (index, stmt) in body_blk.statements.iter().enumerate() {
+            if index == last {
+                self.emit_try_body_stmt(stmt);
+            } else {
+                let mut ugi = false;
+                self.emit_stmt(stmt, &mut ugi);
+                self.cmd_index += 1;
+            }
+        }
+        self.emit_catch_region_epilogue(begin_idx, &handler_label, result_var, options_var);
+    }
+
     // Inline try/finally compilation.
 
     /// Emit inline `try { body } finally { cleanup }` bytecodes.
