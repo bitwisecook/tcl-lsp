@@ -309,11 +309,11 @@ Use braces: {{ \u{2026} }}"
         args: &[String],
         arg_tokens: &[tcl_lexer::Token],
     ) {
+        // value-transfer-ok: options — W311 reads the encoding option's position, which `option_placement` on the registry will carry
         let opt_start = if cmd_name == "fconfigure" {
-            // value-transfer-ok: options — W311 reads the encoding option's position, which `option_placement` on the registry will carry
             1
-        } else if cmd_name == "chan" && args.first().map(String::as_str) == Some("configure") {
             // value-transfer-ok: options — W311 reads the encoding option's position, which `option_placement` on the registry will carry
+        } else if cmd_name == "chan" && args.first().map(String::as_str) == Some("configure") {
             2
         } else {
             return;

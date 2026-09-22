@@ -167,15 +167,12 @@ impl Budget {
         if self.is_cancelled() {
             return Err(DeclineReason::Budget(BudgetLimit::Cancelled));
         }
-        match self.fuel.checked_sub(units) {
-            Some(left) => {
-                self.fuel = left;
-                Ok(())
-            }
-            None => {
-                self.fuel = 0;
-                Err(DeclineReason::Budget(BudgetLimit::Fuel))
-            }
+        if let Some(left) = self.fuel.checked_sub(units) {
+            self.fuel = left;
+            Ok(())
+        } else {
+            self.fuel = 0;
+            Err(DeclineReason::Budget(BudgetLimit::Fuel))
         }
     }
 
@@ -202,18 +199,15 @@ impl Budget {
     }
 
     fn charge_bytes(left: &mut usize, bytes: u64, limit: BudgetLimit) -> Result<(), DeclineReason> {
-        match usize::try_from(bytes)
+        if let Some(remaining) = usize::try_from(bytes)
             .ok()
             .and_then(|bytes| left.checked_sub(bytes))
         {
-            Some(remaining) => {
-                *left = remaining;
-                Ok(())
-            }
-            None => {
-                *left = 0;
-                Err(DeclineReason::Budget(limit))
-            }
+            *left = remaining;
+            Ok(())
+        } else {
+            *left = 0;
+            Err(DeclineReason::Budget(limit))
         }
     }
 

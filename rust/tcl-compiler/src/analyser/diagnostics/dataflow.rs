@@ -1404,8 +1404,10 @@ file; this call falls through to the 'unknown' handler."
             }
             // A use site that itself safely initialises the variable
             // (`safe_on_uninit` calls like `lappend`/`dict set`, or an
-            // `incr` of its own target) is not read-before-set.
-            if use_site_safe_initialises(stmt_opt, var) {
+            // `incr` of its own target) is not read-before-set, and neither
+            // is an embedded cell update's read.
+            if use_site_safe_initialises(stmt_opt, var) || embedded_cell_update_read(stmt_opt, var)
+            {
                 continue;
             }
             // This is an ordinary initial read, not the destructive `unset`
@@ -2784,6 +2786,27 @@ fn use_site_safe_initialises(stmt: Option<&crate::ir::Statement>, var: &str) -> 
         }) => *safe_on_uninit && crate::naming::normalise_var_name(name) == var,
         _ => false,
     }
+}
+
+/// Whether `var`'s use at `stmt` is the read of a cell update embedded in the
+/// statement's words (`[incr n]`, `[append s y]`): the CFG builder records it
+/// as a named read beside the definition it merges, so the store feeding it
+/// stays live (#2050). Lowering flags every call whose own named reads overlap
+/// its definitions `reads_own_defs`, so the overlap on an unflagged call is
+/// that scan's. The scan recovers every `[…]` in the words, braced ones
+/// included (a `proc` body, a `catch` script), so the read may not run here:
+/// like a quoted mention it keeps liveness conservative and is never a read
+/// *before set*.
+fn embedded_cell_update_read(stmt: Option<&crate::ir::Statement>, var: &str) -> bool {
+    matches!(
+        stmt,
+        Some(crate::ir::Statement::Call {
+            reads,
+            defs,
+            reads_own_defs: false,
+            ..
+        }) if reads.iter().any(|r| r == var) && defs.iter().any(|d| d == var)
+    )
 }
 
 /// The namespace of a fully-qualified name: everything up to the last `::`,

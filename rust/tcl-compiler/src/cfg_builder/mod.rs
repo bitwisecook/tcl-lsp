@@ -2353,7 +2353,6 @@ pub(crate) fn build_cfg_function_with_prepared_context(
     )
 }
 
-/// Test seam for building one method with an explicitly supplied context.
 /// What the `[…]` substitutions of one statement contribute to the caller
 /// frame: the names they define, the names among them they read first,
 /// and whether an embedded callee's frame effect cannot be enumerated.
@@ -2363,6 +2362,7 @@ struct EmbeddedExtras {
     opaque_global: bool,
 }
 
+/// Test seam for building one method with an explicitly supplied context.
 #[cfg(test)]
 #[allow(clippy::too_many_arguments)]
 fn build_cfg_method_function_with_upvars(

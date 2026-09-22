@@ -236,7 +236,6 @@ fn fold_index(args: &[&str]) -> Option<String> {
     })
 }
 
-/// `string range string first last`.  ASCII-restricted.
 /// `string range string first last` — the declared direct route run over
 /// literal words: the shared core under `version`'s grammar, or under the
 /// answer every release gives when the caller names none.
@@ -248,6 +247,12 @@ fn fold_range(args: &[&str], version: Option<TclVersion>) -> Option<String> {
         args,
         version,
     )
+}
+
+/// [`fold_range`] for a caller with no release fact: the same route, answering
+/// what every release gives and declining where they differ.
+fn fold_range_unanimous(args: &[&str]) -> Option<String> {
+    fold_range(args, None)
 }
 
 /// `string replace string first last ?newString?`.  ASCII-restricted.
@@ -1374,6 +1379,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         pure: true,
         return_type: Some(TclType::String),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STRING_RANGE),
+        const_fold: Some(fold_range_unanimous),
         const_fold_versioned: Some(fold_range),
         arg_types: &[
             (

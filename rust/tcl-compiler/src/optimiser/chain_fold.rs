@@ -352,13 +352,12 @@ fn classify_write(stmt: &Statement, chains: Chains<'_>) -> Option<Write> {
                 let single = tokens.single_token_word.get(argv_idx).copied()?;
                 if single && matches!(kind, TokenType::Esc | TokenType::Str) {
                     values.push(val.clone());
-                } else if let Some(name) = crate::static_loops::simple_var_ref(val) {
-                    // A `$var` piece folds through the lattice value the
-                    // function proves at this statement; an unproven one
-                    // ends the run.
-                    values.push(chains.lattice.constant_at(*span, &name)?);
                 } else {
-                    return None;
+                    // A `$var` piece folds through the lattice value the
+                    // function proves at this statement; any other word, or
+                    // an unproven one, ends the run.
+                    let name = crate::static_loops::simple_var_ref(val)?;
+                    values.push(chains.lattice.constant_at(*span, &name)?);
                 }
             }
             if values.is_empty() {

@@ -281,6 +281,16 @@ impl<'a> LatticeDriver<'a> {
         );
     }
 
+    /// Record whether a route the driver runs itself folded the statement.
+    fn explain_fold(&self, command: &str, route: EvalRoute, folded: Option<&LatticeValue>) {
+        let answer = if folded.is_some() {
+            "evaluated"
+        } else {
+            "declined: unsupported"
+        };
+        self.explain(command, Some(route), answer.to_owned());
+    }
+
     /// Every explanation the run recorded, in statement order.
     pub(crate) fn take_explanations(&self) -> Vec<RouteExplanation> {
         std::mem::take(&mut *self.explanations.borrow_mut())
@@ -609,16 +619,7 @@ impl<'a> LatticeDriver<'a> {
             EvalRoute::Direct { id } => match id.owner() {
                 EvaluatorOwner::Transitional { .. } => {
                     let folded = self.transitional_direct(id, value, rest, uses, values, ssa);
-                    self.explain(
-                        head,
-                        Some(route),
-                        if folded.is_some() {
-                            "evaluated"
-                        } else {
-                            "declined: unsupported"
-                        }
-                        .to_owned(),
-                    );
+                    self.explain_fold(head, route, folded.as_ref());
                     folded
                 }
                 EvaluatorOwner::Registry => {
@@ -657,16 +658,7 @@ impl<'a> LatticeDriver<'a> {
             },
             EvalRoute::Expression { .. } => {
                 let folded = self.expression_route(rest, uses, values, ssa);
-                self.explain(
-                    head,
-                    Some(route),
-                    if folded.is_some() {
-                        "evaluated"
-                    } else {
-                        "declined: unsupported"
-                    }
-                    .to_owned(),
-                );
+                self.explain_fold(head, route, folded.as_ref());
                 folded
             }
             EvalRoute::Implementation(_) | EvalRoute::None { .. } => {

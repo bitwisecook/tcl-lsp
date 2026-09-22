@@ -354,87 +354,110 @@ fn abstention_exists_at_command_subcommand_and_form_scope() {
     );
 }
 
-/// The registry-owned increment: read the proven old value, add the exact
-/// step, return the new value and one write of it to the target — and
-/// decline, never guess, on a pending, non-integer, or set-valued input.
-#[test]
-fn the_increment_route_runs_the_shared_core_under_the_target_semantics() {
-    let cell = resolve_semantics(
-        CommandRegistry::build_default().get("incr").expect("incr"),
-        None,
-        None,
-    );
-    let cell = cell.semantics().expect("derived");
-    let mut budget = Budget::unbounded();
+/// The increment route over `n` holding `old`, stepped by `amount`, under
+/// `dialect`'s profile — `None` is a profile naming no release.
+fn evaluate_increment(
+    cell: &dyn CommandSemantics,
+    dialect: Option<&str>,
+    old: FactView,
+    amount: Option<&'static str>,
+) -> EvalAnswer {
+    let mut operands = vec![literal("n", Some(ArgRole::VarWrite))];
+    if let Some(amount) = amount {
+        operands.push(literal(amount, None));
+    }
+    let mut inputs = TestInputs::new("incr", operands);
+    inputs.prior.insert("n".to_owned(), old);
+    inputs.context = AnalysisContext::detached(dialect.and_then(tcl_dialect::DialectProfile::find));
+    cell.evaluate(&inputs, &mut Budget::evaluation())
+}
 
-    let evaluate_under = |dialect: Option<&str>, old: FactView, amount: Option<&'static str>| {
-        let mut operands = vec![literal("n", Some(ArgRole::VarWrite))];
-        if let Some(amount) = amount {
-            operands.push(literal(amount, None));
-        }
-        let mut inputs = TestInputs::new("incr", operands);
-        inputs.prior.insert("n".to_owned(), old);
-        inputs.context =
-            AnalysisContext::detached(dialect.and_then(tcl_dialect::DialectProfile::find));
-        cell.evaluate(&inputs, &mut Budget::evaluation())
-    };
-    let evaluate = |old: FactView, amount: Option<&'static str>| evaluate_under(None, old, amount);
-    let exact = |i: i64| FactView::Exact(ExactValue::int(i), None);
-    let text = |t: &str| FactView::Exact(ExactValue::text(t), None);
-    let result_of = |answer: EvalAnswer| match answer {
+/// The value an evaluated increment answers, or the reason it declined.
+fn increment_result(answer: EvalAnswer) -> Result<ExactValue, DeclineReason> {
+    match answer {
         EvalAnswer::Evaluated(outcome) => match outcome.result {
             ExactValueOrUnavailable::Exact(value) => Ok(value),
             ExactValueOrUnavailable::Unavailable(_) => panic!("unavailable"),
         },
         EvalAnswer::Declined(reason) => Err(reason),
         EvalAnswer::Pending => panic!("pending"),
-    };
+    }
+}
 
-    // The release rules are the adapter's: a leading zero reads as octal up
-    // to 8.6 and decimal from 9.0, and a profile naming no release declines.
-    assert_eq!(
-        result_of(evaluate_under(Some("tcl8.6"), text("010"), None)),
-        Ok(ExactValue::int(9))
+/// What the increment route answers: the integer `ConstOps` built, with the
+/// representation it constructed as evidence.
+fn built_int(i: i64) -> ExactValue {
+    ExactValue {
+        representation: tcl_registry::value_transfer::RepresentationEvidence::Constructed(
+            tcl_registry::TclType::Int,
+        ),
+        ..ExactValue::int(i)
+    }
+}
+
+/// The increment reads its numerals under the target's release, as the
+/// adapter does, and a profile naming no release declines wherever the
+/// releases differ; the evidence names the route and the release.
+#[test]
+fn the_increment_route_reads_numerals_under_the_target_release() {
+    let cell = resolve_semantics(
+        CommandRegistry::build_default().get("incr").expect("incr"),
+        None,
+        None,
     );
-    assert_eq!(
-        result_of(evaluate_under(Some("tcl8.4"), text("010"), None)),
-        Ok(ExactValue::int(9))
-    );
-    assert_eq!(
-        result_of(evaluate_under(Some("tcl9.0"), text("010"), None)),
-        Ok(ExactValue::int(11))
-    );
-    assert_eq!(
-        result_of(evaluate(text("010"), None)),
-        Err(DeclineReason::ReleaseAmbiguous(Axis::NumeralGrammar))
-    );
-    assert_eq!(
-        result_of(evaluate_under(Some("f5-irules"), text("010"), None)),
-        Err(DeclineReason::ReleaseAmbiguous(Axis::NumeralGrammar))
-    );
+    let cell = cell.semantics().expect("derived");
+    let exact = |i: i64| FactView::Exact(ExactValue::int(i), None);
+    let text = |t: &str| FactView::Exact(ExactValue::text(t), None);
+
+    // A leading zero reads as octal up to 8.6 and decimal from 9.0.
+    for (dialect, want) in [("tcl8.6", 9), ("tcl8.4", 9), ("tcl9.0", 11)] {
+        assert_eq!(
+            increment_result(evaluate_increment(cell, Some(dialect), text("010"), None)),
+            Ok(built_int(want)),
+            "{dialect}"
+        );
+    }
+    for dialect in [None, Some("f5-irules")] {
+        assert_eq!(
+            increment_result(evaluate_increment(cell, dialect, text("010"), None)),
+            Err(DeclineReason::ReleaseAmbiguous(Axis::NumeralGrammar)),
+            "{dialect:?}"
+        );
+    }
     // A whitespace-padded step is an integer in every release (tclsh 8.4,
     // 8.6, 9.0: `set x 1; incr x " 5"` is 6).
     assert_eq!(
-        result_of(evaluate(exact(1), Some(" 5"))),
-        Ok(ExactValue::int(6))
+        increment_result(evaluate_increment(cell, None, exact(1), Some(" 5"))),
+        Ok(built_int(6))
     );
     // Past the wide boundary 8.5 onward widens; 8.4 prints a value the
     // model does not compute; a profile naming no release cannot say.
     for dialect in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
-        let value = result_of(evaluate_under(Some(dialect), exact(i64::MAX), None)).expect(dialect);
+        let value = increment_result(evaluate_increment(
+            cell,
+            Some(dialect),
+            exact(i64::MAX),
+            None,
+        ))
+        .expect(dialect);
         assert_eq!(value.bytes, b"9223372036854775808", "{dialect}");
         assert_eq!(value.numeric, None, "{dialect}");
     }
     assert_eq!(
-        result_of(evaluate_under(Some("tcl8.4"), exact(i64::MAX), None)),
+        increment_result(evaluate_increment(
+            cell,
+            Some("tcl8.4"),
+            exact(i64::MAX),
+            None
+        )),
         Err(DeclineReason::WrongRepresentation)
     );
     assert_eq!(
-        result_of(evaluate(exact(i64::MAX), None)),
+        increment_result(evaluate_increment(cell, None, exact(i64::MAX), None)),
         Err(DeclineReason::ReleaseAmbiguous(Axis::IntTower))
     );
     // The evidence names the route and the release the answer depended on.
-    match evaluate_under(Some("tcl8.6"), exact(1), None) {
+    match evaluate_increment(cell, Some("tcl8.6"), exact(1), None) {
         EvalAnswer::Evaluated(outcome) => {
             assert_eq!(
                 outcome.evidence.release,
@@ -449,18 +472,31 @@ fn the_increment_route_runs_the_shared_core_under_the_target_semantics() {
         }
         other => panic!("{other:?}"),
     }
+}
+
+/// The registry-owned increment: read the proven old value, add the exact
+/// step, return the new value and one write of it to the target — and
+/// decline, never guess, on a pending, non-integer, or set-valued input.
+#[test]
+fn the_increment_route_runs_the_shared_core_under_the_target_semantics() {
+    let cell = resolve_semantics(
+        CommandRegistry::build_default().get("incr").expect("incr"),
+        None,
+        None,
+    );
+    let cell = cell.semantics().expect("derived");
+    let evaluate =
+        |old: FactView, amount: Option<&'static str>| evaluate_increment(cell, None, old, amount);
+    let exact = |i: i64| FactView::Exact(ExactValue::int(i), None);
 
     match evaluate(exact(5), None) {
         EvalAnswer::Evaluated(outcome) => {
-            assert_eq!(
-                outcome.result,
-                ExactValueOrUnavailable::Exact(ExactValue::int(6))
-            );
+            assert_eq!(outcome.result, ExactValueOrUnavailable::Exact(built_int(6)));
             assert_eq!(
                 outcome.ordered_stores,
                 vec![StoreOutcome::Write {
                     target: TargetId(OperandId(0)),
-                    value: ExactValue::int(6)
+                    value: built_int(6)
                 }]
             );
         }
@@ -468,11 +504,11 @@ fn the_increment_route_runs_the_shared_core_under_the_target_semantics() {
     }
     assert!(matches!(
         evaluate(exact(3), Some("10")),
-        EvalAnswer::Evaluated(outcome) if outcome.result == ExactValueOrUnavailable::Exact(ExactValue::int(13))
+        EvalAnswer::Evaluated(outcome) if outcome.result == ExactValueOrUnavailable::Exact(built_int(13))
     ));
     assert!(matches!(
         evaluate(exact(10), Some("-2")),
-        EvalAnswer::Evaluated(outcome) if outcome.result == ExactValueOrUnavailable::Exact(ExactValue::int(8))
+        EvalAnswer::Evaluated(outcome) if outcome.result == ExactValueOrUnavailable::Exact(built_int(8))
     ));
     assert_eq!(evaluate(FactView::Pending, None), EvalAnswer::Pending);
     assert_eq!(
@@ -500,7 +536,7 @@ fn the_increment_route_runs_the_shared_core_under_the_target_semantics() {
     );
     // The type transfer names the result and the target as integers.
     let inputs = TestInputs::new("incr", vec![literal("n", Some(ArgRole::VarWrite))]);
-    match cell.transfer(FactDomain::Type, &inputs, &mut budget) {
+    match cell.transfer(FactDomain::Type, &inputs, &mut Budget::unbounded()) {
         TransferAnswer::Type(facts) => {
             assert_eq!(facts.result, Some(tcl_registry::TclType::Int));
             assert_eq!(
@@ -744,10 +780,6 @@ fn append_and_list_append_run_the_shared_cores() {
         Err(DeclineReason::WrongRepresentation),
         "`lappend` over `{{` raises `unmatched open brace in list`"
     );
-    assert!(matches!(
-        evaluate("lappend", FactView::Pending, &["v"]),
-        Err(_) | Ok(_)
-    ));
     let mut inputs = TestInputs::new(
         "lappend",
         vec![literal("v", Some(ArgRole::VarWrite)), literal("x", None)],

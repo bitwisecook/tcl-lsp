@@ -362,6 +362,12 @@ crates the lane touched are `tcl-registry`, `tcl-compiler`,
 `tcl-explorer`, `tcl-lsp-db` and `xtask`; the other lane owns
 `tcl-lsp-core`, `tcl-lsp-server` and `tcl-mcp`.
 
+**VT2.0 (2026-09-22), in progress:** the seven failing tests, the gate's
+six waivers and pedantic clippy over the five crates are fixed in the
+first `wip(value-transfers): slice 2 checkpoint green` commit; the unrun
+gates and the full suites follow in the next, which rewrites this section
+with the results.
+
 ### What compiles and what was run
 
 - `cargo check --workspace --all-targets`: green.

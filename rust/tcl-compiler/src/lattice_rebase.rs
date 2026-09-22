@@ -31,7 +31,7 @@
 //! `memory_ssa`/SSA phis — is span-free): the CFG block statements +
 //! terminators + loop-node spans + inlined-`eval` body spans, the SSA blocks'
 //! cloned statements (read for positions by some emitters), and the SCCP
-//! constant-branch spans.
+//! constant-branch and route-explanation spans.
 //! `ExprNode` carries *relative* offsets anchored to a statement span we shift,
 //! so it needs no rebasing — but the absolute `expr_base` / `condition_base`
 //! anchors those offsets map through do.
@@ -81,6 +81,9 @@ pub(crate) fn rebase_function_unit(fu: &mut FunctionUnit, delta: i64) {
     }
     for cb in &mut fu.sccp.constant_branches {
         shift_opt(&mut cb.span, delta);
+    }
+    for explanation in &mut fu.sccp.explanations {
+        shift(&mut explanation.span, delta);
     }
 }
 

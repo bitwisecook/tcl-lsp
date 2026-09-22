@@ -655,8 +655,8 @@ pub(crate) fn list_index_diagnostics(
     let length = i64::try_from(crate::tcl_expr_eval::split_tcl_list(&args[0], rules).len())
         .unwrap_or(i64::MAX);
 
+    // value-transfer-ok: arg_roles — the W230–W232 index positions await an index-argument role on the registry
     if cmd_name == "lindex" {
-        // value-transfer-ok: arg_roles — the W230–W232 index positions await an index-argument role on the registry
         return lindex_diagnostics(args, arg_tokens, length, numbers);
     }
 
@@ -684,8 +684,8 @@ pub(crate) fn list_index_diagnostics(
     if !pair_slice_empty(lo_index, hi_index, length) {
         return Vec::new();
     }
+    // value-transfer-ok: arg_roles — the W230–W232 index positions await an index-argument role on the registry
     let verb = if cmd_name == "lrange" {
-        // value-transfer-ok: arg_roles — the W230–W232 index positions await an index-argument role on the registry
         "lrange slice is empty".to_string()
     } else if lo_index < 0 && hi_index < 0 {
         "lreplace prepends instead of replacing (both indices resolve before the list)".to_string()
@@ -888,10 +888,13 @@ fn infer_list_length_from_recent_set(
             }
             if let Some(value) = literal_list_assignment(registry, &cmd, var_name) {
                 best = Some(value);
-            } else if let Some(updated) =
+            } else if let Some(write) =
                 cell_update_assignment(registry, &cmd, var_name, best.as_deref())
             {
-                best = updated;
+                best = match write {
+                    CellUpdateWrite::Value(value) => Some(value),
+                    CellUpdateWrite::Unknown => None,
+                };
             }
         }
         match inner {
@@ -905,17 +908,24 @@ fn infer_list_length_from_recent_set(
     best.as_deref().map(length_of)
 }
 
-/// The value `cmd` leaves in `var_name` when `cmd` is a cell update on it
-/// and the registry's route evaluates over its literal words from
-/// `current`, as `Some(Some(value))`; `Some(None)` when `cmd` writes
-/// `var_name` but the walk cannot evaluate it (a dynamic word, an unknown
-/// prior); `None` when `cmd` does not write `var_name` at all.
+/// What a cell update leaves in the variable the length walk follows.
+enum CellUpdateWrite {
+    /// The registry's route evaluated the update over its literal words.
+    Value(String),
+    /// The update writes the variable but the walk cannot evaluate it (a
+    /// dynamic word, an unknown prior), so the walk forgets the value.
+    Unknown,
+}
+
+/// What `cmd` leaves in `var_name` when `cmd` is a cell update on it, the
+/// route evaluating from `current`; `None` when `cmd` does not write
+/// `var_name` at all.
 fn cell_update_assignment(
     registry: &tcl_registry::CommandRegistry,
     cmd: &SegmentedCommand,
     var_name: &str,
     current: Option<&str>,
-) -> Option<Option<String>> {
+) -> Option<CellUpdateWrite> {
     use tcl_registry::value_transfer::{EvalAnswer, ExactValue, LiteralInputs, StoreOutcome};
     let head = cmd.name().strip_prefix("::").unwrap_or(cmd.name());
     let args = cmd.args();
@@ -930,7 +940,7 @@ fn cell_update_assignment(
         ) && cmd.arg_single_token().get(index) == Some(&true)
     });
     let Some(current) = current.filter(|_| literal) else {
-        return Some(None);
+        return Some(CellUpdateWrite::Unknown);
     };
     let texts: Vec<&str> = args.iter().map(String::as_str).collect();
     let spec = registry.get(head)?;
@@ -955,7 +965,7 @@ fn cell_update_assignment(
         }
         EvalAnswer::Pending | EvalAnswer::Declined(_) => None,
     };
-    Some(value)
+    Some(value.map_or(CellUpdateWrite::Unknown, CellUpdateWrite::Value))
 }
 
 /// Native-stack safety net for [`infer_list_length_from_recent_set`]'s
@@ -1061,8 +1071,8 @@ pub(crate) fn string_index_diagnostics(
         i64::try_from(str_text.chars().count()).ok()
     };
 
+    // value-transfer-ok: arg_roles — the W230–W232 index positions await an index-argument role on the registry
     if sub == "index" || sub == "insert" {
-        // value-transfer-ok: arg_roles — the W230–W232 index positions await an index-argument role on the registry
         return string_single_index(sub, args, arg_tokens, str_len, numbers);
     }
     string_pair_index(sub, args, arg_tokens, str_len, numbers)
@@ -1130,8 +1140,8 @@ fn string_pair_index(
     {
         return Vec::new();
     }
+    // value-transfer-ok: arg_roles — the W230–W232 index positions await an index-argument role on the registry
     let verb = if sub == "range" {
-        // value-transfer-ok: arg_roles — the W230–W232 index positions await an index-argument role on the registry
         "slice is empty"
     } else {
         "replace is a no-op"

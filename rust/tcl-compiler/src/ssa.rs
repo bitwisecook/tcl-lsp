@@ -1835,6 +1835,14 @@ fn uses_in_call(
     for name in reads {
         if !name.is_empty() {
             found.by_name.insert(name.clone());
+            // A named read of a cell the call also writes reads the prior
+            // value. Lowering flags that overlap `reads_own_defs`; the CFG
+            // builder records an embedded cell update's target (`set r [incr
+            // n]`) unflagged, since the call's other definitions are not
+            // read, and the store feeding the update stays live (#2050).
+            if defs.contains(name) {
+                reads_own_def.insert(name.clone());
+            }
         }
     }
     if *reads_own_defs {

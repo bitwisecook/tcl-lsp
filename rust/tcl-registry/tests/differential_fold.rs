@@ -115,6 +115,25 @@ fn tcl_command(head: &str, sub: Option<&str>, args: &[&str]) -> String {
     s
 }
 
+/// A Tcl word whose value is exactly `text`, whatever it holds: double-quoted,
+/// with a backslash before every character that would substitute or end the
+/// word (`\`, `"`, `$`, `[`, `]`) and before each brace, so a lone `{` cannot
+/// leave the script incomplete. Brace-wrapping cannot carry an unbalanced
+/// value: `lappend v {{}` never finishes the command, and `tclsh` reading stdin
+/// exits quietly without running it.
+fn tcl_quoted_word(text: &str) -> String {
+    let mut word = String::with_capacity(text.len() + 2);
+    word.push('"');
+    for c in text.chars() {
+        if matches!(c, '\\' | '"' | '$' | '[' | ']' | '{' | '}') {
+            word.push('\\');
+        }
+        word.push(c);
+    }
+    word.push('"');
+    word
+}
+
 /// Resolve a command through the registry exactly as the optimiser does and
 /// run its fold via `run_const_fold`, returning the **raw** folded value (the
 /// same string `tcl_value` compares against — no propagation-word quoting).
@@ -470,6 +489,86 @@ fn format_folds_match_tcl9() {
     check_matrix(&tclsh, &reg, FORMATS);
 }
 
+/// The route's answer for `command v values…` with `v` holding `prior`,
+/// under `profile`: the registry's cell update over literal words.
+fn cell_update_route(
+    reg: &CommandRegistry,
+    profile: Option<&'static tcl_dialect::DialectProfile>,
+    command: &str,
+    prior: &str,
+    values: &[&str],
+) -> Option<String> {
+    use tcl_registry::value_transfer::{
+        Budget, EvalAnswer, ExactValue, ExactValueOrUnavailable, LiteralInputs, resolve_semantics,
+    };
+
+    let spec = reg.get(command).expect(command);
+    let semantics = resolve_semantics(spec, None, None);
+    let semantics = semantics.semantics().expect("a cell update");
+    let mut args = vec!["v"];
+    args.extend_from_slice(values);
+    let inputs = LiteralInputs::new(command, None, &args, profile)
+        .with_prior("v", ExactValue::from_literal(prior));
+    match semantics.evaluate(&inputs, &mut Budget::evaluation()) {
+        EvalAnswer::Evaluated(outcome) => match outcome.result {
+            ExactValueOrUnavailable::Exact(value) => String::from_utf8(value.bytes).ok(),
+            ExactValueOrUnavailable::Unavailable(_) => None,
+        },
+        EvalAnswer::Pending | EvalAnswer::Declined(_) => None,
+    }
+}
+
+/// What `tclsh` leaves in `v` after `command v values…` with `v` holding
+/// `prior`, each value passed as a word that carries it exactly.
+fn cell_update_oracle(tclsh: &str, command: &str, prior: &str, values: &[&str]) -> Option<String> {
+    let mut script = format!("set v {}; {command} v", tcl_quoted_word(prior));
+    for value in values {
+        script.push(' ');
+        script.push_str(&tcl_quoted_word(value));
+    }
+    script.push_str("; puts -nonewline $v");
+    match run_tcl(tclsh, &script)? {
+        (true, out) => Some(out),
+        (false, _) => None,
+    }
+}
+
+/// `string range` through its route under `version`, against `tclsh`.
+fn check_range_witnesses(tclsh: &str, reg: &CommandRegistry, version: tcl_dialect::TclVersion) {
+    let range = reg
+        .get("string")
+        .expect("string")
+        .subcommand("range")
+        .expect("range");
+    let range_cases: &[[&str; 3]] = &[
+        ["hello", "1", "3"],
+        ["abcdefghijkl", "010", "end"],
+        ["abcdefghijkl", "3", "6"],
+        ["abcdef", "-2", "2"],
+        ["abc", "end-1", "end"],
+        ["abc", "3", "1"],
+        ["abcdefghijkl", "0x2", "end-010"],
+        [" a ", "0", "end"],
+    ];
+    for case in range_cases {
+        let want = tcl_value(tclsh, &tcl_command("string", Some("range"), case));
+        let got = range.run_const_fold(case, Some(version));
+        match (want, got) {
+            (Some(want), Some(got)) => assert_eq!(
+                got,
+                want,
+                "tclsh{}: string range {case:?}",
+                version.version_string()
+            ),
+            (None, Some(got)) => panic!(
+                "tclsh{} raises on string range {case:?}, the fold answered {got:?}",
+                version.version_string()
+            ),
+            (_, None) => {}
+        }
+    }
+}
+
 /// The storage-outcome witnesses of the direct route, per release found on
 /// `PATH`: `incr`, `append`, and `lappend` through the registry's cell
 /// update and `string range` through its route, each under the release's
@@ -478,10 +577,6 @@ fn format_folds_match_tcl9() {
 /// answers is allowed (an unfolded value is never wrong).
 #[test]
 fn storage_outcome_witnesses_match_every_release_on_path() {
-    use tcl_registry::value_transfer::{
-        Budget, EvalAnswer, ExactValue, ExactValueOrUnavailable, LiteralInputs, resolve_semantics,
-    };
-
     let reg = CommandRegistry::build_default();
     let mut releases = 0usize;
     for version in tcl_dialect::TclVersion::ALL {
@@ -490,34 +585,6 @@ fn storage_outcome_witnesses_match_every_release_on_path() {
         };
         releases += 1;
         let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name());
-        // The route's answer for `cmd var values…` with `var` holding `prior`.
-        let route = |command: &str, prior: &str, values: &[&str]| -> Option<String> {
-            let spec = reg.get(command).expect(command);
-            let semantics = resolve_semantics(spec, None, None);
-            let semantics = semantics.semantics().expect("a cell update");
-            let mut args = vec!["v"];
-            args.extend_from_slice(values);
-            let inputs = LiteralInputs::new(command, None, &args, profile)
-                .with_prior("v", ExactValue::from_literal(prior));
-            match semantics.evaluate(&inputs, &mut Budget::evaluation()) {
-                EvalAnswer::Evaluated(outcome) => match outcome.result {
-                    ExactValueOrUnavailable::Exact(value) => String::from_utf8(value.bytes).ok(),
-                    ExactValueOrUnavailable::Unavailable(_) => None,
-                },
-                EvalAnswer::Pending | EvalAnswer::Declined(_) => None,
-            }
-        };
-        let oracle = |command: &str, prior: &str, values: &[&str]| -> Option<String> {
-            let mut script = format!("set v {{{prior}}}; {command} v");
-            for value in values {
-                script.push_str(&format!(" {{{value}}}"));
-            }
-            script.push_str("; puts -nonewline $v");
-            match run_tcl(&tclsh, &script)? {
-                (true, out) => Some(out),
-                (false, _) => None,
-            }
-        };
         let cases: &[(&str, &str, &[&str])] = &[
             ("incr", "5", &[]),
             ("incr", "3", &["10"]),
@@ -539,8 +606,8 @@ fn storage_outcome_witnesses_match_every_release_on_path() {
         ];
         let mut agreed = 0usize;
         for &(command, prior, values) in cases {
-            let want = oracle(command, prior, values);
-            let got = route(command, prior, values);
+            let want = cell_update_oracle(&tclsh, command, prior, values);
+            let got = cell_update_route(&reg, profile, command, prior, values);
             match (want, got) {
                 (Some(want), Some(got)) => {
                     assert_eq!(
@@ -563,39 +630,7 @@ fn storage_outcome_witnesses_match_every_release_on_path() {
             "tclsh{}: only {agreed} witnesses agreed",
             version.version_string()
         );
-
-        let range = reg
-            .get("string")
-            .expect("string")
-            .subcommand("range")
-            .expect("range");
-        let range_cases: &[[&str; 3]] = &[
-            ["hello", "1", "3"],
-            ["abcdefghijkl", "010", "end"],
-            ["abcdefghijkl", "3", "6"],
-            ["abcdef", "-2", "2"],
-            ["abc", "end-1", "end"],
-            ["abc", "3", "1"],
-            ["abcdefghijkl", "0x2", "end-010"],
-            [" a ", "0", "end"],
-        ];
-        for case in range_cases {
-            let want = tcl_value(&tclsh, &tcl_command("string", Some("range"), case));
-            let got = range.run_const_fold(case, Some(version));
-            match (want, got) {
-                (Some(want), Some(got)) => assert_eq!(
-                    got,
-                    want,
-                    "tclsh{}: string range {case:?}",
-                    version.version_string()
-                ),
-                (None, Some(got)) => panic!(
-                    "tclsh{} raises on string range {case:?}, the fold answered {got:?}",
-                    version.version_string()
-                ),
-                (_, None) => {}
-            }
-        }
+        check_range_witnesses(&tclsh, &reg, version);
     }
     if releases == 0 {
         eprintln!("no tclsh on PATH: the storage-outcome witnesses were not exercised");

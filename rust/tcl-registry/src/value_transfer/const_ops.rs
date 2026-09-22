@@ -438,12 +438,11 @@ impl<'ctx> ConstOps<'ctx> {
     ///
     /// `NotText`, never a U+FFFD substitution.
     pub fn text_of(&mut self, value: &ConstValue) -> Result<Rc<str>, DeclineReason> {
-        match value.as_utf8() {
-            Some(s) => Ok(Rc::from(s)),
-            None => {
-                self.poison(DeclineReason::NotText);
-                Err(DeclineReason::NotText)
-            }
+        if let Some(s) = value.as_utf8() {
+            Ok(Rc::from(s))
+        } else {
+            self.poison(DeclineReason::NotText);
+            Err(DeclineReason::NotText)
         }
     }
 
@@ -483,23 +482,20 @@ impl<'ctx> ConstOps<'ctx> {
         let text = self.text_of(spec)?;
         let resolve =
             |numbers: NumberSyntax| tcl_cmd_core::index::resolve_opt_with(&text, len, numbers);
-        let resolved = match self.target.numerals {
-            Some(numbers) => resolve(numbers),
-            None => match NumberSyntax::unanimous(resolve) {
-                Some(answer) => answer,
-                None => {
-                    let reason = DeclineReason::ReleaseAmbiguous(Axis::IndexGrammar);
-                    self.poison(reason);
-                    return Err(reason);
-                }
-            },
+        let resolved = if let Some(numbers) = self.target.numerals {
+            resolve(numbers)
+        } else if let Some(answer) = NumberSyntax::unanimous(resolve) {
+            answer
+        } else {
+            let reason = DeclineReason::ReleaseAmbiguous(Axis::IndexGrammar);
+            self.poison(reason);
+            return Err(reason);
         };
-        match resolved {
-            Some(index) => Ok(ConstValue::int(index)),
-            None => {
-                self.poison(DeclineReason::WrongRepresentation);
-                Err(DeclineReason::WrongRepresentation)
-            }
+        if let Some(index) = resolved {
+            Ok(ConstValue::int(index))
+        } else {
+            self.poison(DeclineReason::WrongRepresentation);
+            Err(DeclineReason::WrongRepresentation)
         }
     }
 
@@ -547,15 +543,13 @@ impl<'ctx> ConstOps<'ctx> {
                 },
             )
         };
-        match self.target.numerals {
-            Some(numbers) => parse(numbers),
-            None => match NumberSyntax::unanimous(parse) {
-                Some(answer) => answer,
-                None => {
-                    self.poison(DeclineReason::ReleaseAmbiguous(Axis::NumeralGrammar));
-                    None
-                }
-            },
+        if let Some(numbers) = self.target.numerals {
+            parse(numbers)
+        } else if let Some(answer) = NumberSyntax::unanimous(parse) {
+            answer
+        } else {
+            self.poison(DeclineReason::ReleaseAmbiguous(Axis::NumeralGrammar));
+            None
         }
     }
 
@@ -611,24 +605,22 @@ impl ValueOps for ConstOps<'_> {
     }
 
     fn as_str(&mut self, v: &ConstValue) -> Rc<str> {
-        match v.as_utf8() {
-            Some(s) => Rc::from(s),
-            None => {
-                self.poison(DeclineReason::NotText);
-                Rc::from(String::from_utf8_lossy(&v.bytes).as_ref())
-            }
+        if let Some(s) = v.as_utf8() {
+            Rc::from(s)
+        } else {
+            self.poison(DeclineReason::NotText);
+            Rc::from(String::from_utf8_lossy(&v.bytes).as_ref())
         }
     }
 
     fn char_len(&mut self, v: &ConstValue) -> usize {
         self.require(Needs::CHAR_MODEL);
         let text = self.as_str(v);
-        match StringCharacterModel::count_for(self.target.character_model, &text) {
-            Some(count) => count,
-            None => {
-                self.poison(DeclineReason::ReleaseAmbiguous(Axis::CharacterModel));
-                text.chars().count()
-            }
+        if let Some(count) = StringCharacterModel::count_for(self.target.character_model, &text) {
+            count
+        } else {
+            self.poison(DeclineReason::ReleaseAmbiguous(Axis::CharacterModel));
+            text.chars().count()
         }
     }
 
