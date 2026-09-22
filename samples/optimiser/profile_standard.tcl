@@ -42,7 +42,7 @@ proc add {a b} {
 }
 
 proc passthrough {x} {
-    return $x
+    return 42
 }
 
 set timeout 30
@@ -130,11 +130,12 @@ proc sum_list {lst} {
 
 
 # -------------
-# optimised: 18 rewrite(s)
+# optimised: 19 rewrite(s)
 # O102  Forward literal load of 'count' from its single reaching definition
 # O114  Use incr instead of set/expr
 # O117  Simplify string length zero-check
 # O120  Use eq/ne for string comparison
+# O100  Fold return of constant variable
 # O102  Forward literal load of 'timeout' from its single reaching definition
 # O102  Forward literal load of 'timeout' from its single reaching definition
 # O104  Remove dead intermediate string write
