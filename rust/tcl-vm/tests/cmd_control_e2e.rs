@@ -2068,3 +2068,45 @@ fn info_exists_without_a_slot_stays_dispatched() {
         ""
     );
 }
+
+/// Only the last statement of a `catch` body is its result; the earlier ones
+/// are discarded as ordinary script execution discards them.
+///
+/// Without that, `catch {set x 1; set y 2}` leaves `1` beneath the result and
+/// a loop around it grows the operand stack without bound. The bytecode is
+/// byte-identical to tclsh 9.0.4, which pops after each non-final command.
+#[test]
+fn a_multi_command_catch_body_discards_all_but_its_last_result() {
+    assert_eq!(
+        run("proc f {} { catch {set x 1; set y 2} m; return \"$m $x $y\" }; f").1,
+        "2 1 2"
+    );
+    assert_eq!(
+        run("proc f {} { catch {set x 1; set y 2; set z 3} m; return $m }; f").1,
+        "3"
+    );
+    // Repeated execution must not accumulate stack.
+    assert_eq!(
+        run("proc f {} { for {set i 0} {$i < 2000} {incr i} { catch {set x 1; set y 2} }; return ok }; f").1,
+        "ok"
+    );
+}
+
+/// A destination word that is not a literal scalar local keeps the dispatched
+/// path, because lowering has already normalised it: `$dst` arrives as `dst`
+/// and `a(key)` as `a`, so the inline store would write the wrong variable.
+#[test]
+fn catch_destinations_that_need_resolving_are_not_inlined() {
+    assert_eq!(
+        run("proc f {} { set dst m; catch {set x ok} $dst; return \"[info exists m] $dst\" }; f").1,
+        "1 m"
+    );
+    // `catch script ?result? ?options?` and no more — C raises this before
+    // running the body, so the body must not run.
+    let (ok, result, _) = run("proc f {} { catch {set ran 1} r o extra }; f");
+    assert!(!ok, "over-arity catch must fail, got {result}");
+    assert!(
+        result.contains("wrong # args"),
+        "and fail the way C does: {result}"
+    );
+}

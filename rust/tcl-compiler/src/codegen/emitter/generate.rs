@@ -560,10 +560,17 @@ fn emit_block_statements(
     let for_init_last_idx = detect_for_init_last_stmt(ctx, cfg, blk);
 
     let first_command_covered = state.first_command_covered_by_if.remove(bname);
+    let is_catch_end_block = state
+        .catch_region_info
+        .values()
+        .any(|info| info.catch_end == *bname);
     for (stmt_idx, stmt) in blk.statements.iter().enumerate() {
         // The defs-only marker `lower_catch` leaves on a `catch_end` block
-        // exists for SSA; its stores were emitted with the scaffolding.
-        if is_catch_defs_marker(stmt) {
+        // exists for SSA; its stores were emitted with the scaffolding. Keyed
+        // on the block being a *detected* catch end, so an ordinary
+        // zero-argument command that happens to be named `catch` — a document
+        // stub, or a user command — is still emitted.
+        if is_catch_end_block && is_catch_defs_marker(stmt) {
             continue;
         }
         ctx.emit_pending_proc_defs(&mut state.pending_proc_defs, stmt.span().start());

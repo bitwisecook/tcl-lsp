@@ -1682,28 +1682,31 @@ impl<'a> CfgBuilder<'a> {
     /// locals, so the store the inline form emits would address the wrong
     /// variable.
     fn lower_catch_dispatch(&mut self, stmt: &Statement, current: &str) -> String {
-        let Statement::Catch {
-            body,
-            result_var,
-            options_var,
-            raw_args,
-            ..
-        } = stmt
-        else {
+        let Statement::Catch { body, raw_args, .. } = stmt else {
             unreachable!();
         };
 
-        let qualified_var = [result_var, options_var]
-            .into_iter()
-            .flatten()
-            .any(|name| name.contains("::"));
         let expands = raw_args.iter().any(|arg| arg.contains("{*}"));
+        // `catch script ?resultVarName? ?optionVarName?` and no more. A fourth
+        // argument is a `wrong # args` error C raises *before* running the
+        // body; inlining would run it and silently ignore the extra word.
+        let over_arity = raw_args.len() > 3;
+        // The destination words have to be written as plain scalar locals.
+        // Lowering normalises `$dst` to `dst` and `a(key)` to `a`, so the
+        // names alone no longer say what was written: inlining
+        // `catch {…} $dst` would store into `dst` rather than into the
+        // variable it names, and `catch {…} a(key)` into a scalar `a`.
+        let indirect_destination = raw_args
+            .iter()
+            .skip(1)
+            .any(|word| !is_plain_local_destination(word));
 
         if !self.is_proc_body
             || raw_args.is_empty()
             || body.statements.is_empty()
-            || qualified_var
             || expands
+            || over_arity
+            || indirect_destination
             || !self.catch_body_is_one_block(body)
         {
             self.emit_opaque_catch(stmt, current);
@@ -2511,6 +2514,18 @@ fn build_cfg_function_with_upvars_inner(
         builder = builder.with_oo_dispatch_widening();
     }
     builder.build_function(name, script)
+}
+
+/// Whether a `catch` destination word is a plain scalar frame local, written
+/// literally.
+///
+/// Anything needing substitution (`$dst`, `[cmd]`), an array element
+/// (`a(key)`), a qualified name (`::ns::v`) or an empty word keeps the opaque
+/// path, where the runtime resolves the word itself.
+fn is_plain_local_destination(word: &str) -> bool {
+    !word.is_empty()
+        && !word.contains("::")
+        && !word.contains(['$', '[', ']', '(', ')', '{', '}', '\\', ' ', '\t', '\n'])
 }
 
 fn command_namespace(qname: &str) -> String {

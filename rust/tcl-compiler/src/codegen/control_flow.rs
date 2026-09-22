@@ -1544,8 +1544,22 @@ impl CodegenCtx<'_> {
             .expect("catch body block present");
 
         let (begin_idx, handler_label) = self.emit_catch_region_prologue(result_var, options_var);
-        for stmt in &body_blk.statements {
-            self.emit_try_body_stmt(stmt);
+        // Only the *last* statement's value is `catch`'s result; every earlier
+        // one is discarded exactly as ordinary script execution discards it.
+        // `emit_try_body_stmt` strips the trailing pop to keep a value on the
+        // stack, so it is right for the final statement and wrong for the
+        // others — without this `catch {set x 1; set y 2}` leaves `1` under
+        // the result, and a loop around it grows the operand stack without
+        // bound. C pops after each non-final command.
+        let last = body_blk.statements.len().saturating_sub(1);
+        for (index, stmt) in body_blk.statements.iter().enumerate() {
+            if index == last {
+                self.emit_try_body_stmt(stmt);
+            } else {
+                let mut ugi = false;
+                self.emit_stmt(stmt, &mut ugi);
+                self.cmd_index += 1;
+            }
         }
         self.emit_catch_region_epilogue(begin_idx, &handler_label, result_var, options_var);
     }
