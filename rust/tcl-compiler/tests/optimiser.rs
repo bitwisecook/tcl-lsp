@@ -2667,3 +2667,40 @@ fn o122_still_converts_past_a_nested_call_to_another_proc() {
         );
     }
 }
+
+/// Tcl substitutes inside a `"…"` expression operand, so a call written there
+/// is a call the statement runs — for the caller-evidence walk and for the
+/// variable-effect walk alike.
+///
+/// Both read the operand through `ExprNode::String`, which spans the quoted
+/// and the braced spelling and keeps its delimiters; both treated every
+/// string as inert. Measured on tclsh 8.6.18 (#2118, found in review).
+#[test]
+fn a_quoted_expression_operand_is_not_inert() {
+    // The caller-evidence half: `id 9` is a call site, so `v` is not the
+    // constant 7. tclsh prints `7` then `9`; the fold printed `7` twice.
+    let evidence = "proc id {v} { return $v }\nproc a {} { set r [expr {\"[id 9]\"}]\n return $r }\nputs [id 7]\nputs [a]\n";
+    assert!(
+        optimised(evidence, TCL).contains("return $v"),
+        "the quoted operand holds a call passing 9: {:?}",
+        opt_rewrites(evidence, TCL)
+    );
+
+    // The variable-effect half: the `incr` really runs, so the load of `x`
+    // after it cannot be forwarded from the store before it. tclsh prints
+    // `2` then `2`; O102 plus O109 made it print `1` twice.
+    let effect = "proc f {} {\n    set x 1\n    set y [expr {\"[incr x]\" + 0}]\n    puts $x\n    puts $y\n}\n";
+    assert!(
+        !opt_fires(effect, TCL, "O102"),
+        "a store cannot be forwarded across a write the operand performs: {:?}",
+        opt_codes(effect, TCL)
+    );
+
+    // Precision: the braced spelling really is inert, and still folds.
+    let braced = "proc f {} {\n    set x 1\n    set y [expr {\"a\" eq \"a\"}]\n    return $y\n}\n";
+    assert!(
+        reparse_errors(braced, TCL).is_empty(),
+        "a quoted operand with no substitution is unaffected: {:?}",
+        reparse_errors(braced, TCL)
+    );
+}

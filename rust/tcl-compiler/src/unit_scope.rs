@@ -1558,10 +1558,10 @@ fn scan_cfg_callers<'a>(
                 // its `[…]` too: `return [expr {[fact …]}]` hid a recursive
                 // call from this scan, leaving the visible sites to read as the
                 // complete caller set (#2118).
-                for lifted in crate::word_subst::lifted_calls_with_registry(
+                for lifted in crate::word_subst::lifted_calls_with_surface(
                     statement_tokens(stmt),
                     config,
-                    ctx.registry,
+                    &ctx.surface(),
                 ) {
                     record_call_site_evidence(out, ctx, &caller, &lifted.command, &lifted.args, 0);
                 }
@@ -1577,7 +1577,7 @@ fn scan_cfg_callers<'a>(
 ///
 /// A fused `AssignExpr`, `ExprEval` or `Incr` keeps a parsed expression or an
 /// amount string in place of a `CommandTokens`, so
-/// [`crate::word_subst::lifted_calls_with_registry`] above sees nothing at all
+/// [`crate::word_subst::lifted_calls_with_surface`] above sees nothing at all
 /// in it. `set r [expr {[id 9]}]` and `incr t [id 9]` therefore contributed no
 /// evidence, and a lone visible `id 7` read as `id`'s complete caller set:
 /// O100 folded `return $v` to `return 7` and tclsh 8.6.18's `7 9` became
@@ -1600,14 +1600,14 @@ fn record_surface_call_sites(
         }
         | Statement::ExprEval {
             expr, expr_base, ..
-        } => crate::word_subst::lifted_calls_in_expr(expr, *expr_base, config, ctx.registry),
+        } => crate::word_subst::lifted_calls_in_expr(expr, *expr_base, config, &ctx.surface()),
         // The amount has no retained word, so a braced `{[f]}` — which runs
         // nothing — is read as a surface too. Over-reporting a caller only
         // retracts evidence; under-reporting one invents agreement.
         Statement::Incr {
             amount: Some(amount),
             ..
-        } => crate::word_subst::lifted_calls_in_text(amount, None, config, ctx.registry),
+        } => crate::word_subst::lifted_calls_in_text(amount, None, config, &ctx.surface()),
         _ => return,
     };
     for lifted in lifted {
@@ -1631,14 +1631,17 @@ fn record_terminator_call_sites(
         Some(crate::cfg::Terminator::Return {
             value_word, expr, ..
         }) => {
-            let mut lifted =
-                crate::word_subst::lifted_calls_in_word(value_word.as_ref(), config, ctx.registry);
+            let mut lifted = crate::word_subst::lifted_calls_in_word(
+                value_word.as_ref(),
+                config,
+                &ctx.surface(),
+            );
             if let Some(expr) = expr {
                 lifted.extend(crate::word_subst::lifted_calls_in_expr(
                     expr,
                     None,
                     config,
-                    ctx.registry,
+                    &ctx.surface(),
                 ));
             }
             lifted
@@ -1651,7 +1654,7 @@ fn record_terminator_call_sites(
             condition,
             *condition_base,
             config,
-            ctx.registry,
+            &ctx.surface(),
         ),
         Some(crate::cfg::Terminator::Goto { .. }) | None => return,
     };
@@ -2075,6 +2078,59 @@ mod tests {
 
     /// The catalogue with no document declarations — what every fixture here
     /// analyses against unless it states otherwise.
+    /// A `# tcl-lsp: stub myexpr {value:expr}` declares an expression word
+    /// exactly as a shipped command does, and lowering honours that role — so
+    /// the `[…]` inside `myexpr {[id 9]}` is a call site this scan must see.
+    ///
+    /// The walk read the bare catalogue, which knows no declared command at
+    /// all, so the call was invisible and a lone visible `id 7` could seed
+    /// `id`'s parameter as the constant `7` (#2118, found in review).
+    #[test]
+    fn a_declared_expression_role_reaches_the_call_site_walk() {
+        use tcl_dialect::model::Provenance;
+        use tcl_registry::model::{DeclaredArgument, DeclaredCommand, DeclaredSurface};
+
+        let reg = CommandRegistry::build_default();
+        let config = tcl_lexer::LexerConfig::for_profile(reg.profile());
+        let cu = crate::compilation_unit::CompilationUnit::build_for(
+            "proc f {x} {\n myexpr {[id 9]}\n}",
+            &reg,
+            false,
+        );
+        let fu = cu.function("::f").expect("proc lowered");
+        let tokens = fu.cfg.blocks.values().find_map(|block| {
+            block.statements.iter().find_map(|stmt| match stmt {
+                Statement::Call { tokens, .. } => tokens.as_ref(),
+                _ => None,
+            })
+        });
+
+        assert!(
+            crate::word_subst::lifted_calls_with_surface(tokens, config, &surface(&reg)).is_empty(),
+            "undeclared, `myexpr`'s braced word is ordinary literal text"
+        );
+
+        let mut declared = DeclaredSurface::new();
+        declared.declare(DeclaredCommand::new(
+            "myexpr".to_owned(),
+            vec![DeclaredArgument {
+                name: "value".to_owned(),
+                role: tcl_registry::ArgRole::Expr,
+                optional: false,
+            }],
+            Provenance::Document,
+        ));
+        let document = tcl_registry::model::DocumentCommandSurface::new(&reg, Some(&declared));
+        assert_eq!(
+            crate::word_subst::lifted_calls_with_surface(tokens, config, &document)
+                .iter()
+                .map(|lifted| (lifted.command.clone(), lifted.args.clone()))
+                .collect::<Vec<_>>(),
+            vec![("id".to_owned(), vec!["9".to_owned()])],
+            "the declaration says the word is an expression, so its `[…]` runs"
+        );
+    }
+
     fn surface(reg: &CommandRegistry) -> tcl_registry::model::DocumentCommandSurface<'_> {
         tcl_registry::model::DocumentCommandSurface::new(reg, None)
     }

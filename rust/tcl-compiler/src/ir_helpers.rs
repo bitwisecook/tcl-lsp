@@ -709,7 +709,18 @@ fn collect_expr_command_surface_refs<'a>(
                 push_text(text, out);
             }
         }
-        ExprNode::Literal { .. } | ExprNode::String { .. } | ExprNode::Var { .. } => {}
+        // `"…"` substitutes inside an expression and `{…}` does not, and the
+        // variant carries its delimiters, so the delimiter decides. Reading
+        // every string as inert hid the write in
+        // `set y [expr {"[incr x]" + 0}]`: tclsh 8.6.18 prints `2` then `2`,
+        // and O102 forwarded the stale `1` across it exactly as it did for a
+        // braced operand before #2141 (#2118, found in review).
+        ExprNode::String { text, .. } => {
+            if let Some(inner) = crate::word_subst::quoted_operand_body(text) {
+                out.push(inner);
+            }
+        }
+        ExprNode::Literal { .. } | ExprNode::Var { .. } => {}
     }
 }
 
@@ -1186,16 +1197,20 @@ fn walk_text(
 ///
 /// Only `Expr` is named, never `Body`: a body word runs in this frame too but
 /// may bind names of its own, which a flat command list cannot represent.
+///
+/// Read through the document's command *surface*, not the bare catalogue: a
+/// `# tcl-lsp: stub myexpr {value:expr}` declares an expression word exactly
+/// as a shipped command does, and lowering honours that role, so `myexpr
+/// {[id 9]}` runs the call it holds. A declaration only ever *adds* a role
+/// position, so this can widen the answer and never narrow it.
 pub(crate) fn in_frame_expression_arg_indices(
     lookup: &str,
     args: &[&str],
-    registry: &CommandRegistry,
+    surface: &tcl_registry::model::DocumentCommandSurface<'_>,
 ) -> Vec<usize> {
-    let mut descend: Vec<usize> = registry
-        .arg_indices_for_role(lookup, args, tcl_registry::ArgRole::Expr)
-        .into_iter()
-        .collect();
-    if registry.get(lookup).is_some_and(|spec| {
+    let mut descend: Vec<usize> =
+        surface.arg_indices_for_role(lookup, args, tcl_registry::ArgRole::Expr);
+    if surface.commands().get(lookup).is_some_and(|spec| {
         spec.traits
             .contains(tcl_registry::Traits::EXPR_CONCATENATES_ARGS)
     }) {
@@ -1249,7 +1264,10 @@ fn walk_braced_expr_words(
             .map(|word| word.literal().unwrap_or("")),
     );
 
-    for index in in_frame_expression_arg_indices(lookup, &args, registry) {
+    // The variable-effect walk is reached from consumers that hold only a
+    // catalogue, so it asks the same owner with no declarations attached.
+    let surface = tcl_registry::model::DocumentCommandSurface::new(registry, None);
+    for index in in_frame_expression_arg_indices(lookup, &args, &surface) {
         // A prepended word is a value the alias already holds, not source
         // this call substitutes.
         let Some(source_index) = index.checked_sub(shift) else {
