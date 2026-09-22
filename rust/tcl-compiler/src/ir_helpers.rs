@@ -720,9 +720,10 @@ fn collect_expr_command_surface_refs<'a>(
 /// through [`nested_bodies`] with the correct execution namespace.  This
 /// helper covers the statement's own evaluated words and expression nodes.
 #[must_use]
-pub(crate) fn evaluated_command_substitution_surfaces(
-    stmt: &Statement,
-) -> EvaluatedCommandSubstitutionSurfaces<'_> {
+pub(crate) fn evaluated_command_substitution_surfaces<'a>(
+    stmt: &'a Statement,
+    registry: &CommandRegistry,
+) -> EvaluatedCommandSubstitutionSurfaces<'a> {
     fn push_text<'a>(text: &'a str, out: &mut Vec<&'a str>) {
         if text.contains('[') {
             out.push(text);
@@ -741,8 +742,26 @@ pub(crate) fn evaluated_command_substitution_surfaces(
                 push_text(amount, &mut texts);
             }
         }
-        Statement::Call { args, .. } | Statement::Barrier { args, .. } => {
-            for arg in args {
+        Statement::Call {
+            command,
+            canonical_command,
+            args,
+            tokens,
+            ..
+        }
+        | Statement::Barrier {
+            command,
+            canonical_command,
+            args,
+            tokens,
+            ..
+        } => {
+            for arg in invoked_word_surfaces(
+                canonical_command.as_deref().unwrap_or(command.as_str()),
+                args,
+                tokens.as_ref(),
+                registry,
+            ) {
                 push_text(arg, &mut texts);
             }
         }
@@ -775,13 +794,8 @@ pub(crate) fn evaluated_command_substitution_surfaces(
         Statement::Catch {
             raw_args, tokens, ..
         } => {
-            for (idx, arg) in raw_args.iter().enumerate() {
-                if !tokens
-                    .as_ref()
-                    .is_some_and(|tokens| tokens.arg_is_braced_literal(idx))
-                {
-                    push_text(arg, &mut texts);
-                }
+            for arg in unbraced_words(raw_args, tokens.as_ref()) {
+                push_text(arg, &mut texts);
             }
         }
         Statement::Try { raw_args, .. } => {
@@ -1030,90 +1044,226 @@ pub(crate) fn evaluated_command_substitutions(
     stmt: &Statement,
     registry: &CommandRegistry,
 ) -> EvaluatedCommandSubstitutions {
-    let surfaces = evaluated_command_substitution_surfaces(stmt);
-    command_substitutions_in_surfaces(&surfaces.texts, surfaces.opaque, registry)
+    evaluated_command_substitutions_with_heads(stmt, registry, None)
+}
+
+/// [`evaluated_command_substitutions`] with a caller-supplied head resolver.
+///
+/// A caller holding the module's command bindings can answer *which command a
+/// recovered head actually reaches*, which the registry alone cannot: after
+/// `interp alias {} e {} expr`, `[e {$x + [incr x]}]` runs `expr` on a word
+/// the raw spelling `e` has no role for, and the `[incr x]` in it was missed.
+/// Callers without bindings pass `None` and get the raw spelling, as before.
+#[must_use]
+pub(crate) fn evaluated_command_substitutions_with_heads(
+    stmt: &Statement,
+    registry: &CommandRegistry,
+    heads: Option<EmbeddedHeadResolver<'_>>,
+) -> EvaluatedCommandSubstitutions {
+    let surfaces = evaluated_command_substitution_surfaces(stmt, registry);
+    command_substitutions_in_surfaces(&surfaces.texts, surfaces.opaque, registry, heads)
+}
+
+/// The command a recovered substitution head reaches, and the words an alias
+/// chain prepends ahead of the ones written at the call site.
+pub(crate) struct ResolvedEmbeddedHead {
+    /// The spelling whose registry descriptor answers for this call.
+    pub command: String,
+    /// Arguments the alias chain supplies before the written ones, which
+    /// shift every written word's index in the callee's own argv.
+    pub prepended: Vec<String>,
+}
+
+/// Resolves a recovered substitution's head. `None` for a spelling with no
+/// single statically known registry-backed target — the raw spelling is then
+/// used, exactly as when no resolver is supplied.
+pub(crate) type EmbeddedHeadResolver<'a> = &'a dyn Fn(&str) -> Option<ResolvedEmbeddedHead>;
+
+fn walk_text(
+    text: &str,
+    config: LexerConfig,
+    registry: &CommandRegistry,
+    heads: Option<EmbeddedHeadResolver<'_>>,
+    depth: u32,
+    in_frame_expression: bool,
+    out: &mut EvaluatedCommandSubstitutions,
+) {
+    if MAX_BRACKET_TEXT_DEPTH.exceeded(depth) {
+        out.opaque = true;
+        return;
+    }
+    let source_map = SourceMap::new(text);
+    let Ok(tokens) = tcl_lexer::Lexer::with_config(text, config).tokenise_all() else {
+        out.opaque = true;
+        return;
+    };
+    for token in tokens.iter().filter(|token| token.kind == TokenType::Cmd) {
+        let inner = source_map.token_text(*token);
+        let recovered = tokenise_command_words(inner, config);
+        for words in &recovered {
+            walk_braced_expr_words(words, config, registry, heads, depth, out);
+        }
+        if in_frame_expression {
+            out.in_frame_expression_commands.extend(recovered);
+        } else {
+            out.commands.extend(recovered);
+        }
+        walk_text(
+            inner,
+            config,
+            registry,
+            heads,
+            depth + 1,
+            in_frame_expression,
+            out,
+        );
+    }
+}
+
+/// Descend the brace-quoted words a recovered command evaluates **as an
+/// expression in this frame**.
+///
+/// The word lexer is right to stop at `{…}` — the *command* parser
+/// substitutes nothing there — but `expr` re-parses that text as an
+/// expression, and a `[…]` in it is a substitution the statement really
+/// runs. `puts [expr {$x + [incr x]}]` writes `x` exactly as
+/// `puts [incr x]` does, and without this descent the write was invisible
+/// and O102 forwarded a stale literal across it (#2141).
+///
+/// Two shapes reach the same expression, and both are taken from the
+/// registry rather than from the spelling `expr`:
+///
+/// * a single [`tcl_registry::ArgRole::Expr`] word — `[expr {$x + 1}]`;
+/// * every word of a command that
+///   [concatenates its arguments into one expression](tcl_registry::Traits::EXPR_CONCATENATES_ARGS).
+///   `expr 1 + {[incr x]}` joins its words into `1 + [incr x]` and then
+///   parses *that*, so the braced word's `[…]` runs: tclsh 8.6.18 and
+///   9.0.4 both print `3` then `2` for
+///   `set x 1; puts [expr 1 + {[incr x]}]; puts $x`.
+///
+/// Only `Expr` is descended, never `Body`: a body word runs in this frame
+/// too but may bind names of its own, which a flat command list cannot
+/// represent.
+fn walk_braced_expr_words(
+    words: &[CommandWord],
+    config: LexerConfig,
+    registry: &CommandRegistry,
+    heads: Option<EmbeddedHeadResolver<'_>>,
+    depth: u32,
+    out: &mut EvaluatedCommandSubstitutions,
+) {
+    if MAX_BRACKET_TEXT_DEPTH.exceeded(depth) {
+        out.opaque = true;
+        return;
+    }
+    let Some(head) = words.first().and_then(CommandWord::literal) else {
+        return;
+    };
+    let resolved = heads.and_then(|resolve| resolve(head));
+    let (lookup, prepended) = resolved.as_ref().map_or((head, [].as_slice()), |target| {
+        (target.command.as_str(), target.prepended.as_slice())
+    });
+    // The callee's own argv: whatever an alias chain prepends, then the
+    // words written here. Every role index the registry answers with is
+    // an index into *that*, so a written word sits at `index - shift`.
+    let shift = prepended.len();
+    let mut args: Vec<&str> = prepended.iter().map(String::as_str).collect();
+    args.extend(
+        words
+            .iter()
+            .skip(1)
+            .map(|word| word.literal().unwrap_or("")),
+    );
+
+    let mut descend: Vec<usize> = registry
+        .arg_indices_for_role(lookup, &args, tcl_registry::ArgRole::Expr)
+        .into_iter()
+        .collect();
+    if registry.get(lookup).is_some_and(|spec| {
+        spec.traits
+            .contains(tcl_registry::Traits::EXPR_CONCATENATES_ARGS)
+    }) {
+        descend.extend(shift..args.len());
+    }
+    descend.sort_unstable();
+    descend.dedup();
+
+    for index in descend {
+        // A prepended word is a value the alias already holds, not source
+        // this call substitutes.
+        let Some(source_index) = index.checked_sub(shift) else {
+            continue;
+        };
+        // An unbraced expression word already substituted at the command
+        // level, so the enclosing walk has seen its `[…]` and descending
+        // again would double-count the effect.
+        let Some(word) = words
+            .get(source_index + 1)
+            .filter(|word| word.braced_literal)
+        else {
+            continue;
+        };
+        walk_text(&word.text, config, registry, heads, depth + 1, true, out);
+    }
+}
+
+/// The words of a statement that keeps its own raw argv, minus the
+/// brace-quoted ones: Tcl substitutes nothing inside braces, so a `[…]`
+/// there is text the statement does not run.
+fn unbraced_words<'a>(
+    args: &'a [String],
+    tokens: Option<&CommandTokens>,
+) -> impl Iterator<Item = &'a str> {
+    let braced: Vec<bool> = (0..args.len())
+        .map(|idx| tokens.is_some_and(|tokens| tokens.arg_is_braced_literal(idx)))
+        .collect();
+    args.iter()
+        .enumerate()
+        .filter(move |(idx, _)| !braced[*idx])
+        .map(|(_, arg)| arg.as_str())
+}
+
+/// The argument words of an invocation that are this statement's own
+/// substitution surface.
+///
+/// A *structural* body — one the registry says runs in a separate definition
+/// or dispatch context rather than in this frame — is excluded. The module
+/// doc already says bodies are [`nested_bodies`]' job; the invocation arm of
+/// [`evaluated_command_substitution_surfaces`] simply never applied it.
+///
+/// `proc q {} {…}` is the case that matters. Its body is lowered into a
+/// procedure of its own, so reading it here attributed the body's
+/// substitutions to the enclosing `proc` statement: once those carried reads
+/// as well as writes, `puts [incr m]` inside the body reported `W210 'm' is
+/// read before it is set` against the caller's frame, on a program tclsh
+/// 9.0.4 runs cleanly (it prints `2`).
+///
+/// A `Plain` body — `catch`, `eval`, a loop — shares this frame and stays,
+/// exactly where [`crate::ssa::structural_body_indices`] draws the line for
+/// `ssa::scan_command_words`.
+fn invoked_word_surfaces<'a>(
+    lookup: &str,
+    args: &'a [String],
+    tokens: Option<&CommandTokens>,
+    registry: &CommandRegistry,
+) -> impl Iterator<Item = &'a str> {
+    let structural = crate::ssa::structural_body_indices(lookup, args, tokens, registry);
+    args.iter()
+        .enumerate()
+        .filter(move |(idx, _)| !structural.contains(idx))
+        .map(|(_, arg)| arg.as_str())
 }
 
 /// Recover commands from an already-selected collection of evaluated Tcl
-/// source surfaces.
+/// source surfaces, resolving each recovered head through `heads` when the
+/// caller can supply one.
 #[must_use]
 pub(crate) fn command_substitutions_in_surfaces(
     surfaces: &[&str],
     initially_opaque: bool,
     registry: &CommandRegistry,
+    heads: Option<EmbeddedHeadResolver<'_>>,
 ) -> EvaluatedCommandSubstitutions {
-    fn walk_text(
-        text: &str,
-        config: LexerConfig,
-        registry: &CommandRegistry,
-        depth: u32,
-        in_frame_expression: bool,
-        out: &mut EvaluatedCommandSubstitutions,
-    ) {
-        if MAX_BRACKET_TEXT_DEPTH.exceeded(depth) {
-            out.opaque = true;
-            return;
-        }
-        let source_map = SourceMap::new(text);
-        let Ok(tokens) = tcl_lexer::Lexer::with_config(text, config).tokenise_all() else {
-            out.opaque = true;
-            return;
-        };
-        for token in tokens.iter().filter(|token| token.kind == TokenType::Cmd) {
-            let inner = source_map.token_text(*token);
-            let recovered = tokenise_command_words(inner, config);
-            for words in &recovered {
-                walk_braced_expr_words(words, config, registry, depth, out);
-            }
-            if in_frame_expression {
-                out.in_frame_expression_commands.extend(recovered);
-            } else {
-                out.commands.extend(recovered);
-            }
-            walk_text(inner, config, registry, depth + 1, in_frame_expression, out);
-        }
-    }
-
-    /// Descend the brace-quoted words a recovered command evaluates **as an
-    /// expression in this frame**.
-    ///
-    /// The word lexer is right to stop at `{…}` — the *command* parser
-    /// substitutes nothing there — but `expr` re-parses that text as an
-    /// expression, and a `[…]` in it is a substitution the statement really
-    /// runs. `puts [expr {$x + [incr x]}]` writes `x` exactly as
-    /// `puts [incr x]` does, and without this descent the write was invisible
-    /// and O102 forwarded a stale literal across it (#2141).
-    ///
-    /// Only [`tcl_registry::ArgRole::Expr`] is descended: it is the in-frame
-    /// role that binds no variables of its own, so its reads and writes belong
-    /// to this frame. A `Body` word runs in this frame too but may bind its
-    /// own names, which this flat command list cannot represent.
-    fn walk_braced_expr_words(
-        words: &[CommandWord],
-        config: LexerConfig,
-        registry: &CommandRegistry,
-        depth: u32,
-        out: &mut EvaluatedCommandSubstitutions,
-    ) {
-        let Some(head) = words.first().and_then(CommandWord::literal) else {
-            return;
-        };
-        let args: Vec<&str> = words
-            .iter()
-            .skip(1)
-            .map(|word| word.literal().unwrap_or(""))
-            .collect();
-        for index in registry.arg_indices_for_role(head, &args, tcl_registry::ArgRole::Expr) {
-            // An unbraced expression word already substituted at the command
-            // level, so the enclosing walk has seen its `[…]` and descending
-            // again would double-count the effect.
-            let Some(word) = words.get(index + 1).filter(|word| word.braced_literal) else {
-                continue;
-            };
-            walk_text(&word.text, config, registry, depth + 1, true, out);
-        }
-    }
-
     let config = registry
         .profile()
         .map_or_else(LexerConfig::default, |profile| {
@@ -1124,7 +1274,7 @@ pub(crate) fn command_substitutions_in_surfaces(
         ..EvaluatedCommandSubstitutions::default()
     };
     for text in surfaces {
-        walk_text(text, config, registry, 0, false, &mut out);
+        walk_text(text, config, registry, heads, 0, false, &mut out);
     }
     out
 }
@@ -1134,11 +1284,12 @@ pub(crate) fn command_substitutions_in_surfaces(
 pub(crate) fn expression_command_substitutions(
     expr: &ExprNode,
     registry: &CommandRegistry,
+    heads: Option<EmbeddedHeadResolver<'_>>,
 ) -> EvaluatedCommandSubstitutions {
     let mut texts = Vec::new();
     let mut opaque = false;
     collect_expr_command_surface_refs(expr, &mut texts, &mut opaque, 0);
-    command_substitutions_in_surfaces(&texts, opaque, registry)
+    command_substitutions_in_surfaces(&texts, opaque, registry, heads)
 }
 
 /// Map one segmented command onto its per-word [`CommandWord`] facts.
@@ -1473,6 +1624,7 @@ mod tests {
                     braced,
                 },
                 &registry,
+                None,
             )
             .commands
         };

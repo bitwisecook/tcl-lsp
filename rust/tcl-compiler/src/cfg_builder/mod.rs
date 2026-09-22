@@ -841,13 +841,55 @@ impl<'a> CfgBuilder<'a> {
         extras
     }
 
+    /// Resolve a recovered substitution's head through the module's command
+    /// bindings, so a registry-owned role question about it is asked of the
+    /// command it really reaches.
+    ///
+    /// Without this, `interp alias {} e {} expr` hid an expression word from
+    /// the in-frame descent: the raw spelling `e` has no `ArgRole::Expr`, so
+    /// the `[incr x]` of `[e {$x + [incr x]}]` was invisible and the later
+    /// read folded to the stale literal — tclsh 8.6.18 / 9.0.4 print `3` then
+    /// `2`.
+    ///
+    /// Answers only for a spelling with exactly one statically known
+    /// registry-backed target. Several possible bindings mean the role
+    /// question has no single answer, and a user procedure carries no
+    /// registry roles at all; both fall back to the raw spelling.
+    fn embedded_head_resolver(
+        &self,
+    ) -> impl Fn(&str) -> Option<crate::ir_helpers::ResolvedEmbeddedHead> + '_ {
+        |head: &str| {
+            let namespace = self.invocation_namespace.for_head(head)?;
+            if self
+                .command_bindings
+                .target_resolution_may_be_unknown(head, namespace)
+            {
+                return None;
+            }
+            let mut found = self.command_bindings.targets(head, namespace).into_iter();
+            let target = found.next()?;
+            if found.next().is_some() || !target.registry_backed {
+                return None;
+            }
+            Some(crate::ir_helpers::ResolvedEmbeddedHead {
+                command: target.command,
+                prepended: target.prepended,
+            })
+        }
+    }
+
     /// The embedded-substitution half of [`Self::upvar_invalidated`]: the
     /// caller-side defs contributed by `[…]` substitutions in the
     /// statement's argument words (or an assignment's value), the subset of
     /// those the embedded command reads before writing, plus whether any
     /// embedded callee runs an unreadable script at the global frame.
     fn embedded_subst_extras(&self, stmt: &Statement) -> EmbeddedSubstExtras {
-        let embedded = crate::ir_helpers::evaluated_command_substitutions(stmt, self.registry);
+        let resolve = self.embedded_head_resolver();
+        let embedded = crate::ir_helpers::evaluated_command_substitutions_with_heads(
+            stmt,
+            self.registry,
+            Some(&resolve),
+        );
         let mut embedded_extras: Vec<String> = Vec::new();
         let mut embedded_opaque_global = embedded.opaque;
         let upvar = self.upvar_effects_from_commands(&embedded.commands);
@@ -991,8 +1033,11 @@ impl<'a> CfgBuilder<'a> {
     /// def list can enumerate what the condition's evaluation clobbers.
     fn condition_out_vars(&self, condition: &ExprNode) -> (Vec<String>, bool) {
         let mut out = crate::ir_helpers::condition_command_out_vars(condition, self.registry);
-        let embedded =
-            crate::ir_helpers::expression_command_substitutions(condition, self.registry);
+        let embedded = crate::ir_helpers::expression_command_substitutions(
+            condition,
+            self.registry,
+            Some(&self.embedded_head_resolver()),
+        );
         let upvar = self.upvar_effects_from_commands(&embedded.commands);
         let opaque_upvar = upvar.opaque_arguments;
         for d in upvar.defs {

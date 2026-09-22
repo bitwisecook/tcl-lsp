@@ -103,6 +103,18 @@ fn opt_count(src: &str, dialect: &str, code: &str) -> usize {
         .count()
 }
 
+/// Every analyser diagnostic code for `src`, at any severity — `reparse_errors`
+/// keeps only `Severity::Error`, so a warning-level code (W210, W211) needs
+/// this instead.
+fn analyser_codes(src: &str, dialect: &str) -> Vec<String> {
+    Analyser::new()
+        .analyse(src, dialect)
+        .diagnostics
+        .iter()
+        .map(|d| d.code.to_string())
+        .collect()
+}
+
 /// Error-severity diagnostic codes the user-facing `tcl diag` surface reports
 /// for `src` — the analyser pass plus `run_all_checks`, optimisation codes
 /// dropped, mirroring `checks.rs::codes`. Empty means the source re-parses;
@@ -2232,5 +2244,73 @@ fn a_direct_read_before_write_still_forwards_its_literal() {
     assert!(
         incremented.contains("puts 2"),
         "a self-assigning expression still folds through: {incremented}"
+    );
+}
+
+/// A multi-word `expr` concatenates its arguments into one expression, so a
+/// `[…]` inside a braced *argument* runs too.
+///
+/// `expr 1 + {[incr x]}` joins its words into `1 + [incr x]` and parses that,
+/// which makes the brace-quoted word's substitution a real write of `x`.
+/// Taking only the `ArgRole::Expr` word missed it and O102 forwarded the stale
+/// literal: tclsh 8.6.18 and 9.0.4 both print `3` then `2`, the rewritten
+/// program printed `3` then `1`. The rule comes from the registry's
+/// `EXPR_CONCATENATES_ARGS` trait, not from the spelling `expr`.
+#[test]
+fn a_concatenated_expr_argument_is_an_expression_word() {
+    let src = "set x 1\nputs [expr 1 + {[incr x]}]\nputs $x\n";
+    let out = optimised(src, TCL);
+    assert!(
+        !out.contains("puts 1"),
+        "the later read sees 2, not the forwarded literal: {out}"
+    );
+    assert!(
+        !opt_fires(src, TCL, "O109"),
+        "`set x 1` feeds the concatenated `[incr x]`: {:?}",
+        opt_codes(src, TCL)
+    );
+    assert_eq!(out, src, "no rewrite in this program is sound");
+}
+
+/// An expression reached through an alias resolves its words like the command
+/// it reaches.
+///
+/// After `interp alias {} e {} expr`, the raw spelling `e` carries no
+/// `ArgRole::Expr`, so the `[incr x]` of `[e {$x + [incr x]}]` was invisible
+/// and the later read folded to `1` where tclsh 8.6.18 / 9.0.4 print `2`.
+#[test]
+fn an_alias_to_expr_still_shows_its_nested_write() {
+    let src = "interp alias {} e {} expr\nset x 1\nputs [e {$x + [incr x]}]\nputs $x\n";
+    let out = optimised(src, TCL);
+    assert!(
+        !out.contains("puts 1"),
+        "the alias runs `incr`, so the later read is not the literal: {out}"
+    );
+    assert_eq!(out, src, "no rewrite in this program is sound");
+}
+
+/// A structural body is not the enclosing statement's substitution surface.
+///
+/// `proc q {} {…}` lowers its body into a procedure of its own, so the `[incr
+/// m]` inside it belongs to that procedure's frame. Reading it from the
+/// enclosing `proc` statement attributed a caller-frame read of the proc's own
+/// local, and W210 fired on a program tclsh 9.0.4 runs cleanly (it prints `2`).
+/// A `Plain` body — `eval`, `catch`, a loop — shares this frame and must still
+/// contribute its effects.
+#[test]
+fn a_structural_body_is_not_the_enclosing_statements_surface() {
+    let proc_body = "proc q {} {\n  set m 1\n  puts [incr m]\n}\nq\n";
+    let codes = analyser_codes(proc_body, TCL);
+    assert!(
+        !codes.iter().any(|c| c == "W210"),
+        "the proc's own local is not a caller-frame read: {codes:?}"
+    );
+    // A `Plain` body runs here, so its write still reaches the frame: `set m
+    // 1` is read by the `eval`'d `incr` and must survive.
+    let plain_body = "proc p {} {\n  set m 1\n  eval {incr m}\n  puts $m\n}\np\n";
+    assert!(
+        !opt_fires(plain_body, TCL, "O109"),
+        "an `eval`'d body shares this frame: {:?}",
+        opt_codes(plain_body, TCL)
     );
 }
