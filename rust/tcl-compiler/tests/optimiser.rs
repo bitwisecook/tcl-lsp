@@ -1510,11 +1510,20 @@ fn unused_irule_procs_o124() {
     assert!(!opt_fires(supersede, IR, "O121"));
     assert!(!opt_fires(supersede, IR, "O122"));
 
-    // O124 does not block independent passes for a *used* proc (O120 still fires
-    // inside it); the used proc is not commented out.
-    let used_o120 = "proc helper {x} {\n    if {$x == \"foo\"} {\n        return 1\n    }\n    return 0\n}\n\nwhen HTTP_REQUEST {\n    set val [call helper bar]\n}";
-    assert!(opt_fires(used_o120, IR, "O120"));
-    assert!(!opt_fires(used_o120, IR, "O124"));
+    // O124 does not block independent passes for a *used* proc; the used proc
+    // is not commented out.
+    //
+    // The pass that fires here is O112, not O120: `[call helper bar]` is a
+    // command substitution nested in a word, and since #2134 those are
+    // enumerated as call sites, so `x` is known to be `bar` inside the body
+    // and the `foo` branch is proven dead. Before that the caller was
+    // invisible, nothing was seeded, and only the weaker O120 rewrite applied.
+    let used_body = "proc helper {x} {\n    if {$x == \"foo\"} {\n        return 1\n    }\n    return 0\n}\n\nwhen HTTP_REQUEST {\n    set val [call helper bar]\n}";
+    assert!(
+        opt_fires(used_body, IR, "O112"),
+        "the now-visible caller proves the foo branch dead",
+    );
+    assert!(!opt_fires(used_body, IR, "O124"));
 }
 
 #[test]

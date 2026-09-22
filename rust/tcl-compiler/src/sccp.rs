@@ -2111,15 +2111,51 @@ pub fn parse_literal_value(text: &str) -> ConstValue {
     if is_decimal_int
         && let Ok(i) = stripped.parse::<i64>()
         && i.to_string() == stripped
+        // Only when the literal *is* the integer, with nothing around it.
+        // `" 5"` renders back as `5`, losing the space the program keeps.
+        && stripped == text
     {
         return ConstValue::Int(i);
     }
-    ConstValue::String(stripped.to_owned())
+    // The exact spelling, not the trimmed one. Trimming here corrupted the
+    // value for every consumer of the lattice: `set p { again}` reached the
+    // lattice as `again`, so `append s $p` was rewritten to `append s again`
+    // and the program printed `helloagain` where tclsh prints `hello again`
+    // (#2052). Whitespace inside a Tcl word is data.
+    ConstValue::String(text.to_owned())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Whitespace inside a Tcl word is data, so the lattice keeps the exact
+    /// spelling (#2052).
+    ///
+    /// Trimming corrupted every consumer: `set p { again}` reached the lattice
+    /// as `again`, so `append s $p` was rewritten to `append s again` and the
+    /// program printed `helloagain` where tclsh 9.0.4 prints `hello again`.
+    /// `string length $p` folded to 5 against the true 6.
+    #[test]
+    fn a_literal_keeps_its_surrounding_whitespace() {
+        assert_eq!(
+            parse_literal_value(" again"),
+            ConstValue::String(" again".to_owned()),
+        );
+        assert_eq!(
+            parse_literal_value("trailing "),
+            ConstValue::String("trailing ".to_owned()),
+        );
+        // An integer with whitespace around it is not the integer: rendering
+        // it back as `5` would drop the space just as surely.
+        assert_eq!(
+            parse_literal_value(" 5"),
+            ConstValue::String(" 5".to_owned()),
+        );
+        // The bare integer still folds.
+        assert_eq!(parse_literal_value("5"), ConstValue::Int(5));
+        assert_eq!(parse_literal_value("-17"), ConstValue::Int(-17));
+    }
     use crate::cfg::{Block, BlockId, Function, Terminator};
     use crate::expr_ast::ExprNode;
 

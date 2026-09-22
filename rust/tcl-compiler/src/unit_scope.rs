@@ -1538,16 +1538,40 @@ fn scan_cfg_callers<'a>(
             params: declared.map_or(&[][..], |p| p.params.as_slice()),
             callers_tracked: declared.is_some() || func.name == "::top",
         };
+        let config = tcl_lexer::LexerConfig::from_grammar(ctx.dialect.grammar);
         for block in func.blocks.values() {
             for stmt in &block.statements {
-                let (Statement::Call { command, args, .. }
-                | Statement::Barrier { command, args, .. }) = stmt
-                else {
-                    continue;
-                };
-                record_call_site_evidence(out, ctx, &caller, command, args, 0);
+                if let Statement::Call { command, args, .. }
+                | Statement::Barrier { command, args, .. } = stmt
+                {
+                    record_call_site_evidence(out, ctx, &caller, command, args, 0);
+                }
+                // A command substitution nested in a word is a call site too.
+                // Enumerating only the statements that *are* a command let
+                // `[bump m]` in `set z [bump m]` go unattributed, so a single
+                // visible `bump n` read as the complete caller set and O100
+                // specialised the body to `upvar 1 n v`. Measured on tclsh
+                // 9.0.4: `2 11 11` became `3 10 3` (#2134). An absence of
+                // contradicting evidence must not read as agreement.
+                for lifted in crate::word_subst::lifted_calls(statement_tokens(stmt), config) {
+                    record_call_site_evidence(out, ctx, &caller, &lifted.command, &lifted.args, 0);
+                }
             }
         }
+    }
+}
+
+/// The lexed words a statement kept, for lifting the calls nested in them.
+///
+/// `None` for a statement that kept no token record — a fused `AssignExpr`,
+/// `ExprEval` or `Incr` holds a parsed expression or an amount string instead.
+/// Those are a known remaining gap rather than a claim that they run nothing.
+fn statement_tokens(stmt: &Statement) -> Option<&crate::ir::CommandTokens> {
+    match stmt {
+        Statement::Call { tokens, .. }
+        | Statement::Barrier { tokens, .. }
+        | Statement::AssignValue { tokens, .. } => tokens.as_ref(),
+        _ => None,
     }
 }
 
@@ -2267,6 +2291,54 @@ mod tests {
         assert_eq!(
             cu.caller_scope.call_sites.callees().collect::<Vec<_>>(),
             vec!["::a::helper"],
+        );
+    }
+
+    /// A command substitution nested in a word is a call site (#2134).
+    ///
+    /// Enumerating only the statements that *are* a command let `[bump m]`
+    /// go unattributed, so the single visible `bump n` read as the complete
+    /// caller set and O100 specialised the body to `upvar 1 n v`. Measured on
+    /// tclsh 9.0.4, the program printed `2 11 11` and the rewritten one
+    /// `3 10 3`.
+    #[test]
+    fn a_nested_substitution_counts_as_a_caller() {
+        let reg = registry();
+        let src = "proc bump {name} {\n  upvar 1 $name v\n  incr v\n}\nset n 1\nset m 10\nbump n\nset z [bump m]\n";
+        let cu = crate::compilation_unit::CompilationUnit::build_for(src, &reg, false);
+        assert!(
+            cu.caller_scope
+                .call_sites
+                .callees()
+                .any(|callee| callee == "::bump"),
+            "the nested `[bump m]` must be attributed to ::bump",
+        );
+        // The two callers disagree on the argument, so nothing may be seeded.
+        assert_eq!(
+            cu.caller_scope
+                .call_sites
+                .get("::bump")
+                .and_then(|evidence| evidence.uniform_literal_at(0)),
+            None,
+            "disagreeing callers must not look uniform",
+        );
+    }
+
+    /// Callers that agree still seed — the nested site is *counted*, not
+    /// treated as opaque.
+    #[test]
+    fn agreeing_callers_still_seed_through_a_substitution() {
+        let reg = registry();
+        let src =
+            "proc bump {name} {\n  upvar 1 $name v\n  incr v\n}\nset n 1\nbump n\nset z [bump n]\n";
+        let cu = crate::compilation_unit::CompilationUnit::build_for(src, &reg, false);
+        assert_eq!(
+            cu.caller_scope
+                .call_sites
+                .get("::bump")
+                .and_then(|evidence| evidence.uniform_literal_at(0)),
+            Some("n"),
+            "callers that agree on `n` must still seed",
         );
     }
 

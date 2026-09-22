@@ -69,7 +69,14 @@ Adds constant folding and pattern recognition on top of readability:
 
 Shows "this could be simpler" without deleting any code. Dead stores from
 constant propagation remain in the output — the code is simplified but not
-shortened. **18 rewrites** on the sample input.
+shortened. **19 rewrites** on the sample input.
+
+One of those 19 is the `passthrough` stanza's `O100 Fold return of constant
+variable`: `set route [passthrough 42]` is the proc's only call, so the
+specialiser proves `x` is `42` there and `return $x` becomes `return 42`. The
+call site is a *nested* substitution, and until #2134 the call-site evidence
+walk only saw a call written as a whole statement, so this rewrite is newer
+than the rest of the stanza's prose.
 
 Note what this profile does *not* do to the sample, because it is a **single**
 pass: `set half [expr {$timeout / 2}]` still reads `$timeout`. Folding it to
@@ -120,7 +127,7 @@ non-literal `candidate` assignment separates `route` from the other two. The
 `lassign` in the committed output is the O119 stanza's own
 `set a 1; set b 2; set c 3`.
 
-The aggressive profile finds **46 rewrites** on the sample input against 24 in
+The aggressive profile finds **47 rewrites** on the sample input against 25 in
 single-pass `full`. (This figure read 42 until #1962; the committed golden
 already said 45 before that fix, so it had drifted by three independently —
 the readability, standard and full counts above were and remain correct.) It is the only profile that folds the arithmetic through:

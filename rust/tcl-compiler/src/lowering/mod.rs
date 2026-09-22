@@ -1180,6 +1180,23 @@ impl<'r> Lowerer<'r> {
     /// This is the procedure-target counterpart of [`Self::lower`].  It uses
     /// the same fresh frame as a static `proc` body, while retaining all
     /// module-wide side effects (nested procedures, aliases, namespaces, OO
+    /// Whether `command` is absent from this lowering's own dialect surface.
+    ///
+    /// Only a command the registry *knows* and that the profile *excludes*
+    /// answers true: an unknown name (a user proc, a package command) is not
+    /// this question's subject and keeps its ordinary treatment.
+    fn command_is_unavailable_here(&self, command: &str) -> bool {
+        let bare = command.strip_prefix("::").unwrap_or(command);
+        self.registry
+            .get(bare)
+            .is_some_and(|spec| !spec.supports_dialect(self.registry.own_surface_query()))
+    }
+
+    /// Lower a runtime procedure body as this module's top-level script.
+    ///
+    /// This is the procedure-target counterpart of [`Self::lower`].  It uses
+    /// the same fresh frame as a static `proc` body, while retaining all
+    /// module-wide side effects (nested procedures, aliases, namespaces, OO
     /// definitions, and traces) for the bytecode backend.
     pub fn lower_procedure_target(&mut self, source: &str, namespace: &str) -> &Module {
         self.start_module();
@@ -3236,6 +3253,16 @@ impl<'r> Lowerer<'r> {
             // an aliased upvar falsely silence W210.  Keep the prepended-level
             // vector above for the other registry role queries, but do not
             // manufacture generic Call defs for this layout.
+            Vec::new()
+        } else if self.command_is_unavailable_here(&role_cmd) {
+            // A write by a command this profile does not have is not a write.
+            // Under `tcl8.4` there is no `lassign`, so
+            // `catch {lassign {new second} a b} m` raises
+            // `invalid command name` before writing anything and `a` keeps its
+            // previous value — tclsh 8.4.20 prints `old` for the issue's
+            // program. Manufacturing the def let O109 delete the store that
+            // fed it, and the rewritten program then failed with
+            // `can't read "a": no such variable` (#2144).
             Vec::new()
         } else {
             surface.arg_indices_for_role(&role_cmd, &role_args_ref, ArgRole::VarWrite)
