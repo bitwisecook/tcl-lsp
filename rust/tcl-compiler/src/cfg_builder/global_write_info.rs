@@ -825,8 +825,11 @@ fn own_write_targets(
     }
     let embedded = crate::ir_helpers::evaluated_command_substitutions(stmt, registry);
     let direct = aliases.variable_write_projection(stmt, registry, namespace);
+    // Variable writes count from an in-frame expression word too: `set y
+    // [expr {[incr ::hits]}]` writes the global exactly as `[incr ::hits]` in
+    // a bare word does.
     let nested =
-        crate::ir_helpers::variable_write_effects_from_commands(&embedded.commands, registry);
+        crate::ir_helpers::variable_write_effects_from_commands(embedded.all_commands(), registry);
     out.extend(direct.literal_names);
     out.extend(nested.names);
     (
@@ -913,6 +916,7 @@ pub(super) fn script_value_write_projection(
     );
     tcl_registry::VariableWriteProjection {
         literal_names: names.into_iter().collect(),
+        read_before_write_names: Vec::new(),
         opaque_variable_frame: opaque,
     }
 }

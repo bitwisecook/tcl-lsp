@@ -10,7 +10,7 @@
 # O114: incr idiom
 set count 0
 incr count
-puts $count
+puts 1
 
 # O117: string length check -> eq ""
 proc is_empty {s} {
@@ -32,7 +32,7 @@ proc greet {name} {
 # reason is elsewhere in this file: the `factorial` stanza below stops O115
 # being reported at all in a single pass (see README.md).
 proc double_expr {x} {
-    return [expr {[expr {$x * 2}]}]
+    return [expr {$x * 2}]
 }
 
 # --- Constant folding candidates (O100, O101, O102, O103, O110, O113, O116, O118) ---
@@ -45,21 +45,20 @@ proc passthrough {x} {
     return 42
 }
 
-set timeout 30
-set half [expr {$timeout / 2}]
-set threshold [expr {$timeout + 10}]
-set candidate [expr {$request_count + 1 + 2}]
-set route [passthrough 42]
+set half 15
+set threshold 40
+set candidate [expr {$request_count + 3}]
+set route 42
 
 # O116: fold constant list
-set colours [list red green blue]
+set colours {red green blue}
 
 # O118: fold constant lindex
-set second [lindex {alpha beta gamma} 1]
+set second beta
 
 # O113: strength reduction
 proc square {r} {
-    return [expr {$r ** 2}]
+    return [expr {$r * $r}]
 }
 
 # --- Pattern recognition (O104, O119) ---
@@ -129,14 +128,24 @@ proc sum_list {lst} {
 
 
 # -------------
-# optimised: 25 rewrite(s)
+# optimised: 35 rewrite(s)
 # O102  Forward literal load of 'count' from its single reaching definition
 # O114  Use incr instead of set/expr
+# O100  Inline the constant value of 'count' proved at this read
 # O117  Simplify string length zero-check
 # O120  Use eq/ne for string comparison
+# O115  Remove redundant nested expr
 # O100  Fold return of constant variable
+# O109  Eliminate dead store
+# O100  Propagate constant and fold
 # O102  Forward literal load of 'timeout' from its single reaching definition
+# O100  Propagate constant and fold
 # O102  Forward literal load of 'timeout' from its single reaching definition
+# O110  Simplify expression (instcombine)
+# O103  Fold pure-proc call to '::passthrough' to its constant return
+# O116  Fold constant list command
+# O118  Fold constant lindex command
+# O110  Simplify expression (instcombine)
 # O104  Remove dead intermediate string write
 # O104  Remove dead intermediate string write
 # O104  Fold write-only string build chain

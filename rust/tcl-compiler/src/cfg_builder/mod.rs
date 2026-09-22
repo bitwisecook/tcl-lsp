@@ -136,6 +136,18 @@ struct ResolvedUpvarEffects {
     frame_barrier: crate::dynamic_names::DynamicNameBarrier,
 }
 
+/// The caller-frame effects a statement's `[…]` substitutions contribute.
+#[derive(Default)]
+struct EmbeddedSubstExtras {
+    /// Variables an embedded substitution writes.
+    defs: Vec<String>,
+    /// The subset of [`Self::defs`] the embedded command reads before
+    /// writing (`[incr n]`, `[append s x]`).
+    read_before_write: Vec<String>,
+    /// An embedded callee runs an unreadable script at the global frame.
+    opaque_global: bool,
+}
+
 /// Whether a call-shaped IR statement has one statically literal command
 /// head. Computed dispatch already has its own dynamic-command handling; a
 /// runtime-selected namespace only adds uncertainty for a literal relative
@@ -433,6 +445,7 @@ impl<'a> CfgBuilder<'a> {
             }
             return tcl_registry::VariableWriteProjection {
                 literal_names: Vec::new(),
+                read_before_write_names: Vec::new(),
                 opaque_variable_frame: true,
             };
         };
@@ -635,7 +648,11 @@ impl<'a> CfgBuilder<'a> {
 
         // 3. Embedded-substitution extras: walk text for
         //    `[upvar_proc arg]` / `[global_write_proc arg]` substitutions.
-        let (embedded_extras, embedded_opaque_global) = self.embedded_subst_extras(&stmt);
+        let EmbeddedSubstExtras {
+            defs: embedded_extras,
+            read_before_write: embedded_reads,
+            opaque_global: embedded_opaque_global,
+        } = self.embedded_subst_extras(&stmt);
 
         if direct_extras.is_empty() && embedded_extras.is_empty() && !embedded_opaque_global {
             return match direct_opaque_barrier {
@@ -663,7 +680,7 @@ impl<'a> CfgBuilder<'a> {
         });
 
         // 3. Merge into the host statement when it's a Call.
-        if let Statement::Call { defs, .. } = &mut stmt {
+        if let Statement::Call { defs, reads, .. } = &mut stmt {
             for d in direct_extras {
                 if !defs.contains(&d) {
                     defs.push(d);
@@ -672,6 +689,14 @@ impl<'a> CfgBuilder<'a> {
             for d in embedded_extras {
                 if !defs.contains(&d) {
                     defs.push(d);
+                }
+            }
+            // `puts [incr n]` writes `n` *and* reads the value it increments.
+            // Recording only the write makes the feeding `set n 1` look
+            // overwritten-before-read, and O109 deletes it (#2050).
+            for r in embedded_reads {
+                if !reads.contains(&r) {
+                    reads.push(r);
                 }
             }
             let mut out = Vec::new();
@@ -700,7 +725,7 @@ impl<'a> CfgBuilder<'a> {
                 canonical_command: None,
                 args: Vec::new(),
                 defs: embedded_extras,
-                reads: Vec::new(),
+                reads: embedded_reads,
                 reads_own_defs: false,
                 safe_on_uninit: false,
                 tokens: Some(crate::ir::CommandTokens::marker(
@@ -816,12 +841,55 @@ impl<'a> CfgBuilder<'a> {
         extras
     }
 
+    /// Resolve a recovered substitution's head through the module's command
+    /// bindings, so a registry-owned role question about it is asked of the
+    /// command it really reaches.
+    ///
+    /// Without this, `interp alias {} e {} expr` hid an expression word from
+    /// the in-frame descent: the raw spelling `e` has no `ArgRole::Expr`, so
+    /// the `[incr x]` of `[e {$x + [incr x]}]` was invisible and the later
+    /// read folded to the stale literal — tclsh 8.6.18 / 9.0.4 print `3` then
+    /// `2`.
+    ///
+    /// Answers only for a spelling with exactly one statically known
+    /// registry-backed target. Several possible bindings mean the role
+    /// question has no single answer, and a user procedure carries no
+    /// registry roles at all; both fall back to the raw spelling.
+    fn embedded_head_resolver(
+        &self,
+    ) -> impl Fn(&str) -> Option<crate::ir_helpers::ResolvedEmbeddedHead> + '_ {
+        |head: &str| {
+            let namespace = self.invocation_namespace.for_head(head)?;
+            if self
+                .command_bindings
+                .target_resolution_may_be_unknown(head, namespace)
+            {
+                return None;
+            }
+            let mut found = self.command_bindings.targets(head, namespace).into_iter();
+            let target = found.next()?;
+            if found.next().is_some() || !target.registry_backed {
+                return None;
+            }
+            Some(crate::ir_helpers::ResolvedEmbeddedHead {
+                command: target.command,
+                prepended: target.prepended,
+            })
+        }
+    }
+
     /// The embedded-substitution half of [`Self::upvar_invalidated`]: the
     /// caller-side defs contributed by `[…]` substitutions in the
-    /// statement's argument words (or an assignment's value), plus whether
-    /// any embedded callee runs an unreadable script at the global frame.
-    fn embedded_subst_extras(&self, stmt: &Statement) -> (Vec<String>, bool) {
-        let embedded = crate::ir_helpers::evaluated_command_substitutions(stmt, self.registry);
+    /// statement's argument words (or an assignment's value), the subset of
+    /// those the embedded command reads before writing, plus whether any
+    /// embedded callee runs an unreadable script at the global frame.
+    fn embedded_subst_extras(&self, stmt: &Statement) -> EmbeddedSubstExtras {
+        let resolve = self.embedded_head_resolver();
+        let embedded = crate::ir_helpers::evaluated_command_substitutions_with_heads(
+            stmt,
+            self.registry,
+            Some(&resolve),
+        );
         let mut embedded_extras: Vec<String> = Vec::new();
         let mut embedded_opaque_global = embedded.opaque;
         let upvar = self.upvar_effects_from_commands(&embedded.commands);
@@ -843,8 +911,12 @@ impl<'a> CfgBuilder<'a> {
         // target variable as a side effect; record it so copy / constant
         // propagation (O100) does not propagate a stale value past the
         // mutation (FP-OPT-06).
+        // The variable-effect view takes the in-frame expression words too: a
+        // `[incr x]` inside `[expr {…}]` writes `x` whatever word carried it.
+        // The call-graph consumers above deliberately do not — see
+        // `EvaluatedCommandSubstitutions::in_frame_expression_commands`.
         let writes = crate::ir_helpers::variable_write_effects_from_commands(
-            &embedded.commands,
+            embedded.all_commands(),
             self.registry,
         );
         embedded_opaque_global |= writes.opaque;
@@ -853,7 +925,11 @@ impl<'a> CfgBuilder<'a> {
                 embedded_extras.push(d);
             }
         }
-        (embedded_extras, embedded_opaque_global)
+        EmbeddedSubstExtras {
+            defs: embedded_extras,
+            read_before_write: writes.read_names,
+            opaque_global: embedded_opaque_global,
+        }
     }
 
     fn upvar_effects_from_commands(
@@ -957,8 +1033,11 @@ impl<'a> CfgBuilder<'a> {
     /// def list can enumerate what the condition's evaluation clobbers.
     fn condition_out_vars(&self, condition: &ExprNode) -> (Vec<String>, bool) {
         let mut out = crate::ir_helpers::condition_command_out_vars(condition, self.registry);
-        let embedded =
-            crate::ir_helpers::expression_command_substitutions(condition, self.registry);
+        let embedded = crate::ir_helpers::expression_command_substitutions(
+            condition,
+            self.registry,
+            Some(&self.embedded_head_resolver()),
+        );
         let upvar = self.upvar_effects_from_commands(&embedded.commands);
         let opaque_upvar = upvar.opaque_arguments;
         for d in upvar.defs {
@@ -969,7 +1048,7 @@ impl<'a> CfgBuilder<'a> {
         let (global_defs, mut opaque) = self.global_write_defs_from_commands(&embedded.commands);
         opaque |= embedded.opaque || opaque_upvar;
         let writes = crate::ir_helpers::variable_write_effects_from_commands(
-            &embedded.commands,
+            embedded.all_commands(),
             self.registry,
         );
         opaque |= writes.opaque;
@@ -1403,7 +1482,11 @@ impl<'a> CfgBuilder<'a> {
     ) {
         self.record_caller_frame_barrier(stmt);
         self.record_alias_observed(stmt);
-        let (extras, opaque) = self.embedded_subst_extras(stmt);
+        let EmbeddedSubstExtras {
+            defs: extras,
+            read_before_write: extra_reads,
+            opaque_global: opaque,
+        } = self.embedded_subst_extras(stmt);
         if opaque {
             self.block_mut(current).statements.push(Statement::Barrier {
                 span: stmt.span(),
@@ -1423,7 +1506,7 @@ impl<'a> CfgBuilder<'a> {
                 canonical_command: None,
                 args: Vec::new(),
                 defs: extras,
-                reads: Vec::new(),
+                reads: extra_reads,
                 reads_own_defs: false,
                 safe_on_uninit: false,
                 tokens: Some(crate::ir::CommandTokens::marker(

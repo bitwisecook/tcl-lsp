@@ -128,14 +128,24 @@ proc sum_list {lst} {
 
 
 # -------------
-# optimised: 47 rewrite(s)
+# optimised: 45 rewrite(s)
 # O102  Forward literal load of 'count' from its single reaching definition
 # O114  Use incr instead of set/expr
+# O100  Inline the constant value of 'count' proved at this read
 # O117  Simplify string length zero-check
 # O120  Use eq/ne for string comparison
+# O115  Remove redundant nested expr
 # O100  Fold return of constant variable
+# O109  Eliminate dead store
+# O100  Propagate constant and fold
 # O102  Forward literal load of 'timeout' from its single reaching definition
+# O100  Propagate constant and fold
 # O102  Forward literal load of 'timeout' from its single reaching definition
+# O110  Simplify expression (instcombine)
+# O103  Fold pure-proc call to '::passthrough' to its constant return
+# O116  Fold constant list command
+# O118  Fold constant lindex command
+# O110  Simplify expression (instcombine)
 # O104  Remove dead intermediate string write
 # O104  Remove dead intermediate string write
 # O104  Fold write-only string build chain
@@ -154,23 +164,11 @@ proc sum_list {lst} {
 # O102  Forward literal load of 'rolling' from its single reaching definition
 # O122  Convert tail-recursive 'factorial' to iterative loop
 # O123  Proc 'sum_list' is a candidate for accumulator-style rewriting
-# O100  Inline the constant value of 'count' proved at this read
-# O115  Remove redundant nested expr
+# O108  Eliminate transitively dead code
 # O109  Eliminate dead store
-# O100  Propagate constant and fold
-# O102  Forward literal load of 'timeout' from its single reaching definition
-# O100  Propagate constant and fold
-# O102  Forward literal load of 'timeout' from its single reaching definition
-# O110  Simplify expression (instcombine)
-# O103  Fold pure-proc call to '::passthrough' to its constant return
-# O116  Fold constant list command
-# O118  Fold constant lindex command
-# O110  Simplify expression (instcombine)
 # O100  Fold return of constant variable
 # O101  Fold constant expression
 # O123  Proc 'sum_list' is a candidate for accumulator-style rewriting
-# O108  Eliminate transitively dead code
-# O109  Eliminate dead store
 # O126  Remove unused variable assignment
 # O101  Fold constant expression
 # O123  Proc 'sum_list' is a candidate for accumulator-style rewriting

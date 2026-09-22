@@ -4168,7 +4168,13 @@ fn w004_fix_removes_option_and_its_value() {
 #[test]
 fn w004_fix_removes_option_and_value_at_end_of_command() {
     let mut a = Analyser::new();
-    let src = "lsearch -stride 2";
+    // `fconfigure`, not `lsearch`: `lsearch` reserves its two trailing
+    // operands, so its option can never be the last word — `lsearch -stride 2`
+    // is a two-operand call in which `-stride` is the *list*, which tclsh
+    // 8.6.18 confirms by returning `-1` rather than rejecting the switch.
+    // `fconfigure` reserves nothing, so `-nodelay 1` really is a trailing
+    // option-and-value pair, which is what this fix shape is about.
+    let src = "fconfigure stdout -nodelay 1";
     let result = a.analyse(src, "tcl8.6");
     let w004: Vec<&Diagnostic> = result
         .diagnostics
@@ -4182,7 +4188,52 @@ fn w004_fix_removes_option_and_value_at_end_of_command() {
     // No following argument to extend through, so one separator remains
     // before the deleted range — cosmetic only (Tcl treats runs of
     // whitespace between words identically).
-    assert_eq!(applied.trim_end(), "lsearch");
+    assert_eq!(applied.trim_end(), "fconfigure stdout");
+}
+
+/// A word sitting in a command's **reserved trailing operand** is never an
+/// option candidate, whatever its shape (#2136).
+///
+/// `Tcl_SubstObjCmd` scans switches only while `i < objc - 1` and
+/// `Tcl_LsearchObjCmd` only while `i < objc - 2`, so the trailing operands are
+/// data even when spelled like a switch. Measured on tclsh 8.6.18:
+/// `puts [subst -commands]` prints `-commands`, and `puts [lsearch -stride 2]`
+/// prints `-1` — neither rejects a dialect-gated option, because neither ever
+/// reads those words as one.
+#[test]
+fn w004_does_not_scan_a_reserved_trailing_operand() {
+    for (src, dialect) in [
+        ("puts [subst -commands]", "tcl8.6"),
+        ("puts [lsearch {-stride} {-stride}]", "tcl8.4"),
+        ("lsearch -stride 2", "tcl8.6"),
+    ] {
+        let mut a = Analyser::new();
+        let result = a.analyse(src, dialect);
+        let w004: Vec<&Diagnostic> = result
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W004)
+            .collect();
+        assert!(
+            w004.is_empty(),
+            "{src}: the trailing operand is not an option: {:?}",
+            result.diagnostics
+        );
+    }
+    // Control: the same option, in a position the command really scans, is
+    // still reported.
+    let mut a = Analyser::new();
+    let result = a.analyse("lsearch -stride 2 {a b c d} b", "tcl8.4");
+    assert_eq!(
+        result
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W004)
+            .count(),
+        1,
+        "{:?}",
+        result.diagnostics
+    );
 }
 
 #[test]
