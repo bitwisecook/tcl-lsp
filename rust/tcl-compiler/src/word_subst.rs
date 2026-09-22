@@ -803,6 +803,61 @@ mod tests {
         }
     }
 
+    /// A substitution recovered from inside a brace-quoted word is anchored
+    /// back to the real source byte it came from.
+    ///
+    /// Two offsets have to be right at once and neither shows up as wrong
+    /// behaviour, only as a wrong position: the word's site covers the `{…}`
+    /// that quoted it, so its content starts one byte in, and a lexer `Cmd`
+    /// token's span stops at the last byte *inside* the brackets, so the
+    /// closing `]` is taken back before parsing. The second was load-bearing
+    /// — without it the spelling came back as `[id 9` and every such
+    /// substitution was silently declined — and the first is invisible until
+    /// a consumer reports a position.
+    #[test]
+    fn a_substitution_inside_a_braced_word_keeps_its_source_offset() {
+        let reg = registry();
+        let surface = tcl_registry::model::DocumentCommandSurface::new(&reg, None);
+        let config = tcl_lexer::LexerConfig::for_profile(reg.profile());
+        // `puts [expr {…}]` rather than a bare `expr {…}`: the latter fuses
+        // into an `ExprEval` that keeps no words at all, which is the
+        // `lifted_calls_in_expr` path rather than this one.
+        let src = "proc f {x} {\n puts [expr {[id 9] > 5}]\n}";
+        let want = src.find("[id 9]").expect("the call is in the source");
+        let cu = CompilationUnit::build_for(src, &reg, false);
+        let fu = cu.function("::f").expect("proc lowered");
+        let lifted: Vec<LiftedCall> = fu
+            .cfg
+            .blocks
+            .values()
+            .flat_map(|block| &block.statements)
+            .filter_map(|stmt| match stmt {
+                Statement::Call { tokens, .. } => tokens.as_ref(),
+                _ => None,
+            })
+            .flat_map(|tokens| lifted_calls_with_surface(Some(tokens), config, &surface))
+            .collect();
+
+        // Both are real: `[expr …]` is a substitution the `puts` word runs,
+        // and `id` is one the expression inside it runs.
+        let mut names: Vec<String> = lifted.iter().map(|c| c.command.clone()).collect();
+        names.sort();
+        assert_eq!(names, vec!["expr".to_owned(), "id".to_owned()]);
+        let span = lifted
+            .iter()
+            .find(|c| c.command == "id")
+            .expect("the nested call is lifted")
+            .span;
+        assert_eq!(
+            (span.start() as usize, span.end() as usize),
+            (want, want + "[id 9]".len()),
+            "the span covers `[id 9]` exactly, brackets included: src[{}..{}] is {:?}",
+            span.start(),
+            span.end(),
+            src.get(span.start() as usize..span.end() as usize)
+        );
+    }
+
     /// An expression surface with no words of its own — what a fused
     /// `AssignExpr` or a `Branch` terminator keeps — still runs its `[…]`.
     #[test]
