@@ -2314,3 +2314,107 @@ fn a_structural_body_is_not_the_enclosing_statements_surface() {
         opt_codes(plain_body, TCL)
     );
 }
+
+/// #2132 — a `[…]` in a branch or loop condition reads the frame's variables.
+///
+/// An expression's command substitution is opaque to the `$var` scan, so a
+/// condition's reads reached no consumer. Three shapes, each measured against
+/// tclsh 9.0.4:
+///
+/// | program | tclsh | was |
+/// |---|---|---|
+/// | `set x 1; if {[info exists x]} {puts yes}` | `yes` | nothing — O126 removed the store |
+/// | `set n 5; if {[incr n]} {puts $n}` | `6` | `1` — O109 removed it |
+/// | `set k 0; for {set i 0} {[incr k] < 3} {} {puts $k}` | `1` `2` | `0` `0` |
+///
+/// The `for` case is the widest: its condition contributed neither reads nor
+/// writes at all, so the store was deleted *and* the stale literal forwarded
+/// into the loop body.
+#[test]
+fn a_condition_substitution_reads_the_frames_variables() {
+    for src in [
+        "proc p {} {\n  set x 1\n  if {[info exists x]} { puts yes }\n}\np\n",
+        "proc p {} { set n 5; if {[incr n]} { puts $n } }\np\n",
+        "proc p {} { set s foo; while {[string length [append s bar]] < 12} { puts $s } }\np\n",
+    ] {
+        assert_eq!(
+            optimised(src, TCL),
+            src,
+            "no rewrite in this program is sound: {:?}",
+            opt_codes(src, TCL)
+        );
+    }
+
+    // The `for` case keeps one legitimate rewrite — `set i 0` really is an
+    // unused variable — so it is asserted on the store the condition reads
+    // rather than on the whole program.
+    let loop_src = "proc p {} { set k 0; for {set i 0} {[incr k] < 3} {} { puts $k } }\np\n";
+    let out = optimised(loop_src, TCL);
+    assert!(
+        out.contains("set k 0"),
+        "the condition's `[incr k]` reads this store: {out}"
+    );
+    assert!(
+        out.contains("puts $k"),
+        "the loop body's read is of the condition's value, not the literal: {out}"
+    );
+    assert!(
+        !opt_fires(loop_src, TCL, "O109") && !opt_fires(loop_src, TCL, "O102"),
+        "neither the deletion nor the forward is sound: {:?}",
+        opt_codes(loop_src, TCL)
+    );
+}
+
+/// The same read must stop O125 sinking the store past the condition.
+///
+/// `decision_condition_uses_var` scans the condition for a `$var` reference,
+/// which `[incr n]` never shows. Sinking `set n 5` into the guarded body moved
+/// it after the increment that reads it, so `proc p {} {set n 5; if {[incr n]}
+/// {puts $n}}` printed `5` where tclsh 9.0.4 prints `6`.
+#[test]
+fn a_store_does_not_sink_past_a_condition_that_reads_it() {
+    let src = "proc p {} { set n 5; if {[incr n]} { puts $n } }\np\n";
+    assert!(
+        !opt_fires(src, TCL, "O125"),
+        "the condition reads `n`, so the store stays before it: {:?}",
+        opt_codes(src, TCL)
+    );
+    // Control: a condition that does not touch the variable still sinks.
+    let sinkable = "proc p {c} {\n  set n 5\n  if {$c} { puts $n }\n}\np 1\np 0\n";
+    assert!(
+        opt_fires(sinkable, TCL, "O125"),
+        "an unrelated condition must not block the sink: {:?}",
+        opt_codes(sinkable, TCL)
+    );
+}
+
+/// An existence guard is not a read-before-set, and an unnameable read is not
+/// a global-frame write.
+///
+/// `[info exists q]` is *the* idiom for a name that may be unset, so crediting
+/// its read must not make W210 fire — the reads live on the synthetic `<cond>`
+/// statement, which has no source word to anchor a diagnostic at. And
+/// `[info exists $p]` reads a cell nothing can name, which is a precision
+/// loss rather than a claim that any name is written: treating it as an opaque
+/// global-frame effect stopped an `[info exists Params($k)]` guard folding.
+#[test]
+fn an_existence_query_is_neither_a_read_before_set_nor_a_write() {
+    let guard = "proc p {} { if {[info exists q]} { puts a } else { puts b } }\np\n";
+    let codes = analyser_codes(guard, TCL);
+    assert!(
+        !codes.iter().any(|c| c == "W210"),
+        "an existence guard is not a read-before-set: {codes:?}"
+    );
+    assert!(
+        codes.iter().any(|c| c == "I230"),
+        "the guard still folds: {codes:?}"
+    );
+    let dynamic_element = "proc f {k} { if {[info exists Params($k)]} { puts hi } }";
+    assert!(
+        analyser_codes(dynamic_element, TCL)
+            .iter()
+            .any(|c| c == "I230"),
+        "an unnameable read must not suppress the array-guard fold: {:?}",
+        analyser_codes(dynamic_element, TCL)
+    );
+}

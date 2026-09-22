@@ -1343,6 +1343,20 @@ file; this call falls through to the 'unknown' handler."
             ) {
                 continue;
             }
+            // A statement the lowering synthesised to carry an effect — the
+            // `<cond>` placeholder holding a branch condition's substitution
+            // reads, or `<upvar-invalidate>` holding a word's — has no source
+            // word to anchor a read at: its span is the whole `if` or the whole
+            // host statement. And the reads it carries are precisely the
+            // existence-tolerant ones — `[info exists x]` is the idiom for a
+            // name that may be unset, `[incr n]` creates its target on 8.5+ —
+            // so a read recorded there is not evidence of a read-before-set.
+            // Recording them made W210 fire on
+            // `if {[info exists q]} {…} else {…}`, which tclsh runs cleanly
+            // (#2132).
+            if stmt_opt.is_some_and(statement_is_synthetic_effect) {
+                continue;
+            }
             // Skip the existence-query word itself and
             // reads narrowed by an enclosing `[info exists X]` guard.
             if existence_exempt(
@@ -2666,6 +2680,21 @@ fn find_case_mismatch<'a>(variable: &str, defined_vars: &'a HashSet<String>) -> 
 /// never a new false positive.
 ///
 /// [`crate::script_binds::script_binds_name`] answers what "binds" means, for
+/// Whether a statement is one the lowering synthesised to carry a variable
+/// effect rather than one the user wrote.
+///
+/// It has no argv of its own, so no diagnostic can be anchored to a word in
+/// it, and its span is the whole construct it stands for.
+fn statement_is_synthetic_effect(stmt: &crate::ir::Statement) -> bool {
+    match stmt {
+        crate::ir::Statement::Call { tokens, .. }
+        | crate::ir::Statement::Barrier { tokens, .. } => tokens
+            .as_ref()
+            .is_some_and(|tokens| tokens.synthetic.is_some()),
+        _ => false,
+    }
+}
+
 /// this pass and for the `Statement::Call` twin in [`crate::ssa`] alike.
 fn barrier_body_locally_sets(
     stmt: Option<&crate::ir::Statement>,
