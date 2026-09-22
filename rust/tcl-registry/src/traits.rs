@@ -354,6 +354,33 @@ declare_traits! {
     DestroysVariable => DESTROYS_VARIABLE, Names, "destroys a variable";
     /// Reads the target variable before writing (`incr`, `append`, `lappend`).
     ReadsBeforeWrite => READS_BEFORE_WRITE, Names, "reads its target before writing it";
+    /// Writes its target variables only when a runtime **data** condition
+    /// holds — a `regexp` match, a `scan` conversion the input reached — and
+    /// leaves each variable's previous value in place otherwise.
+    ///
+    /// Measured identical on tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1b0:
+    /// a failed `regexp` leaves its match variables untouched and does *not*
+    /// create ones that did not exist, `scan {12 nope} {%d %d} p q` returns
+    /// `1` and leaves `q` alone, and `binary scan AB a1a5 c e` the same. On
+    /// the *match* path every listed variable is written, including ones with
+    /// no corresponding capture group (they get `""`), so this is a may-write
+    /// over the whole target list rather than "writes only the first N".
+    ///
+    /// [`ArgRole::VarWrite`](crate::ArgRole::VarWrite) stays on those
+    /// positions — they are the command's variable targets for every
+    /// name-aware consumer, and removing it would break the iRules
+    /// global-write checks that read the same role. This says only that the
+    /// write is a *may*-write, so the definition it appears to kill is not
+    /// dead. The command-level analogue of
+    /// [`RepeatedArgLayout::conditional_binding`](crate::repeated::RepeatedArgLayout::conditional_binding),
+    /// for targets an `arg_role_resolver` places rather than a repeated
+    /// layout.
+    ///
+    /// Do **not** apply to `regsub`, `gets`, `lassign` or `catch`: each was
+    /// measured writing unconditionally, including on the failure path
+    /// (`regsub {xx} zz YY a` leaves `a` as `zz`, `gets` at EOF writes `""`).
+    ConditionalVariableWrite => CONDITIONAL_VARIABLE_WRITE, Names,
+        "writes its target variables only when a runtime match succeeds";
     /// Creates a scope alias — upvar-like binding (`upvar`, `global`, `variable`).
     CreatesScopeAlias => CREATES_SCOPE_ALIAS, Names, "creates an upvar-like scope alias";
     /// Creates an alias to the interpreter's global namespace (`global`).
@@ -1225,6 +1252,7 @@ declare_trait_examples! {
     DefinesProcedure => flow!("proc greet {name} { return \"hello $name\" }\nputs [greet Ada]"; (0, "proc"); (0, "proc greet", "adds a command definition"), (0, "{name}", "declares its parameter"), (1, "[greet Ada]", "resolves to the new procedure"));
     DestroysVariable => flow!("set token secret\nunset token\ninfo exists token"; (1, "unset"); (0, "token", "creates variable state"), (1, "unset token", "destroys that state"), (2, "info exists token", "now returns false"));
     ReadsBeforeWrite => flow!("set count 4\nincr count 2\nputs $count"; (1, "incr"); (0, "count 4", "supplies the old value"), (1, "incr count 2", "reads it before writing the incremented value"), (2, "$count", "observes 6"));
+    ConditionalVariableWrite => flow!("set host unknown\nregexp {^(\\w+):} $line host\nputs $host"; (1, "regexp"); (0, "host unknown", "supplies the value a failed match keeps"), (1, "regexp", "writes host only when the pattern matches"), (2, "$host", "is the captured text on a match and unknown otherwise"));
     CreatesScopeAlias => flow!("set outer initial\nproc update {} { upvar 1 outer local; set local changed }\nupdate\nputs $outer"; (1, "upvar"); (0, "outer", "lives in the caller"), (1, "upvar 1 outer local", "aliases it into the procedure"), (3, "$outer", "observes the write through the alias"));
     AliasesGlobal => flow!("set ::mode old\nproc update {} { global mode; set mode new }\nupdate\nputs $::mode"; (1, "global"); (0, "::mode", "lives in the global namespace"), (1, "global mode", "aliases it in the procedure"), (3, "$::mode", "observes the global write"));
     CreatesBarrier => flow!("set script {set changed 1}\neval $script\nputs $changed"; (1, "eval"); (0, "{set changed 1}", "contains runtime-selected code"), (1, "eval $script", "blocks ordinary static dataflow across dynamic execution"), (2, "$changed", "is created by that code"));
