@@ -1833,8 +1833,17 @@ fn uses_in_call(
     // rather than substituting it, so they are `UseClass::Name` — a real read
     // with no operand word behind it.
     for name in reads {
-        if !name.is_empty() {
-            found.by_name.insert(name.clone());
+        if name.is_empty() {
+            continue;
+        }
+        found.by_name.insert(name.clone());
+        // A name this statement both reads and defines is read *before* it is
+        // written — the same rule `uses_in_barrier` applies to a `dict with`
+        // scope alias. Without it the closing def-filter in
+        // `uses_of_classified` drops the read, and the store feeding
+        // `puts [incr n]` looks overwritten-before-read (#2050).
+        if defs.contains(name) {
+            reads_own_def.insert(name.clone());
         }
     }
     if *reads_own_defs {

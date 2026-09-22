@@ -136,6 +136,18 @@ struct ResolvedUpvarEffects {
     frame_barrier: crate::dynamic_names::DynamicNameBarrier,
 }
 
+/// The caller-frame effects a statement's `[…]` substitutions contribute.
+#[derive(Default)]
+struct EmbeddedSubstExtras {
+    /// Variables an embedded substitution writes.
+    defs: Vec<String>,
+    /// The subset of [`Self::defs`] the embedded command reads before
+    /// writing (`[incr n]`, `[append s x]`).
+    read_before_write: Vec<String>,
+    /// An embedded callee runs an unreadable script at the global frame.
+    opaque_global: bool,
+}
+
 /// Whether a call-shaped IR statement has one statically literal command
 /// head. Computed dispatch already has its own dynamic-command handling; a
 /// runtime-selected namespace only adds uncertainty for a literal relative
@@ -433,6 +445,7 @@ impl<'a> CfgBuilder<'a> {
             }
             return tcl_registry::VariableWriteProjection {
                 literal_names: Vec::new(),
+                read_before_write_names: Vec::new(),
                 opaque_variable_frame: true,
             };
         };
@@ -635,7 +648,11 @@ impl<'a> CfgBuilder<'a> {
 
         // 3. Embedded-substitution extras: walk text for
         //    `[upvar_proc arg]` / `[global_write_proc arg]` substitutions.
-        let (embedded_extras, embedded_opaque_global) = self.embedded_subst_extras(&stmt);
+        let EmbeddedSubstExtras {
+            defs: embedded_extras,
+            read_before_write: embedded_reads,
+            opaque_global: embedded_opaque_global,
+        } = self.embedded_subst_extras(&stmt);
 
         if direct_extras.is_empty() && embedded_extras.is_empty() && !embedded_opaque_global {
             return match direct_opaque_barrier {
@@ -663,7 +680,7 @@ impl<'a> CfgBuilder<'a> {
         });
 
         // 3. Merge into the host statement when it's a Call.
-        if let Statement::Call { defs, .. } = &mut stmt {
+        if let Statement::Call { defs, reads, .. } = &mut stmt {
             for d in direct_extras {
                 if !defs.contains(&d) {
                     defs.push(d);
@@ -672,6 +689,14 @@ impl<'a> CfgBuilder<'a> {
             for d in embedded_extras {
                 if !defs.contains(&d) {
                     defs.push(d);
+                }
+            }
+            // `puts [incr n]` writes `n` *and* reads the value it increments.
+            // Recording only the write makes the feeding `set n 1` look
+            // overwritten-before-read, and O109 deletes it (#2050).
+            for r in embedded_reads {
+                if !reads.contains(&r) {
+                    reads.push(r);
                 }
             }
             let mut out = Vec::new();
@@ -700,7 +725,7 @@ impl<'a> CfgBuilder<'a> {
                 canonical_command: None,
                 args: Vec::new(),
                 defs: embedded_extras,
-                reads: Vec::new(),
+                reads: embedded_reads,
                 reads_own_defs: false,
                 safe_on_uninit: false,
                 tokens: Some(crate::ir::CommandTokens::marker(
@@ -818,9 +843,10 @@ impl<'a> CfgBuilder<'a> {
 
     /// The embedded-substitution half of [`Self::upvar_invalidated`]: the
     /// caller-side defs contributed by `[…]` substitutions in the
-    /// statement's argument words (or an assignment's value), plus whether
-    /// any embedded callee runs an unreadable script at the global frame.
-    fn embedded_subst_extras(&self, stmt: &Statement) -> (Vec<String>, bool) {
+    /// statement's argument words (or an assignment's value), the subset of
+    /// those the embedded command reads before writing, plus whether any
+    /// embedded callee runs an unreadable script at the global frame.
+    fn embedded_subst_extras(&self, stmt: &Statement) -> EmbeddedSubstExtras {
         let embedded = crate::ir_helpers::evaluated_command_substitutions(stmt, self.registry);
         let mut embedded_extras: Vec<String> = Vec::new();
         let mut embedded_opaque_global = embedded.opaque;
@@ -843,8 +869,12 @@ impl<'a> CfgBuilder<'a> {
         // target variable as a side effect; record it so copy / constant
         // propagation (O100) does not propagate a stale value past the
         // mutation (FP-OPT-06).
+        // The variable-effect view takes the in-frame expression words too: a
+        // `[incr x]` inside `[expr {…}]` writes `x` whatever word carried it.
+        // The call-graph consumers above deliberately do not — see
+        // `EvaluatedCommandSubstitutions::in_frame_expression_commands`.
         let writes = crate::ir_helpers::variable_write_effects_from_commands(
-            &embedded.commands,
+            embedded.all_commands(),
             self.registry,
         );
         embedded_opaque_global |= writes.opaque;
@@ -853,7 +883,11 @@ impl<'a> CfgBuilder<'a> {
                 embedded_extras.push(d);
             }
         }
-        (embedded_extras, embedded_opaque_global)
+        EmbeddedSubstExtras {
+            defs: embedded_extras,
+            read_before_write: writes.read_names,
+            opaque_global: embedded_opaque_global,
+        }
     }
 
     fn upvar_effects_from_commands(
@@ -969,7 +1003,7 @@ impl<'a> CfgBuilder<'a> {
         let (global_defs, mut opaque) = self.global_write_defs_from_commands(&embedded.commands);
         opaque |= embedded.opaque || opaque_upvar;
         let writes = crate::ir_helpers::variable_write_effects_from_commands(
-            &embedded.commands,
+            embedded.all_commands(),
             self.registry,
         );
         opaque |= writes.opaque;
@@ -1403,7 +1437,11 @@ impl<'a> CfgBuilder<'a> {
     ) {
         self.record_caller_frame_barrier(stmt);
         self.record_alias_observed(stmt);
-        let (extras, opaque) = self.embedded_subst_extras(stmt);
+        let EmbeddedSubstExtras {
+            defs: extras,
+            read_before_write: extra_reads,
+            opaque_global: opaque,
+        } = self.embedded_subst_extras(stmt);
         if opaque {
             self.block_mut(current).statements.push(Statement::Barrier {
                 span: stmt.span(),
@@ -1423,7 +1461,7 @@ impl<'a> CfgBuilder<'a> {
                 canonical_command: None,
                 args: Vec::new(),
                 defs: extras,
-                reads: Vec::new(),
+                reads: extra_reads,
                 reads_own_defs: false,
                 safe_on_uninit: false,
                 tokens: Some(crate::ir::CommandTokens::marker(

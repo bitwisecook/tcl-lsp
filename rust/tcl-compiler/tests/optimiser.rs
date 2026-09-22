@@ -2117,3 +2117,120 @@ fn o107_still_fires_on_genuinely_unreachable_method_code() {
     );
     assert!(out.contains("::puts live"), "live code must survive: {out}");
 }
+
+/// #2050 — the store feeding a nested read-modify-write is observed, not
+/// overwritten.
+///
+/// `[incr n]` reads `n` and writes it back. The write was already recorded (as
+/// the embedded-substitution effect that invalidates the old version), but the
+/// read was not, so `set n 1`'s version had no consumer and looked
+/// overwritten-before-read. O109 deleted it and the program changed:
+/// tclsh 9.0.4 / 8.6.18 print `2` then `2` for the original; the rewritten
+/// program printed `1` then `1` (8.4 raises `can't read "n"`, which does not
+/// even create the variable).
+#[test]
+fn a_nested_rmw_read_keeps_its_feeding_store_alive() {
+    let src = "set n 1\nset result [incr n]\nputs $result\nputs $n\n";
+    assert!(
+        !opt_fires(src, TCL, "O109"),
+        "the store feeding `[incr n]` is read by it: {:?}",
+        opt_codes(src, TCL)
+    );
+    assert_eq!(
+        optimised(src, TCL),
+        src,
+        "nothing in this program is safe to rewrite"
+    );
+}
+
+/// The same read through a `Call` host rather than an assignment: `puts [incr
+/// n]` carries the effect on the `puts` statement itself, where the extras are
+/// merged into its own defs, instead of on a prepended invalidation statement.
+#[test]
+fn a_nested_rmw_read_on_a_call_host_keeps_its_feeding_store_alive() {
+    let src = "set n 1\nputs [incr n]\nputs $n\n";
+    assert!(
+        !opt_fires(src, TCL, "O109"),
+        "the store feeding `[incr n]` is read by it: {:?}",
+        opt_codes(src, TCL)
+    );
+    assert_eq!(optimised(src, TCL), src);
+}
+
+/// #2141 — a write nested in a braced `expr` word is a write of this frame.
+///
+/// The word lexer is right to stop at `{…}` — the command parser substitutes
+/// nothing there — but `expr` re-parses that text and runs the `[…]` in it. So
+/// `[incr x]` inside `[expr {…}]` writes `x` exactly as `[incr x]` in a bare
+/// word does. Without that, `set x 1` looked like the single reaching
+/// definition at the later `puts $x`, and O102 forwarded the literal:
+/// tclsh 8.4.20 through 9.1b0 print `5` then `2`, the rewritten program printed
+/// `5` then `1`.
+#[test]
+fn a_write_nested_in_a_braced_expr_word_kills_the_reaching_definition() {
+    let src = "set x 1\nputs [expr {$x + [incr x] + $x}]\nputs $x\n";
+    let out = optimised(src, TCL);
+    assert!(
+        !out.contains("puts 1"),
+        "the later read sees 2, not the forwarded literal: {out}"
+    );
+    assert_eq!(out, src, "no rewrite in this program is sound");
+}
+
+/// The same family, in the two other shapes the issue lists. Each was checked
+/// against tclsh 9.0.4: `3`/`2` for the first, `5`/`3` for the second.
+#[test]
+fn a_write_nested_in_a_braced_expr_word_keeps_its_feeding_store() {
+    for src in [
+        "set n 1\nset r [expr {$n + [incr n]}]\nputs $r\nputs $n\n",
+        "set n 1\nset r [expr {[incr n] + [incr n]}]\nputs $r\nputs $n\n",
+    ] {
+        assert!(
+            !opt_fires(src, TCL, "O109"),
+            "`set n 1` feeds the first `[incr n]`: {:?}",
+            opt_codes(src, TCL)
+        );
+        assert_eq!(
+            optimised(src, TCL),
+            src,
+            "{src}: nothing is safe to rewrite"
+        );
+    }
+}
+
+/// Precision control: the descent is into brace-quoted **expression** words
+/// only, and only where a command really runs. A braced expression with no
+/// substitution still folds all the way through, and the forward to the later
+/// read is still made.
+#[test]
+fn a_braced_expr_word_with_no_nested_write_still_folds() {
+    let src = "set x 1\nputs [expr {$x + 1}]\nputs $x\n";
+    let out = optimised(src, TCL);
+    assert!(
+        out.contains("puts 2"),
+        "the expression must still fold: {out}"
+    );
+    assert!(
+        out.contains("puts 1"),
+        "the later read is still the single reaching definition: {out}"
+    );
+}
+
+/// Precision control: a statement that reads and writes the same variable
+/// *through its own argument roles* is unaffected — the read happens before
+/// the write in both, and forwarding the literal into the read is sound.
+/// tclsh 9.0.4: `lappend x 1` then `puts $x` prints `1 1`, and `incr x; puts 2`
+/// prints `2`, matching the originals.
+#[test]
+fn a_direct_read_before_write_still_forwards_its_literal() {
+    let appended = optimised("set x 1\nlappend x $x\nputs $x\n", TCL);
+    assert!(
+        appended.contains("lappend x 1"),
+        "a direct RMW read still forwards: {appended}"
+    );
+    let incremented = optimised("set x 1\nset x [expr {$x + 1}]\nputs $x\n", TCL);
+    assert!(
+        incremented.contains("puts 2"),
+        "a self-assigning expression still folds through: {incremented}"
+    );
+}

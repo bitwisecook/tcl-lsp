@@ -921,13 +921,18 @@ impl CommandWord {
 #[derive(Debug, Default)]
 pub(crate) struct VariableWriteEffects {
     pub names: Vec<String>,
+    /// The subset of [`Self::names`] the writing command reads before it
+    /// writes (`[incr n]`, `[append s x]`). The store feeding one of these is
+    /// *observed*, not overwritten, so a consumer that records the write must
+    /// record this read with it or the feeding store looks dead (#2050).
+    pub read_names: Vec<String>,
     pub opaque: bool,
 }
 
 /// Project variable writes from recursively recovered command substitutions.
 #[must_use]
-pub(crate) fn variable_write_effects_from_commands(
-    commands: &[Vec<CommandWord>],
+pub(crate) fn variable_write_effects_from_commands<'a>(
+    commands: impl IntoIterator<Item = &'a Vec<CommandWord>>,
     registry: &CommandRegistry,
 ) -> VariableWriteEffects {
     let mut out = VariableWriteEffects::default();
@@ -943,6 +948,11 @@ pub(crate) fn variable_write_effects_from_commands(
         let projection = registry
             .variable_write_projection(InvocationWords::structured(head.invocation_word(), &args));
         out.opaque |= projection.opaque_variable_frame;
+        for name in projection.read_before_write_names {
+            if !out.read_names.contains(&name) {
+                out.read_names.push(name);
+            }
+        }
         for name in projection.literal_names {
             if !out.names.contains(&name) {
                 out.names.push(name);
@@ -975,11 +985,37 @@ pub(crate) fn tokenise_command_words(source: &str, config: LexerConfig) -> Vec<V
 
 /// Registry/dialect-shaped command invocations recovered from every evaluated
 /// `[...]` surface owned by one statement.
+#[derive(Default)]
 pub(crate) struct EvaluatedCommandSubstitutions {
     /// Commands in evaluation order within each recovered bracket script.
     pub commands: Vec<Vec<CommandWord>>,
+    /// Commands reached only by descending into a brace-quoted word the
+    /// callee evaluates as an **expression in this frame** — the `[incr x]`
+    /// of `puts [expr {$x + [incr x]}]`.
+    ///
+    /// Kept apart from [`Self::commands`] rather than merged into it because
+    /// the two answer different questions. A consumer asking *what cells does
+    /// this statement write* wants both: the write is real either way (#2141).
+    /// A consumer asking *which procedures does this body call* — the
+    /// global-write summary's call graph — reads `commands` alone, because a
+    /// recursive callee's summary is opaque and folding that opacity in here
+    /// would put a frame barrier on `return [expr {[fib $n] + 1}]` that the
+    /// unbraced `return [fib $n]` earns for a reason unrelated to this word.
+    /// Closing that second gap means fixing the recursion summary first; the
+    /// two are separate, and this split says which is which.
+    pub in_frame_expression_commands: Vec<Vec<CommandWord>>,
     /// A malformed fragment or recursion-limit hit prevented complete recovery.
     pub opaque: bool,
+}
+
+impl EvaluatedCommandSubstitutions {
+    /// Every command the statement runs, whether or not it took an in-frame
+    /// expression word to reach — the view a variable-effect consumer needs.
+    pub(crate) fn all_commands(&self) -> impl Iterator<Item = &Vec<CommandWord>> {
+        self.commands
+            .iter()
+            .chain(self.in_frame_expression_commands.iter())
+    }
 }
 
 /// Recover the commands executed by `[...]` substitutions in `stmt` using the
@@ -1009,23 +1045,72 @@ pub(crate) fn command_substitutions_in_surfaces(
     fn walk_text(
         text: &str,
         config: LexerConfig,
+        registry: &CommandRegistry,
         depth: u32,
-        commands: &mut Vec<Vec<CommandWord>>,
-        opaque: &mut bool,
+        in_frame_expression: bool,
+        out: &mut EvaluatedCommandSubstitutions,
     ) {
         if MAX_BRACKET_TEXT_DEPTH.exceeded(depth) {
-            *opaque = true;
+            out.opaque = true;
             return;
         }
         let source_map = SourceMap::new(text);
         let Ok(tokens) = tcl_lexer::Lexer::with_config(text, config).tokenise_all() else {
-            *opaque = true;
+            out.opaque = true;
             return;
         };
         for token in tokens.iter().filter(|token| token.kind == TokenType::Cmd) {
             let inner = source_map.token_text(*token);
-            commands.extend(tokenise_command_words(inner, config));
-            walk_text(inner, config, depth + 1, commands, opaque);
+            let recovered = tokenise_command_words(inner, config);
+            for words in &recovered {
+                walk_braced_expr_words(words, config, registry, depth, out);
+            }
+            if in_frame_expression {
+                out.in_frame_expression_commands.extend(recovered);
+            } else {
+                out.commands.extend(recovered);
+            }
+            walk_text(inner, config, registry, depth + 1, in_frame_expression, out);
+        }
+    }
+
+    /// Descend the brace-quoted words a recovered command evaluates **as an
+    /// expression in this frame**.
+    ///
+    /// The word lexer is right to stop at `{…}` — the *command* parser
+    /// substitutes nothing there — but `expr` re-parses that text as an
+    /// expression, and a `[…]` in it is a substitution the statement really
+    /// runs. `puts [expr {$x + [incr x]}]` writes `x` exactly as
+    /// `puts [incr x]` does, and without this descent the write was invisible
+    /// and O102 forwarded a stale literal across it (#2141).
+    ///
+    /// Only [`tcl_registry::ArgRole::Expr`] is descended: it is the in-frame
+    /// role that binds no variables of its own, so its reads and writes belong
+    /// to this frame. A `Body` word runs in this frame too but may bind its
+    /// own names, which this flat command list cannot represent.
+    fn walk_braced_expr_words(
+        words: &[CommandWord],
+        config: LexerConfig,
+        registry: &CommandRegistry,
+        depth: u32,
+        out: &mut EvaluatedCommandSubstitutions,
+    ) {
+        let Some(head) = words.first().and_then(CommandWord::literal) else {
+            return;
+        };
+        let args: Vec<&str> = words
+            .iter()
+            .skip(1)
+            .map(|word| word.literal().unwrap_or(""))
+            .collect();
+        for index in registry.arg_indices_for_role(head, &args, tcl_registry::ArgRole::Expr) {
+            // An unbraced expression word already substituted at the command
+            // level, so the enclosing walk has seen its `[…]` and descending
+            // again would double-count the effect.
+            let Some(word) = words.get(index + 1).filter(|word| word.braced_literal) else {
+                continue;
+            };
+            walk_text(&word.text, config, registry, depth + 1, true, out);
         }
     }
 
@@ -1034,12 +1119,14 @@ pub(crate) fn command_substitutions_in_surfaces(
         .map_or_else(LexerConfig::default, |profile| {
             LexerConfig::from_grammar(profile.grammar)
         });
-    let mut commands = Vec::new();
-    let mut opaque = initially_opaque;
+    let mut out = EvaluatedCommandSubstitutions {
+        opaque: initially_opaque,
+        ..EvaluatedCommandSubstitutions::default()
+    };
     for text in surfaces {
-        walk_text(text, config, 0, &mut commands, &mut opaque);
+        walk_text(text, config, registry, 0, false, &mut out);
     }
-    EvaluatedCommandSubstitutions { commands, opaque }
+    out
 }
 
 /// Recover commands from command substitutions nested in one expression.
