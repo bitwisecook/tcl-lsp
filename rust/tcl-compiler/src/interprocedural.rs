@@ -341,6 +341,9 @@ pub fn collect_call_by_name_reads(
     }
     for block in cfg.blocks.values() {
         for stmt in &block.statements {
+            if !stmt.is_executable_invocation() {
+                continue;
+            }
             match stmt {
                 Statement::Call { command, args, .. }
                 | Statement::Barrier { command, args, .. } => {
@@ -429,6 +432,9 @@ pub fn collect_opaque_callee_name_args(
     let mut out = HashSet::new();
     for block in cfg.blocks.values() {
         for stmt in &block.statements {
+            if !stmt.is_executable_invocation() {
+                continue;
+            }
             let (Statement::Call { command, args, .. } | Statement::Barrier { command, args, .. }) =
                 stmt
             else {
@@ -2156,6 +2162,9 @@ fn scan_statement(
     depth: u32,
 ) {
     use crate::ir::Statement;
+    if !stmt.is_executable_invocation() {
+        return;
+    }
     let ScanCtx { params, .. } = ctx;
     match stmt {
         Statement::Barrier { command, args, .. } => {

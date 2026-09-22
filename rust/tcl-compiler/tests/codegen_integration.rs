@@ -42,6 +42,7 @@ fn toplevel_with(statements: Vec<Statement>) -> CfgFunction {
         blk.statements = statements;
         blk.terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
@@ -58,6 +59,7 @@ fn proc_with(name: &str, params: &[&str], statements: Vec<Statement>) -> CfgFunc
         blk.statements = statements;
         blk.terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
@@ -161,6 +163,7 @@ fn proc_return_param_loads_and_dones() {
     let entry = cfg.entry;
     cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Return {
         value: Some("${x}".into()),
+        value_word: None,
         span: None,
         expr: None,
         braced: false,
@@ -231,6 +234,7 @@ fn if_else_diamond_emits_conditional_jump() {
     });
     cfg.blocks.get_mut(&end).unwrap().terminator = Some(Terminator::Return {
         value: None,
+        value_word: None,
         span: None,
         expr: None,
         braced: false,
@@ -279,6 +283,7 @@ fn if_const_true_dead_branch_eliminated() {
     });
     cfg.blocks.get_mut(&end).unwrap().terminator = Some(Terminator::Return {
         value: None,
+        value_word: None,
         span: None,
         expr: None,
         braced: false,
@@ -292,6 +297,91 @@ fn if_const_true_dead_branch_eliminated() {
     assert!(
         !ops.contains(&Op::JUMP_FALSE4) && !ops.contains(&Op::JUMP_FALSE1),
         "expected no conditional jump, got {ops:?}"
+    );
+}
+
+#[test]
+fn registry_barrier_after_if_arm_call_keeps_the_arm_value() {
+    let mut cfg = CfgFunction::new("::top", "entry_0");
+    let entry = cfg.entry;
+    let then = cfg.intern_block("if_then_1");
+    cfg.blocks.insert(then, Block::new("if_then_1"));
+    let els = cfg.intern_block("if_else_1");
+    cfg.blocks.insert(els, Block::new("if_else_1"));
+    let end = cfg.intern_block("if_end_1");
+    cfg.blocks.insert(end, Block::new("if_end_1"));
+
+    cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Branch {
+        condition: ExprNode::Var {
+            text: "$x".into(),
+            name: "x".into(),
+            start: 0,
+            end: 2,
+        },
+        true_target: then,
+        false_target: els,
+        span: None,
+        condition_base: None,
+    });
+    cfg.blocks.get_mut(&then).unwrap().statements = vec![
+        Statement::Call {
+            span: sp(),
+            command: "puts".into(),
+            canonical_command: None,
+            args: vec!["then".into()],
+            defs: vec![],
+            reads: vec![],
+            reads_own_defs: false,
+            safe_on_uninit: false,
+            tokens: None,
+            foreach_groups: None,
+        },
+        Statement::Barrier {
+            span: sp(),
+            reason: "scalar facts".into(),
+            command: "<registry-barrier>".into(),
+            canonical_command: None,
+            args: vec![],
+            tokens: Some(tcl_compiler::ir::CommandTokens::marker(
+                tcl_compiler::ir::SyntheticMarker::RegistryBarrier,
+            )),
+        },
+    ];
+    cfg.blocks.get_mut(&then).unwrap().terminator = Some(Terminator::Goto {
+        target: end,
+        span: None,
+    });
+    cfg.blocks.get_mut(&els).unwrap().statements = vec![Statement::Call {
+        span: sp(),
+        command: "puts".into(),
+        canonical_command: None,
+        args: vec!["else".into()],
+        defs: vec![],
+        reads: vec![],
+        reads_own_defs: false,
+        safe_on_uninit: false,
+        tokens: None,
+        foreach_groups: None,
+    }];
+    cfg.blocks.get_mut(&els).unwrap().terminator = Some(Terminator::Goto {
+        target: end,
+        span: None,
+    });
+    cfg.blocks.get_mut(&end).unwrap().terminator = Some(Terminator::Return {
+        value: None,
+        value_word: None,
+        span: None,
+        expr: None,
+        braced: false,
+    });
+
+    let registry = CommandRegistry::build_default();
+    let asm = codegen_function(&cfg, &[], false, &registry);
+    let ops: Vec<Op> = asm.instructions.iter().map(|i| i.op).collect();
+    assert_eq!(
+        ops.iter().filter(|&&op| op == Op::POP).count(),
+        0,
+        "each if arm keeps its final command value for the join: {ops:?}",
     );
 }
 
@@ -381,6 +471,7 @@ fn switch_dispatch_emits_jump_table() {
     });
     cfg.blocks.get_mut(&switch_end).unwrap().terminator = Some(Terminator::Return {
         value: None,
+        value_word: None,
         span: None,
         expr: None,
         braced: false,
@@ -625,6 +716,7 @@ fn foreach_emits_native_opcodes() {
     });
     cfg.blocks.get_mut(&end).unwrap().terminator = Some(Terminator::Return {
         value: None,
+        value_word: None,
         span: None,
         expr: None,
         braced: false,
@@ -749,6 +841,7 @@ fn complex_foreach_body_emits_step_at_end() {
 
     cfg.blocks.get_mut(&end).unwrap().terminator = Some(Terminator::Return {
         value: None,
+        value_word: None,
         span: None,
         expr: None,
         braced: false,
@@ -839,6 +932,7 @@ fn while_in_proc_emits_start_cmd() {
     });
     cfg.blocks.get_mut(&end).unwrap().terminator = Some(Terminator::Return {
         value: None,
+        value_word: None,
         span: None,
         expr: None,
         braced: false,
@@ -863,6 +957,7 @@ fn codegen_module_with_no_procs() {
         procedures: HashMap::new(),
     };
     let ir_mod = IrModule {
+        top_level_kind: tcl_compiler::ir::TopLevelKind::Script,
         plain_command_dispatch: false,
         source: String::new(),
         top_level_namespace: "::".to_owned(),

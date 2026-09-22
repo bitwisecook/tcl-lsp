@@ -243,9 +243,11 @@ fn rewrite_call_like(stmt: &Statement, rename: &HashMap<String, String>) -> Stat
             expr,
             command_binding,
             braced,
+            ..
         } => Statement::Return {
             span: *span,
             value: value.as_ref().map(|v| rewrite_value_string(v, rename)),
+            value_word: None,
             expr: expr.as_ref().map(|e| rewrite_expr(e, rename)),
             command_binding: command_binding.clone(),
             braced: *braced,

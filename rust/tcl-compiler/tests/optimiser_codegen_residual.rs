@@ -72,6 +72,11 @@ use tcl_compiler::codegen::cmd_subst::{
     has_command_separator, is_pure_cmd_subst, parse_cmd_parts, parse_cmd_parts_expand,
     unroll_nested_set,
 };
+
+mod common;
+
+use common::command_tokens;
+
 use tcl_compiler::codegen::{CodegenCtx, Op};
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::interprocedural::InterproceduralAnalysis;
@@ -639,7 +644,15 @@ fn cmd_subst_array_names_size_and_exists() {
         "array size → fqn invoke: {size:?}"
     );
 
-    let exists = inline_ops(true, &["a"], "[array exists a]");
+    let reg = registry();
+    let mut ctx = CodegenCtx::new(true, &["a"], &reg);
+    let tokens = command_tokens("array exists a");
+    ctx.emit_inline_cmd_subst_with_tokens("[array exists a]", Some(&tokens));
+    let exists: Vec<Op> = ctx
+        .instructions
+        .iter()
+        .map(|instruction| instruction.op)
+        .collect();
     assert!(
         exists.contains(&Op::ARRAY_EXISTS_IMM),
         "array exists (proc-local) → immediate opcode: {exists:?}",

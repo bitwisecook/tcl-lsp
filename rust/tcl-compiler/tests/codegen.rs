@@ -74,7 +74,7 @@ use tcl_compiler::cfg::{CfgModule, Function as CfgFunction, Terminator};
 use tcl_compiler::cfg_builder::{build_cfg, build_cfg_codegen};
 use tcl_compiler::codegen::format::{esc, format_function_asm, format_module_asm};
 use tcl_compiler::codegen::{
-    FunctionAsm, LiteralTable, LocalVarTable, Op, codegen_function, codegen_module,
+    FunctionAsm, LiteralTable, LocalVarTable, Op, Operand, codegen_function, codegen_module,
 };
 use tcl_compiler::expr_ast::{BinOp, ExprNode, UnaryOp};
 use tcl_compiler::ir::{Module as IrModule, Statement};
@@ -149,6 +149,7 @@ fn toplevel_cfg(statements: Vec<Statement>) -> CfgFunction {
     blk.statements = statements;
     blk.terminator = Some(Terminator::Return {
         value: None,
+        value_word: None,
         span: None,
         expr: None,
         braced: false,
@@ -683,6 +684,7 @@ fn literal_with_embedded_stx_appears_escaped_in_disassembly() {
         });
     cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Return {
         value: None,
+        value_word: None,
         span: None,
         expr: None,
         braced: false,
@@ -1136,6 +1138,21 @@ fn for_with_complex_init() {
     let ops = opcodes(&proc_asm(src, "::multi_init"));
     assert!(ops.contains(&Op::LT));
     assert!(ops.contains(&Op::INCR_SCALAR1_IMM));
+}
+
+#[test]
+fn for_init_registry_barrier_keeps_count_two_boundary() {
+    let asm = proc_asm(
+        "proc p {} { set warmup 1; for {missing_command} {0} {} {} }",
+        "::p",
+    );
+    assert!(
+        asm.instructions.iter().any(|instruction| {
+            instruction.op == Op::START_CMD && instruction.operands.get(1) == Some(&Operand::Imm(2))
+        }),
+        "the real for-init command must retain its count-two boundary: {:?}",
+        asm.instructions,
+    );
 }
 
 #[test]

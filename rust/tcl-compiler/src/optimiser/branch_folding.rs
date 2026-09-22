@@ -476,6 +476,7 @@ mod tests {
         CompilationUnit {
             source: source.into(),
             ir_module: crate::ir::Module {
+                top_level_kind: crate::ir::TopLevelKind::Script,
                 source: String::new(),
                 top_level_namespace: "::".to_owned(),
                 dialect: None,
@@ -535,6 +536,7 @@ mod tests {
         let mut b = Block::new(name);
         b.terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,

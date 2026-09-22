@@ -212,13 +212,17 @@ does not invoke the handler twice.  The projection follows terminal alias
 resolution and applies the same rule to direct and embedded invocations; it
 does not identify handlers by command spelling.
 
-The historical may-binding state can retain a registry fallback alongside a
-source-defined procedure while recording the procedure definition's before
-and after states.  The registry fact remains conservative in that case: an
-earlier call can still reach the fallback before the source definition takes
-effect, while a later call can reach the user procedure.  A time-sensitive
-binding proof would be required before a consumer could discard the registry
-barrier without making that distinction.
+The historical may-binding state remains a module-wide union for reachability;
+it therefore retains a registry fallback alongside a source-defined procedure.
+Consumers that need execution-point facts use the separate source binding
+timeline: it records each statement before substitutions and before its direct
+call, in Tcl's substitution-before-direct order, and joins conditional and
+loop paths conservatively.  Procedure CFGs start from the timeline suffix
+reachable after their definition together with closed-root boundary state, so
+pre-definition fallbacks do not taint later procedures while later unknown
+rebinding still does.  Any opaque user target or uncertain resolution preserves
+the barrier.  The resulting `RegistryBarrier` is analysis-only and never
+dispatches or adds a command/frame/SSA/memory effect.
 
 ## Hazards to design in (not patch)
 

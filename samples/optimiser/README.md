@@ -33,13 +33,14 @@ Idiomatic Tcl rewrites only — no code removal or restructuring:
 - Redundant nested `[expr {...}]` removed (O115) — in a branch condition **and**
   in a `return` body (`propagation::try_fold_return_terminator`); a `set` value
   position is the known gap. The sample's `return [expr {[expr {$x * 2}]}]` is
-  nevertheless left alone until `aggressive`, and the reason is elsewhere in
-  the file — see [O115 and the `factorial` stanza](#o115-and-the-factorial-stanza)
+  rewritten here, which it was **not** until the `factorial` stanza stopped
+  switching the module-wide `expr`-trust gate off — see
+  [O115 and the `factorial` stanza](#o115-and-the-factorial-stanza)
 - Unbraced `expr` bodies flagged (O111, paired with W100)
 - `end`-relative index rewrites (O128)
 
 These suggestions improve clarity without changing the structure of the code.
-They never delete lines or introduce new variables. **3 rewrites** on the
+They never delete lines or introduce new variables. **4 rewrites** on the
 sample input.
 
 ### `standard`
@@ -56,12 +57,14 @@ Adds constant folding and pattern recognition on top of readability:
   A `return` body is now visited by the same rewriters as a `set` body
   (issue #1962, fixed), and that proc **on its own** is rewritten to
   `return [expr {$r * $r}]` under this profile.
-  It is still unrewritten *here*, for the reason already noted at the top of
-  `input.tcl`: the `factorial` stanza's unresolvable command head switches off
-  the module-wide `expr`-trust gate, and only `aggressive` gets past it, because
-  its first pass rewrites that call to `tailcall` and its second pass then finds
-  `expr` trusted again. So the stanza demonstrates the rewrite under
-  `aggressive` only — see that profile's section below.
+  It is rewritten *here* too. It used not to be: the `factorial` stanza's
+  recursive `return [factorial …]` was read as an unresolvable command head,
+  which switched the module-wide `expr`-trust gate off for the whole file, and
+  only `aggressive` got past it — its first pass rewrote that call to
+  `tailcall`, removing the substitution, and its second pass found `expr`
+  trusted again. A self-call is now resolved like any other, so the gate stays
+  on and a single pass suffices. See
+  [O115 and the `factorial` stanza](#o115-and-the-factorial-stanza).
   Note also that the rewrite is reported as **O110**, not O113: instcombine runs
   before strength reduction and claims `$r ** 2` → `$r * $r`. That is true of
   the `set` form too, and always has been; the stanza's `# O113` label names the
@@ -69,14 +72,27 @@ Adds constant folding and pattern recognition on top of readability:
 
 Shows "this could be simpler" without deleting any code. Dead stores from
 constant propagation remain in the output — the code is simplified but not
-shortened. **18 rewrites** on the sample input.
+shortened. **28 rewrites** on the sample input.
 
-Note what this profile does *not* do to the sample, because it is a **single**
-pass: `set half [expr {$timeout / 2}]` still reads `$timeout`. Folding it to
-`set half 15` needs the constant propagated first and the arithmetic folded
-after, which is two passes — so those folds appear only under `aggressive`
-below. The summary footer lists the propagations as O102 because they were
-*found*; a hint-only entry is advice, not an applied edit.
+One of those is the `passthrough` stanza's `O100 Fold return of constant
+variable`: `set route [passthrough 42]` is the proc's only call, so the
+specialiser proves `x` is `42` there and `return $x` becomes `return 42`. The
+call site is a *nested* substitution, and until #2134 the call-site evidence
+walk only saw a call written as a whole statement, so this rewrite is newer
+than the rest of the stanza's prose.
+
+This profile used to leave `set half [expr {$timeout / 2}]` reading `$timeout`,
+on the reasoning that folding it to `set half 15` needs the constant propagated
+first and the arithmetic folded after — two passes. That was never the real
+obstacle: the `expr`-trust gate was off (see the `factorial` note above), so
+the arithmetic could not be folded at all. With the gate on, one pass reaches
+`set half 15`, `set threshold 40`, `set second beta`,
+`set colours {red green blue}` and `return [expr {$r * $r}]`. Every one of
+those was checked against `tclsh9.0.4`: the optimised file prints exactly what
+the original prints.
+
+The summary footer lists a propagation as O102 because it was *found*; a
+hint-only entry is advice, not an applied edit.
 
 ### `full`
 
@@ -120,8 +136,11 @@ non-literal `candidate` assignment separates `route` from the other two. The
 `lassign` in the committed output is the O119 stanza's own
 `set a 1; set b 2; set c 3`.
 
-The aggressive profile finds **46 rewrites** on the sample input against 24 in
-single-pass `full`. (This figure read 42 until #1962; the committed golden
+The aggressive profile finds **45 rewrites** on the sample input against 35 in
+single-pass `full`. Both counts moved when the `expr`-trust gate stopped being
+switched off by the `factorial` stanza: `full` gained the folds it could not
+previously prove, and `aggressive` lost two, because work its second pass used
+to discover is now done in the first. (This figure read 42 until #1962; the committed golden
 already said 45 before that fix, so it had drifted by three independently —
 the readability, standard and full counts above were and remain correct.) It is the only profile that folds the arithmetic through:
 `set half 15`, `set threshold 40`, `set colours {red green blue}`,
@@ -143,32 +162,41 @@ fixpoint (no further changes).
 ## O115 and the `factorial` stanza
 
 O115 fires on `proc double_expr {x} { return [expr {[expr {$x * 2}]}] }` under
-**every** profile when that proc is the whole file — `readability` included.
-In this sample it only survives to `aggressive`, and nothing about the proc or
-the profile explains it: the cause is 90 lines further down.
+**every** profile, `readability` included — including in this sample. It did
+not always, and the reason it now does is worth keeping.
 
 O115 (like O101 and O129) is gated on `expr` being provably untouched across
-the whole module. A command head the analysis cannot resolve could `rename`
+the whole module: a command head the analysis cannot resolve could `rename`
 `expr`, so an unresolvable head anywhere turns the gate off for the entire
-file. `factorial`'s `return [factorial …]` is such a head, and it suppresses
-O115 in `double_expr`. Measured on this input:
+file. `factorial`'s `return [factorial …]` used to count as such a head — not
+because a self-call is unresolvable, but because the enclosing `proc`
+statement's body was scanned as if it were that statement's own substitution
+surface, and the recursive call was judged there rather than inside the
+procedure it belongs to. A body is lowered into its own unit; it is not the
+`proc` statement's surface. Once that stopped, the self-call resolved like any
+other and the gate stayed on.
 
-| file | O115 under `readability` |
-| --- | --- |
-| `double_expr` alone | fires |
-| `double_expr` + a call to a defined proc or a builtin | fires |
-| `double_expr` + a call to an unresolvable head | **not reported** |
-| `input.tcl` with the `factorial` stanza removed | fires |
-| the committed `profile_full.tcl` output, re-optimised | fires |
+Measured on this input, `readability`, O115 on `double_expr`:
 
-The last row is why `aggressive` gets it: `full` rewrites the recursion to
-`tailcall factorial …` in pass 1, which removes the command substitution; pass
-2 re-analyses, `expr` is trusted again, and O115 is reported. A single-pass
-profile never gets a second look.
+| file | before | now |
+| --- | --- | --- |
+| `double_expr` alone | fires | fires |
+| `double_expr` + a call to a defined proc or a builtin | fires | fires |
+| `double_expr` + the `factorial` stanza | **not reported** | fires |
+| `double_expr` + `proc g {cmd} { $cmd }` | fires | fires |
+| `double_expr` + `rename ::expr` in a proc body | — | **not reported** |
+| `double_expr` + `proc ::expr` defined in a proc body | — | **not reported** |
 
-This is conservative rather than wrong — the gate exists so a renamed `expr`
-is never folded as if it were the builtin — but the blast radius is the whole
-module for a single unresolved head. Recorded as part of #1962.
+The last two rows are the gate doing its job, and they are what makes the
+third row safe rather than merely more permissive: a genuine threat to `expr`
+inside a procedure body still turns the gate off, reached through that
+procedure's own unit.
+
+The fourth row is **not** what the gate's description claims, and was already
+so before this change: a dynamic command head inside a proc body does not
+switch the gate off, though by the stated rule it should. That is a real
+remaining gap in the same family, recorded separately rather than papered over
+here.
 
 ## Design decisions
 

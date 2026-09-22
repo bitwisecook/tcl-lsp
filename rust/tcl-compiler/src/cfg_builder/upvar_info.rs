@@ -1176,6 +1176,7 @@ fn record_upframe_body_at_depth(
     let projection = bindings.map_or_else(
         || tcl_registry::VariableWriteProjection {
             literal_names: crate::ir_helpers::defs_from_ir_script(body),
+            read_before_write_names: Vec::new(),
             opaque_variable_frame: super::global_write_info::script_has_dynamic_write_target(body),
         },
         |bindings| {
@@ -1246,6 +1247,9 @@ fn compose_selected_frame_alias_writes(
     }
     let any_write = opaque_write || !projected_names.is_empty();
     for stmt in &script.statements {
+        if !stmt.is_executable_invocation() {
+            continue;
+        }
         if let Statement::Call { command, .. } | Statement::Barrier { command, .. } = stmt {
             let execution_namespace = ExecutionNamespace::RuntimeSelected;
             if let Some(command_namespace) = execution_namespace.for_head(command) {
@@ -1396,6 +1400,9 @@ fn record_nested_upframe_effects(
         return;
     }
     for stmt in &script.statements {
+        if !stmt.is_executable_invocation() {
+            continue;
+        }
         if let Statement::Call { command, .. } | Statement::Barrier { command, .. } = stmt {
             let execution_namespace = ExecutionNamespace::RuntimeSelected;
             if let Some(bindings) = bindings

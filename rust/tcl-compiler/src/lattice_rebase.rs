@@ -172,7 +172,15 @@ pub fn rebase_script(script: &mut Script, delta: i64) {
 
 fn rebase_terminator(term: &mut Terminator, delta: i64) {
     match term {
-        Terminator::Goto { span, .. } | Terminator::Return { span, .. } => shift_opt(span, delta),
+        Terminator::Goto { span, .. } => shift_opt(span, delta),
+        Terminator::Return {
+            span, value_word, ..
+        } => {
+            shift_opt(span, delta);
+            if let Some(word) = value_word {
+                rebase_word_expr(word, delta);
+            }
+        }
         Terminator::Branch {
             span,
             condition_base,
@@ -192,7 +200,15 @@ fn rebase_statement(stmt: &mut Statement, delta: i64) {
             shift(span, delta);
             shift_opt(value_span, delta);
         }
-        Statement::Incr { span, .. } | Statement::Return { span, .. } => shift(span, delta),
+        Statement::Incr { span, .. } => shift(span, delta),
+        Statement::Return {
+            span, value_word, ..
+        } => {
+            shift(span, delta);
+            if let Some(word) = value_word {
+                rebase_word_expr(word, delta);
+            }
+        }
         Statement::AssignExpr {
             span, expr_base, ..
         }
@@ -463,6 +479,42 @@ mod tests {
             panic!("rebased second part should remain a variable substitution");
         };
         assert_eq!(source.span.start(), before_part.start() + 37);
+    }
+
+    #[test]
+    fn rebase_shifts_return_value_word_site() {
+        let registry = CommandRegistry::build_default();
+        let cu =
+            CompilationUnit::build_for("proc p {} { return [info exists pub] }", &registry, false);
+        let mut fu = cu.function("::p").expect("::p built").clone();
+        let return_word_span = fu
+            .cfg
+            .blocks
+            .values()
+            .find_map(|block| match &block.terminator {
+                Some(Terminator::Return {
+                    value_word: Some(word),
+                    ..
+                }) => Some(word.source().span),
+                _ => None,
+            })
+            .expect("return should retain its canonical value word");
+
+        rebase_function_unit(&mut fu, 23);
+        let rebased_word_span = fu
+            .cfg
+            .blocks
+            .values()
+            .find_map(|block| match &block.terminator {
+                Some(Terminator::Return {
+                    value_word: Some(word),
+                    ..
+                }) => Some(word.source().span),
+                _ => None,
+            })
+            .expect("rebased return should retain its canonical value word");
+        assert_eq!(rebased_word_span.start(), return_word_span.start() + 23);
+        assert_eq!(rebased_word_span.end(), return_word_span.end() + 23);
     }
 
     /// The load-bearing invariant behind the per-procedure lattice memo: a

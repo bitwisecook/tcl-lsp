@@ -103,6 +103,18 @@ fn opt_count(src: &str, dialect: &str, code: &str) -> usize {
         .count()
 }
 
+/// Every analyser diagnostic code for `src`, at any severity — `reparse_errors`
+/// keeps only `Severity::Error`, so a warning-level code (W210, W211) needs
+/// this instead.
+fn analyser_codes(src: &str, dialect: &str) -> Vec<String> {
+    Analyser::new()
+        .analyse(src, dialect)
+        .diagnostics
+        .iter()
+        .map(|d| d.code.to_string())
+        .collect()
+}
+
 /// Error-severity diagnostic codes the user-facing `tcl diag` surface reports
 /// for `src` — the analyser pass plus `run_all_checks`, optimisation codes
 /// dropped, mirroring `checks.rs::codes`. Empty means the source re-parses;
@@ -1510,11 +1522,20 @@ fn unused_irule_procs_o124() {
     assert!(!opt_fires(supersede, IR, "O121"));
     assert!(!opt_fires(supersede, IR, "O122"));
 
-    // O124 does not block independent passes for a *used* proc (O120 still fires
-    // inside it); the used proc is not commented out.
-    let used_o120 = "proc helper {x} {\n    if {$x == \"foo\"} {\n        return 1\n    }\n    return 0\n}\n\nwhen HTTP_REQUEST {\n    set val [call helper bar]\n}";
-    assert!(opt_fires(used_o120, IR, "O120"));
-    assert!(!opt_fires(used_o120, IR, "O124"));
+    // O124 does not block independent passes for a *used* proc; the used proc
+    // is not commented out.
+    //
+    // The pass that fires here is O112, not O120: `[call helper bar]` is a
+    // command substitution nested in a word, and since #2134 those are
+    // enumerated as call sites, so `x` is known to be `bar` inside the body
+    // and the `foo` branch is proven dead. Before that the caller was
+    // invisible, nothing was seeded, and only the weaker O120 rewrite applied.
+    let used_body = "proc helper {x} {\n    if {$x == \"foo\"} {\n        return 1\n    }\n    return 0\n}\n\nwhen HTTP_REQUEST {\n    set val [call helper bar]\n}";
+    assert!(
+        opt_fires(used_body, IR, "O112"),
+        "the now-visible caller proves the foo branch dead",
+    );
+    assert!(!opt_fires(used_body, IR, "O124"));
 }
 
 #[test]
@@ -2107,4 +2128,189 @@ fn o107_still_fires_on_genuinely_unreachable_method_code() {
         "dead branch must still be eliminated: {out}"
     );
     assert!(out.contains("::puts live"), "live code must survive: {out}");
+}
+
+/// #2050 — the store feeding a nested read-modify-write is observed, not
+/// overwritten.
+///
+/// `[incr n]` reads `n` and writes it back. The write was already recorded (as
+/// the embedded-substitution effect that invalidates the old version), but the
+/// read was not, so `set n 1`'s version had no consumer and looked
+/// overwritten-before-read. O109 deleted it and the program changed:
+/// tclsh 9.0.4 / 8.6.18 print `2` then `2` for the original; the rewritten
+/// program printed `1` then `1` (8.4 raises `can't read "n"`, which does not
+/// even create the variable).
+#[test]
+fn a_nested_rmw_read_keeps_its_feeding_store_alive() {
+    let src = "set n 1\nset result [incr n]\nputs $result\nputs $n\n";
+    assert!(
+        !opt_fires(src, TCL, "O109"),
+        "the store feeding `[incr n]` is read by it: {:?}",
+        opt_codes(src, TCL)
+    );
+    assert_eq!(
+        optimised(src, TCL),
+        src,
+        "nothing in this program is safe to rewrite"
+    );
+}
+
+/// The same read through a `Call` host rather than an assignment: `puts [incr
+/// n]` carries the effect on the `puts` statement itself, where the extras are
+/// merged into its own defs, instead of on a prepended invalidation statement.
+#[test]
+fn a_nested_rmw_read_on_a_call_host_keeps_its_feeding_store_alive() {
+    let src = "set n 1\nputs [incr n]\nputs $n\n";
+    assert!(
+        !opt_fires(src, TCL, "O109"),
+        "the store feeding `[incr n]` is read by it: {:?}",
+        opt_codes(src, TCL)
+    );
+    assert_eq!(optimised(src, TCL), src);
+}
+
+/// #2141 — a write nested in a braced `expr` word is a write of this frame.
+///
+/// The word lexer is right to stop at `{…}` — the command parser substitutes
+/// nothing there — but `expr` re-parses that text and runs the `[…]` in it. So
+/// `[incr x]` inside `[expr {…}]` writes `x` exactly as `[incr x]` in a bare
+/// word does. Without that, `set x 1` looked like the single reaching
+/// definition at the later `puts $x`, and O102 forwarded the literal:
+/// tclsh 8.4.20 through 9.1b0 print `5` then `2`, the rewritten program printed
+/// `5` then `1`.
+#[test]
+fn a_write_nested_in_a_braced_expr_word_kills_the_reaching_definition() {
+    let src = "set x 1\nputs [expr {$x + [incr x] + $x}]\nputs $x\n";
+    let out = optimised(src, TCL);
+    assert!(
+        !out.contains("puts 1"),
+        "the later read sees 2, not the forwarded literal: {out}"
+    );
+    assert_eq!(out, src, "no rewrite in this program is sound");
+}
+
+/// The same family, in the two other shapes the issue lists. Each was checked
+/// against tclsh 9.0.4: `3`/`2` for the first, `5`/`3` for the second.
+#[test]
+fn a_write_nested_in_a_braced_expr_word_keeps_its_feeding_store() {
+    for src in [
+        "set n 1\nset r [expr {$n + [incr n]}]\nputs $r\nputs $n\n",
+        "set n 1\nset r [expr {[incr n] + [incr n]}]\nputs $r\nputs $n\n",
+    ] {
+        assert!(
+            !opt_fires(src, TCL, "O109"),
+            "`set n 1` feeds the first `[incr n]`: {:?}",
+            opt_codes(src, TCL)
+        );
+        assert_eq!(
+            optimised(src, TCL),
+            src,
+            "{src}: nothing is safe to rewrite"
+        );
+    }
+}
+
+/// Precision control: the descent is into brace-quoted **expression** words
+/// only, and only where a command really runs. A braced expression with no
+/// substitution still folds all the way through, and the forward to the later
+/// read is still made.
+#[test]
+fn a_braced_expr_word_with_no_nested_write_still_folds() {
+    let src = "set x 1\nputs [expr {$x + 1}]\nputs $x\n";
+    let out = optimised(src, TCL);
+    assert!(
+        out.contains("puts 2"),
+        "the expression must still fold: {out}"
+    );
+    assert!(
+        out.contains("puts 1"),
+        "the later read is still the single reaching definition: {out}"
+    );
+}
+
+/// Precision control: a statement that reads and writes the same variable
+/// *through its own argument roles* is unaffected — the read happens before
+/// the write in both, and forwarding the literal into the read is sound.
+/// tclsh 9.0.4: `lappend x 1` then `puts $x` prints `1 1`, and `incr x; puts 2`
+/// prints `2`, matching the originals.
+#[test]
+fn a_direct_read_before_write_still_forwards_its_literal() {
+    let appended = optimised("set x 1\nlappend x $x\nputs $x\n", TCL);
+    assert!(
+        appended.contains("lappend x 1"),
+        "a direct RMW read still forwards: {appended}"
+    );
+    let incremented = optimised("set x 1\nset x [expr {$x + 1}]\nputs $x\n", TCL);
+    assert!(
+        incremented.contains("puts 2"),
+        "a self-assigning expression still folds through: {incremented}"
+    );
+}
+
+/// A multi-word `expr` concatenates its arguments into one expression, so a
+/// `[…]` inside a braced *argument* runs too.
+///
+/// `expr 1 + {[incr x]}` joins its words into `1 + [incr x]` and parses that,
+/// which makes the brace-quoted word's substitution a real write of `x`.
+/// Taking only the `ArgRole::Expr` word missed it and O102 forwarded the stale
+/// literal: tclsh 8.6.18 and 9.0.4 both print `3` then `2`, the rewritten
+/// program printed `3` then `1`. The rule comes from the registry's
+/// `EXPR_CONCATENATES_ARGS` trait, not from the spelling `expr`.
+#[test]
+fn a_concatenated_expr_argument_is_an_expression_word() {
+    let src = "set x 1\nputs [expr 1 + {[incr x]}]\nputs $x\n";
+    let out = optimised(src, TCL);
+    assert!(
+        !out.contains("puts 1"),
+        "the later read sees 2, not the forwarded literal: {out}"
+    );
+    assert!(
+        !opt_fires(src, TCL, "O109"),
+        "`set x 1` feeds the concatenated `[incr x]`: {:?}",
+        opt_codes(src, TCL)
+    );
+    assert_eq!(out, src, "no rewrite in this program is sound");
+}
+
+/// An expression reached through an alias resolves its words like the command
+/// it reaches.
+///
+/// After `interp alias {} e {} expr`, the raw spelling `e` carries no
+/// `ArgRole::Expr`, so the `[incr x]` of `[e {$x + [incr x]}]` was invisible
+/// and the later read folded to `1` where tclsh 8.6.18 / 9.0.4 print `2`.
+#[test]
+fn an_alias_to_expr_still_shows_its_nested_write() {
+    let src = "interp alias {} e {} expr\nset x 1\nputs [e {$x + [incr x]}]\nputs $x\n";
+    let out = optimised(src, TCL);
+    assert!(
+        !out.contains("puts 1"),
+        "the alias runs `incr`, so the later read is not the literal: {out}"
+    );
+    assert_eq!(out, src, "no rewrite in this program is sound");
+}
+
+/// A structural body is not the enclosing statement's substitution surface.
+///
+/// `proc q {} {…}` lowers its body into a procedure of its own, so the `[incr
+/// m]` inside it belongs to that procedure's frame. Reading it from the
+/// enclosing `proc` statement attributed a caller-frame read of the proc's own
+/// local, and W210 fired on a program tclsh 9.0.4 runs cleanly (it prints `2`).
+/// A `Plain` body — `eval`, `catch`, a loop — shares this frame and must still
+/// contribute its effects.
+#[test]
+fn a_structural_body_is_not_the_enclosing_statements_surface() {
+    let proc_body = "proc q {} {\n  set m 1\n  puts [incr m]\n}\nq\n";
+    let codes = analyser_codes(proc_body, TCL);
+    assert!(
+        !codes.iter().any(|c| c == "W210"),
+        "the proc's own local is not a caller-frame read: {codes:?}"
+    );
+    // A `Plain` body runs here, so its write still reaches the frame: `set m
+    // 1` is read by the `eval`'d `incr` and must survive.
+    let plain_body = "proc p {} {\n  set m 1\n  eval {incr m}\n  puts $m\n}\np\n";
+    assert!(
+        !opt_fires(plain_body, TCL, "O109"),
+        "an `eval`'d body shares this frame: {:?}",
+        opt_codes(plain_body, TCL)
+    );
 }

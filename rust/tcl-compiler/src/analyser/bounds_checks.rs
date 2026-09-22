@@ -876,6 +876,16 @@ fn infer_list_length_from_recent_set(
             }
             if let Some(length) = literal_list_assignment(registry, &cmd, var_name) {
                 best = Some(length);
+            } else if writes_the_name(registry, &cmd, var_name) {
+                // A write this scan cannot turn into a fresh literal length —
+                // `lappend`/`append`/`incr`, or a `set` whose value is not one
+                // literal word — invalidates the length recovered from an
+                // earlier literal assignment. Keeping the stale one reported
+                // `set xs {}` as the length at a later `lset xs 2 X`, a W231
+                // "list has 0 elements" on a list that really has three
+                // (#2054). Abstaining matches how the rest of this checker
+                // handles a value it cannot pin down.
+                best = None;
             }
         }
         match inner {
@@ -907,6 +917,25 @@ const MAX_SCOPE_DESCENT: tcl_core_types::RecursionLimit = tcl_core_types::Recurs
 /// The value must be a single braced word, which is what makes it a literal:
 /// the segmenter has already stripped the delimiter, so the text splits
 /// directly as a Tcl list.
+/// Whether `cmd` writes `var_name` at all, however it writes it.
+///
+/// Deliberately weaker than [`literal_list_assignment`]: no
+/// `READS_BEFORE_WRITE` / `WHOLE_ARRAY_ARG` exclusion and no single-literal-word
+/// requirement, because the question here is only "did this command touch the
+/// name", not "what is its new length".
+fn writes_the_name(
+    registry: &tcl_registry::CommandRegistry,
+    cmd: &SegmentedCommand,
+    var_name: &str,
+) -> bool {
+    let head = cmd.name().strip_prefix("::").unwrap_or(cmd.name());
+    let args: Vec<&str> = cmd.args().iter().map(String::as_str).collect();
+    registry
+        .arg_indices_for_role(head, &args, tcl_registry::ArgRole::VarWrite)
+        .into_iter()
+        .any(|index| args.get(index) == Some(&var_name))
+}
+
 fn literal_list_assignment(
     registry: &tcl_registry::CommandRegistry,
     cmd: &SegmentedCommand,
@@ -1688,6 +1717,41 @@ mod tests {
                 "{dialect} reads 010 as out-of-range decimal 10"
             );
         }
+    }
+
+    /// A write this scan cannot turn into a fresh length invalidates the one
+    /// it recovered earlier, instead of reporting the stale figure (#2054).
+    ///
+    /// `set xs {}` then `lappend xs a b c` leaves a three-element list, and
+    /// tclsh 9.0.4 runs `lset xs 2 X` happily, printing `a b X`. W231 used to
+    /// report "list has 0 elements" from the initial `set`.
+    #[test]
+    fn w231_abstains_after_a_write_it_cannot_measure() {
+        for src in [
+            // The issue's own shape.
+            "set xs {}\nlappend xs a b c\nlset xs 2 X\n",
+            // Same gap, reached by a non-literal `set` rather than `lappend`.
+            "set xs {}\nset y {a b c}\nset xs $y\nlset xs 2 X\n",
+            // And by a command substitution.
+            "set xs {}\nset xs [list a b c]\nlset xs 2 X\n",
+            // `append` is the same class of unmeasurable write.
+            "set xs {}\nappend xs \"a b c\"\nlset xs 2 X\n",
+        ] {
+            assert!(
+                code_msgs(src, "W231").is_empty(),
+                "an unmeasurable write must invalidate the earlier length: {src:?}",
+            );
+        }
+    }
+
+    /// The abstention must not silence a genuine out-of-range index: with no
+    /// intervening write the literal length still stands.
+    #[test]
+    fn w231_still_reports_a_real_overrun() {
+        assert!(
+            !code_msgs("set xs {a b}\nlset xs 5 X\n", "W231").is_empty(),
+            "an untouched literal list keeps its length",
+        );
     }
 
     #[test]

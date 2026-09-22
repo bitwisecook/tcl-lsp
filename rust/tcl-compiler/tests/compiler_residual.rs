@@ -73,6 +73,10 @@
 
 use std::collections::HashMap;
 
+mod common;
+
+use common::command_tokens;
+
 use tcl_compiler::cfg_builder::build_cfg;
 use tcl_compiler::codegen::{CodegenCtx, FunctionAsm, Op, Operand, codegen_module};
 use tcl_compiler::compilation_unit::CompilationUnit;
@@ -517,7 +521,8 @@ fn info_exists_proc_uses_exist_scalar() {
     // not the generic invoke.
     let reg = registry();
     let mut ctx = proc_ctx(&reg, &["v"]);
-    ctx.emit_inline_cmd_subst("[info exists v]");
+    let tokens = command_tokens("info exists v");
+    ctx.emit_inline_cmd_subst_with_tokens("[info exists v]", Some(&tokens));
     let ops = ctx_ops(&ctx);
     assert!(
         ops.contains(&Op::EXIST_SCALAR),
@@ -531,12 +536,90 @@ fn info_exists_script_uses_exist_stk() {
     // At script scope (no LVT) the same `info exists` emits push + existStk.
     let reg = registry();
     let mut ctx = CodegenCtx::new(false, &[], &reg);
-    ctx.emit_inline_cmd_subst("[info exists v]");
+    let tokens = command_tokens("info exists v");
+    ctx.emit_inline_cmd_subst_with_tokens("[info exists v]", Some(&tokens));
     let ops = ctx_ops(&ctx);
     assert_eq!(
         ops,
         vec![Op::PUSH1, Op::EXIST_STK],
         "script info exists → push; existStk"
+    );
+}
+
+#[test]
+fn info_exists_without_source_tokens_stays_generic() {
+    // The compatibility helper has no structured word form, so it cannot
+    // prove that a flattened `$` or command substitution is absent. Keep the
+    // ordinary invoke rather than claiming a local slot from text alone.
+    let reg = registry();
+    let mut ctx = proc_ctx(&reg, &["v"]);
+    ctx.emit_inline_cmd_subst("[info exists v]");
+    let ops = ctx_ops(&ctx);
+    assert!(ops.contains(&Op::INVOKE_STK1), "no source facts: {ops:?}");
+    assert!(!ops.contains(&Op::EXIST_SCALAR), "no source facts: {ops:?}");
+}
+
+#[test]
+fn catch_body_introspection_keeps_source_word_slot_rules() {
+    // The straight-line catch CFG shares the enclosing procedure's local
+    // table. Direct source words get slots, while a qualified name built from
+    // `$n` remains a runtime invocation.
+    let direct_ops = proc_ops(
+        "proc p {v arr} {catch {info exists v; array exists arr}}",
+        "::p",
+    );
+    assert!(
+        direct_ops.contains(&Op::EXIST_SCALAR),
+        "catch direct info exists: {direct_ops:?}"
+    );
+    assert!(
+        direct_ops.contains(&Op::ARRAY_EXISTS_IMM),
+        "catch direct array exists: {direct_ops:?}"
+    );
+
+    let dynamic_ops = proc_ops(
+        "proc p {} {set n x; set ::x 1; catch {info exists ::$n}}",
+        "::p",
+    );
+    assert!(
+        dynamic_ops.contains(&Op::INVOKE_STK1),
+        "catch dynamic info exists: {dynamic_ops:?}"
+    );
+    assert!(
+        !dynamic_ops.contains(&Op::EXIST_SCALAR),
+        "catch dynamic info exists: {dynamic_ops:?}"
+    );
+
+    let braced_ops = proc_ops(
+        r"proc p {} {set {p\x75b} 1; catch {info exists {p\x75b}}}",
+        "::p",
+    );
+    assert!(
+        braced_ops.contains(&Op::EXIST_SCALAR),
+        "catch braced info exists: {braced_ops:?}"
+    );
+}
+
+#[test]
+fn braced_continuation_names_use_collapsed_local_slots() {
+    // C Tcl folds a braced backslash-newline and following indentation to one
+    // space, while preserving other braced backslashes verbatim.
+    let scalar_ops = proc_ops(
+        "proc p {} {set {p ub} 1; return [info exists {p\\\n  ub}]}",
+        "::p",
+    );
+    assert!(
+        scalar_ops.contains(&Op::EXIST_SCALAR),
+        "braced continuation scalar: {scalar_ops:?}"
+    );
+
+    let array_ops = proc_ops(
+        "proc p {} {array set {p ub} {}; return [array exists {p\\\n  ub}]}",
+        "::p",
+    );
+    assert!(
+        array_ops.contains(&Op::ARRAY_EXISTS_IMM),
+        "braced continuation array: {array_ops:?}"
     );
 }
 
@@ -548,7 +631,8 @@ fn array_exists_proc_uses_array_exists_imm() {
     // tclsh: array exists undefined  →  0   (8.6 + 9.0)
     let reg = registry();
     let mut ctx = proc_ctx(&reg, &["arr"]);
-    ctx.emit_inline_cmd_subst("[array exists arr]");
+    let tokens = command_tokens("array exists arr");
+    ctx.emit_inline_cmd_subst_with_tokens("[array exists arr]", Some(&tokens));
     let ops = ctx_ops(&ctx);
     assert_eq!(
         ops,
