@@ -1261,6 +1261,70 @@ fn unbraced_foreach_list_word_still_substitutes() {
     );
 }
 
+/// A whole-word array element is a dynamic list source, including when its
+/// index contains substitutions.  The header must evaluate that word at loop
+/// entry instead of iterating its source spelling.  These outputs match
+/// Tcl 9.0.4.
+#[test]
+fn foreach_dynamic_array_element_list_source_matches_tcl9() {
+    // The package.tcl shape that exposed #2194: the index is composed from
+    // the current loop variable.
+    assert_eq!(
+        run("proc p {} {\n\
+                 array set opts {-load {} -source foo}\n\
+                 set out {}\n\
+                 foreach key {load source} {\n\
+                     foreach filespec $opts(-$key) {\n\
+                         lappend out [list $key $filespec]\n\
+                     }\n\
+                 }\n\
+                 return $out\n\
+             }\n\
+             p",)
+        .1,
+        "{source foo}",
+    );
+
+    // A dynamic array source also works in a nested loop.
+    assert_eq!(
+        run("array set a {x {one two} y {three}}\n\
+             set out {}\n\
+             foreach key {x y} {\n\
+                 foreach item $a($key) { lappend out [list $key $item] }\n\
+             }\n\
+             set out",)
+        .1,
+        "{x one} {x two} {y three}",
+    );
+
+    // Braced list controls remain literal, even when the same spelling would
+    // be a variable reference in an unbraced word.
+    assert_eq!(
+        run("set x {a $b [bad]}\n\
+             set out {}\n\
+             foreach item {$x} { lappend out $item }\n\
+             set out",)
+        .1,
+        "{$x}",
+    );
+
+    // An index command runs once while resolving the list source.  This
+    // guards the left-to-right substitution order in the canonical array
+    // reference emitter.
+    assert_eq!(
+        run(
+            "proc nextKey {name counterVar} { upvar 1 $counterVar n; incr n; return $name }\n\
+             array set a {x {one two}}\n\
+             set n 0\n\
+             set out {}\n\
+             foreach item $a([nextKey x n]) { lappend out $item }\n\
+             list $n $out",
+        )
+        .1,
+        "1 {one two}",
+    );
+}
+
 /// A direct nested iterator routes the outer literal `foreach` through the
 /// runtime command boundary. That gives the inner loop a fresh activation;
 /// inlining both loops into one CFG would leave only the final outer item.

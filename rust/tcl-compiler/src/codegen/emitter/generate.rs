@@ -484,7 +484,11 @@ fn emit_foreach_header(
         if fi.list_braced.get(i).copied().unwrap_or(false) {
             ctx.push_lit_verbatim(la);
         } else {
-            ctx.emit_value(la, false);
+            // Nonbraced list words substitute at loop entry. Use the
+            // canonical path for dynamic array references such as
+            // `$opts(-$key)`; `list_braced` is source-owned metadata, so this
+            // consumer never reparses flattened text.
+            ctx.emit_value(la, true);
         }
     }
     let fs_idx = ctx.emit(Op::FOREACH_START, vec![Operand::Imm(0)]);
