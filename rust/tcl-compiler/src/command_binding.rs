@@ -934,12 +934,23 @@ impl ModuleCommandBindings {
     pub(crate) fn mutation_projection(&self, registry: &CommandRegistry) -> ModuleCommandMutations {
         let mut names = std::collections::HashSet::new();
         for (name, observed) in self.bindings.iter() {
-            if default_binding(name, registry).kind != BindingKind::Builtin {
+            let original = Self::unmodified_bindings(name, self.baseline.semantics.binding_names());
+            if *observed == original {
                 continue;
             }
-            let original = Self::unmodified_bindings(name, self.baseline.semantics.binding_names());
-            if *observed != original {
+            if default_binding(name, registry).kind == BindingKind::Builtin {
                 names.insert(name.clone());
+            } else if let Some(shadowed) = builtin_shadowed_by_qualified_definition(name, registry)
+            {
+                // The same tail projection the source scan applies, so a
+                // qualified shadow installed through a recovered binding is
+                // distrusted too. An alias carrying the prepended name —
+                // `interp alias {} make {} proc ::n::expr` then
+                // `make {s} {return "SHADOW:$s"}` — defines `::n::expr`
+                // without the source scan ever seeing that spelling, and
+                // O110 would still rewrite an unqualified `expr` inside
+                // `::n` (#2159).
+                names.insert(shadowed);
             }
         }
         ModuleCommandMutations {
@@ -5935,6 +5946,43 @@ Dog create d",
             !m.trusts("expr"),
             "a qualified shadow distrusts the builtin"
         );
+    }
+
+    /// A qualified shadow installed through an alias is distrusted too.
+    ///
+    /// `interp alias {} make {} proc ::n::expr` carries the prepended name,
+    /// so the source scan never sees the spelling `proc ::n::expr` — but
+    /// `ModuleCommandBindings` recovers the definition, and the same tail
+    /// projection applies there. tclsh 9.0.4 prints `SHADOW:$r ** 2` for the
+    /// program below; without this, O110 still rewrote the body to
+    /// `[expr {$r * $r}]`.
+    #[test]
+    fn an_alias_installed_qualified_shadow_is_distrusted() {
+        let reg = CommandRegistry::build_default();
+        let cu = CompilationUnit::build_for(
+            "namespace eval ::n {}\ninterp alias {} make {} proc ::n::expr\nmake {s} { return \"SHADOW:$s\" }\nproc ::n::f {r} { return [expr {$r ** 2}] }\n",
+            &reg,
+            false,
+        );
+        let m = scan_module_command_mutations(&cu.ir_module, &reg);
+        assert!(
+            !m.trusts("expr"),
+            "an alias-installed qualified shadow distrusts the builtin",
+        );
+    }
+
+    /// And an alias installing something whose tail is not a builtin leaves
+    /// trust alone.
+    #[test]
+    fn an_alias_installing_a_non_builtin_tail_keeps_trust() {
+        let reg = CommandRegistry::build_default();
+        let cu = CompilationUnit::build_for(
+            "namespace eval ::n {}\ninterp alias {} make {} proc ::n::helper\nmake {s} { return $s }\nproc ::n::f {r} { return [expr {$r ** 2}] }\n",
+            &reg,
+            false,
+        );
+        let m = scan_module_command_mutations(&cu.ir_module, &reg);
+        assert!(m.trusts("expr"), "an unrelated alias keeps trust");
     }
 
     /// The same, for a command other than `expr` — the scan is keyed on the
