@@ -243,14 +243,34 @@ fn fp_rbs_02_regexp_nocase_silent_on_literal_match() {
 #[test]
 fn fp_rbs_02_regexp_unknown_switch_bails() {
     // FP / safety: estimator must bail on any unrecognised regexp switch.
-    for opt in ["-bogus", "-about"] {
-        let src = format!("proc f {{}} {{ regexp {opt} {{x}} X v; puts $v }}");
-        assert!(
-            !fires(&src, D, "W210"),
-            "FP-RBS-02: unknown switch {opt} must conservatively NOT fire W210; emitted: {:?}",
-            codes(&src, D)
-        );
-    }
+    //
+    // `-about` used to be listed here as a second "unknown" switch. It is not
+    // unknown — it is a declared one that takes no match variables at all, so
+    // `regexp -about {x} X v` never creates `v` and `puts $v` really does read
+    // before set: tclsh 8.4.20, 8.6.18 and 9.0.4 all fail it with `can't read
+    // "v": no such variable`. Reporting that is a true positive, and the row
+    // moved to `fp_rbs_02_regexp_about_names_no_match_variable` below (#2135).
+    let src = "proc f {} { regexp -bogus {x} X v; puts $v }";
+    assert!(
+        !fires(src, D, "W210"),
+        "FP-RBS-02: an unrecognised switch must conservatively NOT fire W210; emitted: {:?}",
+        codes(src, D)
+    );
+}
+
+#[test]
+fn fp_rbs_02_regexp_about_names_no_match_variable() {
+    // TP: `-about` describes the pattern and returns before it looks at a
+    // subject, ignoring every later word — so nothing writes `v` and the read
+    // is genuine. Measured on tclsh 8.4.20 / 8.6.18 / 9.0.4, all three:
+    //   proc f {} { regexp -about {x} y v; puts $v }; f
+    //   → can't read "v": no such variable
+    let src = "proc f {} { regexp -about {x} y v; puts $v }";
+    assert!(
+        fires(src, D, "W210"),
+        "FP-RBS-02: `-about` writes no match variable, so this read is genuine; emitted: {:?}",
+        codes(src, D)
+    );
 }
 
 #[test]

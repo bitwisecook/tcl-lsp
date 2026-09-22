@@ -1541,6 +1541,12 @@ fn scan_cfg_callers<'a>(
         let config = tcl_lexer::LexerConfig::from_grammar(ctx.dialect.grammar);
         for block in func.blocks.values() {
             for stmt in &block.statements {
+                // Synthetic analysis markers share the Call/Barrier shapes
+                // but are never runtime invocations. They cannot supply
+                // caller evidence for a user procedure with the same text.
+                if !stmt.is_executable_invocation() {
+                    continue;
+                }
                 if let Statement::Call { command, args, .. }
                 | Statement::Barrier { command, args, .. } = stmt
                 {
@@ -2476,6 +2482,20 @@ mod tests {
         // Two disagreeing literals, so no uniform value — but the position is
         // *bound* by every recorded call, which a withdrawal would undo.
         assert!(ev.get("::helper").unwrap().binds_position(0));
+    }
+
+    #[test]
+    fn registry_barrier_marker_is_not_a_zero_argument_caller() {
+        let ev = evidence(
+            "proc {<registry-barrier>} {mode} { return $mode }\n\
+             {<registry-barrier>} fixed\n\
+             set ignored [missing_command]\n",
+        );
+        assert_eq!(
+            uniform(&ev, "::<registry-barrier>", 0),
+            Some("fixed".into()),
+            "the synthetic marker is analysis-only; the real invocation remains evidence",
+        );
     }
 
     // A module's own `unknown` handler. Tcl dispatches every

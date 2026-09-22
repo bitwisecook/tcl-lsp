@@ -144,6 +144,20 @@ struct ResolvedUpvarEffects {
     frame_barrier: crate::dynamic_names::DynamicNameBarrier,
 }
 
+/// The variable effects a loop or branch condition's `[…]` substitutions
+/// contribute to the frame the condition is evaluated in.
+#[derive(Default)]
+struct ConditionEffects {
+    /// Variables the condition's substitutions write.
+    defs: Vec<String>,
+    /// The subset of [`Self::defs`] read before being written.
+    reads: Vec<String>,
+    /// An embedded callee runs an unreadable script at the global frame.
+    opaque_global: bool,
+    /// A timeline-resolved embedded invocation reaches a registry barrier.
+    registry_barrier: bool,
+}
+
 /// The caller-frame effects a statement's `[…]` substitutions contribute.
 #[derive(Default)]
 struct EmbeddedSubstExtras {
@@ -760,6 +774,7 @@ impl<'a> CfgBuilder<'a> {
 
         if direct_extras.is_empty()
             && embedded_extras.is_empty()
+            && embedded_reads.is_empty()
             && !embedded_opaque_global
             && !embedded_registry_barrier
         {
@@ -835,7 +850,7 @@ impl<'a> CfgBuilder<'a> {
         if let Some(barrier) = opaque_barrier {
             out.push(barrier);
         }
-        if !embedded_extras.is_empty() {
+        if !embedded_extras.is_empty() || !embedded_reads.is_empty() {
             out.push(Statement::Call {
                 span: stmt.span(),
                 command: "<upvar-invalidate>".to_string(),
@@ -1058,9 +1073,30 @@ impl<'a> CfgBuilder<'a> {
                 embedded_extras.push(d);
             }
         }
+        // A `VarRead`-role word inside a substitution observes its target
+        // without writing it (`set e [info exists x]`), so it is never among
+        // the write effects. Same rule as the condition path (#2132).
+        let mut reads = writes.read_names;
+        let role_reads = crate::ir_helpers::variable_read_effects_from_commands(
+            embedded.all_commands(),
+            self.registry,
+        );
+        // As above, deliberately *not* folded into `opaque`: an unnameable **read**
+        // (`[info exists $p]`) observes a cell we cannot name, which is a
+        // precision loss, not a claim that anything is written. The
+        // `opaque_global` barrier means "this may write any name anywhere",
+        // and asserting that for a read made an `[info exists Params($k)]`
+        // guard stop folding. A dynamic read's effect on dead-store
+        // elimination is already owned by `dynamic_names.reads`, which
+        // abstains for the whole function.
+        for r in role_reads.names {
+            if !reads.contains(&r) {
+                reads.push(r);
+            }
+        }
         EmbeddedSubstExtras {
             defs: embedded_extras,
-            read_before_write: writes.read_names,
+            read_before_write: reads,
             opaque_global: embedded_opaque_global,
         }
     }
@@ -1146,26 +1182,10 @@ impl<'a> CfgBuilder<'a> {
         (defs, opaque)
     }
 
-    /// Condition-position command-substitution out-vars: unions the
-    /// registry's `ArgRole::VarWrite` scan
-    /// ([`crate::ir_helpers::condition_command_out_vars`]) with the same
-    /// known-upvar-proc /
-    /// known-global-writer resolution every *other* embedded-substitution
-    /// site already gets. Without this, a user
-    /// proc's `upvar` write was only recognised as a bare statement or an
-    /// ordinary value (`set x [getKnownOpt ...]`) — invoked from a
-    /// `while`/`if` *condition* instead (`while {[getopt argv $opts opt
-    /// arg]} { ... }`, tcllib's `cmdline::getoptions`), the write was
-    /// invisible, producing a false W210 on the guarded body's read even
-    /// though the condition's own command substitution (including the
-    /// upvar write) completes before the body ever runs
-    /// (tclsh9.0/8.6-verified).
-    /// The second return is `true` when a condition-embedded callee runs an
-    /// unreadable script at the global frame: the caller must
-    /// then push an opaque barrier alongside the `<cond>` defs, because no
-    /// def list can enumerate what the condition's evaluation clobbers.
-    fn condition_out_vars(&self, condition: &ExprNode, span: Span) -> (Vec<String>, bool, bool) {
-        let mut out = crate::ir_helpers::condition_command_out_vars(condition, self.registry);
+    /// Condition-position effects combine registry variable roles, resolved
+    /// procedure summaries, and timeline-resolved handler barriers.
+    fn condition_out_vars(&self, condition: &ExprNode, span: Span) -> ConditionEffects {
+        let mut defs = crate::ir_helpers::condition_command_out_vars(condition, self.registry);
         let embedded = crate::ir_helpers::expression_command_substitutions(
             condition,
             self.registry,
@@ -1173,26 +1193,38 @@ impl<'a> CfgBuilder<'a> {
         );
         let upvar = self.upvar_effects_from_commands(&embedded.commands);
         let opaque_upvar = upvar.opaque_arguments;
-        for d in upvar.defs {
-            if !out.contains(&d) {
-                out.push(d);
+        for name in upvar.defs {
+            if !defs.contains(&name) {
+                defs.push(name);
             }
         }
-        let (global_defs, mut opaque) = self.global_write_defs_from_commands(&embedded.commands);
-        opaque |= embedded.opaque || opaque_upvar;
+        let (global_defs, mut opaque_global) =
+            self.global_write_defs_from_commands(&embedded.commands);
+        opaque_global |= embedded.opaque || opaque_upvar;
         let writes = crate::ir_helpers::variable_write_effects_from_commands(
             embedded.all_commands(),
             self.registry,
         );
-        opaque |= writes.opaque;
-        for d in writes.names {
-            if !out.contains(&d) {
-                out.push(d);
+        opaque_global |= writes.opaque;
+        for name in writes.names {
+            if !defs.contains(&name) {
+                defs.push(name);
             }
         }
-        for d in global_defs {
-            if !out.contains(&d) {
-                out.push(d);
+        for name in global_defs {
+            if !defs.contains(&name) {
+                defs.push(name);
+            }
+        }
+        let mut reads = writes.read_names;
+        for name in crate::ir_helpers::variable_read_effects_from_commands(
+            embedded.all_commands(),
+            self.registry,
+        )
+        .names
+        {
+            if !reads.contains(&name) {
+                reads.push(name);
             }
         }
         let bindings = self
@@ -1201,25 +1233,31 @@ impl<'a> CfgBuilder<'a> {
             .and_then(|timeline| timeline.before_substitutions(span))
             .cloned()
             .unwrap_or_else(|| self.command_bindings.clone());
-        let registry_barrier =
-            self.command_words_registry_barrier_with_bindings(&embedded.commands, bindings);
-        (out, opaque, registry_barrier)
+        ConditionEffects {
+            defs,
+            reads,
+            opaque_global,
+            registry_barrier: self
+                .command_words_registry_barrier_with_bindings(&embedded.commands, bindings),
+        }
     }
 
-    /// Push the `<cond>` synthetic call (and, when the condition's embedded
-    /// callees demand it, an opaque barrier) for a condition that contains
-    /// command substitutions — the shared tail of `lower_if`, `lower_while`,
-    /// and the frozen-loop barrier.
+    /// Push the synthetic condition effects and analysis-only barriers.
     fn push_condition_effects(&mut self, condition: &ExprNode, span: Span, block: &str) {
-        let (cond_defs, opaque, registry_barrier) = self.condition_out_vars(condition, span);
-        if !cond_defs.is_empty() {
+        let ConditionEffects {
+            defs,
+            reads,
+            opaque_global,
+            registry_barrier,
+        } = self.condition_out_vars(condition, span);
+        if !defs.is_empty() || !reads.is_empty() {
             self.block_mut(block).statements.push(Statement::Call {
                 span,
                 command: "<cond>".into(),
                 canonical_command: None,
                 args: Vec::new(),
-                defs: cond_defs,
-                reads: Vec::new(),
+                defs,
+                reads,
                 reads_own_defs: false,
                 safe_on_uninit: false,
                 tokens: Some(crate::ir::CommandTokens::marker(
@@ -1228,7 +1266,7 @@ impl<'a> CfgBuilder<'a> {
                 foreach_groups: None,
             });
         }
-        if opaque {
+        if opaque_global {
             self.block_mut(block).statements.push(Statement::Barrier {
                 span,
                 reason: "condition runs an unreadable script at the global frame".into(),
@@ -1660,7 +1698,7 @@ impl<'a> CfgBuilder<'a> {
             };
             self.block_mut(current).statements.push(barrier);
         }
-        if !extras.is_empty() {
+        if !extras.is_empty() || !extra_reads.is_empty() {
             self.block_mut(current).statements.push(Statement::Call {
                 span: stmt.span(),
                 command: "<upvar-invalidate>".to_string(),

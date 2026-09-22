@@ -995,6 +995,50 @@ pub(crate) struct VariableWriteEffects {
     pub opaque: bool,
 }
 
+/// Source-aware projection of variable-cell reads from an invocation.
+/// `opaque` means the command reads a variable whose name substitution
+/// prevents naming.
+#[derive(Debug, Default)]
+pub(crate) struct VariableReadEffects {
+    pub names: Vec<String>,
+    pub opaque: bool,
+}
+
+/// Project the variable cells recursively recovered command substitutions read
+/// **by name** — an [`ArgRole::VarRead`](tcl_registry::ArgRole::VarRead) word
+/// such as `info exists n` or `array size a`.
+///
+/// The read half of [`variable_write_effects_from_commands`], and needed for
+/// the same reason: a store observed only by an existence query looked unread,
+/// so `proc p {} {set x 1; if {[info exists x]} {puts yes}}` had `set x 1`
+/// removed and stopped printing `yes` (#2132).
+#[must_use]
+pub(crate) fn variable_read_effects_from_commands<'a>(
+    commands: impl IntoIterator<Item = &'a Vec<CommandWord>>,
+    registry: &CommandRegistry,
+) -> VariableReadEffects {
+    let mut out = VariableReadEffects::default();
+    for words in commands {
+        let Some(head) = words.first() else {
+            continue;
+        };
+        let args: Vec<InvocationWord<'_>> = words
+            .iter()
+            .skip(1)
+            .map(CommandWord::invocation_word)
+            .collect();
+        let projection = registry
+            .variable_read_projection(InvocationWords::structured(head.invocation_word(), &args));
+        out.opaque |= projection.opaque_variable_frame;
+        for name in projection.literal_names {
+            if !out.names.contains(&name) {
+                out.names.push(name);
+            }
+        }
+    }
+    out
+}
+
 /// Project variable writes from recursively recovered command substitutions.
 #[must_use]
 pub(crate) fn variable_write_effects_from_commands<'a>(

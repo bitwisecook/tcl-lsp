@@ -239,52 +239,12 @@ impl CfgBuilder<'_> {
             if expr_has_command(&clause.condition) {
                 // A `catch`/`regexp`/`scan` substitution — or a call to a
                 // known upvar / global-writing user proc — in the condition
-                // writes result variables; record
-                // them as defs so a read in the guarded body is not
-                // flagged read-before-set (W210).
-                let (cond_defs, opaque_global, registry_barrier) =
-                    self.condition_out_vars(&clause.condition, *span);
-                self.block_mut(&dispatch).statements.push(Statement::Call {
-                    span: *span,
-                    command: "<cond>".into(),
-                    canonical_command: None,
-                    args: Vec::new(),
-                    defs: cond_defs,
-                    reads: Vec::new(),
-                    reads_own_defs: false,
-                    safe_on_uninit: false,
-                    tokens: Some(crate::ir::CommandTokens::marker(
-                        crate::ir::SyntheticMarker::Condition,
-                    )),
-                    foreach_groups: None,
-                });
-                // A condition-embedded callee that runs an unreadable
-                // script at the global frame clobbers names
-                // no def list can enumerate — widen with a barrier.
-                if opaque_global {
-                    self.block_mut(&dispatch)
-                        .statements
-                        .push(Statement::Barrier {
-                            span: *span,
-                            reason: "condition runs an unreadable script at the global frame"
-                                .into(),
-                            command: "<global-frame-script>".into(),
-                            canonical_command: None,
-                            args: Vec::new(),
-                            tokens: Some(crate::ir::CommandTokens::marker(
-                                crate::ir::SyntheticMarker::GlobalFrameScript,
-                            )),
-                        });
-                } else if registry_barrier {
-                    self.block_mut(&dispatch)
-                        .statements
-                        .push(Self::registry_barrier_statement_at(
-                            *span,
-                            "condition reaches a registry-declared evaluation barrier",
-                        ));
-                }
+                // writes result variables; record them as defs so a read in
+                // the guarded body is not flagged read-before-set (W210), and
+                // its reads so the store feeding an `[incr n]` there is not
+                // taken for a dead one.
+                self.push_condition_effects(&clause.condition, *span, &dispatch);
             }
-
             let then_block = self.new_block("if_then");
             let next_dispatch = self.new_block("if_next");
             self.copy_command_boundary(block_name, &dispatch);
@@ -376,6 +336,16 @@ impl CfgBuilder<'_> {
         let end_block = self.new_block("for_end");
 
         self.ensure_goto(&init_tail, &header, Some(*init_span));
+
+        // A `for` condition is re-evaluated every iteration exactly as a
+        // `while` condition is, and until now contributed neither defs nor
+        // reads — so `proc p {} {set k 0; for {set i 0} {[incr k] < 3} {} {puts $k}}`
+        // had `set k 0` deleted as dead and the literal `0` forwarded into the
+        // body: tclsh 9.0.4 prints `1` then `2`, the optimised program printed
+        // `0` then `0` (#2132).
+        if expr_has_command(condition) {
+            self.push_condition_effects(condition, *condition_span, &header);
+        }
 
         let body_id = self.bid(&body_block);
         let end_id = self.bid(&end_block);
@@ -475,45 +445,11 @@ impl CfgBuilder<'_> {
         // them as defs in the header so a read in the body is not flagged
         // read-before-set (W210).
         if expr_has_command(condition) {
-            let (cond_defs, opaque_global, registry_barrier) =
-                self.condition_out_vars(condition, *condition_span);
-            self.block_mut(&header).statements.push(Statement::Call {
-                span: *condition_span,
-                command: "<cond>".into(),
-                canonical_command: None,
-                args: Vec::new(),
-                defs: cond_defs,
-                reads: Vec::new(),
-                reads_own_defs: false,
-                safe_on_uninit: false,
-                tokens: Some(crate::ir::CommandTokens::marker(
-                    crate::ir::SyntheticMarker::Condition,
-                )),
-                foreach_groups: None,
-            });
-            // See `lower_if`: an unreadable global-frame script in the
-            // condition widens with a barrier.
-            if opaque_global {
-                self.block_mut(&header).statements.push(Statement::Barrier {
-                    span: *condition_span,
-                    reason: "condition runs an unreadable script at the global frame".into(),
-                    command: "<global-frame-script>".into(),
-                    canonical_command: None,
-                    args: Vec::new(),
-                    tokens: Some(crate::ir::CommandTokens::marker(
-                        crate::ir::SyntheticMarker::GlobalFrameScript,
-                    )),
-                });
-            } else if registry_barrier {
-                self.block_mut(&header)
-                    .statements
-                    .push(Self::registry_barrier_statement_at(
-                        *condition_span,
-                        "condition reaches a registry-declared evaluation barrier",
-                    ));
-            }
+            // As `lower_if`: the loop condition's substitutions write result
+            // variables each iteration, and read the ones they
+            // read-modify-write.
+            self.push_condition_effects(condition, *condition_span, &header);
         }
-
         let body_id = self.bid(&body_block);
         let end_id = self.bid(&end_block);
         self.block_mut(&header).terminator = Some(Terminator::Branch {

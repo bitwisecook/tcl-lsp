@@ -584,6 +584,15 @@ fn handle_stmt_call_or_barrier(
     defs: &HashMap<String, Version>,
     registry: &tcl_registry::CommandRegistry,
 ) -> bool {
+    // RegistryBarrier is an analysis-only companion of the source command.
+    // It is represented as a Barrier so the scalar analyses can see it, but
+    // it must not make the escape analysis pessimistic as though it ran Tcl.
+    if matches!(stmt, Statement::Call { .. } | Statement::Barrier { .. })
+        && !stmt.is_executable_invocation()
+    {
+        return true;
+    }
+
     match stmt {
         Statement::Call { .. } => {
             handle_call(stmt, state, defs, registry);
@@ -974,6 +983,31 @@ mod tests {
     fn frameless_runtime_call_does_not_set_call_fallback() {
         let r = analyse("string length foo");
         assert!(!r.has_call_fallback());
+    }
+
+    #[test]
+    fn registry_barrier_marker_has_no_escape_effect() {
+        let marker = Statement::Barrier {
+            span: tcl_lexer::Span::new(0, 0),
+            reason: "scalar facts".into(),
+            command: "<registry-barrier>".into(),
+            canonical_command: None,
+            args: Vec::new(),
+            tokens: Some(crate::ir::CommandTokens::marker(
+                crate::ir::SyntheticMarker::RegistryBarrier,
+            )),
+        };
+        let mut state = CfgState::new(["x".into()]);
+
+        assert!(handle_stmt_call_or_barrier(
+            &marker,
+            &mut state,
+            &HashMap::new(),
+            default_registry(),
+        ));
+        assert!(!state.has_fallback());
+        assert!(!state.dynamic_barrier());
+        assert!(state.ssa_tags.is_empty());
     }
 
     #[test]
