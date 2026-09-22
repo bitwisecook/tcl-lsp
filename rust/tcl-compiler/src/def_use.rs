@@ -680,6 +680,7 @@ mod tests {
     fn return_raw_scan_uses_the_exact_jim_config() {
         let terminator = Terminator::Return {
             value: Some("$($a)".to_owned()),
+            value_word: None,
             span: None,
             expr: None,
             braced: false,

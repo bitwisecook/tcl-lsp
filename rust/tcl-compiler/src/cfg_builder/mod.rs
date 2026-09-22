@@ -1176,6 +1176,7 @@ impl<'a> CfgBuilder<'a> {
                 }
                 self.block_mut(current).terminator = Some(Terminator::Return {
                     value: None,
+                    value_word: None,
                     span: Some(*span),
                     expr: None,
                     braced: false,
@@ -1432,6 +1433,7 @@ impl<'a> CfgBuilder<'a> {
         self.push_plain_statement(current, stmt);
         self.block_mut(current).terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: Some(span),
             expr: None,
             braced: false,
@@ -1442,6 +1444,7 @@ impl<'a> CfgBuilder<'a> {
         let Statement::Return {
             span,
             value,
+            value_word,
             expr,
             command_binding,
             braced,
@@ -1466,6 +1469,7 @@ impl<'a> CfgBuilder<'a> {
         }
         self.block_mut(current).terminator = Some(Terminator::Return {
             value: value.clone(),
+            value_word: value_word.clone(),
             span: Some(*span),
             expr: expr.clone(),
             braced: *braced,
@@ -3588,6 +3592,7 @@ mod tests {
             Statement::Return {
                 span: Span::new(8, 16),
                 value: Some("$x".into()),
+                value_word: None,
                 expr: None,
                 command_binding: None,
                 braced: false,

@@ -102,6 +102,7 @@ fn chain_cfg(n: usize) -> Function {
         } else {
             Terminator::Return {
                 value: None,
+                value_word: None,
                 span: None,
                 expr: None,
                 braced: false,

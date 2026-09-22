@@ -1195,6 +1195,7 @@ fn toplevel_cfg(statements: Vec<Statement>) -> CfgFunction {
     blk.statements = statements;
     blk.terminator = Some(Terminator::Return {
         value: None,
+        value_word: None,
         span: None,
         expr: None,
         braced: false,

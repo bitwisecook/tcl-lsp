@@ -1262,6 +1262,160 @@ fn info_consts_drops_a_projection_the_body_compiled_a_slot_for() {
     }
 }
 
+/// Statement introspection follows C Tcl's source-dependent slot behaviour.
+/// Dynamic, escaped bare, and qualified names retain stack lookup and
+/// enumeration.
+#[test]
+fn info_consts_tracks_source_roles_across_inline_introspection() {
+    const CLASS: &str =
+        "oo::class create C { variable pub; constructor {} {const pub 7}; method m {} ";
+    for (body, expect) in [
+        ("{info exists pub; info consts}", ""),
+        ("{info exists {pub}; info consts}", ""),
+        ("{info exists \"pub\"; info consts}", ""),
+        ("{array exists pub; info consts}", ""),
+        (
+            "{list [info exists pub] [array exists pub] [info consts]}",
+            "1 0 {}",
+        ),
+        ("{list [info exists \"pub\"] [info consts]}", "1 {}"),
+        ("{list [info exists p\\x75b] [info consts]}", "1 pub"),
+        ("{info exists p\\x75b; info consts}", "pub"),
+        ("{set n pub; list [info exists $n] [info consts]}", "1 pub"),
+        ("{set n pub; list [array exists $n] [info consts]}", "0 pub"),
+        ("{set n pub; info exists $n; info consts}", "pub"),
+        ("{list [info exists ::pub] [info consts]}", "0 pub"),
+        ("{info exists ::pub; info consts}", "pub"),
+        ("{list [info consts]}", "pub"),
+    ] {
+        assert_eq!(
+            run(&format!("{CLASS}{body} }}; [C new] m")).1,
+            expect,
+            "body `{body}`",
+        );
+    }
+}
+
+/// Return values do not retain the enclosing command's source words.  Tcl
+/// therefore evaluates a qualified name such as `::$n` at runtime instead of
+/// treating its compatibility text as the finished name for `existStk`.
+#[test]
+fn return_info_exists_keeps_unproven_names_dynamic() {
+    // tclsh 9.0.4: every row returns 1. The first is the regression: `::$n`
+    // must substitute `n`; the remaining rows ensure literal brace and
+    // backslash values still survive the generic return path unchanged.
+    for (source, expected) in [
+        (
+            "proc p {} {set n x; set ::x 1; return [info exists ::$n]}; p",
+            "1",
+        ),
+        ("proc p {} {set ::x 1; return [info exists ::x]}; p", "1"),
+        (
+            "proc p {} {set {{zz}} V; return [info exists {{zz}}]}; p",
+            "1",
+        ),
+        (
+            r"proc p {} {set {p\x75b} V; return [info exists {p\x75b}]}; p",
+            "1",
+        ),
+    ] {
+        assert_eq!(run(source).1, expected, "source `{source}`");
+    }
+
+    // tclsh 9.0.4: the literal return name interns `pub` before the prior
+    // `info consts`, so the TclOO projection is already absent.
+    assert_eq!(
+        run(
+            "oo::class create C {variable pub; constructor {} {const pub 7}; method m {} {set ::observed [info consts]; return [info exists pub]}}; set o [C new]; list [$o m] $::observed",
+        )
+        .1,
+        "1 {}"
+    );
+}
+
+/// Assignment keeps its established whole-command dispatcher when a nested
+/// source snapshot is available. Tcl 9.0.4 returns `{{alpha beta} B 2 2 1 boom}`.
+#[test]
+fn assignment_keeps_expanded_multicommand_and_inline_dispatch() {
+    assert_eq!(
+        run("proc p {} {\
+                 set cmd [list list alpha beta]; \
+                 set expanded [{*}$cmd]; \
+                 set multi [set a A; set b B]; \
+                 set n 1; \
+                 set incremented [incr n]; \
+                 set caught [catch {error boom} result]; \
+                 list $expanded $multi $incremented $n $caught $result\
+             }; p",)
+        .1,
+        "{alpha beta} B 2 2 1 boom"
+    );
+}
+
+/// Braced names retain their raw backslashes and continuation bytes. C Tcl
+/// allocates those literal names, while the otherwise-equivalent bare escape
+/// is decoded and must use a stack lookup.
+#[test]
+fn info_exists_braced_raw_names_intern_their_literal_slots() {
+    for (class, expected) in [
+        (
+            r"oo::class create C {variable {p\x75b}; constructor {} {const {p\x75b} 7}; method m {} {info exists {p\x75b}; info consts}}",
+            "",
+        ),
+        (
+            "oo::class create C {variable {p\\\nub}; constructor {} {const {p\\\nub} 7}; method m {} {info exists {p\\\nub}; info consts}}",
+            "",
+        ),
+        (
+            r"oo::class create C {variable {p\x75b}; constructor {} {const {p\x75b} 7}; method m {} {list [info exists {p\x75b}] [info consts]}}",
+            "1 {}",
+        ),
+        (
+            "oo::class create C {variable {p\\\nub}; constructor {} {const {p\\\nub} 7}; method m {} {list [info exists {p\\\nub}] [info consts]}}",
+            "1 {}",
+        ),
+        (
+            "oo::class create C {variable {{zz}}; constructor {} {const {{zz}} 7}; method m {} {list [info exists {{zz}}] [info consts]}}",
+            "1 {}",
+        ),
+    ] {
+        assert_eq!(
+            run(&format!("{class}; [C new] m")).1,
+            expected,
+            "class `{class}`"
+        );
+    }
+}
+
+/// A formal already owns the name's compiled slot, so direct `info exists`
+/// preserves C Tcl's local shadowing of the `TclOO` instance projection.
+#[test]
+fn info_exists_preserves_formal_shadowing_of_an_instance_projection() {
+    assert_eq!(
+        run(
+            "oo::class create C {variable pub; constructor {} {const pub 7}; method m {pub} {info exists pub; info consts}}; [C new] m shadow",
+        )
+        .1,
+        ""
+    );
+}
+
+/// A straight-line catch body now compiles in its enclosing procedure, so a
+/// direct `info exists` inside it reserves the same local slot as it does in a
+/// method body. That slot shadows the instance variable from `info consts`.
+#[test]
+fn catch_body_info_exists_preserves_instance_projection_shadowing() {
+    // tclsh 9.0.4: empty. The catch result is irrelevant; its body
+    // still enters `pub` in the method's compiled local table.
+    assert_eq!(
+        run(
+            "oo::class create C {variable pub; constructor {} {const pub 7}; method m {} {catch {info exists pub}; info consts}}; [C new] m",
+        )
+        .1,
+        ""
+    );
+}
+
 /// A compiler temporary in the LVT is not a reference to a source variable of
 /// the same name.
 ///

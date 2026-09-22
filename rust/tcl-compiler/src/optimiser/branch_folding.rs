@@ -536,6 +536,7 @@ mod tests {
         let mut b = Block::new(name);
         b.terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,

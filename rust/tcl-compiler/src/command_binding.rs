@@ -2726,7 +2726,11 @@ pub(crate) fn constructed_script_words(
         .words()
         .iter()
         .map(|word| {
-            match crate::registry_invocation::effective_invocation_word(word, config.escapes) {
+            match crate::registry_invocation::effective_invocation_word(
+                word,
+                config.escapes,
+                tcl_syntax::word_rules::WordValueRules::from_config(&config),
+            ) {
                 crate::registry_invocation::EffectiveInvocationWord::Literal(value) => Some(value),
                 crate::registry_invocation::EffectiveInvocationWord::Dynamic
                 | crate::registry_invocation::EffectiveInvocationWord::Expanded

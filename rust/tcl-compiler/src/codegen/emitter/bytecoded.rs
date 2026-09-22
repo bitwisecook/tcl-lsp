@@ -29,6 +29,8 @@
 
 use tcl_registry::hooks::CodegenHookId;
 
+use crate::ir::CommandTokens;
+
 use super::super::CodegenCtx;
 use super::super::Op;
 use super::super::Operand;
@@ -49,6 +51,18 @@ pub fn try_bytecoded(
     args: &[String],
     used_generic_invoke: &mut bool,
 ) -> bool {
+    try_bytecoded_with_tokens(ctx, cmd, args, None, used_generic_invoke)
+}
+
+/// Source-aware variant used by executable IR emission.  Hand-built callers
+/// have no lexical word facts and therefore take the conservative wrapper.
+pub fn try_bytecoded_with_tokens(
+    ctx: &mut CodegenCtx,
+    cmd: &str,
+    args: &[String],
+    tokens: Option<&CommandTokens>,
+    used_generic_invoke: &mut bool,
+) -> bool {
     if let Some((hook, identity)) = resolved_codegen_hook(ctx, cmd, args) {
         let emitted = dispatch_codegen_hook(hook, ctx, args, used_generic_invoke);
         if emitted {
@@ -60,7 +74,7 @@ pub fn try_bytecoded(
     // Some typed inline hooks are shared with value position. Their command
     // statement bridge owns the narrower applicability check and trailing
     // result discard; unsupported hook variants safely fall through here.
-    ctx.try_inline_statement_codegen(cmd, args, used_generic_invoke)
+    ctx.try_inline_statement_codegen(cmd, args, tokens, used_generic_invoke)
 }
 
 /// Return the registry hook and binding identity available to the bytecode

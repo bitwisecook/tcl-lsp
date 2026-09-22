@@ -120,6 +120,7 @@ fn command_completion(
             tcl_dialect::EscapeSyntax::of_dialect_name(
                 registry.profile().map(|profile| profile.name),
             ),
+            tcl_syntax::word_rules::WordValueRules::of_profile(registry.profile()),
         )
     });
     let knowledge = if let Some(effective) = effective.as_ref() {
