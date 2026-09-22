@@ -229,7 +229,17 @@ mod tests {
                 source.extend_from_slice(b" 0");
                 assert_eq!(ok(i, &source), expected, "{format:?}");
             }
+            assert_eq!(ok(i, b"format %#.0o 0"), b"0");
+            assert_eq!(ok(i, b"format %#.4o 17"), b"0021");
+            assert_eq!(
+                ok(i, b"format %#.30llo 18446744073709551616"),
+                b"000000002000000000000000000000"
+            );
             i.set_runtime_version(tcl_dialect::TclVersion::V9_0);
+            assert_eq!(
+                ok(i, b"format %#.30llo 18446744073709551616"),
+                b"0o000000002000000000000000000000"
+            );
             assert_eq!(ok(i, b"format %+.0llu 0"), b"+0");
             assert_eq!(
                 ok(i, b"catch {format %llu -9223372036854775808} m o; list $m [dict get $o -errorcode]"),
@@ -245,6 +255,7 @@ mod tests {
             i.set_runtime_version(tcl_dialect::TclVersion::V8_4);
             assert_eq!(i.eval_str(b"format %lld 42"), Code::Error);
             assert_eq!(i.result_bytes(), b"bad field specifier \"l\"");
+            assert_eq!(ok(i, b"format %#.0o 0"), b"0");
             i.set_runtime_version(tcl_dialect::TclVersion::V8_6);
             assert_eq!(
                 i.eval_str(b"format %lld 0d18446744073709551616"),

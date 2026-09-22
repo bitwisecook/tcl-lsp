@@ -456,16 +456,10 @@ fn render_bignum_spec<O: ValueOps>(
     if spec.verb == b'X' {
         digits.make_ascii_uppercase();
     }
-    // Tcl's integer conversions keep one zero digit at precision zero
-    // (`%#.0llx 0` -> `0`), before adding any prefix.
-    digits = apply_precision(digits, spec, syntax);
     let nonzero = digits.bytes().any(|b| b != b'0');
     let prefix = alternate_prefix(spec, nonzero, syntax);
-    Ok(pad_number(
-        &format!("{prefix}{digits}"),
-        negative && spec.verb != b'u',
-        spec,
-    ))
+    digits = apply_radix_precision(digits, prefix, spec, syntax);
+    Ok(pad_number(&digits, negative && spec.verb != b'u', spec))
 }
 
 /// Decimal digits (no sign) for an integer, honouring `.precision`.
@@ -483,15 +477,45 @@ fn based_digits(u: u64, spec: &Spec, syntax: tcl_dialect::NumberSyntax) -> Strin
     // `u` already carries the conversion's width: the caller read the value's
     // low bits unsigned, which is why `%x` of a negative int prints its
     // two's-complement pattern, matching C's `format`.
-    let mut body = match spec.verb {
+    let body = match spec.verb {
         b'x' => format!("{u:x}"),
         b'X' => format!("{u:X}"),
         b'o' => format!("{u:o}"),
         _ => format!("{u:b}"),
     };
     let prefix = alternate_prefix(spec, u != 0, syntax);
-    body = apply_precision(body, spec, syntax);
-    format!("{prefix}{body}")
+    apply_radix_precision(body, prefix, spec, syntax)
+}
+
+/// Apply precision around a radix marker as Tcl's release grammar requires.
+///
+/// Tcl 8.x's legacy octal marker is a single leading `0`, which counts
+/// toward integer precision. Tcl 9's two-byte `0o` marker, and the other
+/// radix markers, remain outside the digit precision.
+fn apply_radix_precision(
+    digits: String,
+    prefix: &str,
+    spec: &Spec,
+    syntax: tcl_dialect::NumberSyntax,
+) -> String {
+    if prefix == "0" {
+        // The legacy marker is the zero digit itself for an octal zero. Do not
+        // duplicate it, and retain it at `.0` where plain `%o` is empty on
+        // Tcl 8.4.
+        let marked = if digits == "0" {
+            digits
+        } else {
+            format!("{prefix}{digits}")
+        };
+        let marked = apply_precision(marked, spec, syntax);
+        if marked.is_empty() {
+            "0".to_owned()
+        } else {
+            marked
+        }
+    } else {
+        format!("{prefix}{}", apply_precision(digits, spec, syntax))
+    }
 }
 
 /// Return the alternate-form radix marker for a conversion and release.
@@ -505,6 +529,10 @@ fn alternate_prefix(spec: &Spec, nonzero: bool, syntax: tcl_dialect::NumberSynta
     }
     let tcl9 = syntax.has_decimal_prefix();
     let tcl85 = matches!(syntax, tcl_dialect::NumberSyntax::Tcl85);
+    let legacy_tcl = matches!(
+        syntax,
+        tcl_dialect::NumberSyntax::Tcl84 | tcl_dialect::NumberSyntax::Tcl85
+    );
     match spec.verb {
         b'd' | b'i' if tcl9 && nonzero => "0d",
         b'x' if nonzero || tcl85 => "0x",
@@ -515,7 +543,7 @@ fn alternate_prefix(spec: &Spec, nonzero: bool, syntax: tcl_dialect::NumberSynta
                 "0X"
             }
         }
-        b'o' if nonzero => {
+        b'o' if nonzero || legacy_tcl => {
             if tcl9 {
                 "0o"
             } else {

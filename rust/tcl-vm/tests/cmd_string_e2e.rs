@@ -1077,6 +1077,27 @@ fn format_bignum_conversions_issue_2162() {
         assert!(ok, "Tcl 8.6 script errored: {result}");
         assert_eq!(result, expected, "for script: format {format} 0");
     }
+    for (script, expected) in [
+        ("format %#.0o 0", "0"),
+        ("format %#.4o 17", "0021"),
+        (
+            "format %#.30llo 18446744073709551616",
+            "000000002000000000000000000000",
+        ),
+    ] {
+        let (ok, result, _) = run_for_version(script, tcl_dialect::TclVersion::V8_6);
+        assert!(ok, "Tcl 8.6 script errored: {result}");
+        assert_eq!(result, expected, "for script: {script}");
+    }
+    for (script, expected) in [
+        ("format %#.0o 0", "0"),
+        (
+            "format %#.30llo 18446744073709551616",
+            "0o000000002000000000000000000000",
+        ),
+    ] {
+        res_eq(script, expected);
+    }
     res_eq("format %+.0llu 0", "+0");
     res_eq(
         "format %llo -9223372036854775808",
