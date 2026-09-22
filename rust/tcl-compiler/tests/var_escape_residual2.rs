@@ -457,26 +457,23 @@ fn cu_catch_dynamic_body_arg_is_pessimistic() {
 }
 
 #[test]
-fn cu_catch_literal_body_with_dynamic_value_early_returns() {
-    // `catch {upvar 1 cv v; set v $w}` — the body text contains `$w`, so even
-    // though the body is brace-literal the joined body string is a dynamic token
-    // and handle_catch early-returns. The inner `upvar` is therefore NOT seen on
-    // the CFG path: `v`/`cv` stay Local and no upvar source is recorded.
-    // (Conservative-but-safe: the catch call still records a fallback, so the
-    // proc keeps a frame; the precise upvar source is simply not threaded.)
+fn cu_catch_literal_body_threads_its_upvar() {
+    // `catch {upvar 1 cv v; set v $w}` — a brace-literal, straight-line body,
+    // so the CFG now lowers it into real blocks (#2207) and the inner `upvar`
+    // *is* seen: `v` is an alias for the caller's `cv`, which is what
+    // `EscapeTag::Frame` says.
+    //
+    // This used to assert `Local`, because `handle_catch` early-returned on
+    // the body text holding `$w` and never walked in. That answer was
+    // conservative-but-safe rather than right — the test's own comment called
+    // the precise upvar source "simply not threaded". It is threaded now.
     let s = escape_cu("proc ::p {} { catch {upvar 1 cv v\n set v $w} }");
     let p = summary(&s, "::p");
     assert_eq!(
         p.tag("v"),
-        EscapeTag::Local,
-        "dynamic-body catch leaves v Local"
+        EscapeTag::Frame,
+        "an inlined catch body's upvar makes v a frame alias"
     );
-    assert!(
-        p.upvar_source_names.is_empty(),
-        "no upvar source threaded from a dynamic catch body: {:?}",
-        p.upvar_source_names
-    );
-    assert!(p.has_fallback(), "the catch still records the fallback");
 }
 
 // IR path (var_escape/walker.rs): escape_every_name_touched structural arms.

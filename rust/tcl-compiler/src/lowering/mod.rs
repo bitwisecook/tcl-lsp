@@ -1189,6 +1189,9 @@ impl<'r> Lowerer<'r> {
         // leading `::` here may belong to a literal-colon namespace segment.
         let namespace = tcl_syntax::naming::root_unrooted_key(namespace);
         self.module.top_level_namespace.clone_from(&namespace);
+        // This module's top level *is* a procedure body, which the `::top`
+        // name cannot convey to anything downstream (#2207).
+        self.module.top_level_kind = crate::ir::TopLevelKind::ProcedureBody;
         self.module.top_level = self
             .in_procedure_frame(Some(IrulesExecutionContext::ProcedureBody), |lowerer| {
                 lowerer.lower_script(source, &namespace)

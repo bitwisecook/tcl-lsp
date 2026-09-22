@@ -29,10 +29,11 @@
 //! - C backend  = the locally-built reference `tclsh9.0`; its results are the
 //!   stable baseline, cached in `tests/baselines/tcl9-tcltest/c-tclsh.ndjson`.
 //!
-//! Stems are grouped by the capability ladder in
-//! `docs/design/runtime/tcl-test-tiers.md`.
+//! Known stems are grouped by the capability ladder in
+//! `docs/design/runtime/tcl-test-tiers.md`; other upstream `.test` files are
+//! included in an explicit unclassified section.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::fmt::Write as _;
 use std::os::unix::process::ExitStatusExt;
 use std::path::{Path, PathBuf};
@@ -48,8 +49,8 @@ use tcl_test_support::{TclSourceTree, locate_source_tree, tclsh_from_source_tree
 use crate::util::repo_root;
 
 /// The capability-ladder tiers and the upstream `.test` stems in each, from
-/// `docs/design/runtime/tcl-test-tiers.md`. Only stems with a file under
-/// `tmp/tcl9.0.4/tests/` are swept; a missing file is reported, not fatal.
+/// `docs/design/runtime/tcl-test-tiers.md`. Missing tier files are retained as
+/// explicit records, while the source directory supplies unclassified files.
 const TIERS: &[(u8, &str, &[&str])] = &[
     (
         1,
@@ -245,12 +246,58 @@ fn tier_of(stem: &str) -> u8 {
     0
 }
 
-/// All swept stems, in ladder order.
+/// All stems named by the capability ladder, in tier order.
 fn all_stems() -> Vec<&'static str> {
     TIERS
         .iter()
         .flat_map(|(_, _, s)| s.iter().copied())
         .collect()
+}
+
+/// Enumerate the upstream test directory while preserving the ladder's order.
+///
+/// The ladder remains the ordering authority for stems it knows about. Files
+/// added upstream are appended in lexical order so a new test can never be
+/// silently omitted from an unfiltered sweep.
+fn inventory_stems(source_tree: &TclSourceTree) -> Result<Vec<String>> {
+    let known = all_stems();
+    let known_set: HashSet<&str> = known.iter().copied().collect();
+    let mut extras = Vec::new();
+    for entry in std::fs::read_dir(source_tree.tests_dir()).with_context(|| {
+        format!(
+            "reading Tcl tests directory {}",
+            source_tree.tests_dir().display()
+        )
+    })? {
+        let entry = entry.with_context(|| {
+            format!(
+                "reading an entry in Tcl tests directory {}",
+                source_tree.tests_dir().display()
+            )
+        })?;
+        let path = entry.path();
+        if path.extension().and_then(|extension| extension.to_str()) != Some("test")
+            || !entry
+                .metadata()
+                .with_context(|| format!("reading metadata for {}", path.display()))?
+                .is_file()
+        {
+            continue;
+        }
+        let stem = path
+            .file_stem()
+            .with_context(|| format!("getting stem for {}", path.display()))?
+            .to_str()
+            .ok_or_else(|| anyhow::anyhow!("Tcl test path is not UTF-8: {}", path.display()))?;
+        if !known_set.contains(stem) {
+            extras.push(stem.to_owned());
+        }
+    }
+    extras.sort_unstable();
+
+    let mut stems = known.into_iter().map(str::to_owned).collect::<Vec<_>>();
+    stems.extend(extras);
+    Ok(stems)
 }
 
 /// Parse the *last* `Total N Passed X Skipped Y Failed Z` line tcltest prints.
@@ -407,7 +454,7 @@ fn sweep(
     source_tree: &TclSourceTree,
     label: &str,
     argv: &[&Path],
-    stems: &[&str],
+    stems: &[String],
     match_filter: Option<&str>,
     timeout_s: u64,
 ) -> Vec<Record> {
@@ -472,30 +519,70 @@ fn status(c: &Record, vm: &Record) -> &'static str {
 }
 
 /// Render the scoreboard markdown from the C + VM record maps.
+#[derive(Default)]
+struct ScoreTally {
+    matched: u32,
+    gap: u32,
+    crash: u32,
+    timeout: u32,
+    incomplete: u32,
+    total: u32,
+}
+
+impl ScoreTally {
+    fn add(&mut self, status: &str) {
+        match status {
+            "MATCH" => self.matched += 1,
+            "gap" => self.gap += 1,
+            "TIMEOUT" => self.timeout += 1,
+            "INCOMPLETE" => self.incomplete += 1,
+            _ => self.crash += 1,
+        }
+        self.total += 1;
+    }
+}
+
+fn write_scoreboard_row(
+    body: &mut String,
+    stem: &str,
+    c: Option<&Record>,
+    vm: Option<&Record>,
+    tally: &mut ScoreTally,
+) {
+    let status = match (c, vm) {
+        (Some(c), Some(vm)) => status(c, vm),
+        _ => "INCOMPLETE",
+    };
+    tally.add(status);
+    let c_cell = c.map_or_else(|| "(missing)".to_owned(), Record::cell);
+    let vm_cell = vm.map_or_else(|| "(missing)".to_owned(), Record::cell);
+    let _ = writeln!(body, "| {stem} | {c_cell} | {vm_cell} | {status} |");
+}
+
 fn render_scoreboard(c: &BTreeMap<String, Record>, vm: &BTreeMap<String, Record>) -> String {
-    let mut matched = 0u32;
-    let mut gap = 0u32;
-    let mut crash = 0u32;
-    let mut timeout = 0u32;
-    let mut total = 0u32;
+    let mut tally = ScoreTally::default();
     let mut body = String::new();
 
     for (tier, name, stems) in TIERS {
         let _ = writeln!(body, "\n## Tier {tier} — {name}\n");
         body.push_str("| stem | C P/S/F | VM P/S/F | status |\n|---|---|---|---|\n");
         for stem in *stems {
-            let (Some(cr), Some(vr)) = (c.get(*stem), vm.get(*stem)) else {
-                continue;
-            };
-            let st = status(cr, vr);
-            match st {
-                "MATCH" => matched += 1,
-                "gap" => gap += 1,
-                "TIMEOUT" => timeout += 1,
-                _ => crash += 1,
-            }
-            total += 1;
-            let _ = writeln!(body, "| {stem} | {} | {} | {} |", cr.cell(), vr.cell(), st);
+            write_scoreboard_row(&mut body, stem, c.get(*stem), vm.get(*stem), &mut tally);
+        }
+    }
+
+    let known: HashSet<&str> = all_stems().into_iter().collect();
+    let extra_stems = c
+        .keys()
+        .chain(vm.keys())
+        .filter(|stem| !known.contains(stem.as_str()))
+        .cloned()
+        .collect::<std::collections::BTreeSet<_>>();
+    if !extra_stems.is_empty() {
+        let _ = writeln!(body, "\n## Unclassified upstream tests\n");
+        body.push_str("| stem | C P/S/F | VM P/S/F | status |\n|---|---|---|---|\n");
+        for stem in extra_stems {
+            write_scoreboard_row(&mut body, &stem, c.get(&stem), vm.get(&stem), &mut tally);
         }
     }
 
@@ -512,22 +599,28 @@ fn render_scoreboard(c: &BTreeMap<String, Record>, vm: &BTreeMap<String, Record>
          fix unlocks it). `gap` = ran but the counts differ. Columns: **C P/S/F** vs\n\
          **VM P/S/F**. Grouped by the capability ladder\n\
          ([`tcl-test-tiers.md`](tcl-test-tiers.md)).\n\n\
-         **Tally: {matched} MATCH · {gap} gap · {crash} crash · {timeout} timeout** \
-         of {total} stems.\n"
+         **Tally: {matched} MATCH · {gap} gap · {crash} crash · {timeout} timeout · \
+         {incomplete} incomplete** \
+         of {total} stems.\n",
+        matched = tally.matched,
+        gap = tally.gap,
+        crash = tally.crash,
+        timeout = tally.timeout,
+        incomplete = tally.incomplete,
+        total = tally.total,
     );
     out.push_str(&body);
     out
 }
 
-fn selected_stems(stem_filters: &[String]) -> Vec<&str> {
+fn selected_stems(stem_filters: &[String], inventory: &[String]) -> Vec<String> {
     if stem_filters.is_empty() {
-        return all_stems();
+        return inventory.to_owned();
     }
     stem_filters
         .iter()
-        .map(String::as_str)
+        .map(ToOwned::to_owned)
         .inspect(|stem| {
-            let stem = *stem;
             if tier_of(stem) == 0 {
                 eprintln!("note: stem {stem:?} is not in the ladder table (tier 0)");
             }
@@ -556,7 +649,7 @@ fn source_tree_for_sweep(root: &Path, tcl_root: Option<&Path>) -> Result<TclSour
 fn sweep_reference(
     root: &Path,
     source_tree: &TclSourceTree,
-    stems: &[&str],
+    stems: &[String],
     match_filter: Option<&str>,
     timeout_s: u64,
 ) -> Result<Vec<Record>> {
@@ -587,9 +680,10 @@ pub fn run(
         bail!("--match requires at least one --stem");
     }
     let focused = !stem_filters.is_empty() || match_filter.is_some();
-    // Explicit stems form a focused run; no stems means the whole ladder.
-    let stems = selected_stems(stem_filters);
+    // Explicit stems form a focused run; no stems means the source inventory.
     let source_tree = source_tree_for_sweep(&root, tcl_root)?;
+    let inventory = inventory_stems(&source_tree)?;
+    let stems = selected_stems(stem_filters, &inventory);
     if !root.join(BACKEND_CONSTRAINTS).is_file() {
         bail!("missing default backend constraint overlay {BACKEND_CONSTRAINTS}");
     }
@@ -642,8 +736,8 @@ pub fn run(
     // Focused runs just print; they never rewrite the committed scoreboard.
     if focused {
         for s in &stems {
-            let c = c_map.get(*s);
-            let vm = vm_map.get(*s);
+            let c = c_map.get(s);
+            let vm = vm_map.get(s);
             if let (Some(c), Some(vm)) = (c, vm) {
                 println!("{s}: C {} | VM {} | {}", c.cell(), vm.cell(), status(c, vm));
             } else {
@@ -706,5 +800,70 @@ mod tests {
         for forbidden in ["set-*", "expr-*", "proc-*", "namespace-*", "dict-*"] {
             assert!(!actual.contains(&forbidden), "semantic skip {forbidden}");
         }
+    }
+
+    #[test]
+    fn inventory_preserves_tiers_and_appends_new_upstream_files() {
+        let root = fixture_root("inventory-order");
+        std::fs::create_dir_all(root.join("tests")).expect("create tests directory");
+        std::fs::write(root.join("tests/parse.test"), "").expect("write known test");
+        std::fs::write(root.join("tests/zeta.test"), "").expect("write extra test");
+        std::fs::write(root.join("tests/alpha.test"), "").expect("write extra test");
+        std::fs::create_dir(root.join("tests/directory.test")).expect("write test directory");
+        std::fs::write(root.join("tests/README.txt"), "").expect("write unrelated file");
+
+        let tree = tcl_test_support::TclSourceTree {
+            patchlevel: "9.0.4".to_owned(),
+            root: root.clone(),
+        };
+        let inventory = inventory_stems(&tree).expect("enumerate test inventory");
+        let tier_stems = all_stems()
+            .into_iter()
+            .map(str::to_owned)
+            .collect::<Vec<_>>();
+        assert_eq!(&inventory[..tier_stems.len()], tier_stems);
+        assert_eq!(&inventory[tier_stems.len()..], ["alpha", "zeta"]);
+        std::fs::remove_dir_all(root).expect("remove inventory fixture");
+    }
+
+    #[test]
+    fn focused_selection_accepts_unclassified_stems_without_replacing_inventory() {
+        let inventory = vec!["parse".to_owned(), "new_test".to_owned()];
+        assert_eq!(selected_stems(&[], &inventory), inventory);
+        assert_eq!(
+            selected_stems(&["new_test".to_owned()], &inventory),
+            ["new_test"]
+        );
+    }
+
+    #[test]
+    fn scoreboard_shows_unclassified_and_incomplete_rows() {
+        let mut c = BTreeMap::new();
+        let vm = BTreeMap::new();
+        c.insert("parse".to_owned(), test_record("parse"));
+        c.insert("new_test".to_owned(), test_record("new_test"));
+
+        let rendered = render_scoreboard(&c, &vm);
+        assert!(rendered.contains("## Unclassified upstream tests"));
+        assert!(rendered.contains("| new_test | 1/0/0 | (missing) | INCOMPLETE |"));
+        assert!(rendered.contains("| parse | 1/0/0 | (missing) | INCOMPLETE |"));
+        assert!(rendered.contains("incomplete"));
+    }
+
+    fn test_record(stem: &str) -> Record {
+        Record {
+            stem: stem.to_owned(),
+            tier: tier_of(stem),
+            outcome: "ran".to_owned(),
+            passed: 1,
+            skipped: 0,
+            failed: 0,
+            detail: String::new(),
+            duration_s: 0.0,
+        }
+    }
+
+    fn fixture_root(tag: &str) -> std::path::PathBuf {
+        std::env::temp_dir().join(format!("tcltest-sweep-{tag}-{}", std::process::id()))
     }
 }

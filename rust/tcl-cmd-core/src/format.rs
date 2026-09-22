@@ -343,29 +343,7 @@ fn render_bignum_spec<O: ValueOps>(
         digits = apply_precision(digits, spec);
     }
     let nonzero = digits.bytes().any(|b| b != b'0');
-    let prefix = match spec.verb {
-        b'd' | b'i'
-            if syntax.has_decimal_prefix() && spec.flags.contains(FmtFlags::HASH) && nonzero =>
-        {
-            "0d"
-        }
-        b'x' | b'X' if spec.flags.contains(FmtFlags::HASH) && nonzero => {
-            if spec.verb == b'X' && !syntax.has_decimal_prefix() {
-                "0X"
-            } else {
-                "0x"
-            }
-        }
-        b'o' if spec.flags.contains(FmtFlags::HASH) && nonzero => {
-            if syntax.has_decimal_prefix() {
-                "0o"
-            } else {
-                "0"
-            }
-        }
-        b'b' if spec.flags.contains(FmtFlags::HASH) && nonzero => "0b",
-        _ => "",
-    };
+    let prefix = alternate_prefix(spec, nonzero, syntax);
     Ok(pad_number(
         &format!("{prefix}{digits}"),
         negative && spec.verb != b'u',
@@ -388,55 +366,48 @@ fn based_digits(u: u64, spec: &Spec, syntax: tcl_dialect::NumberSyntax) -> Strin
     // `u` already carries the conversion's width: the caller read the value's
     // low bits unsigned, which is why `%x` of a negative int prints its
     // two's-complement pattern, matching C's `format`.
-    let (mut body, prefix) = match spec.verb {
-        b'x' => (
-            format!("{u:x}"),
-            if spec.flags.contains(FmtFlags::HASH) && u != 0 {
-                "0x"
-            } else {
-                ""
-            },
-        ),
-        b'X' => (
-            format!("{u:X}"),
-            // Tcl 8.x follows the verb's case (`0XC`); Tcl 9's explicit
-            // radix spelling is lowercase even for `%#X` (`0xC`).
-            if spec.flags.contains(FmtFlags::HASH) && u != 0 {
-                if syntax.has_decimal_prefix() {
-                    "0x"
-                } else {
-                    "0X"
-                }
-            } else {
-                ""
-            },
-        ),
-        b'o' => (
-            format!("{u:o}"),
-            // Tcl 9 `%#o` → `0o` radix prefix (8.6 used a bare leading `0`),
-            // dropped for zero (`%#o 0` → `0`).
-            if spec.flags.contains(FmtFlags::HASH) && u != 0 {
-                if syntax.has_decimal_prefix() {
-                    "0o"
-                } else {
-                    "0"
-                }
-            } else {
-                ""
-            },
-        ),
-        _ => (
-            format!("{u:b}"),
-            // `%#b` → `0b` prefix (Tcl 8.6 and 9.0 both emit it; format-1.x).
-            if spec.flags.contains(FmtFlags::HASH) && u != 0 {
-                "0b"
-            } else {
-                ""
-            },
-        ),
+    let mut body = match spec.verb {
+        b'x' => format!("{u:x}"),
+        b'X' => format!("{u:X}"),
+        b'o' => format!("{u:o}"),
+        _ => format!("{u:b}"),
     };
+    let prefix = alternate_prefix(spec, u != 0, syntax);
     body = apply_precision(body, spec);
     format!("{prefix}{body}")
+}
+
+/// Return the alternate-form radix marker for a conversion and release.
+///
+/// Tcl 8.5/8.6 retain the `0x`/`0X`/`0b` marker for zero. Tcl 8.4 and Jim
+/// suppress it, as does Tcl 9, so this rule must be shared by the fixed-width
+/// and bignum renderers.
+fn alternate_prefix(spec: &Spec, nonzero: bool, syntax: tcl_dialect::NumberSyntax) -> &'static str {
+    if !spec.flags.contains(FmtFlags::HASH) {
+        return "";
+    }
+    let tcl9 = syntax.has_decimal_prefix();
+    let tcl85 = matches!(syntax, tcl_dialect::NumberSyntax::Tcl85);
+    match spec.verb {
+        b'd' | b'i' if tcl9 && nonzero => "0d",
+        b'x' if nonzero || tcl85 => "0x",
+        b'X' if nonzero || tcl85 => {
+            if tcl9 {
+                "0x"
+            } else {
+                "0X"
+            }
+        }
+        b'o' if nonzero => {
+            if tcl9 {
+                "0o"
+            } else {
+                "0"
+            }
+        }
+        b'b' if nonzero || tcl85 => "0b",
+        _ => "",
+    }
 }
 
 /// Hexadecimal `%p` digits. Tcl preserves one zero digit even for an explicit

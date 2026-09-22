@@ -86,6 +86,9 @@ mod tests {
                 ok(i, b"format {%#d %#i %#o %#X} 42 42 8 12"),
                 b"42 42 010 0XC"
             );
+            assert_eq!(ok(i, b"format {%#x %#X %#b} 0 0 0"), b"0x0 0X0 0b0");
+            i.set_runtime_version(tcl_dialect::TclVersion::V8_4);
+            assert_eq!(ok(i, b"format {%#.0x %#.0X} 0 0"), b" ");
             i.set_runtime_version(tcl_dialect::TclVersion::V9_0);
             assert_eq!(
                 ok(i, b"format {%#d %#i %#o %#X} 42 42 8 12"),
@@ -185,6 +188,18 @@ mod tests {
                 source.extend_from_slice(b" 0");
                 assert_eq!(ok(i, &source), b"0", "{format:?}");
             }
+            i.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+            for (format, expected) in [
+                (b"%#.0llx".as_slice(), b"0x0".as_slice()),
+                (b"%#.0llX", b"0X0"),
+                (b"%#.0llb", b"0b0"),
+            ] {
+                let mut source = b"format ".to_vec();
+                source.extend_from_slice(format);
+                source.extend_from_slice(b" 0");
+                assert_eq!(ok(i, &source), expected, "{format:?}");
+            }
+            i.set_runtime_version(tcl_dialect::TclVersion::V9_0);
             assert_eq!(ok(i, b"format %+.0llu 0"), b"+0");
             assert_eq!(
                 ok(i, b"catch {format %llu -9223372036854775808} m o; list $m [dict get $o -errorcode]"),

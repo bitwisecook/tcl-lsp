@@ -842,6 +842,12 @@ fn format_bignum_conversions_issue_2162() {
     ] {
         res_eq(&format!("format {format} 0"), "0");
     }
+    for (format, expected) in [("%#.0llx", "0x0"), ("%#.0llX", "0X0"), ("%#.0llb", "0b0")] {
+        let (ok, result, _) =
+            run_for_version(&format!("format {format} 0"), tcl_dialect::TclVersion::V8_6);
+        assert!(ok, "Tcl 8.6 script errored: {result}");
+        assert_eq!(result, expected, "for script: format {format} 0");
+    }
     res_eq("format %+.0llu 0", "+0");
     res_eq(
         "format %llo -9223372036854775808",
