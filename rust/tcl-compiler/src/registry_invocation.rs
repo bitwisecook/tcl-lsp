@@ -34,6 +34,7 @@ use tcl_registry::{
 
 use crate::ir::{CommandTokens, WordExpr, WordPart};
 use crate::segmenter::SegmentedCommand;
+use tcl_syntax::word_rules::WordValueRules;
 
 /// Owned source-aware word fact for callers that must decode a static Tcl
 /// word before lending it to the registry.
@@ -96,11 +97,15 @@ pub fn compiled_local_name_word(word: &WordExpr) -> CompiledLocalNameWord {
 /// opcode. The same source owner supplies both the eligibility decision and
 /// the literal value so brace grouping cannot reach an opcode as data.
 #[must_use]
-pub fn compiled_local_name_value(word: &WordExpr, escapes: EscapeSyntax) -> Option<String> {
+pub fn compiled_local_name_value(
+    word: &WordExpr,
+    escapes: EscapeSyntax,
+    word_rules: WordValueRules,
+) -> Option<String> {
     if compiled_local_name_word(word) != CompiledLocalNameWord::Direct {
         return None;
     }
-    match effective_invocation_word(word, escapes) {
+    match effective_invocation_word(word, escapes, word_rules) {
         EffectiveInvocationWord::Literal(value) => Some(value),
         EffectiveInvocationWord::Dynamic
         | EffectiveInvocationWord::Expanded
@@ -193,15 +198,18 @@ pub fn invocation_word(word: &WordExpr) -> InvocationWord<'_> {
 }
 
 /// Evaluate the statically-known portion of a source word under the active
-/// escape grammar. Braced words deliberately do not decode backslashes.
+/// escape grammar. Braced words keep their backslashes except for the
+/// dialect-defined line-continuation collapse.
 #[must_use]
 pub fn effective_invocation_word(
     word: &WordExpr,
     escapes: EscapeSyntax,
+    word_rules: WordValueRules,
 ) -> EffectiveInvocationWord {
     match word {
-        WordExpr::Literal { text, .. } | WordExpr::BracedLiteral { text, .. } => {
-            EffectiveInvocationWord::Literal(text.clone())
+        WordExpr::Literal { text, .. } => EffectiveInvocationWord::Literal(text.clone()),
+        WordExpr::BracedLiteral { text, .. } => {
+            EffectiveInvocationWord::Literal(word_rules.collapse_braced_word(text).into_owned())
         }
         WordExpr::Template { parts, .. }
             if parts
@@ -232,13 +240,14 @@ pub fn effective_invocation_word(
 pub fn effective_command_arguments(
     tokens: &CommandTokens,
     escapes: EscapeSyntax,
+    word_rules: WordValueRules,
 ) -> Vec<EffectiveInvocationWord> {
     tokens
         .words()
         .get(1..)
         .unwrap_or_default()
         .iter()
-        .map(|word| effective_invocation_word(word, escapes))
+        .map(|word| effective_invocation_word(word, escapes, word_rules))
         .collect()
 }
 
@@ -434,6 +443,7 @@ mod tests {
                     source: source.clone(),
                 },
                 EscapeSyntax::Tcl86,
+                WordValueRules::TCL,
             ),
             EffectiveInvocationWord::Literal("2".to_owned())
         );
@@ -444,6 +454,7 @@ mod tests {
                     source
                 },
                 EscapeSyntax::Tcl86,
+                WordValueRules::TCL,
             ),
             EffectiveInvocationWord::Literal(r"\x32".to_owned())
         );
@@ -487,6 +498,7 @@ mod tests {
                     source: source.clone(),
                 },
                 EscapeSyntax::Tcl90,
+                WordValueRules::TCL,
             ),
             Some("{zz}".to_owned()),
             "the source owner removes only the grouping brace pair"
@@ -504,6 +516,28 @@ mod tests {
         assert_eq!(
             compiled_local_name_word(&dynamic),
             CompiledLocalNameWord::Stack
+        );
+    }
+
+    #[test]
+    fn compiled_local_name_collapses_only_braced_continuations() {
+        let source = SourceSite::source(tcl_lexer::Span::new(0, 0));
+        let continuation = WordExpr::BracedLiteral {
+            text: "p\\\n  ub".to_owned(),
+            source: source.clone(),
+        };
+        let raw_escape = WordExpr::BracedLiteral {
+            text: r"p\x75b".to_owned(),
+            source,
+        };
+
+        assert_eq!(
+            compiled_local_name_value(&continuation, EscapeSyntax::Tcl90, WordValueRules::TCL),
+            Some("p ub".to_owned())
+        );
+        assert_eq!(
+            compiled_local_name_value(&raw_escape, EscapeSyntax::Tcl90, WordValueRules::TCL),
+            Some(r"p\x75b".to_owned())
         );
     }
 

@@ -1136,6 +1136,125 @@ impl CfgBuilder<'_> {
 
         end_block
     }
+
+    /// Flatten `Statement::Catch` into body → end CFG, the analogue of
+    /// [`Self::lower_try`] for the simpler construct.
+    ///
+    /// `catch` has no handler clauses, no fallthrough groups and no handler
+    /// variable binding, so the shape is just body → end with exception edges
+    /// from the body's throw points. What it buys is what the opaque form
+    /// costs: with the body as real blocks the ordinary emitters compile it,
+    /// so its variables reach the LVT and the optimiser can see inside — C
+    /// allocates `q` in `catch {set q $x}` as a compiled local, and before
+    /// this the whole body was one `invokeStk` (#2207, and the missing slot
+    /// behind #2173).
+    ///
+    /// `result_var` / `options_var` are defined on *both* paths — normal
+    /// completion stores the body's result, an error stores the message — so
+    /// unlike a `try` handler's variables they are defined at the end block,
+    /// which both paths reach, rather than on the error path alone.
+    pub(super) fn lower_catch(&mut self, stmt: &Statement, block_name: &str) -> String {
+        let Statement::Catch {
+            span,
+            body,
+            body_span,
+            result_var,
+            options_var,
+            ..
+        } = stmt
+        else {
+            unreachable!("lower_catch called with non-Catch");
+        };
+
+        let body_block = self.new_block("catch_body");
+        let end_block = self.new_block("catch_end");
+        self.copy_command_boundary(block_name, &body_block);
+        self.ensure_goto(block_name, &body_block, Some(*span));
+
+        // Same throw-block bookkeeping as `lower_try`: install a fresh list
+        // around the body so the exception edges are sourced from each
+        // explicit `error`/`throw` point — where the body's prior defs are
+        // live — and not from the pre-`catch` block. Restoring the outer list
+        // keeps a nested `catch`'s throws attributed to its own region.
+        let outer_throw_blocks = self.throw_blocks.take();
+        self.throw_blocks = Some(Vec::new());
+        let raw_body_tail = self.lower_script(body, &body_block);
+        let body_terminal = self.last_terminal_block.take();
+        let body_throw_blocks = self.throw_blocks.take().unwrap_or_default();
+        self.throw_blocks = outer_throw_blocks;
+
+        // A body that did not fall through (a bare `return`, an `error`) must
+        // not edge to the end block as normal completion; `catch` still
+        // resumes there, but by catching, which is an exception edge.
+        let body_tail = if body_terminal.is_none() {
+            raw_body_tail
+        } else {
+            None
+        };
+        if let Some(tail) = &body_tail {
+            self.ensure_goto(tail, &end_block, Some(*body_span));
+        }
+
+        // Every way the body can fail reaches the end block, because `catch`
+        // catches everything. Analysis-only edges (SSA phi predecessors and
+        // SCCP reachability), exactly as `push_try_handler_exception_edges`
+        // records them for a handler.
+        //
+        // The edge from the *pre-catch* block is the one that matters for
+        // soundness, and it is not optional: the body can fail at its very
+        // first command, so the state before the `catch` reaches the end
+        // untouched by anything the body writes. Without it
+        // `set cmd safe; catch {set cmd risky}; $cmd` joins to `risky`
+        // alone — a single may-target that would license a destructive
+        // rename, where the truth is `safe` or `risky`. `lower_try` gets
+        // this from `ensure_goto(block_name, &handler_block, …)`; a `catch`
+        // has no handler block to edge to, so it is recorded here.
+        let mut throw_sources: Vec<String> = vec![block_name.to_owned()];
+        for tb in &body_throw_blocks {
+            if !throw_sources.contains(tb) {
+                throw_sources.push(tb.clone());
+            }
+        }
+        if let Some(terminal) = &body_terminal
+            && !throw_sources.contains(terminal)
+        {
+            throw_sources.push(terminal.clone());
+        }
+        if let Some(tail) = &body_tail
+            && !throw_sources.contains(tail)
+        {
+            throw_sources.push(tail.clone());
+        }
+        for src in throw_sources {
+            self.exception_edges.push((src, end_block.clone()));
+        }
+
+        // The result and options variables are defined however the body ended,
+        // so they belong at the merge rather than on one path.
+        let mut defs = Vec::new();
+        if let Some(rv) = result_var {
+            defs.push(rv.clone());
+        }
+        if let Some(ov) = options_var {
+            defs.push(ov.clone());
+        }
+        if !defs.is_empty() {
+            self.block_mut(&end_block).statements.push(Statement::Call {
+                span: *span,
+                command: "catch".into(),
+                canonical_command: None,
+                args: vec![],
+                defs,
+                reads: vec![],
+                reads_own_defs: false,
+                safe_on_uninit: false,
+                tokens: None,
+                foreach_groups: None,
+            });
+        }
+
+        end_block
+    }
 }
 
 #[cfg(test)]

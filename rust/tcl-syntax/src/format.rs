@@ -288,6 +288,7 @@ pub fn is_verb(verb: u8) -> bool {
             | b'G'
             | b'i'
             | b'o'
+            | b'p'
             | b's'
             | b'u'
             | b'x'
@@ -307,10 +308,12 @@ pub fn is_available(spec: &Spec, profile: &tcl_dialect::DialectProfile) -> bool 
             || (profile.runtime_base.is_some()
                 && surface_admits(required, Some(&profile.surface_query())))
     };
-    let verb_surface = if spec.verb == b'b' {
-        SpecSurface::TCL86_PLUS
-    } else {
-        &[]
+    let verb_surface = match spec.verb {
+        b'b' => SpecSurface::TCL86_PLUS,
+        // `%p` was added with Tcl 9's extended format conversions; Tcl 8.4
+        // rejects it as a bad field specifier.
+        b'p' => SpecSurface::TCL90_PLUS,
+        _ => &[],
     };
     let size_surface = spec.size.map_or(&[][..], SizeModifier::surface);
     let unsigned_big_surface = if spec.size.is_some_and(SizeModifier::is_big) && spec.verb == b'u' {
@@ -510,6 +513,7 @@ pub struct VersionGatedUse {
 /// Modelled (evidence-bounded):
 /// - `%b` (binary) — added in Tcl 8.6 (raises "bad field specifier" on
 ///   8.4/8.5).
+/// - `%p` (pointer-style hexadecimal) — added in Tcl 9.0.
 /// - `ll` — added in Tcl 8.5; `j`/`z`/`q`/`t`/`L` — Tcl 9.0+.
 /// - the `ll`/`L` + `u` combination — unsigned bignum, Tcl 9.0+
 ///   (oracle-verified: tclsh8.6 `format %llu 5` → "unsigned bignum format
@@ -544,6 +548,13 @@ pub fn version_gated_uses(fmt: &str) -> Vec<VersionGatedUse> {
                 offset: start,
                 feature: "%b binary conversion",
                 min: TclVersion::V8_6,
+            });
+        }
+        if spec.verb == b'p' {
+            uses.push(VersionGatedUse {
+                offset: start,
+                feature: "%p pointer conversion",
+                min: TclVersion::V9_0,
             });
         }
         if let Some(size) = spec.size
@@ -768,16 +779,20 @@ mod tests {
         }
         assert!(!is_available(&parsed(b"llu"), v86));
         assert!(is_available(&parsed(b"llu"), v90));
+        assert!(!is_available(&parsed(b"p"), v86));
+        assert!(is_available(&parsed(b"p"), v90));
     }
 
     #[test]
     fn size_modifier_diagnostics_report_their_own_lifecycle() {
-        let uses = version_gated_uses("%hd %ld %lld %jd %zd %qd %td %Ld");
+        let uses = version_gated_uses("%hd %ld %b %p %lld %jd %zd %qd %td %Ld");
         assert_eq!(
             uses.iter()
                 .map(|use_| (use_.feature, use_.min))
                 .collect::<Vec<_>>(),
             vec![
+                ("%b binary conversion", tcl_dialect::TclVersion::V8_6),
+                ("%p pointer conversion", tcl_dialect::TclVersion::V9_0),
                 ("%ll size modifier", tcl_dialect::TclVersion::V8_5),
                 ("%j size modifier", tcl_dialect::TclVersion::V9_0),
                 ("%z size modifier", tcl_dialect::TclVersion::V9_0),

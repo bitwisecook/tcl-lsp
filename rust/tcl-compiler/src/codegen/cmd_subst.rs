@@ -456,10 +456,11 @@ pub(crate) fn source_direct_local_name_value(
     tokens: Option<&CommandTokens>,
     arg_index: usize,
     escapes: tcl_dialect::EscapeSyntax,
+    word_rules: tcl_syntax::word_rules::WordValueRules,
 ) -> Option<String> {
     tokens
         .and_then(|tokens| tokens.words().get(arg_index + 1))
-        .and_then(|word| compiled_local_name_value(word, escapes))
+        .and_then(|word| compiled_local_name_value(word, escapes, word_rules))
 }
 
 /// Source availability and evaluated value for a nested local-name argument.
@@ -482,6 +483,7 @@ fn nested_local_name_value(
     parts: &[(String, bool)],
     arg_index: usize,
     escapes: tcl_dialect::EscapeSyntax,
+    word_rules: tcl_syntax::word_rules::WordValueRules,
 ) -> NestedLocalName {
     let Some(tokens) = tokens else {
         return NestedLocalName::Unavailable;
@@ -496,7 +498,7 @@ fn nested_local_name_value(
     {
         return NestedLocalName::Unavailable;
     }
-    match source_direct_local_name_value(Some(tokens), arg_index, escapes) {
+    match source_direct_local_name_value(Some(tokens), arg_index, escapes, word_rules) {
         Some(name) => NestedLocalName::Direct(name),
         None => NestedLocalName::Stack,
     }
@@ -1167,6 +1169,42 @@ impl CodegenCtx<'_> {
         Some((hook, binding))
     }
 
+    /// Preserve source-proven local-name semantics before value-position
+    /// specialisation. Returns whether it emitted the conservative fallback.
+    fn emit_dynamic_local_introspection(
+        &mut self,
+        tokens: Option<&CommandTokens>,
+        parts: &mut [(String, bool)],
+    ) -> bool {
+        let source_local_name =
+            nested_local_name_value(tokens, parts, 1, self.escapes, self.word_rules);
+        let source_hook = self.inline_cmd_subst_hook_candidate(&parts[0].0, &parts[1..]);
+        let source_is_local_introspection = match source_hook {
+            Some(InlineCodegenHookId::InfoExists) => parts.len() == 3,
+            Some(InlineCodegenHookId::Array) => parts.len() == 3 && parts[1].0 == "exists",
+            _ => false,
+        };
+        if !source_is_local_introspection {
+            return false;
+        }
+        match source_local_name {
+            NestedLocalName::Direct(name) => {
+                parts[2].0 = name;
+                false
+            }
+            // The specialised emitters place their final name value on the
+            // stack verbatim. Without an aligned source word that proves the
+            // value is already final, that would suppress a live `$` or
+            // command substitution (notably a Return value, whose
+            // compatibility path retains no CommandTokens).
+            NestedLocalName::Stack | NestedLocalName::Unavailable => {
+                self.used_inline_cmd_subst = false;
+                self.emit_generic_cmd_subst(&parts[0].0, &parts[1..]);
+                true
+            }
+        }
+    }
+
     /// Resolve one fully-consuming inline specialisation whose source name
     /// must also remain untouched throughout this compilation unit.
     ///
@@ -1220,7 +1258,7 @@ impl CodegenCtx<'_> {
             })
             .collect();
 
-        let local_name = source_direct_local_name_value(tokens, 1, self.escapes);
+        let local_name = source_direct_local_name_value(tokens, 1, self.escapes, self.word_rules);
 
         // These hooks are also valid for a complete command statement. The
         // statement dispatch checks the source-word facts, then reuses the
@@ -1289,7 +1327,7 @@ impl CodegenCtx<'_> {
     /// The compatibility parser continues to own value emission.  The source
     /// snapshot only decides whether `info exists` / `array exists` can claim a
     /// local-name slot; it never reconstructs command arguments from text.
-    pub(crate) fn emit_inline_cmd_subst_with_tokens(
+    pub fn emit_inline_cmd_subst_with_tokens(
         &mut self,
         text: &str,
         tokens: Option<&CommandTokens>,
@@ -1308,9 +1346,6 @@ impl CodegenCtx<'_> {
             self.emit(Op::EVAL_STK, vec![]);
             return;
         }
-        // A `{*}`-expanded command substitution in value position compiles to the
-        // `expandStart … expandStkTop N; invokeExpanded` form (tclsh's), leaving
-        // the result on the stack (no trailing `pop`, unlike the statement form).
         if self.recognises_expand_syntax() && text.contains("{*}") {
             let parts = parse_cmd_parts_expand(text);
             if parts.iter().any(|(_, _, expand)| *expand) {
@@ -1325,31 +1360,8 @@ impl CodegenCtx<'_> {
             return;
         }
 
-        // A source word that is not a direct local name must run through the
-        // generic invoke.  Decide that before retaining an inline-hook
-        // dependency: the generic emitter owns the entered command binding it
-        // actually executes.
-        let source_local_name = nested_local_name_value(tokens, &parts, 1, self.escapes);
-        let source_hook = self.inline_cmd_subst_hook_candidate(&parts[0].0, &parts[1..]);
-        let source_is_local_introspection = match source_hook {
-            Some(InlineCodegenHookId::InfoExists) => parts.len() == 3,
-            Some(InlineCodegenHookId::Array) => parts.len() == 3 && parts[1].0 == "exists",
-            _ => false,
-        };
-        if source_is_local_introspection {
-            match source_local_name {
-                NestedLocalName::Direct(name) => parts[2].0 = name,
-                // The specialised emitters place their final name value on
-                // the stack verbatim. Without an aligned source word that
-                // proves the value is already final, that would suppress a
-                // live `$` or command substitution (notably a Return value,
-                // whose compatibility path retains no CommandTokens).
-                NestedLocalName::Stack | NestedLocalName::Unavailable => {
-                    self.used_inline_cmd_subst = false;
-                    self.emit_generic_cmd_subst(&parts[0].0, &parts[1..]);
-                    return;
-                }
-            }
+        if self.emit_dynamic_local_introspection(tokens, &mut parts) {
+            return;
         }
         let cmd = &parts[0].0;
         let args = &parts[1..];

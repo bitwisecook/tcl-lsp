@@ -1400,6 +1400,22 @@ fn info_exists_preserves_formal_shadowing_of_an_instance_projection() {
     );
 }
 
+/// A straight-line catch body now compiles in its enclosing procedure, so a
+/// direct `info exists` inside it reserves the same local slot as it does in a
+/// method body. That slot shadows the instance variable from `info consts`.
+#[test]
+fn catch_body_info_exists_preserves_instance_projection_shadowing() {
+    // tclsh 9.0.4: empty. The catch result is irrelevant; its body
+    // still enters `pub` in the method's compiled local table.
+    assert_eq!(
+        run(
+            "oo::class create C {variable pub; constructor {} {const pub 7}; method m {} {catch {info exists pub}; info consts}}; [C new] m",
+        )
+        .1,
+        ""
+    );
+}
+
 /// A compiler temporary in the LVT is not a reference to a source variable of
 /// the same name.
 ///
