@@ -2379,6 +2379,23 @@ fn a_store_does_not_sink_past_a_condition_that_reads_it() {
         "the condition reads `n`, so the store stays before it: {:?}",
         opt_codes(src, TCL)
     );
+    // A read-only condition blocks the sink for the same reason: the guard
+    // tests a variable the sunk store would not yet have created. Found by
+    // review on the first cut of this guard, which consulted only the *write*
+    // effects: `proc p {} {set x 1; if {[info exists x]} {puts $x}}` prints
+    // `1` on tclsh 9.0.4, and the sunk form printed nothing.
+    for read_only in [
+        "proc p {} {\n  set x 1\n  if {[info exists x]} { puts $x }\n}\np\n",
+        // An unnameable read may be of this variable, which is enough.
+        "proc p {n} {\n  set x 1\n  if {[info exists $n]} { puts $x }\n}\np x\n",
+    ] {
+        assert!(
+            !opt_fires(read_only, TCL, "O125"),
+            "a read-only condition blocks the sink: {:?}",
+            opt_codes(read_only, TCL)
+        );
+    }
+
     // Control: a condition that does not touch the variable still sinks.
     let sinkable = "proc p {c} {\n  set n 5\n  if {$c} { puts $n }\n}\np 1\np 0\n";
     assert!(

@@ -627,7 +627,8 @@ fn is_decision(stmt: &Statement) -> bool {
 ///
 /// Reads and writes both block the sink: the read must see the store, and a
 /// write means the body's read is of the condition's value, which a sunk
-/// store would overwrite.
+/// store would overwrite. "Read" covers both kinds — the implicit read of a
+/// read-modify-write target, and an explicit `ArgRole::VarRead` word.
 fn decision_condition_substitution_touches_var(
     stmt: &Statement,
     var: &str,
@@ -645,13 +646,28 @@ fn decision_condition_substitution_touches_var(
     clauses.iter().any(|clause| {
         let embedded =
             crate::ir_helpers::expression_command_substitutions(&clause.condition, registry, None);
-        let effects = crate::ir_helpers::variable_write_effects_from_commands(
+        let writes = crate::ir_helpers::variable_write_effects_from_commands(
             embedded.all_commands(),
             registry,
         );
-        effects.opaque
-            || effects.names.iter().any(|name| name == var)
-            || effects.read_names.iter().any(|name| name == var)
+        // A `VarRead`-role word reads its target without writing it at all
+        // (`[info exists x]`, `[array size a]`), so it never appears among the
+        // write effects. Sinking past it moves the store after the read:
+        // `proc p {} {set x 1; if {[info exists x]} {puts $x}}` prints `1` on
+        // tclsh 9.0.4, and the sunk form printed nothing, since the guard then
+        // tests a variable the sunk store has not created yet.
+        let reads = crate::ir_helpers::variable_read_effects_from_commands(
+            embedded.all_commands(),
+            registry,
+        );
+        // An unnameable read (`[info exists $p]`) may be of *this* variable,
+        // which is enough to block a sink — unlike the condition's effect
+        // summary, where the opaque flag would have claimed a write.
+        writes.opaque
+            || reads.opaque
+            || writes.names.iter().any(|name| name == var)
+            || writes.read_names.iter().any(|name| name == var)
+            || reads.names.iter().any(|name| name == var)
     })
 }
 
