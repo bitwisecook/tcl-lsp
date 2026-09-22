@@ -638,3 +638,4778 @@ descriptor). In addition:
 - `scripts/dev/test-nextest-binary-shards.sh` and `cargo xtask
   pack-goldens` are the coordinator's pre-commit gates for every lane;
   `cargo xtask value-transfers` is this lane's.
+
+## Plan for slices 2–13
+
+The delivery plan for the rest of
+[value-transfers-migration.md](../compiler/value-transfers-migration.md)
+§ *The slices*, written against HEAD `bdfe3a96` — the lane's slice-2
+checkpoint `f3f9390f` made green by VT2.0 — and against `origin/rust` at
+`08bceb36`, which the coordinator merges next (VT2.M; each later slice
+names the upstream changes to its files). The planner plans; implementers execute one item
+at a time; a reviewer checks each landed item against its entry here. The
+design pages stay the specification: this section says where the tree
+already differs from them and which wins, orders the work, names the
+files, items, tests and gates, and records every choice the pages leave
+open. Nothing here changes a ruling of
+[value-transfers.md](../compiler/value-transfers.md) § *Rulings*.
+
+### How to read the plan
+
+Every work item has an id (`VT<slice>.<n>`; `VT2.M` absorbs the merge of
+`origin/rust`) and the same fields:
+
+- **Files** — every path the item edits or adds.
+- **Items** — the Rust items it adds or changes, with signatures. A shape
+  the interface page gives verbatim is copied verbatim unless § *Where the
+  tree differs from the pages* says the tree's shape wins.
+- **Preserves** — behaviour that stays byte-for-byte, with the tests that
+  pin it.
+- **Changes** — behaviour that changes, each tied to the page sentence,
+  validation-matrix row (value-transfers-migration.md § *Validation*) or
+  issue that mandates it. A change nothing mandates is not in this plan.
+- **Tests** — file, name, what it pins, positive and negative, and the
+  oracle releases where the matrix asks for them.
+- **Gates** — the standing gates the item runs, by number (below).
+- **Docs** — design-page rows, KCS notes, the lane doc.
+- **Model** — `opus` for semantics, the solver, the lift, evaluators,
+  cores and the CFG; `sonnet` for mechanical rewiring from a given shape,
+  waiver annotations, deletions, regeneration, test scaffolding from a
+  given witness list, and doc rows.
+- **Size** — S (up to about 200 changed lines in at most three files), M
+  (up to about 800 lines, or one layer of a subsystem), L (more, or a new
+  analysis).
+- **After** — the items that land first.
+
+The standing gates:
+
+| Gate | Command | When |
+|---|---|---|
+| G1 | `cargo xtask value-transfers` (write mode, regenerates `docs/generated/value-transfers.md`), then `cargo xtask value-transfers --check` (`make xtask-value-transfers`) | every item that touches a scanned file, a declaration, `KNOWN_GAPS`, `RATCHET`, `CLEAN_FILES` or the ledger |
+| G2 | `cargo xtask pack-goldens` (`make xtask-pack-goldens`); stage every rewritten snapshot | a `CommandSpec` shape change, or a change in a shipped pack's meaning (a new `semantics` declaration is one) |
+| G3 | `bash scripts/dev/test-nextest-binary-shards.sh`, after a row in `scripts/dev/rust-test-binary-shards.tsv` for each new test binary (`<shard>\t<crate>::<test>\ttest\t<crate>\t<test>`; new rows go to shard 2, the lightest at 75 rows) | a new integration-test binary |
+| G4 | `make codegen` | a generated catalogue changes (a diagnostic or optimisation code's text, `docs/references/command-spec/fields.md`) |
+| G5 | `cargo xtask kcs-index-links` | a KCS note is added, moved or relinked |
+| G6 | `cargo xtask owner-resolution` | the owner manifest in `docs/design/contracts/shared-utility-contracts-rust.md` or a page's file-path anchors change |
+| G7 | `cargo clippy -p <crate> --no-deps --all-targets -- -D warnings` | every crate the item edits |
+| G8 | `cargo fmt -p <crate>` | every crate the item edits |
+| G9 | `cargo test -p <crate>` for every crate the item edits, plus the suites the slice names | every item |
+
+The ratchet rule every slice applies: a pin is lowered in the commit whose
+review removes or waives the sites, with the file's row in the migration
+plan's ratchet table in the same commit (the gate holds the two equal); a
+pin that reaches 0 leaves `RATCHET` and the table, and the file joins
+`CLEAN_FILES`; a file an item touches for other reasons keeps its pin and
+may not gain a site. `KNOWN_GAPS` loses a row in the commit that declares
+the command's semantics; a stale row fails G1.
+
+The oracle is `/root/.local/bin/tclsh8.4`, `tclsh8.5`, `tclsh8.6`,
+`tclsh9.0` and `tclsh9.1`. A witness is run as
+`for v in 8.4 8.5 8.6 9.0 9.1; do /root/.local/bin/tclsh$v witness.tcl; done`
+(`scripts/dev/tclsh_check.sh -f witness.tcl` covers 8.4 to 9.0 only). A
+Rust witness finds the interpreters on `PATH` with the `find_tclsh(series)`
+shape of `rust/tcl-registry/tests/differential_fold.rs`, records the
+release it ran, and skips a release that is not installed; it never skips
+silently when none is.
+
+**Green** at a checkpoint means: `cargo check --workspace --all-targets`;
+G7 and G8 for every crate the checkpoint touches; G9 for those crates; G1
+with `--check`; G3; and G2 with zero rewrites or its rewrites staged.
+
+The common review checklist every slice's own checklist extends:
+
+- **R1 — the registry rule.** Per-command knowledge lands in
+  `tcl-registry` (a declaration, a descriptor, a registry-owned evaluator
+  over a shared core); a consumer acquires no command-name or
+  command-ID arm (AGENTS.md § *The registry is the source of truth*;
+  ruling 1). The files the slice makes clean are in `CLEAN_FILES`, and G1
+  reports them clean.
+- **R2 — no new `#[allow]`.** Fix the cause.
+- **R3 — UK spelling** in identifiers, comments, test names and docs.
+- **R4 — the AGPL header** on every new source file (the
+  `rust/tcl-registry/src/value_transfer/lift.rs` header); never on
+  generated files or fixtures.
+- **R5 — identifiers verbatim** from this plan and the pages, or the
+  deviation recorded in the lane doc's decisions.
+- **R6 — byte-identical tests.** An existing test's expectation changes
+  only where a witness (an oracle run or a mandate cited under *Changes*)
+  proves today's result wrong, and the commit message names the witness.
+- **R7 — soundness.** No manufactured value (an error, a no-match or an
+  unbound place is never a value; a decline widens); no re-narrowed
+  widened place (a widened value narrows only through a new definition,
+  and an externally mutable place — escaping, traced, aliased or
+  dynamically named — is never refined); the prefix rule (an
+  error completion publishes only the stores that ran); the correlated
+  limit (at most one distinct finite SSA value per evaluation; two decline
+  with `CorrelatedSets`).
+
+### Where the tree differs from the pages
+
+The code wins wherever its shape differs from a page's, unless it
+contradicts a ruling; no row below does. In two rows neither wins: the
+page's mechanism cannot be built on the tree, and the plan names what
+replaces it. Later items build on the shapes in the *Wins* column.
+
+| Page shape | Tree at HEAD | Wins | Why |
+|---|---|---|---|
+| `AnalysisInputs::prior_store(&self, place: PlaceRef, …)` | `place: &PlaceRef` (`value_transfer/inputs.rs`) | code | a borrow; no semantic difference |
+| `AnalysisInputs::word_structure(…) -> WordStructure` | `-> Result<WordStructure, DeclineReason>` | code | a word the driver cannot read declines rather than inventing a structure |
+| `math_function(…) -> Result<CommandBindingIdentity, …>` | `-> Result<BindingIdentity, …>` (`context.rs`) | code | the registry cannot name `tcl_runtime_api` types (slice-1 decision) |
+| `FactView::Exact(ExactValue, Option<ValueKey>)` | `Option<ValueIdentity>` | code | `ValueKey` is the compiler's; `ValueIdentity(u64)` is its opaque projection |
+| `ExactValue::numeric: Option<ConstValue>` | `Option<NumericValue>` (`answers.rs`) | code | `ConstValue` names the `ConstOps` value in the registry |
+| `EvalAnswer::Evaluated(InvocationOutcome)` | `Evaluated(Box<InvocationOutcome>)` | code | pedantic clippy (`large_enum_variant`) |
+| `CommandSemantics` with `structure`, `transfer`, `evaluate` | adds `identity()` and `route()`; default bodies (`mod.rs`) | code | the route is a method (slice-1 decision); VT2.4 adds `incoming_targets` |
+| `Binder { name: OperandId, … }` | `name: BinderName { Operand(OperandId), Declared(String) }` | code | `try`'s and `catch`'s declared binders have no operand |
+| `IterationPlan::body: BodyPlan` | `body: Option<BodyPlan>` | code | the synthetic loop header carries no body operand |
+| `DependencyEvidence::route: RouteIdentity` | `Option<RouteIdentity>` | code | `Default` for a detached evaluation |
+| `SelectionFact` (fields unstated) | `SelectionFact { selected: Vec<Option<usize>> }` | code | one selected arm (or none) per subject member |
+| `EvaluatorCapability { identity, host, target, inputs, depends, budget: tcl_engine_api::Budget, completion }` | `EvaluatorCapability { identity: &'static str }` (`route.rs`) | page, extended in VT4.3 with `&'static` slices and a registry-side `ImplementationBudget` | `EvalRoute` is `Copy` and `tcl-registry` does not depend on `tcl-engine-api` |
+| `Interp::set_dialect_profile` | `Vm::set_dialect_profile` (`rust/tcl-vm/src/interp.rs:1656`) | code | naming only |
+| `Engine::set_release(&mut self, profile: &'static DialectProfile)` | `tcl-engine-api` is "deliberately dependency-free" (its `Cargo.toml`) | code: `set_release(&mut self, profile: &str)`, the profile's name, resolved by the engine through `DialectProfile::find` (VT4.1) | a `tcl-dialect` dependency would break the crate's stated design |
+| `ActivationStore`: host commands replacing `set` / `incr` / `lappend` / `lassign` "with the whitelisted command's exact semantics" | `HostCommand::invoke(&self, &[Value])` is engine-blind by contract (`rust/tcl-engine-api/src/lib.rs`: "cannot reach the interpreter") | neither: VT4.2 confines stores in the engine | a host command cannot read or write the calling frame, so the page's mechanism cannot keep a body's locals; § *Decisions taken* D10 |
+| one interface `Budget`; the evaluation page's `RequestBudget` / `IterationBudget` / `EvaluationBudget` | one `Budget` (`context.rs`) with `request_remaining` and `cancelled` | code: the three levels are three `Budget` values charging through one another (VT4.9) | one type, three owners |
+| `scan_defined_and_unset` | `scan_defined_and_unbound` (`sccp.rs:962`) | code | renamed in slice 1 |
+| `ConstantBranch` "stored once with its kind" | no kind field (`sccp.rs:175`) | page, added by VT5.12 | |
+| `EdgeRefinement { key: ValueKey, … }`, `LoopEnumeration`, `TransferSummary`, `ParamRole` | absent | page; they live in `tcl-compiler` (`sccp.rs`, `static_loops.rs`, `interprocedural.rs`), whose `ValueKey`, `PlaceRef` projection and `ReturnKind` they name | the registry never names SSA identities |
+| `ReturnKind` (`Literal`, `Passthrough(param)`, computed) | private `enum ReturnKind { Literal, Passthrough, UsesParam, Other }` (`interprocedural.rs:1650`) | code, made `pub(crate)` in VT13.1 | |
+| `AnalysisContext` (interface page) | two values: the registry's `AnalysisContext` (`context.rs`) and the compiler's memo component `AnalysisContextKey` (`value_transfer.rs`) | code | the key is hashable; the context is what evaluators read |
+| the loop simulator's `Incr` arm (ledger: retires in slice 12) | runs the registry's route through `exec_cell_update_in_env` already | code | slice 12 deletes the arm's remaining shape, not arithmetic |
+
+### Order of delivery
+
+2, 3, 4, 5, 8, 6, 9, 10, 11, 12, 7a, 13, 7 — the plan's *After* clauses,
+with one split. Slice 13's *After* names slice 7, and the only part of
+slice 7 that slice 13 consumes is "`summarise_returns` consults a seedless
+lattice" (its `TransferSummary::result` is "the shape `summarise_returns`
+derives, over the seedless lattice"). That part is **7a** and lands before
+13; the rest of slice 7 — the catalogue growth, which no later slice
+consumes — lands last as **7**. Slice 8 precedes 6 because the existence
+branch fact is what slice 6 stores once (the plan's own note). Every other
+slice keeps its number's position relative to its dependencies:
+
+| Slice | After | Before |
+|---|---|---|
+| 2 | slice 1 | everything |
+| 3 | 2 | 9, 12 |
+| 4 | 2, 3 (the declared route reaches `evaluate_branch` through slice 3's `command` resolver) | 5 |
+| 5 | 2, 4 (from slice 4 the four surfaces carry every new declaration, and the parity tests fail closed) | 8, 9, 10 |
+| 8 | 5 | 6, 10, 11, 13 |
+| 6 | 8 | 11, 12 |
+| 9 | 3, 5 | 10 |
+| 10 | 5, 8, 9 | — |
+| 11 | 6, 8 | — |
+| 12 | 2, 3, 6; and 10, whose completion protocol an enumerated loop's error path reads | — |
+| 7a | 3 | 13 |
+| 13 | 7a, 8 | 7 |
+| 7 | 13 | — |
+
+### Slice 2 — the direct vertical slice
+
+#### Goal and exit
+
+In the plan's words: "`string range` and `incr` over `ConstOps` and its
+admissibility adapters, preserving exact values and target semantics; then
+`append` / `lappend`. Standalone analysis and the memoised editor path run
+through the same immutable context. Stateful producers are kept when their
+results propagate; the `Statement::Incr` deletion predicate is not
+generalised; `fold_tail_statement_under_lattice`, `chain_fold`,
+`static_loops`, and `intervals` consume the resolved semantics." The
+correlated finite-set limit is in force from this slice. The lane's own
+classification (`KNOWN_GAPS`, slice 1) adds `set` and the `dict` keyed
+updates to this slice, and the ledger adds the retirement of the three
+transitional list and length handlers.
+
+*Exit*, in the plan's words: "program (3) of the interface contract folds
+in every consumer; the three `incr` models agree on `incr x $n`, leading
+zeros, and overflow; `set result [incr n]` keeps its increment; O104 /
+O130 fold a non-consecutive chain; direct and memoised paths agree."
+
+Exit evidence:
+
+- Tests: `program_three_folds_in_every_consumer`,
+  `the_three_incr_models_agree`, `set_result_incr_keeps_its_increment`,
+  `o104_and_o130_fold_a_chain_through_a_lattice_operand` (all in
+  `rust/tcl-compiler/tests/value_transfer_witnesses.rs`, VT2.10);
+  `optimiser::elimination::tests::store_read_by_a_nested_cell_update_is_not_dead`;
+  `value_transfer_parity::direct_and_memoised_lattices_agree_on_the_cell_update_witnesses`
+  (`rust/tcl-lsp-db`, VT2.11); `explore_sccp_prints_the_route_of_each_statement`
+  (`rust/tcl-cli/tests/value_transfers_cli.rs`, VT2.10).
+- Gate: `cargo xtask value-transfers --check` prints `OK` with no
+  unrecognised waiver, `KNOWN_GAPS` without `set`, `dict set` / `unset` /
+  `incr` / `append` / `lappend` or their `::tcl::dict::` spellings, and
+  `const`, `lset`, `ledit`, `lpop` reclassified (VT2.8).
+- Inventory rows in `docs/generated/value-transfers.md`: `llength`,
+  `list` and `string length` with *Owner* `registry` (today
+  `compiler, transitional until slice 2`); `format` with
+  `compiler, transitional until slice 3`; `set` as
+  ``declared (command) · `cell-write` | direct `cell-write` | registry | yes``;
+  `dict incr` as ``declared (subcommand) · `keyed-update:incr` `` and
+  `::tcl::dict::incr` as ``declared (command) · `keyed-update:incr` ``,
+  both with route ``direct `dict-incr` ``, and the same for `set`,
+  `unset`, `append`, `lappend`.
+- `tcl explore --source 'proc p {} {set n 1; incr n; incr n 2; return $n}' --show sccp --text --no-colour`
+  prints `n#3 = const(4)`, `route incr: direct cell-increment (registry)`
+  and `· answer: evaluated` twice; under `--dialect f5-irules`,
+  `proc p {} {set z 010; incr z}` prints
+  `· answer: declined: release-ambiguous: numeral-grammar`, and
+  `set r [llength {a b}]` prints `route llength: direct list-length (registry)`.
+
+#### Work items
+
+##### VT2.0 — the checkpoint made green (landed)
+
+The hand-off's first item: `f3f9390f` made green from the hand-off
+section alone — the five failing tests and the two route tests, the
+failing `cargo xtask value-transfers` run, the unrun suites and clippy —
+without starting the slice's remaining steps. Landed in `206f6eee`
+(`wip(value-transfers): slice 2 checkpoint green — tests, gate and
+clippy`) and `bdfe3a96` (`wip(value-transfers): slice 2 checkpoint
+green`), on top of HEAD rather than squashed onto `f3f9390f` (D1). The
+lane doc's "Status (2026-09-22)" section records it; in the hand-off's
+terms:
+
+- **Files**: `rust/tcl-compiler/src/analyser/bounds_checks.rs`,
+  `analyser/diagnostics/usage.rs`, `analyser/diagnostics/dataflow.rs`,
+  `cfg_builder/mod.rs`, `lattice_rebase.rs`, `optimiser/chain_fold.rs`,
+  `ssa.rs`, `value_transfer.rs`; `rust/tcl-registry/src/commands/tcl/string_.rs`,
+  `value_transfer/const_ops.rs`, `value_transfer/context.rs`,
+  `tests/differential_fold.rs`, `tests/value_transfers.rs`;
+  `rust/tcl-lsp-db/src/lib.rs`; `rust/tcl-spec-studio/tests/spectcl_ports.rs`;
+  `docs/generated/value-transfers.md`; the lane doc.
+- **What it did**, hand-off item by item:
+  1. The six waivers sit on their own comment line directly above each
+     site, the form `site_waiver` reads; G1 regenerated the inventory
+     from a passing run.
+  2. `rebase_function_unit` shifts `SccpResult::explanations` spans beside
+     the constant-branch spans (`rebase_switch_and_while_shift`,
+     `rebase_shifted_unit_spans_match_fresh`).
+  3. #2050: `uses_in_call` makes a `reads` name the call also defines a
+     read of the prior value — the rule `rust` landed in #2215 — so the
+     synthetic `<upvar-invalidate>` call's read of `n` is a use and O109
+     keeps `set n 1` (`store_read_by_a_nested_cell_update_is_not_dead`);
+     `embedded_cell_update_read` keeps W210 where it was, since the
+     substitution scan reads braced words too.
+  4. `range` carries `const_fold: Some(fold_range_unanimous)` beside
+     `const_fold_versioned: Some(fold_range)` (`string_index_comparison_folds_match_tcl`);
+     `spectcl_ports`' table documents the subcommand's new fields as
+     unrenderable, as slice 1 did for `foreach`.
+  5. The storage oracle writes each value as a double-quoted word with
+     `\`, `"`, `$`, `[`, `]`, `{` and `}` escaped (`tcl_quoted_word`), so
+     `set v a; lappend v \{ b` answers `a \{ b` in every release.
+  6. The increment expectations are `built_int(i)`
+     (`Constructed(TclType::Int)`), the release rules moved to
+     `the_increment_route_reads_numerals_under_the_target_release`; the
+     pending `lappend` block is gone.
+  7. The `tcl-lsp-db` parity test's `n`-folds-to-4 assertion covers `::p`
+     alone.
+  8. Pedantic clippy over the five crates, each lint fixed at its cause
+     (`CellUpdateWrite`, `explain_fold`, split tests); the five crates'
+     suites pass (11218 tests), and `tcl-spec-studio`'s 282.
+- **Left for the rest of slice 2**, in the hand-off's own numbering: item
+  8 (escapes on the value-position route, VT2.2), item 9 (the
+  transitional handlers, VT2.7), item 11 (a value-position cell update
+  launders a constant through a join, found by VT2.0, VT2.1), remaining
+  step 4 (the `tcl-explorer` text test, VT2.10), and the checkpoint's
+  `#[allow(clippy::cast_precision_loss)]` in `ConstOps::as_double`, which
+  predates VT2.0 (VT2.2). The lane doc's § *Remaining steps, in order*
+  maps onto this plan as 1 → VT2.1, 2 → VT2.2, 3 → VT2.7, 4 → VT2.10 and
+  5 → VT2.13, without the squash (D1).
+- **Gate output at `bdfe3a96`**: `cargo xtask value-transfers --check` —
+  OK, 15 files clean, 16 sites waived, 100 sites pinned across 41
+  ratcheted files, 6607 inventory rows; `cargo xtask pack-goldens` — 0
+  snapshots rewritten; the shard script, `kcs-index-links` and
+  `owner-resolution` pass.
+- **Model**: opus. **Size**: L. **After**: —.
+
+##### VT2.M — absorb the upstream merge
+
+The coordinator merges `origin/rust` (at `08bceb36`, 107 commits past the
+merge base `3b5eba8a`) into the branch as soon as VT2.0 and DP4.0 are
+green, before any further slice work; this item is the lane's half of
+that merge. `git diff --stat 3b5eba8a origin/rust` touches, among the
+lane's files, `sccp.rs` (+370), `ssa.rs` (+86), `cfg_builder/mod.rs`
+(+423), `ir_helpers.rs` (+373), `compilation_unit.rs` (±199),
+`command_binding.rs` (+374), `optimiser/elimination.rs` (+60),
+`optimiser/chain_fold.rs` (±66), `optimiser/propagation.rs` (±80),
+`analyser/diagnostics/dataflow.rs` (±61), `analyser/bounds_checks.rs`
+(+64), `lattice_rebase.rs` (±56) and `rust/tcl-lsp-db/src/lib.rs` (+2).
+Several upstream commits fix the defect shapes the lane's witnesses pin
+(#2050, #2051, #2052, #2054, #2132, #2134, #2141, #2144, #2164) in
+upstream's pre-interface structure.
+
+- **Files**: every lane file the merge conflicts in, and
+  `docs/generated/value-transfers.md`, `rust/xtask/src/value_transfers.rs`
+  (`RATCHET`, `CLEAN_FILES`), `docs/design/compiler/value-transfers-migration.md`
+  (the ratchet table), the shipped pack snapshots,
+  `scripts/dev/rust-test-binary-shards.tsv`, the lane doc.
+- **Rule 1 — one implementation per fact.** Where slice 1 or 2 moved
+  logic behind the registry interface and upstream fixed the same logic
+  in place, the merged tree keeps the lane's structure and re-expresses
+  upstream's semantics through it:
+  - `sccp.rs` (#2164): upstream gates every builtin fold on
+    `BuiltinFoldInputs { registry_engine, trust: FoldTrust }` and folds
+    nothing when `folds` is `None`. `LatticeDriver::trusted` honours the
+    stance — `FoldTrust::WholeModule` asks `mutations.trusts(head)`,
+    `FoldTrust::ObservedBindings` asks
+    `mutations.observed_binding_is_the_builtin(head)` — and declines every
+    route when `folds` is `None`; `registry_engine` gates the `const_fold`
+    engine (`fold_cmd_subst`'s `const_subst` path) and never a route.
+    Upstream's per-command arms in `try_fold_cmd_subst` do not come back.
+    The lane's slice-1 decision "the mutation-fact-free shared lattice
+    trusts every binding" is withdrawn: upstream's
+    `both_stances_decline_a_builtin_a_proc_shadows` is the witness that it
+    was wrong. Upstream's test helpers `evaluate_pristine` and
+    `evaluate_under_lattice_stance` call the lane's driver with the stance
+    they state.
+  - `compilation_unit.rs`: upstream bypasses the per-procedure lattice
+    memo when the module's trust forbids it, because its key cannot carry
+    the fact; the lane's `FnLatticeKey` carries `AnalysisContextKey`, whose
+    `CommandTrustSnapshot` is that fact, so the memo stays on and keyed.
+    Upstream's `FunctionBuildInputs::command_trust` feeds the driver.
+  - `command_binding.rs`: `CommandTrustSnapshot` gains every field
+    `ModuleCommandMutations` gained upstream (`RebindingSubjects`, the
+    qualified-shadow and unnameable-subject facts), so `to_mutations()`
+    round-trips and `observed_binding_is_the_builtin` answers alike from
+    the snapshot and from the scan.
+  - `optimiser/chain_fold.rs`: upstream's `ChainHeadTrust { set, append,
+    lappend }` names three commands in a clean file; the lane's classifier
+    already resolves the cell update, so the gate is
+    `observed_binding_is_the_builtin` on the statement's own resolved
+    head, with no literal name. Upstream's `proc append {varName args}
+    {return ZZZ}` witness stays.
+  - `ssa.rs`, `cfg_builder/mod.rs`, `ir_helpers.rs` (#2215, #2220):
+    upstream's `EmbeddedSubstExtras { defs, read_before_write,
+    opaque_global }`, `VariableWriteProjection::read_before_write_names`,
+    the `uses_in_call` rule (identical to VT2.0's, kept once),
+    `variable_read_projection` / `ConditionEffects`, the in-frame
+    expression descent (`in_frame_expression_commands`, with the recovered
+    head resolved through the module's bindings) and the
+    `SyntheticMarker::UpvarInvalidate` marker are taken; the lane's
+    `EmbeddedExtras` and `read_before_written` go. Upstream's #2051 rule
+    (a `CONDITIONAL_VARIABLE_WRITE` call reads its targets' prior
+    versions) is taken as is; slice 5 derives it from preserve outcomes
+    (VT5.11).
+  - `analyser/diagnostics/dataflow.rs`: upstream's
+    `statement_is_synthetic_effect` (W210 skips a synthetic statement's
+    reads) and `script_binds_name` are taken; the lane's
+    `embedded_cell_update_read` stays only for the host-`Call` case
+    upstream's rule does not reach, as one predicate beside it.
+  - `analyser/bounds_checks.rs` (#2054): one path — the lane's
+    cell-update evaluation where it computes the new length, upstream's
+    `writes_the_name` abstention where it cannot;
+    `w231_length_follows_the_cell_updates`,
+    `w231_abstains_after_a_write_it_cannot_measure` and
+    `w231_still_reports_a_real_overrun` all pass.
+  - `parse_literal_value` (#2052): the lane's projection of
+    `ExactValue::from_literal` gives upstream's answers (`" 5"` stays a
+    string, `5` is `Int`); upstream's `a_literal_keeps_its_surrounding_whitespace`
+    joins the lane's tests.
+  - `lattice_rebase.rs`: upstream shifts `Return::value_word`, the lane
+    shifts `explanations`; both.
+  - `value_transfer/const_ops.rs` (#2157, #2151): `TargetSemantics::of`
+    reads the three-valued `StringCharacterModel` (8.4 and 8.5, 8.6,
+    9.x), keeping the unanimity answer for an unnamed release.
+  - `optimiser/elimination.rs` (#2144), `lowering/` (`command_is_unavailable_here`),
+    `unit_scope.rs` (#2134), `global_write_info.rs` (in-frame expression
+    writes), `var_observability.rs`, `realm.rs`, `script_binds.rs`, the
+    codegen and `tcl-cmd-core` changes: taken as they are.
+- **Rule 2 — the witnesses stay.** Every lane test upstream now also
+  satisfies stays a test; its "today" comment goes, and the examples
+  page's `;# today:` comments on the programs upstream fixed (#2050,
+  #2051, #2052, #2054, #2132, #2134's single-call-site rewrite, #2141,
+  #2144) are restated as the merged behaviour in VT2.12.
+- **Rule 3 — the ratchet is re-measured.** G1 over the merged tree: a
+  recogniser site upstream added to a clean file is re-expressed (as
+  `chain_fold.rs` above) or waived by axis; a ratcheted file whose count
+  rose is reviewed and the rise waived by axis — a pin is never raised; a
+  new upstream file with a site is reviewed and clean. The migration
+  plan's ratchet table is rewritten from the measured `RATCHET`.
+- **Preserves**: every test of both sides.
+- **Changes**: those upstream's commits make; beyond them, none.
+- **Tests**: `the_trust_snapshot_round_trips_every_mutation_field`
+  (`command_binding.rs`); G9 for `tcl-registry`, `tcl-compiler`,
+  `tcl-explorer`, `tcl-lsp-db`, `xtask` and every crate the merge touches.
+- **Gates**: G1 (write mode, then `--check`), G2, G3, G7, G8, G9.
+- **Docs**: the lane doc records the merge commit, each resolution above,
+  and the re-measured pins.
+- **Model**: opus. **Size**: L. **After**: VT2.0 (landed); DP4.0
+  (landed, `23eec80f`); the coordinator's merge.
+
+##### VT2.1 — a use the statement does not hold is a permanent miss
+
+The miscompile VT2.0 found (the lane doc's item 11): in `proc f {cond}
+{set n 1; if {$cond} {set x [incr n]} else {set x 5}; puts $x}`, `tcl
+opt` rewrites `puts $x` to `puts 5` (O100), where `f 1` prints 2 under
+every release. The value-position `[incr n]` runs with the host
+`AssignValue`'s uses, which do not hold `n` (its read sits on the
+synthetic call before the host), so `LatticeInputs::prior_store` reads
+version 0 (`unwrap_or(0)`), finds no value and answers `Pending`;
+`LiftedAnswer::Pending` becomes `LatticeValue::Unknown`, which survives
+the fixed point, and the phi takes the other arm's `Const(5)`.
+
+- **Files**: `rust/tcl-compiler/src/value_transfer.rs`
+  (`LatticeInputs::prior_store`), `rust/tcl-compiler/src/sccp.rs` (tests),
+  `rust/tcl-compiler/tests/value_transfer_witnesses.rs`.
+- **Items**: `prior_store` answers `FactView::Top(DeclineReason::NotExact)`
+  for a place whose symbol the statement's uses do not hold — the rule
+  `place` already states for a dynamic key: a permanent miss — instead of
+  reading version 0 (`unwrap_or(0)`), so the route declines and the
+  definition is `Overdefined` rather than a `Pending` that never
+  resolves. This is the lane doc's smallest fix; the optimistic
+  `Pending` of a use the statement does hold is unchanged.
+- **Preserves**: every statement-position cell update, whose uses hold
+  its target; `set x [incr n]` keeps slice 1's `Overdefined`.
+- **Changes**: `puts $x` after the branch keeps its variable. Mandate:
+  R7 (a pending input is never a value, the interface page's "Pending is
+  not unbound … no old value is manufactured from bottom"); the lane
+  doc's item 11 witness.
+- **Tests**: `a_value_position_increment_never_launders_a_join`
+  (compiler witnesses: the program above keeps `puts $x` under O100, and
+  the optimised program prints 2 for `f 1` and 5 for `f 0` under 8.4 to
+  9.1); `sccp::tests::a_missing_use_declines_the_prior_store`.
+- **Gates**: G7, G8, G9.
+- **Model**: opus. **Size**: S. **After**: VT2.M.
+
+##### VT2.2 — the hand-off's two leftovers: escapes and the `#[allow]`
+
+- **Files**: `rust/tcl-compiler/src/value_transfer.rs`
+  (`fold_cmd_subst_routes`), `rust/tcl-compiler/src/sccp.rs` (tests),
+  `rust/tcl-registry/src/value_transfer/const_ops.rs` (`as_double`).
+- **Items**: `fold_cmd_subst_routes` cooks each segment text as
+  `const_subst.rs::literal_words_at_depth` does — an `Esc` token through
+  `tcl_lexer::backslash_subst_in(text, config.escapes)`, a braced `Str`
+  token through `WordValueRules::from_config(&config).collapse_braced_word(text)`
+  (the lane doc's item 8). `ConstOps::as_double` loses the checkpoint's
+  `#[allow(clippy::cast_precision_loss)]` and answers an integer through
+  `i.to_string().parse::<f64>()`, the correctly rounded value `i as f64`
+  gives (R2).
+- **Changes**: `[string range "a\tb" 0 1]` in value position folds to
+  `a` followed by a tab. Mandate: the Values row ("whitespace, NUL, and
+  backslash preservation").
+- **Tests**: `sccp::tests::string_range_in_value_position_reads_cooked_escapes`
+  (positive: `set r [string range "a\tb" 0 1]` gives `a\t`; negative:
+  `set r [string range {a\tb} 0 1]` gives `a\`; oracle: `puts [string
+  range "a\tb" 0 1]` prints `a` and a tab, `puts [string range {a\tb} 0
+  1]` prints `a\`, under 8.4 to 9.1).
+- **Gates**: G7 (no `#[allow]` left in `value_transfer/`), G8, G9.
+- **Model**: sonnet. **Size**: S. **After**: VT2.M.
+
+
+##### VT2.3 — both paths take the lattice's trust stance
+
+After VT2.M the shared lattice folds under upstream's
+`FoldTrust::ObservedBindings` and the optimiser's re-run under
+`FoldTrust::WholeModule`, both through `LatticeDriver::trusted`. This item
+makes the memoised editor path take the same stance under the same key,
+which is the half of "the same immutable context" the merge does not
+carry.
+
+- **Files**: `rust/tcl-lsp-db/src/lib.rs` (`function_lattice`,
+  `ValueTransferContext`), `rust/tcl-compiler/src/compilation_unit.rs`
+  (`build_with_param_constants_and_classes_under`),
+  `rust/tcl-compiler/src/value_transfer.rs`,
+  `rust/tcl-compiler/tests/value_transfer_witnesses.rs`.
+- **Items**: `function_lattice` passes the interned context's
+  `CommandTrustSnapshot` as `BuiltinFoldInputs { mutations:
+  &snapshot.to_mutations(), registry_engine: false, trust:
+  FoldTrust::ObservedBindings, … }`, built once per module (the interned
+  `ValueTransferContext` holds the rebuilt `ModuleCommandMutations`), so
+  the memoised lattice and `CompilationUnit::build`'s answer every head
+  alike.
+- **Preserves**: every answer of the direct path after VT2.M.
+- **Changes**: the memoised lattice stops folding a head the module
+  shadows or renames, as the direct one already does after the merge.
+  Mandate: the Consumer parity row ("direct and memoised fact and finding
+  equivalence under one context") and the ledger paragraph.
+- **Tests**: `the_shared_lattice_declines_a_renamed_head`
+  (`value_transfer_witnesses.rs`: with `proc incr {v args} {return 99}`
+  at the top level, `proc p {} {set n 1; incr n; return $n}` has `n#2`
+  `Overdefined` and the explanation `declined: rebinding-suspected`;
+  without the shadow, `Int(2)`); VT2.11 adds its memoised twin.
+- **Gates**: G7, G8, G9 (`tcl-compiler`, `tcl-lsp-db`); `memory_growth`
+  and `interned_gc` stay green.
+- **Docs**: the migration plan's ledger paragraph states the two stances
+  and that both paths take them.
+- **Model**: opus. **Size**: S. **After**: VT2.M.
+
+##### VT2.4 — one store, applied generically
+
+- **Files**: `rust/tcl-registry/src/value_transfer/mod.rs`,
+  `rust/tcl-registry/src/value_transfer/lift.rs`,
+  `rust/tcl-compiler/src/value_transfer.rs`,
+  `rust/tcl-registry/tests/value_transfers.rs`.
+- **Items**:
+  ```rust
+  // value_transfer/mod.rs — on `CommandSemantics`
+  /// The targets whose incoming value and existence this invocation's
+  /// evaluation reads. The derived cell updates need no override.
+  fn incoming_targets(&self, input: &dyn AnalysisInputs) -> Vec<TargetId> {
+      match self.structure(input) {
+          PlanAnswer::CellReadModifyWrite { target, .. } => vec![target],
+          _ => Vec::new(),
+      }
+  }
+  ```
+  `finite_inputs` reads `semantics.incoming_targets(inputs)` in place of
+  its `PlanAnswer::CellReadModifyWrite` match. In the driver,
+  `cell_update_def` becomes
+  `fn store_def(&self, outcome: &InvocationOutcome, def: &str, input: &dyn AnalysisInputs) -> Option<LatticeValue>`:
+  an outcome whose only non-`Preserve` store is one `Write { target, value }`
+  whose place (`input.place(target.0)`) is the call's single definition
+  gives that definition the value; every other shape — two stores, an
+  `Unbind`, a `MayWrite`, a target that is not the definition — leaves
+  `Overdefined`. `evaluate_call` applies it to every resolved call with an
+  evaluated outcome, not only to a cell read-modify-write plan.
+- **Preserves**: `append` / `lappend` calls and the typed `Incr` node give
+  the values they give at VT2.0.
+- **Changes**: none by itself; VT2.5 and VT2.6 reach the lattice through
+  it. Mandate for the shape: "Write, preserve, unbind, and may-write
+  outcomes" land with slice 5, so this slice applies exactly one write.
+- **Tests**: `incoming_targets_default_to_the_cell_update_target`
+  (`value_transfers.rs`: `incr` answers `[TargetId(OperandId(0))]`,
+  `string range` answers `[]`).
+- **Gates**: G1, G7, G8, G9 (`tcl-registry`, `tcl-compiler`).
+- **Docs**: the interface page's `CommandSemantics` listing gains
+  `incoming_targets` with one line (the evaluation page's `EvalMemoKey`
+  already names incoming targets).
+- **Model**: opus. **Size**: M. **After**: VT2.M.
+
+##### VT2.5 — `set`, the exact-value write
+
+- **Files**: `rust/tcl-registry/src/value_transfer/cell_write.rs` (new),
+  `rust/tcl-registry/src/value_transfer/mod.rs`,
+  `rust/tcl-registry/src/value_transfer/route.rs`,
+  `rust/tcl-registry/src/commands/tcl/set_.rs`,
+  `rust/tcl-registry/tests/value_transfers.rs`,
+  `rust/tcl-registry/tests/differential_fold.rs`,
+  `rust/tcl-compiler/src/sccp.rs` (tests), `rust/xtask/src/value_transfers.rs`
+  (`KNOWN_GAPS` loses `set`).
+- **Items**:
+  ```rust
+  /// `set name ?value?`: the write of an exact value, or the read of the
+  /// prior one.
+  pub struct CellWriteSemantics;
+  pub static CELL_WRITE: CellWriteSemantics = CellWriteSemantics;
+  impl CommandSemantics for CellWriteSemantics {
+      fn identity(&self) -> &'static str { "cell-write" }
+      fn route(&self) -> EvalRoute { EvalRoute::Direct { id: NativeEvalId::CellWrite } }
+      fn incoming_targets(&self, input: &dyn AnalysisInputs) -> Vec<TargetId>; // the read form's target
+      fn transfer(&self, domain: FactDomain, input: &dyn AnalysisInputs, budget: &mut Budget) -> TransferAnswer;
+      fn evaluate(&self, input: &dyn AnalysisInputs, budget: &mut Budget) -> EvalAnswer;
+  }
+  // route.rs
+  NativeEvalId::CellWrite // owner: Registry; as_str: "cell-write"
+  ```
+  The target is the operand with the declared `VarWrite` role
+  (`ResolvedInvocationView::operands_with_role`). The write form answers
+  the value as the result with one `Write`; the read form answers the
+  prior value (`prior_store`; `Pending` passes through; an unbound or
+  unknown prior declines, since the read of an absent variable is an
+  error) with no store. `transfer(FactDomain::Existence, …)` answers
+  `Bind(Scalar)` for the write form; `Type` answers the value's type.
+  `set_.rs` declares `semantics: SemanticsDeclaration::Declared(&CELL_WRITE)`.
+- **Preserves**: `Statement::Assign` stays the typed node the solver
+  transfers natively (`fold_assign_value`); no statement-position `set`
+  changes its lattice value.
+- **Changes**: `[set x]` in value position folds to `x`'s value
+  (`set r [set x]`). Mandate: the Tier-1 list in the migration plan's
+  § *Third-party commands* ("`dict incr` / `append` / `lappend` / `set` /
+  `unset`") and the slice-1 classification. `[set x 10]` in value position
+  stays `Overdefined` (`EffectFreeOnly`; slice 9 admits it).
+- **Tests**: `the_cell_write_route_writes_and_reads_the_exact_value`
+  (`value_transfers.rs`: `set v { a }` answers the result ` a ` and
+  `Write { target 0, " a " }`; `set v` over a prior `Exact("7")` answers
+  `7` with no store; over `Pending` answers `Pending`; over
+  `Top(UnboundPlace)` declines); `sccp::tests::evaluate_def_set_read_in_value_position_folds`
+  (`set x hello; set r [set x]` gives `r` `hello`; negative:
+  `set r [set x 10]` leaves `r` `Overdefined`);
+  `storage_outcome_witnesses_match_every_release_on_path` gains the write
+  and read forms (`set v " a "`, `set v`), under 8.4 to 9.1.
+- **Gates**: G1, G2 (the `tcl` pack's meaning changes), G7, G8, G9.
+- **Docs**: the interface page's § *Storage-writing commands* names `set`
+  as the direct route's one-target write.
+- **Model**: opus. **Size**: S. **After**: VT2.4.
+
+##### VT2.6 — the keyed updates of `dict`
+
+- **Files**: `rust/tcl-registry/src/value_transfer/keyed_update.rs`
+  (new), `mod.rs`, `route.rs`, `const_ops.rs`,
+  `rust/tcl-registry/src/commands/tcl/dict.rs`,
+  `rust/tcl-registry/tests/value_transfers.rs`,
+  `rust/tcl-registry/tests/differential_fold.rs`,
+  `rust/tcl-compiler/src/sccp.rs` (tests), `rust/xtask/src/value_transfers.rs`.
+- **Items**:
+  ```rust
+  /// A keyed update of the dictionary one variable holds, over
+  /// `tcl_cmd_core::dict`.
+  #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+  pub enum KeyedUpdate { Set, Unset, Increment, Append, ListAppend }
+  pub struct KeyedUpdateSemantics { operation: KeyedUpdate }
+  pub static DICT_SET: KeyedUpdateSemantics;       // also DICT_UNSET, DICT_INCR,
+                                                    // DICT_APPEND, DICT_LAPPEND
+  impl KeyedUpdateSemantics {
+      pub const fn needs(self) -> Needs;             // DICT_ORDER | LIST_RENDERING, plus
+                                                     // NUMERAL_GRAMMAR | INT_TOWER for Increment
+      pub const fn evaluator(self) -> NativeEvalId;
+  }
+  // route.rs: NativeEvalId::{DictSet, DictUnset, DictIncr, DictAppend,
+  // DictListAppend}, owner Registry, as_str "dict-set" … "dict-lappend"
+  ```
+  The dictionary operand is the one with the declared `VarWrite` role, so
+  `dict set d k v` (operand 0 is the subcommand word) and
+  `::tcl::dict::set d k v` evaluate through one declaration; the key path
+  and the value are the operands after it. An absent prior is the empty
+  dictionary (every one of the five creates its variable:
+  `safe_on_uninit: SpecSurface::ALL_TCL` within `dict`'s surface). A key
+  path runs `tcl_cmd_core::dict::lookup` / `upsert` / `remove` level by
+  level; `Increment` adds through `ValueOps::int_add` under the numeral
+  grammar; `Append` and `ListAppend` run `var::append_bytes` and
+  `var::lappend_value` on the keyed value. The answer is the new
+  dictionary as the result and one `Write`. `ConstOps` overrides
+  `ValueOps::dict_pairs` and `new_dict` to `require` `DICT_ORDER` and
+  `LIST_RENDERING` and to charge per element. `qualified_specs()` copies
+  `semantics: sub.semantics`.
+- **Preserves**: the `dict get`, `exists`, `create`, `keys`, `values`,
+  `size`, `merge` folders.
+- **Changes**: the five subcommands and their `::tcl::dict::` spellings
+  evaluate, so the variable holds the exact dictionary after the call.
+  Mandate: § *The drift gate* ("The `append`, `lappend`, `dict incr` gap
+  the issue names is a row in that file until slice 2 closes it") and the
+  Tier-1 list.
+- **Tests**: `keyed_updates_run_the_shared_dict_cores`
+  (`value_transfers.rs`), each case an oracle answer under 8.5 to 9.1:
+  `dict set d a 1; dict set d b 2; dict set d a 3` gives `a 3 b 2`;
+  `dict incr` of an absent variable gives `k 1`; `dict append` twice gives
+  `k foobar`; `dict lappend d k a {b c}` gives `k {a {b c}}`; `dict unset`
+  of `a` from `a 1 b 2` gives `b 2`; `dict unset` of an absent variable
+  binds it to the empty string; `dict set d a y 2` over `a {x 1}` gives
+  `a {x 1 y 2}`; `dict set` over `b 2 a 1` keeps the order
+  (`b 2 a 1 c 3`); over ` a  1 ` it canonicalises (`a 1 b 2`); over
+  `a 1 b` it declines `WrongRepresentation` ("missing value to go with
+  key"); `dict incr` over `010` gives 9 under 8.6, 11 under 9.0, and
+  declines `ReleaseAmbiguous(NumeralGrammar)` under an unnamed release;
+  `the_qualified_dict_spellings_share_the_declaration`
+  (`::tcl::dict::incr d k` answers as `dict incr d k`);
+  `keyed_update_witnesses_match_every_release_on_path`
+  (`differential_fold.rs`, 8.5 to 9.1; under `tcl8.4`, which has no
+  `dict`, the resolver finds no route); `dict.rs`'s
+  `qualified_specs_carry_the_subcommand_analysis_contract` asserts the
+  `semantics` field; `sccp::tests::evaluate_def_dict_incr_writes_the_dictionary`.
+- **Gates**: G1 (`KNOWN_GAPS` loses ten rows), G2, G7, G8, G9.
+- **Docs**: the interface page's Tier-1 sentence; the KCS declaration note
+  (VT2.12).
+- **Model**: opus. **Size**: M. **After**: VT2.4.
+
+##### VT2.7 — the three transitional handlers retire
+
+- **Files**: `rust/tcl-registry/src/value_transfer/builtins.rs`,
+  `route.rs`, `rust/tcl-compiler/src/value_transfer.rs`
+  (`transitional_direct` keeps only `FormatTemplate`),
+  `rust/tcl-registry/tests/value_transfers.rs`,
+  `docs/design/compiler/value-transfers-migration.md` (three ledger rows go).
+- **Items**: the lane doc's item 9. `NativeEvalId::FormatTemplate.owner()`
+  answers `Transitional { retires_in_slice: 3 }` and its ledger row reads
+  "slice 3 — `format_cmd_with_syntax` under the profile's `NumberSyntax`"
+  (VT3.8 retires it). `ListOfArgsSemantics`, `ListLengthSemantics`,
+  `StringLengthSemantics` in `builtins.rs`, each overriding `evaluate` over
+  `ConstOps`: `tcl_cmd_core::list::list` (`NEEDS = Needs::LIST_RENDERING`),
+  `tcl_cmd_core::list::llength` over the list parse, charged per element
+  (`NEEDS = Needs::NONE`), `tcl_cmd_core::string::length`
+  (`NEEDS = Needs::CHAR_MODEL.union(Needs::SOURCE_ENCODING)`). The statics
+  `LIST_OF_ARGS`, `LIST_LENGTH`, `STRING_LENGTH` keep their names and
+  identities; `NativeEvalId::{ListOfArgs, ListLength, StringLength}.owner()`
+  answers `EvaluatorOwner::Registry`.
+- **Preserves**: every existing `evaluate_def_*` answer over `list`,
+  `llength` (a literal list and a lattice list) and `string length`; the
+  unanimity rule for an unnamed release. A difference between
+  `extract_foreach_elements` and the list core on an existing test is
+  settled by the oracle (R6).
+- **Changes**: the inventory's *Owner* column and the Explorer's route
+  line read `registry` for the three, and `compiler, transitional until
+  slice 3` for `format`; `string length` over a non-ASCII word read from a
+  UTF-8 source declines under 8.x and an unnamed release
+  (`ReleaseAmbiguous(SourceEncoding)`) and answers under 9.x — the oracle:
+  `string length héllo` from a UTF-8 file prints 6 under 8.4 to 8.6 and 5
+  under 9.0 and 9.1. Mandate: the ledger rows ("slice 2 — `ConstOps`
+  over the list core", "`tcl_syntax::list::split_list` through
+  `ConstOps`", "`ConstOps::char_len` with the `CHAR_MODEL` admissibility
+  bit") and the slice-2 decision that `SOURCE_ENCODING` subsumes
+  `CHAR_INDEXING` for the string routes.
+- **Tests**: `list_and_length_routes_run_the_shared_cores`
+  (`value_transfers.rs`: `list a {b c} ""` gives `a {b c} {}`;
+  `llength {a {b c}}` gives 2; `llength "a {b"` declines
+  `WrongRepresentation`; `string length héllo` gives 5 under 9.0 and
+  declines under 8.6); `route_stamps_match_the_pinned_set` with the three
+  owners moved.
+- **Gates**: G1, G2, G7, G8, G9.
+- **Docs**: the migration plan's ledger; the KCS declaration note.
+- **Model**: opus. **Size**: M. **After**: VT2.M.
+
+##### VT2.8 — the gap rows the slice does not close
+
+- **Files**: `rust/xtask/src/value_transfers.rs` (`KNOWN_GAPS`),
+  `docs/design/lanes/value-transfers.md`.
+- **Items**: `const` reads "slice 8 — the write that fails on an existing
+  variable reads the existence rung"; `lset`, `ledit`, `lpop` read "slice
+  7 — the list cell updates over new shared cores" (D4, D5).
+- **Preserves**: every other row.
+- **Changes**: the inventory's *Classified* column for four rows.
+- **Tests**: `every_file_is_clean_or_at_its_pin` and the gate's verdict
+  tests (`cargo test -p xtask`).
+- **Gates**: G1, G9 (`xtask`).
+- **Docs**: the lane doc's slice-2 decisions.
+- **Model**: sonnet. **Size**: S. **After**: VT2.5, VT2.6, VT2.7.
+
+##### VT2.9 — a qualified global written by a nested cell update (#2214)
+
+- **Files**: `rust/tcl-compiler/src/cfg_builder/global_write_info.rs`,
+  `rust/tcl-compiler/tests/value_transfer_witnesses.rs`,
+  `rust/tcl-cli/tests/value_transfers_cli.rs`.
+- **Items**: `collect_write_targets` publishes a `::`-qualified target
+  into `GlobalWriteInfo::names` without a `global`, `variable` or `upvar`
+  declaration in `state`: the spelling alone makes it outer-scope. A
+  renamed alias or an opaque local keeps today's exclusion.
+- **Preserves**: every unqualified local target's classification.
+- **Changes**: after `bump` (whose body is `set y [incr ::hits]`), O102
+  no longer forwards `0` into `puts $hits` and O109 no longer deletes
+  `set hits 0`. Mandate: #2214.
+- **Tests**: `a_qualified_nested_cell_update_is_a_global_write`
+  (compiler: both spellings, `set y [incr ::hits]` and
+  `set y [expr {[incr ::hits] + 1}]`, name `::hits` in `bump`'s
+  `GlobalWriteInfo`; negative: `set y [incr hits]` with no declaration
+  stays local); `opt_keeps_a_global_a_nested_increment_writes` (CLI:
+  `tcl opt --profile full` on `set hits 0; proc bump {} {set y [incr
+  ::hits]; return $y}; bump; puts $hits` keeps `puts $hits`, and the
+  output prints `1` under 8.4 to 9.1, as the original does).
+- **Gates**: G1, G7, G8, G9.
+- **Docs**: none beyond the lane doc. If a `rust` pull request closes
+  #2214 before this item, VT2.M brings the fix and this item keeps only
+  the two tests.
+- **Model**: opus. **Size**: S. **After**: VT2.M.
+
+##### VT2.10 — the witness binaries
+
+- **Files**: `rust/tcl-compiler/tests/value_transfer_witnesses.rs` (new),
+  `rust/tcl-cli/tests/value_transfers_cli.rs` (new),
+  `rust/tcl-explorer/src/render.rs` (tests),
+  `scripts/dev/rust-test-binary-shards.tsv`.
+- **Items**: two integration-test binaries every later slice extends. The
+  compiler binary drives `CompilationUnit::build`,
+  `optimise_with_dialect` / `apply_optimisations` /
+  `optimise_source_multipass` (`tcl_compiler::optimiser::manager`) and a
+  local `find_tclsh(series)`; the CLI binary drives
+  `env!("CARGO_BIN_EXE_tcl")`. Shard rows:
+  `2\ttcl-compiler::value_transfer_witnesses\ttest\ttcl-compiler\tvalue_transfer_witnesses`
+  and `2\ttcl-cli::value_transfers_cli\ttest\ttcl-cli\tvalue_transfers_cli`.
+  The CLI binary is separate from `rust/tcl-cli/tests/cli.rs`, which the
+  diagnostic-policy lane is editing.
+- **Tests** (compiler binary):
+  - `program_three_folds_in_every_consumer` — `proc p {} {set n 1; incr n;
+    incr n 2; puts $n}` under `tcl8.4`, `tcl8.6`, `tcl9.0`, `f5-irules`:
+    `n#3` is `Int(4)` in the shared lattice, and the optimiser forwards
+    `4` into `puts $n` (O100).
+  - `the_three_incr_models_agree` — for `incr x $n` (`x` 5, `n` 3),
+    `incr x` over `010`, and `incr x` over `9223372036854775807`, under
+    the same four dialects: the lattice value at the definition, the value
+    `static_loops::summarise_for_statement` computes for
+    `for {set i 0} {$i < 1} {incr i} {<the statement>}`, and the interval
+    at the definition agree — equal values, or a decline in every model;
+    an interval never excludes the lattice's value. Oracle: 8, then 9
+    (8.4 to 8.6) or 11 (9.0, 9.1), then `9223372036854775808` from 8.5
+    and `-8` under 8.4, so `tcl8.4` and `f5-irules` decline the overflow.
+  - `set_result_incr_keeps_its_increment` — `proc p {} {set n 1; set
+    result [incr n]; puts $result; puts $n}; p`: no O109 or O126 on
+    `set n 1`, the `incr` stays, and the optimised program prints `2` and
+    `2` under 8.4 to 9.1.
+  - `o104_and_o130_fold_a_chain_through_a_lattice_operand` —
+    `set s hello; set p again; append s $p; puts $s` folds to
+    `set s helloagain`; with `set p { again}` to `set s {hello again}`
+    (#2052); `set l {}; set x b; lappend l a $x` folds to `set l {a b}`.
+  - `deleting_a_quoted_store_leaves_no_quote` — the #2053 program,
+    `set s hello; set p "again"; append s $p; puts $s`: the optimised
+    source has no line holding only `"` and prints `helloagain` under 8.4
+    to 9.1.
+  - `lassign_is_not_a_write_under_a_profile_without_it` — under `tcl8.4`,
+    `set a old; catch {lassign {new second} a b}; puts $a` keeps
+    `set a old`; `tclsh8.4` prints `old` (#2144).
+  - VT2.3's and VT2.9's tests.
+- **Tests** (`tcl-explorer`, the hand-off's remaining step 4):
+  `render::tests::sccp_text_prints_the_route_of_each_cell_update`
+  (`render_all` over `serialise_result(&run_pipeline("proc p {} {set n 1;
+  incr n; incr n 2; return $n}", "tcl8.6"))` with `["sccp"]` and no colour
+  contains `route incr: direct cell-increment (registry)` and
+  `· answer: evaluated`; under `"f5-irules"`, `proc p {} {set z 010;
+  incr z}` contains `· answer: declined: release-ambiguous:
+  numeral-grammar`).
+- **Tests** (CLI binary): `explore_sccp_prints_the_route_of_each_statement`
+  (the exit evidence lines above); `opt_forwards_program_three`
+  (`tcl opt --profile full --dialect tcl8.6` output contains `puts 4`);
+  `opt_keeps_the_store_behind_a_nested_increment` (the output keeps
+  `set n 1`); VT2.9's test.
+- **Gates**: G3, G7, G8, G9 (`tcl-compiler`, `tcl-cli`, `tcl-explorer`).
+- **Docs**: the lane doc lists the two binaries as the slices' witness
+  homes.
+- **Model**: sonnet. **Size**: M. **After**: VT2.1 to VT2.9.
+
+##### VT2.11 — the parity tests in a lane-owned module
+
+- **Files**: `rust/tcl-lsp-db/src/value_transfer_parity.rs` (new,
+  `#[cfg(test)]`), `rust/tcl-lsp-db/src/lib.rs` (the test moves out;
+  `#[cfg(test)] mod value_transfer_parity;` stays).
+- **Items**: the module `use`s `super::*` for `compilation_unit`,
+  `unit_build_options`, `lexer_cfg_key` and `declared_command_surface`.
+- **Tests**: `direct_and_memoised_lattices_agree_on_the_cell_update_witnesses`
+  (moved, with VT2.0's fix); `the_memoised_lattice_declines_a_renamed_head`
+  (VT2.3 on the memoised path); `keyed_updates_agree_on_both_paths`
+  (`proc p {} {dict set d a 1; dict incr d a 2; return $d}` answers
+  `a 3` on both paths under `tcl8.6` and `tcl9.0`);
+  `a_trace_installation_invalidates_the_lattice` (adding `trace add
+  variable n write …` to the file drops `n`'s constant on the memoised
+  path as on the direct one); `file_token_facts_never_evaluates`
+  (`file_token_facts` stays structure-only: no route entry is recorded).
+  The last two are the Incrementality row's "trace installation" and the
+  Consumer parity row's "lightweight tokens and symbols never trigger
+  evaluation".
+- **Preserves**: `memory_growth` and `interned_gc`.
+- **Gates**: G7, G8, G9 (`tcl-lsp-db`).
+- **Docs**: none. The lane's footprint in the shared `lib.rs` shrinks to
+  `FnLatticeKey`, `ValueTransferContext`, `function_lattice` and the
+  module line (B-DP2).
+- **Model**: sonnet. **Size**: S. **After**: VT2.3, VT2.6.
+
+##### VT2.12 — the slice's docs
+
+- **Files**: `docs/design/compiler/pass-fact-ownership-matrix.md`,
+  `docs/design/compiler/downstream-pass-contracts.md`,
+  `docs/design/compiler/sccp-core-analyses.md`,
+  `docs/design/compiler/constant-folding-type-inference.md`,
+  `docs/design/compiler/optimisation-passes.md`,
+  `docs/design/compiler/value-transfers-migration.md`,
+  `docs/design/compiler/value-transfers.md`,
+  `docs/design/contracts/shared-utility-contracts-rust.md` (the owner row
+  only), `docs/design/GLOSSARY.md`,
+  `docs/kcs/compiler/kcs-qa-what-does-a-value-transfer-declaration-say.md`,
+  `docs/kcs/compiler/kcs-qa-why-does-a-constant-fold-depend-on-the-dialect.md`,
+  `docs/kcs/compiler/kcs-qa-why-does-a-renamed-command-stop-folding.md`
+  (new) and its index, `docs/design/lanes/README.md`.
+- **Items**: the value-transfer fact row (producer `LatticeDriver`;
+  consumers; context `AnalysisContextKey`; unavailable is `Overdefined`
+  with its `DeclineReason`) with `set` and the keyed updates as producers;
+  the O100, O104, O109, O130 rows; the ledger; the Tier-1 sentence;
+  *keyed update* and *cell write* in the glossary; the renamed-head KCS
+  note (VT2.3's user-visible change); the lanes README's in-flight entry
+  names slices 2–13. The rows for `diagnostics-calculation.md` and
+  `diagnostics-integration.md` are drafted in the lane doc (B-DP4).
+  The owner row is edited only after the diagnostic-policy lane has
+  committed its own edit to the same file; another lane's hunk is never
+  staged.
+- **Gates**: G5, G6.
+- **Model**: sonnet. **Size**: M. **After**: VT2.10.
+
+##### VT2.13 — the slice lands
+
+- **Files**: `docs/design/lanes/value-transfers.md` (the slice-2 sections
+  read as landed; the hand-off status section becomes a short record).
+- **Items**: every gate green over the merged tree; the landing commit.
+- **Gates**: G1 to G9 over `tcl-registry`, `tcl-compiler`,
+  `tcl-explorer`, `tcl-lsp-db`, `tcl-cli`, `xtask`.
+- **Model**: sonnet. **Size**: S. **After**: VT2.0, VT2.M, VT2.1 to VT2.12.
+
+#### Checkpoints and landing
+
+| Checkpoint | Holds | Green means |
+|---|---|---|
+| `206f6eee`, `bdfe3a96` (`wip(value-transfers): slice 2 checkpoint green`, landed) | VT2.0 | the seven tests pass; G1 `--check` prints `OK`; the five crates' suites and `tcl-spec-studio`'s pass; G7 clean |
+| the coordinator's merge commit of `origin/rust`, then `wip(value-transfers): slice 2 — the upstream merge absorbed` | VT2.M | every test of both sides over the merged tree; G1 with the re-measured pins; G2; G3 |
+| `wip(value-transfers): slice 2 — the join, the escapes, the context and the stores` | VT2.1, VT2.2, VT2.3, VT2.4, VT2.9 | the join, escape, renamed-head and #2214 tests pass on both paths; every other lattice test of the merged tree byte-identical |
+| `wip(value-transfers): slice 2 — set, dict and the retired handlers` | VT2.5, VT2.6, VT2.7, VT2.8 | the route tests and the differential rows pass under every release on `PATH`; G1 without the closed gap rows; G2 with the rewritten snapshots staged |
+| `wip(value-transfers): slice 2 — the direct vertical slice` (the landing) | VT2.10 to VT2.13 | every exit test; G1 to G9 |
+
+The landing message, from the checkpoint's draft body:
+
+```text
+wip(value-transfers): slice 2 — the direct vertical slice
+
+`ConstOps` is the one live compile-time value model
+(`tcl_registry::value_transfer::const_ops`): byte-exact, bound to the
+target's release semantics through the admissibility set (`Needs`),
+charging the per-evaluation budget, poisoned by the first fault. The cell
+updates behind `incr`, `append` and `lappend` are the runtime adapters'
+own value computations over it — `ValueOps::int_add`,
+`var::append_bytes`, `var::lappend_value` — and `string range` runs the
+shared string core with its index numerals resolved under the target's
+grammar; the subcommand's shipped folder is that same route. `set` writes
+and reads the exact value, the five keyed updates of `dict` run the dict
+core for both spellings, and `list`, `llength` and `string length` leave
+the compiler's transitional table for registry-owned routes; `format`
+stays transitional until slice 3. A profile naming no release gets the
+answer every modelled release gives and a recorded decline where they
+differ. The lift over finite sets is stated once
+(`value_transfer::lift`): one distinct finite input evaluates per member,
+two decline as correlated. The driver applies one evaluated write to its
+target, records each statement's route and answer for the Explorer's
+`sccp` view, and runs the shared lattice under the module's binding
+trust, so the memoised editor path and standalone analysis answer alike.
+The consumers that carried their own `incr` models read the resolved
+semantics: `chain_fold` classifies by the resolved cell update and folds
+a `$var` piece through the lattice, the tail fold returns a cell
+update's written value, the loop simulator runs the registry's route,
+the interval domain interprets the descriptor's `IntegerAdd`, and W231's
+length follows the cell updates. A nested cell update's read is an SSA
+use, and a `::`-qualified global a nested update writes is in its
+procedure's global-write summary.
+
+Behaviour changes: O109, O126 and W220 keep the store a nested cell
+update reads (`set n 1` ahead of `set result [incr n]`); a
+value-position cell update whose read the host does not hold declines
+instead of laundering a join's other constant; `incr` folds
+under the target's numeral grammar, so a leading-zero base or an
+overflow folds per named release and declines under an unnamed one, and
+`incr x " 5"` folds; `string range` folds per release, a non-ASCII
+subject under 9.x only, and in value position it reads cooked escapes;
+`append`, `lappend`, `set` and the `dict` keyed updates give their
+variable an exact value; `string length` of a non-ASCII word declines
+under 8.x; the shared lattice declines a head the module renames; the
+simulator's literal ingress keeps `010` and `+5` as text; a procedure's
+global-write summary names a `::`-qualified global a nested update
+writes.
+
+Pins #2050 (closed on rust by #2215), #2052 and #2054 (closed on rust by
+#2211), #2053 (closed by 33be5cef), #2144 (closed on rust by #2211),
+#2164 (closed on rust by #2169). Closes #2214.
+```
+
+The trailer lines are the committing session's. "Closes #2214" stays only
+if #2214 is still open when the slice lands; otherwise it reads "Pins
+#2214 (closed on rust by #NNNN)".
+
+#### Review checklist
+
+- R1: the files the slice makes clean — the fifteen in `CLEAN_FILES` at
+  HEAD stay clean over the merged tree (upstream's named `set` /
+  `append` / `lappend` gate in `chain_fold.rs` re-expressed, VT2.M);
+  `ssa.rs` (pin 1) and
+  `analyser/diagnostics/dataflow.rs` (pin 4) keep their pins and gain no
+  site; no consumer matches `"set"`, `"dict"` or a subcommand spelling —
+  the keyed updates are reached through the resolver and
+  `operands_with_role`, never through `view.subcommand == Some("incr")`.
+- R2 to R5 as stated; the new files are `cell_write.rs`,
+  `keyed_update.rs`, `value_transfer_witnesses.rs`,
+  `value_transfers_cli.rs`, `value_transfer_parity.rs`.
+- R6: the only expectations that move are the two route tests (the
+  constructed-representation evidence and the pending case), the
+  differential oracle's quoting, and the owner fields of three pinned
+  routes; each commit names its witness.
+- Suites: `cargo test -p tcl-registry -p tcl-compiler -p tcl-explorer -p
+  tcl-lsp-db -p tcl-cli -p xtask`.
+- R7: a keyed update over a malformed dictionary declines, never writes a
+  repaired one; the shared lattice's trust never re-trusts a head the
+  module rebinds; a nested cell update's read keeps its store; a finite
+  prior of a keyed update's dictionary is one identity, so two finite
+  inputs decline `CorrelatedSets`.
+
+#### Behavioural deltas
+
+Accepted in the hand-off and standing (§ *Decisions taken* D2): `incr x
+" 5"` folds again; a leading-zero base or an overflow folds under a named
+release and declines under an unnamed one; `string range abcdefghijkl
+010 end` folds per release; a non-ASCII subject folds under 9.x;
+`append` / `lappend` reach the lattice; the simulator's ingress keeps
+`010` and `+5` as text. Added by this plan:
+
+| Delta | Mandate |
+|---|---|
+| O109, O126 and W220 keep `set n 1` ahead of `set result [incr n]` | #2050; the findings table |
+| a value-position cell update whose read the host statement does not hold declines, so `puts $x` after `if {$c} {set x [incr n]} else {set x 5}` is no longer rewritten to `puts 5` | R7; the lane doc's item 11 and its `tclsh` witness |
+| `[string range "a\tb" 0 1]` in value position folds to `a` and a tab | Values row: "whitespace, NUL, and backslash preservation" |
+| the memoised lattice declines a head the module shadows or renames, as the merged direct lattice does | the Consumer parity row; #2164 on the direct path |
+| `[set x]` in value position folds to `x`'s value | the Tier-1 list |
+| `dict set` / `unset` / `incr` / `append` / `lappend` and their `::tcl::dict::` spellings give their variable an exact value | § *The drift gate*; the Tier-1 list |
+| `string length` over a non-ASCII word declines under 8.x and an unnamed release | the ledger row (`CHAR_MODEL`); the slice-2 `SOURCE_ENCODING` decision; the oracle |
+| `puts $hits` after a procedure whose nested `[incr ::hits]` writes the global is not forwarded, and `set hits 0` is not deleted | #2214 |
+
+### Slice 3 — the expression slice
+
+#### Goal and exit
+
+In the plan's words: "Registry-owned argument assembly over the shared
+expression engine with lazy input services and transitive binding
+evidence; the full value result; the nested-substitution policy at
+`EffectFreeOnly`; the `command` resolver in `evaluate_branch`; per-member
+evaluation of a finite-set condition." The evaluation page adds
+`MathFuncSpec::result_class`, and the ledger moves `FormatTemplate` here.
+
+*Exit*: "the `expr` acceptance list in the interface contract; `expr
+{"x"}` folds; `abs` rebinding declines; the finite-set condition tests pin
+the correlated limit, including the `{1 10 2 20}` and `{1 20 2 10}` mirror
+witnesses; the direct-expression and engine entry counts are reported
+separately." The acceptance list: "multi-argument forms, braced versus
+quoted arguments, short-circuit operators and ternaries, strings that look
+like code, math-function rebinding, nested pure substitutions, errors,
+bignums, and target release ambiguity".
+
+Exit evidence: `expr_acceptance_list`, `abs_rebinding_declines`,
+`a_finite_condition_decides_when_every_member_agrees`,
+`the_square_of_one_finite_input_stays_correlated`,
+`the_mirror_pairs_decline_as_correlated`,
+`route_entries_are_counted_per_family` (compiler witnesses);
+`expression_witnesses_match_every_release_on_path`
+(`differential_fold.rs`); G1 with `word_subst.rs` and `shimmer/commit.rs`
+in `CLEAN_FILES` and `format` owned by the registry; `tcl explore --source
+'proc p {} {set r [expr {"x"}]; set n [expr {[string length abcdef] * 2}]}'
+--show sccp --text --no-colour` prints `r#1 = const('x')`, `n#1 =
+const(12)` and `routes entered: direct 1 · expression 2 · implementation 0`.
+
+#### Upstream starting point
+
+From `git diff 3b5eba8a origin/rust -- rust/tcl-syntax/src/expr/mathfunc.rs
+rust/tcl-compiler/src/optimiser/expr_simplify.rs rust/tcl-cmd-core/src/format.rs
+rust/tcl-syntax/src/format.rs rust/tcl-compiler/src/word_subst.rs
+rust/tcl-compiler/src/tcl_expr_eval.rs`, as merged by VT2.M:
+
+- `mathfunc.rs` (+104): the math-function seam follows the release
+  (#2146, from #1944 and #1936), and `IntegerConversion` states what
+  `int`, `wide` and `entier` keep of an operand that is already an
+  integer (`::tcl::mathfunc::entier 0x10` is `0x10` from 8.5). VT3.3's
+  `call` service and VT3.5's `result_class` build on both.
+- `expr_simplify.rs` (+170): `try_rewrite_return_expr` gives `return
+  [expr {…}]` the rewrites `set v [expr {…}]` has (#1962); VT3.7's type
+  guard covers both statement shapes.
+- `tcl-cmd-core/src/format.rs` (+198) and `tcl-syntax/src/format.rs`
+  (+243): integer conversions honour the size modifier and the release
+  width, and Tcl 9 rendering is portable (#2190); VT3.8's route answers
+  per release through them, so its `NEEDS` carries `INT_TOWER`.
+- `word_subst.rs` (+88): `whole_word_command_tokens` for the value
+  emitter; VT3.6 keeps it free of name checks.
+- `sccp.rs`: a nested head inside an expression is gated under the trust
+  stance of the run that evaluates it (VT2.M).
+- `tcl_expr_eval.rs`: unchanged upstream.
+
+#### Work items
+
+##### VT3.1 — the registry assembles the expression
+
+- **Files**: `rust/tcl-registry/src/value_transfer/builtins.rs`,
+  `rust/tcl-compiler/src/value_transfer.rs` (`expression_route`,
+  `LatticeInputs::word_structure`, `LatticeInputs::operand` for a
+  substituted word).
+- **Items**:
+  ```rust
+  /// What `expr`'s argument words assemble to, as the command specifies:
+  /// one braced word is the expression text, whose `$name` reads the
+  /// engine performs through `variable`; any other word reaches the
+  /// engine already substituted; several words join with one space.
+  pub enum ExpressionSource {
+      Braced { text: String, base: usize },
+      Substituted(ExactValue),
+  }
+  impl ExpressionRoute {
+      pub fn assemble(&self, input: &dyn AnalysisInputs) -> Result<ExpressionSource, DeclineReason>;
+  }
+  ```
+  `LatticeInputs::word_structure` answers the word's parts (today
+  `Unsupported`), and `operand` of a substituted word concatenates the
+  parts' exact values: `Pending` when a part is pending, `Top` with the
+  part's reason when one is unknown.
+- **Preserves**: every braced `expr` answer; `env_from_uses_numeric` goes
+  with the old path, and every existing quoted-form answer that was
+  numeric stays.
+- **Changes**: a quoted or bare argument is substituted as text before
+  parsing, so `set a {1 + 1}; expr "$a * 2"` folds to 3, and `set a
+  alpha; set b beta; expr "$a == $b"` declines (the program errors:
+  "invalid bareword" from 8.5, a syntax error under 8.4). Mandate:
+  "registry-owned argument assembly"; the Expressions row "quoted versus
+  braced arguments; multiple arguments".
+- **Tests**: `expression_assembly_follows_the_word_kinds`
+  (`value_transfers.rs`: braced, quoted, bare, multi-word).
+- **Gates**: G1, G7, G8, G9.
+- **Model**: opus. **Size**: M. **After**: slice 2.
+
+##### VT3.2 — the full value
+
+- **Files**: `rust/tcl-compiler/src/tcl_expr_eval.rs`,
+  `rust/tcl-compiler/src/value_transfer.rs`.
+- **Items**:
+  ```rust
+  /// The shared engine's answer for one expression under the analysis
+  /// services.
+  pub enum ExprAnswer {
+      Value(ExactValue),
+      Pending,
+      Declined(DeclineReason),
+  }
+  pub fn evaluate_expression(
+      node: &ExprNode,
+      services: &mut ExprServices<'_>,
+      policy: FoldPolicy,
+  ) -> ExprAnswer;
+  ```
+  A `FoldValue::Str` whose text is a number under the release's grammar
+  normalises as Tcl does; any other string is the result. The lattice
+  holds a string result as `ConstValue::String`, a numeric one as today.
+  `eval_tcl_expr_with_policy` and `TclValue` keep their shapes for their
+  six other callers.
+- **Preserves**: every numeric answer, `command_substitution_is_none`
+  (`[clock seconds]` reads the wall clock and declines under every
+  policy), `short_circuit_logical`.
+- **Changes**: `expr {"x"}` is `x`; `expr {1 ? "yes" : "no"}` is `yes`.
+  Oracle (8.4 to 9.1): `x`, `yes`; `expr {"010"}` is 8 up to 8.6 and 10
+  from 9.0, so it declines under an unnamed release; `expr {" 5 "}` is 5;
+  `expr {"1.50"}` is 1.5. Mandate: the exit ("`expr {"x"}` folds"); the
+  evaluation page's slice-3 row ("the full value").
+- **Tests**: in `expr_acceptance_list` (VT3.10).
+- **Gates**: G7, G8, G9.
+- **Model**: opus. **Size**: M. **After**: VT3.1.
+
+##### VT3.3 — the lazy services and the binding evidence
+
+- **Files**: `rust/tcl-compiler/src/tcl_expr_eval.rs`,
+  `rust/tcl-compiler/src/value_transfer.rs` (`LatticeInputs::nested`,
+  `LatticeInputs::math_function`, `LatticeInputs::variable`).
+- **Items**:
+  ```rust
+  /// The engine's `ExprOps` over the analysis inputs: `var` reads through
+  /// `variable`, `command` through `nested`, `call` through
+  /// `math_function` and the shared dispatcher.
+  pub(crate) struct ExprServices<'a> {
+      inputs: &'a dyn AnalysisInputs,
+      state: &'a mut EvaluationState,
+      budget: &'a mut Budget,
+  }
+  impl tcl_syntax::expr::ExprOps for ExprServices<'_> { /* var, command, call, … */ }
+  ```
+  `nested` segments one command, resolves it, runs its route through
+  `evaluate_lifted`, and admits only an outcome with no store under
+  `NestedPolicy::EffectFreeOnly`; anything else is `StatefulNested`.
+  `math_function` answers the binding of `::tcl::mathfunc::NAME`: a module
+  that renames or defines it (`ModuleCommandMutations`) is
+  `RebindingSuspected`; availability follows the release through
+  `tcl_registry::mathfunc::available_in_expr`. Every answer's
+  `DependencyEvidence::bindings` names `expr`, each nested head and each
+  math function. `rand` and `srand` stay the one name check
+  (the expected waiver). Each service call checks `Budget::is_cancelled`
+  (a cancellation point), and the evaluation charges one `WorkUnits` per
+  node of the parsed expression before it runs.
+- **Preserves**: `0 && [error never]` never reaches the substitution.
+- **Changes**: `expr {[string length abcdef] * 2}` folds to 12 (oracle,
+  every release); a nested head the module renames declines the whole
+  expression. Mandate: "lazy input services and transitive binding
+  evidence"; the Expressions row "nested commands; rebound math functions".
+- **Tests**: `abs_rebinding_declines` (compiler witnesses: with `rename
+  ::tcl::mathfunc::abs ::tcl::mathfunc::saved_abs; proc
+  ::tcl::mathfunc::abs {x} {return 99}` at the top level, `set r [expr
+  {abs(-2)}]` declines under `tcl8.6` and `tcl9.0`, and folds to 2 under
+  `tcl8.4`; oracle: 99 from 8.5, 2 under 8.4).
+- **Gates**: G1 (the `rand` / `srand` waiver), G7, G8, G9.
+- **Model**: opus. **Size**: L. **After**: VT3.2.
+
+##### VT3.4 — `evaluate_branch` resolves commands and finite sets
+
+- **Files**: `rust/tcl-compiler/src/sccp.rs` (`evaluate_branch`,
+  `branch_decision`, `BranchFold`).
+- **Items**: `evaluate_branch` takes the driver's services in place of
+  `policy` and `grammar`:
+  ```rust
+  pub fn evaluate_branch<S: std::hash::BuildHasher>(
+      ssa_block: &crate::ssa::SsaBlock,
+      condition: &ExprNode,
+      values: &HashMap<ValueKey, LatticeValue, S>,
+      ssa: &SsaFunction,
+      fold: BranchFold<'_>,
+  ) -> Option<bool>;
+  ```
+  `BranchFold` gains `driver: &'a LatticeDriver<'a>`. The condition runs
+  through `evaluate_expression` with `EffectFreeOnly`; with exactly one
+  distinct finite SSA identity among its reads it runs once per member
+  (`PinnedInputs`): every member true is `Some(true)`, every member false
+  `Some(false)`, mixed `None`; two finite identities are `None`, recorded
+  as `CorrelatedSets`. Its one caller is `branch_decision`.
+- **Preserves**: every decided branch today; the version-0 live-in rule.
+- **Changes**: `set acc foobar; if {[string length $acc] == 6} {…}`
+  decides (I230, O101, O107). Mandate: § *Branch facts* ("Command
+  substitutions inside a condition", "Finite-set operands").
+- **Tests**: `a_finite_condition_decides_when_every_member_agrees`
+  (`foreach a {1 2} {if {$a > 0} {…}}` decides true; `$a > 1` stays
+  open); `sccp::tests::evaluate_branch_resolves_a_nested_command`
+  (positive with `acc` constant, negative with `acc` a parameter).
+- **Gates**: G7, G8, G9.
+- **Model**: opus. **Size**: M. **After**: VT3.3.
+
+##### VT3.5 — `MathFuncSpec::result_class`
+
+- **Files**: `rust/tcl-syntax/src/expr/mathfunc.rs`,
+  `rust/tcl-compiler/src/type_infer.rs` (`expr_call_type`).
+- **Items**: `MathFuncSpec::result_class(&self) -> MathResultClass`
+  (`Int`, `Float`, `Numeric`, `Bool`, `Any`), the one table;
+  `expr_call_type` reads it and its own table goes.
+- **Preserves**: every `type_infer` test's type for every math function.
+- **Changes**: none. Mandate: the analysis table's `type_infer.rs` row
+  and the evaluation page's slice-3 row.
+- **Gates**: G7, G8, G9 (`tcl-syntax`, `tcl-compiler`).
+- **Model**: opus. **Size**: S. **After**: —.
+
+##### VT3.6 — the two lifted-`expr` sites read the registry
+
+- **Files**: `rust/tcl-compiler/src/word_subst.rs` (`lifted_exprs`),
+  `rust/tcl-compiler/src/shimmer/commit.rs` (`expr_substitution_body`),
+  their callers, `rust/xtask/src/value_transfers.rs`,
+  `docs/design/compiler/value-transfers-migration.md`.
+- **Items**: `lifted_exprs(tokens, profile, registry: &CommandRegistry)`
+  and `expr_substitution_body(lifted, registry)` keep a lifted call whose
+  resolved head carries `Traits::EXPR_CONCATENATES_ARGS`, in place of
+  `lifted.command != "expr" && lifted.command != "::expr"`.
+- **Preserves**: every lifted expression they find today.
+- **Changes**: none. Pins: `word_subst.rs` 1 → 0 and `shimmer/commit.rs`
+  1 → 0; both join `CLEAN_FILES`; their ratchet rows go.
+- **Gates**: G1, G7, G8, G9.
+- **Model**: sonnet. **Size**: S. **After**: —.
+
+##### VT3.7 — regrouping consumes the type proof
+
+- **Files**: `rust/tcl-compiler/src/optimiser/helpers/expr_simplify.rs`.
+- **Items**: `reassociate_node(node: &ExprNode, types: &OperandTypes) -> Option<ExprNode>`
+  regroups an additive or multiplicative chain only when every variable
+  term is proven integer in `types`; `instcombine_expr_typed` passes its
+  context and `instcombine_expr` an empty one.
+- **Preserves**: the closed-subtree folds (`expr {2 + 3 + $x}` to `expr
+  {5 + $x}`), and every regrouping over proven integers.
+- **Changes**: `set x 10000000000000000.0; expr {$x + 1 + 2}` is not
+  rewritten to `$x + 3`. Oracle: 8.5 to 9.1 print `10000000000000002.0`
+  for the first and `10000000000000004.0` for the second (8.4 prints
+  `1e+16` for both at its default precision). An existing test that
+  regroups an untyped term changes, with this witness named (R6).
+  Mandate: the O110 row; the Partial knowledge row ("the floating-point
+  counterexample").
+- **Tests**: `reassociation_refuses_an_unproven_float_term` (positive:
+  `$i + 1 + 2` with `i` proven `Int` regroups; negative: `$x` unproven).
+- **Gates**: G7, G8, G9.
+- **Model**: opus. **Size**: S. **After**: —.
+
+##### VT3.8 — `format` leaves the transitional table
+
+- **Files**: `rust/tcl-registry/src/value_transfer/builtins.rs`,
+  `route.rs`, `rust/tcl-compiler/src/value_transfer.rs`
+  (`transitional_direct` and its waiver are deleted),
+  `rust/tcl-registry/tests/value_transfers.rs`,
+  `rust/tcl-registry/tests/differential_fold.rs`,
+  `docs/design/compiler/value-transfers-migration.md` (the row goes).
+- **Items**: `FormatTemplateSemantics` over
+  `tcl_cmd_core::format::format_cmd_with_syntax(ops, args, syntax)` under
+  the profile's `NumberSyntax`
+  (`NEEDS = FORMAT_VERBS | NUMERAL_GRAMMAR | INT_TOWER`);
+  `NativeEvalId::FormatTemplate.owner()` answers `Registry`.
+- **Preserves**: every `%s` and `%d` answer.
+- **Changes**: every verb the core supports folds (`format %5.2f
+  3.14159` is ` 3.14`, `format %x 255` is `ff`), each an oracle row.
+  Mandate: the ledger row.
+- **Tests**: `format_runs_the_shared_core` (`value_transfers.rs`);
+  `format_witnesses_match_every_release_on_path` (`differential_fold.rs`).
+- **Gates**: G1, G2, G7, G8, G9.
+- **Model**: opus. **Size**: S. **After**: —.
+
+##### VT3.9 — the entry counts
+
+- **Files**: `rust/tcl-compiler/src/sccp.rs` (`SccpResult`),
+  `rust/tcl-compiler/src/value_transfer.rs`,
+  `rust/tcl-explorer/src/serialise.rs`, `rust/tcl-explorer/src/view_tree.rs`.
+- **Items**: `pub struct RouteTally { pub direct: u32, pub expression:
+  u32, pub implementation: u32 }` and `SccpResult::route_tally`, counted
+  by the driver at every route entry, nested ones included; `serialise_sccp`
+  emits `routeTally`; `build_sccp` renders `routes entered: direct N ·
+  expression M · implementation K`. The tally carries no span, so
+  `lattice_rebase.rs` is untouched.
+- **Tests**: `route_entries_are_counted_per_family` (compiler witnesses);
+  `serialise::tests::sccp_reports_the_route_tally`.
+- **Gates**: G7, G8, G9 (`tcl-compiler`, `tcl-explorer`).
+- **Model**: sonnet. **Size**: S. **After**: VT3.3.
+
+##### VT3.10 — the slice's witnesses
+
+- **Files**: `rust/tcl-compiler/tests/value_transfer_witnesses.rs`,
+  `rust/tcl-cli/tests/value_transfers_cli.rs`,
+  `rust/tcl-registry/tests/differential_fold.rs`.
+- **Tests**: `expr_acceptance_list` — `expr 1 + 2` (3); `set a {1 + 1};
+  expr "$a * 2"` (3); `expr {0 && [error never]}` (0); `expr {1 ? "yes"
+  : "no"}` (`yes`); `set a {[exit]}; expr {$a eq {[exit]}}` (1: a value
+  that looks like code is never re-substituted); `expr {[string length
+  abcdef] * 2}` (12); `expr {1/0}` (declines); `expr {2**64}`
+  (`18446744073709551616` from 8.5); `expr {1 << 70}` (0 under 8.4, a
+  bignum from 8.5, so it declines under an unnamed release); `expr
+  {"010" + 0}` (8 against 10: declines unnamed). Also
+  `the_square_of_one_finite_input_stays_correlated` (`foreach a {1 2}
+  {set r [expr {$a * $a}]}` gives the in-loop `r` the set `{1, 4}`, never
+  `{1, 2, 4}`) and `the_mirror_pairs_decline_as_correlated` (both
+  `foreach {a b}` loops of the interface page: the `expr` declines
+  `CorrelatedSets`, and neither post-loop branch decides until slice 12).
+  `expression_witnesses_match_every_release_on_path` runs every program
+  above under 8.4 to 9.1. CLI: `explore_sccp_prints_the_route_tally`.
+  #2118: `o122_sees_a_self_call_inside_a_braced_expr` is added once
+  `rust`'s pull request #2226 is merged into the branch, and not before.
+- **Gates**: G7, G8, G9.
+- **Model**: sonnet. **Size**: M. **After**: VT3.1 to VT3.9.
+
+##### VT3.11 — docs and the landing
+
+- **Files**: `docs/design/compiler/sccp-core-analyses.md`,
+  `constant-folding-type-inference.md`, `optimisation-passes.md` (O101,
+  O110), `value-transfers-migration.md` (the `tcl_expr_eval.rs`,
+  `word_subst.rs`, `type_infer.rs` rows; the ledger's `expr` assembly and
+  `FormatTemplate` rows go), `value-transfers.md` (§ `expr` names
+  `ExpressionSource`), `pass-fact-ownership-matrix.md`,
+  `docs/kcs/compiler/kcs-qa-why-does-a-constant-fold-depend-on-the-dialect.md`
+  (`expr {"010"}`), the lane doc.
+- **Gates**: G5, G6, and the slice's green.
+- **Model**: sonnet. **Size**: S. **After**: VT3.10.
+
+##### VT3.12 — a BPF expression never takes the Tcl answer
+
+- **Files**: `rust/tcl-registry/src/value_transfer/builtins.rs`
+  (`ExpressionRoute`), `rust/tcl-compiler/src/value_transfer.rs`.
+- **Items**: the expression route evaluates only under
+  `LanguageProfileId::TclExpr`; under `LanguageProfileId::BpfExpr` it
+  declines `Unsupported`, because signed division truncates towards zero
+  in BPF-Tcl (`-7 / 2` is `-3`) where Tcl floors (`-4`), and the BPF
+  arithmetic adapter is the BPF frontend's (`docs/design/compiler/ebpf-backend.md`).
+- **Tests**: `a_bpf_expression_never_takes_the_tcl_answer` (negative
+  only: `-7 / 2` in a BPF-Tcl program yields no constant); the Tcl
+  profile's `-7 / 2` is `-4` under 8.4 to 9.1.
+- **Gates**: G7, G8, G9.
+- **Model**: opus. **Size**: S. **After**: VT3.1.
+
+#### Checkpoints and landing
+
+| Checkpoint | Holds | Green means |
+|---|---|---|
+| `wip(value-transfers): slice 3 — assembly and the full value` | VT3.1, VT3.2, VT3.5, VT3.12 | every existing `expr` and `sccp` test byte-identical except the named quoted-form witnesses |
+| `wip(value-transfers): slice 3 — the lazy services and the branch resolver` | VT3.3, VT3.4, VT3.9 | the nested-command, rebinding and finite-condition tests pass |
+| `wip(value-transfers): slice 3 — format, the expr sites and regrouping` | VT3.6, VT3.7, VT3.8 | G1 with the two files clean and `transitional_direct` gone; the float witness |
+| `wip(value-transfers): slice 3 — the expression slice` (landing) | VT3.10, VT3.11 | every exit test; G1 to G9 |
+
+```text
+wip(value-transfers): slice 3 — the expression slice
+
+`expr` is the first client that is not a suffix of literal operands. The
+registry assembles its arguments as the command specifies — one braced
+word is the expression, any other word is substituted first, several
+words join — and the shared engine evaluates them lazily through the
+analysis services: `var` reads the proven value, `command` resolves a
+nested invocation through the registry under `EffectFreeOnly`, and `call`
+proves the math function's binding. The answer is the engine's full
+value, so a string result folds, and every answer carries the binding
+evidence for its head, its nested commands and its math functions. Branch
+conditions resolve nested commands and evaluate once per member of one
+finite input; two finite inputs decline as correlated. `format` runs the
+shared format core under the profile's numerals, which empties the
+compiler's transitional table; the math-function result classes are one
+table in `tcl-syntax`; the two lifted-`expr` sites read the registry's
+trait; regrouping consumes the type proof, so the floating-point
+counterexample is refused; the Explorer reports the direct, expression
+and implementation entry counts.
+
+Behaviour changes: `expr {"x"}` folds; a quoted `expr` word is
+substituted as text; a nested pure command inside `expr` or a condition
+folds; a condition over one finite operand decides when every member
+agrees; a rebound math function declines; O110 no longer regroups an
+unproven float term; `format` folds every supported verb.
+```
+
+#### Review checklist
+
+- R1: `CLEAN_FILES` gains `word_subst.rs` and `shimmer/commit.rs`;
+  `tcl_expr_eval.rs` keeps exactly one name check (`rand` / `srand`,
+  waived); no consumer matches `"expr"` or `"format"`.
+- R2 to R5; the new file is none beyond test additions.
+- R6: only the quoted-form witnesses and the untyped regrouping tests
+  move, each naming its oracle.
+- Suites: `cargo test -p tcl-syntax -p tcl-registry -p tcl-compiler -p
+  tcl-explorer -p tcl-cli -p xtask`.
+- R7: an `expr` error is a decline, never a value; a nested command with
+  a store is `StatefulNested`; the correlated limit holds in
+  `evaluate_branch` (two finite identities never decide); a string that
+  looks like code is never re-substituted; a release-dependent numeric
+  string declines under an unnamed release.
+
+#### Behavioural deltas
+
+| Delta | Mandate |
+|---|---|
+| `expr {"x"}` and a string-valued ternary fold | exit; the evaluation page's slice-3 row |
+| a quoted `expr` word is substituted as text before parsing | "registry-owned argument assembly"; Expressions row |
+| nested pure commands fold inside `expr` and conditions | § *Branch facts*; acceptance list ("nested pure substitutions") |
+| one-finite-operand conditions decide when every member agrees | "per-member evaluation of a finite-set condition" |
+| a rebound `::tcl::mathfunc` function declines | exit ("`abs` rebinding declines") |
+| O110 refuses an unproven float regrouping | O110 row; Partial knowledge row |
+| `format` folds every verb the core supports | the ledger row |
+
+### Slice 4 — a private SpecTcl command through the same interface
+
+#### Goal and exit
+
+In the plan's words: "The loader, renderer, studio, cache inputs (target
+values), overlay invalidation (`spec_pack_key` reaching
+`compilation_unit`), per-evaluation state isolation in the host,
+`-native` resolution for every family, and `Engine::set_release`,
+delivered together on one small executable example before any catalogue
+migration; shipped builtins stay on the direct route." The evaluation
+page's slice-4 rows add `ActivationStore`, the two policies,
+`EvaluatorCapability`, the provisioning path, `EvalMemoKey`'s
+incoming-target and dependency components, `EvaluatorGeneration`, the
+`semantics` / `evaluate` / `facts` statements, the body verbs, the
+`SCOPE::FIELD` id rule, the per-family tables, the four surfaces and the
+`spectcl_check` findings. The request and iteration budgets the hand-off
+deferred land here (D3).
+
+*Exit*: "step 1 of the completion test — a rename and a subcommand form
+with different operand positions need no consumer edit; a workspace
+pack's evaluator reaches a diagnostic on the memoised path; a body with a
+global counter answers identically on every call."
+
+Exit evidence: `the_completion_test_needs_no_consumer_edit` (compiler
+witnesses), `a_workspace_pack_evaluator_reaches_i230_on_the_memoised_path`
+(`value_transfer_parity.rs`),
+`a_body_with_a_global_counter_answers_identically_on_every_call`
+(`rust/tcl-spec-hooks/tests/containment_e2e.rs`),
+`shipped_builtins_stay_on_the_direct_route` (`value_transfers.rs`);
+`spectcl_roundtrip.rs`, `native_hook_tables_cover_their_catalogues`,
+`value_tables_cover_their_catalogues` and `reference_doc.rs` green; the
+generated inventory unchanged (the fixture is not a shipped pack); and
+`tcl explore --show sccp --text` over `set r [tenant::label acme]`, run
+in a scratch workspace whose discovered pack is the fixture, prints
+`r#1 = const('tenant:acme')` and a `route tenant::label: implementation`
+line with `· answer: evaluated`.
+
+#### Upstream starting point
+
+From `git diff 3b5eba8a origin/rust -- rust/tcl-spectcl/src
+rust/tcl-vm/src/interp.rs rust/tcl-lsp-db/src/lib.rs rust/tcl-spec-hooks
+rust/tcl-engine-api rust/tcl-engine-tclvm rust/tcl-spec-studio`:
+
+- `tcl-spectcl/src/loader.rs` (+162) and the new `loader/dialect_block.rs`
+  (+244): dialect blocks, `case_list` rows for every descriptor field, and
+  `state_transition` / `world_effect` blocks (#2140). VT4.4's statements
+  load inside a dialect block like any other row.
+- `loader/eval.rs` (±53): a tier's provenance decides E-R2's untrusted
+  rules (#2139: `Tier::StudioOverride` untrusted, `Tier::Workspace`
+  trusted until Workspace Trust reaches discovery). An untrusted pack
+  cannot register a reserved compiled name, so it cannot move a shipped
+  builtin off the direct route; under ruling 3 its evaluator for its own
+  command loads.
+- `tcl-vm/src/interp.rs` (+204) moved under VT4.2's store path (package
+  validation, parse-error seams, TclOO private variables); VT4.2 locates
+  every name-resolving store in the merged file.
+- `tcl-lsp-db/src/lib.rs` (+2, `TopLevelKind::Script`): VT4.8 unaffected.
+- `tcl-spec-hooks`, `tcl-engine-api`, `tcl-engine-tclvm`: unchanged;
+  `tcl-spec-studio`: a test only.
+
+#### Work items
+
+##### VT4.1 — `Engine::set_release`
+
+- **Files**: `rust/tcl-engine-api/src/lib.rs`,
+  `rust/tcl-engine-tclvm/src/lib.rs`, `rust/tcl-spec-hooks/src/host.rs`.
+- **Items**:
+  ```rust
+  trait Engine {
+      /// Pin every later compilation and invocation to the named dialect
+      /// profile. Called once per (pack, profile), after the engine is
+      /// built and before `compile`.
+      fn set_release(&mut self, profile: &str) -> Result<(), EngineError> {
+          let _ = profile;
+          Err(EngineError::Unsupported("pinning a release"))
+      }
+  }
+  ```
+  The argument is the profile's name, not the page's
+  `&'static DialectProfile`: `tcl-engine-api` is dependency-free by
+  design (its `Cargo.toml`), so the engine resolves the name
+  (`DialectProfile::find`). `TclVmEngine` calls `Vm::set_dialect_profile`.
+  The host keys its engines by (pack, profile, thread); a second profile
+  is a second engine and a recompile, never a per-call setter; a pack
+  whose capability names a release the engine cannot pin gets a load
+  notice and no route.
+- **Tests**: `tcl-engine-tclvm`: `set_release_pins_the_numeral_grammar`
+  (a body `fold [expr {010 + 0}]` answers 8 under `tcl8.6` and 10 under
+  `tcl9.0`; an unknown profile name is `Unsupported`).
+- **Gates**: G7, G8, G9 (`tcl-engine-api`, `tcl-engine-tclvm`,
+  `tcl-spec-hooks`).
+- **Model**: opus. **Size**: S. **After**: slice 3.
+
+##### VT4.2 — writes outside the activation are refused
+
+- **Files**: `rust/tcl-engine-api/src/lib.rs`,
+  `rust/tcl-engine-tclvm/src/lib.rs`, `rust/tcl-vm/src/interp.rs`
+  (`set_var`, `store_var_result` and the name-resolving stores),
+  `rust/tcl-spec-hooks/src/host.rs`, `rust/tcl-spec-hooks/src/sandbox.rs`,
+  `rust/tcl-spec-hooks/tests/containment_e2e.rs`.
+- **Items**:
+  ```rust
+  trait Engine {
+      /// Refuse, as a Tcl error, every store whose name resolves outside
+      /// the running procedure's own frame: a `::`-qualified name, a
+      /// namespace variable, a linked variable. Reads are unaffected.
+      fn confine_stores(&mut self) -> Result<(), EngineError> {
+          Err(EngineError::Unsupported("confining stores to the activation"))
+      }
+  }
+  ```
+  The VM keeps one `confined_stores: bool`; every store that resolves a
+  name rather than a local slot checks it. The host calls it once per
+  engine, after `restrict_commands`. `SANDBOX_COMMANDS` is unchanged:
+  `set`, `incr`, `lappend` and `lassign` keep their exact semantics on
+  the activation's locals, and `upvar`, `global`, `variable`,
+  `namespace`, `trace`, `uplevel` and `info` stay off it, so a qualified
+  name is the only way out and it is closed. The page's host-command
+  `ActivationStore` is replaced by this (D10).
+- **Tests**: `a_body_with_a_global_counter_answers_identically_on_every_call`
+  (the body `fold [incr ::counter]` raises, the evaluator declines, and
+  the first and the thousandth answers are the same decline; a body that
+  reads `::counter` reads nothing ever written); `a_local_accumulator_is_unaffected`
+  (`set acc {}; foreach x {a b} {lappend acc $x}; fold $acc` answers
+  `a b`).
+- **Gates**: G7, G8, G9 (`tcl-vm`, `tcl-engine-api`, `tcl-engine-tclvm`,
+  `tcl-spec-hooks`).
+- **Model**: opus. **Size**: M. **After**: VT4.1.
+
+##### VT4.3 — the capability declaration
+
+- **Files**: `rust/tcl-registry/src/value_transfer/route.rs`,
+  `rust/tcl-registry/src/value_transfer/mod.rs`.
+- **Items**, the page's shape with the tree's constraints (`EvalRoute:
+  Copy`, no engine-api dependency):
+  ```rust
+  #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+  pub struct EvaluatorCapability {
+      pub identity: ImplementationIdentity,
+      pub host: HostKind,
+      pub target: Needs,
+      pub inputs: &'static [DeclaredInput],
+      pub depends: &'static [ContextDependency],
+      pub budget: ImplementationBudget,
+      pub completion: CompletionSupport,
+  }
+  pub struct ImplementationIdentity { pub pack: &'static str, pub id: &'static str, pub content_hash: u64 }
+  pub enum HostKind { BoundedTcl }
+  pub enum DeclaredInput { Operand { index: usize, exactness: Exactness }, IncomingTarget { index: usize }, OptionValue { name: &'static str } }
+  pub enum ContextDependency { TclProfile, ImplementationIdentity, RegistryGeneration, EvaluatorGeneration, Binding(BindingIdentity) }
+  /// The registry-side mirror of `tcl_engine_api::Budget`; the host
+  /// converts it and caps it by its own.
+  pub struct ImplementationBudget { pub commands: Option<u64>, pub wall_clock_ms: Option<u64>, pub value_bytes: Option<u64> }
+  pub enum CompletionSupport { NormalOnly }
+  ```
+  The loader leaks the slices as it leaks every other pack field.
+- **Tests**: `the_capability_is_part_of_the_route_identity`
+  (`value_transfers.rs`).
+- **Gates**: G1, G7, G8, G9.
+- **Model**: opus. **Size**: M. **After**: —.
+
+##### VT4.4 — the `semantics`, `evaluate` and `facts` statements
+
+- **Files**: `rust/tcl-spectcl/src/loader.rs` (`hook_source`,
+  `HookSource`), `rust/tcl-spectcl/src/loader/` (the statement parsers),
+  `rust/tcl-spectcl/src/catalogue.rs`, `rust/tcl-spectcl/tests/`.
+- **Items**: the statements of the evaluation page's § *The `semantics`,
+  `evaluate`, and `facts` rows*, at `command`, `subcommand` and `refine`
+  scope, innermost winning: `semantics -native ID`, `semantics { … }`
+  (`effects`, `result -semantic`, `stores -targets {…} -outcome O`,
+  `iterate {…}`), `semantics none`; `evaluate -direct ID`,
+  `evaluate -expression ID`, `evaluate -implementation ID -host
+  bounded_tcl { inputs … depends … budget … body {params} {…} }`,
+  `evaluate -native ID`, `evaluate none`; `facts -native ID`,
+  `facts { … }`, `facts none`; the option flags `-evaluate none` and
+  `-evaluate-reason WORD`. Each maps to `SemanticsDeclaration` (the three
+  states) and, for `-implementation`, to a registry-owned
+  `DeclaredImplementation` specialisation whose route is
+  `EvalRoute::Implementation(capability)`.
+- **Tests**: `semantics_statements_load_at_every_scope`,
+  `a_short_native_id_is_a_load_notice` (tcl-spectcl).
+- **Gates**: G2, G7, G8, G9 (`tcl-spectcl`).
+- **Model**: opus. **Size**: L. **After**: VT4.3; the consumer-contracts
+  lane's step 2 where it has landed (B-CC3).
+
+##### VT4.5 — the body verbs
+
+- **Files**: `rust/tcl-spec-hooks/src/emit.rs` (`answer_of`,
+  `verbs_for`), `rust/tcl-registry/src/pack_hooks.rs` (`HookFamily`).
+- **Items**: three `Emission` variants — `Fold(Value)`,
+  `Write { target: usize, value: Value }`, `Preserve { target: usize }` —
+  and their arms; the three protocol rules: silence is a decline, a
+  `write` to a non-target raises, a declared target with no verb declines
+  the whole answer. The `evaluate` family joins `HOOK_FAMILIES`.
+- **Tests**: `a_silent_target_declines_the_whole_answer`,
+  `a_write_to_a_non_target_raises` (tcl-spec-hooks).
+- **Gates**: G7, G8, G9.
+- **Model**: opus. **Size**: M. **After**: VT4.4.
+
+##### VT4.6 — the declared implementation runs through the driver
+
+- **Files**: `rust/tcl-registry/src/pack_hooks.rs`,
+  `rust/tcl-registry/src/value_transfer/declared.rs` (new),
+  `rust/tcl-compiler/src/value_transfer.rs`.
+- **Items**: `DeclaredImplementation` (`CommandSemantics`) whose
+  `evaluate` resolves every `DeclaredInput` to an exact value (an input
+  that is not exact is `Pending` or `NotExact`, never a placeholder),
+  invokes the body through the per-thread host with the host's budget
+  narrowed by `ImplementationBudget`, and maps the verbs to an
+  `InvocationOutcome` (`fold` the result, `write` / `preserve` the ordered
+  stores); an error or a budget overrun is a decline (`Transient` for a
+  host that is absent or quarantined, never cached as `Unsupported`). The
+  eligibility rule of the evaluation page's § *Two policies* is the
+  driver's: a declared route at the resolved form, a valid binding, every
+  input exact, every target axis satisfiable.
+- **Tests**: `a_declared_implementation_folds_through_the_driver`
+  (compiler witnesses: `tenant::label acme` folds to `tenant:acme`; an
+  unknown argument declines `NotExact`; a host-absent worker declines
+  `Transient`).
+- **Gates**: G7, G8, G9.
+- **Model**: opus. **Size**: M. **After**: VT4.2, VT4.5.
+
+##### VT4.7 — the memo key: incoming targets, dependencies, generation
+
+- **Files**: `rust/tcl-registry/src/pack_hooks.rs` (`ShapeKey`,
+  `content_hash`, `clear_cache`, `install_host`, `clear_host`, the
+  quarantine path), `rust/tcl-registry/src/value_transfer/context.rs`,
+  `rust/tcl-compiler/src/value_transfer.rs` (`AnalysisContextKey::evaluator_revision`).
+- **Items**:
+  ```rust
+  #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
+  pub struct EvaluatorGeneration(pub u32);
+  ```
+  bumped at `install_host`, `clear_host` and quarantine, carried as the
+  context's `evaluator_revision`; the cache entry holds the exact inputs,
+  each incoming target's value and existence, the `TargetDigest` and the
+  canonical dependency list, and a hit compares them (the hash is the
+  bucket, not the proof). `CacheMode::of(inputs)` keeps deciding
+  eligibility.
+- **Tests**: `a_changed_incoming_target_misses_the_cache`,
+  `a_hash_collision_is_not_a_hit`, `host_install_and_quarantine_bump_the_generation`
+  (`rust/tcl-registry` lib tests).
+- **Gates**: G7, G8, G9.
+- **Model**: opus. **Size**: M. **After**: VT4.6.
+
+##### VT4.8 — the overlay reaches the unit; the generations reach the key
+
+- **Files**: `rust/tcl-lsp-db/src/lib.rs` (`compilation_unit`,
+  `function_lattice`, `ValueTransferContext`, `spec_pack_key`,
+  `registry_with_overlay`), `rust/tcl-compiler/src/value_transfer.rs`
+  (`AnalysisContextKey::for_module`),
+  `rust/tcl-lsp-db/src/value_transfer_parity.rs`.
+- **Items**: `compilation_unit` and `function_lattice` build under
+  `registry_with_overlay` (today `db.registry(&dialect)`), and the
+  context key carries `registry_generation` and `overlay_generation`
+  from the registry and the overlay (0 today).
+- **Changes**: a workspace pack's declarations reach the memoised
+  lattice, and a pack edit invalidates every lattice of the file. Mandate:
+  "overlay invalidation (`spec_pack_key` reaching `compilation_unit`)".
+- **Tests**: `a_workspace_pack_evaluator_reaches_i230_on_the_memoised_path`
+  (`if {[tenant::label x] eq "tenant:x"} {puts yes} else {puts no}` gives
+  I230 through the database, and not after the pack's `evaluate` row is
+  removed); `a_pack_edit_invalidates_the_lattice`. `memory_growth` and
+  `interned_gc` stay green.
+- **Gates**: G7, G8, G9 (`tcl-lsp-db`, `tcl-compiler`).
+- **Model**: opus. **Size**: M. **After**: VT4.6; the diagnostic-policy
+  lane's `file_analysis` commit (B-DP2).
+
+##### VT4.9 — the request and iteration budgets
+
+- **Files**: `rust/tcl-registry/src/value_transfer/context.rs`,
+  `rust/tcl-compiler/src/value_transfer.rs`, `rust/tcl-compiler/src/sccp.rs`.
+- **Items**: `Budget::request()` (200 ms of evaluation work as
+  `WorkUnits`, 64 MiB retained) and `Budget::iteration(&mut self) ->
+  Budget` (one tenth of the request's remaining work), with every
+  evaluation's `Budget::evaluation()` charging through its iteration and
+  request (`charge_work` propagates). The driver opens one request per
+  `sccp` run and one iteration per worklist pass; the host's command count
+  converts one-to-one (`Engine::commands_spent`).
+- **Changes**: a function whose evaluations exhaust the request declines
+  the rest with `Budget(Request)`, published as `Overdefined`. Mandate:
+  the evaluation page's § *The three nested budgets* and its slice-2 row
+  (D3).
+- **Tests**: `an_exhausted_request_declines_the_rest` (compiler), with a
+  test budget small enough to exhaust.
+- **Gates**: G7, G8, G9.
+- **Model**: opus. **Size**: M. **After**: VT4.6.
+
+##### VT4.10 — `-native ID` for every family
+
+- **Files**: `rust/tcl-spectcl/src/loader.rs`
+  (`native_hook_tables_cover_their_catalogues`,
+  `value_tables_cover_their_catalogues`),
+  `rust/tcl-registry/src/pack_hooks.rs`,
+  `rust/tcl-registry/src/const_fold.rs`, the shipped folders' modules.
+- **Items**: `NativeEvalTables` with one `&[(&'static str, FnPtr)]` per
+  `HookFamily` (the eleven) plus `semantics`, `evaluate` and `facts`,
+  keyed by `SCOPE::FIELD` (`string::range::const_fold`,
+  `string::is::const_fold_versioned`, `format::const_fold_versioned`,
+  `lindex::const_fold`, …); a short id is a load notice naming the full
+  spelling; `-direct` and `-expression` resolve through the `evaluate`
+  table.
+- **Tests**: the two table tests gain a row per family and per new
+  vocabulary.
+- **Gates**: G2, G7, G8, G9.
+- **Model**: sonnet. **Size**: M. **After**: VT4.4.
+
+##### VT4.11 — the four surfaces
+
+- **Files**: `rust/tcl-spec-studio/src/render_spectcl.rs` (the `GAPS` row
+  `semantics` goes), `coverage.rs`, `draft.rs`, `schema.rs`, `help.rs`,
+  `rust/tcl-spectcl/src/export.rs`, `docs/references/command-spec/fields.md`
+  (regenerated).
+- **Items**: the three statements render, export and round-trip verbatim;
+  the studio's "Purity and folding" cluster gains the route picker and
+  the body box; a subcommand's body survives a form edit.
+- **Tests**: `spectcl_roundtrip.rs` (a rendered-then-reloaded draft
+  differs only on `GAPS` keys); `reference_doc.rs`.
+- **Gates**: G4, G7, G8, G9 (`tcl-spec-studio`, `tcl-spectcl`).
+- **Model**: sonnet. **Size**: M. **After**: VT4.4.
+
+##### VT4.12 — the three `spectcl_check` findings
+
+- **Files**: `rust/tcl-mcp/src/spectcl.rs`.
+- **Items**: an evaluator reads a target it did not declare; an
+  evaluator is silent on a declared target; a `write` names a non-target —
+  each a report over `CtxScan` and the declarations.
+- **Tests**: one per finding in `tcl-mcp`'s `spectcl` tests.
+- **Gates**: G7, G8, G9 (`tcl-mcp`).
+- **Model**: sonnet. **Size**: S. **After**: VT4.5; the
+  consumer-contracts lane's CC3.4 edit of the same file (B-CC4).
+
+##### VT4.13 — the executable example and the completion test
+
+- **Files**: `rust/tcl-compiler/tests/fixtures/value_transfers/tenant.tclspec`
+  (new), `rust/tcl-compiler/tests/value_transfer_witnesses.rs`,
+  `rust/tcl-cli/tests/value_transfers_cli.rs`.
+- **Items**: the page's `tenant::label` (one `arity 1`, a `semantics`
+  block, `evaluate -implementation tenant.label.v1 -host bounded_tcl`
+  with its `inputs`, `depends`, `budget` and `body {name} { fold
+  [string cat "tenant:" $name] }`, and a `facts` block the four surfaces
+  carry and no solver reads yet); the same declaration under a second
+  name (`tenant::tag`) and as a subcommand form (`tenant label NAME`,
+  operands shifted by one).
+- **Tests**: `the_completion_test_needs_no_consumer_edit` — all three
+  spellings fold `acme` to `tenant:acme` through analysis, I230 in `tcl
+  diag`, O100 in `tcl opt`, the renderer and the studio round trip, with
+  no file outside the fixture edited; `shipped_builtins_stay_on_the_direct_route`
+  (`value_transfers.rs`: the pinned route set of the shipped packs is
+  unchanged).
+- **Gates**: G3 (none new), G7, G8, G9.
+- **Model**: opus. **Size**: M. **After**: VT4.6 to VT4.11.
+
+##### VT4.14 — the EDA collection commands
+
+- **Files**: `specs/*.tclspec` declaring `append_to_collection`,
+  `remove_from_collection` and `foreach_in_collection`,
+  `rust/xtask/src/value_transfers.rs` (three `KNOWN_GAPS` rows go).
+- **Items**: `append_to_collection` and `remove_from_collection` as
+  `semantics { stores -targets {0} -outcome may_write }` with `evaluate
+  none` (a vendor collection handle is opaque);
+  `foreach_in_collection` as an `iterate` plan over a vendor collection
+  (the Vendor iteration row).
+- **Gates**: G1, G2, G9 (`tcl-spectcl`'s `spec_corpus`).
+- **Model**: sonnet. **Size**: S. **After**: VT4.4.
+
+##### VT4.15 — docs and the landing
+
+- **Files**: `docs/design/registry/spec-packs.md`,
+  `docs/design/spec-dsl-examples/README.md`,
+  `docs/design/contracts/command-spec-studio.md`,
+  `docs/design/compiler/command-registry.md`,
+  `docs/design/compiler/value-evaluation.md` (§ *`Engine::set_release`*
+  names the profile-name argument; § *Per-evaluation state* names
+  `confine_stores`), `docs/design/compiler/value-transfers.md`,
+  `pass-fact-ownership-matrix.md`, a KCS howto
+  `docs/kcs/spectcl/kcs-howto-declare-an-evaluator-for-a-pack-command.md`
+  (new) and its index, the lane doc.
+- **Gates**: G4, G5, G6, and the slice's green.
+- **Model**: sonnet. **Size**: M. **After**: VT4.13.
+
+#### Checkpoints and landing
+
+| Checkpoint | Holds | Green means |
+|---|---|---|
+| `wip(value-transfers): slice 4 — the engine pins and confines` | VT4.1, VT4.2 | the containment and release tests; every existing host test |
+| `wip(value-transfers): slice 4 — the declaration and the loader` | VT4.3, VT4.4, VT4.5, VT4.10 | the loader and table tests; G2 |
+| `wip(value-transfers): slice 4 — the route, the key and the overlay` | VT4.6 to VT4.9 | the driver, cache and memoised-path tests |
+| `wip(value-transfers): slice 4 — a private SpecTcl command` (landing) | VT4.11 to VT4.15 | every exit test; G1 to G9 |
+
+```text
+wip(value-transfers): slice 4 — a private SpecTcl command
+
+A pack command reaches the analyser through the same interface as a
+shipped one. The loader reads `semantics`, `evaluate` and `facts` at
+command, subcommand and refine scope, with the explicit abstention; a
+declared implementation names its identity, host, target axes, inputs,
+dependencies, budget and completion; its body answers with `fold`,
+`write` and `preserve`, and silence declines. The host pins each engine
+to one release and refuses every store outside the running activation,
+so a body with a global counter declines identically on every call. The
+driver runs the declared route under the eligibility rule, the hook cache
+compares exact inputs, incoming targets and dependencies on a hit and is
+keyed by the evaluator generation, the workspace overlay reaches the
+memoised unit, and the request and iteration budgets bound a function's
+evaluations. `-native` resolves for every family by `SCOPE::FIELD`; the
+renderer, the studio, export and the reference round-trip the three
+statements. A rename and a subcommand form of the example need no
+consumer edit, and shipped builtins stay on the direct route.
+
+Behaviour changes: a workspace pack's declared evaluator folds on the
+memoised path; a pack edit invalidates the file's lattices; a function
+whose evaluations exhaust the request declines the rest; a short
+`-native` id is a load notice.
+```
+
+#### Review checklist
+
+- R1: no consumer names `tenant::label` or any pack command; the example
+  lives in a fixture; `CLEAN_FILES` gains `value_transfer/declared.rs`
+  implicitly (a new file is clean).
+- R2 to R5; new files: `declared.rs`, the fixture (no AGPL header: a
+  fixture).
+- R6: every existing host, loader and studio test is byte-identical
+  except the two table tests' new rows.
+- Suites: `cargo test -p tcl-engine-api -p tcl-engine-tclvm -p tcl-vm -p
+  tcl-spec-hooks -p tcl-spectcl -p tcl-spec-studio -p tcl-registry -p
+  tcl-compiler -p tcl-lsp-db -p tcl-mcp -p tcl-cli`.
+- R7: a body's error, silence or budget overrun is a decline, never a
+  value; an absent host is `Transient`, never cached; a cache hit proves
+  equality of every input; a body never reads state a previous
+  evaluation wrote.
+
+#### Behavioural deltas
+
+| Delta | Mandate |
+|---|---|
+| a workspace pack's declared evaluator folds on the memoised path | exit; "overlay invalidation" |
+| a pack edit invalidates every lattice of the file | the evaluation page's invalidation table |
+| a store outside the activation raises inside a hook body | "per-evaluation state isolation in the host"; the evaluation page's witness |
+| a short `-native` id is a load notice | the evaluation page's `SCOPE::FIELD` rule |
+| a function whose evaluations exhaust the request declines the rest | the three nested budgets (D3) |
+
+### Slice 5 — destructuring and structured bodies
+
+#### Goal and exit
+
+In the plan's words: "Write, preserve, unbind, and may-write outcomes with
+heterogeneous per-target types and duplicate targets resolved to places;
+the regexp owner's typed precision result; `regexp`, `scan`, `lassign`,
+`binary scan`; `dict with` and `dict update` as structural plans with a
+key-binding projection; the template-word plan, with `subst`'s option rows
+declaring the kinds; W210 consuming preserve outcomes; the existence branch
+fact stored once with its kind; O111 consuming the same fact as W100 or an
+explicit rule-group policy." The migration plan's inventory adds the
+editor consumers and "the analyser's literal-only diagnostics"; the ledger
+adds the loop header's iteration plan over the source layout; the
+analysis table adds `folded_types`; `KNOWN_GAPS` adds the other slice-5
+writers; CC2.13 puts the `DictWith` and `RegexPatternCapture` analyser
+hooks on this slice.
+
+*Exit*: "program (2) folds and is typed as a byte array; the private
+regexp / scan prover in `dataflow.rs` is retired; the no-match preserve,
+partial `scan`, and `lassign … a a` witnesses pass; the four consumers read
+`TemplateWordPlan` and none walks a template word."
+
+Exit evidence: `program_two_folds_and_is_a_byte_array`,
+`the_no_match_preserve_witness`, `the_partial_scan_witness`,
+`the_repeated_target_witness`, `the_template_plan_answers_the_fourteen_witnesses`,
+`a_materialised_child_carries_its_factory_call_span` (compiler witnesses
+and `value_transfers.rs`); G1 with `analyser/diagnostics/dataflow.rs` at
+pin 2, `helpers.rs` at 5, `var_command.rs`, `specialise_factories.rs` and
+`rust/tcl-lsp-core/src/document_links.rs` in `CLEAN_FILES`, and
+`KNOWN_GAPS` without a slice-5 row; `tcl explore --source 'set h [binary
+format H* 414243444546]' --show sccp --text --no-colour` prints
+`h#1 = const('ABCDEF')` with the folded type `bytearray (constructed)`.
+
+#### Upstream starting point
+
+From `git diff 3b5eba8a origin/rust -- rust/tcl-cmd-core/src/regex.rs
+rust/tcl-regex/src rust/tcl-vm/src/cmd_regexp.rs
+rust/tcl-registry/src/commands/tcl/regexp_.rs
+rust/tcl-registry/src/commands/tcl/scan_.rs
+rust/tcl-registry/src/commands/tcl/binary_.rs
+rust/tcl-registry/src/commands/tcl/subst_.rs rust/tcl-registry/src/traits.rs
+rust/tcl-compiler/src/ssa.rs`:
+
+- `tcl-cmd-core/src/regex.rs` (+741) and `tcl-regex/src/cmd_core.rs`:
+  `regexp -about` answers from the engine's `re_info` flags
+  (`regexp -about {(?:a)}` is `0 REG_UNONPOSIX` on 8.4 to 9.1), `regsub
+  -command` runs through a callback adapter (`RegsubError`), and
+  `-nocase` folds the full Unicode range with a bounded repeat (#2124,
+  #2125, #2127). The evaluation page's "the core refuses both" is out of
+  date: VT5.4 evaluates `-about` through the core and declares `regsub
+  -command` `NoRoute(Callback)` (a callback form needs a declared route on
+  the callback), and VT5.3 threads `RegexpPrecision` through the merged
+  functions.
+- `regexp_.rs` (+109, #2222): `-about` and `-inline` name no match
+  variables; VT5.4's targets come from those roles.
+- `traits.rs`, `scan_.rs`, `binary_.rs`, `ssa.rs` (#2225):
+  `Traits::CONDITIONAL_VARIABLE_WRITE` and the SSA rule that such a call
+  reads its targets' prior versions. VT5.11 keeps the rule as the SSA's
+  reading of a declared `Preserve`, and
+  `conditional_writers_declare_preserve_outcomes` (`value_transfers.rs`)
+  holds the trait and the outcomes equal, so one fact has one source.
+- `subst_.rs` (+8, #2136): `reserved_trailing_words: 1` names the
+  template operand; VT5.8 reads it.
+- The compiler consumers this slice rewrites (`security.rs`,
+  `var_command.rs`, `helpers.rs`, `dynamic_names.rs`,
+  `specialise_factories.rs`, `subst_nocommands.rs`, `type_infer.rs`,
+  `shimmer/` but `graph.rs`) and the `tcl-lsp-core` providers are
+  unchanged upstream.
+
+#### Work items
+
+##### VT5.1 — every outcome kind, applied per place
+
+- **Files**: `rust/tcl-registry/src/value_transfer/answers.rs`,
+  `rust/tcl-compiler/src/value_transfer.rs`, `rust/tcl-compiler/src/sccp.rs`.
+- **Items**:
+  ```rust
+  // answers.rs
+  /// The driver's checks before anything publishes: one outcome per
+  /// declared target at most, indices in range, every store naming a
+  /// validated place-bearing target, overlap resolved to places.
+  pub fn validate_outcome(
+      plan: &PlanAnswer,
+      targets: &[TargetId],
+      outcome: &InvocationOutcome,
+  ) -> Result<(), DeclineReason>;
+  // value_transfer.rs — replaces VT2.4's `store_def`
+  fn apply_outcome(
+      &self,
+      outcome: &InvocationOutcome,
+      defs: &[(String, ValueKey)],
+      input: &dyn AnalysisInputs,
+  ) -> Vec<(ValueKey, LatticeValue)>;
+  ```
+  Each written place's definition takes, in execution order: a `Write`'s
+  value (a repeated target composes in order, so the last write wins); a
+  `Preserve`'s prior version's value and representation; `Overdefined`
+  for a `MayWrite` (its `FactBounds` go to `folded_types`) and for an
+  `Unbind` (the existence fact is slice 8's). An element write and a base
+  write of one array, or a traced or escaping target, is
+  `OverlappingTargets` / `TracedPlace` / `EscapingPlace` and widens. A
+  malformed answer is `MalformedAnswer`, a notice, and `Overdefined`.
+- **Preserves**: every one-write answer of slice 2.
+- **Changes**: through VT5.4 and VT5.5 (their deltas).
+- **Tests**: `validate_outcome_rejects_a_store_to_a_non_target`
+  (`value_transfers.rs`).
+- **Gates**: G7, G8, G9.
+- **Model**: opus. **Size**: L. **After**: slice 4.
+
+##### VT5.2 — `folded_types` and representation evidence
+
+- **Files**: `rust/tcl-compiler/src/sccp.rs` (`SccpResult`),
+  `rust/tcl-compiler/src/value_transfer.rs`, `rust/tcl-compiler/src/type_infer.rs`,
+  `rust/tcl-compiler/src/shimmer/byte_array.rs`,
+  `rust/tcl-compiler/src/shimmer/use_site.rs`,
+  `rust/tcl-compiler/src/representation_plan.rs`,
+  `rust/tcl-explorer/src/serialise.rs`, `view_tree.rs`.
+- **Items**:
+  ```rust
+  /// The semantic type, shape and representation evidence of one value,
+  /// from the evaluation that produced it.
+  pub struct FoldedType {
+      pub intrep: Option<TclType>,
+      pub shape: Option<ValueShape>,
+      pub representation: RepresentationEvidence,
+  }
+  pub struct SccpResult { /* … */ pub folded_types: HashMap<ValueKey, FoldedType> }
+  ```
+  `type_infer` joins it; S110 and the S100 use-site check read
+  `representation`, never `TclType` alone. Keyed by `ValueKey`, so
+  `lattice_rebase.rs` is untouched.
+- **Changes**: a computed `binary format` is not reported as a
+  conversion. Mandate: the S100/S101 and S102/S103/S110 rows ("S110 reads
+  representation evidence for a byte-array value").
+- **Tests**: `program_two_folds_and_is_a_byte_array` (with VT5.6);
+  `serialise::tests::sccp_reports_folded_types`.
+- **Gates**: G7, G8, G9 (`tcl-compiler`, `tcl-explorer`).
+- **Model**: opus. **Size**: M. **After**: VT5.1.
+
+##### VT5.3 — the regexp owner's typed precision result
+
+- **Files**: `rust/tcl-regex/src/lib.rs` (`Regex::exec`),
+  `rust/tcl-regex/src/exec.rs` (`Matcher::spend_fuel`, `spend_fuel_n`,
+  `Bt::m`, `dissect_repeat`), `rust/tcl-regex/src/cmd_core.rs`
+  (`AreEngine`), `rust/tcl-cmd-core/src/regex.rs` (`RegexEngine::exec`,
+  `regexp`, `regsub`, `RegsubResult`), `rust/tcl-regex/tests/precision_oracle.rs`
+  (new), `scripts/dev/rust-test-binary-shards.tsv`.
+- **Items**: the evaluation page's `RegexpPrecision<V>` (`Exact { whole,
+  groups, captures_exact }`, `NoMatch`, `Declined(PrecisionDecline)`) and
+  `PrecisionDecline` (`FuelExhausted { spent }`, `DepthExhausted { limit }`,
+  `ApproximateCapture { group }`, `PatternError(RegexError)`,
+  `FormUnsupported { option }`, `Cancelled`), verbatim, through the five
+  layers the page lists; the page's `PatternCacheKey` cache, bounded at
+  4 MiB of retained bytes, compile charged as the pattern's length
+  squared; cancellation read at `spend_fuel` / `spend_fuel_n`.
+- **Preserves**: every completed match and no-match on every existing
+  `tcl-regex`, `tcl-cmd-core` and runtime test.
+- **Changes**: on the runtime path a `PrecisionDecline` is a `RegexError`,
+  so a search that exhausts its fuel raises instead of answering 0; on the
+  analysis path it is a typed decline. Mandate: § *The typed precision
+  result*, step 3.
+- **Tests**: `the_three_precision_witnesses` (`precision_oracle.rs`, the
+  page's table under 8.4 to 9.1: `regexp -indices {^a*(b)\1$}` over 300
+  `a` and `bb`; `regexp -indices {(x)*}` over 300 `x`; `regexp
+  {^(a+)+\1$}` and `regexp {^(a+)+b$}` over 300 and 301 `a`, which answer
+  1 and 0); `an_exhausted_search_is_never_a_no_match` (a fuel limit small
+  enough to exhaust yields `FuelExhausted`, never `NoMatch`). Shard row:
+  `2\ttcl-regex::precision_oracle\ttest\ttcl-regex\tprecision_oracle`.
+- **Gates**: G3, G7, G8, G9 (`tcl-regex`, `tcl-cmd-core`, `tcl-vm`,
+  `tcl-registry`).
+- **Model**: opus. **Size**: L. **After**: —.
+
+##### VT5.4 — `regexp` and `regsub`
+
+- **Files**: `rust/tcl-registry/src/value_transfer/regex.rs` (new),
+  `rust/tcl-registry/src/commands/tcl/regexp_.rs`,
+  `rust/tcl-registry/src/commands/tcl/regsub_.rs`,
+  `rust/tcl-registry/tests/value_transfers.rs`,
+  `rust/tcl-registry/tests/differential_fold.rs`,
+  `rust/tcl-compiler/src/analyser/handlers.rs`
+  (`handle_regex_pattern_capture`), `rust/tcl-registry/src/hooks.rs`
+  (`AnalyserHookId::RegexPatternCapture` goes),
+  `rust/tcl-registry/tests/analyser_hooks.rs`, `rust/xtask/src/value_transfers.rs`.
+- **Items**: `RegexpSemantics` and `RegsubSemantics` over
+  `tcl_cmd_core::regex::{regexp, regsub}` and `AreEngine`
+  (`NEEDS = REGEXP_FEATURES | CHAR_INDEXING | SOURCE_ENCODING`): on a
+  match, one `Write` per match variable (an unmatched subgroup writes the
+  empty string, or `-1 -1` with `-indices`); on `NoMatch`, one `Preserve`
+  per match variable; `-inline` writes nothing and returns the list;
+  `-all` counts; `-about` and `regsub -command` are
+  `NoRoute(FormUnsupported)`; any `PrecisionDecline` declines the whole
+  answer. `regsub`'s shipped folder becomes this route through
+  `evaluate_literal`, as `string range`'s did. The analyser's
+  `handle_regex_pattern_capture` reads the declared match targets, and
+  the hook variant retires (CC2.13's ledger row).
+- **Preserves**: `regsub`'s folded answers; every `regexp` test.
+- **Changes**: a no-match `regexp` keeps its match variables' values in
+  the lattice; a match writes them. Mandate: the Storage row ("`regexp`
+  no-match"); the Regexp row.
+- **Tests**: `regexp_writes_or_preserves_its_match_variables`
+  (`value_transfers.rs`) and `regexp_witnesses_match_every_release_on_path`
+  (`differential_fold.rs`, 8.4 to 9.1): `set a before; set b before;
+  regexp {(x)(y)} zz a b` is 0 with both `before`; `regexp -inline
+  -indices {(a)(b)?} ac` is `{0 0} {0 0} {-1 -1}`; `regexp -all {a*}
+  xaax` is 3; `regsub -all {} abc -` is `-a-b-c`; `regexp -about {a}`
+  declines.
+- **Gates**: G1 (`regexp`, `regsub` rows go), G2, G7, G8, G9.
+- **Model**: opus. **Size**: M. **After**: VT5.1, VT5.3.
+
+##### VT5.5 — `scan`, `binary scan`, `lassign`, `array set`
+
+- **Files**: `rust/tcl-registry/src/value_transfer/destructure.rs` (new),
+  the four commands' spec modules, `value_transfers.rs`,
+  `differential_fold.rs`, `rust/xtask/src/value_transfers.rs`.
+- **Items**: `ScanSemantics` over `tcl_cmd_core::scan::{validate_format,
+  scan_match}` (`ScanOutcome`, `Scanned`): the count as the result, a
+  `Write` per converted target with its type, a `Preserve` for the rest;
+  `BinaryScanSemantics` over `tcl_cmd_core::binary`
+  (`NEEDS = BINARY_FIELDS | BYTE_STRINGS`); `LassignSemantics` over
+  `ConstOps::list_elements` (from 8.5: absent in the profile is no
+  route): a `Write` per target in order, the empty string past the end,
+  the remaining elements as the result; `ArraySetSemantics`: one element
+  `Write` per pair of a constant list (`PlaceKind::Element`).
+- **Changes**: partial `scan`, `binary scan`, `lassign` and `array set`
+  reach the lattice and `folded_types` per target. Mandate: the Storage
+  row ("partial `scan`; … repeated targets; array and base overlap").
+- **Tests**: `destructuring_writers_run_the_shared_cores`
+  (`value_transfers.rs`) and `destructuring_witnesses_match_every_release_on_path`
+  (8.5 to 9.1 for `lassign`, 8.4 to 9.1 for the rest): `scan {12 nope}
+  {%d %d} a b` is 1 with `a` 12 and `b` preserved; `lassign {first second
+  extra} a a` is `extra` with `a` `second`; `binary scan \x01\x02 cc a b`
+  is 2 with `a` 1 and `b` 2; `array set arr {k1 v1 k2 v2}` writes two
+  elements.
+- **Gates**: G1 (four rows go), G2, G7, G8, G9.
+- **Model**: opus. **Size**: M. **After**: VT5.1.
+
+##### VT5.6 — `binary format`, program (2)
+
+- **Files**: `rust/tcl-registry/src/value_transfer/builtins.rs`,
+  `rust/tcl-registry/src/commands/tcl/binary_.rs`, `value_transfers.rs`,
+  `differential_fold.rs`.
+- **Items**: `BinaryFormatSemantics` over `tcl_cmd_core::binary::format`
+  (`NEEDS = BINARY_FIELDS | BYTE_STRINGS`), answering
+  `RepresentationEvidence::Constructed(TclType::ByteArray)`; declared on
+  the `binary format` subcommand, which declares `pure: true` and no
+  evaluator today.
+- **Changes**: `set h [binary format H* 414243444546]` is `ABCDEF`, typed
+  a byte array. Mandate: the exit; program (2) of the interface page.
+- **Tests**: `program_two_folds_and_is_a_byte_array` (compiler witnesses);
+  `binary_format_witnesses_match_every_release_on_path` (8.4 to 9.1).
+- **Gates**: G1, G2, G7, G8, G9.
+- **Model**: opus. **Size**: S. **After**: VT5.2.
+
+##### VT5.7 — structural plans: `dict with`, `dict update`, the loop's source layout
+
+- **Files**: `rust/tcl-registry/src/value_transfer/body.rs` (new),
+  `rust/tcl-registry/src/value_transfer/iteration.rs`,
+  `rust/tcl-registry/src/commands/tcl/dict.rs` (and the `::tcl::dict::`
+  copies through `qualified_specs()`),
+  `rust/tcl-compiler/src/analyser/handlers.rs` (`handle_dict_with_command`),
+  `rust/tcl-registry/src/hooks.rs` (`AnalyserHookId::DictWith` goes),
+  `rust/tcl-registry/tests/analyser_hooks.rs`,
+  `rust/tcl-compiler/src/value_transfer.rs` (`evaluate_call`'s loop-header
+  transfer reads the plan's binders).
+- **Items**: `DictWithSemantics` and `DictUpdateSemantics` answering
+  `PlanAnswer::Body { binders, body, reconcile:
+  Reconcile::WriteBackKeys(dict), completion: CompletionProtocol::TclBody }`,
+  the binders projected from the dictionary's proven keys (`dict with`)
+  or the declared key and variable pairs (`dict update`) — a projection
+  on body entry, never the command's value; `IterationSemantics::structure`
+  answers `InvocationLayout::Source` for `foreach` and `lmap` (binders from
+  each var-list word, one `IterableKind::List` per list operand, the body,
+  `CompletionProtocol::Absorb(&[Break, Continue])`,
+  `zero_iterations_bind: false`). `handle_dict_with_command` binds the
+  plan's binders instead of reading `lookup_const_string`, and the hook
+  variant retires (CC2.13).
+- **Preserves**: `evaluate_def_*` answers over loop headers; the
+  analyser's `dict with` bindings over a literal dictionary.
+- **Changes**: a `dict with` over a lattice-constant dictionary binds its
+  keys in the body. Mandate: "`dict with` and `dict update` as structural
+  plans with a key-binding projection"; the ledger row for the loop header
+  ("slice 5 — the iteration plan's binders over the source layout").
+- **Tests**: `dict_with_binds_the_proven_keys` (`set d {a 1}; dict with d
+  {incr a; set result done}` gives `result` `done`; the oracle: `d` is
+  `a 2` after, in 8.5 to 9.1); `the_source_layout_answers_an_iteration_plan`
+  (`value_transfers.rs`).
+- **Gates**: G1 (`dict with`, `dict update` and their qualified rows go),
+  G2, G7, G8, G9.
+- **Model**: opus. **Size**: M. **After**: VT5.1.
+
+##### VT5.8 — the template-word plan
+
+- **Files**: `rust/tcl-registry/src/value_transfer/template.rs` (new),
+  `rust/tcl-registry/src/commands/tcl/subst_.rs` (the `semantics` field
+  only; its option rows are the consumer-contracts lane's),
+  `rust/tcl-compiler/src/value_transfer.rs`, `rust/tcl-compiler/src/sccp.rs`,
+  `rust/tcl-compiler/src/lattice_rebase.rs`.
+- **Items**: `SubstSemantics` whose `structure` answers
+  `PlanAnswer::TemplateWord(TemplateWordPlan)` (the tree's shape, which is
+  the page's): `kinds` from `option_effects` (CC2.6) over the switch
+  operands — a `Const` switch as its literal spelling, a `ConstSet` joined
+  per member, an unproven one `SubstitutionKinds::ALL`; the 9.1 positive
+  family; a profile spanning 9.1 declines `ReleaseAmbiguous`; `braced`,
+  `dynamic`, `script_regions`, `reads` and `escapes` from `word_structure`.
+  The driver records one `TemplatePlanRecord { span: Span, plan:
+  TemplateWordPlan }` per `subst` statement in `SccpResult::template_plans`,
+  which `rebase_function_unit` shifts in the same change.
+- **Tests**: `the_template_plan_answers_the_fourteen_witnesses`
+  (`value_transfers.rs`, the page's fourteen programs as plan fixtures);
+  `template_witnesses_match_every_release_on_path` (`differential_fold.rs`,
+  8.4 to 9.1, with the three 9.1-only rows: `a5[set b]`, `a$b[set b]A`,
+  and the mixed-family error); the `tp_*` and `fp_*` tests in
+  `rust/tcl-registry/src/substitution.rs` unchanged;
+  `rebase_shifted_unit_spans_match_fresh` covers the new spans.
+- **Gates**: G1, G2, G7, G8, G9.
+- **Model**: opus. **Size**: L. **After**: VT3.1; CC2.6 (B-CC2).
+
+##### VT5.9 — the template folders read the plan; the child keeps its span (#2143)
+
+- **Files**: `rust/tcl-compiler/src/lowering/mod.rs`
+  (`eval_subst_nocommands_body`), `rust/tcl-compiler/src/subst_nocommands.rs`,
+  `rust/tcl-compiler/src/specialise_factories.rs`
+  (`extract_subst_nocommands_template`, `register_synthesised`),
+  `rust/xtask/src/value_transfers.rs`.
+- **Items**: both folders ask the registry for the plan over the call's
+  literal words (`LiteralInputs`; lowering runs before SSA) and act only
+  on `kinds == SUBST_NOCOMMANDS_KINDS`, `braced`, every `reads` name in
+  the const map, and `escapes`; `subst_nocommands` consumes `reads`
+  instead of scanning the template; `cmd.texts[0] != "subst"` goes.
+  `register_synthesised(module, name, params, body, span: Span)` records
+  the factory call's statement span on the child `Procedure`.
+- **Preserves**: `proc_subst_nocommands_body_materialised`,
+  `proc_subst_nocommands_missing_var_skips_materialisation`,
+  `proc_subst_nocommands_nobackslashes_refused`, `detects_*`,
+  `rejects_factory_with_computed_subst_switch`.
+- **Changes**: the materialised child's findings anchor at the factory
+  call, not at 1:1. Mandate: #2143 ("a materialised child carries the
+  span of the factory call that produced it").
+- **Tests**: `a_materialised_child_carries_its_factory_call_span`
+  (compiler witnesses: the #2143 program's W214 for `::port` is on line
+  4, the `Configure port 8080 {the port}` call).
+- **Gates**: G1 (`specialise_factories.rs` 1 → 0: the remaining `proc`
+  definer site is waived `definition_body`; the file joins
+  `CLEAN_FILES`), G7, G8, G9.
+- **Model**: opus. **Size**: M. **After**: VT5.8.
+
+##### VT5.10 — W102, extract-proc and the dynamic-name barrier read the plan
+
+- **Files**: `rust/tcl-compiler/src/analyser/diagnostics/security.rs`
+  (`emit_w102_subst_injection`, `substitution_narrowing_switches`,
+  `inner_head_performs_substitution`),
+  `rust/tcl-compiler/src/analyser/diagnostics.rs` (the per-function pass
+  emits W102 from `SccpResult::template_plans`),
+  `rust/tcl-compiler/src/dynamic_names.rs` (`DynamicNameBarrier`,
+  `template_word_is_substituted`),
+  `rust/tcl-lsp-core/src/refactor/extract_proc.rs` (`literal_word_holes`),
+  `rust/tcl-lsp-core/src/refactor/mod.rs` (`push_substituted_commands`,
+  `same_frame_regions`).
+- **Items**: W102 moves from the walk to the per-function pass and reads
+  `kinds`, `dynamic` and the option rows' narrowing advice from the
+  statement's plan; the barrier sets `reads` only when `dynamic &&
+  kinds.variables` and scans `script_regions`; extract-proc keeps or cuts
+  a braced word by `kinds.variables` and takes `script_regions` as the
+  same-frame regions, over the plan of the call's literal words.
+- **Preserves**: every `w102_*` test;
+  `tp_a_substituting_call_can_switch_its_variable_reads_off`,
+  `tp_a_substituted_bracket_reads_the_caller_even_with_variables_off`,
+  `tp_a_substituted_bracket_writes_through_to_the_caller`.
+- **Changes**: `set opt -novariables; subst $opt {hello $name}` narrows
+  W102's advice to `$var` as the literal spelling does; `subst
+  -novariables $t` no longer blinds every read of the function. Mandate:
+  the W102 row; the dynamic-name row ("so `subst -novariables $t` stops
+  blinding every read").
+- **Tests**: `w102_narrows_a_proven_switch_word` (negative: `opt` a
+  parameter keeps every kind); `a_novariables_subst_of_a_dynamic_template_does_not_blind_reads`
+  (`dynamic_names.rs`).
+- **Gates**: G1, G7, G8, G9 (`tcl-compiler`, `tcl-lsp-core`).
+- **Model**: opus. **Size**: M. **After**: VT5.8; the diagnostic-policy
+  lane's `tcl-lsp-core` commits (B-DP1).
+
+##### VT5.11 — W210 reads preserve outcomes; the private prover retires
+
+- **Files**: `rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs`
+  (`emit_provably_unset_w210`), `rust/xtask/src/value_transfers.rs`,
+  `docs/design/compiler/value-transfers-migration.md`.
+- **Items**: `emit_provably_unset_w210` asks the unit for the call's
+  evaluated outcome: a target the outcome `Preserve`s keeps the prior
+  definition as the read's reaching definition, so a read after a
+  no-match `regexp` or a partial `scan` of a variable with no prior
+  definition is W210. The `regexp` / `scan` recognisers and the form
+  parsing at the prover go, with the second traversal for embedded
+  conditions.
+- **Preserves**: every `emit_cfg_ssa_diagnostics_w210_*` test and every
+  answer the prover gave on the forms it proved.
+- **Changes**: W210 follows any registry-declared preserve outcome, a
+  pack command's included. Mandate: "W210 consuming preserve outcomes";
+  § *Diagnostics consume facts*, first producer; the Diagnostic separation
+  row ("no private regexp or scan evaluator in W210").
+- **Tests**: `w210_reads_a_no_match_preserve_outcome`
+  (`analyser/diagnostics/tests.rs`: `regexp {(x)(y)} zz a b; puts $a` is
+  W210; negative: `regexp {(x)(y)} xy a b; puts $a` is not);
+  `a_no_match_keeps_the_store_it_preserves` (compiler witnesses: `set a
+  before; regexp {(x)(y)} zz a b; puts $a` keeps `set a before` under O109
+  and W220 and prints `before` under 8.4 to 9.1 — #2051's program).
+- **Gates**: G1 (`dataflow.rs` 4 → 2; its ledger row names only the
+  `unset` scans and slice 8), G7, G8, G9.
+- **Model**: opus. **Size**: M. **After**: VT5.4, VT5.5.
+
+##### VT5.12 — the branch fact records its kind
+
+- **Files**: `rust/tcl-compiler/src/sccp.rs` (`ConstantBranch`),
+  `rust/tcl-compiler/src/compilation_unit.rs` (the existence post-pass),
+  `rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs`
+  (`emit_existence_constant_branch_diagnostics`,
+  `emit_constant_branch_diagnostics`), `rust/tcl-compiler/src/compiler_checks.rs`.
+- **Items**:
+  ```rust
+  /// Which of the three branch facts this is: a proven condition, a
+  /// selected arm with no CFG edge of its own, or applied reachability.
+  #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+  pub enum BranchFactKind { Proven, Selected, Applied }
+  pub struct ConstantBranch { /* … */ pub kind: BranchFactKind }
+  ```
+  The solver's decided branches are `Applied`; the existence post-pass's
+  are `Proven`; `emit_existence_constant_branch_diagnostics` reads the
+  stored kind and stops running `existence_constant_branches` a second
+  time.
+- **Preserves**: every I230 and I231, and the `info_exists_*` tests.
+- **Changes**: none observable. Mandate: "the existence branch fact
+  stored once with its kind"; § *Branch facts*.
+- **Tests**: `the_existence_branch_fact_is_stored_once`
+  (`analyser/diagnostics/tests.rs`).
+- **Gates**: G7, G8, G9.
+- **Model**: opus. **Size**: S. **After**: —.
+
+##### VT5.13 — W100's produced set is the unbraced-expression fact
+
+The diagnostic-policy lane's plan makes the analyser's produced W100
+findings the fact both rules read: DP8.1 puts W100 in `FACT_CODES`, so
+the production skip never drops it, and DP8.2's `brace_expr_hints` emits
+O111 at the span of every produced W100 before policy runs. That is "the
+same fact" of the migration plan's slice 5, so this lane adds no second
+representation (D23); its part is to prove the produced set covers every
+unbraced expression.
+
+- **Files**: `rust/tcl-compiler/src/analyser/diagnostics/tests.rs`.
+- **Items**: none in production code; `emit_w100_unbraced_expr` and
+  `push_w100` are unchanged.
+- **Tests**: `w100_marks_every_unbraced_expression` — `expr $a+1`,
+  `expr "$a + 1"`, `if "$x" {…}`, `while $c {…}`, `for {} $c {} {…}` and
+  an unbraced `expr` inside a `[…]` each produce one W100 at the
+  expression word's span; the braced forms produce none.
+- **Gates**: G9.
+- **Model**: sonnet. **Size**: S. **After**: —; DP8.1 and DP8.2 consume
+  it (B-DP3).
+
+##### VT5.14 — the no-route writers
+
+- **Files**: the spec modules of `file stat`, `file lstat`,
+  `foreachLine`, `gets`, `chan gets`, `file tempfile`, `vwait`,
+  `tk_optionMenu`, `trace add`, `trace remove`, `trace variable`, `trace
+  vdelete`; `rust/tcl-registry/src/value_transfer/builtins.rs`;
+  `rust/xtask/src/value_transfers.rs`.
+- **Items**: one `MayWriteSemantics { targets: &'static [ArgRole], reason:
+  NoRouteReason }` whose transfer is `MayWrite` on each declared target
+  and whose route is `EvalRoute::None { reason }` (`PLATFORM` for the
+  `file` forms, `Declared` for the channel, event-loop and widget forms);
+  `foreachLine` declares an `Iterate` plan over a file source with no
+  route; the `trace` subcommands declare `TransferAnswer::Generic` with no
+  route.
+- **Changes**: the inventory classifies the rows; no lattice value
+  changes (each was `Overdefined`).
+- **Gates**: G1 (the rows go), G2, G9.
+- **Model**: sonnet. **Size**: M. **After**: VT5.1.
+
+##### VT5.15 — one query for a proven word
+
+- **Files**: `rust/tcl-compiler/src/value_transfer.rs`,
+  `rust/tcl-compiler/src/compilation_unit.rs`.
+- **Items**:
+  ```rust
+  /// The exact value a word of a statement has at that statement, with
+  /// its folded type — the lattice's answer, never a token relabelled as
+  /// a literal. `None` when it is not exact.
+  pub fn proven_word_value(
+      fu: &FunctionUnit,
+      statement: StatementId,
+      word: usize,
+  ) -> Option<(ExactValue, Option<FoldedType>)>;
+  ```
+- **Tests**: `proven_word_value_reads_the_lattice_at_the_statement`
+  (positive through a `set`; negative after a redefinition in a branch).
+- **Gates**: G7, G8, G9.
+- **Model**: opus. **Size**: S. **After**: VT5.2.
+
+##### VT5.16 — the literal-only diagnostics read proven values
+
+- **Files**: `rust/tcl-compiler/src/analyser/diagnostics/usage.rs` (W121,
+  W200, W202), `security.rs` (W127, W137, W141, W303), `validity.rs`
+  (W145, W146, W147, W152), `version_gate.rs` (W138),
+  `rust/tcl-compiler/src/analyser/bounds_checks.rs` (the syntactic half of
+  W230, W232), `rust/tcl-compiler/src/irules_checks.rs` (IRULE4004),
+  `rust/tcl-compiler/src/taint.rs` (`find_setter_constraint_warnings`,
+  IRULE3101), `rust/tcl-compiler/src/uri_split.rs` (IRULE3103, the
+  `Const(String)`-only read), `rust/tcl-compiler/src/analyser/diagnostics.rs`.
+- **Items**: each check keeps its literal path in the walk and records
+  the `(span, check)` pairs it abstains on for a non-literal word; the
+  per-function pass re-runs exactly those checks over
+  `proven_word_value`, so no finding is emitted twice and none is emitted
+  at a span the user did not write. W146 feeds the exact value through
+  `LiteralArgumentValidator` with its computed provenance.
+- **Changes**, each mandated by its row of "Codes that are literal-only
+  today and would gain" or "Codes that read the lattice today": W121 on
+  `set m 255.0; append m .255.0; IP::addr $ip mask $m`; W127, W137, W141
+  on a propagated or `[string tolower CONST]` option value; W145, W147,
+  W152 on a computed option name; W146 on a proven value; W303 on `set re
+  {(a+)+$}; regexp $re $s`; W230 and W232 on `set l {a b c}; lindex $l
+  9`; W138, W200, W202 on a computed template; IRULE4004 on `set x
+  [string range CONST 0 3]`; IRULE3101 silent on `set p /a; HTTP::path
+  $p` (#2055); IRULE3103 on computed operands.
+- **Tests**: one positive (the row's program) and one negative (the same
+  shape over an unknown value) per code in `analyser/diagnostics/tests.rs`
+  and, for IRULE3101 and IRULE3103, in `rust/tcl-compiler/tests/`'s
+  iRules suites; `irule3101_reads_the_proven_path` names #2055's program.
+- **Gates**: G4 (a message that names a computed value), G7, G8, G9.
+- **Model**: opus. **Size**: L. **After**: VT5.15.
+
+##### VT5.17 — the editor consumers
+
+- **Files**: `rust/tcl-lsp-core/src/hover.rs` (`literal_at_token`),
+  `rust/tcl-lsp-core/src/inlay_hints.rs` (`collect_format_string_hints`),
+  the semantic-token families for regexp, format, clock and binary
+  patterns, `rust/tcl-lsp-core/src/document_links.rs`,
+  `rust/xtask/src/value_transfers.rs`.
+- **Items**: each reads `proven_word_value` through the memoised unit; a
+  computed pattern is explained at its use and never painted at a token
+  range it does not have; `document_links.rs`'s `speclib` and `include`
+  sites carry `// value-transfer-ok: irreducible — the pack grammar's own
+  statements`.
+- **Changes**: `set fmt "%-20s %d"; format $fmt a 1` gets hover on
+  `$fmt` and the `int:` inlay label. Mandate: the inventory's item 4 and
+  the "Literal-only editor features" paragraph.
+- **Tests**: `hover_explains_a_computed_format_string`,
+  `inlay_hints_label_a_computed_format_string` (`tcl-lsp-core`; negative:
+  an unknown `$fmt` gets neither).
+- **Gates**: G1 (`document_links.rs` 2 → 0, clean), G7, G8, G9.
+- **Model**: sonnet. **Size**: M. **After**: VT5.15; B-DP1.
+
+##### VT5.18 — the container harvesters read structured writes
+
+- **Files**: `rust/tcl-compiler/src/analyser/diagnostics/var_command.rs`,
+  `rust/tcl-compiler/src/analyser/diagnostics/helpers.rs`,
+  `rust/xtask/src/value_transfers.rs`.
+- **Items**: W307 and W308 read the element writes of `set arr(k)`,
+  `array set`, `dict set` and `dict with` from their outcomes and plans,
+  and `helpers.rs`'s `dict with` / `dict update` key harvest reads the
+  plan's binders.
+- **Preserves**: every W307 and W308 test.
+- **Changes**: a lattice-constant `array set` or `dict set` operand
+  harvests its keys. Mandate: the W123, W307, W308 row.
+- **Gates**: G1 (`var_command.rs` 3 → 0, clean; `helpers.rs` 6 → 5),
+  G7, G8, G9.
+- **Model**: opus. **Size**: M. **After**: VT5.5, VT5.7.
+
+##### VT5.19 — the slice's witnesses
+
+- **Files**: `rust/tcl-compiler/tests/value_transfer_witnesses.rs`,
+  `rust/tcl-cli/tests/value_transfers_cli.rs`, `rust/tcl-lsp-db/src/value_transfer_parity.rs`.
+- **Tests**: `the_no_match_preserve_witness`, `the_partial_scan_witness`,
+  `the_repeated_target_witness` (each the interface page's program through
+  analysis, the memoised unit and `tcl opt`, whose output prints what
+  `tclsh` prints under every release); `explore_sccp_prints_folded_types`
+  (CLI); `destructuring_agrees_on_both_paths` (parity).
+- **Gates**: G7, G8, G9.
+- **Model**: sonnet. **Size**: M. **After**: VT5.1 to VT5.18.
+
+##### VT5.20 — docs and the landing
+
+- **Files**: `pass-fact-ownership-matrix.md` (`folded_types`, the
+  outcomes, the template plan, the unbraced-expression fact),
+  `downstream-pass-contracts.md`, `sccp-core-analyses.md`,
+  `constant-folding-type-inference.md`, `optimisation-passes.md`,
+  `precision-limitations.md` (the regexp precision declines),
+  `value-transfers-migration.md` (ratchet rows, the dataflow sites'
+  status), `value-transfers.md`, `docs/kcs/codes/` notes for W210 and
+  W102 (the proven-switch narrowing), a KCS note
+  `docs/kcs/compiler/kcs-qa-why-does-a-regexp-sometimes-not-fold.md`
+  (new), the lane doc. The rows for `diagnostics-calculation.md` and
+  `diagnostics-integration.md` are drafted in the lane doc (B-DP4).
+- **Gates**: G4, G5, G6, and the slice's green.
+- **Model**: sonnet. **Size**: M. **After**: VT5.19.
+
+#### Checkpoints and landing
+
+| Checkpoint | Holds | Green means |
+|---|---|---|
+| `wip(value-transfers): slice 5 — outcomes and folded types` | VT5.1, VT5.2, VT5.12, VT5.13, VT5.15 | every existing test byte-identical; the W100 coverage test |
+| `wip(value-transfers): slice 5 — the regexp owner` | VT5.3 | the precision witnesses; every runtime regexp test |
+| `wip(value-transfers): slice 5 — the destructuring writers` | VT5.4 to VT5.7, VT5.14 | the storage witnesses under every release; G1 without the slice-5 gap rows; G2 |
+| `wip(value-transfers): slice 5 — the template-word plan and its consumers` | VT5.8 to VT5.10 | the fourteen template witnesses; every `w102_*`, `tp_*`, `proc_subst_nocommands_*` test |
+| `wip(value-transfers): slice 5 — the consumers read the facts` | VT5.11, VT5.16 to VT5.18 | the W210 and literal-only witnesses; G1 pins |
+| `wip(value-transfers): slice 5 — destructuring and structured bodies` (landing) | VT5.19, VT5.20 | every exit test; G1 to G9 |
+
+```text
+wip(value-transfers): slice 5 — destructuring and structured bodies
+
+A transfer is a result and ordered storage outcomes: write, preserve,
+unbind and may-write, validated against the declared targets and applied
+per place in execution order, so a repeated target composes and a
+no-match keeps its prior value. The regexp owner answers exactly,
+no-match, or a typed decline, from the engine up; an exhausted search is
+never a no-match. `regexp`, `regsub`, `scan`, `binary scan`, `lassign`
+and `array set` are destructuring writers over the shared cores, `binary
+format` is a byte array by construction, and `folded_types` carries each
+value's type and representation evidence. `dict with`, `dict update` and
+the loops' source layout are structural plans. `subst` answers a
+template-word plan from its option rows and proven switches, and the
+lowering fold, the factory extraction, W102, extract-proc and the
+dynamic-name barrier read it instead of walking the template; a
+materialised child keeps its factory call's span. W210 reads preserve
+outcomes, so the private no-match prover is gone; the existence branch
+fact is stored once with its kind; W100's produced set is proven to mark
+every unbraced expression, the fact O111 reads; the literal-only
+diagnostics and the editor's
+hover, inlay hints, semantic tokens and links read proven values.
+
+Behaviour changes: program (2) folds; destructuring writers reach the
+lattice; a regexp search that exhausts its fuel raises at run time
+instead of answering 0; W102 narrows a proven switch word; `subst
+-novariables $t` no longer blinds the function's reads; the literal-only
+checks fire on proven values; IRULE3101 reads the proven path; a
+materialised proc's findings anchor at its factory call.
+
+Closes #2055. Pins #2051 (closed on rust by #2225). Closes #2143, or
+"Pins the span half of #2143" (Q3).
+```
+
+#### Review checklist
+
+- R1: `CLEAN_FILES` gains `var_command.rs`, `specialise_factories.rs`,
+  `document_links.rs`; `dataflow.rs` at 2 and `helpers.rs` at 5; no file
+  outside `value_transfer/template.rs` and the driver's `word_structure`
+  segments a template word; no consumer matches `"regexp"`, `"scan"`,
+  `"subst"`, `"lassign"` or `"dict"`.
+- R2 to R5; new files: `regex.rs`, `destructure.rs`, `body.rs`,
+  `template.rs` (registry), `precision_oracle.rs`.
+- R6: expectations move only for the witnesses named in each item.
+- Suites: `cargo test -p tcl-regex -p tcl-cmd-core -p tcl-vm -p
+  tcl-registry -p tcl-compiler -p tcl-explorer -p tcl-lsp-core -p
+  tcl-lsp-db -p tcl-cli -p xtask`.
+- R7: a preserve outcome never invents a prior value (a pending prior
+  stays pending); an approximate capture never becomes a value; a
+  repeated target composes in order; an error completion is still a
+  decline in this slice (slice 10 owns the prefix rule); a switch word
+  that is not proven answers every kind.
+
+#### Behavioural deltas
+
+| Delta | Mandate |
+|---|---|
+| program (2) folds and is a byte array; S100 / S110 report no conversion for it | exit; the S-rows |
+| `regexp`, `regsub`, `scan`, `binary scan`, `lassign`, `array set` write or preserve their targets in the lattice | the Storage row; § *Storage-writing commands* |
+| an exhausted regexp search raises at run time instead of answering 0 | § *The typed precision result*, step 3 |
+| W210 follows declared preserve outcomes | "W210 consuming preserve outcomes" |
+| W102 narrows a proven switch word; the barrier stops blinding reads for `subst -novariables $t` | the W102 and dynamic-name rows |
+| the literal-only codes fire on proven values; IRULE3101 is silent on a proven `/` path | the literal-only table; #2055 |
+| hover and inlay hints explain a computed format string | the inventory's item 4 |
+| a materialised proc's findings anchor at its factory call | #2143 |
+
+### Slice 8 — the existence rung
+
+#### Goal and exit
+
+In the plan's words: "A flow-sensitive bound/unbound fact per place and
+per SSA version of the binding, owned by the solver and fed by storage
+outcomes: the entry states, the join, the absent-cell release rule
+(`safe_on_uninit`, the plan's `creates_absent`), `[info exists]` and
+`[array exists]` through the expression route's `nested` service, and the
+guard narrowing as an edge refinement in the existence domain. W210,
+W211, W213, W214, O108, O109, I230, O101, and S100 consume the one fact; a
+fast-tier request and a function over the complexity ceiling read
+`Unavailable`, which is neither bound nor unbound." `KNOWN_GAPS` adds
+`array unset`, `array default` and (VT2.8) `const`; CC2.13 puts the `Set`
+analyser hook here.
+
+*Exit*: "`sccp.rs` recognises no command by spelling;
+`existence_constant_branches` and `scan_defined_and_unset` are deleted;
+`emit_provably_unset_w210` reads the fact; the release table for an
+absent cell, `set x 1; unset x; info exists x` deciding `0`, the definite
+W213 after a killed version, the two O109 refusals, and the S100 silence
+pass."
+
+Exit evidence: `the_absent_cell_release_table`,
+`set_unset_info_exists_decides_zero`, `a_second_unset_is_a_definite_w213`,
+`o109_keeps_a_store_an_existence_read_observes`, `s100_ignores_an_unset_arm`
+(compiler witnesses); G1 with `dataflow.rs` in `CLEAN_FILES` and
+`helpers.rs` at 4, and `sccp.rs` holding no `existence_constant_branches`
+or `scan_defined_and_unbound`; `tcl explore --source 'proc p {} {set x 1;
+unset x; if {[info exists x]} {puts yes}}' --show sccp --text --no-colour`
+prints the branch as decided and the `if`'s true block outside
+`executable blocks`.
+
+#### Upstream starting point
+
+From `git diff 3b5eba8a origin/rust -- rust/tcl-compiler/src/ssa.rs
+rust/tcl-registry/src/registry.rs rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs
+rust/tcl-compiler/src/optimiser/code_sinking.rs rust/tcl-compiler/src/script_binds.rs
+rust/tcl-compiler/src/existence_query.rs`:
+
+- #2220: `CommandRegistry::variable_read_projection` and the CFG's
+  `ConditionEffects` make a condition's `[info exists x]` a read of `x`,
+  so W211, O126 and O109 keep the store behind an existence test in a
+  condition, and `code_sinking.rs` refuses to sink past one. VT8.4 and
+  VT8.5 generalise the existence read to every position (a statement's
+  `unset`, a `DESTROYS_VARIABLE` command, a nested `[info exists]`) and
+  re-express #2220's condition case as the same existence read — one
+  implementation.
+- `dataflow.rs`'s `statement_is_synthetic_effect`: W210 skips the reads a
+  synthetic `<cond>` or `<upvar-invalidate>` statement carries because
+  they are existence-tolerant; VT8.4 replaces the exemption with the
+  existence fact those reads consult.
+- `script_binds.rs` (new, 287): `script_binds_name`, the registry-driven
+  answer to "does this script bind the name" that W210 and the SSA's use
+  rule both ask; VT8.4 keeps it.
+- `existence_query.rs`: unchanged upstream.
+
+#### Work items
+
+##### VT8.1 — the existence domain in the solver
+
+- **Files**: `rust/tcl-compiler/src/sccp.rs`, `rust/tcl-compiler/src/value_transfer.rs`,
+  `rust/tcl-compiler/src/dynamic_names.rs`, `rust/tcl-compiler/src/compilation_unit.rs`.
+- **Items**: `SccpResult::existence: HashMap<ValueKey, Existence>` (the
+  registry's `Existence`, `BindingKind`), computed in the same fixed point
+  as the values. Entry: parameters `Bound(Scalar)`; other locals
+  `Unbound`; a scope-alias local (`Traits::CREATES_SCOPE_ALIAS`) and a
+  TclOO instance variable `MayBound` at declaration; in the global frame
+  a special variable per `startup_read_facts`, a name another procedure
+  may write (`scan_module_global_names`) `MayBound`, the rest `Unbound`;
+  a `::when::*` handler's cross-event variables (`ConnectionScope::cross_event_defs`)
+  `MayBound`; after a `Barrier` or `UpFrame` every place `MayBound`. Join:
+  `Bound(Scalar) ⊔ Bound(Array)` is `Bound(Either)`, `Unbound ⊔ Bound(_)`
+  and anything with `MayBound` are `MayBound`. Transfer per outcome, as the
+  page's § *Existence* states; an unbind of an `Unbound` place completes
+  with an error and writes nothing. The release rule: a cell update on an
+  `Unbound` place binds only under a profile whose every release creates
+  (`creates_absent`); otherwise the value declines `UnboundPlace`.
+  `AnalysisInputs::prior_store(place, FactDomain::Existence)` answers from
+  the map; the dynamic-name barrier becomes flow-sensitive (a dynamic
+  write turns every `Unbound` place `MayBound` from that statement on, a
+  dynamic destroy every `Bound` place).
+- **Preserves**: every value in `SccpResult::values`.
+- **Changes**: `incr fresh` binds under `tcl8.5` onwards and declines
+  under `tcl8.4` and a profile spanning both. Mandate: the release rule;
+  the Existence row.
+- **Tests**: `the_absent_cell_release_table` (compiler witnesses, every
+  line of the page's table except the `unset p nosuch q` prefix line,
+  which is slice 10's; oracle under 8.4 to 9.1).
+- **Gates**: G7, G8, G9.
+- **Model**: opus. **Size**: L. **After**: slice 5.
+
+##### VT8.2 — `info exists` decides inside the fixed point
+
+- **Files**: `rust/tcl-compiler/src/existence_query.rs`,
+  `rust/tcl-compiler/src/value_transfer.rs` (`LatticeInputs::nested`),
+  `rust/tcl-compiler/src/sccp.rs` (`existence_constant_branches`,
+  `scan_defined_and_unbound`, `ExistenceFrame` go),
+  `rust/tcl-compiler/src/compilation_unit.rs` (the post-pass and
+  `drop_cross_event_existence_folds` go),
+  `rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs`
+  (`emit_existence_constant_branch_diagnostics`, the reachability gate in
+  `emit_constant_branch_diagnostics`), `docs/design/compiler/value-transfers-migration.md`
+  (the ledger's `unset` row goes).
+- **Items**: the intrinsics `IntrinsicId::InfoExists` and `ArrayExists`
+  answer through `nested` as a read of `FactDomain::Existence`:
+  `Bound(_)` is 1 to `info exists`, `Bound(Array)` is 1 to `array exists`,
+  `Unbound` 0 to both, `Bound(Scalar)` 0 to `array exists`,
+  `Bound(Either)` and `MayBound` undecided. The existence branch is an
+  ordinary `Applied` branch.
+- **Preserves**: every `existence_fold_abstains_*` and
+  `upframe_body_models_*` test and every `info_exists_*` test.
+- **Changes**: the existence branch updates `executable_blocks`, so O107,
+  taint, shimmer and the reachability-gated checks see the dead arm.
+  Mandate: § *Existence* ("the post-pass … becomes one path").
+- **Tests**: `set_unset_info_exists_decides_zero`.
+- **Gates**: G1 (`sccp.rs` stays clean), G7, G8, G9.
+- **Model**: opus. **Size**: L. **After**: VT8.1.
+
+##### VT8.3 — the guard as an edge refinement in the existence domain
+
+- **Files**: `rust/tcl-compiler/src/sccp.rs`.
+- **Items**: `EdgeRefinement` (the page's shape, `domain` restricted to
+  `FactDomain::Existence` in this slice) and the existence map's
+  block-qualified lookup `(BlockId, ValueKey)`: on a `MayBound` place the
+  true edge of `[info exists x]` carries `Bound(Either)` and the false
+  edge `Unbound`; `!` swaps them. `collect_existence_guards` keeps its
+  three callers until slice 11 (D8).
+- **Preserves**: `info_exists_guard_narrows_read_in_then_arm`,
+  `info_exists_negated_guard_narrows_false_arm`,
+  `info_exists_read_outside_guard_still_flags_w210`.
+- **Tests**: `the_existence_guard_refines_its_edges`.
+- **Gates**: G7, G8, G9.
+- **Model**: opus. **Size**: M. **After**: VT8.2.
+
+##### VT8.4 — the lifecycle diagnostics read the fact
+
+- **Files**: `rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs`
+  (`emit_provably_unset_w210`, `emit_read_before_set_diagnostics`,
+  `record_chain_w210_uses`, `emit_return_phi_undef_w210`,
+  `emit_unused_variable_diagnostics`),
+  `rust/tcl-compiler/src/analyser/diagnostics/helpers.rs`
+  (`whole_unset_names`), `rust/xtask/src/value_transfers.rs`.
+- **Items**: W210 reports a read at an `Unbound` or `MayBound` place and
+  never at `Bound(_)` or `Unavailable`; W213 reads the fact at the
+  `unset` (definite on `Unbound`, "may not exist" on `MayBound`, nothing
+  on `Bound`, never for `-nocomplain`), recognised through
+  `Traits::DESTROYS_VARIABLE` and the unbind outcome, not the spelling;
+  W211 counts an existence read (`info exists`, `array exists`, an
+  unbind) as a use; W214 reads the parameters' entry state.
+- **Preserves**: every `emit_cfg_ssa_diagnostics_w210_*`, `w213_*` and
+  `info_exists_*` test.
+- **Changes**: a second `unset` after a killed version is a definite
+  W213. Mandate: the W210 row; the exit.
+- **Tests**: `a_second_unset_is_a_definite_w213` (`set x 1; unset x;
+  unset x`); `a_conditional_unset_gives_w210` (`set x 1; if {$c} {unset
+  x}; puts $x`); `nocomplain_never_reports_w213`.
+- **Gates**: G1 (`dataflow.rs` 2 → 0, clean; `helpers.rs` 5 → 4), G7,
+  G8, G9.
+- **Model**: opus. **Size**: M. **After**: VT8.2.
+
+##### VT8.5 — O108 and O109 keep what an existence read observes
+
+- **Files**: `rust/tcl-compiler/src/optimiser/elimination.rs`
+  (`assignment_safe_to_delete_with_effect`, the dead-store guards,
+  `collect_rmw_hidden_reads`).
+- **Items**: a store is removable only when no value read and no
+  existence read of its version remains; an unbind statement is never
+  removed; `collect_rmw_hidden_reads` shrinks to what the SSA does not
+  already record.
+- **Changes**: the two refusals — `proc p {} {set x 1; if {[info exists
+  x]} {puts yes}}` keeps `set x 1`, and `proc p {} {incr n; if {[info
+  exists n]} {puts yes}}` keeps `incr n`. Mandate: the O108 and O109
+  rows; the findings table (#2132).
+- **Tests**: `o109_keeps_a_store_an_existence_read_observes` (the
+  optimised programs print `yes`; the second under 8.5 to 9.1, where the
+  original does).
+- **Gates**: G7, G8, G9.
+- **Model**: opus. **Size**: S. **After**: VT8.2.
+
+##### VT8.6 — an unbound arm carries no representation (#2133)
+
+- **Files**: `rust/tcl-compiler/src/type_infer.rs` (`evaluate_type_def`),
+  `rust/tcl-compiler/src/shimmer/phi.rs`.
+- **Items**: the whole-variable kill definition of a
+  `DESTROYS_VARIABLE` command is typed `TypeLattice::unknown()`, not the
+  command's return type; the phi merge classification skips an arm whose
+  existence is `Unbound`.
+- **Preserves**: `phi_shimmer_emitted_for_int_string_merge`.
+- **Changes**: `set x 1; if {$c} {unset x}; puts $x` loses its S100 and
+  keeps its W210. Mandate: #2133; the S100 row.
+- **Tests**: `s100_ignores_an_unset_arm`;
+  `s100_still_fires_between_the_bound_arms_of_a_three_way_switch` (`set
+  x 1`, `set x "hi"` and `default {unset x}` arms: S100 for the two bound
+  arms).
+- **Gates**: G7, G8, G9.
+- **Model**: opus. **Size**: S. **After**: VT8.1.
+
+##### VT8.7 — `Unavailable` at the fast tier and past the ceiling
+
+- **Files**: `rust/tcl-compiler/src/compilation_unit.rs`,
+  `rust/tcl-compiler/src/value_transfer.rs`.
+- **Items**: a fast-tier request, a function over the complexity
+  ceiling, and a consumer with no SSA read `FactView::Top(DeclineReason::Unavailable(tier))`;
+  every consumer of VT8.4 to VT8.6 is silent on it.
+- **Tests**: `existence_is_unavailable_at_the_fast_tier`.
+- **Gates**: G7, G8, G9.
+- **Model**: opus. **Size**: S. **After**: VT8.4.
+
+##### VT8.8 — `const`, `array unset`, `array default`
+
+- **Files**: `rust/tcl-registry/src/value_transfer/cell_write.rs`, the
+  three spec modules, `value_transfers.rs`, `differential_fold.rs`,
+  `rust/xtask/src/value_transfers.rs`.
+- **Items**: `ConstWriteSemantics` (from 9.0): on an `Unbound` place a
+  `Write` and `Bound(Scalar)`; on any other place it declines (`const`
+  over an existing ordinary variable errors, and over an existing
+  constant keeps the old value — the oracle — so only the absent case is
+  a value). `array unset arr` is an `Unbind` of the array; with a
+  pattern, `MayWrite` of its elements; `array default` (from 9.0) is a
+  `MayWrite` of the base.
+- **Tests**: `const_binds_only_an_absent_place` (oracle, 9.0 and 9.1:
+  `const c 5; const c 7; set c` is 5; `set x 1; const x 2` errors
+  `can't make constant "x": variable already exists`).
+- **Gates**: G1 (three rows go), G2, G7, G8, G9.
+- **Model**: opus. **Size**: S. **After**: VT8.1.
+
+##### VT8.9 — the `Set` analyser hook retires
+
+- **Files**: `rust/tcl-compiler/src/analyser/handlers.rs`
+  (`handle_set_command`), `rust/tcl-registry/src/hooks.rs`,
+  `rust/tcl-registry/src/commands/tcl/set_.rs`,
+  `rust/tcl-registry/tests/analyser_hooks.rs`.
+- **Items**: `define_var` for the two-word form comes from the generic
+  role binding (CC2.12's `handle_var_binding_command` over `VarWrite`);
+  the constant-string environment (`set_const_string`) reads the value
+  word's `CellWrite` evaluation; the `interp create` value binding keeps
+  its interpreter-domain key, reached from the generic binding (Q5).
+  `AnalyserHookId::Set` leaves the pinned set.
+- **Preserves**: every `handlers.rs` test of `set`, the regex-source
+  highlighting of a `set`-held pattern, and the `interp create` bindings.
+- **Gates**: G2, G7, G8, G9.
+- **Model**: opus. **Size**: M. **After**: VT8.4; CC2.12 (B-CC5).
+
+##### VT8.10 — the slice's witnesses
+
+- **Files**: `rust/tcl-compiler/tests/value_transfer_witnesses.rs`,
+  `rust/tcl-cli/tests/value_transfers_cli.rs`,
+  `rust/tcl-lsp-db/src/value_transfer_parity.rs`.
+- **Tests**: every Existence-row witness not named above: a parameter
+  and a never-assigned local; `unset -nocomplain`; a scope alias and a
+  cross-event variable entering `MayBound`; an existence read keeping its
+  store; `o130_folds_a_chain_from_an_absent_cell` (`proc p {} {lappend l
+  a; lappend l b; return $l}` folds to `set l {a b}`, the O130 row's
+  absent-start chain); `a_failing_dead_lappend_is_retained` (`set l "a
+  {b"; lappend l c` with `l` never read keeps the `lappend`, which raises
+  `unmatched open brace in list` in every release — the Rewrites row's
+  "failing dead write retained", under O108's totality proof); the CLI
+  and memoised twins of the exit tests.
+- **Gates**: G7, G8, G9.
+- **Model**: sonnet. **Size**: M. **After**: VT8.1 to VT8.9.
+
+##### VT8.11 — docs and the landing
+
+- **Files**: `pass-fact-ownership-matrix.md` (the existence fact:
+  producer the solver, consumers W210, W211, W213, W214, O108, O109,
+  I230, O101, S100, unavailable at the fast tier),
+  `downstream-pass-contracts.md`, `sccp-core-analyses.md`,
+  `optimisation-passes.md`, `precision-limitations.md`,
+  `value-transfers-migration.md`, `docs/kcs/codes/` notes for W210, W213,
+  I230 (existence), the lane doc; the diagnostics rows drafted (B-DP4).
+- **Gates**: G5, G6, and the slice's green.
+- **Model**: sonnet. **Size**: S. **After**: VT8.10.
+
+#### Checkpoints and landing
+
+| Checkpoint | Holds | Green means |
+|---|---|---|
+| `wip(value-transfers): slice 8 — the existence domain` | VT8.1, VT8.6, VT8.8 | the release table; every value byte-identical |
+| `wip(value-transfers): slice 8 — existence decides inside the fixed point` | VT8.2, VT8.3 | the post-pass deleted; every `info_exists_*` and `existence_fold_abstains_*` test |
+| `wip(value-transfers): slice 8 — the consumers read the fact` | VT8.4, VT8.5, VT8.7, VT8.9 | W210, W213, O109 witnesses; G1 pins |
+| `wip(value-transfers): slice 8 — the existence rung` (landing) | VT8.10, VT8.11 | every exit test; G1 to G9 |
+
+```text
+wip(value-transfers): slice 8 — the existence rung
+
+Existence is a fact the solver owns: bound, unbound or may-bound per
+place and per SSA version, fed by storage outcomes, entered from the
+frame's rules, joined at merges, and released per profile for a cell
+update on an absent place. `info exists` and `array exists` read it
+through the expression route, so the existence branch decides inside the
+fixed point with applied reachability, and the post-pass, its second run
+and the cross-event filter are gone with `existence_constant_branches`
+and `scan_defined_and_unbound`. The guard narrows as an edge refinement
+in the existence domain. W210, W211, W213 and W214 read the fact; O108
+and O109 keep a store an existence read observes and never remove an
+unbind; S100 skips an unbound arm; a fast-tier request reads
+`Unavailable`, which is neither bound nor unbound. `const`, `array unset`
+and `array default` have semantics, and the analyser's `set` hook is
+retired.
+
+Behaviour changes: the existence branch prunes its dead arm for every
+reachability consumer; a second `unset` after a killed version is a
+definite W213; O109 keeps the stores behind `[info exists …]`; S100 no
+longer reports an unset arm as a string; an `incr` of an absent place
+binds under 8.5 onwards and declines under 8.4.
+
+Closes #2133. Pins #2132 (closed on rust by #2220).
+```
+
+#### Review checklist
+
+- R1: `CLEAN_FILES` gains `analyser/diagnostics/dataflow.rs`; `helpers.rs`
+  at 4; `sccp.rs` recognises no command by spelling (the intrinsics are
+  typed); no consumer matches `"unset"`.
+- R2 to R5; no new source file.
+- R6: every existing existence test byte-identical; the O109 and S100
+  expectations move only for the witnesses named.
+- Suites: `cargo test -p tcl-registry -p tcl-compiler -p tcl-explorer -p
+  tcl-lsp-db -p tcl-cli -p xtask`.
+- R7: `Unavailable` is never read as `Unbound`; a cross-event or aliased
+  place is never `Unbound`; a `MayBound` guard refines only a place that
+  is not externally mutable; an absent cell's value is never manufactured
+  (the 8.4 `incr` declines).
+
+#### Behavioural deltas
+
+| Delta | Mandate |
+|---|---|
+| the existence branch prunes its dead arm for O107, taint, shimmer and the gated checks | § *Existence*, "becomes one path" |
+| a second `unset` after a killed version is a definite W213 | the exit; the W210 row |
+| O109 and O108 keep stores behind an existence read | the O108 / O109 rows; #2132 |
+| S100 skips an unset arm | #2133; the S100 row |
+| `incr` of an absent place binds under 8.5 onwards, declines under 8.4 | the absent-cell release rule |
+| an absent-start `lappend` chain folds (O130) | the O104 / O130 row |
+
+### Slice 6 — branch integration and optional rewrites
+
+#### Goal and exit
+
+In the plan's words: "The exact whole-variable `Raw` resolution;
+selection facts for opaque forms through `tcl_cmd_core::switch`; O112, the
+analyser's `switch_body_is_selected`, and `static_loops::exec_switch`
+consuming them; applied reachability only with real lowering or explicit
+arm blocks; arm-deletion edits only once their proof and source-edit
+contracts exist, with no code reserved until then." The two applied-
+reachability consumers the findings table names (#2056, #2057) land here.
+
+*Exit*: "program (4) yields O112 and I231 on the dead arm for every form,
+and O107 on its body for the flattened form."
+
+Exit evidence: `program_four_yields_o112_and_i231_for_every_form`
+(compiler witnesses: the exact, `-glob`, `-regexp`, `-nocase` and
+fall-through forms of program (4)); `the_flattened_form_yields_o107`;
+`switch_dispatch_branches_are_skipped` unchanged; `tcl diag` on program
+(4) prints I231 on `baz`'s arm and `tcl opt --profile full` removes it,
+with the optimised program printing `always` under 8.4 to 9.1 (`-nocase`
+from 8.5); `tcl explore --show sccp --text --no-colour` over the `-glob`
+form prints a `selection` line whose selected arm is `default`.
+
+#### Upstream starting point
+
+`git diff 3b5eba8a origin/rust -- rust/tcl-cmd-core/src/switch.rs
+rust/tcl-compiler/src/optimiser/structure_elimination.rs
+rust/tcl-compiler/src/analyser/handlers.rs rust/tcl-compiler/src/irules_checks.rs
+rust/tcl-compiler/src/analyser/bounds_checks.rs`: `switch -nocase -exact`
+folds the full Unicode range in the core (+44), which VT6.2 inherits;
+`bounds_checks.rs` gained `writes_the_name` (#2054), beside VT6.7's
+change to the loop-termination half of the file; the other three are
+unchanged.
+
+#### Work items
+
+##### VT6.1 — the whole-variable `Raw` subject
+
+- **Files**: `rust/tcl-compiler/src/sccp.rs` (`evaluate_branch`,
+  `env_from_uses`), `rust/tcl-compiler/src/cfg_builder/cfg_lower.rs`
+  (unchanged `switch_subject_operand`; its doc names the resolution).
+- **Items**: an `ExprNode::Raw` operand resolves from the lattice only
+  when the variable-name owner proves its text is exactly one variable
+  reference (`simple_var_ref_name` over the profile's close rules);
+  arbitrary `Raw` text stays unevaluable.
+- **Preserves**: `switch_dispatch_branches_are_skipped` (O101 stays
+  suppressed on the synthetic chain, `is_switch_dispatch` unchanged).
+- **Changes**: the flattened `switch -- $acc` over a constant decides
+  per arm: O107 and I231 fire. Mandate: § *`switch`*, step 1.
+- **Tests**: `the_flattened_form_yields_o107` (negative: a `${…}` subject
+  with a backslash stays `Raw` and undecided).
+- **Gates**: G7, G8, G9.
+- **Model**: opus. **Size**: S. **After**: slice 8.
+
+##### VT6.2 — `switch` declares its selection contract
+
+- **Files**: `rust/tcl-registry/src/value_transfer/selection.rs` (new),
+  the `switch` spec module, `value_transfers.rs`, `differential_fold.rs`.
+- **Items**: `SwitchSemantics`: `structure` answers
+  `PlanAnswer::CaseList { subject, arms, fallthrough, selection:
+  SelectionContract { mode, nocase, final_default } }` from `CaseListSpec`;
+  `transfer(FactDomain::Selection, …)` answers
+  `TransferAnswer::Selection(SelectionFact { selected })` through
+  `tcl_cmd_core::switch::{parse_options, select}`, one entry per subject
+  member (a `ConstSet` subject joins), with ordered first match, the final
+  default, fall-through to the next body, regexp mode through `AreEngine`
+  and `RegexpPrecision` (only `Exact` and `NoMatch` select), and
+  `-matchvar` / `-indexvar` as `Write` outcomes; a pattern that cannot be
+  evaluated declines the whole fact.
+- **Tests**: `switch_selection_runs_the_shared_core` (`value_transfers.rs`)
+  and `switch_witnesses_match_every_release_on_path` (8.4 to 9.1;
+  `-nocase` from 8.5): ordered patterns, the final default, a `-` arm
+  whose pattern never matches supplying the next body, regexp captures, a
+  malformed regexp declining.
+- **Gates**: G2, G7, G8, G9.
+- **Model**: opus. **Size**: M. **After**: slice 5 (`RegexpPrecision`).
+
+##### VT6.3 — the selection record
+
+- **Files**: `rust/tcl-compiler/src/sccp.rs`, `rust/tcl-compiler/src/value_transfer.rs`,
+  `rust/tcl-compiler/src/lattice_rebase.rs`, `rust/tcl-explorer/src/serialise.rs`,
+  `view_tree.rs`.
+- **Items**:
+  ```rust
+  /// The selected arm of one opaque `switch`, per subject member, against
+  /// the arms' pattern spans.
+  pub struct SelectionRecord { pub span: Span, pub arm_pattern_spans: Vec<Span>, pub fact: SelectionFact }
+  pub struct SccpResult { /* … */ pub selections: Vec<SelectionRecord> }
+  ```
+  The driver records one per `Statement::Switch` whose subject is `Const`
+  or `ConstSet`; `rebase_function_unit` shifts `span` and every
+  `arm_pattern_spans` entry in the same change; the Explorer renders it.
+- **Tests**: `rebase_shifted_unit_spans_match_fresh` covers it;
+  `serialise::tests::sccp_reports_the_selection`.
+- **Gates**: G7, G8, G9 (`tcl-compiler`, `tcl-explorer`).
+- **Model**: opus. **Size**: M. **After**: VT6.2.
+
+##### VT6.4 — O112, `switch_body_is_selected` and `exec_switch` read the owner
+
+- **Files**: `rust/tcl-compiler/src/optimiser/structure_elimination.rs`
+  (`resolve_subject`, `pattern_matches` go), `rust/tcl-compiler/src/analyser/handlers.rs`
+  (`switch_body_is_selected`), `rust/tcl-compiler/src/static_loops.rs`
+  (`exec_switch`).
+- **Items**: O112 reads the selection record, and its
+  first-unfoldable-clause and `catch`-descent limits go;
+  `switch_body_is_selected` asks `SwitchSemantics` over a `LiteralInputs`
+  of its static subject and patterns, regexp mode included, and its own
+  clause matching goes; `exec_switch` asks the same owner over the
+  simulator's environment, honouring the mode it ignores today.
+- **Preserves**: every O112 test; `summarise_resolves_switch_dispatch_in_body`
+  and `summarise_bails_on_unresolvable_switch_subject`.
+- **Changes**: O112 fires for `-glob`, `-regexp`, `-nocase` and
+  fall-through forms over a constant subject; the simulator stops treating
+  a `-glob` switch as exact. Mandate: step 2 of § *`switch`*; the O112 row.
+- **Tests**: `program_four_yields_o112_and_i231_for_every_form` (with
+  VT6.5).
+- **Gates**: G7, G8, G9.
+- **Model**: opus. **Size**: M. **After**: VT6.3.
+
+##### VT6.5 — I231 on an opaque form
+
+- **Files**: `rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs`
+  (`emit_constant_branch_diagnostics`), `rust/tcl-compiler/src/compiler_checks.rs`.
+- **Items**: an opaque form's unselected arms report I231 from the
+  `Selected` branch fact (VT5.12's kind), never as applied reachability:
+  no block is dropped and O107 does not fire for an opaque form.
+- **Tests**: in `program_four_yields_o112_and_i231_for_every_form`.
+- **Gates**: G7, G8, G9.
+- **Model**: opus. **Size**: S. **After**: VT6.3.
+
+##### VT6.6 — the iRules flow checks read applied reachability (#2056)
+
+- **Files**: `rust/tcl-compiler/src/irules_checks.rs`
+  (`find_http_flow_warnings`, and each IRULE1005–1008, 1202, 4002, 4004,
+  5002, 5004 walk that does not consult `executable_blocks`).
+- **Items**: a respond or redirect in a block that is not executable does
+  not commit the response; every walk skips non-executable blocks as
+  lines 356 and 738 already do.
+- **Changes**: `when HTTP_REQUEST {if {0} {HTTP::respond 200};
+  HTTP::header insert X-Custom val}` and the `set flag 0` variant give no
+  IRULE1201. Mandate: #2056; the IRULE row ("every check consumes applied
+  reachability").
+- **Tests**: `irule1201_ignores_a_respond_in_a_dead_arm` (positive and the
+  live-arm negative).
+- **Gates**: G7, G8, G9.
+- **Model**: sonnet. **Size**: S. **After**: —.
+
+##### VT6.7 — W240 and W241 from the loop header's branch fact (#2057)
+
+- **Files**: `rust/tcl-compiler/src/analyser/bounds_checks.rs`
+  (`loop_termination_diagnostics`), `rust/tcl-compiler/src/analyser/commands.rs`
+  (its caller), `rust/tcl-compiler/src/analyser/diagnostics.rs`.
+- **Items**:
+  ```rust
+  /// A loop whose termination the walk examined, resolved against the
+  /// unit's branch fact at its condition span in the per-function pass.
+  pub(crate) struct LoopTerminationCandidate {
+      pub condition_span: Span,
+      pub loop_span: Span,
+      pub lexical: LexicalVerdict, // Dead, Infinite, Unprovable, Silent
+  }
+  ```
+  The walk records candidates; the per-function pass resolves each: a
+  header branch decided false at entry is W240, decided true with no
+  executable exit is W241, and either suppresses W242; an undecided one
+  keeps its lexical verdict.
+- **Changes**: `set n 0; while {$n} {puts "never runs"}` gives W240 and
+  no W242; `set go 1; while {$go} {puts x}` gives W241 and no W242.
+  Mandate: #2057 ("W240–W242 consume the branch fact instead of the
+  condition's text"); the W240–W242 row.
+- **Tests**: `w240_and_w241_read_the_branch_fact` (positive both; negative:
+  `while {$n}` with `n` a parameter keeps W242).
+- **Gates**: G7, G8, G9.
+- **Model**: opus. **Size**: M. **After**: VT6.1.
+
+##### VT6.8 — the slice's witnesses
+
+- **Files**: `rust/tcl-compiler/tests/value_transfer_witnesses.rs`,
+  `rust/tcl-cli/tests/value_transfers_cli.rs`.
+- **Tests**: program (4) in every form through `tcl diag` and `tcl opt`,
+  the optimised output against `tclsh`; `explore_sccp_prints_the_selection`.
+- **Gates**: G7, G8, G9.
+- **Model**: sonnet. **Size**: S. **After**: VT6.1 to VT6.7.
+
+##### VT6.9 — docs and the landing
+
+- **Files**: `optimisation-passes.md` (O107, O112), `sccp-core-analyses.md`,
+  `pass-fact-ownership-matrix.md` (the selection record),
+  `value-transfers-migration.md`, `docs/kcs/codes/` notes for I231 and
+  W240–W242, the lane doc; the diagnostics rows drafted (B-DP4).
+- **Gates**: G5, G6, and the slice's green.
+- **Model**: sonnet. **Size**: S. **After**: VT6.8.
+
+#### Checkpoints and landing
+
+| Checkpoint | Holds | Green means |
+|---|---|---|
+| `wip(value-transfers): slice 6 — the subject and the selection owner` | VT6.1, VT6.2, VT6.3 | the flattened O107 witness; the selection tests under every release |
+| `wip(value-transfers): slice 6 — the consumers read one selection` | VT6.4, VT6.5 | program (4) in every form |
+| `wip(value-transfers): slice 6 — branch integration and optional rewrites` (landing) | VT6.6 to VT6.9 | every exit test; G1 to G9 |
+
+```text
+wip(value-transfers): slice 6 — branch integration and optional rewrites
+
+A whole-variable `switch` subject resolves from the lattice when the
+name owner proves it is one variable reference, so the flattened form
+decides per arm with applied reachability. Opaque forms get one
+selection fact from the shared `switch` core — ordered first match,
+final default, fall-through, regexp captures through the precise regexp
+owner — recorded against the arms' pattern spans; O112, the analyser's
+selected-body test and the loop simulator read it instead of three
+private matchers, and I231 reports the unselected arms without
+pretending blocks exist. The iRules flow checks read applied
+reachability, and W240 and W241 read the loop header's branch fact. No
+code is reserved for arm deletion.
+
+Behaviour changes: program (4) gives O112 and I231 in every form and O107
+in the flattened one; IRULE1201 ignores a respond in a dead arm; a
+constant `while` condition gives W240 or W241 instead of W242.
+
+Closes #2056. Closes #2057.
+```
+
+#### Review checklist
+
+- R1: no consumer matches `"switch"` or a mode spelling; the selection
+  goes through `tcl_cmd_core::switch`; no new file is ratcheted.
+- R2 to R5; new file: `selection.rs`.
+- R6: `switch_dispatch_branches_are_skipped` and every O112 test
+  byte-identical.
+- Suites: `cargo test -p tcl-registry -p tcl-compiler -p tcl-explorer -p
+  tcl-cli`.
+- R7: a selection is never applied reachability without a real edge; an
+  approximate regexp match never selects; a `ConstSet` subject keeps
+  every member's arm and its error possibilities.
+
+#### Behavioural deltas
+
+| Delta | Mandate |
+|---|---|
+| program (4) gives O112 and I231 in every form, O107 in the flattened one | the exit |
+| the loop simulator honours `switch`'s mode | step 2 of § *`switch`* |
+| IRULE1201 ignores a respond in a dead arm | #2056 |
+| a constant `while` condition gives W240 or W241 instead of W242 | #2057 |
+
+### Slice 9 — nested writes in expressions
+
+#### Goal and exit
+
+In the plan's words: "The ordered evaluation state at `LocalWrites`: a
+nested invocation whose ordered stores name only places the state can own
+is applied to the state in order, so the next `variable` read sees it,
+with its evidence merged and an error completion ending the evaluation
+with the writes so far. A nested outcome naming a place outside the
+admitted set is the `StatefulNested` decline."
+
+*Exit*: "the seven `expr` witnesses — `expr {$x + [incr x] + $x}`, `expr
+{0 && [incr x]}`, `expr {$x + [set x 10] + $x}`, the two `[incr x]`
+operands, the ternary, the quoted word, and the error path — through `tcl
+opt` and the memoised path, and `command_substitution_is_none` in
+`tcl_expr_eval.rs` flips."
+
+Exit evidence: `the_seven_ordered_state_witnesses` (compiler witnesses,
+CLI, and `value_transfer_parity.rs`), each optimised program printing
+what `tclsh` prints under 8.4 to 9.1; the restated
+`command_substitution_evaluates_through_the_nested_service` (Q2); `tcl
+explore --source 'proc p {} {set x 1; set r [expr {$x + [incr x] + $x}];
+return $x}' --show sccp --text --no-colour` prints `r#1 = const(5)` and
+`x#2 = const(2)`.
+
+#### Upstream starting point
+
+`git diff 3b5eba8a origin/rust -- rust/tcl-compiler/src/ir_helpers.rs
+rust/tcl-compiler/src/cfg_builder/mod.rs rust/tcl-compiler/src/cfg_builder/global_write_info.rs`:
+#2215's in-frame expression descent (`in_frame_expression_commands`)
+already records the reads and writes of a braced `expr`'s nested
+commands, with a recovered head resolved through the module's bindings
+(`interp alias {} e {} expr` is an expression word); and
+`global_write_info.rs` counts a write from an in-frame expression word
+(`set y [expr {[incr ::hits]}]`). VT9.3 verifies the descent instead of
+building it; VT9.2 supplies the values the descent's definitions lacked.
+
+#### Work items
+
+##### VT9.1 — `LocalWrites`
+
+- **Files**: `rust/tcl-compiler/src/value_transfer.rs`
+  (`LatticeInputs::nested`, `LatticeInputs::variable`),
+  `rust/tcl-compiler/src/tcl_expr_eval.rs` (`ExprServices`).
+- **Items**: under `NestedPolicy::LocalWrites`, `nested` admits an outcome
+  whose every ordered store names a place the state can own — local, not
+  escaping, not traced, not dynamic — and whose completion is exact, and
+  applies its stores to `EvaluationState::writes` in order, merging its
+  evidence; `variable` consults `writes` before the program point's
+  facts; any other outcome is `StatefulNested`. An error completion ends
+  the evaluation with that completion and the writes so far.
+- **Preserves**: every answer under `EffectFreeOnly` (branch conditions
+  keep it).
+- **Tests**: `local_writes_apply_in_order` (`value_transfers.rs`-style
+  driver test: `$x + [incr x] + $x` reads 1, then 2).
+- **Gates**: G7, G8, G9.
+- **Model**: opus. **Size**: M. **After**: slices 3 and 5.
+
+##### VT9.2 — a word's ordered stores become the statement's definitions
+
+- **Files**: `rust/tcl-compiler/src/value_transfer.rs`,
+  `rust/tcl-compiler/src/sccp.rs`, `rust/tcl-compiler/src/cfg_builder/mod.rs`
+  (the synthetic embedded-substitution call carries its host statement's
+  index).
+- **Items**: the host statement's words evaluate once under one
+  `EvaluationState` starting from the synthetic call's incoming versions
+  (its named reads); the synthetic call's definitions take the state's
+  final write per place, and the host's definition takes the result. A
+  quoted word substitutes under the same state before `expr` parses it.
+- **Changes**: `set r [expr {$x + [incr x] + $x}]` gives `r` 5 and `x` 2;
+  the forwarding O102 and O100 do from those definitions is the nested
+  store's. Mandate: the exit; the Expressions row ("the ordered evaluation
+  state's nested writes").
+- **Tests**: in `the_seven_ordered_state_witnesses`.
+- **Gates**: G7, G8, G9.
+- **Model**: opus. **Size**: L. **After**: VT9.1.
+
+##### VT9.3 — a read inside a braced `expr` is a use
+
+- **Files**: `rust/tcl-compiler/src/ssa.rs`, `rust/tcl-compiler/src/ir_helpers.rs`
+  (as merged from `rust`'s #2215, `in_frame_expression_commands`).
+- **Items**: the read of `n` in `set r [expr {$n + [incr n]}]` is an SSA
+  use of the version it reads, so O109, O126 and W211 keep `set n 1`.
+  VT2.M brings `rust`'s descent; this item verifies it on the page's `p`
+  and `q` and fills any gap the ordered state exposes.
+- **Changes**: none beyond #2215's. Mandate: the O109 row ("slice 9
+  makes a read inside a braced `expr` a use of the version it reads").
+- **Tests**: `a_braced_expr_read_keeps_its_store` (`p` prints 3, `q`
+  prints 5, optimised, under 8.5 to 9.1; `q` under 8.4 prints 5 where the
+  original does).
+- **Gates**: G7, G8, G9.
+- **Model**: opus. **Size**: S. **After**: VT2.M.
+
+##### VT9.4 — `command_substitution_is_none` flips
+
+- **Files**: `rust/tcl-compiler/src/tcl_expr_eval.rs` (tests).
+- **Items**: the test becomes
+  `command_substitution_evaluates_through_the_nested_service`: with the
+  nested service at `LocalWrites` and `x` 1, `[incr x] + 1` is 3 and `x`
+  becomes 2; its negative keeps the old program, `[clock seconds] + 1`,
+  which reads the wall clock and is `None` under every policy (Q2).
+- **Model**: sonnet. **Size**: S. **After**: VT9.1.
+
+##### VT9.5 — the seven witnesses
+
+- **Files**: `rust/tcl-compiler/tests/value_transfer_witnesses.rs`,
+  `rust/tcl-cli/tests/value_transfers_cli.rs`,
+  `rust/tcl-lsp-db/src/value_transfer_parity.rs`,
+  `rust/tcl-registry/tests/differential_fold.rs`.
+- **Tests**: `the_seven_ordered_state_witnesses` — the interface page's
+  seven programs (5 and 2; 0 and 1; 21 and 10; 5 and 3; 2 and 2; 3 and 2;
+  and `catch {expr {[incr x] + [error mid]}}`, which is 1 with `x` 2),
+  each through the direct unit, the memoised unit and `tcl opt`, whose
+  output prints what `tclsh` prints under 8.4 to 9.1. On the error path
+  this slice proves only that nothing forwards the stale `x` (the default
+  build's `catch` body is opaque); slice 10 makes `x` exact on that path.
+  `a_nested_write_outside_the_state_declines` (`expr {$x + [incr ::g]}`
+  is `StatefulNested`). #2141's program pins through the CLI.
+- **Gates**: G7, G8, G9.
+- **Model**: sonnet. **Size**: M. **After**: VT9.1 to VT9.4.
+
+##### VT9.6 — docs and the landing
+
+- **Files**: `value-transfers.md` (§ `expr`'s state paragraph in the
+  present tense), `optimisation-passes.md` (O100, O102, O109),
+  `pass-fact-ownership-matrix.md`, `value-transfers-migration.md`, the
+  lane doc.
+- **Gates**: G6, and the slice's green.
+- **Model**: sonnet. **Size**: S. **After**: VT9.5.
+
+#### Checkpoints and landing
+
+| Checkpoint | Holds | Green means |
+|---|---|---|
+| `wip(value-transfers): slice 9 — the ordered state admits local writes` | VT9.1, VT9.3, VT9.4 | the driver tests; every `EffectFreeOnly` answer byte-identical |
+| `wip(value-transfers): slice 9 — nested writes in expressions` (landing) | VT9.2, VT9.5, VT9.6 | the seven witnesses on three paths; G1 to G9 |
+
+```text
+wip(value-transfers): slice 9 — nested writes in expressions
+
+An expression's nested invocations run in the engine's left-to-right
+order under one evaluation state: a nested write to a place the state
+can own is applied in order, so the next read sees it, and its evidence
+joins the answer; a write the state cannot own declines as stateful. A
+statement's substitutions evaluate once, from the versions its synthetic
+embedded call reads, and the call's definitions take the final writes,
+so `$x + [incr x] + $x` is 5 and leaves `x` at 2 for every consumer. A
+read inside a braced `expr` is a use of the version it reads.
+
+Behaviour changes: nested `incr` and `set` inside `expr` fold with their
+writes; O100 and O102 forward the nested store's value; an error inside
+an expression ends the evaluation with the writes so far.
+
+Pins #2141 (closed on rust by #2215).
+```
+
+#### Review checklist
+
+- R1: no consumer matches `"incr"` or `"set"` inside an expression; the
+  admission is by place ownership.
+- R2 to R5.
+- R6: `command_substitution_is_none` is the one restated test (Q2).
+- Suites: `cargo test -p tcl-compiler -p tcl-lsp-db -p tcl-cli -p
+  tcl-registry`.
+- R7: a nested write to a traced, escaping, dynamic or qualified place
+  declines; `0 && [incr x]` never applies the write; an error completion
+  publishes only the writes so far.
+
+#### Behavioural deltas
+
+| Delta | Mandate |
+|---|---|
+| nested `incr` / `set` inside `expr` fold, with their writes | the exit; the Expressions row |
+| O100 / O102 forward the nested store's value past the expression | #2141's contract point |
+| `command_substitution_is_none` becomes `command_substitution_evaluates_through_the_nested_service` | the exit ("flips"); Q2 |
+
+### Slice 10 — completion paths
+
+#### Goal and exit
+
+In the plan's words: "Storage outcomes indexed by completion path: the
+prefix rule (`Error { written, … }`), the completion protocols of `catch`
+and `try`, the `Absorb` rule for loop bodies, the options dictionary's
+exact and `Unavailable` keys, and the per-path publication the solver
+already needs for the existence rung." `KNOWN_GAPS` adds `catch`.
+
+*Exit*: "the prefix rule holds in the default and the faithful-exceptions
+build; the nine witnesses and the `catch` code table pass; O109 refuses the
+store ahead of `catch {lassign {new second} a b} msg`."
+
+Exit evidence: `the_prefix_rule_holds_in_both_builds` (the nine programs,
+each under the default and the faithful-exceptions builds),
+`the_catch_code_table`, `o109_refuses_the_store_ahead_of_a_partial_lassign`
+(compiler witnesses); `try_finally_runs_on_every_path` (#2142);
+`try_finally_creates_finally_block` and `try_with_handler` unchanged;
+`tcl opt --profile full` on #2142's global witness prints `1` under 8.6
+to 9.1; `tcl explore --source 'proc p {} {set c [catch {error boom} m];
+return $c}' --show sccp --text --no-colour` prints `c#1 = const(1)`,
+`m#1 = const('boom')` and a `route catch:` line answering `evaluated`.
+
+#### Upstream starting point
+
+`git diff 3b5eba8a origin/rust -- rust/tcl-compiler/src/cfg_builder/cfg_lower.rs
+rust/tcl-compiler/src/cfg_builder/mod.rs rust/tcl-compiler/src/ir.rs
+rust/tcl-compiler/src/codegen/emitter/try_blocks.rs rust/tcl-vm/src/cmd_try.rs`:
+#2207 flattens a straight-line `catch` body inside a procedure into real
+blocks (`lower_catch`, body to end with exception edges from the body's
+throw points, `result_var` and `options_var` defined on both paths), the
+analogue of `lower_try`; `Module::top_level_kind` (`TopLevelKind`) says
+whether `::top` is a procedure body. So the default build is no longer
+"one opaque call" for every `catch`: the opaque form remains at a
+script's top level and for bodies that are not straight-line. VT10.2 and
+VT10.5 give `lower_catch`'s blocks the same plan, completion protocol and
+prefix rule as the faithful build, and the nine witnesses run in all
+three shapes (opaque, flattened `catch`, faithful build).
+
+#### Work items
+
+##### VT10.1 — an error is a completion, not a decline
+
+- **Files**: `rust/tcl-registry/src/value_transfer/const_ops.rs`, every
+  registry-owned route, `rust/tcl-compiler/src/value_transfer.rs`.
+- **Items**: a core's `CmdError` after `k` stores is
+  `CompletionOutcome::Error { written: k, message, error_code }`; `message`
+  and `error_code` are `Exact` only when the route proves them under every
+  release of the profile (the `scan` / `regexp` array-target messages
+  differ between 8.5 and 8.6), else `Unavailable`; a `ConstOps` fault
+  (inadmissible axis, budget) stays a decline.
+- **Preserves**: every normal-completion answer.
+- **Changes**: statements whose route proves an error gain an error
+  completion instead of `Overdefined`; the value on the normal path is
+  unchanged (there is none). Mandate: "the prefix rule (`Error {
+  written, … }`)"; the slice-2 decision that ends here.
+- **Tests**: `a_route_error_is_a_completion` (`value_transfers.rs`:
+  `lassign {new second} a b` with `b` an array is `Error { written: 1 }`).
+- **Gates**: G7, G8, G9.
+- **Model**: opus. **Size**: M. **After**: slice 9.
+
+##### VT10.2 — per-path publication
+
+- **Files**: `rust/tcl-compiler/src/sccp.rs`, `rust/tcl-compiler/src/value_transfer.rs`,
+  `rust/tcl-compiler/src/cfg_builder/mod.rs` (`emit_opaque_catch`,
+  `lower_try_dispatch`), `rust/tcl-compiler/src/cfg_builder/cfg_lower.rs`
+  (`push_try_handler_exception_edges`, `lower_catch`),
+  `rust/tcl-explorer/src/serialise.rs`, `view_tree.rs` (the per-path
+  view: each statement's stores per completion path).
+- **Items**: the solver publishes a statement's values and existence per
+  completion path: the normal edge carries every ordered store; an
+  exception edge (the faithful build) carries the prefix `written`; the
+  `Existence` transfer lists the paths (the page's rule for a failing
+  step whose kind is not proven `Scalar`). A `catch` flattened by
+  `lower_catch` publishes per path like the faithful build; an opaque
+  `catch` body (`emit_opaque_catch`) stays one call whose defs are
+  `MayWrite` and whose result variable is a `Write` of an unavailable
+  value.
+- **Tests**: `the_prefix_rule_holds_in_both_builds` (the opaque and the
+  flattened `catch` of the default build, and the faithful build).
+- **Gates**: G7, G8, G9.
+- **Model**: opus. **Size**: L. **After**: VT10.1.
+
+##### VT10.3 — `catch`
+
+- **Files**: `rust/tcl-registry/src/value_transfer/completion.rs` (new),
+  the `catch` spec module, `rust/xtask/src/value_transfers.rs`.
+- **Items**: `CatchSemantics`: `PlanAnswer::Body { completion:
+  CompletionProtocol::CatchAll { result_var, options_var }, … }`; a closed
+  body evaluates concretely: the code is the result, the message or
+  result goes to `result_var`, the options dictionary (from 8.5) to
+  `options_var` with `-code` and `-level` exact, `-errorcode` exact when
+  proven (`NONE` for a plain `error`), and `-errorinfo`, `-errorline`,
+  `-errorstack` `Unavailable` with type `dict`; `::errorCode` and
+  `::errorInfo` are effects.
+- **Tests**: `the_catch_code_table` (8.4 to 9.1; options from 8.5):
+  `catch {return 5}` is 2 with result 5; `catch {break}` 3; `catch
+  {continue}` 4; `catch {error boom} m` 1 with `m` `boom`; `catch {set v
+  1} r` 0 with `r` 1; `return -code 5 custom` in a procedure 5; `catch
+  {expr {1/0}}` 1 with `divide by zero`; `catch {incr absent}` 1 under 8.4
+  with `absent` unbound, 0 from 8.5 with `absent` 1.
+- **Gates**: G1 (`catch` row goes), G2, G7, G8, G9.
+- **Model**: opus. **Size**: M. **After**: VT10.2.
+
+##### VT10.4 — `try` and `finally` on every path (#2142)
+
+- **Files**: `rust/tcl-compiler/src/cfg_builder/cfg_lower.rs`
+  (`lower_try`, `push_try_handler_exception_edges`),
+  `rust/tcl-registry/src/value_transfer/completion.rs`, the `try` spec
+  module.
+- **Items**: every unhandled throw source of a `try` body reaches its
+  `finally` block, or `try_end` when there is none — with no handler, and
+  where a handler need not catch what was thrown; `TrySemantics` answers
+  `CompletionProtocol::Handlers { handlers, finally }`, each
+  `HandlerPlan::matches` from the clause-grammar descriptor's
+  `HandlerMatch` (CC2.2).
+- **Changes**: `proc p {} {set f 0; try {error boom} finally {set f 1};
+  return $f}` gives neither W220 nor W210; `set g 0; proc p {} {global g;
+  try {error boom} finally {set g 1}}; catch {p}; puts $g` keeps its
+  `finally` body under O107. Mandate: #2142; the Completion paths row
+  ("`try` handlers and `finally` on every path").
+- **Tests**: `try_finally_runs_on_every_path` (both programs; the second
+  prints `1` optimised under 8.6 to 9.1); the issue's two that must keep
+  firing — `proc q {c} {try {if {$c} {error boom}} on error {} {set g
+  1}; return $g}` keeps W210, and `try {error boom} on error {} {set f
+  2} finally {set f 1}` keeps its W220.
+- **Gates**: G7, G8, G9.
+- **Model**: opus. **Size**: M. **After**: VT10.2; CC2.2 (B-CC6).
+
+##### VT10.5 — the prefix rule in the faithful-exceptions build
+
+- **Files**: `rust/tcl-compiler/src/cfg_builder/mod.rs`
+  (`with_faithful_exceptions`), `rust/tcl-compiler/src/cfg_builder/cfg_lower.rs`.
+- **Items**: a handler's entry state is the join of its throw sources'
+  prefix states; the default build (`emit_opaque_catch`,
+  `lower_try_dispatch`) and the faithful build share one plan and one
+  protocol.
+- **Tests**: the faithful half of `the_prefix_rule_holds_in_both_builds`.
+- **Gates**: G7, G8, G9.
+- **Model**: opus. **Size**: M. **After**: VT10.2.
+
+##### VT10.6 — `Absorb` for loop bodies
+
+- **Files**: `rust/tcl-registry/src/value_transfer/iteration.rs`,
+  `rust/tcl-compiler/src/value_transfer.rs`.
+- **Items**: a loop body's `break` and `continue` are absorbed
+  (`CompletionProtocol::Absorb(&[Break, Continue])`); every other code
+  passes to the loop.
+- **Tests**: `a_loop_absorbs_break_and_continue`.
+- **Gates**: G7, G8, G9.
+- **Model**: opus. **Size**: S. **After**: VT10.2.
+
+##### VT10.7 — O109 and the prefix rule
+
+- **Files**: `rust/tcl-compiler/src/optimiser/elimination.rs`.
+- **Items**: a store ahead of a partial write is dead only when the
+  prefix rule proves every path overwrites it.
+- **Changes**: O109 keeps `set a old` ahead of `catch {lassign {new
+  second} a b} msg` when `b` may be an array. Mandate: the exit.
+- **Tests**: `o109_refuses_the_store_ahead_of_a_partial_lassign`.
+- **Gates**: G7, G8, G9.
+- **Model**: opus. **Size**: S. **After**: VT10.2.
+
+##### VT10.8 — the slice's witnesses
+
+- **Files**: `rust/tcl-compiler/tests/value_transfer_witnesses.rs`,
+  `rust/tcl-cli/tests/value_transfers_cli.rs`,
+  `rust/tcl-registry/tests/differential_fold.rs`.
+- **Tests**: the nine programs of § *`catch`, `try`, and completion* under
+  both builds and every release (`lassign` from 8.5, `try` from 8.6);
+  the `unset p nosuch q` line of the absent-cell table (p unbound, q 2);
+  slice 9's error-path witness with `x` exact on the error path.
+- **Gates**: G7, G8, G9.
+- **Model**: sonnet. **Size**: M. **After**: VT10.1 to VT10.7.
+
+##### VT10.9 — docs and the landing
+
+- **Files**: `value-transfers.md`, `sccp-core-analyses.md`,
+  `downstream-pass-contracts.md`, `optimisation-passes.md`,
+  `precision-limitations.md`, `pass-fact-ownership-matrix.md`,
+  `value-transfers-migration.md`, the lane doc; the diagnostics rows
+  drafted (B-DP4).
+- **Gates**: G6, and the slice's green.
+- **Model**: sonnet. **Size**: S. **After**: VT10.8.
+
+#### Checkpoints and landing
+
+| Checkpoint | Holds | Green means |
+|---|---|---|
+| `wip(value-transfers): slice 10 — errors are completions` | VT10.1, VT10.2 | every normal-path answer byte-identical; the prefix witnesses in the default build |
+| `wip(value-transfers): slice 10 — catch, try and the faithful build` | VT10.3 to VT10.6 | the code table; #2142's programs; the faithful build's prefix witnesses |
+| `wip(value-transfers): slice 10 — completion paths` (landing) | VT10.7 to VT10.9 | every exit test; G1 to G9 |
+
+```text
+wip(value-transfers): slice 10 — completion paths
+
+Every invocation completes one way, and its storage outcomes are indexed
+by the path: an error after k stores publishes those k on the error edge
+and nothing else, in the default and the faithful-exceptions build alike.
+`catch` evaluates a closed body to its code, message and options
+dictionary — exact code and level, exact error code when proven,
+unavailable error info — and keeps the default build's opaque body
+otherwise; `try` runs its handlers by the clause grammar's match, and
+every unhandled throw reaches `finally`. Loop bodies absorb `break` and
+`continue`. O109 removes a store ahead of a partial write only when the
+prefix rule proves it dead.
+
+Behaviour changes: a proven error is a completion fact; `catch` and
+`try` bodies decide their results where closed; a `finally` body is live
+on every path; O109 keeps the store ahead of a partial `lassign`.
+
+Closes #2142.
+```
+
+#### Review checklist
+
+- R1: no consumer matches `"catch"`, `"try"` or a handler keyword; the
+  handlers come from the clause-grammar descriptor.
+- R2 to R5; new file: `completion.rs`.
+- R6: `try_finally_creates_finally_block` and `try_with_handler`
+  byte-identical.
+- Suites: `cargo test -p tcl-registry -p tcl-compiler -p tcl-cli -p
+  tcl-lsp-db`.
+- R7: the prefix rule on every error edge; an `Any` completion domain
+  makes every target `MayWrite` on the error edge; a message is exact
+  only when every release of the profile gives it.
+
+#### Behavioural deltas
+
+| Delta | Mandate |
+|---|---|
+| a proven error is a completion, published per path | "the prefix rule"; the Completion paths row |
+| `catch` decides its code and variables for a closed body | the `catch` code table |
+| a `finally` body is live on every path | #2142 |
+| O109 keeps the store ahead of a partial `lassign` | the exit |
+
+### Slice 11 — predicate refinement
+
+#### Goal and exit
+
+In the plan's words: "`EdgeRefinement` as a fact on one CFG edge for one
+SSA version, with the block-qualified lookup `(BlockId, ValueKey)`
+consulted first by `env_from_uses`, `evaluate_branch`, and
+`evaluate_def_with_folds`, and by every other domain for the domains the
+refinement names; the per-shape table, including the numeric `==` rows
+that refine `Range` and `Type` and never `ExactValue`; no refinement of an
+externally mutable place."
+
+*Exit*: "the nested `if {$x eq "a"}` / `if {$x eq "b"}` program decides
+through `tcl diag` and `tcl opt`, `collect_existence_guards` is deleted,
+and the twelve witnesses, the merge that drops a refinement, and the
+traced variable that is never refined pass."
+
+Exit evidence: `the_nested_equality_decides`, `the_twelve_refinement_witnesses`,
+`a_merge_drops_the_refinement`, `a_traced_variable_is_never_refined`
+(compiler witnesses; the twelve under 8.4 to 9.1, with `in` and `-nocase`
+from 8.5); `tcl diag` on `proc p {x} {if {$x eq "a"} {if {$x eq "b"}
+{puts never}}}` prints I230 on the inner condition and `tcl opt --profile
+full` removes the inner `if`; `collect_existence_guards` and
+`block_dominated_by` absent from `analyser/diagnostics/helpers.rs`; `tcl
+explore --show sccp --text` over the nested program prints a `refinement
+x = 'a'` line on the outer true edge and the inner `if`'s true block
+outside `executable blocks`.
+
+#### Upstream starting point
+
+`git diff 3b5eba8a origin/rust -- rust/tcl-compiler/src/sccp.rs
+rust/tcl-compiler/src/analyser/diagnostics/helpers.rs
+rust/tcl-compiler/src/analyser/diagnostics.rs`: only the trust stances in
+`sccp.rs` (VT2.M); `helpers.rs` and the per-function pass are unchanged.
+
+#### Work items
+
+##### VT11.1 — `EdgeRefinement` in every domain
+
+- **Files**: `rust/tcl-compiler/src/sccp.rs`, `rust/tcl-compiler/src/value_transfer.rs`,
+  `rust/tcl-explorer/src/serialise.rs`, `view_tree.rs` (a `refinement`
+  line per edge fact).
+- **Items**: VT8.3's `EdgeRefinement` without its domain restriction:
+  ```rust
+  /// A fact that holds on one CFG edge and in every block that edge's
+  /// target dominates, for one SSA version.
+  pub struct EdgeRefinement {
+      pub edge: (BlockId, BlockId),
+      pub key: ValueKey,
+      pub domain: FactDomain,
+      pub fact: DomainFact,
+      pub evidence: DependencyEvidence,
+  }
+  pub struct SccpResult { /* … */ pub refinements: Vec<EdgeRefinement> }
+  ```
+  A second lookup keyed `(BlockId, ValueKey)`, consulted first by
+  `env_from_uses`, `evaluate_branch` and `evaluate_def_with_folds` through
+  the block they run in, and by each domain's lookup for its own domain; a
+  refinement never creates an SSA version and is not consulted at a merge
+  its edge's target does not dominate; an externally mutable place
+  (`is_externally_mutable`) is never refined. The record carries no span.
+- **Preserves**: every existing branch decision and value.
+- **Tests**: `a_merge_drops_the_refinement` (two arms refining `x` to `a`
+  and `b` meet as the version's own value);
+  `a_traced_variable_is_never_refined`.
+- **Gates**: G7, G8, G9.
+- **Model**: opus. **Size**: L. **After**: slices 6 and 8.
+
+##### VT11.2 — the per-shape table
+
+- **Files**: `rust/tcl-compiler/src/tcl_expr_eval.rs` (the expression
+  route's `Selection` transfer over the condition tree),
+  `rust/tcl-registry/src/value_transfer/selection.rs` (the case-list arms).
+- **Items**: the page's table, row for row: `eq` refines the true edge's
+  `ExactValue`; `ne` the false edge's; `==` with a literal non-numeric
+  under every release refines `ExactValue`, with a numeric literal `Range`
+  (the point) and `Type` and never `ExactValue`; `!=` as `==` on its false
+  edge; `in` / `ni` (from 8.5) the finite set; `[string is CLASS ?-strict?
+  $x]` the `Type`; `[info exists x]` / `[array exists x]` the
+  `Existence`; `!`, `&&`, `||` compose; a `switch -exact` arm refines
+  `ExactValue` at its entry (a body reached through `-` arms gets the
+  patterns' finite set), `-nocase` (from 8.5) a case-insensitive `Type`,
+  `-glob` the literal prefix as `Segments`; `-regexp`, `$x` alone and
+  `$x eq $y` refine nothing.
+- **Tests**: `the_twelve_refinement_witnesses`.
+- **Gates**: G7, G8, G9.
+- **Model**: opus. **Size**: M. **After**: VT11.1.
+
+##### VT11.3 — the consumers, and the guard helpers go
+
+- **Files**: `rust/tcl-compiler/src/analyser/diagnostics/helpers.rs`
+  (`collect_existence_guards`, `block_dominated_by`),
+  `rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs`,
+  `rust/tcl-compiler/src/analyser/diagnostics.rs`, `rust/tcl-compiler/src/type_infer.rs`,
+  `rust/tcl-compiler/src/intervals.rs`.
+- **Items**: the value lattice, `type_infer` (`string is`), `intervals`
+  (the numeric point) and the existence rung read the refined facts; the
+  three callers of `collect_existence_guards` (`phi_can_undef`'s guard in
+  `helpers.rs`, `emit_read_before_set_diagnostics`,
+  `emit_return_phi_undef_w210`) read the block-qualified existence fact,
+  and both helpers are deleted.
+- **Preserves**: `info_exists_guard_narrows_read_in_then_arm`,
+  `info_exists_negated_guard_narrows_false_arm`,
+  `info_exists_read_outside_guard_still_flags_w210`, byte-identical.
+- **Changes**: the nested `if` decides (I230, O101, O107, O112); `string
+  is integer $x` types `x` in its arm. Mandate: the exit; the Branches
+  row ("predicate refinement per shape").
+- **Tests**: `the_nested_equality_decides`.
+- **Gates**: G7, G8, G9.
+- **Model**: opus. **Size**: M. **After**: VT11.2.
+
+##### VT11.4 — the slice's witnesses
+
+- **Files**: `rust/tcl-compiler/tests/value_transfer_witnesses.rs`,
+  `rust/tcl-cli/tests/value_transfers_cli.rs`,
+  `rust/tcl-registry/tests/differential_fold.rs`.
+- **Tests**: the page's twelve programs (`1.0 == 1` keeps `string
+  length` 3; `" 1" == 1` keeps 2; `01 == 1` keeps `01`; `1.0 eq "1"` is
+  no; `a eq "a"` is `a`; `string is integer " 12 "` is 1; `{}` is 1 and 0
+  with `-strict`; `0x10` is 1; `yes` stays `yes`; `08 == 8` is no to 8.6
+  and yes from 9.0; `switch -nocase` keeps `A` from 8.5; `$x in {a b c}`
+  keeps `b` from 8.5), each under every release; the nested-`if` I230 and
+  O-codes through the CLI.
+- **Gates**: G7, G8, G9.
+- **Model**: sonnet. **Size**: M. **After**: VT11.1 to VT11.3.
+
+##### VT11.5 — docs and the landing
+
+- **Files**: `sccp-core-analyses.md`, `pass-fact-ownership-matrix.md`
+  (refinements), `optimisation-passes.md`, `value-transfers-migration.md`,
+  `docs/kcs/codes/` note for I230, the lane doc; diagnostics rows drafted
+  (B-DP4).
+- **Gates**: G5, G6, and the slice's green.
+- **Model**: sonnet. **Size**: S. **After**: VT11.4.
+
+#### Checkpoints and landing
+
+| Checkpoint | Holds | Green means |
+|---|---|---|
+| `wip(value-transfers): slice 11 — edge refinements` | VT11.1, VT11.2 | the merge and trace tests; every decision byte-identical |
+| `wip(value-transfers): slice 11 — predicate refinement` (landing) | VT11.3 to VT11.5 | every exit test; G1 to G9 |
+
+```text
+wip(value-transfers): slice 11 — predicate refinement
+
+A branch condition's `Selection` transfer refines its edges: a fact on
+one CFG edge for one SSA version, read first through a block-qualified
+lookup by the lattice, the evaluator and every domain it names, never
+at a merge its edge does not dominate, and never for an externally
+mutable place. Equality refines the value, numeric equality only the
+range and type, `in` a finite set, `string is` a type, `info exists`
+existence, and the `switch` arms their patterns. The nested equality
+program decides for the diagnostics and the optimiser alike, and the
+existence-guard helpers are gone.
+
+Behaviour changes: nested conditions over a refined variable decide
+(I230, O101, O107, O112); `string is` types its arm; the numeric `==`
+never rewrites the string.
+```
+
+#### Review checklist
+
+- R1: no consumer matches an operator or a `switch` mode spelling
+  outside the expression route's condition tree.
+- R2 to R5.
+- R6: the three `info_exists_*` precedent tests byte-identical.
+- Suites: `cargo test -p tcl-registry -p tcl-compiler -p tcl-cli`.
+- R7: a numeric `==` never refines `ExactValue`; a refinement is never
+  read past a non-dominated merge; an externally mutable or traced place
+  is never refined; `08 == 8` refines only the range, so its
+  release-dependence never reaches the string.
+
+#### Behavioural deltas
+
+| Delta | Mandate |
+|---|---|
+| a nested condition over a refined variable decides | the exit |
+| `string is CLASS $x` types `x` in its arm | the per-shape table |
+| the existence guard is the refinement lookup (byte-identical effect) | the exit |
+
+### Slice 12 — bounded-loop enumeration
+
+#### Goal and exit
+
+In the plan's words: "`LoopEnumeration`: ordered execution of an
+iteration plan over exact state at a loop's pre-header, with the
+iteration cap as a `Budget` decline, exact values and existence instead
+of `StaticValue`, and the exit state published on the exit edge only.
+`exec_statement` applies each statement's registry-owned `evaluate` and
+`exec_switch` consumes the `Selection` fact."
+
+*Exit*: "`static_loops.rs` performs no arithmetic of its own — its `Incr`
+arm, `parse_literal_value`, and `resolve_switch_subject` are gone — the
+eleven witnesses fold under every release found on `PATH`, and
+`bounds_checks.rs` seeds W240–W242 from the plan's bound and step rather
+than from `set v INT` text."
+
+Exit evidence: `the_eleven_loop_witnesses` (compiler and CLI, 8.4 to
+9.1); the `summarise_*` tests and
+`sccp_folds_post_loop_branch_via_static_summary` unchanged;
+`the_correlated_pairs_decide_by_enumeration` (the mirror programs now give
+20 and 25); `w240_seeds_from_the_iteration_plan` (`set i $start` no
+longer disables the check); G1 with `static_loops.rs` clean and holding
+no `parse_literal_value`, `resolve_switch_subject` or `Incr` arm, and
+`irules_event_checks.rs` at 6; the ledger's `static_loops` row gone;
+`tcl explore --source 'for {set i 0} {$i < 5} {incr i} {}; if {$i == 5}
+{puts five}' --show sccp --text --no-colour` prints an `enumerated loop`
+line (5 iterations, exhaustion) with `i` `const(5)` on the exit edge.
+
+#### Upstream starting point
+
+`git diff 3b5eba8a origin/rust -- rust/tcl-compiler/src/static_loops.rs
+rust/tcl-compiler/src/intervals.rs rust/tcl-compiler/src/analyser/bounds_checks.rs
+rust/tcl-compiler/src/analyser/irules_event_checks.rs`: `static_loops.rs`
+drops one unused import; `bounds_checks.rs` gained W231's
+`writes_the_name` abstention (#2054), which VT12.5 keeps beside the
+loop-bound seeding; `intervals.rs` and `irules_event_checks.rs` are
+unchanged.
+
+#### Work items
+
+##### VT12.1 — `LoopEnumeration`
+
+- **Files**: `rust/tcl-compiler/src/sccp.rs`, `rust/tcl-compiler/src/static_loops.rs`,
+  `rust/tcl-registry/src/value_transfer/decline.rs`,
+  `rust/tcl-explorer/src/serialise.rs`, `view_tree.rs` (an `enumerated
+  loop` line with its iterations, exit rule and exit state).
+- **Items**: the page's `LoopEnumeration { plan, entry, iterations, exit,
+  state, evidence }`, run at a loop's pre-header when the plan and the
+  state admit it; `BudgetLimit::Iterations` (new) is the cap
+  (`DEFAULT_MAX_STATIC_LOOP_ITERS`), and a capped loop publishes nothing;
+  the exit state is published on the exit edge only, while the header
+  phis widen as today; `break`, `continue` and an error path follow the
+  plan's completion protocol (slice 10); a zero-iteration `foreach` leaves
+  its binders `Unbound`; a nested loop is one statement of the outer body
+  under the same budget.
+- **Tests**: `the_iteration_cap_publishes_nothing`.
+- **Gates**: G7, G8, G9.
+- **Model**: opus. **Size**: L. **After**: slices 6 and 10.
+
+##### VT12.2 — the counted and conditional iteration plans
+
+- **Files**: `rust/tcl-registry/src/value_transfer/iteration.rs`, the
+  `for` and `while` spec modules, `value_transfers.rs`.
+- **Items**: `FOR` and `WHILE` (`IterationSemantics`) answering
+  `IterableKind::Counted { init, condition, next }` and
+  `IterableKind::Condition`, with `CompletionProtocol::Absorb(&[Break,
+  Continue])`; `foreach` with several var-lists and lists pads with the
+  empty string.
+- **Tests**: `the_loop_plans_name_their_bound_and_step`.
+- **Gates**: G2, G7, G8, G9.
+- **Model**: opus. **Size**: M. **After**: VT12.1.
+
+##### VT12.3 — the simulator runs the registry's routes
+
+- **Files**: `rust/tcl-compiler/src/static_loops.rs`,
+  `rust/tcl-compiler/src/value_transfer.rs`,
+  `docs/design/compiler/value-transfers-migration.md` (the ledger row).
+- **Items**: `exec_statement` applies each statement's resolved
+  `evaluate` through the driver's lifted evaluation with the
+  enumeration's state as its inputs; `exec_switch` reads the selection
+  owner (VT6.2) over the state; `StaticValue` and `StaticEnv` give way to
+  `ExactValue` and `Existence`; `parse_literal_value`,
+  `resolve_switch_subject` and the `Incr` arm are deleted.
+- **Preserves**: every `summarise_*` answer; `summarise_respects_iteration_cap`
+  now as the `Iterations` decline.
+- **Gates**: G1, G7, G8, G9.
+- **Model**: opus. **Size**: M. **After**: VT12.1.
+
+##### VT12.4 — the consumers of the exit state
+
+- **Files**: `rust/tcl-compiler/src/sccp.rs` (`loop_summary_decision`),
+  `rust/tcl-compiler/src/intervals.rs`, `rust/tcl-compiler/src/optimiser/propagation.rs`
+  (`evaluate_proc_with_constants`).
+- **Items**: `loop_summary_decision` reads the enumeration's exit state;
+  `intervals` bypasses the header widening (`MAX_ITERS`) for an
+  enumerated loop; the argument-sensitive O103 re-run enumerates the
+  callee's loops under the call's seeds.
+- **Changes**: the post-loop branches of the eleven witnesses decide
+  through I230 as well as O101 (today only `tcl opt` decides two of
+  them). Mandate: the exit; the Analysis row ("a bounded loop's exit
+  state against its in-loop widening").
+- **Gates**: G7, G8, G9.
+- **Model**: opus. **Size**: M. **After**: VT12.3.
+
+##### VT12.5 — W240–W242 and the iRules loop bound read the plan
+
+- **Files**: `rust/tcl-compiler/src/analyser/bounds_checks.rs`,
+  `rust/tcl-compiler/src/analyser/irules_event_checks.rs`,
+  `rust/xtask/src/value_transfers.rs`.
+- **Items**: the W240–W242 seeding reads the iteration plan's bound and
+  step (the `set v INT` / `incr v ?INT?` text scan goes); the IRULE5003
+  loop-bound reader's `body_decrements` substring scan reads the plan.
+- **Changes**: `set i $start; while {$i < 10} {incr i}` is checked where
+  today the check is disabled. Mandate: the exit; the W240–W242 row.
+- **Tests**: `w240_seeds_from_the_iteration_plan`.
+- **Gates**: G1 (`irules_event_checks.rs` 7 → 6), G7, G8, G9.
+- **Model**: opus. **Size**: M. **After**: VT12.2.
+
+##### VT12.6 — the slice's witnesses
+
+- **Files**: `rust/tcl-compiler/tests/value_transfer_witnesses.rs`,
+  `rust/tcl-cli/tests/value_transfers_cli.rs`.
+- **Tests**: `the_eleven_loop_witnesses` (the page's list — `i` 5; `t`
+  6; `i` 3 after `break`; `t` 3 with `continue`; `i` 3 for `$i < 2.5`;
+  `i` 4 for the empty-init loop; `i` 4 and `n` 2; `i` 2 on the error
+  path; `x` unbound after `foreach x {} {}`; `a` 3 and `b` empty; `n` 1
+  and `x` 2), each through the lattice, I230 and `tcl opt`, whose output
+  prints what `tclsh` prints; `the_correlated_pairs_decide_by_enumeration`.
+- **Gates**: G7, G8, G9.
+- **Model**: sonnet. **Size**: M. **After**: VT12.1 to VT12.5.
+
+##### VT12.7 — docs and the landing
+
+- **Files**: `sccp-core-analyses.md`, `constant-folding-type-inference.md`,
+  `optimisation-passes.md`, `pass-fact-ownership-matrix.md`,
+  `value-transfers-migration.md`, `docs/kcs/codes/` notes for W240–W242,
+  the lane doc; diagnostics rows drafted (B-DP4).
+- **Gates**: G5, G6, and the slice's green.
+- **Model**: sonnet. **Size**: S. **After**: VT12.6.
+
+#### Checkpoints and landing
+
+| Checkpoint | Holds | Green means |
+|---|---|---|
+| `wip(value-transfers): slice 12 — the enumeration and the loop plans` | VT12.1, VT12.2 | the cap test; every existing loop answer |
+| `wip(value-transfers): slice 12 — the simulator is the enumeration` | VT12.3, VT12.4 | the `summarise_*` tests; the static-summary branch test |
+| `wip(value-transfers): slice 12 — bounded-loop enumeration` (landing) | VT12.5 to VT12.7 | every exit test; G1 to G9 |
+
+```text
+wip(value-transfers): slice 12 — bounded-loop enumeration
+
+A loop whose iteration plan and pre-header state admit it is enumerated
+in order over exact values and existence: each statement runs its
+registry-owned evaluation, `switch` reads the shared selection, `break`,
+`continue` and errors follow the completion protocol, and the exit state
+is published on the exit edge only, with the header still widening
+inside the loop. The iteration cap is a budget decline that publishes
+nothing. The loop simulator has no arithmetic, ingress or subject
+resolution of its own; the intervals bypass their widening for an
+enumerated loop; W240–W242 and the iRules loop bound read the plan's
+bound and step.
+
+Behaviour changes: the eleven loop programs decide their post-loop
+branches for the diagnostics as for the optimiser; the correlated
+`foreach` pairs decide by enumeration; a loop counter seeded from a
+variable is checked by W240–W242.
+```
+
+#### Review checklist
+
+- R1: `static_loops.rs` holds no arithmetic and no command spelling;
+  `irules_event_checks.rs` at 6.
+- R2 to R5.
+- R6: every `summarise_*` test byte-identical.
+- Suites: `cargo test -p tcl-registry -p tcl-compiler -p tcl-cli`.
+- R7: a capped enumeration publishes nothing; the exit state never
+  narrows an in-loop version; an error path publishes its prefix only.
+
+#### Behavioural deltas
+
+| Delta | Mandate |
+|---|---|
+| post-loop branches decide for I230 as for O101 | the exit; the Analysis row |
+| the correlated `foreach` pairs decide (20, 25) | the correlated finite-set limit's rung (enumeration supplies them) |
+| W240–W242 seed from the plan | the exit |
+
+### Slice 7a — seedless return summaries
+
+#### Goal and exit
+
+The part of slice 7 that slice 13 consumes, in the plan's words:
+"`summarise_returns` consults a seedless lattice so the
+argument-independent O103 sees computed returns." Its exit is that
+sentence's witness: the argument-independent O103 folds a procedure whose
+return is a computed constant.
+
+Exit evidence: `o103_summary_path_folds_a_computed_return` (compiler
+witnesses: `proc p {} {set x [string range foobar 0 2]; return $x}; puts
+[p]` gives `puts foo` on the summary path, and `tcl opt --profile full`
+prints `puts foo`);
+`o103_folds_implicit_return_proc_cmd_subst` and
+`o103_folds_arg_sensitive_passthrough_cmd_subst` unchanged.
+
+#### Upstream starting point
+
+`git diff 3b5eba8a origin/rust -- rust/tcl-compiler/src/interprocedural.rs
+rust/tcl-compiler/src/optimiser/propagation.rs`: `interprocedural.rs` is
+unchanged; `propagation.rs` gates the top-level propagation on the
+caller's registry (`scan_module_global_names(module, registry)`), which
+VT7a.1's staged run uses as is.
+
+#### Work items
+
+##### VT7a.1 — `summarise_returns` over the seedless lattice
+
+- **Files**: `rust/tcl-compiler/src/interprocedural.rs`
+  (`summarise_returns`, `classify_return`, `ReturnKind`),
+  `rust/tcl-compiler/src/optimiser/propagation.rs`.
+- **Items**: `summarise_returns` runs each callee's lattice with its
+  parameters `Overdefined` (no seeds) in a staged fixed point over the
+  call graph, bottom-up, a cycle bounded by
+  `MAX_INTERPROCEDURAL_WALK_DEPTH` and answering computed; `classify_return`
+  reads the lattice value at the return through the exact ingress (no
+  `trim`); `enum ReturnKind` becomes `pub(crate)` and `Literal` carries
+  the `ExactValue`.
+- **Preserves**: every `ProcSummary` answer on a literal or passthrough
+  return.
+- **Changes**: the summary path folds a computed constant return.
+  Mandate: slice 7's sentence.
+- **Tests**: `o103_summary_path_folds_a_computed_return` (negative: a
+  return that reads a parameter stays `UsesParam`).
+- **Gates**: G7, G8, G9.
+- **Model**: opus. **Size**: M. **After**: slice 3.
+
+##### VT7a.2 — witnesses, docs and the landing
+
+- **Files**: `rust/tcl-compiler/tests/value_transfer_witnesses.rs`,
+  `interprocedural-analysis.md`, `interprocedural-call-site-seeding.md`,
+  `optimisation-passes.md` (O103), the lane doc.
+- **Gates**: G6, and the slice's green.
+- **Model**: sonnet. **Size**: S. **After**: VT7a.1.
+
+#### Checkpoints and landing
+
+One commit, `wip(value-transfers): slice 7a — seedless return summaries`:
+
+```text
+wip(value-transfers): slice 7a — seedless return summaries
+
+`summarise_returns` reads each callee's lattice with no call-site seeds,
+in a staged fixed point over the call graph, so a return that is
+constant for every caller is a constant return and the
+argument-independent O103 folds it; a return that depends on a seed
+stays the argument-sensitive path's. `classify_return` reads the exact
+value instead of a trimmed text.
+
+Behaviour changes: O103's summary path folds a procedure whose return is
+a computed constant.
+```
+
+#### Review checklist
+
+R1 (no command spelling in `interprocedural.rs`'s new code), R2 to R5,
+R6 (both O103 anchor tests byte-identical); suites `cargo test -p
+tcl-compiler`; R7: a seed-dependent value never enters the summary.
+
+#### Behavioural deltas
+
+| Delta | Mandate |
+|---|---|
+| O103's summary path folds a computed constant return | slice 7's `summarise_returns` sentence |
+
+### Slice 13 — proc-level transfer summaries
+
+#### Goal and exit
+
+In the plan's words: "`TransferSummary` beside `ProcSummary`: parameter
+roles with a `Name` parameter's frame level and ordered outcomes, the
+global places a callee may write, the seedless `ReturnKind`, the
+completion domain, and the effect footprint, composed bottom-up with a
+cycle resolving to `MayBind`, `Any`, and a computed result. The caller's
+driver applies them at the call site, and the argument-sensitive re-run
+seeds `Name` parameters from the caller's places." `KNOWN_GAPS` adds
+`global`, `variable`, `my variable`, `sharedvar`, `info default`.
+
+*Exit*: "`bump n` decides through both O103 paths, `param_traits.rs`
+matches no command by name, the synthetic `<upvar-invalidate>` def is
+gone, and the seven witnesses pass."
+
+Exit evidence: `bump_decides_through_both_o103_paths`,
+`the_seven_summary_witnesses` (compiler and CLI, 8.4 to 9.1); G1 with
+`param_traits.rs`, `interprocedural.rs`, `analyser/diagnostics/helpers.rs`
+and `var_escape/slot_resolution.rs` in `CLEAN_FILES` and no slice-13 row
+in `KNOWN_GAPS`; `<upvar-invalidate>` absent from `cfg_builder/mod.rs`
+and `SyntheticMarker`; `tcl explore --source 'proc bump {name} {upvar 1
+$name v; incr v}; proc p {} {set n 1; bump n; return $n}' --show sccp
+--text --no-colour` prints `n` after the call as `const(2)` in `::p`.
+
+#### Upstream starting point
+
+`git diff 3b5eba8a origin/rust -- rust/tcl-compiler/src/unit_scope.rs
+rust/tcl-compiler/src/var_observability.rs rust/tcl-compiler/src/realm.rs
+rust/tcl-compiler/src/cfg_builder rust/tcl-compiler/src/ir_helpers.rs`:
+
+- `unit_scope.rs` (#2134): a command substitution nested in a word is a
+  call site, so `[bump m]` counts as a caller and a single visible `bump
+  n` no longer licenses the single-call-site rewrite. VT13.2 keeps that
+  call-site evidence as the closed-call-set proof #2134's contract point
+  asks for before any callee body is rewritten.
+- `var_observability.rs` (+252), `realm.rs` (+358): registry-declared
+  alias transitions and namespace-local shadows; the summaries'
+  `globals` and binding evidence read them.
+- `cfg_builder/mod.rs` and `ir_helpers.rs`: the synthetic
+  `<upvar-invalidate>` call now carries `SyntheticMarker::UpvarInvalidate`
+  and both embedded-effect halves — a proc's caller-frame defs and a
+  nested cell update's read and write (#2050, #2141). Removing it (VT13.2)
+  moves both halves onto the host statement.
+- `global_write_info.rs`: writes from an in-frame expression word count;
+  #2214's qualified-name half is VT2.9's.
+
+#### Work items
+
+##### VT13.1 — `TransferSummary`
+
+- **Files**: `rust/tcl-compiler/src/interprocedural.rs`.
+- **Items**, the page's shapes in the compiler:
+  ```rust
+  pub(crate) struct TransferSummary {
+      pub params: Vec<ParamRole>,
+      pub globals: Vec<(PlaceRef, ExistenceOutcome)>,
+      pub result: ReturnKind,
+      pub completion: CompletionCodeDomain,
+      pub effects: EffectFootprint,
+      pub evidence: DependencyEvidence,
+  }
+  pub(crate) enum ParamRole {
+      Value,
+      Name { level: FrameLevel, outcomes: Vec<ExistenceOutcome> },
+      Unused,
+  }
+  ```
+  computed from the seedless lattice (VT7a.1) beside `ProcSummary`,
+  composed bottom-up (`twice`'s `Name` outcome is two `bump` updates), a
+  cycle that does not converge within `MAX_INTERPROCEDURAL_WALK_DEPTH`
+  answering `MayBind` for every `Name` place, `Any` and a computed
+  result; an unknown callee, `has_unknown_calls`, or a suspect binding is
+  a barrier.
+- **Tests**: `summaries_compose_through_two_callees`,
+  `a_cycle_that_does_not_converge_is_may_bind`.
+- **Gates**: G7, G8, G9.
+- **Model**: opus. **Size**: L. **After**: slices 7a and 8.
+
+##### VT13.2 — the caller applies the summary; the synthetic call goes
+
+- **Files**: `rust/tcl-compiler/src/value_transfer.rs`,
+  `rust/tcl-compiler/src/cfg_builder/mod.rs` (`upvar_invalidated`,
+  `apply_upvar_invalidation`), `rust/tcl-compiler/src/ir.rs`
+  (`SyntheticMarker`), `rust/tcl-compiler/src/ssa.rs`,
+  `rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs`
+  (`statement_is_synthetic_effect`).
+- **Items**: a host statement carries its embedded effects
+  (`EmbeddedSubstExtras { defs, read_before_write, opaque_global }`) as a
+  field SSA reads like a call's defs and reads, in place of a prepended
+  `<upvar-invalidate>` call; the driver resolves each `Name` argument to
+  a place in the frame `level` selects, applies the outcomes in order (a
+  cell update's value from the argument-sensitive re-run when O103 runs,
+  a `MayWrite` with the summary's bounds otherwise) and the `globals`, and
+  applies a nested cell update's writes through the ordered state (VT9.2).
+  `SyntheticMarker::UpvarInvalidate` is deleted.
+- **Preserves**: every #2050, #2141 and #2132 witness (the reads and
+  writes the synthetic call carried are the host's).
+- **Changes**: the caller sees a callee's `Name` and global effects as
+  values and existence: `bump n; if {$n == 2}` decides. Mandate: the exit;
+  the Summaries row.
+- **Tests**: `bump_decides_through_both_o103_paths`.
+- **Gates**: G7, G8, G9.
+- **Model**: opus. **Size**: L. **After**: VT13.1.
+
+##### VT13.3 — the argument-sensitive re-run seeds `Name` parameters
+
+- **Files**: `rust/tcl-compiler/src/optimiser/propagation.rs`
+  (`evaluate_proc_with_constants`, `seed_params_from_args`).
+- **Items**: `bump n` re-runs `bump` with `v` seeded from the caller's
+  `n`; the re-run's outcome for `v` is the value VT13.2 applies.
+- **Tests**: in `bump_decides_through_both_o103_paths`; the recursive
+  `rec 4` folds to 10.
+- **Gates**: G7, G8, G9.
+- **Model**: opus. **Size**: M. **After**: VT13.2.
+
+##### VT13.4 — the name-matching consumers read the summary
+
+- **Files**: `rust/tcl-compiler/src/analyser/param_traits.rs`,
+  `rust/tcl-compiler/src/interprocedural.rs`,
+  `rust/tcl-compiler/src/analyser/diagnostics/helpers.rs`,
+  `rust/tcl-compiler/src/var_escape/slot_resolution.rs`,
+  `rust/xtask/src/value_transfers.rs`.
+- **Items**: `param_traits.rs`'s two-command copy tracker reads the
+  `Name` outcomes; `interprocedural.rs` reads `upvar`'s level as a
+  `FrameLevel` through `ParamRole::Name { level }` and the `global` /
+  `variable` names through `Traits::CREATES_SCOPE_ALIAS` and
+  `FrameArgLayout`; `helpers.rs`'s binder checks read the same;
+  `slot_resolution.rs`'s `info level` / `info frame` and `trace`
+  subcommand arms read the frame-effect and trace facts.
+- **Gates**: G1 (`param_traits.rs` 1 → 0, `interprocedural.rs` 2 → 0,
+  `helpers.rs` 4 → 0, `slot_resolution.rs` 6 → 0; all four clean), G7,
+  G8, G9.
+- **Model**: opus. **Size**: M. **After**: VT13.2.
+
+##### VT13.5 — the binder commands' declarations
+
+- **Files**: the spec modules of `global`, `variable`, `my variable`
+  (TclOO), `sharedvar`, `info default`; `rust/xtask/src/value_transfers.rs`.
+- **Items**: `global` and `variable` declare a scope-alias plan
+  (existence `MayBound` at declaration, no value); `my variable` and
+  `sharedvar` the same over their frames; `info default` a `Write` of
+  the default value when the procedure and parameter are proven, else a
+  `MayWrite`.
+- **Gates**: G1 (five rows go), G2, G9.
+- **Model**: sonnet. **Size**: S. **After**: VT13.1.
+
+##### VT13.6 — invalidation
+
+- **Files**: `rust/tcl-compiler/src/value_transfer.rs`
+  (`AnalysisContextKey`), `rust/tcl-lsp-db/src/lib.rs`.
+- **Items**: the summary revision rides the context's `seeds_revision`,
+  so a `rename` or redefinition anywhere in the module invalidates every
+  summary, and the memoised path keys on it.
+- **Tests**: `a_rename_invalidates_every_summary` (`value_transfer_parity.rs`).
+- **Gates**: G7, G8, G9.
+- **Model**: opus. **Size**: S. **After**: VT13.1.
+
+##### VT13.7 — the slice's witnesses
+
+- **Files**: `rust/tcl-compiler/tests/value_transfer_witnesses.rs`,
+  `rust/tcl-cli/tests/value_transfers_cli.rs`.
+- **Tests**: `the_seven_summary_witnesses` — `bump n; bump n 2` is 4;
+  `reset m; info exists m` is 0; `twice t` is 3; `g; set ::counter` is 5;
+  `rec 4` is 10; `ctr; ctr; set ::hits` is 2 from 8.5 (8.4 errors); `bump
+  absent` errors under 8.4 and is 1 from 8.5 — each under every release;
+  `two_callers_share_one_summary` (`bump n; bump other` prints `2 11`);
+  #2134's program keeps `upvar 1 $name v` in `bump`.
+- **Gates**: G7, G8, G9.
+- **Model**: sonnet. **Size**: M. **After**: VT13.1 to VT13.6.
+
+##### VT13.8 — docs and the landing
+
+- **Files**: `interprocedural-analysis.md`,
+  `interprocedural-call-site-seeding.md`, `pass-fact-ownership-matrix.md`,
+  `downstream-pass-contracts.md`, `optimisation-passes.md` (O100, O103),
+  `value-transfers-migration.md`, the lane doc; diagnostics rows drafted
+  (B-DP4).
+- **Gates**: G6, and the slice's green.
+- **Model**: sonnet. **Size**: S. **After**: VT13.7.
+
+#### Checkpoints and landing
+
+| Checkpoint | Holds | Green means |
+|---|---|---|
+| `wip(value-transfers): slice 13 — transfer summaries` | VT13.1, VT13.5, VT13.6 | the composition and cycle tests |
+| `wip(value-transfers): slice 13 — the caller applies them` | VT13.2, VT13.3 | `bump` on both O103 paths; every #2050 / #2141 / #2132 witness |
+| `wip(value-transfers): slice 13 — proc-level transfer summaries` (landing) | VT13.4, VT13.7, VT13.8 | every exit test; G1 to G9 |
+
+```text
+wip(value-transfers): slice 13 — proc-level transfer summaries
+
+Every procedure has a transfer summary beside its `ProcSummary`, from its
+seedless lattice: which parameters name a caller place and at what frame
+level, the ordered outcomes the body applies to them, the global places
+it may write, its return shape, its completion domain and its effects,
+composed bottom-up, with a cycle answering may-bind. The caller's driver
+applies the summary at the call — its `Name` places, its globals — and
+the argument-sensitive re-run seeds a `Name` parameter from the caller's
+place, so `bump n` decides on both O103 paths without the callee's body
+being specialised to one call. The synthetic invalidation call is gone:
+a statement carries its embedded effects. The parameter-trait tracker,
+the interprocedural name lists, the binder checks and the frame and trace
+arms read the summaries and the frame facts.
+
+Behaviour changes: a callee's writes through `upvar` and to globals are
+values and existence in the caller; `[rec 4]` folds; the binder commands
+have semantics.
+
+Pins #2134 (closed on rust by #2211); pins #2214's global write (closed
+by slice 2).
+```
+
+#### Review checklist
+
+- R1: `CLEAN_FILES` gains the four files; no consumer matches `"upvar"`,
+  `"global"`, `"variable"`, `"info"` or `"trace"`.
+- R2 to R5.
+- R6: both O103 anchor tests byte-identical; every #2050 / #2141 witness
+  byte-identical.
+- Suites: `cargo test -p tcl-registry -p tcl-compiler -p tcl-lsp-db -p
+  tcl-cli`.
+- R7: a summary never applies a seed-dependent value without the re-run;
+  an unknown or suspect callee is a barrier; a non-converging cycle is
+  `MayBind`; a callee body is rewritten only under the proven closed call
+  set.
+
+#### Behavioural deltas
+
+| Delta | Mandate |
+|---|---|
+| a callee's `upvar` and global effects reach the caller | the exit; the Summaries row |
+| `[rec 4]` folds on the argument-sensitive path | the seven witnesses |
+| `global`, `variable`, `my variable`, `sharedvar`, `info default` have semantics | `KNOWN_GAPS` |
+
+### Slice 7 — broader execution and runtime consumers
+
+#### Goal and exit
+
+In the plan's words: "The declared executable catalogue grows with
+independent oracle evidence — the iRules pure functions as shared cores
+registered into the simulator, the tcllib candidates as their specs move
+to SpecTcl; `summarise_returns` consults a seedless lattice so the
+argument-independent O103 sees computed returns [landed as 7a]; then
+package backing, intrinsic guards, the engine's WASM sibling, and
+extensions in their own changes under registry-consumer-contracts.md."
+The evaluation page adds "the remaining core-table rows as their
+catalogue entries appear, and the `PLATFORM` / `WALL_CLOCK` exclusions as
+a recorded reason"; `KNOWN_GAPS` adds `lset`, `ledit`, `lpop` (VT2.8), the
+tcllib procedures, `tcl_findLibrary` and `tcltest::normalizePath`; the
+ratchet ledger names `auto_path_eval.rs`, `uri_split.rs` and
+`tcl-mcp/src/irule_gen.rs`.
+
+*Exit*: "every command that declares purity has a route or an explicit
+"none" with its reason in the inventory."
+
+Exit evidence: G1's inventory with no row whose *Gap* reads `pure, no
+route`; `KNOWN_GAPS` empty of slice-7 rows; `auto_path_eval.rs` and
+`uri_split.rs` in `CLEAN_FILES`, `irule_gen.rs` at 2;
+`irules_pure_functions_match_the_simulator_and_the_oracle` and the
+performance report (VT7.9); `tcl explore --dialect f5-irules --source
+'when RULE_INIT {set h [b64encode abc]}' --show sccp --text --no-colour`
+prints `h#1 = const('YWJj')` and a `route b64encode: direct` line owned
+by the registry.
+
+#### Upstream starting point
+
+`git diff 3b5eba8a origin/rust -- rust/tcl-irule-test rust/tcl-cmd-core/src
+rust/tcl-compiler/src/auto_path_eval.rs rust/tcl-compiler/src/uri_split.rs
+rust/tcl-mcp/src/irule_gen.rs rust/tcl-compiler/src/codegen`:
+the simulator gained an expression-operator layer (`expr_ops.tcl`, +720)
+and a live-device harness (`live.rs`, +378), which VT7.1 registers the
+cores beside; `tcl-cmd-core`'s `lsearch.rs`, `sort.rs`, `string.rs`
+(`string repeat` bounded before allocating) and `format.rs` changed, and
+their routes inherit the merged cores; `codegen/cmd_subst.rs` (+283),
+`statements.rs`, `control_flow.rs` and the emitter changed around
+VT7.8's folders; the other three files are unchanged.
+
+#### Work items
+
+##### VT7.1 — the iRules pure functions as shared cores
+
+- **Files**: `rust/tcl-cmd-core/src/irules.rs` (new: `b64encode`,
+  `b64decode` over the base64 core in `tcl_cmd_core::binary`, `crc32`,
+  `md5`, `sha1`, `sha256`, `sha384`, `sha512` over one digest core,
+  `htonl`, `htons`, `ntohl`, `ntohs`, `findstr`, `getfield`, `substr`,
+  `domain`, `URI::basename` / `path` / `query` / `host` / `port` /
+  `protocol` / `decode` / `encode` / `escape` / `compare`, `IP::addr A
+  equals B`), the iRules spec modules (declared routes),
+  `rust/tcl-irule-test/tcl/command_mocks.tcl`, `_mock_stubs.tcl`,
+  `rust/xtask/src/gen_irule_test_data.rs`.
+- **Items**: each a registry-owned direct route over the core; the
+  simulator registers the same cores as host commands in place of the
+  generated stubs that return the empty string.
+- **Tests**: `irules_pure_functions_match_the_simulator_and_the_oracle`
+  (the Tcl-expressible ones — `b64encode`'s `binary encode base64`
+  equivalent, `crc32` through `zlib crc32` from 8.6 — against `tclsh`; the
+  rest against published vectors).
+- **Gates**: G1, G2, G4 (`gen-irule-test-data`), G7, G8, G9.
+- **Model**: opus. **Size**: L. **After**: slice 13.
+
+##### VT7.2 — `lset`, `ledit`, `lpop`
+
+- **Files**: `rust/tcl-cmd-core/src/list.rs` (the three cores, adopted by
+  both runtimes' adapters), `rust/tcl-registry/src/value_transfer/`, the
+  three spec modules, `differential_fold.rs`, `rust/xtask/src/value_transfers.rs`.
+- **Items**: list cell updates over the new cores (`lpop` from 9.0,
+  `ledit` from 9.1): the result and one `Write`, a pop returning the
+  removed element and writing the remainder.
+- **Tests**: `list_cell_updates_match_every_release_on_path`.
+- **Gates**: G1, G2, G7, G8, G9.
+- **Model**: opus. **Size**: M. **After**: —.
+
+##### VT7.3 — the path routes
+
+- **Files**: the `file` spec module (`join`, `dirname`, `tail`,
+  `extension`, `rootname`, `split`, `normalize`),
+  `rust/tcl-compiler/src/auto_path_eval.rs`,
+  `rust/tcl-lsp-core/src/document_links.rs`,
+  `rust/tcl-lsp-core/src/package_resolver.rs`.
+- **Items**: platform-conditional routes (`Needs::PLATFORM` declines
+  where the profile does not fix the platform); the private path folders
+  read `proven_word_value`.
+- **Gates**: G1 (`auto_path_eval.rs` 3 → 0), G7, G8, G9.
+- **Model**: opus. **Size**: M. **After**: —.
+
+##### VT7.4 — `uri_split.rs` reads routes
+
+- **Files**: `rust/tcl-compiler/src/uri_split.rs`.
+- **Items**: `split`, `string first` and `string match` routes replace the
+  private URI evaluator.
+- **Gates**: G1 (6 → 0), G7, G8, G9.
+- **Model**: opus. **Size**: M. **After**: —.
+
+##### VT7.5 — tcllib declared implementations
+
+- **Files**: the tcllib `.tclspec` packs as they move to SpecTcl;
+  `rust/xtask/src/value_transfers.rs`.
+- **Items**: `evaluate -implementation` bodies for the page's candidate
+  list (`base32`, `ip::normalize` … `ip::collapse`, `uri::canonicalize`,
+  `textutil::*`, `json::json2dict`, `csv::split`, `struct::list`,
+  `math::statistics::*`, …), each proven against the real command by the
+  pack's `tclsh` differential; `tcl_findLibrary` and
+  `tcltest::normalizePath` declare `EvalRoute::None` with their reason.
+- **Gates**: G1, G2, G9 (`tcl-spectcl`'s `spec_corpus`).
+- **Model**: opus. **Size**: L. **After**: the tcllib specs' move to
+  SpecTcl (B-CC7).
+
+##### VT7.6 — every pure command has a route or a reason
+
+- **Files**: the spec modules the inventory lists as `pure, no route`.
+- **Items**: a route where a shared core exists, otherwise
+  `EvalRoute::None { reason }` — `Declared` with the `PLATFORM` or
+  `WALL_CLOCK` exclusion named, `Callback`, `FormUnsupported` or
+  `Unauthored`.
+- **Gates**: G1 (the exit), G2, G9.
+- **Model**: sonnet. **Size**: L. **After**: VT7.1 to VT7.5.
+
+##### VT7.7 — `irule_gen.rs` reads the resolved cell update
+
+- **Files**: `rust/tcl-mcp/src/irule_gen.rs`.
+- **Items**: the `set` and `incr` recognisers behind the CMP-sensitivity
+  facts resolve the cell update; `table` and the terminal-action table
+  are `side_effects` debt, waived by axis.
+- **Gates**: G1 (5 → 2), G7, G8, G9 (`tcl-mcp`).
+- **Model**: sonnet. **Size**: S. **After**: —; B-DP6.
+
+##### VT7.8 — the codegen folders retire
+
+- **Files**: `rust/tcl-compiler/src/codegen/helpers.rs` (`fold_list_cmd`,
+  `try_format_fold`), `rust/tcl-compiler/src/codegen/values.rs`
+  (`try_emit_constant_fold`).
+- **Items**: codegen reads the registry's routes through
+  `evaluate_literal`, so one implementation answers the lattice, O129 and
+  codegen.
+- **Preserves**: every `codegen_golden` output.
+- **Gates**: G7, G8, G9 (`codegen`, `codegen_golden`, `codegen_depth`).
+- **Model**: opus. **Size**: M. **After**: —.
+
+##### VT7.9 — performance acceptance
+
+- **Files**: `rust/tcl-compiler/benches/value_transfers.rs` (new) and its
+  `Cargo.toml` entry.
+- **Items**: the evaluation page's comparison — the unchanged tree, direct
+  cores, expression evaluation and declared execution on one workload —
+  cold host setup, warm evaluation, cache hits, changed inputs, solver
+  iterations, cancellation latency, memory and incremental editor latency,
+  reported with `RouteTally` (VT3.9).
+- **Gates**: G7, G8.
+- **Model**: sonnet. **Size**: M. **After**: VT7.6.
+
+##### VT7.10 — docs and the lane's close
+
+- **Files**: every design page the slices touched (status lines),
+  `docs/design/lanes/README.md` (the entry goes),
+  `docs/design/lanes/value-transfers.md` (removed; its content folds into
+  the final commit message, as the lanes README requires).
+- **Gates**: G5, G6, and the slice's green.
+- **Model**: sonnet. **Size**: S. **After**: VT7.1 to VT7.9.
+
+#### Checkpoints and landing
+
+| Checkpoint | Holds | Green means |
+|---|---|---|
+| `wip(value-transfers): slice 7 — the iRules cores and the list cell updates` | VT7.1, VT7.2 | the simulator and oracle tests |
+| `wip(value-transfers): slice 7 — the path and URI routes` | VT7.3, VT7.4, VT7.7, VT7.8 | G1 pins; codegen goldens |
+| `wip(value-transfers): slice 7 — broader execution and runtime consumers` (landing) | VT7.5, VT7.6, VT7.9, VT7.10 | the exit; G1 to G9 |
+
+```text
+wip(value-transfers): slice 7 — broader execution and runtime consumers
+
+The executable catalogue grows with oracle evidence: the iRules pure
+functions are shared cores the simulator runs, `lset`, `ledit` and
+`lpop` are list cell updates over shared cores, the `file` path
+subcommands and the URI helpers read routes instead of private
+evaluators, the tcllib candidates carry proven declared implementations
+as their specs move to SpecTcl, and codegen folds through the same
+routes. Every command that declares purity has a route or a recorded
+reason for having none. The lane's tracking document is folded into this
+message and removed.
+
+Behaviour changes: iRules pure functions fold in `RULE_INIT` bodies and
+over literal arguments; list cell updates reach the lattice; the path
+and URI checks see computed values.
+```
+
+#### Review checklist
+
+- R1: `CLEAN_FILES` gains `auto_path_eval.rs`, `uri_split.rs`;
+  `irule_gen.rs` at 2; no consumer names an iRules function.
+- R2 to R5; new files: `irules.rs`, the bench.
+- R6: every simulator, codegen and `spec_corpus` test byte-identical
+  except the stubs the cores replace.
+- Suites: `cargo test -p tcl-cmd-core -p tcl-registry -p tcl-compiler -p
+  tcl-irule-test -p tcl-lsp-core -p tcl-mcp -p tcl-spectcl`.
+- R7: a platform- or clock-dependent core never answers under a profile
+  that does not fix the axis; a declared implementation's answer is
+  cached only on proven-equal inputs.
+
+#### Behavioural deltas
+
+| Delta | Mandate |
+|---|---|
+| iRules pure functions fold over literals | § *Third-party commands*, Tier 1 |
+| `lset` / `ledit` / `lpop` write exact values | Tier 1; VT2.8's reclassification (D5) |
+| path and URI checks read computed values | the ratchet ledger rows |
+| every pure command has a route or a reason | the exit |
+
+### Witnesses
+
+#### The findings table, and what upstream already closes
+
+Issue states as of 2026-09-22. "Upstream" is `origin/rust` at `08bceb36`,
+which VT2.M merges. A defect upstream closes is pinned, never claimed: its
+slice's landing message says "Pins #N (closed on rust by #PR)", and only a
+defect that is open when its slice lands gets "Closes #N".
+
+| Issue | State | Upstream | Slice | Pinned by | Landing wording |
+|---|---|---|---|---|---|
+| #2050 nested `incr` read | closed | fixed by #2215 (`uses_in_call`'s read-and-def rule, the same as VT2.0's) | 2 | `store_read_by_a_nested_cell_update_is_not_dead`; `set_result_incr_keeps_its_increment` | Pins #2050 (closed on rust by #2215) |
+| #2051 no-match preserve | closed | fixed by #2225 (`CONDITIONAL_VARIABLE_WRITE`) | 5 | `a_no_match_keeps_the_store_it_preserves`; `w210_reads_a_no_match_preserve_outcome` | Pins #2051 (closed on rust by #2225) |
+| #2052 trimmed ingress | closed | fixed by #2211 (`parse_literal_value` exact) | 2 | `var_piece_proven_by_the_lattice_folds_the_chain`; `evaluate_def_append_var_piece_reads_the_lattice_exactly`; `a_literal_keeps_its_surrounding_whitespace`; `o104_and_o130_fold_a_chain_through_a_lattice_operand` | Pins #2052 (closed on rust by #2211) |
+| #2053 stray `"` | closed | fixed by `33be5cef`, already in HEAD's history | 2 | `deleting_a_quoted_store_leaves_no_quote` | Pins #2053 (closed by 33be5cef) |
+| #2054 W231 length | closed | fixed by #2211 (`writes_the_name`) | 2 | `w231_length_follows_the_cell_updates`; `w231_abstains_after_a_write_it_cannot_measure` | Pins #2054 (closed on rust by #2211) |
+| #2055 IRULE3101 | open | not addressed | 5 | `irule3101_reads_the_proven_path` | Closes #2055 |
+| #2056 IRULE1201 in a dead arm | open | not addressed | 6 | `irule1201_ignores_a_respond_in_a_dead_arm` | Closes #2056 |
+| #2057 W242 on a dead `while` | open | not addressed | 6 | `w240_and_w241_read_the_branch_fact` | Closes #2057 |
+| #2118 O122 through a braced `expr` | open | PR #2226, open and not in `08bceb36` | — (not this lane's) | `o122_sees_a_self_call_inside_a_braced_expr`, added in slice 3 once #2226 is merged into the branch | never "Closes"; "Pins #2118 (closed on rust by #2226)" once it is |
+| #2132 existence read is a use | closed | fixed by #2220 (conditions' command substitutions read the frame) | 8 | `o109_keeps_a_store_an_existence_read_observes` (statement-position reads beyond #2220's conditions) | Pins #2132 (closed on rust by #2220) |
+| #2133 S100 on an unset arm | open | not addressed | 8 | `s100_ignores_an_unset_arm`; `s100_still_fires_between_the_bound_arms_of_a_three_way_switch` | Closes #2133 |
+| #2134 `upvar` specialised to one call site | closed | fixed by #2211 (a nested `[bump m]` counts as a caller); the closed-call-set proof remains | 13 | `two_callers_share_one_summary`; `the_seven_summary_witnesses` | Pins #2134 (closed on rust by #2211) |
+| #2141 O102 past a nested `[incr x]` | closed | fixed by #2215 (in-frame expression descent); the value forwarding is slice 9's | 9 | `the_seven_ordered_state_witnesses` | Pins #2141 (closed on rust by #2215) |
+| #2142 `finally` on the error path | open | not addressed (#2207 flattens `catch`, not `try`) | 10 | `try_finally_runs_on_every_path` | Closes #2142 |
+| #2143 materialised child's span | open | not addressed | 5 | `a_materialised_child_carries_its_factory_call_span` | Closes #2143 only with the W123 half (Q3); otherwise "Pins the span half of #2143" |
+| #2144 `lassign` under 8.4 | closed | fixed by #2211 (`command_is_unavailable_here`) | 2 | `lassign_is_not_a_write_under_a_profile_without_it`; upstream's `a_write_by_a_command_the_profile_lacks_does_not_kill_the_store` | Pins #2144 (closed on rust by #2211) |
+
+Two issues outside the table touch the lane: #2164 (a shadowed builtin
+folded with builtin semantics; closed on `rust` by #2169) is pinned in
+slice 2 by `the_shared_lattice_declines_a_renamed_head` and upstream's
+`both_stances_decline_a_builtin_a_proc_shadows`; #2214 (a qualified
+global written by a nested cell update; open, and still reproducing at
+`08bceb36`) is closed by VT2.9.
+
+#### Validation-matrix rows, by slice
+
+| Row | Slices that satisfy it |
+|---|---|
+| Ownership | 2 (a qualified spelling and a subcommand share one declaration, VT2.6), 4 (the completion test's rename and subcommand form) |
+| Templates | 5 |
+| Summaries | 13 |
+| Values | 2 (whitespace, NUL and backslash preservation; noncanonical integers; Unicode target differences; bignum promotion), 3 (bignum cancellation in `expr`), 5 (binary round trips) |
+| Storage | 2 (missing, unknown and existing cells), 5 (partial `scan`, `regexp` no-match, repeated targets, array and base overlap, traced and escaping targets) |
+| Existence | 8; 10 (the `unset p nosuch q` prefix) |
+| Completion paths | 10 |
+| Expressions | 3 (lazy branches, quoted versus braced, multiple arguments, nested commands, rebound math functions, unknown inputs, errors), 9 (the ordered state's nested writes, the error keeping the writes so far, `StatefulNested`) |
+| Regexp | 5 |
+| Rewrites | 2 (stateful producer retained; implicit return retained), 8 (failing dead write retained), 9 (effect ordering), every slice (traced places decline) |
+| Analysis | 2 (the correlated limit in the lift), 3 (the mirror witnesses; `$a * $a`), 5 (per-target types), 12 (a bounded loop's exit state, the cap, `break`, `continue`, an error path, a zero-iteration `foreach`), 13 (summary recursion) |
+| Incrementality | 2 (body edit, shifted spans, trace installation), 4 (overlay-only edit, target change, pack reload, worker migration), 13 (a rename in another proc) |
+| Execution | 4 (persistent-state attempts, undeclared inputs, absent implementations, budget and cancellation, host unavailable or quarantined), 7 (expensive direct cores, VT7.9) |
+| Branches | 6 (ordered patterns, final default, fall-through, regexp captures and errors, finite subject sets, opaque versus lowered), 11 (refinement per shape; the merge; the externally mutable place) |
+| Diagnostic separation | 5 (one unbraced-expression fact; no private regexp or scan evaluator in W210); the rest is the diagnostic-policy lane's |
+| Diagnostic integration | 2, 5, 6 (relative-span rebasing of explanations, template plans, selections), 8 (fast and deep availability); the rest is the diagnostic-policy lane's |
+| Consumer parity and cost | 2 and every later slice's parity module; 2 (`file_token_facts_never_evaluates`) |
+| Partial knowledge | 2 (per-version loss with reasons: the explanations), 3 (the floating-point counterexample; closed-subtree folding), 5 (shape facts in `folded_types`) |
+| Full fact integration | 5 (dynamic return hooks keep their intrep; type, taint and range survive a decline) |
+| Vendor iteration | 4 (VT4.14's pack loop spelling), 12 (zero and multiple iterations, completion) |
+| BPF | 3 (the division difference: a BPF expression never takes the Tcl answer, VT3.12); the rest is the BPF frontend's |
+| Catalogue completeness | 7 (every pure command has a route or a reason) |
+
+### Boundaries
+
+#### With the diagnostic-policy lane
+
+The diagnostic-policy lane owns `rust/tcl-lsp-core/src/diagnostic_policy.rs`,
+`diagnostic_report.rs`, `config_ini*`, `code_actions.rs`, the
+diagnostic-code table, the catalogue generators, and the adapter edits in
+`rust/tcl-lsp-server/src/lib.rs`, `rust/tcl-cli/src/commands/diag.rs`,
+`policy.rs` and `rust/tcl-mcp/src/tools.rs`; it never edits
+`tcl-compiler`, `tcl-registry`, `tcl-cmd-core`, `tcl-spectcl`,
+`tcl-spec-hooks` or `rust/xtask/src/value_transfers*`.
+
+- **B-DP1 — the crates it owns.** This lane edits, in `tcl-lsp-core`,
+  only `hover.rs`, `inlay_hints.rs`, the semantic-token families,
+  `document_links.rs`, `package_resolver.rs`, `refactor/extract_proc.rs`
+  and `refactor/mod.rs` (slices 5 and 7), and in `tcl-mcp` only
+  `irule_gen.rs` (VT7.7), each after the diagnostic-policy lane's commits
+  to that crate have landed, rebased over them. Its CLI tests live in
+  `rust/tcl-cli/tests/value_transfers_cli.rs`, never in `cli.rs`.
+- **B-DP2 — `rust/tcl-lsp-db/src/lib.rs`.** The diagnostic-policy lane's
+  `file_analysis` commit (DP4.0) lands first. This lane's footprint is
+  `FnLatticeKey`, `ValueTransferContext`, `function_lattice`,
+  `compilation_unit` (VT4.8) and the one `mod value_transfer_parity;`
+  line (VT2.11); its tests live in `value_transfer_parity.rs`. Neither lane
+  stages the other's hunk.
+- **B-DP3 — O111 and W100.** The unbraced-expression fact is the
+  analyser's produced W100 set: the diagnostic-policy lane's DP8.1 keeps
+  W100 computed under every policy (`FACT_CODES`), and DP8.2's
+  `brace_expr_hints` emits O111 at each produced W100's span, replacing
+  `with_brace_expr_hints` and `append_brace_expr_perf_hints`. This lane
+  adds no second representation (D23) and pins, in VT5.13, that the
+  produced set marks every unbraced expression.
+- **B-DP4 — the owner documents.** `diagnostics-calculation.md` and
+  `diagnostics-integration.md` are the diagnostic-policy lane's (its slice
+  10 rewrites them). This lane drafts each slice's rows in its tracking
+  document — the value-transfer producer, the existence fact, the
+  selection record, the refinements, the summaries — and commits them
+  only after that lane's slice 10 has landed. `pass-fact-ownership-matrix.md`
+  is shared row by row (the diagnostic-policy lane edits the `tcl-lsp-db`
+  row); `shared-utility-contracts-rust.md`'s "constant evaluation and value
+  transfers" owner row is this lane's, each lane committing after the
+  other's pending hunk is committed.
+- **B-DP5 — the analyser's diagnostics.** The producers this plan changes
+  — W210's preserve consumer (VT5.11), the existence consumers W210, W211,
+  W213, W214 (VT8.4), S100's existence reading (VT8.6), W102 (VT5.10),
+  W240 and W241 (VT6.7), the literal-only checks (VT5.16) — are
+  `tcl-compiler` code and this lane's. They emit `Diagnostic` exactly as
+  today, apply no policy (rule 1 of § *Diagnostics consume facts*), and
+  reach the diagnostic-policy lane's `Finding` and `apply` unchanged. A
+  fixture of that lane's truth table or parity tests whose program a
+  slice's delta touches is named in the slice's landing message. The
+  three questions that lane's plan puts to the `tcl-compiler` owner (the
+  file-directive fold, W305's self-filter, a single-bucket
+  `line_suppressed`) are not value-transfer work and stay with the owner
+  (Q11).
+- **B-DP6 — `tcl-mcp`.** `tools.rs` is the diagnostic-policy lane's,
+  `spectcl.rs` the consumer-contracts lane's (B-CC4), `irule_gen.rs` this
+  lane's.
+
+#### With the consumer-contracts lane
+
+- **B-CC1 — `rust/tcl-registry/src/spec.rs` and `resolved_invocation.rs`.**
+  This lane owns the `semantics` field on the three scopes and
+  `InvocationSemantics::value`; the consumer-contracts lane adds
+  `clause_grammar`, `option_effect_families`, `alias_of`,
+  `runtime_backing`, the stamp windows and the query methods (CC2.8), and
+  deletes `substitution_resolver` and the five `CaseListSpec` option
+  fields. Disjoint fields and impl blocks; whichever lands second rebases.
+  CC2.8's `AnalysisContext::surface_query` is a two-line addition to this
+  lane's `context.rs`, accepted.
+- **B-CC2 — `subst`.** CC2.6 owns `subst_.rs`'s option rows,
+  `option_effects` and the `substitutions_performed` projection; VT5.8
+  builds `SubstSemantics` over `option_effects` and adds only the
+  `semantics` field and `value_transfer/template.rs`. CC2.6 lands first.
+- **B-CC3 — slice 4 against steps 2 to 4.** The loader, `render_spectcl.rs`,
+  `schema.rs`, `draft.rs`, `help.rs` and `coverage.rs`: slice 4 adds the
+  `semantics`, `evaluate` and `facts` statements; step 2 adds
+  `clause_grammar`, `-effect`, option `-effect` and the resolver family;
+  step 4 `alias_of`. Each is its own statement; the `GAPS` table is edited
+  by both (this lane removes `semantics`). Step 2 lands before slice 4
+  where possible; the second rebases and re-runs `spectcl_roundtrip`.
+  Step 3's `trust` on `EvalOptions` / `EvalSnapshotKey` is that lane's;
+  slice 4 does not edit `loader/eval.rs` (D13). A declared implementation
+  of an alias names the alias target's identity from step 4's `alias_of`.
+- **B-CC4 — `spectcl_check`.** `rust/tcl-mcp/src/spectcl.rs` is CC3.4's
+  first; VT4.12's three findings follow it.
+- **B-CC5 — the analyser hooks.** CC2.12's generic
+  `handle_var_binding_command` and CC2.13's retirement put `Set`,
+  `DictWith` and `RegexPatternCapture` on the ledger "until slice 5|8":
+  VT5.4 retires `RegexPatternCapture`, VT5.7 `DictWith`, VT8.9 `Set`, each
+  after CC2.13's re-baseline and, for `Set`, CC2.12.
+- **B-CC6 — `HandlerMatch`.** VT10.4 reads each `try` handler's match
+  from CC2.2's clause-grammar descriptor.
+- **B-CC7 — the tcllib specs.** VT7.5 follows the move of the tcllib
+  specs to SpecTcl, whichever lane carries it.
+- **B-CC8 — CC9.2.** `TclVersion::from_profile` for vendor profiles
+  (`runtime_base`, `f5-irules` measured as 8.4) changes what
+  `TargetSemantics::of` answers for them, so slice 2's unnamed-release
+  answers under iRules become 8.4's; CC9.2 lands only with this lane's
+  agreement and the `differential_fold.rs` iRules rows updated in the same
+  checkpoint.
+- **B-CC9 — `Engine::set_release` and the overlay.** VT4.1 lands
+  `set_release` before CC8.2 uses it; VT4.8 lands the analysis half of
+  `spec_pack_key` reaching `compilation_unit` before CC6.3's compile-service
+  half.
+- **B-CC10 — the ratchet in files that lane rewrites.** A stale pin fails
+  G1, so the lane whose rewrite removes a site lowers the pin — never
+  raises it — and the migration plan's ratchet row in the same commit.
+  That is the one edit the consumer-contracts lane makes to
+  `rust/xtask/src/value_transfers.rs` and the ratchet table, and it needs
+  no request (D20). CC2.1's gate stays a sibling module; CC2.15 merges the
+  lint roots after slice 2 lands.
+- **B-CC11 — the option-effect descriptor for `subst` and `regexp`.** After
+  VT2.M, `regexp_.rs` carries upstream's #2222 (`-about` and `-inline`
+  name no match variables); CC2.6's `option_effects` rows for `regexp`
+  build on the merged file, and VT5.4 reads them.
+
+### Decisions taken
+
+- **D1 — No squash onto the checkpoint.** VT2.0 committed on top of
+  HEAD (`206f6eee`, `bdfe3a96`), as the plan requires: `3a83a9f8` already
+  sat above `f3f9390f`, other lanes commit on top, shared history is not
+  rewritten, and `git rebase -i` is unavailable. The lane doc's remaining
+  step 5 still says "squash onto the checkpoint"; it is superseded. The
+  hand-off's subject is VT2.13's landing commit, and the orchestrator
+  squashes a slice's `wip` commits with its landing commit's body.
+- **D2 — The hand-off's decisions.** Per-operation admission under an
+  unnamed release stands (flagged, F1); `SOURCE_ENCODING` subsuming
+  `CHAR_INDEXING` stands (the oracle: `string length héllo` is 6 under
+  8.x and 5 under 9.x from a UTF-8 file); an error as a decline stands
+  until VT10.1; the lift's one-finite-identity rule stands (it is the
+  page's correlated limit); the interval model from the descriptor stands;
+  `Constructed` evidence in a route's answer stands; `Pending` passing
+  through a test helper stands; `string range` through `evaluate_literal`
+  in both folders stands, with the unversioned `const_fold` restored
+  (VT2.0, `fold_range_unanimous`); `FormatTemplate` transitional until
+  slice 3 stands and is ledgered by VT2.7 and retired by VT3.8;
+  committing the inventory from a failing run is superseded (VT2.0
+  regenerated it from a passing run, and no later checkpoint commits one
+  from a failing G1); deferring the request and iteration budgets partly
+  stands (D3); the slice-1 rule that the mutation-fact-free shared
+  lattice trusts every binding is withdrawn (VT2.M, #2164); "the #2050
+  cause is not yet established" is resolved (VT2.0 traced it to
+  `uses_of_classified`); VT2.0's two rules — a `reads` name the call also
+  defines is a read of the prior value, and read-before-set does not
+  claim an embedded cell update's read — stand, reconciled with
+  upstream's identical rule and `statement_is_synthetic_effect` in VT2.M.
+- **D3 — Budgets.** The request and the iteration levels land together in
+  VT4.9: the iteration level divides the request's remaining work, so it
+  has nothing to divide before the request exists; slice 12's cap is its
+  own `BudgetLimit::Iterations`. This moves a row of the evaluation page's
+  slice-2 landing ("the three nested budgets") to slice 4 (Q1).
+- **D4 — `const` is slice 8's.** Only the absent case of `const` is a
+  value (over a constant it keeps the old value, over an ordinary variable
+  it errors), and existence is slice 8's fact.
+- **D5 — `lset`, `ledit`, `lpop` are slice 7's.** `tcl-cmd-core` has no
+  core for them; a new core is shared with the runtimes, which is slice
+  7's oracle-evidenced catalogue growth.
+- **D6 — `set` stays the typed `Assign` in statement position.** The
+  route serves invocation-shaped uses (`[set x]`, the lexical consumers,
+  slice 9's nested `[set x 10]`); the solver's native `Assign` transfer
+  is unchanged.
+- **D7 — Slice 7 splits** into 7a, before 13, and 7, last (§ *Order of
+  delivery*).
+- **D8 — `collect_existence_guards` goes in slice 11.** Slice 8 lands the
+  existence-domain refinement and W210's reading of it; slice 11's exit
+  names the helper's deletion, so its three callers move there.
+- **D9 — The witness homes.** One compiler integration binary, one CLI
+  binary (separate from `cli.rs`, which the diagnostic-policy lane edits),
+  and one lane-owned test module in `tcl-lsp-db`; every later slice
+  extends them.
+- **D10 — Stores are confined in the engine.** `HostCommand` cannot reach
+  the calling frame, so the page's host-command `ActivationStore` cannot
+  keep a body's locals; `Engine::confine_stores` refuses a store outside
+  the activation at the VM's name-resolving store path (Q4).
+- **D11 — `Engine::set_release` takes the profile's name**, because
+  `tcl-engine-api` is dependency-free by design.
+- **D12 — `EvaluatorCapability` keeps `EvalRoute: Copy`** with `&'static`
+  slices and a registry-side `ImplementationBudget`.
+- **D13 — "Cache inputs (target values)"** is `EvalMemoKey`'s incoming
+  targets in `pack_hooks.rs` (the evaluation page's § *The memo key*), not
+  the loader's `EvalSnapshotKey`; the consumer-contracts lane's B1 line
+  that attributes target values to `loader/eval.rs` reads as the pack-hook
+  memo key.
+- **D14 — A check that needs the unit's facts decides in the
+  per-function pass** (`emit_cfg_ssa_diagnostics`), where the lattice
+  is: W102 moves there wholly (VT5.10); W240 and W241 resolve the
+  candidates the walk records (VT6.7); the literal-only checks keep their
+  literal path in the walk and re-run there only for the words the walk
+  abstained on (VT5.16). No finding is emitted twice.
+- **D15 — `command_substitution_is_none`** stays byte-identical in slice 3
+  (its `[clock seconds]` reads the wall clock under every policy) and is
+  restated in slice 9 (Q2).
+- **D16 — The analyser hooks retire per CC2.13's ledger**: `DictWith` and
+  `RegexPatternCapture` in slice 5, `Set` in slice 8.
+- **D17 — #2214 is fixed in slice 2.** It is a wrong-output rewrite in the
+  nested-cell-update family slice 2's witnesses exercise, and waiting for
+  slice 13's `globals` would leave it for eleven slices; slice 13's
+  summary subsumes the fix.
+- **D18 — The regexp owner's runtime delta is accepted.** A search that
+  exhausts its fuel raises instead of answering 0 on the runtime path, as
+  the evaluation page's step 3 states (Q8).
+- **D19 — An `Unbind` in slice 5** publishes `Overdefined` for the value
+  and waits for slice 8's existence fact.
+- **D20 — A pin falls in the commit that removes its sites**, whichever
+  lane makes that commit (B-CC10).
+- **D21 — Upstream is absorbed, not duplicated** (VT2.M): one
+  implementation per fact, re-expressed through the registry interface
+  where slice 1 or 2 moved the logic; the witnesses upstream satisfies
+  stay; the ratchet is re-measured. The shared lattice takes upstream's
+  `FoldTrust::ObservedBindings` stance and a rewrite's re-run
+  `FoldTrust::WholeModule` (F4).
+- **D22 — A BPF expression declines** (VT3.12); the BPF arithmetic
+  adapter is the BPF frontend's.
+- **D23 — W100's produced findings are the unbraced-expression fact.**
+  The diagnostic-policy lane's DP8.1 and DP8.2 already make them the one
+  fact W100 and O111 read, so a compiler-side `UnbracedExpression` record
+  would be a second representation of it; VT5.13 proves the produced set
+  complete instead.
+
+### Open questions for the owner
+
+Each with the assumption the plan proceeds on.
+
+- **Q1 — The three nested budgets.** The evaluation page lands them in
+  slice 2; the hand-off deferred them. *Assumption*: slice 4 (D3).
+- **Q2 — `command_substitution_is_none` "flips".** Its program, `[clock
+  seconds] + 1`, reads the wall clock and can never fold. *Assumption*:
+  slice 9 renames it `command_substitution_evaluates_through_the_nested_service`
+  over `[incr x] + 1` and keeps the clock program as its negative case.
+- **Q3 — #2143's W123 half.** The analyser's W123 pass runs over the
+  source walk, which never sees `specialise_factories`' children; the
+  template-word plan gives the child its span, not its registration.
+  *Assumption*: slice 5 fixes the span half and its landing says "Pins the
+  span half of #2143"; if the owner assigns the W123 half here, VT5.9
+  grows a bridge carrying the unit's materialised procedures to the
+  walk's W123 pass, and the landing says "Closes #2143".
+- **Q4 — `ActivationStore`.** The page's mechanism cannot write the
+  calling frame through `HostCommand`. *Assumption*:
+  `Engine::confine_stores` (D10), an engine capability the page did not
+  consider; the page's § *Per-evaluation state* is amended in VT4.15.
+- **Q5 — The `Set` hook's `interp create` binding.** It is the
+  interpreter-domain axis, not the value axis. *Assumption*: it moves with
+  the hook in VT8.9, reached from the generic binding and keyed by the
+  value word's resolved `interp create`.
+- **Q6 — The shared lattice's stance on an unbounded binding transition.**
+  Upstream's `ObservedBindings` keeps folding when one unresolved head
+  raises the `dynamic` top, while the interface page's decline table reads
+  "binding validity: … renamed, aliased, redefined, or in an opaque
+  namespace". *Assumption*: the plan adopts upstream's two stances (D21),
+  because every rewrite re-proves under `WholeModule`.
+- **Q7 — Reclassified gap rows.** `const` to slice 8 and `lset`, `ledit`,
+  `lpop` to slice 7 (D4, D5). *Assumption*: accepted.
+- **Q8 — The regexp runtime delta.** *Assumption*: accepted (D18).
+- **Q9 — #2214 in this lane.** *Assumption*: VT2.9 fixes it unless a
+  `rust` pull request closes it first.
+- **Q10 — Slice 5's size.** Twenty items in one slice. *Assumption*: one
+  slice, six checkpoints, one landing, as the plan defines it.
+- **Q11 — The diagnostic-policy lane's three questions to the
+  `tcl-compiler` owner** (the file-directive fold, W305's self-filter, a
+  single-bucket `line_suppressed`). *Assumption*: they are not this lane's;
+  it neither answers nor blocks them.
+
+### Deltas flagged for the owner
+
+- **F1 — Folding under a profile that names no release.** The hand-off's
+  per-operation admission makes `incr x 5`, `append`, `lappend`, `string
+  range` and every later direct route fold under every vendor dialect
+  (iRules included) where each modelled release agrees, while the
+  evaluation page's `admit` step 2 reads "a bit whose field is `None` is a
+  decline". The page's per-axis rules support the reading; its literal
+  step does not. CC9.2 later gives iRules a measured base (B-CC8).
+- **F2 — The budget deferral** (D3, Q1): a scope move, not a behaviour.
+- **F3 — The inventory committed from a failing gate run** at the
+  checkpoint: a process deviation, corrected by VT2.0.
+- **F4 — The `ObservedBindings` stance** (D21, Q6): the shared lattice
+  folds under an unbounded binding transition that the rewrite stance
+  refuses.
+
+No other delta in this plan lacks a mandate; each slice's table cites
+its own.
+
+### Item count and model split
+
+| Slice | Items | opus | sonnet |
+|---|---|---|---|
+| 2 | 15 (VT2.0 landed, VT2.M, VT2.1–VT2.13) | 9 | 6 |
+| 3 | 12 | 8 | 4 |
+| 4 | 15 | 10 | 5 |
+| 5 | 20 | 15 | 5 |
+| 8 | 11 | 9 | 2 |
+| 6 | 9 | 6 | 3 |
+| 9 | 6 | 3 | 3 |
+| 10 | 9 | 7 | 2 |
+| 11 | 5 | 3 | 2 |
+| 12 | 7 | 5 | 2 |
+| 7a | 2 | 1 | 1 |
+| 13 | 8 | 5 | 3 |
+| 7 | 10 | 6 | 4 |
+| **Total** | **129** | **87** | **42** |
