@@ -2435,3 +2435,91 @@ fn an_existence_query_is_neither_a_read_before_set_nor_a_write() {
         analyser_codes(dynamic_element, TCL)
     );
 }
+
+/// #2051 — `regexp`, `scan` and `binary scan` write their targets only on the
+/// match path.
+///
+/// Each leaves a target's previous value in place when the match or
+/// conversion does not reach it, and never creates one that did not exist.
+/// Measured identical on tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1b0.
+/// Modelling the write as unconditional made the feeding store look
+/// overwritten-before-read, so O109 deleted it and the program did not merely
+/// print something else — it failed with `can't read "…"`.
+#[test]
+fn a_conditional_writer_does_not_kill_the_store_it_may_preserve() {
+    for (src, why) in [
+        (
+            "proc p {} {\n    set a before\n    set b before\n    regexp {(x)(y)} zz a b\n    puts \"$a $b\"\n}\np\n",
+            "a failed regexp leaves both match variables alone",
+        ),
+        (
+            "proc p {} {\n    set a before\n    set b before\n    scan {12 nope} {%d %d} a b\n    puts \"$a $b\"\n}\np\n",
+            "scan converts one field and leaves the second target alone",
+        ),
+        (
+            "proc p {d} {\n    set c before\n    set e before\n    binary scan $d \"a1a5\" c e\n    puts \"$c $e\"\n}\np AB\n",
+            "binary scan runs out of data and leaves the second target alone",
+        ),
+    ] {
+        assert!(
+            !opt_fires(src, TCL, "O109"),
+            "{why}: {:?}",
+            opt_codes(src, TCL)
+        );
+        // Asserted on the stores rather than byte-identity: the `binary scan`
+        // row also gets a legitimate O100, specialising its one call site's
+        // `$d` to `AB`, which is unrelated and correct.
+        let out = optimised(src, TCL);
+        assert_eq!(
+            out.matches("before").count(),
+            src.matches("before").count(),
+            "{why}: every store the command may preserve survives: {out}"
+        );
+    }
+}
+
+/// Precision: a command that writes its target on *every* path still has its
+/// dead store eliminated. Each was measured writing unconditionally, on the
+/// failure path too — `regsub {xx} zz YY a` leaves `a` as `zz`, `lassign`
+/// pads a short list with `""`, `catch` always writes its result variable.
+#[test]
+fn an_unconditional_writer_still_kills_its_dead_store() {
+    for (src, why) in [
+        (
+            "proc p {s} { set a 1; regsub {x} $s y a; puts $a }\np zz\n",
+            "regsub",
+        ),
+        (
+            "proc p {} { set m 1; catch {expr {1+1}} m; puts $m }\np\n",
+            "catch",
+        ),
+        (
+            "proc p {l} { set a 1; set b 2; lassign $l a b; puts \"$a $b\" }\np one\n",
+            "lassign",
+        ),
+    ] {
+        assert!(
+            opt_fires(src, TCL, "O109"),
+            "{why} writes on every path, so the earlier store is dead: {:?}",
+            opt_codes(src, TCL)
+        );
+    }
+}
+
+/// Precision: the no-match prover still reports a target a failed match never
+/// creates. Crediting the read must not silence W210, which is what keeps
+/// `regexp {x} y -> v; puts $v` reported — tclsh fails it with
+/// `can't read "v"`.
+#[test]
+fn the_no_match_prover_still_reports_an_uncreated_target() {
+    for src in [
+        "proc f {} { regexp {x} y -> v; puts $v }",
+        "proc f {} { scan abc %d v; puts $v }",
+    ] {
+        assert!(
+            analyser_codes(src, TCL).iter().any(|c| c == "W210"),
+            "a target the match never creates is still reported: {:?}",
+            analyser_codes(src, TCL)
+        );
+    }
+}
