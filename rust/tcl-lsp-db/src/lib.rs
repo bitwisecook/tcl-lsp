@@ -3850,12 +3850,13 @@ mod tests {
                 };
                 let want = lattice_of(&direct);
                 assert_eq!(lattice_of(&memoised), want, "{dialect}: {qname}");
-                assert!(
-                    want.iter()
-                        .any(|(name, _, value)| name == "n" && value.contains("Int(4)")),
-                    "{dialect}: program (3) folds to 4 on both paths: {want:?}"
-                );
+                // `n` and `z` are `p`'s; `q` pins the parity alone.
                 if qname == "::p" {
+                    assert!(
+                        want.iter()
+                            .any(|(name, _, value)| name == "n" && value.contains("Int(4)")),
+                        "{dialect}: program (3) folds to 4 on both paths: {want:?}"
+                    );
                     let z = want
                         .iter()
                         .filter(|(name, _, _)| name == "z")

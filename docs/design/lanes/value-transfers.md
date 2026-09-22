@@ -301,9 +301,23 @@ path runs the same context; the correlated finite-set limit is in force.
   The CFG builder's embedded-substitution scan now carries the names a
   `READS_BEFORE_WRITE` command reads first (`VariableWriteEffects::
   read_before_written`) as `reads` on the host call or on the synthetic
-  `<upvar-invalidate>` call, so `set n 1` ahead of `set result [incr n]`
-  has a use and O109, O126, and W220 keep it. The `Statement::Incr`
-  deletion predicate is unchanged.
+  `<upvar-invalidate>` call, and the SSA builder reads a `reads` name its
+  call also defines as a read of the prior value (`uses_in_call`):
+  lowering flags that overlap `reads_own_defs`, the CFG builder's calls
+  leave it unflagged because their other definitions are not read, and
+  the use filter dropped the name. So `set n 1` ahead of `set result
+  [incr n]` has a use and O109, O126, and W220 keep it. The
+  `Statement::Incr` deletion predicate is unchanged.
+- **Read-before-set does not claim an embedded cell update's read.** The
+  substitution scan recovers every `[…]` in a statement's words, braced
+  ones included, so the read may not run where it is recorded: the
+  top-level `proc f {} { puts [incr n] }` statement records a read of
+  `n`. W210 (`embedded_cell_update_read` in `dataflow.rs`) skips a named
+  read of a cell the same call defines on a call not flagged
+  `reads_own_defs`, as it skips a quoted mention; the use keeps the
+  `Name` class, so value forwarding never targets it. W210 reports what
+  it reported before: an embedded `lset`, `lpop` or `ledit`, or an 8.4
+  `incr`, over an unset variable stays unreported.
 - **W231's length is the value after the cell updates (#2054).** The
   lexical walk carries the last literal assignment's *value* and applies
   every later cell update on the variable whose route evaluates over
@@ -324,8 +338,9 @@ path runs the same context; the correlated finite-set limit is in force.
 ### Issues this slice's witnesses close
 
 - #2050 — `set n 1; set result [incr n]; puts $n`: O109 keeps `set n 1`
-  (`store_read_by_a_nested_cell_update_is_not_dead`) — **not yet true at
-  the hand-off**: the test fails; see "Status at hand-off".
+  (`store_read_by_a_nested_cell_update_is_not_dead`), and keeps `set s x`
+  ahead of `puts [append s y]; puts $s`, where the read rides the host
+  call.
 - #2052 — `set p { again}; append s $p`: the chain fold reads ` again`
   exactly (`var_piece_proven_by_the_lattice_folds_the_chain`,
   `evaluate_def_append_var_piece_reads_the_lattice_exactly`).
@@ -349,66 +364,64 @@ path runs the same context; the correlated finite-set limit is in force.
   as text, so a bounded loop over such a counter simulates only under a
   named release.
 
-## Status at hand-off (2026-09-18): slice 2 checkpoint, not complete
+## Status (2026-09-22): slice 2 checkpoint green, not complete
 
 Implementation moved to other agents at the owner's request. This section
 is what a fresh agent needs to resume from cold. The slice-2 sections
 above describe the design as intended; where they claim a witness, this
-section says whether it holds. The checkpoint commit is
-`wip(value-transfers): slice 2 checkpoint — hand-off`, on top of
-`5bc40e95` (the diagnostic-policy lane's own checkpoint), and the tree it
-leaves is the whole lane state — nothing is parked outside git. The
-crates the lane touched are `tcl-registry`, `tcl-compiler`,
-`tcl-explorer`, `tcl-lsp-db` and `xtask`; the other lane owns
+section says whether it holds. The hand-off checkpoint is `f3f9390f`
+(`wip(value-transfers): slice 2 checkpoint — hand-off`, 2026-09-18, on
+top of `5bc40e95`); it left seven tests and the lane's gate failing and
+four checks never run. VT2.0 (2026-09-22) made it green without
+starting the slice's remaining steps, in `206f6eee` (the tests, the gate
+and clippy) and the commit that carries this section (the unrun checks
+and the full suites). The tree is the whole lane state — nothing is
+parked outside git. The crates the lane touched are `tcl-registry`,
+`tcl-compiler`, `tcl-explorer`, `tcl-lsp-db` and `xtask` (and, for one
+port-table entry, `tcl-spec-studio`); the other lane owns
 `tcl-lsp-core`, `tcl-lsp-server` and `tcl-mcp`.
 
-**VT2.0 (2026-09-22), in progress:** the seven failing tests, the gate's
-six waivers and pedantic clippy over the five crates are fixed in the
-first `wip(value-transfers): slice 2 checkpoint green` commit; the unrun
-gates and the full suites follow in the next, which rewrites this section
-with the results.
-
-### What compiles and what was run
+### What compiles and what was run (VT2.0)
 
 - `cargo check --workspace --all-targets`: green.
-- `cargo fmt -p tcl-registry -p tcl-compiler -p tcl-explorer -p tcl-lsp-db
-  -p xtask`: applied at the hand-off (it changed no code; it moved six
-  waiver comments, see below).
-- `cargo xtask pack-goldens`: 0 snapshots rewritten, 24 packs scanned. The
-  `string range` declaration changes no shipped-pack snapshot; `56320895`
-  already carries the `semantics` column.
-- `bash scripts/dev/test-nextest-binary-shards.sh`: ok. The slice adds no
-  test binary, so the shard manifest needs no row.
-- `cargo xtask value-transfers` (write mode): **exit 1** — "6 site(s)
-  recognise a command by name in a file the gate holds clean" (the sites
-  are listed under "Where each unfinished piece stops").
-  `docs/generated/value-transfers.md` is what that run wrote before it
-  failed and is committed as written; regenerate it once the gate passes.
-- `cargo test -p tcl-compiler -p tcl-explorer -p tcl-registry` (run just
-  before the final format): every test binary of the three crates passes
-  except these five, which fail exactly as described below:
-  - `tcl-compiler` lib: 6427 passed, 1 failed —
-    `optimiser::elimination::tests::store_read_by_a_nested_cell_update_is_not_dead`.
-  - `tcl-compiler` `tests/compiler_analysis_residual.rs`: 73 passed, 2
-    failed — `rebase_switch_and_while_shift`,
-    `rebase_shifted_unit_spans_match_fresh`.
-  - `tcl-registry` lib: 894 passed, 1 failed —
-    `commands::tcl::string_::tests::string_index_comparison_folds_match_tcl`.
-  - `tcl-registry` `tests/differential_fold.rs`: 3 passed, 1 failed —
-    `storage_outcome_witnesses_match_every_release_on_path`.
-  - `tcl-registry` `tests/value_transfers.rs`: 11 passed, 2 failed —
-    `the_increment_route_runs_the_shared_core_under_the_target_semantics`,
-    `append_and_list_append_run_the_shared_cores`.
-  The witnesses for #2052 and #2054 pass
-  (`optimiser::chain_fold::tests::var_piece_proven_by_the_lattice_folds_the_chain`,
-  `sccp::tests::evaluate_def_append_var_piece_reads_the_lattice_exactly`,
-  `analyser::bounds_checks::tests::w231_length_follows_the_cell_updates`);
-  the witness for #2050 is the failing elimination test.
-- Not run at all: `cargo test -p tcl-lsp-db` (its new test
-  `direct_and_memoised_lattices_agree_on_the_cell_update_witnesses`
-  type-checks under the workspace check and has never executed),
-  `cargo test -p xtask`, clippy over any slice-2 file, and
-  `tcl explore --show sccp --text` on a cell-update fixture.
+- `cargo clippy -p tcl-registry -p tcl-compiler -p tcl-explorer
+  -p tcl-lsp-db -p xtask --all-targets -- -D warnings`: clean, with no
+  `#[allow]` added. Its first run found pedantic lints in slice-2 code,
+  each fixed at its cause: single-arm `match`es in `const_ops.rs` and
+  `context.rs`; `cell_update_assignment`'s `Option<Option<String>>`
+  (now `Option<CellUpdateWrite>`); a `?`-shaped block in
+  `chain_fold.rs`; `fold_cmd_subst_routes` over 100 lines (the two
+  identical explanations became `explain_fold`); and two registry tests
+  over 100 lines (helpers, and the increment test split in two).
+- `cargo fmt --all -- --check`: clean.
+- `cargo xtask value-transfers --check`: OK — 15 files clean, 16 sites
+  waived, 100 sites pinned across 41 ratcheted files, 6607 inventory
+  rows; `docs/generated/value-transfers.md` is the write-mode output.
+- `cargo xtask pack-goldens`: 0 snapshots rewritten, 24 packs scanned.
+- `bash scripts/dev/test-nextest-binary-shards.sh`: ok; VT2.0 adds no
+  test binary.
+- `cargo xtask kcs-index-links`: passed; `cargo xtask owner-resolution`:
+  OK, 43 owner rows.
+- `cargo test -p tcl-compiler -p tcl-registry -p tcl-explorer
+  -p tcl-lsp-db -p xtask --no-fail-fast`: every test binary passes.
+  `tcl-compiler`: lib 6428 passed (2 ignored), 65 integration binaries
+  3172 passed (4 ignored; `compiler_analysis_residual` 75), 7 doc-tests;
+  `tcl-registry`: lib 895, 19 integration binaries 275
+  (`differential_fold` 4, `value_transfers` 14), 1 doc-test;
+  `tcl-explorer`: lib 99; `tcl-lsp-db`: lib 92 (the parity test
+  included), 9 integration binaries 26 (5 ignored); `xtask`: 223. In
+  all 11218 passed, 0 failed, 11 ignored.
+- `cargo test -p tcl-spec-studio`: 282 passed, once `spectcl_ports`
+  documents `string range`'s new unrenderable fields (item 4).
+- `tcl explore --show sccp --text` (`target/debug/tcl` from
+  `cargo build -p tcl-cli`) over `set n 1; set result [incr n]; append s
+  x; append s y; lappend xs a b; set r [string range abcdef 1 3]; set q
+  [string range abc 010 end]` prints a `route <command>: <route>
+  (<owner>)` node per resolved statement with its `answer` and `line`:
+  `direct cell-increment (registry)` answering `pending` (item 11),
+  `direct cell-append` and `direct cell-list-append` answering
+  `declined: not-exact` over the unset cells, and `direct string-range`
+  answering `evaluated` (`r#1 = const('bcd')`, `q#1 = const('')`).
 
 ### What landed (type-checked; the tests above qualify it)
 
@@ -485,77 +498,45 @@ with the results.
 
 ### Where each unfinished piece stops
 
-1. **The gate.** The six sites the gate reports —
-   `analyser/bounds_checks.rs`: `if cmd_name == "lindex" {`, `let verb =
-   if cmd_name == "lrange" {`, `if sub == "index" || sub == "insert" {`,
-   `let verb = if sub == "range" {`; `analyser/diagnostics/usage.rs`:
-   `let opt_start = if cmd_name == "fconfigure" {`, `} else if cmd_name ==
-   "chan" && args.first()… == Some("configure") {` — carried their
-   `// value-transfer-ok: <axis> — <reason>` waivers as trailing comments
-   on those lines, which `site_waiver` (xtask `value_transfers.rs`) did
-   not recognise; the hand-off format then moved each comment onto the
-   line *below* its site (the first line inside the `if`), which the gate
-   reads even less. The neighbouring sites in the same files
-   (`bounds_checks.rs` waivers at the comment lines above their `if`s)
-   are recognised, so the fix is to move each of the six comments to its
-   own line directly above the site. The axis and reason texts are
-   already right: `arg_roles — the W230–W232 index positions await an
-   index-argument role on the registry` and `options — W311 reads the
-   encoding option's position, which `option_placement` on the registry
-   will carry`.
-2. **Rebase of the route explanations.**
-   `lattice_rebase::rebase_function_unit` shifts
-   `fu.sccp.constant_branches[*].span` but not
-   `fu.sccp.explanations[*].span` (`RouteExplanation.span` is a plain
-   `Span`), so a cache-hit rebased unit compares unequal to a fresh build
-   in `compiler_analysis_residual.rs` (`assert_span_carrying_eq`). One
-   loop beside the `constant_branches` one fixes both tests.
-3. **#2050, the nested cell update's read.** `cfg_builder/mod.rs`'s
-   embedded-substitution scan puts the names a `READS_BEFORE_WRITE`
-   command reads first (`VariableWriteEffects::read_before_written`) on
-   the host call's `reads`, or on the synthetic `<upvar-invalidate>`
-   `Statement::Call` it prepends before a non-Call host (the `set result
-   [incr n]` fixture is that case). O109 still fires on `set n 1`
-   (`elimination.rs`, the test at the end of the `tests` module): the
-   `reads` on the synthetic call do not become a use in the def-use chain
-   `emit_dead_stores_and_unused` / `dead_chain_code` consult. Not yet
-   established whether the SSA builder ignores `reads` on that synthetic
-   command, or whether the fixture never reaches the synthetic-call path.
-   Trace where `Statement::Call.reads` becomes an SSA use before changing
-   anything else.
-4. **`string_index_comparison_folds_match_tcl`** (registry lib,
-   `string_.rs`). The test's helper unwraps `subcommand("range")
-   .const_fold`, which is now `None`. The standing rule was to keep every
-   existing test byte-identical unless a witness proves today's result
-   wrong, and no witness does here, so restore `const_fold: Some(|args|
-   fold_range(args, None))` on `range` — the unversioned form is the
-   unanimous answer — unless the `const_fold_versioned` consumers
-   (`tcl-compiler/src/const_subst.rs`, `codegen/values.rs`) forbid both
-   fields at once; check before choosing.
-5. **`storage_outcome_witnesses_match_every_release_on_path`**
-   (`differential_fold.rs`). The case `("lappend", "a", &["{", "b"])`:
-   the route answers `a \{ b`, which is what every `tclsh` gives for
-   `set v a; lappend v \{ b`; the test's oracle brace-quotes each value,
-   so its script contains `{{}` — unbalanced — and `tclsh` reading it
-   ends with no output and exit 0, which the oracle reports as
-   `Some("")`. Fix the oracle's quoting (backslash-escape `{`, `}`, `\`,
-   `"`, `$`, `[` inside double quotes, or build the value with
-   `[format %c 123]`), not the route.
-6. **`the_increment_route_runs_the_shared_core_under_the_target_semantics`**
-   (`value_transfers.rs`). The route now answers with
-   `RepresentationEvidence::Constructed(TclType::Int)` — `ConstOps`
-   records the representation it built — while `ExactValue::int(9)` in
-   the expectations carries `Unknown`. The evidence is intended (slice 1
-   added it for exactly this), so move the test: compare `bytes` and
-   `numeric`, or build the expectations with the constructed evidence.
-   Every `Ok(ExactValue::int(…))` expectation in that test is affected.
-7. **`append_and_list_append_run_the_shared_cores`**
-   (`value_transfers.rs`). The `assert!(matches!(evaluate("lappend",
-   FactView::Pending, &["v"]), Err(_) | Ok(_)))` block routes a pending
-   prior through the `evaluated` helper, which panics on
-   `EvalAnswer::Pending`; `Pending` is the right answer (the route's
-   `exact_input`, and the direct assertion the test makes right after).
-   Delete that block.
+Items 1–7 and 10 are done; each says what the cause was and what fixed
+it. Items 8 and 9 stand as the hand-off wrote them; item 11 is new.
+
+1. **The gate — done.** The six waivers were comments on the line below
+   each site; each is now on its own line directly above it (the
+   `chan configure` one inside the first arm, directly above its
+   `} else if`), the form `site_waiver` reads.
+2. **Rebase of the route explanations — done.** `rebase_function_unit`
+   shifts `explanations[*].span` beside the constant-branch spans.
+3. **#2050, the nested cell update's read — done.** The fixture does
+   take the synthetic-call path. The SSA builder's use filter
+   (`uses_of_classified`) keeps a name the statement also defines only as
+   a read-before-write, and the synthetic `<upvar-invalidate>` call is
+   not flagged `reads_own_defs`, so its read of `n` was dropped. The rule
+   that fixes it is in the slice-2 decisions above, with the
+   read-before-set rule that keeps W210 where it was.
+4. **`string_index_comparison_folds_match_tcl` — done.** `range` carries
+   `const_fold: Some(fold_range_unanimous)` beside
+   `const_fold_versioned: Some(fold_range)`, both the route through
+   `evaluate_literal`. The consumers allow both: `run_const_fold` tries
+   the versioned folder first, so the unanimous one answers only a caller
+   that reads `const_fold` itself. The subcommand's new `semantics` and
+   `const_fold_versioned` also failed `tcl-spec-studio`'s `spectcl_ports`
+   (never run on the checkpoint): its port table now documents them as
+   unrenderable on `range`, as slice 1 did for `foreach`.
+5. **`storage_outcome_witnesses_match_every_release_on_path` — done.**
+   The oracle writes each value as a double-quoted word with `\`, `"`,
+   `$`, `[`, `]`, `{` and `}` escaped (`tcl_quoted_word`). Seen and left
+   alone: `tclsh` reading a script on stdin exits 0 after printing an
+   error, so `run_tcl` never reports a raise and the oracle reads one as
+   empty output; no case in the matrix has a route that could answer the
+   empty string.
+6. **The increment's representation evidence — done.** The expectations
+   are `built_int(i)` (`Constructed(TclType::Int)`); the release rules
+   moved into
+   `the_increment_route_reads_numerals_under_the_target_release` to keep
+   each test under the line limit.
+7. **The pending `lappend` — done.** The block is gone; the direct
+   `EvalAnswer::Pending` assertion stays.
 8. **Escapes on the value-position route.** `fold_cmd_subst_routes`
    (`tcl-compiler/src/value_transfer.rs`) hands the raw segment texts to
    the `string range` route, while the const-fold engine
@@ -576,37 +557,42 @@ with the results.
    `string range` route is the pattern) or re-ledger all four to slice 3
    with the doc rows; the `value_transfers.rs` pinned-route test and
    `docs/generated/value-transfers.md` follow.
-10. **Unverified.** The `tcl-lsp-db` parity test; `tcl explore --show sccp
-    --text` printing the routes (the tree view has the nodes; nothing
-    checks the text); clippy over the slice-2 files.
+10. **Verification — done.** The `tcl-lsp-db` parity test's first run
+    failed on its own loop: it asserted that `n` folds to 4 in both `p`
+    and `q`, and `q` has no `n`. The assertion now covers `p` alone; the
+    parity assertion covers both. Clippy and the explorer text: above.
+11. **Found by VT2.0, not fixed: a value-position cell update launders a
+    constant through a join.** In `proc f {cond} { set n 1; if {$cond} {
+    set x [incr n] } else { set x 5 }; puts $x }`, `tcl opt` rewrites
+    `puts $x` to `puts 5` (O100), and `f 1` prints 2 on `tclsh8.6`. The
+    `[incr n]` route runs in `fold_cmd_subst_routes` with the host
+    `AssignValue`'s uses, which do not hold `n` (its read is on the
+    synthetic call before the host), so `LatticeInputs::prior_store`
+    reads version 0 (`unwrap_or(0)`), finds no value and answers
+    `Pending`; `LiftedAnswer::Pending` becomes `LatticeValue::Unknown`,
+    which survives the fixed point, and the phi takes the other arm's
+    `Const(5)`. The explorer shows it as `answer: pending`. The smallest
+    fix is the rule `place` already states for a dynamic key: a missing
+    use is a permanent miss, so `prior_store` declines rather than
+    reading version 0, and `set x [incr n]` keeps slice 1's
+    `Overdefined`; this program is its witness. Not bisected: the
+    fallback and the pending mapping are in slice 1's code as well.
 
 ### Remaining steps, in order
 
-1. Move the six waivers above their sites; `cargo xtask value-transfers`
-   in write mode regenerates `docs/generated/value-transfers.md`.
-2. Shift `explanations` spans in `rebase_function_unit`; run
-   `cargo test -p tcl-compiler --test compiler_analysis_residual`.
-3. Fix the two `value_transfers.rs` tests (items 6 and 7) and the
-   `differential_fold.rs` oracle quoting (item 5); run
-   `cargo test -p tcl-registry`.
-4. Restore `range`'s `const_fold` shim (item 4) or move that test; run
-   the registry lib tests.
-5. #2050 (item 3): trace `Statement::Call.reads` into SSA; make
-   `store_read_by_a_nested_cell_update_is_not_dead` pass without changing
-   the `Statement::Incr` deletion predicate.
-6. `cargo test -p tcl-lsp-db` for the parity test; fix what it finds.
-7. Cook escapes in `fold_cmd_subst_routes` (item 8) with its witness.
-8. Retire or re-ledger the transitional handlers (item 9).
-9. Add a `tcl-explorer` test that `--show sccp --text` prints a route
+1. Item 11: `prior_store` declines on a use the statement does not hold,
+   with the join witness.
+2. Cook escapes in `fold_cmd_subst_routes` (item 8) with its witness.
+3. Retire or re-ledger the transitional handlers (item 9).
+4. Add a `tcl-explorer` test that `--show sccp --text` prints a route
    line for the `cell_update_call` fixture.
-10. Clippy over the five crates (`cargo clippy -p <crate> --no-deps
-    --all-targets`), the full `cargo test` of the five crates, then the
-    standing gates before the commit: `cargo xtask value-transfers`,
-    `cargo xtask pack-goldens` (stage the 24 snapshots if any change),
-    `bash scripts/dev/test-nextest-binary-shards.sh` (a row per new test
-    binary). Squash onto the checkpoint as
-    `wip(value-transfers): slice 2 — the direct vertical slice`; the
-    checkpoint commit's body is the draft of that message.
+5. Clippy over the five crates, the full `cargo test` of the five
+   crates, then the standing gates before the commit: `cargo xtask
+   value-transfers`, `cargo xtask pack-goldens` (stage the 24 snapshots
+   if any change), `bash scripts/dev/test-nextest-binary-shards.sh` (a
+   row per new test binary). Squash onto the checkpoint as
+   `wip(value-transfers): slice 2 — the direct vertical slice`; the
+   checkpoint commit's body is the draft of that message.
 
 ### Decisions this checkpoint takes that the design pages do not state
 
@@ -625,9 +611,11 @@ descriptor). In addition:
 - `string range` is folded by its route through `evaluate_literal` in
   both the versioned and the unversioned folder; the unversioned answer
   is the unanimous one.
-- `docs/generated/value-transfers.md` is committed as the failing
-  write-mode run produced it, so the ratchet section already lists the
-  slice's clean files; it is regenerated in step 1.
+- `docs/generated/value-transfers.md` is the gate's write-mode output;
+  VT2.0 regenerated it once the gate passed.
+- VT2.0's two rules — the SSA reads a `reads` name its call also defines
+  as a read of the prior value, and read-before-set does not claim an
+  embedded cell update's read — are in the slice-2 decisions above.
 - The lane keeps `FormatTemplate` transitional; slice 3 is its intended
   retirement slice (not yet ledgered).
 
@@ -638,9 +626,15 @@ descriptor). In addition:
   `find_tclsh` looks them up on `PATH`); the witness results the slice-2
   sections quote came from them.
 - `cargo check --workspace --all-targets` takes about 1.5 min warm; the
-  `tcl-compiler` lib tests about 55 s; the full three-crate test run
-  about 5 min. Check `df -h /` before a heavy build (8.5 GB free at the
-  hand-off; the lane stopped below 5 GB).
+  `tcl-compiler` lib tests about 55 s; the five-crate test run about
+  6 min. Check `df -h /` before a heavy build: each distinct `-p` set
+  builds its own variant of every test binary (feature unification
+  differs), about 2 GB for `tcl-compiler`'s alone. VT2.0 deleted the lane
+  crates' stale test executables to stay above 4 GB.
+- The worktree and the target directory are shared with another
+  implementer working in `tcl-lsp-core`, `tcl-lsp-server`, `tcl-cli` and
+  `tcl-mcp`: stage by explicit path, and never `git stash` or
+  `git checkout .`.
 - `scripts/dev/test-nextest-binary-shards.sh` and `cargo xtask
   pack-goldens` are the coordinator's pre-commit gates for every lane;
   `cargo xtask value-transfers` is this lane's.

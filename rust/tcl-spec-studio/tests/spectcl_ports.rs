@@ -248,12 +248,26 @@ const PORTS: &[Port] = &[
                  and the port does not transcribe them. Every field the port \
                  does carry matches",
             )],
-            unequal_subcommand: &[(
-                "length",
-                "__unrenderable",
-                "the same five descriptors, declared per-subcommand on \
-                 `string length`; unrenderable for the same reason",
-            )],
+            unequal_subcommand: &[
+                (
+                    "length",
+                    "__unrenderable",
+                    "the same five descriptors, declared per-subcommand on \
+                     `string length`; unrenderable for the same reason",
+                ),
+                (
+                    "range",
+                    "__unrenderable",
+                    "the shipped `string range` declares its value-transfer \
+                     `semantics` (the direct string-range route) and folds \
+                     through that route in `const_fold_versioned` beside \
+                     `const_fold`; SpecTcl has no surface for `semantics` \
+                     until slice 4 of the migration lands the spelling, and \
+                     the port transcribes neither, so both stay on the \
+                     unrenderable list. Every field the port does carry \
+                     matches",
+                ),
+            ],
             subcommand_subset: &["length", "is", "map", "range"],
         }],
     },
