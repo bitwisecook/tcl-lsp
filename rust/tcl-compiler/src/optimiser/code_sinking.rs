@@ -182,6 +182,9 @@ fn consider_sink_at(ctx: &mut PassContext<'_>, stmts: &[Statement], i: usize, de
     if decision_condition_uses_var(decision, &var, braced_var) {
         return;
     }
+    if decision_condition_substitution_touches_var(decision, &var, ctx.registry) {
+        return;
+    }
     if !any_decision_body_uses_var(decision, &var, depth, braced_var) {
         return;
     }
@@ -611,6 +614,61 @@ fn sinkable_assignment(stmt: &Statement) -> Option<(String, tcl_lexer::Span)> {
 
 fn is_decision(stmt: &Statement) -> bool {
     matches!(stmt, Statement::If { .. } | Statement::Switch { .. })
+}
+
+/// Whether a `[…]` in the decision's condition reads or writes `var`.
+///
+/// [`decision_condition_uses_var`] scans the expression for a `$var`
+/// reference, which a command substitution never shows: `if {[incr n]}`
+/// both reads and writes `n` without naming it that way. Sinking a store
+/// past such a condition moves it after the read — tclsh 9.0.4 prints `6`
+/// for `proc p {} {set n 5; if {[incr n]} {puts $n}}`, and sinking `set n 5`
+/// into the body made it print `5` (#2132).
+///
+/// Reads and writes both block the sink: the read must see the store, and a
+/// write means the body's read is of the condition's value, which a sunk
+/// store would overwrite. "Read" covers both kinds — the implicit read of a
+/// read-modify-write target, and an explicit `ArgRole::VarRead` word.
+fn decision_condition_substitution_touches_var(
+    stmt: &Statement,
+    var: &str,
+    registry: Option<&tcl_registry::CommandRegistry>,
+) -> bool {
+    let Some(registry) = registry else {
+        // Without a registry no substitution can be resolved, and the
+        // textual scan above is all there is. Matches this pass's behaviour
+        // in the bare `run_pass` test path.
+        return false;
+    };
+    let Statement::If { clauses, .. } = stmt else {
+        return false;
+    };
+    clauses.iter().any(|clause| {
+        let embedded =
+            crate::ir_helpers::expression_command_substitutions(&clause.condition, registry, None);
+        let writes = crate::ir_helpers::variable_write_effects_from_commands(
+            embedded.all_commands(),
+            registry,
+        );
+        // A `VarRead`-role word reads its target without writing it at all
+        // (`[info exists x]`, `[array size a]`), so it never appears among the
+        // write effects. Sinking past it moves the store after the read:
+        // `proc p {} {set x 1; if {[info exists x]} {puts $x}}` prints `1` on
+        // tclsh 9.0.4, and the sunk form printed nothing, since the guard then
+        // tests a variable the sunk store has not created yet.
+        let reads = crate::ir_helpers::variable_read_effects_from_commands(
+            embedded.all_commands(),
+            registry,
+        );
+        // An unnameable read (`[info exists $p]`) may be of *this* variable,
+        // which is enough to block a sink — unlike the condition's effect
+        // summary, where the opaque flag would have claimed a write.
+        writes.opaque
+            || reads.opaque
+            || writes.names.iter().any(|name| name == var)
+            || writes.read_names.iter().any(|name| name == var)
+            || reads.names.iter().any(|name| name == var)
+    })
 }
 
 /// Return `true` when the decision's *condition* (or switch
