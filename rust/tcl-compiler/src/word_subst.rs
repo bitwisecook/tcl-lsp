@@ -56,6 +56,8 @@
 
 use tcl_lexer::Span;
 
+use tcl_registry::CommandRegistry;
+
 use crate::ir::{CommandTokens, Provenance, SourceSite, WordExpr, WordPart};
 
 /// How deep a nest of `[cmd [cmd …]]` this walks before giving up. Tcl's own
@@ -96,20 +98,270 @@ pub fn lifted_calls(
     tokens: Option<&CommandTokens>,
     config: tcl_lexer::LexerConfig,
 ) -> Vec<LiftedCall> {
+    lift(tokens, config, None)
+}
+
+/// [`lifted_calls_with_registry`] over one word rather than a whole command.
+///
+/// A CFG terminator keeps its value as a single [`WordExpr`] —
+/// `Terminator::Return::value_word` — not as a `CommandTokens`, and the
+/// commands in it run exactly as they would in a statement.
+#[must_use]
+pub fn lifted_calls_in_word(
+    word: Option<&WordExpr>,
+    config: tcl_lexer::LexerConfig,
+    registry: &CommandRegistry,
+) -> Vec<LiftedCall> {
+    let mut out = Vec::new();
+    if let Some(word) = word {
+        collect_word(word, config, Some(registry), 0, &mut out);
+    }
+    out
+}
+
+/// [`lifted_calls`], plus the substitutions a brace-quoted **expression** word
+/// runs.
+///
+/// A braced word is inert to the command parser, but not to `expr`: it
+/// re-parses that text as an expression and a `[…]` in it is a command the
+/// statement really runs. Without a registry there is no way to tell
+/// `puts {[f]}` (literal) from `expr {[f]}` (a call), so the plain
+/// [`lifted_calls`] has to take the narrow view; a caller that holds one gets
+/// the whole set.
+///
+/// `return [expr {[fact [expr {$n - 1}] [expr {$n * $acc}]]}]` is the case
+/// that matters. Its recursive call was invisible to the caller-evidence scan,
+/// so two visible `fact 5 1` / `fact 3 1` sites read as the *complete* caller
+/// set and O100 specialised `acc` to `1`: tclsh 9.0.4 prints `120` then `6`,
+/// the optimised program printed `1` then `1`, and with a single call site
+/// O112 deleted the base case outright and the program no longer terminated
+/// (#2118).
+#[must_use]
+pub fn lifted_calls_with_registry(
+    tokens: Option<&CommandTokens>,
+    config: tcl_lexer::LexerConfig,
+    registry: &CommandRegistry,
+) -> Vec<LiftedCall> {
+    lift(tokens, config, Some(registry))
+}
+
+fn lift(
+    tokens: Option<&CommandTokens>,
+    config: tcl_lexer::LexerConfig,
+    registry: Option<&CommandRegistry>,
+) -> Vec<LiftedCall> {
     let mut out = Vec::new();
     let Some(tokens) = tokens else {
         return out;
     };
-    for word in &tokens.word_exprs {
-        collect_word(word, config, 0, &mut out);
-    }
+    collect_command_words(&tokens.word_exprs, config, registry, 0, &mut out);
     out
+}
+
+/// Push every substitution one command's words evaluate: the `[…]` each
+/// substituting word carries, then — when a registry says so — the `[…]`
+/// inside a brace-quoted word the head evaluates as an expression.
+fn collect_command_words(
+    words: &[WordExpr],
+    config: tcl_lexer::LexerConfig,
+    registry: Option<&CommandRegistry>,
+    depth: u32,
+    out: &mut Vec<LiftedCall>,
+) {
+    for word in words {
+        collect_word(word, config, registry, depth, out);
+    }
+    let Some(registry) = registry else {
+        return;
+    };
+    // No lowering pass resolves a nested substitution, so there is no
+    // `interp alias` canonicalisation available here and the head's spelling
+    // is the registry lookup key. A head that is itself substituted names no
+    // command this walk can ask about.
+    let Some(WordExpr::Literal { text: head, .. }) = words.first() else {
+        return;
+    };
+    let args: Vec<String> = words.iter().skip(1).map(WordExpr::legacy_text).collect();
+    let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+    for index in crate::ir_helpers::in_frame_expression_arg_indices(head, &arg_refs, registry) {
+        // An unbraced expression word already substituted at the command
+        // level, so the loop above has seen its `[…]`; descending again would
+        // report the same call twice.
+        let Some(WordExpr::BracedLiteral { text, source }) = words.get(index + 1) else {
+            continue;
+        };
+        // The word's site covers the `{…}` that quoted it, so its content
+        // starts one byte in. A word whose site is not direct source carries
+        // no offset worth anchoring to.
+        let base = (source.provenance == Provenance::Source)
+            .then(|| source.span.start().saturating_add(1));
+        collect_surface_text(text, base, config, registry, depth, out);
+    }
+}
+
+/// Push every `[…]` an evaluated **source surface** runs.
+///
+/// A surface is text Tcl substitutes but which reached the IR without words of
+/// its own: an expression operand, an `incr` amount, a `return` value. It is
+/// not a script, so it is not segmented — the lexer's own `Cmd` tokens are
+/// exactly its bracket substitutions, spans included, and each is handed to
+/// the same [`push_substitution`] a word-level `[…]` takes.
+///
+/// `base` is the absolute offset of `text`'s first byte when the surface is a
+/// verbatim source slice. Without one the recovered spans are relative to the
+/// surface, so a consumer that reports positions must supply it.
+#[must_use]
+pub fn lifted_calls_in_text(
+    text: &str,
+    base: Option<u32>,
+    config: tcl_lexer::LexerConfig,
+    registry: &CommandRegistry,
+) -> Vec<LiftedCall> {
+    let mut out = Vec::new();
+    collect_surface_text(text, base, config, registry, 0, &mut out);
+    out
+}
+
+fn collect_surface_text(
+    text: &str,
+    base: Option<u32>,
+    config: tcl_lexer::LexerConfig,
+    registry: &CommandRegistry,
+    depth: u32,
+    out: &mut Vec<LiftedCall>,
+) {
+    if depth > MAX_SUBSTITUTION_DEPTH {
+        return;
+    }
+    let Ok(tokens) = tcl_lexer::Lexer::with_config(text, config).tokenise_all() else {
+        return;
+    };
+    let provenance = if base.is_some() {
+        Provenance::Source
+    } else {
+        Provenance::Opaque
+    };
+    let base = base.unwrap_or(0);
+    for token in tokens
+        .iter()
+        .filter(|token| token.kind == tcl_lexer::TokenType::Cmd)
+    {
+        let start = token.span.start() as usize;
+        // A `Cmd` token's span runs to the last byte *inside* the brackets;
+        // `push_substitution` parses a whole `[…]`, so the closing bracket is
+        // taken back. Without one the `[` never closed, which is a parse error
+        // Tcl raises rather than a command it runs.
+        let end = token.span.end() as usize;
+        let close = if text.as_bytes().get(end) == Some(&b']') {
+            end + 1
+        } else {
+            end
+        };
+        let Some(spelling) = text.get(start..close).filter(|s| s.ends_with(']')) else {
+            continue;
+        };
+        let site = SourceSite {
+            span: Span::new(
+                base.saturating_add(token.span.start()),
+                base.saturating_add(u32::try_from(close).unwrap_or(u32::MAX)),
+            ),
+            provenance: provenance.clone(),
+        };
+        push_substitution(spelling, &site, config, Some(registry), depth + 1, out);
+    }
+}
+
+/// Every command substitution an expression evaluates.
+///
+/// A fused `AssignExpr` or `ExprEval` statement, and a CFG `Branch`
+/// terminator, keep a parsed expression instead of words — `set r [expr {[f]}]`
+/// and `if {[f] > 5} …` reach the IR with no `CommandTokens` at all, so a
+/// walk that reads only words sees neither the `f` they run nor the caller
+/// evidence it carries (#2118).
+///
+/// `expr_base` is the absolute offset of the expression text's first byte,
+/// as [`crate::ir::IfClause::condition_base`] records it; see
+/// [`lifted_calls_in_text`] for what its absence costs.
+#[must_use]
+pub fn lifted_calls_in_expr(
+    expr: &crate::expr_ast::ExprNode,
+    expr_base: Option<u32>,
+    config: tcl_lexer::LexerConfig,
+    registry: &CommandRegistry,
+) -> Vec<LiftedCall> {
+    let mut out = Vec::new();
+    collect_expr_node(expr, expr_base, config, registry, 0, &mut out);
+    out
+}
+
+fn collect_expr_node(
+    expr: &crate::expr_ast::ExprNode,
+    expr_base: Option<u32>,
+    config: tcl_lexer::LexerConfig,
+    registry: &CommandRegistry,
+    depth: u32,
+    out: &mut Vec<LiftedCall>,
+) {
+    use crate::expr_ast::ExprNode;
+
+    if depth > MAX_SUBSTITUTION_DEPTH {
+        return;
+    }
+    let mut descend = |node| collect_expr_node(node, expr_base, config, registry, depth + 1, out);
+    match expr {
+        ExprNode::Command { text, start, .. } => {
+            let site = match expr_base {
+                Some(base) => SourceSite::source(Span::new(
+                    base.saturating_add(*start),
+                    base.saturating_add(*start)
+                        .saturating_add(u32::try_from(text.len()).unwrap_or(0)),
+                )),
+                None => SourceSite::opaque(Span::new(0, 0)),
+            };
+            push_substitution(text, &site, config, Some(registry), depth, out);
+        }
+        ExprNode::Binary { left, right, .. } => {
+            descend(left);
+            descend(right);
+        }
+        ExprNode::Unary { operand, .. } => descend(operand),
+        ExprNode::Ternary {
+            condition,
+            true_branch,
+            false_branch,
+        } => {
+            descend(condition);
+            descend(true_branch);
+            descend(false_branch);
+        }
+        ExprNode::Call { args, .. } => {
+            for arg in args {
+                descend(arg);
+            }
+        }
+        // A word already reduced to its value: braced, its brackets are data
+        // and never run; unbraced, whatever substitution it still owes really
+        // is executed. The same split [`crate::ir_helpers`] makes for the
+        // variable-effect walk.
+        ExprNode::CompiledWord { text, braced } => {
+            if !*braced {
+                collect_surface_text(text, None, config, registry, depth + 1, out);
+            }
+        }
+        // The parse gave up; its text is still evaluated, so it is read as a
+        // surface rather than treated as running nothing.
+        ExprNode::Raw { text } => {
+            collect_surface_text(text, expr_base, config, registry, depth + 1, out);
+        }
+        ExprNode::Literal { .. } | ExprNode::String { .. } | ExprNode::Var { .. } => {}
+    }
 }
 
 /// Walk one word, pushing every substitution it evaluates.
 fn collect_word(
     word: &WordExpr,
     config: tcl_lexer::LexerConfig,
+    registry: Option<&CommandRegistry>,
     depth: u32,
     out: &mut Vec<LiftedCall>,
 ) {
@@ -119,22 +371,24 @@ fn collect_word(
     match word {
         // The whole word is `[cmd …]`.
         WordExpr::CommandSubstitution { spelling, source } => {
-            push_substitution(spelling, source, config, depth, out);
+            push_substitution(spelling, source, config, registry, depth, out);
         }
         // A compound word — `"[cmd …]"`, `a[cmd …]b`, `$v[cmd …]` — whose
         // parts evaluate left to right.
         WordExpr::Template { parts, .. } => {
             for part in parts {
                 if let WordPart::CommandSubstitution { spelling, source } = part {
-                    push_substitution(spelling, source, config, depth, out);
+                    push_substitution(spelling, source, config, registry, depth, out);
                 }
             }
         }
         // `{*}[cmd …]` still evaluates the substitution before expanding it.
-        WordExpr::Expand { word, .. } => collect_word(word, config, depth, out),
-        // `BracedLiteral` is the whole point of reading this structure rather
-        // than the argument text: its `[…]` is literal, never run. `Literal`,
-        // `Variable` and `Opaque` carry no substitution to lift.
+        WordExpr::Expand { word, .. } => collect_word(word, config, registry, depth, out),
+        // A braced word's `[…]` is literal to the command parser — reading
+        // `word_exprs` rather than the argument text is the whole point of
+        // knowing that. Whether the command it is an argument *to* re-parses
+        // it as an expression is `collect_command_words`' question, not this
+        // one. `Literal`, `Variable` and `Opaque` carry no substitution.
         WordExpr::Literal { .. }
         | WordExpr::BracedLiteral { .. }
         | WordExpr::Variable { .. }
@@ -148,6 +402,7 @@ fn push_substitution(
     spelling: &str,
     source: &SourceSite,
     config: tcl_lexer::LexerConfig,
+    registry: Option<&CommandRegistry>,
     depth: u32,
     out: &mut Vec<LiftedCall>,
 ) {
@@ -172,9 +427,7 @@ fn push_substitution(
     // and no test over the flat argument text can tell those apart.
     let nested = nested_command_words(spelling, source, config).ok();
     if let Some(tokens) = nested.as_ref() {
-        for word in &tokens.word_exprs {
-            collect_word(word, config, depth + 1, out);
-        }
+        collect_command_words(&tokens.word_exprs, config, registry, depth + 1, out);
     }
     // Index-aligned with `args` (which start at word 1) or empty: the two
     // recoveries split words under the same `LexerConfig`, so a disagreement
@@ -399,6 +652,119 @@ mod tests {
         assert!(
             lift("puts {[lindex $x 0]}").is_empty(),
             "a braced `[…]` is literal text, never run"
+        );
+    }
+
+    /// Lift with a registry, so brace-quoted expression words are descended.
+    fn lift_with_registry(body: &str) -> Vec<(String, Vec<String>)> {
+        let reg = registry();
+        let src = format!("proc f {{x}} {{\n {body}\n}}");
+        let cu = CompilationUnit::build_for(&src, &reg, false);
+        let fu = cu.function("::f").expect("proc lowered");
+        let config = tcl_lexer::LexerConfig::for_profile(reg.profile());
+        let mut out = Vec::new();
+        for block in fu.cfg.blocks.values() {
+            for stmt in &block.statements {
+                let tokens = match stmt {
+                    Statement::Call { tokens, .. }
+                    | Statement::Barrier { tokens, .. }
+                    | Statement::AssignValue { tokens, .. } => tokens.as_ref(),
+                    _ => None,
+                };
+                out.extend(
+                    lifted_calls_with_registry(tokens, config, &reg)
+                        .into_iter()
+                        .map(|c| (c.command, c.args)),
+                );
+            }
+        }
+        out
+    }
+
+    /// A brace-quoted word is inert to the command parser but not to `expr`,
+    /// which re-parses it as an expression and runs the `[…]` in it. Which
+    /// words those are is the registry's answer, so only the registry-aware
+    /// lift takes them — `lifted_calls` has no way to tell `puts {[f]}` from
+    /// `expr {[f]}`.
+    #[test]
+    fn a_braced_expression_word_runs_its_substitutions() {
+        assert_eq!(
+            lift_with_registry("puts [expr {$x + [incr x]}]"),
+            vec![
+                ("incr".to_owned(), vec!["x".to_owned()]),
+                ("expr".to_owned(), vec!["{$x + [incr x]}".to_owned()]),
+            ],
+            "the `incr` runs, and innermost-first puts it before its `expr`"
+        );
+        assert!(
+            lift("puts [expr {$x + [incr x]}]")
+                .iter()
+                .all(|(command, _)| command != "incr"),
+            "without a registry the braced word stays literal"
+        );
+    }
+
+    /// `expr` concatenates its words into one expression before parsing it, so
+    /// a braced word anywhere in the list contributes to it. tclsh 8.6.18 and
+    /// 9.0.4 both print `3` then `2` for
+    /// `set x 1; puts [expr 1 + {[incr x]}]; puts $x`.
+    #[test]
+    fn a_concatenated_expression_word_runs_its_substitutions() {
+        assert_eq!(
+            lift_with_registry("puts [expr 1 + {[incr x]}]"),
+            vec![
+                ("incr".to_owned(), vec!["x".to_owned()]),
+                (
+                    "expr".to_owned(),
+                    vec!["1".to_owned(), "+".to_owned(), "{[incr x]}".to_owned()],
+                ),
+            ]
+        );
+    }
+
+    /// The descent is the registry's rule and not the brace: a braced word a
+    /// command does *not* evaluate as an expression is still literal text.
+    #[test]
+    fn a_braced_word_that_is_not_an_expression_stays_literal() {
+        assert!(
+            lift_with_registry("puts {[lindex $x 0]}").is_empty(),
+            "`puts` reads its word as a value, so the `[…]` never runs"
+        );
+        assert!(
+            lift_with_registry("puts [list {[lindex $x 0]}]")
+                .iter()
+                .all(|(command, _)| command != "lindex"),
+            "nor does `list`'s"
+        );
+    }
+
+    /// An expression surface with no words of its own — what a fused
+    /// `AssignExpr` or a `Branch` terminator keeps — still runs its `[…]`.
+    #[test]
+    fn an_expression_surface_runs_its_substitutions() {
+        let reg = registry();
+        let config = tcl_lexer::LexerConfig::for_profile(reg.profile());
+        let expr = tcl_syntax::expr::parser::parse_expr_for_profile("[id 9] > 5", reg.profile());
+        let lifted = lifted_calls_in_expr(&expr, Some(100), config, &reg);
+        assert_eq!(
+            lifted
+                .iter()
+                .map(|c| (c.command.clone(), c.args.clone()))
+                .collect::<Vec<_>>(),
+            vec![("id".to_owned(), vec!["9".to_owned()])]
+        );
+        assert_eq!(
+            lifted[0].span,
+            tcl_lexer::Span::new(100, 106),
+            "the base anchors the substitution back to its source offset"
+        );
+        assert_eq!(
+            lifted_calls_in_text("[id 9] > 5", Some(100), config, &reg)
+                .iter()
+                .map(|c| c.command.clone())
+                .collect::<Vec<_>>(),
+            vec!["id".to_owned()],
+            "the same holds for a surface read as raw text"
         );
     }
 

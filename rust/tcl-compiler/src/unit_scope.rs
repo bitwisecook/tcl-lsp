@@ -1553,11 +1553,110 @@ fn scan_cfg_callers<'a>(
                 // specialised the body to `upvar 1 n v`. Measured on tclsh
                 // 9.0.4: `2 11 11` became `3 10 3` (#2134). An absence of
                 // contradicting evidence must not read as agreement.
-                for lifted in crate::word_subst::lifted_calls(statement_tokens(stmt), config) {
+                //
+                // Registry-aware because a brace-quoted *expression* word runs
+                // its `[…]` too: `return [expr {[fact …]}]` hid a recursive
+                // call from this scan, leaving the visible sites to read as the
+                // complete caller set (#2118).
+                for lifted in crate::word_subst::lifted_calls_with_registry(
+                    statement_tokens(stmt),
+                    config,
+                    ctx.registry,
+                ) {
                     record_call_site_evidence(out, ctx, &caller, &lifted.command, &lifted.args, 0);
                 }
+                record_surface_call_sites(out, ctx, &caller, config, stmt);
             }
+            record_terminator_call_sites(out, ctx, &caller, config, block.terminator.as_ref());
         }
+    }
+}
+
+/// Record the call sites a statement runs through a surface its **words** do
+/// not carry.
+///
+/// A fused `AssignExpr`, `ExprEval` or `Incr` keeps a parsed expression or an
+/// amount string in place of a `CommandTokens`, so
+/// [`crate::word_subst::lifted_calls_with_registry`] above sees nothing at all
+/// in it. `set r [expr {[id 9]}]` and `incr t [id 9]` therefore contributed no
+/// evidence, and a lone visible `id 7` read as `id`'s complete caller set:
+/// O100 folded `return $v` to `return 7` and tclsh 8.6.18's `7 9` became
+/// `7 7` (#2118).
+///
+/// The surfaces are the same ones
+/// [`crate::ir_helpers::evaluated_command_substitution_surfaces`] names for
+/// the variable-effect walk — the two disagreeing about which commands a
+/// statement runs is the underlying defect.
+fn record_surface_call_sites(
+    out: &mut CallSiteEvidence,
+    ctx: &CallSiteScanCtx<'_, impl std::hash::BuildHasher>,
+    caller: &CallerFrame<'_>,
+    config: tcl_lexer::LexerConfig,
+    stmt: &Statement,
+) {
+    let lifted = match stmt {
+        Statement::AssignExpr {
+            expr, expr_base, ..
+        }
+        | Statement::ExprEval {
+            expr, expr_base, ..
+        } => crate::word_subst::lifted_calls_in_expr(expr, *expr_base, config, ctx.registry),
+        // The amount has no retained word, so a braced `{[f]}` — which runs
+        // nothing — is read as a surface too. Over-reporting a caller only
+        // retracts evidence; under-reporting one invents agreement.
+        Statement::Incr {
+            amount: Some(amount),
+            ..
+        } => crate::word_subst::lifted_calls_in_text(amount, None, config, ctx.registry),
+        _ => return,
+    };
+    for lifted in lifted {
+        record_call_site_evidence(out, ctx, caller, &lifted.command, &lifted.args, 0);
+    }
+}
+
+/// Record the call sites a block's terminator runs.
+///
+/// A `return` value and an `if`/`while` condition are terminators, not
+/// statements, so the statement loop never reached them:
+/// `proc a {} { return [id 9] }` contributed no evidence at all (#2118).
+fn record_terminator_call_sites(
+    out: &mut CallSiteEvidence,
+    ctx: &CallSiteScanCtx<'_, impl std::hash::BuildHasher>,
+    caller: &CallerFrame<'_>,
+    config: tcl_lexer::LexerConfig,
+    terminator: Option<&crate::cfg::Terminator>,
+) {
+    let lifted = match terminator {
+        Some(crate::cfg::Terminator::Return {
+            value_word, expr, ..
+        }) => {
+            let mut lifted =
+                crate::word_subst::lifted_calls_in_word(value_word.as_ref(), config, ctx.registry);
+            if let Some(expr) = expr {
+                lifted.extend(crate::word_subst::lifted_calls_in_expr(
+                    expr,
+                    None,
+                    config,
+                    ctx.registry,
+                ));
+            }
+            lifted
+        }
+        Some(crate::cfg::Terminator::Branch {
+            condition,
+            condition_base,
+            ..
+        }) => crate::word_subst::lifted_calls_in_expr(
+            condition,
+            *condition_base,
+            config,
+            ctx.registry,
+        ),
+        Some(crate::cfg::Terminator::Goto { .. }) | None => return,
+    };
+    for lifted in lifted {
+        record_call_site_evidence(out, ctx, caller, &lifted.command, &lifted.args, 0);
     }
 }
 

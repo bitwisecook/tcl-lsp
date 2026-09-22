@@ -2523,3 +2523,147 @@ fn the_no_match_prover_still_reports_an_uncreated_target() {
         );
     }
 }
+
+/// A call site the caller-evidence scan cannot see must never read as
+/// agreement among the sites it can.
+///
+/// Every shape below reaches `id` with `9` through a surface the scan used to
+/// walk past — a `return` value and an `if` condition are CFG *terminators*,
+/// and a fused `AssignExpr` or `Incr` keeps a parsed expression or an amount
+/// string instead of words — so the lone visible `id 7` read as `id`'s
+/// complete caller set and O100 specialised the body to `return 7`. Measured
+/// on tclsh 8.6.18: `7 9` became `7 7` (#2118).
+#[test]
+fn a_call_site_in_a_terminator_or_fused_statement_is_evidence() {
+    for (why, caller) in [
+        ("a return value", "proc a {} { return [id 9] }"),
+        (
+            "a return value inside an expression",
+            "proc a {} { return [expr {[id 9]}] }",
+        ),
+        (
+            "an if condition",
+            "proc a {} { if {[id 9] > 5} { return big }\n return small }",
+        ),
+        (
+            "a fused expression assignment",
+            "proc a {} { set r [expr {[id 9]}]\n return $r }",
+        ),
+        (
+            "an incr amount",
+            "proc a {} { set t 0\n incr t [id 9]\n return $t }",
+        ),
+    ] {
+        let src = format!("proc id {{v}} {{ return $v }}\n{caller}\nputs [id 7]\nputs [a]\n");
+        assert!(
+            optimised(&src, TCL).contains("return $v"),
+            "{why} is a call site passing 9, so `v` is not the constant 7: {:?}",
+            opt_rewrites(&src, TCL)
+        );
+    }
+}
+
+/// The self-call hidden in a brace-quoted `expr` word — the shape #2118 was
+/// filed for.
+///
+/// `expr` re-parses its braced word as an expression, so the `[fact …]` in it
+/// is a command the statement really runs. Unseen, the two visible
+/// `fact 5 1` / `fact 3 1` sites agreed that `acc` was `1`: O100 folded the
+/// base case to `return 1` and tclsh 8.6.18's `120 6` became `1 1`. With one
+/// call site the same evidence let O112 delete the base case outright and the
+/// program no longer terminated.
+#[test]
+fn a_self_call_in_a_braced_expr_word_is_evidence() {
+    const BODY: &str = "proc fact {n acc} {\n    if {$n <= 1} { return $acc }\n    return [expr {[fact [expr {$n - 1}] [expr {$n * $acc}]]}]\n}\n";
+    for (why, src) in [
+        (
+            "two call sites",
+            format!("{BODY}puts [fact 5 1]\nputs [fact 3 1]\n"),
+        ),
+        ("one call site", format!("{BODY}puts [fact 5 1]\n")),
+    ] {
+        let out = optimised(&src, TCL);
+        assert!(
+            out.contains("return $acc"),
+            "{why}: the recursive call passes an `acc` that is not 1: {:?}",
+            opt_rewrites(&src, TCL)
+        );
+        assert!(
+            out.contains("if {$n <= 1}"),
+            "{why}: the base case is reachable and must survive: {:?}",
+            opt_rewrites(&src, TCL)
+        );
+    }
+}
+
+/// The descent is the registry's rule, not the spelling `expr`: a braced word
+/// the head does *not* evaluate as an expression stays literal text.
+#[test]
+fn a_braced_word_that_is_not_an_expression_runs_nothing() {
+    let src =
+        "proc id {v} { return $v }\nproc a {} { return [list {[id 9]}] }\nputs [id 7]\nputs [a]\n";
+    assert!(
+        optimised(src, TCL).contains("return 7"),
+        "`list {{[id 9]}}` passes literal text, so `id 7` really is the only call: {:?}",
+        opt_rewrites(src, TCL)
+    );
+}
+
+/// O122's gate counts every self-call and converts only when all of them are
+/// in tail position. A statement that keeps no argument words counted zero.
+///
+/// `count_self_calls_in_stmt` enumerated the variants that retain argument
+/// text and closed with a wildcard, so a fused `AssignExpr`, a bare
+/// `ExprEval` and an `Incr` each reported no self-call at all. Under-counting
+/// is the unsound direction — it makes the tail-site count match the total —
+/// and the same proc converted or not depending only on how its non-tail call
+/// was spelled (#2118).
+#[test]
+fn a_non_tail_self_call_blocks_o122_however_it_is_spelled() {
+    for (why, nontail) in [
+        (
+            "a plain command word",
+            "set acc [combine $acc [walk [left $node] 0]]",
+        ),
+        (
+            "a fused expression assignment",
+            "set acc [expr {$acc + [walk [left $node] 0]}]",
+        ),
+        (
+            "a bare expression statement",
+            "expr {[walk [left $node] 0]}",
+        ),
+        ("an incr amount", "incr acc [walk [left $node] 0]"),
+    ] {
+        let src = format!(
+            "proc walk {{node acc}} {{\n    if {{$node eq \"\"}} {{\n        return $acc\n    }}\n    {nontail}\n    return [walk [right $node] $acc]\n}}\n"
+        );
+        assert!(
+            !opt_fires(&src, TCL, "O122"),
+            "{why}: the loop body would still recurse: {:?}",
+            opt_codes(&src, TCL)
+        );
+    }
+}
+
+/// Precision: the gate counts self-calls, not brackets. A nested call to
+/// something else is not recursion, so the tail call still converts.
+#[test]
+fn o122_still_converts_past_a_nested_call_to_another_proc() {
+    for (why, nested) in [
+        (
+            "a fused expression assignment",
+            "set acc [expr {$acc + [weight $n]}]",
+        ),
+        ("an incr amount", "incr acc [weight $n]"),
+    ] {
+        let src = format!(
+            "proc walk {{n acc}} {{\n    if {{$n <= 0}} {{\n        return $acc\n    }}\n    {nested}\n    return [walk [expr {{$n - 1}}] $acc]\n}}\n"
+        );
+        assert!(
+            opt_fires(&src, TCL, "O122"),
+            "{why}: `weight` is not a self-call: {:?}",
+            opt_codes(&src, TCL)
+        );
+    }
+}

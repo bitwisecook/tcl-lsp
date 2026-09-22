@@ -303,7 +303,7 @@ fn count_self_calls_in_stmt(
     count: &mut usize,
 ) {
     match stmt {
-        Statement::Call { command, args, .. } => {
+        Statement::Call { command, args, .. } | Statement::Barrier { command, args, .. } => {
             if self_names.contains(command) {
                 *count += 1;
             }
@@ -362,7 +362,12 @@ fn count_self_calls_in_stmt(
             }
             count_self_calls_in_script_impl(source, body, self_names, count);
         }
-        Statement::Catch { body, .. } => {
+        // A body that runs in this frame and carries nothing else to read.
+        // `Block` and `UpFrame` are here because the wildcard this match used
+        // to close with counted them as zero (#2118).
+        Statement::Catch { body, .. }
+        | Statement::Block { body, .. }
+        | Statement::UpFrame { body, .. } => {
             count_self_calls_in_script_impl(source, body, self_names, count);
         }
         Statement::Try {
@@ -379,26 +384,60 @@ fn count_self_calls_in_stmt(
                 count_self_calls_in_script_impl(source, fb, self_names, count);
             }
         }
-        Statement::Switch {
-            arms,
-            default_body,
-            subject,
-            subject_braced,
-            ..
-        } => {
-            if !*subject_braced {
-                *count += count_bracket_self_calls(subject, self_names);
-            }
-            for a in arms {
-                if let Some(b) = &a.body {
-                    count_self_calls_in_script_impl(source, b, self_names, count);
-                }
-            }
-            if let Some(db) = default_body {
-                count_self_calls_in_script_impl(source, db, self_names, count);
-            }
+        Statement::Switch { .. } => count_self_calls_in_switch(source, stmt, self_names, count),
+        // A fused statement keeps a parsed expression or a bare amount string
+        // in place of argument text, so there is nothing for the scanner to
+        // read and the arms were never written: `set acc [expr {$acc + [f …]}]`
+        // (`AssignExpr`), `expr {[f …]}` (`ExprEval`) and `incr acc [f …]`
+        // (`Incr`) all counted zero. Under-counting is the unsound direction —
+        // it makes the tail-site count match the total and opens the gate —
+        // so each is read from its own source slice, the mechanism #2030
+        // established for a condition that keeps no argument text. Reading the
+        // whole statement over-counts a self-name that only *looks* like a
+        // call, which merely refuses the conversion (#2118).
+        Statement::AssignExpr { span, .. }
+        | Statement::ExprEval { span, .. }
+        | Statement::Incr { span, .. } => {
+            *count += count_self_calls_in_span(source, *span, self_names);
         }
-        _ => {}
+        // A braced `return {[f …]}` — the unbraced form is counted above —
+        // is literal text, and an `AssignConst` value is a constant by
+        // construction: neither runs a call. Naming them rather than falling
+        // through a wildcard is what makes this match exhaustive, so the next
+        // fused variant is a compile error here instead of a silently-opened
+        // gate.
+        Statement::AssignConst { .. } | Statement::Return { .. } => {}
+    }
+}
+
+/// The `switch` arm of [`count_self_calls_in_stmt`], split out to keep that
+/// match readable now that it names every statement variant.
+fn count_self_calls_in_switch(
+    source: &str,
+    stmt: &Statement,
+    self_names: &HashSet<String>,
+    count: &mut usize,
+) {
+    let Statement::Switch {
+        arms,
+        default_body,
+        subject,
+        subject_braced,
+        ..
+    } = stmt
+    else {
+        return;
+    };
+    if !*subject_braced {
+        *count += count_bracket_self_calls(subject, self_names);
+    }
+    for a in arms {
+        if let Some(b) = &a.body {
+            count_self_calls_in_script_impl(source, b, self_names, count);
+        }
+    }
+    if let Some(db) = default_body {
+        count_self_calls_in_script_impl(source, db, self_names, count);
     }
 }
 
