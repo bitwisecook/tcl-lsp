@@ -938,6 +938,61 @@ impl CfgBuilder<'_> {
         }
     }
 
+    /// Record the analysis-only edge that keeps a `finally` clause reachable when
+    /// the `try` body cannot fall through and no handler supplies one.
+    ///
+    /// `lower_try` gave `end_block` a predecessor from a body that falls through
+    /// normally, or from a handler's throw edge. A body that cannot fall through,
+    /// with no handler, left the whole tail — `end_block`, the `finally` block and
+    /// everything after — with no predecessor at all. SCCP called it dead and O107
+    /// emptied the clause, so
+    ///
+    /// ```tcl
+    /// set g 0
+    /// proc p {} { global g; try {error boom} finally {set g 1} }
+    /// catch {p}; puts $g
+    /// ```
+    ///
+    /// printed `0` where tclsh 8.6.18 and 9.0.4 print `1`. Four more spellings
+    /// went the same way: `throw`, a `return` in the body, a `break` inside a
+    /// `while`, and the same `error` inside a `foreach` (#2142).
+    ///
+    /// Only this case. A body that falls through already reaches `end_block`
+    /// normally, a handler already contributes its own throw edge, and with no
+    /// `finally` the tail really is unreachable — the exception resumes unwinding
+    /// past it — so the edge would be a precision loss for no gain.
+    ///
+    /// What it does cost is that `try_after_finally` becomes reachable from the
+    /// throw path, where Tcl in fact resumes unwinding. Modelling that exactly
+    /// needs the clause body lowered on two paths, one of them terminal;
+    /// over-approximating the *other* way — a `finally` clause that is never
+    /// entered — is what corrupted the programs above.
+    fn push_unhandled_finally_edges(
+        &mut self,
+        end_block: &str,
+        body_tail: Option<&str>,
+        body_throw_blocks: &[String],
+        body_terminal: Option<&str>,
+    ) {
+        if !self.faithful_exceptions || body_tail.is_some() {
+            return;
+        }
+        let mut sources: Vec<String> = Vec::new();
+        for tb in body_throw_blocks {
+            if !sources.contains(tb) {
+                sources.push(tb.clone());
+            }
+        }
+        if sources.is_empty()
+            && let Some(terminal) = body_terminal
+        {
+            sources.push(terminal.to_owned());
+        }
+        for src in sources {
+            self.exception_edges.push((src, end_block.to_owned()));
+        }
+    }
+
     /// Flatten `Statement::Try` into body → handlers → finally → end CFG.
     pub(super) fn lower_try(&mut self, stmt: &Statement, block_name: &str) -> String {
         let Statement::Try {
@@ -1046,22 +1101,7 @@ impl CfgBuilder<'_> {
                 }
                 defs
             };
-            if !var_defs.is_empty() {
-                self.block_mut(&handler_block)
-                    .statements
-                    .push(Statement::Call {
-                        span: *span,
-                        command: "try".into(),
-                        canonical_command: None,
-                        args: vec![],
-                        defs: var_defs,
-                        reads: vec![],
-                        reads_own_defs: false,
-                        safe_on_uninit: false,
-                        tokens: None,
-                        foreach_groups: None,
-                    });
-            }
+            self.push_handler_var_defs(&handler_block, var_defs, *span);
 
             if let Some(tail) = self.lower_script(&handler.body, &handler_block) {
                 self.ensure_goto(&tail, &end_block, Some(handler.body_span));
@@ -1073,20 +1113,64 @@ impl CfgBuilder<'_> {
             self.ensure_goto(&post_body, &end_block, Some(*span));
         }
 
-        // Finally block.
-        if let Some(fb) = finally_body {
-            let finally_block = self.new_block("try_finally");
-            let fin_span = finally_span.or(Some(*span));
-            self.ensure_goto(&end_block, &finally_block, fin_span);
-
-            let after_finally = self.new_block("try_after_finally");
-            if let Some(tail) = self.lower_script(fb, &finally_block) {
-                self.ensure_goto(&tail, &after_finally, fin_span);
-            }
-            return after_finally;
+        if finally_body.is_some() && handlers.is_empty() {
+            self.push_unhandled_finally_edges(
+                &end_block,
+                body_tail.as_deref(),
+                &body_throw_blocks,
+                body_terminal.as_deref(),
+            );
         }
 
-        end_block
+        // Finally block.
+        match finally_body {
+            Some(fb) => self.lower_try_finally(fb, finally_span.or(Some(*span)), &end_block),
+            None => end_block,
+        }
+    }
+
+    /// Bind a handler's `on`/`trap` variables at the top of its block, as the
+    /// synthetic definition the ordinary walks read.
+    fn push_handler_var_defs(
+        &mut self,
+        handler_block: &str,
+        var_defs: Vec<String>,
+        span: tcl_lexer::Span,
+    ) {
+        if var_defs.is_empty() {
+            return;
+        }
+        self.block_mut(handler_block)
+            .statements
+            .push(Statement::Call {
+                span,
+                command: "try".into(),
+                canonical_command: None,
+                args: vec![],
+                defs: var_defs,
+                reads: vec![],
+                reads_own_defs: false,
+                safe_on_uninit: false,
+                tokens: None,
+                foreach_groups: None,
+            });
+    }
+
+    /// Lower a `finally` clause after the `try`'s end block, returning the
+    /// resting block the whole statement leaves behind.
+    fn lower_try_finally(
+        &mut self,
+        body: &crate::ir::Script,
+        fin_span: Option<tcl_lexer::Span>,
+        end_block: &str,
+    ) -> String {
+        let finally_block = self.new_block("try_finally");
+        self.ensure_goto(end_block, &finally_block, fin_span);
+        let after_finally = self.new_block("try_after_finally");
+        if let Some(tail) = self.lower_script(body, &finally_block) {
+            self.ensure_goto(&tail, &after_finally, fin_span);
+        }
+        after_finally
     }
 
     /// Flatten `Statement::Catch` into body → end CFG, the analogue of

@@ -2704,3 +2704,71 @@ fn a_quoted_expression_operand_is_not_inert() {
         reparse_errors(braced, TCL)
     );
 }
+
+/// A `finally` clause runs on every completion path, so its body is never
+/// unreachable — whatever the `try` body does.
+///
+/// `lower_try` wired `try_end` (and the `finally` hanging off it) only from a
+/// body that falls through normally, or from a handler's throw edge. A body
+/// that cannot fall through and no handler left the whole tail with no
+/// predecessor at all, SCCP called it dead, and O107 emptied the clause.
+/// Measured on tclsh 8.6.18 and 9.0.4, `catch {p}; puts $g` printed `1` and
+/// the rewritten program printed `0` (#2142).
+#[test]
+fn a_finally_body_is_reachable_however_the_try_body_leaves() {
+    for (why, body, wrapper) in [
+        ("error", "error boom", ""),
+        ("throw", "throw {A B} boom", ""),
+        ("return", "return early", ""),
+        ("break", "break", "while {1} "),
+        ("error in a loop", "error boom", "foreach i {1 2} "),
+    ] {
+        let src = format!(
+            "set g 0\nproc p {{}} {{\n    global g\n    {wrapper}{{ try {{{body}}} finally {{set g 1}} }}\n}}\ncatch {{p}}\nputs $g\n"
+        );
+        let out = optimised(&src, TCL);
+        assert!(
+            out.contains("set g 1"),
+            "{why}: `finally` runs on this path, so its store is live: {:?}\n{out}",
+            opt_rewrites(&src, TCL)
+        );
+    }
+}
+
+/// The definiteness half. A name bound before the `try` is still bound after
+/// it, and the `finally` store that rebinds it is visible.
+#[test]
+fn a_try_finally_does_not_hide_the_names_bound_around_it() {
+    let src =
+        "proc p {} {\n    set f 0\n    try {error boom} finally {set f 1}\n    return $f\n}\n";
+    assert!(
+        !analyser_codes(src, TCL).iter().any(|c| c == "W210"),
+        "`f` is bound before the `try` and rebound by `finally`: {:?}",
+        analyser_codes(src, TCL)
+    );
+}
+
+/// Precision: the fix must not make a handler's variable look bound on a path
+/// that never runs it, nor silence the dead store a `finally` really does
+/// create.
+#[test]
+fn a_try_handler_still_binds_only_on_the_path_that_runs_it() {
+    // tclsh 8.6.18 fails this with `can't read "g": no such variable` when the
+    // body does not throw, so W210 is a true positive.
+    let unbound =
+        "proc q {c} {\n    try { if {$c} {error boom} } on error {} {set g 1}\n    return $g\n}\n";
+    assert!(
+        analyser_codes(unbound, TCL).iter().any(|c| c == "W210"),
+        "a handler that may not run does not bind its names: {:?}",
+        analyser_codes(unbound, TCL)
+    );
+
+    // `finally` overwrites the handler's store before any read, so the
+    // handler's assignment really is dead.
+    let overwritten = "proc p {} {\n    try {error boom} on error {} {set f 2} finally {set f 1}\n    return $f\n}\n";
+    assert!(
+        opt_fires(overwritten, TCL, "O109"),
+        "`finally` runs after the handler, so `set f 2` is dead: {:?}",
+        opt_codes(overwritten, TCL)
+    );
+}
