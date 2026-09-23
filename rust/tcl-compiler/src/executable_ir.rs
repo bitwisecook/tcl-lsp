@@ -3448,7 +3448,7 @@ fn structured_region_projection(
 /// `trap` always selects `TCL_ERROR` and narrows it further by `-errorcode`
 /// prefix; `on` names a code directly. The selector spelling is decoded by the
 /// registry's completion-code table, never by a local keyword match.
-fn try_handler_code(handler: &crate::ir::TryHandler) -> Option<CompletionCode> {
+pub(crate) fn try_handler_code(handler: &crate::ir::TryHandler) -> Option<CompletionCode> {
     if handler.trap_pattern.is_some() || handler.kind == "trap" {
         return Some(CompletionCode::Error);
     }

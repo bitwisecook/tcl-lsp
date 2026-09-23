@@ -2930,10 +2930,19 @@ fn a_try_that_never_completes_does_not_fall_through_its_finally() {
             "`break` through nested clauses",
             "proc p {} {\n    while 1 {\n        try { try {break} finally {} } finally {}\n        set x 1\n    }\n    puts $x\n}\n",
         ),
-        // `on error` cannot catch a `break`, so it offers no way to complete.
+        // A handler whose code is not the jump's offers no way to complete:
+        // `on error`, `on continue` and `on 4` cannot catch a `break`.
         (
-            "`break` past a handler that cannot catch it",
+            "`break` past an `on error` handler",
             "proc p {} {\n    while 1 {\n        try {break} on error {} {} finally {}\n        set x 1\n    }\n    puts $x\n}\n",
+        ),
+        (
+            "`break` past an `on continue` handler",
+            "proc p {} {\n    while 1 {\n        try {break} on continue {} {} finally {}\n        set x 1\n    }\n    puts $x\n}\n",
+        ),
+        (
+            "`break` past an `on 4` handler",
+            "proc p {} {\n    while 1 {\n        try {break} on 4 {} {} finally {}\n        set x 1\n    }\n    puts $x\n}\n",
         ),
     ] {
         assert!(

@@ -919,18 +919,14 @@ impl CfgBuilder<'_> {
                 }
             }
             // A terminal that is a loop jump raises no error: only a handler
-            // that can match `break` / `continue` catches it. Wiring
-            // `try {break} on error {} {}` to its handler made the `try` look
-            // as if it could complete normally (found in review).
+            // whose selector is that jump's own completion code catches it.
+            // Wiring `try {break} on error {} {}` — or `on continue` — to its
+            // handler made the `try` look as if it could complete normally
+            // (found in review). A selector the registry cannot decode keeps
+            // the edge.
             if throw_sources.is_empty()
                 && let Some(terminal) = body_terminal
-                && (handler_may_catch_loop_jump(handler)
-                    || !matches!(
-                        self.blocks
-                            .get(terminal)
-                            .and_then(|b| b.terminator.as_ref()),
-                        Some(crate::cfg::Terminator::Goto { .. })
-                    ))
+                && !self.handler_misses_loop_jump(handler, terminal)
             {
                 throw_sources.push(terminal.to_owned());
             }
@@ -961,6 +957,33 @@ impl CfgBuilder<'_> {
                 }
             }
         }
+    }
+
+    /// Whether `terminal` ends in a `break` / `continue` whose completion code
+    /// `handler` is known not to select.
+    ///
+    /// The jump's code comes from the registry's loop-jump classes, the
+    /// handler's from its completion-code selector (`trap` is an error).
+    /// Either one unknown — a substituted selector, a terminal that is not a
+    /// loop jump — answers `false`, keeping the conservative edge.
+    fn handler_misses_loop_jump(&self, handler: &crate::ir::TryHandler, terminal: &str) -> bool {
+        let Some(block) = self.blocks.get(terminal) else {
+            return false;
+        };
+        if !matches!(block.terminator, Some(Terminator::Goto { .. })) {
+            return false;
+        }
+        let Some(Statement::Call { command, .. }) = block.statements.last() else {
+            return false;
+        };
+        let jump = if self.command_classes.is_loop_break_command(command) {
+            tcl_core_types::Code::Break
+        } else if self.command_classes.is_loop_continue_command(command) {
+            tcl_core_types::Code::Continue
+        } else {
+            return false;
+        };
+        crate::executable_ir::try_handler_code(handler).is_some_and(|code| code != jump)
     }
 
     /// Record the analysis-only edges that keep a `finally` clause reachable
@@ -1526,19 +1549,6 @@ impl CfgBuilder<'_> {
 
         end_block
     }
-}
-
-/// Whether a `try` handler can match a `break` or `continue` completion.
-///
-/// `trap` matches only errors, and `on` with a named or numeric code other
-/// than `break` (3) or `continue` (4) matches only that code. Anything else —
-/// a substituted selector, say — may.
-fn handler_may_catch_loop_jump(handler: &crate::ir::TryHandler) -> bool {
-    handler.kind != "trap"
-        && !matches!(
-            handler.match_arg.as_str(),
-            "ok" | "error" | "return" | "0" | "1" | "2"
-        )
 }
 
 #[cfg(test)]

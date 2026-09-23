@@ -228,9 +228,10 @@ remove one.
 
 A body that cannot fall through reaches a handler from its explicit throw
 points, or failing those from its terminal block — but not a terminal
-`break` / `continue` into a handler that cannot match one (`trap`, or `on`
-`ok`/`error`/`return`): `try {break} on error {} {}` offers no way to
-complete normally.
+`break` / `continue` into a handler whose selector the registry decodes to
+a different completion code (`trap` is an error): `try {break} on error {}
+{}`, `on continue` and `on 4` offer no way to complete normally.  An
+undecodable selector keeps the edge.
 
 A handler of a body with a resting tail takes its exception edges from the
 pre-`try` block, the tail, **and** every recorded throw point: an `error`
