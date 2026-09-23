@@ -21,8 +21,9 @@
 //! A toolkit of AST-level expression rewriters consumed by the
 //! propagation, branch-folding, and pattern-recognition passes:
 //!
-//! - [`try_fold_expr`] — constant-fold an expression text via
-//!   [`eval_tcl_expr`].
+//! - [`try_fold_expr`] — constant-fold an expression text on the shared
+//!   expression route, the one the lattice runs
+//!   ([`crate::value_transfer::evaluate_expression_detached`]).
 //! - [`try_unwrap_expr_in_expr`] — unwrap a redundant
 //!   `[expr {…}]` in expression context (`O115`).
 //! - [`substitute_expr_constants`] — replace `$var` references
@@ -56,10 +57,10 @@ use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::expr_ast::{BinOp, ExprNode, ExprOffset, render_expr};
 use crate::expr_parser::parse_expr_for_profile;
 use crate::naming::normalise_var_name;
-use crate::tcl_expr_eval::{
-    Env, eval_tcl_expr_with_octal_and_dialect, format_tcl_value, leading_zero_is_octal,
-};
+use crate::sccp::BuiltinFoldInputs;
+use crate::tcl_expr_eval::{FoldPolicy, leading_zero_is_octal};
 use crate::types::{TclType, TypeKind, TypeLattice};
+use tcl_registry::value_transfer::ExactValue;
 
 /// Operand type facts for the current function: which variable names are
 /// provably *numeric* (Int / Double / Numeric / Boolean) and which are provably
@@ -311,36 +312,49 @@ fn is_integer_string(text: &str) -> bool {
 
 // Landed: try_fold_expr (O101 — fold constant expression)
 
-/// Attempt to fold `expr` to a Tcl literal value by evaluating it
-/// with an empty environment.
-///
-/// Returns `Some(folded_text)` when every variable-free sub-
-/// expression collapses to a value and the rendered literal
-/// differs from `expr.trim()`. Returns `None` when the
-/// expression depends on a variable not in the env, a command
-/// substitution, or any domain error (match `eval_tcl_expr`'s
-/// conservative "give up, use runtime form" contract).
-#[must_use]
-pub fn try_fold_expr(
-    expr: &str,
-    dialect: Option<&'static tcl_dialect::DialectProfile>,
+/// The value semantics a rewrite under `folds` evaluates with: the target's
+/// leading-zero rule, grammar and tower.
+fn rewrite_policy(folds: BuiltinFoldInputs<'_>) -> FoldPolicy {
+    FoldPolicy::for_profile(folds.dialect.and_then(leading_zero_is_octal), folds.dialect)
+}
+
+/// `node`'s value on the shared expression route
+/// ([`crate::value_transfer::evaluate_expression_detached`]) under `folds`,
+/// rendered as its source text: the value the lattice would prove, so a
+/// rewrite never folds what the lattice declines.
+fn fold_on_route(
+    node: &ExprNode,
+    constants: &std::collections::HashMap<String, ExactValue>,
+    folds: BuiltinFoldInputs<'_>,
 ) -> Option<String> {
+    let value = crate::value_transfer::evaluate_expression_detached(
+        node,
+        constants,
+        folds,
+        rewrite_policy(folds),
+    )?;
+    String::from_utf8(value.bytes).ok()
+}
+
+/// Attempt to fold `expr` to a Tcl literal value with no variable bound.
+///
+/// Returns `Some(folded_text)` when the shared expression route answers a
+/// value (the one the lattice proves under the same target and trust) and
+/// its rendering differs from `expr.trim()`. Returns `None` when the
+/// expression reads a variable or a command substitution, or when the route
+/// declines — a domain error, a math function the target lacks or the
+/// module rebinds, a result the target's tower does not hold.
+#[must_use]
+pub fn try_fold_expr(expr: &str, folds: BuiltinFoldInputs<'_>) -> Option<String> {
     let trimmed = expr.trim();
     if trimmed.is_empty() {
         return None;
     }
-    let node = parse_expr_for_profile(trimmed, dialect);
+    let node = parse_expr_for_profile(trimmed, folds.dialect);
     if matches!(node, ExprNode::Raw { .. }) {
         return None;
     }
-    let env = Env::new();
-    let value = eval_tcl_expr_with_octal_and_dialect(
-        &node,
-        &env,
-        dialect.and_then(leading_zero_is_octal),
-        dialect,
-    )?;
-    let rendered = format_tcl_value(&value);
+    let rendered = fold_on_route(&node, &std::collections::HashMap::new(), folds)?;
     if rendered == trimmed {
         return None;
     }
@@ -358,49 +372,39 @@ pub fn try_fold_expr(
 /// * **quoted / bare** (`expr "$a == $b"`, `expr $a==$b`) — Tcl substitutes
 ///   the variable *values* textually before parsing, so a non-numeric value
 ///   becomes an invalid bareword (a runtime error). Only numeric constants
-///   are bound; a string-valued var is left unbound and the fold bails,
-///   matching the SCCP `[expr …]` fold (`sccp::env_from_uses_numeric`).
+///   are bound; a string-valued var is left unbound and the fold bails.
 ///
 /// Returns the folded literal, or `None` when the expression still depends
-/// on an unresolved operand / command substitution.
+/// on an unresolved operand / command substitution, or the shared route
+/// declines.
 #[must_use]
 pub fn try_fold_expr_with_constants<S: std::hash::BuildHasher>(
     expr: &str,
     constants: &std::collections::HashMap<String, String, S>,
     braced: bool,
-    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    folds: BuiltinFoldInputs<'_>,
 ) -> Option<String> {
-    use crate::tcl_expr_eval::EnvValue;
     let trimmed = expr.trim();
     if trimmed.is_empty() {
         return None;
     }
-    let node = parse_expr_for_profile(trimmed, dialect);
+    let node = parse_expr_for_profile(trimmed, folds.dialect);
     if matches!(node, ExprNode::Raw { .. }) {
         return None;
     }
-    let mut env = Env::new();
-    for (name, value) in constants {
-        // A dialect is in hand here (it drove `parse_expr` above), so bind under
-        // the release actually being compiled for rather than the ambient.
-        if braced
-            || is_numeric_string_under(
-                value,
-                Some(tcl_dialect::NumberSyntax::of_profile(Some(
-                    dialect.unwrap_or(tcl_dialect::DialectProfile::plain_tcl()),
-                ))),
-            )
-        {
-            env.insert(name.clone(), EnvValue::Str(value.clone()));
-        }
-    }
-    let value = eval_tcl_expr_with_octal_and_dialect(
-        &node,
-        &env,
-        dialect.and_then(leading_zero_is_octal),
-        dialect,
-    )?;
-    let rendered = format_tcl_value(&value);
+    // A dialect is in hand here (it drove `parse_expr` above), so bind under
+    // the release actually being compiled for rather than the ambient.
+    let numbers = tcl_dialect::NumberSyntax::of_profile(Some(
+        folds
+            .dialect
+            .unwrap_or(tcl_dialect::DialectProfile::plain_tcl()),
+    ));
+    let bound: std::collections::HashMap<String, ExactValue> = constants
+        .iter()
+        .filter(|(_, value)| braced || is_numeric_string_under(value, Some(numbers)))
+        .map(|(name, value)| (name.clone(), ExactValue::from_literal(value)))
+        .collect();
+    let rendered = fold_on_route(&node, &bound, folds)?;
     if rendered == trimmed {
         return None;
     }
@@ -1716,38 +1720,52 @@ fn expr_uses_shadowed_mathfunc_at<S: std::hash::BuildHasher>(
 mod tests {
     use super::*;
 
+    /// A rewrite's fold inputs with no module mutations and no dialect.
+    fn folds() -> BuiltinFoldInputs<'static> {
+        static TRUSTED: std::sync::LazyLock<crate::command_binding::ModuleCommandMutations> =
+            std::sync::LazyLock::new(crate::command_binding::ModuleCommandMutations::default);
+        BuiltinFoldInputs {
+            registry: tcl_registry::default_registry(),
+            mutations: &TRUSTED,
+            dialect: None,
+            defining_class: None,
+            registry_engine: false,
+            trust: crate::sccp::FoldTrust::WholeModule,
+        }
+    }
+
     // try_fold_expr
 
     #[test]
     fn fold_integer_arithmetic() {
-        assert_eq!(try_fold_expr("1 + 2", None).as_deref(), Some("3"));
-        assert_eq!(try_fold_expr("10 * 5", None).as_deref(), Some("50"));
-        assert_eq!(try_fold_expr("100 / 4", None).as_deref(), Some("25"));
+        assert_eq!(try_fold_expr("1 + 2", folds()).as_deref(), Some("3"));
+        assert_eq!(try_fold_expr("10 * 5", folds()).as_deref(), Some("50"));
+        assert_eq!(try_fold_expr("100 / 4", folds()).as_deref(), Some("25"));
     }
 
     #[test]
     fn fold_comparison_to_bool_literal() {
-        assert_eq!(try_fold_expr("1 < 2", None).as_deref(), Some("1"));
-        assert_eq!(try_fold_expr("3 == 3", None).as_deref(), Some("1"));
-        assert_eq!(try_fold_expr("5 > 10", None).as_deref(), Some("0"));
+        assert_eq!(try_fold_expr("1 < 2", folds()).as_deref(), Some("1"));
+        assert_eq!(try_fold_expr("3 == 3", folds()).as_deref(), Some("1"));
+        assert_eq!(try_fold_expr("5 > 10", folds()).as_deref(), Some("0"));
     }
 
     #[test]
     fn fold_returns_none_for_var_expressions() {
-        assert!(try_fold_expr("$x + 1", None).is_none());
-        assert!(try_fold_expr("[cmd]", None).is_none());
+        assert!(try_fold_expr("$x + 1", folds()).is_none());
+        assert!(try_fold_expr("[cmd]", folds()).is_none());
     }
 
     #[test]
     fn fold_returns_none_when_already_literal() {
         // "42" folds to "42" — no change, None.
-        assert!(try_fold_expr("42", None).is_none());
+        assert!(try_fold_expr("42", folds()).is_none());
     }
 
     #[test]
     fn fold_empty_expression() {
-        assert!(try_fold_expr("", None).is_none());
-        assert!(try_fold_expr("   ", None).is_none());
+        assert!(try_fold_expr("", folds()).is_none());
+        assert!(try_fold_expr("   ", folds()).is_none());
     }
 
     /// `simplify_node_once`,

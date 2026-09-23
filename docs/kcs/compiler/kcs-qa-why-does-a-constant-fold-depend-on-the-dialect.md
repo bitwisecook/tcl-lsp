@@ -30,7 +30,8 @@ is an error on 8.4.
 `expr` reads the same release axis, because its route runs the shared
 expression engine over the same value model rather than a private
 parser: `expr {"010"}` folds to `8` up to Tcl 8.6 and `10` from 9.0, for
-the identical reason `incr` does. iRules' own runtime is 8.4's, so
+the identical reason `incr` does. The expression route takes its numeral
+grammar from the profile's runtime, and iRules' runtime is 8.4's, so
 `expr {"010"}` folds there too (`8`); a profile with no runtime at all —
 an F5 BIG-IP config context, say — declines, because nothing pins which
 grammar applies.
@@ -46,6 +47,16 @@ source was decoded as UTF-8, which is the 9.x reader's answer, and an 8.x
 reader following `encoding system` may hold a different string — `string
 length` of one astral character read from a UTF-8 file is 1 under 9.0 and
 4 under 8.6 in a Latin-1 locale, so under 8.x neither command folds it.
+
+Under iRules the two routes therefore disagree today: with `set z 010`,
+`incr z` declines, because the direct route asks every release, while
+`expr {$z + 1}` folds to 9, because the expression route reads 8.4's
+grammar. 9 is what iRules' 8.4-derived engine answers (tclsh 8.4 prints 9
+for both), so the decline is the imprecise half, not a wrong answer. The
+owner's ruling that a dialect declaring a base release evaluates under
+that release, with unanimity only where none is declared, resolves it,
+and slice 4 of the value-transfers migration lands it: once the direct
+routes read iRules' declared base, `incr z` folds to 9 there as well.
 
 The decline is a recorded reason, not silence. `tcl explore --show sccp`
 lists every statement's route and answer — `direct cell-increment

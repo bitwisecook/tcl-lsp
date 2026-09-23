@@ -359,13 +359,6 @@ impl<'a> LatticeDriver<'a> {
         self.tally.set(tally);
     }
 
-    /// Count one entry into the declared-implementation family.
-    fn enter_implementation(&self) {
-        let mut tally = self.tally.get();
-        tally.implementation += 1;
-        self.tally.set(tally);
-    }
-
     /// The run's route-entry counts, direct, expression and implementation
     /// dispatches alike, nested entries included.
     pub(crate) fn take_route_tally(&self) -> RouteTally {
@@ -507,7 +500,6 @@ impl<'a> LatticeDriver<'a> {
         def: &str,
         inputs: &dyn AnalysisInputs,
     ) -> LatticeValue {
-        self.enter_direct();
         let route = semantics.route();
         if !matches!(route, EvalRoute::Direct { id } if id.owner() == EvaluatorOwner::Registry) {
             self.explain(
@@ -517,6 +509,7 @@ impl<'a> LatticeDriver<'a> {
             );
             return LatticeValue::Overdefined;
         }
+        self.enter_direct();
         let answer = evaluate_lifted(semantics, inputs, &mut Self::budget(), MAX_CONSTSET_SIZE);
         self.explain(head, Some(route), answer_label(&answer));
         match answer {
@@ -858,10 +851,9 @@ impl<'a> LatticeDriver<'a> {
                 evaluate_lifted(&expression, &inputs, &mut Self::budget(), MAX_CONSTSET_SIZE)
             }
             EvalRoute::None { reason } => LiftedAnswer::Declined(DeclineReason::NoRoute(reason)),
-            EvalRoute::Implementation(_) => {
-                self.enter_implementation();
-                LiftedAnswer::Declined(DeclineReason::Unsupported)
-            }
+            // No declared implementation runs through the driver before
+            // slice 4, so none is entered or counted.
+            EvalRoute::Implementation(_) => LiftedAnswer::Declined(DeclineReason::Unsupported),
         };
         Some(ScriptRun {
             head: head.to_owned(),
@@ -931,12 +923,12 @@ impl<'a> LatticeDriver<'a> {
         values: &HashMap<ValueKey, LatticeValue, S2>,
         ssa: &SsaFunction,
     ) -> LatticeValue {
-        self.enter_expression();
         let head = command_binding.map_or("expr", |binding| binding.name.as_str());
         if self.folds.is_some() && !self.trusted(head) {
             self.explain(head, None, "declined: rebinding-suspected".to_owned());
             return LatticeValue::Overdefined;
         }
+        self.enter_expression();
         let expression = ExpressionEvaluation {
             expression: Expression::Parsed(expr),
             policy: self.policy,
@@ -1045,6 +1037,128 @@ impl<'a> LatticeDriver<'a> {
 
 static EMPTY_NAMES: BTreeSet<String> = BTreeSet::new();
 
+/// The inputs of an expression a rewrite evaluates outside a solver run:
+/// its `$name` reads answer from `constants`, a nested command declines, and
+/// a math function asks the driver's binding service under the rewrite's
+/// trust stance.
+struct DetachedExpressionInputs<'a, 'd> {
+    driver: &'a LatticeDriver<'d>,
+    view: ResolvedInvocationView<'a>,
+    constants: &'a HashMap<String, ExactValue>,
+}
+
+impl AnalysisInputs for DetachedExpressionInputs<'_, '_> {
+    fn invocation(&self) -> &ResolvedInvocationView<'_> {
+        &self.view
+    }
+
+    fn operand(&self, _id: OperandId, _domain: FactDomain) -> FactView {
+        FactView::Top(DeclineReason::NotExact)
+    }
+
+    fn place(&self, _id: OperandId) -> Result<PlaceRef, DeclineReason> {
+        Err(DeclineReason::Unsupported)
+    }
+
+    fn variable(&self, name: &str, domain: FactDomain) -> FactView {
+        if domain != FactDomain::ExactValue {
+            return FactView::Top(DeclineReason::Unavailable(AnalysisTier::Fast));
+        }
+        self.constants
+            .get(name)
+            .map_or(FactView::Top(DeclineReason::NotExact), |value| {
+                FactView::Exact(value.clone(), None)
+            })
+    }
+
+    fn prior_store(&self, place: &PlaceRef, domain: FactDomain) -> FactView {
+        self.variable(&place.name, domain)
+    }
+
+    fn word_structure(&self, _id: OperandId) -> Result<WordStructure, DeclineReason> {
+        Err(DeclineReason::Unsupported)
+    }
+
+    fn body(&self, _id: OperandId) -> Result<BodyRegion, DeclineReason> {
+        Err(DeclineReason::Unsupported)
+    }
+
+    fn nested(&self, _script: &str, _state: &mut EvaluationState) -> EvalAnswer {
+        EvalAnswer::Declined(DeclineReason::Unsupported)
+    }
+
+    fn math_function(&self, name: &str) -> Result<BindingIdentity, DeclineReason> {
+        self.driver.math_function(name)
+    }
+
+    fn context(&self) -> &AnalysisContext {
+        &self.driver.context
+    }
+}
+
+/// `node` evaluated by the shared expression route outside a solver run —
+/// the value the lattice proves for it over `constants`, or `None` wherever
+/// the route declines. It is the one evaluator a rewrite asks
+/// (`docs/design/compiler/value-transfers.md` § *`expr`: the first demanding
+/// client*): a math function the target lacks, the module rebinds, or Tcl
+/// does not call (`ABS`); a beyond-wide integer or an infinity the target
+/// does not widen to; a numeral the target's grammar cannot decide — each
+/// declines as the lattice does. `folds` carries the rewrite's whole-module
+/// trust, and a nested command is never evaluated.
+pub(crate) fn evaluate_expression_detached(
+    node: &ExprNode,
+    constants: &HashMap<String, ExactValue>,
+    folds: BuiltinFoldInputs<'_>,
+    policy: FoldPolicy,
+) -> Option<ExactValue> {
+    let driver = LatticeDriver::detached(Some(folds), policy);
+    let expression = ExpressionEvaluation {
+        expression: Expression::Parsed(node),
+        policy,
+        head: None,
+    };
+    let inputs = DetachedExpressionInputs {
+        driver: &driver,
+        view: ResolvedInvocationView {
+            canonical_command: "expr",
+            subcommand: None,
+            form: None,
+            layout: InvocationLayout::Source,
+            operands: Vec::new(),
+        },
+        constants,
+    };
+    match evaluate_lifted(
+        &expression,
+        &inputs,
+        &mut LatticeDriver::budget(),
+        MAX_CONSTSET_SIZE,
+    ) {
+        LiftedAnswer::Evaluated(outcomes) => match outcomes.as_slice() {
+            [outcome] => match &outcome.result {
+                ExactValueOrUnavailable::Exact(value) => Some(value.clone()),
+                ExactValueOrUnavailable::Unavailable(_) => None,
+            },
+            _ => None,
+        },
+        LiftedAnswer::Pending | LiftedAnswer::Declined(_) => None,
+    }
+}
+
+/// Whether the condition `node` is decided outside a solver run: its value
+/// on the shared expression route ([`evaluate_expression_detached`]) read
+/// as `if` reads a truth, or `None` wherever the route declines or the value
+/// is no truth.
+pub(crate) fn decide_condition_detached(
+    node: &ExprNode,
+    constants: &HashMap<String, ExactValue>,
+    folds: BuiltinFoldInputs<'_>,
+    policy: FoldPolicy,
+) -> Option<bool> {
+    let value = evaluate_expression_detached(node, constants, folds, policy)?;
+    truth_of(&ExactValueOrUnavailable::Exact(value))
+}
+
 /// One `[…]` script run on its declared route.
 struct ScriptRun {
     /// The command's head as the script spells it.
@@ -1102,9 +1216,14 @@ fn truth_of(result: &ExactValueOrUnavailable) -> Option<bool> {
                 return Some(word);
             }
             // A beyond-wide integer's canonical spelling: non-zero is true.
+            // Only the canonical spelling: a leading zero is a text the
+            // target's grammar did not read as a number (`08` under 8.x),
+            // and `if` raises `expected boolean value` on it.
             let digits = text.strip_prefix('-').unwrap_or(text);
-            (!digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit()))
-                .then(|| digits.bytes().any(|b| b != b'0'))
+            (!digits.is_empty()
+                && digits.bytes().all(|b| b.is_ascii_digit())
+                && (digits == "0" || !digits.starts_with('0')))
+            .then(|| digits != "0")
         }
     }
 }
@@ -1755,8 +1874,12 @@ impl<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher> LatticeInputs<'_, S
 }
 
 /// A variable reference's element-qualified name: the base, or `base(key)`
-/// for a constant key; a key that substitutes is a computed name.
-fn variable_name(reference: &tcl_lexer::word_parts::VarRef<'_>) -> Result<String, DeclineReason> {
+/// for a constant key; a key that substitutes is a computed name. The one
+/// assembly for a substituted word's reads and an expression's quoted
+/// operand (`ExprServices::quoted_string`).
+pub(crate) fn variable_name(
+    reference: &tcl_lexer::word_parts::VarRef<'_>,
+) -> Result<String, DeclineReason> {
     use tcl_lexer::word_parts::WordPart as Part;
     let name = std::str::from_utf8(reference.name).map_err(|_| DeclineReason::NotText)?;
     let Some(index) = &reference.index else {
@@ -2315,5 +2438,41 @@ mod tests {
         ] {
             assert_eq!(exact_to_const(&const_to_exact(&c)), c, "{c:?}");
         }
+    }
+
+    /// D60: `simple_var_ref_name` reads exactly one reference. A lowered
+    /// quoted `expr` word spells `${a} + ${b}`, which starts and ends like one
+    /// braced reference and is not the variable `a} + ${b`.
+    #[test]
+    fn a_simple_reference_is_one_reference_only() {
+        assert_eq!(simple_var_ref_name("$a"), Some("a"));
+        assert_eq!(simple_var_ref_name("${a b}"), Some("a b"));
+        assert_eq!(simple_var_ref_name("$::ns::v"), Some("::ns::v"));
+        assert_eq!(simple_var_ref_name("${a} + ${b}"), None);
+        assert_eq!(simple_var_ref_name("$a + $b"), None);
+        assert_eq!(simple_var_ref_name("a"), None);
+    }
+
+    /// A condition's truth as `if` reads it: a number is true when non-zero,
+    /// a boolean word is its value, and a beyond-wide integer's canonical
+    /// spelling is true when non-zero. A digit string with a leading zero is
+    /// no canonical spelling: under 8.x it reached the condition as text
+    /// because the grammar read it as an invalid octal, and `if {08}` raises
+    /// `expected boolean value but got "08"` on tclsh 8.5 and 8.6.
+    #[test]
+    fn a_condition_reads_only_canonical_digits_as_a_number() {
+        let text = |t: &str| ExactValueOrUnavailable::Exact(ExactValue::text(t));
+        assert_eq!(truth_of(&text("yes")), Some(true));
+        assert_eq!(truth_of(&text("off")), Some(false));
+        assert_eq!(truth_of(&text("123456789012345678901234")), Some(true));
+        assert_eq!(truth_of(&text("-123456789012345678901234")), Some(true));
+        assert_eq!(truth_of(&text("0")), Some(false));
+        for undecided in ["08", "-08", "007", "00", "x"] {
+            assert_eq!(truth_of(&text(undecided)), None, "{undecided}");
+        }
+        assert_eq!(
+            truth_of(&ExactValueOrUnavailable::Exact(ExactValue::int(0))),
+            Some(false)
+        );
     }
 }

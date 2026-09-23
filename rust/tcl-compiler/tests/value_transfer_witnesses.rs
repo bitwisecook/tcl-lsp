@@ -962,12 +962,20 @@ fn a_bpf_expression_never_takes_the_tcl_answer() {
 /// dispatches to the command `::tcl::mathfunc::abs`, so the module's `proc`
 /// of that name is what runs: tclsh 8.5 to 9.1 print 99. Under 8.4 the
 /// grammar dispatches internally and has no such command, so the `proc`
-/// cannot even be created and the program prints 2.
+/// cannot even be created and the program prints 2. A namespace-local
+/// override is the same rebinding: from 8.5 `expr` resolves
+/// `tcl::mathfunc::abs` relative to the namespace it runs in first, so
+/// `abs(…)` inside `::ns` calls `::ns::tcl::mathfunc::abs` (tclsh 8.5 to
+/// 9.1: 99; 8.4: 2).
 #[test]
 fn abs_rebinding_declines() {
     let rebound = "catch {rename ::tcl::mathfunc::abs ::tcl::mathfunc::saved_abs}\n\
                    catch {proc ::tcl::mathfunc::abs {x} {return 99}}\n\
                    proc p {} {set r [expr {abs(-2)}]; return $r}\nputs [p]\n";
+    let local = "namespace eval ns {\n\
+                 namespace eval tcl::mathfunc { proc abs {x} {return 99} }\n\
+                 proc p {} {set r [expr {abs(-2)}]; return $r}\n\
+                 }\nputs [ns::p]\n";
     let plain = "proc p {} {set r [expr {abs(-2)}]; return $r}\nputs [p]\n";
     let two = Some(LatticeValue::Const(ConstValue::Int(2)));
     for (dialect, want) in [
@@ -978,6 +986,11 @@ fn abs_rebinding_declines() {
         let unit = unit_of(rebound, dialect);
         assert_eq!(value_at(&unit, "::p", "r", 1), want, "{dialect}");
         assert_eq!(
+            value_at(&unit_of(local, dialect), "::ns::p", "r", 1),
+            want,
+            "{dialect}: the namespace-local override"
+        );
+        assert_eq!(
             value_at(&unit_of(plain, dialect), "::p", "r", 1),
             two,
             "{dialect}"
@@ -987,15 +1000,21 @@ fn abs_rebinding_declines() {
         answers_for(&unit_of(rebound, "tcl9.0"), "::p", "expr"),
         ["declined: rebinding-suspected"]
     );
+    assert_eq!(
+        answers_for(&unit_of(local, "tcl9.0"), "::ns::p", "expr"),
+        ["declined: rebinding-suspected"]
+    );
     for (series, tclsh) in releases_on_path() {
         let expected = if series == "8.4" { "2\n" } else { "99\n" };
-        let (rewritten, _) = optimised(rebound, &dialect_of(series));
-        for program in [rebound, rewritten.as_str()] {
-            assert_eq!(
-                run_script(&tclsh, program),
-                Some((true, expected.to_owned())),
-                "tclsh{series}:\n{program}"
-            );
+        for source in [rebound, local] {
+            let (rewritten, _) = optimised(source, &dialect_of(series));
+            for program in [source, rewritten.as_str()] {
+                assert_eq!(
+                    run_script(&tclsh, program),
+                    Some((true, expected.to_owned())),
+                    "tclsh{series}:\n{program}"
+                );
+            }
         }
     }
 }
@@ -1141,7 +1160,10 @@ fn format_folds_through_the_shared_core() {
 /// expression entry, recorded once for reachability and once for the
 /// collected branch, so `if {1} {…}` is two expression entries and no
 /// direct one. No command declares an `EvaluatorCapability` yet, so
-/// `implementation` stays 0 throughout (slice 4).
+/// `implementation` stays 0 throughout (slice 4). An entry is counted only
+/// once the route is entered: with the module's own `proc expr`, `set r
+/// [expr {1 + 1}]` declines at the trust check and never reaches the
+/// engine, so it counts nothing.
 #[test]
 fn route_entries_are_counted_per_family() {
     let tally_of = |source: &str, dialect: &str| {
@@ -1156,6 +1178,7 @@ fn route_entries_are_counted_per_family() {
                         set n [expr {[string length abcdef] * 2}]}";
     let direct_only = "proc p {} {set x 1; incr x; return $x}";
     let expression_only = "proc p {} {if {1} {puts a} else {puts b}}";
+    let rebound_expr = "proc expr {args} {return 99}\nproc p {} {set r [expr {1 + 1}]}";
     for dialect in DIALECTS {
         let tally = tally_of(nested_expr, dialect);
         assert_eq!(tally.direct, 1, "{dialect}: the nested `string length`");
@@ -1174,6 +1197,13 @@ fn route_entries_are_counted_per_family() {
             "{dialect}: the condition, reachability and the collected branch"
         );
         assert_eq!(tally.implementation, 0, "{dialect}");
+
+        let tally = tally_of(rebound_expr, dialect);
+        assert_eq!(
+            (tally.direct, tally.expression, tally.implementation),
+            (0, 0, 0),
+            "{dialect}: a rebound `expr` enters no route"
+        );
     }
 }
 
@@ -1349,14 +1379,58 @@ fn the_mirror_pairs_decline_as_correlated() {
     }
 }
 
+/// A condition over a leading-zero digit string decides nothing under 8.x:
+/// the grammar reads `08` as an invalid octal, so it reaches the condition
+/// as text and `if` raises `expected boolean value but got "08"` (tclsh 8.5
+/// and 8.6; 8.4, 9.0 and 9.1 print `yes`). It was decided true (I230) and
+/// rewritten to `if {1}`. Under 9.0 `08` is the number 8 and the branch is
+/// decided.
+#[test]
+fn an_invalid_octal_condition_decides_nothing() {
+    for (literal, quoted) in [("08", false), ("-08", false), ("08", true)] {
+        let condition = if quoted {
+            format!("\"{literal}\"")
+        } else {
+            "$x".to_owned()
+        };
+        let source = format!(
+            "proc p {{}} {{set x {literal}; if {{{condition}}} {{puts yes}} else {{puts no}}}}\np\n"
+        );
+        for (dialect, decided) in [("tcl8.6", false), ("tcl9.0", true)] {
+            let unit = unit_of(&source, dialect);
+            let function = unit.procedures.get("::p").expect("the procedure");
+            assert_eq!(
+                !function.sccp.constant_branches.is_empty(),
+                decided,
+                "{dialect}: {source}: {:?}",
+                function.sccp.constant_branches
+            );
+        }
+        for (series, tclsh) in releases_on_path() {
+            let (rewritten, rewrites) = optimised(&source, &dialect_of(series));
+            assert_eq!(
+                run_script(&tclsh, &rewritten),
+                run_script(&tclsh, &source),
+                "tclsh{series}:\n{rewritten}\n{rewrites:#?}"
+            );
+        }
+    }
+}
+
 /// `expr_acceptance_list`'s programs, run against the real `tclsh` per
 /// release found on `PATH`: wherever the compiler's fold answers a value
 /// it is the same value `tclsh` prints, and wherever the underlying
 /// program raises the fold has declined too. At least half the programs
-/// must fold on any release, so the witness is not vacuous.
+/// must fold on any release, so the witness is not vacuous. The optimised
+/// program must print what the original prints — or raise where it raises —
+/// under the same release, so a rewrite never folds what the lattice
+/// declines: the last four programs are O101's (`1 << 70` wraps to 0 under
+/// tclsh 8.4; `1e308 * 10` raises `floating-point value too large to
+/// represent` there; `min` is unknown before 8.5; `ABS` is no math function
+/// in any release).
 #[test]
 fn expression_witnesses_match_every_release_on_path() {
-    let cases: [(&str, &str); 10] = [
+    let cases: [(&str, &str); 13] = [
         ("", "expr 1 + 2"),
         ("set a {1 + 1}", "expr \"$a * 2\""),
         ("", "expr {0 && [error never]}"),
@@ -1367,6 +1441,9 @@ fn expression_witnesses_match_every_release_on_path() {
         ("", "expr {2**64}"),
         ("", "expr {1 << 70}"),
         ("", "expr {\"010\" + 0}"),
+        ("", "expr {1e308 * 10}"),
+        ("", "expr {min(1,2)}"),
+        ("", "expr {ABS(-2)}"),
     ];
     let mut releases = 0usize;
     for (series, tclsh) in releases_on_path() {
@@ -1395,6 +1472,14 @@ fn expression_witnesses_match_every_release_on_path() {
                 // is still a decline: nothing to check either way.
                 (None, _) => {}
             }
+            let program =
+                format!("proc p {{}} {{{prelude}\nset r [{expr_call}]\nreturn $r\n}}\nputs [p]\n");
+            let (rewritten, rewrites) = optimised(&program, &dialect);
+            assert_eq!(
+                run_script(&tclsh, &rewritten),
+                run_script(&tclsh, &program),
+                "tclsh{series}: {expr_call}\n{rewritten}\n{rewrites:#?}"
+            );
         }
         assert!(
             answered * 2 > cases.len(),
@@ -1404,5 +1489,113 @@ fn expression_witnesses_match_every_release_on_path() {
     }
     if releases == 0 {
         eprintln!("no tclsh on PATH: expression_witnesses_match_every_release_on_path ran nothing");
+    }
+}
+
+/// O101 rewrites only what the shared expression route proves, so the
+/// programs the old constant folder rewrote against the target stay put
+/// (`tcl opt --profile full` applies every pass, as `optimised` does).
+/// Oracle, tclsh 8.4: `1 << 70` is `0` (the wide shift wraps), `1e308 * 10`
+/// raises `floating-point value too large to represent`, and `min(1,2)`
+/// raises `unknown math function "min"`; 8.5 to 9.1 answer
+/// `1180591620717411303424`, `Inf` and `1`. `ABS(-2)` raises on every
+/// release (`unknown math function "ABS"` under 8.4, `invalid command name
+/// "tcl::mathfunc::ABS"` from 8.5): a math function's name is
+/// case-sensitive. An infinity in the middle is the same tower: `(1e308 *
+/// 10) > 0` is 1 from 8.5 and raises at the product under 8.4. None of them
+/// folds under iRules: 8.4, the release its engine runs, folds none.
+#[test]
+fn o101_rewrites_only_what_the_route_proves() {
+    let cases: [(&str, [Option<&str>; 4]); 5] = [
+        (
+            "1 << 70",
+            [
+                None,
+                Some("1180591620717411303424"),
+                Some("1180591620717411303424"),
+                None,
+            ],
+        ),
+        ("1e308 * 10", [None, Some("Inf"), Some("Inf"), None]),
+        ("(1e308 * 10) > 0", [None, Some("1"), Some("1"), None]),
+        ("min(1,2)", [None, Some("1"), Some("1"), None]),
+        ("ABS(-2)", [None, None, None, None]),
+    ];
+    for (expression, answers) in cases {
+        let program =
+            format!("proc p {{}} {{set r [expr {{{expression}}}]; return $r}}\nputs [p]\n");
+        for (dialect, answer) in DIALECTS.into_iter().zip(answers) {
+            let (rewritten, rewrites) = optimised(&program, dialect);
+            let kept = rewritten.contains(&format!("expr {{{expression}}}"));
+            match answer {
+                None => assert!(
+                    kept,
+                    "{dialect}: `expr {{{expression}}}` must stay:\n{rewritten}\n{rewrites:#?}"
+                ),
+                Some(value) => assert!(
+                    !kept && rewritten.contains(value),
+                    "{dialect}: `expr {{{expression}}}` folds to {value}:\n{rewritten}\n{rewrites:#?}"
+                ),
+            }
+        }
+    }
+}
+
+/// O112 decided a condition with the old constant folder, which answered
+/// a beyond-wide integer or an infinity under 8.4 as 8.5 does and read no
+/// binding. tclsh 8.4: `1 << 70` wraps to 0, so `if {(1 << 70) == 0}`
+/// takes its first branch and `while {(1 << 70) == 0}` runs; `1e308 * 10`
+/// raises `floating-point value too large to represent`. From 8.5 the
+/// shift is 1180591620717411303424 and the product `Inf`. With `proc
+/// ::tcl::mathfunc::abs {x} {return 99}`, tclsh 8.5 to 9.1 print `other`
+/// and `loop`, where O112 kept `puts two` alone (8.4 has no wrapper
+/// namespace, so the `proc` fails and the builtin prints `two`). Each
+/// program prints the same optimised as it does unoptimised under every
+/// release.
+#[test]
+fn a_structure_fold_stays_within_the_targets_tower() {
+    let rebound = "catch {proc ::tcl::mathfunc::abs {x} {return 99}}\n\
+                   proc p {} {\n\
+                   if {abs(-2) == 2} {puts two} else {puts other}\n\
+                   while {abs(-2) == 99} {puts loop; break}\n\
+                   }\np\n";
+    let programs = [
+        (
+            "proc p {} {if {(1 << 70) == 0} {puts zero} else {puts big}}\np\n",
+            &["tcl8.4"][..],
+            &["if {"][..],
+        ),
+        (
+            "proc p {} {while {(1 << 70) == 0} {puts once; break}; puts done}\np\n",
+            &["tcl8.4"][..],
+            &["while {"][..],
+        ),
+        (
+            "proc p {} {if {1e308 * 10 > 0} {puts inf} else {puts finite}}\np\n",
+            &["tcl8.4"][..],
+            &["if {"][..],
+        ),
+        (
+            rebound,
+            &["tcl8.6", "tcl9.0"][..],
+            &["if {abs(-2) == 2}", "while {"][..],
+        ),
+    ];
+    for (program, undecided_under, kept) in programs {
+        for dialect in undecided_under {
+            let (rewritten, rewrites) = optimised(program, dialect);
+            assert!(
+                kept.iter().all(|structure| rewritten.contains(structure)),
+                "{dialect} decides nothing:\n{rewritten}\n{rewrites:#?}"
+            );
+        }
+        for (series, tclsh) in releases_on_path() {
+            let (rewritten, rewrites) = optimised(program, &dialect_of(series));
+            assert_eq!(
+                run_script(&tclsh, &rewritten),
+                run_script(&tclsh, program),
+                "tclsh{series}:\n{rewritten}\n{rewrites:#?}"
+            );
+        }
     }
 }

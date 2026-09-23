@@ -975,8 +975,13 @@ members by position answers `{10, 10}` for either loop, where the real
 quotients of the second are `20` and `5`; the cartesian product
 `{5, 10, 20}` is sound for both and exact for neither; only ordered
 enumeration answers `20` and `25`. The rule is in force from slice 2, the
-first slice that evaluates over lattice inputs, and slice 3's finite-set
-condition tests pin it.
+first slice that evaluates over lattice inputs. Slice 3's
+`the_mirror_pairs_decline_as_correlated` pins the outcome — neither loop
+folds `x`, and neither post-loop branch decides — but not yet this reason:
+until slice 5 lowers the two-binder `foreach` source, `a` and `b` are
+overdefined from the loop header, so `expr {$b / $a}` declines `not-exact`
+before the limit is reached. The witness gains its `CorrelatedSets` reason
+once the two-binder `foreach` source is lowered.
 
 ### Bounded-loop enumeration
 

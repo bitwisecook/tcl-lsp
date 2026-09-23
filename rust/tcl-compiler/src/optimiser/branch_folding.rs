@@ -203,7 +203,7 @@ fn propagate_into_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
         // literal (`if {$flag > 0}` with `flag == 1` → `1`), emit the fold in
         // preference to the partial-canonicalisation codes.
         if sub.changed
-            && let Some(folded) = try_fold_expr(&working, ctx.dialect)
+            && let Some(folded) = try_fold_expr(&working, ctx.rewrite_folds())
             && folded != inner
         {
             ctx.report(Optimisation::new(

@@ -3946,6 +3946,13 @@ fn collect_tampered_builtins(
 /// does — the two spellings disagreeing is the defect. Narrowing it to the
 /// defining namespace needs a resolution namespace at every call site, which
 /// `trusts` does not take.
+///
+/// A namespace-local math function is the same shape one level down: from
+/// 8.5 `expr` resolves `tcl::mathfunc::NAME` relative to the namespace it
+/// runs in before the global one, so `proc ::ns::tcl::mathfunc::abs` is what
+/// `abs(…)` calls inside `::ns` (tclsh 8.5 to 9.1 run it; 8.4 has no wrapper
+/// commands). The answer is the global wrapper it shadows, distrusted for
+/// the whole module as the `::n::expr` case is.
 fn builtin_shadowed_by_qualified_definition(
     name: &str,
     registry: &CommandRegistry,
@@ -3953,6 +3960,10 @@ fn builtin_shadowed_by_qualified_definition(
     let (holder, tail) = tcl_syntax::naming::key_holder_and_tail(name);
     if holder.is_empty() || tail.is_empty() {
         return None;
+    }
+    if tcl_registry::mathfunc::is_in_mathfunc_namespace(name) {
+        let wrapper = tcl_registry::mathfunc::qualified_name(tail);
+        return registry.get(&wrapper).is_some().then(|| nqn(&wrapper));
     }
     (default_binding(tail, registry).kind == BindingKind::Builtin).then(|| nqn(tail))
 }

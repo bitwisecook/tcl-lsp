@@ -1641,14 +1641,7 @@ fn evaluate_proc_with_constants(
         // `[llength …]` with builtin semantics even where the module shadows
         // `llength`, handing O103 a value the rest of the pipeline disagrees
         // with (#2164).
-        Some(crate::sccp::BuiltinFoldInputs {
-            registry,
-            mutations: &ctx.command_mutations,
-            dialect: ctx.dialect,
-            defining_class: None,
-            registry_engine: false,
-            trust: crate::sccp::FoldTrust::WholeModule,
-        }),
+        Some(ctx.rewrite_folds()),
     );
     resolve_return_constant(
         callee,
@@ -1656,7 +1649,7 @@ fn evaluate_proc_with_constants(
         policy,
         ctx.dialect
             .map_or_else(tcl_dialect::LexerGrammar::default, |p| p.grammar),
-        registry,
+        ctx.rewrite_folds(),
     )
 }
 
@@ -1743,9 +1736,14 @@ fn resolve_return_constant(
     result: &crate::sccp::SccpResult,
     policy: FoldPolicy,
     grammar: tcl_dialect::LexerGrammar,
-    registry: &tcl_registry::CommandRegistry,
+    folds: crate::sccp::BuiltinFoldInputs<'_>,
 ) -> Option<ConstValue> {
     use crate::cfg::Terminator;
+    let fold = ExprFold {
+        policy,
+        grammar,
+        folds,
+    };
     let preds = fu.cfg.predecessors();
     let mut found: Option<ConstValue> = None;
     for (bn, block) in &fu.cfg.blocks {
@@ -1753,16 +1751,10 @@ fn resolve_return_constant(
             continue;
         }
         let folded = match &block.terminator {
-            Some(Terminator::Return { value, expr, .. }) => fold_return_under_lattice(
-                fu,
-                *bn,
-                value.as_deref(),
-                expr.as_ref(),
-                result,
-                policy,
-                grammar,
-            )?,
-            None => resolve_fallthrough_value(fu, *bn, result, &preds, policy, grammar, registry)?,
+            Some(Terminator::Return { value, expr, .. }) => {
+                fold_return_under_lattice(fu, *bn, value.as_deref(), expr.as_ref(), result, fold)?
+            }
+            None => resolve_fallthrough_value(fu, *bn, result, &preds, fold)?,
             Some(_) => continue, // Goto / Branch — not an exit point
         };
         match &found {
@@ -1803,9 +1795,7 @@ fn resolve_fallthrough_value(
         crate::cfg::BlockId,
         std::collections::HashSet<crate::cfg::BlockId>,
     >,
-    policy: FoldPolicy,
-    grammar: tcl_dialect::LexerGrammar,
-    registry: &tcl_registry::CommandRegistry,
+    fold: ExprFold<'_>,
 ) -> Option<ConstValue> {
     let mut executable_preds = preds
         .get(&bn)
@@ -1818,7 +1808,7 @@ fn resolve_fallthrough_value(
     }
     let block = fu.cfg.blocks.get(pred)?;
     let last = block.statements.last()?;
-    fold_tail_statement_under_lattice(fu, *pred, last, result, policy, grammar, registry)
+    fold_tail_statement_under_lattice(fu, *pred, last, result, fold)
 }
 
 /// Resolve the value Tcl's "result of the last executed command" rule
@@ -1836,14 +1826,11 @@ fn fold_tail_statement_under_lattice(
     bn: crate::cfg::BlockId,
     stmt: &Statement,
     result: &crate::sccp::SccpResult,
-    policy: FoldPolicy,
-    grammar: tcl_dialect::LexerGrammar,
-    registry: &tcl_registry::CommandRegistry,
+    fold: ExprFold<'_>,
 ) -> Option<ConstValue> {
+    let registry = fold.folds.registry;
     match stmt {
-        Statement::ExprEval { expr, .. } => {
-            fold_expr_under_lattice(fu, bn, expr, result, policy, grammar)
-        }
+        Statement::ExprEval { expr, .. } => fold_expr_under_lattice(fu, bn, expr, result, fold),
         Statement::AssignConst { name, .. }
         | Statement::AssignExpr { name, .. }
         | Statement::AssignValue { name, .. }
@@ -1875,8 +1862,7 @@ fn fold_return_under_lattice(
     value: Option<&str>,
     expr: Option<&crate::expr_ast::ExprNode>,
     result: &crate::sccp::SccpResult,
-    policy: FoldPolicy,
-    grammar: tcl_dialect::LexerGrammar,
+    fold: ExprFold<'_>,
 ) -> Option<ConstValue> {
     let value = value?.trim();
 
@@ -1891,7 +1877,7 @@ fn fold_return_under_lattice(
     }
 
     // Path 3 — `return [expr {…}]`.
-    fold_expr_under_lattice(fu, bn, expr?, result, policy, grammar)
+    fold_expr_under_lattice(fu, bn, expr?, result, fold)
 }
 
 /// Resolve a simple `$name` variable reference to its SCCP-proved constant
@@ -1940,8 +1926,14 @@ fn fold_var_ref_under_lattice(
 /// exit version is a non-Const loop phi, so the overlay didn't override,
 /// and the stale pre-loop `(x,1)=Const(0)` leaked in — folding to `1`
 /// where tclsh returns `3`. Reading the exit version (Overdefined here)
-/// leaves `x` unbound so `eval_tcl_expr` bails, matching
+/// leaves `x` unbound so the route declines, matching
 /// [`fold_var_ref_under_lattice`]'s `sum_list`/`fibonacci` precision.
+///
+/// The expression runs on the shared expression route
+/// ([`crate::value_transfer::evaluate_expression_detached`]) under the
+/// rewrite's whole-module trust, so a return fold proves what the lattice
+/// proves: no rebound math function, no function the target lacks, no value
+/// past the target's integer tower.
 ///
 /// Shared by [`fold_return_under_lattice`]'s Path 3 (`return [expr {…}]`)
 /// and [`fold_tail_statement_under_lattice`]'s fall-through case (a
@@ -1951,12 +1943,14 @@ fn fold_expr_under_lattice(
     bn: crate::cfg::BlockId,
     expr: &crate::expr_ast::ExprNode,
     result: &crate::sccp::SccpResult,
-    policy: FoldPolicy,
-    grammar: tcl_dialect::LexerGrammar,
+    ExprFold {
+        policy,
+        grammar,
+        folds,
+    }: ExprFold<'_>,
 ) -> Option<ConstValue> {
-    use crate::tcl_expr_eval::{Env, eval_tcl_expr_with_policy};
-
-    let mut env: Env = Env::new();
+    let mut constants: std::collections::HashMap<String, tcl_registry::value_transfer::ExactValue> =
+        std::collections::HashMap::new();
     if let Some(ssa_block) = fu.ssa.blocks.get(&bn) {
         for name in crate::var_refs::vars_in_expr(expr, grammar) {
             let Some(sym) = fu.ssa.var_symbol(&name) else {
@@ -1964,23 +1958,27 @@ fn fold_expr_under_lattice(
             };
             let ver = ssa_block.exit_versions.get(&sym).copied().unwrap_or(0);
             if let Some(LatticeValue::Const(c)) = result.values.get(&(sym, ver)) {
-                env.insert(fu.ssa.var_name(sym).to_owned(), const_to_env_value(c));
+                constants.insert(
+                    fu.ssa.var_name(sym).to_owned(),
+                    crate::value_transfer::const_to_exact(c),
+                );
             }
         }
     }
-    let v = eval_tcl_expr_with_policy(expr, &env, policy)?;
-    Some(crate::sccp::tcl_value_to_const(v))
+    let value =
+        crate::value_transfer::evaluate_expression_detached(expr, &constants, folds, policy)?;
+    Some(crate::value_transfer::exact_to_const(&value))
 }
 
-/// Convert a [`ConstValue`] to the expr-folder's [`EnvValue`].
-fn const_to_env_value(c: &ConstValue) -> crate::tcl_expr_eval::EnvValue {
-    use crate::tcl_expr_eval::EnvValue;
-    match c {
-        ConstValue::Int(i) => EnvValue::Int(*i),
-        ConstValue::Float(f) => EnvValue::Float(*f),
-        ConstValue::Bool(b) => EnvValue::Int(i64::from(*b)),
-        ConstValue::String(s) => EnvValue::Str(s.clone()),
-    }
+/// What a return or tail fold evaluates an expression under.
+#[derive(Clone, Copy)]
+struct ExprFold<'a> {
+    /// The value semantics.
+    policy: FoldPolicy,
+    /// The grammar the expression's variable references are read with.
+    grammar: tcl_dialect::LexerGrammar,
+    /// The rewrite's registry, mutation facts and whole-module trust.
+    folds: crate::sccp::BuiltinFoldInputs<'a>,
 }
 
 /// Parse the static (constant) argument words of a `[proc arg…]` command
@@ -2187,7 +2185,7 @@ fn try_fold_return_terminator(
             let body_node = crate::expr_parser::parse_expr_for_profile(body, ctx.dialect);
             if !super::helpers::expr_simplify::expr_uses_shadowed_mathfunc(&body_node, procedures)
                 && let Some(folded) =
-                    super::helpers::expr_simplify::try_fold_expr(body, ctx.dialect)
+                    super::helpers::expr_simplify::try_fold_expr(body, ctx.rewrite_folds())
                 && !folded.contains(['$', '['])
             {
                 ctx.report(Optimisation::new(
@@ -2255,9 +2253,7 @@ fn try_substitute_assign_expr(
         substitute_expr_constants,
     };
     use crate::expr_parser::parse_expr_for_profile;
-    use crate::tcl_expr_eval::{
-        Env, eval_tcl_expr_with_octal_and_dialect, format_tcl_value, leading_zero_is_octal,
-    };
+    use crate::tcl_expr_eval::leading_zero_is_octal;
 
     if matches!(expr, crate::expr_ast::ExprNode::Raw { .. }) {
         return;
@@ -2290,10 +2286,15 @@ fn try_substitute_assign_expr(
     // the unwrapped ``set name VALUE`` form directly. Otherwise
     // keep the expression wrapper around the substituted text.
     let parsed = parse_expr_for_profile(&result.text, ctx.dialect);
-    let env = Env::new();
-    let octal = ctx.dialect.and_then(leading_zero_is_octal);
-    if let Some(val) = eval_tcl_expr_with_octal_and_dialect(&parsed, &env, octal, ctx.dialect) {
-        let folded = format_tcl_value(&val);
+    let folds = ctx.rewrite_folds();
+    if let Some(folded) = crate::value_transfer::evaluate_expression_detached(
+        &parsed,
+        &std::collections::HashMap::new(),
+        folds,
+        FoldPolicy::for_profile(ctx.dialect.and_then(leading_zero_is_octal), ctx.dialect),
+    )
+    .and_then(|value| String::from_utf8(value.bytes).ok())
+    {
         let needs_quoting = folded.is_empty()
             || folded.contains([
                 ' ', '\t', '\n', '\r', '$', '[', ']', '{', '}', '"', '\\', '\0', ';',
@@ -2394,10 +2395,10 @@ fn try_o101_expr_arg_fold(
                 braced_body,
                 constants,
                 true,
-                ctx.dialect,
+                ctx.rewrite_folds(),
             )
         } else {
-            super::helpers::expr_simplify::try_fold_expr(raw_body, ctx.dialect)
+            super::helpers::expr_simplify::try_fold_expr(raw_body, ctx.rewrite_folds())
         };
     folded.filter(|f| !f.contains(['$', '[']))
 }

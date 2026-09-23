@@ -468,6 +468,10 @@ command declining as correlated rather than per-member) stand unchanged;
 #2118's `o122_sees_a_self_call_inside_a_braced_expr` still waits on
 `rust` pull request #2226 reaching this branch.
 
+The review of the landing returned "land after fixes";
+`wip(value-transfers): review fixes for slice 3` holds them (§ *Slice 3*
+› *Record (2026-09-23): review fixes for slice 3*, D66–D71).
+
 ## Plan for slices 2–13
 
 The delivery plan for the rest of
@@ -2278,7 +2282,12 @@ Deltas observed beyond the plan's list, each with its oracle:
   result declines under an 8.4 runtime (tcl8.4, the F5 dialects) and under
   a profile with no runtime (f5-bigip). A math function the target's
   grammar lacks declines: `min` under 8.4, and `ABS` anywhere, since the
-  wrappers are case-sensitive.
+  wrappers are case-sensitive. *Corrected by the review fixes:* those
+  declines were the lattice's only. O101 and the propagation folds
+  re-folded the same expressions through the old constant folder, which
+  had none of the gates, so `tcl opt --profile full` still rewrote them;
+  § *Record (2026-09-23): review fixes for slice 3* has the programs and
+  the fix (D68).
 - A substituted operand folds for every route, not only for `expr`: the
   lattice inputs concatenate its parts, so `lappend l "$a b"` over a
   constant `a` folds.
@@ -2335,6 +2344,144 @@ Green at the third checkpoint:
 `tcl-vm`'s `encoding_command` and `ensemble_subcommand_words_resolve_like_tclsh`
 fail in this container either way. They read the system encoding
 (`iso8859-1` here), not the format core.
+
+#### Record (2026-09-23): review fixes for slice 3
+
+The fable review of `497f47cc` returned "land after fixes". The commit
+`wip(value-transfers): review fixes for slice 3` holds every fix, each
+pinned by a test whose expected output was run under tclsh 8.4 to 9.1.
+The decisions are D66–D71 in § *Decisions taken*.
+
+- **A namespace-local math function is a rebinding.** From 8.5 `expr`
+  resolves `tcl::mathfunc::NAME` relative to the namespace it runs in
+  before the global one, so in `namespace eval ns { namespace eval
+  tcl::mathfunc { proc abs {x} {return 99} }; proc p {} {set r [expr
+  {abs(-2)}]; return $r} }; puts [ns::p]` the call runs
+  `::ns::tcl::mathfunc::abs`: tclsh 8.5 to 9.1 print 99, 8.4 prints 2.
+  The math-function service proved only the global wrapper, so the
+  lattice held `r` at 2 and `tcl opt` printed 2 on every release. The
+  binding scan now counts a definition in any `tcl::mathfunc` namespace
+  as a rebinding of the global wrapper it shadows (D66);
+  `abs_rebinding_declines` runs the program beside the global one, the
+  lattice under three dialects and both programs optimised under every
+  release.
+- **A condition over an invalid octal decides nothing.** `truth_of` read
+  any digit string as a beyond-wide integer's canonical spelling, so `set
+  x 08; if {$x} …` was decided true (I230) and rewritten to `if {1}`
+  under tcl8.6, where tclsh 8.5 and 8.6 raise `expected boolean value but
+  got "08" (looks like invalid octal number)`; 8.4, 9.0 and 9.1 print
+  `yes`. Only the canonical spelling is a number now (D67).
+  `an_invalid_octal_condition_decides_nothing` runs `08`, `-08` and the
+  quoted `"08"` under tcl8.6 (undecided) and tcl9.0 (decided), and each
+  program optimised under every release;
+  `value_transfer::tests::a_condition_reads_only_canonical_digits_as_a_number`
+  pins the reader.
+- **The rewrites fold on the route.** O101 re-folded through the old
+  constant folder, which had none of the route's gates: `tcl opt
+  --profile full` rewrote `expr {1 << 70}`, `expr {1e308 * 10}` and `expr
+  {min(1,2)}` under tcl8.4 (tclsh 8.4: `0`, `floating-point value too
+  large to represent`, `unknown math function "min"`) and `expr
+  {ABS(-2)}` under every dialect (every release raises). O101's two
+  sites, the branch folds and the propagation folds now ask the route
+  (D68). `o101_rewrites_only_what_the_route_proves` pins the rewritten
+  output of those programs under the four dialects, and
+  `expression_witnesses_match_every_release_on_path` runs each of its 13
+  programs optimised under every release beside the lattice check. Two
+  more of the same class turned up while fixing it:
+  - the route's own tower checked an infinity only at the result, so
+    `expr {(1e308 * 10) > 0}` folded to 1 under tcl8.4, where tclsh 8.4
+    raises at the product (D69; a row of the O101 witness);
+  - O112 decided a condition with the old folder, with neither tower nor
+    binding. Under tcl8.4 `if {(1 << 70) == 0} {puts zero} else {puts
+    big}` became `puts big` (tclsh 8.4 prints `zero`). With `proc
+    ::tcl::mathfunc::abs {x} {return 99}`, `if {abs(-2) == 2} {puts two}
+    else {puts other}` became `puts two` and `while {abs(-2) == 99} {puts
+    loop; break}` went, where tclsh 8.5 to 9.1 print `other` and `loop`.
+    O112 decides on the route (`decide_condition_detached`), and the old
+    folder keeps the tower for its remaining callers
+    (`a_structure_fold_stays_within_the_targets_tower`;
+    `tcl_expr_eval::tests::the_old_folder_stays_within_the_targets_tower`).
+- **D64's deferral is in the plan.** VT5.7's tests and slice 5's R7 say
+  the mirror-pairs witness gains its `CorrelatedSets` reason once the
+  two-binder `foreach` source is lowered. The interface page's
+  § *The correlated finite-set limit* no longer says slice 3's finite-set
+  tests pin the reason: the witness pins the outcome, and the reason
+  comes with slice 5.
+- **The pages.** On the examples page, O101's `n` and `t` lines, the
+  correlated rung and both I230 lines are `merged:` observations (D37),
+  re-run through `tcl opt --profile full`, `tcl diag --json` and tclsh
+  8.4 to 9.1, and the status note says so. The O101 prose's `n` becomes
+  12, not 6 (every release prints `12 x 0`). The KCS note on dialect
+  folds says the expression route reads the profile's runtime and states
+  the iRules disagreement below. `value-evaluation.md` § *The expression
+  route* describes the built route: D47's crate-private adapter
+  (`ExprServices`, `evaluate_expression`, `ExprAnswer`), `expr {"x"}`
+  folding, `MathFuncSpec::result_class` and `expr_call_type` reading it,
+  the old folder's remaining callers, and the rewrites asking the route.
+- **The pins.** D60:
+  `value_transfer::tests::a_simple_reference_is_one_reference_only`
+  (`${a} + ${b}` is no single reference). D57: `format_answers_per_release`
+  gains the `%.0d 0` row (tclsh 8.4 prints the empty string, 8.5 to 9.1
+  `0`).
+- **A record error, not amended.** `cb0fe443`'s trailer reads "Pins
+  #2214 (closed on rust by #NNNN)", the plan's placeholder left unfilled.
+  #2214 was closed by this lane's `60db3875` ("Closes #2214"), so the line
+  should have read "Pins #2214 (closed by 60db3875)".
+- **The route tally counts an entry once the route is entered** (D70).
+  With the module's own `proc expr {args} {return 99}`, `set r [expr {1 +
+  1}]` declines at the trust check and counted one expression entry; it
+  counts none now (`route_entries_are_counted_per_family`'s fourth
+  program).
+- **The nits** (D71): `ExprServices::quoted_string` assembles an element
+  name through `value_transfer::variable_name`, and `fold_expr_under_lattice`
+  builds its constants once (`const_to_exact`) and asks the route, so
+  `const_to_env_value` went, and `sccp::tcl_value_to_const` with its last
+  caller.
+- **The two routes disagree under iRules today.** With `set z 010`,
+  `incr z` declines `release-ambiguous: numeral-grammar` under
+  f5-irules, because the direct routes ask every release, while `expr {$z
+  + 1}` folds to 9, because the expression route reads the runtime's 8.4
+  grammar (`tcl explore --show sccp --dialect f5-irules`). tclsh 8.4
+  prints 9 for both, so the decline is the imprecise half. Ruling 8
+  resolves it: VT4.1 makes `TargetSemantics::of` read a declared base
+  release, and `incr z` then folds to 9 there as well.
+
+Found and left:
+
+- **A read inside a command nested in a fused assignment's braced `expr`
+  is no use of the statement.** `set n [expr {[string length $s] * 2}]`
+  lowers with no uses, where `puts [expr {[string length $s] * 2}]` and an
+  `if` condition over the same expression record `s`, so the nested
+  `string length` declines `not-exact` and `n` stays unproven (the
+  examples page's O101 line). The store it reads is kept: no O109, no
+  W211. VT9.3 is the nearest item.
+- **The static loop simulator reads no math-function binding.** With
+  `proc ::tcl::mathfunc::abs {x} {return 99}`, `proc p {} {for {set i 0}
+  {$i < abs(-3)} {incr i} {}; if {$i == 3} {puts three} else {puts
+  other}}` prints `other` under tclsh 8.5 to 9.1; the simulator ends the
+  loop at `i` 3, so `tcl opt` rewrites the condition to `1` and drops the
+  `else` arm. The simulator is VT12.3's, which now names the program. The
+  tower half is fixed here: the old folder the simulator calls declines
+  past an 8.4 target's tower.
+- **Code generation's constant operands** fold a `Binary` over a math
+  function call through the same folder, so a rebound function would be
+  baked into generated code as well. Noticed in passing and not checked
+  end to end.
+
+Green:
+
+- tests: `cargo test -p tcl-compiler` 9715 passed, 0 failed, 6 ignored;
+  `tcl-registry`'s `value_transfers` 24 passed; `-p tcl-explorer -p
+  tcl-lsp-db -p xtask` 451 passed, 0 failed, 5 ignored; `tcl-cli` 124
+  passed, `samples_optimiser_profiles_are_regenerated` included (no
+  sample moved); `tcl-lsp-core` 3562 passed;
+- pedantic clippy on `tcl-compiler` and `tcl-registry` (`--all-targets`),
+  with no `#[allow]` added; `cargo fmt` clean on both;
+- `cargo xtask value-transfers --check` OK and unchanged: 17 files clean,
+  13 sites waived, 98 pinned across 39 ratcheted files, 6607 rows;
+  `pack-goldens` OK (24 packs, none rewritten);
+  `scripts/dev/test-nextest-binary-shards.sh` OK; `cargo xtask
+  kcs-index-links`; `cargo check --workspace --all-targets` clean.
 
 ### Slice 4 — a private SpecTcl command through the same interface
 
@@ -3065,7 +3212,10 @@ rust/tcl-compiler/src/ssa.rs`:
 - **Tests**: `dict_with_binds_the_proven_keys` (`set d {a 1}; dict with d
   {incr a; set result done}` gives `result` `done`; the oracle: `d` is
   `a 2` after, in 8.5 to 9.1); `the_source_layout_answers_an_iteration_plan`
-  (`value_transfers.rs`).
+  (`value_transfers.rs`); the mirror-pairs witness gains its
+  `CorrelatedSets` reason once the two-binder `foreach` source is lowered
+  (`the_mirror_pairs_decline_as_correlated` asserts the reason as well as
+  the outcome, D64).
 - **Gates**: G1 (`dict with`, `dict update` and their qualified rows go),
   G2, G7, G8, G9.
 - **Model**: opus. **Size**: M. **After**: VT5.1.
@@ -3434,7 +3584,9 @@ Closes #2055. Pins #2051 (closed on rust by #2225). Closes #2143, or
   stays pending); an approximate capture never becomes a value; a
   repeated target composes in order; an error completion is still a
   decline in this slice (slice 10 owns the prefix rule); a switch word
-  that is not proven answers every kind.
+  that is not proven answers every kind; the mirror-pairs witness gains
+  its `CorrelatedSets` reason once the two-binder `foreach` source is
+  lowered (D64).
 
 #### Behavioural deltas
 
@@ -4712,7 +4864,15 @@ unchanged.
   enumeration's state as its inputs; `exec_switch` reads the selection
   owner (VT6.2) over the state; `StaticValue` and `StaticEnv` give way to
   `ExactValue` and `Existence`; `parse_literal_value`,
-  `resolve_switch_subject` and the `Incr` arm are deleted.
+  `resolve_switch_subject` and the `Incr` arm are deleted. A condition's
+  math function resolves through the `math_function` service, so a
+  module-rebound one declines (the slice 3 review fixes' found-and-left
+  program: with `proc ::tcl::mathfunc::abs {x} {return 99}`, `for {set i
+  0} {$i < abs(-3)} {incr i} {}; if {$i == 3} {puts three} else {puts
+  other}` prints `other` from 8.5, where `tcl opt` rewrites the condition
+  to `1` and drops the `else` arm).
+- **Tests**: `a_loop_condition_reads_the_math_binding` (that program,
+  optimised, prints what `tclsh` prints under every release).
 - **Preserves**: every `summarise_*` answer; `summarise_respects_iteration_cap`
   now as the `Iterations` decline.
 - **Gates**: G1, G7, G8, G9.
@@ -5898,6 +6058,58 @@ Taken while slice 3's sonnet items were executed (§ *Slice 3* › *Record
   same file afterward, in their own commit titled for slice 2, the slice
   whose item they finish; D9's "one CLI binary" stands, one file, two
   commits.
+
+Taken while the review of slice 3 was answered (§ *Slice 3* › *Record
+(2026-09-23): review fixes for slice 3* has the witnesses):
+
+- **D66 — A namespace-local math function is a module-wide rebinding.**
+  `builtin_shadowed_by_qualified_definition` maps a definition inside any
+  `tcl::mathfunc` namespace (`::ns::tcl::mathfunc::abs`) to the global
+  wrapper it shadows (`::tcl::mathfunc::abs`), which the trust fact then
+  distrusts for the whole module, as the `::n::expr` case already is.
+  Narrowing it to the defining namespace needs a resolution namespace at
+  every call site, which `trusts` does not take; the whole-module stance
+  is sound and costs only the fold.
+- **D67 — A condition reads only a canonical digit string as a number.**
+  `truth_of` has no release to ask, so a leading-zero digit string (`08`,
+  `-08`, `007`, `00`) decides nothing rather than guess the grammar that
+  left it text. `00` is false on every release, and the decline forgoes
+  only that.
+- **D68 — The rewrites consume the route; the old folder keeps only the
+  gates that need no module facts.** O101, the branch folds, the
+  propagation folds and O112 evaluate on
+  `value_transfer::evaluate_expression_detached` and
+  `decide_condition_detached`: a detached `LatticeDriver` over
+  `PassContext::rewrite_folds` (the pass's registry, mutation facts and
+  whole-module trust), with no solver run and a nested command declining.
+  That is the lattice's evidence — the binding (namespace-local override
+  included), the availability, the case and the tower — so a rewrite
+  folds only what the lattice proves. Threading the gates into the old
+  folder instead would duplicate the binding service, which needs module
+  facts the folder never had. The folder keeps its numeric callers (code
+  generation's constant operands, the static loop simulator) and gains the
+  three gates that need none: case-sensitive names, availability from the
+  dialect's ceiling in `eval_tcl_expr_with_policy`, and the tower.
+- **D69 — The tower covers an infinity anywhere in the walk.** One test,
+  `past_the_wide_tower` (a beyond-wide integer or an infinity, as an
+  operand, a string operand's reading or a result), serves both
+  evaluators, under the one rule `widens_past_a_wide`: from 8.5, or no
+  dialect named; never an 8.4 runtime or a profile naming no release. The
+  old folder holds it as a three-state `Tower` (widens, wide, breached),
+  not two more flags: pedantic clippy's `struct_excessive_bools` stops a
+  fourth `bool` on `FoldOps`, and the breach is a state of the tower.
+- **D70 — A route entry is counted once the route is entered.**
+  `call_def` counts after its route check and `evaluate_assign_expr`
+  after its trust check. `run_script`'s `Implementation` arm neither
+  enters nor counts, because no declared implementation runs before
+  slice 4; VT4.6 counts it where one does, and `enter_implementation`
+  went with its last caller.
+- **D71 — One element-name assembly, one constant conversion.**
+  `ExprServices::quoted_string` calls `value_transfer::variable_name`
+  (now `pub(crate)`); `fold_expr_under_lattice` converts the lattice's
+  constants once with `const_to_exact` and asks the route, so the second
+  environment builder (`const_to_env_value`) and `sccp::tcl_value_to_const`
+  went.
 
 ### Open questions for the owner
 

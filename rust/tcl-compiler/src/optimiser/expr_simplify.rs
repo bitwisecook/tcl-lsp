@@ -30,9 +30,10 @@
 //! - **`O115`** ([`super::helpers::expr_simplify::try_unwrap_expr_in_expr`])
 //!   — remove redundant nested `[expr {…}]` on a standalone
 //!   `expr` statement.
-//! - **`O101`** — full constant fold via
-//!   [`crate::tcl_expr_eval::eval_tcl_expr`] on either an
-//!   `ExprEval` body or an `AssignExpr` right-hand side.
+//! - **`O101`** — full constant fold on the shared expression route
+//!   ([`crate::value_transfer::evaluate_expression_detached`], the one the
+//!   lattice runs) on either an `ExprEval` body or an `AssignExpr`
+//!   right-hand side.
 //! - **`O110`** ([`super::helpers::expr_simplify::instcombine_expr`])
 //!   — instcombine identities (`x + 0` → `x`, etc.) on an
 //!   `AssignExpr` right-hand side.  Skipped on `AssignExpr`
@@ -57,14 +58,25 @@
 use crate::compilation_unit::CompilationUnit;
 use crate::expr_ast::ExprNode;
 use crate::ir::{Script, Statement};
-use crate::tcl_expr_eval::{
-    Env, eval_tcl_expr_with_octal_and_dialect, format_tcl_value, leading_zero_is_octal,
-};
+use crate::tcl_expr_eval::{FoldPolicy, leading_zero_is_octal};
 use tcl_core_types::DiagCode;
 use tcl_lexer::Span;
 
 use super::helpers::expr_simplify::{NumericCtx, try_unwrap_expr_in_expr};
 use super::{Optimisation, PassContext};
+
+/// `expr`'s value on the shared expression route under `ctx`'s target and
+/// whole-module trust, rendered as its source text — what the lattice
+/// proves for it, so O101 never rewrites what the lattice declines.
+fn fold_on_the_route(ctx: &PassContext<'_>, expr: &ExprNode) -> Option<String> {
+    let value = crate::value_transfer::evaluate_expression_detached(
+        expr,
+        &std::collections::HashMap::new(),
+        ctx.rewrite_folds(),
+        FoldPolicy::for_profile(ctx.dialect.and_then(leading_zero_is_octal), ctx.dialect),
+    )?;
+    String::from_utf8(value.bytes).ok()
+}
 
 /// Run the expression-simplification pass across every function
 /// in `cu`.
@@ -240,12 +252,9 @@ fn try_rewrite_assign_expr(
     // apply. (instcombine / strength-reduce below are pure syntactic
     // identities that don't evaluate a call's result, so they're
     // unaffected by a shadowed math function.)
-    let env = Env::new();
-    let octal = ctx.dialect.and_then(leading_zero_is_octal);
     if !expr_uses_shadowed_mathfunc(expr, procedures)
-        && let Some(val) = eval_tcl_expr_with_octal_and_dialect(expr, &env, octal, ctx.dialect)
+        && let Some(folded) = fold_on_the_route(ctx, expr)
     {
-        let folded = format_tcl_value(&val);
         let original = crate::expr_ast::render_expr(expr);
         if folded != original.trim() {
             // Safe-word check: the folded value must inline as a
@@ -425,15 +434,12 @@ fn try_rewrite_expr(
     // the rewrite would actually change the source text — an
     // expression like `expr {42}` folds to itself and a no-op
     // quick-fix is misleading.
-    let env = Env::new();
     if matches!(expr, ExprNode::Raw { .. }) {
         return;
     }
-    let octal = ctx.dialect.and_then(leading_zero_is_octal);
     if !super::helpers::expr_simplify::expr_uses_shadowed_mathfunc(expr, procedures)
-        && let Some(val) = eval_tcl_expr_with_octal_and_dialect(expr, &env, octal, ctx.dialect)
+        && let Some(folded) = fold_on_the_route(ctx, expr)
     {
-        let folded = format_tcl_value(&val);
         // Compare against the original body text slice when it is
         // recoverable; the outer span covers the whole `expr …`
         // command so we look at the `ExprNode::Command`-free

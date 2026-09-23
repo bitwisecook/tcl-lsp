@@ -36,7 +36,7 @@ use crate::codegen::helpers::split_list_values;
 use crate::expr_ast::ExprNode;
 use crate::ir::Statement;
 use crate::ssa::{SsaFunction, SsaStatement, Symbol, ValueKey};
-use crate::tcl_expr_eval::{FoldPolicy, TclValue};
+use crate::tcl_expr_eval::FoldPolicy;
 use crate::value_transfer::{AnalysisContextKey, LatticeDriver};
 
 // Public aliases
@@ -1639,17 +1639,6 @@ pub(crate) fn evaluate_branch<S: std::hash::BuildHasher>(
     }
     fold.driver
         .evaluate_condition(condition, &uses, values, ssa)
-}
-
-pub(crate) fn tcl_value_to_const(v: TclValue) -> ConstValue {
-    match v {
-        TclValue::Int(i) => ConstValue::Int(i),
-        TclValue::Float(f) => ConstValue::Float(f),
-        // A beyond-wide integer's lattice form is its canonical decimal
-        // string — the value's one true rep, which downstream folds re-parse
-        // exactly (`set big [expr {2**64}]; expr {$big + 1}` chains).
-        TclValue::Big(b) => ConstValue::String(b.to_string()),
-    }
 }
 
 /// Extract iteration-variable elements from a foreach list arg

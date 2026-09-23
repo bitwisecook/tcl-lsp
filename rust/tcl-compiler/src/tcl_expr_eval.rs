@@ -154,6 +154,7 @@ pub fn eval_tcl_expr(node: &ExprNode, env: &Env) -> Option<TclValue> {
         None,
         false,
         tcl_syntax::word_rules::WordValueRules::default(),
+        true,
     )
 }
 
@@ -179,6 +180,7 @@ pub fn eval_tcl_expr_in_dialect(
         math_func_ceiling_for_dialect(dialect),
         dialect.is_irules(),
         tcl_syntax::word_rules::WordValueRules::of_profile(Some(dialect)),
+        widens_past_a_wide(Some(dialect)),
     )
 }
 
@@ -207,6 +209,7 @@ pub fn eval_tcl_expr_with_octal(
         None,
         false,
         tcl_syntax::word_rules::WordValueRules::default(),
+        true,
     )
 }
 
@@ -336,10 +339,41 @@ pub fn eval_tcl_expr_with_policy(
         node,
         env,
         policy.octal,
-        None,
+        policy.dialect.and_then(math_func_ceiling_for_dialect),
         policy.is_irules,
         policy.word_rules,
+        widens_past_a_wide(policy.dialect),
     )
+}
+
+/// Whether `profile`'s target widens an integer past a wide and reads an
+/// infinity as a value: from 8.5, and for a caller that names no dialect
+/// (read as 9.0). An 8.4 runtime computes something else — `1 << 70` wraps
+/// to 0, `1e308 * 10` raises `floating-point value too large to represent`
+/// (tclsh 8.4) — and a profile whose runtime names no release cannot say
+/// which, so under either no such operand or result folds.
+fn widens_past_a_wide(profile: Option<&tcl_dialect::DialectProfile>) -> bool {
+    profile.is_none_or(|profile| {
+        profile
+            .runtime_base
+            .is_some_and(|release| release >= tcl_dialect::TclVersion::V8_5)
+    })
+}
+
+/// Whether `value` is past the wide tower under the grammar: a beyond-wide
+/// integer or an infinity, as an operand or a result — what a target that
+/// does not widen ([`widens_past_a_wide`]) computes differently.
+fn past_the_wide_tower(value: &FoldValue, octal: Option<bool>, numbers: NumberSyntax) -> bool {
+    match value {
+        FoldValue::Big(_) => true,
+        FoldValue::Float(f) => f.is_infinite(),
+        FoldValue::Int(_) => false,
+        FoldValue::Str(_) => match strict_number_for_dialect(value, octal, numbers) {
+            Some(TclValue::Big(_)) => true,
+            Some(TclValue::Float(f)) => f.is_infinite(),
+            Some(TclValue::Int(_)) | None => false,
+        },
+    }
 }
 
 /// Parse one Tcl expression arithmetic operand as an integer under `policy`.
@@ -440,11 +474,13 @@ fn eval_with_config(
     math_since: Option<tcl_syntax::expr::mathfunc::MathFuncSince>,
     is_irules: bool,
     word_rules: tcl_syntax::word_rules::WordValueRules,
+    widens: bool,
 ) -> Option<TclValue> {
     let mut ops = FoldOps {
         env,
         ambiguous: false,
         platform: false,
+        tower: if widens { Tower::Widens } else { Tower::Wide },
         octal,
         // Without an explicit grammar, infer from the leading-zero policy the
         // caller did resolve: the 8.x octal rule implies the 8.x numeric
@@ -461,11 +497,12 @@ fn eval_with_config(
     // The final value must reduce to a number (a bare string like `expr {"x"}`
     // doesn't fold) — `to_number` maps a `Str` result through `parse_literal`.
     let result = tcl_syntax::expr::eval(node, &mut ops).ok()?;
-    if ops.ambiguous || ops.platform {
+    if ops.ambiguous || ops.platform || ops.tower == Tower::Breached || ops.beyond_tower(&result) {
         // A comparison hit a leading-zero operand whose octal-vs-decimal
         // reading is dialect-dependent and the dialect is unknown, or a
-        // comparison the platform decides — decline to fold rather than pick
-        // one.
+        // comparison the platform decides, or an operand or result past a
+        // tower the target does not widen to — decline to fold rather than
+        // pick one.
         return None;
     }
     result.to_number(ops.numbers)
@@ -513,6 +550,20 @@ impl FoldValue {
     }
 }
 
+/// The integer and floating-point tower a constant fold keeps to.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Tower {
+    /// The target widens past a wide integer and reads an infinity as a
+    /// value: from 8.5, or no dialect named.
+    Widens,
+    /// It does not — an 8.4 runtime, or a profile naming no release — so an
+    /// operand or result past a wide declines.
+    Wide,
+    /// As [`Self::Wide`], and a comparison met such an operand: the fold
+    /// declines once the walk is done.
+    Breached,
+}
+
 /// The const-folder's [`ExprOps`](tcl_syntax::expr::ExprOps). `Error = ()` is the
 /// "can't fold" signal (mapped to the public `Option`); `$var` resolves from the
 /// `env`, `[cmd]`/`Raw` are opaque.
@@ -531,6 +582,11 @@ struct FoldOps<'a> {
     /// behaviour in C Tcl (see [`numeric_cmp`]). Declines like
     /// [`Self::ambiguous`].
     platform: bool,
+    /// The tower the fold keeps to ([`widens_past_a_wide`]): past it, a
+    /// beyond-wide or infinite operand or result folds nothing
+    /// ([`Self::beyond_tower`]). The analysis services gate the tower
+    /// themselves, with its decline reason, so their value ops leave it open.
+    tower: Tower,
     /// How a bare leading-zero integer (`08`, `010`) is read in `==`/`!=`/`<`/…
     /// numeric eligibility: `Some(true)` = octal (Tcl 8.x — `08`/`09` invalid →
     /// string, `010` → 8), `Some(false)` = decimal (Tcl 9.0 — `08` → 8,
@@ -618,6 +674,20 @@ fn parse_octal_literal(s: &str) -> Option<TclValue> {
 }
 
 impl FoldOps<'_> {
+    /// Whether `value` is past a tower the target does not widen to
+    /// ([`Self::tower`]).
+    fn beyond_tower(&self, value: &FoldValue) -> bool {
+        self.tower != Tower::Widens && past_the_wide_tower(value, self.octal, self.numbers)
+    }
+
+    /// `Err` when any of `values` is past the target's tower.
+    fn within_tower(&self, values: &[&FoldValue]) -> Result<(), ()> {
+        if values.iter().any(|value| self.beyond_tower(value)) {
+            return Err(());
+        }
+        Ok(())
+    }
+
     /// Run the math function `name` — spelled as the program calls it —
     /// over `args` through the shared dispatcher, the one the runtime
     /// evaluates with; `Err` when it declines.
@@ -693,19 +763,25 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
     }
     fn call(&mut self, function: &str, args: Vec<FoldValue>) -> Result<FoldValue, ()> {
         use tcl_syntax::expr::mathfunc::added_in;
-        let name = function.to_ascii_lowercase();
-        if reads_the_generator(&name) {
+        // A math function's name is case-sensitive: `ABS(-2)` calls
+        // `tcl::mathfunc::ABS`, which no release defines (tclsh 8.4 raises
+        // `unknown math function "ABS"`, 8.5 to 9.1 `invalid command name`).
+        let name = function;
+        if reads_the_generator(name) {
             return Err(()); // non-deterministic
         }
         // A function newer than the dialect provides has no `::tcl::mathfunc`
         // command to run — folding it would invent a value the real
         // interpreter never yields (it would error), so decline.
-        if let (Some(ceiling), Some(since)) = (self.math_since, added_in(&name))
+        if let (Some(ceiling), Some(since)) = (self.math_since, added_in(name))
             && since > ceiling
         {
             return Err(());
         }
-        self.math_call(&name, &args)
+        self.within_tower(&args.iter().collect::<Vec<_>>())?;
+        let value = self.math_call(name, &args)?;
+        self.within_tower(&[&value])?;
+        Ok(value)
     }
 
     fn arith(&mut self, op: BinOp, left: FoldValue, right: FoldValue) -> Result<FoldValue, ()> {
@@ -714,12 +790,16 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
         // `expr {true + 0}` is an error, not `1`. `strict_number_for_dialect`
         // omits the boolean coercion `to_number`/`parse_literal` add, and
         // additionally honours the dialect's leading-zero rule (see its doc).
+        self.within_tower(&[&left, &right])?;
         let a = strict_number_for_dialect(&left, self.octal, self.numbers).ok_or(())?;
         let b = strict_number_for_dialect(&right, self.octal, self.numbers).ok_or(())?;
-        apply_binary(op, a, b).map(FoldValue::from_tcl).ok_or(())
+        let value = apply_binary(op, a, b).map(FoldValue::from_tcl).ok_or(())?;
+        self.within_tower(&[&value])?;
+        Ok(value)
     }
     fn unary(&mut self, op: UnaryOp, value: FoldValue) -> Result<FoldValue, ()> {
-        match op {
+        self.within_tower(&[&value])?;
+        let result = match op {
             // Logical negation *does* take a boolean (`expr {!true}` → 0), so
             // it keeps the boolean-accepting `to_number` coercion. Truthiness
             // of a bare leading-zero operand is dialect-invariant (a run of
@@ -768,7 +848,9 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
                     TclValue::Float(_) => Err(()),
                 }
             }
-        }
+        }?;
+        self.within_tower(&[&result])?;
+        Ok(result)
     }
 
     fn compare_numeric(
@@ -787,6 +869,10 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
         // `compare_string`, matching Tcl. A leading-zero operand under an
         // unknown dialect is `Ambiguous` → mark the fold unreliable so
         // `eval_tcl_expr` declines entirely rather than pick a dialect.
+        if self.beyond_tower(left) || self.beyond_tower(right) {
+            self.tower = Tower::Breached;
+            return None;
+        }
         let (lo, ro) = (
             classify_operand(left, self.octal, self.numbers),
             classify_operand(right, self.octal, self.numbers),
@@ -823,6 +909,7 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
         // Boolean contexts (`?:`, `&&`, `||`) reject NaN — a domain error in
         // C Tcl ("floating point value is Not a Number"), so the fold
         // declines rather than pick a truth value.
+        self.within_tower(&[value])?;
         match value.to_number(self.numbers).ok_or(())? {
             TclValue::Float(f) if f.is_nan() => Err(()),
             v => Ok(v.is_truthy()),
@@ -1569,23 +1656,16 @@ impl<'a> ExprServices<'a> {
         }
     }
 
-    /// Whether `value` reads as a beyond-wide integer under the target's
-    /// grammar.
-    fn is_big(&self, value: &FoldValue) -> bool {
-        match value {
-            FoldValue::Big(_) => true,
-            FoldValue::Int(_) | FoldValue::Float(_) => false,
-            FoldValue::Str(_) => matches!(
-                strict_number_for_dialect(value, self.fold.octal, self.fold.numbers),
-                Some(TclValue::Big(_))
-            ),
-        }
-    }
-
-    /// `Err` when an operand or result is a beyond-wide integer the target
-    /// does not widen to.
+    /// `Err` when an operand or result is a beyond-wide integer or an
+    /// infinity the target does not widen to — an intermediate one too:
+    /// `expr {(1e308 * 10) > 0}` is 1 from 8.5, and tclsh 8.4 raises
+    /// `floating-point value too large to represent` at the product.
     fn tower(&self, values: &[&FoldValue]) -> Result<(), ExprStop> {
-        if self.widens != Some(true) && values.iter().any(|value| self.is_big(value)) {
+        if self.widens != Some(true)
+            && values
+                .iter()
+                .any(|value| past_the_wide_tower(value, self.fold.octal, self.fold.numbers))
+        {
             return Err(ExprStop::Declined(self.tower_reason()));
         }
         Ok(())
@@ -1654,6 +1734,7 @@ impl FoldOps<'static> {
             env: &NO_ENV,
             ambiguous: false,
             platform: false,
+            tower: Tower::Widens,
             octal: policy.octal,
             numbers: policy.numbers.unwrap_or(if policy.octal == Some(true) {
                 NumberSyntax::Tcl85
@@ -1700,23 +1781,8 @@ impl tcl_syntax::expr::ExprOps for ExprServices<'_> {
             match part {
                 Part::Text(text) => bytes.extend_from_slice(&text),
                 Part::Variable(reference) => {
-                    let name = std::str::from_utf8(reference.name)
-                        .map_err(|_| ExprStop::Declined(DeclineReason::NotText))?;
-                    let name = match reference.index {
-                        None => name.to_owned(),
-                        Some(index) => {
-                            let mut key = Vec::new();
-                            for piece in index {
-                                let Part::Text(text) = piece else {
-                                    return Err(ExprStop::Declined(DeclineReason::DynamicName));
-                                };
-                                key.extend_from_slice(&text);
-                            }
-                            let key = String::from_utf8(key)
-                                .map_err(|_| ExprStop::Declined(DeclineReason::NotText))?;
-                            format!("{name}({key})")
-                        }
-                    };
+                    let name = crate::value_transfer::variable_name(&reference)
+                        .map_err(ExprStop::Declined)?;
                     let value = tcl_syntax::expr::ExprOps::var(self, &name)?;
                     bytes.extend_from_slice(value.to_string_val().as_bytes());
                 }
@@ -1990,6 +2056,46 @@ mod tests {
         assert_eq!(fold("isinf(1.0)", "tcl8.6"), None);
         // An 8.4-era function folds everywhere.
         assert_eq!(fold("abs(-5)", "tcl8.4"), Some(TclValue::Int(5)));
+    }
+
+    /// The old folder stays within the target's tower, as the route does:
+    /// a beyond-wide integer or an infinity, as an operand, a result or in
+    /// the middle, folds nothing under an 8.4 runtime or a profile naming
+    /// no release. tclsh 8.4: `1 << 70` is 0, `9223372036854775807 + 1`
+    /// wraps, `1e308 * 10` and `1e309` raise `floating-point value too large
+    /// to represent`, and `18446744073709551616 > 0` raises `integer value
+    /// too large to represent`; 8.5 to 9.1 answer
+    /// 1180591620717411303424, 9223372036854775808, `Inf`, `Inf` and 1.
+    #[test]
+    fn the_old_folder_stays_within_the_targets_tower() {
+        let env = Env::new();
+        let fold = |expr: &str, dialect: &str| {
+            let profile =
+                tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();
+            eval_tcl_expr_with_policy(
+                &parse_expr(expr, Some(dialect)),
+                &env,
+                FoldPolicy::for_profile(leading_zero_is_octal(profile), Some(profile)),
+            )
+        };
+        for expr in [
+            "1 << 70",
+            "(1 << 70) == 0",
+            "9223372036854775807 + 1",
+            "1e308 * 10",
+            "1e308 * 10 > 0",
+            "1e309 > 0",
+            "18446744073709551616 > 0",
+            "-(1 << 70)",
+            "abs(1e308 * 10)",
+        ] {
+            for dialect in ["tcl8.4", "f5-irules", "f5-bigip"] {
+                assert_eq!(fold(expr, dialect), None, "{dialect}: {expr}");
+            }
+            assert!(fold(expr, "tcl8.6").is_some(), "tcl8.6: {expr}");
+        }
+        assert_eq!(fold("1 << 62", "tcl8.4"), Some(TclValue::Int(1 << 62)));
+        assert_eq!(fold("1e308 * 1", "tcl8.4"), Some(TclValue::Float(1e308)));
     }
 
     #[test]

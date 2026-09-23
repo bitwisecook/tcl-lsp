@@ -565,19 +565,35 @@ operand (`INDEX_GRAMMAR`) or by proving unanimity before the call
 
 ## The expression route
 
-The compiler already shares the expression tree walk: `FoldOps` in
-`rust/tcl-compiler/src/tcl_expr_eval.rs` implements `tcl_syntax::expr::ExprOps`,
-supplies an environment, rejects command substitutions, and calls the
-shared math-function dispatcher. This is the seam the `expr`
-specialisation drives; nothing new parses or walks an expression. Three
-changes make it an evaluator for the interface:
+The compiler shares the expression tree walk: `tcl_syntax::expr::ExprOps`
+is implemented once for constant folding (`FoldOps` in
+`rust/tcl-compiler/src/tcl_expr_eval.rs`) and once for the interface
+(`ExprServices`, beside it), and both call the shared math-function
+dispatcher. The route is `ExprServices` driven by `evaluate_expression`;
+the two, and its answer `ExprAnswer`, are `pub(crate)` to `tcl-compiler`,
+because the registry assembles the expression (`ExpressionRoute::assemble`)
+and the compiler's driver runs it, so no crate outside the compiler calls
+the engine. Nothing new parses or walks an expression. Three changes made
+the walk an evaluator for the interface:
 
-- **The full value comes back.** `eval_with_config` ends in `to_number`,
-  and the adapter's `TclValue` has only the numeric variants `Int`,
-  `Float`, and `Big`, so a string-valued expression cannot fold today —
-  `expr {"x"}` is the string `x` on every release from 8.4 to 9.1. The
-  analysis boundary carries the engine's own value; numeric classification
-  is added as a fact.
+- **The full value comes back.** `ExprServices` answers the engine's own
+  value, with its numeric classification as a fact beside the bytes, so a
+  string-valued expression folds: `expr {"x"}` is the string `x` on every
+  release from 8.4 to 9.1, and the lattice holds `x`. The old entry,
+  `eval_with_config`, still ends in `to_number` (its `TclValue` has only
+  `Int`, `Float` and `Big`) and still serves the callers that want a
+  number: code generation's constant operands and the static loop
+  simulator. It keeps the route's tower (a beyond-wide integer or an
+  infinity folds nothing under an 8.4 runtime or a profile naming no
+  release) and a math function's availability and case, but reads no
+  binding evidence; the simulator gains it when it runs the registry's
+  routes (slice 12). Every rewrite that replaces an expression with its
+  value or decides a condition — O101, O112, a branch condition's fold,
+  and the propagation folds of a return value, a call site and an
+  assigned expression — asks the route instead, under the rewrite's
+  whole-module trust (`value_transfer::evaluate_expression_detached` and
+  `decide_condition_detached`), so it rewrites only what the lattice
+  proves.
 - **Inputs are lazy and read-only.** The `var`, `command`, and `call`
   services read the analysis inputs at this program point: a variable when
   it is reached, a supported nested invocation through its registry
@@ -595,15 +611,12 @@ changes make it an evaluator for the interface:
   1; `expr {$x + [set x 10] + $x}` is 21 and leaves `x` at 10.
 - **Bindings are evidence.** The math-function dispatcher in
   `tcl_syntax::expr::mathfunc` is the one owner of the function table, and
-  `type_infer.rs`'s duplicate return-type table — `expr_call_type`, which
-  special-cases `abs`, `max`, and `min` and then keys three name groups
-  and a `Numeric` fallback — retires onto it
-  through a proposed `MathFuncSpec::result_class` field; `MathFuncSpec`
-  carries `name`, `since`, `arity`, `accepts_boolean_operand`, and
-  `summary` today and no result classification, so the field is an
-  addition to an existing struct rather than a new table. Each function and
-  nested command used becomes a dependency in the answer's evidence and in
-  the memo key. `rand` and `srand` are the one non-determinism check the
+  `type_infer.rs`'s duplicate return-type table went onto it:
+  `MathFuncSpec::result_class` (a `MathResultClass`) is a field of the
+  existing struct beside `name`, `since`, `arity`,
+  `accepts_boolean_operand`, and `summary`, and `expr_call_type` reads it.
+  Each function and nested command used is a dependency in the answer's
+  evidence, and becomes one in the memo key when slice 4's key reaches it. `rand` and `srand` are the one non-determinism check the
   evaluator keeps by name, because non-determinism is an expression fact,
   and `tcl_syntax::expr::rand`'s `seed_from_wide` / `step` / `scale` /
   `next_draw` / `seed_and_draw` are a faithful model of the generator, not

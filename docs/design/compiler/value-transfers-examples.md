@@ -23,7 +23,9 @@ set, and its programs are the fixed witnesses the slices in
 > of `rust` at `08bceb36`: it restates a program whose defect `rust` fixed
 > (#2050, #2051, #2052, #2053, #2054, #2132, #2144, and the nested-read
 > half of #2141), or one slice 2's routes changed, and was re-run through
-> `tclsh` 8.4 to 9.1.
+> `tclsh` 8.4 to 9.1. The O101, I230 and correlated-rung lines were
+> restated the same way on the tree slice 3 landed on, after its review
+> fixes, because slice 3's expression route changed them.
 
 ## How to read an example
 
@@ -120,8 +122,8 @@ set x [expr {2 + 3}]       ;# today: O101 rewrites to `set x 5`
 ```tcl
 set s foo
 append s bar
-set n [expr {[string length $s] * 2}]   ;# today: nothing — the reached [string length …] is declined and s is unknown
-set t [expr {"x"}]                      ;# today: nothing — the adapter's result type is numeric only
+set n [expr {[string length $s] * 2}]   ;# merged: nothing — the reached [string length $s] declines `not-exact`: the fused assignment records no use of s
+set t [expr {"x"}]                      ;# merged: O101 rewrites to `set t x`; the lattice holds x
 set z [expr {0 && [error never]}]       ;# today: z is proven 0 — the evaluator already short-circuits
 ```
 
@@ -129,7 +131,11 @@ The evaluator already stops at `0 &&`, so the substitution on the right is
 never reached; that laziness is kept. Under the contracts
 `[string length $s]` is resolved through the registry's semantics when it
 is reached, `"x"` folds because the boundary carries the engine's full
-value, and `n` becomes `6`.
+value, and `n` becomes `12` (every release from 8.4 to 9.1 prints `12 x
+0` for `n`, `t` and `z`). On the merged tree the nested command is
+resolved, but the fused assignment lowers without the read of `s` inside
+it (a `puts [expr {…}]` or an `if` condition over the same expression
+records it), so `s` has no value there and `n` stays unproven.
 
 ### O102 · forward a single reaching literal load
 
@@ -652,7 +658,7 @@ enumeration's state.
 ```tcl
 set r 0
 foreach a {1 2} { set r [expr {$a * $a}] }
-if {$r == 4} { puts four } else { puts other }   ;# today: nothing — the set does not reach the expression
+if {$r == 4} { puts four } else { puts other }   ;# merged: the in-loop r is {1, 4}, never {1, 2, 4}; the branch waits on the loop's exit state
 ```
 
 `r` is `4` in every release. Under the contracts `a` is one distinct SSA
@@ -746,9 +752,9 @@ if {$x == 1} { puts one } else { puts other }   ;# today: I230
 ```tcl
 set acc ""
 append acc foo
-if {$acc eq "foo"} { puts yes } else { puts no }            ;# today: nothing
+if {$acc eq "foo"} { puts yes } else { puts no }            ;# merged: I230
 set s abcdef
-if {[string length $s] == 6} { puts six } else { puts other } ;# today: nothing
+if {[string length $s] == 6} { puts six } else { puts other } ;# merged: I230
 ```
 
 Under the contracts both decide: the first through the cell update, the

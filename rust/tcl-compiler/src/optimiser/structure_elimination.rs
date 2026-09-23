@@ -32,10 +32,14 @@
 //!   fall-through chains) or the default / empty.
 //!
 //! All rewrites emit diagnostic code `O112`. Conditions are
-//! evaluated via [`eval_tcl_expr_with_octal_and_dialect`] against
-//! an [`Env`] seeded with the per-function SCCP lattice
-//! projection: every variable whose lattice entries all agree on
-//! the same `Const` value becomes an [`EnvValue`] binding.
+//! decided on the shared expression route
+//! ([`crate::value_transfer::decide_condition_detached`]) under the
+//! rewrite's whole-module trust, so a condition is decided only where the
+//! lattice would decide it — never over a math function the module
+//! rebinds or the target lacks, nor past the target's tower. Its
+//! variables read an [`Env`] seeded with the per-function SCCP lattice
+//! projection: every variable whose lattice entries all agree on the same
+//! `Const` value becomes an [`EnvValue`] binding.
 //!
 //! The pass is driven from a [`CompilationUnit`] because
 //! per-function SCCP values come from the [`FunctionUnit`]
@@ -47,11 +51,11 @@ use tcl_core_types::DiagCode;
 
 use crate::analyses::{ConstValue, LatticeValue};
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
+use crate::expr_ast::ExprNode;
 use crate::ir::{Script, Statement, SwitchArm, SwitchMode};
 use crate::naming::normalise_var_name;
-use crate::tcl_expr_eval::{
-    Env, EnvValue, eval_tcl_expr_with_octal_and_dialect, leading_zero_is_octal,
-};
+use crate::tcl_expr_eval::{Env, EnvValue, FoldPolicy, leading_zero_is_octal};
+use tcl_registry::value_transfer::ExactValue;
 
 use super::helpers::literals::is_plain_literal;
 use super::helpers::spans::full_rewrite_span;
@@ -117,6 +121,32 @@ fn sccp_env_for(fu: &FunctionUnit) -> Env {
         env.insert(fu.ssa.var_name(sym).to_owned(), entry);
     }
     env
+}
+
+/// Whether `condition` is decided under `env`: its value on the shared
+/// expression route under `ctx`'s target and whole-module trust, read as
+/// `if` reads a truth. `None` wherever the route declines — a math function
+/// the module rebinds (`proc ::tcl::mathfunc::abs {x} {return 99}` makes
+/// `abs(-2) == 2` false from 8.5) or the target lacks, a value past the
+/// target's tower (`1 << 70` is 0 under 8.4) — or the value is no truth.
+fn decide(ctx: &PassContext<'_>, condition: &ExprNode, env: &Env) -> Option<bool> {
+    let constants: HashMap<String, ExactValue> = env
+        .iter()
+        .map(|(name, value)| {
+            let value = match value {
+                EnvValue::Int(i) => ConstValue::Int(*i),
+                EnvValue::Float(f) => ConstValue::Float(*f),
+                EnvValue::Str(s) => ConstValue::String(s.clone()),
+            };
+            (name.clone(), crate::value_transfer::const_to_exact(&value))
+        })
+        .collect();
+    crate::value_transfer::decide_condition_detached(
+        condition,
+        &constants,
+        ctx.rewrite_folds(),
+        FoldPolicy::for_profile(ctx.dialect.and_then(leading_zero_is_octal), ctx.dialect),
+    )
 }
 
 /// Recursively walk `script`'s statements, trying to eliminate
@@ -188,13 +218,7 @@ fn visit_while(ctx: &mut PassContext<'_>, stmt: &Statement, env: &Env, depth: u3
     else {
         return;
     };
-    if let Some(val) = eval_tcl_expr_with_octal_and_dialect(
-        condition,
-        env,
-        ctx.dialect.and_then(leading_zero_is_octal),
-        ctx.dialect,
-    ) && !val.is_truthy()
-    {
+    if decide(ctx, condition, env) == Some(false) {
         ctx.report(Optimisation::new(
             DiagCode::O112,
             "Eliminate dead while loop (condition is always false)",
@@ -218,13 +242,7 @@ fn visit_for(ctx: &mut PassContext<'_>, stmt: &Statement, env: &Env, depth: u32)
     else {
         return;
     };
-    if let Some(val) = eval_tcl_expr_with_octal_and_dialect(
-        condition,
-        env,
-        ctx.dialect.and_then(leading_zero_is_octal),
-        ctx.dialect,
-    ) && !val.is_truthy()
-    {
+    if decide(ctx, condition, env) == Some(false) {
         if init.statements.is_empty() {
             ctx.report(Optimisation::new(
                 DiagCode::O112,
@@ -292,14 +310,11 @@ fn try_eliminate_if(
     else_span: Option<tcl_lexer::Span>,
     env: &Env,
 ) {
-    let octal = ctx.dialect.and_then(leading_zero_is_octal);
     for clause in clauses {
-        let Some(val) =
-            eval_tcl_expr_with_octal_and_dialect(&clause.condition, env, octal, ctx.dialect)
-        else {
+        let Some(truth) = decide(ctx, &clause.condition, env) else {
             return;
         };
-        if val.is_truthy() {
+        if truth {
             let replacement = extract_body_text(ctx.source, clause.body_span, stmt_span);
             ctx.report(Optimisation::new(
                 DiagCode::O112,

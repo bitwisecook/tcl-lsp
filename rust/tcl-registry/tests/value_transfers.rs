@@ -807,7 +807,9 @@ fn format_runs_the_shared_core() {
 /// tclsh 8.4 to 9.1: `%b` raises before 8.6 and `%p` and `%llu` before
 /// 9.0; `format %d 010` is 8 up to 8.6 and 10 from 9.0; an unmodified `%d`
 /// of 2147483648 is itself up to 8.6 and wraps to -2147483648 from 9.0;
-/// `%#o 8` is `010` against `0o10` and `%#d 5` is `5` against `0d5`.
+/// `%#o 8` is `010` against `0o10` and `%#d 5` is `5` against `0d5`; and
+/// `%.0d 0` is empty under 8.4, which formats through C's `printf`, and `0`
+/// from 8.5 (D57).
 #[test]
 fn format_answers_per_release() {
     let error = Err(DeclineReason::WrongRepresentation);
@@ -831,6 +833,7 @@ fn format_answers_per_release() {
             Ok("0o10"),
         ),
         (&["%#d", "5"][..], Ok("5"), Ok("5"), Ok("5"), Ok("0d5")),
+        (&["%.0d", "0"][..], Ok(""), Ok("0"), Ok("0"), Ok("0")),
     ] {
         for (dialect, want) in [
             ("tcl8.4", eight_four),
