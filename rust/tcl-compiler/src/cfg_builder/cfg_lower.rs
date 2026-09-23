@@ -939,7 +939,7 @@ impl CfgBuilder<'_> {
     }
 
     /// Record the analysis-only edges that keep a `finally` clause reachable
-    /// from every way the `try` body can leave, when no handler supplies one.
+    /// from every way the `try` body or one of its handlers can leave.
     ///
     /// `lower_try` gave `end_block` a predecessor from a body that falls through
     /// normally, or from a handler's throw edge. Nothing connected a body exit
@@ -967,14 +967,26 @@ impl CfgBuilder<'_> {
     /// needs the clause body lowered on two paths, one of them terminal;
     /// over-approximating the *other* way — a `finally` clause that is never
     /// entered — is what corrupted the program above.
-    fn push_finally_exit_edges(&mut self, end_block: &str, body_block: &str, first_body_id: usize) {
+    fn push_finally_exit_edges(
+        &mut self,
+        end_block: &str,
+        post_body: &str,
+        body_block: &str,
+        first_body_id: usize,
+    ) {
         if !self.faithful_exceptions {
             return;
         }
         let body_block_id = self.bid(body_block);
+        // The body's blocks *and* the handlers': both are lowered after
+        // `first_body_id`, and a handler that leaves — `on error {} {return
+        // handled}` — is as much an exit as the body's own `return`.
         let in_body = |id: crate::cfg::BlockId| {
             id == body_block_id || usize::try_from(id.0).is_ok_and(|i| i >= first_body_id)
         };
+        // Normal completion already reaches `try_end`, directly or through
+        // `try_ok`; a jump there is not an exit to wire a second time.
+        let completion = [self.bid(end_block), self.bid(post_body)];
         // An exit a nested `try` or `catch` inside this body already
         // intercepts is not an exit of *this* body: the inner construct was
         // lowered first and recorded its own edge, and control reaches this
@@ -998,12 +1010,16 @@ impl CfgBuilder<'_> {
                     .get(name.as_str())
                     .is_some_and(|block| match &block.terminator {
                         Some(crate::cfg::Terminator::Return { .. }) => true,
-                        Some(crate::cfg::Terminator::Goto { target, .. }) => !in_body(*target),
+                        Some(crate::cfg::Terminator::Goto { target, .. }) => {
+                            !in_body(*target) && !completion.contains(target)
+                        }
                         Some(crate::cfg::Terminator::Branch {
                             true_target,
                             false_target,
                             ..
-                        }) => !in_body(*true_target) || !in_body(*false_target),
+                        }) => [true_target, false_target]
+                            .iter()
+                            .any(|t| !in_body(**t) && !completion.contains(*t)),
                         None => false,
                     })
             })
@@ -1136,8 +1152,8 @@ impl CfgBuilder<'_> {
             self.ensure_goto(&post_body, &end_block, Some(*span));
         }
 
-        if finally_body.is_some() && handlers.is_empty() {
-            self.push_finally_exit_edges(&end_block, &body_block, first_body_id);
+        if finally_body.is_some() {
+            self.push_finally_exit_edges(&end_block, &post_body, &body_block, first_body_id);
         }
 
         // Finally block.

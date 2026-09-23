@@ -2756,6 +2756,38 @@ fn a_finally_body_is_reachable_however_the_try_body_leaves() {
     }
 }
 
+/// A handler that itself leaves — `return`, `error`, or a `break` out of an
+/// enclosing loop — reaches the `finally` too. The handler's own exit
+/// blocks were never wired to it, so with any handler present a `finally`
+/// reached only that way was dead: `try {error boom} on error {} {return
+/// handled} finally {set g 1}` lost its store, and O109 then deleted the
+/// caller's `set g 0`, so the rewritten program failed with `can't read "g"`
+/// where tclsh 8.6.18 prints `1` (found in review).
+#[test]
+fn a_finally_body_is_reachable_however_a_handler_leaves() {
+    for (why, handler, wrapper) in [
+        ("return", "return handled", ""),
+        ("error", "error again", ""),
+        ("break", "break", "foreach i {1 2} "),
+    ] {
+        let stmt = format!("try {{error boom}} on error {{}} {{{handler}}} finally {{set g 1}}");
+        let line = if wrapper.is_empty() {
+            stmt
+        } else {
+            format!("{wrapper}{{ {stmt} }}")
+        };
+        let src = format!(
+            "set g 0\nproc p {{}} {{\n    global g\n    {line}\n}}\ncatch {{p}}\nputs $g\n"
+        );
+        let out = optimised(&src, TCL);
+        assert!(
+            out.contains("set g 1"),
+            "{why}: `finally` runs after the handler leaves: {:?}\n{out}",
+            opt_rewrites(&src, TCL)
+        );
+    }
+}
+
 /// The definiteness half. A name bound before the `try` is still bound after
 /// it, and the `finally` store that rebinds it is visible.
 #[test]
