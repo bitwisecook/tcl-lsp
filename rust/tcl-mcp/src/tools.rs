@@ -239,11 +239,15 @@ impl Analysed {
     /// compiler checks, the source-style pass and, for a `sslictcl` source,
     /// the loader — with the optimiser off, as `tcl diag` has it (D5): the
     /// rewrites are `optimize`'s, so an O-code a check emits is an
-    /// `OptimiserOff` suppression rather than a finding that never existed.
+    /// `OptimiserOff` suppression rather than a finding that never existed,
+    /// and one only the optimiser emits is a declared gap for the same
+    /// reason (D47).
     fn diagnostics_report(&self) -> Report {
         let mut policy = self.policy.clone();
         policy.optimiser.enabled = false;
-        self.report_under(self.produced.clone(), &policy)
+        let mut report = self.report_under(self.produced.clone(), &policy);
+        report.declare_optimiser_skip(&policy);
+        report
     }
 
     /// What `code_actions` reads: the producers' findings and the optimiser's

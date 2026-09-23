@@ -488,6 +488,25 @@ impl Report {
         self.declare_skipped(policy.analyser_skip(), policy);
     }
 
+    /// Record that the surface did not run the optimiser: every catalogued
+    /// optimisation code, each with the reason `policy` gives for its
+    /// absence — [`Reason::OptimiserOff`] under a policy whose switch is off,
+    /// unless an earlier step names another, as for every declared skip.
+    /// What the diagnostics verbs and tools declare, which leave the
+    /// rewrites to the rewrite surfaces: an O-code only the optimiser emits
+    /// is then explained rather than read as clean, while one a compiler
+    /// check or the O111 producer emitted keeps its finding — a code with a
+    /// finding is no gap ([`Self::gaps`]).
+    pub fn declare_optimiser_skip(&mut self, policy: &Policy) {
+        self.declare_skipped(
+            DiagCode::ALL
+                .iter()
+                .copied()
+                .filter(|code| code.is_optimisation()),
+            policy,
+        );
+    }
+
     /// The declared skips, by code.
     pub fn skipped(&self) -> impl Iterator<Item = (DiagCode, Reason)> + '_ {
         self.skipped.iter().map(|(code, reason)| (*code, *reason))

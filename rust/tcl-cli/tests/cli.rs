@@ -1618,6 +1618,12 @@ fn diag_show_suppressed_lists_a_disabled_analyser_code_as_a_gap() {
         "--source",
         "puts $y",
     ]));
+    // The optimiser's codes are gaps on every document (D47); the rest is
+    // the one code the invocation turned off.
+    let rows: Vec<&serde_json::Value> = rows
+        .iter()
+        .filter(|r| r["reason"] != "optimiser-off")
+        .collect();
     assert_eq!(rows.len(), 1, "{rows:?}");
     assert_eq!(rows[0]["line"], serde_json::Value::Null, "{rows:?}");
     assert_eq!(rows[0]["code"], "W210", "{rows:?}");

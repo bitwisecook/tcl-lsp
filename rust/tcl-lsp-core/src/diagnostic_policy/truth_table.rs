@@ -210,9 +210,13 @@ impl Row {
     ///   that the profile or an overlap hides, is `OptimiserOff` — the
     ///   diagnostics verbs and tools run with the optimiser off, the first
     ///   family gate, while steps 1 to 4 fire before it and keep their
-    ///   reasons; a default-off gap is not rendered (D21). `Cli` alone: an
-    ///   abstention suppression is absent, because the CLI does not analyse
-    ///   an abstaining document — the integrity pass alone runs.
+    ///   reasons. An O-code only the optimiser emits has no finding there
+    ///   at all: the surface declares the optimiser's codes, so it renders
+    ///   as a gap, `OptimiserOff` unless a file directive or a layer's
+    ///   decision fired first (D47). A default-off gap is not rendered
+    ///   (D21). `Cli` alone: an abstention suppression is absent, because
+    ///   the CLI does not analyse an abstaining document — the integrity
+    ///   pass alone runs.
     /// - `LspActions`, `McpActions`: each actionable subject is
     ///   [`Want::Offered`], true exactly when it shows. Code actions run
     ///   with the optimiser on, so the `Mcp` rule's O-code gate does not
@@ -388,7 +392,7 @@ fn rendered(expect: Expect, surface: Surface) -> Option<Expect> {
             }
             expect.want
         }
-        Surface::Cli | Surface::Mcp => batch_want(expect, surface == Surface::Cli)?,
+        Surface::Cli | Surface::Mcp => return batch_rendered(expect, surface == Surface::Cli),
         Surface::LspActions | Surface::McpActions => {
             if !ACTION_SUBJECTS.contains(&expect.code) {
                 return None;
@@ -405,25 +409,56 @@ fn rendered(expect: Expect, surface: Surface) -> Option<Expect> {
     Some(Expect { want, ..expect })
 }
 
+/// The O-codes the diagnostics verbs and tools have findings for without
+/// running the optimiser: the O111 hints and the compiler checks' SCCP
+/// (O100) and GVN (O105, O106) codes. Every other O-code is the optimiser's
+/// alone, and those surfaces declare it as a gap instead (D47).
+const PRODUCED_WITHOUT_THE_OPTIMISER: &[DiagCode] = &[
+    DiagCode::O100,
+    DiagCode::O105,
+    DiagCode::O106,
+    DiagCode::O111,
+];
+
 /// What a diagnostics verb or tool renders for `expect`.
-fn batch_want(expect: Expect, cli: bool) -> Option<Want> {
+fn batch_rendered(expect: Expect, cli: bool) -> Option<Expect> {
     let invocation = |reason: Reason| match reason {
         Reason::Disabled(PolicyLayer::Editor) => Reason::Disabled(PolicyLayer::Invocation),
         other => other,
     };
+    let gap = |reason: Reason| Expect {
+        line: None,
+        want: Want::Gap(reason),
+        ..expect
+    };
+    let at = |want: Want| Expect { want, ..expect };
+    let optimiser_only =
+        expect.code.is_optimisation() && !PRODUCED_WITHOUT_THE_OPTIMISER.contains(&expect.code);
     Some(match expect.want {
         Want::Gap(Reason::DefaultOff) => return None,
         Want::Suppressed(Reason::EncodingAbstention) if cli => return None,
+        // No finding: the declared gap carries the first reason that needs
+        // no line — the switch, unless a file directive or a layer's
+        // decision fired before it.
+        Want::Shown
+        | Want::ShownAt(_)
+        | Want::Suppressed(
+            Reason::OptimiserOff
+            | Reason::OptimiserProfile { .. }
+            | Reason::Overlap { .. }
+            | Reason::InlineDirective { .. },
+        ) if optimiser_only => gap(Reason::OptimiserOff),
+        Want::Suppressed(reason) | Want::Gap(reason) if optimiser_only => gap(invocation(reason)),
         Want::Shown
         | Want::ShownAt(_)
         | Want::Suppressed(Reason::OptimiserProfile { .. } | Reason::Overlap { .. })
             if expect.code.is_optimisation() =>
         {
-            Want::Suppressed(Reason::OptimiserOff)
+            at(Want::Suppressed(Reason::OptimiserOff))
         }
-        Want::Suppressed(reason) => Want::Suppressed(invocation(reason)),
-        Want::Gap(reason) => Want::Gap(invocation(reason)),
-        want => want,
+        Want::Suppressed(reason) => at(Want::Suppressed(invocation(reason))),
+        Want::Gap(reason) => gap(invocation(reason)),
+        want => at(want),
     })
 }
 
@@ -735,18 +770,6 @@ const fn hidden(reason: Reason) -> Want {
 
 const DISABLED_EDITOR: Reason = Reason::Disabled(PolicyLayer::Editor);
 
-/// The diagnostics verbs and tools do not run the optimiser, so a rewrite no
-/// compiler check emits — O120 — has no finding there and no declared gap:
-/// `--show-suppressed` and `suppressed` cannot say why it is absent, where
-/// the table wants it as an `OptimiserOff` suppression. Today they render
-/// the row's other codes as the rules derive them and nothing for O120.
-const REWRITE_NOT_RUN: Defect = Defect {
-    surfaces: &[Surface::Cli, Surface::Mcp],
-    today: &[at(DiagCode::W110, 2, Want::Shown)],
-    note: "`tcl diag` and the MCP diagnostics tools do not run the optimiser, so O120 \
-           has no finding and no declared gap there",
-};
-
 /// The rows, numbered as `docs/design/lanes/diagnostic-policy.md` § DP9.4
 /// numbers them.
 pub const ROWS: &[Row] = &[
@@ -1054,29 +1077,22 @@ pub const ROWS: &[Row] = &[
         )
     },
     // 36–38: the overlap table.
-    Row {
-        defects: &[REWRITE_NOT_RUN],
-        ..row(
-            "a_same_span_overlap",
-            STREQ,
-            &[
-                at(DiagCode::W110, 2, Want::Shown),
-                at(
-                    DiagCode::O120,
-                    2,
-                    hidden(Reason::Overlap {
-                        owner: OverlapOwner::Code(DiagCode::W110),
-                    }),
-                ),
-            ],
-        )
-    },
+    row(
+        "a_same_span_overlap",
+        STREQ,
+        &[
+            at(DiagCode::W110, 2, Want::Shown),
+            at(
+                DiagCode::O120,
+                2,
+                hidden(Reason::Overlap {
+                    owner: OverlapOwner::Code(DiagCode::W110),
+                }),
+            ),
+        ],
+    ),
     Row {
         slot: Some(r#"{"diagnostics": {"W110": false}}"#),
-        defects: &[Defect {
-            today: &[gap(DiagCode::W110, DISABLED_EDITOR)],
-            ..REWRITE_NOT_RUN
-        }],
         ..row(
             "an_overlap_needs_a_standing_owner",
             STREQ,
@@ -1384,9 +1400,16 @@ mod tests {
         let overlap = &ROWS[35];
         assert_eq!(overlap.name, "a_same_span_overlap");
         assert_eq!(
-            overlap.expected(Surface::Mcp)[1].want,
-            Want::Suppressed(Reason::OptimiserOff),
-            "the diagnostics tools run with the optimiser off"
+            overlap.expected(Surface::Mcp)[1],
+            gap(DiagCode::O120, Reason::OptimiserOff),
+            "the diagnostics tools declare what the optimiser alone emits (D47)"
+        );
+        let hint = &ROWS[38];
+        assert_eq!(hint.name, "o111_survives_a_disabled_w100");
+        assert_eq!(
+            hint.expected(Surface::Cli)[1],
+            at(DiagCode::O111, 2, hidden(Reason::OptimiserOff)),
+            "a hint the O111 producer emits keeps its finding, with the optimiser off"
         );
 
         let default_off = &ROWS[18];

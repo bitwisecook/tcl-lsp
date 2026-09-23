@@ -341,13 +341,18 @@ fn collect_rows(
     };
     let mut report = document_report(&doc, standalone.produced, &policy);
     report.declare_analyser_skip(&policy);
+    // Nor did this verb run the optimiser (`diag_policy`): its codes are
+    // declared too, so `--show-suppressed` says why a rewrite-only code is
+    // absent rather than leaving it to read as clean (D47).
+    report.declare_optimiser_skip(&policy);
     document_rows_of(&report, source, &line_index)
 }
 
 /// This verb's policy over `builder`: the optimiser off, because the
 /// rewrites are the `optimise` verb's — every O-code the checks pass emits is
 /// then an `OptimiserOff` suppression in the report rather than a finding
-/// that silently never existed.
+/// that silently never existed, and every one only the optimiser emits a
+/// declared gap for the same reason (`Report::declare_optimiser_skip`).
 fn diag_policy(builder: PolicyBuilder) -> Policy {
     let mut policy = builder.build();
     policy.optimiser.enabled = false;

@@ -1477,6 +1477,45 @@ ignored); `tcl-mcp` 103; `tcl-cli --test cli -- truth_table` 2. Pedantic
 clippy on `tcl-lsp-core` and `tcl-lsp-server` is clean; `cargo fmt
 --check` is clean; `cargo check --workspace` is green.
 
+### The owner's ruling on § Open questions 11: what did not run is declared
+
+The ruling: the accurate report says what did not run. `tcl diag` and
+`lint` and the MCP diagnostics tools declare the optimiser's catalogued
+codes as a gap, so `--show-suppressed` and the `suppressed` array list them
+with a reason, and the surfaces still never run the optimiser to say so
+(D47). `Report::declare_optimiser_skip(&Policy)` declares every catalogued
+optimisation code through `declare_skipped`. Under the verbs' policy, whose
+switch is off, the gap reason is `OptimiserOff`, unless a file directive or
+a layer's decision fires first, as for every declared skip. `collect_rows`
+calls it beside `declare_analyser_skip`. The abstaining path runs neither
+producer and declares neither. `Analysed::diagnostics_report` calls it for
+`analyze`, `validate`, `review` and `find-legacy`, whose code sets still
+filter the array; `actions_report`, which runs the optimiser, does not. A
+code a compiler check or the O111 producer emitted keeps its finding, and
+its suppression at its line (O100, O111), because `Report::gaps` lists only
+codes no finding carries.
+
+The truth table's `Cli` / `Mcp` rule (`batch_rendered`) follows. An O-code
+outside `PRODUCED_WITHOUT_THE_OPTIMISER` (O100, O105, O106, O111) renders as
+a gap: `OptimiserOff` for what would show, or what the profile, an overlap
+or an inline directive hides — an inline directive cannot explain a gap —
+and the gap's own reason, invocation-mapped, for a file directive or a
+layer's decision. Rows 36 and 37 now hold as wanted on `Cli` and `Mcp` with
+O120 a gap, so their `REWRITE_NOT_RUN` defect is gone, and no row records a
+defect now. `the_surface_rules_restate_the_page` pins O120 as a gap on `Mcp`
+and O111 as a suppression at its line on `Cli`.
+`diag_show_suppressed_lists_a_disabled_analyser_code_as_a_gap` counts its
+one gap among the rows that are not `optimiser-off`. On the built `tcl`,
+`diag --show-suppressed` over row 36's program lists the 31 catalogued
+O-codes as `optimiser-off` gaps, O120 among them. Without the flag the
+output is unchanged.
+
+Suites: core `--lib` 2341; `tcl-cli --test cli` 48 (the truth-table pass
+included); `tcl-mcp` 103 (its truth-table passes included); server `--lib
+-- policy_truth_table` 3. Pedantic clippy on `tcl-lsp-core`, `tcl-cli`,
+`tcl-mcp` and `tcl-lsp-server` is clean; `cargo fmt --check` is clean;
+`cargo check --workspace` is green.
+
 ## Plan for finishing slices 4–7 and for slices 8–10
 
 The execution plan from the checkpoint `5bc40e95` to the end of the page's
@@ -3934,7 +3973,8 @@ Decisions slices 8 and 9 took:
   removes the marker in the same change, and the defect cannot drift
   unnoticed meanwhile. A row can record several defects, one for each set
   of surfaces with its own `today`: row 36 recorded one on `Core` and `Lsp`
-  until D46, and one on `Cli` and `Mcp`.
+  until D46, and rows 36 and 37 one on `Cli` and `Mcp` until D47. No row
+  records a defect now; the mechanism stays for the next one.
 - **D46. W110 owns an O120 whose span holds it (the owner's ruling on
   § Open questions 10).** The overlap is real and both anchors are right:
   W110 belongs on the `==` operator, O120 on the whole condition it
@@ -3946,6 +3986,19 @@ Decisions slices 8 and 9 took:
   production" (`value-transfers.md` § Diagnostics consume facts, rule 4),
   and an anchor moved to suit presentation is fact production bending to
   it.
+- **D47. The diagnostics verbs and tools declare the optimiser's codes as a
+  gap (the owner's ruling on § Open questions 11).** The accurate report
+  says what did not run. `tcl diag`, `lint` and the MCP diagnostics tools
+  never run the optimiser, so its catalogued codes are declared
+  (`Report::declare_optimiser_skip`). They are then listed as
+  `optimiser-off` gaps — or with the first reason that needs no line, as
+  every declared skip is — and a code a check or the O111 producer emitted
+  keeps its finding. The other two fixes on offer are rejected. Running the
+  optimiser on a diagnostics surface would spend work to produce nothing
+  shown, and narrowing the table's rule to the checks' codes would hide a
+  true statement. Listing the same codes on every file is the answer here,
+  not noise: unlike the default-off seed D21 omits, they are what the
+  surface did not compute.
 
 ### Open questions for the owner
 
@@ -4019,6 +4072,9 @@ Each with the assumption the plan proceeds on.
     which buries the answer as the default-off seed would (D21). Or the
     table's rule could be narrowed to the codes a check emits. Assumption:
     left as it is; rows 36 and 37 record it on `Cli` and `Mcp` (D45).
+    **Closed — ruled: declare what did not run.** The verbs and tools
+    declare the optimiser's catalogued codes as a gap, `OptimiserOff`
+    (D47).
 
 ### Review checklist per slice
 
@@ -4227,6 +4283,12 @@ hand-off delta nothing mandates, for the owner.
   on § Open questions 10 (D46). `tcl opt`, MCP `optimize` and
   `optimiseDocument` are unchanged: their reports carry the optimiser's
   findings alone, so no W110 owns anything there.
+- `tcl diag --show-suppressed`, `tcl lint --show-suppressed` and the
+  `suppressed` arrays of MCP `analyze` and `validate` list the catalogued
+  O-codes no finding carries as `optimiser-off` gaps (31 on a document
+  with none) — the owner's ruling on § Open questions 11 (D47). Without the
+  flag, and in `review` / `find-legacy`, whose code sets hold no O-code,
+  nothing changes.
 
 **Slice 10.** Documents only.
 
@@ -4260,6 +4322,7 @@ Each item updates its row in the commit that lands it.
 | DP9.6 | sonnet | M | done — § *Slices 8–10 as built* | `DP9.6 — the CLI passes` | `tcl-cli` lib (27), `cli` (47, `-- truth_table` 2), `compile_verbs` (11), `explorer_gui` (2), `pkg_verbs` (13), `spec_verbs` (18); `tcl-cli-support` (19); core `--lib --features truth-table` (2340); clippy on `tcl-cli` with `--all-targets --no-deps`; `cargo fmt`; `cargo check --workspace` |
 | DP9.7 | sonnet | M | done — § *Slices 8–10 as built* | `DP9.7 — the MCP passes` | `tcl-mcp` (103); core `--lib --features truth-table` (2340); clippy on `tcl-mcp` with `--all-targets --no-deps`; `cargo fmt`; `cargo check --workspace` |
 | Ruling, § Open questions 10 | opus | S | done — § *The owner's ruling on § Open questions 10* | `W110 owns the O120 it sits in (the ruling on question 10)` | core `--lib` (2341), server `--lib` (590), the whole `e2e`, `tcl-mcp`, `tcl-cli --test cli -- truth_table`; the crate clippy; `cargo check --workspace` |
+| Ruling, § Open questions 11 | opus | S | done — § *The owner's ruling on § Open questions 11* | `the diagnostics surfaces declare what did not run (the ruling on question 11)` | core `--lib` (2341), `tcl-cli --test cli` (48), `tcl-mcp` (103), server `--lib -- policy_truth_table`; the crate clippy; `cargo check --workspace` |
 | DP10.1 | opus | M | not started | — | — |
 | DP10.2 | sonnet | M | not started | — | — |
 | DP10.3 | sonnet | M | not started | — | — |
