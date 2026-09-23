@@ -48,6 +48,10 @@ pub mod transport_liveness;
 pub mod uri_norm;
 pub mod vfs;
 
+/// The truth table's LSP and code-action passes.
+#[cfg(test)]
+mod policy_truth_table;
+
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::future::Future;
 use std::ops::ControlFlow;
@@ -18705,17 +18709,12 @@ impl Backend {
         collapse_inlay_alias(&mut global_ini);
         collapse_inlay_alias(&mut cfg);
         collapse_inlay_alias(&mut primary_project);
-        let global_editor = config_ini::merge_settings(&global_ini, &cfg);
-        let merged = config_ini::merge_settings(&global_editor, &primary_project);
-        // The unmerged layers are what the diagnostic policy is built from —
-        // only they can name the layer that decided a code.
-        *self.policy_layers.lock().await = PolicyLayers {
+        self.apply_session_layers(&PolicyLayers {
             global: global_ini.clone(),
-            editor: cfg.clone(),
+            editor: cfg,
             project: primary_project.clone(),
-        };
-        self.apply_global_config_with_signature_fallback(&merged, &global_editor)
-            .await;
+        })
+        .await;
         // Per-folder editor configuration: VS Code resolves `tclLsp` settings
         // per scope, so pull each folder's resolved config, layer it between the
         // global `config.ini` and that folder's `.tcl-lsp.ini`, and store it for
@@ -18775,6 +18774,21 @@ impl Backend {
                 .await;
             }
         }
+    }
+
+    /// Adopt `layers` as the session's configuration: the diagnostic policy
+    /// is built from the layers unmerged — only they can name the layer that
+    /// decided a code — and every other setting from their merge, the global
+    /// file under the editor's settings under the project file, with
+    /// signature suppression's fallback at the global and editor layers
+    /// alone. What a configuration pull does for the primary root, after it
+    /// has collapsed each layer's inlay alias.
+    async fn apply_session_layers(&self, layers: &PolicyLayers) {
+        let global_editor = config_ini::merge_settings(&layers.global, &layers.editor);
+        let merged = config_ini::merge_settings(&global_editor, &layers.project);
+        *self.policy_layers.lock().await = layers.clone();
+        self.apply_global_config_with_signature_fallback(&merged, &global_editor)
+            .await;
     }
 
     /// Preserve the primary project's signature exclusion when a scoped
@@ -31882,30 +31896,6 @@ mod tests {
         assert!(diags.iter().all(|d| d.source.as_deref() == Some("tcl-lsp")));
     }
 
-    #[test]
-    fn the_report_honours_the_optimiser_master_switch_and_per_code_set() {
-        let registry = CommandRegistry::build_default();
-        let src = "if {1} { set x 1 } else { set y 2 }\n";
-        // Master switch off: no optimiser O-codes at all (compiler checks still run).
-        let mut off = open_policy();
-        off.optimiser.enabled = false;
-        let diags = lifted_compiler_set(src, &registry, "", &off);
-        assert!(
-            !has_code(&diags, "O100"),
-            "O100 must be suppressed when the optimiser master switch is off: {:?}",
-            diags.iter().map(|d| d.code.clone()).collect::<Vec<_>>(),
-        );
-        // Per-code disable: O100 specifically suppressed even with the optimiser on.
-        let mut per_code = open_policy();
-        per_code.optimiser.disabled.insert(DiagCode::O100);
-        let diags = lifted_compiler_set(src, &registry, "", &per_code);
-        assert!(
-            !has_code(&diags, "O100"),
-            "O100 must be suppressed when disabled per-code: {:?}",
-            diags.iter().map(|d| d.code.clone()).collect::<Vec<_>>(),
-        );
-    }
-
     /// An iRules taint flow (`HTTP::uri` → `HTTP::respond`) is an
     /// IRULE3001 the base analyser does not emit; the dialect-aware
     /// registry path must surface it through the report.
@@ -31950,38 +31940,6 @@ mod tests {
             !has_code(&filtered, "IRULE3001"),
             "IRULE3001 must be suppressed when disabled per-check: {:?}",
             filtered.iter().map(|d| d.code.clone()).collect::<Vec<_>>(),
-        );
-    }
-
-    /// `# noqa: S100` on the line before the shimmering command must suppress
-    /// it through the report, which carries the directive for every code in
-    /// that family (S1xx shimmer, T1xx taint, IRULE1xxx-5xxx, O1xx, GVN, SCCP).
-    #[test]
-    fn the_report_honours_an_inline_noqa_on_a_compiler_check() {
-        let registry = CommandRegistry::build_default();
-        let baseline = lifted_compiler_set("set x hello\nincr x\n", &registry, "", &open_policy());
-        assert!(has_code(&baseline, "S100"), "expected S100 baseline");
-
-        let with_directives = |src: &str| {
-            let analysis = Analyser::new().analyse(src, "tcl8.6");
-            let mut policy = core_policy::PolicyBuilder::new()
-                .directives(core_policy::Directives::from_analysis(&analysis, src))
-                .build();
-            policy.optimiser = core_policy::OptimiserPolicy::all_on();
-            lifted_compiler_set(src, &registry, "", &policy)
-        };
-        let filtered = with_directives("set x hello\n# noqa: S100\nincr x\n");
-        assert!(
-            !has_code(&filtered, "S100"),
-            "S100 must be suppressed by a preceding '# noqa: S100', got: {:?}",
-            filtered.iter().map(|d| d.code.clone()).collect::<Vec<_>>(),
-        );
-        // TN control: a `# noqa` for an unrelated code must not incidentally
-        // suppress S100.
-        let unfiltered = with_directives("set x hello\n# noqa: W999\nincr x\n");
-        assert!(
-            has_code(&unfiltered, "S100"),
-            "an unrelated '# noqa: W999' must not suppress S100"
         );
     }
 
@@ -32057,47 +32015,6 @@ mod tests {
             o.full,
             Some(SemanticTokensFullOptions::Delta { delta: Some(true) })
         ));
-    }
-
-    /// `tclLsp.diagnosticSeverity.<CODE>` relabels a shown finding on the
-    /// wire and leaves every other code at the producer's severity.
-    #[test]
-    fn the_report_relabels_a_code_the_editor_layer_overrides() {
-        let text = "set x 1   \nputs $y\n";
-        let layers = PolicyLayers {
-            editor: serde_json::json!({ "diagnosticSeverity": { "W112": "error" } }),
-            ..PolicyLayers::default()
-        };
-        let dialect = tcl_lsp_core::profile_for_dialect("tcl9.0");
-        let policy = document_policy(&layers, None, dialect, core_policy::Directives::none());
-        let doc = core_report::DocumentSource {
-            text,
-            analysis_text: text,
-            decode: None,
-            dialect,
-            pass: core_report::SourcePass::Tcl {
-                line_length: tcl_lsp_core::source_style::DEFAULT_LINE_LENGTH,
-            },
-        };
-        let analysis = Analyser::new().analyse(text, "tcl9.0");
-        let report =
-            core_report::document_report(&doc, analyser_findings(&analysis.diagnostics), &policy);
-        let diags = lift_report(text, &report);
-        let severity_of = |code: &str| {
-            diags
-                .iter()
-                .find(|d| matches!(&d.code, Some(tower_lsp_server::ls_types::NumberOrString::String(c)) if c == code))
-                .and_then(|d| d.severity)
-        };
-        assert_eq!(
-            severity_of("W112"),
-            Some(tower_lsp_server::ls_types::DiagnosticSeverity::ERROR)
-        );
-        assert_eq!(
-            severity_of("W210"),
-            Some(tower_lsp_server::ls_types::DiagnosticSeverity::WARNING),
-            "an unlisted code keeps the producer's severity"
-        );
     }
 
     #[test]
@@ -33835,28 +33752,6 @@ mod tests {
             .expect("W107 is published");
         assert_eq!((w107.range.start.line, w107.range.start.character), (2, 6));
         assert_eq!((w107.range.end.line, w107.range.end.character), (2, 7));
-    }
-
-    /// A file-level `# tcl-lsp: disable=W111` directive (recorded by
-    /// the analyser against the `-1` suppression bucket) must drop
-    /// W111 from the lifted style set while leaving the other style
-    /// codes intact.
-    #[test]
-    fn the_report_honours_a_file_directive_on_the_style_pass() {
-        let long = "y".repeat(130);
-        let src = format!("{long}  \n");
-        let mut suppressed: std::collections::HashMap<i32, std::collections::HashSet<String>> =
-            std::collections::HashMap::new();
-        suppressed.insert(-1, std::iter::once("W111".to_string()).collect());
-        let policy = core_policy::PolicyBuilder::new()
-            .directives(core_policy::Directives::new(suppressed, &src))
-            .build();
-        let codes = diag_codes(&lifted_style_set(&src, &policy));
-        assert!(
-            !codes.iter().any(|c| c == "W111"),
-            "W111 should be suppressed"
-        );
-        assert!(codes.iter().any(|c| c == "W112"), "W112 should remain");
     }
 
     // F5 dialect diagnostics
@@ -35836,7 +35731,7 @@ mod tests {
     /// isn't publicly constructible, so we build via
     /// `LspService::new` and copy the wrapped `Client` into a
     /// fresh `Backend` with reset state.
-    fn test_backend() -> Backend {
+    pub(super) fn test_backend() -> Backend {
         test_backend_over(tcl_lsp_db::TclDatabase::default())
     }
 

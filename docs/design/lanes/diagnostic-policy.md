@@ -1317,6 +1317,53 @@ warnings` is clean, with the helpers only the tests read kept in the tests
 module. `cargo fmt --check` is clean and `cargo check --workspace` is
 green. No lockfile change, and nothing regenerates.
 
+### DP9.5 — the LSP and code-action passes on the server
+
+`lib.rs`: `apply_session_layers(&PolicyLayers)` is the session half of
+`pull_and_apply_config_values`, moved out unchanged. It sets
+`Backend::policy_layers`, merges global under editor (`global_editor`)
+and then the project file (`merged`), and calls
+`apply_global_config_with_signature_fallback(&merged, &global_editor)`.
+The pull collapses the inlay alias per layer, calls it, and goes on to the
+folders as before. `rust/tcl-lsp-server/Cargo.toml` enables `truth-table`
+from `[dev-dependencies]`, and the lockfile does not change.
+`src/policy_truth_table.rs` is declared `#[cfg(test)] mod
+policy_truth_table;`. It builds its backends with `tests::test_backend`,
+now `pub(super)` so that a sibling test module can reach it. Each row gets
+a fresh backend configured through `apply_session_layers` (the slot as the
+editor layer), with its document at `file:///truth/<name>.tcl` and, for a
+`bytes` row, the decode report on the `DocumentState`.
+
+- `every_row_publishes_its_shown_set`: all 41 rows through
+  `full_diagnostics_for`, the pull path, which shares `lifted_report` with
+  both pushes. Each published diagnostic is observed at its 1-based line,
+  with its severity mapped back. Row 28 also requires W211's `tags` to be
+  `[UNNECESSARY]`.
+- `every_row_offers_fixes_for_shown_findings_only`: the 12 rows with an
+  actionable subject (11, 12, 29–35, 39–41), through `code_action` over the
+  whole document with an empty context. Each `CodeAction` becomes an
+  `ActionView` of its title, kind and `changes` edits, and `offered`
+  judges each subject.
+- `every_rewrite_row_applies_through_optimise_document`: rows 30–35. The
+  slot's `profile` is the command's argument, and its per-code keys stay in
+  the editor layer. The result is `Applied(source contains "set x 3")`.
+
+All three passes held on their first run, row 36's recorded defect included:
+both W110 and O120 publish on `Lsp` (D45). The four unit tests the page
+names are deleted: `the_report_honours_an_inline_noqa_on_a_compiler_check`
+(rows 11–12), `the_report_honours_the_optimiser_master_switch_and_per_code_set`
+(rows 32–33), `the_report_honours_a_file_directive_on_the_style_pass` (row 8)
+and `the_report_relabels_a_code_the_editor_layer_overrides` (row 27).
+`open_policy`, `lifted_compiler_set` and `lifted_style_set` stay, because
+other tests still read them.
+
+Suites: server `--lib` 590 (591 + 3 − 4); the `e2e` subset `config` 40;
+the whole `e2e` 1598 (5 ignored). The change to the configuration pull only
+moves code, so the whole `e2e` ran as well as the item's `config` subset.
+Pedantic clippy on `tcl-lsp-server` with `--all-targets --all-features
+--no-deps -D warnings` is clean, `cargo fmt --check` is clean, and `cargo
+check --workspace` is green. No lockfile change, and nothing regenerates.
+
 ## Plan for finishing slices 4–7 and for slices 8–10
 
 The execution plan from the checkpoint `5bc40e95` to the end of the page's
@@ -4062,7 +4109,7 @@ Each item updates its row in the commit that lands it.
 | DP9.2 | sonnet | M | done — § *Slices 8–10 as built* | `DP9.2 — --show-suppressed on tcl diag / lint` | `tcl-cli` lib 27, `cli` 45, `compile_verbs` 11, `explorer_gui` 2, `pkg_verbs` 13, `spec_verbs` 18; clippy on `tcl-cli`; `cargo fmt`; `cargo xtask kcs-index-links`; `cargo check --workspace` |
 | DP9.3 | sonnet | M | done — § *Slices 8–10 as built* | `DP9.3 — the MCP suppressed array` | `tcl-mcp` 100; clippy on `tcl-mcp`; `cargo fmt`; `cargo check --workspace` |
 | DP9.4 | opus | L | done — § *Slices 8–10 as built* | `DP9.4 — the truth table and its core pass` | core `--lib` (2339) and `--lib --features truth-table` (2339); pedantic clippy on `tcl-lsp-core` with `--all-targets --all-features`; `cargo check --workspace` |
-| DP9.5 | opus | M | not started | — | — |
+| DP9.5 | opus | M | done — § *Slices 8–10 as built* | `DP9.5 — the LSP and code-action passes on the server` | server `--lib` (590); the `e2e` subset `config` and the whole `e2e`; pedantic clippy on `tcl-lsp-server` with `--all-targets --all-features`; `cargo check --workspace` |
 | DP9.6 | sonnet | M | not started | — | — |
 | DP9.7 | sonnet | M | not started | — | — |
 | DP10.1 | opus | M | not started | — | — |
