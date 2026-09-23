@@ -1011,11 +1011,12 @@ impl CfgBuilder<'_> {
                     .is_some_and(|block| match &block.terminator {
                         // A process exit runs no `finally` — a plain `exit`, or
                         // an opaque `switch` promoted to `Return` because every
-                        // arm exits (found in review).
+                        // arm exits (found in review). Only when it is the
+                        // block's *only* statement: anything before it may
+                        // raise an error, and an error does run the clause.
                         Some(crate::cfg::Terminator::Return { .. }) => {
-                            !block.statements.last().is_some_and(|stmt| {
-                                super::always_exits_process(stmt, &self.command_classes)
-                            })
+                            !matches!(block.statements.as_slice(), [only]
+                                if super::always_exits_process(only, &self.command_classes))
                         }
                         Some(crate::cfg::Terminator::Goto { target, .. }) => {
                             !in_body(*target) && !completion.contains(target)

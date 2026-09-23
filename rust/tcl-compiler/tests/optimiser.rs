@@ -2815,13 +2815,28 @@ fn an_exit_reaches_no_finally() {
             opt_codes(&src, TCL)
         );
     }
-    // Precision: one arm that `return`s instead keeps the clause.
-    let mixed = "set g 0\nproc p {x} {\n    global g\n    try {switch -glob $x {a {exit 7} default {return ok}}} finally {set g 1}\n}\np b\nputs $g\n";
-    assert!(
-        optimised(mixed, TCL).contains("set g 1"),
-        "a `return` arm reaches the `finally`: {:?}",
-        opt_rewrites(mixed, TCL)
-    );
+    // Precision: a way out before the exit keeps the clause — an arm that
+    // `return`s instead, or one that may `return` first (an else-less `if`
+    // completes `Normal` in the flow facts yet has a return path).
+    for (why, body) in [
+        (
+            "an arm that returns instead",
+            "switch -glob $x {a {exit 7} default {return ok}}",
+        ),
+        (
+            "every arm may return before it exits",
+            "switch -glob $x {a {if {$c} {return ok}; exit 7} default {if {$c} {return ok}; exit 8}}",
+        ),
+    ] {
+        let src = format!(
+            "set g 0\nproc p {{x c}} {{\n    global g\n    try {{{body}}} finally {{set g 1}}\n}}\np a 1\nputs $g\n"
+        );
+        assert!(
+            optimised(&src, TCL).contains("set g 1"),
+            "{why}: the `finally` still runs: {:?}",
+            opt_rewrites(&src, TCL)
+        );
+    }
 }
 
 /// The definiteness half. A name bound before the `try` is still bound after

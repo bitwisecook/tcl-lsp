@@ -184,7 +184,10 @@ jump to `try_end` or `try_ok`; a block a nested `try` / `catch` already
 intercepts with its own edge — control reaches this `finally` only after
 the inner clause has run; and a process exit (`Traits::TERMINATES_PROCESS`,
 e.g. `exit`), which ends the interpreter without unwinding, so no `finally`
-runs.  `tailcall` *is* an exit: the clause runs before the call.  The edges are not added without a `finally`:
+runs — but only when it is the block's sole statement (or the first
+statement of every arm of an `if` / `switch` with an `else` / `default`):
+anything run before it may `return` or raise an error, and those do run
+the clause.  `tailcall` *is* an exit: the clause runs before the call.  The edges are not added without a `finally`:
 there the tail really is unreachable on those paths, because the exception
 resumes unwinding past it.  Their cost is that `try_after_finally` becomes
 reachable from an exit path too, where Tcl in fact keeps unwinding;

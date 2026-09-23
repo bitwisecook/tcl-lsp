@@ -2863,20 +2863,20 @@ fn always_exits_process(stmt: &Statement, classes: &CfgCommandClasses) -> bool {
     }
 }
 
-/// Whether `script` ends the interpreter on every path: the first statement
-/// that does not complete normally must be one that always exits the process.
-/// A `return` or `error` reached first leaves by a path an enclosing `finally`
-/// does run.
+/// Whether `script` ends the interpreter on every path: its **first**
+/// statement must itself always exit the process.
+///
+/// Anything before the exit is a way out that runs an enclosing `finally`.
+/// An `if {$c} {return ok}` completes `Normal` in the flow facts yet may
+/// `return`, and almost any command may raise an error. Reading "completes
+/// normally, then exits" as "always exits" let O107 empty a live `finally`
+/// (found in review), so a script qualifies only when there is nothing to
+/// run first. Missing one costs an O107, never a wrong rewrite.
 fn script_always_exits_process(script: &Script, classes: &CfgCommandClasses) -> bool {
-    for stmt in &script.statements {
-        if always_exits_process(stmt, classes) {
-            return true;
-        }
-        if flow_facts_stmt_with_classes(stmt, classes).1 != Completion::Normal {
-            return false;
-        }
-    }
-    false
+    script
+        .statements
+        .first()
+        .is_some_and(|stmt| always_exits_process(stmt, classes))
 }
 
 /// `(must-defines, completion)` for a single statement.
