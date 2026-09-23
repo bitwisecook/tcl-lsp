@@ -1703,6 +1703,22 @@ fn opt_keeps_a_store_a_noqa_o109_marks() {
     assert!(removed.contains("O109"), "{removed}");
 }
 
+/// `tcl opt` writes a tab in a value as a tab, not a run of spaces, when
+/// stdout is not a terminal: tab expansion belongs to the highlighted
+/// terminal rendering, never to the plain text a redirected or
+/// `--no-colour` output carries (issue #2232).
+#[test]
+fn opt_writes_a_tab_as_a_tab_under_a_redirected_stdout() {
+    let scratch = Scratch::new("opt-tab");
+    let file = scratch.write("tab.tcl", "set r {a\tb}\nputs $r\n");
+    let rendered =
+        String::from_utf8(run_tcl(&["opt", file.to_str().expect("utf-8 path")])).unwrap();
+    assert!(
+        rendered.contains("a\tb"),
+        "the tab in `r`'s value must survive a redirected `tcl opt`: {rendered:?}"
+    );
+}
+
 /// `tcl opt` applies only the rewrites the document's policy shows (issue
 /// #2062): a `# noqa` on the command keeps its fold off, a top-of-file
 /// `# tcl-lsp: disable=*` keeps every rewrite off, and two inputs whose
