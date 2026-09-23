@@ -159,11 +159,12 @@
 //! Two rules follow, and breaking either restores a KB-per-keystroke leak
 //! while looking like an optimisation:
 //!
-//! 1. **[`SourceFile`], [`AnalyserConfig`], and [`Project`] stay at
-//!    `Durability::LOW`** — salsa's default, which this workspace never
-//!    overrides.  Marking the document text or the analyser config `HIGH`
-//!    "because it rarely changes" would stamp every key in the table above
-//!    non-`LOW`, and none would ever be collected again.
+//! 1. **[`SourceFile`], [`AnalyserConfig`], [`Project`], and
+//!    [`EvaluatorEpoch`] stay at `Durability::LOW`** — salsa's default,
+//!    which this workspace never overrides.  Marking the document text or
+//!    the analyser config `HIGH` "because it rarely changes" would stamp
+//!    every key in the table above non-`LOW`, and none would ever be
+//!    collected again.
 //! 2. **The per-body keys are interned from inside a tracked query.**  That is
 //!    why `memoised_compilation_unit` is crate-private and documented as
 //!    tracked-query-only: reached from [`compilation_unit`] its interning
@@ -248,7 +249,7 @@ pub trait TclDb: salsa::Database {
 /// registry it hands out is the process-wide per-profile cache in
 /// `tcl-registry`, not per-snapshot state.
 #[salsa::db]
-#[derive(Default, Clone)]
+#[derive(Clone)]
 pub struct TclDatabase {
     storage: salsa::Storage<Self>,
 }
@@ -256,7 +257,22 @@ pub struct TclDatabase {
 #[salsa::db]
 impl salsa::Database for TclDatabase {}
 
+impl Default for TclDatabase {
+    fn default() -> Self {
+        Self::with_storage(salsa::Storage::default())
+    }
+}
+
 impl TclDatabase {
+    /// A database over `storage`, its [`EvaluatorEpoch`] created at 0 before
+    /// any query can run: a query that read the epoch's absence would record
+    /// no dependency, and a later epoch would never reach it.
+    fn with_storage(storage: salsa::Storage<Self>) -> Self {
+        let db = Self { storage };
+        let _epoch = EvaluatorEpoch::new(&db, 0);
+        db
+    }
+
     /// Construct a database that forwards, for every salsa `WillExecute` event,
     /// the `database_key` of the query about to run (its `Debug` string) to
     /// `logger`.  Lets a profiler count per-query re-executions across an edit
@@ -269,7 +285,7 @@ impl TclDatabase {
                 logger(format!("{database_key:?}"));
             }
         })));
-        Self { storage }
+        Self::with_storage(storage)
     }
 
     /// Construct a database that forwards, for every interned-slot **reuse**
@@ -292,7 +308,56 @@ impl TclDatabase {
                 logger(format!("{key:?}"));
             }
         })));
-        Self { storage }
+        Self::with_storage(storage)
+    }
+}
+
+/// The process's evaluator epoch as the database last took it
+/// (`tcl_registry::pack_hooks::evaluator_epoch`): it moves when a hook plan
+/// is published or a hook is quarantined, on any thread.
+///
+/// The memoised lattices are shared by every worker, while the hosts that
+/// run declared implementations are per thread, so what a thread's host can
+/// answer is invisible to a memo unless an input says it changed. This is
+/// that input, and the smallest one that does it: [`compilation_unit`] and
+/// [`proc_taint_solve`] read it, and every per-procedure
+/// [`ValueTransferContext`] carries it, so a new epoch re-keys every
+/// memoised lattice (`docs/design/lanes/value-transfers.md`, D104). The
+/// language server sets it with [`set_evaluator_epoch`] where it reloads
+/// packs and after each diagnostics pass, which is where it first sees a
+/// quarantine on the worker that ran the pass.
+///
+/// At salsa's default `Durability::LOW`, as every input here is, though it
+/// moves only at a reload or a quarantine: the per-body keys are interned by
+/// the queries that read it (the crate docs' "The interned garbage collector
+/// is load-bearing").
+#[salsa::input(singleton)]
+pub struct EvaluatorEpoch {
+    #[returns(copy)]
+    pub generation: u64,
+}
+
+/// The database's evaluator epoch, as a tracked read; `0` for a database
+/// built without one.
+fn evaluator_epoch(db: &dyn TclDb) -> u64 {
+    EvaluatorEpoch::try_get(db).map_or(0, |epoch| epoch.generation(db))
+}
+
+/// Take `generation` as the database's evaluator epoch, returning whether it
+/// moved. A value it already holds writes nothing, so a sync that finds the
+/// evaluators unchanged invalidates no memo.
+pub fn set_evaluator_epoch(db: &mut TclDatabase, generation: u64) -> bool {
+    use salsa::Setter as _;
+    match EvaluatorEpoch::try_get(db) {
+        Some(epoch) if epoch.generation(db) == generation => false,
+        Some(epoch) => {
+            epoch.set_generation(db).to(generation);
+            true
+        }
+        None => {
+            let _epoch = EvaluatorEpoch::new(db, generation);
+            true
+        }
     }
 }
 
@@ -1703,14 +1768,23 @@ pub struct ValueTransferContext<'db> {
     /// answer every head alike.
     #[returns(ref)]
     pub mutations: tcl_compiler::command_binding::ModuleCommandMutations,
+    /// The [`EvaluatorEpoch`] the context was built under, so a new epoch —
+    /// a plan reload, a quarantine — is a new context and every memoised
+    /// lattice under the old one is re-keyed.
+    #[returns(copy)]
+    pub evaluator_epoch: u64,
 }
 
 impl<'db> ValueTransferContext<'db> {
-    /// The interned context for `key`, with the command trust rebuilt from
-    /// its snapshot.
-    pub fn of(db: &'db dyn TclDb, key: tcl_compiler::value_transfer::AnalysisContextKey) -> Self {
+    /// The interned context for `key` under evaluator epoch `epoch`, with the
+    /// command trust rebuilt from its snapshot.
+    pub fn of(
+        db: &'db dyn TclDb,
+        key: tcl_compiler::value_transfer::AnalysisContextKey,
+        epoch: u64,
+    ) -> Self {
         let mutations = key.bindings.to_mutations();
-        Self::new(db, key, mutations)
+        Self::new(db, key, mutations, epoch)
     }
 }
 
@@ -1977,6 +2051,9 @@ fn build_unit_with_keys<'db>(
     let dialect_key = dialect.map_or("", |profile| profile.name);
     let dialect_opt =
         dialect.and_then(|profile| tcl_lsp_core::stated_profile_for_dialect(profile.name));
+    // A tracked read: a new epoch re-runs the query this build is part of,
+    // and the contexts below carry it into every lattice key.
+    let epoch = evaluator_epoch(db);
     // The module CFG context is the same for every procedure in this build;
     // intern it once on the first request and reuse the id (O(procs), not
     // O(procs²)).
@@ -2027,7 +2104,7 @@ fn build_unit_with_keys<'db>(
             req.traced_variables.to_vec(),
             req.has_dynamic_variable_trace,
             req.plain_command_dispatch,
-            ValueTransferContext::of(db, req.analysis_context.clone()),
+            ValueTransferContext::of(db, req.analysis_context.clone(), epoch),
         );
         lattice_keys.insert(req.qname.to_owned(), key);
         // The memo stores the unit at **offset 0** and the builder rebases the
@@ -4087,6 +4164,7 @@ mod tests {
                 ValueTransferContext::of(
                     &db,
                     tcl_compiler::value_transfer::AnalysisContextKey::detached(),
+                    0,
                 ),
             )
         };

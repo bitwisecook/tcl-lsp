@@ -4073,6 +4073,25 @@ fn with_pack_hooks<R>(work: impl FnOnce() -> R) -> R {
     work()
 }
 
+/// Take the process's evaluator epoch into the query database
+/// (`docs/design/lanes/value-transfers.md`, D104).
+///
+/// The memoised lattices are shared by every worker while each worker's hook
+/// host is its own ([`with_pack_hooks`]), so a hook quarantined on whichever
+/// worker ran it changes what an analysis there would answer without changing
+/// anything a query reads, and a plan [`Backend::reload_spec_packs`]
+/// publishes reaches the workers before the pack key it installs reaches the
+/// database. `tcl_registry::pack_hooks::evaluator_epoch` moves for both, and
+/// this makes it the salsa input `tcl_lsp_db::EvaluatorEpoch`, which every
+/// memoised lattice is keyed by. Compare-then-set: a sync that finds the
+/// evaluators unchanged writes nothing and invalidates nothing, so the steady
+/// state costs one lock.
+async fn sync_evaluator_epoch(db: &TrackedMutex<tcl_lsp_db::TclDatabase>) {
+    let epoch = tcl_registry::pack_hooks::evaluator_epoch();
+    let mut db = db.lock().await;
+    tcl_lsp_db::set_evaluator_epoch(&mut db, epoch);
+}
+
 /// Base analysis: the cancellable salsa `file_analysis_incremental` query, off
 /// the LSP event loop — the whole-file per-item walk that dominates the deep
 /// pass and feeds *both* the workspace-independent fast tier and the deep tier.
@@ -4731,6 +4750,15 @@ async fn refresh_cross_file_evidence(
     // reschedule follows the factory publish immediately; the call-site tables
     // computed under the pre-sync oracle are corrected by the peers' own next
     // refresh, which the reschedule has already scheduled.
+    //
+    // First, the evaluator epoch (D104): a hook quarantined during the pass
+    // moved it on the worker that ran the pass, and this is where the server
+    // first sees that. Taken before the evidence snapshot, whose revision the
+    // write below must still match, so the next analysis keys its lattices by
+    // the evaluators as they now stand. Nothing is rescheduled for it: a
+    // quarantine is no verdict on the answers already published (D98), and a
+    // pass on another worker would only run the crashing body again.
+    sync_evaluator_epoch(&handles.db).await;
     let evidence_changes = sync_cross_file_evidence(handles).await;
     let evidence_requires_self_refresh = evidence_changes.requires_self_refresh.contains(uri);
     let mut changed = evidence_changes.changed;
@@ -21223,6 +21251,11 @@ impl Backend {
             self.sync_db_config().await;
         }
         if changed {
+            // The publish above moved the process's evaluator epoch, whether
+            // or not the new set is empty: take it before anything
+            // re-analyses, so no memoised lattice outlives the plan whose
+            // hosts computed it (D104).
+            sync_evaluator_epoch(&self.db).await;
             // The new set decides `registry_for_dialect`, and every cached
             // `DiagInputs` holds a registry handle resolved from the old one.
             // Bump only after the registry and Salsa config key are both live.
@@ -37341,6 +37374,59 @@ mod tests {
         assert!(
             slots.lock().await[&main].dirty,
             "coverage loss must schedule the driving document's soundness pass",
+        );
+    }
+
+    /// The evaluator epoch reaches the query database after a diagnostics
+    /// pass (D104). A hook quarantined on a worker thread moves the process's
+    /// epoch, and nothing a query reads says so; the refresh that follows the
+    /// pass takes it, compare-then-set, and reschedules nothing for it. That
+    /// the input re-keys the memoised lattices is `tcl-lsp-db`'s
+    /// `an_evaluator_epoch_re_keys_the_memoised_lattices`.
+    #[tokio::test]
+    async fn the_pass_after_a_quarantine_takes_the_evaluator_epoch() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///w/evaluator-epoch-d104.tcl").unwrap();
+        backend
+            .db_set_source(&uri, "proc p {} {return 1}\n", "tcl8.6".to_owned())
+            .await;
+        let taken = || async {
+            let db = backend.db.lock().await;
+            tcl_lsp_db::EvaluatorEpoch::try_get(&*db).map(|epoch| epoch.generation(&*db))
+        };
+        std::thread::spawn(tcl_registry::pack_hooks::note_quarantine)
+            .join()
+            .expect("the worker quarantined");
+        let moved = tcl_registry::pack_hooks::evaluator_epoch();
+        assert!(
+            taken().await.is_some_and(|epoch| epoch < moved),
+            "the database has not seen the quarantine"
+        );
+        let handles = EvidenceHandles {
+            db: Arc::clone(&backend.db),
+            db_files: Arc::clone(&backend.db_files),
+            db_project_members: Arc::clone(&backend.db_project_members),
+            db_project: Arc::clone(&backend.db_project),
+            workspace_index: Arc::clone(&backend.workspace_index),
+            documents: Arc::clone(&backend.documents),
+            rehoming_gate: Arc::clone(&backend.rehoming_gate),
+            live_publication_gate: Arc::clone(&backend.live_publication_gate),
+            class_factory_generation: Arc::clone(&backend.class_factory_generation),
+        };
+        let slots = Arc::new(Mutex::new(HashMap::from([(
+            uri.clone(),
+            DiagSlot::default(),
+        )])));
+
+        refresh_cross_file_evidence(&handles, &slots, &uri).await;
+
+        assert!(
+            taken().await.is_some_and(|epoch| epoch >= moved),
+            "the refresh after the pass takes the moved epoch"
+        );
+        assert!(
+            !slots.lock().await[&uri].dirty,
+            "and reschedules nothing for it"
         );
     }
 

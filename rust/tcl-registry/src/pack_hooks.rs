@@ -54,7 +54,7 @@
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU32, AtomicU64, Ordering};
 use std::sync::{LazyLock, Mutex, OnceLock};
 
 use tcl_dialect::TclVersion;
@@ -1036,11 +1036,35 @@ pub fn take_commands_spent() -> u64 {
 }
 
 /// Record that this thread's host quarantined a hook or poisoned a pack:
-/// the cached answers go, and the thread takes a generation no other state
-/// has, since what its host can still run is its own.
+/// the cached answers go, the thread takes a generation no other state
+/// has, since what its host can still run is its own, and the process's
+/// [`evaluator_epoch`] moves.
 pub fn note_quarantine() {
     clear_cache();
     GENERATION.with(|current| current.set(fresh_generation()));
+    advance_evaluator_epoch();
+}
+
+/// The process's evaluator epoch: it moves whenever the evaluators some
+/// thread serves change in a way a memo shared between threads must see —
+/// a hook plan published ([`advance_evaluator_epoch`], which the plan's
+/// owner calls), or a hook quarantined ([`note_quarantine`]).
+static EVALUATOR_EPOCH: AtomicU64 = AtomicU64::new(0);
+
+/// The process's evaluator epoch. A thread's own
+/// [`evaluator_generation`] keys what it computes; this is the one number a
+/// memo shared by every thread — the language server's query database —
+/// takes as an input, so a plan reload or a quarantine anywhere re-keys it
+/// (`docs/design/lanes/value-transfers.md`, D104).
+#[must_use]
+pub fn evaluator_epoch() -> u64 {
+    EVALUATOR_EPOCH.load(Ordering::Relaxed)
+}
+
+/// Move the process's [`evaluator_epoch`]: the evaluators some thread
+/// serves have changed.
+pub fn advance_evaluator_epoch() {
+    EVALUATOR_EPOCH.fetch_add(1, Ordering::Relaxed);
 }
 
 /// This thread's evaluator generation, building its host first as
@@ -1942,10 +1966,11 @@ mod tests {
 
     /// The evaluator generation names the host and its health: installing
     /// one moves the worker off `NO_HOST`, a quarantine gives it a
-    /// generation no other state has, and clearing the host returns it to
-    /// `NO_HOST`. Two workers serving one published plan share a
-    /// generation, so their memoised answers are shared; the worker whose
-    /// host then quarantines a hook shares it with no one.
+    /// generation no other state has and moves the process's epoch, and
+    /// clearing the host returns it to `NO_HOST`. Two workers serving one
+    /// published plan share a generation, so their memoised answers are
+    /// shared; the worker whose host then quarantines a hook shares it with
+    /// no one.
     #[test]
     fn host_install_and_quarantine_bump_the_generation() {
         // A plan no other test in this binary publishes.
@@ -1958,8 +1983,13 @@ mod tests {
         install_host(Rc::new(FixedHost(HookAnswer::Abstain)));
         let reinstalled = evaluator_generation();
         assert_ne!(reinstalled, installed, "a host without a plan is its own");
+        let epoch = evaluator_epoch();
         note_quarantine();
         assert_ne!(evaluator_generation(), reinstalled);
+        assert!(
+            evaluator_epoch() > epoch,
+            "a quarantine moves the process's epoch"
+        );
         clear_host();
         assert_eq!(evaluator_generation(), EvaluatorGeneration::NO_HOST);
 

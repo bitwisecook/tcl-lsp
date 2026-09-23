@@ -308,13 +308,23 @@ static PUBLISHED_PACKS: Mutex<()> = Mutex::new(());
 /// § *A private command*), its body folding `PREFIX` before the name, or
 /// without its `evaluate` row.
 fn tenant_pack(evaluate: Option<&str>) -> tcl_spectcl::PackSet {
-    let evaluate = evaluate.map_or(String::new(), |prefix| {
+    tenant_pack_with_body(
+        evaluate
+            .map(|prefix| format!("fold [string cat \"{prefix}\" $name]"))
+            .as_deref(),
+    )
+}
+
+/// The same pack with `body` as the implementation's body, or without the
+/// `evaluate` row.
+fn tenant_pack_with_body(body: Option<&str>) -> tcl_spectcl::PackSet {
+    let evaluate = body.map_or(String::new(), |body| {
         format!(
             "        evaluate -implementation tenant.label.v1 -host bounded_tcl {{\n\
              \x20           inputs {{arg 0 exact}}\n\
              \x20           depends {{tcl_profile implementation_identity}}\n\
              \x20           budget {{-commands 2000 -wall-clock 20 -value-bytes 65536}}\n\
-             \x20           body {{name}} {{ fold [string cat \"{prefix}\" $name] }}\n\
+             \x20           body {{name}} {{ {body} }}\n\
              \x20       }}\n"
         )
     });
@@ -441,5 +451,75 @@ fn a_pack_edit_invalidates_the_lattice() {
     config.set_spec_pack_key(&mut db).to(edited);
     let unit = document_compilation_unit_for(&db, file, config);
     assert_eq!(value_at(&unit, "::p", "r", 1), Some(text("t:acme")));
+    tcl_spectcl::hooks::publish(&tcl_spectcl::PackSet::default());
+}
+
+/// The evaluator epoch re-keys the memoised lattices (D104). `p` folds
+/// `[tenant::label acme]` and its lattice is memoised; `q`'s argument makes
+/// the body spin past its `-commands` budget, so this worker's host
+/// quarantines the body and the process's epoch moves. The database cannot
+/// see a host: `p`'s unit is still the memo that folded. Once the epoch is
+/// taken as the input — what the server does after the diagnostics pass
+/// that saw the quarantine — `p` is recomputed under the host it now has,
+/// and declines `transient` rather than serve an answer the body can no
+/// longer give.
+#[test]
+fn an_evaluator_epoch_re_keys_the_memoised_lattices() {
+    let _published = PUBLISHED_PACKS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let text = |value: &str| LatticeValue::Const(ConstValue::String(value.to_owned()));
+    let packs = tenant_pack_with_body(Some(
+        "if {$name eq \"spin\"} {while 1 {format %d 1}}; fold [string cat \"tenant:\" $name]",
+    ));
+    let mut db = TclDatabase::default();
+    let config = overlay_config(&db, install_workspace_packs(&packs, "tcl9.0"));
+    let folding = SourceFile::new(
+        &db,
+        "proc p {} {set r [tenant::label acme]; return $r}\n".to_owned(),
+        "tcl9.0".to_owned(),
+        None,
+    );
+    let spinning = SourceFile::new(
+        &db,
+        "proc q {} {set s [tenant::label spin]; return $s}\n".to_owned(),
+        "tcl9.0".to_owned(),
+        None,
+    );
+    let unit = document_compilation_unit_for(&db, folding, config);
+    assert_eq!(value_at(&unit, "::p", "r", 1), Some(text("tenant:acme")));
+
+    let epoch = tcl_registry::pack_hooks::evaluator_epoch();
+    let unit = document_compilation_unit_for(&db, spinning, config);
+    assert_eq!(
+        value_at(&unit, "::q", "s", 1),
+        Some(LatticeValue::Overdefined)
+    );
+    assert!(
+        tcl_registry::pack_hooks::evaluator_epoch() > epoch,
+        "the quarantine moved the process's epoch"
+    );
+    let unit = document_compilation_unit_for(&db, folding, config);
+    assert_eq!(
+        value_at(&unit, "::p", "r", 1),
+        Some(text("tenant:acme")),
+        "the memo cannot see the host"
+    );
+
+    let now = tcl_registry::pack_hooks::evaluator_epoch();
+    assert!(set_evaluator_epoch(&mut db, now), "the epoch moved");
+    assert!(
+        !set_evaluator_epoch(&mut db, now),
+        "and a second sync is a no-op"
+    );
+    let unit = document_compilation_unit_for(&db, folding, config);
+    assert_eq!(
+        value_at(&unit, "::p", "r", 1),
+        Some(LatticeValue::Overdefined)
+    );
+    assert_eq!(
+        answers_for(&unit, "::p", "tenant::label"),
+        ["declined: transient"]
+    );
     tcl_spectcl::hooks::publish(&tcl_spectcl::PackSet::default());
 }

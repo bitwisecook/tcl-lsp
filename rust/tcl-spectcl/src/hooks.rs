@@ -425,6 +425,9 @@ pub fn publish(packs: &PackSet) {
     }
     *published = Some(plan);
     GENERATION.fetch_add(1, Ordering::Release);
+    // A new plan is new evaluators for every thread that serves it: a memo
+    // shared between threads re-keys on the process's evaluator epoch.
+    pack_hooks::advance_evaluator_epoch();
     // Teach the registry how to build a thread's host, so any thread that
     // dispatches a hook gets one whether or not its worker closure remembered
     // to call `ensure_thread_host`. Registered here because this is the moment

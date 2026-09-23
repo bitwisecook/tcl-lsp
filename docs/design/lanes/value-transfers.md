@@ -3325,6 +3325,7 @@ checkpoint, then the two follow-ups the coordinator named (Q12, Q13).
 |---|---|---|---|
 | — | `wip(value-transfers): slice 4 — a declared implementation reads its inputs first` | D102: `DeclaredSemantics::evaluate` reads the places and the inputs before the release, the admission and the host, found by the completion test under the lenient `tcl` profile | `an_unknown_input_declines_before_the_release_is_asked` (`value_transfer/declared.rs`) |
 | VT4.13 | `wip(value-transfers): slice 4 — the executable example and the completion test` | `rust/tcl-compiler/tests/fixtures/value_transfers/tenant.tclspec`: the page's `tenant::label`, the same declaration as `tenant::tag` and as `tenant label NAME`; `tcl-spectcl` a dev-dependency of `tcl-compiler` (the cycle `tcl-registry` already has, D103); no file under any `src/` | `the_completion_test_needs_no_consumer_edit` (compiler witnesses: all three spellings fold `acme` to `tenant:acme` on the implementation route under 8.6, 9.0 and 9.1, decline `unsupported` under 8.4, 8.5, `f5-irules` and `tcl`, decline `not-exact` on an unknown argument, and fold nothing without the pack; the optimiser forwards the constant (O100); `tclsh` runs the body's `string cat` exactly where the analysis folds, and with the vendor runtime prepended the original and the optimised program print the same under 8.4 to 9.1); `the_completion_test_reaches_every_surface` (`value_transfers_cli.rs`: `tcl explore`, I230 in `tcl diag`, O100 in `tcl opt` from a scratch workspace whose discovered pack is the fixture; `tcl spec export`'s pack and a studio form edit of each declaration each fold again from their own workspace; the renderer's placeholder for the body it cannot draw; a workspace without the pack folds nothing); `shipped_builtins_stay_on_the_direct_route` (`value_transfers.rs`) |
+| Q12 | `wip(value-transfers): slice 4 — the evaluator epoch reaches salsa` | D104: `pack_hooks::evaluator_epoch`, which a plan publish (`tcl_spectcl::hooks::publish`) and a quarantine (`note_quarantine`, on any thread) move; the singleton salsa input `tcl_lsp_db::EvaluatorEpoch`, created at 0 by every `TclDatabase` constructor, read by `build_unit_with_keys` and carried by `ValueTransferContext`; the server's `sync_evaluator_epoch` (compare-then-set) in `reload_spec_packs` when the set changed and at the start of the post-publish `refresh_cross_file_evidence` | `an_evaluator_epoch_re_keys_the_memoised_lattices` (`value_transfer_parity.rs`: after a quarantine the memo still folds; once the epoch is taken the lattice is recomputed and declines `transient`); `host_install_and_quarantine_bump_the_generation` (`pack_hooks.rs`: a quarantine moves the epoch); `the_pass_after_a_quarantine_takes_the_evaluator_epoch` (the server's own tests: the refresh after a pass takes a quarantine's epoch and reschedules nothing; fails without the sync); `a_pack_reload_after_an_edit_yields_the_new_answer_on_the_memoised_path` (`e2e/spec_packs.rs`: a condition folded through the pack, re-analysed after an edit from the memo, turns from always true to always false when the pack's body changes on disk) |
 
 Deltas beyond the plan's list:
 
@@ -3357,6 +3358,60 @@ of 24; no new test binary (manifest proof 325 targets); `cargo check
 over `set r [tenant::label acme]`, run in a scratch workspace whose
 discovered pack is the fixture, reads `r#1 = const('tenant:acme')`, `route
 tenant::label: implementation tenant.label.v1` and `· answer: evaluated`.
+
+Deltas at Q12, beyond the coordinator's list:
+
+- **The reload half was already keyed** (D104): a pack edit moves the
+  content key, and the key alone re-keys every lattice (D97), so
+  `a_pack_reload_after_an_edit_yields_the_new_answer_on_the_memoised_path`
+  passes with the server's sync removed (checked); it pins the reload
+  path end to end. What only the epoch covers is a quarantine, and the
+  window in which a reload's plan reaches the workers before its key
+  reaches the database; the tests that fail without it are the parity
+  witness and the server's own `the_pass_after_a_quarantine_takes_the_evaluator_epoch`.
+- **The server takes a quarantine after the pass**, at the start of the
+  post-publish refresh, and reschedules nothing for it (D104).
+- **The interned-GC control raises the epoch too**
+  (`tests/interned_gc.rs`): a `LOW` epoch read by the deep tier stamps
+  every per-body key `LOW`, so the control session that raises its
+  inputs to `HIGH` stopped leaking and
+  `raising_input_durability_disables_the_collector` failed. The epoch
+  stays at `LOW` in production, as rule 1 of the crate docs' "The
+  interned garbage collector is load-bearing" now lists it, and
+  `no_input_durability_is_raised` still finds no call site.
+- **Outside the lane's own files**: `rust/tcl-lsp-server/src/lib.rs`
+  (the coordinator freed it once the diagnostic-policy lane finished) and
+  its `tests/e2e/spec_packs.rs`, and the one publish line in
+  `rust/tcl-spectcl/src/hooks.rs`.
+
+Green at Q12: `cargo test -p tcl-lsp-db --no-fail-fast` 126 passed, 5
+ignored (`interned_gc` 3 and `memory_growth` 1 among them); of the two
+ignored corpus sweeps, `file_analysis_incremental_matches_full_over_corpus`
+passes (895 files, no mismatch) and
+`compiler_check_memo_matches_uncached_over_corpus` finds one mismatch in
+893 files, which is not this change's (below); `cargo test -p
+tcl-registry --lib` 905 passed; `cargo test -p tcl-spectcl` 300 passed,
+1 ignored; `cargo test -p tcl-lsp-server --lib` 592 passed; its `e2e`
+binary 1599 passed, 5 ignored (`spec_packs` 30 of them), and `smoke` 14,
+`preview_tickets_e2e` 22 and `stdio_deadlock` 6 passed; pedantic clippy
+on `tcl-registry`, `tcl-spectcl`, `tcl-lsp-db` and `tcl-lsp-server`, no
+`#[allow]`; `cargo fmt --all --check` clean; `cargo xtask
+value-transfers --check` unchanged (17 clean, 13 waived, 98 pinned
+across 39 files, 6607 rows); no new test binary (manifest proof 325
+targets); `cargo check --workspace --all-targets` clean.
+
+Found at Q12, not fixed: `compiler_check_memo_matches_uncached_over_corpus`
+fails on `tmp/tcllib-2.0/modules/imap4/imap4.tcl` in some runs and not
+others. The memoised `compiler_check_diagnostics` then adds two T100s
+("Tainted variable $argc flows into expr operand") at the script's
+`$argc > 3` and `$i<$argc`, which the uncached path never reports; the
+file alone mismatches in 14 of 24 runs with the `tcl-lsp-db` from before
+this change and in 7 of 19 with it, so the run-to-run difference is older
+than the epoch. T100 skips a seeded global at SSA version 0
+(`is_seeded_global_v0`), so the memoised build's top level likely sees a
+write to `argc` before those reads in the runs that differ, which puts
+the cause in what that build records as writing globals rather than in
+the taint lattice. For the owner of the memoised checks path.
 
 ### Slice 5 — destructuring and structured bodies
 
@@ -6876,6 +6931,36 @@ Taken while slice 4's opus items were executed (§ *Slice 4* › *Record
   author's bytes over it, which is the preservation the completion test
   names.
 
+- **D104 — The evaluator epoch is a salsa input** (Q12). A process-wide
+  `pack_hooks::evaluator_epoch` moves when a hook plan is published
+  (`tcl_spectcl::hooks::publish` calls `advance_evaluator_epoch`) and when
+  a hook is quarantined (`note_quarantine`, on whichever thread ran it).
+  `tcl_lsp_db::EvaluatorEpoch` is a singleton salsa input every
+  `TclDatabase` constructor creates at 0 — a query that read its absence
+  would record no dependency — at salsa's default `LOW` durability like
+  every input there. `build_unit_with_keys` reads it, so `compilation_unit`
+  and `proc_taint_solve` depend on it, and `ValueTransferContext` carries
+  it, so a new epoch re-keys every memoised lattice: the smallest input
+  that does, because the lattice keys already name the building worker's
+  generation (D94) and only the unit query above them was blind to it
+  (D98). The server sets it (`sync_evaluator_epoch`, compare-then-set, so
+  a sync that finds nothing moved writes nothing) in `reload_spec_packs`
+  when the set changed, before anything re-analyses, and at the start of
+  each diagnostics pass's post-publish refresh, the first place the server
+  can see a quarantine on the worker that ran the pass. It reschedules
+  nothing for a quarantine: a quarantine is no verdict on the answers
+  already published (D98), and a pass on a healthy worker would run the
+  crashing body again. After a quarantine the next analysis recomputes
+  every lattice on whichever worker runs it — a healthy one answers, the
+  quarantined one declines `transient` — so a transient decline is no
+  longer served to a healthy worker until the file changes. A content
+  edit to a pack moves the pack key as well, which alone re-keys the
+  lattices (D97); the epoch adds the quarantine and the window in which a
+  reload's plan reaches the workers before its key reaches the database,
+  where an analysis memoises the new plan's answers under the old key.
+  Only the server builds a `TclDatabase`; `tcl-lsp-db`'s own tests keep 0
+  unless they set it.
+
 ### Open questions for the owner
 
 Each with the assumption the plan proceeds on.
@@ -6924,6 +7009,10 @@ Each with the assumption the plan proceeds on.
   a salsa input for the generation when a worker's host changes, in a
   later slice or the consumer-contracts lane; until then a transient
   decline served to a healthy worker is imprecise, never wrong.
+  **Answered on 2026-09-23 (D104)**, in this slice once the
+  diagnostic-policy lane had freed `rust/tcl-lsp-server`: the evaluator
+  epoch is a salsa input the server sets where it reloads packs and after
+  each diagnostics pass.
 - **Q13 — An exhausted request re-declines what it paid for** (D100).
   *Assumption*: the evaluation page's rule stands as built — a pass gets a
   tenth of what is left, and a re-evaluated statement the pass cannot pay
