@@ -1176,3 +1176,233 @@ fn route_entries_are_counted_per_family() {
         assert_eq!(tally.implementation, 0, "{dialect}");
     }
 }
+
+/// The interface contract's `expr` acceptance list: multi-argument forms,
+/// braced versus quoted arguments, short-circuit operators and ternaries,
+/// strings that look like code, nested pure substitutions, errors,
+/// bignums, and target release ambiguity
+/// (`docs/design/compiler/value-transfers-migration.md`, slice 3's exit).
+/// Each case is `proc p {} {<prelude>; set r [<expr call>]}`, oracle
+/// values checked against `tclsh8.4` to `tclsh9.1` directly.
+/// `expression_witnesses_match_every_release_on_path` re-runs the same
+/// programs against the real interpreters. `2**64` and `1 << 70` are
+/// beyond-wide from 8.5: `tclsh8.4` raises for the first (`**` is not an
+/// 8.4 operator) and wraps to 0 for the second, so both decline under
+/// `tcl8.4` (`WrongRepresentation`) and under `f5-irules`, whose runtime
+/// base is 8.4's (D48); `"010" + 0` reads the leading zero as octal up to
+/// 8.6, `f5-irules` included, and as decimal from 9.0.
+#[test]
+fn expr_acceptance_list() {
+    let cases: [(&str, &str, &str, [Option<&str>; 4]); 10] = [
+        ("multi-argument form", "", "expr 1 + 2", [Some("3"); 4]),
+        (
+            "a quoted argument substituted as text",
+            "set a {1 + 1}",
+            "expr \"$a * 2\"",
+            [Some("3"); 4],
+        ),
+        (
+            "short-circuit &&",
+            "",
+            "expr {0 && [error never]}",
+            [Some("0"); 4],
+        ),
+        (
+            "a ternary",
+            "",
+            "expr {1 ? \"yes\" : \"no\"}",
+            [Some("yes"); 4],
+        ),
+        (
+            "a value that looks like code is never re-substituted",
+            "set a {[exit]}",
+            "expr {$a eq {[exit]}}",
+            [Some("1"); 4],
+        ),
+        (
+            "a nested pure substitution",
+            "",
+            "expr {[string length abcdef] * 2}",
+            [Some("12"); 4],
+        ),
+        ("an error", "", "expr {1/0}", [None; 4]),
+        (
+            "a bignum",
+            "",
+            "expr {2**64}",
+            [
+                None,
+                Some("18446744073709551616"),
+                Some("18446744073709551616"),
+                None,
+            ],
+        ),
+        (
+            "a shift beyond wide",
+            "",
+            "expr {1 << 70}",
+            [
+                None,
+                Some("1180591620717411303424"),
+                Some("1180591620717411303424"),
+                None,
+            ],
+        ),
+        (
+            "a leading-zero numeral, release-dependent",
+            "",
+            "expr {\"010\" + 0}",
+            [Some("8"), Some("8"), Some("10"), Some("8")],
+        ),
+    ];
+    for (description, prelude, expr_call, expected) in cases {
+        let source = format!("proc p {{}} {{{prelude}\nset r [{expr_call}]\n}}");
+        for (dialect, want) in DIALECTS.into_iter().zip(expected) {
+            let unit = unit_of(&source, dialect);
+            let folded = value_at(&unit, "::p", "r", 1).and_then(lattice_text);
+            assert_eq!(
+                folded.as_deref(),
+                want,
+                "{dialect}: {description} ({expr_call})"
+            );
+        }
+    }
+}
+
+/// One distinct finite SSA value stays correlated with itself: `foreach a
+/// {1 2} {set r [expr {$a * $a}]}` gives the in-loop `r` the set `{1, 4}`,
+/// never `{1, 2, 4}` — the cartesian product a wrongly-independent pairing
+/// would produce (§ *The correlated finite-set limit*).
+#[test]
+fn the_square_of_one_finite_input_stays_correlated() {
+    let source = "proc p {} {foreach a {1 2} {set r [expr {$a * $a}]}}";
+    for dialect in DIALECTS {
+        let unit = unit_of(source, dialect);
+        let value = value_at(&unit, "::p", "r", 1).expect("r's in-loop definition");
+        let LatticeValue::ConstSet(mut members) = value else {
+            panic!("{dialect}: {value:?} is not a finite set");
+        };
+        members.sort_by_key(|c| match c {
+            ConstValue::Int(i) => *i,
+            other => panic!("{dialect}: {other:?}"),
+        });
+        assert_eq!(
+            members,
+            vec![ConstValue::Int(1), ConstValue::Int(4)],
+            "{dialect}"
+        );
+    }
+}
+
+/// The mirror pairs of the interface page
+/// (`docs/design/compiler/value-transfers.md` § *The correlated
+/// finite-set limit*): `a` and `b` are the loop's two binders, so pairing
+/// them by position or taking their cartesian product would both be
+/// unsound, and neither post-loop branch decides — `x` is 20 and `y` is
+/// 25 in every release, but only ordered enumeration (slice 12) answers
+/// that, never the finite-set lift.
+///
+/// On this pre-slice-5 tree a two-binder `foreach`'s source layout is
+/// still declined (the migration plan's ledger: `foreach` / `lmap`
+/// "declining the source layout until slice 5"), so `a` and `b` are
+/// `Overdefined` from the header rather than the page's two distinct
+/// `Finite` identities, and `expr` declines `not-exact` rather than the
+/// page's `CorrelatedSets` — the reason slice 5 gives its named shape.
+/// The outcome this test pins, that `x` / `y` never fold and neither
+/// branch decides, holds either way.
+#[test]
+fn the_mirror_pairs_decline_as_correlated() {
+    let source = "proc p {} {\n\
+                   set x 0\n\
+                   foreach {a b} {1 10 2 20} { set x [expr {$b / $a}] }\n\
+                   if {$x == 20} { puts twenty } else { puts other }\n\
+                   set y 0\n\
+                   foreach {a b} {1 20 2 10} { set y [expr {$b / $a}] }\n\
+                   if {$y == 25} { puts twentyfive } else { puts other }\n\
+                  }\n";
+    for dialect in DIALECTS {
+        let unit = unit_of(source, dialect);
+        let function = unit.procedures.get("::p").expect("the procedure");
+        for var in ["x", "y"] {
+            let symbol = function.ssa.var_symbol(var).expect(var);
+            let last = function
+                .sccp
+                .values
+                .iter()
+                .filter(|((sym, _), _)| *sym == symbol)
+                .max_by_key(|((_, version), _)| *version)
+                .map(|(_, value)| value.clone())
+                .expect("a definition");
+            assert_eq!(last, LatticeValue::Overdefined, "{dialect}: {var}");
+        }
+        for condition in ["$x == 20", "$y == 25"] {
+            assert!(
+                function
+                    .sccp
+                    .constant_branches
+                    .iter()
+                    .all(|b| b.condition != condition),
+                "{dialect}: {condition} decided: {:?}",
+                function.sccp.constant_branches
+            );
+        }
+    }
+}
+
+/// `expr_acceptance_list`'s programs, run against the real `tclsh` per
+/// release found on `PATH`: wherever the compiler's fold answers a value
+/// it is the same value `tclsh` prints, and wherever the underlying
+/// program raises the fold has declined too. At least half the programs
+/// must fold on any release, so the witness is not vacuous.
+#[test]
+fn expression_witnesses_match_every_release_on_path() {
+    let cases: [(&str, &str); 10] = [
+        ("", "expr 1 + 2"),
+        ("set a {1 + 1}", "expr \"$a * 2\""),
+        ("", "expr {0 && [error never]}"),
+        ("", "expr {1 ? \"yes\" : \"no\"}"),
+        ("set a {[exit]}", "expr {$a eq {[exit]}}"),
+        ("", "expr {[string length abcdef] * 2}"),
+        ("", "expr {1/0}"),
+        ("", "expr {2**64}"),
+        ("", "expr {1 << 70}"),
+        ("", "expr {\"010\" + 0}"),
+    ];
+    let mut releases = 0usize;
+    for (series, tclsh) in releases_on_path() {
+        releases += 1;
+        let dialect = dialect_of(series);
+        let mut answered = 0usize;
+        for (prelude, expr_call) in cases {
+            let source = format!("proc p {{}} {{{prelude}\nset r [{expr_call}]\n}}");
+            let unit = unit_of(&source, &dialect);
+            let folded = value_at(&unit, "::p", "r", 1).and_then(lattice_text);
+            let oracle = run_script(&tclsh, &format!("{prelude}\nset r [{expr_call}]\nputs $r"));
+            match (&folded, oracle) {
+                (Some(value), Some((true, printed))) => {
+                    assert_eq!(
+                        value.as_str(),
+                        printed.trim_end_matches('\n'),
+                        "tclsh{series}: {expr_call}"
+                    );
+                    answered += 1;
+                }
+                (Some(value), other) => panic!(
+                    "tclsh{series}: {expr_call} folded to {value} but tclsh answered {other:?}"
+                ),
+                // A decline under a release whose runtime tclsh happens
+                // not to raise for (`1 << 70` wraps silently under 8.4)
+                // is still a decline: nothing to check either way.
+                (None, _) => {}
+            }
+        }
+        assert!(
+            answered * 2 > cases.len(),
+            "tclsh{series}: the fold answered only {answered} of {} cases",
+            cases.len()
+        );
+    }
+    if releases == 0 {
+        eprintln!("no tclsh on PATH: expression_witnesses_match_every_release_on_path ran nothing");
+    }
+}

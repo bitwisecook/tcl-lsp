@@ -24,6 +24,7 @@
 2	tcl-bigip-io	lib	tcl-bigip-io	tcl_bigip_io
 2	tcl-bigip-query	lib	tcl-bigip-query	tcl_bigip_query
 2	tcl-bigip::integration	test	tcl-bigip	integration
+2	tcl-cli::value_transfers_cli	test	tcl-cli	value_transfers_cli
 2	tcl-compiler::alias_scoping	test	tcl-compiler	alias_scoping
 2	tcl-compiler::codegen	test	tcl-compiler	codegen
 2	tcl-compiler::codegen_golden	test	tcl-compiler	codegen_golden

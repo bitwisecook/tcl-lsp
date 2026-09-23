@@ -2225,7 +2225,8 @@ gains a D-number for any deviation the item needs.
 | VT3.7 | the third checkpoint | `reassociate_node(node, types)`; a closed left operand still folds (`fold_closed_left`) | `reassociation_refuses_an_unproven_float_term`; `o110_reassociates_constant_chains`, `instcombine_reassociation_and_identity_annihilator` and `o110_reassociation` restated over proven integers |
 | VT3.8 | the third checkpoint | `FormatTemplateSemantics` over `format_cmd_with_syntax`; `NativeEvalId::FormatTemplate.owner()` is `Registry`; `transitional_direct`, its waiver and `try_format_fold` went; the ledger row went | `format_runs_the_shared_core`, `format_answers_per_release` (registry); `format_witnesses_match_every_release_on_path` (`differential_fold.rs`); `format_folds_through_the_shared_core` (witnesses) |
 | VT3.6 | `636f9e2f` | `lifted_exprs` and `expr_substitution_body` resolve `expr` through the registry's `Traits::EXPR_CONCATENATES_ARGS`, not the spelling, matching `optimiser::tail_call` and `optimiser::end_offset`'s existing resolution; `word_subst.rs` and `shimmer/commit.rs` join `CLEAN_FILES`, their ratchet rows go | no new test (R6, no behaviour change): the crate's existing `word_subst` and `shimmer` suites stay green; G1's fall from one pinned site each to zero is the evidence |
-| VT3.9 | the VT3.9 commit | `RouteTally { direct, expression, implementation }` on `SccpResult`; `call_def` counts `direct`, `run_script` counts `direct` or `expression` per its resolved route (`Implementation` counts too, currently always 0 pre-slice-4), `evaluate_assign_expr` and `evaluate_condition` count `expression`; `LatticeDriver::reset_tally_for_sweep` keeps the fixed point's re-evaluation from over-counting (D62); the Explorer's `sccp` view renders `routes entered: direct N · expression M · implementation K` beside the executable-blocks summary | `route_entries_are_counted_per_family` (compiler witnesses); `serialise::tests::sccp_reports_the_route_tally` |
+| VT3.9 | `11e7cda7` | `RouteTally { direct, expression, implementation }` on `SccpResult`; `call_def` counts `direct`, `run_script` counts `direct` or `expression` per its resolved route (`Implementation` counts too, currently always 0 pre-slice-4), `evaluate_assign_expr` and `evaluate_condition` count `expression`; `LatticeDriver::reset_tally_for_sweep` keeps the fixed point's re-evaluation from over-counting (D62); the Explorer's `sccp` view renders `routes entered: direct N · expression M · implementation K` beside the executable-blocks summary | `route_entries_are_counted_per_family` (compiler witnesses); `serialise::tests::sccp_reports_the_route_tally` |
+| VT3.10 | the VT3.10 commit | the slice's remaining witnesses: the acceptance list, the two correlated-limit programs, the release-oracle differential (D63), the CLI witness (`rust/tcl-cli/tests/value_transfers_cli.rs`, new — D65 covers its VT2.10 half) | `expr_acceptance_list`, `the_square_of_one_finite_input_stays_correlated` (D64), `the_mirror_pairs_decline_as_correlated` (D64), `expression_witnesses_match_every_release_on_path` (compiler witnesses); `explore_sccp_prints_the_route_tally` (CLI) |
 
 Deltas observed beyond the plan's list, each with its oracle:
 
@@ -2270,17 +2271,6 @@ Found and left:
 
 The state the sonnet items start from:
 
-- **VT3.10**: the witnesses above exist, and so does
-  `format_witnesses_match_every_release_on_path` and (VT3.9)
-  `route_entries_are_counted_per_family`. Still to add:
-  `expr_acceptance_list`, `the_square_of_one_finite_input_stays_correlated`,
-  `the_mirror_pairs_decline_as_correlated`,
-  `expression_witnesses_match_every_release_on_path` and the CLI test.
-  For their "unnamed release" rows (D48):
-  - `expr {"010"}` folds to 8 under f5-irules, whose 8.4 runtime reads a
-    leading zero as octal, and declines under f5-bigip, which has no
-    runtime;
-  - `expr {1 << 70}` declines under tcl8.4, f5-irules and f5-bigip.
 - **VT3.11**: the pages listed under "Found and left" above.
 
 Green at the third checkpoint:
@@ -5830,6 +5820,39 @@ Taken while slice 3's sonnet items were executed (§ *Slice 3* › *Record
   fixed point (`collect_constant_branches`) adds to that settled count,
   which is why a single decided `if {1} {…}` counts as two expression
   entries (reachability, then the collected branch), not one.
+- **D63 — `expression_witnesses_match_every_release_on_path` is
+  `tcl-compiler`'s, not `tcl-registry`'s.** D47 made `ExprServices` and
+  `evaluate_expression` `pub(crate)` to `tcl-compiler`, so `tcl-registry`
+  — which carries no dev-dependency on `tcl-compiler`, and gains none here
+  — cannot run an `expr` program at all. The plan's file list named
+  `rust/tcl-registry/tests/differential_fold.rs`, the precedent VT3.8's
+  `format_witnesses_match_every_release_on_path` set; that precedent
+  holds because `format`'s whole route is registry-owned; `expr`'s is
+  not. The test instead joins the other acceptance-list witnesses in
+  `rust/tcl-compiler/tests/value_transfer_witnesses.rs`;
+  `differential_fold.rs` is untouched.
+- **D64 — The mirror pairs decline `not-exact`, not `CorrelatedSets`,
+  before slice 5.** `foreach {a b} …`'s binders decline their source
+  layout until slice 5 (the ledger's `foreach` / `lmap` row: "declining
+  the source layout until slice 5"), so on this tree `a` and `b` are
+  `Overdefined` from the header rather than the interface page's two
+  distinct `Finite` identities the correlated limit would refuse with
+  `CorrelatedSets` — `expr {$b / $a}` declines `not-exact` instead, an
+  operand-shape decline, not the correlated one. `x` never folds to 20
+  nor `y` to 25, and neither post-loop branch decides, exactly as the
+  page says; slice 5 gives the decline reason its named shape, and
+  `the_mirror_pairs_decline_as_correlated` pins the outcome, not the
+  reason string, so it needs no change when slice 5 lands.
+- **D65 — VT2.10's CLI witness binary is VT3.10's file, extended in its
+  own commit.** D35 deferred `rust/tcl-cli/tests/value_transfers_cli.rs`
+  to "the next slice that may touch `rust/tcl-cli`"; VT3.10 is that
+  slice, creating the file for `explore_sccp_prints_the_route_tally`. The
+  four tests VT2.10 named — `explore_sccp_prints_the_route_of_each_statement`,
+  `opt_forwards_program_three`, `opt_keeps_the_store_behind_a_nested_increment`,
+  and VT2.9's `opt_keeps_a_global_a_nested_increment_writes` — land in the
+  same file afterward, in their own commit titled for slice 2, the slice
+  whose item they finish; D9's "one CLI binary" stands, one file, two
+  commits.
 
 ### Open questions for the owner
 
