@@ -1273,8 +1273,9 @@ No new diagnostic code or catalogue entry, so nothing regenerates.
   "`Offered(want is Shown or ShownAt)`" and "`Applied(want is Shown)`" for
   the action and rewrite surfaces, but its `Want` had no variant to hold
   them, and `expected` returns `Expect`s. A row never writes either.
-- `Row` gains `defect: Option<Defect>` (D45). Row 36 needs it: its wanted
-  reason does not hold on any program (§ Open questions 10).
+- `Row` gains `defects: &'static [Defect]` (D45), and a surface appears in
+  one defect at most. Rows 36 and 37 need it: their wanted reasons do not
+  hold on some surfaces with any program (§ Open questions 10 and 11).
 
 `ROWS` holds the item's 41 rows in its order, with its programs and lines
 unchanged. `runs_on` computes the item's surfaces column for every row, and
@@ -1295,7 +1296,8 @@ spelling leaves it out), `every_reason_is_covered`,
 `the_surfaces_each_row_runs_on`, `the_surface_rules_restate_the_page`,
 `a_layer_round_trips_through_its_ini_file`, `the_slot_becomes_flags`,
 `check_names_the_row_and_the_mismatch`, `a_fixed_defect_fails_its_row`,
-`offered_reads_each_subjects_action`, `row_names_are_unique_and_snake_case`;
+`a_defect_names_each_surface_once`, `offered_reads_each_subjects_action`,
+`row_names_are_unique_and_snake_case`;
 and in `policy_tests`, `directives_agree_with_line_suppressed` (seven maps:
 an inline and the file bucket, each holding `*`, W210 or W112, and every
 entry at once; W210, W112 and W118 at lines 0–3).
@@ -1308,13 +1310,29 @@ fires, and the editor shows both. `suppress_duplicate_o120` compared equal
 ranges too, so this predates the lane, and every O120 test builds its
 findings by hand at one span. Row 36 keeps its wanted reason. Its defect
 pins today's rendering on `Core` and `Lsp` (W110 and O120 both shown). On
-`Cli` and `Mcp` the row holds as wanted, because the optimiser is off there.
-§ Open questions 10 asks the owner for the fix.
+`Cli` and `Mcp` the overlap cannot show at all, because the optimiser is
+off there. § Open questions 10 asks the owner for the fix.
 
-Suites: core `--lib` 2339 and `--lib --features truth-table` 2339. Pedantic
-clippy on `tcl-lsp-core` with `--all-targets --all-features --no-deps -D
-warnings` is clean, with the helpers only the tests read kept in the tests
-module. `cargo fmt --check` is clean and `cargo check --workspace` is
+A second defect is on `Cli` and `Mcp`, and a follow-up commit records it.
+The item's rule renders O120 there as an `OptimiserOff` suppression.
+`tcl diag` and the MCP diagnostics tools never run the optimiser, though:
+`standalone_findings` runs the analyser, the O111 producer and the compiler
+checks, and O120 comes only from `optimise_with_dialect`. So O120 has no
+finding on those surfaces and no declared gap, and `--show-suppressed` and
+`suppressed` cannot explain its absence. On the built `tcl`, `diag --json
+--show-suppressed` over row 36's program shows W110 at line 2, and the
+`suppressed` array is empty. With `--disable W110` it holds only W110's
+`disabled:invocation` gap. A code a compiler check emits is suppressed as
+the rule says: O100 (`a_check_emitted_rewrite_is_suppressed_not_missing`),
+and O111 on rows 39–41. Rows 36 and 37 record the defect on `Cli` and `Mcp`
+(`REWRITE_NOT_RUN`: today W110 as the rules derive it, and nothing for
+O120). DP9.6 and DP9.7 therefore meet it as a recorded defect, not as a
+failing row. § Open questions 11 asks the owner.
+
+Suites: core `--lib` 2339 and `--lib --features truth-table` 2339 at the
+item's commit, 2340 each with the follow-up's test. Pedantic clippy on
+`tcl-lsp-core` with `--all-targets --all-features --no-deps -D warnings`
+is clean, with the helpers only the tests read kept in the tests module. `cargo fmt --check` is clean and `cargo check --workspace` is
 green. No lockfile change, and nothing regenerates.
 
 ### DP9.5 — the LSP and code-action passes on the server
@@ -3819,7 +3837,9 @@ Decisions slices 8 and 9 took:
   named surfaces to what they render today (derived by the same rules),
   and makes `check` fail once the wanted outcome holds. The fix then
   removes the marker in the same change, and the defect cannot drift
-  unnoticed meanwhile.
+  unnoticed meanwhile. A row can record several defects, one for each set
+  of surfaces with its own `today`: row 36 records one on `Core` and `Lsp`
+  and one on `Cli` and `Mcp`.
 
 ### Open questions for the owner
 
@@ -3878,6 +3898,19 @@ Each with the assumption the plan proceeds on.
     span lie within the superseded finding's span (a new `OverlapScope`),
     or anchor W110 on the condition. Assumption: left as it is; row 36
     records the defect (D45).
+11. **The diagnostics verbs and tools do not run the optimiser (DP9.4).**
+    `tcl diag` / `lint` / `validate` and the MCP diagnostics tools run the
+    analyser, the O111 producer and the compiler checks. A rewrite only the
+    optimiser emits, such as O120 or O101, therefore has no finding there
+    and no declared gap. The page's rule 2 wants a production skip declared,
+    and the truth table's rule wants such a code shown as an `OptimiserOff`
+    suppression. There are three fixes. `standalone_findings` could run the
+    optimiser, so every rewrite is decided like O100 and O111; that costs one
+    optimiser run per document and changes `--show-suppressed` and
+    `suppressed`. The verbs could declare the optimiser's codes as a gap,
+    which buries the answer as the default-off seed would (D21). Or the
+    table's rule could be narrowed to the codes a check emits. Assumption:
+    left as it is; rows 36 and 37 record it on `Cli` and `Mcp` (D45).
 
 ### Review checklist per slice
 
@@ -4108,7 +4141,7 @@ Each item updates its row in the commit that lands it.
 | DP9.1 | sonnet | S | done — § *Slices 8–10 as built* | `DP9.1 — One spelling for every reason, and the report's gaps` | core `--lib` (2328, `-- diagnostic_policy` 97); clippy on core; `cargo fmt`; `cargo check --workspace` |
 | DP9.2 | sonnet | M | done — § *Slices 8–10 as built* | `DP9.2 — --show-suppressed on tcl diag / lint` | `tcl-cli` lib 27, `cli` 45, `compile_verbs` 11, `explorer_gui` 2, `pkg_verbs` 13, `spec_verbs` 18; clippy on `tcl-cli`; `cargo fmt`; `cargo xtask kcs-index-links`; `cargo check --workspace` |
 | DP9.3 | sonnet | M | done — § *Slices 8–10 as built* | `DP9.3 — the MCP suppressed array` | `tcl-mcp` 100; clippy on `tcl-mcp`; `cargo fmt`; `cargo check --workspace` |
-| DP9.4 | opus | L | done — § *Slices 8–10 as built* | `DP9.4 — the truth table and its core pass` | core `--lib` (2339) and `--lib --features truth-table` (2339); pedantic clippy on `tcl-lsp-core` with `--all-targets --all-features`; `cargo check --workspace` |
+| DP9.4 | opus | L | done — § *Slices 8–10 as built* | `DP9.4 — the truth table and its core pass`; follow-up `DP9.4 follow-up — rows 36 and 37 record the verbs' missing rewrite` | core `--lib` and `--lib --features truth-table` (2340 each); pedantic clippy on `tcl-lsp-core` and `tcl-lsp-server` with `--all-targets --all-features`; the server passes; `cargo check --workspace` |
 | DP9.5 | opus | M | done — § *Slices 8–10 as built* | `DP9.5 — the LSP and code-action passes on the server` | server `--lib` (590); the `e2e` subset `config` and the whole `e2e`; pedantic clippy on `tcl-lsp-server` with `--all-targets --all-features`; `cargo check --workspace` |
 | DP9.6 | sonnet | M | not started | — | — |
 | DP9.7 | sonnet | M | not started | — | — |

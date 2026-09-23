@@ -34,9 +34,9 @@
 //! where a row says, the program or the line changes, never the wanted
 //! reason — a reason that does not hold is a defect in the policy step or in
 //! an adapter. A row whose wanted outcome does not hold today says so with a
-//! [`Defect`]: [`check`] holds the surfaces it names to what they render
-//! today, and fails the day the wanted outcome holds, so the fix removes the
-//! marker.
+//! [`Defect`] per set of surfaces it fails on: [`check`] holds those surfaces
+//! to what they render today, and fails the day the wanted outcome holds, so
+//! the fix removes the marker.
 //!
 //! Compiled for this crate's tests and, through the `truth-table` feature,
 //! for the adapter crates' tests, which enable the feature from their
@@ -118,9 +118,9 @@ pub struct Row {
     pub exhaustive: bool,
     /// What the editor's report holds for the codes the row names.
     pub expect: &'static [Expect],
-    /// A defect the row records: where the wanted outcome does not hold
-    /// today.
-    pub defect: Option<Defect>,
+    /// The defects the row records: where the wanted outcome does not hold
+    /// today. A surface is in one defect at most.
+    pub defects: &'static [Defect],
 }
 
 /// A row whose wanted outcome does not hold on some surfaces today — a
@@ -500,13 +500,14 @@ pub fn offered(code: DiagCode, line: u32, actions: &[ActionView<'_>]) -> bool {
 /// severity; codes the row does not name are ignored unless `exhaustive`,
 /// which forbids any other shown code. Every failure names the row.
 ///
-/// On a surface a row's [`Defect`] names, the rendering is held to the
-/// defect's `today` instead, and a rendering that meets the wanted outcome
-/// fails: the defect is fixed, and the marker goes with it.
+/// On a surface one of a row's [`Defect`]s names, the rendering is held to
+/// that defect's `today` instead, and a rendering that meets the wanted
+/// outcome fails: the defect is fixed, and the marker goes with it.
 pub fn check(row: &Row, surface: Surface, observed: &[Observed]) -> Result<(), String> {
     let Some(defect) = row
-        .defect
-        .filter(|defect| defect.surfaces.contains(&surface))
+        .defects
+        .iter()
+        .find(|defect| defect.surfaces.contains(&surface))
     else {
         return compare(row, row.expect, surface, observed);
     };
@@ -700,7 +701,7 @@ const fn row(name: &'static str, program: &'static str, expect: &'static [Expect
         project: None,
         exhaustive: false,
         expect,
-        defect: None,
+        defects: &[],
     }
 }
 
@@ -733,6 +734,18 @@ const fn hidden(reason: Reason) -> Want {
 }
 
 const DISABLED_EDITOR: Reason = Reason::Disabled(PolicyLayer::Editor);
+
+/// The diagnostics verbs and tools do not run the optimiser, so a rewrite no
+/// compiler check emits — O120 — has no finding there and no declared gap:
+/// `--show-suppressed` and `suppressed` cannot say why it is absent, where
+/// the table wants it as an `OptimiserOff` suppression. Today they render
+/// the row's other codes as the rules derive them and nothing for O120.
+const REWRITE_NOT_RUN: Defect = Defect {
+    surfaces: &[Surface::Cli, Surface::Mcp],
+    today: &[at(DiagCode::W110, 2, Want::Shown)],
+    note: "`tcl diag` and the MCP diagnostics tools do not run the optimiser, so O120 \
+           has no finding and no declared gap there",
+};
 
 /// The rows, numbered as `docs/design/lanes/diagnostic-policy.md` § DP9.4
 /// numbers them.
@@ -1042,16 +1055,19 @@ pub const ROWS: &[Row] = &[
     },
     // 36–38: the overlap table.
     Row {
-        defect: Some(Defect {
-            surfaces: &[Surface::Core, Surface::Lsp],
-            today: &[
-                at(DiagCode::W110, 2, Want::Shown),
-                at(DiagCode::O120, 2, Want::Shown),
-            ],
-            note: "W110 never owns O120: the analyser anchors W110 on the `==` operator \
-                   and the optimiser spans O120 over the whole condition, so the \
-                   same-span overlap never fires and both show",
-        }),
+        defects: &[
+            Defect {
+                surfaces: &[Surface::Core, Surface::Lsp],
+                today: &[
+                    at(DiagCode::W110, 2, Want::Shown),
+                    at(DiagCode::O120, 2, Want::Shown),
+                ],
+                note: "W110 never owns O120: the analyser anchors W110 on the `==` \
+                       operator and the optimiser spans O120 over the whole \
+                       condition, so the same-span overlap never fires and both show",
+            },
+            REWRITE_NOT_RUN,
+        ],
         ..row(
             "a_same_span_overlap",
             STREQ,
@@ -1069,6 +1085,10 @@ pub const ROWS: &[Row] = &[
     },
     Row {
         slot: Some(r#"{"diagnostics": {"W110": false}}"#),
+        defects: &[Defect {
+            today: &[gap(DiagCode::W110, DISABLED_EDITOR)],
+            ..REWRITE_NOT_RUN
+        }],
         ..row(
             "an_overlap_needs_a_standing_owner",
             STREQ,
@@ -1240,10 +1260,10 @@ mod tests {
     /// The expectations that hold on `surface`: a defect's `today` where it
     /// names the surface, else the row's own.
     fn holding_on(row: &Row, surface: Surface) -> &'static [Expect] {
-        match row.defect {
-            Some(defect) if defect.surfaces.contains(&surface) => defect.today,
-            _ => row.expect,
-        }
+        row.defects
+            .iter()
+            .find(|defect| defect.surfaces.contains(&surface))
+            .map_or(row.expect, |defect| defect.today)
     }
 
     #[test]
@@ -1264,8 +1284,10 @@ mod tests {
                 note(expect.want);
             }
             if row.runs_on(Surface::Cli) {
-                for expect in row.expected(Surface::Cli) {
-                    note(expect.want);
+                for expect in holding_on(row, Surface::Cli) {
+                    if let Some(rendered) = rendered(*expect, Surface::Cli) {
+                        note(rendered.want);
+                    }
                 }
             }
         }
@@ -1466,12 +1488,37 @@ mod tests {
         assert!(check(row, Surface::Lsp, &[]).is_ok());
     }
 
+    /// A defect names surfaces the row runs on, and a surface is in one of
+    /// a row's defects at most, so `check` never has two `today`s to choose
+    /// from.
+    #[test]
+    fn a_defect_names_each_surface_once() {
+        for row in ROWS {
+            let mut named: Vec<Surface> = Vec::new();
+            for defect in row.defects {
+                for surface in defect.surfaces {
+                    assert!(
+                        row.runs_on(*surface),
+                        "row `{}` records a defect on {surface:?}, which it does not run on",
+                        row.name
+                    );
+                    assert!(
+                        !named.contains(surface),
+                        "row `{}` names {surface:?} in two defects",
+                        row.name
+                    );
+                    named.push(*surface);
+                }
+            }
+        }
+    }
+
     #[test]
     fn a_fixed_defect_fails_its_row() {
         let row = ROWS
             .iter()
-            .find(|row| row.defect.is_some())
-            .expect("a row that records a defect");
+            .find(|row| row.name == "a_same_span_overlap")
+            .expect("the row that records the overlap defect");
         let shown = |code: DiagCode| Observed {
             code,
             line: Some(2),
