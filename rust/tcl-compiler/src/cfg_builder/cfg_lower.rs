@@ -1043,6 +1043,32 @@ impl CfgBuilder<'_> {
         )
     }
 
+    /// Whether a handler can never run because an earlier one always takes
+    /// its completions first: Tcl runs only the first matching handler, so
+    /// after `on error {} {set x 1}` a second `on error` is dead, and giving
+    /// it edges drew W210 on a `finally` that always sees `x` set (found in
+    /// review). Only an earlier unconditional handler (not `trap`) with the
+    /// same decoded code proves it, and never for the target of a `-` chain,
+    /// whose block holds the body the earlier `-` handlers run.
+    fn handler_shadowed(
+        &self,
+        earlier: &[crate::ir::TryHandler],
+        handler: &crate::ir::TryHandler,
+    ) -> bool {
+        if earlier.last().is_some_and(|h| h.fallthrough) {
+            return false;
+        }
+        let Some(code) = self.handler_code(handler) else {
+            return false;
+        };
+        earlier.iter().any(|h| {
+            !h.fallthrough
+                && h.kind != "trap"
+                && h.trap_pattern.is_none()
+                && self.handler_code(h) == Some(code)
+        })
+    }
+
     /// Whether `block` ends in a statement whose completion code `handler` is
     /// known not to select: both codes decoded by the registry — the handler's
     /// through its completion-code selector (`trap` is an error) — and
@@ -1302,23 +1328,24 @@ impl CfgBuilder<'_> {
         let outer_entry = self.try_entry.replace(body_block.clone());
 
         // Each handler reachable from body failure.
-        for handler in handlers {
+        for (index, handler) in handlers.iter().enumerate() {
             let handler_block = self.new_block("try_handler");
             handler_blocks.push(handler_block.clone());
             self.ensure_goto(block_name, &handler_block, Some(*span));
 
-            // `block_name` already gotos `try_body` (single successor), so a
-            // real terminator edge can't reach the handler. Record throw edges
-            // instead (SSA phi predecessors + SCCP reachability, analysis builds
-            // only) via the helper below.
-            self.push_try_handler_exception_edges(
-                handler,
-                &handler_block,
-                block_name,
-                body_tail.as_deref(),
-                &body_throw_blocks,
-                body_terminal.as_deref(),
-            );
+            // Record throw edges into the handler (analysis builds only):
+            // `block_name` already gotos `try_body`. None for a handler an
+            // earlier one always pre-empts.
+            if !self.handler_shadowed(&handlers[..index], handler) {
+                self.push_try_handler_exception_edges(
+                    handler,
+                    &handler_block,
+                    block_name,
+                    body_tail.as_deref(),
+                    &body_throw_blocks,
+                    body_terminal.as_deref(),
+                );
+            }
 
             let var_defs = handler_var_defs(handler, &mut pending_fallthrough_defs);
             self.push_handler_var_defs(&handler_block, var_defs, *span);

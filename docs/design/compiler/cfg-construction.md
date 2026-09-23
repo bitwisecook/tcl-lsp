@@ -270,6 +270,12 @@ shares), so the `finally` routing never resumes it, and
 handler met first whose selector cannot be decoded might catch it instead,
 and then the jump keeps its edge.
 
+A handler an earlier one always pre-empts gets no edges at all: Tcl runs
+only the first matching handler, so a second `on error` after an
+unconditional `on error` is dead.  Only an earlier non-`trap` handler with
+the same decoded code proves it, and never for the target of a `-` chain,
+whose block holds the body the earlier `-` handlers run.
+
 A handler of a body with a resting tail takes its exception edges from the
 pre-`try` block, the tail, **and** every recorded throw point: an `error`
 inside a nested `if`, or a `finally` that only resumes unwinding, raises

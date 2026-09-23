@@ -2937,6 +2937,12 @@ fn a_try_finally_does_not_hide_the_names_bound_around_it() {
             "bound by an inner handler after a literal assignment",
             "proc p {} {\n    try { try {set z 0; error boom} on error {} {set x 1; return} finally {} } finally {puts $x}\n}\n",
         ),
+        // Only the first matching handler runs; the second `on error` is dead,
+        // and tclsh prints `1` (found in review).
+        (
+            "bound by the first of two handlers for the same code",
+            "proc p {} {\n    try {error boom} on error {} {set x 1} on error {} {return} finally {puts $x}\n}\n",
+        ),
         // The handler's `exit` ends the process before the clause could read;
         // binding `msg` first does not change that (found in review).
         (
