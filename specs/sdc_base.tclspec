@@ -17,7 +17,7 @@
 # from the registry modules, which reported no unwritable field on any command
 # here; this file is hand-maintained from now on.
 
-speclib sdc_base 1.1 {
+speclib sdc_base 2.2 {
 
 display_name {Synopsys Design Constraints}
 
@@ -105,6 +105,11 @@ command append_to_collection {
     required_package sdc
 
     arg 0 -role VarWrite
+
+    semantics {
+        stores -targets {0} -outcome may_write
+    }
+    evaluate none
 
     form Default {append_to_collection collection ?-unique? objects}
 
@@ -235,6 +240,19 @@ command foreach_in_collection {
     arg 2 -role Body
 
     analyser_hook -native Foreach
+
+    semantics {
+        iterate {
+            binder -arg 0 -grammar vendor.single_variable
+            iterable -arg 1 -kind vendor.collection
+            body -arg 2 -scope enclosing
+            yield -semantic vendor.object_handle
+            cardinality -from vendor.collection_summary
+            completion -contract vendor.collection_loop_completion
+            zero_iterations -bindings preserve
+        }
+    }
+    evaluate none
 
     form Default {foreach_in_collection var collection body}
 
@@ -395,6 +413,11 @@ command remove_from_collection {
     required_package sdc
 
     arg 0 -role VarWrite
+
+    semantics {
+        stores -targets {0} -outcome may_write
+    }
+    evaluate none
 
     form Default {remove_from_collection collection objects}
 

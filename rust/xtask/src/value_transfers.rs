@@ -1011,20 +1011,6 @@ const KNOWN_GAPS: &[(&str, &str)] = &[
         "info default",
         "slice 13 — the parameter default the transfer summary carries",
     ),
-    // Slice 4, a private SpecTcl command through the same interface: the
-    // shipped EDA packs declare theirs in `.tclspec` once the spelling lands.
-    (
-        "append_to_collection",
-        "slice 4 — the `.tclspec` `semantics` spelling; the pack declares the collection update",
-    ),
-    (
-        "remove_from_collection",
-        "slice 4 — the `.tclspec` `semantics` spelling; the pack declares the collection update",
-    ),
-    (
-        "foreach_in_collection",
-        "slice 4 — the `.tclspec` `semantics` spelling; the pack declares the iteration binder",
-    ),
     // Slice 7, broader execution: the list cell updates over new shared
     // cores, then tcllib and the Tcl-level library procedures moving to
     // SpecTcl with a declared implementation.
