@@ -67,10 +67,3 @@ checkpoint compiling.
   [registry-consumer-contracts.md](../compiler/registry-consumer-contracts.md)
   § *Build order*: the four rulings taken as decided, and the documents whose
   stated rule they replace repaired. Documents only.
-- [diagnostic-policy.md](diagnostic-policy.md) — slices 1 to 7 of
-  [diagnostic-policy.md](../compiler/diagnostic-policy.md) § *Slices* have
-  landed: the finding, the policy and `apply` (1–3), and the LSP, CLI, MCP
-  and code-action adapters, each rendering one report (4–7, closing #2061,
-  #2062 and #2063). Slices 8 to 10 — O111 as a producer, the truth table
-  with `--show-suppressed` and the MCP `suppressed` array, and the owner
-  documents — are the tracking document's remaining plan items.
