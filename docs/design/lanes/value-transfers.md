@@ -2224,7 +2224,8 @@ gains a D-number for any deviation the item needs.
 | VT3.4 | `e29ba422` | `evaluate_branch` takes `BranchFold` with the driver and evaluates through `evaluate_condition`, per member of one finite input | `a_finite_condition_decides_when_every_member_agrees` (witnesses); `sccp::tests::evaluate_branch_resolves_a_nested_command` |
 | VT3.7 | the third checkpoint | `reassociate_node(node, types)`; a closed left operand still folds (`fold_closed_left`) | `reassociation_refuses_an_unproven_float_term`; `o110_reassociates_constant_chains`, `instcombine_reassociation_and_identity_annihilator` and `o110_reassociation` restated over proven integers |
 | VT3.8 | the third checkpoint | `FormatTemplateSemantics` over `format_cmd_with_syntax`; `NativeEvalId::FormatTemplate.owner()` is `Registry`; `transitional_direct`, its waiver and `try_format_fold` went; the ledger row went | `format_runs_the_shared_core`, `format_answers_per_release` (registry); `format_witnesses_match_every_release_on_path` (`differential_fold.rs`); `format_folds_through_the_shared_core` (witnesses) |
-| VT3.6 | the VT3.6 commit | `lifted_exprs` and `expr_substitution_body` resolve `expr` through the registry's `Traits::EXPR_CONCATENATES_ARGS`, not the spelling, matching `optimiser::tail_call` and `optimiser::end_offset`'s existing resolution; `word_subst.rs` and `shimmer/commit.rs` join `CLEAN_FILES`, their ratchet rows go | no new test (R6, no behaviour change): the crate's existing `word_subst` and `shimmer` suites stay green; G1's fall from one pinned site each to zero is the evidence |
+| VT3.6 | `636f9e2f` | `lifted_exprs` and `expr_substitution_body` resolve `expr` through the registry's `Traits::EXPR_CONCATENATES_ARGS`, not the spelling, matching `optimiser::tail_call` and `optimiser::end_offset`'s existing resolution; `word_subst.rs` and `shimmer/commit.rs` join `CLEAN_FILES`, their ratchet rows go | no new test (R6, no behaviour change): the crate's existing `word_subst` and `shimmer` suites stay green; G1's fall from one pinned site each to zero is the evidence |
+| VT3.9 | the VT3.9 commit | `RouteTally { direct, expression, implementation }` on `SccpResult`; `call_def` counts `direct`, `run_script` counts `direct` or `expression` per its resolved route (`Implementation` counts too, currently always 0 pre-slice-4), `evaluate_assign_expr` and `evaluate_condition` count `expression`; `LatticeDriver::reset_tally_for_sweep` keeps the fixed point's re-evaluation from over-counting (D62); the Explorer's `sccp` view renders `routes entered: direct N · expression M · implementation K` beside the executable-blocks summary | `route_entries_are_counted_per_family` (compiler witnesses); `serialise::tests::sccp_reports_the_route_tally` |
 
 Deltas observed beyond the plan's list, each with its oracle:
 
@@ -2269,20 +2270,11 @@ Found and left:
 
 The state the sonnet items start from:
 
-- **VT3.9** counts at these route entries:
-  - `LatticeDriver::call_def` — direct: the typed `incr` and every call;
-  - `run_script` — each `[…]` in value position and each nested one, direct
-    or expression;
-  - `evaluate_assign_expr` and `evaluate_condition` — expression.
-
-  An expression explanation reads `expression tcl.expr` with the lift's
-  answer label, and a branch condition's is recorded under the command
-  `condition` at the condition's span.
 - **VT3.10**: the witnesses above exist, and so does
-  `format_witnesses_match_every_release_on_path`. Still to add:
+  `format_witnesses_match_every_release_on_path` and (VT3.9)
+  `route_entries_are_counted_per_family`. Still to add:
   `expr_acceptance_list`, `the_square_of_one_finite_input_stays_correlated`,
   `the_mirror_pairs_decline_as_correlated`,
-  `route_entries_are_counted_per_family`,
   `expression_witnesses_match_every_release_on_path` and the CLI test.
   For their "unnamed release" rows (D48):
   - `expr {"010"}` folds to 8 under f5-irules, whose 8.4 runtime reads a
@@ -5821,6 +5813,23 @@ Taken while slice 3's opus items were executed (§ *Slice 3* › *Record
   + 2}]` keeps its chain, because nothing proves `request_count` an
   integer. The standard, full and aggressive counts fall from 28, 35 and
   45 to 27, 34 and 44, and the README prose says why.
+
+Taken while slice 3's sonnet items were executed (§ *Slice 3* › *Record
+(2026-09-23): the opus items of slice 3* has the witnesses):
+
+- **D62 — The route tally resets at the top of each SCCP sweep.** The
+  fixed point re-evaluates every executable statement each sweep until
+  its answers stop changing, and once more to finalise
+  (`rust/tcl-compiler/src/sccp.rs`'s `loop { … }`), so a counter
+  incremented at every call to `call_def` / `run_script` /
+  `evaluate_assign_expr` / `evaluate_condition` triples the true count on
+  a straight-line program with no loop or branch to re-converge.
+  `LatticeDriver::reset_tally_for_sweep` zeroes `RouteTally` at the top of
+  each sweep, so only the last (settled) sweep's entries survive to
+  `SccpResult::route_tally`; the branch-fold pass that runs once after the
+  fixed point (`collect_constant_branches`) adds to that settled count,
+  which is why a single decided `if {1} {…}` counts as two expression
+  entries (reachability, then the collected branch), not one.
 
 ### Open questions for the owner
 

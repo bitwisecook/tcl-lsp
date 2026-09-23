@@ -571,6 +571,7 @@ mod tests {
         let ssa = make_ssa(&cfg);
         let sccp = SccpResult {
             explanations: Vec::new(),
+            route_tally: crate::value_transfer::RouteTally::default(),
             values: HashMap::new(),
             executable_blocks: id_set(&cfg, &["entry", "t"]),
             executable_edges: HashSet::default(),
@@ -629,6 +630,7 @@ mod tests {
         let ssa = make_ssa(&cfg);
         let sccp = SccpResult {
             explanations: Vec::new(),
+            route_tally: crate::value_transfer::RouteTally::default(),
             values: HashMap::new(),
             executable_blocks: id_set(&cfg, &["entry", "e"]),
             executable_edges: HashSet::default(),
@@ -681,6 +683,7 @@ mod tests {
         let ssa = make_ssa(&cfg);
         let sccp = SccpResult {
             explanations: Vec::new(),
+            route_tally: crate::value_transfer::RouteTally::default(),
             values: HashMap::new(),
             executable_blocks: id_set(&cfg, &["entry", "e"]),
             executable_edges: HashSet::default(),
@@ -730,6 +733,7 @@ mod tests {
         let ssa = make_ssa(&cfg);
         let sccp = SccpResult {
             explanations: Vec::new(),
+            route_tally: crate::value_transfer::RouteTally::default(),
             values: HashMap::new(),
             executable_blocks: id_set(&cfg, &["entry", "mid", "inner_else"]),
             executable_edges: HashSet::default(),
@@ -809,6 +813,7 @@ mod tests {
         );
         let sccp = SccpResult {
             explanations: Vec::new(),
+            route_tally: crate::value_transfer::RouteTally::default(),
             values,
             executable_blocks: id_set(&cfg, &["entry", "mid", "t", "e"]),
             executable_edges: HashSet::default(),
@@ -864,6 +869,7 @@ mod tests {
         values.insert((x, 1), LatticeValue::Overdefined);
         let sccp = SccpResult {
             explanations: Vec::new(),
+            route_tally: crate::value_transfer::RouteTally::default(),
             values,
             executable_blocks: id_set(&cfg, &["entry", "t", "e"]),
             executable_edges: HashSet::default(),
@@ -899,6 +905,7 @@ mod tests {
         let ssa = make_ssa(&cfg);
         let sccp = SccpResult {
             explanations: Vec::new(),
+            route_tally: crate::value_transfer::RouteTally::default(),
             values: HashMap::new(),
             executable_blocks: id_set(&cfg, &["entry", "t"]),
             executable_edges: HashSet::default(),
@@ -947,6 +954,7 @@ mod tests {
         let ssa = make_ssa(&cfg);
         let sccp = SccpResult {
             explanations: Vec::new(),
+            route_tally: crate::value_transfer::RouteTally::default(),
             values: HashMap::new(),
             executable_blocks: id_set(&cfg, &["switch_probe_0", "arm_a"]),
             executable_edges: HashSet::default(),

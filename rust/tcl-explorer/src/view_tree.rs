@@ -554,6 +554,17 @@ fn build_sccp(d: &Value) -> Vec<ViewNode> {
             )],
             Some("cyan"),
         ));
+        let tally = &f["routeTally"];
+        children.push(ViewNode::leaf(
+            format!(
+                "routes entered: direct {} · expression {} · implementation {}",
+                tally["direct"].as_u64().unwrap_or(0),
+                tally["expression"].as_u64().unwrap_or(0),
+                tally["implementation"].as_u64().unwrap_or(0),
+            ),
+            Vec::new(),
+            Some("cyan"),
+        ));
         for branch in arr(f, "constantBranches") {
             children.push(ViewNode::leaf(
                 format!("branch {}: {}", s(branch, "block"), pystr(&branch["value"])),

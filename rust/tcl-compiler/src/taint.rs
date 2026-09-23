@@ -6142,6 +6142,7 @@ mod tests {
     fn simple_sccp(blocks: &[BlockId]) -> SccpResult {
         SccpResult {
             explanations: Vec::new(),
+            route_tally: crate::value_transfer::RouteTally::default(),
             values: HashMap::new(),
             executable_blocks: blocks.iter().copied().collect(),
             executable_edges: HashSet::new(),

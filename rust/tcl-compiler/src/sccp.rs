@@ -207,6 +207,9 @@ pub struct SccpResult {
     /// declared and how it answered at the fixed point — what the
     /// Explorer's `sccp` view renders beside the lattice.
     pub explanations: Vec<crate::value_transfer::RouteExplanation>,
+    /// How many times the run dispatched to each route family, nested
+    /// entries included.
+    pub route_tally: crate::value_transfer::RouteTally,
 }
 
 /// Sparse Conditional Constant Propagation driver.
@@ -459,6 +462,10 @@ pub fn sccp_with_builtin_folds(
         let mut changed = true;
         while changed {
             changed = false;
+            // Every sweep re-evaluates each executable statement from
+            // scratch, so only the settled sweep's route entries — the
+            // last one run — should reach the tally.
+            driver.reset_tally_for_sweep();
             for bn in &order {
                 if !executable_blocks.contains(bn) {
                     continue;
@@ -540,6 +547,7 @@ pub fn sccp_with_builtin_folds(
         executable_edges,
         constant_branches,
         explanations: driver.take_explanations(),
+        route_tally: driver.take_route_tally(),
     }
 }
 

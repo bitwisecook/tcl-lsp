@@ -131,6 +131,25 @@ pub struct RouteExplanation {
     pub answer: String,
 }
 
+/// How many times the run dispatched to each route family, nested entries
+/// included: `call_def` (the typed `incr` and every call) and a
+/// direct-routed `run_script` count in [`Self::direct`]; a `run_script` that
+/// resolves to `expr`, `evaluate_assign_expr` and `evaluate_condition` count
+/// in [`Self::expression`]; an implementation-routed `run_script` counts in
+/// [`Self::implementation`]. Carries no span — a route entry has no one
+/// statement of its own once nesting is counted — so `lattice_rebase.rs`
+/// does not touch it. The Explorer's `sccp` view renders it as `routes
+/// entered: direct N · expression M · implementation K`.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct RouteTally {
+    /// Entries into a registry-owned direct evaluator.
+    pub direct: u32,
+    /// Entries into the shared expression engine.
+    pub expression: u32,
+    /// Entries into a declared `EvaluatorCapability` implementation.
+    pub implementation: u32,
+}
+
 /// The driver's per-run state: the registry the unit resolves against, the
 /// whole-module trust fact when the caller holds one, the fold policy, the
 /// analysis context every answer is memoised under, and the route
@@ -153,6 +172,8 @@ pub(crate) struct LatticeDriver<'a> {
     explaining: Cell<Option<Span>>,
     /// The last explanation recorded per statement.
     explanations: RefCell<BTreeMap<(u32, u32), RouteExplanation>>,
+    /// The run's route-entry counts so far.
+    tally: Cell<RouteTally>,
 }
 
 /// The lattice value of one member-wise evaluation: the constant `pick`
@@ -272,6 +293,7 @@ impl<'a> LatticeDriver<'a> {
             nesting: Cell::new(0),
             explaining: Cell::new(None),
             explanations: RefCell::new(BTreeMap::new()),
+            tally: Cell::new(RouteTally::default()),
         }
     }
 
@@ -321,6 +343,44 @@ impl<'a> LatticeDriver<'a> {
         std::mem::take(&mut *self.explanations.borrow_mut())
             .into_values()
             .collect()
+    }
+
+    /// Count one entry into the direct-evaluator family.
+    fn enter_direct(&self) {
+        let mut tally = self.tally.get();
+        tally.direct += 1;
+        self.tally.set(tally);
+    }
+
+    /// Count one entry into the expression-engine family.
+    fn enter_expression(&self) {
+        let mut tally = self.tally.get();
+        tally.expression += 1;
+        self.tally.set(tally);
+    }
+
+    /// Count one entry into the declared-implementation family.
+    fn enter_implementation(&self) {
+        let mut tally = self.tally.get();
+        tally.implementation += 1;
+        self.tally.set(tally);
+    }
+
+    /// The run's route-entry counts, direct, expression and implementation
+    /// dispatches alike, nested entries included.
+    pub(crate) fn take_route_tally(&self) -> RouteTally {
+        self.tally.take()
+    }
+
+    /// Zero the tally, for the start of one full sweep over the CFG's
+    /// blocks. The fixed point re-evaluates every executable statement
+    /// each sweep until its answers stop changing, and once more to
+    /// finalise, so counting every call would report a multiple of the
+    /// true entry count; resetting at the top of each sweep keeps only the
+    /// last one's, which is the settled answer's. The branch-fold pass that
+    /// follows the fixed point adds to that settled count.
+    pub(crate) fn reset_tally_for_sweep(&self) {
+        self.tally.set(RouteTally::default());
     }
 
     /// The per-evaluation budget a route runs under.
@@ -447,6 +507,7 @@ impl<'a> LatticeDriver<'a> {
         def: &str,
         inputs: &dyn AnalysisInputs,
     ) -> LatticeValue {
+        self.enter_direct();
         let route = semantics.route();
         if !matches!(route, EvalRoute::Direct { id } if id.owner() == EvaluatorOwner::Registry) {
             self.explain(
@@ -774,17 +835,21 @@ impl<'a> LatticeDriver<'a> {
         };
         let route = semantics.route();
         let answer = match route {
-            EvalRoute::Direct { id } => match id.owner() {
-                EvaluatorOwner::Registry => {
-                    evaluate_lifted(semantics, &inputs, &mut Self::budget(), MAX_CONSTSET_SIZE)
+            EvalRoute::Direct { id } => {
+                self.enter_direct();
+                match id.owner() {
+                    EvaluatorOwner::Registry => {
+                        evaluate_lifted(semantics, &inputs, &mut Self::budget(), MAX_CONSTSET_SIZE)
+                    }
+                    // No compiler-owned evaluator remains: a route the
+                    // registry does not own evaluates nothing here.
+                    EvaluatorOwner::Transitional { .. } => {
+                        LiftedAnswer::Declined(DeclineReason::Unsupported)
+                    }
                 }
-                // No compiler-owned evaluator remains: a route the registry
-                // does not own evaluates nothing here.
-                EvaluatorOwner::Transitional { .. } => {
-                    LiftedAnswer::Declined(DeclineReason::Unsupported)
-                }
-            },
+            }
             EvalRoute::Expression { language } => {
+                self.enter_expression();
                 let expression = ExpressionEvaluation {
                     expression: Expression::Assembled(ExpressionRoute { language }),
                     policy: self.policy,
@@ -793,7 +858,10 @@ impl<'a> LatticeDriver<'a> {
                 evaluate_lifted(&expression, &inputs, &mut Self::budget(), MAX_CONSTSET_SIZE)
             }
             EvalRoute::None { reason } => LiftedAnswer::Declined(DeclineReason::NoRoute(reason)),
-            EvalRoute::Implementation(_) => LiftedAnswer::Declined(DeclineReason::Unsupported),
+            EvalRoute::Implementation(_) => {
+                self.enter_implementation();
+                LiftedAnswer::Declined(DeclineReason::Unsupported)
+            }
         };
         Some(ScriptRun {
             head: head.to_owned(),
@@ -863,6 +931,7 @@ impl<'a> LatticeDriver<'a> {
         values: &HashMap<ValueKey, LatticeValue, S2>,
         ssa: &SsaFunction,
     ) -> LatticeValue {
+        self.enter_expression();
         let head = command_binding.map_or("expr", |binding| binding.name.as_str());
         if self.folds.is_some() && !self.trusted(head) {
             self.explain(head, None, "declined: rebinding-suspected".to_owned());
@@ -897,6 +966,7 @@ impl<'a> LatticeDriver<'a> {
         values: &HashMap<ValueKey, LatticeValue, S2>,
         ssa: &SsaFunction,
     ) -> Option<bool> {
+        self.enter_expression();
         let expression = ExpressionEvaluation {
             expression: Expression::Parsed(condition),
             policy: self.policy,

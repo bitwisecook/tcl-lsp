@@ -1684,6 +1684,7 @@ pub fn serialise_sccp(result: &ExplorerResult, li: &LineIndex, source: &str) -> 
                         "range": range_dict(explanation.span, li, source),
                     }))
                     .collect();
+                let tally = &snap.unit.sccp.route_tally;
                 json!({
                     "name": snap.name,
                     "kind": snap.kind.as_str(),
@@ -1692,6 +1693,11 @@ pub fn serialise_sccp(result: &ExplorerResult, li: &LineIndex, source: &str) -> 
                     "executableEdges": executable_edges,
                     "constantBranches": branches,
                     "routes": routes,
+                    "routeTally": {
+                        "direct": tally.direct,
+                        "expression": tally.expression,
+                        "implementation": tally.implementation,
+                    },
                 })
             })
             .collect(),
@@ -4137,6 +4143,30 @@ mod tests {
             .expect("the string range route");
         assert_eq!(range["route"], "direct string-range (registry)");
         assert_eq!(range["answer"], "evaluated");
+    }
+
+    /// The SCCP view's route tally counts every family's entries once,
+    /// nested ones included: two fused `expr` statements are two
+    /// expression entries, and the nested `string length` one of them
+    /// evaluates is a direct entry.
+    #[test]
+    fn sccp_reports_the_route_tally() {
+        let result = run_pipeline(
+            "proc p {} {set r [expr {\"x\"}]; \
+             set n [expr {[string length abcdef] * 2}]}\n",
+            "tcl8.6",
+        );
+        let sccp = serialise_result(&result)["sccp"].clone();
+        let proc_view = sccp
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|f| f["name"] == "::p")
+            .expect("the procedure's view");
+        let tally = &proc_view["routeTally"];
+        assert_eq!(tally["direct"], 1);
+        assert_eq!(tally["expression"], 2);
+        assert_eq!(tally["implementation"], 0);
     }
 
     #[test]

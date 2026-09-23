@@ -1130,3 +1130,49 @@ fn format_folds_through_the_shared_core() {
         }
     }
 }
+
+/// The route tally counts every family's entries once — the fixed point
+/// re-evaluates each statement several times before it settles, so only
+/// the settled sweep counts — with a nested route entry counted beside its
+/// host's: `set r [expr {"x"}]; set n [expr {[string length abcdef] *
+/// 2}]` is two fused expressions, one nesting a direct-routed `string
+/// length`, so `direct 1 · expression 2 · implementation 0`; `incr` alone
+/// is a direct entry with no expression; a decided literal condition is an
+/// expression entry, recorded once for reachability and once for the
+/// collected branch, so `if {1} {…}` is two expression entries and no
+/// direct one. No command declares an `EvaluatorCapability` yet, so
+/// `implementation` stays 0 throughout (slice 4).
+#[test]
+fn route_entries_are_counted_per_family() {
+    let tally_of = |source: &str, dialect: &str| {
+        unit_of(source, dialect)
+            .procedures
+            .get("::p")
+            .expect("the procedure")
+            .sccp
+            .route_tally
+    };
+    let nested_expr = "proc p {} {set r [expr {\"x\"}]; \
+                        set n [expr {[string length abcdef] * 2}]}";
+    let direct_only = "proc p {} {set x 1; incr x; return $x}";
+    let expression_only = "proc p {} {if {1} {puts a} else {puts b}}";
+    for dialect in DIALECTS {
+        let tally = tally_of(nested_expr, dialect);
+        assert_eq!(tally.direct, 1, "{dialect}: the nested `string length`");
+        assert_eq!(tally.expression, 2, "{dialect}: both fused `expr`s");
+        assert_eq!(tally.implementation, 0, "{dialect}");
+
+        let tally = tally_of(direct_only, dialect);
+        assert_eq!(tally.direct, 1, "{dialect}: the typed `incr`");
+        assert_eq!(tally.expression, 0, "{dialect}");
+        assert_eq!(tally.implementation, 0, "{dialect}");
+
+        let tally = tally_of(expression_only, dialect);
+        assert_eq!(tally.direct, 0, "{dialect}");
+        assert_eq!(
+            tally.expression, 2,
+            "{dialect}: the condition, reachability and the collected branch"
+        );
+        assert_eq!(tally.implementation, 0, "{dialect}");
+    }
+}
