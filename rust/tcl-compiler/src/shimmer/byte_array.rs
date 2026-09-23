@@ -257,6 +257,10 @@ fn byte_warning(
 struct ByteCorruption<'a> {
     registry: &'a CommandRegistry,
     payload_layouts: &'a HashMap<&'static str, BytePayloadSpec>,
+    /// The folded types SCCP's evaluations state: a value a route
+    /// constructed as a byte array is binary whatever its statement's
+    /// spelling says.
+    folded: &'a HashMap<ValueKey, crate::value_transfer::FoldedType>,
     prov: HashMap<ValueKey, ByteProvInfo>,
     warnings: Vec<ShimmerWarning>,
 }
@@ -265,12 +269,35 @@ impl<'a> ByteCorruption<'a> {
     fn new(
         registry: &'a CommandRegistry,
         payload_layouts: &'a HashMap<&'static str, BytePayloadSpec>,
+        folded: &'a HashMap<ValueKey, crate::value_transfer::FoldedType>,
     ) -> Self {
         Self {
             registry,
             payload_layouts,
+            folded,
             prov: HashMap::new(),
             warnings: Vec::new(),
+        }
+    }
+
+    /// Representation evidence as a byte source: each definition of the
+    /// statement the registry classification left untracked, whose
+    /// producing evaluation constructed a byte array, holds binary data
+    /// from here — the fact the route states, not a lattice string.
+    fn track_constructed_bytes(&mut self, defs: &HashMap<Symbol, u32>, span: Span, label: &str) {
+        for (&sym, &ver) in defs {
+            let key = (sym, ver);
+            if self.prov.contains_key(&key) {
+                continue;
+            }
+            let constructed = self
+                .folded
+                .get(&key)
+                .and_then(crate::value_transfer::FoldedType::constructed_intrep);
+            if constructed == Some(TclType::ByteArray) {
+                self.prov
+                    .insert(key, ByteProvInfo::binary(Some(span), label.to_owned()));
+            }
         }
     }
 
@@ -306,7 +333,10 @@ impl<'a> ByteCorruption<'a> {
                 match &ss.statement {
                     Statement::AssignValue {
                         name, value, span, ..
-                    } => self.track_assign_value(name, value, *span, &ss.defs, &ss.uses, ssa),
+                    } => {
+                        self.track_assign_value(name, value, *span, &ss.defs, &ss.uses, ssa);
+                        self.track_constructed_bytes(&ss.defs, *span, "a computed byte array");
+                    }
                     Statement::AssignExpr { name, span, .. } => {
                         self.track_assign_expr(name, *span, &ss.defs, &ss.uses, ssa);
                     }
@@ -315,7 +345,10 @@ impl<'a> ByteCorruption<'a> {
                         args,
                         span,
                         ..
-                    } => self.track_call(command, args, *span, &ss.defs, &ss.uses, ssa),
+                    } => {
+                        self.track_call(command, args, *span, &ss.defs, &ss.uses, ssa);
+                        self.track_constructed_bytes(&ss.defs, *span, command);
+                    }
                     _ => {}
                 }
             }
@@ -734,15 +767,23 @@ impl<'a> ByteCorruption<'a> {
 /// `payload_layouts` is the dialect-gated `*::payload` byte-command set (empty
 /// under non-iRules dialects); the plain-Tcl `binary` / `encoding` sources are
 /// always recognised via the registry.
+///
+/// `sccp` is the function's lattice: its reachability, and the folded types
+/// whose representation evidence names a value a route constructed as a
+/// byte array.
 #[must_use]
 pub(crate) fn find_byte_array_warnings(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
-    executable_blocks: &HashSet<BlockId>,
+    sccp: &crate::sccp::SccpResult,
     registry: &CommandRegistry,
     payload_layouts: &HashMap<&'static str, BytePayloadSpec>,
 ) -> Vec<ShimmerWarning> {
-    ByteCorruption::new(registry, payload_layouts).run(cfg, ssa, executable_blocks)
+    ByteCorruption::new(registry, payload_layouts, &sccp.folded_types).run(
+        cfg,
+        ssa,
+        &sccp.executable_blocks,
+    )
 }
 
 #[cfg(test)]
@@ -764,11 +805,7 @@ mod tests {
         let mut out = Vec::new();
         for fu in cu.analysable_functions() {
             out.extend(find_byte_array_warnings(
-                &fu.cfg,
-                &fu.ssa,
-                &fu.sccp.executable_blocks,
-                reg,
-                &layouts,
+                &fu.cfg, &fu.ssa, &fu.sccp, reg, &layouts,
             ));
         }
         out
@@ -854,6 +891,44 @@ mod tests {
         assert!(
             w.iter().any(|w| w.code == DiagCode::S110),
             "expected S110 for case fold on binary, got: {w:?}"
+        );
+    }
+
+    /// S110 reads representation evidence: a value a route constructed as a
+    /// byte array is binary whatever its statement's spelling says, so a
+    /// computed byte array keeps its S110 once the lattice knows its string.
+    /// `mylib::bytes` is a command the registry declares nothing about, so
+    /// the statement alone is no byte source; with the evidence an
+    /// evaluation of it states — as `binary format`'s route does once it
+    /// folds — `string toupper` on the value is the corruption S110 names.
+    #[test]
+    fn constructed_byte_array_evidence_is_a_byte_source() {
+        use crate::value_transfer::FoldedType;
+        use tcl_registry::value_transfer::RepresentationEvidence;
+        let reg = CommandRegistry::build_default();
+        let src = "proc f {} {\n  set h [mylib::bytes]\n  set u [string toupper $h]\n}";
+        let cu = CompilationUnit::build_for(src, &reg, false);
+        let fu = cu.function("::f").expect("the procedure");
+        let layouts = reg.byte_array_payload_layouts();
+        let silent = find_byte_array_warnings(&fu.cfg, &fu.ssa, &fu.sccp, &reg, &layouts);
+        assert!(
+            silent.is_empty(),
+            "no byte source without evidence: {silent:?}"
+        );
+        let mut sccp = fu.sccp.clone();
+        let h = fu.ssa.var_symbol("h").expect("the variable");
+        sccp.folded_types.insert(
+            (h, 1),
+            FoldedType {
+                intrep: Some(TclType::ByteArray),
+                shape: None,
+                representation: RepresentationEvidence::Constructed(TclType::ByteArray),
+            },
+        );
+        let found = find_byte_array_warnings(&fu.cfg, &fu.ssa, &sccp, &reg, &layouts);
+        assert!(
+            found.iter().any(|w| w.code == DiagCode::S110),
+            "a constructed byte array is a byte source: {found:?}"
         );
     }
 

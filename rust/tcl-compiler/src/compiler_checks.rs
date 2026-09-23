@@ -388,15 +388,7 @@ pub fn shimmer_family_checks<S: std::hash::BuildHasher>(
     instance_vars: Option<&std::collections::HashSet<String, S>>,
 ) -> Vec<Diagnostic> {
     let mut out: Vec<Diagnostic> = Vec::new();
-    for w in find_shimmer_warnings(
-        &fu.cfg,
-        &fu.ssa,
-        &fu.types,
-        &fu.sccp.executable_blocks,
-        registry,
-        &fu.sccp.values,
-        &fu.sccp.executable_edges,
-    ) {
+    for w in find_shimmer_warnings(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp, registry) {
         out.push(Diagnostic::from_shimmer(&w));
     }
     for w in find_thunking_warnings(
@@ -424,13 +416,7 @@ pub fn shimmer_family_checks<S: std::hash::BuildHasher>(
     } else {
         std::collections::HashMap::new()
     };
-    for w in find_byte_array_warnings(
-        &fu.cfg,
-        &fu.ssa,
-        &fu.sccp.executable_blocks,
-        registry,
-        &payload_layouts,
-    ) {
+    for w in find_byte_array_warnings(&fu.cfg, &fu.ssa, &fu.sccp, registry, &payload_layouts) {
         out.push(Diagnostic::from_shimmer(&w));
     }
     out

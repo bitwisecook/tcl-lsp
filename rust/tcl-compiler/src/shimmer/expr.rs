@@ -48,7 +48,7 @@ use crate::ssa::{SsaFunction, Symbol, ValueKey};
 use crate::types::{TypeKind, TypeLattice};
 
 use super::ShimmerWarning;
-use super::hints::is_uncommitted_first_conversion;
+use super::hints::is_free_first_conversion;
 
 /// Find expression-level shimmer warnings for a function.
 ///
@@ -62,21 +62,19 @@ use super::hints::is_uncommitted_first_conversion;
 #[must_use]
 pub(crate) fn find_expr_shimmers(
     cfg: &CfgFunction,
-    ssa: &SsaFunction,
-    types: &HashMap<ValueKey, TypeLattice>,
+    commit_ctx: &super::commit::CommitCtx<'_>,
     executable_blocks: &HashSet<BlockId>,
-    values: &HashMap<ValueKey, LatticeValue>,
-    registry: &tcl_registry::CommandRegistry,
     facts: &super::ShimmerFacts,
 ) -> Vec<ShimmerWarning> {
-    let mut out = Vec::new();
-    let loop_blocks = &facts.loop_blocks;
-    let commit_ctx = super::commit::CommitCtx {
+    let super::commit::CommitCtx {
         registry,
         ssa,
         types,
         values,
-    };
+        folded,
+    } = *commit_ctx;
+    let mut out = Vec::new();
+    let loop_blocks = &facts.loop_blocks;
 
     for block_id in cfg_order(cfg) {
         if !executable_blocks.contains(&block_id) {
@@ -94,7 +92,7 @@ pub(crate) fn find_expr_shimmers(
         let mut seen: HashSet<(Span, String)> = HashSet::new();
         // The committed-intrep walker replays the commit transfer in step with
         // this walk, so each expr's operands see the state just before it.
-        let mut commit_walker = facts.commit.walker(&commit_ctx, block_id);
+        let mut commit_walker = facts.commit.walker(commit_ctx, block_id);
 
         // 1. SSA statements: AssignExpr and ExprEval.
         for ss in &ssa_block.statements {
@@ -115,6 +113,7 @@ pub(crate) fn find_expr_shimmers(
                         uses: &ss.uses,
                         types,
                         values,
+                        folded,
                         ssa,
                         commit: &commit_walker,
                         stmt_span: *span,
@@ -154,6 +153,7 @@ pub(crate) fn find_expr_shimmers(
                             uses: &ss.uses,
                             types,
                             values,
+                            folded,
                             ssa,
                             commit: &commit_walker,
                             // The substitution's own extent, so the report
@@ -181,6 +181,7 @@ pub(crate) fn find_expr_shimmers(
                 ssa,
                 types,
                 values,
+                folded,
                 block_id,
                 exit_versions: &ssa_block.exit_versions,
                 commit: &commit_walker,
@@ -200,6 +201,7 @@ struct TerminatorWalk<'a> {
     ssa: &'a SsaFunction,
     types: &'a HashMap<ValueKey, TypeLattice>,
     values: &'a HashMap<ValueKey, LatticeValue>,
+    folded: &'a HashMap<ValueKey, crate::value_transfer::FoldedType>,
     block_id: BlockId,
     /// The versions in scope when a terminator is evaluated — after every
     /// statement of its block has run.
@@ -252,6 +254,7 @@ fn collect_terminator_shimmers(
         uses: walk.exit_versions,
         types: walk.types,
         values: walk.values,
+        folded: walk.folded,
         ssa: walk.ssa,
         commit: walk.commit,
         stmt_span: span.unwrap_or_else(|| Span::new(0, 0)),
@@ -273,8 +276,11 @@ struct ExprShimmerCtx<'a> {
     types: &'a HashMap<ValueKey, TypeLattice>,
     /// SCCP constant values, for the uncommitted-value ("pure string") check —
     /// a pure operand that is a valid instance of the required type converts for
-    /// free, so it must not be flagged (see [`is_uncommitted_first_conversion`]).
+    /// free, so it must not be flagged (see [`is_free_first_conversion`]).
     values: &'a HashMap<ValueKey, LatticeValue>,
+    /// The folded types SCCP's evaluations state: a computed operand's
+    /// representation decides its purity before its constant does.
+    folded: &'a HashMap<ValueKey, crate::value_transfer::FoldedType>,
     ssa: &'a SsaFunction,
     /// Committed-intrep state just before this statement ([`super::commit`]) —
     /// an operand whose value already committed a different intrep on every
@@ -293,6 +299,19 @@ struct ExprShimmerCtx<'a> {
 }
 
 impl ExprShimmerCtx<'_> {
+    /// The representation the evaluation that produced `(sym, ver)` states
+    /// it constructed, when it says.
+    fn representation(
+        &self,
+        sym: Symbol,
+        ver: u32,
+    ) -> tcl_registry::value_transfer::RepresentationEvidence {
+        self.folded.get(&(sym, ver)).map_or(
+            tcl_registry::value_transfer::RepresentationEvidence::Unknown,
+            |folded| folded.representation,
+        )
+    }
+
     /// The span a shimmer on `node` anchors to: the operand's own source
     /// range when the expression text is verbatim-anchored (the leaf's
     /// offsets shifted by `expr_base`), else the whole statement.  Leaf
@@ -510,10 +529,11 @@ fn check_numeric_operand(
         // numeric-valued string in arithmetic are not shimmers. A committed
         // List/Dict/ByteArray, or a pure string that is not a valid instance
         // (`set s hello; expr {$s + 1}`), still fires.
-        if is_uncommitted_first_conversion(
+        if is_free_first_conversion(
             current,
             to_type,
             ctx.values.get(&(sym, ver)),
+            ctx.representation(sym, ver),
             ctx.commit.numbers(),
             ctx.commit.word_rules(),
         ) {
@@ -592,10 +612,11 @@ fn check_list_operand(ctx: &mut ExprShimmerCtx<'_>, node: &ExprNode, op: BinOp) 
         // trim "a b c"]; expr {"b" in $hay}` parses it once, losslessly (oracle:
         // the value goes pure → list). Only a committed Dict/ByteArray genuinely
         // re-represents on the `in` list conversion.
-        if is_uncommitted_first_conversion(
+        if is_free_first_conversion(
             current,
             TclType::List,
             ctx.values.get(&(sym, ver)),
+            ctx.representation(sym, ver),
             ctx.commit.numbers(),
             ctx.commit.word_rules(),
         ) {
@@ -734,6 +755,7 @@ mod tests {
             ssa: &fu.ssa,
             types: &fu.types,
             values: &fu.sccp.values,
+            folded: &fu.sccp.folded_types,
         };
         let facts = super::super::ShimmerFacts {
             commit: super::super::commit::compute_commit_facts(
@@ -744,15 +766,7 @@ mod tests {
             ),
             loop_blocks: super::super::graph::loop_body_blocks(&fu.cfg),
         };
-        find_expr_shimmers(
-            &fu.cfg,
-            &fu.ssa,
-            &fu.types,
-            &fu.sccp.executable_blocks,
-            &fu.sccp.values,
-            registry,
-            &facts,
-        )
+        find_expr_shimmers(&fu.cfg, &ctx, &fu.sccp.executable_blocks, &facts)
     }
 
     /// `collect_expr_shimmers` recurses
@@ -776,6 +790,7 @@ mod tests {
             ssa: &fu.ssa,
             types: &fu.types,
             values: &fu.sccp.values,
+            folded: &fu.sccp.folded_types,
         };
         let facts = super::super::commit::compute_commit_facts(
             &fu.cfg,
@@ -792,6 +807,7 @@ mod tests {
             uses: &uses,
             types: &fu.types,
             values: &fu.sccp.values,
+            folded: &fu.sccp.folded_types,
             ssa: &fu.ssa,
             commit: &walker,
             stmt_span: Span::new(0, 1),

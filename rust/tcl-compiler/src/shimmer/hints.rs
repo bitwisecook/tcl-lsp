@@ -24,12 +24,15 @@
 //!   in Tcl's arithmetic/boolean contexts.
 //! - [`is_uncommitted_first_conversion`] — true when reading a value as a
 //!   different type is the *first* conversion of an uncommitted (pure) value,
-//!   which Tcl performs for free rather than a genuine shimmer.
+//!   which Tcl performs for free rather than a genuine shimmer;
+//!   [`is_free_first_conversion`] asks the same of a value whose producing
+//!   evaluation states its representation, and reads that first.
 //! - [`inert_braced_args`] — the argument positions whose brace-quoted word
 //!   Tcl never substitutes, so nothing in them is read here.
 
 use std::borrow::Cow;
 
+use tcl_registry::value_transfer::RepresentationEvidence;
 use tcl_registry::{CommandRegistry, TclType};
 use tcl_syntax::boolean::parse_boolean_word;
 use tcl_syntax::number::{self, NumberSyntax, ParseFlags};
@@ -281,6 +284,43 @@ pub fn is_pure_intrep(current: TclType, const_value: Option<&LatticeValue>) -> b
             false
         }
     }
+}
+
+/// [`is_pure_intrep`], reading the value's representation evidence first
+/// (`docs/design/compiler/value-transfers.md` § *Exact values, types, and
+/// representation*). A constant a route *computed* is not a literal push: the
+/// command built its result — `[string length $s]` an int, `[list a b]` a
+/// list, `[binary format …]` a byte array — and the runtime value carries
+/// that intrep whatever its constant string, so a computed constant never
+/// hides a conversion behind the literal rule. A constructed string is a
+/// pure string. Without evidence the type-and-constant rule stands.
+#[must_use]
+pub fn is_pure_value(
+    current: TclType,
+    const_value: Option<&LatticeValue>,
+    representation: RepresentationEvidence,
+) -> bool {
+    match representation {
+        RepresentationEvidence::Constructed(TclType::String) => true,
+        RepresentationEvidence::Constructed(_) => false,
+        RepresentationEvidence::Unknown => is_pure_intrep(current, const_value),
+    }
+}
+
+/// [`is_uncommitted_first_conversion`] for a value whose producing
+/// evaluation states its representation: pure by [`is_pure_value`], and a
+/// valid instance of `expected`.
+#[must_use]
+pub fn is_free_first_conversion(
+    current: TclType,
+    expected: TclType,
+    const_value: Option<&LatticeValue>,
+    representation: RepresentationEvidence,
+    numbers: NumberSyntax,
+    rules: tcl_syntax::word_rules::WordValueRules,
+) -> bool {
+    is_pure_value(current, const_value, representation)
+        && is_valid_instance_of(expected, const_value, numbers, rules)
 }
 
 /// Whether a pure value with SCCP constant `const_value` is a **valid instance**

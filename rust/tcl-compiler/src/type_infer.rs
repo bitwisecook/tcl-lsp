@@ -1323,6 +1323,7 @@ pub fn propagate_types<S: std::hash::BuildHasher>(
         known_classes,
         namespace: &namespace,
         values: &sccp.values,
+        folded: &sccp.folded_types,
         escaping: &escaping,
         has_dynamic_variable_trace: trace_facts.has_dynamic_variable_trace,
         numbers: numbers_of(registry),
@@ -1421,6 +1422,10 @@ struct StatementTypingCtx<'a, S: std::hash::BuildHasher> {
     /// SCCP constants — purity evidence and constant list/index values for
     /// the element-inference helpers (see [`WordTypingCtx::values`]).
     values: &'a HashMap<ValueKey, LatticeValue>,
+    /// The folded types SCCP's evaluations state
+    /// ([`crate::sccp::SccpResult::folded_types`]): a definition the static
+    /// typing leaves unknown takes the type its evaluation proved.
+    folded: &'a HashMap<ValueKey, crate::value_transfer::FoldedType>,
     /// Names [`crate::sccp::is_externally_mutable`] should treat as
     /// unconditionally aliased/escaping (per-function `analyse_var_observability`
     /// union'd with the caller's whole-module `extra_global_escaping` and
@@ -1533,7 +1538,7 @@ fn type_infer_process_statements<S: std::hash::BuildHasher>(
                     None => TypeLattice::overdefined(),
                 }
             } else {
-                match &inferred {
+                let inferred = match &inferred {
                     DefTyping::Uniform(t) => t.clone(),
                     // Positional element typing: a def the map does not
                     // name widens to Overdefined.
@@ -1541,7 +1546,8 @@ fn type_infer_process_statements<S: std::hash::BuildHasher>(
                         .get(name)
                         .cloned()
                         .unwrap_or_else(TypeLattice::overdefined),
-                }
+                };
+                refined_by_folded_type(inferred, ctx.folded.get(&key))
             };
             let merged = type_join(&old, &def_type);
             if merged != old {
@@ -1551,6 +1557,29 @@ fn type_infer_process_statements<S: std::hash::BuildHasher>(
         }
     }
     changed
+}
+
+/// A definition's static type, refined by the folded type its evaluation
+/// states: where the static typing knows nothing — a command with no
+/// declared return type, a destructured target — the type the evaluation
+/// proved for this call (its stated intrep, or the one the route
+/// constructed) is the definition's. A known static type stands: it can
+/// carry element facts the folded type does not, and the evaluation's own
+/// type is the same fact for every shipped route.
+fn refined_by_folded_type(
+    inferred: TypeLattice,
+    folded: Option<&crate::value_transfer::FoldedType>,
+) -> TypeLattice {
+    if inferred.kind() == TypeKind::Known {
+        return inferred;
+    }
+    let proved = folded.and_then(|folded| {
+        folded.intrep.or(match folded.representation {
+            tcl_registry::value_transfer::RepresentationEvidence::Constructed(built) => Some(built),
+            tcl_registry::value_transfer::RepresentationEvidence::Unknown => None,
+        })
+    });
+    proved.map_or(inferred, TypeLattice::of)
 }
 
 /// Infer a function's overall return type by joining the result types
@@ -1716,10 +1745,47 @@ mod tests {
         }
     }
 
+    /// A definition the static typing knows nothing of takes the type its
+    /// evaluation proved — the stated intrep, else the one the route
+    /// constructed — and a known static type stands, element facts and all.
+    #[test]
+    fn a_folded_type_refines_only_what_the_static_typing_leaves_unknown() {
+        use crate::value_transfer::FoldedType;
+        use tcl_registry::value_transfer::RepresentationEvidence;
+        let stated = FoldedType {
+            intrep: Some(TclType::String),
+            shape: None,
+            representation: RepresentationEvidence::Unknown,
+        };
+        let built = FoldedType {
+            intrep: None,
+            shape: None,
+            representation: RepresentationEvidence::Constructed(TclType::ByteArray),
+        };
+        assert_eq!(
+            refined_by_folded_type(TypeLattice::overdefined(), Some(&stated)),
+            TypeLattice::of(TclType::String)
+        );
+        assert_eq!(
+            refined_by_folded_type(TypeLattice::unknown(), Some(&built)),
+            TypeLattice::of(TclType::ByteArray)
+        );
+        assert_eq!(
+            refined_by_folded_type(TypeLattice::of(TclType::List), Some(&stated)),
+            TypeLattice::of(TclType::List),
+            "a known static type stands"
+        );
+        assert_eq!(
+            refined_by_folded_type(TypeLattice::overdefined(), None),
+            TypeLattice::overdefined()
+        );
+    }
+
     fn empty_sccp(f: &Function, blocks: &[&str]) -> SccpResult {
         SccpResult {
             explanations: Vec::new(),
             route_tally: crate::value_transfer::RouteTally::default(),
+            folded_types: HashMap::new(),
             values: HashMap::new(),
             executable_blocks: blocks
                 .iter()

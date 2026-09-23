@@ -4294,12 +4294,36 @@ VT5.16, VT5.18 — and reports at the VT5.8 gate, which waits for the
 consumer-contracts lane's CC2.6 (`option_effects` and the
 `substitutions_performed` projection); VT5.8 to VT5.10 follow it. The
 sonnet items (VT5.13, VT5.14, VT5.17, VT5.19, VT5.20) are not this
-implementer's. The decisions are D105 onward in § *Decisions taken*; this
-table gains a row per item as it lands.
+implementer's. The decisions are D105 to D109 and D115 onward in §
+*Decisions taken* (D110 to D114 are the review of slice 4's); this table
+gains a row per item as it lands. Each item is its own checkpoint commit
+rather than the plan's grouped checkpoints, so a restart loses at most one
+item; the grouping stays the plan's account of what lands together.
 
 | Item | Commit | What landed | Its tests |
 |---|---|---|---|
 | VT5.1 | `wip(value-transfers): slice 5 — every outcome kind, applied per place` | `validate_outcome` (`answers.rs`): every store names a declared target — the driver's `CommandSemantics::store_targets` (the `VarWrite` operands and a cell-update plan's target by default; a pack's `stores -targets` for `DeclaredSemantics`, D105) — each target has one outcome at most, the type facts name only targets, and an error completion lists no more stores than ran; the driver's `apply_outcome` replaces `store_def` (D26's shape): each store resolves to its place, a repeated place composes in execution order (the last write wins, a `Preserve` keeps what the place holds at that point, a `MayWrite` or `Unbind` widens), an element beside its array's base declines `OverlappingTargets`, a traced place declines `TracedPlace`, an escaping one widens its own definition (D106), a non-normal completion declines (D107); the lifted members join per definition with a pending member keeping it pending (D108); SCCP evaluates a statement once per sweep for every definition (`DefValues`), so a call that defines several variables takes each one's own value (D108); `PlaceRef::{is_element, base, shares_storage_with, overlaps_as_element_and_base}`, which `declared.rs` now reads in place of its private helper (D109) | `validate_outcome_rejects_a_store_to_a_non_target` (`value_transfers.rs`); every `evaluate_def_*`, `sccp_*` and witness test byte-identical |
+| VT5.2 | `wip(value-transfers): slice 5 — folded types and representation evidence` | `FoldedType { intrep, shape, representation }` (`value_transfer.rs`) and `SccpResult::folded_types`: the driver's per-definition answers carry the folded type their evaluation states (`DefAnswer`; a result's from its type facts and value, a place's from the stores to it in order, a copy's from its source), SCCP records the settled sweep's, joins a φ's by agreement and forgets them at a barrier (D115); the Explorer's `sccp` view shows each (`h#1 = const(…)` · `type: bytearray (constructed)`); the shimmer purity read (`is_pure_value`, `is_free_first_conversion`, the commit facts' initial state) reads representation before the literal rule, so a computed constant no longer hides a conversion (D116); `type_infer` takes a folded type where its static typing knows nothing (D117); S110 takes a constructed byte array as a byte source (D118); `find_shimmer_warnings` and `find_byte_array_warnings` take the function's `SccpResult`, and the use-site and expression passes its `CommitCtx` | `folded_types_state_what_each_route_constructed` (witnesses); `serialise::tests::sccp_reports_folded_types`; `a_computed_constant_never_hides_a_conversion` (use-site S100, tclsh 8.6 to 9.1 checked); `a_folded_type_refines_only_what_the_static_typing_leaves_unknown`; `constructed_byte_array_evidence_is_a_byte_source` |
+
+Green at VT5.2:
+
+- tests: `tcl-compiler` 9725 passed, 6 ignored, across 68 binaries (every
+  existing test unchanged; the four new ones pass); `tcl-explorer` 103;
+  `tcl-lsp-core` 3566; `tcl-lsp-db` 127, 5 ignored; `tcl-lsp-server`'s
+  lib and `e2e` binaries 2192, 5 ignored; `tcl-cli` 127, the samples test
+  among them (no sample moved); no failure anywhere;
+- pedantic clippy (`--no-deps --all-targets -D warnings`) on
+  `tcl-compiler` and `tcl-explorer`, no `#[allow]` added; `rustfmt` on the
+  touched files;
+- `cargo xtask value-transfers --check`: OK, unchanged (17 clean, 13
+  waived, 98 pinned across 39 files, 6607 rows); `cargo xtask
+  registry-axes --check`: OK (1089 sites pinned across 163 files);
+- `cargo check --workspace --all-targets`: clean.
+
+The files the plan named that needed no edit: `representation_plan.rs`
+holds no `TclType` judgement at all — its plans are target-independent
+and read no lattice — so there was nothing in it to read representation
+evidence instead of a type (D118).
 
 Green at VT5.1:
 
@@ -7313,6 +7337,65 @@ Taken while landing the review of slice 4 (§ *Slice 4* › *Record
   for a declared implementation they bound commands, about 500 calls at
   the host's per-call allowance of 100,000, each call's time bounded by
   the host's own 250 ms clock.
+
+Taken while slice 5's opus items were executed, after the review of
+slice 4 (§ *Slice 5* › *Record (2026-09-23): the opus items of slice 5*
+has the witnesses):
+
+- **D115 — A folded type is the settled evaluation's, beside the value.**
+  `FoldedType { intrep, shape, representation }` lives in
+  `value_transfer.rs` and `SccpResult::folded_types` keys it by
+  `ValueKey`, so `lattice_rebase.rs` is untouched. The driver's answer
+  for a definition carries it (`DefAnswer`): a whole-word substitution's
+  result states its type facts' result type and the result value's
+  representation; a place states, store by store in execution order, a
+  write's stated type, shape and value representation, a may-write's
+  bounds with no representation, nothing after an unbind, and a preserve
+  keeps what an earlier store left and states nothing of the prior value;
+  a copy (`set m $n`) shares its source's. SCCP records each definition's
+  on every evaluation, so the settled sweep's — the one over the final
+  inputs — is what stays, and a widened, joined or escaping definition
+  records none. A φ keeps what every executable incoming value states
+  alike (an unreached one skipped, a live-in root stating nothing), and a
+  barrier, which widens every value, forgets every folded type. Members
+  of a lifted evaluation, and a φ's arms, join by agreement
+  (`FoldedType::join`): the design page's "last written type wins is not
+  a sound join". A literal states nothing.
+- **D116 — Purity reads representation before the literal rule.** The
+  shimmer passes judged a numeric value pure when SCCP held a constant
+  for it — right for a literal push, wrong for a value a command built:
+  since slice 2 folded `[string length $s]` and `incr` in the shared
+  lattice, `set n [string length $s]; lindex $n 0` and `set i 0; incr i;
+  lindex $i 0` lost the S100 they had before, though tclsh 8.6, 9.0 and
+  9.1 all show the value an `int` before the `lindex` and a `list` after.
+  `is_pure_value` reads the folded representation first — constructed as
+  a string is pure, constructed as anything else is committed to that
+  intrep, no evidence falls back to `is_pure_intrep` — and the commit
+  facts' initial state and the use-site and expression checks
+  (`is_free_first_conversion`) read it, so a computed constant neither
+  hides nor manufactures a conversion (the examples page's S100–S110
+  rule, the migration table's S100 row). The expression route states no
+  representation, so `[expr {1 + 2}]`'s constant keeps the literal-push
+  reading it had. No existing test's expectation moved.
+- **D117 — The static type stands where it knows; a folded type fills in
+  where it does not.** `type_infer` takes a definition's folded type —
+  its stated intrep, else the one the route constructed — only where its
+  own typing is unknown or overdefined: a pack command with no declared
+  return type (`[tenant::label acme]` is `String` from its `result
+  -semantic string`), and from VT5.5 a destructured target. A known
+  static type stands because it can carry element facts (`List<…>`, an
+  object's class) a folded type does not; where the two disagree the
+  shimmer passes still read the representation (D116), which is where a
+  computed value's intrep matters.
+- **D118 — S110's representation source is additive.** The byte-array
+  walk keeps its registry classification and adds one source: a
+  definition it left untracked whose folded type says the route
+  constructed a byte array is binary from there (`track_constructed_bytes`).
+  `binary format`'s route (VT5.6) has a byte-array return type as well,
+  so its S110s are unchanged by folding; the new source is what a route or
+  a pack evaluation without that return type reaches.
+  `representation_plan.rs`, which the plan's file list named, reads no
+  `TclType` and no lattice, so it needed nothing.
 
 ### Open questions for the owner
 

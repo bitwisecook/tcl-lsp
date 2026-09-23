@@ -1820,6 +1820,108 @@ fn tenant_workspace() -> tcl_spectcl::PackSet {
     pack_workspace("tenant", TENANT_PACK)
 }
 
+/// The folded type of `var`'s version `version` in `proc`: the semantic
+/// type and representation evidence the evaluation that produced it stated.
+fn folded_at(
+    unit: &CompilationUnit,
+    proc: &str,
+    var: &str,
+    version: u32,
+) -> Option<tcl_compiler::value_transfer::FoldedType> {
+    let function = unit.procedures.get(proc).expect("the procedure");
+    let symbol = function.ssa.var_symbol(var).expect("the variable");
+    function.sccp.folded_types.get(&(symbol, version)).cloned()
+}
+
+/// VT5.2: the shared lattice keeps what each evaluation states of its
+/// value's type beside the value itself (`SccpResult::folded_types`). A
+/// result and a write carry the type facts and the representation the route
+/// constructed — `string length` and `incr` build an int, `list` a list,
+/// `append` a string; a copy shares its source's; a φ keeps what its arms
+/// state alike; a literal states nothing; a barrier widens every value and
+/// forgets what they stated. A pack's declared implementation states its
+/// `result -semantic` type and no representation, and the type lattice
+/// takes it where the static typing knows nothing of a pack command's
+/// result.
+#[test]
+fn folded_types_state_what_each_route_constructed() {
+    use tcl_compiler::value_transfer::FoldedType;
+    use tcl_registry::TclType;
+    use tcl_registry::value_transfer::RepresentationEvidence;
+    let built = |ty: TclType| {
+        Some(FoldedType {
+            intrep: Some(ty),
+            shape: None,
+            representation: RepresentationEvidence::Constructed(ty),
+        })
+    };
+    let unit = unit_of(
+        "proc p {c} {\n    set s abc\n    set n [string length $s]\n    set l [list a b]\n    \
+         incr n\n    append s x\n    set m $n\n    \
+         if {$c} {set k [llength $l]} else {set k [string length $s]}\n    \
+         return $m$k$l$s\n}\n\
+         proc b {} {\n    set s abc\n    set n [string length $s]\n    return -code ok $n\n}\n",
+        "tcl9.0",
+    );
+    assert_eq!(folded_at(&unit, "::p", "s", 1), None, "a literal");
+    assert_eq!(folded_at(&unit, "::p", "n", 1), built(TclType::Int));
+    assert_eq!(folded_at(&unit, "::p", "l", 1), built(TclType::List));
+    assert_eq!(folded_at(&unit, "::p", "n", 2), built(TclType::Int), "incr");
+    assert_eq!(
+        folded_at(&unit, "::p", "s", 2),
+        built(TclType::String),
+        "append"
+    );
+    assert_eq!(
+        folded_at(&unit, "::p", "m", 1),
+        built(TclType::Int),
+        "a copy"
+    );
+    assert_eq!(
+        folded_at(&unit, "::p", "k", 1),
+        built(TclType::Int),
+        "the φ"
+    );
+    assert_eq!(
+        built(TclType::ByteArray)
+            .map(|folded| folded.label())
+            .as_deref(),
+        Some("bytearray (constructed)")
+    );
+    let barrier = unit.procedures.get("::b").expect("the procedure");
+    assert!(
+        barrier.sccp.folded_types.is_empty(),
+        "{:?}",
+        barrier.sccp.folded_types
+    );
+
+    let _published = PUBLISHED_PACKS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let packs = tenant_workspace();
+    let registry = tcl_spectcl::install::registry_for_dialect_with_packs("tcl9.0", &packs);
+    let unit = CompilationUnit::build_for_dialect(
+        "proc p {} {\n    set r [tenant::label acme]\n    return $r\n}\n",
+        &registry,
+        false,
+        "tcl9.0",
+    );
+    let stated = Some(FoldedType {
+        intrep: Some(TclType::String),
+        shape: None,
+        representation: RepresentationEvidence::Unknown,
+    });
+    assert_eq!(folded_at(&unit, "::p", "r", 1), stated);
+    let function = unit.procedures.get("::p").expect("the procedure");
+    let r = function.ssa.var_symbol("r").expect("the variable");
+    assert_eq!(
+        function.types.get(&(r, 1)),
+        Some(&tcl_compiler::types::TypeLattice::of(TclType::String)),
+        "the type lattice takes the declared result type"
+    );
+    tcl_spectcl::hooks::publish(&tcl_spectcl::PackSet::default());
+}
+
 /// The step-1 completion test (`docs/design/compiler/value-transfers.md`
 /// § *The completion test*): one private command, renamed, and given a
 /// subcommand form with its operand one word later, reaches the analysis

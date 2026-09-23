@@ -529,6 +529,10 @@ fn build_sccp(d: &Value) -> Vec<ViewNode> {
     for f in arr(d, "sccp") {
         let mut children = Vec::new();
         for value in arr(f, "values") {
+            let detail = value["type"]
+                .as_str()
+                .map(|folded| vec![det("type", folded)])
+                .unwrap_or_default();
             children.push(ViewNode::leaf(
                 format!(
                     "{}#{} = {}",
@@ -536,7 +540,7 @@ fn build_sccp(d: &Value) -> Vec<ViewNode> {
                     s(value, "version"),
                     s(value, "lattice")
                 ),
-                Vec::new(),
+                detail,
                 Some("green"),
             ));
         }

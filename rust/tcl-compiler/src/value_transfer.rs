@@ -51,13 +51,13 @@ use tcl_registry::value_transfer::{
     EvalAnswer, EvalRoute, EvaluationState, EvaluatorOwner, ExactValue, ExactValueOrUnavailable,
     ExistenceOutcome, FactDomain, FactView, InvocationLayout, InvocationOutcome, IterableKind,
     LanguageProfileId, LiftedAnswer, NestedPolicy, NumericValue, OperandId, OperandView, PlaceKind,
-    PlaceRef, PlanAnswer, ResolvedInvocationView, RouteIdentity, StoreOutcome, TargetId,
-    TransferAnswer, TypeFacts, ValueIdentity, WordPart, WordStructure, evaluate_lifted,
-    validate_outcome,
+    PlaceRef, PlanAnswer, RepresentationEvidence, ResolvedInvocationView, RouteIdentity,
+    StoreOutcome, TargetId, TransferAnswer, TypeFacts, ValueIdentity, ValueShape, WordPart,
+    WordStructure, evaluate_lifted, validate_outcome,
 };
 use tcl_registry::{
     ArgRole, CommandRegistry, InvocationWord, InvocationWordKind, InvocationWords,
-    ResolvedInvocation, SemanticOperationId,
+    ResolvedInvocation, SemanticOperationId, TclType,
 };
 
 use crate::analyses::{ConstValue, LatticeValue, MAX_CONSTSET_SIZE};
@@ -165,6 +165,158 @@ pub struct RouteTally {
     pub implementation: u32,
 }
 
+/// The semantic type, shape and representation evidence of one value, from
+/// the evaluation that produced it (`docs/design/compiler/value-transfers.md`
+/// § *Exact values, types, and representation*): three facts, kept apart
+/// from the exact value in [`crate::sccp::SccpResult::values`] and from one
+/// another. A computed byte array's string is exact while its
+/// representation is the byte array the route built, so a consumer asking
+/// whether a use converts reads [`Self::representation`], never the type
+/// alone.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FoldedType {
+    /// The internal representation the evaluation's type facts state.
+    pub intrep: Option<TclType>,
+    /// The value's shape, when proven: a list's length, a dict's keys.
+    pub shape: Option<ValueShape>,
+    /// How the route constructed the value, when it says.
+    pub representation: RepresentationEvidence,
+}
+
+impl FoldedType {
+    /// The folded type of an outcome's result: its type facts' result type
+    /// and the result value's representation evidence.
+    #[must_use]
+    pub fn of_result(outcome: &InvocationOutcome) -> Option<Self> {
+        let representation = match &outcome.result {
+            ExactValueOrUnavailable::Exact(value) => value.representation,
+            ExactValueOrUnavailable::Unavailable(_) => RepresentationEvidence::Unknown,
+        };
+        Self::informative(outcome.types.result, None, representation)
+    }
+
+    /// The folded type a place holds after `stores`, the outcome's stores to
+    /// it in execution order: a write's stated type and shape with the
+    /// written value's representation; a may-write's bounds, its
+    /// representation unknown; nothing after an unbind. A preserve keeps
+    /// what an earlier store left and states nothing of the prior value.
+    #[must_use]
+    pub fn after_stores<'s>(
+        outcome: &InvocationOutcome,
+        stores: impl IntoIterator<Item = &'s StoreOutcome>,
+    ) -> Option<Self> {
+        let stated = |target: TargetId| {
+            let intrep = outcome
+                .types
+                .per_target
+                .iter()
+                .rev()
+                .find_map(|(at, ty)| (*at == target).then_some(*ty));
+            let shape = outcome
+                .types
+                .shapes
+                .iter()
+                .rev()
+                .find_map(|(at, shape)| (*at == target).then(|| shape.clone()));
+            (intrep, shape)
+        };
+        let mut held: Option<Self> = None;
+        for store in stores {
+            held = match store {
+                StoreOutcome::Write { target, value } => {
+                    let (intrep, shape) = stated(*target);
+                    Self::informative(intrep, shape, value.representation)
+                }
+                StoreOutcome::Preserve { .. } => held,
+                StoreOutcome::MayWrite { facts, .. } => Self::informative(
+                    facts.intrep,
+                    facts.shape.clone(),
+                    RepresentationEvidence::Unknown,
+                ),
+                StoreOutcome::Unbind { .. } => None,
+            };
+        }
+        held
+    }
+
+    /// The folded type, when any of its three facts says something.
+    fn informative(
+        intrep: Option<TclType>,
+        shape: Option<ValueShape>,
+        representation: RepresentationEvidence,
+    ) -> Option<Self> {
+        (intrep.is_some() || shape.is_some() || representation != RepresentationEvidence::Unknown)
+            .then_some(Self {
+                intrep,
+                shape,
+                representation,
+            })
+    }
+
+    /// The join of two folded types: each fact survives only where both
+    /// state it alike, so identical strings built with different
+    /// representations keep neither representation, and "the last written
+    /// type wins" never happens.
+    #[must_use]
+    pub fn join(&self, other: &Self) -> Option<Self> {
+        Self::informative(
+            (self.intrep == other.intrep)
+                .then_some(self.intrep)
+                .flatten(),
+            (self.shape == other.shape)
+                .then(|| self.shape.clone())
+                .flatten(),
+            if self.representation == other.representation {
+                self.representation
+            } else {
+                RepresentationEvidence::Unknown
+            },
+        )
+    }
+
+    /// The join of every member's folded type: `None` once any member has
+    /// none, and for no members at all.
+    #[must_use]
+    pub fn join_all(members: impl IntoIterator<Item = Option<Self>>) -> Option<Self> {
+        let mut members = members.into_iter();
+        let first = members.next()??;
+        members.try_fold(first, |joined, member| joined.join(&member?))
+    }
+
+    /// The internal representation the value holds when it is created: the
+    /// one the route constructed, when it says. A computed string holds
+    /// none (a pure string), so this is `None` for it too.
+    #[must_use]
+    pub fn constructed_intrep(&self) -> Option<TclType> {
+        match self.representation {
+            RepresentationEvidence::Constructed(TclType::String)
+            | RepresentationEvidence::Unknown => None,
+            RepresentationEvidence::Constructed(built) => Some(built),
+        }
+    }
+
+    /// The Explorer's spelling: the stated type, with how the route built
+    /// the value — `bytearray (constructed)`, `string (constructed as
+    /// int)`, or `list` when only the type is stated.
+    #[must_use]
+    pub fn label(&self) -> String {
+        let named = |ty: TclType| crate::shimmer::type_name(ty);
+        match (self.intrep, self.representation) {
+            (Some(ty), RepresentationEvidence::Constructed(built)) if ty == built => {
+                format!("{} (constructed)", named(ty))
+            }
+            (Some(ty), RepresentationEvidence::Constructed(built)) => {
+                format!("{} (constructed as {})", named(ty), named(built))
+            }
+            (None, RepresentationEvidence::Constructed(built)) => {
+                format!("{} (constructed)", named(built))
+            }
+            (Some(ty), RepresentationEvidence::Unknown) => named(ty),
+            (None, RepresentationEvidence::Unknown) => "?".to_owned(),
+        }
+    }
+}
+
 /// The driver's per-run state: the registry the unit resolves against, the
 /// whole-module trust fact when the caller holds one, the fold policy, the
 /// analysis context every answer is memoised under, and the route
@@ -187,6 +339,9 @@ pub(crate) struct LatticeDriver<'a> {
     explaining: Cell<Option<Span>>,
     /// The last explanation recorded per statement.
     explanations: RefCell<BTreeMap<(u32, u32), RouteExplanation>>,
+    /// The folded type of each definition the last evaluation of its
+    /// statement stated one for ([`crate::sccp::SccpResult::folded_types`]).
+    folded: RefCell<HashMap<ValueKey, FoldedType>>,
     /// The run's route-entry counts so far.
     tally: Cell<RouteTally>,
     /// The run's request budget: every evaluation of this run charges
@@ -219,11 +374,49 @@ fn lattice_of_outcomes(
     }
 }
 
+/// One definition's answer: the lattice value the statement leaves in it,
+/// and the folded type the evaluation that produced the value states.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct DefAnswer {
+    /// The definition.
+    pub(crate) key: ValueKey,
+    /// Its lattice value.
+    pub(crate) value: LatticeValue,
+    /// Its folded type, when the evaluation states one.
+    pub(crate) folded: Option<FoldedType>,
+}
+
+impl DefAnswer {
+    /// A definition with `value` and no folded type.
+    pub(crate) const fn untyped(key: ValueKey, value: LatticeValue) -> Self {
+        Self {
+            key,
+            value,
+            folded: None,
+        }
+    }
+
+    /// The join of two members' answers for one definition: the values
+    /// join as members do ([`join_members`]) and the folded types keep
+    /// what both state ([`FoldedType::join`]).
+    fn join(self, other: &Self) -> Self {
+        let folded = match (&self.folded, &other.folded) {
+            (Some(left), Some(right)) => left.join(right),
+            _ => None,
+        };
+        Self {
+            key: self.key,
+            value: join_members(&self.value, &other.value),
+            folded,
+        }
+    }
+}
+
 /// Every definition in `defs` widened: the answer for a statement whose
 /// evaluation declined.
-fn widened(defs: &[(String, ValueKey)]) -> Vec<(ValueKey, LatticeValue)> {
+fn widened(defs: &[(String, ValueKey)]) -> Vec<DefAnswer> {
     defs.iter()
-        .map(|(_, key)| (*key, LatticeValue::Overdefined))
+        .map(|(_, key)| DefAnswer::untyped(*key, LatticeValue::Overdefined))
         .collect()
 }
 
@@ -374,6 +567,7 @@ impl<'a> LatticeDriver<'a> {
             nesting: Cell::new(0),
             explaining: Cell::new(None),
             explanations: RefCell::new(BTreeMap::new()),
+            folded: RefCell::new(HashMap::new()),
             tally: Cell::new(RouteTally::default()),
             request: RefCell::new(request),
             iteration: RefCell::new(iteration),
@@ -426,6 +620,38 @@ impl<'a> LatticeDriver<'a> {
         std::mem::take(&mut *self.explanations.borrow_mut())
             .into_values()
             .collect()
+    }
+
+    /// Record what the latest evaluation of `key`'s statement states of its
+    /// type: the solver sweeps until nothing moves, so the settled sweep's
+    /// evaluation — the one over the final inputs — is the one that stays.
+    /// `None` removes what an earlier sweep stated.
+    pub(crate) fn record_folded(&self, key: ValueKey, folded: Option<FoldedType>) {
+        let mut map = self.folded.borrow_mut();
+        match folded {
+            Some(folded) => {
+                map.insert(key, folded);
+            }
+            None => {
+                map.remove(&key);
+            }
+        }
+    }
+
+    /// The folded type recorded for `key` so far.
+    pub(crate) fn folded_of(&self, key: ValueKey) -> Option<FoldedType> {
+        self.folded.borrow().get(&key).cloned()
+    }
+
+    /// Forget every folded type: a barrier widens every value the run
+    /// holds, and a value it widened states nothing of its type.
+    pub(crate) fn forget_folded(&self) {
+        self.folded.borrow_mut().clear();
+    }
+
+    /// Every folded type the run holds at its end.
+    pub(crate) fn take_folded_types(&self) -> HashMap<ValueKey, FoldedType> {
+        std::mem::take(&mut *self.folded.borrow_mut())
     }
 
     /// Count one entry into the direct-evaluator family.
@@ -546,7 +772,7 @@ impl<'a> LatticeDriver<'a> {
         uses: &HashMap<Symbol, Version, S1>,
         values: &HashMap<ValueKey, LatticeValue, S2>,
         ssa: &SsaFunction,
-    ) -> Vec<(ValueKey, LatticeValue)> {
+    ) -> Vec<DefAnswer> {
         let heads = typed_node_commands(self.registry, LoweringHookId::Incr);
         let Some(&head) = heads.first() else {
             return widened(defs);
@@ -602,7 +828,7 @@ impl<'a> LatticeDriver<'a> {
         semantics: &dyn tcl_registry::value_transfer::CommandSemantics,
         defs: &[(String, ValueKey)],
         inputs: &dyn AnalysisInputs,
-    ) -> Vec<(ValueKey, LatticeValue)> {
+    ) -> Vec<DefAnswer> {
         let route = semantics.route();
         match route {
             EvalRoute::Direct { id } if id.owner() == EvaluatorOwner::Registry => {
@@ -626,7 +852,7 @@ impl<'a> LatticeDriver<'a> {
             LiftedAnswer::Pending => {
                 return defs
                     .iter()
-                    .map(|(_, key)| (*key, LatticeValue::Unknown))
+                    .map(|(_, key)| DefAnswer::untyped(*key, LatticeValue::Unknown))
                     .collect();
             }
             LiftedAnswer::Declined(_) => return widened(defs),
@@ -645,7 +871,7 @@ impl<'a> LatticeDriver<'a> {
             );
             return widened(defs);
         }
-        let mut joined: Option<Vec<(ValueKey, LatticeValue)>> = None;
+        let mut joined: Option<Vec<DefAnswer>> = None;
         for outcome in &outcomes {
             let applied = match self.apply_outcome(outcome, defs, inputs) {
                 Ok(applied) => applied,
@@ -662,8 +888,8 @@ impl<'a> LatticeDriver<'a> {
                 None => applied,
                 Some(earlier) => earlier
                     .into_iter()
-                    .zip(applied)
-                    .map(|((key, left), (_, right))| (key, join_members(&left, &right)))
+                    .zip(&applied)
+                    .map(|(left, right)| left.join(right))
                     .collect(),
             });
         }
@@ -694,7 +920,7 @@ impl<'a> LatticeDriver<'a> {
         outcome: &InvocationOutcome,
         defs: &[(String, ValueKey)],
         input: &dyn AnalysisInputs,
-    ) -> Result<Vec<(ValueKey, LatticeValue)>, DeclineReason> {
+    ) -> Result<Vec<DefAnswer>, DeclineReason> {
         if outcome.completion != CompletionOutcome::Normal {
             return Err(DeclineReason::Unsupported);
         }
@@ -721,10 +947,10 @@ impl<'a> LatticeDriver<'a> {
                     .filter(|(place, _)| place.name == *name)
                     .collect();
                 let Some((place, _)) = named.first() else {
-                    return (*key, LatticeValue::Overdefined);
+                    return DefAnswer::untyped(*key, LatticeValue::Overdefined);
                 };
                 if self.is_escaping(place) {
-                    return (*key, LatticeValue::Overdefined);
+                    return DefAnswer::untyped(*key, LatticeValue::Overdefined);
                 }
                 let mut held: Option<LatticeValue> = None;
                 for (_, store) in &named {
@@ -739,7 +965,14 @@ impl<'a> LatticeDriver<'a> {
                 let value = held.unwrap_or_else(|| {
                     fact_to_lattice(&input.prior_store(place, FactDomain::ExactValue))
                 });
-                (*key, value)
+                DefAnswer {
+                    key: *key,
+                    value,
+                    folded: FoldedType::after_stores(
+                        outcome,
+                        named.iter().map(|(_, store)| *store),
+                    ),
+                }
             })
             .collect())
     }
@@ -775,7 +1008,7 @@ impl<'a> LatticeDriver<'a> {
         values: &HashMap<ValueKey, LatticeValue, S2>,
         ssa: &SsaFunction,
         uses: &HashMap<Symbol, Version, S1>,
-    ) -> Vec<(ValueKey, LatticeValue)> {
+    ) -> Vec<DefAnswer> {
         let defs = named_defs(stmt_ssa, ssa);
         let Statement::Call {
             args,
@@ -797,7 +1030,9 @@ impl<'a> LatticeDriver<'a> {
             return self.evaluate_source_call(head, &cooked, &defs, uses, values, ssa);
         }
         let value = self.evaluate_loop_header(head, args, binders, uses, values, ssa);
-        defs.iter().map(|(_, key)| (*key, value.clone())).collect()
+        defs.iter()
+            .map(|(_, key)| DefAnswer::untyped(*key, value.clone()))
+            .collect()
     }
 
     /// The synthetic loop header's value for its binders: the iteration
@@ -861,7 +1096,7 @@ impl<'a> LatticeDriver<'a> {
                 let arg = list.trim();
                 if arg.starts_with('[')
                     && arg.ends_with(']')
-                    && let Some(LatticeValue::Const(ConstValue::String(s))) =
+                    && let Some((LatticeValue::Const(ConstValue::String(s)), _)) =
                         self.fold_cmd_subst_routes(arg, uses, values, ssa)
                 {
                     return Some(split_list_values(&s, rules));
@@ -896,7 +1131,7 @@ impl<'a> LatticeDriver<'a> {
         uses: &HashMap<Symbol, Version, S1>,
         values: &HashMap<ValueKey, LatticeValue, S2>,
         ssa: &SsaFunction,
-    ) -> Vec<(ValueKey, LatticeValue)> {
+    ) -> Vec<DefAnswer> {
         let texts: Vec<&str> = cooked.iter().map(|arg| arg.text.as_ref()).collect();
         let words: Vec<InvocationWord<'_>> = cooked.iter().map(ArgWord::word).collect();
         let Some(resolved) = self.resolve(head, &words) else {
@@ -920,14 +1155,16 @@ impl<'a> LatticeDriver<'a> {
 
     /// Fold a `[cmd args…]` command substitution through the resolved
     /// command's declared route, then — when the caller holds the trust
-    /// fact — through the registry's constant-fold engine.
+    /// fact — through the registry's constant-fold engine. The value comes
+    /// with the folded type the route's evaluation states; the engine's
+    /// text states none.
     pub(crate) fn fold_cmd_subst<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
         &self,
         value: &str,
         uses: &HashMap<Symbol, Version, S1>,
         values: &HashMap<ValueKey, LatticeValue, S2>,
         ssa: &SsaFunction,
-    ) -> Option<LatticeValue> {
+    ) -> Option<(LatticeValue, Option<FoldedType>)> {
         if let Some(folded) = self.fold_cmd_subst_routes(value, uses, values, ssa) {
             return Some(folded);
         }
@@ -953,19 +1190,20 @@ impl<'a> LatticeDriver<'a> {
             lookup_var: &lookup,
         }
         .fold_cmd_subst(inner)?;
-        Some(exact_to_lattice(&ExactValue::from_literal(&folded)))
+        Some((exact_to_lattice(&ExactValue::from_literal(&folded)), None))
     }
 
     /// The declared-route half of [`Self::fold_cmd_subst`]: the one command
     /// the substitution holds, run on its declared route
-    /// ([`Self::run_script`]) under the effect-free nested policy.
+    /// ([`Self::run_script`]) under the effect-free nested policy, with the
+    /// folded type every member's result states ([`FoldedType::join_all`]).
     fn fold_cmd_subst_routes<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
         &self,
         value: &str,
         uses: &HashMap<Symbol, Version, S1>,
         values: &HashMap<ValueKey, LatticeValue, S2>,
         ssa: &SsaFunction,
-    ) -> Option<LatticeValue> {
+    ) -> Option<(LatticeValue, Option<FoldedType>)> {
         let inner = value.strip_prefix('[')?.strip_suffix(']')?;
         let run = self.run_script(inner, uses, values, ssa)?;
         // Binding validity comes first: after `rename list mylist` or a
@@ -983,8 +1221,16 @@ impl<'a> LatticeDriver<'a> {
             {
                 Some(lattice_of_outcomes(outcomes, result_of))
                     .filter(|folded| *folded != LatticeValue::Overdefined)
+                    .map(|folded| {
+                        let typed = FoldedType::join_all(
+                            outcomes
+                                .iter()
+                                .map(|outcome| FoldedType::of_result(outcome)),
+                        );
+                        (folded, typed)
+                    })
             }
-            LiftedAnswer::Pending => Some(LatticeValue::Unknown),
+            LiftedAnswer::Pending => Some((LatticeValue::Unknown, None)),
             LiftedAnswer::Evaluated(_) | LiftedAnswer::Declined(_) => None,
         };
         self.explain(

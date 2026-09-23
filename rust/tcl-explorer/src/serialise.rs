@@ -1632,14 +1632,22 @@ pub fn serialise_sccp(result: &ExplorerResult, li: &LineIndex, source: &str) -> 
                 values.sort_by(|(a, _), (b, _)| {
                     ssa.var_name(a.0).cmp(ssa.var_name(b.0)).then(a.1.cmp(&b.1))
                 });
+                let folded = &snap.unit.sccp.folded_types;
                 let values: Vec<Value> = values
                     .into_iter()
                     .map(|(&(symbol, version), lattice)| {
-                        json!({
+                        let mut value = json!({
                             "variable": ssa.var_name(symbol),
                             "version": version,
                             "lattice": format_lattice(lattice),
-                        })
+                        });
+                        // The folded type the producing evaluation states,
+                        // when it states one: the type with how the route
+                        // built the value (`bytearray (constructed)`).
+                        if let Some(folded) = folded.get(&(symbol, version)) {
+                            value["type"] = json!(folded.label());
+                        }
+                        value
                     })
                     .collect();
                 let mut executable_blocks: Vec<String> = snap
@@ -4167,6 +4175,48 @@ mod tests {
         assert_eq!(tally["direct"], 1);
         assert_eq!(tally["expression"], 2);
         assert_eq!(tally["implementation"], 0);
+    }
+
+    /// Each value the SCCP view lists carries the folded type the
+    /// evaluation that produced it states: a computed `string length` is an
+    /// int the route constructed, `list` a list, a copy shares its source's,
+    /// and a φ keeps what both arms state alike. A literal states nothing,
+    /// and neither does a φ over a literal arm.
+    #[test]
+    fn sccp_reports_folded_types() {
+        let result = run_pipeline(
+            "proc p {c} {set s abcdef; set n [string length $s]; set l [list a b]; \
+             set m $n; if {$c} {set k [string length $s]} else {set k [llength $l]}; \
+             if {$c} {set j 5} else {set j [llength $l]}; return $m$k$j}\n",
+            "tcl8.6",
+        );
+        let sccp = serialise_result(&result)["sccp"].clone();
+        let proc_view = sccp
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|f| f["name"] == "::p")
+            .expect("the procedure's view");
+        let type_of = |variable: &str, version: u64| {
+            proc_view["values"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|value| value["variable"] == variable && value["version"] == version)
+                .unwrap_or_else(|| panic!("{variable}#{version}: {proc_view:#}"))
+                .get("type")
+                .and_then(Value::as_str)
+                .map(str::to_owned)
+        };
+        assert_eq!(type_of("s", 1), None, "a literal states no type");
+        assert_eq!(type_of("n", 1).as_deref(), Some("int (constructed)"));
+        assert_eq!(type_of("l", 1).as_deref(), Some("list (constructed)"));
+        assert_eq!(type_of("m", 1).as_deref(), Some("int (constructed)"));
+        // The φ versions are numbered first: `k#1` joins `k#2` and `k#3`.
+        assert_eq!(type_of("k", 1).as_deref(), Some("int (constructed)"));
+        assert_eq!(type_of("j", 2), None, "a literal arm");
+        assert_eq!(type_of("j", 3).as_deref(), Some("int (constructed)"));
+        assert_eq!(type_of("j", 1), None, "one arm is a literal");
     }
 
     #[test]

@@ -210,6 +210,13 @@ pub struct SccpResult {
     /// How many times the run dispatched to each route family, nested
     /// entries included.
     pub route_tally: crate::value_transfer::RouteTally,
+    /// Per SSA value, the semantic type, shape and representation evidence
+    /// the evaluation that produced it states — kept apart from the exact
+    /// value in [`Self::values`], so a consumer asking whether a use
+    /// converts reads the representation, never the type alone. A φ keeps
+    /// what every executable incoming value states alike; a definition a
+    /// barrier widened, or one no evaluation produced, has none.
+    pub folded_types: HashMap<ValueKey, crate::value_transfer::FoldedType>,
 }
 
 /// Sparse Conditional Constant Propagation driver.
@@ -490,6 +497,7 @@ pub fn sccp_with_builtin_folds(
                 // executable).
                 if bn != &cfg.entry {
                     changed |= sccp_process_phis(&mut values, ssa_block, &incoming_exec);
+                    record_phi_folded_types(&values, ssa_block, &incoming_exec, &driver);
                 }
 
                 // Statements.
@@ -550,6 +558,7 @@ pub fn sccp_with_builtin_folds(
         constant_branches,
         explanations: driver.take_explanations(),
         route_tally: driver.take_route_tally(),
+        folded_types: driver.take_folded_types(),
     }
 }
 
@@ -728,6 +737,36 @@ fn sccp_process_phis(
     changed
 }
 
+/// Each φ's folded type: what every executable incoming value states alike
+/// ([`crate::value_transfer::FoldedType::join_all`]). A live-in root states
+/// nothing, so a φ over one states nothing; an incoming value the solver
+/// has not reached is skipped, as the value join skips it.
+fn record_phi_folded_types(
+    values: &HashMap<ValueKey, LatticeValue>,
+    ssa_block: &crate::ssa::SsaBlock,
+    incoming_exec: &[BlockId],
+    driver: &LatticeDriver<'_>,
+) {
+    if incoming_exec.is_empty() {
+        return;
+    }
+    for phi in &ssa_block.phis {
+        let members = incoming_exec.iter().filter_map(|pred| {
+            let version = phi.incoming.get(pred).copied().unwrap_or(0);
+            if version == 0 {
+                return Some(None);
+            }
+            let key: ValueKey = (phi.name, version);
+            match values.get(&key) {
+                None | Some(LatticeValue::Unknown) => None,
+                Some(_) => Some(driver.folded_of(key)),
+            }
+        });
+        let folded = crate::value_transfer::FoldedType::join_all(members);
+        driver.record_folded((phi.name, phi.version), folded);
+    }
+}
+
 /// Evaluate each statement's defs for one block, widening across barriers.
 /// Returns `true` if any lattice value changed. Extracted from [`sccp`].
 fn sccp_process_statements(
@@ -768,6 +807,8 @@ fn sccp_process_statements(
                     changed = true;
                 }
             }
+            // A widened value states nothing of its type either.
+            driver.forget_folded();
             // A barrier also *defines* variables of its own (e.g. `dict for {x
             // y} …` defines `x`/`y`). Those defs are opaque — the barrier can
             // set them to anything — so set each to `Overdefined`. Without this
@@ -801,34 +842,38 @@ fn sccp_process_statements(
         let mut evaluated: Option<DefValues> = None;
         for (&var, &ver) in &stmt_ssa.defs {
             let mut value_of = |values: &HashMap<ValueKey, LatticeValue>| {
-                evaluated
-                    .get_or_insert_with(|| evaluate_defs_under(stmt_ssa, values, ssa, driver))
-                    .of((var, ver))
+                let evaluated = evaluated
+                    .get_or_insert_with(|| evaluate_defs_under(stmt_ssa, values, ssa, driver));
+                (evaluated.of((var, ver)), evaluated.folded_of((var, ver)))
             };
-            let val =
+            // A definition's folded type is its own evaluation's: a widened
+            // or a joined definition states none.
+            let (val, folded) =
                 if is_externally_mutable(ssa.var_name(var), escaping, has_dynamic_variable_trace)
                     || element_write_base == Some(var)
                 {
-                    LatticeValue::Overdefined
+                    (LatticeValue::Overdefined, None)
                 } else if stmt_ssa.may_defs.contains(&var) {
                     // A synthetic array-element may-def: the write may or may
                     // not have hit this element, so its value is the JOIN of
                     // the prior version (recorded as a use) and the written
                     // value. The base refresh of an element write carries no
                     // prior use — the base holds no value of its own.
-                    match stmt_ssa.uses.get(&var) {
+                    let value = match stmt_ssa.uses.get(&var) {
                         Some(prev_ver) => {
                             let prev = values
                                 .get(&(var, *prev_ver))
                                 .cloned()
                                 .unwrap_or(LatticeValue::Overdefined);
-                            join(&prev, &value_of(values))
+                            join(&prev, &value_of(values).0)
                         }
                         None => LatticeValue::Overdefined,
-                    }
+                    };
+                    (value, None)
                 } else {
                     value_of(values)
                 };
+            driver.record_folded((var, ver), folded);
             if set_value(values, (var, ver), &val) {
                 changed = true;
             }
@@ -1434,21 +1479,34 @@ pub fn evaluate_def_with_folds<S: std::hash::BuildHasher>(
 /// value a typed statement computes, which every definition takes, or a
 /// call's value per definition, from its ordered stores.
 pub(crate) enum DefValues {
-    /// Every definition takes this value.
-    Each(LatticeValue),
-    /// Each definition's own value; a definition absent here widens.
-    PerDef(Vec<(ValueKey, LatticeValue)>),
+    /// Every definition takes this value, and the folded type the
+    /// evaluation that produced it states.
+    Each(LatticeValue, Option<crate::value_transfer::FoldedType>),
+    /// Each definition's own answer; a definition absent here widens.
+    PerDef(Vec<crate::value_transfer::DefAnswer>),
 }
 
 impl DefValues {
     /// The value definition `key` takes.
     fn of(&self, key: ValueKey) -> LatticeValue {
         match self {
-            Self::Each(value) => value.clone(),
-            Self::PerDef(values) => values
+            Self::Each(value, _) => value.clone(),
+            Self::PerDef(answers) => answers
                 .iter()
-                .find(|(def, _)| *def == key)
-                .map_or(LatticeValue::Overdefined, |(_, value)| value.clone()),
+                .find(|answer| answer.key == key)
+                .map_or(LatticeValue::Overdefined, |answer| answer.value.clone()),
+        }
+    }
+
+    /// The folded type definition `key` takes, when its evaluation states
+    /// one.
+    fn folded_of(&self, key: ValueKey) -> Option<crate::value_transfer::FoldedType> {
+        match self {
+            Self::Each(_, folded) => folded.clone(),
+            Self::PerDef(answers) => answers
+                .iter()
+                .find(|answer| answer.key == key)
+                .and_then(|answer| answer.folded.clone()),
         }
     }
 
@@ -1465,7 +1523,7 @@ impl DefValues {
             None
         };
         match (self, key) {
-            (Self::Each(value), _) => value.clone(),
+            (Self::Each(value, _), _) => value.clone(),
             (Self::PerDef(_), Some(key)) => self.of(key),
             (Self::PerDef(_), None) => LatticeValue::Overdefined,
         }
@@ -1506,6 +1564,23 @@ fn evaluate_def_dispatch<S: std::hash::BuildHasher>(
         {
             LatticeValue::Overdefined
         }
+        // A whole-word command substitution's value comes with the folded
+        // type its route states.
+        Statement::AssignValue {
+            value,
+            value_needs_backsubst,
+            ..
+        } => {
+            let (value, folded) = fold_assign_value(
+                value,
+                *value_needs_backsubst,
+                &stmt_ssa.uses,
+                values,
+                ssa,
+                driver,
+            );
+            return DefValues::Each(value, folded);
+        }
         // The value is a braced word's content by construction (the
         // lowering's other arm is a canonical integer), so it is read as
         // Tcl reads a braced word: backslash-newline collapses.
@@ -1521,18 +1596,6 @@ fn evaluate_def_dispatch<S: std::hash::BuildHasher>(
         } => {
             driver.evaluate_assign_expr(expr, command_binding.as_ref(), &stmt_ssa.uses, values, ssa)
         }
-        Statement::AssignValue {
-            value,
-            value_needs_backsubst,
-            ..
-        } => fold_assign_value(
-            value,
-            *value_needs_backsubst,
-            &stmt_ssa.uses,
-            values,
-            ssa,
-            driver,
-        ),
         Statement::Call { .. } => {
             return DefValues::PerDef(driver.evaluate_call(stmt_ssa, values, ssa, &stmt_ssa.uses));
         }
@@ -1553,7 +1616,7 @@ fn evaluate_def_dispatch<S: std::hash::BuildHasher>(
         }
         _ => LatticeValue::Overdefined,
     };
-    DefValues::Each(value)
+    DefValues::Each(value, None)
 }
 
 /// Resolve `$var` / `${var}` to a lattice value by looking up the
@@ -1565,6 +1628,17 @@ fn resolve_simple_var_ref<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher
     values: &HashMap<ValueKey, LatticeValue, S2>,
     ssa: &SsaFunction,
 ) -> Option<LatticeValue> {
+    let key = simple_var_ref_key(text, uses, ssa)?;
+    Some(values.get(&key).cloned().unwrap_or(LatticeValue::Unknown))
+}
+
+/// The SSA value a `$var` / `${var}` word reads at this statement, or
+/// `None` when the text isn't a simple var reference.
+fn simple_var_ref_key<S: std::hash::BuildHasher>(
+    text: &str,
+    uses: &HashMap<Symbol, crate::ssa::Version, S>,
+    ssa: &SsaFunction,
+) -> Option<ValueKey> {
     let name = if let Some(name) = text.strip_prefix("${").and_then(|s| s.strip_suffix('}')) {
         name
     } else {
@@ -1580,12 +1654,7 @@ fn resolve_simple_var_ref<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher
     };
     let sym = ssa.var_symbol(name)?;
     let ver = *uses.get(&sym)?;
-    Some(
-        values
-            .get(&(sym, ver))
-            .cloned()
-            .unwrap_or(LatticeValue::Unknown),
-    )
+    Some((sym, ver))
 }
 
 /// Resolve a branch decision, preferring a *static-loop summary* when the
@@ -1807,7 +1876,7 @@ fn fold_assign_value<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
     values: &HashMap<ValueKey, LatticeValue, S2>,
     ssa: &SsaFunction,
     driver: &LatticeDriver<'_>,
-) -> LatticeValue {
+) -> (LatticeValue, Option<crate::value_transfer::FoldedType>) {
     // Plain literal.
     if !value.contains('$') && !value.contains('[') {
         let cooked = if needs_backsubst {
@@ -1817,22 +1886,25 @@ fn fold_assign_value<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
         } else {
             Some(std::borrow::Cow::Borrowed(value))
         };
-        return cooked.map_or(LatticeValue::Overdefined, |value| {
+        let value = cooked.map_or(LatticeValue::Overdefined, |value| {
             LatticeValue::Const(parse_literal_value(&value))
         });
+        return (value, None);
     }
-    // Simple var reference.
+    // Simple var reference: a copy shares its source's value, and the
+    // source's folded type with it.
     if let Some(resolved) = resolve_simple_var_ref(value, uses, values, ssa) {
-        return resolved;
+        let folded = simple_var_ref_key(value, uses, ssa).and_then(|key| driver.folded_of(key));
+        return (resolved, folded);
     }
     // Command substitution.
     if value.starts_with('[')
         && value.ends_with(']')
-        && let Some(lv) = driver.fold_cmd_subst(value, uses, values, ssa)
+        && let Some(folded) = driver.fold_cmd_subst(value, uses, values, ssa)
     {
-        return lv;
+        return folded;
     }
-    LatticeValue::Overdefined
+    (LatticeValue::Overdefined, None)
 }
 
 /// The value ingress for a literal: the text kept exactly, classified as
