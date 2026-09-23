@@ -2862,6 +2862,21 @@ fn an_exit_reaches_no_finally() {
             "a statement that may raise before an exact `return`",
             "set g 0\nproc p {} {\n    global g\n    try {set y $x; return ok} on error {} {} on return {} {exit 0} finally {set g 1}\n}\np\nputs $g\n",
         ),
+        // An earlier block may raise before the `return` or `exit` in the
+        // block after it: `$c` is unset, and tclsh prints `1` (found in
+        // review). So may the outer body before a nested `try`.
+        (
+            "an earlier block that may raise before an exact `return`",
+            "set g 0\nproc p {} {\n    global g\n    try {if {$c} {}; return ok} on error {} {} on return {} {exit 0} finally {set g 1}\n}\np\nputs $g\n",
+        ),
+        (
+            "an earlier block that may raise before an `exit`",
+            "set g 0\nproc p {} {\n    global g\n    try {if {$c} {}; exit 0} finally {set g 1}\n}\ncatch p\nputs $g\n",
+        ),
+        (
+            "an outer statement that may raise before a nested `exit`",
+            "set g 0\nproc p {} {\n    global g\n    try { set y $x; try {exit 0} finally {} } finally {set g 1}\n}\ncatch p\nputs $g\n",
+        ),
         (
             "an error only a `trap` might catch",
             "set g 0\nproc p {} {\n    global g\n    try {error boom} trap {NOT MATCHING} {} {exit 0} finally {set g 1}\n}\ncatch p\nputs $g\n",
@@ -2924,12 +2939,6 @@ fn a_try_finally_does_not_hide_the_names_bound_around_it() {
         (
             "bound by an `on break` handler that catches the `break`",
             "proc p {} {\n    while 1 {\n        try {break} on break {} {set x 1} finally {}\n        break\n    }\n    puts $x\n}\n",
-        ),
-        // A nested `catch` swallows the `break`, so no outer handler runs;
-        // tclsh 8.6.18 and 9.0.4 return before the read (found in review).
-        (
-            "not unbound by a handler a nested `catch` keeps the `break` from",
-            "proc p {} {\n    set y 1\n    while 1 {\n        try {catch {break}; return} on break {} {unset y}\n        break\n    }\n    puts $y\n}\n",
         ),
         (
             "bound by an `on break` handler, with no `finally`",

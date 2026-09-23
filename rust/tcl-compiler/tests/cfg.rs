@@ -720,3 +720,36 @@ fn a_jump_resumed_after_a_finally_skips_the_code_after_the_try() {
         }
     }
 }
+
+/// A `break` a nested `catch` swallows never reaches the enclosing `try`'s
+/// handlers, so it is not routed into its `on break` handler: tclsh 8.6.18
+/// and 9.0.4 run no handler for `try {catch {break}; return} on break {} {…}`
+/// (found in review).
+#[test]
+fn a_break_a_nested_catch_swallows_is_not_routed_to_an_outer_handler() {
+    let module = cfg(
+        "proc p {} {\n    while 1 {\n        try {catch {break}; return} on break {} {unset y}\n        break\n    }\n}\n",
+    );
+    let func = proc(&module, "::p");
+    let handlers: Vec<_> = func
+        .blocks
+        .iter()
+        .filter(|(_, b)| b.name.starts_with("try_handler"))
+        .map(|(id, _)| *id)
+        .collect();
+    assert!(!handlers.is_empty(), "the `on break` handler is lowered");
+    for block in func.blocks.values().filter(|b| {
+        b.statements
+            .iter()
+            .any(|s| matches!(s, Statement::Call { command, .. } if command == "break"))
+            && b.name.starts_with("catch_body")
+    }) {
+        if let Some(Terminator::Goto { target, .. }) = &block.terminator {
+            assert!(
+                !handlers.contains(target),
+                "{} is routed into the outer handler",
+                block.name
+            );
+        }
+    }
+}

@@ -966,7 +966,16 @@ impl CfgBuilder<'_> {
     /// first — `set y $x; return ok` raises when `x` is unset, which an
     /// `on error` handler catches — so a block with one proves no single code
     /// (found in review).
-    fn block_completion_code(&self, block: &str) -> Option<tcl_core_types::Code> {
+    ///
+    /// Nor may anything before the block: `try {if {$c} {}; return ok}` puts
+    /// the `return` alone in `if_end`, but `$c` may raise first, and a failure
+    /// in an earlier block has no edge of its own — the terminal block carries
+    /// it (found in review). So only `entry`, the construct's own first block,
+    /// qualifies.
+    fn block_completion_code(&self, block: &str, entry: &str) -> Option<tcl_core_types::Code> {
+        if block != entry {
+            return None;
+        }
         let statements = self.blocks.get(block)?.statements.len();
         let alone = if self.plain_return_blocks.contains(block) {
             statements == 0
@@ -1012,7 +1021,11 @@ impl CfgBuilder<'_> {
     /// through its completion-code selector (`trap` is an error) — and
     /// different. Either one unknown answers `false`, keeping the edge.
     fn handler_misses_completion(&self, handler: &crate::ir::TryHandler, block: &str) -> bool {
-        let Some(code) = self.block_completion_code(block) else {
+        let Some(code) = self
+            .try_entry
+            .as_deref()
+            .and_then(|entry| self.block_completion_code(block, entry))
+        else {
             return false;
         };
         crate::executable_ir::try_handler_code(handler).is_some_and(|selected| selected != code)
@@ -1102,14 +1115,17 @@ impl CfgBuilder<'_> {
             };
             match &block.terminator {
                 // A process exit runs no `finally` (found in review) — only
-                // when it is the block's *only* statement: anything before it
-                // may raise an error, and an error does run the clause. See
-                // `always_exits_process` for the rest.
+                // when nothing can raise before it: it is the only statement
+                // of the construct's first block, the body's or a handler's.
+                // An earlier statement, or an earlier block (`if {$c} {};
+                // exit 0` evaluates `$c` first), may raise an error, and an
+                // error does run the clause. See `always_exits_process`.
                 Some(crate::cfg::Terminator::Return { .. }) => {
                     if !intercepted.contains(name.as_str())
-                        && !self.caught_by_handler(name, handlers, handler_blocks)
-                        && !matches!(block.statements.as_slice(), [only]
-                            if super::always_exits_process(only, self.registry, &resolve_head))
+                        && !self.caught_by_handler(name, body_block, handlers, handler_blocks)
+                        && !((name == body_block || handler_blocks.contains(name))
+                            && matches!(block.statements.as_slice(), [only]
+                                if super::always_exits_process(only, self.registry, &resolve_head)))
                     {
                         sources.push(name.clone());
                     }
@@ -1249,6 +1265,7 @@ impl CfgBuilder<'_> {
         let mut pending_fallthrough_defs: Vec<String> = Vec::new();
         let first_handler_id = self.block_ids.len();
         let mut handler_blocks: Vec<String> = Vec::new();
+        let outer_entry = self.try_entry.replace(body_block.clone());
 
         // Each handler reachable from body failure.
         for handler in handlers {
@@ -1277,6 +1294,7 @@ impl CfgBuilder<'_> {
             }
         }
 
+        self.try_entry = outer_entry;
         // Success path reaches end.
         if !handlers.is_empty() {
             self.ensure_goto(&post_body, &end_block, Some(*span));
@@ -1446,10 +1464,11 @@ impl CfgBuilder<'_> {
     fn caught_by_handler(
         &self,
         block: &str,
+        body_block: &str,
         handlers: &[crate::ir::TryHandler],
         handler_blocks: &[String],
     ) -> bool {
-        let Some(code) = self.block_completion_code(block) else {
+        let Some(code) = self.block_completion_code(block, body_block) else {
             return false;
         };
         handlers

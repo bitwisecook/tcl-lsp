@@ -183,8 +183,10 @@ a `return` a nested construct intercepts
 *whole* — one with an edge into a `catch`'s end block or into the end block
 of a nested `try … finally`, which catch every completion — or that one of
 this `try`'s own handlers catches exactly (the block's completion code is
-known for *every* path through it — nothing else in the block that could
-complete first, so not `set y $x; return ok` — and it has an edge into an
+known for *every* path through it — it is the construct's own first block
+and holds nothing else that could complete first, so neither
+`set y $x; return ok` nor `if {$c} {}; return ok` (whose `$c` may raise in
+an earlier block, which has no edge of its own) — and it has an edge into an
 unconditional handler whose decoded selector is that code; a `trap` is
 conditional on its `-errorcode` prefix) — control reaches this `finally`
 only after that construct has run.
@@ -192,8 +194,9 @@ A handler edge alone proves nothing more: `try {return $x} on error {}
 {exit 0} finally {…}` hands the substitution's error to the handler, but
 the `return` still runs the clause; and a process exit (`Traits::TERMINATES_PROCESS`,
 e.g. `exit`), which ends the interpreter without unwinding, so no `finally`
-runs — but only when nothing can stop it from running: it is the block's
-sole statement, every word is literal, the command-binding owner resolves
+runs — but only when nothing can stop it from running: it is the sole
+statement of the construct's own first block (the body's, or a handler's —
+an earlier block may raise too: `if {$c} {}; exit 0`), every word is literal, the command-binding owner resolves
 the call site to one registry-backed target (whose alias prefix joins the
 written words — `interp alias {} bye {} exit abc` makes `bye` raise, as
 does the same alias named `::foo::exit` called as `exit` inside `::foo`),
@@ -238,8 +241,8 @@ remove one.
 A body that cannot fall through reaches a handler from its explicit throw
 points, or failing those from its terminal block — but not a source whose
 exact completion code differs from the one the handler's selector decodes
-to (`trap` is an error).  A source's code is known when nothing else in
-its block could complete first, for a plain `return` whose value cannot
+to (`trap` is an error).  A source's code is known only for the body's
+first block with nothing else in it that could complete first, for a plain `return` whose value cannot
 substitute (`TCL_RETURN`), and for a sole statement the registry classifies
 that is what ended the block: `break` / `continue`
 behind its `Goto`, a non-`ok` code behind a `Return`.  So

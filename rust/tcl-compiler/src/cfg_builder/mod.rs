@@ -247,6 +247,10 @@ pub(crate) struct CfgBuilder<'a> {
     /// `finally` routes every exit through it. A `try` handler is not one —
     /// it selects only some codes.
     total_interceptors: FxHashSet<String>,
+    /// The body block of the `try` whose handler edges are being recorded:
+    /// the one block of its body that nothing inside the construct runs
+    /// before, so the only one whose completion can be known exactly.
+    try_entry: Option<String>,
     /// When `true`, record [`Self::exception_edges`] in `lower_try`.  Off for
     /// codegen builds so the default bytecode is unchanged.
     faithful_exceptions: bool,
@@ -405,6 +409,7 @@ impl<'a> CfgBuilder<'a> {
             finally_jump_edges: Vec::new(),
             plain_return_blocks: FxHashSet::default(),
             total_interceptors: FxHashSet::default(),
+            try_entry: None,
             faithful_exceptions: false,
             plain_command_dispatch: false,
             registry,
