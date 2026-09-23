@@ -56,6 +56,12 @@ use crate::source_style::{StyleDiagnostic, StyleFix, StyleSeverity};
 
 pub use tcl_compiler::analyser::FixSafety;
 
+/// The truth table every adapter runs (`docs/design/compiler/diagnostic-policy.md`
+/// § The truth table) — built for this crate's tests and, through the
+/// `truth-table` feature, for the adapter crates' tests.
+#[cfg(any(test, feature = "truth-table"))]
+pub mod truth_table;
+
 /// Which producer emitted a finding — for the report's explanation and for
 /// the overlap table, never for ranking.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -2155,6 +2161,44 @@ mod policy_tests {
         assert!(directives.hit(0, DiagCode::W210));
         assert!(directives.hit(0, DiagCode::O114));
         assert!(!directives.hit(1, DiagCode::W210));
+    }
+
+    /// `Directives::hit` restates the bucket rule of the owner's
+    /// `line_suppressed` rather than calling it, which needs a single-bucket
+    /// predicate `tcl-compiler` does not offer (§ Decisions taken, D24).
+    /// This keeps the two equal: an inline bucket or the file bucket, holding
+    /// `*` or a code, silences a line code where `line_suppressed` says so,
+    /// and a whole-file code only where the file bucket does.
+    #[test]
+    fn directives_agree_with_line_suppressed() {
+        let text = "a\nb\nc\nd\n";
+        let span_at = |line: u32| Span::new(line * 2, line * 2 + 1);
+        let mut maps: Vec<HashMap<i32, HashSet<String>>> = Vec::new();
+        let mut every: HashMap<i32, HashSet<String>> = HashMap::new();
+        for key in [1, FILE_SUPPRESS_KEY] {
+            for entry in ["*", "W210", "W112"] {
+                maps.push(HashMap::from([(key, HashSet::from([entry.to_owned()]))]));
+                every.entry(key).or_default().insert(entry.to_owned());
+            }
+        }
+        maps.push(every);
+        for map in maps {
+            let directives = Directives::new(map.clone(), text);
+            for code in [DiagCode::W210, DiagCode::W112, DiagCode::W118] {
+                for line in 0..=3_u32 {
+                    let key = if WHOLE_FILE_CODES.contains(&code) {
+                        FILE_SUPPRESS_KEY
+                    } else {
+                        i32::try_from(line).expect("a small line")
+                    };
+                    assert_eq!(
+                        directives.reason_for(code, span_at(line)).is_some(),
+                        analyser::line_suppressed(code.as_str(), key, &map),
+                        "{code} at line {line} under {map:?}"
+                    );
+                }
+            }
+        }
     }
 }
 

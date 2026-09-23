@@ -1262,6 +1262,61 @@ gained an assertion rather than becoming a new test). The crate clippy is
 clean; `cargo fmt` touched `tools.rs`; `cargo check --workspace` is green.
 No new diagnostic code or catalogue entry, so nothing regenerates.
 
+### DP9.4 — the truth table and its core pass
+
+`rust/tcl-lsp-core/src/diagnostic_policy/truth_table.rs`, declared
+`#[cfg(any(test, feature = "truth-table"))] pub mod truth_table;` in
+`diagnostic_policy.rs`; `tcl-lsp-core` gains the feature `truth-table =
+[]`. The item's shapes, with two additions:
+
+- `Want` gains `Offered(bool)` and `Applied(bool)`. The item derives
+  "`Offered(want is Shown or ShownAt)`" and "`Applied(want is Shown)`" for
+  the action and rewrite surfaces, but its `Want` had no variant to hold
+  them, and `expected` returns `Expect`s. A row never writes either.
+- `Row` gains `defect: Option<Defect>` (D45). Row 36 needs it: its wanted
+  reason does not hold on any program (§ Open questions 10).
+
+`ROWS` holds the item's 41 rows in its order, with its programs and lines
+unchanged. `runs_on` computes the item's surfaces column for every row, and
+`the_surfaces_each_row_runs_on` pins that. `expected` states the item's
+rules; `check` compares the observations as a multiset of `(line, state)`
+for each named code, and a specific expectation claims its observation
+before a `Shown` wildcard does. `core_report` builds the report the item's
+way: `standalone_findings` under the production skip, the optimiser's
+rewrites, and `document_report` under the three layers, with the analyser
+skip declared. `Row::ini` writes each layer as its INI file, and
+`settings_from_ini` reads every row's layers back equal
+(`a_layer_round_trips_through_its_ini_file`). `offered`'s O101 rule, "new
+text is `set x 3`", holds: the fold's rewrite spans the whole command.
+
+Tests: `every_row_holds_in_the_core_report` (it also compares the typed
+reason, so an inline directive's line is checked where the rendered
+spelling leaves it out), `every_reason_is_covered`,
+`the_surfaces_each_row_runs_on`, `the_surface_rules_restate_the_page`,
+`a_layer_round_trips_through_its_ini_file`, `the_slot_becomes_flags`,
+`check_names_the_row_and_the_mismatch`, `a_fixed_defect_fails_its_row`,
+`offered_reads_each_subjects_action`, `row_names_are_unique_and_snake_case`;
+and in `policy_tests`, `directives_agree_with_line_suppressed` (seven maps:
+an inline and the file bucket, each holding `*`, W210 or W112, and every
+entry at once; W210, W112 and W118 at lines 0–3).
+
+On the first run 40 rows held as written. Row 36, `a_same_span_overlap`,
+did not: the analyser anchors W110 on the `==` operator (`W110Anchor`),
+and the optimiser's O120 spans the whole condition, because
+`branch_folding` rewrites the condition's text. `SameSpan` therefore never
+fires, and the editor shows both. `suppress_duplicate_o120` compared equal
+ranges too, so this predates the lane, and every O120 test builds its
+findings by hand at one span. Row 36 keeps its wanted reason. Its defect
+pins today's rendering on `Core` and `Lsp` (W110 and O120 both shown). On
+`Cli` and `Mcp` the row holds as wanted, because the optimiser is off there.
+§ Open questions 10 asks the owner for the fix.
+
+Suites: core `--lib` 2339 and `--lib --features truth-table` 2339. Pedantic
+clippy on `tcl-lsp-core` with `--all-targets --all-features --no-deps -D
+warnings` is clean, with the helpers only the tests read kept in the tests
+module. `cargo fmt --check` is clean and `cargo check --workspace` is
+green. No lockfile change, and nothing regenerates.
+
 ## Plan for finishing slices 4–7 and for slices 8–10
 
 The execution plan from the checkpoint `5bc40e95` to the end of the page's
@@ -3688,7 +3743,7 @@ Decisions the implementation of slices 4–7 took (DP4.1 onwards):
   a source, as `tcl opt`'s output does, and `changed` says whether a
   rewrite applied rather than whether the endings differ.
 
-Decisions slice 8 took:
+Decisions slices 8 and 9 took:
 
 - **D44. A disabled fact code is still reported disabled, and the bulk fix
   reads the report (DP8.1).** Computing a W100 a layer turns off changes
@@ -3709,6 +3764,15 @@ Decisions slice 8 took:
   no other" — and it analyses under the document's own layers' skip rather
   than the session's, so the skip and the policy come from one set of
   layers, as `PolicyLayers::production_skip` states.
+- **D45. A row whose wanted outcome does not hold records a `Defect`
+  (DP9.4).** The item says to change a row's program or line and never
+  its wanted reason, and to report a reason that does not hold. A failing
+  row cannot land, and deleting it would drop `SameSpan`'s only row. So
+  `Defect { surfaces, today, note }` keeps the wanted reason, holds the
+  named surfaces to what they render today (derived by the same rules),
+  and makes `check` fail once the wanted outcome holds. The fix then
+  removes the marker in the same change, and the defect cannot drift
+  unnoticed meanwhile.
 
 ### Open questions for the owner
 
@@ -3756,6 +3820,17 @@ Each with the assumption the plan proceeds on.
    can say "diagnostics are turned off for this file"?** The page's § The
    outcome motivates `ReportingOff` with that sentence. Assumption: no
    (D29); the published set is the same.
+10. **W110 never owns O120 (DP9.4).** The overlap entry is `SameSpan`, as
+    the page's `OverlapScope::SameSpan` defines it, but the two spans never
+    coincide on a real program. The analyser anchors W110 on the operator
+    (`if {$x == "foo"}` → `==`). O120 comes only from `branch_folding`'s
+    rewrite of a branch condition, and spans the whole condition word. So
+    the editor shows both codes for one comparison, as it did before the
+    lane: `suppress_duplicate_o120` compared equal ranges. The fix could
+    anchor O120 on the operator (a `tcl-compiler` change), let the owner's
+    span lie within the superseded finding's span (a new `OverlapScope`),
+    or anchor W110 on the condition. Assumption: left as it is; row 36
+    records the defect (D45).
 
 ### Review checklist per slice
 
@@ -3986,7 +4061,7 @@ Each item updates its row in the commit that lands it.
 | DP9.1 | sonnet | S | done — § *Slices 8–10 as built* | `DP9.1 — One spelling for every reason, and the report's gaps` | core `--lib` (2328, `-- diagnostic_policy` 97); clippy on core; `cargo fmt`; `cargo check --workspace` |
 | DP9.2 | sonnet | M | done — § *Slices 8–10 as built* | `DP9.2 — --show-suppressed on tcl diag / lint` | `tcl-cli` lib 27, `cli` 45, `compile_verbs` 11, `explorer_gui` 2, `pkg_verbs` 13, `spec_verbs` 18; clippy on `tcl-cli`; `cargo fmt`; `cargo xtask kcs-index-links`; `cargo check --workspace` |
 | DP9.3 | sonnet | M | done — § *Slices 8–10 as built* | `DP9.3 — the MCP suppressed array` | `tcl-mcp` 100; clippy on `tcl-mcp`; `cargo fmt`; `cargo check --workspace` |
-| DP9.4 | opus | L | not started | — | — |
+| DP9.4 | opus | L | done — § *Slices 8–10 as built* | `DP9.4 — the truth table and its core pass` | core `--lib` (2339) and `--lib --features truth-table` (2339); pedantic clippy on `tcl-lsp-core` with `--all-targets --all-features`; `cargo check --workspace` |
 | DP9.5 | opus | M | not started | — | — |
 | DP9.6 | sonnet | M | not started | — | — |
 | DP9.7 | sonnet | M | not started | — | — |
