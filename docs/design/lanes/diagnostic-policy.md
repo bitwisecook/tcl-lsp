@@ -1150,6 +1150,35 @@ neither an `#[allow]`); `cargo fmt` touched both crates' files, no test
 regressed after; `cargo check --workspace` is green. The code table is
 unchanged, so nothing regenerates.
 
+### DP9.1 — One spelling for every reason, and the report's gaps
+
+`rust/tcl-lsp-core/src/diagnostic_policy.rs`: `impl core::fmt::Display for
+Reason` renders exactly the item's table (`InlineDirective { .. }` carries
+no line — the finding's own row does); `PolicyLayer::as_str` (`global` /
+`editor` / `invocation` / `project`) and `Producer::as_str` (`analyser` /
+`compiler-check` / `optimiser` / `source-style` / `source-decode` /
+`sslictcl` / `xc` / `bigip-model`) back the `disabled:<layer>` and
+`overlap:<producer>` spellings. `Report::gaps(&self) -> impl Iterator<Item =
+(DiagCode, Reason)> + '_` is `self.skipped()` filtered to codes no finding
+in `self.outcomes` carries — the DP9.2-review addition
+(`Policy::production_skip` declares every catalogued code the decision
+turns off, whichever producer emits it, so a checks-emitted code can carry
+both a `Disabled` finding and a declared skip) falls out of this filter with
+no special case, which the new `apply_tests` test below pins directly.
+
+Tests: `tests::every_reason_has_one_stable_spelling` (every row of the
+table, plus every `PolicyLayer` and `Producer` spelling in full, since the
+table renders only one example of `Disabled`/`Overlap` each);
+`apply_tests::a_gap_is_a_declared_skip_no_finding_explains` (W210 and T100
+both `Disabled(Project)`, one T100 finding in the report — `declare_skipped`
+on both — `gaps()` yields W210 alone).
+
+Suites: core `--lib` 2328 (see DP8.3's row — the two items' tests are
+counted together at that state); `--lib -- diagnostic_policy` 97. The crate
+clippy on `tcl-lsp-core` is clean; `cargo fmt` touched the file; `cargo
+check --workspace` is green. No new identifier reaches a generated table
+(`Display` and `as_str` are Rust-side only), so nothing regenerates.
+
 ## Plan for finishing slices 4–7 and for slices 8–10
 
 The execution plan from the checkpoint `5bc40e95` to the end of the page's
@@ -3871,7 +3900,7 @@ Each item updates its row in the commit that lands it.
 | DP8.1 | opus | S | done — § *Slices 8–10 as built* | `DP8.1 — a fact code is never skipped at production` | core `--lib`, server `--lib`, the whole `e2e`, `tcl-mcp`, `tcl-cli --test cli`; clippy on core and server; `cargo check --workspace` |
 | DP8.2 | opus | M | done — § *Slices 8–10 as built* | `DP8.2 — O111 is a producer; every publish path is one call` | core `--lib`, server `--lib`, the whole `e2e` (with `large_file_publishes_fast_tier_before_deep_tier`), `tcl-mcp`, `tcl-cli`; `diag-emission-check`; clippy on core, server, `tcl-cli` and `tcl-mcp`; `cargo check --workspace` |
 | DP8.3 | sonnet | S | done — § *Slices 8–10 as built* | `DP8.3 — The lightbulb reads the published report; W115's conversion follows its finding` | core `--lib` (2328, `-- code_actions` 97) and `--test code_actions_depth` (46); server `--lib` (591, `-- lightbulb` 1) and the whole `e2e` (1598, 5 ignored, `code_actions` subset 93); clippy on core and server; `cargo fmt`; `cargo check --workspace` |
-| DP9.1 | sonnet | S | not started | — | — |
+| DP9.1 | sonnet | S | done — § *Slices 8–10 as built* | `DP9.1 — One spelling for every reason, and the report's gaps` | core `--lib` (2328, `-- diagnostic_policy` 97); clippy on core; `cargo fmt`; `cargo check --workspace` |
 | DP9.2 | sonnet | M | not started | — | — |
 | DP9.3 | sonnet | M | not started | — | — |
 | DP9.4 | opus | L | not started | — | — |

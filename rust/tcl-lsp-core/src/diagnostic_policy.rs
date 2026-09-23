@@ -78,6 +78,23 @@ pub enum Producer {
     BigipModel,
 }
 
+impl Producer {
+    /// The spelling an `overlap:<producer>` [`Reason`] renders.
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Analyser => "analyser",
+            Self::CompilerCheck => "compiler-check",
+            Self::Optimiser => "optimiser",
+            Self::SourceStyle => "source-style",
+            Self::SourceDecode => "source-decode",
+            Self::SslicTcl => "sslictcl",
+            Self::Xc => "xc",
+            Self::BigipModel => "bigip-model",
+        }
+    }
+}
+
 /// An edit a finding offers, whose range is independent of the finding's
 /// span.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -338,6 +355,19 @@ pub enum PolicyLayer {
     Project,
 }
 
+impl PolicyLayer {
+    /// The spelling a `disabled:<layer>` [`Reason`] renders.
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Global => "global",
+            Self::Editor => "editor",
+            Self::Invocation => "invocation",
+            Self::Project => "project",
+        }
+    }
+}
+
 /// What owns a site in the overlap table.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum OverlapOwner {
@@ -346,6 +376,37 @@ pub enum OverlapOwner {
     /// A whole producer owns it: in a `.sslictcl` document the loader owns
     /// W123 whether or not it emitted a finding of its own.
     Producer(Producer),
+}
+
+/// One spelling for every reason, lower-case and hyphenated with an
+/// optional `:detail` — what the CLI rows, the MCP JSON and the truth table
+/// all render (`docs/design/lanes/diagnostic-policy.md` § Decisions taken,
+/// D23).
+impl core::fmt::Display for Reason {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::ReportingOff => write!(f, "reporting-off"),
+            Self::Excluded => write!(f, "excluded"),
+            Self::EncodingAbstention => write!(f, "encoding-abstention"),
+            // The finding's own row carries its line; the reason names only
+            // the kind of directive.
+            Self::InlineDirective { .. } => write!(f, "inline-directive"),
+            Self::FileDirective => write!(f, "file-directive"),
+            Self::Disabled(layer) => write!(f, "disabled:{}", layer.as_str()),
+            Self::DefaultOff => write!(f, "default-off"),
+            Self::OptimiserOff => write!(f, "optimiser-off"),
+            Self::OptimiserProfile { profile } => {
+                write!(f, "optimiser-profile:{}", profile.name())
+            }
+            Self::ShimmerOff => write!(f, "shimmer-off"),
+            Self::Overlap {
+                owner: OverlapOwner::Code(code),
+            } => write!(f, "overlap:{code}"),
+            Self::Overlap {
+                owner: OverlapOwner::Producer(producer),
+            } => write!(f, "overlap:{}", producer.as_str()),
+        }
+    }
 }
 
 /// A shown finding with its resolved presentation.
@@ -424,6 +485,19 @@ impl Report {
     /// The declared skips, by code.
     pub fn skipped(&self) -> impl Iterator<Item = (DiagCode, Reason)> + '_ {
         self.skipped.iter().map(|(code, reason)| (*code, *reason))
+    }
+
+    /// The declared skips whose code no finding in the report carries: the
+    /// codes the policy turned off for this document that the report cannot
+    /// show as a finding. A declared code some other producer did emit is
+    /// not a gap — its findings carry their own reasons.
+    pub fn gaps(&self) -> impl Iterator<Item = (DiagCode, Reason)> + '_ {
+        self.skipped().filter(|(code, _)| {
+            !self
+                .outcomes
+                .iter()
+                .any(|(finding, _)| finding.code == *code)
+        })
     }
 
     /// The findings that show, with their resolved severity and tag.
@@ -1617,6 +1691,69 @@ mod tests {
         assert_eq!(report.len(), 3);
         assert!(!report.is_empty());
     }
+
+    #[test]
+    fn every_reason_has_one_stable_spelling() {
+        let cases: Vec<(Reason, &str)> = vec![
+            (Reason::ReportingOff, "reporting-off"),
+            (Reason::Excluded, "excluded"),
+            (Reason::EncodingAbstention, "encoding-abstention"),
+            (Reason::InlineDirective { line: 4 }, "inline-directive"),
+            (Reason::FileDirective, "file-directive"),
+            (Reason::Disabled(PolicyLayer::Editor), "disabled:editor"),
+            (Reason::DefaultOff, "default-off"),
+            (Reason::OptimiserOff, "optimiser-off"),
+            (
+                Reason::OptimiserProfile {
+                    profile: OptimisationProfile::Readability,
+                },
+                "optimiser-profile:readability",
+            ),
+            (Reason::ShimmerOff, "shimmer-off"),
+            (
+                Reason::Overlap {
+                    owner: OverlapOwner::Code(DiagCode::W110),
+                },
+                "overlap:W110",
+            ),
+            (
+                Reason::Overlap {
+                    owner: OverlapOwner::Producer(Producer::SslicTcl),
+                },
+                "overlap:sslictcl",
+            ),
+        ];
+        for (reason, spelling) in cases {
+            assert_eq!(reason.to_string(), spelling, "{reason:?}");
+        }
+
+        // `Disabled` and `Overlap` render one example above; every layer and
+        // producer spelling in full here.
+        for (layer, spelling) in [
+            (PolicyLayer::Global, "global"),
+            (PolicyLayer::Editor, "editor"),
+            (PolicyLayer::Invocation, "invocation"),
+            (PolicyLayer::Project, "project"),
+        ] {
+            assert_eq!(layer.as_str(), spelling);
+            assert_eq!(
+                Reason::Disabled(layer).to_string(),
+                format!("disabled:{spelling}")
+            );
+        }
+        for (producer, spelling) in [
+            (Producer::Analyser, "analyser"),
+            (Producer::CompilerCheck, "compiler-check"),
+            (Producer::Optimiser, "optimiser"),
+            (Producer::SourceStyle, "source-style"),
+            (Producer::SourceDecode, "source-decode"),
+            (Producer::SslicTcl, "sslictcl"),
+            (Producer::Xc, "xc"),
+            (Producer::BigipModel, "bigip-model"),
+        ] {
+            assert_eq!(producer.as_str(), spelling);
+        }
+    }
 }
 
 #[cfg(test)]
@@ -2708,5 +2845,34 @@ mod apply_tests {
             "a code the policy would show has no skip to declare"
         );
         assert_eq!(report.skipped().count(), 1);
+    }
+
+    /// A checks-emitted code can carry both a `Disabled` finding and a
+    /// declared skip (`Policy::production_skip` declares every catalogued
+    /// code the decision turns off, whichever producer emits it) —
+    /// `gaps()` renders only the code no finding explains.
+    #[test]
+    fn a_gap_is_a_declared_skip_no_finding_explains() {
+        let mut policy = Policy::default();
+        for code in [DiagCode::W210, DiagCode::T100] {
+            policy.codes.insert(
+                code,
+                CodeDecision {
+                    enabled: false,
+                    layer: PolicyLayer::Project,
+                },
+            );
+        }
+        let mut report = apply(
+            vec![finding(
+                DiagCode::T100,
+                Span::new(0, 1),
+                Producer::CompilerCheck,
+            )],
+            &policy,
+        );
+        report.declare_skipped([DiagCode::W210, DiagCode::T100], &policy);
+        let gaps: Vec<DiagCode> = report.gaps().map(|(code, _)| code).collect();
+        assert_eq!(gaps, vec![DiagCode::W210]);
     }
 }
