@@ -1416,6 +1416,36 @@ Suites: `tcl-cli` lib 27, `cli` 47 (45 + 2, `-- truth_table` 2, 79 s);
 is clean; `cargo check --workspace` is green. No lockfile change, and
 nothing regenerates.
 
+### DP9.7 — the MCP passes
+
+`rust/tcl-mcp/Cargo.toml` gains `tcl-lsp-core` from `[dev-dependencies]`
+with the `truth-table` feature; `rust/tcl-mcp/src/tools.rs`'s
+`policy_tests` gains `observed_from_analyze` (an `analyze` payload's
+`diagnostics` and `suppressed` arrays as observations — `range.start.line`
+is 0-based, so a line is that plus one, and a gap's `range` is `null`) and
+three tests.
+
+`every_row_renders_through_analyze` calls `analyze_with` for each row that
+`runs_on(Surface::Mcp)`, with the slot's codes as the call's
+comma-separated `disable` / `enable` strings and the global layer from the
+existing `inputs` helper (`settings_from_ini(&Row::ini(row.global),
+Layer::Global)`). `every_row_offers_fixes_for_shown_findings_only` calls
+`code_actions_with` over the whole document for each row that
+`runs_on(Surface::McpActions)`, turns each action's JSON into an
+`ActionView` and judges it with `truth_table::offered`.
+`every_rewrite_row_renders_through_optimize` calls the existing `optimized`
+helper for each row that `runs_on(Surface::McpRewrite)`, with the slot's
+`profile` and codes; `Applied(optimized_source contains "set x 3")`.
+
+Rows 36 and 37's `REWRITE_NOT_RUN` defect meets `check` as the recorded
+defect on `Mcp` in the first test, same as DP9.6's `Cli`. All three tests
+held on their first run.
+
+Suites: `tcl-mcp` 103 (100 + 3); core `--lib --features truth-table` 2340.
+Clippy on `tcl-mcp` with `--all-targets --no-deps -D warnings` is clean;
+`cargo fmt` is clean; `cargo check --workspace` is green. No lockfile
+change, and nothing regenerates.
+
 ## Plan for finishing slices 4–7 and for slices 8–10
 
 The execution plan from the checkpoint `5bc40e95` to the end of the page's
@@ -4178,7 +4208,7 @@ Each item updates its row in the commit that lands it.
 | DP9.4 | opus | L | done — § *Slices 8–10 as built* | `DP9.4 — the truth table and its core pass`; follow-up `DP9.4 follow-up — rows 36 and 37 record the verbs' missing rewrite` | core `--lib` and `--lib --features truth-table` (2340 each); pedantic clippy on `tcl-lsp-core` and `tcl-lsp-server` with `--all-targets --all-features`; the server passes; `cargo check --workspace` |
 | DP9.5 | opus | M | done — § *Slices 8–10 as built* | `DP9.5 — the LSP and code-action passes on the server` | server `--lib` (590); the `e2e` subset `config` and the whole `e2e`; pedantic clippy on `tcl-lsp-server` with `--all-targets --all-features`; `cargo check --workspace` |
 | DP9.6 | sonnet | M | done — § *Slices 8–10 as built* | `DP9.6 — the CLI passes` | `tcl-cli` lib (27), `cli` (47, `-- truth_table` 2), `compile_verbs` (11), `explorer_gui` (2), `pkg_verbs` (13), `spec_verbs` (18); `tcl-cli-support` (19); core `--lib --features truth-table` (2340); clippy on `tcl-cli` with `--all-targets --no-deps`; `cargo fmt`; `cargo check --workspace` |
-| DP9.7 | sonnet | M | not started | — | — |
+| DP9.7 | sonnet | M | done — § *Slices 8–10 as built* | `DP9.7 — the MCP passes` | `tcl-mcp` (103); core `--lib --features truth-table` (2340); clippy on `tcl-mcp` with `--all-targets --no-deps`; `cargo fmt`; `cargo check --workspace` |
 | DP10.1 | opus | M | not started | — | — |
 | DP10.2 | sonnet | M | not started | — | — |
 | DP10.3 | sonnet | M | not started | — | — |

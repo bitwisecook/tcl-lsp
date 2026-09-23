@@ -3053,6 +3053,193 @@ mod policy_tests {
             "the default profile keeps constant folding off: {profile_off:?}"
         );
     }
+
+    // The diagnostic-policy truth table's rows, run through the MCP tools —
+    // DP9.7 (`docs/design/lanes/diagnostic-policy.md`).
+
+    /// `analyze`'s `diagnostics` and `suppressed` arrays, as observations:
+    /// `range` is 0-based (`byte_range`), so a line is `range.start.line`
+    /// plus one; a gap's `range` is `null`.
+    fn observed_from_analyze(
+        result: &Value,
+    ) -> Vec<tcl_lsp_core::diagnostic_policy::truth_table::Observed> {
+        use tcl_compiler::analyser::Severity;
+        use tcl_compiler::compiler_checks::DiagCode;
+        use tcl_lsp_core::diagnostic_policy::truth_table::{Observed, ObservedState};
+
+        fn severity_of(label: &str) -> Option<Severity> {
+            match label {
+                "hint" => Some(Severity::Hint),
+                "suggestion" => Some(Severity::Suggestion),
+                "info" => Some(Severity::Info),
+                "warning" => Some(Severity::Warning),
+                "error" => Some(Severity::Error),
+                _ => None,
+            }
+        }
+        let line_of = |range: &Value| -> Option<u32> {
+            let line = range.get("start")?.get("line")?.as_u64()?;
+            Some(u32::try_from(line).ok()? + 1)
+        };
+
+        let mut observed: Vec<Observed> = result["diagnostics"]
+            .as_array()
+            .expect("diagnostics array")
+            .iter()
+            .filter_map(|d| {
+                Some(Observed {
+                    code: d["code"].as_str()?.parse::<DiagCode>().ok()?,
+                    line: line_of(&d["range"]),
+                    state: ObservedState::Shown(d["severity"].as_str().and_then(severity_of)),
+                })
+            })
+            .collect();
+        observed.extend(
+            result["suppressed"]
+                .as_array()
+                .expect("suppressed array")
+                .iter()
+                .filter_map(|s| {
+                    Some(Observed {
+                        code: s["code"].as_str()?.parse::<DiagCode>().ok()?,
+                        line: line_of(&s["range"]),
+                        state: ObservedState::Suppressed(s["reason"].as_str()?.to_owned()),
+                    })
+                }),
+        );
+        observed
+    }
+
+    /// Every row `analyze` can realise renders its shown and suppressed
+    /// codes exactly as `Surface::Mcp` expects — the global layer from
+    /// `Row::ini`, the slot as the call's `disable` / `enable` arguments.
+    #[test]
+    fn every_row_renders_through_analyze() {
+        use tcl_lsp_core::diagnostic_policy::truth_table::{ROWS, Row, Surface, check};
+
+        let mut failures: Vec<String> = Vec::new();
+        for row in ROWS.iter().filter(|row| row.runs_on(Surface::Mcp)) {
+            let (text, _) = row.text();
+            let flags = row.slot_flags();
+            let args = json!({
+                "source": text,
+                "dialect": row.dialect,
+                "disable": flags.disable.join(","),
+                "enable": flags.enable.join(","),
+            });
+            let global_ini = Row::ini(row.global);
+            let result = analyze_with(&args, &inputs(&args, "diagnostics", &global_ini));
+            if let Err(failure) = check(row, Surface::Mcp, &observed_from_analyze(&result)) {
+                failures.push(failure);
+            }
+        }
+        assert!(failures.is_empty(), "{}", failures.join("\n"));
+    }
+
+    /// `code_actions` over the whole document offers a subject's fix exactly
+    /// when the row shows it — the same three subjects the server's
+    /// lightbulb pass judges (W100's brace refactor, S100's `# noqa`
+    /// quick-fix, O101's fold).
+    #[test]
+    fn every_row_offers_fixes_for_shown_findings_only() {
+        use tcl_lsp_core::diagnostic_policy::truth_table::{
+            ActionView, Observed, ObservedState, ROWS, Row, Surface, check, offered,
+        };
+
+        let mut failures: Vec<String> = Vec::new();
+        for row in ROWS.iter().filter(|row| row.runs_on(Surface::McpActions)) {
+            let (text, _) = row.text();
+            let end_line = u32::try_from(text.lines().count()).expect("a small program");
+            let flags = row.slot_flags();
+            let args = json!({
+                "source": text,
+                "dialect": row.dialect,
+                "disable": flags.disable.join(","),
+                "enable": flags.enable.join(","),
+                "start_line": 0,
+                "start_character": 0,
+                "end_line": end_line,
+                "end_character": 0,
+            });
+            let global_ini = Row::ini(row.global);
+            let result = code_actions_with(&args, &inputs(&args, "diagnostics", &global_ini));
+            let views: Vec<ActionView<'_>> = result["actions"]
+                .as_array()
+                .expect("actions array")
+                .iter()
+                .map(|action| ActionView {
+                    title: action["title"].as_str().unwrap_or(""),
+                    kind: action["kind"].as_str().unwrap_or(""),
+                    edits: action["edits"]
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .filter_map(|edit| {
+                            let line = edit["range"]["start"]["line"].as_u64()?;
+                            let line = u32::try_from(line).ok()? + 1;
+                            Some((line, edit["new_text"].as_str()?))
+                        })
+                        .collect(),
+                })
+                .collect();
+            let observed: Vec<Observed> = row
+                .expected(Surface::McpActions)
+                .iter()
+                .filter_map(|expect| {
+                    let line = expect.line?;
+                    Some(Observed {
+                        code: expect.code,
+                        line: Some(line),
+                        state: ObservedState::Offered(offered(expect.code, line, &views)),
+                    })
+                })
+                .collect();
+            if let Err(failure) = check(row, Surface::McpActions, &observed) {
+                failures.push(failure);
+            }
+        }
+        assert!(failures.is_empty(), "{}", failures.join("\n"));
+    }
+
+    /// `optimize` applies the fold exactly when the row shows it — the
+    /// slot's `profile` and per-code keys as the call's own arguments.
+    #[test]
+    fn every_rewrite_row_renders_through_optimize() {
+        use tcl_lsp_core::diagnostic_policy::truth_table::{
+            Observed, ObservedState, ROWS, Row, Surface, check,
+        };
+
+        let mut failures: Vec<String> = Vec::new();
+        for row in ROWS.iter().filter(|row| row.runs_on(Surface::McpRewrite)) {
+            let (text, _) = row.text();
+            let flags = row.slot_flags();
+            let args = json!({
+                "source": text,
+                "dialect": row.dialect,
+                "profile": flags.profile.clone().unwrap_or_default(),
+                "disable": flags.disable.join(","),
+                "enable": flags.enable.join(","),
+            });
+            let global_ini = Row::ini(row.global);
+            let result = optimized(&args, &global_ini);
+            let applied = result["optimized_source"]
+                .as_str()
+                .is_some_and(|source| source.contains("set x 3"));
+            let observed: Vec<Observed> = row
+                .expected(Surface::McpRewrite)
+                .iter()
+                .map(|expect| Observed {
+                    code: expect.code,
+                    line: expect.line,
+                    state: ObservedState::Applied(applied),
+                })
+                .collect();
+            if let Err(failure) = check(row, Surface::McpRewrite, &observed) {
+                failures.push(failure);
+            }
+        }
+        assert!(failures.is_empty(), "{}", failures.join("\n"));
+    }
 }
 
 #[cfg(test)]
