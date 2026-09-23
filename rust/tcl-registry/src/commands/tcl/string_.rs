@@ -64,28 +64,28 @@ const OK_COMPLETION_CODES: &[CompletionCode] = &[CompletionCode::Ok];
 /// `char::to_uppercase` can expand one char to several, e.g. ß → SS,
 /// whereas Tcl maps 1:1). Bailing on non-ASCII is conservative —
 /// never a wrong fold.
-fn fold_toupper(args: &[&str]) -> Option<String> {
+pub(crate) fn fold_toupper(args: &[&str]) -> Option<String> {
     match args {
         [s] if s.is_ascii() => Some(s.to_ascii_uppercase()),
         _ => None,
     }
 }
 
-fn fold_tolower(args: &[&str]) -> Option<String> {
+pub(crate) fn fold_tolower(args: &[&str]) -> Option<String> {
     match args {
         [s] if s.is_ascii() => Some(s.to_ascii_lowercase()),
         _ => None,
     }
 }
 
-fn fold_reverse(args: &[&str]) -> Option<String> {
+pub(crate) fn fold_reverse(args: &[&str]) -> Option<String> {
     match args {
         [s] if s.is_ascii() => Some(s.chars().rev().collect()),
         _ => None,
     }
 }
 
-fn fold_length(args: &[&str]) -> Option<String> {
+pub(crate) fn fold_length(args: &[&str]) -> Option<String> {
     // ASCII-only: for ASCII the byte length equals the character count,
     // matching Tcl's `string length` (number of characters).  Non-ASCII
     // bails — the char count diverges across Tcl 8.x (UTF-16 units) and
@@ -105,7 +105,7 @@ fn fold_length(args: &[&str]) -> Option<String> {
 /// is a false positive here: the `Option` is the shared callback contract,
 /// not redundant wrapping we control.
 #[allow(clippy::unnecessary_wraps)] // signature fixed by ConstFoldFn dispatch contract
-fn fold_cat(args: &[&str]) -> Option<String> {
+pub(crate) fn fold_cat(args: &[&str]) -> Option<String> {
     Some(args.concat())
 }
 
@@ -117,7 +117,7 @@ const MAX_FOLD_OUTPUT_BYTES: usize = 1 << 20;
 /// `string repeat string count` — repeat (bounded by a 10000 count cap and a
 /// 1 MiB output cap).  No char transformation → sound for any input.
 /// A negative count fails the `usize` parse → bails.
-fn fold_repeat(args: &[&str]) -> Option<String> {
+pub(crate) fn fold_repeat(args: &[&str]) -> Option<String> {
     let [s, count] = args else {
         return None;
     };
@@ -171,21 +171,21 @@ fn fold_trim_impl(args: &[&str], left: bool, right: bool) -> Option<String> {
     Some(out.to_owned())
 }
 
-fn fold_trim(args: &[&str]) -> Option<String> {
+pub(crate) fn fold_trim(args: &[&str]) -> Option<String> {
     fold_trim_impl(args, true, true)
 }
 
-fn fold_trimleft(args: &[&str]) -> Option<String> {
+pub(crate) fn fold_trimleft(args: &[&str]) -> Option<String> {
     fold_trim_impl(args, true, false)
 }
 
-fn fold_trimright(args: &[&str]) -> Option<String> {
+pub(crate) fn fold_trimright(args: &[&str]) -> Option<String> {
     fold_trim_impl(args, false, true)
 }
 
 /// `string totitle string` — the no-index form only (first char upper,
 /// rest lower).  ASCII-restricted.
-fn fold_totitle(args: &[&str]) -> Option<String> {
+pub(crate) fn fold_totitle(args: &[&str]) -> Option<String> {
     let [s] = args else {
         return None;
     };
@@ -209,7 +209,7 @@ use tcl_dialect::model::SpecSurface;
 /// Fold `string match` for literal arguments.  The glob implementation is
 /// shared with the runtime-facing command core, so this callback is command
 /// semantics in the registry rather than a consumer-side spelling check.
-fn fold_match(args: &[&str]) -> Option<String> {
+pub(crate) fn fold_match(args: &[&str]) -> Option<String> {
     let (nocase, pattern, text) = match args {
         [pattern, text] => (false, *pattern, *text),
         [option, pattern, text] if option.len() >= 2 && "-nocase".starts_with(*option) => {
@@ -222,7 +222,7 @@ fn fold_match(args: &[&str]) -> Option<String> {
 
 /// `string index string charIndex`.  ASCII-restricted (byte index ==
 /// char index for ASCII).
-fn fold_index(args: &[&str]) -> Option<String> {
+pub(crate) fn fold_index(args: &[&str]) -> Option<String> {
     let [s, idx_str] = args else {
         return None;
     };
@@ -240,7 +240,7 @@ fn fold_index(args: &[&str]) -> Option<String> {
 /// `string range string first last` — the declared direct route run over
 /// literal words: the shared core under `version`'s grammar, or under the
 /// answer every release gives when the caller names none.
-fn fold_range(args: &[&str], version: Option<TclVersion>) -> Option<String> {
+pub(crate) fn fold_range(args: &[&str], version: Option<TclVersion>) -> Option<String> {
     crate::value_transfer::evaluate_literal(
         &crate::value_transfer::builtins::STRING_RANGE,
         "string",
@@ -276,7 +276,7 @@ pub(crate) fn fold_replace(args: &[&str]) -> Option<String> {
 
 /// `string first needleString haystackString ?startIndex?`.
 /// ASCII-restricted.  Returns the byte/char index, or `-1`.
-fn fold_first(args: &[&str]) -> Option<String> {
+pub(crate) fn fold_first(args: &[&str]) -> Option<String> {
     let (needle, haystack, start) = match args {
         [n, h] => (*n, *h, 0usize),
         [n, h, st] => {
@@ -307,7 +307,7 @@ fn fold_first(args: &[&str]) -> Option<String> {
 
 /// `string last needleString haystackString ?lastIndex?`.
 /// ASCII-restricted.  Searches `haystack[0..end)` from the right.
-fn fold_last(args: &[&str]) -> Option<String> {
+pub(crate) fn fold_last(args: &[&str]) -> Option<String> {
     let (needle, haystack, end_idx) = match args {
         [n, h] => (*n, *h, None),
         [n, h, last] => {
@@ -335,7 +335,7 @@ fn fold_last(args: &[&str]) -> Option<String> {
 
 /// `string compare ?-nocase? ?-length N? string1 string2`.
 /// ASCII-restricted.  Returns `-1` / `0` / `1`.
-fn fold_compare(args: &[&str]) -> Option<String> {
+pub(crate) fn fold_compare(args: &[&str]) -> Option<String> {
     let mut nocase = false;
     let mut length: Option<usize> = None;
     let mut i = 0;
@@ -382,7 +382,7 @@ fn fold_compare(args: &[&str]) -> Option<String> {
 }
 
 /// `string equal ?-nocase? ?-length N? string1 string2`.
-fn fold_equal(args: &[&str]) -> Option<String> {
+pub(crate) fn fold_equal(args: &[&str]) -> Option<String> {
     match fold_compare(args)?.as_str() {
         "0" => Some("1".to_owned()),
         _ => Some("0".to_owned()),
@@ -392,7 +392,7 @@ fn fold_equal(args: &[&str]) -> Option<String> {
 /// `string map ?-nocase? mapping string`.  ASCII-restricted (byte-exact
 /// greedy left-to-right replacement matching Tcl's `string map`; the
 /// `mapping` is a list of old/new pairs, first matching pair wins).
-fn fold_string_map(args: &[&str]) -> Option<String> {
+pub(crate) fn fold_string_map(args: &[&str]) -> Option<String> {
     let (mapping_str, s) = match args {
         [m, s] => (*m, *s),
         ["-nocase", m, s] => {

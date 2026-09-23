@@ -4193,6 +4193,23 @@ impl Vm {
         ))
     }
 
+    /// Refuse `rand()` and `srand()` while stores are confined. The
+    /// generator's seed is interpreter state every invocation shares:
+    /// `srand` writes it and `rand` reads and advances what an earlier
+    /// invocation left, so either would make one evaluation's answer
+    /// depend on another's. Under 8.4 the functions are `expr` builtins no
+    /// command restriction removes, so the refusal is here, where the draw
+    /// is made. The refusal is an ordinary Tcl error.
+    pub(crate) fn confine_generator(&self, function: &str) -> Result<(), Completion<Value>> {
+        if !self.limits.confined_stores {
+            return Ok(());
+        }
+        Err(err(format!(
+            "can't call \"{function}\": stores are confined to the activation and the \
+             generator's seed is not"
+        )))
+    }
+
     /// The `commands` limit value, if one is armed.
     pub(crate) fn command_limit_value(&self) -> Option<i64> {
         self.limits.cmd_value

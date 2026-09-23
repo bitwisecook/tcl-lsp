@@ -224,7 +224,7 @@ const RELATIONS: &[OptionRelation] = &[
 /// the `[command]` caller-bail could decide).  The option forms
 /// (`-nobackslashes` / …) change which substitutions apply, so the
 /// multi-arg form bails too.
-fn fold_subst(args: &[&str]) -> Option<String> {
+pub(crate) fn fold_subst(args: &[&str]) -> Option<String> {
     let [s] = args else {
         return None;
     };

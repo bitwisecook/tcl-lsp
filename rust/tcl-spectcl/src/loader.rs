@@ -5041,6 +5041,49 @@ fn hook_source(stmt: &Stmt) -> Option<HookSource> {
     }
 }
 
+/// A `const_fold -native ID` or `const_fold_versioned -native ID` resolved
+/// against the shipped folders' table (`tcl_registry::pack_hooks`'s
+/// `CONST_FOLD_NATIVE` / `CONST_FOLD_VERSIONED_NATIVE`), keyed by
+/// `SCOPE::FIELD` (`string::range::const_fold`): the named folder, or `None`
+/// with a load notice for an id that is not this scope's full id or that
+/// names nothing this build ships, and the abstaining placeholder stays. The
+/// other hook families' tables hold nothing a build ships yet, so their
+/// `-native` statements install nothing and are not looked up.
+fn native_fold<T: Copy>(
+    scope: &str,
+    field: &str,
+    id: &str,
+    table: &[(&'static str, T)],
+    line: u32,
+    log: &mut Log,
+) -> Option<T> {
+    let full = format!("{scope}::{field}");
+    if id != full {
+        log.say(
+            line,
+            format!(
+                "`{field} -native {id}` is not this scope's id; spell it `{full}` — the \
+                 statement installs nothing"
+            ),
+        );
+        return None;
+    }
+    let found = table
+        .iter()
+        .find(|(key, _)| *key == full)
+        .map(|(_, value)| *value);
+    if found.is_none() {
+        log.say(
+            line,
+            format!(
+                "`{field} -native {id}` names nothing this build ships; the statement installs \
+                 nothing"
+            ),
+        );
+    }
+    found
+}
+
 #[allow(clippy::too_many_lines)]
 fn apply_command_stmt(
     spec: &mut CommandSpec,
@@ -5557,11 +5600,33 @@ fn apply_command_stmt(
                     ("script_timing_resolver", HookFamily::ScriptTimingResolver)
                 }
                 "const_fold" => {
-                    spec.const_fold = Some(abstain_const_fold);
+                    spec.const_fold = Some(match &source {
+                        HookSource::Native { id } => native_fold(
+                            &log.command.clone(),
+                            "const_fold",
+                            id,
+                            tcl_registry::pack_hooks::CONST_FOLD_NATIVE,
+                            stmt.line,
+                            log,
+                        )
+                        .unwrap_or(abstain_const_fold),
+                        _ => abstain_const_fold,
+                    });
                     ("const_fold", HookFamily::ConstFold)
                 }
                 "const_fold_versioned" => {
-                    spec.const_fold_versioned = Some(abstain_const_fold_versioned);
+                    spec.const_fold_versioned = Some(match &source {
+                        HookSource::Native { id } => native_fold(
+                            &log.command.clone(),
+                            "const_fold_versioned",
+                            id,
+                            tcl_registry::pack_hooks::CONST_FOLD_VERSIONED_NATIVE,
+                            stmt.line,
+                            log,
+                        )
+                        .unwrap_or(abstain_const_fold_versioned),
+                        _ => abstain_const_fold_versioned,
+                    });
                     ("const_fold_versioned", HookFamily::ConstFoldVersioned)
                 }
                 "taint_sink_gate" => {
@@ -6692,11 +6757,35 @@ fn apply_subcommand_stmt(
                     ("script_timing_resolver", HookFamily::ScriptTimingResolver)
                 }
                 "const_fold" => {
-                    sub.const_fold = Some(abstain_const_fold);
+                    let scope = format!("{}::{owner}", log.command);
+                    sub.const_fold = Some(match &source {
+                        HookSource::Native { id } => native_fold(
+                            &scope,
+                            "const_fold",
+                            id,
+                            tcl_registry::pack_hooks::CONST_FOLD_NATIVE,
+                            stmt.line,
+                            log,
+                        )
+                        .unwrap_or(abstain_const_fold),
+                        _ => abstain_const_fold,
+                    });
                     ("const_fold", HookFamily::ConstFold)
                 }
                 "const_fold_versioned" => {
-                    sub.const_fold_versioned = Some(abstain_const_fold_versioned);
+                    let scope = format!("{}::{owner}", log.command);
+                    sub.const_fold_versioned = Some(match &source {
+                        HookSource::Native { id } => native_fold(
+                            &scope,
+                            "const_fold_versioned",
+                            id,
+                            tcl_registry::pack_hooks::CONST_FOLD_VERSIONED_NATIVE,
+                            stmt.line,
+                            log,
+                        )
+                        .unwrap_or(abstain_const_fold_versioned),
+                        _ => abstain_const_fold_versioned,
+                    });
                     ("const_fold_versioned", HookFamily::ConstFoldVersioned)
                 }
                 "constraints" => {
@@ -7140,6 +7229,84 @@ mod tests {
         let case = disabled.command("demo").unwrap().spec.case_list.unwrap();
         assert!(!case.allow_omitted_final_body);
         assert!(!case.warn_unbraced_bodies);
+    }
+
+    /// `const_fold -native ID` and `const_fold_versioned -native ID` install
+    /// the shipped folder the id names, at command and subcommand scope, where
+    /// they used to install the abstaining placeholder whatever the id said:
+    /// `string range`'s folder answers `bcd` for `abcdef 1 3` and `string
+    /// is`'s versioned one answers `1` for `integer 42`. An id that is not
+    /// the scope's full `SCOPE::FIELD` spelling, or one that names nothing
+    /// this build ships, is a load notice and the placeholder stays, so the
+    /// call folds nothing.
+    #[test]
+    fn a_native_fold_id_installs_the_shipped_folder() {
+        let pack = evaluate_pack(
+            "speclib probe 2.2 {\n\
+             command string {\n\
+                 subcommand range {\n\
+                     arity 3\n\
+                     const_fold -native string::range::const_fold\n\
+                 }\n\
+                 subcommand is {\n\
+                     arity 2..\n\
+                     const_fold_versioned -native string::is::const_fold_versioned\n\
+                 }\n\
+             }\n\
+             command probe::short {\n\
+                 arity 3\n\
+                 const_fold -native string::range\n\
+             }\n\
+             command probe::unknown {\n\
+                 arity 1\n\
+                 const_fold -native probe::unknown::const_fold\n\
+             }\n\
+             }",
+        );
+        let string = pack.command("string").expect("declared");
+        let sub = |name: &str| {
+            string
+                .spec
+                .subcommands
+                .iter()
+                .find(|sub| sub.name == name)
+                .expect("declared")
+        };
+        let range = sub("range").const_fold.expect("a folder");
+        assert_eq!(range(&["abcdef", "1", "3"]).as_deref(), Some("bcd"));
+        let is = sub("is").const_fold_versioned.expect("a folder");
+        assert_eq!(
+            is(&["integer", "42"], Some(tcl_dialect::TclVersion::V9_0)).as_deref(),
+            Some("1")
+        );
+        for name in ["probe::short", "probe::unknown"] {
+            let fold = pack
+                .command(name)
+                .expect("declared")
+                .spec
+                .const_fold
+                .expect("the placeholder");
+            assert_eq!(fold(&["abcdef", "1", "3"]), None, "{name}");
+        }
+        let notices: Vec<&str> = pack
+            .notices
+            .iter()
+            .map(|notice| notice.message.as_str())
+            .collect();
+        assert!(
+            notices.iter().any(|notice| notice.contains(
+                "`const_fold -native string::range` is not this scope's id; spell it \
+                 `probe::short::const_fold`"
+            )),
+            "{notices:#?}"
+        );
+        assert!(
+            notices.iter().any(|notice| notice.contains(
+                "`const_fold -native probe::unknown::const_fold` names nothing this build ships"
+            )),
+            "{notices:#?}"
+        );
+        assert_eq!(notices.len(), 2, "{notices:#?}");
     }
 
     /// The loader resolves a `-native ID` by matching the catalogue's own

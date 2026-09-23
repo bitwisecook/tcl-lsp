@@ -11137,19 +11137,34 @@ impl Backend {
         }))
     }
 
-    /// [`db_compilation_unit`], but returns the worker `JoinHandle` immediately
-    /// (see [`db_file_analysis_handle`] for why the range-convergence path
-    /// needs it).  `None`
-    /// when there is no salsa input for `uri`.
+    /// The document's memoised [`CompilationUnit`] under the pack overlay of
+    /// the config [`Self::resolved_db_config`] resolves for `uri`, returned as
+    /// the worker `JoinHandle` immediately (see [`db_file_analysis_handle`] for
+    /// why the range-convergence path needs it).  `None` when there is no
+    /// salsa input for `uri`.
+    ///
+    /// The overlay is what keeps the viewport's enriched tier in agreement
+    /// with the registry it resolves against: `semantic_tokens_range` resolves
+    /// through [`Self::registry_for_dialect`], which carries the workspace's
+    /// packs, and the full-document query reads the overlaid unit too — so a
+    /// unit built without it would describe a pack command's variable writes
+    /// differently from both.  It is also the diagnostics path's own build, so
+    /// a viewport request after the diagnostics pass is a cache hit.
+    ///
+    /// [`CompilationUnit`]: tcl_compiler::compilation_unit::CompilationUnit
     async fn db_compilation_unit_handle(
         &self,
         uri: &Uri,
     ) -> Option<crate::rt::JoinHandle<Option<Arc<tcl_compiler::compilation_unit::CompilationUnit>>>>
     {
         let file = (*self.db_files.lock().await).get(uri).copied()?;
+        let config = self.resolved_db_config(uri).await;
         let snapshot = self.db.snapshot("db_compilation_unit_handle").await;
         Some(crate::rt::spawn_blocking(move || {
-            salsa::Cancelled::catch(|| tcl_lsp_db::document_compilation_unit(&*snapshot, file)).ok()
+            salsa::Cancelled::catch(|| {
+                tcl_lsp_db::document_compilation_unit_for(&*snapshot, file, config)
+            })
+            .ok()
         }))
     }
 
@@ -51600,6 +51615,117 @@ proc p {} {
                 || served.data == lift_semantic_token_data(&coarse.data),
             "served tokens must be exactly the enriched tier or exactly the \
              coarse tier, never a third shape",
+        );
+    }
+
+    /// The viewport's enriched tier reads the unit under the workspace's pack
+    /// overlay, so it colours exactly what the full-document query colours
+    /// (the review of slice 4, finding 7). `mylib::put pat` is a pack command
+    /// that writes `pat` (`arg 0 -role VarWrite`): under the overlay the
+    /// `regexp` reads the version `mylib::put` wrote, so `set pat`'s literal is
+    /// not the pattern's source. A unit built without the overlay sees an
+    /// unknown command, keeps `pat` at its literal, and colours that literal as
+    /// a regex — a viewport that disagrees with the document it is a window
+    /// on, resolved against a registry that knows the command it ignored.
+    ///
+    /// Compared on the tier's own inputs — the unit and analysis handles
+    /// `race_range_enriched_reads` awaits and the registry
+    /// `semantic_tokens_range` resolves against — rather than through the
+    /// handler, whose 40 ms race may legitimately serve the coarse tier.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn range_tokens_read_the_unit_under_the_workspace_pack_overlay() {
+        let backend = test_backend();
+        let packs = tcl_spectcl::pack::load_in_memory(vec![(
+            tcl_spectcl::PackFile {
+                tier: tcl_spectcl::Tier::Workspace,
+                path: std::path::PathBuf::from("/workspace/.tcl-lsp/mylib.tclspec"),
+                origin: tcl_spectcl::discovery::Origin::DotDir,
+            },
+            "speclib mylib 1.0 {\n    command mylib::put {\n        arity 1\n        \
+             arg 0 -role VarWrite\n    }\n}\n"
+                .to_owned(),
+        )]);
+        assert!(packs.notices.is_empty(), "{:#?}", packs.notices);
+        // What a reload does before the key goes live: the overlaid registry
+        // for the document's dialect exists, the set is the backend's, and
+        // the salsa config carries its key.
+        let _registry = tcl_spectcl::install::registry_for_dialect_with_packs("tcl9.0", &packs);
+        *backend.spec_packs.lock().await = PublishedPackSet {
+            seq: 1,
+            packs: Arc::new(packs),
+        };
+        backend.sync_db_config().await;
+
+        let uri = Uri::from_str("file:///workspace/viewport.tcl").unwrap();
+        let src = "set pat {^a+$}\nmylib::put pat\nregexp $pat $s\n";
+        backend.db_set_source(&uri, src, "tcl9.0".to_owned()).await;
+        let profile = tcl_lsp_core::profile_for_dialect("tcl9.0");
+        let whole = CoreLspRange {
+            start_line: 0,
+            start_character: 0,
+            end_line: 3,
+            end_character: 0,
+        };
+
+        let unit = backend
+            .db_compilation_unit_handle(&uri)
+            .await
+            .expect("an indexed document has a unit handle")
+            .await
+            .expect("worker did not panic")
+            .expect("not cancelled");
+        let analysis = backend
+            .db_file_analysis_handle(&uri)
+            .await
+            .expect("an indexed document has an analysis handle")
+            .await
+            .expect("worker did not panic")
+            .expect("not cancelled");
+        let registry = backend.registry_for_dialect("tcl9.0").await;
+        let viewport = core_semantic_tokens::range_with_cu_and_analysis(
+            src,
+            profile,
+            whole,
+            &registry,
+            Some(&unit),
+            Some(&analysis),
+        );
+        let full = backend
+            .db_semantic_tokens(&uri)
+            .await
+            .expect("an indexed document has a token handle")
+            .await
+            .expect("worker did not panic")
+            .expect("not cancelled");
+        assert_eq!(
+            viewport.data, full.data,
+            "a viewport over the whole document colours what the document does",
+        );
+
+        // The overlay is what decides it: the same tier over the unit built
+        // without the packs colours the literal as the pattern's source.
+        let file = (*backend.db_files.lock().await)
+            .get(&uri)
+            .copied()
+            .expect("the document is indexed");
+        let snapshot = backend.db.snapshot("test").await;
+        let bare = crate::rt::spawn_blocking(move || {
+            tcl_lsp_db::document_compilation_unit(&*snapshot, file)
+        })
+        .await
+        .expect("worker did not panic");
+        let unaware = core_semantic_tokens::range_with_cu_and_analysis(
+            src,
+            profile,
+            whole,
+            &registry,
+            Some(&bare),
+            Some(&analysis),
+        );
+        assert_ne!(
+            unaware.data, full.data,
+            "without the overlay the unit keeps `pat` at its literal, or this \
+             test proves nothing",
         );
     }
 

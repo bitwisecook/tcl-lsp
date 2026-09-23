@@ -2,9 +2,11 @@
 
 The crash-insurance and handover note for the `value-transfers` lane. A
 fresh agent resumes from this file and the `wip(value-transfers):` commits.
-Slices 1 to 4 have landed; § *Plan for slices 2–13* is the plan for the
-rest. Slice 5 is in progress: § *Slice 5* › *Record (2026-09-23): the opus
-items of slice 5* has each checkpoint so far and is where to start.
+Slices 1 to 4 have landed, slice 4 with its review's fixes (§ *Slice 4* ›
+*Record (2026-09-23): the review of slice 4*); § *Plan for slices 2–13* is
+the plan for the rest. Slice 5 is in progress: § *Slice 5* › *Record
+(2026-09-23): the opus items of slice 5* has each checkpoint so far and is
+where to start.
 
 ## Goal
 
@@ -520,6 +522,20 @@ the direct route"); the studio's own "try it" box over
 scoped into any VT4.x item and not built; `direct_route_needs_match_their_cores`
 and the remaining core-function witnesses the evaluation page's own test
 anchors still list as "to add".
+
+The review of the landing returned "land after fixes"; its nine findings
+landed as one commit, `wip(value-transfers): review fixes for slice 4`
+(§ *Plan for slices 2–13* › *Slice 4* › *Record (2026-09-23): the review
+of slice 4*, D110 to D114). After it, `-native ID` resolves for the two
+`const_fold` families, whose tables hold every shipped folder (47 and 3
+ids); the other twelve body families' tables — `ARG_ROLE_RESOLVER`,
+`COMMAND_PREFIX_RESOLVER`, `SCRIPT_TIMING_RESOLVER`, `TAINT_SINK_GATE`,
+`CONTEXT_GATE`, `LITERAL_ARGUMENT_VALIDATOR`, `CLAUSE_SHAPE_CHECK`,
+`OPTION_ARITY`, `CONSTRAINTS`, `SEMANTICS`, `EVALUATE` and `FACTS` — hold
+no entries yet: a `-native` id for one of the nine hook families installs
+that family's abstention and nothing else, and one on a `semantics`,
+`evaluate` or `facts` statement is a notice that nothing this build ships
+holds it.
 
 ## Plan for slices 2–13
 
@@ -3537,6 +3553,63 @@ run (the studio schema is unchanged since VT4.11, so
 `docs/references/command-spec/fields.md` was not regenerated); `cargo
 check --workspace --all-targets` clean; `cargo test -p tcl-registry --lib`
 905 passed, 0 failed (the smoke run; unchanged from Q12's checkpoint).
+
+#### Record (2026-09-23): the review of slice 4
+
+The review of the landing (`1fa954b1`) returned "land after fixes" with
+nine findings. They land as one commit, `wip(value-transfers): review
+fixes for slice 4`, after VT5.1 (`316ee045`) and the consumer-contracts
+lane's CC2.6 (`e67ae23e`); the decisions they needed are D110 to D114.
+The review verified the rest as correct and asked for no action: store
+and host-environment confinement, the D88 reasons, the D89 option shapes,
+D102's order, ruling 8 per axis, the hook cache's full content
+comparison, the epoch mechanics and both epoch tests, the overlay's
+reach, the budgets' nesting, VT4.11's round trip, VT4.12's pessimism,
+VT4.14's outcomes and goldens, `shipped_builtins_stay_on_the_direct_route`,
+headers and spelling.
+
+| Finding | What changed | Its tests |
+|---|---|---|
+| 1. `rand()` and `srand()` reach interpreter state under every 8.4-based release | `Vm::confine_generator` (`rust/tcl-vm/src/interp.rs`, beside `confine_store`); `m_rand` and `m_srand` (`cmd_math.rs`) refuse while `confined_stores` is set (D110); the evaluation page's § *Per-evaluation state* says so | `confine_stores_refuses_every_store_outside_the_activation` gains the generator rows (the engine's default release, `tcl8.4`, `f5-irules`, each × `expr {srand(7)}` and `expr {rand()}`); `the_generator_is_refused_under_every_pinned_release` (`containment_e2e`: release-pinned bodies under `tcl8.4`, `f5-irules`, `tcl8.6`, `tcl9.0` — the seeding and drawing bodies abstain, `abs(-1)` folds `1`); both fail without the fix |
+| 2. A pool thread keeps a host from a superseded plan | `pack_hooks::ensure_host` runs the registered installer before it reads `HOST` whenever the thread's host came from a plan (`FROM_PLAN`, set by `install_plan_host`, cleared by `install_host` and `clear_host`); a host installed directly is returned as it is; its comment says what it guards (D111) | `a_pool_thread_with_a_stale_host_answers_with_the_new_plan` (`tcl-lsp-db`'s parity module: a thread whose host is the first plan's, after the edited pack is published and its key set, folds `[tenant::label acme]` to the new body's `t:acme`, not the old `tenant:acme`); fails without the fix. It lives beside the other publishing witnesses rather than in the server's tests (D111) |
+| 3. A write, a preserve and `target N incoming` work only in statement position, and only with the role and the trait | one real-driver witness; the KCS howto and the page's § *A private command* state the `arg N -role VarWrite` and `traits {READS_BEFORE_WRITE}` requirements and the value-position limit | `a_pack_write_through_an_incoming_target_reaches_the_driver` (compiler witnesses, `acc` pack: `acc::add s cd` in statement position writes `s` to `abcd`; `[acc::add s ef]` in value position declines `not-exact` and `[acc::store u xy]` is `not substituted: the outcome writes storage`, both results `Overdefined`; `acc::put`, declared without the trait, declines `not-exact`) — `abcd` checked against tclsh 8.4 to 9.1 with the body as an `upvar` procedure |
+| 4. `-native ID` resolves nothing | the loader's `native_fold` resolves `const_fold -native ID` and `const_fold_versioned -native ID` at command and subcommand scope (D112); `CONST_FOLD_NATIVE` (47 rows) and `CONST_FOLD_VERSIONED_NATIVE` (3) hold every folder the shipped registry installs, the catalogue's pickers match them, and the folders they name became `pub(crate)` (`string_.rs`, `namespace_.rs`, and one visibility hunk in `subst_.rs`); `string.tclspec` spells `string::is::const_fold_versioned` and its golden is regenerated; the page's § *`-native ID`* names the twelve families whose tables are still empty | `a_native_fold_id_installs_the_shipped_folder` (loader: the named cores fold `string range abcdef 1 3` to `bcd` and `string is integer 42` to `1`, both checked against tclsh 8.4 to 9.1; a short id and an unknown id are notices and install nothing); the studio's `every_command_in_every_dialect_round_trips_through_spectcl` and `the_eleven_port_fixtures_render_and_reload_as_themselves` now reload every rendered shipped folder by name |
+| 5. The KCS howto's words | the outcome words are `write`, `write_or_preserve`, `may_write` and `unbind`; only `body` is required; the role and trait bullets (finding 3) | `cargo xtask kcs-index-links` |
+| 6. Three sentences | the page's § *Per-evaluation state* (with finding 1); D104's window corrected in place ("whichever computes first is the memo every worker reads until the next edit or epoch"); `rust/tcl-engine-tclvm/src/lib.rs`'s unit-name comment now says what the guarantee is — the name is an ordinary one a body can spell (`::spectcl::unit::N`), so it is not private to the host; what makes that safe is that an engine serves one pack, so a body reaches only its own pack's units, a recursive call raises through the command budget or the nesting limit, and nothing in the sandbox defines a command, so no body can shadow a unit | — |
+| 7. The viewport reads the unit without the pack overlay | the server's `db_compilation_unit_handle` reads `document_compilation_unit_for(&*snapshot, file, config)` with `config` from `resolved_db_config(uri)` (D113) | `range_tokens_read_the_unit_under_the_workspace_pack_overlay` (server: a `mylib::put` pack command with `arg 0 -role VarWrite`; the enriched viewport over the whole document equals the full-document query's tokens, and the same tier over the unit built without the overlay differs); fails without the fix |
+| 8. Math functions are gone under a pinned engine at 8.5 or later | `restrict_commands` keeps every `tcl::mathfunc::*` command except `rand` and `srand` when `expr` is allowed (D110) | `a_restricted_engine_keeps_the_math_functions_but_the_generator` (`tcl8.4` to `tcl9.1` and `f5-irules`: `expr {abs(-1) + int(2.5) + double(1)}` is `4.0`, checked against tclsh 8.4 to 9.1; `rand()` and `srand(7)` raise) |
+| 9. D99's "200 ms", and two budget rules | D99, Q13, the page's § *The three nested budgets* and `Budget::REQUEST_WORK`'s doc state the real bound; the loader's `budget_row` records the row as written and the host is the only place a declared budget is capped (D114, amending D91) | `what_cannot_be_used_is_reported_and_dropped` (loader: `budget {-commands 900000}` loads as written, with no notice); `a_declared_budget_above_the_hosts_runs_under_the_hosts` (`containment_e2e`: a host configured at 200 commands runs a call that declares 900,000 under its own 200 — a command-budget crash and a quarantine — and a 50-command body answers `50`) |
+
+Deviations from the findings' own wording, each for the reason given:
+finding 2's witness is not a server test (D111 says why); finding 4
+filled both tables with every shipped folder, not only the ids a
+test names, because once an id resolves an unresolved one is a notice,
+and the renderer writes `-native SCOPE::FIELD` for every shipped folder —
+until the tables held all fifty, the studio's round trips failed with 28
+"names nothing this build ships" notices.
+
+Green at the review fixes:
+
+- tests, each crate's full suite unless named: `tcl-vm` (under
+  `LANG=C.UTF-8`) 1473 passed across 50 binaries; `tcl-engine-tclvm` 16;
+  `tcl-spec-hooks` 47; `tcl-registry` 1209; `tcl-spectcl` 302, 1 ignored;
+  `tcl-spec-studio` 284; `tcl-compiler` 9721, 6 ignored, across 68
+  binaries; `tcl-lsp-db` 127, 5 ignored; `tcl-lsp-server --lib` 593 and
+  its `e2e` binary's `semantic_tokens` and `spec_packs` modules 122, 1
+  ignored; `tcl-mcp`'s `spectcl` and `spec_import` tests 34; `tcl-cli`'s
+  `samples_optimiser_profiles_are_regenerated` passes (no sample moved);
+  no failure anywhere;
+- pedantic clippy (`--no-deps --all-targets -D warnings`) on the eight
+  touched crates, no `#[allow]` added; `rustfmt` on the touched files;
+- `cargo xtask value-transfers --check`: OK, unchanged (17 files clean, 13
+  sites waived, 98 pinned across 39 files, 6607 inventory rows);
+- `cargo xtask registry-axes --check`: OK (7831 vocabulary words, 1089
+  sites pinned across 163 files);
+- `cargo xtask pack-goldens`: `string.snap` rewritten, 24 packs scanned;
+  it carries CC2.6's `spec` hash and this commit's `hooks` hash;
+- the nextest shard verifier: OK (no new test binary);
+- `cargo xtask kcs-index-links`: "KCS docs checks passed";
+- `cargo check --workspace --all-targets`: clean.
 
 ### Slice 5 — destructuring and structured bodies
 
@@ -6951,7 +7024,10 @@ Taken while slice 4's opus items were executed (§ *Slice 4* › *Record
   never a wider run; an overrun is the host's ordinary budget blowout —
   recorded, quarantined, and `Transient` from then on (D88).
   `HookHost::is_available` is `!is_quarantined`, which also answers
-  `false` for a slot the host does not serve.
+  `false` for a slot the host does not serve. The rule lives in the host
+  alone: the loader records a `budget` row as written (the review of
+  slice 4 removed its second check, against `HostConfig::default()`,
+  which disagreed with any host configured otherwise).
 - **D92 — VT4.6 rides with the second checkpoint.** Its edits share
   `pack_hooks.rs`, `declared.rs` and `host.rs` with VT4.3 to VT4.5, and a
   partial stage of those files would commit a state no build verified;
@@ -7019,9 +7095,9 @@ Taken while slice 4's opus items were executed (§ *Slice 4* › *Record
   close it; the server would set it, and the server is not this lane's
   file (open question below).
 - **D99 — The three nested budgets.** `Budget::request()` is 50,000,000
-  units (200 ms at four milliseconds per million) and 64 MiB retained;
-  `Budget::iteration` a tenth of the request's remaining work;
-  `Budget::evaluation_within` an evaluation that charges through both.
+  units and 64 MiB retained; `Budget::iteration` a tenth of the request's
+  remaining work; `Budget::evaluation_within` an evaluation that charges
+  through both.
   `charge_work` propagates — the evaluation's own exhaustion is
   `Budget(Fuel)`, an iteration's or the request's `Budget(Request)` — and
   `charge_result` also charges the request's retained bytes. The driver
@@ -7031,6 +7107,19 @@ Taken while slice 4's opus items were executed (§ *Slice 4* › *Record
   unit each (`pack_hooks::record_commands_spent` and
   `take_commands_spent`), after the body ran: an exhausted request
   declines the evaluations after it, not the answer it paid for.
+  What the work bound means depends on the route that spends it
+  (corrected by the review of slice 4: this row said "200 ms at four
+  milliseconds per million", which holds for the native routes only). A
+  native route's unit is calibrated at about four milliseconds per
+  million, so the native work a request pays for stays near 200 ms. A
+  declared implementation's unit is one engine command, which is not
+  calibrated to time: the request bounds the commands its bodies
+  dispatch — about 500 calls that each spend the bounded host's whole
+  per-call allowance of 100,000 — and each call's time is bounded by the
+  host's own 250 ms clock, not by the request. A request whose bodies
+  each spend their whole allowance can run for up to 500 × 250 ms, and a
+  body that dispatches few commands but runs long is bounded only by the
+  clock, which quarantines it the first time it is reached.
 - **D100 — An exhausted request declines every re-evaluated statement.**
   Each sweep re-evaluates every executable statement with a tenth of what
   the request has left, and the join keeps a decline, so once a run's
@@ -7108,8 +7197,11 @@ Taken while slice 4's opus items were executed (§ *Slice 4* › *Record
   already published (D98), and a pass on a healthy worker would run the
   crashing body again. After a quarantine the next analysis recomputes
   every lattice on whichever worker runs it — a healthy one answers, the
-  quarantined one declines `transient` — so a transient decline is no
-  longer served to a healthy worker until the file changes. A content
+  quarantined one declines `transient` — and whichever computes first is
+  the memo every worker reads until the next edit or epoch: a quarantined
+  worker that recomputes first still serves its `transient` to a healthy
+  one, so the epoch shortens that window to one analysis rather than
+  closing it (corrected by the review of slice 4). A content
   edit to a pack moves the pack key as well, which alone re-keys the
   lattices (D97); the epoch adds the quarantine and the window in which a
   reload's plan reaches the workers before its key reaches the database,
@@ -7156,6 +7248,71 @@ Taken while slice 5's opus items were executed (§ *Slice 5* › *Record
   places share storage — the same name, or an array and one of its
   elements, by kind or by the `base(key)` spelling — and `declared.rs`'s
   private `overlaps` went.
+
+Taken while landing the review of slice 4 (§ *Slice 4* › *Record
+(2026-09-23): the review of slice 4* has the witnesses):
+
+- **D110 — The generator is refused where stores are confined; the other
+  math functions stay.** `rand()` reads and `srand()` writes a seed that
+  is interpreter state, so a body that calls either answers differently
+  on the same inputs — the store confinement's own reason (D77). Under an
+  8.4-based release the math functions are `expr` builtins, not commands,
+  so no command restriction can remove them: the VM's `expr` refuses the
+  two while `confined_stores` is set (`Vm::confine_generator`, beside
+  `confine_store`, one check in each function), under every release.
+  From 8.5 each function is a `tcl::mathfunc::NAME` command, and the
+  engine's `restrict_commands` had stripped all of them, so `expr
+  {abs(-1)}` folded under an 8.4-pinned body and declined under every
+  later one; an allowed `expr` now keeps every `tcl::mathfunc::*` command
+  except `rand` and `srand`, which the VM would refuse anyway.
+- **D111 — A plan host follows the published plan; a direct host is
+  kept.** `ensure_host` runs the registered installer before it reads
+  `HOST` whenever the thread's host came from a plan (`FROM_PLAN`), and
+  the installer rebuilds only when the published generation differs from
+  the thread's, so a pool thread that last built its host under a
+  superseded plan answers with the new one on its next call. It used to
+  run the installer only for a thread with no host at all, so such a
+  thread computed through the old plan's bodies and memoised the answer
+  under the new plan's key and epoch. A host installed directly
+  (`install_host`: a test's host, or one a caller manages) is not the
+  plan's to replace and is returned as it is. The witness drives the
+  reload's own sequence — the overlaid registry, `hooks::publish`, the
+  pack key on the salsa config — in `tcl-lsp-db`'s parity module, where
+  every test that publishes a plan holds `PUBLISHED_PACKS`: the plan is
+  process-wide, and a server unit test that published one would race
+  every other server test that reloads packs in the same process.
+- **D112 — A `-native` const-fold id names a shipped folder.**
+  `const_fold -native ID` and `const_fold_versioned -native ID` resolve
+  through `native_fold` against `CONST_FOLD_NATIVE` and
+  `CONST_FOLD_VERSIONED_NATIVE`, at command and subcommand scope; a short
+  or another scope's id is a notice naming the full spelling, an id the
+  tables do not hold is a notice, and either leaves the family's
+  abstention installed. The tables hold every folder the shipped registry
+  installs (47 and 3) rather than a chosen few, because the renderer
+  writes `-native SCOPE::FIELD` for each of them and a rendered spec must
+  reload as itself (VT4.11's round trip); the folders they name became
+  `pub(crate)`. The other twelve body families' tables stay empty — no
+  shipped hook of those families is written in Rust under a name yet —
+  and the page's § *`-native ID`* and the slice status say so.
+- **D113 — The viewport reads the document's unit under the pack
+  overlay.** `semantic_tokens_range`'s enriched tier resolves against
+  `registry_for_dialect`, which carries the workspace's packs, and read
+  the unit built without them (`document_compilation_unit`), so a pack
+  command's writes were missing from the unit its viewport coloured by.
+  It now reads `document_compilation_unit_for` under the config
+  `resolved_db_config(uri)` resolves — the unit the full-document query
+  and the diagnostics path already read, so a viewport after a
+  diagnostics pass is a cache hit.
+- **D114 — A declared budget's cap has one rule, in the host** (amends
+  D91). The loader capped a `budget` row against `HostConfig::default()`
+  and dropped a value above it with a notice, while the host caps against
+  its actual configuration: two rules that disagree for any host
+  configured otherwise. The loader now records the row as written, and
+  the host's per-call `narrowed` is the only cap. D99's bound is corrected
+  in place: 50,000,000 units stay near 200 ms only for the native routes;
+  for a declared implementation they bound commands, about 500 calls at
+  the host's per-call allowance of 100,000, each call's time bounded by
+  the host's own 250 ms clock.
 
 ### Open questions for the owner
 
@@ -7218,8 +7375,8 @@ Each with the assumption the plan proceeds on.
   **Accepted on 2026-09-23**, as built and with no change: sound, since a
   re-decline publishes `Overdefined` and never a stale constant. The
   precision it costs is per function: once one run's evaluations spend
-  its request (`Budget::request()`, 50,000,000 units, 200 ms at four
-  milliseconds per million), every route-evaluated definition a later
+  its request (`Budget::request()`, 50,000,000 units; D99 says what they
+  bound on each route), every route-evaluated definition a later
   sweep re-evaluates declines with `declined: budget: Request` and ends
   `Overdefined`, the ones earlier sweeps folded included, so the function
   keeps none of its route folds rather than those made before the point

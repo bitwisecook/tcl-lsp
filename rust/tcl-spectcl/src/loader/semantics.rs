@@ -806,14 +806,13 @@ fn depends_row(row: &Stmt, log: &mut Log) -> Vec<ContextDependency> {
     depends
 }
 
-/// `budget {-commands N -wall-clock MS -value-bytes N}`. A value above the
-/// host's is a notice, and the host's stands: a declaration narrows the
-/// host's budget, never widens it.
+/// `budget {-commands N -wall-clock MS -value-bytes N}`, recorded as
+/// written. A declaration narrows the host's budget and never widens it,
+/// and that rule is the host's alone: it caps each field at its own
+/// configuration when it runs the call (D91). The loader cannot know that
+/// configuration, and checking against a default host here would be a
+/// second rule, wrong wherever the host is configured otherwise.
 fn budget_row(row: &Stmt, log: &mut Log) -> ImplementationBudget {
-    let host = tcl_spec_hooks::HostConfig::default().budget;
-    let host_wall_clock = host
-        .wall_clock
-        .map(|limit| u64::try_from(limit.as_millis()).unwrap_or(u64::MAX));
     let words = list_words(row.word_text(1));
     let mut budget = ImplementationBudget::default();
     for pair in words.chunks(2) {
@@ -831,25 +830,15 @@ fn budget_row(row: &Stmt, log: &mut Log) -> ImplementationBudget {
             );
             continue;
         };
-        let (slot, ceiling) = match flag.as_str() {
-            "-commands" => (&mut budget.commands, host.commands),
-            "-wall-clock" => (&mut budget.wall_clock_ms, host_wall_clock),
-            "-value-bytes" => (&mut budget.value_bytes, host.max_value_bytes),
+        let slot = match flag.as_str() {
+            "-commands" => &mut budget.commands,
+            "-wall-clock" => &mut budget.wall_clock_ms,
+            "-value-bytes" => &mut budget.value_bytes,
             other => {
                 log.unknown_flag("budget", row.line, other);
                 continue;
             }
         };
-        if ceiling.is_some_and(|ceiling| value > ceiling) {
-            log.say(
-                row.line,
-                format!(
-                    "`budget {flag} {value}` is above the host's {}; the host's stands",
-                    ceiling.unwrap_or_default()
-                ),
-            );
-            continue;
-        }
         *slot = Some(value);
     }
     budget
@@ -1245,9 +1234,11 @@ speclib probe 2.2 {
 
     /// What cannot be used is reported and dropped, never half-installed:
     /// a form's implementation (bodies bind at command and subcommand
-    /// scope), a body whose parameters do not match its inputs, a budget
-    /// above the host's, `no_store_writes` beside a `stores` row, and an
-    /// option flag on a scope that declares no route.
+    /// scope), a body whose parameters do not match its inputs,
+    /// `no_store_writes` beside a `stores` row, and an option flag on a
+    /// scope that declares no route. A budget above the default host's is
+    /// none of these: it is recorded as written, and the host caps it at
+    /// its own when it runs the call (D91).
     #[test]
     fn what_cannot_be_used_is_reported_and_dropped() {
         let pack = evaluate_pack(
@@ -1285,7 +1276,6 @@ speclib probe 2.2 {
         for expected in [
             "a form's declared implementation is dropped",
             "the body takes 2 parameter(s) for 1 declared input(s)",
-            "`budget -commands 900000` is above the host's 100000; the host's stands",
             "cannot coexist with a `stores` row",
             "an option's `-evaluate` flag needs a `semantics` or `evaluate` statement",
             "`-evaluate-reason release_ambiguous` names the availability of `-y`, which declares \
@@ -1307,9 +1297,17 @@ speclib probe 2.2 {
         assert!(matches!(sub("pair"), SemanticsDeclaration::Inherited));
         let wide = declared(sub("wide"));
         let DeclaredEvaluation::Implementation(implementation) = wide.evaluation else {
-            panic!("the implementation loads with the host's budget");
+            panic!("the implementation loads with its budget");
         };
-        assert_eq!(implementation.capability.budget.commands, None);
+        assert_eq!(
+            implementation.capability.budget.commands,
+            Some(900_000),
+            "recorded as written: the host caps it at its own when it runs the call"
+        );
+        assert!(
+            !messages.iter().any(|message| message.contains("budget")),
+            "{messages:#?}"
+        );
         assert!(matches!(sub("clash"), SemanticsDeclaration::Inherited));
         assert!(matches!(sub("flag"), SemanticsDeclaration::Inherited));
         assert_eq!(

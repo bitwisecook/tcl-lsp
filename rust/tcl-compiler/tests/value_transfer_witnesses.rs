@@ -1791,22 +1791,33 @@ const TENANT_RUNTIME: &str = "namespace eval ::tenant {\n\
                               \x20   return [::tenant::label $name]\n\
                               }\n";
 
-/// The example loaded as a workspace loads it: the pack set, its hook plan
-/// published and this thread's host built from it, as the language server
-/// and the CLI do on a pack load.
-fn tenant_workspace() -> tcl_spectcl::PackSet {
+/// Serialises the tests that publish a hook plan: the published plan is the
+/// process's, and a thread whose host was built from a plan follows it.
+static PUBLISHED_PACKS: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+/// A workspace pack of `source` loaded as the language server and the CLI
+/// load one: the pack set, its hook plan published and this thread's host
+/// built from it.
+fn pack_workspace(name: &str, source: &str) -> tcl_spectcl::PackSet {
     let packs = tcl_spectcl::pack::load_in_memory(vec![(
         tcl_spectcl::PackFile {
             tier: tcl_spectcl::Tier::Workspace,
-            path: std::path::PathBuf::from("/workspace/.tcl-lsp/tenant.tclspec"),
+            path: std::path::PathBuf::from(format!("/workspace/.tcl-lsp/{name}.tclspec")),
             origin: tcl_spectcl::discovery::Origin::DotDir,
         },
-        TENANT_PACK.to_owned(),
+        source.to_owned(),
     )]);
     assert!(packs.notices.is_empty(), "{:#?}", packs.notices);
     tcl_spectcl::hooks::publish(&packs);
     tcl_spectcl::hooks::ensure_thread_host();
     packs
+}
+
+/// The example loaded as a workspace loads it: the pack set, its hook plan
+/// published and this thread's host built from it, as the language server
+/// and the CLI do on a pack load.
+fn tenant_workspace() -> tcl_spectcl::PackSet {
+    pack_workspace("tenant", TENANT_PACK)
 }
 
 /// The step-1 completion test (`docs/design/compiler/value-transfers.md`
@@ -1829,6 +1840,9 @@ fn tenant_workspace() -> tcl_spectcl::PackSet {
 ///   what the optimised program prints under every `tclsh` on `PATH`.
 #[test]
 fn the_completion_test_needs_no_consumer_edit() {
+    let _published = PUBLISHED_PACKS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let packs = tenant_workspace();
     for (dialect, folds) in [
         ("tcl8.4", false),
@@ -1958,4 +1972,106 @@ fn the_vendor_runtime_prints_what_the_optimiser_forwards(packs: &tcl_spectcl::Pa
             );
         }
     }
+}
+
+/// A pack command that writes the variable it names, from that variable's
+/// incoming value: `acc::add VAR PIECE` appends `PIECE` to what `VAR`
+/// holds. Its `write` needs the variable's prior value as an input
+/// (`target 0 incoming`), which the analysis can read only where the
+/// lowering records a use of it: the word must carry the `VarWrite` role
+/// and the command the `READS_BEFORE_WRITE` trait. `acc::put` declares the
+/// same body without the trait, and `acc::store VAR VALUE` writes its
+/// argument without reading the variable.
+const ACC_PACK: &str = "speclib acc 2.2 {
+    command acc::add {
+        arity 2
+        arg 0 -role VarWrite
+        traits {READS_BEFORE_WRITE}
+        semantics {
+            stores -targets {0} -outcome write
+            result -semantic string
+        }
+        evaluate -implementation acc.add.v1 -host bounded_tcl {
+            inputs {target 0 incoming arg 1 exact}
+            body {prior piece} { set joined $prior$piece; write 0 $joined; fold $joined }
+        }
+    }
+    command acc::put {
+        arity 2
+        arg 0 -role VarWrite
+        semantics {
+            stores -targets {0} -outcome write
+            result -semantic string
+        }
+        evaluate -implementation acc.put.v1 -host bounded_tcl {
+            inputs {target 0 incoming arg 1 exact}
+            body {prior piece} { set joined $prior$piece; write 0 $joined; fold $joined }
+        }
+    }
+    command acc::store {
+        arity 2
+        arg 0 -role VarWrite
+        semantics {
+            stores -targets {0} -outcome write
+            result -semantic string
+        }
+        evaluate -implementation acc.store.v1 -host bounded_tcl {
+            inputs {arg 1 exact}
+            body {value} { write 0 $value; fold $value }
+        }
+    }
+}
+";
+
+/// A pack's `write` through an incoming target reaches the real driver in
+/// statement position: `acc::add s cd` over `s` = `ab` leaves `abcd` in the
+/// next version of `s`, run by the tclvm host from the loaded pack. In value
+/// position neither shape is a value: the read of `s` inside `[acc::add s
+/// ef]` sits on the synthetic call ahead of its host, as a nested `[incr
+/// x]`'s does, so the incoming target is not exact there; and `[acc::store u
+/// xy]`, which reads nothing, evaluates but writes storage the substitution
+/// has no definition for, so it is not substituted. Without
+/// `READS_BEFORE_WRITE` nothing records the variable's prior value at the
+/// call, so the incoming target is not exact and `acc::put` declines.
+#[test]
+fn a_pack_write_through_an_incoming_target_reaches_the_driver() {
+    let _published = PUBLISHED_PACKS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let packs = pack_workspace("acc", ACC_PACK);
+    let registry = tcl_spectcl::install::registry_for_dialect_with_packs("tcl9.0", &packs);
+    let source = "proc p {} {\n    set s ab\n    acc::add s cd\n    set r [acc::add s ef]\n    \
+                  set w [acc::store u xy]\n    return $s$r$w\n}\n\
+                  proc q {} {\n    set t ab\n    acc::put t cd\n    return $t\n}\n";
+    let unit = CompilationUnit::build_for_dialect(source, &registry, false, "tcl9.0");
+    assert_eq!(
+        value_at(&unit, "::p", "s", 2),
+        Some(text("abcd")),
+        "the statement's write lands on the next version of `s`"
+    );
+    for value in ["r", "w"] {
+        assert_eq!(
+            value_at(&unit, "::p", value, 1),
+            Some(LatticeValue::Overdefined),
+            "`{value}`: a writing call is never a value in value position"
+        );
+    }
+    assert_eq!(
+        answers_for(&unit, "::p", "acc::add"),
+        ["evaluated", "declined: not-exact"]
+    );
+    assert_eq!(
+        answers_for(&unit, "::p", "acc::store"),
+        ["not substituted: the outcome writes storage"]
+    );
+    assert_eq!(
+        value_at(&unit, "::q", "t", 2),
+        Some(LatticeValue::Overdefined),
+        "no use of `t` is recorded at the call without the trait"
+    );
+    assert_eq!(
+        answers_for(&unit, "::q", "acc::put"),
+        ["declined: not-exact"]
+    );
+    tcl_spectcl::hooks::publish(&tcl_spectcl::PackSet::default());
 }

@@ -960,6 +960,19 @@ The mechanism, as built:
   own bookkeeping — `set_host`'s rebootstrap of `::tcl_platform` and
   `::env` — lifts the confinement while it runs, so a host swapped in
   after `confine_stores` still gets its globals (D78).
+- **The `rand()` generator is interpreter state too.** Its seed outlives
+  every invocation: `srand` writes it and `rand()` reads and advances what
+  an earlier call left, so a `srand` in one hook and a `rand()` in another
+  would fold a draw that depends on the order the analysis called them in.
+  From 8.5 both are commands (`tcl::mathfunc::rand`), which
+  `restrict_commands` drops while keeping every other math function an
+  allowed `expr` calls (`abs(-1)` answers under every pinned release);
+  under an engine pinned to 8.4 or a release derived from it (iRules,
+  iApps, tmsh, Cadence) they are `expr` builtins no command restriction
+  removes, so a confined VM refuses both itself —
+  `Vm::confine_generator`, beside `confine_store` — with an ordinary Tcl
+  error, `can't call "rand": stores are confined to the activation and the
+  generator's seed is not`.
 - Nothing outside the activation is writable, so nothing has to be reset
   between evaluations. The rule therefore covers several bodies in one
   pack — they cannot see each other's writes — and several analysis
@@ -982,7 +995,12 @@ The mechanism, as built:
 - The witnesses are the ones the test anchors name:
   `confine_stores_refuses_every_store_outside_the_activation`
   (`tcl-engine-tclvm`: nineteen escapes, each probed for the name it would
-  have written, and a caught error publishing neither global);
+  have written, a caught error publishing neither global, and `rand()` and
+  `srand()` refused under the default release, 8.4 and iRules);
+  `a_restricted_engine_keeps_the_math_functions_but_the_generator`
+  (`tcl-engine-tclvm`, every pinned release);
+  `the_generator_is_refused_under_every_pinned_release` (`containment_e2e`:
+  a `srand` hook and two `rand()` draws abstain, `abs(-1)` folds);
   `a_body_with_a_global_counter_answers_identically_on_every_call` — the
   body `fold [incr ::counter]` raises, the evaluator declines, and the
   first and the thousandth answers are the same decline;
@@ -1416,24 +1434,37 @@ impl Budget {
 
 The per-evaluation defaults for the bounded host specifically are
 `HostConfig::default`'s: 100,000 commands, 250 ms, 16 MiB per value; the
-compiler's own `Budget::evaluation()` — the level every route runs under,
-declared implementation included — has its own defaults in the same
-units the table above charges (`Budget::EVALUATION_WORK`: 1,000,000
-`WorkUnits`, a few milliseconds of native work; `Budget::EVALUATION_BYTES`:
-16 MiB, matching the host's per-value cap; `Budget::EVALUATION_DEPTH`: 64).
-The per-iteration default is one tenth of the request's *remaining* work
-(`Budget::ITERATION_SHARE`), so the first pass of a fixed point cannot
-starve the last. The per-request defaults are the interactive latency
-target — `Budget::REQUEST_WORK` (50,000,000 units, 200 ms at the unit's
-calibration of a million units to a few milliseconds of native work) and
-`Budget::REQUEST_RETAINED_BYTES` (64 MiB) — set by the acceptance
-measurement below. A declared implementation's `budget` row narrows the
-host's, never widens it: a value above the host's is a load notice and
-the host's value stands (D91). `charge_work` propagates to every
-enclosing level: an evaluation's own exhaustion is `Budget(Fuel)`, an
-iteration's or the request's is `Budget(Request)`, so an exhausted
-request declines every route-evaluated statement a later sweep
-re-evaluates, not only those past the point of exhaustion — sound,
+compiler's own `Budget::evaluation()` — the level every route runs
+under, declared implementation included — has its own defaults in the
+same units the table above charges (`Budget::EVALUATION_WORK`: 1,000,000
+`WorkUnits`, a few milliseconds of native work;
+`Budget::EVALUATION_BYTES`: 16 MiB, matching the host's per-value cap;
+`Budget::EVALUATION_DEPTH`: 64). The per-iteration default is one tenth
+of the request's *remaining* work (`Budget::ITERATION_SHARE`), so the
+first pass of a fixed point cannot starve the last. The per-request
+defaults are `Budget::REQUEST_WORK` (50,000,000 units) and
+`Budget::REQUEST_RETAINED_BYTES` (64 MiB), set by the acceptance
+measurement below. What the work bound means depends on the route that
+spends it. A native route's unit is calibrated at about four
+milliseconds per million, so the native work one request pays for stays
+near the interactive target of 200 ms. A declared implementation charges
+one unit per engine command its body dispatched, and a command is not
+calibrated to time: there the request bounds commands, not time — about
+500 calls that each spend the bounded host's whole per-call allowance of
+100,000 — and each call's time is bounded by the host's own clock (250
+ms), not by the request. A request whose bodies each spend their whole
+allowance can therefore run for up to 500 × 250 ms, and a body that
+dispatches few commands but runs long is bounded only by that clock,
+which quarantines it the first time the clock is reached. A declared
+implementation's `budget` row narrows the host's, never widens it, and
+the rule lives in the host alone: the host caps each field the row names
+at its own configuration when it runs the call, so a value above the
+host's runs under the host's (D91). The loader records the row as
+written, since only the host knows how it is configured. `charge_work`
+propagates to every enclosing level: an evaluation's own exhaustion is
+`Budget(Fuel)`, an iteration's or the request's is `Budget(Request)`, so
+an exhausted request declines every route-evaluated statement a later
+sweep re-evaluates, not only those past the point of exhaustion — sound,
 because a re-decline publishes `Overdefined` and never a stale constant,
 but costly per function: once one run's evaluations spend its request,
 the function keeps none of its route folds from that run, the ones
@@ -1735,6 +1766,23 @@ randomness, and undeclared globals, accounts for aggregate request cost,
 and denies every write outside the evaluation's own activation —
 execution and correctness contracts, not an author-trust gate.
 
+A declaration that writes the variables it names — `stores -targets {N …}`
+with the body's `write` and `preserve` — lands those stores only where the
+lowering gave the call the variable as a definition, and reads a target's
+incoming value (`target N incoming`) only where it recorded a use. So the
+target's word carries `arg N -role VarWrite`, which gives the call a
+definition of the variable, and a body that reads the incoming value also
+declares `traits {READS_BEFORE_WRITE}`, which records the read; without the
+trait the prior value is never exact at the call and the evaluator declines
+`not-exact`. A writing call answers only in statement position: nested in
+`[…]` its stores have no definition to land on, so an outcome with stores
+is never substituted ("not substituted: the outcome writes storage"), and
+a nested call's read of its target sits on the synthetic call ahead of its
+host, as a nested `[incr x]`'s does, so an incoming target is not exact
+there either. `a_pack_write_through_an_incoming_target_reaches_the_driver`
+(compiler witnesses) runs the three shapes through the real driver and the
+tclvm host from a loaded pack.
+
 ### The `semantics`, `evaluate`, and `facts` rows
 
 Three property statements, in the `hook_source` shape the loader already
@@ -1816,19 +1864,25 @@ arms rather than a new protocol.
 
 ### `-native ID`, and the per-family catalogues
 
-`-native ID` must mean one thing, and today it does not. It resolves for
-the closed compiler catalogues — `lowering_hook -native Switch` reaches
+`-native ID` must mean one thing. It resolves for the closed compiler
+catalogues — `lowering_hook -native Switch` reaches
 `LoweringHookId::Switch`, and `native_hook_tables_cover_their_catalogues`
-in `rust/tcl-spectcl/src/loader.rs` pins the five tables (`LOWERING_HOOKS`,
-`CODEGEN_HOOKS`, `INLINE_CODEGEN_HOOKS`, `ANALYSER_HOOKS`,
-`RETURN_TYPE_HOOKS`) against `catalogue`'s own variant lists — but not for
-the body families: `const_fold_versioned -native string::is` in
-`docs/design/spec-dsl-examples/string.tclspec` installs the family's
-abstention and nothing else, because no name-to-function table exists for
-folders and `HookSource::Native` is consumed nowhere but reports. Two
-spellings are in use, `command::subcommand` in that example and
-`<command>::<field>` in the renderer's synthesised form, which is the
-whole of the ambiguity.
+in `rust/tcl-spectcl/src/loader.rs` pins the five tables
+(`LOWERING_HOOKS`, `CODEGEN_HOOKS`, `INLINE_CODEGEN_HOOKS`,
+`ANALYSER_HOOKS`, `RETURN_TYPE_HOOKS`) against `catalogue`'s own variant
+lists. For the body families it resolves only where a family's table holds
+shipped entries: `const_fold -native ID` and
+`const_fold_versioned -native ID` install the named folder (the loader's
+`native_fold`, at command and subcommand scope;
+`a_native_fold_id_installs_the_shipped_folder`). The other nine hook
+families' `-native ID` still installs that family's abstention and nothing
+else, with no notice, and a `semantics`, `evaluate` or `facts` statement's
+is a notice that nothing this build ships holds it: their tables are
+empty, so nothing this build ships is reachable by name there yet. There
+was one spelling ambiguity, `command::subcommand` in
+`docs/design/spec-dsl-examples/string.tclspec` against
+`<command>::<field>` in the renderer's synthesised form; the example now
+spells `string::is::const_fold_versioned`.
 
 The rule, stated once:
 
@@ -1840,8 +1894,11 @@ The rule, stated once:
   renderer's `probe::const_fold` is the command-scoped case of the same
   rule rather than a second convention.
 - **A short form is a load notice naming the full spelling**, and the
-  field installs nothing. That is what it does today; the notice is what
-  is new, and it turns a silent abstention into an actionable one.
+  field installs nothing; so is a full id its family's table does not
+  hold ("names nothing this build ships"). Both are checked for the
+  `semantics`, `evaluate` and `facts` statements and for the two
+  `const_fold` families; the other body families' tables are empty and
+  their `-native` statements are not looked up.
 - **Every family gets a table — fourteen separate ones, not one
   `NativeEvalTables` struct (D93 pattern; built as
   `pub const *_NATIVE: &[(&str, FnPtr)]` constants in
@@ -1851,11 +1908,16 @@ The rule, stated once:
   `ConstFold`, `ConstFoldVersioned`, `TaintSinkGate`, `ContextGate`,
   `LiteralArgumentValidator`, `ClauseShapeCheck`, `OptionArity`,
   `Constraints` — plus `SEMANTICS_NATIVE`, `EVALUATE_NATIVE`, and
-  `FACTS_NATIVE` for the three new fields. `CONST_FOLD_NATIVE` (20 rows)
-  and `CONST_FOLD_VERSIONED_NATIVE` (2 rows) are real, from the shipped
-  folders' worked example below; the other twelve are empty tables —
-  nothing else ships a named native implementation yet, and a full id
-  still gets the "names nothing this build ships" notice.
+  `FACTS_NATIVE` for the three new fields. `CONST_FOLD_NATIVE` (47 rows)
+  and `CONST_FOLD_VERSIONED_NATIVE` (3 rows) are real and hold every
+  folder a shipped spec carries, under the scope each hangs off (the
+  `::tcl::dict::` commands included), so a rendered shipped spec reloads
+  with the folder it came from; the other twelve are empty tables —
+  nothing else ships a named native implementation yet. The empty ones
+  are ARG_ROLE_RESOLVER, COMMAND_PREFIX_RESOLVER, SCRIPT_TIMING_RESOLVER,
+  TAINT_SINK_GATE, CONTEXT_GATE, LITERAL_ARGUMENT_VALIDATOR,
+  CLAUSE_SHAPE_CHECK, OPTION_ARITY, CONSTRAINTS, SEMANTICS, EVALUATE and
+  FACTS.
   `HOOK_FAMILIES` holds twelve families in total: the eleven above, and
   `HookFamily::Evaluate` last, whose native table is `EVALUATE_NATIVE`.
 - **`native_hook_tables_cover_their_catalogues` grows a row per family**,
@@ -1890,11 +1952,15 @@ worked example:
 | `lindex::const_fold` | `const_fold::fold_lindex` | the same file |
 | `dict::get::const_fold` | `const_fold::fold_dict_get` | the same file |
 
-The remaining `const_fold::fold_*` functions — `fold_concat`,
-`fold_llength`, `fold_lreverse`, `fold_join`, `fold_split`, `fold_lrepeat`,
-`fold_lrange`, `fold_dict_exists`, `fold_dict_size`, `fold_dict_keys`,
-`fold_dict_values`, `fold_dict_create`, `fold_dict_merge` — take the same
-`SCOPE::const_fold` spelling under their own commands, and each is one row.
+The remaining shipped folders — the `const_fold::fold_*` list and dict
+functions (`fold_concat`, `fold_llength`, `fold_lreverse`, `fold_join`,
+`fold_split`, `fold_lrepeat`, `fold_lrange`, `fold_dict_exists`,
+`fold_dict_size`, `fold_dict_keys`, `fold_dict_values`,
+`fold_dict_create`, `fold_dict_merge`, each also under its
+`::tcl::dict::` command), the other `string` subcommands' folders, `string
+range`'s versioned one, `namespace qualifiers` and `tail`, and `subst` —
+take the same `SCOPE::FIELD` spelling under their own scopes, and each is
+one row.
 The `evaluate` table's entries are the direct evaluators the migration's
 slices land, one per resolved form, and its catalogue is what
 `evaluate -direct` resolves against.

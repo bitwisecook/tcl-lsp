@@ -321,6 +321,104 @@ pub const CONST_FOLD_NATIVE: &[(&str, ConstFoldFn)] = &[
         "dict::merge::const_fold",
         crate::const_fold::fold_dict_merge,
     ),
+    // The `::tcl::dict::` spellings are commands of their own
+    // (`qualified_specs()`), each carrying its subcommand's folder.
+    (
+        "::tcl::dict::get::const_fold",
+        crate::const_fold::fold_dict_get,
+    ),
+    (
+        "::tcl::dict::exists::const_fold",
+        crate::const_fold::fold_dict_exists,
+    ),
+    (
+        "::tcl::dict::size::const_fold",
+        crate::const_fold::fold_dict_size,
+    ),
+    (
+        "::tcl::dict::keys::const_fold",
+        crate::const_fold::fold_dict_keys,
+    ),
+    (
+        "::tcl::dict::values::const_fold",
+        crate::const_fold::fold_dict_values,
+    ),
+    (
+        "::tcl::dict::create::const_fold",
+        crate::const_fold::fold_dict_create,
+    ),
+    (
+        "::tcl::dict::merge::const_fold",
+        crate::const_fold::fold_dict_merge,
+    ),
+    ("string::cat::const_fold", crate::commands::tcl::fold_cat),
+    (
+        "string::compare::const_fold",
+        crate::commands::tcl::fold_compare,
+    ),
+    (
+        "string::equal::const_fold",
+        crate::commands::tcl::fold_equal,
+    ),
+    (
+        "string::first::const_fold",
+        crate::commands::tcl::fold_first,
+    ),
+    (
+        "string::index::const_fold",
+        crate::commands::tcl::fold_index,
+    ),
+    ("string::last::const_fold", crate::commands::tcl::fold_last),
+    (
+        "string::length::const_fold",
+        crate::commands::tcl::fold_length,
+    ),
+    (
+        "string::map::const_fold",
+        crate::commands::tcl::fold_string_map,
+    ),
+    (
+        "string::match::const_fold",
+        crate::commands::tcl::fold_match,
+    ),
+    (
+        "string::repeat::const_fold",
+        crate::commands::tcl::fold_repeat,
+    ),
+    (
+        "string::reverse::const_fold",
+        crate::commands::tcl::fold_reverse,
+    ),
+    (
+        "string::tolower::const_fold",
+        crate::commands::tcl::fold_tolower,
+    ),
+    (
+        "string::totitle::const_fold",
+        crate::commands::tcl::fold_totitle,
+    ),
+    (
+        "string::toupper::const_fold",
+        crate::commands::tcl::fold_toupper,
+    ),
+    ("string::trim::const_fold", crate::commands::tcl::fold_trim),
+    (
+        "string::trimleft::const_fold",
+        crate::commands::tcl::fold_trimleft,
+    ),
+    (
+        "string::trimright::const_fold",
+        crate::commands::tcl::fold_trimright,
+    ),
+    (
+        "namespace::qualifiers::const_fold",
+        crate::commands::tcl::fold_qualifiers,
+    ),
+    (
+        "namespace::tail::const_fold",
+        crate::commands::tcl::fold_tail,
+    ),
+    ("subst::const_fold", crate::commands::tcl::fold_subst),
 ];
 
 /// See [`ARG_ROLE_RESOLVER_NATIVE`]. The shipped folders' release-aware
@@ -329,6 +427,10 @@ pub const CONST_FOLD_VERSIONED_NATIVE: &[(&str, VersionedConstFoldFn)] = &[
     (
         "string::is::const_fold_versioned",
         crate::commands::tcl::fold_is,
+    ),
+    (
+        "string::range::const_fold_versioned",
+        crate::commands::tcl::fold_range,
     ),
     (
         "format::const_fold_versioned",
@@ -887,6 +989,12 @@ thread_local! {
     static GENERATION: Cell<EvaluatorGeneration> =
         const { Cell::new(EvaluatorGeneration::NO_HOST) };
 
+    /// Whether this thread's host was built from a published plan
+    /// ([`install_plan_host`]), so the registered installer keeps it in step
+    /// with the plan; a host installed directly ([`install_host`]) is its
+    /// installer's own business.
+    static FROM_PLAN: Cell<bool> = const { Cell::new(false) };
+
     /// The commands the host's engines dispatched since the last take.
     static SPENT: Cell<u64> = const { Cell::new(0) };
 
@@ -991,23 +1099,24 @@ fn plan_generation(plan: u64) -> EvaluatorGeneration {
 /// from a published plan is installed with [`install_plan_host`] instead, so
 /// every worker serving that plan shares its memoised answers.
 pub fn install_host(host: Rc<dyn PackHookHost>) {
-    install(host, fresh_generation());
+    install(host, fresh_generation(), false);
 }
 
 /// Install `host`, built from the published plan `plan`, as this thread's
 /// host: every thread that installs a host for one plan is at one
 /// generation.
 pub fn install_plan_host(host: Rc<dyn PackHookHost>, plan: u64) {
-    install(host, plan_generation(plan));
+    install(host, plan_generation(plan), true);
 }
 
-fn install(host: Rc<dyn PackHookHost>, generation: EvaluatorGeneration) {
+fn install(host: Rc<dyn PackHookHost>, generation: EvaluatorGeneration, from_plan: bool) {
     ANY_HOST.store(true, Ordering::Relaxed);
     clear_cache();
     HOST.with(|slot| {
         slot.borrow_mut().replace(host);
     });
     GENERATION.with(|current| current.set(generation));
+    FROM_PLAN.with(|current| current.set(from_plan));
 }
 
 /// Remove this thread's host; every pack hook abstains again, and the
@@ -1018,6 +1127,7 @@ pub fn clear_host() {
         slot.borrow_mut().take();
     });
     GENERATION.with(|current| current.set(EvaluatorGeneration::NO_HOST));
+    FROM_PLAN.with(|current| current.set(false));
 }
 
 /// Record that the host's engine dispatched `commands` answering the call
@@ -1078,19 +1188,29 @@ pub fn evaluator_generation() -> EvaluatorGeneration {
     GENERATION.with(Cell::get)
 }
 
-/// This thread's host, built by the registered installer when it has none.
+/// This thread's host, first brought up to the published plan by the
+/// registered installer.
+///
+/// Unless the thread's host was installed directly ([`install_host`]), the
+/// installer runs before the host is read, every time: it builds a host for
+/// a thread that has none — abstaining there would answer "no packs" on a
+/// thread that simply had not been initialised — and rebuilds one whose
+/// plan was superseded. A thread that kept whatever plan host it last had
+/// would serve the old plan: a pool thread last used under plan N, reached
+/// by a query no worker closure re-synced, would compute a lattice through
+/// plan N's host and memoise it under plan N+1's pack key and evaluator
+/// epoch. When nothing moved the installer returns after one atomic load
+/// and one thread-local read.
 fn ensure_host() -> Option<Rc<dyn PackHookHost>> {
-    let host = HOST.with(|slot| slot.borrow().clone());
-    if host.is_some() {
-        return host;
+    let direct = HOST
+        .with(|slot| slot.borrow().clone())
+        .filter(|_| !FROM_PLAN.with(Cell::get));
+    if direct.is_some() {
+        return direct;
     }
-    // This thread has never dispatched a hook before (or the plan moved
-    // under it). Build its host now rather than abstaining: abstaining here
-    // would silently answer "no packs" on a thread that simply had not been
-    // initialised, which is the same command resolving differently
-    // depending on which worker took the task.
-    let installer = INSTALLER.get()?;
-    installer();
+    if let Some(installer) = INSTALLER.get() {
+        installer();
+    }
     HOST.with(|slot| slot.borrow().clone())
 }
 

@@ -29,10 +29,21 @@ treating every call as unknown?
 1. **Say what the call computes and writes, in `semantics { … }`.**
    `effects { no_store_writes no_external_io }` for a pure result;
    `result -semantic string` (or another kind) for what the answer
-   represents; `stores -targets {N …} -outcome writes|may_write` for
-   every argument index the command writes through.
+   represents; `stores -targets {N …} -outcome OUTCOME` for every
+   argument index the command writes through, where `OUTCOME` is one of
+   `write` (always written), `write_or_preserve` (written or left as it
+   was, as a failed `regexp` leaves its match variables), `may_write`
+   (perhaps written, value unknown), or `unbind`. A word the analyser does
+   not recognise here drops the row with a notice.
+   - A target the command writes must also be declared as a variable
+     argument, `arg N -role VarWrite`: that is what makes the analyser
+     give the variable a new value at the call.
+   - If the body reads the variable's current value (`target N incoming`
+     in step 2), add `traits {READS_BEFORE_WRITE}` as well. That trait is
+     what makes the analyser record the read at the call; without it the
+     current value is never known there, and every call gives up.
 2. **Give it a body, in `evaluate -implementation ID -host bounded_tcl { … }`.**
-   Four rows, all required:
+   Only `body` is required; the other three rows are optional:
    - `inputs { arg N exact … target N incoming … option -NAME exact … }`
      — exactly what the body reads. Anything not listed here is never
      supplied to the body, and a body that reads a target's value without
@@ -82,6 +93,11 @@ treating every call as unknown?
      is temporary: the very next analysis tries again.
    - The body itself raises an error, or finishes having said nothing
      about a declared target (step 2's last point).
+   - The call writes a variable and sits inside `[…]`, as in `set r
+     [mylib::add s x]`. A write only lands when the call is a command of
+     its own (`mylib::add s x` on its own line); inside `[…]` the analyser
+     never substitutes a call that writes storage, and one that reads its
+     target's current value cannot see it there either.
 5. **Check `mcp__tcl-lsp__spectcl_check` before you rely on any of this.**
    It flags an evaluator that reads a target it never declared, one that
    is silent on a target it did declare, and a `write` naming something

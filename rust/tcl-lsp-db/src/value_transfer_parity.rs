@@ -454,6 +454,48 @@ fn a_pack_edit_invalidates_the_lattice() {
     tcl_spectcl::hooks::publish(&tcl_spectcl::PackSet::default());
 }
 
+/// A pool thread whose host was built from a superseded plan answers with
+/// the new plan. The server builds a thread's host where a worker closure
+/// asks for it (`with_pack_hooks`), but several queries reaching the unit —
+/// the semantic-token and handle queries among them — run on a pool thread
+/// without that call. Here this thread builds its host under the first
+/// plan, a reload elsewhere publishes an edited pack without touching this
+/// thread, and the next query re-keyed to the new pack must fold through
+/// the new body: a thread that kept its old host computed the re-keyed
+/// lattice through a host that no longer serves the published plan, and
+/// memoised that answer under the new key and epoch.
+#[test]
+fn a_pool_thread_with_a_stale_host_answers_with_the_new_plan() {
+    use salsa::Setter as _;
+    let _published = PUBLISHED_PACKS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let src = "proc p {} {set r [tenant::label acme]; return $r}\n";
+    let text = |value: &str| LatticeValue::Const(ConstValue::String(value.to_owned()));
+    let mut db = TclDatabase::default();
+    let file = SourceFile::new(&db, src.to_owned(), "tcl9.0".to_owned(), None);
+    let config = overlay_config(
+        &db,
+        install_workspace_packs(&tenant_pack(Some("tenant:")), "tcl9.0"),
+    );
+    let unit = document_compilation_unit_for(&db, file, config);
+    assert_eq!(value_at(&unit, "::p", "r", 1), Some(text("tenant:acme")));
+
+    // The reload publishes the edited pack; this thread's host is still the
+    // first plan's, and nothing on this thread asks for the new one.
+    let edited = tenant_pack(Some("t:"));
+    let _registry = tcl_spectcl::install::registry_for_dialect_with_packs("tcl9.0", &edited);
+    tcl_spectcl::hooks::publish(&edited);
+    config.set_spec_pack_key(&mut db).to(edited.key);
+    let unit = document_compilation_unit_for(&db, file, config);
+    assert_eq!(
+        value_at(&unit, "::p", "r", 1),
+        Some(text("t:acme")),
+        "the query folds through the published plan's body"
+    );
+    tcl_spectcl::hooks::publish(&tcl_spectcl::PackSet::default());
+}
+
 /// The evaluator epoch re-keys the memoised lattices (D104). `p` folds
 /// `[tenant::label acme]` and its lattice is memoised; `q`'s argument makes
 /// the body spin past its `-commands` budget, so this worker's host

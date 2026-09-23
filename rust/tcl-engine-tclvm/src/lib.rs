@@ -350,13 +350,26 @@ impl Engine for TclVmEngine {
         Ok(remove_host_command(&mut self.vm, &self.host_commands, name))
     }
 
+    /// Keep only the `allowed` commands, the host's and the compiled units'.
+    /// An allowed `expr` keeps its math functions: from 8.5 each is a
+    /// command, `tcl::mathfunc::NAME`, which the expression calls, so
+    /// stripping them would make `expr {abs(-1)}` fold under an engine
+    /// pinned to 8.4, whose functions are builtins, and decline under every
+    /// later one. `rand` and `srand` go: their seed is interpreter state
+    /// one invocation would leave for the next (a confined VM refuses them
+    /// under 8.4 as well).
     fn restrict_commands(&mut self, allowed: &[&str]) -> Result<(), EngineError> {
         let host_commands = self.host_commands.borrow().clone();
         let unit_commands = self.unit_commands.clone();
+        let math = allowed.contains(&"expr");
         self.vm.retain_commands(&|name| {
             allowed.contains(&name)
                 || host_commands.iter().any(|command| command == name)
                 || unit_commands.iter().any(|command| command == name)
+                || (math
+                    && name
+                        .strip_prefix("tcl::mathfunc::")
+                        .is_some_and(|function| !matches!(function, "rand" | "srand")))
         });
         Ok(())
     }
@@ -364,8 +377,14 @@ impl Engine for TclVmEngine {
     fn compile(&mut self, unit: CompileUnit<'_>) -> Result<Self::Handle, EngineError> {
         let _grammar = self.claim_grammar();
         self.units += 1;
-        // A name no Tcl source can spell, so a body cannot call (or shadow)
-        // another unit even if the sandbox ever gained a way to try.
+        // An ordinary qualified name the restriction keeps, so a body can
+        // spell a sibling unit's (`::spectcl::unit::N`) and call it. An
+        // engine serves one pack, pinned to one release, so what it reaches
+        // is the same pack's code, never another pack's; a call is charged
+        // to the invocation's command budget like any other, so a unit that
+        // recurses raises — the budget or the nesting limit — and its
+        // caller declines. Nothing in the sandbox defines a command, so no
+        // body can shadow a unit.
         let procedure = format!("::spectcl::unit::{}", self.units);
         self.vm
             .define_procedure(&procedure, unit.parameters, unit.body)
@@ -850,6 +869,70 @@ mod tests {
             engine.invoke(&handle, &arguments).expect("runs").as_str(),
             Some("{a b} 1 {k v} 1 1 a bbc {k v} {k 1} yes")
         );
+        // The `rand()` generator's seed is interpreter state every
+        // invocation shares: `srand` writes it and `rand` reads what an
+        // earlier call left. Both raise while stores are confined, under the
+        // VM's default release and under 8.4, whose math functions are
+        // `expr` builtins no command restriction removes.
+        for release in [None, Some("tcl8.4"), Some("f5-irules")] {
+            for body in ["expr {srand(7)}", "expr {rand()}"] {
+                let mut engine = TclVmEngine::new();
+                if let Some(release) = release {
+                    engine.set_release(release).expect("pins");
+                }
+                engine.confine_stores().expect("the VM confines its stores");
+                let handle = engine.compile(unit(body)).expect("compiles");
+                let answer = engine.invoke(&handle, &arguments);
+                assert!(
+                    matches!(
+                        &answer,
+                        Err(EngineError::Script { message, .. })
+                            if message.contains("stores are confined to the activation")
+                    ),
+                    "{release:?} {body}: {answer:?}"
+                );
+            }
+        }
+    }
+
+    /// An engine restricted to a whitelist that allows `expr` keeps its
+    /// math functions, which from 8.5 are commands (`tcl::mathfunc::abs`),
+    /// so a body answers `expr {abs(-1)}` under every pinned release rather
+    /// than only under 8.4, where they are builtins; `rand` and `srand` go
+    /// with every other command the whitelist does not name.
+    #[test]
+    fn a_restricted_engine_keeps_the_math_functions_but_the_generator() {
+        let arguments = [Value::list([]), Value::dict_of::<&str>([])];
+        for release in [
+            "tcl8.4",
+            "tcl8.5",
+            "tcl8.6",
+            "tcl9.0",
+            "tcl9.1",
+            "f5-irules",
+        ] {
+            let mut engine = TclVmEngine::new();
+            engine.set_release(release).expect("pins");
+            engine
+                .restrict_commands(&["expr", "return"])
+                .expect("restricts");
+            engine.confine_stores().expect("confines");
+            let handle = engine
+                .compile(unit("return [expr {abs(-1) + int(2.5) + double(1)}]"))
+                .expect("compiles");
+            assert_eq!(
+                engine.invoke(&handle, &arguments).expect("folds").as_str(),
+                Some("4.0"),
+                "{release}"
+            );
+            for body in ["return [expr {rand()}]", "return [expr {srand(7)}]"] {
+                let handle = engine.compile(unit(body)).expect("compiles");
+                assert!(
+                    engine.invoke(&handle, &arguments).is_err(),
+                    "{release}: {body}"
+                );
+            }
+        }
     }
 
     /// A confined engine reads no host environment (`value-evaluation.md`

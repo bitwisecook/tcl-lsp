@@ -428,14 +428,14 @@ fn namespace_delete_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 /// Registered dialect-invariantly (`const_fold`, not `const_fold_versioned`):
 /// the C implementation of both subcommands is unchanged across 8.4-9.1 and
 /// the transcripts agree byte-for-byte.
-fn fold_qualifiers(args: &[&str]) -> Option<String> {
+pub(crate) fn fold_qualifiers(args: &[&str]) -> Option<String> {
     let [s] = args else {
         return None;
     };
     Some(crate::state_transition::namespace_qualifiers(s).to_owned())
 }
 
-fn fold_tail(args: &[&str]) -> Option<String> {
+pub(crate) fn fold_tail(args: &[&str]) -> Option<String> {
     let [s] = args else {
         return None;
     };

@@ -214,9 +214,14 @@ impl Budget {
     pub const EVALUATION_BYTES: usize = 16 * 1024 * 1024;
     /// The nesting depth one evaluation may reach.
     pub const EVALUATION_DEPTH: u32 = 64;
-    /// The work one request may spend: the interactive latency target of
-    /// 200 ms of evaluation work, at the unit's calibration of a million
-    /// units to a few (four) milliseconds of native work.
+    /// The work one request may spend. What it bounds depends on the
+    /// route: a native route's unit is calibrated at about four
+    /// milliseconds per million, so native work stays near the
+    /// interactive target of 200 ms; a declared implementation charges one
+    /// unit per engine command, which is not calibrated to time, so there
+    /// it bounds commands — about 500 calls at the bounded host's
+    /// per-call allowance of 100,000 — and each call's time is the host's
+    /// own clock to bound.
     pub const REQUEST_WORK: u64 = 50_000_000;
     /// The bytes one request may retain across everything it publishes.
     pub const REQUEST_RETAINED_BYTES: u64 = 64 * 1024 * 1024;

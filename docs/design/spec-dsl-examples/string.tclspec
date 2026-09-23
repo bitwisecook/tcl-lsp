@@ -124,7 +124,7 @@ if {[string first "World" $s] >= 0} {
         # magnitude caps, Tcl 9 radix prefixes and digit separators, the
         # ambiguous-form bail-outs).  Reproducing it in Tcl would be a
         # re-implementation, not a port, so the named native folder is used.
-        const_fold_versioned -native string::is
+        const_fold_versioned -native string::is::const_fold_versioned
     }
 
     subcommand map {

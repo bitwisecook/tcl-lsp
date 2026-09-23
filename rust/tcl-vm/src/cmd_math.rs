@@ -364,6 +364,9 @@ fn m_bool(args: &[Value]) -> Completion<Value> {
 /// truncating a double), installs it as the seed, then tail-calls `rand()`; so
 /// `srand` is deterministic and itself yields a number in `[0, 1)`.
 fn m_srand(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    if let Err(refused) = vm.confine_generator("srand") {
+        return refused;
+    }
     let x = match one(args, "srand") {
         Ok(v) => v,
         Err(c) => return c,
@@ -393,6 +396,9 @@ fn m_srand(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 /// `rand()` — the next draw from the Park–Miller minimal-standard generator, a
 /// `double` in `[0, 1)`. Takes no arguments.
 fn m_rand(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    if let Err(refused) = vm.confine_generator("rand") {
+        return refused;
+    }
     if !args.is_empty() {
         return err("too many arguments for math function \"rand\"");
     }
