@@ -1009,11 +1009,10 @@ impl CfgBuilder<'_> {
                 self.blocks
                     .get(name.as_str())
                     .is_some_and(|block| match &block.terminator {
-                        // A process exit runs no `finally` — a plain `exit`, or
-                        // an opaque `switch` promoted to `Return` because every
-                        // arm exits (found in review). Only when it is the
-                        // block's *only* statement: anything before it may
-                        // raise an error, and an error does run the clause.
+                        // A process exit runs no `finally` (found in review) —
+                        // only when it is the block's *only* statement: anything
+                        // before it may raise an error, and an error does run
+                        // the clause. See `always_exits_process` for the rest.
                         Some(crate::cfg::Terminator::Return { .. }) => {
                             !matches!(block.statements.as_slice(), [only]
                                 if super::always_exits_process(only, &self.command_classes))

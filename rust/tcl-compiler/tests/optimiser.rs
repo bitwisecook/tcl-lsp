@@ -2798,26 +2798,19 @@ fn a_finally_body_is_reachable_however_a_handler_leaves() {
 /// executable in SCCP and SSA though it can never run (found in review).
 #[test]
 fn an_exit_reaches_no_finally() {
-    for (why, body) in [
-        ("a plain exit", "exit 7"),
-        // An opaque `switch` whose every arm exits is promoted to a `Return`
-        // terminator with the `switch` as its last statement, not a call.
-        (
-            "an opaque switch whose every arm exits",
-            "switch -glob $x {a {exit 7} default {exit 8}}",
-        ),
-    ] {
+    for (why, body) in [("no argument", "exit"), ("a literal status", "exit 7")] {
         let src =
-            format!("proc p {{x}} {{\n    global g\n    try {{{body}}} finally {{set g 1}}\n}}\n");
+            format!("proc p {{}} {{\n    global g\n    try {{{body}}} finally {{set g 1}}\n}}\n");
         assert!(
             opt_fires(&src, TCL, "O107"),
             "{why}: a `finally` reached only through `exit` never runs: {:?}",
             opt_codes(&src, TCL)
         );
     }
-    // Precision: a way out before the exit keeps the clause — an arm that
-    // `return`s instead, or one that may `return` first (an else-less `if`
-    // completes `Normal` in the flow facts yet has a return path).
+
+    // Precision: anything that can stop the `exit` from running keeps the
+    // clause live, because a `return` or an error does run it. Each of these
+    // prints `1` on tclsh 8.6.18; review found each one emptied.
     for (why, body) in [
         (
             "an arm that returns instead",
@@ -2827,9 +2820,16 @@ fn an_exit_reaches_no_finally() {
             "every arm may return before it exits",
             "switch -glob $x {a {if {$c} {return ok}; exit 7} default {if {$c} {return ok}; exit 8}}",
         ),
+        // The subject substitution runs first and may throw.
+        (
+            "a switch whose subject may throw",
+            "switch -glob $nosuch {a {exit 7} default {exit 8}}",
+        ),
+        ("an exit whose argument throws", "exit [error boom]"),
+        ("an exit that rejects its literal", "exit abc"),
     ] {
         let src = format!(
-            "set g 0\nproc p {{x c}} {{\n    global g\n    try {{{body}}} finally {{set g 1}}\n}}\np a 1\nputs $g\n"
+            "set g 0\nproc p {{x c}} {{\n    global g\n    try {{{body}}} finally {{set g 1}}\n}}\ncatch {{p a 1}}\nputs $g\n"
         );
         assert!(
             optimised(&src, TCL).contains("set g 1"),

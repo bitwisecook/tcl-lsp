@@ -2815,68 +2815,54 @@ pub(crate) enum Completion {
     ProcExit,
 }
 
-/// Whether `stmt` ends the interpreter on **every** path through it — a
-/// process-terminating command (`Traits::TERMINATES_PROCESS`, e.g. `exit`), or
-/// an `if` / `switch` with an `else` / `default` whose every branch does.
+/// Whether `stmt` certainly ends the interpreter, running no enclosing
+/// `finally`: a process-terminating command (`Traits::TERMINATES_PROCESS`,
+/// e.g. `exit`) that nothing can stop from running.
 ///
 /// [`Completion`] folds `exit` into `ProcExit` with `return` and `error`,
 /// which is right for what follows the statement and wrong for an enclosing
 /// `finally`: a `return` runs it, an `exit` does not (tclsh 8.6.18 and 9.0.4:
 /// `try {exit 7} finally {puts FINALLY}` prints nothing).
+///
+/// "Nothing can stop it" is the whole difficulty, and review found it three
+/// ways: an earlier statement may `return`; the command's own words may throw
+/// before it runs (`exit [error boom]` runs the clause); and so may a literal
+/// word it rejects (`exit abc` raises "expected integer"). The same holds for
+/// an `if` condition or a `switch` subject in front of an all-`exit` body —
+/// `switch -glob $nosuch {…}` throws on the unset variable. So this accepts
+/// only the command itself with no argument or one plain decimal literal,
+/// and an enclosing construct is never looked through. Missing a real exit
+/// costs an O107; accepting a false one rewrote a live program.
 fn always_exits_process(stmt: &Statement, classes: &CfgCommandClasses) -> bool {
-    match stmt {
-        Statement::Call {
-            command,
-            canonical_command,
-            ..
+    let (Statement::Call {
+        command,
+        canonical_command,
+        tokens,
+        ..
+    }
+    | Statement::Barrier {
+        command,
+        canonical_command,
+        tokens,
+        ..
+    }) = stmt
+    else {
+        return false;
+    };
+    if !classes.is_process_terminating_command(canonical_command.as_deref().unwrap_or(command)) {
+        return false;
+    }
+    let Some(tokens) = tokens else {
+        return false;
+    };
+    match tokens.word_exprs.as_slice() {
+        [_head] => true,
+        [_head, crate::ir::WordExpr::Literal { text, .. }] => {
+            let digits = text.strip_prefix(['-', '+']).unwrap_or(text);
+            !digits.is_empty() && digits.len() <= 9 && digits.bytes().all(|b| b.is_ascii_digit())
         }
-        | Statement::Barrier {
-            command,
-            canonical_command,
-            ..
-        } => {
-            classes.is_process_terminating_command(canonical_command.as_deref().unwrap_or(command))
-        }
-        Statement::If {
-            clauses, else_body, ..
-        } => {
-            else_body
-                .as_ref()
-                .is_some_and(|b| script_always_exits_process(b, classes))
-                && clauses
-                    .iter()
-                    .all(|c| script_always_exits_process(&c.body, classes))
-        }
-        Statement::Switch {
-            arms, default_body, ..
-        } => {
-            default_body
-                .as_ref()
-                .is_some_and(|b| script_always_exits_process(b, classes))
-                && arms
-                    .iter()
-                    .filter_map(|a| a.body.as_ref())
-                    .all(|b| script_always_exits_process(b, classes))
-        }
-        Statement::Block { body, .. } => script_always_exits_process(body, classes),
         _ => false,
     }
-}
-
-/// Whether `script` ends the interpreter on every path: its **first**
-/// statement must itself always exit the process.
-///
-/// Anything before the exit is a way out that runs an enclosing `finally`.
-/// An `if {$c} {return ok}` completes `Normal` in the flow facts yet may
-/// `return`, and almost any command may raise an error. Reading "completes
-/// normally, then exits" as "always exits" let O107 empty a live `finally`
-/// (found in review), so a script qualifies only when there is nothing to
-/// run first. Missing one costs an O107, never a wrong rewrite.
-fn script_always_exits_process(script: &Script, classes: &CfgCommandClasses) -> bool {
-    script
-        .statements
-        .first()
-        .is_some_and(|stmt| always_exits_process(stmt, classes))
 }
 
 /// `(must-defines, completion)` for a single statement.
