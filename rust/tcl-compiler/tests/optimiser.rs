@@ -2849,6 +2849,12 @@ fn an_exit_reaches_no_finally() {
             "an alias with a prefixed status",
             "set g 0\ninterp alias {} bye {} exit abc\nproc p {} {\n    global g\n    try {bye} finally {set g 1}\n}\ncatch p\nputs $g\n",
         ),
+        // A handler catches only the substitution's error; the `return` still
+        // runs the clause, so tclsh prints `1` (found in review).
+        (
+            "a handler that catches only some of the body's completions",
+            "set g 0\nproc p {x} {\n    global g\n    try {return $x} on error {} {exit 0} finally {set g 1}\n}\np 5\nputs $g\n",
+        ),
         (
             "a namespace alias spelled like its target",
             "set g 0\nnamespace eval foo {}\ninterp alias {} ::foo::exit {} ::exit abc\nproc ::foo::p {} {\n    global g\n    try {exit} finally {set g 1}\n}\ncatch foo::p\nputs $g\n",
@@ -2907,6 +2913,12 @@ fn a_try_finally_does_not_hide_the_names_bound_around_it() {
         (
             "bound by an `on break` handler that catches the `break`",
             "proc p {} {\n    while 1 {\n        try {break} on break {} {set x 1} finally {}\n        break\n    }\n    puts $x\n}\n",
+        ),
+        // A nested `catch` swallows the `break`, so no outer handler runs;
+        // tclsh 8.6.18 and 9.0.4 return before the read (found in review).
+        (
+            "not unbound by a handler a nested `catch` keeps the `break` from",
+            "proc p {} {\n    set y 1\n    while 1 {\n        try {catch {break}; return} on break {} {unset y}\n        break\n    }\n    puts $y\n}\n",
         ),
         (
             "bound by an `on break` handler, with no `finally`",

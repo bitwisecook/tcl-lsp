@@ -1048,6 +1048,8 @@ impl CfgBuilder<'_> {
         post_body: &str,
         body_block: &str,
         first_body_id: usize,
+        handlers: &[crate::ir::TryHandler],
+        handler_blocks: &[String],
     ) -> Vec<String> {
         if !self.faithful_exceptions {
             return Vec::new();
@@ -1064,8 +1066,8 @@ impl CfgBuilder<'_> {
         // `try_ok`; a jump there is not an exit to wire a second time.
         let completion = [end_id, self.bid(post_body)];
         let leaves = |t: crate::cfg::BlockId| !in_body(t) && !completion.contains(&t);
-        // A `return` a nested `try` or `catch` inside this body already
-        // intercepts is not an exit of *this* body: the inner construct was
+        // A `return` a nested `catch` or `try … finally` inside this body
+        // already intercepts is not an exit of *this* body: the inner one was
         // lowered first and recorded its own edge, and control reaches this
         // `finally` only after the inner clause has run — through the inner
         // construct's normal flow. Wiring it here too would skip the inner
@@ -1073,12 +1075,7 @@ impl CfgBuilder<'_> {
         // finally {puts $x}` read `x` as possibly unset (found in review). A
         // jump needs no such care: rerouting it only replaces an edge that
         // skipped this clause with one through it.
-        let intercepted: std::collections::HashSet<&str> = self
-            .exception_edges
-            .iter()
-            .filter(|(_, to)| self.block_ids.get(to).is_some_and(|id| in_body(*id)))
-            .map(|(from, _)| from.as_str())
-            .collect();
+        let intercepted = self.totally_intercepted(&in_body);
         let mut sources: Vec<String> = Vec::new();
         let mut jumps: Vec<String> = Vec::new();
         let resolve_head = self.embedded_head_resolver();
@@ -1093,6 +1090,7 @@ impl CfgBuilder<'_> {
                 // `always_exits_process` for the rest.
                 Some(crate::cfg::Terminator::Return { .. }) => {
                     if !intercepted.contains(name.as_str())
+                        && !self.caught_by_handler(name, handlers, handler_blocks)
                         && !matches!(block.statements.as_slice(), [only]
                             if super::always_exits_process(only, self.registry, &resolve_head))
                     {
@@ -1254,28 +1252,7 @@ impl CfgBuilder<'_> {
                 body_terminal.as_deref(),
             );
 
-            let mut own_defs = Vec::new();
-            if let Some(vn) = &handler.var_name {
-                own_defs.push(vn.clone());
-            }
-            if let Some(ov) = &handler.options_var {
-                own_defs.push(ov.clone());
-            }
-            let var_defs = if handler.fallthrough {
-                // Empty body of its own; carry its vars to the shared body.
-                pending_fallthrough_defs.extend(own_defs.iter().cloned());
-                own_defs
-            } else {
-                // Target of any preceding `-` chain: its shared body may run
-                // with any group member's vars bound, so define them all here.
-                let mut defs = std::mem::take(&mut pending_fallthrough_defs);
-                for d in own_defs {
-                    if !defs.contains(&d) {
-                        defs.push(d);
-                    }
-                }
-                defs
-            };
+            let var_defs = handler_var_defs(handler, &mut pending_fallthrough_defs);
             self.push_handler_var_defs(&handler_block, var_defs, *span);
 
             if let Some(tail) = self.lower_script(&handler.body, &handler_block) {
@@ -1299,11 +1276,18 @@ impl CfgBuilder<'_> {
         let Some(fb) = finally_body else {
             return end_block;
         };
+        self.total_interceptors.insert(end_block.clone());
         // Read before the exit edges below add paths into `end_block`.
         let completes_normally =
             self.try_completes_normally(block_name, &end_block, &body_block, first_body_id);
-        let jump_targets =
-            self.push_finally_exit_edges(&end_block, &post_body, &body_block, first_body_id);
+        let jump_targets = self.push_finally_exit_edges(
+            &end_block,
+            &post_body,
+            &body_block,
+            first_body_id,
+            handlers,
+            &handler_blocks,
+        );
         self.finish_try_finally(
             fb,
             finally_span.or(Some(*span)),
@@ -1376,9 +1360,13 @@ impl CfgBuilder<'_> {
             id == body_block_id
                 || usize::try_from(id.0).is_ok_and(|i| i >= first_body_id && i < first_handler_id)
         };
+        // A jump a nested `catch` (or a nested `try … finally`) swallows never
+        // reaches this `try`'s handlers: `try {catch {break}; return}
+        // on break {} {…}` runs no handler (found in review).
+        let intercepted = self.totally_intercepted(&in_body);
         let mut retargets: Vec<(String, String)> = Vec::new();
         for (name, id) in &self.block_ids {
-            if !in_body(*id) {
+            if !in_body(*id) || intercepted.contains(name.as_str()) {
                 continue;
             }
             let Some(Terminator::Goto { target, .. }) = self
@@ -1423,6 +1411,59 @@ impl CfgBuilder<'_> {
                 *t = target;
             }
         }
+    }
+
+    /// Whether one of this `try`'s handlers catches every completion `block`
+    /// can leave with: the block's exact completion code is known, and it has
+    /// an edge into a handler whose decoded selector is that code. Control
+    /// then reaches the `finally` through the handler, and a direct edge would
+    /// add a path where the error escaped uncaught — which made
+    /// `try {error boom} on error {} {set f 2} finally {set f 1}` read the
+    /// handler's dead store as live. A block whose completion is not exact
+    /// (`return $x` may raise while substituting) keeps its own exit.
+    fn caught_by_handler(
+        &self,
+        block: &str,
+        handlers: &[crate::ir::TryHandler],
+        handler_blocks: &[String],
+    ) -> bool {
+        let Some(code) = self.block_completion_code(block) else {
+            return false;
+        };
+        handlers
+            .iter()
+            .zip(handler_blocks)
+            .any(|(handler, handler_block)| {
+                crate::executable_ir::try_handler_code(handler) == Some(code)
+                    && self
+                        .exception_edges
+                        .iter()
+                        .any(|(from, to)| from == block && to == handler_block)
+            })
+    }
+
+    /// The blocks whose every completion a construct nested inside this one
+    /// intercepts: sources of an exception edge into a
+    /// [`total interceptor`](Self::total_interceptors) that `inside` contains.
+    ///
+    /// A `try` handler does not count. It selects only some completion codes,
+    /// and a block whose completion may be one it does not select must keep
+    /// its own exit: in `try {return $x} on error {} {exit 0} finally {set g
+    /// 1}` the substitution's error reaches the handler but the `return` still
+    /// runs the clause, and counting the handler edge as interception let O107
+    /// empty it (found in review).
+    fn totally_intercepted(
+        &self,
+        inside: &dyn Fn(crate::cfg::BlockId) -> bool,
+    ) -> std::collections::HashSet<&str> {
+        self.exception_edges
+            .iter()
+            .filter(|(_, to)| {
+                self.total_interceptors.contains(to)
+                    && self.block_ids.get(to).is_some_and(|id| inside(*id))
+            })
+            .map(|(from, _)| from.as_str())
+            .collect()
     }
 
     /// Whether any path through a `try`'s body or handlers reaches `end_block`
@@ -1648,6 +1689,7 @@ impl CfgBuilder<'_> {
         for src in throw_sources {
             self.exception_edges.push((src, end_block.clone()));
         }
+        self.total_interceptors.insert(end_block.clone());
 
         // The result and options variables are defined however the body ended,
         // so they belong at the merge rather than on one path.
@@ -1675,6 +1717,34 @@ impl CfgBuilder<'_> {
 
         end_block
     }
+}
+
+/// The names a `try` handler binds at the top of its block.
+///
+/// A `-` (fallthrough) handler has an empty body of its own and carries its
+/// names on to the shared body; the target of a `-` chain may run with any
+/// group member's names bound, so it defines them all.
+fn handler_var_defs(
+    handler: &crate::ir::TryHandler,
+    pending_fallthrough_defs: &mut Vec<String>,
+) -> Vec<String> {
+    let own_defs: Vec<String> = handler
+        .var_name
+        .iter()
+        .chain(&handler.options_var)
+        .cloned()
+        .collect();
+    if handler.fallthrough {
+        pending_fallthrough_defs.extend(own_defs.iter().cloned());
+        return own_defs;
+    }
+    let mut defs = std::mem::take(pending_fallthrough_defs);
+    for d in own_defs {
+        if !defs.contains(&d) {
+            defs.push(d);
+        }
+    }
+    defs
 }
 
 #[cfg(test)]

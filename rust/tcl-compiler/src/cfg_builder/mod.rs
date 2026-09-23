@@ -242,6 +242,11 @@ pub(crate) struct CfgBuilder<'a> {
     /// Blocks a plain `return` with a value that cannot substitute ends:
     /// they complete with `TCL_RETURN`, which a `try` handler may select.
     plain_return_blocks: FxHashSet<String>,
+    /// Blocks that intercept *every* completion reaching them by an exception
+    /// edge: a `catch`'s end block, and the end block of a `try` whose
+    /// `finally` routes every exit through it. A `try` handler is not one —
+    /// it selects only some codes.
+    total_interceptors: FxHashSet<String>,
     /// When `true`, record [`Self::exception_edges`] in `lower_try`.  Off for
     /// codegen builds so the default bytecode is unchanged.
     faithful_exceptions: bool,
@@ -399,6 +404,7 @@ impl<'a> CfgBuilder<'a> {
             exception_edges: Vec::new(),
             finally_jump_edges: Vec::new(),
             plain_return_blocks: FxHashSet::default(),
+            total_interceptors: FxHashSet::default(),
             faithful_exceptions: false,
             plain_command_dispatch: false,
             registry,
@@ -1365,6 +1371,7 @@ impl<'a> CfgBuilder<'a> {
             .collect();
         self.finally_jump_edges.clear();
         self.plain_return_blocks.clear();
+        self.total_interceptors.clear();
         func.exception_edges = std::mem::take(&mut self.exception_edges)
             .into_iter()
             .map(|(from, to)| (self.bid(&from), self.bid(&to)))

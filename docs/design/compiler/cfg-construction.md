@@ -179,9 +179,15 @@ it, though Tcl runs `finally` on every completion path (#2142).  The exits
 are read off the construct's own blocks, not its resting tail:
 `if {$c} {return ok} else {error boom}` cannot fall through yet still ends
 in a resting `if_end` block.  Two kinds of `Return` block are not exits:
-a `return` a nested `try` / `catch` already
-intercepts with its own edge — control reaches this `finally` only after
-the inner clause has run; and a process exit (`Traits::TERMINATES_PROCESS`,
+a `return` a nested construct intercepts
+*whole* — one with an edge into a `catch`'s end block or into the end block
+of a nested `try … finally`, which catch every completion — or that one of
+this `try`'s own handlers catches exactly (the block's completion code is
+known and it has an edge into a handler whose decoded selector is that
+code) — control reaches this `finally` only after that construct has run.
+A handler edge alone proves nothing more: `try {return $x} on error {}
+{exit 0} finally {…}` hands the substitution's error to the handler, but
+the `return` still runs the clause; and a process exit (`Traits::TERMINATES_PROCESS`,
 e.g. `exit`), which ends the interpreter without unwinding, so no `finally`
 runs — but only when nothing can stop it from running: it is the block's
 sole statement, every word is literal, the command-binding owner resolves
