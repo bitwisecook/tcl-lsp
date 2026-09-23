@@ -549,6 +549,7 @@ fn evaluate_under(
             dialect: Some("tcl8.6"),
             targets,
             budget: tcl_registry::value_transfer::ImplementationBudget::default(),
+            depends: &[],
         },
     )
 }

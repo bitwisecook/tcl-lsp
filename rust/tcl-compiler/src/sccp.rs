@@ -464,8 +464,10 @@ pub fn sccp_with_builtin_folds(
             changed = false;
             // Every sweep re-evaluates each executable statement from
             // scratch, so only the settled sweep's route entries — the
-            // last one run — should reach the tally.
+            // last one run — should reach the tally. Each sweep is one
+            // iteration of the run's request: a tenth of what it has left.
             driver.reset_tally_for_sweep();
+            driver.open_iteration();
             for bn in &order {
                 if !executable_blocks.contains(bn) {
                     continue;

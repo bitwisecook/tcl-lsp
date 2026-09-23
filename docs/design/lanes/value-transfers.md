@@ -2960,6 +2960,9 @@ declaring no release (`tcl`, or `tk` in the Explorer's text view).
 | VT4.4 | the same checkpoint | `loader/semantics.rs`: `semantics`, `evaluate` and `facts` at command, subcommand and `refine` scope, innermost winning and sealed per row (D84), as one `DeclaredSemantics` per declaring scope (D80) whose `arg N` counts from the form's first argument (D81); the option flags (D82, D90); vocabulary 2.2 (D83, D93); `-native` and `-direct` ids installing nothing yet (D87); a form's implementation dropped with a notice (D85) | `semantics_statements_load_at_every_scope`, `a_short_native_id_is_a_load_notice`, and `a_stores_row_an_iterate_block_and_the_option_flags_load`, `what_cannot_be_used_is_reported_and_dropped` (`loader/semantics.rs`) |
 | VT4.5 | the same checkpoint | `HookFamily::Evaluate` in `HOOK_FAMILIES`, its programs release-pinned and its body bound into a slot by the host plan (`DeclaredSemantics::bound`, D86); `Emission::Write` and `Emission::Preserve`, the `write` and `preserve` verbs validating against `HookCall::targets`, and `answer_of`'s three rules; `HookAnswer::Evaluation` | `a_silent_target_declines_the_whole_answer`, `a_write_to_a_non_target_raises` (`families_e2e`) |
 | VT4.6 | the same checkpoint (D92) | `DeclaredSemantics::evaluate` through `pack_hooks::slot_available` and `dispatch` (D88, D89); `PackHookHost::is_available`; `HookCall::budget` and the host's per-call narrowing (D91); the driver's implementation arms in `run_script` and `call_def`, counted by `enter_implementation`, and the expression route asking the option declines first (D90) | `a_declared_implementation_folds_through_the_driver` (compiler witnesses: `tenant::label acme` folds to `tenant:acme` and counts two implementation entries; `$x` declines `not-exact`; with the host cleared, `transient`); `a_declared_budget_narrows_the_host_for_its_call_only` (`containment_e2e`) |
+| VT4.7 | `wip(value-transfers): slice 4 — the route, the key and the overlay` | `EvaluatorGeneration`, shared by the workers serving one published plan and fresh for a quarantine (D94), set at `install_host` / `install_plan_host`, `clear_host` and `note_quarantine`, read by `evaluator_generation` into `AnalysisContextKey::evaluator_revision`; the hook cache keeping each content-keyed answer's call content and comparing it on a hit, with `HookCall::depends` (D95) | `a_changed_incoming_target_misses_the_cache` (`value_transfer/declared.rs`), `a_hash_collision_is_not_a_hit`, `host_install_and_quarantine_bump_the_generation` (`pack_hooks.rs`) |
+| VT4.8 | the same checkpoint | `CommandRegistry::generation` and `overlay_generation` (D96), which `AnalysisContextKey::for_module` reads from the unit's registry; `compilation_unit`, `proc_taint_solve` and every per-procedure query resolving against the workspace's pack overlay, `ProcBodyKey` included (D97); `document_compilation_unit_for` for the semantic-token queries | `a_workspace_pack_evaluator_reaches_i230_on_the_memoised_path` (two I230s, top level and procedure, and none once the pack's `evaluate` row goes), `a_pack_edit_invalidates_the_lattice` (`value_transfer_parity.rs`); `memory_growth` and `interned_gc` green |
+| VT4.9 | the same checkpoint | `Budget::request`, `Budget::iteration`, `Budget::evaluation_within` and the propagating `charge_work` / `charge_result` (D99); the driver's request per run and iteration per sweep; a declared implementation's commands charged one-to-one | `an_exhausted_request_declines_the_rest` (`value_transfer.rs`: twelve folds under the default request; under a 500-unit request the declines are the request's and each publishes `Overdefined`, D100) |
 
 Deltas observed beyond the plan's list, each with its oracle:
 
@@ -3031,11 +3034,88 @@ Green at the second checkpoint (VT4.3 to VT4.6):
   proof (325 targets, 5 partitions) OK; `cargo check --workspace
   --all-targets` clean.
 
-The state the sonnet items start from: VT4.10 to VT4.12 and VT4.14 have
-the tree of this record's last row; the pages VT4.15 amends (§
-*`Engine::set_release`*, § *Per-evaluation state*) still describe the
-page's mechanisms, and `value-evaluation.md` § *Target semantics* already
-states ruling 8 as built.
+Deltas at the third checkpoint (VT4.7 to VT4.9), beyond the plan's list:
+
+- **The generation is shared by plan** (D94): the plan's "bumped at
+  `install_host`, `clear_host` and quarantine", with the value a plan's
+  rather than a counter's, so the server's workers share a lattice; a
+  quarantine still gives its worker a generation of its own.
+- **The hook cache compares content, `HookCall::depends` included**
+  (D95), and the profile stands in for the `TargetDigest`.
+- **The overlay reaches every per-procedure query and `ProcBodyKey`**
+  (D97), beyond the plan's `compilation_unit` and `function_lattice`, and
+  a registry now carries its own generation (D96); `tcl-lsp-db` gains
+  `tcl-spectcl` as a dev-dependency for its witnesses, and the semantic
+  tokens read the overlaid unit.
+- **Salsa does not see the evaluator generation** (D98, Q12), and **an
+  exhausted request re-declines what it paid for** (D100, Q13).
+- **Disk**: the shared target directory fell to 1.4 GB free during the
+  suites; the test executables this lane had already run went (231 files,
+  7 GB), and the run went on at 8.1 GB.
+
+Green at the third checkpoint (VT4.7 to VT4.9):
+
+- tests: `cargo test -p tcl-registry -p tcl-spec-hooks -p tcl-spectcl -p
+  tcl-compiler --no-fail-fast` 11253 passed, 0 failed, 7 ignored; `cargo
+  test -p tcl-lsp-db --no-fail-fast` 125 passed, 5 ignored, and the two
+  memoised-against-direct corpus sweeps run with `--ignored`
+  (`compiler_check_memo_matches_uncached_over_corpus`,
+  `file_analysis_incremental_matches_full_over_corpus`) passed;
+  `tcl-spec-studio` and `tcl-explorer` 384 passed; `tcl-cli`'s
+  `value_transfers_cli` 5 and `spec_verbs` 18 passed, and
+  `samples_optimiser_profiles_are_regenerated` passed (no sample moved);
+- pedantic clippy (`--no-deps --all-targets -D warnings`) on
+  `tcl-registry`, `tcl-spec-hooks`, `tcl-spectcl`, `tcl-compiler` and
+  `tcl-lsp-db`, with no `#[allow]` added; `cargo fmt --check` clean on
+  them;
+- `cargo xtask value-transfers` rewrote nothing and `--check` is OK (17
+  clean, 13 waived, 98 pinned across 39 files, 6607 rows);
+  `pack-goldens` 0 of 24 rewritten; no new test binary; `cargo check
+  --workspace --all-targets` clean.
+
+The state the sonnet items start from — the tree of the third
+checkpoint:
+
+- **VT4.10.** The id rule is `loader/semantics.rs`'s `native_id`: a short
+  id is a notice naming `SCOPE::FIELD`, and a full id is a notice that
+  nothing this build ships holds it; either way the statement installs
+  nothing (D87). The tables replace that second notice with a lookup. The
+  closed word lists the table tests read sit beside their types (D79):
+  `NativeEvalId::ALL`, `LanguageProfileId::ALL`, `HostKind::ALL`,
+  `Exactness::ALL`, `ContextDependency::WORDS`, `OutcomeKind::ALL`,
+  `DeclaredEffect::ALL`, `OptionEvaluation::REASONS`. `HOOK_FAMILIES`
+  holds twelve families: the eleven VT4.10 counts, and
+  `HookFamily::Evaluate` last (index 11), whose native table is the
+  `evaluate` one.
+- **VT4.11.** A scope's `semantics` and `evaluate` statements load into
+  one `DeclaredSemantics` on the scope's `semantics` field (D80); `facts`
+  is checked and not stored, so the four surfaces carry it from the
+  source rows; the option flags are `DeclaredSemantics::option_declines`
+  as `(option, DeclineReason)` (D90), `OptionEvaluation::decline` turning
+  a flag into its decline. `tcl-spec-studio/src/store.rs`'s `family_key`
+  has the `Evaluate` arm (`"evaluate"`); `render_spectcl.rs`'s `GAPS` row
+  `semantics` is still there, and `DSL_VERSION` already tracks 2.2.
+- **VT4.12.** `tcl-mcp/src/spectcl.rs`'s `family_key` has the
+  `Evaluate` arm (D86). At run time the host already raises on a `write`
+  to a non-target and declines a body silent on a declared target
+  (`answer_of`); the findings are the static half.
+- **VT4.14.** The `iterate` block (`binder`, `iterable`, `body`,
+  `yield`, `cardinality`, `completion`, `zero_iterations` rows), `stores
+  -targets {…} -outcome may_write` and `evaluate none` load today; they
+  are 2.2 words, so a pack below `speclib … 2.2` draws the newer-word
+  notice for each (`log.since`).
+- **VT4.15.** The pages still describe the page's mechanisms where the
+  build differs: § *`Engine::set_release`* (the profile-name argument,
+  D76), § *Per-evaluation state* (`confine_stores`, D77 and D78), the
+  budgets (D99, D100) and the memo (D94 to D98); vocabulary 2.2 is new
+  to `spec-dsl-examples/README.md`, and an option input's list shape (D89)
+  and the declined-implementation reasons (D88) are the KCS howto's to
+  state. `value-evaluation.md` § *Target semantics* already states ruling
+  8 as built.
+- **VT4.13** (this lane's, after the sonnet items): the driver, the host
+  and the memoised path all run a declared implementation today — the
+  compiler witness through a stand-in host, and `value_transfer_parity.rs`
+  through the real one from a loaded pack.
 
 ### Slice 5 — destructuring and structured bodies
 
@@ -6428,6 +6508,86 @@ Taken while slice 4's opus items were executed (§ *Slice 4* › *Record
   two version notices and the upgrade tests' current-pack fixtures read
   2.2, as the 2.1 bump moved them (#1754); the CLI's `tcl spec upgrade`
   default target stays `2.0`, its own flag's default.
+- **D94 — The evaluator generation is shared by plan and private to a
+  quarantine.** `EvaluatorGeneration` (`value_transfer/context.rs`) is set
+  by `pack_hooks`: `NO_HOST` (0) on a worker without a host; one
+  generation per published plan, so every worker serving it shares its
+  memoised answers (`install_plan_host`, which `tcl-spectcl`'s
+  `ensure_thread_host` now calls with its plan generation); a fresh one
+  for a host installed without a plan and for every quarantine
+  (`note_quarantine`, which the host's crash path calls in place of
+  `clear_cache`). A per-thread counter would give two workers in different
+  states one number, and a fresh number per install would keep the
+  server's `spawn_blocking` workers from ever sharing a lattice.
+  `evaluator_generation` builds the host first, as `dispatch` would, so the
+  key names the evaluators the analysis runs with, and
+  `AnalysisContextKey::for_module` reads it.
+- **D95 — A cached hook answer is proven on the hit.** A content-keyed
+  entry keeps the call's content — the words, the constraints view, and
+  the `evaluate` family's targets, budget and dependency list, which
+  `HookCall::depends` now carries — and a hit compares it; the key's
+  `content` hash is the bucket, and a colliding bucket holds the latest
+  content's answer. The profile is the key's `dialect`, compared exactly,
+  in place of the plan's `TargetDigest`: `TargetSemantics::of` is a
+  function of the profile. An incoming target reaches a body only bound
+  with an exact value (D88), so its word is its value and its existence.
+  The values of `registry_generation` and `binding NAME` stay the
+  driver's — the memo key and the trust check — and the hook cache is
+  per thread and cleared with its host.
+- **D96 — A registry carries its generation and its overlay.**
+  `CommandRegistry::generation` is drawn from a process-wide counter at
+  construction and again at every mutation; `overlay_generation` is the
+  pack-set key `registry_for_profile_with_overlay` stamps.
+  `AnalysisContextKey::for_module` takes both from the registry the unit
+  resolved against, so a unit built against an overlay — or against the
+  un-overlaid fallback of one not built yet — keys every lattice by
+  exactly that registry.
+- **D97 — The overlay reaches every per-procedure query.**
+  `compilation_unit` and `proc_taint_solve` take the overlay
+  (`AnalyserConfig::spec_pack_key`) as an argument, resolved by
+  `unit_registry` (the shared registry for `0`, so a workspace without
+  packs resolves exactly as before); `function_lattice`,
+  `function_checks`, `function_optimisations`, `taint_cascade` and
+  `proc_summary_cascade` resolve by the overlay their key's context
+  carries (`lattice_registry`); `ProcBodyKey` gains the overlay, so a
+  procedure body lowers against the unit's surface. The server's
+  `document_compilation_unit(db, file)` has no config and keeps no
+  overlay (the server is not this lane's file); the semantic-token
+  queries read `document_compilation_unit_for(db, file, config)`, the
+  diagnostics path's build, so their unit agrees with the overlaid
+  registry they already pass.
+- **D98 — Salsa does not see the evaluator generation.**
+  `compilation_unit` is memoised on its inputs, and a thread's generation
+  is not one, so a unit built on one worker is served to another whatever
+  that worker's generation; the lattice keys inside carry the builder's.
+  Answers a healthy host computed are not wrong on a worker whose host has
+  since quarantined — a quarantine is no verdict on answers already
+  given — and a transient decline served to a healthy worker is only
+  imprecise until the file changes. A salsa input for the generation would
+  close it; the server would set it, and the server is not this lane's
+  file (open question below).
+- **D99 — The three nested budgets.** `Budget::request()` is 50,000,000
+  units (200 ms at four milliseconds per million) and 64 MiB retained;
+  `Budget::iteration` a tenth of the request's remaining work;
+  `Budget::evaluation_within` an evaluation that charges through both.
+  `charge_work` propagates — the evaluation's own exhaustion is
+  `Budget(Fuel)`, an iteration's or the request's `Budget(Request)` — and
+  `charge_result` also charges the request's retained bytes. The driver
+  opens one request per run (`LatticeDriver::new`) and one iteration per
+  sweep (`open_iteration`, beside the tally reset). A declared
+  implementation charges the commands its host's engine dispatched, one
+  unit each (`pack_hooks::record_commands_spent` and
+  `take_commands_spent`), after the body ran: an exhausted request
+  declines the evaluations after it, not the answer it paid for.
+- **D100 — An exhausted request declines every re-evaluated statement.**
+  Each sweep re-evaluates every executable statement with a tenth of what
+  the request has left, and the join keeps a decline, so once a run's
+  evaluations spend its request every route-evaluated definition of the
+  function ends `Overdefined` with `declined: budget: Request`, not only
+  those past the point of exhaustion (measured: twelve `string length`
+  folds under a 500-unit request all decline). Sound; the witness pins
+  only that the declines are the request's and each publishes
+  `Overdefined` (open question below).
 
 ### Open questions for the owner
 
@@ -6471,6 +6631,18 @@ Each with the assumption the plan proceeds on.
   `tcl-compiler` owner** (the file-directive fold, W305's self-filter, a
   single-bucket `line_suppressed`). *Assumption*: they are not this lane's;
   it neither answers nor blocks them.
+- **Q12 — The evaluator generation in salsa** (D98). The per-procedure
+  lattice key carries the building worker's generation, but the unit query
+  above it is memoised on its inputs alone. *Assumption*: the server sets
+  a salsa input for the generation when a worker's host changes, in a
+  later slice or the consumer-contracts lane; until then a transient
+  decline served to a healthy worker is imprecise, never wrong.
+- **Q13 — An exhausted request re-declines what it paid for** (D100).
+  *Assumption*: the evaluation page's rule stands as built — a pass gets a
+  tenth of what is left, and a re-evaluated statement the pass cannot pay
+  for declines — and charging a pass only for work an earlier pass did not
+  already pay for is the refinement if the degradation shows up in
+  practice.
 
 ### Deltas flagged for the owner
 

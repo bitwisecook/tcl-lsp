@@ -138,6 +138,7 @@ fn call<'w>(words: &'w [HookWord<'w>]) -> HookCall<'w> {
         dialect: None,
         targets: &[],
         budget: tcl_registry::value_transfer::ImplementationBudget::default(),
+        depends: &[],
     }
 }
 

@@ -607,6 +607,20 @@ pub struct CommandRegistry {
     /// registry is frozen, command-binding and CFG consumers share the same
     /// `Arc` instead of independently walking the full command universe.
     effective_semantics: OnceLock<Arc<EffectiveRegistrySemantics>>,
+    /// The workspace pack overlay this registry was built with
+    /// ([`crate::registry_for_profile_with_overlay`]), when it was one.
+    overlay: Option<u64>,
+    /// This registry's generation: a number no other registry, and no
+    /// earlier state of this one, has had. Every mutation draws a new one,
+    /// so a memo keyed by it names exactly the command surface it resolved
+    /// against.
+    generation: u64,
+}
+
+/// A registry generation no registry has had.
+fn next_registry_generation() -> u64 {
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+    NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
 }
 
 /// Descriptor facts from the effective command spec selected by a registry.
@@ -1158,6 +1172,8 @@ impl CommandRegistry {
             ambient_packages: Vec::new(),
             document_grammar: None,
             effective_semantics: OnceLock::new(),
+            overlay: None,
+            generation: next_registry_generation(),
         };
         for spec in tcl_specs() {
             registry.insert_shipped_static(spec);
@@ -1448,6 +1464,7 @@ impl CommandRegistry {
     /// `version` — the `ambient_package` statement of a `SpecTcl` pack.
     pub fn insert_ambient_package(&mut self, package: &'static str, version: &'static str) {
         self.ambient_packages.push((package, version));
+        self.generation = next_registry_generation();
     }
 
     /// Whether `package` is **ambient** — provided by the runtime, with no
@@ -2146,9 +2163,32 @@ impl CommandRegistry {
         }))
     }
 
-    /// Discard derived command facts after a mutation to the command surface.
+    /// Discard derived command facts after a mutation to the command
+    /// surface, and draw the registry's next generation.
     fn invalidate_effective_semantics(&mut self) {
         self.effective_semantics = OnceLock::new();
+        self.generation = next_registry_generation();
+    }
+
+    /// Record the workspace pack overlay this registry carries; `0` is none.
+    pub(crate) fn set_overlay(&mut self, overlay: u64) {
+        self.overlay = (overlay != 0).then_some(overlay);
+        self.generation = next_registry_generation();
+    }
+
+    /// This registry's generation: the command surface an analysis resolved
+    /// against, as the value-transfer context keys it. Every mutation draws
+    /// a new one, and no two registries share one.
+    #[must_use]
+    pub const fn generation(&self) -> u64 {
+        self.generation
+    }
+
+    /// The workspace pack overlay this registry was built with, as its
+    /// content key (`PackSet::key`), or `None` for a registry with none.
+    #[must_use]
+    pub const fn overlay_generation(&self) -> Option<u64> {
+        self.overlay
     }
 
     /// Return command names whose command-level descriptor selects `operation`.
@@ -5849,6 +5889,8 @@ impl std::fmt::Debug for CommandRegistry {
                 "effective_semantics_cached",
                 &self.effective_semantics.get().is_some(),
             )
+            .field("overlay", &self.overlay)
+            .field("generation", &self.generation)
             .finish()
     }
 }

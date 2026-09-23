@@ -1796,7 +1796,8 @@ pub fn function_lattice<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<
         context.proc_params(db).iter().cloned().collect();
     let global_write_procs: HashMap<String, GlobalWriteInfo> =
         context.global_write_ctx(db).iter().cloned().collect();
-    let registry = db.registry(key.dialect(db));
+    let registry = lattice_registry(db, key);
+    let registry: &CommandRegistry = &registry;
     // The request's exact grammar, not one reconstructed from the registry or
     // environment name: grammar overrides are part of the memo identity.
     let config = key.lexer_config(db);
@@ -1877,6 +1878,11 @@ pub struct ProcBodyKey<'db> {
     pub namespace: String,
     #[returns(ref)]
     pub dialect: String,
+    /// The workspace pack overlay the body lowers against (`0` for none):
+    /// a pack command's declared roles shape its lowering as a shipped
+    /// command's do.
+    #[returns(copy)]
+    pub overlay: u64,
 }
 
 /// Memoised offset-0 isolated lowering of one top-level `proc` body.
@@ -1888,7 +1894,7 @@ pub struct ProcBodyKey<'db> {
 // LRU-capped: per-item key, see the crate docs' "Deep-memo eviction".
 #[salsa::tracked(lru = 512, returns(clone))]
 pub fn lower_proc_body<'db>(db: &'db dyn TclDb, key: ProcBodyKey<'db>) -> Arc<Script> {
-    let registry = db.registry(key.dialect(db));
+    let registry = unit_registry(db, key.dialect(db), key.overlay(db));
     // The body's own environment grammar — the key already carries the
     // dialect, so the three truncated `LexerConfig` fields are derived
     // rather than interned as duplicate key fields.
@@ -1898,7 +1904,7 @@ pub fn lower_proc_body<'db>(db: &'db dyn TclDb, key: ProcBodyKey<'db>) -> Arc<Sc
     Arc::new(tcl_compiler::lowering::lower_proc_body_isolated(
         key.body_text(db),
         key.namespace(db),
-        registry,
+        &registry,
         config,
         tcl_lsp_core::optional_profile_for_dialect(key.dialect(db)),
     ))
@@ -2057,12 +2063,14 @@ fn build_unit_with_keys<'db>(
         // Same offset-0-plus-rebase contract as `lattice_memo` above: the caller
         // shifts the returned `Script` to the body's real position, so it needs
         // an owned copy.
+        let overlay = registry.overlay_generation().unwrap_or(0);
         let body_memo = |body_text: &str, namespace: &str| -> Script {
             let key = ProcBodyKey::new(
                 db,
                 body_text.to_owned(),
                 namespace.to_owned(),
                 dialect_key.to_owned(),
+                overlay,
             );
             (*lower_proc_body(db, key)).clone()
         };
@@ -2202,7 +2210,8 @@ pub fn taint_cascade<'db>(
     let baseline = function_lattice(db, lattice_key);
     let dialect = summary_key.dialect(db);
     let dialect_opt = tcl_lsp_core::stated_profile_for_dialect(dialect);
-    let registry = db.registry(dialect);
+    let registry = lattice_registry(db, lattice_key);
+    let registry: &CommandRegistry = &registry;
 
     // Reconstruct the minimal summary: a stub per known name (resolution
     // domain), with the real taint-relevant fields overlaid for the reachable
@@ -2383,7 +2392,8 @@ pub fn proc_summary_cascade<'db>(
     let params = lattice_key.params(db);
     let dialect = deps_key.dialect(db);
     let dialect_opt = tcl_lsp_core::stated_profile_for_dialect(dialect);
-    let registry = db.registry(dialect);
+    let registry = lattice_registry(db, lattice_key);
+    let registry: &CommandRegistry = &registry;
 
     // Reconstruct the minimal interproc summary (stub per known name + real
     // fields for the reachable set) — identical to `taint_cascade`'s rebuild.
@@ -2443,7 +2453,8 @@ pub fn function_checks<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<V
     let fu = function_lattice(db, key);
     let dialect = key.dialect(db);
     let dialect_opt = tcl_lsp_core::stated_profile_for_dialect(dialect);
-    let registry = db.registry(dialect);
+    let registry = lattice_registry(db, key);
+    let registry: &CommandRegistry = &registry;
     // Per-procedure memo — procs have no implicit instance variables.
     Arc::new(tcl_compiler::compiler_checks::function_nontaint_checks(
         &fu,
@@ -2523,10 +2534,12 @@ pub fn proc_taint_solve<'db>(
     db: &'db dyn TclDb,
     file: SourceFile,
     cfg: LexerCfgKey<'db>,
+    overlay: u64,
 ) -> Arc<CheckSolve> {
     let dialect = file.dialect(db).clone();
     let dialect_opt = tcl_lsp_core::stated_profile_for_dialect(&dialect);
-    let registry = db.registry(&dialect);
+    let registry = unit_registry(db, &dialect, overlay);
+    let registry: &CommandRegistry = &registry;
     let external = file.external_call_sites(db).clone();
     let declared = declared_command_surface(db, file);
     let (cu, lattice_keys) = build_unit_with_keys(
@@ -2864,7 +2877,8 @@ pub fn function_optimisations<'db>(
     let body = key.body(db).clone();
     let dialect = key.dialect(db).clone();
     let dialect_opt = tcl_lsp_core::stated_profile_for_dialect(&dialect);
-    let registry = db.registry(&dialect);
+    let registry = lattice_registry(db, key);
+    let registry: &CommandRegistry = &registry;
     let body_source = deps.body_source(db).clone();
 
     let mut ia = InterproceduralAnalysis::default();
@@ -3238,6 +3252,53 @@ fn lexer_cfg_key<'db>(db: &'db dyn TclDb, dialect: &str) -> LexerCfgKey<'db> {
     )
 }
 
+/// The registry a unit resolves against: the dialect's shared one, or its
+/// generation carrying a workspace pack overlay.
+enum UnitRegistry {
+    /// The dialect's process-wide registry ([`TclDb::registry`]).
+    Shared(&'static CommandRegistry),
+    /// The dialect's registry with the workspace's packs
+    /// ([`TclDb::registry_with_overlay`]).
+    Overlaid(Arc<CommandRegistry>),
+}
+
+impl std::ops::Deref for UnitRegistry {
+    type Target = CommandRegistry;
+
+    fn deref(&self) -> &CommandRegistry {
+        match self {
+            Self::Shared(registry) => registry,
+            Self::Overlaid(registry) => registry,
+        }
+    }
+}
+
+/// The registry a unit for `dialect` under pack overlay `overlay` resolves
+/// against: the shared one when there is no overlay (`0`), so a workspace
+/// with no packs resolves exactly as before, and the overlaid generation
+/// otherwise (`docs/design/compiler/value-transfers.md` § *One invocation,
+/// one context*: a workspace pack's declarations reach the memoised
+/// lattice).
+fn unit_registry(db: &dyn TclDb, dialect: &str, overlay: u64) -> UnitRegistry {
+    if overlay == 0 {
+        UnitRegistry::Shared(db.registry(dialect))
+    } else {
+        UnitRegistry::Overlaid(db.registry_with_overlay(dialect, overlay))
+    }
+}
+
+/// The registry a memoised per-procedure query resolves against: the one
+/// its module's unit resolved against, found by the dialect and the pack
+/// overlay its analysis context carries.
+fn lattice_registry(db: &dyn TclDb, key: FnLatticeKey<'_>) -> UnitRegistry {
+    let overlay = key
+        .analysis_context(db)
+        .key(db)
+        .overlay_generation
+        .unwrap_or(0);
+    unit_registry(db, key.dialect(db), overlay)
+}
+
 /// The [`UnitBuildOptions`] every [`CompilationUnit`] built for `file` under
 /// `cfg` shares — one place so the taint solve and the shared unit cannot
 /// drift on the dialect, the cross-file view, or the document's own
@@ -3281,9 +3342,12 @@ pub fn declared_command_surface(db: &dyn TclDb, file: SourceFile) -> Arc<Declare
 }
 
 /// The shared, memoised [`CompilationUnit`] for a document under a given lexer
-/// config — built via `memoised_compilation_unit` (per-procedure lattices on
-/// the salsa-native [`function_lattice`] graph).  Tracked + keyed on
-/// `(file, cfg)` so the analyser tail ([`file_analysis_incremental`]) and the
+/// config and workspace pack overlay (`0` for none) — built via
+/// `memoised_compilation_unit` (per-procedure lattices on the salsa-native
+/// [`function_lattice`] graph) against the overlay's registry, so a pack's
+/// declarations reach every lattice of the file and a pack edit, which
+/// changes the overlay, invalidates them.  Tracked + keyed on
+/// `(file, cfg, overlay)` so the analyser tail ([`file_analysis_incremental`]) and the
 /// optimiser/compiler-checks pass ([`compiler_check_diagnostics`]) **share one
 /// build per edit** whenever their configs coincide — every dialect bar
 /// `tcl8.4` and the three `f5-tcl`-grammar dialects (`f5-irules`, `f5-tmsh`,
@@ -3296,15 +3360,16 @@ pub fn compilation_unit<'db>(
     db: &'db dyn TclDb,
     file: SourceFile,
     cfg: LexerCfgKey<'db>,
+    overlay: u64,
 ) -> Arc<CompilationUnit> {
     let dialect = file.dialect(db).clone();
-    let registry = db.registry(&dialect);
+    let registry = unit_registry(db, &dialect, overlay);
     let external = file.external_call_sites(db).clone();
     let declared = declared_command_surface(db, file);
     Arc::new(memoised_compilation_unit(
         db,
         file.text(db),
-        unit_build_options(db, file, cfg, registry, external.as_deref(), &declared),
+        unit_build_options(db, file, cfg, &registry, external.as_deref(), &declared),
     ))
 }
 
@@ -3360,7 +3425,12 @@ pub fn file_analysis_incremental(
     // for *every* environment, because both consumers intern the same
     // environment id.
     let cfg_key = lexer_cfg_key(db, &dialect);
-    analyser.set_cu_override(compilation_unit(db, file, cfg_key));
+    analyser.set_cu_override(compilation_unit(
+        db,
+        file,
+        cfg_key,
+        config.spec_pack_key(db),
+    ));
 
     let mut body_fn = |body: &DeferredBody| -> BodyFragment {
         let key = ItemBodyKey::new(
@@ -3447,13 +3517,15 @@ pub fn compiler_check_diagnostics(
 ) -> Arc<CompilerDiagnostics> {
     let dialect = file.dialect(db).clone();
     let dialect_opt = tcl_lsp_core::stated_profile_for_dialect(&dialect);
-    let registry = db.registry(&dialect);
+    let overlay = config.spec_pack_key(db);
+    let registry = unit_registry(db, &dialect, overlay);
+    let registry: &CommandRegistry = &registry;
     // Share the analyser tail's build via the [`compilation_unit`] query when the
     // dialect's lexer config matches the default (every dialect but `tcl8.4` /
     // `f5-irules`): the optimiser lowers with the dialect config, so a matching
     // config interns the same `LexerCfgKey` and reuses the same per-edit build.
     let cfg_key = lexer_cfg_key(db, &dialect);
-    let cu = compilation_unit(db, file, cfg_key);
+    let cu = compilation_unit(db, file, cfg_key, overlay);
     // Both halves of `run_all_checks` come from the memoised [`proc_taint_solve`]:
     // the interprocedural taint solve (`solve.taints`)
     // and the per-procedure non-taint checks (`solve.fn_checks`, already rebased),
@@ -3463,7 +3535,7 @@ pub fn compiler_check_diagnostics(
     // into the same deterministic order `run_all_checks` produces.  Byte-identical
     // to the in-line build; guarded by the corpus differential.  Optimiser
     // unchanged.
-    let solve = proc_taint_solve(db, file, cfg_key);
+    let solve = proc_taint_solve(db, file, cfg_key, overlay);
     let mut checks = solve.fn_checks.clone();
     let generic_patterns = config.generic_variable_patterns(db).as_deref();
     tcl_compiler::compiler_checks::push_taint_and_module_checks(
@@ -3536,16 +3608,31 @@ pub fn document_symbols(
     tcl_lsp_core::document_symbols::document_symbols_from_analysis(file.text(db), &analysis)
 }
 
-/// The document's [`CompilationUnit`] under the default lexer config — a thin
-/// wrapper over [`compilation_unit`] that interns the `LexerCfgKey` from the
-/// file's dialect, so callers that only have `(db, file)` (semantic tokens,
-/// server-side accessors) share the same memoised build as the diagnostics
-/// path.
+/// The document's [`CompilationUnit`] under the default lexer config and no
+/// pack overlay — a thin wrapper over [`compilation_unit`] that interns the
+/// `LexerCfgKey` from the file's dialect, for the server-side accessors that
+/// only have `(db, file)`. It shares the diagnostics path's memoised build
+/// when the workspace has no packs; a caller holding an [`AnalyserConfig`]
+/// uses [`document_compilation_unit_for`] to share it with packs too.
 // LRU-capped: per-file key, see the crate docs' "Deep-memo eviction".
 #[salsa::tracked(lru = 64, returns(clone))]
 pub fn document_compilation_unit(db: &dyn TclDb, file: SourceFile) -> Arc<CompilationUnit> {
     let cfg_key = lexer_cfg_key(db, file.dialect(db));
-    compilation_unit(db, file, cfg_key)
+    compilation_unit(db, file, cfg_key, 0)
+}
+
+/// The document's [`CompilationUnit`] under the default lexer config and
+/// `config`'s pack overlay: the diagnostics path's memoised build, which a
+/// consumer resolving against the overlaid registry reads so the unit and
+/// the registry agree on which commands the workspace's packs declare.
+#[must_use]
+pub fn document_compilation_unit_for(
+    db: &dyn TclDb,
+    file: SourceFile,
+    config: AnalyserConfig,
+) -> Arc<CompilationUnit> {
+    let cfg_key = lexer_cfg_key(db, file.dialect(db));
+    compilation_unit(db, file, cfg_key, config.spec_pack_key(db))
 }
 
 /// Semantic tokens — wraps `semantic_tokens::full_with_cu`; reads the durable
@@ -3576,7 +3663,7 @@ pub fn document_compilation_unit(db: &dyn TclDb, file: SourceFile) -> Arc<Compil
 #[salsa::tracked(returns(clone))]
 pub fn semantic_tokens(db: &dyn TclDb, file: SourceFile, config: AnalyserConfig) -> SemanticTokens {
     let registry = db.registry_with_overlay(file.dialect(db), config.spec_pack_key(db));
-    let cu = document_compilation_unit(db, file);
+    let cu = document_compilation_unit_for(db, file, config);
     let analysis = file_analysis_incremental(db, file, config);
     tcl_lsp_core::semantic_tokens::full_with_cu_and_analysis(
         file.text(db),
@@ -3775,7 +3862,7 @@ pub fn semantic_tokens_project(
     config: AnalyserConfig,
 ) -> SemanticTokens {
     let registry = db.registry_with_overlay(file.dialect(db), config.spec_pack_key(db));
-    let cu = document_compilation_unit(db, file);
+    let cu = document_compilation_unit_for(db, file, config);
     let classes = project_class_index(db, project);
     let proc_roles = project_proc_var_index(db, project);
     let named_instances = project_named_instance_index(db, project);
@@ -3912,8 +3999,8 @@ mod tests {
         let cfg_key = lexer_cfg_key(&db, "tcl8.6");
         let file_a = SourceFile::new(&db, SRC.to_owned(), "tcl8.6".to_owned(), None);
         let file_b = SourceFile::new(&db, SRC.to_owned(), "tcl8.6".to_owned(), None);
-        let first = compilation_unit(&db, file_a, cfg_key);
-        let second = compilation_unit(&db, file_b, cfg_key);
+        let first = compilation_unit(&db, file_a, cfg_key, 0);
+        let second = compilation_unit(&db, file_b, cfg_key, 0);
         for qname in ["::alpha", "::beta"] {
             let a = first
                 .procedures
@@ -3953,7 +4040,7 @@ mod tests {
         let db = TclDatabase::default();
         let cfg_key = lexer_cfg_key(&db, "tcl8.4");
         let file = SourceFile::new(&db, SRC.to_owned(), "tcl8.4".to_owned(), None);
-        let unit = compilation_unit(&db, file, cfg_key);
+        let unit = compilation_unit(&db, file, cfg_key, 0);
         let subject = unit
             .procedures
             .get("::subject")

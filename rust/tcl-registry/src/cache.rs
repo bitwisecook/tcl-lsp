@@ -233,6 +233,7 @@ pub fn registry_for_profile_with_overlay(
     }
     extend(&mut registry);
     registry.set_profile(profile);
+    registry.set_overlay(overlay);
     let handle = Arc::new(registry);
 
     prune_overlays(&mut guard, overlay);

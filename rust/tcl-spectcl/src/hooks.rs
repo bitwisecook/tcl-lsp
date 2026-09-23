@@ -464,7 +464,9 @@ pub fn ensure_thread_host() {
             // on first crash, abstention on anything unexpected.
             let _installed = host.install_pack_hooks(programs.clone());
         }
-        pack_hooks::install_host(host);
+        // Every worker serving this plan shares one evaluator generation,
+        // so their memoised answers are shared too.
+        pack_hooks::install_plan_host(host, generation);
     }
     INSTALLED.with(|installed| installed.set(generation));
 }

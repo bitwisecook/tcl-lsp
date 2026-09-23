@@ -64,7 +64,7 @@ pub use answers::{
     TransferAnswer, TypeFacts, ValueShape, VariableRead,
 };
 pub use const_ops::{ConstOps, ConstValue, Needs, Representation, TargetSemantics, WorkUnits};
-pub use context::{AnalysisContext, BindingEvidence, BindingIdentity, Budget};
+pub use context::{AnalysisContext, BindingEvidence, BindingIdentity, Budget, EvaluatorGeneration};
 pub use declaration::{
     DeclarationScope, DerivedSemantics, ResolvedSemantics, SemanticsDeclaration, SemanticsOrigin,
     resolve_semantics,

@@ -215,6 +215,7 @@ fn main() {
                 &db,
                 dup_files.next().expect("one source file per iteration"),
                 cfg_key,
+                0,
             )
         });
         println!(

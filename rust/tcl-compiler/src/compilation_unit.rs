@@ -1734,7 +1734,7 @@ impl CompilationUnit {
         // The module's analysis context: one value every per-procedure
         // lattice in this build — memoised or not — is keyed and run under.
         let analysis_context =
-            crate::value_transfer::AnalysisContextKey::for_module(&command_mutations);
+            crate::value_transfer::AnalysisContextKey::for_module(&command_mutations, registry);
         // Module-wide upvar/param context — the CFG-determining context a
         // procedure body is rebuilt under.  Computed once and shared by every
         // memoised request, the methods/body-units below, and the call-site

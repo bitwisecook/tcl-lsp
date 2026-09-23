@@ -35,7 +35,7 @@ use super::*;
 fn both_paths(db: &TclDatabase, file: SourceFile) -> (Arc<CompilationUnit>, CompilationUnit) {
     let dialect = file.dialect(db).clone();
     let cfg_key = lexer_cfg_key(db, &dialect);
-    let memoised = compilation_unit(db, file, cfg_key);
+    let memoised = compilation_unit(db, file, cfg_key, 0);
     let direct = CompilationUnit::build_with_options(
         file.text(db),
         unit_build_options(
@@ -298,4 +298,148 @@ fn file_token_facts_never_evaluates() {
             "`file_token_facts` ran `{deep}`: {executed:?}"
         );
     }
+}
+
+/// Serialises the tests that publish a pack set: the published plan is the
+/// process's, and every worker builds its host from it.
+static PUBLISHED_PACKS: Mutex<()> = Mutex::new(());
+
+/// The workspace pack declaring `tenant::label` (`value-evaluation.md`
+/// § *A private command*), its body folding `PREFIX` before the name, or
+/// without its `evaluate` row.
+fn tenant_pack(evaluate: Option<&str>) -> tcl_spectcl::PackSet {
+    let evaluate = evaluate.map_or(String::new(), |prefix| {
+        format!(
+            "        evaluate -implementation tenant.label.v1 -host bounded_tcl {{\n\
+             \x20           inputs {{arg 0 exact}}\n\
+             \x20           depends {{tcl_profile implementation_identity}}\n\
+             \x20           budget {{-commands 2000 -wall-clock 20 -value-bytes 65536}}\n\
+             \x20           body {{name}} {{ fold [string cat \"{prefix}\" $name] }}\n\
+             \x20       }}\n"
+        )
+    });
+    let source = format!(
+        "speclib tenant 2.2 {{\n\
+         \x20   command tenant::label {{\n\
+         \x20       arity 1\n\
+         \x20       semantics {{\n\
+         \x20           effects {{no_store_writes no_external_io}}\n\
+         \x20           result -semantic string\n\
+         \x20       }}\n\
+         {evaluate}\
+         \x20   }}\n\
+         }}\n"
+    );
+    let packs = tcl_spectcl::pack::load_in_memory(vec![(
+        tcl_spectcl::PackFile {
+            tier: tcl_spectcl::Tier::Workspace,
+            path: std::path::PathBuf::from("/workspace/.tcl-lsp/tenant.tclspec"),
+            origin: tcl_spectcl::discovery::Origin::DotDir,
+        },
+        source,
+    )]);
+    assert!(packs.notices.is_empty(), "{:#?}", packs.notices);
+    packs
+}
+
+/// Make `packs` the workspace's, as the server does on a load: the
+/// overlaid registry for `dialect`, the published hook plan, and this
+/// worker's host built from it. The pack's content key is the overlay.
+fn install_workspace_packs(packs: &tcl_spectcl::PackSet, dialect: &str) -> u64 {
+    let _registry = tcl_spectcl::install::registry_for_dialect_with_packs(dialect, packs);
+    tcl_spectcl::hooks::publish(packs);
+    tcl_spectcl::hooks::ensure_thread_host();
+    packs.key
+}
+
+/// A config whose only setting is the workspace's pack overlay.
+fn overlay_config(db: &TclDatabase, overlay: u64) -> AnalyserConfig {
+    AnalyserConfig::new(
+        db,
+        Vec::new(),
+        NonAsciiMode::Default,
+        Vec::new(),
+        None,
+        None,
+        overlay,
+        Vec::new(),
+        Vec::new(),
+    )
+}
+
+/// A workspace pack's declared evaluator reaches the memoised editor path:
+/// with `tenant::label` declared by the pack, `if {[tenant::label x] eq
+/// "tenant:x"} …` is a constant condition the database's analysis reports
+/// as I230 — at the top level and in a procedure body, whose lattice the
+/// memoised `function_lattice` builds — and once the pack's `evaluate` row
+/// is removed, it is not.
+#[test]
+fn a_workspace_pack_evaluator_reaches_i230_on_the_memoised_path() {
+    use salsa::Setter as _;
+    let _published = PUBLISHED_PACKS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let src = "if {[tenant::label x] eq \"tenant:x\"} {puts yes} else {puts no}\n\
+               proc p {} {\n    if {[tenant::label y] eq \"tenant:y\"} {puts yes} else {puts no}\n}\n";
+    let constant_branches = |db: &TclDatabase, file: SourceFile, config: AnalyserConfig| {
+        file_analysis_incremental(db, file, config)
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code == DiagCode::I230)
+            .count()
+    };
+    let mut db = TclDatabase::default();
+    let file = SourceFile::new(&db, src.to_owned(), "tcl9.0".to_owned(), None);
+    let config = overlay_config(
+        &db,
+        install_workspace_packs(&tenant_pack(Some("tenant:")), "tcl9.0"),
+    );
+    assert_eq!(
+        constant_branches(&db, file, config),
+        2,
+        "both conditions fold through the pack's evaluator"
+    );
+    let unit = document_compilation_unit_for(&db, file, config);
+    let tally = unit.procedures.get("::p").expect("::p").sccp.route_tally;
+    assert!(
+        tally.implementation > 0,
+        "the procedure's memoised lattice ran the declared implementation: {tally:?}"
+    );
+
+    let without = install_workspace_packs(&tenant_pack(None), "tcl9.0");
+    config.set_spec_pack_key(&mut db).to(without);
+    assert_eq!(
+        constant_branches(&db, file, config),
+        0,
+        "without the `evaluate` row nothing evaluates `tenant::label`"
+    );
+    tcl_spectcl::hooks::publish(&tcl_spectcl::PackSet::default());
+}
+
+/// A pack edit invalidates every lattice of the file: the memoised
+/// procedure lattice folds `[tenant::label acme]` through the pack's body,
+/// and after the body changes — a new pack content, a new overlay — the
+/// same query answers from the new body, never from the old lattice.
+#[test]
+fn a_pack_edit_invalidates_the_lattice() {
+    use salsa::Setter as _;
+    let _published = PUBLISHED_PACKS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let src = "proc p {} {set r [tenant::label acme]; return $r}\n";
+    let text = |value: &str| LatticeValue::Const(ConstValue::String(value.to_owned()));
+    let mut db = TclDatabase::default();
+    let file = SourceFile::new(&db, src.to_owned(), "tcl9.0".to_owned(), None);
+    let config = overlay_config(
+        &db,
+        install_workspace_packs(&tenant_pack(Some("tenant:")), "tcl9.0"),
+    );
+    let unit = document_compilation_unit_for(&db, file, config);
+    assert_eq!(value_at(&unit, "::p", "r", 1), Some(text("tenant:acme")));
+
+    let edited = install_workspace_packs(&tenant_pack(Some("t:")), "tcl9.0");
+    config.set_spec_pack_key(&mut db).to(edited);
+    let unit = document_compilation_unit_for(&db, file, config);
+    assert_eq!(value_at(&unit, "::p", "r", 1), Some(text("t:acme")));
+    tcl_spectcl::hooks::publish(&tcl_spectcl::PackSet::default());
 }

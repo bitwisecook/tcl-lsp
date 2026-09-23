@@ -423,8 +423,9 @@ impl<E: Engine> HookHost<E> {
             kind,
             detail,
         });
-        // A quarantined hook's cached answers must not outlive it.
-        pack_hooks::clear_cache();
+        // A quarantined hook's cached answers must not outlive it, and what
+        // this host can still run is its own: a generation of its own.
+        pack_hooks::note_quarantine();
     }
 }
 
@@ -606,6 +607,11 @@ impl<E: Engine> HookHost<E> {
             return None;
         }
         let invoked = catch_unwind(AssertUnwindSafe(|| engine.invoke(handle, &arguments)));
+        // What the call cost, for the evaluation that asked: a declared
+        // implementation charges it to its request one-to-one.
+        if let Some(spent) = engine.commands_spent() {
+            pack_hooks::record_commands_spent(spent);
+        }
         if narrows && let Err(error) = engine.set_budget(self.config.budget) {
             // The engine keeps the narrower budget: safe, and logged,
             // because every later hook on it would run short.

@@ -81,38 +81,51 @@ use tcl_syntax::word_rules::WordValueRules;
 /// sensitivity the design asks for.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AnalysisContextKey {
-    /// The effective registry generation. The un-overlaid registry a
-    /// dialect resolves to is built once per process, so this is fixed
-    /// until the overlay generation reaches the per-function key.
+    /// The generation of the registry the module resolved against
+    /// ([`CommandRegistry::generation`]): the exact command surface, so two
+    /// builds against different registries never share a lattice.
     pub registry_generation: u64,
-    /// The workspace pack overlay generation, once it reaches the key.
+    /// The workspace pack overlay that registry carries
+    /// ([`CommandRegistry::overlay_generation`]), which the memoised
+    /// per-procedure lattice resolves its own registry by.
     pub overlay_generation: Option<u64>,
     /// The module's command-binding evidence.
     pub bindings: CommandTrustSnapshot,
     /// The precision tier the request runs at.
     pub tier: AnalysisTier,
-    /// Evaluator and implementation revisions the registry does not fix.
-    /// No evaluator host reaches the lattice yet, so nothing bumps it.
+    /// The generation of the building thread's evaluator host
+    /// ([`tcl_registry::pack_hooks::evaluator_generation`]): which host
+    /// serves the declared implementations, and in what health, so a
+    /// host-present and a host-absent worker never share a lattice.
     pub evaluator_revision: u64,
 }
 
 impl AnalysisContextKey {
-    /// The key for a module whose command mutations were scanned.
+    /// The key for a module whose command mutations were scanned, resolved
+    /// against `registry`, under the building thread's evaluator
+    /// generation.
     #[must_use]
-    pub fn for_module(mutations: &crate::command_binding::ModuleCommandMutations) -> Self {
+    pub fn for_module(
+        mutations: &crate::command_binding::ModuleCommandMutations,
+        registry: &CommandRegistry,
+    ) -> Self {
         Self {
-            registry_generation: 0,
-            overlay_generation: None,
+            registry_generation: registry.generation(),
+            overlay_generation: registry.overlay_generation(),
             bindings: mutations.snapshot(),
             tier: AnalysisTier::Deep,
-            evaluator_revision: 0,
+            evaluator_revision: u64::from(tcl_registry::pack_hooks::evaluator_generation().0),
         }
     }
 
-    /// The key for a consumer with no module view: no mutations observed.
+    /// The key for a consumer with no module view: no mutations observed,
+    /// against the process-wide default registry.
     #[must_use]
     pub fn detached() -> Self {
-        Self::for_module(&crate::command_binding::ModuleCommandMutations::default())
+        Self::for_module(
+            &crate::command_binding::ModuleCommandMutations::default(),
+            tcl_registry::default_registry(),
+        )
     }
 }
 
@@ -175,6 +188,11 @@ pub(crate) struct LatticeDriver<'a> {
     explanations: RefCell<BTreeMap<(u32, u32), RouteExplanation>>,
     /// The run's route-entry counts so far.
     tally: Cell<RouteTally>,
+    /// The run's request budget: every evaluation of this run charges
+    /// through it, so a run whose evaluations spend it declines the rest.
+    request: RefCell<Budget>,
+    /// The current solver pass's share of the request.
+    iteration: RefCell<Budget>,
 }
 
 /// The lattice value of one member-wise evaluation: the constant `pick`
@@ -206,6 +224,16 @@ fn written_value(outcome: &InvocationOutcome, target: TargetId) -> Option<&Exact
         StoreOutcome::Write { target: t, value } if *t == target => Some(value),
         _ => None,
     })
+}
+
+/// One solver run's request budget: [`Budget::request`], or the smaller
+/// one a test sets to watch a run exhaust it.
+fn request_budget() -> Budget {
+    #[cfg(test)]
+    if let Some(work) = tests::REQUEST_WORK.with(Cell::get) {
+        return Budget::request_of(work, Budget::REQUEST_RETAINED_BYTES);
+    }
+    Budget::request()
 }
 
 /// The route's spelling for an explanation.
@@ -279,6 +307,8 @@ impl<'a> LatticeDriver<'a> {
             evaluator_revision: key.map_or(0, |k| k.evaluator_revision),
             tier: key.map_or(AnalysisTier::Deep, |k| k.tier),
         };
+        let mut request = request_budget();
+        let iteration = request.iteration();
         let typed_assignment = folds.is_none_or(|f| {
             typed_node_commands(registry, LoweringHookId::Set)
                 .iter()
@@ -295,6 +325,8 @@ impl<'a> LatticeDriver<'a> {
             explaining: Cell::new(None),
             explanations: RefCell::new(BTreeMap::new()),
             tally: Cell::new(RouteTally::default()),
+            request: RefCell::new(request),
+            iteration: RefCell::new(iteration),
         }
     }
 
@@ -384,9 +416,18 @@ impl<'a> LatticeDriver<'a> {
         self.tally.set(RouteTally::default());
     }
 
-    /// The per-evaluation budget a route runs under.
-    fn budget() -> Budget {
-        Budget::evaluation()
+    /// Open the next solver pass: one tenth of what the request has left
+    /// (`docs/design/compiler/value-evaluation.md` § *The three nested
+    /// budgets*).
+    pub(crate) fn open_iteration(&self) {
+        let iteration = self.request.borrow_mut().iteration();
+        *self.iteration.borrow_mut() = iteration;
+    }
+
+    /// The per-evaluation budget a route runs under, charging through the
+    /// current pass and the run's request.
+    fn budget(&self) -> Budget {
+        self.iteration.borrow().evaluation_within()
     }
 
     /// A driver for a statement evaluated outside a run: the fold inputs'
@@ -525,7 +566,7 @@ impl<'a> LatticeDriver<'a> {
                 return LatticeValue::Overdefined;
             }
         }
-        let answer = evaluate_lifted(semantics, inputs, &mut Self::budget(), MAX_CONSTSET_SIZE);
+        let answer = evaluate_lifted(semantics, inputs, &mut self.budget(), MAX_CONSTSET_SIZE);
         self.explain(head, Some(route), answer_label(&answer));
         match answer {
             LiftedAnswer::Pending => LatticeValue::Unknown,
@@ -847,7 +888,7 @@ impl<'a> LatticeDriver<'a> {
                 self.enter_direct();
                 match id.owner() {
                     EvaluatorOwner::Registry => {
-                        evaluate_lifted(semantics, &inputs, &mut Self::budget(), MAX_CONSTSET_SIZE)
+                        evaluate_lifted(semantics, &inputs, &mut self.budget(), MAX_CONSTSET_SIZE)
                     }
                     // No compiler-owned evaluator remains: a route the
                     // registry does not own evaluates nothing here.
@@ -873,12 +914,7 @@ impl<'a> LatticeDriver<'a> {
                             policy: self.policy,
                             head: Some(binding.clone()),
                         };
-                        evaluate_lifted(
-                            &expression,
-                            &inputs,
-                            &mut Self::budget(),
-                            MAX_CONSTSET_SIZE,
-                        )
+                        evaluate_lifted(&expression, &inputs, &mut self.budget(), MAX_CONSTSET_SIZE)
                     }
                 }
             }
@@ -887,7 +923,7 @@ impl<'a> LatticeDriver<'a> {
             // and runs the body in this thread's host.
             EvalRoute::Implementation(_) => {
                 self.enter_implementation();
-                evaluate_lifted(semantics, &inputs, &mut Self::budget(), MAX_CONSTSET_SIZE)
+                evaluate_lifted(semantics, &inputs, &mut self.budget(), MAX_CONSTSET_SIZE)
             }
         };
         Some(ScriptRun {
@@ -1067,7 +1103,7 @@ impl<'a> LatticeDriver<'a> {
             ssa,
             sources: Vec::new(),
         };
-        evaluate_lifted(expression, &inputs, &mut Self::budget(), MAX_CONSTSET_SIZE)
+        evaluate_lifted(expression, &inputs, &mut self.budget(), MAX_CONSTSET_SIZE)
     }
 }
 
@@ -1168,7 +1204,7 @@ pub(crate) fn evaluate_expression_detached(
     match evaluate_lifted(
         &expression,
         &inputs,
-        &mut LatticeDriver::budget(),
+        &mut driver.budget(),
         MAX_CONSTSET_SIZE,
     ) {
         LiftedAnswer::Evaluated(outcomes) => match outcomes.as_slice() {
@@ -2397,6 +2433,89 @@ pub(crate) fn lattice_const_text<S1: std::hash::BuildHasher, S2: std::hash::Buil
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    thread_local! {
+        /// The request size the next driver on this thread opens, when set.
+        pub(super) static REQUEST_WORK: Cell<Option<u64>> = const { Cell::new(None) };
+    }
+
+    /// A run whose evaluations spend its request declines the rest with
+    /// `Budget(Request)`, published as `Overdefined`: under the default
+    /// request every `string length` of the procedure folds; under one too
+    /// small for them, a decline records the request as its reason, and
+    /// the join keeps every decline, so no definition the request could
+    /// not pay for publishes a value.
+    #[test]
+    fn an_exhausted_request_declines_the_rest() {
+        let body: String = (0..12).fold(String::new(), |mut body, i| {
+            use std::fmt::Write as _;
+            let _ = writeln!(body, "    set a{i} [string length abc{i}]");
+            body
+        });
+        let source = format!("proc p {{}} {{\n{body}}}\n");
+        let registry = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
+        let build = || {
+            crate::compilation_unit::CompilationUnit::build_for_dialect(
+                &source, registry, false, "tcl9.0",
+            )
+        };
+        let value = |unit: &crate::compilation_unit::CompilationUnit, i: usize| {
+            let function = unit.procedures.get("::p").expect("the procedure");
+            let symbol = function
+                .ssa
+                .var_symbol(&format!("a{i}"))
+                .expect("the variable");
+            function.sccp.values.get(&(symbol, 1)).cloned()
+        };
+        let answers = |unit: &crate::compilation_unit::CompilationUnit| -> Vec<String> {
+            unit.procedures
+                .get("::p")
+                .expect("the procedure")
+                .sccp
+                .explanations
+                .iter()
+                .filter(|explanation| explanation.command == "string")
+                .map(|explanation| explanation.answer.clone())
+                .collect()
+        };
+
+        let unit = build();
+        for i in 0..12 {
+            let expected = if i < 10 { 4 } else { 5 };
+            assert_eq!(
+                value(&unit, i),
+                Some(LatticeValue::Const(ConstValue::Int(expected))),
+                "a{i} folds under the default request"
+            );
+        }
+        assert!(answers(&unit).iter().all(|answer| answer == "evaluated"));
+
+        REQUEST_WORK.with(|work| work.set(Some(500)));
+        let unit = build();
+        REQUEST_WORK.with(|work| work.set(None));
+        let answers = answers(&unit);
+        assert_eq!(answers.len(), 12, "{answers:?}");
+        assert!(
+            answers
+                .iter()
+                .any(|answer| answer == "declined: budget: Request"),
+            "{answers:?}"
+        );
+        for (i, answer) in answers.iter().enumerate() {
+            if answer.starts_with("declined") {
+                assert_eq!(
+                    value(&unit, i),
+                    Some(LatticeValue::Overdefined),
+                    "a{i}: {answer}"
+                );
+            }
+        }
+        assert_eq!(
+            value(&unit, 11),
+            Some(LatticeValue::Overdefined),
+            "the last statement is past what the request pays for"
+        );
+    }
 
     #[test]
     fn split_head_basic() {

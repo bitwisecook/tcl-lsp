@@ -434,8 +434,15 @@ impl DeclaredSemantics {
             dialect: Some(profile.name),
             targets: self.targets(),
             budget: capability.budget,
+            depends: capability.depends,
         };
-        let answer = match pack_hooks::dispatch(slot, &call) {
+        let _earlier = pack_hooks::take_commands_spent();
+        let dispatched = pack_hooks::dispatch(slot, &call);
+        // The body already ran, so its commands are charged whatever it
+        // answered, one unit each; a request this exhausts declines the
+        // evaluations after this one, not the answer it paid for.
+        let _charged = budget.charge_work(pack_hooks::take_commands_spent());
+        let answer = match dispatched {
             HookAnswer::Evaluation(answer) => answer,
             HookAnswer::Abstain if !pack_hooks::slot_available(slot) => {
                 // The call itself cost the body its slot: its budget blew
@@ -663,3 +670,194 @@ fn overlaps(left: &str, right: &str) -> bool {
 pub const UNAUTHORED: DeclaredEvaluation = DeclaredEvaluation::Route(EvalRoute::None {
     reason: NoRouteReason::Unauthored,
 });
+
+#[cfg(test)]
+mod tests {
+    use std::cell::{Cell, RefCell};
+    use std::rc::Rc;
+
+    use super::*;
+    use crate::pack_hooks::{HookFamily, HookInput, HookInputs, PackHookHost};
+    use crate::value_transfer::const_ops::Needs;
+    use crate::value_transfer::context::{AnalysisContext, BindingIdentity};
+    use crate::value_transfer::inputs::{
+        BodyRegion, EvaluationState, FactView, OperandView, ResolvedInvocationView, WordStructure,
+    };
+    use crate::value_transfer::route::{
+        CompletionSupport, Exactness, HostKind, ImplementationBudget, ImplementationIdentity,
+    };
+
+    /// `kv::put KEY VAR`, with `VAR` holding `prior` before the call.
+    struct PutInputs {
+        view: ResolvedInvocationView<'static>,
+        prior: RefCell<String>,
+        context: AnalysisContext,
+    }
+
+    impl AnalysisInputs for PutInputs {
+        fn invocation(&self) -> &ResolvedInvocationView<'_> {
+            &self.view
+        }
+
+        fn operand(&self, id: OperandId, _domain: FactDomain) -> FactView {
+            self.view
+                .operand(id)
+                .map_or(FactView::Top(DeclineReason::NotExact), |operand| {
+                    FactView::Exact(ExactValue::from_literal(operand.text), None)
+                })
+        }
+
+        fn place(&self, id: OperandId) -> Result<PlaceRef, DeclineReason> {
+            self.view
+                .operand(id)
+                .map(|operand| PlaceRef::scalar(operand.text))
+                .ok_or(DeclineReason::NotExact)
+        }
+
+        fn variable(&self, _name: &str, _domain: FactDomain) -> FactView {
+            FactView::Top(DeclineReason::NotExact)
+        }
+
+        fn prior_store(&self, _place: &PlaceRef, _domain: FactDomain) -> FactView {
+            FactView::Exact(ExactValue::from_literal(&self.prior.borrow()), None)
+        }
+
+        fn word_structure(&self, _id: OperandId) -> Result<WordStructure, DeclineReason> {
+            Err(DeclineReason::Unsupported)
+        }
+
+        fn body(&self, _id: OperandId) -> Result<BodyRegion, DeclineReason> {
+            Err(DeclineReason::Unsupported)
+        }
+
+        fn nested(&self, _script: &str, _state: &mut EvaluationState) -> EvalAnswer {
+            EvalAnswer::Declined(DeclineReason::Unsupported)
+        }
+
+        fn math_function(&self, _name: &str) -> Result<BindingIdentity, DeclineReason> {
+            Err(DeclineReason::Unsupported)
+        }
+
+        fn context(&self) -> &AnalysisContext {
+            &self.context
+        }
+    }
+
+    /// The body `{key prior} { preserve 1; fold $key=$prior }`, counting
+    /// its runs.
+    struct JoinHost {
+        calls: Cell<u32>,
+    }
+
+    impl PackHookHost for JoinHost {
+        fn invoke(&self, _slot: HookSlot, call: &HookCall<'_>) -> HookAnswer {
+            self.calls.set(self.calls.get() + 1);
+            HookAnswer::Evaluation(EvaluationAnswer {
+                result: Some(
+                    call.words
+                        .iter()
+                        .map(|word| word.value)
+                        .collect::<Vec<_>>()
+                        .join("="),
+                ),
+                stores: vec![(1, None)],
+            })
+        }
+    }
+
+    fn literal(text: &'static str) -> OperandView<'static> {
+        OperandView {
+            text,
+            kind: InvocationWordKind::Literal,
+            role: None,
+        }
+    }
+
+    /// An incoming target is part of what a cached answer rests on: the
+    /// same key and target value is a hit, and a changed target value is a
+    /// miss that runs the body again and answers for the new value, never
+    /// the old one.
+    #[test]
+    fn a_changed_incoming_target_misses_the_cache() {
+        let slot = pack_hooks::allocate(
+            HookFamily::Evaluate,
+            &HookInputs::declared([HookInput::Words]),
+        )
+        .expect("an evaluate slot");
+        let put = DeclaredSemantics {
+            scope: "kv::put",
+            structure: DeclaredStructure {
+                stores: Some(DeclaredStores {
+                    targets: &[1],
+                    outcome: OutcomeKind::WriteOrPreserve,
+                }),
+                ..DeclaredStructure::default()
+            },
+            evaluation: DeclaredEvaluation::Implementation(DeclaredImplementation {
+                capability: EvaluatorCapability {
+                    identity: ImplementationIdentity {
+                        pack: "kv",
+                        id: "kv.put.v1",
+                        content_hash: 1,
+                    },
+                    host: HostKind::BoundedTcl,
+                    target: Needs::NONE,
+                    inputs: &[
+                        DeclaredInput::Operand {
+                            index: 0,
+                            exactness: Exactness::Exact,
+                        },
+                        DeclaredInput::IncomingTarget { index: 1 },
+                    ],
+                    depends: &[],
+                    budget: ImplementationBudget::default(),
+                    completion: CompletionSupport::NormalOnly,
+                },
+                slot: Some(slot),
+            }),
+            option_declines: &[],
+        };
+        let inputs = PutInputs {
+            view: ResolvedInvocationView {
+                canonical_command: "kv::put",
+                subcommand: None,
+                form: None,
+                layout: InvocationLayout::Source,
+                operands: vec![literal("k"), literal("v")],
+                argument_offset: 0,
+            },
+            prior: RefCell::new("a".to_owned()),
+            context: AnalysisContext::detached(tcl_dialect::DialectProfile::find("tcl9.0")),
+        };
+        let host = Rc::new(JoinHost {
+            calls: Cell::new(0),
+        });
+        pack_hooks::install_host(host.clone());
+        let evaluate = |inputs: &PutInputs| match put.evaluate(inputs, &mut Budget::evaluation()) {
+            EvalAnswer::Evaluated(outcome) => {
+                assert_eq!(
+                    outcome.ordered_stores,
+                    [StoreOutcome::Preserve {
+                        target: TargetId(OperandId(1))
+                    }]
+                );
+                match outcome.result {
+                    ExactValueOrUnavailable::Exact(value) => {
+                        String::from_utf8(value.bytes).expect("text")
+                    }
+                    ExactValueOrUnavailable::Unavailable(bounds) => {
+                        panic!("an exact result, not {bounds:?}")
+                    }
+                }
+            }
+            other => panic!("an outcome: {other:?}"),
+        };
+        assert_eq!(evaluate(&inputs), "k=a");
+        assert_eq!(evaluate(&inputs), "k=a");
+        assert_eq!(host.calls.get(), 1, "an unchanged target is a hit");
+        inputs.prior.replace("b".to_owned());
+        assert_eq!(evaluate(&inputs), "k=b");
+        assert_eq!(host.calls.get(), 2, "a changed target misses");
+        pack_hooks::clear_host();
+    }
+}

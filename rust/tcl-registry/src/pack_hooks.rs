@@ -40,13 +40,18 @@
 //!   from a cache keyed by command + word shape rather than re-entering the
 //!   VM.  [`HookInputs`] is that declaration and [`HookInputs::shape_only`]
 //!   is the cacheability rule; the cache itself is thread-local, like the
-//!   host.
+//!   host. A content-keyed entry keeps the call's content and a hit compares
+//!   it: the hash is the bucket, never the proof.
+//! - **The evaluator generation.** [`evaluator_generation`] names this
+//!   thread's host and its health, changing wherever the cache is cleared
+//!   for a host change, so an analysis memo keyed by it never serves one
+//!   worker's answers to a worker whose evaluators differ.
 //!
 //! Nothing here evaluates anything. If no host is installed — the default in
 //! every process that has not loaded a pack — every thunk answers its family's
 //! documented silence, and the cost is one relaxed atomic load.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU32, Ordering};
@@ -63,6 +68,7 @@ use crate::invocation_words::{
 };
 use crate::literal_validation::{LiteralArgumentValidation, LiteralArgumentValidator};
 use crate::spec::{ArgRoleResolver, CommandPrefixResolver, ContextGate, ScriptTimingResolver};
+use crate::value_transfer::{ContextDependency, EvaluatorGeneration, ImplementationBudget};
 
 /// How many hooks of one family a process may install.
 ///
@@ -556,7 +562,11 @@ pub struct HookCall<'w> {
     pub targets: &'w [usize],
     /// The `evaluate` family's own budget, which narrows the host's for this
     /// call; the default narrows nothing.
-    pub budget: crate::value_transfer::ImplementationBudget,
+    pub budget: ImplementationBudget,
+    /// The `evaluate` family's declared context dependencies, in
+    /// declaration order: part of what a cached answer is compared on;
+    /// empty for every other family.
+    pub depends: &'w [ContextDependency],
 }
 
 impl HookCall<'_> {
@@ -744,6 +754,13 @@ thread_local! {
     /// The shape-keyed answer cache, and its counters.
     static SHAPE_CACHE: RefCell<ShapeCache> = RefCell::new(ShapeCache::default());
 
+    /// This thread's evaluator generation.
+    static GENERATION: Cell<EvaluatorGeneration> =
+        const { Cell::new(EvaluatorGeneration::NO_HOST) };
+
+    /// The commands the host's engines dispatched since the last take.
+    static SPENT: Cell<u64> = const { Cell::new(0) };
+
     /// The dialect whose registry this thread is currently analysing against,
     /// as [`DialectProfile::name`] spells it (`f5-irules`, `tcl9.0`, …).
     ///
@@ -815,25 +832,113 @@ pub fn set_installer(installer: fn()) {
     let _ = INSTALLER.set(installer);
 }
 
+/// The next generation no state has had. Process-wide, so a generation
+/// minted on one thread is never minted again on another.
+static NEXT_GENERATION: AtomicU32 = AtomicU32::new(1);
+
+/// A generation no other state shares.
+fn fresh_generation() -> EvaluatorGeneration {
+    // Zero is the host-absent state; a wrapped counter skips it.
+    EvaluatorGeneration(NEXT_GENERATION.fetch_add(1, Ordering::Relaxed).max(1))
+}
+
+/// The generation of a host built from published plan `plan`: one per plan,
+/// shared by every thread whose host was built from it.
+fn plan_generation(plan: u64) -> EvaluatorGeneration {
+    static PLANS: LazyLock<Mutex<HashMap<u64, EvaluatorGeneration>>> =
+        LazyLock::new(|| Mutex::new(HashMap::new()));
+    let mut plans = match PLANS.lock() {
+        Ok(plans) => plans,
+        Err(poisoned) => poisoned.into_inner(),
+    };
+    *plans.entry(plan).or_insert_with(fresh_generation)
+}
+
 /// Install `host` as this thread's pack-hook host, replacing any previous one.
 ///
 /// Every pack-declared hook on this thread abstains until this is called, so
 /// a worker thread that never installs a host behaves exactly like a build
-/// with no packs loaded.
+/// with no packs loaded. The host gets a generation of its own; a host built
+/// from a published plan is installed with [`install_plan_host`] instead, so
+/// every worker serving that plan shares its memoised answers.
 pub fn install_host(host: Rc<dyn PackHookHost>) {
+    install(host, fresh_generation());
+}
+
+/// Install `host`, built from the published plan `plan`, as this thread's
+/// host: every thread that installs a host for one plan is at one
+/// generation.
+pub fn install_plan_host(host: Rc<dyn PackHookHost>, plan: u64) {
+    install(host, plan_generation(plan));
+}
+
+fn install(host: Rc<dyn PackHookHost>, generation: EvaluatorGeneration) {
     ANY_HOST.store(true, Ordering::Relaxed);
     clear_cache();
     HOST.with(|slot| {
         slot.borrow_mut().replace(host);
     });
+    GENERATION.with(|current| current.set(generation));
 }
 
-/// Remove this thread's host; every pack hook abstains again.
+/// Remove this thread's host; every pack hook abstains again, and the
+/// thread is at [`EvaluatorGeneration::NO_HOST`].
 pub fn clear_host() {
     clear_cache();
     HOST.with(|slot| {
         slot.borrow_mut().take();
     });
+    GENERATION.with(|current| current.set(EvaluatorGeneration::NO_HOST));
+}
+
+/// Record that the host's engine dispatched `commands` answering the call
+/// in flight: a declared implementation's evaluation charges them to its
+/// budget one-to-one (`docs/design/compiler/value-evaluation.md` § *Units
+/// and charges*).
+pub fn record_commands_spent(commands: u64) {
+    SPENT.with(|spent| spent.set(spent.get().saturating_add(commands)));
+}
+
+/// The commands recorded since the last take, which starts the count
+/// again.
+#[must_use]
+pub fn take_commands_spent() -> u64 {
+    SPENT.with(|spent| spent.replace(0))
+}
+
+/// Record that this thread's host quarantined a hook or poisoned a pack:
+/// the cached answers go, and the thread takes a generation no other state
+/// has, since what its host can still run is its own.
+pub fn note_quarantine() {
+    clear_cache();
+    GENERATION.with(|current| current.set(fresh_generation()));
+}
+
+/// This thread's evaluator generation, building its host first as
+/// [`dispatch`] would, so the generation names the evaluators an analysis
+/// that starts now runs with.
+#[must_use]
+pub fn evaluator_generation() -> EvaluatorGeneration {
+    if ANY_HOST.load(Ordering::Relaxed) || INSTALLER.get().is_some() {
+        ensure_host();
+    }
+    GENERATION.with(Cell::get)
+}
+
+/// This thread's host, built by the registered installer when it has none.
+fn ensure_host() -> Option<Rc<dyn PackHookHost>> {
+    let host = HOST.with(|slot| slot.borrow().clone());
+    if host.is_some() {
+        return host;
+    }
+    // This thread has never dispatched a hook before (or the plan moved
+    // under it). Build its host now rather than abstaining: abstaining here
+    // would silently answer "no packs" on a thread that simply had not been
+    // initialised, which is the same command resolving differently
+    // depending on which worker took the task.
+    let installer = INSTALLER.get()?;
+    installer();
+    HOST.with(|slot| slot.borrow().clone())
 }
 
 /// Whether this thread has a host installed.
@@ -851,14 +956,7 @@ pub fn slot_available(slot: HookSlot) -> bool {
     if !ANY_HOST.load(Ordering::Relaxed) {
         return false;
     }
-    let mut host = HOST.with(|slot| slot.borrow().clone());
-    if host.is_none()
-        && let Some(installer) = INSTALLER.get()
-    {
-        installer();
-        host = HOST.with(|slot| slot.borrow().clone());
-    }
-    host.is_some_and(|host| host.is_available(slot))
+    ensure_host().is_some_and(|host| host.is_available(slot))
 }
 
 /// The shape key: everything a shape-cacheable hook may read, packed.
@@ -887,9 +985,108 @@ struct ShapeKey {
     content: u64,
 }
 
+/// Everything a content-keyed answer rests on beyond its [`ShapeKey`]: the
+/// words' values, the `constraints` family's invocation view, and the
+/// `evaluate` family's declared targets, budget and dependencies. Kept with
+/// the answer and compared on every hit, because the key's `content` is a
+/// hash — the bucket, never the proof. The profile the target semantics
+/// derive from is the key's `dialect`, compared exactly.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+struct CallContent {
+    words: Vec<String>,
+    constraints: Option<ConstraintContent>,
+    targets: Vec<usize>,
+    budget: ImplementationBudget,
+    depends: Vec<ContextDependency>,
+}
+
+/// An owned copy of a [`ConstraintCallCtx`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ConstraintContent {
+    options: Vec<(&'static str, Option<String>)>,
+    positionals: Vec<Option<String>>,
+    complete: bool,
+}
+
+impl CallContent {
+    /// The content of `call` a `mode` slot's answer may depend on: all of
+    /// it for a content-keyed slot, nothing for a shape-keyed one — whose
+    /// key already holds everything its body is given.
+    fn of(call: &HookCall<'_>, mode: CacheMode) -> Self {
+        if mode != CacheMode::Content {
+            return Self::default();
+        }
+        Self {
+            words: call
+                .words
+                .iter()
+                .map(|word| word.value.to_owned())
+                .collect(),
+            constraints: call.constraints.map(|view| ConstraintContent {
+                options: view
+                    .options
+                    .iter()
+                    .map(|(name, value)| (*name, value.map(str::to_owned)))
+                    .collect(),
+                positionals: view
+                    .positionals
+                    .iter()
+                    .map(|word| word.map(str::to_owned))
+                    .collect(),
+                complete: view.complete,
+            }),
+            targets: call.targets.to_vec(),
+            budget: call.budget,
+            depends: call.depends.to_vec(),
+        }
+    }
+
+    /// Whether `call` has exactly this content, compared without copying.
+    fn matches(&self, call: &HookCall<'_>, mode: CacheMode) -> bool {
+        if mode != CacheMode::Content {
+            return true;
+        }
+        let constraints_match = match (&self.constraints, call.constraints) {
+            (None, None) => true,
+            (Some(kept), Some(view)) => {
+                kept.complete == view.complete
+                    && kept.options.len() == view.options.len()
+                    && kept.options.iter().zip(view.options).all(
+                        |((name, value), (other, other_value))| {
+                            name == other && value.as_deref() == *other_value
+                        },
+                    )
+                    && kept.positionals.len() == view.positionals.len()
+                    && kept
+                        .positionals
+                        .iter()
+                        .zip(view.positionals)
+                        .all(|(kept, word)| kept.as_deref() == *word)
+            }
+            _ => false,
+        };
+        constraints_match
+            && self.words.len() == call.words.len()
+            && self
+                .words
+                .iter()
+                .zip(call.words)
+                .all(|(kept, word)| kept == word.value)
+            && self.targets == call.targets
+            && self.budget == call.budget
+            && self.depends == call.depends
+    }
+}
+
+/// One cached answer, with the content it was computed for.
+struct CacheEntry {
+    content: CallContent,
+    answer: HookAnswer,
+}
+
 #[derive(Default)]
 struct ShapeCache {
-    entries: HashMap<ShapeKey, HookAnswer>,
+    entries: HashMap<ShapeKey, CacheEntry>,
     hits: u64,
     misses: u64,
 }
@@ -931,9 +1128,14 @@ pub fn clear_cache() {
 
 /// A stable hash of everything a [`CacheMode::Content`] slot may read beyond
 /// the shape: the words' literal values and the `constraints` family's
-/// structured invocation view.
+/// structured invocation view. The bucket a content-keyed answer is found
+/// in; [`CallContent::matches`] is what proves the hit.
 fn content_hash(call: &HookCall<'_>) -> u64 {
     use std::hash::{Hash as _, Hasher as _};
+    #[cfg(test)]
+    if let Some(forced) = tests::FORCED_CONTENT_HASH.with(Cell::get) {
+        return forced;
+    }
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     for word in call.words {
         word.value.hash(&mut hasher);
@@ -999,7 +1201,11 @@ pub fn dispatch(slot: HookSlot, call: &HookCall<'_>) -> HookAnswer {
     if let Some(key) = key
         && let Some(hit) = SHAPE_CACHE.with(|cache| {
             let mut cache = cache.borrow_mut();
-            let hit = cache.entries.get(&key).cloned();
+            let hit = cache
+                .entries
+                .get(&key)
+                .filter(|entry| entry.content.matches(call, mode))
+                .map(|entry| entry.answer.clone());
             if hit.is_some() {
                 cache.hits += 1;
             }
@@ -1008,19 +1214,7 @@ pub fn dispatch(slot: HookSlot, call: &HookCall<'_>) -> HookAnswer {
     {
         return hit;
     }
-    let mut host = HOST.with(|slot| slot.borrow().clone());
-    if host.is_none() {
-        // This thread has never dispatched a hook before (or the plan moved
-        // under it). Build its host now rather than abstaining: abstaining
-        // here would silently answer "no packs" on a thread that simply had
-        // not been initialised, which is the same command resolving
-        // differently depending on which worker took the task.
-        if let Some(installer) = INSTALLER.get() {
-            installer();
-            host = HOST.with(|slot| slot.borrow().clone());
-        }
-    }
-    let Some(host) = host else {
+    let Some(host) = ensure_host() else {
         return HookAnswer::Abstain;
     };
     let answer = host.invoke(slot, call);
@@ -1031,7 +1225,14 @@ pub fn dispatch(slot: HookSlot, call: &HookCall<'_>) -> HookAnswer {
             if cache.entries.len() >= MAX_CACHE_ENTRIES {
                 cache.entries.clear();
             }
-            cache.entries.insert(key, answer.clone());
+            // A colliding bucket holds the latest content's answer.
+            cache.entries.insert(
+                key,
+                CacheEntry {
+                    content: CallContent::of(call, mode),
+                    answer: answer.clone(),
+                },
+            );
         });
     }
     answer
@@ -1101,7 +1302,8 @@ fn call_of<'w>(words: &'w [HookWord<'w>], version: Option<TclVersion>) -> HookCa
         constraints: None,
         dialect: current_dialect(),
         targets: &[],
-        budget: crate::value_transfer::ImplementationBudget::default(),
+        budget: ImplementationBudget::default(),
+        depends: &[],
     }
 }
 
@@ -1206,7 +1408,8 @@ fn context_gate_thunk<const N: u16>(args: &[&str], in_event_body: bool) -> Optio
         constraints: None,
         dialect: current_dialect(),
         targets: &[],
-        budget: crate::value_transfer::ImplementationBudget::default(),
+        budget: ImplementationBudget::default(),
+        depends: &[],
     };
     match dispatch(
         HookSlot {
@@ -1265,7 +1468,8 @@ fn option_arity_thunk<const N: u16>(args: &[&str], start: usize) -> OptionValueO
         constraints: None,
         dialect: current_dialect(),
         targets: &[],
-        budget: crate::value_transfer::ImplementationBudget::default(),
+        budget: ImplementationBudget::default(),
+        depends: &[],
     };
     match dispatch(
         HookSlot {
@@ -1334,7 +1538,8 @@ fn constraints_thunk<const N: u16>(
         }),
         dialect: current_dialect(),
         targets: &[],
-        budget: crate::value_transfer::ImplementationBudget::default(),
+        budget: ImplementationBudget::default(),
+        depends: &[],
     };
     match dispatch(
         HookSlot {
@@ -1467,6 +1672,12 @@ pub fn constraints_fn(slot: HookSlot) -> Option<crate::spec::ConstraintsHook> {
 mod tests {
     use super::*;
 
+    thread_local! {
+        /// The content hash every call on this thread is forced to, when
+        /// set: two different contents in one bucket.
+        pub(super) static FORCED_CONTENT_HASH: Cell<Option<u64>> = const { Cell::new(None) };
+    }
+
     struct FixedHost(HookAnswer);
 
     impl PackHookHost for FixedHost {
@@ -1552,6 +1763,94 @@ mod tests {
         assert_eq!(host.calls.get(), 2);
         let stats = cache_stats();
         assert_eq!((stats.hits, stats.misses, stats.entries), (1, 2, 2));
+        clear_host();
+    }
+
+    /// A host folding its words, counting its calls.
+    struct EchoHost {
+        calls: Cell<u32>,
+    }
+
+    impl PackHookHost for EchoHost {
+        fn invoke(&self, _slot: HookSlot, call: &HookCall<'_>) -> HookAnswer {
+            self.calls.set(self.calls.get() + 1);
+            HookAnswer::Fold(
+                call.words
+                    .iter()
+                    .map(|word| word.value)
+                    .collect::<Vec<_>>()
+                    .join(" "),
+            )
+        }
+    }
+
+    /// A content-keyed answer is proven on every hit, never found by its
+    /// hash alone: two calls whose content hashes collide are two misses,
+    /// each answered for its own words, and the same content again is a
+    /// hit.
+    #[test]
+    fn a_hash_collision_is_not_a_hit() {
+        let slot = allocate(HookFamily::ConstFold, &HookInputs::parse(&["words"])).unwrap();
+        assert_eq!(cache_mode(slot), CacheMode::Content);
+        let fold = const_fold_fn(slot).unwrap();
+        let host = Rc::new(EchoHost {
+            calls: Cell::new(0),
+        });
+        install_host(host.clone());
+        FORCED_CONTENT_HASH.with(|forced| forced.set(Some(7)));
+        assert_eq!(fold(&["abc"]), Some("abc".to_owned()));
+        assert_eq!(
+            fold(&["xyz"]),
+            Some("xyz".to_owned()),
+            "one bucket, another content: not a hit"
+        );
+        assert_eq!(host.calls.get(), 2);
+        assert_eq!(fold(&["xyz"]), Some("xyz".to_owned()));
+        assert_eq!(host.calls.get(), 2, "the same content is a hit");
+        FORCED_CONTENT_HASH.with(|forced| forced.set(None));
+        clear_host();
+    }
+
+    /// The evaluator generation names the host and its health: installing
+    /// one moves the worker off `NO_HOST`, a quarantine gives it a
+    /// generation no other state has, and clearing the host returns it to
+    /// `NO_HOST`. Two workers serving one published plan share a
+    /// generation, so their memoised answers are shared; the worker whose
+    /// host then quarantines a hook shares it with no one.
+    #[test]
+    fn host_install_and_quarantine_bump_the_generation() {
+        // A plan no other test in this binary publishes.
+        const PLAN: u64 = u64::MAX - 7;
+        clear_host();
+        assert_eq!(evaluator_generation(), EvaluatorGeneration::NO_HOST);
+        install_host(Rc::new(FixedHost(HookAnswer::Abstain)));
+        let installed = evaluator_generation();
+        assert_ne!(installed, EvaluatorGeneration::NO_HOST);
+        install_host(Rc::new(FixedHost(HookAnswer::Abstain)));
+        let reinstalled = evaluator_generation();
+        assert_ne!(reinstalled, installed, "a host without a plan is its own");
+        note_quarantine();
+        assert_ne!(evaluator_generation(), reinstalled);
+        clear_host();
+        assert_eq!(evaluator_generation(), EvaluatorGeneration::NO_HOST);
+
+        install_plan_host(Rc::new(FixedHost(HookAnswer::Abstain)), PLAN);
+        let here = evaluator_generation();
+        let (there, quarantined) = std::thread::spawn(|| {
+            install_plan_host(Rc::new(FixedHost(HookAnswer::Abstain)), PLAN);
+            let shared = evaluator_generation();
+            note_quarantine();
+            (shared, evaluator_generation())
+        })
+        .join()
+        .expect("the worker ran");
+        assert_eq!(there, here, "one plan, one generation");
+        assert_ne!(quarantined, here, "a quarantine is its worker's own");
+        assert_eq!(
+            evaluator_generation(),
+            here,
+            "and this worker keeps its own"
+        );
         clear_host();
     }
 

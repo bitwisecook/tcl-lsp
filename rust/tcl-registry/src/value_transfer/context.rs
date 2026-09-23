@@ -22,7 +22,8 @@
 //! context*).
 
 use std::collections::BTreeSet;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::Duration;
 
 use tcl_dialect::{DialectProfile, LexerGrammar};
@@ -114,7 +115,76 @@ impl AnalysisContext {
     }
 }
 
+/// The generation of this thread's evaluator set
+/// (`docs/design/compiler/value-evaluation.md` § *The evaluator
+/// generation*): which host serves the declared implementations, and in
+/// what health. Carried as [`AnalysisContext::evaluator_revision`], so a
+/// memoised answer names the evaluators it was computed with, and a
+/// host-present and a host-absent worker never share one.
+///
+/// It changes at exactly the three places that clear the hook cache:
+/// installing a host, clearing it, and the host quarantining a hook. Two
+/// workers whose hosts were built from one published plan share a
+/// generation, so their memoised answers are shared; a quarantine gives its
+/// worker a generation no other state has.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Default)]
+pub struct EvaluatorGeneration(pub u32);
+
+impl EvaluatorGeneration {
+    /// A worker with no host: every declared implementation declines
+    /// `Transient` there, and every such worker answers alike.
+    pub const NO_HOST: Self = Self(0);
+}
+
+/// One enclosing level of the nesting — a request, or one solver
+/// iteration inside it — shared by every budget nested under it, so work
+/// any of them charges is charged here too
+/// (`docs/design/compiler/value-evaluation.md` § *The three nested
+/// budgets*).
+#[derive(Debug)]
+struct Level {
+    /// Work remaining at this level.
+    work: AtomicU64,
+    /// Bytes this level may still retain; `None` for an iteration, whose
+    /// retained bytes are its request's.
+    retained: Option<AtomicU64>,
+}
+
+impl Level {
+    fn new(work: u64, retained: Option<u64>) -> Arc<Self> {
+        Arc::new(Self {
+            work: AtomicU64::new(work),
+            retained: retained.map(AtomicU64::new),
+        })
+    }
+
+    /// Take `units` from `counter`, or empty it and answer `false` when it
+    /// holds fewer — an exhausted level stays exhausted, and charges
+    /// nothing more, not even a free step.
+    fn take(counter: &AtomicU64, units: u64) -> bool {
+        let mut enough = true;
+        let _ = counter.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |left| {
+            if left == 0 || left < units {
+                enough = false;
+                Some(0)
+            } else {
+                Some(left - units)
+            }
+        });
+        enough
+    }
+}
+
 /// The request-wide and per-evaluation limits every route charges.
+///
+/// Three budgets nest (`docs/design/compiler/value-evaluation.md` § *The
+/// three nested budgets*): one [`Self::request`] per editor or CLI request,
+/// one [`Self::iteration`] per solver pass inside it, and one
+/// [`Self::evaluation_within`] per evaluation inside that. Work an
+/// evaluation charges is charged to its iteration and its request as well,
+/// so a request whose evaluations have spent it declines the rest with
+/// `Budget(Request)`. A standalone [`Self::evaluation`] has no enclosing
+/// levels.
 #[derive(Debug)]
 pub struct Budget {
     /// Evaluation fuel remaining.
@@ -129,6 +199,9 @@ pub struct Budget {
     pub request_remaining: Duration,
     /// Whether the request was cancelled.
     pub cancelled: AtomicBool,
+    /// The iteration and the request this budget charges through,
+    /// innermost first; empty for a standalone evaluation.
+    enclosing: Vec<Arc<Level>>,
 }
 
 impl Budget {
@@ -141,10 +214,18 @@ impl Budget {
     pub const EVALUATION_BYTES: usize = 16 * 1024 * 1024;
     /// The nesting depth one evaluation may reach.
     pub const EVALUATION_DEPTH: u32 = 64;
+    /// The work one request may spend: the interactive latency target of
+    /// 200 ms of evaluation work, at the unit's calibration of a million
+    /// units to a few (four) milliseconds of native work.
+    pub const REQUEST_WORK: u64 = 50_000_000;
+    /// The bytes one request may retain across everything it publishes.
+    pub const REQUEST_RETAINED_BYTES: u64 = 64 * 1024 * 1024;
+    /// The share of the request's remaining work one iteration may spend:
+    /// one tenth, so the first pass of a fixed point cannot starve the last.
+    const ITERATION_SHARE: u64 = 10;
 
-    /// The per-evaluation budget a route runs under: the evaluation
-    /// contract's defaults, with the request and iteration ceilings above
-    /// it still unbounded until the slices that charge them.
+    /// The per-evaluation budget a route runs under, standalone: the
+    /// evaluation contract's defaults and no enclosing request.
     #[must_use]
     pub fn evaluation() -> Self {
         Self {
@@ -154,25 +235,84 @@ impl Budget {
             allocation_bytes: Self::EVALUATION_BYTES,
             request_remaining: Duration::MAX,
             cancelled: AtomicBool::new(false),
+            enclosing: Vec::new(),
         }
     }
 
-    /// Charge `units` of work.
+    /// One request's budget: [`Self::REQUEST_WORK`] and
+    /// [`Self::REQUEST_RETAINED_BYTES`].
+    #[must_use]
+    pub fn request() -> Self {
+        Self::request_of(Self::REQUEST_WORK, Self::REQUEST_RETAINED_BYTES)
+    }
+
+    /// A request's budget of `work` units and `retained` bytes — the
+    /// default's shape at another size.
+    #[must_use]
+    pub fn request_of(work: u64, retained: u64) -> Self {
+        Self {
+            enclosing: vec![Level::new(work, Some(retained))],
+            ..Self::unbounded()
+        }
+    }
+
+    /// One iteration inside this request: one tenth of the request's
+    /// remaining work, charged through to the request.
+    #[must_use]
+    pub fn iteration(&mut self) -> Self {
+        let remaining = self
+            .enclosing
+            .iter()
+            .map(|level| level.work.load(Ordering::Relaxed))
+            .min()
+            .unwrap_or(u64::MAX);
+        let mut enclosing = Vec::with_capacity(self.enclosing.len() + 1);
+        enclosing.push(Level::new(remaining / Self::ITERATION_SHARE, None));
+        enclosing.extend(self.enclosing.iter().cloned());
+        Self {
+            enclosing,
+            ..Self::unbounded()
+        }
+    }
+
+    /// One evaluation inside this iteration or request: the evaluation
+    /// contract's defaults, every charge also charged to the levels this
+    /// budget charges through.
+    #[must_use]
+    pub fn evaluation_within(&self) -> Self {
+        Self {
+            enclosing: self.enclosing.clone(),
+            ..Self::evaluation()
+        }
+    }
+
+    /// Charge `units` of work, to this budget and every level it charges
+    /// through.
     ///
     /// # Errors
     ///
-    /// `Budget(Fuel)` once the work is spent, `Budget(Cancelled)` once the
-    /// request is cancelled; the budget stays exhausted afterwards.
+    /// `Budget(Fuel)` once this evaluation's work is spent,
+    /// `Budget(Request)` once its iteration's or its request's is,
+    /// `Budget(Cancelled)` once the request is cancelled; the budget stays
+    /// exhausted afterwards.
     pub fn charge_work(&mut self, units: u64) -> Result<(), DeclineReason> {
         if self.is_cancelled() {
             return Err(DeclineReason::Budget(BudgetLimit::Cancelled));
         }
         if let Some(left) = self.fuel.checked_sub(units) {
             self.fuel = left;
-            Ok(())
         } else {
             self.fuel = 0;
-            Err(DeclineReason::Budget(BudgetLimit::Fuel))
+            return Err(DeclineReason::Budget(BudgetLimit::Fuel));
+        }
+        let mut enough = true;
+        for level in &self.enclosing {
+            enough &= Level::take(&level.work, units);
+        }
+        if enough {
+            Ok(())
+        } else {
+            Err(DeclineReason::Budget(BudgetLimit::Request))
         }
     }
 
@@ -189,13 +329,28 @@ impl Budget {
         )
     }
 
-    /// Charge `bytes` of published result.
+    /// Charge `bytes` of published result, to this evaluation and to the
+    /// bytes its request may retain.
     ///
     /// # Errors
     ///
-    /// `Budget(ResultBytes)` once the bound is reached.
+    /// `Budget(ResultBytes)` once this evaluation's bound is reached,
+    /// `Budget(Request)` once its request's retained bytes are.
     pub fn charge_result(&mut self, bytes: u64) -> Result<(), DeclineReason> {
-        Self::charge_bytes(&mut self.result_bytes, bytes, BudgetLimit::ResultBytes)
+        Self::charge_bytes(&mut self.result_bytes, bytes, BudgetLimit::ResultBytes)?;
+        let mut enough = true;
+        for retained in self
+            .enclosing
+            .iter()
+            .filter_map(|level| level.retained.as_ref())
+        {
+            enough &= Level::take(retained, bytes);
+        }
+        if enough {
+            Ok(())
+        } else {
+            Err(DeclineReason::Budget(BudgetLimit::Request))
+        }
     }
 
     fn charge_bytes(left: &mut usize, bytes: u64, limit: BudgetLimit) -> Result<(), DeclineReason> {
@@ -222,6 +377,7 @@ impl Budget {
             allocation_bytes: usize::MAX,
             request_remaining: Duration::MAX,
             cancelled: AtomicBool::new(false),
+            enclosing: Vec::new(),
         }
     }
 
@@ -229,5 +385,15 @@ impl Budget {
     #[must_use]
     pub fn is_cancelled(&self) -> bool {
         self.cancelled.load(Ordering::Relaxed)
+    }
+
+    /// The work this budget can still charge: the least of its own and of
+    /// every level it charges through.
+    #[must_use]
+    pub fn remaining_work(&self) -> u64 {
+        self.enclosing
+            .iter()
+            .map(|level| level.work.load(Ordering::Relaxed))
+            .fold(self.fuel, u64::min)
     }
 }
