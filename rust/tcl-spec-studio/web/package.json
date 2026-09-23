@@ -15,15 +15,15 @@
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\""
   },
   "devDependencies": {
-    "@types/node": "^26.4.1",
-    "@typescript-eslint/eslint-plugin": "^8.69.0",
+    "@types/node": "^26.6.1",
+    "@typescript-eslint/eslint-plugin": "^8.70.0",
     "@typescript-eslint/parser": "^8.69.0",
     "esbuild": "^0.28.2",
     "eslint": "^10.10.0",
     "eslint-config-prettier": "^10.1.8",
     "monaco-editor": "^0.56.0",
     "playwright": "1.63.0",
-    "prettier": "^3.9.6",
+    "prettier": "^3.9.7",
     "typescript": "~6.0.3",
     "vscode-jsonrpc": "^9.0.2",
     "vscode-languageserver-protocol": "^3.18.3",
