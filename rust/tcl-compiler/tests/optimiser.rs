@@ -2877,6 +2877,12 @@ fn an_exit_reaches_no_finally() {
             "an outer statement that may raise before a nested `exit`",
             "set g 0\nproc p {} {\n    global g\n    try { set y $x; try {exit 0} finally {} } finally {set g 1}\n}\ncatch p\nputs $g\n",
         ),
+        // `on 010` is octal code 8 in Tcl 8.x (`TCL` is 8.6), so the handler
+        // catches the body and its store is live (found in review).
+        (
+            "a handler selector in the dialect's own numerals",
+            "set g 0\nproc p {} {\n    global g\n    try {return -level 0 -code 8 boom} on 010 {} {set g 1} finally {}\n}\ncatch p\nputs $g\n",
+        ),
         (
             "an error only a `trap` might catch",
             "set g 0\nproc p {} {\n    global g\n    try {error boom} trap {NOT MATCHING} {} {exit 0} finally {set g 1}\n}\ncatch p\nputs $g\n",
@@ -2923,6 +2929,10 @@ fn a_try_finally_does_not_hide_the_names_bound_around_it() {
         // A literal assignment before the `error` can only raise an error too,
         // so the inner handler catches the block whichever raises; tclsh
         // prints `1` (found in review).
+        (
+            "bound by an inner handler after a braced literal assignment",
+            "proc p {} {\n    try { try {set {[} 0; error boom} on error {} {set x 1; return} finally {} } finally {puts $x}\n}\n",
+        ),
         (
             "bound by an inner handler after a literal assignment",
             "proc p {} {\n    try { try {set z 0; error boom} on error {} {set x 1; return} finally {} } finally {puts $x}\n}\n",

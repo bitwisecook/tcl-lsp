@@ -251,7 +251,8 @@ fails.
 A body that cannot fall through reaches a handler from its explicit throw
 points, or failing those from its terminal block — but not a source whose
 exact completion code differs from the one the handler's selector decodes
-to (`trap` is an error).  A source's code is known only for the body's
+to (`trap` is an error; a numeric selector is read with the dialect's own
+numerals, so `on 010` is code 8 in Tcl 8.x).  A source's code is known only for the body's
 first block with nothing else in it that could complete with another code
 (a literal assignment before an error may only raise an error itself), for a plain `return` whose value cannot
 substitute (`TCL_RETURN`), and for a sole statement the registry classifies

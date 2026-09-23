@@ -991,10 +991,12 @@ impl CfgBuilder<'_> {
         // name is an array, a write trace fails) — never another code — so it
         // cannot change an error's code: `set z 0; error boom` is caught by
         // `on error` whichever raises (found in review). A command
-        // substitution in the name could complete with any code.
-        let only_errors_before = before
-            .iter()
-            .all(|stmt| matches!(stmt, Statement::AssignConst { name, .. } if !name.contains('[')));
+        // substitution in an unbraced name could complete with any code; a
+        // braced name (`set {[} 0`) substitutes nothing.
+        let only_errors_before = before.iter().all(|stmt| {
+            matches!(stmt, Statement::AssignConst { name, name_braced, .. }
+                if *name_braced || !name.contains('['))
+        });
         (before.is_empty() || (code == tcl_core_types::Code::Error && only_errors_before))
             .then_some(code)
     }
@@ -1030,6 +1032,17 @@ impl CfgBuilder<'_> {
         }
     }
 
+    /// The completion code a `try` handler's selector names, decoded with the
+    /// registry's own numeral grammar: `on 010` selects code 8 in Tcl 8.x
+    /// and 10 in 9.0, and decoding it as 9.0 dropped a live 8.x handler
+    /// (found in review).
+    fn handler_code(&self, handler: &crate::ir::TryHandler) -> Option<tcl_core_types::Code> {
+        crate::executable_ir::try_handler_code_in(
+            handler,
+            tcl_syntax::number::Numbers::of_profile(self.registry.profile()),
+        )
+    }
+
     /// Whether `block` ends in a statement whose completion code `handler` is
     /// known not to select: both codes decoded by the registry — the handler's
     /// through its completion-code selector (`trap` is an error) — and
@@ -1042,7 +1055,8 @@ impl CfgBuilder<'_> {
         else {
             return false;
         };
-        crate::executable_ir::try_handler_code(handler).is_some_and(|selected| selected != code)
+        self.handler_code(handler)
+            .is_some_and(|selected| selected != code)
     }
 
     /// Record the analysis-only edges that keep a `finally` clause reachable
@@ -1465,7 +1479,7 @@ impl CfgBuilder<'_> {
                 continue;
             }
             for (i, handler) in handlers.iter().enumerate() {
-                match crate::executable_ir::try_handler_code(handler) {
+                match self.handler_code(handler) {
                     None => break,
                     Some(code) if code != jump => {}
                     Some(_) => {
@@ -1516,7 +1530,7 @@ impl CfgBuilder<'_> {
             .any(|(handler, handler_block)| {
                 handler.kind != "trap"
                     && handler.trap_pattern.is_none()
-                    && crate::executable_ir::try_handler_code(handler) == Some(code)
+                    && self.handler_code(handler) == Some(code)
                     && self
                         .exception_edges
                         .iter()
