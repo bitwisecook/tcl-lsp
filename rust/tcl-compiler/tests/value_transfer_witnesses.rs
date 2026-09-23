@@ -336,3 +336,24 @@ fn a_store_a_global_writing_callee_reads_is_kept() {
     }
     prints_under_every_release(source, "15\n");
 }
+
+/// `[set x]` in value position reads the variable through the cell-write
+/// route (the Tier-1 list); `[set x 10]` writes storage a value position
+/// cannot land, so its host keeps no value.
+#[test]
+fn a_value_position_set_reads_the_variable() {
+    let source = "proc p {} {set x hello; set r [set x]; set w [set x 10]; return $r$w}\n";
+    for dialect in ["tcl8.4", "tcl8.6", "tcl9.0", "f5-irules"] {
+        let unit = unit_of(source, dialect);
+        assert_eq!(
+            value_at(&unit, "::p", "r", 1),
+            Some(text("hello")),
+            "{dialect}"
+        );
+        assert_eq!(
+            value_at(&unit, "::p", "w", 1),
+            Some(LatticeValue::Overdefined),
+            "{dialect}"
+        );
+    }
+}

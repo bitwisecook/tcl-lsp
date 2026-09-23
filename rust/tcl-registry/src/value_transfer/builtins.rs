@@ -20,13 +20,14 @@
 //!
 //! Each declaration names its route — a catalogued direct evaluator or the
 //! shared expression engine — and its result type. A registry-owned direct
-//! evaluator ([`STRING_RANGE`]) is a call into the shared core over
-//! [`ConstOps`]; a transitional one ([`NativeEvalId::owner`]) is run by
-//! the compiler's value-transfer driver as today's fold until the shared
-//! cores replace it, and the migration plan's ledger names each with its
-//! expiry. The expression route is run by the driver's engine adapter by
-//! construction; the registry-owned argument assembly lands with the
-//! expression slice.
+//! evaluator ([`STRING_RANGE`], [`LIST_OF_ARGS`], [`LIST_LENGTH`],
+//! [`STRING_LENGTH`]) is a call into the shared core over [`ConstOps`]; a
+//! transitional one ([`NativeEvalId::owner`], [`FORMAT_TEMPLATE`] until
+//! slice 3) is run by the compiler's value-transfer driver as today's fold
+//! until the shared cores replace it, and the migration plan's ledger names
+//! it with its expiry. The expression route is run by the driver's engine
+//! adapter by construction; the registry-owned argument assembly lands
+//! with the expression slice.
 
 use crate::types::TclType;
 
@@ -35,7 +36,7 @@ use super::answers::{
     CompletionOutcome, DependencyEvidence, EvalAnswer, ExactValue, ExactValueOrUnavailable,
     InvocationOutcome, RouteIdentity, TransferAnswer, TypeFacts,
 };
-use super::const_ops::{ConstOps, ConstValue, Needs};
+use super::const_ops::{ConstOps, ConstValue, Needs, TargetSemantics};
 use super::context::Budget;
 use super::decline::DeclineReason;
 use super::inputs::{AnalysisInputs, FactDomain, FactView, OperandId};
@@ -43,6 +44,89 @@ use super::route::{EvalRoute, LanguageProfileId, NativeEvalId};
 
 /// The revision of the registry-owned `string range` evaluator.
 const STRING_RANGE_REVISION: u64 = 1;
+
+/// The revision of the registry-owned list and length evaluators: 1 is the
+/// shared cores over `ConstOps`, replacing the compiler's transitional
+/// folds.
+const LIST_AND_LENGTH_REVISION: u64 = 1;
+
+/// Operand `index`'s exact value, or the answer that stands in for one that
+/// is not: pending passes through, a finite set the lift could not pin is
+/// correlated, anything else declines with its reason.
+fn exact_operand(input: &dyn AnalysisInputs, index: usize) -> Result<ExactValue, EvalAnswer> {
+    match input.operand(OperandId(index), FactDomain::ExactValue) {
+        FactView::Pending => Err(EvalAnswer::Pending),
+        FactView::Exact(value, _) => Ok(value),
+        FactView::Finite(..) => Err(EvalAnswer::Declined(DeclineReason::CorrelatedSets)),
+        FactView::Domain(_) => Err(EvalAnswer::Declined(DeclineReason::MalformedAnswer)),
+        FactView::Top(reason) => Err(EvalAnswer::Declined(reason)),
+    }
+}
+
+/// Operands `range`'s exact values, in order.
+fn exact_operands(
+    input: &dyn AnalysisInputs,
+    range: std::ops::Range<usize>,
+) -> Result<Vec<ConstValue>, EvalAnswer> {
+    range
+        .map(|index| exact_operand(input, index).map(|value| ConstValue::from_exact(&value)))
+        .collect()
+}
+
+/// The outcome of a pure direct route: its result, no store, and the
+/// evidence it rests on.
+fn pure_outcome(
+    id: NativeEvalId,
+    revision: u64,
+    value: ExactValue,
+    result_type: TclType,
+    evidence: DependencyEvidence,
+) -> EvalAnswer {
+    EvalAnswer::Evaluated(Box::new(InvocationOutcome {
+        completion: CompletionOutcome::Normal,
+        result: ExactValueOrUnavailable::Exact(value),
+        ordered_stores: Vec::new(),
+        types: TypeFacts {
+            result: Some(result_type),
+            per_target: Vec::new(),
+            shapes: Vec::new(),
+        },
+        evidence: DependencyEvidence {
+            route: Some(RouteIdentity {
+                route: EvalRoute::Direct { id },
+                implementation: id.as_str(),
+                revision,
+            }),
+            ..evidence
+        },
+    }))
+}
+
+/// Run `compute` over a value model admitted for `needs`: the exact value
+/// it returns, or the first recorded fault.
+fn run_core(
+    input: &dyn AnalysisInputs,
+    budget: &mut Budget,
+    needs: Needs,
+    compute: impl FnOnce(&mut ConstOps<'_>) -> Result<ConstValue, DeclineReason>,
+) -> Result<(ExactValue, TargetSemantics), DeclineReason> {
+    let mut ops = ConstOps::admit(input.context(), budget, needs)?;
+    let target = *ops.target();
+    let value = compute(&mut ops)?;
+    ops.take(value).map(|value| (value, target))
+}
+
+/// The type transfer of a route that writes nothing: its result type.
+fn result_type_transfer(domain: FactDomain, result_type: TclType) -> TransferAnswer {
+    match domain {
+        FactDomain::Type => TransferAnswer::Type(TypeFacts {
+            result: Some(result_type),
+            per_target: Vec::new(),
+            shapes: Vec::new(),
+        }),
+        _ => TransferAnswer::Generic,
+    }
+}
 
 /// `string range string first last` on the direct route: the shared string
 /// core over [`ConstOps`], with the index numerals pre-resolved under the
@@ -62,28 +146,15 @@ impl StringRangeSemantics {
         .union(Needs::CHAR_INDEXING)
         .union(Needs::SOURCE_ENCODING);
 
-    fn exact_operand(input: &dyn AnalysisInputs, index: usize) -> Result<ExactValue, EvalAnswer> {
-        match input.operand(OperandId(index), FactDomain::ExactValue) {
-            FactView::Pending => Err(EvalAnswer::Pending),
-            FactView::Exact(value, _) => Ok(value),
-            FactView::Finite(..) => Err(EvalAnswer::Declined(DeclineReason::CorrelatedSets)),
-            FactView::Domain(_) => Err(EvalAnswer::Declined(DeclineReason::MalformedAnswer)),
-            FactView::Top(reason) => Err(EvalAnswer::Declined(reason)),
-        }
-    }
-
     fn evaluate_range(input: &dyn AnalysisInputs, budget: &mut Budget) -> EvalAnswer {
         // Operand 0 is the subcommand word.
         if input.invocation().operands.len() != 4 {
             return EvalAnswer::Declined(DeclineReason::Unsupported);
         }
-        let mut exact = Vec::with_capacity(3);
-        for index in 1..4 {
-            match Self::exact_operand(input, index) {
-                Ok(value) => exact.push(ConstValue::from_exact(&value)),
-                Err(answer) => return answer,
-            }
-        }
+        let exact = match exact_operands(input, 1..4) {
+            Ok(exact) => exact,
+            Err(answer) => return answer,
+        };
         let [subject, first, last] = exact.as_slice() else {
             return EvalAnswer::Declined(DeclineReason::Unsupported);
         };
@@ -164,8 +235,189 @@ impl CommandSemantics for StringRangeSemantics {
     }
 }
 
+/// `list ?arg …?` on the direct route: the list core over [`ConstOps`],
+/// the arguments rendered as one canonical list.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ListOfArgsSemantics;
+
+/// `list ?arg …?`.
+pub static LIST_OF_ARGS: ListOfArgsSemantics = ListOfArgsSemantics;
+
+impl ListOfArgsSemantics {
+    /// The axis the core reads: how a list result is quoted.
+    pub const NEEDS: Needs = Needs::LIST_RENDERING;
+}
+
+impl CommandSemantics for ListOfArgsSemantics {
+    fn identity(&self) -> &'static str {
+        NativeEvalId::ListOfArgs.as_str()
+    }
+
+    fn route(&self) -> EvalRoute {
+        EvalRoute::Direct {
+            id: NativeEvalId::ListOfArgs,
+        }
+    }
+
+    fn transfer(
+        &self,
+        domain: FactDomain,
+        _input: &dyn AnalysisInputs,
+        _budget: &mut Budget,
+    ) -> TransferAnswer {
+        result_type_transfer(domain, TclType::List)
+    }
+
+    fn evaluate(&self, input: &dyn AnalysisInputs, budget: &mut Budget) -> EvalAnswer {
+        let args = match exact_operands(input, 0..input.invocation().operands.len()) {
+            Ok(args) => args,
+            Err(answer) => return answer,
+        };
+        match run_core(input, budget, Self::NEEDS, |ops| {
+            Ok(tcl_cmd_core::list::list(ops, &args))
+        }) {
+            Ok((value, target)) => pure_outcome(
+                NativeEvalId::ListOfArgs,
+                LIST_AND_LENGTH_REVISION,
+                value,
+                TclType::List,
+                DependencyEvidence {
+                    release: target.release,
+                    ..DependencyEvidence::default()
+                },
+            ),
+            Err(reason) => EvalAnswer::Declined(reason),
+        }
+    }
+}
+
+/// `llength list` on the direct route: the list core's element count over
+/// the list parse, charged per element. A value that is not a list is the
+/// program's error, never a count.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ListLengthSemantics;
+
+/// `llength list`.
+pub static LIST_LENGTH: ListLengthSemantics = ListLengthSemantics;
+
+impl ListLengthSemantics {
+    /// No axis: counting a list's elements reads nothing release-dependent.
+    pub const NEEDS: Needs = Needs::NONE;
+}
+
+impl CommandSemantics for ListLengthSemantics {
+    fn identity(&self) -> &'static str {
+        NativeEvalId::ListLength.as_str()
+    }
+
+    fn route(&self) -> EvalRoute {
+        EvalRoute::Direct {
+            id: NativeEvalId::ListLength,
+        }
+    }
+
+    fn transfer(
+        &self,
+        domain: FactDomain,
+        _input: &dyn AnalysisInputs,
+        _budget: &mut Budget,
+    ) -> TransferAnswer {
+        result_type_transfer(domain, TclType::Int)
+    }
+
+    fn evaluate(&self, input: &dyn AnalysisInputs, budget: &mut Budget) -> EvalAnswer {
+        if input.invocation().operands.len() != 1 {
+            return EvalAnswer::Declined(DeclineReason::Unsupported);
+        }
+        let list = match exact_operands(input, 0..1) {
+            Ok(mut args) => args.remove(0),
+            Err(answer) => return answer,
+        };
+        match run_core(input, budget, Self::NEEDS, |ops| {
+            tcl_cmd_core::list::llength(ops, &list).map_err(|error| ops.decline(&error))
+        }) {
+            Ok((value, target)) => pure_outcome(
+                NativeEvalId::ListLength,
+                LIST_AND_LENGTH_REVISION,
+                value,
+                TclType::Int,
+                DependencyEvidence {
+                    release: target.release,
+                    ..DependencyEvidence::default()
+                },
+            ),
+            Err(reason) => EvalAnswer::Declined(reason),
+        }
+    }
+}
+
+/// `string length string` on the direct route: the string core's character
+/// count under the target's character model, with a non-ASCII operand
+/// admitted only where the target decodes source as UTF-8 (`string length
+/// héllo` from a UTF-8 file is 6 up to 8.6 and 5 from 9.0).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StringLengthSemantics;
+
+/// `string length string`.
+pub static STRING_LENGTH: StringLengthSemantics = StringLengthSemantics;
+
+impl StringLengthSemantics {
+    /// The axes the core reads.
+    pub const NEEDS: Needs = Needs::CHAR_MODEL.union(Needs::SOURCE_ENCODING);
+}
+
+impl CommandSemantics for StringLengthSemantics {
+    fn identity(&self) -> &'static str {
+        NativeEvalId::StringLength.as_str()
+    }
+
+    fn route(&self) -> EvalRoute {
+        EvalRoute::Direct {
+            id: NativeEvalId::StringLength,
+        }
+    }
+
+    fn transfer(
+        &self,
+        domain: FactDomain,
+        _input: &dyn AnalysisInputs,
+        _budget: &mut Budget,
+    ) -> TransferAnswer {
+        result_type_transfer(domain, TclType::Int)
+    }
+
+    fn evaluate(&self, input: &dyn AnalysisInputs, budget: &mut Budget) -> EvalAnswer {
+        // Operand 0 is the subcommand word.
+        if input.invocation().operands.len() != 2 {
+            return EvalAnswer::Declined(DeclineReason::Unsupported);
+        }
+        let subject = match exact_operands(input, 1..2) {
+            Ok(mut args) => args.remove(0),
+            Err(answer) => return answer,
+        };
+        match run_core(input, budget, Self::NEEDS, |ops| {
+            ops.admissible_text(&subject)?;
+            Ok(tcl_cmd_core::string::length(ops, &subject))
+        }) {
+            Ok((value, target)) => pure_outcome(
+                NativeEvalId::StringLength,
+                LIST_AND_LENGTH_REVISION,
+                value,
+                TclType::Int,
+                DependencyEvidence {
+                    characters: target.character_model,
+                    release: target.release,
+                    ..DependencyEvidence::default()
+                },
+            ),
+            Err(reason) => EvalAnswer::Declined(reason),
+        }
+    }
+}
+
 /// A specialisation that declares a catalogued direct route and a result
-/// type, and nothing else.
+/// type, and nothing else: the route's evaluator is the compiler's
+/// transitional handler ([`NativeEvalId::owner`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DirectRoute {
     /// The catalogued evaluator.
@@ -174,28 +426,10 @@ pub struct DirectRoute {
     pub result_type: TclType,
 }
 
-/// `list ?arg …?`.
-pub static LIST_OF_ARGS: DirectRoute = DirectRoute {
-    id: NativeEvalId::ListOfArgs,
-    result_type: TclType::List,
-};
-
 /// `format template ?arg …?`.
 pub static FORMAT_TEMPLATE: DirectRoute = DirectRoute {
     id: NativeEvalId::FormatTemplate,
     result_type: TclType::String,
-};
-
-/// `llength list`.
-pub static LIST_LENGTH: DirectRoute = DirectRoute {
-    id: NativeEvalId::ListLength,
-    result_type: TclType::Int,
-};
-
-/// `string length string`.
-pub static STRING_LENGTH: DirectRoute = DirectRoute {
-    id: NativeEvalId::StringLength,
-    result_type: TclType::Int,
 };
 
 impl CommandSemantics for DirectRoute {
@@ -213,14 +447,7 @@ impl CommandSemantics for DirectRoute {
         _input: &dyn AnalysisInputs,
         _budget: &mut Budget,
     ) -> TransferAnswer {
-        match domain {
-            FactDomain::Type => TransferAnswer::Type(TypeFacts {
-                result: Some(self.result_type),
-                per_target: Vec::new(),
-                shapes: Vec::new(),
-            }),
-            _ => TransferAnswer::Generic,
-        }
+        result_type_transfer(domain, self.result_type)
     }
 }
 

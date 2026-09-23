@@ -2854,6 +2854,58 @@ mod tests {
         );
     }
 
+    /// `dict incr d a` over `d@1 = a 1 b 2`: the keyed update rewrites the
+    /// dictionary the variable holds, and the call's one definition takes
+    /// it (tclsh 8.5 to 9.1 give `a 2 b 2`). A prior the lattice cannot
+    /// prove leaves the definition unknown or widened, never an empty
+    /// dictionary.
+    #[test]
+    fn evaluate_def_dict_incr_writes_the_dictionary() {
+        let mut ssa = bare_ssa();
+        let d = ssa.intern_var("d");
+        let mut uses = HashMap::new();
+        uses.insert(d, 1);
+        let mut defs = HashMap::new();
+        defs.insert(d, 2);
+        let stmt = SsaStatement {
+            statement: Statement::Call {
+                span: Span::new(0, 0),
+                command: "dict".into(),
+                canonical_command: None,
+                args: vec!["incr".into(), "d".into(), "a".into()],
+                defs: vec!["d".into()],
+                reads: Vec::new(),
+                reads_own_defs: true,
+                safe_on_uninit: true,
+                tokens: None,
+                foreach_groups: None,
+            },
+            uses,
+            defs,
+            may_defs: std::collections::HashSet::new(),
+            quoted_uses: std::collections::HashSet::new(),
+            name_only_uses: std::collections::HashSet::new(),
+        };
+        let mut values = HashMap::new();
+        values.insert(
+            (d, 1),
+            LatticeValue::Const(ConstValue::String("a 1 b 2".into())),
+        );
+        assert_eq!(
+            evaluate_pristine(&stmt, &values, &ssa, FoldPolicy::default()),
+            LatticeValue::Const(ConstValue::String("a 2 b 2".into()))
+        );
+        assert_eq!(
+            evaluate_pristine(&stmt, &HashMap::new(), &ssa, FoldPolicy::default()),
+            LatticeValue::Unknown
+        );
+        values.insert((d, 1), LatticeValue::Overdefined);
+        assert_eq!(
+            evaluate_pristine(&stmt, &values, &ssa, FoldPolicy::default()),
+            LatticeValue::Overdefined
+        );
+    }
+
     /// A generic call with a def but no declared plan keeps the
     /// conservative answer.
     #[test]
@@ -3001,6 +3053,32 @@ mod tests {
         assert_eq!(
             evaluate_pristine(&incr, &values, &ssa, FoldPolicy::default()),
             LatticeValue::Const(ConstValue::Int(2))
+        );
+    }
+
+    /// `[set x]` in value position reads `x` through the cell-write route;
+    /// `[set x 10]` writes storage a value position cannot land
+    /// (`EffectFreeOnly`), so its host widens.
+    #[test]
+    fn evaluate_def_set_read_in_value_position_folds() {
+        let mut ssa = bare_ssa();
+        let x = ssa.intern_var("x");
+        let mut read = assign_value_stmt(&mut ssa, "r", "[set x]", 1);
+        read.uses.insert(x, 1);
+        let mut write = assign_value_stmt(&mut ssa, "r", "[set x 10]", 1);
+        write.uses.insert(x, 1);
+        let mut values = HashMap::new();
+        values.insert(
+            (x, 1),
+            LatticeValue::Const(ConstValue::String("hello".into())),
+        );
+        assert_eq!(
+            evaluate_pristine(&read, &values, &ssa, FoldPolicy::default()),
+            LatticeValue::Const(ConstValue::String("hello".into()))
+        );
+        assert_eq!(
+            evaluate_pristine(&write, &values, &ssa, FoldPolicy::default()),
+            LatticeValue::Overdefined
         );
     }
 
@@ -3694,35 +3772,29 @@ p
 
     #[test]
     fn string_length_fold_counts_in_the_selected_dialects_character_model() {
-        // U+1D11E is one Tcl 9 scalar but two Tcl 8 `Tcl_UniChar` units, so the
-        // compile-time fold must answer as the selected runtime would — and
-        // decline when no release is selected, leaving the width ambiguous.
+        // U+1D11E written in a UTF-8 source file: tclsh 9.0 and 9.1 decode
+        // the source as UTF-8 and count one scalar; 8.4 to 8.6 decode it in
+        // the system encoding and print 4. The registry's route answers
+        // under the dialect's release and declines where the source's
+        // decoding is ambiguous — 8.x and no selected release.
         let mut ssa = bare_ssa();
         let stmt = assign_value_stmt(&mut ssa, "n", "[string length \"\u{1D11E}\"]", 1);
-        let fold = |dialect: Option<&'static tcl_dialect::DialectProfile>| {
-            evaluate_pristine(
+        let fold = |dialect: &str| {
+            let folds = folds_for(dialect);
+            evaluate_def_with_folds(
                 &stmt,
                 &HashMap::new(),
                 &ssa,
-                FoldPolicy::for_profile(Some(false), dialect),
+                FoldPolicy::from_registry(folds.registry),
+                Some(folds),
             )
         };
+        assert_eq!(fold("tcl9.0"), LatticeValue::Const(ConstValue::Int(1)));
+        assert_eq!(fold("tcl8.6"), LatticeValue::Overdefined);
         assert_eq!(
-            fold(Some(
-                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile()
-            )),
-            LatticeValue::Const(ConstValue::Int(1))
-        );
-        assert_eq!(
-            fold(Some(
-                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()
-            )),
-            LatticeValue::Const(ConstValue::Int(2))
-        );
-        assert_eq!(
-            fold(None),
+            evaluate_pristine(&stmt, &HashMap::new(), &ssa, FoldPolicy::default()),
             LatticeValue::Overdefined,
-            "no selected release leaves a supplementary width ambiguous"
+            "no selected release leaves the source's decoding ambiguous"
         );
 
         // A string both models count identically still folds with no selected

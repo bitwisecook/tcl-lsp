@@ -255,6 +255,313 @@ fn incoming_targets_default_to_the_cell_update_target() {
     assert!(STRING_RANGE.incoming_targets(&inputs).is_empty());
 }
 
+/// `set name value` writes the value byte for byte and returns it; `set
+/// name` returns what the place holds, passes a pending prior through, and
+/// declines an unbound one, since reading an absent variable is an error.
+#[test]
+fn the_cell_write_route_writes_and_reads_the_exact_value() {
+    use tcl_registry::value_transfer::cell_write::CELL_WRITE;
+    let write = TestInputs::new(
+        "set",
+        vec![literal("v", Some(ArgRole::VarWrite)), literal(" a ", None)],
+    );
+    let outcome =
+        evaluated(CELL_WRITE.evaluate(&write, &mut Budget::evaluation())).expect("a write");
+    assert_eq!(
+        outcome.result,
+        ExactValueOrUnavailable::Exact(ExactValue::from_literal(" a "))
+    );
+    assert_eq!(
+        outcome.ordered_stores,
+        [StoreOutcome::Write {
+            target: TargetId(OperandId(0)),
+            value: ExactValue::from_literal(" a "),
+        }]
+    );
+    assert!(CELL_WRITE.incoming_targets(&write).is_empty());
+
+    let read_inputs = |prior: FactView| {
+        let mut inputs = TestInputs::new("set", vec![literal("v", Some(ArgRole::VarRead))]);
+        inputs.prior.insert("v".to_owned(), prior);
+        inputs
+    };
+    let read =
+        |prior: FactView| CELL_WRITE.evaluate(&read_inputs(prior), &mut Budget::evaluation());
+    let seven = ExactValue::from_literal("7");
+    let outcome = evaluated(read(FactView::Exact(seven.clone(), None))).expect("a read");
+    assert_eq!(outcome.result, ExactValueOrUnavailable::Exact(seven));
+    assert!(outcome.ordered_stores.is_empty());
+    assert_eq!(read(FactView::Pending), EvalAnswer::Pending);
+    assert_eq!(
+        read(FactView::Top(DeclineReason::UnboundPlace)),
+        EvalAnswer::Declined(DeclineReason::UnboundPlace)
+    );
+    assert_eq!(
+        CELL_WRITE.incoming_targets(&read_inputs(FactView::Pending)),
+        [TargetId(OperandId(0))]
+    );
+}
+
+/// One keyed update, `dict <sub> d <words…>`, with `d` holding `prior`
+/// under `dialect`: the new dictionary, which is both the result and the
+/// one store, or the decline.
+fn keyed_update(
+    sub: &'static str,
+    prior: FactView,
+    words: &[&'static str],
+    dialect: Option<&str>,
+) -> Result<String, DeclineReason> {
+    let reg = CommandRegistry::build_default();
+    let spec = reg.get("dict").expect("dict");
+    let resolved = resolve_semantics(spec, Some(spec.subcommand(sub).expect(sub)), None);
+    let semantics = resolved.semantics().expect("a keyed update");
+    let mut operands = vec![literal(sub, None), literal("d", Some(ArgRole::VarWrite))];
+    operands.extend(words.iter().map(|word| literal(word, None)));
+    let mut inputs = TestInputs::new("dict", operands);
+    inputs.prior.insert("d".to_owned(), prior);
+    inputs.context = AnalysisContext::detached(dialect.and_then(tcl_dialect::DialectProfile::find));
+    let outcome = evaluated(semantics.evaluate(&inputs, &mut Budget::evaluation()))?;
+    let ExactValueOrUnavailable::Exact(result) = &outcome.result else {
+        panic!("unavailable");
+    };
+    assert_eq!(
+        outcome.ordered_stores,
+        [StoreOutcome::Write {
+            target: TargetId(OperandId(1)),
+            value: result.clone(),
+        }],
+        "{sub} {words:?}: the new dictionary is the one store"
+    );
+    Ok(String::from_utf8(result.bytes.clone()).expect("text"))
+}
+
+fn held(text: &str) -> FactView {
+    FactView::Exact(ExactValue::from_literal(text), None)
+}
+
+fn absent() -> FactView {
+    FactView::Domain(tcl_registry::value_transfer::DomainFact::Existence(
+        tcl_registry::value_transfer::Existence::Unbound,
+    ))
+}
+
+/// The five keyed updates run the shared dict cores, each answer the one
+/// tclsh 8.5 to 9.1 give: order kept, duplicates canonicalised, a key path
+/// walked level by level, an absent variable the empty dictionary, and a
+/// malformed dictionary the program's error.
+#[test]
+fn keyed_updates_run_the_shared_dict_cores() {
+    let set = |prior: FactView, words: &[&'static str]| keyed_update("set", prior, words, None);
+    let first = set(absent(), &["a", "1"]).expect("dict set");
+    let second = set(held(&first), &["b", "2"]).expect("dict set");
+    assert_eq!(set(held(&second), &["a", "3"]).as_deref(), Ok("a 3 b 2"));
+    assert_eq!(
+        set(held("a {x 1}"), &["a", "y", "2"]).as_deref(),
+        Ok("a {x 1 y 2}")
+    );
+    assert_eq!(
+        set(held("b 2 a 1"), &["c", "3"]).as_deref(),
+        Ok("b 2 a 1 c 3")
+    );
+    assert_eq!(set(held(" a  1 "), &["b", "2"]).as_deref(), Ok("a 1 b 2"));
+    assert_eq!(set(held("a 1 a 2"), &["b", "3"]).as_deref(), Ok("a 2 b 3"));
+    assert_eq!(
+        set(held("a 1 b"), &["c", "3"]),
+        Err(DeclineReason::WrongRepresentation)
+    );
+    assert_eq!(
+        set(held("a b"), &["a", "c", "d"]),
+        Err(DeclineReason::WrongRepresentation),
+        "an intermediate value that is not a dictionary"
+    );
+
+    let unset = |prior: FactView, words: &[&'static str]| keyed_update("unset", prior, words, None);
+    assert_eq!(unset(held("a 1 b 2"), &["a"]).as_deref(), Ok("b 2"));
+    assert_eq!(unset(absent(), &["a"]).as_deref(), Ok(""));
+    assert_eq!(unset(held(" a  1 "), &["zz"]).as_deref(), Ok("a 1"));
+    assert_eq!(unset(held("a {x 1}"), &["a", "x"]).as_deref(), Ok("a {}"));
+    assert_eq!(
+        unset(held("a 1"), &["x", "y"]),
+        Err(DeclineReason::WrongRepresentation),
+        "a missing intermediate key"
+    );
+
+    let incr = |prior: FactView, words: &[&'static str], dialect: Option<&str>| {
+        keyed_update("incr", prior, words, dialect)
+    };
+    assert_eq!(incr(absent(), &["k"], None).as_deref(), Ok("k 1"));
+    assert_eq!(incr(held("k 5"), &["k", "-7"], None).as_deref(), Ok("k -2"));
+    assert_eq!(incr(held("k { 5 }"), &["k"], None).as_deref(), Ok("k 6"));
+    assert_eq!(incr(absent(), &["k", " 5"], None).as_deref(), Ok("k { 5}"));
+    assert_eq!(
+        incr(absent(), &["k", "010"], Some("tcl8.6")).as_deref(),
+        Ok("k 010")
+    );
+    assert_eq!(
+        incr(held("k 010"), &["k"], Some("tcl8.6")).as_deref(),
+        Ok("k 9")
+    );
+    assert_eq!(
+        incr(held("k 010"), &["k"], Some("tcl9.0")).as_deref(),
+        Ok("k 11")
+    );
+    assert_eq!(
+        incr(held("k 010"), &["k"], None),
+        Err(DeclineReason::ReleaseAmbiguous(Axis::NumeralGrammar))
+    );
+    assert_eq!(
+        incr(held("k abc"), &["k"], None),
+        Err(DeclineReason::WrongRepresentation)
+    );
+
+    let append =
+        |prior: FactView, words: &[&'static str]| keyed_update("append", prior, words, None);
+    let foo = append(absent(), &["k", "foo"]).expect("dict append");
+    assert_eq!(append(held(&foo), &["k", "bar"]).as_deref(), Ok("k foobar"));
+    assert_eq!(
+        append(held("k 1"), &["k", "2", "3"]).as_deref(),
+        Ok("k 123")
+    );
+    assert_eq!(append(absent(), &["k"]).as_deref(), Ok("k {}"));
+
+    let lappend =
+        |prior: FactView, words: &[&'static str]| keyed_update("lappend", prior, words, None);
+    assert_eq!(
+        lappend(absent(), &["k", "a", "b c"]).as_deref(),
+        Ok("k {a {b c}}")
+    );
+    assert_eq!(lappend(held("k v"), &["k"]).as_deref(), Ok("k v"));
+    assert_eq!(
+        lappend(held("k \\{"), &["k", "v"]),
+        Err(DeclineReason::WrongRepresentation)
+    );
+
+    // A prior the solver cannot prove is never taken for an absent one.
+    assert_eq!(
+        keyed_update(
+            "set",
+            FactView::Top(DeclineReason::NotExact),
+            &["a", "1"],
+            None
+        ),
+        Err(DeclineReason::NotExact)
+    );
+}
+
+/// `::tcl::dict::incr d k` answers as `dict incr d k`: the qualified spec
+/// carries the subcommand's declaration, and the dictionary operand is
+/// found by its role in either layout.
+#[test]
+fn the_qualified_dict_spellings_share_the_declaration() {
+    let reg = CommandRegistry::build_default();
+    let qualified = reg.get("::tcl::dict::incr").expect("::tcl::dict::incr");
+    let resolved = resolve_semantics(qualified, None, None);
+    let semantics = resolved.semantics().expect("the keyed update");
+    assert_eq!(semantics.identity(), "keyed-update:incr");
+    let mut inputs = TestInputs::new(
+        "::tcl::dict::incr",
+        vec![literal("d", Some(ArgRole::VarWrite)), literal("k", None)],
+    );
+    inputs.prior.insert("d".to_owned(), held("k 41"));
+    let outcome =
+        evaluated(semantics.evaluate(&inputs, &mut Budget::evaluation())).expect("evaluated");
+    assert_eq!(
+        outcome.ordered_stores,
+        [StoreOutcome::Write {
+            target: TargetId(OperandId(0)),
+            value: match outcome.result.clone() {
+                ExactValueOrUnavailable::Exact(value) => value,
+                ExactValueOrUnavailable::Unavailable(_) => panic!("unavailable"),
+            },
+        }]
+    );
+    assert_eq!(
+        keyed_update("incr", held("k 41"), &["k"], None).as_deref(),
+        Ok("k 42")
+    );
+    assert_eq!(
+        semantics.incoming_targets(&inputs),
+        [TargetId(OperandId(0))]
+    );
+}
+
+/// `list`, `llength` and `string length` run the shared cores over
+/// `ConstOps` on registry-owned routes (tclsh 8.4 to 9.1 give `a {b c} {}`
+/// and 2; `llength "a {b"` raises; `string length héllo` read from a UTF-8
+/// file is 6 up to 8.6 and 5 from 9.0, so a non-ASCII subject declines
+/// where the target does not decode source as UTF-8).
+#[test]
+fn list_and_length_routes_run_the_shared_cores() {
+    use tcl_registry::value_transfer::builtins::{LIST_LENGTH, LIST_OF_ARGS, STRING_LENGTH};
+    let run = |semantics: &dyn CommandSemantics,
+               command: &'static str,
+               words: &[&'static str],
+               dialect: Option<&str>| {
+        let mut inputs = TestInputs::new(
+            command,
+            words.iter().map(|word| literal(word, None)).collect(),
+        );
+        inputs.context =
+            AnalysisContext::detached(dialect.and_then(tcl_dialect::DialectProfile::find));
+        evaluated(semantics.evaluate(&inputs, &mut Budget::evaluation())).map(|outcome| {
+            assert!(
+                outcome.ordered_stores.is_empty(),
+                "{command} writes nothing"
+            );
+            match outcome.result {
+                ExactValueOrUnavailable::Exact(value) => String::from_utf8(value.bytes).unwrap(),
+                ExactValueOrUnavailable::Unavailable(_) => panic!("unavailable"),
+            }
+        })
+    };
+    assert_eq!(
+        run(&LIST_OF_ARGS, "list", &["a", "b c", ""], None).as_deref(),
+        Ok("a {b c} {}")
+    );
+    assert_eq!(
+        run(&LIST_LENGTH, "llength", &["a {b c}"], None).as_deref(),
+        Ok("2")
+    );
+    assert_eq!(
+        run(&LIST_LENGTH, "llength", &["a {b"], None),
+        Err(DeclineReason::WrongRepresentation)
+    );
+    assert_eq!(
+        run(
+            &STRING_LENGTH,
+            "string",
+            &["length", "héllo"],
+            Some("tcl9.0")
+        )
+        .as_deref(),
+        Ok("5")
+    );
+    for dialect in [Some("tcl8.6"), None] {
+        assert_eq!(
+            run(&STRING_LENGTH, "string", &["length", "héllo"], dialect),
+            Err(DeclineReason::ReleaseAmbiguous(Axis::SourceEncoding)),
+            "{dialect:?}"
+        );
+    }
+    assert_eq!(
+        run(&STRING_LENGTH, "string", &["length", " a "], None).as_deref(),
+        Ok("3")
+    );
+    for id in [
+        NativeEvalId::ListOfArgs,
+        NativeEvalId::ListLength,
+        NativeEvalId::StringLength,
+    ] {
+        assert_eq!(id.owner(), EvaluatorOwner::Registry, "{id:?}");
+    }
+    assert_eq!(
+        NativeEvalId::FormatTemplate.owner(),
+        EvaluatorOwner::Transitional {
+            retires_in_slice: 3
+        }
+    );
+}
+
 /// `ElementsOf` states a type relationship and `LOOP_LIST_HEADER` a CFG
 /// shape; neither states iteration, so a spec carrying both and declaring
 /// nothing derives nothing.
@@ -678,38 +985,54 @@ fn the_resolver_projects_the_declaration_state() {
 #[test]
 fn route_stamps_match_the_pinned_set() {
     let reg = full_registry();
-    let mut actual: BTreeSet<(String, &'static str)> = BTreeSet::new();
+    let mut actual: BTreeSet<(String, &'static str, &'static str)> = BTreeSet::new();
     for name in reg.command_names() {
         for spec in reg.specs(name) {
             if let Some(route) = resolve_semantics(spec, None, None).route() {
-                actual.insert((spec.name.to_owned(), route_label(route)));
+                actual.insert((spec.name.to_owned(), route_label(route), route_owner(route)));
             }
             for sub in spec.subcommands {
                 if let SemanticsDeclaration::Declared(semantics) = sub.semantics {
                     actual.insert((
                         format!("{} {}", spec.name, sub.name),
                         route_label(semantics.route()),
+                        route_owner(semantics.route()),
                     ));
                 }
             }
         }
     }
-    let expected: BTreeSet<(String, &'static str)> = [
-        ("append", "direct:cell-append"),
-        ("expr", "expression:tcl.expr"),
-        ("foreach", "none:unauthored"),
-        ("format", "direct:format-template"),
-        ("incr", "direct:cell-increment"),
-        ("lappend", "direct:cell-list-append"),
-        ("list", "direct:list-of-args"),
-        ("llength", "direct:list-length"),
-        ("lmap", "none:unauthored"),
-        ("string length", "direct:string-length"),
-        ("string range", "direct:string-range"),
-        ("unset", "none:unauthored"),
+    let expected: BTreeSet<(String, &'static str, &'static str)> = [
+        ("::tcl::dict::append", "direct:dict-append", "registry"),
+        ("::tcl::dict::incr", "direct:dict-incr", "registry"),
+        ("::tcl::dict::lappend", "direct:dict-lappend", "registry"),
+        ("::tcl::dict::set", "direct:dict-set", "registry"),
+        ("::tcl::dict::unset", "direct:dict-unset", "registry"),
+        ("append", "direct:cell-append", "registry"),
+        ("dict append", "direct:dict-append", "registry"),
+        ("dict incr", "direct:dict-incr", "registry"),
+        ("dict lappend", "direct:dict-lappend", "registry"),
+        ("dict set", "direct:dict-set", "registry"),
+        ("dict unset", "direct:dict-unset", "registry"),
+        ("expr", "expression:tcl.expr", "-"),
+        ("foreach", "none:unauthored", "-"),
+        (
+            "format",
+            "direct:format-template",
+            "transitional until slice 3",
+        ),
+        ("incr", "direct:cell-increment", "registry"),
+        ("lappend", "direct:cell-list-append", "registry"),
+        ("list", "direct:list-of-args", "registry"),
+        ("llength", "direct:list-length", "registry"),
+        ("lmap", "none:unauthored", "-"),
+        ("set", "direct:cell-write", "registry"),
+        ("string length", "direct:string-length", "registry"),
+        ("string range", "direct:string-range", "registry"),
+        ("unset", "none:unauthored", "-"),
     ]
     .into_iter()
-    .map(|(name, route)| (name.to_owned(), route))
+    .map(|(name, route, owner)| (name.to_owned(), route, owner))
     .collect();
     let missing: Vec<_> = expected.difference(&actual).collect();
     let extra: Vec<_> = actual.difference(&expected).collect();
@@ -719,12 +1042,33 @@ fn route_stamps_match_the_pinned_set() {
     );
 }
 
+/// Who implements a direct route, for the pinned set; `-` for any other
+/// family.
+fn route_owner(route: EvalRoute) -> &'static str {
+    match route {
+        EvalRoute::Direct { id } => match id.owner() {
+            EvaluatorOwner::Registry => "registry",
+            EvaluatorOwner::Transitional {
+                retires_in_slice: 3,
+            } => "transitional until slice 3",
+            EvaluatorOwner::Transitional { .. } => "transitional",
+        },
+        EvalRoute::Expression { .. } | EvalRoute::Implementation(_) | EvalRoute::None { .. } => "-",
+    }
+}
+
 fn route_label(route: EvalRoute) -> &'static str {
     match route {
         EvalRoute::Direct { id } => match id {
             NativeEvalId::CellIncrement => "direct:cell-increment",
             NativeEvalId::CellAppend => "direct:cell-append",
             NativeEvalId::CellListAppend => "direct:cell-list-append",
+            NativeEvalId::CellWrite => "direct:cell-write",
+            NativeEvalId::DictSet => "direct:dict-set",
+            NativeEvalId::DictUnset => "direct:dict-unset",
+            NativeEvalId::DictIncr => "direct:dict-incr",
+            NativeEvalId::DictAppend => "direct:dict-append",
+            NativeEvalId::DictListAppend => "direct:dict-lappend",
             NativeEvalId::StringRange => "direct:string-range",
             NativeEvalId::ListOfArgs => "direct:list-of-args",
             NativeEvalId::FormatTemplate => "direct:format-template",
@@ -1021,6 +1365,10 @@ fn the_lift_evaluates_per_member_over_one_finite_input() {
 /// except the byte append, which reads nothing release-dependent.
 #[test]
 fn the_cores_the_routes_call_read_only_admitted_axes() {
+    use tcl_registry::value_transfer::builtins::{
+        ListLengthSemantics, ListOfArgsSemantics, StringLengthSemantics,
+    };
+    use tcl_registry::value_transfer::keyed_update::{DICT_INCR, DICT_SET};
     let context = AnalysisContext::detached(None);
     let closed = |ops: ConstOps<'_>| ops.take(ConstValue::int(0)).err();
 
@@ -1079,5 +1427,40 @@ fn the_cores_the_routes_call_read_only_admitted_axes() {
     assert_eq!(
         tcl_registry::value_transfer::builtins::StringRangeSemantics::NEEDS,
         Needs::INDEX_GRAMMAR | Needs::CHAR_INDEXING | Needs::SOURCE_ENCODING
+    );
+
+    let mut budget = Budget::evaluation();
+    let mut ops = ConstOps::admit(&context, &mut budget, Needs::LIST_RENDERING).expect("admits");
+    let _ = ops.dict_pairs(&ConstValue::text("a 1"));
+    assert_eq!(
+        closed(ops),
+        Some(DeclineReason::MalformedAnswer),
+        "the dict cores' canonical pairs"
+    );
+
+    let mut budget = Budget::evaluation();
+    let mut ops = ConstOps::admit(&context, &mut budget, Needs::NONE).expect("admits");
+    let _ = tcl_cmd_core::list::llength(&mut ops, &ConstValue::text("a {b c}"));
+    assert_eq!(closed(ops), None, "llength's core reads no axis");
+
+    let mut budget = Budget::evaluation();
+    let mut ops = ConstOps::admit(&context, &mut budget, Needs::NONE).expect("admits");
+    let _ = tcl_cmd_core::string::length(&mut ops, &ConstValue::text("abc"));
+    assert_eq!(
+        closed(ops),
+        Some(DeclineReason::MalformedAnswer),
+        "string length's core"
+    );
+
+    assert_eq!(ListOfArgsSemantics::NEEDS, Needs::LIST_RENDERING);
+    assert_eq!(ListLengthSemantics::NEEDS, Needs::NONE);
+    assert_eq!(
+        StringLengthSemantics::NEEDS,
+        Needs::CHAR_MODEL | Needs::SOURCE_ENCODING
+    );
+    assert_eq!(DICT_SET.needs(), Needs::DICT_ORDER | Needs::LIST_RENDERING);
+    assert_eq!(
+        DICT_INCR.needs(),
+        Needs::DICT_ORDER | Needs::LIST_RENDERING | Needs::NUMERAL_GRAMMAR | Needs::INT_TOWER
     );
 }

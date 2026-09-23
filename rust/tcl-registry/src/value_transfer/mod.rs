@@ -40,12 +40,14 @@
 pub mod answers;
 pub mod builtins;
 pub mod cell_update;
+pub mod cell_write;
 pub mod const_ops;
 pub mod context;
 pub mod declaration;
 pub mod decline;
 pub mod inputs;
 pub mod iteration;
+pub mod keyed_update;
 pub mod lift;
 pub mod literal;
 pub mod route;

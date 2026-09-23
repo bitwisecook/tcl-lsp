@@ -1172,7 +1172,9 @@ dict with d {incr a; set result done}
 - **Result and cell are separate values.** A single "new value" cannot
   describe a list pop that returns the removed element and writes the
   remainder, or a body command whose result is the body's and whose
-  write-back is a reconciliation.
+  write-back is a reconciliation. `set` is the direct route's one-target
+  write (`CellWriteSemantics`): the value as the result and one `Write`
+  for `set name value`, the prior value and no store for `set name`.
 - **Duplicate targets resolve to places first.** `lassign … a a` writes
   `a` twice in order; the outcomes are composed after resolution, in
   execution order.

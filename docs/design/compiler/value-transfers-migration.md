@@ -754,10 +754,7 @@ generated inventory's route *owner* column is the same fact read from
 
 | Handler | Where | Keyed by | Retires in | Waiver |
 |---|---|---|---|---|
-| `list ?arg …?` fold (`fold_list_cmd`) | `rust/tcl-compiler/src/value_transfer.rs`, `transitional_direct` | `NativeEvalId::ListOfArgs` | slice 2 — `ConstOps` over the list core | `value-transfer-ok: dataflow` on the transitional table |
-| `format template ?arg …?` fold (`try_format_fold`, `%s` and `%d`) | same | `NativeEvalId::FormatTemplate` | slice 2 — `format_cmd_with_syntax` under the profile's `NumberSyntax` | same |
-| `llength list` fold, literal or lattice list | same | `NativeEvalId::ListLength` | slice 2 — `tcl_syntax::list::split_list` through `ConstOps` | same |
-| `string length string` fold under the selected character model | same | `NativeEvalId::StringLength` | slice 2 — `ConstOps::char_len` with the `CHAR_MODEL` admissibility bit | same |
+| `format template ?arg …?` fold (`try_format_fold`, `%s` and `%d`) | `rust/tcl-compiler/src/value_transfer.rs`, `transitional_direct` | `NativeEvalId::FormatTemplate` | slice 3 — `format_cmd_with_syntax` under the profile's `NumberSyntax` | `value-transfer-ok: dataflow` on the transitional table |
 | `expr` argument assembly — braced versus quoted operand binding ahead of the shared engine | `rust/tcl-compiler/src/value_transfer.rs`, `expression_route` | `EvalRoute::Expression` | slice 3 — registry-owned argument assembly with the lazy input services | none needed: the route is a typed family, not a command; listed so the assembly's move is tracked |
 | the loop header's per-element `ConstSet` transfer over a literal, lattice, or folded list | `rust/tcl-compiler/src/value_transfer.rs`, `evaluate_call` | `PlanAnswer::Iterate` from the explicit `foreach` / `lmap` declaration | slice 5 — the iteration plan's binders over the source layout; slice 12 — the exact exit state | none needed: generic over the plan |
 | the `unset` fold's name set, from each call's existence transfer | `rust/tcl-compiler/src/value_transfer.rs`, `unbound_names`; `sccp::scan_defined_and_unbound` | `TransferAnswer::Existence` from the `DESTROYS_VARIABLE` derivation | slice 8 — the existence rung deletes `scan_defined_and_unbound` and `existence_constant_branches` | none needed |

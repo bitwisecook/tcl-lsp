@@ -49,7 +49,7 @@ use tcl_dialect::{
     ByteStringEncoding, DialectProfile, NumberSyntax, StringCharacterModel, TclVersion,
 };
 use tcl_syntax::number::{Number, ParseFlags, format_double, parse_whole_with};
-use tcl_syntax::value::{ValueError, ValueOps};
+use tcl_syntax::value::{DictPairs, ValueError, ValueOps, canonical_dict_slots};
 
 use crate::types::TclType;
 
@@ -694,6 +694,16 @@ impl ValueOps for ConstOps<'_> {
         }
     }
 
+    /// The element count: the list parse alone, which renders nothing, so
+    /// it reads no release axis; charged per element.
+    fn list_len(&mut self, v: &ConstValue) -> Result<usize, ValueError> {
+        let text = self.as_str(v);
+        let elements = tcl_syntax::list::split_list(&text)
+            .map_err(|e| ValueError::BadList(e.message().to_owned()))?;
+        let _ = self.charge(u64::try_from(elements.len()).unwrap_or(u64::MAX));
+        Ok(elements.len())
+    }
+
     fn list_elements(&mut self, v: &ConstValue) -> Result<Vec<ConstValue>, ValueError> {
         self.require(Needs::LIST_RENDERING);
         let text = self.as_str(v);
@@ -704,6 +714,49 @@ impl ValueOps for ConstOps<'_> {
             .iter()
             .map(|element| ConstValue::text(element))
             .collect())
+    }
+
+    /// The canonical pairs of a dictionary — first-occurrence order, the
+    /// last value winning — through the owner of that rule, charged per
+    /// pair; an odd-length list is the program's `missing value to go with
+    /// key`.
+    fn dict_pairs(&mut self, v: &ConstValue) -> DictPairs<ConstValue> {
+        self.require(Needs::DICT_ORDER | Needs::LIST_RENDERING);
+        let elements = self.list_elements(v)?;
+        if elements.len() % 2 != 0 {
+            return Err(ValueError::BadList(
+                "missing value to go with key".to_owned(),
+            ));
+        }
+        let keys: Vec<Rc<str>> = elements
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|pair| self.as_str(&pair[0]))
+            .collect();
+        let slots = canonical_dict_slots(keys.iter().map(AsRef::as_ref));
+        let _ = self.charge(u64::try_from(slots.len()).unwrap_or(u64::MAX));
+        Ok(slots
+            .into_iter()
+            .map(|(key, value)| (elements[key * 2].clone(), elements[value * 2 + 1].clone()))
+            .collect())
+    }
+
+    /// A dictionary from canonical pairs, rendered canonically, charged per
+    /// pair and by its bytes.
+    fn new_dict(&mut self, pairs: Vec<(ConstValue, ConstValue)>) -> ConstValue {
+        self.require(Needs::DICT_ORDER | Needs::LIST_RENDERING);
+        let _ = self.charge(u64::try_from(pairs.len()).unwrap_or(u64::MAX));
+        let mut items = Vec::with_capacity(pairs.len() * 2);
+        for (key, value) in pairs {
+            items.push(key);
+            items.push(value);
+        }
+        let rendered = self.new_list(items);
+        ConstValue {
+            bytes: rendered.bytes,
+            repr: Representation::Dict,
+        }
     }
 
     fn as_bytes(&mut self, v: &ConstValue) -> Rc<[u8]> {

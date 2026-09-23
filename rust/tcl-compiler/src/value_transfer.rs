@@ -42,7 +42,6 @@ use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use rustc_hash::FxHashSet;
-use tcl_dialect::StringCharacterModel;
 use tcl_lexer::{LexerConfig, Span, TokenType};
 use tcl_registry::value_transfer::{
     AnalysisContext, AnalysisInputs, AnalysisTier, BindingIdentity, BodyRegion, Budget,
@@ -681,7 +680,7 @@ impl<'a> LatticeDriver<'a> {
         match route {
             EvalRoute::Direct { id } => match id.owner() {
                 EvaluatorOwner::Transitional { .. } => {
-                    let folded = self.transitional_direct(id, value, rest, uses, values, ssa);
+                    let folded = self.transitional_direct(id, value);
                     self.explain_fold(head, route, folded.as_ref());
                     folded
                 }
@@ -733,30 +732,17 @@ impl<'a> LatticeDriver<'a> {
         }
     }
 
-    /// The transitional compiler-owned direct evaluators
-    /// (`docs/design/compiler/value-transfers-migration.md`, the ledger).
-    /// Each arm is one command's fold carried verbatim from the arm it
-    /// replaces, keyed by the registry's evaluator id rather than by the
-    /// command's name, until the shared cores retire it.
-    fn transitional_direct<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
-        &self,
-        id: NativeEvalId,
-        value: &str,
-        rest: Option<&str>,
-        uses: &HashMap<Symbol, Version, S1>,
-        values: &HashMap<ValueKey, LatticeValue, S2>,
-        ssa: &SsaFunction,
-    ) -> Option<LatticeValue> {
+    /// The transitional compiler-owned direct evaluator
+    /// (`docs/design/compiler/value-transfers-migration.md`, the ledger):
+    /// `format`'s fold, carried verbatim from the arm it replaced and keyed
+    /// by the registry's evaluator id rather than by the command's name,
+    /// until slice 3 runs the shared `format` core.
+    fn transitional_direct(&self, id: NativeEvalId, value: &str) -> Option<LatticeValue> {
         let policy = self.policy;
-        // value-transfer-ok: dataflow — the transitional direct evaluators
-        // of the migration ledger, keyed by `NativeEvalId`; slice 2 moves
-        // each onto the shared cores and deletes this table.
+        // value-transfer-ok: dataflow — the transitional direct evaluator
+        // of the migration ledger, keyed by `NativeEvalId`; slice 3 moves
+        // it onto the shared core and deletes this table.
         match id {
-            // `[list ...]` — reuse the codegen fold.
-            NativeEvalId::ListOfArgs => {
-                crate::codegen::helpers::fold_list_cmd(value, policy.word_rules)
-                    .map(|folded| LatticeValue::Const(ConstValue::String(folded)))
-            }
             // `[format "..." args…]` with literal args. The document's
             // escape grammar comes from the same resolved profile the rest
             // of the policy's axes come from; a caller with no dialect keeps
@@ -770,43 +756,20 @@ impl<'a> LatticeDriver<'a> {
                 crate::codegen::helpers::try_format_fold(value, escapes)
                     .map(|folded| LatticeValue::Const(ConstValue::String(folded)))
             }
-            // `[llength LIST]` with a literal or lattice-resolvable list.
-            NativeEvalId::ListLength => {
-                let arg = rest?.trim();
-                // Unlike a loop header's list (already delimiter-stripped
-                // by the segmenter), `arg` is raw source text straight out
-                // of the `[...]` substitution, so it still carries its own
-                // `{…}` / `"…"` wrapping — peel exactly one level before
-                // splitting.
-                if let Some(elements) =
-                    extract_foreach_elements(strip_one_level(arg), policy.word_rules)
-                {
-                    let n = i64::try_from(elements.len()).unwrap_or(i64::MAX);
-                    return Some(LatticeValue::Const(ConstValue::Int(n)));
-                }
-                let items =
-                    resolve_foreach_list_via_lattice(arg, uses, values, ssa, policy.word_rules)?;
-                let n = i64::try_from(items.len()).unwrap_or(i64::MAX);
-                Some(LatticeValue::Const(ConstValue::Int(n)))
-            }
-            // `[string length OPERAND]` where OPERAND resolves to a constant
-            // string — a literal word, or a `$var` whose lattice value is
-            // known. `string length` counts UTF-16 code units on Tcl 8 and
-            // Unicode scalars on Tcl 9, so the fold uses the selected
-            // dialect's model; with no selected release the count survives
-            // only where both models agree.
-            NativeEvalId::StringLength => {
-                let (_, sub_rest) = split_head(rest?.trim());
-                let s = resolve_const_string(sub_rest?.trim(), uses, values, ssa)?;
-                let count = StringCharacterModel::count_for(policy.characters, &s)?;
-                let len = i64::try_from(count).unwrap_or(i64::MAX);
-                Some(LatticeValue::Const(ConstValue::Int(len)))
-            }
             // Registry-owned: never a transitional handler.
             NativeEvalId::CellIncrement
             | NativeEvalId::CellAppend
             | NativeEvalId::CellListAppend
-            | NativeEvalId::StringRange => None,
+            | NativeEvalId::CellWrite
+            | NativeEvalId::DictSet
+            | NativeEvalId::DictUnset
+            | NativeEvalId::DictIncr
+            | NativeEvalId::DictAppend
+            | NativeEvalId::DictListAppend
+            | NativeEvalId::StringRange
+            | NativeEvalId::ListOfArgs
+            | NativeEvalId::ListLength
+            | NativeEvalId::StringLength => None,
         }
     }
 
@@ -1581,41 +1544,6 @@ pub(crate) fn strip_one_level(text: &str) -> &str {
         }
     }
     text
-}
-
-/// Resolve a single command operand to its constant string value: a
-/// literal word (optionally brace/quote wrapped), or a pure `$var` /
-/// `${var}` whose SCCP lattice value is a constant. Returns `None` for
-/// anything that is not a compile-time constant (array refs, command
-/// substitutions, unknown vars), so the caller skips folding.
-fn resolve_const_string<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
-    arg: &str,
-    uses: &HashMap<Symbol, Version, S1>,
-    values: &HashMap<ValueKey, LatticeValue, S2>,
-    ssa: &SsaFunction,
-) -> Option<String> {
-    let arg = arg.trim();
-    if let Some(rest) = arg.strip_prefix('$') {
-        // `$name` or `${name}` — reject compound refs (array element,
-        // nested substitution, multiple words).
-        let name = rest
-            .strip_prefix('{')
-            .and_then(|r| r.strip_suffix('}'))
-            .unwrap_or(rest);
-        if name.is_empty()
-            || name.contains(|c: char| {
-                c.is_whitespace() || c == '(' || c == '[' || c == '$' || c == '"'
-            })
-        {
-            return None;
-        }
-        return lattice_const_text(name, uses, values, ssa);
-    }
-    // A literal word with no interpolation or command substitution.
-    if !arg.contains('$') && !arg.contains('[') {
-        return Some(strip_one_level(arg).to_owned());
-    }
-    None
 }
 
 /// Resolve `name` to the textual form of its lattice constant at this

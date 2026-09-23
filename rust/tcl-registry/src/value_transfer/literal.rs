@@ -22,6 +22,7 @@
 
 use tcl_dialect::{DialectProfile, TclVersion};
 
+use crate::arg_role::ArgRole;
 use crate::invocation_words::InvocationWordKind;
 
 use super::CommandSemantics;
@@ -78,6 +79,17 @@ impl<'a> LiteralInputs<'a> {
     #[must_use]
     pub fn with_prior(mut self, name: &str, value: ExactValue) -> Self {
         self.priors.push((name.to_owned(), value));
+        self
+    }
+
+    /// The role the resolver gives operand `id` — the registry's
+    /// `arg_indices_for_role` answer for the same words — so a
+    /// specialisation that finds its places by role can run here.
+    #[must_use]
+    pub fn with_role(mut self, id: OperandId, role: ArgRole) -> Self {
+        if let Some(operand) = self.view.operands.get_mut(id.0) {
+            operand.role = Some(role);
+        }
         self
     }
 }

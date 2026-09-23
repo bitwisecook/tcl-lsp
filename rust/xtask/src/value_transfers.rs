@@ -887,63 +887,11 @@ fn target_roles(
 /// the migration plan (`value-transfers-migration.md` § *The slices*) that
 /// gives it one. Keyed by the inventory's command column (`cmd` or
 /// `cmd sub`); a key ending in ` *` covers every subcommand of an ensemble.
-/// An entry no row matches is stale and fails the gate. `append` and
-/// `lappend` are absent because their derived descriptor already
-/// classifies them — *descriptor without a route* until slice 2.
+/// An entry no row matches is stale and fails the gate. Slice 2 left no
+/// entry of its own: `set` and the `dict` keyed updates declare their
+/// semantics, `append` and `lappend` derive theirs, and `const`, `lset`,
+/// `ledit` and `lpop` wait for the existence rung and the new list cores.
 const KNOWN_GAPS: &[(&str, &str)] = &[
-    // Slice 2, the direct vertical slice: cell and container updates over
-    // `ConstOps`, `append` / `lappend` beside them.
-    (
-        "set",
-        "slice 2 — the exact-value write of the direct vertical slice",
-    ),
-    (
-        "const",
-        "slice 2 — the exact-value write, immutable thereafter",
-    ),
-    ("lset", "slice 2 — the list cell update over `ConstOps`"),
-    ("ledit", "slice 2 — the list cell update over `ConstOps`"),
-    ("lpop", "slice 2 — the list cell update over `ConstOps`"),
-    (
-        "dict set",
-        "slice 2 — the keyed cell update over `ConstOps`",
-    ),
-    (
-        "dict unset",
-        "slice 2 — the keyed cell update over `ConstOps`",
-    ),
-    (
-        "dict incr",
-        "slice 2 — the keyed cell update over `ConstOps`",
-    ),
-    (
-        "dict append",
-        "slice 2 — the keyed cell update over `ConstOps`",
-    ),
-    (
-        "dict lappend",
-        "slice 2 — the keyed cell update over `ConstOps`",
-    ),
-    (
-        "::tcl::dict::set",
-        "slice 2 — the keyed cell update over `ConstOps`",
-    ),
-    (
-        "::tcl::dict::unset",
-        "slice 2 — the keyed cell update over `ConstOps`",
-    ),
-    (
-        "::tcl::dict::incr",
-        "slice 2 — the keyed cell update over `ConstOps`",
-    ),
-    (
-        "::tcl::dict::append",
-        "slice 2 — the keyed cell update over `ConstOps`",
-    ),
-    (
-        "::tcl::dict::lappend",
-        "slice 2 — the keyed cell update over `ConstOps`",
-    ),
     // Slice 5, destructuring and structured bodies.
     (
         "regexp",
@@ -1026,6 +974,10 @@ const KNOWN_GAPS: &[(&str, &str)] = &[
     ),
     // Slice 8, the existence rung.
     (
+        "const",
+        "slice 8 — the write that fails on an existing variable reads the existence rung",
+    ),
+    (
         "array unset",
         "slice 8 — the unbind spelling's storage outcome in the existence rung",
     ),
@@ -1073,8 +1025,21 @@ const KNOWN_GAPS: &[(&str, &str)] = &[
         "foreach_in_collection",
         "slice 4 — the `.tclspec` `semantics` spelling; the pack declares the iteration binder",
     ),
-    // Slice 7, broader execution: tcllib and the Tcl-level library
-    // procedures move to SpecTcl with a declared implementation.
+    // Slice 7, broader execution: the list cell updates over new shared
+    // cores, then tcllib and the Tcl-level library procedures moving to
+    // SpecTcl with a declared implementation.
+    (
+        "lset",
+        "slice 7 — the list cell updates over new shared cores",
+    ),
+    (
+        "ledit",
+        "slice 7 — the list cell updates over new shared cores",
+    ),
+    (
+        "lpop",
+        "slice 7 — the list cell updates over new shared cores",
+    ),
     (
         "base32::core::define",
         "slice 7 — a declared implementation when the tcllib specs move to SpecTcl",

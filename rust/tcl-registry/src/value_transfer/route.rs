@@ -117,6 +117,21 @@ pub enum NativeEvalId {
     /// The cell list-append behind `lappend`: read the cell as a list,
     /// append the values as elements, write it back, return the new value.
     CellListAppend,
+    /// The exact-value write behind `set`: write the value and return it,
+    /// or return the value the cell holds.
+    CellWrite,
+    /// `dict set`: the dictionary with a value at a key path.
+    DictSet,
+    /// `dict unset`: the dictionary without the key at a key path.
+    DictUnset,
+    /// `dict incr`: the dictionary with one key's integer incremented.
+    DictIncr,
+    /// `dict append`: the dictionary with strings appended to one key's
+    /// value.
+    DictAppend,
+    /// `dict lappend`: the dictionary with elements appended to one key's
+    /// list.
+    DictListAppend,
     /// `string range string first last`: the shared string core, with the
     /// index numerals pre-resolved under the target's grammar.
     StringRange,
@@ -137,6 +152,12 @@ impl NativeEvalId {
         Self::CellIncrement,
         Self::CellAppend,
         Self::CellListAppend,
+        Self::CellWrite,
+        Self::DictSet,
+        Self::DictUnset,
+        Self::DictIncr,
+        Self::DictAppend,
+        Self::DictListAppend,
         Self::StringRange,
         Self::ListOfArgs,
         Self::FormatTemplate,
@@ -151,6 +172,12 @@ impl NativeEvalId {
             Self::CellIncrement => "cell-increment",
             Self::CellAppend => "cell-append",
             Self::CellListAppend => "cell-list-append",
+            Self::CellWrite => "cell-write",
+            Self::DictSet => "dict-set",
+            Self::DictUnset => "dict-unset",
+            Self::DictIncr => "dict-incr",
+            Self::DictAppend => "dict-append",
+            Self::DictListAppend => "dict-lappend",
             Self::StringRange => "string-range",
             Self::ListOfArgs => "list-of-args",
             Self::FormatTemplate => "format-template",
@@ -163,14 +190,22 @@ impl NativeEvalId {
     #[must_use]
     pub const fn owner(self) -> EvaluatorOwner {
         match self {
-            Self::CellIncrement | Self::CellAppend | Self::CellListAppend | Self::StringRange => {
-                EvaluatorOwner::Registry
-            }
-            Self::ListOfArgs | Self::FormatTemplate | Self::ListLength | Self::StringLength => {
-                EvaluatorOwner::Transitional {
-                    retires_in_slice: 2,
-                }
-            }
+            Self::CellIncrement
+            | Self::CellAppend
+            | Self::CellListAppend
+            | Self::CellWrite
+            | Self::DictSet
+            | Self::DictUnset
+            | Self::DictIncr
+            | Self::DictAppend
+            | Self::DictListAppend
+            | Self::StringRange
+            | Self::ListOfArgs
+            | Self::ListLength
+            | Self::StringLength => EvaluatorOwner::Registry,
+            Self::FormatTemplate => EvaluatorOwner::Transitional {
+                retires_in_slice: 3,
+            },
         }
     }
 }

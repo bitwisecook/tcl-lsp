@@ -725,11 +725,13 @@ proc wire_namespace_vars {} {
     }
 
     #[test]
-    fn list_cmd_with_const_vars_diverges_overdefined() {
-        // `list` folds only over literal args, not var refs → Overdefined.
-        // tclsh: `list puts hello` → puts hello.
+    fn list_cmd_with_const_vars_folds_through_the_lattice() {
+        // The registry-owned `list` route reads its operands from the
+        // lattice, so constant variables fold like literals. tclsh 8.4, 8.5,
+        // 8.6, 9.0 and 9.1: `set x puts; set y hello; list $x $y` →
+        // puts hello.
         let cu = build("set x puts\nset y hello\nset cmd [list $x $y]");
-        assert_overdefined_or_absent(&cu.top_level, "cmd", 1, "list with var args");
+        assert_const_str(&cu.top_level, "cmd", 1, "puts hello");
     }
 
     #[test]

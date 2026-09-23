@@ -498,17 +498,27 @@ fn cell_update_route(
     prior: &str,
     values: &[&str],
 ) -> Option<String> {
+    use tcl_registry::ArgRole;
     use tcl_registry::value_transfer::{
-        Budget, EvalAnswer, ExactValue, ExactValueOrUnavailable, LiteralInputs, resolve_semantics,
+        Budget, EvalAnswer, ExactValue, ExactValueOrUnavailable, LiteralInputs, OperandId,
+        resolve_semantics,
     };
 
     let spec = reg.get(command).expect(command);
     let semantics = resolve_semantics(spec, None, None);
-    let semantics = semantics.semantics().expect("a cell update");
+    let semantics = semantics.semantics().expect("a storage route");
     let mut args = vec!["v"];
     args.extend_from_slice(values);
-    let inputs = LiteralInputs::new(command, None, &args, profile)
+    let mut inputs = LiteralInputs::new(command, None, &args, profile)
         .with_prior("v", ExactValue::from_literal(prior));
+    // The roles the resolver gives the same words, so a route that finds
+    // its place by role (`set`'s write and read forms) runs as it does
+    // over the lattice.
+    for role in [ArgRole::VarWrite, ArgRole::VarRead] {
+        for index in reg.arg_indices_for_role(command, &args, role) {
+            inputs = inputs.with_role(OperandId(index), role);
+        }
+    }
     match semantics.evaluate(&inputs, &mut Budget::evaluation()) {
         EvalAnswer::Evaluated(outcome) => match outcome.result {
             ExactValueOrUnavailable::Exact(value) => String::from_utf8(value.bytes).ok(),
@@ -569,10 +579,144 @@ fn check_range_witnesses(tclsh: &str, reg: &CommandRegistry, version: tcl_dialec
     }
 }
 
+/// `dict <sub> d <words…>` through the keyed update the resolver selects
+/// under `profile`, with `d` holding `prior`; `None` for a decline or when
+/// the resolver finds no such command.
+fn keyed_update_route(
+    reg: &CommandRegistry,
+    profile: Option<&'static tcl_dialect::DialectProfile>,
+    sub: &str,
+    prior: &str,
+    words: &[&str],
+) -> Option<String> {
+    use tcl_registry::ArgRole;
+    use tcl_registry::invocation_words::{InvocationWord, InvocationWords};
+    use tcl_registry::value_transfer::{
+        Budget, EvalAnswer, ExactValue, ExactValueOrUnavailable, LiteralInputs, OperandId,
+    };
+
+    let mut args = vec![sub, "d"];
+    args.extend_from_slice(words);
+    let literal_words: Vec<InvocationWord<'_>> =
+        args.iter().copied().map(InvocationWord::Literal).collect();
+    let resolved = reg
+        .resolve_structured_invocation(
+            InvocationWords::structured(InvocationWord::Literal("dict"), &literal_words),
+            reg.own_surface_query(),
+        )
+        .resolved()?;
+    let semantics = resolved.semantics.value.semantics()?;
+    let mut inputs = LiteralInputs::new("dict", Some(sub), &args[1..], profile)
+        .with_prior("d", ExactValue::from_literal(prior));
+    for index in reg.arg_indices_for_role("dict", &args, ArgRole::VarWrite) {
+        inputs = inputs.with_role(OperandId(index), ArgRole::VarWrite);
+    }
+    match semantics.evaluate(&inputs, &mut Budget::evaluation()) {
+        EvalAnswer::Evaluated(outcome) => match outcome.result {
+            ExactValueOrUnavailable::Exact(value) => String::from_utf8(value.bytes).ok(),
+            ExactValueOrUnavailable::Unavailable(_) => None,
+        },
+        EvalAnswer::Pending | EvalAnswer::Declined(_) => None,
+    }
+}
+
+/// The keyed updates of `dict`, per release found on `PATH`, against the
+/// real `tclsh`: when the route answers it must match, and when `tclsh`
+/// raises it must decline. Under 8.4, which has no `dict`, the resolver
+/// finds no route at all.
+#[test]
+fn keyed_update_witnesses_match_every_release_on_path() {
+    let mut releases = 0usize;
+    for version in tcl_dialect::TclVersion::ALL {
+        let Some(tclsh) = find_tclsh(version.version_string()) else {
+            continue;
+        };
+        releases += 1;
+        let dialect = version.dialect_profile_name();
+        let reg = tcl_registry::model::ingress::static_context_for(dialect).commands();
+        let profile = tcl_dialect::DialectProfile::find(dialect);
+        if version == tcl_dialect::TclVersion::V8_4 {
+            assert_eq!(
+                keyed_update_route(reg, profile, "set", "", &["a", "1"]),
+                None,
+                "8.4 has no dict, so the resolver finds no route"
+            );
+            continue;
+        }
+        let cases: &[(&str, &str, &[&str])] = &[
+            ("set", "", &["a", "1"]),
+            ("set", "a 1 b 2", &["a", "3"]),
+            ("set", "a {x 1}", &["a", "y", "2"]),
+            ("set", "b 2 a 1", &["c", "3"]),
+            ("set", " a  1 ", &["b", "2"]),
+            ("set", "a 1 a 2", &["b", "3"]),
+            ("set", "a 1 b", &["c", "3"]),
+            ("set", "a b", &["a", "c", "d"]),
+            ("unset", "a 1 b 2", &["a"]),
+            ("unset", " a  1 ", &["zz"]),
+            ("unset", "a {x 1}", &["a", "x"]),
+            ("unset", "a 1", &["x", "y"]),
+            ("incr", "k 5", &["k"]),
+            ("incr", "k 5", &["k", "-7"]),
+            ("incr", "k 010", &["k"]),
+            ("incr", "k 5", &["k", "010"]),
+            ("incr", "k { 5 }", &["k"]),
+            ("incr", "k 9223372036854775807", &["k"]),
+            ("incr", "k abc", &["k"]),
+            ("incr", "", &["k", "010"]),
+            ("incr", "", &["k", "2.5"]),
+            ("append", "k foo", &["k", "bar"]),
+            ("append", "", &["k"]),
+            ("lappend", "", &["k", "a", "b c"]),
+            ("lappend", "k v", &["k"]),
+            ("lappend", "k \\{", &["k", "v"]),
+        ];
+        let mut agreed = 0usize;
+        for &(sub, prior, words) in cases {
+            let mut script = format!("set d {}; dict {sub} d", tcl_quoted_word(prior));
+            for word in words {
+                script.push(' ');
+                script.push_str(&tcl_quoted_word(word));
+            }
+            script.push_str("; puts -nonewline $d");
+            let want = match run_tcl(&tclsh, &script) {
+                Some((true, out)) => Some(out),
+                _ => None,
+            };
+            let got = keyed_update_route(reg, profile, sub, prior, words);
+            match (want, got) {
+                (Some(want), Some(got)) => {
+                    assert_eq!(
+                        got,
+                        want,
+                        "tclsh{}: dict {sub} over {prior:?} with {words:?}",
+                        version.version_string()
+                    );
+                    agreed += 1;
+                }
+                (None, Some(got)) => panic!(
+                    "tclsh{} raises on dict {sub} over {prior:?} with {words:?}, the route answered {got:?}",
+                    version.version_string()
+                ),
+                (_, None) => {}
+            }
+        }
+        assert!(
+            agreed >= 18,
+            "tclsh{}: only {agreed} keyed-update witnesses agreed",
+            version.version_string()
+        );
+    }
+    if releases == 0 {
+        eprintln!("no tclsh on PATH: the keyed-update witnesses were not exercised");
+    }
+}
+
 /// The storage-outcome witnesses of the direct route, per release found on
 /// `PATH`: `incr`, `append`, and `lappend` through the registry's cell
-/// update and `string range` through its route, each under the release's
-/// profile, against the real `tclsh`. When the route answers it must match;
+/// update, `set`'s write and read forms through the cell write, and `string
+/// range` through its route, each under the release's profile, against the
+/// real `tclsh`. When the route answers it must match;
 /// when `tclsh` raises the route must decline; a decline where `tclsh`
 /// answers is allowed (an unfolded value is never wrong).
 #[test]
@@ -603,8 +747,13 @@ fn storage_outcome_witnesses_match_every_release_on_path() {
             ("lappend", "", &["c"]),
             ("lappend", "{", &["v"]),
             ("lappend", "a", &["{", "b"]),
+            ("set", "old", &[" a "]),
+            ("set", "old", &["a\\b"]),
+            ("set", " 7 ", &[]),
+            ("set", "010", &[]),
         ];
         let mut agreed = 0usize;
+        let mut commands_agreeing = std::collections::BTreeSet::new();
         for &(command, prior, values) in cases {
             let want = cell_update_oracle(&tclsh, command, prior, values);
             let got = cell_update_route(&reg, profile, command, prior, values);
@@ -617,6 +766,7 @@ fn storage_outcome_witnesses_match_every_release_on_path() {
                         version.version_string()
                     );
                     agreed += 1;
+                    commands_agreeing.insert(command);
                 }
                 (None, Some(got)) => panic!(
                     "tclsh{} raises on {command} over {prior:?} with {values:?}, the route answered {got:?}",
@@ -628,6 +778,12 @@ fn storage_outcome_witnesses_match_every_release_on_path() {
         assert!(
             agreed >= 8,
             "tclsh{}: only {agreed} witnesses agreed",
+            version.version_string()
+        );
+        assert_eq!(
+            commands_agreeing.into_iter().collect::<Vec<_>>(),
+            ["append", "incr", "lappend", "set"],
+            "tclsh{}: every route answers somewhere",
             version.version_string()
         );
         check_range_witnesses(&tclsh, &reg, version);

@@ -1732,6 +1732,62 @@ show; set hits 1` deletes `set hits 0` (tclsh prints 0 then 1; the
 rewrite prints 1 twice). Upstream's behaviour at `08bceb36`; the
 procedure summaries of slice 13 are where a callee's reads belong.
 
+- **Checkpoint `wip(value-transfers): slice 2 — set, dict and the retired
+  handlers`** holds VT2.5, VT2.6, VT2.7 and VT2.8. Green: the
+  `tcl-compiler`, `tcl-registry`, `tcl-lsp-db` and `xtask` suites (11218
+  passed, 0 failed, 11 ignored); pedantic clippy on `tcl-compiler`,
+  `tcl-registry` and `xtask`; `cargo xtask value-transfers --check` OK (15
+  clean, 15 waived — the three retired arms' waivers went with them — 100
+  pinned across 41 files); `pack-goldens` 0 rewritten; the shard script;
+  `cargo check --workspace --all-targets`. The keyed-update differential
+  agrees with `tclsh` on at least 18 of its 26 cases in each of 8.5 to
+  9.1 and declines the rest; under 8.4 the resolver finds no route.
+
+Decisions taken at this checkpoint that the plan does not state:
+
+- **`set` finds both forms by role.** The write form is one `VarWrite`
+  operand with the value after it and last; the read form is one
+  `VarRead` operand alone. The registry tests give `LiteralInputs` the
+  roles the resolver gives the same words (`LiteralInputs::with_role`,
+  from `arg_indices_for_role`), so the storage differential runs `set`
+  as the lattice does.
+- **Three keyed-update answers the plan's list does not name**, each an
+  oracle answer under 8.5 to 9.1: `dict incr d k 010` over an absent key
+  stores `010` as written once it proves to be an integer (`k 010`); a
+  missing intermediate key of `dict unset` is the program's error (`key
+  "x" not known in dictionary`) and declines `WrongRepresentation`; an
+  absent dictionary is empty only when the inputs prove the variable
+  unbound — an unknown prior declines, it is never taken for an absent
+  one.
+- **The keyed-update differential asks the resolver**, not
+  `reg.get("dict")`: the 8.4 registry still answers a `dict` record, and
+  `tclsh8.4` prints nothing for the script, so the 8.4 row asserts that
+  the resolver finds no route.
+- **`llength` reads no release axis.** `ConstOps::list_len` runs the list
+  parse alone, charged per element, so `NEEDS = Needs::NONE` holds; the
+  default `list_len` goes through `list_elements`, which requires
+  `LIST_RENDERING`.
+- **`route_stamps_match_the_pinned_set` pins the owner beside the route**,
+  so a route that changes owner is a pinned change, not a silent one.
+- **G2 rewrote nothing.** The `tcl` commands are the registry's own Rust
+  specs, not a shipped `.tclspec`; none of the 24 packs `pack-goldens`
+  scans declares `set` or `dict`, so no snapshot moves.
+
+Deltas observed beyond the plan's list, each restated from its oracle:
+
+- `set x puts; set y hello; set cmd [list $x $y]` folds `cmd` to `puts
+  hello`: the registry's `list` route reads its operands from the
+  lattice, where the transitional `fold_list_cmd` folded literal words
+  only. `core_analyses::variable_shape::list_cmd_with_const_vars_diverges_overdefined`
+  becomes `list_cmd_with_const_vars_folds_through_the_lattice` (8.4 to
+  9.1 print `puts hello`).
+- `sccp::tests::string_length_fold_counts_in_the_selected_dialects_character_model`
+  is restated under each dialect's own folds: a supplementary character
+  gives 1 under 9.0 and declines under 8.6 and an unnamed release (from
+  a UTF-8 file 8.4 to 8.6 print 4 and 9.0 and 9.1 print 1), where the
+  compiler's model answered 2 under 8.6 — the plan's `string length`
+  delta; ASCII still folds under an unnamed release.
+
 ### Slice 3 — the expression slice
 
 #### Goal and exit

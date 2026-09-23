@@ -126,6 +126,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         )],
         mutator: true,
         safe_on_uninit: Some(SpecSurface::ALL_TCL),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::keyed_update::DICT_APPEND,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -250,6 +253,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         mutator: true,
         safe_on_uninit: Some(SpecSurface::ALL_TCL),
         return_type: Some(TclType::Dict),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::keyed_update::DICT_INCR),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -292,6 +296,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 transparent_from: &[],
             },
         )],
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::keyed_update::DICT_LAPPEND,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -382,6 +389,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         mutator: true,
         safe_on_uninit: Some(SpecSurface::ALL_TCL),
         return_type: Some(TclType::Dict),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::keyed_update::DICT_SET),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -434,6 +442,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // — identical in the 8.5, 8.6, 9.0, and 9.1 sources), the same
         // auto-vivify behaviour as `append`/`incr`/`lappend`/`set` above.
         safe_on_uninit: Some(SpecSurface::ALL_TCL),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::keyed_update::DICT_UNSET),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -849,6 +858,10 @@ pub fn qualified_specs() -> Vec<CommandSpec> {
                 return_elements: sub.return_elements,
                 var_elements_effect: sub.var_elements_effect,
                 safe_on_uninit: sub.safe_on_uninit,
+                // The value transfer too: `::tcl::dict::incr d k` evaluates
+                // through the same keyed update as `dict incr d k`, the
+                // dictionary operand found by its role in either layout.
+                semantics: sub.semantics,
                 options: sub.options,
                 hover: Some(HoverSnippet::brief(
                     summary,
@@ -901,6 +914,26 @@ mod tests {
             "::tcl::dict::set must mark its dict variable (arg 0) as VarWrite: {:?}",
             set.arg_roles,
         );
+        // The value transfer rides along: each keyed update's qualified
+        // spelling declares the subcommand's own specialisation.
+        for bare in ["set", "unset", "incr", "append", "lappend"] {
+            let sub = SUBCOMMANDS.iter().find(|s| s.name == bare).expect(bare);
+            let (
+                SemanticsDeclaration::Declared(sub_semantics),
+                SemanticsDeclaration::Declared(qualified_semantics),
+            ) = (
+                sub.semantics,
+                get(&format!("::tcl::dict::{bare}")).semantics,
+            )
+            else {
+                panic!("dict {bare} and its qualified spelling must declare their semantics");
+            };
+            assert_eq!(
+                sub_semantics.identity(),
+                qualified_semantics.identity(),
+                "dict {bare}"
+            );
+        }
         let for_ = get("::tcl::dict::for");
         assert!(
             for_.arg_roles
