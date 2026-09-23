@@ -37635,6 +37635,127 @@ mod tests {
         );
     }
 
+    /// A configured folder's documents resolve their policy from the folder's
+    /// own three layers; a folder with none of its own resolves under the
+    /// session's (§ Decisions taken, D2).
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_configured_folder_resolves_its_own_three_layers() {
+        let backend = test_backend();
+        let own = Uri::from_str("file:///proj-own").unwrap();
+        let bare = Uri::from_str("file:///proj-bare").unwrap();
+        *backend.folder_configs.lock().await = vec![
+            (
+                own.clone(),
+                FolderConfig {
+                    policy_layers: Some(PolicyLayers {
+                        project: serde_json::json!({ "diagnostics": { "W112": false } }),
+                        ..PolicyLayers::default()
+                    }),
+                    ..FolderConfig::default()
+                },
+            ),
+            (
+                bare.clone(),
+                FolderConfig {
+                    policy_layers: None,
+                    ..FolderConfig::default()
+                },
+            ),
+        ];
+        let under_own = Uri::from_str("file:///proj-own/a.tcl").unwrap();
+        let under_bare = Uri::from_str("file:///proj-bare/b.tcl").unwrap();
+        assert_eq!(
+            backend
+                .resolved_policy_layers(&under_own)
+                .await
+                .builder()
+                .build()
+                .code_reason(DiagCode::W112),
+            Some(core_policy::Reason::Disabled(
+                core_policy::PolicyLayer::Project
+            )),
+        );
+        assert_eq!(
+            backend
+                .resolved_policy_layers(&under_bare)
+                .await
+                .builder()
+                .build()
+                .code_reason(DiagCode::W112),
+            None,
+            "a folder with no layers of its own resolves under the session's",
+        );
+    }
+
+    /// The multi-root corner of D2 (§ Open questions 7): a secondary root
+    /// whose own three layers carry no policy section does not inherit the
+    /// primary root's `.tcl-lsp.ini`. The owner's answer flips the first
+    /// assertion.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_secondary_root_does_not_inherit_the_primary_project_file() {
+        let backend = test_backend();
+        backend.policy_layers.lock().await.project =
+            serde_json::json!({ "diagnostics": { "W112": false } });
+        let secondary = Uri::from_str("file:///proj-secondary").unwrap();
+        *backend.folder_configs.lock().await = vec![(
+            secondary,
+            FolderConfig {
+                line_length: Some(100),
+                policy_layers: Some(PolicyLayers::default()),
+                ..FolderConfig::default()
+            },
+        )];
+        let under_secondary = Uri::from_str("file:///proj-secondary/c.tcl").unwrap();
+        let outside = Uri::from_str("file:///elsewhere/d.tcl").unwrap();
+        assert_eq!(
+            backend
+                .resolved_policy_layers(&under_secondary)
+                .await
+                .builder()
+                .build()
+                .code_reason(DiagCode::W112),
+            None,
+            "the secondary root resolves under its own layers only",
+        );
+        assert_eq!(
+            backend
+                .resolved_policy_layers(&outside)
+                .await
+                .builder()
+                .build()
+                .code_reason(DiagCode::W112),
+            Some(core_policy::Reason::Disabled(
+                core_policy::PolicyLayer::Project
+            )),
+        );
+    }
+
+    /// The test seam `apply_global_config` fills the session's editor layer,
+    /// and the session's analyser skip follows it (DP4.1).
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn apply_global_config_populates_the_editor_layer() {
+        let backend = test_backend();
+        backend
+            .apply_global_config(&serde_json::json!({ "diagnostics": { "W112": false } }))
+            .await;
+        let uri = Uri::from_str("file:///any/e.tcl").unwrap();
+        assert_eq!(
+            backend
+                .resolved_policy_layers(&uri)
+                .await
+                .builder()
+                .build()
+                .code_reason(DiagCode::W112),
+            Some(core_policy::Reason::Disabled(
+                core_policy::PolicyLayer::Editor
+            )),
+        );
+        assert!(
+            backend.disabled_diagnostics.lock().await.contains("W112"),
+            "the session skip holds the editor layer's disable",
+        );
+    }
+
     /// A folder whose override set empties retires its `AnalyserConfig`
     /// handle (payload cleared) and revives it when the override comes back —
     /// `.tcl-lsp.ini` churn must not allocate a config input per save.

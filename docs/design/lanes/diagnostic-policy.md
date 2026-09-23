@@ -726,6 +726,20 @@ files, and `cargo check --workspace` is green. No suite changed outcome:
 `getEffectiveConfig`'s `disabled_diagnostics` lists catalogued codes only
 by construction, and no test pinned an uncatalogued spelling there.
 
+### DP4.3 — the hand-off decisions pinned
+
+Four tests, no production change, as the item lists them: server
+`a_configured_folder_resolves_its_own_three_layers`,
+`a_secondary_root_does_not_inherit_the_primary_project_file` (the
+multi-root corner; the owner's answer to § Open questions 7 flips its first
+assertion) and `apply_global_config_populates_the_editor_layer`; CLI
+`diag_keeps_a_bidi_control_on_an_abstaining_document` (W109 and W305 on a
+UTF-16 byte-order mark ahead of UTF-8 text carrying U+202E, W109 alone
+without the control — D10 end to end). `Scratch` gains `write_bytes` for the
+byte-order mark. The `sonnet` items of this plan were carried out by the
+lane's implementer directly: the session that ran them had no `Agent` tool
+to delegate with.
+
 ## Plan for finishing slices 4–7 and for slices 8–10
 
 The execution plan from the checkpoint `5bc40e95` to the end of the page's
@@ -3345,7 +3359,7 @@ Each item updates its row in the commit that lands it.
 | DP4.0 | opus | L | done | `slices 4–7 checkpoint green` | every suite of the lane crates, the whole `e2e`, the crate clippy, the catalogue gates, `owner-resolution`, `cargo check --workspace`; `make rust-check` left to C4 |
 | DP4.1 | opus | M | done | code: `DP4.1 — the analyser's skip is the policy's on every path, and the report declares it`; documentation: `d941667f` | core `--lib` and the six integration binaries, server `--lib`, the whole `e2e`, `tcl-cli`, `tcl-cli-support`, `tcl-mcp`; the crate clippy; `cargo check -p tcl-lsp-db` and its clippy; `cargo check --workspace` |
 | DP4.2 | opus | S | done (the merge of `rust`) | the merge commit | server `--lib`; the crate clippy |
-| DP4.3 | sonnet | S | not started | — | — |
+| DP4.3 | sonnet | S | done (by the lane implementer: no `Agent` tool in the session) | `DP4.3 — pin the hand-off decisions no test pinned` | the four tests; server `--lib` subset, `tcl-cli --test cli -- abstaining_document`; the crate clippy |
 | DP5.1 | opus | S | not started | — | — |
 | DP5.2 | opus | S | done (the merge of `rust`) | the merge commit | `cargo test -p tcl-cli`; the crate clippy |
 | DP5.3 | sonnet | S | not started | — | — |

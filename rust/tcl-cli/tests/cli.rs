@@ -1271,9 +1271,14 @@ impl Scratch {
 
     /// Write `text` at `rel` (directories created) and return its path.
     fn write(&self, rel: &str, text: &str) -> PathBuf {
+        self.write_bytes(rel, text.as_bytes())
+    }
+
+    /// Write `bytes` at `rel` (directories created) and return its path.
+    fn write_bytes(&self, rel: &str, bytes: &[u8]) -> PathBuf {
         let path = self.0.join(rel);
         std::fs::create_dir_all(path.parent().expect("parent")).expect("parent dir");
-        std::fs::write(&path, text).expect("write file");
+        std::fs::write(&path, bytes).expect("write file");
         path
     }
 }
@@ -1316,6 +1321,43 @@ fn diag_codes_by_file(out: &[u8]) -> Vec<(String, String)> {
 /// A `while` whose counter the body never touches: W242, the one code the
 /// catalogue declares default-off.
 const UNPROVABLE_LOOP: &str = "set i 0\nwhile {$i < 3} {\n    puts $i\n}\n";
+
+/// An abstaining document keeps the codes its bytes justify — the integrity
+/// code and a bidirectional control, W305, which reads the decoded text as
+/// text — as the editor's abstention does (§ Decisions taken, D10). A UTF-16
+/// byte-order mark ahead of UTF-8 text is what abstains here; the tail
+/// decodes losslessly, so the override it carries is still there to find.
+#[test]
+fn diag_keeps_a_bidi_control_on_an_abstaining_document() {
+    let scratch = Scratch::new("abstain-bidi");
+    let no_config = scratch.write("config/.keep", "");
+    let xdg = no_config.parent().expect("config dir").as_os_str();
+    let env: &[(&str, &std::ffi::OsStr)] = &[("XDG_CONFIG_HOME", xdg)];
+    let bom_then = |text: &str| {
+        let mut bytes = vec![0xFF, 0xFE];
+        bytes.extend_from_slice(text.as_bytes());
+        bytes
+    };
+    let with = scratch.write_bytes("with.tcl", &bom_then("# \u{202E}hidden\nputs hi\n"));
+    let without = scratch.write_bytes("without.tcl", &bom_then("# hidden\nputs hi\n"));
+    let codes = |path: &std::path::Path| -> Vec<String> {
+        let path = path.to_str().expect("utf-8 path");
+        diag_codes_by_file(&run_tcl_env(&["diag", "--json", path], env))
+            .into_iter()
+            .map(|(_, code)| code)
+            .collect()
+    };
+    assert_eq!(
+        codes(&with),
+        ["W109", "W305"],
+        "the integrity code and the bidi control survive abstention"
+    );
+    assert_eq!(
+        codes(&without),
+        ["W109"],
+        "without the control the integrity code stands alone"
+    );
+}
 
 /// The catalogue's default-off codes are off for `tcl diag` as they are in
 /// the editor, and `--enable` turns one on — the seed is the lowest layer,
