@@ -1032,6 +1032,7 @@ impl CfgBuilder<'_> {
             .collect();
         let mut sources: Vec<String> = Vec::new();
         let mut jumps: Vec<String> = Vec::new();
+        let resolve_head = self.embedded_head_resolver();
         for (name, _) in self.block_ids.iter().filter(|(_, id)| in_body(**id)) {
             let Some(block) = self.blocks.get(name.as_str()) else {
                 continue;
@@ -1044,7 +1045,7 @@ impl CfgBuilder<'_> {
                 Some(crate::cfg::Terminator::Return { .. }) => {
                     if !intercepted.contains(name.as_str())
                         && !matches!(block.statements.as_slice(), [only]
-                            if super::always_exits_process(only, self.registry))
+                            if super::always_exits_process(only, self.registry, &resolve_head))
                     {
                         sources.push(name.clone());
                     }
@@ -1062,6 +1063,7 @@ impl CfgBuilder<'_> {
                 _ => {}
             }
         }
+        drop(resolve_head);
         let names: rustc_hash::FxHashMap<crate::cfg::BlockId, String> = self
             .block_ids
             .iter()

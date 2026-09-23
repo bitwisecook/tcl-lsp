@@ -184,12 +184,13 @@ intercepts with its own edge — control reaches this `finally` only after
 the inner clause has run; and a process exit (`Traits::TERMINATES_PROCESS`,
 e.g. `exit`), which ends the interpreter without unwinding, so no `finally`
 runs — but only when nothing can stop it from running: it is the block's
-sole statement, every word is literal, the call names the command itself
-rather than an alias that may prepend words (`interp alias {} bye {} exit
-abc` makes `bye` raise), and
-`CommandRegistry::exact_invocation_completion` classifies the invocation
-as `ProcessExit` (which statuses are valid is that owner's release-aware
-answer, not restated here).  Anything else may `return` or raise an error
+sole statement, every word is literal, the command-binding owner resolves
+the call site to one registry-backed target (whose alias prefix joins the
+written words — `interp alias {} bye {} exit abc` makes `bye` raise, as
+does the same alias named `::foo::exit` called as `exit` inside `::foo`),
+and `CommandRegistry::exact_invocation_completion` classifies that
+composed invocation as `ProcessExit` (which statuses are valid is that
+owner's release-aware answer, not restated here).  Anything else may `return` or raise an error
 first — an earlier statement, a substituted word (`exit [error boom]`), a
 status the registry rejects (`exit abc`, or `exit 09` in 8.x),
 an `if` condition or `switch` subject — and those do run the clause, so an

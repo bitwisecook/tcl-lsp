@@ -2844,12 +2844,22 @@ fn an_exit_reaches_no_finally() {
     // An alias invokes more words than the call site shows: `bye` here runs
     // `exit abc`, which raises, so tclsh 8.6.18 and 9.0.4 print `1` (found in
     // review).
-    let aliased = "set g 0\ninterp alias {} bye {} exit abc\nproc p {} {\n    global g\n    try {bye} finally {set g 1}\n}\ncatch p\nputs $g\n";
-    assert!(
-        optimised(aliased, TCL).contains("set g 1"),
-        "an alias with a prefixed status: the `finally` still runs: {:?}",
-        opt_rewrites(aliased, TCL)
-    );
+    for (why, src) in [
+        (
+            "an alias with a prefixed status",
+            "set g 0\ninterp alias {} bye {} exit abc\nproc p {} {\n    global g\n    try {bye} finally {set g 1}\n}\ncatch p\nputs $g\n",
+        ),
+        (
+            "a namespace alias spelled like its target",
+            "set g 0\nnamespace eval foo {}\ninterp alias {} ::foo::exit {} ::exit abc\nproc ::foo::p {} {\n    global g\n    try {exit} finally {set g 1}\n}\ncatch foo::p\nputs $g\n",
+        ),
+    ] {
+        assert!(
+            optimised(src, TCL).contains("set g 1"),
+            "{why}: the `finally` still runs: {:?}",
+            opt_rewrites(src, TCL)
+        );
+    }
 }
 
 /// The definiteness half. A name bound before the `try` is still bound after

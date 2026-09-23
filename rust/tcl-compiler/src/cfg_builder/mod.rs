@@ -2831,24 +2831,22 @@ pub(crate) enum Completion {
 /// literal and a status the registry says it accepts, and an enclosing
 /// construct is never looked through. Missing a real exit
 /// costs an O107; accepting a false one rewrote a live program.
-fn always_exits_process(stmt: &Statement, registry: &CommandRegistry) -> bool {
+fn always_exits_process(
+    stmt: &Statement,
+    registry: &CommandRegistry,
+    resolve: &dyn Fn(&str) -> Option<crate::ir_helpers::ResolvedEmbeddedHead>,
+) -> bool {
     let (Statement::Call {
-        command,
-        canonical_command,
-        tokens,
-        ..
+        command, tokens, ..
     }
     | Statement::Barrier {
-        command,
-        canonical_command,
-        tokens,
-        ..
+        command, tokens, ..
     }) = stmt
     else {
         return false;
     };
     // Every word must be literal: a substituted one runs first and may throw.
-    let Some(words) = tokens.as_ref().and_then(|tokens| {
+    let Some(written) = tokens.as_ref().and_then(|tokens| {
         tokens
             .word_exprs
             .iter()
@@ -2862,19 +2860,26 @@ fn always_exits_process(stmt: &Statement, registry: &CommandRegistry) -> bool {
     }) else {
         return false;
     };
-    // The words must be *all* the words: a call that resolves to another name
-    // — an `interp alias`, which may prepend arguments — invokes more than the
-    // call site shows. `interp alias {} bye {} exit abc` makes `bye` raise
+    // The words must be *all* the words the command receives. The binding
+    // owner resolves the call site to its one registry-backed target and the
+    // words an `interp alias` prepends; a spelling with no single known target
+    // proves nothing. `interp alias {} bye {} exit abc` — or the same alias
+    // named `::foo::exit` and called as `exit` inside `::foo` — raises
     // "expected integer", which runs the clause (found in review).
-    let target = canonical_command.as_deref().unwrap_or(command);
-    if target.trim_start_matches("::") != command.trim_start_matches("::") {
+    let Some(target) = resolve(command) else {
         return false;
-    }
+    };
+    let words: Vec<&str> = target
+        .prepended
+        .iter()
+        .map(String::as_str)
+        .chain(written)
+        .collect();
     // Whether those literals make a status the command accepts is the
     // registry's question, answered release-aware: `exit 09` is an invalid
     // octal in 8.x and raises an error — which does run the clause — but exits
     // with status 9 in 9.0 (found in review).
-    registry.exact_invocation_completion(target, &words, None)
+    registry.exact_invocation_completion(&target.command, &words, None)
         == Some(tcl_registry::registry::ExactInvocationCompletion::ProcessExit)
 }
 
