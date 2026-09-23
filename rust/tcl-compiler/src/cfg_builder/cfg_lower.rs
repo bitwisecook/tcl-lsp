@@ -1009,22 +1009,12 @@ impl CfgBuilder<'_> {
                 self.blocks
                     .get(name.as_str())
                     .is_some_and(|block| match &block.terminator {
-                        // A process exit runs no `finally` (found in review).
+                        // A process exit runs no `finally` — a plain `exit`, or
+                        // an opaque `switch` promoted to `Return` because every
+                        // arm exits (found in review).
                         Some(crate::cfg::Terminator::Return { .. }) => {
-                            !block.statements.last().is_some_and(|stmt| match stmt {
-                                Statement::Call {
-                                    command,
-                                    canonical_command,
-                                    ..
-                                }
-                                | Statement::Barrier {
-                                    command,
-                                    canonical_command,
-                                    ..
-                                } => self.command_classes.is_process_terminating_command(
-                                    canonical_command.as_deref().unwrap_or(command),
-                                ),
-                                _ => false,
+                            !block.statements.last().is_some_and(|stmt| {
+                                super::always_exits_process(stmt, &self.command_classes)
                             })
                         }
                         Some(crate::cfg::Terminator::Goto { target, .. }) => {

@@ -2815,6 +2815,70 @@ pub(crate) enum Completion {
     ProcExit,
 }
 
+/// Whether `stmt` ends the interpreter on **every** path through it — a
+/// process-terminating command (`Traits::TERMINATES_PROCESS`, e.g. `exit`), or
+/// an `if` / `switch` with an `else` / `default` whose every branch does.
+///
+/// [`Completion`] folds `exit` into `ProcExit` with `return` and `error`,
+/// which is right for what follows the statement and wrong for an enclosing
+/// `finally`: a `return` runs it, an `exit` does not (tclsh 8.6.18 and 9.0.4:
+/// `try {exit 7} finally {puts FINALLY}` prints nothing).
+fn always_exits_process(stmt: &Statement, classes: &CfgCommandClasses) -> bool {
+    match stmt {
+        Statement::Call {
+            command,
+            canonical_command,
+            ..
+        }
+        | Statement::Barrier {
+            command,
+            canonical_command,
+            ..
+        } => {
+            classes.is_process_terminating_command(canonical_command.as_deref().unwrap_or(command))
+        }
+        Statement::If {
+            clauses, else_body, ..
+        } => {
+            else_body
+                .as_ref()
+                .is_some_and(|b| script_always_exits_process(b, classes))
+                && clauses
+                    .iter()
+                    .all(|c| script_always_exits_process(&c.body, classes))
+        }
+        Statement::Switch {
+            arms, default_body, ..
+        } => {
+            default_body
+                .as_ref()
+                .is_some_and(|b| script_always_exits_process(b, classes))
+                && arms
+                    .iter()
+                    .filter_map(|a| a.body.as_ref())
+                    .all(|b| script_always_exits_process(b, classes))
+        }
+        Statement::Block { body, .. } => script_always_exits_process(body, classes),
+        _ => false,
+    }
+}
+
+/// Whether `script` ends the interpreter on every path: the first statement
+/// that does not complete normally must be one that always exits the process.
+/// A `return` or `error` reached first leaves by a path an enclosing `finally`
+/// does run.
+fn script_always_exits_process(script: &Script, classes: &CfgCommandClasses) -> bool {
+    for stmt in &script.statements {
+        if always_exits_process(stmt, classes) {
+            return true;
+        }
+        if flow_facts_stmt_with_classes(stmt, classes).1 != Completion::Normal {
+            return false;
+        }
+    }
+    false
+}
+
 /// `(must-defines, completion)` for a single statement.
 ///
 /// * assignments (`set`/`incr`/`expr`-assign) contribute their target and

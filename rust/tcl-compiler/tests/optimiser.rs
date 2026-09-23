@@ -2798,11 +2798,29 @@ fn a_finally_body_is_reachable_however_a_handler_leaves() {
 /// executable in SCCP and SSA though it can never run (found in review).
 #[test]
 fn an_exit_reaches_no_finally() {
-    let src = "proc p {} {\n    global g\n    try {exit 7} finally {set g 1}\n}\n";
+    for (why, body) in [
+        ("a plain exit", "exit 7"),
+        // An opaque `switch` whose every arm exits is promoted to a `Return`
+        // terminator with the `switch` as its last statement, not a call.
+        (
+            "an opaque switch whose every arm exits",
+            "switch -glob $x {a {exit 7} default {exit 8}}",
+        ),
+    ] {
+        let src =
+            format!("proc p {{x}} {{\n    global g\n    try {{{body}}} finally {{set g 1}}\n}}\n");
+        assert!(
+            opt_fires(&src, TCL, "O107"),
+            "{why}: a `finally` reached only through `exit` never runs: {:?}",
+            opt_codes(&src, TCL)
+        );
+    }
+    // Precision: one arm that `return`s instead keeps the clause.
+    let mixed = "set g 0\nproc p {x} {\n    global g\n    try {switch -glob $x {a {exit 7} default {return ok}}} finally {set g 1}\n}\np b\nputs $g\n";
     assert!(
-        opt_fires(src, TCL, "O107"),
-        "a `finally` reached only through `exit` never runs: {:?}",
-        opt_codes(src, TCL)
+        optimised(mixed, TCL).contains("set g 1"),
+        "a `return` arm reaches the `finally`: {:?}",
+        opt_rewrites(mixed, TCL)
     );
 }
 
