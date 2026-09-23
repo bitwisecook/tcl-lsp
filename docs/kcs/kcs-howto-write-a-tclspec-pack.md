@@ -120,6 +120,7 @@ notice or shipped-command collision.
 
 - [How to create a command spec without knowing Rust](kcs-howto-create-command-specs-without-rust.md)
 - [How to annotate commands with stubs](kcs-howto-annotate-commands-with-stubs.md)
+- [How to declare an evaluator for a pack command](spectcl/kcs-howto-declare-an-evaluator-for-a-pack-command.md)
 - [SpecTcl pack design](../design/registry/spec-packs.md)
 - [The frozen SpecTcl syntax](../design/spec-dsl-examples/README.md)
 - [KCS index](README.md)

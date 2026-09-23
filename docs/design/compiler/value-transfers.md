@@ -289,13 +289,24 @@ command bindings and namespace context, the target semantic profile and
 grammar overrides, trace and escape facts, seeds, and any evaluator or
 implementation revision not already fixed by the registry identity. It is
 carried unchanged through lowering, unit construction, per-function
-queries, optimiser consumers, and evaluator calls. Today `compilation_unit`
-and `function_lattice` in `rust/tcl-lsp-db/src/lib.rs` resolve the
-un-overlaid `db.registry` while the analyser receives `spec_pack_key` and an
-overlay; adding the key at the outer query is insufficient if `FnLatticeKey`
-or the registry lookup still drops it. The context is interned and carried
-by the existing query infrastructure, not duplicated into uncoordinated
-keys.
+queries, optimiser consumers, and evaluator calls. As built (slice 4,
+[value-evaluation.md](value-evaluation.md) § *The evaluator generation*,
+decisions D96, D97, D104): `compilation_unit` and `proc_taint_solve` take
+the overlay (`AnalyserConfig::spec_pack_key`) as an argument, resolved by
+`unit_registry`; `function_lattice`, `function_checks`,
+`function_optimisations`, `taint_cascade`, and `proc_summary_cascade`
+resolve by the overlay their key's context carries, and `ProcBodyKey`
+carries it too, so a procedure body lowers against the unit's own surface.
+`CommandRegistry::generation` and `overlay_generation` both reach
+`AnalysisContextKey::for_module` from the registry the unit resolved
+against. What this alone does not cover is a worker's own evaluator
+health: its thread-local `EvaluatorGeneration` is deliberately not a
+salsa input (a unit built on one worker is served to another whatever
+that worker's generation), so a separate, coarser `EvaluatorEpoch` salsa
+singleton — bumped on a plan publish or a quarantine — re-keys every
+memoised lattice the database holds when either happens. The context is
+interned and carried by the existing query infrastructure, not
+duplicated into uncoordinated keys.
 
 ## The interface
 

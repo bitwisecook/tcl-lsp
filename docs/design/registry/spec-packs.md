@@ -242,6 +242,23 @@ unaffected" — with an **Open a GitHub issue** action that pre-fills an
 issue from the crash record, shown to the user before posting; nothing
 leaves the machine without a click.
 
+**A hook body cannot write, or read, outside its own call.** Beyond the
+command whitelist, `Engine::confine_stores` refuses any store whose name
+resolves outside the running body's own activation — a `::`-qualified
+name, a namespace variable, a linked variable — as an ordinary Tcl error,
+which the emitter protocol already treats as an abstention; and it
+removes the globals the host's own bootstrap seeds (`::env`,
+`::tcl_platform`, `::tcl_library`, `::auto_path`), so a body cannot read
+the analysing machine's environment either. The host confines every
+engine once, after it restricts the command surface, and an engine that
+cannot confine its stores fails the pack's sandbox the way one that
+cannot restrict its commands does. This closes what "deprivileged,
+deterministic, and bounded" means above: a call site's answer is a
+function of its declared inputs, never of an earlier call in the same
+pack or of the machine the analysis happens to run on
+([value-evaluation.md](../compiler/value-evaluation.md) § *Per-evaluation
+state: writes outside the activation are denied*).
+
 **Hot-path budget — measured** (release build, cross-checked against the
 `tclvm` CLI): a VM resolver body costs **28 µs** per invocation against a
 whole-call-site native budget of **410 ns** — the VM's floor is ~487 ns

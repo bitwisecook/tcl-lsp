@@ -153,16 +153,21 @@ executes that runtime.
    rebinding declines; the finite-set condition tests pin the correlated
    limit, including the `{1 10 2 20}` and `{1 20 2 10}` mirror witnesses;
    the direct-expression and engine entry counts are reported separately.
-4. **A private SpecTcl command through the same interface.** The loader,
-   renderer, studio, cache inputs (target values), overlay invalidation
-   (`spec_pack_key` reaching `compilation_unit`), per-evaluation state
-   isolation in the host, `-native` resolution for every family, and
-   `Engine::set_release`, delivered together on one small executable
-   example before any catalogue migration; shipped builtins stay on the
-   direct route. *Exit:* step 1 of the completion test — a rename and a
-   subcommand form with different operand positions need no consumer
-   edit; a workspace pack's evaluator reaches a diagnostic on the memoised
-   path; a body with a global counter answers identically on every call.
+4. **A private SpecTcl command through the same interface (landed).** The
+   loader, renderer, studio, cache inputs (target values), overlay
+   invalidation (`spec_pack_key` reaching `compilation_unit`),
+   per-evaluation state isolation in the host (`Engine::confine_stores`,
+   superseding the interface page's `ActivationStore`), `-native`
+   resolution for every family, and `Engine::set_release`, delivered
+   together on one small executable example before any catalogue
+   migration; shipped builtins stay on the direct route. *Exit:* step 1 of
+   the completion test — a rename and a subcommand form with different
+   operand positions need no consumer edit; a workspace pack's evaluator
+   reaches a diagnostic on the memoised path; a body with a global counter
+   answers identically on every call. Landed 2026-09-23; the record and
+   the decisions (D72–D104) are
+   [value-transfers.md (lane)](../lanes/value-transfers.md) § *Plan for
+   slices 2–13* › *Slice 4*.
 5. **Destructuring and structured bodies.** Write, preserve, unbind, and
    may-write outcomes with heterogeneous per-target types and duplicate
    targets resolved to places; the regexp owner's typed precision result;

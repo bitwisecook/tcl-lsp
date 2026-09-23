@@ -75,6 +75,7 @@ Additive only, so nothing written against 1.0 has to change.
 | **1.2** | versioned `arity` and `arg` rows; `ambient_package`; second-level option blocks; option-level `-taints-var-write`, `-variable-scope`, `-script-timing`, and `-callback-taint-inputs`; positional `callback_taint_inputs`; `script_timing_resolver`; `object_class -method-prefix-matching`; and `tk_geometry` |
 | **2.0** | `available {PROVIDER SPEC…}` / `-available` at every scope `dialects` is accepted; the `environment NAME { … }` (with `help_terms` and `version_ceiling` rows since the EDA shells moved into their packs) and `dialect NAME { … }` pack-level blocks; `refine NAME { … }`, the invocation refinement, at command and subcommand scope |
 | **2.1** | `arg_role_resolver_roles {ROLE …}` at command and subcommand scope; the non-empty closed set is required whenever `arg_role_resolver` is present so every consumer can conservatively cache the roles a dynamic resolver may emit |
+| **2.2** | the value-transfer statements at command, subcommand, and `refine` scope, innermost winning: `semantics -native ID` / `semantics { effects … result … stores … iterate … }` / `semantics none`; `evaluate -direct ID` / `-expression ID` / `-native ID` / `-implementation ID -host bounded_tcl { inputs … depends … budget … body {params} {…} }` / `evaluate none`; `facts -native ID` / `facts { … }` / `facts none`; the option-row flags `-evaluate none` and `-evaluate-reason WORD` |
 
 Every 1.1 word is one the option row already spelled, moved outward: the
 flags are `Lifecycle`'s own three releases, on the entity's own package
@@ -682,6 +683,19 @@ the family's emitter verbs. No `open`, `exec`, `source`, `socket`,
 `after`, `interp`, `uplevel`, `upvar`, `trace`, `namespace`, `proc`,
 `rename`, `info`, or `subst`. A hook has a step budget and a wall-clock
 cap; exceeding either is an abstention.
+
+The whitelist alone once left one door open: `set`, `incr`, `lappend`,
+and `lassign` can still write a `::`-qualified or namespace name with no
+`global` needed, and the VM's own bootstrap seeds `::env`,
+`::tcl_platform`, `::tcl_library`, and `::auto_path`. `Engine::confine_stores`
+closes both: every store whose name resolves outside the running body's
+own activation is refused as an ordinary Tcl error (an abstention, same
+as any other), and the host-seeded globals are removed for the
+confinement's duration, so a read of one is a decline too, never the
+analysing machine's own environment leaking into an answer about the
+analysed program
+([value-evaluation.md](../compiler/value-evaluation.md) § *Per-evaluation
+state: writes outside the activation are denied*).
 
 Hooks run per call site, so they are the one part of a pack whose cost is
 not "identical to compiled-in". Shipped packs keep native pointers, so

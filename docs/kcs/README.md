@@ -251,6 +251,11 @@ symptom with several possible causes worth telling apart. See rule 13 in
   — the SpecTcl pack quickstart: the minimal `.tclspec` shape, the
   three discovery tiers, validation, and how the running server picks
   a saved pack up.
+- [spectcl/kcs-howto-declare-an-evaluator-for-a-pack-command.md](spectcl/kcs-howto-declare-an-evaluator-for-a-pack-command.md)
+  — give a pack command a computed answer: the `semantics` / `evaluate` /
+  `facts` statements, the `-implementation` block's four rows, the body
+  verbs, and what a declaration must avoid to stay a pure function of its
+  own inputs.
 - [kcs-howto-author-a-sslictcl-declaration.md](kcs-howto-author-a-sslictcl-declaration.md)
   — write a `.sslictcl` TLS declaration with the editor's help: how the
   document is recognised, what completion offers at each level, and how to

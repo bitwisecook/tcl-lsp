@@ -957,6 +957,19 @@ cannot say, with no `GAPS` entry, is a bug. New DSL words are **additive**:
 the `speclib` version word revs (1.0 → 1.1), `VOCABULARY_VERSION` bumps only
 on meaning changes, and the loader keeps accepting every older vocabulary.
 
+The value-transfer evaluation statements (`semantics`, `evaluate`, `facts`;
+DSL 2.2) are the newest rows to move this way: `EvaluatorCapability` and
+`DeclaredSemantics` on the registry side, `loader/semantics.rs`'s grammar,
+`render_spectcl.rs`'s `semantics_block` (or the `GAPS`-tracked
+`DraftOpaque` placeholder for a body it cannot recover), and the studio's
+`route` and `body` fields under the existing "Effects and purity" cluster
+all moved together in one slice
+([value-evaluation.md](../compiler/value-evaluation.md) § *The four
+surfaces, the parity tests, and `spectcl_check`*). The `GAPS` row for the
+whole family is gone; only a declared implementation's *body* — the one
+thing the draft can never recover from a compiled hook slot, `const_fold`
+included — and an option-level `-evaluate` decline stay `GAPS` entries.
+
 ## Publishing
 
 The page ships to GitHub Pages at `/spec-studio/` alongside the compiler

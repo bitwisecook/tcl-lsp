@@ -1977,32 +1977,68 @@ as an unreadable call does.
 
 ### A vendor loop and a private command in a workspace pack
 
-Today `specs/sdc_base.tclspec` declares `foreach_in_collection` with
+Built (slice 4, VT4.13 and VT4.14; landed 2026-09-23). `specs/sdc_base.tclspec`
+declares `foreach_in_collection` with
 `traits {CONTROL_FLOW HAS_LOOP_BODY NEVER_INLINE_BODY LOOP_LIST_HEADER}`,
 `arg 0 -role VarWrite`, `arg 2 -role Body`, and
 `analyser_hook -native Foreach`, which lets the native handler treat a
-braced literal iterable as a Tcl list.
-
-Proposed:
+braced literal iterable as a Tcl list — and, since VT4.14, the `semantics`
+block below, verbatim:
 
 ```tcl
 command foreach_in_collection {
+    dialects all-tcl
+    traits {CONTROL_FLOW HAS_LOOP_BODY NEVER_INLINE_BODY LOOP_LIST_HEADER}
     arity 3
+    required_package sdc
+
     arg 0 -role VarWrite
     arg 2 -role Body
+
+    analyser_hook -native Foreach
+
     semantics {
         iterate {
-            binder    -arg 0 -grammar vendor.single_variable
-            iterable  -arg 1 -kind vendor.collection       ;# a handle, never a Tcl list
-            body      -arg 2 -scope enclosing
-            yield     -semantic vendor.object_handle
+            binder -arg 0 -grammar vendor.single_variable
+            iterable -arg 1 -kind vendor.collection       ;# a handle, never a Tcl list
+            body -arg 2 -scope enclosing
+            yield -semantic vendor.object_handle
             cardinality -from vendor.collection_summary
             completion -contract vendor.collection_loop_completion
             zero_iterations -bindings preserve
         }
     }
+    evaluate none                                          ;# a vendor collection handle is opaque
 }
+```
 
+`append_to_collection` and `remove_from_collection` gain the same shape's
+simpler cousin — one target, no iteration — since the collection variable
+they write is the only target and a vendor collection handle gives nothing
+to fold:
+
+```tcl
+command append_to_collection {
+    dialects all-tcl
+    arity 2..
+    required_package sdc
+
+    arg 0 -role VarWrite
+
+    semantics {
+        stores -targets {0} -outcome may_write            ;# -unique or an absent element can no-op
+    }
+    evaluate none
+}
+```
+
+`tenant::label` is the lane's own completion-test fixture
+(`rust/tcl-compiler/tests/fixtures/value_transfers/tenant.tclspec`, under
+`speclib tenant 2.2`), reproduced verbatim, alongside a renamed twin
+(`tenant::tag`) and a subcommand form (`tenant label NAME`) the fixture
+declares identically — none of the three needs a consumer edit:
+
+```tcl
 command tenant::label {
     arity 1
     semantics {
@@ -2022,11 +2058,17 @@ command tenant::label {
 }
 ```
 
-With an unknown argument `tenant::label` is not invoked with a
-placeholder: the answer is an unknown exact value plus the proven prefix
-segment and the taint relationship. Under the rulings the pack's
-declarations are authoritative once loaded; binding validity and the
-implementation identity still decide when the model applies.
+`tenant::label acme` folds to `tenant:acme` on the implementation route
+under 8.6, 9.0, and 9.1; under 8.4, 8.5, `f5-irules`, and the
+version-less `tcl` profile it declines `unsupported`, because the body's
+`string cat` is not a command those releases have and a declared
+implementation runs pinned to the analysed release rather than answer for
+one it cannot run in (D103). With an unknown argument `tenant::label` is
+not invoked with a placeholder: the answer is an unknown exact value plus
+the proven prefix segment and the taint relationship (D88). Under the
+rulings the pack's declarations are authoritative once loaded; binding
+validity and the implementation identity still decide when the model
+applies.
 
 ## Related docs
 
