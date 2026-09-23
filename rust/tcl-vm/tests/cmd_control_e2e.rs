@@ -2174,3 +2174,51 @@ fn catch_destinations_that_need_resolving_are_not_inlined() {
         "and fail the way C does: {result}"
     );
 }
+
+/// A braced `return` value is literal text: `return {[id 9]}` returns the six
+/// characters `[id 9]` and runs nothing.
+///
+/// `Terminator::Return` carries `braced`, but both bytecode emitters read only
+/// the flattened `value`, whose braces are already stripped — so a proc-body
+/// return treated `{[id 9]}` as the whole-word substitution `[id 9]` and
+/// inlined the call, and any other braced value went through interpolation.
+/// tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1b0 all return the literal; tclvm
+/// ran `id` at every `--tcl-version` (#2228).
+#[test]
+fn a_braced_return_value_runs_no_substitution() {
+    for (why, src, want) in [
+        (
+            "a whole-word bracket pair",
+            "proc id {v} {return RAN}; proc m {} {return {[id 9]}}; m",
+            "[id 9]",
+        ),
+        (
+            "brackets inside a longer braced word",
+            "proc id {v} {return RAN}; proc m {} {return {a [id 9] b}}; m",
+            "a [id 9] b",
+        ),
+        (
+            "a return that is not the proc's only command",
+            "proc id {v} {return RAN}; proc m {} {set z 1; return {[id 9]}}; m",
+            "[id 9]",
+        ),
+        (
+            "a return inside a branch",
+            "proc id {v} {return RAN}; proc m {} {if {1} {return {[id 9]}}}; m",
+            "[id 9]",
+        ),
+        (
+            "a variable reference",
+            "set x GLOBAL; proc m {} {return {$x}}; m",
+            "$x",
+        ),
+    ] {
+        assert_eq!(run(src).1, want, "{why}");
+    }
+
+    // Precision: an unbraced return still substitutes.
+    assert_eq!(
+        run("proc id {v} {return RAN}; proc m {} {return [id 9]}; m").1,
+        "RAN"
+    );
+}
