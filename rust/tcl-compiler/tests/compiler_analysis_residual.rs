@@ -1343,9 +1343,12 @@ fn rch_code_after_continue_in_loop_is_dead() {
 #[test]
 fn rch_conditional_break_keeps_loop_tail_reachable() {
     // Control: a CONDITIONAL break leaves the loop-body tail reachable.
-    // tclsh (8.6, 9.0): `foreach x {1 2} { if {$x > 5} break; puts inner }`
-    // prints `inner` for both elements.  O107 must NOT fire.
-    let src = "proc f {} { foreach x {1 2} { if {$x > 5} break\n puts inner } }";
+    // tclsh (8.4 to 9.1): `foreach x {1 2} { if {$x > 1} break; puts inner }`
+    // prints `inner` once — the break runs for the second element only, so
+    // the condition decides nothing and O107 must NOT fire. (Over `$x > 5`
+    // every member of `{1, 2}` is false, the break never runs — tclsh prints
+    // `inner` twice — and O107 removing it is right.)
+    let src = "proc f {} { foreach x {1 2} { if {$x > 1} break\n puts inner } }";
     assert!(
         !o107_fires(src, D),
         "a conditional break keeps the loop tail reachable; emitted {:?}",

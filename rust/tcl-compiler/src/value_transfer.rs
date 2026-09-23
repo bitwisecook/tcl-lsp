@@ -799,7 +799,7 @@ impl<'a> LatticeDriver<'a> {
                 let expression = ExpressionEvaluation {
                     expression: Expression::Assembled(ExpressionRoute { language }),
                     policy: self.policy,
-                    head: binding.clone(),
+                    head: Some(binding.clone()),
                 };
                 evaluate_lifted(&expression, &inputs, &mut Self::budget(), MAX_CONSTSET_SIZE)
             }
@@ -923,10 +923,10 @@ impl<'a> LatticeDriver<'a> {
         let expression = ExpressionEvaluation {
             expression: Expression::Parsed(expr),
             policy: self.policy,
-            head: binding_of(
+            head: Some(binding_of(
                 head,
                 command_binding.map_or("expr", |binding| binding.identity.as_str()),
-            ),
+            )),
         };
         let answer = self.evaluate_expression_at(&expression, uses, values, ssa);
         self.explain(head, Some(expression.route()), answer_label(&answer));
@@ -935,6 +935,40 @@ impl<'a> LatticeDriver<'a> {
             LiftedAnswer::Declined(_) => LatticeValue::Overdefined,
             LiftedAnswer::Evaluated(outcomes) => lattice_of_outcomes(&outcomes, result_of),
         }
+    }
+
+    /// A branch condition's truth over the lattice inputs `uses` selects:
+    /// the shared engine's full value read as Tcl reads a condition, per
+    /// member of one finite input. `Some` only when every member agrees; an
+    /// undecided, mixed, pending or declined answer is `None`, and the
+    /// answer is recorded against the condition.
+    pub(crate) fn evaluate_condition<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
+        &self,
+        condition: &ExprNode,
+        uses: &HashMap<Symbol, Version, S1>,
+        values: &HashMap<ValueKey, LatticeValue, S2>,
+        ssa: &SsaFunction,
+    ) -> Option<bool> {
+        let expression = ExpressionEvaluation {
+            expression: Expression::Parsed(condition),
+            policy: self.policy,
+            head: None,
+        };
+        let answer = self.evaluate_expression_at(&expression, uses, values, ssa);
+        self.explain("condition", Some(expression.route()), answer_label(&answer));
+        let LiftedAnswer::Evaluated(outcomes) = answer else {
+            return None;
+        };
+        let mut decided = None;
+        for outcome in &outcomes {
+            let truth = truth_of(&outcome.result)?;
+            match decided {
+                None => decided = Some(truth),
+                Some(earlier) if earlier != truth => return None,
+                Some(_) => {}
+            }
+        }
+        decided
     }
 
     /// The math-function service: the binding an `expr` call `name(…)`
@@ -1032,6 +1066,31 @@ fn result_of(outcome: &InvocationOutcome) -> Option<LatticeValue> {
     }
 }
 
+/// A condition's truth as `if` reads it: a number is true when non-zero, a
+/// boolean word is its value, and anything else raises (`expected boolean
+/// value`), which decides nothing.
+fn truth_of(result: &ExactValueOrUnavailable) -> Option<bool> {
+    let ExactValueOrUnavailable::Exact(value) = result else {
+        return None;
+    };
+    match value.numeric {
+        Some(NumericValue::Int(i)) => Some(i != 0),
+        Some(NumericValue::Float(f)) if f.is_nan() => None,
+        Some(NumericValue::Float(f)) => Some(f != 0.0),
+        Some(NumericValue::Bool(b)) => Some(b),
+        None => {
+            let text = value.as_str().ok()?;
+            if let Some(word) = tcl_syntax::boolean::parse_boolean_word(text) {
+                return Some(word);
+            }
+            // A beyond-wide integer's canonical spelling: non-zero is true.
+            let digits = text.strip_prefix('-').unwrap_or(text);
+            (!digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit()))
+                .then(|| digits.bytes().any(|b| b != b'0'))
+        }
+    }
+}
+
 /// A pure outcome: `value` as the result, no store, and the evidence of the
 /// route that computed it.
 fn pure_outcome(
@@ -1076,8 +1135,9 @@ struct ExpressionEvaluation<'e> {
     expression: Expression<'e>,
     /// The value semantics the engine evaluates under.
     policy: FoldPolicy,
-    /// The `expr` binding the answer rests on.
-    head: BindingIdentity,
+    /// The `expr` binding the answer rests on; a branch condition is read
+    /// by its command's own expression parser and rests on none.
+    head: Option<BindingIdentity>,
 }
 
 impl ExpressionEvaluation<'_> {
@@ -1137,7 +1197,9 @@ impl CommandSemantics for ExpressionEvaluation<'_> {
             Expression::Parsed(node) => *node,
         };
         let mut state = EvaluationState::new(NestedPolicy::EffectFreeOnly);
-        record_binding(&mut state.evidence, self.head.clone());
+        if let Some(head) = &self.head {
+            record_binding(&mut state.evidence, head.clone());
+        }
         let answer = {
             let mut services = ExprServices::new(input, &mut state, budget);
             evaluate_expression(node, &mut services, self.policy)
@@ -2164,6 +2226,61 @@ mod tests {
         assert_eq!(split_head("cmd arg1 arg2"), ("cmd", Some("arg1 arg2")));
         assert_eq!(split_head("  cmd"), ("cmd", None));
         assert_eq!(split_head(""), ("", None));
+    }
+
+    /// An expression's answer names every binding it rests on: the `expr`
+    /// head, each nested command's head, and each math function (the
+    /// wrapper command it dispatches to).
+    #[test]
+    fn an_expression_answer_names_every_binding_it_rests_on() {
+        let registry = CommandRegistry::build_default();
+        let mutations = crate::command_binding::ModuleCommandMutations::default();
+        let driver = LatticeDriver::detached(
+            Some(BuiltinFoldInputs {
+                registry: &registry,
+                mutations: &mutations,
+                dialect: None,
+                defining_class: None,
+                registry_engine: false,
+                trust: crate::sccp::FoldTrust::ObservedBindings,
+            }),
+            FoldPolicy::default(),
+        );
+        let node = crate::expr_parser::parse_expr_for_profile("abs([string length abc] - 5)", None);
+        let expression = ExpressionEvaluation {
+            expression: Expression::Parsed(&node),
+            policy: FoldPolicy::default(),
+            head: Some(binding_of("expr", "expr")),
+        };
+        let ssa = SsaFunction::trivial("::p", crate::cfg::BlockId(0), vec!["entry".into()]);
+        let uses: HashMap<Symbol, Version> = HashMap::new();
+        let values: HashMap<ValueKey, LatticeValue> = HashMap::new();
+        let LiftedAnswer::Evaluated(outcomes) =
+            driver.evaluate_expression_at(&expression, &uses, &values, &ssa)
+        else {
+            panic!("the expression evaluates");
+        };
+        let [outcome] = outcomes.as_slice() else {
+            panic!("one outcome");
+        };
+        assert_eq!(
+            outcome.result,
+            ExactValueOrUnavailable::Exact(ExactValue::int(2))
+        );
+        let named: Vec<(&str, &str)> = outcome
+            .evidence
+            .bindings
+            .iter()
+            .map(|binding| (binding.name.as_str(), binding.identity.as_str()))
+            .collect();
+        assert_eq!(
+            named,
+            [
+                ("expr", "expr"),
+                ("string", "string"),
+                ("abs", "::tcl::mathfunc::abs")
+            ]
+        );
     }
 
     #[test]

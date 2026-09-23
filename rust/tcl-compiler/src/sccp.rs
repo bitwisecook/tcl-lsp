@@ -36,7 +36,7 @@ use crate::codegen::helpers::split_list_values;
 use crate::expr_ast::ExprNode;
 use crate::ir::Statement;
 use crate::ssa::{SsaFunction, SsaStatement, Symbol, ValueKey};
-use crate::tcl_expr_eval::{Env, EnvValue, FoldPolicy, TclValue, eval_tcl_expr_with_policy};
+use crate::tcl_expr_eval::{FoldPolicy, TclValue};
 use crate::value_transfer::{AnalysisContextKey, LatticeDriver};
 
 // Public aliases
@@ -413,18 +413,7 @@ pub fn sccp_with_builtin_folds(
     folds: Option<BuiltinFoldInputs<'_>>,
 ) -> SccpResult {
     let preds = compute_predecessors(cfg);
-    let mut values: HashMap<ValueKey, LatticeValue> = HashMap::new();
-    if let Some(seed) = param_constants {
-        // The interprocedural seed keys on the parameter *name* (a stable,
-        // cache-safe identity); resolve each to this build's interned symbol.
-        // A param never read in the body isn't interned, and its seed slot
-        // would never be consulted, so dropping it is behaviour-neutral.
-        for ((name, version), v) in seed {
-            if let Some(sym) = ssa.var_symbol(name) {
-                values.insert((sym, *version), v.clone());
-            }
-        }
-    }
+    let mut values = seeded_values(ssa, param_constants);
 
     let grammar = trace
         .registry
@@ -512,6 +501,7 @@ pub fn sccp_with_builtin_folds(
                     policy,
                     grammar,
                     registry: trace.registry,
+                    driver: &driver,
                 };
                 if sccp_process_terminator(
                     *bn,
@@ -540,6 +530,7 @@ pub fn sccp_with_builtin_folds(
             policy,
             grammar,
             registry: trace.registry,
+            driver: &driver,
         },
     );
 
@@ -550,6 +541,24 @@ pub fn sccp_with_builtin_folds(
         constant_branches,
         explanations: driver.take_explanations(),
     }
+}
+
+/// The lattice's starting values: the interprocedural parameter seed. The
+/// seed keys on the parameter *name* (a stable, cache-safe identity); each
+/// resolves to this build's interned symbol. A parameter never read in the
+/// body isn't interned, and its seed slot would never be consulted, so
+/// dropping it is behaviour-neutral.
+fn seeded_values(
+    ssa: &SsaFunction,
+    param_constants: Option<&HashMap<(String, crate::ssa::Version), LatticeValue>>,
+) -> HashMap<ValueKey, LatticeValue> {
+    let mut values = HashMap::new();
+    for ((name, version), value) in param_constants.into_iter().flatten() {
+        if let Some(sym) = ssa.var_symbol(name) {
+            values.insert((sym, *version), value.clone());
+        }
+    }
+    values
 }
 
 /// Seed live-in roots to `Overdefined`: a value *used* but never *defined*
@@ -821,6 +830,9 @@ struct TerminatorInputs<'a> {
     grammar: tcl_dialect::LexerGrammar,
     /// The registry the bounded-loop simulator resolves against.
     registry: &'a CommandRegistry,
+    /// The run's value-transfer driver: a condition's nested commands and
+    /// finite inputs are evaluated through it.
+    driver: &'a LatticeDriver<'a>,
 }
 
 /// Process a block's terminator: mark the matching outgoing edges
@@ -840,6 +852,7 @@ fn sccp_process_terminator(
         policy,
         grammar,
         registry,
+        driver,
     } = *inputs;
     let mut changed = false;
     let Some(block) = cfg.blocks.get(&bn) else {
@@ -863,11 +876,13 @@ fn sccp_process_terminator(
             condition,
             true_target,
             false_target,
+            span,
             ..
         } => {
             let Some(ssa_block) = ssa.blocks.get(&bn) else {
                 return changed;
             };
+            driver.explaining(*span);
             let decision = branch_decision(
                 cfg,
                 ssa,
@@ -879,8 +894,10 @@ fn sccp_process_terminator(
                     policy,
                     grammar,
                     registry,
+                    driver,
                 },
             );
+            driver.explaining(None);
             let targets: Vec<BlockId> = match decision {
                 Some(true) => vec![*true_target],
                 Some(false) => vec![*false_target],
@@ -960,7 +977,9 @@ fn collect_constant_branches(
         let Some(ssa_block) = ssa.blocks.get(bn) else {
             continue;
         };
+        fold.driver.explaining(*term_span);
         let decision = branch_decision(cfg, ssa, *bn, ssa_block, condition, values, fold);
+        fold.driver.explaining(None);
         let cond_text = crate::expr_ast::expr_text(condition);
         let (true_name, false_name) = (
             cfg.block_name(*true_target).to_owned(),
@@ -1514,12 +1533,15 @@ fn resolve_simple_var_ref<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher
 /// (`grammar`). Bundled so the fold entry points stay inside clippy's
 /// argument budget and neither fact can be threaded without the other.
 #[derive(Clone, Copy)]
-struct BranchFold<'a> {
+pub(crate) struct BranchFold<'a> {
     policy: FoldPolicy,
     grammar: tcl_dialect::LexerGrammar,
     /// The registry the bounded-loop simulator resolves its cell updates
     /// against.
     registry: &'a CommandRegistry,
+    /// The run's value-transfer driver, whose services the condition is
+    /// evaluated through.
+    driver: &'a LatticeDriver<'a>,
 }
 
 fn branch_decision(
@@ -1531,13 +1553,8 @@ fn branch_decision(
     values: &HashMap<ValueKey, LatticeValue>,
     fold: BranchFold<'_>,
 ) -> Option<bool> {
-    let BranchFold {
-        policy,
-        grammar,
-        registry,
-    } = fold;
-    loop_summary_decision(cfg, ssa, bn, condition, values, policy, registry)
-        .or_else(|| evaluate_branch(ssa_block, condition, values, policy, ssa, grammar))
+    loop_summary_decision(cfg, ssa, bn, condition, values, fold.policy, fold.registry)
+        .or_else(|| evaluate_branch(ssa_block, condition, values, ssa, fold))
 }
 
 /// Convert an SCCP [`ConstValue`] to the static simulator's
@@ -1585,70 +1602,35 @@ fn loop_summary_decision(
 
 /// Evaluate a branch condition.
 ///
-/// Returns `Some(true)` / `Some(false)` when the condition folds to
-/// a constant under the current lattice; `None` otherwise.
+/// The condition runs through the shared engine over the driver's services
+/// under the effect-free nested policy, so a nested pure command resolves
+/// (`if {[string length $acc] == 6}`), and with exactly one distinct finite
+/// SSA value among its reads it runs once per member: every member true is
+/// `Some(true)`, every member false `Some(false)`, and a mixed or undecided
+/// answer is `None`. Two finite values decline as correlated. The reads
+/// are the block's exit versions, and a variable the block never defines
+/// — a parameter's caller-provided seed — reads its version 0.
 #[must_use]
-pub fn evaluate_branch<S: std::hash::BuildHasher>(
+pub(crate) fn evaluate_branch<S: std::hash::BuildHasher>(
     ssa_block: &crate::ssa::SsaBlock,
     condition: &ExprNode,
     values: &HashMap<ValueKey, LatticeValue, S>,
-    policy: FoldPolicy,
     ssa: &SsaFunction,
-    grammar: tcl_dialect::LexerGrammar,
+    fold: BranchFold<'_>,
 ) -> Option<bool> {
-    let mut env = env_from_uses(&ssa_block.exit_versions, values, ssa);
-    // A parameter read in a branch condition without a local redefinition
-    // isn't in `exit_versions` (those carry defined-in-block versions), so
-    // its caller-provided version-0 seed never reaches the fold. Bind it
-    // here — but only when version 0 is still live (the param is not
-    // redefined to another value before the branch).
-    for name in crate::var_refs::vars_in_expr(condition, grammar) {
-        if env.contains_key(&name) {
-            continue;
-        }
-        let Some(sym) = ssa.var_symbol(&name) else {
-            continue;
-        };
-        let v0_live = ssa_block.exit_versions.get(&sym).copied().unwrap_or(0) == 0;
-        if v0_live && let Some(LatticeValue::Const(c)) = values.get(&(sym, 0)) {
-            env.insert(name, const_to_env_value(c));
+    let mut uses: HashMap<Symbol, crate::ssa::Version> = ssa_block
+        .exit_versions
+        .iter()
+        .map(|(&sym, &ver)| (sym, ver))
+        .collect();
+    let config = tcl_lexer::LexerConfig::from_grammar(fold.grammar);
+    for name in condition.vars_element_qualified_with_config(config) {
+        if let Some(sym) = ssa.var_symbol(&name) {
+            uses.entry(sym).or_insert(0);
         }
     }
-    let v = eval_tcl_expr_with_policy(condition, &env, policy)?;
-    // A NaN condition is C's "floating point value is Not a Number" runtime
-    // error, not a truth value — folding either way would delete a branch
-    // that must raise. Decline.
-    if matches!(&v, crate::tcl_expr_eval::TclValue::Float(f) if f.is_nan()) {
-        return None;
-    }
-    Some(v.is_truthy())
-}
-
-/// Build a [`tcl_expr_eval::Env`] from a `{symbol → version}` map
-/// and the current lattice. Only entries whose lattice value is
-/// a single [`LatticeValue::Const`] are bound; anything else
-/// leaves the variable unbound so the evaluator returns `None`.
-pub(crate) fn env_from_uses<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
-    uses: &HashMap<Symbol, crate::ssa::Version, S1>,
-    values: &HashMap<ValueKey, LatticeValue, S2>,
-    ssa: &SsaFunction,
-) -> Env {
-    let mut env = Env::new();
-    for (&sym, &ver) in uses {
-        if let Some(LatticeValue::Const(c)) = values.get(&(sym, ver)) {
-            env.insert(ssa.var_name(sym).to_owned(), const_to_env_value(c));
-        }
-    }
-    env
-}
-
-fn const_to_env_value(c: &ConstValue) -> EnvValue {
-    match c {
-        ConstValue::Int(i) => EnvValue::Int(*i),
-        ConstValue::Float(f) => EnvValue::Float(*f),
-        ConstValue::Bool(b) => EnvValue::Int(i64::from(*b)),
-        ConstValue::String(s) => EnvValue::Str(s.clone()),
-    }
+    fold.driver
+        .evaluate_condition(condition, &uses, values, ssa)
 }
 
 pub(crate) fn tcl_value_to_const(v: TclValue) -> ConstValue {
@@ -2661,7 +2643,7 @@ mod tests {
                 ),
             )
         };
-        let cases: [(&str, &str, LatticeValue); 16] = [
+        let cases: [(&str, &str, LatticeValue); 17] = [
             ("tcl8.4", r#""x""#, text("x")),
             ("f5-irules", r#""x""#, text("x")),
             ("tcl9.0", r#"1 ? "yes" : "no""#, text("yes")),
@@ -2682,6 +2664,7 @@ mod tests {
             ("tcl8.4", "1 << 70", LatticeValue::Overdefined),
             ("f5-irules", "1 << 70", LatticeValue::Overdefined),
             ("tcl9.0", "[string length abc] * 2", int(6)),
+            ("tcl9.0", "0 && [error never]", int(0)),
         ];
         for (dialect, expression, want) in cases {
             let (profile, policy) = under(dialect);
@@ -4123,6 +4106,36 @@ p
             &tcl_registry::CommandRegistry::build_default(),
             false,
         )
+    }
+
+    /// A condition resolves a nested pure command through the driver's
+    /// services: with `acc` the constant `foobar`, `[string length $acc] ==
+    /// 6` is true (tclsh 8.4 to 9.1 take the branch); with `acc` a
+    /// parameter nothing is known and the branch stays open.
+    #[test]
+    fn evaluate_branch_resolves_a_nested_command() {
+        let known = "proc ::p {} {\n set acc foobar\n if {[string length $acc] == 6} { return 1 } else { return 0 }\n}";
+        let unit = cu(known);
+        let f = unit.function("::p").unwrap();
+        let result = sccp_pristine(&f.cfg, &f.ssa, FoldPolicy::default());
+        assert!(
+            result
+                .constant_branches
+                .iter()
+                .any(|branch| branch.value && branch.condition.contains("string length")),
+            "{:?}",
+            result.constant_branches
+        );
+        let open =
+            "proc ::p {acc} {\n if {[string length $acc] == 6} { return 1 } else { return 0 }\n}";
+        let unit = cu(open);
+        let f = unit.function("::p").unwrap();
+        let result = sccp_pristine(&f.cfg, &f.ssa, FoldPolicy::default());
+        assert!(
+            result.constant_branches.is_empty(),
+            "{:?}",
+            result.constant_branches
+        );
     }
 
     #[test]

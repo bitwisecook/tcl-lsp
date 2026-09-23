@@ -957,3 +957,115 @@ fn a_bpf_expression_never_takes_the_tcl_answer() {
     );
     prints_under_every_release("puts [expr {-7 / 2}]\n", "-4\n");
 }
+
+/// A math function the module rebinds declines. From 8.5 `abs(…)`
+/// dispatches to the command `::tcl::mathfunc::abs`, so the module's `proc`
+/// of that name is what runs: tclsh 8.5 to 9.1 print 99. Under 8.4 the
+/// grammar dispatches internally and has no such command, so the `proc`
+/// cannot even be created and the program prints 2.
+#[test]
+fn abs_rebinding_declines() {
+    let rebound = "catch {rename ::tcl::mathfunc::abs ::tcl::mathfunc::saved_abs}\n\
+                   catch {proc ::tcl::mathfunc::abs {x} {return 99}}\n\
+                   proc p {} {set r [expr {abs(-2)}]; return $r}\nputs [p]\n";
+    let plain = "proc p {} {set r [expr {abs(-2)}]; return $r}\nputs [p]\n";
+    let two = Some(LatticeValue::Const(ConstValue::Int(2)));
+    for (dialect, want) in [
+        ("tcl8.4", two.clone()),
+        ("tcl8.6", Some(LatticeValue::Overdefined)),
+        ("tcl9.0", Some(LatticeValue::Overdefined)),
+    ] {
+        let unit = unit_of(rebound, dialect);
+        assert_eq!(value_at(&unit, "::p", "r", 1), want, "{dialect}");
+        assert_eq!(
+            value_at(&unit_of(plain, dialect), "::p", "r", 1),
+            two,
+            "{dialect}"
+        );
+    }
+    assert_eq!(
+        answers_for(&unit_of(rebound, "tcl9.0"), "::p", "expr"),
+        ["declined: rebinding-suspected"]
+    );
+    for (series, tclsh) in releases_on_path() {
+        let expected = if series == "8.4" { "2\n" } else { "99\n" };
+        let (rewritten, _) = optimised(rebound, &dialect_of(series));
+        for program in [rebound, rewritten.as_str()] {
+            assert_eq!(
+                run_script(&tclsh, program),
+                Some((true, expected.to_owned())),
+                "tclsh{series}:\n{program}"
+            );
+        }
+    }
+}
+
+/// A nested command the module rebinds declines the whole expression: with
+/// the module's own `proc llength`, `[llength {a b}]` is 99, and tclsh 8.4
+/// to 9.1 print 198 for `expr {[llength {a b}] * 2}`; the builtin fold would
+/// have answered 4.
+#[test]
+fn a_rebound_nested_head_declines_the_expression() {
+    let source = "proc llength {l} {return 99}\n\
+                  proc p {} {set r [expr {[llength {a b}] * 2}]; return $r}\nputs [p]\n";
+    for dialect in DIALECTS {
+        let unit = unit_of(source, dialect);
+        assert_eq!(
+            value_at(&unit, "::p", "r", 1),
+            Some(LatticeValue::Overdefined),
+            "{dialect}"
+        );
+        assert_eq!(
+            answers_for(&unit, "::p", "expr"),
+            ["declined: rebinding-suspected"],
+            "{dialect}"
+        );
+    }
+    let pure = "proc p {} {set r [expr {[llength {a b}] * 2}]; return $r}\nputs [p]\n";
+    for dialect in DIALECTS {
+        assert_eq!(
+            value_at(&unit_of(pure, dialect), "::p", "r", 1),
+            Some(LatticeValue::Const(ConstValue::Int(4))),
+            "{dialect}"
+        );
+    }
+    prints_under_every_release(source, "198\n");
+    prints_under_every_release(pure, "4\n");
+}
+
+/// A condition over one finite input decides when every member agrees:
+/// `foreach a {1 2}` makes `a` the set `{1, 2}`, so `$a > 0` is true for
+/// each and the branch folds, while `$a > 1` differs between the members
+/// and stays open (tclsh 8.4 to 9.1 print `pos pos` and `small big`).
+#[test]
+fn a_finite_condition_decides_when_every_member_agrees() {
+    let decided = |source: &str, dialect: &str| -> Vec<(String, bool)> {
+        unit_of(source, dialect)
+            .procedures
+            .get("::p")
+            .expect("the procedure")
+            .sccp
+            .constant_branches
+            .iter()
+            .map(|branch| (branch.condition.clone(), branch.value))
+            .collect()
+    };
+    let agree = "proc p {} {foreach a {1 2} {if {$a > 0} {puts pos} else {puts neg}}}\np\n";
+    let split = "proc p {} {foreach a {1 2} {if {$a > 1} {puts big} else {puts small}}}\np\n";
+    for dialect in DIALECTS {
+        assert!(
+            decided(agree, dialect).contains(&("$a > 0".to_owned(), true)),
+            "{dialect}: {:?}",
+            decided(agree, dialect)
+        );
+        assert!(
+            !decided(split, dialect)
+                .iter()
+                .any(|(condition, _)| condition == "$a > 1"),
+            "{dialect}: {:?}",
+            decided(split, dialect)
+        );
+    }
+    prints_under_every_release(agree, "pos\npos\n");
+    prints_under_every_release(split, "small\nbig\n");
+}
