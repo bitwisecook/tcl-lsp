@@ -759,6 +759,21 @@ does not write `disabled = …` — it writes one `CODE = false` line per
 disabled code under `[diagnostics]`, which no parser read until now; an
 exported file therefore reads back as it was written.
 
+### DP5.3 — the batch verbs read no LSP document gate
+
+`ConfigLayers::builder_for` and the MCP `PolicyInputs::builder` call
+`.reporting(true)` and never set `excluded`, each with the item's doc
+sentence; tests `a_features_toggle_does_not_silence_the_cli` and
+`the_features_toggle_is_an_editor_setting`. The same gate reached a third
+rewrite surface the item does not name: `optimiseDocument` built its policy
+from the folder's layers with no `.reporting(true)`, so a
+`features.diagnostics = false` made it a no-op — a regression against
+`rust`'s #2119 command, fixed with the same call (D39) and pinned by
+`optimise_document_command_reads_no_diagnostics_feature_toggle`, which
+failed before the fix. `tcl opt` and MCP `optimize` share the two builders,
+so a global `[features] diagnostics = false` no longer stops them rewriting
+either.
+
 ## Plan for finishing slices 4–7 and for slices 8–10
 
 The execution plan from the checkpoint `5bc40e95` to the end of the page's
@@ -3138,6 +3153,14 @@ Decisions the implementation of slices 4–7 took (DP4.1 onwards):
   `PullRefinementInputs::disabled` because the cross-file arity predicates
   read them; those two are read there, but the F5 pull's only reader was
   the removed parameter — no arity pass runs over a model document.
+- **D39. `optimiseDocument` reads no whole-document gate either (DP5.3).**
+  The command built its policy without `.reporting(true)`, so
+  `tclLsp.features.diagnostics = false` at any layer suppressed every
+  rewrite as `ReportingOff` and the command changed nothing. `rust`'s
+  #2119 command never read that toggle, no expected delta lists the change,
+  and § Adapters puts the command on `tcl opt`'s path, which D19 keeps off
+  both gates: the toggle turns off published squiggles, not a rewrite the
+  user asked for. Pinned by `optimise_document_command_reads_no_diagnostics_feature_toggle`.
 
 ### Open questions for the owner
 
@@ -3381,7 +3404,7 @@ Each item updates its row in the commit that lands it.
 | DP4.3 | sonnet | S | done (by the lane implementer: no `Agent` tool in the session) | `DP4.3 — pin the hand-off decisions no test pinned` | the four tests; server `--lib` subset, `tcl-cli --test cli -- abstaining_document`; the crate clippy |
 | DP5.1 | opus | S | done | `DP5.1 — an INI layer can turn a code back on` | core `--lib -- config_ini` (31), `tcl-cli --test cli -- turns_a_code_back_on`; clippy on `tcl-lsp-core` and `tcl-cli`; `kcs-index-links` |
 | DP5.2 | opus | S | done (the merge of `rust`) | the merge commit | `cargo test -p tcl-cli`; the crate clippy |
-| DP5.3 | sonnet | S | not started | — | — |
+| DP5.3 | sonnet | S | done (by the lane implementer) | `DP5.3 — the batch verbs read no LSP document gate` | `tcl-cli --lib` (27), `tcl-mcp` (92), server `--lib -- optimise_document` (6); the crate clippy |
 | DP5.4 | sonnet | S | not started | — | — |
 | DP6.1 | opus | M | not started | — | — |
 | DP6.2 | sonnet | S | not started | — | — |

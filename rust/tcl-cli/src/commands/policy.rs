@@ -58,9 +58,15 @@ impl ConfigLayers {
     /// the document's project file when it sits under one. A document with
     /// no path (`--source`, stdin) has no project layer at all; the
     /// process's working directory is never a substitute.
+    ///
+    /// `[features]` configures the language server's features
+    /// (`docs/design/contracts/xdg-config.md` § `[features]`); a batch verb
+    /// reports whatever it is asked to, so neither whole-document gate
+    /// reaches it: reporting is on, and nothing is excluded.
     #[must_use]
     pub fn builder_for(&self, path: Option<&Path>) -> PolicyBuilder {
         let mut builder = PolicyBuilder::new()
+            .reporting(true)
             .layer(PolicyLayer::Global, &self.global)
             .layer(PolicyLayer::Invocation, &self.invocation);
         if let Some(project) = path.and_then(|path| self.project_layer_for(path)) {
@@ -137,6 +143,18 @@ mod tests {
             None,
             "a flag reaches a default-off code"
         );
+    }
+
+    #[test]
+    fn a_features_toggle_does_not_silence_the_cli() {
+        let layers = ConfigLayers {
+            global: serde_json::json!({ "features": { "diagnostics": false } }),
+            invocation: serde_json::json!({}),
+            projects: RefCell::new(HashMap::new()),
+        };
+        let policy = layers.builder_for(None).build();
+        assert!(policy.document.reporting);
+        assert!(!policy.document.excluded);
     }
 
     #[test]

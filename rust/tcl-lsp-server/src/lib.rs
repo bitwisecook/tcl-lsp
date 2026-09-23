@@ -16932,8 +16932,12 @@ impl Backend {
         let value = crate::rt::spawn_blocking(move || {
             tcl_spectcl::hooks::ensure_thread_host();
             let dialect_opt = tcl_lsp_core::stated_profile_for_dialect(&dialect);
+            // A command the user invoked reads no whole-document gate:
+            // `features.diagnostics` turns off the published squiggles, not
+            // the rewrite asked for — `tcl opt`'s rule (D19, D39).
             let policy = layers
                 .builder()
+                .reporting(true)
                 .requested_profile(requested)
                 .dialect(tcl_lsp_core::profile_for_dialect(&dialect))
                 .build();
@@ -32523,6 +32527,34 @@ mod tests {
     /// `readability` profile, where constant folding is opt-in, and folded
     /// nothing. Twelve e2e cases caught it; this pins it at unit level,
     /// where the two meanings of "profile" are easy to conflate again.
+    /// `tclLsp.features.diagnostics` turns off the published squiggles, not
+    /// the rewrite a user asks for: `optimiseDocument` is `tcl opt`'s peer
+    /// and reads no whole-document gate (§ Decisions taken, D19 and D39).
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn optimise_document_command_reads_no_diagnostics_feature_toggle() {
+        let src = "puts [llength [list a b c]]\n";
+        let backend = test_backend();
+        backend
+            .apply_global_config(&serde_json::json!({ "features": { "diagnostics": false } }))
+            .await;
+        let uri = Uri::from_str("file:///o-features-off.tcl").unwrap();
+        register(&backend, &uri, src).await;
+        let out = backend
+            .optimise_document_command(&[
+                serde_json::json!(uri.as_str()),
+                serde_json::json!("full"),
+            ])
+            .await
+            .expect("ok")
+            .expect("some");
+        assert!(
+            out.get("source")
+                .and_then(serde_json::Value::as_str)
+                .is_some_and(|s| s.contains("puts 3")),
+            "the diagnostics toggle must not silence the command: {out:?}",
+        );
+    }
+
     #[tokio::test]
     async fn optimise_document_command_profile_argument_selects_the_categories_issue_2119() {
         let src = "puts [llength [list a b c]]\n";

@@ -179,8 +179,14 @@ impl PolicyInputs {
     }
 
     /// A builder with the layers applied, lowest first.
+    ///
+    /// `[features]` configures the language server's features
+    /// (`docs/design/contracts/xdg-config.md` § `[features]`); a tool
+    /// reports whatever it is asked to, so neither whole-document gate
+    /// reaches it: reporting is on, and nothing is excluded.
     fn builder(&self) -> PolicyBuilder {
         PolicyBuilder::new()
+            .reporting(true)
             .layer(PolicyLayer::Global, &self.global)
             .layer(PolicyLayer::Invocation, &self.invocation)
     }
@@ -2487,6 +2493,16 @@ mod policy_tests {
         assert!(
             has_code(&shown, "W242"),
             "`enable: W242` reaches a default-off code: {shown:?}"
+        );
+    }
+
+    #[test]
+    fn the_features_toggle_is_an_editor_setting() {
+        let args = json!({ "source": UNSET_READ, "dialect": "tcl9.0" });
+        let shown = analyzed(&args, "[features]\ndiagnostics = false\n");
+        assert!(
+            has_code(&shown, "W210"),
+            "`[features] diagnostics = false` is the editor's alone: {shown:?}"
         );
     }
 
