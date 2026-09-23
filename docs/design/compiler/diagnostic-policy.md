@@ -23,21 +23,21 @@ can read. [diagnostics-integration.md](diagnostics-integration.md) and
 aggregation and the two tiers inside the server; this page is the layer
 below both of them.
 
-> **Status — being built, slice by slice.** The vocabulary is
-> `tcl_lsp_core::diagnostic_policy` with `Finding`, `Producer`, `Fix`,
-> `FindingData`, `Severity`, `Outcome`, `Reason`, `PolicyLayer`,
-> `CodeDecision`, `Overlap`, `OverlapOwner`, `OverlapScope`,
-> `OptimiserPolicy`, `Directives`, `Policy`, `Report` and `apply`; the
-> relocated `tcl_lsp_core::config_ini`; the `--show-suppressed` CLI flag;
-> and the `suppressed` array on an MCP diagnostic payload. A slice marked
-> *built* in § Slices exists in the tree, and the module's own docs are the
-> compilable form of the shapes it covers; every other Rust shape below is
-> a sketch of the data a step needs, not a compilable signature. Until the
-> adapter slices land, § Today still describes the observed surface
-> behaviour except where a paragraph says otherwise. Every *existing*
-> identifier and path cited here was checked against the tree at the head of
-> `rust`, and the surface behaviour in § Today was observed with `tcl diag`,
-> `tcl opt` and the `tcl-mcp` tools at that revision.
+> **Status — built.** The vocabulary is `tcl_lsp_core::diagnostic_policy`:
+> `Finding`, `Producer`, `Fix`, `FindingData`, `Severity`, `Outcome`,
+> `Shown`, `Reason`, `PolicyLayer`, `CodeDecision`, `Overlap`,
+> `OverlapOwner`, `OverlapScope`, `OptimiserPolicy`, `DocumentGates`,
+> `Directives`, `Policy`, `PolicyBuilder`, `Report`, `ApplicableRewrite`,
+> `apply`, `FACT_CODES` and `WHOLE_FILE_CODES`; the report functions of
+> `tcl_lsp_core::diagnostic_report` — `document_report`,
+> `standalone_findings`, `brace_expr_hints` and `optimise_under_policy`;
+> `tcl_lsp_core::config_ini`; the truth table,
+> `diagnostic_policy::truth_table`; the `--show-suppressed` flag on
+> `tcl diag` and `tcl lint`; and the `suppressed` array on the MCP
+> diagnostic payloads. The modules' own docs are the compilable form of the
+> shapes below, which are sketches in the tree's names. § Before the policy
+> step records the surfaces at `rust` `3b5eba8a`, the base the step was
+> built from; every other section describes the built tree.
 
 ## Rules
 
@@ -70,11 +70,14 @@ below both of them.
    filters, never re-derives a severity, and never infers a fact from
    whether another finding survived policy.
 
-## Today
+## Before the policy step (at `rust` `3b5eba8a`)
 
-Policy is assembled separately by every surface that reports a code. Each
-has the subset its author reached for, so the same file yields a different
-finding set on each surface.
+Policy was assembled separately by every surface that reported a code.
+Each had the subset its author reached for, so the same file yielded a
+different finding set on each surface. The table is kept as the record of
+what the policy step changed; § Where each step lives describes the tree
+now, where each step is applied once, by `apply`, and every surface renders
+one report.
 
 | Policy step | Editor publish | `tcl diag` / `lint` / `validate` | `tcl opt`, MCP `optimize`, `optimiseDocument` | MCP `analyze` / `validate` / `review` / `find-legacy` | Server code actions |
 |---|---|---|---|---|---|
@@ -95,129 +98,121 @@ finding set on each surface.
 | Source-style pass (W111, W112, W115, W118) | yes | yes | n/a | no | n/a |
 | `genericVariablePatterns` (producer input, not policy) | yes | no | n/a | no | yes |
 
-Four cells deserve their exact reading. The MCP tools report the file
+Four cells deserve their exact reading. The MCP tools reported the file
 directive for analyser codes because `Analyser::analyse` folds
 `parse_file_suppression` into its own `disabled_diagnostics` before it
-emits anything, so the effect arrives through the producer rather than
-through any policy the tool applies; the inline `# noqa` has no such
-back door, and an MCP `analyze` reports a W100 or a W110 that `tcl diag`
-suppresses on the same file. The encoding row is `n/a` for the MCP tools
+emits anything, so the effect arrived through the producer rather than
+through any policy the tool applied; the inline `# noqa` had no such
+back door, and an MCP `analyze` reported a W100 or a W110 that `tcl diag`
+suppressed on the same file. The encoding row is `n/a` for the MCP tools
 because those tools take a decoded `source` string and have no byte
-report to abstain on. `tcl opt` and MCP `optimize` rewrite the source
-across a file-wide `# tcl-lsp: disable=*`, because neither builds a
-suppression map at all. And the server lifts no optimiser code action at
-all: an actionable rewrite rides the published diagnostic's `data`
-(`replacement`, `startOffset`, `endOffset`), so it inherits that
-diagnostic's policy and the code-action provider never sees it — which is
-also why an O-code carries no gate of its own on any other surface.
+report to abstain on. `tcl opt` and MCP `optimize` rewrote the source
+across a file-wide `# tcl-lsp: disable=*`, because neither built a
+suppression map at all. And the server lifted no optimiser code action at
+all: an actionable rewrite rode the published diagnostic's `data`
+(`replacement`, `startOffset`, `endOffset`), so it inherited that
+diagnostic's policy and the code-action provider never saw it — which is
+also why an O-code carried no gate of its own on any other surface.
 
-The MCP `code_actions` tool is not in the last column because it shares
-none of it: it passes `analysis.diagnostics` straight into
+The MCP `code_actions` tool is not in the last column because it shared
+none of it: it passed `analysis.diagnostics` straight into
 `tcl_lsp_core::code_actions::code_actions`, whose own documentation
-describes that argument as the *published* set. A fix for a finding an
-inline `# noqa` silences is therefore offered there and nowhere else.
+described that argument as the *published* set. A fix for a finding an
+inline `# noqa` silenced was therefore offered there and nowhere else.
 
-W107, W109 and W118 are never line-suppressed on any surface. That is
+W107, W109 and W118 are never line-suppressed on any surface. That was
 deliberate and stays: they are whole-file verdicts, so an inline
 directive has no line to attach to, and only the file directive and the
-disabled set gate them (`WHOLE_FILE_CODES` in
-`rust/tcl-lsp-core/src/diagnostic_policy.rs`, since slice 3; the style
-pass no longer decides it).
+per-code decision gate them (`WHOLE_FILE_CODES` in
+`rust/tcl-lsp-core/src/diagnostic_policy.rs`).
 
-### Where each step lives
+### Why the copies existed
 
-**Server** — `rust/tcl-lsp-server/src/lib.rs`: `lift_analyser_diagnostics`,
-`lift_compiler_diagnostics` (optimiser gate, disabled set, directives),
-`lift_source_style_diagnostics`, `lift_style_diagnostics`,
-`lift_f5_source_integrity_diagnostics`, `lift_xc_diagnostics`,
-`extend_with_sslictcl_diagnostics`, `append_brace_expr_perf_hints` (O111
-synthesised from every W100 that survived the analyser lift),
-`suppress_duplicate_o120`, `finalise_diagnostics`
-(`apply_encoding_abstention`, `apply_diagnostic_tags`,
-`apply_severity_overrides`), `retain_unsuppressed_diagnostics`,
-`default_disabled_set` over `DEFAULT_OFF_CODES`,
-`settings_disabled_diagnostics`, `resolved_analysis_settings` (which folds
-the shimmer switch and the optimiser profile into two sets). The fast tier
-(`publish_fast_tier`), the deep push (`refine_and_lift_diagnostics`) and
-the pull provider (`analysed_diagnostics_for`) each assemble the list in
-their own body; `tcl-lsp.optimiseDocument`
-(`optimise_document_command`) assembles none. Since slice 2 the INI parse,
-the three-layer merge, `DEFAULT_OFF_CODES`, `default_disabled_set`,
-`settings_disabled_diagnostics`, `settings_severity_overrides` and
-`parse_severity_value` live in `rust/tcl-lsp-core/src/config_ini.rs`; the
-server re-exports the module, keeps `read_ini_layer`, and keeps an
-LSP-typed `settings_severity_overrides` over the shared parse.
+[pass-fact-ownership-matrix.md](pass-fact-ownership-matrix.md) assigned
+"final LSP diagnostic projection, suppression policy" to `tcl-lsp-db`, and
+the configuration parser lived in `tcl-lsp-server`. Neither crate is in
+the dependency closure of `tcl-cli`, `tcl-cli-support` or `tcl-mcp`: all
+three reach `tcl-lsp-core` and stop there, while `tcl-lsp-db` and
+`tcl-lsp-server` sit on the other side of it. Those surfaces could not
+reach the policy, so each copied what it could, which is the shape every
+"no" in the table above has. "Suppression is uniform" and "every lift
+applies it", in [diagnostics-integration.md](diagnostics-integration.md)
+and [diagnostics-calculation.md](diagnostics-calculation.md), were true of
+the server and of nothing else. Putting the policy in `tcl-lsp-core` is the
+whole of the placement argument: it is below all four surfaces and
+`tcl-lsp-db`, and it already hosted the style pass, the decode report, the
+SslicTcl projection and the code actions.
+
+## Where each step lives
+
+**tcl-lsp-core** — the step itself. `rust/tcl-lsp-core/src/diagnostic_policy.rs`
+holds the finding and its conversions, `PolicyBuilder`, `Policy`, `apply`
+and `Report`, the overlap table (`dialect_overlaps`), `WHOLE_FILE_CODES`
+and `FACT_CODES`. `rust/tcl-lsp-core/src/diagnostic_report.rs` holds the
+functions every surface calls: `document_report` joins a surface's
+findings with the producers this crate owns — the source-style pass, the
+byte-integrity pass and the SslicTcl projection — and applies the policy;
+`standalone_findings` runs the analyser, the O111 producer
+(`brace_expr_hints`) and the compiler checks over one compilation unit, for
+a surface without the database; `optimise_under_policy` is the rewrite loop
+that applies only what the policy shows. `rust/tcl-lsp-core/src/config_ini.rs`
+holds the INI parse, the three-layer merge, `DEFAULT_OFF_CODES` and the
+readers of the global and project files (`global_layer`,
+`project_layer_for`). `rust/tcl-lsp-core/src/code_actions.rs` lifts fixes
+from the findings a `Report` shows (`code_actions`,
+`code_actions_in_program`).
+
+**Server** — `rust/tcl-lsp-server/src/lib.rs`. `PolicyLayers` holds one
+scope's three layers unmerged: the session holds a set, applied through
+`apply_session_layers`, a configured folder its own, and
+`resolved_policy_layers` picks between them by longest-prefix match.
+`document_policy` builds a document's policy from its layers, byte
+evidence, dialect and directives. The conversions — `analyser_findings`,
+`compiler_findings`, `xc_findings`, and `model_findings` under
+`bigip_config_findings` and `apl_presentation_findings` — turn each
+producer's output into findings, and `published_findings` assembles the
+analyser's set, the O111 hints, the checks and the rewrites, and the XC
+findings, in the order they publish. `published_report` is the report and
+`lift_report` its LSP adapter; `lifted_report` composes the two, and it is
+the one call the fast push (`publish_fast_tier`), the deep push
+(`refine_and_lift_diagnostics`), the pull (`analysed_diagnostics_for`) and
+the F5 model report (`f5_model_report`) each make. The lightbulb reads
+`published_report` over the same findings, `tcl-lsp.optimiseDocument` runs
+`optimise_under_policy`, and `tcl-lsp.fixAllSafeIssues` applies the fixes of
+the findings its report shows.
 
 **tcl-lsp-db** — `rust/tcl-lsp-db/src/lib.rs`: `file_analysis` and
-`file_analysis_incremental` bake the disabled set into
-`Analyser::with_disabled_diagnostics`, so the analyser applies policy at
-production while the compiler checks have it applied at lift;
-`compiler_check_diagnostics` reads no disabled set at all;
-`project_diagnostics` and `apply_project_callback_arity` take an
-`is_disabled` predicate.
+`file_analysis_incremental` hand the analyser its production skip through
+`Analyser::with_disabled_diagnostics` — the saving rule 2 permits, which the
+report declares — and `compiler_check_diagnostics` computes every check and
+rewrite and decides nothing.
 
-**CLI** — `rust/tcl-cli/src/commands/diag.rs`: `collect_rows` (analyser
-walk, `run_all_checks` minus O-codes, the SslicTcl projection, the
-source-style pass, `abstained_rows`) and `resolve_disabled` (flags only,
-no seeding). `rust/tcl-cli/src/commands/transform.rs`: `run_opt` calls
-`optimise_source_multipass_filtered` with the profile set and builds no
-suppression map.
+**CLI** — `rust/tcl-cli/src/commands/policy.rs`: `ConfigLayers` resolves each
+input file's global and project layers, and `invocation_layer` turns
+`--disable` / `--enable` into the editor slot's layer.
+`rust/tcl-cli/src/commands/diag.rs`: `collect_rows` runs
+`standalone_findings` under the production skip and `document_report` under
+`diag_policy` (the optimiser off), declares what it did not run, and renders
+the report — `rows_of` the shown findings, `--show-suppressed` the hidden
+ones and the gaps. `rust/tcl-cli/src/commands/transform.rs`: `run_opt` runs
+`optimise_under_policy` over each input as its own program.
 
-**MCP** — `rust/tcl-mcp/src/tools.rs`: `analyse` is
-`Analyser::new().with_pack_overlay(..).analyse(..)`; `analyze`,
-`validate`, `review`, `find_legacy` and `code_actions` read
-`analysis.diagnostics` raw; `optimize` holds its own copy of the
-profile-to-disabled construction and calls
-`optimise_source_multipass_filtered` directly.
-
-**tcl-lsp-core** — since slice 3, `source_style::style_diagnostics` and
-`sslictcl_diagnostics::diagnostics` filter nothing, and no caller of
-`source_decode::encoding_integrity_diagnostics` filters its output with a
-closure of its own: the server's style, SslicTcl and F5-integrity lifts
-and the CLI's style, SslicTcl and abstention rows hand those findings to
-`diagnostic_policy::apply` under `Policy::from_disabled_set` — their
-already-flat disabled set plus the analyser's directive map — and render
-what it shows. `code_actions::check_diagnostic_actions` still applies the
-disabled set and the directives for the compiler-check family.
+**MCP** — `rust/tcl-mcp/src/tools.rs`: `PolicyInputs` resolves the global
+layer and the call's `disable` / `enable`, `analyse_under` runs
+`standalone_findings` once per call, and `Analysed` renders the diagnostics
+tools' report (optimiser off) and `code_actions`'s (with the rewrites);
+`optimize` runs `optimise_under_policy`.
 
 **tcl-compiler** — `rust/tcl-compiler/src/analyser/utils.rs`:
 `line_suppressed`, `parse_noqa_marker`, `parse_file_suppression`,
 `parse_noqa_line_suppressions_for_dialect`, `apply_preceding_noqa` and
-`FILE_SUPPRESS_KEY` build and answer `AnalysisResult::suppressed_lines`.
-
-### The five scopes and their order
-
-[`docs/kcs/kcs-howto-suppress-diagnostics.md`](../../kcs/kcs-howto-suppress-diagnostics.md)
-documents five places to turn a code off and, under
-[Precedence, from highest priority to lowest](../../kcs/kcs-howto-suppress-diagnostics.md#precedence-from-highest-priority-to-lowest),
-one order: inline `# noqa`, top-of-file `# tcl-lsp: disable=`, project
-`.tcl-lsp.ini`, editor settings, global `config.ini`. The three
-configuration layers and their rationale are the
-[config precedence contract](../contracts/config-precedence.md), whose
-[precedence table](../contracts/config-precedence.md#precedence-lowest-to-highest)
-is the same order read upward. Two properties of that contract are load
-bearing here: the merge is per key inside each section, and project, editor
-and global can each turn a code **back on**, so a layer's contribution is a
-per-code tri-state and not a set union. A flat disabled set cannot express
-"the project enables what the global file disabled", and cannot name the
-layer that decided.
-
-### Why the copies exist
-
-[pass-fact-ownership-matrix.md](pass-fact-ownership-matrix.md) assigns
-"final LSP diagnostic projection, suppression policy" to `tcl-lsp-db`, and
-the configuration parser lives in `tcl-lsp-server`. Neither crate is in
-the dependency closure of `tcl-cli`, `tcl-cli-support` or `tcl-mcp`: all
-three reach `tcl-lsp-core` and stop there, while `tcl-lsp-db` and
-`tcl-lsp-server` sit on the other side of it. Those surfaces cannot reach
-the policy, so each copies what it can, which is the shape every "no" in
-the table above has. "Suppression is uniform" and "every lift applies
-it", in [diagnostics-integration.md](diagnostics-integration.md) and
-[diagnostics-calculation.md](diagnostics-calculation.md), are true of the
-server and of nothing else. Putting the policy in `tcl-lsp-core` is the
-whole of the placement argument: it is already below all four surfaces
-and `tcl-lsp-db`, and already hosts the style pass, the decode report,
-the SslicTcl projection and the code actions.
+`FILE_SUPPRESS_KEY` build `AnalysisResult::suppressed_lines`, the directive
+facts every surface's policy reads. Two policy steps stay inside the
+producer, and both are open. The analyser folds a top-of-file
+`# tcl-lsp: disable=` into its own skip (`apply_disabled_diagnostics`,
+`rust/tcl-compiler/src/analyser/diagnostics.rs`), which the report declares
+as a gap; and its W305 producer drops a finding under a `# noqa` itself,
+with no reason in the report.
 
 ## The pipeline
 
@@ -334,8 +329,8 @@ type, which is why `Producer` and the type are separate axes.
 | `tcl_compiler::optimiser::Optimisation` | `rust/tcl-compiler/src/optimiser/mod.rs` | `From` — `severity` is `Hint`, `replacement` / `group` / `hint_only` become `FindingData::Rewrite` |
 | `tcl_lsp_core::source_style::StyleDiagnostic` | `rust/tcl-lsp-core/src/source_style.rs` | conversion, not `From`: its `LspRange` needs the document's line index to become a `Span` |
 | `tcl_lsp_core::source_decode` findings | `rust/tcl-lsp-core/src/source_decode.rs` | the same conversion — `encoding_integrity_diagnostics` returns `StyleDiagnostic` with `producer: SourceDecode` |
-| `tcl_sslictcl::dsl::DslDiagnostic` | projected by `rust/tcl-lsp-core/src/sslictcl_diagnostics.rs` | the projection keeps its span and gains `producer: SslicTcl`; it stops filtering |
-| `f5_xc::XcDiagnostic` | `rust/f5-xc/src/diagnostics.rs` | conversion on the XC side: `tcl-lsp-core` does not depend on `f5-xc`, and must not, so `f5-xc` gains the conversion and the shared crate stays below it |
+| `tcl_sslictcl::dsl::DslDiagnostic` | projected by `rust/tcl-lsp-core/src/sslictcl_diagnostics.rs` | the projection keeps its span and gains `producer: SslicTcl`; it filters nothing |
+| `f5_xc::XcDiagnostic` | `rust/f5-xc/src/diagnostics.rs` | conversion on the XC side: `tcl-lsp-core` does not depend on `f5-xc`, and must not, so `f5-xc` holds the conversion and the shared crate stays below it |
 | `tcl_bigip::validator::ConfigDiagnostic` | `rust/tcl-bigip/src/validator.rs` | conversion in `tcl-lsp-core`, which already depends on `tcl-bigip`; its inclusive range end is normalised here rather than at each lift |
 
 One of those carries a `String` code rather than a `DiagCode`:
@@ -382,12 +377,13 @@ pub enum Reason {
     DefaultOff,
     /// The optimiser master switch is off.
     OptimiserOff,
-    /// The active profile does not enable the code's category.
+    /// The profile in force (with its per-code overrides) does not enable
+    /// the code.
     OptimiserProfile { profile: OptimisationProfile },
     /// `tclLsp.shimmer.enabled` is off.
     ShimmerOff,
-    /// Another code owns this site.
-    Overlap { owner: DiagCode },
+    /// Another code, or a whole producer, owns this site.
+    Overlap { owner: OverlapOwner },
 }
 
 /// Which scope decided a code, lowest first. Distinct from
@@ -396,44 +392,52 @@ pub enum Reason {
 /// spelling to name.
 pub enum PolicyLayer {
     Global,
-    /// Editor settings, or a surface's own flags — one slot, two
-    /// spellings. See § Configuration.
+    /// Editor settings.
     Editor,
+    /// A surface's own flags, in the editor layer's slot. See
+    /// § Configuration.
     Invocation,
     Project,
 }
 
-pub struct Report(pub Vec<(Finding, Outcome)>);
+/// Every finding with its outcome, in the producers' order, and the codes
+/// a producer declared it left uncomputed, each with the policy's reason.
+pub struct Report { /* … */ }
 ```
 
-`Report` exposes `shown()`, `suppressed()` and `reason_for(code, span)`;
-nothing else needs the pairs directly. The vector keeps the producers'
-order, and `apply` is order-stable, so two surfaces given the same
-findings and the same policy produce the same report in the same order.
+`Report::shown()` and `suppressed()` split the pairs; `outcome_for` and
+`reason_for(code, span)` answer for one finding, and `reason_for` falls
+back to a declared skip when no finding of the code exists. A producer that
+leaves codes uncomputed declares them — `declare_skipped(codes, &policy)`,
+and its two uses `declare_analyser_skip` and `declare_optimiser_skip` — each
+with the reason `Policy::gap_reason` gives, and `gaps()` lists the declared
+codes no finding carries, so a gap is explained rather than read as clean.
+`applicable_rewrites()` and `applicable_items(items)` are the only doors to
+a rewrite: an ungrouped one that shows, or an optimisation group every
+member of which shows, never half a group (#2149). The pairs keep the
+producers' order, and `apply` is order-stable, so two surfaces given the
+same findings and the same policy produce the same report in the same
+order. Each reason has one spelling, `Display for Reason`, which every
+rendering uses (§ Adapters).
 
 `Reason` beyond the issue's list is the tree's doing: the optimiser
 profile is a separate decision from the master switch, the shimmer switch
 is a family gate with no other home, and `features.diagnostics` and
-`diagnostics.exclude` make the whole report empty today with no record of
-why. A `ReportingOff` report that still carries every finding is what lets
-an editor answer "diagnostics are turned off for this file" instead of
-showing a clean document.
+`diagnostics.exclude` used to empty the whole report with no record of
+why. The server still builds no report for a document whose reporting is
+off or which is excluded: it publishes the empty set without analysing a
+document nobody sees. `ReportingOff` and `Excluded` are the policy step's
+answer for a surface that asks, and the truth table's first two rows pin
+them.
 
 ### The policy
 
 ```rust
 pub struct Policy {
-    /// `features.diagnostics` for this file's folder.
-    pub reporting: bool,
-    /// Whether `diagnostics.exclude` matches this file.
-    pub excluded: bool,
-    /// Byte evidence, through `source_decode::should_abstain` — the
-    /// shared predicate over `DecodeReport::requires_abstention` that no
-    /// surface calls today. The codes that survive it are the integrity
-    /// set, not a guess from whether W109 is displayed.
-    pub abstain: bool,
+    /// The document-wide gates and the byte evidence.
+    pub document: DocumentGates,
     /// The resolved per-code decision and the layer that won it.
-    /// A code absent from the map is enabled.
+    /// A code absent from the map is enabled unless it is in `default_off`.
     pub codes: BTreeMap<DiagCode, CodeDecision>,
     /// The default-off seed — the lowest layer, and the reason a code
     /// still off at the bottom reports `DefaultOff` rather than
@@ -444,9 +448,20 @@ pub struct Policy {
     pub optimiser: OptimiserPolicy,
     /// `tclLsp.shimmer.enabled`.
     pub shimmer: bool,
-    /// Resolved for the document's dialect.
+    /// Resolved for the document's dialect (`dialect_overlaps`).
     pub overlaps: Vec<Overlap>,
     pub directives: Directives,
+}
+
+pub struct DocumentGates {
+    /// `features.diagnostics` for this file's folder.
+    pub reporting: bool,
+    /// Whether `diagnostics.exclude` matches this file.
+    pub excluded: bool,
+    /// Byte evidence, through `source_decode::should_abstain`. The codes
+    /// that survive it are the integrity set, not a guess from whether
+    /// W109 is displayed.
+    pub abstain: bool,
 }
 
 pub struct CodeDecision {
@@ -460,8 +475,7 @@ pub struct OptimiserPolicy {
     /// The profile in force: the one the request names, else the
     /// layers' (§ Configuration).
     pub profile: OptimisationProfile,
-    /// The profile's disabled set with the per-code overrides applied,
-    /// as `resolved_analysis_settings` builds it today.
+    /// The profile's disabled set with the per-code overrides applied.
     pub disabled: BTreeSet<DiagCode>,
 }
 
@@ -475,27 +489,25 @@ pub enum OverlapOwner {
     /// One code owns the site: W110 over O120.
     Code(DiagCode),
     /// A whole producer owns it: in a `.sslictcl` document the loader
-    /// owns W123 whether or not it emitted a finding of its own, which
-    /// is what `supersede_analyser_diagnostics` does unconditionally
-    /// today.
+    /// owns W123 whether or not it emitted a finding of its own.
     Producer(Producer),
 }
 
 pub enum OverlapScope {
-    /// The owner wins only where the two ranges coincide, which is the
-    /// W110 / O120 rule `suppress_duplicate_o120` implements.
+    /// The owner wins only where the two spans coincide.
     SameSpan,
+    /// The owner wins where its span lies inside the superseded
+    /// finding's span — W110 over O120.
+    WithinSpan,
     /// The owner wins everywhere in the document.
     Document,
 }
 
-pub struct Directives {
-    /// The analyser's `suppressed_lines`: 0-based lines plus the
-    /// `FILE_SUPPRESS_KEY` bucket. `Directives::from_analysis` for a
-    /// surface that ran the analyser, `Directives::scan` for one that
-    /// did not.
-    pub lines: HashMap<i32, HashSet<String>>,
-}
+/// The analyser's `suppressed_lines` — 0-based lines plus the
+/// `FILE_SUPPRESS_KEY` bucket — over the text's line model.
+/// `Directives::from_analysis` for a surface that ran the analyser,
+/// `Directives::scan` for one that did not.
+pub struct Directives { /* … */ }
 
 pub fn apply(findings: Vec<Finding>, policy: &Policy) -> Report;
 ```
@@ -509,6 +521,16 @@ extra commands, the pack overlay — is a producer input and stays on
 read as a type: display policy cannot change semantic truth, so the value
 that carries display policy cannot carry a semantic input.
 
+A policy answers a producer's questions too. `code_reason(code)` is steps
+4 and 5 below for a code alone; `gap_reason(code)` is why a code with no
+finding is absent — the steps that need no line, in order; and
+`disabled_codes()` is every code the per-code decision turns off.
+`production_skip()` is what a producer may leave uncomputed:
+`disabled_codes()` less `FACT_CODES`, the codes another producer reads as a
+fact. W100 is one — O111 reads its sites — so a W100 a layer turns off is
+computed, then suppressed. `analyser_skip()` adds the codes the file
+directive names, which the analyser folds into its own skip.
+
 `apply` decides in one order, and the order is part of the contract because
 the recorded reason depends on it. The first reason that fires wins:
 
@@ -519,22 +541,58 @@ the recorded reason depends on it. The first reason that fires wins:
    analysed" is the honest explanation, and a directive that happens to
    cover the same code is not.
 3. The inline directive, then the file directive, through
-   `line_suppressed` against `policy.directives`.
+   `Directives::reason_for` — whose bucket rule is `line_suppressed`'s,
+   restated and pinned equal to it by a test — a code in
+   `WHOLE_FILE_CODES` skipping the inline one.
 4. The per-code decision: `Disabled(layer)` for the winning
    layer, or `DefaultOff` at the seed.
 5. The family gates, for an optimisation code: `OptimiserOff`, then
    `OptimiserProfile`. Then `ShimmerOff` for the shimmer family.
-6. The overlap table, over the findings still standing — so an owner that
-   policy has already suppressed cannot supersede anything.
+6. The overlap table, entry by entry, over the findings still standing —
+   so an owner that policy has already suppressed cannot supersede
+   anything.
 7. Everything left is `Shown { severity: overrides.get(code).unwrap_or(&
    finding.severity), tag: code.lsp_tag() }`.
 
+**The overlap table** has two entries. W110 owns an O120 whose span holds
+its own, in every dialect: the analyser anchors W110 on the `==` operator,
+and the optimiser anchors O120 on the whole condition it rewrites. Both
+anchors are right, so the entry states their relation — containment,
+`WithinSpan` — rather than moving either producer's anchor to suit the
+policy. Overlap policy is explicit and separate from fact production (rule 4
+of [value-transfers.md § Diagnostics consume facts](value-transfers.md#diagnostics-consume-facts)),
+and an anchor moved for presentation's sake would be fact production bending
+to it. In a `.sslictcl` document the loader owns W123 everywhere
+(`Document`, from `SUPERSEDED_ANALYSER_CODES`). `SameSpan` remains for an
+entry whose owner and superseded finding share a span. An owner must stand
+in the same report: a rewrite surface's report carries the optimiser's
+findings alone, so its O120s stay applicable.
+
 ## Configuration
 
-The INI parse and the three-layer merge moved down from
-`rust/tcl-lsp-server/src/config_ini.rs` into `tcl_lsp_core::config_ini`
-(slice 2), beside the policy step, so the CLI and the MCP tools can resolve
-the same layers. The whole module moved: `Layer` with `Layer::top_section`,
+### The five scopes and their order
+
+[`docs/kcs/kcs-howto-suppress-diagnostics.md`](../../kcs/kcs-howto-suppress-diagnostics.md)
+documents five places to turn a code off and, under
+[Precedence, from highest priority to lowest](../../kcs/kcs-howto-suppress-diagnostics.md#precedence-from-highest-priority-to-lowest),
+one order: inline `# noqa`, top-of-file `# tcl-lsp: disable=`, project
+`.tcl-lsp.ini`, editor settings, global `config.ini`. The three
+configuration layers and their rationale are the
+[config precedence contract](../contracts/config-precedence.md), whose
+[precedence table](../contracts/config-precedence.md#precedence-lowest-to-highest)
+is the same order read upward. Two properties of that contract are load
+bearing here: the merge is per key inside each section, and project, editor
+and global can each turn a code **back on**, so a layer's contribution is a
+per-code tri-state and not a set union. A flat disabled set cannot express
+"the project enables what the global file disabled", and cannot name the
+layer that decided.
+
+### The layers, resolved per code
+
+The INI parse and the three-layer merge live in `tcl_lsp_core::config_ini`
+(slice 2), beside the policy step, so the CLI and the MCP tools resolve the
+same layers. The whole module moved down from
+`rust/tcl-lsp-server/src/config_ini.rs`: `Layer` with `Layer::top_section`,
 `settings_from_ini` and the `insert_*` helpers it delegates to
 (`insert_diagnostics`, `insert_diagnostic_severity`, `insert_optimiser`,
 `insert_formatting`, `insert_packages`, `insert_workspace_scan`,
@@ -543,35 +601,51 @@ the same layers. The whole module moved: `Layer` with `Layer::top_section`,
 scanners, and `merge_settings`. Splitting the diagnostics sections out of
 `settings_from_ini` would leave two parses of one file, which is exactly
 the shape this design exists to remove. `rust/tcl-lsp-server/src/lib.rs`
-keeps `read_ini_layer` (it holds the `vfs::SourceStore`) and the
-`Backend::apply_global_config` path that applies a merged layer.
+keeps `read_ini_layer` (it holds the `vfs::SourceStore`) and applies a
+scope's layers through `apply_session_layers`.
 
-Four pieces of policy resolution moved with it, from
-`rust/tcl-lsp-server/src/lib.rs`: `DEFAULT_OFF_CODES` and
-`default_disabled_set`, `settings_disabled_diagnostics` (the nested and
-flat-dotted shapes, and the `true` / `false` per-code tri-state),
-`settings_severity_overrides` with `parse_severity_value`, and the
-optimiser resolution `resolved_analysis_settings` performs over
-`profile_to_disabled`. `PolicyBuilder` in `tcl-lsp-core` takes the
-configuration **layers one at a time, lowest first** (`layer(PolicyLayer,
-&json)`), rather than the merged JSON: only the unmerged layers can name
-the layer that decided a code, which is what `Disabled(PolicyLayer)` and
-the per-code tri-state need. It also takes the resolved dialect, the decode
-report and the directives, and produces one `Policy`. A key a higher layer
-sets to an unusable value (a non-boolean toggle, an unknown severity) resets
-the lower layers' decision, which is what per-key merge-then-parse did.
-The server's per-folder resolution stays in the server, because
-longest-prefix matching over workspace folders is an LSP concept the CLI
-has no counterpart for.
+An INI layer holds a per-code tri-state as the editor's does. `[diagnostics]`
+and `[optimiser]` read their `disabled` list and then every per-code key
+(`W242 = true`, `W111 = false`) in file order, so a per-code key wins over
+`disabled` in the same file, and a higher file can turn back on what a lower
+one turned off (`insert_code_toggles`).
+
+`PolicyBuilder` takes the configuration **layers one at a time, lowest
+first** (`layer(PolicyLayer, &json)`), rather than the merged JSON: only
+the unmerged layers can name the layer that decided a code, which is what
+`Disabled(PolicyLayer)` and the per-code tri-state need. It resolves the
+per-code decision, the severity overrides, the shimmer switch and the
+optimiser's switch, profile (over `profile_to_disabled`) and per-code
+overrides, with `DEFAULT_OFF_CODES` as the seed and `parse_severity_value`
+for a severity. It also takes the resolved dialect, the decode report and
+the directives, and produces one `Policy`. A key a higher layer sets to an
+unusable value (a non-boolean toggle, an unknown severity) resets the lower
+layers' decision, which is what per-key merge-then-parse did. The server's
+per-folder resolution stays in the server, because longest-prefix matching
+over workspace folders is an LSP concept the CLI has no counterpart for.
+
+**The analyser's skip is the layers'.** The session's skip and every
+configured folder's are `PolicyLayers::production_skip` of the same layers
+their policy is built from, so the report can explain every gap; a folder
+whose resolved analyser inputs equal the session's shares the session's
+analyser handle. `getEffectiveConfig` and the INI export report what the
+configuration turns off (`Policy::disabled_codes`), a fact code the
+analyser still computes included.
 
 **The invocation layer.** A surface's own flags occupy the editor layer's
 slot in the precedence order, under the project file and over the global
 file, and are recorded as `PolicyLayer::Invocation` so the report can
 say which one decided. For `tcl diag` / `lint` / `validate` and `tcl opt`
 that is `--disable` and `--enable`; for the MCP tools it is the `disable`
-and `enable` arguments. The flags
-keep their current tri-state meaning — `--enable` turns a code back on,
-which is what makes `--enable W242` reach a default-off code.
+and `enable` arguments. The flags keep their tri-state meaning — `--enable`
+turns a code back on, which is what makes `--enable W242` reach a
+default-off code.
+
+**The batch surfaces read no whole-document gate.** `tcl diag` / `lint` /
+`validate` / `opt`, the MCP tools and `tcl-lsp.optimiseDocument` read
+neither `features.diagnostics` nor `diagnostics.exclude` from any layer:
+those turn off an editor's published squiggles, not a report or a rewrite
+someone asked for.
 
 **A named profile is the request's own.** An optimiser profile the
 invocation names — `tcl opt --profile`, the MCP `optimize` tool's
@@ -600,89 +674,125 @@ wherever it is asked for.
 
 **Where the project file is.** Per input document, not per process. The
 resolution walks the input file's own directory and its ancestors for
-`tcl_lsp_core::tcl_install::PROJECT_CONFIG_FILENAME`, bounded the way
-`find_project_root` in `rust/tcl-cli/src/commands/pkg.rs` bounds its walk
-for `tclpkg.tcl`, and takes the first hit;
+`tcl_lsp_core::tcl_install::PROJECT_CONFIG_FILENAME`, at most twenty
+levels (`config_ini::project_root_for`), and takes the first
+`.tcl-lsp.ini` that exists: an unreadable one is reported on stderr and
+ends the walk rather than letting a grandparent's decide in its stead.
 `tcl_install::project_config_path` names the file once the root is known.
 `tcl diag a/x.tcl b/y.tcl` can therefore span two projects and resolve
-each under its own layer. An
-`InputDocument` with no `path` — `--source`, stdin, an MCP `source`
-string — has no project layer at all, and the report says so rather than
-silently using the process's working directory. The global layer is
+each under its own layer. An `InputDocument` with no `path` — `--source`,
+stdin, an MCP `source` string — has no project layer at all, and the
+process's working directory is never a substitute. The global layer is
 `tcl_install::user_config_path()` on every surface.
 
-**The default-off set.** `DEFAULT_OFF_CODES` moves into `tcl-lsp-core`
-with the builder and becomes the seed of every surface's resolution, which
-is what makes `tcl diag` stop reporting W242 on a file the editor shows
-clean. It remains a code-table concern, not a policy-step constant: the
-seed is a list of codes the catalogue declares opt-in.
+**The default-off set.** `DEFAULT_OFF_CODES` lives in `tcl-lsp-core` with
+the builder and is the seed of every surface's resolution, which is what
+stopped `tcl diag` reporting W242 on a file the editor shows clean. It
+remains a code-table concern, not a policy-step constant: the seed is a
+list of codes the catalogue declares opt-in.
 
 ## Adapters
 
 Each adapter reads one `Report` and renders it. None of them decides
 anything, and none of them may.
 
-**LSP** — `rust/tcl-lsp-server/src/lib.rs`. What is left of the lifts and
-`finalise_diagnostics`: `Span` to a UTF-16 `Range` through `lift_span`,
-`Severity` to `DiagnosticSeverity`, `Outcome::Shown::tag` to
-`Diagnostic.tags`, and `FindingData::Rewrite` to the `data` payload
-(`replacement`, `startOffset`, `endOffset`) for an actionable rewrite and
-to nothing for a `hint_only` one. It must not re-check a disabled set, a
-directive, the optimiser switch or the overlap table; the three publish
-paths become one call each on the same function. It may still choose to
-publish only `shown()` — a client sees no suppressed finding unless it
-asks.
+**LSP** — `rust/tcl-lsp-server/src/lib.rs`, `lift_report`: `Span` to a
+UTF-16 `Range` through `lift_span`, `Severity` to `DiagnosticSeverity`
+through `lsp_severity`, `Outcome::Shown::tag` to `Diagnostic.tags`, and an
+applicable rewrite to the `data` payload — `{replacement, startOffset,
+endOffset}` for an ungrouped rewrite and `{group, edits}` on every member of
+an intact optimisation group (#2123, #2149); a `hint_only` rewrite and a
+group that lost a member carry none. It re-checks no disabled set,
+directive, optimiser switch or overlap, and it publishes only `shown()`.
+The four report paths are one call each on `lifted_report`. O111 stays in
+the deep tier: tier membership is scheduling (`is_fast_tier`), not policy.
 
-**CLI rows** — `rust/tcl-cli/src/commands/diag.rs`. `collect_rows`
-becomes a row adapter over `Report::shown()`: 1-based line and column from
-the document's line index, `severity_label`, and the deterministic
-`(line, column, code)` sort. `--show-suppressed` renders `suppressed()`
-too, one row per finding with its reason, which is the CLI's answer to
-"why is this not firing". `run_validate` filters on `Severity::Error`
-over the report's shown set, never over raw producer output.
+**CLI rows** — `rust/tcl-cli/src/commands/diag.rs`. `rows_of` renders
+`shown()`: 1-based line and column from the document's line index, the
+severity label, and the deterministic `(line, column, code)` sort.
+`--show-suppressed` on `tcl diag` and `tcl lint` renders `suppressed()` too,
+one `hidden` row per finding with `[reason]`, and `gaps()` as rows with no
+position — the CLI's answer to "why is this not firing". A default-off gap
+is left out: the seed is the same on every file, and listing it everywhere
+buries the answer. `run_validate` filters on `Severity::Error` over the
+report's shown set, and takes no such flag.
 
 **MCP JSON** — `rust/tcl-mcp/src/tools.rs`. `analyze`, `validate`,
-`review` and `find-legacy` read `shown()` instead of
-`analysis.diagnostics`, keeping their own grouping (`diag_meta::meta`
-categories, the security / taint / thread split, the convertible-code
-table) which is presentation and stays theirs. Each payload gains a
-`suppressed` array of `{code, range, reason}`, so an agent can see that a
-finding exists and was suppressed rather than concluding the code is
-clean.
+`review` and `find-legacy` read `shown()`, keeping their own grouping
+(`diag_meta::meta` categories, the security / taint / thread split, the
+convertible-code table), which is presentation and stays theirs. Each
+payload carries a `suppressed` array — `{code, range, reason, message}` for
+a hidden finding, `range` and `message` `null` for a gap, a default-off gap
+left out — which `review` and `find-legacy` filter to their own code sets,
+so an agent can see that a finding exists and was suppressed rather than
+concluding the code is clean.
 
-**Code actions** — `rust/tcl-lsp-core/src/code_actions.rs`. The published
-set that `code_actions` and `code_actions_in_program` already take as a
-separate argument becomes `Report::shown()`, and
-`check_diagnostic_actions` loses its `disabled` and `suppressed`
-parameters along with the filtering they drive. The server's
-`retain_unsuppressed_diagnostics` and the SslicTcl supersession inside
-`published_analyser_diagnostics` go away with them. A fix is offered for a
-shown finding and for no other, which closes the two gaps the current
-split leaves: the MCP `code_actions` tool passes the analyser's raw set,
-and an optimiser rewrite reaches the client only as a diagnostic payload,
-so nothing offers it as an action a provider could reason about. An
-`Outcome::Shown` finding carrying `FindingData::Rewrite` is a code action
-like any other.
+**What a diagnostics surface did not run.** `tcl diag`, `tcl lint` and the
+MCP diagnostics tools run the analyser and the compiler checks with the
+optimiser off, and never run the optimiser itself. The accurate report says
+what did not run: besides the analyser's skip, they declare the optimiser's
+catalogued codes (`Report::declare_optimiser_skip`), so `--show-suppressed`
+and `suppressed` list a code only the optimiser emits as an `optimiser-off`
+gap — or with the earlier reason that decides it, a file directive or a
+layer's `false` — without running the optimiser to say so. A code a
+compiler check or the O111 producer emitted keeps its finding, hidden
+`optimiser-off` at its line (O100, O111). Running the optimiser there would
+spend work to produce nothing shown, and leaving its codes out would hide a
+true statement.
+
+**The reason spellings.** One lower-case, hyphenated spelling with an
+optional `:detail`, from `Display for Reason`, on every rendering:
+
+| `Reason` | Spelling |
+|---|---|
+| `ReportingOff` | `reporting-off` |
+| `Excluded` | `excluded` |
+| `EncodingAbstention` | `encoding-abstention` |
+| `InlineDirective { .. }` | `inline-directive` |
+| `FileDirective` | `file-directive` |
+| `Disabled(layer)` | `disabled:global`, `disabled:editor`, `disabled:invocation`, `disabled:project` |
+| `DefaultOff` | `default-off` |
+| `OptimiserOff` | `optimiser-off` |
+| `OptimiserProfile { profile }` | `optimiser-profile:<profile>` |
+| `ShimmerOff` | `shimmer-off` |
+| `Overlap { owner }` | `overlap:<code>` or `overlap:<producer>` |
+
+**Code actions** — `rust/tcl-lsp-core/src/code_actions.rs`. `code_actions`
+and `code_actions_in_program` take the `Report` and lift fixes from what it
+shows: a fix is offered for a shown finding and for no other, and a shown
+rewrite is an action like any other, through `applicable_rewrites` — a
+group whole or not at all. The server's lightbulb reads the report the
+document publishes (`published_report` over `published_findings`), and the
+MCP `code_actions` tool reads the producers' findings with the optimiser's
+rewrites under the layers' switch.
 
 **`tcl opt`** — `rust/tcl-cli/src/commands/transform.rs`. `run_opt`
-applies the rewrites carried by `shown()` findings only, in the same
-multi-pass loop; a rewrite whose finding is suppressed is not applied, and
-the stdout summary block lists what was applied rather than what the
-optimiser found. The MCP `optimize` tool and the server's
-`tcl-lsp.optimiseDocument` command take the same path, which is what makes
-a `# noqa` mean the same thing to a rewrite as it does to a squiggle.
+optimises each input as its own program (#2120) through
+`optimise_under_policy`: every pass reads the analyser's directive map over
+that pass's text — the map the squiggles are decided under, so a `# noqa`
+before a multi-line command covers every line of it — and applies what the
+report shows through `applicable_items`, so a group applies whole or not at
+all (#2149). The summary block lists what was applied. The MCP `optimize`
+tool and the server's `tcl-lsp.optimiseDocument` command take the same
+path, which is what makes a `# noqa` mean the same thing to a rewrite as it
+does to a squiggle.
 
 ## Producers that change
 
-**O111 becomes a producer.** `append_brace_expr_perf_hints` creates O111
-by searching the already-lifted diagnostics for W100, so O111 fires only
-where a W100 survived presentation policy — and it reads `optimiser_enabled`
-and the optimiser disabled set itself to decide whether to run at all.
-Both rules consume the same unbraced-expression fact. O111 becomes a
-producer over that fact, emitting a `Finding` at the same span for every
-unbraced expression, and policy decides both independently: disabling
-W100 does not silence O111, and the optimiser gate reaches O111 in the
-one place it reaches every other O-code.
+**O111 is a producer** (slice 8). The server used to create O111 by
+searching the already-lifted diagnostics for W100, so O111 fired only where
+a W100 survived presentation policy, and it read the optimiser's switch and
+disabled set itself. Both rules consume the same unbraced-expression fact.
+`brace_expr_hints` now emits one O111 at the span of every W100 the
+analyser emitted, reading no policy, and every report of the deep set adds
+the hints right after the analyser's findings (the server's fast tier adds
+none: tier membership is scheduling). Policy decides both independently: disabling
+W100 or a `# noqa: W100` does not silence O111, and the optimiser's gates
+reach O111 in the one place they reach every other O-code. W100 is a fact
+code (`FACT_CODES`): the analyser computes it whatever the layers say, and
+the policy step suppresses it, because O111 reads its sites. A top-of-file
+`# tcl-lsp: disable=W100` still removes O111, through the analyser's fold
+(§ Where each step lives).
 
 **The style pass stopped applying the map** (slice 3).
 `source_style::style_diagnostics` keeps its checks, its line
@@ -698,53 +808,69 @@ control flow.
 parameters and returns every loader finding, as `Finding`s.
 `SUPERSEDED_ANALYSER_CODES` is read as the dialect's
 `Overlap { owner: Producer(SslicTcl), superseded: W123, scope: Document }`
-entry by `dialect_overlaps`; `supersede_analyser_diagnostics` goes away
-with the adapters that still call it (slices 4 and 5), and the
-supersession is then visible as `Reason::Overlap` on a W123 rather than
-as a silently missing finding.
+entry by `dialect_overlaps`. The function that superseded W123 by hand went
+with the adapters that called it (slices 4 and 5), and the supersession is
+visible as `Reason::Overlap` on a W123 rather than as a silently missing
+finding.
 
-**The XC lift and the F5 integrity lift stop filtering.**
-`lift_xc_diagnostics` and `lift_f5_source_integrity_diagnostics` become
-conversions; the second stops calling `parse_file_suppression` for itself,
-which is the one place in the tree where a surface re-scans the source for
-a directive the front end already parsed.
+**The XC and F5 integrity lifts stopped filtering.** `xc_findings` is a
+conversion, and the F5 model report's integrity codes come from
+`document_report`'s integrity pass under `Directives::scan` — the policy's
+directive facts, where the old lift re-scanned the source for a directive
+the front end had already parsed.
 
 **The analyser keeps its production-time skip.** `file_analysis` passing
-the disabled set into `Analyser::with_disabled_diagnostics` is rule 2's
+the production skip into `Analyser::with_disabled_diagnostics` is rule 2's
 permitted saving, and it stays: the analyser's emitters are the dominant
-cost and a disabled expensive rule should not run. What changes is that
-the skip is *declared* — the policy step is told which codes the producer
-skipped and records `Disabled(layer)` for them, so a report never shows a
-gap it cannot explain. The CLI's `Analyser::new()` and the MCP's
-`Analyser::new()` gain the same seeded set for the same reason.
+cost and a disabled expensive rule should not run. What changed is that the
+skip is *declared* (`Report::declare_analyser_skip`), with the reason the
+policy gives for each code, so a report never shows a gap it cannot
+explain. The CLI's and the MCP's analyser runs take the same seeded skip,
+and the diagnostics surfaces declare the optimiser they do not run the
+same way (§ Adapters).
 
 ## The truth table
 
 One table from `(program, policy)` to `Report`, in `tcl-lsp-core` beside
-`apply`, is the parity gate. Each row is a small Tcl program, a `Policy`
-built from a named configuration, and the expected set of
-`(code, span, Outcome)` triples — every finding, shown and suppressed,
-with its reason. The rows cover one case per `Reason` variant, the
-precedence pairs that distinguish two reasons for the same finding (an
-inline directive over a project enable; a project enable over a global
-disable; a directive over the optimiser profile), the `*` wildcard in
+`apply`, is the parity gate: `rust/tcl-lsp-core/src/diagnostic_policy/truth_table.rs`,
+compiled for that crate's tests and, through its `truth-table` feature, for
+the adapter crates' tests, which enable the feature from their
+`[dev-dependencies]`, so no shipped build carries it. Each row is a small
+program, the configuration by slot — the global file, the editor slot and
+the project file — and what the editor's report holds for the codes the row
+names: shown, shown at a severity, suppressed for a reason, or absent with
+the report's reason for the gap. The 41 rows cover one case per `Reason`
+variant, the precedence pairs that distinguish two reasons for the same
+finding (an inline directive over a project enable; a project enable over a
+global disable; a directive over the optimiser profile), the `*` wildcard in
 both directive spellings, the `FILE_SUPPRESS_KEY` bucket, a default-off
-code turned back on at each layer, both `OverlapScope` kinds, and an
-abstaining document.
+code turned back on at each layer, the overlap scopes the table uses
+(`WithinSpan` for W110 over O120, `Document` for the loader over W123), and
+an abstaining document. A new `Reason` variant or `PolicyLayer` that no row
+covers fails the table's own test.
 
-The table lives once and every adapter runs it. Each adapter test walks
-the same rows, renders the report through that adapter, and asserts the
-rendering matches the shown set: the LSP adapter's `Diagnostic` vector,
-the CLI's rows in both the plain and `--show-suppressed` forms, the MCP
-payload's `diagnostics` and `suppressed` arrays, the code-action
-provider's offered fixes, and the text `tcl opt` emits. A surface that
-forgets a policy step then fails on the row for that step rather than on
-a reviewer noticing. The existing server unit tests that assert a lift
-honours a step — `lift_compiler_diagnostics_honours_inline_noqa_suppression`,
-`lift_compiler_diagnostics_honours_optimiser_master_switch_and_per_code`,
-`lift_source_style_diagnostics_honours_file_suppression`,
-`apply_severity_overrides_relabels_only_listed_codes` — become rows in the
-table, and the LSP adapter's pass over it is what they turn into.
+The expectations are written once, for the editor, and `Row::expected`
+derives every other surface's by this page's rules (`Surface`): the LSP
+adapter publishes only what shows; a surface's flags occupy the editor
+layer's slot, so `Disabled(Editor)` reads `Disabled(Invocation)`; the
+diagnostics verbs and tools run with the optimiser off, so an O-code they
+have a finding for reads `OptimiserOff` and one only the optimiser emits is
+a declared gap; a default-off gap is not rendered; the CLI analyses no
+abstaining document; and an action is offered, or a rewrite applied,
+exactly when its finding shows. `Row::runs_on` says which surfaces can
+realise a row at all.
+
+The table lives once and every adapter runs it: the core report in the
+module itself; the LSP adapter, the lightbulb and `optimiseDocument` in
+`rust/tcl-lsp-server/src/policy_truth_table.rs`; `tcl diag
+--show-suppressed` and `tcl opt` in `rust/tcl-cli/tests/cli.rs`; and the MCP
+`analyze`, `code_actions` and `optimize` tools in `rust/tcl-mcp/src/tools.rs`.
+A surface that forgets a policy step then fails on the row for that step
+rather than on a reviewer noticing. The four server unit tests that once
+asserted a lift honoured a step are rows 8, 11 and 12, 27, and 32 and 33. A
+row whose wanted outcome does not hold records a `Defect` that pins today's
+rendering on the surfaces it names and fails once the wanted outcome holds,
+so the fix removes the marker; no row records one.
 
 ## Slices
 
@@ -757,43 +883,39 @@ table, and the LSP adapter's pass over it is what they turn into.
    `DiagSection`. Nothing calls the module yet. *Built.*
 2. **Move the INI parse and the three-layer merge**
    `rust/tcl-lsp-server/src/config_ini.rs` →
-   `rust/tcl-lsp-core/src/config_ini.rs`, with `DEFAULT_OFF_CODES`,
-   `default_disabled_set`, `settings_disabled_diagnostics`,
-   `settings_severity_overrides` and `parse_severity_value` from
+   `rust/tcl-lsp-core/src/config_ini.rs`, with `DEFAULT_OFF_CODES`, the
+   per-code and severity readers and `parse_severity_value` from
    `rust/tcl-lsp-server/src/lib.rs`. Add the `Policy` builder. *Built.*
 3. **`apply`.** The step order above, in `tcl-lsp-core`. Producers stop
    applying policy themselves: `source_style::style_diagnostics`,
    `sslictcl_diagnostics::diagnostics`,
-   `source_decode::encoding_integrity_diagnostics`'s callers. *Built* —
-   the callers on the server and the CLI hand those findings to `apply`
-   under `Policy::from_disabled_set`, which keeps each surface's
-   behaviour until its adapter slice replaces it.
+   `source_decode::encoding_integrity_diagnostics`'s callers. *Built.*
 4. **Server: the LSP adapter.** `publish_fast_tier`,
    `refine_and_lift_diagnostics` and `analysed_diagnostics_for` in
    `rust/tcl-lsp-server/src/lib.rs` each call one function; the lifts,
    `finalise_diagnostics`, `suppress_duplicate_o120` and
    `retain_unsuppressed_diagnostics` become the adapter or disappear.
-   `tcl-lsp.optimiseDocument` joins the same path.
+   `tcl-lsp.optimiseDocument` joins the same path. *Built* — the function
+   is `lifted_report`.
 5. **CLI.** `collect_rows` in `rust/tcl-cli/src/commands/diag.rs` becomes
-   the row adapter; `resolve_disabled` becomes the invocation layer over
-   the seeded set; the project and global layers resolve per input file
-   (closes #2063). `run_opt` in
-   `rust/tcl-cli/src/commands/transform.rs` applies only shown rewrites,
-   and stops folding several inputs into one `combine_sources` text when
-   their policies differ (closes #2062).
+   the row adapter; the flags become the invocation layer over the seeded
+   set; the project and global layers resolve per input file (closed
+   #2063). `run_opt` in `rust/tcl-cli/src/commands/transform.rs` applies
+   only shown rewrites, and stops folding several inputs into one
+   `combine_sources` text when their policies differ (since #2120, always;
+   closed #2062). *Built.*
 6. **MCP.** `analyze`, `validate`, `review`, `find-legacy`, `optimize`
    and `code_actions` in `rust/tcl-mcp/src/tools.rs` read the report;
-   the diagnostics tools gain a `disable` argument (closes #2061).
-7. **Code actions.** `check_diagnostic_actions` and `code_actions` in
-   `rust/tcl-lsp-core/src/code_actions.rs` lift fixes from shown findings
-   only and lose their filtering parameters; a shown finding carrying
-   `FindingData::Rewrite` becomes an offerable action instead of only a
-   diagnostic payload.
+   the diagnostics tools gain a `disable` argument (closed #2061). *Built.*
+7. **Code actions.** `code_actions` in `rust/tcl-lsp-core/src/code_actions.rs`
+   lifts fixes from shown findings only and lost its filtering parameters;
+   a shown finding carrying `FindingData::Rewrite` is an offerable action
+   instead of only a diagnostic payload. *Built.*
 8. **O111 as a producer** over the unbraced-expression fact;
    `append_brace_expr_perf_hints` in
-   `rust/tcl-lsp-server/src/lib.rs` goes away.
+   `rust/tcl-lsp-server/src/lib.rs` goes away. *Built.*
 9. **The truth table**, plus `--show-suppressed` on `tcl diag` / `lint`
-   and the `suppressed` array on the MCP payloads.
+   and the `suppressed` array on the MCP payloads. *Built.*
 10. **Owner docs.** [diagnostics-integration.md](diagnostics-integration.md)
     and [diagnostics-calculation.md](diagnostics-calculation.md) point at
     the policy step instead of describing the server's lifts;
@@ -806,7 +928,8 @@ table, and the LSP adapter's pass over it is what they turn into.
     the editor layer; and
     [kcs-howto-suppress-diagnostics.md](../../kcs/kcs-howto-suppress-diagnostics.md)
     can finally promise the five scopes on every surface, and document
-    `--show-suppressed`.
+    `--show-suppressed`. *Being built:* this page describes the built tree;
+    the owner and user documents follow.
 
 ## Failure modes
 
@@ -826,52 +949,36 @@ table, and the LSP adapter's pass over it is what they turn into.
   `Disabled(PolicyLayer)` naming the wrong layer.
 - An adapter that filters "just this once" — an O-code an editor does not
   want, a code family a tool considers noise — which is the shape every
-  cell of § Today started as.
+  cell of § Before the policy step started as.
+- A rewrite group applied or offered in part — the report's
+  `applicable_rewrites` / `applicable_items` are the only doors.
 - Policy applied at production for a fact another consumer needs. The
   analyser's production-time skip is safe only because its findings are
-  not read as facts; extending the same shortcut to a pass whose output
-  feeds the optimiser or a summary breaks rule 1 of
+  not read as facts, which is why `FACT_CODES` keeps W100 out of it;
+  extending the same shortcut to a pass whose output feeds the optimiser
+  or a summary breaks rule 1 of
   [value-transfers.md § Diagnostics consume facts](value-transfers.md#diagnostics-consume-facts).
 
 ## Anchors
 
-- `rust/tcl-lsp-server/src/lib.rs` — `lift_analyser_diagnostics`,
-  `lift_compiler_diagnostics`, `lift_source_style_diagnostics`,
-  `lift_style_diagnostics`, `lift_f5_source_integrity_diagnostics`,
-  `lift_xc_diagnostics`, `extend_with_sslictcl_diagnostics`,
-  `append_brace_expr_perf_hints`, `suppress_duplicate_o120`,
-  `finalise_diagnostics`, `apply_encoding_abstention`,
-  `apply_diagnostic_tags`, `apply_severity_overrides`,
-  `retain_unsuppressed_diagnostics`, `DEFAULT_OFF_CODES`,
-  `default_disabled_set`, `settings_disabled_diagnostics`,
-  `resolved_analysis_settings`, `publish_fast_tier`,
-  `refine_and_lift_diagnostics`, `analysed_diagnostics_for`,
-  `published_analyser_diagnostics`, `check_actions`,
-  `optimise_document_command`
-- `rust/tcl-lsp-core/src/config_ini.rs` — `Layer`,
-  `settings_from_ini`, `insert_diagnostics`,
-  `insert_diagnostic_severity`, `insert_optimiser`, `merge_settings`,
-  `DEFAULT_OFF_CODES`, `default_disabled_set`,
-  `settings_disabled_diagnostics`, `settings_severity_overrides`,
-  `parse_severity_value`
-- `rust/tcl-lsp-core/src/diagnostic_policy.rs` — `Finding`, `Report`,
-  `Policy`, `PolicyBuilder`, `Directives`, `dialect_overlaps`
-- `rust/tcl-lsp-db/src/lib.rs` — `file_analysis`,
-  `file_analysis_incremental`, `compiler_check_diagnostics`,
-  `compiler_check_diagnostics_uncached`, `CompilerDiagnostics`,
-  `project_diagnostics`, `apply_project_callback_arity`
-- `rust/tcl-cli/src/commands/diag.rs` — `collect_rows`, `resolve_disabled`,
-  `abstained_rows`, `style_rows`, `push_sslictcl_rows`
-- `rust/tcl-cli/src/commands/transform.rs` — `run_opt`
-- `rust/tcl-cli/src/commands/pkg.rs` — `find_project_root`, the bounded
-  ancestor walk the CLI's project layer follows
-- `rust/tcl-cli-support/src/input.rs` — `InputDocument`,
-  `analysis_source`, `abstains_on_encoding`, `encoding_diagnostics`,
-  `combine_sources`, `read_input_documents`
-- `rust/tcl-mcp/src/tools.rs` — `analyse`, `analyze`, `validate`,
-  `review`, `find_legacy`, `optimize`, `code_actions`
+- `rust/tcl-lsp-core/src/diagnostic_policy.rs` — `Finding`, `Producer`,
+  `Outcome`, `Reason`, `PolicyLayer`, `Report`, `ApplicableRewrite`,
+  `Policy`, `DocumentGates`, `PolicyBuilder`, `OptimiserPolicy`,
+  `Overlap`, `OverlapOwner`, `OverlapScope`, `Directives`, `apply`,
+  `dialect_overlaps`, `WHOLE_FILE_CODES`, `FACT_CODES`
+- `rust/tcl-lsp-core/src/diagnostic_policy/truth_table.rs` — `Row`,
+  `ROWS`, `Surface`, `Want`, `Expect`, `Defect`, `check`, `offered`,
+  `core_report`
+- `rust/tcl-lsp-core/src/diagnostic_report.rs` — `document_report`,
+  `DocumentSource`, `SourcePass`, `standalone_findings`,
+  `StandaloneDocument`, `brace_expr_hints`, `optimise_under_policy`
+- `rust/tcl-lsp-core/src/config_ini.rs` — `Layer`, `settings_from_ini`,
+  `insert_diagnostics`, `insert_diagnostic_severity`, `insert_optimiser`,
+  `insert_code_toggles`, `merge_settings`, `DEFAULT_OFF_CODES`,
+  `parse_severity_value`, `global_layer`, `project_layer_for`,
+  `project_root_for`
 - `rust/tcl-lsp-core/src/code_actions.rs` — `code_actions`,
-  `code_actions_in_program`, `check_diagnostic_actions`
+  `code_actions_in_program`
 - `rust/tcl-lsp-core/src/source_style.rs` — `style_diagnostics`,
   `StyleDiagnostic`, `StyleSeverity`, `StyleFix`, `DEFAULT_LINE_LENGTH`,
   `DEFAULT_LINE_ENDING`
@@ -879,23 +986,49 @@ table, and the LSP adapter's pass over it is what they turn into.
   `encoding_integrity_diagnostics`, `DecodeReport`,
   `requires_abstention`, `should_abstain`
 - `rust/tcl-lsp-core/src/sslictcl_diagnostics.rs` — `diagnostics`,
-  `applies_to`, `SUPERSEDED_ANALYSER_CODES`,
-  `supersede_analyser_diagnostics`
+  `applies_to`, `SUPERSEDED_ANALYSER_CODES`
 - `rust/tcl-lsp-core/src/tcl_install.rs` — `user_config_path`,
   `project_config_path`, `PROJECT_CONFIG_FILENAME`
+- `rust/tcl-lsp-server/src/lib.rs` — `PolicyLayers`, `document_policy`,
+  `lifted_report`, `published_report`, `published_findings`, `lift_report`,
+  `analyser_findings`, `compiler_findings`, `xc_findings`,
+  `model_findings`, `bigip_config_findings`, `apl_presentation_findings`,
+  `apply_session_layers`, `resolved_policy_layers`, `publish_fast_tier`,
+  `refine_and_lift_diagnostics`, `analysed_diagnostics_for`,
+  `f5_model_report`, `published_analyser_diagnostics`,
+  `optimise_document_command`, `is_fast_tier`
+- `rust/tcl-lsp-server/src/policy_truth_table.rs` — the LSP, code-action
+  and `optimiseDocument` passes over the truth table
+- `rust/tcl-lsp-db/src/lib.rs` — `file_analysis`,
+  `file_analysis_incremental`, `compiler_check_diagnostics`,
+  `compiler_check_diagnostics_uncached`, `CompilerDiagnostics`,
+  `project_diagnostics`, `apply_project_callback_arity`
+- `rust/tcl-cli/src/commands/policy.rs` — `ConfigLayers`,
+  `invocation_layer`
+- `rust/tcl-cli/src/commands/diag.rs` — `collect_rows`, `rows_of`,
+  `diag_policy`
+- `rust/tcl-cli/src/commands/transform.rs` — `run_opt`
+- `rust/tcl-cli-support/src/input.rs` — `InputDocument`,
+  `analysis_source`, `abstains_on_encoding`, `combine_sources`,
+  `read_input_documents`
+- `rust/tcl-mcp/src/tools.rs` — `PolicyInputs`, `analyse_under`,
+  `Analysed`, `analyze`, `validate`, `review`, `find_legacy`, `optimize`,
+  `code_actions`
 - `rust/tcl-compiler/src/analyser/utils.rs` — `line_suppressed`,
   `parse_noqa_marker`, `parse_file_suppression`,
   `parse_noqa_line_suppressions_for_dialect`, `apply_preceding_noqa`,
   `FILE_SUPPRESS_KEY`
 - `rust/tcl-compiler/src/analyser/state.rs` —
-  `Analyser::with_disabled_diagnostics`, `apply_disabled_diagnostics`
+  `Analyser::with_disabled_diagnostics`
+- `rust/tcl-compiler/src/analyser/diagnostics.rs` —
+  `apply_disabled_diagnostics`
 - `rust/tcl-compiler/src/analyser/types.rs` — `Diagnostic`, `CodeFix`,
   `FixSafety`, `AnalysisResult::suppressed_lines`
 - `rust/tcl-compiler/src/compiler_checks.rs` — `Diagnostic`,
   `run_all_checks`, `run_all_checks_with_generic_patterns`
 - `rust/tcl-compiler/src/optimiser/mod.rs` — `Optimisation`
-- `rust/tcl-compiler/src/optimiser/manager.rs` —
-  `optimise_source_multipass`, `optimise_source_multipass_filtered`
+- `rust/tcl-compiler/src/optimiser/manager.rs` — `optimise_with_dialect`,
+  `optimise_source_multipass_admitting`
 - `rust/tcl-compiler/src/optimiser/profiles.rs` — `OptimisationProfile`,
   `profile_to_disabled`, `DEFAULT_EDITOR_PROFILE`
 - `rust/tcl-core-types/src/diag_code.rs` — `DiagCode`, `DiagSection`,

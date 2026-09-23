@@ -171,9 +171,10 @@ command that follows it, so a trailing `;# noqa: O124` suppresses the next
 command instead.
 
 The master optimiser toggle (`tclLsp.optimiser.enabled` / `optimiser.enabled`)
-also controls O124.  All of these routes converge on the
-`disabled_optimisations` set filtered by `lift_compiler_diagnostics`
-(`rust/tcl-lsp-server/src/lib.rs`).
+also controls O124.  Every one of these routes is decided in one place, the
+diagnostic policy step (`rust/tcl-lsp-core/src/diagnostic_policy.rs`): the
+settings as its per-code decision (`OptimiserPolicy::disabled`), the inline
+comment as its directive step, and the master toggle as its optimiser gate.
 
 ## Algorithm
 
@@ -206,7 +207,7 @@ also controls O124.  All of these routes converge on the
 - `rust/tcl-core-types/src/diag_code.rs` — the `O124` row and its `Dce` category
 - `rust/tcl-compiler/src/interprocedural.rs` — the `ProcSummary` call graph the pass walks
 - `rust/tcl-compiler/src/optimiser/helpers/spans.rs` — `full_rewrite_span`
-- `rust/tcl-lsp-server/src/lib.rs` — `lift_compiler_diagnostics` (per-code and master toggles)
+- `rust/tcl-lsp-core/src/diagnostic_policy.rs` — `PolicyBuilder` and `apply` (per-code and master toggles)
 - `editors/vscode/package.json` — VS Code toggle
 - `editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/settings/` — JetBrains toggle (`optimiserO124`)
 

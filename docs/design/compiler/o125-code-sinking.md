@@ -24,10 +24,11 @@ Once the profile enables it, three switches turn it back off:
 | **LSP ``didChangeConfiguration``** | Session-wide | Send `tclLsp.optimiser.O125 = false` in the settings payload |
 
 The master switch `tclLsp.optimiser.enabled` suppresses O125 with every other
-O-code.  All three of the per-code routes land in the same
-`disabled_optimisations` set that `lift_compiler_diagnostics`
-(`rust/tcl-lsp-server/src/lib.rs`) filters against; the profile's own
-disabled set comes from `profile_to_disabled`
+O-code.  The two setting routes reach the per-code decision in the
+diagnostic policy step (`OptimiserPolicy::disabled`,
+`rust/tcl-lsp-core/src/diagnostic_policy.rs`) and the inline one its
+directive step; the profile's own disabled set comes from
+`profile_to_disabled`
 (`rust/tcl-compiler/src/optimiser/profiles.rs`).
 
 ## What the rewrite looks like
@@ -375,8 +376,8 @@ prepend can never land without its deletion:
 - `rust/tcl-compiler/src/optimiser/helpers/select.rs` — `select_non_overlapping`
 - `rust/tcl-compiler/src/optimiser/profiles.rs` — profile → disabled-code set
 - `rust/tcl-core-types/src/diag_code.rs` — the `O125` row and its `CodeMotion` category
-- `rust/tcl-lsp-server/src/lib.rs` — `lift_compiler_diagnostics` (per-code and
-  master toggles, `# noqa` filtering)
+- `rust/tcl-lsp-core/src/diagnostic_policy.rs` — `PolicyBuilder` and `apply`
+  (the per-code and master toggles, `# noqa`)
 - `editors/vscode/package.json` — the ``tclLsp.optimiser.O125`` setting
 - `editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/settings/` — the
   JetBrains checkbox (`optimiserO125`)

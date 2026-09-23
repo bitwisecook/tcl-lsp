@@ -1516,6 +1516,75 @@ included); `tcl-mcp` 103 (its truth-table passes included); server `--lib
 `tcl-mcp` and `tcl-lsp-server` is clean; `cargo fmt --check` is clean;
 `cargo check --workspace` is green.
 
+### DP10.1 — the design page describes the built tree
+
+`docs/design/compiler/diagnostic-policy.md`, rewritten by the item's list:
+
+- The status block reads *built* and names the vocabulary as the tree
+  spells it.
+- § Today is § Before the policy step (at `rust` `3b5eba8a`): the table
+  and its paragraphs are kept, in the past tense, as the record of what
+  changed, with one sentence saying so. § Why the copies existed stays
+  under it.
+- § Where each step lives is its own section, written for the built tree:
+  core, the server's names from the item, `tcl-lsp-db`'s declared skip,
+  the CLI, the MCP tools, and `tcl-compiler`. `tcl-compiler` holds the
+  directive facts, and the fold and W305 self-filter are named as open.
+- § The outcome and § The policy follow the tree: `Reason::Overlap {
+  owner: OverlapOwner }`; `Report` as a struct with its doors, its gaps
+  and its three `declare_*`; `DocumentGates`; `code_reason`,
+  `gap_reason`, `disabled_codes`, `production_skip` with `FACT_CODES`, and
+  `analyser_skip`. The server's reporting-off short-circuit is stated
+  (D29).
+- The ruling on question 10 is in § The policy, as the overlap table's
+  paragraph: `WithinSpan` and its reason, the page's rule "explicit and
+  separate from fact production".
+- § Configuration takes § The five scopes as its first subsection. The
+  three flat readers are gone from the prose, `PolicyBuilder` is said to
+  resolve what they did, and the section adds the per-code INI keys, the
+  analyser's skip as the layers' production skip with folder sharing, the
+  batch surfaces reading no whole-document gate, and the project walk's
+  bound and its unreadable-file rule (D42).
+- § Adapters states the LSP group payloads, the `--show-suppressed` rows
+  and gap rows with the default-off omission, the `suppressed` element
+  with `message`, and the reason-spelling table. The ruling on question 11
+  is the subsection "What a diagnostics surface did not run".
+- § Producers that change marks O111 built, with `FACT_CODES`; the
+  analyser's skip is declared, and the fold is open.
+- § The truth table gives the module path, the feature, the surface rules
+  and where each pass lives. The four tests the page named become rows,
+  without their old names.
+- § Slices marks slices 4–9 built (1–3 already were), and slice 5's fold
+  reads "(since #2120, always)".
+- § Failure modes gains the rewrite-group bullet. § Anchors lists only
+  names in the tree, with the item's additions.
+
+The item's list is followed except in these respects:
+
+- Slice 10 reads *being built*, not *built*: DP10.2, DP10.3 and DP10.5 are
+  still to land.
+- § Where each step lives names `published_report` as what the lightbulb
+  reads, not the reintroduced `code_action_report`. That name is in
+  § Transitional pieces, so the page would fail the item's own grep.
+
+`docs/design/README.md` calls the page built. Five documents outside the
+lane named the gone `lift_compiler_diagnostics`:
+`docs/design/rust/lsp-performance.md`,
+`docs/design/contracts/shimmer-reference-behaviour.md`,
+`docs/design/compiler/o125-code-sinking.md` (twice),
+`docs/design/compiler/optimiser-o124-unused-irule-procs.md` (twice) and
+`docs/design/compiler/downstream-pass-contracts.md`. They now point at the
+policy step, and the O124 and O125 notes say which step each route
+reaches. The plan's DP10.2 and DP10.3 sentences follow D46 and D47: rule
+5's overlap wording, and the gap's definition in the how-to and the
+glossary.
+
+Gates: `cargo xtask kcs-index-links` passes. The grep for each name in
+§ Transitional pieces over `docs/` finds only the lane documents, except
+`lift_compiler_diagnostics` in
+`docs/design/compiler/diagnostics-integration.md`. That file is DP10.2's
+to rewrite whole (§ Anchors included), so it is left to that item.
+
 ## Plan for finishing slices 4–7 and for slices 8–10
 
 The execution plan from the checkpoint `5bc40e95` to the end of the page's
@@ -3484,8 +3553,8 @@ Files and edits:
   severity, the optimiser and shimmer switches, overlaps and abstention are
   applied by `apply` alone, identically whatever the finding's origin or
   the surface." Rule 5 names the overlap table (`dialect_overlaps`: W110
-  over O120 at the same span, the `SslicTcl` loader over W123
-  document-wide) instead of `suppress_duplicate_o120`. § Failure modes'
+  over an O120 whose span holds it — D46 — and the `SslicTcl` loader over
+  W123 document-wide) instead of `suppress_duplicate_o120`. § Failure modes'
   "A new code family added without a lift" becomes "… without a conversion
   to `Finding`". § Anchors: the server line becomes `lifted_report`,
   `lift_report`, `document_policy`; add `rust/tcl-lsp-core/src/diagnostic_policy.rs`
@@ -3549,8 +3618,9 @@ Files and edits:
   sentence: `[features]` and `[diagnostics] exclude` are the editor's
   alone (DP5.3); § How to tell it worked gains a bullet for the CLI and
   the MCP tools — `tcl diag --show-suppressed` lists each hidden finding
-  as a `hidden` row with its reason and each code a layer turned off that
-  no finding carries as a gap row, and the MCP diagnostics tools return
+  as a `hidden` row with its reason and each code a layer turned off, or
+  the surface did not run (the optimiser's codes, D47), that no finding
+  carries as a gap row, and the MCP diagnostics tools return
   the same in `suppressed` — with the reason spellings as a table naming
   the scope each one points at; § 1 gains "Silencing W100 does not
   silence O111 — name both codes."
@@ -3570,7 +3640,8 @@ Files and edits:
   gains the matching bullet).
 - `docs/GLOSSARY.md` — "Diagnostic report" names its two renderings of
   what is hidden (`--show-suppressed`, `suppressed`) and the gap: a code the
-  policy turned off that no finding carries.
+  policy turned off, or the surface did not run (D47), that no finding
+  carries.
 
 Gates: `cargo xtask kcs-index-links`.
 
@@ -4323,7 +4394,7 @@ Each item updates its row in the commit that lands it.
 | DP9.7 | sonnet | M | done — § *Slices 8–10 as built* | `DP9.7 — the MCP passes` | `tcl-mcp` (103); core `--lib --features truth-table` (2340); clippy on `tcl-mcp` with `--all-targets --no-deps`; `cargo fmt`; `cargo check --workspace` |
 | Ruling, § Open questions 10 | opus | S | done — § *The owner's ruling on § Open questions 10* | `W110 owns the O120 it sits in (the ruling on question 10)` | core `--lib` (2341), server `--lib` (590), the whole `e2e`, `tcl-mcp`, `tcl-cli --test cli -- truth_table`; the crate clippy; `cargo check --workspace` |
 | Ruling, § Open questions 11 | opus | S | done — § *The owner's ruling on § Open questions 11* | `the diagnostics surfaces declare what did not run (the ruling on question 11)` | core `--lib` (2341), `tcl-cli --test cli` (48), `tcl-mcp` (103), server `--lib -- policy_truth_table`; the crate clippy; `cargo check --workspace` |
-| DP10.1 | opus | M | not started | — | — |
+| DP10.1 | opus | M | done — § *Slices 8–10 as built* | `DP10.1 — the design page describes the built tree` | `kcs-index-links`; the transitional-name grep over `docs/` (only `diagnostics-integration.md`, DP10.2's, remains) |
 | DP10.2 | sonnet | M | not started | — | — |
 | DP10.3 | sonnet | M | not started | — | — |
 | DP10.4 | opus | M | the merge landed; the wrapper and the review remain (§ `rust` has moved under the branch, *As merged*) | — | — |

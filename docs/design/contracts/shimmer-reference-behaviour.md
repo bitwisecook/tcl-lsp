@@ -337,4 +337,4 @@ dedicated `Statement::Incr` node.
   `sharing.rs` (S103), `byte_array.rs` (S110), `phi.rs`, `graph.rs`,
   `span.rs`.
 - Registry data: `rust/tcl-registry/src/commands/**` (`arg_types` on each `CommandSpec`/`SubCommand`).
-- Suppression: `rust/tcl-compiler/src/analyser/utils.rs` (`parse_noqa_line_suppressions`, `apply_preceding_noqa`), consumed by `lift_compiler_diagnostics` in `rust/tcl-lsp-server/src/lib.rs`.
+- Suppression: `rust/tcl-compiler/src/analyser/utils.rs` (`parse_noqa_line_suppressions`, `apply_preceding_noqa`), applied to the shimmer findings by the policy step (`Directives::reason_for` in `rust/tcl-lsp-core/src/diagnostic_policy.rs`) on every surface.

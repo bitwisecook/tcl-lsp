@@ -29,9 +29,11 @@ checks and the optimiser's `O1xx` rewrites — from **one** `CompilationUnit`;
 the unit itself is a tracked query (`compilation_unit`, keyed on an interned
 lexer config) so the analyser tail and the compiler/optimiser checks share a
 single build per edit whenever their lexer configs coincide — every dialect but
-`tcl8.4` and `f5-irules`. The server's `lift_compiler_diagnostics` only filters
-that result (optimiser master switch, per-code disables, suppressions) and lifts
-it into LSP diagnostics.
+`tcl8.4` and `f5-irules`. The server only converts that result
+(`compiler_findings`); the policy step decides what shows (the optimiser master
+switch, the per-code decisions, the directives —
+[diagnostic-policy.md](../compiler/diagnostic-policy.md)), and `lift_report`
+lifts it into LSP diagnostics.
 
 ## Diagnostics never block the message loop
 
