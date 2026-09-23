@@ -2862,15 +2862,20 @@ fn always_exits_process(stmt: &Statement, registry: &CommandRegistry) -> bool {
     }) else {
         return false;
     };
+    // The words must be *all* the words: a call that resolves to another name
+    // — an `interp alias`, which may prepend arguments — invokes more than the
+    // call site shows. `interp alias {} bye {} exit abc` makes `bye` raise
+    // "expected integer", which runs the clause (found in review).
+    let target = canonical_command.as_deref().unwrap_or(command);
+    if target.trim_start_matches("::") != command.trim_start_matches("::") {
+        return false;
+    }
     // Whether those literals make a status the command accepts is the
     // registry's question, answered release-aware: `exit 09` is an invalid
     // octal in 8.x and raises an error — which does run the clause — but exits
     // with status 9 in 9.0 (found in review).
-    registry.exact_invocation_completion(
-        canonical_command.as_deref().unwrap_or(command),
-        &words,
-        None,
-    ) == Some(tcl_registry::registry::ExactInvocationCompletion::ProcessExit)
+    registry.exact_invocation_completion(target, &words, None)
+        == Some(tcl_registry::registry::ExactInvocationCompletion::ProcessExit)
 }
 
 /// `(must-defines, completion)` for a single statement.
