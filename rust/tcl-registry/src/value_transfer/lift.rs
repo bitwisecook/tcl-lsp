@@ -32,7 +32,7 @@
 //! finite value to each of its members in turn and joins the outcomes.
 
 use super::CommandSemantics;
-use super::answers::{EvalAnswer, ExactValue, InvocationOutcome, PlanAnswer};
+use super::answers::{EvalAnswer, ExactValue, InvocationOutcome};
 use super::context::{AnalysisContext, BindingIdentity, Budget};
 use super::decline::DeclineReason;
 use super::inputs::{
@@ -116,10 +116,11 @@ impl AnalysisInputs for PinnedInputs<'_> {
     }
 }
 
-/// The distinct finite inputs of the invocation: every operand and every
-/// target's prior value that is a finite set, deduplicated by SSA identity.
-/// An entry with no identity cannot be pinned and counts as its own
-/// distinct value.
+/// The distinct finite inputs of the invocation: every operand and the
+/// prior value of every target its evaluation reads
+/// ([`CommandSemantics::incoming_targets`]) that is a finite set,
+/// deduplicated by SSA identity. An entry with no identity cannot be pinned
+/// and counts as its own distinct value.
 #[must_use]
 pub fn finite_inputs(
     semantics: &dyn CommandSemantics,
@@ -137,10 +138,10 @@ pub fn finite_inputs(
     for index in 0..operands {
         note(inputs.operand(OperandId(index), FactDomain::ExactValue));
     }
-    if let PlanAnswer::CellReadModifyWrite { target, .. } = semantics.structure(inputs)
-        && let Ok(place) = inputs.place(target.0)
-    {
-        note(inputs.prior_store(&place, FactDomain::ExactValue));
+    for target in semantics.incoming_targets(inputs) {
+        if let Ok(place) = inputs.place(target.0) {
+            note(inputs.prior_store(&place, FactDomain::ExactValue));
+        }
     }
     found
 }

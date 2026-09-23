@@ -889,7 +889,7 @@ fn infer_list_length_from_recent_set(
             if let Some(value) = literal_list_assignment(registry, &cmd, var_name) {
                 best = Some(value);
             } else if let Some(write) =
-                cell_update_assignment(registry, &cmd, var_name, best.as_deref())
+                cell_update_assignment(registry, &lexer_config, &cmd, var_name, best.as_deref())
             {
                 best = match write {
                     CellUpdateWrite::Value(value) => Some(value),
@@ -932,6 +932,7 @@ enum CellUpdateWrite {
 /// `var_name` at all.
 fn cell_update_assignment(
     registry: &tcl_registry::CommandRegistry,
+    config: &tcl_lexer::LexerConfig,
     cmd: &SegmentedCommand,
     var_name: &str,
     current: Option<&str>,
@@ -943,16 +944,23 @@ fn cell_update_assignment(
     if args.get(target.0).map(String::as_str) != Some(var_name) {
         return None;
     }
-    let literal = cmd.args().iter().enumerate().all(|(index, _)| {
-        matches!(
-            cmd.arg_tokens().get(index).map(|tok| tok.kind),
-            Some(TokenType::Str | TokenType::Esc)
-        ) && cmd.arg_single_token().get(index) == Some(&true)
-    });
-    let Some(current) = current.filter(|_| literal) else {
+    // Every word is one literal token, read as Tcl substitutes it: `append
+    // xs "\tc"` appends a tab, so the list gains an element.
+    let cooked: Option<Vec<std::borrow::Cow<'_, str>>> = args
+        .iter()
+        .enumerate()
+        .map(|(index, text)| {
+            let token = cmd.arg_tokens().get(index)?;
+            if cmd.arg_single_token().get(index) != Some(&true) {
+                return None;
+            }
+            crate::value_transfer::literal_token_value(text, token.kind, config)
+        })
+        .collect();
+    let (Some(current), Some(cooked)) = (current, cooked) else {
         return Some(CellUpdateWrite::Unknown);
     };
-    let texts: Vec<&str> = args.iter().map(String::as_str).collect();
+    let texts: Vec<&str> = cooked.iter().map(AsRef::as_ref).collect();
     let spec = registry.get(head)?;
     let semantics = tcl_registry::value_transfer::resolve_semantics(spec, None, None);
     let semantics = semantics.semantics()?;
@@ -1714,6 +1722,20 @@ mod tests {
         let m = code_msgs("set xs {a b}\nappend xs c\nlset xs 5 X\n", "W231");
         assert!(
             m.len() == 1 && m[0].contains("(list has 2 elements)"),
+            "{m:?}"
+        );
+    }
+
+    /// The walk reads a literal word as Tcl substitutes it: `append xs
+    /// "\tc"` appends a tab, so `a b<tab>c` has three elements (tclsh 8.6
+    /// to 9.1 extend it with `lset xs 3 X` and print `a b c X`). Read raw,
+    /// the list had two elements, and W231 reported a raise at index 3.
+    #[test]
+    fn w231_reads_an_appended_escape_as_tcl_substitutes_it() {
+        assert!(code_msgs("set xs {a b}\nappend xs \"\\tc\"\nlset xs 2 X\n", "W231").is_empty());
+        let m = code_msgs("set xs {a b}\nappend xs \"\\tc\"\nlset xs 5 X\n", "W231");
+        assert!(
+            m.len() == 1 && m[0].contains("(list has 3 elements)"),
             "{m:?}"
         );
     }

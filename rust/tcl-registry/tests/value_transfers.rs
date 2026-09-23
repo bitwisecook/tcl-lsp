@@ -233,6 +233,28 @@ fn every_cell_update_has_a_registry_owned_route() {
     assert_eq!(NativeEvalId::StringRange.owner(), EvaluatorOwner::Registry);
 }
 
+/// The targets whose incoming value an evaluation reads: the cell update's
+/// target by default, and none for a route that reads no storage.
+#[test]
+fn incoming_targets_default_to_the_cell_update_target() {
+    use tcl_registry::value_transfer::builtins::STRING_RANGE;
+    let reg = CommandRegistry::build_default();
+    let incr = resolve_semantics(reg.get("incr").expect("incr"), None, None);
+    let incr = incr.semantics().expect("the derived cell update");
+    let inputs = TestInputs::new("incr", vec![literal("n", Some(ArgRole::VarWrite))]);
+    assert_eq!(incr.incoming_targets(&inputs), [TargetId(OperandId(0))]);
+    let inputs = TestInputs::new(
+        "string",
+        vec![
+            literal("range", None),
+            literal("abc", None),
+            literal("0", None),
+            literal("1", None),
+        ],
+    );
+    assert!(STRING_RANGE.incoming_targets(&inputs).is_empty());
+}
+
 /// `ElementsOf` states a type relationship and `LOOP_LIST_HEADER` a CFG
 /// shape; neither states iteration, so a spec carrying both and declaring
 /// nothing derives nothing.

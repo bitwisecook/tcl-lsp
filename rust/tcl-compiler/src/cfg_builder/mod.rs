@@ -218,6 +218,10 @@ pub(crate) struct CfgBuilder<'a> {
     /// so SCCP treats a global/namespace name as overdefined across an
     /// opaque call that writes it, not as an ordinary untouched local.
     global_write_procs: HashMap<String, GlobalWriteInfo>,
+    /// Whether any procedure's [`Self::global_write_procs`] summary names
+    /// an outer-scope write, so a module with none skips the per-statement
+    /// scan [`Self::record_alias_observed`] makes for them.
+    global_writers: bool,
     /// Closed module command state used to resolve direct and parsed embedded
     /// spellings to effective user-procedure targets, including alias chains.
     command_bindings: ModuleCommandBindings,
@@ -373,6 +377,9 @@ impl<'a> CfgBuilder<'a> {
         registry: &'a CommandRegistry,
         command_classes: CfgCommandClasses,
     ) -> Self {
+        let global_writers = global_write_procs
+            .values()
+            .any(|info| !info.names.is_empty());
         Self {
             counter: 0,
             blocks: HashMap::new(),
@@ -384,6 +391,7 @@ impl<'a> CfgBuilder<'a> {
             upvar_procs,
             proc_params,
             global_write_procs,
+            global_writers,
             command_bindings,
             invocation_namespace: crate::ir::ExecutionNamespace::exact("::"),
             widen_oo_dispatch: false,
@@ -597,14 +605,49 @@ impl<'a> CfgBuilder<'a> {
     /// *reads* on the call statement instead would fabricate
     /// read-before-set uses (a false W210) for the pure out-param shape.
     fn record_alias_observed(&mut self, stmt: &Statement) {
+        if self.upvar_procs.is_empty() && !self.global_writers {
+            return;
+        }
+        let embedded = crate::ir_helpers::evaluated_command_substitutions(stmt, self.registry);
+        if self.global_writers {
+            // A callee that writes an outer-scope name may read it first —
+            // `incr ::hits`, `global g; incr g 5` — so a store the caller
+            // made to it is observed, not dead: O109 deleted `set hits 0`
+            // ahead of a `bump` whose body is `set y [incr ::hits]`
+            // (#2214). The summary records writes, not reads, so every
+            // name it holds counts as observed.
+            let observed: Vec<String> = self
+                .direct_global_writes(stmt)
+                .into_iter()
+                .chain(self.global_write_defs_from_commands(&embedded.commands).0)
+                .collect();
+            self.alias_observed_vars.extend(observed);
+        }
         if self.upvar_procs.is_empty() {
             return;
         }
         self.alias_observed_vars
             .extend(self.direct_upvar_effects(stmt).defs);
-        let embedded = crate::ir_helpers::evaluated_command_substitutions(stmt, self.registry);
         self.alias_observed_vars
             .extend(self.upvar_effects_from_commands(&embedded.commands).defs);
+    }
+
+    /// The outer-scope names the procedure a direct call statement reaches
+    /// writes ([`GlobalWriteInfo::names`]).
+    fn direct_global_writes(&self, stmt: &Statement) -> Vec<String> {
+        let Statement::Call {
+            command,
+            canonical_command,
+            ..
+        } = stmt
+        else {
+            return Vec::new();
+        };
+        let target = canonical_command.as_deref().unwrap_or(command.as_str());
+        self.global_write_procs
+            .get(target)
+            .map(|info| info.names.iter().cloned().collect())
+            .unwrap_or_default()
     }
 
     /// Whole-frame blindness the statement's calls impose on *this*
@@ -832,26 +875,18 @@ impl<'a> CfgBuilder<'a> {
     /// [`Self::record_alias_observed`] (a read here would fabricate
     /// read-before-set uses — a false W210 — for the pure out-param shape).
     fn direct_call_extras(&self, stmt: &Statement) -> Vec<String> {
-        let Statement::Call {
-            command,
-            canonical_command,
-            ..
-        } = stmt
-        else {
+        if !matches!(stmt, Statement::Call { .. }) {
             return Vec::new();
-        };
-        let target = canonical_command.as_deref().unwrap_or(command.as_str());
+        }
         let mut extras = self.direct_upvar_effects(stmt).defs;
         for name in self.variable_write_projection(stmt).literal_names {
             if !extras.contains(&name) {
                 extras.push(name);
             }
         }
-        if let Some(info) = self.global_write_procs.get(target) {
-            for name in &info.names {
-                if !extras.contains(name) {
-                    extras.push(name.clone());
-                }
+        for name in self.direct_global_writes(stmt) {
+            if !extras.contains(&name) {
+                extras.push(name);
             }
         }
         extras

@@ -423,7 +423,20 @@ fn classify_write(stmt: &Statement, chains: Chains<'_>) -> Option<Write> {
                 let kind = tokens.argv_kinds.get(argv_idx)?;
                 let single = tokens.single_token_word.get(argv_idx).copied()?;
                 if single && matches!(kind, TokenType::Esc | TokenType::Str) {
-                    values.push(val.clone());
+                    // A piece is its value, not its spelling: a bare or
+                    // quoted piece that needs backslash substitution ends
+                    // the run, as a `set` anchor that needs it does, and a
+                    // braced piece's backslash-newlines collapse.
+                    if *kind == TokenType::Esc && val.contains('\\') {
+                        return None;
+                    }
+                    values.push(
+                        tcl_syntax::word_rules::WordValueRules::of_profile(
+                            chains.registry.profile(),
+                        )
+                        .collapse_braced_word(val)
+                        .into_owned(),
+                    );
                 } else {
                     // A `$var` piece folds through the lattice value the
                     // function proves at this statement; any other word, or

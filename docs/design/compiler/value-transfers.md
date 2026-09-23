@@ -415,6 +415,8 @@ trait CommandSemantics {
     /// Bodies, scopes, binders, control and completion protocol,
     /// declared structural effects — consumed at construction time.
     fn structure(&self, input: &dyn AnalysisInputs) -> PlanAnswer;
+    /// The targets whose incoming value and existence `evaluate` reads (a cell update's own).
+    fn incoming_targets(&self, input: &dyn AnalysisInputs) -> Vec<TargetId>;
     /// The abstract transfer for one fact domain: a delta the owning
     /// solver validates and applies. A transfer that evaluates — the
     /// `Selection` fact of a case list — charges the same budget as

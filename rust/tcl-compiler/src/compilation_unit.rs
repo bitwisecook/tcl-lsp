@@ -392,6 +392,14 @@ pub struct ModuleAnalysisFacts<'a> {
     pub trace: ModuleTraceFacts<'a>,
     /// The module's analysis context.
     pub analysis_context: &'a crate::value_transfer::AnalysisContextKey,
+    /// The command trust the context's
+    /// [`crate::command_binding::CommandTrustSnapshot`] stands for, built
+    /// once per module rather than per procedure: the memo's interned
+    /// context holds it rebuilt from the snapshot, and a whole-module build
+    /// passes the scan the snapshot was taken from, which the snapshot
+    /// round-trips to. Every route the shared lattice runs folds under it
+    /// with the [`crate::sccp::FoldTrust::ObservedBindings`] stance.
+    pub command_trust: &'a crate::command_binding::ModuleCommandMutations,
 }
 
 /// The two document-level facts a unit build always reads together: the
@@ -602,7 +610,6 @@ impl FunctionUnit {
     ) -> Self {
         let no_extra_escaping = HashSet::new();
         let UnitDialect { registry, config } = dialect;
-        let command_trust = facts.analysis_context.bindings.to_mutations();
         Self::build_full(
             name,
             cfg,
@@ -615,7 +622,7 @@ impl FunctionUnit {
                 extra_global_escaping: &no_extra_escaping,
                 trace_facts: facts.trace,
                 analysis_context: Some(facts.analysis_context),
-                command_trust: &command_trust,
+                command_trust: facts.command_trust,
                 object_state: None,
                 initial_global: false,
             },
@@ -1343,9 +1350,23 @@ struct ProcedureBuildContext<'a> {
     /// folds under (see
     /// [`FunctionUnit::build_with_param_constants_and_classes_under`]).
     analysis_context: &'a crate::value_transfer::AnalysisContextKey,
+    /// The module's command-mutation scan the context's snapshot was taken
+    /// from: the trust a fresh procedure build folds under.
+    command_trust: &'a crate::command_binding::ModuleCommandMutations,
     /// Procedures whose CFG has module-derived instance-option writes. Their
     /// annotated CFG cannot be reconstructed from the body-only lattice memo.
     tainted_global_writes: &'a HashMap<String, HashSet<String>>,
+}
+
+impl<'a> ProcedureBuildContext<'a> {
+    /// The whole-module facts every procedure of the module builds under.
+    fn module_facts(&self) -> ModuleAnalysisFacts<'a> {
+        ModuleAnalysisFacts {
+            trace: self.trace_facts,
+            analysis_context: self.analysis_context,
+            command_trust: self.command_trust,
+        }
+    }
 }
 
 /// Build one [`FunctionUnit`] per procedure: seed its SCCP with the
@@ -1475,10 +1496,7 @@ fn build_procedure_units(
                 },
                 param_constants.as_ref(),
                 ctx.known_class_set,
-                ModuleAnalysisFacts {
-                    trace: ctx.trace_facts,
-                    analysis_context: ctx.analysis_context,
-                },
+                ctx.module_facts(),
             )
         });
         // A memoised unit carries an offset-0 executable sidecar. Rebuild the
@@ -1773,6 +1791,7 @@ impl CompilationUnit {
                 traced_variable_names: &traced_variable_names,
                 trace_facts,
                 analysis_context: &analysis_context,
+                command_trust: &command_mutations,
                 tainted_global_writes: &tainted_global_writes,
             },
             cache,

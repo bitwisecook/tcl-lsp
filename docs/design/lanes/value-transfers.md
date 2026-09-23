@@ -1663,6 +1663,75 @@ release and declines under an unnamed one; `string range abcdefghijkl
 | `string length` over a non-ASCII word declines under 8.x and an unnamed release | the ledger row (`CHAR_MODEL`); the slice-2 `SOURCE_ENCODING` decision; the oracle |
 | `puts $hits` after a procedure whose nested `[incr ::hits]` writes the global is not forwarded, and `set hits 0` is not deleted | #2214 |
 
+#### Progress (2026-09-23)
+
+Executed by one implementer from HEAD `8b5a8c88`. The session offered no
+subagent tool, so the `sonnet` items are the implementer's own work too.
+
+- **Checkpoint `wip(value-transfers): slice 2 — the join, the escapes, the
+  context and the stores`** holds VT2.1, VT2.2, VT2.3, VT2.4 and VT2.9,
+  with `rust/tcl-compiler/tests/value_transfer_witnesses.rs` created early
+  (VT2.1 is its first test) and its shard row. Green: the
+  `tcl-compiler`, `tcl-registry` and `tcl-lsp-db` suites (10984 passed, 0
+  failed, 11 ignored; `memory_growth` and `interned_gc` included); pedantic
+  clippy on the three crates; `cargo xtask value-transfers --check` OK (15
+  clean, 18 waived, 100 pinned across 41 files; only waiver line numbers
+  moved); `pack-goldens` 0 rewritten; the shard script; `cargo check
+  --workspace --all-targets`.
+
+Decisions taken at this checkpoint that the plan does not state (the
+landing folds them into § *Decisions taken*):
+
+- **The cooking reaches every reader of a literal word the slice
+  evaluates** (VT2.2, R7). Item 8 named the value position only; the same
+  raw spelling reached three more readers, each with a witness: a
+  statement-position `append s {$x}` then `set t $s; puts $t` was
+  rewritten to `puts a1` (the braced `$x` read as a variable) and `append
+  s "a\tb"` forwarded `xa\tb` with a literal backslash; the chain fold
+  rewrote `lappend l "a\tb"` to `set l {{a\tb}}`; W231 read `append xs
+  "\tc"` raw and reported a raise at `lset xs 3 X`, which 8.6 to 9.1
+  extend to `a b c X`. One rule, `value_transfer::literal_token_value` (a
+  single-token `Esc` word through `backslash_subst_in`, a `Str` word through
+  `collapse_braced_word`), is now what `const_subst.rs` calls too; the
+  driver reads a call's arguments through its token snapshot
+  (`call_arguments`, an argument respelled after lowering is dynamic, and
+  with no snapshot a spelling holding a backslash is not a value);
+  `LatticeInputs::operand` reads a literal operand as its value and never
+  re-reads it as a substitution; the chain fold ends a run at a bare or
+  quoted piece that needs backslash substitution, as its `set` anchor does,
+  and collapses a braced piece; W231's walk cooks its words.
+- **VT2.3's cache is a field of the module facts.** `ModuleAnalysisFacts`
+  gains `command_trust: &ModuleCommandMutations`; the interned
+  `ValueTransferContext` holds `mutations` beside `key`, built by
+  `ValueTransferContext::of`, which needs `ModuleCommandMutations: Hash`
+  (implemented over its complete snapshot, so it agrees with `Eq`); a
+  whole-module build passes the scan its snapshot was taken from, which
+  the snapshot round-trips to
+  (`the_trust_snapshot_round_trips_every_mutation_field`). The typed
+  `incr` records `declined: rebinding-suspected` as a call does.
+- **`store_def` takes no receiver** (pedantic `unused_self`); `call_def`
+  wraps it for the typed `incr` and for every other call, and the
+  source-layout call path is `evaluate_source_call` (pedantic
+  `too_many_lines`).
+- **#2214 needed two more pieces than VT2.9's item.** A call site applies
+  a callee's summary names as definitions in its own frame, so a
+  `::`-qualified name also records the spelling a global-frame caller
+  reads (`::hits` is `hits` there; `insert_outer_name`), which fixes the
+  sibling `upvar #0 ::hits h; incr h` too; and O109 read no callee reads,
+  so it still deleted `set hits 0`: the call site now records the
+  callee's summary names as observed (`record_alias_observed`,
+  `alias_observed_vars`), as it does for an `upvar` callee. The summary
+  records writes, not reads, so every name counts as observed: a store
+  ahead of a callee that only writes the global is kept where O109 used to
+  delete it (conservative), and `set hits 10; proc bump {} {global hits;
+  incr hits 5}` is no longer rewritten to print 5 (tclsh prints 15).
+
+Found and left, outside the plan: a callee that only *reads* a global is
+invisible to O109 — `set hits 0; proc show {} {global hits; puts $hits};
+show; set hits 1` deletes `set hits 0` (tclsh prints 0 then 1; the
+rewrite prints 1 twice). Upstream's behaviour at `08bceb36`; the
+procedure summaries of slice 13 are where a callee's reads belong.
+
 ### Slice 3 — the expression slice
 
 #### Goal and exit

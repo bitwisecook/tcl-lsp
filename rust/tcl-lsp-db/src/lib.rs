@@ -1681,6 +1681,22 @@ pub struct ValueTransferContext<'db> {
     /// module.
     #[returns(ref)]
     pub key: tcl_compiler::value_transfer::AnalysisContextKey,
+    /// The command trust the key's snapshot stands for, rebuilt once per
+    /// distinct context rather than once per procedure: the shared lattice
+    /// folds every route under it with the `ObservedBindings` stance, as a
+    /// whole-module build does, so the memoised lattice and a fresh one
+    /// answer every head alike.
+    #[returns(ref)]
+    pub mutations: tcl_compiler::command_binding::ModuleCommandMutations,
+}
+
+impl<'db> ValueTransferContext<'db> {
+    /// The interned context for `key`, with the command trust rebuilt from
+    /// its snapshot.
+    pub fn of(db: &'db dyn TclDb, key: tcl_compiler::value_transfer::AnalysisContextKey) -> Self {
+        let mutations = key.bindings.to_mutations();
+        Self::new(db, key, mutations)
+    }
 }
 
 #[salsa::interned]
@@ -1802,6 +1818,7 @@ pub fn function_lattice<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<
             tcl_compiler::compilation_unit::ModuleAnalysisFacts {
                 trace: trace_facts,
                 analysis_context: key.analysis_context(db).key(db),
+                command_trust: key.analysis_context(db).mutations(db),
             },
         )
         .with_semantic_analysis(
@@ -1989,7 +2006,7 @@ fn build_unit_with_keys<'db>(
             req.traced_variables.to_vec(),
             req.has_dynamic_variable_trace,
             req.plain_command_dispatch,
-            ValueTransferContext::new(db, req.analysis_context.clone()),
+            ValueTransferContext::of(db, req.analysis_context.clone()),
         );
         lattice_keys.insert(req.qname.to_owned(), key);
         // The memo stores the unit at **offset 0** and the builder rebases the
@@ -4023,7 +4040,7 @@ mod tests {
                 Vec::new(),
                 false,
                 false,
-                ValueTransferContext::new(
+                ValueTransferContext::of(
                     &db,
                     tcl_compiler::value_transfer::AnalysisContextKey::detached(),
                 ),

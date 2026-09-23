@@ -753,19 +753,26 @@ fn collect_write_targets(
             for target in targets {
                 let target = normalise_var_name(&target);
                 if let Some(outers) = renamed_aliases.targets.get(target) {
-                    info.names.extend(outers.iter().cloned());
+                    for outer in outers {
+                        insert_outer_name(&mut info.names, outer);
+                    }
                 }
                 if renamed_aliases.opaque_locals.contains(target) {
                     info.opaque_global_frame = true;
                 }
-                info.names
-                    .extend(renamed_aliases.dynamic_local_targets.iter().cloned());
+                for outer in &renamed_aliases.dynamic_local_targets {
+                    insert_outer_name(&mut info.names, outer);
+                }
                 info.opaque_global_frame |= renamed_aliases.dynamic_local_opaque;
+                // A `::`-qualified target is outer-scope by its spelling
+                // alone, with no `global`, `variable` or `upvar` in the body:
+                // `set y [incr ::hits]` writes the global `hits` (#2214).
                 if !renamed_aliases.targets.contains_key(target)
                     && !renamed_aliases.opaque_locals.contains(target)
-                    && state.get(target).is_some_and(|f| f.writes_outer_scope())
+                    && (target.starts_with("::")
+                        || state.get(target).is_some_and(|f| f.writes_outer_scope()))
                 {
-                    info.names.insert(target.to_owned());
+                    insert_outer_name(&mut info.names, target);
                 }
             }
         } else if matches!(stmt, Statement::Call { .. } | Statement::Barrier { .. }) {
@@ -785,6 +792,21 @@ fn collect_write_targets(
             );
         }
     }
+}
+
+/// Record `name` as an outer-scope name the procedure writes. A
+/// `::`-qualified name also records the spelling a caller at the global
+/// frame reads the same variable by — `::hits` is `hits` there — since a
+/// call site applies the summary's names as its own definitions, and a
+/// definition of `::hits` alone leaves the caller's `hits` forwarding a
+/// stale constant across the call.
+fn insert_outer_name(names: &mut BTreeSet<String>, name: &str) {
+    if let Some(relative) = name.strip_prefix("::")
+        && !relative.is_empty()
+    {
+        names.insert(relative.to_owned());
+    }
+    names.insert(name.to_owned());
 }
 
 /// The variable name(s) `stmt` itself directly writes — its own `name`

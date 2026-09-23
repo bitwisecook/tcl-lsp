@@ -3673,6 +3673,16 @@ impl ProcBindingTrustProjection {
     }
 }
 
+/// Hashes the complete projection [`ModuleCommandMutations::snapshot`] keeps
+/// — every field, the sets sorted — so two summaries equal as sets hash
+/// alike and the value can join an interned memo key beside the snapshot
+/// it was rebuilt from.
+impl std::hash::Hash for ModuleCommandMutations {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.snapshot().hash(state);
+    }
+}
+
 impl ModuleCommandMutations {
     /// Whether any command-table mutation has a dynamic source or target.
     ///

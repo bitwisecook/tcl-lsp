@@ -37,6 +37,7 @@
 //! services — and its registry-owned argument assembly lands with the
 //! expression slice.
 
+use std::borrow::Cow;
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
@@ -60,13 +61,14 @@ use crate::analyses::{ConstValue, LatticeValue, MAX_CONSTSET_SIZE};
 use crate::cfg::Function as CfgFunction;
 use crate::codegen::helpers::split_list_values;
 use crate::command_binding::CommandTrustSnapshot;
-use crate::ir::Statement;
+use crate::ir::{CommandTokens, Statement};
 use crate::sccp::{
     BuiltinFoldInputs, FoldTrust, TraceInputs, extract_foreach_elements,
     resolve_foreach_list_via_lattice,
 };
 use crate::ssa::{SsaFunction, SsaStatement, Symbol, ValueKey, Version};
 use crate::tcl_expr_eval::{FoldPolicy, eval_tcl_expr_with_policy};
+use tcl_syntax::word_rules::WordValueRules;
 
 /// The analysis context's hashable identity, as a per-function memo key
 /// carries it: the facts that can change an answer and that the key's
@@ -142,19 +144,16 @@ pub(crate) struct LatticeDriver<'a> {
     explanations: RefCell<BTreeMap<(u32, u32), RouteExplanation>>,
 }
 
-/// The lattice value of one member-wise evaluation: the values `pick`
-/// selects from each outcome, one constant or a finite set of them, and
+/// The lattice value of one member-wise evaluation: the constant `pick`
+/// answers for each outcome, one constant or a finite set of them, and
 /// `Overdefined` when any outcome has none.
 fn lattice_of_outcomes(
     outcomes: &[Box<InvocationOutcome>],
-    pick: impl Fn(&InvocationOutcome) -> Option<&ExactValue>,
+    pick: impl Fn(&InvocationOutcome) -> Option<LatticeValue>,
 ) -> LatticeValue {
     let mut consts: Vec<ConstValue> = Vec::with_capacity(outcomes.len());
     for outcome in outcomes {
-        let Some(value) = pick(outcome) else {
-            return LatticeValue::Overdefined;
-        };
-        let LatticeValue::Const(c) = exact_to_lattice(value) else {
+        let Some(LatticeValue::Const(c)) = pick(outcome) else {
             return LatticeValue::Overdefined;
         };
         if !consts.contains(&c) {
@@ -375,6 +374,7 @@ impl<'a> LatticeDriver<'a> {
     ) -> LatticeValue {
         const HEAD: &str = "incr";
         if !self.trusted(HEAD) {
+            self.explain(HEAD, None, "declined: rebinding-suspected".to_owned());
             return LatticeValue::Overdefined;
         }
         let texts: Vec<&str> = std::iter::once(name).chain(amount).collect();
@@ -395,26 +395,20 @@ impl<'a> LatticeDriver<'a> {
             values,
             ssa,
         };
-        self.cell_update_def(HEAD, semantics, &inputs)
+        self.call_def(HEAD, semantics, name, &inputs)
     }
 
-    /// The lattice value a resolved cell update writes to its target:
-    /// the registry's evaluator over the lattice inputs, lifted over one
-    /// finite input, on the route the registry owns.
-    fn cell_update_def(
+    /// The lattice value a resolved invocation leaves in `def`, the one
+    /// variable its statement defines: the registry's evaluator over the
+    /// lattice inputs, lifted over one finite input, on the route the
+    /// registry owns, each outcome's store applied by [`Self::store_def`].
+    fn call_def(
         &self,
         head: &str,
         semantics: &dyn tcl_registry::value_transfer::CommandSemantics,
+        def: &str,
         inputs: &dyn AnalysisInputs,
     ) -> LatticeValue {
-        let PlanAnswer::CellReadModifyWrite { target, .. } = semantics.structure(inputs) else {
-            self.explain(
-                head,
-                Some(semantics.route()),
-                "no cell update for this shape".to_owned(),
-            );
-            return LatticeValue::Overdefined;
-        };
         let route = semantics.route();
         if !matches!(route, EvalRoute::Direct { id } if id.owner() == EvaluatorOwner::Registry) {
             self.explain(
@@ -430,17 +424,40 @@ impl<'a> LatticeDriver<'a> {
             LiftedAnswer::Pending => LatticeValue::Unknown,
             LiftedAnswer::Declined(_) => LatticeValue::Overdefined,
             LiftedAnswer::Evaluated(outcomes) => {
-                lattice_of_outcomes(&outcomes, |outcome| written_value(outcome, target))
+                lattice_of_outcomes(&outcomes, |outcome| Self::store_def(outcome, def, inputs))
             }
         }
     }
 
-    /// A `Call` statement's defs. Two call shapes have a declared structure
-    /// the solver applies: the synthetic loop header the CFG builder emits
-    /// — the one `Call` carrying `foreach_groups` — whose iteration plan's
-    /// single list binder takes the set of the list's elements, and a call
-    /// whose resolved plan is a cell read-modify-write (`append`,
-    /// `lappend`), whose target takes the registry's evaluated store. Every
+    /// The value `outcome` leaves in `def`, the statement's one definition:
+    /// its only store other than a `Preserve` is one `Write` whose place is
+    /// `def`. Every other shape — two stores, an `Unbind`, a `MayWrite`, a
+    /// target that is not the definition — answers `None` and the
+    /// definition widens; write, preserve, unbind and may-write outcomes
+    /// apply per place from slice 5.
+    fn store_def(
+        outcome: &InvocationOutcome,
+        def: &str,
+        input: &dyn AnalysisInputs,
+    ) -> Option<LatticeValue> {
+        let mut stores = outcome
+            .ordered_stores
+            .iter()
+            .filter(|store| !matches!(store, StoreOutcome::Preserve { .. }));
+        let (Some(StoreOutcome::Write { target, value }), None) = (stores.next(), stores.next())
+        else {
+            return None;
+        };
+        let place = input.place(target.0).ok()?;
+        (place.name == crate::naming::element_var_name(def)).then(|| exact_to_lattice(value))
+    }
+
+    /// A `Call` statement's defs. The synthetic loop header the CFG
+    /// builder emits — the one `Call` carrying `foreach_groups` — has a
+    /// declared structure the solver applies: its iteration plan's single
+    /// list binder takes the set of the list's elements. Any other
+    /// resolved call that defines one variable takes the store its
+    /// registry-owned evaluation writes there ([`Self::store_def`]); every
     /// other call keeps the conservative answer.
     pub(crate) fn evaluate_call<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
         &self,
@@ -452,6 +469,7 @@ impl<'a> LatticeDriver<'a> {
         let Statement::Call {
             args,
             defs,
+            tokens,
             foreach_groups,
             ..
         } = &stmt_ssa.statement
@@ -463,6 +481,10 @@ impl<'a> LatticeDriver<'a> {
             self.explain(head, None, "declined: rebinding-suspected".to_owned());
             return LatticeValue::Overdefined;
         }
+        if foreach_groups.is_none() {
+            let cooked = call_arguments(args, tokens.as_ref(), &self.lexer_config);
+            return self.evaluate_source_call(head, &cooked, defs, uses, values, ssa);
+        }
         let texts: Vec<&str> = args.iter().map(String::as_str).collect();
         let words: Vec<InvocationWord<'_>> = texts.iter().copied().map(word_of).collect();
         let Some(resolved) = self.resolve(head, &words) else {
@@ -472,17 +494,6 @@ impl<'a> LatticeDriver<'a> {
             self.explain(head, None, "declined: no-semantics".to_owned());
             return LatticeValue::Overdefined;
         };
-        if foreach_groups.is_none() {
-            let view = view_of(&resolved, &texts, &words, InvocationLayout::Source);
-            let inputs = LatticeInputs {
-                driver: self,
-                view,
-                uses,
-                values,
-                ssa,
-            };
-            return self.cell_update_def(head, semantics, &inputs);
-        }
         let view = view_of(
             &resolved,
             &texts,
@@ -538,6 +549,46 @@ impl<'a> LatticeDriver<'a> {
             }
             None => LatticeValue::Overdefined,
         }
+    }
+
+    /// A call in its source layout, its arguments read as source words: the
+    /// store its registry-owned evaluation writes to the one variable it
+    /// defines ([`Self::call_def`]).
+    fn evaluate_source_call<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
+        &self,
+        head: &str,
+        cooked: &[ArgWord<'_>],
+        defs: &[String],
+        uses: &HashMap<Symbol, Version, S1>,
+        values: &HashMap<ValueKey, LatticeValue, S2>,
+        ssa: &SsaFunction,
+    ) -> LatticeValue {
+        let texts: Vec<&str> = cooked.iter().map(|arg| arg.text.as_ref()).collect();
+        let words: Vec<InvocationWord<'_>> = cooked.iter().map(ArgWord::word).collect();
+        let Some(resolved) = self.resolve(head, &words) else {
+            return LatticeValue::Overdefined;
+        };
+        let Some(semantics) = resolved.semantics.value.semantics() else {
+            self.explain(head, None, "declined: no-semantics".to_owned());
+            return LatticeValue::Overdefined;
+        };
+        let [def] = defs else {
+            self.explain(
+                head,
+                Some(semantics.route()),
+                "not evaluated: the call does not define one variable".to_owned(),
+            );
+            return LatticeValue::Overdefined;
+        };
+        let view = view_of(&resolved, &texts, &words, InvocationLayout::Source);
+        let inputs = LatticeInputs {
+            driver: self,
+            view,
+            uses,
+            values,
+            ssa,
+        };
+        self.call_def(head, semantics, def, &inputs)
     }
 
     /// Fold a `[cmd args…]` command substitution through the resolved
@@ -605,18 +656,17 @@ impl<'a> LatticeDriver<'a> {
         if seg.name() != head {
             return None;
         }
-        let texts: Vec<&str> = seg.args().iter().map(String::as_str).collect();
-        let words: Vec<InvocationWord<'_>> = seg
+        let cooked: Vec<ArgWord<'_>> = seg
             .arg_tokens()
             .iter()
             .zip(seg.arg_single_token())
-            .zip(&texts)
-            .map(|((token, single), text)| match (single, token.kind) {
-                (true, TokenType::Str | TokenType::Esc) => InvocationWord::Literal(text),
-                (_, TokenType::Expand) => InvocationWord::Expanded,
-                _ => InvocationWord::Dynamic,
+            .zip(seg.args())
+            .map(|((token, &single), text)| {
+                ArgWord::of_token(text, token.kind, single, &self.lexer_config)
             })
             .collect();
+        let texts: Vec<&str> = cooked.iter().map(|arg| arg.text.as_ref()).collect();
+        let words: Vec<InvocationWord<'_>> = cooked.iter().map(ArgWord::word).collect();
         let resolved = self.resolve(head, &words)?;
         let semantics = resolved.semantics.value.semantics()?;
         let view = view_of(&resolved, &texts, &words, InvocationLayout::Source);
@@ -647,7 +697,9 @@ impl<'a> LatticeDriver<'a> {
                         {
                             Some(lattice_of_outcomes(outcomes, |outcome| {
                                 match &outcome.result {
-                                    ExactValueOrUnavailable::Exact(value) => Some(value),
+                                    ExactValueOrUnavailable::Exact(value) => {
+                                        Some(exact_to_lattice(value))
+                                    }
                                     ExactValueOrUnavailable::Unavailable(_) => None,
                                 }
                             }))
@@ -800,6 +852,121 @@ fn word_of(text: &str) -> InvocationWord<'_> {
     }
 }
 
+/// A single-token literal word's value as Tcl substitutes it: a bare or
+/// quoted word (`Esc`) under the document's escape grammar, a braced word
+/// (`Str`) with its backslash-newlines collapsed. The const-fold engine
+/// (`const_subst.rs`) cooks a literal word by this same rule, so a
+/// declared route and the engine read one value for one word; `None` for
+/// any other token kind. A word's raw spelling is not its value: `"a\tb"`
+/// is three characters and `{$x}` is not a read of `x`.
+pub(crate) fn literal_token_value<'t>(
+    text: &'t str,
+    kind: TokenType,
+    config: &LexerConfig,
+) -> Option<Cow<'t, str>> {
+    match kind {
+        TokenType::Esc => Some(tcl_lexer::backslash_subst_in(text, config.escapes)),
+        TokenType::Str => Some(WordValueRules::from_config(config).collapse_braced_word(text)),
+        _ => None,
+    }
+}
+
+/// One argument of an invocation as the resolver and an evaluator read it:
+/// a literal word's value, cooked, or a substituted word's raw spelling,
+/// which the lattice reads by name.
+struct ArgWord<'t> {
+    /// The literal's value, or the substituted word's spelling.
+    text: Cow<'t, str>,
+    /// What the source proves about the word.
+    kind: InvocationWordKind,
+}
+
+impl<'t> ArgWord<'t> {
+    /// The word one segmented token stands for: a single-token literal is
+    /// its cooked value, a `{*}` word expands, and any other word is
+    /// dynamic.
+    fn of_token(text: &'t str, kind: TokenType, single: bool, config: &LexerConfig) -> Self {
+        if kind == TokenType::Expand {
+            return Self::spelled(text, InvocationWordKind::Expanded);
+        }
+        match literal_token_value(text, kind, config).filter(|_| single) {
+            Some(value) => Self {
+                text: value,
+                kind: InvocationWordKind::Literal,
+            },
+            None => Self::spelled(text, InvocationWordKind::Dynamic),
+        }
+    }
+
+    const fn spelled(text: &'t str, kind: InvocationWordKind) -> Self {
+        Self {
+            text: Cow::Borrowed(text),
+            kind,
+        }
+    }
+
+    /// The resolver's view of the word.
+    fn word(&self) -> InvocationWord<'_> {
+        match self.kind {
+            InvocationWordKind::Literal => InvocationWord::Literal(&self.text),
+            InvocationWordKind::Dynamic => InvocationWord::Dynamic,
+            InvocationWordKind::Expanded => InvocationWord::Expanded,
+            InvocationWordKind::Opaque => InvocationWord::Opaque,
+        }
+    }
+}
+
+/// A call statement's arguments as source words. The call's token snapshot
+/// says which argument was a braced, bare, or quoted literal; an argument
+/// whose spelling differs from its source word (rewritten after lowering)
+/// is dynamic. With no source words to consult, a spelling that
+/// substitutes is dynamic and one holding a backslash is too: its quoting,
+/// and so its value, is unknown.
+fn call_arguments<'t>(
+    args: &'t [String],
+    tokens: Option<&CommandTokens>,
+    config: &LexerConfig,
+) -> Vec<ArgWord<'t>> {
+    let source = tokens.filter(|tokens| {
+        tokens.synthetic.is_none()
+            && tokens.argv_kinds.len() == args.len() + 1
+            && tokens.single_token_word.len() == args.len() + 1
+            && tokens.argv_texts.len() == args.len() + 1
+    });
+    args.iter()
+        .enumerate()
+        .map(|(index, text)| {
+            let Some(tokens) = source else {
+                return match word_of(text) {
+                    InvocationWord::Literal(_) if !text.contains('\\') => {
+                        ArgWord::spelled(text, InvocationWordKind::Literal)
+                    }
+                    _ => ArgWord::spelled(text, InvocationWordKind::Dynamic),
+                };
+            };
+            let at = index + 1;
+            let expanded = tokens
+                .expand_word
+                .as_ref()
+                .and_then(|flags| flags.get(at))
+                .copied()
+                .unwrap_or(false);
+            if expanded {
+                ArgWord::spelled(text, InvocationWordKind::Expanded)
+            } else if tokens.argv_texts[at] == *text {
+                ArgWord::of_token(
+                    text,
+                    tokens.argv_kinds[at],
+                    tokens.single_token_word[at],
+                    config,
+                )
+            } else {
+                ArgWord::spelled(text, InvocationWordKind::Dynamic)
+            }
+        })
+        .collect()
+}
+
 /// The resolver's projection of `resolved` over `texts`: the canonical
 /// names, the layout, and the operands with their kinds and roles. Roles
 /// come from the effective descriptor — the resolver over literal words,
@@ -943,14 +1110,21 @@ impl<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher> AnalysisInputs
         let Some(operand) = self.view.operand(id) else {
             return FactView::Top(DeclineReason::NotExact);
         };
-        let text = operand.text;
-        if let Some(name) = simple_var_ref_name(text) {
-            return self.named_fact(name);
+        match operand.kind {
+            // A literal word's text is its value, already cooked: never
+            // re-read as a substitution (`{$x}` and `"\$x"` are the text
+            // `$x`, not a read of `x`).
+            InvocationWordKind::Literal => {
+                FactView::Exact(ExactValue::from_literal(operand.text), None)
+            }
+            InvocationWordKind::Dynamic => simple_var_ref_name(operand.text)
+                .map_or(FactView::Top(DeclineReason::NotExact), |name| {
+                    self.named_fact(name)
+                }),
+            InvocationWordKind::Expanded | InvocationWordKind::Opaque => {
+                FactView::Top(DeclineReason::NotExact)
+            }
         }
-        if text.contains('$') || text.contains('[') {
-            return FactView::Top(DeclineReason::NotExact);
-        }
-        FactView::Exact(ExactValue::from_literal(text), None)
     }
 
     fn place(&self, id: OperandId) -> Result<PlaceRef, DeclineReason> {
@@ -983,7 +1157,15 @@ impl<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher> AnalysisInputs
         let Some(sym) = self.ssa.var_symbol(&place.name) else {
             return FactView::Top(DeclineReason::DynamicName);
         };
-        let ver = self.uses.get(&sym).copied().unwrap_or(0);
+        // A use the statement does not hold is a permanent miss, as a
+        // dynamic key's is in `place`: a value-position cell update's read
+        // sits on the synthetic call ahead of its host, so the host's uses
+        // never reach it. Reading version 0 instead found no value and
+        // answered a `Pending` that never resolved, which a phi then
+        // laundered into the other arm's constant.
+        let Some(&ver) = self.uses.get(&sym) else {
+            return FactView::Top(DeclineReason::NotExact);
+        };
         self.values
             .get(&(sym, ver))
             .map_or(FactView::Pending, |value| {

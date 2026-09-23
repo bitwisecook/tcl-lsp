@@ -633,12 +633,17 @@ impl ValueOps for ConstOps<'_> {
         }
     }
 
+    /// An integer reads as the double nearest it: its decimal spelling
+    /// parsed as a double is correctly rounded, the value a precision-losing
+    /// cast gives.
     fn as_double(&mut self, v: &ConstValue) -> Result<f64, ValueError> {
         let text = self.as_str(v);
         match self.parse_number(&text, false) {
             Some(Number::Double(f)) => Ok(f),
-            #[allow(clippy::cast_precision_loss)]
-            Some(Number::Int(i)) => Ok(i as f64),
+            Some(Number::Int(i)) => i
+                .to_string()
+                .parse::<f64>()
+                .map_err(|_| ValueError::NotDouble(text.to_string())),
             _ => Err(ValueError::NotDouble(text.to_string())),
         }
     }
@@ -851,6 +856,23 @@ mod tests {
                 .map(|v| v.as_utf8().map(str::to_owned)),
             Ok(Some("3".to_owned()))
         );
+    }
+
+    #[test]
+    fn an_integer_reads_as_the_nearest_double() {
+        let mut budget = Budget::evaluation();
+        let mut ops = admit(None, &mut budget, Needs::NUMERAL_GRAMMAR);
+        // 2^53 + 1 has no double: the nearest, ties to even, is 2^53.
+        assert_eq!(
+            ops.as_double(&ConstValue::text("9007199254740993"))
+                .map(f64::to_bits),
+            Ok(9_007_199_254_740_992_f64.to_bits())
+        );
+        assert_eq!(
+            ops.as_double(&ConstValue::text("-7")).map(f64::to_bits),
+            Ok((-7.0_f64).to_bits())
+        );
+        assert!(ops.take(ConstValue::int(0)).is_ok());
     }
 
     #[test]

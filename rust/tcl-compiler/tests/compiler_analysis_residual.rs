@@ -1462,6 +1462,7 @@ fn memoised_unit(
             let pc = tcl_compiler::compilation_unit::decode_param_constants(req.param_constants);
             let traced: std::collections::BTreeSet<String> =
                 req.traced_variables.iter().cloned().collect();
+            let command_trust = req.analysis_context.bindings.to_mutations();
             FunctionUnit::build_with_param_constants_and_classes_under(
                 req.qname,
                 cfg,
@@ -1478,6 +1479,7 @@ fn memoised_unit(
                         has_dynamic_variable_trace: req.has_dynamic_variable_trace,
                     },
                     analysis_context: req.analysis_context,
+                    command_trust: &command_trust,
                 },
             )
         },

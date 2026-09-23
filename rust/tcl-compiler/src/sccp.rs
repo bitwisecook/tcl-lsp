@@ -2977,6 +2977,55 @@ mod tests {
         );
     }
 
+    /// `set x [incr n]`: the host statement's uses do not hold `n` (its read
+    /// sits on the synthetic call ahead of the host), so the prior store is
+    /// a permanent miss and the definition widens. Reading version 0 found
+    /// no value and answered a pending that never resolved, and a join
+    /// then took the other arm's constant for `x` (`f 1` prints 2 under
+    /// 8.4 to 9.1, where `tcl opt` had rewritten `puts $x` to `puts 5`).
+    #[test]
+    fn a_missing_use_declines_the_prior_store() {
+        let mut ssa = bare_ssa();
+        let n = ssa.intern_var("n");
+        let stmt = assign_value_stmt(&mut ssa, "x", "[incr n]", 1);
+        assert!(!stmt.uses.contains_key(&n), "the host holds no use of n");
+        let mut values = HashMap::new();
+        values.insert((n, 1), LatticeValue::Const(ConstValue::Int(1)));
+        assert_eq!(
+            evaluate_pristine(&stmt, &values, &ssa, FoldPolicy::default()),
+            LatticeValue::Overdefined,
+            "never the pending bottom a join would launder"
+        );
+        // The statement-position update holds its target's use and folds.
+        let incr = incr_stmt(&mut ssa, "n", None, 1, 2);
+        assert_eq!(
+            evaluate_pristine(&incr, &values, &ssa, FoldPolicy::default()),
+            LatticeValue::Const(ConstValue::Int(2))
+        );
+    }
+
+    /// `[string range "a\tb" 0 1]` in value position reads its words as Tcl
+    /// substitutes them: `a` and a tab, where the raw spelling gave `a\`. A
+    /// braced word keeps its backslash, and a braced `$x` is text, not a
+    /// read (tclsh 8.4 to 9.1 print `a` and a tab, `a\`, and `$x`).
+    #[test]
+    fn string_range_in_value_position_reads_cooked_escapes() {
+        let mut ssa = bare_ssa();
+        let xy = ssa.intern_var("xy");
+        let quoted = assign_value_stmt(&mut ssa, "r", "[string range \"a\\tb\" 0 1]", 1);
+        let braced = assign_value_stmt(&mut ssa, "r", "[string range {a\\tb} 0 1]", 1);
+        let mut dollar = assign_value_stmt(&mut ssa, "r", "[string range {$xy} 0 1]", 1);
+        dollar.uses.insert(xy, 1);
+        let text = |value: &str| LatticeValue::Const(ConstValue::String(value.to_owned()));
+        let mut values = HashMap::new();
+        values.insert((xy, 1), text("abc"));
+        let fold =
+            |stmt: &SsaStatement| evaluate_pristine(stmt, &values, &ssa, FoldPolicy::default());
+        assert_eq!(fold(&quoted), text("a\t"));
+        assert_eq!(fold(&braced), text("a\\"));
+        assert_eq!(fold(&dollar), text("$x"), "the braced word is text");
+    }
+
     /// `[string range …]` in value position runs the registry's route: the
     /// index numerals read under the target's grammar.
     #[test]

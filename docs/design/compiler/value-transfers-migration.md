@@ -763,13 +763,22 @@ generated inventory's route *owner* column is the same fact read from
 | the `unset` fold's name set, from each call's existence transfer | `rust/tcl-compiler/src/value_transfer.rs`, `unbound_names`; `sccp::scan_defined_and_unbound` | `TransferAnswer::Existence` from the `DESTROYS_VARIABLE` derivation | slice 8 — the existence rung deletes `scan_defined_and_unbound` and `existence_constant_branches` | none needed |
 | `static_loops::parse_literal_value` — the simulator's literal ingress, aligned with the one round-trip rule but still its own copy; its `Incr` arm now runs the registry's route | `rust/tcl-compiler/src/static_loops.rs` | typed `Statement::Incr` | slice 12 — `LoopEnumeration` over exact values | the typed arm is shape, not a name; no waiver |
 
-The mutation-fact-free shared lattice keeps its pre-slice trust rule:
-with no whole-module `ModuleCommandMutations` in hand it trusts every
-binding, as it did before the interface, and the optimiser's re-run — the
-only run a rewrite lands from — declines a renamed head with
-`RebindingSuspected` for every resolved statement, the typed `incr` node
-included. The shared lattice starts consulting the trust fact when slice 2
-gives the memoised path the same context as the direct one.
+Every run consults the module's command trust, under one of two stances
+(`FoldTrust` in `rust/tcl-compiler/src/sccp.rs`). The shared per-unit
+lattice folds under `ObservedBindings`: a head folds while the module's own
+observed bindings leave it denoting its builtin, so one unresolved head
+elsewhere in a file does not cost it every constant. The optimiser's
+re-run — the only run a rewrite lands from — folds under `WholeModule`,
+which also declines once any binding transition in the module is
+unbounded. Under either stance a route declines a head the module shadows,
+renames or aliases with `RebindingSuspected`, the typed `incr` node
+included, and a run with no trust fact in hand declines every route
+(#2164). The memoised editor path and a whole-module build take the same
+stance under the same key: the interned `ValueTransferContext` in
+`rust/tcl-lsp-db/src/lib.rs` holds the command trust its
+`CommandTrustSnapshot` stands for, rebuilt once per module, and a fresh
+build folds under the scan that snapshot was taken from, which it
+round-trips to.
 
 ### The ratchet over unreviewed files
 

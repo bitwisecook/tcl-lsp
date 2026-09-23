@@ -97,6 +97,15 @@ pub trait CommandSemantics: Sync + Send {
         PlanAnswer::NoStructure
     }
 
+    /// The targets whose incoming value and existence this invocation's
+    /// evaluation reads. The derived cell updates need no override.
+    fn incoming_targets(&self, input: &dyn AnalysisInputs) -> Vec<TargetId> {
+        match self.structure(input) {
+            PlanAnswer::CellReadModifyWrite { target, .. } => vec![target],
+            _ => Vec::new(),
+        }
+    }
+
     /// The abstract transfer for one fact domain: a delta the owning solver
     /// validates and applies. A transfer that evaluates charges the same
     /// budget as [`Self::evaluate`].

@@ -227,22 +227,13 @@ impl ConstSubstCtx<'_> {
                 TokenType::Sep | TokenType::Eol | TokenType::Eof | TokenType::Comment => {
                     prev_is_sep = true;
                 }
-                TokenType::Esc => {
-                    if !prev_is_sep {
-                        return None; // multi-token word — not a clean literal
-                    }
-                    let text = sm.token_text(*tok);
-                    words.push(tcl_lexer::backslash_subst_in(text, config.escapes).into_owned());
-                    prev_is_sep = false;
-                }
-                TokenType::Str => {
+                TokenType::Esc | TokenType::Str => {
                     if !prev_is_sep {
                         return None; // multi-token word — not a clean literal
                     }
                     let text = sm.token_text(*tok);
                     words.push(
-                        tcl_syntax::word_rules::WordValueRules::from_config(&config)
-                            .collapse_braced_word(text)
+                        crate::value_transfer::literal_token_value(text, tok.kind, &config)?
                             .into_owned(),
                     );
                     prev_is_sep = false;
