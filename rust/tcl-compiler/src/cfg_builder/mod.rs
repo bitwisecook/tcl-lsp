@@ -2761,6 +2761,16 @@ impl CfgCommandClasses {
             .is_some_and(|facts| facts.has_traits(Traits::CONTINUES_LOOP))
     }
 
+    /// `exit` and its kin end the interpreter without unwinding, so no
+    /// enclosing `finally` runs: `try {exit 7} finally {puts FINALLY}` exits
+    /// with status 7 and prints nothing on tclsh 8.6.18 and 9.0.4. (A
+    /// `tailcall` is *not* this — both run the `finally` before the call.)
+    fn is_process_terminating_command(&self, command: &str) -> bool {
+        self.semantics
+            .command(command.trim_start_matches(':'))
+            .is_some_and(|facts| facts.has_traits(Traits::TERMINATES_PROCESS))
+    }
+
     fn is_catchable_throw(&self, command: &str) -> bool {
         self.semantics
             .command(command.trim_start_matches(':'))

@@ -1009,7 +1009,24 @@ impl CfgBuilder<'_> {
                 self.blocks
                     .get(name.as_str())
                     .is_some_and(|block| match &block.terminator {
-                        Some(crate::cfg::Terminator::Return { .. }) => true,
+                        // A process exit runs no `finally` (found in review).
+                        Some(crate::cfg::Terminator::Return { .. }) => {
+                            !block.statements.last().is_some_and(|stmt| match stmt {
+                                Statement::Call {
+                                    command,
+                                    canonical_command,
+                                    ..
+                                }
+                                | Statement::Barrier {
+                                    command,
+                                    canonical_command,
+                                    ..
+                                } => self.command_classes.is_process_terminating_command(
+                                    canonical_command.as_deref().unwrap_or(command),
+                                ),
+                                _ => false,
+                            })
+                        }
                         Some(crate::cfg::Terminator::Goto { target, .. }) => {
                             !in_body(*target) && !completion.contains(target)
                         }

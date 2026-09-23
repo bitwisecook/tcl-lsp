@@ -2735,6 +2735,10 @@ fn a_finally_body_is_reachable_however_the_try_body_leaves() {
             "switch [info exists ::c] {1 {return ok} default {error boom}}",
             "",
         ),
+        // `tailcall` leaves the frame, but only once the `finally` has run:
+        // tclsh 8.6.18 and 9.0.4 print `FINALLY` for `try {tailcall t}
+        // finally {puts FINALLY}` inside a proc.
+        ("tailcall", "tailcall list", ""),
     ] {
         let stmt = format!("try {{{body}}} finally {{set g 1}}");
         // Only a loop wraps the statement: `{wrapper}{ … }` with an empty
@@ -2786,6 +2790,20 @@ fn a_finally_body_is_reachable_however_a_handler_leaves() {
             opt_rewrites(&src, TCL)
         );
     }
+}
+
+/// `exit` ends the interpreter without unwinding, so it reaches no `finally`:
+/// `try {exit 7} finally {puts FINALLY}` exits with status 7 and prints
+/// nothing on tclsh 8.6.18 and 9.0.4. Wiring it to the clause made the clause
+/// executable in SCCP and SSA though it can never run (found in review).
+#[test]
+fn an_exit_reaches_no_finally() {
+    let src = "proc p {} {\n    global g\n    try {exit 7} finally {set g 1}\n}\n";
+    assert!(
+        opt_fires(src, TCL, "O107"),
+        "a `finally` reached only through `exit` never runs: {:?}",
+        opt_codes(src, TCL)
+    );
 }
 
 /// The definiteness half. A name bound before the `try` is still bound after

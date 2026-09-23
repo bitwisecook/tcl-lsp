@@ -179,10 +179,12 @@ edge — so a `finally` reached only that way read as dead and O107 emptied
 it, though Tcl runs `finally` on every completion path (#2142).  The exits
 are read off the construct's own blocks, not its resting tail:
 `if {$c} {return ok} else {error boom}` cannot fall through yet still ends
-in a resting `if_end` block.  Two kinds of block are not exits: a normal
-jump to `try_end` or `try_ok`, and a block a nested `try` / `catch` already
+in a resting `if_end` block.  Three kinds of block are not exits: a normal
+jump to `try_end` or `try_ok`; a block a nested `try` / `catch` already
 intercepts with its own edge — control reaches this `finally` only after
-the inner clause has run.  The edges are not added without a `finally`:
+the inner clause has run; and a process exit (`Traits::TERMINATES_PROCESS`,
+e.g. `exit`), which ends the interpreter without unwinding, so no `finally`
+runs.  `tailcall` *is* an exit: the clause runs before the call.  The edges are not added without a `finally`:
 there the tail really is unreachable on those paths, because the exception
 resumes unwinding past it.  Their cost is that `try_after_finally` becomes
 reachable from an exit path too, where Tcl in fact keeps unwinding;
