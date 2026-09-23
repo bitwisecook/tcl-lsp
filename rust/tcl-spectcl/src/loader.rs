@@ -4740,22 +4740,9 @@ fn member_row(stmt: &Stmt, log: &mut Log) -> Option<MemberSpec> {
                 member.arg_roles = leak_slice(member_arg_roles(&text, stmt.line, log));
             }
             "-all-vars" => member.all_args_var = true,
-            "-all-refs" => {
+            flag @ ("-all-refs" | "-kind" | "-retracts" | "-visibility") => {
                 let name = next_text(words, &mut i);
-                member.all_args_ref = enum_by_name(
-                    MEMBER_REF_KINDS,
-                    &name,
-                    "member reference kind",
-                    stmt.line,
-                    log,
-                );
-            }
-            "-kind" => {
-                let name = next_text(words, &mut i);
-                if let Some(kind) = enum_by_name(MEMBER_KINDS, &name, "member kind", stmt.line, log)
-                {
-                    member.kind = kind;
-                }
+                member_named_flag(&mut member, flag, &name, stmt.line, log);
             }
             "-block-body" => member.wrapper_block_body = true,
             "-dialects" => {
@@ -4774,31 +4761,11 @@ fn member_row(stmt: &Stmt, log: &mut Log) -> Option<MemberSpec> {
                     log,
                 );
             }
-            "-retracts" => {
-                let name = next_text(words, &mut i);
-                member.retraction = enum_by_name(
-                    MEMBER_RETRACTIONS,
-                    &name,
-                    "member retraction",
-                    stmt.line,
-                    log,
-                );
-            }
             "-slot" => {
                 let name = next_text(words, &mut i);
                 slot_op = enum_by_name(SLOT_OPS, &name, "slot operation", stmt.line, log);
             }
             "-dedup" => dedup = true,
-            "-visibility" => {
-                let name = next_text(words, &mut i);
-                member.visibility_effect = enum_by_name(
-                    MEMBER_VISIBILITIES,
-                    &name,
-                    "member visibility",
-                    stmt.line,
-                    log,
-                );
-            }
             other => log.unknown_flag("member", stmt.line, other),
         }
         i += 1;
@@ -4807,6 +4774,29 @@ fn member_row(stmt: &Stmt, log: &mut Log) -> Option<MemberSpec> {
         member.slot = Some(SlotSpec { default_op, dedup });
     }
     finish_member_row(member, &effect, stmt.line, log)
+}
+
+/// A member row's flag whose value is one name from a closed list.
+fn member_named_flag(member: &mut MemberSpec, flag: &str, name: &str, line: u32, log: &mut Log) {
+    match flag {
+        "-all-refs" => {
+            member.all_args_ref =
+                enum_by_name(MEMBER_REF_KINDS, name, "member reference kind", line, log);
+        }
+        "-kind" => {
+            if let Some(kind) = enum_by_name(MEMBER_KINDS, name, "member kind", line, log) {
+                member.kind = kind;
+            }
+        }
+        "-retracts" => {
+            member.retraction =
+                enum_by_name(MEMBER_RETRACTIONS, name, "member retraction", line, log);
+        }
+        _ => {
+            member.visibility_effect =
+                enum_by_name(MEMBER_VISIBILITIES, name, "member visibility", line, log);
+        }
+    }
 }
 
 /// A member row's `-effect` as the row's flags left it.
