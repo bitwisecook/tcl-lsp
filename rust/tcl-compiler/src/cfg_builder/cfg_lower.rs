@@ -976,13 +976,27 @@ impl CfgBuilder<'_> {
         if block != entry {
             return None;
         }
-        let statements = self.blocks.get(block)?.statements.len();
-        let alone = if self.plain_return_blocks.contains(block) {
-            statements == 0
-        } else {
-            statements == 1
+        let statements = &self.blocks.get(block)?.statements;
+        if self.plain_return_blocks.contains(block) {
+            return statements
+                .is_empty()
+                .then(|| self.terminal_code(block))
+                .flatten();
+        }
+        let code = self.terminal_code(block)?;
+        let [before @ .., _] = statements.as_slice() else {
+            return None;
         };
-        alone.then(|| self.terminal_code(block)).flatten()
+        // A literal assignment completes normally or raises `TCL_ERROR` (the
+        // name is an array, a write trace fails) — never another code — so it
+        // cannot change an error's code: `set z 0; error boom` is caught by
+        // `on error` whichever raises (found in review). A command
+        // substitution in the name could complete with any code.
+        let only_errors_before = before
+            .iter()
+            .all(|stmt| matches!(stmt, Statement::AssignConst { name, .. } if !name.contains('[')));
+        (before.is_empty() || (code == tcl_core_types::Code::Error && only_errors_before))
+            .then_some(code)
     }
 
     /// The completion code of whatever ended `block`, when it is known: a
@@ -1080,9 +1094,9 @@ impl CfgBuilder<'_> {
         first_body_id: usize,
         handlers: &[crate::ir::TryHandler],
         handler_blocks: &[String],
-    ) -> Vec<String> {
+    ) -> (Vec<String>, bool) {
         if !self.faithful_exceptions {
-            return Vec::new();
+            return (Vec::new(), false);
         }
         let end_id = self.bid(end_block);
         let body_block_id = self.bid(body_block);
@@ -1113,6 +1127,11 @@ impl CfgBuilder<'_> {
             let Some(block) = self.blocks.get(name.as_str()) else {
                 continue;
             };
+            // A nested clause that resumes unwinding once done is an exit of
+            // this body too, beside its fall-through.
+            if self.unwinding_tails.contains(name) && !intercepted.contains(name.as_str()) {
+                sources.push(name.clone());
+            }
             match &block.terminator {
                 // A process exit runs no `finally` (found in review) — only
                 // when nothing can raise before it: it is the only statement
@@ -1180,6 +1199,7 @@ impl CfgBuilder<'_> {
                     && self.block_ids.get(to).is_some_and(|id| leaves(*id))
             });
         self.finally_jump_edges = kept;
+        let unwinds = !sources.is_empty();
         for edge in nested {
             self.exception_edges.retain(|e| *e != edge);
             sources.push(edge.0);
@@ -1192,7 +1212,7 @@ impl CfgBuilder<'_> {
         }
         targets.sort();
         targets.dedup();
-        targets
+        (targets, unwinds)
     }
 
     /// Flatten `Statement::Try` into body → handlers → finally → end CFG.
@@ -1318,7 +1338,7 @@ impl CfgBuilder<'_> {
         // Read before the exit edges below add paths into `end_block`.
         let completes_normally =
             self.try_completes_normally(block_name, &end_block, &body_block, first_body_id);
-        let jump_targets = self.push_finally_exit_edges(
+        let (jump_targets, unwinds) = self.push_finally_exit_edges(
             &end_block,
             &post_body,
             &body_block,
@@ -1330,7 +1350,7 @@ impl CfgBuilder<'_> {
             fb,
             finally_span.or(Some(*span)),
             &end_block,
-            completes_normally,
+            completes_normally.then_some(unwinds),
             jump_targets,
         )
     }
@@ -1342,21 +1362,37 @@ impl CfgBuilder<'_> {
     /// `after_finally`: the statements after the `try` are appended there,
     /// and a `break` does not run them (found in review). A clause that
     /// cannot complete normally resumes nothing.
+    ///
+    /// `falls_through` is `None` when nothing completes the `try` normally,
+    /// else whether an unwinding exit (a `return`, an error) also enters the
+    /// clause. Then the clause's fall-through `Goto` stands only for normal
+    /// completion: the `return` resumes past the statements after the `try`,
+    /// so the last block is recorded as an unwinding tail and a throw point
+    /// for the constructs around it. Without that, `try { try {if {$c}
+    /// {return}} finally {}; set x 1 } finally {puts $x}` ran `set x 1` on
+    /// the `return` path too, and O102 forwarded `1` into a read tclsh 8.6.18
+    /// and 9.0.4 fail on (found in review).
     fn finish_try_finally(
         &mut self,
         body: &crate::ir::Script,
         fin_span: Option<tcl_lexer::Span>,
         end_block: &str,
-        completes_normally: bool,
+        falls_through: Option<bool>,
         jump_targets: Vec<String>,
     ) -> String {
         let (after_finally, finally_tail) = self.lower_try_finally(
             body,
             fin_span,
             end_block,
-            completes_normally || !self.faithful_exceptions,
+            falls_through.is_some() || !self.faithful_exceptions,
         );
         if let Some(tail) = finally_tail {
+            if falls_through == Some(true) {
+                self.unwinding_tails.insert(tail.clone());
+                if let Some(blocks) = self.throw_blocks.as_mut() {
+                    blocks.push(tail.clone());
+                }
+            }
             for target in jump_targets {
                 let edge = (tail.clone(), target);
                 self.exception_edges.push(edge.clone());

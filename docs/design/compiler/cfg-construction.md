@@ -239,13 +239,21 @@ overrides the pending completion, so it neither falls through nor resumes
 a saved jump, and in `while 1 { try {return} finally {break} }` the code
 after the loop runs.  Otherwise the clause falls through, and
 exit paths share that edge with normal completion — they add paths, never
-remove one.
+remove one — save for the unwinding they resume.  When an unwinding
+exit (a `return`, an error) also enters such a clause, the fall-through
+`Goto` stands only for normal completion, so the clause's last block is
+recorded as an *unwinding tail*: an exit of every enclosing `try … finally`
+body and a throw point for enclosing handlers and `catch`.  Without it,
+`try { try {if {$c} {return}} finally {}; set x 1 } finally {puts $x}` ran
+`set x 1` on the `return` path, and O102 forwarded it into a read tclsh
+fails.
 
 A body that cannot fall through reaches a handler from its explicit throw
 points, or failing those from its terminal block — but not a source whose
 exact completion code differs from the one the handler's selector decodes
 to (`trap` is an error).  A source's code is known only for the body's
-first block with nothing else in it that could complete first, for a plain `return` whose value cannot
+first block with nothing else in it that could complete with another code
+(a literal assignment before an error may only raise an error itself), for a plain `return` whose value cannot
 substitute (`TCL_RETURN`), and for a sole statement the registry classifies
 that is what ended the block: `break` / `continue`
 behind its `Goto`, a non-`ok` code behind a `Return`.  So

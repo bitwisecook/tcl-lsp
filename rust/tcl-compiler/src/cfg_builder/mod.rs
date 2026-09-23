@@ -254,6 +254,11 @@ pub(crate) struct CfgBuilder<'a> {
     /// Blocks one of their `try`'s unconditional handlers catches whole: an
     /// enclosing construct must not route them past that handler.
     handler_caught: FxHashSet<String>,
+    /// Last blocks of `finally` clauses that both fall through and resume an
+    /// unwinding exit (a `return` or an error) once the clause is done. The
+    /// fall-through `Goto` stands only for normal completion, so an enclosing
+    /// construct treats such a block as an exit of its own.
+    unwinding_tails: FxHashSet<String>,
     /// When `true`, record [`Self::exception_edges`] in `lower_try`.  Off for
     /// codegen builds so the default bytecode is unchanged.
     faithful_exceptions: bool,
@@ -414,6 +419,7 @@ impl<'a> CfgBuilder<'a> {
             total_interceptors: FxHashSet::default(),
             try_entry: None,
             handler_caught: FxHashSet::default(),
+            unwinding_tails: FxHashSet::default(),
             faithful_exceptions: false,
             plain_command_dispatch: false,
             registry,
@@ -1382,6 +1388,7 @@ impl<'a> CfgBuilder<'a> {
         self.plain_return_blocks.clear();
         self.total_interceptors.clear();
         self.handler_caught.clear();
+        self.unwinding_tails.clear();
         func.exception_edges = std::mem::take(&mut self.exception_edges)
             .into_iter()
             .map(|(from, to)| (self.bid(&from), self.bid(&to)))

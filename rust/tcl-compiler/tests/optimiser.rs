@@ -2920,6 +2920,13 @@ fn a_try_finally_does_not_hide_the_names_bound_around_it() {
             "bound by an inner handler and inner clause before the outer one",
             "proc p {} {\n    try {try {error boom} on error {} {set x 1; return} finally {set y 1}} finally {puts $x; puts $y}\n}\n",
         ),
+        // A literal assignment before the `error` can only raise an error too,
+        // so the inner handler catches the block whichever raises; tclsh
+        // prints `1` (found in review).
+        (
+            "bound by an inner handler after a literal assignment",
+            "proc p {} {\n    try { try {set z 0; error boom} on error {} {set x 1; return} finally {} } finally {puts $x}\n}\n",
+        ),
         // The handler's `exit` ends the process before the clause could read;
         // binding `msg` first does not change that (found in review).
         (
@@ -3040,6 +3047,27 @@ fn a_finally_that_transfers_control_keeps_its_transfer() {
             opt_codes(src, TCL)
         );
     }
+}
+
+/// A `return` that passes an inner `finally` resumes past the statements
+/// after the inner `try`, even when that `try` can also fall through: in
+/// `try { try {if {$c} {return}} finally {}; set x 1 } finally {puts $x}` the
+/// outer clause reads `x` unset on the `return` path, and tclsh 8.6.18 and
+/// 9.0.4 fail there. Sending the `return` through the clause's fall-through
+/// made `set x 1` look certain and O102 forwarded it (found in review).
+#[test]
+fn a_return_through_an_inner_finally_skips_the_code_after_it() {
+    let src = "proc p {c} {\n    try { try {if {$c} {return}} finally {}; set x 1 } finally {puts $x}\n}\n";
+    assert!(
+        analyser_codes(src, TCL).iter().any(|c| c == "W210"),
+        "the outer clause may read `x` unset: {:?}",
+        analyser_codes(src, TCL)
+    );
+    assert!(
+        !opt_fires(src, TCL, "O102"),
+        "`x` has no single reaching definition at the outer clause: {:?}",
+        opt_codes(src, TCL)
+    );
 }
 
 /// A handler is reached from the explicit throws inside a nested construct,
