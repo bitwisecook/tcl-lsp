@@ -340,6 +340,22 @@ pub const NESTED_FIELDS: &[NestedFieldSchema] = &[
         field: "tk_geometry",
         group: "Advanced",
     },
+    NestedFieldSchema {
+        key: "route",
+        label: "Evaluation route",
+        doc: "How the declaration computes its answer: none, a shipped direct evaluator, the shared expression engine, or a declared implementation.",
+        owner: "DeclaredSemantics",
+        field: "semantics",
+        group: HOOKS,
+    },
+    NestedFieldSchema {
+        key: "body",
+        label: "Implementation body",
+        doc: "The declared implementation's Tcl body, run in the bounded host under its declared inputs and budget.",
+        owner: "DeclaredSemantics",
+        field: "semantics",
+        group: HOOKS,
+    },
 ];
 
 impl FieldSchema {
@@ -790,7 +806,7 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         FieldKind::RustExpr {
             hint: "SemanticsDeclaration::Declared(&value_transfer::builtins::LIST_LENGTH)",
         },
-        "The value-transfer specialisation declared at command scope — what an invocation computes, which storage it writes, and the route that computes it — or an explicit abstention (`Declined`). Unset inherits, or derives from a descriptor stating the same operation.",
+        "The value-transfer specialisation declared at command scope — what an invocation computes, which storage it writes, and the route that computes it (below) — or an explicit abstention (`Declined`). Unset inherits, or derives from a descriptor stating the same operation. A shipped, compiled-in specialisation is nameable but not reconstructable, so it also reads unset here.",
     ),
     f(
         "analyser_hook",
@@ -1681,7 +1697,7 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
         FieldKind::RustExpr {
             hint: "SemanticsDeclaration::Declared(&value_transfer::builtins::STRING_LENGTH)",
         },
-        "The value-transfer specialisation declared for this subcommand, overriding the command's, or an explicit abstention that stops the command's from applying here.",
+        "The value-transfer specialisation declared for this subcommand, overriding the command's, or an explicit abstention that stops the command's from applying here. Its route is edited below.",
     ),
     f(
         "analyser_hook",

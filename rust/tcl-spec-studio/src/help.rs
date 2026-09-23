@@ -439,7 +439,29 @@ asks about an invocation — what it computes, which variables it writes, and \
 the evaluator route that computes it — or an explicit abstention. Unset \
 inherits the enclosing scope's declaration, or derives one from a descriptor \
 that states the same operation (a cell read-modify-write, a destroyed \
-variable). The pack spellings for it are still to come; leave it unset.",
+variable). A pack states it with three statements at command, subcommand, \
+or per-form scope: `semantics { effects …; result -semantic T; stores …; \
+iterate … }` for the structure this field holds, `evaluate …` for the route \
+below, and `facts …` for the abstract transfer a pack may state but nothing \
+reads yet (checked at load time, not carried here or anywhere else). Most \
+commands leave all three unset.",
+    ),
+    (
+        "route",
+        "How the declared specialisation computes its answer: no evaluator \
+(`evaluate none`), a shipped direct evaluator over the registry's own cores \
+(`-direct ID`), the shared expression engine under a named language profile \
+(`-expression tcl.expr` / `bpf.expr`), or a declared implementation \
+(`-implementation ID -host bounded_tcl { … }`) — see the body box below for \
+that last one's Tcl.",
+    ),
+    (
+        "body",
+        "A declared implementation's Tcl body: the whitelisted commands of \
+`docs/design/registry/spec-packs.md`'s sandboxed host, taking the \
+declaration's inputs as parameters and answering with `fold VALUE`, \
+`write TARGET VALUE`, or `preserve TARGET` — silence declines the whole \
+answer. Only meaningful when the route above is a declared implementation.",
     ),
     (
         "analyser_hook",

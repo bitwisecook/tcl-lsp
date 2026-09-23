@@ -389,6 +389,36 @@ append log $line",
         },
     ),
     (
+        "route",
+        Example {
+            code: "evaluate -direct StringRange\nevaluate -expression tcl.expr\nevaluate -implementation tenant.label.v1 -host bounded_tcl { body {name} { fold $name } }",
+            focuses: &[
+                focus(
+                    0,
+                    "-direct",
+                    "a shipped evaluator over the registry's own cores",
+                ),
+                focus(1, "-expression", "the shared expression engine"),
+                focus(
+                    2,
+                    "-implementation",
+                    "a declared implementation, whose body is below",
+                ),
+            ],
+        },
+    ),
+    (
+        "body",
+        Example {
+            code: "evaluate -implementation tenant.label.v1 -host bounded_tcl {\n    inputs {arg 0 exact}\n    body {name} { fold [string cat \"tenant:\" $name] }\n}",
+            focuses: &[focus(
+                2,
+                "fold [string cat \"tenant:\" $name]",
+                "the body: the declared input as its parameter, answering with fold",
+            )],
+        },
+    ),
+    (
         "analyser_hook",
         Example {
             code: "package require Tk\nproc show {w} { pack $w }",

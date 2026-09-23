@@ -583,9 +583,9 @@ Compiler internals: which native code shape the executable-IR lowering gives thi
 
 ### `semantics` — Value-transfer declaration
 
-*command and subcommand* — The value-transfer specialisation declared at command scope — what an invocation computes, which storage it writes, and the route that computes it — or an explicit abstention (`Declined`). Unset inherits, or derives from a descriptor stating the same operation.
+*command and subcommand* — The value-transfer specialisation declared at command scope — what an invocation computes, which storage it writes, and the route that computes it (below) — or an explicit abstention (`Declined`). Unset inherits, or derives from a descriptor stating the same operation. A shipped, compiled-in specialisation is nameable but not reconstructable, so it also reads unset here.
 
-Compiler internals: the value-transfer specialisation the analyser asks about an invocation — what it computes, which variables it writes, and the evaluator route that computes it — or an explicit abstention. Unset inherits the enclosing scope's declaration, or derives one from a descriptor that states the same operation (a cell read-modify-write, a destroyed variable). The pack spellings for it are still to come; leave it unset.
+Compiler internals: the value-transfer specialisation the analyser asks about an invocation — what it computes, which variables it writes, and the evaluator route that computes it — or an explicit abstention. Unset inherits the enclosing scope's declaration, or derives one from a descriptor that states the same operation (a cell read-modify-write, a destroyed variable). A pack states it with three statements at command, subcommand, or per-form scope: `semantics { effects …; result -semantic T; stores …; iterate … }` for the structure this field holds, `evaluate …` for the route below, and `facts …` for the abstract transfer a pack may state but nothing reads yet (checked at load time, not carried here or anywhere else). Most commands leave all three unset.
 
 ### `analyser_hook` — Analyser hook
 
@@ -610,6 +610,18 @@ A hook validating relationships *between* literal arguments that a per-position 
 *subcommand only* — Lowered command name for an ensemble subcommand the lowering pass rewrites.
 
 Compiler internals: the plain command name this ensemble subcommand is rewritten to during lowering. Leave unset for user packages.
+
+### `DeclaredSemantics.route` — Evaluation route
+
+*nested DeclaredSemantics field* — How the declaration computes its answer: none, a shipped direct evaluator, the shared expression engine, or a declared implementation.
+
+How the declared specialisation computes its answer: no evaluator (`evaluate none`), a shipped direct evaluator over the registry's own cores (`-direct ID`), the shared expression engine under a named language profile (`-expression tcl.expr` / `bpf.expr`), or a declared implementation (`-implementation ID -host bounded_tcl { … }`) — see the body box below for that last one's Tcl.
+
+### `DeclaredSemantics.body` — Implementation body
+
+*nested DeclaredSemantics field* — The declared implementation's Tcl body, run in the bounded host under its declared inputs and budget.
+
+A declared implementation's Tcl body: the whitelisted commands of `docs/design/registry/spec-packs.md`'s sandboxed host, taking the declaration's inputs as parameters and answering with `fold VALUE`, `write TARGET VALUE`, or `preserve TARGET` — silence declines the whole answer. Only meaningful when the route above is a declared implementation.
 
 ## Taint and security
 

@@ -413,6 +413,79 @@ fn arity_windows_survive_the_round_trip() {
     assert_eq!(trip.reloaded["arity"]["max"], serde_json::json!(1));
 }
 
+/// A declared `semantics` / `evaluate` plan is plain data — like
+/// `object_class` a level up — so it round-trips in full: no `GAPS` entry,
+/// no notice, the reloaded declaration equal to the one drafted.
+#[test]
+fn a_declared_semantics_plan_survives_the_round_trip() {
+    use tcl_registry::types::TclType;
+    use tcl_registry::value_transfer::{
+        DeclaredEffect, DeclaredEvaluation, DeclaredSemantics, DeclaredStores, DeclaredStructure,
+        EvalRoute, LanguageProfileId, OutcomeKind, SemanticType, SemanticsDeclaration,
+    };
+
+    static SEMANTICS: DeclaredSemantics = DeclaredSemantics {
+        scope: "probe::grown",
+        structure: DeclaredStructure {
+            // `no_store_writes` cannot coexist with a `stores` row (the
+            // loader drops the whole block as contradictory), so this plan
+            // pairs the *other* effect with one.
+            effects: &[DeclaredEffect::NoExternalIo],
+            result: Some(SemanticType::Tcl(TclType::String)),
+            stores: Some(DeclaredStores {
+                targets: &[1, 2],
+                outcome: OutcomeKind::WriteOrPreserve,
+            }),
+            iterate: None,
+        },
+        evaluation: DeclaredEvaluation::Route(EvalRoute::Expression {
+            language: LanguageProfileId::TclExpr,
+        }),
+        option_declines: &[],
+    };
+    let spec = tcl_registry::CommandSpec {
+        name: "probe::grown",
+        semantics: SemanticsDeclaration::Declared(&SEMANTICS),
+        ..tcl_registry::CommandSpec::DEFAULT
+    };
+    let draft = Value::Object(draft::from_command_spec(&spec));
+    assert!(
+        draft[draft::UNRENDERABLE_KEY]
+            .as_array()
+            .is_none_or(|keys| !keys.iter().any(|k| k.as_str() == Some("semantics"))),
+        "a body-free, option-decline-free plan is fully recoverable: {draft}"
+    );
+    let trip = round_trip(&draft);
+
+    assert!(trip.notices.is_empty(), "{:?}\n{}", trip.notices, trip.text);
+    assert!(
+        trip.text.contains("effects {no_external_io}"),
+        "{}",
+        trip.text
+    );
+    assert!(
+        trip.text.contains("result -semantic string"),
+        "{}",
+        trip.text
+    );
+    assert!(
+        trip.text
+            .contains("stores -targets {1 2} -outcome write_or_preserve"),
+        "{}",
+        trip.text
+    );
+    assert!(
+        trip.text.contains("evaluate -expression tcl.expr"),
+        "{}",
+        trip.text
+    );
+    assert_eq!(
+        trip.reloaded["semantics"], draft["semantics"],
+        "the reloaded plan is byte-for-byte the drafted one:\n{}",
+        trip.text
+    );
+}
+
 /// Native resolver declarations and their capability sets are one contract.
 ///
 /// `binary scan` exercises a subcommand resolver with more than one possible

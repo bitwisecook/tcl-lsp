@@ -338,16 +338,15 @@ pub const GAPS: &[Gap] = &[
         spelling: "",
         kind: GapKind::Excluded,
     },
-    // The value-transfer declaration names a registry-owned specialisation
-    // or abstains. Its pack spellings — `semantics` / `evaluate` / `facts` —
-    // land with the private-command slice of the value-transfer migration
-    // (`docs/design/compiler/value-transfers-migration.md`); until then a
-    // pack inherits or derives it, and the renderer has nothing to write.
-    Gap {
-        key: "semantics",
-        spelling: "",
-        kind: GapKind::Excluded,
-    },
+    // `semantics` left this bucket with the private-command slice of the
+    // value-transfer migration: the structural half is plain data all the
+    // way down (like `object_class`), and a route with no body renders in
+    // full. What still cannot survive a bare `CommandSpec` — a declared
+    // implementation's body, which lives only in the loader's pack-hook
+    // table, and an option-level `-evaluate` decline, not yet carried back
+    // onto its option row — goes through [`native_hook`]'s existing
+    // unrecovered-field path, exactly as `const_fold`'s body does, so it
+    // needs no register entry of its own.
 ];
 
 /// The [`Gap`] for `key`, if the renderer cannot carry it.
@@ -1889,6 +1888,106 @@ fn catalogue_hook(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft, key: &str) {
     }
 }
 
+/// `semantics { effects …; result -semantic T; stores …; iterate … }` and
+/// `evaluate …`: [`crate::draft::semantics_value`]'s captured plan, or a
+/// `-native SCOPE::FIELD` placeholder — the route picker's read-only
+/// fallback — when seeding could not recover it (a shipped, compiled-in
+/// specialisation; a declared implementation's body; an option-level
+/// `-evaluate` decline). The body box itself belongs to
+/// `evaluate -implementation`'s own author-facing editor, over the route
+/// this function reads back rather than a reconstruction from `CommandSpec`.
+fn semantics_block(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft) {
+    if unrecovered(draft, "semantics") {
+        out.line(&ctx.native("semantics").join(" "));
+        return;
+    }
+    if !ctx.set(draft, "semantics") {
+        return;
+    }
+    let value = &draft["semantics"];
+    if value.as_str() == Some("none") {
+        out.line("semantics none");
+        return;
+    }
+    let effects: Vec<&str> = as_array(&value["effects"])
+        .iter()
+        .filter_map(Value::as_str)
+        .collect();
+    let result = value["result"].as_str();
+    let stores = value.get("stores").filter(|v| !v.is_null());
+    let iterate = value.get("iterate").filter(|v| !v.is_null());
+    if !effects.is_empty() || result.is_some() || stores.is_some() || iterate.is_some() {
+        let mut body = Out::at(out.indent + 1);
+        if !effects.is_empty() {
+            body.line(&format!("effects {{{}}}", effects.join(" ")));
+        }
+        if let Some(result) = result {
+            body.line(&format!("result -semantic {result}"));
+        }
+        if let Some(stores) = stores {
+            let targets: Vec<String> = as_array(&stores["targets"])
+                .iter()
+                .map(ToString::to_string)
+                .collect();
+            body.line(&format!(
+                "stores -targets {{{}}} -outcome {}",
+                targets.join(" "),
+                str_of(&stores["outcome"])
+            ));
+        }
+        if let Some(iterate) = iterate {
+            let mut inner = Out::at(body.indent + 1);
+            inner.line(&format!("binder -arg {}", iterate["binder"]));
+            inner.line(&format!(
+                "iterable -arg {} -kind {}",
+                iterate["iterable"],
+                str_of(&iterate["kind"])
+            ));
+            if let Some(arg) = iterate["body"].as_u64() {
+                inner.line(&format!("body -arg {arg}"));
+            }
+            if let Some(yields) = iterate["yields"].as_str() {
+                inner.line(&format!("yield -semantic {yields}"));
+            }
+            if let Some(cardinality) = iterate["cardinality"].as_u64() {
+                inner.line(&format!("cardinality -arg {cardinality}"));
+            }
+            if iterate["zero_iterations_bind"].as_bool() == Some(true) {
+                inner.line("zero_iterations -bindings bind");
+            }
+            body.line("iterate {");
+            body.block(&inner);
+            body.line("}");
+        }
+        out.line("semantics {");
+        out.block(&body);
+        out.line("}");
+    }
+    match value["evaluation"]["kind"].as_str() {
+        Some("none") if value["evaluation"]["reason"].as_str() == Some("declared") => {
+            out.line("evaluate none");
+        }
+        Some("direct") => {
+            out.line(&format!(
+                "evaluate -direct {}",
+                str_of(&value["evaluation"]["id"])
+            ));
+        }
+        Some("expression") => {
+            out.line(&format!(
+                "evaluate -expression {}",
+                str_of(&value["evaluation"]["language"])
+            ));
+        }
+        // `none` with any reason other than `declared` — `unauthored` (no
+        // `evaluate` statement at all) chief among them, since a
+        // command/subcommand scope's own `evaluate none` cannot produce any
+        // other — and no `evaluation` key at all: nothing was said, so
+        // nothing is written.
+        _ => {}
+    }
+}
+
 /// `arity N`, `N..M`, `N..`, `..M`, `..`, plus `-step` / `-also`.
 fn arity_row(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft) {
     if !ctx.set(draft, "arity") {
@@ -2476,6 +2575,7 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
     native_hook(out, ctx, draft, "clause_shape_check");
     native_hook(out, ctx, draft, "const_fold");
     native_hook(out, ctx, draft, "const_fold_versioned");
+    semantics_block(out, ctx, draft);
     native_hook(out, ctx, draft, "literal_argument_validator");
     native_hook(out, ctx, draft, "context_gate");
     catalogue_hook(out, ctx, draft, "lowering_hook");
@@ -3020,6 +3120,7 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft, keyword: &
     native_hook(out_body, ctx, sub, "script_timing_resolver");
     native_hook(out_body, ctx, sub, "const_fold");
     native_hook(out_body, ctx, sub, "const_fold_versioned");
+    semantics_block(out_body, ctx, sub);
     native_hook(out_body, ctx, sub, "literal_argument_validator");
     catalogue_hook(out_body, ctx, sub, "lowering_hook");
     catalogue_hook(out_body, ctx, sub, "codegen_hook");

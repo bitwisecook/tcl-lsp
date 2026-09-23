@@ -175,6 +175,9 @@ pub const CLUSTERS: &[Cluster] = &[
             "result_stability",
             "const_fold",
             "const_fold_versioned",
+            "semantics",
+            "route",
+            "body",
         ],
     },
     Cluster {

@@ -77,6 +77,9 @@ use tcl_registry::symbol_def::SymbolDef;
 use tcl_registry::taint::{SetterConstraint, TaintColour};
 use tcl_registry::traits::Traits;
 use tcl_registry::types::{ReturnElements, VarElementsEffect, VarWriteTyping};
+use tcl_registry::value_transfer::{
+    DeclaredEvaluation, DeclaredSemantics, EvalRoute, SemanticType, SemanticsDeclaration,
+};
 
 use crate::catalogue;
 use crate::render_rs::rust_string;
@@ -1073,6 +1076,99 @@ fn subcommand_types(d: &mut Draft, sub: &SubCommand) {
     d.insert("mutator".into(), json!(sub.mutator));
 }
 
+/// `-semantic T`: the DSL spelling of a declared result or yield type — the
+/// Tcl type in lower case, or the vendor semantic verbatim.
+fn semantic_type_word(semantic: SemanticType) -> String {
+    match semantic {
+        SemanticType::Tcl(ty) => catalogue::variant_name(&ty).to_lowercase(),
+        SemanticType::Vendor(name) => name.to_owned(),
+    }
+}
+
+/// The `semantics { … }` / `evaluate …` declaration at one scope: the plan is
+/// plain data all the way down (like [`command_object_facts`]'s `object_class`
+/// one level up) and round-trips in full, *except* a declared implementation's
+/// body — carried only by the loader's pack-hook table, never on `CommandSpec`
+/// — and an option-level `-evaluate` decline, not yet carried back onto its
+/// option row (`docs/design/lanes/value-transfers.md`'s slice-4 record).
+/// Those two shapes stay `lost`, exactly as a shipped, compiled-in
+/// specialisation — nameable by [`tcl_registry::value_transfer::CommandSemantics::identity`],
+/// never reconstructable — already was.
+fn semantics_value(declaration: SemanticsDeclaration, lost: &mut Unrecovered) -> Value {
+    let declared = match declaration {
+        SemanticsDeclaration::Inherited => return Value::Null,
+        SemanticsDeclaration::Declined => return json!("none"),
+        SemanticsDeclaration::Declared(semantics) => semantics,
+    };
+    let Some(declared) = declared.as_declared() else {
+        // A shipped, compiled-in specialisation: nameable, not
+        // reconstructable, and no pack could have written it either.
+        return Value::Null;
+    };
+    let has_body = matches!(
+        declared.evaluation,
+        DeclaredEvaluation::Implementation(_)
+            | DeclaredEvaluation::Route(EvalRoute::Implementation(_))
+    );
+    if has_body || !declared.option_declines.is_empty() {
+        lost.note("semantics");
+        return Value::Null;
+    }
+    declared_semantics_json(declared)
+}
+
+/// [`semantics_value`]'s fully-recoverable case.
+fn declared_semantics_json(declared: &DeclaredSemantics) -> Value {
+    let structure = declared.structure;
+    let effects: Vec<&str> = structure.effects.iter().map(|e| e.as_str()).collect();
+    let stores = structure.stores.map(|stores| {
+        json!({
+            "targets": stores.targets,
+            "outcome": stores.outcome.as_str(),
+        })
+    });
+    let iterate = structure.iterate.map(|iterate| {
+        let kind = match iterate.kind {
+            tcl_registry::value_transfer::IterableWord::List => "list".to_owned(),
+            tcl_registry::value_transfer::IterableWord::Dict => "dict".to_owned(),
+            tcl_registry::value_transfer::IterableWord::Vendor(name) => name.to_owned(),
+        };
+        json!({
+            "binder": iterate.binder,
+            "iterable": iterate.iterable,
+            "kind": kind,
+            "body": iterate.body,
+            "yields": iterate.yields.map(semantic_type_word),
+            "cardinality": iterate.cardinality,
+            "zero_iterations_bind": iterate.zero_iterations_bind,
+        })
+    });
+    let evaluation = match declared.evaluation {
+        DeclaredEvaluation::Route(EvalRoute::None { reason }) => json!({
+            "kind": "none",
+            "reason": reason.as_str(),
+        }),
+        DeclaredEvaluation::Route(EvalRoute::Direct { id }) => json!({
+            "kind": "direct",
+            "id": catalogue::variant_name(&id),
+        }),
+        DeclaredEvaluation::Route(EvalRoute::Expression { language }) => json!({
+            "kind": "expression",
+            "language": language.as_str(),
+        }),
+        // Filtered out by `semantics_value` before this is reached.
+        DeclaredEvaluation::Route(EvalRoute::Implementation(_))
+        | DeclaredEvaluation::Implementation(_) => json!({"kind": "none", "reason": "unauthored"}),
+    };
+    json!({
+        "effects": effects,
+        "result": structure.result.map(semantic_type_word),
+        "stores": stores,
+        "iterate": iterate,
+        "evaluation": evaluation,
+    })
+}
+
 /// Constant folders and the compiler / analyser hook IDs.
 fn subcommand_hooks(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
     d.insert(
@@ -1106,10 +1202,7 @@ fn subcommand_hooks(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
         sub.inline_codegen_hook
             .map_or(Value::Null, |h| json!(catalogue::variant_name(&h))),
     );
-    d.insert(
-        "semantics".into(),
-        lost.expr("semantics", !sub.semantics.is_inherited()),
-    );
+    d.insert("semantics".into(), semantics_value(sub.semantics, lost));
     d.insert(
         "analyser_hook".into(),
         sub.analyser_hook
@@ -1431,10 +1524,7 @@ fn command_identity(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
         "native_lowering".into(),
         lost.expr("native_lowering", spec.native_lowering.is_some()),
     );
-    d.insert(
-        "semantics".into(),
-        lost.expr("semantics", !spec.semantics.is_inherited()),
-    );
+    d.insert("semantics".into(), semantics_value(spec.semantics, lost));
     d.insert(
         "clause_shape_check".into(),
         lost.expr("clause_shape_check", spec.clause_shape_check.is_some()),
@@ -1980,6 +2070,78 @@ mod tests {
     fn default_draft_records_no_unrecoverable_fields() {
         let draft = default_command_draft();
         assert_eq!(draft[UNRENDERABLE_KEY], json!([]));
+    }
+
+    /// The structural half of a declared `semantics` plan is plain data and
+    /// round-trips (`spectcl_roundtrip.rs`'s
+    /// `a_declared_semantics_plan_survives_the_round_trip` proves the DSL
+    /// side); what a bare `CommandSpec` cannot carry — a declared
+    /// implementation's body, or an option-level `-evaluate` decline — stays
+    /// unrecoverable, exactly like a shipped, compiled-in specialisation.
+    #[test]
+    fn a_declared_implementations_body_stays_unrecoverable() {
+        use tcl_registry::value_transfer::{
+            CompletionSupport, ContextDependency, DeclaredEvaluation, DeclaredImplementation,
+            DeclaredSemantics, DeclaredStructure, DeclineReason, EvaluatorCapability, HostKind,
+            ImplementationBudget, ImplementationIdentity, Needs, NoRouteReason,
+            SemanticsDeclaration,
+        };
+
+        const NO_STRUCTURE: DeclaredStructure = DeclaredStructure {
+            effects: &[],
+            result: None,
+            stores: None,
+            iterate: None,
+        };
+        static IMPLEMENTATION: DeclaredSemantics = DeclaredSemantics {
+            scope: "probe::grown",
+            structure: NO_STRUCTURE,
+            evaluation: DeclaredEvaluation::Implementation(DeclaredImplementation {
+                capability: EvaluatorCapability {
+                    identity: ImplementationIdentity {
+                        pack: "probe",
+                        id: "probe.grown.v1",
+                        content_hash: 0,
+                    },
+                    host: HostKind::BoundedTcl,
+                    target: Needs::NONE,
+                    inputs: &[],
+                    depends: &[ContextDependency::TclProfile],
+                    budget: ImplementationBudget {
+                        commands: None,
+                        wall_clock_ms: None,
+                        value_bytes: None,
+                    },
+                    completion: CompletionSupport::NormalOnly,
+                },
+                slot: None,
+            }),
+            option_declines: &[],
+        };
+        static DECLINING_OPTION: DeclaredSemantics = DeclaredSemantics {
+            scope: "probe::grown",
+            structure: NO_STRUCTURE,
+            evaluation: DeclaredEvaluation::Route(EvalRoute::None {
+                reason: NoRouteReason::Declared,
+            }),
+            option_declines: &[("-about", DeclineReason::NoRoute(NoRouteReason::Declared))],
+        };
+
+        let draft = from_command_spec(&CommandSpec {
+            name: "probe::grown",
+            semantics: SemanticsDeclaration::Declared(&IMPLEMENTATION),
+            ..CommandSpec::DEFAULT
+        });
+        assert_eq!(draft["semantics"], Value::Null);
+        assert_eq!(draft[UNRENDERABLE_KEY], json!(["semantics"]));
+
+        let draft = from_command_spec(&CommandSpec {
+            name: "probe::grown",
+            semantics: SemanticsDeclaration::Declared(&DECLINING_OPTION),
+            ..CommandSpec::DEFAULT
+        });
+        assert_eq!(draft["semantics"], Value::Null);
+        assert_eq!(draft[UNRENDERABLE_KEY], json!(["semantics"]));
     }
 
     #[test]

@@ -3134,6 +3134,7 @@ Runs after the opus items above; each item its own commit, in plan order
 | Item | Commit | What landed | Its tests |
 |---|---|---|---|
 | VT4.10 | `wip(value-transfers): slice 4 — -native ID for every family` | `tcl_registry::pack_hooks` gained fourteen `SCOPE::FIELD`-keyed native tables — one per pre-existing `HookFamily` variant (the eleven) plus `SEMANTICS_NATIVE`, `EVALUATE_NATIVE`, `FACTS_NATIVE` — real for `CONST_FOLD_NATIVE` (20 rows) and `CONST_FOLD_VERSIONED_NATIVE` (2 rows), the shipped folders' worked example, empty for the other twelve (nothing else ships a named native implementation yet); the shipped fold functions the tables reference (`string_.rs`, `format_.rs`, `regsub_.rs`, `scan_.rs`) exposed `pub(crate)` via `commands/tcl/mod.rs` re-exports; `loader/semantics.rs`'s `native_id` made generic over a table, so a full id the table holds now installs its value and one it does not keeps the existing "names nothing this build ships" notice; `evaluate -direct ID` split out from `-native` into its own resolution against `NativeEvalId::ALL` (`enum_by_name`, Rust-spelled, since it predates `-native`), leaving `-expression` untouched (already `LanguageProfileId::ALL`-matched); `tcl_spectcl::catalogue` gained the fourteen native-id pickers (id-spelled) and eight `value_transfer` vocabulary pickers (`NativeEvalId` Rust-spelled; `LanguageProfileId`, `HostKind`, `Exactness`, `ContextDependency::WORDS`, `OutcomeKind`, `DeclaredEffect`, `OptionEvaluation::REASONS` all DSL/`as_str()`-spelled) | `native_hook_tables_cover_their_catalogues` (+14 rows), `value_tables_cover_their_catalogues` (its original 9 rows, unchanged) and the new `value_transfer_tables_cover_their_catalogues` (+8 rows, split out for clippy's function-length lint), `catalogue_keys_are_unique` (+22 catalogues); `a_short_native_id_is_a_load_notice` adapted (`evaluate -direct go::evaluate` → `evaluate -native go::evaluate` at the same subcommand scope, plus a new `evaluate -direct nonexistent` line at command scope, since `-direct` no longer shares `-native`'s notice text — R6's witness is this item's own mandate to split them); `a_native_id_a_table_holds_installs_its_value` (new: `native_id` against a synthetic non-empty table, proving the "found" branch, since every real table but const-fold is empty) |
+| VT4.11 | `wip(value-transfers): slice 4 — the four surfaces` | `tcl-spec-studio/src/draft.rs`'s `semantics_value` replaces `lost.expr("semantics", …)` at command and subcommand scope: a `Declared` plan whose `as_declared()` gives a `DeclaredSemantics` renders in full (`effects`, `result`, `stores`, `iterate`, and the `None`/`Direct`/`Expression` evaluation kinds — plain data, one level deeper than `object_class`'s own precedent) unless its evaluation is `Implementation` (the body lives only in the loader's pack-hook table, never on `CommandSpec`) or it carries an option-level `-evaluate` decline (not yet carried back onto its option row) — both stay `Value::Null` and unrecoverable, exactly like a shipped, compiled-in specialisation (`as_declared() == None`) already was; `render_spectcl.rs`'s new `semantics_block` renders the recovered plan as `semantics { … }` / `evaluate …` (wired into `command_body` and `subcommand_block` beside `const_fold`/`const_fold_versioned`) or, unrecovered, the existing `-native SCOPE::FIELD` placeholder `native_hook` already gives every other opaque hook field; the `GAPS` row `semantics` is gone. `schema.rs` gained two `NestedFieldSchema` rows under `semantics` — `route` (the picker) and `body` (the box) — `relations.rs`'s "Effects and purity" cluster gained `semantics`, `route` and `body` alongside `const_fold`; `help.rs` and `examples/fields_behaviour.rs` gained matching entries, and `docs/references/command-spec/fields.md` is regenerated (`UPDATE_REFERENCE=1`). `store.rs`'s `carry_forward` now reaches one scope down: a new `find_subcommand` and a `reclaim` helper factored out of the old command-level-only loop run inside each `subcommand NAME { … }` matched by name, so a hook body hanging off a subcommand is spliced back in — closing the module doc's own documented "top level only" limitation — while a renamed/removed subcommand, or a sub-subcommand's own hook, still has nowhere to carry a body into and is still reported through `Write::dropped`. `tcl-spectcl/src/export.rs` needed no change at all: its registration record is a verbatim, property-agnostic replay of every statement the loader read, so `semantics`/`evaluate`/`facts` — including a declared implementation's body — already round-trip through it exactly as `const_fold`'s body does, proven by a new dedicated test rather than by any new code | `a_declared_semantics_plan_survives_the_round_trip` (new, `spectcl_roundtrip.rs`: a full structure-plus-`-expression` plan renders, reloads, and diffs byte-for-byte, no `GAPS` tolerance needed); `a_declared_implementations_body_stays_unrecoverable` (new, `draft.rs`: both the body and option-decline cases stay `Value::Null` and marked); `a_subcommands_hook_body_survives_a_form_edit` (`store.rs`, replacing `a_loss_carry_forward_cannot_reach_is_reported`, which pinned the bug this item fixes — R6's witness is this item's own mandate); `the_value_transfer_statements_round_trip_through_gate_a` (new, `tcl-spectcl/tests/export.rs`); `fields_doc_matches_the_schema` (`reference_doc.rs`, regenerated); `every_group_and_field_has_a_valid_example` and `every_field_is_clustered_or_declared_standalone` (existing gates, now covering `route` and `body` too); every existing `tcl-spec-studio` and `tcl-spectcl` suite green, `a_form_edit_on_a_real_pack_splices_and_preserves_its_neighbours` adapted (below) |
 
 Deviation from the plan's text, adapting to the tree: the plan's Items line
 groups "the eleven" `HookFamily` variants under one `NativeEvalTables`
@@ -3173,6 +3174,39 @@ passed, 0 failed, 1 ignored (the pre-existing fuzz-shaped
 `clippy::type_complexity` fixed by naming `TaintSinkGateFn` rather than
 writing `fn(&[&str]) -> bool` inline, no `#[allow]` added; `cargo fmt -p
 tcl-registry -p tcl-spectcl` applied (line-wrap only); `cargo xtask
+value-transfers --check` OK and unchanged (17 clean, 13 waived, 98 pinned
+across 39 files, 6607 rows); `cargo xtask pack-goldens` 0 of 24 rewritten;
+no new integration-test binary, so no shard-script row; `cargo check
+--workspace --all-targets` clean.
+
+Deviation from the plan's text for VT4.11, adapting to the tree, found by
+`pack_store.rs`'s `a_form_edit_on_a_real_pack_splices_and_preserves_its_neighbours`
+(the eleven ported examples' own carry-forward gate): reaching subcommand
+level makes carry-forward reclaim `docs/design/spec-dsl-examples/oo-class.tclspec`'s
+per-subcommand `world_effects class-factory-effects` / `state_transitions { …
+resolver -native … }` (both `DraftOpaque`, so a fresh render says nothing
+about them) verbatim from the author's own bytes — and that reclaimed text
+names a pack-level `descriptor world_effects class-factory-effects` block
+declared outside the command, which `PackStore::accepts`'s isolated
+single-block verification cannot see. `accepts` correctly refuses that
+splice and `set_command` falls back to the re-render floor for that one
+edit — exactly the "a pack-level construct the splice disturbed" case the
+module's own docs already name as the floor's reason to exist. Nothing is
+lost either way: the re-render floor still reports the same fields through
+`Write::dropped` a splice would have. The test's "every example takes the
+splice path" assertion is adapted to "every example but `oo-class.tclspec`",
+with the reason recorded beside it; no other example's carry-forward
+changed shape.
+
+Green: `cargo test -p tcl-spec-studio -p tcl-spectcl --no-fail-fast` 584
+passed, 0 failed, 1 ignored (the pre-existing fuzz-shaped
+`every_prefix_of_a_valid_pack_loads`); pedantic clippy
+(`--no-deps --all-targets -D warnings`) clean on both crates — one
+`clippy::match_same_arms` and one `clippy::items_after_statements` fixed
+by consolidation, no `#[allow]` added; `cargo fmt -p tcl-spec-studio -p
+tcl-spectcl` applied (line-wrap only); `UPDATE_REFERENCE=1 cargo test -p
+tcl-spec-studio --test reference_doc` regenerated `fields.md` (14 lines),
+then `fields_doc_matches_the_schema` green unmodified; `cargo xtask
 value-transfers --check` OK and unchanged (17 clean, 13 waived, 98 pinned
 across 39 files, 6607 rows); `cargo xtask pack-goldens` 0 of 24 rewritten;
 no new integration-test binary, so no shard-script row; `cargo check
