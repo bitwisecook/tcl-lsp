@@ -89,35 +89,52 @@ command snit::type {
     definition_body {
         family Snit
 
+        # Every row states what the member declares (`-effect`, the
+        # member-effect descriptor): a row without one is dropped. A
+        # `callable`'s name / params / body slots left unwritten are the
+        # first `-roles` positions typed `Name` / `ParamList` / `Body`.
+        #
         # `method` / `typemethod` / `proc` share METHOD_ROLES; `proc` is a
-        # type-private procedure with the same NAME PARAMS BODY shape.
-        member method         -roles {0 Name 1 ParamList 2 Body}
-        member typemethod     -roles {0 Name 1 ParamList 2 Body}
-        member proc           -roles {0 Name 1 ParamList 2 Body}
+        # type-private procedure with the same NAME PARAMS BODY shape, on the
+        # type object like a typemethod.
+        member method         -roles {0 Name 1 ParamList 2 Body} \
+                              -effect {callable -receiver instance -role method}
+        member typemethod     -roles {0 Name 1 ParamList 2 Body} \
+                              -effect {callable -receiver type-object -role method}
+        member proc           -roles {0 Name 1 ParamList 2 Body} \
+                              -effect {callable -receiver type-object -role method}
 
-        member constructor    -roles {0 ParamList 1 Body}
-        member destructor     -roles {0 Body}
-        member typeconstructor -roles {0 Body}
+        member constructor    -roles {0 ParamList 1 Body} \
+                              -effect {callable -receiver instance -role constructor}
+        member destructor     -roles {0 Body} \
+                              -effect {callable -receiver instance -role destructor}
+        member typeconstructor -roles {0 Body} \
+                              -effect {init-script -timing at-definition}
 
         # snit 1.x option handlers.  Index 0 is the option name in both and
         # carries no role in the shipped spec — which is exactly why the
-        # sketched `-name/-params/-body` triple could not express them.
-        member onconfigure    -roles {1 VarWrite 2 Body}
-        member oncget         -roles {1 Body}
+        # sketched `-name/-params/-body` triple could not express them; the
+        # effect is a nameless write / read handler whose body slot the
+        # roles give.
+        member onconfigure    -roles {1 VarWrite 2 Body} \
+                              -effect {callable -receiver instance -role mutator}
+        member oncget         -roles {1 Body} \
+                              -effect {callable -receiver instance -role accessor}
 
         # snit's `variable v ?value?` declares ONE name (VAR0_ROLES), unlike
         # TclOO's slot-valued `variable a b c`; the difference is real and is
         # the reason `-all-vars` is not written here.
-        member variable       -roles {0 VarWrite}
-        member typevariable   -roles {0 VarWrite}
-        member component      -roles {0 VarWrite}
-        member typecomponent  -roles {0 VarWrite}
+        member variable       -roles {0 VarWrite} -effect {state-declaration per-instance}
+        member typevariable   -roles {0 VarWrite} -effect {state-declaration per-type}
+        member component      -roles {0 VarWrite} -effect {state-declaration per-instance}
+        member typecomponent  -roles {0 VarWrite} -effect {state-declaration per-type}
 
-        # Recognised keywords with nothing to recurse or declare.  A bare
-        # `member KEYWORD` is `MemberSpec::keyword_only`.
-        member option
-        member delegate
-        member expose
+        # Recognised keywords with nothing to recurse.  A `member KEYWORD`
+        # with no `-roles` is `MemberSpec::keyword_only`; `option` still
+        # declares state (an option every instance configures).
+        member option   -effect {state-declaration option}
+        member delegate -effect configuration
+        member expose   -effect configuration
 
         implicit_vars {self selfns type options}
 

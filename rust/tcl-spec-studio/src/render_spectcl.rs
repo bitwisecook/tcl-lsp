@@ -178,16 +178,16 @@ pub const GAPS: &[Gap] = &[
     // data all the way down, and its method table *is* `&[SubCommand]`, so
     // seeding now carries the whole thing and the renderer writes it as
     // `object_class NAME ?-superclass {…}? ?-allow-unknown? { method … }`.
-    // What still lives here is genuinely opaque: a function pointer, or a
-    // reference to a shared registry constant a pack can only name.
+    // `definition_body` followed once every member row states its effect: a
+    // grammar is seeded as the shipped name it equals or as the whole block,
+    // and written as `definition_body NAME` or `definition_body { … }`.
+    // `semantic_operation` is a closed vocabulary seeded as `{kind, detail}`
+    // and written in the loader's spelling. What still lives here is
+    // genuinely opaque: a function pointer, or a reference to a shared
+    // registry constant a pack can only name.
     Gap {
         key: "frame_effect",
         spelling: "frame_effect -level-word W -layout L",
-        kind: GapKind::DraftOpaque,
-    },
-    Gap {
-        key: "semantic_operation",
-        spelling: "semantic_operation Invoke|{Intrinsic ID}|{StructuredLowering ID}",
         kind: GapKind::DraftOpaque,
     },
     Gap {
@@ -208,11 +208,6 @@ pub const GAPS: &[Gap] = &[
     Gap {
         key: "case_list",
         spelling: "case_list NAME|{ … }",
-        kind: GapKind::DraftOpaque,
-    },
-    Gap {
-        key: "definition_body",
-        spelling: "definition_body NAME|{ … }",
         kind: GapKind::DraftOpaque,
     },
     Gap {
@@ -2580,7 +2575,7 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
     catalogue_hook(out, ctx, draft, "inline_codegen_hook");
     catalogue_hook(out, ctx, draft, "analyser_hook");
     catalogue_hook(out, ctx, draft, "return_type_hook");
-    gap_todo(out, ctx, draft, "semantic_operation");
+    semantic_operation_row(out, ctx, draft);
     gap_todo(out, ctx, draft, "bpf_op");
     gap_todo(out, ctx, draft, "completion");
     gap_todo(out, ctx, draft, "dispatch_dependencies");
@@ -2647,7 +2642,7 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
 
     // Descriptors.
     out.gap();
-    gap_todo(out, ctx, draft, "definition_body");
+    definition_body_block(out, ctx, draft);
     manufacturer_rows(out, draft);
     gap_todo(out, ctx, draft, "case_list");
     object_class_block(out, ctx, draft);
@@ -2897,30 +2892,335 @@ fn refine_blocks(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft, key: &str) {
 
 fn manufacturer_rows(out: &mut Out, draft: &Draft) {
     for method in as_array(draft.get("manufacturer_methods").unwrap_or(&Value::Null)) {
+        out.row(&manufacturer_row(method), "");
+    }
+}
+
+/// One `manufacturer KEYWORD ?-unexported? ?-names-instance-at N?
+/// ?-definition-body-at N? ?-constructor-args-from N?` row — the command's
+/// own `manufacturer_methods` and a definition body's `manufacturers` alike.
+fn manufacturer_row(method: &Value) -> Vec<String> {
+    let mut row = vec![
+        "manufacturer".to_owned(),
+        name_word(str_of(&method["keyword"])),
+    ];
+    if str_of(&method["visibility"]) == "Unexported" {
+        row.push("-unexported".to_owned());
+    }
+    for (key, flag) in [
+        ("names_instance_at", "-names-instance-at"),
+        ("definition_body_at", "-definition-body-at"),
+    ] {
+        if let Some(n) = method[key].as_u64() {
+            row.push(flag.to_owned());
+            row.push(n.to_string());
+        }
+    }
+    if let Some(n) = method["constructor_args_from"].as_u64()
+        && n != 0
+    {
+        row.push("-constructor-args-from".to_owned());
+        row.push(n.to_string());
+    }
+    row
+}
+
+/// `semantic_operation Invoke|{Intrinsic ID}|{StructuredLowering ID}` — the
+/// closed vocabulary in the loader's spelling
+/// ([`tcl_spectcl::semantic_operation_spelling`]).
+fn semantic_operation_row(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft) {
+    let Some(value) = draft
+        .get("semantic_operation")
+        .filter(|value| !value.is_null())
+    else {
+        return;
+    };
+    if !ctx.set(draft, "semantic_operation") {
+        return;
+    }
+    let kind = str_of(&value["kind"]);
+    let detail = value["detail"].as_str();
+    let spelling = tcl_spectcl::semantic_operations()
+        .find(|operation| operation.kind_str() == kind && operation.detail_str() == detail)
+        .map(tcl_spectcl::semantic_operation_spelling)
+        .and_then(|spelling| word(&spelling));
+    match spelling {
+        Some(spelling) => out.line(&format!("semantic_operation {spelling}")),
+        None => todo(out, "semantic_operation"),
+    }
+}
+
+/// `definition_body NAME` for a shipped grammar, or `definition_body { … }`
+/// spelling the grammar out row by row in the loader's vocabulary: `family`,
+/// one `member` row per member — each with its `-effect`, and a wrapper's
+/// `-shift` — one `member_option` row per accepted optional word, and the
+/// object-model rows a class family declares.
+fn definition_body_block(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft) {
+    let Some(value) = draft
+        .get("definition_body")
+        .filter(|value| !value.is_null())
+    else {
+        return;
+    };
+    if !ctx.set(draft, "definition_body") {
+        return;
+    }
+    if let Some(name) = value.as_str() {
+        out.line(&format!("definition_body {}", name_word(name)));
+        return;
+    }
+    let mut body = Out::at(out.indent + 1);
+    let mut lost = false;
+    body.line(&format!("family {}", str_of(&value["family"])));
+    let members = as_array(&value["members"]);
+    for member in members {
+        let row = member_row(member, &mut lost, ctx.availability);
+        body.row(&row, "-effect");
+    }
+    for member in members {
+        for row in member_option_rows(member, &mut lost, ctx.availability) {
+            body.row(&row, "");
+        }
+    }
+    for key in [
+        "implicit_vars",
+        "member_body_namespace_path",
+        "builtin_type_methods",
+    ] {
+        list_row(&mut body, &mut lost, value, key);
+    }
+    for method in as_array(&value["builtin_object_methods"]) {
         let mut row = vec![
-            "manufacturer".to_owned(),
-            name_word(str_of(&method["keyword"])),
+            "builtin_object_method".to_owned(),
+            name_word(str_of(&method["name"])),
         ];
         if str_of(&method["visibility"]) == "Unexported" {
             row.push("-unexported".to_owned());
         }
-        for (key, flag) in [
-            ("names_instance_at", "-names-instance-at"),
-            ("definition_body_at", "-definition-body-at"),
-        ] {
-            if let Some(n) = method[key].as_u64() {
-                row.push(flag.to_owned());
-                row.push(n.to_string());
-            }
-        }
-        if let Some(n) = method["constructor_args_from"].as_u64()
-            && n != 0
-        {
-            row.push("-constructor-args-from".to_owned());
-            row.push(n.to_string());
-        }
-        out.row(&row, "");
+        row.push("-receiver".to_owned());
+        row.push(str_of(&method["receiver"]).to_owned());
+        push_flag(
+            &mut row,
+            &mut lost,
+            "-detail",
+            braced(str_of(&method["detail"])),
+        );
+        body.row(&row, "-detail");
     }
+    list_row(&mut body, &mut lost, value, "builtin_terminating_methods");
+    for command in as_array(&value["member_body_commands"]) {
+        let mut row = vec![
+            "member_body_command".to_owned(),
+            name_word(str_of(&command["name"])),
+        ];
+        push_flag(
+            &mut row,
+            &mut lost,
+            "-detail",
+            braced(str_of(&command["detail"])),
+        );
+        if let Some(expr) = command["binds_handle"].as_str() {
+            push_flag(
+                &mut row,
+                &mut lost,
+                "-binds-handle",
+                binds_handle_word(expr),
+            );
+        }
+        body.row(&row, "-binds-handle");
+    }
+    if value["bare_word_construction"].as_bool() == Some(true) {
+        body.line("bare_word_construction");
+    }
+    if value["dynamic_method_dispatch"].as_bool() == Some(true) {
+        body.line("dynamic_method_dispatch");
+    }
+    for method in as_array(&value["manufacturers"]) {
+        body.row(&manufacturer_row(method), "");
+    }
+    if let Some(name) = value["unknown_dispatch_method"].as_str() {
+        let mut row = vec!["unknown_dispatch_method".to_owned()];
+        push_word(&mut row, &mut lost, word(name));
+        body.row(&row, "");
+    }
+    list_row(&mut body, &mut lost, value, "property_accessor_methods");
+    if lost {
+        unwritable(out, "definition_body");
+        return;
+    }
+    out.line("definition_body {");
+    out.block(&body);
+    out.line("}");
+}
+
+/// A `KEY {word …}` row for a non-empty name list of a definition body.
+fn list_row(out: &mut Out, lost: &mut bool, grammar: &Value, key: &str) {
+    if as_array(&grammar[key]).is_empty() {
+        return;
+    }
+    let mut row = vec![key.to_owned()];
+    push_word(&mut row, lost, str_list_word(&grammar[key]));
+    out.row(&row, "");
+}
+
+/// One `member KEYWORD …` row: the layout flags the loader reads, then the
+/// member's `-effect` and a wrapper's `-shift`.
+fn member_row(member: &Value, lost: &mut bool, algebra: bool) -> Vec<String> {
+    let mut row = vec!["member".to_owned(), name_word(str_of(&member["keyword"]))];
+    let roles: Vec<String> = as_array(&member["arg_roles"])
+        .iter()
+        .flat_map(|pair| {
+            [
+                pair["index"].as_u64().unwrap_or_default().to_string(),
+                str_of(&pair["role"]).to_owned(),
+            ]
+        })
+        .collect();
+    if !roles.is_empty() {
+        push_flag(&mut row, lost, "-roles", list_word(&roles));
+    }
+    if member["all_args_var"].as_bool() == Some(true) {
+        row.push("-all-vars".to_owned());
+    }
+    if let Some(kind) = member["all_args_ref"].as_str() {
+        row.push("-all-refs".to_owned());
+        row.push(kind.to_owned());
+    }
+    let kind = str_of(&member["kind"]);
+    if kind != "Flat" {
+        row.push("-kind".to_owned());
+        row.push(kind.to_owned());
+    }
+    if member["wrapper_block_body"].as_bool() == Some(true) {
+        row.push("-block-body".to_owned());
+    }
+    if !member["surface"].is_null() {
+        push_availability_flag(&mut row, lost, &member["surface"], algebra);
+    }
+    if let Some(retraction) = member["retraction"].as_str() {
+        row.push("-retracts".to_owned());
+        row.push(retraction.to_owned());
+    }
+    if let Some(slot) = member["slot"].as_object() {
+        row.push("-slot".to_owned());
+        row.push(str_of(&slot["default_op"]).to_owned());
+        if slot.get("dedup").and_then(Value::as_bool) == Some(true) {
+            row.push("-dedup".to_owned());
+        }
+    }
+    if let Some(visibility) = member["visibility_effect"].as_str() {
+        row.push("-visibility".to_owned());
+        row.push(visibility.to_owned());
+    }
+    push_flag(
+        &mut row,
+        lost,
+        "-effect",
+        effect_word(&member["effect"], &member["arg_roles"]),
+    );
+    if let Some(shift) = member["wrapper_shift"].as_object() {
+        let mut words = Vec::new();
+        if let Some(receiver) = shift.get("receiver").and_then(Value::as_str) {
+            words.extend(["-receiver".to_owned(), receiver.to_owned()]);
+        }
+        if let Some(visibility) = shift.get("visibility").and_then(Value::as_str) {
+            words.extend(["-visibility".to_owned(), visibility.to_owned()]);
+        }
+        push_flag(&mut row, lost, "-shift", braced(&words.join(" ")));
+    }
+    row
+}
+
+/// A member's `-effect` value in the loader's spelling. A slot the loader
+/// would position from the row's roles is left unwritten; a slot that differs
+/// is written; `None` when the effect leaves a slot empty that the roles would
+/// fill, which the loader has no spelling for.
+fn effect_word(effect: &Value, roles: &Value) -> Option<String> {
+    let first = |wanted: &[&str]| {
+        wanted.iter().find_map(|role| {
+            as_array(roles)
+                .iter()
+                .find(|pair| str_of(&pair["role"]) == *role)
+                .and_then(|pair| pair["index"].as_u64())
+        })
+    };
+    let mut words = vec![str_of(&effect["kind"]).to_owned()];
+    let mut slot = |flag: &str, key: &str, derived: Option<u64>| -> Option<()> {
+        match (effect[key].as_u64(), derived) {
+            (Some(written), Some(derived)) if written == derived => {}
+            (Some(written), _) => words.extend([flag.to_owned(), written.to_string()]),
+            (None, None) => {}
+            (None, Some(_)) => return None,
+        }
+        Some(())
+    };
+    match str_of(&effect["kind"]) {
+        "callable" => {
+            let (receiver, role) = (str_of(&effect["receiver"]), str_of(&effect["role"]));
+            slot("-name", "name_slot", first(&["Name"]))?;
+            slot("-params", "params_slot", first(&["ParamList"]))?;
+            slot("-body", "body_slot", first(&["Body"]))?;
+            let mut head = vec![
+                "callable".to_owned(),
+                "-receiver".to_owned(),
+                receiver.to_owned(),
+                "-role".to_owned(),
+                role.to_owned(),
+            ];
+            head.extend(words.drain(1..));
+            words = head;
+        }
+        "forward" => {
+            slot("-name", "name_slot", first(&["Name"]))?;
+            slot(
+                "-prefix",
+                "prefix_slot",
+                first(&["CommandName", "CommandPrefix"]),
+            )?;
+        }
+        "init-script" => {
+            slot("-body", "body_slot", first(&["Body"]))?;
+            words.extend(["-timing".to_owned(), str_of(&effect["timing"]).to_owned()]);
+        }
+        "state-declaration" => words.push(str_of(&effect["scope"]).to_owned()),
+        "relation" => words.push(str_of(&effect["slot"]).to_owned()),
+        _ => {}
+    }
+    list_word(&words)
+}
+
+/// The `member_option KEYWORD POSITION VALUE -role ROLE ?-visibility V?
+/// ?-available V?` rows of one member's optional word, one per spelling.
+fn member_option_rows(member: &Value, lost: &mut bool, algebra: bool) -> Vec<Vec<String>> {
+    let Some(optional) = member["optional_argument"].as_object() else {
+        return Vec::new();
+    };
+    let position = optional
+        .get("position")
+        .and_then(Value::as_u64)
+        .unwrap_or_default()
+        .to_string();
+    as_array(optional.get("values").unwrap_or(&Value::Null))
+        .iter()
+        .map(|value| {
+            let mut row = vec![
+                "member_option".to_owned(),
+                name_word(str_of(&member["keyword"])),
+                position.clone(),
+            ];
+            push_word(&mut row, lost, word(str_of(&value["value"])));
+            row.push("-role".to_owned());
+            row.push(str_of(&value["role"]).to_owned());
+            if let Some(visibility) = value["declared_visibility"].as_str() {
+                row.push("-visibility".to_owned());
+                row.push(visibility.to_owned());
+            }
+            if !value["surface"].is_null() {
+                push_availability_flag(&mut row, lost, &value["surface"], algebra);
+            }
+            row
+        })
+        .collect()
 }
 
 /// `clause_grammar { … } ?-available V?` — the clause-grammar descriptor, one
@@ -3258,7 +3558,7 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft, keyword: &
     catalogue_hook(out_body, ctx, sub, "codegen_hook");
     catalogue_hook(out_body, ctx, sub, "inline_codegen_hook");
     catalogue_hook(out_body, ctx, sub, "analyser_hook");
-    gap_todo(out_body, ctx, sub, "semantic_operation");
+    semantic_operation_row(out_body, ctx, sub);
     gap_todo(out_body, ctx, sub, "completion");
     gap_todo(out_body, ctx, sub, "dispatch_dependencies");
     gap_todo(out_body, ctx, sub, "result_stability");

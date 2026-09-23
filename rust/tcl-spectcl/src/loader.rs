@@ -105,9 +105,11 @@ use tcl_registry::clause_grammar::{
 use tcl_registry::clause_shape::ClauseShapeError;
 use tcl_registry::command_table::CommandTableEffect;
 use tcl_registry::definer::{
-    BuiltinMethodReceiver, BuiltinObjectMethod, DefinerFamily, DefinitionBodyGrammar,
-    ManufacturerMethod, MemberBodyCommand, MemberKind, MemberRefKind, MemberRetraction, MemberSpec,
-    MemberVisibility, SlotOp, SlotSpec,
+    BuiltinMethodReceiver, BuiltinObjectMethod, CallableRole, DeclaredMemberVisibility,
+    DefinerFamily, DefinitionBodyGrammar, InitTiming, ManufacturerMethod, MemberBodyCommand,
+    MemberEffect, MemberKind, MemberOptionValue, MemberReceiver, MemberRefKind, MemberRetraction,
+    MemberSpec, MemberVisibility, OptionalMemberArgument, RelationSlot, SlotOp, SlotSpec,
+    StateScope, WrapperShift,
 };
 use tcl_registry::deprecation::{DeprecationFixHook, DeprecationFixSafety};
 use tcl_registry::events::{
@@ -2918,6 +2920,41 @@ fn parse_defines_symbol(stmt: &Stmt, log: &mut Log) -> Option<SymbolDef> {
     })
 }
 
+/// Every semantic operation a pack can write, in the vocabulary's order:
+/// `Invoke`, then each intrinsic, then each structured lowering — the closed
+/// set [`parse_semantic_operation`] reads.
+pub fn semantic_operations() -> impl Iterator<Item = SemanticOperationId> {
+    std::iter::once(SemanticOperationId::Invoke)
+        .chain(
+            INTRINSICS
+                .iter()
+                .copied()
+                .map(SemanticOperationId::Intrinsic),
+        )
+        .chain(
+            LOWERING_HOOKS
+                .iter()
+                .copied()
+                .map(SemanticOperationId::StructuredLowering),
+        )
+}
+
+/// The `.tclspec` value of a `semantic_operation` row — `Invoke`,
+/// `Intrinsic ID` or `StructuredLowering ID`, the list
+/// [`parse_semantic_operation`] reads back.
+#[must_use]
+pub fn semantic_operation_spelling(operation: SemanticOperationId) -> String {
+    match operation {
+        SemanticOperationId::Invoke => "Invoke".to_owned(),
+        SemanticOperationId::Intrinsic(intrinsic) => {
+            format!("Intrinsic {}", catalogue::variant_name(&intrinsic))
+        }
+        SemanticOperationId::StructuredLowering(lowering) => {
+            format!("StructuredLowering {}", catalogue::variant_name(&lowering))
+        }
+    }
+}
+
 /// `Invoke` / `{Intrinsic ID}` / `{StructuredLowering ID}`.
 fn parse_semantic_operation(text: &str, line: u32, log: &mut Log) -> Option<SemanticOperationId> {
     let parts = list_words(text);
@@ -4273,6 +4310,7 @@ fn definition_body_block(stmts: &[Stmt], log: &mut Log) -> DefinitionBodyGrammar
         property_accessor_methods: &[],
     };
     let mut members: Vec<MemberSpec> = Vec::new();
+    let mut member_options: Vec<MemberOptionRow> = Vec::new();
     let mut object_methods: Vec<BuiltinObjectMethod> = Vec::new();
     let mut body_commands: Vec<MemberBodyCommand> = Vec::new();
     let mut manufacturers: Vec<ManufacturerMethod> = Vec::new();
@@ -4285,6 +4323,8 @@ fn definition_body_block(stmts: &[Stmt], log: &mut Log) -> DefinitionBodyGrammar
                     DefinerFamily::TclOo,
                     DefinerFamily::Snit,
                     DefinerFamily::Itcl,
+                    DefinerFamily::SpecTcl,
+                    DefinerFamily::SslicTcl,
                 ];
                 if let Some(family) =
                     enum_by_name(FAMILIES, &value, "definer family", stmt.line, log)
@@ -4292,11 +4332,8 @@ fn definition_body_block(stmts: &[Stmt], log: &mut Log) -> DefinitionBodyGrammar
                     grammar.family = family;
                 }
             }
-            "member" => members.push(member_row(stmt, log)),
-            "member_option" => log.say(
-                stmt.line,
-                "`member_option` is not yet loadable; row dropped",
-            ),
+            "member" => members.extend(member_row(stmt, log)),
+            "member_option" => member_options.extend(member_option_row(stmt, log)),
             "implicit_vars" => grammar.implicit_vars = leak_strs(&list_words(&value)),
             "member_body_namespace_path" => {
                 grammar.member_body_namespace_path = leak_strs(&list_words(&value));
@@ -4327,11 +4364,125 @@ fn definition_body_block(stmts: &[Stmt], log: &mut Log) -> DefinitionBodyGrammar
             _ => log.unknown_property(stmt),
         }
     }
+    attach_member_options(&mut members, member_options, log);
     grammar.members = leak_slice(members);
     grammar.builtin_object_methods = leak_slice(object_methods);
     grammar.member_body_commands = leak_slice(body_commands);
     grammar.manufacturers = leak_slice(manufacturers);
     grammar
+}
+
+/// One `member_option KEYWORD POSITION VALUE -role ROLE ?-visibility V?
+/// ?-dialects D? ?-available V?` row: one accepted spelling of a member's
+/// optional word, keyed by the member and the fixed position it sits at.
+struct MemberOptionRow {
+    keyword: String,
+    position: u8,
+    value: MemberOptionValue,
+    line: u32,
+}
+
+fn member_option_row(stmt: &Stmt, log: &mut Log) -> Option<MemberOptionRow> {
+    let Ok(position) = stmt.word_text(2).parse::<u8>() else {
+        log.say(
+            stmt.line,
+            format!(
+                "`member_option {}` needs a fixed position; row dropped",
+                stmt.word_text(1)
+            ),
+        );
+        return None;
+    };
+    let mut value = MemberOptionValue {
+        value: leak_str(stmt.word_text(3)),
+        role: ArgRole::Option,
+        surface: None,
+        declared_visibility: None,
+    };
+    let words = &stmt.words;
+    let mut i = 4;
+    while i < words.len() {
+        match words[i].text.as_str() {
+            "-role" => {
+                let name = next_text(words, &mut i);
+                if let Some(role) = enum_by_name(ArgRole::ALL, &name, "role", stmt.line, log) {
+                    value.role = role;
+                }
+            }
+            "-visibility" => {
+                let name = next_text(words, &mut i);
+                value.declared_visibility = enum_by_name(
+                    DeclaredMemberVisibility::ALL,
+                    &name,
+                    "declared visibility",
+                    stmt.line,
+                    log,
+                );
+            }
+            "-dialects" => {
+                let text = next_text(words, &mut i);
+                value.surface = parse_dialects(&text, stmt.line, log);
+            }
+            "-available" => {
+                log.v20(stmt.line, "-available");
+                let text = next_text(words, &mut i);
+                let availability = available::from_flag(&text, stmt.line, log);
+                apply_availability(
+                    &mut value.surface,
+                    availability,
+                    "member option",
+                    stmt.line,
+                    log,
+                );
+            }
+            other => log.unknown_flag("member_option", stmt.line, other),
+        }
+        i += 1;
+    }
+    Some(MemberOptionRow {
+        keyword: stmt.word_text(1).to_owned(),
+        position,
+        value,
+        line: stmt.line,
+    })
+}
+
+/// Hang each `member_option` row off the member it names, in row order: one
+/// member has one optional word, so every row for it shares one position.
+fn attach_member_options(members: &mut [MemberSpec], rows: Vec<MemberOptionRow>, log: &mut Log) {
+    let mut grouped: Vec<(usize, u8, Vec<MemberOptionValue>)> = Vec::new();
+    for row in rows {
+        let Some(index) = members
+            .iter()
+            .position(|member| member.keyword == row.keyword)
+        else {
+            log.say(
+                row.line,
+                format!(
+                    "`member_option` names no member `{}`; row dropped",
+                    row.keyword
+                ),
+            );
+            continue;
+        };
+        match grouped.iter_mut().find(|(member, _, _)| *member == index) {
+            Some((_, position, values)) if *position == row.position => values.push(row.value),
+            Some(_) => log.say(
+                row.line,
+                format!(
+                    "member `{}` already has its optional word at another position; row dropped",
+                    row.keyword
+                ),
+            ),
+            None => grouped.push((index, row.position, vec![row.value])),
+        }
+    }
+    for (index, position, values) in grouped {
+        members[index].optional_argument = Some(OptionalMemberArgument {
+            position,
+            values: leak_slice(values),
+        });
+    }
 }
 
 /// Placeholder for a declared `bare_word_construction` hint until the hint's
@@ -4360,7 +4511,199 @@ fn member_arg_roles(text: &str, line: u32, log: &mut Log) -> Vec<(u8, ArgRole)> 
     roles
 }
 
-fn member_row(stmt: &Stmt, log: &mut Log) -> MemberSpec {
+/// A member row's `-effect` value before the row's `-roles` are all read. A
+/// `callable`, `forward` or `init-script` slot the value leaves unwritten is
+/// positioned by the first `-roles` index carrying the role it names —
+/// `Name`, `ParamList`, `Body`, and `CommandName` / `CommandPrefix` for a
+/// forward's target — so the page's `-effect {callable -receiver instance
+/// -role method}` reads a method's three slots off its roles.
+#[derive(Clone, Copy)]
+enum EffectDraft {
+    Callable {
+        receiver: MemberReceiver,
+        role: CallableRole,
+        name: Option<u8>,
+        params: Option<u8>,
+        body: Option<u8>,
+    },
+    Forward {
+        name: Option<u8>,
+        prefix: Option<u8>,
+    },
+    InitScript {
+        body: Option<u8>,
+        timing: InitTiming,
+    },
+    Ready(MemberEffect),
+}
+
+impl EffectDraft {
+    /// The effect, its unwritten slots positioned by `arg_roles`; `None` when
+    /// a `forward` or `init-script` slot is neither written nor derivable.
+    fn resolve(self, arg_roles: &[(u8, ArgRole)]) -> Option<MemberEffect> {
+        let first = |role: ArgRole| {
+            arg_roles
+                .iter()
+                .find(|(_, declared)| *declared == role)
+                .map(|(index, _)| *index)
+        };
+        match self {
+            Self::Callable {
+                receiver,
+                role,
+                name,
+                params,
+                body,
+            } => Some(MemberEffect::Callable {
+                receiver,
+                role,
+                name_slot: name.or_else(|| first(ArgRole::Name)),
+                params_slot: params.or_else(|| first(ArgRole::ParamList)),
+                body_slot: body.or_else(|| first(ArgRole::Body)),
+            }),
+            Self::Forward { name, prefix } => Some(MemberEffect::Forward {
+                name_slot: name.or_else(|| first(ArgRole::Name))?,
+                prefix_slot: prefix
+                    .or_else(|| first(ArgRole::CommandName))
+                    .or_else(|| first(ArgRole::CommandPrefix))?,
+            }),
+            Self::InitScript { body, timing } => Some(MemberEffect::InitScript {
+                body_slot: body.or_else(|| first(ArgRole::Body))?,
+                timing,
+            }),
+            Self::Ready(effect) => Some(effect),
+        }
+    }
+}
+
+/// The `-FLAG VALUE` pairs of an `-effect` / `-shift` value, or `None` when a
+/// flag is not in `known` or has no value.
+fn effect_flags<'t>(rest: &'t [String], known: &[&str]) -> Option<Vec<(&'t str, &'t str)>> {
+    rest.chunks(2)
+        .map(|pair| match pair {
+            [flag, value] if known.contains(&flag.as_str()) => {
+                Some((flag.as_str(), value.as_str()))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+/// `-effect VALUE` on a `member` row: `{callable -receiver R -role K ?-name N?
+/// ?-params N? ?-body N?}`, `{forward ?-name N? ?-prefix N?}`,
+/// `{state-declaration SCOPE}`, `{relation SLOT}`, `visibility`,
+/// `retraction`, `{init-script ?-body N? -timing T}` or `configuration` —
+/// the registry's own spellings. `None` (with a notice) for anything else.
+fn member_effect(text: &str, line: u32, log: &mut Log) -> Option<EffectDraft> {
+    let words = list_words(text);
+    let draft = words.split_first().and_then(|(kind, rest)| {
+        let slot = |value: &str| value.parse::<u8>().ok();
+        match (kind.as_str(), rest) {
+            ("callable", _) => {
+                let flags =
+                    effect_flags(rest, &["-receiver", "-role", "-name", "-params", "-body"])?;
+                let mut draft = (None, None, None, None, None);
+                for (flag, value) in flags {
+                    match flag {
+                        "-receiver" => draft.0 = Some(MemberReceiver::from_spelling(value)?),
+                        "-role" => draft.1 = Some(CallableRole::from_spelling(value)?),
+                        "-name" => draft.2 = Some(slot(value)?),
+                        "-params" => draft.3 = Some(slot(value)?),
+                        _ => draft.4 = Some(slot(value)?),
+                    }
+                }
+                Some(EffectDraft::Callable {
+                    receiver: draft.0?,
+                    role: draft.1?,
+                    name: draft.2,
+                    params: draft.3,
+                    body: draft.4,
+                })
+            }
+            ("forward", _) => {
+                let (mut name, mut prefix) = (None, None);
+                for (flag, value) in effect_flags(rest, &["-name", "-prefix"])? {
+                    if flag == "-name" {
+                        name = Some(slot(value)?);
+                    } else {
+                        prefix = Some(slot(value)?);
+                    }
+                }
+                Some(EffectDraft::Forward { name, prefix })
+            }
+            ("init-script", _) => {
+                let (mut body, mut timing) = (None, None);
+                for (flag, value) in effect_flags(rest, &["-body", "-timing"])? {
+                    if flag == "-body" {
+                        body = Some(slot(value)?);
+                    } else {
+                        timing = Some(InitTiming::from_spelling(value)?);
+                    }
+                }
+                Some(EffectDraft::InitScript {
+                    body,
+                    timing: timing?,
+                })
+            }
+            ("state-declaration", [scope]) => StateScope::from_spelling(scope)
+                .map(|scope| EffectDraft::Ready(MemberEffect::StateDeclaration { scope })),
+            ("relation", [slot]) => RelationSlot::from_spelling(slot)
+                .map(|slot| EffectDraft::Ready(MemberEffect::Relation { slot })),
+            ("visibility", []) => Some(EffectDraft::Ready(MemberEffect::Visibility)),
+            ("retraction", []) => Some(EffectDraft::Ready(MemberEffect::Retraction)),
+            ("configuration", []) => Some(EffectDraft::Ready(MemberEffect::Configuration)),
+            _ => None,
+        }
+    });
+    if draft.is_none() {
+        log.say(
+            line,
+            format!("unreadable member effect `{text}`; row dropped"),
+        );
+    }
+    draft
+}
+
+/// `-shift {?-receiver R? ?-visibility V?}` on a wrapper `member` row: the
+/// side and visibility the wrapped member takes.
+fn wrapper_shift(text: &str, line: u32, log: &mut Log) -> Option<WrapperShift> {
+    let words = list_words(text);
+    let shift = effect_flags(&words, &["-receiver", "-visibility"]).and_then(|flags| {
+        let mut shift = WrapperShift::NONE;
+        for (flag, value) in flags {
+            if flag == "-receiver" {
+                shift.receiver = Some(MemberReceiver::from_spelling(value)?);
+            } else {
+                shift.visibility = Some(DeclaredMemberVisibility::from_spelling(value)?);
+            }
+        }
+        Some(shift)
+    });
+    if shift.is_none() {
+        log.say(line, format!("unreadable wrapper shift `{text}` dropped"));
+    }
+    shift
+}
+
+/// The closed vocabularies of a `member` row's enum-valued flags.
+const MEMBER_REF_KINDS: &[MemberRefKind] = &[MemberRefKind::Class, MemberRefKind::Method];
+const MEMBER_KINDS: &[MemberKind] = &[MemberKind::Flat, MemberKind::Wrapper, MemberKind::FlagKeyed];
+const MEMBER_RETRACTIONS: &[MemberRetraction] = &[
+    MemberRetraction::EveryArgument,
+    MemberRetraction::FirstArgument,
+];
+const SLOT_OPS: &[SlotOp] = &[
+    SlotOp::Set,
+    SlotOp::Append,
+    SlotOp::AppendIfNew,
+    SlotOp::Prepend,
+    SlotOp::Remove,
+    SlotOp::Clear,
+];
+const MEMBER_VISIBILITIES: &[MemberVisibility] =
+    &[MemberVisibility::Exported, MemberVisibility::Unexported];
+
+fn member_row(stmt: &Stmt, log: &mut Log) -> Option<MemberSpec> {
     let mut member = MemberSpec {
         keyword: leak_str(stmt.word_text(1)),
         arg_roles: &[],
@@ -4373,29 +4716,44 @@ fn member_row(stmt: &Stmt, log: &mut Log) -> MemberSpec {
         retraction: None,
         slot: None,
         visibility_effect: None,
+        effect: MemberEffect::Configuration,
+        wrapper_shift: None,
     };
     let mut slot_op: Option<SlotOp> = None;
     let mut dedup = false;
+    let mut effect = EffectFlag::Missing;
     let words = &stmt.words;
     let mut i = 2;
     while i < words.len() {
         match words[i].text.as_str() {
+            "-effect" => {
+                let text = next_text(words, &mut i);
+                effect = member_effect(&text, stmt.line, log)
+                    .map_or(EffectFlag::Unreadable, EffectFlag::Read);
+            }
+            "-shift" => {
+                let text = next_text(words, &mut i);
+                member.wrapper_shift = wrapper_shift(&text, stmt.line, log);
+            }
             "-roles" => {
                 let text = next_text(words, &mut i);
                 member.arg_roles = leak_slice(member_arg_roles(&text, stmt.line, log));
             }
             "-all-vars" => member.all_args_var = true,
             "-all-refs" => {
-                const REFS: &[MemberRefKind] = &[MemberRefKind::Class, MemberRefKind::Method];
                 let name = next_text(words, &mut i);
-                member.all_args_ref =
-                    enum_by_name(REFS, &name, "member reference kind", stmt.line, log);
+                member.all_args_ref = enum_by_name(
+                    MEMBER_REF_KINDS,
+                    &name,
+                    "member reference kind",
+                    stmt.line,
+                    log,
+                );
             }
             "-kind" => {
-                const KINDS: &[MemberKind] =
-                    &[MemberKind::Flat, MemberKind::Wrapper, MemberKind::FlagKeyed];
                 let name = next_text(words, &mut i);
-                if let Some(kind) = enum_by_name(KINDS, &name, "member kind", stmt.line, log) {
+                if let Some(kind) = enum_by_name(MEMBER_KINDS, &name, "member kind", stmt.line, log)
+                {
                     member.kind = kind;
                 }
             }
@@ -4417,33 +4775,29 @@ fn member_row(stmt: &Stmt, log: &mut Log) -> MemberSpec {
                 );
             }
             "-retracts" => {
-                const RETRACTIONS: &[MemberRetraction] = &[
-                    MemberRetraction::EveryArgument,
-                    MemberRetraction::FirstArgument,
-                ];
                 let name = next_text(words, &mut i);
-                member.retraction =
-                    enum_by_name(RETRACTIONS, &name, "member retraction", stmt.line, log);
+                member.retraction = enum_by_name(
+                    MEMBER_RETRACTIONS,
+                    &name,
+                    "member retraction",
+                    stmt.line,
+                    log,
+                );
             }
             "-slot" => {
-                const OPS: &[SlotOp] = &[
-                    SlotOp::Set,
-                    SlotOp::Append,
-                    SlotOp::AppendIfNew,
-                    SlotOp::Prepend,
-                    SlotOp::Remove,
-                    SlotOp::Clear,
-                ];
                 let name = next_text(words, &mut i);
-                slot_op = enum_by_name(OPS, &name, "slot operation", stmt.line, log);
+                slot_op = enum_by_name(SLOT_OPS, &name, "slot operation", stmt.line, log);
             }
             "-dedup" => dedup = true,
             "-visibility" => {
-                const VISIBILITIES: &[MemberVisibility] =
-                    &[MemberVisibility::Exported, MemberVisibility::Unexported];
                 let name = next_text(words, &mut i);
-                member.visibility_effect =
-                    enum_by_name(VISIBILITIES, &name, "member visibility", stmt.line, log);
+                member.visibility_effect = enum_by_name(
+                    MEMBER_VISIBILITIES,
+                    &name,
+                    "member visibility",
+                    stmt.line,
+                    log,
+                );
             }
             other => log.unknown_flag("member", stmt.line, other),
         }
@@ -4452,7 +4806,61 @@ fn member_row(stmt: &Stmt, log: &mut Log) -> MemberSpec {
     if let Some(default_op) = slot_op {
         member.slot = Some(SlotSpec { default_op, dedup });
     }
-    member
+    finish_member_row(member, &effect, stmt.line, log)
+}
+
+/// A member row's `-effect` as the row's flags left it.
+enum EffectFlag {
+    /// Not written.
+    Missing,
+    /// Written but unreadable, and already reported.
+    Unreadable,
+    /// Written and read, its slots not yet positioned.
+    Read(EffectDraft),
+}
+
+/// The checks a `member` row needs once every flag is read: a `-shift` only
+/// on a wrapper, and an `-effect` — required, since every member states what
+/// it declares — whose unwritten slots its `-roles` position.
+fn finish_member_row(
+    mut member: MemberSpec,
+    effect: &EffectFlag,
+    line: u32,
+    log: &mut Log,
+) -> Option<MemberSpec> {
+    if member.wrapper_shift.is_some() && member.kind != MemberKind::Wrapper {
+        log.say(
+            line,
+            format!(
+                "`-shift` on member `{}`, which is not a wrapper, ignored",
+                member.keyword
+            ),
+        );
+        member.wrapper_shift = None;
+    }
+    let draft = match effect {
+        EffectFlag::Read(draft) => *draft,
+        EffectFlag::Missing => {
+            log.say(
+                line,
+                format!("member `{}` has no `-effect`; row dropped", member.keyword),
+            );
+            return None;
+        }
+        EffectFlag::Unreadable => return None,
+    };
+    let Some(resolved) = draft.resolve(member.arg_roles) else {
+        log.say(
+            line,
+            format!(
+                "member `{}`'s `-effect` names a slot its `-roles` do not position; row dropped",
+                member.keyword
+            ),
+        );
+        return None;
+    };
+    member.effect = resolved;
+    Some(member)
 }
 
 fn builtin_object_method_row(stmt: &Stmt, log: &mut Log) -> BuiltinObjectMethod {
@@ -4538,16 +4946,26 @@ fn manufacturer_row(stmt: &Stmt, log: &mut Log) -> ManufacturerMethod {
     method
 }
 
-/// The shipped definer grammars a pack may name.
+/// The shipped definer grammars a pack may name — `definition_body NAME` —
+/// with the name each is written under. The studio seeds a grammar whose data
+/// is one of these as its name, so the list is the one both sides read.
+pub const SHIPPED_DEFINITION_BODIES: &[(&str, &DefinitionBodyGrammar)] = &[
+    ("tcloo", &tcl_registry::definer::TCLOO_GRAMMAR),
+    (
+        "tcloo-configurable",
+        &tcl_registry::definer::TCLOO_CONFIGURABLE_GRAMMAR,
+    ),
+    ("snit", &tcl_registry::definer::SNIT_GRAMMAR),
+    ("snit-widget", &tcl_registry::definer::SNIT_WIDGET_GRAMMAR),
+    ("itcl", &tcl_registry::definer::ITCL_GRAMMAR),
+];
+
+/// The shipped definer grammar `name` names.
 fn shipped_definition_body(name: &str) -> Option<&'static DefinitionBodyGrammar> {
-    match name {
-        "tcloo" => Some(&tcl_registry::definer::TCLOO_GRAMMAR),
-        "tcloo-configurable" => Some(&tcl_registry::definer::TCLOO_CONFIGURABLE_GRAMMAR),
-        "snit" => Some(&tcl_registry::definer::SNIT_GRAMMAR),
-        "snit-widget" => Some(&tcl_registry::definer::SNIT_WIDGET_GRAMMAR),
-        "itcl" => Some(&tcl_registry::definer::ITCL_GRAMMAR),
-        _ => None,
-    }
+    SHIPPED_DEFINITION_BODIES
+        .iter()
+        .find(|(shipped, _)| *shipped == name)
+        .map(|(_, grammar)| *grammar)
 }
 
 /// The shipped case-list descriptors a pack may name.

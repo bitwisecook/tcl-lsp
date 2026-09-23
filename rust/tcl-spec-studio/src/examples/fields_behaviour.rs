@@ -1142,11 +1142,15 @@ append log $line",
         Example {
             code: "oo::class create Stack {\n    variable items\n    method push {x} { lappend items $x }\n}",
             focuses: &[
-                focus(1, "variable items", "a member keyword the grammar names"),
+                focus(
+                    1,
+                    "variable items",
+                    "a member row whose effect declares per-instance state",
+                ),
                 focus(
                     2,
                     "method push {x}",
-                    "name and parameter list are known words",
+                    "a callable: its effect places the name and parameter list",
                 ),
                 focus(
                     2,

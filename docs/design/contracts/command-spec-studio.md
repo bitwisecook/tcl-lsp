@@ -629,8 +629,8 @@ what makes the studio a *browser* of the registry as well as an editor.
 
 Some fields hold a function pointer (`arg_role_resolver`, `const_fold`,
 `taint_sink_gate`, …) or a reference to a **named** registry descriptor or
-constant (`definition_body`, `case_list`, `body_scope`, `frame_effect`,
-`bpf_op`, `event_requires`, `event_requirement_forms`, `data_collection`,
+constant (`case_list`, `body_scope`, `frame_effect`, `bpf_op`,
+`event_requires`, `event_requirement_forms`, `data_collection`,
 `side_switch_target`, `event_handler_priority`, and `command_forms`). Rust
 can observe that such a field is set, but not recover the expression — the
 constant's path — that set it.
@@ -658,6 +658,22 @@ spec. `object_class` is the same case one level deeper — a class name, a
 flag, superclass names, and a method table that *is* `&[SubCommand]` — so it
 is seeded as a JSON object whose methods are ordinary subcommand drafts and
 rendered as `object_class NAME ?-superclass {…}? ?-allow-unknown? { method … }`.
+
+`definition_body` and `semantic_operation` left the unrecoverable list
+together (consumer-contracts step 2, CC2.4/CC2.5). A definer grammar is plain
+data once every member row states its `MemberEffect`, so seeding writes the
+name of the shipped grammar whose data it equals (`tcloo`, `snit`, … — a
+`const` has no single address, so the match is by data, not by pointer) or
+the whole grammar, and both renderers write it back out: `definition_body
+NAME` or the inline block with `-effect` on every member row, and
+`Some(&crate::definer::TCLOO_GRAMMAR)` or the full `DefinitionBodyGrammar`
+literal. `semantic_operation` is a closed vocabulary seeded as `{kind,
+detail}` from `SemanticOperationId::kind_str` / `detail_str` and written
+`semantic_operation Invoke|{Intrinsic ID}|{StructuredLowering ID}`. The form
+picks a shipped grammar by name and shows an inline grammar's rows read-only,
+as it does a clause grammar's; the semantic operation is a picker over the
+vocabulary. A form-level (`refine`) `semantic_operation` stays native — no
+shipped form sets one.
 
 One unrecoverable expression is not a top-level field. `OptionArity::Hook`
 holds a function pointer inside an *option row*, so it gets a `hook fn` text

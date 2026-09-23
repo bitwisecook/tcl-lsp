@@ -69,6 +69,7 @@ export const STRUCTURAL_KINDS = new Set([
   "hover",
   "objectClass",
   "tkGeometry",
+  "definitionBody",
 ]);
 
 /** Everything an editor needs from the surrounding app. */
@@ -1636,6 +1637,85 @@ export function makeEditors(ctx: EditorContext): Record<string, Editor> {
           text: "Read-only here: the rows are authored in the pack's clause_grammar block.",
         }),
       ]);
+    },
+
+    definitionBody: (_kind, value, set) => {
+      // A shipped grammar is picked by name; an inline grammar — a pack's own
+      // definer — is shown row by row, read-only, as the pack spells it.
+      const pickKind: FieldKind = { tag: "enum", catalogue: "definitionBody", optional: true };
+      if (value === null || typeof value === "string") {
+        return el("div", {}, [
+          catalogueSelect(pickKind, value, (next) => set(next)),
+          el("span", {
+            class: "hint",
+            text:
+              value === null
+                ? "None — the command declares no definition body."
+                : "A shipped grammar; its members and their effects live in the registry.",
+          }),
+        ]);
+      }
+      const grammar = asRecord(value);
+      const effectText = (effect: Json): string => {
+        const fields = asRecord(effect);
+        const kind = asString(fields.kind);
+        switch (kind) {
+          case "callable":
+            return `callable -receiver ${asString(fields.receiver)} -role ${asString(fields.role)}`;
+          case "state-declaration":
+            return `state-declaration ${asString(fields.scope)}`;
+          case "relation":
+            return `relation ${asString(fields.slot)}`;
+          case "init-script":
+            return `init-script -timing ${asString(fields.timing)}`;
+          default:
+            return kind;
+        }
+      };
+      const lines = [`family ${asString(grammar.family)}`];
+      for (const member of asArray(grammar.members)) {
+        const fields = asRecord(member);
+        const effect = effectText(fields.effect);
+        lines.push(
+          `member ${asString(fields.keyword)} -effect ${effect.includes(" ") ? `{${effect}}` : effect}`,
+        );
+      }
+      return el("div", {}, [
+        el("pre", { class: "definition-body", text: lines.join("\n") }),
+        el("span", {
+          class: "hint",
+          text: "Read-only here: the rows are authored in the pack's definition_body block.",
+        }),
+      ]);
+    },
+
+    semanticOperation: (_kind, value, set) => {
+      // A closed vocabulary keyed `KIND` or `KIND DETAIL` — the draft's
+      // `{kind, detail}` joined by a space.
+      const fields = asRecord(value);
+      const detail = asString(fields.detail);
+      const current =
+        value === null
+          ? null
+          : detail === ""
+            ? asString(fields.kind)
+            : `${asString(fields.kind)} ${detail}`;
+      return catalogueSelect(
+        { tag: "enum", catalogue: "semanticOperation", optional: true },
+        current,
+        (next) => {
+          if (next === null) {
+            set(null);
+            return;
+          }
+          const space = next.indexOf(" ");
+          set(
+            space < 0
+              ? { kind: next, detail: null }
+              : { kind: next.slice(0, space), detail: next.slice(space + 1) },
+          );
+        },
+      );
     },
 
     rustExpr: (kind, value, set) =>

@@ -990,6 +990,58 @@ speclib probe 2.0 {
 /// with a notice — never read as some other timing — on both paths, and the
 /// rows around it still load. A subcommand's grammar loads through the same
 /// reader.
+/// `semantic_operation` is a closed vocabulary, and the loader's own spelling
+/// of each operation — [`tcl_spectcl::semantic_operation_spelling`], what the
+/// studio's renderer writes — reads back as that operation, at command and
+/// subcommand level, through both evaluation paths.
+#[test]
+fn semantic_operation_round_trips_through_the_renderer() {
+    use std::fmt::Write as _;
+
+    let operations: Vec<_> = tcl_spectcl::semantic_operations().collect();
+    assert!(
+        operations.len() > 30,
+        "the whole vocabulary: {operations:?}"
+    );
+    let mut source = String::from("speclib probe 2.1 {\n");
+    for (index, operation) in operations.iter().enumerate() {
+        let spelling = tcl_spectcl::semantic_operation_spelling(*operation);
+        writeln!(
+            source,
+            "    command probe::op{index} {{\n        semantic_operation {{{spelling}}}\n        \
+             subcommand sub {{\n            arity 0\n            semantic_operation {{{spelling}}}\n        \
+             }}\n    }}"
+        )
+        .expect("writing to a String cannot fail");
+    }
+    source.push_str("}\n");
+    for pack in [
+        evaluate_pack(&source),
+        evaluate_through_the_interpreter(&source),
+    ] {
+        assert!(
+            pack.notices
+                .iter()
+                .all(|notice| !notice.message.contains("semantic_operation")),
+            "{:#?}",
+            pack.notices
+        );
+        for (index, operation) in operations.iter().enumerate() {
+            let command = pack
+                .command(&format!("probe::op{index}"))
+                .expect("the command loads");
+            assert_eq!(command.spec.semantic_operation, Some(*operation));
+            let sub = command
+                .spec
+                .subcommands
+                .iter()
+                .find(|sub| sub.name == "sub")
+                .expect("the subcommand loads");
+            assert_eq!(sub.semantic_operation, Some(*operation));
+        }
+    }
+}
+
 #[test]
 fn a_clause_grammar_row_with_an_unknown_timing_is_dropped_with_a_notice() {
     let source = r"speclib probe 2.1 {

@@ -71,6 +71,7 @@ use tcl_registry::arity::Arity;
 use tcl_registry::clause_grammar::{ClauseGrammarSpec, ClauseRow, ClauseSlot, DefaultClause};
 use tcl_registry::definer::{
     BuiltinObjectMethod, DefinitionBodyGrammar, ManufacturerMethod, MemberBodyCommand,
+    MemberOptionValue, MemberSpec, OptionalMemberArgument, SlotSpec, WrapperShift,
 };
 use tcl_registry::handle_binding::{HandleBindingSpec, HandleKeyword};
 use tcl_registry::hooks::ArgTypeHint;
@@ -1093,10 +1094,15 @@ pub const VERSIONED_ARG_VALUE: &[Field] = &[
 
 // Shared `&'static` descriptors.
 //
-// A grammar / class / clause-list descriptor is written once in the registry
-// module that owns it and referenced by every command that needs it, so the
-// studio's editor takes the *constant's path* rather than its contents.  Every
-// field is still listed here: the gate makes a new one a stated decision.
+// A class / clause-list descriptor is written once in the registry module
+// that owns it and referenced by every command that needs it, so the studio's
+// editor takes the *constant's path* rather than its contents.  Every field is
+// still listed here: the gate makes a new one a stated decision.
+//
+// A definition-body grammar left that bucket: once every member states its
+// effect the grammar is plain data all the way down, so the draft carries it
+// field by field — as the name of the shipped grammar it equals, or whole —
+// and the `SpecTcl` renderer writes it back out.
 
 /// Compile-time witness for [`DEFINITION_BODY_GRAMMAR`].
 pub fn witness_definition_body_grammar(grammar: &DefinitionBodyGrammar) {
@@ -1118,34 +1124,146 @@ pub fn witness_definition_body_grammar(grammar: &DefinitionBodyGrammar) {
     } = grammar;
 }
 
-/// Where the studio surfaces each [`DefinitionBodyGrammar`] field.
+/// Where the studio surfaces each [`DefinitionBodyGrammar`] field: a key of
+/// the inline `definition_body` value. The bare-word construction hint is a
+/// function pointer, so its key records only whether one is set.
 pub const DEFINITION_BODY_GRAMMAR: &[Field] = &[
-    f("family", Surface::Excluded(NAMED_CONSTANT)),
-    f("members", Surface::Excluded(NAMED_CONSTANT)),
-    f("implicit_vars", Surface::Excluded(NAMED_CONSTANT)),
+    f("family", Surface::Key("family")),
+    f("members", Surface::Key("members")),
+    f("implicit_vars", Surface::Key("implicit_vars")),
     f(
         "member_body_namespace_path",
-        Surface::Excluded(NAMED_CONSTANT),
+        Surface::Key("member_body_namespace_path"),
     ),
-    f("builtin_type_methods", Surface::Excluded(NAMED_CONSTANT)),
-    f("builtin_object_methods", Surface::Excluded(NAMED_CONSTANT)),
+    f("builtin_type_methods", Surface::Key("builtin_type_methods")),
+    f(
+        "builtin_object_methods",
+        Surface::Key("builtin_object_methods"),
+    ),
     f(
         "builtin_terminating_methods",
-        Surface::Excluded(NAMED_CONSTANT),
+        Surface::Key("builtin_terminating_methods"),
     ),
-    f("member_body_commands", Surface::Excluded(NAMED_CONSTANT)),
-    f("bare_word_construction", Surface::Excluded(NAMED_CONSTANT)),
+    f("member_body_commands", Surface::Key("member_body_commands")),
+    f(
+        "bare_word_construction",
+        Surface::Key("bare_word_construction"),
+    ),
     f(
         "bare_word_construction_hint",
-        Surface::Excluded(NAMED_CONSTANT),
+        Surface::Key("bare_word_construction_hint"),
     ),
-    f("dynamic_method_dispatch", Surface::Excluded(NAMED_CONSTANT)),
-    f("manufacturers", Surface::Excluded(NAMED_CONSTANT)),
-    f("unknown_dispatch_method", Surface::Excluded(NAMED_CONSTANT)),
+    f(
+        "dynamic_method_dispatch",
+        Surface::Key("dynamic_method_dispatch"),
+    ),
+    f("manufacturers", Surface::Key("manufacturers")),
+    f(
+        "unknown_dispatch_method",
+        Surface::Key("unknown_dispatch_method"),
+    ),
     f(
         "property_accessor_methods",
-        Surface::Excluded(NAMED_CONSTANT),
+        Surface::Key("property_accessor_methods"),
     ),
+];
+
+/// Compile-time witness for [`MEMBER_SPEC`].
+pub fn witness_member_spec(member: &MemberSpec) {
+    let MemberSpec {
+        keyword: _,
+        arg_roles: _,
+        optional_argument: _,
+        all_args_var: _,
+        all_args_ref: _,
+        kind: _,
+        wrapper_block_body: _,
+        surface: _,
+        retraction: _,
+        slot: _,
+        visibility_effect: _,
+        effect: _,
+        wrapper_shift: _,
+    } = member;
+}
+
+/// Where the studio surfaces each [`MemberSpec`] field: a key of one
+/// `members` row. `effect` is the member-effect descriptor, spelt in the
+/// `.tclspec` vocabulary (`{kind: callable, receiver: instance, …}`).
+pub const MEMBER_SPEC: &[Field] = &[
+    f("keyword", Surface::Key("keyword")),
+    f("arg_roles", Surface::Key("arg_roles")),
+    f("optional_argument", Surface::Key("optional_argument")),
+    f("all_args_var", Surface::Key("all_args_var")),
+    f("all_args_ref", Surface::Key("all_args_ref")),
+    f("kind", Surface::Key("kind")),
+    f("wrapper_block_body", Surface::Key("wrapper_block_body")),
+    f("surface", Surface::Key("surface")),
+    f("retraction", Surface::Key("retraction")),
+    f("slot", Surface::Key("slot")),
+    f("visibility_effect", Surface::Key("visibility_effect")),
+    f("effect", Surface::Key("effect")),
+    f("wrapper_shift", Surface::Key("wrapper_shift")),
+];
+
+/// Compile-time witness for [`OPTIONAL_MEMBER_ARGUMENT`].
+pub fn witness_optional_member_argument(optional: &OptionalMemberArgument) {
+    let OptionalMemberArgument {
+        position: _,
+        values: _,
+    } = optional;
+}
+
+/// Where the studio surfaces each [`OptionalMemberArgument`] field.
+pub const OPTIONAL_MEMBER_ARGUMENT: &[Field] = &[
+    f("position", Surface::Key("position")),
+    f("values", Surface::Key("values")),
+];
+
+/// Compile-time witness for [`MEMBER_OPTION_VALUE`].
+pub fn witness_member_option_value(value: &MemberOptionValue) {
+    let MemberOptionValue {
+        value: _,
+        role: _,
+        surface: _,
+        declared_visibility: _,
+    } = value;
+}
+
+/// Where the studio surfaces each [`MemberOptionValue`] field.
+pub const MEMBER_OPTION_VALUE: &[Field] = &[
+    f("value", Surface::Key("value")),
+    f("role", Surface::Key("role")),
+    f("surface", Surface::Key("surface")),
+    f("declared_visibility", Surface::Key("declared_visibility")),
+];
+
+/// Compile-time witness for [`SLOT_SPEC`].
+pub fn witness_slot_spec(slot: &SlotSpec) {
+    let SlotSpec {
+        default_op: _,
+        dedup: _,
+    } = slot;
+}
+
+/// Where the studio surfaces each [`SlotSpec`] field.
+pub const SLOT_SPEC: &[Field] = &[
+    f("default_op", Surface::Key("default_op")),
+    f("dedup", Surface::Key("dedup")),
+];
+
+/// Compile-time witness for [`WRAPPER_SHIFT`].
+pub fn witness_wrapper_shift(shift: &WrapperShift) {
+    let WrapperShift {
+        receiver: _,
+        visibility: _,
+    } = shift;
+}
+
+/// Where the studio surfaces each [`WrapperShift`] field.
+pub const WRAPPER_SHIFT: &[Field] = &[
+    f("receiver", Surface::Key("receiver")),
+    f("visibility", Surface::Key("visibility")),
 ];
 
 /// Compile-time witness for [`BUILTIN_OBJECT_METHOD`].
@@ -1158,12 +1276,13 @@ pub fn witness_builtin_object_method(method: &BuiltinObjectMethod) {
     } = method;
 }
 
-/// Where the studio surfaces each [`BuiltinObjectMethod`] field.
+/// Where the studio surfaces each [`BuiltinObjectMethod`] field: a key of one
+/// `builtin_object_methods` row.
 pub const BUILTIN_OBJECT_METHOD: &[Field] = &[
-    f("name", Surface::Excluded(NAMED_CONSTANT)),
-    f("visibility", Surface::Excluded(NAMED_CONSTANT)),
-    f("receiver", Surface::Excluded(NAMED_CONSTANT)),
-    f("detail", Surface::Excluded(NAMED_CONSTANT)),
+    f("name", Surface::Key("name")),
+    f("visibility", Surface::Key("visibility")),
+    f("receiver", Surface::Key("receiver")),
+    f("detail", Surface::Key("detail")),
 ];
 
 /// Compile-time witness for [`MEMBER_BODY_COMMAND`].
@@ -1204,11 +1323,12 @@ pub const MANUFACTURER_METHOD: &[Field] = &[
     ),
 ];
 
-/// Where the studio surfaces each [`MemberBodyCommand`] field.
+/// Where the studio surfaces each [`MemberBodyCommand`] field: a key of one
+/// `member_body_commands` row.
 pub const MEMBER_BODY_COMMAND: &[Field] = &[
-    f("name", Surface::Excluded(NAMED_CONSTANT)),
-    f("detail", Surface::Excluded(NAMED_CONSTANT)),
-    f("binds_handle", Surface::Excluded(NAMED_CONSTANT)),
+    f("name", Surface::Key("name")),
+    f("detail", Surface::Key("detail")),
+    f("binds_handle", Surface::Key("binds_handle")),
 ];
 
 /// Compile-time witness for [`OBJECT_CLASS_SPEC`].
@@ -1631,21 +1751,10 @@ mod tests {
     /// are reached through one shared-constant editor.
     #[test]
     fn every_exclusion_carries_a_reason() {
-        witness_definition_body_grammar(&tcl_registry::definer::SNIT_GRAMMAR);
-        witness_member_body_command(
-            tcl_registry::definer::SNIT_GRAMMAR
-                .member_body_command("install")
-                .expect("snit injects `install` into every member body"),
-        );
         witness_manufacturer_method(
             tcl_registry::definer::TCLOO_GRAMMAR
                 .manufacturer("create")
                 .expect("TclOO manufactures through `create`"),
-        );
-        witness_builtin_object_method(
-            tcl_registry::definer::TCLOO_GRAMMAR
-                .builtin_object_method("variable", tcl_registry::definer::MethodReach::SelfDispatch)
-                .expect("`my variable` reaches oo::object's unexported member"),
         );
         witness_object_class_spec(&ObjectClassSpec {
             class_name: "",
@@ -1666,12 +1775,7 @@ mod tests {
                 field.name
             );
         }
-        for (what, table) in [
-            ("DefinitionBodyGrammar", DEFINITION_BODY_GRAMMAR),
-            ("MemberBodyCommand", MEMBER_BODY_COMMAND),
-            ("BuiltinObjectMethod", BUILTIN_OBJECT_METHOD),
-            ("CaseListSpec", CASE_LIST_SPEC),
-        ] {
+        for (what, table) in [("CaseListSpec", CASE_LIST_SPEC)] {
             for field in table {
                 let Surface::Excluded(reason) = field.surface else {
                     panic!("{what}::{} is not an exclusion", field.name);
@@ -1692,6 +1796,99 @@ mod tests {
             schema::command_field("object_class").map(|field| field.kind),
             Some(schema::FieldKind::ObjectClass),
             "`object_class` is modelled as data, not as a Rust expression"
+        );
+        assert_eq!(
+            schema::command_field("definition_body").map(|field| field.kind),
+            Some(schema::FieldKind::DefinitionBody),
+            "`definition_body` is modelled as data, not as a Rust expression"
+        );
+    }
+
+    /// The definition-body grammar is plain data all the way down: the draft's
+    /// JSON objects for the grammar, a member row, its optional word and one
+    /// accepted spelling of it, its slot, its wrapper shift, a built-in object
+    /// method and a member-body command each carry a key per field (a
+    /// manufacturer row is the `manufacturer_methods` row the command field
+    /// already drafts). `TclOO`'s grammar exercises all but the member-body
+    /// command, which snit's does.
+    #[test]
+    fn the_definition_body_types_are_fully_surfaced() {
+        use tcl_registry::definer::{MethodReach, SNIT_GRAMMAR, TCLOO_GRAMMAR};
+        witness_definition_body_grammar(&TCLOO_GRAMMAR);
+        let method = TCLOO_GRAMMAR.member("method").expect("method");
+        witness_member_spec(method);
+        let optional = method.optional_argument.expect("method's export flag");
+        witness_optional_member_argument(&optional);
+        witness_member_option_value(&optional.values[0]);
+        let filter = TCLOO_GRAMMAR.member("filter").expect("filter");
+        witness_slot_spec(&filter.slot.expect("filter is a slot"));
+        let self_ = TCLOO_GRAMMAR.member("self").expect("self");
+        witness_wrapper_shift(&self_.wrapper_shift.expect("self moves its member"));
+        witness_builtin_object_method(
+            TCLOO_GRAMMAR
+                .builtin_object_method("variable", MethodReach::SelfDispatch)
+                .expect("`my variable` reaches oo::object's unexported member"),
+        );
+        witness_member_body_command(
+            SNIT_GRAMMAR
+                .member_body_command("install")
+                .expect("snit injects `install` into every member body"),
+        );
+
+        let tcloo = draft::definition_body_block(&TCLOO_GRAMMAR);
+        assert_carried(
+            "DefinitionBodyGrammar",
+            DEFINITION_BODY_GRAMMAR,
+            &object_keys("DefinitionBodyGrammar", &tcloo),
+        );
+        let members = tcloo["members"].as_array().expect("member rows");
+        let row = |keyword: &str| {
+            members
+                .iter()
+                .find(|row| row["keyword"] == keyword)
+                .unwrap_or_else(|| panic!("`{keyword}` row"))
+        };
+        assert_carried(
+            "MemberSpec",
+            MEMBER_SPEC,
+            &object_keys("MemberSpec", row("method")),
+        );
+        assert_carried(
+            "OptionalMemberArgument",
+            OPTIONAL_MEMBER_ARGUMENT,
+            &object_keys(
+                "OptionalMemberArgument",
+                &row("method")["optional_argument"],
+            ),
+        );
+        assert_carried(
+            "MemberOptionValue",
+            MEMBER_OPTION_VALUE,
+            &object_keys(
+                "MemberOptionValue",
+                &row("method")["optional_argument"]["values"][0],
+            ),
+        );
+        assert_carried(
+            "SlotSpec",
+            SLOT_SPEC,
+            &object_keys("SlotSpec", &row("filter")["slot"]),
+        );
+        assert_carried(
+            "WrapperShift",
+            WRAPPER_SHIFT,
+            &object_keys("WrapperShift", &row("self")["wrapper_shift"]),
+        );
+        assert_carried(
+            "BuiltinObjectMethod",
+            BUILTIN_OBJECT_METHOD,
+            &object_keys("BuiltinObjectMethod", &tcloo["builtin_object_methods"][0]),
+        );
+        let snit = draft::definition_body_block(&SNIT_GRAMMAR);
+        assert_carried(
+            "MemberBodyCommand",
+            MEMBER_BODY_COMMAND,
+            &object_keys("MemberBodyCommand", &snit["member_body_commands"][0]),
         );
     }
 

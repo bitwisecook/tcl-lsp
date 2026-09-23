@@ -90,9 +90,10 @@ pub use loader::{
     AmbientPackage, CoProvides, EvalOptions, EvalSnapshotKey, HookDecl, HookFamily, HookOwner,
     HookSource, IncludeContext, KNOWN_VOCABULARY_VERSIONS, LOADER_EVAL_VERSION, LoadError,
     NEWEST_VOCABULARY_VERSION, Notice, Pack, PackCommand, PackCore, PackDialect, PackDialectAxis,
-    PackEnvironment, PackEnvironmentTier, PackProvides, VocabularyClass, eval_snapshot_key,
-    evaluate_pack, evaluate_pack_in, evaluate_pack_with, provenance_violation,
-    roles_from_manufacturers, speclib_version_span,
+    PackEnvironment, PackEnvironmentTier, PackProvides, SHIPPED_DEFINITION_BODIES, VocabularyClass,
+    eval_snapshot_key, evaluate_pack, evaluate_pack_in, evaluate_pack_with, provenance_violation,
+    roles_from_manufacturers, semantic_operation_spelling, semantic_operations,
+    speclib_version_span,
 };
 pub use pack::{MergedPack, PackNotice, PackSet};
 pub use registration::{

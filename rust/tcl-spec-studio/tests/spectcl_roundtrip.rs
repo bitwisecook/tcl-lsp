@@ -743,6 +743,52 @@ fn every_command_in_every_dialect_round_trips_through_spectcl() {
     );
 }
 
+/// Every shipped definer grammar, spelt out inline rather than named, renders
+/// and reloads as itself: every member row with its `-effect` (and a
+/// wrapper's `-shift`), every `member_option`, and the object-model rows.
+/// Seeding names a grammar whose data a shipped one equals, so the reloaded
+/// command drafts as the shipped name again — the identity the round trip
+/// relies on. The shipped commands only ever *name* these grammars, so this
+/// is what exercises the class families' inline spelling.
+#[test]
+fn every_shipped_grammar_spelt_inline_reloads_as_itself() {
+    for (name, grammar) in tcl_spectcl::SHIPPED_DEFINITION_BODIES {
+        let block = draft::definition_body_block(grammar);
+        let mut command = draft::default_command_draft();
+        command.insert("name".to_owned(), Value::from("probe::definer"));
+        command.insert("definition_body".to_owned(), block.clone());
+        let text = render_spectcl::render_pack(&[command], "probe");
+        assert!(
+            text.contains("definition_body {"),
+            "{name} is written inline:\n{text}"
+        );
+        let pack = spectcl::evaluate_pack(&text);
+        assert!(
+            pack.notices
+                .iter()
+                .all(|notice| is_policy_report(&notice.message)),
+            "{name} reloads without notices: {:#?}\n{text}",
+            pack.notices
+        );
+        let reloaded = pack
+            .command("probe::definer")
+            .and_then(|command| command.spec.definition_body)
+            .unwrap_or_else(|| panic!("{name} reloads a grammar:\n{text}"));
+        assert_eq!(
+            draft::definition_body_block(reloaded),
+            block,
+            "{name} reloads as itself:\n{text}"
+        );
+        let redrafted =
+            draft::from_command_spec(pack.command("probe::definer").expect("command").spec);
+        assert_eq!(
+            redrafted.get("definition_body"),
+            Some(&Value::from(*name)),
+            "{name}: a grammar equal to a shipped one drafts as its name"
+        );
+    }
+}
+
 /// A notice's shape — its message with the specific word stripped — so the
 /// report groups thousands of notices into a handful of causes.
 fn notice_shape(notice: &str) -> String {

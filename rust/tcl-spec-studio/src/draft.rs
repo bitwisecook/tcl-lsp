@@ -28,9 +28,9 @@
 //!
 //! A handful of spec fields hold a function pointer (`arg_role_resolver`,
 //! `const_fold`, `taint_sink_gate`, …) or a reference to a **named** `&'static`
-//! descriptor the registry shares between commands (`definition_body`,
-//! `case_list`, `body_scope`, `frame_effect`, `bpf_op`,
-//! `event_requires`, `command_forms`, and the semantic/effect descriptors).
+//! descriptor the registry shares between commands (`case_list`,
+//! `body_scope`, `frame_effect`, `bpf_op`, `event_requires`,
+//! `command_forms`, and the effect descriptors).
 //! Rust can tell that such a field is set, but not recover the *expression* —
 //! the constant's path — that set it.
 //! Seeding records those keys under [`UNRENDERABLE_KEY`] so the form can flag
@@ -47,13 +47,20 @@
 //! `object_class` is the same case one level deeper — a class name, a flag,
 //! superclass names, and a method table that *is* `&[SubCommand]` — so it is
 //! seeded as a JSON object whose methods are ordinary subcommand drafts.
+//! `definition_body` is too: a grammar is plain data once every member states
+//! its effect, so it is seeded as the name of the shipped grammar it equals, or
+//! as the whole grammar. `semantic_operation` is a closed vocabulary seeded as
+//! `{kind, detail}`.
 
 use serde_json::{Map, Value, json};
 use tcl_registry::BodyInterpreter;
 use tcl_registry::arg_role::{AppendedArity, ArgRole};
 use tcl_registry::arity::Arity;
 use tcl_registry::clause_grammar::{ClauseGrammarSpec, ClauseRow, ClauseRowShape, ClauseSlot};
-use tcl_registry::definer::ManufacturerMethod;
+use tcl_registry::definer::{
+    BuiltinObjectMethod, DeclaredMemberVisibility, DefinitionBodyGrammar, ManufacturerMethod,
+    MemberBodyCommand, MemberEffect, MemberReceiver, MemberSpec, OptionalMemberArgument,
+};
 use tcl_registry::deprecation::{DeprecationFixHook, DeprecationFixSafety};
 use tcl_registry::forms::CommandForm;
 use tcl_registry::handle_binding::{
@@ -69,6 +76,7 @@ use tcl_registry::presentation::ArgPresentation;
 use tcl_registry::remote_method::{MethodWord, RemoteDispatch, RemoteFamily, RemoteMethodRole};
 use tcl_registry::repeated::RepeatedArgLayout;
 use tcl_registry::representation::RepresentationEffect;
+use tcl_registry::semantic_operation::SemanticOperationId;
 use tcl_registry::side_effects::SideEffect;
 use tcl_registry::spec::{
     BytePayloadSpec, CommandSpec, ObjectClassSpec, OoContextFact, OptionRelation, SubCommand,
@@ -542,6 +550,176 @@ fn manufacturer_method(method: &ManufacturerMethod) -> Value {
         "definition_body_at": method.definition_body_at,
         "constructor_args_from": method.constructor_args_from,
     })
+}
+
+/// Seed the `definition_body` value: `null`, the name of the shipped grammar
+/// whose data this is (`tcloo`, `snit`, … —
+/// [`tcl_spectcl::SHIPPED_DEFINITION_BODIES`], the names a pack may write), or
+/// the whole grammar.
+///
+/// The shipped grammar is recognised by its data rather than its address: a
+/// `const` has no single address (every `&TCLOO_GRAMMAR` is its own promoted
+/// allocation), and a pack that spells a shipped grammar out inline — the
+/// snit port — describes exactly the grammar the name does.
+pub(crate) fn definition_body(grammar: Option<&'static DefinitionBodyGrammar>) -> Value {
+    let Some(grammar) = grammar else {
+        return Value::Null;
+    };
+    let block = definition_body_block(grammar);
+    tcl_spectcl::SHIPPED_DEFINITION_BODIES
+        .iter()
+        .find(|(_, shipped)| definition_body_block(shipped) == block)
+        .map_or(block, |(name, _)| json!(name))
+}
+
+/// A grammar as data, field for field — the inline `definition_body` value.
+/// The bare-word construction hint is a function pointer, so the draft records
+/// only whether one is set.
+#[must_use]
+pub fn definition_body_block(grammar: &DefinitionBodyGrammar) -> Value {
+    let DefinitionBodyGrammar {
+        family,
+        members,
+        implicit_vars,
+        member_body_namespace_path,
+        builtin_type_methods,
+        builtin_object_methods,
+        builtin_terminating_methods,
+        member_body_commands,
+        bare_word_construction,
+        bare_word_construction_hint,
+        dynamic_method_dispatch,
+        manufacturers,
+        unknown_dispatch_method,
+        property_accessor_methods,
+    } = grammar;
+    json!({
+        "family": catalogue::variant_name(family),
+        "members": Value::Array(members.iter().map(member_spec).collect()),
+        "implicit_vars": str_list(implicit_vars),
+        "member_body_namespace_path": str_list(member_body_namespace_path),
+        "builtin_type_methods": str_list(builtin_type_methods),
+        "builtin_object_methods": Value::Array(
+            builtin_object_methods.iter().map(builtin_object_method).collect()
+        ),
+        "builtin_terminating_methods": str_list(builtin_terminating_methods),
+        "member_body_commands": Value::Array(
+            member_body_commands.iter().map(member_body_command).collect()
+        ),
+        "bare_word_construction": bare_word_construction,
+        "bare_word_construction_hint": bare_word_construction_hint.is_some(),
+        "dynamic_method_dispatch": dynamic_method_dispatch,
+        "manufacturers": Value::Array(manufacturers.iter().map(manufacturer_method).collect()),
+        "unknown_dispatch_method": unknown_dispatch_method,
+        "property_accessor_methods": str_list(property_accessor_methods),
+    })
+}
+
+/// One member row: its keyword and layout, what it declares, and what it does
+/// to the members it names.
+fn member_spec(member: &MemberSpec) -> Value {
+    json!({
+        "keyword": member.keyword,
+        "arg_roles": role_map(member.arg_roles),
+        "optional_argument": member.optional_argument.map_or(Value::Null, optional_member_argument),
+        "all_args_var": member.all_args_var,
+        "all_args_ref": member.all_args_ref.map(|kind| catalogue::variant_name(&kind)),
+        "kind": catalogue::variant_name(&member.kind),
+        "wrapper_block_body": member.wrapper_block_body,
+        "surface": dialects(member.surface),
+        "retraction": member.retraction.map(|retraction| catalogue::variant_name(&retraction)),
+        "slot": member.slot.map_or(Value::Null, |slot| json!({
+            "default_op": catalogue::variant_name(&slot.default_op),
+            "dedup": slot.dedup,
+        })),
+        "visibility_effect": member
+            .visibility_effect
+            .map(|visibility| catalogue::variant_name(&visibility)),
+        "effect": member_effect(member.effect),
+        "wrapper_shift": member.wrapper_shift.map_or(Value::Null, |shift| json!({
+            "receiver": shift.receiver.map(MemberReceiver::spelling),
+            "visibility": shift.visibility.map(DeclaredMemberVisibility::as_str),
+        })),
+    })
+}
+
+/// A member's optional word: its fixed position and each accepted spelling.
+fn optional_member_argument(optional: OptionalMemberArgument) -> Value {
+    json!({
+        "position": optional.position,
+        "values": Value::Array(optional.values.iter().map(|value| json!({
+            "value": value.value,
+            "role": catalogue::variant_name(&value.role),
+            "surface": dialects(value.surface),
+            "declared_visibility": value
+                .declared_visibility
+                .map(|visibility| catalogue::variant_name(&visibility)),
+        })).collect()),
+    })
+}
+
+/// A member effect in the `.tclspec` vocabulary: its kind and the payload that
+/// kind carries (`{kind: callable, receiver: instance, role: method,
+/// name_slot: 0, …}`).
+pub(crate) fn member_effect(effect: MemberEffect) -> Value {
+    let kind = effect.kind_spelling();
+    match effect {
+        MemberEffect::Callable {
+            receiver,
+            role,
+            name_slot,
+            params_slot,
+            body_slot,
+        } => json!({
+            "kind": kind,
+            "receiver": receiver.spelling(),
+            "role": role.spelling(),
+            "name_slot": name_slot,
+            "params_slot": params_slot,
+            "body_slot": body_slot,
+        }),
+        MemberEffect::Forward {
+            name_slot,
+            prefix_slot,
+        } => json!({ "kind": kind, "name_slot": name_slot, "prefix_slot": prefix_slot }),
+        MemberEffect::StateDeclaration { scope } => {
+            json!({ "kind": kind, "scope": scope.spelling() })
+        }
+        MemberEffect::Relation { slot } => json!({ "kind": kind, "slot": slot.spelling() }),
+        MemberEffect::InitScript { body_slot, timing } => {
+            json!({ "kind": kind, "body_slot": body_slot, "timing": timing.spelling() })
+        }
+        MemberEffect::Visibility | MemberEffect::Retraction | MemberEffect::Configuration => {
+            json!({ "kind": kind })
+        }
+    }
+}
+
+fn builtin_object_method(method: &BuiltinObjectMethod) -> Value {
+    json!({
+        "name": method.name,
+        "visibility": catalogue::variant_name(&method.visibility),
+        "receiver": catalogue::variant_name(&method.receiver),
+        "detail": method.detail,
+    })
+}
+
+fn member_body_command(command: &MemberBodyCommand) -> Value {
+    json!({
+        "name": command.name,
+        "detail": command.detail,
+        "binds_handle": command.binds_handle.as_ref().map(handle_binding_expr),
+    })
+}
+
+/// Seed a `semantic_operation` value: `null`, or `{kind, detail}` in the
+/// operation's own spellings ([`SemanticOperationId::kind_str`] /
+/// [`SemanticOperationId::detail_str`]), a closed vocabulary.
+pub(crate) fn semantic_operation(operation: Option<SemanticOperationId>) -> Value {
+    operation.map_or(
+        Value::Null,
+        |operation| json!({ "kind": operation.kind_str(), "detail": operation.detail_str() }),
+    )
 }
 
 /// Seed the `clause_grammar` value from a live [`ClauseGrammarSpec`].
@@ -1238,7 +1416,7 @@ fn subcommand_hooks(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
     );
     d.insert(
         "semantic_operation".into(),
-        lost.expr("semantic_operation", sub.semantic_operation.is_some()),
+        semantic_operation(sub.semantic_operation),
     );
     d.insert(
         "completion".into(),
@@ -1712,7 +1890,7 @@ fn command_hooks(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
     );
     d.insert(
         "semantic_operation".into(),
-        lost.expr("semantic_operation", spec.semantic_operation.is_some()),
+        semantic_operation(spec.semantic_operation),
     );
     d.insert(
         "completion".into(),
@@ -2026,7 +2204,7 @@ fn command_advanced(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
     );
     d.insert(
         "definition_body".into(),
-        lost.expr("definition_body", spec.definition_body.is_some()),
+        definition_body(spec.definition_body),
     );
     command_manufacturer_methods(d, spec);
     d.insert(

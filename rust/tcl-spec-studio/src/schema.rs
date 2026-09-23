@@ -126,6 +126,14 @@ pub enum FieldKind {
     /// fall-through, default and selection rules. Plain data, carried field by
     /// field and shown read-only in the form.
     ClauseGrammar,
+    /// `Option<&'static DefinitionBodyGrammar>` — a definer's body grammar:
+    /// the name of the shipped grammar it is (`tcloo`, `snit`, …), or the
+    /// whole grammar, every member row stating its effect. Plain data; a
+    /// shipped name is picked, an inline grammar is shown read-only.
+    DefinitionBody,
+    /// `Option<SemanticOperationId>` — the target-neutral operation identity,
+    /// a closed vocabulary: `invoke`, an intrinsic, or a structured lowering.
+    SemanticOperation,
     /// A field the studio cannot model as data — a function pointer or a
     /// reference to a `&'static` descriptor. Held (and emitted) as a verbatim
     /// Rust expression the author supplies.
@@ -174,6 +182,8 @@ impl FieldKind {
             Self::ObjectClass => "objectClass",
             Self::TkGeometry => "tkGeometry",
             Self::ClauseGrammar => "clauseGrammar",
+            Self::DefinitionBody => "definitionBody",
+            Self::SemanticOperation => "semanticOperation",
             Self::RustExpr { .. } => "rustExpr",
         }
     }
@@ -706,9 +716,7 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "semantic_operation",
         "Semantic operation",
         HOOKS,
-        FieldKind::RustExpr {
-            hint: "Some(SemanticOperationId::Intrinsic(IntrinsicId::ListLength))",
-        },
+        FieldKind::SemanticOperation,
         "Target-neutral operation identity selected before backend dispatch.",
     ),
     f(
@@ -1349,10 +1357,8 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "definition_body",
         "Definition-body grammar",
         ADVANCED,
-        FieldKind::RustExpr {
-            hint: "Some(&definer::TCLOO_CLASS_BODY)",
-        },
-        "Body grammar for a class or type definer, so the generic walker can recurse.",
+        FieldKind::DefinitionBody,
+        "Body grammar for a class or type definer — a shipped grammar by name, or member rows that each state their effect — so the generic walker can recurse.",
     ),
     f(
         "manufacturer_methods",
@@ -1828,9 +1834,7 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
         "semantic_operation",
         "Semantic operation",
         HOOKS,
-        FieldKind::RustExpr {
-            hint: "Some(SemanticOperationId::Intrinsic(IntrinsicId::DictGet))",
-        },
+        FieldKind::SemanticOperation,
         "Target-neutral operation identity overriding the parent command.",
     ),
     f(
@@ -2182,8 +2186,49 @@ fn custom_variant(id: &str, key: &str, doc: &str) -> Value {
     })
 }
 
-fn custom_catalogues() -> [(&'static str, Value); 5] {
+/// The semantic-operation vocabulary as a catalogue: one entry per
+/// operation, keyed `KIND` or `KIND DETAIL` in the operation's own spellings
+/// (`invoke`, `intrinsic list-length`, `structured-lowering expr`) — the
+/// draft's `{kind, detail}` joined by a space.
+fn semantic_operation_catalogue() -> Value {
+    Value::Array(
+        tcl_spectcl::semantic_operations()
+            .map(|operation| {
+                let key = operation.detail_str().map_or_else(
+                    || operation.kind_str().to_owned(),
+                    |detail| format!("{} {detail}", operation.kind_str()),
+                );
+                let doc = match operation.detail_str() {
+                    None => "generic Tcl argv invocation — the conservative fallback".to_owned(),
+                    Some(detail) => format!("the `{detail}` {}", operation.kind_str()),
+                };
+                custom_variant("semanticOperation", &key, &doc)
+            })
+            .collect(),
+    )
+}
+
+/// The shipped definer grammars a `definition_body` can name.
+fn definition_body_catalogue() -> Value {
+    Value::Array(
+        tcl_spectcl::SHIPPED_DEFINITION_BODIES
+            .iter()
+            .map(|(name, grammar)| {
+                let doc = format!(
+                    "the shipped {:?} grammar ({} members)",
+                    grammar.family,
+                    grammar.members.len()
+                );
+                custom_variant("definitionBody", name, &doc)
+            })
+            .collect(),
+    )
+}
+
+fn custom_catalogues() -> [(&'static str, Value); 7] {
     [
+        ("semanticOperation", semantic_operation_catalogue()),
+        ("definitionBody", definition_body_catalogue()),
         (
             "optionPlacement",
             json!([

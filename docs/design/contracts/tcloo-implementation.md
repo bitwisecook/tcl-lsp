@@ -20,6 +20,26 @@ body / param / var layout (`MemberKind::Flat`), nested-member wrappers
 forms (`property` — `MemberKind::FlagKeyed`).  TclOO, snit, and [incr Tcl]
 are pure registry data; the shared walkers hold no member-keyword lists.
 
+What each member *declares* is registry data as well: `MemberSpec::effect`,
+a family-neutral `MemberEffect` — `Callable` (receiver, `CallableRole`, and
+the name / parameter-list / body slots) for `method`, `classmethod`,
+`constructor`, `destructor`, snit's `typemethod` / `proc` / `onconfigure` /
+`oncget` and itcl's `proc`; `Forward` for `forward`; `StateDeclaration` for
+`variable`, `typevariable`, `component`, `common` and snit's `option`;
+`Relation` for `superclass`, `mixin`, `filter` and itcl's `inherit`;
+`Visibility` for `export` / `unexport`; `Retraction` for `deletemethod` /
+`renamemethod`; `InitScript` for `initialise` and snit's `typeconstructor`;
+and `Configuration` for the wrappers, `definitionnamespace`, `property`,
+`delegate` and `expose`.  A wrapper's effect on what it wraps is
+`MemberSpec::wrapper_shift` — `self` moves the member to the class object,
+`private` (and itcl's `public` / `protected` / `private`) declares its
+visibility.  `DefinitionBodyGrammar::member_row` reads one member statement
+into a `MemberRow` — the effect, the receiver after every wrapper, the
+literal name, the `MemberArity` of a literal parameter list, the visibility
+(option word, then wrapper, then the family's name rule), the body operand
+and a slot's operation — so a consumer routes a member by what it declares,
+never by its keyword.
+
 The list-valued definition words — `filter`, `superclass`, `mixin`,
 `variable` — are **slots** (`oo::Slot` instances in real Tcl), not
 assignments, and their behaviour is registry data too

@@ -37,6 +37,8 @@
 //! [`CommandSpec::definition_body`]: crate::CommandSpec::definition_body
 
 use crate::arg_role::ArgRole;
+use crate::invocation_words::{InvocationArgument, InvocationArguments, InvocationWord};
+use crate::value_transfer::inputs::OperandId;
 use tcl_dialect::TclVersion;
 use tcl_dialect::model::SpecSurface;
 use tcl_dialect::model::SurfaceQuery;
@@ -398,7 +400,11 @@ pub enum DeclaredMemberVisibility {
 }
 
 impl DeclaredMemberVisibility {
-    /// The analyser/storage spelling used by existing class facts.
+    /// Every visibility, in the order the `.tclspec` vocabulary lists them.
+    pub const ALL: &'static [Self] = &[Self::Public, Self::Private, Self::Unexported];
+
+    /// The analyser/storage spelling used by existing class facts, and the
+    /// `.tclspec` spelling of a wrapper's `-shift {-visibility V}`.
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
@@ -407,6 +413,363 @@ impl DeclaredMemberVisibility {
             Self::Unexported => "unexported",
         }
     }
+
+    /// The visibility `word` spells, or `None` for any other word.
+    #[must_use]
+    pub fn from_spelling(word: &str) -> Option<Self> {
+        Self::ALL
+            .iter()
+            .copied()
+            .find(|visibility| visibility.as_str() == word)
+    }
+}
+
+/// What one member word of a definition body declares — the member-effect
+/// descriptor (`docs/design/compiler/registry-consumer-contracts.md` § *The
+/// member-effect descriptor*).
+///
+/// [`MemberKind`] stays the *layout* fact (`Flat`, `Wrapper`, `FlagKeyed`);
+/// this is what the member means. The vocabulary is closed and family-neutral:
+/// no variant names `TclOO`, snit or itcl, and [`DefinerFamily`] stays the only
+/// place a family is named.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MemberEffect {
+    /// A callable member: `method`, `classmethod`, `typemethod`,
+    /// `constructor`, `destructor`, snit's `onconfigure` / `oncget`, a
+    /// class-scoped `proc`.
+    Callable {
+        /// Which dispatch side the member lands on, before any
+        /// [`MemberKind::Wrapper`] shift is applied.
+        receiver: MemberReceiver,
+        /// Its place in the object's lifecycle.
+        role: CallableRole,
+        /// Slot holding the declared name, 0-based after the keyword; `None`
+        /// when the keyword *is* the name (`constructor`).
+        name_slot: Option<u8>,
+        /// Slot holding the formal parameter list.
+        params_slot: Option<u8>,
+        /// Slot holding the body.
+        body_slot: Option<u8>,
+    },
+    /// A dispatch redirect: `forward NAME PREFIX ?word …?`.
+    Forward {
+        /// Slot holding the declared method name.
+        name_slot: u8,
+        /// Slot holding the command the method delegates to.
+        prefix_slot: u8,
+    },
+    /// Declares state: `variable`, `typevariable`, itcl's `common`, snit's
+    /// `option`.
+    StateDeclaration {
+        /// Whose state it is.
+        scope: StateScope,
+    },
+    /// Contributes to an ancestry or interposition slot: `superclass`,
+    /// `mixin`, `filter`, itcl's `inherit`. The operation and dedup rule stay
+    /// [`MemberSpec::slot`]; this says which graph the slot feeds.
+    Relation {
+        /// The graph the member's words feed.
+        slot: RelationSlot,
+    },
+    /// Changes an existing member's visibility. The value stays
+    /// [`MemberSpec::visibility_effect`].
+    Visibility,
+    /// Removes existing members. Which arguments stays
+    /// [`MemberSpec::retraction`].
+    Retraction,
+    /// A script with no member of its own, run at definition or construction
+    /// time: snit's `typeconstructor`, `TclOO`'s `initialise`.
+    InitScript {
+        /// Slot holding the script.
+        body_slot: u8,
+        /// When it runs.
+        timing: InitTiming,
+    },
+    /// Configures the definition and declares nothing: a wrapper
+    /// (`self`, `private`, itcl's access modifiers), `definitionnamespace`,
+    /// `property`'s flag-keyed accessors until they are `Callable` rows of
+    /// their own, and every row of a declaration document (`.tclspec`,
+    /// `SslicTcl`), which opens no method frame.
+    Configuration,
+}
+
+impl MemberEffect {
+    /// Every effect kind's `.tclspec` spelling — the first word of a member
+    /// row's `-effect` value — in the order the vocabulary lists them.
+    pub const KIND_SPELLINGS: &'static [&'static str] = &[
+        "callable",
+        "forward",
+        "state-declaration",
+        "relation",
+        "visibility",
+        "retraction",
+        "init-script",
+        "configuration",
+    ];
+
+    /// The `.tclspec` spelling of this effect's kind (see
+    /// [`Self::KIND_SPELLINGS`]).
+    #[must_use]
+    pub const fn kind_spelling(self) -> &'static str {
+        match self {
+            Self::Callable { .. } => "callable",
+            Self::Forward { .. } => "forward",
+            Self::StateDeclaration { .. } => "state-declaration",
+            Self::Relation { .. } => "relation",
+            Self::Visibility => "visibility",
+            Self::Retraction => "retraction",
+            Self::InitScript { .. } => "init-script",
+            Self::Configuration => "configuration",
+        }
+    }
+
+    /// The side the member lands on before any wrapper shift: a callable's
+    /// declared receiver; per-type and option state on both sides (itcl's
+    /// `common` and snit's `typevariable` are visible from type and instance
+    /// bodies alike, and an option is configured through an instance and
+    /// declared by the type); a definition-time script on the type object;
+    /// everything else on the instances.
+    #[must_use]
+    pub const fn natural_receiver(self) -> MemberReceiver {
+        match self {
+            Self::Callable { receiver, .. } => receiver,
+            Self::StateDeclaration {
+                scope: StateScope::PerType | StateScope::Option,
+            } => MemberReceiver::Both,
+            Self::InitScript {
+                timing: InitTiming::AtDefinition,
+                ..
+            } => MemberReceiver::TypeObject,
+            Self::Forward { .. }
+            | Self::StateDeclaration {
+                scope: StateScope::PerInstance,
+            }
+            | Self::Relation { .. }
+            | Self::Visibility
+            | Self::Retraction
+            | Self::InitScript {
+                timing: InitTiming::AtConstruction,
+                ..
+            }
+            | Self::Configuration => MemberReceiver::Instance,
+        }
+    }
+}
+
+/// Which dispatch side a member lands on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MemberReceiver {
+    /// The instances the definition creates.
+    Instance,
+    /// The class or type object itself (`self method`, `typemethod`).
+    TypeObject,
+    /// Both sides, which itcl's `common` and snit's `option` need.
+    Both,
+}
+
+/// A callable member's place in the object's lifecycle.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CallableRole {
+    /// An ordinary method.
+    Method,
+    /// Runs when an instance is created.
+    Constructor,
+    /// Runs when an instance is destroyed.
+    Destructor,
+    /// Answers an option or property read (snit's `oncget`).
+    Accessor,
+    /// Handles an option or property write (snit's `onconfigure`).
+    Mutator,
+}
+
+/// Whose state a [`MemberEffect::StateDeclaration`] declares.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StateScope {
+    /// One cell per instance (`variable`).
+    PerInstance,
+    /// One cell for the type (`typevariable`, itcl's `common`).
+    PerType,
+    /// An option an instance configures (snit's `option`).
+    Option,
+}
+
+/// The graph a [`MemberEffect::Relation`] member feeds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RelationSlot {
+    /// The ancestry: `superclass`, itcl's `inherit`.
+    Superclass,
+    /// The mixed-in classes.
+    Mixin,
+    /// The interposed filter methods.
+    Filter,
+}
+
+/// When a [`MemberEffect::InitScript`] runs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InitTiming {
+    /// Once, when the definition is evaluated.
+    AtDefinition,
+    /// Each time an instance is constructed.
+    AtConstruction,
+}
+
+/// The `.tclspec` spellings of the member-effect vocabulary's small enums:
+/// `ALL` in the order the vocabulary lists them, `spelling` for the renderer
+/// and `from_spelling` for the loader, so neither keeps a table of its own.
+macro_rules! member_effect_spellings {
+    ($($ty:ident { $($variant:ident => $spelling:literal),+ $(,)? })+) => {$(
+        impl $ty {
+            /// Every value, in the order the `.tclspec` vocabulary lists them.
+            pub const ALL: &'static [Self] = &[$(Self::$variant),+];
+
+            /// The `.tclspec` spelling.
+            #[must_use]
+            pub const fn spelling(self) -> &'static str {
+                match self {
+                    $(Self::$variant => $spelling),+
+                }
+            }
+
+            /// The value `word` spells, or `None` for any other word.
+            #[must_use]
+            pub fn from_spelling(word: &str) -> Option<Self> {
+                Self::ALL.iter().copied().find(|value| value.spelling() == word)
+            }
+        }
+    )+};
+}
+
+member_effect_spellings! {
+    MemberReceiver {
+        Instance => "instance",
+        TypeObject => "type-object",
+        Both => "both",
+    }
+    CallableRole {
+        Method => "method",
+        Constructor => "constructor",
+        Destructor => "destructor",
+        Accessor => "accessor",
+        Mutator => "mutator",
+    }
+    StateScope {
+        PerInstance => "per-instance",
+        PerType => "per-type",
+        Option => "option",
+    }
+    RelationSlot {
+        Superclass => "superclass",
+        Mixin => "mixin",
+        Filter => "filter",
+    }
+    InitTiming {
+        AtDefinition => "at-definition",
+        AtConstruction => "at-construction",
+    }
+}
+
+/// What a [`MemberKind::Wrapper`] does to the member it wraps: `TclOO`'s
+/// `self` moves it to the class object, `private` and itcl's access modifiers
+/// declare its visibility. `None` in either field keeps the inner member's
+/// own.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WrapperShift {
+    /// The side the wrapped member lands on.
+    pub receiver: Option<MemberReceiver>,
+    /// The visibility the wrapped member is declared with.
+    pub visibility: Option<DeclaredMemberVisibility>,
+}
+
+impl WrapperShift {
+    /// The shift that changes nothing.
+    pub const NONE: Self = Self {
+        receiver: None,
+        visibility: None,
+    };
+
+    /// This (inner) shift applied inside `outer`: a field this shift sets
+    /// wins, a field it leaves open keeps the outer wrapper's.
+    #[must_use]
+    pub const fn within(self, outer: Self) -> Self {
+        Self {
+            receiver: match self.receiver {
+                Some(receiver) => Some(receiver),
+                None => outer.receiver,
+            },
+            visibility: match self.visibility {
+                Some(visibility) => Some(visibility),
+                None => outer.visibility,
+            },
+        }
+    }
+}
+
+/// A callable member's parameter shape, read off its parameter-list word.
+///
+/// Counted the way Tcl binds arguments — positionally — so a parameter with a
+/// default that precedes a required one is itself required: `{{a 1} b}` takes
+/// exactly two arguments (tclsh 9.0.4 and 8.6: `wrong # args: should be "p ?a?
+/// b"` for one).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MemberArity {
+    /// Arguments every call must supply: every parameter up to and including
+    /// the last one without a default.
+    pub required: usize,
+    /// Further parameters, each with a default, a call may supply.
+    pub optional: usize,
+    /// Whether the list ends in `args`, taking any number beyond.
+    pub variadic: bool,
+}
+
+impl MemberArity {
+    /// The arity of the formal parameter list `params`, or `None` when it is
+    /// not a well-formed one (the strict `tcl_syntax::formal_params` reading).
+    #[must_use]
+    pub fn parse(params: &str) -> Option<Self> {
+        let parameters = tcl_syntax::formal_params::parse_formal_parameters(params).ok()?;
+        let variadic = tcl_syntax::formal_params::has_trailing_args(&parameters);
+        let fixed = &parameters[..parameters.len() - usize::from(variadic)];
+        let required = fixed
+            .iter()
+            .rposition(|parameter| parameter.default.is_none())
+            .map_or(0, |last| last + 1);
+        Some(Self {
+            required,
+            optional: fixed.len() - required,
+            variadic,
+        })
+    }
+}
+
+/// What one member statement of a definition body declares — the answer
+/// [`DefinitionBodyGrammar::member_row`] derives from the member's
+/// [`MemberEffect`] and the statement's words.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MemberRow {
+    /// Index of the member keyword in the statement's words — the wrapped
+    /// member's own keyword for a wrapper's prefix form.
+    pub keyword_index: usize,
+    /// What the member declares.
+    pub effect: MemberEffect,
+    /// Side after every wrapper shift is applied.
+    pub receiver: MemberReceiver,
+    /// The declared name when the effect names one and the word is literal.
+    /// A computed word abstains.
+    pub name: Option<String>,
+    /// Derived from the parameter-list slot, when the effect has one and the
+    /// word is a literal list.
+    pub arity: Option<MemberArity>,
+    /// The family's name-based default, overridden by the member's own option
+    /// word or its wrapper.
+    pub visibility: DeclaredMemberVisibility,
+    /// The body operand (an index into the statement's words), when the
+    /// effect has one and the call supplies it.
+    pub body: Option<OperandId>,
+    /// The slot operation for a slot member (`SlotOp`, unchanged): the
+    /// explicit leading operation word, or the slot's default.
+    pub slot_op: Option<SlotOp>,
+    /// Releases this row is available at ([`MemberSpec::surface`]).
+    pub surface: Option<&'static [SpecSurface]>,
 }
 
 /// One accepted spelling of an optional definition-member argument.
@@ -447,7 +810,11 @@ impl OptionalMemberArgument {
         args: &[S],
         dialect: Option<SurfaceQuery<'_>>,
     ) -> Option<MemberOptionValue> {
-        let word = args.get(usize::from(self.position))?.as_ref();
+        self.value_at(args.get(usize::from(self.position))?.as_ref(), dialect)
+    }
+
+    /// The spelling `word` names, when it is one available in `dialect`.
+    fn value_at(self, word: &str, dialect: Option<SurfaceQuery<'_>>) -> Option<MemberOptionValue> {
         self.values.iter().copied().find(|candidate| {
             candidate.value == word
                 && candidate
@@ -456,6 +823,11 @@ impl OptionalMemberArgument {
         })
     }
 }
+
+/// A member call whose argument layout cannot be read: a recognised optional
+/// word unavailable in the dialect, or a computed word where the optional
+/// word could stand.
+struct UnreadableLayout;
 
 /// One member sub-keyword of a definition body, with the argument roles a
 /// walker should apply to its call.  `arg_roles` indices are 0-based *after*
@@ -549,12 +921,23 @@ pub struct MemberSpec {
     /// consumer that records members reads this instead of matching the
     /// keyword, so the effect travels with the grammar.
     pub visibility_effect: Option<MemberVisibility>,
+    /// What the member declares (see [`MemberEffect`]). Required: every
+    /// member states it, so a consumer routes a member by its effect and
+    /// never by its keyword.
+    pub effect: MemberEffect,
+    /// What a [`MemberKind::Wrapper`] does to the member it wraps, or `None`
+    /// for a wrapper that changes nothing and for every other kind.
+    pub wrapper_shift: Option<WrapperShift>,
 }
 
 impl MemberSpec {
     /// An ordinary [`MemberKind::Flat`] member.
     #[must_use]
-    const fn flat(keyword: &'static str, arg_roles: &'static [(u8, ArgRole)]) -> Self {
+    const fn flat(
+        keyword: &'static str,
+        arg_roles: &'static [(u8, ArgRole)],
+        effect: MemberEffect,
+    ) -> Self {
         Self {
             keyword,
             arg_roles,
@@ -567,13 +950,15 @@ impl MemberSpec {
             retraction: None,
             visibility_effect: None,
             slot: None,
+            effect,
+            wrapper_shift: None,
         }
     }
 
     /// A member whose every argument references an entity of `kind`
     /// (`superclass A B`, `export m`).
     #[must_use]
-    const fn all_refs(keyword: &'static str, kind: MemberRefKind) -> Self {
+    const fn all_refs(keyword: &'static str, kind: MemberRefKind, effect: MemberEffect) -> Self {
         Self {
             keyword,
             arg_roles: NO_ROLES,
@@ -586,12 +971,14 @@ impl MemberSpec {
             retraction: None,
             visibility_effect: None,
             slot: None,
+            effect,
+            wrapper_shift: None,
         }
     }
 
     /// A `variable a b c`-style member: every argument is a declared name.
     #[must_use]
-    const fn all_vars(keyword: &'static str) -> Self {
+    const fn all_vars(keyword: &'static str, effect: MemberEffect) -> Self {
         Self {
             keyword,
             arg_roles: NO_ROLES,
@@ -604,13 +991,15 @@ impl MemberSpec {
             retraction: None,
             visibility_effect: None,
             slot: None,
+            effect,
+            wrapper_shift: None,
         }
     }
 
     /// A name-reference / keyword-only member carrying nothing to recurse or
     /// declare (`superclass A B`, `inherit Base`, `option …`).
     #[must_use]
-    const fn keyword_only(keyword: &'static str) -> Self {
+    const fn keyword_only(keyword: &'static str, effect: MemberEffect) -> Self {
         Self {
             keyword,
             arg_roles: NO_ROLES,
@@ -623,6 +1012,8 @@ impl MemberSpec {
             retraction: None,
             visibility_effect: None,
             slot: None,
+            effect,
+            wrapper_shift: None,
         }
     }
 
@@ -630,7 +1021,7 @@ impl MemberSpec {
     /// — an inner member keyword follows at argument 0, and there is no bare
     /// script-block form.
     #[must_use]
-    const fn wrapper(keyword: &'static str) -> Self {
+    const fn wrapper(keyword: &'static str, shift: WrapperShift) -> Self {
         Self {
             keyword,
             arg_roles: NO_ROLES,
@@ -643,6 +1034,8 @@ impl MemberSpec {
             retraction: None,
             visibility_effect: None,
             slot: None,
+            effect: MemberEffect::Configuration,
+            wrapper_shift: Some(shift),
         }
     }
 
@@ -653,7 +1046,7 @@ impl MemberSpec {
     /// target).  When the following word is not an inner member, argument 0 is
     /// the block [`ArgRole::Body`].
     #[must_use]
-    const fn wrapper_or_body(keyword: &'static str) -> Self {
+    const fn wrapper_or_body(keyword: &'static str, shift: WrapperShift) -> Self {
         Self {
             keyword,
             arg_roles: BODY0_ROLES,
@@ -666,6 +1059,8 @@ impl MemberSpec {
             retraction: None,
             visibility_effect: None,
             slot: None,
+            effect: MemberEffect::Configuration,
+            wrapper_shift: Some(shift),
         }
     }
 
@@ -716,7 +1111,7 @@ impl MemberSpec {
 
     /// A [`MemberKind::FlagKeyed`] member (`property`).
     #[must_use]
-    const fn flag_keyed(keyword: &'static str) -> Self {
+    const fn flag_keyed(keyword: &'static str, effect: MemberEffect) -> Self {
         Self {
             keyword,
             arg_roles: NO_ROLES,
@@ -729,6 +1124,8 @@ impl MemberSpec {
             retraction: None,
             visibility_effect: None,
             slot: None,
+            effect,
+            wrapper_shift: None,
         }
     }
 
@@ -862,6 +1259,69 @@ impl MemberSpec {
     ) -> Option<DeclaredMemberVisibility> {
         self.option_for_in(args, dialect)
             .and_then(|option| option.declared_visibility)
+    }
+
+    /// The optional word of a source-aware call — [`Self::option_for_in`]
+    /// over [`InvocationArguments`]. `Ok(None)` when the fixed layout applies.
+    fn option_in_words(
+        &self,
+        args: InvocationArguments<'_>,
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> Result<Option<MemberOptionValue>, UnreadableLayout> {
+        let Some(optional) = self.optional_argument else {
+            return Ok(None);
+        };
+        match args.argv_at(usize::from(optional.position)) {
+            InvocationArgument::Missing => Ok(None),
+            InvocationArgument::Word(InvocationWord::Literal(word)) => {
+                match optional.value_at(word, dialect) {
+                    Some(value) => Ok(Some(value)),
+                    None if optional.value_at(word, None).is_some() => Err(UnreadableLayout),
+                    None => Ok(None),
+                }
+            }
+            // A computed word that cannot begin with `-` is none of a
+            // `-`-spelled vocabulary.
+            InvocationArgument::Word(InvocationWord::DynamicNonOption)
+                if optional
+                    .values
+                    .iter()
+                    .all(|value| value.value.starts_with('-')) =>
+            {
+                Ok(None)
+            }
+            // Any other computed word could be the option; the layout is
+            // known only when the call is too short to hold it.
+            _ if args
+                .exact_argv_len()
+                .is_some_and(|len| len <= self.fixed_layout_len()) =>
+            {
+                Ok(None)
+            }
+            _ => Err(UnreadableLayout),
+        }
+    }
+
+    /// The number of words the fixed layout spans: one past the highest
+    /// `arg_roles` index.
+    fn fixed_layout_len(&self) -> usize {
+        self.arg_roles
+            .iter()
+            .map(|(index, _)| usize::from(*index) + 1)
+            .max()
+            .unwrap_or(0)
+    }
+
+    /// The call position (0-based after the keyword) of fixed-layout `slot`,
+    /// shifted past the optional word when the call writes one — the mapping
+    /// [`Self::indices_for_call_in`] applies.
+    fn call_index(&self, slot: usize, option_present: bool) -> usize {
+        slot + usize::from(
+            option_present
+                && self
+                    .optional_argument
+                    .is_some_and(|optional| slot >= usize::from(optional.position)),
+        )
     }
 }
 
@@ -1203,6 +1663,48 @@ pub struct MemberBodyCommand {
     pub binds_handle: Option<crate::handle_binding::HandleBindingSpec>,
 }
 
+/// The wrappers a member statement sits inside, as
+/// [`DefinitionBodyGrammar::member_row`] crosses them.
+#[derive(Clone, Copy)]
+struct Wrapping {
+    /// Their combined shift, the innermost wrapper's fields winning.
+    shift: WrapperShift,
+    /// The innermost wrapper's release set, which a wrapped member without one
+    /// of its own inherits (`private method` is 9.0+ because `private` is).
+    surface: Option<&'static [SpecSurface]>,
+}
+
+impl Wrapping {
+    /// Outside every wrapper.
+    const NONE: Self = Self {
+        shift: WrapperShift::NONE,
+        surface: None,
+    };
+}
+
+/// The literal value of argv position `index`, when it is one.
+fn literal_argument(words: InvocationArguments<'_>, index: usize) -> Option<&str> {
+    match words.argv_at(index) {
+        InvocationArgument::Word(InvocationWord::Literal(word)) => Some(word),
+        _ => None,
+    }
+}
+
+/// The operation a slot call applies — [`SlotSpec::split_call`] over
+/// source-aware words: an explicit leading operation word, or the slot's
+/// default for a bare list. `None` for an unrecognised `-word` (real Tcl
+/// aborts the definition) and for a computed first word that could be one.
+fn slot_op_at(slot: SlotSpec, args: InvocationArguments<'_>) -> Option<SlotOp> {
+    match args.argv_at(0) {
+        InvocationArgument::Word(InvocationWord::Literal(word)) if word.starts_with('-') => {
+            SlotOp::parse(word)
+        }
+        InvocationArgument::Word(InvocationWord::Literal(_) | InvocationWord::DynamicNonOption)
+        | InvocationArgument::Missing => Some(slot.default_op),
+        _ => None,
+    }
+}
+
 impl DefinitionBodyGrammar {
     /// Current-namespace policy for executable members of this grammar.
     #[must_use]
@@ -1216,6 +1718,130 @@ impl DefinitionBodyGrammar {
         // `members` is `&'static`, so the borrow can be handed back as static.
         let idx = self.members.iter().position(|m| m.keyword == keyword)?;
         Some(&self.members[idx])
+    }
+
+    /// What one member statement declares: its [`MemberEffect`] read against
+    /// the statement's words (`registry-consumer-contracts.md` § *The
+    /// member-effect descriptor*). One statement at a time — the analyser
+    /// segments a definition body and folds the rows.
+    ///
+    /// `words` are the statement's words and `keyword_index` the member
+    /// keyword's position among them: `0` inside a class body, `1` for the
+    /// single-command `oo::define CLASS method …` form. The row's
+    /// `keyword_index` and `body` index the same words.
+    ///
+    /// A wrapper's prefix form answers the wrapped member's row with the
+    /// wrapper's [`WrapperShift`] applied; its bare block form (`self { … }`,
+    /// `private { … }`) answers an [`MemberEffect::InitScript`] run at
+    /// definition, whose receiver and visibility are the ones the block's own
+    /// members take.
+    ///
+    /// `None` when the keyword is not a literal member of this grammar, when a
+    /// wrapper wraps nothing it recognises, and when the call's layout cannot
+    /// be read — a recognised optional word unavailable in `dialect`, or a
+    /// computed word where the optional word could stand. A computed *name*
+    /// does not abstain the row: its `name` is `None`.
+    #[must_use]
+    pub fn member_row(
+        &self,
+        keyword_index: usize,
+        words: InvocationArguments<'_>,
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> Option<MemberRow> {
+        self.member_row_within(keyword_index, words, dialect, Wrapping::NONE)
+    }
+
+    /// [`Self::member_row`] inside the wrappers already crossed.
+    fn member_row_within(
+        &self,
+        keyword_index: usize,
+        words: InvocationArguments<'_>,
+        dialect: Option<SurfaceQuery<'_>>,
+        outer: Wrapping,
+    ) -> Option<MemberRow> {
+        let member = self.member(literal_argument(words, keyword_index)?)?;
+        let first = keyword_index + 1;
+        let args = words.slice_from(first);
+        if member.kind == MemberKind::Wrapper {
+            let shift = member
+                .wrapper_shift
+                .unwrap_or(WrapperShift::NONE)
+                .within(outer.shift);
+            let surface = member.surface.or(outer.surface);
+            if literal_argument(args, 0).is_some_and(|inner| self.is_member(inner)) {
+                return self.member_row_within(first, words, dialect, Wrapping { shift, surface });
+            }
+            if !member.wrapper_block_body || args.exact_argv_len() != Some(1) {
+                return None;
+            }
+            return Some(MemberRow {
+                keyword_index,
+                effect: MemberEffect::InitScript {
+                    body_slot: 0,
+                    timing: InitTiming::AtDefinition,
+                },
+                receiver: shift.receiver.unwrap_or(MemberReceiver::Instance),
+                name: None,
+                arity: None,
+                visibility: shift.visibility.unwrap_or(DeclaredMemberVisibility::Public),
+                body: Some(OperandId(first)),
+                slot_op: None,
+                surface,
+            });
+        }
+        let option = member.option_in_words(args, dialect).ok()?;
+        let at = |slot: usize| member.call_index(slot, option.is_some());
+        let effect = member.effect;
+        let name_slot = match effect {
+            MemberEffect::Callable { name_slot, .. } => name_slot.map(usize::from),
+            MemberEffect::Forward { name_slot, .. } => Some(usize::from(name_slot)),
+            MemberEffect::StateDeclaration { .. } if !member.all_args_var => {
+                member.indices_for(ArgRole::VarWrite).next()
+            }
+            _ => None,
+        };
+        let name = name_slot
+            .and_then(|slot| literal_argument(args, at(slot)))
+            .map(str::to_owned);
+        let arity = match effect {
+            MemberEffect::Callable {
+                params_slot: Some(slot),
+                ..
+            } => literal_argument(args, at(usize::from(slot))).and_then(MemberArity::parse),
+            _ => None,
+        };
+        let body_slot = match effect {
+            MemberEffect::Callable { body_slot, .. } => body_slot,
+            MemberEffect::InitScript { body_slot, .. } => Some(body_slot),
+            _ => None,
+        };
+        let body = body_slot
+            .map(|slot| at(usize::from(slot)))
+            .filter(|&index| matches!(args.argv_at(index), InvocationArgument::Word(_)))
+            .map(|index| OperandId(first + index));
+        let visibility = option
+            .and_then(|value| value.declared_visibility)
+            .or(outer.shift.visibility)
+            .unwrap_or_else(|| match &name {
+                Some(name) if !self.member_default_exported(name) => {
+                    DeclaredMemberVisibility::Unexported
+                }
+                _ => DeclaredMemberVisibility::Public,
+            });
+        Some(MemberRow {
+            keyword_index,
+            effect,
+            receiver: outer
+                .shift
+                .receiver
+                .unwrap_or_else(|| effect.natural_receiver()),
+            name,
+            arity,
+            visibility,
+            body,
+            slot_op: member.slot.and_then(|slot| slot_op_at(slot, args)),
+            surface: member.surface.or(outer.surface),
+        })
     }
 
     /// Body argument indices for a concrete definition-member invocation —
@@ -1496,20 +2122,89 @@ const NO_ROLES: &[(u8, ArgRole)] = &[];
 /// succeeds on tclsh9.0.
 const TCL90_MEMBERS: &[SpecSurface] = SpecSurface::TCL90_PLUS;
 
+/// `method NAME PARAMS BODY` on the instances.
+const INSTANCE_METHOD: MemberEffect =
+    callable(MemberReceiver::Instance, CallableRole::Method, METHOD_SLOTS);
+/// `classmethod` / `typemethod` / a class-scoped `proc NAME PARAMS BODY`, on
+/// the class or type object.
+const TYPE_METHOD: MemberEffect = callable(
+    MemberReceiver::TypeObject,
+    CallableRole::Method,
+    METHOD_SLOTS,
+);
+/// `constructor PARAMS BODY`.
+const CONSTRUCTOR: MemberEffect = callable(
+    MemberReceiver::Instance,
+    CallableRole::Constructor,
+    (None, Some(0), Some(1)),
+);
+/// `destructor BODY`.
+const DESTRUCTOR: MemberEffect = callable(
+    MemberReceiver::Instance,
+    CallableRole::Destructor,
+    (None, None, Some(0)),
+);
+/// A definition-time script in the first slot (`typeconstructor`,
+/// `initialise`).
+const INIT_AT_DEFINITION: MemberEffect = MemberEffect::InitScript {
+    body_slot: 0,
+    timing: InitTiming::AtDefinition,
+};
+/// The name / parameter-list / body slots of a method-shaped member.
+const METHOD_SLOTS: (Option<u8>, Option<u8>, Option<u8>) = (Some(0), Some(1), Some(2));
+
+/// A [`MemberEffect::Callable`] from its receiver, role and
+/// `(name, params, body)` slots.
+const fn callable(
+    receiver: MemberReceiver,
+    role: CallableRole,
+    (name_slot, params_slot, body_slot): (Option<u8>, Option<u8>, Option<u8>),
+) -> MemberEffect {
+    MemberEffect::Callable {
+        receiver,
+        role,
+        name_slot,
+        params_slot,
+        body_slot,
+    }
+}
+
+/// A [`MemberEffect::StateDeclaration`] of `scope`.
+const fn state(scope: StateScope) -> MemberEffect {
+    MemberEffect::StateDeclaration { scope }
+}
+
+/// A [`MemberEffect::Relation`] feeding `slot`.
+const fn relation(slot: RelationSlot) -> MemberEffect {
+    MemberEffect::Relation { slot }
+}
+
+/// A wrapper that moves nothing and declares `visibility`.
+const fn declaring(visibility: DeclaredMemberVisibility) -> WrapperShift {
+    WrapperShift {
+        receiver: None,
+        visibility: Some(visibility),
+    }
+}
+
 const TCLOO_MEMBERS: &[MemberSpec] = &[
-    MemberSpec::flat("method", METHOD_ROLES).optional_argument(TCLOO_METHOD_VISIBILITY_ARGUMENT),
-    MemberSpec::flat("classmethod", METHOD_ROLES).with_surface(TCL90_MEMBERS),
-    MemberSpec::flat("constructor", CTOR_ROLES),
-    MemberSpec::flat("destructor", BODY0_ROLES),
-    MemberSpec::flat("initialise", BODY0_ROLES).with_surface(TCL90_MEMBERS),
-    MemberSpec::flat("initialize", BODY0_ROLES).with_surface(TCL90_MEMBERS),
+    MemberSpec::flat("method", METHOD_ROLES, INSTANCE_METHOD)
+        .optional_argument(TCLOO_METHOD_VISIBILITY_ARGUMENT),
+    MemberSpec::flat("classmethod", METHOD_ROLES, TYPE_METHOD).with_surface(TCL90_MEMBERS),
+    MemberSpec::flat("constructor", CTOR_ROLES, CONSTRUCTOR),
+    MemberSpec::flat("destructor", BODY0_ROLES, DESTRUCTOR),
+    MemberSpec::flat("initialise", BODY0_ROLES, INIT_AT_DEFINITION).with_surface(TCL90_MEMBERS),
+    MemberSpec::flat("initialize", BODY0_ROLES, INIT_AT_DEFINITION).with_surface(TCL90_MEMBERS),
     // `private` is a prefix wrapper (`private method m {} {…}`, `private
     // variable x`) *and* a bare definition-script block (`private { … }`).
-    MemberSpec::wrapper_or_body("private").with_surface(TCL90_MEMBERS),
+    // The wrapped member keeps its side and is declared private.
+    MemberSpec::wrapper_or_body("private", declaring(DeclaredMemberVisibility::Private))
+        .with_surface(TCL90_MEMBERS),
     // `variable a b c` inside a class body declares every name.  A slot:
     // `-append` default like `filter`, but deduplicating (tclsh 9.0.4:
     // `variable a ; variable a b` → `a b`).
-    MemberSpec::all_vars("variable").slot_spec(SlotOp::Append, true),
+    MemberSpec::all_vars("variable", state(StateScope::PerInstance))
+        .slot_spec(SlotOp::Append, true),
     // Reference-only members: they declare nothing and recurse nothing, but
     // their arguments *name* an entity defined elsewhere — a class or a method
     // — so they are references, not free strings.  All three are slots;
@@ -1517,35 +2212,73 @@ const TCLOO_MEMBERS: &[MemberSpec] = &[
     // 9.0.4's tclOODefineCmds.c, the `--default-operation` forwards in
     // 8.6.16's tclOO.c — identical): `superclass` / `mixin` replace,
     // `filter` appends.
-    MemberSpec::all_refs("superclass", MemberRefKind::Class).slot_spec(SlotOp::Set, false),
-    MemberSpec::all_refs("mixin", MemberRefKind::Class).slot_spec(SlotOp::Set, false),
-    MemberSpec::all_refs("filter", MemberRefKind::Method).slot_spec(SlotOp::Append, false),
-    MemberSpec::all_refs("export", MemberRefKind::Method).visibility(MemberVisibility::Exported),
-    MemberSpec::all_refs("unexport", MemberRefKind::Method)
+    MemberSpec::all_refs(
+        "superclass",
+        MemberRefKind::Class,
+        relation(RelationSlot::Superclass),
+    )
+    .slot_spec(SlotOp::Set, false),
+    MemberSpec::all_refs("mixin", MemberRefKind::Class, relation(RelationSlot::Mixin))
+        .slot_spec(SlotOp::Set, false),
+    MemberSpec::all_refs(
+        "filter",
+        MemberRefKind::Method,
+        relation(RelationSlot::Filter),
+    )
+    .slot_spec(SlotOp::Append, false),
+    MemberSpec::all_refs("export", MemberRefKind::Method, MemberEffect::Visibility)
+        .visibility(MemberVisibility::Exported),
+    MemberSpec::all_refs("unexport", MemberRefKind::Method, MemberEffect::Visibility)
         .visibility(MemberVisibility::Unexported),
-    MemberSpec::all_refs("deletemethod", MemberRefKind::Method)
-        .retracting(MemberRetraction::EveryArgument),
+    MemberSpec::all_refs(
+        "deletemethod",
+        MemberRefKind::Method,
+        MemberEffect::Retraction,
+    )
+    .retracting(MemberRetraction::EveryArgument),
     // `forward NAME cmd ?arg…?` declares NAME as a method; the word after it
     // (`cmd`) is the delegated command's name — a first-class command
     // reference the walker records so navigation reaches it, exactly like the
     // command a `superclass`/`mixin` names.  Any baked arguments after it are
     // ordinary values.
-    MemberSpec::flat("forward", FORWARD_ROLES),
+    MemberSpec::flat(
+        "forward",
+        FORWARD_ROLES,
+        MemberEffect::Forward {
+            name_slot: 0,
+            prefix_slot: 1,
+        },
+    ),
     // `renamemethod FROM TO` — both name methods.
     // Both words name methods; the FROM word is retracted (and the TO word is
     // a member this walker does not record), so the whole call retracts.
-    MemberSpec::all_refs("renamemethod", MemberRefKind::Method)
-        .retracting(MemberRetraction::FirstArgument),
-    MemberSpec::flat("definitionnamespace", DEFINITION_NAMESPACE_ROLES)
-        .optional_argument(TCLOO_DEFINITION_NAMESPACE_ARGUMENT)
-        .with_surface(TCL90_MEMBERS),
+    MemberSpec::all_refs(
+        "renamemethod",
+        MemberRefKind::Method,
+        MemberEffect::Retraction,
+    )
+    .retracting(MemberRetraction::FirstArgument),
+    MemberSpec::flat(
+        "definitionnamespace",
+        DEFINITION_NAMESPACE_ROLES,
+        MemberEffect::Configuration,
+    )
+    .optional_argument(TCLOO_DEFINITION_NAMESPACE_ARGUMENT)
+    .with_surface(TCL90_MEMBERS),
     // Structurally irregular — a nested-member wrapper (`self method …`) and a
     // flag-keyed body form (`property … -get/-set …`); their body indices come
     // from the walker's `MemberKind`-driven handling, not a hardcoded name.
-    MemberSpec::wrapper_or_body("self"),
+    // `self` moves the wrapped member to the class object.
+    MemberSpec::wrapper_or_body(
+        "self",
+        WrapperShift {
+            receiver: Some(MemberReceiver::TypeObject),
+            visibility: None,
+        },
+    ),
     // `property` (and its configurable-class accessor machinery) is a 9.0
     // addition; the 8.6 `TclOO` definition grammar has no such member.
-    MemberSpec::flag_keyed("property").with_surface(TCL90_MEMBERS),
+    MemberSpec::flag_keyed("property", MemberEffect::Configuration).with_surface(TCL90_MEMBERS),
 ];
 
 /// The methods every `TclOO` object inherits from `oo::object` (plus the
@@ -1771,24 +2504,43 @@ const ONCONFIGURE_ROLES: &[(u8, ArgRole)] = &[(1, ArgRole::VarWrite), (2, ArgRol
 const ONCGET_ROLES: &[(u8, ArgRole)] = &[(1, ArgRole::Body)];
 
 const SNIT_MEMBERS: &[MemberSpec] = &[
-    MemberSpec::flat("method", METHOD_ROLES),
-    MemberSpec::flat("typemethod", METHOD_ROLES),
+    MemberSpec::flat("method", METHOD_ROLES, INSTANCE_METHOD),
+    MemberSpec::flat("typemethod", METHOD_ROLES, TYPE_METHOD),
     // A type-private `proc NAME ARGS BODY` — same shape as a method.
-    MemberSpec::flat("proc", METHOD_ROLES),
-    MemberSpec::flat("constructor", CTOR_ROLES),
-    MemberSpec::flat("destructor", BODY0_ROLES),
-    MemberSpec::flat("typeconstructor", BODY0_ROLES),
-    MemberSpec::flat("onconfigure", ONCONFIGURE_ROLES),
-    MemberSpec::flat("oncget", ONCGET_ROLES),
-    MemberSpec::flat("variable", VAR0_ROLES),
-    MemberSpec::flat("typevariable", VAR0_ROLES),
-    MemberSpec::flat("component", VAR0_ROLES),
-    MemberSpec::flat("typecomponent", VAR0_ROLES),
+    MemberSpec::flat("proc", METHOD_ROLES, TYPE_METHOD),
+    MemberSpec::flat("constructor", CTOR_ROLES, CONSTRUCTOR),
+    MemberSpec::flat("destructor", BODY0_ROLES, DESTRUCTOR),
+    MemberSpec::flat("typeconstructor", BODY0_ROLES, INIT_AT_DEFINITION),
+    // `onconfigure -option valueVar BODY` / `oncget -option BODY`: the
+    // option's write and read handlers, named by the option word rather than a
+    // `Name` slot.
+    MemberSpec::flat(
+        "onconfigure",
+        ONCONFIGURE_ROLES,
+        callable(
+            MemberReceiver::Instance,
+            CallableRole::Mutator,
+            (None, None, Some(2)),
+        ),
+    ),
+    MemberSpec::flat(
+        "oncget",
+        ONCGET_ROLES,
+        callable(
+            MemberReceiver::Instance,
+            CallableRole::Accessor,
+            (None, None, Some(1)),
+        ),
+    ),
+    MemberSpec::flat("variable", VAR0_ROLES, state(StateScope::PerInstance)),
+    MemberSpec::flat("typevariable", VAR0_ROLES, state(StateScope::PerType)),
+    MemberSpec::flat("component", VAR0_ROLES, state(StateScope::PerInstance)),
+    MemberSpec::flat("typecomponent", VAR0_ROLES, state(StateScope::PerType)),
     // Name-reference / option-declaration members — recognised keywords with
     // nothing to recurse or declare.
-    MemberSpec::keyword_only("option"),
-    MemberSpec::keyword_only("delegate"),
-    MemberSpec::keyword_only("expose"),
+    MemberSpec::keyword_only("option", state(StateScope::Option)),
+    MemberSpec::keyword_only("delegate", MemberEffect::Configuration),
+    MemberSpec::keyword_only("expose", MemberEffect::Configuration),
 ];
 
 /// The methods every snit **instance** answers to without its type body
@@ -1971,21 +2723,27 @@ const ITCL_VAR_ROLES: &[(u8, ArgRole)] = &[(0, ArgRole::VarWrite), (2, ArgRole::
 const ITCL_COMMON_ROLES: &[(u8, ArgRole)] = &[(0, ArgRole::VarWrite)];
 
 const ITCL_MEMBERS: &[MemberSpec] = &[
-    MemberSpec::flat("method", METHOD_ROLES),
+    MemberSpec::flat("method", METHOD_ROLES, INSTANCE_METHOD),
     // A class-scoped `proc NAME ARGS BODY` — same shape as a method.
-    MemberSpec::flat("proc", METHOD_ROLES),
-    MemberSpec::flat("constructor", CTOR_ROLES),
-    MemberSpec::flat("destructor", BODY0_ROLES),
-    MemberSpec::flat("variable", ITCL_VAR_ROLES),
-    MemberSpec::flat("common", ITCL_COMMON_ROLES),
+    MemberSpec::flat("proc", METHOD_ROLES, TYPE_METHOD),
+    MemberSpec::flat("constructor", CTOR_ROLES, CONSTRUCTOR),
+    MemberSpec::flat("destructor", BODY0_ROLES, DESTRUCTOR),
+    MemberSpec::flat("variable", ITCL_VAR_ROLES, state(StateScope::PerInstance)),
+    MemberSpec::flat("common", ITCL_COMMON_ROLES, state(StateScope::PerType)),
     // Base-class list (multiple inheritance) — each argument names a base
     // class, a first-class command reference exactly like TclOO's `superclass`,
     // so navigation reaches the base class across files.
-    MemberSpec::all_refs("inherit", MemberRefKind::Class),
-    // Access modifiers: prefix wrappers around an inner member keyword.
-    MemberSpec::wrapper("public"),
-    MemberSpec::wrapper("protected"),
-    MemberSpec::wrapper("private"),
+    MemberSpec::all_refs(
+        "inherit",
+        MemberRefKind::Class,
+        relation(RelationSlot::Superclass),
+    ),
+    // Access modifiers: prefix wrappers around an inner member keyword. A
+    // `protected` member is reachable from the class and its heirs but never
+    // dispatched from outside — the unexported tier.
+    MemberSpec::wrapper("public", declaring(DeclaredMemberVisibility::Public)),
+    MemberSpec::wrapper("protected", declaring(DeclaredMemberVisibility::Unexported)),
+    MemberSpec::wrapper("private", declaring(DeclaredMemberVisibility::Private)),
 ];
 
 /// The methods every [incr Tcl] **object** answers to without its class body
@@ -2055,6 +2813,20 @@ pub const ITCL_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     property_accessor_methods: &[],
 };
 
+/// A document-grammar statement: it configures the thing being described
+/// (a spec pack's command, a `.sslictcl` endpoint) and declares no callable,
+/// state, relation or visibility of a runtime object — the
+/// [`MemberEffect::Configuration`] row the `SpecTcl` and `SslicTcl`
+/// grammars are built from.
+const fn setting(keyword: &'static str, arg_roles: &'static [(u8, ArgRole)]) -> MemberSpec {
+    MemberSpec::flat(keyword, arg_roles, MemberEffect::Configuration)
+}
+
+/// A document-grammar statement whose words carry no role — see [`setting`].
+const fn setting_word(keyword: &'static str) -> MemberSpec {
+    MemberSpec::keyword_only(keyword, MemberEffect::Configuration)
+}
+
 // SpecTcl — the `.tclspec` spec-pack DSL's own declaration bodies.
 //
 // `speclib NAME VERSION { … }` is a definition body in exactly the sense the
@@ -2114,14 +2886,13 @@ const SPECTCL_OVERRIDE_ARGUMENT: OptionalMemberArgument = OptionalMemberArgument
 
 /// The five pack-level statements of a `speclib` body.
 const SPECTCL_PACK_MEMBERS: &[MemberSpec] = &[
-    MemberSpec::flat("command", SPECTCL_NAMED_BLOCK_ROLES)
-        .optional_argument(SPECTCL_OVERRIDE_ARGUMENT),
-    MemberSpec::flat("values", SPECTCL_NAMED_BLOCK_ROLES),
-    MemberSpec::flat("hook", SPECTCL_NAMED_HOOK_ROLES),
-    MemberSpec::flat("descriptor", SPECTCL_DESCRIPTOR_ROLES),
+    setting("command", SPECTCL_NAMED_BLOCK_ROLES).optional_argument(SPECTCL_OVERRIDE_ARGUMENT),
+    setting("values", SPECTCL_NAMED_BLOCK_ROLES),
+    setting("hook", SPECTCL_NAMED_HOOK_ROLES),
+    setting("descriptor", SPECTCL_DESCRIPTOR_ROLES),
     // `default KEY VALUE…` sets one pack-wide availability/identity key; it
     // declares no name of its own and holds no script.
-    MemberSpec::keyword_only("default"),
+    setting_word("default"),
 ];
 
 /// The declaration keys of a `command` / `subcommand` body.
@@ -2134,18 +2905,18 @@ const SPECTCL_PACK_MEMBERS: &[MemberSpec] = &[
 const SPECTCL_COMMAND_MEMBERS: &[MemberSpec] = &[
     // Nested blocks: each also a `CommandSpec` carrying the inner grammar,
     // so recursing into one switches vocabulary.
-    MemberSpec::flat("subcommand", SPECTCL_NAMED_BLOCK_ROLES),
-    MemberSpec::flat("hover", BODY0_ROLES),
+    setting("subcommand", SPECTCL_NAMED_BLOCK_ROLES),
+    setting("hover", BODY0_ROLES),
     // `values NAME { … }` is deliberately absent: the memo makes the shared
     // value table a *pack-level* declaration, referenced from here by
     // `arg -values-from NAME` / `option -values-from NAME`.
-    MemberSpec::flat("case_list", BODY0_ROLES),
-    MemberSpec::flat("clause_grammar", BODY0_ROLES),
-    MemberSpec::flat("event_requires", BODY0_ROLES),
-    MemberSpec::flat("world_effects", BODY0_ROLES),
-    MemberSpec::flat("state_transitions", BODY0_ROLES),
-    MemberSpec::flat("definition_body", BODY0_ROLES),
-    MemberSpec::flat("body_scope", BODY0_ROLES),
+    setting("case_list", BODY0_ROLES),
+    setting("clause_grammar", BODY0_ROLES),
+    setting("event_requires", BODY0_ROLES),
+    setting("world_effects", BODY0_ROLES),
+    setting("state_transitions", BODY0_ROLES),
+    setting("definition_body", BODY0_ROLES),
+    setting("body_scope", BODY0_ROLES),
     // `object_class NAME ?-superclass {…}? ?-allow-unknown? { … }` is
     // deliberately NOT a member row. Its block's index is a function of two
     // optional flags of *different widths*, which `OptionalMemberArgument`
@@ -2157,108 +2928,108 @@ const SPECTCL_COMMAND_MEMBERS: &[MemberSpec] = &[
     // switches grammars (`CommandSpec::definition_body`), so nothing is lost
     // but the wrong answer.
     // Hook bodies: a proc-shaped `{words ctx} { … }` pair.
-    MemberSpec::flat("arg_role_resolver", SPECTCL_HOOK_ROLES),
-    MemberSpec::flat("command_prefix_resolver", SPECTCL_HOOK_ROLES),
-    MemberSpec::flat("const_fold", SPECTCL_HOOK_ROLES),
-    MemberSpec::flat("const_fold_versioned", SPECTCL_HOOK_ROLES),
-    MemberSpec::flat("taint_sink_gate", SPECTCL_HOOK_ROLES),
-    MemberSpec::flat("context_gate", SPECTCL_HOOK_ROLES),
-    MemberSpec::flat("literal_argument_validator", SPECTCL_HOOK_ROLES),
-    MemberSpec::flat("clause_shape_check", SPECTCL_HOOK_ROLES),
+    setting("arg_role_resolver", SPECTCL_HOOK_ROLES),
+    setting("command_prefix_resolver", SPECTCL_HOOK_ROLES),
+    setting("const_fold", SPECTCL_HOOK_ROLES),
+    setting("const_fold_versioned", SPECTCL_HOOK_ROLES),
+    setting("taint_sink_gate", SPECTCL_HOOK_ROLES),
+    setting("context_gate", SPECTCL_HOOK_ROLES),
+    setting("literal_argument_validator", SPECTCL_HOOK_ROLES),
+    setting("clause_shape_check", SPECTCL_HOOK_ROLES),
     // Row statements, under the singular-row rule: a field holding a list
     // of rows gets a singular statement, never a nested block.
-    MemberSpec::keyword_only("arg"),
-    MemberSpec::keyword_only("option"),
-    MemberSpec::keyword_only("option_conflict"),
-    MemberSpec::keyword_only("form"),
-    MemberSpec::keyword_only("side_effect"),
-    MemberSpec::keyword_only("repeat"),
-    MemberSpec::keyword_only("manufacturer"),
-    MemberSpec::keyword_only("setter_constraint"),
-    MemberSpec::keyword_only("sub_subcommand"),
-    MemberSpec::keyword_only("oo_context_fact"),
-    MemberSpec::keyword_only("versioned_arg_value"),
-    MemberSpec::keyword_only("event_requirement_form"),
-    MemberSpec::keyword_only("defines_symbol"),
-    MemberSpec::keyword_only("binds_handle"),
-    MemberSpec::keyword_only("frame_effect"),
-    MemberSpec::keyword_only("byte_array_payload"),
-    MemberSpec::keyword_only("deprecation_fix"),
-    MemberSpec::keyword_only("event_handler_priority"),
+    setting_word("arg"),
+    setting_word("option"),
+    setting_word("option_conflict"),
+    setting_word("form"),
+    setting_word("side_effect"),
+    setting_word("repeat"),
+    setting_word("manufacturer"),
+    setting_word("setter_constraint"),
+    setting_word("sub_subcommand"),
+    setting_word("oo_context_fact"),
+    setting_word("versioned_arg_value"),
+    setting_word("event_requirement_form"),
+    setting_word("defines_symbol"),
+    setting_word("binds_handle"),
+    setting_word("frame_effect"),
+    setting_word("byte_array_payload"),
+    setting_word("deprecation_fix"),
+    setting_word("event_handler_priority"),
     // Scalar property words.
-    MemberSpec::keyword_only("traits"),
-    MemberSpec::keyword_only("dialects"),
-    MemberSpec::keyword_only("arity"),
-    MemberSpec::keyword_only("detail"),
-    MemberSpec::keyword_only("synopsis"),
-    MemberSpec::keyword_only("return_type"),
-    MemberSpec::keyword_only("var_write_typing"),
-    MemberSpec::keyword_only("return_elements"),
-    MemberSpec::keyword_only("var_elements_effect"),
-    MemberSpec::keyword_only("representation_effect"),
-    MemberSpec::keyword_only("allow_unknown_subcommands"),
-    MemberSpec::keyword_only("prefix_matching"),
-    MemberSpec::keyword_only("default_form_first_word"),
-    MemberSpec::keyword_only("semantic_operation"),
-    MemberSpec::keyword_only("assigns_variable_at"),
-    MemberSpec::keyword_only("safe_on_uninit"),
-    MemberSpec::keyword_only("lowering_hook"),
-    MemberSpec::keyword_only("codegen_hook"),
-    MemberSpec::keyword_only("inline_codegen_hook"),
-    MemberSpec::keyword_only("analyser_hook"),
-    MemberSpec::keyword_only("bpf_op"),
-    MemberSpec::keyword_only("data_collection"),
-    MemberSpec::keyword_only("command_table_effect"),
-    MemberSpec::keyword_only("result_stability"),
-    MemberSpec::keyword_only("inferred_storage_type"),
-    MemberSpec::keyword_only("required_package"),
-    MemberSpec::keyword_only("excluded_events"),
-    MemberSpec::keyword_only("unsafe_command"),
-    MemberSpec::keyword_only("side_switch_target"),
-    MemberSpec::keyword_only("reserved_trailing_words"),
-    MemberSpec::keyword_only("body_kind"),
-    MemberSpec::keyword_only("body_arg_implicit_args"),
-    MemberSpec::keyword_only("taint_output_sink"),
-    MemberSpec::keyword_only("taint_output_sink_subcommands"),
-    MemberSpec::keyword_only("taint_log_sink"),
-    MemberSpec::keyword_only("taint_network_sink_args"),
-    MemberSpec::keyword_only("taint_code_sink_args"),
-    MemberSpec::keyword_only("taint_interp_eval_subcommands"),
-    MemberSpec::keyword_only("taint_source"),
-    MemberSpec::keyword_only("taint_transform"),
-    MemberSpec::keyword_only("taint_double_encode_colour"),
-    MemberSpec::keyword_only("taint_sink_safe_colour"),
-    MemberSpec::keyword_only("credential_options"),
-    MemberSpec::keyword_only("credential_arg"),
-    MemberSpec::keyword_only("sensitive_headers"),
-    MemberSpec::keyword_only("pattern_type"),
-    MemberSpec::keyword_only("format_string_type"),
-    MemberSpec::keyword_only("tcllib_package"),
-    MemberSpec::keyword_only("introduced_version"),
-    MemberSpec::keyword_only("deprecated_version"),
-    MemberSpec::keyword_only("retired_version"),
-    MemberSpec::keyword_only("warn_missing_import"),
-    MemberSpec::keyword_only("is_namespace_exported"),
-    MemberSpec::keyword_only("xc_translatable"),
-    MemberSpec::keyword_only("deprecated_replacement"),
-    MemberSpec::keyword_only("deprecated_replacement_drop_in"),
-    MemberSpec::keyword_only("byte_array_effect"),
-    MemberSpec::keyword_only("self_receiver_words"),
-    MemberSpec::keyword_only("creates_instance_at"),
-    MemberSpec::keyword_only("defines_command_at"),
-    MemberSpec::keyword_only("implementation_namespace"),
+    setting_word("traits"),
+    setting_word("dialects"),
+    setting_word("arity"),
+    setting_word("detail"),
+    setting_word("synopsis"),
+    setting_word("return_type"),
+    setting_word("var_write_typing"),
+    setting_word("return_elements"),
+    setting_word("var_elements_effect"),
+    setting_word("representation_effect"),
+    setting_word("allow_unknown_subcommands"),
+    setting_word("prefix_matching"),
+    setting_word("default_form_first_word"),
+    setting_word("semantic_operation"),
+    setting_word("assigns_variable_at"),
+    setting_word("safe_on_uninit"),
+    setting_word("lowering_hook"),
+    setting_word("codegen_hook"),
+    setting_word("inline_codegen_hook"),
+    setting_word("analyser_hook"),
+    setting_word("bpf_op"),
+    setting_word("data_collection"),
+    setting_word("command_table_effect"),
+    setting_word("result_stability"),
+    setting_word("inferred_storage_type"),
+    setting_word("required_package"),
+    setting_word("excluded_events"),
+    setting_word("unsafe_command"),
+    setting_word("side_switch_target"),
+    setting_word("reserved_trailing_words"),
+    setting_word("body_kind"),
+    setting_word("body_arg_implicit_args"),
+    setting_word("taint_output_sink"),
+    setting_word("taint_output_sink_subcommands"),
+    setting_word("taint_log_sink"),
+    setting_word("taint_network_sink_args"),
+    setting_word("taint_code_sink_args"),
+    setting_word("taint_interp_eval_subcommands"),
+    setting_word("taint_source"),
+    setting_word("taint_transform"),
+    setting_word("taint_double_encode_colour"),
+    setting_word("taint_sink_safe_colour"),
+    setting_word("credential_options"),
+    setting_word("credential_arg"),
+    setting_word("sensitive_headers"),
+    setting_word("pattern_type"),
+    setting_word("format_string_type"),
+    setting_word("tcllib_package"),
+    setting_word("introduced_version"),
+    setting_word("deprecated_version"),
+    setting_word("retired_version"),
+    setting_word("warn_missing_import"),
+    setting_word("is_namespace_exported"),
+    setting_word("xc_translatable"),
+    setting_word("deprecated_replacement"),
+    setting_word("deprecated_replacement_drop_in"),
+    setting_word("byte_array_effect"),
+    setting_word("self_receiver_words"),
+    setting_word("creates_instance_at"),
+    setting_word("defines_command_at"),
+    setting_word("implementation_namespace"),
     // `SubCommand`-only keys.
-    MemberSpec::keyword_only("pure"),
-    MemberSpec::keyword_only("mutator"),
-    MemberSpec::keyword_only("min_abbrev"),
-    MemberSpec::keyword_only("loop_list_header"),
-    MemberSpec::keyword_only("creates_scope_alias"),
-    MemberSpec::keyword_only("arg_values_accept_prefix"),
-    MemberSpec::keyword_only("destructive"),
-    MemberSpec::keyword_only("returns_path"),
-    MemberSpec::keyword_only("is_unescape"),
-    MemberSpec::keyword_only("cfg_rewrite_name"),
-    MemberSpec::keyword_only("max_leading_option_words"),
+    setting_word("pure"),
+    setting_word("mutator"),
+    setting_word("min_abbrev"),
+    setting_word("loop_list_header"),
+    setting_word("creates_scope_alias"),
+    setting_word("arg_values_accept_prefix"),
+    setting_word("destructive"),
+    setting_word("returns_path"),
+    setting_word("is_unescape"),
+    setting_word("cfg_rewrite_name"),
+    setting_word("max_leading_option_words"),
 ];
 
 /// The six documentation keys of a `hover { … }` block.  `synopsis` and
@@ -2266,12 +3037,12 @@ const SPECTCL_COMMAND_MEMBERS: &[MemberSpec] = &[
 /// / `returns` are the three keys the memo deliberately renames from their
 /// Rust field names (`snippet` / `examples` / `return_value`).
 const SPECTCL_HOVER_MEMBERS: &[MemberSpec] = &[
-    MemberSpec::keyword_only("summary"),
-    MemberSpec::keyword_only("synopsis"),
-    MemberSpec::keyword_only("description"),
-    MemberSpec::keyword_only("source"),
-    MemberSpec::keyword_only("example"),
-    MemberSpec::keyword_only("returns"),
+    setting_word("summary"),
+    setting_word("synopsis"),
+    setting_word("description"),
+    setting_word("source"),
+    setting_word("example"),
+    setting_word("returns"),
 ];
 
 /// A row whose first word is the thing it declares (`value V …`).
@@ -2279,92 +3050,92 @@ const SPECTCL_NAME0_ROLES: &[(u8, ArgRole)] = &[(0, ArgRole::Name)];
 
 /// The one repeatable row of a `values NAME { … }` table:
 /// `value V ?-detail {…}? ?-min-tcl VER? ?-code N?`.
-const SPECTCL_VALUES_MEMBERS: &[MemberSpec] = &[MemberSpec::flat("value", SPECTCL_NAME0_ROLES)];
+const SPECTCL_VALUES_MEMBERS: &[MemberSpec] = &[setting("value", SPECTCL_NAME0_ROLES)];
 
 /// The rows of a `clause_grammar { … }` block.  `head` / `repeated` /
 /// `once` / `tail` each carry a braced *slot list*, which is a role
 /// vocabulary rather than a script, and `group` a layout index, so no member
 /// declares a `Body`; the last three state the chain-level rules.
 const SPECTCL_CLAUSE_GRAMMAR_MEMBERS: &[MemberSpec] = &[
-    MemberSpec::keyword_only("head"),
-    MemberSpec::keyword_only("repeated"),
-    MemberSpec::keyword_only("once"),
-    MemberSpec::keyword_only("group"),
-    MemberSpec::keyword_only("tail"),
-    MemberSpec::keyword_only("fallthrough_body"),
-    MemberSpec::keyword_only("default_clause"),
-    MemberSpec::keyword_only("selection"),
+    setting_word("head"),
+    setting_word("repeated"),
+    setting_word("once"),
+    setting_word("group"),
+    setting_word("tail"),
+    setting_word("fallthrough_body"),
+    setting_word("default_clause"),
+    setting_word("selection"),
 ];
 
 /// The plain-data fields of a `case_list { … }` block. The command-level
 /// switches that pick the match mode, fold case, or end the option run are
 /// the command's own option rows, each declaring its effect.
 const SPECTCL_CASE_LIST_MEMBERS: &[MemberSpec] = &[
-    MemberSpec::keyword_only("subject_args"),
-    MemberSpec::keyword_only("two_arg_optionless_surface"),
-    MemberSpec::keyword_only("fallthrough_body"),
-    MemberSpec::keyword_only("value_options_require_regex"),
-    MemberSpec::keyword_only("clause_flags"),
-    MemberSpec::keyword_only("clause_regex_flag"),
-    MemberSpec::keyword_only("clause_value_flags"),
-    MemberSpec::keyword_only("clause_end_options_flag"),
-    MemberSpec::keyword_only("clause_force_inline_flag"),
-    MemberSpec::keyword_only("clause_force_list_flag"),
-    MemberSpec::keyword_only("clause_force_list_shape"),
-    MemberSpec::keyword_only("allow_omitted_final_body"),
-    MemberSpec::keyword_only("keyword_patterns"),
-    MemberSpec::keyword_only("warn_unbraced_bodies"),
+    setting_word("subject_args"),
+    setting_word("two_arg_optionless_surface"),
+    setting_word("fallthrough_body"),
+    setting_word("value_options_require_regex"),
+    setting_word("clause_flags"),
+    setting_word("clause_regex_flag"),
+    setting_word("clause_value_flags"),
+    setting_word("clause_end_options_flag"),
+    setting_word("clause_force_inline_flag"),
+    setting_word("clause_force_list_flag"),
+    setting_word("clause_force_list_shape"),
+    setting_word("allow_omitted_final_body"),
+    setting_word("keyword_patterns"),
+    setting_word("warn_unbraced_bodies"),
 ];
 
 /// The six scalars of an `event_requires { … }` block.
 const SPECTCL_EVENT_REQUIRES_MEMBERS: &[MemberSpec] = &[
-    MemberSpec::keyword_only("client_side"),
-    MemberSpec::keyword_only("server_side"),
-    MemberSpec::keyword_only("transport"),
-    MemberSpec::keyword_only("profiles"),
-    MemberSpec::keyword_only("also_in"),
-    MemberSpec::keyword_only("flow"),
+    setting_word("client_side"),
+    setting_word("server_side"),
+    setting_word("transport"),
+    setting_word("profiles"),
+    setting_word("also_in"),
+    setting_word("flow"),
 ];
 
 /// The rows of a `world_effects { … }` block.  `resolver` is reference-only
 /// (`-native ID`, `none`, or a derivation keyword) — the memo excludes an
 /// authored resolver, but the *word* is still part of the block's grammar.
 const SPECTCL_WORLD_EFFECTS_MEMBERS: &[MemberSpec] = &[
-    MemberSpec::keyword_only("composition"),
-    MemberSpec::keyword_only("access"),
-    MemberSpec::keyword_only("callback"),
-    MemberSpec::keyword_only("resolver"),
-    MemberSpec::keyword_only("dynamic_fallback"),
+    setting_word("composition"),
+    setting_word("access"),
+    setting_word("callback"),
+    setting_word("resolver"),
+    setting_word("dynamic_fallback"),
 ];
 
 /// The rows of a `state_transitions { … }` block.
 const SPECTCL_STATE_TRANSITIONS_MEMBERS: &[MemberSpec] = &[
-    MemberSpec::keyword_only("composition"),
-    MemberSpec::keyword_only("argument_shape"),
-    MemberSpec::keyword_only("resolver"),
-    MemberSpec::keyword_only("widen"),
-    MemberSpec::keyword_only("covers"),
-    MemberSpec::keyword_only("commit"),
+    setting_word("composition"),
+    setting_word("argument_shape"),
+    setting_word("resolver"),
+    setting_word("widen"),
+    setting_word("covers"),
+    setting_word("commit"),
 ];
 
 /// The rows of a `definition_body { … }` block — `DefinitionBodyGrammar`'s
 /// own fields, which is what makes the DSL able to describe *this* module's
 /// data structure in itself.
 const SPECTCL_DEFINITION_BODY_MEMBERS: &[MemberSpec] = &[
-    MemberSpec::keyword_only("family"),
-    MemberSpec::keyword_only("member"),
-    MemberSpec::keyword_only("member_option"),
-    MemberSpec::keyword_only("implicit_vars"),
-    MemberSpec::keyword_only("member_body_namespace_path"),
-    MemberSpec::keyword_only("builtin_type_methods"),
-    MemberSpec::keyword_only("builtin_object_method"),
-    MemberSpec::keyword_only("builtin_terminating_methods"),
-    MemberSpec::keyword_only("member_body_command"),
-    MemberSpec::keyword_only("bare_word_construction"),
-    MemberSpec::keyword_only("dynamic_method_dispatch"),
-    MemberSpec::keyword_only("manufacturer"),
-    MemberSpec::keyword_only("unknown_dispatch_method"),
-    MemberSpec::keyword_only("property_accessor_methods"),
+    setting_word("family"),
+    setting_word("member"),
+    setting_word("member_option"),
+    setting_word("implicit_vars"),
+    setting_word("member_body_namespace_path"),
+    setting_word("builtin_type_methods"),
+    setting_word("builtin_object_method"),
+    setting_word("builtin_terminating_methods"),
+    setting_word("member_body_command"),
+    setting_word("bare_word_construction"),
+    setting_word("dynamic_method_dispatch"),
+    setting_word("manufacturer"),
+    setting_word("unknown_dispatch_method"),
+    setting_word("property_accessor_methods"),
 ];
 
 /// The rows of a `body_scope { … }` block.  Its `command NAME { … }` is a
@@ -2373,16 +3144,15 @@ const SPECTCL_DEFINITION_BODY_MEMBERS: &[MemberSpec] = &[
 /// which is why it lives in this grammar with its own roles rather than
 /// being borrowed from the pack grammar.
 const SPECTCL_BODY_SCOPE_MEMBERS: &[MemberSpec] = &[
-    MemberSpec::keyword_only("name"),
-    MemberSpec::keyword_only("include_sibling_definitions"),
-    MemberSpec::keyword_only("allow_unknown_commands"),
-    MemberSpec::flat("command", SPECTCL_NAMED_BLOCK_ROLES),
+    setting_word("name"),
+    setting_word("include_sibling_definitions"),
+    setting_word("allow_unknown_commands"),
+    setting("command", SPECTCL_NAMED_BLOCK_ROLES),
 ];
 
 /// The rows of an `object_class NAME { … }` block: `method NAME { … }`
 /// bodies, which reuse the `subcommand` body grammar unchanged.
-const SPECTCL_OBJECT_CLASS_MEMBERS: &[MemberSpec] =
-    &[MemberSpec::flat("method", SPECTCL_NAMED_BLOCK_ROLES)];
+const SPECTCL_OBJECT_CLASS_MEMBERS: &[MemberSpec] = &[setting("method", SPECTCL_NAMED_BLOCK_ROLES)];
 
 /// Build one `SpecTcl` grammar from its member table.  Every field a class
 /// system uses is empty: a spec pack manufactures nothing, dispatches
@@ -2444,8 +3214,7 @@ pub const SPECTCL_OBJECT_CLASS_GRAMMAR: DefinitionBodyGrammar =
 /// `speclib` is the DSL's only possible top-level word (`spec-packs.md`), so
 /// the document grammar is a single row — and that is what lets completion
 /// offer it, and only it, at the root of a pack.
-const SPECTCL_DOCUMENT_MEMBERS: &[MemberSpec] =
-    &[MemberSpec::flat("speclib", SPECTCL_SPECLIB_ROLES)];
+const SPECTCL_DOCUMENT_MEMBERS: &[MemberSpec] = &[setting("speclib", SPECTCL_SPECLIB_ROLES)];
 
 /// `speclib NAME DSL-VERSION { … }` — the name first, the body third.
 const SPECTCL_SPECLIB_ROLES: &[(u8, ArgRole)] = &[(0, ArgRole::Name), (2, ArgRole::Body)];
@@ -2491,107 +3260,105 @@ const SSLICTCL_OPAQUE_SCRIPT_ROLES: &[(u8, ArgRole)] = &[(0, ArgRole::OpaqueScri
 
 /// The rows of a `certificate NAME { … }` block.
 const SSLICTCL_CERTIFICATE_MEMBERS: &[MemberSpec] = &[
-    MemberSpec::keyword_only("pem"),
-    MemberSpec::keyword_only("material"),
-    MemberSpec::keyword_only("key"),
+    setting_word("pem"),
+    setting_word("material"),
+    setting_word("key"),
 ];
 
 /// The rows of an `endpoint NAME { … }` block.
 const SSLICTCL_ENDPOINT_MEMBERS: &[MemberSpec] = &[
-    MemberSpec::keyword_only("hostname"),
-    MemberSpec::keyword_only("protocols"),
-    MemberSpec::keyword_only("ciphers"),
-    MemberSpec::keyword_only("groups"),
-    MemberSpec::keyword_only("signature-schemes"),
-    MemberSpec::keyword_only("certificate-chain"),
-    MemberSpec::keyword_only("chain"),
-    MemberSpec::keyword_only("policy"),
-    MemberSpec::flat("hsts", SSLICTCL_BLOCK_ROLES),
+    setting_word("hostname"),
+    setting_word("protocols"),
+    setting_word("ciphers"),
+    setting_word("groups"),
+    setting_word("signature-schemes"),
+    setting_word("certificate-chain"),
+    setting_word("chain"),
+    setting_word("policy"),
+    setting("hsts", SSLICTCL_BLOCK_ROLES),
 ];
 
 /// The rows of an `hsts { … }` block.
 const SSLICTCL_HSTS_MEMBERS: &[MemberSpec] = &[
-    MemberSpec::keyword_only("enabled"),
-    MemberSpec::keyword_only("max-age"),
-    MemberSpec::keyword_only("include-subdomains"),
-    MemberSpec::keyword_only("preload"),
+    setting_word("enabled"),
+    setting_word("max-age"),
+    setting_word("include-subdomains"),
+    setting_word("preload"),
 ];
 
 /// The rows of a `testssl-import NAME { … }` block.
-const SSLICTCL_TESTSSL_IMPORT_MEMBERS: &[MemberSpec] = &[
-    MemberSpec::keyword_only("schema"),
-    MemberSpec::keyword_only("raw-json-hex"),
-];
+const SSLICTCL_TESTSSL_IMPORT_MEMBERS: &[MemberSpec] =
+    &[setting_word("schema"), setting_word("raw-json-hex")];
 
 /// The rows of a `trust-program NAME { … }` block.
 const SSLICTCL_TRUST_PROGRAM_MEMBERS: &[MemberSpec] = &[
-    MemberSpec::keyword_only("client"),
-    MemberSpec::keyword_only("version"),
-    MemberSpec::keyword_only("generated-at"),
-    MemberSpec::keyword_only("source-name"),
-    MemberSpec::keyword_only("source-url"),
-    MemberSpec::keyword_only("source-revision"),
-    MemberSpec::keyword_only("source-license"),
-    MemberSpec::flat("anchor", SSLICTCL_NAMED_BLOCK_ROLES),
+    setting_word("client"),
+    setting_word("version"),
+    setting_word("generated-at"),
+    setting_word("source-name"),
+    setting_word("source-url"),
+    setting_word("source-revision"),
+    setting_word("source-license"),
+    setting("anchor", SSLICTCL_NAMED_BLOCK_ROLES),
 ];
 
 /// The rows of an `anchor SHA256 { … }` block.
 const SSLICTCL_ANCHOR_MEMBERS: &[MemberSpec] = &[
-    MemberSpec::keyword_only("subject"),
-    MemberSpec::keyword_only("der-base64"),
-    MemberSpec::keyword_only("purposes"),
-    MemberSpec::keyword_only("trusted"),
-    MemberSpec::keyword_only("distrust-after"),
+    setting_word("subject"),
+    setting_word("der-base64"),
+    setting_word("purposes"),
+    setting_word("trusted"),
+    setting_word("distrust-after"),
 ];
 
 /// The rows of a `protocol VERSION { … }` block.
 const SSLICTCL_PROTOCOL_MEMBERS: &[MemberSpec] = &[
-    MemberSpec::keyword_only("status"),
-    MemberSpec::keyword_only("score"),
-    MemberSpec::keyword_only("reference"),
+    setting_word("status"),
+    setting_word("score"),
+    setting_word("reference"),
 ];
 
 /// The rows of a `cipher NAME { … }` block.
 const SSLICTCL_CIPHER_MEMBERS: &[MemberSpec] = &[
-    MemberSpec::keyword_only("iana-name"),
-    MemberSpec::keyword_only("openssl-name"),
-    MemberSpec::keyword_only("key-exchange"),
-    MemberSpec::keyword_only("authentication"),
-    MemberSpec::keyword_only("encryption"),
-    MemberSpec::keyword_only("bits"),
-    MemberSpec::keyword_only("forward-secrecy"),
-    MemberSpec::keyword_only("aead"),
-    MemberSpec::keyword_only("status"),
-    MemberSpec::keyword_only("protocols"),
+    setting_word("iana-name"),
+    setting_word("openssl-name"),
+    setting_word("key-exchange"),
+    setting_word("authentication"),
+    setting_word("encryption"),
+    setting_word("bits"),
+    setting_word("forward-secrecy"),
+    setting_word("aead"),
+    setting_word("status"),
+    setting_word("protocols"),
 ];
 
 /// The one row of a `chain NAME { … }` block.
-const SSLICTCL_CHAIN_MEMBERS: &[MemberSpec] = &[MemberSpec::keyword_only("certificates")];
+const SSLICTCL_CHAIN_MEMBERS: &[MemberSpec] = &[setting_word("certificates")];
 
 /// The rows of a `policy NAME { … }` block.
 const SSLICTCL_POLICY_MEMBERS: &[MemberSpec] = &[
-    MemberSpec::flat("check", SSLICTCL_NAMED_BLOCK_ROLES),
-    MemberSpec::flat("grade", SSLICTCL_BLOCK_ROLES),
+    setting("check", SSLICTCL_NAMED_BLOCK_ROLES),
+    setting("grade", SSLICTCL_BLOCK_ROLES),
 ];
 
 /// The rows of a `check ID { … }` block. `predicate` carries a braced script
 /// the loader retains verbatim and never evaluates, so its word is an
 /// [`ArgRole::OpaqueScript`]: it folds like a body, and no analysis enters it.
 const SSLICTCL_CHECK_MEMBERS: &[MemberSpec] = &[
-    MemberSpec::keyword_only("severity"),
-    MemberSpec::keyword_only("message"),
-    MemberSpec::keyword_only("require-protocols"),
-    MemberSpec::keyword_only("forbid-protocols"),
-    MemberSpec::keyword_only("forbid-ciphers"),
-    MemberSpec::keyword_only("require-forward-secrecy"),
-    MemberSpec::keyword_only("min-key-bits"),
-    MemberSpec::keyword_only("require-hsts"),
-    MemberSpec::keyword_only("min-hsts-max-age"),
-    MemberSpec::flat("predicate", SSLICTCL_OPAQUE_SCRIPT_ROLES),
+    setting_word("severity"),
+    setting_word("message"),
+    setting_word("require-protocols"),
+    setting_word("forbid-protocols"),
+    setting_word("forbid-ciphers"),
+    setting_word("require-forward-secrecy"),
+    setting_word("min-key-bits"),
+    setting_word("require-hsts"),
+    setting_word("min-hsts-max-age"),
+    setting("predicate", SSLICTCL_OPAQUE_SCRIPT_ROLES),
 ];
 
 /// The one row of a `grade { … }` block.
-const SSLICTCL_GRADE_MEMBERS: &[MemberSpec] = &[MemberSpec::keyword_only("minimum")];
+const SSLICTCL_GRADE_MEMBERS: &[MemberSpec] = &[setting_word("minimum")];
 
 /// Build one `SslicTcl` grammar from its member table. Every field a class
 /// system uses is empty: a TLS declaration manufactures nothing, dispatches
@@ -2659,15 +3426,15 @@ pub const SSLICTCL_GRADE_GRAMMAR: DefinitionBodyGrammar = sslictcl_grammar(SSLIC
 /// also fire for a misplaced member row.
 const SSLICTCL_DOCUMENT_MEMBERS: &[MemberSpec] = &[
     // The header names nothing and opens nothing: its word is a version.
-    MemberSpec::keyword_only("sslictcl"),
-    MemberSpec::flat("certificate", SSLICTCL_NAMED_BLOCK_ROLES),
-    MemberSpec::flat("endpoint", SSLICTCL_NAMED_BLOCK_ROLES),
-    MemberSpec::flat("testssl-import", SSLICTCL_NAMED_BLOCK_ROLES),
-    MemberSpec::flat("trust-program", SSLICTCL_NAMED_BLOCK_ROLES),
-    MemberSpec::flat("protocol", SSLICTCL_NAMED_BLOCK_ROLES),
-    MemberSpec::flat("cipher", SSLICTCL_NAMED_BLOCK_ROLES),
-    MemberSpec::flat("chain", SSLICTCL_NAMED_BLOCK_ROLES),
-    MemberSpec::flat("policy", SSLICTCL_NAMED_BLOCK_ROLES),
+    setting_word("sslictcl"),
+    setting("certificate", SSLICTCL_NAMED_BLOCK_ROLES),
+    setting("endpoint", SSLICTCL_NAMED_BLOCK_ROLES),
+    setting("testssl-import", SSLICTCL_NAMED_BLOCK_ROLES),
+    setting("trust-program", SSLICTCL_NAMED_BLOCK_ROLES),
+    setting("protocol", SSLICTCL_NAMED_BLOCK_ROLES),
+    setting("cipher", SSLICTCL_NAMED_BLOCK_ROLES),
+    setting("chain", SSLICTCL_NAMED_BLOCK_ROLES),
+    setting("policy", SSLICTCL_NAMED_BLOCK_ROLES),
 ];
 
 /// The body of a `.sslictcl` **document** — see [`SSLICTCL_DOCUMENT_MEMBERS`].
@@ -2697,10 +3464,13 @@ mod tests {
     use tcl_dialect::model::{Family, SurfaceQuery};
 
     use super::{
-        DeclaredMemberVisibility, DefinerFamily, MemberRetraction, MemberVisibility, SlotOp,
-        SlotSpec, TCLOO_GRAMMAR,
+        CallableRole, DeclaredMemberVisibility, DefinerFamily, ITCL_GRAMMAR, InitTiming,
+        MemberArity, MemberEffect, MemberReceiver, MemberRetraction, MemberRow, MemberVisibility,
+        RelationSlot, SNIT_GRAMMAR, SlotOp, SlotSpec, StateScope, TCL90_MEMBERS, TCLOO_GRAMMAR,
     };
     use crate::arg_role::ArgRole;
+    use crate::invocation_words::{InvocationArguments, InvocationWord};
+    use crate::value_transfer::inputs::OperandId;
 
     fn strs(words: &[&str]) -> Vec<String> {
         words.iter().map(ToString::to_string).collect()
@@ -2971,6 +3741,303 @@ mod tests {
                 .indices_for_call(&instance, ArgRole::NamespaceName)
                 .collect::<Vec<_>>(),
             vec![1]
+        );
+    }
+
+    /// The member row of a literal statement under `TclOO`'s grammar.
+    fn tcloo_row(words: &[&str]) -> Option<MemberRow> {
+        TCLOO_GRAMMAR.member_row(0, InvocationArguments::literals(words), None)
+    }
+
+    /// `method m {a b} {…}` — the plan's first row: a `Callable` on the
+    /// instances, its name, arity and body read off the statement.
+    #[test]
+    fn member_row_reads_a_method_statement() {
+        let row = tcloo_row(&["method", "m", "a b", "return"]).expect("a member row");
+        assert_eq!(
+            row,
+            MemberRow {
+                keyword_index: 0,
+                effect: MemberEffect::Callable {
+                    receiver: MemberReceiver::Instance,
+                    role: CallableRole::Method,
+                    name_slot: Some(0),
+                    params_slot: Some(1),
+                    body_slot: Some(2),
+                },
+                receiver: MemberReceiver::Instance,
+                name: Some("m".to_owned()),
+                arity: Some(MemberArity {
+                    required: 2,
+                    optional: 0,
+                    variadic: false,
+                }),
+                visibility: DeclaredMemberVisibility::Public,
+                body: Some(OperandId(3)),
+                slot_op: None,
+                surface: None,
+            }
+        );
+        // The family's name rule decides an unflagged method's visibility.
+        let upper = tcloo_row(&["method", "Helper", "", ""]).expect("a member row");
+        assert_eq!(upper.visibility, DeclaredMemberVisibility::Unexported);
+    }
+
+    /// `self method` — the wrapper moves the member to the class object and
+    /// the row keys on the wrapped keyword; `self { … }` is a definition-time
+    /// script whose members land on the class object.
+    #[test]
+    fn member_row_applies_the_self_wrapper() {
+        let row = tcloo_row(&["self", "method", "m", "", "return"]).expect("a member row");
+        assert_eq!(row.keyword_index, 1);
+        assert_eq!(row.receiver, MemberReceiver::TypeObject);
+        assert_eq!(row.name.as_deref(), Some("m"));
+        assert_eq!(row.body, Some(OperandId(4)));
+
+        let block = tcloo_row(&["self", "method m {} {}"]).expect("a member row");
+        assert_eq!(block.keyword_index, 0);
+        assert_eq!(
+            block.effect,
+            MemberEffect::InitScript {
+                body_slot: 0,
+                timing: InitTiming::AtDefinition,
+            }
+        );
+        assert_eq!(block.receiver, MemberReceiver::TypeObject);
+        assert_eq!(block.body, Some(OperandId(1)));
+    }
+
+    /// `private` declares the wrapped member private on its own side, and the
+    /// wrapper's 9.0+ release set reaches the row; the member's own option
+    /// word still wins.
+    #[test]
+    fn member_row_applies_the_private_wrapper() {
+        let row = tcloo_row(&["private", "method", "m", "", ""]).expect("a member row");
+        assert_eq!(row.receiver, MemberReceiver::Instance);
+        assert_eq!(row.visibility, DeclaredMemberVisibility::Private);
+        assert_eq!(row.surface, Some(TCL90_MEMBERS));
+
+        let flagged = tcloo_row(&["private", "method", "m", "-export", "", ""]).expect("a row");
+        assert_eq!(flagged.visibility, DeclaredMemberVisibility::Public);
+        assert_eq!(flagged.body, Some(OperandId(5)));
+    }
+
+    /// `superclass -append B` — a `Relation` row carrying the explicit slot
+    /// operation; a bare list takes the slot's default.
+    #[test]
+    fn member_row_reads_a_slot_operation() {
+        let row = tcloo_row(&["superclass", "-append", "B"]).expect("a member row");
+        assert_eq!(
+            row.effect,
+            MemberEffect::Relation {
+                slot: RelationSlot::Superclass,
+            }
+        );
+        assert_eq!(row.slot_op, Some(SlotOp::Append));
+        assert_eq!(row.name, None);
+        let bare = tcloo_row(&["superclass", "B"]).expect("a member row");
+        assert_eq!(bare.slot_op, Some(SlotOp::Set));
+        let bogus = tcloo_row(&["filter", "-bogus", "f"]).expect("a member row");
+        assert_eq!(bogus.slot_op, None, "real Tcl aborts the definition");
+        let dynamic = [InvocationWord::Literal("mixin"), InvocationWord::Dynamic];
+        let computed = TCLOO_GRAMMAR
+            .member_row(0, InvocationArguments::structured(&dynamic), None)
+            .expect("a member row");
+        assert_eq!(
+            computed.slot_op, None,
+            "a computed word could be an operation"
+        );
+    }
+
+    /// `forward f ::x` — a `Forward` row named by its first word.
+    #[test]
+    fn member_row_reads_a_forward() {
+        let row = tcloo_row(&["forward", "f", "::x"]).expect("a member row");
+        assert_eq!(
+            row.effect,
+            MemberEffect::Forward {
+                name_slot: 0,
+                prefix_slot: 1,
+            }
+        );
+        assert_eq!(row.name.as_deref(), Some("f"));
+        assert_eq!(row.receiver, MemberReceiver::Instance);
+        assert_eq!(row.body, None);
+    }
+
+    /// A computed name abstains the name, never the row; a computed word
+    /// where the optional flag could stand abstains the whole row, because
+    /// the params and body positions depend on it.
+    #[test]
+    fn member_row_abstains_on_computed_words() {
+        let words = [
+            InvocationWord::Literal("method"),
+            InvocationWord::Dynamic,
+            InvocationWord::Literal("a"),
+            InvocationWord::Literal("return"),
+        ];
+        let row = TCLOO_GRAMMAR
+            .member_row(0, InvocationArguments::structured(&words), None)
+            .expect("a member row");
+        assert_eq!(row.name, None);
+        assert_eq!(row.body, Some(OperandId(3)));
+        assert_eq!(
+            row.arity,
+            Some(MemberArity {
+                required: 1,
+                optional: 0,
+                variadic: false,
+            })
+        );
+
+        let flagged = [
+            InvocationWord::Literal("method"),
+            InvocationWord::Literal("m"),
+            InvocationWord::Dynamic,
+            InvocationWord::Literal("a"),
+            InvocationWord::Literal("return"),
+        ];
+        assert_eq!(
+            TCLOO_GRAMMAR.member_row(0, InvocationArguments::structured(&flagged), None),
+            None
+        );
+        let keyword = [InvocationWord::Dynamic, InvocationWord::Literal("m")];
+        assert_eq!(
+            TCLOO_GRAMMAR.member_row(0, InvocationArguments::structured(&keyword), None),
+            None
+        );
+    }
+
+    /// The optional flag shifts the params and body, declares the
+    /// visibility, and — being 9.0-only — makes the row unreadable under an
+    /// 8.6 dialect, where the analyser skips the member.
+    #[test]
+    fn member_row_reads_the_optional_flag_by_dialect() {
+        let words = ["method", "m", "-unexport", "a {b 1} args", "return"];
+        let tcl90 = Some(SurfaceQuery::core(Family::Tcl, "9.0"));
+        let row = TCLOO_GRAMMAR
+            .member_row(0, InvocationArguments::literals(&words), tcl90)
+            .expect("a member row");
+        assert_eq!(row.visibility, DeclaredMemberVisibility::Unexported);
+        assert_eq!(row.body, Some(OperandId(4)));
+        assert_eq!(
+            row.arity,
+            Some(MemberArity {
+                required: 1,
+                optional: 1,
+                variadic: true,
+            })
+        );
+        let tcl86 = Some(SurfaceQuery::core(Family::Tcl, "8.6"));
+        assert_eq!(
+            TCLOO_GRAMMAR.member_row(0, InvocationArguments::literals(&words), tcl86),
+            None
+        );
+    }
+
+    /// The single-command `oo::define CLASS member …` form: the keyword sits
+    /// at 1 and every index the row carries is into the same words.
+    #[test]
+    fn member_row_indexes_the_statement_words() {
+        let words = ["::C", "constructor", "x", "return"];
+        let row = TCLOO_GRAMMAR
+            .member_row(1, InvocationArguments::literals(&words), None)
+            .expect("a member row");
+        assert_eq!(row.keyword_index, 1);
+        assert_eq!(
+            row.effect,
+            MemberEffect::Callable {
+                receiver: MemberReceiver::Instance,
+                role: CallableRole::Constructor,
+                name_slot: None,
+                params_slot: Some(0),
+                body_slot: Some(1),
+            }
+        );
+        assert_eq!(row.name, None);
+        assert_eq!(row.body, Some(OperandId(3)));
+        assert_eq!(
+            TCLOO_GRAMMAR.member_row(0, InvocationArguments::literals(&words), None),
+            None
+        );
+    }
+
+    /// Parameter binding is positional: a defaulted parameter before a
+    /// required one is required (tclsh 9.0.4 and 8.6: `proc p {{a 1} b}` →
+    /// `wrong # args: should be "p ?a? b"` for one argument).
+    #[test]
+    fn member_arity_counts_positionally() {
+        let arity = |params| MemberArity::parse(params).expect("a parameter list");
+        assert_eq!(
+            arity("{a 1} b"),
+            MemberArity {
+                required: 2,
+                optional: 0,
+                variadic: false,
+            }
+        );
+        assert_eq!(
+            arity("a {b 2} {c 3} args"),
+            MemberArity {
+                required: 1,
+                optional: 2,
+                variadic: true,
+            }
+        );
+        assert_eq!(
+            arity(""),
+            MemberArity {
+                required: 0,
+                optional: 0,
+                variadic: false,
+            }
+        );
+        assert_eq!(MemberArity::parse("{a"), None);
+        assert_eq!(MemberArity::parse("a::b"), None);
+    }
+
+    /// snit and itcl rows: state on both sides for type-level declarations,
+    /// the option handlers as callables without a name, itcl's modifiers
+    /// declaring visibility.
+    #[test]
+    fn member_row_reads_snit_and_itcl_members() {
+        let snit = |words: &[&str]| {
+            SNIT_GRAMMAR
+                .member_row(0, InvocationArguments::literals(words), None)
+                .expect("a snit member row")
+        };
+        let typevariable = snit(&["typevariable", "count", "0"]);
+        assert_eq!(
+            typevariable.effect,
+            MemberEffect::StateDeclaration {
+                scope: StateScope::PerType,
+            }
+        );
+        assert_eq!(typevariable.receiver, MemberReceiver::Both);
+        assert_eq!(typevariable.name.as_deref(), Some("count"));
+        let onconfigure = snit(&["onconfigure", "-colour", "value", "set x $value"]);
+        assert_eq!(onconfigure.name, None);
+        assert_eq!(onconfigure.body, Some(OperandId(3)));
+        let typeconstructor = snit(&["typeconstructor", "init"]);
+        assert_eq!(typeconstructor.receiver, MemberReceiver::TypeObject);
+        assert_eq!(typeconstructor.body, Some(OperandId(1)));
+        assert_eq!(snit(&["option", "-colour"]).receiver, MemberReceiver::Both);
+
+        let itcl = |words: &[&str]| {
+            ITCL_GRAMMAR
+                .member_row(0, InvocationArguments::literals(words), None)
+                .expect("an itcl member row")
+        };
+        let protected = itcl(&["protected", "method", "m", "", ""]);
+        assert_eq!(protected.visibility, DeclaredMemberVisibility::Unexported);
+        assert_eq!(protected.keyword_index, 1);
+        let common = itcl(&["public", "common", "shared"]);
+        assert_eq!(common.receiver, MemberReceiver::Both);
+        assert_eq!(common.visibility, DeclaredMemberVisibility::Public);
+        assert_eq!(
+            ITCL_GRAMMAR.member_row(0, InvocationArguments::literals(&["public", "{x}"]), None),
+            None,
+            "itcl's modifiers have no block form"
         );
     }
 }

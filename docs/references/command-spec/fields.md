@@ -576,7 +576,7 @@ Named entry points into the compiler for commands that need special-cased loweri
 
 *command and subcommand* — Target-neutral operation identity selected before backend dispatch.
 
-Names the abstract operation the command performs ("list length", "dict get") so the compiler backends can share one implementation across spellings. Only meaningful for commands the compiler executes; user packages leave it unset.
+Names the abstract operation the command performs ("list length", "dict get") so the compiler backends can share one implementation across spellings. A closed vocabulary: `invoke` (the generic call every command falls back to), one of the registry's intrinsics, or one of its structured lowerings — SpecTcl writes it `semantic_operation Invoke`, `{Intrinsic ID}` or `{StructuredLowering ID}`. Only meaningful for commands the compiler executes; user packages leave it unset.
 
 ### `lowering_hook` — Lowering hook
 
@@ -906,11 +906,11 @@ F5 only: describes a `<proto>::payload`-style command's layout so the binary-dat
 
 ### `definition_body` — Definition-body grammar
 
-*command only* — Body grammar for a class or type definer, so the generic walker can recurse.
+*command only* — Body grammar for a class or type definer — a shipped grammar by name, or member rows that each state their effect — so the generic walker can recurse.
 
-For commands that *define a class or type* with a body of member declarations — `oo::class create`, `snit::type`, `itcl::class`. The grammar lists the member keywords (`method`, `constructor`, `variable`, …) and which words of each are the name, the parameter list, and the body, so navigation, folding, and highlighting work inside the class body with no code written.
+For commands that *define a class or type* with a body of member declarations — `oo::class create`, `snit::type`, `itcl::class`. The grammar lists the member keywords (`method`, `constructor`, `variable`, …), which words of each are the name, the parameter list, and the body, and what each member *declares* — its effect: a callable (a method, constructor or option handler, on the instances or the type), a forward, state, a class relation, a visibility change, a retraction, a definition-time script, or configuration. Navigation, folding, highlighting and the class model all read it, with no code written.
 
-Grammars are shared, named descriptors: if your package has its own definer, the studio cannot author the grammar inline — describe the member keywords and their shapes in the issue notes.
+A shipped grammar is picked by name (`tcloo`, `snit`, `itcl`, …). A package with its own definer spells the grammar out in its pack's `definition_body { … }` block — one `member` row per keyword, each with its `-effect` — and the form shows those rows.
 
 ### `manufacturer_methods` — Manufacturer methods
 
@@ -1367,6 +1367,80 @@ When a script-valued option is evaluated relative to the command that receives i
 | `SameInvocation` | may run before the receiving invocation returns |
 | `Deferred` | stored by the receiving invocation for a later callback |
 | `ReferenceOnly` | identified for registration matching or lookup, but not invoked |
+
+### Semantic operation
+
+The target-neutral operation a command performs, as a closed vocabulary: `invoke` — the generic call every command falls back to — an intrinsic (`intrinsic list-length`, `intrinsic dict-get`, …), or a structured lowering (`structured-lowering expr`, …). The compiler backends share one implementation per operation across its spellings.
+
+| Value | Meaning |
+|---|---|
+| `invoke` | generic Tcl argv invocation — the conservative fallback |
+| `intrinsic list-assign` | the `list-assign` intrinsic |
+| `intrinsic list-length` | the `list-length` intrinsic |
+| `intrinsic list-index` | the `list-index` intrinsic |
+| `intrinsic list-range` | the `list-range` intrinsic |
+| `intrinsic list-replace` | the `list-replace` intrinsic |
+| `intrinsic list-insert` | the `list-insert` intrinsic |
+| `intrinsic list-set` | the `list-set` intrinsic |
+| `intrinsic list-construct` | the `list-construct` intrinsic |
+| `intrinsic dict-get` | the `dict-get` intrinsic |
+| `intrinsic dict-set` | the `dict-set` intrinsic |
+| `intrinsic dict-unset` | the `dict-unset` intrinsic |
+| `intrinsic dict-incr` | the `dict-incr` intrinsic |
+| `intrinsic dict-append` | the `dict-append` intrinsic |
+| `intrinsic dict-list-append` | the `dict-list-append` intrinsic |
+| `intrinsic string-index` | the `string-index` intrinsic |
+| `intrinsic string-range` | the `string-range` intrinsic |
+| `intrinsic string-equal` | the `string-equal` intrinsic |
+| `intrinsic string-compare` | the `string-compare` intrinsic |
+| `intrinsic string-replace` | the `string-replace` intrinsic |
+| `intrinsic string-length` | the `string-length` intrinsic |
+| `intrinsic string-is` | the `string-is` intrinsic |
+| `intrinsic regexp` | the `regexp` intrinsic |
+| `intrinsic info-exists` | the `info-exists` intrinsic |
+| `intrinsic array-exists` | the `array-exists` intrinsic |
+| `intrinsic array-names` | the `array-names` intrinsic |
+| `intrinsic array-size` | the `array-size` intrinsic |
+| `intrinsic concat` | the `concat` intrinsic |
+| `intrinsic channel-write` | the `channel-write` intrinsic |
+| `structured-lowering expr` | the `expr` structured-lowering |
+| `structured-lowering return` | the `return` structured-lowering |
+| `structured-lowering set` | the `set` structured-lowering |
+| `structured-lowering incr` | the `incr` structured-lowering |
+| `structured-lowering append-or-lappend` | the `append-or-lappend` structured-lowering |
+| `structured-lowering unset` | the `unset` structured-lowering |
+| `structured-lowering global` | the `global` structured-lowering |
+| `structured-lowering variable` | the `variable` structured-lowering |
+| `structured-lowering upvar` | the `upvar` structured-lowering |
+| `structured-lowering proc` | the `proc` structured-lowering |
+| `structured-lowering when` | the `when` structured-lowering |
+| `structured-lowering namespace-eval` | the `namespace-eval` structured-lowering |
+| `structured-lowering if` | the `if` structured-lowering |
+| `structured-lowering switch` | the `switch` structured-lowering |
+| `structured-lowering for` | the `for` structured-lowering |
+| `structured-lowering while` | the `while` structured-lowering |
+| `structured-lowering foreach` | the `foreach` structured-lowering |
+| `structured-lowering lmap` | the `lmap` structured-lowering |
+| `structured-lowering foreach-line` | the `foreach-line` structured-lowering |
+| `structured-lowering catch` | the `catch` structured-lowering |
+| `structured-lowering try` | the `try` structured-lowering |
+| `structured-lowering dict` | the `dict` structured-lowering |
+| `structured-lowering eval` | the `eval` structured-lowering |
+| `structured-lowering uplevel` | the `uplevel` structured-lowering |
+| `structured-lowering apply` | the `apply` structured-lowering |
+| `structured-lowering array-for` | the `array-for` structured-lowering |
+
+### Shipped definer grammar
+
+The definition-body grammars the registry ships and a pack may name: `TclOO`'s class body (and its configurable variant), snit's type and widget bodies, and [incr Tcl]'s class body. Each lists its member keywords, where each member's name, parameter list and body sit, and what each member declares.
+
+| Value | Meaning |
+|---|---|
+| `tcloo` | the shipped TclOo grammar (19 members) |
+| `tcloo-configurable` | the shipped TclOo grammar (19 members) |
+| `snit` | the shipped Snit grammar (15 members) |
+| `snit-widget` | the shipped Snit grammar (15 members) |
+| `itcl` | the shipped Itcl grammar (10 members) |
 
 ### Side-effect targets
 

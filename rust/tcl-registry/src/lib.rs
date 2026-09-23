@@ -149,8 +149,10 @@ pub mod prelude {
         CompletionPayloadObligations, CompletionValueSemantics,
     };
     pub use crate::definer::{
-        DefinerFamily, DefinitionBodyGrammar, MemberCurrentNamespace, MemberKind, MemberRefKind,
-        MemberRetraction, MemberSpec, MemberVisibility, RetractionWords,
+        CallableRole, DeclaredMemberVisibility, DefinerFamily, DefinitionBodyGrammar, InitTiming,
+        MemberArity, MemberCurrentNamespace, MemberEffect, MemberKind, MemberReceiver,
+        MemberRefKind, MemberRetraction, MemberRow, MemberSpec, MemberVisibility, RelationSlot,
+        RetractionWords, StateScope, WrapperShift,
     };
     pub use crate::deprecation::{DeprecationFixHook, DeprecationFixSafety};
     pub use crate::dispatch_stability::{

@@ -356,7 +356,7 @@ The registry surface is far richer than the analyser's dispatch uses.
 | analyser hook variants | 43 (`AnalyserHookId`, `rust/tcl-registry/src/hooks.rs`) | most exist because a descriptor is missing or unconsumed; the residue is short |
 | scope and interpreter transitions | resolvers on `upvar`, `global`, `variable`, `namespace`, `interp` (`rust/tcl-registry/src/state_transition.rs`) | the variable-alias, namespace, and interpreter families have no consumer under `rust/tcl-compiler/src/analyser/`; `frame_effect` is read only for alias-pair layout and level parsing (`param_traits.rs`, `diagnostics/usage.rs`); the command-binding family only by `interp alias` and the static-proc proof |
 | loop and bind positions | roles and strided `repeated_args` | hardcoded indices in five handlers (`handlers.rs`: `dict for`, `dict update`, `foreach`, `incr`, `append` / `lappend`) |
-| OO member effect | member layout only (`MemberKind`: `Flat`, `Wrapper`, `FlagKeyed`) — `MemberSpec` already carries `arg_roles`, `slot`, `retraction`, `visibility_effect`, and `surface` | an eleven-arm keyword match in `analyser/oo.rs`, plus snit and itcl prefix conventions; the ledger counts about thirty-two rows on this axis |
+| OO member effect | the member-effect descriptor (`MemberSpec::effect`, `MemberEffect`, in `rust/tcl-registry/src/definer.rs`) since step 2, beside the layout (`MemberKind`: `Flat`, `Wrapper`, `FlagKeyed`) and `arg_roles`, `slot`, `retraction`, `visibility_effect`, `surface`; every TclOO, snit, itcl, `SpecTcl` and `SslicTcl` member states one, and `DefinitionBodyGrammar::member_row` answers a statement's row | an eleven-arm keyword match in `analyser/oo.rs`, plus snit and itcl prefix conventions; the ledger counts about thirty-two rows on this axis |
 | clause grammar | the clause-grammar descriptor (`ClauseGrammarSpec`, `rust/tcl-registry/src/clause_grammar.rs`), on `CommandSpec` and `SubCommand` since step 2: ten shipped grammars, one registry walk answering the roles and the clause-shape defect, and the loader reading the same type | three keyword walks (`lower_if` and `lower_try` in `lowering/structured.rs`, `handle_try_command` in `analyser/handlers.rs`), `orphaned_keyword_parent` in `analyser/commands.rs`, and the `on`-`ok` test in `cfg_builder/cfg_lower.rs`, plus `signature_scan/walker.rs`, the editor refactors, and `tcl-mcp`'s `datagroup.rs`; the ledger counts about thirty rows |
 | option-selected semantics | the option-effect descriptor (`OptionSpec::effect`, `option_effect_families`, `option_effect.rs`), which replaced the two native resolvers over a command's own option table — `substitution_resolver` and `lsearch_pattern_args` — in step 2; `pattern_arg_resolver` remains an escape hatch no shipped spec sets | three consumers ask `CommandRegistry::substitutions_performed` correctly; the dynamic-name barrier and the `inner_head_performs_substitution` gate read only the trait, and `push_substituted_commands` re-walks a braced template for regions the answer does not carry |
 
@@ -654,7 +654,18 @@ already states for layouts.
 *layout* fact — `Flat`, `Wrapper`, `FlagKeyed` — and `MemberEffect` is
 what the member declares. The vocabulary is closed and family-neutral: no
 variant names TclOO, snit, or itcl, and `DefinerFamily` stays the only
-place a family is named.
+place a family is named. Step 2 built it in
+`rust/tcl-registry/src/definer.rs` with three adaptations: what a wrapper
+does to the member it wraps is `MemberSpec::wrapper_shift` (a
+`WrapperShift` of an optional receiver and an optional
+`DeclaredMemberVisibility` — `self` moves the member to the type object,
+`private` and itcl's modifiers declare its visibility), since a wrapper's
+effect is `Configuration` and `MemberKind::Wrapper` alone does not say which
+shift it applies; `member_rows` is `DefinitionBodyGrammar::member_row`,
+answering one member statement at a time, since the analyser already
+segments the body; and a wrapper's bare block form answers an
+`InitScript { body_slot: 0, timing: AtDefinition }` row whose receiver and
+visibility are the ones the block's own members take.
 
 ```rust,ignore
 /// Proposed. What one member word of a definition body declares.
@@ -816,22 +827,34 @@ definition_body {
 }
 ```
 
-**The studio field.** `definition_body` is a `DraftOpaque` `GAPS` entry
+**The studio field.** `definition_body` was a `DraftOpaque` `GAPS` entry
 because the shipped grammars are named `&'static` descriptors a draft
 cannot recover — the same reason `case_list` and `body_scope` are there —
-and `-effect` rides the change that moves it out: the variant on
+and `-effect` rode the change that moved it out: the variant on
 `MemberSpec` with its `coverage.rs` witness, the `-effect` flag in the
 loader and the memo's coverage matrix, the renderer emitting it, and the
-studio's member-row form. The `GAPS` row goes the way `object_class`'s
+studio's member-row view. The `GAPS` row went the way `object_class`'s
 did, because a `member` row with an `-effect` is plain data and a draft
-can carry the whole thing.
+carries the whole thing: seeding writes the shipped grammar's name when the
+grammar's data is one of them, and the whole grammar otherwise — every
+`SpecTcl` and `SslicTcl` document grammar, which the round trip now
+carries row by row. The loader grew the rows the inline form needed:
+`member_option` (so `method ?-export?` and `command ?-override?` are
+data), `-shift`, and the `SpecTcl` and `SslicTcl` families.
 
 **Tests.** `rust/tcl-registry/tests/registry_sweep.rs` gains the
 agreement rules: every `MemberSpec` carries an `effect`; a `Callable`
 row's `name_slot`, `params_slot`, and `body_slot` index positions its
 `arg_roles` types as `Name`, `ParamList`, and `Body`; a `Relation` row
 carries a `slot`; a `Retraction` row carries a `retraction`; a
-`Visibility` row carries a `visibility_effect`.
+`Visibility` row carries a `visibility_effect`. As built, the sweep
+(`every_member_carries_an_effect_that_agrees_with_its_roles`) holds the
+callable's slots to exactly the *first* such positions — the reading the
+loader applies to an unwritten slot — reads a `Forward` row's prefix slot
+as the target's `CommandName` (the words after it are prepended
+arguments, not one list), and accepts itcl's `inherit`, which takes no
+slot operation words, as a relation over a plain list of class
+references; `no_member_effect_names_a_family` is the negative.
 `rust/tcl-registry/tests/analyser_hooks.rs`'s
 `analyser_hook_stamps_are_disjoint_from_definer_families` is the existing
 separation gate and is re-baselined as the OO hook variants retire.
@@ -988,10 +1011,10 @@ analyser:
 
 ### The studio round-trip for `semantic_operation`
 
-`semantic_operation` is a `DraftOpaque` entry in
-`rust/tcl-spec-studio/src/render_spectcl.rs`'s `GAPS`, so a draft records
-only that the field is set and the renderer cannot write it back. The gap
-is one-sided: the loader reads the word in full
+`semantic_operation` was a `DraftOpaque` entry in
+`rust/tcl-spec-studio/src/render_spectcl.rs`'s `GAPS`, so a draft recorded
+only that the field was set and the renderer could not write it back. The
+gap was one-sided: the loader reads the word in full
 (`parse_semantic_operation` in `rust/tcl-spectcl/src/loader.rs`, over
 `Invoke` / `{Intrinsic ID}` / `{StructuredLowering ID}`), and
 `SemanticOperationId` is a `Copy` enum of three variants whose payloads
@@ -999,9 +1022,11 @@ are the `IntrinsicId` and `LoweringHookId` catalogues, with `kind_str` and
 `detail_str` already returning the two words the spelling needs. It is
 neither a function pointer nor a reference to a named `&'static`
 descriptor, which are the two reasons `GapKind::DraftOpaque` documents, so
-the designed change is on the draft side only: seeding records the
-`(kind, detail)` pair, the renderer writes it, and the row leaves `GAPS`
-the way `object_class`'s did. Three details are load-bearing:
+the change was on the draft side only: seeding records the `(kind,
+detail)` pair, the renderer writes it in the loader's spelling
+(`tcl_spectcl::semantic_operation_spelling`, over the closed
+`semantic_operations()` vocabulary), and the row left `GAPS` in step 2 the
+way `object_class`'s did. Three details are load-bearing:
 
 - **The catalogue stays closed.** A pack names a member; it never adds
   one. An unknown identifier fails closed through `VocabularyClass`, which
@@ -1015,9 +1040,9 @@ the way `object_class`'s did. Three details are load-bearing:
   the row is what proves the round trip; a `TODO(spectcl)` comment in
   rendered output is the visible trace while the row exists.
 
-**Build-order step.** Step 2, with `definition_body` leaving `GAPS` in the
-same change and `clause_grammar` landing as a field that never needs a row
-there.
+**Build-order step.** Step 2 — landed, with `definition_body` leaving
+`GAPS` in the same change and `clause_grammar` landing as a field that
+never needs a row there.
 
 ## Options with semantic effects
 

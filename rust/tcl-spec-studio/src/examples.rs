@@ -72,8 +72,9 @@ mod fields_core;
 mod groups;
 
 use catalogues::{
-    CATALOGUE_ARG_ROLE, CATALOGUE_DIALECT, CATALOGUE_EFFECT, CATALOGUE_HOOK, CATALOGUE_OPTION,
-    CATALOGUE_PREFIX, CATALOGUE_PRESENTATION, CATALOGUE_TAINT, CATALOGUE_TYPE,
+    CATALOGUE_ARG_ROLE, CATALOGUE_DEFINITION_BODY, CATALOGUE_DIALECT, CATALOGUE_EFFECT,
+    CATALOGUE_HOOK, CATALOGUE_OPTION, CATALOGUE_PREFIX, CATALOGUE_PRESENTATION, CATALOGUE_TAINT,
+    CATALOGUE_TYPE,
 };
 use fields_behaviour::{FIELD_SCRIPT_TIMING, FIELD_TRAITS, FIELD_VARIABLE_SCOPE};
 use groups::{
@@ -135,7 +136,8 @@ fn catalogue_template(id: &str) -> Option<Example> {
         | "prefixMatching"
         | "optionPlacement" => Some(CATALOGUE_ARG_ROLE),
         "loweringHook" | "codegenHook" | "inlineCodegenHook" | "analyserHook"
-        | "returnTypeHook" => Some(CATALOGUE_HOOK),
+        | "returnTypeHook" | "semanticOperation" => Some(CATALOGUE_HOOK),
+        "definitionBody" => Some(CATALOGUE_DEFINITION_BODY),
         "traits" => Some(FIELD_TRAITS),
         "taintColour" | "taintTransformCondition" => Some(CATALOGUE_TAINT),
         "dialects" => Some(CATALOGUE_DIALECT),

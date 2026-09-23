@@ -869,6 +869,69 @@ fn upvar_carries_its_frame_effect_verbatim() {
     assert_eq!(ported.spec.frame_effect, shipped.frame_effect);
 }
 
+/// A `member` row states what the member declares: a row without an
+/// `-effect`, or with one the vocabulary cannot read, is dropped with a
+/// notice rather than guessed at, and the rest of the grammar still loads
+/// (negative). An unwritten `callable` slot is positioned by the row's roles.
+#[test]
+fn a_member_row_without_an_effect_is_dropped_with_a_notice() {
+    use tcl_registry::definer::{CallableRole, MemberEffect, MemberReceiver};
+    let source = r"speclib probe 2.1 {
+command probe::class {
+    arity 2
+    arg 1 -role Body
+    definition_body {
+        family TclOo
+        member method -roles {0 Name 1 ParamList 2 Body}
+        member helper -roles {0 Name 1 ParamList 2 Body} \
+            -effect {callable -receiver instance -role method}
+        member ghost -roles {0 Body} -effect {callable -receiver nowhere -role method}
+    }
+}
+}
+";
+    let pack = spectcl::evaluate_pack(source);
+    let messages: Vec<&str> = pack
+        .notices
+        .iter()
+        .map(|notice| notice.message.as_str())
+        .collect();
+    assert!(
+        messages
+            .iter()
+            .any(|message| message.contains("member `method` has no `-effect`; row dropped")),
+        "{messages:#?}"
+    );
+    assert!(
+        messages
+            .iter()
+            .any(|message| message.contains("unreadable member effect")),
+        "{messages:#?}"
+    );
+    let grammar = pack
+        .command("probe::class")
+        .expect("the command loads")
+        .spec
+        .definition_body
+        .expect("the grammar loads");
+    let keywords: Vec<&str> = grammar
+        .members
+        .iter()
+        .map(|member| member.keyword)
+        .collect();
+    assert_eq!(keywords, ["helper"]);
+    assert_eq!(
+        grammar.members[0].effect,
+        MemberEffect::Callable {
+            receiver: MemberReceiver::Instance,
+            role: CallableRole::Method,
+            name_slot: Some(0),
+            params_slot: Some(1),
+            body_slot: Some(2),
+        }
+    );
+}
+
 /// `snit-type.tclspec` spells `SNIT_GRAMMAR` out inline rather than naming it,
 /// which is the whole reason `definition_body` stopped being reference-only.
 /// The draft records the field as un-round-trippable either way, so this

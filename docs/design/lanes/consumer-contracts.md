@@ -67,6 +67,8 @@ CC2.10, CC2.13, CC2.15) are dispatched separately after the opus items.
 | CC2.6 `OptionEffect` in the registry, and the four clients | landed | `wip(consumer-contracts): step 2 — option effects` | `option_effect.rs`; `OptionSpec::effect` on 1373 literals; `subst`, `lsearch`, `regexp`, `switch` declare effects and families; `substitution_resolver`, `subst_substitutions`, `lsearch_pattern_args` and the five `CaseListSpec` switch fields gone; D2.14–D2.21 |
 | CC2.2 `ClauseGrammarSpec` in the registry | landed | `wip(consumer-contracts): step 2 — clause grammars as data` | `clause_grammar.rs` (the page's types, the walk, `clause_keywords`, `owner_of_keyword`); ten grammars (`if`, `try`, `catch`, `for`, `while`, `foreach`, `lmap`, `dict for`/`dict map` (one), `dict update`, `array for`); `if_arg_roles`, `check_if_shape`, `walk_if`, `try_arg_roles`, `foreach_arg_roles`, `lmap_arg_roles` gone; the two clause-keyword tables derived; E004 through `clause_shape_defect`; D2.22–D2.30 |
 | CC2.3 `clause_grammar` in the loader, renderer and studio | landed | same checkpoint as CC2.2 | loader builds the registry type (`ClauseGrammar`/`ClauseWalk` gone; subcommand grammars; derivations recorded, no placeholders); studio schema/draft/coverage/help/examples/render (Rust and `SpecTcl`)/store and a read-only form view; `if.tclspec` gains timings and its default clause, `foreach.tclspec` its grammar; 24 goldens and the callback inventory regenerated |
+| CC2.4 `MemberEffect` in the registry | landed | `wip(consumer-contracts): step 2 — member effects and the studio round trip` | the page's types verbatim plus `WrapperShift` (D2.31); `MemberSpec::effect` required on every constructor; every TclOO, snit, itcl, `SpecTcl` and `SslicTcl` member states one; `DefinitionBodyGrammar::member_row` (D2.32), `MemberArity::parse`, `MemberEffect::natural_receiver`, the `.tclspec` spellings; sweep `every_member_carries_an_effect_that_agrees_with_its_roles` (D2.33) and `no_member_effect_names_a_family`; eleven `definer.rs` unit rows |
+| CC2.5 `definition_body` and `semantic_operation` leave `GAPS` | landed | same checkpoint as CC2.4 | loader `-effect` / `-shift` on `member`, `member_option` rows, `family SpecTcl\|SslicTcl` (D2.35); studio seeds a shipped grammar by name — by data, not pointer (D2.34) — or the whole block, `semantic_operation` as `{kind, detail}`; both renderers write both; the two `GAPS` rows deleted; `DefinitionBody` / `SemanticOperation` field kinds, catalogues, help, examples, form (D2.36); `snit-type.tclspec` gains `-effect` on every row; the `oo-class` / `snit-type` golden hashes regenerated |
 
 ### Behavioural deltas accepted in step 2
 
@@ -93,6 +95,16 @@ CC2.10, CC2.13, CC2.15) are dispatched separately after the opus items.
   `try` answers as before (`try_grammar_agrees_with_the_retired_walk`).
 - CC2.2: the callback inventory's `dynamic-arg-role` rows for `if`, `try`,
   `foreach` and `lmap` now name a clause grammar as their source.
+- CC2.5: a pack's `member` row without an `-effect` (or with one the
+  vocabulary cannot read) is dropped with a notice; the one checked-in pack
+  with member rows, `snit-type.tclspec`, gained its effects. `member_option`
+  rows load (they were dropped with a notice), and `family SpecTcl` /
+  `family SslicTcl` load (they fell back to `TclOo` with a notice).
+- CC2.5: the studio's round-trip gap register lost `definition_body` and
+  `semantic_operation`; every command of every dialect still round-trips,
+  now with the `SpecTcl` and `SslicTcl` document grammars carried row by row.
+  The `oo-class` and `snit-type` pack goldens' spec hashes moved (the
+  `MemberSpec` literal gained two fields); no EDA pack declares a grammar.
 
 ### CC2.6 — what the next items and the value-transfers lane read
 
@@ -174,6 +186,46 @@ CC2.10, CC2.13, CC2.15) are dispatched separately after the opus items.
   lane's) reads `arg_role_resolver` directly, so `if` / `try` / `foreach` /
   `lmap` operands carry only their static roles there until it reads
   `ResolvedInvocation::clause_plan` or CC2.8's `arg_roles`.
+
+### CC2.4 / CC2.5 — what the next items read
+
+- **The descriptor.** `MemberSpec::effect: MemberEffect` (every member),
+  `MemberSpec::wrapper_shift: Option<WrapperShift>` (wrappers only: `self`
+  → `receiver: TypeObject`; TclOO `private` → `visibility: Private`; itcl
+  `public` / `protected` / `private` → `Public` / `Unexported` /
+  `Private`). The effects are the plan's list; `proc` (snit, itcl) is a
+  type-object `Callable`, `component` / `typecomponent` state per instance /
+  per type, `option` `StateDeclaration { scope: Option }`, and every
+  `SpecTcl` / `SslicTcl` row `Configuration` (D2.7).
+- **The row.** `DefinitionBodyGrammar::member_row(keyword_index, words:
+  InvocationArguments<'_>, dialect: Option<SurfaceQuery<'_>>) ->
+  Option<MemberRow>` (D2.6, D2.32): `keyword_index` and `body` index `words`
+  (the statement's words: 0 in a class body, 1 for `oo::define C method …`);
+  a wrapper's prefix form answers the wrapped member's row with the shift
+  applied, its block form (`self { … }`, exactly one argument) an
+  `InitScript { body_slot: 0, AtDefinition }` row whose receiver and
+  visibility the block's own members take — CC2.11 folds a block by
+  recursing with them. `receiver` is after every shift
+  (`MemberEffect::natural_receiver` before), `visibility` is option word,
+  then wrapper, then `member_default_exported` (nameless rows `Public`),
+  `arity` is `MemberArity::parse` of a literal list (positional), `slot_op`
+  is `SlotSpec::split_call`'s answer (a computed first word abstains).
+- **Vocabulary.** `MemberReceiver` / `CallableRole` / `StateScope` /
+  `RelationSlot` / `InitTiming` each have `ALL`, `spelling`,
+  `from_spelling`; `MemberEffect::KIND_SPELLINGS` / `kind_spelling`;
+  `DeclaredMemberVisibility::ALL` / `from_spelling`; the prelude exports the
+  member-effect types.
+- **Loader and studio.** `tcl_spectcl::SHIPPED_DEFINITION_BODIES` (name ↔
+  grammar, the loader's `definition_body NAME` table),
+  `tcl_spectcl::semantic_operations()` and `semantic_operation_spelling(op)`;
+  `draft::definition_body_block(grammar)` (public) and the draft keys
+  `definition_body` (null / name / block) and `semantic_operation` (null /
+  `{kind, detail}`).
+- **Still keyed on member spellings** (CC2.11's): `apply_oo_subcommand_in`'s
+  arms, `apply_oo_private` / `apply_oo_self`, `extract_property_defs`,
+  `MethodKind::from_str_lossy`, the snit / itcl body walkers and the
+  `constructor` / `destructor` literals in `tcl-lsp-core`. None reads
+  `member_row` yet; CC2.11 moves them onto it.
 
 ## Plan for steps 2–10
 
@@ -2329,6 +2381,69 @@ everything else in this lane is independent of both.
 - **D2.30** The studio files `clause_grammar` under the existing "Clause
   grammars" and "Argument roles" clusters rather than a new "Structure"
   cluster, and the form shows the rows read-only (Q2's assumption).
+- **D2.31** What a wrapper does to the member it wraps is
+  `MemberSpec::wrapper_shift: Option<WrapperShift { receiver:
+  Option<MemberReceiver>, visibility: Option<DeclaredMemberVisibility> }>`,
+  and a wrapper's own effect is `Configuration`; the `.tclspec` spelling is
+  `-shift {?-receiver R? ?-visibility V?}` in the `-effect` value's kebab
+  spellings, and `-shift` on a non-wrapper is ignored with a notice.
+  Reason: the page says a wrapper's side is "already `MemberKind::Wrapper`",
+  but `Wrapper` does not say *which* shift — `self` moves the side,
+  `private` and itcl's modifiers change the visibility — and the page's
+  `MemberRow::receiver` is "after every wrapper shift".
+- **D2.32** `member_row` specifics beyond the page: a nested wrapper's shift
+  composes innermost-first and a wrapped member without a release set
+  inherits the wrapper's (`private method` is 9.0+); the block form is a
+  wrapper with exactly one argument (TclOO's own rule) and answers
+  `InitScript { body_slot: 0, timing: AtDefinition }` (the page's reading of
+  "a wrapper's bare block form"); the row abstains on a computed keyword, an
+  unrecognised wrapped word, a recognised optional word the dialect lacks
+  (the analyser skips that member), and a computed word at the optional
+  position of a call long enough to hold it; a `StateDeclaration`'s name is
+  its first `VarWrite` position unless it declares every argument; per-type
+  and option state land on `Both` (itcl `common`, snit `typevariable` and
+  `option`, the page's own examples) and a definition-time script on the
+  type object; `MemberArity` counts positionally — tclsh 8.6 and 9.0:
+  `proc p {{a 1} b}` → `wrong # args: should be "p ?a? b"` for one
+  argument. Reason: each is the analyser's current reading, so CC2.11's port
+  preserves behaviour.
+- **D2.33** The sweep's agreement rules as built: a `Callable`'s slots are
+  exactly the *first* `Name` / `ParamList` / `Body` positions (the loader's
+  reading of an unwritten slot, so a shipped row's compact spelling is
+  total); a `Forward`'s prefix slot is the target's `CommandName` (or a
+  `CommandPrefix`); a `Relation` is a slot or, like itcl's `inherit`, a
+  plain list of class references. Reason: `forward NAME TARGET ?arg …?`
+  spreads its prefix over words, so re-typing the target `CommandPrefix`
+  would turn a navigation reference into a call site with an appended-arity
+  check the registry has no count for; itcl's `inherit` takes no slot
+  operation words, so a `SlotSpec` would misread `-append` as an operation.
+- **D2.34** Seeding names a shipped grammar when the grammar's *data*
+  (`draft::definition_body_block`) equals it, not by `std::ptr::eq`, and the
+  name list is `tcl_spectcl::SHIPPED_DEFINITION_BODIES`, which the loader's
+  `definition_body NAME` reads too. Reason: the shipped grammars are
+  `const`s, so every `&TCLOO_GRAMMAR` is its own promoted allocation and a
+  pointer comparison is not reliable; by data the snit port (the inline
+  spelling of `SNIT_GRAMMAR`) drafts as `snit`, so the port test needs no
+  `unequal` entry for it.
+- **D2.35** The loader grew three readers beyond `-effect`:
+  `member_option KEYWORD POS VALUE -role R ?-visibility V? ?-dialects D |
+  -available V?` (the README's spelling, `-visibility` in the Debug
+  spelling as that row writes it), `-shift` (D2.31), and `family SpecTcl |
+  SslicTcl`. Reason: every non-shipped grammar in the registry is a
+  `SpecTcl` or `SslicTcl` document grammar, and `speclib`'s `command
+  ?-override?` is an optional member word, so without them "the full block"
+  could not round-trip; `every_shipped_grammar_spelt_inline_reloads_as_itself`
+  holds the class families' inline spelling to the same bar.
+- **D2.36** The studio's `definition_body` form picks a shipped grammar by
+  name and shows an inline grammar's rows (with each effect) read-only —
+  Q2's assumption, as D2.30 — and `semantic_operation` is a picker over the
+  closed vocabulary keyed `KIND ?DETAIL?`. A form-level (`refine`)
+  `semantic_operation` stays native: no shipped form sets one, and the
+  refinement editor has no slot for it. The vocabulary and its `.tclspec`
+  spelling live in the loader (`semantic_operations`,
+  `semantic_operation_spelling`), which the studio renderer calls and
+  `eval_loader`'s `semantic_operation_round_trips_through_the_renderer`
+  reads back, since `tcl-spectcl` cannot depend on the studio.
 - **D3.1** `WorkspaceTrust` lives in `tcl_dialect::model::environment`
   beside `Provenance`; `Tier` is unchanged and the trust rides `PackFile`,
   `MergedPack`, `EvalOptions`, `EvalSnapshotKey` and the cache key.

@@ -422,7 +422,7 @@ the descriptor's own field names, so nothing new has to be learnt:
 | `world_effects` | `composition`, `access …`*, `callback -kinds {…} -reentrancy R`, `resolver`, `dynamic_fallback` |
 | `state_transitions` | `composition`, `argument_shape`, `resolver`, `widen -operands L -domains {…}`*, `covers SOURCE -domains {…}`*, `commit` |
 | `object_class NAME` | `superclasses`, `allow_unknown_methods`, `method_prefix_matching`, `method NAME { … }`* (a `subcommand` body) |
-| `definition_body` | `family`, `member …`*, `member_option …`*, `implicit_vars`, `member_body_namespace_path`, `builtin_type_methods`, `builtin_object_method …`*, `builtin_terminating_methods`, `member_body_command …`*, `bare_word_construction`, `dynamic_method_dispatch`, `manufacturer …`*, `unknown_dispatch_method`, `property_accessor_methods` |
+| `definition_body` | `family`, `member KEYWORD … -effect E ?-shift S?`*, `member_option KEYWORD POS VALUE -role R ?-visibility V?`*, `implicit_vars`, `member_body_namespace_path`, `builtin_type_methods`, `builtin_object_method …`*, `builtin_terminating_methods`, `member_body_command …`*, `bare_word_construction`, `dynamic_method_dispatch`, `manufacturer …`*, `unknown_dispatch_method`, `property_accessor_methods`; effects `{callable -receiver R -role K ?-name N? ?-params N? ?-body N?}`, `{forward ?-name N? ?-prefix N?}`, `{state-declaration per-instance\|per-type\|option}`, `{relation superclass\|mixin\|filter}`, `visibility`, `retraction`, `{init-script ?-body N? -timing at-definition\|at-construction}`, `configuration` |
 | `body_scope` | `name`, `include_sibling_definitions`, `allow_unknown_commands`, `command NAME { … }`* |
 
 `*` marks a repeatable row. `world_effects none` is the one-word
@@ -961,15 +961,21 @@ it is not itself a loadable block; the loadable one is the snit port:
 
 ```tcl
 definition_body {
-    family Snit                              ;# TclOo | Snit | Itcl
-    member method     -roles {0 Name 1 ParamList 2 Body}
-    member superclass -all-refs Class -slot Set
-    member variable   -all-vars -slot Append -dedup
-    member property   -kind FlagKeyed -dialects tcl9.0+
-    member self       -kind Wrapper -block-body
-    member export     -all-refs Method -visibility Exported
-    member renamemethod -all-refs Method -retracts FirstArgument
-    member option                            ;# keyword-only
+    family Snit                  ;# TclOo | Snit | Itcl | SpecTcl | SslicTcl
+    member method     -roles {0 Name 1 ParamList 2 Body} \
+                      -effect {callable -receiver instance -role method}
+    member constructor -roles {0 ParamList 1 Body} \
+                      -effect {callable -receiver instance -role constructor}
+    member forward    -roles {0 Name 1 CommandName} -effect forward
+    member superclass -all-refs Class -slot Set -effect {relation superclass}
+    member variable   -all-vars -slot Append -dedup -effect {state-declaration per-instance}
+    member property   -kind FlagKeyed -dialects tcl9.0+ -effect configuration
+    member self       -kind Wrapper -block-body -roles {0 Body} -effect configuration \
+                      -shift {-receiver type-object}
+    member export     -all-refs Method -visibility Exported -effect visibility
+    member renamemethod -all-refs Method -retracts FirstArgument -effect retraction
+    member typeconstructor -roles {0 Body} -effect {init-script -timing at-definition}
+    member option     -effect {state-declaration option}    ;# keyword-only
     member_option method 1 -export -role Option -visibility Public -dialects tcl9.0+
     implicit_vars {self selfns type options}
     member_body_namespace_path {::oo::Helpers}
@@ -985,8 +991,23 @@ definition_body {
 }
 ```
 
-Four notes:
+Six notes:
 
+- **Every `member` row states its `-effect`** — what the member declares,
+  in the member-effect vocabulary
+  (`docs/design/compiler/registry-consumer-contracts.md` § *The
+  member-effect descriptor*): a callable on the instances or the type
+  object, a forward, state, a relation, a visibility change, a
+  retraction, a definition-time script, or configuration. A row without
+  one is dropped with a notice. A `callable`, `forward` or `init-script`
+  slot left unwritten is the first `-roles` position typed `Name`,
+  `ParamList` or `Body` (a forward's prefix: `CommandName`, then
+  `CommandPrefix`), so the usual row writes only its receiver and role.
+- **A wrapper's `-shift`** says what it does to the member it wraps:
+  `-receiver type-object` moves it to the class object (`self`),
+  `-visibility private|unexported|public` declares its visibility
+  (`private`, itcl's access modifiers). The wrapper's own effect is
+  `configuration`.
 - **`-roles {N ROLE …}` is the field.** `MemberSpec::arg_roles` is a list
   of (index, role) pairs, which is what spells snit's `onconfigure -option
   valueVar BODY`, whose roles sit at 1 and 2 with index 0 carrying none.
@@ -1000,13 +1021,15 @@ Four notes:
   (`bare_word_construction_hint` in `definer.rs`) it is an exact-word set plus a prefix set —
   `%AUTO%`, or a leading `.`. A family whose hint is not that shape
   keeps `-native`.
-- **`member_option` is spelled, not ported.** It is the one
-  `MemberSpec` field the snit grammar does not exercise
-  (`optional_argument`); its witnesses are the shipped TclOO rows
-  `method ?-export|-private|-unexport?` and `definitionnamespace
-  ?-class|-instance?`, read from `definer.rs`. It is a
-  sibling row keyed by the member keyword and the fixed position, so
-  option-bearing members stay rows rather than growing a nested block.
+- **`member_option` is a sibling row.** It is the one `MemberSpec`
+  field the snit grammar does not exercise (`optional_argument`); its
+  witnesses are the shipped TclOO rows `method ?-export|-private|-unexport?`
+  and `definitionnamespace ?-class|-instance?`, and the `SpecTcl`
+  document's `command NAME ?-override?`. Keyed by the member keyword and
+  the fixed position, one row per accepted spelling, so option-bearing
+  members stay rows rather than growing a nested block. Every shipped
+  grammar, spelt out inline this way, reloads as itself — the studio's
+  round-trip gate checks each.
 
 `body_scope` takes the same treatment, one level smaller —
 `ScopedCommandEnv` is four fields and `ScopedCommand` is six:

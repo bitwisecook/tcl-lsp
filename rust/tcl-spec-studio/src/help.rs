@@ -367,8 +367,11 @@ thinned. Use plain `forms` only when the difference is documentation-only.",
         "semantic_operation",
         "Names the abstract operation the command performs (\"list length\", \
 \"dict get\") so the compiler backends can share one implementation across \
-spellings. Only meaningful for commands the compiler executes; user \
-packages leave it unset.",
+spellings. A closed vocabulary: `invoke` (the generic call every command \
+falls back to), one of the registry's intrinsics, or one of its structured \
+lowerings — SpecTcl writes it `semantic_operation Invoke`, `{Intrinsic ID}` \
+or `{StructuredLowering ID}`. Only meaningful for commands the compiler \
+executes; user packages leave it unset.",
     ),
     (
         "completion",
@@ -1026,12 +1029,16 @@ gotcha where `string tolower` quietly destroys bytes.",
         "For commands that *define a class or type* with a body of member \
 declarations — `oo::class create`, `snit::type`, `itcl::class`. The \
 grammar lists the member keywords (`method`, `constructor`, `variable`, \
-…) and which words of each are the name, the parameter list, and the \
-body, so navigation, folding, and highlighting work inside the class \
-body with no code written.\n\nGrammars are shared, named descriptors: if \
-your package has its own definer, the studio cannot author the grammar \
-inline — describe the member keywords and their shapes in the issue \
-notes.",
+…), which words of each are the name, the parameter list, and the \
+body, and what each member *declares* — its effect: a callable (a method, \
+constructor or option handler, on the instances or the type), a forward, \
+state, a class relation, a visibility change, a retraction, a \
+definition-time script, or configuration. Navigation, folding, \
+highlighting and the class model all read it, with no code written.\n\n\
+A shipped grammar is picked by name (`tcloo`, `snit`, `itcl`, …). A \
+package with its own definer spells the grammar out in its pack's \
+`definition_body { … }` block — one `member` row per keyword, each with \
+its `-effect` — and the form shows those rows.",
     ),
     (
         "manufacturer_methods",
@@ -1606,6 +1613,24 @@ means a delay rather than an unknown subcommand.",
 appends when it invokes the callback — exactly N, at least N, or \
 unknown. The callback checker verifies the target procedure accepts \
 them.",
+    ),
+    (
+        "semanticOperation",
+        "Semantic operation",
+        "The target-neutral operation a command performs, as a closed \
+vocabulary: `invoke` — the generic call every command falls back to — an \
+intrinsic (`intrinsic list-length`, `intrinsic dict-get`, …), or a \
+structured lowering (`structured-lowering expr`, …). The compiler \
+backends share one implementation per operation across its spellings.",
+    ),
+    (
+        "definitionBody",
+        "Shipped definer grammar",
+        "The definition-body grammars the registry ships and a pack may name: \
+`TclOO`'s class body (and its configurable variant), snit's type and widget \
+bodies, and [incr Tcl]'s class body. Each lists its member keywords, where \
+each member's name, parameter list and body sit, and what each member \
+declares.",
     ),
     (
         "optionArity",

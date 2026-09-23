@@ -85,8 +85,10 @@ descriptor, or a typed hook ID the consumer dispatches on (`hooks.rs`,
 `side_effects`, `taint_*`, `arg_role_resolver`, `definition_body`) — rather
 than teaching a consumer about the command by name. Argument roles,
 definition-body grammars (TclOO, snit, and itcl are pure data over
-`MemberKind`; a new class system is a `DefinitionBodyGrammar` plus a
-`DefinerFamily` arm, not walker code), taint, side effects, const-fold,
+`MemberKind` and each member's `MemberEffect`; a new class system is a
+`DefinitionBodyGrammar` plus a `DefinerFamily` arm, not walker code, and a
+consumer routes a member by `DefinitionBodyGrammar::member_row`'s effect,
+never its keyword), taint, side effects, const-fold,
 lowering, and codegen all take this shape. Migration debt is tracked, not
 grandfathered: a hardcoded name moves into the registry, never multiplies. The
 irreducible analyser-local semantics (routing a member to its `ClassDef`
