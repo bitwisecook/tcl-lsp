@@ -1046,6 +1046,49 @@ ignored); `tcl-mcp` 99; `tcl-cli --test cli` 41. The crate clippy on
 `cargo check --workspace` is green. Nothing regenerates: no diagnostic
 code, flag or setting changed.
 
+### DP8.2 — O111 is a producer; every publish path is one call
+
+Core: `brace_expr_hints(produced)` replaces `with_brace_expr_hints`. It
+emits one O111 — `Info`, `Producer::Optimiser`, the old message — at the
+span of every W100 the analyser emitted and reads no policy.
+`standalone_findings` adds the hints right after the analyser's findings,
+so `tcl diag`, `lint` and `validate` and the MCP tools carry O111: an
+`OptimiserOff` suppression in the diagnostics verbs and tools, whose
+optimiser is off (D5), and a shown finding in the MCP `code_actions`
+report, where it offers nothing because it carries no fix. `Report::extend`
+lost its last caller and is deleted; the module doc describes the
+producer.
+
+Server: `lifted_report(doc, produced, layers, directives, analysed)` —
+`document_policy`, `document_report`, the analyser skip's declaration when
+`analysed`, `lift_report` — is the one call `publish_fast_tier`,
+`refine_and_lift_diagnostics`, `analysed_diagnostics_for` and
+`f5_model_report` make (the last with `Directives::scan` and `analysed`
+false). The deep push and the pull add `brace_expr_hints` of the analyser's
+findings right after them; the fast tier adds none.
+
+Tests: core `the_brace_expr_hint_follows_every_w100_the_analyser_finds`,
+which replaces `the_brace_expr_hint_follows_every_shown_w100`: the hints sit
+at W100's spans with O111's severity, message and producer; with W100 off
+at the editor layer W100 is `Disabled(Editor)` and O111 shows; under
+`# noqa: W100` W100 is `InlineDirective` and O111 shows; with the optimiser
+switched off O111 is `OptimiserOff` and W100 shows. Server:
+`o111_brace_expr_hint_pairs_with_w100` passes unchanged, and
+`o111_survives_a_disabled_w100` pulls O111 without W100 under a layer's
+`W100 = false` and under a `# noqa: W100`.
+
+Suites: core `--lib` 2325; server `--lib` 590; the whole `e2e` 1597 (5
+ignored), `large_file_publishes_fast_tier_before_deep_tier` and the
+`diagnostics`, `sslictcl` and `bigip` subsets among them; `tcl-mcp` 99;
+`tcl-cli` lib 27, `cli` 41, `compile_verbs` 11, `explorer_gui` 2,
+`pkg_verbs` 13, `spec_verbs` 18. `cargo xtask diag-emission-check` passes:
+O111's construction site is `brace_expr_hints`, under
+`rust/tcl-lsp-core/src`. The crate clippy on `tcl-lsp-core`,
+`tcl-lsp-server`, `tcl-cli` and `tcl-mcp` is clean (a test closure renamed
+for `similar_names`), `cargo fmt --check` is clean on core and server, and
+`cargo check --workspace` is green. The code table is unchanged, so nothing
+regenerates.
+
 ## Plan for finishing slices 4–7 and for slices 8–10
 
 The execution plan from the checkpoint `5bc40e95` to the end of the page's
@@ -3765,7 +3808,7 @@ Each item updates its row in the commit that lands it.
 | DP7.2 | opus | S | done (the merge of `rust`) | the merge commit | core `--lib`, `tcl-cli`, `tcl-mcp`; the crate clippy |
 | DP7.3 | sonnet | S | done (by the lane implementer) | `DP7.3 — code-action end-to-end tests; the last name of the old lifter` | `e2e -- code_actions` (93), `tcl-lsp-core --test code_actions_depth` (46); clippy on core and server |
 | DP8.1 | opus | S | done — § *Slices 8–10 as built* | `DP8.1 — a fact code is never skipped at production` | core `--lib`, server `--lib`, the whole `e2e`, `tcl-mcp`, `tcl-cli --test cli`; clippy on core and server; `cargo check --workspace` |
-| DP8.2 | opus | M | not started | — | — |
+| DP8.2 | opus | M | done — § *Slices 8–10 as built* | `DP8.2 — O111 is a producer; every publish path is one call` | core `--lib`, server `--lib`, the whole `e2e` (with `large_file_publishes_fast_tier_before_deep_tier`), `tcl-mcp`, `tcl-cli`; `diag-emission-check`; clippy on core, server, `tcl-cli` and `tcl-mcp`; `cargo check --workspace` |
 | DP8.3 | sonnet | S | not started | — | — |
 | DP9.1 | sonnet | S | not started | — | — |
 | DP9.2 | sonnet | M | not started | — | — |

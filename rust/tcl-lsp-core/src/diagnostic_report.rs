@@ -28,9 +28,14 @@
 //! surface can forget one of them. What comes back is the report: every
 //! finding, shown or suppressed, with its reason.
 //!
+//! The O111 brace-expression hint is a producer over the analyser's W100
+//! findings, [`brace_expr_hints`]: a surface adds its findings right after
+//! the analyser's, and the policy step decides W100 and O111 each on its own.
+//!
 //! A surface without the salsa database — `tcl diag`, the MCP tools — runs
-//! the analyser and the compiler checks through [`standalone_findings`], so
-//! those surfaces run one producer set rather than each assembling its own.
+//! the analyser, the O111 producer and the compiler checks through
+//! [`standalone_findings`], so those surfaces run one producer set rather
+//! than each assembling its own.
 
 use std::collections::BTreeSet;
 use std::sync::Arc;
@@ -45,9 +50,7 @@ use tcl_dialect::DialectProfile;
 use tcl_lexer::{LexerConfig, LineIndex};
 use tcl_registry::CommandRegistry;
 
-use crate::diagnostic_policy::{
-    Directives, Finding, Outcome, Policy, Producer, Reason, Report, apply,
-};
+use crate::diagnostic_policy::{Directives, Finding, Policy, Producer, Report, apply};
 use crate::source_decode::{DecodeReport, encoding_integrity_diagnostics};
 use crate::source_style::{DEFAULT_LINE_ENDING, style_diagnostics};
 use crate::sslictcl_diagnostics;
@@ -156,12 +159,14 @@ pub struct StandaloneDocument<'a> {
 pub struct StandaloneFindings {
     /// The analysis, whose directive map feeds the policy.
     pub analysis: AnalysisResult,
-    /// The analyser's findings, then the compiler checks', converted.
+    /// The analyser's findings, the O111 hints over them
+    /// ([`brace_expr_hints`]), then the compiler checks', converted.
     pub produced: Vec<Finding>,
 }
 
-/// The analyser under `skip` — the policy's production skip — and the
-/// compiler checks, over one compilation unit.
+/// The analyser under `skip` — the policy's production skip — the O111
+/// producer over its findings, and the compiler checks, over one
+/// compilation unit.
 ///
 /// The producers a surface without the salsa database runs itself, once,
 /// so `tcl diag` and the MCP diagnostics tools run the same ones. It reads
@@ -209,6 +214,8 @@ pub fn standalone_findings(
         .cloned()
         .map(Finding::from)
         .collect();
+    let hints = brace_expr_hints(&produced);
+    produced.extend(hints);
     produced.extend(
         run_all_checks(unit.as_ref(), doc.registry, Some(doc.dialect))
             .into_iter()
@@ -217,51 +224,33 @@ pub fn standalone_findings(
     StandaloneFindings { analysis, produced }
 }
 
-/// The O111 "brace expression performance" hint, paired with every W100 the
-/// report shows, at the same span.
+/// The O111 producer over the unbraced-expression fact: one finding at the
+/// span of every W100 the analyser emitted, whatever policy later decides
+/// for either.
 ///
-/// Transitional, until slice 8 of the page makes O111 a producer over the
-/// unbraced-expression fact: today the hint exists only where a W100
-/// survived presentation policy, and is gated by the optimiser's master
-/// switch and per-code set alone — exactly what the server's
-/// `append_brace_expr_perf_hints` did, stated once here for every surface
-/// that renders the deep set.
+/// `docs/design/compiler/diagnostic-policy.md` § Producers that change: W100
+/// and O111 consume the same fact, and the policy step decides each on its
+/// own — a layer that turns W100 off or a `# noqa: W100` leaves O111
+/// standing, and the optimiser's switch and profile reach O111 where they
+/// reach every other O-code. It reads no policy. W100 is a fact code
+/// ([`crate::diagnostic_policy::FACT_CODES`]), so no layer's skip takes the
+/// input away; a `# tcl-lsp: disable=W100` still does, because the analyser
+/// folds the file directive into its own skip.
 #[must_use]
-pub fn with_brace_expr_hints(mut report: Report, policy: &Policy) -> Report {
-    let hints: Vec<(Finding, Outcome)> = report
-        .shown()
-        .filter(|shown| shown.finding.code == DiagCode::W100)
-        .map(|w100| {
-            let finding = Finding {
-                code: DiagCode::O111,
-                span: w100.finding.span,
-                severity: Severity::Info,
-                message: BRACE_EXPR_HINT.to_owned(),
-                fixes: Vec::new(),
-                data: None,
-                producer: Producer::Optimiser,
-            };
-            let outcome = if !policy.optimiser.enabled {
-                Outcome::Suppressed(Reason::OptimiserOff)
-            } else if policy.optimiser.disabled.contains(&DiagCode::O111) {
-                Outcome::Suppressed(Reason::OptimiserProfile {
-                    profile: policy.optimiser.profile,
-                })
-            } else {
-                Outcome::Shown {
-                    severity: policy
-                        .severity_overrides
-                        .get(&DiagCode::O111)
-                        .copied()
-                        .unwrap_or(finding.severity),
-                    tag: DiagCode::O111.lsp_tag(),
-                }
-            };
-            (finding, outcome)
+pub fn brace_expr_hints(produced: &[Finding]) -> Vec<Finding> {
+    produced
+        .iter()
+        .filter(|f| f.producer == Producer::Analyser && f.code == DiagCode::W100)
+        .map(|w100| Finding {
+            code: DiagCode::O111,
+            span: w100.span,
+            severity: Severity::Info,
+            message: BRACE_EXPR_HINT.to_owned(),
+            fixes: Vec::new(),
+            data: None,
+            producer: Producer::Optimiser,
         })
-        .collect();
-    report.extend(hints);
-    report
+        .collect()
 }
 
 /// The O111 message.
@@ -344,7 +333,7 @@ pub fn optimise_under_policy(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::diagnostic_policy::{OptimiserPolicy, PolicyBuilder, PolicyLayer};
+    use crate::diagnostic_policy::{OptimiserPolicy, Outcome, PolicyBuilder, PolicyLayer, Reason};
     use tcl_lexer::Span;
 
     fn tcl9() -> &'static DialectProfile {
@@ -495,47 +484,109 @@ mod tests {
     }
 
     #[test]
-    fn the_brace_expr_hint_follows_every_shown_w100() {
-        let text = "set a 1\nif [expr $a + 1] { puts x }\n";
-        let analysis = Analyser::new().analyse(text, "tcl9.0");
-        let produced: Vec<Finding> = analysis
-            .diagnostics
-            .iter()
-            .cloned()
-            .map(Finding::from)
-            .collect();
-        let w100: Vec<Span> = produced
-            .iter()
-            .filter(|f| f.code == DiagCode::W100)
-            .map(|f| f.span)
-            .collect();
-        assert!(!w100.is_empty(), "the fixture must carry a W100");
-        let mut policy = PolicyBuilder::new().build();
-        policy.optimiser = OptimiserPolicy::all_on();
-        let report = with_brace_expr_hints(apply(produced.clone(), &policy), &policy);
-        let o111: Vec<Span> = report
-            .shown()
-            .filter(|s| s.finding.code == DiagCode::O111)
-            .map(|s| s.finding.span)
-            .collect();
-        assert_eq!(o111, w100);
+    fn the_brace_expr_hint_follows_every_w100_the_analyser_finds() {
+        // The analyser's findings, the hints over them, and the directive map
+        // the analyser read.
+        let produce = |text: &str| {
+            let analysis = Analyser::new().analyse(text, "tcl9.0");
+            let mut produced: Vec<Finding> = analysis
+                .diagnostics
+                .iter()
+                .cloned()
+                .map(Finding::from)
+                .collect();
+            let hints = brace_expr_hints(&produced);
+            produced.extend(hints);
+            (produced, Directives::from_analysis(&analysis, text))
+        };
+        let spans = |report: &Report, code: DiagCode| -> Vec<Span> {
+            report
+                .iter()
+                .filter(|(f, _)| f.code == code)
+                .map(|(f, _)| f.span)
+                .collect()
+        };
+        let decided = |layer: serde_json::Value, directives: Directives| {
+            let mut policy = PolicyBuilder::new()
+                .layer(PolicyLayer::Editor, &layer)
+                .directives(directives)
+                .build();
+            policy.optimiser = OptimiserPolicy::all_on();
+            policy
+        };
 
-        // The optimiser gates reach the hint; a suppressed W100 yields none.
-        policy.optimiser.enabled = false;
-        let off = with_brace_expr_hints(apply(produced.clone(), &policy), &policy);
+        let text = "set a 1\nif [expr $a + 1] { puts x }\n";
+        let (produced, directives) = produce(text);
+        let hints: Vec<&Finding> = produced
+            .iter()
+            .filter(|f| f.code == DiagCode::O111)
+            .collect();
+        assert!(!hints.is_empty(), "the fixture must carry a W100");
+        for hint in &hints {
+            assert_eq!(hint.producer, Producer::Optimiser);
+            assert_eq!(hint.severity, Severity::Info);
+            assert_eq!(hint.message, BRACE_EXPR_HINT);
+        }
+        let shown = apply(
+            produced.clone(),
+            &decided(serde_json::json!({}), directives.clone()),
+        );
+        assert_eq!(spans(&shown, DiagCode::O111), spans(&shown, DiagCode::W100));
+        let w100 = spans(&shown, DiagCode::W100)[0];
+        let o111_shows = |report: &Report, at: Span| {
+            matches!(
+                report.outcome_for(DiagCode::O111, at),
+                Some(Outcome::Shown { .. })
+            )
+        };
+        assert!(o111_shows(&shown, w100), "{shown:?}");
+
+        // A layer that turns W100 off leaves O111 standing.
+        let off = apply(
+            produced.clone(),
+            &decided(
+                serde_json::json!({ "diagnostics": { "W100": false } }),
+                directives.clone(),
+            ),
+        );
         assert_eq!(
-            off.reason_for(DiagCode::O111, w100[0]),
+            off.reason_for(DiagCode::W100, w100),
+            Some(Reason::Disabled(PolicyLayer::Editor))
+        );
+        assert!(o111_shows(&off, w100), "{off:?}");
+
+        // So does a `# noqa: W100` over the command.
+        let marked = "set a 1\n# noqa: W100\nif [expr $a + 1] { puts x }\n";
+        let (marked_produced, marked_directives) = produce(marked);
+        let noqa = apply(
+            marked_produced,
+            &decided(serde_json::json!({}), marked_directives),
+        );
+        let marked_w100 = spans(&noqa, DiagCode::W100)[0];
+        assert!(
+            matches!(
+                noqa.reason_for(DiagCode::W100, marked_w100),
+                Some(Reason::InlineDirective { .. })
+            ),
+            "{noqa:?}"
+        );
+        assert!(o111_shows(&noqa, marked_w100), "{noqa:?}");
+
+        // The optimiser's switch reaches O111 as it reaches every O-code.
+        let mut switched_off = decided(serde_json::json!({}), directives);
+        switched_off.optimiser.enabled = false;
+        let gated = apply(produced, &switched_off);
+        assert_eq!(
+            gated.reason_for(DiagCode::O111, w100),
             Some(Reason::OptimiserOff)
         );
-        let mut hidden = PolicyBuilder::new()
-            .layer(
-                PolicyLayer::Editor,
-                &serde_json::json!({ "diagnostics": { "W100": false } }),
-            )
-            .build();
-        hidden.optimiser = OptimiserPolicy::all_on();
-        let none = with_brace_expr_hints(apply(produced, &hidden), &hidden);
-        assert!(none.iter().all(|(f, _)| f.code != DiagCode::O111));
+        assert!(
+            matches!(
+                gated.outcome_for(DiagCode::W100, w100),
+                Some(Outcome::Shown { .. })
+            ),
+            "{gated:?}"
+        );
     }
 
     #[test]

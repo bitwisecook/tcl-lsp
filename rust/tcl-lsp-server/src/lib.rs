@@ -6053,12 +6053,6 @@ async fn publish_fast_tier(
     let style_line_length = lift_inputs.style_line_length;
     let dialect = lift_inputs.dialect;
     let lifted = crate::rt::spawn_blocking(move || {
-        let policy = document_policy(
-            &policy_layers,
-            decode_report.as_ref(),
-            dialect,
-            core_policy::Directives::from_analysis(&analysis_lifts, &text),
-        );
         let analysis_text = tcl_lexer::normalise_lone_cr(&text);
         let doc = core_report::DocumentSource {
             text: &text,
@@ -6069,9 +6063,15 @@ async fn publish_fast_tier(
                 line_length: style_line_length as usize,
             },
         };
-        let mut report = core_report::document_report(&doc, analyser_findings(&fast), &policy);
-        report.declare_analyser_skip(&policy);
-        lift_report(&text, &report)
+        // No O111: it stays deep-tier (tier membership is `is_fast_tier`'s
+        // scheduling, not policy), and the deep publish carries it.
+        lifted_report(
+            &doc,
+            analyser_findings(&fast),
+            &policy_layers,
+            core_policy::Directives::from_analysis(&analysis_lifts, &text),
+            true,
+        )
     })
     .await;
     if let Ok(diagnostics) = lifted {
@@ -6191,6 +6191,31 @@ fn document_policy(
         .build()
 }
 
+/// One document's LSP publish set: `produced` plus the report's own
+/// producers under `layers` and `directives`, the analyser's skip declared
+/// when an analyser ran, lifted through the LSP adapter.
+///
+/// The one function every report path renders through — the fast and deep
+/// pushes, the pull and the F5 model report — so the paths differ only in
+/// what they produced (`docs/design/compiler/diagnostic-policy.md`
+/// § Adapters: "the three publish paths become one call each on the same
+/// function"). `analysed` is false where no Tcl analyser ran, so no skip is
+/// declared for it.
+fn lifted_report(
+    doc: &core_report::DocumentSource<'_>,
+    produced: Vec<core_policy::Finding>,
+    layers: &PolicyLayers,
+    directives: core_policy::Directives,
+    analysed: bool,
+) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
+    let policy = document_policy(layers, doc.decode, doc.dialect, directives);
+    let mut report = core_report::document_report(doc, produced, &policy);
+    if analysed {
+        report.declare_analyser_skip(&policy);
+    }
+    lift_report(doc.text, &report)
+}
+
 /// The LSP adapter (`docs/design/compiler/diagnostic-policy.md` § Adapters):
 /// the report's shown findings on the wire, and nothing else. A `Span`
 /// becomes a UTF-16 `Range` through [`lift_span`], the resolved severity
@@ -6203,8 +6228,8 @@ fn document_policy(
 /// all-or-nothing (#2123, #2149). A `hint_only` rewrite, whose span covers
 /// the whole consuming statement, and a group that lost a member to the
 /// policy carry no payload. Nothing here decides anything, and nothing here
-/// may: the three publish paths, the pull provider and the F5 report are one
-/// call each on this function.
+/// may: the three publish paths, the pull provider and the F5 report reach it
+/// through [`lifted_report`], one call each.
 fn lift_report(
     text: &str,
     report: &core_policy::Report,
@@ -6388,12 +6413,6 @@ fn f5_model_report(
     layers: &PolicyLayers,
     produced: Vec<core_policy::Finding>,
 ) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
-    let policy = document_policy(
-        layers,
-        doc.decode_report,
-        doc.dialect,
-        core_policy::Directives::scan(doc.text, doc.dialect),
-    );
     let source = core_report::DocumentSource {
         text: doc.text,
         analysis_text: doc.analysis_text,
@@ -6401,8 +6420,13 @@ fn f5_model_report(
         dialect: doc.dialect,
         pass: core_report::SourcePass::IntegrityOnly,
     };
-    let report = core_report::document_report(&source, produced, &policy);
-    lift_report(doc.text, &report)
+    lifted_report(
+        &source,
+        produced,
+        layers,
+        core_policy::Directives::scan(doc.text, doc.dialect),
+        false,
+    )
 }
 
 /// The document-local settings shared by every pull-diagnostic workspace
@@ -6481,19 +6505,16 @@ async fn refine_and_lift_diagnostics(
     let xc_for_irules = inputs.xc_diagnostics && inputs.dialect.is_irules();
     let compiler_diags = Arc::clone(compiler_diags);
     crate::rt::spawn_blocking(move || {
-        let policy = document_policy(
-            &policy_layers,
-            decode_report.as_ref(),
-            dialect,
-            core_policy::Directives::from_analysis(&analysis_lifts, &lift_text),
-        );
         // `analyser_diags` includes opt-in callback checks when enabled; direct
         // cross-file verdicts have already been settled by the workspace index.
-        // The compiler checks and the optimiser's rewrites follow, then — opt-in
-        // — the XC100-301 translatability findings for `f5-irules` documents
-        // when `xcDiagnostics` is enabled. The source-style pass and, for a
+        // The O111 hints over the analyser's W100s follow them, then the
+        // compiler checks and the optimiser's rewrites, then — opt-in — the
+        // XC100-301 translatability findings for `f5-irules` documents when
+        // `xcDiagnostics` is enabled. The source-style pass and, for a
         // `.sslictcl` document, the loader's findings are the report's own.
         let mut produced = analyser_findings(&analyser_diags);
+        let hints = core_report::brace_expr_hints(&produced);
+        produced.extend(hints);
         produced.extend(compiler_findings(&compiler_diags));
         if xc_for_irules {
             produced.extend(xc_findings(&lift_text));
@@ -6512,10 +6533,13 @@ async fn refine_and_lift_diagnostics(
                 line_length: style_line_length as usize,
             },
         };
-        let report = core_report::document_report(&doc, produced, &policy);
-        let mut report = core_report::with_brace_expr_hints(report, &policy);
-        report.declare_analyser_skip(&policy);
-        lift_report(&lift_text, &report)
+        lifted_report(
+            &doc,
+            produced,
+            &policy_layers,
+            core_policy::Directives::from_analysis(&analysis_lifts, &lift_text),
+            true,
+        )
     })
     .await
 }
@@ -20495,14 +20519,10 @@ impl Backend {
             .await;
         let style_line_length = self.resolved_style_line_length(uri).await;
         crate::rt::spawn_blocking(move || {
-            let policy = document_policy(
-                &policy_layers,
-                decode_report.as_ref(),
-                profile,
-                core_policy::Directives::from_analysis(&analysis, &analysis_text),
-            );
             // The push path's producer set, in the push path's order.
             let mut produced = analyser_findings(&analyser_diags);
+            let hints = core_report::brace_expr_hints(&produced);
+            produced.extend(hints);
             produced.extend(compiler_findings(&compiler_diags));
             if xc_for_irules {
                 produced.extend(xc_findings(&analysis_text));
@@ -20516,10 +20536,13 @@ impl Backend {
                     line_length: style_line_length as usize,
                 },
             };
-            let report = core_report::document_report(&doc, produced, &policy);
-            let mut report = core_report::with_brace_expr_hints(report, &policy);
-            report.declare_analyser_skip(&policy);
-            lift_report(&text, &report)
+            lifted_report(
+                &doc,
+                produced,
+                &policy_layers,
+                core_policy::Directives::from_analysis(&analysis, &analysis_text),
+                true,
+            )
         })
         .await
         .unwrap_or_default()
@@ -52419,6 +52442,60 @@ proc p {} {
         assert!(
             !off_codes.iter().any(|c| c == "O111"),
             "O111 must be gated off when the optimiser is disabled: {off_codes:?}",
+        );
+    }
+
+    /// Disabling W100 does not silence O111 (DP8.2): the analyser computes
+    /// W100, a fact code, and the policy step decides the two on their own —
+    /// a layer's `W100 = false` or a `# noqa: W100` hides W100 and leaves
+    /// the O111 over the same expression.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn o111_survives_a_disabled_w100() {
+        let codes = |ds: &[tower_lsp_server::ls_types::Diagnostic]| -> Vec<String> {
+            ds.iter()
+                .filter_map(|d| match &d.code {
+                    Some(tower_lsp_server::ls_types::NumberOrString::String(c)) => Some(c.clone()),
+                    _ => None,
+                })
+                .collect()
+        };
+        let backend = test_backend();
+        backend
+            .apply_global_config(&serde_json::json!({ "diagnostics": { "W100": false } }))
+            .await;
+        let uri = Uri::from_str("file:///o111-disabled.tcl").unwrap();
+        let src = "set y [expr $a + $b]\n";
+        register(&backend, &uri, src).await;
+        let disabled = codes(
+            &backend
+                .full_diagnostics_for(&uri, Arc::from(src), "tcl8.6".to_owned(), "tcl")
+                .await,
+        );
+        assert!(
+            disabled.iter().any(|c| c == "O111"),
+            "O111 stands: {disabled:?}"
+        );
+        assert!(
+            !disabled.iter().any(|c| c == "W100"),
+            "W100 is off: {disabled:?}"
+        );
+
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///o111-noqa.tcl").unwrap();
+        let src = "# noqa: W100\nset y [expr $a + $b]\n";
+        register(&backend, &uri, src).await;
+        let marked = codes(
+            &backend
+                .full_diagnostics_for(&uri, Arc::from(src), "tcl8.6".to_owned(), "tcl")
+                .await,
+        );
+        assert!(
+            marked.iter().any(|c| c == "O111"),
+            "O111 stands: {marked:?}"
+        );
+        assert!(
+            !marked.iter().any(|c| c == "W100"),
+            "W100 is silenced: {marked:?}"
         );
     }
 

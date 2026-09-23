@@ -594,11 +594,6 @@ impl Report {
         &self.outcomes
     }
 
-    /// Append `pairs` the caller decided itself, keeping the producers' order.
-    pub fn extend(&mut self, pairs: impl IntoIterator<Item = (Finding, Outcome)>) {
-        self.outcomes.extend(pairs);
-    }
-
     /// How many findings the report holds, shown or not.
     #[must_use]
     pub fn len(&self) -> usize {
