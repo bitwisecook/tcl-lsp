@@ -33670,6 +33670,41 @@ mod tests {
         assert!(diags.iter().all(|d| d.source.as_deref() == Some("tcl-lsp")));
     }
 
+    /// W107 in a file whose lines end with a lone `\r` is published at the
+    /// U+FFFD — line 2, character 6 — where the same bytes with `\n`
+    /// endings put it, not clamped to the end of line 0.
+    #[test]
+    fn the_report_places_w107_on_the_lsp_line_model() {
+        let (text, decode) =
+            tcl_lsp_core::source_decode::decode_source(b"set a 1\rset b 2\rputs \"\xff bad\"\n");
+        let analysis_text = tcl_lexer::normalise_lone_cr(&text);
+        let doc = core_report::DocumentSource {
+            text: &text,
+            analysis_text: &analysis_text,
+            decode: Some(&decode),
+            dialect: tcl_lsp_core::profile_for_dialect("tcl9.0"),
+            pass: core_report::SourcePass::Tcl {
+                line_length: tcl_lsp_core::source_style::DEFAULT_LINE_LENGTH,
+            },
+        };
+        let report = core_report::document_report(
+            &doc,
+            Vec::new(),
+            &core_policy::PolicyBuilder::new().build(),
+        );
+        let w107 = lift_report(&text, &report)
+            .into_iter()
+            .find(|d| {
+                d.code
+                    == Some(tower_lsp_server::ls_types::NumberOrString::String(
+                        "W107".to_owned(),
+                    ))
+            })
+            .expect("W107 is published");
+        assert_eq!((w107.range.start.line, w107.range.start.character), (2, 6));
+        assert_eq!((w107.range.end.line, w107.range.end.character), (2, 7));
+    }
+
     /// A file-level `# tcl-lsp: disable=W111` directive (recorded by
     /// the analyser against the `-1` suppression bucket) must drop
     /// W111 from the lifted style set while leaving the other style
@@ -38576,6 +38611,39 @@ proc p {} {
                 .package_provides,
             vec![("globalExt".to_owned(), vec!["Tk".to_owned()])],
             "no folder match falls back to the global map"
+        );
+    }
+
+    /// `getEffectiveConfig` and the INI export list the session's analyser
+    /// skip, which holds catalogued codes only: an uncatalogued spelling is no
+    /// code the analyser could leave uncomputed, and the default-off seed is
+    /// in it until a layer turns the code on (DP4.1).
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn the_effective_skip_lists_catalogued_codes_only() {
+        let backend = test_backend();
+        backend
+            .apply_global_config(&serde_json::json!({
+                "diagnostics": { "W9999": false, "W210": false }
+            }))
+            .await;
+        let ini = backend.render_config_ini().await;
+        let listed: Vec<&str> = ini
+            .split("[diagnostics]\n")
+            .nth(1)
+            .expect("a [diagnostics] section")
+            .lines()
+            .take_while(|line| !line.is_empty())
+            .collect();
+        assert_eq!(listed, ["W210 = false", "W242 = false"], "{ini}");
+        let effective = backend
+            .get_effective_config_command(&[serde_json::json!("file:///skip.tcl")])
+            .await
+            .expect("effective config")
+            .expect("config payload");
+        assert_eq!(
+            effective["disabled_diagnostics"],
+            serde_json::json!(["W210", "W242"]),
+            "{effective}"
         );
     }
 

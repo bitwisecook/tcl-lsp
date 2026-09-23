@@ -57,6 +57,15 @@ The server does not walk upward from the workspace root looking for
 ancestor config files.  Each workspace gets exactly one project file,
 directly at its root.
 
+The `tcl` verbs that read diagnostic policy (`diag`, `lint`, `validate`,
+`opt`) find the project file per input file instead: the nearest
+`.tcl-lsp.ini` at or above the file's own directory, at most 20 levels up.
+A missing file is simply absent. A file that exists but cannot be read — a
+directory in its place, a permission error — ends that search and is
+reported on stderr rather than skipped, and an unreadable global file is
+reported the same way by those verbs and by the MCP tools; either
+contributes no settings.
+
 ## Precedence
 
 Settings are applied in layers — later sources override earlier ones.

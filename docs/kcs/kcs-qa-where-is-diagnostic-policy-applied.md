@@ -44,12 +44,15 @@ Three whole-file codes ignore an inline `# noqa`, because they have no line
 to attach it to: W107, W109, and W118. The file directive and the
 configuration layers still reach them.
 
-Today the style pass and the SslicTcl projection are the producers that
-have stopped filtering. The editor, `tcl diag`, and the MCP tools still
-assemble their own checks around the policy step; the
+Every surface reads one report built this way: the editor's published and
+pulled diagnostics, `tcl diag`, `tcl lint`, `tcl validate` and `tcl opt`,
+the MCP tools, the editor's *Optimise document* command, and the
+code-action lightbulb. Each one runs its producers, hands the findings to
+the policy step, and renders what the report shows. A quick-fix or a
+rewrite is offered only for a finding the report shows. A new rule goes
+into the policy step, never into a producer or a surface; the
 [design page](../design/compiler/diagnostic-policy.md) tracks the slices
-that move each surface onto it. A new rule goes into the policy step, never
-into a producer or a surface.
+still to come.
 
 ## Related
 

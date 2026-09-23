@@ -21,6 +21,7 @@
 
 use super::*;
 use serde_json::json;
+use std::path::PathBuf;
 
 #[test]
 fn default_off_codes_match_the_catalogue() {
@@ -180,6 +181,77 @@ fn an_unparseable_per_code_value_is_ignored() {
         s["diagnostics"],
         json!({ "W111": false }),
         "an unusable value leaves `disabled` standing"
+    );
+}
+
+/// A scratch directory for one config-file test, removed on drop.
+struct ScratchDir(PathBuf);
+
+impl ScratchDir {
+    fn new(tag: &str) -> Self {
+        static SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let n = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let dir = std::env::temp_dir().join(format!(
+            "tcl-lsp-config-ini-{tag}-{}-{n}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&dir).expect("scratch dir");
+        Self(dir)
+    }
+}
+
+impl Drop for ScratchDir {
+    fn drop(&mut self) {
+        std::fs::remove_dir_all(&self.0).ok();
+    }
+}
+
+/// Only a missing file is an absent layer; a file that exists but cannot be
+/// read is an error the caller reports, never a silent "no layer".
+#[test]
+fn only_a_missing_file_is_an_absent_layer() {
+    let dir = ScratchDir::new("absent");
+    let missing = dir.0.join("config.ini");
+    assert!(matches!(read_layer_file(&missing, Layer::Global), Ok(None)));
+
+    std::fs::write(&missing, "[diagnostics]\ndisabled = W210\n").expect("write");
+    let read = read_layer_file(&missing, Layer::Global).expect("readable");
+    assert_eq!(read, Some(json!({ "diagnostics": { "W210": false } })));
+
+    let shaped_like_a_directory = dir.0.join("dir.ini");
+    std::fs::create_dir_all(&shaped_like_a_directory).expect("dir");
+    let err = read_layer_file(&shaped_like_a_directory, Layer::Global)
+        .expect_err("a directory is not an absent file");
+    assert_ne!(err.kind(), std::io::ErrorKind::NotFound);
+    assert_eq!(read_layer(&shaped_like_a_directory, Layer::Global), None);
+}
+
+/// A `.tcl-lsp.ini` that exists but cannot be read ends the project walk:
+/// the nearest project file governs, so a grandparent's never decides in
+/// its place.
+#[test]
+fn an_unreadable_project_file_ends_the_walk() {
+    let dir = ScratchDir::new("walk");
+    std::fs::write(
+        dir.0.join(crate::tcl_install::PROJECT_CONFIG_FILENAME),
+        "[diagnostics]\ndisabled = W112\n",
+    )
+    .expect("outer project file");
+    let inner = dir.0.join("inner");
+    std::fs::create_dir_all(inner.join(crate::tcl_install::PROJECT_CONFIG_FILENAME))
+        .expect("a directory named like the project file");
+    let file = inner.join("a.tcl");
+    std::fs::write(&file, "puts ok\n").expect("document");
+    let root = project_root_for(&file).expect("a project root");
+    assert_eq!(root, inner.canonicalize().expect("canonical"));
+    assert_eq!(project_layer_for(&file), None);
+
+    let outer_file = dir.0.join("b.tcl");
+    std::fs::write(&outer_file, "puts ok\n").expect("document");
+    assert_eq!(
+        project_layer_for(&outer_file).map(|(_, layer)| layer),
+        Some(json!({ "diagnostics": { "W112": false } })),
+        "a readable project file still reads"
     );
 }
 

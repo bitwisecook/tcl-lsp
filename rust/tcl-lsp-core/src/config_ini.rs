@@ -630,7 +630,8 @@ pub const DEFAULT_OFF_CODES: &[DiagCode] = &[DiagCode::W242];
 const PROJECT_WALK_LIMIT: usize = 20;
 
 /// The user's global `config.ini` as a `[global]` settings layer — an empty
-/// object when there is no such file, so the layer contributes nothing.
+/// object when there is no such file, so the layer contributes nothing, and
+/// likewise when the file cannot be read, which is reported on stderr.
 ///
 /// The global layer is [`crate::tcl_install::user_config_path`] on every
 /// surface (`docs/design/compiler/diagnostic-policy.md` § Configuration);
@@ -657,7 +658,7 @@ pub fn project_layer_for(path: &Path) -> Option<(PathBuf, Value)> {
 }
 
 /// The `.tcl-lsp.ini` in `root` as a `[project]` settings layer; `None` when
-/// it is missing or unreadable.
+/// it is missing, or when it cannot be read, which is reported on stderr.
 #[must_use]
 pub fn project_layer_at(root: &Path) -> Option<Value> {
     read_layer(
@@ -668,14 +669,21 @@ pub fn project_layer_at(root: &Path) -> Option<Value> {
 
 /// The directory holding the nearest `.tcl-lsp.ini` at or above `path`'s
 /// own directory, within [`PROJECT_WALK_LIMIT`].
+///
+/// Only a name that does not exist lets the walk climb: a `.tcl-lsp.ini`
+/// that exists but cannot be read — a directory in its place, a permission
+/// error — is still the nearest project file, so it ends the walk and
+/// [`project_layer_at`] reports it, rather than a grandparent's file
+/// silently deciding in its stead.
 #[must_use]
 pub fn project_root_for(path: &Path) -> Option<PathBuf> {
     let start = path.parent()?;
     let start = start.canonicalize().unwrap_or_else(|_| start.to_path_buf());
     let mut current = start;
     for _ in 0..PROJECT_WALK_LIMIT {
-        if crate::tcl_install::project_config_path(&current).is_file() {
-            return Some(current);
+        match std::fs::metadata(crate::tcl_install::project_config_path(&current)) {
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
+            _ => return Some(current),
         }
         match current.parent() {
             Some(parent) if parent != current => current = parent.to_path_buf(),
@@ -686,11 +694,32 @@ pub fn project_root_for(path: &Path) -> Option<PathBuf> {
 }
 
 /// Read the INI file at `path` into the editor-shape `tclLsp` settings JSON
-/// for `layer`; `None` when it is missing or unreadable.
+/// for `layer`; `None` when there is no such file. Any other failure — a
+/// directory in the file's place, a permission error, bytes that are not
+/// UTF-8 — is reported on stderr, because the layer would otherwise vanish
+/// in silence and every code it decides would read as the lower layers'
+/// verdict; the layer is then absent.
 fn read_layer(path: &Path, layer: Layer) -> Option<Value> {
-    std::fs::read_to_string(path)
-        .ok()
-        .map(|content| settings_from_ini(&content, layer))
+    match read_layer_file(path, layer) {
+        Ok(settings) => settings,
+        Err(err) => {
+            eprintln!(
+                "tcl-lsp: cannot read the configuration file {} ({err}); its settings are not applied",
+                path.display()
+            );
+            None
+        }
+    }
+}
+
+/// [`read_layer`]'s read: `Ok(None)` when the file does not exist, the
+/// parsed layer when it reads, and the I/O error otherwise.
+fn read_layer_file(path: &Path, layer: Layer) -> std::io::Result<Option<Value>> {
+    match std::fs::read_to_string(path) {
+        Ok(content) => Ok(Some(settings_from_ini(&content, layer))),
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(err) => Err(err),
+    }
 }
 
 /// Map a `tclLsp.diagnosticSeverity.<CODE>` config value to a severity

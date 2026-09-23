@@ -218,8 +218,12 @@ fn invocation_layer(args: &Value, section: &str) -> Value {
 /// the compiler checks over one unit (`standalone_findings`) — and the
 /// policy its findings are decided under.
 struct Analysed {
-    /// The call's `source`, as the client sent it.
+    /// The call's `source`, as the client sent it — what W118 reads.
     source: String,
+    /// Its analysis form (a lone `\r` rewritten to `\n`, the same length):
+    /// what every producer reads, and the text the rewrites and the code
+    /// actions are computed over, as `tcl opt` and the editor compute them.
+    analysis_text: String,
     /// The source's dialect.
     dialect: &'static DialectProfile,
     /// The analysis, for the tools that read its facts beside the report.
@@ -233,28 +237,31 @@ impl Analysed {
     /// What `analyze`, `validate`, `review` and `find-legacy` render: the
     /// report `tcl diag` builds for the same text — the analyser, the
     /// compiler checks, the source-style pass and, for a `sslictcl` source,
-    /// the loader — with the optimiser off, as `tcl diag` has it: the
+    /// the loader — with the optimiser off, as `tcl diag` has it (D5): the
     /// rewrites are `optimize`'s, so an O-code a check emits is an
     /// `OptimiserOff` suppression rather than a finding that never existed.
-    fn report(&self) -> Report {
-        self.report_with(Vec::new(), false)
+    fn diagnostics_report(&self) -> Report {
+        let mut policy = self.policy.clone();
+        policy.optimiser.enabled = false;
+        self.report_under(self.produced.clone(), &policy)
     }
 
-    /// The producers' findings plus `more` — another producer's, converted —
-    /// under the policy, with the optimiser off unless `optimiser` keeps the
-    /// layers' switch.
-    fn report_with(&self, more: Vec<Finding>, optimiser: bool) -> Report {
+    /// What `code_actions` reads: the producers' findings and the optimiser's
+    /// `rewrites`, under the policy as the layers resolve it, the optimiser
+    /// switch included (D40) — the editor's lightbulb decides the same way.
+    fn actions_report(&self, rewrites: Vec<Finding>) -> Report {
         let mut produced = self.produced.clone();
-        produced.extend(more);
-        let mut policy = self.policy.clone();
-        if !optimiser {
-            policy.optimiser.enabled = false;
-        }
-        let analysis_text = tcl_lexer::normalise_lone_cr(&self.source);
+        produced.extend(rewrites);
+        self.report_under(produced, &self.policy)
+    }
+
+    /// `produced` with the report's own producers under `policy`, the
+    /// analyser's skip declared.
+    fn report_under(&self, produced: Vec<Finding>, policy: &Policy) -> Report {
         let mut report = document_report(
             &DocumentSource {
                 text: &self.source,
-                analysis_text: &analysis_text,
+                analysis_text: &self.analysis_text,
                 decode: None,
                 dialect: self.dialect,
                 pass: SourcePass::Tcl {
@@ -262,9 +269,9 @@ impl Analysed {
                 },
             },
             produced,
-            &policy,
+            policy,
         );
-        report.declare_analyser_skip(&policy);
+        report.declare_analyser_skip(policy);
         report
     }
 }
@@ -296,7 +303,7 @@ fn analyse_under(source: &str, dialect: &str, inputs: &PolicyInputs) -> Analysed
     let registry = registry(dialect);
     let profile = crate::environment::profile_for_dialect(dialect);
     let skip = inputs.builder().dialect(profile).build().production_skip();
-    let analysis_text = tcl_lexer::normalise_lone_cr(source);
+    let analysis_text = tcl_lexer::normalise_lone_cr(source).into_owned();
     let standalone = standalone_findings(
         &StandaloneDocument {
             source: &analysis_text,
@@ -315,6 +322,7 @@ fn analyse_under(source: &str, dialect: &str, inputs: &PolicyInputs) -> Analysed
         .build();
     Analysed {
         source: source.to_owned(),
+        analysis_text,
         dialect: profile,
         analysis: standalone.analysis,
         produced: standalone.produced,
@@ -587,11 +595,17 @@ fn optimize(args: &Value) -> Value {
 /// file's `[optimiser] profile`, which applies only when the call names none,
 /// and `full` when neither does: the profile is a request parameter with a
 /// project default (§ Configuration). The profile in force sets the passes.
+///
+/// The loop reads the analysis form of the source (a lone `\r` rewritten to
+/// `\n`), as `tcl opt` does, so `optimized_source` and every range are on the
+/// client's line model, and `changed` says whether a rewrite applied.
 fn optimize_with(args: &Value, inputs: &PolicyInputs) -> Value {
     use tcl_compiler::optimiser::profiles::OptimisationProfile;
 
-    let source = arg_str(args, "source");
-    let dialect = resolve_dialect(args, source);
+    let raw = arg_str(args, "source");
+    let dialect = resolve_dialect(args, raw);
+    let analysis_text = tcl_lexer::normalise_lone_cr(raw);
+    let source: &str = &analysis_text;
     let named = arg_str(args, "profile");
     let requested = (!named.is_empty()).then(|| OptimisationProfile::parse(named));
     let dialect_profile = crate::environment::profile_for_dialect(&dialect);
@@ -753,7 +767,7 @@ fn analyze(args: &Value) -> Value {
 fn analyze_with(args: &Value, inputs: &PolicyInputs) -> Value {
     let source = arg_str(args, "source");
     let dialect = resolve_dialect(args, source);
-    let report = analyse_under(source, &dialect, inputs).report();
+    let report = analyse_under(source, &dialect, inputs).diagnostics_report();
     let sm = SourceMap::new(source);
     let diagnostics: Vec<Value> = report.shown().map(|d| diag_to_json(&d, &sm)).collect();
     let symbols: Vec<Value> = tcl_lsp_core::document_symbols::document_symbols(
@@ -779,7 +793,7 @@ fn validate(args: &Value) -> Value {
 fn validate_with(args: &Value, inputs: &PolicyInputs) -> Value {
     let source = arg_str(args, "source");
     let dialect = resolve_dialect(args, source);
-    let report = analyse_under(source, &dialect, inputs).report();
+    let report = analyse_under(source, &dialect, inputs).diagnostics_report();
     let sm = SourceMap::new(source);
     let meta = crate::diag_meta::meta();
     let mut categories = Map::new();
@@ -803,7 +817,7 @@ fn review(args: &Value) -> Value {
 fn review_with(args: &Value, inputs: &PolicyInputs) -> Value {
     let source = arg_str(args, "source");
     let dialect = resolve_dialect(args, source);
-    let report = analyse_under(source, &dialect, inputs).report();
+    let report = analyse_under(source, &dialect, inputs).diagnostics_report();
     let sm = SourceMap::new(source);
     let meta = crate::diag_meta::meta();
     let filt = |set: &std::collections::HashSet<String>| -> Vec<Value> {
@@ -827,7 +841,7 @@ fn find_legacy(args: &Value) -> Value {
 fn find_legacy_with(args: &Value, inputs: &PolicyInputs) -> Value {
     let source = arg_str(args, "source");
     let dialect = resolve_dialect(args, source);
-    let report = analyse_under(source, &dialect, inputs).report();
+    let report = analyse_under(source, &dialect, inputs).diagnostics_report();
     let sm = SourceMap::new(source);
     // Shared with `tcl-cli`'s `find-legacy` verb (`tcl_cli::CONVERTIBLE_CODES`/
     // `conversion_for`) rather than a second hand-duplicated copy of the same
@@ -1169,15 +1183,20 @@ fn code_actions_with(args: &Value, inputs: &PolicyInputs) -> Value {
     // The MCP tool analyses one standalone source string with no workspace
     // behind it, so the analysed set — the analyser's and the compiler
     // checks' findings — is the published set; the rewrites join it under
-    // the same policy, whose optimiser switch stays the layers'.
-    let rewrites: Vec<Finding> =
-        optimise_with_dialect(source, &registry(&dialect), Some(analysed.dialect))
-            .into_iter()
-            .map(Finding::from)
-            .collect();
-    let report = analysed.report_with(rewrites, true);
+    // the same policy, whose optimiser switch stays the layers'. Both run
+    // over the analysis form, as the editor's lightbulb does, so a lone-`\r`
+    // source's ranges are on the client's line model.
+    let rewrites: Vec<Finding> = optimise_with_dialect(
+        &analysed.analysis_text,
+        &registry(&dialect),
+        Some(analysed.dialect),
+    )
+    .into_iter()
+    .map(Finding::from)
+    .collect();
+    let report = analysed.actions_report(rewrites);
     let actions: Vec<Value> = tcl_lsp_core::code_actions::code_actions(
-        source,
+        &analysed.analysis_text,
         range,
         Some(&analysed.analysis),
         &report,
@@ -2622,7 +2641,8 @@ mod policy_tests {
         let source = "if {1} { set x 1 } else { set y 2 }\n";
         let args = json!({ "source": source, "dialect": "tcl9.0" });
         assert!(!has_code(&analyzed(&args, ""), "O100"));
-        let report = analyse_under(source, "tcl9.0", &inputs(&args, "diagnostics", "")).report();
+        let report =
+            analyse_under(source, "tcl9.0", &inputs(&args, "diagnostics", "")).diagnostics_report();
         assert!(
             report.suppressed().any(|(finding, reason)| {
                 finding.code == tcl_compiler::compiler_checks::DiagCode::O100
@@ -2794,6 +2814,32 @@ mod policy_tests {
         );
     }
 
+    /// #2062's own program: a `# noqa: O109` over a dead store keeps it
+    /// through `optimize`, where the unmarked control eliminates it.
+    #[test]
+    fn optimize_keeps_a_store_a_noqa_o109_marks() {
+        let marked = "proc f {} {\n    # noqa: O109\n    set x 1\n    set x 2\n    return $x\n}\n";
+        let kept = optimized(
+            &json!({ "source": marked, "dialect": "tcl9.0", "profile": "full" }),
+            "",
+        );
+        assert_eq!(kept["total"], 0, "{kept}");
+        assert_eq!(kept["optimized_source"], marked, "{kept}");
+        let plain = marked.replace("    # noqa: O109\n", "");
+        let control = optimized(
+            &json!({ "source": plain, "dialect": "tcl9.0", "profile": "full" }),
+            "",
+        );
+        assert!(
+            control["optimizations"]
+                .as_array()
+                .expect("optimizations")
+                .iter()
+                .any(|o| o["code"] == "O109"),
+            "{control}"
+        );
+    }
+
     /// `code_actions` over the whole of `line` in `source`, under
     /// `global_ini`.
     fn actions_on_line(source: &str, line: u32, global_ini: &str) -> Vec<Value> {
@@ -2809,6 +2855,28 @@ mod policy_tests {
             .as_array()
             .expect("actions array")
             .clone()
+    }
+
+    /// A lone-`\r` source is read in its analysis form by the rewrite tools,
+    /// as `tcl opt` and the editor read it: `optimize` and `code_actions`
+    /// answer for it exactly as for its `\n` twin.
+    #[test]
+    fn a_lone_cr_source_optimises_and_acts_like_its_lf_twin() {
+        let lf = "proc p {} {\n    return [expr {1 + 2}]\n}\nputs [p]\n";
+        let cr = lf.replace('\n', "\r");
+        let opt = |source: &str| optimized(&json!({ "source": source, "dialect": "tcl9.0" }), "");
+        let (from_lf, from_cr) = (opt(lf), opt(&cr));
+        assert!(
+            from_lf["total"].as_u64().is_some_and(|n| n > 0),
+            "the `\\n` form folds: {from_lf}"
+        );
+        assert_eq!(from_cr["optimizations"], from_lf["optimizations"]);
+        assert_eq!(from_cr["optimized_source"], from_lf["optimized_source"]);
+        assert_eq!(from_cr["changed"], from_lf["changed"]);
+        let full = "[optimiser]\nprofile = full\n";
+        let lf_actions = actions_on_line(lf, 1, full);
+        assert!(!lf_actions.is_empty(), "the `\\n` form offers actions");
+        assert_eq!(actions_on_line(&cr, 1, full), lf_actions);
     }
 
     #[test]

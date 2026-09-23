@@ -89,7 +89,9 @@
 
 use tcl_core_types::DiagCode;
 
-use crate::definition::{LspRange, utf16_len};
+use tcl_lexer::LineIndex;
+
+use crate::definition::LspRange;
 use crate::source_style::{StyleDiagnostic, StyleSeverity};
 
 /// How a byte sequence failed to be UTF-8.  Purely descriptive — every class
@@ -367,26 +369,25 @@ fn classify_fault(at: &[u8]) -> Utf8Fault {
 }
 
 /// Position of the byte at `offset` in `text`, as an LSP line/character pair
-/// (character = UTF-16 code units, per the LSP default).
+/// (character = UTF-16 code units, per the LSP default), on the client's line
+/// model: `line_index` is `LineIndex::new_lsp(text)`, where `\r\n`, a lone
+/// `\r` and `\n` each end a line — the model every lift reads the range back
+/// through, so a lone-`\r` file cannot put the finding on another line.
 ///
 /// Offsets that land mid-character, or past the end, clamp to the nearest
 /// character boundary rather than panicking — the same defensive posture
 /// token spans take.
-fn position_of(text: &str, offset: usize) -> (u32, u32) {
-    let offset = offset.min(text.len());
-    let before = &text[..text.floor_char_boundary(offset)];
-    let line = before.matches('\n').count();
-    let col_start = before.rfind('\n').map_or(0, |i| i + 1);
-    (
-        u32::try_from(line).unwrap_or(u32::MAX),
-        utf16_len(&before[col_start..]),
-    )
+fn position_of(text: &str, line_index: &LineIndex, offset: usize) -> (u32, u32) {
+    let offset = u32::try_from(offset.min(text.len())).unwrap_or(u32::MAX);
+    let position = line_index.position_at_utf16(offset, text);
+    (position.line, position.character.get())
 }
 
 /// A one-character range at `offset`, or an empty range at end-of-file.
 fn range_at(text: &str, offset: usize, ch_len: usize) -> LspRange {
-    let (start_line, start_character) = position_of(text, offset);
-    let (end_line, end_character) = position_of(text, offset + ch_len);
+    let line_index = LineIndex::new_lsp(text);
+    let (start_line, start_character) = position_of(text, &line_index, offset);
+    let (end_line, end_character) = position_of(text, &line_index, offset + ch_len);
     LspRange {
         start_line,
         start_character,

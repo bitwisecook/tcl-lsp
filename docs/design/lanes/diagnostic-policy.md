@@ -887,6 +887,12 @@ none of them.
   (`code_actions_offer_nothing_for_a_silenced_finding`); the loader owns
   W123 in a `sslictcl` source (`analyze_reports_the_sslictcl_loader`); W242
   is seeded off (`analyze_seeds_the_default_off_codes_and_enable_reaches_them`).
+  One departure from the issue's "the set the editor publishes", kept by D5
+  for the owner to accept or reverse: the MCP diagnostics tools follow
+  `tcl diag` in hiding O-codes as `OptimiserOff`; `optimize` and
+  `code_actions` carry them; DP9.3 makes them visible. The issue's W110
+  over O120 overlap therefore only matters on the surfaces where O120 can
+  show.
 - #2062 — `tcl opt` and MCP `optimize` apply no rewrite a directive
   silences: `opt_applies_only_the_rewrites_the_policy_shows`,
   `optimize_applies_only_the_rewrites_the_directives_leave_shown`, and the
@@ -915,14 +921,16 @@ landing commit names all three as closed (D41).
 
 **Behavioural deltas.** Every entry of § *Behavioural deltas expected per
 slice* for slices 4–7 is in the tree, the two flagged `[features]` deltas
-reverted by DP5.3. A test pins each except three whose absence no suite
-can observe: W107's position in a lone-`\r` file (D14), the fast tier
-publishing the `SslicTcl` loader's codes a publish earlier (D11), and
-`getEffectiveConfig` listing catalogued codes only (DP4.1). Beyond the
-list, one regression the checkpoint had introduced is fixed: a
+reverted by DP5.3. A test pins each except the fast tier publishing the
+`SslicTcl` loader's codes a publish earlier (D11); W107's position in a
+lone-`\r` file and `getEffectiveConfig` listing catalogued codes only were
+unpinned at the landing and are pinned by the review fixes, which also
+corrected the first (§ *Review fixes for slices 4–7*). Beyond the list,
+one regression the checkpoint had introduced is fixed: a
 `tclLsp.features.diagnostics = false` made `optimiseDocument` a no-op,
 which `rust`'s #2119 command never was (D39). No other suite outcome
-changed.
+changed. The review added one delta the list lacked: DP5.1 makes the
+server's exported `CODE = false` lines readable (slice 5 below).
 
 **Gates at landing**, on the tree at `ac1cf501` with the value-transfers
 lane's uncommitted edits present: `cargo test -p tcl-lsp-core -p
@@ -944,6 +952,56 @@ catalogue gates (`diag-tables --check`, `diag-emission-check`,
 argument reaches a generated file. `make rust-check`: exits 0 (workspace
 fmt and clippy, the runtime crate, every `xtask-check` gate). No new
 integration-test binary, so the shard manifest is unchanged.
+
+### Review fixes for slices 4–7
+
+The review of the landing (`14533506`) returned "land after fixes"; one
+commit fixes its findings.
+
+1. **W107 in a lone-`\r` file.** `source_decode::position_of` counted `\n`
+   only, so for `set a 1\rset b 2\rputs "\xff bad"\n` the pass said
+   `(0, 22)` and `Finding::from_style`, reading it back through
+   `LineIndex::new_lsp`, clamped it to the end of line 0 — `tcl diag` put
+   W107 at `1:8` where the `\n` twin says `3:7`. It now positions through
+   `LineIndex::new_lsp`, the line-model owner. Pinned by core
+   `w107_sits_at_the_replacement_character_in_a_lone_cr_file` (the span is
+   the U+FFFD's) and server `the_report_places_w107_on_the_lsp_line_model`
+   (`(2, 6)`–`(2, 7)` on the wire).
+2. **#2061 and D5.** The landing record's #2061 entry now says that the MCP
+   diagnostics tools hide O-codes as `tcl diag` does, and why.
+3. **The MCP rewrite tools' raw text.** `Analysed` keeps the analysis form
+   once (`analysis_text`, so `normalise_lone_cr` runs once per call);
+   `code_actions` hands it to the optimiser and the code-action provider,
+   and `optimize` hands it to the rewrite loop (D43). Pinned by
+   `a_lone_cr_source_optimises_and_acts_like_its_lf_twin`: the binary before
+   the fix folded nothing on the `\r` form of a program whose `\n` form it
+   folded twice.
+4. **The KCS note** `kcs-qa-where-is-diagnostic-policy-applied.md` no longer
+   says the surfaces assemble their own checks: every surface renders one
+   report.
+5. **Configuration read errors** (D42): `read_layer` treats only `NotFound`
+   as absence and reports the rest on stderr; the project walk stops at an
+   unreadable `.tcl-lsp.ini`. Tests `only_a_missing_file_is_an_absent_layer`
+   and `an_unreadable_project_file_ends_the_walk`; `xdg-config.md` states
+   the rule.
+6. **The effective skip** is pinned: `the_effective_skip_lists_catalogued_codes_only`
+   — after `{"diagnostics": {"W9999": false, "W210": false}}` the INI export
+   lists `W210 = false` and `W242 = false` only, and `getEffectiveConfig`'s
+   `disabled_diagnostics` is `["W210", "W242"]`.
+7. **DP5.1's second delta** is in § *Behavioural deltas expected per slice*.
+8. **Nits.** `Analysed::report_with(more, optimiser)` is two named methods,
+   `diagnostics_report` (optimiser off, D5) and `actions_report` (the
+   layers' switch, D40); `StandaloneFindings::unit` had no reader and is
+   gone; the `tests/e2e/diagnostics.rs` comment that named
+   `lift_analyser_diagnostics` names the policy step; `tests/cli.rs` gives
+   every spawn its own `XDG_CONFIG_HOME` that names no directory
+   (`absent_config_home`), so nothing is left under the temporary
+   directory; DP9.2's text records that a gap row renders only for a code
+   no finding carries.
+
+With them, #2062's own program is a test on both rewrite surfaces:
+`opt_keeps_a_store_a_noqa_o109_marks` and
+`optimize_keeps_a_store_a_noqa_o109_marks`.
 
 ## Plan for finishing slices 4–7 and for slices 8–10
 
@@ -2353,6 +2411,12 @@ Files: `rust/tcl-cli/src/cli.rs`, `rust/tcl-cli/src/lib.rs`,
   without `Reason::DefaultOff` (no position, severity or message). Rows sort
   by `(line, column, code)` as today; gaps follow a file's positioned rows,
   sorted by code. `run_validate` reads `shown` only.
+- A gap row renders only for a code no finding carries.
+  `Policy::production_skip` declares every catalogued code the per-code
+  decision turns off, whichever producer emits it, so a code the compiler
+  checks emit — an S100 disabled at a layer — has both a
+  `Suppressed(Disabled(…))` finding and a declared gap; rendering both
+  would list it twice.
 - Rendering with the flag, text: a suppressed finding is
   `{file}:{line}:{column}: {"hidden":<7} {code:<8} {message} [{reason}]`,
   interleaved with the shown rows in `(line, column, code)` order; a gap is
@@ -3346,6 +3410,24 @@ Decisions the implementation of slices 4–7 took (DP4.1 onwards):
   also lists the truth-table passes (DP9.6, DP9.7) as slice 5's and 6's
   evidence; they gate parity between surfaces the issues already had
   fixed, so they are read as the slices' evidence, not the issues'.
+- **D42. Only a missing configuration file is an absent layer (review
+  fixes).** `config_ini::read_layer` read any failure as "no layer", so a
+  directory or an unreadable file in a `.tcl-lsp.ini`'s or `config.ini`'s
+  place changed every surface's verdict in silence. A missing file is
+  still absent; any other failure is reported on stderr and contributes
+  nothing. The project walk stops at the first `.tcl-lsp.ini` that exists,
+  readable or not: the nearest project file governs, so a grandparent's
+  must not decide in a broken one's stead. The CLI remembers an absent
+  layer per root, so the warning prints once. DP9's report rows are the
+  later, structured form of the same answer.
+- **D43. The MCP rewrite tools read the analysis form (review fixes).**
+  `optimize` and `code_actions` handed the optimiser and the code-action
+  provider the raw source while the producers read the analysis form, so a
+  lone-`\r` source was one command to the optimiser and one line to the
+  ranges. Both now read the analysis form — `tcl opt`'s input and the
+  editor lightbulb's — so `optimized_source` carries `\n` endings for such
+  a source, as `tcl opt`'s output does, and `changed` says whether a
+  rewrite applied rather than whether the endings differ.
 
 ### Open questions for the owner
 
@@ -3492,8 +3574,10 @@ hand-off delta nothing mandates, for the owner.
   merged on `rust`.
 - A code action offers an optimiser rewrite as a quick-fix — § Adapters,
   code actions.
-- W107's position in a lone-`\r` file follows the finding's byte span —
-  § Adapters, LSP (D14).
+- W107's position in a lone-`\r` file is the U+FFFD's on the client's line
+  model — § Adapters, LSP (D14). The pass positions it through
+  `LineIndex::new_lsp` since the review fixes; before them it counted `\n`
+  alone and the conversion clamped it to the end of line 0.
 - `getEffectiveConfig`'s `disabled_diagnostics` lists catalogued codes only
   — § The conversions (DP4.1).
 - **Flagged:** a secondary workspace root with no policy section of its own
@@ -3518,6 +3602,13 @@ hand-off delta nothing mandates, for the owner.
   under `# file:` — #2120 as merged; runs the profile in force's passes —
   D17.
 - An INI file's `CODE = true` turns a code on — § The five scopes (DP5.1).
+- A `config.ini` or `.tcl-lsp.ini` the server exported (`render_config_ini`
+  writes one `CODE = false` line per disabled code under `[diagnostics]`)
+  now disables those codes on every surface: no parser read those lines
+  before `insert_code_toggles` (DP5.1).
+- A configuration file that exists but cannot be read is reported on
+  stderr instead of silently contributing nothing, and an unreadable
+  `.tcl-lsp.ini` ends the project-file walk (review fixes, D42).
 - **Flagged:** a configuration file's `[optimiser] enabled = false` stops
   `tcl opt` rewriting (§ Open questions 1; kept). A project `profile`
   overruling `--profile` (§ Open questions 2) is reversed by the owner's
@@ -3542,6 +3633,10 @@ hand-off delta nothing mandates, for the owner.
   nothing for a silenced finding — #2061.
 - `optimize` honours directives, the global file and per-code overrides —
   #2062, § Configuration.
+- `optimize` and `code_actions` read a lone-`\r` source in its analysis
+  form, as `tcl opt` and the editor do: `optimized_source` carries `\n`
+  endings and every range is on the client's line model (review fixes,
+  D43).
 - **Flagged:** a global `[optimiser] enabled = false` stops `optimize`
   rewriting (§ Open questions 1; DP4.0's test pins it).
 - **Flagged, reverted by DP5.3:** a global `[features] diagnostics = false`
@@ -3617,3 +3712,4 @@ Each item updates its row in the commit that lands it.
 | C6 | — | — | green | `C6 — slice 6 checkpoint` | `tcl-mcp` 97, `tcl-cli --test cli` 40, core `--lib` 2321; the crate clippy; `cargo check --workspace` |
 | C7 | — | — | green | the landing commit | *the suites* for core and server with the whole `e2e` (1597, 5 ignored), `tcl-cli` and `tcl-mcp` — inside `cargo test` over the six crates below; the crate clippy |
 | Landing (slices 4–7) | opus | — | done — § *Slices 4–7 landed* | `the LSP, CLI, MCP and code-action adapters (slices 4 to 7)` | `cargo test -p tcl-lsp-core -p tcl-lsp-server -p tcl-cli -p tcl-cli-support -p tcl-mcp -p tcl-lsp-db`; pedantic clippy on every touched crate; `cargo fmt --check`; the ten catalogue gates; `make rust-check` |
+| Review fixes (slices 4–7) | opus | — | done — § *Review fixes for slices 4–7* | `review fixes for slices 4–7` | core `--lib`, server `--lib`, `tcl-cli`, `tcl-mcp`, the whole `e2e`; the crate clippy; `kcs-index-links`; `cargo check --workspace` |

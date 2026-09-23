@@ -35,8 +35,9 @@ use tcl_lsp_core::diagnostic_policy::{PolicyBuilder, PolicyLayer};
 pub struct ConfigLayers {
     global: Value,
     invocation: Value,
-    /// Project layers by root, read once per root.
-    projects: RefCell<HashMap<PathBuf, Value>>,
+    /// Project layers by root, read once per root — an unreadable file's
+    /// absence included, so its warning is printed once.
+    projects: RefCell<HashMap<PathBuf, Option<Value>>>,
 }
 
 impl ConfigLayers {
@@ -78,13 +79,11 @@ impl ConfigLayers {
     /// The project layer for the file at `path`, read once per root.
     fn project_layer_for(&self, path: &Path) -> Option<Value> {
         let root = config_ini::project_root_for(path)?;
-        let mut projects = self.projects.borrow_mut();
-        if let Some(layer) = projects.get(&root) {
-            return Some(layer.clone());
-        }
-        let layer = config_ini::project_layer_at(&root)?;
-        projects.insert(root, layer.clone());
-        Some(layer)
+        self.projects
+            .borrow_mut()
+            .entry(root)
+            .or_insert_with_key(|root| config_ini::project_layer_at(root))
+            .clone()
     }
 }
 

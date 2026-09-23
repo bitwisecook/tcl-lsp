@@ -34,17 +34,19 @@ fn spec_pack_project() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/spec-packs/tiny-project")
 }
 
-/// A process-wide empty directory for `XDG_CONFIG_HOME`, created once and
-/// never removed: no `tcl-lsp/config.ini` under it, so the global layer every
+/// An `XDG_CONFIG_HOME` for one spawn that names no directory — unique to
+/// the spawn and never created — so no `tcl-lsp/config.ini` can be found
+/// under it and nothing is left behind: the global layer every
 /// policy-reading verb resolves (`diag`, `lint`, `validate`, `opt`) is empty,
-/// and a developer's own `config.ini` cannot fail a test CI passes.
-fn empty_config_home() -> &'static std::path::Path {
-    static HOME: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
-    HOME.get_or_init(|| {
-        let dir = std::env::temp_dir().join("tcl-cli-tests-empty-config-home");
-        std::fs::create_dir_all(&dir).expect("empty config home");
-        dir
-    })
+/// and a developer's own `config.ini` cannot fail a test CI passes. A missing
+/// file is an absent layer, read silently.
+fn absent_config_home() -> PathBuf {
+    static SPAWNS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let spawn = SPAWNS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    std::env::temp_dir().join(format!(
+        "tcl-cli-tests-no-config-{}-{spawn}",
+        std::process::id()
+    ))
 }
 
 /// The built `tcl` binary, isolated from the machine's global configuration
@@ -53,7 +55,7 @@ fn empty_config_home() -> &'static std::path::Path {
 /// `XDG_CONFIG_HOME` again, which overrides this one.
 fn tcl() -> Command {
     let mut command = Command::new(env!("CARGO_BIN_EXE_tcl"));
-    command.env("XDG_CONFIG_HOME", empty_config_home());
+    command.env("XDG_CONFIG_HOME", absent_config_home());
     command
 }
 
@@ -1534,6 +1536,33 @@ fn diag_a_project_file_turns_a_code_back_on() {
         !has("outside.tcl", "W112"),
         "outside the project the global disable stands: {rows:?}"
     );
+}
+
+/// #2062's own program: `tcl opt --profile full` keeps a dead store a
+/// `# noqa: O109` marks, and eliminates it when the marker is gone.
+#[test]
+fn opt_keeps_a_store_a_noqa_o109_marks() {
+    let scratch = Scratch::new("opt-o109");
+    let marked = "proc f {} {\n    # noqa: O109\n    set x 1\n    set x 2\n    return $x\n}\n";
+    let with = scratch.write("b.tcl", marked);
+    let without = scratch.write("plain.tcl", &marked.replace("    # noqa: O109\n", ""));
+    let opt = |path: &PathBuf| {
+        String::from_utf8(run_tcl(&[
+            "opt",
+            path.to_str().expect("utf-8 path"),
+            "--profile",
+            "full",
+        ]))
+        .expect("utf-8 output")
+    };
+    let kept = opt(&with);
+    assert_eq!(kept, marked, "no rewrite applies to the marked store");
+    let removed = opt(&without);
+    assert!(
+        !removed.contains("set x 1"),
+        "the unmarked store goes: {removed}"
+    );
+    assert!(removed.contains("O109"), "{removed}");
 }
 
 /// `tcl opt` applies only the rewrites the document's policy shows (issue

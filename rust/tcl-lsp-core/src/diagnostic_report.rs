@@ -158,8 +158,6 @@ pub struct StandaloneFindings {
     pub analysis: AnalysisResult,
     /// The analyser's findings, then the compiler checks', converted.
     pub produced: Vec<Finding>,
-    /// The unit the analyser and the checks shared.
-    pub unit: Arc<CompilationUnit>,
 }
 
 /// The analyser under `skip` — the policy's production skip — and the
@@ -216,11 +214,7 @@ pub fn standalone_findings(
             .into_iter()
             .map(Finding::from),
     );
-    StandaloneFindings {
-        analysis,
-        produced,
-        unit,
-    }
+    StandaloneFindings { analysis, produced }
 }
 
 /// The O111 "brace expression performance" hint, paired with every W100 the
@@ -422,6 +416,35 @@ mod tests {
         assert_eq!(
             report.reason_for(DiagCode::W210, Span::new(0, 0)),
             Some(Reason::FileDirective)
+        );
+    }
+
+    /// The byte-integrity finding sits at the decoder's U+FFFD in a file whose
+    /// lines end with a lone `\r`: the pass positions it on the client's line
+    /// model, so the conversion back to a byte span lands where it started.
+    #[test]
+    fn w107_sits_at_the_replacement_character_in_a_lone_cr_file() {
+        let (text, decode) =
+            crate::source_decode::decode_source(b"set a 1\rset b 2\rputs \"\xff bad\"\n");
+        let analysis_text = tcl_lexer::normalise_lone_cr(&text);
+        let doc = DocumentSource {
+            text: &text,
+            analysis_text: &analysis_text,
+            decode: Some(&decode),
+            dialect: tcl9(),
+            pass: SourcePass::Tcl { line_length: 120 },
+        };
+        let report = document_report(&doc, Vec::new(), &PolicyBuilder::new().build());
+        let at = u32::try_from(text.find('\u{fffd}').expect("a replacement character"))
+            .expect("offset fits");
+        let w107 = report
+            .iter()
+            .find(|(f, _)| f.code == DiagCode::W107)
+            .map(|(f, _)| f.span);
+        assert_eq!(
+            w107,
+            Some(Span::new(at, at + 3)),
+            "W107 covers the U+FFFD, not the end of the first line: {report:?}"
         );
     }
 

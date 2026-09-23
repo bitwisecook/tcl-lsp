@@ -3974,8 +3974,8 @@ fn shimmer_noqa_suppresses_s100() {
 fn analyser_noqa_suppresses_an_analyser_code() {
     // The analyser families (`E` / `W` / …) obey the same `# noqa` contract the
     // shimmer and optimiser families do: the analyser records `suppressed_lines`
-    // without filtering by it, so `lift_analyser_diagnostics` applies it at
-    // publish time.
+    // without filtering by it, and the policy step applies it to every
+    // finding before the report is published.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let diags = lsp.open_ready(&uri, "# noqa: W210\nputs $alpha\nputs $beta\n");

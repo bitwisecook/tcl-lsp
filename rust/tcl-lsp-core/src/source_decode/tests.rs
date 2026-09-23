@@ -208,11 +208,12 @@ fn positions_are_utf16_code_units_not_bytes_or_chars() {
     assert!(diags.is_empty(), "{:?}", codes(&diags));
     let clef = text.find('𝄞').expect("clef");
     // `set x "` is 7 UTF-16 units; the clef itself is 2 more.
-    assert_eq!(super::position_of(&text, clef), (0, 7));
-    assert_eq!(super::position_of(&text, clef + 4), (0, 9));
+    let index = tcl_lexer::LineIndex::new_lsp(&text);
+    assert_eq!(super::position_of(&text, &index, clef), (0, 7));
+    assert_eq!(super::position_of(&text, &index, clef + 4), (0, 9));
     // A byte offset landing *inside* the clef clamps to the boundary before it
     // rather than panicking.
-    assert_eq!(super::position_of(&text, clef + 2), (0, 7));
+    assert_eq!(super::position_of(&text, &index, clef + 2), (0, 7));
 }
 
 // W109 — this is not UTF-8 text.
@@ -306,8 +307,9 @@ fn positions_never_panic_on_offsets_inside_a_multi_byte_character() {
     // offset into a multi-byte string, plus every out-of-range offset, must
     // clamp.
     let text = "aé𝄞漢\u{fffd}z";
+    let index = tcl_lexer::LineIndex::new_lsp(text);
     for offset in 0..=text.len() + 8 {
-        let _ = super::position_of(text, offset);
+        let _ = super::position_of(text, &index, offset);
         let _ = super::range_at(text, offset, 1);
     }
 }
