@@ -26,7 +26,6 @@ use std::collections::HashSet;
 
 use serde_json::{Map, Value, json};
 use tcl_compiler::analyser::{Analyser, AnalysisResult};
-use tcl_compiler::compiler_checks::DiagCode;
 use tcl_dialect::DialectProfile;
 use tcl_lexer::{LexerConfig, LineIndex, SourceMap, Span, Utf16Col};
 use tcl_lsp_core::config_ini;
@@ -209,8 +208,6 @@ fn invocation_layer(args: &Value, section: &str) -> Value {
 struct Analysed {
     analysis: AnalysisResult,
     policy: Policy,
-    /// The analyser's declared production-time skip.
-    skipped: Vec<DiagCode>,
 }
 
 impl Analysed {
@@ -232,7 +229,7 @@ impl Analysed {
             .collect();
         produced.extend(more);
         let mut report = apply(produced, &self.policy);
-        report.declare_skipped(self.skipped.iter().copied(), &self.policy);
+        report.declare_analyser_skip(&self.policy);
         report
     }
 }
@@ -259,27 +256,23 @@ fn analyse(source: &str, dialect: &str) -> AnalysisResult {
 fn analyse_under(source: &str, dialect: &str, inputs: &PolicyInputs) -> Analysed {
     let _ = registry(dialect);
     let profile = crate::environment::profile_for_dialect(dialect);
-    let skipped: Vec<DiagCode> = inputs
+    let skip = inputs
         .builder()
         .dialect(profile)
         .build()
         .production_skip()
-        .into_iter()
+        .iter()
+        .map(ToString::to_string)
         .collect();
-    let analysis =
-        Analyser::with_disabled_diagnostics(skipped.iter().map(ToString::to_string).collect())
-            .with_pack_overlay(tcl_spectcl::bundled::packs().key)
-            .analyse(source, dialect);
+    let analysis = Analyser::with_disabled_diagnostics(skip)
+        .with_pack_overlay(tcl_spectcl::bundled::packs().key)
+        .analyse(source, dialect);
     let policy = inputs
         .builder()
         .dialect(profile)
         .directives(Directives::from_analysis(&analysis, source))
         .build();
-    Analysed {
-        analysis,
-        policy,
-        skipped,
-    }
+    Analysed { analysis, policy }
 }
 
 /// `"true"`/`"1"`/`"yes"` (case-insensitive) or a JSON `true` — else `false`.

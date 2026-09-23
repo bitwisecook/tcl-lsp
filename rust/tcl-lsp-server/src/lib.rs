@@ -71,7 +71,6 @@ use tcl_lsp_core::completion::{
     self as core_completion, CompletionItem as CoreCompletionItem,
     CompletionKind as CoreCompletionKind,
 };
-use tcl_lsp_core::config_ini::{default_disabled_set, settings_disabled_diagnostics};
 use tcl_lsp_core::declaration as core_declaration;
 use tcl_lsp_core::definition::{self as core_definition, LspRange as CoreLspRange};
 use tcl_lsp_core::diagnostic_policy as core_policy;
@@ -3996,7 +3995,6 @@ async fn run_diagnostics_f5_dialect(
             dialect: inputs.dialect,
         },
         inputs.policy_layers,
-        inputs.disabled,
         produced,
     );
     // Publish only when this version is still current (the same revision
@@ -6050,7 +6048,6 @@ async fn publish_fast_tier(
         .collect();
     let analysis_lifts = Arc::clone(analysis);
     let text = lift_inputs.text.to_owned();
-    let disabled = lift_inputs.disabled.clone();
     let decode_report = lift_inputs.decode_report;
     let policy_layers = lift_inputs.policy_layers.clone();
     let style_line_length = lift_inputs.style_line_length;
@@ -6073,7 +6070,7 @@ async fn publish_fast_tier(
             },
         };
         let mut report = core_report::document_report(&doc, analyser_findings(&fast), &policy);
-        report.declare_skipped(skipped_codes(&disabled), &policy);
+        report.declare_analyser_skip(&policy);
         lift_report(&text, &report)
     })
     .await;
@@ -6110,8 +6107,13 @@ impl PolicyLayers {
             .layer(core_policy::PolicyLayer::Project, &self.project)
     }
 
-    /// The analyser's production-time skip under these layers, as the salsa
-    /// `AnalyserConfig` spells it.
+    /// The analyser's production-time skip under these layers — the codes
+    /// the per-code decision turns off, which it need not compute
+    /// ([`core_policy::Policy::production_skip`]). Every write of the
+    /// session's [`Backend::disabled_diagnostics`] and of a configured
+    /// folder's [`FolderConfig::disabled_diagnostics`] is this, so the skip
+    /// and the policy come from the same layers and the report can explain
+    /// every gap.
     fn production_skip(&self) -> HashSet<String> {
         self.builder()
             .build()
@@ -6119,6 +6121,14 @@ impl PolicyLayers {
             .iter()
             .map(ToString::to_string)
             .collect()
+    }
+
+    /// [`Self::production_skip`] sorted, as the salsa `AnalyserConfig` input
+    /// holds it: a stable order, so an unchanged set never reads as an edit.
+    fn sorted_production_skip(&self) -> Vec<String> {
+        let mut skip: Vec<String> = self.production_skip().into_iter().collect();
+        skip.sort();
+        skip
     }
 }
 
@@ -6315,7 +6325,6 @@ struct RefinementInputs<'a> {
 /// URI.
 struct F5PullInputs<'a> {
     profile: &'static tcl_dialect::DialectProfile,
-    disabled: &'a HashSet<String>,
     policy_layers: &'a PolicyLayers,
     decode_report: Option<tcl_lsp_core::source_decode::DecodeReport>,
 }
@@ -6333,11 +6342,11 @@ struct F5ModelDocument<'a> {
 /// APL — on the wire: the validator's findings plus the byte-integrity codes
 /// and W305, under the document's policy. These families never run the Tcl
 /// analyser, so the directives are scanned here rather than read off an
-/// analysis; `disabled` is declared as the validators' skip.
+/// analysis, and no analyser skip is declared: the validators compute every
+/// code and the policy step decides what shows.
 fn f5_model_report(
     doc: &F5ModelDocument<'_>,
     layers: &PolicyLayers,
-    disabled: &HashSet<String>,
     produced: Vec<core_policy::Finding>,
 ) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
     let policy = document_policy(
@@ -6353,19 +6362,8 @@ fn f5_model_report(
         dialect: doc.dialect,
         pass: core_report::SourcePass::IntegrityOnly,
     };
-    let mut report = core_report::document_report(&source, produced, &policy);
-    report.declare_skipped(skipped_codes(disabled), &policy);
+    let report = core_report::document_report(&source, produced, &policy);
     lift_report(doc.text, &report)
-}
-
-/// The catalogued codes of a producer's skip set, for
-/// [`core_policy::Report::declare_skipped`].
-fn skipped_codes(disabled: &HashSet<String>) -> Vec<DiagCode> {
-    use core::str::FromStr as _;
-    disabled
-        .iter()
-        .filter_map(|code| DiagCode::from_str(code).ok())
-        .collect()
 }
 
 /// The document-local settings shared by every pull-diagnostic workspace
@@ -6437,7 +6435,6 @@ async fn refine_and_lift_diagnostics(
 
     let analysis_lifts = Arc::clone(analysis);
     let lift_text = inputs.text.to_owned();
-    let disabled = inputs.disabled.clone();
     let decode_report = inputs.decode_report;
     let policy_layers = inputs.policy_layers.clone();
     let style_line_length = inputs.style_line_length;
@@ -6478,7 +6475,7 @@ async fn refine_and_lift_diagnostics(
         };
         let report = core_report::document_report(&doc, produced, &policy);
         let mut report = core_report::with_brace_expr_hints(report, &policy);
-        report.declare_skipped(skipped_codes(&disabled), &policy);
+        report.declare_analyser_skip(&policy);
         lift_report(&lift_text, &report)
     })
     .await
@@ -7608,10 +7605,6 @@ pub struct Backend {
     /// reported at, so a wedge logs once rather than once per blocked request.
     /// See [`Backend::report_edit_barrier_stall`].
     edit_barrier_stall_reported: std::sync::atomic::AtomicU64,
-    /// Shimmer-detection master switch (`tclLsp.shimmer.enabled`). When off,
-    /// the Shimmer-family diagnostics (`S100`–`S110`) are suppressed. Default
-    /// on.
-    shimmer_enabled: Mutex<bool>,
     /// Optimisation profile (`tclLsp.optimiser.profile`) controlling which
     /// O-code categories surface as diagnostics. Default
     /// [`tcl_compiler::optimiser::profiles::DEFAULT_EDITOR_PROFILE`]
@@ -8504,8 +8497,6 @@ struct FolderConfig {
     /// `tclLsp.style.lineLength` override (W111 threshold); `None` inherits the
     /// global value.
     style_line_length: Option<u32>,
-    /// `tclLsp.shimmer.enabled` override; `None` inherits the global value.
-    shimmer_enabled: Option<bool>,
     /// `tclLsp.extraCommands` override; `None` inherits the global set.
     extra_commands: Option<Vec<String>>,
     /// `tclLsp.packages.provides` / `[packages.provides]` override; `None`
@@ -8960,7 +8951,7 @@ impl Backend {
         let db = tcl_lsp_db::TclDatabase::default();
         let db_config = tcl_lsp_db::AnalyserConfig::new(
             &db,
-            default_disabled_set().into_iter().collect(),
+            PolicyLayers::default().sorted_production_skip(),
             NonAsciiMode::Default,
             Vec::new(),
             None,
@@ -8986,7 +8977,7 @@ impl Backend {
             folder_db_configs: Arc::new(Mutex::new(Vec::new())),
             folder_db_config_tombstones: Arc::new(Mutex::new(HashMap::new())),
             non_ascii_mode: Mutex::new(NonAsciiMode::Default),
-            disabled_diagnostics: Mutex::new(default_disabled_set()),
+            disabled_diagnostics: Mutex::new(PolicyLayers::default().production_skip()),
             diagnostics_exclude: Mutex::new(Vec::new()),
             policy_layers: Mutex::new(PolicyLayers::default()),
             workspace_index: Arc::new(TrackedRwLock::new("workspace_index", new_workspace_index())),
@@ -9019,7 +9010,6 @@ impl Backend {
             diag_inputs_epoch: std::sync::atomic::AtomicU64::new(0),
             analyser_inputs_gate: tokio::sync::RwLock::new(()),
             edit_barrier_stall_reported: std::sync::atomic::AtomicU64::new(u64::MAX),
-            shimmer_enabled: Mutex::new(true),
             optimiser_profile: Mutex::new(default_optimiser_profile()),
             line_length: Mutex::new(80),
             style_line_length: Mutex::new(120),
@@ -11261,16 +11251,16 @@ impl Backend {
         if let Some(mode) = settings_non_ascii_mode(opts) {
             *self.non_ascii_mode.lock().await = mode;
         }
-        if let Some(disabled) = settings_disabled_diagnostics(opts) {
-            *self.disabled_diagnostics.lock().await = disabled;
-        }
         // The same payload is the editor layer of the session's policy until
-        // the first `workspace/configuration` pull replaces it.
-        {
+        // the first `workspace/configuration` pull replaces it, and the
+        // analyser's skip is the production skip of the layers it merged into.
+        let skip = {
             let mut layers = self.policy_layers.lock().await;
             layers.editor =
                 config_ini::merge_settings(&layers.editor, &normalize_config_payload(opts));
-        }
+            layers.production_skip()
+        };
+        *self.disabled_diagnostics.lock().await = skip;
     }
 
     /// Resolve the dialect string a freshly opened document should
@@ -12831,7 +12821,6 @@ impl Backend {
             diag_inputs_epoch: _,
             analyser_inputs_gate: _,
             edit_barrier_stall_reported: _,
-            shimmer_enabled: _,
             optimiser_profile: _,
             line_length: _,
             style_line_length: _,
@@ -18951,8 +18940,9 @@ impl Backend {
     }
 
     /// Feature controls: per-command signature suppression, `xcDiagnostics`,
-    /// optimiser enable/profile/per-code overrides, and the `shimmer` master
-    /// switch.
+    /// and the optimiser switch and profile that `getEffectiveConfig` and the
+    /// INI export report. What shows — the optimiser's codes, the `shimmer`
+    /// family — is the diagnostic policy's, built from [`PolicyLayers`].
     async fn apply_global_toggles(
         &self,
         cfg: &serde_json::Value,
@@ -18985,14 +18975,6 @@ impl Backend {
             .and_then(serde_json::Value::as_bool)
         {
             *self.optimiser_enabled.lock().await = flag;
-        }
-        // `tclLsp.shimmer.enabled` — master switch for the Shimmer family.
-        if let Some(flag) = cfg
-            .get("shimmer")
-            .and_then(|s| s.get("enabled"))
-            .and_then(serde_json::Value::as_bool)
-        {
-            *self.shimmer_enabled.lock().await = flag;
         }
         if let Some(profile) = cfg
             .get("optimiser")
@@ -19122,22 +19104,29 @@ impl Backend {
             .unwrap_or_default();
         *self.diagnostics_exclude.lock().await = exclude;
         // The pulled value is the *content* of the `tclLsp` section; the
-        // `settings_*` helpers expect it wrapped (they look under `tclLsp`),
-        // so re-wrap before reusing them for the W108 mode + disabled codes.
+        // `settings_non_ascii_mode` helper expects it wrapped (it looks under
+        // `tclLsp`), so re-wrap before reusing it for the W108 mode.
         let wrapped = serde_json::json!({ "tclLsp": cfg.clone() });
         if let Some(mode) = settings_non_ascii_mode(&wrapped) {
             *self.non_ascii_mode.lock().await = mode;
         }
-        if let Some(disabled) = settings_disabled_diagnostics(&wrapped) {
-            *self.disabled_diagnostics.lock().await = disabled;
-        }
+        // The analyser's skip is the production skip of the session's
+        // layers, which both callers set before this runs
+        // (`pull_and_apply_config_values`, and `apply_global_config` in
+        // tests) — the same layers the documents' policies are built from.
+        let skip = self.policy_layers.lock().await.production_skip();
+        *self.disabled_diagnostics.lock().await = skip;
     }
 
     /// Store the per-folder editor configs and refresh the per-folder salsa
-    /// `AnalyserConfig` handles.  A handle is created only for a folder that
-    /// overrides the disabled-diagnostics set or non-ASCII mode (others inherit
-    /// [`Backend::db_config`]); existing handles are reused across re-pulls so
-    /// the salsa store does not accumulate dead config inputs.
+    /// `AnalyserConfig` handles.  A handle is created only for a folder one of
+    /// whose *resolved* analyser inputs — the sorted skip, the non-ASCII mode,
+    /// the extra commands, the generic variable patterns, the package
+    /// provides, the BIG-IP version or the targets — differs from the
+    /// session's; every other folder shares [`Backend::db_config`] and its
+    /// memo, so a document under it is analysed once per revision for
+    /// diagnostics and symbols alike.  Existing handles are reused across
+    /// re-pulls so the salsa store does not accumulate dead config inputs.
     ///
     /// A folder that stops overriding anything — or leaves the workspace — has
     /// its handle *retired* into [`Backend::folder_db_config_tombstones`] with
@@ -19179,18 +19168,6 @@ impl Backend {
                 handles.drain(..).collect();
             let mut next: Vec<(Uri, tcl_lsp_db::AnalyserConfig)> = Vec::new();
             for (folder, fc) in &parsed {
-                // A handle is only needed when the folder overrides one of the
-                // analyser-config inputs.
-                if fc.disabled_diagnostics.is_none()
-                    && fc.non_ascii_mode.is_none()
-                    && fc.extra_commands.is_none()
-                    && fc.package_provides.is_none()
-                    && fc.bigip_version == BigipVersionSetting::Absent
-                    && fc.declared_targets.is_none()
-                    && matches!(fc.generic_variable_patterns, FolderGenericPatterns::Inherit)
-                {
-                    continue;
-                }
                 let mut disabled: Vec<String> = match &fc.disabled_diagnostics {
                     Some(d) => d.iter().cloned().collect(),
                     None => global_disabled.clone(),
@@ -19218,6 +19195,20 @@ impl Backend {
                     .declared_targets
                     .clone()
                     .unwrap_or_else(|| global_targets.clone());
+                // A handle is only needed when a resolved input differs from
+                // the session's: a folder that configures the session's own
+                // values — every configured folder carries its own skip — reads
+                // the session's handle and shares its memo.
+                if disabled == global_disabled
+                    && mode == global_mode
+                    && extra == global_extra
+                    && generic == global_generic
+                    && provides == global_provides
+                    && bigip == global_bigip
+                    && targets == global_targets
+                {
+                    continue;
+                }
                 // The folder's own live handle first, then its retired one, and
                 // only then a fresh input.
                 if let Some(handle) = reclaimable
@@ -19549,22 +19540,10 @@ impl Backend {
             let configs = self.folder_configs.lock().await;
             longest_folder_match(&configs, uri).cloned()
         };
-        let mut disabled = match folder.as_ref().and_then(|f| f.disabled_diagnostics.clone()) {
+        let disabled = match folder.as_ref().and_then(|f| f.disabled_diagnostics.clone()) {
             Some(d) => d,
             None => self.disabled_diagnostics.lock().await.clone(),
         };
-        // `tclLsp.shimmer.enabled = false` suppresses the whole Shimmer family
-        // (S100–S110); fold those codes into the effective disabled set so the
-        // compiler-check lift drops them (the analyser never emits them).
-        let shimmer_enabled = match folder.as_ref().and_then(|f| f.shimmer_enabled) {
-            Some(b) => b,
-            None => *self.shimmer_enabled.lock().await,
-        };
-        if !shimmer_enabled {
-            for code in ["S100", "S101", "S102", "S103", "S110"] {
-                disabled.insert(code.to_owned());
-            }
-        }
         let non_ascii_mode = match folder.as_ref().and_then(|f| f.non_ascii_mode) {
             Some(m) => m,
             None => *self.non_ascii_mode.lock().await,
@@ -20362,7 +20341,6 @@ impl Backend {
                 dialect: inputs.profile,
             },
             inputs.policy_layers,
-            inputs.disabled,
             produced,
         )
     }
@@ -20441,7 +20419,6 @@ impl Backend {
                     language_id,
                     &F5PullInputs {
                         profile,
-                        disabled: &disabled,
                         policy_layers: &policy_layers,
                         decode_report,
                     },
@@ -20492,7 +20469,7 @@ impl Backend {
             };
             let report = core_report::document_report(&doc, produced, &policy);
             let mut report = core_report::with_brace_expr_hints(report, &policy);
-            report.declare_skipped(skipped_codes(&disabled), &policy);
+            report.declare_analyser_skip(&policy);
             lift_report(&text, &report)
         })
         .await
@@ -23567,16 +23544,15 @@ impl LanguageServer for Backend {
         if let Some(mode) = settings_non_ascii_mode(&params.settings) {
             *self.non_ascii_mode.lock().await = mode;
         }
-        if let Some(disabled) = settings_disabled_diagnostics(&params.settings) {
-            *self.disabled_diagnostics.lock().await = disabled;
-        }
-        {
+        let skip = {
             let mut layers = self.policy_layers.lock().await;
             layers.editor = config_ini::merge_settings(
                 &layers.editor,
                 &normalize_config_payload(&params.settings),
             );
-        }
+            layers.production_skip()
+        };
+        *self.disabled_diagnostics.lock().await = skip;
         // The three writes above land immediately, ahead of the coalesced
         // re-pull below, so they retire the scheduler's cached inputs on their
         // own — the flat MCP-bridge payload is the only thing that carries them
@@ -27521,8 +27497,8 @@ fn parse_folder_formatting(
 }
 
 /// Parse the `tclLsp.diagnostics` object keys of one folder's merged config
-/// into `fc` — the ones that are not per-code booleans (those go through
-/// [`settings_disabled_diagnostics`] instead):
+/// into `fc` — the ones that are not per-code booleans (those are the
+/// policy's per-code decisions, read by [`PolicyLayers`]):
 ///
 /// - `genericVariablePatterns` — a present array replaces the patterns
 ///   (`Replace`); an explicit `null` requests the analyser's built-in
@@ -27617,13 +27593,6 @@ fn parse_folder_config(cfg: &serde_json::Value) -> Option<FolderConfig> {
     {
         fc.feature_toggles.set_flag("xcDiagnostics", flag);
     }
-    if let Some(b) = obj
-        .get("shimmer")
-        .and_then(|s| s.get("enabled"))
-        .and_then(serde_json::Value::as_bool)
-    {
-        fc.shimmer_enabled = Some(b);
-    }
     parse_folder_formatting(obj, &mut fc);
     // `tclLsp.extraCommands` per-folder override.
     if let Some(cmds) = obj
@@ -27695,11 +27664,20 @@ fn parse_folder_config(cfg: &serde_json::Value) -> Option<FolderConfig> {
         );
     }
     fc.iruleslx = parse_ilx_plugins(obj);
-    // The disabled-diagnostics and non-ASCII helpers expect the value wrapped
-    // under `tclLsp`; the per-folder pull hands us the section content directly.
+    // The non-ASCII helper expects the value wrapped under `tclLsp`; the
+    // per-folder pull hands us the section content directly.
     let wrapped = serde_json::json!({ "tclLsp": cfg });
     fc.non_ascii_mode = settings_non_ascii_mode(&wrapped);
-    fc.disabled_diagnostics = settings_disabled_diagnostics(&wrapped);
+    // The merged payload as a lone editor layer — the test seam's skip. The
+    // configuration pull overwrites it with the production skip of the
+    // folder's own three layers, which also become its policy.
+    fc.disabled_diagnostics = Some(
+        PolicyLayers {
+            editor: cfg.clone(),
+            ..PolicyLayers::default()
+        }
+        .production_skip(),
+    );
     Some(fc)
 }
 
@@ -30472,24 +30450,6 @@ mod tests {
         assert!(!is_config_file(
             &Uri::from_str("file:///ws/settings.ini").unwrap()
         ));
-    }
-
-    #[tokio::test]
-    async fn shimmer_disabled_folds_shimmer_family_into_disabled() {
-        let backend = test_backend();
-        let uri = Uri::from_str("file:///s.tcl").unwrap();
-        // Default (shimmer on): no S-codes forced into the disabled set.
-        let (disabled, ..) = backend.resolved_analysis_settings(&uri).await;
-        assert!(!disabled.contains("S100"));
-        // `tclLsp.shimmer.enabled = false` applies and forces the family off.
-        backend
-            .apply_global_config(&serde_json::json!({ "shimmer": { "enabled": false } }))
-            .await;
-        assert!(!*backend.shimmer_enabled.lock().await);
-        let (disabled, ..) = backend.resolved_analysis_settings(&uri).await;
-        for code in ["S100", "S101", "S102", "S103", "S110"] {
-            assert!(disabled.contains(code), "{code} should be suppressed");
-        }
     }
 
     #[tokio::test]
@@ -33732,7 +33692,6 @@ mod tests {
                 dialect: tcl_lsp_core::profile_for_dialect(dialect),
             },
             &layers,
-            &HashSet::new(),
             produced,
         )
     }
@@ -33945,7 +33904,6 @@ mod tests {
                 dialect: tcl_lsp_core::profile_for_dialect("f5-tmsh"),
             },
             &layers,
-            &HashSet::new(),
             vec![derived],
         );
         assert!(
@@ -35694,7 +35652,7 @@ mod tests {
         let diagnostic_publisher = Arc::new(DiagnosticPublisher::new(client.clone()));
         let db_config = tcl_lsp_db::AnalyserConfig::new(
             &db,
-            default_disabled_set().into_iter().collect(),
+            PolicyLayers::default().sorted_production_skip(),
             NonAsciiMode::Default,
             Vec::new(),
             None,
@@ -35719,7 +35677,7 @@ mod tests {
             folder_db_configs: Arc::new(Mutex::new(Vec::new())),
             folder_db_config_tombstones: Arc::new(Mutex::new(HashMap::new())),
             non_ascii_mode: Mutex::new(NonAsciiMode::Default),
-            disabled_diagnostics: Mutex::new(default_disabled_set()),
+            disabled_diagnostics: Mutex::new(PolicyLayers::default().production_skip()),
             diagnostics_exclude: Mutex::new(Vec::new()),
             policy_layers: Mutex::new(PolicyLayers::default()),
             workspace_index: Arc::new(TrackedRwLock::new("workspace_index", new_workspace_index())),
@@ -35752,7 +35710,6 @@ mod tests {
             diag_inputs_epoch: std::sync::atomic::AtomicU64::new(0),
             analyser_inputs_gate: tokio::sync::RwLock::new(()),
             edit_barrier_stall_reported: std::sync::atomic::AtomicU64::new(u64::MAX),
-            shimmer_enabled: Mutex::new(true),
             optimiser_profile: Mutex::new(default_optimiser_profile()),
             line_length: Mutex::new(80),
             style_line_length: Mutex::new(120),
@@ -37601,6 +37558,83 @@ mod tests {
         std::fs::remove_dir_all(&root).ok();
     }
 
+    /// A configured folder whose resolved analyser inputs equal the session's
+    /// shares the session's `AnalyserConfig` handle, and so its memo: every
+    /// configured folder carries a skip of its own, and a handle per folder
+    /// would analyse each of its documents twice per revision (DP4.1).
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_folder_matching_the_session_shares_its_analyser_handle() {
+        let backend = test_backend();
+        let folder = Uri::from_str("file:///proj-shared").unwrap();
+        *backend.workspace_folders.lock().await = vec![folder.clone()];
+        let session_skip = backend.disabled_diagnostics.lock().await.clone();
+        backend
+            .apply_folder_configs(vec![(
+                folder.clone(),
+                FolderConfig {
+                    disabled_diagnostics: Some(session_skip.clone()),
+                    ..FolderConfig::default()
+                },
+            )])
+            .await;
+        assert!(
+            backend.folder_db_configs.lock().await.is_empty(),
+            "a folder resolving to the session's inputs shares its handle",
+        );
+
+        let mut own = session_skip;
+        own.insert("W100".to_owned());
+        backend
+            .apply_folder_configs(vec![(
+                folder.clone(),
+                FolderConfig {
+                    disabled_diagnostics: Some(own),
+                    ..FolderConfig::default()
+                },
+            )])
+            .await;
+        let handles = backend.folder_db_configs.lock().await;
+        assert_eq!(handles.len(), 1, "a differing skip needs its own handle");
+        assert_eq!(handles[0].0, folder);
+    }
+
+    /// The session's analyser skip is the production skip of its layers: the
+    /// per-code decisions and the default-off seed a layer did not turn on,
+    /// and never a family gate — the shimmer switch is the policy's, not the
+    /// skip's (DP4.1).
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn the_session_skip_is_the_layers_production_skip() {
+        let backend = test_backend();
+        backend
+            .apply_global_config(&serde_json::json!({
+                "diagnostics": { "W210": false, "W242": true }
+            }))
+            .await;
+        let skip = backend.disabled_diagnostics.lock().await.clone();
+        assert_eq!(
+            skip,
+            std::iter::once("W210".to_owned()).collect::<HashSet<String>>(),
+            "the layer's `false` is in it and its `true` lifts the seed",
+        );
+
+        let backend = test_backend();
+        backend
+            .apply_global_config(&serde_json::json!({ "shimmer": { "enabled": false } }))
+            .await;
+        let uri = Uri::from_str("file:///s.tcl").unwrap();
+        let (disabled, ..) = backend.resolved_analysis_settings(&uri).await;
+        assert!(
+            disabled.iter().all(|code| !code.starts_with('S')),
+            "no shimmer code is skipped: {disabled:?}",
+        );
+        let policy = backend.resolved_policy_layers(&uri).await.builder().build();
+        assert_eq!(
+            policy.code_reason(DiagCode::S100),
+            Some(core_policy::Reason::ShimmerOff),
+            "the switch hides the family in the policy step",
+        );
+    }
+
     /// A folder whose override set empties retires its `AnalyserConfig`
     /// handle (payload cleared) and revives it when the override comes back —
     /// `.tcl-lsp.ini` churn must not allocate a config input per save.
@@ -38541,17 +38575,13 @@ proc p {} {
     async fn resolved_analysis_settings_falls_back_to_global_defaults() {
         // With no folder config registered, every knob resolves from the
         // backend's global state, and the session's layers decide the
-        // optimiser: the master switch and the per-code override both land in
-        // the policy.
+        // analyser's skip and the optimiser: the per-code disable lands in the
+        // skip, and the master switch and the per-code override in the policy.
         let backend = test_backend();
-        backend
-            .disabled_diagnostics
-            .lock()
-            .await
-            .insert("W211".to_owned());
         *backend.non_ascii_mode.lock().await = NonAsciiMode::Strict;
         backend
             .apply_global_config(&serde_json::json!({
+                "diagnostics": { "W211": false },
                 "optimiser": { "enabled": false, "O100": false }
             }))
             .await;

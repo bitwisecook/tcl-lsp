@@ -292,6 +292,41 @@ mod tests {
         assert!(shown.contains(&DiagCode::W210), "{shown:?}");
     }
 
+    /// The analyser folds the top-of-file directive into its own skip, so a
+    /// code the directive names is never computed; the declared skip is what
+    /// explains its absence.
+    #[test]
+    fn a_file_directive_gap_is_declared() {
+        let text = "# tcl-lsp: disable=W210\nputs $y\n";
+        let base = PolicyBuilder::new().build();
+        let skip = base
+            .production_skip()
+            .iter()
+            .map(ToString::to_string)
+            .collect();
+        let analysis = Analyser::with_disabled_diagnostics(skip).analyse(text, "tcl9.0");
+        let policy = PolicyBuilder::new()
+            .directives(Directives::from_analysis(&analysis, text))
+            .build();
+        let produced: Vec<Finding> = analysis
+            .diagnostics
+            .iter()
+            .cloned()
+            .map(Finding::from)
+            .collect();
+        let mut report = document_report(&tcl_doc(text), produced, &policy);
+        assert!(
+            report.iter().all(|(f, _)| f.code != DiagCode::W210),
+            "the analyser never computed W210: {report:?}"
+        );
+        assert_eq!(report.reason_for(DiagCode::W210, Span::new(0, 0)), None);
+        report.declare_analyser_skip(&policy);
+        assert_eq!(
+            report.reason_for(DiagCode::W210, Span::new(0, 0)),
+            Some(Reason::FileDirective)
+        );
+    }
+
     #[test]
     fn a_file_directive_reaches_the_style_pass_through_the_report() {
         let text = "# tcl-lsp: disable=W112\nset x 1   \n";

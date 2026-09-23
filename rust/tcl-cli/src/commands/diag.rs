@@ -23,7 +23,6 @@
 //! own policy (`docs/design/compiler/diagnostic-policy.md` § Adapters): the
 //! rows are the report's shown findings, and this verb decides nothing.
 
-use core::str::FromStr as _;
 use std::collections::HashSet;
 
 use serde::Serialize;
@@ -32,7 +31,7 @@ use tcl_cli_support::{
 };
 use tcl_compiler::analyser::{Analyser, Severity};
 use tcl_compiler::compilation_unit::{CompilationUnit, UnitBuildOptions};
-use tcl_compiler::compiler_checks::{DiagCode, run_all_checks};
+use tcl_compiler::compiler_checks::run_all_checks;
 use tcl_compiler::unit_scope::CallSiteEvidence;
 use tcl_lexer::LineIndex;
 use tcl_lsp_core::diagnostic_policy::{Directives, Finding, Policy, PolicyBuilder, Report};
@@ -241,7 +240,8 @@ fn collect_rows(
     // configuration layer or the default-off seed, which it need not compute
     // (`docs/design/compiler/diagnostic-policy.md` § Producers that change)
     // — the same seeded set the editor's `file_analysis` passes. Declared to
-    // the report below, so a gap is explained rather than read as clean.
+    // the report below with the codes the analyser's own file-directive fold
+    // skips, so a gap is explained rather than read as clean.
     let skip: HashSet<String> = diag_policy(base.clone())
         .production_skip()
         .iter()
@@ -321,10 +321,7 @@ fn collect_rows(
         },
     };
     let mut report = document_report(&doc, produced, &policy);
-    report.declare_skipped(
-        skip.iter().filter_map(|code| DiagCode::from_str(code).ok()),
-        &policy,
-    );
+    report.declare_analyser_skip(&policy);
     rows_of(&report, source, &line_index)
 }
 

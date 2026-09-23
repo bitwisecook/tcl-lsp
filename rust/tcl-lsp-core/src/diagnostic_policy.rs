@@ -400,15 +400,25 @@ impl Report {
     }
 
     /// Record that a producer skipped computing `codes`, each with the reason
-    /// `policy` gives for the code. A code the policy would show is not
-    /// recorded: there is nothing to explain a skip of it with, and a
-    /// truth-table row over the producer is what catches that mismatch.
+    /// `policy` gives for the code's absence ([`Policy::gap_reason`]). A code
+    /// the policy would show is not recorded: there is nothing to explain a
+    /// skip of it with, and a truth-table row over the producer is what
+    /// catches that mismatch.
     pub fn declare_skipped(&mut self, codes: impl IntoIterator<Item = DiagCode>, policy: &Policy) {
         for code in codes {
-            if let Some(reason) = policy.code_reason(code) {
+            if let Some(reason) = policy.gap_reason(code) {
                 self.skipped.insert(code, reason);
             }
         }
+    }
+
+    /// Record the analyser's skip under `policy` ([`Policy::analyser_skip`]):
+    /// the production skip the surface handed it and the codes the file
+    /// directive folded away. What every surface that ran the analyser
+    /// declares, so a code it left uncomputed is explained rather than read
+    /// as clean.
+    pub fn declare_analyser_skip(&mut self, policy: &Policy) {
+        self.declare_skipped(policy.analyser_skip(), policy);
     }
 
     /// The declared skips, by code.
@@ -795,8 +805,26 @@ impl Directives {
                 return Some(Reason::InlineDirective { line });
             }
         }
+        self.file_reason(code)
+    }
+
+    /// [`Reason::FileDirective`] when the top-of-file directive names `code`
+    /// or `*` — the half of [`Self::reason_for`] that needs no span.
+    #[must_use]
+    pub fn file_reason(&self, code: DiagCode) -> Option<Reason> {
         self.hit(FILE_SUPPRESS_KEY, code)
             .then_some(Reason::FileDirective)
+    }
+
+    /// The catalogued codes the top-of-file directive names, spelled as the
+    /// catalogue spells them. `*` is not a code and is not among them; nor
+    /// is a spelling the catalogue lacks.
+    pub fn file_codes(&self) -> impl Iterator<Item = DiagCode> + '_ {
+        self.lines
+            .get(&FILE_SUPPRESS_KEY)
+            .into_iter()
+            .flatten()
+            .filter_map(|code| DiagCode::from_str(code).ok())
     }
 
     /// The 0-based line the map keys a finding at `span` by.
@@ -903,24 +931,43 @@ impl Policy {
         }
     }
 
-    /// Steps 4 and 5 of [`apply`] for `code` alone — the per-code decision
-    /// and the family gates — without the document gates or the directives,
-    /// which need a finding to attach to. This is the reason a producer's
-    /// declared skip is recorded with, and what [`Self::production_skip`] is
-    /// built from.
-    #[must_use]
-    pub fn code_reason(&self, code: DiagCode) -> Option<Reason> {
+    /// Steps 1 and 2 of [`apply`] for `code`: the document-wide gates, then
+    /// encoding abstention, which spares only [`ABSTENTION_SURVIVORS`].
+    fn document_reason(&self, code: DiagCode) -> Option<Reason> {
+        if !self.document.reporting {
+            Some(Reason::ReportingOff)
+        } else if self.document.excluded {
+            Some(Reason::Excluded)
+        } else if self.document.abstain && !ABSTENTION_SURVIVORS.contains(&code) {
+            Some(Reason::EncodingAbstention)
+        } else {
+            None
+        }
+    }
+
+    /// Step 4 of [`apply`] for `code` alone: [`Reason::Disabled`] for the
+    /// layer whose value stands, or [`Reason::DefaultOff`] when the code is
+    /// in the seed and no layer turned it on.
+    fn decision_reason(&self, code: DiagCode) -> Option<Reason> {
         match self.codes.get(&code) {
             Some(CodeDecision {
                 enabled: false,
                 layer,
-            }) => return Some(Reason::Disabled(*layer)),
-            Some(CodeDecision { enabled: true, .. }) => {}
-            None => {
-                if self.default_off.contains(&code) {
-                    return Some(Reason::DefaultOff);
-                }
-            }
+            }) => Some(Reason::Disabled(*layer)),
+            Some(CodeDecision { enabled: true, .. }) => None,
+            None => self
+                .default_off
+                .contains(&code)
+                .then_some(Reason::DefaultOff),
+        }
+    }
+
+    /// Steps 4 and 5 of [`apply`] for `code` alone — the per-code decision
+    /// and the family gates — without the document gates or the directives.
+    #[must_use]
+    pub fn code_reason(&self, code: DiagCode) -> Option<Reason> {
+        if let Some(reason) = self.decision_reason(code) {
+            return Some(reason);
         }
         if code.is_optimisation() {
             if !self.optimiser.enabled {
@@ -938,21 +985,55 @@ impl Policy {
         None
     }
 
-    /// The codes a producer may leave uncomputed: every catalogued code this
-    /// policy hides by its per-code decision or a family gate, whatever the
-    /// finding. Rule 2's permitted saving
-    /// (`docs/design/compiler/diagnostic-policy.md` § Producers that change)
-    /// — the analyser's `with_disabled_diagnostics` set on every surface —
-    /// and what the caller declares back through [`Report::declare_skipped`].
-    /// The directives are not in it: the analyser reads those itself, and a
-    /// line-scoped one cannot skip a whole code.
+    /// Why a code with no finding at all is absent, in [`apply`]'s order for
+    /// the steps that need no span: the document gates, abstention (unless
+    /// the code survives it), the top-of-file directive (which names the code
+    /// or `*`), then [`Self::code_reason`]. An inline directive is keyed by a
+    /// line, so it cannot explain a whole code's absence. This is the reason
+    /// a producer's declared skip is recorded with
+    /// ([`Report::declare_skipped`]).
+    #[must_use]
+    pub fn gap_reason(&self, code: DiagCode) -> Option<Reason> {
+        self.document_reason(code)
+            .or_else(|| self.directives.file_reason(code))
+            .or_else(|| self.code_reason(code))
+    }
+
+    /// The codes a producer may leave uncomputed: every catalogued code the
+    /// per-code decision turns off — a layer's `false`, or the default-off
+    /// seed no layer turned on. Rule 2's permitted saving
+    /// (`docs/design/compiler/diagnostic-policy.md` § Producers that change),
+    /// the analyser's `with_disabled_diagnostics` set on every surface.
+    ///
+    /// The family gates are not in it. No producer that honours a skip emits
+    /// an optimisation or a shimmer code — the analyser emits neither, and
+    /// the compiler checks and the optimiser always run — so a family-gated
+    /// code is never skipped, and declaring it skipped would explain a gap
+    /// that does not exist. Nor are the directives: the analyser reads those
+    /// itself ([`Self::analyser_skip`]), and a line-scoped one cannot skip a
+    /// whole code.
     #[must_use]
     pub fn production_skip(&self) -> BTreeSet<DiagCode> {
         DiagCode::ALL
             .iter()
             .copied()
-            .filter(|code| self.code_reason(*code).is_some())
+            .filter(|code| self.decision_reason(*code).is_some())
             .collect()
+    }
+
+    /// What the analyser leaves uncomputed under this policy:
+    /// [`Self::production_skip`], which the surface hands it, plus every
+    /// catalogued code the top-of-file directive names, because
+    /// `Analyser::analyse` folds `parse_file_suppression` into its own
+    /// disabled set. The directive's `*` names no code and skips nothing —
+    /// the analyser compares codes exactly — so it is not in the set; the
+    /// policy step hides those findings instead. This is the set a surface
+    /// that ran the analyser declares ([`Report::declare_analyser_skip`]).
+    #[must_use]
+    pub fn analyser_skip(&self) -> BTreeSet<DiagCode> {
+        let mut skip = self.production_skip();
+        skip.extend(self.directives.file_codes());
+        skip
     }
 }
 
@@ -1301,19 +1382,10 @@ pub fn apply(findings: Vec<Finding>, policy: &Policy) -> Report {
 
 /// Steps 1 to 5 of [`apply`] for one finding: the first reason that fires.
 fn own_reason(finding: &Finding, policy: &Policy) -> Option<Reason> {
-    if !policy.document.reporting {
-        return Some(Reason::ReportingOff);
-    }
-    if policy.document.excluded {
-        return Some(Reason::Excluded);
-    }
-    if policy.document.abstain && !ABSTENTION_SURVIVORS.contains(&finding.code) {
-        return Some(Reason::EncodingAbstention);
-    }
-    if let Some(reason) = policy.directives.reason_for(finding.code, finding.span) {
-        return Some(reason);
-    }
-    policy.code_reason(finding.code)
+    policy
+        .document_reason(finding.code)
+        .or_else(|| policy.directives.reason_for(finding.code, finding.span))
+        .or_else(|| policy.code_reason(finding.code))
 }
 
 #[cfg(test)]
@@ -2473,7 +2545,7 @@ mod apply_tests {
     }
 
     #[test]
-    fn production_skip_is_every_code_the_policy_hides_without_a_finding() {
+    fn production_skip_is_the_per_code_decision_and_the_seed() {
         let mut policy = Policy::default();
         policy.codes.insert(
             DiagCode::W210,
@@ -2482,6 +2554,7 @@ mod apply_tests {
                 layer: PolicyLayer::Global,
             },
         );
+        policy.shimmer = false;
         let skip = policy.production_skip();
         assert!(skip.contains(&DiagCode::W210));
         assert!(
@@ -2489,9 +2562,82 @@ mod apply_tests {
             "the default-off seed is skipped"
         );
         assert!(!skip.contains(&DiagCode::W100));
-        // The default readability profile hides the non-readability rewrites.
-        assert!(skip.contains(&DiagCode::O107));
-        assert!(!skip.contains(&DiagCode::O120));
+        // The family gates hide these codes, but no producer that honours a
+        // skip emits them, so nothing is skipped on their account.
+        assert_eq!(
+            policy.code_reason(DiagCode::O107),
+            Some(Reason::OptimiserProfile {
+                profile: DEFAULT_EDITOR_PROFILE
+            }),
+            "the default readability profile hides O107"
+        );
+        assert!(!skip.contains(&DiagCode::O107));
+        assert_eq!(policy.code_reason(DiagCode::S100), Some(Reason::ShimmerOff));
+        assert!(!skip.contains(&DiagCode::S100));
+    }
+
+    #[test]
+    fn a_gap_reason_follows_the_step_order() {
+        let mut abstaining = Policy::default();
+        abstaining.document.abstain = true;
+        assert_eq!(
+            abstaining.gap_reason(DiagCode::W210),
+            Some(Reason::EncodingAbstention)
+        );
+        assert_eq!(
+            abstaining.gap_reason(DiagCode::W109),
+            None,
+            "an integrity code survives abstention"
+        );
+
+        let text = "# tcl-lsp: disable=W210\nputs $y\n";
+        let mut directed = Policy {
+            directives: Directives::scan(text, tcl9()),
+            ..Policy::default()
+        };
+        directed.codes.insert(
+            DiagCode::W210,
+            CodeDecision {
+                enabled: false,
+                layer: PolicyLayer::Global,
+            },
+        );
+        assert_eq!(
+            directed.gap_reason(DiagCode::W210),
+            Some(Reason::FileDirective),
+            "the file directive is step 3, ahead of the per-code decision"
+        );
+        assert_eq!(
+            directed.gap_reason(DiagCode::W242),
+            Some(Reason::DefaultOff)
+        );
+
+        directed.document.reporting = false;
+        directed.document.abstain = true;
+        assert_eq!(
+            directed.gap_reason(DiagCode::W210),
+            Some(Reason::ReportingOff),
+            "reporting off answers before everything"
+        );
+    }
+
+    #[test]
+    fn the_analyser_skip_adds_the_codes_the_file_directive_names() {
+        let text = "# tcl-lsp: disable=W210, *\nputs $y\n";
+        let policy = Policy {
+            directives: Directives::scan(text, tcl9()),
+            ..Policy::default()
+        };
+        let production = policy.production_skip();
+        let analyser = policy.analyser_skip();
+        assert!(!production.contains(&DiagCode::W210));
+        assert!(analyser.contains(&DiagCode::W210));
+        let mut expected = production;
+        expected.insert(DiagCode::W210);
+        assert_eq!(
+            analyser, expected,
+            "`*` names no code, so it adds nothing to the skip"
+        );
     }
 
     #[test]

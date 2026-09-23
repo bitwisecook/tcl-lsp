@@ -16,8 +16,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Unit tests for INI config-file parsing, layer merging, and the
-//! diagnostics policy readers.
+//! Unit tests for INI config-file parsing, layer merging, the default-off
+//! seed and the severity parse.
 
 use super::*;
 use serde_json::json;
@@ -40,46 +40,6 @@ fn default_off_codes_match_the_catalogue() {
 }
 
 #[test]
-fn default_off_codes_are_seeded_into_the_disabled_set() {
-    // The opt-in default-off codes (e.g. W242) start in the resolved
-    // disabled set, so the analyser suppresses them by default.
-    assert!(default_disabled_set().contains("W242"));
-    // An empty config keeps the default-off seed.
-    let none = settings_disabled_diagnostics(&json!({}));
-    assert!(none.is_none(), "no diagnostics section ⇒ inherit default");
-    // A `false` for some other code keeps W242 disabled too.
-    let with_false =
-        settings_disabled_diagnostics(&json!({ "tclLsp": { "diagnostics": { "W111": false } } }))
-            .expect("set");
-    assert!(with_false.contains("W242"), "W242 stays default-off");
-    assert!(with_false.contains("W111"));
-    // `tclLsp.diagnostics.W242: true` enables it (removes from disabled).
-    let enabled =
-        settings_disabled_diagnostics(&json!({ "tclLsp": { "diagnostics": { "W242": true } } }))
-            .expect("set");
-    assert!(
-        !enabled.contains("W242"),
-        "W242 enabled via config: {enabled:?}"
-    );
-}
-
-#[test]
-fn settings_disabled_diagnostics_nested_and_flat() {
-    let nested = json!({
-        "tclLsp": {"diagnostics": {"W001": true, "W108": false, "W111": false}}
-    });
-    let got = settings_disabled_diagnostics(&nested).unwrap();
-    assert!(got.contains("W108") && got.contains("W111") && !got.contains("W001"));
-    let flat = json!({
-        "tclLsp.diagnostics.W210": false, "tclLsp.diagnostics.W211": true
-    });
-    let got = settings_disabled_diagnostics(&flat).unwrap();
-    assert!(got.contains("W210") && !got.contains("W211"));
-    // No diagnostics config -> None (leave current set untouched).
-    assert!(settings_disabled_diagnostics(&json!({"x": 1})).is_none());
-}
-
-#[test]
 fn parse_severity_value_is_case_insensitive_and_rejects_the_rest() {
     assert_eq!(parse_severity_value("Error"), Some(Severity::Error));
     assert_eq!(parse_severity_value("WARNING"), Some(Severity::Warning));
@@ -89,41 +49,6 @@ fn parse_severity_value_is_case_insensitive_and_rejects_the_rest() {
     for rejected in ["default", "", "loud", "suggestion"] {
         assert_eq!(parse_severity_value(rejected), None, "{rejected:?}");
     }
-}
-
-#[test]
-fn settings_severity_overrides_nested_and_flat() {
-    // Nested shape: recognised values map (case-insensitively); "default"
-    // and unknown values mean "no override" and are skipped.
-    let nested = json!({
-        "tclLsp": {"diagnosticSeverity": {
-            "W211": "warning",
-            "W220": "Error",
-            "W210": "info",
-            "W214": "default",
-            "W111": "loud",
-        }}
-    });
-    let got = settings_severity_overrides(&nested).unwrap();
-    assert_eq!(got.get("W211"), Some(&Severity::Warning));
-    assert_eq!(got.get("W220"), Some(&Severity::Error));
-    assert_eq!(got.get("W210"), Some(&Severity::Info));
-    assert!(!got.contains_key("W214"), "'default' must not override");
-    assert!(!got.contains_key("W111"), "unknown value must be skipped");
-    // Flat-dotted shape.
-    let flat = json!({
-        "tclLsp.diagnosticSeverity.W211": "hint",
-        "tclLsp.diagnosticSeverity.S100": "warning",
-    });
-    let got = settings_severity_overrides(&flat).unwrap();
-    assert_eq!(got.get("W211"), Some(&Severity::Hint));
-    assert_eq!(got.get("S100"), Some(&Severity::Warning));
-    // No diagnosticSeverity section -> None (leave current map untouched);
-    // an explicit empty section -> Some(empty) (clear all overrides).
-    assert!(settings_severity_overrides(&json!({"x": 1})).is_none());
-    let cleared =
-        settings_severity_overrides(&json!({"tclLsp": {"diagnosticSeverity": {}}})).unwrap();
-    assert!(cleared.is_empty());
 }
 
 #[test]
@@ -261,8 +186,8 @@ fn multiline_disabled_codes_list() {
 #[test]
 fn diagnostic_severity_section() {
     // `[diagnosticSeverity]` entries pass through verbatim as the nested
-    // `diagnosticSeverity` object `settings_severity_overrides` parses;
-    // validation (and skip-unknown) happens there, not here.
+    // `diagnosticSeverity` object the policy builder reads; validation (and
+    // skip-unknown, through `parse_severity_value`) happens there, not here.
     let ini = "[diagnosticSeverity]\n\
                W211 = warning\n\
                W220 = Error\n\

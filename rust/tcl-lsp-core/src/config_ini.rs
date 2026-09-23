@@ -31,14 +31,12 @@
 //! editor delivers a `tclLsp` section as, so the server's
 //! `Backend::apply_global_config` applies a file layer exactly as it applies
 //! the editor layer. [`merge_settings`] deep-merges the layers (later wins,
-//! sections merged key-by-key). The four readers of the diagnostics policy
-//! keys — [`settings_disabled_diagnostics`] over the [`DEFAULT_OFF_CODES`]
-//! seed, and [`settings_severity_overrides`] over [`parse_severity_value`] —
-//! live here too, so the policy step ([`crate::diagnostic_policy`]) and the
-//! server read one parse. The contract is
+//! sections merged key-by-key). The [`DEFAULT_OFF_CODES`] seed and
+//! [`parse_severity_value`] live here too; the policy step's builder
+//! ([`crate::diagnostic_policy::PolicyBuilder`]) resolves the layers per code
+//! over them, so every surface reads one parse. The contract is
 //! `docs/design/contracts/config-precedence.md`.
 
-use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use serde_json::{Map, Value};
@@ -465,12 +463,11 @@ fn insert_diagnostics(sections: &[Section], out: &mut Map<String, Value>) {
 }
 
 /// `[diagnosticSeverity]`: each `CODE = severity` entry → a `diagnosticSeverity`
-/// object of `{CODE: "severity"}`, the nested shape
-/// [`settings_severity_overrides`] parses. The severity strings are passed
-/// through verbatim; that parser validates them (case-insensitive `error` /
-/// `warning` / `information` / `info` / `hint`) and skips any it does not
-/// recognise, so an unknown value here simply leaves the code's emitted
-/// severity untouched.
+/// object of `{CODE: "severity"}`, the nested shape the policy builder reads.
+/// The severity strings are passed through verbatim; [`parse_severity_value`]
+/// validates them there (case-insensitive `error` / `warning` /
+/// `information` / `info` / `hint`) and an unknown one is no override, so an
+/// unknown value here simply leaves the code's emitted severity untouched.
 fn insert_diagnostic_severity(sections: &[Section], out: &mut Map<String, Value>) {
     let Some(section) = sections.iter().find(|s| s.name == "diagnosticSeverity") else {
         return;
@@ -667,67 +664,6 @@ fn read_layer(path: &Path, layer: Layer) -> Option<Value> {
         .map(|content| settings_from_ini(&content, layer))
 }
 
-/// A fresh disabled-diagnostics set seeded with [`DEFAULT_OFF_CODES`] — the
-/// starting point every flat resolution builds on.
-#[must_use]
-pub fn default_disabled_set() -> HashSet<String> {
-    DEFAULT_OFF_CODES
-        .iter()
-        .map(|c| c.as_str().to_owned())
-        .collect()
-}
-
-/// Extract the disabled diagnostic codes from a settings payload — the
-/// `tclLsp.diagnostics.<CODE>` booleans whose value is `false`. Accepts
-/// the nested object (`{"tclLsp":{"diagnostics":{"W001":false}}}`) and
-/// the flat-dotted (`{"tclLsp.diagnostics.W001":false}`) shapes. Returns
-/// `None` when no diagnostics config is present (so the caller leaves the
-/// current set untouched).
-///
-/// Every resolution starts from the opt-in [`DEFAULT_OFF_CODES`] seed; a
-/// `false` value disables a code and a `true` value *enables* one (removing
-/// it from the set, so a default-off code like W242 can be turned on).
-#[must_use]
-pub fn settings_disabled_diagnostics(settings: &Value) -> Option<HashSet<String>> {
-    if let Some(map) = settings
-        .get("tclLsp")
-        .and_then(|v| v.get("diagnostics"))
-        .and_then(Value::as_object)
-    {
-        let mut set = default_disabled_set();
-        for (code, v) in map {
-            match v.as_bool() {
-                Some(false) => {
-                    set.insert(code.clone());
-                }
-                Some(true) => {
-                    set.remove(code);
-                }
-                None => {}
-            }
-        }
-        return Some(set);
-    }
-    let obj = settings.as_object()?;
-    let mut set = default_disabled_set();
-    let mut found = false;
-    for (k, v) in obj {
-        if let Some(code) = k.strip_prefix("tclLsp.diagnostics.") {
-            found = true;
-            match v.as_bool() {
-                Some(false) => {
-                    set.insert(code.to_owned());
-                }
-                Some(true) => {
-                    set.remove(code);
-                }
-                None => {}
-            }
-        }
-    }
-    found.then_some(set)
-}
-
 /// Map a `tclLsp.diagnosticSeverity.<CODE>` config value to a severity
 /// (case-insensitive). `"error"`, `"warning"`, `"information"` / `"info"`,
 /// and `"hint"` select the matching [`Severity`]; anything else — including
@@ -746,43 +682,6 @@ pub fn parse_severity_value(s: &str) -> Option<Severity> {
     } else {
         None
     }
-}
-
-/// Parse per-code severity overrides from a `tclLsp` settings payload,
-/// accepting the nested object (`{"tclLsp":{"diagnosticSeverity":{"W211":"warning"}}}`)
-/// and the flat-dotted (`{"tclLsp.diagnosticSeverity.W211":"warning"}`) shapes.
-/// Returns `Some(map)` (possibly empty) when the section is present in either
-/// shape, else `None` (so the caller leaves the current map untouched). Entries
-/// whose value is not a recognised severity string ([`parse_severity_value`])
-/// are skipped, so the producer's emitted severity stands for them. Mirrors
-/// [`settings_disabled_diagnostics`].
-#[must_use]
-pub fn settings_severity_overrides(settings: &Value) -> Option<HashMap<String, Severity>> {
-    if let Some(map) = settings
-        .get("tclLsp")
-        .and_then(|v| v.get("diagnosticSeverity"))
-        .and_then(Value::as_object)
-    {
-        let mut overrides = HashMap::new();
-        for (code, v) in map {
-            if let Some(severity) = v.as_str().and_then(parse_severity_value) {
-                overrides.insert(code.clone(), severity);
-            }
-        }
-        return Some(overrides);
-    }
-    let obj = settings.as_object()?;
-    let mut overrides = HashMap::new();
-    let mut found = false;
-    for (k, v) in obj {
-        if let Some(code) = k.strip_prefix("tclLsp.diagnosticSeverity.") {
-            found = true;
-            if let Some(severity) = v.as_str().and_then(parse_severity_value) {
-                overrides.insert(code.to_owned(), severity);
-            }
-        }
-    }
-    found.then_some(overrides)
 }
 
 #[cfg(test)]

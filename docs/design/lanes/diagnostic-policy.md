@@ -696,6 +696,36 @@ file. `cargo check --workspace` is green. Not run: `make rust-check`
 (workspace-wide, over the concurrent lanes' uncommitted crates too; the
 plan leaves it to checkpoint C4) and the `tcl-lsp-core` doc-tests.
 
+### DP4.1 — the skip is the policy's, and declared
+
+Built as § Work items › DP4.1 says, in two commits: the code, and the
+`tcl-lsp-db` documentation `d941667f`, staged as that file's own hunks
+after the value-transfers lane had committed its `ValueTransferContext`
+edits to the same file (`6d0de164`). Beyond the item's list: D37 (the
+server's shimmer-switch state, which only the deleted fold read) and D38
+(`F5PullInputs::disabled`, which only the deleted parameter read). Two
+server unit tests follow the rule they pinned:
+`resolved_analysis_settings_falls_back_to_global_defaults` now sets W211
+through the configuration, because an `apply_global_config` rewrites the
+session skip from the layers and a set inserted by hand beforehand no
+longer survives it; `shimmer_disabled_folds_shimmer_family_into_disabled`,
+which pinned the fold, is deleted — `the_session_skip_is_the_layers_production_skip`
+pins the reverse and that the switch reaches the policy (`ShimmerOff`).
+`sync_db_config` still sets the salsa input on every sync, as before; the
+skip it writes is sorted and derived deterministically from the layers, so
+the change adds no churn.
+
+Suites: core `--lib` 2318; `code_actions_depth` 46, `docstring` 37,
+`force_import_shadow_consumers` 10, `lsp_edit_workspace` 37,
+`lsp_lens_links_symbols` 45, `lsp_providers` 51; server `--lib` 580; the
+whole `e2e` 1595 (5 ignored); `tcl-cli` lib 26, `cli` 38, `compile_verbs`
+11, `explorer_gui` 2, `pkg_verbs` 13, `spec_verbs` 18; `tcl-cli-support`
+19; `tcl-mcp` 91. The crate clippy is clean (one `assert!` over an
+equality became `assert_eq!`), `cargo fmt --check` is clean on the lane's
+files, and `cargo check --workspace` is green. No suite changed outcome:
+`getEffectiveConfig`'s `disabled_diagnostics` lists catalogued codes only
+by construction, and no test pinned an uncatalogued spelling there.
+
 ## Plan for finishing slices 4–7 and for slices 8–10
 
 The execution plan from the checkpoint `5bc40e95` to the end of the page's
@@ -3062,6 +3092,20 @@ This plan's own decisions:
   policy page's § Configuration, `config-precedence.md`,
   `kcs-feature-tcl-verb-cli.md`, `kcs-qa-how-tcl-lsp-loads-configuration.md`.
 
+Decisions the implementation of slices 4–7 took (DP4.1 onwards):
+
+- **D37. The server's shimmer-switch copies go with the fold (DP4.1).**
+  `Backend::shimmer_enabled` and `FolderConfig::shimmer_enabled` had one
+  reader, the shimmer fold in `resolved_analysis_settings`; with the fold
+  gone they were written and never consumed, while the policy reads
+  `shimmer.enabled` from the layers itself. They are deleted with the fold
+  rather than kept as state that looks authoritative and decides nothing.
+- **D38. `F5PullInputs::disabled` goes with `f5_model_report`'s parameter
+  (DP4.1).** DP4.1 keeps it beside `LiftInputs::disabled` and
+  `PullRefinementInputs::disabled` because the cross-file arity predicates
+  read them; those two are read there, but the F5 pull's only reader was
+  the removed parameter — no arity pass runs over a model document.
+
 ### Open questions for the owner
 
 Each with the assumption the plan proceeds on.
@@ -3299,7 +3343,7 @@ Each item updates its row in the commit that lands it.
 | Item | Model | Size | Status | Commit | Gates |
 |---|---|---|---|---|---|
 | DP4.0 | opus | L | done | `slices 4–7 checkpoint green` | every suite of the lane crates, the whole `e2e`, the crate clippy, the catalogue gates, `owner-resolution`, `cargo check --workspace`; `make rust-check` left to C4 |
-| DP4.1 | opus | M | not started | — | — |
+| DP4.1 | opus | M | done | code: `DP4.1 — the analyser's skip is the policy's on every path, and the report declares it`; documentation: `d941667f` | core `--lib` and the six integration binaries, server `--lib`, the whole `e2e`, `tcl-cli`, `tcl-cli-support`, `tcl-mcp`; the crate clippy; `cargo check -p tcl-lsp-db` and its clippy; `cargo check --workspace` |
 | DP4.2 | opus | S | done (the merge of `rust`) | the merge commit | server `--lib`; the crate clippy |
 | DP4.3 | sonnet | S | not started | — | — |
 | DP5.1 | opus | S | not started | — | — |
