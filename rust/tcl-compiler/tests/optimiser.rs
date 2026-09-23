@@ -2760,13 +2760,26 @@ fn a_finally_body_is_reachable_however_the_try_body_leaves() {
 /// it, and the `finally` store that rebinds it is visible.
 #[test]
 fn a_try_finally_does_not_hide_the_names_bound_around_it() {
-    let src =
-        "proc p {} {\n    set f 0\n    try {error boom} finally {set f 1}\n    return $f\n}\n";
-    assert!(
-        !analyser_codes(src, TCL).iter().any(|c| c == "W210"),
-        "`f` is bound before the `try` and rebound by `finally`: {:?}",
-        analyser_codes(src, TCL)
-    );
+    for (why, src) in [
+        (
+            "bound before the `try`, rebound by `finally`",
+            "proc p {} {\n    set f 0\n    try {error boom} finally {set f 1}\n    return $f\n}\n",
+        ),
+        // An inner `finally` runs before the outer one on every path, so the
+        // name it binds is bound when the outer clause reads it. Wiring the
+        // inner body's `return` straight to the outer `finally` skipped the
+        // inner clause (found in review).
+        (
+            "bound by an inner `finally` before the outer one reads it",
+            "proc p {} {\n    try { try {return ok} finally {set x 1} } finally {puts $x}\n}\n",
+        ),
+    ] {
+        assert!(
+            !analyser_codes(src, TCL).iter().any(|c| c == "W210"),
+            "{why}: {:?}",
+            analyser_codes(src, TCL)
+        );
+    }
 }
 
 /// Precision: the fix must not make a handler's variable look bound on a path

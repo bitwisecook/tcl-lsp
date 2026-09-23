@@ -975,10 +975,24 @@ impl CfgBuilder<'_> {
         let in_body = |id: crate::cfg::BlockId| {
             id == body_block_id || usize::try_from(id.0).is_ok_and(|i| i >= first_body_id)
         };
+        // An exit a nested `try` or `catch` inside this body already
+        // intercepts is not an exit of *this* body: the inner construct was
+        // lowered first and recorded its own edge, and control reaches this
+        // `finally` only after the inner clause has run — through the inner
+        // construct's normal flow. Wiring it here too would skip the inner
+        // `finally`, and `try { try {return ok} finally {set x 1} }
+        // finally {puts $x}` read `x` as possibly unset (found in review).
+        let intercepted: std::collections::HashSet<&str> = self
+            .exception_edges
+            .iter()
+            .filter(|(_, to)| self.block_ids.get(to).is_some_and(|id| in_body(*id)))
+            .map(|(from, _)| from.as_str())
+            .collect();
         let mut sources: Vec<String> = self
             .block_ids
             .iter()
             .filter(|(_, id)| in_body(**id))
+            .filter(|(name, _)| !intercepted.contains(name.as_str()))
             .filter(|(name, _)| {
                 self.blocks
                     .get(name.as_str())
