@@ -747,6 +747,19 @@ fn expr_variable_and_command_operands() {
     cmd_eq("set i 7; expr {\"item $i\"}", "item 7");
 }
 
+/// A runtime `expr` substitutes a `"…"` operand and leaves a `{…}` one as
+/// written. tclsh 8.4.20 through 9.1b0 all print `[id 9]` and `pre5`; the VM
+/// substituted both spellings and ran `id` (#2227).
+#[test]
+fn expr_braced_operand_is_literal_at_runtime() {
+    cmd_eq(
+        "proc id {v} { return $v }; set e {{[id 9]}}; expr $e",
+        "[id 9]",
+    );
+    cmd_eq("set x 5; set e {{pre$x} eq \"pre$x\"}; expr $e", "0");
+    cmd_eq("set x 5; set e {\"pre$x\"}; expr $e", "pre5");
+}
+
 #[test]
 fn expr_unknown_variable_errors() {
     // tclsh: can't read "nope": no such variable

@@ -2407,17 +2407,11 @@ fn scan_expr_for_calls(
                 .unwrap_or(text.as_str());
             scan_source_for_calls(inner, ctx, facts, 0);
         }
-        ExprNode::String { text, .. }
-            // Quoted strings may contain command substitutions
-            // (`"[q]"`), so descend through the source text the same
-            // way as for `Command`.  Skip braced-string literals
-            // since `{…}` doesn't interpret substitutions; the
-            // expression parser uses `String` for both forms, so we
-            // gate on the actual delimiter.
-            if text.starts_with('"') && text.ends_with('"') && text.len() >= 2 =>
-        {
-            let inner = &text[1..text.len() - 1];
-            if inner.contains('[') {
+        // Quoted strings may contain command substitutions (`"[q]"`), so
+        // descend through the source text the same way as for `Command`;
+        // a braced `{…}` one does not substitute.
+        ExprNode::String { text, .. } => {
+            if let Some(inner) = crate::word_subst::quoted_operand_body(text) {
                 scan_source_for_calls(inner, ctx, facts, 0);
             }
         }
@@ -2821,11 +2815,19 @@ fn classify_return_expr(node: &crate::expr_ast::ExprNode, params: &HashSet<Strin
         return ReturnKind::Literal(text.clone());
     }
     if let ExprNode::String { text, .. } = node {
-        // Strip outer delimiters.
+        // A `"…"` operand substitutes, so its text is the value only when
+        // there is nothing to substitute: `return [expr {"pre$x"}]` returns
+        // `pre5` in tclsh 8.6.18 and 9.0.4, and O103 folded the call to the
+        // literal `pre$x` (#2227).
+        if let Some(inside) = tcl_syntax::expr::quoted_string_body(text) {
+            if inside.contains(['$', '[', '\\']) {
+                return ReturnKind::Other;
+            }
+            return ReturnKind::Literal(inside.to_owned());
+        }
         let inside = text
-            .strip_prefix('"')
-            .and_then(|s| s.strip_suffix('"'))
-            .or_else(|| text.strip_prefix('{').and_then(|s| s.strip_suffix('}')))
+            .strip_prefix('{')
+            .and_then(|s| s.strip_suffix('}'))
             .unwrap_or(text);
         return ReturnKind::Literal(inside.to_owned());
     }

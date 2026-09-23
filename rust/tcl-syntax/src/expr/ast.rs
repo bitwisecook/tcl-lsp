@@ -398,6 +398,19 @@ pub enum ExprNode {
     },
 }
 
+/// The body of a `"…"` [`ExprNode::String`] operand, or `None` for a `{…}`
+/// one.
+///
+/// The variant spans both spellings and keeps its delimiters, and only the
+/// quoted form substitutes `$var`, `[cmd]` and backslashes: tclsh 8.6.18 and
+/// 9.0.4 print `pre5` for `set x 5; expr {"pre$x"}` and `pre$x` for the
+/// braced `{pre$x}`. Every consumer that reduces the variant to a value or
+/// walks its substitutions reads this one rule.
+#[must_use]
+pub fn quoted_string_body(text: &str) -> Option<&str> {
+    text.strip_prefix('"')?.strip_suffix('"')
+}
+
 impl ExprNode {
     /// Recursively extract variable names from this expression AST.
     ///

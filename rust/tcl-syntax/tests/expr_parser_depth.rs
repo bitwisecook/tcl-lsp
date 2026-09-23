@@ -409,7 +409,7 @@ impl ExprOps for Tower {
         Ok(Val::parse(text))
     }
 
-    fn string(&mut self, inner: &str) -> Result<Val, EvalError> {
+    fn string(&mut self, inner: &str, _substitutes: bool) -> Result<Val, EvalError> {
         // A quoted/braced operand shimmers to a number when it looks numeric,
         // else stays a string (so `{1 2 3}` is a list-bearing string value).
         Ok(Val::parse(inner))

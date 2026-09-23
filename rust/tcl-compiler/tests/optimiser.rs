@@ -2668,6 +2668,57 @@ fn o122_still_converts_past_a_nested_call_to_another_proc() {
     }
 }
 
+/// A `"…"` expression operand's value is its text after substitution, so a
+/// folder that cannot substitute must not fold it. Measured on tclsh 8.6.18
+/// and 9.0.4, which agree (#2227).
+#[test]
+fn a_quoted_expression_operand_is_folded_to_its_substituted_value() {
+    // tclsh prints `pre5`; O103 folded the call to the text `pre$x`.
+    let value = "proc a {} { set x 5; return [expr {\"pre$x\"}] }\nputs [a]\n";
+    assert!(
+        !optimised(value, TCL).contains("pre$x}"),
+        "the operand is `pre5`, not its spelling: {}",
+        optimised(value, TCL)
+    );
+
+    // tclsh prints `five`; the condition folded false and O112 removed the
+    // live branch.
+    let branch =
+        "proc a {} { set x 5; if {\"$x\" eq \"5\"} { return five }; return other }\nputs [a]\n";
+    assert!(
+        optimised(branch, TCL).contains("five"),
+        "`\"$x\" eq \"5\"` is true: {}",
+        optimised(branch, TCL)
+    );
+
+    // A call in the operand runs: tclsh prints `7` then `nine`.
+    let call = "proc id {v} { return $v }\nproc a {} { if {\"[id 9]\" eq \"9\"} { return nine }; return other }\nputs [id 7]\nputs [a]\n";
+    assert!(
+        optimised(call, TCL).contains("nine"),
+        "the operand is `9`: {}",
+        optimised(call, TCL)
+    );
+
+    // Precision: a braced operand is literal, and a quoted one with nothing
+    // to substitute is its text; both still fold.
+    for (src, folded) in [
+        (
+            "proc a {} { return [expr {{pre$x}}] }\nputs [a]\n",
+            "puts {pre$x}",
+        ),
+        (
+            "proc a {} { return [expr {\"abc\"}] }\nputs [a]\n",
+            "puts abc",
+        ),
+    ] {
+        assert!(
+            optimised(src, TCL).contains(folded),
+            "{src:?} still folds: {}",
+            optimised(src, TCL)
+        );
+    }
+}
+
 /// Tcl substitutes inside a `"…"` expression operand, so a call written there
 /// is a call the statement runs — for the caller-evidence walk and for the
 /// variable-effect walk alike.

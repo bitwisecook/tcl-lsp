@@ -613,7 +613,16 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
     fn literal(&mut self, text: &str) -> Result<FoldValue, ()> {
         Ok(FoldValue::Str(text.to_owned()))
     }
-    fn string(&mut self, inner: &str) -> Result<FoldValue, ()> {
+    fn string(&mut self, inner: &str, substitutes: bool) -> Result<FoldValue, ()> {
+        // A `"…"` operand substitutes `$var`, `[cmd]` and backslashes, and a
+        // folded constant must be the value Tcl computes, not the spelling.
+        // Taking the text as-is folded `expr {"pre$x"}` to `pre$x` and
+        // `if {"$x" eq "5"}` to false, and O112 then deleted the live branch
+        // (#2227). Declining costs an optimisation; folding wrong costs the
+        // program.
+        if substitutes && inner.contains(['$', '[', '\\']) {
+            return Err(());
+        }
         Ok(FoldValue::Str(inner.to_owned()))
     }
     fn var(&mut self, name: &str) -> Result<FoldValue, ()> {
