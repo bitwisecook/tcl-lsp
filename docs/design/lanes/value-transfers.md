@@ -2210,6 +2210,10 @@ One implementer ran the opus items: VT3.1 to VT3.5, VT3.7, VT3.8 and VT3.12.
 The sonnet items (VT3.6, VT3.9, VT3.10, VT3.11) are the landing's. The
 decisions are D47–D61 in § *Decisions taken*.
 
+A later session runs the sonnet items one at a time, each its own commit;
+this table gains a row per item as it lands, and § *Decisions taken*
+gains a D-number for any deviation the item needs.
+
 | Item | Commit | What landed | Its tests |
 |---|---|---|---|
 | VT3.1 | `6161601f` | `ExpressionSource` and `ExpressionRoute::assemble` (registry); the lattice inputs' `word_structure` from each operand's source shape (`OperandSource`) and a substituted operand's value, its parts concatenated; `CommandSemantics::variable_reads`, which the lift counts | `expression_assembly_follows_the_word_kinds` (registry); `sccp::tests::a_quoted_expression_word_is_substituted_before_it_is_parsed` |
@@ -2220,6 +2224,7 @@ decisions are D47–D61 in § *Decisions taken*.
 | VT3.4 | `e29ba422` | `evaluate_branch` takes `BranchFold` with the driver and evaluates through `evaluate_condition`, per member of one finite input | `a_finite_condition_decides_when_every_member_agrees` (witnesses); `sccp::tests::evaluate_branch_resolves_a_nested_command` |
 | VT3.7 | the third checkpoint | `reassociate_node(node, types)`; a closed left operand still folds (`fold_closed_left`) | `reassociation_refuses_an_unproven_float_term`; `o110_reassociates_constant_chains`, `instcombine_reassociation_and_identity_annihilator` and `o110_reassociation` restated over proven integers |
 | VT3.8 | the third checkpoint | `FormatTemplateSemantics` over `format_cmd_with_syntax`; `NativeEvalId::FormatTemplate.owner()` is `Registry`; `transitional_direct`, its waiver and `try_format_fold` went; the ledger row went | `format_runs_the_shared_core`, `format_answers_per_release` (registry); `format_witnesses_match_every_release_on_path` (`differential_fold.rs`); `format_folds_through_the_shared_core` (witnesses) |
+| VT3.6 | the VT3.6 commit | `lifted_exprs` and `expr_substitution_body` resolve `expr` through the registry's `Traits::EXPR_CONCATENATES_ARGS`, not the spelling, matching `optimiser::tail_call` and `optimiser::end_offset`'s existing resolution; `word_subst.rs` and `shimmer/commit.rs` join `CLEAN_FILES`, their ratchet rows go | no new test (R6, no behaviour change): the crate's existing `word_subst` and `shimmer` suites stay green; G1's fall from one pinned site each to zero is the evidence |
 
 Deltas observed beyond the plan's list, each with its oracle:
 
@@ -2264,8 +2269,6 @@ Found and left:
 
 The state the sonnet items start from:
 
-- **VT3.6** is untouched: `word_subst.rs` and `shimmer/commit.rs` keep one
-  pinned site each.
 - **VT3.9** counts at these route entries:
   - `LatticeDriver::call_def` — direct: the typed `incr` and every call;
   - `run_script` — each `[…]` in value position and each nested one, direct

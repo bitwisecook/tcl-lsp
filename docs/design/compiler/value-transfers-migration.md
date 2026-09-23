@@ -821,7 +821,6 @@ which waives the sites by axis.
 | `rust/tcl-compiler/src/lowering/structured.rs` | 2 | the `native_lowering` axis — `dict for` / `dict map` lowering by subcommand |
 | `rust/tcl-compiler/src/optimiser/end_offset.rs` | 1 | the `arg_roles` axis — O128's length-position table is the index-argument role the registry does not carry yet, the same debt as the W230–W232 family |
 | `rust/tcl-compiler/src/place_bridge.rs` | 2 | the `arg_roles` axis — `namespace upvar` positions by name |
-| `rust/tcl-compiler/src/shimmer/commit.rs` | 1 | slice 3 — the expression route names the lifted `expr` |
 | `rust/tcl-compiler/src/shimmer/thunking.rs` | 1 | the `native_lowering` axis — a thunked `break` |
 | `rust/tcl-compiler/src/specialise_factories.rs` | 1 | the `definition_body` axis — `proc` as the definer |
 | `rust/tcl-compiler/src/ssa.rs` | 1 | the `arg_roles` axis — `trace add variable` positions by name |
@@ -830,7 +829,6 @@ which waives the sites by axis.
 | `rust/tcl-compiler/src/var_escape/helpers.rs` | 1 | the `traits` axis — `info exists` beside `INTROSPECTS_BY_NAME` |
 | `rust/tcl-compiler/src/var_escape/slot_resolution.rs` | 6 | slice 13 — `info level` / `frame` and the `trace` subcommands read the frame-effect and trace facts |
 | `rust/tcl-compiler/src/var_scoping.rs` | 1 | the `arg_roles` axis — `namespace upvar` positions by name |
-| `rust/tcl-compiler/src/word_subst.rs` | 1 | slice 3 — the expression route names the lifted `expr` |
 | `rust/tcl-irules/src/lib.rs` | 1 | the `options` axis — the `class match` / `class search` option scan ahead of the data-group reference |
 | `rust/tcl-lsp-core/src/document_links.rs` | 2 | slice 5 lands the editor consumers; the `speclib` / `include` rows are the pack grammar, an `irreducible` waiver at review |
 | `rust/tcl-lsp-core/src/oo_body.rs` | 1 | the `definition_body` axis — `oo::define` / `oo::objdefine` by name |

@@ -145,9 +145,11 @@ pub(crate) fn find_expr_shimmers(
                 // lowerer already made it the `AssignExpr` above — so the two
                 // arms cannot both report the same expression.
                 Statement::Call { tokens, .. } | Statement::AssignValue { tokens, .. } => {
-                    for (expr, span) in
-                        crate::word_subst::lifted_exprs(tokens.as_ref(), registry.profile())
-                    {
+                    for (expr, span) in crate::word_subst::lifted_exprs(
+                        tokens.as_ref(),
+                        registry.profile(),
+                        registry,
+                    ) {
                         let mut ctx = ExprShimmerCtx {
                             uses: &ss.uses,
                             types,

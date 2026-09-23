@@ -110,9 +110,11 @@ const CLEAN_FILES: &[&str] = &[
     "rust/tcl-compiler/src/optimiser/chain_fold.rs",
     "rust/tcl-compiler/src/optimiser/propagation.rs",
     "rust/tcl-compiler/src/sccp.rs",
+    "rust/tcl-compiler/src/shimmer/commit.rs",
     "rust/tcl-compiler/src/shimmer/mod.rs",
     "rust/tcl-compiler/src/static_loops.rs",
     "rust/tcl-compiler/src/value_transfer.rs",
+    "rust/tcl-compiler/src/word_subst.rs",
 ];
 
 /// The ratchet over every other scanned file: the pinned count of unwaived
@@ -151,7 +153,6 @@ const RATCHET: &[(&str, usize)] = &[
     ("rust/tcl-compiler/src/lowering/structured.rs", 2),
     ("rust/tcl-compiler/src/optimiser/end_offset.rs", 1),
     ("rust/tcl-compiler/src/place_bridge.rs", 2),
-    ("rust/tcl-compiler/src/shimmer/commit.rs", 1),
     ("rust/tcl-compiler/src/shimmer/thunking.rs", 1),
     ("rust/tcl-compiler/src/specialise_factories.rs", 1),
     ("rust/tcl-compiler/src/ssa.rs", 1),
@@ -160,7 +161,6 @@ const RATCHET: &[(&str, usize)] = &[
     ("rust/tcl-compiler/src/var_escape/helpers.rs", 1),
     ("rust/tcl-compiler/src/var_escape/slot_resolution.rs", 6),
     ("rust/tcl-compiler/src/var_scoping.rs", 1),
-    ("rust/tcl-compiler/src/word_subst.rs", 1),
     ("rust/tcl-irules/src/lib.rs", 1),
     ("rust/tcl-lsp-core/src/document_links.rs", 2),
     ("rust/tcl-lsp-core/src/oo_body.rs", 1),

@@ -633,7 +633,7 @@ fn push_lifted_reads(
 ) {
     let config = tcl_lexer::LexerConfig::for_profile(ctx.registry.profile());
     for lifted in crate::word_subst::lifted_calls(tokens, config) {
-        if let Some(expr_text) = expr_substitution_body(&lifted) {
+        if let Some(expr_text) = expr_substitution_body(&lifted, ctx.registry) {
             let expr = tcl_syntax::expr::parser::parse_expr_for_profile(
                 &expr_text,
                 ctx.registry.profile(),
@@ -653,9 +653,19 @@ fn push_lifted_reads(
 /// The expression text of a lifted `[expr …]`, or `None` for any other
 /// command. `expr` concatenates its arguments, and the single-argument braced
 /// form is the only one whose text is a verbatim source slice, so a
-/// multi-argument `expr` is left alone rather than guessed at.
-fn expr_substitution_body(lifted: &crate::word_subst::LiftedCall) -> Option<String> {
-    if lifted.command != "expr" && lifted.command != "::expr" {
+/// multi-argument `expr` is left alone rather than guessed at. The lifted
+/// call is `expr` when its resolved head carries
+/// [`Traits::EXPR_CONCATENATES_ARGS`](tcl_registry::Traits::EXPR_CONCATENATES_ARGS),
+/// not by comparing the spelling.
+fn expr_substitution_body(
+    lifted: &crate::word_subst::LiftedCall,
+    registry: &CommandRegistry,
+) -> Option<String> {
+    let is_expr = registry.get(&lifted.command).is_some_and(|spec| {
+        spec.traits
+            .contains(tcl_registry::Traits::EXPR_CONCATENATES_ARGS)
+    });
+    if !is_expr {
         return None;
     }
     let [only] = lifted.args.as_slice() else {
