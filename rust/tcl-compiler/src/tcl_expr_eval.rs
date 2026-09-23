@@ -2209,18 +2209,21 @@ mod tests {
             eval_irules(r#""abc" matches_glob "a?c""#),
             Some(TclValue::Int(1))
         );
+        // A class is written braced: inside `"…"` the `[bxy]` is a command
+        // substitution, which the folder declines (#2227).
         assert_eq!(
-            eval_irules(r#""abc" matches_glob "a[bxy]c""#),
+            eval_irules(r#""abc" matches_glob {a[bxy]c}"#),
             Some(TclValue::Int(1))
         );
         assert_eq!(
-            eval_irules(r#""axc" matches_glob "a[bxy]c""#),
+            eval_irules(r#""axc" matches_glob {a[bxy]c}"#),
             Some(TclValue::Int(1))
         );
         assert_eq!(
-            eval_irules(r#""azc" matches_glob "a[bxy]c""#),
+            eval_irules(r#""azc" matches_glob {a[bxy]c}"#),
             Some(TclValue::Int(0))
         );
+        assert_eq!(eval_irules(r#""abc" matches_glob "a[bxy]c""#), None);
     }
 
     #[test]
