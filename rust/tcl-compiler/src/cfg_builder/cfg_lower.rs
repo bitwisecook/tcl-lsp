@@ -895,17 +895,22 @@ impl CfgBuilder<'_> {
     ///   (version-0) with the body-exit state.
     fn push_try_handler_exception_edges(
         &mut self,
-        handler: &crate::ir::TryHandler,
+        group: &[&crate::ir::TryHandler],
         handler_block: &str,
         block_name: &str,
         body_tail: Option<&str>,
         body_throw_blocks: &[String],
         body_terminal: Option<&str>,
     ) {
-        if !self.faithful_exceptions {
+        if !self.faithful_exceptions || group.is_empty() {
             return;
         }
-        let is_on_ok = handler.kind == "on" && handler.match_arg == "ok";
+        // `group` is every handler whose match runs this block's body: a `-`
+        // handler's own block is empty, so the body it shares is reached only
+        // through the edges of the handler that owns it.
+        let is_on_ok = group
+            .iter()
+            .all(|handler| handler.kind == "on" && handler.match_arg == "ok");
         if is_on_ok {
             if let Some(tail) = body_tail {
                 self.exception_edges
@@ -923,6 +928,21 @@ impl CfgBuilder<'_> {
             {
                 throw_sources.push(terminal.to_owned());
             }
+            // A source whose completion the registry knows exactly reaches
+            // only a handler that selects that code. Wiring
+            // `try {break} on error {} {}`, `on continue`, or
+            // `try {return early} on error {} {}` to the handler made the
+            // `try` look as if it could complete normally (found in review).
+            // A selector or completion the registry cannot decode keeps the
+            // edge, and so does a match by any handler of a `-` group:
+            // `try {error boom} on error {} - on ok {} {set x 1}` runs
+            // `set x 1`, which tclsh 8.6.18 and 9.0.4 confirm (found in
+            // review).
+            throw_sources.retain(|src| {
+                group
+                    .iter()
+                    .any(|handler| !self.handler_misses_completion(handler, src))
+            });
             for src in throw_sources {
                 self.exception_edges.push((src, handler_block.to_owned()));
             }
@@ -935,7 +955,343 @@ impl CfgBuilder<'_> {
                 self.exception_edges
                     .push((tail.to_owned(), handler_block.to_owned()));
             }
+            // A resting tail does not mean the explicit throws went unseen:
+            // one inside a nested `if`, or a `finally` that only ever resumes
+            // unwinding, raises with its own block's defs live. Sourcing only
+            // the pre-`try` block and the tail read `x` as unset after
+            // `try { if {$c} {set x 1; error b} else {set x 2; error c} }
+            // on error {} {}` and called its stores dead.
+            let mut seen: Vec<&String> = Vec::new();
+            for tb in body_throw_blocks {
+                if tb != block_name && body_tail != Some(tb.as_str()) && !seen.contains(&tb) {
+                    seen.push(tb);
+                    self.exception_edges
+                        .push((tb.clone(), handler_block.to_owned()));
+                }
+            }
         }
+    }
+
+    /// The exact completion code with which *every* path through `block`
+    /// leaves, when it is known: the [`terminal code`](Self::terminal_code)
+    /// of a block with nothing else in it. An earlier statement may complete
+    /// first — `set y $x; return ok` raises when `x` is unset, which an
+    /// `on error` handler catches — so a block with one proves no single code
+    /// (found in review).
+    ///
+    /// Nor may anything before the block: `try {if {$c} {}; return ok}` puts
+    /// the `return` alone in `if_end`, but `$c` may raise first, and a failure
+    /// in an earlier block has no edge of its own — the terminal block carries
+    /// it (found in review). So only `entry`, the construct's own first block,
+    /// qualifies.
+    fn block_completion_code(&self, block: &str, entry: &str) -> Option<tcl_core_types::Code> {
+        if block != entry {
+            return None;
+        }
+        let statements = &self.blocks.get(block)?.statements;
+        if self.plain_return_blocks.contains(block) {
+            return statements
+                .is_empty()
+                .then(|| self.terminal_code(block))
+                .flatten();
+        }
+        let code = self.terminal_code(block)?;
+        let [before @ .., _] = statements.as_slice() else {
+            return None;
+        };
+        // A literal assignment completes normally or raises `TCL_ERROR` (the
+        // name is an array, a write trace fails) — never another code — so it
+        // cannot change an error's code: `set z 0; error boom` is caught by
+        // `on error` whichever raises (found in review). A command
+        // substitution in an unbraced name could complete with any code; a
+        // braced name (`set {[} 0`) substitutes nothing.
+        let only_errors_before = before.iter().all(|stmt| {
+            matches!(stmt, Statement::AssignConst { name, name_braced, .. }
+                if *name_braced || !name.contains('['))
+        });
+        (before.is_empty() || (code == tcl_core_types::Code::Error && only_errors_before))
+            .then_some(code)
+    }
+
+    /// The completion code of whatever ended `block`, when it is known: a
+    /// plain `return`, or a last statement the registry decodes (see
+    /// [`super::exact_statement_completion`]) that is what ended the block — a
+    /// `break` / `continue` behind its `Goto`, or a non-`ok` code behind a
+    /// `Return`. A block ended some other way (an opaque `switch`, or a
+    /// `finally` clause resuming what it interrupted) has no single code.
+    /// Earlier statements in the block are not considered.
+    fn terminal_code(&self, block: &str) -> Option<tcl_core_types::Code> {
+        use tcl_core_types::Code;
+        if self.plain_return_blocks.contains(block) {
+            return Some(Code::Return);
+        }
+        let mutable = self.blocks.get(block)?;
+        let stmt = mutable.statements.last()?;
+        let resolve = self.embedded_head_resolver();
+        let tcl_registry::registry::ExactInvocationCompletion::Tcl(code) =
+            super::exact_statement_completion(stmt, self.registry, &resolve)?
+        else {
+            return None;
+        };
+        match (&mutable.terminator, code) {
+            (Some(Terminator::Goto { .. }), Code::Break | Code::Continue) => Some(code),
+            (Some(Terminator::Return { .. }), code)
+                if !matches!(code, Code::Ok | Code::Break | Code::Continue) =>
+            {
+                Some(code)
+            }
+            _ => None,
+        }
+    }
+
+    /// The completion code a `try` handler's selector names, decoded with the
+    /// registry's own numeral grammar: `on 010` selects code 8 in Tcl 8.x
+    /// and 10 in 9.0, and decoding it as 9.0 dropped a live 8.x handler
+    /// (found in review).
+    fn handler_code(&self, handler: &crate::ir::TryHandler) -> Option<tcl_core_types::Code> {
+        crate::executable_ir::try_handler_code_in(
+            handler,
+            tcl_syntax::number::Numbers::of_profile(self.registry.profile()),
+        )
+    }
+
+    /// Whether a handler can never run because an earlier one always takes
+    /// its completions first: Tcl runs only the first matching handler, so
+    /// after `on error {} {set x 1}` a second `on error` is dead, and giving
+    /// it edges drew W210 on a `finally` that always sees `x` set (found in
+    /// review). Only an earlier unconditional handler (not `trap`, but a `-`
+    /// one counts) with the same decoded code proves it, and never for the
+    /// target of a `-` chain, whose block holds the body the earlier `-`
+    /// handlers run.
+    fn handler_shadowed(
+        &self,
+        earlier: &[crate::ir::TryHandler],
+        handler: &crate::ir::TryHandler,
+    ) -> bool {
+        if earlier.last().is_some_and(|h| h.fallthrough) {
+            return false;
+        }
+        let Some(code) = self.handler_code(handler) else {
+            return false;
+        };
+        // A `-` handler still selects its code — only its body is delegated —
+        // so it pre-empts a later match as surely as any other.
+        earlier.iter().any(|h| {
+            h.kind != "trap" && h.trap_pattern.is_none() && self.handler_code(h) == Some(code)
+        })
+    }
+
+    /// The handlers whose match runs handler `index`'s block: the owner with
+    /// the `-` handlers that hand it their match, save a member an earlier
+    /// handler always pre-empts. Empty for a `-` handler, whose own block is
+    /// never run — an edge into it and on to `try_end` let a match skip the
+    /// body it shares (found in review) — and for a group every member of
+    /// which is pre-empted.
+    fn live_handler_group<'h>(
+        &self,
+        handlers: &'h [crate::ir::TryHandler],
+        index: usize,
+    ) -> Vec<&'h crate::ir::TryHandler> {
+        if handlers[index].fallthrough {
+            return Vec::new();
+        }
+        let start = handlers[..index]
+            .iter()
+            .rposition(|earlier| !earlier.fallthrough)
+            .map_or(0, |owner| owner + 1);
+        handlers[start..=index]
+            .iter()
+            .filter(|member| !self.handler_shadowed(&handlers[..start], member))
+            .collect()
+    }
+
+    /// Whether `block` ends in a statement whose completion code `handler` is
+    /// known not to select: both codes decoded by the registry — the handler's
+    /// through its completion-code selector (`trap` is an error) — and
+    /// different. Either one unknown answers `false`, keeping the edge.
+    fn handler_misses_completion(&self, handler: &crate::ir::TryHandler, block: &str) -> bool {
+        let Some(code) = self
+            .try_entry
+            .as_deref()
+            .and_then(|entry| self.block_completion_code(block, entry))
+        else {
+            return false;
+        };
+        self.handler_code(handler)
+            .is_some_and(|selected| selected != code)
+    }
+
+    /// Record the analysis-only edges that keep a `finally` clause reachable
+    /// from every way the `try` body or one of its handlers can leave.
+    ///
+    /// `lower_try` gave `end_block` a predecessor from a body that falls through
+    /// normally, or from a handler's throw edge. Nothing connected a body exit
+    /// that is neither — a `return`, `error`, `throw`, or a `break`/`continue`
+    /// out of the body — so a `finally` reached only that way read as dead, and
+    /// O107 emptied it:
+    ///
+    /// ```tcl
+    /// set g 0
+    /// proc p {} { global g; try {error boom} finally {set g 1} }
+    /// catch {p}; puts $g
+    /// ```
+    ///
+    /// printed `0` where tclsh 8.6.18 and 9.0.4 print `1` (#2142). The exits
+    /// are read off the body's own blocks rather than its resting tail: a body
+    /// whose every branch leaves — `if {$c} {return ok} else {error boom}` —
+    /// still ends in a resting `if_end` block, so "has a tail" is not "can fall
+    /// through", and gating on it left that `finally` dead too.
+    ///
+    /// Not added without a `finally`: there the tail really is unreachable on
+    /// these paths, because the exception resumes unwinding past it.
+    ///
+    /// A `break` or `continue` is different: the clause runs and then the jump
+    /// goes on to its loop target. The jump is retargeted at `end_block` and
+    /// the saved targets are returned for [`Self::lower_try`] to resume from
+    /// the clause's last block. Adding an edge alongside the jump left a
+    /// path into the loop that skipped the clause, and
+    /// `while {$first || $x} { try {set first 0; continue} finally {set x 0} }`
+    /// reported `x` read before it is set (found in review). The same holds
+    /// for a jump a nested `try` has already resumed after its own clause.
+    ///
+    /// What it does cost, when the body or a handler can *also* complete
+    /// normally, is that the clause's normal exit into `try_after_finally` is
+    /// shared by the exit paths, where Tcl in fact keeps unwinding or jumps.
+    /// Modelling that exactly needs the clause body lowered once per way in;
+    /// the merge only adds paths, and over-approximating the *other* way — a
+    /// `finally` clause that is never entered — is what corrupted the program
+    /// above. When nothing can complete normally there is no merge:
+    /// [`Self::lower_try_finally`] ends the clause as an exit.
+    fn push_finally_exit_edges(
+        &mut self,
+        end_block: &str,
+        post_body: &str,
+        body_block: &str,
+        first_body_id: usize,
+        handlers: &[crate::ir::TryHandler],
+        handler_blocks: &[String],
+    ) -> (Vec<String>, bool) {
+        if !self.faithful_exceptions {
+            return (Vec::new(), false);
+        }
+        let end_id = self.bid(end_block);
+        let body_block_id = self.bid(body_block);
+        // The body's blocks *and* the handlers': both are lowered after
+        // `first_body_id`, and a handler that leaves — `on error {} {return
+        // handled}` — is as much an exit as the body's own `return`.
+        let in_body = |id: crate::cfg::BlockId| {
+            id == body_block_id || usize::try_from(id.0).is_ok_and(|i| i >= first_body_id)
+        };
+        // Normal completion already reaches `try_end`, directly or through
+        // `try_ok`; a jump there is not an exit to wire a second time.
+        let completion = [end_id, self.bid(post_body)];
+        let leaves = |t: crate::cfg::BlockId| !in_body(t) && !completion.contains(&t);
+        // A `return` a nested `catch` or `try … finally` inside this body
+        // already intercepts is not an exit of *this* body: the inner one was
+        // lowered first and recorded its own edge, and control reaches this
+        // `finally` only after the inner clause has run — through the inner
+        // construct's normal flow. Wiring it here too would skip the inner
+        // `finally`, and `try { try {return ok} finally {set x 1} }
+        // finally {puts $x}` read `x` as possibly unset (found in review). A
+        // jump needs no such care: rerouting it only replaces an edge that
+        // skipped this clause with one through it.
+        let intercepted = self.totally_intercepted(&in_body, true);
+        let mut sources: Vec<String> = Vec::new();
+        let mut jumps: Vec<String> = Vec::new();
+        let resolve_head = self.embedded_head_resolver();
+        for (name, _) in self.block_ids.iter().filter(|(_, id)| in_body(**id)) {
+            let Some(block) = self.blocks.get(name.as_str()) else {
+                continue;
+            };
+            // A nested clause that resumes unwinding once done is an exit of
+            // this body too, beside its fall-through.
+            if self.unwinding_tails.contains(name) && !intercepted.contains(name.as_str()) {
+                sources.push(name.clone());
+            }
+            match &block.terminator {
+                // A process exit runs no `finally` (found in review) — only
+                // when nothing can raise before it: it is the only statement
+                // of the construct's first block, the body's or a handler's.
+                // An earlier statement, or an earlier block (`if {$c} {};
+                // exit 0` evaluates `$c` first), may raise an error, and an
+                // error does run the clause. So may a handler's binding of its
+                // result or options variable: a write trace, or an `upvar` to
+                // an array, rejects it before the body runs (found in review).
+                // See `always_exits_process`.
+                Some(crate::cfg::Terminator::Return { .. }) => {
+                    if !intercepted.contains(name.as_str())
+                        && !self.caught_by_handler(name, body_block, handlers, handler_blocks)
+                        && !((name == body_block || handler_blocks.contains(name))
+                            && matches!(block.statements.as_slice(), [only]
+                                if super::always_exits_process(only, self.registry, &resolve_head)))
+                    {
+                        sources.push(name.clone());
+                    }
+                }
+                Some(crate::cfg::Terminator::Goto { target, .. }) if leaves(*target) => {
+                    jumps.push(name.clone());
+                }
+                Some(crate::cfg::Terminator::Branch {
+                    true_target,
+                    false_target,
+                    ..
+                }) if leaves(*true_target) || leaves(*false_target) => {
+                    jumps.push(name.clone());
+                }
+                _ => {}
+            }
+        }
+        drop(resolve_head);
+        let names: rustc_hash::FxHashMap<crate::cfg::BlockId, String> = self
+            .block_ids
+            .iter()
+            .map(|(name, id)| (*id, name.clone()))
+            .collect();
+        let mut targets: Vec<String> = Vec::new();
+        let mut resume = |t: &mut crate::cfg::BlockId| {
+            if leaves(*t) {
+                targets.push(names[t].clone());
+                *t = end_id;
+            }
+        };
+        jumps.sort();
+        for name in &jumps {
+            match &mut self.block_mut(name).terminator {
+                Some(crate::cfg::Terminator::Goto { target, .. }) => resume(target),
+                Some(crate::cfg::Terminator::Branch {
+                    true_target,
+                    false_target,
+                    ..
+                }) => {
+                    resume(true_target);
+                    resume(false_target);
+                }
+                _ => {}
+            }
+        }
+        // A jump a nested `try … finally` resumes after its own clause is
+        // still a jump out of this body, and must pass this clause too.
+        let (nested, kept): (Vec<_>, Vec<_>) = std::mem::take(&mut self.finally_jump_edges)
+            .into_iter()
+            .partition(|(from, to)| {
+                self.block_ids.get(from).is_some_and(|id| in_body(*id))
+                    && self.block_ids.get(to).is_some_and(|id| leaves(*id))
+            });
+        self.finally_jump_edges = kept;
+        let unwinds = !sources.is_empty();
+        for edge in nested {
+            self.exception_edges.retain(|e| *e != edge);
+            sources.push(edge.0);
+            targets.push(edge.1);
+        }
+        sources.sort();
+        sources.dedup();
+        for src in sources {
+            self.exception_edges.push((src, end_block.to_owned()));
+        }
+        targets.sort();
+        targets.dedup();
+        (targets, unwinds)
     }
 
     /// Flatten `Statement::Try` into body → handlers → finally → end CFG.
@@ -973,6 +1329,7 @@ impl CfgBuilder<'_> {
         // to this handler.
         let outer_throw_blocks = self.throw_blocks.take();
         self.throw_blocks = Some(Vec::new());
+        let first_body_id = self.block_ids.len();
         let raw_body_tail = self.lower_script(body, &body_block);
         // Capture the body's terminating block *before* the handler bodies are
         // lowered below (each overwrites `last_terminal_block`).  Used to source
@@ -1005,18 +1362,21 @@ impl CfgBuilder<'_> {
         // precise over-approximation that avoids a read-before-set false
         // positive under either binding rule.
         let mut pending_fallthrough_defs: Vec<String> = Vec::new();
+        let first_handler_id = self.block_ids.len();
+        let mut handler_blocks: Vec<String> = Vec::new();
+        let outer_entry = self.try_entry.replace(body_block.clone());
 
         // Each handler reachable from body failure.
-        for handler in handlers {
+        for (index, handler) in handlers.iter().enumerate() {
             let handler_block = self.new_block("try_handler");
+            handler_blocks.push(handler_block.clone());
             self.ensure_goto(block_name, &handler_block, Some(*span));
 
-            // `block_name` already gotos `try_body` (single successor), so a
-            // real terminator edge can't reach the handler. Record throw edges
-            // instead (SSA phi predecessors + SCCP reachability, analysis builds
-            // only) via the helper below.
+            // Record throw edges into the handler (analysis builds only):
+            // `block_name` already gotos `try_body`.
+            let live_group = self.live_handler_group(handlers, index);
             self.push_try_handler_exception_edges(
-                handler,
+                &live_group,
                 &handler_block,
                 block_name,
                 body_tail.as_deref(),
@@ -1024,69 +1384,406 @@ impl CfgBuilder<'_> {
                 body_terminal.as_deref(),
             );
 
-            let mut own_defs = Vec::new();
-            if let Some(vn) = &handler.var_name {
-                own_defs.push(vn.clone());
-            }
-            if let Some(ov) = &handler.options_var {
-                own_defs.push(ov.clone());
-            }
-            let var_defs = if handler.fallthrough {
-                // Empty body of its own; carry its vars to the shared body.
-                pending_fallthrough_defs.extend(own_defs.iter().cloned());
-                own_defs
-            } else {
-                // Target of any preceding `-` chain: its shared body may run
-                // with any group member's vars bound, so define them all here.
-                let mut defs = std::mem::take(&mut pending_fallthrough_defs);
-                for d in own_defs {
-                    if !defs.contains(&d) {
-                        defs.push(d);
-                    }
-                }
-                defs
-            };
-            if !var_defs.is_empty() {
-                self.block_mut(&handler_block)
-                    .statements
-                    .push(Statement::Call {
-                        span: *span,
-                        command: "try".into(),
-                        canonical_command: None,
-                        args: vec![],
-                        defs: var_defs,
-                        reads: vec![],
-                        reads_own_defs: false,
-                        safe_on_uninit: false,
-                        tokens: None,
-                        foreach_groups: None,
-                    });
-            }
+            let var_defs = handler_var_defs(handler, &mut pending_fallthrough_defs);
+            self.push_handler_var_defs(&handler_block, var_defs, *span);
 
             if let Some(tail) = self.lower_script(&handler.body, &handler_block) {
                 self.ensure_goto(&tail, &end_block, Some(handler.body_span));
             }
         }
 
+        self.try_entry = outer_entry;
+        if self.caught_by_handler(&body_block, &body_block, handlers, &handler_blocks) {
+            self.handler_caught.insert(body_block.clone());
+        }
         // Success path reaches end.
         if !handlers.is_empty() {
             self.ensure_goto(&post_body, &end_block, Some(*span));
         }
+        self.route_caught_loop_jumps(
+            handlers,
+            &handler_blocks,
+            &body_block,
+            first_body_id,
+            first_handler_id,
+        );
 
         // Finally block.
-        if let Some(fb) = finally_body {
-            let finally_block = self.new_block("try_finally");
-            let fin_span = finally_span.or(Some(*span));
-            self.ensure_goto(&end_block, &finally_block, fin_span);
+        let Some(fb) = finally_body else {
+            return end_block;
+        };
+        self.total_interceptors.insert(end_block.clone());
+        // Read before the exit edges below add paths into `end_block`.
+        let completes_normally = self.try_completes_normally(
+            block_name,
+            &end_block,
+            &post_body,
+            &body_block,
+            first_body_id,
+        );
+        let (jump_targets, unwinds) = self.push_finally_exit_edges(
+            &end_block,
+            &post_body,
+            &body_block,
+            first_body_id,
+            handlers,
+            &handler_blocks,
+        );
+        self.finish_try_finally(
+            fb,
+            finally_span.or(Some(*span)),
+            &end_block,
+            completes_normally.then_some(unwinds),
+            jump_targets,
+        )
+    }
 
-            let after_finally = self.new_block("try_after_finally");
-            if let Some(tail) = self.lower_script(fb, &finally_block) {
-                self.ensure_goto(&tail, &after_finally, fin_span);
+    /// Lower a `try`'s `finally` clause and resume the loop jumps routed
+    /// through it, returning the block the whole statement rests in.
+    ///
+    /// A saved jump resumes from the clause's own last block, not from
+    /// `after_finally`: the statements after the `try` are appended there,
+    /// and a `break` does not run them (found in review). A clause that
+    /// cannot complete normally resumes nothing.
+    ///
+    /// `falls_through` is `None` when nothing completes the `try` normally,
+    /// else whether an unwinding exit (a `return`, an error) also enters the
+    /// clause. Then the clause's fall-through `Goto` stands only for normal
+    /// completion: the `return` resumes past the statements after the `try`,
+    /// so the last block is recorded as an unwinding tail and a throw point
+    /// for the constructs around it. Without that, `try { try {if {$c}
+    /// {return}} finally {}; set x 1 } finally {puts $x}` ran `set x 1` on
+    /// the `return` path too, and O102 forwarded `1` into a read tclsh 8.6.18
+    /// and 9.0.4 fail on (found in review).
+    fn finish_try_finally(
+        &mut self,
+        body: &crate::ir::Script,
+        fin_span: Option<tcl_lexer::Span>,
+        end_block: &str,
+        falls_through: Option<bool>,
+        jump_targets: Vec<String>,
+    ) -> String {
+        let (after_finally, finally_tail) = self.lower_try_finally(
+            body,
+            fin_span,
+            end_block,
+            falls_through.is_some() || !self.faithful_exceptions,
+        );
+        if let Some(tail) = finally_tail {
+            if falls_through == Some(true) {
+                self.unwinding_tails.insert(tail.clone());
+                if let Some(blocks) = self.throw_blocks.as_mut() {
+                    blocks.push(tail.clone());
+                }
             }
-            return after_finally;
+            for target in jump_targets {
+                let edge = (tail.clone(), target);
+                self.exception_edges.push(edge.clone());
+                self.finally_jump_edges.push(edge);
+            }
         }
+        after_finally
+    }
 
-        end_block
+    /// Send a `break` / `continue` out of the body into the handler that
+    /// catches it, instead of to its loop target.
+    ///
+    /// Tcl runs the first handler whose selector matches the completion, so a
+    /// jump an `on break` handler selects never reaches the loop: in
+    /// `while 1 { try {break} on break {} {set x 1} finally {}; break }` the
+    /// handler binds `x` before the loop is left. Keeping the jump's own edge
+    /// let the read after the loop see `x` unset, and the `finally` routing
+    /// resumed it too (found in review). Only a jump out of the body (not one
+    /// inside a nested loop, and not one in a handler) is caught; and a
+    /// handler met first whose selector the registry cannot decode might catch
+    /// it instead, so then the jump keeps its edge. A `-` handler hands the
+    /// jump to the body it shares.
+    fn route_caught_loop_jumps(
+        &mut self,
+        handlers: &[crate::ir::TryHandler],
+        handler_blocks: &[String],
+        body_block: &str,
+        first_body_id: usize,
+        first_handler_id: usize,
+    ) {
+        if !self.faithful_exceptions || handlers.is_empty() {
+            return;
+        }
+        let body_block_id = self.bid(body_block);
+        let in_try = |id: crate::cfg::BlockId| {
+            id == body_block_id || usize::try_from(id.0).is_ok_and(|i| i >= first_body_id)
+        };
+        let in_body = |id: crate::cfg::BlockId| {
+            id == body_block_id
+                || usize::try_from(id.0).is_ok_and(|i| i >= first_body_id && i < first_handler_id)
+        };
+        // A jump a nested `catch` (or a nested `try … finally`) swallows never
+        // reaches this `try`'s handlers: `try {catch {break}; return}
+        // on break {} {…}` runs no handler (found in review).
+        let intercepted = self.totally_intercepted(&in_body, false);
+        let mut retargets: Vec<(String, String)> = Vec::new();
+        for (name, id) in &self.block_ids {
+            if !in_body(*id) || intercepted.contains(name.as_str()) {
+                continue;
+            }
+            let Some(Terminator::Goto { target, .. }) = self
+                .blocks
+                .get(name.as_str())
+                .and_then(|b| b.terminator.as_ref())
+            else {
+                continue;
+            };
+            if in_try(*target) {
+                continue;
+            }
+            // The `Goto` stands for the jump alone; an earlier statement's
+            // failure has its own handler edges.
+            let Some(jump) = self.terminal_code(name) else {
+                continue;
+            };
+            if !matches!(
+                jump,
+                tcl_core_types::Code::Break | tcl_core_types::Code::Continue
+            ) {
+                continue;
+            }
+            for (i, handler) in handlers.iter().enumerate() {
+                match self.handler_code(handler) {
+                    None => break,
+                    Some(code) if code != jump => {}
+                    Some(_) => {
+                        let shared = handlers[i..]
+                            .iter()
+                            .position(|h| !h.fallthrough)
+                            .map_or(i, |offset| i + offset);
+                        retargets.push((name.clone(), handler_blocks[shared].clone()));
+                        break;
+                    }
+                }
+            }
+        }
+        retargets.sort();
+        for (name, handler_block) in retargets {
+            let target = self.bid(&handler_block);
+            if let Some(Terminator::Goto { target: t, .. }) = &mut self.block_mut(&name).terminator
+            {
+                *t = target;
+            }
+        }
+    }
+
+    /// Whether one of this `try`'s handlers catches every completion `block`
+    /// can leave with: the block's exact completion code is known, and it has
+    /// an edge into a handler whose decoded selector is that code. Control
+    /// then reaches the `finally` through the handler, and a direct edge would
+    /// add a path where the error escaped uncaught — which made
+    /// `try {error boom} on error {} {set f 2} finally {set f 1}` read the
+    /// handler's dead store as live. A block whose completion is not exact
+    /// (`return $x` may raise while substituting) keeps its own exit, and so
+    /// does one whose only matching handler is a `trap`: its `-errorcode`
+    /// prefix may not match, and `try {error boom} trap {NOT MATCHING} {}
+    /// {exit 0} finally {…}` runs the clause (found in review).
+    fn caught_by_handler(
+        &self,
+        block: &str,
+        body_block: &str,
+        handlers: &[crate::ir::TryHandler],
+        handler_blocks: &[String],
+    ) -> bool {
+        let Some(code) = self.block_completion_code(block, body_block) else {
+            return false;
+        };
+        // A `-` handler's match runs its owner's block.
+        handlers.iter().enumerate().any(|(index, handler)| {
+            let owner = handlers[index..]
+                .iter()
+                .position(|h| !h.fallthrough)
+                .map_or(index, |offset| index + offset);
+            handler.kind != "trap"
+                && handler.trap_pattern.is_none()
+                && self.handler_code(handler) == Some(code)
+                && self
+                    .exception_edges
+                    .iter()
+                    .any(|(from, to)| from == block && *to == handler_blocks[owner])
+        })
+    }
+
+    /// The blocks whose every completion a construct nested inside this one
+    /// intercepts: sources of an exception edge into a
+    /// [`total interceptor`](Self::total_interceptors) that `inside` contains.
+    ///
+    /// A `try` handler does not count. It selects only some completion codes,
+    /// and a block whose completion may be one it does not select must keep
+    /// its own exit: in `try {return $x} on error {} {exit 0} finally {set g
+    /// 1}` the substitution's error reaches the handler but the `return` still
+    /// runs the clause, and counting the handler edge as interception let O107
+    /// empty it (found in review).
+    ///
+    /// With `with_handler_catches`, also the blocks a nested `try`'s
+    /// unconditional handler catches whole ([`Self::handler_caught`]): an
+    /// outer `finally` scan must not route those past the inner handler and
+    /// clause. Loop-jump routing leaves them out — a nested `try` has already
+    /// sent its own caught jumps into its handler.
+    fn totally_intercepted(
+        &self,
+        inside: &dyn Fn(crate::cfg::BlockId) -> bool,
+        with_handler_catches: bool,
+    ) -> std::collections::HashSet<&str> {
+        let caught = self
+            .handler_caught
+            .iter()
+            .filter(|_| with_handler_catches)
+            .filter(|block| self.block_ids.get(*block).is_some_and(|id| inside(*id)))
+            .map(String::as_str);
+        self.exception_edges
+            .iter()
+            .filter(|(_, to)| {
+                self.total_interceptors.contains(to)
+                    && self.block_ids.get(to).is_some_and(|id| inside(*id))
+            })
+            .map(|(from, _)| from.as_str())
+            .chain(caught)
+            .collect()
+    }
+
+    /// Whether any path through a `try`'s body or handlers reaches `end_block`
+    /// by completing normally.
+    ///
+    /// Asked of the graph rather than of the resting tails, because a body
+    /// that cannot fall through still leaves one: an inner `try` that never
+    /// completes returns its unreachable `try_after_finally`, and an `if`
+    /// whose every branch leaves its `if_end`. Walks the construct's own
+    /// blocks from the pre-`try` block, whose exception edges lead into the
+    /// handlers; anything outside the construct is not a way to `end_block`.
+    fn try_completes_normally(
+        &self,
+        block_name: &str,
+        end_block: &str,
+        post_body: &str,
+        body_block: &str,
+        first_body_id: usize,
+    ) -> bool {
+        let end_id = self.bid(end_block);
+        // With handlers, a body that falls through reaches `try_end` by way of
+        // `try_ok`, which is allocated before the body; reaching it is normal
+        // completion. Missing it made `try {set x 1} on error {} {return
+        // early} finally {}` look as if it never completed, and O107 deleted
+        // the code after it (found in review).
+        let ok_id = self.bid(post_body);
+        let body_block_id = self.bid(body_block);
+        let in_body = |id: crate::cfg::BlockId| {
+            id == body_block_id || usize::try_from(id.0).is_ok_and(|i| i >= first_body_id)
+        };
+        let names: rustc_hash::FxHashMap<crate::cfg::BlockId, &str> = self
+            .block_ids
+            .iter()
+            .map(|(name, id)| (*id, name.as_str()))
+            .collect();
+        let mut seen: rustc_hash::FxHashSet<&str> = rustc_hash::FxHashSet::default();
+        let mut work = vec![block_name];
+        while let Some(name) = work.pop() {
+            if !seen.insert(name) {
+                continue;
+            }
+            let terminator_succs = self
+                .blocks
+                .get(name)
+                .and_then(|b| b.terminator.as_ref())
+                .map(crate::cfg::Terminator::successors)
+                .unwrap_or_default();
+            if terminator_succs.contains(&end_id) || terminator_succs.contains(&ok_id) {
+                return true;
+            }
+            let exception_succs = self
+                .exception_edges
+                .iter()
+                .filter(|(from, _)| from == name)
+                .filter_map(|(_, to)| self.block_ids.get(to).copied());
+            for id in terminator_succs.into_iter().chain(exception_succs) {
+                if in_body(id)
+                    && let Some(next) = names.get(&id)
+                {
+                    work.push(next);
+                }
+            }
+        }
+        false
+    }
+
+    /// Bind a handler's `on`/`trap` variables at the top of its block, as the
+    /// synthetic definition the ordinary walks read.
+    fn push_handler_var_defs(
+        &mut self,
+        handler_block: &str,
+        var_defs: Vec<String>,
+        span: tcl_lexer::Span,
+    ) {
+        if var_defs.is_empty() {
+            return;
+        }
+        self.block_mut(handler_block)
+            .statements
+            .push(Statement::Call {
+                span,
+                command: "try".into(),
+                canonical_command: None,
+                args: vec![],
+                defs: var_defs,
+                reads: vec![],
+                reads_own_defs: false,
+                safe_on_uninit: false,
+                tokens: None,
+                foreach_groups: None,
+            });
+    }
+
+    /// Lower a `finally` clause after the `try`'s end block, returning the
+    /// resting block the whole statement leaves behind and the clause's own
+    /// last block, if it completes normally.
+    ///
+    /// Only a `try` whose body or some handler can complete normally falls
+    /// through the clause into the statements after it. When none can, every
+    /// path into the clause is an exit, which resumes unwinding or a saved
+    /// jump once the clause is done, so the clause ends as an `error` does and
+    /// the code after the `try` is unreachable: `while 1 { try {break}
+    /// finally {}; set x 1 }` never runs `set x 1` (found in review).
+    fn lower_try_finally(
+        &mut self,
+        body: &crate::ir::Script,
+        fin_span: Option<tcl_lexer::Span>,
+        end_block: &str,
+        falls_through: bool,
+    ) -> (String, Option<String>) {
+        let finally_block = self.new_block("try_finally");
+        self.ensure_goto(end_block, &finally_block, fin_span);
+        let after_finally = self.new_block("try_after_finally");
+        let tail = self.lower_script(body, &finally_block);
+        // A clause that itself leaves — `finally {break}` — keeps its own
+        // transfer, which overrides whatever completion was pending: Tcl runs
+        // the code after the loop in `while 1 { try {return} finally {break} }`.
+        // Such a tail neither falls through nor resumes a saved jump
+        // (found in review).
+        let tail = tail.filter(|_| self.last_terminal_block.take().is_none());
+        if let Some(tail) = &tail {
+            if falls_through {
+                self.ensure_goto(tail, &after_finally, fin_span);
+            } else {
+                self.block_mut(tail).terminator = Some(crate::cfg::Terminator::Return {
+                    value: None,
+                    value_word: None,
+                    span: fin_span,
+                    expr: None,
+                    braced: false,
+                });
+                // The clause resumes unwinding, so an enclosing handler catches
+                // what it raises with the clause's defs live, as for `error`.
+                if let Some(blocks) = self.throw_blocks.as_mut() {
+                    blocks.push(tail.clone());
+                }
+            }
+        }
+        (after_finally, tail)
     }
 
     /// Flatten `Statement::Catch` into body → end CFG, the analogue of
@@ -1180,6 +1877,7 @@ impl CfgBuilder<'_> {
         for src in throw_sources {
             self.exception_edges.push((src, end_block.clone()));
         }
+        self.total_interceptors.insert(end_block.clone());
 
         // The result and options variables are defined however the body ended,
         // so they belong at the merge rather than on one path.
@@ -1207,6 +1905,34 @@ impl CfgBuilder<'_> {
 
         end_block
     }
+}
+
+/// The names a `try` handler binds at the top of its block.
+///
+/// A `-` (fallthrough) handler has an empty body of its own and carries its
+/// names on to the shared body; the target of a `-` chain may run with any
+/// group member's names bound, so it defines them all.
+fn handler_var_defs(
+    handler: &crate::ir::TryHandler,
+    pending_fallthrough_defs: &mut Vec<String>,
+) -> Vec<String> {
+    let own_defs: Vec<String> = handler
+        .var_name
+        .iter()
+        .chain(&handler.options_var)
+        .cloned()
+        .collect();
+    if handler.fallthrough {
+        pending_fallthrough_defs.extend(own_defs.iter().cloned());
+        return own_defs;
+    }
+    let mut defs = std::mem::take(pending_fallthrough_defs);
+    for d in own_defs {
+        if !defs.contains(&d) {
+            defs.push(d);
+        }
+    }
+    defs
 }
 
 #[cfg(test)]

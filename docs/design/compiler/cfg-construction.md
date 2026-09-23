@@ -170,6 +170,133 @@ predecessors (so a handler sees the body's versions) and SCCP as extra
 reachability edges (so handler bodies are not falsely unreachable).  The
 vector is empty in codegen builds.
 
+A `try` with a `finally` clause records one more kind: →`try_end`, from
+every block of the body **or of a handler** that leaves it by ending in a
+`Return` (a `return`, `error` or `throw`).  Without them nothing reaches `try_end`
+on those paths — a body or handler that always leaves supplies no normal
+edge — so a `finally` reached only that way read as dead and O107 emptied
+it, though Tcl runs `finally` on every completion path (#2142).  The exits
+are read off the construct's own blocks, not its resting tail:
+`if {$c} {return ok} else {error boom}` cannot fall through yet still ends
+in a resting `if_end` block.  Two kinds of `Return` block are not exits:
+a `return` a nested construct intercepts
+*whole* — one with an edge into a `catch`'s end block or into the end block
+of a nested `try … finally`, which catch every completion — or that one of
+this `try`'s own handlers catches exactly (the block's completion code is
+known for *every* path through it — it is the construct's own first block
+and holds nothing else that could complete first, so neither
+`set y $x; return ok` nor `if {$c} {}; return ok` (whose `$c` may raise in
+an earlier block, which has no edge of its own) — and it has an edge into an
+unconditional handler whose decoded selector is that code; a `trap` is
+conditional on its `-errorcode` prefix; such a catch is recorded, so a
+nested `try`'s handler catch is honoured by the scans of the constructs
+around it too) — control reaches this `finally` only after that construct
+has run.
+A handler edge alone proves nothing more: `try {return $x} on error {}
+{exit 0} finally {…}` hands the substitution's error to the handler, but
+the `return` still runs the clause; and a process exit (`Traits::TERMINATES_PROCESS`,
+e.g. `exit`), which ends the interpreter without unwinding, so no `finally`
+runs — but only when nothing can stop it from running: it is the sole
+statement of the construct's own first block (the body's, or a handler's
+that binds no variable — `on error msg {exit 0}` first writes `msg`, which
+a write trace or an `upvar` to an array rejects with an error; an earlier
+block may raise too: `if {$c} {}; exit 0`), every word is literal, the command-binding owner resolves
+the call site to one registry-backed target (whose alias prefix joins the
+written words — `interp alias {} bye {} exit abc` makes `bye` raise, as
+does the same alias named `::foo::exit` called as `exit` inside `::foo`),
+and `CommandRegistry::exact_invocation_completion` classifies that
+composed invocation as `ProcessExit` (which statuses are valid is that
+owner's release-aware answer, not restated here).  Anything else may `return` or raise an error
+first — an earlier statement, a substituted word (`exit [error boom]`), a
+status the registry rejects (`exit abc`, or `exit 09` in 8.x),
+an `if` condition or `switch` subject — and those do run the clause, so an
+enclosing construct is never looked through.  `tailcall` *is* an exit: the
+clause runs before the call.
+
+A `break` / `continue` is not given an extra edge: its jump itself is
+retargeted at `try_end`, and the clause's own last block records an edge on
+to the saved loop target, because the clause runs *before* the loop sees the
+jump.  Not `try_after_finally`: the statements after the `try` are appended
+there, and a jump does not run them.
+An edge alongside the jump left a path into the loop that skipped the
+clause, and `while {$first || $x} { try {set first 0; continue} finally
+{set x 0} }` reported `x` read before it is set.  An enclosing
+`try … finally` reroutes the resumed edge through its own clause the same
+way, so a jump out of nested clauses passes each of them in order.  A jump
+is rerouted even from a block a nested construct intercepts: that only
+replaces an edge that skipped this clause with one through it.
+
+Whether the clause then falls through into `try_after_finally` — and so
+into the statements after the `try` — depends on whether anything *can*
+complete normally.  `try_completes_normally` asks the graph, not the
+resting tails: it walks the construct's own blocks from the pre-`try`
+block, through the handlers' exception edges, and looks for a normal edge
+into `try_end` or into `try_ok`, the block a body that completes `ok`
+passes through on its way there.  When there is none, every way into the clause is an exit,
+so the clause's last block ends in a `Return` as an `error` does and is
+recorded as a throw point for the constructs around it; the code after the
+`try` is unreachable, as in Tcl.  A clause that itself leaves —
+`finally {break}` — keeps its own terminator either way: its transfer
+overrides the pending completion, so it neither falls through nor resumes
+a saved jump, and in `while 1 { try {return} finally {break} }` the code
+after the loop runs.  Otherwise the clause falls through, and
+exit paths share that edge with normal completion — they add paths, never
+remove one — save for the unwinding they resume.  When an unwinding
+exit (a `return`, an error) also enters such a clause, the fall-through
+`Goto` stands only for normal completion, so the clause's last block is
+recorded as an *unwinding tail*: an exit of every enclosing `try … finally`
+body and a throw point for enclosing handlers and `catch`.  Without it,
+`try { try {if {$c} {return}} finally {}; set x 1 } finally {puts $x}` ran
+`set x 1` on the `return` path, and O102 forwarded it into a read tclsh
+fails.
+
+A body that cannot fall through reaches a handler from its explicit throw
+points, or failing those from its terminal block — but not a source whose
+exact completion code differs from the one the handler's selector decodes
+to (`trap` is an error; a numeric selector is read with the dialect's own
+numerals, so `on 010` is code 8 in Tcl 8.x).  A source's code is known only for the body's
+first block with nothing else in it that could complete with another code
+(a literal assignment before an error may only raise an error itself), for a plain `return` whose value cannot
+substitute (`TCL_RETURN`), and for a sole statement the registry classifies
+that is what ended the block: `break` / `continue`
+behind its `Goto`, a non-`ok` code behind a `Return`.  So
+`try {break} on error {} {}`, `on continue`, `on 4` and
+`try {return early} on error {} {}` offer no way to complete normally.  An
+undecodable selector or completion keeps the edge.
+
+A `break` / `continue` out of the body that a handler catches never reaches
+its loop: `route_caught_loop_jumps` retargets its `Goto` at the first
+handler whose decoded code matches (a `-` handler hands it to the body it
+shares), so the `finally` routing never resumes it, and
+`try {break} on break {} {set x 1}` binds `x` before the loop is left.  A
+handler met first whose selector cannot be decoded might catch it instead,
+and then the jump keeps its edge.
+
+A handler an earlier one always pre-empts gets no edges at all: Tcl runs
+only the first matching handler, so a second `on error` after an
+unconditional `on error` is dead.  Only an earlier non-`trap` handler with
+the same decoded code proves it — a `-` handler counts, since it selects
+its code before handing its body on.  A `-` handler's own block is
+empty and never runs, so it gets no edges at all: an edge into it, and
+on to `try_end`, let a match skip the body it shares.  That body is
+reached only through the edges of the handler that owns it, and those
+edges are filtered against the whole
+group: a completion any member matches keeps its edge, save a member an
+earlier handler pre-empts.  So `try {error boom} on error {} - on ok {}
+{set x 1}` reaches `set x 1`, and an owner is dead only when every
+member of its group is pre-empted.
+
+A handler of a body with a resting tail takes its exception edges from the
+pre-`try` block, the tail, **and** every recorded throw point: an `error`
+inside a nested `if`, or a `finally` that only resumes unwinding, raises
+with its own block's definitions live.  Without them
+`try { if {$c} {set x 1; error b} else {set x 2; error c} } on error {} {}`
+called both stores dead.
+
+The edges are not added without a `finally`:
+there the tail really is unreachable on those paths, because the exception
+resumes unwinding past it.
+
 ### Block naming convention
 
 `CfgBuilder::new_block(prefix)` names each block `{prefix}_{counter}`,
