@@ -831,6 +831,18 @@ asserts what `diag_honours_noqa_directives_the_way_the_editor_does` asserts
 for `tcl diag`: each `# noqa` silences its command's analyser and
 compiler-check codes, the unmarked W210s and S100 stand.
 
+### DP7.3 — code actions end to end
+
+`tests/e2e/code_actions.rs` gains `an_optimiser_rewrite_is_offered_as_a_quick_fix`
+(under `optimiser.profile = full` the O101 fold of `set x [expr {1 + 2}]`
+is a `quickfix` whose edit is `set x 3`; under the default `readability`
+nothing offers it) and `no_quick_fix_for_a_finding_a_noqa_silences` (a
+`# noqa: W100` line offers no "Brace expr for safety and performance", the
+unmarked control does). The three test-section comments that still named
+`check_diagnostic_actions` read "compiler-check fixes"; `grep -rn
+check_diagnostic_actions rust` is empty. This pins the server's rewrite
+quick-fix, which DP4.0's record listed as unpinned.
+
 ## Plan for finishing slices 4–7 and for slices 8–10
 
 The execution plan from the checkpoint `5bc40e95` to the end of the page's
@@ -3475,7 +3487,7 @@ Each item updates its row in the commit that lands it.
 | DP6.2 | sonnet | S | done (by the lane implementer) | `DP6.2 — #2061's cases on the MCP tools` | `tcl-mcp` (97); `tcl-mcp` clippy |
 | DP7.1 | opus | M | done (the merge of `rust`) | the merge commit | core and server `--lib`, the whole `e2e`; the crate clippy |
 | DP7.2 | opus | S | done (the merge of `rust`) | the merge commit | core `--lib`, `tcl-cli`, `tcl-mcp`; the crate clippy |
-| DP7.3 | sonnet | S | not started | — | — |
+| DP7.3 | sonnet | S | done (by the lane implementer) | `DP7.3 — code-action end-to-end tests; the last name of the old lifter` | `e2e -- code_actions` (93), `tcl-lsp-core --test code_actions_depth` (46); clippy on core and server |
 | DP8.1 | opus | S | not started | — | — |
 | DP8.2 | opus | M | not started | — | — |
 | DP8.3 | sonnet | S | not started | — | — |

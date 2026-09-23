@@ -770,7 +770,7 @@ fn switch_to_dict_absent_at_inert_cursor() {
     );
 }
 
-// check_diagnostic_actions — IRULE5004 (DNS::return without return)
+// compiler-check fixes — IRULE5004 (DNS::return without return)
 
 #[test]
 fn check_actions_surface_irule5004_dns_return_fix() {

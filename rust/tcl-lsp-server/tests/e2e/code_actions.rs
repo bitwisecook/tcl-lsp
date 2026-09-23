@@ -1956,3 +1956,61 @@ fn test_no_refactor_offered_on_the_lambda_arg_list() {
         "a parameter word named `if` is not an `if` command: {actions:?}"
     );
 }
+
+/// A shown optimiser rewrite is a code action like any other
+/// (`docs/design/compiler/diagnostic-policy.md` § Adapters, code actions): the
+/// O101 fold of `set x [expr {1 + 2}]` is offered as a quick-fix whose edit
+/// rewrites the statement, under a profile that shows it — and not under the
+/// default `readability` profile, which keeps constant folding off.
+#[test]
+fn an_optimiser_rewrite_is_offered_as_a_quick_fix() {
+    let source = "set x [expr {1 + 2}]\n";
+    let fold = |actions: &Value| {
+        kinds(actions, "quickfix")
+            .iter()
+            .any(|action| new_texts(&json!([action])).iter().any(|t| t == "set x 3"))
+    };
+
+    let mut lsp = Lsp::with_config(json!({ "optimiser": { "profile": "full" } }));
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, source);
+    let actions = lsp.code_actions(&uri, range((0, 0), (0, 20)), json!(diags));
+    assert!(
+        fold(&actions),
+        "the shown O101 rewrite is a quick-fix: {actions:?}"
+    );
+
+    let mut default = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = default.open_ready(&uri, source);
+    let actions = default.code_actions(&uri, range((0, 0), (0, 20)), json!(diags));
+    assert!(
+        !fold(&actions),
+        "`readability` keeps the fold off, so nothing offers it: {actions:?}"
+    );
+}
+
+/// A fix is offered for a shown finding and for no other: a `# noqa: W100`
+/// over the command leaves its line with no brace refactor, where the same
+/// command without the directive offers one.
+#[test]
+fn no_quick_fix_for_a_finding_a_noqa_silences() {
+    const BRACE: &str = "Brace expr for safety and performance";
+    let mut lsp = Lsp::tcl();
+
+    let control = unique_uri("tcl");
+    let diags = lsp.open_ready(&control, "set a 1\nset y [expr $a + 1]\n");
+    let actions = lsp.code_actions(&control, range((1, 0), (1, 19)), json!(diags));
+    assert!(
+        titles(&actions).iter().any(|t| t == BRACE),
+        "the unmarked command offers the refactor: {actions:?}"
+    );
+
+    let marked = unique_uri("tcl");
+    let diags = lsp.open_ready(&marked, "set a 1\n# noqa: W100\nset y [expr $a + 1]\n");
+    let actions = lsp.code_actions(&marked, range((2, 0), (2, 19)), json!(diags));
+    assert!(
+        !titles(&actions).iter().any(|t| t == BRACE),
+        "a silenced W100 offers no refactor: {actions:?}"
+    );
+}

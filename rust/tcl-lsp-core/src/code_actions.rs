@@ -3235,7 +3235,7 @@ mod tests {
         HashMap::new()
     }
 
-    // check_diagnostic_actions: IRULE5002/5004 flow-warning fixes
+    // compiler-check fixes: IRULE5002/5004 flow-warning fixes
 
     #[test]
     fn check_actions_surface_irule5002_flow_fix() {
@@ -3345,7 +3345,7 @@ mod tests {
         );
     }
 
-    // check_diagnostic_actions: shimmer-family noqa-suppress action
+    // compiler-check fixes: shimmer-family noqa-suppress action
 
     /// A check the document already silences offers nothing: neither its
     /// quick-fix nor a suppress action for a line that is already suppressed.
