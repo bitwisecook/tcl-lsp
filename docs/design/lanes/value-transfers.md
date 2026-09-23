@@ -3326,6 +3326,7 @@ checkpoint, then the two follow-ups the coordinator named (Q12, Q13).
 | — | `wip(value-transfers): slice 4 — a declared implementation reads its inputs first` | D102: `DeclaredSemantics::evaluate` reads the places and the inputs before the release, the admission and the host, found by the completion test under the lenient `tcl` profile | `an_unknown_input_declines_before_the_release_is_asked` (`value_transfer/declared.rs`) |
 | VT4.13 | `wip(value-transfers): slice 4 — the executable example and the completion test` | `rust/tcl-compiler/tests/fixtures/value_transfers/tenant.tclspec`: the page's `tenant::label`, the same declaration as `tenant::tag` and as `tenant label NAME`; `tcl-spectcl` a dev-dependency of `tcl-compiler` (the cycle `tcl-registry` already has, D103); no file under any `src/` | `the_completion_test_needs_no_consumer_edit` (compiler witnesses: all three spellings fold `acme` to `tenant:acme` on the implementation route under 8.6, 9.0 and 9.1, decline `unsupported` under 8.4, 8.5, `f5-irules` and `tcl`, decline `not-exact` on an unknown argument, and fold nothing without the pack; the optimiser forwards the constant (O100); `tclsh` runs the body's `string cat` exactly where the analysis folds, and with the vendor runtime prepended the original and the optimised program print the same under 8.4 to 9.1); `the_completion_test_reaches_every_surface` (`value_transfers_cli.rs`: `tcl explore`, I230 in `tcl diag`, O100 in `tcl opt` from a scratch workspace whose discovered pack is the fixture; `tcl spec export`'s pack and a studio form edit of each declaration each fold again from their own workspace; the renderer's placeholder for the body it cannot draw; a workspace without the pack folds nothing); `shipped_builtins_stay_on_the_direct_route` (`value_transfers.rs`) |
 | Q12 | `wip(value-transfers): slice 4 — the evaluator epoch reaches salsa` | D104: `pack_hooks::evaluator_epoch`, which a plan publish (`tcl_spectcl::hooks::publish`) and a quarantine (`note_quarantine`, on any thread) move; the singleton salsa input `tcl_lsp_db::EvaluatorEpoch`, created at 0 by every `TclDatabase` constructor, read by `build_unit_with_keys` and carried by `ValueTransferContext`; the server's `sync_evaluator_epoch` (compare-then-set) in `reload_spec_packs` when the set changed and at the start of the post-publish `refresh_cross_file_evidence` | `an_evaluator_epoch_re_keys_the_memoised_lattices` (`value_transfer_parity.rs`: after a quarantine the memo still folds; once the epoch is taken the lattice is recomputed and declines `transient`); `host_install_and_quarantine_bump_the_generation` (`pack_hooks.rs`: a quarantine moves the epoch); `the_pass_after_a_quarantine_takes_the_evaluator_epoch` (the server's own tests: the refresh after a pass takes a quarantine's epoch and reschedules nothing; fails without the sync); `a_pack_reload_after_an_edit_yields_the_new_answer_on_the_memoised_path` (`e2e/spec_packs.rs`: a condition folded through the pack, re-analysed after an edit from the memo, turns from always true to always false when the pack's body changes on disk) |
+| Q13 | `wip(value-transfers): slice 4 — Q13 accepted as built` | The lane doc alone: Q13 accepted as sound, its precision cost stated (a function whose evaluations spend the request keeps none of its route folds); no code change | `an_exhausted_request_declines_the_rest` (`value_transfer.rs`, D100), unchanged |
 
 Deltas beyond the plan's list:
 
@@ -3412,6 +3413,9 @@ than the epoch. T100 skips a seeded global at SSA version 0
 write to `argc` before those reads in the runs that differ, which puts
 the cause in what that build records as writing globals rather than in
 the taint lattice. For the owner of the memoised checks path.
+
+At Q13: the lane doc alone; `cargo xtask value-transfers --check`
+unchanged.
 
 ### Slice 5 — destructuring and structured bodies
 
@@ -7019,6 +7023,20 @@ Each with the assumption the plan proceeds on.
   for declines — and charging a pass only for work an earlier pass did not
   already pay for is the refinement if the degradation shows up in
   practice.
+  **Accepted on 2026-09-23**, as built and with no change: sound, since a
+  re-decline publishes `Overdefined` and never a stale constant. The
+  precision it costs is per function: once one run's evaluations spend
+  its request (`Budget::request()`, 50,000,000 units, 200 ms at four
+  milliseconds per million), every route-evaluated definition a later
+  sweep re-evaluates declines with `declined: budget: Request` and ends
+  `Overdefined`, the ones earlier sweeps folded included, so the function
+  keeps none of its route folds rather than those made before the point
+  of exhaustion (D100's measurement: all twelve `string length` folds of
+  one procedure under a 500-unit request). What reads those constants — a
+  constant condition (I230), a forwarded value (O100) — sees none for
+  them. Only a function whose route evaluations together cost more than
+  the request pays it; the refinement above stays the answer if that
+  shows up in practice.
 
 ### Deltas flagged for the owner
 
