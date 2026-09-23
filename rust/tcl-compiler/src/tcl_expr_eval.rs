@@ -620,16 +620,12 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
         // `if {"$x" eq "5"}` to false, and O112 then deleted the live branch
         // (#2227). Declining costs an optimisation; folding wrong costs the
         // program.
-        if substitutes && inner.contains(['$', '[', '\\']) {
-            return Err(());
-        }
         // A `{…}` operand's backslash-newline folds to a space in Tcl and
         // stays as written in Jim; the folder does not know which, so it
-        // declines rather than guess.
-        if inner.contains("\\\n") {
-            return Err(());
-        }
-        Ok(FoldValue::Str(inner.to_owned()))
+        // declines that too rather than guess.
+        tcl_syntax::expr::fixed_string_body(inner, substitutes)
+            .map(|body| FoldValue::Str(body.to_owned()))
+            .ok_or(())
     }
     fn var(&mut self, name: &str) -> Result<FoldValue, ()> {
         match self.env.get(name) {

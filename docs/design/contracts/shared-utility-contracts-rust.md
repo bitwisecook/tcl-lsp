@@ -258,7 +258,14 @@ entry point, or gate moves without this contract being updated.
   backslash-newlines fold even inside braces, so the engines pass it through
   `backslash::collapse_brace_continuations`, and the const-folder, which
   does not know whether the dialect folds (Jim keeps the bytes), declines one
-  that carries a backslash-newline. The compiler's substitution walks read the same rule
+  that carries a backslash-newline. `fixed_string_operand` (and
+  `fixed_string_body` for the walk's stripped body) answers "is this operand
+  its own value in every dialect": the const-folder, native lowering and the
+  F5 XC translator read a constant only through it. Codegen, taint and the
+  `uri_split` hint read the quoted/braced split through
+  `quoted_string_body`; the hint rejects a quoted operand that substitutes
+  (`$`, `[`) but reads its backslash escapes as written, the form its regex
+  classifier expects. The compiler's substitution walks read the same rule
   (#2227).
 - `rand` — the Park-Miller `rand()`/`srand()` generator both engines call
   (step, seed nudge, and C's reciprocal-multiply scaling). Only seed storage

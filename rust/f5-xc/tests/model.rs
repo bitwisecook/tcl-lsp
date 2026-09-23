@@ -82,6 +82,23 @@ fn starts_with_path_is_prefix_match() {
     assert_eq!(pm.value, "/api");
 }
 
+/// A quoted operand substitutes, so `"/api$v"` is not the prefix `/api$v`;
+/// a braced one is its text without the braces (#2227, found in review).
+#[test]
+fn a_prefix_is_translated_only_from_fixed_text() {
+    let path_match = |operand: &str| {
+        let src = format!(
+            "when HTTP_REQUEST {{\n    if {{[HTTP::path] starts_with {operand}}} {{\n        pool api_pool\n    }}\n}}"
+        );
+        translate_irule(&src)
+            .routes
+            .iter()
+            .find_map(|r| r.path_match.as_ref().map(|pm| pm.value.clone()))
+    };
+    assert_eq!(path_match("\"/api$v\""), None);
+    assert_eq!(path_match("{/api}").as_deref(), Some("/api"));
+}
+
 #[test]
 fn header_insert_records_request_action() {
     let src = "when HTTP_REQUEST {\n    HTTP::header insert \"X-Custom\" \"value\"\n}";

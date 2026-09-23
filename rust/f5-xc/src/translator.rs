@@ -336,7 +336,11 @@ fn strip_dquotes(text: &str) -> &str {
 /// `ExprString` and `ExprRaw`).
 fn expr_string_value(node: &ExprNode) -> Option<String> {
     match node {
-        ExprNode::String { text, .. } => Some(strip_dquotes(text).to_owned()),
+        // Only a fixed operand is literal text: `"/api$x"` substitutes, and
+        // a braced one's value excludes its braces.
+        ExprNode::String { text, .. } => {
+            tcl_syntax::expr::fixed_string_operand(text).map(str::to_owned)
+        }
         ExprNode::Raw { text } => {
             let trimmed = text.trim();
             Some(strip_dquotes(trimmed).to_owned())
