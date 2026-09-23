@@ -519,6 +519,14 @@ pub struct AnalyserConfig {
 /// the file has no cross-file view — which is every gate and fuzzer input,
 /// since [`SourceFile::new`] leaves the field `None`. Production reads only
 /// the incremental query.
+///
+/// `config.disabled_diagnostics` is the analyser's production-time skip —
+/// rule 2's permitted saving in `docs/design/compiler/diagnostic-policy.md`
+/// § Producers that change: the codes the document's policy turns off, which
+/// the analyser need not compute. It is never a presentation filter. The
+/// surface that reads this analysis declares the same set to its report, so a
+/// code left uncomputed is explained rather than read as clean; what the
+/// document shows is the policy step's decision.
 #[salsa::tracked(returns(clone))]
 pub fn file_analysis(
     db: &dyn salsa::Database,
@@ -1226,10 +1234,10 @@ fn callback_exact_arity_diagnostic(
 /// of the W123 toggle (matching local arity), since the arity check keys off these
 /// rather than the (possibly filtered) W123 diagnostic.
 ///
-/// `is_disabled` honours the user's `disabled_diagnostics` for the synthesised
-/// arity code: it is produced *after* the analyser applied its own
-/// [`apply_disabled_diagnostics`](tcl_compiler::analyser::Analyser) filter (and the
-/// LSP lift does not re-filter), so the filter must be replicated here.
+/// `is_disabled` reads the analyser's `disabled_diagnostics` for the
+/// synthesised arity code: the synthesised arity codes honour the same
+/// production skip as the analyser's own; whether they show is the policy
+/// step's decision.
 #[must_use]
 pub fn apply_cross_file_resolution<S: std::hash::BuildHasher>(
     diags: &[tcl_compiler::analyser::types::Diagnostic],
@@ -1281,6 +1289,10 @@ pub fn apply_cross_file_resolution<S: std::hash::BuildHasher>(
 /// the server's workspace-index oracle. Keeping this helper limited to
 /// callback metadata lets the opt-in project pass retain that independent
 /// check without competing for direct-call verdicts.
+///
+/// `is_disabled` reads the analyser's `disabled_diagnostics`: the synthesised
+/// arity codes honour the same production skip as the analyser's own; whether
+/// they show is the policy step's decision.
 #[must_use]
 pub fn apply_project_callback_arity<S: std::hash::BuildHasher>(
     diags: &[tcl_compiler::analyser::types::Diagnostic],
@@ -1376,6 +1388,9 @@ pub fn project_diagnostics(
     config: AnalyserConfig,
     project: Project,
 ) -> Arc<Vec<tcl_compiler::analyser::types::Diagnostic>> {
+    // The analyser's production skip: the synthesised arity codes honour the
+    // same production skip as the analyser's own; whether they show is the
+    // policy step's decision.
     let disabled = config.disabled_diagnostics(db);
     // `file_analysis_incremental` (not the coarse `file_analysis`) so this reuses
     // the per-item firewall result the diagnostics worker already computed for
@@ -3302,6 +3317,14 @@ pub fn compilation_unit<'db>(
 /// (and rebased) instead of rebuilt.  Byte-identical to [`file_analysis`] (and
 /// `analyse`) — proven by the `per_item_corpus` gate over the shared
 /// `analyse_per_item_with` orchestration.
+///
+/// `config.disabled_diagnostics` is the analyser's production-time skip —
+/// rule 2's permitted saving in `docs/design/compiler/diagnostic-policy.md`
+/// § Producers that change: the codes the document's policy turns off, which
+/// the analyser need not compute. It is never a presentation filter. The
+/// surface that reads this analysis declares the same set to its report, so a
+/// code left uncomputed is explained rather than read as clean; what the
+/// document shows is the policy step's decision.
 // LRU-capped: per-file key, see the crate docs' "Deep-memo eviction".
 #[salsa::tracked(lru = 64, returns(clone))]
 pub fn file_analysis_incremental(
@@ -3374,8 +3397,8 @@ pub fn file_analysis_incremental(
 
 /// The compiler-checks + optimiser diagnostics for one document, unfiltered.
 ///
-/// Returned by [`compiler_check_diagnostics`] for the server to filter
-/// (optimiser master switch / per-code disables) and lift into LSP diagnostics.
+/// Returned by [`compiler_check_diagnostics`]. Unfiltered: every surface
+/// converts these to findings, and the policy step decides what shows.
 /// Kept independent of the runtime gate so the query caches across config
 /// toggles.  `Clone + PartialEq` for salsa early-cutoff.
 #[derive(Clone, PartialEq)]
@@ -3413,8 +3436,8 @@ fn compiler_diagnostics_from_unit(
 /// query (so an unchanged procedure is built once and shared with the analyser
 /// tail).  The optimiser lowers with the dialect lexer config — distinct from
 /// the analyser tail's default config, so the two intern different bodies and
-/// never cross-pollute.  Byte-identical to the direct
-/// `lift_compiler_diagnostics` build.
+/// never cross-pollute.  Byte-identical to
+/// [`compiler_check_diagnostics_uncached`].
 // LRU-capped: per-file key, see the crate docs' "Deep-memo eviction".
 #[salsa::tracked(lru = 64, returns(clone))]
 pub fn compiler_check_diagnostics(
