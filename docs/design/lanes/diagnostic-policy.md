@@ -2,11 +2,13 @@
 
 Tracking document for slices 1 to 7 of
 [`docs/design/compiler/diagnostic-policy.md`](../compiler/diagnostic-policy.md)
-§ *Slices* (issue #2089). Slices 1–3 are landed and accepted; slices 4–7
-are the hand-off checkpoint `5bc40e95`, made green by item DP4.0 as
-§ *DP4.0 — the checkpoint made green* records. Protocol: [README.md](README.md) — the tree
-compiles before every commit, files are staged by explicit path, every
-checkpoint is `wip(diagnostic-policy): …`, the orchestrator pushes.
+§ *Slices* (issue #2089), and the plan for slices 8 to 10. Slices 1–3
+landed in `5fa79406`; slices 4–7 landed item by item from the hand-off
+checkpoint `5bc40e95` (made green by DP4.0) to the landing commit that
+§ *Slices 4–7 landed* records. Slices 8–10 are § *Plan*'s remaining items.
+Protocol: [README.md](README.md) — the tree compiles before every commit,
+files are staged by explicit path, every checkpoint is
+`wip(diagnostic-policy): …`, the orchestrator pushes.
 
 Branch: `claude/spectcl-optimization-discussion-5qhf42`. The lane owns
 `rust/tcl-lsp-core/src/diagnostic_policy.rs`, `rust/tcl-lsp-core/src/config_ini*`,
@@ -842,6 +844,106 @@ unmarked control does). The three test-section comments that still named
 `check_diagnostic_actions` read "compiler-check fixes"; `grep -rn
 check_diagnostic_actions rust` is empty. This pins the server's rewrite
 quick-fix, which DP4.0's record listed as unpinned.
+
+### Slices 4–7 landed
+
+Every item of slices 4–7 is in: DP4.0 (`23eec80f`); DP4.1 (`d941667f`,
+the `tcl-lsp-db` documentation, and `4630323d`); DP4.2, DP5.2, DP7.1 and
+DP7.2 with the merge of `rust` (`8b5a8c88`, § *`rust` has moved under the
+branch*) and R1 (`cb395386`); DP4.3 (`6f1789a7`); DP5.1 (`8932e597`);
+DP5.3 (`02ebc7f7`); DP5.4 (`6d5262b6`); DP6.1 (`3027ac95`); DP6.2
+(`bb9bf0ea`); DP7.3 (`ac1cf501`). Checkpoints C4 (`6496e16f`), C5
+(`a4374569`) and C6 (`7f0957cb`); C7's gates are the landing gates below.
+Every transitional piece § *Transitional pieces to retire* assigns to
+DP4.0–DP7.3 is gone from `rust/`: `Policy::from_disabled_set`,
+`supersede_analyser_diagnostics`, `InputDocument::encoding_diagnostics`,
+`default_disabled_set`, `settings_disabled_diagnostics`,
+`settings_severity_overrides`, the server's `skipped_codes` and shimmer
+fold, `share_one_project`, `rewrite_action`, and the three
+`check_diagnostic_actions` comments. The design page still names the three
+`config_ini` readers in its § *Today*, § *Configuration* history and
+§ *Anchors*, as it names DP4.0's retirements; DP10.1 removes them from
+§ *Anchors* by name.
+
+**Exit evidence.** Each slice's column in § *Goal and exit per slice* is
+met except the entries the plan orders after slice 7: slice 4's
+`lifted_report` (DP8.2) and LSP truth-table pass (DP9.5), slice 5's CLI
+passes (DP9.6), slice 6's MCP passes (DP9.7), and slice 7's lightbulb on
+the published report (DP8.3) and code-action passes (DP9.5, DP9.7). Those
+add a producer and a parity gate over the adapters landed here and change
+none of them.
+
+**Issues these slices' witnesses close.**
+
+- #2061 — the MCP diagnostics tools honour the inline `# noqa`, run the
+  compiler checks and report the editor's set. On #2020's own fixture the
+  built `tcl-mcp`'s `analyze` and the built `tcl diag` report the same
+  three findings (S100 at line 22, W210 at lines 12 and 15), pinned by
+  `analyze_honours_the_noqa_fixture_as_tcl_diag_does` and
+  `analyze_honours_an_inline_noqa`; `review` fills `taint` (T100),
+  `security` (IRULE3001) and `thread_safety` (IRULE4002) on the issue's
+  three programs (`review_reports_the_compiler_check_families`);
+  `code_actions` offers nothing for a silenced finding
+  (`code_actions_offer_nothing_for_a_silenced_finding`); the loader owns
+  W123 in a `sslictcl` source (`analyze_reports_the_sslictcl_loader`); W242
+  is seeded off (`analyze_seeds_the_default_off_codes_and_enable_reaches_them`).
+- #2062 — `tcl opt` and MCP `optimize` apply no rewrite a directive
+  silences: `opt_applies_only_the_rewrites_the_policy_shows`,
+  `optimize_applies_only_the_rewrites_the_directives_leave_shown`, and the
+  analyser's attribution of a `# noqa` to the whole command it precedes
+  (`a_noqa_reaches_every_line_of_the_command_it_precedes`). The issue's own
+  program — `# noqa: O109` over `set x 1` in `proc f` — keeps the store
+  through the built `tcl opt --profile full` and the built `tcl-mcp`'s
+  `optimize` (`total` 0), while the unmarked control is rewritten (O109)
+  on both.
+- #2063 — `tcl diag` / `lint` / `validate` resolve the global
+  `config.ini`, the flags in the editor slot and each input's own
+  `.tcl-lsp.ini` (`diag_resolves_the_project_and_global_layers_per_input_file`,
+  `diag_a_project_file_turns_a_code_back_on`), with W242 seeded off
+  (`diag_seeds_the_default_off_codes_like_the_editor`); the MCP tools read
+  the global file and `disable` / `enable`
+  (`analyze_honours_disable_enable_and_the_global_file`). The issue's own
+  reproduction — a project `disabled = W100` over `if [expr $a + 1]` —
+  loses both W100s under the project and keeps them beside it through the
+  built `tcl diag`. The issue asked for the flags "on top"; the page's
+  rule 5 puts them in the editor slot, under the project file, and D36
+  keeps that order for every per-code decision.
+
+The truth-table passes (DP9.6, DP9.7) are parity gates over these
+surfaces, not a condition of any of the three issues' asks, so the
+landing commit names all three as closed (D41).
+
+**Behavioural deltas.** Every entry of § *Behavioural deltas expected per
+slice* for slices 4–7 is in the tree, the two flagged `[features]` deltas
+reverted by DP5.3. A test pins each except three whose absence no suite
+can observe: W107's position in a lone-`\r` file (D14), the fast tier
+publishing the `SslicTcl` loader's codes a publish earlier (D11), and
+`getEffectiveConfig` listing catalogued codes only (DP4.1). Beyond the
+list, one regression the checkpoint had introduced is fixed: a
+`tclLsp.features.diagnostics = false` made `optimiseDocument` a no-op,
+which `rust`'s #2119 command never was (D39). No other suite outcome
+changed.
+
+**Gates at landing**, on the tree at `ac1cf501` with the value-transfers
+lane's uncommitted edits present: `cargo test -p tcl-lsp-core -p
+tcl-lsp-server -p tcl-cli -p tcl-cli-support -p tcl-mcp -p tcl-lsp-db`
+exits 0 — core `--lib` 2321 and its 33 integration binaries 1218; server
+`--lib` 584, `e2e` 1597 (5 ignored), `smoke` 14, `stdio_deadlock` 6,
+`preview_tickets_e2e` 22; `tcl-cli` lib 27, `cli` 40, `compile_verbs` 11,
+`explorer_gui` 2, `pkg_verbs` 13, `spec_verbs` 18; `tcl-cli-support` 19;
+`tcl-mcp` 97; `tcl-lsp-db` lib 96 and its ten integration binaries 26
+(5 ignored). Pedantic clippy with `--all-targets --no-deps -D warnings`
+on `tcl-lsp-core`, `tcl-lsp-server`, `tcl-cli`, `tcl-cli-support`,
+`tcl-mcp`, `f5-xc` (`--all-features`) and `tcl-lsp-db`: clean, with no new
+`#[allow]`. `cargo fmt --check` on the lane's crates: clean. The ten
+catalogue gates (`diag-tables --check`, `diag-emission-check`,
+`gen-ai-diagnostics --check`, `gen-editor-settings --check`,
+`gen-vscode-package --check`, `gen-jetbrains-catalog --check`,
+`gen-editor-catalogs --check`, `kcs-index-links`, `owner-resolution`,
+`retired-api-gate`): pass, so nothing regenerates — no new CLI flag or MCP
+argument reaches a generated file. `make rust-check`: exits 0 (workspace
+fmt and clippy, the runtime crate, every `xtask-check` gate). No new
+integration-test binary, so the shard manifest is unchanged.
 
 ## Plan for finishing slices 4–7 and for slices 8–10
 
@@ -3238,6 +3340,12 @@ Decisions the implementation of slices 4–7 took (DP4.1 onwards):
   off, which changes `code_actions`' action JSON — the item preserves it —
   and departs from the editor, whose lightbulb decides under the document's
   policy. D5's "keep it on" is read as "do not force it off".
+- **D41. The slices 4–7 landing names #2061, #2062 and #2063 as closed.**
+  Each issue's own reproductions and asks are pinned by a test and hold on
+  the built binaries (§ *Slices 4–7 landed*). § *Goal and exit per slice*
+  also lists the truth-table passes (DP9.6, DP9.7) as slice 5's and 6's
+  evidence; they gate parity between surfaces the issues already had
+  fixed, so they are read as the slices' evidence, not the issues'.
 
 ### Open questions for the owner
 
@@ -3507,3 +3615,5 @@ Each item updates its row in the commit that lands it.
 | C4 | — | — | green, except `make rust-check`: its first step, `cargo fmt --all --check`, is red on the value-transfers lane's uncommitted `tcl-registry` / `tcl-compiler` files; the steps that concern this lane's crates ran individually and pass | `C4 — slice 4 checkpoint` | *the suites* of the lane's crates on DP4.1 plus DP4.3's tests; the whole `e2e` (1595, 5 ignored) on DP4.1 — DP4.3 changed no production code; the crate clippy; `cargo fmt --check` on the lane's crates; the ten catalogue gates; `cargo check -p tcl-lsp-db` and its clippy; `cargo check --workspace` |
 | C5 | — | — | green | `C5 — slice 5 checkpoint` | `tcl-cli` all targets (lib 27, `cli` 40 with `samples_optimiser_profiles_are_regenerated`, `compile_verbs` 11, `explorer_gui` 2, `pkg_verbs` 13, `spec_verbs` 18), `tcl-cli-support` 19, core `--lib -- config_ini` 31; the crate clippy; `kcs-index-links`; `cargo check --workspace` |
 | C6 | — | — | green | `C6 — slice 6 checkpoint` | `tcl-mcp` 97, `tcl-cli --test cli` 40, core `--lib` 2321; the crate clippy; `cargo check --workspace` |
+| C7 | — | — | green | the landing commit | *the suites* for core and server with the whole `e2e` (1597, 5 ignored), `tcl-cli` and `tcl-mcp` — inside `cargo test` over the six crates below; the crate clippy |
+| Landing (slices 4–7) | opus | — | done — § *Slices 4–7 landed* | `the LSP, CLI, MCP and code-action adapters (slices 4 to 7)` | `cargo test -p tcl-lsp-core -p tcl-lsp-server -p tcl-cli -p tcl-cli-support -p tcl-mcp -p tcl-lsp-db`; pedantic clippy on every touched crate; `cargo fmt --check`; the ten catalogue gates; `make rust-check` |
