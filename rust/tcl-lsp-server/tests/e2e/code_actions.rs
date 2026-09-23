@@ -857,6 +857,30 @@ fn test_simple_continuation_fix() {
 }
 
 #[test]
+fn no_conversion_for_a_disabled_w115() {
+    // DP8.3: the lightbulb offers the conversion only for a *shown* W115 —
+    // a layer that turns the code off silences the action too, even though
+    // the comment shape below is still detectable.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.apply_configuration_settle(
+        json!({ "diagnostics": { "W115": false } }),
+        &uri,
+        |config| {
+            config["disabled_diagnostics"]
+                .as_array()
+                .is_some_and(|codes| codes.iter().any(|code| code == "W115"))
+        },
+    );
+    lsp.open_ready(&uri, "# trailing \\\nset x 1\n");
+    let actions = lsp.code_actions(&uri, range((0, 0), (0, 0)), json!([]));
+    assert!(
+        titles(&actions).iter().all(|t| !t.contains("per-line")),
+        "{actions:?}"
+    );
+}
+
+#[test]
 fn test_chained_continuation_fix() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");

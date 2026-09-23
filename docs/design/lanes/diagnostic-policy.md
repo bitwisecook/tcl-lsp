@@ -1089,6 +1089,67 @@ for `similar_names`), `cargo fmt --check` is clean on core and server, and
 `cargo check --workspace` is green. The code table is unchanged, so nothing
 regenerates.
 
+### DP8.3 — The lightbulb reads the published report; W115's conversion follows its finding
+
+Server: `lifted_report` splits into `published_report(doc, produced, layers,
+directives, analysed) -> core_policy::Report` and `lift_report`, and stays
+their composition. `published_findings(analyser_diags, compiler_diags,
+xc_for_irules, xc_source)` — the analyser's set, `brace_expr_hints`,
+`compiler_findings`, and (opt-in) `xc_findings` — is the pull path's own
+assembly moved out, and `code_action` calls it too. `code_action` builds its
+`DocumentSource` the pull path's way: `text` is `doc.raw()` (the client's
+exact buffer) and `analysis_text` is `doc.text` — `DocumentState::text` is
+already the snapshot's analysis form by the time a request handler reads it
+(`DocumentState::normalised_for_analysis`), so no second `normalise_lone_cr`
+runs. A new `CodeActionReportInputs` struct (`published`, `registry`,
+`generic_patterns`, `evidence`, `layers`, `style_line_length`,
+`xc_for_irules`) carries `published_findings`'s and `published_report`'s
+inputs across the `spawn_blocking` boundary, and a same-named
+`code_action_report(doc, analysis, inputs)` composes them into the report —
+the old hand-rolled `code_action_report` is deleted as the item says, but
+the name is reintroduced for this one call, because inlining its four
+statements into `code_action`'s closure put the handler at 116 lines against
+clippy's 100-line limit; the reintroduced function stays under
+`too_many_arguments` by taking the struct instead of nine parameters. The
+lightbulb's report now carries the style pass, the `SslicTcl` projection,
+O111, the XC findings and the declared skip, none of which carries a `fixes`
+entry, so no action appears or disappears on that account.
+
+Core, `code_actions.rs`: `continuation_comment_actions` takes `report: &Report`
+and `line_index: &LineIndex` and returns no action unless a shown W115
+overlaps `range` (`ranges_overlap` against the finding's own span, the same
+pattern `push_brace_expr_refactors` and the general fix loop use).
+`code_actions_in_program` passes its own `report` and `line_index` through.
+`code_actions_depth.rs`: `report_of` gains a `source: &str` parameter and
+builds through `diagnostic_report::document_report` over a `SourcePass::Tcl`
+`DocumentSource` (`Policy::unrestricted()`) instead of `apply` over the bare
+analyser set, so its continuation tests carry the style pass's W115; every
+call site updated. No other test's actions changed, matching the item's
+prediction: a style finding carries no `fixes`.
+
+Tests: core `code_actions::tests::a_conversion_follows_a_shown_w115` (the
+three cases the item names, using a `w115_test_doc` helper — a plain
+closure could not express `DocumentSource<'_>`'s borrow across two call
+sites, so it is a named function); server
+`tests::the_lightbulb_reads_the_published_report` (the shown codes of
+`published_report(published_findings(…))`, built the way `code_action`
+builds it, equal `full_diagnostics_for`'s for `set x 1   \nputs $x\n`, W112
+among them); server e2e `code_actions::no_conversion_for_a_disabled_w115`
+(`apply_configuration_settle` rather than `Lsp::with_config`: the harness's
+`config_reflected` barrier has no settle mapping for a bare `"diagnostics"`
+key, so the settled form polls `getEffectiveConfig`'s `disabled_diagnostics`
+directly); `test_simple_continuation_fix` passes unchanged as the positive.
+
+Suites: core `--lib` 2328 (`--lib -- code_actions` 97 on that count,
+including `diagnostic_policy::apply_tests`/`policy_tests`/`tests`), the 33
+integration binaries with `code_actions_depth` 46; server `--lib` 591
+(`-- lightbulb` 1), the whole `e2e` 1598 (5 ignored), the `code_actions`
+subset 93. The crate clippy on `tcl-lsp-core` and `tcl-lsp-server` is clean
+after the two extractions above (`too_many_lines`, `too_many_arguments`,
+neither an `#[allow]`); `cargo fmt` touched both crates' files, no test
+regressed after; `cargo check --workspace` is green. The code table is
+unchanged, so nothing regenerates.
+
 ## Plan for finishing slices 4–7 and for slices 8–10
 
 The execution plan from the checkpoint `5bc40e95` to the end of the page's
@@ -3809,7 +3870,7 @@ Each item updates its row in the commit that lands it.
 | DP7.3 | sonnet | S | done (by the lane implementer) | `DP7.3 — code-action end-to-end tests; the last name of the old lifter` | `e2e -- code_actions` (93), `tcl-lsp-core --test code_actions_depth` (46); clippy on core and server |
 | DP8.1 | opus | S | done — § *Slices 8–10 as built* | `DP8.1 — a fact code is never skipped at production` | core `--lib`, server `--lib`, the whole `e2e`, `tcl-mcp`, `tcl-cli --test cli`; clippy on core and server; `cargo check --workspace` |
 | DP8.2 | opus | M | done — § *Slices 8–10 as built* | `DP8.2 — O111 is a producer; every publish path is one call` | core `--lib`, server `--lib`, the whole `e2e` (with `large_file_publishes_fast_tier_before_deep_tier`), `tcl-mcp`, `tcl-cli`; `diag-emission-check`; clippy on core, server, `tcl-cli` and `tcl-mcp`; `cargo check --workspace` |
-| DP8.3 | sonnet | S | not started | — | — |
+| DP8.3 | sonnet | S | done — § *Slices 8–10 as built* | `DP8.3 — The lightbulb reads the published report; W115's conversion follows its finding` | core `--lib` (2328, `-- code_actions` 97) and `--test code_actions_depth` (46); server `--lib` (591, `-- lightbulb` 1) and the whole `e2e` (1598, 5 ignored, `code_actions` subset 93); clippy on core and server; `cargo fmt`; `cargo check --workspace` |
 | DP9.1 | sonnet | S | not started | — | — |
 | DP9.2 | sonnet | M | not started | — | — |
 | DP9.3 | sonnet | M | not started | — | — |

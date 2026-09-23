@@ -488,6 +488,8 @@ pub fn code_actions_in_program(
         source,
         range,
         crate::profile_for_dialect(&analysis.dialect),
+        report,
+        &line_index,
     ));
     actions.extend(ip_conversion_actions(source, range, &line_index));
     actions.extend(expr_rewrite_actions(source, range, &line_index));
@@ -1035,13 +1037,33 @@ fn already_required(source: &str, pkg: &str) -> bool {
 
 // W115 — convert a backslash-continued comment to per-line comments.
 
+/// Offered only where a *shown* W115 overlaps `range` (§ Adapters, code
+/// actions: "A fix is offered for a shown finding and for no other") — a
+/// W115 turned off at any scope, or silenced by a directive, offers no
+/// conversion, even though the comment shape below is still detectable.
 fn continuation_comment_actions(
     source: &str,
     range: LspRange,
     dialect: &'static tcl_dialect::DialectProfile,
+    report: &Report,
+    line_index: &LineIndex,
 ) -> Vec<CodeAction> {
-    // The shared W115 detector is also enough for clients that request source
-    // actions without forwarding server diagnostics.
+    let finding_range = |finding: &Finding| {
+        let start = line_index.position_at_utf16(finding.span.start(), source);
+        let end = line_index.position_at_utf16(finding.span.end(), source);
+        LspRange {
+            start_line: start.line,
+            start_character: start.character.get(),
+            end_line: end.line,
+            end_character: end.character.get(),
+        }
+    };
+    let shown_w115_overlaps = report.shown().any(|shown| {
+        shown.finding.code == DiagCode::W115 && ranges_overlap(finding_range(shown.finding), range)
+    });
+    if !shown_w115_overlaps {
+        return Vec::new();
+    }
     let lines: Vec<&str> = source.split('\n').collect();
     let start_line = range.start_line as usize;
     if start_line >= lines.len() {
@@ -3579,6 +3601,76 @@ mod tests {
                 "pseudo-comment offered W115 action: {actions:?}"
             );
         }
+    }
+
+    fn w115_test_doc(text: &str) -> crate::diagnostic_report::DocumentSource<'_> {
+        crate::diagnostic_report::DocumentSource {
+            text,
+            analysis_text: text,
+            decode: None,
+            dialect: crate::profile_for_dialect("tcl8.6"),
+            pass: crate::diagnostic_report::SourcePass::Tcl { line_length: 120 },
+        }
+    }
+
+    /// DP8.3: the conversion follows a *shown* W115, not the bare comment
+    /// shape — a layer that turns W115 off, or a directive that silences it,
+    /// must silence the action too.
+    #[test]
+    fn a_conversion_follows_a_shown_w115() {
+        let dialect = crate::profile_for_dialect("tcl8.6");
+        let offers_conversion = |actions: &[CodeAction]| {
+            actions
+                .iter()
+                .any(|a| a.title.contains("per-line comments"))
+        };
+
+        let src = "# trailing \\\nset x 1\n";
+        let analysis = analyse(src);
+        let shown = crate::diagnostic_report::document_report(
+            &w115_test_doc(src),
+            Vec::new(),
+            &Policy::unrestricted(),
+        );
+        assert!(
+            offers_conversion(&code_actions(src, line_range(0), Some(&analysis), &shown)),
+            "a shown W115 must offer the conversion"
+        );
+
+        let w115_off = PolicyBuilder::new()
+            .layer(
+                PolicyLayer::Editor,
+                &serde_json::json!({ "diagnostics": { "W115": false } }),
+            )
+            .build();
+        let disabled =
+            crate::diagnostic_report::document_report(&w115_test_doc(src), Vec::new(), &w115_off);
+        assert!(
+            !offers_conversion(&code_actions(
+                src,
+                line_range(0),
+                Some(&analysis),
+                &disabled
+            )),
+            "W115 disabled at a layer must not offer the conversion"
+        );
+
+        let marked = "# noqa: W115\n# trailing \\\nset x 1\n";
+        let marked_analysis = analyse(marked);
+        let scanned = PolicyBuilder::new()
+            .directives(Directives::scan(marked, dialect))
+            .build();
+        let silenced =
+            crate::diagnostic_report::document_report(&w115_test_doc(marked), Vec::new(), &scanned);
+        assert!(
+            !offers_conversion(&code_actions(
+                marked,
+                line_range(1),
+                Some(&marked_analysis),
+                &silenced
+            )),
+            "a `# noqa: W115` must not offer the conversion"
+        );
     }
 
     #[test]

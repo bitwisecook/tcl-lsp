@@ -6191,16 +6191,14 @@ fn document_policy(
         .build()
 }
 
-/// One document's LSP publish set: `produced` plus the report's own
-/// producers under `layers` and `directives`, the analyser's skip declared
-/// when an analyser ran, lifted through the LSP adapter.
+/// One document's LSP publish set: [`published_report`] through
+/// [`lift_report`].
 ///
 /// The one function every report path renders through — the fast and deep
 /// pushes, the pull and the F5 model report — so the paths differ only in
 /// what they produced (`docs/design/compiler/diagnostic-policy.md`
 /// § Adapters: "the three publish paths become one call each on the same
-/// function"). `analysed` is false where no Tcl analyser ran, so no skip is
-/// declared for it.
+/// function").
 fn lifted_report(
     doc: &core_report::DocumentSource<'_>,
     produced: Vec<core_policy::Finding>,
@@ -6208,12 +6206,30 @@ fn lifted_report(
     directives: core_policy::Directives,
     analysed: bool,
 ) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
+    let report = published_report(doc, produced, layers, directives, analysed);
+    lift_report(doc.text, &report)
+}
+
+/// `produced` plus the report's own producers under `layers` and
+/// `directives`, with the analyser's skip declared when an analyser ran.
+///
+/// The report every adapter reads: [`lifted_report`] renders it to LSP
+/// diagnostics, and the code-action handler reads it directly, so a fix is
+/// decided against the exact set the editor shows. `analysed` is false
+/// where no Tcl analyser ran, so no skip is declared for it.
+fn published_report(
+    doc: &core_report::DocumentSource<'_>,
+    produced: Vec<core_policy::Finding>,
+    layers: &PolicyLayers,
+    directives: core_policy::Directives,
+    analysed: bool,
+) -> core_policy::Report {
     let policy = document_policy(layers, doc.decode, doc.dialect, directives);
     let mut report = core_report::document_report(doc, produced, &policy);
     if analysed {
         report.declare_analyser_skip(&policy);
     }
-    lift_report(doc.text, &report)
+    report
 }
 
 /// The LSP adapter (`docs/design/compiler/diagnostic-policy.md` § Adapters):
@@ -6340,6 +6356,31 @@ fn xc_findings(source: &str) -> Vec<core_policy::Finding> {
         .into_iter()
         .map(core_policy::Finding::from)
         .collect()
+}
+
+/// The findings a document publishes: the analyser's own set, the O111
+/// hints over its W100s, the compiler checks' and the optimiser's, and —
+/// for an `f5-irules` document with `xcDiagnostics` on — the XC
+/// translatability findings.
+///
+/// The pull provider's and the code-action handler's assembly of `produced`,
+/// in one place, so a lightbulb decides every fix against the exact set the
+/// document publishes (`docs/design/compiler/diagnostic-policy.md`
+/// § Adapters, code actions).
+fn published_findings(
+    analyser_diags: &[tcl_compiler::analyser::Diagnostic],
+    compiler_diags: &tcl_lsp_db::CompilerDiagnostics,
+    xc_for_irules: bool,
+    xc_source: &str,
+) -> Vec<core_policy::Finding> {
+    let mut produced = analyser_findings(analyser_diags);
+    let hints = core_report::brace_expr_hints(&produced);
+    produced.extend(hints);
+    produced.extend(compiler_findings(compiler_diags));
+    if xc_for_irules {
+        produced.extend(xc_findings(xc_source));
+    }
+    produced
 }
 
 /// The document-style toggles + buffer the diagnostic lifts read; borrows for
@@ -20520,13 +20561,12 @@ impl Backend {
         let style_line_length = self.resolved_style_line_length(uri).await;
         crate::rt::spawn_blocking(move || {
             // The push path's producer set, in the push path's order.
-            let mut produced = analyser_findings(&analyser_diags);
-            let hints = core_report::brace_expr_hints(&produced);
-            produced.extend(hints);
-            produced.extend(compiler_findings(&compiler_diags));
-            if xc_for_irules {
-                produced.extend(xc_findings(&analysis_text));
-            }
+            let produced = published_findings(
+                &analyser_diags,
+                &compiler_diags,
+                xc_for_irules,
+                &analysis_text,
+            );
             let doc = core_report::DocumentSource {
                 text: &text,
                 analysis_text: &analysis_text,
@@ -23043,39 +23083,60 @@ async fn log_range_convergence_settled(
         .await;
 }
 
-/// The one report the lightbulb reads (`docs/design/compiler/diagnostic-policy.md`
-/// § Adapters): the published analyser set, the compiler checks and the
-/// optimiser's rewrites under the document's policy, so a fix is offered for a
-/// finding the document shows and for no other.
+/// [`code_action_report`]'s inputs beyond the document and its analysis,
+/// grouped so the call site does not spell out seven parameters.
+struct CodeActionReportInputs {
+    published: Vec<tcl_compiler::analyser::Diagnostic>,
+    registry: Arc<CommandRegistry>,
+    generic_patterns: Option<Vec<String>>,
+    evidence: Option<Arc<tcl_compiler::unit_scope::CallSiteEvidence>>,
+    layers: PolicyLayers,
+    style_line_length: u32,
+    xc_for_irules: bool,
+}
+
+/// The report the lightbulb reads (`docs/design/compiler/diagnostic-policy.md`
+/// § Adapters, code actions): `published_findings` over the uncached
+/// compiler checks and the document's own producers (the style pass, the
+/// `SslicTcl` projection, O111, the XC findings), through `published_report`
+/// — the pull path's own shape, so a fix is decided against the exact set
+/// the document publishes.
 ///
-/// The checks run uncached with the project's call-site `evidence` — the same
+/// The checks run uncached with the project's call-site evidence — the same
 /// standalone-unit caveat as the pull-diagnostics path: without it a
 /// quick-fix could offer to delete a branch the project proves reachable.
 fn code_action_report(
     doc: &DocumentState,
     analysis: &AnalysisResult,
-    published: &[tcl_compiler::analyser::Diagnostic],
-    registry: &CommandRegistry,
-    generic_patterns: Option<&[String]>,
-    evidence: Option<&tcl_compiler::unit_scope::CallSiteEvidence>,
-    layers: &PolicyLayers,
+    inputs: &CodeActionReportInputs,
 ) -> core_policy::Report {
     let checks = tcl_lsp_db::compiler_check_diagnostics_uncached(
         &doc.text,
-        registry,
+        &inputs.registry,
         &doc.dialect,
-        generic_patterns,
-        evidence,
+        inputs.generic_patterns.as_deref(),
+        inputs.evidence.as_deref(),
     );
-    let policy = document_policy(
-        layers,
-        doc.decode_report.as_ref(),
-        tcl_lsp_core::profile_for_dialect(&doc.dialect),
+    let produced = published_findings(&inputs.published, &checks, inputs.xc_for_irules, &doc.text);
+    // `doc.text` is already this snapshot's analysis form
+    // (`DocumentState::normalised_for_analysis`); `doc.raw()` is the
+    // client's exact buffer, kept aside for a lone-`\r` document.
+    let source_doc = core_report::DocumentSource {
+        text: doc.raw(),
+        analysis_text: &doc.text,
+        decode: doc.decode_report.as_ref(),
+        dialect: tcl_lsp_core::profile_for_dialect(&doc.dialect),
+        pass: core_report::SourcePass::Tcl {
+            line_length: inputs.style_line_length as usize,
+        },
+    };
+    published_report(
+        &source_doc,
+        produced,
+        &inputs.layers,
         core_policy::Directives::from_analysis(analysis, &doc.text),
-    );
-    let mut produced = analyser_findings(published);
-    produced.extend(compiler_findings(&checks));
-    core_policy::apply(produced, &policy)
+        true,
+    )
 }
 
 /// The dialect-specific code actions, appended to the generic Tcl set.
@@ -25823,10 +25884,21 @@ impl LanguageServer for Backend {
         // IRULE4002 generic-name patterns for the iRules-only compiler-checks
         // code-action lowering below (uncached, off the salsa path).
         let generic_patterns = self.generic_variable_patterns.lock().await.clone();
-        // Same standalone-unit caveat as the pull-diagnostics path: without
-        // the project's evidence a quick-fix could offer to delete a branch
-        // the project proves reachable.
-        let evidence = self.cross_file_evidence_for(&uri).await;
+        // The report the lightbulb reads is built the pull path's way
+        // (`published_findings`, `published_report`): the style line length
+        // and the XC switch feed the same producers, so a fix is decided
+        // against the exact set the document publishes.
+        let xc_for_irules = tcl_lsp_core::profile_for_dialect(&dialect).is_irules()
+            && self.xc_diagnostics_enabled(&uri).await;
+        let report_inputs = CodeActionReportInputs {
+            published,
+            registry: Arc::clone(&registry),
+            generic_patterns,
+            evidence: self.cross_file_evidence_for(&uri).await,
+            layers: policy_layers,
+            style_line_length: self.resolved_style_line_length(&uri).await,
+            xc_for_irules,
+        };
         // The action builders compose their inserted text with plain `\n`;
         // this is the line ending it is retargeted onto below, so a docstring
         // / `package require` / `# noqa` / extracted `set` inserted into a
@@ -25846,15 +25918,7 @@ impl LanguageServer for Backend {
                 uri: &uri_key,
                 oracle: exports.as_ref(),
             };
-            let report = code_action_report(
-                &doc,
-                &analysis,
-                &published,
-                &registry,
-                generic_patterns.as_deref(),
-                evidence.as_deref(),
-                &policy_layers,
-            );
+            let report = code_action_report(&doc, &analysis, &report_inputs);
             // `program` decides what an inlined call reaches; `report`
             // decides what this document shows.
             let mut actions = core_code_actions::code_actions_in_program(
@@ -52497,6 +52561,67 @@ proc p {} {
             !marked.iter().any(|c| c == "W100"),
             "W100 is silenced: {marked:?}"
         );
+    }
+
+    /// DP8.3: the code-action handler builds its report the pull path's
+    /// way — `published_findings` then `published_report` — so the
+    /// lightbulb's shown set is exactly what the document publishes.
+    #[tokio::test]
+    async fn the_lightbulb_reads_the_published_report() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///lightbulb.tcl").unwrap();
+        let src = "set x 1   \nputs $x\n";
+        register(&backend, &uri, src).await;
+
+        let published = backend
+            .full_diagnostics_for(&uri, Arc::from(src), "tcl8.6".to_owned(), "tcl")
+            .await;
+        let published_codes: std::collections::BTreeSet<String> = published
+            .iter()
+            .filter_map(|d| match &d.code {
+                Some(tower_lsp_server::ls_types::NumberOrString::String(c)) => Some(c.clone()),
+                _ => None,
+            })
+            .collect();
+        assert!(published_codes.contains("W112"), "{published_codes:?}");
+
+        // The lightbulb's own assembly (`code_action`): the published
+        // analyser set through `published_findings`, then `published_report`
+        // under the same layers.
+        let dialect = tcl_lsp_core::profile_for_dialect("tcl8.6");
+        let analysis = backend
+            .analysis_for(&uri, Arc::from(src), "tcl8.6".to_owned())
+            .await;
+        let registry = backend.registry_for_dialect("tcl8.6").await;
+        let (disabled, _) = backend.resolved_analysis_settings(&uri).await;
+        let published_diags = backend
+            .published_analyser_diagnostics(&uri, &analysis, dialect, &registry, &disabled)
+            .await;
+        let checks =
+            tcl_lsp_db::compiler_check_diagnostics_uncached(src, &registry, "tcl8.6", None, None);
+        let produced = published_findings(&published_diags, &checks, false, src);
+        let doc = core_report::DocumentSource {
+            text: src,
+            analysis_text: src,
+            decode: None,
+            dialect,
+            pass: core_report::SourcePass::Tcl {
+                line_length: backend.resolved_style_line_length(&uri).await as usize,
+            },
+        };
+        let policy_layers = backend.resolved_policy_layers(&uri).await;
+        let report = published_report(
+            &doc,
+            produced,
+            &policy_layers,
+            core_policy::Directives::from_analysis(&analysis, src),
+            true,
+        );
+        let report_codes: std::collections::BTreeSet<String> = report
+            .shown()
+            .map(|shown| shown.finding.code.to_string())
+            .collect();
+        assert_eq!(report_codes, published_codes, "{report:?}");
     }
 
     #[tokio::test]
