@@ -815,6 +815,22 @@ the style pass. The MCP suite, including `find_legacy_tests`,
 `source_integrity_tests` (one W305, not two) and DP4.0's `policy_tests`,
 passes unchanged.
 
+### DP6.2 — #2061's cases
+
+In `policy_tests`, through the `*_with` forms under an empty global layer:
+`review_reports_the_compiler_check_families` (T100 in `taint`, IRULE3001
+in `security`, IRULE4002 in `thread_safety`, and an empty `taint` for an
+untainted `eval`), `analyze_reports_the_source_style_pass` (W112, gone
+under `disable: "W112"`), `analyze_reports_the_sslictcl_loader` (SSLIC1101
+and no W123), and `a_check_emitted_rewrite_is_suppressed_not_missing`,
+which also reads the report in-crate: the O100 a check emits for `if {1}`
+stands as an `OptimiserOff` suppression (DP9.3 adds the payload's half).
+One test beyond the item: `analyze_honours_the_noqa_fixture_as_tcl_diag_does`
+runs `analyze` over #2020's own fixture — #2061's lead reproduction — and
+asserts what `diag_honours_noqa_directives_the_way_the_editor_does` asserts
+for `tcl diag`: each `# noqa` silences its command's analyser and
+compiler-check codes, the unmarked W210s and S100 stand.
+
 ## Plan for finishing slices 4–7 and for slices 8–10
 
 The execution plan from the checkpoint `5bc40e95` to the end of the page's
@@ -3456,7 +3472,7 @@ Each item updates its row in the commit that lands it.
 | DP5.3 | sonnet | S | done (by the lane implementer) | `DP5.3 — the batch verbs read no LSP document gate` | `tcl-cli --lib` (27), `tcl-mcp` (92), server `--lib -- optimise_document` (6); the crate clippy |
 | DP5.4 | sonnet | S | done (by the lane implementer) | `DP5.4 — the CLI tests never read the machine's config.ini` | `tcl-cli --test cli` (40, and 40 again under a global `config.ini` that disables the codes the suite asserts); `tcl-cli` clippy |
 | DP6.1 | opus | M | done | `DP6.1 — one standalone producer run; the MCP diagnostics tools report the editor's set` | `tcl-mcp` (92), `tcl-cli --test cli` (40), core `--lib -- diagnostic_report` (9); the crate clippy |
-| DP6.2 | sonnet | S | not started | — | — |
+| DP6.2 | sonnet | S | done (by the lane implementer) | `DP6.2 — #2061's cases on the MCP tools` | `tcl-mcp` (97); `tcl-mcp` clippy |
 | DP7.1 | opus | M | done (the merge of `rust`) | the merge commit | core and server `--lib`, the whole `e2e`; the crate clippy |
 | DP7.2 | opus | S | done (the merge of `rust`) | the merge commit | core `--lib`, `tcl-cli`, `tcl-mcp`; the crate clippy |
 | DP7.3 | sonnet | S | not started | — | — |

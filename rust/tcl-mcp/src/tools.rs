@@ -2533,6 +2533,105 @@ mod policy_tests {
         );
     }
 
+    /// The codes `review` groups under `section` for `source` in `dialect`.
+    fn reviewed(source: &str, dialect: &str, section: &str) -> Vec<String> {
+        let args = json!({ "source": source, "dialect": dialect });
+        review_with(&args, &inputs(&args, "diagnostics", ""))[section]
+            .as_array()
+            .expect("review section")
+            .iter()
+            .filter_map(|d| d["code"].as_str().map(str::to_owned))
+            .collect()
+    }
+
+    /// #2061's three programs: the compiler checks fill `review`'s taint,
+    /// security and thread-safety sections, which the analyser alone never
+    /// could.
+    #[test]
+    fn review_reports_the_compiler_check_families() {
+        let taint = reviewed("set cmd [gets stdin]\neval $cmd\n", "tcl9.0", "taint");
+        assert!(taint.iter().any(|c| c == "T100"), "{taint:?}");
+        let security = reviewed(
+            "when HTTP_REQUEST {\n  set host [HTTP::host]\n  HTTP::respond 200 content \"<h1>$host</h1>\"\n}\n",
+            "f5-irules",
+            "security",
+        );
+        assert!(security.iter().any(|c| c == "IRULE3001"), "{security:?}");
+        let thread = reviewed(
+            "when RULE_INIT { set static::debug 0 }\n",
+            "f5-irules",
+            "thread_safety",
+        );
+        assert!(thread.iter().any(|c| c == "IRULE4002"), "{thread:?}");
+        let untainted = reviewed("set cmd safe\neval $cmd\n", "tcl9.0", "taint");
+        assert!(untainted.is_empty(), "no tainted source: {untainted:?}");
+    }
+
+    /// #2061's lead reproduction: on #2020's own fixture `analyze` reports
+    /// what `tcl diag` reports (`diag_honours_noqa_directives_the_way_the_editor_does`)
+    /// — each `# noqa` silences its command, analyser code and compiler-check
+    /// code alike, and the unmarked findings stand.
+    #[test]
+    fn analyze_honours_the_noqa_fixture_as_tcl_diag_does() {
+        let fixture = include_str!("../../tcl-cli/tests/fixtures/noqaSuppression.tcl");
+        let args = json!({ "source": fixture, "dialect": "tcl9.0" });
+        let shown = analyzed(&args, "");
+        let mentions = |needle: &str| {
+            shown
+                .iter()
+                .any(|d| d["message"].as_str().is_some_and(|m| m.contains(needle)))
+        };
+        for silenced in ["suppressedByCode", "suppressedByBareNoqa", "dictValue"] {
+            assert!(!mentions(silenced), "{silenced} is silenced: {shown:?}");
+        }
+        for reported in ["reportedWithoutAMarker", "reportedBesideProse", "otherDict"] {
+            assert!(mentions(reported), "{reported} is reported: {shown:?}");
+        }
+        assert!(
+            has_code(&shown, "S100"),
+            "the compiler checks run: {shown:?}"
+        );
+    }
+
+    #[test]
+    fn analyze_reports_the_source_style_pass() {
+        let trailing = "set x 1   \n";
+        let plain = json!({ "source": trailing, "dialect": "tcl9.0" });
+        assert!(has_code(&analyzed(&plain, ""), "W112"));
+        let disabled = json!({ "source": trailing, "dialect": "tcl9.0", "disable": "W112" });
+        assert!(!has_code(&analyzed(&disabled, ""), "W112"));
+    }
+
+    /// The loader's findings reach a `sslictcl` source, and the loader owns
+    /// W123 there document-wide — the overlap the editor applies.
+    #[test]
+    fn analyze_reports_the_sslictcl_loader() {
+        let args = json!({
+            "source": "sslictcl 1\nunknown-declaration {a b}\n",
+            "dialect": "sslictcl",
+        });
+        let shown = analyzed(&args, "");
+        assert!(has_code(&shown, "SSLIC1101"), "{shown:?}");
+        assert!(!has_code(&shown, "W123"), "{shown:?}");
+    }
+
+    /// An O-code a compiler check emits is in the report, hidden because the
+    /// diagnostics tools run with the optimiser off — not missing.
+    #[test]
+    fn a_check_emitted_rewrite_is_suppressed_not_missing() {
+        let source = "if {1} { set x 1 } else { set y 2 }\n";
+        let args = json!({ "source": source, "dialect": "tcl9.0" });
+        assert!(!has_code(&analyzed(&args, ""), "O100"));
+        let report = analyse_under(source, "tcl9.0", &inputs(&args, "diagnostics", "")).report();
+        assert!(
+            report.suppressed().any(|(finding, reason)| {
+                finding.code == tcl_compiler::compiler_checks::DiagCode::O100
+                    && reason == tcl_lsp_core::diagnostic_policy::Reason::OptimiserOff
+            }),
+            "O100 stands in the report as an `OptimiserOff` suppression: {report:?}"
+        );
+    }
+
     #[test]
     fn analyze_reports_the_resolved_severity() {
         let args = json!({ "source": UNSET_READ, "dialect": "tcl9.0" });
