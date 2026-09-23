@@ -931,8 +931,7 @@ so the fix removes the marker; no row records one.
     the editor layer; and
     [kcs-howto-suppress-diagnostics.md](../../kcs/kcs-howto-suppress-diagnostics.md)
     can finally promise the five scopes on every surface, and document
-    `--show-suppressed`. *Being built:* this page describes the built tree;
-    the owner and user documents follow.
+    `--show-suppressed`. *Built.*
 
 ## Failure modes
 

@@ -25,10 +25,10 @@ The MCP server communicates over stdio using JSON-RPC 2.0. Connect any MCP-compa
 
 | Tool | Description |
 |------|-------------|
-| `analyze` | Full analysis: diagnostics, symbols, events, event metadata |
-| `validate` | Categorised validation report |
-| `review` | Security-focused analysis |
-| `find-legacy` | Detect legacy patterns eligible for modernisation |
+| `analyze` | Full analysis: diagnostics (the analyser, the compiler checks, and the source-style pass), symbols, events, event metadata; `disable` / `enable` turn codes off or back on |
+| `validate` | Categorised validation report; `disable` / `enable` turn codes off or back on |
+| `review` | Security-focused analysis; `disable` / `enable` turn codes off or back on |
+| `find-legacy` | Detect legacy patterns eligible for modernisation; `disable` / `enable` turn codes off or back on |
 | `optimize` | Optimisation suggestions and rewritten source |
 | `unminify_error` | Translate minified Tcl/iRule errors using a symbol map |
 | `hover` | Hover information at a position |
@@ -50,6 +50,11 @@ The MCP server communicates over stdio using JSON-RPC 2.0. Connect any MCP-compa
 | `tk_layout` | Tk widget tree extraction |
 | `set_dialect` | Set active Tcl dialect |
 | `help` | Feature catalogue |
+
+`analyze`, `validate`, `review`, and `find-legacy` also return a
+`suppressed` array: every finding the policy hid, with its reason, so an
+agent can tell a clean report from one that hid something (see
+[how do I turn a diagnostic off?](../kcs-howto-suppress-diagnostics.md)).
 
 ## Operational context
 

@@ -70,6 +70,10 @@ Controls which diagnostic codes the analyser reports.
   **IAPP**, **BIGIP**, **TK**, and **XC** families. The full
   per-code catalogue lives under
   [`docs/kcs/codes/`](codes/README.md).
+- `<CODE>` — boolean, one key per code (`W242 = true`, `W111 = false`).
+  Turns that one code on or off; wins over `disabled` in the same file,
+  and a higher-priority file's `true` turns back on what a lower one
+  disabled.
 - `generic_variable_patterns` — one regex per line, matched
   case-insensitively against bare `static::` variable names. Use
   this to recognise project-specific globals such as `dbg_level`.
@@ -102,6 +106,9 @@ Controls the optimiser pipeline.
   `aggressive`. Picks the default set of optimisations.
 - `disabled` — comma- or whitespace-separated list of O-codes to turn
   off, on top of the profile.
+- `<CODE>` — boolean, one key per O-code (`O106 = true`). Turns that
+  one rule on or off over the profile; wins over `disabled` in the same
+  file.
 
 ### `[shimmer]`
 

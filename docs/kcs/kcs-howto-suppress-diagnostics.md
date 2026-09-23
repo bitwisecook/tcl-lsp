@@ -45,6 +45,10 @@ Use this when exactly one command needs the exception and the reason
 is local — for example, a deliberate `eval` that the analyser cannot
 prove safe.
 
+Silencing W100 does not silence O111 — the brace-expression warning and
+its paired optimisation hint are decided independently, so name both
+codes if you want both gone.
+
 ### 2. One file — top-of-file `# tcl-lsp: disable=`
 
 Put the directive at the top of the file, before any command. Blank
@@ -81,6 +85,11 @@ disabled = O109
 enabled = false
 ```
 
+A `<CODE> = true` / `<CODE> = false` line turns one code on or off, and
+wins over `disabled` in the same file — that is how `W242 = true` above
+turns the seeded-off W242 back on in this one project while `disabled`
+turns three other codes off.
+
 Use this for team-wide conventions — every developer who opens the
 project picks the same rules up automatically, and the rules survive
 switching editors.
@@ -103,6 +112,7 @@ Create or edit the [platform-native global config file](../design/contracts/xdg-
 ```ini
 [diagnostics]
 disabled = W111
+W242 = true
 ```
 
 Use this sparingly — rules turned off here follow you into every
@@ -132,7 +142,9 @@ the tools' `disable` / `enable` arguments — take the editor layer's
 place. An inline `--source` or an MCP `source` string has no project
 layer. A `# noqa` keeps an optimiser rewrite off (`tcl opt`, the
 `optimize` tool, the editor's *Optimise document* command) exactly as it
-keeps a squiggle off.
+keeps a squiggle off. `[features]` and `[diagnostics] exclude` are the
+editor's alone: the CLI verbs and the MCP tools read neither, so a report
+you ask for is never silently empty on their account.
 
 ### Which codes can I disable?
 
@@ -163,6 +175,28 @@ directive, or a config file.
   to the server within a second; diagnostics refresh automatically.
   When in doubt, see
   [kcs-qa-when-to-restart-server.md](kcs-qa-when-to-restart-server.md).
+- For the CLI and the MCP tools: run `tcl diag --show-suppressed` (or
+  `tcl lint --show-suppressed`) to list every hidden finding as a
+  `hidden` row, with its reason. A code a layer turned off, or a code
+  the verb never runs at all — such as the optimiser's codes on `diag`
+  and `lint` — appears too, as a row with no position. The MCP
+  diagnostics tools (`analyze`, `validate`, `review`, `find-legacy`)
+  return the same information in a `suppressed` array on every call.
+  Each reason names the scope that decided it:
+
+  | Reason | Scope |
+  |---|---|
+  | `reporting-off` | The whole document reports nothing (`features.diagnostics` off). |
+  | `excluded` | `diagnostics.exclude` matches the file. |
+  | `encoding-abstention` | The bytes are not UTF-8 text; only the integrity codes stand. |
+  | `inline-directive` | An inline `# noqa` on the command. |
+  | `file-directive` | A top-of-file `# tcl-lsp: disable=`. |
+  | `disabled:global` / `disabled:editor` / `disabled:invocation` / `disabled:project` | That layer, or `--disable` / `disable`, turned the code off. |
+  | `default-off` | The code is opt-in and nothing turned it on. |
+  | `optimiser-off` | The optimiser's master switch is off, or the verb never runs it at all (`tcl diag` / `lint`, the MCP diagnostics tools). |
+  | `optimiser-profile:<profile>` | The profile in force does not enable the code. |
+  | `shimmer-off` | `tclLsp.shimmer.enabled` is off. |
+  | `overlap:<code>` / `overlap:<producer>` | Another code, or a whole producer, owns this site (for example `overlap:W110`). |
 
 ## Related
 

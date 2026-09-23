@@ -1712,6 +1712,58 @@ document) and one quoted, historical use in
 own words for what the checkpoint's deliverable list said, kept as
 `rust` `3b5eba8a`'s record).
 
+### DP10.3 — The user documents promise the five scopes on every surface
+
+`docs/kcs/kcs-howto-suppress-diagnostics.md`: § 1 gains "Silencing W100
+does not silence O111 — name both codes"; § 3 gains one sentence on the
+per-code key's meaning (its `W242 = true` example line was already
+DP5.1's); § 5's example gains `W242 = true`; § Precedence gains one
+sentence stating `[features]` and `[diagnostics] exclude` are the
+editor's alone; § How to tell it worked gains a bullet for the CLI and
+the MCP tools — `tcl diag --show-suppressed` and the MCP tools'
+`suppressed` array — with the reason-spelling table from the design
+page's § Adapters, given a "Scope" column in place of the `Reason` type
+name (rule 8's ban on a pasted type signature: the table renders the
+wire spellings, not the enum).
+
+`docs/kcs/kcs-qa-where-is-diagnostic-policy-applied.md` already answered
+in the built tree's own terms — an earlier item's edit, not this one's —
+so the one gap the item's own text named, no mention of
+`--show-suppressed` / `suppressed`, is closed with one added sentence;
+the paragraph the item quotes ("Today the style pass …") was already
+gone.
+
+`docs/kcs/features/kcs-feature-tcl-verb-cli.md` needed no edit: DP9.2
+had already added `--show-suppressed` to the `diag` bullet and DP5.2 the
+per-input `opt` bullet, exactly as the item's own parenthetical says.
+
+`docs/kcs/features/kcs-feature-mcp-server.md`: the four diagnostics
+tools' table rows gain "`disable` / `enable` turn codes off or back on",
+and `analyze`'s row names the compiler checks and the source-style pass;
+one sentence after the table states the `suppressed` array all four
+return.
+
+`docs/design/contracts/xdg-config.md` needed no edit: DP5.1 already
+wrote the `<CODE>` rows in `[diagnostics]` and `[optimiser]`, as the
+item's own text says. `docs/kcs/kcs-qa-what-config-sections-are-valid.md`
+gains the matching `<CODE>` bullet in both sections.
+
+`docs/GLOSSARY.md`'s "Diagnostic report" entry gains the gap's
+definition — a code the policy turned off, or that the surface never
+ran, that no finding in the report carries — and names its two
+renderings, `--show-suppressed` and `suppressed`.
+
+One addition beyond the item's file list, which the plan's own lead
+notes flagged: `docs/design/compiler/diagnostic-policy.md` § Slices
+item 10's closing line moves from "*Being built:* this page describes
+the built tree; the owner and user documents follow." to "*Built.*",
+now that this item and DP10.2 have both landed.
+
+Gates: `cargo xtask kcs-index-links` (`KCS docs checks passed.`); the
+transitional-name grep over `docs/` — unchanged from DP10.2's result:
+only the two lane documents and the one quoted historical use in
+`diagnostic-policy.md` § Slices item 4.
+
 ## Plan for finishing slices 4–7 and for slices 8–10
 
 The execution plan from the checkpoint `5bc40e95` to the end of the page's
@@ -4523,7 +4575,7 @@ Each item updates its row in the commit that lands it.
 | Ruling, § Open questions 11 | opus | S | done — § *The owner's ruling on § Open questions 11* | `the diagnostics surfaces declare what did not run (the ruling on question 11)` | core `--lib` (2341), `tcl-cli --test cli` (48), `tcl-mcp` (103), server `--lib -- policy_truth_table`; the crate clippy; `cargo check --workspace` |
 | DP10.1 | opus | M | done — § *Slices 8–10 as built* | `DP10.1 — the design page describes the built tree` | `kcs-index-links`; the transitional-name grep over `docs/` (only `diagnostics-integration.md`, DP10.2's, remains) |
 | DP10.2 | sonnet | M | done — § *Slices 8–10 as built* | `DP10.2 — the owner documents point at the policy step` | `kcs-index-links`; `owner-resolution`; the transitional-name grep over `docs/` (only the two lane documents and one quoted historical use remain) |
-| DP10.3 | sonnet | M | not started | — | — |
+| DP10.3 | sonnet | M | done — § *Slices 8–10 as built* | `DP10.3 — the user documents promise the five scopes on every surface` | `kcs-index-links`; the transitional-name grep over `docs/` (unchanged from DP10.2) |
 | DP10.4 | opus | M | done — § *Slices 8–10 as built* | `DP10.4 — one multipass loop owner; the rust merge reviewed` | every suite of the lane's six crates, the whole `e2e`; the ten catalogue gates; `make rust-check` (red only on the value-transfers lane's `tcl-compiler` formatting; its later steps pass on their own) |
 | DP10.5 | sonnet | S | not started | — | — |
 | R1 | opus | S | done — the owner's rulings of 2026-09-22: the invocation profile wins (D36); unanimity decides a release-less fold (documents only; the value-transfers lane's F1) | `wip(diagnostic-policy): an invocation profile wins; unanimity decides a release-less fold` | core, server (`--lib` and `e2e`), `tcl-cli`, `tcl-mcp`; the crates' clippy; `kcs-index-links` |

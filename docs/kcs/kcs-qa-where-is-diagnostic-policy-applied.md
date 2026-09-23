@@ -50,10 +50,15 @@ pulled diagnostics, `tcl diag`, `tcl lint`, `tcl validate` and `tcl opt`,
 the MCP tools, the editor's *Optimise document* command, and the
 code-action lightbulb. Each one runs its producers, hands the findings to
 the policy step, and renders what the report shows. A quick-fix or a
-rewrite is offered only for a finding the report shows. A new rule goes
-into the policy step, never into a producer or a surface; the
-[design page](../design/compiler/diagnostic-policy.md) tracks the slices
-still to come.
+rewrite is offered only for a finding the report shows. `tcl diag
+--show-suppressed` and the MCP tools' `suppressed` array render what a
+report hides — every suppressed finding and every code a layer, or the
+surface itself, never ran, each with its reason — which is the
+[suppression how-to](kcs-howto-suppress-diagnostics.md)'s answer to "why
+is this not firing". A new rule goes into the policy step, never into a
+producer or a surface; the
+[design page](../design/compiler/diagnostic-policy.md) has the full
+design.
 
 ## Related
 

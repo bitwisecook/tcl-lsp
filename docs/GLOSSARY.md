@@ -1572,9 +1572,18 @@ resolved severity and LSP tag, or suppressed, with the reason that
 suppressed it. Nothing is deleted, so "why is this code not firing" has
 one answer any surface can read, and the pairs keep the producers' order,
 so two surfaces given the same findings and the same policy produce the
-same report. `Report` in `tcl_lsp_core::diagnostic_policy`.
+same report. A **gap** is a code the policy turned off, or that the
+surface never ran at all — the diagnostics verbs and tools declare the
+optimiser's codes this way, since they never run it — that no finding in
+the report carries; the report still explains it, rather than leaving it
+to read as clean. Two renderings show a report's hidden half: the
+`--show-suppressed` flag on `tcl diag` and `tcl lint`, and the
+`suppressed` array on the MCP diagnostic payloads, each listing a
+suppressed finding and a gap with its reason. `Report` in
+`tcl_lsp_core::diagnostic_policy`.
 
-See also: [Diagnostic policy § The outcome](design/compiler/diagnostic-policy.md#the-outcome).
+See also: [Diagnostic policy § The outcome](design/compiler/diagnostic-policy.md#the-outcome),
+[Diagnostic policy § Adapters](design/compiler/diagnostic-policy.md#adapters).
 
 ---
 
