@@ -35,6 +35,9 @@
 //!   interpreter rather than a second one.
 //! - **Bound the work.** [`Vm::set_command_limit`] arms the `commands` limit
 //!   the VM now enforces, and [`Vm::commands_run`] reports the fuel spent.
+//! - **Confine the stores.** [`Vm::set_stores_confined`] keeps every write in
+//!   the running procedure's own frame, so a body cannot leave state behind
+//!   for its next call.
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -309,6 +312,24 @@ impl Vm {
     #[must_use]
     pub fn value_size_limit(&self) -> Option<u64> {
         self.value_size_limit_value()
+    }
+
+    /// Confine every store to the running procedure's own frame, or release
+    /// the confinement. While confined, a store whose name resolves anywhere
+    /// else — a `::`-qualified name, a namespace variable, a global, a local
+    /// linked to another frame — fails as a Tcl error (`can't set "::n":
+    /// stores are confined to the activation`) before anything is written;
+    /// reads are unaffected. A hosted body whose writes all stay in its own
+    /// activation leaves nothing for a later call to read, so its answer
+    /// depends on its arguments alone.
+    pub fn set_stores_confined(&mut self, confined: bool) {
+        self.set_stores_confined_value(confined);
+    }
+
+    /// Whether stores are confined to the running procedure's own frame.
+    #[must_use]
+    pub fn stores_confined(&self) -> bool {
+        self.stores_confined_value()
     }
 
     /// The armed `commands` limit, if any.

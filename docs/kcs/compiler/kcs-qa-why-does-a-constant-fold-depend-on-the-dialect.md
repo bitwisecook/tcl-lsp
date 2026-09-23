@@ -10,13 +10,14 @@ all-editors, tcl-lsp-cli, mcp
 ## Question
 
 `tcl opt --dialect tcl8.6` folds `set x 010; incr x; puts $x` to `puts 9`,
-`--dialect tcl9.0` folds it to `puts 11`, and `--dialect f5-irules` leaves
-it alone. `string range abcdefghijkl 010 end` does the same. Which one is
-right, and why does a vendor dialect get nothing?
+`--dialect tcl9.0` folds it to `puts 11`, `--dialect f5-irules` folds it to
+`puts 9`, and `--dialect tk` leaves it alone. `string range abcdefghijkl
+010 end` does the same. Which one is right, and why does `tk` get
+nothing?
 
 ## Answer
 
-All three are right, because the fold is the target's answer or no answer.
+All four are right, because the fold is the target's answer or no answer.
 A registry-owned evaluator on the direct route runs the same shared core
 the runtimes run (`tcl-cmd-core`), through one compile-time value model
 that carries the target's release semantics. Where a release changes the
@@ -36,27 +37,31 @@ grammar from the profile's runtime, and iRules' runtime is 8.4's, so
 an F5 BIG-IP config context, say — declines, because nothing pins which
 grammar applies.
 
-A profile that names no release — every vendor dialect, iRules included,
-until its release evidence is verified — gets the answer every modelled
-release gives, and a decline where they differ. `incr x 5` still folds
-under iRules because every release adds 5; `incr x` over `010` does not,
-because 8.x and 9.x disagree, and folding either answer would bake the
-wrong constant into a program built for the other. The same rule keeps a
+A dialect that declares a base release evaluates under it. iRules, iApps
+and tmsh embed a Tcl 8.4, so `incr` of `010` is 9 under `f5-irules`, as
+`tclsh8.4` prints; `expect` evaluates as 8.6 and each EDA shell as the
+release its vendor ships. Where a vendor dialect declares an answer of its
+own on one axis that its base release does not give — the F5 dialects'
+character model, which no TMOS measurement settles yet — that axis falls
+back to the rule below, so the declaration blocks the base release's
+answer rather than borrowing it.
+
+A profile that names no release — `tk`, the version-less `tcl` profile, a
+BIG-IP config context — gets the answer every modelled release gives, and
+a decline where they differ. `incr x 5` still folds there because every
+release adds 5; `incr x` over `010` does not, because 8.x and 9.x
+disagree, and folding either answer would bake the wrong constant into a
+program built for the other. The same rule keeps a
 non-ASCII operand off `string range` and `string length` under 8.x: the
 source was decoded as UTF-8, which is the 9.x reader's answer, and an 8.x
 reader following `encoding system` may hold a different string — `string
 length` of one astral character read from a UTF-8 file is 1 under 9.0 and
 4 under 8.6 in a Latin-1 locale, so under 8.x neither command folds it.
 
-Under iRules the two routes therefore disagree today: with `set z 010`,
-`incr z` declines, because the direct route asks every release, while
-`expr {$z + 1}` folds to 9, because the expression route reads 8.4's
-grammar. 9 is what iRules' 8.4-derived engine answers (tclsh 8.4 prints 9
-for both), so the decline is the imprecise half, not a wrong answer. The
-owner's ruling that a dialect declaring a base release evaluates under
-that release, with unanimity only where none is declared, resolves it,
-and slice 4 of the value-transfers migration lands it: once the direct
-routes read iRules' declared base, `incr z` folds to 9 there as well.
+So the direct and the expression routes agree under iRules: with `set z
+010`, `incr z` and `expr {$z + 1}` both fold to 9, as tclsh 8.4 prints.
+Before the declared base reached the direct routes, `incr z` declined
+there while `expr` folded — imprecise, never wrong.
 
 The decline is a recorded reason, not silence. `tcl explore --show sccp`
 lists every statement's route and answer — `direct cell-increment

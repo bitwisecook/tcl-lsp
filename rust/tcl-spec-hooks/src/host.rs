@@ -81,12 +81,32 @@ struct PackRuntime<E: Engine> {
     /// The `constraints` family's per-invocation reading view, refilled
     /// beside `sink` before every dispatch.
     reading: Rc<Reading>,
+    /// Every family the pack's hooks belong to — the verbs a pinned engine
+    /// is given, as the unpinned one was.
+    families: Vec<HookFamily>,
     hooks: Vec<HookRuntime<E::Handle>>,
+    /// The engines pinned to one release each, built on the first call a
+    /// release-pinned hook receives under that release.
+    pinned: Vec<PinnedEngine<E>>,
     /// Set when a hook of this pack panicked. A caught panic leaves the
     /// engine's own state unproven, so the whole pack stops answering — which
     /// is exactly the documented blast radius: "one library's bad hook costs
     /// that library its hooks, nothing else".
     poisoned: bool,
+}
+
+/// One pack's engine pinned to one release, with its own compilation of
+/// every release-pinned hook.
+struct PinnedEngine<E: Engine> {
+    /// The profile the engine is pinned to, by canonical name.
+    profile: String,
+    /// `None` when the engine could not be pinned to the profile or its
+    /// sandbox could not be built: every release-pinned hook of the pack
+    /// abstains under that profile.
+    engine: Option<E>,
+    /// Each hook's handle on this engine, by hook index; `None` for a hook
+    /// that is not release-pinned or did not compile here.
+    handles: Vec<Option<E::Handle>>,
 }
 
 /// The `SpecTcl` hook host.
@@ -129,10 +149,11 @@ impl<E: Engine> HookHost<E> {
     /// registry slot for each, returning what was installed.
     ///
     /// Per-pack isolation is structural: the engine is built here and never
-    /// shared, so no interpreter state crosses packs.
+    /// shared, so no interpreter state crosses packs. A release-pinned hook is
+    /// compiled here too, so a body that does not compile is reported now;
+    /// it runs only on the engines pinned to a release, built on first use.
     #[must_use]
     pub fn install_pack_hooks(&self, programs: PackPrograms) -> Vec<HookInstallation> {
-        let mut engine = (self.engine_factory)();
         let sink = Rc::new(Sink::default());
         let reading = Rc::new(Reading::default());
         let mut families: Vec<HookFamily> = programs
@@ -142,28 +163,7 @@ impl<E: Engine> HookHost<E> {
             .collect();
         families.sort_unstable();
         families.dedup();
-
-        let mut failures: Vec<String> = Vec::new();
-        for (name, command) in builtins() {
-            if let Err(error) = engine.define_command(name, command) {
-                failures.push(format!("{name}: {error}"));
-            }
-        }
-        for family in families {
-            for (name, command) in verbs_for(family, &sink, &reading) {
-                if let Err(error) = engine.define_command(name, command) {
-                    failures.push(format!("{name}: {error}"));
-                }
-            }
-        }
-        // Whitelist first, then compile: a body is compiled inside the sandbox
-        // it will run in, never in a wider one.
-        if let Err(error) = engine.restrict_commands(SANDBOX_COMMANDS) {
-            failures.push(format!("sandbox: {error}"));
-        }
-        if let Err(error) = engine.set_budget(self.config.budget) {
-            failures.push(format!("budget: {error}"));
-        }
+        let (mut engine, failures) = self.sandboxed_engine(&families, &sink, &reading, None);
 
         let pack_index = self.packs.borrow().len();
         let mut runtimes = Vec::with_capacity(programs.programs.len());
@@ -194,10 +194,115 @@ impl<E: Engine> HookHost<E> {
             engine,
             sink,
             reading,
+            families,
             hooks: runtimes,
+            pinned: Vec::new(),
             poisoned: false,
         });
         installations
+    }
+
+    /// A fresh engine for one pack, pinned to `release` when one is named:
+    /// the builtins, the families' verbs, the whitelist and the budget. What
+    /// could not be set up is returned, so the caller declines every hook
+    /// rather than run one in a wider sandbox than it was written for.
+    fn sandboxed_engine(
+        &self,
+        families: &[HookFamily],
+        sink: &Rc<Sink>,
+        reading: &Rc<Reading>,
+        release: Option<&str>,
+    ) -> (E, Vec<String>) {
+        let mut engine = (self.engine_factory)();
+        let mut failures: Vec<String> = Vec::new();
+        // Pinned first, as the engine contract asks: after the engine is
+        // built and before anything is compiled on it.
+        if let Some(profile) = release
+            && let Err(error) = engine.set_release(profile)
+        {
+            failures.push(format!("release {profile}: {error}"));
+        }
+        for (name, command) in builtins() {
+            if let Err(error) = engine.define_command(name, command) {
+                failures.push(format!("{name}: {error}"));
+            }
+        }
+        for &family in families {
+            for (name, command) in verbs_for(family, sink, reading) {
+                if let Err(error) = engine.define_command(name, command) {
+                    failures.push(format!("{name}: {error}"));
+                }
+            }
+        }
+        // Whitelist first, then compile: a body is compiled inside the sandbox
+        // it will run in, never in a wider one.
+        if let Err(error) = engine.restrict_commands(SANDBOX_COMMANDS) {
+            failures.push(format!("sandbox: {error}"));
+        }
+        // Writes stay in the activation: a body cannot leave state behind
+        // that its next call reads, so its answer is its arguments'.
+        if let Err(error) = engine.confine_stores() {
+            failures.push(format!("stores: {error}"));
+        }
+        if let Err(error) = engine.set_budget(self.config.budget) {
+            failures.push(format!("budget: {error}"));
+        }
+        (engine, failures)
+    }
+
+    /// The index of `pack`'s engine pinned to `profile`, building it — and
+    /// compiling every release-pinned hook on it — the first time the
+    /// profile is asked for. A profile the engine cannot pin, or a sandbox
+    /// that cannot be built, is logged once and leaves the entry without an
+    /// engine.
+    fn pinned_engine(&self, pack: &mut PackRuntime<E>, profile: &str) -> usize {
+        if let Some(index) = pack
+            .pinned
+            .iter()
+            .position(|pinned| pinned.profile == profile)
+        {
+            return index;
+        }
+        let (mut engine, failures) =
+            self.sandboxed_engine(&pack.families, &pack.sink, &pack.reading, Some(profile));
+        let mut handles = Vec::with_capacity(pack.hooks.len());
+        let engine = if let Some(failure) = failures.first() {
+            self.error_log.borrow_mut().push(format!(
+                "{}: no engine pinned to {profile}: {failure}",
+                pack.pack
+            ));
+            None
+        } else {
+            for hook in &pack.hooks {
+                if !hook.program.release_pinned {
+                    handles.push(None);
+                    continue;
+                }
+                let parameters: Vec<&str> = hook.program.effective_parameters();
+                let label = hook.program.label();
+                let unit = CompileUnit {
+                    name: &label,
+                    parameters: &parameters,
+                    body: &hook.program.body,
+                };
+                match engine.compile(unit) {
+                    Ok(handle) => handles.push(Some(handle)),
+                    Err(error) => {
+                        self.error_log
+                            .borrow_mut()
+                            .push(format!("{label} under {profile}: {error}"));
+                        handles.push(None);
+                    }
+                }
+            }
+            Some(engine)
+        };
+        pack.pinned.push(PinnedEngine {
+            profile: profile.to_owned(),
+            engine,
+            handles,
+        });
+        pack.pinned.len() - 1
     }
 
     /// Compile one hook body and claim its slot. Returns what to report and,
@@ -410,6 +515,99 @@ fn ctx_value(program: &HookProgram, call: &HookCall<'_>) -> Value {
 // release, so an iRules document would tell a hook `tcl9.0` and no hook
 // could distinguish a dialect from a version.
 
+impl<E: Engine> HookHost<E> {
+    /// Run hook `hook_index` of `pack` on `call` — on the pack's own engine,
+    /// or on the engine pinned to the call's release when the hook runs
+    /// pinned. `None` when the hook may not run at all: the pack is
+    /// poisoned, the hook is quarantined, the call breaks the family's
+    /// literal-only precondition, or a release-pinned hook has no release
+    /// to run under or no engine that pins it.
+    fn run(
+        &self,
+        pack: &mut PackRuntime<E>,
+        hook_index: usize,
+        call: &HookCall<'_>,
+    ) -> Option<Outcome> {
+        if pack.poisoned {
+            return None;
+        }
+        let program = &pack.hooks[hook_index].program;
+        if pack.hooks[hook_index].quarantined {
+            return None;
+        }
+        // Normative precondition, enforced here as well as at the call
+        // site: a fold body never runs on a call carrying a dynamic word.
+        if program.family.requires_all_literal() && !call.all_literal() {
+            return None;
+        }
+        // Matches `effective_parameters`: a hook that declared inputs
+        // without `words` is compiled without that parameter, so passing
+        // the value would be an arity error on every call.
+        let arguments: Vec<Value> = if program.inputs.binds_words() {
+            vec![words_value(call), ctx_value(program, call)]
+        } else {
+            vec![ctx_value(program, call)]
+        };
+        let family = program.family;
+        // A release-pinned hook never runs at an engine's default release:
+        // with no release named for the call it abstains.
+        let pinned = if program.release_pinned {
+            Some(self.pinned_engine(pack, call.dialect?))
+        } else {
+            None
+        };
+        let PackRuntime {
+            engine,
+            sink,
+            reading,
+            hooks,
+            pinned: pinned_engines,
+            ..
+        } = pack;
+        let hook = &mut hooks[hook_index];
+        let (engine, handle) = match pinned {
+            None => (engine, &hook.handle),
+            Some(index) => {
+                let PinnedEngine {
+                    engine, handles, ..
+                } = &mut pinned_engines[index];
+                (engine.as_mut()?, handles.get(hook_index)?.as_ref()?)
+            }
+        };
+        sink.clear();
+        // The `constraints` family's reading verbs answer from this cell,
+        // refilled per call exactly as the sink is cleared per call.
+        match call.constraints {
+            Some(view) => reading.set(view.options, view.positionals),
+            None => reading.clear(),
+        }
+        let invoked = catch_unwind(AssertUnwindSafe(|| engine.invoke(handle, &arguments)));
+        reading.clear();
+        Some(match invoked {
+            Ok(Ok(_)) => Outcome::Answer(answer_of(family, sink.drain())),
+            Ok(Err(error)) => {
+                sink.clear();
+                match error {
+                    EngineError::BudgetExceeded(BudgetKind::Commands) => {
+                        Outcome::Crash(CrashKind::CommandBudget, error.to_string())
+                    }
+                    EngineError::BudgetExceeded(BudgetKind::WallClock) => {
+                        Outcome::Crash(CrashKind::WallClockBudget, error.to_string())
+                    }
+                    other => {
+                        hook.errors_seen += 1;
+                        Outcome::Errored(hook.errors_seen, other.to_string())
+                    }
+                }
+            }
+            Err(payload) => {
+                sink.clear();
+                Outcome::Crash(CrashKind::Panic, panic_payload(payload.as_ref()))
+            }
+        })
+    }
+}
+
 impl<E: Engine> PackHookHost for HookHost<E> {
     fn invoke(&self, slot: HookSlot, call: &HookCall<'_>) -> HookAnswer {
         let Some(&(pack_index, hook_index)) = self.slots.borrow().get(&slot) else {
@@ -417,66 +615,10 @@ impl<E: Engine> PackHookHost for HookHost<E> {
         };
         let outcome = {
             let mut packs = self.packs.borrow_mut();
-            let pack = &mut packs[pack_index];
-            if pack.poisoned {
+            let Some(outcome) = self.run(&mut packs[pack_index], hook_index, call) else {
                 return HookAnswer::Abstain;
-            }
-            let PackRuntime {
-                engine,
-                sink,
-                reading,
-                hooks,
-                ..
-            } = pack;
-            let hook = &mut hooks[hook_index];
-            if hook.quarantined {
-                return HookAnswer::Abstain;
-            }
-            // Normative precondition, enforced here as well as at the call
-            // site: a fold body never runs on a call carrying a dynamic word.
-            if hook.program.family.requires_all_literal() && !call.all_literal() {
-                return HookAnswer::Abstain;
-            }
-            // Matches `effective_parameters`: a hook that declared inputs
-            // without `words` is compiled without that parameter, so passing
-            // the value would be an arity error on every call.
-            let arguments: Vec<Value> = if hook.program.inputs.binds_words() {
-                vec![words_value(call), ctx_value(&hook.program, call)]
-            } else {
-                vec![ctx_value(&hook.program, call)]
             };
-            sink.clear();
-            // The `constraints` family's reading verbs answer from this cell,
-            // refilled per call exactly as the sink is cleared per call.
-            match call.constraints {
-                Some(view) => reading.set(view.options, view.positionals),
-                None => reading.clear(),
-            }
-            let invoked =
-                catch_unwind(AssertUnwindSafe(|| engine.invoke(&hook.handle, &arguments)));
-            reading.clear();
-            match invoked {
-                Ok(Ok(_)) => Outcome::Answer(answer_of(hook.program.family, sink.drain())),
-                Ok(Err(error)) => {
-                    sink.clear();
-                    match error {
-                        EngineError::BudgetExceeded(BudgetKind::Commands) => {
-                            Outcome::Crash(CrashKind::CommandBudget, error.to_string())
-                        }
-                        EngineError::BudgetExceeded(BudgetKind::WallClock) => {
-                            Outcome::Crash(CrashKind::WallClockBudget, error.to_string())
-                        }
-                        other => {
-                            hook.errors_seen += 1;
-                            Outcome::Errored(hook.errors_seen, other.to_string())
-                        }
-                    }
-                }
-                Err(payload) => {
-                    sink.clear();
-                    Outcome::Crash(CrashKind::Panic, panic_payload(payload.as_ref()))
-                }
-            }
+            outcome
         };
         match outcome {
             Outcome::Answer(answer) => answer,

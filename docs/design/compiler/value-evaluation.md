@@ -438,10 +438,9 @@ impl<'ctx> ConstOps<'ctx> {
 The protocol, in order, and every step is mandatory:
 
 1. **Resolve the target once.** `TargetSemantics` comes from the
-   context's profile. A profile that names a release —
-   `TclVersion::from_profile` answers for `tcl8.4` to `tcl9.1` — fills
-   every field through that release's own accessors: `number_syntax`,
-   `string_character_model`, `byte_string_encoding`. A dialect that
+   context's profile. A profile that names a release — `tcl8.4` to
+   `tcl9.1` — fills every field through that release's own accessors:
+   `number_syntax`, `string_character_model`, `byte_string_encoding`. A dialect that
    declares a base release evaluates under that release the same way —
    iRules on its 8.4-derived engine — except on an axis its pack declares
    divergent, which the base does not answer. A profile that names no
@@ -1358,15 +1357,21 @@ release the profile can denote, and declines `ReleaseAmbiguous(axis)`
 where two of them differ. A dialect that declares a base release
 evaluates under that release — iRules on its 8.4-derived engine — and an
 axis its pack declares divergent is a disagreement, which blocks the fold
-(the owner's ruling of 2026-09-22). `TclVersion::from_profile` in
-`rust/tcl-dialect/src/version.rs` answers only for the five plain Tcl
-profile names — `tcl8.4`, `tcl8.5`, `tcl8.6`, `tcl9.0`, `tcl9.1` — so
-every vendor environment evaluates under unanimity today, a declared base
-included; the fix feeds the environment's point through the evidence gate
-per measured row, never by name — `HookCall` already carries `dialect`
-(the profile name, deliberately not derived from `version`) and `version`
-(the `TclVersion`, `None` when the profile names no release), and the gap
-is the value for vendor profiles.
+(the owner's ruling of 2026-09-22). `TargetSemantics::of` takes the
+release a profile declares, `DialectProfile::runtime_version` (its
+`runtime_base`): each plain Tcl profile's own, iRules, iApps and tmsh on
+8.4, `expect` on 8.6, each EDA shell on its vendor's. An axis on which the
+profile declares an answer of its own that its release does not give — the
+F5 dialects' `character_model`, which no TMOS measurement settles yet —
+answers by unanimity instead, so the declaration blocks the base's answer.
+A profile declaring no release (`tk`, the version-less `tcl` profile,
+`f5-bigip`) answers every axis by unanimity. `TclVersion::from_profile` in
+`rust/tcl-dialect/src/version.rs` still answers only for the five plain
+Tcl profile names; routing a vendor profile's point through the evidence
+gate per measured row is the consumer-contracts lane's CC9.2, and it
+feeds the same field. `HookCall` carries `dialect` (the profile name,
+deliberately not derived from `version`) and `version` (the `TclVersion`,
+`None` when the profile names no release).
 
 ### The matrix
 

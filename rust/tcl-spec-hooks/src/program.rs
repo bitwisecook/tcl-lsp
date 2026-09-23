@@ -81,6 +81,13 @@ pub struct HookProgram {
     /// means "allocate one", which is what a caller owning both the spec and
     /// the host in one thread wants.
     pub slot: Option<HookSlot>,
+    /// Whether the body runs on an engine pinned to the release the call is
+    /// analysed under ([`tcl_registry::pack_hooks::HookCall::dialect`]),
+    /// rather than on the pack's unpinned engine: one engine per (pack,
+    /// profile, thread), each compiled once. A call that names no profile
+    /// is never run at the engine's default in its place — the hook
+    /// abstains.
+    pub release_pinned: bool,
 }
 
 impl HookProgram {
@@ -96,6 +103,7 @@ impl HookProgram {
             body: body.into(),
             inputs: HookInputs::unrestricted(),
             slot: None,
+            release_pinned: false,
         }
     }
 
@@ -137,6 +145,13 @@ impl HookProgram {
     #[must_use]
     pub fn with_slot(mut self, slot: HookSlot) -> Self {
         self.slot = Some(slot);
+        self
+    }
+
+    /// The same hook, run on an engine pinned to each call's release.
+    #[must_use]
+    pub fn pinned_to_release(mut self) -> Self {
+        self.release_pinned = true;
         self
     }
 

@@ -471,6 +471,14 @@ impl Engine for CountingEngine {
         self.inner.set_budget(budget)
     }
 
+    fn set_release(&mut self, profile: &str) -> Result<(), EngineError> {
+        self.inner.set_release(profile)
+    }
+
+    fn confine_stores(&mut self) -> Result<(), EngineError> {
+        self.inner.confine_stores()
+    }
+
     fn commands_spent(&self) -> Option<u64> {
         self.inner.commands_spent()
     }

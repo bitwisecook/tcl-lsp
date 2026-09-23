@@ -3,7 +3,8 @@
 The crash-insurance and handover note for the `value-transfers` lane. A
 fresh agent resumes from this file and the `wip(value-transfers):` commits.
 Slices 1 to 3 have landed; § *Plan for slices 2–13* is the plan for the
-rest, and § *Status (2026-09-23): slice 3 landed* is where to start.
+rest. Slice 4 is in progress: § *Slice 4* › *Record (2026-09-23): the opus
+items of slice 4* has each checkpoint so far and is where to start.
 
 ## Goal
 
@@ -598,7 +599,7 @@ replaces it. Later items build on the shapes in the *Wins* column.
 | `SelectionFact` (fields unstated) | `SelectionFact { selected: Vec<Option<usize>> }` | code | one selected arm (or none) per subject member |
 | `EvaluatorCapability { identity, host, target, inputs, depends, budget: tcl_engine_api::Budget, completion }` | `EvaluatorCapability { identity: &'static str }` (`route.rs`) | page, extended in VT4.3 with `&'static` slices and a registry-side `ImplementationBudget` | `EvalRoute` is `Copy` and `tcl-registry` does not depend on `tcl-engine-api` |
 | `Interp::set_dialect_profile` | `Vm::set_dialect_profile` (`rust/tcl-vm/src/interp.rs:1656`) | code | naming only |
-| `Engine::set_release(&mut self, profile: &'static DialectProfile)` | `tcl-engine-api` is "deliberately dependency-free" (its `Cargo.toml`) | code: `set_release(&mut self, profile: &str)`, the profile's name, resolved by the engine through `DialectProfile::find` (VT4.1) | a `tcl-dialect` dependency would break the crate's stated design |
+| `Engine::set_release(&mut self, profile: &'static DialectProfile)` | `tcl-engine-api` is "deliberately dependency-free" (its `Cargo.toml`) | code: `set_release(&mut self, profile: &str)`, the profile's name, resolved by the engine through the registry's dialect ingress (`resolve_known_environment(…).catalogue_profile()`, VT4.1, D76) | a `tcl-dialect` dependency would break the crate's stated design |
 | `ActivationStore`: host commands replacing `set` / `incr` / `lappend` / `lassign` "with the whitelisted command's exact semantics" | `HostCommand::invoke(&self, &[Value])` is engine-blind by contract (`rust/tcl-engine-api/src/lib.rs`: "cannot reach the interpreter") | neither: VT4.2 confines stores in the engine | a host command cannot read or write the calling frame, so the page's mechanism cannot keep a body's locals; § *Decisions taken* D10 |
 | one interface `Budget`; the evaluation page's `RequestBudget` / `IterationBudget` / `EvaluationBudget` | one `Budget` (`context.rs`) with `request_remaining` and `cancelled` | code: the three levels are three `Budget` values charging through one another (VT4.9) | one type, three owners |
 | `scan_defined_and_unset` | `scan_defined_and_unbound` (`sccp.rs:962`) | code | renamed in slice 1 |
@@ -2925,6 +2926,78 @@ whose evaluations exhaust the request declines the rest; a short
 | a store outside the activation raises inside a hook body | "per-evaluation state isolation in the host"; the evaluation page's witness |
 | a short `-native` id is a load notice | the evaluation page's `SCOPE::FIELD` rule |
 | a function whose evaluations exhaust the request declines the rest | the three nested budgets (D3) |
+
+#### Record (2026-09-23): the opus items of slice 4
+
+One implementer runs the opus items in plan order — VT4.1 to VT4.9 — and
+reports before VT4.13, which follows the sonnet items VT4.10 to VT4.12 and
+VT4.14. The decisions are D72 onward in § *Decisions taken*; this table
+gains a row per item as it lands.
+
+A container restart stopped the first implementer with VT4.1 and VT4.2
+written and nothing committed. The second recovered that worktree whole —
+every hunk checked against the plan, nothing backed out — and finished it
+before the first checkpoint: the VM's two error globals and the
+rebootstrap under confinement (D78), five more escapes in the engine test
+(`regsub` and four `dict` updates, each probed for the name it would have
+written), the `shape_only` note that `dialect` is now in the cache key, and
+the four tests the first pass had not reached, which pinned `f5-irules` as
+the release-less witness: `evaluate_def_incr_reads_the_base_under_the_targets_release`
+and `evaluate_def_assign_value_folds_string_range_under_the_release`
+(`sccp.rs`), `simulated_incr_reads_the_counter_under_the_release`
+(`static_loops.rs`) and `sccp_text_prints_the_route_of_each_cell_update`
+(`tcl-explorer`). Each now takes 8.4's answer under `f5-irules` — tclsh
+8.4 prints 9 for `set x 010; incr x`, `ijkl` for `string range
+abcdefghijkl 010 end`, 20 for the leading-zero loop, and -8 past the wide
+boundary, which no model computes — and pins the decline under a profile
+declaring no release (`tcl`, or `tk` in the Explorer's text view).
+
+| Item | Commit | What landed | Its tests |
+|---|---|---|---|
+| VT4.1 | `wip(value-transfers): slice 4 — the engine pins and confines` | `Engine::set_release` (default `Unsupported("pinning a release")`); `TclVmEngine::set_release` through the registry's dialect ingress (D76) with the thread's numeral grammar claimed per operation (`GrammarGuard`, D75); the host's per-(pack, profile) pinned engines for `HookProgram::release_pinned` programs, keyed into the hook cache by the call's profile (D74); ruling 8 in `TargetSemantics::of` (D72), and a release-less profile's math functions floored at 8.4's (D73); the expression evidence reads the same release | `set_release_pins_the_numeral_grammar` (`tcl-engine-tclvm`); `a_release_pinned_hook_runs_under_the_calls_release` (`families_e2e`); `a_declared_base_release_is_the_release`, `numerals_read_under_the_named_grammar_or_the_unanimous_one` and the character-model rows (`const_ops`); the iRules and `tcl` columns of the registry, compiler, parity and CLI witnesses; the four tests the recovery restated (above) |
+| VT4.2 | the same checkpoint | `Engine::confine_stores` (default `Unsupported("confining stores to the activation")`); `Vm::set_stores_confined` and the check at the VM's two store entries (D77); a confined VM publishes no `::errorInfo` / `::errorCode`, and `set_host`'s rebootstrap runs unconfined (D78); `TclVmEngine::confine_stores`; the host confines every engine after `restrict_commands` and fails the pack's sandbox on an engine that cannot | `confine_stores_refuses_every_store_outside_the_activation` (`tcl-engine-tclvm`: nineteen escapes, each probed for the name it would have written, and a caught error publishing neither global); `a_body_with_a_global_counter_answers_identically_on_every_call`, `a_local_accumulator_is_unaffected` (`containment_e2e`) |
+
+Deltas observed beyond the plan's list, each with its oracle:
+
+- **iRules, iApps, tmsh, `expect` and the EDA shells evaluate under their
+  declared base** (ruling 8): `set z 010; incr z` is 9 under `f5-irules`
+  (tclsh 8.4 prints 9), where it declined; `puts [list # a]` is `# a`
+  there (tclsh 8.4), where it declined; `format` answers 8.4's column. The
+  F5 dialects' character model stays unanimous (D72).
+- **A release-less profile folds only 8.4's math functions** (D73): `expr
+  {min(1,2)}` under the version-less `tcl` profile folded to 1; tclsh 8.4
+  raises `unknown math function "min"`.
+- **The CLI's release-less witness is `tk`**: `tcl` is not a value
+  `--dialect` accepts, so `explore_sccp_prints_the_route_of_each_statement`
+  pins the decline under `tk`.
+- **The hook cache is keyed by the call's profile** for every family, so
+  two profiles of one release no longer share an entry (D74).
+
+Green at the first checkpoint (VT4.1, VT4.2):
+
+- tests: `cargo test -p tcl-engine-api -p tcl-engine-tclvm -p
+  tcl-spec-hooks -p tcl-spectcl` 350 passed, 0 failed, 1 ignored; `cargo
+  test -p tcl-vm --no-fail-fast` 1473 passed under `LANG=C.UTF-8` — without
+  a UTF-8 locale `encoding_command` and `ensemble_subcommand_words_resolve_like_tclsh`
+  fail as they do on `HEAD`, since they read the system encoding; `cargo
+  test -p tcl-registry -p tcl-compiler -p tcl-lsp-db --no-fail-fast`
+  11025 passed, 11 ignored, and the three restated compiler tests then
+  passed; `tcl-explorer` 102 passed; `tcl-cli`'s `value_transfers_cli` 5
+  passed and `samples_optimiser_profiles_are_regenerated` passed (no
+  sample moved);
+- pedantic clippy (`--no-deps --all-targets -D warnings`) on every touched
+  crate, `tcl-cli` included, with no `#[allow]` added; `cargo fmt --all
+  --check` clean;
+- `cargo xtask value-transfers --check` OK and unchanged (17 clean, 13
+  waived, 98 pinned across 39 files, 6607 rows); `pack-goldens` 0 of 24
+  rewritten; the shard verifier OK; `kcs-index-links`; `owner-resolution`
+  (44 rows); `cargo check --workspace --all-targets` clean.
+
+The state the sonnet items start from: VT4.10 to VT4.12 and VT4.14 have
+the tree of this record's last row; the pages VT4.15 amends (§
+*`Engine::set_release`*, § *Per-evaluation state*) still describe the
+page's mechanisms, and `value-evaluation.md` § *Target semantics* already
+states ruling 8 as built.
 
 ### Slice 5 — destructuring and structured bodies
 
@@ -5673,7 +5746,16 @@ diagnostic-code table, the catalogue generators, and the adapter edits in
   `TargetSemantics::of` answers for them, so slice 2's unnamed-release
   answers under iRules become 8.4's; CC9.2 lands only with this lane's
   agreement and the `differential_fold.rs` iRules rows updated in the same
-  checkpoint.
+  checkpoint. *Recorded for that lane by VT4.1 (D72):* ruling 8 is built
+  without `from_profile` — `TargetSemantics::of` reads
+  `DialectProfile::runtime_version` — so CC9.2's change to `from_profile`
+  no longer moves a value-transfer answer, and an evidence gate that
+  should hold an unmeasured base back must reach `TargetSemantics::of`
+  (this lane's file) instead. `differential_fold.rs` has no iRules row.
+  `registry-consumer-contracts.md`'s "release for versioned evaluation" row
+  still says every vendor environment evaluates under the invariant subset;
+  for the value-transfer routes that is no longer so, and the row is that
+  lane's to restate.
 - **B-CC9 — `Engine::set_release` and the overlay.** VT4.1 lands
   `set_release` before CC8.2 uses it; VT4.8 lands the analysis half of
   `spec_pack_key` reaching `compilation_unit` before CC6.3's compile-service
@@ -6111,6 +6193,79 @@ Taken while the review of slice 3 was answered (§ *Slice 3* › *Record
   environment builder (`const_to_env_value`) and `sccp::tcl_value_to_const`
   went.
 
+Taken while slice 4's opus items were executed (§ *Slice 4* › *Record
+(2026-09-23): the opus items of slice 4* has the witnesses):
+
+- **D72 — Ruling 8 reads the declared runtime, per axis.**
+  `TargetSemantics::of` takes `DialectProfile::runtime_version` (the
+  profile's `runtime_base`) as the release, not `TclVersion::from_profile`,
+  which is CC9.2's file and stays untouched. The numeral grammar and the
+  character model are the release's only where the profile's own
+  declaration agrees (`grammar.numbers`, `character_model()`): a declared
+  divergence — the F5 dialects' `Utf16CodeUnits`, where 8.4 counts BMP
+  characters and UTF-8 bytes beyond — leaves that axis to unanimity, which
+  is the ruling's "a vendor pack that diverges on an axis blocks the fold
+  by declaring the axis". The expression route's evidence names the same
+  release.
+- **D73 — A release-less profile folds 8.4's math functions.**
+  `fold_math_ceiling` floors a fold's function set at 8.4 for a profile
+  naming no release, in the route's `math_function` service and in the old
+  folder, since only those answer on every release. The availability
+  diagnostic keeps `math_func_ceiling_for_dialect`'s unbounded ceiling, so
+  it never flags a function one of the profile's releases has. Found by
+  the witnesses' new `tcl` column.
+- **D74 — Release pinning is per program and opt-in.**
+  `HookProgram::release_pinned` (`pinned_to_release()`) runs a body on the
+  pack's engine pinned to the call's profile (`HookCall::dialect`), one
+  per (pack, profile, thread), each hook compiled on it at first use. A
+  call naming no profile abstains rather than run at a default, and a
+  profile no engine can pin is logged once. Every existing family stays on
+  the unpinned engine, byte-identical; the evaluate family (VT4.6) is the
+  first to set the flag. The hook cache's `ShapeKey` carries the profile,
+  so a pinned answer is never served under another. The plan's "a pack
+  whose capability names a release the engine cannot pin gets a load notice
+  and no route" has no load-time half: a capability names no release (its
+  `target` names axes), and the release is each call's profile, so the
+  notice is the host's one error-log line the first time a profile cannot be
+  pinned, and the answer under that profile is a decline.
+- **D75 — An engine holds the thread's numeral grammar only while it
+  runs.** `Vm::set_dialect_profile` installs the release's grammar for the
+  whole thread, and the analysis thread that owns the engine reads
+  numerals too. `GrammarGuard` claims the pinned release's grammar for
+  each compile and invoke and restores the caller's on every exit,
+  including building a fresh VM.
+- **D76 — `set_release` resolves through the registry's ingress.** The
+  plan said `DialectProfile::find`; the engine uses
+  `resolve_known_environment(name).catalogue_profile()`, the one dialect
+  ingress, so the lenient `tcl` sink, `tk`, `jim` and an unknown name — none
+  of which names a release the VM can run — are `Unsupported`. The same pin
+  twice is a no-op, and a different one after a unit was compiled is
+  `Unsupported`: the VM does not switch release under compiled code.
+- **D77 — Stores are confined at the VM's two store entries.** `Vm::set_var`
+  and `write_array_raw_from` check `LimitSet::confined_stores` before
+  writing: a name that resolves anywhere but the running procedure's own
+  frame — a qualified or namespace name, level 0, a link, another level —
+  raises `can't set "NAME": stores are confined to the activation`
+  (`TCL WRITE VARNAME`). Every store path reaches one of the two: the
+  bytecode store and increment ops, `lappend`, `foreach`, `lassign`,
+  `scan`, `regexp`, `regsub`, `binary scan` and `dict`. The plan's "every
+  store that resolves a name rather than a local slot" is every store in
+  this VM, whose local-slot forms resolve by name as well. An engine that
+  cannot confine fails the pack's sandbox, as one that cannot restrict does.
+- **D78 — A confined VM publishes no error globals; its own bookkeeping
+  runs unconfined.** Two VM-internal writes reach a global without passing
+  a body's store entry. A caught error publishes `::errorInfo` and
+  `::errorCode` (`publish_error`), so with stores confined `catch {lindex
+  {} y}` still left both for the next invocation to read; confined, the VM
+  now publishes neither, and the error's options still carry them.
+  `catch` and `try` are off `SANDBOX_COMMANDS`, and the compiled `dict
+  for`, `dict map`, `dict update` and `dict with` ranges do not publish, so
+  the whitelisted host never reached the hole: the engine contract did,
+  and the engine test pins it. The other direction is `set_host`'s
+  rebootstrap of `::tcl_platform` and `::env`, which is the embedder's own
+  bookkeeping and now lifts the confinement while it runs, so a host swapped
+  in after `confine_stores` still gets its globals.
+
 ### Open questions for the owner
 
 Each with the assumption the plan proceeds on.
@@ -6173,9 +6328,9 @@ Each with the assumption the plan proceeds on.
   per-operation admission stands as built; `value-evaluation.md`'s `admit`
   steps 1 and 2 and § *Target semantics* now say so, and
   `value-transfers.md` § *Rulings* 7 and 8 record it. The base-release half
-  is not built: `TargetSemantics::of` takes a release only from
-  `TclVersion::from_profile`, so a declared base — iRules' `runtime_base`
-  8.4 among them — still evaluates under unanimity until CC9.2 (B-CC8).
+  is built by VT4.1 (D72): `TargetSemantics::of` reads the profile's
+  declared runtime (`DialectProfile::runtime_version`), so iRules evaluates
+  under 8.4, and `TclVersion::from_profile` (CC9.2's) is untouched.
 - **F2 — The budget deferral** (D3, Q1): a scope move, not a behaviour.
 - **F3 — The inventory committed from a failing gate run** at the
   checkpoint: a process deviation, corrected by VT2.0.

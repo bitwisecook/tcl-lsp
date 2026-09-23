@@ -687,7 +687,8 @@ fn list_and_length_routes_run_the_shared_cores() {
     // A first element starting with `#` is brace-quoted from 8.5 and bare
     // in 8.4 (tclsh 8.4 prints `# a` for `puts [list # a]`, 8.5 to 9.1
     // print `{#} a`), so a profile naming no release cannot render it; a
-    // `#` anywhere else is data in every release.
+    // `#` anywhere else is data in every release. `f5-irules` renders as
+    // its 8.4 base does (ruling 8).
     for (dialect, want) in [
         (Some("tcl8.4"), Ok("# a")),
         (Some("tcl8.5"), Ok("{#} a")),
@@ -696,10 +697,7 @@ fn list_and_length_routes_run_the_shared_cores() {
             None,
             Err(DeclineReason::ReleaseAmbiguous(Axis::ListRendering)),
         ),
-        (
-            Some("f5-irules"),
-            Err(DeclineReason::ReleaseAmbiguous(Axis::ListRendering)),
-        ),
+        (Some("f5-irules"), Ok("# a")),
     ] {
         assert_eq!(
             run(&LIST_OF_ARGS, "list", &["#", "a"], dialect),
@@ -848,18 +846,24 @@ fn format_answers_per_release() {
                 "{dialect} {words:?}"
             );
         }
-        for dialect in [None, Some("f5-irules")] {
-            let answer = format_under(dialect, words);
-            assert!(
-                matches!(
-                    answer,
-                    Err(DeclineReason::ReleaseAmbiguous(
-                        Axis::FormatVerbs | Axis::NumeralGrammar
-                    ))
-                ),
-                "{dialect:?} {words:?}: {answer:?}"
-            );
-        }
+        // `f5-irules` formats as its 8.4 base does (ruling 8): tclsh 8.4
+        // raises `bad field specifier` for `%b`, `%p` and `%llu`, and prints
+        // 8, 2147483648, `010` and 5 for the rest.
+        assert_eq!(
+            format_under(Some("f5-irules"), words),
+            eight_four.map(str::to_owned),
+            "f5-irules {words:?}"
+        );
+        let answer = format_under(None, words);
+        assert!(
+            matches!(
+                answer,
+                Err(DeclineReason::ReleaseAmbiguous(
+                    Axis::FormatVerbs | Axis::NumeralGrammar
+                ))
+            ),
+            "{words:?}: {answer:?}"
+        );
     }
 }
 
@@ -1037,21 +1041,25 @@ fn the_increment_route_reads_numerals_under_the_target_release() {
     let exact = |i: i64| FactView::Exact(ExactValue::int(i), None);
     let text = |t: &str| FactView::Exact(ExactValue::text(t), None);
 
-    // A leading zero reads as octal up to 8.6 and decimal from 9.0.
-    for (dialect, want) in [("tcl8.6", 9), ("tcl8.4", 9), ("tcl9.0", 11)] {
+    // A leading zero reads as octal up to 8.6 and decimal from 9.0 (tclsh
+    // 8.4 to 8.6: `set x 010; incr x` is 9; 9.0 and 9.1: 11). `f5-irules`
+    // reads it as its 8.4 base does (ruling 8).
+    for (dialect, want) in [
+        ("tcl8.6", 9),
+        ("tcl8.4", 9),
+        ("tcl9.0", 11),
+        ("f5-irules", 9),
+    ] {
         assert_eq!(
             increment_result(evaluate_increment(cell, Some(dialect), text("010"), None)),
             Ok(built_int(want)),
             "{dialect}"
         );
     }
-    for dialect in [None, Some("f5-irules")] {
-        assert_eq!(
-            increment_result(evaluate_increment(cell, dialect, text("010"), None)),
-            Err(DeclineReason::ReleaseAmbiguous(Axis::NumeralGrammar)),
-            "{dialect:?}"
-        );
-    }
+    assert_eq!(
+        increment_result(evaluate_increment(cell, None, text("010"), None)),
+        Err(DeclineReason::ReleaseAmbiguous(Axis::NumeralGrammar)),
+    );
     // A whitespace-padded step is an integer in every release (tclsh 8.4,
     // 8.6, 9.0: `set x 1; incr x " 5"` is 6).
     assert_eq!(

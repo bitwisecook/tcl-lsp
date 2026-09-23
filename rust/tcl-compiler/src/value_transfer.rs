@@ -992,10 +992,10 @@ impl<'a> LatticeDriver<'a> {
     /// stands, as it does for the fused node's own lowering.
     fn math_function(&self, name: &str) -> Result<BindingIdentity, DeclineReason> {
         let profile = self.context.profile;
-        let available = match profile {
-            Some(profile) => tcl_registry::mathfunc::available_in_expr(name, profile),
-            None => tcl_syntax::expr::mathfunc::added_in(name).is_some(),
-        };
+        // A profile naming no release calls only what every release has.
+        let available = tcl_syntax::expr::mathfunc::added_in(name).is_some_and(|since| {
+            profile.is_none_or(|profile| since <= crate::tcl_expr_eval::fold_math_ceiling(profile))
+        });
         if !available {
             return Err(DeclineReason::Unsupported);
         }
@@ -1353,10 +1353,8 @@ impl CommandSemantics for ExpressionEvaluation<'_> {
                     state.evidence.bindings,
                 );
                 outcome.evidence.numerals = self.policy.numbers;
-                outcome.evidence.release = self
-                    .policy
-                    .dialect
-                    .and_then(tcl_dialect::TclVersion::from_profile);
+                outcome.evidence.release =
+                    tcl_registry::value_transfer::TargetSemantics::of(self.policy.dialect).release;
                 EvalAnswer::Evaluated(Box::new(outcome))
             }
         }

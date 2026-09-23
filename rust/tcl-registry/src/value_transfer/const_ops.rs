@@ -35,8 +35,10 @@
 //! implicitly are discharged here — an index numeral is pre-resolved under
 //! the admitted grammar ([`ConstOps::index`]), a character count runs under
 //! the admitted model, and a numeral is parsed under the admitted grammar.
-//! With no release named, each answer is the one every modelled release
-//! gives; where the releases differ the axis is declined with
+//! A profile that declares a base release evaluates under it, iRules on its
+//! 8.4-derived engine included ([`TargetSemantics::of`]). With no release
+//! declared, each answer is the one every modelled release gives; where the
+//! releases differ the axis is declined with
 //! [`DeclineReason::ReleaseAmbiguous`], per operation. Two axes are never
 //! answerable on this route — [`Needs::PLATFORM`] and [`Needs::WALL_CLOCK`]
 //! — which is how a host- or clock-reading core is kept off it by
@@ -295,16 +297,18 @@ impl ConstValue {
 }
 
 /// The target semantics one evaluation runs under. Every field is the
-/// named release's answer, or `None` when the profile names no release:
-/// each axis then answers per operation with the answer every modelled
-/// release gives, and declines where they differ.
+/// declared release's answer, or `None` when the profile declares no release
+/// or declares an answer of its own on that axis: the axis then answers per
+/// operation with the answer every modelled release gives, and declines
+/// where they differ.
 #[derive(Debug, Clone, Copy)]
 pub struct TargetSemantics {
-    /// The named release, when the profile names one.
+    /// The release the profile declares: its own for a plain Tcl profile,
+    /// its runtime base for a vendor dialect that records one.
     pub release: Option<TclVersion>,
-    /// The numeral grammar, when one release names it.
+    /// The numeral grammar, when the declared release decides it.
     pub numerals: Option<NumberSyntax>,
-    /// The character-counting model, when one release names it.
+    /// The character-counting model, when the declared release decides it.
     pub character_model: Option<StringCharacterModel>,
     /// How a code point above `U+00FF` crosses to bytes, when named.
     pub byte_strings: Option<ByteStringEncoding>,
@@ -322,16 +326,30 @@ pub struct TargetSemantics {
 }
 
 impl TargetSemantics {
-    /// The target `profile` names: the release's own answers when
-    /// `TclVersion::from_profile` answers for it, else the per-axis
-    /// unanimity rule.
+    /// The target `profile` names (`docs/design/compiler/value-transfers.md`
+    /// § *Rulings* 7 and 8). A profile that declares a base release evaluates
+    /// under it: the plain Tcl profiles, and every vendor dialect whose
+    /// runtime base the catalogue records — iRules, iApps and tmsh on their
+    /// 8.4-derived engine, `expect` on 8.6, the EDA shells on theirs. Each
+    /// axis then answers as that release does, except an axis on which the
+    /// profile declares an answer of its own that differs from the release's
+    /// (the F5 dialects' unmeasured character model): the declared divergence
+    /// blocks the release's answer, and the axis answers by unanimity. A
+    /// profile that declares no release — the lenient `tcl` sink, `tk`,
+    /// `f5-bigip` — answers every axis by unanimity.
     #[must_use]
     pub fn of(profile: Option<&'static DialectProfile>) -> Self {
-        let release = profile.and_then(TclVersion::from_profile);
+        let release = profile.and_then(DialectProfile::runtime_version);
+        let numerals = release
+            .map(TclVersion::number_syntax)
+            .filter(|numbers| Some(*numbers) == profile.map(|p| p.grammar.numbers));
+        let character_model = release
+            .map(TclVersion::string_character_model)
+            .filter(|model| Some(*model) == profile.and_then(DialectProfile::character_model));
         Self {
             release,
-            numerals: release.map(TclVersion::number_syntax),
-            character_model: release.map(TclVersion::string_character_model),
+            numerals,
+            character_model,
             byte_strings: release.map(TclVersion::byte_string_encoding),
             source_utf8: release.is_some_and(|v| v >= TclVersion::V9_0),
             quotes_leading_hash: release.map(|v| v >= TclVersion::V8_5),
@@ -835,8 +853,16 @@ impl ValueOps for ConstOps<'_> {
 mod tests {
     use super::*;
 
+    /// The detached context of a catalogue profile by name; `tcl` is the
+    /// lenient sink, which declares no release.
     fn context(dialect: Option<&str>) -> AnalysisContext {
-        AnalysisContext::detached(dialect.and_then(DialectProfile::find))
+        AnalysisContext::detached(dialect.map(|name| {
+            if name == "tcl" {
+                DialectProfile::plain_tcl()
+            } else {
+                DialectProfile::find(name).expect("a catalogue profile")
+            }
+        }))
     }
 
     fn admit<'b>(dialect: Option<&str>, budget: &'b mut Budget, needs: Needs) -> ConstOps<'b> {
@@ -883,6 +909,13 @@ mod tests {
         );
     }
 
+    /// A leading zero is octal up to 8.6 and decimal from 9.0: `expr {010 +
+    /// 0}` is 8 on tclsh 8.4, 8.5 and 8.6 and 10 on 9.0 and 9.1. A dialect
+    /// that declares a base release reads under it (ruling 8): `f5-irules`,
+    /// `f5-iapps` and `f5-tmsh` on their 8.4-derived engine read 8, as does
+    /// `expect` on 8.6 and the Xilinx shell on 8.5, where before the ruling
+    /// they declined; a profile declaring no release (the lenient `tcl`
+    /// sink, and no profile at all) still declines.
     #[test]
     fn numerals_read_under_the_named_grammar_or_the_unanimous_one() {
         let text = ConstValue::text("010");
@@ -891,13 +924,19 @@ mod tests {
             (Some("tcl8.6"), Some(8)),
             (Some("tcl9.0"), Some(10)),
             (Some("tcl9.1"), Some(10)),
+            (Some("f5-irules"), Some(8)),
+            (Some("f5-iapps"), Some(8)),
+            (Some("f5-tmsh"), Some(8)),
+            (Some("expect"), Some(8)),
+            (Some("xilinx-eda-tcl"), Some(8)),
+            (Some("bpf"), Some(10)),
         ] {
             let mut budget = Budget::evaluation();
             let mut ops = admit(dialect, &mut budget, Needs::NUMERAL_GRAMMAR);
             assert_eq!(ops.as_int(&text).ok(), want, "{dialect:?}");
             assert!(ops.take(ConstValue::int(0)).is_ok(), "{dialect:?}");
         }
-        for dialect in [None, Some("f5-irules")] {
+        for dialect in [None, Some("tcl")] {
             let mut budget = Budget::evaluation();
             let mut ops = admit(dialect, &mut budget, Needs::NUMERAL_GRAMMAR);
             assert!(ops.as_int(&text).is_err(), "{dialect:?}");
@@ -1029,12 +1068,71 @@ mod tests {
             ops.take(ConstValue::int(1)),
             Err(DeclineReason::ReleaseAmbiguous(Axis::CharacterModel))
         );
-        for (dialect, want) in [("tcl8.6", 2), ("tcl9.0", 1)] {
+        for (dialect, want) in [("tcl8.6", 2), ("tcl9.0", 1), ("expect", 2)] {
             let mut budget = Budget::evaluation();
             let mut ops = admit(Some(dialect), &mut budget, Needs::CHAR_MODEL);
             assert_eq!(ops.char_len(&astral), want, "{dialect}");
             assert!(ops.take(ConstValue::int(1)).is_ok());
         }
+        // The F5 dialects declare a character model of their own
+        // (`DialectProfile::character_model`) that their 8.4 base does not
+        // share, so the declared divergence blocks the base's answer and the
+        // axis is unanimous: the basic plane counts, an astral character
+        // declines.
+        for dialect in ["f5-irules", "f5-iapps"] {
+            let mut budget = Budget::evaluation();
+            let mut ops = admit(Some(dialect), &mut budget, Needs::CHAR_MODEL);
+            assert_eq!(ops.char_len(&plain), 5, "{dialect}");
+            let _ = ops.char_len(&astral);
+            assert_eq!(
+                ops.take(ConstValue::int(1)),
+                Err(DeclineReason::ReleaseAmbiguous(Axis::CharacterModel)),
+                "{dialect}"
+            );
+        }
+    }
+
+    /// Ruling 8 in one table: the release each profile evaluates under, and
+    /// the axes a declared divergence leaves unanimous.
+    #[test]
+    fn a_declared_base_release_is_the_release() {
+        for (dialect, release) in [
+            ("tcl8.4", Some(TclVersion::V8_4)),
+            ("tcl9.1", Some(TclVersion::V9_1)),
+            ("f5-irules", Some(TclVersion::V8_4)),
+            ("f5-iapps", Some(TclVersion::V8_4)),
+            ("expect", Some(TclVersion::V8_6)),
+            ("cadence-eda-tcl", Some(TclVersion::V8_4)),
+            ("intel-quartus-eda-tcl", Some(TclVersion::V8_5)),
+            ("synopsys-eda-tcl", Some(TclVersion::V8_6)),
+            ("f5-bigip", None),
+        ] {
+            let target = TargetSemantics::of(DialectProfile::find(dialect));
+            assert_eq!(target.release, release, "{dialect}");
+            assert_eq!(
+                target.numerals,
+                release.map(TclVersion::number_syntax),
+                "{dialect}"
+            );
+            assert_eq!(
+                target.quotes_leading_hash,
+                release.map(|v| v >= TclVersion::V8_5),
+                "{dialect}"
+            );
+        }
+        let lenient = TargetSemantics::of(Some(DialectProfile::plain_tcl()));
+        assert_eq!(lenient.release, None);
+        assert_eq!(lenient.numerals, None);
+        let irules = TargetSemantics::of(DialectProfile::find("f5-irules"));
+        assert_eq!(
+            irules.character_model, None,
+            "the F5 character model is declared, and not 8.4's"
+        );
+        let expect = TargetSemantics::of(DialectProfile::find("expect"));
+        assert_eq!(
+            expect.character_model,
+            Some(StringCharacterModel::Utf16CodeUnits)
+        );
     }
 
     #[test]

@@ -177,7 +177,7 @@ pub fn eval_tcl_expr_in_dialect(
         node,
         env,
         leading_zero_is_octal(dialect),
-        math_func_ceiling_for_dialect(dialect),
+        Some(fold_math_ceiling(dialect)),
         dialect.is_irules(),
         tcl_syntax::word_rules::WordValueRules::of_profile(Some(dialect)),
         widens_past_a_wide(Some(dialect)),
@@ -339,7 +339,7 @@ pub fn eval_tcl_expr_with_policy(
         node,
         env,
         policy.octal,
-        policy.dialect.and_then(math_func_ceiling_for_dialect),
+        policy.dialect.map(fold_math_ceiling),
         policy.is_irules,
         policy.word_rules,
         widens_past_a_wide(policy.dialect),
@@ -425,6 +425,21 @@ pub fn math_func_ceiling_for_dialect(
     dialect: &'static tcl_dialect::DialectProfile,
 ) -> Option<tcl_syntax::expr::mathfunc::MathFuncSince> {
     tcl_registry::mathfunc::expr_grammar_ceiling(dialect)
+}
+
+/// The newest math function a fold under `profile` may call: the profile's
+/// own ceiling, or 8.4's set for a profile that names no release, because
+/// only a function every modelled release has answers alike on all of them
+/// (tclsh 8.4 raises `unknown math function "min"`). Unlike
+/// [`math_func_ceiling_for_dialect`], which leaves such a profile unbounded
+/// so the availability diagnostic never flags a function one of its
+/// releases has.
+#[must_use]
+pub(crate) fn fold_math_ceiling(
+    profile: &'static tcl_dialect::DialectProfile,
+) -> tcl_syntax::expr::mathfunc::MathFuncSince {
+    math_func_ceiling_for_dialect(profile)
+        .unwrap_or(tcl_syntax::expr::mathfunc::MathFuncSince::Tcl84)
 }
 
 /// Whether `name` is a genuine built-in `expr` math function (`sin`, `max`,

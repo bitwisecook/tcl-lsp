@@ -255,7 +255,9 @@ mod tests {
 
     /// The `sccp` view prints each cell update's route and the answer it
     /// gave at the fixed point — the lines `tcl explore --show sccp --text`
-    /// prints — and a decline names its reason.
+    /// prints — and a decline names its reason. `tk` declares no release, so
+    /// `incr` over `010` is ambiguous there; `f5-irules` evaluates under its
+    /// declared 8.4 base (ruling 8) and folds it to 9, as tclsh 8.4 does.
     #[test]
     fn sccp_text_prints_the_route_of_each_cell_update() {
         let sccp = |src: &str, dialect: &str| {
@@ -275,11 +277,13 @@ mod tests {
         );
         assert_eq!(text.matches("· answer: evaluated").count(), 2, "{text}");
 
-        let text = sccp("proc p {} {set z 010; incr z}", "f5-irules");
+        let text = sccp("proc p {} {set z 010; incr z}", "tk");
         assert!(
             text.contains("· answer: declined: release-ambiguous: numeral-grammar"),
             "{text}"
         );
+        let text = sccp("proc p {} {set z 010; incr z}", "f5-irules");
+        assert!(text.contains("z#2 = const(9)"), "{text}");
 
         let text = sccp("set r [llength {a b}]", "tcl8.6");
         assert!(

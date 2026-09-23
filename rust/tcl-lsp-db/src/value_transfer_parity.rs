@@ -87,12 +87,14 @@ fn answers_for(unit: &CompilationUnit, qname: &str, command: &str) -> Vec<String
 /// On program (3) of the value-transfer contract and the `incr` /
 /// `append` / `lappend` / `string range` witnesses, the memoised lattice
 /// is the direct one, value for value, under a release that names its
-/// grammar and under a profile that does not.
+/// grammar, under a vendor dialect that declares its base (`f5-irules`,
+/// 8.4's: ruling 8), and under a profile that declares none (the lenient
+/// `tcl`).
 #[test]
 fn direct_and_memoised_lattices_agree_on_the_cell_update_witnesses() {
     const SRC: &str = "proc p {} {\n    set n 1\n    incr n\n    incr n 2\n    set s hello\n    append s { world}\n    set l {}\n    lappend l a b\n    lappend l {c d}\n    set z 010\n    incr z\n    set big 9223372036854775807\n    incr big\n    set r [string range abcdefghijkl 010 end]\n    set x 10\n    foreach a {1 2} { incr x $a }\n    return $n\n}\n\
                        proc q {} {\n    set acc {}\n    foreach {a b} {1 10 2 20} { incr acc [expr {$b / $a}] }\n    return $acc\n}\n";
-    for dialect in ["tcl8.6", "tcl9.0", "f5-irules"] {
+    for dialect in ["tcl8.6", "tcl9.0", "f5-irules", "tcl"] {
         let db = TclDatabase::default();
         let file = SourceFile::new(&db, SRC.to_owned(), dialect.to_owned(), None);
         let (memoised, direct) = both_paths(&db, file);
@@ -112,8 +114,9 @@ fn direct_and_memoised_lattices_agree_on_the_cell_update_witnesses() {
                     .map(|(_, _, value)| value.as_str())
                     .collect::<Vec<_>>()
                     .join(" ");
+                // tclsh 8.4 to 8.6: `set z 010; incr z` is 9; 9.0 and 9.1: 11.
                 match dialect {
-                    "tcl8.6" => assert!(z.contains("Int(9)"), "{dialect}: {z}"),
+                    "tcl8.6" | "f5-irules" => assert!(z.contains("Int(9)"), "{dialect}: {z}"),
                     "tcl9.0" => assert!(z.contains("Int(11)"), "{dialect}: {z}"),
                     _ => assert!(
                         !z.contains("Int(9)") && !z.contains("Int(11)"),

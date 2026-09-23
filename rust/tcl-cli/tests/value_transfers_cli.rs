@@ -87,8 +87,11 @@ fn explore_sccp_prints_the_route_tally() {
 
 /// VT2.10's deferred CLI witness binary (D9, D35): the `tcl explore` exit
 /// lines slice 2's § *Goal and exit* names — program (3)'s `incr` route
-/// twice, an `f5-irules` release-ambiguous decline, and `llength`'s
-/// direct route — each hand-verified at the time and now pinned here.
+/// twice, a release-ambiguous decline, and `llength`'s direct route — each
+/// hand-verified at the time and now pinned here. The decline was
+/// `f5-irules`'s until ruling 8 gave iRules its declared 8.4 base: it now
+/// folds `incr` over `010` to 9, as tclsh 8.4 does, and `tk`, a profile
+/// that declares no release, is the one that declines.
 #[test]
 fn explore_sccp_prints_the_route_of_each_statement() {
     let program_three = run_tcl(&[
@@ -123,12 +126,24 @@ fn explore_sccp_prints_the_route_of_each_statement() {
         "--text",
         "--no-colour",
         "--dialect",
-        "f5-irules",
+        "tk",
     ]);
     assert!(
         leading_zero.contains("· answer: declined: release-ambiguous: numeral-grammar"),
         "{leading_zero}"
     );
+    let irules = run_tcl(&[
+        "explore",
+        "--source",
+        "proc p {} {set z 010; incr z}",
+        "--show",
+        "sccp",
+        "--text",
+        "--no-colour",
+        "--dialect",
+        "f5-irules",
+    ]);
+    assert!(irules.contains("z#2 = const(9)"), "{irules}");
 
     let llength = run_tcl(&[
         "explore",

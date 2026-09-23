@@ -4333,6 +4333,7 @@ dependencies = [
  "tcl-compiler",
  "tcl-engine-api",
  "tcl-registry",
+ "tcl-syntax",
  "tcl-vm",
 ]
 

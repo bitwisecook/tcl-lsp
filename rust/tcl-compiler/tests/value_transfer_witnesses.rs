@@ -52,8 +52,10 @@ const RELEASES: [&str; 5] = ["8.4", "8.5", "8.6", "9.0", "9.1"];
 const PASSES: usize = 8;
 
 /// The dialects the exit witnesses analyse under: a release per numeral
-/// grammar and integer tower, and a profile that names no single release.
-const DIALECTS: [&str; 4] = ["tcl8.4", "tcl8.6", "tcl9.0", "f5-irules"];
+/// grammar and integer tower; `f5-irules`, a vendor dialect that evaluates
+/// under the 8.4 base it declares (ruling 8); and the lenient `tcl` profile,
+/// which declares no release, so every axis answers by unanimity (ruling 7).
+const DIALECTS: [&str; 5] = ["tcl8.4", "tcl8.6", "tcl9.0", "f5-irules", "tcl"];
 
 /// Run `script` from a file under `tclsh`: whether it exited cleanly and
 /// what it printed. A script run from a file exits non-zero on an error,
@@ -505,13 +507,18 @@ fn interval_holds(interval: Interval, text: &str) -> bool {
 /// Each value is the release's own: `incr x $n` is 8 everywhere; `incr x`
 /// over `010` is 9 up to 8.6 and 11 from 9.0; over `9223372036854775807`
 /// it is `9223372036854775808` from 8.5 and `-8` under 8.4, which no model
-/// computes, so 8.4 declines, as `f5-irules`, naming no single release,
-/// declines both release-dependent cases.
+/// computes, so 8.4 declines. `f5-irules` answers as its 8.4 base does
+/// (ruling 8), and the lenient profile, naming no single release, declines
+/// both release-dependent cases.
 #[test]
 fn the_three_incr_models_agree() {
-    let cases: [(&str, &str, [Option<&str>; 4]); 3] = [
-        ("5", "incr x $n", [Some("8"); 4]),
-        ("010", "incr x", [Some("9"), Some("9"), Some("11"), None]),
+    let cases: [(&str, &str, [Option<&str>; 5]); 3] = [
+        ("5", "incr x $n", [Some("8"); 5]),
+        (
+            "010",
+            "incr x",
+            [Some("9"), Some("9"), Some("11"), Some("9"), None],
+        ),
         (
             "9223372036854775807",
             "incr x",
@@ -519,6 +526,7 @@ fn the_three_incr_models_agree() {
                 None,
                 Some("9223372036854775808"),
                 Some("9223372036854775808"),
+                None,
                 None,
             ],
         ),
@@ -771,7 +779,8 @@ fn a_leading_hash_is_quoted_per_release() {
         ("tcl8.4", Some("# a"), Some("# b")),
         ("tcl8.6", Some("{#} a"), Some("{#} b")),
         ("tcl9.0", Some("{#} a"), Some("{#} b")),
-        ("f5-irules", None, None),
+        ("f5-irules", Some("# a"), Some("# b")),
+        ("tcl", None, None),
     ] {
         let expect = |value: Option<&str>| value.map_or(LatticeValue::Overdefined, text);
         assert_eq!(
@@ -1220,42 +1229,43 @@ fn route_entries_are_counted_per_family() {
 /// 8.4 operator) and wraps to 0 for the second, so both decline under
 /// `tcl8.4` (`WrongRepresentation`) and under `f5-irules`, whose runtime
 /// base is 8.4's (D48); `"010" + 0` reads the leading zero as octal up to
-/// 8.6, `f5-irules` included, and as decimal from 9.0.
+/// 8.6, `f5-irules` included, and as decimal from 9.0. The lenient profile
+/// declares no release, so all three release-dependent cases decline there.
 #[test]
 fn expr_acceptance_list() {
-    let cases: [(&str, &str, &str, [Option<&str>; 4]); 10] = [
-        ("multi-argument form", "", "expr 1 + 2", [Some("3"); 4]),
+    let cases: [(&str, &str, &str, [Option<&str>; 5]); 10] = [
+        ("multi-argument form", "", "expr 1 + 2", [Some("3"); 5]),
         (
             "a quoted argument substituted as text",
             "set a {1 + 1}",
             "expr \"$a * 2\"",
-            [Some("3"); 4],
+            [Some("3"); 5],
         ),
         (
             "short-circuit &&",
             "",
             "expr {0 && [error never]}",
-            [Some("0"); 4],
+            [Some("0"); 5],
         ),
         (
             "a ternary",
             "",
             "expr {1 ? \"yes\" : \"no\"}",
-            [Some("yes"); 4],
+            [Some("yes"); 5],
         ),
         (
             "a value that looks like code is never re-substituted",
             "set a {[exit]}",
             "expr {$a eq {[exit]}}",
-            [Some("1"); 4],
+            [Some("1"); 5],
         ),
         (
             "a nested pure substitution",
             "",
             "expr {[string length abcdef] * 2}",
-            [Some("12"); 4],
+            [Some("12"); 5],
         ),
-        ("an error", "", "expr {1/0}", [None; 4]),
+        ("an error", "", "expr {1/0}", [None; 5]),
         (
             "a bignum",
             "",
@@ -1264,6 +1274,7 @@ fn expr_acceptance_list() {
                 None,
                 Some("18446744073709551616"),
                 Some("18446744073709551616"),
+                None,
                 None,
             ],
         ),
@@ -1276,13 +1287,14 @@ fn expr_acceptance_list() {
                 Some("1180591620717411303424"),
                 Some("1180591620717411303424"),
                 None,
+                None,
             ],
         ),
         (
             "a leading-zero numeral, release-dependent",
             "",
             "expr {\"010\" + 0}",
-            [Some("8"), Some("8"), Some("10"), Some("8")],
+            [Some("8"), Some("8"), Some("10"), Some("8"), None],
         ),
     ];
     for (description, prelude, expr_call, expected) in cases {
@@ -1503,10 +1515,11 @@ fn expression_witnesses_match_every_release_on_path() {
 /// "tcl::mathfunc::ABS"` from 8.5): a math function's name is
 /// case-sensitive. An infinity in the middle is the same tower: `(1e308 *
 /// 10) > 0` is 1 from 8.5 and raises at the product under 8.4. None of them
-/// folds under iRules: 8.4, the release its engine runs, folds none.
+/// folds under iRules — 8.4, the release its engine runs, folds none — nor
+/// under the version-less `tcl` profile, whose releases disagree on each.
 #[test]
 fn o101_rewrites_only_what_the_route_proves() {
-    let cases: [(&str, [Option<&str>; 4]); 5] = [
+    let cases: [(&str, [Option<&str>; 5]); 5] = [
         (
             "1 << 70",
             [
@@ -1514,12 +1527,13 @@ fn o101_rewrites_only_what_the_route_proves() {
                 Some("1180591620717411303424"),
                 Some("1180591620717411303424"),
                 None,
+                None,
             ],
         ),
-        ("1e308 * 10", [None, Some("Inf"), Some("Inf"), None]),
-        ("(1e308 * 10) > 0", [None, Some("1"), Some("1"), None]),
-        ("min(1,2)", [None, Some("1"), Some("1"), None]),
-        ("ABS(-2)", [None, None, None, None]),
+        ("1e308 * 10", [None, Some("Inf"), Some("Inf"), None, None]),
+        ("(1e308 * 10) > 0", [None, Some("1"), Some("1"), None, None]),
+        ("min(1,2)", [None, Some("1"), Some("1"), None, None]),
+        ("ABS(-2)", [None; 5]),
     ];
     for (expression, answers) in cases {
         let program =

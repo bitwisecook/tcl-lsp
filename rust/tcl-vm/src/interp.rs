@@ -1401,6 +1401,11 @@ pub(crate) struct LimitSet {
     /// express: a single opcode may allocate without dispatching a command or
     /// spending measurable time.
     value_bytes: Option<u64>,
+    /// Whether a store must stay in the running procedure's own frame. Not
+    /// an `interp limit` type either: an embedder's sandbox bound, so a
+    /// hosted body can leave no state behind that a later call reads
+    /// ([`Vm::confine_store`]).
+    confined_stores: bool,
 }
 
 impl Default for LimitSet {
@@ -1413,6 +1418,7 @@ impl Default for LimitSet {
             time_granularity: 10,
             time_value: None,
             value_bytes: None,
+            confined_stores: false,
         }
     }
 }
@@ -2430,6 +2436,9 @@ impl Vm {
     }
 
     fn rebootstrap_host_globals(&mut self) {
+        // The embedder's own bookkeeping, not a store a body made: a host
+        // swapped in after the stores were confined still gets its globals.
+        let confined = std::mem::replace(&mut self.limits.confined_stores, false);
         let snapshot = tcl_platform::bootstrap::snapshot(
             &*self.host_rc(),
             "bytecode",
@@ -2452,6 +2461,7 @@ impl Vm {
         for (name, value) in snapshot.environment() {
             let _ = self.write_array_raw("::env", name, Value::string(value.as_str()));
         }
+        self.limits.confined_stores = confined;
     }
 
     /// Install the on-demand autoloader: `unknown` / `auto_load` /
@@ -4117,6 +4127,50 @@ impl Vm {
     /// Arm (or disarm) the value-size limit.
     pub(crate) fn set_value_size_limit_value(&mut self, limit: Option<u64>) {
         self.limits.value_bytes = limit;
+    }
+
+    /// Whether stores are confined to the running procedure's own frame.
+    pub(crate) fn stores_confined_value(&self) -> bool {
+        self.limits.confined_stores
+    }
+
+    /// Confine (or release) stores to the running procedure's own frame.
+    pub(crate) fn set_stores_confined_value(&mut self, confined: bool) {
+        self.limits.confined_stores = confined;
+    }
+
+    /// Refuse a store to `name`, resolved from level `start`, that would
+    /// land outside the running procedure's own frame while stores are
+    /// confined: a `::`-qualified or namespace-resolved name, a global at
+    /// level 0, a local linked to another frame's variable, or any level
+    /// but the running one. The refusal is an ordinary Tcl error raised
+    /// before anything is written; reads are never checked.
+    fn confine_store(&self, name: &str, start: usize) -> Result<(), Completion<Value>> {
+        if !self.limits.confined_stores {
+            return Ok(());
+        }
+        let base = elem_ref(name).map_or(name, |(base, _)| base);
+        let own_frame = start != 0 && start == self.current_level();
+        let inside = own_frame
+            && self.var_binding_from(base, start).is_some_and(|binding| {
+                binding.owner == VarTableOwner::Frame(start)
+                    && self
+                        .var_table(binding.owner)
+                        .and_then(|table| table.get(&binding.name))
+                        .is_none_or(|id| {
+                            !matches!(
+                                self.var_arena.get(*id).map(crate::vars::VarCell::state),
+                                Some(VarState::Link(_))
+                            )
+                        })
+            });
+        if inside {
+            return Ok(());
+        }
+        Err(crate::command::err_with_code(
+            format!("can't set \"{name}\": stores are confined to the activation"),
+            "TCL WRITE VARNAME",
+        ))
     }
 
     /// The `commands` limit value, if one is armed.
@@ -10639,6 +10693,7 @@ impl Vm {
     /// traces at :2040-2046, `cleanup:` at :2070; same shape in 8.6.16). A
     /// cell the write created therefore survives too.
     pub fn set_var(&mut self, name: &str, value: Value) -> Result<(), Completion<Value>> {
+        self.confine_store(name, self.current_level())?;
         self.validate_var_parent(name)?;
         if self
             .resolve_var_from(name, self.current_level())
@@ -11305,6 +11360,7 @@ impl Vm {
         key: &str,
         value: Value,
     ) -> Result<(), Completion<Value>> {
+        self.confine_store(name, start)?;
         self.validate_var_parent(name)?;
         let Some((_, base_id)) = self.ensure_base_var_from(name, start) else {
             return Err(err(format!(
@@ -11828,14 +11884,24 @@ impl Vm {
         self.error_info.take()
     }
 
-    /// Publish `errorInfo` / `errorCode` into the global frame.
+    /// Publish `errorInfo` / `errorCode` into the global frame. Not while
+    /// stores are confined to the activation: the two are globals, so a
+    /// caught error would leave behind state the next invocation reads. The
+    /// error's own options still carry both.
     pub(crate) fn publish_error(&mut self, info: &str, code: &Value) {
+        if self.limits.confined_stores {
+            return;
+        }
         self.publish_error_info(info);
         self.write_scalar_from(0, "::errorCode", code.clone());
     }
 
-    /// Publish the `errorInfo` global alone, leaving `errorCode` as it is.
+    /// Publish the `errorInfo` global alone, leaving `errorCode` as it is;
+    /// nothing while stores are confined, as [`Self::publish_error`].
     pub(crate) fn publish_error_info(&mut self, info: &str) {
+        if self.limits.confined_stores {
+            return;
+        }
         self.write_scalar_from(0, "::errorInfo", Value::string(info));
     }
 

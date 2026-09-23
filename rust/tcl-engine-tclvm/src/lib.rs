@@ -35,6 +35,8 @@
 //! | [`Engine::restrict_commands`] | [`Vm::retain_commands`] — a closed whitelist |
 //! | [`Budget::commands`] | [`Vm::set_command_limit`] — enforced, not merely stored |
 //! | [`Budget::wall_clock`] | [`Vm::set_wall_clock_budget`] |
+//! | [`Engine::set_release`] | [`Vm::set_dialect_profile`] — the profile resolved through the one dialect ingress |
+//! | [`Engine::confine_stores`] | [`Vm::set_stores_confined`] — a store outside the activation is a Tcl error |
 //!
 //! **What each budget bounds.** The command limit counts *dispatched*
 //! commands, which is what C Tcl's `interp limit commands` counts too — a loop
@@ -46,6 +48,13 @@
 //!
 //! Values cross as structure, never as text: a `words` list arrives as a Tcl
 //! list value and a `ctx` dict as a Tcl dict value, both built directly.
+//!
+//! **The thread's numeral grammar stays the thread's.** The VM installs its
+//! release's numeral grammar per thread (`tcl_syntax::number`), and an engine
+//! runs on the analysis thread that owns it, so an engine pinned to 8.6 would
+//! otherwise leave every later numeral on that thread read as 8.6 reads it.
+//! Every operation that runs the VM claims the engine's own grammar and hands
+//! the thread's back on the way out ([`GrammarGuard`]).
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -201,10 +210,42 @@ fn from_vm_value(value: &tcl_vm::Value) -> Value {
     Value::string(&*value.to_str())
 }
 
+/// Hands the thread back the numeral grammar it had when dropped.
+///
+/// `Vm::set_dialect_profile` installs the pinned release's grammar for the
+/// whole thread, and the VM claims its own again only at its script entry
+/// points, not at [`Vm::invoke_command`]. An engine operation therefore
+/// claims the engine's grammar for its duration and restores the caller's on
+/// every exit path, a caught panic included.
+struct GrammarGuard(tcl_syntax::number::NumberSyntax);
+
+impl GrammarGuard {
+    /// Install `syntax` for the guard's lifetime.
+    fn claim(syntax: tcl_syntax::number::NumberSyntax) -> Self {
+        let saved = tcl_syntax::number::runtime_syntax();
+        tcl_syntax::number::set_runtime_syntax(syntax);
+        Self(saved)
+    }
+
+    /// Keep whatever the guarded operation installs, restoring the
+    /// caller's grammar afterwards.
+    fn keep() -> Self {
+        Self(tcl_syntax::number::runtime_syntax())
+    }
+}
+
+impl Drop for GrammarGuard {
+    fn drop(&mut self) {
+        tcl_syntax::number::set_runtime_syntax(self.0);
+    }
+}
+
 /// The `tcl-vm` engine.
 pub struct TclVmEngine {
     vm: Vm,
     budget: Budget,
+    /// The profile [`Engine::set_release`] pinned, by canonical name.
+    release: Option<&'static str>,
     /// Mints the internal procedure name each compiled unit is defined as.
     units: u32,
     /// Command names registered through [`Engine::define_command`] or a
@@ -227,11 +268,15 @@ impl TclVmEngine {
     /// A fresh engine whose compiler resolves against `registry`.
     #[must_use]
     pub fn with_registry(registry: CommandRegistry) -> Self {
+        // Building the VM pins its default release, which installs that
+        // release's grammar for the whole thread.
+        let _grammar = GrammarGuard::keep();
         let mut vm = Vm::new();
         vm.set_compiler(Box::new(BytecodeCompileService::new(registry)));
         Self {
             vm,
             budget: Budget::default(),
+            release: None,
             units: 0,
             host_commands: Rc::new(RefCell::new(Vec::new())),
             unit_commands: Vec::new(),
@@ -243,6 +288,17 @@ impl TclVmEngine {
     /// by construction, which is the point of it being a separate accessor.
     pub fn vm_mut(&mut self) -> &mut Vm {
         &mut self.vm
+    }
+
+    /// The profile [`Engine::set_release`] pinned, by canonical name.
+    #[must_use]
+    pub fn release(&self) -> Option<&'static str> {
+        self.release
+    }
+
+    /// Claim this engine's release grammar for the length of one operation.
+    fn claim_grammar(&self) -> GrammarGuard {
+        GrammarGuard::claim(self.vm.runtime_version().number_syntax())
     }
 
     /// Translate a VM completion into the interface's result, mapping the
@@ -306,6 +362,7 @@ impl Engine for TclVmEngine {
     }
 
     fn compile(&mut self, unit: CompileUnit<'_>) -> Result<Self::Handle, EngineError> {
+        let _grammar = self.claim_grammar();
         self.units += 1;
         // A name no Tcl source can spell, so a body cannot call (or shadow)
         // another unit even if the sandbox ever gained a way to try.
@@ -335,6 +392,7 @@ impl Engine for TclVmEngine {
             });
         }
         let arguments: Vec<tcl_vm::Value> = arguments.iter().map(to_vm_value).collect();
+        let _grammar = self.claim_grammar();
         // Fuel is per invocation, so refill before every call rather than
         // letting a long-lived engine starve its own later hooks.
         self.vm.reset_command_count();
@@ -355,6 +413,38 @@ impl Engine for TclVmEngine {
 
     fn commands_spent(&self) -> Option<u64> {
         Some(self.vm.commands_run())
+    }
+
+    /// Pin the VM to the profile `profile` names. The name resolves through
+    /// the one dialect ingress to its catalogue profile. The lenient sink,
+    /// the `tk` library environment, a ladder-less dialect (`jim`) and an
+    /// unknown name all name no release this VM can run, so each is
+    /// `Unsupported` rather than a silent run at the VM's default. A second,
+    /// different pin after a unit was compiled is refused as well: the VM
+    /// does not switch release under compiled code.
+    fn set_release(&mut self, profile: &str) -> Result<(), EngineError> {
+        let Some(resolved) = tcl_registry::model::resolve_known_environment(profile)
+            .and_then(|environment| environment.catalogue_profile())
+        else {
+            return Err(EngineError::Unsupported("pinning a release"));
+        };
+        if self.release == Some(resolved.name) {
+            return Ok(());
+        }
+        if self.units > 0 {
+            return Err(EngineError::Unsupported(
+                "pinning a release after a unit was compiled",
+            ));
+        }
+        let _grammar = GrammarGuard::keep();
+        self.vm.set_dialect_profile(resolved);
+        self.release = Some(resolved.name);
+        Ok(())
+    }
+
+    fn confine_stores(&mut self) -> Result<(), EngineError> {
+        self.vm.set_stores_confined(true);
+        Ok(())
     }
 }
 
@@ -611,6 +701,155 @@ mod tests {
             .invoke(&handle, &[Value::list([]), Value::dict_of::<&str>([])])
             .expect("an early return is not an error");
         assert_eq!(abstained.as_str(), Some(""));
+    }
+
+    /// `set_release` pins the VM's release: a leading zero is octal up to
+    /// 8.6 and decimal from 9.0 (`expr {010 + 0}` is 8 on tclsh 8.4 to 8.6
+    /// and 10 on 9.0 and 9.1), and every operation leaves the thread's own
+    /// numeral grammar as it found it.
+    #[test]
+    fn set_release_pins_the_numeral_grammar() {
+        for (profile, want) in [("tcl8.6", "8"), ("tcl9.0", "10"), ("f5-irules", "8")] {
+            let mut engine = TclVmEngine::new();
+            let collector = std::rc::Rc::new(Collector {
+                emitted: RefCell::new(Vec::new()),
+            });
+            engine
+                .define_command("fold", collector.clone())
+                .expect("registers");
+            engine
+                .set_release(profile)
+                .expect("a catalogue profile pins");
+            assert_eq!(engine.release(), Some(profile));
+            let before = tcl_syntax::number::runtime_syntax();
+            let handle = engine
+                .compile(unit("fold [expr {010 + 0}]"))
+                .expect("compiles");
+            engine
+                .invoke(&handle, &[Value::list([]), Value::dict_of::<&str>([])])
+                .expect("runs");
+            assert_eq!(
+                *collector.emitted.borrow(),
+                vec![vec![want.to_owned()]],
+                "{profile}"
+            );
+            assert_eq!(
+                tcl_syntax::number::runtime_syntax(),
+                before,
+                "{profile}: the thread keeps its own grammar"
+            );
+            assert_eq!(
+                engine.set_release(profile),
+                Ok(()),
+                "{profile}: pinning the same release again is a no-op"
+            );
+            let other = if profile == "tcl9.0" {
+                "tcl8.6"
+            } else {
+                "tcl9.0"
+            };
+            assert_eq!(
+                engine.set_release(other),
+                Err(EngineError::Unsupported(
+                    "pinning a release after a unit was compiled"
+                )),
+                "{profile}: a compiled engine keeps its release"
+            );
+        }
+        for name in ["no-such-dialect", "", "tcl", "tk", "jim"] {
+            let mut engine = TclVmEngine::new();
+            assert_eq!(
+                engine.set_release(name),
+                Err(EngineError::Unsupported("pinning a release")),
+                "{name:?} names no release the VM can pin"
+            );
+            assert_eq!(engine.release(), None);
+        }
+    }
+
+    /// `confine_stores` keeps every write in the invocation's own frame. Each
+    /// body below writes somewhere else — a qualified global, an element, a
+    /// loop, destructuring or capture target, a `dict` update, a namespace
+    /// variable, a linked local, the caller's frame — and raises `can't set
+    /// …: stores are confined to the activation` without writing. A caught
+    /// error publishes neither `::errorInfo` nor `::errorCode`, since a later
+    /// invocation would read them. The same writes to locals succeed, and
+    /// reading a global still reads.
+    #[test]
+    fn confine_stores_refuses_every_store_outside_the_activation() {
+        let arguments = [Value::list([]), Value::dict_of::<&str>([])];
+        for (body, written) in [
+            ("set ::g 1", "::g"),
+            ("incr ::counter", "::counter"),
+            ("lappend ::l x", "::l"),
+            ("set ::a(k) 1", "::a"),
+            ("foreach ::x {1 2} {}", "::x"),
+            ("lassign {1 2} ::p q", "::p"),
+            ("regexp {(a)} a ::m", "::m"),
+            ("regsub a abc b ::rs", "::rs"),
+            ("scan 5 %d ::n", "::n"),
+            ("dict set ::d k v", "::d"),
+            ("dict unset ::du k", "::du"),
+            ("dict lappend ::dl k v", "::dl"),
+            ("dict incr ::di k", "::di"),
+            ("dict append ::da k v", "::da"),
+            ("binary scan A a ::b", "::b"),
+            ("namespace eval ::ns {variable v 1}", "::ns::v"),
+            ("global g2; set g2 1", "::g2"),
+            ("upvar 0 ::g3 alias; set alias 1", "::g3"),
+            ("uplevel 1 {set up 1}", "::up"),
+        ] {
+            let mut engine = TclVmEngine::new();
+            engine.confine_stores().expect("the VM confines its stores");
+            let handle = engine.compile(unit(body)).expect("compiles");
+            let answer = engine.invoke(&handle, &arguments);
+            assert!(
+                matches!(
+                    &answer,
+                    Err(EngineError::Script { message, .. })
+                        if message.contains("stores are confined to the activation")
+                ),
+                "{body}: {answer:?}"
+            );
+            let probe = engine
+                .compile(unit(&format!("return [info exists {written}]")))
+                .expect("compiles");
+            assert_eq!(
+                engine.invoke(&probe, &arguments).expect("reads").as_str(),
+                Some("0"),
+                "{body}: nothing was written"
+            );
+        }
+        let mut engine = TclVmEngine::new();
+        engine.confine_stores().expect("the VM confines its stores");
+        let published = "return [list [info exists ::errorInfo] [info exists ::errorCode]]";
+        let caught = format!("catch {{lindex {{}} y}}; {published}");
+        for body in [caught.as_str(), published] {
+            let handle = engine.compile(unit(body)).expect("compiles");
+            assert_eq!(
+                engine.invoke(&handle, &arguments).expect("runs").as_str(),
+                Some("0 0"),
+                "{body}"
+            );
+        }
+        let mut engine = TclVmEngine::new();
+        engine
+            .vm_mut()
+            .set_var("::seen", tcl_vm::Value::string("yes"))
+            .expect("seeds");
+        engine.confine_stores().expect("the VM confines its stores");
+        let handle = engine
+            .compile(unit(
+                "set acc {}; foreach x {a b} {lappend acc $x}; incr n; dict set d k v\n\
+                 set arr(k) 1; lassign {1 2} p q; regexp {(a)} a whole m\n\
+                 regsub a abc b rs; dict lappend dl k v; dict incr di k\n\
+                 return [list $acc $n $d $arr(k) $p $m $rs $dl $di $::seen]",
+            ))
+            .expect("compiles");
+        assert_eq!(
+            engine.invoke(&handle, &arguments).expect("runs").as_str(),
+            Some("{a b} 1 {k v} 1 1 a bbc {k v} {k 1} yes")
+        );
     }
 
     #[test]

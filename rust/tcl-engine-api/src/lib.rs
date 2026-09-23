@@ -297,6 +297,38 @@ pub trait Engine {
     /// Set the budget every subsequent invocation runs under.
     fn set_budget(&mut self, budget: Budget) -> Result<(), EngineError>;
 
+    /// Pin every later compilation and invocation to the named dialect
+    /// profile. Called once per (pack, profile), after the engine is built
+    /// and before `compile`: a second profile is a second engine, never a
+    /// per-call setter.
+    ///
+    /// The argument is the profile's canonical name, not a profile value,
+    /// because this crate depends on nothing; the engine resolves it. The
+    /// default declines, so an engine that cannot pin a release says so
+    /// rather than running at its own default while the caller believes
+    /// otherwise — the contract [`Self::set_budget`] has for a budget it
+    /// cannot enforce.
+    fn set_release(&mut self, profile: &str) -> Result<(), EngineError> {
+        let _ = profile;
+        Err(EngineError::Unsupported("pinning a release"))
+    }
+
+    /// Refuse, as a Tcl error, every store whose name resolves outside the
+    /// running procedure's own frame: a `::`-qualified name, a namespace
+    /// variable, a linked variable. Reads are unaffected.
+    ///
+    /// What keeps a hosted body's answer a function of its arguments: with
+    /// its writes confined to its own activation, no invocation leaves state
+    /// behind that a later one reads. Called once per engine, after
+    /// [`Self::restrict_commands`]. The default declines, so an engine that
+    /// cannot confine its stores says so and the host builds no sandbox on
+    /// it.
+    fn confine_stores(&mut self) -> Result<(), EngineError> {
+        Err(EngineError::Unsupported(
+            "confining stores to the activation",
+        ))
+    }
+
     /// What the last invocation actually spent, when the engine can say —
     /// commands dispatched. `None` from an engine with no counter.
     fn commands_spent(&self) -> Option<u64>;

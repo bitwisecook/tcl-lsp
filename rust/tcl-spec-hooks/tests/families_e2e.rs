@@ -158,6 +158,54 @@ fn a_versioned_fold_reads_the_tcl_version_from_ctx() {
     pack_hooks::clear_host();
 }
 
+/// A release-pinned hook runs on an engine pinned to the release the call
+/// is analysed under, one engine per profile: `expr {010 + 0}` is 8 on
+/// tclsh 8.4 to 8.6 — and so under `f5-irules`, whose engine is 8.4's — and
+/// 10 on 9.0 and 9.1. A call that names no release abstains rather than
+/// run at an engine's default, and a profile no engine can pin abstains
+/// with one error-log line.
+#[test]
+fn a_release_pinned_hook_runs_under_the_calls_release() {
+    let host = Rc::new(tclvm_host());
+    let installed = host.install_pack_hooks(
+        PackPrograms::new("mylib").with(
+            HookProgram::new(
+                "mylib::octal",
+                HookFamily::ConstFoldVersioned,
+                "fold [expr {010 + 0}]",
+            )
+            .pinned_to_release(),
+        ),
+    );
+    assert!(
+        installed[0].declined.is_none(),
+        "{:?}",
+        installed[0].declined
+    );
+    let slot = installed[0].slot.expect("a slot");
+    pack_hooks::install_host(host.clone());
+    let fold = pack_hooks::const_fold_versioned_fn(slot).expect("a versioned fold thunk");
+    for (dialect, want) in [
+        (Some("tcl8.6"), Some("8")),
+        (Some("tcl9.0"), Some("10")),
+        (Some("f5-irules"), Some("8")),
+        (Some("tcl8.6"), Some("8")),
+        (None, None),
+        (Some("tcl"), None),
+        (Some("tcl"), None),
+    ] {
+        let _scope = pack_hooks::DialectScope::enter(dialect);
+        assert_eq!(fold(&[], None).as_deref(), want, "{dialect:?}");
+    }
+    let log = host.error_log();
+    assert_eq!(log.len(), 1, "{log:?}");
+    assert!(
+        log[0].contains("no engine pinned to tcl"),
+        "the unpinnable profile is logged once: {log:?}"
+    );
+    pack_hooks::clear_host();
+}
+
 #[test]
 fn a_taint_sink_gate_keeps_the_finding_alive_unless_it_says_otherwise() {
     let slot = one_hook(HookProgram::new(

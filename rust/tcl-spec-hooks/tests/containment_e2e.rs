@@ -111,6 +111,10 @@ impl Engine for HostileEngine {
         Ok(())
     }
 
+    fn confine_stores(&mut self) -> Result<(), EngineError> {
+        Ok(())
+    }
+
     fn commands_spent(&self) -> Option<u64> {
         None
     }
@@ -228,6 +232,73 @@ fn an_erroring_hook_abstains_forever_but_is_logged_once() {
     let log = host.error_log();
     assert_eq!(log.len(), 1, "{log:?}");
     assert!(log[0].contains("bad index"), "{log:?}");
+}
+
+/// A body that writes outside its activation raises and abstains, the same
+/// way on the first call and the thousandth. Unconfined, `fold [incr
+/// ::counter]` answers 1, 2, 3 … on one engine, so its answer would be the
+/// call's position rather than a function of its arguments. A second hook in
+/// the same pack, sharing the engine, finds nothing ever written. This runs
+/// on the real VM, because the confinement is the engine's
+/// (`Engine::confine_stores`); the hostile engine only claims it.
+#[test]
+fn a_body_with_a_global_counter_answers_identically_on_every_call() {
+    let host = tcl_spec_hooks::tclvm_host();
+    let installed = host.install_pack_hooks(
+        PackPrograms::new("mylib")
+            .with(HookProgram::new(
+                "mylib::count",
+                HookFamily::ConstFold,
+                "fold [incr ::counter]",
+            ))
+            .with(HookProgram::new(
+                "mylib::peek",
+                HookFamily::ConstFold,
+                "fold $::counter",
+            )),
+    );
+    let count = installed[0].slot.expect("installed");
+    let peek = installed[1].slot.expect("installed");
+    let words = [literal("x")];
+    for _ in 0..1000 {
+        assert_eq!(host.invoke(count, &call(&words)), HookAnswer::Abstain);
+    }
+    assert!(!host.is_quarantined(count), "an error is not a crash");
+    assert_eq!(
+        host.invoke(peek, &call(&words)),
+        HookAnswer::Abstain,
+        "nothing was ever written"
+    );
+    let log = host.error_log();
+    assert!(
+        log.iter()
+            .any(|line| line.contains("stores are confined to the activation")),
+        "{log:?}"
+    );
+    assert!(
+        log.iter().any(|line| line.contains("no such variable")),
+        "{log:?}"
+    );
+}
+
+/// The confinement leaves a body's own locals alone: a local accumulator
+/// answers `a b` on every call.
+#[test]
+fn a_local_accumulator_is_unaffected() {
+    let host = tcl_spec_hooks::tclvm_host();
+    let installed = host.install_pack_hooks(PackPrograms::new("mylib").with(HookProgram::new(
+        "mylib::acc",
+        HookFamily::ConstFold,
+        "set acc {}; foreach x {a b} {lappend acc $x}; fold $acc",
+    )));
+    let slot = installed[0].slot.expect("installed");
+    let words = [literal("x")];
+    for _ in 0..3 {
+        assert_eq!(
+            host.invoke(slot, &call(&words)),
+            HookAnswer::Fold("a b".to_owned())
+        );
+    }
 }
 
 #[test]

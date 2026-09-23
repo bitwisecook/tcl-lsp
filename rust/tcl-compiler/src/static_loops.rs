@@ -458,7 +458,9 @@ mod tests {
 
     /// The simulator's `incr` is the registry's route: a leading-zero
     /// counter reads as octal up to 8.6 and decimal from 9.0, and a profile
-    /// naming no release cannot simulate it at all.
+    /// naming no release (the lenient `tcl`) cannot simulate it at all.
+    /// `f5-irules` counts as its declared 8.4 base does (ruling 8): tclsh
+    /// 8.4 to 9.1 all end the loop at 20.
     #[test]
     fn simulated_incr_reads_the_counter_under_the_release() {
         let for_stmt = Statement::For {
@@ -490,11 +492,8 @@ mod tests {
         };
         assert_eq!(under("tcl8.6"), Some(Some(StaticValue::Int(20))));
         assert_eq!(under("tcl9.0"), Some(Some(StaticValue::Int(20))));
-        assert_eq!(
-            under("f5-irules"),
-            None,
-            "no release: the counter is ambiguous"
-        );
+        assert_eq!(under("f5-irules"), Some(Some(StaticValue::Int(20))));
+        assert_eq!(under("tcl"), None, "no release: the counter is ambiguous");
     }
 
     /// The literal ingress is the one rule: a leading-zero or signed

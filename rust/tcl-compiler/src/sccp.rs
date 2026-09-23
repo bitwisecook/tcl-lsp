@@ -3104,8 +3104,11 @@ mod tests {
 
     /// The release rules reach the lattice through the registry's route:
     /// a leading-zero base reads as octal up to 8.6 and decimal from 9.0,
-    /// and declines under a profile naming no release; past the wide
-    /// boundary 8.5 onward widens, 8.4 and an unnamed release decline.
+    /// and declines under a profile naming no release (the lenient `tcl`);
+    /// past the wide boundary 8.5 onward widens, 8.4 and an unnamed release
+    /// decline. `f5-irules` reads as its declared 8.4 base does (ruling 8):
+    /// tclsh 8.4 prints 9 for `set x 010; incr x`, and -8 past the wide
+    /// boundary, which no model computes.
     #[test]
     fn evaluate_def_incr_reads_the_base_under_the_targets_release() {
         let mut ssa = bare_ssa();
@@ -3136,7 +3139,11 @@ mod tests {
             under("tcl9.0", zero()),
             LatticeValue::Const(ConstValue::Int(11))
         );
-        assert_eq!(under("f5-irules", zero()), LatticeValue::Overdefined);
+        assert_eq!(
+            under("f5-irules", zero()),
+            LatticeValue::Const(ConstValue::Int(9))
+        );
+        assert_eq!(under("tcl", zero()), LatticeValue::Overdefined);
 
         let max = || LatticeValue::Const(ConstValue::Int(i64::MAX));
         assert_eq!(
@@ -3145,6 +3152,7 @@ mod tests {
         );
         assert_eq!(under("tcl8.4", max()), LatticeValue::Overdefined);
         assert_eq!(under("f5-irules", max()), LatticeValue::Overdefined);
+        assert_eq!(under("tcl", max()), LatticeValue::Overdefined);
         let mut values = HashMap::new();
         // A whitespace-padded step is an integer in every release.
         let padded = incr_stmt(&mut ssa, "x", Some(" 5"), 1, 2);
@@ -3231,7 +3239,9 @@ mod tests {
     }
 
     /// `[string range …]` in value position runs the registry's route: the
-    /// index numerals read under the target's grammar.
+    /// index numerals read under the target's grammar. `f5-irules` reads
+    /// them as its declared 8.4 base does (ruling 8; tclsh 8.4 prints
+    /// `ijkl`), and the lenient `tcl` profile, naming no release, declines.
     #[test]
     fn evaluate_def_assign_value_folds_string_range_under_the_release() {
         let mut ssa = bare_ssa();
@@ -3254,7 +3264,11 @@ mod tests {
             under("tcl9.0"),
             LatticeValue::Const(ConstValue::String("kl".into()))
         );
-        assert_eq!(under("f5-irules"), LatticeValue::Overdefined);
+        assert_eq!(
+            under("f5-irules"),
+            LatticeValue::Const(ConstValue::String("ijkl".into()))
+        );
+        assert_eq!(under("tcl"), LatticeValue::Overdefined);
         let plain = assign_value_stmt(&mut ssa, "t", "[string range { a } 0 end]", 1);
         assert_eq!(
             evaluate_pristine(&plain, &HashMap::new(), &ssa, FoldPolicy::default()),

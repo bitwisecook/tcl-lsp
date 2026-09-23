@@ -101,6 +101,7 @@ pub fn programs_of(
                 body: body.clone(),
                 inputs: inputs.clone(),
                 slot: None,
+                release_pinned: false,
             });
         }
     }

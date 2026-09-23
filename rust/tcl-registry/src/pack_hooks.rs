@@ -343,9 +343,10 @@ impl HookInputs {
     /// may read is either fixed for the slot (`command`, `subcommand`) or part
     /// of the shape key (`nwords`, `kinds`, `tcl-version`, `in-event-body`).
     ///
-    /// `dialect` and `option` are *not* in the key, so declaring either is
-    /// uncacheable today; widening the key is the change to make if a pack
-    /// needs it.
+    /// `option` is *not* in the key, so declaring it is uncacheable today.
+    /// `dialect` is in the key — a release-pinned body runs on an engine
+    /// pinned to it — but declaring it still makes a hook uncacheable;
+    /// widening this rule is the change to make if a pack needs it.
     ///
     /// [`Self::binds_words`] is what keeps this honest: a hook that is
     /// shape-cacheable by this rule is not handed the words at all.
@@ -819,6 +820,10 @@ struct ShapeKey {
     /// `tcl-version` as a stable discriminant — `TclVersion` is `Ord` but not
     /// `Hash`, and only its identity matters here.
     version: Option<&'static str>,
+    /// The profile the call is analysed under. A hook body may not read it
+    /// and stay cacheable, but a release-pinned body runs on an engine
+    /// pinned to it, so one release's answer is never served under another.
+    dialect: Option<&'static str>,
     in_event_body: bool,
     content: u64,
 }
@@ -904,6 +909,7 @@ fn shape_key(slot: HookSlot, call: &HookCall<'_>, mode: CacheMode) -> Option<Sha
         nwords: u16::try_from(call.words.len()).ok()?,
         kinds,
         version: call.version.map(TclVersion::version_string),
+        dialect: call.dialect,
         in_event_body: call.in_event_body,
         content: match mode {
             CacheMode::Content => content_hash(call),
