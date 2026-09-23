@@ -465,7 +465,7 @@ Every command, subcommand, and declaring form, resolved through the value-transf
 | `foreach` | command | bpf, cadence-eda-tcl, expect, f5-iapps, f5-irules, f5-tmsh, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | declared (command) · `iterate:foreach` | none (unauthored) | — | no | — | — | — |
 | `foreachLine` | command | bpf, spectcl, sslictcl, tcl9.0, tcl9.1, tk | none | — | — | no | `VarWrite@0` | writes a variable, no semantics | slice 5 — the iteration plan's binder over a file source |
 | `foreach_in_collection` | command | cadence-eda-tcl, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, synopsys-eda-tcl, xilinx-eda-tcl | none | — | — | no | `VarWrite@0` | writes a variable, no semantics | slice 4 — the `.tclspec` `semantics` spelling; the pack declares the iteration binder |
-| `format` | command | bpf, cadence-eda-tcl, expect, f5-iapps, f5-irules, f5-tmsh, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | declared (command) · `format-template` | direct `format-template` | compiler, transitional until slice 3 | yes | — | — | — |
+| `format` | command | bpf, cadence-eda-tcl, expect, f5-iapps, f5-irules, f5-tmsh, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | declared (command) · `format-template` | direct `format-template` | registry | yes | — | — | — |
 | `fpclassify` | command | bpf, spectcl, sslictcl, tcl9.0, tcl9.1, tk | none | — | — | no | — | pure, no route | — |
 | `frexp` | command | tcl9.1, tk | none | — | — | no | — | pure, no route | — |
 | `ge` | command | bpf, spectcl, sslictcl, tcl9.0, tcl9.1, tk | none | — | — | no | — | pure, no route | — |
@@ -1138,8 +1138,6 @@ Every reviewed site the source lint found, with the waiver that names the axis i
 | arg_roles | `rust/tcl-compiler/src/analyser/bounds_checks.rs:1112` | site | the W230–W232 index positions await an index-argument role on the registry |
 | arg_roles | `rust/tcl-compiler/src/analyser/bounds_checks.rs:1145` | site | the W230–W232 index positions await an index-argument role on the registry |
 | arg_roles | `rust/tcl-compiler/src/analyser/bounds_checks.rs:1181` | site | the W230–W232 index positions await an index-argument role on the registry |
-| dataflow | `rust/tcl-compiler/src/value_transfer.rs:879` | site | the transitional direct evaluator |
-| dataflow | `rust/tcl-compiler/src/value_transfer.rs:901` | site | the transitional direct evaluator |
 | irreducible | `rust/tcl-compiler/src/codegen/emitter/try_blocks.rs:155` | site | the defs-only marker `lower_catch` builds on a catch end block, not a Tcl invocation |
 | irreducible | `rust/tcl-compiler/src/codegen/emitter/try_blocks.rs:173` | site | the defs-only marker `lower_catch` builds on a catch end block, not a Tcl invocation |
 | options | `rust/tcl-compiler/src/analyser/diagnostics/usage.rs:313` | site | W311 reads the encoding option's position, which `option_placement` on the registry will carry |

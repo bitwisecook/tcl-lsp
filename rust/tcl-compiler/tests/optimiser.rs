@@ -367,10 +367,16 @@ fn dead_store_and_dead_code_elimination() {
 
 #[test]
 fn instcombine_reassociation_and_identity_annihilator() {
-    // tclsh sweep: $a + 1 + 2 == $a + 3 for all $a.
-    let reassoc = "set v [expr {$a + 1 + 2}]";
-    assert!(optimised(reassoc, TCL).contains("set v [expr {$a + 3}]"));
-    assert!(opt_fires(reassoc, TCL, "O110"));
+    // Regrouping needs every term proven integer: `$x + 1 + 2` equals `$x +
+    // 3` for every integer `$x`, but over a double the rounding is
+    // order-dependent — `set x 10000000000000000.0; expr {$x + 1 + 2}` prints
+    // `10000000000000002.0` and `expr {$x + 3}` `10000000000000004.0` under
+    // tclsh 8.5 to 9.1 — so an unproven `$a` keeps its chain.
+    let reassoc = int_x("set v [expr {$x + 1 + 2}]");
+    assert!(optimised(&reassoc, TCL).contains("set v [expr {$x + 3}]"));
+    assert!(opt_fires(&reassoc, TCL, "O110"));
+    let unproven = "set v [expr {$a + 1 + 2}]";
+    assert!(optimised(unproven, TCL).contains("set v [expr {$a + 1 + 2}]"));
 
     // Identity/annihilator drops need provably-INT $x — wrap in the `_int_x`
     // loop. tclsh sweep (x≥0): x**0==1, x**1==x, x<<0==x, x>>0==x, x&0==0,

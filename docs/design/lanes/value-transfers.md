@@ -406,8 +406,9 @@ direct vertical slice`; § *Plan for slices 2–13* › *Slice 2* › *Record
 and what was left. The detailed hand-off notes this section used to carry
 are in `bdfe3a96`'s tree. The review of the landing returned "land
 after fixes"; `wip(value-transfers): review fixes for slice 2` holds them
-(§ *Slice 2* › *Record (2026-09-23): review fixes for slice 2*). Slice 3,
-the expression slice, is next.
+(§ *Slice 2* › *Record (2026-09-23): review fixes for slice 2*). Slice 3's
+opus items landed in three checkpoints (§ *Slice 3* › *Record (2026-09-23):
+the opus items of slice 3*); its sonnet items and the landing are next.
 
 ### Environment a fresh agent needs
 
@@ -2142,9 +2143,9 @@ rust/tcl-compiler/src/tcl_expr_eval.rs`, as merged by VT2.M:
 
 | Checkpoint | Holds | Green means |
 |---|---|---|
-| `wip(value-transfers): slice 3 — assembly and the full value` | VT3.1, VT3.2, VT3.5, VT3.12 | every existing `expr` and `sccp` test byte-identical except the named quoted-form witnesses |
-| `wip(value-transfers): slice 3 — the lazy services and the branch resolver` | VT3.3, VT3.4, VT3.9 | the nested-command, rebinding and finite-condition tests pass |
-| `wip(value-transfers): slice 3 — format, the expr sites and regrouping` | VT3.6, VT3.7, VT3.8 | G1 with the two files clean and `transitional_direct` gone; the float witness |
+| `6161601f` (`wip(value-transfers): slice 3 — assembly and the full value`, landed) | VT3.1, VT3.2, VT3.5, VT3.12 | every existing `expr` and `sccp` test byte-identical except the named quoted-form witnesses |
+| `e29ba422` (`wip(value-transfers): slice 3 — the lazy services and the branch resolver`, landed without VT3.9) | VT3.3, VT3.4, VT3.9 | the nested-command, rebinding and finite-condition tests pass |
+| `wip(value-transfers): slice 3 — format, the expr sites and regrouping` (landed without VT3.6) | VT3.6, VT3.7, VT3.8 | G1 with the two files clean and `transitional_direct` gone; the float witness |
 | `wip(value-transfers): slice 3 — the expression slice` (landing) | VT3.10, VT3.11 | every exit test; G1 to G9 |
 
 ```text
@@ -2202,6 +2203,110 @@ unproven float term; `format` folds every supported verb.
 | a rebound `::tcl::mathfunc` function declines | exit ("`abs` rebinding declines") |
 | O110 refuses an unproven float regrouping | O110 row; Partial knowledge row |
 | `format` folds every verb the core supports | the ledger row |
+
+#### Record (2026-09-23): the opus items of slice 3
+
+One implementer ran the opus items: VT3.1 to VT3.5, VT3.7, VT3.8 and VT3.12.
+The sonnet items (VT3.6, VT3.9, VT3.10, VT3.11) are the landing's. The
+decisions are D47–D61 in § *Decisions taken*.
+
+| Item | Commit | What landed | Its tests |
+|---|---|---|---|
+| VT3.1 | `6161601f` | `ExpressionSource` and `ExpressionRoute::assemble` (registry); the lattice inputs' `word_structure` from each operand's source shape (`OperandSource`) and a substituted operand's value, its parts concatenated; `CommandSemantics::variable_reads`, which the lift counts | `expression_assembly_follows_the_word_kinds` (registry); `sccp::tests::a_quoted_expression_word_is_substituted_before_it_is_parsed` |
+| VT3.2 | `6161601f` | `ExprServices`, `ExprAnswer` and `evaluate_expression` in `tcl_expr_eval.rs` (D47–D49); the fused assignment and a value-position `[expr …]` run the engine through the lift (`ExpressionEvaluation`); the full value | `sccp::tests::a_fused_expression_answers_its_full_value` (17 rows) |
+| VT3.5 | `6161601f` | `MathResultClass` and `result_class` in `tcl-syntax`; `expr_call_type` reads it and its table went | `mathfunc::tests::every_function_has_a_result_class`; the `type_infer` classification assertions |
+| VT3.12 | `6161601f` | `BPF_EXPR`; `assemble` declines `Unsupported` for any language but `TclExpr` | `a_bpf_expression_never_takes_the_tcl_answer` (compiler witnesses; a synthetic command declares the BPF language, D22); the assembly test's BPF row |
+| VT3.3 | `6161601f` (the services), `e29ba422` (the evidence and rebinding) | the nested service (`run_script`, `nested_answer`), the math-function service, the binding evidence; the binding scan counts a wrapper command as a builtin (D51) | `abs_rebinding_declines`, `a_rebound_nested_head_declines_the_expression` (witnesses); `value_transfer::tests::an_expression_answer_names_every_binding_it_rests_on`; the `0 && [error never]` row |
+| VT3.4 | `e29ba422` | `evaluate_branch` takes `BranchFold` with the driver and evaluates through `evaluate_condition`, per member of one finite input | `a_finite_condition_decides_when_every_member_agrees` (witnesses); `sccp::tests::evaluate_branch_resolves_a_nested_command` |
+| VT3.7 | the third checkpoint | `reassociate_node(node, types)`; a closed left operand still folds (`fold_closed_left`) | `reassociation_refuses_an_unproven_float_term`; `o110_reassociates_constant_chains`, `instcombine_reassociation_and_identity_annihilator` and `o110_reassociation` restated over proven integers |
+| VT3.8 | the third checkpoint | `FormatTemplateSemantics` over `format_cmd_with_syntax`; `NativeEvalId::FormatTemplate.owner()` is `Registry`; `transitional_direct`, its waiver and `try_format_fold` went; the ledger row went | `format_runs_the_shared_core`, `format_answers_per_release` (registry); `format_witnesses_match_every_release_on_path` (`differential_fold.rs`); `format_folds_through_the_shared_core` (witnesses) |
+
+Deltas observed beyond the plan's list, each with its oracle:
+
+- The fused assignment's answer is the full value everywhere, so `set r
+  [expr {$s}]` with `s` holding `abc` folds to `abc`. A beyond-wide
+  result declines under an 8.4 runtime (tcl8.4, the F5 dialects) and under
+  a profile with no runtime (f5-bigip). A math function the target's
+  grammar lacks declines: `min` under 8.4, and `ABS` anywhere, since the
+  wrappers are case-sensitive.
+- A substituted operand folds for every route, not only for `expr`: the
+  lattice inputs concatenate its parts, so `lappend l "$a b"` over a
+  constant `a` folds.
+- A pending `[expr …]` in value position is `Unknown` (optimistic), as a
+  direct route's has been since slice 2; it used to be `Overdefined`.
+- `isfinite`, `isnormal`, `issubnormal` and `isunordered` infer `Boolean`;
+  they inferred `Numeric`. tclsh 9.0 and 9.1: `isfinite(1.0)` is 1.
+- `rch_conditional_break_keeps_loop_tail_reachable` now uses `$x > 1`.
+  Over `{1, 2}` the old `$x > 5` is always false: tclsh prints `inner` twice,
+  so O107 removing the break is right.
+- The two iRules glob tests write a bracket class braced (`{a[bxy]c}`). A
+  quoted `"a[bxy]c"` runs the command `bxy`; tclsh 8.4 to 9.1 raise
+  `invalid command name "bxy"`.
+- O103's call-site fold renders a double as Tcl does (D58).
+- The shared format core's zero precision follows the release (D57).
+- The optimiser samples moved with VT3.7 (D61).
+
+Found and left:
+
+- **8.4's double rendering.** O100 and O103 spell a double in the 8.5+
+  shortest form under a tcl8.4 target, where tclsh 8.4 prints 12
+  significant digits: `10000000000000002.0` against `1e+16`. The rendering
+  is an axis no route models.
+- **A finite input read only inside a nested command** declines as
+  correlated rather than evaluating per member. `PinnedInputs` passes
+  `nested` through to the unpinned inputs, which is sound but imprecise.
+- **VT3.11's pages**:
+  - the migration plan's `expr` assembly ledger row, and its
+    `tcl_expr_eval.rs`, `word_subst.rs` and `type_infer.rs` rows;
+  - the driver's description in its file list, which still names "the
+    transitional handlers";
+  - `value-evaluation.md`'s `try_format_fold` sentence.
+
+The state the sonnet items start from:
+
+- **VT3.6** is untouched: `word_subst.rs` and `shimmer/commit.rs` keep one
+  pinned site each.
+- **VT3.9** counts at these route entries:
+  - `LatticeDriver::call_def` — direct: the typed `incr` and every call;
+  - `run_script` — each `[…]` in value position and each nested one, direct
+    or expression;
+  - `evaluate_assign_expr` and `evaluate_condition` — expression.
+
+  An expression explanation reads `expression tcl.expr` with the lift's
+  answer label, and a branch condition's is recorded under the command
+  `condition` at the condition's span.
+- **VT3.10**: the witnesses above exist, and so does
+  `format_witnesses_match_every_release_on_path`. Still to add:
+  `expr_acceptance_list`, `the_square_of_one_finite_input_stays_correlated`,
+  `the_mirror_pairs_decline_as_correlated`,
+  `route_entries_are_counted_per_family`,
+  `expression_witnesses_match_every_release_on_path` and the CLI test.
+  For their "unnamed release" rows (D48):
+  - `expr {"010"}` folds to 8 under f5-irules, whose 8.4 runtime reads a
+    leading zero as octal, and declines under f5-bigip, which has no
+    runtime;
+  - `expr {1 << 70}` declines under tcl8.4, f5-irules and f5-bigip.
+- **VT3.11**: the pages listed under "Found and left" above.
+
+Green at the third checkpoint:
+
+- tests:
+  - `cargo test -p tcl-cmd-core -p tcl-syntax -p tcl-registry -p
+    tcl-compiler -p tcl-lsp-db -p tcl-explorer -p xtask`: 12030 passed,
+    0 failed, 11 ignored;
+  - `tcl-cli`: 116 passed, `samples_optimiser_profiles_are_regenerated`
+    included;
+  - `tcl-lsp-core`: 3560 passed;
+- pedantic clippy on `tcl-cmd-core`, `tcl-syntax`, `tcl-registry` and
+  `tcl-compiler`, with no `#[allow]` added;
+- `cargo fmt` clean on those crates;
+- `cargo xtask value-transfers --check` OK: 15 files clean, 13 sites waived
+  (the two transitional sites went), 100 pinned across 41 files, 6607 rows;
+- `pack-goldens` OK.
+
+`tcl-vm`'s `encoding_command` and `ensemble_subcommand_words_resolve_like_tclsh`
+fail in this container either way. They read the system encoding
+(`iso8859-1` here), not the format core.
 
 ### Slice 4 — a private SpecTcl command through the same interface
 
@@ -5625,6 +5730,94 @@ Taken while the review of slice 2 was answered (§ *Slice 2* › *Record
   holds every cell and keyed update to the trait.
 - **D46 — `ValueTransferContext::of` keeps interning `mutations`** beside
   its key, as the review said. Revisiting it is a later tidy.
+
+Taken while slice 3's opus items were executed (§ *Slice 3* › *Record
+(2026-09-23): the opus items of slice 3* has the witnesses):
+
+- **D47 — The engine adapter is crate-private.** `ExprServices` and
+  `evaluate_expression` are `pub(crate)`, where the plan wrote `pub fn`,
+  because the services borrow `dyn AnalysisInputs` and the const-folder's
+  `FoldValue`, which stay inside the compiler. `ExprAnswer` is public.
+- **D48 — The engine's value semantics are the const-folder's.**
+  - `FoldOps::for_services` supplies the arithmetic, the comparisons and
+    the math dispatch, so every braced answer is the old fold's.
+  - The leading-zero rule is `FoldPolicy::octal`, the runtime base's: iRules
+    reads `010` as 8, as it did.
+  - The grammar is the policy's `NumberSyntax` when it has one, so 8.4 no
+    longer reads `0b` or `0o`.
+  - The integer tower and infinities follow the profile's `runtime_base`.
+    From 8.5 a beyond-wide integer is its decimal spelling. Under an 8.4
+    runtime it declines `WrongRepresentation`, because 8.4 wraps or raises.
+    With no runtime it declines `ReleaseAmbiguous(IntTower)`. With no
+    profile at all the 9.0 default stands, which keeps a detached caller's
+    answers.
+- **D49 — A quoted operand inside an expression is substituted.** The new
+  hook `ExprOps::quoted_string` defaults to `string`. The services
+  substitute the operand as a quoted word through
+  `word_parts::decompose`. The const-folder, which cannot, declines one
+  holding `$`, `[` or `\`. `if {"$a" eq "x"}` had been folded false, where
+  tclsh 8.4 to 9.1 take the branch.
+- **D50 — The services arrived with the engine.**
+  - The math-function service's availability check keeps `min` from
+    folding under 8.4 and `ABS` anywhere.
+  - The nested service is the value position's path (`run_script`).
+  - Both landed in the first checkpoint; the second holds their rebinding
+    and evidence tests.
+- **D51 — A math function's wrapper is a builtin to the binding scan.**
+  `default_binding` counts `::tcl::mathfunc::NAME` as a builtin when the
+  registry has its spec. A `proc` or `rename` of it is then a mutation the
+  trust fact records, and the memo key carries it. `ModuleCommandMutations`
+  had no other record of a qualified definition. Under 8.4 the service
+  skips the check, since there are no wrapper commands to rebind.
+- **D52 — A typed node's heads stand without a trust fact.** The fused
+  assignment's `expr` and a math function are trusted as the typed
+  assignment is (D39). A nested command's head needs the fact, as every
+  route's does.
+- **D53 — A branch condition is its own explanation.** `evaluate_condition`
+  records the answer under the command `condition` at the condition's
+  span. The condition rests on no `expr` binding, because `if` reads it
+  itself.
+- **D54 — The lattice inputs decompose a substituted word themselves.**
+  - `OperandSource` says how each operand substitutes.
+  - A lone variable read keeps its fact and identity, so the lift can pin
+    it.
+  - A finite part inside a concatenation declines `CorrelatedSets`.
+  - A part that never resolves makes the word decline; otherwise a pending
+    part makes it pending.
+- **D55 — Regrouping needs every term to be a variable proven integer.** A
+  closed left operand still folds (`fold_closed_left`), keeping the
+  evaluation order. The plan's preserved `2 + 3 + $x` → `5 + $x` depends
+  on it; the old output was `$x + 5`, a regrouping.
+- **D56 — The format route decides per release.**
+  - A named release runs once.
+  - A profile naming none runs every modelled release and answers only
+    when all agree, else `ReleaseAmbiguous(FormatVerbs)`; a numeral
+    ambiguity inside a run keeps its own reason.
+  - A release-gated conversion (`version_gated_uses`) raises below its
+    release.
+  - `fold_format`, the registry's const fold that codegen uses, is
+    untouched.
+- **D57 — The shared format core's zero precision follows the release.**
+  8.4 formats through C's `printf`: `%.0d 0` is empty and `%#.0o 0` is `0`.
+  8.5 to 9.1 render `0`. The core rendered empty everywhere, so the VM's
+  `format %.0d 0` printed nothing where tclsh 9.0 prints 0.
+  `format_witnesses_match_every_release_on_path` found it.
+- **D58 — O103 renders a double as Tcl does** (`format_double`), not with
+  Rust's `Display`. `proc p {} {return [expr {1.0 * 3}]}; puts [p]` had
+  become `puts 3`, where tclsh prints `3.0` (`a_folded_call_keeps_a_doubles_spelling`).
+- **D59 — The retired handler's code went with it:**
+  - `transitional_direct` and its waiver;
+  - `codegen::helpers::try_format_fold`, with its tests (its escape-grammar
+    witness moved to `format_folds_through_the_shared_core`);
+  - the `DirectRoute` declaration type, with its last user.
+- **D60 — `simple_var_ref_name` reads one reference only.** `${a} + ${b}`
+  is not the braced name `a} + ${b`. A lowered quoted `expr` word is
+  spelled that way.
+- **D61 — The optimiser samples move with the change that moves them.**
+  This is the coordinator's gate. `set candidate [expr {$request_count + 1
+  + 2}]` keeps its chain, because nothing proves `request_count` an
+  integer. The standard, full and aggressive counts fall from 28, 35 and
+  45 to 27, 34 and 44, and the README prose says why.
 
 ### Open questions for the owner
 

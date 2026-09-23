@@ -489,6 +489,66 @@ fn format_folds_match_tcl9() {
     check_matrix(&tclsh, &reg, FORMATS);
 }
 
+/// `format` on its registry-owned route, per release found on `PATH`,
+/// against the real `tclsh`: every case of the format matrix and the
+/// release-gated conversions (`%b` from 8.6; `%p`, `%llu` and the `0d` /
+/// `0o` prefixes from 9.0). When `tclsh` raises the route must decline, and
+/// when the route answers it must print what `tclsh` prints.
+#[test]
+fn format_witnesses_match_every_release_on_path() {
+    use tcl_registry::value_transfer::{
+        Budget, EvalAnswer, ExactValueOrUnavailable, LiteralInputs, resolve_semantics,
+    };
+    const GATED: &[Case] = &[
+        ("format", None, &["%b", "5"]),
+        ("format", None, &["%p", "255"]),
+        ("format", None, &["%llu", "5"]),
+        ("format", None, &["%#o", "8"]),
+        ("format", None, &["%#d", "5"]),
+    ];
+    let mut releases = 0usize;
+    for version in tcl_dialect::TclVersion::ALL {
+        let Some(tclsh) = find_tclsh(version.version_string()) else {
+            continue;
+        };
+        releases += 1;
+        let dialect = version.dialect_profile_name();
+        let reg = tcl_registry::model::ingress::static_context_for(dialect).commands();
+        let profile = tcl_dialect::DialectProfile::find(dialect);
+        let semantics = resolve_semantics(reg.get("format").expect("format"), None, None);
+        let semantics = semantics.semantics().expect("the format route");
+        let mut answered = 0usize;
+        for &(head, sub, args) in FORMATS.iter().chain(GATED) {
+            let inputs = LiteralInputs::new(head, sub, args, profile);
+            let route = match semantics.evaluate(&inputs, &mut Budget::evaluation()) {
+                EvalAnswer::Evaluated(outcome) => match outcome.result {
+                    ExactValueOrUnavailable::Exact(value) => String::from_utf8(value.bytes).ok(),
+                    ExactValueOrUnavailable::Unavailable(_) => None,
+                },
+                EvalAnswer::Pending | EvalAnswer::Declined(_) => None,
+            };
+            let oracle = tcl_value(&tclsh, &tcl_command(head, sub, args));
+            if let Some(route) = route {
+                assert_eq!(
+                    Some(route),
+                    oracle,
+                    "tclsh{} {args:?}",
+                    version.version_string()
+                );
+                answered += 1;
+            }
+        }
+        assert!(
+            answered * 2 > FORMATS.len(),
+            "tclsh{}: the route answered only {answered} cases",
+            version.version_string()
+        );
+    }
+    if releases == 0 {
+        eprintln!("no tclsh on PATH: format_witnesses_match_every_release_on_path ran nothing");
+    }
+}
+
 /// The route's answer for `command v values…` with `v` holding `prior`,
 /// under `profile`: the registry's cell update over literal words.
 fn cell_update_route(

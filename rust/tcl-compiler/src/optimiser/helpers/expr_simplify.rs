@@ -653,7 +653,8 @@ fn simplify_node_once(
     if let Some(rewritten) = streq_promote_node(&lowered) {
         return rewritten;
     }
-    if let Some(rewritten) = reassociate_node(&lowered) {
+    let untyped = OperandTypes::default();
+    if let Some(rewritten) = reassociate_node(&lowered, numeric.unwrap_or(&untyped)) {
         return rewritten;
     }
     lowered
@@ -670,9 +671,22 @@ fn simplify_node_once(
 /// semantics are unchanged. The term-dropping cases that *would* need a
 /// provably-numeric guard — annihilating `* 0`, dropping a lone `* 1`, and a
 /// lone additive term whose constant cancels to zero (`$a + 5 - 5`) — are
-/// skipped: proving numericity needs the SSA type lattice, which this
-/// AST-level pass cannot consult, so it conservatively leaves them be.
-fn reassociate_node(node: &ExprNode) -> Option<ExprNode> {
+/// skipped.
+///
+/// Regrouping changes the order the chain's terms combine in, which only
+/// exact arithmetic tolerates, so every term must be a variable `types`
+/// proves integer. Over a double the rounding is order-dependent: `set x
+/// 10000000000000000.0; expr {$x + 1 + 2}` prints `10000000000000002.0` under
+/// tclsh 8.5 to 9.1 and `expr {$x + 3}` prints `10000000000000004.0`. A
+/// closed subtree (`2 + 3 + $x` → `5 + $x`) folds elsewhere and needs no
+/// proof.
+fn reassociate_node(node: &ExprNode, types: &OperandTypes) -> Option<ExprNode> {
+    // Every regrouped term is a variable proven integer.
+    let exact = |terms: &[ExprNode]| {
+        terms.iter().all(|term| {
+            matches!(term, ExprNode::Var { name, .. } if types.integer.contains(name.as_str()))
+        })
+    };
     let ExprNode::Binary { op, left, right } = node else {
         return None;
     };
@@ -685,6 +699,9 @@ fn reassociate_node(node: &ExprNode) -> Option<ExprNode> {
             let constant = collect_add_terms(node, &mut terms, 0)?;
             if constant == i64::MIN {
                 return None; // `-constant` would overflow in the builder
+            }
+            if !exact(&terms) {
+                return fold_closed_left(*op, left, right, collect_add_terms);
             }
             // Conservative: a lone term whose additive constant cancels to zero
             // (`$a + 5 - 5`) would emit `$a` BARE — stripping the numeric-
@@ -708,11 +725,36 @@ fn reassociate_node(node: &ExprNode) -> Option<ExprNode> {
             if constant == 0 || (constant == 1 && terms.len() == 1) {
                 return None;
             }
+            if !exact(&terms) {
+                return fold_closed_left(*op, left, right, collect_mul_terms);
+            }
             let built = build_mul_expr(&terms, constant);
             (render_expr(&built) != render_expr(node)).then_some(built)
         }
         _ => None,
     }
+}
+
+/// The closed-subtree fold a chain keeps when it may not regroup: a left
+/// operand made of integer literals alone evaluates to its constant before
+/// anything else in the chain runs, so folding it leaves the evaluation order
+/// — and a double's rounding — as written (`2 + 3 + $x` → `5 + $x`).
+fn fold_closed_left(
+    op: BinOp,
+    left: &ExprNode,
+    right: &ExprNode,
+    collect: fn(&ExprNode, &mut Vec<ExprNode>, u32) -> Option<i64>,
+) -> Option<ExprNode> {
+    if int_literal_value(left).is_some() {
+        return None;
+    }
+    let mut terms = Vec::new();
+    let constant = collect(left, &mut terms, 0)?;
+    terms.is_empty().then(|| ExprNode::Binary {
+        op,
+        left: Box::new(make_int_literal(constant)),
+        right: Box::new(right.clone()),
+    })
 }
 
 fn is_additive(n: &ExprNode) -> bool {
@@ -2319,7 +2361,9 @@ mod tests {
 
     #[test]
     fn o110_reassociates_constant_chains() {
-        // Additive and multiplicative constant reassociation (O110).
+        // Additive and multiplicative constant reassociation (O110), over
+        // terms the type lattice proves integer.
+        let integer = OperandTypes::integer(&["a", "b"]);
         for (input, want) in [
             ("$a + 1 + 2", "$a + 3"),
             ("$a * 2 * 3", "$a * 6"),
@@ -2331,10 +2375,41 @@ mod tests {
             // `$a + $b` keeps a `+` that coerces both operands.
             ("$a + $b + 1 - 1", "$a + $b"),
         ] {
-            let (out, changed) = instcombine_expr(input, false);
+            let (out, changed) = instcombine_expr_typed(input, false, Some(&integer), None);
             assert!(changed, "expected a rewrite for {input:?}");
             assert_eq!(out.trim(), want, "for {input:?}");
         }
+    }
+
+    /// Regrouping consumes the type proof: over a term the lattice proves
+    /// integer the chain regroups, and over an unproven term it is left as
+    /// written, because a double's rounding is order-dependent — `set x
+    /// 10000000000000000.0; expr {$x + 1 + 2}` prints `10000000000000002.0`
+    /// under tclsh 8.5 to 9.1, and `expr {$x + 3}` prints
+    /// `10000000000000004.0` (8.4 prints `1e+16` for both at its default
+    /// precision). A closed constant subtree still folds.
+    #[test]
+    fn reassociation_refuses_an_unproven_float_term() {
+        let integer = OperandTypes::integer(&["i"]);
+        let (out, changed) = instcombine_expr_typed("$i + 1 + 2", false, Some(&integer), None);
+        assert!(changed);
+        assert_eq!(out.trim(), "$i + 3");
+        for (context, label) in [
+            (OperandTypes::default(), "untyped"),
+            (OperandTypes::numeric_only(&["x"]), "double"),
+        ] {
+            for input in ["$x + 1 + 2", "$x * 3 * 5"] {
+                assert!(
+                    reassociate_node(&parse_expr_for_profile(input, None), &context).is_none(),
+                    "{label}: {input}"
+                );
+                let (out, changed) = instcombine_expr_typed(input, false, Some(&context), None);
+                assert!(!changed, "{label}: {input} became {out}");
+            }
+        }
+        let (out, changed) = instcombine_expr("2 + 3 + $x", false);
+        assert!(changed);
+        assert_eq!(out.trim(), "5 + $x");
     }
 
     #[test]
@@ -2344,7 +2419,11 @@ mod tests {
         // Mirror the multiplicative `$a * 1` guard and abstain (the AST pass
         // has no numeric proof).
         assert!(
-            reassociate_node(&parse_expr_for_profile("$a + 1 - 1", None)).is_none(),
+            reassociate_node(
+                &parse_expr_for_profile("$a + 1 - 1", None),
+                &OperandTypes::integer(&["a"])
+            )
+            .is_none(),
             "lone additive term cancelling to zero must not fold to a bare term",
         );
         let (out, changed) = instcombine_expr("$a + 1 - 1", false);
@@ -2356,7 +2435,11 @@ mod tests {
         // No additive chain to flatten → the reassociation does not fire
         // (a bare `1 + $a` reorder is left to other passes / suppressed).
         assert!(
-            reassociate_node(&parse_expr_for_profile("1 + $a", None)).is_none(),
+            reassociate_node(
+                &parse_expr_for_profile("1 + $a", None),
+                &OperandTypes::integer(&["a"])
+            )
+            .is_none(),
             "reassociation must not fire on a non-chain reorder",
         );
         // `* 0` annihilation across a chain needs a numeric proof this
@@ -2364,7 +2447,7 @@ mod tests {
         // result, if any, comes from the separate identity pass, not here).
         let parsed = parse_expr_for_profile("$a * 0 * 3", None);
         assert!(
-            reassociate_node(&parsed).is_none(),
+            reassociate_node(&parsed, &OperandTypes::integer(&["a"])).is_none(),
             "reassociation must not annihilate `* 0` without a numeric proof",
         );
     }

@@ -1716,7 +1716,8 @@ fn seed_params_from_args(
 fn const_value_text(cv: &ConstValue) -> String {
     match cv {
         ConstValue::Int(i) => i.to_string(),
-        ConstValue::Float(f) => f.to_string(),
+        // Tcl's canonical double spelling (`3.0`), never Rust's (`3`).
+        ConstValue::Float(f) => tcl_syntax::number::format_double(*f),
         ConstValue::Bool(b) => i64::from(*b).to_string(),
         ConstValue::String(s) => s.clone(),
     }
@@ -2523,7 +2524,10 @@ fn try_o103_proc_fold(
     }
     let render_const = |cv: &ConstValue| match cv {
         ConstValue::Int(i) => i.to_string(),
-        ConstValue::Float(f) => f.to_string(),
+        // Tcl's canonical double spelling: `proc p {} {return [expr {1.0 *
+        // 3}]}; puts [p]` prints `3.0` under tclsh 8.4 to 9.1, where Rust's
+        // `3` made the folded call print `3`.
+        ConstValue::Float(f) => tcl_syntax::number::format_double(*f),
         ConstValue::Bool(b) => i64::from(*b).to_string(),
         ConstValue::String(s) => render_propagation_word(s),
     };

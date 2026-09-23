@@ -744,15 +744,120 @@ fn list_and_length_routes_run_the_shared_cores() {
         NativeEvalId::ListOfArgs,
         NativeEvalId::ListLength,
         NativeEvalId::StringLength,
+        NativeEvalId::FormatTemplate,
     ] {
         assert_eq!(id.owner(), EvaluatorOwner::Registry, "{id:?}");
     }
-    assert_eq!(
-        NativeEvalId::FormatTemplate.owner(),
-        EvaluatorOwner::Transitional {
-            retires_in_slice: 3
+}
+
+/// `format` over literal words under `dialect`'s release, through the
+/// registry-owned route.
+fn format_under(dialect: Option<&str>, words: &[&str]) -> Result<String, DeclineReason> {
+    use tcl_registry::value_transfer::builtins::FORMAT_TEMPLATE;
+    let profile = dialect.map(|name| tcl_dialect::DialectProfile::find(name).expect(name));
+    let operands = words.iter().map(|word| literal(word, None)).collect();
+    let mut inputs = TestInputs::new("format", operands);
+    inputs.context = AnalysisContext::detached(profile);
+    let outcome = evaluated(FORMAT_TEMPLATE.evaluate(&inputs, &mut Budget::evaluation()))?;
+    match outcome.result {
+        ExactValueOrUnavailable::Exact(value) => Ok(String::from_utf8(value.bytes).expect("text")),
+        ExactValueOrUnavailable::Unavailable(_) => panic!("unavailable"),
+    }
+}
+
+/// `format` runs the shared format core over `ConstOps` on its
+/// registry-owned route. Oracle, tclsh 8.4 to 9.1: `format %5.2f 3.14159`
+/// is ` 3.14`, `format %x 255` is `ff`, `format %s-%d a 5` is `a-5`,
+/// `format %c 65` is `A`, `format %5s hi` is `   hi`, and `format %d abc`
+/// raises — in every release, so under a profile that names none too.
+#[test]
+fn format_runs_the_shared_core() {
+    for dialect in [
+        Some("tcl8.4"),
+        Some("tcl8.5"),
+        Some("tcl8.6"),
+        Some("tcl9.0"),
+        Some("tcl9.1"),
+        Some("f5-irules"),
+        None,
+    ] {
+        for (words, want) in [
+            (&["%5.2f", "3.14159"][..], " 3.14"),
+            (&["%x", "255"][..], "ff"),
+            (&["%s-%d", "a", "5"][..], "a-5"),
+            (&["%c", "65"][..], "A"),
+            (&["%5s", "hi"][..], "   hi"),
+        ] {
+            assert_eq!(
+                format_under(dialect, words),
+                Ok(want.to_owned()),
+                "{dialect:?} {words:?}"
+            );
         }
-    );
+        assert_eq!(
+            format_under(dialect, &["%d", "abc"]),
+            Err(DeclineReason::WrongRepresentation),
+            "{dialect:?}"
+        );
+    }
+}
+
+/// `format` answers under the target release's grammar, and a profile that
+/// names no release answers only where every release agrees. Oracle,
+/// tclsh 8.4 to 9.1: `%b` raises before 8.6 and `%p` and `%llu` before
+/// 9.0; `format %d 010` is 8 up to 8.6 and 10 from 9.0; an unmodified `%d`
+/// of 2147483648 is itself up to 8.6 and wraps to -2147483648 from 9.0;
+/// `%#o 8` is `010` against `0o10` and `%#d 5` is `5` against `0d5`.
+#[test]
+fn format_answers_per_release() {
+    let error = Err(DeclineReason::WrongRepresentation);
+    for (words, eight_four, eight_five, eight_six, nine) in [
+        (&["%b", "5"][..], error, error, Ok("101"), Ok("101")),
+        (&["%p", "255"][..], error, error, error, Ok("0xff")),
+        (&["%llu", "5"][..], error, error, error, Ok("5")),
+        (&["%d", "010"][..], Ok("8"), Ok("8"), Ok("8"), Ok("10")),
+        (
+            &["%d", "2147483648"][..],
+            Ok("2147483648"),
+            Ok("2147483648"),
+            Ok("2147483648"),
+            Ok("-2147483648"),
+        ),
+        (
+            &["%#o", "8"][..],
+            Ok("010"),
+            Ok("010"),
+            Ok("010"),
+            Ok("0o10"),
+        ),
+        (&["%#d", "5"][..], Ok("5"), Ok("5"), Ok("5"), Ok("0d5")),
+    ] {
+        for (dialect, want) in [
+            ("tcl8.4", eight_four),
+            ("tcl8.5", eight_five),
+            ("tcl8.6", eight_six),
+            ("tcl9.0", nine),
+            ("tcl9.1", nine),
+        ] {
+            assert_eq!(
+                format_under(Some(dialect), words),
+                want.map(str::to_owned),
+                "{dialect} {words:?}"
+            );
+        }
+        for dialect in [None, Some("f5-irules")] {
+            let answer = format_under(dialect, words);
+            assert!(
+                matches!(
+                    answer,
+                    Err(DeclineReason::ReleaseAmbiguous(
+                        Axis::FormatVerbs | Axis::NumeralGrammar
+                    ))
+                ),
+                "{dialect:?} {words:?}: {answer:?}"
+            );
+        }
+    }
 }
 
 /// `ElementsOf` states a type relationship and `LOOP_LIST_HEADER` a CFG
@@ -797,11 +902,9 @@ fn elements_of_and_loop_list_header_derive_nothing() {
 /// command's, and an abstention anywhere also stops the derivation.
 #[test]
 fn abstention_exists_at_command_subcommand_and_form_scope() {
-    static DECLARED: tcl_registry::value_transfer::builtins::DirectRoute =
-        tcl_registry::value_transfer::builtins::DirectRoute {
-            id: NativeEvalId::ListLength,
-            result_type: tcl_registry::TclType::Int,
-        };
+    // Any declared specialisation stands in for the subcommand's own.
+    static DECLARED: &tcl_registry::value_transfer::builtins::ListLengthSemantics =
+        &tcl_registry::value_transfer::builtins::LIST_LENGTH;
     let declined_form = CommandForm {
         name: "declined",
         semantics: SemanticsDeclaration::Declined,
@@ -813,7 +916,7 @@ fn abstention_exists_at_command_subcommand_and_form_scope() {
     };
     let declared_sub = SubCommand {
         name: "declared",
-        semantics: SemanticsDeclaration::Declared(&DECLARED),
+        semantics: SemanticsDeclaration::Declared(DECLARED),
         ..SubCommand::DEFAULT
     };
     let declined_sub = SubCommand {
@@ -1209,11 +1312,7 @@ fn route_stamps_match_the_pinned_set() {
         ("dict unset", "direct:dict-unset", "registry"),
         ("expr", "expression:tcl.expr", "-"),
         ("foreach", "none:unauthored", "-"),
-        (
-            "format",
-            "direct:format-template",
-            "transitional until slice 3",
-        ),
+        ("format", "direct:format-template", "registry"),
         ("incr", "direct:cell-increment", "registry"),
         ("lappend", "direct:cell-list-append", "registry"),
         ("list", "direct:list-of-args", "registry"),

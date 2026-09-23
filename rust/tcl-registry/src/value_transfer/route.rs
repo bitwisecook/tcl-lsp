@@ -202,10 +202,8 @@ impl NativeEvalId {
             | Self::StringRange
             | Self::ListOfArgs
             | Self::ListLength
-            | Self::StringLength => EvaluatorOwner::Registry,
-            Self::FormatTemplate => EvaluatorOwner::Transitional {
-                retires_in_slice: 3,
-            },
+            | Self::StringLength
+            | Self::FormatTemplate => EvaluatorOwner::Registry,
         }
     }
 }

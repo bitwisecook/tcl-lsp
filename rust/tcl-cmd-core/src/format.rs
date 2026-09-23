@@ -220,7 +220,7 @@ fn render_spec<O: ValueOps>(
             // The size modifier and the release pick the width; the low bits
             // are then read signed. See `tcl_syntax::format::integer_width`.
             let n = tcl_syntax::format::integer_width(spec.size, syntax).signed(ops.as_int(arg)?);
-            let mut digits = int_digits(n, spec);
+            let mut digits = int_digits(n, spec, syntax);
             // Tcl 9 `%#d` / `%#i` alternate form: a `0d` radix prefix on a
             // non-zero value (dropped for zero, like `%#x 0` → `0`). `%u` takes
             // no prefix. The sign and width are applied around it by
@@ -235,7 +235,7 @@ fn render_spec<O: ValueOps>(
             // 18446744073709551615 on 8.x and 4294967295 on 9.x, and
             // `format %hu 5000000000` is 61952 on every release.
             let u = tcl_syntax::format::integer_width(spec.size, syntax).unsigned(ops.as_int(arg)?);
-            Ok(pad_number(&uint_digits(u, spec), false, spec))
+            Ok(pad_number(&uint_digits(u, spec, syntax), false, spec))
         }
         b'p' => {
             // `%p` is Tcl's pointer-style hexadecimal conversion. It always
@@ -290,13 +290,13 @@ fn render_spec<O: ValueOps>(
 }
 
 /// Decimal digits (no sign) for an integer, honouring `.precision`.
-fn int_digits(n: i64, spec: &Spec) -> String {
-    apply_precision(n.unsigned_abs().to_string(), spec)
+fn int_digits(n: i64, spec: &Spec, syntax: tcl_dialect::NumberSyntax) -> String {
+    apply_precision(n.unsigned_abs().to_string(), spec, syntax)
 }
 
 /// Decimal digits for an already-unsigned value, honouring `.precision`.
-fn uint_digits(u: u64, spec: &Spec) -> String {
-    apply_precision(u.to_string(), spec)
+fn uint_digits(u: u64, spec: &Spec, syntax: tcl_dialect::NumberSyntax) -> String {
+    apply_precision(u.to_string(), spec, syntax)
 }
 
 /// Digits for `x`/`X`/`o`/`b`, with the `#` alternate-form prefix.
@@ -351,7 +351,7 @@ fn based_digits(u: u64, spec: &Spec, syntax: tcl_dialect::NumberSyntax) -> Strin
             },
         ),
     };
-    body = apply_precision(body, spec);
+    body = apply_precision(body, spec, syntax);
     format!("{prefix}{body}")
 }
 
@@ -492,12 +492,21 @@ fn trim_g_exp(body: &str) -> String {
     format!("{trimmed}{exp}")
 }
 
-/// Left-pad `mag` with `0` up to `.precision` digits. An explicit precision of
-/// zero renders the value zero as the empty string, as C does.
-fn apply_precision(mag: String, spec: &Spec) -> String {
+/// Left-pad `mag` with `0` up to `.precision` digits. Tcl 8.4 formats
+/// through C's `printf`, where an explicit precision of zero renders the value
+/// zero as the empty string (`format %.0d 0` is empty, and `%#.0o 0` is `0`,
+/// the one digit the alternate form forces); from 8.5 Tcl's own formatter
+/// always emits the digit (`0`). Oracle: tclsh 8.4 against 8.5 to 9.1.
+fn apply_precision(mag: String, spec: &Spec, syntax: tcl_dialect::NumberSyntax) -> String {
     match spec.precision {
         Some(p) if mag.len() < p => format!("{}{mag}", "0".repeat(p - mag.len())),
-        Some(0) if mag == "0" => String::new(),
+        Some(0)
+            if mag == "0"
+                && syntax == tcl_dialect::NumberSyntax::Tcl84
+                && !(spec.verb == b'o' && spec.flags.contains(FmtFlags::HASH)) =>
+        {
+            String::new()
+        }
         _ => mag,
     }
 }

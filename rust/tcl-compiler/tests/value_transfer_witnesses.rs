@@ -1069,3 +1069,64 @@ fn a_finite_condition_decides_when_every_member_agrees() {
     prints_under_every_release(agree, "pos\npos\n");
     prints_under_every_release(split, "small\nbig\n");
 }
+
+/// A folded call keeps a double's Tcl spelling: `proc p {} {return [expr
+/// {1.0 * 3}]}; puts [p]` prints `3.0` under tclsh 8.4 to 9.1, and O103 had
+/// rewritten the call to `puts 3` with Rust's float rendering.
+#[test]
+fn a_folded_call_keeps_a_doubles_spelling() {
+    for source in [
+        "proc p {} {return [expr {1.0 * 3}]}\nputs [p]\n",
+        "proc p {} {set r [expr {1.0 * 3}]; return $r}\nputs [p]\n",
+    ] {
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            let (rewritten, _) = optimised(source, dialect);
+            assert!(!rewritten.contains("puts 3\n"), "{dialect}:\n{rewritten}");
+        }
+        prints_under_every_release(source, "3.0\n");
+    }
+}
+
+/// `format` runs the shared core on its registry-owned route, reading its
+/// operands from the lattice and its literal words under the document's
+/// escape grammar: tclsh 8.4 and 8.5 read `"\x4142"` as the one byte `B`
+/// (`\x` takes every hex digit before 8.6) and 8.6 to 9.1 as `A42`; `%03d`
+/// of the constant 5 is `005` and `%5.2f` of 3.14159 is ` 3.14` everywhere.
+#[test]
+fn format_folds_through_the_shared_core() {
+    let source = "proc p {} {set n 5; set r [format %03d $n]; set s [format %s \"\\x4142\"]; \
+                  set t [format %5.2f 3.14159]; return \"$r|$s|$t\"}\nputs [p]\n";
+    for (dialect, bytes) in [("tcl8.4", "B"), ("tcl8.6", "A42"), ("tcl9.0", "A42")] {
+        let unit = unit_of(source, dialect);
+        assert_eq!(
+            value_at(&unit, "::p", "r", 1),
+            Some(text("005")),
+            "{dialect}"
+        );
+        assert_eq!(
+            value_at(&unit, "::p", "s", 1),
+            Some(text(bytes)),
+            "{dialect}"
+        );
+        assert_eq!(
+            value_at(&unit, "::p", "t", 1),
+            Some(text(" 3.14")),
+            "{dialect}"
+        );
+    }
+    for (series, tclsh) in releases_on_path() {
+        let expected = if matches!(series, "8.4" | "8.5") {
+            "005|B| 3.14\n"
+        } else {
+            "005|A42| 3.14\n"
+        };
+        let (rewritten, _) = optimised(source, &dialect_of(series));
+        for program in [source, rewritten.as_str()] {
+            assert_eq!(
+                run_script(&tclsh, program),
+                Some((true, expected.to_owned())),
+                "tclsh{series}:\n{program}"
+            );
+        }
+    }
+}

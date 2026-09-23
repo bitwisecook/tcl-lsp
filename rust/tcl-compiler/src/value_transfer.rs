@@ -28,11 +28,10 @@
 //! resolver, and the registry's declaration for the resolved command,
 //! subcommand, and form decides what runs.
 //!
-//! Some declared direct routes are still implemented here rather than in
-//! the registry ([`NativeEvalId::owner`] says which): the compiler's
-//! transitional handlers, each carried verbatim from the arm it replaces so
-//! the lattice stays byte-identical, and each listed with its expiry in the
-//! migration plan's ledger. The expression route is run here by
+//! Every declared direct route is implemented in the registry
+//! ([`NativeEvalId::owner`](tcl_registry::value_transfer::NativeEvalId::owner));
+//! the compiler's transitional handlers are
+//! gone. The expression route is run here by
 //! construction: the registry assembles the argument words
 //! ([`ExpressionRoute::assemble`]) and the shared engine evaluates the
 //! expression over this module's lattice services
@@ -51,10 +50,9 @@ use tcl_registry::value_transfer::{
     BudgetLimit, CommandSemantics, CompletionOutcome, DeclineReason, DependencyEvidence,
     EvalAnswer, EvalRoute, EvaluationState, EvaluatorOwner, ExactValue, ExactValueOrUnavailable,
     ExistenceOutcome, FactDomain, FactView, InvocationLayout, InvocationOutcome, IterableKind,
-    LanguageProfileId, LiftedAnswer, NativeEvalId, NestedPolicy, NumericValue, OperandId,
-    OperandView, PlaceKind, PlaceRef, PlanAnswer, ResolvedInvocationView, RouteIdentity,
-    StoreOutcome, TargetId, TransferAnswer, TypeFacts, ValueIdentity, WordPart, WordStructure,
-    evaluate_lifted,
+    LanguageProfileId, LiftedAnswer, NestedPolicy, NumericValue, OperandId, OperandView, PlaceKind,
+    PlaceRef, PlanAnswer, ResolvedInvocationView, RouteIdentity, StoreOutcome, TargetId,
+    TransferAnswer, TypeFacts, ValueIdentity, WordPart, WordStructure, evaluate_lifted,
 };
 use tcl_registry::{
     ArgRole, CommandRegistry, InvocationWord, InvocationWordKind, InvocationWords,
@@ -780,19 +778,10 @@ impl<'a> LatticeDriver<'a> {
                 EvaluatorOwner::Registry => {
                     evaluate_lifted(semantics, &inputs, &mut Self::budget(), MAX_CONSTSET_SIZE)
                 }
+                // No compiler-owned evaluator remains: a route the registry
+                // does not own evaluates nothing here.
                 EvaluatorOwner::Transitional { .. } => {
-                    match self.transitional_direct(id, &format!("[{script}]")) {
-                        Some(LatticeValue::Const(folded)) => {
-                            LiftedAnswer::Evaluated(vec![Box::new(pure_outcome(
-                                const_to_exact(&folded),
-                                route,
-                                semantics.identity(),
-                                0,
-                                vec![binding.clone()],
-                            ))])
-                        }
-                        _ => LiftedAnswer::Declined(DeclineReason::Unsupported),
-                    }
+                    LiftedAnswer::Declined(DeclineReason::Unsupported)
                 }
             },
             EvalRoute::Expression { language } => {
@@ -859,47 +848,6 @@ impl<'a> LatticeDriver<'a> {
             record_binding(&mut state.evidence, binding.clone());
         }
         EvalAnswer::Evaluated(first)
-    }
-
-    /// The transitional compiler-owned direct evaluator
-    /// (`docs/design/compiler/value-transfers-migration.md`, the ledger):
-    /// `format`'s fold, carried verbatim from the arm it replaced and keyed
-    /// by the registry's evaluator id rather than by the command's name,
-    /// until slice 3 runs the shared `format` core.
-    fn transitional_direct(&self, id: NativeEvalId, value: &str) -> Option<LatticeValue> {
-        let policy = self.policy;
-        // value-transfer-ok: dataflow — the transitional direct evaluator
-        // of the migration ledger, keyed by `NativeEvalId`; slice 3 moves
-        // it onto the shared core and deletes this table.
-        match id {
-            // `[format "..." args…]` with literal args. The document's
-            // escape grammar comes from the same resolved profile the rest
-            // of the policy's axes come from; a caller with no dialect keeps
-            // the 9.0 default.
-            NativeEvalId::FormatTemplate => {
-                let escapes = policy
-                    .dialect
-                    .map_or_else(tcl_dialect::EscapeSyntax::default, |profile| {
-                        profile.grammar.escapes
-                    });
-                crate::codegen::helpers::try_format_fold(value, escapes)
-                    .map(|folded| LatticeValue::Const(ConstValue::String(folded)))
-            }
-            // Registry-owned: never a transitional handler.
-            NativeEvalId::CellIncrement
-            | NativeEvalId::CellAppend
-            | NativeEvalId::CellListAppend
-            | NativeEvalId::CellWrite
-            | NativeEvalId::DictSet
-            | NativeEvalId::DictUnset
-            | NativeEvalId::DictIncr
-            | NativeEvalId::DictAppend
-            | NativeEvalId::DictListAppend
-            | NativeEvalId::StringRange
-            | NativeEvalId::ListOfArgs
-            | NativeEvalId::ListLength
-            | NativeEvalId::StringLength => None,
-        }
     }
 
     /// A fused `set name [expr {…}]` (`AssignExpr`): the parsed expression

@@ -19,16 +19,12 @@
 //! The shipped value-position specialisations.
 //!
 //! Each declaration names its route — a catalogued direct evaluator or the
-//! shared expression engine — and its result type. A registry-owned direct
-//! evaluator ([`STRING_RANGE`], [`LIST_OF_ARGS`], [`LIST_LENGTH`],
-//! [`STRING_LENGTH`]) is a call into the shared core over [`ConstOps`]; a
-//! transitional one ([`NativeEvalId::owner`], [`FORMAT_TEMPLATE`] until
-//! slice 3) is run by the compiler's value-transfer driver as today's fold
-//! until the shared cores replace it, and the migration plan's ledger names
-//! it with its expiry. The expression route ([`EXPR`]) assembles its
-//! arguments here ([`ExpressionRoute::assemble`]) and is evaluated by the
-//! driver's engine adapter, which feeds the shared engine the analysis
-//! services.
+//! shared expression engine — and its result type. Every direct evaluator
+//! ([`STRING_RANGE`], [`LIST_OF_ARGS`], [`LIST_LENGTH`], [`STRING_LENGTH`],
+//! [`FORMAT_TEMPLATE`]) is registry-owned: a call into the shared core over
+//! [`ConstOps`]. The expression route ([`EXPR`]) assembles its arguments
+//! here ([`ExpressionRoute::assemble`]) and is evaluated by the driver's
+//! engine adapter, which feeds the shared engine the analysis services.
 
 use crate::types::TclType;
 
@@ -39,7 +35,7 @@ use super::answers::{
 };
 use super::const_ops::{ConstOps, ConstValue, Needs, TargetSemantics};
 use super::context::Budget;
-use super::decline::DeclineReason;
+use super::decline::{Axis, DeclineReason};
 use super::inputs::{AnalysisInputs, FactDomain, OperandId, WordPart};
 use super::route::{EvalRoute, LanguageProfileId, NativeEvalId};
 
@@ -411,30 +407,58 @@ impl CommandSemantics for StringLengthSemantics {
     }
 }
 
-/// A specialisation that declares a catalogued direct route and a result
-/// type, and nothing else: the route's evaluator is the compiler's
-/// transitional handler ([`NativeEvalId::owner`]).
+/// `format template ?arg …?` on the direct route: the shared format core
+/// (`tcl_cmd_core::format::format_cmd_with_syntax`) over [`ConstOps`] under
+/// the target release's numeral grammar. A conversion the release lacks is
+/// the program's error (`%b` from 8.6, `%p` and `%llu` from 9.0; tclsh 8.4
+/// raises `bad field specifier "b"`). Under a profile that names no release
+/// the answer is the one every modelled release gives — each release's run
+/// must agree, so an unmodified `%d` past 32 bits, the `%#d` prefix or a
+/// conversion one release lacks declines with
+/// `ReleaseAmbiguous(FormatVerbs)`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct DirectRoute {
-    /// The catalogued evaluator.
-    pub id: NativeEvalId,
-    /// The result's internal representation.
-    pub result_type: TclType,
-}
+pub struct FormatTemplateSemantics;
 
 /// `format template ?arg …?`.
-pub static FORMAT_TEMPLATE: DirectRoute = DirectRoute {
-    id: NativeEvalId::FormatTemplate,
-    result_type: TclType::String,
-};
+pub static FORMAT_TEMPLATE: FormatTemplateSemantics = FormatTemplateSemantics;
 
-impl CommandSemantics for DirectRoute {
+impl FormatTemplateSemantics {
+    /// The axes the core reads.
+    pub const NEEDS: Needs = Needs::FORMAT_VERBS
+        .union(Needs::NUMERAL_GRAMMAR)
+        .union(Needs::INT_TOWER);
+
+    /// The revision of the registry-owned evaluator: 1 is the shared core,
+    /// replacing the compiler's transitional fold.
+    const REVISION: u64 = 1;
+
+    /// `args` rendered as `release` renders them.
+    fn render(
+        input: &dyn AnalysisInputs,
+        budget: &mut Budget,
+        args: &[ConstValue],
+        gated: &[tcl_syntax::format::VersionGatedUse],
+        release: tcl_dialect::TclVersion,
+    ) -> Result<(ExactValue, TargetSemantics), DeclineReason> {
+        if gated.iter().any(|gated| gated.min > release) {
+            return Err(DeclineReason::WrongRepresentation);
+        }
+        run_core(input, budget, Self::NEEDS, |ops| {
+            tcl_cmd_core::format::format_cmd_with_syntax(ops, args, release.number_syntax())
+                .map_err(|error| ops.decline(&error))
+        })
+    }
+}
+
+impl CommandSemantics for FormatTemplateSemantics {
     fn identity(&self) -> &'static str {
-        self.id.as_str()
+        NativeEvalId::FormatTemplate.as_str()
     }
 
     fn route(&self) -> EvalRoute {
-        EvalRoute::Direct { id: self.id }
+        EvalRoute::Direct {
+            id: NativeEvalId::FormatTemplate,
+        }
     }
 
     fn transfer(
@@ -443,7 +467,66 @@ impl CommandSemantics for DirectRoute {
         _input: &dyn AnalysisInputs,
         _budget: &mut Budget,
     ) -> TransferAnswer {
-        result_type_transfer(domain, self.result_type)
+        result_type_transfer(domain, TclType::String)
+    }
+
+    fn evaluate(&self, input: &dyn AnalysisInputs, budget: &mut Budget) -> EvalAnswer {
+        let words = input.invocation().operands.len();
+        if words == 0 {
+            // `wrong # args`: the program's error.
+            return EvalAnswer::Declined(DeclineReason::Unsupported);
+        }
+        let template = match exact_operand(input, 0) {
+            Ok(template) => template,
+            Err(answer) => return answer,
+        };
+        let gated = match template.as_str() {
+            Ok(text) => tcl_syntax::format::version_gated_uses(text),
+            Err(reason) => return EvalAnswer::Declined(reason),
+        };
+        let args = match exact_operands(input, 0..words) {
+            Ok(args) => args,
+            Err(answer) => return answer,
+        };
+        let named = TargetSemantics::of(input.context().profile).release;
+        let releases = named.map_or_else(
+            || tcl_dialect::TclVersion::ALL.to_vec(),
+            |release| vec![release],
+        );
+        let mut agreed: Option<Result<(ExactValue, TargetSemantics), DeclineReason>> = None;
+        for release in releases {
+            let rendered = Self::render(input, budget, &args, &gated, release);
+            match &agreed {
+                None => agreed = Some(rendered),
+                Some(earlier) => {
+                    let same = match (earlier, &rendered) {
+                        (Ok((a, _)), Ok((b, _))) => a == b,
+                        (Err(a), Err(b)) => a == b,
+                        _ => false,
+                    };
+                    if !same {
+                        return EvalAnswer::Declined(DeclineReason::ReleaseAmbiguous(
+                            Axis::FormatVerbs,
+                        ));
+                    }
+                }
+            }
+        }
+        match agreed {
+            Some(Ok((value, target))) => pure_outcome(
+                NativeEvalId::FormatTemplate,
+                Self::REVISION,
+                value,
+                TclType::String,
+                DependencyEvidence {
+                    numerals: target.numerals,
+                    release: target.release,
+                    ..DependencyEvidence::default()
+                },
+            ),
+            Some(Err(reason)) => EvalAnswer::Declined(reason),
+            None => EvalAnswer::Declined(DeclineReason::Unsupported),
+        }
     }
 }
 

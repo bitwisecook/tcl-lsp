@@ -1167,27 +1167,31 @@ fn o109_dead_store_elimination() {
 
 #[test]
 fn o110_reassociation() {
-    // tclsh sweep: $a + 1 + 2 == $a + 3 (all $a).
-    assert!(optimised("set v [expr {$a + 1 + 2}]", TCL).contains("$a + 3"));
-    // tclsh sweep: $a * 2 * 3 == $a * 6.
-    assert!(optimised("set v [expr {$a * 2 * 3}]", TCL).contains("$a * 6"));
-    // tclsh sweep: $a + 3 - 1 == $a + 2.
-    assert!(optimised("set v [expr {$a + 3 - 1}]", TCL).contains("$a + 2"));
-    // Real fold through reassoc at top level: ($a + 1) + 2 flattens to $a + 3.
-    // tclsh sweep: ($a + 1) + 2 == $a + 3.
-    assert!(optimised("set v [expr {($a + 1) + 2}]", TCL).contains("$a + 3"));
-    assert!(opt_fires("set v [expr {($a + 1) + 2}]", TCL, "O110"));
-    // #1962: a `return [expr {...}]` value position now agrees with the `set`
-    // body above — the same reassoc folds there too.
-    assert!(
-        optimised("proc f {a} { return [expr {($a + 1) + 2}] }", TCL)
-            .contains("return [expr {$a + 3}]")
-    );
+    // Regrouping needs every term proven integer — wrap in `int_x`. tclsh
+    // sweep over integers: $x + 1 + 2 == $x + 3, $x * 2 * 3 == $x * 6,
+    // $x + 3 - 1 == $x + 2.
+    assert!(optimised(&int_x("set v [expr {$x + 1 + 2}]"), TCL).contains("$x + 3"));
+    assert!(optimised(&int_x("set v [expr {$x * 2 * 3}]"), TCL).contains("$x * 6"));
+    assert!(optimised(&int_x("set v [expr {$x + 3 - 1}]"), TCL).contains("$x + 2"));
+    // Real fold through reassoc: ($x + 1) + 2 flattens to $x + 3.
+    assert!(optimised(&int_x("set v [expr {($x + 1) + 2}]"), TCL).contains("$x + 3"));
     assert!(opt_fires(
-        "proc f {a} { return [expr {($a + 1) + 2}] }",
+        &int_x("set v [expr {($x + 1) + 2}]"),
         TCL,
         "O110"
     ));
+    // An unproven term keeps its chain: over a double the rounding is
+    // order-dependent (`set x 10000000000000000.0; expr {$x + 1 + 2}` prints
+    // `10000000000000002.0` and `expr {$x + 3}` `10000000000000004.0` under
+    // tclsh 8.5 to 9.1).
+    assert!(opt_absent("set v [expr {$a + 1 + 2}]", TCL, "O110"));
+    assert!(opt_absent("set v [expr {$a * 2 * 3}]", TCL, "O110"));
+    // #1962: a `return [expr {...}]` value position agrees with the `set`
+    // body above — the same reassoc folds there too.
+    let returned =
+        "proc f {n} {\n  for {set x 0} {$x < $n} {incr x} {}\n  return [expr {($x + 1) + 2}]\n}\n";
+    assert!(optimised(returned, TCL).contains("return [expr {$x + 3}]"));
+    assert!(opt_fires(returned, TCL, "O110"));
 }
 
 #[test]

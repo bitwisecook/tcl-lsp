@@ -72,7 +72,15 @@ Adds constant folding and pattern recognition on top of readability:
 
 Shows "this could be simpler" without deleting any code. Dead stores from
 constant propagation remain in the output — the code is simplified but not
-shortened. **28 rewrites** on the sample input.
+shortened. **27 rewrites** on the sample input.
+
+`set candidate [expr {$request_count + 1 + 2}]` is left as written: O110
+regroups a constant chain only over terms the type lattice proves integer,
+and nothing in the file proves `request_count` one. Over a double the
+regrouping changes the answer — `set x 10000000000000000.0; expr {$x + 1 +
+2}` prints `10000000000000002.0` under tclsh 8.5 to 9.1, `expr {$x + 3}`
+prints `10000000000000004.0` — so the chain keeps its order (it read
+`$request_count + 3` until the regrouping consumed the type proof).
 
 One of those is the `passthrough` stanza's `O100 Fold return of constant
 variable`: `set route [passthrough 42]` is the proc's only call, so the
@@ -131,13 +139,15 @@ The three folded assignments (`half`, `threshold`, `route`) are **not** packed
 into a `lassign`: O119 packs consecutive `set`s of *literals as written*, and
 these become literals only after folding. They are not consecutive either —
 the committed output reads `set half 15`, `set threshold 40`,
-`set candidate [expr {$request_count + 3}]`, `set route 42`, so the
+`set candidate [expr {$request_count + 1 + 2}]`, `set route 42`, so the
 non-literal `candidate` assignment separates `route` from the other two. The
 `lassign` in the committed output is the O119 stanza's own
 `set a 1; set b 2; set c 3`.
 
-The aggressive profile finds **45 rewrites** on the sample input against 35 in
-single-pass `full`. Both counts moved when the `expr`-trust gate stopped being
+The aggressive profile finds **44 rewrites** on the sample input against 34 in
+single-pass `full` (each one fewer than before the chain regrouping began
+requiring an integer proof, as in `standard`). Both counts moved when the
+`expr`-trust gate stopped being
 switched off by the `factorial` stanza: `full` gained the folds it could not
 previously prove, and `aggressive` lost two, because work its second pass used
 to discover is now done in the first. (This figure read 42 until #1962; the committed golden
