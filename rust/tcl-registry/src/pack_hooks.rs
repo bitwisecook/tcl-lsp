@@ -109,11 +109,16 @@ pub enum HookFamily {
     /// through `option-present` / `option-value` / `arg-count` / `literal`
     /// and emits `invalid SLOT MESSAGE ?-conflict?` / `abstain REASON`.
     Constraints,
+    /// `evaluate -implementation` — a declared implementation's body. Its
+    /// parameters are the declared inputs, in order, and it emits `fold
+    /// VALUE`, `write TARGET VALUE` and `preserve TARGET`
+    /// (`docs/design/compiler/value-evaluation.md` § *The body verbs*).
+    Evaluate,
 }
 
 /// Every family, in declaration order — the index a slot's family contributes
 /// to the per-family tables.
-pub const HOOK_FAMILIES: [HookFamily; 11] = [
+pub const HOOK_FAMILIES: [HookFamily; 12] = [
     HookFamily::ArgRoleResolver,
     HookFamily::CommandPrefixResolver,
     HookFamily::ScriptTimingResolver,
@@ -125,6 +130,7 @@ pub const HOOK_FAMILIES: [HookFamily; 11] = [
     HookFamily::ClauseShapeCheck,
     HookFamily::OptionArity,
     HookFamily::Constraints,
+    HookFamily::Evaluate,
 ];
 
 impl HookFamily {
@@ -152,6 +158,7 @@ impl HookFamily {
                 "literal",
                 "arg-count",
             ],
+            Self::Evaluate => &["fold", "write", "preserve"],
         }
     }
 
@@ -173,6 +180,8 @@ impl HookFamily {
             // The declarative relations already answered; a silent hook adds
             // nothing to their verdict.
             Self::Constraints => "no report",
+            // Silence establishes nothing: the evaluation declines.
+            Self::Evaluate => "a decline",
         }
     }
 
@@ -189,7 +198,7 @@ impl HookFamily {
     pub fn requires_all_literal(self) -> bool {
         matches!(
             self,
-            Self::ConstFold | Self::ConstFoldVersioned | Self::OptionArity
+            Self::ConstFold | Self::ConstFoldVersioned | Self::OptionArity | Self::Evaluate
         )
     }
 
@@ -208,6 +217,7 @@ impl HookFamily {
             Self::ClauseShapeCheck => "clause_shape_check",
             Self::OptionArity => "options.arity_hook",
             Self::Constraints => "constraints",
+            Self::Evaluate => "evaluate",
         }
     }
 
@@ -224,6 +234,7 @@ impl HookFamily {
             Self::ClauseShapeCheck => 8,
             Self::OptionArity => 9,
             Self::Constraints => 10,
+            Self::Evaluate => 11,
         }
     }
 }
@@ -540,6 +551,12 @@ pub struct HookCall<'w> {
     /// was the bug — an iRules document reported `tcl9.0`, so a hook could
     /// never tell the two apart.
     pub dialect: Option<&'static str>,
+    /// The `evaluate` family's declared store targets, as the body names
+    /// them (`write TARGET VALUE`); empty for every other family.
+    pub targets: &'w [usize],
+    /// The `evaluate` family's own budget, which narrows the host's for this
+    /// call; the default narrows nothing.
+    pub budget: crate::value_transfer::ImplementationBudget,
 }
 
 impl HookCall<'_> {
@@ -551,6 +568,18 @@ impl HookCall<'_> {
             .iter()
             .all(|word| word.kind == InvocationWordKind::Literal)
     }
+}
+
+/// What an `evaluate` body stated: the result `fold` named, and one store
+/// per declared target in call order — `write TARGET VALUE` as the value,
+/// `preserve TARGET` as `None`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EvaluationAnswer {
+    /// The invocation's result, when the body called `fold`.
+    pub result: Option<String>,
+    /// `(target, Some(value))` for a `write`, `(target, None)` for a
+    /// `preserve`, in call order.
+    pub stores: Vec<(usize, Option<String>)>,
 }
 
 /// What a hook invocation produced: the emitter verb it called, or an
@@ -592,6 +621,9 @@ pub enum HookAnswer {
         /// The W141 message, when the hook rejected the value.
         invalid: Option<String>,
     },
+    /// `fold` / `write` / `preserve` — an `evaluate` body's answer, every
+    /// declared target spoken for.
+    Evaluation(EvaluationAnswer),
 }
 
 /// The hook host, as the registry sees it.
@@ -606,6 +638,14 @@ pub enum HookAnswer {
 pub trait PackHookHost {
     /// Answer one hook invocation.
     fn invoke(&self, slot: HookSlot, call: &HookCall<'_>) -> HookAnswer;
+
+    /// Whether `slot`'s hook can run on this host now: `false` once it is
+    /// quarantined or its pack poisoned. A state of the host, never a
+    /// verdict on any call's inputs.
+    fn is_available(&self, slot: HookSlot) -> bool {
+        let _ = slot;
+        true
+    }
 }
 
 /// Per-family allocation counters. Process-global because a slot is baked
@@ -800,6 +840,25 @@ pub fn clear_host() {
 #[must_use]
 pub fn has_host() -> bool {
     ANY_HOST.load(Ordering::Relaxed) && HOST.with(|slot| slot.borrow().is_some())
+}
+
+/// Whether this thread's host can run `slot`'s hook now, building the host
+/// first as [`dispatch`] would. `false` — no host, or the hook quarantined
+/// or its pack poisoned — is transient: it says nothing about any call's
+/// inputs, so an answer that rests on it must not be kept as a verdict.
+#[must_use]
+pub fn slot_available(slot: HookSlot) -> bool {
+    if !ANY_HOST.load(Ordering::Relaxed) {
+        return false;
+    }
+    let mut host = HOST.with(|slot| slot.borrow().clone());
+    if host.is_none()
+        && let Some(installer) = INSTALLER.get()
+    {
+        installer();
+        host = HOST.with(|slot| slot.borrow().clone());
+    }
+    host.is_some_and(|host| host.is_available(slot))
 }
 
 /// The shape key: everything a shape-cacheable hook may read, packed.
@@ -1041,6 +1100,8 @@ fn call_of<'w>(words: &'w [HookWord<'w>], version: Option<TclVersion>) -> HookCa
         option: None,
         constraints: None,
         dialect: current_dialect(),
+        targets: &[],
+        budget: crate::value_transfer::ImplementationBudget::default(),
     }
 }
 
@@ -1144,6 +1205,8 @@ fn context_gate_thunk<const N: u16>(args: &[&str], in_event_body: bool) -> Optio
         option: None,
         constraints: None,
         dialect: current_dialect(),
+        targets: &[],
+        budget: crate::value_transfer::ImplementationBudget::default(),
     };
     match dispatch(
         HookSlot {
@@ -1201,6 +1264,8 @@ fn option_arity_thunk<const N: u16>(args: &[&str], start: usize) -> OptionValueO
         option: Some(option),
         constraints: None,
         dialect: current_dialect(),
+        targets: &[],
+        budget: crate::value_transfer::ImplementationBudget::default(),
     };
     match dispatch(
         HookSlot {
@@ -1268,6 +1333,8 @@ fn constraints_thunk<const N: u16>(
             complete: facts.complete,
         }),
         dialect: current_dialect(),
+        targets: &[],
+        budget: crate::value_transfer::ImplementationBudget::default(),
     };
     match dispatch(
         HookSlot {

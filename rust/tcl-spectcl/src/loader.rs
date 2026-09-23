@@ -154,6 +154,7 @@ mod available;
 mod dialect_block;
 mod environment_block;
 mod eval;
+mod semantics;
 mod surface_roster;
 mod vocabulary_class;
 
@@ -228,6 +229,9 @@ struct Log {
     /// Whether a semantic-class unknown word was seen in the spec being
     /// read. Reset by [`Log::begin_spec`].
     semantic_unknown: bool,
+    /// The command whose body is being read, for the scope a subcommand's
+    /// `semantics`, `evaluate` and `facts` ids are spelled under.
+    command: String,
 }
 
 impl Log {
@@ -1357,10 +1361,11 @@ fn finish_pack_cores(pack: &mut Pack, log: &mut Log) {
 /// pack declaring a newer minor loads maximally and reports words this build
 /// does not know. Only an unsupported major fails closed (see
 /// [`check_vocabulary_version`]).
-pub const KNOWN_VOCABULARY_VERSIONS: &[&str] = &["1", "1.0", "1.1", "1.2", "2", "2.0", "2.1"];
+pub const KNOWN_VOCABULARY_VERSIONS: &[&str] =
+    &["1", "1.0", "1.1", "1.2", "2", "2.0", "2.1", "2.2"];
 
 /// The newest vocabulary this loader speaks, for the notice below.
-pub const NEWEST_VOCABULARY_VERSION: &str = "2.1";
+pub const NEWEST_VOCABULARY_VERSION: &str = "2.2";
 
 /// The newest `speclib` **major** this loader supports.
 ///
@@ -4691,6 +4696,7 @@ struct CommandAcc {
     event_requirement_forms: Vec<EventRequirementForm>,
     hooks: Vec<HookDecl>,
     clause_grammar: Option<ClauseGrammar>,
+    declarations: semantics::Declarations,
 }
 
 /// Build one command: defaults, the body (delivered by `fill` from the
@@ -4734,7 +4740,10 @@ fn command_from_parts(
         }
 
         let mut acc = CommandAcc::default();
+        let outer_command = std::mem::replace(&mut log.command, name.to_owned());
         fill(&mut spec, &mut acc, log);
+        log.command = outer_command;
+        acc.declarations.report_orphan_option_flags(log);
 
         // A `clause_grammar` derives BOTH hook behaviours; the pack still
         // declares STRUCTURALLY_CHECKED_ARITY and the loader warns if it does
@@ -5269,9 +5278,21 @@ fn apply_command_stmt(
         "form" => acc.forms.push(form_row(stmt, log)),
         "refine" => {
             log.v20(stmt.line, "refine");
-            if let Some(form) = load_refinement(stmt, tables, log) {
+            if let Some(form) = load_refinement(stmt, tables, spec.name, log) {
                 acc.refinements.push(form);
             }
+        }
+
+        // Value transfers (vocabulary 2.2).
+        "semantics" | "evaluate" | "facts" => {
+            let scope = semantics::Scope {
+                path: spec.name,
+                binds_bodies: true,
+            };
+            acc.declarations.read(stmt, &scope, log);
+            let (declaration, body) = acc.declarations.declaration(&scope);
+            spec.semantics = declaration;
+            semantics::rebind(&mut acc.hooks, &HookOwner::Command, body);
         }
 
         // Effects.
@@ -5380,7 +5401,19 @@ fn apply_command_stmt(
 
         // Options.
         "option" => {
-            let (option, hook) = option_row(stmt, tables, log);
+            let (row, evaluation) = semantics::option_flags(stmt, log);
+            let (option, hook) = option_row(&row, tables, log);
+            if let Some(evaluation) = evaluation {
+                acc.declarations
+                    .decline_option(&option, evaluation, stmt.line, log);
+                let scope = semantics::Scope {
+                    path: spec.name,
+                    binds_bodies: true,
+                };
+                let (declaration, body) = acc.declarations.declaration(&scope);
+                spec.semantics = declaration;
+                semantics::rebind(&mut acc.hooks, &HookOwner::Command, body);
+            }
             if let Some((source, option_name)) = hook {
                 acc.hooks.push(HookDecl {
                     owner: HookOwner::Option {
@@ -6091,6 +6124,7 @@ struct RefineAcc {
     /// `side_effects none` — declaring the parent's effects away is not the
     /// same as saying nothing, so the empty slice needs a spelling of its own.
     silenced_side_effects: bool,
+    declarations: semantics::Declarations,
 }
 
 /// Read a `refine NAME { … }` block into the invocation form it describes.
@@ -6100,11 +6134,17 @@ struct RefineAcc {
 /// row and an empty one different declarations — no `traits` row inherits the
 /// parent's traits, while `traits {}` replaces them with none, which is how a
 /// read form drops a mutation trait its conservative parent has to carry.
-fn load_refinement(stmt: &Stmt, tables: &PackTables, log: &mut Log) -> Option<CommandForm> {
+fn load_refinement(
+    stmt: &Stmt,
+    tables: &PackTables,
+    parent: &str,
+    log: &mut Log,
+) -> Option<CommandForm> {
     let name = stmt.word_text(1).to_owned();
     let body = stmt.arg(2)?;
     let line = stmt.line;
     let outer = log.context.clone();
+    let path = format!("{parent}::{name}");
     log.scoped(format!("{outer} / refine {name}"), |log| {
         let mut form = CommandForm {
             name: leak_str(&name),
@@ -6112,8 +6152,9 @@ fn load_refinement(stmt: &Stmt, tables: &PackTables, log: &mut Log) -> Option<Co
         };
         let mut acc = RefineAcc::default();
         for stmt in block(body) {
-            apply_refine_stmt(&mut form, &mut acc, &stmt, tables, log);
+            apply_refine_stmt(&mut form, &mut acc, &stmt, tables, &path, log);
         }
+        acc.declarations.report_orphan_option_flags(log);
         let args = acc.args.seal();
         if !args.types.is_empty()
             || !args.values.is_empty()
@@ -6151,11 +6192,24 @@ fn apply_refine_stmt(
     acc: &mut RefineAcc,
     stmt: &Stmt,
     tables: &PackTables,
+    path: &str,
     log: &mut Log,
 ) {
     let key = stmt.word_text(0).to_owned();
     let value = stmt.word_text(1).to_owned();
+    // A form's hook bodies are not bound (they bind at command and
+    // subcommand scope), so its `evaluate -implementation` is reported and
+    // dropped, and no hook is recorded here.
+    let scope = semantics::Scope {
+        path,
+        binds_bodies: false,
+    };
     match key.as_str() {
+        // Value transfers (vocabulary 2.2).
+        "semantics" | "evaluate" | "facts" => {
+            acc.declarations.read(stmt, &scope, log);
+            form.semantics = acc.declarations.declaration(&scope).0;
+        }
         "arity" => match parse_arity(stmt, log) {
             (arity, None) => form.arity = arity,
             (arity, Some(_)) => {
@@ -6170,7 +6224,13 @@ fn apply_refine_stmt(
         "selector" => form.literal_argument_prefix = selector_row(stmt, log),
         "arg" => acc.args.apply(stmt, tables, log),
         "option" => {
-            let (option, hook) = option_row(stmt, tables, log);
+            let (row, evaluation) = semantics::option_flags(stmt, log);
+            let (option, hook) = option_row(&row, tables, log);
+            if let Some(evaluation) = evaluation {
+                acc.declarations
+                    .decline_option(&option, evaluation, stmt.line, log);
+                form.semantics = acc.declarations.declaration(&scope).0;
+            }
             if hook.is_some() {
                 log.say(
                     stmt.line,
@@ -6280,6 +6340,7 @@ struct SubAcc {
     option_relations: Vec<tcl_registry::spec::OptionRelation>,
     versioned_arg_values: Vec<tcl_registry::spec::VersionedArgValue>,
     callback_taint_inputs: Vec<(u8, &'static [CallbackTaintInput])>,
+    declarations: semantics::Declarations,
 }
 
 /// Read a `subcommand NAME { … }` body, or the `method NAME { … }` row of an
@@ -6319,6 +6380,7 @@ fn subcommand_from_parts(
         };
         let mut acc = SubAcc::default();
         fill(&mut sub, &mut acc, log);
+        acc.declarations.report_orphan_option_flags(log);
         validate_arg_role_capabilities(
             sub.arg_role_resolver.is_some(),
             sub.arg_role_resolver_roles,
@@ -6496,7 +6558,13 @@ fn apply_subcommand_stmt(
             sub.pattern_type = enum_by_name(PATTERNS, &value, "pattern type", stmt.line, log);
         }
         "option" => {
-            let (option, hook) = option_row(stmt, tables, log);
+            let (row, evaluation) = semantics::option_flags(stmt, log);
+            let (option, hook) = option_row(&row, tables, log);
+            if let Some(evaluation) = evaluation {
+                acc.declarations
+                    .decline_option(&option, evaluation, stmt.line, log);
+                declare_subcommand_semantics(sub, acc, hooks, owner, log);
+            }
             if let Some((source, option_name)) = hook {
                 hooks.push(HookDecl {
                     owner: HookOwner::Option {
@@ -6512,9 +6580,20 @@ fn apply_subcommand_stmt(
         }
         "refine" => {
             log.v20(stmt.line, "refine");
-            if let Some(form) = load_refinement(stmt, tables, log) {
+            let parent = format!("{}::{owner}", log.command);
+            if let Some(form) = load_refinement(stmt, tables, &parent, log) {
                 acc.refinements.push(form);
             }
+        }
+        // Value transfers (vocabulary 2.2).
+        "semantics" | "evaluate" | "facts" => {
+            let path = format!("{}::{owner}", log.command);
+            let scope = semantics::Scope {
+                path: &path,
+                binds_bodies: true,
+            };
+            acc.declarations.read(stmt, &scope, log);
+            declare_subcommand_semantics(sub, acc, hooks, owner, log);
         }
         "option_conflict" => acc.option_relations.push(option_relation_row(
             stmt,
@@ -6639,6 +6718,26 @@ fn apply_subcommand_stmt(
         }
         _ => log.unknown_property(stmt),
     }
+}
+
+/// Seal a subcommand's `semantics` / `evaluate` statements into its
+/// declaration and its `evaluate` hook, after each statement that changes
+/// them, so the last statement read is what the subcommand declares.
+fn declare_subcommand_semantics(
+    sub: &mut SubCommand,
+    acc: &SubAcc,
+    hooks: &mut Vec<HookDecl>,
+    owner: &str,
+    log: &Log,
+) {
+    let path = format!("{}::{owner}", log.command);
+    let scope = semantics::Scope {
+        path: &path,
+        binds_bodies: true,
+    };
+    let (declaration, body) = acc.declarations.declaration(&scope);
+    sub.semantics = declaration;
+    semantics::rebind(hooks, &HookOwner::Subcommand(owner.to_owned()), body);
 }
 
 /// `sub_subcommand NAME ?flags? ?{ option … }?`.
@@ -7537,7 +7636,7 @@ mod tests {
         );
     }
 
-    /// `1`, `1.0`, `1.1`, `1.2`, `2.0` and `2.1` are all known; an
+    /// `1`, `1.0`, `1.1`, `1.2`, `2.0`, `2.1` and `2.2` are all known; an
     /// unknown *minor* loads with a notice rather than being refused.
     #[test]
     fn the_speclib_version_word_names_a_vocabulary_this_loader_knows() {
@@ -7560,7 +7659,7 @@ mod tests {
                 .map(|notice| notice.message.as_str())
                 .collect::<Vec<_>>(),
             vec![
-                "pack declares SpecTcl vocabulary 2.9; this loader knows 2.1 — \
+                "pack declares SpecTcl vocabulary 2.9; this loader knows 2.2 — \
                  newer words may be dropped"
             ]
         );
@@ -7577,7 +7676,7 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec![
                 "`0.15` is not a SpecTcl vocabulary version (this loader knows \
-                 2.1); if it is the library's own version, it belongs in \
+                 2.2); if it is the library's own version, it belongs in \
                  `introduced_version`, not the `speclib` slot"
             ]
         );

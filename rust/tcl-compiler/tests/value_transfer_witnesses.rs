@@ -1168,8 +1168,10 @@ fn format_folds_through_the_shared_core() {
 /// is a direct entry with no expression; a decided literal condition is an
 /// expression entry, recorded once for reachability and once for the
 /// collected branch, so `if {1} {…}` is two expression entries and no
-/// direct one. No command declares an `EvaluatorCapability` yet, so
-/// `implementation` stays 0 throughout (slice 4). An entry is counted only
+/// direct one. No shipped command declares an `EvaluatorCapability`, so
+/// `implementation` stays 0 throughout; a pack's declared implementation
+/// counts there (`a_declared_implementation_folds_through_the_driver`).
+/// An entry is counted only
 /// once the route is entered: with the module's own `proc expr`, `set r
 /// [expr {1 + 1}]` declines at the trust check and never reaches the
 /// engine, so it counts nothing.
@@ -1612,4 +1614,158 @@ fn a_structure_fold_stays_within_the_targets_tower() {
             );
         }
     }
+}
+
+/// The bounded host's stand-in for `tenant::label`'s body `{name} { fold
+/// [string cat "tenant:" $name] }`: one exact argument in, `tenant:` before
+/// it out, under the release the call is pinned to.
+struct LabelHost;
+
+impl tcl_registry::pack_hooks::PackHookHost for LabelHost {
+    fn invoke(
+        &self,
+        _slot: tcl_registry::pack_hooks::HookSlot,
+        call: &tcl_registry::pack_hooks::HookCall<'_>,
+    ) -> tcl_registry::pack_hooks::HookAnswer {
+        use tcl_registry::pack_hooks::{EvaluationAnswer, HookAnswer};
+        match call.words {
+            [name] if call.dialect == Some("tcl9.0") => HookAnswer::Evaluation(EvaluationAnswer {
+                result: Some(format!("tenant:{}", name.value)),
+                stores: Vec::new(),
+            }),
+            _ => HookAnswer::Abstain,
+        }
+    }
+}
+
+/// A `tcl9.0` registry holding `tenant::label` as a pack declares it —
+/// `arity 1`, `evaluate -implementation tenant.label.v1 -host bounded_tcl`
+/// reading `arg 0 exact` — its body bound to an `evaluate` slot.
+fn tenant_label_registry() -> tcl_registry::CommandRegistry {
+    use tcl_registry::pack_hooks::{self, HookFamily, HookInput, HookInputs};
+    use tcl_registry::spec::CommandSpec;
+    use tcl_registry::value_transfer::{
+        CompletionSupport, ContextDependency, DeclaredEvaluation, DeclaredImplementation,
+        DeclaredInput, DeclaredSemantics, DeclaredStructure, EvaluatorCapability, Exactness,
+        HostKind, ImplementationBudget, ImplementationIdentity, Needs, SemanticsDeclaration,
+    };
+
+    let slot = pack_hooks::allocate(
+        HookFamily::Evaluate,
+        &HookInputs::declared([HookInput::Words]),
+    )
+    .expect("an evaluate slot");
+    let label: &'static DeclaredSemantics = Box::leak(Box::new(DeclaredSemantics {
+        scope: "tenant::label",
+        structure: DeclaredStructure::default(),
+        evaluation: DeclaredEvaluation::Implementation(DeclaredImplementation {
+            capability: EvaluatorCapability {
+                identity: ImplementationIdentity {
+                    pack: "tenant",
+                    id: "tenant.label.v1",
+                    content_hash: 1,
+                },
+                host: HostKind::BoundedTcl,
+                target: Needs::NONE,
+                inputs: &[DeclaredInput::Operand {
+                    index: 0,
+                    exactness: Exactness::Exact,
+                }],
+                depends: &[
+                    ContextDependency::TclProfile,
+                    ContextDependency::ImplementationIdentity,
+                ],
+                budget: ImplementationBudget {
+                    commands: Some(2000),
+                    wall_clock_ms: Some(20),
+                    value_bytes: Some(65536),
+                },
+                completion: CompletionSupport::NormalOnly,
+            },
+            slot: Some(slot),
+        }),
+        option_declines: &[],
+    }));
+    let mut base = tcl_registry::CommandRegistry::build_default();
+    base.insert(CommandSpec {
+        name: "tenant::label",
+        semantics: SemanticsDeclaration::Declared(label),
+        ..CommandSpec::DEFAULT
+    });
+    base.project_for_profile(tcl_dialect::DialectProfile::find("tcl9.0").expect("the profile"))
+}
+
+/// A declared implementation runs through the driver as a shipped route
+/// does, from the pack's declaration alone: `tenant::label acme` folds to
+/// `tenant:acme` through the body's `fold`, and the entry counts as an
+/// implementation; an argument the analysis does not know declines
+/// `NotExact` before any body runs; and a worker with no host declines
+/// `Transient` — a state of the worker, never a verdict on the inputs. The
+/// host here stands in for the bounded one, which runs the body in
+/// `tcl-spec-hooks`' own witnesses.
+#[test]
+fn a_declared_implementation_folds_through_the_driver() {
+    use tcl_registry::pack_hooks;
+
+    let registry = tenant_label_registry();
+    let source = "proc p {x} {\n\
+                  set known [tenant::label acme]\n\
+                  set unknown [tenant::label $x]\n\
+                  return $known$unknown\n\
+                  }\n";
+    let routes = |unit: &CompilationUnit| -> Vec<String> {
+        unit.procedures
+            .get("::p")
+            .expect("the procedure")
+            .sccp
+            .explanations
+            .iter()
+            .filter(|explanation| explanation.command == "tenant::label")
+            .map(|explanation| explanation.route.clone())
+            .collect()
+    };
+
+    pack_hooks::install_host(std::rc::Rc::new(LabelHost));
+    let unit = CompilationUnit::build_for_dialect(source, &registry, false, "tcl9.0");
+    assert_eq!(
+        value_at(&unit, "::p", "known", 1),
+        Some(text("tenant:acme"))
+    );
+    assert_eq!(
+        value_at(&unit, "::p", "unknown", 1),
+        Some(LatticeValue::Overdefined)
+    );
+    assert_eq!(
+        answers_for(&unit, "::p", "tenant::label"),
+        ["evaluated", "declined: not-exact"]
+    );
+    assert_eq!(
+        routes(&unit),
+        [
+            "implementation tenant.label.v1",
+            "implementation tenant.label.v1"
+        ]
+    );
+    let tally = unit
+        .procedures
+        .get("::p")
+        .expect("the procedure")
+        .sccp
+        .route_tally;
+    assert_eq!(tally.implementation, 2, "both calls enter the route");
+    assert_eq!(tally.direct, 0);
+
+    // The same worker without its host: the known call cannot run, and
+    // says so as a transient decline; the unknown one still declines on
+    // its input first.
+    pack_hooks::clear_host();
+    let unit = CompilationUnit::build_for_dialect(source, &registry, false, "tcl9.0");
+    assert_eq!(
+        value_at(&unit, "::p", "known", 1),
+        Some(LatticeValue::Overdefined)
+    );
+    assert_eq!(
+        answers_for(&unit, "::p", "tenant::label"),
+        ["declined: transient", "declined: not-exact"]
+    );
 }

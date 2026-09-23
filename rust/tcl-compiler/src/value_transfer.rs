@@ -132,14 +132,15 @@ pub struct RouteExplanation {
 }
 
 /// How many times the run dispatched to each route family, nested entries
-/// included: `call_def` (the typed `incr` and every call) and a
-/// direct-routed `run_script` count in [`Self::direct`]; a `run_script` that
-/// resolves to `expr`, `evaluate_assign_expr` and `evaluate_condition` count
-/// in [`Self::expression`]; an implementation-routed `run_script` counts in
-/// [`Self::implementation`]. Carries no span — a route entry has no one
-/// statement of its own once nesting is counted — so `lattice_rebase.rs`
-/// does not touch it. The Explorer's `sccp` view renders it as `routes
-/// entered: direct N · expression M · implementation K`.
+/// included: a direct-routed `call_def` (the typed `incr` and every call)
+/// or `run_script` counts in [`Self::direct`]; a `run_script` that resolves
+/// to `expr`, `evaluate_assign_expr` and `evaluate_condition` count in
+/// [`Self::expression`]; an implementation-routed `call_def` or
+/// `run_script` counts in [`Self::implementation`]. Carries no span — a
+/// route entry has no one statement of its own once nesting is counted —
+/// so `lattice_rebase.rs` does not touch it. The Explorer's `sccp` view
+/// renders it as `routes entered: direct N · expression M ·
+/// implementation K`.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct RouteTally {
     /// Entries into a registry-owned direct evaluator.
@@ -220,7 +221,7 @@ fn route_label(route: Option<EvalRoute>) -> String {
         },
         Some(EvalRoute::Expression { language }) => format!("expression {}", language.as_str()),
         Some(EvalRoute::Implementation(capability)) => {
-            format!("implementation {}", capability.identity)
+            format!("implementation {}", capability.identity.id)
         }
         Some(EvalRoute::None { reason }) => format!("none ({})", reason.as_str()),
     }
@@ -356,6 +357,13 @@ impl<'a> LatticeDriver<'a> {
     fn enter_expression(&self) {
         let mut tally = self.tally.get();
         tally.expression += 1;
+        self.tally.set(tally);
+    }
+
+    /// Count one entry into a declared implementation.
+    fn enter_implementation(&self) {
+        let mut tally = self.tally.get();
+        tally.implementation += 1;
         self.tally.set(tally);
     }
 
@@ -501,15 +509,22 @@ impl<'a> LatticeDriver<'a> {
         inputs: &dyn AnalysisInputs,
     ) -> LatticeValue {
         let route = semantics.route();
-        if !matches!(route, EvalRoute::Direct { id } if id.owner() == EvaluatorOwner::Registry) {
-            self.explain(
-                head,
-                Some(route),
-                "not evaluated: the route is not registry-owned".to_owned(),
-            );
-            return LatticeValue::Overdefined;
+        match route {
+            EvalRoute::Direct { id } if id.owner() == EvaluatorOwner::Registry => {
+                self.enter_direct();
+            }
+            // A declared implementation is registry-owned too: the
+            // specialisation's `evaluate` runs it in the bounded host.
+            EvalRoute::Implementation(_) => self.enter_implementation(),
+            _ => {
+                self.explain(
+                    head,
+                    Some(route),
+                    "not evaluated: the route is not registry-owned".to_owned(),
+                );
+                return LatticeValue::Overdefined;
+            }
         }
-        self.enter_direct();
         let answer = evaluate_lifted(semantics, inputs, &mut Self::budget(), MAX_CONSTSET_SIZE);
         self.explain(head, Some(route), answer_label(&answer));
         match answer {
@@ -843,17 +858,37 @@ impl<'a> LatticeDriver<'a> {
             }
             EvalRoute::Expression { language } => {
                 self.enter_expression();
-                let expression = ExpressionEvaluation {
-                    expression: Expression::Assembled(ExpressionRoute { language }),
-                    policy: self.policy,
-                    head: Some(binding.clone()),
-                };
-                evaluate_lifted(&expression, &inputs, &mut Self::budget(), MAX_CONSTSET_SIZE)
+                // A pack's option row can switch the declared route off;
+                // the engine adapter never reads the declaration, so the
+                // driver asks it first.
+                match semantics
+                    .as_declared()
+                    .and_then(|declared| declared.option_decline(&inputs))
+                {
+                    Some(EvalAnswer::Pending) => LiftedAnswer::Pending,
+                    Some(EvalAnswer::Declined(reason)) => LiftedAnswer::Declined(reason),
+                    Some(EvalAnswer::Evaluated(_)) | None => {
+                        let expression = ExpressionEvaluation {
+                            expression: Expression::Assembled(ExpressionRoute { language }),
+                            policy: self.policy,
+                            head: Some(binding.clone()),
+                        };
+                        evaluate_lifted(
+                            &expression,
+                            &inputs,
+                            &mut Self::budget(),
+                            MAX_CONSTSET_SIZE,
+                        )
+                    }
+                }
             }
             EvalRoute::None { reason } => LiftedAnswer::Declined(DeclineReason::NoRoute(reason)),
-            // No declared implementation runs through the driver before
-            // slice 4, so none is entered or counted.
-            EvalRoute::Implementation(_) => LiftedAnswer::Declined(DeclineReason::Unsupported),
+            // The specialisation's `evaluate` resolves the declared inputs
+            // and runs the body in this thread's host.
+            EvalRoute::Implementation(_) => {
+                self.enter_implementation();
+                evaluate_lifted(semantics, &inputs, &mut Self::budget(), MAX_CONSTSET_SIZE)
+            }
         };
         Some(ScriptRun {
             head: head.to_owned(),
@@ -1025,6 +1060,7 @@ impl<'a> LatticeDriver<'a> {
                 form: None,
                 layout: InvocationLayout::Source,
                 operands: Vec::new(),
+                argument_offset: 0,
             },
             uses,
             values,
@@ -1125,6 +1161,7 @@ pub(crate) fn evaluate_expression_detached(
             form: None,
             layout: InvocationLayout::Source,
             operands: Vec::new(),
+            argument_offset: 0,
         },
         constants,
     };
@@ -1590,6 +1627,7 @@ fn view_of<'a>(
         form: resolved.form.as_ref().map(|form| form.name),
         layout,
         operands,
+        argument_offset: offset,
     }
 }
 

@@ -2956,6 +2956,10 @@ declaring no release (`tcl`, or `tk` in the Explorer's text view).
 |---|---|---|---|
 | VT4.1 | `wip(value-transfers): slice 4 — the engine pins and confines` | `Engine::set_release` (default `Unsupported("pinning a release")`); `TclVmEngine::set_release` through the registry's dialect ingress (D76) with the thread's numeral grammar claimed per operation (`GrammarGuard`, D75); the host's per-(pack, profile) pinned engines for `HookProgram::release_pinned` programs, keyed into the hook cache by the call's profile (D74); ruling 8 in `TargetSemantics::of` (D72), and a release-less profile's math functions floored at 8.4's (D73); the expression evidence reads the same release | `set_release_pins_the_numeral_grammar` (`tcl-engine-tclvm`); `a_release_pinned_hook_runs_under_the_calls_release` (`families_e2e`); `a_declared_base_release_is_the_release`, `numerals_read_under_the_named_grammar_or_the_unanimous_one` and the character-model rows (`const_ops`); the iRules and `tcl` columns of the registry, compiler, parity and CLI witnesses; the four tests the recovery restated (above) |
 | VT4.2 | the same checkpoint | `Engine::confine_stores` (default `Unsupported("confining stores to the activation")`); `Vm::set_stores_confined` and the check at the VM's two store entries (D77); a confined VM publishes no `::errorInfo` / `::errorCode`, and `set_host`'s rebootstrap runs unconfined (D78); `TclVmEngine::confine_stores`; the host confines every engine after `restrict_commands` and fails the pack's sandbox on an engine that cannot | `confine_stores_refuses_every_store_outside_the_activation` (`tcl-engine-tclvm`: nineteen escapes, each probed for the name it would have written, and a caught error publishing neither global); `a_body_with_a_global_counter_answers_identically_on_every_call`, `a_local_accumulator_is_unaffected` (`containment_e2e`) |
+| VT4.3 | `wip(value-transfers): slice 4 — the declaration and the loader` | `EvaluatorCapability` at the plan's shape — `ImplementationIdentity`, `HostKind`, `DeclaredInput`, `Exactness`, `ContextDependency`, `ImplementationBudget`, `CompletionSupport` — with the closed word list beside each type, and `OptionEvaluation` (D79); the route label and the inventory spell the implementation by its id | `the_capability_is_part_of_the_route_identity` (`value_transfers.rs`) |
+| VT4.4 | the same checkpoint | `loader/semantics.rs`: `semantics`, `evaluate` and `facts` at command, subcommand and `refine` scope, innermost winning and sealed per row (D84), as one `DeclaredSemantics` per declaring scope (D80) whose `arg N` counts from the form's first argument (D81); the option flags (D82, D90); vocabulary 2.2 (D83, D93); `-native` and `-direct` ids installing nothing yet (D87); a form's implementation dropped with a notice (D85) | `semantics_statements_load_at_every_scope`, `a_short_native_id_is_a_load_notice`, and `a_stores_row_an_iterate_block_and_the_option_flags_load`, `what_cannot_be_used_is_reported_and_dropped` (`loader/semantics.rs`) |
+| VT4.5 | the same checkpoint | `HookFamily::Evaluate` in `HOOK_FAMILIES`, its programs release-pinned and its body bound into a slot by the host plan (`DeclaredSemantics::bound`, D86); `Emission::Write` and `Emission::Preserve`, the `write` and `preserve` verbs validating against `HookCall::targets`, and `answer_of`'s three rules; `HookAnswer::Evaluation` | `a_silent_target_declines_the_whole_answer`, `a_write_to_a_non_target_raises` (`families_e2e`) |
+| VT4.6 | the same checkpoint (D92) | `DeclaredSemantics::evaluate` through `pack_hooks::slot_available` and `dispatch` (D88, D89); `PackHookHost::is_available`; `HookCall::budget` and the host's per-call narrowing (D91); the driver's implementation arms in `run_script` and `call_def`, counted by `enter_implementation`, and the expression route asking the option declines first (D90) | `a_declared_implementation_folds_through_the_driver` (compiler witnesses: `tenant::label acme` folds to `tenant:acme` and counts two implementation entries; `$x` declines `not-exact`; with the host cleared, `transient`); `a_declared_budget_narrows_the_host_for_its_call_only` (`containment_e2e`) |
 
 Deltas observed beyond the plan's list, each with its oracle:
 
@@ -2992,6 +2996,40 @@ Green at the first checkpoint (VT4.1, VT4.2):
   waived, 98 pinned across 39 files, 6607 rows); `pack-goldens` 0 of 24
   rewritten; the shard verifier OK; `kcs-index-links`; `owner-resolution`
   (44 rows); `cargo check --workspace --all-targets` clean.
+
+Deltas at the second checkpoint (VT4.3 to VT4.6), beyond the plan's list:
+
+- **VT4.6 is in it and VT4.10 is not** (D92): VT4.10 is a sonnet item, so
+  until it lands a `-native` or `-direct` id installs nothing (D87).
+- **`catalogue.rs` is untouched**: the closed word lists live beside their
+  types (D79), where VT4.10's table tests read them; the studio's pickers
+  for them arrive with VT4.11's route picker.
+- **The host narrows per call** (`tcl-spec-hooks/src/host.rs`, beyond
+  VT4.6's file list): the plan's "the host's budget narrowed by
+  `ImplementationBudget`" is the host's to do (D91), and
+  `HookHost::is_available` answers the registry's availability question.
+- **The test pins of the newest vocabulary moved to 2.2** (D93).
+- **`semantics_statements_load_at_every_scope` split in two** for clippy's
+  function-length lint; the stores, iterate and option-flag half is
+  `a_stores_row_an_iterate_block_and_the_option_flags_load`.
+
+Green at the second checkpoint (VT4.3 to VT4.6):
+
+- tests: `cargo test -p tcl-registry -p tcl-spec-hooks -p tcl-spectcl -p
+  tcl-spec-studio --no-fail-fast` 1815 passed, 0 failed, 1 ignored; `cargo
+  test -p tcl-compiler --no-fail-fast` 9716 passed, 6 ignored; `tcl-cli`'s
+  `value_transfers_cli` 5 and `spec_verbs` 18 passed, and
+  `samples_optimiser_profiles_are_regenerated` passed (no sample moved);
+  `tcl-mcp`'s `spectcl` tests 24 passed;
+- pedantic clippy (`--no-deps --all-targets -D warnings`) on
+  `tcl-registry`, `tcl-spec-hooks`, `tcl-spectcl`, `tcl-compiler`,
+  `tcl-spec-studio` and `xtask`, with no `#[allow]` added; `cargo fmt
+  --check` clean on those crates and on the one `tcl-mcp` line;
+- `cargo xtask value-transfers` rewrote nothing and `--check` is OK (17
+  clean, 13 waived, 98 pinned across 39 files, 6607 rows);
+  `pack-goldens` 0 of 24 rewritten; the shard script and the manifest
+  proof (325 targets, 5 partitions) OK; `cargo check --workspace
+  --all-targets` clean.
 
 The state the sonnet items start from: VT4.10 to VT4.12 and VT4.14 have
 the tree of this record's last row; the pages VT4.15 amends (§
@@ -6265,6 +6303,131 @@ Taken while slice 4's opus items were executed (§ *Slice 4* › *Record
   rebootstrap of `::tcl_platform` and `::env`, which is the embedder's own
   bookkeeping and now lifts the confinement while it runs, so a host swapped
   in after `confine_stores` still gets its globals.
+- **D79 — The capability's shape as built.** `EvaluatorCapability` is the
+  plan's, its lists leaked `&'static` slices. `Exactness` has the one
+  variant `Exact`: the page names the type and `arg N exact` is its only
+  spelling. The loader writes `target: Needs::NONE`, because the four-row
+  implementation block has no target row and the body runs pinned to the
+  call's release (D74), so a profile naming no release declines before the
+  host is asked (D88) rather than at admission. A `binding NAME` dependency is the name
+  as written with its unrooted identity. `LanguageProfileId::ALL`,
+  `HostKind::ALL`, `Exactness::ALL`, `ContextDependency::WORDS`,
+  `OutcomeKind::ALL`, `DeclaredEffect::ALL` and
+  `OptionEvaluation::REASONS` are the closed vocabularies VT4.10's
+  `value_tables_cover_their_catalogues` rows read.
+- **D80 — One declaration type per declaring scope.** The loader leaks a
+  `DeclaredSemantics` (`value_transfer/declared.rs`) onto the scope's
+  `semantics` field: the `semantics { … }` block's `DeclaredStructure`,
+  the `evaluate` statement's `DeclaredEvaluation`, and the scope's option
+  declines. The plan's `DeclaredImplementation` is its implementation
+  half — the capability and the hook slot. The pack's name joins the
+  implementation identity when the host plan binds the body
+  (`DeclaredSemantics::bound`, reached through the new
+  `CommandSemantics::as_declared`), because the evaluation loader's tables
+  do not carry the pack name at command build and D13 keeps
+  `loader/eval.rs` out of this slice.
+- **D81 — `arg N` counts from the resolved form's first argument.**
+  `ResolvedInvocationView::argument_offset` is the resolver's offset, set
+  by the driver's `view_of` (1 past a subcommand word), so `tenant::label
+  NAME` and `tenant label NAME` read one declaration, as an `arg` row at
+  the same scope does.
+- **D82 — The option flags live on the scope's declaration.**
+  `-evaluate none` and `-evaluate-reason WORD` fill
+  `DeclaredSemantics::option_declines`, not an `OptionSpec` field: 1,385
+  `OptionSpec` literals in the command tables spell every field, so a new
+  field is a sweep across them for a flag no shipped spec uses. Each entry
+  is the option and the decline it records (D90). A flag on a scope that
+  declares no route of its own is reported and dropped rather than read as
+  `evaluate none`.
+- **D83 — Vocabulary 2.2.** The three statements and the two flags are
+  2.2 words (`log.since`), `KNOWN_VOCABULARY_VERSIONS` gains `2.2` and
+  `NEWEST_VOCABULARY_VERSION` is `2.2`, so `tcl spec upgrade` and the
+  studio's rendered header move to 2.2 with it.
+- **D84 — A scope's declaration is sealed after each of its rows.** Every
+  `semantics`, `evaluate` or flagged `option` row recomputes the scope's
+  declaration and replaces its `evaluate` hook, so the last row read is
+  what the scope declares. A post-pass cannot reach a subcommand's hook
+  list: `subcommand_from_parts` has none, and the evaluation loader's
+  `fill_command_nodes` (D13) owns the closure that does.
+- **D85 — A form's declared implementation is dropped, and the form
+  declares no route.** Hook bodies bind at command and subcommand scope —
+  a form option's `-arity-hook` is already dropped for that reason — and
+  `HookOwner` gains no form variant (`tcl-mcp` matches it exhaustively).
+  The form's declaration becomes `None { Unauthored }` with a notice,
+  because a form that inherited would run an evaluator written for another
+  shape. `semantics none` beside an `evaluate` statement abstains for the
+  scope, and the body is not bound.
+- **D86 — The `evaluate` family.** `HookFamily::Evaluate` joins
+  `HOOK_FAMILIES`; its parameters are the declared inputs, one argument
+  each; its programs are release-pinned; its call carries the declared
+  targets (`HookCall::targets`), so `write` and `preserve` validate
+  against them in the verb and `answer_of` applies the third rule without
+  the host reading any declaration. The answer is
+  `HookAnswer::Evaluation(EvaluationAnswer)`. `Emission::Fold` stays
+  `Fold(String)`, the existing spelling. Two exhaustive family matches
+  outside the lane's crates gained the one arm they need to compile:
+  `tcl-mcp/src/spectcl.rs`'s `family_key` (the consumer-contracts lane's
+  file, B-CC4) and `tcl-spec-studio/src/store.rs`'s (VT4.11's file).
+- **D87 — A `-native` or `-direct` id installs nothing before VT4.10.**
+  The id rule holds now: a short id is a notice naming `SCOPE::FIELD`, and
+  a full id is a notice that nothing this build ships holds it. VT4.10's
+  tables make the full ids resolve.
+- **D88 — What a declared implementation declines with.**
+  `DeclaredSemantics::evaluate` resolves every declared input before it
+  asks the host, so an input that is not exact is its fact's stand-in
+  (`Pending`, `NotExact`, `CorrelatedSets`) and never a placeholder. A `{*}`
+  word anywhere in the call is `NotExact`, because a declaration's indices
+  are positions; a missing operand is `Unsupported`, because the command
+  raises; two targets sharing storage are `OverlappingTargets`. A profile
+  naming no release is `Unsupported`: no engine can be pinned to it, and
+  a body has no counterpart of the direct routes' unanimity. No bound
+  slot, no host, or a quarantined slot is `Transient`, and so is an
+  abstention after which the slot is no longer available — the call itself
+  blew its budget or panicked and the host quarantined it — so none of
+  these is a verdict on the inputs. A body that raises, stays silent or
+  leaves a target unstated is `Unsupported` (the DSL's "error means
+  abstain"). An answer in another family's shape, a preserve under a
+  `write` outcome, or any verb under `unbind` is `MalformedAnswer`. A body
+  that states its stores and no `fold` has an `Unavailable` result: silence
+  is never an empty result. The evidence carries the route identity (the
+  implementation id, its content hash as the revision), the pinned
+  release, and the declared `binding NAME` dependencies.
+- **D89 — An option input is a list of zero or one element.** `option
+  -NAME exact` binds `{}` when no argument word is `-NAME` (every word
+  exact) and the one-element list of the next word's value when exactly
+  one is, rendered under the target's list rule
+  (`ReleaseAmbiguous(ListRendering)` where that rule is the release's);
+  `-NAME` twice, or as the last word, is `Unsupported`. The page's memo key
+  keeps "an absent optional input … distinguishable from an empty one",
+  and a bare string could not. The reading is positional, as `arg N` is: a
+  declaration names words, not the command's option grammar.
+- **D90 — Option declines carry the decline they record.**
+  `OptionEvaluation::decline` turns a flag into the `DeclineReason` at
+  load: `form_unsupported` and `callback` are `NoRoute` with that reason,
+  and `release_ambiguous` is `ReleaseAmbiguous` on the option's own
+  `-available` row (`Axis::Availability`); an option without one gets a
+  notice and records a bare `-evaluate none`. The check
+  (`DeclaredSemantics::option_decline`) reads every argument word exact,
+  so an unknown word is its fact's stand-in and a word spelling the option
+  in a value position declines too — the conservative direction. The
+  driver asks it before the expression route, whose adapter never reads
+  the declaration; `evaluate` asks it for every other route.
+- **D91 — A declared budget narrows the host's for one call.**
+  `HookCall::budget` reaches the host, which sets each field to the
+  smaller of its own and the declared one before the call and restores
+  its own after it. A narrowed budget the engine refuses is an abstention,
+  never a wider run; an overrun is the host's ordinary budget blowout —
+  recorded, quarantined, and `Transient` from then on (D88).
+  `HookHost::is_available` is `!is_quarantined`, which also answers
+  `false` for a slot the host does not serve.
+- **D92 — VT4.6 rides with the second checkpoint.** Its edits share
+  `pack_hooks.rs`, `declared.rs` and `host.rs` with VT4.3 to VT4.5, and a
+  partial stage of those files would commit a state no build verified;
+  the third checkpoint holds VT4.7 to VT4.9.
+- **D93 — Test pins follow `NEWEST_VOCABULARY_VERSION`.** The loader's
+  two version notices and the upgrade tests' current-pack fixtures read
+  2.2, as the 2.1 bump moved them (#1754); the CLI's `tcl spec upgrade`
+  default target stays `2.0`, its own flag's default.
 
 ### Open questions for the owner
 

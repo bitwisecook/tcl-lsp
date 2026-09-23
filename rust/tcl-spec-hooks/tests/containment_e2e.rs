@@ -136,6 +136,8 @@ fn call<'w>(words: &'w [HookWord<'w>]) -> HookCall<'w> {
         option: None,
         constraints: None,
         dialect: None,
+        targets: &[],
+        budget: tcl_registry::value_transfer::ImplementationBudget::default(),
     }
 }
 
@@ -401,4 +403,48 @@ fn an_unknown_slot_abstains() {
     .expect("a slot");
     let words = [literal("x")];
     assert_eq!(host.invoke(orphan, &call(&words)), HookAnswer::Abstain);
+}
+
+/// A call's declared budget narrows the host's for that call alone
+/// (`value-evaluation.md` § *The three nested budgets*): a body that
+/// dispatches three hundred commands overruns a declared `-commands 100` and is
+/// quarantined like any other budget blowout, while the same body in a
+/// second hook on the same engine, called under the host's own budget
+/// afterwards, answers — the narrower budget did not outlive its call.
+#[test]
+fn a_declared_budget_narrows_the_host_for_its_call_only() {
+    let host = tcl_spec_hooks::tclvm_host();
+    // `format` is dispatched as a command, never inlined as bytecode, so
+    // each iteration spends one from the command budget.
+    let body = "for {set i 0} {$i < 300} {incr i} {set n [format %d $i]}; fold $i";
+    let installed = host.install_pack_hooks(
+        PackPrograms::new("mylib")
+            .with(HookProgram::new(
+                "mylib::narrow",
+                HookFamily::ConstFold,
+                body,
+            ))
+            .with(HookProgram::new("mylib::wide", HookFamily::ConstFold, body)),
+    );
+    let narrow = installed[0].slot.expect("installed");
+    let wide = installed[1].slot.expect("installed");
+    let words = [literal("x")];
+    let narrowed = HookCall {
+        budget: tcl_registry::value_transfer::ImplementationBudget {
+            commands: Some(100),
+            ..tcl_registry::value_transfer::ImplementationBudget::default()
+        },
+        ..call(&words)
+    };
+    assert_eq!(host.invoke(narrow, &narrowed), HookAnswer::Abstain);
+    assert!(host.is_quarantined(narrow), "an overrun quarantines");
+    assert!(!host.is_available(narrow));
+    let crashes = host.crash_records();
+    assert_eq!(crashes.len(), 1, "{crashes:?}");
+    assert_eq!(crashes[0].kind, CrashKind::CommandBudget);
+    assert_eq!(
+        host.invoke(wide, &call(&words)),
+        HookAnswer::Fold("300".to_owned())
+    );
+    assert!(host.is_available(wide));
 }

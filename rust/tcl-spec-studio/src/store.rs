@@ -1924,6 +1924,7 @@ fn family_key(family: loader::HookFamily) -> &'static str {
         F::ClauseShapeCheck => "clause_shape_check",
         F::Constraints => "constraints",
         F::OptionArity => "-arity-hook",
+        F::Evaluate => "evaluate",
     }
 }
 

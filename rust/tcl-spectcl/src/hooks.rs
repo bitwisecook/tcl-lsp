@@ -59,6 +59,7 @@ use std::sync::{Arc, LazyLock, Mutex};
 use tcl_registry::hover::{OptionArity, OptionSpec, OptionValue};
 use tcl_registry::pack_hooks::{self, HookFamily, HookSlot};
 use tcl_registry::spec::{CommandSpec, SubCommand};
+use tcl_registry::value_transfer::{DeclaredSemantics, SemanticsDeclaration};
 use tcl_spec_hooks::{HookOwner, HookProgram, PackPrograms, tclvm_host};
 
 use crate::loader::{HookOwner as DeclOwner, HookSource, PackCommand};
@@ -101,7 +102,10 @@ pub fn programs_of(
                 body: body.clone(),
                 inputs: inputs.clone(),
                 slot: None,
-                release_pinned: false,
+                // A declared implementation answers for the release the call
+                // is analysed under, so its body runs on an engine pinned to
+                // that release (D74).
+                release_pinned: hook.family == HookFamily::Evaluate,
             });
         }
     }
@@ -147,7 +151,7 @@ impl HookPlan {
         self.packs.iter().all(|pack| pack.programs.is_empty())
     }
 
-    /// Every slot bound for `command`, as `(owner, family, slot)`.
+    /// Every slot bound for `command`, as `(pack, owner, family, slot)`.
     fn bindings_for<'a>(&'a self, command: &'a str) -> impl Iterator<Item = Binding<'a>> + 'a {
         self.packs.iter().flat_map(move |pack| {
             pack.programs.iter().filter_map(move |program| {
@@ -155,7 +159,7 @@ impl HookPlan {
                     .then(|| {
                         program
                             .slot
-                            .map(|slot| (&program.owner, program.family, slot))
+                            .map(|slot| (pack.pack.as_str(), &program.owner, program.family, slot))
                     })
                     .flatten()
             })
@@ -163,7 +167,7 @@ impl HookPlan {
     }
 }
 
-type Binding<'a> = (&'a HookOwner, HookFamily, HookSlot);
+type Binding<'a> = (&'a str, &'a HookOwner, HookFamily, HookSlot);
 
 /// The slot assignment for `packs`, allocated once per content key.
 #[must_use]
@@ -232,12 +236,12 @@ pub fn specialise(command: &PackCommand, plan: &HookPlan) -> &'static CommandSpe
         return spec;
     }
     let mut out: CommandSpec = spec.clone();
-    for &(owner, family, slot) in &bindings {
+    for &(pack, owner, family, slot) in &bindings {
         if matches!(owner, HookOwner::Command) {
-            bind_command(&mut out, family, slot);
+            bind_command(&mut out, pack, family, slot);
         }
     }
-    if bindings.iter().any(|(owner, ..)| {
+    if bindings.iter().any(|(_, owner, ..)| {
         matches!(
             owner,
             HookOwner::Option {
@@ -247,7 +251,7 @@ pub fn specialise(command: &PackCommand, plan: &HookPlan) -> &'static CommandSpe
         )
     }) {
         let mut options: Vec<OptionSpec> = out.options.to_vec();
-        for &(owner, _, slot) in &bindings {
+        for &(_, owner, _, slot) in &bindings {
             if let HookOwner::Option {
                 subcommand: None,
                 option,
@@ -260,7 +264,7 @@ pub fn specialise(command: &PackCommand, plan: &HookPlan) -> &'static CommandSpe
     }
     if bindings
         .iter()
-        .any(|(owner, ..)| owner.subcommand().is_some())
+        .any(|(_, owner, ..)| owner.subcommand().is_some())
     {
         let mut subs: Vec<SubCommand> = out.subcommands.to_vec();
         for sub in &mut subs {
@@ -271,7 +275,26 @@ pub fn specialise(command: &PackCommand, plan: &HookPlan) -> &'static CommandSpe
     Box::leak(Box::new(out))
 }
 
-fn bind_command(spec: &mut CommandSpec, family: HookFamily, slot: HookSlot) {
+/// `declaration` with its declared implementation's body bound to `slot`
+/// and its identity naming `pack`; any other declaration unchanged.
+fn bind_semantics(
+    declaration: SemanticsDeclaration,
+    pack: &str,
+    slot: HookSlot,
+) -> SemanticsDeclaration {
+    let SemanticsDeclaration::Declared(semantics) = declaration else {
+        return declaration;
+    };
+    let Some(declared) = semantics.as_declared() else {
+        return declaration;
+    };
+    let bound: &'static DeclaredSemantics = Box::leak(Box::new(
+        declared.bound(crate::loader::leak_str(pack), slot),
+    ));
+    SemanticsDeclaration::Declared(bound)
+}
+
+fn bind_command(spec: &mut CommandSpec, pack: &str, family: HookFamily, slot: HookSlot) {
     match family {
         HookFamily::ArgRoleResolver => {
             spec.arg_role_resolver = pack_hooks::arg_role_resolver_fn(slot);
@@ -295,6 +318,7 @@ fn bind_command(spec: &mut CommandSpec, family: HookFamily, slot: HookSlot) {
             spec.clause_shape_check = pack_hooks::clause_shape_check_fn(slot);
         }
         HookFamily::Constraints => spec.constraints = pack_hooks::constraints_fn(slot),
+        HookFamily::Evaluate => spec.semantics = bind_semantics(spec.semantics, pack, slot),
         // An option's `-arity-hook` never hangs off the command itself.
         HookFamily::OptionArity => {}
     }
@@ -302,7 +326,7 @@ fn bind_command(spec: &mut CommandSpec, family: HookFamily, slot: HookSlot) {
 
 fn bind_subcommand(sub: &mut SubCommand, bindings: &[Binding<'_>]) {
     let mut options: Option<Vec<OptionSpec>> = None;
-    for &(owner, family, slot) in bindings {
+    for &(pack, owner, family, slot) in bindings {
         if owner.subcommand() != Some(sub.name) {
             continue;
         }
@@ -326,6 +350,9 @@ fn bind_subcommand(sub: &mut SubCommand, bindings: &[Binding<'_>]) {
                         pack_hooks::literal_argument_validator_fn(slot);
                 }
                 HookFamily::Constraints => sub.constraints = pack_hooks::constraints_fn(slot),
+                HookFamily::Evaluate => {
+                    sub.semantics = bind_semantics(sub.semantics, pack, slot);
+                }
                 // The loader declares no other family on a subcommand row.
                 HookFamily::TaintSinkGate
                 | HookFamily::ContextGate

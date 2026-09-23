@@ -22,10 +22,12 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::rc::Rc;
+use std::time::Duration;
 
 use tcl_engine_api::{Budget, BudgetKind, CompileUnit, Engine, EngineError, Value};
 use tcl_registry::invocation_words::InvocationWordKind;
 use tcl_registry::pack_hooks::{self, HookAnswer, HookCall, HookFamily, HookSlot, PackHookHost};
+use tcl_registry::value_transfer::ImplementationBudget;
 
 use crate::crash::{CrashKind, CrashRecord};
 use crate::emit::{Reading, Sink, answer_of, verbs_for};
@@ -542,8 +544,15 @@ impl<E: Engine> HookHost<E> {
         }
         // Matches `effective_parameters`: a hook that declared inputs
         // without `words` is compiled without that parameter, so passing
-        // the value would be an arity error on every call.
-        let arguments: Vec<Value> = if program.inputs.binds_words() {
+        // the value would be an arity error on every call. A declared
+        // implementation's parameters are its declared inputs, one each, in
+        // declaration order.
+        let arguments: Vec<Value> = if program.family == HookFamily::Evaluate {
+            call.words
+                .iter()
+                .map(|word| Value::string(word.value))
+                .collect()
+        } else if program.inputs.binds_words() {
             vec![words_value(call), ctx_value(program, call)]
         } else {
             vec![ctx_value(program, call)]
@@ -581,10 +590,33 @@ impl<E: Engine> HookHost<E> {
             Some(view) => reading.set(view.options, view.positionals),
             None => reading.clear(),
         }
+        reading.set_targets(call.targets);
+        // A declared implementation's own budget narrows the host's for
+        // this one call, and the host's is restored after it: a body never
+        // runs under a wider budget than it declared, nor leaves its
+        // narrower one behind for the next hook on the engine.
+        let budget = narrowed(self.config.budget, call.budget);
+        let narrows = budget != self.config.budget;
+        if narrows && let Err(error) = engine.set_budget(budget) {
+            self.error_log.borrow_mut().push(format!(
+                "{}: budget {budget:?}: {error}",
+                hook.program.label()
+            ));
+            reading.clear();
+            return None;
+        }
         let invoked = catch_unwind(AssertUnwindSafe(|| engine.invoke(handle, &arguments)));
+        if narrows && let Err(error) = engine.set_budget(self.config.budget) {
+            // The engine keeps the narrower budget: safe, and logged,
+            // because every later hook on it would run short.
+            self.error_log.borrow_mut().push(format!(
+                "{}: restoring the host budget: {error}",
+                hook.program.label()
+            ));
+        }
         reading.clear();
         Some(match invoked {
-            Ok(Ok(_)) => Outcome::Answer(answer_of(family, sink.drain())),
+            Ok(Ok(_)) => Outcome::Answer(answer_of(family, sink.drain(), call.targets)),
             Ok(Err(error)) => {
                 sink.clear();
                 match error {
@@ -608,7 +640,32 @@ impl<E: Engine> HookHost<E> {
     }
 }
 
+/// The host's budget with a declared implementation's narrowing applied:
+/// each field the declaration names is capped at the host's, and a field it
+/// leaves out keeps the host's.
+fn narrowed(host: Budget, declared: ImplementationBudget) -> Budget {
+    fn cap<T: Ord + Copy>(host: Option<T>, declared: Option<T>) -> Option<T> {
+        match (host, declared) {
+            (Some(host), Some(declared)) => Some(host.min(declared)),
+            (host, None) => host,
+            (None, declared) => declared,
+        }
+    }
+    Budget {
+        commands: cap(host.commands, declared.commands),
+        wall_clock: cap(
+            host.wall_clock,
+            declared.wall_clock_ms.map(Duration::from_millis),
+        ),
+        max_value_bytes: cap(host.max_value_bytes, declared.value_bytes),
+    }
+}
+
 impl<E: Engine> PackHookHost for HookHost<E> {
+    fn is_available(&self, slot: HookSlot) -> bool {
+        !self.is_quarantined(slot)
+    }
+
     fn invoke(&self, slot: HookSlot, call: &HookCall<'_>) -> HookAnswer {
         let Some(&(pack_index, hook_index)) = self.slots.borrow().get(&slot) else {
             return HookAnswer::Abstain;

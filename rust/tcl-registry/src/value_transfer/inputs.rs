@@ -232,6 +232,11 @@ pub struct ResolvedInvocationView<'a> {
     pub layout: InvocationLayout<'a>,
     /// The operands, in layout order.
     pub operands: Vec<OperandView<'a>>,
+    /// The operand the resolved form's own arguments start at: the words
+    /// before it select the form (a subcommand word is operand 0 and the
+    /// offset 1). An `arg N` a declaration writes is operand
+    /// `argument_offset + N`.
+    pub argument_offset: usize,
 }
 
 impl<'a> ResolvedInvocationView<'a> {

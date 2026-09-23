@@ -834,7 +834,7 @@ fn describe_route(route: Option<EvalRoute>) -> (String, String, bool) {
             true,
         ),
         Some(EvalRoute::Implementation(capability)) => (
-            format!("implementation `{}`", capability.identity),
+            format!("implementation `{}`", capability.identity.id),
             "bounded engine".to_owned(),
             true,
         ),

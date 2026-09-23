@@ -40,7 +40,7 @@ use tcl_registry::literal_validation::{
     LiteralArgumentIssue, LiteralArgumentIssueReason, LiteralArgumentValidation,
     LiteralValidationDecline,
 };
-use tcl_registry::pack_hooks::{HookAnswer, HookFamily};
+use tcl_registry::pack_hooks::{EvaluationAnswer, HookAnswer, HookFamily};
 use tcl_registry::spec::{ConstraintReport, ConstraintSlot};
 
 use crate::intern::{intern, intern_words};
@@ -85,6 +85,20 @@ pub enum Emission {
     /// "I cannot judge this call" the types-hook contract requires, and the
     /// one emission that cancels every report the body already made.
     ConstraintAbstain,
+    /// The `evaluate` family's `write TARGET VALUE`: one declared target
+    /// holds `value` afterwards.
+    Write {
+        /// The declared target, as the body names it.
+        target: usize,
+        /// The written value.
+        value: String,
+    },
+    /// The `evaluate` family's `preserve TARGET`: the declared target keeps
+    /// its prior value and existence.
+    Preserve {
+        /// The declared target, as the body names it.
+        target: usize,
+    },
 }
 
 /// Where every verb of one invocation writes.
@@ -132,6 +146,9 @@ pub struct Reading {
 /// One invocation as the reading verbs see it.
 #[derive(Debug, Default, Clone)]
 struct ReadingView {
+    /// The `evaluate` family's declared store targets: the only indices a
+    /// `write` or `preserve` may name.
+    targets: Vec<usize>,
     /// Canonical option name → its first literal value word, in call order.
     options: Vec<(String, Option<String>)>,
     /// Positional words after the option run, `None` where not statically
@@ -147,6 +164,7 @@ impl Reading {
     /// Replace the view with this call's, before the body runs.
     pub fn set(&self, options: &[(&'static str, Option<&str>)], positionals: &[Option<&str>]) {
         *self.view.borrow_mut() = ReadingView {
+            targets: Vec::new(),
             options: options
                 .iter()
                 .map(|(name, value)| ((*name).to_owned(), value.map(str::to_owned)))
@@ -161,6 +179,22 @@ impl Reading {
     /// Drop the view, so a verb called outside an invocation sees nothing.
     pub fn clear(&self) {
         *self.view.borrow_mut() = ReadingView::default();
+    }
+
+    /// Set the declared store targets of the call about to run.
+    pub fn set_targets(&self, targets: &[usize]) {
+        targets.clone_into(&mut self.view.borrow_mut().targets);
+    }
+
+    /// The declared target `value` names. Naming anything else raises: a
+    /// `write` to a non-target is an error, and an error is a decline.
+    fn target(&self, verb: &str, value: &Value) -> Result<usize, EngineError> {
+        let index = index_of(verb, value)?;
+        if self.view.borrow().targets.contains(&index) {
+            Ok(index)
+        } else {
+            Err(misuse(verb, &format!("{index} is not a declared target")))
+        }
     }
 
     fn option_present(&self, arguments: &[Value]) -> Result<Value, EngineError> {
@@ -385,10 +419,30 @@ impl HostCommand for Verb {
                 Emission::ExtraWords(index_of(self.name, first)?)
             }
             "consume" => consume_emission(arguments)?,
+            "write" | "preserve" => self.store_emission(arguments)?,
             other => return Err(misuse(other, "not an emitter verb of this family")),
         };
         self.sink.push(emission);
         Ok(Value::Empty)
+    }
+}
+
+impl Verb {
+    /// `write TARGET VALUE` / `preserve TARGET`: one of an `evaluate`
+    /// body's ordered stores, its target checked against the declared ones
+    /// — a non-target raises, which is a decline.
+    fn store_emission(&self, arguments: &[Value]) -> Result<Emission, EngineError> {
+        match (self.name, arguments) {
+            ("write", [target, value]) => Ok(Emission::Write {
+                target: self.reading.target(self.name, target)?,
+                value: text(value),
+            }),
+            ("write", _) => Err(misuse(self.name, "expected TARGET VALUE")),
+            (_, [target]) => Ok(Emission::Preserve {
+                target: self.reading.target(self.name, target)?,
+            }),
+            _ => Err(misuse(self.name, "expected TARGET")),
+        }
     }
 }
 
@@ -544,12 +598,13 @@ pub fn verbs_for(
 }
 
 /// Fold what a body emitted into the family's answer, applying that family's
-/// silence to an empty sink.
+/// silence to an empty sink. `targets` are the `evaluate` family's declared
+/// store targets, empty for every other family.
 #[must_use]
 // The exhaustive family match is the drift guard: every new hook family must
 // choose both its accepted emissions and its abstaining answer here.
 #[allow(clippy::too_many_lines)]
-pub fn answer_of(family: HookFamily, emissions: Vec<Emission>) -> HookAnswer {
+pub fn answer_of(family: HookFamily, emissions: Vec<Emission>, targets: &[usize]) -> HookAnswer {
     match family {
         HookFamily::ArgRoleResolver => {
             let roles: Vec<(u8, ArgRole)> = emissions
@@ -678,5 +733,33 @@ pub fn answer_of(family: HookFamily, emissions: Vec<Emission>) -> HookAnswer {
                 HookAnswer::Constraints(reports)
             }
         }
+        HookFamily::Evaluate => evaluation_answer(emissions, targets),
     }
+}
+
+/// The `evaluate` family's three rules: silence is a decline; a `write` to a
+/// non-target already raised in its verb; and a declared target the body
+/// said nothing about declines the whole answer, because silence is not a
+/// `preserve`.
+fn evaluation_answer(emissions: Vec<Emission>, targets: &[usize]) -> HookAnswer {
+    let mut result = None;
+    let mut stores = Vec::new();
+    for emission in emissions {
+        match emission {
+            Emission::Fold(value) => {
+                result.get_or_insert(value);
+            }
+            Emission::Write { target, value } => stores.push((target, Some(value))),
+            Emission::Preserve { target } => stores.push((target, None)),
+            _ => {}
+        }
+    }
+    let silent = result.is_none() && stores.is_empty();
+    let unstated = targets
+        .iter()
+        .any(|target| !stores.iter().any(|(stated, _)| stated == target));
+    if silent || unstated {
+        return HookAnswer::Abstain;
+    }
+    HookAnswer::Evaluation(EvaluationAnswer { result, stores })
 }

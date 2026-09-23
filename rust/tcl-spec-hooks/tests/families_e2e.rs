@@ -510,3 +510,117 @@ fn an_undeclared_constraints_hook_is_not_cached() {
     assert_eq!((stats.hits, stats.misses), (0, 0), "never cached at all");
     pack_hooks::clear_host();
 }
+
+/// An `evaluate` body on the real VM, entered as the registry's dispatch
+/// does: its parameters are the declared inputs, and the call carries the
+/// declared store targets. Each program runs under `tcl8.6`, the release it
+/// is pinned to.
+fn evaluate_under(
+    host: &tcl_spec_hooks::HookHost<tcl_engine_tclvm::TclVmEngine>,
+    body: &str,
+    input: &str,
+    targets: &[usize],
+) -> pack_hooks::HookAnswer {
+    use pack_hooks::PackHookHost as _;
+    let program = HookProgram {
+        parameters: vec!["s".to_owned()],
+        inputs: HookInputs::declared([pack_hooks::HookInput::Words]),
+        ..HookProgram::new("mylib::split", HookFamily::Evaluate, body)
+    }
+    .pinned_to_release();
+    let installed = host.install_pack_hooks(PackPrograms::new("mylib").with(program));
+    assert!(
+        installed[0].declined.is_none(),
+        "{:?}",
+        installed[0].declined
+    );
+    let words = [pack_hooks::HookWord {
+        value: input,
+        kind: tcl_registry::InvocationWordKind::Literal,
+    }];
+    host.invoke(
+        installed[0].slot.expect("a slot"),
+        &pack_hooks::HookCall {
+            words: &words,
+            version: Some(tcl_dialect::TclVersion::V8_6),
+            in_event_body: false,
+            option: None,
+            constraints: None,
+            dialect: Some("tcl8.6"),
+            targets,
+            budget: tcl_registry::value_transfer::ImplementationBudget::default(),
+        },
+    )
+}
+
+/// The `evaluate` family's protocol (`value-evaluation.md` § *The body
+/// verbs*): a body that speaks for every declared target answers with its
+/// fold and its stores in call order; one that writes target 1 and says
+/// nothing of target 2 declines the whole answer, because silence is not a
+/// `preserve`; and a body that calls no verb declines. With no declared
+/// targets, a fold alone answers.
+#[test]
+fn a_silent_target_declines_the_whole_answer() {
+    let host = tclvm_host();
+    assert_eq!(
+        evaluate_under(
+            &host,
+            "lassign [split $s :] a b; write 1 $a; preserve 2; fold 1",
+            "x:y",
+            &[1, 2],
+        ),
+        pack_hooks::HookAnswer::Evaluation(pack_hooks::EvaluationAnswer {
+            result: Some("1".to_owned()),
+            stores: vec![(1, Some("x".to_owned())), (2, None)],
+        })
+    );
+    assert_eq!(
+        evaluate_under(
+            &host,
+            "lassign [split $s :] a b; write 1 $a; fold 1",
+            "x:y",
+            &[1, 2],
+        ),
+        pack_hooks::HookAnswer::Abstain,
+        "target 2 is unstated"
+    );
+    assert_eq!(
+        evaluate_under(&host, "set unused $s", "x:y", &[]),
+        pack_hooks::HookAnswer::Abstain,
+        "silence establishes nothing"
+    );
+    assert_eq!(
+        evaluate_under(&host, "fold [string cat tenant: $s]", "acme", &[]),
+        pack_hooks::HookAnswer::Evaluation(pack_hooks::EvaluationAnswer {
+            result: Some("tenant:acme".to_owned()),
+            stores: Vec::new(),
+        })
+    );
+}
+
+/// A `write` or `preserve` naming anything but a declared target raises, and
+/// the raise is the body's error: the answer declines and the error log says
+/// which index was not a target.
+#[test]
+fn a_write_to_a_non_target_raises() {
+    let host = tclvm_host();
+    assert_eq!(
+        evaluate_under(&host, "write 3 $s; write 1 $s; fold 1", "x", &[1, 2]),
+        pack_hooks::HookAnswer::Abstain
+    );
+    assert_eq!(
+        evaluate_under(&host, "preserve 0; fold 1", "x", &[1]),
+        pack_hooks::HookAnswer::Abstain
+    );
+    let log = host.error_log();
+    assert!(
+        log.iter()
+            .any(|line| line.contains("write: 3 is not a declared target")),
+        "{log:?}"
+    );
+    assert!(
+        log.iter()
+            .any(|line| line.contains("preserve: 0 is not a declared target")),
+        "{log:?}"
+    );
+}

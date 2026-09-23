@@ -44,6 +44,7 @@ pub mod cell_write;
 pub mod const_ops;
 pub mod context;
 pub mod declaration;
+pub mod declared;
 pub mod decline;
 pub mod inputs;
 pub mod iteration;
@@ -68,6 +69,10 @@ pub use declaration::{
     DeclarationScope, DerivedSemantics, ResolvedSemantics, SemanticsDeclaration, SemanticsOrigin,
     resolve_semantics,
 };
+pub use declared::{
+    DeclaredEffect, DeclaredEvaluation, DeclaredImplementation, DeclaredIteration,
+    DeclaredSemantics, DeclaredStores, DeclaredStructure, IterableWord, OutcomeKind, SemanticType,
+};
 pub use decline::{AnalysisTier, Axis, BudgetLimit, DeclineReason, NoRouteReason};
 pub use inputs::{
     AnalysisInputs, BodyRegion, DomainFact, EvaluationState, FactDomain, FactView,
@@ -76,7 +81,11 @@ pub use inputs::{
 };
 pub use lift::{LiftedAnswer, PinnedInputs, evaluate_lifted, finite_inputs};
 pub use literal::{LiteralInputs, evaluate_literal};
-pub use route::{EvalRoute, EvaluatorCapability, EvaluatorOwner, LanguageProfileId, NativeEvalId};
+pub use route::{
+    CompletionSupport, ContextDependency, DeclaredInput, EvalRoute, EvaluatorCapability,
+    EvaluatorOwner, Exactness, HostKind, ImplementationBudget, ImplementationIdentity,
+    LanguageProfileId, NativeEvalId, OptionEvaluation,
+};
 
 /// What a registry-owned specialisation supplies for one invocation.
 ///
@@ -144,6 +153,12 @@ pub trait CommandSemantics: Sync + Send {
             | EvalRoute::Expression { .. }
             | EvalRoute::Implementation(_) => EvalAnswer::Declined(DeclineReason::Unsupported),
         }
+    }
+
+    /// The pack declaration this specialisation is, when it is one: what
+    /// the host plan binds a declared implementation's body into.
+    fn as_declared(&self) -> Option<&declared::DeclaredSemantics> {
+        None
     }
 }
 

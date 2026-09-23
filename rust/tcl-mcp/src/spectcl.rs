@@ -364,6 +364,7 @@ fn family_key(family: HookFamily) -> &'static str {
         HookFamily::ClauseShapeCheck => "clause_shape_check",
         HookFamily::Constraints => "constraints",
         HookFamily::OptionArity => "-arity-hook",
+        HookFamily::Evaluate => "evaluate",
     }
 }
 

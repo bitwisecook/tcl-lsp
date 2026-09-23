@@ -21,7 +21,11 @@
 //! the spec*). A route is a capability the spec names; purity never selects
 //! one.
 
-use super::decline::NoRouteReason;
+use tcl_dialect::model::SpecSurface;
+
+use super::const_ops::Needs;
+use super::context::BindingIdentity;
+use super::decline::{Axis, DeclineReason, NoRouteReason};
 
 /// The declared way an exact answer is computed. Resolved once per
 /// invocation, from the spec's three declaration states at command,
@@ -69,6 +73,51 @@ impl EvalRoute {
     }
 }
 
+/// What an option row states about evaluation while the option is present
+/// (`-evaluate none`, `-evaluate-reason WORD`): the selected form has no
+/// evaluator, and the driver records this decline. A route belongs to a
+/// form, so these two flags are the whole of the option-level vocabulary;
+/// an option that selects a different evaluator is a `refine` block.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum OptionEvaluation {
+    /// `NoRoute` with the reason: `declared` for a bare `-evaluate none`,
+    /// `form_unsupported` or `callback` when the row names one.
+    NoRoute(NoRouteReason),
+    /// `release_ambiguous`: `ReleaseAmbiguous` on the option's availability
+    /// axis.
+    ReleaseAmbiguous,
+}
+
+impl OptionEvaluation {
+    /// The `-evaluate-reason` words and what each records.
+    pub const REASONS: &'static [(&'static str, Self)] = &[
+        (
+            "form_unsupported",
+            Self::NoRoute(NoRouteReason::FormUnsupported),
+        ),
+        ("callback", Self::NoRoute(NoRouteReason::Callback)),
+        ("release_ambiguous", Self::ReleaseAmbiguous),
+    ];
+
+    /// The option's decline for a bare `-evaluate none`.
+    pub const DECLARED: Self = Self::NoRoute(NoRouteReason::Declared);
+
+    /// The decline the driver records when the option is present, given
+    /// the option's own availability row: `release_ambiguous` is
+    /// `ReleaseAmbiguous` on that row's axis, so an option that declares no
+    /// availability of its own has no axis to name and gets `None`.
+    #[must_use]
+    pub const fn decline(self, surface: Option<SpecSurface>) -> Option<DeclineReason> {
+        match (self, surface) {
+            (Self::NoRoute(reason), _) => Some(DeclineReason::NoRoute(reason)),
+            (Self::ReleaseAmbiguous, Some(surface)) => {
+                Some(DeclineReason::ReleaseAmbiguous(Axis::Availability(surface)))
+            }
+            (Self::ReleaseAmbiguous, None) => None,
+        }
+    }
+}
+
 /// The language profile an expression route evaluates under.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum LanguageProfileId {
@@ -79,6 +128,9 @@ pub enum LanguageProfileId {
 }
 
 impl LanguageProfileId {
+    /// Every language profile.
+    pub const ALL: &'static [Self] = &[Self::TclExpr, Self::BpfExpr];
+
     /// Stable spelling.
     #[must_use]
     pub const fn as_str(self) -> &'static str {
@@ -89,15 +141,176 @@ impl LanguageProfileId {
     }
 }
 
-/// An implementation the spec names for the bounded engine. The capability
-/// declaration — inputs, dependencies, budget, exactness — lands with the
-/// declared-implementation route; the identity is what a route can carry
-/// before then, so the enumeration is closed now and consumers do not
-/// change when the declaration fills in.
+/// Everything a declared implementation states about itself
+/// (`docs/design/compiler/value-evaluation.md` § *The capability
+/// declaration*). Part of the route, so of the specialisation's identity and
+/// of every memo key: two declarations that differ in any field — the body's
+/// content hash, one input, one dependency, the budget — are two routes.
+///
+/// The page's shape with the tree's two constraints: [`EvalRoute`] is
+/// `Copy`, so the lists are `&'static` slices the loader leaks as it leaks
+/// every other pack field; and the registry does not depend on
+/// `tcl-engine-api`, so the budget is the registry-side
+/// [`ImplementationBudget`] the host converts and caps by its own.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct EvaluatorCapability {
-    /// The implementation identity, in the pack's `SCOPE::FIELD` form.
-    pub identity: &'static str,
+    /// Which implementation this evaluator models, and at what revision.
+    pub identity: ImplementationIdentity,
+    /// Where it runs.
+    pub host: HostKind,
+    /// The target axes it supports, as the bits the direct route admits. An
+    /// axis absent here is one the evaluator declines; `PLATFORM` and
+    /// `WALL_CLOCK` are never satisfiable, because the host denies both.
+    pub target: Needs,
+    /// Exactly the inputs it reads, in the order its body's parameters bind
+    /// them. Nothing outside this list is supplied.
+    pub inputs: &'static [DeclaredInput],
+    /// The context dependencies the answer carries and the memo key holds,
+    /// in declaration order.
+    pub depends: &'static [ContextDependency],
+    /// Its own budget, capped by the host's and charged to the request.
+    pub budget: ImplementationBudget,
+    /// Which completions it models.
+    pub completion: CompletionSupport,
+}
+
+/// Which implementation a declared evaluator models: the pack, the declared
+/// id, and the content hash of the body, so an edited body is a different
+/// implementation even under the same id.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ImplementationIdentity {
+    /// The pack that declares it.
+    pub pack: &'static str,
+    /// The declared id (`tenant.label.v1`).
+    pub id: &'static str,
+    /// The content hash of the body.
+    pub content_hash: u64,
+}
+
+/// Where a declared implementation runs. One word today; the variant exists
+/// so a second host is a declaration rather than a reinterpretation of the
+/// first.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum HostKind {
+    /// The bounded Tcl engine behind the hook host.
+    BoundedTcl,
+}
+
+impl HostKind {
+    /// Every host word.
+    pub const ALL: &'static [Self] = &[Self::BoundedTcl];
+
+    /// The DSL spelling (`-host bounded_tcl`).
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::BoundedTcl => "bounded_tcl",
+        }
+    }
+}
+
+/// How exact a declared operand input must be.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Exactness {
+    /// The operand's exact value: a body is never invoked with a
+    /// placeholder.
+    Exact,
+}
+
+impl Exactness {
+    /// Every exactness word.
+    pub const ALL: &'static [Self] = &[Self::Exact];
+
+    /// The DSL spelling (`arg 0 exact`).
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Exact => "exact",
+        }
+    }
+}
+
+/// One input a declared implementation reads.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum DeclaredInput {
+    /// Operand `index` must be an exact value (`arg N exact`).
+    Operand {
+        /// The operand index.
+        index: usize,
+        /// How exact it must be.
+        exactness: Exactness,
+    },
+    /// The incoming value and existence of target `index`
+    /// (`target N incoming`).
+    IncomingTarget {
+        /// The target's operand index.
+        index: usize,
+    },
+    /// The value of option `name`, when present (`option -NAME exact`).
+    OptionValue {
+        /// The option, as written.
+        name: &'static str,
+    },
+}
+
+/// One context dependency an answer carries and the memo key holds.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum ContextDependency {
+    /// The target profile (`tcl_profile`).
+    TclProfile,
+    /// The implementation identity (`implementation_identity`).
+    ImplementationIdentity,
+    /// The registry and overlay generation (`registry_generation`).
+    RegistryGeneration,
+    /// The evaluator generation (`evaluator_generation`).
+    EvaluatorGeneration,
+    /// One named command or math-function binding (`binding NAME`).
+    Binding(BindingIdentity),
+}
+
+impl ContextDependency {
+    /// The fieldless dependency words, in the DSL's order.
+    pub const WORDS: &'static [Self] = &[
+        Self::TclProfile,
+        Self::ImplementationIdentity,
+        Self::RegistryGeneration,
+        Self::EvaluatorGeneration,
+    ];
+
+    /// The DSL spelling (`depends {tcl_profile …}`); `binding` for a named
+    /// binding, whose name follows it.
+    #[must_use]
+    pub const fn as_str(&self) -> &'static str {
+        match self {
+            Self::TclProfile => "tcl_profile",
+            Self::ImplementationIdentity => "implementation_identity",
+            Self::RegistryGeneration => "registry_generation",
+            Self::EvaluatorGeneration => "evaluator_generation",
+            Self::Binding(_) => "binding",
+        }
+    }
+}
+
+/// A declared implementation's own per-evaluation budget: the registry-side
+/// mirror of `tcl_engine_api::Budget`. It narrows the host's, never widens
+/// it — the host converts it and caps each field by its own. `None` leaves
+/// the host's value for that field.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub struct ImplementationBudget {
+    /// Dispatched commands (`-commands N`).
+    pub commands: Option<u64>,
+    /// Wall clock, in milliseconds (`-wall-clock MS`).
+    pub wall_clock_ms: Option<u64>,
+    /// The largest value the body may build, in bytes (`-value-bytes N`).
+    pub value_bytes: Option<u64>,
+}
+
+/// Which completions a declared implementation models.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum CompletionSupport {
+    /// The normal path only: an implementation that raises declines, under
+    /// the DSL's "error means abstain" rule, and is never a completion fact.
+    NormalOnly,
 }
 
 /// The catalogue of registry-named direct evaluators.
