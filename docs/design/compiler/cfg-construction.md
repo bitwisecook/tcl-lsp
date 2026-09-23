@@ -188,15 +188,18 @@ and holds nothing else that could complete first, so neither
 `set y $x; return ok` nor `if {$c} {}; return ok` (whose `$c` may raise in
 an earlier block, which has no edge of its own) — and it has an edge into an
 unconditional handler whose decoded selector is that code; a `trap` is
-conditional on its `-errorcode` prefix) — control reaches this `finally`
-only after that construct has run.
+conditional on its `-errorcode` prefix; such a catch is recorded, so a
+nested `try`'s handler catch is honoured by the scans of the constructs
+around it too) — control reaches this `finally` only after that construct
+has run.
 A handler edge alone proves nothing more: `try {return $x} on error {}
 {exit 0} finally {…}` hands the substitution's error to the handler, but
 the `return` still runs the clause; and a process exit (`Traits::TERMINATES_PROCESS`,
 e.g. `exit`), which ends the interpreter without unwinding, so no `finally`
 runs — but only when nothing can stop it from running: it is the sole
-statement of the construct's own first block (the body's, or a handler's —
-an earlier block may raise too: `if {$c} {}; exit 0`), every word is literal, the command-binding owner resolves
+statement of the construct's own first block (the body's, or a handler's,
+past the synthetic binding of `on error msg {…}` — an earlier block may
+raise too: `if {$c} {}; exit 0`), every word is literal, the command-binding owner resolves
 the call site to one registry-backed target (whose alias prefix joins the
 written words — `interp alias {} bye {} exit abc` makes `bye` raise, as
 does the same alias named `::foo::exit` called as `exit` inside `::foo`),

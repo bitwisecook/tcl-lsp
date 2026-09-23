@@ -2913,6 +2913,19 @@ fn a_try_finally_does_not_hide_the_names_bound_around_it() {
             "bound by an inner `finally` before the outer one reads it",
             "proc p {} {\n    try { try {return ok} finally {set x 1} } finally {puts $x}\n}\n",
         ),
+        // An inner handler that catches the error runs, and the inner clause
+        // after it, before the outer clause reads: tclsh 8.6.18 and 9.0.4
+        // print `1` twice (found in review).
+        (
+            "bound by an inner handler and inner clause before the outer one",
+            "proc p {} {\n    try {try {error boom} on error {} {set x 1; return} finally {set y 1}} finally {puts $x; puts $y}\n}\n",
+        ),
+        // The handler's `exit` ends the process before the clause could read;
+        // binding `msg` first does not change that (found in review).
+        (
+            "never read: a handler that binds its message, then exits",
+            "proc p {} {\n    try {error boom} on error msg {exit 0} finally {puts $x}\n}\n",
+        ),
         // A `break`/`continue` runs the clause before it reaches the loop.
         // An edge into the `finally` alongside the jump still left a path
         // into the loop that skipped it, carrying the `unset` (found in

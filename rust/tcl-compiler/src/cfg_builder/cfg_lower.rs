@@ -1105,7 +1105,7 @@ impl CfgBuilder<'_> {
         // finally {puts $x}` read `x` as possibly unset (found in review). A
         // jump needs no such care: rerouting it only replaces an edge that
         // skipped this clause with one through it.
-        let intercepted = self.totally_intercepted(&in_body);
+        let intercepted = self.totally_intercepted(&in_body, true);
         let mut sources: Vec<String> = Vec::new();
         let mut jumps: Vec<String> = Vec::new();
         let resolve_head = self.embedded_head_resolver();
@@ -1124,7 +1124,7 @@ impl CfgBuilder<'_> {
                     if !intercepted.contains(name.as_str())
                         && !self.caught_by_handler(name, body_block, handlers, handler_blocks)
                         && !((name == body_block || handler_blocks.contains(name))
-                            && matches!(block.statements.as_slice(), [only]
+                            && matches!(authored_statements(block.statements.as_slice()), [only]
                                 if super::always_exits_process(only, self.registry, &resolve_head)))
                     {
                         sources.push(name.clone());
@@ -1295,6 +1295,9 @@ impl CfgBuilder<'_> {
         }
 
         self.try_entry = outer_entry;
+        if self.caught_by_handler(&body_block, &body_block, handlers, &handler_blocks) {
+            self.handler_caught.insert(body_block.clone());
+        }
         // Success path reaches end.
         if !handlers.is_empty() {
             self.ensure_goto(&post_body, &end_block, Some(*span));
@@ -1398,7 +1401,7 @@ impl CfgBuilder<'_> {
         // A jump a nested `catch` (or a nested `try … finally`) swallows never
         // reaches this `try`'s handlers: `try {catch {break}; return}
         // on break {} {…}` runs no handler (found in review).
-        let intercepted = self.totally_intercepted(&in_body);
+        let intercepted = self.totally_intercepted(&in_body, false);
         let mut retargets: Vec<(String, String)> = Vec::new();
         for (name, id) in &self.block_ids {
             if !in_body(*id) || intercepted.contains(name.as_str()) {
@@ -1495,10 +1498,23 @@ impl CfgBuilder<'_> {
     /// 1}` the substitution's error reaches the handler but the `return` still
     /// runs the clause, and counting the handler edge as interception let O107
     /// empty it (found in review).
+    ///
+    /// With `with_handler_catches`, also the blocks a nested `try`'s
+    /// unconditional handler catches whole ([`Self::handler_caught`]): an
+    /// outer `finally` scan must not route those past the inner handler and
+    /// clause. Loop-jump routing leaves them out — a nested `try` has already
+    /// sent its own caught jumps into its handler.
     fn totally_intercepted(
         &self,
         inside: &dyn Fn(crate::cfg::BlockId) -> bool,
+        with_handler_catches: bool,
     ) -> std::collections::HashSet<&str> {
+        let caught = self
+            .handler_caught
+            .iter()
+            .filter(|_| with_handler_catches)
+            .filter(|block| self.block_ids.get(*block).is_some_and(|id| inside(*id)))
+            .map(String::as_str);
         self.exception_edges
             .iter()
             .filter(|(_, to)| {
@@ -1506,6 +1522,7 @@ impl CfgBuilder<'_> {
                     && self.block_ids.get(to).is_some_and(|id| inside(*id))
             })
             .map(|(from, _)| from.as_str())
+            .chain(caught)
             .collect()
     }
 
@@ -1759,6 +1776,29 @@ impl CfgBuilder<'_> {
         }
 
         end_block
+    }
+}
+
+/// A block's statements without the synthetic binding
+/// [`CfgBuilder::push_handler_var_defs`] puts first in a handler that names
+/// a result or options variable: it runs nothing, so it cannot stop the
+/// handler's own first statement, and `on error msg {exit 0}` exits as surely
+/// as `on error {} {exit 0}` (found in review). The binding is recognised by
+/// the shape only lowering gives it — no source tokens, no arguments, and the
+/// names it defines — never by spelling alone.
+fn authored_statements(statements: &[Statement]) -> &[Statement] {
+    match statements {
+        [
+            Statement::Call {
+                command,
+                args,
+                defs,
+                tokens: None,
+                ..
+            },
+            rest @ ..,
+        ] if command == "try" && args.is_empty() && !defs.is_empty() => rest,
+        _ => statements,
     }
 }
 

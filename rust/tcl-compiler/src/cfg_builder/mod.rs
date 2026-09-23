@@ -251,6 +251,9 @@ pub(crate) struct CfgBuilder<'a> {
     /// the one block of its body that nothing inside the construct runs
     /// before, so the only one whose completion can be known exactly.
     try_entry: Option<String>,
+    /// Blocks one of their `try`'s unconditional handlers catches whole: an
+    /// enclosing construct must not route them past that handler.
+    handler_caught: FxHashSet<String>,
     /// When `true`, record [`Self::exception_edges`] in `lower_try`.  Off for
     /// codegen builds so the default bytecode is unchanged.
     faithful_exceptions: bool,
@@ -410,6 +413,7 @@ impl<'a> CfgBuilder<'a> {
             plain_return_blocks: FxHashSet::default(),
             total_interceptors: FxHashSet::default(),
             try_entry: None,
+            handler_caught: FxHashSet::default(),
             faithful_exceptions: false,
             plain_command_dispatch: false,
             registry,
@@ -1377,6 +1381,7 @@ impl<'a> CfgBuilder<'a> {
         self.finally_jump_edges.clear();
         self.plain_return_blocks.clear();
         self.total_interceptors.clear();
+        self.handler_caught.clear();
         func.exception_edges = std::mem::take(&mut self.exception_edges)
             .into_iter()
             .map(|(from, to)| (self.bid(&from), self.bid(&to)))
