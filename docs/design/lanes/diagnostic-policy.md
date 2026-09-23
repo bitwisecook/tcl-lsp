@@ -1382,6 +1382,40 @@ Pedantic clippy on `tcl-lsp-server` with `--all-targets --all-features
 --no-deps -D warnings` is clean, `cargo fmt --check` is clean, and `cargo
 check --workspace` is green. No lockfile change, and nothing regenerates.
 
+### DP9.6 — the CLI passes
+
+`rust/tcl-cli/Cargo.toml` gains `tcl-lsp-core` from `[dev-dependencies]`
+with the `truth-table` feature (the DP9.5 precedent on `tcl-lsp-server`);
+`rust/tcl-cli/tests/cli.rs` gains `truth_table_scratch` (a row's
+`xdg/tcl-lsp/config.ini`, `proj/.tcl-lsp.ini` and `proj/<name>.tcl` — the
+raw `bytes` for an abstaining row, never the decoded `program`, so the
+CLI's own encoding detection decides the abstention as it would for a real
+file) and `push_slot_flags` (the slot's codes as repeated `--disable` /
+`--enable` pairs), shared by two tests.
+
+`truth_table_rows_render_through_tcl_diag` spawns `tcl diag --json
+--show-suppressed --dialect <dialect>` plus the slot's flags, once per row
+that `runs_on(Surface::Cli)`, under the row's own `XDG_CONFIG_HOME`. The
+report's `diagnostics` become `Shown` observations (the CLI's `severity`
+label read back to a `Severity`) and `suppressed` become `Suppressed`
+observations, both already on the CLI's 1-based line (a `null` `line` a
+gap); `check(row, Surface::Cli, …)` closes every row.
+`truth_table_rewrite_rows_render_through_tcl_opt` spawns `tcl opt` with the
+slot's `--profile` and its flags, once per row that
+`runs_on(Surface::CliRewrite)`; `Applied(stdout contains "set x 3")`.
+
+Rows 36 and 37's `REWRITE_NOT_RUN` defect (DP9.4's follow-up) meets `check`
+as the recorded defect on `Cli`, not a failing row — § Open questions 11.
+Both tests held on their first run. One spawn per row; the pass is not in
+the smoke tier.
+
+Suites: `tcl-cli` lib 27, `cli` 47 (45 + 2, `-- truth_table` 2, 79 s);
+`compile_verbs` 11, `explorer_gui` 2, `pkg_verbs` 13, `spec_verbs` 18;
+`tcl-cli-support` 19; core `--lib --features truth-table` 2340. Clippy on
+`tcl-cli` with `--all-targets --no-deps -D warnings` is clean; `cargo fmt`
+is clean; `cargo check --workspace` is green. No lockfile change, and
+nothing regenerates.
+
 ## Plan for finishing slices 4–7 and for slices 8–10
 
 The execution plan from the checkpoint `5bc40e95` to the end of the page's
@@ -4143,7 +4177,7 @@ Each item updates its row in the commit that lands it.
 | DP9.3 | sonnet | M | done — § *Slices 8–10 as built* | `DP9.3 — the MCP suppressed array` | `tcl-mcp` 100; clippy on `tcl-mcp`; `cargo fmt`; `cargo check --workspace` |
 | DP9.4 | opus | L | done — § *Slices 8–10 as built* | `DP9.4 — the truth table and its core pass`; follow-up `DP9.4 follow-up — rows 36 and 37 record the verbs' missing rewrite` | core `--lib` and `--lib --features truth-table` (2340 each); pedantic clippy on `tcl-lsp-core` and `tcl-lsp-server` with `--all-targets --all-features`; the server passes; `cargo check --workspace` |
 | DP9.5 | opus | M | done — § *Slices 8–10 as built* | `DP9.5 — the LSP and code-action passes on the server` | server `--lib` (590); the `e2e` subset `config` and the whole `e2e`; pedantic clippy on `tcl-lsp-server` with `--all-targets --all-features`; `cargo check --workspace` |
-| DP9.6 | sonnet | M | not started | — | — |
+| DP9.6 | sonnet | M | done — § *Slices 8–10 as built* | `DP9.6 — the CLI passes` | `tcl-cli` lib (27), `cli` (47, `-- truth_table` 2), `compile_verbs` (11), `explorer_gui` (2), `pkg_verbs` (13), `spec_verbs` (18); `tcl-cli-support` (19); core `--lib --features truth-table` (2340); clippy on `tcl-cli` with `--all-targets --no-deps`; `cargo fmt`; `cargo check --workspace` |
 | DP9.7 | sonnet | M | not started | — | — |
 | DP10.1 | opus | M | not started | — | — |
 | DP10.2 | sonnet | M | not started | — | — |

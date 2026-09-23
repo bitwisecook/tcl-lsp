@@ -66,6 +66,9 @@ ratatui = { version = "0.30", optional = true, default-features = false, feature
 ] }
 
 [dev-dependencies]
+# The diagnostic-policy truth table, for the CLI pass over its rows
+# (tests/cli.rs's `truth_table_*` tests); only this crate's tests build it.
+tcl-lsp-core = { path = "../tcl-lsp-core", features = ["truth-table"] }
 # Used by the CLI parity tests to compare help-search retrieval structurally
 # (the BM25 `rank` float is environment-dependent, so we don't byte-match it).
 serde_json = { version = "1", features = ["preserve_order"] }

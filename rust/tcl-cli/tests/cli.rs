@@ -1815,3 +1815,183 @@ fn opt_runs_the_passes_of_the_profile_in_force() {
         "a named `full` is one pass that still folds: {single}"
     );
 }
+
+/// A row's `xdg/tcl-lsp/config.ini`, `proj/.tcl-lsp.ini` and
+/// `proj/<name>.tcl` (the program, or the bytes for an abstaining document)
+/// — the two truth-table passes' shared scratch layout
+/// (`docs/design/lanes/diagnostic-policy.md` § DP9.6). Returns the input
+/// file's path and the `XDG_CONFIG_HOME` directory the run resolves the
+/// global layer under.
+fn truth_table_scratch(
+    scratch: &Scratch,
+    row: &tcl_lsp_core::diagnostic_policy::truth_table::Row,
+) -> (String, std::ffi::OsString) {
+    use tcl_lsp_core::diagnostic_policy::truth_table::Row;
+
+    let config = scratch.write("xdg/tcl-lsp/config.ini", &Row::ini(row.global));
+    let xdg = config
+        .parent()
+        .and_then(std::path::Path::parent)
+        .expect("xdg root")
+        .to_owned()
+        .into_os_string();
+    scratch.write("proj/.tcl-lsp.ini", &Row::ini(row.project));
+    let rel = format!("proj/{}.tcl", row.name);
+    let file = match row.bytes {
+        Some(bytes) => scratch.write_bytes(&rel, bytes),
+        None => scratch.write(&rel, row.program),
+    };
+    let file = file.to_str().expect("utf-8 scratch path").to_owned();
+    (file, xdg)
+}
+
+/// The slot's `--disable` / `--enable` codes as repeated flag pairs,
+/// appended to `args`.
+fn push_slot_flags(
+    args: &mut Vec<String>,
+    flags: &tcl_lsp_core::diagnostic_policy::truth_table::SlotFlags,
+) {
+    for code in &flags.disable {
+        args.push("--disable".to_owned());
+        args.push(code.clone());
+    }
+    for code in &flags.enable {
+        args.push("--enable".to_owned());
+        args.push(code.clone());
+    }
+}
+
+/// The diagnostic-policy truth table's diagnostics rows, run through the
+/// built `tcl diag --show-suppressed`: each row's observed diagnostics and
+/// suppressions hold against what `Surface::Cli` expects of it
+/// (`docs/design/lanes/diagnostic-policy.md` § DP9.6). One spawn per row;
+/// not in the smoke tier.
+#[test]
+fn truth_table_rows_render_through_tcl_diag() {
+    use tcl_compiler::analyser::Severity;
+    use tcl_compiler::compiler_checks::DiagCode;
+    use tcl_lsp_core::diagnostic_policy::truth_table::{
+        Observed, ObservedState, ROWS, Surface, check,
+    };
+
+    /// The CLI's `severity` label back to the producers' [`Severity`]: the
+    /// one lossy step (`"info"` for both `Info` and `Suggestion`) matches no
+    /// row, since only `Error` and `Warning` are ever asserted with `ShownAt`.
+    fn severity_of(label: &str) -> Option<Severity> {
+        match label {
+            "error" => Some(Severity::Error),
+            "warning" => Some(Severity::Warning),
+            "info" => Some(Severity::Info),
+            "hint" => Some(Severity::Hint),
+            _ => None,
+        }
+    }
+
+    /// One file's `diagnostics` and `suppressed` rows (from `--json
+    /// --show-suppressed`) as observations: `diag`'s lines are already
+    /// 1-based, and a gap's `line` is `null`.
+    fn observed_in(file: &serde_json::Value) -> Vec<Observed> {
+        let mut observed: Vec<Observed> = file["diagnostics"]
+            .as_array()
+            .expect("diagnostics array")
+            .iter()
+            .filter_map(|d| {
+                Some(Observed {
+                    code: d["code"].as_str()?.parse::<DiagCode>().ok()?,
+                    line: d["line"].as_u64().and_then(|n| u32::try_from(n).ok()),
+                    state: ObservedState::Shown(d["severity"].as_str().and_then(severity_of)),
+                })
+            })
+            .collect();
+        observed.extend(
+            file["suppressed"]
+                .as_array()
+                .expect("suppressed array (--show-suppressed was given)")
+                .iter()
+                .filter_map(|s| {
+                    Some(Observed {
+                        code: s["code"].as_str()?.parse::<DiagCode>().ok()?,
+                        line: s["line"].as_u64().and_then(|n| u32::try_from(n).ok()),
+                        state: ObservedState::Suppressed(s["reason"].as_str()?.to_owned()),
+                    })
+                }),
+        );
+        observed
+    }
+
+    let mut failures: Vec<String> = Vec::new();
+    for row in ROWS.iter().filter(|row| row.runs_on(Surface::Cli)) {
+        let scratch = Scratch::new("truth-table-diag");
+        let (file, xdg) = truth_table_scratch(&scratch, row);
+        let mut args: Vec<String> = vec![
+            "diag".to_owned(),
+            "--json".to_owned(),
+            "--show-suppressed".to_owned(),
+            "--dialect".to_owned(),
+            row.dialect.to_owned(),
+        ];
+        push_slot_flags(&mut args, &row.slot_flags());
+        args.push(file);
+        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+
+        let stdout = run_tcl_env(&arg_refs, &[("XDG_CONFIG_HOME", xdg.as_os_str())]);
+        let report: serde_json::Value = serde_json::from_slice(&stdout).unwrap_or_else(|err| {
+            panic!(
+                "row `{}`: diag --json ({err}): {}",
+                row.name,
+                String::from_utf8_lossy(&stdout)
+            )
+        });
+        let file_report = report
+            .as_array()
+            .and_then(|files| files.first())
+            .unwrap_or_else(|| panic!("row `{}`: no file in the report: {report}", row.name));
+
+        if let Err(failure) = check(row, Surface::Cli, &observed_in(file_report)) {
+            failures.push(failure);
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+/// The truth table's rewrite rows, run through the built `tcl opt`: the
+/// fold applies exactly when `Surface::CliRewrite` wants it shown
+/// (`docs/design/lanes/diagnostic-policy.md` § DP9.6). One spawn per row;
+/// not in the smoke tier.
+#[test]
+fn truth_table_rewrite_rows_render_through_tcl_opt() {
+    use tcl_lsp_core::diagnostic_policy::truth_table::{
+        Observed, ObservedState, ROWS, Surface, check,
+    };
+
+    let mut failures: Vec<String> = Vec::new();
+    for row in ROWS.iter().filter(|row| row.runs_on(Surface::CliRewrite)) {
+        let scratch = Scratch::new("truth-table-opt");
+        let (file, xdg) = truth_table_scratch(&scratch, row);
+        let flags = row.slot_flags();
+        let mut args: Vec<String> = vec!["opt".to_owned()];
+        if let Some(profile) = &flags.profile {
+            args.push("--profile".to_owned());
+            args.push(profile.clone());
+        }
+        push_slot_flags(&mut args, &flags);
+        args.push(file);
+        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+
+        let stdout = run_tcl_env(&arg_refs, &[("XDG_CONFIG_HOME", xdg.as_os_str())]);
+        let applied = String::from_utf8_lossy(&stdout).contains("set x 3");
+        let observed: Vec<Observed> = row
+            .expected(Surface::CliRewrite)
+            .iter()
+            .map(|expect| Observed {
+                code: expect.code,
+                line: expect.line,
+                state: ObservedState::Applied(applied),
+            })
+            .collect();
+        if let Err(failure) = check(row, Surface::CliRewrite, &observed) {
+            failures.push(failure);
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
