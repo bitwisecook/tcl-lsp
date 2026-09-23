@@ -58,11 +58,17 @@ checkpoint compiling.
   value-transfers` gate), slice 2 (the direct routes for `incr`,
   `append`, `lappend`, `set`, the `dict` keyed updates, `string range`,
   `list`, `llength`, and `string length`, with both analysis paths under
-  one context), and slice 3 (registry-owned `expr` argument assembly over
+  one context), slice 3 (registry-owned `expr` argument assembly over
   the shared expression engine, per-member finite-set branch decisions,
   `format`'s registry-owned route, and the Explorer's per-family route
-  tally) have landed; slice 4, a private SpecTcl command through the same
-  interface, is next.
+  tally), and slice 4 (a private SpecTcl command through the same
+  interface: the `semantics` / `evaluate` / `facts` loader statements, a
+  declared implementation's bounded host with per-evaluation store and
+  host-environment confinement, the memoised path's evaluator generation
+  and content-keyed cache, the workspace overlay reaching every
+  per-procedure query, the request and iteration budgets, `-native`
+  resolution for every family, and the four-surface round trip) have
+  landed; slice 5, destructuring and structured bodies, is next.
 - [consumer-contracts.md](consumer-contracts.md) — step 1 of
   [registry-consumer-contracts.md](../compiler/registry-consumer-contracts.md)
   § *Build order*: the four rulings taken as decided, and the documents whose

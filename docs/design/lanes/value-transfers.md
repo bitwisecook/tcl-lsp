@@ -473,6 +473,54 @@ The review of the landing returned "land after fixes";
 `wip(value-transfers): review fixes for slice 3` holds them (§ *Slice 3*
 › *Record (2026-09-23): review fixes for slice 3*, D66–D71).
 
+## Status (2026-09-23): slice 4 landed
+
+The opus items (VT4.1, VT4.2, then VT4.3 to VT4.9, D92 folding VT4.6 into
+the second checkpoint) landed in three checkpoints, followed by a fourth
+closing the host-environment gap (D101) found while running them; the
+sonnet items (VT4.10, VT4.11, VT4.12, VT4.14) landed one commit each; and
+the opus implementer then landed VT4.13 and the two follow-ups the
+coordinator named (Q12, answered as D104; Q13, accepted as built) — one
+commit per item, `7fb8efd6` through `c945a41e`. § *Plan for slices 2–13*
+› *Slice 4* › the three "Record" subsections has what each commit held,
+its tests, and the deltas found beyond the plan's list (D72–D104); §
+*Checkpoints and landing* has the full commit list against the plan's
+anticipated four checkpoints. VT4.15 (docs and the landing) closed the
+slice: every design page D72–D104 touch names now describes the built
+mechanism, cited by decision number, rather than the interface pages'
+original proposal; the docs commit is `wip(value-transfers): slice 4 —
+docs`, and the landing commit is `wip(value-transfers): slice 4 — a
+private SpecTcl command` (§ *Checkpoints and landing* has its full text).
+No filed issue is pinned or closed by this slice — the findings table
+assigns none of #2050–#2144 to slice 4.
+
+Green at the landing (VT4.15 changes no Rust; the smoke run below is the
+gate, and every crate suite's own count is unchanged from the last
+checkpoint's "Green at …" note above):
+
+- `cargo xtask kcs-index-links`: "KCS docs checks passed" (the new howto
+  indexed, every link resolves);
+- `cargo xtask owner-resolution`: OK, 44 owner rows (unchanged);
+- `UPDATE_REFERENCE=1 cargo test -p tcl-spec-studio --test reference_doc`
+  not run — the studio schema has not changed since VT4.11 — and
+  `cargo test -p tcl-spec-studio --test reference_doc` (no variable)
+  passes unmodified, confirming it;
+- `cargo check --workspace --all-targets`: clean;
+- `cargo test -p tcl-registry --lib` (the smoke run): 905 passed, 0
+  failed, 0 ignored — byte-identical to the count at Q12's checkpoint,
+  confirming the docs-only change moved nothing.
+
+Left to later slices, by name: `RegexpPrecision`, `PrecisionDecline`, and
+the typed regexp/scan result (slice 5); migrating a shipped builtin
+(`incr`, `expr`, `regexp`, …) onto the `semantics` / `evaluate` DSL itself
+— slice 4 built the vocabulary and proved it on a private command, but no
+shipped command was moved onto it, by mandate ("shipped builtins stay on
+the direct route"); the studio's own "try it" box over
+`HookHost::install_pack_hooks`, named on the evaluation page but not
+scoped into any VT4.x item and not built; `direct_route_needs_match_their_cores`
+and the remaining core-function witnesses the evaluation page's own test
+anchors still list as "to add".
+
 ## Plan for slices 2–13
 
 The delivery plan for the rest of
@@ -2867,12 +2915,20 @@ rust/tcl-engine-api rust/tcl-engine-tclvm rust/tcl-spec-studio`:
 
 #### Checkpoints and landing
 
+Realised checkpoints, corrected from the plan's anticipated four (each
+item's own row in the opus/sonnet/VT4.13 records above has the full
+mapping):
+
 | Checkpoint | Holds | Green means |
 |---|---|---|
-| `wip(value-transfers): slice 4 — the engine pins and confines` | VT4.1, VT4.2 | the containment and release tests; every existing host test |
-| `wip(value-transfers): slice 4 — the declaration and the loader` | VT4.3, VT4.4, VT4.5, VT4.10 | the loader and table tests; G2 |
-| `wip(value-transfers): slice 4 — the route, the key and the overlay` | VT4.6 to VT4.9 | the driver, cache and memoised-path tests |
-| `wip(value-transfers): slice 4 — a private SpecTcl command` (landing) | VT4.11 to VT4.15 | every exit test; G1 to G9 |
+| `7fb8efd6` (`wip(value-transfers): slice 4 — the engine pins and confines`, landed) | VT4.1, VT4.2 | the containment and release tests; every existing host test |
+| `cfa8285b` (`wip(value-transfers): slice 4 — the declaration and the loader`, landed) | VT4.3, VT4.4, VT4.5, VT4.6 (D92 rides it) | the loader and table tests; the driver tests |
+| `22ea7aca` (`wip(value-transfers): slice 4 — the route, the key and the overlay`, landed) | VT4.7, VT4.8, VT4.9 | the cache, overlay and budget tests |
+| `8b552ff2` (`wip(value-transfers): slice 4 — a confined engine reads no host environment`, landed) | D101, found beyond the plan | `a_confined_engine_reads_no_host_environment` |
+| `51d1f3f7`, `02b3e7c8`, `200f6209`, `04fda11d` (the sonnet items, each its own commit, landed) | VT4.10, VT4.11, VT4.12, VT4.14 | the table, round-trip, findings, and pinned-route-set tests; G2 |
+| `52d3d5b4`, `a3891aa7`, `ece65295`, `c945a41e` (VT4.13 and its two follow-ups, landed) | D102, VT4.13, Q12 (D104), Q13 | the completion test on every surface; the evaluator-epoch and re-decline witnesses |
+| `wip(value-transfers): slice 4 — docs` (landed) | VT4.15 | G4, G5, G6, and the slice's green |
+| `wip(value-transfers): slice 4 — a private SpecTcl command` (the landing) | — | every exit test; G1 to G9 |
 
 ```text
 wip(value-transfers): slice 4 — a private SpecTcl command
@@ -2880,25 +2936,44 @@ wip(value-transfers): slice 4 — a private SpecTcl command
 A pack command reaches the analyser through the same interface as a
 shipped one. The loader reads `semantics`, `evaluate` and `facts` at
 command, subcommand and refine scope, with the explicit abstention; a
-declared implementation names its identity, host, target axes, inputs,
-dependencies, budget and completion; its body answers with `fold`,
-`write` and `preserve`, and silence declines. The host pins each engine
-to one release and refuses every store outside the running activation,
-so a body with a global counter declines identically on every call. The
-driver runs the declared route under the eligibility rule, the hook cache
-compares exact inputs, incoming targets and dependencies on a hit and is
-keyed by the evaluator generation, the workspace overlay reaches the
-memoised unit, and the request and iteration budgets bound a function's
-evaluations. `-native` resolves for every family by `SCOPE::FIELD`; the
-renderer, the studio, export and the reference round-trip the three
-statements. A rename and a subcommand form of the example need no
-consumer edit, and shipped builtins stay on the direct route.
+declared implementation names its identity, host, inputs, dependencies,
+budget and completion; its body answers with `fold`, `write` and
+`preserve`, and silence declines the whole answer. The host pins each
+engine to one release, refuses every store outside the running
+activation, and reads no host environment, so a body with a global
+counter or a read of `$::env(...)` declines identically on every call.
+The driver runs the declared route under the eligibility rule, the hook
+cache compares exact inputs, incoming targets and dependencies on a hit
+and is keyed by the evaluator generation, the workspace overlay reaches
+every per-procedure query, and the request and iteration budgets bound a
+function's evaluations; a process-wide evaluator epoch, a salsa input the
+server bumps on a plan publish or a quarantine, re-keys every memoised
+lattice so a healthy worker never keeps serving what a since-recovered or
+since-quarantined one last computed. `-native` resolves for every family
+by `SCOPE::FIELD`; the renderer, the studio, export and the reference
+round-trip the three statements, with a subcommand's body surviving a
+form edit. The three `spectcl_check` findings report an evaluator that
+reads an undeclared target, one silent on a declared target, and a write
+outside the declared targets, before a user reaches them. The bundled SDC
+pack's three collection commands carry the vendor-iteration and may-write
+shapes as their own worked example. A rename and a subcommand form of the
+example need no consumer edit, and shipped builtins stay on the direct
+route.
 
 Behaviour changes: a workspace pack's declared evaluator folds on the
-memoised path; a pack edit invalidates the file's lattices; a function
-whose evaluations exhaust the request declines the rest; a short
-`-native` id is a load notice.
+memoised path; a pack edit, a plan publish, or a quarantine invalidates
+the file's lattices; a store or a host-environment read outside the
+activation raises inside a hook body; a short `-native` id is a load
+notice; a function whose evaluations exhaust the request declines every
+re-evaluated statement of that run, the ones earlier sweeps folded
+included, not only those after the point of exhaustion.
 ```
+
+No issue is pinned or closed by this slice's own witnesses: the
+findings table (§ *Witnesses* › *The findings table*) assigns none of
+#2050–#2144 to slice 4, and #2140 and #2139, named in this slice's
+§ *Upstream starting point* only, are upstream context this slice's code
+sits on, never a defect its own witnesses pin.
 
 #### Review checklist
 
@@ -3416,6 +3491,52 @@ the taint lattice. For the owner of the memoised checks path.
 
 At Q13: the lane doc alone; `cargo xtask value-transfers --check`
 unchanged.
+
+#### Record (2026-09-23): VT4.15 — docs and the landing
+
+VT4.15's own state to start from was this record's own note (above): the
+pages "still describe the original mechanisms where the build differs
+(D76–D78, D88–D101); vocabulary 2.2, the option-input list shape and the
+decline reasons still need documenting." Every page VT4.15 names was
+read against the tree and D72–D104 rather than against the plan's own
+prose, and edited only where a sentence described a mechanism the build
+does not have or omitted one it does:
+
+| Page | What changed |
+|---|---|
+| `docs/design/compiler/value-evaluation.md` | the status banner (built vocabulary vs. still-proposed slice 5–7 vocabulary vs. names the tree never adopted); § *Per-evaluation state* rewritten to `Engine::confine_stores` (D10, D77, D78, D101), replacing `ActivationStore` throughout, including the mermaid diagram and a test-anchor line; § *Two policies* corrected; § *`Engine::set_release`* rewritten to the `&str` signature and the dialect-ingress resolution (D76), with the per-program opt-in and no-load-time-notice corrections (D74) and `GrammarGuard` (D75); § *The rest of the route contract*'s host-environment bullet (D101); § *The memo key* rewritten to `ShapeKey` / `CallContent` (D95); the invalidation table gained the `EvaluatorEpoch` row (D104); § *The evaluator generation*'s salsa paragraph rewritten to the built overlay-reaching-every-query state (D96, D97) with D98 and D104 reconciled; § *The three nested budgets* rewritten to one `Budget` type at three call sites (D99), with the exhausted-request re-decline nuance (D100, Q13); § *Authoring on the routes*' intro (the vocabulary is built; no shipped builtin is declared with it yet) and the `incr` / `expr` / `regexp` / `tenant::label` worked examples' framing comments (the last now cites the real fixture, byte-identical); § *`-native ID`* rewritten to the fourteen separate tables and the `-direct` / `-native` / `-expression` three-catalogue split (a plan deviation this record's sonnet-items table already named); § *The four surfaces*' cluster name fixed ("Effects and purity") and the unbuilt "try it" box flagged as not delivered; § *Where each part lands*'s `ActivationStore` reference fixed |
+| `docs/design/compiler/value-transfers.md` | § *One invocation, one context*'s closing paragraph rewritten from the pre-slice-4 gap description to the built overlay/epoch state (D96, D97, D104) |
+| `docs/design/compiler/value-transfers-migration.md` | slice 4's row in § *The slices* marked landed, with `Engine::confine_stores` named against the interface page's `ActivationStore` and a pointer to the lane record; the ledger and the ratchet table needed no edit — confirmed unchanged through every slice-4 checkpoint (17 clean, 13 waived, 98 pinned across 39 files, 6607 rows) |
+| `docs/design/compiler/value-transfers-examples.md` | § *A vendor loop and a private command in a workspace pack* rewritten from "Proposed" to the built declarations, verbatim from `specs/sdc_base.tclspec` and the `tenant.tclspec` fixture, `append_to_collection`'s shape added, and the release-decline / unknown-argument paragraph corrected (D88, D103) |
+| `docs/design/compiler/registry-consumer-contracts.md` | § *Dialects and packages*' "release for versioned evaluation" row annotated: `TclVersion::from_profile` is still CC9.2's open gap, but the value-transfer route's own base-release rule no longer waits on it (D72) |
+| `docs/design/registry/spec-packs.md` | a new paragraph after "Crash containment is a load-bearing guarantee" stating the store- and host-environment-confinement rule (D77, D78, D101) |
+| `docs/design/contracts/command-spec-studio.md` | § *Parity with native specs* gained a paragraph citing the value-transfer statements as the newest concrete instance of the four-surface rule |
+| `docs/design/compiler/pass-fact-ownership-matrix.md` | the `value_transfer.rs` producer row extended to name the declared-implementation route and the evaluator-epoch re-keying (D94, D104) |
+| `docs/design/spec-dsl-examples/README.md` | a 2.2 row added to § *Vocabulary changelog*; § *Purity and the sandbox* gained the same confinement paragraph as spec-packs.md, scoped to the hook-body sandbox |
+| `docs/kcs/spectcl/kcs-howto-declare-an-evaluator-for-a-pack-command.md` (new) | states the option-input list shape (D89) and the declined-implementation reasons (D88) in plain terms, as the note this slice's own record asked for; indexed in `docs/kcs/README.md` and cross-linked from `kcs-howto-write-a-tclspec-pack.md` and `compiler/kcs-qa-what-does-a-value-transfer-declaration-say.md` |
+| this lane doc | § *Checkpoints and landing* rewritten to the realised commit list; the landing commit's template corrected ("target axes" removed — D79 gives the DSL's implementation block no target row — and the evaluator epoch, the host-environment read, and the `spectcl_check` / EDA-command deliverables added, none of which the plan's original template named); a `Status: slice 4 landed` section added; this record |
+
+Deviations from the plan's own wording, each a correction rather than a
+new decision: the landing template's "target axes" phrase (D79 already
+says the implementation block carries none); the salsa paragraph's old
+"insufficient if `FnLatticeKey` … still drops it" framing, which the
+built overlay plumbing (D96, D97) makes moot for `compilation_unit` and
+`function_lattice` specifically, while leaving the separate
+`ModuleCommandMutations` / rename-invalidation gap exactly as it was (not
+this lane's to close). No design decision was needed: every correction
+traces to a D72–D104 entry already taken, or to source read directly
+(`rust/tcl-engine-api/src/lib.rs`, `rust/tcl-registry/src/pack_hooks.rs`,
+`rust/tcl-registry/src/value_transfer/context.rs`, `route.rs`,
+`rust/tcl-lsp-db/src/lib.rs`, `specs/sdc_base.tclspec`, the `tenant.tclspec`
+fixture).
+
+Green: `cargo xtask kcs-index-links` ("KCS docs checks passed"); `cargo
+xtask owner-resolution` (OK, 44 rows, unchanged); `cargo test -p
+tcl-spec-studio --test reference_doc` passes with no `UPDATE_REFERENCE`
+run (the studio schema is unchanged since VT4.11, so
+`docs/references/command-spec/fields.md` was not regenerated); `cargo
+check --workspace --all-targets` clean; `cargo test -p tcl-registry --lib`
+905 passed, 0 failed (the smoke run; unchanged from Q12's checkpoint).
 
 ### Slice 5 — destructuring and structured bodies
 
