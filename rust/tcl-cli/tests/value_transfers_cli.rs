@@ -84,3 +84,108 @@ fn explore_sccp_prints_the_route_tally() {
         "{text}"
     );
 }
+
+/// VT2.10's deferred CLI witness binary (D9, D35): the `tcl explore` exit
+/// lines slice 2's § *Goal and exit* names — program (3)'s `incr` route
+/// twice, an `f5-irules` release-ambiguous decline, and `llength`'s
+/// direct route — each hand-verified at the time and now pinned here.
+#[test]
+fn explore_sccp_prints_the_route_of_each_statement() {
+    let program_three = run_tcl(&[
+        "explore",
+        "--source",
+        "proc p {} {set n 1; incr n; incr n 2; return $n}",
+        "--show",
+        "sccp",
+        "--text",
+        "--no-colour",
+    ]);
+    assert!(program_three.contains("n#3 = const(4)"), "{program_three}");
+    assert_eq!(
+        program_three
+            .matches("route incr: direct cell-increment (registry)")
+            .count(),
+        2,
+        "{program_three}"
+    );
+    assert_eq!(
+        program_three.matches("· answer: evaluated").count(),
+        2,
+        "{program_three}"
+    );
+
+    let leading_zero = run_tcl(&[
+        "explore",
+        "--source",
+        "proc p {} {set z 010; incr z}",
+        "--show",
+        "sccp",
+        "--text",
+        "--no-colour",
+        "--dialect",
+        "f5-irules",
+    ]);
+    assert!(
+        leading_zero.contains("· answer: declined: release-ambiguous: numeral-grammar"),
+        "{leading_zero}"
+    );
+
+    let llength = run_tcl(&[
+        "explore",
+        "--source",
+        "set r [llength {a b}]",
+        "--show",
+        "sccp",
+        "--text",
+        "--no-colour",
+    ]);
+    assert!(
+        llength.contains("route llength: direct list-length (registry)"),
+        "{llength}"
+    );
+}
+
+/// VT2.10: `tcl opt --profile full --dialect tcl8.6` forwards program
+/// (3)'s constant return into its call site (O100 / O103).
+#[test]
+fn opt_forwards_program_three() {
+    let out = run_tcl(&[
+        "opt",
+        "--source",
+        "proc p {} {set n 1; incr n; incr n 2; return $n}\nputs [p]",
+        "--profile",
+        "full",
+        "--dialect",
+        "tcl8.6",
+    ]);
+    assert!(out.contains("puts 4"), "{out}");
+}
+
+/// VT2.10: a value-position cell update whose read the host statement does
+/// not hold keeps its store — `set n 1` stays ahead of `set result [incr
+/// n]` rather than being read by a join the optimiser cannot see through.
+#[test]
+fn opt_keeps_the_store_behind_a_nested_increment() {
+    let out = run_tcl(&[
+        "opt",
+        "--source",
+        "proc p {} {set n 1; set result [incr n]; puts $result; puts $n}\np",
+        "--profile",
+        "full",
+        "--dialect",
+        "tcl8.6",
+    ]);
+    assert!(out.contains("set n 1"), "{out}");
+}
+
+/// VT2.9 (#2214): a `::`-qualified global a nested `incr` writes is a
+/// global write in its procedure's summary, so `set hits 0` and `puts
+/// $hits` around `bump`'s `[incr ::hits]` are both kept — the program
+/// prints `1` under `tclsh8.4` to `tclsh9.1`, as the original does.
+#[test]
+fn opt_keeps_a_global_a_nested_increment_writes() {
+    let source = "set hits 0\nproc bump {} {set y [incr ::hits]; return $y}\nbump\nputs $hits\n";
+    let out = run_tcl(&["opt", "--source", source, "--profile", "full"]);
+    assert!(out.contains("set hits 0"), "{out}");
+    assert!(out.contains("puts $hits"), "{out}");
+}

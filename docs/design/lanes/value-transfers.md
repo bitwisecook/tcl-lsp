@@ -168,7 +168,8 @@ Done in slice 2 (landed 2026-09-23):
   `Statement::Incr::amount_braced`, the typed assignment's cooking and
   trust, and `READS_BEFORE_WRITE` on the `dict` keyed updates.
 
-Remaining: slices 3 to 13, and slice 2's CLI witness binary (D35).
+Remaining: slices 3 to 13. Slice 2's deferred CLI witness binary (D35)
+landed with VT3.10 (D65).
 
 ## Behavioural deltas accepted
 
@@ -596,9 +597,10 @@ slice keeps its number's position relative to its dependencies:
 
 ### Slice 2 — the direct vertical slice
 
-**Landed 2026-09-23**, every item but the CLI witness binary (D35); §
-*Record (2026-09-23): slice 2 landed* at the end of this slice has the
-commits, the gates and the deltas.
+**Landed 2026-09-23**, every item but the CLI witness binary (D35),
+landed later the same day once VT3.10 opened `rust/tcl-cli/tests/`
+(D65); § *Record (2026-09-23): slice 2 landed* at the end of this slice
+has the commits, the gates and the deltas.
 
 #### Goal and exit
 
@@ -1465,9 +1467,11 @@ subagent tool, so the `sonnet` items are the implementer's own work too.
 Three commits carry the slice, on top of VT2.0 and the merge: `6d0de164`
 (VT2.1–VT2.4, VT2.9), `4b8a6f6f` (VT2.5–VT2.8), and the landing commit
 `wip(value-transfers): slice 2 — the direct vertical slice` (VT2.10–VT2.13).
-Every item landed except the CLI witness binary of VT2.10 (below). The
-decisions the plan did not state are D24–D37 in § *Decisions taken*; the
-checkpoint notes below are their first record.
+Every item landed except the CLI witness binary of VT2.10 (below), which
+landed in its own commit once VT3.10 opened `rust/tcl-cli/tests/` (D65);
+§ *Record (2026-09-23): the opus items of slice 3* has its commit and
+tests. The decisions the plan did not state are D24–D37 in § *Decisions
+taken*; the checkpoint notes below are their first record.
 
 - **Checkpoint `wip(value-transfers): slice 2 — the join, the escapes, the
   context and the stores`** holds VT2.1, VT2.2, VT2.3, VT2.4 and VT2.9,
@@ -2226,7 +2230,8 @@ gains a D-number for any deviation the item needs.
 | VT3.8 | the third checkpoint | `FormatTemplateSemantics` over `format_cmd_with_syntax`; `NativeEvalId::FormatTemplate.owner()` is `Registry`; `transitional_direct`, its waiver and `try_format_fold` went; the ledger row went | `format_runs_the_shared_core`, `format_answers_per_release` (registry); `format_witnesses_match_every_release_on_path` (`differential_fold.rs`); `format_folds_through_the_shared_core` (witnesses) |
 | VT3.6 | `636f9e2f` | `lifted_exprs` and `expr_substitution_body` resolve `expr` through the registry's `Traits::EXPR_CONCATENATES_ARGS`, not the spelling, matching `optimiser::tail_call` and `optimiser::end_offset`'s existing resolution; `word_subst.rs` and `shimmer/commit.rs` join `CLEAN_FILES`, their ratchet rows go | no new test (R6, no behaviour change): the crate's existing `word_subst` and `shimmer` suites stay green; G1's fall from one pinned site each to zero is the evidence |
 | VT3.9 | `11e7cda7` | `RouteTally { direct, expression, implementation }` on `SccpResult`; `call_def` counts `direct`, `run_script` counts `direct` or `expression` per its resolved route (`Implementation` counts too, currently always 0 pre-slice-4), `evaluate_assign_expr` and `evaluate_condition` count `expression`; `LatticeDriver::reset_tally_for_sweep` keeps the fixed point's re-evaluation from over-counting (D62); the Explorer's `sccp` view renders `routes entered: direct N · expression M · implementation K` beside the executable-blocks summary | `route_entries_are_counted_per_family` (compiler witnesses); `serialise::tests::sccp_reports_the_route_tally` |
-| VT3.10 | the VT3.10 commit | the slice's remaining witnesses: the acceptance list, the two correlated-limit programs, the release-oracle differential (D63), the CLI witness (`rust/tcl-cli/tests/value_transfers_cli.rs`, new — D65 covers its VT2.10 half) | `expr_acceptance_list`, `the_square_of_one_finite_input_stays_correlated` (D64), `the_mirror_pairs_decline_as_correlated` (D64), `expression_witnesses_match_every_release_on_path` (compiler witnesses); `explore_sccp_prints_the_route_tally` (CLI) |
+| VT3.10 | `7f0b3d20` | the slice's remaining witnesses: the acceptance list, the two correlated-limit programs, the release-oracle differential (D63), the CLI witness (`rust/tcl-cli/tests/value_transfers_cli.rs`, new — D65 covers its VT2.10 half) | `expr_acceptance_list`, `the_square_of_one_finite_input_stays_correlated` (D64), `the_mirror_pairs_decline_as_correlated` (D64), `expression_witnesses_match_every_release_on_path` (compiler witnesses); `explore_sccp_prints_the_route_tally` (CLI) |
+| VT2.10 (deferred, D35/D65) | the VT2.10 CLI commit | the four CLI tests slice 2 deferred, added to VT3.10's new file: program (3)'s route lines, the `f5-irules` decline, `llength`'s route, `tcl opt`'s forwarding and its kept nested-increment store, and #2214's kept global | `explore_sccp_prints_the_route_of_each_statement`, `opt_forwards_program_three`, `opt_keeps_the_store_behind_a_nested_increment`, `opt_keeps_a_global_a_nested_increment_writes` (CLI) |
 
 Deltas observed beyond the plan's list, each with its oracle:
 
@@ -5644,7 +5649,9 @@ the witnesses):
   works there, so `value_transfers_cli.rs` and its shard row were not
   added. D9 stands: the next slice that may touch `rust/tcl-cli` adds the
   binary with the four tests VT2.10 names; until then their evidence is
-  the hand-run record and the explorer and compiler witnesses.
+  the hand-run record and the explorer and compiler witnesses. Resolved:
+  VT3.10 is that slice (D65); the four tests are pinned, each re-checked
+  against the hand-run record above before it was written.
 - **D36 — Two parity tests read what the tree can observe.**
   `keyed_updates_agree_on_both_paths` seeds `d` with `set d {}`, because
   below the existence rung (slice 8) a local no store has bound is not
