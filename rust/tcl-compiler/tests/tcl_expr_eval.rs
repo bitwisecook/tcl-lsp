@@ -969,8 +969,11 @@ fn irules_matches_glob() {
         eval_irules(r#""/api/v2/users" matches_glob "/api/*/users""#),
         Some(int(1))
     );
-    assert_eq!(eval_irules(r#""a1" matches_glob "a[0-9]""#), Some(int(1)));
-    assert_eq!(eval_irules(r#""ax" matches_glob "a[0-9]""#), Some(int(0)));
+    // A range is written braced: inside `"…"` the `[0-9]` is a command
+    // substitution, which the folder declines (#2227).
+    assert_eq!(eval_irules(r#""a1" matches_glob {a[0-9]}"#), Some(int(1)));
+    assert_eq!(eval_irules(r#""ax" matches_glob {a[0-9]}"#), Some(int(0)));
+    assert_eq!(eval_irules(r#""a1" matches_glob "a[0-9]""#), None);
     assert_eq!(
         eval_irules_env(
             r#"$uri matches_glob "/images/*""#,
