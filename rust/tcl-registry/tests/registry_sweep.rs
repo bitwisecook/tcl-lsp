@@ -2298,6 +2298,119 @@ fn repeated_arg_layouts_never_pair_conditional_binding_with_an_ssa_def_role() {
     );
 }
 
+/// One option-effect scope — a command's options (and its forms'), or one
+/// subcommand's — with the families declared beside them.
+struct OptionEffectScope {
+    path: String,
+    options: Vec<&'static tcl_registry::hover::OptionSpec>,
+    families: &'static [tcl_registry::OptionEffectFamily],
+}
+
+/// Every option-effect scope of every loadable dialect's specs.
+fn option_effect_scopes() -> Vec<OptionEffectScope> {
+    let mut scopes = Vec::new();
+    for &dialect in LOADABLE_DIALECTS {
+        let reg = registry_for_dialect(dialect);
+        let names: Vec<String> = reg.command_names().map(str::to_owned).collect();
+        for name in &names {
+            for spec in reg.specs(name) {
+                let mut options: Vec<&'static tcl_registry::hover::OptionSpec> =
+                    spec.options.iter().collect();
+                for form in spec.command_forms {
+                    options.extend(form.options.iter());
+                }
+                scopes.push(OptionEffectScope {
+                    path: format!("{dialect} {}", spec.name),
+                    options,
+                    families: spec.option_effect_families,
+                });
+                for sub in spec.subcommands {
+                    scopes.push(OptionEffectScope {
+                        path: format!("{dialect} {} {}", spec.name, sub.name),
+                        options: sub.options.iter().collect(),
+                        families: sub.option_effect_families,
+                    });
+                }
+            }
+        }
+    }
+    scopes
+}
+
+/// Every option that declares an effect names a family its own scope
+/// declares (`docs/design/compiler/registry-consumer-contracts.md` § *Options
+/// with semantic effects*): a family is where an axis starts and how its
+/// options combine, so an effect citing an undeclared one would be read
+/// against no base at all.
+#[test]
+fn every_option_effect_names_a_declared_family() {
+    let mut effects_checked = 0usize;
+    for scope in option_effect_scopes() {
+        for option in &scope.options {
+            let Some(effect) = option.effect else {
+                continue;
+            };
+            effects_checked += 1;
+            assert!(
+                scope
+                    .families
+                    .iter()
+                    .any(|family| family.name == effect.family),
+                "{}: option `{}` cites family `{}`, which the scope does not declare",
+                scope.path,
+                option.name,
+                effect.family,
+            );
+        }
+        let mut names: Vec<&str> = scope.families.iter().map(|family| family.name).collect();
+        names.sort_unstable();
+        names.dedup();
+        assert_eq!(
+            names.len(),
+            scope.families.len(),
+            "{}: a family is declared twice",
+            scope.path
+        );
+    }
+    assert!(
+        effects_checked > 0,
+        "the sweep must reach the shipped option effects (`subst`, `lsearch`, `regexp`, `switch`)"
+    );
+}
+
+/// A family's base mentions only axis values its own options move: an
+/// `Only(axis)` base that no option of the family selects or disables would
+/// start an axis no call can reach, which is a mis-declared family rather
+/// than a default.
+#[test]
+fn a_family_base_mentions_only_axes_its_options_mention() {
+    use tcl_registry::FamilyBase;
+    let mut bases_checked = 0usize;
+    for scope in option_effect_scopes() {
+        for family in scope.families {
+            let FamilyBase::Only(axis) = family.base else {
+                continue;
+            };
+            bases_checked += 1;
+            assert!(
+                scope
+                    .options
+                    .iter()
+                    .any(|option| option.effect.is_some_and(|effect| {
+                        effect.family == family.name && effect.kind.axis() == Some(axis)
+                    })),
+                "{}: family `{}` starts from {axis:?}, which none of its options moves",
+                scope.path,
+                family.name,
+            );
+        }
+    }
+    assert!(
+        bases_checked > 0,
+        "the sweep must reach an `Only` base (`lsearch`'s glob, `switch`'s exact)"
+    );
+}
+
 /// One spec level's semantic-optimisation declarations — a command spec or one
 /// of its subcommands — flattened so the sweeps below treat both uniformly.
 /// The registry expresses the same four fields at either level, and a

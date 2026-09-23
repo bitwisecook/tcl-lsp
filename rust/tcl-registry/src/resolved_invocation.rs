@@ -37,6 +37,7 @@ use crate::hover::OptionSpec;
 use crate::intrinsic::IntrinsicId;
 use crate::invocation_words::{InvocationWordKind, InvocationWords};
 use crate::literal_validation::{LiteralArgumentValidation, LiteralArgumentValidator};
+use crate::option_effect::{OptionEffectScope, OptionEffects};
 use crate::representation::RepresentationEffect;
 use crate::result_stability::ResultStability;
 use crate::semantic_operation::SemanticOperationId;
@@ -49,7 +50,7 @@ use crate::traits::Traits;
 use crate::types::{ReturnElements, TclType, VarElementsEffect, VarWriteTyping};
 use crate::world_effect::TransitionEffectCoverages;
 use crate::world_effect::{EffectFootprint, ResolvedWorldEffects};
-use tcl_dialect::model::SpecSurface;
+use tcl_dialect::model::{SpecSurface, SurfaceQuery};
 
 pub(crate) fn descriptor_operation(
     semantic: Option<SemanticOperationId>,
@@ -197,6 +198,20 @@ fn resolve_invocation_semantics<'r>(
             base: sub.map_or(spec.options, |sub| sub.options),
             form: form.map_or(&[], |form| form.options),
         },
+        option_scope: sub.map_or(
+            OptionEffectScope {
+                families: spec.option_effect_families,
+                reserved_trailing_words: spec.reserved_trailing_words,
+                prefix_matching: spec.prefix_matching,
+                parent_surface: spec.surface,
+            },
+            |sub| OptionEffectScope {
+                families: sub.option_effect_families,
+                reserved_trailing_words: 0,
+                prefix_matching: sub.prefix_matching,
+                parent_surface: sub.surface.or(spec.surface),
+            },
+        ),
         return_type: sub.map_or(spec.return_type, |sub| sub.return_type),
         safe_on_uninit: sub
             .and_then(|sub| sub.safe_on_uninit)
@@ -566,6 +581,10 @@ pub struct InvocationSemantics<'r> {
     pub arg_role_resolver: Option<ArgRoleResolver>,
     /// Effective command/subcommand/form option descriptors.
     pub options: InvocationOptions<'r>,
+    /// Where the options' effects come from — the families, reservation,
+    /// prefix policy and inherited release gate of the selected option table
+    /// (read by [`ResolvedInvocation::option_effects`]).
+    pub option_scope: OptionEffectScope<'r>,
     /// Result Tcl internal-representation type, when declared.
     pub return_type: Option<TclType>,
     /// Dialects in which this invocation safely initialises an unset target.
@@ -875,6 +894,69 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
             .state_transitions
             .resolve_with_effect_coverage(self.words.arguments())
             .0
+    }
+
+    /// The option-effect answer for this call
+    /// (`docs/design/compiler/registry-consumer-contracts.md` § *Options with
+    /// semantic effects*): the generic walk over the selected option table —
+    /// the subcommand's own, when one was resolved — with the options
+    /// available at `dialect`. [`OptionEffects::option_end`] is a post-head
+    /// argument index, like every other index this resolution answers.
+    ///
+    /// Until the derived-query layer fixes the release in the resolution
+    /// itself, the caller passes the `dialect` it resolved under.
+    #[must_use]
+    pub fn option_effects(&self, dialect: Option<SurfaceQuery<'_>>) -> OptionEffects {
+        let scope = self.semantics.option_scope;
+        let options: Vec<&OptionSpec> = self
+            .semantics
+            .options
+            .base
+            .iter()
+            .chain(self.semantics.options.form)
+            .filter(|option| option.supports_dialect(dialect, scope.parent_surface))
+            .collect();
+        let offset = self.semantics.argument_offset;
+        let mut effects = crate::option_effect::option_effects_over(
+            &options,
+            scope.families,
+            self.words.arguments().slice_from(offset),
+            scope.reserved_trailing_words,
+            dialect,
+            scope.prefix_matching,
+        );
+        effects.option_end += offset;
+        effects
+    }
+
+    /// Which substitutions this call performs over its own argument text, or
+    /// `None` when the command performs none — the projection of
+    /// [`Self::option_effects`] onto
+    /// [`crate::substitution::SubstitutionKinds`], with the rule
+    /// [`crate::CommandSpec::substitutions_performed`] states: an unreadable
+    /// call, or one whose option run stops before the reserved operands,
+    /// performs every kind.
+    #[must_use]
+    pub fn substitutions_performed(
+        &self,
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> Option<crate::substitution::SubstitutionKinds> {
+        if !self
+            .semantics
+            .traits
+            .contains(Traits::PERFORMS_SUBSTITUTION)
+        {
+            return None;
+        }
+        let effects = self.option_effects(dialect);
+        let reaches_operands = self.words.arguments().exact_argv_len().is_some_and(|len| {
+            effects.option_end + self.semantics.option_scope.reserved_trailing_words >= len
+        });
+        Some(if reaches_operands {
+            effects.substitution_kinds()
+        } else {
+            crate::substitution::SubstitutionKinds::ALL
+        })
     }
 
     /// Validate registry-declared relationships between literal arguments.

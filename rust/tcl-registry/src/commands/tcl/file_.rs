@@ -85,6 +85,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "--",
@@ -94,6 +95,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
             ]
         },
@@ -127,6 +129,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "--",
@@ -136,6 +139,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
             ]
         },
@@ -264,6 +268,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-hard",
@@ -273,6 +278,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
             ]
         },
@@ -440,6 +446,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "--",
@@ -449,6 +456,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
             ]
         },

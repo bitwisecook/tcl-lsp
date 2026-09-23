@@ -48,6 +48,7 @@ pub const fn spec() -> CommandSpec {
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-ctx",
@@ -57,6 +58,7 @@ pub const fn spec() -> CommandSpec {
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-final",
@@ -66,6 +68,7 @@ pub const fn spec() -> CommandSpec {
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
             ]
         },

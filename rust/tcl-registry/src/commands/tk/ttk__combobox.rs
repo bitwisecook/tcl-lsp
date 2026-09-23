@@ -46,6 +46,7 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-values",
@@ -55,6 +56,7 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-width",
@@ -64,6 +66,7 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-height",
@@ -73,6 +76,7 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-state",
@@ -82,6 +86,7 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-postcommand",
@@ -91,6 +96,7 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-invalidcommand",
@@ -145,6 +151,7 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-exportselection",
@@ -154,6 +161,7 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-justify",
@@ -163,6 +171,7 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-font",
@@ -172,6 +181,7 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-foreground",
@@ -181,6 +191,7 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-style",
@@ -190,6 +201,7 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-class",
@@ -199,6 +211,7 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-cursor",
@@ -208,6 +221,7 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-takefocus",
@@ -217,6 +231,7 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
 ];
 

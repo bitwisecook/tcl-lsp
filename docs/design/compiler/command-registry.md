@@ -257,10 +257,10 @@ execution trace is absent.
 | `command_prefix_resolver` | `Option<CommandPrefixResolver>` | `None` | Dynamic command-prefix positions (`trace add …`, `interp alias`) |
 | `script_timing_resolver` | `Option<ScriptTimingResolver>` | `None` | Invocation-sensitive `SameInvocation` / `Deferred` / `ReferenceOnly` timing for positions already classified as executable |
 | `callback_taint_inputs` | `&'static [(u8, &'static [CallbackTaintInput])]` | `&[]` | User-controlled substitutions injected into deferred positional callbacks; generic taint replay never infers framework metadata |
-| `substitution_resolver` | `Option<SubstitutionResolver>` | `None` | Which of backslash / command / variable substitution a `PERFORMS_SUBSTITUTION` call runs over its own argument text, when switches change the answer (`subst -novariables`). The trait says *that* a command substitutes; this says *which kinds*, so a consumer asking "does this argument read a variable?" never matches option spellings itself. Absent means every kind on every call, and an unreadable call answers every kind -- see `tcl_registry::substitution`. |
 | `clause_shape_check` | `Option<ClauseShapeChecker>` | `None` | Validates a clause-chain shape a plain `min..=max` arity can't express (if's `elseif`/`else` chain -- see `tcl_registry::clause_shape`); the compiler dispatches on the hook's presence, not the command name |
 | `frame_effect` | `Option<FrameEffectSpec>` | `None` | How the command crosses stack frames: the level word, the frame-selected variable arguments, and caller-frame scripts |
 | `option_relations` | `&'static [OptionRelation]` | `&[]` | Typed relations between the invocation's options and arguments: mutual exclusion, directional requires, requires-one-of, forbids — over terms naming an option, an option *value*, a positional argument, or a positional value. Evaluated natively by `OptionRelation::evaluate`, driving generic W147 / W152 without naming the command. |
+| `option_effect_families` | `&'static [OptionEffectFamily]` | `&[]` | The families the options' declared effects cite: where each axis starts (`AllOn`, `AllOff`, `Only(axis)`) and how two options of the family combine (`Accumulate`, `LastWins`). With the rows' `OptionSpec::effect`, the whole option-effect descriptor — read through `CommandSpec::option_effects`, never by spelling (see [OptionSpec and option terminators](#optionspec-and-option-terminators)). |
 | `option_placement` | `OptionPlacement` | `Leading` | Where the command's declared options may appear: a leading run stopping at the first non-option word (core Tcl), or anywhere between positionals up to `--` (`http::geturl`). |
 | `constraints` | `Option<ConstraintsHook>` | `None` | Escape hatch for a relation the declarative vocabulary cannot express, consulted only when every declarative relation reported nothing. |
 | `literal_argument_validator` | `Option<LiteralArgumentValidator>` | `None` | Registry callback for literal argument relationships or collection members whose legal domain depends on surrounding words. It returns Valid, Invalid with an optional replacement Tcl value, or a typed Abstain. |
@@ -1213,12 +1213,35 @@ usually a missing subcommand entry or an unset hook ID, not a missing branch.
 
 ### OptionSpec and option terminators
 
-`OptionSpec { name, value, detail, surface, aliases, lifecycle, min_abbrev }`
+`OptionSpec { name, value, detail, surface, aliases, lifecycle, min_abbrev, effect }`
 declares `-flag` switches; `value` is an `OptionValue` saying whether the
 flag consumes a following word.  An `OptionSpec` whose `name` is `"--"`,
 on a `CommandSpec`, `SubCommand`, or `CommandForm`, declares `--` support;
 W304 ("use `--` before dynamic pattern") is derived automatically via
 `CommandRegistry::resolve_option_terminator`.
+
+`effect: Option<OptionEffect>` is what the option's presence does to the
+call ([registry-consumer-contracts.md](registry-consumer-contracts.md)
+§ *Options with semantic effects*): `Disables(axis)` / `Selects(axis)` over
+the closed `EffectAxis` catalogue (`Substitution(kind)`,
+`PatternLanguage(language)`, `CaseSensitivity`, `Selection(mode)`),
+`SuppressesRole(role)`, `ReservesTrailingWords(n)`, or `EndsOptions`, and the
+family it belongs to — an `OptionEffectFamily` declared beside the options in
+`option_effect_families`, carrying the axis's `base` and its `combine` rule.
+One generic walk answers every call, `CommandSpec::option_effects` (and
+`ResolvedInvocation::option_effects`): the scan ends at
+`reserved_trailing_words` before the end, spellings resolve through the
+profile-filtered table under the command's prefix policy, an unreadable word
+(computed, unresolvable, expanded) makes the answer `complete: false` with
+every axis value on, and two families over one axis value used together are
+unreadable too — the error itself is an option relation (W147). Four clients
+read it: `subst`'s switch families (`CommandRegistry::substitutions_performed`
+is its projection onto `SubstitutionKinds`), `lsearch`'s match styles (the
+pattern language `pattern_args` places on the pattern operand), `regexp`'s
+`-inline` / `-about` (the layout its argument-role resolver reads from the
+answer's shifts), and `switch`'s match modes, case folding and `--`
+(`CaseListSpec::invocation` classifies each option by its effect, so the
+descriptor names no switch).
 
 #### The audit-registry option-surface gate
 

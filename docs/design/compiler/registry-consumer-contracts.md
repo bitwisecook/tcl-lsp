@@ -358,7 +358,7 @@ The registry surface is far richer than the analyser's dispatch uses.
 | loop and bind positions | roles and strided `repeated_args` | hardcoded indices in five handlers (`handlers.rs`: `dict for`, `dict update`, `foreach`, `incr`, `append` / `lappend`) |
 | OO member effect | member layout only (`MemberKind`: `Flat`, `Wrapper`, `FlagKeyed`) — `MemberSpec` already carries `arg_roles`, `slot`, `retraction`, `visibility_effect`, and `surface` | an eleven-arm keyword match in `analyser/oo.rs`, plus snit and itcl prefix conventions; the ledger counts about thirty-two rows on this axis |
 | clause grammar | designed and loader-parsed (`ClauseGrammar::walk` in `rust/tcl-spectcl/src/loader.rs`), no registry type, `abstain_arg_roles` and `accept_clause_shape` installed as placeholders | three keyword walks (`lower_if` and `lower_try` in `lowering/structured.rs`, `handle_try_command` in `analyser/handlers.rs`), `orphaned_keyword_parent` in `analyser/commands.rs`, and the `on`-`ok` test in `cfg_builder/cfg_lower.rs`, plus `signature_scan/walker.rs`, the editor refactors, and `tcl-mcp`'s `datagroup.rs`; the ledger counts about thirty rows |
-| option-selected semantics | two native resolvers over a command's own option table — `substitution_resolver` (`substitution.rs`) and `pattern_arg_resolver` (`patterns.rs`) — both `GapKind::Excluded` from `.tclspec` | three consumers ask `CommandRegistry::substitutions_performed` correctly; the dynamic-name barrier and the `inner_head_performs_substitution` gate read only the trait, and `push_substituted_commands` re-walks a braced template for regions the answer does not carry |
+| option-selected semantics | the option-effect descriptor (`OptionSpec::effect`, `option_effect_families`, `option_effect.rs`), which replaced the two native resolvers over a command's own option table — `substitution_resolver` and `lsearch_pattern_args` — in step 2; `pattern_arg_resolver` remains an escape hatch no shipped spec sets | three consumers ask `CommandRegistry::substitutions_performed` correctly; the dynamic-name barrier and the `inner_head_performs_substitution` gate read only the trait, and `push_substituted_commands` re-walks a braced template for regions the answer does not carry |
 
 Three descriptors are missing, and all three are specified below. The rest
 is consumer migration, through the generic operations the interface
@@ -1016,19 +1016,22 @@ there.
 ## Options with semantic effects
 
 Two native resolvers in the registry read a command's own option table and
-compute a semantic answer about the call: `substitution_resolver`
-(`rust/tcl-registry/src/substitution.rs`, which kinds of substitution
-`subst` performs) and `pattern_arg_resolver`
-(`rust/tcl-registry/src/patterns.rs`, which argument carries which pattern
-language for `lsearch`). Both are `GapKind::Excluded` in the studio's
-`GAPS` with the same reason — "a native resolver over a command's own
-`OptionSpec` table … keeping it excluded makes the native-only boundary
-explicit until a declarative selector exists". This is that selector. The
-two unrelated clients are what qualify it as a family-neutral operation
-rather than a command ID in disguise, and two more follow from the same
-descriptor: `regexp_arg_roles` in
-`rust/tcl-registry/src/commands/tcl/regexp_.rs`, and the five option
-fields `CaseListSpec` carries per command instead of per option.
+computed a semantic answer about the call: `substitution_resolver`
+(`subst_substitutions` in `rust/tcl-registry/src/substitution.rs`, which
+kinds of substitution `subst` performs) and `pattern_arg_resolver`
+(`lsearch_pattern_args`, which argument carries which pattern language for
+`lsearch`). Both were `GapKind::Excluded` in the studio's `GAPS` with the
+same reason — "a native resolver over a command's own `OptionSpec` table …
+keeping it excluded makes the native-only boundary explicit until a
+declarative selector exists". This is that selector, and step 2 built it
+(`rust/tcl-registry/src/option_effect.rs`): `substitution_resolver` and
+`lsearch_pattern_args` are gone, and `pattern_arg_resolver` remains only as
+an escape hatch no shipped spec sets. The two unrelated clients are what
+qualify it as a family-neutral operation rather than a command ID in
+disguise, and two more follow from the same descriptor: `regexp_arg_roles`
+in `rust/tcl-registry/src/commands/tcl/regexp_.rs`, and the five option
+fields `CaseListSpec` carried per command instead of per option, now
+retired.
 
 **The descriptor.** An option row may declare the semantic effect its
 presence has on the call. The effect is an axis and a value, the axis is a
@@ -1036,7 +1039,8 @@ closed catalogue, and a family of options over one axis carries the base
 the axis starts from:
 
 ```rust,ignore
-/// Proposed. On `OptionSpec`, beside `value`, `surface`, and `lifecycle`.
+/// Built (`rust/tcl-registry/src/option_effect.rs`). On `OptionSpec`, beside
+/// `value`, `surface`, and `lifecycle`.
 struct OptionEffect {
     /// What this option does to its axis.
     kind: OptionEffectKind,
@@ -1115,40 +1119,64 @@ fn option_effects(&self, inv: &ResolvedInvocation) -> OptionEffects;
 struct OptionEffects {
     /// The resolved state of each axis the command's families cover.
     axes: Vec<(EffectAxis, bool)>,
-    /// Operand shifts the call's options applied, in role order.
+    /// Operand shifts the call's options applied, in option order:
+    /// `(role, 0)` for a suppressed role, `(ArgRole::Option, n)` for a
+    /// reservation changed to `n` trailing operands.
     shifts: Vec<(ArgRole, i8)>,
     /// False when the call could not be read to its end — the
     /// `OptionFacts::complete` fact, which is the only thing that
     /// licenses proving an option *absent*.
     complete: bool,
+    /// The first argument the option scan did not consume — where the
+    /// pattern projection places `lsearch`'s pattern operand.
+    option_end: usize,
 }
 ```
+
+As built, the walk is `option_effect::option_effects(spec_options, families,
+args, reserved_trailing_words, dialect)` over `InvocationArguments`, with
+`CommandSpec::option_effects(args, dialect)` passing the command's own table,
+families, reservation and prefix policy, and
+`ResolvedInvocation::option_effects(dialect)` doing the same for the selected
+command or subcommand table (the dialect becomes the resolution's own when the
+derived-query layer fixes it). `option_end` is the one field beyond the
+shape above: the pattern projection needs the operand position, and a
+second walk to find it would be a second rule. A family's base applies to
+the axis values its options mention; with no option of any covering family
+present, the first declared family's base decides (`subst`'s negated
+family), and a `LastWins` option resets its family before it applies.
 
 The derivation is the walk the registry already performs, with three rules
 stated once instead of per resolver:
 
 - **The option scan boundary is declared.** It ends at
   `CommandSpec::reserved_trailing_words` before the end of the argument
-  list, resolved through `resolve_available_option_prefix` so a spelling
+  list, resolved through `resolve_available_option_prefix_with` (the
+  command's prefix policy — `regexp`'s table is exact-only) so a spelling
   the target release does not have is an invalid call rather than an
-  invented operand. `lsearch` declares `reserved_trailing_words: 2` and
-  `switch` declares `2`; `subst` declares the default `0` while
-  `subst_substitutions` splits the final operand off itself, so `subst`
-  gains `reserved_trailing_words: 1` in the same change.
+  invented operand. `lsearch` declares `reserved_trailing_words: 2`,
+  `switch` declares `2`, and `subst` declares `1` (#2136 had already named
+  the template operand). A literal word that does not begin with `-` ends
+  the scan normally — the leading-run placement.
 - **An unreadable call answers every value on.** A computed switch word,
   an abbreviation the table cannot resolve, a `{*}` expansion where an
   option could have been — each makes `complete` false and every axis
   value true, because assuming a substitution does not happen is the
   answer that loses a real read. That is
   `CommandRegistry::substitutions_performed`'s documented rule, kept
-  verbatim and made generic.
+  verbatim and made generic. The substitution projection adds one rule of
+  its own: every word before `subst`'s operand must be an option, so a
+  call whose option run stops short of the operand (`subst -nocommands
+  $opt $x` read through spellings) answers every kind.
 - **Family mixing is a relation, not a resolver branch.** `subst`'s two
-  families cannot be combined in one call; that is an
-  `OptionRelation` of `RelationKind::MutuallyExclusive` over the two term
-  sets, evaluated by `Relation::evaluate` like every other option
-  relation, reported as W147 rather than absorbed into an every-kind
-  answer. `subst_substitutions` today returns `SubstitutionKinds::ALL` for
-  a mixed call, which is sound but silent.
+  families cannot be combined in one call; that is an option relation
+  evaluated by `Relation::evaluate` like every other, reported as W147
+  (tclsh 9.1b0's `cannot combine positive and negative options`) beside
+  the every-kind answer the mixed call now reads as. `Relation::terms` is
+  one flat set, so the built form is three `Forbids` relations — each
+  negated switch forbids the positive set — rather than one
+  `MutuallyExclusive` over two sets, which would also reject
+  `-nocommands -novariables`.
 
 **How a Rust spec declares the same thing.** The descriptor is the *only*
 declaration; there is no second Rust-only form to diverge from. `subst_.rs`
@@ -1160,9 +1188,10 @@ projection of `option_effects` onto `SubstitutionKinds` so W102
 extract-proc (`rust/tcl-lsp-core/src/refactor/`) keep their call.
 `lsearch_.rs` keeps its options and drops `lsearch_pattern_args`;
 `pattern_arg_resolver` stays on `CommandSpec` only for a pattern layout no
-axis can express. The Tcl 9.1 positive family carries the lifecycle flag
-the loader already reads on an option row, so Rust and `.tclspec` declare
-one thing:
+axis can express. The Tcl 9.1 positive family carries the release gate its options carry,
+so Rust and `.tclspec` declare one thing (the loader's `option -effect` /
+`option_effect_family` spelling is the step's next item, CC2.7, and until it
+lands the studio draft records only that a spec declares families):
 
 ```tcl
 command subst {
@@ -1197,24 +1226,33 @@ the `$name` reads that remain. `rust/tcl-compiler/src/dynamic_names.rs`'s
 barrier and the `inner_head_performs_substitution` gate stop reading the
 trait alone, and `push_substituted_commands` stops re-walking a braced
 template for the bracket regions, because the plan carries them.
-`regexp_arg_roles` reads `SuppressesRole` and
-`ReservesTrailingWords` instead of assigning `VarWrite` to every trailing
-word. And `CaseListSpec`'s five option fields — `regex_option`,
+`regexp_arg_roles` reads the answer's shifts — `SuppressesRole(VarWrite)`
+from `-inline`, `ReservesTrailingWords(1)` from `-about` — instead of naming
+the switches, and a match variable after `-inline` is the relation `-inline`
+forbids `{arg 2}` (W147, tclsh's `regexp match variables not allowed when
+using -inline`). And `CaseListSpec`'s five option fields — `regex_option`,
 `exact_option`, `glob_option`, `nocase_option`, `end_options_option` —
-become effects on the command's own option rows, which is the same fact
-stated once per option rather than once per command; `CaseListSpec` keeps
-the clause-list *value* shape, which is what makes it a separate field at
-all.
+became effects on the command's own option rows, which is the same fact
+stated once per option rather than once per command: `CaseListSpec::invocation`
+classifies each option by its effect (`Selects(Selection(mode))`,
+`Selects(CaseSensitivity)`, `EndsOptions`) in the one walk that also finds
+the subject and the clause list, keeping its abstention on a second match
+mode (tclsh 8.5+'s `-exact option already found`), and `switch`'s `-integer`
+left `special_match_options` for its own `Selects(Selection(Other))`.
+`CaseListSpec` keeps the clause-list *value* shape, which is what makes it a
+separate field at all.
 
 **The studio field.** Both `substitution_resolver` and
-`pattern_arg_resolver` lose their `GapKind::Excluded` rows: the fields
-leave `CommandSpec` or shrink to an escape hatch, and `option -effect` /
-`option_effect_family` join the option-row form
-(`rust/tcl-spec-studio/tests/option_row_editing.rs` is that form's gate).
+`pattern_arg_resolver` lost their `GapKind::Excluded` rows: the first left
+`CommandSpec`, and the second is an escape hatch no shipped spec sets.
+`option -effect` / `option_effect_family` join the option-row form with the
+loader spelling (`rust/tcl-spec-studio/tests/option_row_editing.rs` is that
+form's gate); until then `option_effect_families` is a transient
+`DraftOpaque` row and an option row's `effect` is not drafted.
 
 **Tests.** `rust/tcl-registry/src/substitution.rs`'s own unit rows —
-including `tp_no_switches_runs_every_substitution` — become rows of the
-generic derivation; `rust/tcl-registry/src/registry.rs`'s
+including `tp_no_switches_runs_every_substitution` — became rows of the
+generic derivation in `option_effect.rs`; `rust/tcl-registry/src/registry.rs`'s
 `substitutions_performed_answers_per_call_and_only_for_substituting_commands`
 is the projection's gate; `lsearch_pattern_args`'s cases, including
 `lsearch -regexp -glob` searching the list `-regexp` for the glob pattern

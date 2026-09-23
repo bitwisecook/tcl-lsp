@@ -34,6 +34,7 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-style",
@@ -43,6 +44,7 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-class",
@@ -52,6 +54,7 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-cursor",
@@ -61,6 +64,7 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-takefocus",
@@ -70,6 +74,7 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
 ];
 

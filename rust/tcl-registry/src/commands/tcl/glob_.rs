@@ -196,6 +196,7 @@ pub fn spec() -> CommandSpec {
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-join",
@@ -205,6 +206,7 @@ pub fn spec() -> CommandSpec {
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-nocomplain",
@@ -214,6 +216,7 @@ pub fn spec() -> CommandSpec {
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-path",
@@ -223,6 +226,7 @@ pub fn spec() -> CommandSpec {
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-tails",
@@ -232,6 +236,7 @@ pub fn spec() -> CommandSpec {
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-types",
@@ -246,6 +251,7 @@ pub fn spec() -> CommandSpec {
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "--",
@@ -255,6 +261,7 @@ pub fn spec() -> CommandSpec {
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
             ]
         },

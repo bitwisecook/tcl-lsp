@@ -30,6 +30,7 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-ctx",
@@ -39,6 +40,7 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-final",
@@ -48,6 +50,7 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-key",
@@ -57,6 +60,7 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-keyhex",
@@ -66,6 +70,7 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-iv",
@@ -75,6 +80,7 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-ivhex",
@@ -84,6 +90,7 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-padding",
@@ -93,6 +100,7 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
 ];
 

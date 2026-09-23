@@ -34,6 +34,32 @@ fn reg() -> CommandRegistry {
     CommandRegistry::build_default()
 }
 
+/// Run `script` on `tclsh` via stdin, returning its stdout when it exits
+/// cleanly — the helper `differential_fold.rs` uses.
+fn run_tcl(tclsh: &str, script: &str) -> Option<String> {
+    use std::io::Write;
+    use std::process::{Command, Stdio};
+    let mut child = Command::new(tclsh)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .ok()?;
+    child.stdin.take()?.write_all(script.as_bytes()).ok()?;
+    let out = child.wait_with_output().ok()?;
+    out.status
+        .success()
+        .then(|| String::from_utf8_lossy(&out.stdout).into_owned())
+}
+
+/// A `tclsh9.1` (or a bare `tclsh` reporting a 9.1 patchlevel) on `PATH`.
+fn find_tclsh91() -> Option<&'static str> {
+    ["tclsh9.1", "tclsh"].into_iter().find(|cand| {
+        run_tcl(cand, "puts -nonewline [info patchlevel]")
+            .is_some_and(|patchlevel| patchlevel.starts_with("9.1"))
+    })
+}
+
 #[test]
 fn tcl91_is_a_known_catalogued_dialect() {
     assert_eq!(
@@ -115,6 +141,94 @@ fn subst_positive_forms_are_91_only() {
         assert!(in_91.contains(&name), "subst {name} in 9.1");
         assert!(!in_90.contains(&name), "subst {name} NOT in 9.0");
     }
+}
+
+/// The positive switch family exists only at 9.1: below it a positive switch
+/// is not an option at all, so the call is unreadable and every kind is on;
+/// at 9.1 it names the only kind that runs.
+#[test]
+fn subst_positive_family_is_91_only() {
+    use tcl_registry::InvocationArguments;
+    use tcl_registry::substitution::SubstitutionKinds;
+    let r = reg();
+    let spec = r.get("subst").expect("subst registered");
+    let positive = spec
+        .option_effect_families
+        .iter()
+        .find(|family| family.base == tcl_registry::FamilyBase::AllOff)
+        .expect("subst declares its positive family");
+    let rows = positive
+        .surface
+        .expect("the positive family is release-gated");
+    assert!(surface_admits(
+        rows,
+        Some(&SurfaceQuery::core(Family::Tcl, "9.1"))
+    ));
+    assert!(!surface_admits(
+        rows,
+        Some(&SurfaceQuery::core(Family::Tcl, "9.0"))
+    ));
+    let at = |release: &str| {
+        spec.substitutions_performed(
+            InvocationArguments::literals(&["-variables", "x"]),
+            Some(SurfaceQuery::core(Family::Tcl, release)),
+        )
+    };
+    assert_eq!(at("9.0"), Some(SubstitutionKinds::ALL));
+    assert_eq!(
+        at("9.1"),
+        Some(SubstitutionKinds {
+            variables: true,
+            ..SubstitutionKinds::NONE
+        })
+    );
+    // The negated family is every release's.
+    assert_eq!(
+        spec.substitutions_performed(
+            InvocationArguments::literals(&["-novariables", "x"]),
+            Some(SurfaceQuery::core(Family::Tcl, "8.4")),
+        ),
+        Some(SubstitutionKinds {
+            variables: false,
+            ..SubstitutionKinds::ALL
+        })
+    );
+}
+
+/// The differential row for the family relation: `subst -nocommands
+/// -variables x` on a real `tclsh9.1` fails with exactly the message the
+/// registry's relation carries, and the registry reads the call as
+/// unreadable. Skips with a note when no `tclsh9.1` is on `PATH`.
+#[test]
+fn subst_mixed_families_error_matches_tclsh91() {
+    use tcl_registry::InvocationArguments;
+    use tcl_registry::substitution::SubstitutionKinds;
+    let r = reg();
+    let spec = r.get("subst").expect("subst registered");
+    let messages: Vec<&str> = spec
+        .option_relations
+        .iter()
+        .filter_map(|relation| relation.message)
+        .collect();
+    assert!(!messages.is_empty(), "subst declares the family relation");
+    assert!(messages.windows(2).all(|pair| pair[0] == pair[1]));
+    assert_eq!(
+        spec.substitutions_performed(
+            InvocationArguments::literals(&["-nocommands", "-variables", "x"]),
+            Some(SurfaceQuery::core(Family::Tcl, "9.1")),
+        ),
+        Some(SubstitutionKinds::ALL)
+    );
+    let Some(tclsh) = find_tclsh91() else {
+        eprintln!("skipping subst_mixed_families_error_matches_tclsh91: no tclsh9.1 on PATH");
+        return;
+    };
+    let error = run_tcl(
+        tclsh,
+        "catch {subst -nocommands -variables x} message; puts -nonewline $message",
+    )
+    .expect("tclsh9.1 runs the probe");
+    assert_eq!(error, messages[0]);
 }
 
 #[test]

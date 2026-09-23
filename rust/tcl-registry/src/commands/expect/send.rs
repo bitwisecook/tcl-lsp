@@ -28,6 +28,7 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-raw",
@@ -37,6 +38,7 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-null",
@@ -46,6 +48,7 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-break",
@@ -55,6 +58,7 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-s",
@@ -64,6 +68,7 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-h",
@@ -73,6 +78,7 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "--",
@@ -82,6 +88,7 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
 ];
 

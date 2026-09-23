@@ -73,6 +73,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-message",
@@ -82,6 +83,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-error",
@@ -91,6 +93,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
             ]
         },

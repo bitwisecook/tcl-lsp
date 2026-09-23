@@ -50,6 +50,7 @@ pub const fn spec() -> CommandSpec {
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-pub",
@@ -59,6 +60,7 @@ pub const fn spec() -> CommandSpec {
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-proto",
@@ -68,6 +70,7 @@ pub const fn spec() -> CommandSpec {
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-pool",
@@ -77,6 +80,7 @@ pub const fn spec() -> CommandSpec {
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
             ]
         },

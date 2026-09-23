@@ -49,6 +49,7 @@ pub const fn spec() -> CommandSpec {
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-auth_cfg",
@@ -58,6 +59,7 @@ pub const fn spec() -> CommandSpec {
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-sid",
@@ -67,6 +69,7 @@ pub const fn spec() -> CommandSpec {
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-password",
@@ -76,6 +79,7 @@ pub const fn spec() -> CommandSpec {
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-protocol",
@@ -85,6 +89,7 @@ pub const fn spec() -> CommandSpec {
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
             ]
         },

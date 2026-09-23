@@ -219,6 +219,7 @@ pub fn spec() -> CommandSpec {
                     // spelling; even the otherwise unique `-enc` is an
                     // invalid option (tclsh 8.5/8.6/9.0).
                     min_abbrev: Some(9),
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-nopkg",
@@ -230,6 +231,7 @@ pub fn spec() -> CommandSpec {
                     // Likewise, Tcl 9 rejects `-nop` and accepts only the
                     // complete `-nopkg` spelling.
                     min_abbrev: Some(6),
+                    effect: None,
                 },
             ]
         },

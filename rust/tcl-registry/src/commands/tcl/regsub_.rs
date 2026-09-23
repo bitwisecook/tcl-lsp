@@ -115,6 +115,7 @@ const fn flag(name: &'static str, detail: &'static str) -> OptionSpec {
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     }
 }
 
@@ -167,6 +168,7 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     // `regsub -command` is Tcl 9.0+ (TIP 463): absent from the fetched
     // 8.4/8.5/8.6 manpages' switch lists, present — identically worded —
@@ -179,6 +181,7 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     flag(
         "--",

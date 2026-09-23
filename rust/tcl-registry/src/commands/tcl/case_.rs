@@ -198,18 +198,17 @@ mod tests {
     }
 
     /// The descriptor carries the differences from `switch`: no options at
-    /// all, so no match-mode / `--` vocabulary, and a `default` honoured
+    /// all, so no match-mode / `--` vocabulary (those are option rows'
+    /// effects, and `case` declares none), and a `default` honoured
     /// wherever it appears rather than only last.
     #[test]
     fn descriptor_has_no_options_and_a_positionless_default() {
         let case = CaseListSpec::CASE;
         assert_eq!(case.subject_args, 1);
         assert_eq!(case.optional_subject_separator, Some("in"));
-        assert!(case.exact_option.is_none());
-        assert!(case.glob_option.is_none());
-        assert!(case.regex_option.is_none());
-        assert!(case.nocase_option.is_none());
-        assert!(case.end_options_option.is_none());
+        let spec = spec();
+        assert!(spec.options.is_empty());
+        assert!(spec.option_effect_families.is_empty());
         assert!(case.fallthrough_body.is_none());
         assert_eq!(case.keyword_patterns, ["default"]);
         assert!(!case.keyword_patterns_require_final);

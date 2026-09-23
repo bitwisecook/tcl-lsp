@@ -40,6 +40,7 @@ const MATCH_OPTIONS: &[OptionSpec] = &[OptionSpec {
     aliases: &[],
     lifecycle: Lifecycle::UNSPECIFIED,
     min_abbrev: None,
+    effect: None,
 }];
 use tcl_syntax::number::{Number, NumberSyntax, Numbers};
 
@@ -978,6 +979,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-length",
@@ -991,6 +993,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
             ]
         },
@@ -1015,6 +1018,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-length",
@@ -1028,6 +1032,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
             ]
         },
@@ -1178,6 +1183,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-failindex",
@@ -1191,6 +1197,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
             ]
         },
@@ -1311,6 +1318,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 aliases: &[],
                 lifecycle: Lifecycle::UNSPECIFIED,
                 min_abbrev: None,
+                effect: None,
             }]
         },
         arg_types: &[

@@ -46,6 +46,7 @@ pub const fn spec() -> CommandSpec {
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-status",
@@ -55,6 +56,7 @@ pub const fn spec() -> CommandSpec {
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "--",
@@ -64,6 +66,7 @@ pub const fn spec() -> CommandSpec {
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
             ]
         },

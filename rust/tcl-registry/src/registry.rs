@@ -4115,25 +4115,23 @@ impl CommandRegistry {
     /// [`Traits::PERFORMS_SUBSTITUTION`] says *that* a command substitutes;
     /// this answers *which kinds* for the call in hand, so a consumer asking
     /// "does this argument read a variable?" never has to match option
-    /// spellings itself. A command carrying the trait without a
-    /// [`CommandSpec::substitution_resolver`] performs every kind on every
-    /// call, and an unreadable call answers every kind too — assuming a
-    /// substitution does not happen is the answer that loses a real read.
+    /// spellings itself. The answer is the projection of the call's option
+    /// effects onto the substitution axis
+    /// ([`CommandSpec::substitutions_performed`]), under this registry's
+    /// profile: a command whose options move no substitution axis performs
+    /// every kind on every call, and an unreadable call — a computed switch,
+    /// a spelling the release lacks, the two families mixed — answers every
+    /// kind too, because assuming a substitution does not happen is the
+    /// answer that loses a real read.
     #[must_use]
     pub fn substitutions_performed(
         &self,
         name: &str,
         args: &[&str],
     ) -> Option<crate::substitution::SubstitutionKinds> {
-        let spec = self.get(name)?;
-        if !spec.traits.contains(Traits::PERFORMS_SUBSTITUTION) {
-            return None;
-        }
-        Some(
-            spec.substitution_resolver
-                .map_or(crate::substitution::SubstitutionKinds::ALL, |resolve| {
-                    resolve(args)
-                }),
+        self.get(name)?.substitutions_performed(
+            InvocationArguments::literals(args),
+            self.own_surface_query(),
         )
     }
 
@@ -4313,11 +4311,14 @@ impl CommandRegistry {
             return out;
         }
 
-        // Option-selected pattern layouts are owned by the paired pattern
-        // resolver.  Reusing that answer keeps role consumers aligned with
-        // hover and semantic-token consumers, including profile-gated option
+        // Option-selected pattern layouts are owned by the pattern answer —
+        // the option effects' projection, or a resolver escape hatch.
+        // Reusing that answer keeps role consumers aligned with hover and
+        // semantic-token consumers, including profile-gated option
         // abbreviations and reserved positional suffixes.
-        if role == ArgRole::Pattern && spec.pattern_arg_resolver.is_some() {
+        if role == ArgRole::Pattern
+            && (spec.pattern_arg_resolver.is_some() || spec.option_selects_pattern_language())
+        {
             out.extend(
                 self.pattern_args(name, args)
                     .into_iter()
@@ -4650,7 +4651,9 @@ impl CommandRegistry {
         // -format %Y` time value does not suppress the independently-owned
         // `-format` value role.
         let resolver_depends_on_options = sub.map_or(
-            spec.arg_role_resolver.is_some() || spec.pattern_arg_resolver.is_some(),
+            spec.arg_role_resolver.is_some()
+                || spec.pattern_arg_resolver.is_some()
+                || spec.option_selects_pattern_language(),
             |sub| sub.arg_role_resolver.is_some(),
         );
         if !resolver_depends_on_options {
@@ -4839,9 +4842,10 @@ impl CommandRegistry {
     ///
     /// This pairs each declared position with its embedded language. A static
     /// command derives the positions from [`ArgRole::Pattern`]; an
-    /// option-selected command supplies the paired facts through its registry
-    /// resolver. Consumers therefore never need command-name or `-regexp`
-    /// branches of their own.
+    /// option-selected command (`lsearch -regexp`) answers the projection of
+    /// its option effects onto the pattern-language axis, and a layout no
+    /// axis can express keeps the registry resolver escape hatch. Consumers
+    /// therefore never need command-name or `-regexp` branches of their own.
     #[must_use]
     pub fn pattern_args(&self, name: &str, args: &[&str]) -> Vec<crate::patterns::PatternArg> {
         self.pattern_args_for_dialect(name, args, self.own_surface_query())
@@ -4871,19 +4875,31 @@ impl CommandRegistry {
         let Some(spec) = spec else {
             return Vec::new();
         };
-        if let Some(resolve) = spec.pattern_arg_resolver {
+        if spec.pattern_arg_resolver.is_some() || spec.option_selects_pattern_language() {
             let options = self.profile().map_or_else(
                 || spec.option_specs(effective_dialect),
                 |profile| {
                     crate::profile_queries::ProfileQueries::available_option_specs(profile, spec)
                 },
             );
-            return resolve(
-                args,
-                crate::patterns::PatternArgResolverContext {
-                    options: &options,
-                    reserved_trailing_words: spec.reserved_trailing_words,
-                },
+            if let Some(resolve) = spec.pattern_arg_resolver {
+                return resolve(
+                    args,
+                    crate::patterns::PatternArgResolverContext {
+                        options: &options,
+                        reserved_trailing_words: spec.reserved_trailing_words,
+                    },
+                );
+            }
+            let effects = spec.option_effects_over(
+                &options,
+                InvocationArguments::literals(args),
+                effective_dialect,
+            );
+            return crate::patterns::option_selected_pattern_args(
+                &effects,
+                spec.reserved_trailing_words,
+                args.len(),
             );
         }
         let sub = (!spec.subcommands.is_empty())
@@ -7477,6 +7493,7 @@ mod tests {
             aliases: &[],
             lifecycle: crate::lifecycle::Lifecycle::UNSPECIFIED,
             min_abbrev: None,
+            effect: None,
         }];
         fn roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
             let first =
@@ -12562,11 +12579,6 @@ mod tests {
         let case = CaseListSpec {
             subject_args: 0,
             two_arg_optionless_surface: None,
-            regex_option: None,
-            exact_option: None,
-            glob_option: None,
-            nocase_option: None,
-            end_options_option: Some("--"),
             fallthrough_body: None,
             value_options_require_regex: &[],
             special_match_options: &[],

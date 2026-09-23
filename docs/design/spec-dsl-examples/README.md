@@ -416,7 +416,7 @@ the descriptor's own field names, so nothing new has to be learnt:
 |---|---|
 | `hover` | `summary`, `synopsis`*, `description`, `source`, `example`*, `returns` |
 | `values NAME` | `value V ?-detail {…}? ?-min-tcl VER? ?-code N? ?-introduced V? ?-deprecated V? ?-retired V?`* |
-| `case_list` | `subject_args`, `two_arg_optionless_surface`, `exact_option`, `glob_option`, `regex_option`, `nocase_option`, `end_options_option`, `fallthrough_body`, `value_options_require_regex`, `special_match_options`, `clause_flags`, `clause_regex_flag`, `clause_value_flags`, `clause_end_options_flag`, `clause_force_inline_flag`, `clause_force_list_flag`, `clause_force_list_shape` (`first_arg_only_remainder`), `allow_omitted_final_body`, `keyword_patterns {…} ?-final-only?`, `warn_unbraced_bodies`, `optional_subject_separator` |
+| `case_list` | `subject_args`, `two_arg_optionless_surface`, `fallthrough_body`, `value_options_require_regex`, `special_match_options`, `clause_flags`, `clause_regex_flag`, `clause_value_flags`, `clause_end_options_flag`, `clause_force_inline_flag`, `clause_force_list_flag`, `clause_force_list_shape` (`first_arg_only_remainder`), `allow_omitted_final_body`, `keyword_patterns {…} ?-final-only?`, `warn_unbraced_bodies`, `optional_subject_separator` |
 | `clause_grammar` | `head {slots}`, `repeated KEYWORD {slots}`*, `tail ?KEYWORD? {slots}` |
 | `event_requires` | `client_side`, `server_side`, `transport`, `profiles`, `also_in`, `init_only`, `flow`, `capability` |
 | `world_effects` | `composition`, `access …`*, `callback -kinds {…} -reentrancy R`, `resolver`, `dynamic_fallback` |
@@ -758,7 +758,13 @@ Case lists are the other clause shape and stay a separate field, because
 they are a *value* (`{pattern body …}` inside one word) rather than a
 word grammar. `case_list switch` names the shipped descriptor;
 `case_list { … }` spells out every plain-data field of the descriptor,
-which is what a private Expect-like command needs. (No count here on
+which is what a private Expect-like command needs. The command-level
+switches that pick the match mode, fold case, or end the option run are
+not descriptor fields: each is the command's own `option` row, declaring
+its effect (`Selects(Selection(…))`, `Selects(CaseSensitivity)`,
+`EndsOptions`), and the five retired rows (`exact_option`, `glob_option`,
+`regex_option`, `nocase_option`, `end_options_option`) load with a notice
+and change nothing. (No count here on
 purpose: a number in prose drifts, and this one had — it said nineteen
 against eighteen elsewhere and twenty-two in the struct. The property is
 pinned by `case_list_rows_author_every_descriptor_field_issue_2140`
@@ -1242,7 +1248,7 @@ schema order. "excluded" rows carry the reason.
 | `byte_array_effect` | `byte_array_effect None\|Transparent\|Coerces\|CaseFolds\|Encodes\|{Rebinarifies N}` |  |
 | `definition_body` | `definition_body NAME\|{ … }` | a shipped grammar by name (`tcloo`, `tcloo-configurable`, `snit`, `snit-widget`, `itcl`), a pack `descriptor`, or the inline block — see "Definer grammars and scoped bodies" |
 | `manufacturer_methods` | `manufacturer KEYWORD ?-unexported? ?-names-instance-at N? ?-definition-body-at N? -constructor-args-from N` | one row per method |
-| `case_list` | `case_list NAME\|{ … }` | `switch` / `expect` by name, or the 19 plain-data fields inline |
+| `case_list` | `case_list NAME\|{ … }` | `switch` / `expect` by name, or the plain-data fields inline (the match-mode, case-folding and terminator switches are option rows' effects) |
 | `oo_context_facts` | `oo_context_fact WORD FACT` | one row per fact |
 | `self_receiver_words` | `self_receiver_words {WORD …}` |  |
 | `object_class` | `object_class NAME` \| `object_class NAME ?-superclass {…}? ?-allow-unknown? ?-method-prefix-matching Enabled\|Strict? { method … }` | `method` rows reuse the `subcommand` body grammar; method matching defaults to `Strict` |

@@ -296,6 +296,16 @@ pub const GAPS: &[Gap] = &[
         spelling: "body_interpreter Current|{Argument INDEX}",
         kind: GapKind::LoaderGap,
     },
+    // Transient: the families' draft value, the loader's
+    // `option_effect_family` statement and the renderer land together in the
+    // `option -effect` step (CC2.7 of the consumer-contracts lane), which
+    // removes this row. Until then the draft records only that a spec
+    // declares families.
+    Gap {
+        key: "option_effect_families",
+        spelling: "option_effect_family NAME { base all-on|all-off|{only AXIS VALUE} combine accumulate|last-wins ?-introduced V? }",
+        kind: GapKind::DraftOpaque,
+    },
     // Excluded by design.
     Gap {
         key: "completion",
@@ -307,25 +317,11 @@ pub const GAPS: &[Gap] = &[
         spelling: "",
         kind: GapKind::Excluded,
     },
-    // This is a native resolver over a command's own OptionSpec table. Packs
-    // can describe the table and static pattern facts, but not arbitrary
-    // option-selected language dispatch yet; keeping it excluded makes the
-    // native-only boundary explicit until a declarative selector exists.
-    Gap {
-        key: "pattern_arg_resolver",
-        spelling: "",
-        kind: GapKind::Excluded,
-    },
-    // The same shape, over `subst`'s own switch table: which substitutions a
-    // call runs is read from options a pack can already declare, but the answer
-    // is computed, and the only commands carrying `PERFORMS_SUBSTITUTION` are
-    // core Tcl's. Excluded until a declarative selector exists, rather than
-    // inventing a Tcl-body hook family for one command.
-    Gap {
-        key: "substitution_resolver",
-        spelling: "",
-        kind: GapKind::Excluded,
-    },
+    // `substitution_resolver` and `pattern_arg_resolver` left this bucket with
+    // the option-effect descriptor: `subst`'s switch families and `lsearch`'s
+    // match styles are option rows declaring their effects, the first field is
+    // gone from `CommandSpec`, and the second remains only as an escape hatch
+    // no shipped spec sets — so the round trip never sees it set.
     // The native-lowering descriptor is the compiler's own account of how it
     // may compile a command to native code — a representation lattice and the
     // framing it is allowed to elide, meaningful only to `tcl-compiler`'s

@@ -100,6 +100,7 @@ const ENSEMBLE_OPT_COMMAND: OptionSpec = OptionSpec {
     aliases: &[],
     lifecycle: Lifecycle::UNSPECIFIED,
     min_abbrev: None,
+    effect: None,
 };
 
 /// `-namespace`: in `ensembleConfigOptions` only, and read-only even there —
@@ -119,6 +120,7 @@ const ENSEMBLE_OPT_NAMESPACE: OptionSpec = OptionSpec {
     aliases: &[],
     lifecycle: Lifecycle::UNSPECIFIED,
     min_abbrev: None,
+    effect: None,
 };
 
 /// The five options both C tables carry, in their shared (alphabetical) order.
@@ -130,6 +132,7 @@ const ENSEMBLE_OPT_MAP: OptionSpec = OptionSpec {
     aliases: &[],
     lifecycle: Lifecycle::UNSPECIFIED,
     min_abbrev: None,
+    effect: None,
 };
 
 const ENSEMBLE_OPT_PARAMETERS: OptionSpec = OptionSpec {
@@ -140,6 +143,7 @@ const ENSEMBLE_OPT_PARAMETERS: OptionSpec = OptionSpec {
     aliases: &[],
     lifecycle: Lifecycle::UNSPECIFIED,
     min_abbrev: None,
+    effect: None,
 };
 
 const ENSEMBLE_OPT_PREFIXES: OptionSpec = OptionSpec {
@@ -150,6 +154,7 @@ const ENSEMBLE_OPT_PREFIXES: OptionSpec = OptionSpec {
     aliases: &[],
     lifecycle: Lifecycle::UNSPECIFIED,
     min_abbrev: None,
+    effect: None,
 };
 
 const ENSEMBLE_OPT_SUBCOMMANDS: OptionSpec = OptionSpec {
@@ -160,6 +165,7 @@ const ENSEMBLE_OPT_SUBCOMMANDS: OptionSpec = OptionSpec {
     aliases: &[],
     lifecycle: Lifecycle::UNSPECIFIED,
     min_abbrev: None,
+    effect: None,
 };
 
 const ENSEMBLE_OPT_UNKNOWN: OptionSpec = OptionSpec {
@@ -170,6 +176,7 @@ const ENSEMBLE_OPT_UNKNOWN: OptionSpec = OptionSpec {
     aliases: &[],
     lifecycle: Lifecycle::UNSPECIFIED,
     min_abbrev: None,
+    effect: None,
 };
 
 /// A namespace unknown handler is installed for a future failed dispatch;
@@ -266,6 +273,7 @@ static WHICH_OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-variable",
@@ -275,6 +283,7 @@ static WHICH_OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
 ];
 
@@ -362,6 +371,7 @@ static EXPORT_OPTIONS: &[OptionSpec] = &[OptionSpec {
     aliases: &[],
     lifecycle: Lifecycle::UNSPECIFIED,
     min_abbrev: None,
+    effect: None,
 }];
 
 /// `namespace import`'s only flag — present unchanged in the synopsis of
@@ -374,6 +384,7 @@ static IMPORT_OPTIONS: &[OptionSpec] = &[OptionSpec {
     aliases: &[],
     lifecycle: Lifecycle::UNSPECIFIED,
     min_abbrev: None,
+    effect: None,
 }];
 
 /// `namespace delete ?namespace namespace ...?` — every positional word names

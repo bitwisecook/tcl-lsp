@@ -180,16 +180,6 @@ command-level compatibility fallback in force. In SpecTcl the body calls \
 `timing IDX SameInvocation|Deferred|ReferenceOnly`.",
     ),
     (
-        "substitution_resolver",
-        "The per-call sibling of the `PERFORMS_SUBSTITUTION` trait: use it \
-when switches decide *which* of backslash, command and variable substitution \
-the call runs over its own argument, as with `subst -novariables`. The trait \
-alone tells a consumer only that some substitution happens, which is not \
-enough to answer \"does this argument read a variable?\". Silence means every \
-kind on every call, and a call the resolver cannot read must answer every \
-kind — assuming a substitution does not happen is what loses a real read.",
-    ),
-    (
         "callback_taint_inputs",
         "Lists only callback substitutions whose bytes are externally controlled. \
 For Tk validation, `%P`, `%s`, and `%S` carry editable text; for key bindings, \
@@ -727,6 +717,20 @@ end-of-options marker — that is what enables the \"put `--` before a \
 dynamic value\" safety warning.\n\nDeclared options get completion, spelling \
 checks, and correct highlighting of flag-versus-value; undeclared ones are \
 reported as unknown.",
+    ),
+    (
+        "option_effect_families",
+        "Where an option axis starts, and how two options over it combine. An \
+option row may declare what its presence does to the call — turn a \
+substitution kind or a pattern language on or off, fold case, pick a match \
+mode, suppress a role, change the trailing-operand reservation, or end the \
+option run — and every such effect names a family declared here. A family's \
+base is where its axis values start (all on, all off, or one named value on) \
+and its combine rule says whether its options accumulate (`subst`'s switches) \
+or the last one decides (`lsearch`'s match styles). Two families over the same \
+axis value are alternatives: a call using both cannot be read, and the error \
+itself is an option relation. The pack spelling arrives with the option-row \
+`-effect` flag.",
     ),
     (
         "option_relations",

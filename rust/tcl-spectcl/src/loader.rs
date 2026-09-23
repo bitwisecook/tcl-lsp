@@ -3749,11 +3749,6 @@ fn case_list_block(stmts: &[Stmt], log: &mut Log) -> CaseListSpec {
     let mut spec = CaseListSpec {
         subject_args: 0,
         two_arg_optionless_surface: None,
-        regex_option: None,
-        exact_option: None,
-        glob_option: None,
-        nocase_option: None,
-        end_options_option: None,
         fallthrough_body: None,
         value_options_require_regex: &[],
         special_match_options: &[],
@@ -3777,11 +3772,18 @@ fn case_list_block(stmts: &[Stmt], log: &mut Log) -> CaseListSpec {
             "two_arg_optionless_surface" => {
                 spec.two_arg_optionless_surface = parse_dialects(&value, stmt.line, log);
             }
-            "exact_option" => spec.exact_option = Some(leak_str(&value)),
-            "glob_option" => spec.glob_option = Some(leak_str(&value)),
-            "regex_option" => spec.regex_option = Some(leak_str(&value)),
-            "nocase_option" => spec.nocase_option = Some(leak_str(&value)),
-            "end_options_option" => spec.end_options_option = Some(leak_str(&value)),
+            // The command-level switches that pick the match mode, fold case
+            // or end the option run are the command's own option rows, each
+            // declaring its effect; the descriptor no longer names them.
+            retired @ ("exact_option" | "glob_option" | "regex_option" | "nocase_option"
+            | "end_options_option") => log.say(
+                stmt.line,
+                format!(
+                    "`case_list` row `{retired}` is retired: a match-mode, case-folding or \
+                     terminator switch is the command's own option row, declaring its effect; \
+                     dropped"
+                ),
+            ),
             "fallthrough_body" => spec.fallthrough_body = Some(leak_str(&value)),
             "value_options_require_regex" => {
                 spec.value_options_require_regex = leak_strs(&list_words(&value));
@@ -6942,16 +6944,16 @@ mod tests {
     /// Every row is given a value that differs from the field's
     /// zero/empty default, so a field the block cannot reach fails here.
     /// `keyword_patterns` carries two fields (its `-final-only` flag sets
-    /// `keyword_patterns_require_final`), which is why twenty-one rows
-    /// author twenty-two fields.
+    /// `keyword_patterns_require_final`), which is why sixteen rows author
+    /// seventeen fields. The five command-level switch rows the block once
+    /// read (`exact_option` … `end_options_option`) are option rows'
+    /// effects now, and the block drops each with a notice.
     #[test]
     fn case_list_rows_author_every_descriptor_field_issue_2140() {
         let pack = evaluate_pack(
             "speclib probe 1.1 { command demo { case_list { \
              subject_args 2; \
              two_arg_optionless_surface tcl8.5+; \
-             regex_option -regexp; exact_option -exact; glob_option -glob; \
-             nocase_option -nocase; end_options_option --; \
              fallthrough_body -; \
              value_options_require_regex {-indexvar -matchvar}; \
              special_match_options {-sorted}; \
@@ -6975,11 +6977,6 @@ mod tests {
             case.two_arg_optionless_surface,
             Some(SpecSurface::TCL85_PLUS)
         );
-        assert_eq!(case.regex_option, Some("-regexp"));
-        assert_eq!(case.exact_option, Some("-exact"));
-        assert_eq!(case.glob_option, Some("-glob"));
-        assert_eq!(case.nocase_option, Some("-nocase"));
-        assert_eq!(case.end_options_option, Some("--"));
         assert_eq!(case.fallthrough_body, Some("-"));
         assert_eq!(case.value_options_require_regex, ["-indexvar", "-matchvar"]);
         assert_eq!(case.special_match_options, ["-sorted"]);
@@ -7014,9 +7011,29 @@ mod tests {
             .filter(|line| line.starts_with("    pub ") && line.contains(':'))
             .count();
         assert_eq!(
-            fields, 22,
-            "`CaseListSpec` has {fields} fields; the assertions above cover 22 — a new field needs a `case_list` row and an assertion here"
+            fields, 17,
+            "`CaseListSpec` has {fields} fields; the assertions above cover 17 — a new field needs a `case_list` row and an assertion here"
         );
+    }
+
+    /// The command-level switch rows `case_list` once read are the option
+    /// rows' effects now: a pack still writing one is told so, and the row
+    /// changes nothing.
+    #[test]
+    fn a_retired_case_list_switch_row_is_dropped_with_a_notice() {
+        let pack = evaluate_pack(
+            "speclib probe 1.1 { command demo { case_list { \
+             subject_args 1; regex_option -regexp } } }",
+        );
+        assert!(
+            pack.notices
+                .iter()
+                .any(|notice| notice.message.contains("`regex_option` is retired")),
+            "{:?}",
+            pack.notices
+        );
+        let case = pack.command("demo").unwrap().spec.case_list.unwrap();
+        assert_eq!(case.subject_args, 1);
     }
 
     /// #2140: `state_transitions` and `world_effects` load their

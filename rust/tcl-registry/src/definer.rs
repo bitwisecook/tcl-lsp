@@ -2290,15 +2290,12 @@ const SPECTCL_CLAUSE_GRAMMAR_MEMBERS: &[MemberSpec] = &[
     MemberSpec::keyword_only("tail"),
 ];
 
-/// The nineteen plain-data fields of a `case_list { … }` block.
+/// The plain-data fields of a `case_list { … }` block. The command-level
+/// switches that pick the match mode, fold case, or end the option run are
+/// the command's own option rows, each declaring its effect.
 const SPECTCL_CASE_LIST_MEMBERS: &[MemberSpec] = &[
     MemberSpec::keyword_only("subject_args"),
     MemberSpec::keyword_only("two_arg_optionless_surface"),
-    MemberSpec::keyword_only("exact_option"),
-    MemberSpec::keyword_only("glob_option"),
-    MemberSpec::keyword_only("regex_option"),
-    MemberSpec::keyword_only("nocase_option"),
-    MemberSpec::keyword_only("end_options_option"),
     MemberSpec::keyword_only("fallthrough_body"),
     MemberSpec::keyword_only("value_options_require_regex"),
     MemberSpec::keyword_only("clause_flags"),

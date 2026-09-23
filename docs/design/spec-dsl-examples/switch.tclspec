@@ -69,11 +69,6 @@ command switch {
     # private Expect-like or dispatch-table command needs.
     case_list {
         subject_args 1
-        exact_option  -exact
-        glob_option   -glob
-        regex_option  -regexp
-        nocase_option -nocase
-        end_options_option --
         fallthrough_body -
         value_options_require_regex {-matchvar -indexvar}
         clause_flags {}

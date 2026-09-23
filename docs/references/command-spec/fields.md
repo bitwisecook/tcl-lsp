@@ -337,6 +337,12 @@ Declared options get completion, spelling checks, and correct highlighting of fl
 
 What this command's options and arguments require of one another. Four relations, and the checker evaluates every one of them natively — no script runs, whatever the document does. `option_conflict {-glob -regexp}` is the symmetric "not together"; `option_requires -command {-channel}` is the directional one (`bibtex::parse`'s `-command` is a channel callback and is useless without `-channel`); `option_requires_one_of {} {-channel {arg 0}}` says a call must supply at least one of a set, subject optional; and `option_forbids {-order in} {{-type bfs}}` is the asymmetric exclusion (`struct::tree walk` rejects an in-order breadth-first walk). A term is an option (`-channel`), an option carrying a value (`{-type bfs}`), a positional argument (`{arg 0}`), or a positional carrying a value (`{arg 1 text}`). Absence is only ever proven on a call the analyser could read to its end, so a `{*}$opts` call abstains instead of accusing.
 
+### `option_effect_families` — Option-effect families
+
+*command and subcommand* — The families this command's option effects cite — where each axis starts and how two options of the family combine.
+
+Where an option axis starts, and how two options over it combine. An option row may declare what its presence does to the call — turn a substitution kind or a pattern language on or off, fold case, pick a match mode, suppress a role, change the trailing-operand reservation, or end the option run — and every such effect names a family declared here. A family's base is where its axis values start (all on, all off, or one named value on) and its combine rule says whether its options accumulate (`subst`'s switches) or the last one decides (`lsearch`'s match styles). Two families over the same axis value are alternatives: a call using both cannot be read, and the error itself is an option relation. The pack spelling arrives with the option-row `-effect` flag.
+
 ### `option_placement` — Option placement
 
 *command and subcommand* — Where this invocation's declared options may appear: a leading run that stops at the first non-option word (every core Tcl command), or anywhere between the positional words up to an explicit `--` (`http::geturl`).
@@ -790,12 +796,6 @@ The dynamic sibling of the command-prefix positions: a hook for when *which* wor
 *command and subcommand* — Callback assigning SameInvocation, Deferred, or ReferenceOnly to executable positions from the actual argument list.
 
 The dynamic sibling of per-option `script_timing`: use it when the same executable position runs now in one invocation shape but is stored in another, as with `send -async`. It emits an exact index plus `SameInvocation`, `Deferred`, or `ReferenceOnly`; the index must already be a `Body`, `LambdaLiteral`, or `CommandPrefix`. Silence leaves the option timing or command-level compatibility fallback in force. In SpecTcl the body calls `timing IDX SameInvocation|Deferred|ReferenceOnly`.
-
-### `substitution_resolver` — Substitution resolver
-
-*command only* — Callback reporting which of backslash, command and variable substitution this call runs over its own argument text, for a PERFORMS_SUBSTITUTION command whose switches change the answer. Absent means every kind on every call.
-
-The per-call sibling of the `PERFORMS_SUBSTITUTION` trait: use it when switches decide *which* of backslash, command and variable substitution the call runs over its own argument, as with `subst -novariables`. The trait alone tells a consumer only that some substitution happens, which is not enough to answer "does this argument read a variable?". Silence means every kind on every call, and a call the resolver cannot read must answer every kind — assuming a substitution does not happen is what loses a real read.
 
 ### `command_forms` — Invocation refinements
 

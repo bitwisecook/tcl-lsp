@@ -2129,6 +2129,58 @@ fn w147_reports_registry_declared_mutually_exclusive_options() {
     );
 }
 
+/// `subst`'s two switch families cannot be combined (tclsh 9.1b0:
+/// `cannot combine positive and negative options`): the registry declares the
+/// exclusion as option relations, so the existing relation check reports it
+/// as W147 at the call site — no `subst` logic in the analyser.
+#[test]
+fn w147_reports_mixed_subst_switch_families() {
+    let w147 = |src: &str, dialect: &str| -> Vec<String> {
+        let mut a = Analyser::new();
+        a.analyse(src, dialect)
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W147)
+            .map(|d| d.message.clone())
+            .collect()
+    };
+    let mixed = w147("subst -nocommands -variables $x\n", "tcl9.1");
+    assert_eq!(mixed.len(), 1, "{mixed:?}");
+    assert!(
+        mixed[0].contains("cannot combine positive and negative options"),
+        "{mixed:?}"
+    );
+    // One family alone is legal, and below 9.1 the positive switches are not
+    // options at all, so there is no family to mix.
+    assert!(w147("subst -nocommands -novariables $x\n", "tcl9.1").is_empty());
+    assert!(w147("subst -variables -commands $x\n", "tcl9.1").is_empty());
+    assert!(w147("subst -nocommands -variables $x\n", "tcl9.0").is_empty());
+}
+
+/// `regexp -inline` returns the match data and rejects a match variable
+/// (tclsh 8.4–9.1: `regexp match variables not allowed when using
+/// -inline`): the trailing word is the relation's finding, never a write.
+#[test]
+fn w147_reports_a_match_variable_after_regexp_inline() {
+    let w147 = |src: &str| -> Vec<String> {
+        let mut a = Analyser::new();
+        a.analyse(src, "tcl8.6")
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W147)
+            .map(|d| d.message.clone())
+            .collect()
+    };
+    let found = w147("regexp -inline {a(b)} ab v\n");
+    assert_eq!(found.len(), 1, "{found:?}");
+    assert!(
+        found[0].contains("regexp match variables not allowed when using -inline"),
+        "{found:?}"
+    );
+    assert!(w147("set t {a b}\nregexp -all -inline {\\S+} $t\n").is_empty());
+    assert!(w147("regexp {a(b)} ab v\n").is_empty());
+}
+
 #[test]
 fn w147_is_generic_and_covers_glob_without_source_logic() {
     let mut a = Analyser::new();

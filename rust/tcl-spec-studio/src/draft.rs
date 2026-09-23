@@ -1362,6 +1362,13 @@ fn subcommand_option_surface(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecov
     };
     d.insert("option_relations".into(), option_relations);
     d.insert(
+        "option_effect_families".into(),
+        lost.expr(
+            "option_effect_families",
+            !sub.option_effect_families.is_empty(),
+        ),
+    );
+    d.insert(
         "option_placement".into(),
         json!(catalogue::variant_name(&sub.option_placement)),
     );
@@ -1546,13 +1553,6 @@ fn command_identity(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
         lost.expr(
             "script_timing_resolver",
             spec.script_timing_resolver.is_some(),
-        ),
-    );
-    d.insert(
-        "substitution_resolver".into(),
-        lost.expr(
-            "substitution_resolver",
-            spec.substitution_resolver.is_some(),
         ),
     );
 }
@@ -1815,6 +1815,13 @@ fn command_options(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
             .map_or_else(|| lost.expr("option_relations", true), |expr| json!(expr))
     };
     d.insert("option_relations".into(), option_relations);
+    d.insert(
+        "option_effect_families".into(),
+        lost.expr(
+            "option_effect_families",
+            !spec.option_effect_families.is_empty(),
+        ),
+    );
     d.insert(
         "reserved_trailing_words".into(),
         json!(spec.reserved_trailing_words),

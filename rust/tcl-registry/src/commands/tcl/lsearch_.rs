@@ -50,6 +50,7 @@ static OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-ascii",
@@ -59,6 +60,7 @@ static OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     // `-bisect` first appears in the Tcl 8.6 manpage — absent from both
     // the 8.4 and 8.5 option lists.
@@ -70,6 +72,7 @@ static OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-decreasing",
@@ -79,6 +82,7 @@ static OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-dictionary",
@@ -88,6 +92,7 @@ static OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-exact",
@@ -97,6 +102,7 @@ static OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: Some(match_style(OptionEffectKind::Disables(GLOB))),
     },
     OptionSpec {
         name: "-glob",
@@ -106,6 +112,7 @@ static OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: Some(match_style(OptionEffectKind::Selects(GLOB))),
     },
     OptionSpec {
         name: "-increasing",
@@ -115,6 +122,7 @@ static OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     // `-index`, `-nocase`, `-subindices` were added to `lsearch` in Tcl 8.5
     // (absent from the 8.4 manpage's option list).
@@ -126,6 +134,7 @@ static OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-inline",
@@ -135,6 +144,7 @@ static OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-integer",
@@ -144,6 +154,7 @@ static OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-nocase",
@@ -153,6 +164,7 @@ static OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-not",
@@ -162,6 +174,7 @@ static OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-real",
@@ -171,6 +184,7 @@ static OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-regexp",
@@ -180,6 +194,7 @@ static OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: Some(match_style(OptionEffectKind::Selects(REGEX))),
     },
     OptionSpec {
         name: "-sorted",
@@ -189,6 +204,7 @@ static OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: Some(match_style(OptionEffectKind::Disables(GLOB))),
     },
     OptionSpec {
         name: "-start",
@@ -198,6 +214,7 @@ static OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     // `lsearch -stride` is Tcl 9.0-only, TIP 351 (tclsh8.6 rejects it with
     // "bad option -stride"; the 8.6 `lsort -stride` is the separate TIP 326).
@@ -213,6 +230,7 @@ static OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-subindices",
@@ -222,6 +240,7 @@ static OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     // NOTE: `lsearch` does NOT declare `--` in its option table.
     // This keeps W304 (missing-option-terminator) silent for
@@ -229,60 +248,28 @@ static OPTIONS: &[OptionSpec] = &[
     // `analyse_no_w304_for_lsearch` regression test depends on this.
 ];
 
-/// `lsearch ?options? list pattern` has one list operand followed by its
-/// pattern.  The option table is the grammar: `-start`/`-index`/`-stride`
-/// consume their declared values, and a unique abbreviation consumes exactly
-/// the same layout as its canonical spelling.
-fn lsearch_pattern_args(
-    args: &[&str],
-    context: crate::patterns::PatternArgResolverContext<'_>,
-) -> Vec<PatternArg> {
-    let mut option_end = 0;
-    let mut kind = Some(PatternType::Glob);
-    // Tcl's outer parser scans only while both mandatory operands remain.
-    // In particular, `lsearch -regexp -glob` searches list `-regexp` for
-    // glob pattern `-glob`; neither trailing word is an option candidate.
-    let option_scan_end = args.len().saturating_sub(context.reserved_trailing_words);
-    while option_end < option_scan_end {
-        let word = args[option_end];
-        let Some(option) = crate::patterns::resolve_available_option_prefix(context.options, word)
-        else {
-            // This is still Tcl's outer option region, not a free-form
-            // positional prefix. A dash-prefixed literal that cannot resolve
-            // in this release is an invalid invocation: it may be unknown,
-            // ambiguous, `--` (which lsearch does not support), or name an
-            // option introduced by a later release. Do not invent a pattern
-            // position after an invocation the interpreter rejects. A
-            // non-option word, by contrast, is the mandatory list operand
-            // and ends the scan normally.
-            if word.starts_with('-') {
-                return Vec::new();
-            }
-            break;
-        };
-        // The matching-style options are mutually overriding: the final one
-        // Tcl accepts decides the embedded language. Exact and sorted forms
-        // have no pattern mini-language, so they intentionally produce none.
-        kind = match option.name {
-            "-glob" => Some(PatternType::Glob),
-            "-regexp" => Some(PatternType::Regex),
-            "-exact" | "-sorted" => None,
-            _ => kind,
-        };
-        option_end += 1 + option.value_word_count(args, option_end);
-        if option.name == "--" {
-            break;
-        }
+/// The match styles are one family over the pattern-language axis: glob by
+/// default, and the last style Tcl accepts decides — `-glob` and `-regexp`
+/// select their language, `-exact` and `-sorted` compare without one. The
+/// pattern operand is the last of the two reserved operands, so its language
+/// is [`CommandSpec::option_effects`]'s projection, not a resolver.
+const FAMILIES: &[OptionEffectFamily] = &[OptionEffectFamily {
+    name: MATCH,
+    base: FamilyBase::Only(GLOB),
+    combine: FamilyCombine::LastWins,
+    surface: None,
+}];
+
+const MATCH: &str = "match";
+const GLOB: EffectAxis = EffectAxis::PatternLanguage(PatternType::Glob);
+const REGEX: EffectAxis = EffectAxis::PatternLanguage(PatternType::Regex);
+
+/// A match-style switch.
+const fn match_style(kind: OptionEffectKind) -> OptionEffect {
+    OptionEffect {
+        kind,
+        family: MATCH,
     }
-    let pattern = option_end.saturating_add(1); // skip list
-    kind.filter(|_| pattern < args.len())
-        .and_then(|kind| {
-            u8::try_from(pattern)
-                .ok()
-                .map(|index| PatternArg { index, kind })
-        })
-        .into_iter()
-        .collect()
 }
 
 pub fn spec() -> CommandSpec {
@@ -301,12 +288,12 @@ pub fn spec() -> CommandSpec {
         return_type_hook: Some(ReturnTypeHookId::Lsearch),
         // Default matching style is glob (`-glob`) in every version;
         // `PatternType::Glob`'s own doc comment names `lsearch` as the
-        // canonical example. `-exact`/`-regexp` can select a different
-        // style per call, but the registry's `pattern_type` is a single
-        // per-command fact, so it records the default.
+        // canonical example. `-exact`/`-regexp` select a different style per
+        // call through their option rows' effects; `pattern_type` records the
+        // default.
         pattern_type: Some(PatternType::Glob),
-        pattern_arg_resolver: Some(lsearch_pattern_args),
         options: OPTIONS,
+        option_effect_families: FAMILIES,
         // `Tcl_LsearchObjCmd` scans outer options with `i < objc - 2` in
         // Tcl 8.4, 8.6, and 9.0's generic/tclCmdIL.c. The mandatory list and
         // pattern operands are therefore never option candidates, even when

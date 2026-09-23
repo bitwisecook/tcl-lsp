@@ -557,15 +557,6 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Callback assigning SameInvocation, Deferred, or ReferenceOnly to executable positions from the actual argument list.",
     ),
     f(
-        "substitution_resolver",
-        "Substitution resolver",
-        ADVANCED,
-        FieldKind::RustExpr {
-            hint: "Some(substitution::subst_substitutions)",
-        },
-        "Callback reporting which of backslash, command and variable substitution this call runs over its own argument text, for a PERFORMS_SUBSTITUTION command whose switches change the answer. Absent means every kind on every call.",
-    ),
-    f(
         "callback_taint_inputs",
         "Callback external inputs",
         TAINT,
@@ -1028,6 +1019,17 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Registry-declared relations between this command's options and arguments \
          (E-R14) — mutual exclusion, directional requires, requires-one-of, and forbids, \
          each checked natively with no VM entry.",
+    ),
+    f(
+        "option_effect_families",
+        "Option-effect families",
+        OPTS,
+        FieldKind::RustExpr {
+            hint: "&[OptionEffectFamily { name: \"match\", base: FamilyBase::Only(EffectAxis::PatternLanguage(PatternType::Glob)), \
+                   combine: FamilyCombine::LastWins, surface: None }]",
+        },
+        "The families this command's option effects cite — where each axis starts \
+         and how two options of the family combine.",
     ),
     f(
         "option_placement",
@@ -1737,6 +1739,16 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
         },
         "Subcommand-specific option relations (E-R14), evaluated by the same \
          native checker as the command-level ones.",
+    ),
+    f(
+        "option_effect_families",
+        "Option-effect families",
+        OPTS,
+        FieldKind::RustExpr {
+            hint: "&[OptionEffectFamily { name: \"match\", base: FamilyBase::AllOn, \
+                   combine: FamilyCombine::Accumulate, surface: None }]",
+        },
+        "The families this subcommand's option effects cite.",
     ),
     f(
         "option_placement",

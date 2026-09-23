@@ -178,7 +178,6 @@ pub fn witness_command_spec(spec: &CommandSpec) {
         command_prefixes: _,
         command_prefix_resolver: _,
         script_timing_resolver: _,
-        substitution_resolver: _,
         callback_taint_inputs: _,
         return_type: _,
         return_type_hook: _,
@@ -229,6 +228,7 @@ pub fn witness_command_spec(spec: &CommandSpec) {
         irules_top_level_effect: _,
         options: _,
         option_relations: _,
+        option_effect_families: _,
         constraints: _,
         option_placement: _,
         reserved_trailing_words: _,
@@ -308,10 +308,6 @@ pub const COMMAND_SPEC: &[Field] = &[
     f(
         "script_timing_resolver",
         Surface::Key("script_timing_resolver"),
-    ),
-    f(
-        "substitution_resolver",
-        Surface::Key("substitution_resolver"),
     ),
     f("return_type", Surface::Key("return_type")),
     f("return_type_hook", Surface::Key("return_type_hook")),
@@ -440,6 +436,10 @@ pub const COMMAND_SPEC: &[Field] = &[
     f("setter_constraints", Surface::Key("setter_constraints")),
     f("pattern_type", Surface::Key("pattern_type")),
     f("pattern_arg_resolver", Surface::Key("pattern_arg_resolver")),
+    f(
+        "option_effect_families",
+        Surface::Key("option_effect_families"),
+    ),
     f("format_string_type", Surface::Key("format_string_type")),
     f("tcllib_package", Surface::Key("tcllib_package")),
     f("lifecycle", Surface::Keys(LIFECYCLE_KEYS)),
@@ -520,6 +520,7 @@ pub fn witness_sub_command(sub: &SubCommand) {
         command_table_effect: _,
         options: _,
         option_relations: _,
+        option_effect_families: _,
         constraints: _,
         option_placement: _,
         min_abbrev: _,
@@ -617,6 +618,10 @@ pub const SUB_COMMAND: &[Field] = &[
     f("command_table_effect", Surface::Key("command_table_effect")),
     f("options", Surface::Key("options")),
     f("option_relations", Surface::Key("option_relations")),
+    f(
+        "option_effect_families",
+        Surface::Key("option_effect_families"),
+    ),
     f("constraints", Surface::Key("constraints")),
     f("option_placement", Surface::Key("option_placement")),
     f("min_abbrev", Surface::Key("min_abbrev")),
@@ -722,6 +727,7 @@ pub fn witness_option_spec(opt: &OptionSpec) {
         aliases: _,
         lifecycle: _,
         min_abbrev: _,
+        effect: _,
     } = opt;
 }
 
@@ -734,7 +740,17 @@ pub const OPTION_SPEC: &[Field] = &[
     f("aliases", Surface::Key("aliases")),
     f("lifecycle", Surface::Keys(LIFECYCLE_KEYS)),
     f("min_abbrev", Surface::Key("min_abbrev")),
+    f("effect", Surface::Excluded(OPTION_EFFECT_PENDING)),
 ];
+
+/// Why an option row's effect is not drafted yet. Transient: CC2.7 of the
+/// consumer-contracts lane lands the option-row control, the loader's
+/// `-effect` / `-family` spelling and the renderer together, and turns this
+/// entry into a `Key`.
+const OPTION_EFFECT_PENDING: &str = "the option-row form, the loader's `-effect` / `-family` spelling and the \
+     renderer land together in the `option -effect` step (registry-consumer-contracts.md \
+     § *Options with semantic effects*); until then a drafted option row carries no \
+     effect and the round trip compares none";
 
 /// Compile-time witness for [`OPTION_ARG`].
 pub fn witness_option_arg(arg: &OptionArg) {
@@ -1227,11 +1243,6 @@ pub fn witness_case_list_spec(spec: &CaseListSpec) {
     let CaseListSpec {
         subject_args: _,
         two_arg_optionless_surface: _,
-        regex_option: _,
-        exact_option: _,
-        glob_option: _,
-        nocase_option: _,
-        end_options_option: _,
         fallthrough_body: _,
         value_options_require_regex: _,
         special_match_options: _,
@@ -1257,11 +1268,6 @@ pub const CASE_LIST_SPEC: &[Field] = &[
         "two_arg_optionless_surface",
         Surface::Excluded(NAMED_CONSTANT),
     ),
-    f("regex_option", Surface::Excluded(NAMED_CONSTANT)),
-    f("exact_option", Surface::Excluded(NAMED_CONSTANT)),
-    f("glob_option", Surface::Excluded(NAMED_CONSTANT)),
-    f("nocase_option", Surface::Excluded(NAMED_CONSTANT)),
-    f("end_options_option", Surface::Excluded(NAMED_CONSTANT)),
     f("fallthrough_body", Surface::Excluded(NAMED_CONSTANT)),
     f(
         "value_options_require_regex",

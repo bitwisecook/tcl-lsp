@@ -114,7 +114,16 @@ const PORTS: &[Port] = &[
         commands: &[PortedCommand {
             name: "switch",
             dialect: "tcl9.1",
-            unequal: NONE,
+            unequal: &[(
+                "__unrenderable",
+                "the shipped spec's match-mode, case-folding and `--` switches \
+                 declare option effects in three `option_effect_families`; \
+                 SpecTcl has no `option -effect` / `option_effect_family` \
+                 spelling until the option-effect step of the consumer-contracts \
+                 lane lands it, so the families stay on the unrenderable list and \
+                 the port does not transcribe them. Every field the port does \
+                 carry matches",
+            )],
             unequal_subcommand: NO_SUBS,
             subcommand_subset: ALL_SUBS,
         }],

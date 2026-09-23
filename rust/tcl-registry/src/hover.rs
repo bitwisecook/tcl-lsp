@@ -619,6 +619,14 @@ pub struct OptionSpec {
     /// **any** unique prefix resolves (`lsearch -noc` ⇒ `-nocase`).  See
     /// [`crate::abbrev`].
     pub min_abbrev: Option<u8>,
+    /// The semantic effect this option's presence has on the call — an axis
+    /// value it turns on or off, a role it suppresses, a reservation it
+    /// changes, or the end of option parsing — and the family it belongs to
+    /// (`docs/design/compiler/registry-consumer-contracts.md` § *Options with
+    /// semantic effects*). `None` for an option whose presence moves no
+    /// declared axis. Read through [`crate::option_effect::option_effects`],
+    /// never by spelling.
+    pub effect: Option<crate::option_effect::OptionEffect>,
 }
 
 impl OptionSpec {
@@ -631,6 +639,7 @@ impl OptionSpec {
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     };
 
     /// This option as a [`Keyword`] for abbreviation resolution.
@@ -1095,6 +1104,7 @@ mod tests {
             aliases: &[],
             lifecycle: Lifecycle::UNSPECIFIED,
             min_abbrev: None,
+            effect: None,
         };
         // No parent: always available.
         assert!(opt.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "8.4")), None));
@@ -1127,6 +1137,7 @@ mod tests {
             aliases: &[],
             lifecycle: Lifecycle::UNSPECIFIED,
             min_abbrev: None,
+            effect: None,
         };
         assert!(opt.supports_dialect(
             Some(SurfaceQuery::core(Family::Tcl, "8.6")),
@@ -1158,6 +1169,7 @@ mod tests {
             aliases: &[],
             lifecycle: Lifecycle::UNSPECIFIED,
             min_abbrev: None,
+            effect: None,
         };
         assert!(opt.supports_dialect(None, Some(SpecSurface::TCL90)));
     }

@@ -121,6 +121,7 @@ pub fn spec() -> CommandSpec {
                 aliases: &[],
                 lifecycle: Lifecycle::UNSPECIFIED,
                 min_abbrev: None,
+                effect: None,
             }]
         },
         hover: Some(HoverSnippet {

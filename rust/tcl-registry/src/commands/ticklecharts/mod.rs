@@ -50,6 +50,7 @@ const fn vopt(name: &'static str, detail: &'static str) -> OptionSpec {
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     }
 }
 
@@ -67,6 +68,7 @@ const fn vopt_since(
         aliases: &[],
         lifecycle: Lifecycle::introduced_in(introduced),
         min_abbrev: None,
+        effect: None,
     }
 }
 
@@ -80,6 +82,7 @@ const fn eopt(name: &'static str, detail: &'static str, values: &'static [ArgVal
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     }
 }
 

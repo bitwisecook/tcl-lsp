@@ -520,6 +520,24 @@ pub(super) const ENTRIES: &[(&str, Example)] = &[
         },
     ),
     (
+        "option_effect_families",
+        Example {
+            code: "lsearch -regexp $names {^a.*}",
+            focuses: &[
+                focus(
+                    0,
+                    "-regexp",
+                    "selects regex in the match family, whose base is glob",
+                ),
+                focus(
+                    0,
+                    "{^a.*}",
+                    "so the pattern operand is read as a regular expression",
+                ),
+            ],
+        },
+    ),
+    (
         "option_relations",
         Example {
             code: "glob -directory $dir -path $prefix *.tcl",

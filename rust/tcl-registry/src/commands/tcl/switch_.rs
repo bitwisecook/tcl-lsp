@@ -107,6 +107,43 @@ fn switch_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 /// change with no syntactic or behavioural effect, which this spec keeps
 /// spelled "string" for continuity with every other version's
 /// forms/hover text.
+/// `switch`'s three option families: the match modes, one of which decides
+/// (exact by default; tclsh 8.5+ rejects a second with `-exact option already
+/// found`, which the case-list invocation abstains on), case folding, and the
+/// `--` that ends the option run.
+const FAMILIES: &[OptionEffectFamily] = &[
+    OptionEffectFamily {
+        name: MATCH,
+        base: FamilyBase::Only(EffectAxis::Selection(CaseMatchMode::Exact)),
+        combine: FamilyCombine::LastWins,
+        surface: None,
+    },
+    OptionEffectFamily {
+        name: CASE,
+        base: FamilyBase::AllOff,
+        combine: FamilyCombine::Accumulate,
+        surface: None,
+    },
+    OptionEffectFamily {
+        name: LAYOUT,
+        base: FamilyBase::AllOn,
+        combine: FamilyCombine::Accumulate,
+        surface: None,
+    },
+];
+
+const MATCH: &str = "match";
+const CASE: &str = "case";
+const LAYOUT: &str = "layout";
+
+/// A match-mode switch.
+const fn mode(selected: CaseMatchMode) -> OptionEffect {
+    OptionEffect {
+        kind: OptionEffectKind::Selects(EffectAxis::Selection(selected)),
+        family: MATCH,
+    }
+}
+
 /// `switch`'s option table, hoisted out of the spec literal so the
 /// builder stays inside the line budget.
 const OPTIONS: &[OptionSpec] = &[
@@ -118,6 +155,7 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: Some(mode(CaseMatchMode::Exact)),
     },
     OptionSpec {
         name: "-glob",
@@ -127,6 +165,7 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: Some(mode(CaseMatchMode::Glob)),
     },
     OptionSpec {
         name: "-integer",
@@ -136,6 +175,7 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: Some(mode(CaseMatchMode::Other)),
     },
     OptionSpec {
         name: "-regexp",
@@ -145,6 +185,7 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: Some(mode(CaseMatchMode::Regexp)),
     },
     OptionSpec {
         name: "-nocase",
@@ -154,6 +195,10 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: Some(OptionEffect {
+            kind: OptionEffectKind::Selects(EffectAxis::CaseSensitivity),
+            family: CASE,
+        }),
     },
     OptionSpec {
         name: "-matchvar",
@@ -163,6 +208,7 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-indexvar",
@@ -172,6 +218,7 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "--",
@@ -181,6 +228,10 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: Some(OptionEffect {
+            kind: OptionEffectKind::EndsOptions,
+            family: LAYOUT,
+        }),
     },
 ];
 
@@ -242,6 +293,7 @@ pub fn spec() -> CommandSpec {
         // descriptor removes this reservation for that release so W304/T102
         // scan the same words the C implementation scans.
         reserved_trailing_words: 2,
+        option_effect_families: FAMILIES,
         case_list: Some(&CaseListSpec::SWITCH),
         analyser_hook: Some(crate::hooks::AnalyserHookId::Switch),
         ..CommandSpec::DEFAULT

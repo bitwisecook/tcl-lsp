@@ -98,6 +98,7 @@ pub const CLUSTERS: &[Cluster] = &[
         members: &[
             "options",
             "option_relations",
+            "option_effect_families",
             "option_placement",
             "constraints",
             "setter_constraints",
@@ -218,7 +219,6 @@ pub const CLUSTERS: &[Cluster] = &[
             "creates_scope_alias",
             "variable_scope",
             "loop_list_header",
-            "substitution_resolver",
         ],
     },
     Cluster {

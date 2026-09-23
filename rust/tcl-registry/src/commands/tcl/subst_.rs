@@ -54,6 +54,12 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 // was available locally to empirically re-confirm the positive family
 // parses the same way, but the manpage describes both families through the
 // same switch-table convention.
+//
+// Each switch declares its effect on the substitution axis; the negated family
+// starts with every kind on and turns the named ones off, the positive family
+// starts with every kind off and turns the named ones on, and a call mixing
+// the two is the relation below (tclsh 9.1b0: `cannot combine positive and
+// negative options`), never a third answer.
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-nobackslashes",
@@ -63,6 +69,7 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: Some(negated(SubstitutionKind::Backslashes)),
     },
     OptionSpec {
         name: "-nocommands",
@@ -72,6 +79,7 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: Some(negated(SubstitutionKind::Commands)),
     },
     OptionSpec {
         name: "-novariables",
@@ -81,6 +89,7 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: Some(negated(SubstitutionKind::Variables)),
     },
     // Tcl 9.1 adds positive forms that enable *only* the named
     // substitution, defaulting every other kind off. Positive and negated
@@ -93,6 +102,7 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: Some(positive(SubstitutionKind::Backslashes)),
     },
     OptionSpec {
         name: "-commands",
@@ -102,6 +112,7 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: Some(positive(SubstitutionKind::Commands)),
     },
     OptionSpec {
         name: "-variables",
@@ -111,6 +122,7 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: Some(positive(SubstitutionKind::Variables)),
     },
 ];
 
@@ -130,6 +142,73 @@ const FORMS: &[FormSpec] = &[
         surface: Some(SpecSurface::TCL91),
         ..FormSpec::DEFAULT
     },
+];
+
+/// `subst`'s two switch families: the negated one (every release) starts
+/// from every kind and the positive one (Tcl 9.1) from none, and both
+/// accumulate — a switch may repeat.
+const FAMILIES: &[OptionEffectFamily] = &[
+    OptionEffectFamily {
+        name: NEGATED,
+        base: FamilyBase::AllOn,
+        combine: FamilyCombine::Accumulate,
+        surface: None,
+    },
+    OptionEffectFamily {
+        name: POSITIVE,
+        base: FamilyBase::AllOff,
+        combine: FamilyCombine::Accumulate,
+        surface: Some(SpecSurface::TCL91),
+    },
+];
+
+const NEGATED: &str = "negated";
+const POSITIVE: &str = "positive";
+
+/// A negated-family switch: it turns its own kind off.
+const fn negated(kind: SubstitutionKind) -> OptionEffect {
+    OptionEffect {
+        kind: OptionEffectKind::Disables(EffectAxis::Substitution(kind)),
+        family: NEGATED,
+    }
+}
+
+/// A positive-family switch: it turns its own kind on.
+const fn positive(kind: SubstitutionKind) -> OptionEffect {
+    OptionEffect {
+        kind: OptionEffectKind::Selects(EffectAxis::Substitution(kind)),
+        family: POSITIVE,
+    }
+}
+
+/// The final `string` operand is never an option candidate (see the spec).
+const RESERVED_TRAILING_WORDS: usize = 1;
+
+/// tclsh 9.1b0's error for a call using both families.
+const MIXED_FAMILIES: &str = "cannot combine positive and negative options";
+
+const POSITIVE_SWITCHES: &[OptionTerm] = &[
+    OptionTerm::Option("-backslashes"),
+    OptionTerm::Option("-commands"),
+    OptionTerm::Option("-variables"),
+];
+
+/// A negated switch forbids every positive one — the family exclusion as
+/// three directional relations, since a relation's terms are one flat set
+/// (a single `MutuallyExclusive` over all six would reject
+/// `-nocommands -novariables`). Reported as W147 at the call site.
+const fn forbids_positive(negated: &'static str) -> OptionRelation {
+    OptionRelation {
+        surface: Some(SpecSurface::TCL91),
+        message: Some(MIXED_FAMILIES),
+        ..Relation::forbids(OptionTerm::Option(negated), POSITIVE_SWITCHES)
+    }
+}
+
+const RELATIONS: &[OptionRelation] = &[
+    forbids_positive("-nobackslashes"),
+    forbids_positive("-nocommands"),
+    forbids_positive("-novariables"),
 ];
 
 /// Fold a literal `subst string`.
@@ -163,13 +242,21 @@ fn fold_subst(args: &[&str]) -> Option<String> {
 /// hover snippet recommends — correctly does not trip the code-injection
 /// sink it exists to avoid.
 ///
-/// One projection of [`crate::substitution::subst_substitutions`], which
-/// owns both switch families and the unreadable-call answer: this is that
-/// answer's `commands` field and nothing more, so the taint gate and the
-/// consumers of [`crate::CommandRegistry::substitutions_performed`] can
-/// never disagree about the same call.
+/// One projection of [`crate::option_effect::substitution_kinds`] over this
+/// command's own switch table, which owns both families and the
+/// unreadable-call answer: this is that answer's `commands` field and nothing
+/// more, so the taint gate and the consumers of
+/// [`crate::CommandRegistry::substitutions_performed`] can never disagree
+/// about the same call.
 fn subst_evaluates_commands(args: &[&str]) -> bool {
-    crate::substitution::subst_substitutions(args).commands
+    crate::option_effect::substitution_kinds(
+        OPTIONS,
+        FAMILIES,
+        InvocationArguments::literals(args),
+        RESERVED_TRAILING_WORDS,
+        None,
+    )
+    .commands
 }
 
 pub fn spec() -> CommandSpec {
@@ -191,9 +278,11 @@ pub fn spec() -> CommandSpec {
         byte_array_effect: ByteArrayEffect::Coerces,
         traits: Traits::TAINT_SINK | Traits::IS_UNESCAPE | Traits::PERFORMS_SUBSTITUTION,
         // Which of the three substitutions a call actually runs is decided by
-        // the switches above, so the trait alone would tell a consumer only
-        // that *some* substitution happens.
-        substitution_resolver: Some(crate::substitution::subst_substitutions),
+        // the switches above — each option row's effect, in its family — so
+        // the trait alone would tell a consumer only that *some* substitution
+        // happens.
+        option_effect_families: FAMILIES,
+        option_relations: RELATIONS,
         // Exactly one trailing `string` is mandatory; 0 or more recognised
         // switch words may precede it with no fixed ceiling (a switch may
         // legally repeat — `subst -nocommands -nocommands $s` is valid,
@@ -208,7 +297,7 @@ pub fn spec() -> CommandSpec {
         // `-commands` for `puts [subst -commands]` rather than rejecting a
         // 9.1-only option, and rejects `subst -- -nocommands` with `bad
         // option "--"` because `subst` has no `--` terminator to fall back on.
-        reserved_trailing_words: 1,
+        reserved_trailing_words: RESERVED_TRAILING_WORDS,
         return_type: Some(TclType::String),
         const_fold: Some(fold_subst),
         hover: Some(HoverSnippet {

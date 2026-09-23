@@ -40,7 +40,7 @@ use crate::hooks::{
 use crate::hover::{
     ArgValue, CallbackTaintInput, FormSpec, HoverSnippet, OptionSpec, ScriptTiming,
 };
-use crate::invocation_words::CommandPrefixArguments;
+use crate::invocation_words::{CommandPrefixArguments, InvocationArguments};
 use crate::lifecycle::{Lifecycle, LifecycleState};
 use crate::literal_validation::LiteralArgumentValidator;
 use crate::patterns::{FormatType, PatternType};
@@ -338,6 +338,13 @@ impl ObjectClassSpec {
 /// spellings: `switch` decides regex-ness once for the whole list (`-regexp`)
 /// and takes a subject argument; `expect` decides it per clause (`-re`) and has
 /// no subject.  Both have patterns that are keywords rather than match text.
+///
+/// The command-level options that pick the match mode, fold case, or end the
+/// option run are not named here: each is the command's own option row,
+/// declaring its [`crate::option_effect::OptionEffect`]
+/// (`Selects(Selection(…))`, `Selects(CaseSensitivity)`, `EndsOptions`), so
+/// the fact is stated once per option. The descriptor keeps the clause-list
+/// *value* shape, which is what makes it a separate field at all.
 #[derive(Debug, Clone, Copy)]
 pub struct CaseListSpec {
     /// Non-option words between the command's options and the clause list —
@@ -349,16 +356,6 @@ pub struct CaseListSpec {
     /// Tcl 8.4 still scans it as an option and rejects the missing subject.
     /// `None` means this case-list descriptor has no such exception.
     pub two_arg_optionless_surface: Option<&'static [SpecSurface]>,
-    /// A *command* option that makes every pattern a regex (`switch -regexp`).
-    pub regex_option: Option<&'static str>,
-    /// Command option selecting literal equality (the default switch mode).
-    pub exact_option: Option<&'static str>,
-    /// Command option selecting Tcl glob matching.
-    pub glob_option: Option<&'static str>,
-    /// Command option making the selected comparison mode case-insensitive.
-    pub nocase_option: Option<&'static str>,
-    /// Command option ending command-level option parsing.
-    pub end_options_option: Option<&'static str>,
     /// Body word that falls through to the following clause's body.
     pub fallthrough_body: Option<&'static str>,
     /// Value-taking options legal only in regular-expression mode.
@@ -468,14 +465,11 @@ impl CaseListSpec {
     pub const SWITCH: Self = Self {
         subject_args: 1,
         two_arg_optionless_surface: Some(SpecSurface::TCL85_PLUS),
-        regex_option: Some("-regexp"),
-        exact_option: Some("-exact"),
-        glob_option: Some("-glob"),
-        nocase_option: Some("-nocase"),
-        end_options_option: Some("--"),
         fallthrough_body: Some("-"),
         value_options_require_regex: &["-matchvar", "-indexvar"],
-        special_match_options: &["-integer"],
+        // `-integer`'s mode is its option row's `Selects(Selection(Other))`
+        // effect, like the other three modes.
+        special_match_options: &[],
         clause_flags: &[],
         clause_regex_flag: None,
         clause_value_flags: &[],
@@ -501,11 +495,6 @@ impl CaseListSpec {
     pub const CASE: Self = Self {
         subject_args: 1,
         two_arg_optionless_surface: None,
-        regex_option: None,
-        exact_option: None,
-        glob_option: None,
-        nocase_option: None,
-        end_options_option: None,
         fallthrough_body: None,
         value_options_require_regex: &[],
         special_match_options: &[],
@@ -531,11 +520,6 @@ impl CaseListSpec {
     pub const EXPECT: Self = Self {
         subject_args: 0,
         two_arg_optionless_surface: None,
-        regex_option: None,
-        exact_option: None,
-        glob_option: None,
-        nocase_option: Some("-nocase"),
-        end_options_option: Some("--"),
         fallthrough_body: None,
         // `-timeout` / `-i` are command-level, value-taking options.  In
         // Expect 5.45.4, after either option and its value, one braced word is
@@ -630,58 +614,59 @@ impl CaseListSpec {
                 {
                     break;
                 }
-                // `--` is a descriptor-owned terminator, not necessarily a
-                // documented option entry. Recognise it before looking up a
-                // command option so the following hyphenated subject remains
-                // positional (notably `switch -- -x {...}`).
-                if self.end_options_option == Some(word) {
+                // The option row's declared effect classifies it — the match
+                // mode it selects, case folding, or the end of the option run
+                // (`--`, which is recognised before any other reading so the
+                // following hyphenated subject stays positional, notably
+                // `switch -- -x {...}`). The command's own option table is the
+                // one source: nothing here names a spelling.
+                let effect = option
+                    .and_then(|option| option.effect)
+                    .map(|effect| effect.kind);
+                if effect == Some(crate::option_effect::OptionEffectKind::EndsOptions) {
                     i += 1;
                     outer_options_ended = true;
                     break;
                 }
                 let option = option?;
                 let option_name = option.name;
-                if self.exact_option == Some(option_name) {
-                    if saw_match_mode {
-                        return None;
-                    }
-                    saw_match_mode = true;
-                    mode = CaseMatchMode::Exact;
-                    i += 1;
-                } else if self.glob_option == Some(option_name) {
-                    if saw_match_mode {
-                        return None;
-                    }
-                    saw_match_mode = true;
-                    mode = CaseMatchMode::Glob;
-                    i += 1;
-                } else if self.regex_option == Some(option_name) {
-                    if saw_match_mode {
-                        return None;
-                    }
-                    saw_match_mode = true;
-                    mode = CaseMatchMode::Regexp;
-                    i += 1;
-                } else if self.nocase_option == Some(option_name) {
-                    nocase = true;
-                    i += 1;
-                } else {
-                    let consumed = option.value_word_count(args, i);
-                    if consumed == 0 {
-                        if self.special_match_options.contains(&option_name) {
-                            if saw_match_mode {
-                                return None;
-                            }
-                            saw_match_mode = true;
-                            mode = CaseMatchMode::Other;
-                            i += 1;
-                            continue;
+                match effect {
+                    Some(crate::option_effect::OptionEffectKind::Selects(
+                        crate::option_effect::EffectAxis::Selection(selected),
+                    )) => {
+                        // A second match mode is Tcl's `-exact option already
+                        // found` from 8.5; the invocation abstains.
+                        if saw_match_mode {
+                            return None;
                         }
-                        return None;
+                        saw_match_mode = true;
+                        mode = selected;
+                        i += 1;
                     }
-                    saw_regex_value_option |=
-                        self.value_options_require_regex.contains(&option_name);
-                    i += 1 + consumed;
+                    Some(crate::option_effect::OptionEffectKind::Selects(
+                        crate::option_effect::EffectAxis::CaseSensitivity,
+                    )) => {
+                        nocase = true;
+                        i += 1;
+                    }
+                    _ => {
+                        let consumed = option.value_word_count(args, i);
+                        if consumed == 0 {
+                            if self.special_match_options.contains(&option_name) {
+                                if saw_match_mode {
+                                    return None;
+                                }
+                                saw_match_mode = true;
+                                mode = CaseMatchMode::Other;
+                                i += 1;
+                                continue;
+                            }
+                            return None;
+                        }
+                        saw_regex_value_option |=
+                            self.value_options_require_regex.contains(&option_name);
+                        i += 1 + consumed;
+                    }
                 }
             }
         }
@@ -1401,14 +1386,6 @@ pub struct CommandSpec {
     /// Static option values carry timing directly on [`crate::hover::OptionArg`].
     pub script_timing_resolver: Option<ScriptTimingResolver>,
 
-    /// Which substitutions this call performs over its own argument text, for
-    /// a [`Traits::PERFORMS_SUBSTITUTION`] command whose switches change the
-    /// answer (`subst -novariables`).
-    ///
-    /// `None` means the trait alone describes the command: every kind runs on
-    /// every call. See [`crate::substitution`].
-    pub substitution_resolver: Option<crate::substitution::SubstitutionResolver>,
-
     /// External callback substitutions for deferred executable arguments,
     /// keyed by their argument index. Option values carry the same fact on
     /// [`crate::hover::OptionArg`]; this table covers positional callback
@@ -1721,6 +1698,13 @@ pub struct CommandSpec {
     /// not a command-specific analyser rule, and checked natively with no
     /// hook and no VM entry.
     pub option_relations: &'static [OptionRelation],
+
+    /// The option-effect families this command's options cite — each one
+    /// names an axis's starting state and how two of its options combine
+    /// (`docs/design/compiler/registry-consumer-contracts.md` § *Options with
+    /// semantic effects*). Read through [`Self::option_effects`]; empty for a
+    /// command whose options move no declared axis.
+    pub option_effect_families: &'static [crate::option_effect::OptionEffectFamily],
 
     /// The `constraints` escape hatch: a hook consulted **only** when
     /// [`Self::option_relations`] reported nothing, for the rare rule no
@@ -2314,7 +2298,6 @@ impl CommandSpec {
         command_prefixes: &[],
         command_prefix_resolver: None,
         script_timing_resolver: None,
-        substitution_resolver: None,
         callback_taint_inputs: &[],
         return_type: None,
         return_type_hook: None,
@@ -2367,6 +2350,7 @@ impl CommandSpec {
         irules_top_level_effect: None,
         options: &[],
         option_relations: &[],
+        option_effect_families: &[],
         constraints: None,
         option_placement: OptionPlacement::Leading,
         reserved_trailing_words: 0,
@@ -3019,6 +3003,101 @@ impl CommandSpec {
         specs
     }
 
+    /// The option-effect answer for one call of this command
+    /// (`docs/design/compiler/registry-consumer-contracts.md` § *Options with
+    /// semantic effects*): the generic walk of
+    /// [`crate::option_effect::option_effects`] over this command's
+    /// [`Self::option_specs`] available at `dialect`, its
+    /// [`Self::option_effect_families`], its
+    /// [`Self::reserved_trailing_words`], and its prefix policy.
+    #[must_use]
+    pub fn option_effects(
+        &self,
+        args: InvocationArguments<'_>,
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> crate::option_effect::OptionEffects {
+        self.option_effects_over(&self.option_specs(dialect), args, dialect)
+    }
+
+    /// [`Self::option_effects`] over an option table the caller has already
+    /// filtered for its profile.
+    #[must_use]
+    pub(crate) fn option_effects_over(
+        &self,
+        options: &[&OptionSpec],
+        args: InvocationArguments<'_>,
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> crate::option_effect::OptionEffects {
+        crate::option_effect::option_effects_over(
+            options,
+            self.option_effect_families,
+            args,
+            self.reserved_trailing_words,
+            dialect,
+            self.prefix_matching,
+        )
+    }
+
+    /// Which substitutions this command performs over its own argument text
+    /// for one call, or `None` when it performs none — the projection of
+    /// [`Self::option_effects`] onto
+    /// [`crate::substitution::SubstitutionKinds`]. A
+    /// [`Traits::PERFORMS_SUBSTITUTION`] command whose options move no
+    /// substitution axis performs every kind on every call; an unreadable
+    /// call answers every kind, and so does a call whose option run stops
+    /// before the reserved operands (a word there is neither an option nor an
+    /// operand).
+    #[must_use]
+    pub fn substitutions_performed(
+        &self,
+        args: InvocationArguments<'_>,
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> Option<crate::substitution::SubstitutionKinds> {
+        if !self.traits.contains(Traits::PERFORMS_SUBSTITUTION) {
+            return None;
+        }
+        let effects = self.option_effects(args, dialect);
+        let reaches_operands = args
+            .exact_argv_len()
+            .is_some_and(|len| effects.option_end + self.reserved_trailing_words >= len);
+        Some(if reaches_operands {
+            effects.substitution_kinds()
+        } else {
+            crate::substitution::SubstitutionKinds::ALL
+        })
+    }
+
+    /// Whether an option of this command selects the language of its pattern
+    /// operand — an effect on the [`crate::option_effect::EffectAxis::PatternLanguage`]
+    /// axis (`lsearch -regexp`). Such a command's pattern layout is the
+    /// projection of [`Self::option_effects`], not a static role.
+    #[must_use]
+    pub fn option_selects_pattern_language(&self) -> bool {
+        self.options.iter().any(|option| {
+            option.effect.is_some_and(|effect| {
+                matches!(
+                    effect.kind.axis(),
+                    Some(crate::option_effect::EffectAxis::PatternLanguage(_))
+                )
+            })
+        })
+    }
+
+    /// The spelling of the option whose declared effect selects `axis`, when
+    /// one does — the generic way to name, say, the regex-mode switch of a
+    /// case-list command without spelling it.
+    #[must_use]
+    pub fn option_selecting(&self, axis: crate::option_effect::EffectAxis) -> Option<&'static str> {
+        self.options
+            .iter()
+            .find(|option| {
+                option.effect.is_some_and(|effect| {
+                    effect.kind == crate::option_effect::OptionEffectKind::Selects(axis)
+                })
+            })
+            .map(|option| option.name)
+    }
+
     /// [`leading_option_word_count`] against this command's own
     /// [`Self::options`] — how many of `args`' leading words are declared
     /// flags/options, so a positional argument index (e.g.
@@ -3303,6 +3382,10 @@ pub struct SubCommand {
     /// Typed relations between this subcommand's options and arguments
     /// (E-R14), checked natively.
     pub option_relations: &'static [OptionRelation],
+
+    /// The option-effect families this subcommand's options cite — see
+    /// [`CommandSpec::option_effect_families`].
+    pub option_effect_families: &'static [crate::option_effect::OptionEffectFamily],
 
     /// The subcommand's `constraints` escape hatch — see
     /// [`CommandSpec::constraints`].
@@ -3667,6 +3750,7 @@ impl SubCommand {
         command_table_effect: None,
         options: &[],
         option_relations: &[],
+        option_effect_families: &[],
         constraints: None,
         option_placement: OptionPlacement::Leading,
         min_abbrev: None,

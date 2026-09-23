@@ -510,6 +510,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "--",
@@ -519,6 +520,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
             ]
         },
@@ -548,6 +550,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "--",
@@ -557,6 +560,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
             ]
         },
@@ -591,6 +595,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 aliases: &[],
                 lifecycle: Lifecycle::UNSPECIFIED,
                 min_abbrev: None,
+                effect: None,
             }]
         },
         ..SubCommand::DEFAULT
@@ -699,6 +704,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-namespace",
@@ -714,6 +720,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "--",
@@ -723,6 +730,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
             ]
         },
@@ -764,6 +772,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-granularity",
@@ -773,6 +782,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-milliseconds",
@@ -782,6 +792,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-seconds",
@@ -791,6 +802,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-value",
@@ -800,6 +812,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
             ]
         },

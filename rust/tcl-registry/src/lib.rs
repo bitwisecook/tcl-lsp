@@ -86,6 +86,7 @@ pub mod literal_validation;
 pub mod mathfunc;
 pub mod model;
 pub mod native_lowering;
+pub mod option_effect;
 pub mod pack_hooks;
 pub mod patterns;
 pub mod presentation;
@@ -184,6 +185,10 @@ pub mod prelude {
         LiteralValidationDecline,
     };
     pub use crate::native_lowering::{ArityRule, CellUpdate, NativeLowering, ScopeKind};
+    pub use crate::option_effect::{
+        EffectAxis, FamilyBase, FamilyCombine, OptionEffect, OptionEffectFamily, OptionEffectKind,
+        OptionEffects, SubstitutionKind,
+    };
     pub use crate::patterns::{FormatType, PatternArg, PatternType};
     pub use crate::presentation::ArgPresentation;
     pub use crate::relation::{
@@ -199,12 +204,12 @@ pub mod prelude {
         ConnectionSide, SideEffect, SideEffectTarget, SideSwitchTarget, StorageType,
     };
     pub use crate::spec::{
-        BytePayloadSpec, CaseForceListShape, CaseListSpec, CommandSpec, ConstraintReport,
-        ConstraintSlot, ConstraintsHook, ContextGate, DefaultFormFirstWord, InlineCaseClause,
-        ObjectClassSpec, OoContextFact, OptionFacts, OptionPlacement, OptionRelation, OptionScope,
-        OptionTerm, ScriptTimingResolver, SubCommand, SubSubCommand, VersionedArgValue,
-        leading_option_word_count, leading_option_word_count_with, resolve_option_prefix,
-        resolve_option_prefix_with,
+        BytePayloadSpec, CaseForceListShape, CaseListSpec, CaseMatchMode, CommandSpec,
+        ConstraintReport, ConstraintSlot, ConstraintsHook, ContextGate, DefaultFormFirstWord,
+        InlineCaseClause, ObjectClassSpec, OoContextFact, OptionFacts, OptionPlacement,
+        OptionRelation, OptionScope, OptionTerm, ScriptTimingResolver, SubCommand, SubSubCommand,
+        VersionedArgValue, leading_option_word_count, leading_option_word_count_with,
+        resolve_option_prefix, resolve_option_prefix_with,
     };
     pub use crate::state_transition::{
         CallerFrameSelection, ChildInterpreterSafety, CommandBindingDefinitionKind,
@@ -278,6 +283,10 @@ pub use literal_validation::{
     LiteralArgumentValidator, LiteralValidationDecline,
 };
 pub use native_lowering::{ArityRule, CellUpdate, NativeLowering, ScopeKind};
+pub use option_effect::{
+    EffectAxis, FamilyBase, FamilyCombine, OptionEffect, OptionEffectFamily, OptionEffectKind,
+    OptionEffects, SubstitutionKind,
+};
 pub use patterns::{FormatType, PatternType};
 pub use presentation::ArgPresentation;
 pub use profile_queries::VendorSurface;
@@ -301,10 +310,10 @@ pub use result_stability::ResultStability;
 pub use semantic_operation::{InlineBodyErrorContext, SemanticOperationId};
 pub use side_effects::SideSwitchTarget;
 pub use spec::{
-    BytePayloadSpec, CaseForceListShape, CaseListSpec, CommandSpec, ConstraintReport,
-    ConstraintSlot, ConstraintsHook, ContextGate, DefaultFormFirstWord, InlineCaseClause,
-    ObjectClassSpec, OoContextFact, OptionFacts, OptionPlacement, OptionRelation, OptionScope,
-    OptionTerm, ScriptTimingResolver, SubCommand, SubSubCommand, VersionedArgValue,
+    BytePayloadSpec, CaseForceListShape, CaseListSpec, CaseMatchMode, CommandSpec,
+    ConstraintReport, ConstraintSlot, ConstraintsHook, ContextGate, DefaultFormFirstWord,
+    InlineCaseClause, ObjectClassSpec, OoContextFact, OptionFacts, OptionPlacement, OptionRelation,
+    OptionScope, OptionTerm, ScriptTimingResolver, SubCommand, SubSubCommand, VersionedArgValue,
 };
 pub use special_vars::{
     SPECIAL_VARS, SpecialVarKey, SpecialVarKind, SpecialVarSpec, StartupBinding, VarAccess,

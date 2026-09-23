@@ -138,6 +138,7 @@ static STATUS_OPTIONS: [OptionSpec; 2] = [
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "--",
@@ -147,6 +148,7 @@ static STATUS_OPTIONS: [OptionSpec; 2] = [
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
 ];
 

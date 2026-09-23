@@ -38,6 +38,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-value",
@@ -47,6 +48,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-name",
@@ -56,6 +58,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-index",
@@ -65,6 +68,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-element",
@@ -74,6 +78,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-nocase",
@@ -83,6 +88,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "--",
@@ -92,6 +98,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
             ]
         },
@@ -113,6 +120,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-value",
@@ -122,6 +130,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-name",
@@ -131,6 +140,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-index",
@@ -140,6 +150,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-element",
@@ -149,6 +160,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-nocase",
@@ -158,6 +170,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "--",
@@ -167,6 +180,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
             ]
         },
@@ -196,6 +210,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-name",
@@ -205,6 +220,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "--",
@@ -214,6 +230,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
             ]
         },
@@ -259,6 +276,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-list",
@@ -268,6 +286,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "--",
@@ -277,6 +296,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
             ]
         },
@@ -298,6 +318,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-list",
@@ -307,6 +328,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "--",
@@ -316,6 +338,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
             ]
         },
@@ -343,6 +366,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-value",
@@ -352,6 +376,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-element",
@@ -361,6 +386,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-list",
@@ -370,6 +396,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-name",
@@ -379,6 +406,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "--",
@@ -388,6 +416,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
             ]
         },
@@ -438,64 +467,43 @@ pub const fn spec() -> CommandSpec {
                     name: "-all",
                     value: OptionValue::flag(),
                     detail: "Return all matches.",
-                    surface: None,
-                    aliases: &[],
-                    lifecycle: Lifecycle::UNSPECIFIED,
-                    min_abbrev: None,
+                    ..OptionSpec::DEFAULT
                 },
                 OptionSpec {
                     name: "-value",
                     value: OptionValue::flag(),
                     detail: "Return value instead of name.",
-                    surface: None,
-                    aliases: &[],
-                    lifecycle: Lifecycle::UNSPECIFIED,
-                    min_abbrev: None,
+                    ..OptionSpec::DEFAULT
                 },
                 OptionSpec {
                     name: "-name",
                     value: OptionValue::flag(),
                     detail: "Return name.",
-                    surface: None,
-                    aliases: &[],
-                    lifecycle: Lifecycle::UNSPECIFIED,
-                    min_abbrev: None,
+                    ..OptionSpec::DEFAULT
                 },
                 OptionSpec {
                     name: "-index",
                     value: OptionValue::flag(),
                     detail: "Return index.",
-                    surface: None,
-                    aliases: &[],
-                    lifecycle: Lifecycle::UNSPECIFIED,
-                    min_abbrev: None,
+                    ..OptionSpec::DEFAULT
                 },
                 OptionSpec {
                     name: "-element",
                     value: OptionValue::flag(),
                     detail: "Return full element.",
-                    surface: None,
-                    aliases: &[],
-                    lifecycle: Lifecycle::UNSPECIFIED,
-                    min_abbrev: None,
+                    ..OptionSpec::DEFAULT
                 },
                 OptionSpec {
                     name: "-nocase",
                     value: OptionValue::flag(),
                     detail: "Case-insensitive comparison.",
-                    surface: None,
-                    aliases: &[],
-                    lifecycle: Lifecycle::UNSPECIFIED,
-                    min_abbrev: None,
+                    ..OptionSpec::DEFAULT
                 },
                 OptionSpec {
                     name: "-list",
                     value: OptionValue::flag(),
                     detail: "Return value always as a list.",
-                    surface: None,
-                    aliases: &[],
-                    lifecycle: Lifecycle::UNSPECIFIED,
-                    min_abbrev: None,
+                    ..OptionSpec::DEFAULT
                 },
             ]
         },

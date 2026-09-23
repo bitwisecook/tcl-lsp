@@ -56,8 +56,8 @@ pub enum PatternType {
 ///
 /// Most commands use one static [`PatternType`] plus an [`ArgRole::Pattern`]
 /// position. Commands such as `lsearch` select the language with an option,
-/// so their registry resolver returns this paired fact rather than forcing an
-/// LSP consumer to understand `-regexp` itself.
+/// so the registry projects this paired fact from the option rows' effects
+/// rather than forcing an LSP consumer to understand `-regexp` itself.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct PatternArg {
     /// Index into the post-head argument list.
@@ -89,23 +89,38 @@ pub struct PatternArgResolverContext<'a> {
 /// boundary itself.
 pub type PatternArgResolver = for<'a> fn(&[&str], PatternArgResolverContext<'a>) -> Vec<PatternArg>;
 
-/// Resolve an option word against profile-filtered descriptor references.
-///
-/// Static option tables use [`crate::spec::resolve_option_prefix`]; this
-/// counterpart preserves the same exact-or-unique-prefix rule after a
-/// profile has selected only the options this invocation can actually use.
+/// The pattern-bearing argument of one call of a command whose pattern
+/// language is option-selected (`lsearch -regexp list pattern`): the one
+/// language the call's option effects leave on, on the last of the reserved
+/// operands that follow the option run. An unreadable call, a call that
+/// selects no language (`lsearch -exact`), and a call too short to reach the
+/// operand answer nothing.
 #[must_use]
-pub(crate) fn resolve_available_option_prefix<'a>(
-    options: &'a [&crate::hover::OptionSpec],
-    word: &str,
-) -> Option<&'a crate::hover::OptionSpec> {
-    resolve_available_option_prefix_with(options, word, PrefixMatching::Enabled)
+pub fn option_selected_pattern_args(
+    effects: &crate::option_effect::OptionEffects,
+    reserved_trailing_words: usize,
+    argc: usize,
+) -> Vec<PatternArg> {
+    let index = effects.option_end + reserved_trailing_words.saturating_sub(1);
+    effects
+        .pattern_language()
+        .filter(|_| index < argc)
+        .and_then(|kind| {
+            u8::try_from(index)
+                .ok()
+                .map(|index| PatternArg { index, kind })
+        })
+        .into_iter()
+        .collect()
 }
 
-/// [`resolve_available_option_prefix`] with the command's declared prefix
-/// policy.  A profile has already removed unavailable options from `options`,
-/// so this one walk preserves the remaining exact-or-unique abbreviation
-/// grammar without accidentally restoring an option from another release.
+/// Resolve an option word against profile-filtered descriptor references,
+/// under the command's declared prefix policy — the counterpart of
+/// [`crate::spec::resolve_option_prefix`] once a profile has selected only
+/// the options this invocation can actually use.  A profile has already
+/// removed unavailable options from `options`, so this one walk preserves the
+/// remaining exact-or-unique abbreviation grammar without accidentally
+/// restoring an option from another release.
 #[must_use]
 pub(crate) fn resolve_available_option_prefix_with<'a>(
     options: &'a [&crate::hover::OptionSpec],

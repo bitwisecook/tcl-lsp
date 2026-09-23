@@ -64,6 +64,68 @@ CC2.10, CC2.13, CC2.15) are dispatched separately after the opus items.
 | Item | State | Checkpoint | Notes |
 |---|---|---|---|
 | CC2.1 the per-axis lint and its ledger | landed | `wip(consumer-contracts): step 2 — the registry-axes gate and its baseline` | 7831 vocabulary words; 1089 sites pinned across 163 files; `CLEAN_FILES` empty; D2.12, D2.13 |
+| CC2.6 `OptionEffect` in the registry, and the four clients | landed | `wip(consumer-contracts): step 2 — option effects` | `option_effect.rs`; `OptionSpec::effect` on 1373 literals; `subst`, `lsearch`, `regexp`, `switch` declare effects and families; `substitution_resolver`, `subst_substitutions`, `lsearch_pattern_args` and the five `CaseListSpec` switch fields gone; D2.14–D2.21 |
+
+### Behavioural deltas accepted in step 2
+
+- CC2.6: `subst -nocommands -variables …` at 9.1 draws W147 (the plan's
+  delta); two negated switches with a positive one draw two (D2.17).
+- CC2.6: `regexp -inline … v` draws W147 with tclsh's message; the roles were
+  already upstream's #2222.
+- CC2.6: `subst -novar x` answers `{backslashes, commands}` — Tcl resolves the
+  unique prefix (tclsh 8.4–9.1 print `$x` for `subst -novar {$x}`) — where the
+  retired resolver answered every kind; `subst -no x` (ambiguous) still
+  answers every kind.
+- CC2.6: a profile-bound registry below 9.1 answers every kind for
+  `subst -variables x`: the positive switch is not an option there (tclsh
+  9.0's `bad option "-variables"`), where the retired resolver ignored the
+  release.
+- CC2.6: an unknown switch before `regexp -inline` stops the scan, so the
+  invalid call `regexp -bogus -inline a b v` keeps `VarWrite` on its
+  trailing words (the retired name scan skipped the unknown word).
+
+### CC2.6 — what the next items and the value-transfers lane read
+
+- **The answer.** `tcl_registry::option_effect::OptionEffects { axes:
+  Vec<(EffectAxis, bool)>, shifts: Vec<(ArgRole, i8)>, complete: bool,
+  option_end: usize }`, with `value(axis)`, `substitution_kinds()`,
+  `pattern_language()`, `selection()`, `suppresses(role)` and
+  `reserved_trailing_words()`.
+- **The walk.** `option_effect::option_effects(spec_options: &[OptionSpec],
+  families: &[OptionEffectFamily], args: InvocationArguments<'_>,
+  reserved_trailing_words: usize, dialect: Option<SurfaceQuery<'_>>) ->
+  OptionEffects` (the plan's signature; unique prefixes resolve),
+  `option_effects_with(…, prefix_matching)` for an exact-only table, and
+  `option_effect::substitution_kinds(…same five…) -> SubstitutionKinds` (the
+  projection with the operand-reach rule, D2.18).
+- **Per command.** `CommandSpec::option_effects(args, dialect)`,
+  `CommandSpec::substitutions_performed(args, dialect) ->
+  Option<SubstitutionKinds>`, `CommandSpec::option_selects_pattern_language()`,
+  `CommandSpec::option_selecting(axis) -> Option<&'static str>`.
+- **Per resolution.** `ResolvedInvocation::option_effects(dialect)` and
+  `ResolvedInvocation::substitutions_performed(dialect)`, over the selected
+  table (`InvocationSemantics::option_scope`); `option_end` is post-head.
+  CC2.8 drops the `dialect` parameter when the resolution carries its query.
+- **The registry projection.** `CommandRegistry::substitutions_performed(name:
+  &str, args: &[&str]) -> Option<SubstitutionKinds>`, signature unchanged,
+  under the registry's own profile.
+- **`subst`'s declaration** (`commands/tcl/subst_.rs`): six rows with
+  `effect`, families `negated {AllOn, Accumulate}` and `positive {AllOff,
+  Accumulate, surface: TCL91}`, `reserved_trailing_words: 1`, and three
+  `Forbids` relations (D2.17). VT5.8 adds only the `semantics` field; the
+  `tp_*` / `fp_*` rows of the retired `substitution.rs` tests are in
+  `option_effect.rs` under the same prefixes (D2.21).
+- **State CC2.7 starts from.** The loader reads no `option -effect`,
+  `-family` or `option_effect_family` yet; the studio draft carries
+  `option_effect_families` as a presence-only `RustExpr` with a transient
+  `DraftOpaque` `GAPS` row (`render_spectcl.rs`), and an option row's
+  `effect` is `Surface::Excluded(OPTION_EFFECT_PENDING)` in `coverage.rs`
+  and not drafted; `spectcl_ports.rs` documents `switch`'s
+  `__unrenderable` difference. CC2.7 turns both into data, lands the loader
+  spelling and the renderer, deletes the transient row, the pending reason
+  and the port's `unequal` entry, and adds the `subst` port. The five retired
+  `case_list` rows already load with a notice.
+
 
 ## Plan for steps 2–10
 
@@ -2080,6 +2142,71 @@ everything else in this lane is independent of both.
   `owner-resolution` rejects a manifest path or entry point that does not
   exist, and a hand-picked exemption list would be the per-name knowledge
   the gate exists to find.
+- **D2.14** `OptionEffects` carries `option_end` beside the page's three
+  fields, and `shifts` encodes a suppression as `(role, 0)` and a
+  reservation as `(ArgRole::Option, n)`. A family's base applies to the axis
+  values its options mention; with no option of any covering family present
+  the first declared family's base decides; a `LastWins` option resets its
+  family before it applies; two families covering one axis value used in
+  one call make the answer unreadable. Reason: `lsearch`'s pattern sits at
+  `option_end + 1` and a second walk to find it would be a second rule, and
+  the page names the shifts' pairing but not its meaning.
+- **D2.15** The walk has three doors: the plan's `option_effects` (unique
+  prefixes), `option_effects_with` (the table's `PrefixMatching` — `regexp`
+  is exact-only), and the crate-private `option_effects_over` the registry
+  uses with its own profile-filtered option list, as the retired resolvers
+  were given one. `resolve_available_option_prefix` (the prefix-enabled
+  wrapper) is deleted; the `_with` form is the one resolver.
+- **D2.16** `CaseListSpec::invocation` keeps its signature and classifies
+  each resolved option by its declared effect inside the one walk that also
+  finds the subject and the clause list, rather than taking an
+  `&OptionEffects`. Reason: a second match mode is tclsh 8.5+'s `-exact
+  option already found`, which the invocation abstains on today, and a
+  `LastWins` answer keeps only the last mode; the positions need the walk
+  anyway. `switch`'s `-integer` declares `Selects(Selection(Other))`, so
+  `CaseListSpec::SWITCH.special_match_options` is empty (the field stays
+  for packs). The Expect descriptor's `nocase_option` / `end_options_option`
+  were unreachable — the clause-flag break precedes them — so its option rows
+  gain no effect.
+- **D2.17** `subst`'s family exclusion is three `Forbids` relations (each
+  negated switch forbids the positive set, gated to 9.1, message tclsh
+  9.1b0's `cannot combine positive and negative options`), not one
+  `MutuallyExclusive` over two term sets. Reason: `Relation::terms` is one
+  flat set, a `MutuallyExclusive` over all six switches would reject
+  `-nocommands -novariables`, and a set-valued `OptionTerm` would need new
+  analyser code in `relation_span`, which the plan rules out. A call mixing
+  two negated switches with a positive one draws two W147s.
+- **D2.18** The substitution projection
+  (`option_effect::substitution_kinds`, `CommandSpec::substitutions_performed`)
+  answers every kind when the option run stops before the reserved
+  operands. Reason: `subst` rejects any non-option word before its operand,
+  and a spelling-only caller (the analyser's W102, the taint gate) passes a
+  computed switch's source text, which reads as a non-option word; the
+  retired resolver answered every kind for both, and the generic leading-run
+  rule alone would narrow `subst -nocommands $opt $x` to `{backslashes,
+  variables}` — sound for the negated family but not for 9.1's positive one.
+- **D2.19** `ResolvedInvocation::option_effects` and
+  `substitutions_performed` take the `dialect` until CC2.8 fixes it in the
+  resolution; `InvocationSemantics` gains `option_scope`
+  (`OptionEffectScope`: the selected table's families, reservation, prefix
+  policy and inherited release gate). `ResolvedInvocation::pattern_args`
+  moves to CC2.8 with the other re-keyed queries: its escape hatch and
+  static path need the spec's `pattern_arg_resolver` and `pattern_type`,
+  which the resolution does not carry.
+- **D2.20** CC2.6 lands before CC2.7 (the coordinator's order), so the
+  studio's transitional state is explicit: `option_effect_families` is a
+  schema field seeded presence-only with a transient `DraftOpaque` `GAPS`
+  row, and an option row's `effect` is `Surface::Excluded` with a reason
+  naming the step that drafts it. Reason: `schema_coverage` requires a schema
+  field for every `CommandSpec` field, and a nested option-row key cannot
+  have a `GAPS` row.
+- **D2.21** The retired `substitution.rs` rows keep their `tp_` / `fp_`
+  prefixes in `option_effect.rs` (`tp_no_switches_runs_every_substitution`,
+  `fp_the_two_families_mixed_are_unreadable_and_every_kind_is_on`, …), and
+  the five retired `case_list` rows load with a notice rather than as an
+  unknown property. Reason: the value-transfers plan cites the `tp_*` /
+  `fp_*` rows as its own preserves, and a pack that used the rows is told
+  where the fact went.
 - **D3.1** `WorkspaceTrust` lives in `tcl_dialect::model::environment`
   beside `Provenance`; `Tier` is unchanged and the trust rides `PackFile`,
   `MergedPack`, `EvalOptions`, `EvalSnapshotKey` and the cache key.
