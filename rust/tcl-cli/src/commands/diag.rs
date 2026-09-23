@@ -32,13 +32,13 @@ use tcl_cli_support::{
 use tcl_compiler::analyser::Severity;
 use tcl_compiler::unit_scope::CallSiteEvidence;
 use tcl_lexer::LineIndex;
-use tcl_lsp_core::diagnostic_policy::{Directives, Policy, PolicyBuilder, Report};
+use tcl_lsp_core::diagnostic_policy::{Directives, Policy, PolicyBuilder, Reason, Report};
 use tcl_lsp_core::diagnostic_report::{
     DocumentSource, SourcePass, StandaloneDocument, document_report, standalone_findings,
 };
 use tcl_lsp_core::source_style::DEFAULT_LINE_LENGTH;
 
-use crate::cli::{DiagArgs, InputArgs};
+use crate::cli::{DiagArgs, InputArgs, ReportArgs};
 use crate::commands::policy::{ConfigLayers, invocation_layer};
 
 /// One diagnostic in the `diag` report (fields are emitted in a fixed order).
@@ -51,11 +51,28 @@ struct DiagItem {
     message: String,
 }
 
+/// One `--show-suppressed` entry: a suppressed finding (positioned), or a
+/// declared gap (`null` position, severity and message — the policy turned
+/// the code off before any producer could compute it for this document).
+#[derive(Serialize)]
+struct SuppressedItem {
+    line: Option<u32>,
+    column: Option<u32>,
+    severity: Option<&'static str>,
+    code: String,
+    message: Option<String>,
+    reason: String,
+}
+
 /// Per-file diagnostic report entry.
 #[derive(Serialize)]
 struct FileReport {
     file: String,
     diagnostics: Vec<DiagItem>,
+    /// `--show-suppressed`'s rows; absent (and so unserialised) without the
+    /// flag, so the plain report is unchanged byte for byte.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    suppressed: Option<Vec<SuppressedItem>>,
 }
 
 /// One error in the `validate` JSON payload (carries its file).
@@ -108,6 +125,30 @@ fn format_line(
     format!("{file}:{line}:{column}: {severity:<7} {code:<8} {message}")
 }
 
+/// Render one suppressed finding's text row, in [`format_line`]'s shape with
+/// its reason appended: `{file}:{line}:{column}: hidden<7> code<8> message
+/// [reason]`.
+fn format_hidden_line(
+    file: &str,
+    line: u32,
+    column: u32,
+    code: &str,
+    message: &str,
+    reason: &str,
+) -> String {
+    format!(
+        "{} [{reason}]",
+        format_line(file, line, column, "hidden", code, message)
+    )
+}
+
+/// Render one declared gap's text row — no position, no message:
+/// `{file}: hidden<7> code<8> [reason]`.
+fn format_gap_line(file: &str, code: &str, reason: &str) -> String {
+    let code = if code.is_empty() { "-" } else { code };
+    format!("{file}: {:<7} {code:<8} [{reason}]", "hidden")
+}
+
 /// One collected diagnostic, pre-resolved to a 1-based line / column.
 struct Row {
     line: u32,
@@ -115,6 +156,25 @@ struct Row {
     severity: Severity,
     code: String,
     message: String,
+}
+
+/// One `--show-suppressed` row: a suppressed finding (positioned, the
+/// producer's own severity and message) or a declared gap (no position,
+/// severity or message).
+struct HiddenRow {
+    line: Option<u32>,
+    column: Option<u32>,
+    severity: Option<Severity>,
+    code: String,
+    message: Option<String>,
+    reason: String,
+}
+
+/// [`collect_rows`]'s result: the shown rows, and — for `--show-suppressed`
+/// — the hidden ones. [`run_validate`] reads `shown` only.
+struct DocumentRows {
+    shown: Vec<Row>,
+    hidden: Vec<HiddenRow>,
 }
 
 /// Cross-file call-site evidence across every input document, plus the
@@ -200,7 +260,7 @@ fn collect_rows(
     dialect: &'static tcl_dialect::DialectProfile,
     layers: &ConfigLayers,
     external_call_sites: Option<&CallSiteEvidence>,
-) -> Vec<Row> {
+) -> DocumentRows {
     // The *analysis* form of the document, not the bytes on disk — see
     // `InputDocument::analysis_source`. `LineIndex` is built over it too:
     // `LineIndex::new(normalise_lone_cr(t))` is byte-identical to
@@ -229,7 +289,7 @@ fn collect_rows(
             dialect,
             pass: SourcePass::IntegrityOnly,
         };
-        return rows_of(
+        return document_rows_of(
             &document_report(&doc, Vec::new(), &policy),
             source,
             &line_index,
@@ -281,7 +341,7 @@ fn collect_rows(
     };
     let mut report = document_report(&doc, standalone.produced, &policy);
     report.declare_analyser_skip(&policy);
-    rows_of(&report, source, &line_index)
+    document_rows_of(&report, source, &line_index)
 }
 
 /// This verb's policy over `builder`: the optimiser off, because the
@@ -317,14 +377,117 @@ fn rows_of(report: &Report, source: &str, line_index: &LineIndex) -> Vec<Row> {
     rows
 }
 
+/// `--show-suppressed`'s rows: every suppressed finding (the producer's own
+/// severity and message), then every declared gap but the default-off seed
+/// — identical for every file, and would bury the answer
+/// (`docs/design/compiler/diagnostic-policy.md` § Adapters, CLI rows).
+/// Positioned rows sort by `(line, column, code)`; gaps carry no position
+/// and follow them, sorted by code.
+fn hidden_rows_of(report: &Report, source: &str, line_index: &LineIndex) -> Vec<HiddenRow> {
+    let mut rows: Vec<HiddenRow> = report
+        .suppressed()
+        .map(|(finding, reason)| {
+            let pos = line_index.position_at_utf16(finding.span.start(), source);
+            HiddenRow {
+                line: Some(pos.line + 1),
+                column: Some(pos.character.get() + 1),
+                severity: Some(finding.severity),
+                code: finding.code.to_string(),
+                message: Some(finding.message.clone()),
+                reason: reason.to_string(),
+            }
+        })
+        .collect();
+    rows.sort_by(|a, b| {
+        (a.line, a.column, a.code.as_str()).cmp(&(b.line, b.column, b.code.as_str()))
+    });
+
+    // A checks-emitted code can carry both a suppressed finding above (kept)
+    // and a declared skip (`Policy::production_skip` declares every
+    // catalogued code the decision turns off, whichever producer emits it);
+    // a gap renders only for a code no finding carries.
+    let mut gaps: Vec<HiddenRow> = report
+        .gaps()
+        .filter(|(_, reason)| !matches!(reason, Reason::DefaultOff))
+        .map(|(code, reason)| HiddenRow {
+            line: None,
+            column: None,
+            severity: None,
+            code: code.to_string(),
+            message: None,
+            reason: reason.to_string(),
+        })
+        .collect();
+    gaps.sort_by(|a, b| a.code.cmp(&b.code));
+    rows.extend(gaps);
+    rows
+}
+
+/// [`rows_of`] and [`hidden_rows_of`] together.
+fn document_rows_of(report: &Report, source: &str, line_index: &LineIndex) -> DocumentRows {
+    DocumentRows {
+        shown: rows_of(report, source, line_index),
+        hidden: hidden_rows_of(report, source, line_index),
+    }
+}
+
+/// One file's rendered text lines: the shown rows interleaved with a
+/// suppressed finding's row in `(line, column, code)` order, then a
+/// declared gap's row (no position) at the end. `hidden` is empty without
+/// `--show-suppressed`, in which case this is exactly the shown rows —
+/// preserving every byte of today's output.
+fn file_text_lines(file: &str, shown: &[DiagItem], hidden: &[SuppressedItem]) -> Vec<String> {
+    let split = hidden.iter().take_while(|h| h.line.is_some()).count();
+    let (positioned, gaps) = hidden.split_at(split);
+    let mut lines = Vec::with_capacity(shown.len() + hidden.len());
+    let (mut si, mut hi) = (0usize, 0usize);
+    while si < shown.len() || hi < positioned.len() {
+        let take_shown = match (shown.get(si), positioned.get(hi)) {
+            (Some(d), Some(h)) => {
+                (d.line, d.column, d.code.as_str())
+                    <= (
+                        h.line.expect("positioned"),
+                        h.column.expect("positioned"),
+                        h.code.as_str(),
+                    )
+            }
+            (Some(_), None) => true,
+            (None, _) => false,
+        };
+        if take_shown {
+            let d = &shown[si];
+            lines.push(format_line(
+                file, d.line, d.column, d.severity, &d.code, &d.message,
+            ));
+            si += 1;
+        } else {
+            let h = &positioned[hi];
+            lines.push(format_hidden_line(
+                file,
+                h.line.expect("positioned"),
+                h.column.expect("positioned"),
+                &h.code,
+                h.message.as_deref().unwrap_or(""),
+                &h.reason,
+            ));
+            hi += 1;
+        }
+    }
+    for h in gaps {
+        lines.push(format_gap_line(file, &h.code, &h.reason));
+    }
+    lines
+}
+
 /// `tcl diag` / `tcl lint` — report every diagnostic across all inputs.
-pub fn run_diag(input: &InputArgs, diag: &DiagArgs) -> anyhow::Result<u8> {
+pub fn run_diag(input: &InputArgs, diag: &DiagArgs, report: &ReportArgs) -> anyhow::Result<u8> {
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
     let layers = ConfigLayers::new(invocation_layer(&diag.disable, &diag.enable, "diagnostics"));
 
-    let mut report: Vec<FileReport> = Vec::with_capacity(documents.len());
+    let mut files: Vec<FileReport> = Vec::with_capacity(documents.len());
     let mut problem_count = 0usize;
     let mut diagnostic_count = 0usize;
+    let mut suppressed_count = 0usize;
 
     let explicit_dialect = input.dialect_profile()?;
     let evidence = cross_file_call_site_evidence(&documents, explicit_dialect);
@@ -335,8 +498,8 @@ pub fn run_diag(input: &InputArgs, diag: &DiagArgs) -> anyhow::Result<u8> {
             .as_ref()
             .map(|all| all.slice_for(declared.iter().map(String::as_str)));
         let rows = collect_rows(document, dialect, &layers, slice.as_ref());
-        let mut items = Vec::with_capacity(rows.len());
-        for r in rows {
+        let mut items = Vec::with_capacity(rows.shown.len());
+        for r in rows.shown {
             diagnostic_count += 1;
             if is_problem(r.severity) {
                 problem_count += 1;
@@ -349,9 +512,31 @@ pub fn run_diag(input: &InputArgs, diag: &DiagArgs) -> anyhow::Result<u8> {
                 message: r.message,
             });
         }
-        report.push(FileReport {
+        // `hidden` is always collected (`collect_rows` decides nothing); only
+        // the flag decides whether this run renders it — a gap row no
+        // finding carries is the CLI's answer to "why is this not firing".
+        let suppressed = if report.show_suppressed {
+            suppressed_count += rows.hidden.len();
+            Some(
+                rows.hidden
+                    .into_iter()
+                    .map(|h| SuppressedItem {
+                        line: h.line,
+                        column: h.column,
+                        severity: h.severity.map(severity_label),
+                        code: h.code,
+                        message: h.message,
+                        reason: h.reason,
+                    })
+                    .collect(),
+            )
+        } else {
+            None
+        };
+        files.push(FileReport {
             file: document.label.clone(),
             diagnostics: items,
+            suppressed,
         });
     }
 
@@ -359,27 +544,34 @@ pub fn run_diag(input: &InputArgs, diag: &DiagArgs) -> anyhow::Result<u8> {
     // other verb, rather than always printing to stdout (issue 196).
     let target = OutputTarget::from_arg(input.output.as_deref());
     let rendered = if diag.json {
-        tcl_cli_support::ensure_ascii(&serde_json::to_string_pretty(&report)?)
+        tcl_cli_support::ensure_ascii(&serde_json::to_string_pretty(&files)?)
     } else {
         let mut lines: Vec<String> = Vec::new();
-        for item in &report {
-            for d in &item.diagnostics {
-                lines.push(format_line(
-                    &item.file, d.line, d.column, d.severity, &d.code, &d.message,
-                ));
-            }
+        for item in &files {
+            lines.extend(file_text_lines(
+                &item.file,
+                &item.diagnostics,
+                item.suppressed.as_deref().unwrap_or(&[]),
+            ));
         }
-        if diagnostic_count == 0 {
+        if diagnostic_count == 0 && suppressed_count == 0 {
             lines.push("no diagnostics".to_owned());
         }
         lines.join("\n")
     };
     write_text_output(&target, &rendered)?;
 
-    eprintln!(
-        "diagnostics={diagnostic_count} across {} input(s)",
-        documents.len()
-    );
+    if report.show_suppressed {
+        eprintln!(
+            "diagnostics={diagnostic_count} suppressed={suppressed_count} across {} input(s)",
+            documents.len()
+        );
+    } else {
+        eprintln!(
+            "diagnostics={diagnostic_count} across {} input(s)",
+            documents.len()
+        );
+    }
     Ok(u8::from(problem_count > 0))
 }
 
@@ -397,7 +589,7 @@ pub fn run_validate(input: &InputArgs, diag: &DiagArgs) -> anyhow::Result<u8> {
         let slice = evidence
             .as_ref()
             .map(|all| all.slice_for(declared.iter().map(String::as_str)));
-        for r in collect_rows(document, dialect, &layers, slice.as_ref()) {
+        for r in collect_rows(document, dialect, &layers, slice.as_ref()).shown {
             if r.severity == Severity::Error {
                 errors.push(ValidateError {
                     file: document.label.clone(),

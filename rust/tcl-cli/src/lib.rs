@@ -100,9 +100,16 @@ fn run_on_generous_stack(command: Command) -> anyhow::Result<u8> {
 #[allow(clippy::too_many_lines)] // one match arm per verb; grows with the verb set
 fn dispatch(command: &Command) -> anyhow::Result<u8> {
     match command {
-        Command::Diag { input, diag } | Command::Lint { input, diag } => {
-            commands::diag::run_diag(input, diag)
+        Command::Diag {
+            input,
+            diag,
+            report,
         }
+        | Command::Lint {
+            input,
+            diag,
+            report,
+        } => commands::diag::run_diag(input, diag, report),
         Command::Validate { input, diag } => commands::diag::run_validate(input, diag),
         Command::Dis { input, optimise } => commands::compile::run_dis(input, *optimise),
         Command::Compwasm {

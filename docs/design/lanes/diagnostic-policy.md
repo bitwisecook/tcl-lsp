@@ -1179,6 +1179,57 @@ clippy on `tcl-lsp-core` is clean; `cargo fmt` touched the file; `cargo
 check --workspace` is green. No new identifier reaches a generated table
 (`Display` and `as_str` are Rust-side only), so nothing regenerates.
 
+### DP9.2 — `--show-suppressed` on `tcl diag` / `lint`
+
+`cli.rs`: `ReportArgs { show_suppressed: bool }` (`--show-suppressed`),
+flattened into `Diag` and `Lint` only, as the item says (`Validate` lists
+errors and takes no such flag — § Open questions 8). `lib.rs` dispatches
+both to `run_diag(input, diag, report)`.
+
+`diag.rs`: `collect_rows` returns `DocumentRows { shown: Vec<Row>, hidden:
+Vec<HiddenRow> }` — `HiddenRow` is built by `hidden_rows_of` from
+`report.suppressed()` (positioned, the finding's own severity and message)
+then `report.gaps()` without `Reason::DefaultOff` (no position, severity or
+message), positioned rows sorted by `(line, column, code)` and gaps
+following, sorted by code; `document_rows_of` pairs it with the unchanged
+`rows_of`. `hidden` is always collected — `collect_rows` decides nothing —
+and only `run_diag` reads it, gated on the flag; `run_validate` reads
+`.shown` only. JSON: `FileReport` gains `#[serde(skip_serializing_if =
+"Option::is_none")] suppressed: Option<Vec<SuppressedItem>>`
+(`{line, column, severity, code, message, reason}`, a gap's four position
+and content fields `null`). Text: `format_hidden_line` (`format_line`'s
+shape with `"hidden"` for the severity slot and `[reason]` appended) and
+`format_gap_line` (`{file}: hidden<7> code<8> [reason]`, no position at
+all); `file_text_lines` merges `shown` with `hidden`'s positioned prefix by
+`(line, column, code)` (a manual two-pointer merge, since `Option<u32>`'s
+derived `Ord` sorts a gap's `None` first, not last, so a single combined
+sort key would misorder them) and appends the gap suffix. `diagnostics=`
+gains ` suppressed={m}` on stderr only with the flag; `problem_count` and
+`diagnostic_count` are unchanged, so the exit status and the plain output
+are preserved byte for byte (confirmed: the 41 pre-existing `cli` tests
+pass unchanged). "no diagnostics" prints only when both counts are zero.
+
+Tests, verified against the real binary before writing them:
+`diag_show_suppressed_lists_every_hidden_finding_with_its_reason` (the
+`noqaSuppression.tcl` fixture: W210 on `suppressedByCode` and S100 on
+`dictValue`, both `inline-directive`; the plain JSON carries no `suppressed`
+key at all); `diag_show_suppressed_lists_a_disabled_analyser_code_as_a_gap`
+(`--disable W210 --source 'puts $y'` → one gap, `disabled:invocation`, no
+W242); `diag_show_suppressed_lists_o111_as_optimiser_off` (`set a 1\nset b
+[expr $a + 1]\n` → W100 shown, O111 suppressed `optimiser-off`);
+`diag_show_suppressed_text_rows_keep_the_exit_status` (a `# noqa`-only
+document's text rows carry `[inline-directive]` and the process exits 0).
+`diag_suppressed_rows` is the JSON-row helper alongside `diag_codes_by_file`.
+
+Docs: `kcs-feature-tcl-verb-cli.md`'s `diag` bullet gains the flag (DP10.3
+folds the how-to, unchanged here); `cargo xtask kcs-index-links` passes.
+
+Suites: `tcl-cli` lib 27, `cli` 45 (41 + 4), `compile_verbs` 11,
+`explorer_gui` 2, `pkg_verbs` 13, `spec_verbs` 18. The crate clippy on
+`tcl-cli` is clean; `cargo fmt` touched `cli.rs`, `commands/diag.rs`,
+`lib.rs` and `tests/cli.rs`; `cargo check --workspace` is green. No new
+diagnostic code, so no catalogue regenerates.
+
 ## Plan for finishing slices 4–7 and for slices 8–10
 
 The execution plan from the checkpoint `5bc40e95` to the end of the page's
@@ -3901,7 +3952,7 @@ Each item updates its row in the commit that lands it.
 | DP8.2 | opus | M | done — § *Slices 8–10 as built* | `DP8.2 — O111 is a producer; every publish path is one call` | core `--lib`, server `--lib`, the whole `e2e` (with `large_file_publishes_fast_tier_before_deep_tier`), `tcl-mcp`, `tcl-cli`; `diag-emission-check`; clippy on core, server, `tcl-cli` and `tcl-mcp`; `cargo check --workspace` |
 | DP8.3 | sonnet | S | done — § *Slices 8–10 as built* | `DP8.3 — The lightbulb reads the published report; W115's conversion follows its finding` | core `--lib` (2328, `-- code_actions` 97) and `--test code_actions_depth` (46); server `--lib` (591, `-- lightbulb` 1) and the whole `e2e` (1598, 5 ignored, `code_actions` subset 93); clippy on core and server; `cargo fmt`; `cargo check --workspace` |
 | DP9.1 | sonnet | S | done — § *Slices 8–10 as built* | `DP9.1 — One spelling for every reason, and the report's gaps` | core `--lib` (2328, `-- diagnostic_policy` 97); clippy on core; `cargo fmt`; `cargo check --workspace` |
-| DP9.2 | sonnet | M | not started | — | — |
+| DP9.2 | sonnet | M | done — § *Slices 8–10 as built* | `DP9.2 — --show-suppressed on tcl diag / lint` | `tcl-cli` lib 27, `cli` 45, `compile_verbs` 11, `explorer_gui` 2, `pkg_verbs` 13, `spec_verbs` 18; clippy on `tcl-cli`; `cargo fmt`; `cargo xtask kcs-index-links`; `cargo check --workspace` |
 | DP9.3 | sonnet | M | not started | — | — |
 | DP9.4 | opus | L | not started | — | — |
 | DP9.5 | opus | M | not started | — | — |

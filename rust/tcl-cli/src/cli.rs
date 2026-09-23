@@ -245,6 +245,8 @@ pub enum Command {
         input: InputArgs,
         #[command(flatten)]
         diag: DiagArgs,
+        #[command(flatten)]
+        report: ReportArgs,
     },
 
     /// Run lint diagnostics across all resolved inputs.
@@ -253,6 +255,8 @@ pub enum Command {
         input: InputArgs,
         #[command(flatten)]
         diag: DiagArgs,
+        #[command(flatten)]
+        report: ReportArgs,
     },
 
     /// Validate source (error-level diagnostics only).
@@ -796,6 +800,17 @@ pub struct DiagArgs {
     /// default-off code such as W242.
     #[arg(long = "enable", value_name = "CODE")]
     pub enable: Vec<String>,
+}
+
+/// `--show-suppressed`, shared by `diag` / `lint` (not `validate`, which
+/// lists errors only).
+#[derive(Debug, Args)]
+pub struct ReportArgs {
+    /// Also list what the policy hides — every suppressed finding with its
+    /// reason, and every code a layer or a top-of-file directive turned
+    /// off — so a missing diagnostic has an answer.
+    #[arg(long = "show-suppressed")]
+    pub show_suppressed: bool,
 }
 
 /// Flags shared by most `pkg` sub-actions.

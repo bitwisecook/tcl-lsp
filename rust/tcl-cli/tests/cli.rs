@@ -1315,6 +1315,24 @@ fn diag_codes_by_file(out: &[u8]) -> Vec<(String, String)> {
         .collect()
 }
 
+/// Every `suppressed` row of a `diag --show-suppressed --json` report,
+/// across all files — empty for a file with no `suppressed` key (the flag
+/// was not given).
+fn diag_suppressed_rows(out: &[u8]) -> Vec<serde_json::Value> {
+    let report: serde_json::Value = serde_json::from_slice(out).expect("diag JSON");
+    report
+        .as_array()
+        .expect("report array")
+        .iter()
+        .flat_map(|file| {
+            file.get("suppressed")
+                .and_then(serde_json::Value::as_array)
+                .cloned()
+                .unwrap_or_default()
+        })
+        .collect()
+}
+
 /// A `while` whose counter the body never touches: W242, the one code the
 /// catalogue declares default-off.
 const UNPROVABLE_LOOP: &str = "set i 0\nwhile {$i < 3} {\n    puts $i\n}\n";
@@ -1535,6 +1553,126 @@ fn diag_a_project_file_turns_a_code_back_on() {
     assert!(
         !has("outside.tcl", "W112"),
         "outside the project the global disable stands: {rows:?}"
+    );
+}
+
+/// `--show-suppressed` lists every suppressed finding with its reason
+/// (`docs/design/compiler/diagnostic-policy.md` § Adapters, CLI rows); the
+/// plain report is unaffected — no `suppressed` key at all.
+#[test]
+fn diag_show_suppressed_lists_every_hidden_finding_with_its_reason() {
+    let fixture = fixtures_dir().join("noqaSuppression.tcl");
+    let path = fixture.to_str().unwrap();
+
+    let plain: serde_json::Value =
+        serde_json::from_slice(&run_tcl_allow_failure(&["diag", "--json", path]))
+            .expect("diag JSON");
+    for file in plain.as_array().expect("report array") {
+        assert!(
+            file.get("suppressed").is_none(),
+            "without the flag the JSON carries no `suppressed` key: {file}"
+        );
+    }
+
+    let rows = diag_suppressed_rows(&run_tcl_allow_failure(&[
+        "diag",
+        "--json",
+        "--show-suppressed",
+        path,
+    ]));
+    let find = |code: &str| {
+        rows.iter()
+            .find(|r| r["code"] == code)
+            .unwrap_or_else(|| panic!("no suppressed {code} row: {rows:?}"))
+    };
+    let w210 = find("W210");
+    assert_eq!(w210["reason"], "inline-directive", "{w210}");
+    assert!(
+        w210["message"]
+            .as_str()
+            .is_some_and(|m| m.contains("suppressedByCode")),
+        "the W210 on the `suppressedByCode` line: {w210}"
+    );
+    let s100 = find("S100");
+    assert_eq!(s100["reason"], "inline-directive", "{s100}");
+    assert!(
+        s100["message"]
+            .as_str()
+            .is_some_and(|m| m.contains("dictValue")),
+        "the S100 on the `dictValue` line: {s100}"
+    );
+}
+
+/// A code a layer disables is a declared gap when nothing computes a
+/// finding for it — `--disable` occupies the invocation layer — and the
+/// default-off seed (W242 here) is omitted: it is the catalogue's baseline,
+/// identical for every file, and listing it on every file buries the answer.
+#[test]
+fn diag_show_suppressed_lists_a_disabled_analyser_code_as_a_gap() {
+    let rows = diag_suppressed_rows(&run_tcl_allow_failure(&[
+        "diag",
+        "--disable",
+        "W210",
+        "--show-suppressed",
+        "--json",
+        "--source",
+        "puts $y",
+    ]));
+    assert_eq!(rows.len(), 1, "{rows:?}");
+    assert_eq!(rows[0]["line"], serde_json::Value::Null, "{rows:?}");
+    assert_eq!(rows[0]["code"], "W210", "{rows:?}");
+    assert_eq!(rows[0]["reason"], "disabled:invocation", "{rows:?}");
+    assert!(
+        !rows.iter().any(|r| r["code"] == "W242"),
+        "the default-off seed is not listed as a gap: {rows:?}"
+    );
+}
+
+/// O111 pairs with every W100 the analyser finds (DP8.2); `tcl diag` keeps
+/// the optimiser off by policy (D4), so O111 is an `OptimiserOff`
+/// suppression here rather than a finding that silently never existed.
+#[test]
+fn diag_show_suppressed_lists_o111_as_optimiser_off() {
+    let src = "set a 1\nset b [expr $a + 1]\n";
+    let shown = diag_codes_by_file(&run_tcl_allow_failure(&["diag", "--json", "--source", src]));
+    assert!(shown.iter().any(|(_, code)| code == "W100"), "{shown:?}");
+    let hidden = diag_suppressed_rows(&run_tcl_allow_failure(&[
+        "diag",
+        "--show-suppressed",
+        "--json",
+        "--source",
+        src,
+    ]));
+    let o111 = hidden
+        .iter()
+        .find(|r| r["code"] == "O111")
+        .unwrap_or_else(|| panic!("no suppressed O111 row: {hidden:?}"));
+    assert_eq!(o111["reason"], "optimiser-off", "{o111}");
+}
+
+/// The text form's `--show-suppressed` rows carry `[reason]`, and a file
+/// whose only findings are suppressed still exits `0` — the exit status
+/// counts shown problems only.
+#[test]
+fn diag_show_suppressed_text_rows_keep_the_exit_status() {
+    let scratch = Scratch::new("show-suppressed-text");
+    let only_suppressed = scratch.write("noqa.tcl", "# noqa: W210\nputs $y\n");
+    let output = tcl()
+        .args([
+            "diag",
+            "--show-suppressed",
+            only_suppressed.to_str().unwrap(),
+        ])
+        .output()
+        .expect("failed to spawn tcl binary");
+    assert!(
+        output.status.success(),
+        "a document whose only finding is suppressed must exit 0: {output:?}"
+    );
+    let rendered = String::from_utf8(output.stdout).expect("utf-8 output");
+    assert!(
+        rendered.contains("hidden") && rendered.contains("[inline-directive]"),
+        "{rendered}"
     );
 }
 
