@@ -2919,6 +2919,30 @@ fn a_try_that_never_completes_does_not_fall_through_its_finally() {
     }
 }
 
+/// A `finally` clause that itself transfers control keeps that transfer: its
+/// `break` overrides the pending return or error, so the code after the loop
+/// is live. tclsh 8.6.18 and 9.0.4 print `after 1` and `survived` (found in
+/// review).
+#[test]
+fn a_finally_that_transfers_control_keeps_its_transfer() {
+    for (why, src) in [
+        (
+            "`break` over a pending `return`",
+            "proc p {} {\n    while 1 { try {return early} finally {break} }\n    set x 1\n    return \"after $x\"\n}\n",
+        ),
+        (
+            "`break` over a pending error",
+            "proc p {} {\n    while 1 { try {error boom} finally {break} }\n    set y survived\n    return $y\n}\n",
+        ),
+    ] {
+        assert!(
+            !opt_fires(src, TCL, "O107"),
+            "{why}: the code after the loop runs: {:?}",
+            opt_codes(src, TCL)
+        );
+    }
+}
+
 /// A handler is reached from the explicit throws inside a nested construct,
 /// with their block's stores live — including a `finally` that only ever
 /// resumes unwinding. tclsh 8.6.18 and 9.0.4 return `1` for both.

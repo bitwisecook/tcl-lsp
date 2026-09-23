@@ -1368,6 +1368,12 @@ impl CfgBuilder<'_> {
         self.ensure_goto(end_block, &finally_block, fin_span);
         let after_finally = self.new_block("try_after_finally");
         let tail = self.lower_script(body, &finally_block);
+        // A clause that itself leaves — `finally {break}` — keeps its own
+        // transfer, which overrides whatever completion was pending: Tcl runs
+        // the code after the loop in `while 1 { try {return} finally {break} }`.
+        // Such a tail neither falls through nor resumes a saved jump
+        // (found in review).
+        let tail = tail.filter(|_| self.last_terminal_block.take().is_none());
         if let Some(tail) = &tail {
             if falls_through {
                 self.ensure_goto(tail, &after_finally, fin_span);

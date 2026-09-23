@@ -215,7 +215,11 @@ block, through the handlers' exception edges, and looks for a normal edge
 into `try_end`.  When there is none, every way into the clause is an exit,
 so the clause's last block ends in a `Return` as an `error` does and is
 recorded as a throw point for the constructs around it; the code after the
-`try` is unreachable, as in Tcl.  Otherwise the clause falls through, and
+`try` is unreachable, as in Tcl.  A clause that itself leaves —
+`finally {break}` — keeps its own terminator either way: its transfer
+overrides the pending completion, so it neither falls through nor resumes
+a saved jump, and in `while 1 { try {return} finally {break} }` the code
+after the loop runs.  Otherwise the clause falls through, and
 exit paths share that edge with normal completion — they add paths, never
 remove one.
 
