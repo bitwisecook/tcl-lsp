@@ -965,7 +965,7 @@ impl CfgBuilder<'_> {
     /// A `break` or `continue` is different: the clause runs and then the jump
     /// goes on to its loop target. The jump is retargeted at `end_block` and
     /// the saved targets are returned for [`Self::lower_try`] to resume from
-    /// the far side of the clause. Adding an edge alongside the jump left a
+    /// the clause's last block. Adding an edge alongside the jump left a
     /// path into the loop that skipped the clause, and
     /// `while {$first || $x} { try {set first 0; continue} finally {set x 0} }`
     /// reported `x` read before it is set (found in review). The same holds
@@ -1223,11 +1223,18 @@ impl CfgBuilder<'_> {
         };
         let jump_targets =
             self.push_finally_exit_edges(&end_block, &post_body, &body_block, first_body_id);
-        let after_finally = self.lower_try_finally(fb, finally_span.or(Some(*span)), &end_block);
-        for target in jump_targets {
-            let edge = (after_finally.clone(), target);
-            self.exception_edges.push(edge.clone());
-            self.finally_jump_edges.push(edge);
+        let (after_finally, finally_tail) =
+            self.lower_try_finally(fb, finally_span.or(Some(*span)), &end_block);
+        // A saved jump resumes from the clause's own last block, not from
+        // `after_finally`: the statements after the `try` are appended there,
+        // and a `break` does not run them (found in review). A clause that
+        // cannot complete normally resumes nothing.
+        if let Some(tail) = finally_tail {
+            for target in jump_targets {
+                let edge = (tail.clone(), target);
+                self.exception_edges.push(edge.clone());
+                self.finally_jump_edges.push(edge);
+            }
         }
         after_finally
     }
@@ -1260,20 +1267,22 @@ impl CfgBuilder<'_> {
     }
 
     /// Lower a `finally` clause after the `try`'s end block, returning the
-    /// resting block the whole statement leaves behind.
+    /// resting block the whole statement leaves behind and the clause's own
+    /// last block, if it completes normally.
     fn lower_try_finally(
         &mut self,
         body: &crate::ir::Script,
         fin_span: Option<tcl_lexer::Span>,
         end_block: &str,
-    ) -> String {
+    ) -> (String, Option<String>) {
         let finally_block = self.new_block("try_finally");
         self.ensure_goto(end_block, &finally_block, fin_span);
         let after_finally = self.new_block("try_after_finally");
-        if let Some(tail) = self.lower_script(body, &finally_block) {
-            self.ensure_goto(&tail, &after_finally, fin_span);
+        let tail = self.lower_script(body, &finally_block);
+        if let Some(tail) = &tail {
+            self.ensure_goto(tail, &after_finally, fin_span);
         }
-        after_finally
+        (after_finally, tail)
     }
 
     /// Flatten `Statement::Catch` into body → end CFG, the analogue of

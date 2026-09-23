@@ -195,8 +195,10 @@ enclosing construct is never looked through.  `tailcall` *is* an exit: the
 clause runs before the call.
 
 A `break` / `continue` is not given an extra edge: its jump itself is
-retargeted at `try_end`, and `try_after_finally` records an edge on to the
-saved loop target, because the clause runs *before* the loop sees the jump.
+retargeted at `try_end`, and the clause's own last block records an edge on
+to the saved loop target, because the clause runs *before* the loop sees the
+jump.  Not `try_after_finally`: the statements after the `try` are appended
+there, and a jump does not run them.
 An edge alongside the jump left a path into the loop that skipped the
 clause, and `while {$first || $x} { try {set first 0; continue} finally
 {set x 0} }` reported `x` read before it is set.  An enclosing

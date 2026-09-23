@@ -673,3 +673,50 @@ impl XorShift {
         (x.wrapping_mul(0x2545_F491_4F6C_DD1D) >> 32) as u32
     }
 }
+
+/// A `break` out of a `try` resumes at its loop target from the `finally`
+/// clause's own last block. The statements after the `try` are appended to
+/// `try_after_finally`, and a `break` does not run them: in
+/// `while 1 { try {break} finally {}; set x 1 }` tclsh 8.6.18 and 9.0.4 leave
+/// `x` unset at the loop exit. Resuming from `try_after_finally` carried the
+/// `set x 1` along the `break` path (found in review).
+#[test]
+fn a_jump_resumed_after_a_finally_skips_the_code_after_the_try() {
+    for src in [
+        "proc p {} {\n    while 1 {\n        try {break} finally {}\n        set x 1\n    }\n    return $x\n}\n",
+        "proc p {} {\n    while 1 {\n        try { try {break} finally {} } finally {}\n        set x 1\n    }\n    return $x\n}\n",
+    ] {
+        let module = cfg(src);
+        let func = proc(&module, "::p");
+        let loop_end = func
+            .blocks
+            .iter()
+            .find(|(_, b)| b.name.starts_with("while_end"))
+            .map(|(id, _)| *id)
+            .expect("while_end block");
+        let resumes: Vec<_> = func
+            .exception_edges
+            .iter()
+            .filter(|(_, to)| *to == loop_end)
+            .map(|(from, _)| &func.blocks[from])
+            .collect();
+        assert!(
+            !resumes.is_empty(),
+            "the `break` must reach the loop exit: {src}"
+        );
+        for block in resumes {
+            assert!(
+                block.name.starts_with("try_finally"),
+                "resumed from {} rather than the clause: {src}",
+                block.name
+            );
+            assert!(
+                !block
+                    .statements
+                    .iter()
+                    .any(|s| matches!(s, Statement::AssignConst { name, .. } if name == "x")),
+                "the `break` path runs `set x 1`: {src}"
+            );
+        }
+    }
+}

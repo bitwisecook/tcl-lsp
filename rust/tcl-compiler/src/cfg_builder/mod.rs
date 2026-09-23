@@ -235,7 +235,7 @@ pub(crate) struct CfgBuilder<'a> {
     /// `try` body→handler exception edges (analysis builds only).
     exception_edges: Vec<(String, String)>,
     /// The subset of [`Self::exception_edges`] that resume a `break` /
-    /// `continue` after a `finally` clause: `(try_after_finally, jump
+    /// `continue` after a `finally` clause: `(the clause's last block, jump
     /// target)`. An enclosing `try … finally` reroutes them through its own
     /// clause, as it does the jumps its own body makes.
     finally_jump_edges: Vec<(String, String)>,
