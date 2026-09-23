@@ -41,7 +41,7 @@ use tcl_registry::value_transfer::{
     InvocationLayout, LiftedAnswer, NativeEvalId, Needs, NoRouteReason, NumericValue, OperandId,
     OperandView, PlaceRef, PlanAnswer, ResolvedInvocationView, ResolvedSemantics,
     SemanticsDeclaration, SemanticsOrigin, StoreOutcome, TargetId, TransferAnswer, ValueIdentity,
-    WordStructure, evaluate_lifted, resolve_semantics,
+    WordPart, WordStructure, evaluate_lifted, resolve_semantics,
 };
 use tcl_registry::value_transfer::{BindingIdentity, ExistenceOutcome, IterableKind};
 use tcl_registry::{ArgRole, CommandRegistry, InvocationWordKind, Traits};
@@ -88,6 +88,7 @@ struct TestInputs<'a> {
     operands: BTreeMap<usize, FactView>,
     places: BTreeMap<usize, Result<PlaceRef, DeclineReason>>,
     prior: BTreeMap<String, FactView>,
+    structures: BTreeMap<usize, WordStructure>,
     context: AnalysisContext,
 }
 
@@ -104,6 +105,7 @@ impl<'a> TestInputs<'a> {
             operands: BTreeMap::new(),
             places: BTreeMap::new(),
             prior: BTreeMap::new(),
+            structures: BTreeMap::new(),
             context: AnalysisContext::detached(None),
         }
     }
@@ -153,8 +155,11 @@ impl AnalysisInputs for TestInputs<'_> {
         self.variable(&place.name, domain)
     }
 
-    fn word_structure(&self, _id: OperandId) -> Result<WordStructure, DeclineReason> {
-        Err(DeclineReason::Unsupported)
+    fn word_structure(&self, id: OperandId) -> Result<WordStructure, DeclineReason> {
+        self.structures
+            .get(&id.0)
+            .cloned()
+            .ok_or(DeclineReason::Unsupported)
     }
 
     fn body(&self, _id: OperandId) -> Result<BodyRegion, DeclineReason> {
@@ -172,6 +177,110 @@ impl AnalysisInputs for TestInputs<'_> {
     fn context(&self) -> &AnalysisContext {
         &self.context
     }
+}
+
+/// `expr`'s argument words assemble as the command specifies: one braced
+/// word is the expression text, whose `$name` reads the engine performs
+/// itself; any other word reaches the engine already substituted; several
+/// words join with one space. `set a {1 + 1}; expr "$a * 2"` is 3 and
+/// `expr 1 + 2` is 3 under tclsh 8.4 to 9.1. A word that is not yet a
+/// value is pending, one that never is declines with its reason, no word
+/// at all is the program's `wrong # args`, and a BPF-Tcl expression is
+/// never assembled for the Tcl engine (`-7 / 2` is `-3` there, `-4` in
+/// Tcl).
+#[test]
+fn expression_assembly_follows_the_word_kinds() {
+    use tcl_registry::value_transfer::builtins::{BPF_EXPR, EXPR, ExpressionSource};
+    let dynamic = |text| OperandView {
+        text,
+        kind: InvocationWordKind::Dynamic,
+        role: None,
+    };
+    let span = tcl_lexer::Span::new;
+
+    let mut braced = TestInputs::new("expr", vec![literal("$a * 2", None)]);
+    braced.structures.insert(
+        0,
+        WordStructure {
+            braced: true,
+            parts: vec![WordPart::Literal {
+                span: span(1, 7),
+                text: "$a * 2".to_owned(),
+            }],
+        },
+    );
+    assert_eq!(
+        EXPR.assemble(&braced),
+        Ok(ExpressionSource::Braced {
+            text: "$a * 2".to_owned(),
+            base: 1,
+        })
+    );
+    assert_eq!(EXPR.variable_reads(&braced), ["a"]);
+
+    let mut quoted = TestInputs::new("expr", vec![dynamic("${a} * 2")]);
+    quoted.structures.insert(
+        0,
+        WordStructure {
+            braced: false,
+            parts: vec![
+                WordPart::VariableRead {
+                    span: span(0, 4),
+                    name: "a".to_owned(),
+                    element: None,
+                },
+                WordPart::Literal {
+                    span: span(4, 8),
+                    text: " * 2".to_owned(),
+                },
+            ],
+        },
+    );
+    quoted.operands.insert(0, held("1 + 1 * 2"));
+    let substituted = EXPR.assemble(&quoted).expect("the substituted text");
+    assert_eq!(substituted.text(), Ok("1 + 1 * 2"));
+    assert!(matches!(substituted, ExpressionSource::Substituted(_)));
+    // The substituted text is what the engine reads: its reads are its own.
+    assert!(EXPR.variable_reads(&quoted).is_empty());
+
+    let bare = TestInputs::new("expr", vec![literal("7", None)]);
+    assert_eq!(
+        EXPR.assemble(&bare)
+            .map(|source| source.text().map(str::to_owned)),
+        Ok(Ok("7".to_owned()))
+    );
+
+    let words = TestInputs::new(
+        "expr",
+        vec![literal("1", None), literal("+", None), literal("{2}", None)],
+    );
+    assert_eq!(
+        EXPR.assemble(&words)
+            .map(|source| source.text().map(str::to_owned)),
+        Ok(Ok("1 + {2}".to_owned()))
+    );
+
+    let mut pending = TestInputs::new("expr", vec![dynamic("$a")]);
+    pending.operands.insert(0, FactView::Pending);
+    assert_eq!(EXPR.assemble(&pending), Err(EvalAnswer::Pending));
+    let mut unknown = TestInputs::new("expr", vec![literal("1", None), dynamic("$a")]);
+    unknown
+        .operands
+        .insert(1, FactView::Top(DeclineReason::NotExact));
+    assert_eq!(
+        EXPR.assemble(&unknown),
+        Err(EvalAnswer::Declined(DeclineReason::NotExact))
+    );
+
+    let none = TestInputs::new("expr", Vec::new());
+    assert_eq!(
+        EXPR.assemble(&none),
+        Err(EvalAnswer::Declined(DeclineReason::Unsupported))
+    );
+    assert_eq!(
+        BPF_EXPR.assemble(&TestInputs::new("expr", vec![literal("-7 / 2", None)])),
+        Err(EvalAnswer::Declined(DeclineReason::Unsupported))
+    );
 }
 
 /// `CellReadModifyWrite(u)` on a spec ⇒ the resolved value transfer is the

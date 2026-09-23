@@ -33,9 +33,10 @@
 //! transitional handlers, each carried verbatim from the arm it replaces so
 //! the lattice stays byte-identical, and each listed with its expiry in the
 //! migration plan's ledger. The expression route is run here by
-//! construction — the shared engine is fed by this module's lattice
-//! services — and its registry-owned argument assembly lands with the
-//! expression slice.
+//! construction: the registry assembles the argument words
+//! ([`ExpressionRoute::assemble`]) and the shared engine evaluates the
+//! expression over this module's lattice services
+//! ([`crate::tcl_expr_eval::ExprServices`]).
 
 use std::borrow::Cow;
 use std::cell::{Cell, RefCell};
@@ -44,13 +45,16 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use rustc_hash::FxHashSet;
 use tcl_lexer::{LexerConfig, Span, TokenType};
 use tcl_registry::hooks::LoweringHookId;
+use tcl_registry::value_transfer::builtins::ExpressionRoute;
 use tcl_registry::value_transfer::{
     AnalysisContext, AnalysisInputs, AnalysisTier, BindingIdentity, BodyRegion, Budget,
-    DeclineReason, EvalAnswer, EvalRoute, EvaluationState, EvaluatorOwner, ExactValue,
-    ExactValueOrUnavailable, ExistenceOutcome, FactDomain, FactView, InvocationLayout,
-    InvocationOutcome, IterableKind, LiftedAnswer, NativeEvalId, NumericValue, OperandId,
-    OperandView, PlaceKind, PlaceRef, PlanAnswer, ResolvedInvocationView, StoreOutcome, TargetId,
-    TransferAnswer, ValueIdentity, WordStructure, evaluate_lifted,
+    BudgetLimit, CommandSemantics, CompletionOutcome, DeclineReason, DependencyEvidence,
+    EvalAnswer, EvalRoute, EvaluationState, EvaluatorOwner, ExactValue, ExactValueOrUnavailable,
+    ExistenceOutcome, FactDomain, FactView, InvocationLayout, InvocationOutcome, IterableKind,
+    LanguageProfileId, LiftedAnswer, NativeEvalId, NestedPolicy, NumericValue, OperandId,
+    OperandView, PlaceKind, PlaceRef, PlanAnswer, ResolvedInvocationView, RouteIdentity,
+    StoreOutcome, TargetId, TransferAnswer, TypeFacts, ValueIdentity, WordPart, WordStructure,
+    evaluate_lifted,
 };
 use tcl_registry::{
     ArgRole, CommandRegistry, InvocationWord, InvocationWordKind, InvocationWords,
@@ -61,13 +65,14 @@ use crate::analyses::{ConstValue, LatticeValue, MAX_CONSTSET_SIZE};
 use crate::cfg::Function as CfgFunction;
 use crate::codegen::helpers::split_list_values;
 use crate::command_binding::CommandTrustSnapshot;
+use crate::expr_ast::ExprNode;
 use crate::ir::{CommandTokens, Statement};
 use crate::sccp::{
     BuiltinFoldInputs, FoldTrust, TraceInputs, extract_foreach_elements,
     resolve_foreach_list_via_lattice,
 };
 use crate::ssa::{SsaFunction, SsaStatement, Symbol, ValueKey, Version};
-use crate::tcl_expr_eval::{FoldPolicy, eval_tcl_expr_with_policy};
+use crate::tcl_expr_eval::{ExprAnswer, ExprServices, FoldPolicy, evaluate_expression};
 use tcl_syntax::word_rules::WordValueRules;
 
 /// The analysis context's hashable identity, as a per-function memo key
@@ -142,6 +147,10 @@ pub(crate) struct LatticeDriver<'a> {
     /// (`set`) still denotes its builtin — the named half of the trust
     /// fact, as the chain fold asks it.
     typed_assignment: bool,
+    /// How deep the nested-substitution service is: each `[…]` a route or
+    /// an expression evaluates enters one level, bounded by the evaluation
+    /// depth.
+    nesting: Cell<u32>,
     /// The statement being evaluated, when the solver said which.
     explaining: Cell<Option<Span>>,
     /// The last explanation recorded per statement.
@@ -262,6 +271,7 @@ impl<'a> LatticeDriver<'a> {
             context,
             lexer_config: LexerConfig::for_profile(profile),
             typed_assignment,
+            nesting: Cell::new(0),
             explaining: Cell::new(None),
             explanations: RefCell::new(BTreeMap::new()),
         }
@@ -308,16 +318,6 @@ impl<'a> LatticeDriver<'a> {
         );
     }
 
-    /// Record whether a route the driver runs itself folded the statement.
-    fn explain_fold(&self, command: &str, route: EvalRoute, folded: Option<&LatticeValue>) {
-        let answer = if folded.is_some() {
-            "evaluated"
-        } else {
-            "declined: unsupported"
-        };
-        self.explain(command, Some(route), answer.to_owned());
-    }
-
     /// Every explanation the run recorded, in statement order.
     pub(crate) fn take_explanations(&self) -> Vec<RouteExplanation> {
         std::mem::take(&mut *self.explanations.borrow_mut())
@@ -348,11 +348,6 @@ impl<'a> LatticeDriver<'a> {
             policy,
             &HashSet::new(),
         )
-    }
-
-    /// The fold policy this run evaluates under.
-    pub(crate) const fn policy(&self) -> FoldPolicy {
-        self.policy
     }
 
     /// Binding validity for `head`, under the stance the caller states
@@ -420,6 +415,17 @@ impl<'a> LatticeDriver<'a> {
         let Some(semantics) = resolved.semantics.value.semantics() else {
             return LatticeValue::Overdefined;
         };
+        let sources = std::iter::once(OperandSource::Literal)
+            .chain(amount.map(|(text, braced)| {
+                if braced {
+                    OperandSource::BracedLiteral
+                } else if matches!(word_of(text), InvocationWord::Dynamic) {
+                    OperandSource::Substituted
+                } else {
+                    OperandSource::Literal
+                }
+            }))
+            .collect();
         let view = view_of(&resolved, &texts, &words, InvocationLayout::Source);
         let inputs = LatticeInputs {
             driver: self,
@@ -427,6 +433,7 @@ impl<'a> LatticeDriver<'a> {
             uses,
             values,
             ssa,
+            sources,
         };
         self.call_def(head, semantics, name, &inputs)
     }
@@ -539,6 +546,13 @@ impl<'a> LatticeDriver<'a> {
             uses,
             values,
             ssa,
+            sources: words
+                .iter()
+                .map(|word| match word {
+                    InvocationWord::Literal(_) => OperandSource::Literal,
+                    _ => OperandSource::Unknown,
+                })
+                .collect(),
         };
         let PlanAnswer::Iterate(plan) = semantics.structure(&inputs) else {
             return LatticeValue::Overdefined;
@@ -620,6 +634,7 @@ impl<'a> LatticeDriver<'a> {
             uses,
             values,
             ssa,
+            sources: cooked.iter().map(|arg| arg.source).collect(),
         };
         self.call_def(head, semantics, def, &inputs)
     }
@@ -662,10 +677,9 @@ impl<'a> LatticeDriver<'a> {
         Some(exact_to_lattice(&ExactValue::from_literal(&folded)))
     }
 
-    /// The declared-route half of [`Self::fold_cmd_subst`]: resolve the
-    /// head, ask the registry which route the invocation declares, and run
-    /// it — a transitional handler, the expression engine, or a
-    /// registry-owned evaluator under the effect-free nested policy.
+    /// The declared-route half of [`Self::fold_cmd_subst`]: the one command
+    /// the substitution holds, run on its declared route
+    /// ([`Self::run_script`]) under the effect-free nested policy.
     fn fold_cmd_subst_routes<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
         &self,
         value: &str,
@@ -674,20 +688,68 @@ impl<'a> LatticeDriver<'a> {
         ssa: &SsaFunction,
     ) -> Option<LatticeValue> {
         let inner = value.strip_prefix('[')?.strip_suffix(']')?;
-        let (head, rest) = split_head(inner);
+        let run = self.run_script(inner, uses, values, ssa)?;
         // Binding validity comes first: after `rename list mylist` or a
         // shadowing `proc format …` anywhere in the unit, `[list a 1]` is a
-        // call to something else entirely.
-        if !self.trusted(head) {
+        // call to something else entirely, and the const-fold engine the
+        // caller falls back to asks the same question itself.
+        if run.rebound {
             return None;
         }
+        // In value position a nested invocation runs under the effect-free
+        // policy: an outcome with stores has no definition to land on here.
+        let folded = match &run.answer {
+            LiftedAnswer::Evaluated(outcomes)
+                if outcomes.iter().all(|outcome| !outcome.has_stores()) =>
+            {
+                Some(lattice_of_outcomes(outcomes, result_of))
+                    .filter(|folded| *folded != LatticeValue::Overdefined)
+            }
+            LiftedAnswer::Pending => Some(LatticeValue::Unknown),
+            LiftedAnswer::Evaluated(_) | LiftedAnswer::Declined(_) => None,
+        };
+        self.explain(
+            &run.head,
+            run.route,
+            match (&run.answer, &folded) {
+                (LiftedAnswer::Evaluated(_), None) => {
+                    "not substituted: the outcome writes storage".to_owned()
+                }
+                _ => answer_label(&run.answer),
+            },
+        );
+        folded
+    }
+
+    /// The one command a `[…]` script holds, resolved and run on its
+    /// declared route over this statement's lattice inputs: a
+    /// registry-owned evaluator, the expression engine, or a transitional
+    /// handler. `None` when the script is not one command the registry
+    /// resolves to a declaration.
+    fn run_script<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
+        &self,
+        script: &str,
+        uses: &HashMap<Symbol, Version, S1>,
+        values: &HashMap<ValueKey, LatticeValue, S2>,
+        ssa: &SsaFunction,
+    ) -> Option<ScriptRun> {
         let commands =
-            crate::segmenter::segment_commands_with_offset_and_config(inner, 0, self.lexer_config);
+            crate::segmenter::segment_commands_with_offset_and_config(script, 0, self.lexer_config);
         let [seg] = commands.as_slice() else {
             return None;
         };
-        if seg.name() != head {
+        let head = seg.name();
+        if split_head(script).0 != head {
             return None;
+        }
+        if !self.trusted(head) {
+            return Some(ScriptRun {
+                head: head.to_owned(),
+                route: None,
+                answer: LiftedAnswer::Declined(DeclineReason::RebindingSuspected),
+                binding: binding_of(head, head),
+                rebound: true,
+            });
         }
         let cooked: Vec<ArgWord<'_>> = seg
             .arg_tokens()
@@ -702,6 +764,7 @@ impl<'a> LatticeDriver<'a> {
         let words: Vec<InvocationWord<'_>> = cooked.iter().map(ArgWord::word).collect();
         let resolved = self.resolve(head, &words)?;
         let semantics = resolved.semantics.value.semantics()?;
+        let binding = binding_of(head, resolved.canonical_command);
         let view = view_of(&resolved, &texts, &words, InvocationLayout::Source);
         let inputs = LatticeInputs {
             driver: self,
@@ -709,61 +772,93 @@ impl<'a> LatticeDriver<'a> {
             uses,
             values,
             ssa,
+            sources: cooked.iter().map(|arg| arg.source).collect(),
         };
         let route = semantics.route();
-        match route {
+        let answer = match route {
             EvalRoute::Direct { id } => match id.owner() {
-                EvaluatorOwner::Transitional { .. } => {
-                    let folded = self.transitional_direct(id, value);
-                    self.explain_fold(head, route, folded.as_ref());
-                    folded
-                }
                 EvaluatorOwner::Registry => {
-                    let answer =
-                        evaluate_lifted(semantics, &inputs, &mut Self::budget(), MAX_CONSTSET_SIZE);
-                    // In value position a nested invocation runs under the
-                    // effect-free policy: an outcome with stores has no
-                    // definition to land on here.
-                    let folded = match &answer {
-                        LiftedAnswer::Evaluated(outcomes)
-                            if outcomes.iter().all(|outcome| !outcome.has_stores()) =>
-                        {
-                            Some(lattice_of_outcomes(outcomes, |outcome| {
-                                match &outcome.result {
-                                    ExactValueOrUnavailable::Exact(value) => {
-                                        Some(exact_to_lattice(value))
-                                    }
-                                    ExactValueOrUnavailable::Unavailable(_) => None,
-                                }
-                            }))
-                            .filter(|folded| *folded != LatticeValue::Overdefined)
+                    evaluate_lifted(semantics, &inputs, &mut Self::budget(), MAX_CONSTSET_SIZE)
+                }
+                EvaluatorOwner::Transitional { .. } => {
+                    match self.transitional_direct(id, &format!("[{script}]")) {
+                        Some(LatticeValue::Const(folded)) => {
+                            LiftedAnswer::Evaluated(vec![Box::new(pure_outcome(
+                                const_to_exact(&folded),
+                                route,
+                                semantics.identity(),
+                                0,
+                                vec![binding.clone()],
+                            ))])
                         }
-                        LiftedAnswer::Pending => Some(LatticeValue::Unknown),
-                        LiftedAnswer::Evaluated(_) | LiftedAnswer::Declined(_) => None,
-                    };
-                    self.explain(
-                        head,
-                        Some(route),
-                        match (&answer, &folded) {
-                            (LiftedAnswer::Evaluated(_), None) => {
-                                "not substituted: the outcome writes storage".to_owned()
-                            }
-                            _ => answer_label(&answer),
-                        },
-                    );
-                    folded
+                        _ => LiftedAnswer::Declined(DeclineReason::Unsupported),
+                    }
                 }
             },
-            EvalRoute::Expression { .. } => {
-                let folded = self.expression_route(rest, uses, values, ssa);
-                self.explain_fold(head, route, folded.as_ref());
-                folded
+            EvalRoute::Expression { language } => {
+                let expression = ExpressionEvaluation {
+                    expression: Expression::Assembled(ExpressionRoute { language }),
+                    policy: self.policy,
+                    head: binding.clone(),
+                };
+                evaluate_lifted(&expression, &inputs, &mut Self::budget(), MAX_CONSTSET_SIZE)
             }
-            EvalRoute::Implementation(_) | EvalRoute::None { .. } => {
-                self.explain(head, Some(route), "declined: no-route".to_owned());
-                None
-            }
+            EvalRoute::None { reason } => LiftedAnswer::Declined(DeclineReason::NoRoute(reason)),
+            EvalRoute::Implementation(_) => LiftedAnswer::Declined(DeclineReason::Unsupported),
+        };
+        Some(ScriptRun {
+            head: head.to_owned(),
+            route: Some(route),
+            answer,
+            binding,
+            rebound: false,
+        })
+    }
+
+    /// The nested-substitution service: `script`'s one command under
+    /// `state`'s policy, its binding and every binding its answer rests on
+    /// recorded in the state's evidence. Only an effect-free outcome is
+    /// admitted — any store is `StatefulNested` — and an outcome that
+    /// differs between the members of a finite input declines as
+    /// correlated: the host evaluation holds one value per operand.
+    fn nested_answer<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
+        &self,
+        script: &str,
+        state: &mut EvaluationState,
+        uses: &HashMap<Symbol, Version, S1>,
+        values: &HashMap<ValueKey, LatticeValue, S2>,
+        ssa: &SsaFunction,
+    ) -> EvalAnswer {
+        let depth = self.nesting.get();
+        if depth >= Budget::EVALUATION_DEPTH {
+            return EvalAnswer::Declined(DeclineReason::Budget(BudgetLimit::Depth));
         }
+        self.nesting.set(depth + 1);
+        let run = self.run_script(script, uses, values, ssa);
+        self.nesting.set(depth);
+        let Some(run) = run else {
+            return EvalAnswer::Declined(DeclineReason::Unsupported);
+        };
+        record_binding(&mut state.evidence, run.binding);
+        let outcomes = match run.answer {
+            LiftedAnswer::Pending => return EvalAnswer::Pending,
+            LiftedAnswer::Declined(reason) => return EvalAnswer::Declined(reason),
+            LiftedAnswer::Evaluated(outcomes) => outcomes,
+        };
+        if outcomes.iter().any(|outcome| outcome.has_stores()) {
+            return EvalAnswer::Declined(DeclineReason::StatefulNested);
+        }
+        let mut outcomes = outcomes.into_iter();
+        let Some(first) = outcomes.next() else {
+            return EvalAnswer::Declined(DeclineReason::Unsupported);
+        };
+        if outcomes.any(|outcome| outcome.result != first.result) {
+            return EvalAnswer::Declined(DeclineReason::CorrelatedSets);
+        }
+        for binding in &first.evidence.bindings {
+            record_binding(&mut state.evidence, binding.clone());
+        }
+        EvalAnswer::Evaluated(first)
     }
 
     /// The transitional compiler-owned direct evaluator
@@ -807,37 +902,267 @@ impl<'a> LatticeDriver<'a> {
         }
     }
 
-    /// The expression route as the driver runs it: parse the argument and
-    /// fold it under the current lattice. Braced (`expr {…}`) versus quoted
-    /// or bare (`expr "…"`, `expr …`) changes the substitution model: in a
-    /// braced argument `expr` resolves `$var` itself, so a string-valued
-    /// variable is a valid operand; in the other forms Tcl substitutes the
-    /// values textually before parsing, so a non-numeric value becomes an
-    /// invalid bareword and the whole command errors — folding that to a
-    /// number would turn an erroring program into a value. The non-braced
-    /// form therefore binds numeric constants only.
-    fn expression_route<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
+    /// A fused `set name [expr {…}]` (`AssignExpr`): the parsed expression
+    /// evaluated by the shared engine over this statement's lattice inputs,
+    /// lifted over one finite input. The nested `expr` is the head whose
+    /// binding the answer rests on; without a trust fact the fused node's
+    /// own lowering stands.
+    pub(crate) fn evaluate_assign_expr<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
         &self,
-        rest: Option<&str>,
+        expr: &ExprNode,
+        command_binding: Option<&tcl_runtime_api::CommandBindingIdentity>,
         uses: &HashMap<Symbol, Version, S1>,
         values: &HashMap<ValueKey, LatticeValue, S2>,
         ssa: &SsaFunction,
-    ) -> Option<LatticeValue> {
-        let arg = rest?.trim();
-        let braced = arg.starts_with('{');
-        let expr_text = strip_one_level(arg);
-        let expr = crate::expr_parser::parse_expr_for_profile(expr_text, self.policy.dialect);
-        let env = if braced {
-            crate::sccp::env_from_uses(uses, values, ssa)
-        } else {
-            crate::sccp::env_from_uses_numeric(uses, values, ssa)
+    ) -> LatticeValue {
+        let head = command_binding.map_or("expr", |binding| binding.name.as_str());
+        if self.folds.is_some() && !self.trusted(head) {
+            self.explain(head, None, "declined: rebinding-suspected".to_owned());
+            return LatticeValue::Overdefined;
+        }
+        let expression = ExpressionEvaluation {
+            expression: Expression::Parsed(expr),
+            policy: self.policy,
+            head: binding_of(
+                head,
+                command_binding.map_or("expr", |binding| binding.identity.as_str()),
+            ),
         };
-        eval_tcl_expr_with_policy(&expr, &env, self.policy)
-            .map(|v| LatticeValue::Const(crate::sccp::tcl_value_to_const(v)))
+        let answer = self.evaluate_expression_at(&expression, uses, values, ssa);
+        self.explain(head, Some(expression.route()), answer_label(&answer));
+        match answer {
+            LiftedAnswer::Pending => LatticeValue::Unknown,
+            LiftedAnswer::Declined(_) => LatticeValue::Overdefined,
+            LiftedAnswer::Evaluated(outcomes) => lattice_of_outcomes(&outcomes, result_of),
+        }
+    }
+
+    /// The math-function service: the binding an `expr` call `name(…)`
+    /// dispatches to. The function must exist in the target's `expr`
+    /// grammar (`min` is 8.5's, the `is…` classes 9.0's); a name the
+    /// grammar does not have is the program's error. Where the functions are
+    /// commands (`::tcl::mathfunc::NAME`, from 8.5) the module can rebind
+    /// one, and a rebound or shadowed wrapper is `RebindingSuspected` under
+    /// the run's trust stance; under 8.4 the grammar dispatches internally,
+    /// so no `proc` reaches it. Without a trust fact the builtin table
+    /// stands, as it does for the fused node's own lowering.
+    fn math_function(&self, name: &str) -> Result<BindingIdentity, DeclineReason> {
+        let profile = self.context.profile;
+        let available = match profile {
+            Some(profile) => tcl_registry::mathfunc::available_in_expr(name, profile),
+            None => tcl_syntax::expr::mathfunc::added_in(name).is_some(),
+        };
+        if !available {
+            return Err(DeclineReason::Unsupported);
+        }
+        let qualified = tcl_registry::mathfunc::qualified_name(name);
+        let wrappers = profile.is_none_or(tcl_registry::mathfunc::command_wrappers_available);
+        if wrappers && self.folds.is_some() && !self.trusted(&qualified) {
+            return Err(DeclineReason::RebindingSuspected);
+        }
+        Ok(binding_of(name, &qualified))
+    }
+
+    /// `expression` evaluated over the lattice inputs `uses` selects, with
+    /// no operand words of its own: the parsed expression reads every
+    /// variable by name.
+    fn evaluate_expression_at<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
+        &self,
+        expression: &ExpressionEvaluation<'_>,
+        uses: &HashMap<Symbol, Version, S1>,
+        values: &HashMap<ValueKey, LatticeValue, S2>,
+        ssa: &SsaFunction,
+    ) -> LiftedAnswer {
+        let inputs = LatticeInputs {
+            driver: self,
+            view: ResolvedInvocationView {
+                canonical_command: "expr",
+                subcommand: None,
+                form: None,
+                layout: InvocationLayout::Source,
+                operands: Vec::new(),
+            },
+            uses,
+            values,
+            ssa,
+            sources: Vec::new(),
+        };
+        evaluate_lifted(expression, &inputs, &mut Self::budget(), MAX_CONSTSET_SIZE)
     }
 }
 
 static EMPTY_NAMES: BTreeSet<String> = BTreeSet::new();
+
+/// One `[…]` script run on its declared route.
+struct ScriptRun {
+    /// The command's head as the script spells it.
+    head: String,
+    /// The declared route, when the head is still the builtin.
+    route: Option<EvalRoute>,
+    /// The route's answer, lifted over one finite input.
+    answer: LiftedAnswer,
+    /// The binding the answer rests on.
+    binding: BindingIdentity,
+    /// Whether the head no longer denotes its registry command.
+    rebound: bool,
+}
+
+/// The binding `head` resolves to in the global namespace, expected to be
+/// the registry's `identity`.
+fn binding_of(head: &str, identity: &str) -> BindingIdentity {
+    BindingIdentity {
+        resolution_namespace: String::new(),
+        name: head.to_owned(),
+        identity: identity.to_owned(),
+    }
+}
+
+/// Record `binding` in `evidence` once.
+fn record_binding(evidence: &mut DependencyEvidence, binding: BindingIdentity) {
+    if !evidence.bindings.contains(&binding) {
+        evidence.bindings.push(binding);
+    }
+}
+
+/// An outcome's result as a lattice value, when it is exact.
+fn result_of(outcome: &InvocationOutcome) -> Option<LatticeValue> {
+    match &outcome.result {
+        ExactValueOrUnavailable::Exact(value) => Some(exact_to_lattice(value)),
+        ExactValueOrUnavailable::Unavailable(_) => None,
+    }
+}
+
+/// A pure outcome: `value` as the result, no store, and the evidence of the
+/// route that computed it.
+fn pure_outcome(
+    value: ExactValue,
+    route: EvalRoute,
+    implementation: &'static str,
+    revision: u64,
+    bindings: Vec<BindingIdentity>,
+) -> InvocationOutcome {
+    InvocationOutcome {
+        completion: CompletionOutcome::Normal,
+        result: ExactValueOrUnavailable::Exact(value),
+        ordered_stores: Vec::new(),
+        types: TypeFacts::default(),
+        evidence: DependencyEvidence {
+            bindings,
+            route: Some(RouteIdentity {
+                route,
+                implementation,
+                revision,
+            }),
+            ..DependencyEvidence::default()
+        },
+    }
+}
+
+/// Which expression an [`ExpressionEvaluation`] evaluates.
+enum Expression<'e> {
+    /// The expression the route assembles from the invocation's argument
+    /// words ([`ExpressionRoute::assemble`]).
+    Assembled(ExpressionRoute),
+    /// An expression the lowering already parsed: a fused assignment's, or
+    /// a branch condition.
+    Parsed(&'e ExprNode),
+}
+
+/// The expression route as the lift runs it: the shared engine over the
+/// analysis services ([`evaluate_expression`]), so a finite input the
+/// expression reads is pinned per member like any route's operand.
+struct ExpressionEvaluation<'e> {
+    /// The expression.
+    expression: Expression<'e>,
+    /// The value semantics the engine evaluates under.
+    policy: FoldPolicy,
+    /// The `expr` binding the answer rests on.
+    head: BindingIdentity,
+}
+
+impl ExpressionEvaluation<'_> {
+    /// The language the engine evaluates.
+    const fn language(&self) -> LanguageProfileId {
+        match &self.expression {
+            Expression::Assembled(route) => route.language,
+            Expression::Parsed(_) => LanguageProfileId::TclExpr,
+        }
+    }
+}
+
+impl CommandSemantics for ExpressionEvaluation<'_> {
+    fn identity(&self) -> &'static str {
+        ExpressionRoute {
+            language: self.language(),
+        }
+        .identity()
+    }
+
+    fn route(&self) -> EvalRoute {
+        EvalRoute::Expression {
+            language: self.language(),
+        }
+    }
+
+    fn variable_reads(&self, input: &dyn AnalysisInputs) -> Vec<String> {
+        match &self.expression {
+            Expression::Assembled(route) => route.variable_reads(input),
+            Expression::Parsed(node) => {
+                let config = LexerConfig::for_profile(input.context().profile);
+                let mut reads: Vec<String> = node
+                    .vars_element_qualified_with_config(config)
+                    .into_iter()
+                    .collect();
+                reads.sort_unstable();
+                reads
+            }
+        }
+    }
+
+    fn evaluate(&self, input: &dyn AnalysisInputs, budget: &mut Budget) -> EvalAnswer {
+        let assembled;
+        let node = match &self.expression {
+            Expression::Assembled(route) => {
+                let source = match route.assemble(input) {
+                    Ok(source) => source,
+                    Err(answer) => return answer,
+                };
+                let text = match source.text() {
+                    Ok(text) => text,
+                    Err(reason) => return EvalAnswer::Declined(reason),
+                };
+                assembled = crate::expr_parser::parse_expr_for_profile(text, self.policy.dialect);
+                &assembled
+            }
+            Expression::Parsed(node) => *node,
+        };
+        let mut state = EvaluationState::new(NestedPolicy::EffectFreeOnly);
+        record_binding(&mut state.evidence, self.head.clone());
+        let answer = {
+            let mut services = ExprServices::new(input, &mut state, budget);
+            evaluate_expression(node, &mut services, self.policy)
+        };
+        match answer {
+            ExprAnswer::Pending => EvalAnswer::Pending,
+            ExprAnswer::Declined(reason) => EvalAnswer::Declined(reason),
+            ExprAnswer::Value(value) => {
+                let mut outcome = pure_outcome(
+                    value,
+                    self.route(),
+                    self.identity(),
+                    ExpressionRoute::REVISION,
+                    state.evidence.bindings,
+                );
+                outcome.evidence.numerals = self.policy.numbers;
+                outcome.evidence.release = self
+                    .policy
+                    .dialect
+                    .and_then(tcl_dialect::TclVersion::from_profile);
+                EvalAnswer::Evaluated(Box::new(outcome))
+            }
+        }
+    }
+}
 
 /// The commands a typed statement stands for: every registry command whose
 /// lowering `hook` produces it, shortest spelling first so the head a
@@ -891,6 +1216,24 @@ pub(crate) fn literal_token_value<'t>(
     }
 }
 
+/// What the source says about how an operand's word substitutes, for the
+/// inputs that answer its structure ([`AnalysisInputs::word_structure`])
+/// and a substituted word's value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum OperandSource {
+    /// A single braced word: its content is its value.
+    BracedLiteral,
+    /// A bare or quoted word with nothing to substitute: its cooked text is
+    /// its value.
+    Literal,
+    /// A bare or quoted word with substitutions, spelled as the source
+    /// wrote its content: the value is the parts' values concatenated.
+    Substituted,
+    /// Nothing is known of the word's quoting: an expansion, a braced
+    /// compound, a word respelled after lowering, or no source at all.
+    Unknown,
+}
+
 /// One argument of an invocation as the resolver and an evaluator read it:
 /// a literal word's value, cooked, or a substituted word's raw spelling,
 /// which the lattice reads by name.
@@ -899,29 +1242,45 @@ struct ArgWord<'t> {
     text: Cow<'t, str>,
     /// What the source proves about the word.
     kind: InvocationWordKind,
+    /// How the word substitutes.
+    source: OperandSource,
 }
 
 impl<'t> ArgWord<'t> {
     /// The word one segmented token stands for: a single-token literal is
     /// its cooked value, a `{*}` word expands, and any other word is
-    /// dynamic.
+    /// dynamic — substituted from its spelling unless it is a braced
+    /// compound, whose spelling is not its source.
     fn of_token(text: &'t str, kind: TokenType, single: bool, config: &LexerConfig) -> Self {
         if kind == TokenType::Expand {
-            return Self::spelled(text, InvocationWordKind::Expanded);
+            return Self::spelled(text, InvocationWordKind::Expanded, OperandSource::Unknown);
         }
         match literal_token_value(text, kind, config).filter(|_| single) {
             Some(value) => Self {
                 text: value,
                 kind: InvocationWordKind::Literal,
+                source: if kind == TokenType::Str {
+                    OperandSource::BracedLiteral
+                } else {
+                    OperandSource::Literal
+                },
             },
-            None => Self::spelled(text, InvocationWordKind::Dynamic),
+            None if kind == TokenType::Str => {
+                Self::spelled(text, InvocationWordKind::Dynamic, OperandSource::Unknown)
+            }
+            None => Self::spelled(
+                text,
+                InvocationWordKind::Dynamic,
+                OperandSource::Substituted,
+            ),
         }
     }
 
-    const fn spelled(text: &'t str, kind: InvocationWordKind) -> Self {
+    const fn spelled(text: &'t str, kind: InvocationWordKind, source: OperandSource) -> Self {
         Self {
             text: Cow::Borrowed(text),
             kind,
+            source,
         }
     }
 
@@ -959,9 +1318,11 @@ fn call_arguments<'t>(
             let Some(tokens) = source else {
                 return match word_of(text) {
                     InvocationWord::Literal(_) if !text.contains('\\') => {
-                        ArgWord::spelled(text, InvocationWordKind::Literal)
+                        ArgWord::spelled(text, InvocationWordKind::Literal, OperandSource::Literal)
                     }
-                    _ => ArgWord::spelled(text, InvocationWordKind::Dynamic),
+                    _ => {
+                        ArgWord::spelled(text, InvocationWordKind::Dynamic, OperandSource::Unknown)
+                    }
                 };
             };
             let at = index + 1;
@@ -972,7 +1333,7 @@ fn call_arguments<'t>(
                 .copied()
                 .unwrap_or(false);
             if expanded {
-                ArgWord::spelled(text, InvocationWordKind::Expanded)
+                ArgWord::spelled(text, InvocationWordKind::Expanded, OperandSource::Unknown)
             } else if tokens.argv_texts[at] == *text {
                 ArgWord::of_token(
                     text,
@@ -981,7 +1342,7 @@ fn call_arguments<'t>(
                     config,
                 )
             } else {
-                ArgWord::spelled(text, InvocationWordKind::Dynamic)
+                ArgWord::spelled(text, InvocationWordKind::Dynamic, OperandSource::Unknown)
             }
         })
         .collect()
@@ -1097,6 +1458,8 @@ struct LatticeInputs<'a, S1, S2> {
     uses: &'a HashMap<Symbol, Version, S1>,
     values: &'a HashMap<ValueKey, LatticeValue, S2>,
     ssa: &'a SsaFunction,
+    /// How each operand's word substitutes, in operand order.
+    sources: Vec<OperandSource>,
 }
 
 impl<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher> LatticeInputs<'_, S1, S2> {
@@ -1137,10 +1500,13 @@ impl<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher> AnalysisInputs
             InvocationWordKind::Literal => {
                 FactView::Exact(ExactValue::from_literal(operand.text), None)
             }
-            InvocationWordKind::Dynamic => simple_var_ref_name(operand.text)
-                .map_or(FactView::Top(DeclineReason::NotExact), |name| {
-                    self.named_fact(name)
-                }),
+            InvocationWordKind::Dynamic => match self.sources.get(id.0) {
+                Some(OperandSource::Substituted) => self.substituted(operand.text),
+                _ => simple_var_ref_name(operand.text)
+                    .map_or(FactView::Top(DeclineReason::NotExact), |name| {
+                        self.named_fact(name)
+                    }),
+            },
             InvocationWordKind::Expanded | InvocationWordKind::Opaque => {
                 FactView::Top(DeclineReason::NotExact)
             }
@@ -1193,24 +1559,196 @@ impl<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher> AnalysisInputs
             })
     }
 
-    fn word_structure(&self, _id: OperandId) -> Result<WordStructure, DeclineReason> {
-        Err(DeclineReason::Unsupported)
+    fn word_structure(&self, id: OperandId) -> Result<WordStructure, DeclineReason> {
+        let operand = self.view.operand(id).ok_or(DeclineReason::NotExact)?;
+        let whole = |start: u32| {
+            let end = u32::try_from(operand.text.len())
+                .unwrap_or(u32::MAX)
+                .saturating_add(start);
+            vec![WordPart::Literal {
+                span: Span::new(start, end),
+                text: operand.text.to_owned(),
+            }]
+        };
+        match self.sources.get(id.0) {
+            // The content starts one past the opening brace.
+            Some(OperandSource::BracedLiteral) => Ok(WordStructure {
+                braced: true,
+                parts: whole(1),
+            }),
+            Some(OperandSource::Literal) => Ok(WordStructure {
+                braced: false,
+                parts: whole(0),
+            }),
+            Some(OperandSource::Substituted) => Ok(WordStructure {
+                braced: false,
+                parts: word_parts(operand.text, self.driver.lexer_config)?,
+            }),
+            Some(OperandSource::Unknown) | None => Err(DeclineReason::NotExact),
+        }
     }
 
     fn body(&self, _id: OperandId) -> Result<BodyRegion, DeclineReason> {
         Err(DeclineReason::Unsupported)
     }
 
-    fn nested(&self, _script: &str, _state: &mut EvaluationState) -> EvalAnswer {
-        EvalAnswer::Declined(DeclineReason::Unsupported)
+    fn nested(&self, script: &str, state: &mut EvaluationState) -> EvalAnswer {
+        self.driver
+            .nested_answer(script, state, self.uses, self.values, self.ssa)
     }
 
-    fn math_function(&self, _name: &str) -> Result<BindingIdentity, DeclineReason> {
-        Err(DeclineReason::Unsupported)
+    fn math_function(&self, name: &str) -> Result<BindingIdentity, DeclineReason> {
+        self.driver.math_function(name)
     }
 
     fn context(&self) -> &AnalysisContext {
         &self.driver.context
+    }
+}
+
+impl<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher> LatticeInputs<'_, S1, S2> {
+    /// A substituted word's value: its parts' values concatenated — the
+    /// literal runs decoded under the document's grammar, each variable
+    /// read at this statement's use version, each script through the
+    /// nested service under the effect-free policy. A lone variable read
+    /// keeps the variable's own fact, identity included, so the lift can
+    /// pin it. A part that is never exact makes the word never exact; else
+    /// a pending part makes it pending.
+    fn substituted(&self, text: &str) -> FactView {
+        use tcl_lexer::word_parts::{SubstFlags, WordBody, WordPart as Part, decompose};
+        if let Some(name) = simple_var_ref_name(text) {
+            return self.named_fact(name);
+        }
+        let parts = match decompose(
+            text.as_bytes(),
+            SubstFlags::default(),
+            self.driver.lexer_config,
+        ) {
+            WordBody::Literal(bytes) => {
+                return FactView::Exact(exact_of_bytes(bytes.to_vec()), None);
+            }
+            WordBody::Parts(parts) => parts,
+        };
+        let mut bytes = Vec::with_capacity(text.len());
+        let mut pending = false;
+        for part in parts {
+            let value = match part {
+                Part::Text(run) => {
+                    bytes.extend_from_slice(&run);
+                    continue;
+                }
+                Part::Variable(reference) => match variable_name(&reference) {
+                    Ok(name) => self.named_fact(&name).exact(),
+                    Err(reason) => return FactView::Top(reason),
+                },
+                Part::Command(script) => match std::str::from_utf8(script) {
+                    Ok(script) => {
+                        let mut state = EvaluationState::new(NestedPolicy::EffectFreeOnly);
+                        match self.nested(script, &mut state) {
+                            EvalAnswer::Evaluated(outcome) => match outcome.result {
+                                ExactValueOrUnavailable::Exact(value) => Ok(value),
+                                ExactValueOrUnavailable::Unavailable(_) => {
+                                    Err(EvalAnswer::Declined(DeclineReason::NotExact))
+                                }
+                            },
+                            answer => Err(answer),
+                        }
+                    }
+                    Err(_) => return FactView::Top(DeclineReason::NotText),
+                },
+                Part::ParseError(_) => return FactView::Top(DeclineReason::WrongRepresentation),
+            };
+            match value {
+                Ok(value) => bytes.extend_from_slice(&value.bytes),
+                Err(EvalAnswer::Pending) => pending = true,
+                Err(EvalAnswer::Declined(reason)) => return FactView::Top(reason),
+                Err(EvalAnswer::Evaluated(_)) => {
+                    return FactView::Top(DeclineReason::Unsupported);
+                }
+            }
+        }
+        if pending {
+            return FactView::Pending;
+        }
+        FactView::Exact(exact_of_bytes(bytes), None)
+    }
+}
+
+/// A variable reference's element-qualified name: the base, or `base(key)`
+/// for a constant key; a key that substitutes is a computed name.
+fn variable_name(reference: &tcl_lexer::word_parts::VarRef<'_>) -> Result<String, DeclineReason> {
+    use tcl_lexer::word_parts::WordPart as Part;
+    let name = std::str::from_utf8(reference.name).map_err(|_| DeclineReason::NotText)?;
+    let Some(index) = &reference.index else {
+        return Ok(name.to_owned());
+    };
+    let mut key = Vec::new();
+    for piece in index {
+        let Part::Text(run) = piece else {
+            return Err(DeclineReason::DynamicName);
+        };
+        key.extend_from_slice(run);
+    }
+    let key = String::from_utf8(key).map_err(|_| DeclineReason::NotText)?;
+    Ok(format!("{name}({key})"))
+}
+
+/// A substituted word's structure: its literal runs (decoded), variable
+/// reads and script regions, each with its span in the word.
+fn word_parts(text: &str, config: LexerConfig) -> Result<Vec<WordPart>, DeclineReason> {
+    use tcl_lexer::word_parts::{SubstFlags, WordPart as Part, decompose_spanned};
+    let span = |start: usize, end: usize| {
+        Span::new(
+            u32::try_from(start).unwrap_or(u32::MAX),
+            u32::try_from(end).unwrap_or(u32::MAX),
+        )
+    };
+    decompose_spanned(text.as_bytes(), SubstFlags::default(), config)
+        .into_iter()
+        .map(|spanned| {
+            let at = span(spanned.start, spanned.end);
+            match spanned.part {
+                Part::Text(run) => Ok(WordPart::Literal {
+                    span: at,
+                    text: String::from_utf8(run.into_owned())
+                        .map_err(|_| DeclineReason::NotText)?,
+                }),
+                Part::Variable(reference) => {
+                    let base = std::str::from_utf8(reference.name)
+                        .map_err(|_| DeclineReason::NotText)?
+                        .to_owned();
+                    let element = match variable_name(&reference)? {
+                        name if name == base => None,
+                        name => Some(name[base.len() + 1..name.len() - 1].to_owned()),
+                    };
+                    Ok(WordPart::VariableRead {
+                        span: at,
+                        name: base,
+                        element,
+                    })
+                }
+                Part::Command(script) => Ok(WordPart::Script {
+                    span: at,
+                    script: std::str::from_utf8(script)
+                        .map_err(|_| DeclineReason::NotText)?
+                        .to_owned(),
+                }),
+                Part::ParseError(_) => Err(DeclineReason::WrongRepresentation),
+            }
+        })
+        .collect()
+}
+
+/// A value's bytes as an exact value, classified as a literal is when they
+/// are text.
+fn exact_of_bytes(bytes: Vec<u8>) -> ExactValue {
+    match std::str::from_utf8(&bytes) {
+        Ok(text) => ExactValue::from_literal(text),
+        Err(_) => ExactValue {
+            bytes,
+            numeric: None,
+            representation: tcl_registry::value_transfer::RepresentationEvidence::Unknown,
+        },
     }
 }
 
@@ -1454,7 +1992,12 @@ fn place_named(name: &str) -> PlaceRef {
 
 /// The name a `$var` / `${var}` word reads, or `None` for any other shape.
 fn simple_var_ref_name(text: &str) -> Option<&str> {
-    if let Some(name) = text.strip_prefix("${").and_then(|s| s.strip_suffix('}')) {
+    // `${a} + ${b}` starts and ends like one braced reference and is not.
+    if let Some(name) = text
+        .strip_prefix("${")
+        .and_then(|s| s.strip_suffix('}'))
+        .filter(|name| !name.contains('}'))
+    {
         return Some(name);
     }
     let name = text.strip_prefix('$')?;
@@ -1593,21 +2136,6 @@ pub(crate) fn split_head(text: &str) -> (&str, Option<&str>) {
     }
 }
 
-/// Strip one level of `{…}` or `"…"` wrapping. The inside is kept exactly:
-/// `{ a }` is the three-character string ` a `, and a value is a value,
-/// not a source token to tidy.
-pub(crate) fn strip_one_level(text: &str) -> &str {
-    if text.len() >= 2 {
-        let bytes = text.as_bytes();
-        if (bytes[0] == b'{' && bytes[text.len() - 1] == b'}')
-            || (bytes[0] == b'"' && bytes[text.len() - 1] == b'"')
-        {
-            return &text[1..text.len() - 1];
-        }
-    }
-    text
-}
-
 /// Resolve `name` to the textual form of its lattice constant at this
 /// statement's use version, or `None` when it is not a single `Const` —
 /// the variable lookup the registry const-fold engine runs under.
@@ -1636,22 +2164,6 @@ mod tests {
         assert_eq!(split_head("cmd arg1 arg2"), ("cmd", Some("arg1 arg2")));
         assert_eq!(split_head("  cmd"), ("cmd", None));
         assert_eq!(split_head(""), ("", None));
-    }
-
-    #[test]
-    fn strip_one_level_braces_and_quotes() {
-        assert_eq!(strip_one_level("{abc}"), "abc");
-        assert_eq!(strip_one_level("\"abc\""), "abc");
-        assert_eq!(strip_one_level("bare"), "bare");
-        assert_eq!(strip_one_level("{}"), "");
-    }
-
-    /// A value is a value, not a source token: the inside of a braced word
-    /// keeps its whitespace.
-    #[test]
-    fn strip_one_level_keeps_the_inside_exact() {
-        assert_eq!(strip_one_level("{ a }"), " a ");
-        assert_eq!(strip_one_level("\"\ta\n\""), "\ta\n");
     }
 
     #[test]

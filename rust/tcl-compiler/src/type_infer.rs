@@ -426,13 +426,11 @@ fn arithmetic_result(lt: &TypeLattice, rt: &TypeLattice) -> TypeLattice {
     }
 }
 
-/// Resolve a Tcl `expr` math-function call to its result type.
-///
-/// `abs` is identity
-/// (preserves its operand's type), `max` / `min` join their operand
-/// types, every other built-in returns its declared type, and an
-/// unknown function is conservatively `Numeric` (an `expr` function
-/// always yields a number).
+/// Resolve a Tcl `expr` math-function call to its result type, from the
+/// function's class in the shared math-function table
+/// ([`tcl_syntax::expr::mathfunc::result_class`]): a fixed class is its type,
+/// a function whose result is one of its operands (`abs`, `max`, `min`) takes
+/// their join, and a name no release defines is conservatively `Numeric`.
 fn expr_call_type(
     function: &str,
     args: &[ExprNode],
@@ -440,49 +438,23 @@ fn expr_call_type(
     depth: u32,
     numbers: NumberSyntax,
 ) -> TypeLattice {
-    // `depth` is the level of the enclosing `Call` node; its args are one
-    // level deeper; `infer_expr_type` guards the cap itself.
-    // Identity: `abs` preserves the operand type (Int fallback).
-    if function == "abs" {
-        return match args.first() {
-            Some(a) => infer_expr_type(a, var_types, depth + 1, numbers),
-            None => TypeLattice::of(TclType::Int),
-        };
-    }
-    // Variadic join: `max` / `min` join all operand types.
-    if function == "max" || function == "min" {
-        let mut it = args.iter();
-        return match it.next() {
-            Some(first) => {
-                let mut acc = infer_expr_type(first, var_types, depth + 1, numbers);
-                for a in it {
-                    acc = type_join(&acc, &infer_expr_type(a, var_types, depth + 1, numbers));
-                }
-                acc
+    use tcl_syntax::expr::mathfunc::{MathResultClass, result_class};
+    match result_class(function) {
+        MathResultClass::Int => TypeLattice::of(TclType::Int),
+        MathResultClass::Float => TypeLattice::of(TclType::Double),
+        MathResultClass::Bool => TypeLattice::of(TclType::Boolean),
+        // `depth` is the level of the enclosing `Call` node; its args are one
+        // level deeper; `infer_expr_type` guards the cap itself.
+        MathResultClass::Numeric => {
+            let mut operands = args
+                .iter()
+                .map(|arg| infer_expr_type(arg, var_types, depth + 1, numbers));
+            match operands.next() {
+                Some(first) => operands.fold(first, |acc, next| type_join(&acc, &next)),
+                None => TypeLattice::of(TclType::Numeric),
             }
-            None => TypeLattice::of(TclType::Numeric),
-        };
-    }
-    match function {
-        // Integer-returning conversions. NB: `ceil`/`floor` are NOT here — they
-        // return a *double* in Tcl (`expr {ceil(3.14)}` → 4.0, `string is
-        // integer 4.0` → 0), unlike `round`/`int`/`entier` which round to an
-        // integer. Verified against tclsh8.6/9.0.
-        "int" | "round" | "isqrt" | "wide" | "entier" => TypeLattice::of(TclType::Int),
-        // Double-returning math (incl. ceil/floor, which yield N.0).  The
-        // Tcl 9.1 C99 additions (TIP 745, verified against tmp/tcl9.1-src) are
-        // all double-valued except the `signbit` predicate below.
-        "double" | "ceil" | "floor" | "sin" | "cos" | "tan" | "asin" | "acos" | "atan"
-        | "atan2" | "sinh" | "cosh" | "tanh" | "sqrt" | "exp" | "log" | "log10" | "pow"
-        | "hypot" | "fmod" | "rand" | "srand" | "acosh" | "asinh" | "atanh" | "cbrt"
-        | "copysign" | "dim" | "erf" | "erfc" | "exp2" | "expm1" | "fma" | "gamma" | "ldexp"
-        | "lgamma" | "log1p" | "log2" | "logb" | "nextafter" | "remainder" | "trunc" => {
-            TypeLattice::of(TclType::Double)
         }
-        // Boolean-returning predicates.  `signbit` yields 0/1 (Tcl 9.1, TIP 745).
-        "bool" | "isnan" | "isinf" | "signbit" => TypeLattice::of(TclType::Boolean),
-        // Unknown function — conservative.
-        _ => TypeLattice::of(TclType::Numeric),
+        MathResultClass::Any => TypeLattice::of(TclType::Numeric),
     }
 }
 
@@ -2380,6 +2352,20 @@ mod tests {
             );
         }
         assert_eq!(infer_str("signbit($x)").tcl_type(), Some(TclType::Boolean));
+        // The rest of TIP 521's classification family answers 0 or 1 like
+        // `isnan` (tclsh 9.0 and 9.1: `isfinite(1.0)` is 1, `isunordered(1,
+        // 2)` is 0); the table this reads classes them as `isnan` is.
+        for f in ["isfinite", "isnormal", "issubnormal"] {
+            assert_eq!(
+                infer_str(&format!("{f}($x)")).tcl_type(),
+                Some(TclType::Boolean),
+                "{f} should infer Boolean",
+            );
+        }
+        assert_eq!(
+            infer_str("isunordered($x, 1)").tcl_type(),
+            Some(TclType::Boolean)
+        );
         // Unknown function → Numeric (conservative).
         assert_eq!(infer_str("nope($x)").tcl_type(), Some(TclType::Numeric));
     }

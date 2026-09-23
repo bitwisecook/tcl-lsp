@@ -108,6 +108,16 @@ pub trait CommandSemantics: Sync + Send {
         }
     }
 
+    /// The variables this invocation's evaluation reads by name, through
+    /// [`AnalysisInputs::variable`] rather than through an operand: the
+    /// `$name` operands an expression reads itself. The lift counts their
+    /// finite views among the evaluation's distinct inputs
+    /// ([`lift::finite_inputs`]). The default reads none.
+    fn variable_reads(&self, input: &dyn AnalysisInputs) -> Vec<String> {
+        let _ = input;
+        Vec::new()
+    }
+
     /// The abstract transfer for one fact domain: a delta the owning solver
     /// validates and applies. A transfer that evaluates charges the same
     /// budget as [`Self::evaluate`].

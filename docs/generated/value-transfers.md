@@ -1138,8 +1138,8 @@ Every reviewed site the source lint found, with the waiver that names the axis i
 | arg_roles | `rust/tcl-compiler/src/analyser/bounds_checks.rs:1112` | site | the W230–W232 index positions await an index-argument role on the registry |
 | arg_roles | `rust/tcl-compiler/src/analyser/bounds_checks.rs:1145` | site | the W230–W232 index positions await an index-argument role on the registry |
 | arg_roles | `rust/tcl-compiler/src/analyser/bounds_checks.rs:1181` | site | the W230–W232 index positions await an index-argument role on the registry |
-| dataflow | `rust/tcl-compiler/src/value_transfer.rs:784` | site | the transitional direct evaluator |
-| dataflow | `rust/tcl-compiler/src/value_transfer.rs:806` | site | the transitional direct evaluator |
+| dataflow | `rust/tcl-compiler/src/value_transfer.rs:879` | site | the transitional direct evaluator |
+| dataflow | `rust/tcl-compiler/src/value_transfer.rs:901` | site | the transitional direct evaluator |
 | irreducible | `rust/tcl-compiler/src/codegen/emitter/try_blocks.rs:155` | site | the defs-only marker `lower_catch` builds on a catch end block, not a Tcl invocation |
 | irreducible | `rust/tcl-compiler/src/codegen/emitter/try_blocks.rs:173` | site | the defs-only marker `lower_catch` builds on a catch end block, not a Tcl invocation |
 | options | `rust/tcl-compiler/src/analyser/diagnostics/usage.rs:313` | site | W311 reads the encoding option's position, which `option_placement` on the registry will carry |

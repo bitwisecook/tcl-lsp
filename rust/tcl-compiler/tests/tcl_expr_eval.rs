@@ -969,8 +969,12 @@ fn irules_matches_glob() {
         eval_irules(r#""/api/v2/users" matches_glob "/api/*/users""#),
         Some(int(1))
     );
-    assert_eq!(eval_irules(r#""a1" matches_glob "a[0-9]""#), Some(int(1)));
-    assert_eq!(eval_irules(r#""ax" matches_glob "a[0-9]""#), Some(int(0)));
+    // A bracket range is written braced: a quoted `"a[0-9]"` runs the
+    // command `0-9` (tclsh 8.4 to 9.1: `invalid command name "0-9"`), so it
+    // declines.
+    assert_eq!(eval_irules(r#""a1" matches_glob {a[0-9]}"#), Some(int(1)));
+    assert_eq!(eval_irules(r#""ax" matches_glob {a[0-9]}"#), Some(int(0)));
+    assert_eq!(eval_irules(r#""a1" matches_glob "a[0-9]""#), None);
     assert_eq!(
         eval_irules_env(
             r#"$uri matches_glob "/images/*""#,

@@ -116,11 +116,13 @@ impl AnalysisInputs for PinnedInputs<'_> {
     }
 }
 
-/// The distinct finite inputs of the invocation: every operand and the
-/// prior value of every target its evaluation reads
-/// ([`CommandSemantics::incoming_targets`]) that is a finite set,
-/// deduplicated by SSA identity. An entry with no identity cannot be pinned
-/// and counts as its own distinct value.
+/// The distinct finite inputs of the invocation: every operand, the prior
+/// value of every target its evaluation reads
+/// ([`CommandSemantics::incoming_targets`]), and every variable it reads by
+/// name ([`CommandSemantics::variable_reads`]) that is a finite set,
+/// deduplicated by SSA identity — so `expr {$a * $a}` over `a ∈ {1, 2}` is
+/// one input, and evaluates per member to `{1, 4}`. An entry with no
+/// identity cannot be pinned and counts as its own distinct value.
 #[must_use]
 pub fn finite_inputs(
     semantics: &dyn CommandSemantics,
@@ -142,6 +144,9 @@ pub fn finite_inputs(
         if let Ok(place) = inputs.place(target.0) {
             note(inputs.prior_store(&place, FactDomain::ExactValue));
         }
+    }
+    for name in semantics.variable_reads(inputs) {
+        note(inputs.variable(&name, FactDomain::ExactValue));
     }
     found
 }

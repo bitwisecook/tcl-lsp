@@ -1431,12 +1431,12 @@ fn evaluate_def_dispatch<S: std::hash::BuildHasher>(
             .map_or(LatticeValue::Overdefined, |value| {
                 LatticeValue::Const(parse_literal_value(&value))
             }),
-        Statement::AssignExpr { expr, .. } => {
-            let env = env_from_uses(&stmt_ssa.uses, values, ssa);
-            match eval_tcl_expr_with_policy(expr, &env, driver.policy()) {
-                Some(v) => LatticeValue::Const(tcl_value_to_const(v)),
-                None => LatticeValue::Overdefined,
-            }
+        Statement::AssignExpr {
+            expr,
+            command_binding,
+            ..
+        } => {
+            driver.evaluate_assign_expr(expr, command_binding.as_ref(), &stmt_ssa.uses, values, ssa)
         }
         Statement::AssignValue {
             value,
@@ -1636,30 +1636,6 @@ pub(crate) fn env_from_uses<S1: std::hash::BuildHasher, S2: std::hash::BuildHash
     let mut env = Env::new();
     for (&sym, &ver) in uses {
         if let Some(LatticeValue::Const(c)) = values.get(&(sym, ver)) {
-            env.insert(ssa.var_name(sym).to_owned(), const_to_env_value(c));
-        }
-    }
-    env
-}
-
-/// Like [`env_from_uses`] but includes only variables whose lattice value is
-/// *numeric* (int / float / bool). Used for folding a quoted / bare
-/// `expr "…"`, where Tcl substitutes the variable's value textually before
-/// parsing: a non-numeric value becomes an invalid bareword, so leaving it
-/// unbound makes the fold bail (matching Tcl's runtime error).
-pub(crate) fn env_from_uses_numeric<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
-    uses: &HashMap<Symbol, crate::ssa::Version, S1>,
-    values: &HashMap<ValueKey, LatticeValue, S2>,
-    ssa: &SsaFunction,
-) -> Env {
-    let mut env = Env::new();
-    for (&sym, &ver) in uses {
-        if let Some(LatticeValue::Const(c)) = values.get(&(sym, ver))
-            && matches!(
-                c,
-                ConstValue::Int(_) | ConstValue::Float(_) | ConstValue::Bool(_)
-            )
-        {
             env.insert(ssa.var_name(sym).to_owned(), const_to_env_value(c));
         }
     }
@@ -2633,6 +2609,125 @@ mod tests {
             evaluate_def(&stmt_ssa, &values, &ssa, FoldPolicy::default()),
             LatticeValue::Overdefined,
             "a dialect-blind policy must decline the word-operator fold"
+        );
+    }
+
+    /// A fused `set r [expr {TEXT}]` under `profile`'s expression grammar.
+    fn fused_expr_stmt(
+        ssa: &mut SsaFunction,
+        text: &str,
+        profile: Option<&'static tcl_dialect::DialectProfile>,
+    ) -> SsaStatement {
+        let mut defs = HashMap::new();
+        defs.insert(ssa.intern_var("r"), 1);
+        SsaStatement {
+            statement: Statement::AssignExpr {
+                span: Span::new(0, 0),
+                name: "r".into(),
+                name_braced: false,
+                expr: crate::expr_parser::parse_expr_for_profile(text, profile),
+                command_binding: Some(tcl_runtime_api::CommandBindingIdentity::new("expr", "expr")),
+                expr_base: None,
+                fallback_value: format!("[expr {{{text}}}]"),
+            },
+            uses: HashMap::new(),
+            defs,
+            may_defs: std::collections::HashSet::new(),
+            quoted_uses: std::collections::HashSet::new(),
+            name_only_uses: std::collections::HashSet::new(),
+        }
+    }
+
+    /// `expr` answers its full value, not only a number: a string result is
+    /// the result, and a string that reads as a number under the target's
+    /// grammar is that number's canonical form. Oracle, tclsh 8.4 to 9.1:
+    /// `expr {"x"}` is `x`, `expr {1 ? "yes" : "no"}` is `yes`, `expr
+    /// {"true"}` is `true`, `expr {" 5 "}` is 5, `expr {"0x10"}` is 16,
+    /// `expr {"1.50"}` is 1.5 and `expr {1/0}` raises; `expr {"010"}` is 8 up
+    /// to 8.6 and 10 from 9.0; `expr {1 << 70}` is
+    /// `1180591620717411303424` from 8.5 and 0 under 8.4, so a target that
+    /// does not widen declines it.
+    #[test]
+    fn a_fused_expression_answers_its_full_value() {
+        let text = |s: &str| LatticeValue::Const(ConstValue::String(s.to_owned()));
+        let int = |i: i64| LatticeValue::Const(ConstValue::Int(i));
+        let under = |name: &str| {
+            let profile = tcl_dialect::DialectProfile::find(name).expect(name);
+            (
+                Some(profile),
+                FoldPolicy::for_profile(
+                    crate::tcl_expr_eval::leading_zero_is_octal(profile),
+                    Some(profile),
+                ),
+            )
+        };
+        let cases: [(&str, &str, LatticeValue); 16] = [
+            ("tcl8.4", r#""x""#, text("x")),
+            ("f5-irules", r#""x""#, text("x")),
+            ("tcl9.0", r#"1 ? "yes" : "no""#, text("yes")),
+            ("tcl8.6", r#""true""#, text("true")),
+            ("tcl8.6", r#"" 5 ""#, int(5)),
+            ("tcl9.0", r#""0x10""#, int(16)),
+            (
+                "tcl8.6",
+                r#""1.50""#,
+                LatticeValue::Const(ConstValue::Float(1.5)),
+            ),
+            ("tcl8.6", r#""010""#, int(8)),
+            ("tcl9.0", r#""010""#, int(10)),
+            ("tcl8.6", r#""08""#, text("08")),
+            ("tcl9.0", "1/0", LatticeValue::Overdefined),
+            ("tcl9.0", "1 << 70", text("1180591620717411303424")),
+            ("tcl8.6", "2 ** 64", text("18446744073709551616")),
+            ("tcl8.4", "1 << 70", LatticeValue::Overdefined),
+            ("f5-irules", "1 << 70", LatticeValue::Overdefined),
+            ("tcl9.0", "[string length abc] * 2", int(6)),
+        ];
+        for (dialect, expression, want) in cases {
+            let (profile, policy) = under(dialect);
+            let mut ssa = bare_ssa();
+            let stmt = fused_expr_stmt(&mut ssa, expression, profile);
+            assert_eq!(
+                evaluate_pristine(&stmt, &HashMap::new(), &ssa, policy),
+                want,
+                "{dialect}: expr {{{expression}}}"
+            );
+        }
+        // No leading-zero rule at all: the two readings of `010` disagree.
+        let mut ssa = bare_ssa();
+        let stmt = fused_expr_stmt(&mut ssa, r#""010""#, None);
+        assert_eq!(
+            evaluate_pristine(&stmt, &HashMap::new(), &ssa, FoldPolicy::from_octal(None)),
+            LatticeValue::Overdefined
+        );
+    }
+
+    /// A quoted `expr` word is substituted as text before the expression is
+    /// parsed: with `a` holding `1 + 1`, `expr "$a * 2"` is `1 + 1 * 2`, 3
+    /// under tclsh 8.4 to 9.1 — the variable's value is re-read as
+    /// expression source, where a braced `expr {$a * 2}` raises.
+    #[test]
+    fn a_quoted_expression_word_is_substituted_before_it_is_parsed() {
+        let mut ssa = bare_ssa();
+        let mut stmt = assign_value_stmt(&mut ssa, "r", "[expr \"$a * 2\"]", 1);
+        let a = ssa.intern_var("a");
+        stmt.uses.insert(a, 1);
+        let mut values = HashMap::new();
+        values.insert(
+            (a, 1),
+            LatticeValue::Const(ConstValue::String("1 + 1".into())),
+        );
+        assert_eq!(
+            evaluate_pristine(&stmt, &values, &ssa, FoldPolicy::default()),
+            LatticeValue::Const(ConstValue::Int(3))
+        );
+        let mut ssa = bare_ssa();
+        let mut stmt = fused_expr_stmt(&mut ssa, "$a * 2", None);
+        let a = ssa.intern_var("a");
+        stmt.uses.insert(a, 1);
+        assert_eq!(
+            evaluate_pristine(&stmt, &values, &ssa, FoldPolicy::default()),
+            LatticeValue::Overdefined
         );
     }
 

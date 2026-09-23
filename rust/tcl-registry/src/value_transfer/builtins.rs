@@ -25,9 +25,10 @@
 //! transitional one ([`NativeEvalId::owner`], [`FORMAT_TEMPLATE`] until
 //! slice 3) is run by the compiler's value-transfer driver as today's fold
 //! until the shared cores replace it, and the migration plan's ledger names
-//! it with its expiry. The expression route is run by the driver's engine
-//! adapter by construction; the registry-owned argument assembly lands
-//! with the expression slice.
+//! it with its expiry. The expression route ([`EXPR`]) assembles its
+//! arguments here ([`ExpressionRoute::assemble`]) and is evaluated by the
+//! driver's engine adapter, which feeds the shared engine the analysis
+//! services.
 
 use crate::types::TclType;
 
@@ -39,7 +40,7 @@ use super::answers::{
 use super::const_ops::{ConstOps, ConstValue, Needs, TargetSemantics};
 use super::context::Budget;
 use super::decline::DeclineReason;
-use super::inputs::{AnalysisInputs, FactDomain, OperandId};
+use super::inputs::{AnalysisInputs, FactDomain, OperandId, WordPart};
 use super::route::{EvalRoute, LanguageProfileId, NativeEvalId};
 
 /// The revision of the registry-owned `string range` evaluator.
@@ -459,6 +460,117 @@ pub static EXPR: ExpressionRoute = ExpressionRoute {
     language: LanguageProfileId::TclExpr,
 };
 
+/// A BPF-Tcl expression. The route never evaluates in the analyser: see
+/// [`ExpressionRoute::assemble`].
+pub static BPF_EXPR: ExpressionRoute = ExpressionRoute {
+    language: LanguageProfileId::BpfExpr,
+};
+
+/// What `expr`'s argument words assemble to, as the command specifies:
+/// one braced word is the expression text, whose `$name` reads the
+/// engine performs through `variable`; any other word reaches the
+/// engine already substituted; several words join with one space.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ExpressionSource {
+    /// One braced word: its text, and where the text starts in the word's
+    /// source (one past the opening brace), for anchoring a position of
+    /// the parsed expression back to the word.
+    Braced {
+        /// The expression text.
+        text: String,
+        /// The text's byte offset in the operand's source word.
+        base: usize,
+    },
+    /// Any other shape: every word's substituted value, joined with one
+    /// space. `expr` parses the result as an expression, so its `$name`
+    /// reads and `[…]` scripts run a second time — Tcl's double
+    /// substitution of an unbraced argument.
+    Substituted(ExactValue),
+}
+
+impl ExpressionSource {
+    /// The expression text the engine parses.
+    ///
+    /// # Errors
+    ///
+    /// `NotText` when an assembled value's bytes are not text.
+    pub fn text(&self) -> Result<&str, DeclineReason> {
+        match self {
+            Self::Braced { text, .. } => Ok(text),
+            Self::Substituted(value) => value.as_str(),
+        }
+    }
+}
+
+impl ExpressionRoute {
+    /// The revision of the expression route's evaluation: 1 is the shared
+    /// engine's full value under the analysis services.
+    pub const REVISION: u64 = 1;
+
+    /// Assemble the invocation's argument words into the expression the
+    /// engine evaluates.
+    ///
+    /// Only Tcl's own arithmetic is evaluated here: under
+    /// [`LanguageProfileId::BpfExpr`] the route declines `Unsupported`,
+    /// because BPF-Tcl's signed division truncates towards zero (`-7 / 2`
+    /// is `-3`) where Tcl floors (`-4` on every release from 8.4 to 9.1),
+    /// and the BPF arithmetic adapter is the BPF frontend's
+    /// (`docs/design/compiler/ebpf-backend.md`): a Tcl engine result is
+    /// never a BPF constant.
+    ///
+    /// # Errors
+    ///
+    /// `Pending` while an argument word is pending; `Declined` with the
+    /// reason an argument word is not an exact value (a finite set the
+    /// lift could not pin is `CorrelatedSets`), or `Unsupported` for no
+    /// argument at all — the program's `wrong # args` — and for a language
+    /// the engine does not evaluate.
+    pub fn assemble(&self, input: &dyn AnalysisInputs) -> Result<ExpressionSource, EvalAnswer> {
+        if self.language != LanguageProfileId::TclExpr {
+            return Err(EvalAnswer::Declined(DeclineReason::Unsupported));
+        }
+        let words = input.invocation().operands.len();
+        if words == 0 {
+            return Err(EvalAnswer::Declined(DeclineReason::Unsupported));
+        }
+        let braced = if words == 1 {
+            input
+                .word_structure(OperandId(0))
+                .ok()
+                .filter(|structure| structure.braced)
+        } else {
+            None
+        };
+        if let Some(structure) = braced {
+            let value = exact_operand(input, 0)?;
+            let text = value.as_str().map_err(EvalAnswer::Declined)?.to_owned();
+            let base = match structure.parts.as_slice() {
+                [WordPart::Literal { span, .. }] => span.start() as usize,
+                _ => 1,
+            };
+            return Ok(ExpressionSource::Braced { text, base });
+        }
+        let mut values = (0..words).map(|index| exact_operand(input, index));
+        let first = values
+            .next()
+            .unwrap_or(Err(EvalAnswer::Declined(DeclineReason::Unsupported)))?;
+        let mut rest = values.peekable();
+        if rest.peek().is_none() {
+            return Ok(ExpressionSource::Substituted(first));
+        }
+        let mut bytes = first.bytes;
+        for value in rest {
+            bytes.push(b' ');
+            bytes.extend_from_slice(&value?.bytes);
+        }
+        Ok(ExpressionSource::Substituted(ExactValue {
+            bytes,
+            numeric: None,
+            representation: super::answers::RepresentationEvidence::Unknown,
+        }))
+    }
+}
+
 impl CommandSemantics for ExpressionRoute {
     fn identity(&self) -> &'static str {
         match self.language {
@@ -471,5 +583,26 @@ impl CommandSemantics for ExpressionRoute {
         EvalRoute::Expression {
             language: self.language,
         }
+    }
+
+    /// The `$name` operands of the assembled expression, element-qualified
+    /// (`a(k)` for a constant key), parsed under the context's profile. An
+    /// argument that is not yet an exact value reads nothing here: the
+    /// lift counts that operand itself.
+    fn variable_reads(&self, input: &dyn AnalysisInputs) -> Vec<String> {
+        let Ok(source) = self.assemble(input) else {
+            return Vec::new();
+        };
+        let Ok(text) = source.text() else {
+            return Vec::new();
+        };
+        let profile = input.context().profile;
+        let node = tcl_syntax::expr::parser::parse_expr_for_profile(text, profile);
+        let mut reads: Vec<String> = node
+            .vars_element_qualified_with_config(tcl_lexer::LexerConfig::for_profile(profile))
+            .into_iter()
+            .collect();
+        reads.sort_unstable();
+        reads
     }
 }

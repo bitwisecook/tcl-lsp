@@ -52,6 +52,10 @@
 use std::collections::HashMap;
 
 use tcl_dialect::{NumberSyntax, StringCharacterModel};
+use tcl_registry::value_transfer::{
+    AnalysisInputs, Axis, Budget, BudgetLimit, DeclineReason, EvalAnswer, EvaluationState,
+    ExactValue, ExactValueOrUnavailable, FactDomain, NumericValue, RepresentationEvidence,
+};
 
 use crate::expr_ast::{BinOp, ExprNode, UnaryOp};
 
@@ -440,6 +444,7 @@ fn eval_with_config(
     let mut ops = FoldOps {
         env,
         ambiguous: false,
+        platform: false,
         octal,
         // Without an explicit grammar, infer from the leading-zero policy the
         // caller did resolve: the 8.x octal rule implies the 8.x numeric
@@ -456,10 +461,11 @@ fn eval_with_config(
     // The final value must reduce to a number (a bare string like `expr {"x"}`
     // doesn't fold) — `to_number` maps a `Str` result through `parse_literal`.
     let result = tcl_syntax::expr::eval(node, &mut ops).ok()?;
-    if ops.ambiguous {
+    if ops.ambiguous || ops.platform {
         // A comparison hit a leading-zero operand whose octal-vs-decimal
-        // reading is dialect-dependent and the dialect is unknown — decline
-        // to fold rather than pick one.
+        // reading is dialect-dependent and the dialect is unknown, or a
+        // comparison the platform decides — decline to fold rather than pick
+        // one.
         return None;
     }
     result.to_number(ops.numbers)
@@ -472,7 +478,7 @@ fn eval_with_config(
 /// verbatim) — exactly the `eval`-vs-`eval_as_string` split, so the raw-text
 /// string-compare behaviour (`5.00 eq 5.0` → 0) is preserved.
 #[derive(Clone)]
-enum FoldValue {
+pub(crate) enum FoldValue {
     Int(i64),
     Big(num_bigint::BigInt),
     Float(f64),
@@ -520,6 +526,11 @@ struct FoldOps<'a> {
     /// comparison whose answer is platform-dependent in C Tcl (see
     /// [`numeric_cmp`]).
     ambiguous: bool,
+    /// Set when a comparison's answer is the platform's rather than a
+    /// release's: the wide-vs-2⁶³-double sliver whose result is undefined
+    /// behaviour in C Tcl (see [`numeric_cmp`]). Declines like
+    /// [`Self::ambiguous`].
+    platform: bool,
     /// How a bare leading-zero integer (`08`, `010`) is read in `==`/`!=`/`<`/…
     /// numeric eligibility: `Some(true)` = octal (Tcl 8.x — `08`/`09` invalid →
     /// string, `010` → 8), `Some(false)` = decimal (Tcl 9.0 — `08` → 8,
@@ -606,49 +617,19 @@ fn parse_octal_literal(s: &str) -> Option<TclValue> {
     Some(TclValue::Int(if neg { -v } else { v }))
 }
 
-impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
-    type Value = FoldValue;
-    type Error = ();
-
-    fn literal(&mut self, text: &str) -> Result<FoldValue, ()> {
-        Ok(FoldValue::Str(text.to_owned()))
-    }
-    fn string(&mut self, inner: &str) -> Result<FoldValue, ()> {
-        Ok(FoldValue::Str(inner.to_owned()))
-    }
-    fn var(&mut self, name: &str) -> Result<FoldValue, ()> {
-        match self.env.get(name) {
-            Some(EnvValue::Int(i)) => Ok(FoldValue::Int(*i)),
-            Some(EnvValue::Float(f)) => Ok(FoldValue::Float(*f)),
-            Some(EnvValue::Str(s)) => Ok(FoldValue::Str(s.clone())),
-            None => Err(()), // unbound → can't fold
-        }
-    }
-    fn command(&mut self, _script: &str) -> Result<FoldValue, ()> {
-        Err(()) // command substitution is opaque at compile time
-    }
-    fn call(&mut self, function: &str, args: Vec<FoldValue>) -> Result<FoldValue, ()> {
-        use tcl_syntax::expr::mathfunc::{Num, accepts_boolean_operand, added_in, dispatch};
-        let name = function.to_ascii_lowercase();
-        if matches!(name.as_str(), "rand" | "srand") {
-            return Err(()); // non-deterministic
-        }
-        // A function newer than the dialect provides has no `::tcl::mathfunc`
-        // command to run — folding it would invent a value the real
-        // interpreter never yields (it would error), so decline.
-        if let (Some(ceiling), Some(since)) = (self.math_since, added_in(&name))
-            && since > ceiling
-        {
-            return Err(());
-        }
-        // Math functions are the shared `tcl_syntax::expr::mathfunc` (the same
-        // dispatch the runtime evaluates). Map `TclValue` → `Num` → result.
-        // Every function except `bool` reads its operand as a strict number —
-        // `Tcl_GetBoolean` coercion (`true`→1) would let the folder turn an
-        // error (`abs(true)`) into a value, so parse strictly unless the
-        // function itself accepts boolean words (the registry of that fact is
-        // the mathfunc module, not a name check here).
-        let boolean_ok = accepts_boolean_operand(&name);
+impl FoldOps<'_> {
+    /// Run the math function `name` — spelled as the program calls it —
+    /// over `args` through the shared dispatcher, the one the runtime
+    /// evaluates with; `Err` when it declines.
+    fn math_call(&self, name: &str, args: &[FoldValue]) -> Result<FoldValue, ()> {
+        use tcl_syntax::expr::mathfunc::{Num, accepts_boolean_operand, dispatch};
+        // Map `TclValue` → `Num` → result. Every function except `bool`
+        // reads its operand as a strict number — `Tcl_GetBoolean` coercion
+        // (`true`→1) would let the folder turn an error (`abs(true)`) into
+        // a value, so parse strictly unless the function itself accepts
+        // boolean words (the registry of that fact is the mathfunc module,
+        // not a name check here).
+        let boolean_ok = accepts_boolean_operand(name);
         let octal = self.octal;
         let numbers = self.numbers;
         let nums: Option<Vec<Num>> = args
@@ -669,10 +650,62 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
                 })
             })
             .collect();
-        match dispatch(&name, &nums.ok_or(())?).ok_or(())? {
+        match dispatch(name, &nums.ok_or(())?).ok_or(())? {
             Num::Int(i) => Ok(FoldValue::Int(i)),
             Num::Float(f) => Ok(FoldValue::Float(f)),
         }
+    }
+}
+
+impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
+    type Value = FoldValue;
+    type Error = ();
+
+    fn literal(&mut self, text: &str) -> Result<FoldValue, ()> {
+        Ok(FoldValue::Str(text.to_owned()))
+    }
+    fn string(&mut self, inner: &str) -> Result<FoldValue, ()> {
+        Ok(FoldValue::Str(inner.to_owned()))
+    }
+    /// A `"…"` operand is substituted by `expr` — `$var`, `[cmd]` and
+    /// backslashes — so its spelling is its value only when it holds none of
+    /// them. This environment cannot substitute a script or decode under the
+    /// document's grammar, so any other quoted operand declines: read as its
+    /// spelling, `if {"$a" eq "x"}` was folded false where tclsh 8.4 to 9.1
+    /// take the branch. The analysis services substitute it
+    /// ([`ExprServices`]).
+    fn quoted_string(&mut self, inner: &str) -> Result<FoldValue, ()> {
+        if inner.contains(['$', '[', '\\']) {
+            return Err(());
+        }
+        Ok(FoldValue::Str(inner.to_owned()))
+    }
+    fn var(&mut self, name: &str) -> Result<FoldValue, ()> {
+        match self.env.get(name) {
+            Some(EnvValue::Int(i)) => Ok(FoldValue::Int(*i)),
+            Some(EnvValue::Float(f)) => Ok(FoldValue::Float(*f)),
+            Some(EnvValue::Str(s)) => Ok(FoldValue::Str(s.clone())),
+            None => Err(()), // unbound → can't fold
+        }
+    }
+    fn command(&mut self, _script: &str) -> Result<FoldValue, ()> {
+        Err(()) // command substitution is opaque at compile time
+    }
+    fn call(&mut self, function: &str, args: Vec<FoldValue>) -> Result<FoldValue, ()> {
+        use tcl_syntax::expr::mathfunc::added_in;
+        let name = function.to_ascii_lowercase();
+        if reads_the_generator(&name) {
+            return Err(()); // non-deterministic
+        }
+        // A function newer than the dialect provides has no `::tcl::mathfunc`
+        // command to run — folding it would invent a value the real
+        // interpreter never yields (it would error), so decline.
+        if let (Some(ceiling), Some(since)) = (self.math_since, added_in(&name))
+            && since > ceiling
+        {
+            return Err(());
+        }
+        self.math_call(&name, &args)
     }
 
     fn arith(&mut self, op: BinOp, left: FoldValue, right: FoldValue) -> Result<FoldValue, ()> {
@@ -771,7 +804,7 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
                     // fold. Returning bare `None` would instead fall back to
                     // a string comparison of two numbers, computing a wrong
                     // value.
-                    self.ambiguous = true;
+                    self.platform = true;
                 }
                 outcome
             }
@@ -1409,6 +1442,465 @@ fn apply_irules_string_op(op: BinOp, left: &str, right: &str) -> Option<TclValue
         _ => return None,
     };
     Some(TclValue::Int(i64::from(res)))
+}
+
+// The engine adapter: the shared walk over the analysis services
+
+/// Whether the math function `name` reads or seeds the interpreter's random
+/// generator, whose state no evaluation can know.
+fn reads_the_generator(name: &str) -> bool {
+    // value-transfer-ok: irreducible — `rand` and `srand` read and seed the
+    // interpreter's generator, which no evaluation can know.
+    matches!(name, "rand" | "srand")
+}
+
+/// Why an evaluation under the analysis services stopped short of a value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ExprStop {
+    /// An input the solver has not reached yet.
+    Pending,
+    /// No value, for the recorded reason.
+    Declined(DeclineReason),
+}
+
+impl ExprStop {
+    /// The stop an input service's answer stands for.
+    fn of_answer(answer: &EvalAnswer) -> Self {
+        match answer {
+            EvalAnswer::Pending => Self::Pending,
+            EvalAnswer::Declined(reason) => Self::Declined(*reason),
+            // A service that answers an outcome where a value was asked for
+            // is malformed.
+            EvalAnswer::Evaluated(_) => Self::Declined(DeclineReason::Unsupported),
+        }
+    }
+}
+
+/// The shared engine's answer for one expression under the analysis
+/// services.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ExprAnswer {
+    /// The expression's full value: the number Tcl normalises a numeric
+    /// result to, or the string result itself.
+    Value(ExactValue),
+    /// An input has not reached a usable fact.
+    Pending,
+    /// No value, for the recorded reason.
+    Declined(DeclineReason),
+}
+
+/// The environment the services' value model never reads: every `$name`
+/// goes through [`AnalysisInputs::variable`].
+static NO_ENV: std::sync::LazyLock<Env> = std::sync::LazyLock::new(Env::new);
+
+/// The engine's `ExprOps` over the analysis inputs: `var` reads through
+/// `variable`, `command` through `nested`, `call` through `math_function`
+/// and the shared dispatcher, and a quoted operand is substituted as
+/// `expr` substitutes it. The value semantics — the numeral grammar, the
+/// comparisons, the arithmetic — are the const-folder's ([`FoldOps`]), so
+/// an expression answers here what it answers there; what differs is where
+/// an operand's value comes from, and that a stop says why.
+pub(crate) struct ExprServices<'a> {
+    inputs: &'a dyn AnalysisInputs,
+    state: &'a mut EvaluationState,
+    budget: &'a mut Budget,
+    fold: FoldOps<'static>,
+    /// Whether the target widens an integer past a wide and reads `Inf`:
+    /// `Some(true)` from 8.5 (and for a caller that names no dialect, which
+    /// reads as 9.0), `Some(false)` for a 8.4 runtime, `None` for a profile
+    /// whose runtime names no release.
+    widens: Option<bool>,
+    /// The first stop an infallible hook raised (a comparison over an
+    /// operand the target's integer tower cannot read).
+    stopped: Option<DeclineReason>,
+    /// The document's lexer configuration, for a quoted operand's
+    /// substitution.
+    lexer: tcl_lexer::LexerConfig,
+}
+
+impl<'a> ExprServices<'a> {
+    /// Services over `inputs`, recording nested evidence in `state` and
+    /// charging `budget`.
+    pub(crate) fn new(
+        inputs: &'a dyn AnalysisInputs,
+        state: &'a mut EvaluationState,
+        budget: &'a mut Budget,
+    ) -> Self {
+        let profile = inputs.context().profile;
+        Self {
+            inputs,
+            state,
+            budget,
+            fold: FoldOps::for_services(FoldPolicy::default()),
+            widens: Some(true),
+            stopped: None,
+            lexer: tcl_lexer::LexerConfig::for_profile(profile),
+        }
+    }
+
+    /// Take the value semantics `policy` states.
+    fn configure(&mut self, policy: FoldPolicy) {
+        self.fold = FoldOps::for_services(policy);
+        self.widens = policy.dialect.map_or(Some(true), |profile| {
+            profile
+                .runtime_base
+                .map(|release| release >= tcl_dialect::TclVersion::V8_5)
+        });
+        self.stopped = None;
+    }
+
+    /// A cancellation point: every service call is one.
+    fn checkpoint(&self) -> Result<(), ExprStop> {
+        if self.budget.is_cancelled() {
+            return Err(ExprStop::Declined(DeclineReason::Budget(
+                BudgetLimit::Cancelled,
+            )));
+        }
+        Ok(())
+    }
+
+    /// Why a beyond-wide integer or an infinity has no value here: 8.4
+    /// computes something else (it wraps, or raises on `Inf`), and a
+    /// profile that names no release cannot say which.
+    fn tower_reason(&self) -> DeclineReason {
+        match self.widens {
+            Some(_) => DeclineReason::WrongRepresentation,
+            None => DeclineReason::ReleaseAmbiguous(Axis::IntTower),
+        }
+    }
+
+    /// Whether `value` reads as a beyond-wide integer under the target's
+    /// grammar.
+    fn is_big(&self, value: &FoldValue) -> bool {
+        match value {
+            FoldValue::Big(_) => true,
+            FoldValue::Int(_) | FoldValue::Float(_) => false,
+            FoldValue::Str(_) => matches!(
+                strict_number_for_dialect(value, self.fold.octal, self.fold.numbers),
+                Some(TclValue::Big(_))
+            ),
+        }
+    }
+
+    /// `Err` when an operand or result is a beyond-wide integer the target
+    /// does not widen to.
+    fn tower(&self, values: &[&FoldValue]) -> Result<(), ExprStop> {
+        if self.widens != Some(true) && values.iter().any(|value| self.is_big(value)) {
+            return Err(ExprStop::Declined(self.tower_reason()));
+        }
+        Ok(())
+    }
+
+    /// An exact input as an engine operand: its numeric classification when
+    /// it has one, else its text.
+    fn operand_of(value: &ExactValue) -> Result<FoldValue, ExprStop> {
+        match value.numeric {
+            Some(NumericValue::Int(i)) => Ok(FoldValue::Int(i)),
+            Some(NumericValue::Float(f)) => Ok(FoldValue::Float(f)),
+            Some(NumericValue::Bool(b)) => Ok(FoldValue::Int(i64::from(b))),
+            None => value
+                .as_str()
+                .map(|text| FoldValue::Str(text.to_owned()))
+                .map_err(ExprStop::Declined),
+        }
+    }
+
+    /// The expression's full value, as `expr` returns it: a string result
+    /// that reads as a number under the target's grammar is that number's
+    /// canonical form (`expr {"0x10"}` is 16, `expr {" 5 "}` is 5), and any
+    /// other string is the result (`expr {"x"}` is `x`, `expr {"true"}` is
+    /// `true`).
+    fn full_value(&self, value: &FoldValue) -> Result<ExactValue, DeclineReason> {
+        let number = match value {
+            FoldValue::Str(text) => {
+                match classify_operand(value, self.fold.octal, self.fold.numbers) {
+                    Operand::Num(number) => number,
+                    Operand::Str => return Ok(ExactValue::text(text.clone())),
+                    Operand::Ambiguous => {
+                        return Err(DeclineReason::ReleaseAmbiguous(Axis::NumeralGrammar));
+                    }
+                }
+            }
+            FoldValue::Int(i) => TclValue::Int(*i),
+            FoldValue::Big(b) => TclValue::from_big(b.clone()),
+            FoldValue::Float(f) => TclValue::Float(*f),
+        };
+        match number {
+            TclValue::Int(i) => Ok(ExactValue::int(i)),
+            TclValue::Big(_) if self.widens != Some(true) => Err(self.tower_reason()),
+            // A beyond-wide integer is its canonical decimal spelling, which
+            // a later fold re-reads exactly.
+            TclValue::Big(b) => Ok(ExactValue::text(b.to_string())),
+            // `expr` raises on a NaN result: a domain error, never a value.
+            TclValue::Float(f) if f.is_nan() => Err(DeclineReason::WrongRepresentation),
+            TclValue::Float(f) if f.is_infinite() && self.widens != Some(true) => {
+                Err(self.tower_reason())
+            }
+            TclValue::Float(f) => Ok(ExactValue {
+                bytes: tcl_syntax::number::format_double(f).into_bytes(),
+                numeric: Some(NumericValue::Float(f)),
+                representation: RepresentationEvidence::Unknown,
+            }),
+        }
+    }
+}
+
+impl FoldOps<'static> {
+    /// The value semantics the analysis services evaluate under: `policy`'s
+    /// numeral grammar and operator set, reading no environment. The math
+    /// functions' availability is the `math_function` service's.
+    fn for_services(policy: FoldPolicy) -> Self {
+        Self {
+            env: &NO_ENV,
+            ambiguous: false,
+            platform: false,
+            octal: policy.octal,
+            numbers: policy.numbers.unwrap_or(if policy.octal == Some(true) {
+                NumberSyntax::Tcl85
+            } else {
+                NumberSyntax::default()
+            }),
+            math_since: None,
+            is_irules: policy.is_irules,
+            word_rules: policy.word_rules,
+        }
+    }
+}
+
+/// A fold operation's refusal: the program raises (a non-numeric operand,
+/// division by zero, a domain error) or the model does not compute it, and
+/// either way an error is never a value.
+const fn refused(_: ()) -> ExprStop {
+    ExprStop::Declined(DeclineReason::WrongRepresentation)
+}
+
+impl tcl_syntax::expr::ExprOps for ExprServices<'_> {
+    type Value = FoldValue;
+    type Error = ExprStop;
+
+    fn literal(&mut self, text: &str) -> Result<FoldValue, ExprStop> {
+        Ok(FoldValue::Str(text.to_owned()))
+    }
+
+    fn string(&mut self, inner: &str) -> Result<FoldValue, ExprStop> {
+        Ok(FoldValue::Str(inner.to_owned()))
+    }
+
+    /// A `"…"` operand is substituted as a quoted word is: its variables
+    /// read through `variable`, its scripts through `nested`, its escapes
+    /// decoded under the document's grammar.
+    fn quoted_string(&mut self, inner: &str) -> Result<FoldValue, ExprStop> {
+        use tcl_lexer::word_parts::{SubstFlags, WordBody, WordPart as Part, decompose};
+        let parts = match decompose(inner.as_bytes(), SubstFlags::default(), self.lexer) {
+            WordBody::Literal(_) => return Ok(FoldValue::Str(inner.to_owned())),
+            WordBody::Parts(parts) => parts,
+        };
+        let mut bytes = Vec::with_capacity(inner.len());
+        for part in parts {
+            match part {
+                Part::Text(text) => bytes.extend_from_slice(&text),
+                Part::Variable(reference) => {
+                    let name = std::str::from_utf8(reference.name)
+                        .map_err(|_| ExprStop::Declined(DeclineReason::NotText))?;
+                    let name = match reference.index {
+                        None => name.to_owned(),
+                        Some(index) => {
+                            let mut key = Vec::new();
+                            for piece in index {
+                                let Part::Text(text) = piece else {
+                                    return Err(ExprStop::Declined(DeclineReason::DynamicName));
+                                };
+                                key.extend_from_slice(&text);
+                            }
+                            let key = String::from_utf8(key)
+                                .map_err(|_| ExprStop::Declined(DeclineReason::NotText))?;
+                            format!("{name}({key})")
+                        }
+                    };
+                    let value = tcl_syntax::expr::ExprOps::var(self, &name)?;
+                    bytes.extend_from_slice(value.to_string_val().as_bytes());
+                }
+                Part::Command(script) => {
+                    let script = std::str::from_utf8(script)
+                        .map_err(|_| ExprStop::Declined(DeclineReason::NotText))?;
+                    let value = tcl_syntax::expr::ExprOps::command(self, script)?;
+                    bytes.extend_from_slice(value.to_string_val().as_bytes());
+                }
+                Part::ParseError(_) => {
+                    return Err(ExprStop::Declined(DeclineReason::WrongRepresentation));
+                }
+            }
+        }
+        String::from_utf8(bytes)
+            .map(FoldValue::Str)
+            .map_err(|_| ExprStop::Declined(DeclineReason::NotText))
+    }
+
+    fn var(&mut self, name: &str) -> Result<FoldValue, ExprStop> {
+        self.checkpoint()?;
+        let value = self
+            .inputs
+            .variable(name, FactDomain::ExactValue)
+            .exact()
+            .map_err(|answer| ExprStop::of_answer(&answer))?;
+        Self::operand_of(&value)
+    }
+
+    fn command(&mut self, script: &str) -> Result<FoldValue, ExprStop> {
+        self.checkpoint()?;
+        let outcome = match self.inputs.nested(script, self.state) {
+            EvalAnswer::Evaluated(outcome) => outcome,
+            answer => return Err(ExprStop::of_answer(&answer)),
+        };
+        match &outcome.result {
+            ExactValueOrUnavailable::Exact(value) => Self::operand_of(value),
+            ExactValueOrUnavailable::Unavailable(_) => {
+                Err(ExprStop::Declined(DeclineReason::NotExact))
+            }
+        }
+    }
+
+    fn call(&mut self, function: &str, args: Vec<FoldValue>) -> Result<FoldValue, ExprStop> {
+        self.checkpoint()?;
+        if reads_the_generator(function) {
+            return Err(ExprStop::Declined(DeclineReason::Unsupported));
+        }
+        let binding = self
+            .inputs
+            .math_function(function)
+            .map_err(ExprStop::Declined)?;
+        if !self.state.evidence.bindings.contains(&binding) {
+            self.state.evidence.bindings.push(binding);
+        }
+        let operands: Vec<&FoldValue> = args.iter().collect();
+        self.tower(&operands)?;
+        let value = self.fold.math_call(function, &args).map_err(refused)?;
+        self.tower(&[&value])?;
+        Ok(value)
+    }
+
+    fn arith(
+        &mut self,
+        op: BinOp,
+        left: FoldValue,
+        right: FoldValue,
+    ) -> Result<FoldValue, ExprStop> {
+        self.tower(&[&left, &right])?;
+        let value = self.fold.arith(op, left, right).map_err(refused)?;
+        self.tower(&[&value])?;
+        Ok(value)
+    }
+
+    fn unary(&mut self, op: UnaryOp, value: FoldValue) -> Result<FoldValue, ExprStop> {
+        self.tower(&[&value])?;
+        let value = self.fold.unary(op, value).map_err(refused)?;
+        self.tower(&[&value])?;
+        Ok(value)
+    }
+
+    fn binary_other(
+        &mut self,
+        op: BinOp,
+        left: FoldValue,
+        right: FoldValue,
+    ) -> Result<FoldValue, ExprStop> {
+        self.fold
+            .binary_other(op, left, right)
+            .map_err(|()| ExprStop::Declined(DeclineReason::Unsupported))
+    }
+
+    fn compare_numeric(
+        &mut self,
+        left: &FoldValue,
+        right: &FoldValue,
+    ) -> Option<tcl_syntax::expr::NumericCompare> {
+        if self.stopped.is_none()
+            && let Err(ExprStop::Declined(reason)) = self.tower(&[left, right])
+        {
+            self.stopped = Some(reason);
+        }
+        self.fold.compare_numeric(left, right)
+    }
+
+    fn compare_string(&mut self, left: &FoldValue, right: &FoldValue) -> std::cmp::Ordering {
+        self.fold.compare_string(left, right)
+    }
+
+    fn in_list(&mut self, needle: &FoldValue, list: &FoldValue) -> Result<bool, ExprStop> {
+        self.fold.in_list(needle, list).map_err(refused)
+    }
+
+    fn to_bool(&mut self, value: &FoldValue) -> Result<bool, ExprStop> {
+        self.tower(&[value])?;
+        self.fold.to_bool(value).map_err(refused)
+    }
+
+    fn bool_value(&mut self, b: bool) -> FoldValue {
+        FoldValue::Int(i64::from(b))
+    }
+
+    fn unsupported(&mut self, what: &str) -> ExprStop {
+        // An unparsed expression is the program's syntax error; any other
+        // unsupported construct is one this model does not evaluate.
+        ExprStop::Declined(if what == "syntax error in expression" {
+            DeclineReason::WrongRepresentation
+        } else {
+            DeclineReason::Unsupported
+        })
+    }
+}
+
+/// The nodes of `node`, the work its evaluation is charged before it runs.
+fn node_count(node: &ExprNode) -> u64 {
+    1 + match node {
+        ExprNode::Unary { operand, .. } => node_count(operand),
+        ExprNode::Binary { left, right, .. } => node_count(left) + node_count(right),
+        ExprNode::Ternary {
+            condition,
+            true_branch,
+            false_branch,
+        } => node_count(condition) + node_count(true_branch) + node_count(false_branch),
+        ExprNode::Call { args, .. } => args.iter().map(node_count).sum(),
+        ExprNode::Literal { .. }
+        | ExprNode::String { .. }
+        | ExprNode::CompiledWord { .. }
+        | ExprNode::Var { .. }
+        | ExprNode::Command { .. }
+        | ExprNode::Raw { .. } => 0,
+    }
+}
+
+/// Evaluate `node` under the analysis services and `policy`'s value
+/// semantics: the engine's full value, or why there is none. One work unit
+/// per node is charged before the walk; each service call is a
+/// cancellation point.
+pub(crate) fn evaluate_expression(
+    node: &ExprNode,
+    services: &mut ExprServices<'_>,
+    policy: FoldPolicy,
+) -> ExprAnswer {
+    services.configure(policy);
+    if let Err(reason) = services.budget.charge_work(node_count(node)) {
+        return ExprAnswer::Declined(reason);
+    }
+    let value = match tcl_syntax::expr::eval(node, services) {
+        Ok(value) => value,
+        Err(ExprStop::Pending) => return ExprAnswer::Pending,
+        Err(ExprStop::Declined(reason)) => return ExprAnswer::Declined(reason),
+    };
+    if let Some(reason) = services.stopped {
+        return ExprAnswer::Declined(reason);
+    }
+    if services.fold.ambiguous {
+        return ExprAnswer::Declined(DeclineReason::ReleaseAmbiguous(Axis::NumeralGrammar));
+    }
+    if services.fold.platform {
+        return ExprAnswer::Declined(DeclineReason::ReleaseAmbiguous(Axis::Platform));
+    }
+    match services.full_value(&value) {
+        Ok(value) => ExprAnswer::Value(value),
+        Err(reason) => ExprAnswer::Declined(reason),
+    }
 }
 
 // Tests
@@ -2194,6 +2686,10 @@ mod tests {
         );
     }
 
+    /// A bracket class is written braced: a quoted operand is substituted,
+    /// so `"a[bxy]c"` would run the command `bxy` (tclsh 8.4 to 9.1 raise
+    /// `invalid command name "bxy"` for `expr {"abc" eq "a[bxy]c"}`) and
+    /// declines here.
     #[test]
     fn irules_matches_glob_question_and_class() {
         assert_eq!(
@@ -2201,17 +2697,18 @@ mod tests {
             Some(TclValue::Int(1))
         );
         assert_eq!(
-            eval_irules(r#""abc" matches_glob "a[bxy]c""#),
+            eval_irules(r#""abc" matches_glob {a[bxy]c}"#),
             Some(TclValue::Int(1))
         );
         assert_eq!(
-            eval_irules(r#""axc" matches_glob "a[bxy]c""#),
+            eval_irules(r#""axc" matches_glob {a[bxy]c}"#),
             Some(TclValue::Int(1))
         );
         assert_eq!(
-            eval_irules(r#""azc" matches_glob "a[bxy]c""#),
+            eval_irules(r#""azc" matches_glob {a[bxy]c}"#),
             Some(TclValue::Int(0))
         );
+        assert_eq!(eval_irules(r#""abc" matches_glob "a[bxy]c""#), None);
     }
 
     #[test]

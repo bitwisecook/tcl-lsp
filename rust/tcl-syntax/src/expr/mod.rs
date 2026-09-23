@@ -35,7 +35,7 @@ pub mod syntax_error;
 
 pub use ast::{BinOp, ExprNode, ExprOffset, UnaryOp};
 pub use eval::{ExprOps, NumericCompare, eval};
-pub use mathfunc::MathFuncSpec;
+pub use mathfunc::{MathFuncSpec, MathResultClass};
 pub use operators::{ALL_BIN_OPS, ALL_UNARY_OPS, CommandArity, OperatorShape, OperatorSpec};
 pub use parser::parse_expr;
 pub use substitution::{

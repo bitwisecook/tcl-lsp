@@ -73,6 +73,15 @@ pub trait ExprOps {
     fn literal(&mut self, text: &str) -> Result<Self::Value, Self::Error>;
     /// A quoted/braced string operand (delimiters already stripped).
     fn string(&mut self, inner: &str) -> Result<Self::Value, Self::Error>;
+    /// A `"…"` string operand (delimiters already stripped). `expr` runs
+    /// word substitution — `$var`, `[cmd]`, backslashes — over a quoted
+    /// operand and never over a braced one, and only the delimiter tells
+    /// them apart. The default forwards to [`ExprOps::string`], so a
+    /// consumer that substitutes every string operand, or none, keeps its
+    /// behaviour; a consumer that must tell the two apart overrides this.
+    fn quoted_string(&mut self, inner: &str) -> Result<Self::Value, Self::Error> {
+        self.string(inner)
+    }
     /// Resolve a `$name` reference.
     fn var(&mut self, name: &str) -> Result<Self::Value, Self::Error>;
     /// Evaluate a `[script]` (brackets already stripped).
@@ -134,6 +143,9 @@ pub trait ExprOps {
 pub fn eval<O: ExprOps>(node: &ExprNode, ops: &mut O) -> Result<O::Value, O::Error> {
     match node {
         ExprNode::Literal { text, .. } => ops.literal(text),
+        ExprNode::String { text, .. } if text.starts_with('"') => {
+            ops.quoted_string(strip_delims(text))
+        }
         ExprNode::String { text, .. } => ops.string(strip_delims(text)),
         // The value as-is — there are no delimiters to strip, which is the
         // whole reason this operand exists: `strip_delims` on a value that
@@ -326,6 +338,9 @@ mod tests {
     struct Ops {
         commands: Vec<String>,
         calls: Vec<String>,
+        /// When set, every quoted operand is recorded here and read back
+        /// marked, so a test can tell which hook the walker called.
+        quoted: Option<Vec<String>>,
     }
 
     impl ExprOps for Ops {
@@ -339,6 +354,15 @@ mod tests {
         }
         fn string(&mut self, inner: &str) -> Result<V, String> {
             Ok(V::Str(inner.to_string()))
+        }
+        fn quoted_string(&mut self, inner: &str) -> Result<V, String> {
+            match &mut self.quoted {
+                Some(seen) => {
+                    seen.push(inner.to_string());
+                    Ok(V::Str(format!("quoted:{inner}")))
+                }
+                None => self.string(inner),
+            }
         }
         fn var(&mut self, name: &str) -> Result<V, String> {
             // `x` → 10, `y` → 0; any other name (an `arr(idx)` reference
@@ -525,6 +549,22 @@ mod tests {
         assert_eq!(eval_str("5 in {1 2 3}").unwrap(), V::Num(0));
         assert_eq!(eval_str("5 ni {1 2 3}").unwrap(), V::Num(1));
         assert_eq!(eval_str("2 ni {1 2 3}").unwrap(), V::Num(0));
+    }
+
+    /// Only the delimiter says whether `expr` substitutes inside a string
+    /// operand, so the walker hands a `"…"` operand to `quoted_string` and a
+    /// `{…}` one to `string`.
+    #[test]
+    fn a_quoted_operand_reaches_its_own_hook() {
+        let node = parse_expr(r#""a" eq {a}"#, None);
+        let mut ops = Ops {
+            quoted: Some(Vec::new()),
+            ..Ops::default()
+        };
+        assert_eq!(eval(&node, &mut ops).unwrap(), V::Num(0));
+        assert_eq!(ops.quoted, Some(vec!["a".to_owned()]));
+        // A consumer that does not tell them apart reads both alike.
+        assert_eq!(eval_str(r#""a" eq {a}"#).unwrap(), V::Num(1));
     }
 
     #[test]

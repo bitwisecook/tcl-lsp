@@ -923,3 +923,37 @@ fn a_keyed_update_reads_its_dictionary_under_every_spelling() {
         }
     }
 }
+
+/// A BPF-Tcl expression never takes the Tcl engine's answer: BPF-Tcl's
+/// signed division truncates towards zero (`-7 / 2` is `-3`) where Tcl
+/// floors (`-4` under tclsh 8.4 to 9.1), so the route under the BPF
+/// language evaluates nothing and the BPF frontend's own arithmetic stays
+/// the only answer. No shipped command declares the BPF language yet; the
+/// synthetic `bpfexpr` stands for the frontend's expression arguments.
+#[test]
+fn a_bpf_expression_never_takes_the_tcl_answer() {
+    use tcl_registry::spec::CommandSpec;
+    use tcl_registry::value_transfer::SemanticsDeclaration;
+    use tcl_registry::value_transfer::builtins::BPF_EXPR;
+    let mut registry = tcl_registry::CommandRegistry::build_default();
+    registry.insert(CommandSpec {
+        name: "bpfexpr",
+        semantics: SemanticsDeclaration::Declared(&BPF_EXPR),
+        ..CommandSpec::DEFAULT
+    });
+    let source = "proc p {} {set r [bpfexpr {-7 / 2}]; set t [expr {-7 / 2}]; return $r$t}\n";
+    let unit = CompilationUnit::build_for_dialect(source, &registry, false, "tcl9.0");
+    assert_eq!(
+        value_at(&unit, "::p", "r", 1),
+        Some(LatticeValue::Overdefined)
+    );
+    assert_eq!(
+        answers_for(&unit, "::p", "bpfexpr"),
+        ["declined: unsupported"]
+    );
+    assert_eq!(
+        value_at(&unit, "::p", "t", 1),
+        Some(LatticeValue::Const(ConstValue::Int(-4)))
+    );
+    prints_under_every_release("puts [expr {-7 / 2}]\n", "-4\n");
+}
