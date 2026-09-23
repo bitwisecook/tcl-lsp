@@ -2664,6 +2664,9 @@ impl Vm {
         if self.is_safe {
             self.scrub_host_globals_for_safe();
         }
+        if self.limits.confined_stores {
+            self.scrub_host_globals_for_confinement();
+        }
     }
 
     pub(crate) fn register(&mut self, name: &str, f: BuiltinFn) {
@@ -4137,6 +4140,23 @@ impl Vm {
     /// Confine (or release) stores to the running procedure's own frame.
     pub(crate) fn set_stores_confined_value(&mut self, confined: bool) {
         self.limits.confined_stores = confined;
+        if confined {
+            self.scrub_host_globals_for_confinement();
+        }
+    }
+
+    /// Remove every global the host's bootstrap wrote — `::env`,
+    /// `::tcl_platform` and the library paths — so a body whose stores are
+    /// confined reads no host environment either, and its answer depends on
+    /// its arguments and the pinned release alone. Reading one raises, as
+    /// reading any unset variable does.
+    fn scrub_host_globals_for_confinement(&mut self) {
+        for name in tcl_platform::bootstrap::HOST_ARRAYS
+            .iter()
+            .chain(tcl_platform::bootstrap::HOST_PATH_GLOBALS)
+        {
+            self.unset_global_raw(name);
+        }
     }
 
     /// Refuse a store to `name`, resolved from level `start`, that would

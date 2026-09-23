@@ -315,11 +315,14 @@ pub trait Engine {
 
     /// Refuse, as a Tcl error, every store whose name resolves outside the
     /// running procedure's own frame: a `::`-qualified name, a namespace
-    /// variable, a linked variable. Reads are unaffected.
+    /// variable, a linked variable. Reads are unaffected, except that an
+    /// engine which seeds globals from its host — an environment, platform
+    /// facts, library paths — removes them.
     ///
     /// What keeps a hosted body's answer a function of its arguments: with
     /// its writes confined to its own activation, no invocation leaves state
-    /// behind that a later one reads. Called once per engine, after
+    /// behind that a later one reads, and no global tells it about the
+    /// machine it happens to run on. Called once per engine, after
     /// [`Self::restrict_commands`]. The default declines, so an engine that
     /// cannot confine its stores says so and the host builds no sandbox on
     /// it.

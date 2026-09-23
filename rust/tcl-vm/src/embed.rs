@@ -318,10 +318,13 @@ impl Vm {
     /// the confinement. While confined, a store whose name resolves anywhere
     /// else — a `::`-qualified name, a namespace variable, a global, a local
     /// linked to another frame — fails as a Tcl error (`can't set "::n":
-    /// stores are confined to the activation`) before anything is written;
-    /// reads are unaffected. A hosted body whose writes all stay in its own
-    /// activation leaves nothing for a later call to read, so its answer
-    /// depends on its arguments alone.
+    /// stores are confined to the activation`) before anything is written.
+    /// Confining also removes the globals the host's bootstrap wrote
+    /// (`::env`, `::tcl_platform`, the library paths), again after a host
+    /// swap; releasing the confinement does not restore them. A hosted body
+    /// whose writes all stay in its own activation leaves nothing for a
+    /// later call to read and finds no host environment to read, so its
+    /// answer depends on its arguments alone.
     pub fn set_stores_confined(&mut self, confined: bool) {
         self.set_stores_confined_value(confined);
     }

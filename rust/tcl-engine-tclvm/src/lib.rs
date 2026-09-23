@@ -852,6 +852,52 @@ mod tests {
         );
     }
 
+    /// A confined engine reads no host environment (`value-evaluation.md`
+    /// § *The rest of the route contract*): before `confine_stores` the
+    /// host has seeded `::env`, `::tcl_platform` and `::tcl_library`, and
+    /// after it none exists, so reading one raises as a read of an unset
+    /// variable does and a body cannot fold the analysing machine's user,
+    /// platform or paths into an answer about a program that runs
+    /// elsewhere.
+    #[test]
+    fn a_confined_engine_reads_no_host_environment() {
+        let arguments = [Value::list([]), Value::dict_of::<&str>([])];
+        let seeded = "return [list [info exists ::env] [info exists ::tcl_platform] \
+                      [info exists ::tcl_library]]";
+        let mut open = TclVmEngine::new();
+        let handle = open.compile(unit(seeded)).expect("compiles");
+        assert_eq!(
+            open.invoke(&handle, &arguments).expect("reads").as_str(),
+            Some("1 1 1"),
+            "the host seeds its globals"
+        );
+        let mut confined = TclVmEngine::new();
+        confined
+            .confine_stores()
+            .expect("the VM confines its stores");
+        let handle = confined.compile(unit(seeded)).expect("compiles");
+        assert_eq!(
+            confined
+                .invoke(&handle, &arguments)
+                .expect("reads")
+                .as_str(),
+            Some("0 0 0"),
+            "confining removes them"
+        );
+        for body in [
+            "return $::tcl_platform(byteOrder)",
+            "return $::tcl_library",
+            "return $::env(PATH)",
+        ] {
+            let handle = confined.compile(unit(body)).expect("compiles");
+            let answer = confined.invoke(&handle, &arguments);
+            assert!(
+                matches!(&answer, Err(EngineError::Script { .. })),
+                "{body}: {answer:?}"
+            );
+        }
+    }
+
     #[test]
     fn each_invocation_gets_its_own_locals() {
         let mut engine = TclVmEngine::new();

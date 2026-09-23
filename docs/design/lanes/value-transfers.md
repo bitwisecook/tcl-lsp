@@ -3073,8 +3073,17 @@ Green at the third checkpoint (VT4.7 to VT4.9):
   `pack-goldens` 0 of 24 rewritten; no new test binary; `cargo check
   --workspace --all-targets` clean.
 
-The state the sonnet items start from — the tree of the third
-checkpoint:
+After the third checkpoint, `wip(value-transfers): slice 4 — a confined
+engine reads no host environment` closes the route contract's
+host-environment clause (D101):
+`a_confined_engine_reads_no_host_environment` (`tcl-engine-tclvm`);
+`cargo test -p tcl-vm -p tcl-engine-api -p tcl-spec-hooks -p tcl-spectcl
+--no-fail-fast` under `LANG=C.UTF-8` 1817 passed, 1 ignored, and
+`tcl-engine-tclvm` 15 passed; pedantic clippy and `cargo fmt --check`
+clean on the three crates it touches.
+
+The state the sonnet items start from — the tree of this record's last
+commit:
 
 - **VT4.10.** The id rule is `loader/semantics.rs`'s `native_id`: a short
   id is a notice naming `SCOPE::FIELD`, and a full id is a notice that
@@ -6588,6 +6597,19 @@ Taken while slice 4's opus items were executed (§ *Slice 4* › *Record
   folds under a 500-unit request all decline). Sound; the witness pins
   only that the declines are the request's and each publishes
   `Overdefined` (open question below).
+- **D101 — A confined engine reads no host environment.** The page's route
+  contract says the engine does not read a host environment, and its
+  per-evaluation state reads "a body that *reads* `::counter` reads the
+  empty string, because nothing ever writes it"; but the VM's bootstrap
+  seeds `::env` with the analysing machine's environment, `::tcl_platform`
+  with its platform facts and `::tcl_library` / `::auto_path` with its
+  paths, so a body could fold `$::env(USER)` into an answer about a
+  program that runs elsewhere. Confining stores now also removes every
+  global the host bootstrap wrote (`tcl_platform::bootstrap::HOST_ARRAYS`
+  and `HOST_PATH_GLOBALS`), and again after a host swap; a read of one
+  raises, which is a decline. `Engine::confine_stores`' contract says so.
+  The safe-interpreter scrub keeps the portable `tcl_platform` keys; this
+  keeps none, because `PLATFORM` is never satisfiable on this route.
 
 ### Open questions for the owner
 
