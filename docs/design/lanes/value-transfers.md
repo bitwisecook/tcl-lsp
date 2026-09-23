@@ -6800,6 +6800,20 @@ Taken while slice 4's opus items were executed (§ *Slice 4* › *Record
   raises, which is a decline. `Engine::confine_stores`' contract says so.
   The safe-interpreter scrub keeps the portable `tcl_platform` keys; this
   keeps none, because `PLATFORM` is never satisfiable on this route.
+- **D102 — A declared implementation reads its inputs before its
+  target.** `DeclaredSemantics::evaluate` asked for the release and
+  admitted the target before it read the places and the inputs, so under a
+  profile that names no release a call whose argument the analysis cannot
+  know declined `Unsupported` rather than `NotExact`, and one whose input
+  had not settled declined at once rather than stayed pending. The lift
+  reads the inputs (step 2) before it evaluates (step 5), as every direct
+  route reads its operands before `ConstOps::admit`; the places and the
+  inputs are now read first, then the release, the admission and the
+  host. An answer under a profile with a release does not change, and one
+  under a profile without one still declines, with the input's own reason
+  where it has one. Found by VT4.13's completion test under the lenient
+  `tcl` profile; `an_unknown_input_declines_before_the_release_is_asked`
+  (`value_transfer/declared.rs`) pins it.
 
 ### Open questions for the owner
 

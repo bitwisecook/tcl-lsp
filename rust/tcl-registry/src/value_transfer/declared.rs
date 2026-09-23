@@ -392,14 +392,9 @@ impl DeclaredSemantics {
         }
         let context = input.context();
         let target = TargetSemantics::of(context.profile);
-        // The body runs on an engine pinned to the analysed release; a
-        // profile that names none has no engine to run it on.
-        let (Some(profile), Some(release)) = (context.profile, target.release) else {
-            return EvalAnswer::Declined(DeclineReason::Unsupported);
-        };
-        if let Err(reason) = ConstOps::admit(context, budget, capability.target) {
-            return EvalAnswer::Declined(reason);
-        }
+        // The lift's order: the places and the inputs first, so an input
+        // the analysis has not reached stays pending and one it cannot know
+        // declines as such, whatever the target; then the target.
         let places = match self.target_places(input) {
             Ok(places) => places,
             Err(reason) => return EvalAnswer::Declined(reason),
@@ -410,6 +405,14 @@ impl DeclaredSemantics {
                 Ok(text) => words.push(text),
                 Err(answer) => return answer,
             }
+        }
+        // The body runs on an engine pinned to the analysed release; a
+        // profile that names none has no engine to run it on.
+        let (Some(profile), Some(release)) = (context.profile, target.release) else {
+            return EvalAnswer::Declined(DeclineReason::Unsupported);
+        };
+        if let Err(reason) = ConstOps::admit(context, budget, capability.target) {
+            return EvalAnswer::Declined(reason);
         }
         let Some(slot) = implementation.slot else {
             // No host plan bound the body: nothing on this worker can run it.
@@ -700,11 +703,12 @@ mod tests {
         }
 
         fn operand(&self, id: OperandId, _domain: FactDomain) -> FactView {
-            self.view
-                .operand(id)
-                .map_or(FactView::Top(DeclineReason::NotExact), |operand| {
+            match self.view.operand(id) {
+                Some(operand) if operand.kind == InvocationWordKind::Literal => {
                     FactView::Exact(ExactValue::from_literal(operand.text), None)
-                })
+                }
+                _ => FactView::Top(DeclineReason::NotExact),
+            }
         }
 
         fn place(&self, id: OperandId) -> Result<PlaceRef, DeclineReason> {
@@ -773,18 +777,15 @@ mod tests {
         }
     }
 
-    /// An incoming target is part of what a cached answer rests on: the
-    /// same key and target value is a hit, and a changed target value is a
-    /// miss that runs the body again and answers for the new value, never
-    /// the old one.
-    #[test]
-    fn a_changed_incoming_target_misses_the_cache() {
+    /// `kv::put KEY VAR`: the key and `VAR`'s incoming value in, `VAR`
+    /// written or preserved, its body bound to a fresh slot.
+    fn put_semantics() -> DeclaredSemantics {
         let slot = pack_hooks::allocate(
             HookFamily::Evaluate,
             &HookInputs::declared([HookInput::Words]),
         )
         .expect("an evaluate slot");
-        let put = DeclaredSemantics {
+        DeclaredSemantics {
             scope: "kv::put",
             structure: DeclaredStructure {
                 stores: Some(DeclaredStores {
@@ -816,19 +817,63 @@ mod tests {
                 slot: Some(slot),
             }),
             option_declines: &[],
-        };
-        let inputs = PutInputs {
+        }
+    }
+
+    /// `kv::put` over `operands`, `VAR` holding `a`, under `profile`.
+    fn put_inputs(operands: Vec<OperandView<'static>>, profile: &str) -> PutInputs {
+        PutInputs {
             view: ResolvedInvocationView {
                 canonical_command: "kv::put",
                 subcommand: None,
                 form: None,
                 layout: InvocationLayout::Source,
-                operands: vec![literal("k"), literal("v")],
+                operands,
                 argument_offset: 0,
             },
             prior: RefCell::new("a".to_owned()),
-            context: AnalysisContext::detached(tcl_dialect::DialectProfile::find("tcl9.0")),
+            context: AnalysisContext::detached(tcl_dialect::DialectProfile::find(profile)),
+        }
+    }
+
+    /// A declared implementation reads its inputs before it asks for its
+    /// target, in the lift's order: under a profile that names no release a
+    /// call whose key the analysis cannot know declines `NotExact`, as it
+    /// would under any release, and only a call whose every input is exact
+    /// reaches the release and declines `Unsupported` — there is no engine
+    /// to pin the body to. Neither asks the host.
+    #[test]
+    fn an_unknown_input_declines_before_the_release_is_asked() {
+        let put = put_semantics();
+        let unknown = OperandView {
+            text: "$k",
+            kind: InvocationWordKind::Dynamic,
+            role: None,
         };
+        assert_eq!(
+            put.evaluate(
+                &put_inputs(vec![unknown, literal("v")], "tcl"),
+                &mut Budget::evaluation()
+            ),
+            EvalAnswer::Declined(DeclineReason::NotExact)
+        );
+        assert_eq!(
+            put.evaluate(
+                &put_inputs(vec![literal("k"), literal("v")], "tcl"),
+                &mut Budget::evaluation()
+            ),
+            EvalAnswer::Declined(DeclineReason::Unsupported)
+        );
+    }
+
+    /// An incoming target is part of what a cached answer rests on: the
+    /// same key and target value is a hit, and a changed target value is a
+    /// miss that runs the body again and answers for the new value, never
+    /// the old one.
+    #[test]
+    fn a_changed_incoming_target_misses_the_cache() {
+        let put = put_semantics();
+        let inputs = put_inputs(vec![literal("k"), literal("v")], "tcl9.0");
         let host = Rc::new(JoinHost {
             calls: Cell::new(0),
         });
