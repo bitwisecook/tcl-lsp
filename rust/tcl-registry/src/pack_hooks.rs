@@ -436,6 +436,10 @@ pub const CONST_FOLD_VERSIONED_NATIVE: &[(&str, VersionedConstFoldFn)] = &[
         "format::const_fold_versioned",
         crate::commands::tcl::fold_format,
     ),
+    (
+        "regsub::const_fold_versioned",
+        crate::commands::tcl::fold_regsub_versioned,
+    ),
 ];
 
 /// [`crate::spec::CommandSpec::taint_sink_gate`]'s function-pointer shape,

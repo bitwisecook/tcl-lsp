@@ -183,3 +183,74 @@ fn an_exhausted_search_is_never_a_no_match() {
         );
     }
 }
+
+/// A search reports the work it spent (`value-evaluation.md` § *Units and
+/// charges*: one unit per `MATCH_FUEL` unit spent), on both matching paths —
+/// the set simulation and the backtracker: some of the budget for a
+/// completed match, all of it for an exhausted one.
+#[test]
+fn a_search_reports_the_work_it_spent() {
+    for (pattern, subject) in [("^(a+)b$", "aaab"), (r"^(a+)\1$", "aaaa")] {
+        let re = Regex::compile_str(pattern, REG_ADVANCED).expect("compiles");
+        let (outcome, spent) = re.exec_metered(&cps(subject), 0, 0, &ExecLimits::default());
+        assert!(matches!(outcome, ExecOutcome::Matched(_)), "{pattern}");
+        assert!(
+            spent > 0 && spent < tcl_regex::MATCH_FUEL,
+            "{pattern}: {spent}"
+        );
+        let starved = ExecLimits {
+            fuel: 3,
+            cancel: None,
+        };
+        assert_eq!(
+            re.exec_metered(&cps(&"a".repeat(300)), 0, 0, &starved),
+            (ExecOutcome::Stopped(ExecStop::Fuel { spent: 3 }), 3),
+            "{pattern}"
+        );
+    }
+}
+
+/// Through the plumbing's engine, searches charged to one counter share one
+/// budget: the counter holds what each spent, and the second of two
+/// identical searches runs under what the first left — so a `-all` loop
+/// cannot spend the budget once per match.
+#[cfg(feature = "cmd-core")]
+#[test]
+fn searches_charged_to_one_counter_share_one_budget() {
+    use std::cell::Cell;
+    use tcl_cmd_core::regex::{
+        MatchLimits, PrecisionDecline, RegexEngine, RegexFlags, RegexpPrecision,
+    };
+    use tcl_regex::cmd_core::AreEngine;
+
+    for (pattern, subject) in [("^(a+)b$", "aaab"), (r"^(a+)\1$", "aaaa")] {
+        let (_, spent) = Regex::compile_str(pattern, REG_ADVANCED)
+            .expect("compiles")
+            .exec_metered(&cps(subject), 0, 0, &ExecLimits::default());
+        let mut compiled =
+            AreEngine::compile(pattern.as_bytes(), RegexFlags::default()).expect("compiles");
+        let subject: Vec<i32> = subject.chars().map(|c| c as i32).collect();
+        let counter = Cell::new(0);
+        let shared = MatchLimits {
+            fuel: Some(spent + spent / 2),
+            spent: Some(&counter),
+            ..MatchLimits::default()
+        };
+        assert!(
+            matches!(
+                AreEngine::exec_within(&mut compiled, &subject, 0, false, shared),
+                RegexpPrecision::Exact { .. }
+            ),
+            "{pattern}"
+        );
+        assert_eq!(counter.get(), spent, "{pattern}");
+        assert!(
+            matches!(
+                AreEngine::exec_within(&mut compiled, &subject, 0, false, shared),
+                RegexpPrecision::Declined(PrecisionDecline::FuelExhausted { .. })
+            ),
+            "{pattern}: the second search runs under what the first left"
+        );
+        assert_eq!(counter.get(), spent + spent / 2, "{pattern}");
+    }
+}

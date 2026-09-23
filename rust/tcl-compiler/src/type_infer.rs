@@ -2005,9 +2005,18 @@ mod tests {
         );
 
         // `regexp` capture — OVERDEFINED, never Int (the match count).
-        let cu = CompilationUnit::build_for("regexp {(.)} abc c", &registry(), false);
+        let cu = CompilationUnit::build_for("regexp {(.)} $s c", &registry(), false);
         let fu = cu.function("::top").unwrap();
         assert!(none_known(fu, "c"), "regexp capture must not be Known Int");
+        // Over exact operands the route writes the capture (VT5.4): the
+        // String it matched, still never the count.
+        let cu = CompilationUnit::build_for("regexp {(.)} abc c", &registry(), false);
+        let fu = cu.function("::top").unwrap();
+        assert!(
+            any_known(fu, "c", TclType::String) && !any_known(fu, "c", TclType::Int),
+            "a written regexp capture is the String it matched: {:?}",
+            fu.types
+        );
 
         // `scan` target — OVERDEFINED (format-dependent), never Int.
         let cu = CompilationUnit::build_for("scan hello %s word", &registry(), false);

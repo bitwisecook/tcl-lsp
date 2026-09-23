@@ -2479,14 +2479,27 @@ fn a_conditional_writer_does_not_kill_the_store_it_may_preserve() {
         );
         // Asserted on the stores rather than byte-identity: the `binary scan`
         // row also gets a legitimate O100, specialising its one call site's
-        // `$d` to `AB`, which is unrelated and correct.
+        // `$d` to `AB`, and the `regexp` row's proven no-match keeps both
+        // values in the lattice (VT5.4), so its `puts` reads them as the
+        // constants they are — both unrelated and correct.
         let out = optimised(src, TCL);
-        assert_eq!(
-            out.matches("before").count(),
-            src.matches("before").count(),
-            "{why}: every store the command may preserve survives: {out}"
-        );
+        for store in src
+            .lines()
+            .map(str::trim)
+            .filter(|line| line.starts_with("set ") && line.ends_with(" before"))
+        {
+            assert!(
+                out.lines().any(|line| line.trim() == store),
+                "{why}: the store `{store}` the command may preserve survives: {out}"
+            );
+        }
     }
+    // The proven no-match preserves both variables, and says so.
+    let out = optimised(
+        "proc p {} {\n    set a before\n    set b before\n    regexp {(x)(y)} zz a b\n    puts \"$a $b\"\n}\np\n",
+        TCL,
+    );
+    assert!(out.contains("puts \"before before\""), "{out}");
 }
 
 /// Precision: a command that writes its target on *every* path still has its

@@ -51,6 +51,7 @@ pub mod iteration;
 pub mod keyed_update;
 pub mod lift;
 pub mod literal;
+pub mod regex;
 pub mod route;
 pub mod unbind;
 

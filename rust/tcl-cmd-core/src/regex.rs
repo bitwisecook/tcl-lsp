@@ -41,7 +41,7 @@
 //! reproduces exactly.
 
 use std::any::Any;
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::atomic::AtomicBool;
@@ -176,13 +176,22 @@ pub struct EngineIdentity {
 }
 
 /// The limits one analysis-path match runs under: the engine's work
-/// budget, when the caller narrows it, and the token that stops it.
+/// budget, when the caller narrows it, the token that stops it, and the
+/// counter its work is charged to.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct MatchLimits<'c> {
-    /// The engine's work budget; `None` for its own default.
+    /// The engine's work budget; `None` for its own default. With a
+    /// [`Self::spent`] counter it bounds every search charged to that
+    /// counter together: each runs under what the counter leaves of it, so
+    /// a `-all` loop cannot spend it once per match.
     pub fuel: Option<u64>,
     /// Set by the caller to stop the match.
     pub cancel: Option<&'c AtomicBool>,
+    /// The work each search spent, in the engine's elementary steps, added
+    /// here by an engine that meters its work — what the caller charges to
+    /// a budget of its own (`docs/design/compiler/value-evaluation.md`
+    /// § *Units and charges*). An engine that does not meter leaves it.
+    pub spent: Option<&'c Cell<u64>>,
 }
 
 /// The compile-time options that affect matching, in an engine-neutral form

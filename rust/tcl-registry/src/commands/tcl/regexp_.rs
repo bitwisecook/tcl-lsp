@@ -303,6 +303,7 @@ pub fn spec() -> CommandSpec {
         arg_role_resolver: Some(regexp_arg_roles),
         arg_role_resolver_roles: &[ArgRole::Pattern, ArgRole::VarWrite],
         analyser_hook: Some(crate::hooks::AnalyserHookId::RegexPatternCapture),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::regex::REGEXP),
         ..CommandSpec::DEFAULT
     }
 }

@@ -857,3 +857,239 @@ fn storage_outcome_witnesses_match_every_release_on_path() {
         eprintln!("no tclsh on PATH: the storage-outcome witnesses were not exercised");
     }
 }
+
+/// One regexp-owner witness: `command args…` with `priors` set first, then
+/// the command's result and each `observed` variable read after it.
+type RegexWitness = (
+    &'static str,
+    &'static [&'static str],
+    &'static [(&'static str, &'static str)],
+    &'static [&'static str],
+);
+
+/// What the regexp owner's route leaves: the result, then each `observed`
+/// variable — a write's value, a preserved variable's prior, `<unset>` for
+/// one never set — or `None` when the route declines.
+fn regex_route(
+    reg: &CommandRegistry,
+    profile: Option<&'static tcl_dialect::DialectProfile>,
+    (command, args, priors, observed): RegexWitness,
+) -> Option<Vec<String>> {
+    use tcl_registry::ArgRole;
+    use tcl_registry::value_transfer::{
+        Budget, EvalAnswer, ExactValue, ExactValueOrUnavailable, LiteralInputs, OperandId,
+        StoreOutcome, resolve_semantics,
+    };
+
+    let semantics = resolve_semantics(reg.get(command).expect(command), None, None);
+    let semantics = semantics.semantics().expect("the regexp owner's route");
+    let mut inputs = LiteralInputs::new(command, None, args, profile);
+    for (name, value) in priors {
+        inputs = inputs.with_prior(name, ExactValue::from_literal(value));
+    }
+    // The roles the resolver gives the same words: the match and result
+    // variables the route's stores must name.
+    for index in reg.arg_indices_for_role(command, args, ArgRole::VarWrite) {
+        inputs = inputs.with_role(OperandId(index), ArgRole::VarWrite);
+    }
+    let EvalAnswer::Evaluated(outcome) = semantics.evaluate(&inputs, &mut Budget::evaluation())
+    else {
+        return None;
+    };
+    let ExactValueOrUnavailable::Exact(result) = outcome.result else {
+        return None;
+    };
+    let mut held: Vec<(String, String)> = priors
+        .iter()
+        .map(|(name, value)| ((*name).to_owned(), (*value).to_owned()))
+        .collect();
+    for store in outcome.ordered_stores {
+        match store {
+            StoreOutcome::Write { target, value } => {
+                let name = args[(target.0).0].to_owned();
+                let value = String::from_utf8(value.bytes).expect("text");
+                held.retain(|(held_name, _)| *held_name != name);
+                held.push((name, value));
+            }
+            StoreOutcome::Preserve { .. } => {}
+            other => panic!("{command} {args:?}: unexpected store {other:?}"),
+        }
+    }
+    let mut seen = vec![String::from_utf8(result.bytes).expect("text")];
+    for name in observed {
+        seen.push(
+            held.iter()
+                .find(|(held_name, _)| held_name == name)
+                .map_or_else(|| "<unset>".to_owned(), |(_, value)| value.clone()),
+        );
+    }
+    Some(seen)
+}
+
+/// What `tclsh` leaves for the same witness, one line per value, or `None`
+/// when it raises.
+fn regex_oracle(
+    tclsh: &str,
+    (command, args, priors, observed): RegexWitness,
+) -> Option<Vec<String>> {
+    use std::fmt::Write as _;
+    let mut script = String::new();
+    for (name, value) in priors {
+        let _ = writeln!(script, "set {name} {}", tcl_quoted_word(value));
+    }
+    let _ = write!(script, "set __result [{command}");
+    for arg in args {
+        script.push(' ');
+        script.push_str(&tcl_quoted_word(arg));
+    }
+    script.push_str("]\nputs $__result\n");
+    let _ = writeln!(
+        script,
+        "foreach __name {{{}}} {{\n\
+         if {{[info exists $__name]}} {{puts [set $__name]}} else {{puts <unset>}}\n\
+         }}",
+        observed.join(" ")
+    );
+    match run_tcl(tclsh, &script)? {
+        (true, out) => Some(out.lines().map(str::to_owned).collect()),
+        (false, _) => None,
+    }
+}
+
+/// The regexp owner's witnesses, each measured identical on tclsh 8.4.20,
+/// 8.5.19, 8.6.18, 9.0.4 and 9.1b0 except where noted: the plan's five
+/// first.
+const REGEX_WITNESSES: &[RegexWitness] = &[
+    (
+        "regexp",
+        &["(x)(y)", "zz", "a", "b"],
+        &[("a", "before"), ("b", "before")],
+        &["a", "b"],
+    ),
+    (
+        "regexp",
+        &["-inline", "-indices", "(a)(b)?", "ac"],
+        &[],
+        &[],
+    ),
+    ("regexp", &["-all", "a*", "xaax"], &[], &[]),
+    ("regsub", &["-all", "", "abc", "-"], &[], &[]),
+    ("regexp", &["-about", "a"], &[], &[]),
+    ("regexp", &["-about", "(?:a)"], &[], &[]),
+    ("regexp", &["-about", "a(b)c"], &[], &[]),
+    (
+        "regexp",
+        &["(a)(b)?", "ac", "m", "g1", "g2"],
+        &[],
+        &["m", "g1", "g2"],
+    ),
+    (
+        "regexp",
+        &["-indices", "(a)(b)?", "ac", "m", "g1", "g2"],
+        &[],
+        &["m", "g1", "g2"],
+    ),
+    (
+        "regexp",
+        &["-all", "(a)", "banana", "m", "g"],
+        &[("m", "x")],
+        &["m", "g"],
+    ),
+    (
+        "regexp",
+        &["-all", "z", "abc", "m"],
+        &[("m", "keep")],
+        &["m"],
+    ),
+    ("regexp", &["-nocase", "B+", "abBbc", "m"], &[], &["m"]),
+    (
+        "regexp",
+        &["-start", "2", "-inline", ".", "abcdef"],
+        &[],
+        &[],
+    ),
+    (
+        "regexp",
+        &["-start", "010", "-inline", ".", "abcdefghijkl"],
+        &[],
+        &[],
+    ),
+    ("regexp", &["-all", "-inline", "a|(b)", "ab"], &[], &[]),
+    // The list rendering differs: `#a a` on 8.4, `{#a} a` from 8.5.
+    ("regexp", &["-inline", "#(a)", "#a"], &[], &[]),
+    ("regexp", &["-inline", "a", "a", "m"], &[], &[]),
+    ("regexp", &["(", "x"], &[], &[]),
+    ("regsub", &["-all", "a", "banana", "o", "v"], &[], &["v"]),
+    ("regsub", &["z", "abc", "X", "v"], &[("v", "old")], &["v"]),
+    ("regsub", &["(b)(c)?", "abd", "[\\2|\\1]"], &[], &[]),
+    (
+        "regsub",
+        &["-command", "a", "abc", "string toupper"],
+        &[],
+        &[],
+    ),
+];
+
+/// The regexp owner's witnesses (VT5.4), per release found on `PATH`, each
+/// under that release's profile against the real `tclsh`: a no-match leaves
+/// its match variables as they were, a match writes them — an unmatched
+/// subgroup the empty string, or `-1 -1` with `-indices` — `-inline`
+/// answers the list, `-all` counts, `-about` answers the pattern's shape,
+/// and `regsub` substitutes and writes its variable whether or not anything
+/// matched. When the route answers it must match; when `tclsh` raises the
+/// route must decline; a decline where `tclsh` answers is allowed (`-start
+/// 010` is 8 up to 8.6 and 10 from 9.0, the `-command` callback form), but
+/// the plan's five witnesses answer under every release.
+#[test]
+fn regexp_witnesses_match_every_release_on_path() {
+    // The plan's witnesses, which every release answers.
+    const REQUIRED: [usize; 5] = [0, 1, 2, 3, 4];
+    let reg = CommandRegistry::build_default();
+    let mut releases = 0usize;
+    for version in tcl_dialect::TclVersion::ALL {
+        let Some(tclsh) = find_tclsh(version.version_string()) else {
+            continue;
+        };
+        releases += 1;
+        let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name());
+        let mut agreed = 0usize;
+        for (index, &witness) in REGEX_WITNESSES.iter().enumerate() {
+            let want = regex_oracle(&tclsh, witness);
+            let got = regex_route(&reg, profile, witness);
+            match (&want, &got) {
+                (Some(want), Some(got)) => {
+                    assert_eq!(
+                        got,
+                        want,
+                        "tclsh{}: {} {:?}",
+                        version.version_string(),
+                        witness.0,
+                        witness.1
+                    );
+                    agreed += 1;
+                }
+                (None, Some(got)) => panic!(
+                    "tclsh{} raises on {} {:?}, the route answered {got:?}",
+                    version.version_string(),
+                    witness.0,
+                    witness.1
+                ),
+                (_, None) => assert!(
+                    !REQUIRED.contains(&index),
+                    "tclsh{}: the route declined the witness {} {:?}",
+                    version.version_string(),
+                    witness.0,
+                    witness.1
+                ),
+            }
+        }
+        assert!(
+            agreed >= 18,
+            "tclsh{}: only {agreed} witnesses agreed",
+            version.version_string()
+        );
+    }
+    if releases == 0 {
+        eprintln!("no tclsh on PATH: the regexp owner's witnesses were not exercised");
+    }
+}

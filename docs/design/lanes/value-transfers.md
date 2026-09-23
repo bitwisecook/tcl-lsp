@@ -4305,6 +4305,32 @@ item; the grouping stays the plan's account of what lands together.
 | VT5.1 | `wip(value-transfers): slice 5 — every outcome kind, applied per place` | `validate_outcome` (`answers.rs`): every store names a declared target — the driver's `CommandSemantics::store_targets` (the `VarWrite` operands and a cell-update plan's target by default; a pack's `stores -targets` for `DeclaredSemantics`, D105) — each target has one outcome at most, the type facts name only targets, and an error completion lists no more stores than ran; the driver's `apply_outcome` replaces `store_def` (D26's shape): each store resolves to its place, a repeated place composes in execution order (the last write wins, a `Preserve` keeps what the place holds at that point, a `MayWrite` or `Unbind` widens), an element beside its array's base declines `OverlappingTargets`, a traced place declines `TracedPlace`, an escaping one widens its own definition (D106), a non-normal completion declines (D107); the lifted members join per definition with a pending member keeping it pending (D108); SCCP evaluates a statement once per sweep for every definition (`DefValues`), so a call that defines several variables takes each one's own value (D108); `PlaceRef::{is_element, base, shares_storage_with, overlaps_as_element_and_base}`, which `declared.rs` now reads in place of its private helper (D109) | `validate_outcome_rejects_a_store_to_a_non_target` (`value_transfers.rs`); every `evaluate_def_*`, `sccp_*` and witness test byte-identical |
 | VT5.2 | `wip(value-transfers): slice 5 — folded types and representation evidence` | `FoldedType { intrep, shape, representation }` (`value_transfer.rs`) and `SccpResult::folded_types`: the driver's per-definition answers carry the folded type their evaluation states (`DefAnswer`; a result's from its type facts and value, a place's from the stores to it in order, a copy's from its source), SCCP records the settled sweep's, joins a φ's by agreement and forgets them at a barrier (D115); the Explorer's `sccp` view shows each (`h#1 = const(…)` · `type: bytearray (constructed)`); the shimmer purity read (`is_pure_value`, `is_free_first_conversion`, the commit facts' initial state) reads representation before the literal rule, so a computed constant no longer hides a conversion (D116); `type_infer` takes a folded type where its static typing knows nothing (D117); S110 takes a constructed byte array as a byte source (D118); `find_shimmer_warnings` and `find_byte_array_warnings` take the function's `SccpResult`, and the use-site and expression passes its `CommitCtx` | `folded_types_state_what_each_route_constructed` (witnesses); `serialise::tests::sccp_reports_folded_types`; `a_computed_constant_never_hides_a_conversion` (use-site S100, tclsh 8.6 to 9.1 checked); `a_folded_type_refines_only_what_the_static_typing_leaves_unknown`; `constructed_byte_array_evidence_is_a_byte_source` |
 | VT5.3 | `wip(value-transfers): slice 5 — the regexp owner` | the engine answers three ways (`tcl_regex::ExecOutcome`: `Matched`, `NoMatch`, `Stopped(ExecStop::{Fuel, Depth, Cancelled})`), `Regex::exec` and `Regex::exec_with(…, &ExecLimits { fuel, cancel })`, the token read where the fuel is charged (D119); dissection walks a repeat's iterations and a concatenation's items in loops with a backward finish table, skips a subtree without a capture, and stops rather than approximates past its depth cap, the unbounded repeat's reach is a worklist closure, and the backtracker matches a single character's repeat and a literal run in loops (D120, D121); the plumbing's `RegexpPrecision<RegMatch>` and `PrecisionDecline`, verbatim, `RegexEngine::exec` returning it with `exec_within`, `IDENTITY` and `retained_bytes`; `regexp`, `regsub`, `switch -regexp`, `lsearch -regexp` and the VM's match helper raise a decline (`error while matching regular expression: …`), the C API returns `REG_ESPACE`, and `regexp_analysis` / `regsub_analysis` keep it typed (D122); the thread's `PatternCacheKey`-keyed cache, 4 MiB of retained bytes, coldest first, a compile charged its length squared through `AnalysisMatch::charge` (D123) | `the_three_precision_witnesses` and `an_exhausted_search_is_never_a_no_match` (`precision_oracle.rs`, the page's table under tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1b0, all five agreeing); `a_stopped_search_is_raised_at_run_time_and_typed_in_analysis`, `the_pattern_cache_charges_a_compile_once_per_key`, `the_pattern_cache_stays_within_its_byte_bound` (`tcl-cmd-core`); `capture_past_the_old_dissect_cap_is_exact` replaces the approximate-span test; every other `tcl-regex` (the `reg.test` corpus included), `tcl-cmd-core`, `tcl-vm` and `runtime/rust` regexp test unchanged |
+| VT5.4 | `wip(value-transfers): slice 5 — regexp and regsub` | `RegexpSemantics` and `RegsubSemantics` (`value_transfer/regex.rs`, `NativeEvalId::{RegexpMatch, RegsubSubstitute}`, registry-owned) over `regexp_analysis` / `regsub_analysis` and `AreEngine`, declared on both specs: a match writes one value per match variable (an unmatched subgroup the empty string, `-1 -1` with `-indices`), a completed no-match, `-inline`, `-about` and a variable-less `regsub` preserve every declared target, `-all` counts, `regsub` with a variable writes it whether or not anything matched, and every `PrecisionDecline` declines the whole answer (`Approximate`, `Unsupported`, the cancelled budget, the command's error) (D126); `-about` is evaluated and the `-command` form is `NoRoute(Callback)` (D124); the axes gain `LIST_RENDERING` and a `-start` index evaluates only as a plain decimal integer (D125); the engine's work is metered (`Regex::exec_metered`, `MatchLimits::spent`) and charged to the evaluation's budget with the published bytes (`ConstOps::remaining_work`, `ConstOps::take_all`) (D127); `regsub`'s folders are the route through `evaluate_literal`, `const_fold_versioned` new, `CONST_FOLD_VERSIONED_NATIVE` at 4 rows (D128); G1's `regexp` and `regsub` gap rows gone, the inventory regenerated; the page's two core-table rows and its table count updated. Not done: the `RegexPatternCapture` hook's retirement and `handle_regex_pattern_capture` wait for CC2.13 (D129) | `regexp_writes_or_preserves_its_match_variables`, `a_regexp_that_established_nothing_declines`, `regsub_writes_its_variable_and_declines_its_callback` (`value_transfers.rs`); `regexp_witnesses_match_every_release_on_path` (`differential_fold.rs`: 22 witnesses, 18 answered and agreeing on each of tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1b0, the plan's five answered on every one); `a_search_reports_the_work_it_spent` and `searches_charged_to_one_counter_share_one_budget` (`precision_oracle.rs`); `route_stamps_match_the_pinned_set` gains the two stamps; changed by the mandate ("a no-match `regexp` keeps its match variables' values in the lattice; a match writes them"): `a_conditional_writer_does_not_kill_the_store_it_may_preserve` asserts each preserved store survives by line and that `puts "$a $b"` now reads `before before`, and `var_write_typing_shapes_destructure_target_types` reads the registry's typing over an unknown subject and the written `String` over a literal one |
+
+Green at VT5.4:
+
+- tests: `tcl-regex` (all features), `tcl-cmd-core`, `tcl-registry` and
+  `tcl-spectcl` 1676 together; `tcl-compiler` and `tcl-explorer` 9828;
+  `tcl-lsp-core` 3566; `tcl-lsp-db` 127; `xtask` 235; `tcl-vm` under
+  `LANG=C.UTF-8` (five of its tests, none of them regexp's, read the
+  locale and fail when none is set); the samples test; no failure;
+- pedantic clippy (`--no-deps --all-targets -D warnings`) on `tcl-regex`
+  (all features), `tcl-cmd-core`, `tcl-registry`, `tcl-compiler` and
+  `xtask`, no `#[allow]` added; `tcl-spectcl`'s run stops in the
+  consumer-contracts lane's `loader.rs` (`member_row`, 103 lines, from
+  `d2f1ece4`), theirs, and this item's hunk there is two catalogue rows;
+  `rustfmt` on the touched files;
+- `cargo xtask value-transfers` (the inventory regenerated) and `--check`,
+  `registry-axes --check`, `pack-goldens --check` (24 packs, no snapshot
+  moved), the shard verifier's self-test, and `cargo check --workspace
+  --all-targets`, all clean.
+
+Beyond the plan's file list: `tcl-regex`'s `lib.rs`, `exec.rs`,
+`cmd_core.rs` and `precision_oracle.rs` and `tcl-cmd-core`'s `regex.rs`
+(the metering, D127), `value_transfer/{const_ops,route,builtins,mod}.rs`,
+`commands/tcl/mod.rs`, `pack_hooks.rs` and `tcl-spectcl`'s `catalogue.rs`
+(the ids, the versioned folder's row), the page's two rows, and the two
+compiler tests the mandate changes.
 
 Green at VT5.3:
 
@@ -7481,6 +7507,89 @@ has the witnesses):
   miss is charged the pattern's length squared through
   `AnalysisMatch::charge` before it compiles; a refused charge is
   `Cancelled` and caches nothing. The runtime compiles fresh, as it did.
+- **D124 — `-about` is evaluated; the callback form has no route.** The
+  plan's item says `-about` and `regsub -command` are
+  `NoRoute(FormUnsupported)` and its test list has `regexp -about {a}`
+  decline, but its upstream note, written against the merged core, says
+  VT5.4 evaluates `-about` through the core (the engine port records the
+  `re_info` bits as C does) and declares `regsub -command`
+  `NoRoute(Callback)`. Built as the note: `-about` answers `{count
+  infoList}` through `regexp_analysis`, witnessed on 8.4 to 9.1 for `{a}`
+  (`0 {}`), `{(?:a)}` (`0 REG_UNONPOSIX`) and `{a(b)c}` (`1 {}`); a
+  `regsub` whose option run names `-command` — read with the spec's own
+  table by `regsub_::names_a_callback`, which the role and prefix
+  resolvers now share — declines `NoRoute(Callback)` whether or not a
+  substitution would be due, under every target (under 8.x the call is a
+  `bad switch` error, a decline either way).
+- **D125 — The routes' axes, and the `-start` rule.** `NEEDS` is the
+  plan's `REGEXP_FEATURES | CHAR_INDEXING | SOURCE_ENCODING` plus
+  `LIST_RENDERING`: the core builds the `-inline`, `-indices` and `-about`
+  answers with `ValueOps::new_list`, which requires the axis, and the
+  answer depends on it (`regexp -inline {#(a)} #a` is `#a a` on 8.4 and
+  `{#a} a` from 8.5, a witness). The core reads `-start` with the 9.x
+  index grammar, but tclsh reads it as an integer on 8.4 (`010` is 8,
+  `end` an error), as an index with octal numerals on 8.5 and 8.6, and as
+  a decimal index from 9.0 (measured), so the route evaluates a `-start`
+  value only when it is a plain decimal integer — `-` its only sign, no
+  leading zero — and declines `Unsupported` otherwise; reading it under
+  the target's own grammar is a later refinement. Every operand must be
+  `admissible_text`, so a non-ASCII pattern or subject (and with it the
+  engine's case-folding and class tables) is reached only under a target
+  that decodes source as UTF-8, where the engine is the shipped runtime's.
+- **D126 — The stores are the resolver's targets, checked against the
+  core.** The stores name the operands the resolver gives `VarWrite`
+  (`store_targets`' default); the core names the variables it writes
+  (`RegexpResult::Count { assign }`, `RegsubResult::var`), and the route
+  publishes only when they are those targets, in order, spelt alike —
+  otherwise `Unsupported` (a word the resolver took for the pattern
+  because its value was not literal: `set o -nocase; regexp $o A a m`). A
+  completed no-match, an `-inline` or `-about` answer and a `regsub`
+  without a variable publish a `Preserve` for every declared target, since
+  the command writes none whatever the roles said; `regsub` with a
+  variable writes it whether or not anything matched (`regsub z abc X v`
+  leaves `abc`, measured). The type facts give each write the type its
+  value was built as (`String`, or `List` with `-indices`) and the result
+  `Int`, or `List` for `-inline` and `-about`. A malformed pattern and any
+  other error the command raises decline `WrongRepresentation`, the
+  `ConstOps` convention until the completion slice.
+- **D127 — The engine's work is metered and charged.** VT5.3's engine
+  reported what it spent only when it ran out. `Regex::exec_metered`
+  returns the fuel a search spent (the backtracker's included), and
+  `MatchLimits` gained `spent: Option<&Cell<u64>>`: with a counter, `fuel`
+  bounds every search charged to it together, each running under what the
+  counter leaves, so `-all` cannot spend the budget once per match. The
+  route's allowance is the evaluation's remaining work
+  (`ConstOps::remaining_work`, new), each search's fuel at most
+  `MATCH_FUEL`; the compile's length-squared charge draws on the same
+  counter through `AnalysisMatch::charge`; the counter is charged to the
+  budget when the run returns, whose own limit is the decline when it
+  overran. The published bytes are charged as work (one unit per capture
+  or output byte, the page's rule) and as result bytes
+  (`ConstOps::take_all`, new, for a result and its written values), and
+  `regsub`'s output bound — the subject's bytes plus one, times twice the
+  spec's plus one — is charged as allocation before the run. The
+  cancellation token is not wired: `ConstOps` holds the budget mutably,
+  and no request sets `Budget::cancelled` today; the engine reads a token
+  whenever a caller passes one. The route's revision folds in the
+  engine's (`1 << 32 | IDENTITY.revision`), so an engine change is a new
+  route identity.
+- **D128 — `regsub`'s shipped folders are the route.**
+  `fold_regsub_versioned(args, version)` is `evaluate_literal(&REGSUB, …)`
+  and `fold_regsub` its no-release form, as `string range`'s are;
+  `const_fold_versioned` is new on the spec, and
+  `CONST_FOLD_VERSIONED_NATIVE` and its catalogue gain the row (4 rows;
+  the page says so). Every folded answer for ASCII words stands; two
+  answers the old folder gave are now declines — a non-ASCII operand with
+  no release named or under 8.x (`SOURCE_ENCODING`), and a `-start` index
+  other than a plain decimal integer (the old folder read `-start 010` as
+  10 under every release).
+- **D129 — The analyser hook waits for CC2.13.** The plan retires
+  `AnalyserHookId::RegexPatternCapture` and has
+  `handle_regex_pattern_capture` read the declared targets; the variant,
+  the handler and `tests/analyser_hooks.rs` are the consumer-contracts
+  lane's files, and the coordinator's rule is to retire a hook only after
+  CC2.13 lands. It has not: the hook, the handler and the ledger row are
+  unchanged, and the retirement is recorded as this item's remainder.
 
 ### Open questions for the owner
 

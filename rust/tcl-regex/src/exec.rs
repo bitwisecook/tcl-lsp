@@ -213,6 +213,12 @@ impl<'a> Matcher<'a> {
         self.subj.len()
     }
 
+    /// The work the search has spent so far, in elementary steps: the
+    /// whole budget once it ran out.
+    pub(crate) fn spent(&self) -> u64 {
+        self.budget.saturating_sub(self.fuel)
+    }
+
     /// Charge one unit of work against the reach budget, returning `false` once
     /// it is exhausted. Callers in the hot reachability loops use this to stop
     /// expanding the frontier on a pathological input (see [`MATCH_FUEL`]).
@@ -785,40 +791,47 @@ impl Matcher<'_> {
             cancel: self.cancel,
             stop: Cell::new(None),
         };
-        for start in from..=self.len() {
-            // Try candidate end positions in preference order: shortest first
-            // when the RE prefers the shortest match, else longest first.
-            let mut found = None;
-            let mut try_end = |end: usize| -> bool {
-                if bt.stop.get().is_some() {
-                    return true;
-                }
-                *bt.caps.borrow_mut() = vec![None; nsub + 1];
-                if bt.m(root, start, end, 0, &mut |p| p == end) {
-                    let mut caps = bt.caps.borrow().clone();
-                    caps[0] = Some(Span { start, end });
-                    found = Some(caps);
-                    true
+        let outcome = 'search: {
+            for start in from..=self.len() {
+                // Try candidate end positions in preference order: shortest
+                // first when the RE prefers the shortest match, else longest
+                // first.
+                let mut found = None;
+                let mut try_end = |end: usize| -> bool {
+                    if bt.stop.get().is_some() {
+                        return true;
+                    }
+                    *bt.caps.borrow_mut() = vec![None; nsub + 1];
+                    if bt.m(root, start, end, 0, &mut |p| p == end) {
+                        let mut caps = bt.caps.borrow().clone();
+                        caps[0] = Some(Span { start, end });
+                        found = Some(caps);
+                        true
+                    } else {
+                        false
+                    }
+                };
+                let hit = if self.prefer_shortest {
+                    (start..=self.len()).any(&mut try_end)
                 } else {
-                    false
+                    (start..=self.len()).rev().any(&mut try_end)
+                };
+                if let Some(stop) = bt.stop.get() {
+                    break 'search ExecOutcome::Stopped(stop);
                 }
-            };
-            let hit = if self.prefer_shortest {
-                (start..=self.len()).any(&mut try_end)
-            } else {
-                (start..=self.len()).rev().any(&mut try_end)
-            };
-            if let Some(stop) = bt.stop.get() {
-                return ExecOutcome::Stopped(stop);
+                if hit && let Some(caps) = found {
+                    break 'search ExecOutcome::Matched(caps);
+                }
             }
-            if hit && let Some(caps) = found {
-                return ExecOutcome::Matched(caps);
+            match bt.stop.get() {
+                Some(stop) => ExecOutcome::Stopped(stop),
+                None => ExecOutcome::NoMatch,
             }
-        }
-        match bt.stop.get() {
-            Some(stop) => ExecOutcome::Stopped(stop),
-            None => ExecOutcome::NoMatch,
-        }
+        };
+        // The backtracker's work is the search's: what [`Self::spent`]
+        // reports.
+        self.fuel = bt.fuel.get();
+        outcome
     }
 }
 

@@ -492,6 +492,14 @@ impl<'ctx> ConstOps<'ctx> {
             .inspect_err(|e| self.poison(*e))
     }
 
+    /// The work this evaluation can still charge: what a core that meters
+    /// its own work (the regexp engine's fuel) may spend before its charge
+    /// is made.
+    #[must_use]
+    pub fn remaining_work(&self) -> WorkUnits {
+        self.budget.remaining_work()
+    }
+
     /// The value as text, or the decline for bytes that are not text.
     ///
     /// # Errors
@@ -588,6 +596,26 @@ impl<'ctx> ConstOps<'ctx> {
         self.budget
             .charge_result(u64::try_from(value.bytes.len()).unwrap_or(u64::MAX))?;
         Ok(value.into_exact())
+    }
+
+    /// [`Self::take`] for a route that publishes several values — a result
+    /// and the values its stores write — each charged as published bytes.
+    ///
+    /// # Errors
+    ///
+    /// The recorded fault, or the result-bytes bound.
+    pub fn take_all(self, values: Vec<ConstValue>) -> Result<Vec<ExactValue>, DeclineReason> {
+        if let Some(fault) = self.fault {
+            return Err(fault);
+        }
+        let budget = self.budget;
+        values
+            .into_iter()
+            .map(|value| {
+                budget.charge_result(u64::try_from(value.bytes.len()).unwrap_or(u64::MAX))?;
+                Ok(value.into_exact())
+            })
+            .collect()
     }
 
     /// A numeral read under the admitted grammar, integer-only when

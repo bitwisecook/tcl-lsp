@@ -79,7 +79,9 @@ impl RegexEngine for AreEngine {
 
     /// The engine's three-way answer onto the plumbing's: the spans as
     /// [`RegMatch`]es, a completed no-match, and a stopped search as the
-    /// decline it is.
+    /// decline it is. The work the search spent is added to the caller's
+    /// counter, and the search runs under what that counter leaves of the
+    /// caller's budget.
     fn exec_within(
         re: &mut Regex,
         cps: &[i32],
@@ -91,11 +93,19 @@ impl RegexEngine for AreEngine {
         // positions in the whole subject, so the `notbol` hint is unnecessary
         // (the trait permits ignoring it).
         let subject: Vec<u32> = cps.iter().map(|&c| c as u32).collect();
+        let already = limits.spent.map_or(0, std::cell::Cell::get);
         let engine_limits = ExecLimits {
-            fuel: limits.fuel.unwrap_or(crate::MATCH_FUEL),
+            fuel: limits
+                .fuel
+                .unwrap_or(crate::MATCH_FUEL)
+                .saturating_sub(already),
             cancel: limits.cancel,
         };
-        match re.exec_with(&subject, offset, 0, &engine_limits) {
+        let (outcome, spent) = re.exec_metered(&subject, offset, 0, &engine_limits);
+        if let Some(counter) = limits.spent {
+            counter.set(already.saturating_add(spent));
+        }
+        match outcome {
             ExecOutcome::Matched(groups) => {
                 let span = |s: &crate::Span| RegMatch {
                     so: s.start,

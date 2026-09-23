@@ -1338,6 +1338,8 @@ fn pinned_route_stamps() -> BTreeSet<(String, &'static str, &'static str)> {
         ("list", "direct:list-of-args", "registry"),
         ("llength", "direct:list-length", "registry"),
         ("lmap", "none:unauthored", "-"),
+        ("regexp", "direct:regexp-match", "registry"),
+        ("regsub", "direct:regsub-substitute", "registry"),
         ("remove_from_collection", "none:declared", "-"),
         ("set", "direct:cell-write", "registry"),
         ("string length", "direct:string-length", "registry"),
@@ -1445,6 +1447,8 @@ fn route_label(route: EvalRoute) -> &'static str {
             NativeEvalId::FormatTemplate => "direct:format-template",
             NativeEvalId::ListLength => "direct:list-length",
             NativeEvalId::StringLength => "direct:string-length",
+            NativeEvalId::RegexpMatch => "direct:regexp-match",
+            NativeEvalId::RegsubSubstitute => "direct:regsub-substitute",
         },
         EvalRoute::Expression { .. } => "expression:tcl.expr",
         EvalRoute::Implementation(_) => "implementation",
@@ -2113,5 +2117,276 @@ fn validate_outcome_rejects_a_store_to_a_non_target() {
     assert_eq!(
         validate_outcome(&plan, &declared, &failed),
         Err(DeclineReason::MalformedAnswer)
+    );
+}
+
+/// The regexp owner's route for `command words…` over literal operands,
+/// those marked `true` given the `VarWrite` role the resolver gives match
+/// and result variables, with its store targets checked by the driver's
+/// own validation before the answer is returned.
+fn regex_route(command: &str, words: &[(&str, bool)], budget: &mut Budget) -> EvalAnswer {
+    use tcl_registry::value_transfer::validate_outcome;
+    let reg = CommandRegistry::build_default();
+    let semantics = resolve_semantics(reg.get(command).expect(command), None, None);
+    let semantics = semantics.semantics().expect("the regexp owner's route");
+    let operands = words
+        .iter()
+        .map(|&(text, target)| literal(text, target.then_some(ArgRole::VarWrite)))
+        .collect();
+    let inputs = TestInputs::new(command, operands);
+    let answer = semantics.evaluate(&inputs, budget);
+    if let EvalAnswer::Evaluated(outcome) = &answer {
+        assert_eq!(
+            validate_outcome(
+                &semantics.structure(&inputs),
+                &semantics.store_targets(&inputs),
+                outcome
+            ),
+            Ok(()),
+            "{command} {words:?}"
+        );
+    }
+    answer
+}
+
+/// The result text and each store as `(operand, Some(written text))` for a
+/// write or `(operand, None)` for a preserve, of an evaluated answer.
+fn regex_stores(answer: &EvalAnswer) -> (String, Vec<(usize, Option<String>)>) {
+    let EvalAnswer::Evaluated(outcome) = answer else {
+        panic!("not evaluated: {answer:?}");
+    };
+    let ExactValueOrUnavailable::Exact(result) = &outcome.result else {
+        panic!("no exact result: {outcome:?}");
+    };
+    let stores = outcome
+        .ordered_stores
+        .iter()
+        .map(|store| match store {
+            StoreOutcome::Write { target, value } => (
+                (target.0).0,
+                Some(String::from_utf8(value.bytes.clone()).expect("text")),
+            ),
+            StoreOutcome::Preserve { target } => ((target.0).0, None),
+            other => panic!("unexpected store {other:?}"),
+        })
+        .collect();
+    (
+        String::from_utf8(result.bytes.clone()).expect("text"),
+        stores,
+    )
+}
+
+/// `regexp` writes or preserves its match variables (VT5.4; the Storage
+/// row's "`regexp` no-match" and the Regexp row): a match writes one value
+/// per match variable — an unmatched subgroup the empty string, or `-1 -1`
+/// with `-indices` — and answers the count; a completed no-match preserves
+/// every one and answers 0; `-inline` writes nothing and answers the list;
+/// `-all` counts, the variables holding the last match; `-about` answers
+/// the pattern's shape. Each answer is tclsh 8.4.20 to 9.1b0's
+/// (`regexp_witnesses_match_every_release_on_path`).
+#[test]
+fn regexp_writes_or_preserves_its_match_variables() {
+    use tcl_registry::TclType;
+    let budget = || Budget::evaluation();
+    let t = |text| (text, true);
+    let w = |text| (text, false);
+
+    // A completed no-match preserves every match variable.
+    let answer = regex_route(
+        "regexp",
+        &[w("(x)(y)"), w("zz"), t("a"), t("b")],
+        &mut budget(),
+    );
+    assert_eq!(
+        regex_stores(&answer),
+        ("0".into(), vec![(2, None), (3, None)])
+    );
+
+    // A match writes each one; the unmatched subgroup writes the empty
+    // string, or `-1 -1` with `-indices`, typed as the value it built.
+    let answer = regex_route(
+        "regexp",
+        &[w("(a)(b)?"), w("ac"), t("m"), t("g1"), t("g2")],
+        &mut budget(),
+    );
+    assert_eq!(
+        regex_stores(&answer),
+        (
+            "1".into(),
+            vec![
+                (2, Some("a".into())),
+                (3, Some("a".into())),
+                (4, Some(String::new()))
+            ]
+        )
+    );
+    let answer = regex_route(
+        "regexp",
+        &[
+            w("-indices"),
+            w("(a)(b)?"),
+            w("ac"),
+            t("m"),
+            t("g1"),
+            t("g2"),
+        ],
+        &mut budget(),
+    );
+    assert_eq!(
+        regex_stores(&answer),
+        (
+            "1".into(),
+            vec![
+                (3, Some("0 0".into())),
+                (4, Some("0 0".into())),
+                (5, Some("-1 -1".into()))
+            ]
+        )
+    );
+    let EvalAnswer::Evaluated(outcome) = &answer else {
+        unreachable!()
+    };
+    assert_eq!(outcome.types.result, Some(TclType::Int));
+    assert!(
+        outcome
+            .types
+            .per_target
+            .iter()
+            .all(|(_, ty)| *ty == TclType::List),
+        "{:?}",
+        outcome.types
+    );
+
+    // `-inline` writes nothing and answers the list; `-all` counts, its
+    // variables holding the last match; `-about` answers the pattern.
+    for (words, want) in [
+        (
+            &[w("-inline"), w("-indices"), w("(a)(b)?"), w("ac")][..],
+            "{0 0} {0 0} {-1 -1}",
+        ),
+        (&[w("-all"), w("a*"), w("xaax")][..], "3"),
+        (&[w("-about"), w("(?:a)")][..], "0 REG_UNONPOSIX"),
+        (&[w("-about"), w("a(b)c")][..], "1 {}"),
+        (
+            &[w("-start"), w("2"), w("-inline"), w("."), w("abcdef")][..],
+            "c",
+        ),
+    ] {
+        assert_eq!(
+            regex_stores(&regex_route("regexp", words, &mut budget())),
+            (want.into(), Vec::new()),
+            "{words:?}"
+        );
+    }
+    let answer = regex_route(
+        "regexp",
+        &[w("-all"), w("(a)"), w("banana"), t("m"), t("g")],
+        &mut budget(),
+    );
+    assert_eq!(
+        regex_stores(&answer),
+        (
+            "3".into(),
+            vec![(3, Some("a".into())), (4, Some("a".into()))]
+        )
+    );
+}
+
+/// A `regexp` that established neither a match nor a no-match declines the
+/// whole answer, never a no-match: a search cut short by the budget is
+/// `Approximate`; a malformed pattern is the command's error, never a
+/// value; a `-start` index the releases read differently is not evaluated;
+/// and the variables the core writes must be the operands the resolver
+/// named, or nothing is published.
+#[test]
+fn a_regexp_that_established_nothing_declines() {
+    let budget = || Budget::evaluation();
+    let t = |text| (text, true);
+    let w = |text| (text, false);
+
+    // A search cut short declines the whole answer: never a no-match.
+    let mut starved = Budget::evaluation();
+    starved.fuel = 5_000;
+    let long = "a".repeat(300);
+    assert_eq!(
+        regex_route("regexp", &[w("^(a+)+b$"), w(&long), t("m")], &mut starved),
+        EvalAnswer::Declined(DeclineReason::Approximate)
+    );
+    // The command's error is never a value.
+    assert_eq!(
+        regex_route("regexp", &[w("("), w("x")], &mut budget()),
+        EvalAnswer::Declined(DeclineReason::WrongRepresentation)
+    );
+    // A `-start` index the releases read differently (8 up to 8.6, 10
+    // from 9.0) is not evaluated.
+    assert_eq!(
+        regex_route(
+            "regexp",
+            &[
+                w("-start"),
+                w("010"),
+                w("-inline"),
+                w("."),
+                w("abcdefghijkl")
+            ],
+            &mut budget()
+        ),
+        EvalAnswer::Declined(DeclineReason::Unsupported)
+    );
+    // The variables the core writes are the operands the resolver named,
+    // or nothing is published: here `-nocase` is an option the roles took
+    // for the pattern.
+    assert_eq!(
+        regex_route(
+            "regexp",
+            &[w("-nocase"), w("A"), t("a"), t("m")],
+            &mut budget()
+        ),
+        EvalAnswer::Declined(DeclineReason::Unsupported)
+    );
+}
+
+/// `regsub` answers the substituted text, or the count with the text
+/// written to its variable — whether or not anything matched, as tclsh 8.4
+/// to 9.1 do — and its callback form (`-command`, from 9.0) has no route.
+#[test]
+fn regsub_writes_its_variable_and_declines_its_callback() {
+    let budget = || Budget::evaluation();
+    let t = |text| (text, true);
+    let w = |text| (text, false);
+
+    // `regsub`: the text, or the count with the text written — whether or
+    // not anything matched; the callback form has no route.
+    assert_eq!(
+        regex_stores(&regex_route(
+            "regsub",
+            &[w("-all"), w(""), w("abc"), w("-")],
+            &mut budget()
+        )),
+        ("-a-b-c".into(), Vec::new())
+    );
+    assert_eq!(
+        regex_stores(&regex_route(
+            "regsub",
+            &[w("-all"), w("a"), w("banana"), w("o"), t("v")],
+            &mut budget()
+        )),
+        ("3".into(), vec![(4, Some("bonono".into()))])
+    );
+    assert_eq!(
+        regex_stores(&regex_route(
+            "regsub",
+            &[w("z"), w("abc"), w("X"), t("v")],
+            &mut budget()
+        )),
+        ("0".into(), vec![(3, Some("abc".into()))])
+    );
+    assert_eq!(
+        regex_route(
+            "regsub",
+            &[w("-command"), w("a"), w("abc"), w("string toupper")],
+            &mut budget()
+        ),
+        EvalAnswer::Declined(DeclineReason::NoRoute(NoRouteReason::Callback))
     );
 }

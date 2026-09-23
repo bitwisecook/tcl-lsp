@@ -894,14 +894,6 @@ fn target_roles(
 const KNOWN_GAPS: &[(&str, &str)] = &[
     // Slice 5, destructuring and structured bodies.
     (
-        "regexp",
-        "slice 5 — the destructuring write with the regexp owner's typed precision result",
-    ),
-    (
-        "regsub",
-        "slice 5 — the regexp owner's typed result written to the target",
-    ),
-    (
         "scan",
         "slice 5 — the destructuring write with per-target types",
     ),

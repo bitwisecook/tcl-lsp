@@ -461,6 +461,7 @@ pub const CONST_FOLD_VERSIONED_NATIVE: &[Variant] = &[
     v("string::is::const_fold_versioned", "string is"),
     v("string::range::const_fold_versioned", "string range"),
     v("format::const_fold_versioned", "format"),
+    v("regsub::const_fold_versioned", "regsub"),
 ];
 
 /// [`tcl_registry::pack_hooks::TAINT_SINK_GATE_NATIVE`].
@@ -508,6 +509,8 @@ pub const NATIVE_EVAL_IDS: &[Variant] = &[
     v("FormatTemplate", "format"),
     v("ListLength", "llength"),
     v("StringLength", "string length"),
+    v("RegexpMatch", "regexp"),
+    v("RegsubSubstitute", "regsub"),
 ];
 
 /// [`tcl_registry::value_transfer::LanguageProfileId::ALL`] — `evaluate

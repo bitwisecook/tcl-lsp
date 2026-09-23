@@ -56,7 +56,7 @@ fn exact_operand(input: &dyn AnalysisInputs, index: usize) -> Result<ExactValue,
 }
 
 /// Operands `range`'s exact values, in order.
-fn exact_operands(
+pub(super) fn exact_operands(
     input: &dyn AnalysisInputs,
     range: std::ops::Range<usize>,
 ) -> Result<Vec<ConstValue>, EvalAnswer> {

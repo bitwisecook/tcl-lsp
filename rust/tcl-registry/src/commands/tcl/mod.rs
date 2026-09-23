@@ -153,7 +153,9 @@ mod regexp_;
 mod regexp_quote;
 mod registry_;
 mod regsub_;
-pub(crate) use regsub_::fold_regsub;
+pub(crate) use regsub_::{
+    fold_regsub, fold_regsub_versioned, names_a_callback as regsub_names_a_callback,
+};
 mod rename_;
 mod return_;
 mod scan_;

@@ -243,13 +243,30 @@ impl Regex {
         eflags: i32,
         limits: &ExecLimits<'_>,
     ) -> ExecOutcome {
+        self.exec_metered(subject, from, eflags, limits).0
+    }
+
+    /// [`Self::exec_with`], with the work the search spent in the engine's
+    /// elementary steps — all of `limits.fuel` when the budget ran out. What
+    /// a caller that charges the engine's work to a budget of its own charges
+    /// (`docs/design/compiler/value-evaluation.md` § *Units and charges*:
+    /// one unit per `MATCH_FUEL` unit spent).
+    #[must_use]
+    pub fn exec_metered(
+        &self,
+        subject: &[u32],
+        from: usize,
+        eflags: i32,
+        limits: &ExecLimits<'_>,
+    ) -> (ExecOutcome, u64) {
         let prefer_shortest = self.info & defs::REG_USHORTEST != 0;
         let mut m = exec::Matcher::new(subject, self.cflags, eflags, prefer_shortest, limits);
-        if self.has_backref {
+        let outcome = if self.has_backref {
             m.search_backref(&self.root, self.nsub, from)
         } else {
             m.search(&self.root, self.nsub, from)
-        }
+        };
+        (outcome, m.spent())
     }
 
     /// The bytes the compiled pattern holds on the heap, estimated from its

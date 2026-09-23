@@ -357,6 +357,13 @@ pub enum NativeEvalId {
     /// `string length string`: the character count under the target's
     /// character model.
     StringLength,
+    /// `regexp`: the regexp owner's typed match over the shared plumbing and
+    /// the Tcl ARE engine — the count or the inline list as the result, and
+    /// one write or preserve per match variable.
+    RegexpMatch,
+    /// `regsub`: the regexp owner's substitution — the text as the result,
+    /// or the count with the text written to the result variable.
+    RegsubSubstitute,
 }
 
 impl NativeEvalId {
@@ -376,6 +383,8 @@ impl NativeEvalId {
         Self::FormatTemplate,
         Self::ListLength,
         Self::StringLength,
+        Self::RegexpMatch,
+        Self::RegsubSubstitute,
     ];
 
     /// Stable spelling for the inventory and the Explorer.
@@ -396,6 +405,8 @@ impl NativeEvalId {
             Self::FormatTemplate => "format-template",
             Self::ListLength => "list-length",
             Self::StringLength => "string-length",
+            Self::RegexpMatch => "regexp-match",
+            Self::RegsubSubstitute => "regsub-substitute",
         }
     }
 
@@ -416,7 +427,9 @@ impl NativeEvalId {
             | Self::ListOfArgs
             | Self::ListLength
             | Self::StringLength
-            | Self::FormatTemplate => EvaluatorOwner::Registry,
+            | Self::FormatTemplate
+            | Self::RegexpMatch
+            | Self::RegsubSubstitute => EvaluatorOwner::Registry,
         }
     }
 }
