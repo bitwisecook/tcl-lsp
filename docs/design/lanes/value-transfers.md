@@ -2,8 +2,8 @@
 
 The crash-insurance and handover note for the `value-transfers` lane. A
 fresh agent resumes from this file and the `wip(value-transfers):` commits.
-Slices 1 and 2 have landed; § *Plan for slices 2–13* is the plan for the
-rest, and § *Status (2026-09-23): slice 2 landed* is where to start.
+Slices 1 to 3 have landed; § *Plan for slices 2–13* is the plan for the
+rest, and § *Status (2026-09-23): slice 3 landed* is where to start.
 
 ## Goal
 
@@ -407,9 +407,9 @@ direct vertical slice`; § *Plan for slices 2–13* › *Slice 2* › *Record
 and what was left. The detailed hand-off notes this section used to carry
 are in `bdfe3a96`'s tree. The review of the landing returned "land
 after fixes"; `wip(value-transfers): review fixes for slice 2` holds them
-(§ *Slice 2* › *Record (2026-09-23): review fixes for slice 2*). Slice 3's
-opus items landed in three checkpoints (§ *Slice 3* › *Record (2026-09-23):
-the opus items of slice 3*); its sonnet items and the landing are next.
+(§ *Slice 2* › *Record (2026-09-23): review fixes for slice 2*). Slice 3
+has since landed; § *Status (2026-09-23): slice 3 landed* below picks up
+from here.
 
 ### Environment a fresh agent needs
 
@@ -430,6 +430,43 @@ the opus items of slice 3*); its sonnet items and the landing are next.
 - `scripts/dev/test-nextest-binary-shards.sh` and `cargo xtask
   pack-goldens` are the coordinator's pre-commit gates for every lane;
   `cargo xtask value-transfers` is this lane's.
+
+## Status (2026-09-23): slice 3 landed
+
+The opus items (VT3.1–VT3.5, VT3.7, VT3.8, VT3.12) landed in three
+checkpoints the same day (§ *Plan for slices 2–13* › *Slice 3* › *Record
+(2026-09-23): the opus items of slice 3*, D47–D61). A later session in
+the same day ran the sonnet items and the deferred slice-2 CLI witness
+binary one at a time, each its own commit: `636f9e2f` (VT3.6),
+`11e7cda7` (VT3.9), `7f0b3d20` (VT3.10), `cb0fe443` (VT2.10's deferred
+CLI half, D35/D65), and the landing commit `wip(value-transfers): slice
+3 — the expression slice` (VT3.11). The same section has the table with
+what each commit landed and its tests; D62–D65 are the decisions the
+plan did not state.
+
+Green at the landing:
+
+- tests: `cargo test -p tcl-compiler -p tcl-registry -p tcl-explorer -p
+  xtask`: 11226 passed, 0 failed, 6 ignored; `tcl-cli`: 124 passed, 0
+  failed, `samples_optimiser_profiles_are_regenerated` included (no
+  sample moved);
+- pedantic clippy on `tcl-compiler`, `tcl-registry`, `tcl-explorer`,
+  `tcl-cli` and `xtask`, with no `#[allow]` added; `cargo fmt` clean on
+  the same crates;
+- `cargo xtask value-transfers --check` OK: 17 files clean (`word_subst.rs`
+  and `shimmer/commit.rs` joined since the opus checkpoint), 13 sites
+  waived, 98 pinned across 39 ratcheted files, 6607 inventory rows;
+- `bash scripts/dev/test-nextest-binary-shards.sh` OK (the new
+  `tcl-cli::value_transfers_cli` row); `cargo xtask kcs-index-links`;
+  `cargo xtask owner-resolution` (43 rows); `cargo check --workspace
+  --all-targets` clean.
+
+Left to later slices, by name: everything slice 4 onward names in § *Plan
+for slices 2–13*; the two found-and-left items the opus record lists
+(8.4's double rendering, and a finite input read only inside a nested
+command declining as correlated rather than per-member) stand unchanged;
+#2118's `o122_sees_a_self_call_inside_a_braced_expr` still waits on
+`rust` pull request #2226 reaching this branch.
 
 ## Plan for slices 2–13
 
@@ -2232,6 +2269,7 @@ gains a D-number for any deviation the item needs.
 | VT3.9 | `11e7cda7` | `RouteTally { direct, expression, implementation }` on `SccpResult`; `call_def` counts `direct`, `run_script` counts `direct` or `expression` per its resolved route (`Implementation` counts too, currently always 0 pre-slice-4), `evaluate_assign_expr` and `evaluate_condition` count `expression`; `LatticeDriver::reset_tally_for_sweep` keeps the fixed point's re-evaluation from over-counting (D62); the Explorer's `sccp` view renders `routes entered: direct N · expression M · implementation K` beside the executable-blocks summary | `route_entries_are_counted_per_family` (compiler witnesses); `serialise::tests::sccp_reports_the_route_tally` |
 | VT3.10 | `7f0b3d20` | the slice's remaining witnesses: the acceptance list, the two correlated-limit programs, the release-oracle differential (D63), the CLI witness (`rust/tcl-cli/tests/value_transfers_cli.rs`, new — D65 covers its VT2.10 half) | `expr_acceptance_list`, `the_square_of_one_finite_input_stays_correlated` (D64), `the_mirror_pairs_decline_as_correlated` (D64), `expression_witnesses_match_every_release_on_path` (compiler witnesses); `explore_sccp_prints_the_route_tally` (CLI) |
 | VT2.10 (deferred, D35/D65) | the VT2.10 CLI commit | the four CLI tests slice 2 deferred, added to VT3.10's new file: program (3)'s route lines, the `f5-irules` decline, `llength`'s route, `tcl opt`'s forwarding and its kept nested-increment store, and #2214's kept global | `explore_sccp_prints_the_route_of_each_statement`, `opt_forwards_program_three`, `opt_keeps_the_store_behind_a_nested_increment`, `opt_keeps_a_global_a_nested_increment_writes` (CLI) |
+| VT3.11 | the landing commit | docs: the ledger's `expr` assembly row goes (`FormatTemplate`'s went with VT3.8); the `tcl_expr_eval.rs` / `word_subst.rs` / `type_infer.rs` rows in "Every analysis, and what changes for it" move their slice-3 content into "today" and close "under this design" to `none`; the driver's file-list line drops "the transitional handlers"; `value-evaluation.md` drops `try_format_fold`; the SCCP, constant-folding, optimisation-passes and ownership-matrix pages gain `expr` / `evaluate_branch` / `RouteTally` rows; `value-transfers.md` names `ExpressionSource`; the leading-zero KCS note gains `expr {"010"}`; § *Status (2026-09-23): slice 3 landed* records the suite and gate counts | none (docs only); G5, G6 green |
 
 Deltas observed beyond the plan's list, each with its oracle:
 

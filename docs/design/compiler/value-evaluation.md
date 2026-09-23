@@ -175,9 +175,9 @@ default it was not asked for.
   (`rust/tcl-syntax/src/value.rs`, `tcl-cmd-core`, the registry's test
   module) and no live one.
 - **A third family lives in codegen.** `rust/tcl-compiler/src/codegen/helpers.rs`
-  carries `try_format_fold` (`%s` and `%d` only) and `fold_list_cmd`,
-  reached from codegen and from `sccp.rs`'s name-keyed arms; `format`
-  therefore has four implementations.
+  carries `fold_list_cmd`, reached from codegen. `try_format_fold` (`%s`
+  and `%d` only) went with `format`'s transitional table when VT3.8 gave
+  the command a registry-owned route over the shared format core.
 - **Codegen already emits folded values, guarded.** `try_emit_constant_fold`
   in `rust/tcl-compiler/src/codegen/values.rs` folds a literal-only
   `[cmd …]` through `ConstSubstCtx::fold_cmd_subst_resolved`, pushes the

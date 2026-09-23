@@ -71,6 +71,19 @@ variable its exact new value; `string range`, `list`, `llength`, and
 `string length` give their result. A profile that names no release gets
 only the answer every release gives.
 
+`expr` is the one *expression* route: the registry assembles its argument
+words as the command specifies — one braced word is the expression text,
+any other word is substituted first, several words join with one space
+(`ExpressionSource`, `ExpressionRoute::assemble`) — and
+`tcl_expr_eval::evaluate_expression` runs the shared engine over the same
+lattice inputs, so `expr {"x"}` folds to the string `x`, not only a
+number. A nested `[…]` inside the expression resolves through the
+registry too, under an effect-free policy, and a `::tcl::mathfunc` call
+checks its binding before folding — `expr {abs(-2)}` folds under
+`tcl8.4` but declines once the module renames `::tcl::mathfunc::abs`
+(`abs_rebinding_declines`). A branch condition folds the same way,
+per member when exactly one of its reads is a finite SSA value.
+
 **Example — `set s hello; set p again; append s $p; puts $s`:**
 
 1. `s₁ = CONST("hello")`, `p₁ = CONST("again")`

@@ -395,9 +395,20 @@ SCCP determines `x₁ = Const(Int(5))`:
   value, and a decline — an inexact operand, a release-ambiguous axis
   under a profile naming no release, a head the module rebinds — leaves it
   `Overdefined`. Every statement's route and answer is in
-  `SccpResult::explanations`, which the Explorer's `sccp` view prints.
-  Every other statement kind — and every `Statement::Barrier` — widens its
-  defs to `Overdefined`.
+  `SccpResult::explanations`, which the Explorer's `sccp` view prints,
+  beside `SccpResult::route_tally`'s per-family entry counts (`routes
+  entered: direct N · expression M · implementation K`), nested route
+  entries included. Every other statement kind — and every
+  `Statement::Barrier` — widens its defs to `Overdefined`.
+- `Statement::AssignExpr` and a value-position `[expr …]` run the shared
+  expression engine (`tcl_expr_eval::evaluate_expression`) over the
+  lattice inputs: `var` reads the proven value, `command` resolves a
+  nested invocation through the registry under an effect-free policy, and
+  `call` proves a `::tcl::mathfunc` binding; the answer is the engine's
+  full value, so a string result folds too. `evaluate_branch` resolves a
+  condition the same way and, when exactly one distinct SSA value among
+  its reads is `Finite`, decides once every member agrees — two distinct
+  finite reads decline `CorrelatedSets` instead of pairing arbitrarily.
 - Liveness is computed backward from uses to definitions — if a new IR
   node reads variables, ensure they appear in `SsaStatement::uses`.
 - SCCP runs once per function (no iterative refinement across functions —

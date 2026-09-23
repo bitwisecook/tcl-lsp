@@ -55,10 +55,14 @@ checkpoint compiling.
   for slices 2–13*. Slice 1 (the interface shapes, the exact value
   ingress, the corrected derivation, the analysis context, the SCCP
   dispatcher behind the interface, the ledger, and the `cargo xtask
-  value-transfers` gate) and slice 2 (the direct routes for `incr`,
+  value-transfers` gate), slice 2 (the direct routes for `incr`,
   `append`, `lappend`, `set`, the `dict` keyed updates, `string range`,
   `list`, `llength`, and `string length`, with both analysis paths under
-  one context) have landed; slice 3, the expression slice, is next.
+  one context), and slice 3 (registry-owned `expr` argument assembly over
+  the shared expression engine, per-member finite-set branch decisions,
+  `format`'s registry-owned route, and the Explorer's per-family route
+  tally) have landed; slice 4, a private SpecTcl command through the same
+  interface, is next.
 - [consumer-contracts.md](consumer-contracts.md) — step 1 of
   [registry-consumer-contracts.md](../compiler/registry-consumer-contracts.md)
   § *Build order*: the four rulings taken as decided, and the documents whose

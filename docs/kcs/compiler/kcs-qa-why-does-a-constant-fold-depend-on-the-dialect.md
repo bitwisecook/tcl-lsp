@@ -27,6 +27,14 @@ grammar, so `string range … 010 end` is `ijkl` up to 8.6 and `kl` from
 9.0; an increment past the wide boundary widens to a bignum from 8.5 and
 is an error on 8.4.
 
+`expr` reads the same release axis, because its route runs the shared
+expression engine over the same value model rather than a private
+parser: `expr {"010"}` folds to `8` up to Tcl 8.6 and `10` from 9.0, for
+the identical reason `incr` does. iRules' own runtime is 8.4's, so
+`expr {"010"}` folds there too (`8`); a profile with no runtime at all —
+an F5 BIG-IP config context, say — declines, because nothing pins which
+grammar applies.
+
 A profile that names no release — every vendor dialect, iRules included,
 until its release evidence is verified — gets the answer every modelled
 release gives, and a decline where they differ. `incr x 5` still folds

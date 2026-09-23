@@ -1548,7 +1548,11 @@ the seam for the third already exists:
 2. **The registry-owned `expr` specialisation** assembles those arguments
    into one expression as the command specifies: a braced argument is the
    expression text; a quoted argument has had substitutions performed
-   before the engine sees it; several arguments concatenate.
+   before the engine sees it; several arguments concatenate. The
+   assembled form is `ExpressionSource` — `Braced { text, base }` for the
+   one-braced-word case, `Substituted(ExactValue)` for every other case —
+   which `ExpressionRoute::assemble` builds
+   (`rust/tcl-registry/src/value_transfer/builtins.rs`).
 3. **The shared expression engine** — `tcl_syntax::expr::eval` with its
    `ExprOps` (`var`, `command`, `call`) in `rust/tcl-syntax/src/expr/eval.rs`
    — evaluates lazily, using analysis services for proven variable values
