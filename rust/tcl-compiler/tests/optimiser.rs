@@ -3060,6 +3060,46 @@ fn a_body_that_completes_through_try_ok_keeps_the_code_after_the_try() {
     );
 }
 
+/// A `-` handler runs the body of the handler after it, whatever that
+/// handler's own selector, so a completion the `-` handler matches reaches the
+/// shared body. tclsh 8.6.18 and 9.0.4 return `1`, `1`, `1`, and `5` / `6`
+/// (found in review).
+#[test]
+fn a_fallthrough_handler_reaches_the_body_it_shares() {
+    for (why, src, kept) in [
+        (
+            "an error selected by `on error {} -`",
+            "proc p {} {\n    set x 0\n    try {error boom} on error {} - on ok {} {set x 1} finally {}\n    return $x\n}\n",
+            "set x 1",
+        ),
+        (
+            "a return selected by `on return {} -`",
+            "proc p {} {\n    set x 0\n    try {return early} on return {} - on error {} {set x 1} finally {}\n    return $x\n}\n",
+            "set x 1",
+        ),
+        (
+            "an error through a chain of two `-` handlers",
+            "proc p {} {\n    set x 0\n    try {error boom} on error {} - trap {} {} - on ok {} {set x 1} finally {}\n    return $x\n}\n",
+            "set x 1",
+        ),
+    ] {
+        assert!(
+            optimised(src, TCL).contains(kept),
+            "{why}: the shared body runs: {}",
+            optimised(src, TCL)
+        );
+    }
+
+    // An `on ok` owner shared with `on error {} -` is not reached from the
+    // tail alone: the error path carries `y` = 5 into it.
+    let shared = "proc p {c} {\n    set y 0\n    try {set y 5; if {$c} {error boom}; set y 6} on error {} - on ok {} {return $y} finally {}\n    return none\n}\n";
+    assert!(
+        optimised(shared, TCL).contains("return $y"),
+        "`y` is 5 or 6 in the shared body: {}",
+        optimised(shared, TCL)
+    );
+}
+
 /// A `finally` clause that itself transfers control keeps that transfer: its
 /// `break` overrides the pending return or error, so the code after the loop
 /// is live. tclsh 8.6.18 and 9.0.4 print `after 1` and `survived` (found in

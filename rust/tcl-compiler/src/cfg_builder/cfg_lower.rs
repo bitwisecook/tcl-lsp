@@ -895,17 +895,22 @@ impl CfgBuilder<'_> {
     ///   (version-0) with the body-exit state.
     fn push_try_handler_exception_edges(
         &mut self,
-        handler: &crate::ir::TryHandler,
+        group: &[&crate::ir::TryHandler],
         handler_block: &str,
         block_name: &str,
         body_tail: Option<&str>,
         body_throw_blocks: &[String],
         body_terminal: Option<&str>,
     ) {
-        if !self.faithful_exceptions {
+        if !self.faithful_exceptions || group.is_empty() {
             return;
         }
-        let is_on_ok = handler.kind == "on" && handler.match_arg == "ok";
+        // `group` is every handler whose match runs this block's body: a `-`
+        // handler's own block is empty, so the body it shares is reached only
+        // through the edges of the handler that owns it.
+        let is_on_ok = group
+            .iter()
+            .all(|handler| handler.kind == "on" && handler.match_arg == "ok");
         if is_on_ok {
             if let Some(tail) = body_tail {
                 self.exception_edges
@@ -929,8 +934,15 @@ impl CfgBuilder<'_> {
             // `try {return early} on error {} {}` to the handler made the
             // `try` look as if it could complete normally (found in review).
             // A selector or completion the registry cannot decode keeps the
-            // edge.
-            throw_sources.retain(|src| !self.handler_misses_completion(handler, src));
+            // edge, and so does a match by any handler of a `-` group:
+            // `try {error boom} on error {} - on ok {} {set x 1}` runs
+            // `set x 1`, which tclsh 8.6.18 and 9.0.4 confirm (found in
+            // review).
+            throw_sources.retain(|src| {
+                group
+                    .iter()
+                    .any(|handler| !self.handler_misses_completion(handler, src))
+            });
             for src in throw_sources {
                 self.exception_edges.push((src, handler_block.to_owned()));
             }
@@ -1073,6 +1085,29 @@ impl CfgBuilder<'_> {
     /// known not to select: both codes decoded by the registry — the handler's
     /// through its completion-code selector (`trap` is an error) — and
     /// different. Either one unknown answers `false`, keeping the edge.
+    /// The handlers whose match runs handler `index`'s block: a `-` handler
+    /// alone, else the owner with the `-` handlers that hand it their match.
+    /// A member an earlier handler always pre-empts is left out, so a group
+    /// every member of which is pre-empted is empty and gets no edges.
+    fn live_handler_group<'h>(
+        &self,
+        handlers: &'h [crate::ir::TryHandler],
+        index: usize,
+    ) -> Vec<&'h crate::ir::TryHandler> {
+        let start = if handlers[index].fallthrough {
+            index
+        } else {
+            handlers[..index]
+                .iter()
+                .rposition(|earlier| !earlier.fallthrough)
+                .map_or(0, |owner| owner + 1)
+        };
+        handlers[start..=index]
+            .iter()
+            .filter(|member| !self.handler_shadowed(&handlers[..start], member))
+            .collect()
+    }
+
     fn handler_misses_completion(&self, handler: &crate::ir::TryHandler, block: &str) -> bool {
         let Some(code) = self
             .try_entry
@@ -1334,18 +1369,16 @@ impl CfgBuilder<'_> {
             self.ensure_goto(block_name, &handler_block, Some(*span));
 
             // Record throw edges into the handler (analysis builds only):
-            // `block_name` already gotos `try_body`. None for a handler an
-            // earlier one always pre-empts.
-            if !self.handler_shadowed(&handlers[..index], handler) {
-                self.push_try_handler_exception_edges(
-                    handler,
-                    &handler_block,
-                    block_name,
-                    body_tail.as_deref(),
-                    &body_throw_blocks,
-                    body_terminal.as_deref(),
-                );
-            }
+            // `block_name` already gotos `try_body`.
+            let live_group = self.live_handler_group(handlers, index);
+            self.push_try_handler_exception_edges(
+                &live_group,
+                &handler_block,
+                block_name,
+                body_tail.as_deref(),
+                &body_throw_blocks,
+                body_terminal.as_deref(),
+            );
 
             let var_defs = handler_var_defs(handler, &mut pending_fallthrough_defs);
             self.push_handler_var_defs(&handler_block, var_defs, *span);

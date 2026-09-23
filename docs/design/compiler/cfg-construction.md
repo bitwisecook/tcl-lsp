@@ -275,8 +275,13 @@ A handler an earlier one always pre-empts gets no edges at all: Tcl runs
 only the first matching handler, so a second `on error` after an
 unconditional `on error` is dead.  Only an earlier non-`trap` handler with
 the same decoded code proves it — a `-` handler counts, since it selects
-its code before handing its body on — and never for the target of a `-`
-chain, whose block holds the body the earlier `-` handlers run.
+its code before handing its body on.  A `-` handler's own block is
+empty, so the body it shares is reached only through the edges of the
+handler that owns it, and those edges are filtered against the whole
+group: a completion any member matches keeps its edge, save a member an
+earlier handler pre-empts.  So `try {error boom} on error {} - on ok {}
+{set x 1}` reaches `set x 1`, and an owner is dead only when every
+member of its group is pre-empted.
 
 A handler of a body with a resting tail takes its exception edges from the
 pre-`try` block, the tail, **and** every recorded throw point: an `error`
