@@ -31,7 +31,7 @@ use tcl_lexer::{LexerConfig, LineIndex, SourceMap, Span, Utf16Col};
 use tcl_lsp_core::config_ini;
 use tcl_lsp_core::definition::LspRange;
 use tcl_lsp_core::diagnostic_policy::{
-    Directives, Finding, Policy, PolicyBuilder, PolicyLayer, Report, Shown,
+    Directives, Finding, Policy, PolicyBuilder, PolicyLayer, Reason, Report, Shown,
 };
 use tcl_lsp_core::diagnostic_report::{
     DocumentSource, SourcePass, StandaloneDocument, document_report, optimise_under_policy,
@@ -390,6 +390,46 @@ fn diag_to_json(shown: &Shown<'_>, sm: &SourceMap<'_>) -> Value {
             .insert("fixes".to_owned(), Value::Array(fixes));
     }
     obj
+}
+
+/// One suppressed finding as `{code, range, reason, message}`
+/// (`docs/design/compiler/diagnostic-policy.md` § Adapters, MCP JSON).
+/// `message` is added beside the page's three keys: without it a suppressed
+/// W210 does not say which variable (§ Decisions taken, D22).
+fn suppressed_to_json(finding: &Finding, reason: Reason, sm: &SourceMap<'_>) -> Value {
+    json!({
+        "code": finding.code.as_str(),
+        "range": byte_range(sm, finding.span),
+        "reason": reason.to_string(),
+        "message": finding.message,
+    })
+}
+
+/// The `suppressed` array a diagnostics tool payload gains: every suppressed
+/// finding `keep` allows through [`suppressed_to_json`], then every declared
+/// gap but the default-off seed (`null` range and message), restricted the
+/// same way — so an agent can see that a finding exists and was suppressed
+/// rather than concluding the code is clean.
+fn suppressed_json(report: &Report, sm: &SourceMap<'_>, keep: impl Fn(&str) -> bool) -> Vec<Value> {
+    let mut out: Vec<Value> = report
+        .suppressed()
+        .filter(|(finding, _)| keep(finding.code.as_str()))
+        .map(|(finding, reason)| suppressed_to_json(finding, reason, sm))
+        .collect();
+    out.extend(
+        report
+            .gaps()
+            .filter(|(code, reason)| !matches!(reason, Reason::DefaultOff) && keep(code.as_str()))
+            .map(|(code, reason)| {
+                json!({
+                    "code": code.as_str(),
+                    "range": Value::Null,
+                    "reason": reason.to_string(),
+                    "message": Value::Null,
+                })
+            }),
+    );
+    out
 }
 
 /// Serialise a control-flow document symbol tree (nested-range shape).
@@ -783,6 +823,7 @@ fn analyze_with(args: &Value, inputs: &PolicyInputs) -> Value {
         "symbols": symbols,
         "events": detect_events(source),
         "event_order": event_order_list(source),
+        "suppressed": suppressed_json(&report, &sm, |_| true),
     })
 }
 
@@ -807,7 +848,11 @@ fn validate_with(args: &Value, inputs: &PolicyInputs) -> Value {
             categories.insert(key.clone(), json!({ "label": label, "items": items }));
         }
     }
-    json!({ "categories": Value::Object(categories), "total": report.shown().count() })
+    json!({
+        "categories": Value::Object(categories),
+        "total": report.shown().count(),
+        "suppressed": suppressed_json(&report, &sm, |_| true),
+    })
 }
 
 fn review(args: &Value) -> Value {
@@ -831,7 +876,18 @@ fn review_with(args: &Value, inputs: &PolicyInputs) -> Value {
     let taint = filt(&meta.taint_codes);
     let thread = filt(&meta.thread_codes);
     let total = security.len() + taint.len() + thread.len();
-    json!({ "security": security, "taint": taint, "thread_safety": thread, "total": total })
+    let suppressed = suppressed_json(&report, &sm, |code| {
+        meta.security_codes.contains(code)
+            || meta.taint_codes.contains(code)
+            || meta.thread_codes.contains(code)
+    });
+    json!({
+        "security": security,
+        "taint": taint,
+        "thread_safety": thread,
+        "total": total,
+        "suppressed": suppressed,
+    })
 }
 
 fn find_legacy(args: &Value) -> Value {
@@ -858,7 +914,10 @@ fn find_legacy_with(args: &Value, inputs: &PolicyInputs) -> Value {
             obj
         })
         .collect();
-    json!({ "total": patterns.len(), "patterns": patterns })
+    let suppressed = suppressed_json(&report, &sm, |code| {
+        tcl_cli::CONVERTIBLE_CODES.contains(&code)
+    });
+    json!({ "total": patterns.len(), "patterns": patterns, "suppressed": suppressed })
 }
 
 #[cfg(test)]
@@ -1792,7 +1851,8 @@ const TOOLS: &[ToolDef] = &[
                       Diagnostics are the source's shown set, including the compiler checks (S1xx, T1xx, \
                       IRULE1xxx–5xxx) and the source-style pass (W111, W112, W115, W118) — inline `# noqa`, \
                       top-of-file `# tcl-lsp: disable=`, the global config.ini and the call's disable/enable \
-                      arguments all apply, as in the editor.",
+                      arguments all apply, as in the editor; and a `suppressed` array: every finding the policy \
+                      hides, with its reason.",
         params: &[SRC, DIALECT, DISABLE, ENABLE],
         required: &["source"],
         handler: analyze,
@@ -1802,7 +1862,8 @@ const TOOLS: &[ToolDef] = &[
         description: "Diagnostics grouped by category (security, taint, thread-safety, control-flow, performance, style, …), \
                       from the source's shown set, including the compiler checks (S1xx, T1xx, IRULE1xxx–5xxx) and \
                       the source-style pass (W111, W112, W115, W118) (directives, the global config.ini and \
-                      disable/enable apply).",
+                      disable/enable apply); and a `suppressed` array: every finding the policy hides, with its \
+                      reason.",
         params: &[SRC, DIALECT, DISABLE, ENABLE],
         required: &["source"],
         handler: validate,
@@ -1811,7 +1872,8 @@ const TOOLS: &[ToolDef] = &[
         name: "review",
         description: "Security, taint, and thread-safety diagnostics for a focused review, from the source's shown set, \
                       including the compiler checks (S1xx, T1xx, IRULE1xxx–5xxx) and the source-style pass (W111, \
-                      W112, W115, W118) (directives, the global config.ini and disable/enable apply).",
+                      W112, W115, W118) (directives, the global config.ini and disable/enable apply); and a \
+                      `suppressed` array: every finding the policy hides, with its reason.",
         params: &[SRC, DIALECT, DISABLE, ENABLE],
         required: &["source"],
         handler: review,
@@ -1820,7 +1882,8 @@ const TOOLS: &[ToolDef] = &[
         name: "find-legacy",
         description: "Auto-convertible legacy patterns with a modernisation hint per finding, from the source's shown set, \
                       including the compiler checks (S1xx, T1xx, IRULE1xxx–5xxx) and the source-style pass (W111, \
-                      W112, W115, W118) (directives, the global config.ini and disable/enable apply).",
+                      W112, W115, W118) (directives, the global config.ini and disable/enable apply); and a \
+                      `suppressed` array: every finding the policy hides, with its reason.",
         params: &[SRC, DIALECT, DISABLE, ENABLE],
         required: &["source"],
         handler: find_legacy,
@@ -2488,6 +2551,14 @@ mod policy_tests {
         diagnostics.iter().any(|d| d["code"] == code)
     }
 
+    /// `analyze`'s `suppressed` array under `global_ini`.
+    fn analyze_suppressed(args: &Value, global_ini: &str) -> Vec<Value> {
+        analyze_with(args, &inputs(args, "diagnostics", global_ini))["suppressed"]
+            .as_array()
+            .expect("suppressed array")
+            .clone()
+    }
+
     #[test]
     fn analyze_honours_an_inline_noqa() {
         let plain = json!({ "source": UNSET_READ, "dialect": "tcl9.0" });
@@ -2649,6 +2720,53 @@ mod policy_tests {
                     && reason == tcl_lsp_core::diagnostic_policy::Reason::OptimiserOff
             }),
             "O100 stands in the report as an `OptimiserOff` suppression: {report:?}"
+        );
+        // DP9.3: the payload's own `suppressed` array carries the same half.
+        let suppressed = analyze_suppressed(&args, "");
+        assert!(
+            suppressed
+                .iter()
+                .any(|s| s["code"] == "O100" && s["reason"] == "optimiser-off"),
+            "{suppressed:?}"
+        );
+    }
+
+    /// Each diagnostics tool's payload gains a `suppressed` array
+    /// (`docs/design/compiler/diagnostic-policy.md` § Adapters, MCP JSON):
+    /// an inline `# noqa` and `disable` both explain a hidden finding, and a
+    /// tool's own restriction to its code set still applies to the array.
+    #[test]
+    fn the_diagnostics_tools_list_what_the_policy_hides() {
+        let marked = json!({ "source": "# noqa: W210\nputs $y\n", "dialect": "tcl9.0" });
+        let suppressed = analyze_suppressed(&marked, "");
+        let w210 = suppressed
+            .iter()
+            .find(|s| s["code"] == "W210")
+            .unwrap_or_else(|| panic!("no suppressed W210: {suppressed:?}"));
+        assert_eq!(w210["reason"], "inline-directive", "{w210}");
+        assert_eq!(w210["range"]["start"]["line"], 1, "{w210}");
+
+        let disabled = json!({ "source": "puts $y\n", "dialect": "tcl9.0", "disable": "W210" });
+        let suppressed = analyze_suppressed(&disabled, "");
+        let w210 = suppressed
+            .iter()
+            .find(|s| s["code"] == "W210")
+            .unwrap_or_else(|| panic!("no suppressed W210: {suppressed:?}"));
+        assert_eq!(w210["range"], Value::Null, "{w210}");
+        assert_eq!(w210["reason"], "disabled:invocation", "{w210}");
+
+        let review_args = json!({
+            "source": "set x hello\n# noqa: S100\nincr x\n",
+            "dialect": "tcl9.0",
+        });
+        let review_suppressed = review_with(&review_args, &inputs(&review_args, "diagnostics", ""))
+            ["suppressed"]
+            .as_array()
+            .expect("suppressed array")
+            .clone();
+        assert!(
+            !review_suppressed.iter().any(|s| s["code"] == "S100"),
+            "S100 is not a review code: {review_suppressed:?}"
         );
     }
 

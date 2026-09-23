@@ -1230,6 +1230,38 @@ Suites: `tcl-cli` lib 27, `cli` 45 (41 + 4), `compile_verbs` 11,
 `lib.rs` and `tests/cli.rs`; `cargo check --workspace` is green. No new
 diagnostic code, so no catalogue regenerates.
 
+### DP9.3 — The MCP `suppressed` array
+
+`tools.rs`: `suppressed_to_json(finding, reason, sm)` →
+`{code, range: byte_range(sm, finding.span), reason: reason.to_string(),
+message: finding.message}`; `suppressed_json(report, sm, keep: impl
+Fn(&str) -> bool)` renders `report.suppressed()` through it, filtered by
+`keep`, then `report.gaps()` without `Reason::DefaultOff` (`range` and
+`message` both `Value::Null`), filtered the same way — one function so a
+gap's shape is written once. `analyze` and `validate` keep every code
+(`|_| true`); `review` keeps the union of `meta.security_codes`,
+`taint_codes` and `thread_codes`; `find-legacy` keeps
+`tcl_cli::CONVERTIBLE_CODES`. Each of the four payloads gains `"suppressed":
+suppressed_json(&report, &sm, keep)`; every existing key is untouched. The
+four `ToolDef::description`s gain the item's sentence.
+
+Tests: `policy_tests::the_diagnostics_tools_list_what_the_policy_hides`
+(`analyze` over `# noqa: W210\nputs $y\n` → suppressed W210,
+`inline-directive`, range starting line 1; over `puts $y\n` with `disable:
+"W210"` → `{range: null, reason: "disabled:invocation"}`; `review` over
+`set x hello\n# noqa: S100\nincr x\n` lists no S100 — S100 is not a
+security/taint/thread code, whether or not it fires here); a new
+`analyze_suppressed` test helper (mirrors `analyzed`, reading `["suppressed"]`
+instead of `["diagnostics"]`) gives
+`policy_tests::a_check_emitted_rewrite_is_suppressed_not_missing` its other
+half — O100 in `analyze`'s own JSON `suppressed` array with `optimiser-off`,
+beside its existing check against the raw `Report`.
+
+Suites: `tcl-mcp` 100 (99 + 1; `a_check_emitted_rewrite_is_suppressed_not_missing`
+gained an assertion rather than becoming a new test). The crate clippy is
+clean; `cargo fmt` touched `tools.rs`; `cargo check --workspace` is green.
+No new diagnostic code or catalogue entry, so nothing regenerates.
+
 ## Plan for finishing slices 4–7 and for slices 8–10
 
 The execution plan from the checkpoint `5bc40e95` to the end of the page's
@@ -3953,7 +3985,7 @@ Each item updates its row in the commit that lands it.
 | DP8.3 | sonnet | S | done — § *Slices 8–10 as built* | `DP8.3 — The lightbulb reads the published report; W115's conversion follows its finding` | core `--lib` (2328, `-- code_actions` 97) and `--test code_actions_depth` (46); server `--lib` (591, `-- lightbulb` 1) and the whole `e2e` (1598, 5 ignored, `code_actions` subset 93); clippy on core and server; `cargo fmt`; `cargo check --workspace` |
 | DP9.1 | sonnet | S | done — § *Slices 8–10 as built* | `DP9.1 — One spelling for every reason, and the report's gaps` | core `--lib` (2328, `-- diagnostic_policy` 97); clippy on core; `cargo fmt`; `cargo check --workspace` |
 | DP9.2 | sonnet | M | done — § *Slices 8–10 as built* | `DP9.2 — --show-suppressed on tcl diag / lint` | `tcl-cli` lib 27, `cli` 45, `compile_verbs` 11, `explorer_gui` 2, `pkg_verbs` 13, `spec_verbs` 18; clippy on `tcl-cli`; `cargo fmt`; `cargo xtask kcs-index-links`; `cargo check --workspace` |
-| DP9.3 | sonnet | M | not started | — | — |
+| DP9.3 | sonnet | M | done — § *Slices 8–10 as built* | `DP9.3 — the MCP suppressed array` | `tcl-mcp` 100; clippy on `tcl-mcp`; `cargo fmt`; `cargo check --workspace` |
 | DP9.4 | opus | L | not started | — | — |
 | DP9.5 | opus | M | not started | — | — |
 | DP9.6 | sonnet | M | not started | — | — |
