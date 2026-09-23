@@ -1214,12 +1214,15 @@ impl CfgBuilder<'_> {
                 // of the construct's first block, the body's or a handler's.
                 // An earlier statement, or an earlier block (`if {$c} {};
                 // exit 0` evaluates `$c` first), may raise an error, and an
-                // error does run the clause. See `always_exits_process`.
+                // error does run the clause. So may a handler's binding of its
+                // result or options variable: a write trace, or an `upvar` to
+                // an array, rejects it before the body runs (found in review).
+                // See `always_exits_process`.
                 Some(crate::cfg::Terminator::Return { .. }) => {
                     if !intercepted.contains(name.as_str())
                         && !self.caught_by_handler(name, body_block, handlers, handler_blocks)
                         && !((name == body_block || handler_blocks.contains(name))
-                            && matches!(authored_statements(block.statements.as_slice()), [only]
+                            && matches!(block.statements.as_slice(), [only]
                                 if super::always_exits_process(only, self.registry, &resolve_head)))
                     {
                         sources.push(name.clone());
@@ -1901,29 +1904,6 @@ impl CfgBuilder<'_> {
         }
 
         end_block
-    }
-}
-
-/// A block's statements without the synthetic binding
-/// [`CfgBuilder::push_handler_var_defs`] puts first in a handler that names
-/// a result or options variable: it runs nothing, so it cannot stop the
-/// handler's own first statement, and `on error msg {exit 0}` exits as surely
-/// as `on error {} {exit 0}` (found in review). The binding is recognised by
-/// the shape only lowering gives it — no source tokens, no arguments, and the
-/// names it defines — never by spelling alone.
-fn authored_statements(statements: &[Statement]) -> &[Statement] {
-    match statements {
-        [
-            Statement::Call {
-                command,
-                args,
-                defs,
-                tokens: None,
-                ..
-            },
-            rest @ ..,
-        ] if command == "try" && args.is_empty() && !defs.is_empty() => rest,
-        _ => statements,
     }
 }
 

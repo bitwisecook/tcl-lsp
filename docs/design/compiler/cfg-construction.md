@@ -197,9 +197,10 @@ A handler edge alone proves nothing more: `try {return $x} on error {}
 the `return` still runs the clause; and a process exit (`Traits::TERMINATES_PROCESS`,
 e.g. `exit`), which ends the interpreter without unwinding, so no `finally`
 runs — but only when nothing can stop it from running: it is the sole
-statement of the construct's own first block (the body's, or a handler's,
-past the synthetic binding of `on error msg {…}` — an earlier block may
-raise too: `if {$c} {}; exit 0`), every word is literal, the command-binding owner resolves
+statement of the construct's own first block (the body's, or a handler's
+that binds no variable — `on error msg {exit 0}` first writes `msg`, which
+a write trace or an `upvar` to an array rejects with an error; an earlier
+block may raise too: `if {$c} {}; exit 0`), every word is literal, the command-binding owner resolves
 the call site to one registry-backed target (whose alias prefix joins the
 written words — `interp alias {} bye {} exit abc` makes `bye` raise, as
 does the same alias named `::foo::exit` called as `exit` inside `::foo`),

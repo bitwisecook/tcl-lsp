@@ -2887,6 +2887,14 @@ fn an_exit_reaches_no_finally() {
             "an error only a `trap` might catch",
             "set g 0\nproc p {} {\n    global g\n    try {error boom} trap {NOT MATCHING} {} {exit 0} finally {set g 1}\n}\ncatch p\nputs $g\n",
         ),
+        // Binding `msg` is a write, and a write trace can reject it before
+        // the `exit` runs; the error then runs the clause. tclsh 8.6.18 and
+        // 9.0.4 print `1`, as they do when `msg` is an `upvar` to an array
+        // (found in review).
+        (
+            "a handler whose variable binding may raise before its `exit`",
+            "set g 0\nproc tr args {error TRACE}\nproc p {} {\n    global g\n    trace add variable msg write tr\n    try {error boom} on error msg {exit 0} finally {set g 1}\n}\ncatch p\nputs $g\n",
+        ),
         (
             "a namespace alias spelled like its target",
             "set g 0\nnamespace eval foo {}\ninterp alias {} ::foo::exit {} ::exit abc\nproc ::foo::p {} {\n    global g\n    try {exit} finally {set g 1}\n}\ncatch foo::p\nputs $g\n",
@@ -2948,12 +2956,6 @@ fn a_try_finally_does_not_hide_the_names_bound_around_it() {
         (
             "not unbound by a handler a `-` handler pre-empts",
             "proc p {} {\n    set x 1\n    try {error boom} on error {} - on ok {} {} on error {} {unset x; return} finally {puts $x}\n}\n",
-        ),
-        // The handler's `exit` ends the process before the clause could read;
-        // binding `msg` first does not change that (found in review).
-        (
-            "never read: a handler that binds its message, then exits",
-            "proc p {} {\n    try {error boom} on error msg {exit 0} finally {puts $x}\n}\n",
         ),
         // A `break`/`continue` runs the clause before it reaches the loop.
         // An edge into the `finally` alongside the jump still left a path
