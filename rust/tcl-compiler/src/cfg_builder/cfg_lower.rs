@@ -960,13 +960,30 @@ impl CfgBuilder<'_> {
         }
     }
 
-    /// The exact completion code with which `block` leaves, when it is known:
-    /// a plain `return`, or a last statement the registry decodes (see
+    /// The exact completion code with which *every* path through `block`
+    /// leaves, when it is known: the [`terminal code`](Self::terminal_code)
+    /// of a block with nothing else in it. An earlier statement may complete
+    /// first — `set y $x; return ok` raises when `x` is unset, which an
+    /// `on error` handler catches — so a block with one proves no single code
+    /// (found in review).
+    fn block_completion_code(&self, block: &str) -> Option<tcl_core_types::Code> {
+        let statements = self.blocks.get(block)?.statements.len();
+        let alone = if self.plain_return_blocks.contains(block) {
+            statements == 0
+        } else {
+            statements == 1
+        };
+        alone.then(|| self.terminal_code(block)).flatten()
+    }
+
+    /// The completion code of whatever ended `block`, when it is known: a
+    /// plain `return`, or a last statement the registry decodes (see
     /// [`super::exact_statement_completion`]) that is what ended the block — a
     /// `break` / `continue` behind its `Goto`, or a non-`ok` code behind a
     /// `Return`. A block ended some other way (an opaque `switch`, or a
     /// `finally` clause resuming what it interrupted) has no single code.
-    fn block_completion_code(&self, block: &str) -> Option<tcl_core_types::Code> {
+    /// Earlier statements in the block are not considered.
+    fn terminal_code(&self, block: &str) -> Option<tcl_core_types::Code> {
         use tcl_core_types::Code;
         if self.plain_return_blocks.contains(block) {
             return Some(Code::Return);
@@ -1379,7 +1396,9 @@ impl CfgBuilder<'_> {
             if in_try(*target) {
                 continue;
             }
-            let Some(jump) = self.block_completion_code(name) else {
+            // The `Goto` stands for the jump alone; an earlier statement's
+            // failure has its own handler edges.
+            let Some(jump) = self.terminal_code(name) else {
                 continue;
             };
             if !matches!(
@@ -1420,7 +1439,10 @@ impl CfgBuilder<'_> {
     /// add a path where the error escaped uncaught — which made
     /// `try {error boom} on error {} {set f 2} finally {set f 1}` read the
     /// handler's dead store as live. A block whose completion is not exact
-    /// (`return $x` may raise while substituting) keeps its own exit.
+    /// (`return $x` may raise while substituting) keeps its own exit, and so
+    /// does one whose only matching handler is a `trap`: its `-errorcode`
+    /// prefix may not match, and `try {error boom} trap {NOT MATCHING} {}
+    /// {exit 0} finally {…}` runs the clause (found in review).
     fn caught_by_handler(
         &self,
         block: &str,
@@ -1434,7 +1456,9 @@ impl CfgBuilder<'_> {
             .iter()
             .zip(handler_blocks)
             .any(|(handler, handler_block)| {
-                crate::executable_ir::try_handler_code(handler) == Some(code)
+                handler.kind != "trap"
+                    && handler.trap_pattern.is_none()
+                    && crate::executable_ir::try_handler_code(handler) == Some(code)
                     && self
                         .exception_edges
                         .iter()

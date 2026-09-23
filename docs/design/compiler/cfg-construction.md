@@ -183,8 +183,11 @@ a `return` a nested construct intercepts
 *whole* — one with an edge into a `catch`'s end block or into the end block
 of a nested `try … finally`, which catch every completion — or that one of
 this `try`'s own handlers catches exactly (the block's completion code is
-known and it has an edge into a handler whose decoded selector is that
-code) — control reaches this `finally` only after that construct has run.
+known for *every* path through it — nothing else in the block that could
+complete first, so not `set y $x; return ok` — and it has an edge into an
+unconditional handler whose decoded selector is that code; a `trap` is
+conditional on its `-errorcode` prefix) — control reaches this `finally`
+only after that construct has run.
 A handler edge alone proves nothing more: `try {return $x} on error {}
 {exit 0} finally {…}` hands the substitution's error to the handler, but
 the `return` still runs the clause; and a process exit (`Traits::TERMINATES_PROCESS`,
@@ -235,9 +238,10 @@ remove one.
 A body that cannot fall through reaches a handler from its explicit throw
 points, or failing those from its terminal block — but not a source whose
 exact completion code differs from the one the handler's selector decodes
-to (`trap` is an error).  A source's code is known for a plain `return`
-whose value cannot substitute (`TCL_RETURN`), and for a last statement the
-registry classifies that is what ended the block: `break` / `continue`
+to (`trap` is an error).  A source's code is known when nothing else in
+its block could complete first, for a plain `return` whose value cannot
+substitute (`TCL_RETURN`), and for a sole statement the registry classifies
+that is what ended the block: `break` / `continue`
 behind its `Goto`, a non-`ok` code behind a `Return`.  So
 `try {break} on error {} {}`, `on continue`, `on 4` and
 `try {return early} on error {} {}` offer no way to complete normally.  An

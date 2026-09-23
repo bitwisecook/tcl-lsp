@@ -2855,6 +2855,17 @@ fn an_exit_reaches_no_finally() {
             "a handler that catches only some of the body's completions",
             "set g 0\nproc p {x} {\n    global g\n    try {return $x} on error {} {exit 0} finally {set g 1}\n}\np 5\nputs $g\n",
         ),
+        // A statement before the `return` may raise first, and a `trap` may
+        // not match: either way the `finally` still runs, so tclsh prints `1`
+        // (found in review).
+        (
+            "a statement that may raise before an exact `return`",
+            "set g 0\nproc p {} {\n    global g\n    try {set y $x; return ok} on error {} {} on return {} {exit 0} finally {set g 1}\n}\np\nputs $g\n",
+        ),
+        (
+            "an error only a `trap` might catch",
+            "set g 0\nproc p {} {\n    global g\n    try {error boom} trap {NOT MATCHING} {} {exit 0} finally {set g 1}\n}\ncatch p\nputs $g\n",
+        ),
         (
             "a namespace alias spelled like its target",
             "set g 0\nnamespace eval foo {}\ninterp alias {} ::foo::exit {} ::exit abc\nproc ::foo::p {} {\n    global g\n    try {exit} finally {set g 1}\n}\ncatch foo::p\nputs $g\n",
