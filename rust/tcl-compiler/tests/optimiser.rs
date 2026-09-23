@@ -2901,6 +2901,17 @@ fn a_try_finally_does_not_hide_the_names_bound_around_it() {
             "rebound by `finally` after a `continue` no handler catches",
             "proc p {} {\n    set x 0\n    while {$x < 3} {\n        try {unset x; continue} on error {} {} finally {set x 5}\n    }\n    return $x\n}\n",
         ),
+        // A handler that selects the jump's code catches it, so the jump never
+        // reaches the loop; tclsh 8.6.18 and 9.0.4 print `1` for both (found
+        // in review).
+        (
+            "bound by an `on break` handler that catches the `break`",
+            "proc p {} {\n    while 1 {\n        try {break} on break {} {set x 1} finally {}\n        break\n    }\n    puts $x\n}\n",
+        ),
+        (
+            "bound by an `on break` handler, with no `finally`",
+            "proc p {} {\n    while 1 {\n        try {break} on break {} {set x 1}\n        break\n    }\n    puts $x\n}\n",
+        ),
         (
             "rebound by the outer of two nested clauses a `break` leaves",
             "proc p {} {\n    set x 0\n    while 1 {\n        try { try {unset x; break} finally {set y 1} } finally {set x 5}\n    }\n    return $x\n}\n",
@@ -2951,6 +2962,15 @@ fn a_try_that_never_completes_does_not_fall_through_its_finally() {
             analyser_codes(src, TCL)
         );
     }
+
+    // `on error` cannot catch a `return`, so the code after the `try` is dead:
+    // tclsh 8.6.18 and 9.0.4 return `early` (found in review).
+    let returns = "proc p {} {\n    try {return early} on error {} {} finally {}\n    set x 1\n    return $x\n}\n";
+    assert!(
+        opt_fires(returns, TCL, "O107"),
+        "`return` past an `on error` handler: {:?}",
+        opt_codes(returns, TCL)
+    );
 }
 
 /// A `finally` clause that itself transfers control keeps that transfer: its

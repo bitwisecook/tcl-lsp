@@ -29,7 +29,7 @@
 use std::collections::{BTreeSet, HashMap};
 use std::sync::Arc;
 
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use tcl_lexer::{Span, TokenType};
 use tcl_registry::hooks::LoweringHookId;
 use tcl_registry::model::ingress::static_context_for;
@@ -239,6 +239,9 @@ pub(crate) struct CfgBuilder<'a> {
     /// target)`. An enclosing `try … finally` reroutes them through its own
     /// clause, as it does the jumps its own body makes.
     finally_jump_edges: Vec<(String, String)>,
+    /// Blocks a plain `return` with a value that cannot substitute ends:
+    /// they complete with `TCL_RETURN`, which a `try` handler may select.
+    plain_return_blocks: FxHashSet<String>,
     /// When `true`, record [`Self::exception_edges`] in `lower_try`.  Off for
     /// codegen builds so the default bytecode is unchanged.
     faithful_exceptions: bool,
@@ -395,6 +398,7 @@ impl<'a> CfgBuilder<'a> {
             loop_stack: Vec::new(),
             exception_edges: Vec::new(),
             finally_jump_edges: Vec::new(),
+            plain_return_blocks: FxHashSet::default(),
             faithful_exceptions: false,
             plain_command_dispatch: false,
             registry,
@@ -1360,6 +1364,7 @@ impl<'a> CfgBuilder<'a> {
             .map(|(k, ln)| (self.bid(&k), ln))
             .collect();
         self.finally_jump_edges.clear();
+        self.plain_return_blocks.clear();
         func.exception_edges = std::mem::take(&mut self.exception_edges)
             .into_iter()
             .map(|(from, to)| (self.bid(&from), self.bid(&to)))
@@ -1547,6 +1552,19 @@ impl<'a> CfgBuilder<'a> {
                 span: *span,
                 binding: binding.clone(),
             });
+        }
+        // No value, a braced one, or a literal word: nothing can raise before
+        // the `return` itself completes with `TCL_RETURN`.
+        if value.is_none()
+            || *braced
+            || matches!(
+                value_word,
+                Some(
+                    crate::ir::WordExpr::Literal { .. } | crate::ir::WordExpr::BracedLiteral { .. }
+                )
+            )
+        {
+            self.plain_return_blocks.insert(current.to_owned());
         }
         self.block_mut(current).terminator = Some(Terminator::Return {
             value: value.clone(),
@@ -2836,6 +2854,26 @@ fn always_exits_process(
     registry: &CommandRegistry,
     resolve: &dyn Fn(&str) -> Option<crate::ir_helpers::ResolvedEmbeddedHead>,
 ) -> bool {
+    exact_statement_completion(stmt, registry, resolve)
+        == Some(tcl_registry::registry::ExactInvocationCompletion::ProcessExit)
+}
+
+/// The completion `stmt` certainly produces, when the registry can say:
+/// every word literal, the call resolved by the command-binding owner to one
+/// registry-backed target, and that target's alias prefix joined to the
+/// written words before the registry classifies the composed invocation.
+///
+/// Every word must be literal because a substituted one runs first and may
+/// throw. The words must be *all* the words: `interp alias {} bye {} exit abc`
+/// — or the same alias named `::foo::exit` and called as `exit` inside
+/// `::foo` — raises "expected integer" (found in review). Whether a literal
+/// is a status the command accepts is the registry's release-aware answer:
+/// `exit 09` is an invalid octal in 8.x but status 9 in 9.0.
+pub(super) fn exact_statement_completion(
+    stmt: &Statement,
+    registry: &CommandRegistry,
+    resolve: &dyn Fn(&str) -> Option<crate::ir_helpers::ResolvedEmbeddedHead>,
+) -> Option<tcl_registry::registry::ExactInvocationCompletion> {
     let (Statement::Call {
         command, tokens, ..
     }
@@ -2843,10 +2881,9 @@ fn always_exits_process(
         command, tokens, ..
     }) = stmt
     else {
-        return false;
+        return None;
     };
-    // Every word must be literal: a substituted one runs first and may throw.
-    let Some(written) = tokens.as_ref().and_then(|tokens| {
+    let written = tokens.as_ref().and_then(|tokens| {
         tokens
             .word_exprs
             .iter()
@@ -2857,30 +2894,15 @@ fn always_exits_process(
                 _ => None,
             })
             .collect::<Option<Vec<&str>>>()
-    }) else {
-        return false;
-    };
-    // The words must be *all* the words the command receives. The binding
-    // owner resolves the call site to its one registry-backed target and the
-    // words an `interp alias` prepends; a spelling with no single known target
-    // proves nothing. `interp alias {} bye {} exit abc` — or the same alias
-    // named `::foo::exit` and called as `exit` inside `::foo` — raises
-    // "expected integer", which runs the clause (found in review).
-    let Some(target) = resolve(command) else {
-        return false;
-    };
+    })?;
+    let target = resolve(command)?;
     let words: Vec<&str> = target
         .prepended
         .iter()
         .map(String::as_str)
         .chain(written)
         .collect();
-    // Whether those literals make a status the command accepts is the
-    // registry's question, answered release-aware: `exit 09` is an invalid
-    // octal in 8.x and raises an error — which does run the clause — but exits
-    // with status 9 in 9.0 (found in review).
     registry.exact_invocation_completion(&target.command, &words, None)
-        == Some(tcl_registry::registry::ExactInvocationCompletion::ProcessExit)
 }
 
 /// `(must-defines, completion)` for a single statement.

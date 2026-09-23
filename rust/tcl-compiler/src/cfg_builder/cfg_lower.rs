@@ -918,18 +918,19 @@ impl CfgBuilder<'_> {
                     throw_sources.push(tb.clone());
                 }
             }
-            // A terminal that is a loop jump raises no error: only a handler
-            // whose selector is that jump's own completion code catches it.
-            // Wiring `try {break} on error {} {}` — or `on continue` — to its
-            // handler made the `try` look as if it could complete normally
-            // (found in review). A selector the registry cannot decode keeps
-            // the edge.
             if throw_sources.is_empty()
                 && let Some(terminal) = body_terminal
-                && !self.handler_misses_loop_jump(handler, terminal)
             {
                 throw_sources.push(terminal.to_owned());
             }
+            // A source whose completion the registry knows exactly reaches
+            // only a handler that selects that code. Wiring
+            // `try {break} on error {} {}`, `on continue`, or
+            // `try {return early} on error {} {}` to the handler made the
+            // `try` look as if it could complete normally (found in review).
+            // A selector or completion the registry cannot decode keeps the
+            // edge.
+            throw_sources.retain(|src| !self.handler_misses_completion(handler, src));
             for src in throw_sources {
                 self.exception_edges.push((src, handler_block.to_owned()));
             }
@@ -959,31 +960,45 @@ impl CfgBuilder<'_> {
         }
     }
 
-    /// Whether `terminal` ends in a `break` / `continue` whose completion code
-    /// `handler` is known not to select.
-    ///
-    /// The jump's code comes from the registry's loop-jump classes, the
-    /// handler's from its completion-code selector (`trap` is an error).
-    /// Either one unknown — a substituted selector, a terminal that is not a
-    /// loop jump — answers `false`, keeping the conservative edge.
-    fn handler_misses_loop_jump(&self, handler: &crate::ir::TryHandler, terminal: &str) -> bool {
-        let Some(block) = self.blocks.get(terminal) else {
-            return false;
-        };
-        if !matches!(block.terminator, Some(Terminator::Goto { .. })) {
-            return false;
+    /// The exact completion code with which `block` leaves, when it is known:
+    /// a plain `return`, or a last statement the registry decodes (see
+    /// [`super::exact_statement_completion`]) that is what ended the block — a
+    /// `break` / `continue` behind its `Goto`, or a non-`ok` code behind a
+    /// `Return`. A block ended some other way (an opaque `switch`, or a
+    /// `finally` clause resuming what it interrupted) has no single code.
+    fn block_completion_code(&self, block: &str) -> Option<tcl_core_types::Code> {
+        use tcl_core_types::Code;
+        if self.plain_return_blocks.contains(block) {
+            return Some(Code::Return);
         }
-        let Some(Statement::Call { command, .. }) = block.statements.last() else {
+        let mutable = self.blocks.get(block)?;
+        let stmt = mutable.statements.last()?;
+        let resolve = self.embedded_head_resolver();
+        let tcl_registry::registry::ExactInvocationCompletion::Tcl(code) =
+            super::exact_statement_completion(stmt, self.registry, &resolve)?
+        else {
+            return None;
+        };
+        match (&mutable.terminator, code) {
+            (Some(Terminator::Goto { .. }), Code::Break | Code::Continue) => Some(code),
+            (Some(Terminator::Return { .. }), code)
+                if !matches!(code, Code::Ok | Code::Break | Code::Continue) =>
+            {
+                Some(code)
+            }
+            _ => None,
+        }
+    }
+
+    /// Whether `block` ends in a statement whose completion code `handler` is
+    /// known not to select: both codes decoded by the registry — the handler's
+    /// through its completion-code selector (`trap` is an error) — and
+    /// different. Either one unknown answers `false`, keeping the edge.
+    fn handler_misses_completion(&self, handler: &crate::ir::TryHandler, block: &str) -> bool {
+        let Some(code) = self.block_completion_code(block) else {
             return false;
         };
-        let jump = if self.command_classes.is_loop_break_command(command) {
-            tcl_core_types::Code::Break
-        } else if self.command_classes.is_loop_continue_command(command) {
-            tcl_core_types::Code::Continue
-        } else {
-            return false;
-        };
-        crate::executable_ir::try_handler_code(handler).is_some_and(|code| code != jump)
+        crate::executable_ir::try_handler_code(handler).is_some_and(|selected| selected != code)
     }
 
     /// Record the analysis-only edges that keep a `finally` clause reachable
@@ -1217,10 +1232,13 @@ impl CfgBuilder<'_> {
         // precise over-approximation that avoids a read-before-set false
         // positive under either binding rule.
         let mut pending_fallthrough_defs: Vec<String> = Vec::new();
+        let first_handler_id = self.block_ids.len();
+        let mut handler_blocks: Vec<String> = Vec::new();
 
         // Each handler reachable from body failure.
         for handler in handlers {
             let handler_block = self.new_block("try_handler");
+            handler_blocks.push(handler_block.clone());
             self.ensure_goto(block_name, &handler_block, Some(*span));
 
             // `block_name` already gotos `try_body` (single successor), so a
@@ -1269,6 +1287,13 @@ impl CfgBuilder<'_> {
         if !handlers.is_empty() {
             self.ensure_goto(&post_body, &end_block, Some(*span));
         }
+        self.route_caught_loop_jumps(
+            handlers,
+            &handler_blocks,
+            &body_block,
+            first_body_id,
+            first_handler_id,
+        );
 
         // Finally block.
         let Some(fb) = finally_body else {
@@ -1279,16 +1304,36 @@ impl CfgBuilder<'_> {
             self.try_completes_normally(block_name, &end_block, &body_block, first_body_id);
         let jump_targets =
             self.push_finally_exit_edges(&end_block, &post_body, &body_block, first_body_id);
-        let (after_finally, finally_tail) = self.lower_try_finally(
+        self.finish_try_finally(
             fb,
             finally_span.or(Some(*span)),
             &end_block,
+            completes_normally,
+            jump_targets,
+        )
+    }
+
+    /// Lower a `try`'s `finally` clause and resume the loop jumps routed
+    /// through it, returning the block the whole statement rests in.
+    ///
+    /// A saved jump resumes from the clause's own last block, not from
+    /// `after_finally`: the statements after the `try` are appended there,
+    /// and a `break` does not run them (found in review). A clause that
+    /// cannot complete normally resumes nothing.
+    fn finish_try_finally(
+        &mut self,
+        body: &crate::ir::Script,
+        fin_span: Option<tcl_lexer::Span>,
+        end_block: &str,
+        completes_normally: bool,
+        jump_targets: Vec<String>,
+    ) -> String {
+        let (after_finally, finally_tail) = self.lower_try_finally(
+            body,
+            fin_span,
+            end_block,
             completes_normally || !self.faithful_exceptions,
         );
-        // A saved jump resumes from the clause's own last block, not from
-        // `after_finally`: the statements after the `try` are appended there,
-        // and a `break` does not run them (found in review). A clause that
-        // cannot complete normally resumes nothing.
         if let Some(tail) = finally_tail {
             for target in jump_targets {
                 let edge = (tail.clone(), target);
@@ -1297,6 +1342,87 @@ impl CfgBuilder<'_> {
             }
         }
         after_finally
+    }
+
+    /// Send a `break` / `continue` out of the body into the handler that
+    /// catches it, instead of to its loop target.
+    ///
+    /// Tcl runs the first handler whose selector matches the completion, so a
+    /// jump an `on break` handler selects never reaches the loop: in
+    /// `while 1 { try {break} on break {} {set x 1} finally {}; break }` the
+    /// handler binds `x` before the loop is left. Keeping the jump's own edge
+    /// let the read after the loop see `x` unset, and the `finally` routing
+    /// resumed it too (found in review). Only a jump out of the body (not one
+    /// inside a nested loop, and not one in a handler) is caught; and a
+    /// handler met first whose selector the registry cannot decode might catch
+    /// it instead, so then the jump keeps its edge. A `-` handler hands the
+    /// jump to the body it shares.
+    fn route_caught_loop_jumps(
+        &mut self,
+        handlers: &[crate::ir::TryHandler],
+        handler_blocks: &[String],
+        body_block: &str,
+        first_body_id: usize,
+        first_handler_id: usize,
+    ) {
+        if !self.faithful_exceptions || handlers.is_empty() {
+            return;
+        }
+        let body_block_id = self.bid(body_block);
+        let in_try = |id: crate::cfg::BlockId| {
+            id == body_block_id || usize::try_from(id.0).is_ok_and(|i| i >= first_body_id)
+        };
+        let in_body = |id: crate::cfg::BlockId| {
+            id == body_block_id
+                || usize::try_from(id.0).is_ok_and(|i| i >= first_body_id && i < first_handler_id)
+        };
+        let mut retargets: Vec<(String, String)> = Vec::new();
+        for (name, id) in &self.block_ids {
+            if !in_body(*id) {
+                continue;
+            }
+            let Some(Terminator::Goto { target, .. }) = self
+                .blocks
+                .get(name.as_str())
+                .and_then(|b| b.terminator.as_ref())
+            else {
+                continue;
+            };
+            if in_try(*target) {
+                continue;
+            }
+            let Some(jump) = self.block_completion_code(name) else {
+                continue;
+            };
+            if !matches!(
+                jump,
+                tcl_core_types::Code::Break | tcl_core_types::Code::Continue
+            ) {
+                continue;
+            }
+            for (i, handler) in handlers.iter().enumerate() {
+                match crate::executable_ir::try_handler_code(handler) {
+                    None => break,
+                    Some(code) if code != jump => {}
+                    Some(_) => {
+                        let shared = handlers[i..]
+                            .iter()
+                            .position(|h| !h.fallthrough)
+                            .map_or(i, |offset| i + offset);
+                        retargets.push((name.clone(), handler_blocks[shared].clone()));
+                        break;
+                    }
+                }
+            }
+        }
+        retargets.sort();
+        for (name, handler_block) in retargets {
+            let target = self.bid(&handler_block);
+            if let Some(Terminator::Goto { target: t, .. }) = &mut self.block_mut(&name).terminator
+            {
+                *t = target;
+            }
+        }
     }
 
     /// Whether any path through a `try`'s body or handlers reaches `end_block`

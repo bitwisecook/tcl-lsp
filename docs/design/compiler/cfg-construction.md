@@ -227,11 +227,23 @@ exit paths share that edge with normal completion — they add paths, never
 remove one.
 
 A body that cannot fall through reaches a handler from its explicit throw
-points, or failing those from its terminal block — but not a terminal
-`break` / `continue` into a handler whose selector the registry decodes to
-a different completion code (`trap` is an error): `try {break} on error {}
-{}`, `on continue` and `on 4` offer no way to complete normally.  An
-undecodable selector keeps the edge.
+points, or failing those from its terminal block — but not a source whose
+exact completion code differs from the one the handler's selector decodes
+to (`trap` is an error).  A source's code is known for a plain `return`
+whose value cannot substitute (`TCL_RETURN`), and for a last statement the
+registry classifies that is what ended the block: `break` / `continue`
+behind its `Goto`, a non-`ok` code behind a `Return`.  So
+`try {break} on error {} {}`, `on continue`, `on 4` and
+`try {return early} on error {} {}` offer no way to complete normally.  An
+undecodable selector or completion keeps the edge.
+
+A `break` / `continue` out of the body that a handler catches never reaches
+its loop: `route_caught_loop_jumps` retargets its `Goto` at the first
+handler whose decoded code matches (a `-` handler hands it to the body it
+shares), so the `finally` routing never resumes it, and
+`try {break} on break {} {set x 1}` binds `x` before the loop is left.  A
+handler met first whose selector cannot be decoded might catch it instead,
+and then the jump keeps its edge.
 
 A handler of a body with a resting tail takes its exception edges from the
 pre-`try` block, the tail, **and** every recorded throw point: an `error`
