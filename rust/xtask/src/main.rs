@@ -56,6 +56,10 @@
 //! - `value-transfers` — flag a command recognised by name on the value axis
 //!   outside the registry, and generate or verify the value-transfer
 //!   inventory (`docs/generated/value-transfers.md`).
+//! - `registry-axes` — flag a registry word (command, subcommand, option,
+//!   member keyword, clause keyword, special variable) compared outside the
+//!   registry, and generate or verify the per-axis ledger
+//!   (`docs/generated/registry-axes.md`).
 //! - `segmentation-drift` — flag a hand-rolled Tcl command-terminator scan
 //!   or a private `Sep`/`Eol` word-start state machine outside the command /
 //!   word boundary owners, and verify the owner/scanner corpus differential
@@ -98,6 +102,7 @@ mod kcs_index_links;
 mod number_drift;
 mod owner_resolution;
 mod pack_goldens;
+mod registry_axes;
 mod registry_oracle;
 mod resolution_drift;
 mod retired_api_gate;
@@ -380,6 +385,18 @@ enum Command {
         check: bool,
     },
 
+    /// Flag a word the registry declares — a command, subcommand, option
+    /// spelling, member keyword, clause keyword, or special variable —
+    /// compared outside `tcl-registry`, and generate or verify the per-axis
+    /// ledger (`docs/generated/registry-axes.md`).
+    #[command(name = "registry-axes")]
+    RegistryAxes {
+        /// Verify the committed ledger instead of rewriting it; exit non-zero
+        /// on drift, a rising count, a stale pin, or a malformed waiver.
+        #[arg(long)]
+        check: bool,
+    },
+
     /// Regenerate — or, with `--check`, verify — the golden snapshots of
     /// every shipped `.tclspec`. The gate that a loader change cannot
     /// silently alter what a shipped pack means.
@@ -507,6 +524,7 @@ fn main() -> anyhow::Result<ExitCode> {
         Command::RuntimeStdlib => runtime_stdlib::run(),
         Command::OwnerResolution => owner_resolution::run(),
         Command::ValueTransfers { check } => value_transfers::run(check),
+        Command::RegistryAxes { check } => registry_axes::run(check),
         Command::PackGoldens { check } => Ok(pack_goldens::run(check)),
         Command::SslictclData {
             operation,

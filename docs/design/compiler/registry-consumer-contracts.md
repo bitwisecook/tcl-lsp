@@ -905,7 +905,30 @@ table in [value-transfers-migration.md](value-transfers-migration.md)
 rows in the editor and tooling crates, about thirty on the clause axis and
 about thirty-two on the member axis, and names four clean tiers
 (`tcl-lsp-db`, `tcl-lsp-server`'s `lib.rs`, `tcl-explorer`, `tcl-lexer`)
-as the reference the rest matches. The ledger is generated, so a new
+as the reference the rest matches.
+
+The lint is `cargo xtask registry-axes` (`rust/xtask/src/registry_axes.rs`,
+the `xtask-registry-axes` gate in `make xtask-check`), a sibling of the
+value-transfer gate over the same ten roots. Its vocabulary is computed,
+never listed: every command and subcommand name, option spelling and alias,
+definition-body member keyword, clause keyword, and special-variable name
+the registry declares across every loadable dialect and the shipped
+`.tclspec` packs. A site is such a word as the operand of `==` / `!=`, a
+`matches!` pattern, a `match` arm pattern, a `.eq(` argument, an element of
+an inline array searched with `.contains(`, or an entry of a `&[&str]` table
+the file reads again; the scan runs over the lexer's tokens and skips the
+item a `#[cfg(test)]` attribute guards. A reviewed site carries
+`// registry-axis-ok: <axis> — <reason>; until <step N | slice N | never>`
+on its line or in the comment block above it (above the enclosing `match`
+or `matches!` for an arm), or its file carries one
+`// registry-axis-ok(file): …`; the axis is one of `command`,
+`subcommands`, `clause_grammar`, `definition_body`, `options`,
+`special_vars`, or `irreducible` — the migration plan's names, so a site
+waived for both gates names one axis — and only `irreducible` may expire
+`never`. The ledger is generated as `docs/generated/registry-axes.md`:
+every waiver by axis with its expiry, and the ratchet table. `--check`
+fails on a count above its pin, a stale pin, an unknown axis, a missing
+expiry, or an expiry naming a step or slice that has landed, so a new
 hand-written row fails the gate rather than being noticed in review.
 
 ### The two hook bodies that remain

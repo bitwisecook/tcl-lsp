@@ -45,6 +45,12 @@ symptom with several possible causes worth telling apart. See rule 13 in
   command by name in a file it holds clean, on a ratcheted file whose
   count of such lines rose, on an unclassified variable-writing command,
   or on a stale inventory, and what each message asks for.
+- [kcs-issue-the-registry-axes-gate-reports-a-keyword.md](kcs-issue-the-registry-axes-gate-reports-a-keyword.md)
+  — `cargo xtask registry-axes` fails on a line that compares a word the
+  registry declares (a command, option, member keyword, clause keyword, or
+  special variable) in a file it holds clean, on a ratcheted file whose
+  count rose, on a waiver without an axis or an expiry, or on a stale
+  ledger, and what each message asks for.
 - [kcs-issue-lsp-features-are-missing.md](kcs-issue-lsp-features-are-missing.md)
   — squiggles, hovers, and completions do not appear in VS Code and
   you want to know whether the Tcl Language Server started at all.

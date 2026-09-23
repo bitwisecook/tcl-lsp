@@ -363,6 +363,7 @@ fn xtask_dispatches(main: &str, command: &str) -> bool {
         "owner-resolution" => "OwnerResolution",
         "sslictcl-data" => "SslictclData",
         "value-transfers" => "ValueTransfers",
+        "registry-axes" => "RegistryAxes",
         _ => return false,
     };
     let prefix = format!("Command::{variant}");

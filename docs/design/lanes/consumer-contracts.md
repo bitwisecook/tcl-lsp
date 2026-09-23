@@ -1,4 +1,4 @@
-# Lane: consumer contracts — step 1 landed; the plan for steps 2–10
+# Lane: consumer contracts — step 1 landed, step 2 in progress; the plan for steps 2–10
 
 ## Goal
 
@@ -54,6 +54,16 @@ and repair every document whose stated rule the rulings replace. No `rust/`,
   WASM runtime registers `load` on `unsupported_cmd`
   (`runtime/rust/src/cmd_misc.rs`) and does not register `unload` at all;
   the repair changes only the "fixable?" answer and leaves the grouping.
+
+## Step 2 — progress
+
+Items in the order they land (CC2.6 promoted to follow CC2.1, because the
+value-transfers lane's VT5.8 builds on it). The sonnet-class items (CC2.7,
+CC2.10, CC2.13, CC2.15) are dispatched separately after the opus items.
+
+| Item | State | Checkpoint | Notes |
+|---|---|---|---|
+| CC2.1 the per-axis lint and its ledger | landed | `wip(consumer-contracts): step 2 — the registry-axes gate and its baseline` | 7831 vocabulary words; 1089 sites pinned across 163 files; `CLEAN_FILES` empty; D2.12, D2.13 |
 
 ## Plan for steps 2–10
 
@@ -2044,6 +2054,32 @@ everything else in this lane is independent of both.
   list; `Set`, `DictWith` and `RegexPatternCapture` go on the ledger with
   their slices. Reason: the page's residue classes, applied to each
   handler's verified body.
+- **D2.12** The per-axis lint scans the lexer's tokens (`rustc_lexer`,
+  already an `xtask` dependency), not lines: a word in a comment, a doc
+  string or a longer literal is never a site, a multi-line `matches!` or
+  `match` is read whole, and a `#[cfg(test)]` attribute skips the item it
+  guards (the value-transfer gate stops the whole file at the first one).
+  Beside the plan's shapes it recognises an inline literal array searched
+  with `.contains(` (the table shape written in place), and a `pub` string
+  table counts as read. A waiver may wrap onto the standalone comment
+  lines below it, and a waiver above an enclosing `match`, `matches!` or
+  table covers its arms and entries. Reason: the vocabulary is
+  7831 words, so a line-based scan's false positives (words in prose) would
+  swamp the pins, and the plan's own shapes are multi-line in this tree.
+- **D2.13** CC2.1's owner-manifest row names the sources that exist at
+  CC2.1 — `registry.rs`, `definer.rs`, `traits.rs` (the two clause-keyword
+  tables) and `special_vars.rs` (`SPECIAL_VARS`, the vocabulary's
+  special-variable axis) — and CC2.2 swaps `traits.rs` for
+  `clause_grammar.rs` and `clause_keywords` when they exist. The vocabulary
+  keeps every word the registry declares, including the bare `mathop`
+  operator commands (`+`, `eq`, `in`, …), so expression-operator sites are
+  pinned rather than exempted; the report lists waivers and pins but not
+  the vocabulary, which would churn with every spec change. `LANDED` holds
+  step 1 and slices 1–4; a lane landing a step or slice bumps it.
+  `owner_resolution.rs` learns the `registry-axes` dispatch name. Reason:
+  `owner-resolution` rejects a manifest path or entry point that does not
+  exist, and a hand-picked exemption list would be the per-name knowledge
+  the gate exists to find.
 - **D3.1** `WorkspaceTrust` lives in `tcl_dialect::model::environment`
   beside `Provenance`; `Tier` is unchanged and the trust rides `PackFile`,
   `MergedPack`, `EvalOptions`, `EvalSnapshotKey` and the cache key.

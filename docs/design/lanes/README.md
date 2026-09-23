@@ -71,5 +71,7 @@ checkpoint compiling.
   landed; slice 5, destructuring and structured bodies, is next.
 - [consumer-contracts.md](consumer-contracts.md) — step 1 of
   [registry-consumer-contracts.md](../compiler/registry-consumer-contracts.md)
-  § *Build order*: the four rulings taken as decided, and the documents whose
-  stated rule they replace repaired. Documents only.
+  § *Build order*: step 1 (the four rulings taken as decided, and the
+  documents whose stated rule they replace repaired) has landed; step 2,
+  the description contract, is in progress item by item in the tracking
+  document's § *Step 2 — progress*.
