@@ -1,0 +1,78 @@
+# tcl-lsp — the value-transfer lane's executable example (slice 4, VT4.13).
+#
+# A private command declared entirely by a pack: `tenant::label NAME`
+# returns `tenant:NAME`. The declaration is the evaluation page's own
+# (docs/design/compiler/value-evaluation.md § A private command, without
+# granting the pack analyser mutation): a structural plan, a declared
+# implementation run in the bounded host under the analysed release, and a
+# `facts` block the four surfaces carry and no solver reads yet.
+#
+# The completion test (docs/design/compiler/value-transfers.md § The
+# completion test) renames it — `tenant::tag` — and adds a subcommand form
+# whose operand sits one word later — `tenant label NAME`. The three
+# declarations are the only place any of the three spellings is named: the
+# analysis, the diagnostics, the optimiser, the export, the renderer and the
+# studio reach them through the registry, with no consumer edit.
+#
+# The body folds with `string cat`, which Tcl has from 8.6: under an 8.4 or
+# 8.5 target the body raises, as tclsh 8.4 and 8.5 do, and the evaluator
+# declines rather than answer for a release the implementation cannot run in.
+
+speclib tenant 2.2 {
+    command tenant::label {
+        arity 1
+        semantics {
+            effects {no_store_writes no_external_io}
+            result -semantic string
+        }
+        evaluate -implementation tenant.label.v1 -host bounded_tcl {
+            inputs {arg 0 exact}
+            depends {tcl_profile implementation_identity}
+            budget {-commands 2000 -wall-clock 20 -value-bytes 65536}
+            body {name} { fold [string cat "tenant:" $name] }
+        }
+        facts {
+            result -string_segments {{constant "tenant:"} {operand 0}}
+            taint  -result_from {arg 0}
+        }
+    }
+
+    command tenant::tag {
+        arity 1
+        semantics {
+            effects {no_store_writes no_external_io}
+            result -semantic string
+        }
+        evaluate -implementation tenant.label.v1 -host bounded_tcl {
+            inputs {arg 0 exact}
+            depends {tcl_profile implementation_identity}
+            budget {-commands 2000 -wall-clock 20 -value-bytes 65536}
+            body {name} { fold [string cat "tenant:" $name] }
+        }
+        facts {
+            result -string_segments {{constant "tenant:"} {operand 0}}
+            taint  -result_from {arg 0}
+        }
+    }
+
+    command tenant {
+        arity 2
+        subcommand label {
+            arity 1
+            semantics {
+                effects {no_store_writes no_external_io}
+                result -semantic string
+            }
+            evaluate -implementation tenant.label.v1 -host bounded_tcl {
+                inputs {arg 0 exact}
+                depends {tcl_profile implementation_identity}
+                budget {-commands 2000 -wall-clock 20 -value-bytes 65536}
+                body {name} { fold [string cat "tenant:" $name] }
+            }
+            facts {
+                result -string_segments {{constant "tenant:"} {operand 0}}
+                taint  -result_from {arg 0}
+            }
+        }
+    }
+}

@@ -1291,21 +1291,18 @@ fn the_resolver_projects_the_declaration_state() {
     assert_eq!(puts.semantics.value.route(), None);
 }
 
-/// The pinned-set gate: the specs carrying each route, over every loadable
-/// dialect and the shipped packs. A route cannot appear, vanish, or move
-/// without this list changing beside it.
-#[test]
-fn route_stamps_match_the_pinned_set() {
-    let reg = full_registry();
-    let mut actual: BTreeSet<(String, &'static str, &'static str)> = BTreeSet::new();
+/// Every route stamp `reg` carries — `(spelling, route, owner)` — over each
+/// command's resolved declaration and each subcommand that declares its own.
+fn route_stamps(reg: &CommandRegistry) -> BTreeSet<(String, &'static str, &'static str)> {
+    let mut stamps: BTreeSet<(String, &'static str, &'static str)> = BTreeSet::new();
     for name in reg.command_names() {
         for spec in reg.specs(name) {
             if let Some(route) = resolve_semantics(spec, None, None).route() {
-                actual.insert((spec.name.to_owned(), route_label(route), route_owner(route)));
+                stamps.insert((spec.name.to_owned(), route_label(route), route_owner(route)));
             }
             for sub in spec.subcommands {
                 if let SemanticsDeclaration::Declared(semantics) = sub.semantics {
-                    actual.insert((
+                    stamps.insert((
                         format!("{} {}", spec.name, sub.name),
                         route_label(semantics.route()),
                         route_owner(semantics.route()),
@@ -1314,7 +1311,12 @@ fn route_stamps_match_the_pinned_set() {
             }
         }
     }
-    let expected: BTreeSet<(String, &'static str, &'static str)> = [
+    stamps
+}
+
+/// The route stamps of every loadable dialect and the shipped packs.
+fn pinned_route_stamps() -> BTreeSet<(String, &'static str, &'static str)> {
+    [
         ("::tcl::dict::append", "direct:dict-append", "registry"),
         ("::tcl::dict::incr", "direct:dict-incr", "registry"),
         ("::tcl::dict::lappend", "direct:dict-lappend", "registry"),
@@ -1344,12 +1346,70 @@ fn route_stamps_match_the_pinned_set() {
     ]
     .into_iter()
     .map(|(name, route, owner)| (name.to_owned(), route, owner))
-    .collect();
+    .collect()
+}
+
+/// The pinned-set gate: the specs carrying each route, over every loadable
+/// dialect and the shipped packs. A route cannot appear, vanish, or move
+/// without this list changing beside it.
+#[test]
+fn route_stamps_match_the_pinned_set() {
+    let actual = route_stamps(&full_registry());
+    let expected = pinned_route_stamps();
     let missing: Vec<_> = expected.difference(&actual).collect();
     let extra: Vec<_> = actual.difference(&expected).collect();
     assert!(
         missing.is_empty() && extra.is_empty(),
         "route stamps drifted from the pinned set\nmissing: {missing:?}\nextra: {extra:?}"
+    );
+}
+
+/// Slice 4's exit — "shipped builtins stay on the direct route"
+/// (`docs/design/compiler/value-transfers-migration.md`): a workspace pack
+/// declaring evaluators of its own moves no shipped route. Installing the
+/// value-transfer lane's executable example (VT4.13) over every loadable
+/// dialect and the shipped packs adds exactly its three spellings, each on
+/// the implementation route; every shipped stamp is still the pinned set's,
+/// and every direct route is still the registry's own.
+#[test]
+fn shipped_builtins_stay_on_the_direct_route() {
+    let packs = tcl_spectcl::pack::load_in_memory(vec![(
+        tcl_spectcl::PackFile {
+            tier: tcl_spectcl::Tier::Workspace,
+            path: std::path::PathBuf::from("/workspace/.tcl-lsp/tenant.tclspec"),
+            origin: tcl_spectcl::discovery::Origin::DotDir,
+        },
+        include_str!("../../tcl-compiler/tests/fixtures/value_transfers/tenant.tclspec").to_owned(),
+    )]);
+    assert!(packs.notices.is_empty(), "{:#?}", packs.notices);
+    let mut reg = full_registry();
+    for pack in &packs.packs {
+        for command in &pack.commands {
+            reg.insert(command.spec.clone());
+        }
+    }
+    let actual = route_stamps(&reg);
+    let pinned = pinned_route_stamps();
+    let moved: Vec<_> = pinned.difference(&actual).collect();
+    assert!(moved.is_empty(), "a shipped route moved: {moved:?}");
+    let added: Vec<(&str, &str, &str)> = actual
+        .difference(&pinned)
+        .map(|(name, route, owner)| (name.as_str(), *route, *owner))
+        .collect();
+    assert_eq!(
+        added,
+        [
+            ("tenant label", "implementation", "-"),
+            ("tenant::label", "implementation", "-"),
+            ("tenant::tag", "implementation", "-"),
+        ]
+    );
+    assert!(
+        actual
+            .iter()
+            .filter(|(_, route, _)| route.starts_with("direct:"))
+            .all(|(_, _, owner)| *owner == "registry"),
+        "{actual:#?}"
     );
 }
 

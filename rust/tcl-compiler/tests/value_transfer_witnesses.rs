@@ -1769,3 +1769,193 @@ fn a_declared_implementation_folds_through_the_driver() {
         ["declined: transient", "declined: not-exact"]
     );
 }
+
+/// The value-transfer lane's executable example (VT4.13): a private command
+/// a workspace pack declares under its own name, a second name, and a
+/// subcommand form whose operand sits one word later.
+const TENANT_PACK: &str = include_str!("fixtures/value_transfers/tenant.tclspec");
+
+/// The example's three spellings, each taking the name as its last word.
+const TENANT_SPELLINGS: [&str; 3] = ["tenant::label", "tenant::tag", "tenant label"];
+
+/// What a vendor runtime provides for the example: the three spellings as
+/// real commands, written for every release from 8.4 (no `string cat`, no
+/// `namespace ensemble`), so a program the analysis never sees the
+/// definitions of runs under each `tclsh`.
+const TENANT_RUNTIME: &str = "namespace eval ::tenant {\n\
+                              \x20   proc label {name} {return \"tenant:$name\"}\n\
+                              \x20   proc tag {name} {return \"tenant:$name\"}\n\
+                              }\n\
+                              proc ::tenant {subcommand name} {\n\
+                              \x20   if {$subcommand ne \"label\"} {error \"bad subcommand $subcommand\"}\n\
+                              \x20   return [::tenant::label $name]\n\
+                              }\n";
+
+/// The example loaded as a workspace loads it: the pack set, its hook plan
+/// published and this thread's host built from it, as the language server
+/// and the CLI do on a pack load.
+fn tenant_workspace() -> tcl_spectcl::PackSet {
+    let packs = tcl_spectcl::pack::load_in_memory(vec![(
+        tcl_spectcl::PackFile {
+            tier: tcl_spectcl::Tier::Workspace,
+            path: std::path::PathBuf::from("/workspace/.tcl-lsp/tenant.tclspec"),
+            origin: tcl_spectcl::discovery::Origin::DotDir,
+        },
+        TENANT_PACK.to_owned(),
+    )]);
+    assert!(packs.notices.is_empty(), "{:#?}", packs.notices);
+    tcl_spectcl::hooks::publish(&packs);
+    tcl_spectcl::hooks::ensure_thread_host();
+    packs
+}
+
+/// The step-1 completion test (`docs/design/compiler/value-transfers.md`
+/// § *The completion test*): one private command, renamed, and given a
+/// subcommand form with its operand one word later, reaches the analysis
+/// and the optimiser from its pack's declarations alone — the fixture is the
+/// only file that names any of the three spellings.
+///
+/// - Each spelling folds `acme` to `tenant:acme` through the analysis, on
+///   the implementation route, and an argument the analysis does not know
+///   declines `not-exact`; without the pack the same program folds nothing,
+///   so the answer is the declaration's.
+/// - The body runs under the analysed release: it folds under 8.6, 9.0 and
+///   9.1, and under 8.4, 8.5 and iRules' 8.4 base it raises and declines,
+///   because `string cat` is 8.6's — the releases `tclsh` itself runs `puts
+///   [string cat tenant: acme]` under. A profile naming no release has no
+///   engine to run it on and declines.
+/// - The optimiser forwards the folded constant (O100), and the vendor
+///   runtime — [`TENANT_RUNTIME`], which the analysis never sees — prints
+///   what the optimised program prints under every `tclsh` on `PATH`.
+#[test]
+fn the_completion_test_needs_no_consumer_edit() {
+    let packs = tenant_workspace();
+    for (dialect, folds) in [
+        ("tcl8.4", false),
+        ("tcl8.5", false),
+        ("tcl8.6", true),
+        ("tcl9.0", true),
+        ("tcl9.1", true),
+        ("f5-irules", false),
+        ("tcl", false),
+    ] {
+        let registry = tcl_spectcl::install::registry_for_dialect_with_packs(dialect, &packs);
+        for spelling in TENANT_SPELLINGS {
+            every_spelling_answers(&registry, dialect, spelling, folds);
+        }
+    }
+    the_vendor_runtime_prints_what_the_optimiser_forwards(&packs);
+}
+
+/// `spelling acme` and `spelling $x` in one procedure under `dialect`: both
+/// calls enter the implementation route; the known argument folds to
+/// `tenant:acme` where the body runs (`folds`) and declines `unsupported`
+/// where it cannot; the unknown one declines `not-exact`. The same program
+/// against the registry without the pack folds nothing.
+fn every_spelling_answers(
+    registry: &tcl_registry::CommandRegistry,
+    dialect: &str,
+    spelling: &str,
+    folds: bool,
+) {
+    let head = spelling.split(' ').next().expect("a head");
+    let source = format!(
+        "proc p {{x}} {{\n    set known [{spelling} acme]\n    set unknown [{spelling} $x]\n    return $known$unknown\n}}\n"
+    );
+    let unit = CompilationUnit::build_for_dialect(&source, registry, false, dialect);
+    let function = unit.procedures.get("::p").expect("the procedure");
+    let routes: Vec<&str> = function
+        .sccp
+        .explanations
+        .iter()
+        .filter(|explanation| explanation.command == head)
+        .map(|explanation| explanation.route.as_str())
+        .collect();
+    assert_eq!(
+        routes,
+        [
+            "implementation tenant.label.v1",
+            "implementation tenant.label.v1"
+        ],
+        "{dialect} {spelling}"
+    );
+    let (value, answer) = if folds {
+        (text("tenant:acme"), "evaluated")
+    } else {
+        (LatticeValue::Overdefined, "declined: unsupported")
+    };
+    assert_eq!(
+        value_at(&unit, "::p", "known", 1),
+        Some(value),
+        "{dialect} {spelling}"
+    );
+    assert_eq!(
+        value_at(&unit, "::p", "unknown", 1),
+        Some(LatticeValue::Overdefined),
+        "{dialect} {spelling}"
+    );
+    assert_eq!(
+        answers_for(&unit, "::p", head),
+        [answer, "declined: not-exact"],
+        "{dialect} {spelling}"
+    );
+    assert_eq!(
+        function.sccp.route_tally.implementation, 2,
+        "{dialect} {spelling}: both calls enter the route"
+    );
+    let bare = static_context_for(dialect).commands();
+    let unit = CompilationUnit::build_for_dialect(&source, bare, false, dialect);
+    assert_eq!(
+        value_at(&unit, "::p", "known", 1),
+        Some(LatticeValue::Overdefined),
+        "{dialect} {spelling}: without the pack the name is nobody's"
+    );
+}
+
+/// The optimiser forwards each spelling's folded constant (O100) where the
+/// body runs and rewrites nothing where it cannot; `tclsh` runs the body's
+/// `string cat` exactly where the analysis folds; and with the vendor
+/// runtime ([`TENANT_RUNTIME`]) the original and the optimised program
+/// print the same under every `tclsh` on `PATH`.
+fn the_vendor_runtime_prints_what_the_optimiser_forwards(packs: &tcl_spectcl::PackSet) {
+    let program = "proc p {} {\n    set a [tenant::label acme]\n    set b [tenant::tag acme]\n    set c [tenant label acme]\n    puts $a\n    puts $b\n    puts $c\n}\np\n";
+    let optimise = |dialect: &str| {
+        let registry = tcl_spectcl::install::registry_for_dialect_with_packs(dialect, packs);
+        let profile = resolve_environment(dialect).analyser_profile();
+        optimise_source_multipass(program, &registry, Some(profile), PASSES)
+    };
+    let (rewritten, rewrites) = optimise("tcl9.0");
+    assert_eq!(
+        rewritten.matches("puts tenant:acme").count(),
+        3,
+        "{rewritten}\n{rewrites:#?}"
+    );
+    assert!(
+        rewrites
+            .iter()
+            .any(|rewrite| rewrite.code.as_str() == "O100"),
+        "{rewrites:#?}"
+    );
+    let (unchanged, _) = optimise("tcl8.4");
+    assert!(
+        !unchanged.contains("puts tenant:acme"),
+        "the body cannot run under 8.4:\n{unchanged}"
+    );
+    for (series, tclsh) in releases_on_path() {
+        let body_runs = run_script(&tclsh, "puts [string cat tenant: acme]")
+            == Some((true, "tenant:acme\n".to_owned()));
+        assert_eq!(
+            body_runs,
+            matches!(series, "8.6" | "9.0" | "9.1"),
+            "tclsh{series} runs the body exactly where the analysis folds"
+        );
+        let (rewritten, rewrites) = optimise(&dialect_of(series));
+        for candidate in [program, rewritten.as_str()] {
+            assert_eq!(
+                run_script(&tclsh, &format!("{TENANT_RUNTIME}{candidate}")),
+                Some((true, "tenant:acme\ntenant:acme\ntenant:acme\n".to_owned())),
+                "tclsh{series}:\n{candidate}\n{rewrites:#?}"
+            );
+        }
+    }
+}

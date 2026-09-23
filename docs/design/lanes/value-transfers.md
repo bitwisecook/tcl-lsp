@@ -3316,6 +3316,48 @@ hashes and every later command's `line` number changed; `hooks` and
 `grammar` hashes identical throughout), 0 of 24 on the next; `cargo check
 --workspace --all-targets` clean.
 
+#### Record (2026-09-23): VT4.13 and the two follow-ups
+
+The opus implementer again, after the sonnet items: VT4.13 as its own
+checkpoint, then the two follow-ups the coordinator named (Q12, Q13).
+
+| Item | Commit | What landed | Its tests |
+|---|---|---|---|
+| — | `wip(value-transfers): slice 4 — a declared implementation reads its inputs first` | D102: `DeclaredSemantics::evaluate` reads the places and the inputs before the release, the admission and the host, found by the completion test under the lenient `tcl` profile | `an_unknown_input_declines_before_the_release_is_asked` (`value_transfer/declared.rs`) |
+| VT4.13 | `wip(value-transfers): slice 4 — the executable example and the completion test` | `rust/tcl-compiler/tests/fixtures/value_transfers/tenant.tclspec`: the page's `tenant::label`, the same declaration as `tenant::tag` and as `tenant label NAME`; `tcl-spectcl` a dev-dependency of `tcl-compiler` (the cycle `tcl-registry` already has, D103); no file under any `src/` | `the_completion_test_needs_no_consumer_edit` (compiler witnesses: all three spellings fold `acme` to `tenant:acme` on the implementation route under 8.6, 9.0 and 9.1, decline `unsupported` under 8.4, 8.5, `f5-irules` and `tcl`, decline `not-exact` on an unknown argument, and fold nothing without the pack; the optimiser forwards the constant (O100); `tclsh` runs the body's `string cat` exactly where the analysis folds, and with the vendor runtime prepended the original and the optimised program print the same under 8.4 to 9.1); `the_completion_test_reaches_every_surface` (`value_transfers_cli.rs`: `tcl explore`, I230 in `tcl diag`, O100 in `tcl opt` from a scratch workspace whose discovered pack is the fixture; `tcl spec export`'s pack and a studio form edit of each declaration each fold again from their own workspace; the renderer's placeholder for the body it cannot draw; a workspace without the pack folds nothing); `shipped_builtins_stay_on_the_direct_route` (`value_transfers.rs`) |
+
+Deltas beyond the plan's list:
+
+- **The completion test is two tests** (D103): the compiler cannot reach
+  the CLI binary, the renderer or the studio, so the compiler witness
+  covers the analysis, the optimiser and the `tclsh` oracle, and the CLI
+  witness the surfaces; each names the other.
+- **The fixture folds from 8.6** (D103): the page's body uses `string
+  cat`, which tclsh 8.4 and 8.5 reject, and the evaluator declines there
+  rather than answer for a release the body cannot run in — the witness
+  pins that against `tclsh` itself.
+- **D102 came out of it**: the one change outside the fixture and the
+  tests, committed on its own before the checkpoint so the checkpoint's
+  diff is the fixture, the tests and the dev-dependency alone.
+- **`route_stamps_match_the_pinned_set` shares its collection** with the
+  new witness (`route_stamps`, `pinned_route_stamps`); its pinned set is
+  unchanged.
+
+Green at the VT4.13 checkpoint: `cargo test -p tcl-compiler` 9718 passed,
+6 ignored, run in six batches whose executables were deleted as each
+finished (the new dev-dependency rebuilds all 66 test binaries); `cargo
+test -p tcl-registry` 1196 passed; `tcl-cli`'s `value_transfers_cli` 6
+passed; `spectcl_roundtrip.rs`, `reference_doc.rs` and the three catalogue
+table tests green; pedantic clippy on `tcl-registry`, `tcl-compiler` and
+`tcl-cli`, no `#[allow]`; `cargo fmt --all --check` clean; `cargo xtask
+value-transfers --check` unchanged (the fixture is not a shipped pack: 17
+clean, 13 waived, 98 pinned across 39 files, 6607 rows); `pack-goldens` 0
+of 24; no new test binary (manifest proof 325 targets); `cargo check
+--workspace --all-targets` clean. The exit evidence's `tcl explore` line
+over `set r [tenant::label acme]`, run in a scratch workspace whose
+discovered pack is the fixture, reads `r#1 = const('tenant:acme')`, `route
+tenant::label: implementation tenant.label.v1` and `· answer: evaluated`.
+
 ### Slice 5 — destructuring and structured bodies
 
 #### Goal and exit
@@ -6814,6 +6856,25 @@ Taken while slice 4's opus items were executed (§ *Slice 4* › *Record
   where it has one. Found by VT4.13's completion test under the lenient
   `tcl` profile; `an_unknown_input_declines_before_the_release_is_asked`
   (`value_transfer/declared.rs`) pins it.
+- **D103 — The completion test's shape.** The fixture lives in
+  `rust/tcl-compiler/tests/fixtures/value_transfers/`, where the plan puts
+  it, and the compiler reads it through the pack loader: `tcl-spectcl`
+  becomes a dev-dependency of `tcl-compiler`, the cycle Cargo permits and
+  `tcl-registry` already has for the shipped packs; only the witness
+  binary that uses it links it. The plan's one test is two, because the
+  compiler cannot reach the CLI binary, the renderer or the studio:
+  `the_completion_test_needs_no_consumer_edit` (the analysis over seven
+  profiles, the optimiser, and the `tclsh` oracle with a vendor runtime —
+  the three spellings as ordinary procedures the analysis never sees,
+  written for 8.4 onward) and `the_completion_test_reaches_every_surface`
+  (the CLI, the export, the renderer and the studio). The body keeps the
+  page's `string cat`, so the example folds from 8.6 and declines under
+  8.4 and 8.5 exactly where `tclsh` has no `string cat`; the declared
+  implementation runs in the analysed release, and the witness says so.
+  The renderer writes a `-native` placeholder for a body it cannot draw
+  (VT4.11) and says so in the draft; the studio's carry-forward keeps the
+  author's bytes over it, which is the preservation the completion test
+  names.
 
 ### Open questions for the owner
 

@@ -4268,6 +4268,7 @@ dependencies = [
  "tcl-lexer",
  "tcl-registry",
  "tcl-runtime-api",
+ "tcl-spectcl",
  "tcl-syntax",
  "temp-env",
  "thiserror 2.0.20",

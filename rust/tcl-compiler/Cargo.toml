@@ -56,3 +56,8 @@ workspace = true
 [dev-dependencies]
 temp-env = "0.3"
 rayon = "1"
+# A dev-dependency cycle (`tcl-spectcl` depends on this crate), which Cargo
+# permits and `tcl-registry` already uses: the value-transfer completion test
+# loads its executable example, a `.tclspec` pack, through the pack loader
+# and the hook host, exactly as a workspace does.
+tcl-spectcl = { path = "../tcl-spectcl" }
