@@ -44,6 +44,7 @@ with several parameters reassigns them together with `lassign`.
 ## Safety conditions
 
 - Skipped when any self-call is **not** in [tail position](../../GLOSSARY.md#tail-position), including one in an `if` / `while` / `for` condition or a `switch` subject — the loop body would still evaluate that call recursively.
+- That holds however the non-tail call is spelled, including in a statement that keeps no argument words of its own: a fused `set acc [expr {$acc + [f $n]}]`, a bare `expr {[f $n]}`, or `incr acc [f $n]`.
 - Skipped when a recursive call passes a different number of arguments than the proc declares. A bracketed argument such as `[expr {$n - 1}]` is one argument.
 - Skipped when a recursive call expands its arguments with `{*}`, whose word count is not known until runtime.
 - Skipped on Tcl 8.4 for a proc with more than one parameter, which has no `lassign` to reassign them.

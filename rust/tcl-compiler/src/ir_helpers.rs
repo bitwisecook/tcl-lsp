@@ -709,7 +709,18 @@ fn collect_expr_command_surface_refs<'a>(
                 push_text(text, out);
             }
         }
-        ExprNode::Literal { .. } | ExprNode::String { .. } | ExprNode::Var { .. } => {}
+        // `"…"` substitutes inside an expression and `{…}` does not, and the
+        // variant carries its delimiters, so the delimiter decides. Reading
+        // every string as inert hid the write in
+        // `set y [expr {"[incr x]" + 0}]`: tclsh 8.6.18 prints `2` then `2`,
+        // and O102 forwarded the stale `1` across it exactly as it did for a
+        // braced operand before #2141 (#2118, found in review).
+        ExprNode::String { text, .. } => {
+            if let Some(inner) = crate::word_subst::quoted_operand_body(text) {
+                out.push(inner);
+            }
+        }
+        ExprNode::Literal { .. } | ExprNode::Var { .. } => {}
     }
 }
 
@@ -1164,6 +1175,52 @@ fn walk_text(
     }
 }
 
+/// The argument indices `lookup` evaluates **as an expression in this frame**,
+/// as indices into its own argv-minus-head.
+///
+/// The single owner of that question, shared by the two walks that ask it: the
+/// variable-effect walk ([`walk_braced_expr_words`]) and the call-site walk
+/// ([`crate::word_subst::lifted_calls_with_registry`]). The two disagreeing
+/// about which commands a statement runs is what let `return [expr {[fact …]}]`
+/// hide a recursive call from the caller-evidence scan (#2118).
+///
+/// Two shapes reach the same expression, and both come from the registry
+/// rather than from the spelling `expr`:
+///
+/// * a single [`tcl_registry::ArgRole::Expr`] word — `[expr {$x + 1}]`;
+/// * every word of a command that
+///   [concatenates its arguments into one expression](tcl_registry::Traits::EXPR_CONCATENATES_ARGS).
+///   `expr 1 + {[incr x]}` joins its words into `1 + [incr x]` and then
+///   parses *that*, so the braced word's `[…]` runs: tclsh 8.6.18 and
+///   9.0.4 both print `3` then `2` for
+///   `set x 1; puts [expr 1 + {[incr x]}]; puts $x`.
+///
+/// Only `Expr` is named, never `Body`: a body word runs in this frame too but
+/// may bind names of its own, which a flat command list cannot represent.
+///
+/// Read through the document's command *surface*, not the bare catalogue: a
+/// `# tcl-lsp: stub myexpr {value:expr}` declares an expression word exactly
+/// as a shipped command does, and lowering honours that role, so `myexpr
+/// {[id 9]}` runs the call it holds. A declaration only ever *adds* a role
+/// position, so this can widen the answer and never narrow it.
+pub(crate) fn in_frame_expression_arg_indices(
+    lookup: &str,
+    args: &[&str],
+    surface: &tcl_registry::model::DocumentCommandSurface<'_>,
+) -> Vec<usize> {
+    let mut descend: Vec<usize> =
+        surface.arg_indices_for_role(lookup, args, tcl_registry::ArgRole::Expr);
+    if surface.commands().get(lookup).is_some_and(|spec| {
+        spec.traits
+            .contains(tcl_registry::Traits::EXPR_CONCATENATES_ARGS)
+    }) {
+        descend.extend(0..args.len());
+    }
+    descend.sort_unstable();
+    descend.dedup();
+    descend
+}
+
 /// Descend the brace-quoted words a recovered command evaluates **as an
 /// expression in this frame**.
 ///
@@ -1174,20 +1231,8 @@ fn walk_text(
 /// `puts [incr x]` does, and without this descent the write was invisible
 /// and O102 forwarded a stale literal across it (#2141).
 ///
-/// Two shapes reach the same expression, and both are taken from the
-/// registry rather than from the spelling `expr`:
-///
-/// * a single [`tcl_registry::ArgRole::Expr`] word — `[expr {$x + 1}]`;
-/// * every word of a command that
-///   [concatenates its arguments into one expression](tcl_registry::Traits::EXPR_CONCATENATES_ARGS).
-///   `expr 1 + {[incr x]}` joins its words into `1 + [incr x]` and then
-///   parses *that*, so the braced word's `[…]` runs: tclsh 8.6.18 and
-///   9.0.4 both print `3` then `2` for
-///   `set x 1; puts [expr 1 + {[incr x]}]; puts $x`.
-///
-/// Only `Expr` is descended, never `Body`: a body word runs in this frame
-/// too but may bind names of its own, which a flat command list cannot
-/// represent.
+/// Which words those are is [`in_frame_expression_arg_indices`]' to answer;
+/// this walks the brace-quoted ones among them.
 fn walk_braced_expr_words(
     words: &[CommandWord],
     config: LexerConfig,
@@ -1219,20 +1264,10 @@ fn walk_braced_expr_words(
             .map(|word| word.literal().unwrap_or("")),
     );
 
-    let mut descend: Vec<usize> = registry
-        .arg_indices_for_role(lookup, &args, tcl_registry::ArgRole::Expr)
-        .into_iter()
-        .collect();
-    if registry.get(lookup).is_some_and(|spec| {
-        spec.traits
-            .contains(tcl_registry::Traits::EXPR_CONCATENATES_ARGS)
-    }) {
-        descend.extend(shift..args.len());
-    }
-    descend.sort_unstable();
-    descend.dedup();
-
-    for index in descend {
+    // The variable-effect walk is reached from consumers that hold only a
+    // catalogue, so it asks the same owner with no declarations attached.
+    let surface = tcl_registry::model::DocumentCommandSurface::new(registry, None);
+    for index in in_frame_expression_arg_indices(lookup, &args, &surface) {
         // A prepended word is a value the alias already holds, not source
         // this call substitutes.
         let Some(source_index) = index.checked_sub(shift) else {
