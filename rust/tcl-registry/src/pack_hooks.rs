@@ -67,8 +67,12 @@ use crate::invocation_words::{
     CommandPrefixArguments, InvocationArguments, InvocationWord, InvocationWordKind,
 };
 use crate::literal_validation::{LiteralArgumentValidation, LiteralArgumentValidator};
-use crate::spec::{ArgRoleResolver, CommandPrefixResolver, ContextGate, ScriptTimingResolver};
-use crate::value_transfer::{ContextDependency, EvaluatorGeneration, ImplementationBudget};
+use crate::spec::{
+    ArgRoleResolver, CommandPrefixResolver, ConstraintsHook, ContextGate, ScriptTimingResolver,
+};
+use crate::value_transfer::{
+    ContextDependency, DeclaredStructure, EvalRoute, EvaluatorGeneration, ImplementationBudget,
+};
 
 /// How many hooks of one family a process may install.
 ///
@@ -244,6 +248,131 @@ impl HookFamily {
         }
     }
 }
+
+/// A native implementation, named `SCOPE::FIELD`
+/// (`docs/design/compiler/value-evaluation.md` § *`-native ID`, and the
+/// per-family catalogues*). `SCOPE` is the command name, `command::subcommand`
+/// for a subcommand-scoped field, or `command::subcommand::-option` for an
+/// option-scoped one; `FIELD` is the field's own DSL keyword
+/// ([`HookFamily::field`], or `semantics` / `evaluate` / `facts`, the two
+/// statements no family owns and the one that is also `HookFamily::Evaluate`
+/// itself).
+///
+/// Every family and those two extra fields gets one of these tables below,
+/// each keyed by the full id, holding the shipped Rust value the id names.
+/// An empty table means nothing this build ships is reachable by id yet —
+/// not that the field cannot be declared natively — and every `-native ID`
+/// still keeps loading; it only ever fails to resolve.
+/// `rust/tcl-spectcl/src/loader.rs`'s `native_hook_tables_cover_their_catalogues`
+/// holds each table's id set level with `tcl_spectcl::catalogue`'s picker
+/// list of the same name, so a table that gains a shipped entry and a
+/// catalogue that does not name it fail the same assertion, from either
+/// side.
+pub const ARG_ROLE_RESOLVER_NATIVE: &[(&str, ArgRoleResolver)] = &[];
+
+/// See [`ARG_ROLE_RESOLVER_NATIVE`].
+pub const COMMAND_PREFIX_RESOLVER_NATIVE: &[(&str, CommandPrefixResolver)] = &[];
+
+/// See [`ARG_ROLE_RESOLVER_NATIVE`].
+pub const SCRIPT_TIMING_RESOLVER_NATIVE: &[(&str, ScriptTimingResolver)] = &[];
+
+/// See [`ARG_ROLE_RESOLVER_NATIVE`]. The shipped folders' unversioned
+/// constant folders, keyed by the command or subcommand each folds
+/// (`docs/design/compiler/value-evaluation.md`'s worked example).
+pub const CONST_FOLD_NATIVE: &[(&str, ConstFoldFn)] = &[
+    // `fold_range` itself is `VersionedConstFoldFn`-shaped (it reads the
+    // release); the unversioned slot `string range` actually ships is the
+    // unanimous-answer wrapper around it.
+    (
+        "string::range::const_fold",
+        crate::commands::tcl::fold_range_unanimous,
+    ),
+    (
+        "string::replace::const_fold",
+        crate::commands::tcl::fold_replace,
+    ),
+    ("regsub::const_fold", crate::commands::tcl::fold_regsub),
+    ("scan::const_fold", crate::commands::tcl::fold_scan),
+    ("list::const_fold", crate::const_fold::fold_list),
+    ("lindex::const_fold", crate::const_fold::fold_lindex),
+    ("concat::const_fold", crate::const_fold::fold_concat),
+    ("llength::const_fold", crate::const_fold::fold_llength),
+    ("lreverse::const_fold", crate::const_fold::fold_lreverse),
+    ("join::const_fold", crate::const_fold::fold_join),
+    ("split::const_fold", crate::const_fold::fold_split),
+    ("lrepeat::const_fold", crate::const_fold::fold_lrepeat),
+    ("lrange::const_fold", crate::const_fold::fold_lrange),
+    ("dict::get::const_fold", crate::const_fold::fold_dict_get),
+    (
+        "dict::exists::const_fold",
+        crate::const_fold::fold_dict_exists,
+    ),
+    ("dict::size::const_fold", crate::const_fold::fold_dict_size),
+    ("dict::keys::const_fold", crate::const_fold::fold_dict_keys),
+    (
+        "dict::values::const_fold",
+        crate::const_fold::fold_dict_values,
+    ),
+    (
+        "dict::create::const_fold",
+        crate::const_fold::fold_dict_create,
+    ),
+    (
+        "dict::merge::const_fold",
+        crate::const_fold::fold_dict_merge,
+    ),
+];
+
+/// See [`ARG_ROLE_RESOLVER_NATIVE`]. The shipped folders' release-aware
+/// constant folders.
+pub const CONST_FOLD_VERSIONED_NATIVE: &[(&str, VersionedConstFoldFn)] = &[
+    (
+        "string::is::const_fold_versioned",
+        crate::commands::tcl::fold_is,
+    ),
+    (
+        "format::const_fold_versioned",
+        crate::commands::tcl::fold_format,
+    ),
+];
+
+/// [`crate::spec::CommandSpec::taint_sink_gate`]'s function-pointer shape,
+/// named so [`TAINT_SINK_GATE_NATIVE`]'s element type stays under clippy's
+/// `type_complexity` threshold.
+pub type TaintSinkGateFn = fn(&[&str]) -> bool;
+
+/// See [`ARG_ROLE_RESOLVER_NATIVE`].
+pub const TAINT_SINK_GATE_NATIVE: &[(&str, TaintSinkGateFn)] = &[];
+
+/// See [`ARG_ROLE_RESOLVER_NATIVE`].
+pub const CONTEXT_GATE_NATIVE: &[(&str, ContextGate)] = &[];
+
+/// See [`ARG_ROLE_RESOLVER_NATIVE`].
+pub const LITERAL_ARGUMENT_VALIDATOR_NATIVE: &[(&str, LiteralArgumentValidator)] = &[];
+
+/// See [`ARG_ROLE_RESOLVER_NATIVE`].
+pub const CLAUSE_SHAPE_CHECK_NATIVE: &[(&str, ClauseShapeChecker)] = &[];
+
+/// See [`ARG_ROLE_RESOLVER_NATIVE`].
+pub const OPTION_ARITY_NATIVE: &[(&str, OptionValueHook)] = &[];
+
+/// See [`ARG_ROLE_RESOLVER_NATIVE`].
+pub const CONSTRAINTS_NATIVE: &[(&str, ConstraintsHook)] = &[];
+
+/// See [`ARG_ROLE_RESOLVER_NATIVE`]. `semantics -native ID`: the shipped
+/// structural plan, by name.
+pub const SEMANTICS_NATIVE: &[(&str, DeclaredStructure)] = &[];
+
+/// See [`ARG_ROLE_RESOLVER_NATIVE`]. `evaluate -native ID`: a shipped
+/// evaluator whose route the catalogue entry itself names. `-direct` and
+/// `-expression` are different, already-closed catalogues of their own
+/// (`NativeEvalId::ALL`, `LanguageProfileId::ALL`), not `SCOPE::FIELD` ids.
+pub const EVALUATE_NATIVE: &[(&str, EvalRoute)] = &[];
+
+/// See [`ARG_ROLE_RESOLVER_NATIVE`]. `facts -native ID`: checked, not
+/// stored — nothing reads a pack's facts yet — so the table records only
+/// which ids are shipped.
+pub const FACTS_NATIVE: &[(&str, ())] = &[];
 
 /// One input a hook body declares it reads.
 ///

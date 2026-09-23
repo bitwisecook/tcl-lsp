@@ -70,7 +70,7 @@ fn scan_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 ///   space-join that renders identically to tclsh's returned list.
 /// * a literal mismatch, a failed / partial / empty conversion set, or a
 ///   non-ASCII string / format all bail.
-fn fold_scan(args: &[&str]) -> Option<String> {
+pub(crate) fn fold_scan(args: &[&str]) -> Option<String> {
     let [string, fmt] = args else {
         return None; // `scan str fmt var ...` writes vars — never fold
     };

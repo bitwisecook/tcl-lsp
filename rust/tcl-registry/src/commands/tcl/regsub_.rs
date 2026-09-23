@@ -33,7 +33,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 /// folds: their command result is a replacement count and the text is a
 /// write-side effect.  `-command` likewise declines in the shared command
 /// core, so a callback can never run during analysis.
-fn fold_regsub(args: &[&str]) -> Option<String> {
+pub(crate) fn fold_regsub(args: &[&str]) -> Option<String> {
     let bytes: Vec<&[u8]> = args.iter().map(|arg| arg.as_bytes()).collect();
     let result = tcl_cmd_core::regex::regsub::<tcl_regex::cmd_core::AreEngine>(&bytes).ok()?;
     if result.var.is_some() {

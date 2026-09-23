@@ -3126,6 +3126,58 @@ commit:
   compiler witness through a stand-in host, and `value_transfer_parity.rs`
   through the real one from a loaded pack.
 
+#### Record (2026-09-23): the sonnet items of slice 4
+
+Runs after the opus items above; each item its own commit, in plan order
+(VT4.10, VT4.11, VT4.12, VT4.14), reporting before VT4.13.
+
+| Item | Commit | What landed | Its tests |
+|---|---|---|---|
+| VT4.10 | `wip(value-transfers): slice 4 — -native ID for every family` | `tcl_registry::pack_hooks` gained fourteen `SCOPE::FIELD`-keyed native tables — one per pre-existing `HookFamily` variant (the eleven) plus `SEMANTICS_NATIVE`, `EVALUATE_NATIVE`, `FACTS_NATIVE` — real for `CONST_FOLD_NATIVE` (20 rows) and `CONST_FOLD_VERSIONED_NATIVE` (2 rows), the shipped folders' worked example, empty for the other twelve (nothing else ships a named native implementation yet); the shipped fold functions the tables reference (`string_.rs`, `format_.rs`, `regsub_.rs`, `scan_.rs`) exposed `pub(crate)` via `commands/tcl/mod.rs` re-exports; `loader/semantics.rs`'s `native_id` made generic over a table, so a full id the table holds now installs its value and one it does not keeps the existing "names nothing this build ships" notice; `evaluate -direct ID` split out from `-native` into its own resolution against `NativeEvalId::ALL` (`enum_by_name`, Rust-spelled, since it predates `-native`), leaving `-expression` untouched (already `LanguageProfileId::ALL`-matched); `tcl_spectcl::catalogue` gained the fourteen native-id pickers (id-spelled) and eight `value_transfer` vocabulary pickers (`NativeEvalId` Rust-spelled; `LanguageProfileId`, `HostKind`, `Exactness`, `ContextDependency::WORDS`, `OutcomeKind`, `DeclaredEffect`, `OptionEvaluation::REASONS` all DSL/`as_str()`-spelled) | `native_hook_tables_cover_their_catalogues` (+14 rows), `value_tables_cover_their_catalogues` (its original 9 rows, unchanged) and the new `value_transfer_tables_cover_their_catalogues` (+8 rows, split out for clippy's function-length lint), `catalogue_keys_are_unique` (+22 catalogues); `a_short_native_id_is_a_load_notice` adapted (`evaluate -direct go::evaluate` → `evaluate -native go::evaluate` at the same subcommand scope, plus a new `evaluate -direct nonexistent` line at command scope, since `-direct` no longer shares `-native`'s notice text — R6's witness is this item's own mandate to split them); `a_native_id_a_table_holds_installs_its_value` (new: `native_id` against a synthetic non-empty table, proving the "found" branch, since every real table but const-fold is empty) |
+
+Deviation from the plan's text, adapting to the tree: the plan's Items line
+groups "the eleven" `HookFamily` variants under one `NativeEvalTables`
+umbrella without saying whether their own `-native` dispatch (the separate,
+older `hook_source`-in-`apply_command_stmt` path the ten non-const-fold
+families and even `const_fold` itself use, distinct from
+`loader/semantics.rs`'s `native_id`) is rewired to consult the new tables at
+load time. It is not, in this item: three existing tests reach that path
+with ids no real native table would resolve on purpose —
+`native_resolver_capabilities_survive_the_round_trip`
+(`tcl-spec-studio/tests/spectcl_roundtrip.rs`, asserting `notices.is_empty()`
+over the studio's rendered `arg_role_resolver -native <id>` placeholder for
+the shipped `binary scan` resolver), `a_native_hook_is_named_after_the_field_it_fills`
+(`render_spectcl.rs`, the renderer's own synthesised `-native probe::FIELD`
+placeholders) and `docs/design/spec-dsl-examples/string.tclspec`'s
+`const_fold_versioned -native string::is` (short — the correct id is
+`string::is::const_fold_versioned` — read by four more tests across
+`tcl-spectcl` and `tcl-spec-studio`) — so wiring dispatch for the ten empty
+families would do nothing today, and wiring it for `const_fold` would need
+`apply_command_stmt`'s command- and subcommand-scope match arms reworked
+(a second, larger change spanning the studio's own renderer expectations,
+which is VT4.11's file list, not this item's) and `string.tclspec` fixed to
+the correct spelling in the same change. `loader/semantics.rs`'s own
+"state the sonnet items start from" note names only its `native_id` as what
+this item replaces with a lookup, which is the scope taken: the tables exist,
+fully populated where the plan gives an unambiguous worked example, and are
+load-bearing for `semantics` / `evaluate` (`-native`, `-direct`) / `facts`;
+the pre-existing eleven families' own `-native` statements still install
+nothing today, exactly as before this item, and gain no new notice — this is
+unchanged, not regressed, behaviour, pinned by the suites below. A later item
+may rewire `apply_command_stmt` onto these tables; nothing here blocks it.
+
+Green: `cargo test -p tcl-registry -p tcl-spectcl --no-fail-fast` 1493
+passed, 0 failed, 1 ignored (the pre-existing fuzz-shaped
+`every_prefix_of_a_valid_pack_loads`); pedantic clippy
+(`--no-deps --all-targets -D warnings`) clean on both crates — one
+`clippy::type_complexity` fixed by naming `TaintSinkGateFn` rather than
+writing `fn(&[&str]) -> bool` inline, no `#[allow]` added; `cargo fmt -p
+tcl-registry -p tcl-spectcl` applied (line-wrap only); `cargo xtask
+value-transfers --check` OK and unchanged (17 clean, 13 waived, 98 pinned
+across 39 files, 6607 rows); `cargo xtask pack-goldens` 0 of 24 rewritten;
+no new integration-test binary, so no shard-script row; `cargo check
+--workspace --all-targets` clean.
+
 ### Slice 5 — destructuring and structured bodies
 
 #### Goal and exit

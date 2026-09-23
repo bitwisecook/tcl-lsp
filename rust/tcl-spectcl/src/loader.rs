@@ -7129,10 +7129,21 @@ mod tests {
     /// spelling, so its value tables have to name every variant the catalogue
     /// does. A registry that grows a hook and a studio catalogue that lists it
     /// would otherwise leave the loader silently dropping the new id.
+    ///
+    /// The eleven `HookFamily` variants and the `semantics` / `evaluate` /
+    /// `facts` fields each own a `SCOPE::FIELD`-keyed native table in
+    /// `tcl_registry::pack_hooks`
+    /// (`docs/design/compiler/value-evaluation.md` § *`-native ID`, and the
+    /// per-family catalogues*); this is the same obligation as the five
+    /// compiler-catalogue rows above, read from the table's own id rather
+    /// than a Rust variant name.
     #[test]
     fn native_hook_tables_cover_their_catalogues() {
         fn names<T: Copy + fmt::Debug>(all: &[T]) -> Vec<String> {
             all.iter().map(catalogue::variant_name).collect()
+        }
+        fn ids<T>(table: &[(&str, T)]) -> Vec<String> {
+            table.iter().map(|(id, _)| (*id).to_owned()).collect()
         }
         for (what, mine, catalogue) in [
             ("lowering", names(LOWERING_HOOKS), catalogue::LOWERING_HOOKS),
@@ -7148,6 +7159,76 @@ mod tests {
                 names(RETURN_TYPE_HOOKS),
                 catalogue::RETURN_TYPE_HOOKS,
             ),
+            (
+                "arg-role-resolver native",
+                ids(tcl_registry::pack_hooks::ARG_ROLE_RESOLVER_NATIVE),
+                catalogue::ARG_ROLE_RESOLVER_NATIVE,
+            ),
+            (
+                "command-prefix-resolver native",
+                ids(tcl_registry::pack_hooks::COMMAND_PREFIX_RESOLVER_NATIVE),
+                catalogue::COMMAND_PREFIX_RESOLVER_NATIVE,
+            ),
+            (
+                "script-timing-resolver native",
+                ids(tcl_registry::pack_hooks::SCRIPT_TIMING_RESOLVER_NATIVE),
+                catalogue::SCRIPT_TIMING_RESOLVER_NATIVE,
+            ),
+            (
+                "const-fold native",
+                ids(tcl_registry::pack_hooks::CONST_FOLD_NATIVE),
+                catalogue::CONST_FOLD_NATIVE,
+            ),
+            (
+                "const-fold-versioned native",
+                ids(tcl_registry::pack_hooks::CONST_FOLD_VERSIONED_NATIVE),
+                catalogue::CONST_FOLD_VERSIONED_NATIVE,
+            ),
+            (
+                "taint-sink-gate native",
+                ids(tcl_registry::pack_hooks::TAINT_SINK_GATE_NATIVE),
+                catalogue::TAINT_SINK_GATE_NATIVE,
+            ),
+            (
+                "context-gate native",
+                ids(tcl_registry::pack_hooks::CONTEXT_GATE_NATIVE),
+                catalogue::CONTEXT_GATE_NATIVE,
+            ),
+            (
+                "literal-argument-validator native",
+                ids(tcl_registry::pack_hooks::LITERAL_ARGUMENT_VALIDATOR_NATIVE),
+                catalogue::LITERAL_ARGUMENT_VALIDATOR_NATIVE,
+            ),
+            (
+                "clause-shape-check native",
+                ids(tcl_registry::pack_hooks::CLAUSE_SHAPE_CHECK_NATIVE),
+                catalogue::CLAUSE_SHAPE_CHECK_NATIVE,
+            ),
+            (
+                "option-arity native",
+                ids(tcl_registry::pack_hooks::OPTION_ARITY_NATIVE),
+                catalogue::OPTION_ARITY_NATIVE,
+            ),
+            (
+                "constraints native",
+                ids(tcl_registry::pack_hooks::CONSTRAINTS_NATIVE),
+                catalogue::CONSTRAINTS_NATIVE,
+            ),
+            (
+                "semantics native",
+                ids(tcl_registry::pack_hooks::SEMANTICS_NATIVE),
+                catalogue::SEMANTICS_NATIVE,
+            ),
+            (
+                "evaluate native",
+                ids(tcl_registry::pack_hooks::EVALUATE_NATIVE),
+                catalogue::EVALUATE_NATIVE,
+            ),
+            (
+                "facts native",
+                ids(tcl_registry::pack_hooks::FACTS_NATIVE),
+                catalogue::FACTS_NATIVE,
+            ),
         ] {
             let mut expected: Vec<&str> = catalogue.iter().map(|variant| variant.key).collect();
             let mut mine: Vec<&str> = mine.iter().map(String::as_str).collect();
@@ -7158,6 +7239,8 @@ mod tests {
     }
 
     /// Same obligation for the vocabularies a row flag resolves.
+    /// [`value_transfer_tables_cover_their_catalogues`] does the same for
+    /// the `value_transfer` vocabulary.
     #[test]
     fn value_tables_cover_their_catalogues() {
         fn names<T: Copy + fmt::Debug>(all: &[T]) -> Vec<String> {
@@ -7192,6 +7275,89 @@ mod tests {
                 "storage type",
                 names(STORAGE_TYPES),
                 catalogue::STORAGE_TYPES,
+            ),
+        ] {
+            let mut expected: Vec<&str> = catalogue.iter().map(|variant| variant.key).collect();
+            let mut mine: Vec<&str> = mine.iter().map(String::as_str).collect();
+            expected.sort_unstable();
+            mine.sort_unstable();
+            assert_eq!(mine, expected, "the {what} table is out of step");
+        }
+    }
+
+    /// [`value_tables_cover_their_catalogues`], split for clippy's
+    /// function-length lint: the `value_transfer` vocabulary's own closed
+    /// word lists. Most are matched by their DSL spelling (`as_str()`:
+    /// `write_or_preserve`, `tcl.expr`, `bounded_tcl`, …), not the Rust
+    /// variant name `names` reads — only `evaluate -direct ID`
+    /// (`NativeEvalId`) keeps the older, Rust-spelled convention, since it
+    /// predates `-native`.
+    #[test]
+    fn value_transfer_tables_cover_their_catalogues() {
+        fn names<T: Copy + fmt::Debug>(all: &[T]) -> Vec<String> {
+            all.iter().map(catalogue::variant_name).collect()
+        }
+        for (what, mine, catalogue) in [
+            (
+                "native evaluator id",
+                names(tcl_registry::value_transfer::NativeEvalId::ALL),
+                catalogue::NATIVE_EVAL_IDS,
+            ),
+            (
+                "language profile",
+                tcl_registry::value_transfer::LanguageProfileId::ALL
+                    .iter()
+                    .map(|profile| profile.as_str().to_owned())
+                    .collect(),
+                catalogue::LANGUAGE_PROFILES,
+            ),
+            (
+                "host kind",
+                tcl_registry::value_transfer::HostKind::ALL
+                    .iter()
+                    .map(|host| host.as_str().to_owned())
+                    .collect(),
+                catalogue::HOST_KINDS,
+            ),
+            (
+                "exactness",
+                tcl_registry::value_transfer::Exactness::ALL
+                    .iter()
+                    .map(|exactness| exactness.as_str().to_owned())
+                    .collect(),
+                catalogue::EXACTNESS,
+            ),
+            (
+                "context dependency",
+                tcl_registry::value_transfer::ContextDependency::WORDS
+                    .iter()
+                    .map(|dependency| dependency.as_str().to_owned())
+                    .collect(),
+                catalogue::CONTEXT_DEPENDENCIES,
+            ),
+            (
+                "outcome kind",
+                tcl_registry::value_transfer::OutcomeKind::ALL
+                    .iter()
+                    .map(|outcome| outcome.as_str().to_owned())
+                    .collect(),
+                catalogue::OUTCOME_KINDS,
+            ),
+            (
+                "declared effect",
+                tcl_registry::value_transfer::DeclaredEffect::ALL
+                    .iter()
+                    .map(|effect| effect.as_str().to_owned())
+                    .collect(),
+                catalogue::DECLARED_EFFECTS,
+            ),
+            (
+                "evaluate reason",
+                tcl_registry::value_transfer::OptionEvaluation::REASONS
+                    .iter()
+                    .map(|(word, _)| (*word).to_owned())
+                    .collect(),
+                catalogue::EVALUATE_REASONS,
             ),
         ] {
             let mut expected: Vec<&str> = catalogue.iter().map(|variant| variant.key).collect();

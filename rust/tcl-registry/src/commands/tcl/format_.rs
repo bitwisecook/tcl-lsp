@@ -71,7 +71,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 ///   [`MAX_FIELD`] all bail.
 /// * A bare trailing `%` (an incomplete conversion, which Tcl raises on) and
 ///   too few arguments both bail; extra arguments are ignored (matching Tcl).
-fn fold_format(args: &[&str], version: Option<TclVersion>) -> Option<String> {
+pub(crate) fn fold_format(args: &[&str], version: Option<TclVersion>) -> Option<String> {
     let (fmt, vals) = args.split_first()?;
     if !fmt.is_ascii() {
         return None;

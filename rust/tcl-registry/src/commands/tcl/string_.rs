@@ -251,12 +251,12 @@ fn fold_range(args: &[&str], version: Option<TclVersion>) -> Option<String> {
 
 /// [`fold_range`] for a caller with no release fact: the same route, answering
 /// what every release gives and declining where they differ.
-fn fold_range_unanimous(args: &[&str]) -> Option<String> {
+pub(crate) fn fold_range_unanimous(args: &[&str]) -> Option<String> {
     fold_range(args, None)
 }
 
 /// `string replace string first last ?newString?`.  ASCII-restricted.
-fn fold_replace(args: &[&str]) -> Option<String> {
+pub(crate) fn fold_replace(args: &[&str]) -> Option<String> {
     let (s, first_s, last_s, repl) = match args {
         [s, f, l] => (*s, *f, *l, ""),
         [s, f, l, r] => (*s, *f, *l, *r),
@@ -469,7 +469,7 @@ fn fold_string_map_impl(mapping_str: &str, s: &str, nocase: bool) -> Option<Stri
 /// `wideinteger` / `dict` stay deferred — they *raise* in old dialects
 /// (8.4 / 8.4 + 8.5 / pre-9.0 respectively), so no dialect-agnostic fold can
 /// be sound (it would turn an error into a value).
-fn fold_is(args: &[&str], version: Option<TclVersion>) -> Option<String> {
+pub(crate) fn fold_is(args: &[&str], version: Option<TclVersion>) -> Option<String> {
     if args.len() < 2 {
         return None;
     }

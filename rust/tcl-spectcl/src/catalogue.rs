@@ -391,6 +391,170 @@ pub const ANALYSER_HOOKS: &[Variant] = &[
     v("Load", "load"),
 ];
 
+/// [`tcl_registry::pack_hooks::ARG_ROLE_RESOLVER_NATIVE`] — `arg_role_resolver
+/// -native ID`, `SCOPE::FIELD` spelled. Every `*_NATIVE` catalogue below
+/// holds the DSL's own id, not a Rust variant name, since that is what a
+/// `-native` statement is actually matched against
+/// (`docs/design/compiler/value-evaluation.md` § *`-native ID`, and the
+/// per-family catalogues*).
+pub const ARG_ROLE_RESOLVER_NATIVE: &[Variant] = &[];
+
+/// [`tcl_registry::pack_hooks::COMMAND_PREFIX_RESOLVER_NATIVE`].
+pub const COMMAND_PREFIX_RESOLVER_NATIVE: &[Variant] = &[];
+
+/// [`tcl_registry::pack_hooks::SCRIPT_TIMING_RESOLVER_NATIVE`].
+pub const SCRIPT_TIMING_RESOLVER_NATIVE: &[Variant] = &[];
+
+/// [`tcl_registry::pack_hooks::CONST_FOLD_NATIVE`] — the shipped folders.
+pub const CONST_FOLD_NATIVE: &[Variant] = &[
+    v("string::range::const_fold", "string range"),
+    v("string::replace::const_fold", "string replace"),
+    v("regsub::const_fold", "regsub"),
+    v("scan::const_fold", "scan"),
+    v("list::const_fold", "list"),
+    v("lindex::const_fold", "lindex"),
+    v("concat::const_fold", "concat"),
+    v("llength::const_fold", "llength"),
+    v("lreverse::const_fold", "lreverse"),
+    v("join::const_fold", "join"),
+    v("split::const_fold", "split"),
+    v("lrepeat::const_fold", "lrepeat"),
+    v("lrange::const_fold", "lrange"),
+    v("dict::get::const_fold", "dict get"),
+    v("dict::exists::const_fold", "dict exists"),
+    v("dict::size::const_fold", "dict size"),
+    v("dict::keys::const_fold", "dict keys"),
+    v("dict::values::const_fold", "dict values"),
+    v("dict::create::const_fold", "dict create"),
+    v("dict::merge::const_fold", "dict merge"),
+];
+
+/// [`tcl_registry::pack_hooks::CONST_FOLD_VERSIONED_NATIVE`].
+pub const CONST_FOLD_VERSIONED_NATIVE: &[Variant] = &[
+    v("string::is::const_fold_versioned", "string is"),
+    v("format::const_fold_versioned", "format"),
+];
+
+/// [`tcl_registry::pack_hooks::TAINT_SINK_GATE_NATIVE`].
+pub const TAINT_SINK_GATE_NATIVE: &[Variant] = &[];
+
+/// [`tcl_registry::pack_hooks::CONTEXT_GATE_NATIVE`].
+pub const CONTEXT_GATE_NATIVE: &[Variant] = &[];
+
+/// [`tcl_registry::pack_hooks::LITERAL_ARGUMENT_VALIDATOR_NATIVE`].
+pub const LITERAL_ARGUMENT_VALIDATOR_NATIVE: &[Variant] = &[];
+
+/// [`tcl_registry::pack_hooks::CLAUSE_SHAPE_CHECK_NATIVE`].
+pub const CLAUSE_SHAPE_CHECK_NATIVE: &[Variant] = &[];
+
+/// [`tcl_registry::pack_hooks::OPTION_ARITY_NATIVE`].
+pub const OPTION_ARITY_NATIVE: &[Variant] = &[];
+
+/// [`tcl_registry::pack_hooks::CONSTRAINTS_NATIVE`].
+pub const CONSTRAINTS_NATIVE: &[Variant] = &[];
+
+/// [`tcl_registry::pack_hooks::SEMANTICS_NATIVE`] — `semantics -native ID`.
+pub const SEMANTICS_NATIVE: &[Variant] = &[];
+
+/// [`tcl_registry::pack_hooks::EVALUATE_NATIVE`] — `evaluate -native ID`.
+pub const EVALUATE_NATIVE: &[Variant] = &[];
+
+/// [`tcl_registry::pack_hooks::FACTS_NATIVE`] — `facts -native ID`.
+pub const FACTS_NATIVE: &[Variant] = &[];
+
+/// [`tcl_registry::value_transfer::NativeEvalId::ALL`] — `evaluate -direct
+/// ID`, the Rust variant spelling (unlike the `*_NATIVE` tables above, this
+/// catalogue's own id predates `-native` and was already Rust-spelled).
+pub const NATIVE_EVAL_IDS: &[Variant] = &[
+    v("CellIncrement", "the cell increment behind incr"),
+    v("CellAppend", "the cell append behind append"),
+    v("CellListAppend", "the cell list-append behind lappend"),
+    v("CellWrite", "the exact-value write behind set"),
+    v("DictSet", "dict set"),
+    v("DictUnset", "dict unset"),
+    v("DictIncr", "dict incr"),
+    v("DictAppend", "dict append"),
+    v("DictListAppend", "dict lappend"),
+    v("StringRange", "string range"),
+    v("ListOfArgs", "list"),
+    v("FormatTemplate", "format"),
+    v("ListLength", "llength"),
+    v("StringLength", "string length"),
+];
+
+/// [`tcl_registry::value_transfer::LanguageProfileId::ALL`] — `evaluate
+/// -expression ID`.
+pub const LANGUAGE_PROFILES: &[Variant] = &[
+    v(
+        "tcl.expr",
+        "Tcl expr arithmetic under the target's numeric tower",
+    ),
+    v(
+        "bpf.expr",
+        "BPF-Tcl arithmetic: fixed width, truncating division",
+    ),
+];
+
+/// [`tcl_registry::value_transfer::HostKind::ALL`] — `evaluate
+/// -implementation ID -host HOST`.
+pub const HOST_KINDS: &[Variant] = &[v(
+    "bounded_tcl",
+    "the bounded Tcl engine behind the hook host",
+)];
+
+/// [`tcl_registry::value_transfer::Exactness::ALL`] — an `inputs` row's
+/// mode (`arg N exact`).
+pub const EXACTNESS: &[Variant] = &[v("exact", "the operand's exact value")];
+
+/// [`tcl_registry::value_transfer::ContextDependency::WORDS`] — a `depends`
+/// row's fieldless words (`binding NAME` is not one, and is not catalogued
+/// as a fixed word for that reason).
+pub const CONTEXT_DEPENDENCIES: &[Variant] = &[
+    v("tcl_profile", "the target profile"),
+    v("implementation_identity", "the implementation identity"),
+    v("registry_generation", "the registry and overlay generation"),
+    v("evaluator_generation", "the evaluator generation"),
+];
+
+/// [`tcl_registry::value_transfer::OutcomeKind::ALL`] — a `stores` row's
+/// `-outcome`.
+pub const OUTCOME_KINDS: &[Variant] = &[
+    v(
+        "write",
+        "every target is written on every normal completion",
+    ),
+    v(
+        "write_or_preserve",
+        "each target is written or keeps its prior value and existence",
+    ),
+    v(
+        "may_write",
+        "each target may have been written; nothing more is known",
+    ),
+    v("unbind", "each target is unbound afterwards"),
+];
+
+/// [`tcl_registry::value_transfer::DeclaredEffect::ALL`] — a `semantics`
+/// block's `effects` row.
+pub const DECLARED_EFFECTS: &[Variant] = &[
+    v("no_store_writes", "the command writes no variable"),
+    v(
+        "no_external_io",
+        "the command touches nothing outside the interpreter",
+    ),
+];
+
+/// [`tcl_registry::value_transfer::OptionEvaluation::REASONS`] — an
+/// `-evaluate-reason` word.
+pub const EVALUATE_REASONS: &[Variant] = &[
+    v("form_unsupported", "NoRoute(FormUnsupported)"),
+    v("callback", "NoRoute(Callback)"),
+    v(
+        "release_ambiguous",
+        "ReleaseAmbiguous on the option's own availability axis",
+    ),
+];
+
 /// [`Traits`] bits, generated from the authoritative registry declaration.
 ///
 /// A new trait cannot be absent from this catalogue: [`Trait::ALL`] supplies
@@ -941,6 +1105,28 @@ mod tests {
             CODEGEN_HOOKS,
             INLINE_CODEGEN_HOOKS,
             ANALYSER_HOOKS,
+            ARG_ROLE_RESOLVER_NATIVE,
+            COMMAND_PREFIX_RESOLVER_NATIVE,
+            SCRIPT_TIMING_RESOLVER_NATIVE,
+            CONST_FOLD_NATIVE,
+            CONST_FOLD_VERSIONED_NATIVE,
+            TAINT_SINK_GATE_NATIVE,
+            CONTEXT_GATE_NATIVE,
+            LITERAL_ARGUMENT_VALIDATOR_NATIVE,
+            CLAUSE_SHAPE_CHECK_NATIVE,
+            OPTION_ARITY_NATIVE,
+            CONSTRAINTS_NATIVE,
+            SEMANTICS_NATIVE,
+            EVALUATE_NATIVE,
+            FACTS_NATIVE,
+            NATIVE_EVAL_IDS,
+            LANGUAGE_PROFILES,
+            HOST_KINDS,
+            EXACTNESS,
+            CONTEXT_DEPENDENCIES,
+            OUTCOME_KINDS,
+            DECLARED_EFFECTS,
+            EVALUATE_REASONS,
             &TRAITS,
             TAINT_COLOURS.as_slice(),
             DIALECTS.as_slice(),
