@@ -2815,21 +2815,14 @@ fn classify_return_expr(node: &crate::expr_ast::ExprNode, params: &HashSet<Strin
         return ReturnKind::Literal(text.clone());
     }
     if let ExprNode::String { text, .. } = node {
-        // A `"…"` operand substitutes, so its text is the value only when
-        // there is nothing to substitute: `return [expr {"pre$x"}]` returns
-        // `pre5` in tclsh 8.6.18 and 9.0.4, and O103 folded the call to the
-        // literal `pre$x` (#2227).
-        if let Some(inside) = tcl_syntax::expr::quoted_string_body(text) {
-            if inside.contains(['$', '[', '\\']) {
-                return ReturnKind::Other;
-            }
-            return ReturnKind::Literal(inside.to_owned());
-        }
-        let inside = text
-            .strip_prefix('{')
-            .and_then(|s| s.strip_suffix('}'))
-            .unwrap_or(text);
-        return ReturnKind::Literal(inside.to_owned());
+        // The operand's text is its value only when it is fixed: a `"…"` one
+        // substitutes, so `return [expr {"pre$x"}]` returns `pre5` in tclsh
+        // 8.6.18 and 9.0.4 where O103 folded the call to the literal `pre$x`;
+        // a `{…}` one folds its backslash-newlines, so `{a\<newline> b}` is
+        // `a b`, not the raw bytes (#2227, found in review).
+        return tcl_syntax::expr::fixed_string_operand(text).map_or(ReturnKind::Other, |value| {
+            ReturnKind::Literal(value.to_owned())
+        });
     }
     if let ExprNode::Var { name, .. } = node
         && params.contains(name)

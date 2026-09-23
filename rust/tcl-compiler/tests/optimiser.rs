@@ -2699,6 +2699,16 @@ fn a_quoted_expression_operand_is_folded_to_its_substituted_value() {
         optimised(call, TCL)
     );
 
+    // A braced operand folds its backslash-newline, so the call returns the
+    // three characters `a b`: tclsh prints `3`, and the fold of the raw bytes
+    // printed `5` (found in review).
+    let continued = "proc a {} { return [expr {{a\\\n b}}] }\nset r [a]\nputs [string length $r]\n";
+    assert!(
+        !opt_fires(continued, TCL, "O103"),
+        "the braced operand's value is not its bytes: {}",
+        optimised(continued, TCL)
+    );
+
     // Precision: a braced operand is literal, and a quoted one with nothing
     // to substitute is its text; both still fold.
     for (src, folded) in [
