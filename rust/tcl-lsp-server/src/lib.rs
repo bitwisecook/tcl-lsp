@@ -6104,27 +6104,10 @@ struct PolicyLayers {
 impl PolicyLayers {
     /// A builder with the three layers applied, lowest first.
     fn builder(&self) -> core_policy::PolicyBuilder {
-        self.builder_with_invocation(None)
-    }
-
-    /// [`Self::builder`] with a request's own arguments as the invocation
-    /// layer, when it has any: the global layer, the editor layer, the
-    /// invocation layer, then the project layer. A surface's own flags
-    /// occupy the editor layer's slot in the precedence order, under the
-    /// project file and over the global file
-    /// (`docs/design/compiler/diagnostic-policy.md` § Configuration), and
-    /// the call's argument sits over the editor's setting inside that slot.
-    fn builder_with_invocation(
-        &self,
-        invocation: Option<&serde_json::Value>,
-    ) -> core_policy::PolicyBuilder {
-        let mut builder = core_policy::PolicyBuilder::new()
+        core_policy::PolicyBuilder::new()
             .layer(core_policy::PolicyLayer::Global, &self.global)
-            .layer(core_policy::PolicyLayer::Editor, &self.editor);
-        if let Some(invocation) = invocation {
-            builder = builder.layer(core_policy::PolicyLayer::Invocation, invocation);
-        }
-        builder.layer(core_policy::PolicyLayer::Project, &self.project)
+            .layer(core_policy::PolicyLayer::Editor, &self.editor)
+            .layer(core_policy::PolicyLayer::Project, &self.project)
     }
 
     /// The analyser's production-time skip under these layers, as the salsa
@@ -16906,10 +16889,10 @@ impl Backend {
     /// Handle the `tcl-lsp.optimiseDocument` workspace command.
     ///
     /// Arguments: `[uri, profile?]`.  Runs the optimiser over the document
-    /// (multi-pass for the `"full"` profile or no argument, single-pass
-    /// otherwise), applies the rewrites the document's policy shows, and
-    /// returns `{source, optimisations}` — the optimised text plus the list
-    /// of applied optimisation suggestions.
+    /// for the profile in force's passes (multi-pass for `aggressive`,
+    /// single-pass otherwise), applies the rewrites the document's policy
+    /// shows, and returns `{source, optimisations}` — the optimised text
+    /// plus the list of applied optimisation suggestions.
     ///
     /// This command is the batch form of the optimiser code actions, so it
     /// owes the user the policy the published O-code diagnostics apply
@@ -16920,13 +16903,16 @@ impl Backend {
     /// folder's layers.
     ///
     /// The `profile` argument, when it names an `OptimisationProfile` — the
-    /// vocabulary `tcl opt --profile` parses — is the call's invocation layer,
-    /// over the editor's setting and under the project file
-    /// ([`PolicyLayers::builder_with_invocation`]): `optimiseDocument uri
-    /// "full"` asks for the full category set, and answering it with the
-    /// editor's configured profile (`readability` by default, where constant
-    /// folding is opt-in) would refuse what it asked for. An unrecognised or
-    /// absent name adds no layer, so the configured profile decides.
+    /// vocabulary `tcl opt --profile` parses — is the profile in force, over
+    /// the editor's setting and the project and global files
+    /// ([`core_policy::PolicyBuilder::requested_profile`]): `optimiseDocument
+    /// uri "full"` asks for the full profile, and answering it with a
+    /// configured one (`readability` by default, where constant folding is
+    /// opt-in) would refuse what it asked for. An unrecognised or absent name
+    /// names none, so the configured profile decides. Either way the switch
+    /// and the per-code overrides are the layers', and the pass count is the
+    /// profile in force's, as it is for `tcl opt` and the MCP `optimize`
+    /// tool.
     async fn optimise_document_command(
         &self,
         args: &[serde_json::Value],
@@ -16942,17 +16928,14 @@ impl Backend {
         let Some(doc) = self.read_local_document(&uri).await else {
             return Ok(None);
         };
-        let argument = args.get(1).and_then(serde_json::Value::as_str);
-        // The `"full"` profile iterates to a fixpoint; anything else is a
-        // single pass.  An absent argument keeps the fixpoint.
-        let passes = if argument.unwrap_or("full") == "full" {
-            5
-        } else {
-            1
-        };
-        let invocation = argument
-            .filter(|name| OptimisationProfile::ALL.iter().any(|p| p.name() == *name))
-            .map(|name| serde_json::json!({ "optimiser": { "profile": name } }));
+        let requested = args
+            .get(1)
+            .and_then(serde_json::Value::as_str)
+            .and_then(|name| {
+                OptimisationProfile::ALL
+                    .into_iter()
+                    .find(|profile| profile.name() == name)
+            });
         let registry = self.registry_for_dialect(&doc.dialect).await;
         let layers = self.resolved_policy_layers(&uri).await;
         let text = doc.text.clone();
@@ -16961,9 +16944,11 @@ impl Backend {
             tcl_spectcl::hooks::ensure_thread_host();
             let dialect_opt = tcl_lsp_core::stated_profile_for_dialect(&dialect);
             let policy = layers
-                .builder_with_invocation(invocation.as_ref())
+                .builder()
+                .requested_profile(requested)
                 .dialect(tcl_lsp_core::profile_for_dialect(&dialect))
                 .build();
+            let passes = policy.optimiser.profile.max_iterations();
             let optimised =
                 core_report::optimise_under_policy(&text, &registry, dialect_opt, passes, &policy);
             let (source, opts) = (optimised.text, optimised.applied);
@@ -32675,44 +32660,123 @@ mod tests {
         );
     }
 
-    /// The command's `profile` argument occupies the editor layer's slot, so
-    /// a project `[optimiser] profile` overrules it
-    /// (`docs/design/compiler/diagnostic-policy.md` § Configuration).
-    #[tokio::test]
-    async fn a_project_profile_overrules_the_command_argument() {
-        let src = "set x [expr {1 + 2}]\n";
-        let run = async |project: serde_json::Value, name: &str| {
-            let backend = test_backend();
-            let uri = Uri::from_str(name).unwrap();
-            register(&backend, &uri, src).await;
-            *backend.policy_layers.lock().await = PolicyLayers {
-                project,
-                ..PolicyLayers::default()
-            };
-            backend
-                .optimise_document_command(&[
-                    serde_json::json!(uri.as_str()),
-                    serde_json::json!("full"),
-                ])
-                .await
-                .expect("ok")
-                .expect("some")
+    /// `optimiseDocument` over `src` under a session whose only layer is the
+    /// project file `project`, with `args` after the URI.
+    async fn optimise_under_project(
+        src: &str,
+        name: &str,
+        project: serde_json::Value,
+        args: &[serde_json::Value],
+    ) -> serde_json::Value {
+        let backend = test_backend();
+        let uri = Uri::from_str(name).unwrap();
+        register(&backend, &uri, src).await;
+        *backend.policy_layers.lock().await = PolicyLayers {
+            project,
+            ..PolicyLayers::default()
         };
-        let pinned = run(
-            serde_json::json!({ "optimiser": { "profile": "readability" } }),
-            "file:///o2150p.tcl",
+        let mut call = vec![serde_json::json!(uri.as_str())];
+        call.extend_from_slice(args);
+        backend
+            .optimise_document_command(&call)
+            .await
+            .expect("ok")
+            .expect("some")
+    }
+
+    /// The owner's ruling: the command's named profile is the profile in
+    /// force, and a project `[optimiser] profile` is only the default for a
+    /// call that names none (`docs/design/compiler/diagnostic-policy.md`
+    /// § Configuration).
+    #[tokio::test]
+    async fn an_invocation_profile_overrules_the_project_file() {
+        let src = "set x [expr {1 + 2}]\n";
+        let readability = serde_json::json!({ "optimiser": { "profile": "readability" } });
+        let named = optimise_under_project(
+            src,
+            "file:///o2150n.tcl",
+            readability.clone(),
+            &[serde_json::json!("full")],
         )
         .await;
         assert_eq!(
-            pinned.get("source").and_then(serde_json::Value::as_str),
-            Some(src),
-            "O101 is outside the project's `readability` profile: {pinned:?}",
-        );
-        let control = run(serde_json::json!({}), "file:///o2150c.tcl").await;
-        assert_eq!(
-            control.get("source").and_then(serde_json::Value::as_str),
+            named.get("source").and_then(serde_json::Value::as_str),
             Some("set x 3\n"),
-            "without a project layer the argument's `full` folds: {control:?}",
+            "the argument's `full` folds over the project's `readability`: {named:?}",
+        );
+        let unnamed = optimise_under_project(src, "file:///o2150u.tcl", readability, &[]).await;
+        assert_eq!(
+            unnamed.get("source").and_then(serde_json::Value::as_str),
+            Some(src),
+            "with no argument the project's `readability` runs, and O101 is \
+             outside it: {unnamed:?}",
+        );
+    }
+
+    /// A named profile replaces the category set only: the project's
+    /// per-code override and its master switch still decide.
+    #[tokio::test]
+    async fn a_named_profile_leaves_the_switch_and_the_codes_to_the_layers() {
+        let src = "set x [expr {1 + 2}]\n";
+        for (project, name) in [
+            (
+                serde_json::json!({ "optimiser": { "O101": false } }),
+                "file:///o2150o.tcl",
+            ),
+            (
+                serde_json::json!({ "optimiser": { "enabled": false } }),
+                "file:///o2150e.tcl",
+            ),
+        ] {
+            let out =
+                optimise_under_project(src, name, project.clone(), &[serde_json::json!("full")])
+                    .await;
+            assert_eq!(
+                out.get("source").and_then(serde_json::Value::as_str),
+                Some(src),
+                "{project} still keeps the fold off under `full`: {out:?}",
+            );
+        }
+    }
+
+    /// The pass count is the profile in force's: `aggressive` runs to a
+    /// fixpoint, so its second pass removes the store the first pass's
+    /// folds left unused (O126), where `full` stops after one pass — and a
+    /// named `full` decides it over the project's `aggressive`.
+    #[tokio::test]
+    async fn the_pass_count_follows_the_profile_in_force() {
+        let src =
+            "proc p {} {\n    set a [expr {1 + 2}]\n    set b [expr {$a * 2}]\n    return $b\n}\n";
+        let aggressive = serde_json::json!({ "optimiser": { "profile": "aggressive" } });
+        let codes = |out: &serde_json::Value| -> Vec<String> {
+            out["optimisations"]
+                .as_array()
+                .expect("optimisations")
+                .iter()
+                .filter_map(|o| o.get("code").and_then(serde_json::Value::as_str))
+                .map(str::to_owned)
+                .collect()
+        };
+        let fixpoint =
+            optimise_under_project(src, "file:///o2150a.tcl", aggressive.clone(), &[]).await;
+        assert!(
+            codes(&fixpoint).iter().any(|code| code == "O126"),
+            "the project's `aggressive` runs a second pass: {fixpoint:?}",
+        );
+        let single = optimise_under_project(
+            src,
+            "file:///o2150f.tcl",
+            aggressive,
+            &[serde_json::json!("full")],
+        )
+        .await;
+        assert!(
+            !codes(&single).iter().any(|code| code == "O126"),
+            "a named `full` is one pass: {single:?}",
+        );
+        assert!(
+            codes(&single).iter().any(|code| code == "O100"),
+            "and that pass still folds: {single:?}",
         );
     }
 

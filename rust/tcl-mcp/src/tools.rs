@@ -160,9 +160,10 @@ fn refactoring_json(source: &str, r: &tcl_lsp_core::refactor::Refactoring) -> Va
 
 /// The configuration layers one tool call resolves its policy under
 /// (`docs/design/compiler/diagnostic-policy.md` § Configuration): the user's
-/// global `config.ini`, and the call's `disable` / `enable` (and `profile`)
-/// arguments as its invocation layer in the editor layer's slot. An MCP
-/// `source` string has no path, so there is no project layer at all.
+/// global `config.ini`, and the call's `disable` / `enable` arguments as its
+/// invocation layer in the editor layer's slot. An MCP `source` string has no
+/// path, so there is no project layer at all. The `optimize` tool's
+/// `profile` is not a layer but the request's own ([`optimize_with`]).
 struct PolicyInputs {
     global: Value,
     invocation: Value,
@@ -187,9 +188,8 @@ impl PolicyInputs {
 }
 
 /// The `disable` / `enable` arguments (comma-separated codes) as one settings
-/// layer over `section`, plus `profile` under `optimiser`. A later `enable`
-/// turns a code back on, which is what reaches a default-off code such as
-/// W242.
+/// layer over `section`. A later `enable` turns a code back on, which is what
+/// reaches a default-off code such as W242.
 fn invocation_layer(args: &Value, section: &str) -> Value {
     let mut codes = Map::new();
     for (key, on) in [("disable", false), ("enable", true)] {
@@ -199,13 +199,6 @@ fn invocation_layer(args: &Value, section: &str) -> Value {
                 codes.insert(code.to_ascii_uppercase(), Value::Bool(on));
             }
         }
-    }
-    if section == "optimiser" {
-        let profile = arg_str(args, "profile");
-        codes.insert(
-            "profile".to_owned(),
-            json!(if profile.is_empty() { "full" } else { profile }),
-        );
     }
     let mut layer = Map::new();
     layer.insert(section.to_owned(), Value::Object(codes));
@@ -549,17 +542,26 @@ fn optimize(args: &Value) -> Value {
 /// on every pass, so a `# noqa`, a file-wide directive or a code the profile
 /// or a layer turned off keeps a rewrite off exactly as it keeps a squiggle
 /// off (`docs/design/compiler/diagnostic-policy.md` § Adapters).
+///
+/// A non-empty `profile` argument is the profile in force over the global
+/// file's `[optimiser] profile`, which applies only when the call names none,
+/// and `full` when neither does: the profile is a request parameter with a
+/// project default (§ Configuration). The profile in force sets the passes.
 fn optimize_with(args: &Value, inputs: &PolicyInputs) -> Value {
     use tcl_compiler::optimiser::profiles::OptimisationProfile;
 
     let source = arg_str(args, "source");
     let dialect = resolve_dialect(args, source);
-    let profile = OptimisationProfile::parse({
-        let p = arg_str(args, "profile");
-        if p.is_empty() { "full" } else { p }
-    });
+    let named = arg_str(args, "profile");
+    let requested = (!named.is_empty()).then(|| OptimisationProfile::parse(named));
     let dialect_profile = crate::environment::profile_for_dialect(&dialect);
-    let policy = inputs.builder().dialect(dialect_profile).build();
+    let policy = inputs
+        .builder()
+        .requested_profile(requested)
+        .default_profile(OptimisationProfile::Full)
+        .dialect(dialect_profile)
+        .build();
+    let profile = policy.optimiser.profile;
     let optimised = optimise_under_policy(
         source,
         &registry(&dialect),
@@ -1699,7 +1701,9 @@ const TOOLS: &[ToolDef] = &[
             (
                 "profile",
                 "string",
-                "off | readability | standard | full | aggressive",
+                "off | readability | standard | full | aggressive. Named, it wins over the \
+                 global config.ini's [optimiser] profile; omitted, that profile applies, \
+                 else full",
             ),
             OPT_DISABLE,
             OPT_ENABLE,
@@ -2616,6 +2620,42 @@ mod policy_tests {
         assert_eq!(
             switched_off["changed"], false,
             "the optimiser master switch reaches a rewrite: {switched_off}"
+        );
+    }
+
+    /// The owner's ruling on the MCP surface: a named `profile` is the
+    /// profile in force over the global file's `[optimiser] profile`, which
+    /// is the default only when the call names none — an MCP `source` has no
+    /// project layer, so the global file is the whole of that default — and
+    /// the pass count is the profile in force's.
+    #[test]
+    fn optimize_a_named_profile_overrules_the_global_file() {
+        let named = json!({ "source": FOLDING, "dialect": "tcl9.0", "profile": "full" });
+        let plain = json!({ "source": FOLDING, "dialect": "tcl9.0" });
+        let readability = "[optimiser]\nprofile = readability\n";
+
+        let full = optimized(&named, readability);
+        assert_eq!(full["optimized_source"], "set x 3\n", "{full}");
+        assert_eq!(full["profile"], "full", "{full}");
+        let defaulted = optimized(&plain, readability);
+        assert_eq!(
+            defaulted["changed"], false,
+            "with no `profile` the global `readability` runs: {defaulted}"
+        );
+        assert_eq!(defaulted["profile"], "readability", "{defaulted}");
+
+        let aggressive = "[optimiser]\nprofile = aggressive\n";
+        let fixpoint = optimized(&plain, aggressive);
+        assert_eq!(fixpoint["multi_pass"], true, "{fixpoint}");
+        assert_eq!(
+            fixpoint["iterations"], 2,
+            "the global `aggressive` runs a second pass that finds nothing: {fixpoint}"
+        );
+        let single = optimized(&named, aggressive);
+        assert_eq!(single["multi_pass"], false, "{single}");
+        assert_eq!(
+            single["iterations"], 1,
+            "a named `full` is one pass over the global `aggressive`: {single}"
         );
     }
 

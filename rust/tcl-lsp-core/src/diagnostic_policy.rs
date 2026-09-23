@@ -329,8 +329,10 @@ pub enum PolicyLayer {
     Global,
     /// Editor settings — the `workspace/configuration` payload.
     Editor,
-    /// A surface's own flags (`--disable`, `--enable`, `--profile`, an MCP
-    /// argument), which occupy the editor layer's slot in the order.
+    /// A surface's own flags (`--disable`, `--enable`, an MCP `disable` or
+    /// `enable` argument), which occupy the editor layer's slot in the
+    /// order. A named optimiser profile is not a layer: it is the request's
+    /// own ([`PolicyBuilder::requested_profile`]).
     Invocation,
     /// The project's `.tcl-lsp.ini`.
     Project,
@@ -625,7 +627,10 @@ pub struct CodeDecision {
 pub struct OptimiserPolicy {
     /// `tclLsp.optimiser.enabled`.
     pub enabled: bool,
-    /// The active profile.
+    /// The profile in force: the one the request names, else the layers'
+    /// `optimiser.profile`, else the surface's default
+    /// ([`PolicyBuilder::requested_profile`]). It decides the category set
+    /// here and the pass count wherever the optimiser runs.
     pub profile: OptimisationProfile,
     /// The profile's disabled set with the per-code overrides applied — as
     /// the server's `resolved_analysis_settings` builds it.
@@ -967,6 +972,8 @@ pub struct PolicyBuilder {
     excluded: bool,
     abstain: bool,
     layers: Vec<(PolicyLayer, Value)>,
+    requested_profile: Option<OptimisationProfile>,
+    default_profile: OptimisationProfile,
     overlaps: Vec<Overlap>,
     directives: Directives,
 }
@@ -978,7 +985,8 @@ impl Default for PolicyBuilder {
 }
 
 impl PolicyBuilder {
-    /// No layer, no directive, the dialect-independent overlaps.
+    /// No layer, no directive, the dialect-independent overlaps, and the
+    /// editor's default profile.
     #[must_use]
     pub fn new() -> Self {
         Self {
@@ -986,6 +994,8 @@ impl PolicyBuilder {
             excluded: false,
             abstain: false,
             layers: Vec::new(),
+            requested_profile: None,
+            default_profile: DEFAULT_EDITOR_PROFILE,
             overlaps: base_overlaps(),
             directives: Directives::none(),
         }
@@ -999,6 +1009,30 @@ impl PolicyBuilder {
     #[must_use]
     pub fn layer(mut self, layer: PolicyLayer, settings: &Value) -> Self {
         self.layers.push((layer, settings.clone()));
+        self
+    }
+
+    /// The optimiser profile the request itself names — `tcl opt
+    /// --profile`, the MCP `optimize` tool's `profile`, the
+    /// `tcl-lsp.optimiseDocument` command's argument. A named profile is in
+    /// force over every layer's `optimiser.profile`, which applies only when
+    /// the request names none: the profile is a request parameter with a
+    /// project default, not a layered decision
+    /// (`docs/design/compiler/diagnostic-policy.md` § Configuration). The
+    /// master switch and the per-code overrides stay on the layers. `None`
+    /// leaves the layers to decide.
+    #[must_use]
+    pub fn requested_profile(mut self, profile: Option<OptimisationProfile>) -> Self {
+        self.requested_profile = profile;
+        self
+    }
+
+    /// The profile in force when neither the request nor any layer names
+    /// one — the surface's own default (`full` for `tcl opt` and the MCP
+    /// `optimize` tool). Unset, it is the editor's default profile.
+    #[must_use]
+    pub fn default_profile(mut self, profile: OptimisationProfile) -> Self {
+        self.default_profile = profile;
         self
     }
 
@@ -1106,10 +1140,12 @@ impl PolicyBuilder {
             }
         }
 
-        let profile = optimiser_profile
-            .as_ref()
-            .and_then(Value::as_str)
-            .map_or(DEFAULT_EDITOR_PROFILE, OptimisationProfile::parse);
+        let profile = self.requested_profile.unwrap_or_else(|| {
+            optimiser_profile
+                .as_ref()
+                .and_then(Value::as_str)
+                .map_or(self.default_profile, OptimisationProfile::parse)
+        });
         let mut optimiser = OptimiserPolicy::for_profile(profile);
         optimiser.enabled = optimiser_enabled
             .as_ref()
@@ -1671,6 +1707,75 @@ mod policy_tests {
             )
             .build();
         assert_eq!(policy.optimiser.profile, DEFAULT_EDITOR_PROFILE);
+    }
+
+    /// The owner's ruling: a profile the request names is the profile in
+    /// force over every layer, the files' `optimiser.profile` is the default
+    /// when it names none, and the switch and the per-code overrides keep
+    /// the layer order (`docs/design/compiler/diagnostic-policy.md`
+    /// § Configuration).
+    #[test]
+    fn a_requested_profile_is_in_force_over_every_layer() {
+        let global = json!({"optimiser": {"profile": "aggressive"}});
+        let invocation = json!({"optimiser": {"O114": false}});
+        let project = json!({"optimiser": {"profile": "readability", "O109": true, "O114": true}});
+        let layered = |requested: Option<OptimisationProfile>| {
+            PolicyBuilder::new()
+                .layer(PolicyLayer::Global, &global)
+                .layer(PolicyLayer::Invocation, &invocation)
+                .layer(PolicyLayer::Project, &project)
+                .requested_profile(requested)
+                .default_profile(OptimisationProfile::Full)
+                .build()
+        };
+        let named = layered(Some(OptimisationProfile::Standard));
+        assert_eq!(named.optimiser.profile, OptimisationProfile::Standard);
+        assert!(
+            !named.optimiser.disabled.contains(&DiagCode::O109),
+            "the project's per-code `true` still applies over the named profile"
+        );
+        assert!(
+            !named.optimiser.disabled.contains(&DiagCode::O114),
+            "the project's per-code `true` still beats the invocation's `false`"
+        );
+        assert_eq!(
+            layered(None).optimiser.profile,
+            OptimisationProfile::Readability,
+            "with none named, the project file supplies the profile"
+        );
+
+        let switched_off = PolicyBuilder::new()
+            .layer(
+                PolicyLayer::Project,
+                &json!({"optimiser": {"enabled": false}}),
+            )
+            .requested_profile(Some(OptimisationProfile::Full))
+            .build();
+        assert!(
+            !switched_off.optimiser.enabled,
+            "the master switch stays on the layers"
+        );
+
+        let global_only = PolicyBuilder::new()
+            .layer(
+                PolicyLayer::Global,
+                &json!({"optimiser": {"profile": "standard"}}),
+            )
+            .default_profile(OptimisationProfile::Full)
+            .build();
+        assert_eq!(
+            global_only.optimiser.profile,
+            OptimisationProfile::Standard,
+            "the global file supplies the default too"
+        );
+        let unnamed = PolicyBuilder::new()
+            .default_profile(OptimisationProfile::Full)
+            .build();
+        assert_eq!(
+            unnamed.optimiser.profile,
+            OptimisationProfile::Full,
+            "the surface's own default when nothing names one"
+        );
     }
 
     #[test]

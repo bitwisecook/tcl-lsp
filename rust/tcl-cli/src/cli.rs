@@ -465,12 +465,15 @@ pub enum Command {
     Opt {
         #[command(flatten)]
         input: InputArgs,
-        /// Optimisation profile.
-        #[arg(long, default_value = "full", value_name = "PROFILE",
+        /// Optimisation profile. Named, it is the profile in force over every
+        /// configuration file; omitted, an input file's own .tcl-lsp.ini
+        /// `[optimiser] profile` applies, then the global config.ini's, then
+        /// `full`.
+        #[arg(long, value_name = "PROFILE",
               value_parser = ["off", "readability", "standard", "full", "aggressive"])]
-        profile: String,
+        profile: Option<String>,
         /// Disable optimisation codes (comma-separated, repeatable) on top of the
-        /// profile. With --profile this is the invocation layer: over the
+        /// profile. With --enable this is the invocation layer: over the
         /// global config.ini, under an input file's own .tcl-lsp.ini.
         #[arg(long = "disable", value_name = "CODE")]
         disable: Vec<String>,

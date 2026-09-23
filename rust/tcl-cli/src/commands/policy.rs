@@ -41,8 +41,9 @@ pub struct ConfigLayers {
 
 impl ConfigLayers {
     /// The global `config.ini` plus `invocation` — the verb's `--disable` /
-    /// `--enable` (and `--profile`) flags as one settings layer, from
-    /// [`invocation_layer`].
+    /// `--enable` flags as one settings layer, from [`invocation_layer`].
+    /// `tcl opt --profile` is not in it: a named profile is the request's
+    /// own (`PolicyBuilder::requested_profile`).
     #[must_use]
     pub fn new(invocation: Value) -> Self {
         Self {

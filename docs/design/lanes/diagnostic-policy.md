@@ -973,6 +973,18 @@ rewrite loop, because `rust`'s #2119 already read that map per pass. The
 XC test runs over `xc_findings`. What DP10.4 still owes is the thin
 wrapper over `optimise_source_multipass_admitting` and the review.
 
+*Superseded (R1, the owner's ruling of 2026-09-22; D36).* The DP4.2 half
+of this note — `builder_with_invocation` putting the call's named profile
+in the editor slot, so a project profile beats the argument, with the pass
+rule kept — no longer describes the tree: `builder_with_invocation` is
+gone, the named profile is `PolicyBuilder::requested_profile` and wins over
+every layer, the pass count is the profile in force's
+(`OptimisationProfile::max_iterations`), and
+`a_project_profile_overrules_the_command_argument` is
+`an_invocation_profile_overrules_the_project_file`. The DP5.2 half's "the
+profile in force sets the passes" stands, with the profile in force now
+the named one when `--profile` is given.
+
 ### Goal and exit per slice
 
 | Slice | Deliverable, in the page's words | Exit evidence |
@@ -1270,6 +1282,13 @@ Gates: *the suites* for the five crates, the e2e subsets `noqa`, `severity`,
 
 #### DP4.2 — `optimiseDocument`'s argument follows #2119, in the editor slot
 
+*Superseded in part by R1 (D36).* The argument is no longer a layer in
+the editor slot: a named profile wins over the project file, the pass
+count follows the profile in force, and the fourth test below is
+`an_invocation_profile_overrules_the_project_file`, joined by
+`a_named_profile_leaves_the_switch_and_the_codes_to_the_layers` and
+`the_pass_count_follows_the_profile_in_force`. The rest stands as written.
+
 `opus`, S, after DP4.0.
 
 Files: `rust/tcl-lsp-server/src/lib.rs`.
@@ -1459,7 +1478,10 @@ single input renders as its own section, untrimmed, exactly as `rust`'s
 the output carries `\n` endings (#2120 as merged: `analysis_source`); the
 pass count follows the profile in force, so a project `[optimiser] profile`
 decides both the category set and the passes (§ Configuration's slot;
-§ Decisions taken, D17).
+§ Decisions taken, D17). *Superseded in part by R1 (D36):* `--profile` is
+no longer in the invocation layer; named, it is the profile in force and
+decides both, and the project file's profile decides them only when it is
+omitted.
 
 Tests (`tests/cli.rs`, added verbatim from `rust` so the merge sees
 identical additions): `opt_does_not_fold_a_store_across_a_file_boundary`,
@@ -2892,9 +2914,11 @@ not state), each ruled on:
 - **D7. The MCP tools gain `enable` beside `disable` — stands.** An MCP
   `source` has no project layer, so without it a default-off code could
   never be turned on from a call.
-- **D8. `optimiseDocument` keeps its own pass rule — stands.** "The same
-  path" is the loop, not the pass count. Its argument now follows #2119
-  (DP4.2).
+- **D8. `optimiseDocument` keeps its own pass rule — superseded by D36.**
+  "The same path" is the loop, not the pass count. Its argument now follows
+  #2119 (DP4.2). Since R1 the pass count is the profile in force's on every
+  surface, so `optimiseDocument uri "full"` is one pass and `"aggressive"`
+  runs to the fixpoint.
 - **D9. The rewrite quick-fix is `QuickFix`, titled with the finding's
   message — stands.** A group is one action titled with its first member's
   message (DP7.1).
@@ -2928,7 +2952,8 @@ This plan's own decisions:
   (DP4.1).** The fold lives in `tcl-compiler`, outside this lane; declaring
   it (`analyser_skip`, `gap_reason`) is how the report explains the gap
   without touching the producer.
-- **D17. `tcl opt`'s pass count follows the profile in force (DP5.2).** The
+- **D17. `tcl opt`'s pass count follows the profile in force (DP5.2) —
+  stands; since D36 the profile in force is `--profile` when it is given.** The
   profile that decides the category set decides the passes, so a project
   `profile = aggressive` means what it says.
 - **D18. An INI file spells the per-code tri-state as `CODE = bool`
@@ -2946,7 +2971,11 @@ This plan's own decisions:
   makes `optimiseDocument` honour the switch; DP4.0's
   `optimize_honours_the_profile_the_overrides_and_the_global_file` pins the
   switch on MCP. `tcl opt --profile` has a default, so a global `profile`
-  never reaches `tcl opt` — today's behaviour, kept.
+  never reaches `tcl opt` — today's behaviour, kept. *The profile half is
+  superseded by D36:* a named profile is not a layer and wins over the
+  project file, and `--profile` has no default, so an omitted flag lets the
+  project's, then the global file's, `profile` reach `tcl opt`. The switch
+  half stands.
 - **D21. `--show-suppressed` belongs to `diag` / `lint`, renders hidden
   findings as `hidden` rows and gaps as position-less rows, and omits
   default-off gaps (DP9.2).** `hidden` never matches a `grep ' error '`
@@ -3002,6 +3031,36 @@ This plan's own decisions:
   as a decision for the lane: the checkpoint gave every configured folder
   a handle of its own. Sharing restores one analysis per revision for
   diagnostics and symbols alike, and changes no published diagnostic.
+- **D36. R1 — the owner's ruling of 2026-09-22: an invocation profile
+  wins.** "`--profile` should win when running from the CLI." Applied on
+  every surface: a profile the invocation names — `tcl opt --profile`, the
+  MCP `optimize` tool's `profile`, `optimiseDocument`'s argument — is the
+  profile in force, and the project file's `[optimiser] profile` (then the
+  global file's) applies only when the invocation names none. The profile
+  is a request parameter with a project default, not a layered decision,
+  which is #2150's semantics. Built as `PolicyBuilder::requested_profile`
+  (over every layer) and `PolicyBuilder::default_profile` (the surface's own
+  default, `full` for `tcl opt` and `optimize`); `--profile` lost its clap
+  default and the MCP `profile` left `invocation_layer`. The master switch
+  and the per-code `optimiser.<CODE>` decisions keep the layer order. The
+  editor's `tclLsp.optimiser.profile` stays the editor layer's value, under
+  the project file, for the published set and for an `optimiseDocument`
+  call that names nothing: an editor echoes a setting's default for a key
+  the user never set (`config-precedence.md`), so treating the setting as a
+  named profile would make a project's profile unreachable there, and
+  #2150's no-argument call resolves the configured profile the same way.
+  The pass count is the profile in force's `max_iterations` on all three
+  surfaces (D8 superseded). Tests: core
+  `a_requested_profile_is_in_force_over_every_layer`; server
+  `an_invocation_profile_overrules_the_project_file` (was
+  `a_project_profile_overrules_the_command_argument`),
+  `a_named_profile_leaves_the_switch_and_the_codes_to_the_layers`,
+  `the_pass_count_follows_the_profile_in_force`; CLI
+  `opt_a_named_profile_overrules_the_project_file`,
+  `opt_runs_the_passes_of_the_profile_in_force`; MCP
+  `optimize_a_named_profile_overrules_the_global_file`. Documents: the
+  policy page's § Configuration, `config-precedence.md`,
+  `kcs-feature-tcl-verb-cli.md`, `kcs-qa-how-tcl-lsp-loads-configuration.md`.
 
 ### Open questions for the owner
 
@@ -3015,7 +3074,11 @@ Each with the assumption the plan proceeds on.
    opt --profile`, MCP `profile`, `optimiseDocument`'s argument?** `rust`'s
    #2150 lets `optimiseDocument`'s argument win outright. Assumption: the
    project wins (rule 5's slot; DP4.2's `a_project_profile_overrules_the_command_argument`
-   pins it, and flips with the answer).
+   pins it, and flips with the answer). **Closed — ruled 2026-09-22: the
+   named profile wins** ("`--profile` should win when running from the
+   CLI"). It is a request parameter with a project default on all three
+   surfaces, as #2150 has it; the pin flipped to
+   `an_invocation_profile_overrules_the_project_file` (D36).
 3. **Should the CLI and MCP resolve the producer inputs their layers carry
    — `[style] line_length`, `diagnostics.genericVariablePatterns`,
    `[style] nonAscii`?** § The policy keeps producer inputs off `Policy`;
@@ -3089,8 +3152,8 @@ Slice-specific:
 - **Slice 4.** The publish paths call `lifted_report` once each (after
   DP8.2) and nothing else decides; `Backend::disabled_diagnostics` has no
   writer that bypasses the layers; `f5_model_report` declares no analyser
-  skip; `optimiseDocument`'s invocation layer sits between the editor and
-  project layers and exists only for a named profile. Risks: the salsa
+  skip; `optimiseDocument`'s named profile is the request's own, over
+  every layer, and its passes are that profile's (D36). Risks: the salsa
   `AnalyserConfig` is keyed on the skip, so a skip that changes on every
   configuration read invalidates every file's memo — compare the sorted
   sets before writing; the folder handles' `spec_pack_key` (DP4.0's
@@ -3171,8 +3234,10 @@ hand-off delta nothing mandates, for the owner.
   D17.
 - An INI file's `CODE = true` turns a code on — § The five scopes (DP5.1).
 - **Flagged:** a configuration file's `[optimiser] enabled = false` stops
-  `tcl opt` rewriting, and a project `profile` overrules `--profile`
-  (§ Open questions 1 and 2; kept).
+  `tcl opt` rewriting (§ Open questions 1; kept). A project `profile`
+  overruling `--profile` (§ Open questions 2) is reversed by the owner's
+  ruling: `--profile` wins, and a project's, then the global file's,
+  `profile` applies only when it is omitted (D36).
 - **Flagged, reverted by DP5.3:** at the checkpoint a configuration file's
   `[features] diagnostics = false` silenced `tcl diag`.
 - **Reverted by DP5.2:** the checkpoint's "fold several inputs into one text
@@ -3261,3 +3326,4 @@ Each item updates its row in the commit that lands it.
 | DP10.3 | sonnet | M | not started | — | — |
 | DP10.4 | opus | M | the merge landed; the wrapper and the review remain (§ `rust` has moved under the branch, *As merged*) | — | — |
 | DP10.5 | sonnet | S | not started | — | — |
+| R1 | opus | S | done — the owner's rulings of 2026-09-22: the invocation profile wins (D36); unanimity decides a release-less fold (documents only; the value-transfers lane's F1) | `wip(diagnostic-policy): an invocation profile wins; unanimity decides a release-less fold` | core, server (`--lib` and `e2e`), `tcl-cli`, `tcl-mcp`; the crates' clippy; `kcs-index-links` |

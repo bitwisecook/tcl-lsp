@@ -39,6 +39,13 @@ The merge is per-key inside each section, so a project config that
 pins `[optimiser] disabled = O109` still inherits `[optimiser] profile
 = readability` from the editor or global config.
 
+The optimiser profile has one exception. A profile you name for one run
+wins over all three layers. That covers `tcl opt --profile`, the MCP
+`optimize` tool's `profile`, and a profile passed to the
+`tcl-lsp.optimiseDocument` command. The layers' `[optimiser] profile` is
+the default when you name none. The optimiser's on/off switch and its
+per-code settings still follow the layer order.
+
 ### Why project config wins over editor settings
 
 The file checked into source control is authoritative, so what runs in

@@ -5420,6 +5420,19 @@ Each with the assumption the plan proceeds on.
   evaluation page's `admit` step 2 reads "a bit whose field is `None` is a
   decline". The page's per-axis rules support the reading; its literal
   step does not. CC9.2 later gives iRules a measured base (B-CC8).
+  **Closed — the owner ruled on 2026-09-22:** "What's the most accurate
+  thing to do with folding, that's the right answer." Unanimity decides: a
+  route folds where its answer is proven identical under every release the
+  profile can denote, any per-axis disagreement declines with
+  `ReleaseAmbiguous(Axis)`, and a dialect that declares a base release
+  (iRules on its 8.4-derived engine) evaluates under it, a vendor pack that
+  diverges on an axis blocking the fold by declaring the axis. The
+  per-operation admission stands as built; `value-evaluation.md`'s `admit`
+  steps 1 and 2 and § *Target semantics* now say so, and
+  `value-transfers.md` § *Rulings* 7 and 8 record it. The base-release half
+  is not built: `TargetSemantics::of` takes a release only from
+  `TclVersion::from_profile`, so a declared base — iRules' `runtime_base`
+  8.4 among them — still evaluates under unanimity until CC9.2 (B-CC8).
 - **F2 — The budget deferral** (D3, Q1): a scope move, not a behaviour.
 - **F3 — The inventory committed from a failing gate run** at the
   checkpoint: a process deviation, corrected by VT2.0.

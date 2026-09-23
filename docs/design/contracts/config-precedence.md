@@ -25,6 +25,22 @@ The merge is per-key inside each section: a higher layer that sets
 `[optimiser] disabled = O109` still inherits `[optimiser] profile =
 readability` from a lower layer.
 
+**The one exception: a profile the request names.** An optimiser profile
+named by the invocation itself — `tcl opt --profile`, the MCP `optimize`
+tool's `profile` argument, the `tcl-lsp.optimiseDocument` command's
+argument — is the profile in force over every layer in the table, and the
+layers' `[optimiser] profile`, in the table's order, is only the default
+for a request that names none. The profile is a request parameter with a
+project default, not a layered setting: a caller that asks for `full` gets
+`full`, and a project file that pins a profile still decides every request
+that does not ask. The exception covers that one key on those three
+requests and nothing else. The `[optimiser]` master switch and its per-code
+keys keep the table's order, and the editor's `tclLsp.optimiser.profile`
+is an ordinary layer-2 setting, under the project file. It is the owner's
+ruling of 2026-09-22, and
+[diagnostic-policy.md](../compiler/diagnostic-policy.md) § Configuration
+states it with the rest of the policy resolution.
+
 Implementation: `config_ini::merge_settings`
 (`rust/tcl-lsp-core/src/config_ini.rs`) deep-merges the three layers, later
 winning, sections merged key by key. Each file layer is parsed by

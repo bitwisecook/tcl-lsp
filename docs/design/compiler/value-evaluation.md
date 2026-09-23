@@ -209,9 +209,11 @@ flowchart TB
 ### `ConstOps`, and why the adapters matter
 
 One live `ValueOps` implementation, `ConstOps`, carrying the target
-profile — the release when the profile names one, and the per-axis
-unanimity decision otherwise — with every `ValueError` mapped to a
-decline. Every shipped evaluator then *is* a core call: `fold_range`
+profile — the release when the profile names one or its dialect declares
+a base release, and otherwise the unanimity rule, under which an
+operation's answer stands only where every release the profile can denote
+gives it — with every `ValueError` mapped to a decline. Every shipped
+evaluator then *is* a core call: `fold_range`
 becomes `string::range(&mut ops, s, first, last)`; the whole `string`
 ensemble evaluates through `dispatch_canon`, whose `None` is a decline;
 `format` is `format_cmd_with_syntax` under the profile's `NumberSyntax`;
@@ -287,7 +289,8 @@ apart wherever both appear.
 /// escapes.
 struct ConstOps<'ctx> {
     /// The admitted target semantics: the release when the profile names
-    /// one, and the per-axis unanimity decision otherwise.
+    /// one or its dialect declares a base release, and the unanimity rule,
+    /// applied per operation, otherwise.
     target: TargetSemantics,
     /// What `admit` was asked for. Every core call is checked against it.
     admitted: Needs,
@@ -312,10 +315,12 @@ struct ConstValue {
     repr: Representation,
 }
 
-/// The target semantics one evaluation runs under. Every field is either
-/// a named release's answer or the unanimous answer across the modelled
-/// releases; `None` on an axis means the releases disagree, and requesting
-/// that axis in `Needs` is a decline.
+/// The target semantics one evaluation runs under. Every field is the
+/// answer of the release in force — the named one, or the dialect's
+/// declared base — or `None` when no single release answers the axis: an
+/// operation that reads that axis then answers with the value every
+/// release the profile can denote gives for its own operands, and declines
+/// with `ReleaseAmbiguous(axis)` where they differ.
 struct TargetSemantics {
     release: Option<TclVersion>,
     numerals: Option<NumberSyntax>,
@@ -392,8 +397,9 @@ either locale: the script encoding follows `encoding system` up to 8.6 and
 is UTF-8 from 9.0. Our front end decodes every source file as UTF-8, which
 is the 9.x answer, so an operand whose source spelling carries a non-ASCII
 byte is admissible only when the target names 9.0 or newer, or the
-workspace declares the source encoding; otherwise the axis is ambiguous
-and `admit` declines.
+workspace declares the source encoding; otherwise the releases disagree on
+that operand and the operation declines with
+`ReleaseAmbiguous(SourceEncoding)`.
 
 `PLATFORM` and `WALL_CLOCK` are never satisfiable on the direct route,
 under any profile. That is how a clock-reading or host-reading core is
@@ -432,15 +438,31 @@ impl<'ctx> ConstOps<'ctx> {
 The protocol, in order, and every step is mandatory:
 
 1. **Resolve the target once.** `TargetSemantics` comes from the
-   context's profile. When `TclVersion::from_profile` answers for that
-   profile, the release fills every field through its own accessors —
-   `number_syntax`, `string_character_model`, `byte_string_encoding`.
-   When it does not, each field comes from that axis's unanimity rule
-   (`NumberSyntax::unanimous`, `StringCharacterModel::count_for(None, …)`)
-   and is `None` wherever the releases disagree.
-2. **Check every requested bit.** A bit whose field is `None` is a
-   decline, `DeclineReason::ReleaseAmbiguous(axis)`. `PLATFORM` and
-   `WALL_CLOCK` are always `None`.
+   context's profile. A profile that names a release —
+   `TclVersion::from_profile` answers for `tcl8.4` to `tcl9.1` — fills
+   every field through that release's own accessors: `number_syntax`,
+   `string_character_model`, `byte_string_encoding`. A dialect that
+   declares a base release evaluates under that release the same way —
+   iRules on its 8.4-derived engine — except on an axis its pack declares
+   divergent, which the base does not answer. A profile that names no
+   release and declares none leaves every field open: the operation that
+   reads an axis resolves it through that axis's unanimity rule
+   (`NumberSyntax::unanimous`, `StringCharacterModel::count_for(None, …)`).
+2. **Admit by unanimity, per operation.** A route folds when its answer
+   is proven identical under every release the profile can denote.
+   `PLATFORM` and `WALL_CLOCK` decline here, because no release answers
+   them; every other requested bit is admitted, and the operation that
+   reads it compares the releases' answers for its own operands. `incr x
+   5` folds under a profile that names no release, because every release
+   adds 5. `incr x` over `010` does not: 8.x reads 8 and 9.x reads 10, so
+   it declines with `DeclineReason::ReleaseAmbiguous(Axis::NumeralGrammar)`,
+   and any other per-axis disagreement declines the same way, naming its
+   axis. A vendor pack that diverges from its base on an axis blocks the
+   fold by declaring the axis: a declared axis is a disagreement. Declining
+   a release-less profile outright would lose precision without adding
+   soundness, since the unanimous answer is the answer under whichever
+   release runs (the owner's ruling of 2026-09-22,
+   [value-transfers.md](value-transfers.md) § *Rulings*).
 3. **Charge admission.** A fixed charge per admission, so a solver
    iteration that declines ten thousand times is still bounded, and the
    decline is recorded once per invocation rather than once per retry.
@@ -1317,15 +1339,21 @@ Passing a `TclVersion` does not make an engine implement that release. For
 each route the contract states the numeric syntax, character and index
 model, regexp features and limits, binary representation, platform
 behaviour, and completion semantics it supports; an unsupported
-combination declines. `TclVersion::from_profile` in
+combination declines. A profile with no release of its own is decided by
+unanimity: a route folds where its answer is proven identical under every
+release the profile can denote, and declines `ReleaseAmbiguous(axis)`
+where two of them differ. A dialect that declares a base release
+evaluates under that release — iRules on its 8.4-derived engine — and an
+axis its pack declares divergent is a disagreement, which blocks the fold
+(the owner's ruling of 2026-09-22). `TclVersion::from_profile` in
 `rust/tcl-dialect/src/version.rs` answers only for the five plain Tcl
 profile names — `tcl8.4`, `tcl8.5`, `tcl8.6`, `tcl9.0`, `tcl9.1` — so
-every vendor environment evaluates under the invariant subset today; the
-fix feeds the environment's point through the evidence gate per measured
-row, never by name — `HookCall` already carries `dialect` (the profile
-name, deliberately not derived from `version`) and `version` (the
-`TclVersion`, `None` when the profile names no release), and the gap is
-the value for vendor profiles.
+every vendor environment evaluates under unanimity today, a declared base
+included; the fix feeds the environment's point through the evidence gate
+per measured row, never by name — `HookCall` already carries `dialect`
+(the profile name, deliberately not derived from `version`) and `version`
+(the `TclVersion`, `None` when the profile names no release), and the gap
+is the value for vendor profiles.
 
 ### The matrix
 
@@ -1336,8 +1364,8 @@ and declines the rest.
 
 | Axis | Direct | Expression | Declared implementation | None |
 |---|---|---|---|---|
-| numeric syntax (`NumberSyntax`, the integer tower, the operator set) | supported: `NUMERAL_GRAMMAR` and `INT_TOWER` are explicit arguments through `format_cmd_with_syntax`, `class_check`, and `tcl_syntax::number::parse`; declines when the profile names no release and the grammars disagree | supported: `FoldOps` already carries a `NumberSyntax`, and the `Big` rung models the bignum tower | evidence: the engine's own release, pinned by `Engine::set_release`; declines when the engine returns `Unsupported` | declines |
-| character and index model (`CHAR_MODEL`, `CHAR_INDEXING`, `INDEX_GRAMMAR`, `SOURCE_ENCODING`) | supported for counting through `StringCharacterModel::count_for` and for indices through the adapter's pre-resolution; declines a supplementary character or a non-ASCII source literal with no named release | supported: an expression reads no character index; a string operand's ingress is the direct route's admission | evidence: the pinned release decides, and the host's 16 MiB value cap bounds the result | declines |
+| numeric syntax (`NumberSyntax`, the integer tower, the operator set) | supported: `NUMERAL_GRAMMAR` and `INT_TOWER` are explicit arguments through `format_cmd_with_syntax`, `class_check`, and `tcl_syntax::number::parse`; under a profile that names no release, answers where every release it can denote agrees on the operand and declines `ReleaseAmbiguous(NumeralGrammar)` or `(IntTower)` where they differ | supported: `FoldOps` already carries a `NumberSyntax`, and the `Big` rung models the bignum tower | evidence: the engine's own release, pinned by `Engine::set_release`; declines when the engine returns `Unsupported` | declines |
+| character and index model (`CHAR_MODEL`, `CHAR_INDEXING`, `INDEX_GRAMMAR`, `SOURCE_ENCODING`) | supported for counting through `StringCharacterModel::count_for` and for indices through the adapter's pre-resolution; under a profile that names no release, answers where every release it can denote agrees and declines where they differ — a supplementary character, a non-ASCII source literal, a leading-zero index | supported: an expression reads no character index; a string operand's ingress is the direct route's admission | evidence: the pinned release decides, and the host's 16 MiB value cap bounds the result | declines |
 | regexp features and limits | supported through `AreEngine` with `RegexpPrecision`; declines `-about`, `regsub -command`, every `PrecisionDecline`, and a non-ASCII `-nocase` exact pattern (the core folds with `eq_ignore_ascii_case`) | supported only where an operand is already an exact value; the engine itself has no regexp operator | evidence: a body's `regexp` reaches the same engine and the same precision result | declines |
 | binary representation (`BINARY_FIELDS`, `BYTE_STRINGS`) | supported: `specifier_min_version` and `signedness_available` gate the field grammar, and `ConstValue` is byte-exact with `Representation` as separate evidence | declines: the expression engine has no byte-array rung | evidence: the engine's own value model; a `binary` result crosses the boundary as bytes or declines | declines |
 | platform behaviour (`PLATFORM`) | declines always: `PLATFORM` is never satisfiable, so `platform::exec` and `platform::pwd` are unreachable by construction | declines | declines: the host denies ambient files, network, clock, and randomness | declines |
@@ -1366,7 +1394,8 @@ and declines the rest.
   Independent target oracles and adapter-level tests stay; a missing
   target fact never falls back to the build machine's platform or the
   installed engine's default profile.
-- **Across releases** — the profile decides; a profile that names no
+- **Across releases** — the profile decides; a dialect that declares a
+  base release gets that release's answer, and a profile that names no
   release gets the unanimous answer or a decline, the rule the cores'
   explicit `NumberSyntax` arguments already enforce. Each test run records
   the oracle release and platform, and the oldest relevant release is

@@ -114,8 +114,9 @@ pub fn run_format(
 
 /// `tcl opt` — run the optimiser and emit rewritten Tcl.
 ///
-/// Profile semantics: `full` (the default) is a single
-/// pass; only `aggressive` runs multi-pass to a fixpoint (max 5 iterations).
+/// Profile semantics: `full` (the default when nothing names a profile) is a
+/// single pass; only `aggressive` runs multi-pass to a fixpoint (max 5
+/// iterations).
 ///
 /// Unlike `format` and `minify`, each input is *analysed* as its own program —
 /// its own dialect, its own directives, its own policy, its own optimiser
@@ -136,14 +137,17 @@ pub fn run_format(
 /// § Adapters): only the rewrites the document's policy shows are applied,
 /// so a `# noqa` on the command, a file-wide `# tcl-lsp: disable=*`, a code
 /// the profile or a configuration layer turned off, mean to a rewrite what
-/// they mean to a squiggle. `--profile`, `--disable` and `--enable` are the
-/// verb's invocation layer; the global `config.ini` and each input file's
-/// own project `.tcl-lsp.ini` are the others. The profile in force decides
-/// the passes as well as the categories, so a project `[optimiser] profile`
-/// means what it says.
+/// they mean to a squiggle. `--disable` and `--enable` are the verb's
+/// invocation layer; the global `config.ini` and each input file's own
+/// project `.tcl-lsp.ini` are the others. `--profile` is not a layer: named,
+/// it is the profile in force over both files, and omitted, the project
+/// file's `[optimiser] profile`, then the global file's, then `full` — the
+/// profile is a request parameter with a project default
+/// (`docs/design/compiler/diagnostic-policy.md` § Configuration). The profile
+/// in force decides the passes as well as the categories.
 pub fn run_opt(
     input: &InputArgs,
-    profile: &str,
+    profile: Option<&str>,
     disable: &[String],
     enable: &[String],
     colour: &ColourArgs,
@@ -151,10 +155,8 @@ pub fn run_opt(
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
     let explicit_dialect = input.dialect_profile()?;
 
-    let profile = OptimisationProfile::parse(profile);
-    let mut invocation = invocation_layer(disable, enable, "optimiser");
-    invocation["optimiser"]["profile"] = serde_json::Value::String(profile.name().to_owned());
-    let layers = ConfigLayers::new(invocation);
+    let requested = profile.map(OptimisationProfile::parse);
+    let layers = ConfigLayers::new(invocation_layer(disable, enable, "optimiser"));
 
     let target = OutputTarget::from_arg(input.output.as_deref());
     // Per-file is the unit of *analysis*, not of output. The rendered text
@@ -181,6 +183,8 @@ pub fn run_opt(
         let source = document.analysis_source();
         let policy = layers
             .builder_for(document.path.as_deref())
+            .requested_profile(requested)
+            .default_profile(OptimisationProfile::Full)
             .dialect(dialect)
             .build();
 

@@ -62,7 +62,9 @@ below both of them.
 5. **One precedence order, stated once.** The five scopes resolve in the
    order the KCS documents — inline, file, project, editor or invocation,
    global — and the order lives in one place. A surface's flags occupy the
-   editor layer's slot; they do not invent a sixth scope.
+   editor layer's slot; they do not invent a sixth scope. An optimiser
+   profile a request names is not a scope at all but the request's own
+   parameter (§ Configuration).
 6. **Adapters render the report and decide nothing.** An adapter maps
    spans, names severities in its own vocabulary, and serialises. It never
    filters, never re-derives a severity, and never infers a fact from
@@ -455,6 +457,8 @@ pub struct CodeDecision {
 pub struct OptimiserPolicy {
     /// `tclLsp.optimiser.enabled`.
     pub enabled: bool,
+    /// The profile in force: the one the request names, else the
+    /// layers' (§ Configuration).
     pub profile: OptimisationProfile,
     /// The profile's disabled set with the per-code overrides applied,
     /// as `resolved_analysis_settings` builds it today.
@@ -563,13 +567,36 @@ has no counterpart for.
 **The invocation layer.** A surface's own flags occupy the editor layer's
 slot in the precedence order, under the project file and over the global
 file, and are recorded as `PolicyLayer::Invocation` so the report can
-say which one decided. For `tcl diag` / `lint` / `validate` that is
-`--disable` and `--enable`; for `tcl opt` it is `--disable`, `--enable`
-and `--profile`; for the MCP tools it is the `profile` argument the
-`optimize` tool already takes, plus a `disable` argument the diagnostics
-tools gain. The flags
+say which one decided. For `tcl diag` / `lint` / `validate` and `tcl opt`
+that is `--disable` and `--enable`; for the MCP tools it is the `disable`
+and `enable` arguments. The flags
 keep their current tri-state meaning — `--enable` turns a code back on,
 which is what makes `--enable W242` reach a default-off code.
+
+**A named profile is the request's own.** An optimiser profile the
+invocation names — `tcl opt --profile`, the MCP `optimize` tool's
+`profile`, the `tcl-lsp.optimiseDocument` command's argument — is the
+profile in force, over the project file's `[optimiser] profile` and the
+global file's, which apply only when the invocation names none
+(`PolicyBuilder::requested_profile`; the owner's ruling of 2026-09-22).
+The profile is a request parameter with a project default, not a layered
+policy decision: a call that asks for `full` is asking for what `full`
+does, and a project file that could overrule the request would leave the
+argument no meaning wherever a project exists, while the project file
+still decides every call that asks for nothing. The ruling moves that one
+key only. The master switch and the per-code `optimiser.<CODE>` keys keep
+the layer order above, so a project's `disabled = O101` or `enabled =
+false` still stands under `--profile full`; and the editor's
+`tclLsp.optimiser.profile` is the editor layer's value, under the project
+file like every editor setting, because an editor echoes a setting's
+default for a key the user never set
+([config-precedence.md](../contracts/config-precedence.md)). Each surface
+has its own default for a request that names nothing and a file that
+names nothing: `full` for `tcl opt` and `optimize`, the editor's
+`readability` for `optimiseDocument`. The profile in force sets the pass
+count as well as the category set on all three — `aggressive` runs to a
+fixpoint, every other profile once — so one profile means one thing
+wherever it is asked for.
 
 **Where the project file is.** Per input document, not per process. The
 resolution walks the input file's own directory and its ancestors for

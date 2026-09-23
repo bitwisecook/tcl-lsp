@@ -163,7 +163,7 @@ fn dispatch(command: &Command) -> anyhow::Result<u8> {
             disable,
             enable,
             colour,
-        } => commands::transform::run_opt(input, profile, disable, enable, colour),
+        } => commands::transform::run_opt(input, profile.as_deref(), disable, enable, colour),
         Command::Format {
             input,
             indent_size,

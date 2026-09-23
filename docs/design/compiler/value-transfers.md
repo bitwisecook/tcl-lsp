@@ -89,6 +89,14 @@ These are the owner's decisions, and every section below fits inside them.
    and one shared analysis context. Runtime manifests, C hosting, the
    engine's WASM sibling, and new optimisation-code numbering wait for
    their own phases and gate nothing here.
+7. **Unanimity decides a release-less fold** (2026-09-22). Under a
+   profile that names no release, a route folds only where its answer is
+   proven identical under every release the profile can denote, and any
+   per-axis disagreement declines with `ReleaseAmbiguous(Axis)`.
+8. **A declared base release is the release** (2026-09-22). A dialect that
+   declares a base release evaluates under it — iRules on its 8.4-derived
+   engine — and a vendor pack that diverges on an axis blocks the fold by
+   declaring the axis.
 
 ## The four motivating programs
 

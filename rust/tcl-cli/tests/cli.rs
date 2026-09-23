@@ -1500,3 +1500,74 @@ fn opt_applies_only_the_rewrites_the_policy_shows() {
         "the open file's expression folds under its own policy: {both}"
     );
 }
+
+/// The owner's ruling: `--profile` is the profile in force over every
+/// configuration file, and a file's `[optimiser] profile` — the project's,
+/// then the global's — applies only when the flag is omitted
+/// (`docs/design/compiler/diagnostic-policy.md` § Configuration).
+#[test]
+fn opt_a_named_profile_overrules_the_project_file() {
+    let scratch = Scratch::new("opt-profile");
+    let config = scratch.write("xdg/tcl-lsp/config.ini", "[optimiser]\nprofile = full\n");
+    let xdg = config
+        .parent()
+        .and_then(|p| p.parent())
+        .expect("xdg root")
+        .as_os_str();
+    let env: &[(&str, &std::ffi::OsStr)] = &[("XDG_CONFIG_HOME", xdg)];
+    let folding = "set x [expr {1 + 2}]\n";
+    scratch.write("proj/.tcl-lsp.ini", "[optimiser]\nprofile = readability\n");
+    let inside = scratch.write("proj/fold.tcl", folding);
+    let outside = scratch.write("loose/fold.tcl", folding);
+    let opt = |args: &[&str]| String::from_utf8(run_tcl_env(args, env)).unwrap();
+
+    let named = opt(&["opt", "--profile", "full", inside.to_str().unwrap()]);
+    assert!(
+        named.contains("set x 3"),
+        "`--profile full` folds over the project's `readability`: {named}"
+    );
+    let unnamed = opt(&["opt", inside.to_str().unwrap()]);
+    assert!(
+        unnamed.contains("[expr {1 + 2}]"),
+        "with no `--profile` the project's `readability` runs: {unnamed}"
+    );
+
+    let global = opt(&["opt", "--profile", "readability", outside.to_str().unwrap()]);
+    assert!(
+        global.contains("[expr {1 + 2}]"),
+        "`--profile readability` wins over the global `full` too: {global}"
+    );
+    let defaulted = opt(&["opt", outside.to_str().unwrap()]);
+    assert!(
+        defaulted.contains("set x 3"),
+        "outside the project the global `full` is the default: {defaulted}"
+    );
+}
+
+/// The pass count is the profile in force's: a project `aggressive` runs a
+/// second pass that removes the store the first pass's folds left unused
+/// (O126), and a named `full` over it is one pass.
+#[test]
+fn opt_runs_the_passes_of_the_profile_in_force() {
+    let scratch = Scratch::new("opt-passes");
+    let empty = scratch.write("xdg/.keep", "");
+    let xdg = empty.parent().expect("xdg").as_os_str();
+    let env: &[(&str, &std::ffi::OsStr)] = &[("XDG_CONFIG_HOME", xdg)];
+    scratch.write("proj/.tcl-lsp.ini", "[optimiser]\nprofile = aggressive\n");
+    let file = scratch.write(
+        "proj/chain.tcl",
+        "proc p {} {\n    set a [expr {1 + 2}]\n    set b [expr {$a * 2}]\n    return $b\n}\n",
+    );
+    let file = file.to_str().unwrap();
+
+    let fixpoint = String::from_utf8(run_tcl_env(&["opt", file], env)).unwrap();
+    assert!(
+        fixpoint.contains("# O126"),
+        "the project's `aggressive` runs a second pass: {fixpoint}"
+    );
+    let single = String::from_utf8(run_tcl_env(&["opt", "--profile", "full", file], env)).unwrap();
+    assert!(
+        !single.contains("# O126") && single.contains("# O100"),
+        "a named `full` is one pass that still folds: {single}"
+    );
+}
