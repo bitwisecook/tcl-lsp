@@ -230,7 +230,8 @@ into the statements after the `try` — depends on whether anything *can*
 complete normally.  `try_completes_normally` asks the graph, not the
 resting tails: it walks the construct's own blocks from the pre-`try`
 block, through the handlers' exception edges, and looks for a normal edge
-into `try_end`.  When there is none, every way into the clause is an exit,
+into `try_end` or into `try_ok`, the block a body that completes `ok`
+passes through on its way there.  When there is none, every way into the clause is an exit,
 so the clause's last block ends in a `Return` as an `error` does and is
 recorded as a throw point for the constructs around it; the code after the
 `try` is unreachable, as in Tcl.  A clause that itself leaves —
@@ -273,8 +274,9 @@ and then the jump keeps its edge.
 A handler an earlier one always pre-empts gets no edges at all: Tcl runs
 only the first matching handler, so a second `on error` after an
 unconditional `on error` is dead.  Only an earlier non-`trap` handler with
-the same decoded code proves it, and never for the target of a `-` chain,
-whose block holds the body the earlier `-` handlers run.
+the same decoded code proves it — a `-` handler counts, since it selects
+its code before handing its body on — and never for the target of a `-`
+chain, whose block holds the body the earlier `-` handlers run.
 
 A handler of a body with a resting tail takes its exception edges from the
 pre-`try` block, the tail, **and** every recorded throw point: an `error`

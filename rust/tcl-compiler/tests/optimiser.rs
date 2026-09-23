@@ -2943,6 +2943,12 @@ fn a_try_finally_does_not_hide_the_names_bound_around_it() {
             "bound by the first of two handlers for the same code",
             "proc p {} {\n    try {error boom} on error {} {set x 1} on error {} {return} finally {puts $x}\n}\n",
         ),
+        // The first `on error` selects the error though its body is `-`; the
+        // last handler never runs, and tclsh prints `1` (found in review).
+        (
+            "not unbound by a handler a `-` handler pre-empts",
+            "proc p {} {\n    set x 1\n    try {error boom} on error {} - on ok {} {} on error {} {unset x; return} finally {puts $x}\n}\n",
+        ),
         // The handler's `exit` ends the process before the clause could read;
         // binding `msg` first does not change that (found in review).
         (
@@ -3038,6 +3044,19 @@ fn a_try_that_never_completes_does_not_fall_through_its_finally() {
         opt_fires(returns, TCL, "O107"),
         "`return` past an `on error` handler: {:?}",
         opt_codes(returns, TCL)
+    );
+}
+
+/// A body that falls through into `try_ok` completes normally even when every
+/// handler leaves abruptly, so the code after the `try` is live: tclsh
+/// 8.6.18 and 9.0.4 return `2` (found in review).
+#[test]
+fn a_body_that_completes_through_try_ok_keeps_the_code_after_the_try() {
+    let src = "proc p {} {\n    try {set x 1} on error {} {return early} finally {}\n    set y 2\n    return $y\n}\n";
+    assert!(
+        !opt_fires(src, TCL, "O107"),
+        "the code after the `try` runs: {:?}",
+        opt_codes(src, TCL)
     );
 }
 

@@ -1047,9 +1047,10 @@ impl CfgBuilder<'_> {
     /// its completions first: Tcl runs only the first matching handler, so
     /// after `on error {} {set x 1}` a second `on error` is dead, and giving
     /// it edges drew W210 on a `finally` that always sees `x` set (found in
-    /// review). Only an earlier unconditional handler (not `trap`) with the
-    /// same decoded code proves it, and never for the target of a `-` chain,
-    /// whose block holds the body the earlier `-` handlers run.
+    /// review). Only an earlier unconditional handler (not `trap`, but a `-`
+    /// one counts) with the same decoded code proves it, and never for the
+    /// target of a `-` chain, whose block holds the body the earlier `-`
+    /// handlers run.
     fn handler_shadowed(
         &self,
         earlier: &[crate::ir::TryHandler],
@@ -1061,11 +1062,10 @@ impl CfgBuilder<'_> {
         let Some(code) = self.handler_code(handler) else {
             return false;
         };
+        // A `-` handler still selects its code — only its body is delegated —
+        // so it pre-empts a later match as surely as any other.
         earlier.iter().any(|h| {
-            !h.fallthrough
-                && h.kind != "trap"
-                && h.trap_pattern.is_none()
-                && self.handler_code(h) == Some(code)
+            h.kind != "trap" && h.trap_pattern.is_none() && self.handler_code(h) == Some(code)
         })
     }
 
@@ -1377,8 +1377,13 @@ impl CfgBuilder<'_> {
         };
         self.total_interceptors.insert(end_block.clone());
         // Read before the exit edges below add paths into `end_block`.
-        let completes_normally =
-            self.try_completes_normally(block_name, &end_block, &body_block, first_body_id);
+        let completes_normally = self.try_completes_normally(
+            block_name,
+            &end_block,
+            &post_body,
+            &body_block,
+            first_body_id,
+        );
         let (jump_targets, unwinds) = self.push_finally_exit_edges(
             &end_block,
             &post_body,
@@ -1616,10 +1621,17 @@ impl CfgBuilder<'_> {
         &self,
         block_name: &str,
         end_block: &str,
+        post_body: &str,
         body_block: &str,
         first_body_id: usize,
     ) -> bool {
         let end_id = self.bid(end_block);
+        // With handlers, a body that falls through reaches `try_end` by way of
+        // `try_ok`, which is allocated before the body; reaching it is normal
+        // completion. Missing it made `try {set x 1} on error {} {return
+        // early} finally {}` look as if it never completed, and O107 deleted
+        // the code after it (found in review).
+        let ok_id = self.bid(post_body);
         let body_block_id = self.bid(body_block);
         let in_body = |id: crate::cfg::BlockId| {
             id == body_block_id || usize::try_from(id.0).is_ok_and(|i| i >= first_body_id)
@@ -1641,7 +1653,7 @@ impl CfgBuilder<'_> {
                 .and_then(|b| b.terminator.as_ref())
                 .map(crate::cfg::Terminator::successors)
                 .unwrap_or_default();
-            if terminator_succs.contains(&end_id) {
+            if terminator_succs.contains(&end_id) || terminator_succs.contains(&ok_id) {
                 return true;
             }
             let exception_succs = self
