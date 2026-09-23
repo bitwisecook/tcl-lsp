@@ -774,6 +774,24 @@ failed before the fix. `tcl opt` and MCP `optimize` share the two builders,
 so a global `[features] diagnostics = false` no longer stops them rewriting
 either.
 
+### DP5.4 — the CLI tests never read the machine's `config.ini`
+
+`tests/cli.rs` gains `tcl()` — the built binary with `XDG_CONFIG_HOME` set
+to `empty_config_home()`, one empty directory under the temporary directory
+created once through a `OnceLock` and never removed — and every spawn in
+the file starts there: `run_tcl`, `run_tcl_in`, `run_tcl_allow_failure`,
+`run_tcl_env` (whose own `XDG_CONFIG_HOME` still overrides it), the inline
+spawns of `command_info_discovers_the_current_projects_spec_pack`,
+`diag_analysis_changes_when_the_current_projects_spec_pack_is_present`,
+`minimize_missing_code_errors`, `minimize_reduced_output_still_fires` and
+`compwasm_compiles_a_cr_terminated_document_the_way_the_editor_does`, and
+through those every other helper. `Scratch` replaces the hand-rolled
+directories of `multi_file_diag_text`, `tcl_diag_rows`,
+`sslictcl_diag_rows` and `minify_symbol_map_written_for_plain_minify`. The
+suite passes as before, and passes again when the test process itself
+runs under a global `config.ini` that disables W112, W210, W100, E002,
+W120 and SSLIC1101 and switches the optimiser off.
+
 ## Plan for finishing slices 4–7 and for slices 8–10
 
 The execution plan from the checkpoint `5bc40e95` to the end of the page's
@@ -3405,7 +3423,7 @@ Each item updates its row in the commit that lands it.
 | DP5.1 | opus | S | done | `DP5.1 — an INI layer can turn a code back on` | core `--lib -- config_ini` (31), `tcl-cli --test cli -- turns_a_code_back_on`; clippy on `tcl-lsp-core` and `tcl-cli`; `kcs-index-links` |
 | DP5.2 | opus | S | done (the merge of `rust`) | the merge commit | `cargo test -p tcl-cli`; the crate clippy |
 | DP5.3 | sonnet | S | done (by the lane implementer) | `DP5.3 — the batch verbs read no LSP document gate` | `tcl-cli --lib` (27), `tcl-mcp` (92), server `--lib -- optimise_document` (6); the crate clippy |
-| DP5.4 | sonnet | S | not started | — | — |
+| DP5.4 | sonnet | S | done (by the lane implementer) | `DP5.4 — the CLI tests never read the machine's config.ini` | `tcl-cli --test cli` (40, and 40 again under a global `config.ini` that disables the codes the suite asserts); `tcl-cli` clippy |
 | DP6.1 | opus | M | not started | — | — |
 | DP6.2 | sonnet | S | not started | — | — |
 | DP7.1 | opus | M | done (the merge of `rust`) | the merge commit | core and server `--lib`, the whole `e2e`; the crate clippy |

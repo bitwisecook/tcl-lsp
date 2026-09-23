@@ -34,9 +34,32 @@ fn spec_pack_project() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/spec-packs/tiny-project")
 }
 
+/// A process-wide empty directory for `XDG_CONFIG_HOME`, created once and
+/// never removed: no `tcl-lsp/config.ini` under it, so the global layer every
+/// policy-reading verb resolves (`diag`, `lint`, `validate`, `opt`) is empty,
+/// and a developer's own `config.ini` cannot fail a test CI passes.
+fn empty_config_home() -> &'static std::path::Path {
+    static HOME: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+    HOME.get_or_init(|| {
+        let dir = std::env::temp_dir().join("tcl-cli-tests-empty-config-home");
+        std::fs::create_dir_all(&dir).expect("empty config home");
+        dir
+    })
+}
+
+/// The built `tcl` binary, isolated from the machine's global configuration
+/// (`XDG_CONFIG_HOME` is consulted first on every platform). Every spawn in
+/// this file starts here; a test that wants a global layer of its own sets
+/// `XDG_CONFIG_HOME` again, which overrides this one.
+fn tcl() -> Command {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_tcl"));
+    command.env("XDG_CONFIG_HOME", empty_config_home());
+    command
+}
+
 /// Run the built `tcl` binary with `args`, returning captured stdout bytes.
 fn run_tcl(args: &[&str]) -> Vec<u8> {
-    let output = Command::new(env!("CARGO_BIN_EXE_tcl"))
+    let output = tcl()
         .args(args)
         .output()
         .expect("failed to spawn tcl binary");
@@ -50,7 +73,7 @@ fn run_tcl(args: &[&str]) -> Vec<u8> {
 }
 
 fn run_tcl_in(current_dir: &std::path::Path, args: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_tcl"))
+    tcl()
         .current_dir(current_dir)
         .args(args)
         .output()
@@ -60,7 +83,7 @@ fn run_tcl_in(current_dir: &std::path::Path, args: &[&str]) -> Output {
 #[test]
 fn command_info_discovers_the_current_projects_spec_pack() {
     let project = spec_pack_project();
-    let with_pack = Command::new(env!("CARGO_BIN_EXE_tcl"))
+    let with_pack = tcl()
         .current_dir(&project)
         .args(["command-info", "::tcl_lsp_fixture::collect", "--json"])
         .output()
@@ -78,7 +101,7 @@ fn command_info_discovers_the_current_projects_spec_pack() {
         "Evaluate a script while collecting a result in a caller variable."
     );
 
-    let without_pack = Command::new(env!("CARGO_BIN_EXE_tcl"))
+    let without_pack = tcl()
         .current_dir(project.join("lib"))
         .args(["command-info", "::tcl_lsp_fixture::collect", "--json"])
         .output()
@@ -99,7 +122,7 @@ fn diag_analysis_changes_when_the_current_projects_spec_pack_is_present() {
         "--json",
     ];
 
-    let with_pack = Command::new(env!("CARGO_BIN_EXE_tcl"))
+    let with_pack = tcl()
         .current_dir(&project)
         .args(args)
         .output()
@@ -115,7 +138,7 @@ fn diag_analysis_changes_when_the_current_projects_spec_pack_is_present() {
         .collect();
     assert_eq!(codes, ["E002", "W120"]);
 
-    let without_pack = Command::new(env!("CARGO_BIN_EXE_tcl"))
+    let without_pack = tcl()
         .current_dir(project.join("lib"))
         .args(args)
         .output()
@@ -314,7 +337,7 @@ fn explore_text_renders_box_drawing_trees() {
 #[test]
 fn minimize_missing_code_errors() {
     let input = fixtures_dir().join("minimize.tcl");
-    let output = Command::new(env!("CARGO_BIN_EXE_tcl"))
+    let output = tcl()
         .args(["minimize", input.to_str().unwrap(), "ZZZ999"])
         .output()
         .expect("failed to spawn tcl binary");
@@ -350,7 +373,7 @@ fn minimize_reduced_output_still_fires() {
         // snippet via `tcl diag --json`. `diag` exits 1 when it finds a
         // problem-severity diagnostic (W100 is an error), so we read its stdout
         // directly rather than through the success-asserting `run_tcl`.
-        let diag = Command::new(env!("CARGO_BIN_EXE_tcl"))
+        let diag = tcl()
             .args(["diag", "--source", reduced, "--json"])
             .output()
             .expect("failed to spawn tcl binary")
@@ -375,23 +398,18 @@ fn minify_symbol_map_written_for_plain_minify() {
     // it — otherwise a later `unminify-error` fails on a missing path
     // (issue 198).
     let input = fixtures_dir().join("greet.tcl");
-    let tmp = std::env::temp_dir().join(format!(
-        "tcl-cli-symmap-{}-{}.txt",
-        std::process::id(),
-        line!()
-    ));
-    let _ = std::fs::remove_file(&tmp);
+    let scratch = Scratch::new("symmap");
+    let map = scratch.0.join("symmap.txt");
     let _ = run_tcl(&[
         "minify",
         "--symbol-map",
-        tmp.to_str().unwrap(),
+        map.to_str().unwrap(),
         input.to_str().unwrap(),
     ]);
     assert!(
-        tmp.exists(),
+        map.exists(),
         "plain minify must still write the requested --symbol-map file"
     );
-    let _ = std::fs::remove_file(&tmp);
 }
 
 /// `tcl diag` over several inputs is a multi-file compilation, so a call in
@@ -536,7 +554,7 @@ fn opt_does_not_fold_a_store_across_a_file_boundary() {
 /// Like [`run_tcl`] but tolerates a non-zero exit — `diag` returns 1 whenever
 /// it reports a problem-severity finding, which is not a harness failure.
 fn run_tcl_allow_failure(args: &[&str]) -> Vec<u8> {
-    Command::new(env!("CARGO_BIN_EXE_tcl"))
+    tcl()
         .args(args)
         .output()
         .expect("failed to spawn tcl binary")
@@ -864,39 +882,25 @@ fn diag_shares_call_sites_across_cr_terminated_inputs() {
 /// Write each `(name, text)` into one scratch directory, run `tcl diag` over
 /// all of them in order, and return the combined report text.
 fn multi_file_diag_text(tag: &str, files: &[(&str, &str)]) -> String {
-    let nanos = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .expect("clock")
-        .as_nanos();
-    let dir = std::env::temp_dir().join(format!("tcl-cli-multi-{tag}-{nanos}"));
-    std::fs::create_dir_all(&dir).expect("scratch dir");
+    let scratch = Scratch::new(&format!("multi-{tag}"));
     let mut args: Vec<String> = vec!["diag".to_owned()];
     for (name, text) in files {
-        let path = dir.join(name);
-        std::fs::write(&path, text).expect("write document");
+        let path = scratch.write(name, text);
         args.push(path.to_str().expect("utf-8 path").to_owned());
     }
     let borrowed: Vec<&str> = args.iter().map(String::as_str).collect();
-    let out = String::from_utf8(run_tcl_allow_failure(&borrowed)).expect("utf-8 output");
-    std::fs::remove_dir_all(&dir).ok();
-    out
+    String::from_utf8(run_tcl_allow_failure(&borrowed)).expect("utf-8 output")
 }
 
 /// Run `tcl diag --json` over one `.tcl` document written to a scratch file and
 /// return every row as a `(code, line)` pair in report order.
 fn tcl_diag_rows(tag: &str, text: &str) -> Vec<(String, u64)> {
-    let nanos = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .expect("clock")
-        .as_nanos();
-    let dir = std::env::temp_dir().join(format!("tcl-cli-cr-{tag}-{nanos}"));
-    std::fs::create_dir_all(&dir).expect("scratch dir");
-    let path = dir.join("doc.tcl");
-    std::fs::write(&path, text).expect("write document");
+    let scratch = Scratch::new(&format!("cr-{tag}"));
+    let path = scratch.write("doc.tcl", text);
 
     let out = run_tcl_allow_failure(&["diag", path.to_str().expect("utf-8 path"), "--json"]);
     let report: serde_json::Value = serde_json::from_slice(&out).expect("diag JSON");
-    let rows = report[0]["diagnostics"]
+    report[0]["diagnostics"]
         .as_array()
         .expect("diagnostics array")
         .iter()
@@ -906,27 +910,19 @@ fn tcl_diag_rows(tag: &str, text: &str) -> Vec<(String, u64)> {
                 d["line"].as_u64().expect("line"),
             )
         })
-        .collect();
-    std::fs::remove_dir_all(&dir).ok();
-    rows
+        .collect()
 }
 
 /// Run `tcl diag --json` over one `.sslictcl` document written to a scratch
 /// file (so the dialect routes by extension, not by content signature), and
 /// return its `SSLIC*` rows as `(code, line)` pairs in report order.
 fn sslictcl_diag_rows(tag: &str, text: &str) -> Vec<(String, u64)> {
-    let nanos = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .expect("clock")
-        .as_nanos();
-    let dir = std::env::temp_dir().join(format!("tcl-cli-sslictcl-{tag}-{nanos}"));
-    std::fs::create_dir_all(&dir).expect("scratch dir");
-    let path = dir.join("doc.sslictcl");
-    std::fs::write(&path, text).expect("write document");
+    let scratch = Scratch::new(&format!("sslictcl-{tag}"));
+    let path = scratch.write("doc.sslictcl", text);
 
     let out = run_tcl_allow_failure(&["diag", path.to_str().expect("utf-8 path"), "--json"]);
     let report: serde_json::Value = serde_json::from_slice(&out).expect("diag JSON");
-    let rows = report[0]["diagnostics"]
+    report[0]["diagnostics"]
         .as_array()
         .expect("diagnostics array")
         .iter()
@@ -935,9 +931,7 @@ fn sslictcl_diag_rows(tag: &str, text: &str) -> Vec<(String, u64)> {
             code.starts_with("SSLIC")
                 .then(|| (code.to_owned(), d["line"].as_u64().expect("line")))
         })
-        .collect();
-    std::fs::remove_dir_all(&dir).ok();
-    rows
+        .collect()
 }
 
 /// Write `text` to a scratch `doc.tcl` and run `tcl` with `args` against it
@@ -1190,7 +1184,7 @@ fn compwasm_compiles_a_cr_terminated_document_the_way_the_editor_does() {
         std::fs::write(&src_path, text).expect("write document");
         let wasm_path = dir.join("out.wasm");
         let wat_path = dir.join("out.wat");
-        let output = Command::new(env!("CARGO_BIN_EXE_tcl"))
+        let output = tcl()
             .args([
                 "compwasm",
                 src_path.to_str().expect("utf-8 path"),
@@ -1290,9 +1284,10 @@ impl Drop for Scratch {
 }
 
 /// Run the built `tcl` binary with `args` and `env`, tolerating a non-zero
-/// exit, and return its stdout.
+/// exit, and return its stdout. `env` applies over [`tcl`]'s isolation, so
+/// an `XDG_CONFIG_HOME` there names the global layer the run reads.
 fn run_tcl_env(args: &[&str], env: &[(&str, &std::ffi::OsStr)]) -> Vec<u8> {
-    let mut command = Command::new(env!("CARGO_BIN_EXE_tcl"));
+    let mut command = tcl();
     command.args(args);
     for (key, value) in env {
         command.env(key, value);
