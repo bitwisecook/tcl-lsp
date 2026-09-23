@@ -1081,33 +1081,34 @@ impl CfgBuilder<'_> {
         })
     }
 
-    /// Whether `block` ends in a statement whose completion code `handler` is
-    /// known not to select: both codes decoded by the registry — the handler's
-    /// through its completion-code selector (`trap` is an error) — and
-    /// different. Either one unknown answers `false`, keeping the edge.
-    /// The handlers whose match runs handler `index`'s block: a `-` handler
-    /// alone, else the owner with the `-` handlers that hand it their match.
-    /// A member an earlier handler always pre-empts is left out, so a group
-    /// every member of which is pre-empted is empty and gets no edges.
+    /// The handlers whose match runs handler `index`'s block: the owner with
+    /// the `-` handlers that hand it their match, save a member an earlier
+    /// handler always pre-empts. Empty for a `-` handler, whose own block is
+    /// never run — an edge into it and on to `try_end` let a match skip the
+    /// body it shares (found in review) — and for a group every member of
+    /// which is pre-empted.
     fn live_handler_group<'h>(
         &self,
         handlers: &'h [crate::ir::TryHandler],
         index: usize,
     ) -> Vec<&'h crate::ir::TryHandler> {
-        let start = if handlers[index].fallthrough {
-            index
-        } else {
-            handlers[..index]
-                .iter()
-                .rposition(|earlier| !earlier.fallthrough)
-                .map_or(0, |owner| owner + 1)
-        };
+        if handlers[index].fallthrough {
+            return Vec::new();
+        }
+        let start = handlers[..index]
+            .iter()
+            .rposition(|earlier| !earlier.fallthrough)
+            .map_or(0, |owner| owner + 1);
         handlers[start..=index]
             .iter()
             .filter(|member| !self.handler_shadowed(&handlers[..start], member))
             .collect()
     }
 
+    /// Whether `block` ends in a statement whose completion code `handler` is
+    /// known not to select: both codes decoded by the registry — the handler's
+    /// through its completion-code selector (`trap` is an error) — and
+    /// different. Either one unknown answers `false`, keeping the edge.
     fn handler_misses_completion(&self, handler: &crate::ir::TryHandler, block: &str) -> bool {
         let Some(code) = self
             .try_entry
@@ -1589,18 +1590,20 @@ impl CfgBuilder<'_> {
         let Some(code) = self.block_completion_code(block, body_block) else {
             return false;
         };
-        handlers
-            .iter()
-            .zip(handler_blocks)
-            .any(|(handler, handler_block)| {
-                handler.kind != "trap"
-                    && handler.trap_pattern.is_none()
-                    && self.handler_code(handler) == Some(code)
-                    && self
-                        .exception_edges
-                        .iter()
-                        .any(|(from, to)| from == block && to == handler_block)
-            })
+        // A `-` handler's match runs its owner's block.
+        handlers.iter().enumerate().any(|(index, handler)| {
+            let owner = handlers[index..]
+                .iter()
+                .position(|h| !h.fallthrough)
+                .map_or(index, |offset| index + offset);
+            handler.kind != "trap"
+                && handler.trap_pattern.is_none()
+                && self.handler_code(handler) == Some(code)
+                && self
+                    .exception_edges
+                    .iter()
+                    .any(|(from, to)| from == block && *to == handler_blocks[owner])
+        })
     }
 
     /// The blocks whose every completion a construct nested inside this one

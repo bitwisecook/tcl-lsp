@@ -3090,6 +3090,18 @@ fn a_fallthrough_handler_reaches_the_body_it_shares() {
         );
     }
 
+    // Precision: the match runs the shared body, never the `-` handler's own
+    // empty block, so `x` is set before the clause reads it. tclsh prints
+    // `1`; the empty block's edge on to `try_end` drew W210 (found in
+    // review).
+    let bound =
+        "proc p {} {\n    try {error boom} on error {} - on ok {} {set x 1} finally {puts $x}\n}\n";
+    assert!(
+        !analyser_codes(bound, TCL).contains(&"W210".to_owned()),
+        "`x` is bound on every path into the clause: {:?}",
+        analyser_codes(bound, TCL)
+    );
+
     // An `on ok` owner shared with `on error {} -` is not reached from the
     // tail alone: the error path carries `y` = 5 into it.
     let shared = "proc p {c} {\n    set y 0\n    try {set y 5; if {$c} {error boom}; set y 6} on error {} - on ok {} {return $y} finally {}\n    return none\n}\n";

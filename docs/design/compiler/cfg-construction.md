@@ -276,8 +276,10 @@ only the first matching handler, so a second `on error` after an
 unconditional `on error` is dead.  Only an earlier non-`trap` handler with
 the same decoded code proves it — a `-` handler counts, since it selects
 its code before handing its body on.  A `-` handler's own block is
-empty, so the body it shares is reached only through the edges of the
-handler that owns it, and those edges are filtered against the whole
+empty and never runs, so it gets no edges at all: an edge into it, and
+on to `try_end`, let a match skip the body it shares.  That body is
+reached only through the edges of the handler that owns it, and those
+edges are filtered against the whole
 group: a completion any member matches keeps its edge, save a member an
 earlier handler pre-empts.  So `try {error boom} on error {} - on ok {}
 {set x 1}` reaches `set x 1`, and an owner is dead only when every
