@@ -2757,6 +2757,38 @@ fn a_quoted_expression_operand_is_not_inert() {
         opt_codes(effect, TCL)
     );
 
+    // The side-effect gates: a `[cmd]` in a quoted operand runs, so no pass
+    // may drop the statement that holds it. tclsh 8.6.18 prints `1` for each;
+    // O110, O113 and O126 each printed `0` (#2227, found in review).
+    for (why, src) in [
+        (
+            "O110 on `&& 0`",
+            "proc p {} {\n    set x 0\n    set y [expr {\"[incr x]\" && 0}]\n    return $x\n}\n",
+        ),
+        (
+            "O113 on a constant-false condition",
+            "proc p {} {\n    set x 0\n    if {\"[incr x]\" && 0} {}\n    return $x\n}\n",
+        ),
+        (
+            "O126 on an unused store",
+            "proc p {} {\n    set x 0\n    set y [expr {\"[incr x]\"}]\n    return $x\n}\n",
+        ),
+    ] {
+        assert!(
+            optimised(src, TCL).contains("incr x"),
+            "{why}: the `incr` runs: {}",
+            optimised(src, TCL)
+        );
+    }
+    // Nor is an overwritten store whose operand runs a command a dead store
+    // to report: W220 offered to delete the `incr`.
+    let store = "proc p {} {\n    set x 0\n    set y [expr {\"[incr x]\"}]\n    set y 2\n    return \"$x$y\"\n}\n";
+    assert!(
+        !analyser_codes(store, TCL).contains(&"W220".to_owned()),
+        "the store runs `incr x`: {:?}",
+        analyser_codes(store, TCL)
+    );
+
     // Precision: the braced spelling really is inert, and still folds.
     let braced = "proc f {} {\n    set x 1\n    set y [expr {\"a\" eq \"a\"}]\n    return $y\n}\n";
     assert!(

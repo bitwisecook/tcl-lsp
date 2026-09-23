@@ -963,7 +963,12 @@ fn word_world_hazard(state: &WorldContents, word: &WordExpr) -> bool {
 fn expr_world_hazard(state: &WorldContents, expr: &tcl_syntax::expr::ExprNode) -> bool {
     use tcl_syntax::expr::ExprNode;
     match expr {
-        ExprNode::Literal { .. } | ExprNode::String { .. } | ExprNode::CompiledWord { .. } => false,
+        ExprNode::Literal { .. } | ExprNode::CompiledWord { .. } => false,
+        // A `"…"` operand substitutes its `$var` and `[cmd]`; a `{…}` one
+        // is inert.
+        ExprNode::String { text, .. } => {
+            tcl_syntax::expr::quoted_string_body(text).is_some_and(|body| body.contains(['$', '[']))
+        }
         ExprNode::Var { name, .. } => state.variable_access_may_observe(name),
         ExprNode::Command { .. } | ExprNode::Call { .. } | ExprNode::Raw { .. } => true,
         ExprNode::Unary { operand, .. } => expr_world_hazard(state, operand),

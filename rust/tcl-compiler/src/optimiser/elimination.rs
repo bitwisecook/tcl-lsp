@@ -227,6 +227,11 @@ fn expr_has_observable_side_effect(node: &ExprNode, effect: EffectCtx<'_>, depth
         ExprNode::Call { args, .. } => args
             .iter()
             .any(|a| expr_has_observable_side_effect(a, effect, depth + 1)),
+        // A `"…"` operand substitutes, so its `[cmd]` runs: O126 deleted
+        // `set y [expr {"[incr x]"}]` and lost the `incr` (#2227, found in
+        // review).
+        ExprNode::String { text, .. } => crate::word_subst::quoted_operand_body(text)
+            .is_some_and(|body| word_has_observable_side_effect(body, effect, 0)),
         _ => false,
     }
 }

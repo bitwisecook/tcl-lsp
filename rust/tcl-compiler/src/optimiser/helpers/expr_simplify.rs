@@ -1592,10 +1592,13 @@ fn expr_has_command_subst_at(node: &ExprNode, depth: u32) -> bool {
                 || expr_has_command_subst_at(false_branch, depth + 1)
         }
         ExprNode::Call { args, .. } => args.iter().any(|a| expr_has_command_subst_at(a, depth + 1)),
+        // A `"…"` operand substitutes, so a `[cmd]` in it runs: O110 rewrote
+        // `expr {"[incr x]" && 0}` to `0`, losing the `incr` (#2227, found in
+        // review).
+        ExprNode::String { text, .. } => crate::word_subst::quoted_operand_body(text).is_some(),
         ExprNode::Literal { .. }
         | ExprNode::Var { .. }
         | ExprNode::Raw { .. }
-        | ExprNode::String { .. }
         // A word, not an expression: it holds no command substitution.
         | ExprNode::CompiledWord { .. } => false,
     }
