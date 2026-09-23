@@ -39,7 +39,9 @@ use crate::events::{
 use crate::forms::CommandForm;
 use crate::hooks::{AnalyserHookId, CodegenHookId, InlineCodegenHookId, LoweringHookId};
 use crate::hover::CallbackTaintInput;
-use crate::invocation_words::{CommandPrefixArguments, InvocationWord, VariableWriteProjection};
+use crate::invocation_words::{
+    CommandPrefixArguments, InvocationWord, VariableReadProjection, VariableWriteProjection,
+};
 use crate::lifecycle::{Lifecycle, LifecycleState};
 use crate::resolved_invocation::{
     InvocationResolutionUnresolved, ResolvedInvocation, ResolvedSubcommand,
@@ -4363,6 +4365,51 @@ impl CommandRegistry {
             .map(|index| args.literal_at(index).unwrap_or(""))
             .collect();
         Some(self.arg_indices_for_role(name, &spellings, role))
+    }
+
+    /// Project the variable cells source-aware invocation words read **by
+    /// name** — the read-only counterpart of
+    /// [`Self::variable_write_projection`], and resolved the same way, so an
+    /// alias or renamed spelling answers like the command it reaches.
+    ///
+    /// A name word that substitutes (`info exists $p`) denotes a cell only
+    /// the runtime knows, so it widens [`VariableReadProjection::
+    /// opaque_variable_frame`] rather than exposing its source spelling as a
+    /// variable name.
+    #[must_use]
+    pub fn variable_read_projection(&self, words: InvocationWords<'_>) -> VariableReadProjection {
+        let Some(name) = words.head_literal() else {
+            return VariableReadProjection {
+                literal_names: Vec::new(),
+                opaque_variable_frame: true,
+            };
+        };
+        if self
+            .resolve_structured_invocation(words, self.own_surface_query())
+            .resolved()
+            .is_none()
+        {
+            return VariableReadProjection::default();
+        }
+        let args = words.arguments();
+        let Some(indices) = self.arg_indices_for_role_words(name, args, ArgRole::VarRead) else {
+            return VariableReadProjection {
+                literal_names: Vec::new(),
+                opaque_variable_frame: self.may_have_arg_role(name, ArgRole::VarRead),
+            };
+        };
+        let mut projection = VariableReadProjection::default();
+        for index in indices {
+            match args.literal_at(index) {
+                Some(variable) if !variable.is_empty() => {
+                    if !projection.literal_names.iter().any(|f| f == variable) {
+                        projection.literal_names.push(variable.to_owned());
+                    }
+                }
+                _ => projection.opaque_variable_frame = true,
+            }
+        }
+        projection
     }
 
     /// Project the variable-cell writes of source-aware invocation words.

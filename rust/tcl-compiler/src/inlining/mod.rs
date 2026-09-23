@@ -1633,6 +1633,7 @@ fn splice_v3(
             wrapped.push(Statement::Return {
                 span,
                 value: Some(format!("${result_var}")),
+                value_word: None,
                 expr: None,
                 command_binding: None,
                 braced: false,

@@ -892,6 +892,44 @@ pub fn first_positional_index<S: AsRef<str>>(
     args: &[S],
     scan_start: usize,
 ) -> usize {
+    scan_leading_options(options, args, scan_start, |_| {})
+}
+
+/// The [`OptionSpec`]s matched by the leading option words of `args`.
+///
+/// The same scan [`first_positional_index`] performs, reporting the switches
+/// it skipped rather than only where it stopped. A command whose *operand
+/// layout* depends on which switch was given needs this: `regexp -about` never
+/// looks at a subject and `regexp -inline` forbids match variables, so neither
+/// leaves a trailing word in a variable-name position.
+///
+/// Reporting the matched spec rather than the source word means abbreviation
+/// and declared aliases resolve through the registry's own
+/// [`OptionSpec::matches`], and a declared option's *value* words are never
+/// mistaken for switches — `regexp -start -inline …` reports `-start` alone,
+/// with `-inline` correctly read as its value. The `--` terminator ends the
+/// scan without being reported, so `regexp -- -about …` reports nothing and
+/// `-about` is the pattern, which is what tclsh 9.0.4 does.
+#[must_use]
+pub fn leading_option_specs<'o, S: AsRef<str>>(
+    options: &'o [OptionSpec],
+    args: &[S],
+    scan_start: usize,
+) -> Vec<&'o OptionSpec> {
+    let mut seen = Vec::new();
+    scan_leading_options(options, args, scan_start, |option| seen.push(option));
+    seen
+}
+
+/// The one scan behind [`first_positional_index`] and
+/// [`leading_option_specs`], so the index they agree on and the switches one
+/// of them reports can never drift apart.
+fn scan_leading_options<'o, S: AsRef<str>>(
+    options: &'o [OptionSpec],
+    args: &[S],
+    scan_start: usize,
+    mut matched: impl FnMut(&'o OptionSpec),
+) -> usize {
     let mut index = scan_start.min(args.len());
     while let Some(word) = args.get(index).map(AsRef::as_ref) {
         if word == "--" {
@@ -900,10 +938,11 @@ pub fn first_positional_index<S: AsRef<str>>(
         if !word.starts_with('-') {
             break;
         }
-        let consumed = options
-            .iter()
-            .find(|option| option.matches(word))
-            .map_or(0, |option| option.value_word_count(args, index));
+        let found = options.iter().find(|option| option.matches(word));
+        if let Some(option) = found {
+            matched(option);
+        }
+        let consumed = found.map_or(0, |option| option.value_word_count(args, index));
         index = index.saturating_add(1 + consumed);
     }
     index

@@ -1144,6 +1144,10 @@ pub enum Statement {
         span: Span,
         /// Return value text, if any.
         value: Option<String>,
+        /// Canonical source word for [`Self::Return::value`], when the simple
+        /// return form retained one. Codegen uses it only to decide whether a
+        /// nested local-name opcode can consume a final literal value.
+        value_word: Option<WordExpr>,
         /// Return expression, if any (for `return [expr ...]`).
         expr: Option<ExprNode>,
         /// Live command binding whose registry identity justified compiling a
@@ -2443,6 +2447,7 @@ mod tests {
         let stmt = Statement::Return {
             span: Span::new(0, 20),
             value: None,
+            value_word: None,
             expr: Some(ExprNode::Binary {
                 op: crate::expr_ast::BinOp::Add,
                 left: Box::new(ExprNode::Var {

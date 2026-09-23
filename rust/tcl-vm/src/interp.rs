@@ -844,6 +844,18 @@ pub(crate) struct PendingControl {
 /// error state, traces, coroutines, channels, children. The engine ([`Vm`])
 /// executes with exactly one of these current at a time and swaps between
 /// them at interpreter boundaries.
+#[derive(Default)]
+struct PackageState {
+    /// Provided packages → version (`package provide`/`require`).
+    packages: HashMap<String, String>,
+    /// Package name → version → loader script (`package ifneeded`).
+    package_ifneeded: HashMap<String, HashMap<String, String>>,
+    /// Selected package loaders currently being evaluated. Tcl uses the
+    /// selected loader's required name/version as a circular-dependency guard;
+    /// the stack matters because loaders may require other packages.
+    package_loading: Vec<(String, String)>,
+}
+
 pub struct InterpState {
     /// The Tcl release whose number/expr grammar this VM emulates —
     /// threaded from `DialectProfile::vm_runtime_version` (dialect-profile
@@ -1014,10 +1026,7 @@ pub struct InterpState {
     /// is being dispatched, so a handler whose own head is unresolvable falls
     /// through to a hard `invalid command name` instead of recursing.
     ns_unknown_depth: u32,
-    /// Provided packages → version (`package provide`/`require`).
-    packages: HashMap<String, String>,
-    /// Package name → version → loader script (`package ifneeded`).
-    package_ifneeded: HashMap<String, HashMap<String, String>>,
+    package_state: PackageState,
     /// Command prefix invoked by `package require` when no suitable package is
     /// known yet (`package unknown`).
     package_unknown: Option<String>,
@@ -2055,8 +2064,7 @@ impl InterpState {
             ns_paths: HashMap::new(),
             ns_unknowns: HashMap::new(),
             ns_unknown_depth: 0,
-            packages: HashMap::new(),
-            package_ifneeded: HashMap::new(),
+            package_state: PackageState::default(),
             package_unknown: None,
             package_prefer: initial_package_prefer(),
             var_traces: HashMap::new(),
@@ -7811,25 +7819,28 @@ impl Vm {
 
     /// Record a provided package version.
     pub(crate) fn provide_package(&mut self, name: &str, version: &str) {
-        self.packages.insert(name.to_string(), version.to_string());
+        self.package_state
+            .packages
+            .insert(name.to_string(), version.to_string());
     }
 
     /// Withdraw a package's provided version (`package forget`, and the
     /// release re-pin that replaces the core's own pre-provided entries).
     pub(crate) fn forget_package(&mut self, name: &str) {
-        self.packages.remove(name);
+        self.package_state.packages.remove(name);
     }
 
     /// The provided version of a package, if any.
     pub(crate) fn package_version(&self, name: &str) -> Option<&str> {
-        self.packages.get(name).map(String::as_str)
+        self.package_state.packages.get(name).map(String::as_str)
     }
 
     /// Names of all provided packages.
     pub(crate) fn package_names(&self) -> Vec<String> {
-        self.packages
+        self.package_state
+            .packages
             .keys()
-            .chain(self.package_ifneeded.keys())
+            .chain(self.package_state.package_ifneeded.keys())
             .cloned()
             .collect::<std::collections::HashSet<_>>()
             .into_iter()
@@ -7837,29 +7848,62 @@ impl Vm {
     }
 
     pub(crate) fn set_package_ifneeded(&mut self, name: &str, version: &str, script: &str) {
-        self.package_ifneeded
+        self.package_state
+            .package_ifneeded
             .entry(name.to_owned())
             .or_default()
             .insert(version.to_owned(), script.to_owned());
     }
 
     pub(crate) fn package_ifneeded(&self, name: &str, version: &str) -> Option<&str> {
-        self.package_ifneeded
+        self.package_state
+            .package_ifneeded
             .get(name)
             .and_then(|versions| versions.get(version))
             .map(String::as_str)
     }
 
     pub(crate) fn package_ifneeded_versions(&self, name: &str) -> Vec<String> {
-        self.package_ifneeded
+        self.package_state
+            .package_ifneeded
             .get(name)
             .map(|versions| versions.keys().cloned().collect())
             .unwrap_or_default()
     }
 
+    /// The selected loader version for a package currently being evaluated.
+    pub(crate) fn package_loading_version(&self, name: &str) -> Option<&str> {
+        self.package_state
+            .package_loading
+            .iter()
+            .rev()
+            .find_map(|(loading_name, version)| (loading_name == name).then_some(version.as_str()))
+    }
+
+    /// Mark a selected `package ifneeded` loader as active.
+    pub(crate) fn begin_package_loading(&mut self, name: &str, version: &str) {
+        self.package_state
+            .package_loading
+            .push((name.to_owned(), version.to_owned()));
+    }
+
+    /// Unmark a selected loader after every completion path. A `package
+    /// forget` inside a loader can remove this entry before the loader returns,
+    /// so cleanup is deliberately tolerant of an already-removed marker.
+    pub(crate) fn end_package_loading(&mut self, name: &str, version: &str) {
+        if self.package_state.package_loading.last().is_some_and(
+            |(loading_name, loading_version)| loading_name == name && loading_version == version,
+        ) {
+            self.package_state.package_loading.pop();
+        }
+    }
+
     pub(crate) fn forget_package_completely(&mut self, name: &str) {
-        self.packages.remove(name);
-        self.package_ifneeded.remove(name);
+        self.package_state.packages.remove(name);
+        self.package_state.package_ifneeded.remove(name);
+        self.package_state
+            .package_loading
+            .retain(|(loading_name, _)| loading_name != name);
     }
 
     pub(crate) fn set_package_unknown(&mut self, script: Option<String>) {

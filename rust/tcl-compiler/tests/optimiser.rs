@@ -2314,3 +2314,393 @@ fn a_structural_body_is_not_the_enclosing_statements_surface() {
         opt_codes(plain_body, TCL)
     );
 }
+
+/// #2132 — a `[…]` in a branch or loop condition reads the frame's variables.
+///
+/// An expression's command substitution is opaque to the `$var` scan, so a
+/// condition's reads reached no consumer. Three shapes, each measured against
+/// tclsh 9.0.4:
+///
+/// | program | tclsh | was |
+/// |---|---|---|
+/// | `set x 1; if {[info exists x]} {puts yes}` | `yes` | nothing — O126 removed the store |
+/// | `set n 5; if {[incr n]} {puts $n}` | `6` | `1` — O109 removed it |
+/// | `set k 0; for {set i 0} {[incr k] < 3} {} {puts $k}` | `1` `2` | `0` `0` |
+///
+/// The `for` case is the widest: its condition contributed neither reads nor
+/// writes at all, so the store was deleted *and* the stale literal forwarded
+/// into the loop body.
+#[test]
+fn a_condition_substitution_reads_the_frames_variables() {
+    for src in [
+        "proc p {} {\n  set x 1\n  if {[info exists x]} { puts yes }\n}\np\n",
+        "proc p {} { set n 5; if {[incr n]} { puts $n } }\np\n",
+        "proc p {} { set s foo; while {[string length [append s bar]] < 12} { puts $s } }\np\n",
+    ] {
+        assert_eq!(
+            optimised(src, TCL),
+            src,
+            "no rewrite in this program is sound: {:?}",
+            opt_codes(src, TCL)
+        );
+    }
+
+    // The `for` case keeps one legitimate rewrite — `set i 0` really is an
+    // unused variable — so it is asserted on the store the condition reads
+    // rather than on the whole program.
+    let loop_src = "proc p {} { set k 0; for {set i 0} {[incr k] < 3} {} { puts $k } }\np\n";
+    let out = optimised(loop_src, TCL);
+    assert!(
+        out.contains("set k 0"),
+        "the condition's `[incr k]` reads this store: {out}"
+    );
+    assert!(
+        out.contains("puts $k"),
+        "the loop body's read is of the condition's value, not the literal: {out}"
+    );
+    assert!(
+        !opt_fires(loop_src, TCL, "O109") && !opt_fires(loop_src, TCL, "O102"),
+        "neither the deletion nor the forward is sound: {:?}",
+        opt_codes(loop_src, TCL)
+    );
+}
+
+/// The same read must stop O125 sinking the store past the condition.
+///
+/// `decision_condition_uses_var` scans the condition for a `$var` reference,
+/// which `[incr n]` never shows. Sinking `set n 5` into the guarded body moved
+/// it after the increment that reads it, so `proc p {} {set n 5; if {[incr n]}
+/// {puts $n}}` printed `5` where tclsh 9.0.4 prints `6`.
+#[test]
+fn a_store_does_not_sink_past_a_condition_that_reads_it() {
+    let src = "proc p {} { set n 5; if {[incr n]} { puts $n } }\np\n";
+    assert!(
+        !opt_fires(src, TCL, "O125"),
+        "the condition reads `n`, so the store stays before it: {:?}",
+        opt_codes(src, TCL)
+    );
+    // A read-only condition blocks the sink for the same reason: the guard
+    // tests a variable the sunk store would not yet have created. Found by
+    // review on the first cut of this guard, which consulted only the *write*
+    // effects: `proc p {} {set x 1; if {[info exists x]} {puts $x}}` prints
+    // `1` on tclsh 9.0.4, and the sunk form printed nothing.
+    for read_only in [
+        "proc p {} {\n  set x 1\n  if {[info exists x]} { puts $x }\n}\np\n",
+        // An unnameable read may be of this variable, which is enough.
+        "proc p {n} {\n  set x 1\n  if {[info exists $n]} { puts $x }\n}\np x\n",
+    ] {
+        assert!(
+            !opt_fires(read_only, TCL, "O125"),
+            "a read-only condition blocks the sink: {:?}",
+            opt_codes(read_only, TCL)
+        );
+    }
+
+    // Control: a condition that does not touch the variable still sinks.
+    let sinkable = "proc p {c} {\n  set n 5\n  if {$c} { puts $n }\n}\np 1\np 0\n";
+    assert!(
+        opt_fires(sinkable, TCL, "O125"),
+        "an unrelated condition must not block the sink: {:?}",
+        opt_codes(sinkable, TCL)
+    );
+}
+
+/// An existence guard is not a read-before-set, and an unnameable read is not
+/// a global-frame write.
+///
+/// `[info exists q]` is *the* idiom for a name that may be unset, so crediting
+/// its read must not make W210 fire — the reads live on the synthetic `<cond>`
+/// statement, which has no source word to anchor a diagnostic at. And
+/// `[info exists $p]` reads a cell nothing can name, which is a precision
+/// loss rather than a claim that any name is written: treating it as an opaque
+/// global-frame effect stopped an `[info exists Params($k)]` guard folding.
+#[test]
+fn an_existence_query_is_neither_a_read_before_set_nor_a_write() {
+    let guard = "proc p {} { if {[info exists q]} { puts a } else { puts b } }\np\n";
+    let codes = analyser_codes(guard, TCL);
+    assert!(
+        !codes.iter().any(|c| c == "W210"),
+        "an existence guard is not a read-before-set: {codes:?}"
+    );
+    assert!(
+        codes.iter().any(|c| c == "I230"),
+        "the guard still folds: {codes:?}"
+    );
+    let dynamic_element = "proc f {k} { if {[info exists Params($k)]} { puts hi } }";
+    assert!(
+        analyser_codes(dynamic_element, TCL)
+            .iter()
+            .any(|c| c == "I230"),
+        "an unnameable read must not suppress the array-guard fold: {:?}",
+        analyser_codes(dynamic_element, TCL)
+    );
+}
+
+/// #2051 — `regexp`, `scan` and `binary scan` write their targets only on the
+/// match path.
+///
+/// Each leaves a target's previous value in place when the match or
+/// conversion does not reach it, and never creates one that did not exist.
+/// Measured identical on tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1b0.
+/// Modelling the write as unconditional made the feeding store look
+/// overwritten-before-read, so O109 deleted it and the program did not merely
+/// print something else — it failed with `can't read "…"`.
+#[test]
+fn a_conditional_writer_does_not_kill_the_store_it_may_preserve() {
+    for (src, why) in [
+        (
+            "proc p {} {\n    set a before\n    set b before\n    regexp {(x)(y)} zz a b\n    puts \"$a $b\"\n}\np\n",
+            "a failed regexp leaves both match variables alone",
+        ),
+        (
+            "proc p {} {\n    set a before\n    set b before\n    scan {12 nope} {%d %d} a b\n    puts \"$a $b\"\n}\np\n",
+            "scan converts one field and leaves the second target alone",
+        ),
+        (
+            "proc p {d} {\n    set c before\n    set e before\n    binary scan $d \"a1a5\" c e\n    puts \"$c $e\"\n}\np AB\n",
+            "binary scan runs out of data and leaves the second target alone",
+        ),
+    ] {
+        assert!(
+            !opt_fires(src, TCL, "O109"),
+            "{why}: {:?}",
+            opt_codes(src, TCL)
+        );
+        // Asserted on the stores rather than byte-identity: the `binary scan`
+        // row also gets a legitimate O100, specialising its one call site's
+        // `$d` to `AB`, which is unrelated and correct.
+        let out = optimised(src, TCL);
+        assert_eq!(
+            out.matches("before").count(),
+            src.matches("before").count(),
+            "{why}: every store the command may preserve survives: {out}"
+        );
+    }
+}
+
+/// Precision: a command that writes its target on *every* path still has its
+/// dead store eliminated. Each was measured writing unconditionally, on the
+/// failure path too — `regsub {xx} zz YY a` leaves `a` as `zz`, `lassign`
+/// pads a short list with `""`, `catch` always writes its result variable.
+#[test]
+fn an_unconditional_writer_still_kills_its_dead_store() {
+    for (src, why) in [
+        (
+            "proc p {s} { set a 1; regsub {x} $s y a; puts $a }\np zz\n",
+            "regsub",
+        ),
+        (
+            "proc p {} { set m 1; catch {expr {1+1}} m; puts $m }\np\n",
+            "catch",
+        ),
+        (
+            "proc p {l} { set a 1; set b 2; lassign $l a b; puts \"$a $b\" }\np one\n",
+            "lassign",
+        ),
+    ] {
+        assert!(
+            opt_fires(src, TCL, "O109"),
+            "{why} writes on every path, so the earlier store is dead: {:?}",
+            opt_codes(src, TCL)
+        );
+    }
+}
+
+/// Precision: the no-match prover still reports a target a failed match never
+/// creates. Crediting the read must not silence W210, which is what keeps
+/// `regexp {x} y -> v; puts $v` reported — tclsh fails it with
+/// `can't read "v"`.
+#[test]
+fn the_no_match_prover_still_reports_an_uncreated_target() {
+    for src in [
+        "proc f {} { regexp {x} y -> v; puts $v }",
+        "proc f {} { scan abc %d v; puts $v }",
+    ] {
+        assert!(
+            analyser_codes(src, TCL).iter().any(|c| c == "W210"),
+            "a target the match never creates is still reported: {:?}",
+            analyser_codes(src, TCL)
+        );
+    }
+}
+
+/// A call site the caller-evidence scan cannot see must never read as
+/// agreement among the sites it can.
+///
+/// Every shape below reaches `id` with `9` through a surface the scan used to
+/// walk past — a `return` value and an `if` condition are CFG *terminators*,
+/// and a fused `AssignExpr` or `Incr` keeps a parsed expression or an amount
+/// string instead of words — so the lone visible `id 7` read as `id`'s
+/// complete caller set and O100 specialised the body to `return 7`. Measured
+/// on tclsh 8.6.18: `7 9` became `7 7` (#2118).
+#[test]
+fn a_call_site_in_a_terminator_or_fused_statement_is_evidence() {
+    for (why, caller) in [
+        ("a return value", "proc a {} { return [id 9] }"),
+        (
+            "a return value inside an expression",
+            "proc a {} { return [expr {[id 9]}] }",
+        ),
+        (
+            "an if condition",
+            "proc a {} { if {[id 9] > 5} { return big }\n return small }",
+        ),
+        (
+            "a fused expression assignment",
+            "proc a {} { set r [expr {[id 9]}]\n return $r }",
+        ),
+        (
+            "an incr amount",
+            "proc a {} { set t 0\n incr t [id 9]\n return $t }",
+        ),
+    ] {
+        let src = format!("proc id {{v}} {{ return $v }}\n{caller}\nputs [id 7]\nputs [a]\n");
+        assert!(
+            optimised(&src, TCL).contains("return $v"),
+            "{why} is a call site passing 9, so `v` is not the constant 7: {:?}",
+            opt_rewrites(&src, TCL)
+        );
+    }
+}
+
+/// The self-call hidden in a brace-quoted `expr` word — the shape #2118 was
+/// filed for.
+///
+/// `expr` re-parses its braced word as an expression, so the `[fact …]` in it
+/// is a command the statement really runs. Unseen, the two visible
+/// `fact 5 1` / `fact 3 1` sites agreed that `acc` was `1`: O100 folded the
+/// base case to `return 1` and tclsh 8.6.18's `120 6` became `1 1`. With one
+/// call site the same evidence let O112 delete the base case outright and the
+/// program no longer terminated.
+#[test]
+fn a_self_call_in_a_braced_expr_word_is_evidence() {
+    const BODY: &str = "proc fact {n acc} {\n    if {$n <= 1} { return $acc }\n    return [expr {[fact [expr {$n - 1}] [expr {$n * $acc}]]}]\n}\n";
+    for (why, src) in [
+        (
+            "two call sites",
+            format!("{BODY}puts [fact 5 1]\nputs [fact 3 1]\n"),
+        ),
+        ("one call site", format!("{BODY}puts [fact 5 1]\n")),
+    ] {
+        let out = optimised(&src, TCL);
+        assert!(
+            out.contains("return $acc"),
+            "{why}: the recursive call passes an `acc` that is not 1: {:?}",
+            opt_rewrites(&src, TCL)
+        );
+        assert!(
+            out.contains("if {$n <= 1}"),
+            "{why}: the base case is reachable and must survive: {:?}",
+            opt_rewrites(&src, TCL)
+        );
+    }
+}
+
+/// The descent is the registry's rule, not the spelling `expr`: a braced word
+/// the head does *not* evaluate as an expression stays literal text.
+#[test]
+fn a_braced_word_that_is_not_an_expression_runs_nothing() {
+    let src =
+        "proc id {v} { return $v }\nproc a {} { return [list {[id 9]}] }\nputs [id 7]\nputs [a]\n";
+    assert!(
+        optimised(src, TCL).contains("return 7"),
+        "`list {{[id 9]}}` passes literal text, so `id 7` really is the only call: {:?}",
+        opt_rewrites(src, TCL)
+    );
+}
+
+/// O122's gate counts every self-call and converts only when all of them are
+/// in tail position. A statement that keeps no argument words counted zero.
+///
+/// `count_self_calls_in_stmt` enumerated the variants that retain argument
+/// text and closed with a wildcard, so a fused `AssignExpr`, a bare
+/// `ExprEval` and an `Incr` each reported no self-call at all. Under-counting
+/// is the unsound direction — it makes the tail-site count match the total —
+/// and the same proc converted or not depending only on how its non-tail call
+/// was spelled (#2118).
+#[test]
+fn a_non_tail_self_call_blocks_o122_however_it_is_spelled() {
+    for (why, nontail) in [
+        (
+            "a plain command word",
+            "set acc [combine $acc [walk [left $node] 0]]",
+        ),
+        (
+            "a fused expression assignment",
+            "set acc [expr {$acc + [walk [left $node] 0]}]",
+        ),
+        (
+            "a bare expression statement",
+            "expr {[walk [left $node] 0]}",
+        ),
+        ("an incr amount", "incr acc [walk [left $node] 0]"),
+    ] {
+        let src = format!(
+            "proc walk {{node acc}} {{\n    if {{$node eq \"\"}} {{\n        return $acc\n    }}\n    {nontail}\n    return [walk [right $node] $acc]\n}}\n"
+        );
+        assert!(
+            !opt_fires(&src, TCL, "O122"),
+            "{why}: the loop body would still recurse: {:?}",
+            opt_codes(&src, TCL)
+        );
+    }
+}
+
+/// Precision: the gate counts self-calls, not brackets. A nested call to
+/// something else is not recursion, so the tail call still converts.
+#[test]
+fn o122_still_converts_past_a_nested_call_to_another_proc() {
+    for (why, nested) in [
+        (
+            "a fused expression assignment",
+            "set acc [expr {$acc + [weight $n]}]",
+        ),
+        ("an incr amount", "incr acc [weight $n]"),
+    ] {
+        let src = format!(
+            "proc walk {{n acc}} {{\n    if {{$n <= 0}} {{\n        return $acc\n    }}\n    {nested}\n    return [walk [expr {{$n - 1}}] $acc]\n}}\n"
+        );
+        assert!(
+            opt_fires(&src, TCL, "O122"),
+            "{why}: `weight` is not a self-call: {:?}",
+            opt_codes(&src, TCL)
+        );
+    }
+}
+
+/// Tcl substitutes inside a `"…"` expression operand, so a call written there
+/// is a call the statement runs — for the caller-evidence walk and for the
+/// variable-effect walk alike.
+///
+/// Both read the operand through `ExprNode::String`, which spans the quoted
+/// and the braced spelling and keeps its delimiters; both treated every
+/// string as inert. Measured on tclsh 8.6.18 (#2118, found in review).
+#[test]
+fn a_quoted_expression_operand_is_not_inert() {
+    // The caller-evidence half: `id 9` is a call site, so `v` is not the
+    // constant 7. tclsh prints `7` then `9`; the fold printed `7` twice.
+    let evidence = "proc id {v} { return $v }\nproc a {} { set r [expr {\"[id 9]\"}]\n return $r }\nputs [id 7]\nputs [a]\n";
+    assert!(
+        optimised(evidence, TCL).contains("return $v"),
+        "the quoted operand holds a call passing 9: {:?}",
+        opt_rewrites(evidence, TCL)
+    );
+
+    // The variable-effect half: the `incr` really runs, so the load of `x`
+    // after it cannot be forwarded from the store before it. tclsh prints
+    // `2` then `2`; O102 plus O109 made it print `1` twice.
+    let effect = "proc f {} {\n    set x 1\n    set y [expr {\"[incr x]\" + 0}]\n    puts $x\n    puts $y\n}\n";
+    assert!(
+        !opt_fires(effect, TCL, "O102"),
+        "a store cannot be forwarded across a write the operand performs: {:?}",
+        opt_codes(effect, TCL)
+    );
+
+    // Precision: the braced spelling really is inert, and still folds.
+    let braced = "proc f {} {\n    set x 1\n    set y [expr {\"a\" eq \"a\"}]\n    return $y\n}\n";
+    assert!(
+        reparse_errors(braced, TCL).is_empty(),
+        "a quoted operand with no substitution is unaffected: {:?}",
+        reparse_errors(braced, TCL)
+    );
+}

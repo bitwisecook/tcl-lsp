@@ -1868,6 +1868,35 @@ fn uses_in_call(
             reads_own_def.insert(name.clone());
         }
     }
+    // A conditional writer (`regexp`, `scan`, `binary scan`) stores into its
+    // targets only on the match / conversion path; on the other path tclsh
+    // leaves each previous value in place and never creates a target that did
+    // not exist (8.4.20 through 9.1b0, all identical). So the definition this
+    // statement appears to kill is still live, and deleting the store feeding
+    // it changes the program: `set a before; regexp {(x)(y)} zz a b; puts $a`
+    // prints `before`, and with the store gone it failed outright with
+    // `can't read "a"` (#2051).
+    //
+    // Modelled exactly like the destroyer above, and for the same reason: the
+    // def stays, so `emit_provably_unset_w210` still sees it and the no-match
+    // prover keeps working, while the prior version becomes a read.
+    //
+    // `invocation_traits` rather than `get`, because `binary scan` carries the
+    // trait on its *subcommand*.
+    let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
+    let conditionally_writes = registry
+        .invocation_traits(
+            canonical_command.as_deref().unwrap_or(command),
+            &arg_strs,
+            registry.own_surface_query(),
+        )
+        .contains(tcl_registry::Traits::CONDITIONAL_VARIABLE_WRITE);
+    if conditionally_writes {
+        for name in defs {
+            found.by_name.insert(name.clone());
+            reads_own_def.insert(name.clone());
+        }
+    }
 }
 
 fn uses_in_assignment(
@@ -3199,6 +3228,7 @@ mod tests {
     fn make_return() -> Terminator {
         Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
@@ -3474,6 +3504,7 @@ mod tests {
         let stmt = Statement::Return {
             span: Span::new(0, 10),
             value: Some("1".into()),
+            value_word: None,
             expr: None,
             command_binding: None,
             braced: false,
@@ -4082,6 +4113,7 @@ mod tests {
         let stmt = Statement::Return {
             span: Span::new(0, 15),
             value: Some("$result".into()),
+            value_word: None,
             expr: None,
             command_binding: None,
             braced: false,
@@ -4246,6 +4278,7 @@ mod tests {
         let stmt = Statement::Return {
             span: Span::new(0, 15),
             value: Some("$y".into()),
+            value_word: None,
             expr: None,
             command_binding: None,
             braced: true,
@@ -4681,6 +4714,7 @@ mod tests {
         }
         func.blocks.get_mut(&end).unwrap().terminator = Some(Terminator::Return {
             value: Some("$($a)".into()),
+            value_word: None,
             span: None,
             expr: None,
             braced: false,

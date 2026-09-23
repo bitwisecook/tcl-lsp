@@ -249,6 +249,7 @@ mod tests {
         f.blocks.get_mut(&body).unwrap().terminator = Some(goto(entry));
         f.blocks.get_mut(&exit).unwrap().terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
@@ -267,6 +268,7 @@ mod tests {
         f.blocks.get_mut(&entry).unwrap().terminator = Some(goto(next));
         f.blocks.get_mut(&next).unwrap().terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
@@ -298,6 +300,7 @@ mod tests {
         f.blocks.get_mut(&body).unwrap().terminator = Some(goto(head));
         f.blocks.get_mut(&exit).unwrap().terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
@@ -328,6 +331,7 @@ mod tests {
         ));
         f.blocks.get_mut(&exit).unwrap().terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
@@ -356,6 +360,7 @@ mod tests {
         f.blocks.get_mut(&c).unwrap().terminator = Some(branch(cond(), c, done));
         f.blocks.get_mut(&done).unwrap().terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
@@ -387,6 +392,7 @@ mod tests {
             ));
             f.blocks.get_mut(&side).unwrap().terminator = Some(Terminator::Return {
                 value: None,
+                value_word: None,
                 span: None,
                 expr: None,
                 braced: false,
@@ -395,6 +401,7 @@ mod tests {
         }
         f.blocks.get_mut(&prev).unwrap().terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,

@@ -136,6 +136,18 @@ struct ResolvedUpvarEffects {
     frame_barrier: crate::dynamic_names::DynamicNameBarrier,
 }
 
+/// The variable effects a loop or branch condition's `[…]` substitutions
+/// contribute to the frame the condition is evaluated in.
+#[derive(Default)]
+struct ConditionEffects {
+    /// Variables the condition's substitutions write.
+    defs: Vec<String>,
+    /// The subset of [`Self::defs`] read before being written.
+    reads: Vec<String>,
+    /// An embedded callee runs an unreadable script at the global frame.
+    opaque_global: bool,
+}
+
 /// The caller-frame effects a statement's `[…]` substitutions contribute.
 #[derive(Default)]
 struct EmbeddedSubstExtras {
@@ -654,7 +666,11 @@ impl<'a> CfgBuilder<'a> {
             opaque_global: embedded_opaque_global,
         } = self.embedded_subst_extras(&stmt);
 
-        if direct_extras.is_empty() && embedded_extras.is_empty() && !embedded_opaque_global {
+        if direct_extras.is_empty()
+            && embedded_extras.is_empty()
+            && embedded_reads.is_empty()
+            && !embedded_opaque_global
+        {
             return match direct_opaque_barrier {
                 Some(barrier) => vec![stmt, barrier],
                 None => vec![stmt],
@@ -718,7 +734,7 @@ impl<'a> CfgBuilder<'a> {
         if let Some(barrier) = opaque_barrier {
             out.push(barrier);
         }
-        if !embedded_extras.is_empty() {
+        if !embedded_extras.is_empty() || !embedded_reads.is_empty() {
             out.push(Statement::Call {
                 span: stmt.span(),
                 command: "<upvar-invalidate>".to_string(),
@@ -925,9 +941,30 @@ impl<'a> CfgBuilder<'a> {
                 embedded_extras.push(d);
             }
         }
+        // A `VarRead`-role word inside a substitution observes its target
+        // without writing it (`set e [info exists x]`), so it is never among
+        // the write effects. Same rule as the condition path (#2132).
+        let mut reads = writes.read_names;
+        let role_reads = crate::ir_helpers::variable_read_effects_from_commands(
+            embedded.all_commands(),
+            self.registry,
+        );
+        // As above, deliberately *not* folded into `opaque`: an unnameable **read**
+        // (`[info exists $p]`) observes a cell we cannot name, which is a
+        // precision loss, not a claim that anything is written. The
+        // `opaque_global` barrier means "this may write any name anywhere",
+        // and asserting that for a read made an `[info exists Params($k)]`
+        // guard stop folding. A dynamic read's effect on dead-store
+        // elimination is already owned by `dynamic_names.reads`, which
+        // abstains for the whole function.
+        for r in role_reads.names {
+            if !reads.contains(&r) {
+                reads.push(r);
+            }
+        }
         EmbeddedSubstExtras {
             defs: embedded_extras,
-            read_before_write: writes.read_names,
+            read_before_write: reads,
             opaque_global: embedded_opaque_global,
         }
     }
@@ -1031,7 +1068,7 @@ impl<'a> CfgBuilder<'a> {
     /// unreadable script at the global frame: the caller must
     /// then push an opaque barrier alongside the `<cond>` defs, because no
     /// def list can enumerate what the condition's evaluation clobbers.
-    fn condition_out_vars(&self, condition: &ExprNode) -> (Vec<String>, bool) {
+    fn condition_out_vars(&self, condition: &ExprNode) -> ConditionEffects {
         let mut out = crate::ir_helpers::condition_command_out_vars(condition, self.registry);
         let embedded = crate::ir_helpers::expression_command_substitutions(
             condition,
@@ -1062,7 +1099,40 @@ impl<'a> CfgBuilder<'a> {
                 out.push(d);
             }
         }
-        (out, opaque)
+        // A condition's `[incr n]` observes `n` before overwriting it, exactly
+        // as the same substitution does in an argument word. Recording only
+        // the write made the store feeding the condition look
+        // overwritten-before-read, and O109 deleted it: tclsh 9.0.4 prints `6`
+        // for `proc p {} {set n 5; if {[incr n]} {puts $n}}` and the optimised
+        // program printed `1` (#2132).
+        // An `[info exists n]` / `[array size a]` in the condition reads its
+        // target without writing it at all, so the read never appears among
+        // the write effects above. `proc p {} {set x 1; if {[info exists x]}
+        // {puts yes}}` prints `yes` on tclsh 9.0.4; without this the store was
+        // removed as unused and the program printed nothing.
+        let mut reads = writes.read_names;
+        let role_reads = crate::ir_helpers::variable_read_effects_from_commands(
+            embedded.all_commands(),
+            self.registry,
+        );
+        // Deliberately *not* folded into `opaque`: an unnameable **read**
+        // (`[info exists $p]`) observes a cell we cannot name, which is a
+        // precision loss, not a claim that anything is written. The
+        // `opaque_global` barrier means "this may write any name anywhere",
+        // and asserting that for a read made an `[info exists Params($k)]`
+        // guard stop folding. A dynamic read's effect on dead-store
+        // elimination is already owned by `dynamic_names.reads`, which
+        // abstains for the whole function.
+        for r in role_reads.names {
+            if !reads.contains(&r) {
+                reads.push(r);
+            }
+        }
+        ConditionEffects {
+            defs: out,
+            reads,
+            opaque_global: opaque,
+        }
     }
 
     /// Push the `<cond>` synthetic call (and, when the condition's embedded
@@ -1070,15 +1140,19 @@ impl<'a> CfgBuilder<'a> {
     /// command substitutions — the shared tail of `lower_if`, `lower_while`,
     /// and the frozen-loop barrier.
     fn push_condition_effects(&mut self, condition: &ExprNode, span: Span, block: &str) {
-        let (cond_defs, opaque) = self.condition_out_vars(condition);
-        if !cond_defs.is_empty() {
+        let ConditionEffects {
+            defs,
+            reads,
+            opaque_global: opaque,
+        } = self.condition_out_vars(condition);
+        if !defs.is_empty() || !reads.is_empty() {
             self.block_mut(block).statements.push(Statement::Call {
                 span,
                 command: "<cond>".into(),
                 canonical_command: None,
                 args: Vec::new(),
-                defs: cond_defs,
-                reads: Vec::new(),
+                defs,
+                reads,
                 reads_own_defs: false,
                 safe_on_uninit: false,
                 tokens: Some(crate::ir::CommandTokens::marker(
@@ -1176,6 +1250,7 @@ impl<'a> CfgBuilder<'a> {
                 }
                 self.block_mut(current).terminator = Some(Terminator::Return {
                     value: None,
+                    value_word: None,
                     span: Some(*span),
                     expr: None,
                     braced: false,
@@ -1432,6 +1507,7 @@ impl<'a> CfgBuilder<'a> {
         self.push_plain_statement(current, stmt);
         self.block_mut(current).terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: Some(span),
             expr: None,
             braced: false,
@@ -1442,6 +1518,7 @@ impl<'a> CfgBuilder<'a> {
         let Statement::Return {
             span,
             value,
+            value_word,
             expr,
             command_binding,
             braced,
@@ -1466,6 +1543,7 @@ impl<'a> CfgBuilder<'a> {
         }
         self.block_mut(current).terminator = Some(Terminator::Return {
             value: value.clone(),
+            value_word: value_word.clone(),
             span: Some(*span),
             expr: expr.clone(),
             braced: *braced,
@@ -1499,7 +1577,7 @@ impl<'a> CfgBuilder<'a> {
                 )),
             });
         }
-        if !extras.is_empty() {
+        if !extras.is_empty() || !extra_reads.is_empty() {
             self.block_mut(current).statements.push(Statement::Call {
                 span: stmt.span(),
                 command: "<upvar-invalidate>".to_string(),
@@ -3588,6 +3666,7 @@ mod tests {
             Statement::Return {
                 span: Span::new(8, 16),
                 value: Some("$x".into()),
+                value_word: None,
                 expr: None,
                 command_binding: None,
                 braced: false,
