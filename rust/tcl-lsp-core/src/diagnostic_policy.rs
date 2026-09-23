@@ -709,6 +709,16 @@ pub enum OverlapScope {
 /// flow.
 pub const WHOLE_FILE_CODES: &[DiagCode] = &[DiagCode::W107, DiagCode::W109, DiagCode::W118];
 
+/// Codes whose findings another producer reads as a fact — O111 reads W100's
+/// sites — so the analyser computes them whatever the policy says; the policy
+/// step still decides whether they show.
+///
+/// The analyser's production-time skip is safe only because its findings are
+/// not read as facts (`docs/design/compiler/diagnostic-policy.md` § Failure
+/// modes); W100 and O111 consume the same unbraced-expression fact (§ Producers
+/// that change), so disabling W100 must not take O111's input away.
+pub const FACT_CODES: &[DiagCode] = &[DiagCode::W100];
+
 /// The overlap entries every dialect carries.
 fn base_overlaps() -> Vec<Overlap> {
     vec![Overlap {
@@ -999,11 +1009,25 @@ impl Policy {
             .or_else(|| self.code_reason(code))
     }
 
-    /// The codes a producer may leave uncomputed: every catalogued code the
-    /// per-code decision turns off — a layer's `false`, or the default-off
-    /// seed no layer turned on. Rule 2's permitted saving
-    /// (`docs/design/compiler/diagnostic-policy.md` § Producers that change),
-    /// the analyser's `with_disabled_diagnostics` set on every surface.
+    /// Every catalogued code the per-code decision turns off — a layer's
+    /// `false`, or the default-off seed no layer turned on — whatever a
+    /// producer then computes. What a surface reports as the codes the
+    /// configuration disables (`getEffectiveConfig`, the INI export).
+    #[must_use]
+    pub fn disabled_codes(&self) -> BTreeSet<DiagCode> {
+        DiagCode::ALL
+            .iter()
+            .copied()
+            .filter(|code| self.decision_reason(*code).is_some())
+            .collect()
+    }
+
+    /// The codes a producer may leave uncomputed: [`Self::disabled_codes`]
+    /// less [`FACT_CODES`], which another producer reads as a fact. Rule 2's
+    /// permitted saving (`docs/design/compiler/diagnostic-policy.md`
+    /// § Producers that change), the analyser's `with_disabled_diagnostics`
+    /// set on every surface. A disabled fact code is computed and then
+    /// suppressed, so its reason is recorded on the finding itself.
     ///
     /// The family gates are not in it. No producer that honours a skip emits
     /// an optimisation or a shimmer code — the analyser emits neither, and
@@ -1014,11 +1038,11 @@ impl Policy {
     /// whole code.
     #[must_use]
     pub fn production_skip(&self) -> BTreeSet<DiagCode> {
-        DiagCode::ALL
-            .iter()
-            .copied()
-            .filter(|code| self.decision_reason(*code).is_some())
-            .collect()
+        let mut skip = self.disabled_codes();
+        for code in FACT_CODES {
+            skip.remove(code);
+        }
+        skip
     }
 
     /// What the analyser leaves uncomputed under this policy:
@@ -2574,6 +2598,33 @@ mod apply_tests {
         assert!(!skip.contains(&DiagCode::O107));
         assert_eq!(policy.code_reason(DiagCode::S100), Some(Reason::ShimmerOff));
         assert!(!skip.contains(&DiagCode::S100));
+    }
+
+    #[test]
+    fn production_skip_never_skips_a_fact_code() {
+        let policy = PolicyBuilder::new()
+            .layer(
+                PolicyLayer::Editor,
+                &json!({ "diagnostics": { "W100": false, "W210": false } }),
+            )
+            .build();
+        let skip = policy.production_skip();
+        assert!(!skip.contains(&DiagCode::W100), "W100 is read as a fact");
+        assert!(skip.contains(&DiagCode::W210));
+        assert_eq!(
+            policy.code_reason(DiagCode::W100),
+            Some(Reason::Disabled(PolicyLayer::Editor)),
+            "the policy step still hides it"
+        );
+        assert!(policy.disabled_codes().contains(&DiagCode::W100));
+        // A top-of-file directive the analyser folds is the analyser's own
+        // skip, fact code or not.
+        let text = "# tcl-lsp: disable=W100\nputs ok\n";
+        let directed = Policy {
+            directives: Directives::scan(text, tcl9()),
+            ..Policy::default()
+        };
+        assert!(directed.analyser_skip().contains(&DiagCode::W100));
     }
 
     #[test]

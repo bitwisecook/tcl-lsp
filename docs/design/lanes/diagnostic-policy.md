@@ -1003,6 +1003,49 @@ With them, #2062's own program is a test on both rewrite surfaces:
 `opt_keeps_a_store_a_noqa_o109_marks` and
 `optimize_keeps_a_store_a_noqa_o109_marks`.
 
+## Slices 8–10 as built
+
+One record per item, in the order the items land; § *Progress* has the
+commits.
+
+### DP8.1 — a fact code is computed, then decided
+
+`FACT_CODES` (W100) and `Policy::disabled_codes` in `diagnostic_policy.rs`:
+`production_skip` is `disabled_codes` less the fact codes, and
+`analyser_skip` builds on it, so a W100 a layer turns off is computed by
+the analyser and suppressed `Disabled(layer)` by the policy step. A
+`# tcl-lsp: disable=W100` still reaches the analyser's own skip, which folds
+the file directive inside `tcl-compiler` (§ Open questions 5). No surface's
+shown set changes. Test `production_skip_never_skips_a_fact_code`.
+
+The item names `diagnostic_policy.rs` alone; two server readers of the
+skip needed the change too (D44). The INI export writes
+`PolicyLayers::disabled_codes`; `getEffectiveConfig` writes
+`PolicyLayers::reported_disabled`, the skip in force plus the disabled
+fact codes. `tcl-lsp.fixAllSafeIssues` builds the document's policy on each
+pass, applies the shown findings' fixes (`bulk_applicable_fixes` reads a
+`Report`), and analyses under `PolicyLayers::production_skip` of the
+document's own layers. `Backend::analyser_config` lost its last caller and
+is deleted. Tests: server
+`a_disabled_fact_code_is_reported_disabled_but_computed` (the session skip
+lacks W100; `disabled_diagnostics` is `["W100", "W242"]`; the export has
+`W100 = false`), `fix_all_safe_issues_applies_only_shown_fixes` (the
+control is braced; under `# noqa: W100`, with W100 off at a layer, and on
+a document that abstains — whose decoded text alone is braced — nothing is
+applied) and
+`fix_all_safe_issues_analyses_under_the_documents_layers` (IRULE2002 off
+for the session and on for a folder: `http_host` becomes `HTTP::host`
+under the folder and stays elsewhere; red under the session's skip). The
+`e2e` test `fix_all_safe_issues_respects_a_disabled_diagnostic` passes
+unchanged, and its comment says why.
+
+Suites: core `--lib` 2325; server `--lib` 589; the whole `e2e` 1597 (5
+ignored); `tcl-mcp` 99; `tcl-cli --test cli` 41. The crate clippy on
+`tcl-lsp-core` and `tcl-lsp-server` (`--all-targets --all-features
+--no-deps -D warnings`) is clean, `cargo fmt --check` is clean on both, and
+`cargo check --workspace` is green. Nothing regenerates: no diagnostic
+code, flag or setting changed.
+
 ## Plan for finishing slices 4–7 and for slices 8–10
 
 The execution plan from the checkpoint `5bc40e95` to the end of the page's
@@ -3429,6 +3472,28 @@ Decisions the implementation of slices 4–7 took (DP4.1 onwards):
   a source, as `tcl opt`'s output does, and `changed` says whether a
   rewrite applied rather than whether the endings differ.
 
+Decisions slice 8 took:
+
+- **D44. A disabled fact code is still reported disabled, and the bulk fix
+  reads the report (DP8.1).** Computing a W100 a layer turns off changes
+  two readers of the analyser's skip that the item does not name.
+  `getEffectiveConfig`'s `disabled_diagnostics` and the INI export printed
+  the skip, so they would have stopped listing a W100 the user turned off;
+  the export now writes what the configuration turns off
+  (`Policy::disabled_codes`), and `getEffectiveConfig` reports the skip in
+  force plus the fact codes the layers turn off — the same list once a
+  re-pull settles. It keeps reading the skip because a re-pull writes the
+  layers first and the skip last, so a client that waits for a code to
+  leave the list (the `e2e` barrier) knows the analyser computes it again;
+  a fact code needs no such wait. `tcl-lsp.fixAllSafeIssues` took every
+  bulk-applicable fix the analysis carried, so it would have braced the
+  W100 the user turned off. It now decides each pass's findings under the
+  document's policy and applies the fixes of the shown findings only —
+  § Adapters, code actions: "A fix is offered for a shown finding and for
+  no other" — and it analyses under the document's own layers' skip rather
+  than the session's, so the skip and the policy come from one set of
+  layers, as `PolicyLayers::production_skip` states.
+
 ### Open questions for the owner
 
 Each with the assumption the plan proceeds on.
@@ -3653,6 +3718,14 @@ hand-off delta nothing mandates, for the owner.
 
 **Slice 8 — O111.**
 
+- `tcl-lsp.fixAllSafeIssues` applies no fix for a finding the report
+  suppresses, so a `# noqa` over the command and an abstaining document
+  now keep their fixes unapplied; a code a layer turns off stays
+  unapplied, W100 included now that it is computed — § Adapters, code
+  actions (DP8.1, D44).
+- In a multi-root workspace `tcl-lsp.fixAllSafeIssues` analyses under the
+  document's folder's layers, so a code a folder turns back on gets its
+  bulk fixes there (D44).
 - Disabling W100, or a `# noqa: W100`, keeps O111 — § Producers that
   change.
 - O111 sits right after the analyser's findings again (D12).
@@ -3691,7 +3764,7 @@ Each item updates its row in the commit that lands it.
 | DP7.1 | opus | M | done (the merge of `rust`) | the merge commit | core and server `--lib`, the whole `e2e`; the crate clippy |
 | DP7.2 | opus | S | done (the merge of `rust`) | the merge commit | core `--lib`, `tcl-cli`, `tcl-mcp`; the crate clippy |
 | DP7.3 | sonnet | S | done (by the lane implementer) | `DP7.3 — code-action end-to-end tests; the last name of the old lifter` | `e2e -- code_actions` (93), `tcl-lsp-core --test code_actions_depth` (46); clippy on core and server |
-| DP8.1 | opus | S | not started | — | — |
+| DP8.1 | opus | S | done — § *Slices 8–10 as built* | `DP8.1 — a fact code is never skipped at production` | core `--lib`, server `--lib`, the whole `e2e`, `tcl-mcp`, `tcl-cli --test cli`; clippy on core and server; `cargo check --workspace` |
 | DP8.2 | opus | M | not started | — | — |
 | DP8.3 | sonnet | S | not started | — | — |
 | DP9.1 | sonnet | S | not started | — | — |

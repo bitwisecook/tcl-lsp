@@ -6130,6 +6130,45 @@ impl PolicyLayers {
         skip.sort();
         skip
     }
+
+    /// Every code these layers turn off, sorted — what the configuration
+    /// disables ([`core_policy::Policy::disabled_codes`]), a fact code the
+    /// analyser still computes included. What the INI export writes; the
+    /// analyser's skip is [`Self::production_skip`].
+    fn disabled_codes(&self) -> Vec<String> {
+        let mut codes: Vec<String> = self
+            .builder()
+            .build()
+            .disabled_codes()
+            .iter()
+            .map(ToString::to_string)
+            .collect();
+        codes.sort();
+        codes
+    }
+
+    /// The disabled set `getEffectiveConfig` reports, sorted: `skip`, the
+    /// analyser's skip in force, plus the fact codes these layers turn off,
+    /// which no skip carries ([`core_policy::FACT_CODES`]). Once a
+    /// configuration re-pull has settled it is [`Self::disabled_codes`].
+    ///
+    /// The skip is read rather than re-derived because a re-pull writes it
+    /// after the layers, inside the analyser-inputs gate: a client that waits
+    /// for a code to leave the list knows the analyser computes it again. A
+    /// fact code needs no such wait — the analyser computes it whatever the
+    /// layers say, and only the policy, which reads the layers, decides it.
+    fn reported_disabled<'a>(&self, skip: impl IntoIterator<Item = &'a String>) -> Vec<String> {
+        let mut codes: std::collections::BTreeSet<String> = skip.into_iter().cloned().collect();
+        codes.extend(
+            self.builder()
+                .build()
+                .disabled_codes()
+                .into_iter()
+                .filter(|code| core_policy::FACT_CODES.contains(code))
+                .map(|code| code.to_string()),
+        );
+        codes.into_iter().collect()
+    }
 }
 
 /// The policy one document's report is decided under: `layers` plus the
@@ -17905,12 +17944,14 @@ impl Backend {
     /// actions — but neither belongs in an unattended bulk pass.
     ///
     /// Per pass: re-analyse (so a fix whose proof depended on text an earlier
-    /// pass rewrote is re-derived rather than re-used), take each
-    /// diagnostic's first bulk-applicable fix, drop any whose span overlaps
-    /// one already chosen, and apply the rest from the end of the buffer
-    /// backwards so earlier offsets stay valid.  A diagnostic whose code the
-    /// user disabled is not analysed in the first place, so its fixes cannot
-    /// be applied here either.
+    /// pass rewrote is re-derived rather than re-used), decide the findings
+    /// under the document's policy, take each *shown* finding's first
+    /// bulk-applicable fix, drop any whose span overlaps one already chosen,
+    /// and apply the rest from the end of the buffer backwards so earlier
+    /// offsets stay valid.  A fix is applied for a shown finding and for no
+    /// other (`docs/design/compiler/diagnostic-policy.md` § Adapters, code
+    /// actions): a code a layer turns off — computed or not — a `# noqa` over
+    /// the command, and an abstaining document's findings all apply nothing.
     async fn fix_all_safe_issues_command(
         &self,
         args: &[serde_json::Value],
@@ -17924,7 +17965,14 @@ impl Backend {
         let Some(doc) = self.read_local_document(&uri).await else {
             return Ok(None);
         };
-        let (disabled, na_mode) = self.analyser_config().await;
+        let na_mode = *self.non_ascii_mode.lock().await;
+        // The document's own layers decide what shows, and their production
+        // skip is what the analyser leaves uncomputed, so a code a folder
+        // turns back on is computed for it and a gap is one the report can
+        // explain.
+        let layers = self.resolved_policy_layers(&uri).await;
+        let disabled = layers.production_skip();
+        let decode_report = doc.decode_report;
         let extra: HashSet<String> = self.extra_commands.lock().await.iter().cloned().collect();
         let pack_key = self.spec_packs().await.key;
         let resource = self.resource_analyser_inputs(Some(&uri)).await;
@@ -17949,7 +17997,14 @@ impl Backend {
                     resource.clone(),
                 );
                 let analysis = analyser.analyse(&tcl_lexer::normalise_lone_cr(&source), &dialect);
-                let chosen = Self::bulk_applicable_fixes(&analysis);
+                let policy = document_policy(
+                    &layers,
+                    decode_report.as_ref(),
+                    tcl_lsp_core::profile_for_dialect(&dialect),
+                    core_policy::Directives::from_analysis(&analysis, &source),
+                );
+                let report = core_policy::apply(analyser_findings(&analysis.diagnostics), &policy);
+                let chosen = Self::bulk_applicable_fixes(&report);
                 if chosen.is_empty() {
                     break;
                 }
@@ -17984,11 +18039,11 @@ impl Backend {
         Ok(Some(value))
     }
 
-    /// The fixes one "Fix All Safe Issues" pass may apply to `analysis`:
-    /// every diagnostic's first [`FixSafety::is_bulk_applicable`] fix, in
+    /// The fixes one "Fix All Safe Issues" pass may apply from `report`:
+    /// every shown finding's first [`FixSafety::is_bulk_applicable`] fix, in
     /// ascending start order, with overlapping fixes dropped.
     ///
-    /// Three filters, in order:
+    /// Three filters, in order, over what the report shows:
     ///
     /// 1. **Provably equivalent only.** A fix is taken only when its emitter
     ///    classified *that instance* as semantics-preserving.  A diagnostic
@@ -18001,12 +18056,12 @@ impl Backend {
     ///    wins and the other is left for the next pass, where it is
     ///    re-derived from the rewritten source (so a fix whose proof the
     ///    first edit invalidated is simply not re-offered).
-    fn bulk_applicable_fixes(analysis: &tcl_compiler::analyser::AnalysisResult) -> Vec<BulkFix> {
-        let mut candidates: Vec<BulkFix> = analysis
-            .diagnostics
-            .iter()
-            .filter_map(|diag| {
-                let fix = diag
+    fn bulk_applicable_fixes(report: &core_policy::Report) -> Vec<BulkFix> {
+        let mut candidates: Vec<BulkFix> = report
+            .shown()
+            .filter_map(|shown| {
+                let finding = shown.finding;
+                let fix = finding
                     .fixes
                     .iter()
                     .find(|fix| fix.safety.is_bulk_applicable())?;
@@ -18014,7 +18069,7 @@ impl Backend {
                     start: fix.span.start(),
                     end: fix.span.end(),
                     new_text: fix.new_text.clone(),
-                    code: diag.code.to_string(),
+                    code: finding.code.to_string(),
                     description: fix.description.clone(),
                     safety: fix.safety.as_str(),
                 })
@@ -18153,25 +18208,31 @@ impl Backend {
         let (spec_packs, spec_packs_loaded, pack_file_extensions) = self.spec_pack_report().await;
         let line_length = *self.line_length.lock().await;
         let docstring_style_str = self.reported_docstring_style(parsed_uri.as_ref()).await;
-        // Report the *per-folder* analyser settings (the same resolver the
+        // Report the *per-folder* analyser settings (the same resolvers the
         // feature/diagnostics paths use), not the process-global ones: in a
         // multi-root workspace a folder may override the disabled-codes set /
         // non-ASCII mode, and this "trace where a setting comes from" tool must
         // reflect what actually applies to `uri_str`.  A URI naming no
         // overriding folder (or a single-root workspace) falls back to the
-        // global `db_config`, matching the previous behaviour exactly.
-        let (mut disabled_sorted, mode) = if let Some(uri) = &parsed_uri {
+        // global `db_config`, matching the previous behaviour exactly.  The
+        // disabled set is the analyser's skip plus the fact codes the layers
+        // turn off ([`PolicyLayers::reported_disabled`]).
+        let (disabled_sorted, mode) = if let Some(uri) = &parsed_uri {
+            let layers = self.resolved_policy_layers(uri).await;
             let config = self.resolved_db_config(uri).await;
             let db = self.db.lock().await;
             (
-                config.disabled_diagnostics(&*db).clone(),
+                layers.reported_disabled(config.disabled_diagnostics(&*db)),
                 config.non_ascii_mode(&*db),
             )
         } else {
-            let (disabled, mode) = self.analyser_config().await;
-            (disabled.into_iter().collect::<Vec<String>>(), mode)
+            let layers = self.policy_layers.lock().await.clone();
+            let skip = self.disabled_diagnostics.lock().await.clone();
+            (
+                layers.reported_disabled(&skip),
+                *self.non_ascii_mode.lock().await,
+            )
         };
-        disabled_sorted.sort();
         Ok(Some(serde_json::json!({
             "uri": uri_str,
             "folder_uri": folder_uri,
@@ -19482,14 +19543,7 @@ impl Backend {
         let features = self.feature_toggles.lock().await.resolved_map();
         let optimiser_enabled = *self.optimiser_enabled.lock().await;
         let line_length = *self.line_length.lock().await;
-        let mut disabled: Vec<String> = self
-            .disabled_diagnostics
-            .lock()
-            .await
-            .iter()
-            .cloned()
-            .collect();
-        disabled.sort();
+        let disabled = self.policy_layers.lock().await.disabled_codes();
         let exclude = self.diagnostics_exclude.lock().await.clone();
 
         let mut out = String::from("# tcl-lsp configuration (exported)\n\n[features]\n");
@@ -19517,15 +19571,6 @@ impl Backend {
             }
         }
         out
-    }
-
-    /// Snapshot the user-configured analyser settings (disabled
-    /// diagnostic codes + W108 non-ASCII mode) so a blocking analysis
-    /// worker can build its `Analyser` without holding any async mutex.
-    async fn analyser_config(&self) -> (HashSet<String>, NonAsciiMode) {
-        let disabled = self.disabled_diagnostics.lock().await.clone();
-        let mode = *self.non_ascii_mode.lock().await;
-        (disabled, mode)
     }
 
     /// Resolve the analyser-affecting settings for `uri`: a per-folder editor
@@ -38614,10 +38659,159 @@ proc p {} {
         );
     }
 
-    /// `getEffectiveConfig` and the INI export list the session's analyser
-    /// skip, which holds catalogued codes only: an uncatalogued spelling is no
-    /// code the analyser could leave uncomputed, and the default-off seed is
-    /// in it until a layer turns the code on (DP4.1).
+    /// A disabled fact code is computed and suppressed, never skipped (DP8.1):
+    /// the session's analyser skip leaves W100 out, while `getEffectiveConfig`
+    /// and the INI export still list it as disabled — they report what the
+    /// configuration turns off, not what the analyser skips.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_disabled_fact_code_is_reported_disabled_but_computed() {
+        let backend = test_backend();
+        backend
+            .apply_global_config(&serde_json::json!({ "diagnostics": { "W100": false } }))
+            .await;
+        assert!(
+            !backend.disabled_diagnostics.lock().await.contains("W100"),
+            "the analyser computes W100 for O111",
+        );
+        let effective = backend
+            .get_effective_config_command(&[serde_json::json!("file:///fact.tcl")])
+            .await
+            .expect("effective config")
+            .expect("config payload");
+        assert_eq!(
+            effective["disabled_diagnostics"],
+            serde_json::json!(["W100", "W242"]),
+            "{effective}"
+        );
+        assert!(backend.render_config_ini().await.contains("W100 = false"));
+    }
+
+    /// `fixAllSafeIssues` applies a fix for a shown finding and for no other:
+    /// a `# noqa: W100` over the command, W100 turned off at a layer, and an
+    /// abstaining document each keep the brace fix from being applied in bulk
+    /// (DP8.1, D44).
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn fix_all_safe_issues_applies_only_shown_fixes() {
+        let fixed = |out: Option<serde_json::Value>| {
+            out.and_then(|v| v["source"].as_str().map(str::to_owned))
+                .expect("a result")
+        };
+        let backend = test_backend();
+        let plain = Uri::from_str("file:///fixall-plain.tcl").unwrap();
+        register(&backend, &plain, "set n [expr abs(-2)]\n").await;
+        let out = backend
+            .fix_all_safe_issues_command(&[serde_json::json!(plain.as_str())])
+            .await
+            .expect("ok");
+        assert_eq!(
+            fixed(out),
+            "set n [expr {abs(-2)}]\n",
+            "the control is fixed"
+        );
+
+        let marked = Uri::from_str("file:///fixall-noqa.tcl").unwrap();
+        let src = "# noqa: W100\nset n [expr abs(-2)]\n";
+        register(&backend, &marked, src).await;
+        let out = backend
+            .fix_all_safe_issues_command(&[serde_json::json!(marked.as_str())])
+            .await
+            .expect("ok");
+        assert_eq!(fixed(out), src, "a silenced W100 applies nothing");
+
+        let disabled = test_backend();
+        disabled
+            .apply_global_config(&serde_json::json!({ "diagnostics": { "W100": false } }))
+            .await;
+        let uri = Uri::from_str("file:///fixall-disabled.tcl").unwrap();
+        register(&disabled, &uri, "set n [expr abs(-2)]\n").await;
+        let out = disabled
+            .fix_all_safe_issues_command(&[serde_json::json!(uri.as_str())])
+            .await
+            .expect("ok");
+        assert_eq!(
+            fixed(out),
+            "set n [expr abs(-2)]\n",
+            "a disabled W100 applies nothing"
+        );
+
+        // A UTF-16 byte-order mark ahead of UTF-8 text: the document
+        // abstains, so no analyser finding shows and nothing is applied.
+        let (text, report) =
+            tcl_lsp_core::source_decode::decode_source(b"\xff\xfeset n [expr abs(-2)]\n");
+        assert!(report.requires_abstention());
+        let abstaining = Uri::from_str("file:///fixall-abstaining.tcl").unwrap();
+        let mut doc = DocumentState::new(text.clone(), "tcl8.6".to_owned());
+        doc.decode_report = Some(report);
+        backend
+            .documents
+            .lock("test")
+            .await
+            .insert(abstaining.clone(), doc);
+        let out = backend
+            .fix_all_safe_issues_command(&[serde_json::json!(abstaining.as_str())])
+            .await
+            .expect("ok");
+        assert_eq!(fixed(out), text, "an abstaining document applies nothing");
+        let decoded = Uri::from_str("file:///fixall-decoded.tcl").unwrap();
+        backend.documents.lock("test").await.insert(
+            decoded.clone(),
+            DocumentState::new(text.clone(), "tcl8.6".to_owned()),
+        );
+        let out = backend
+            .fix_all_safe_issues_command(&[serde_json::json!(decoded.as_str())])
+            .await
+            .expect("ok");
+        assert!(
+            fixed(out).contains("[expr {abs(-2)}]"),
+            "the same text without the byte evidence is fixed"
+        );
+    }
+
+    /// The bulk pass analyses under the document's own layers (D44): a code
+    /// the session turns off and a folder turns back on is computed, shown and
+    /// fixed in that folder's documents, and in no other.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn fix_all_safe_issues_analyses_under_the_documents_layers() {
+        let backend = test_backend();
+        backend
+            .apply_global_config(&serde_json::json!({ "diagnostics": { "IRULE2002": false } }))
+            .await;
+        *backend.folder_configs.lock().await = vec![(
+            Uri::from_str("file:///fixall-folder").unwrap(),
+            FolderConfig {
+                policy_layers: Some(PolicyLayers {
+                    project: serde_json::json!({ "diagnostics": { "IRULE2002": true } }),
+                    ..PolicyLayers::default()
+                }),
+                ..FolderConfig::default()
+            },
+        )];
+        let src = "when HTTP_REQUEST {\n    log local0. [http_host]\n}\n";
+        for (path, expected) in [
+            (
+                "file:///fixall-folder/a.irul",
+                "when HTTP_REQUEST {\n    log local0. [HTTP::host]\n}\n",
+            ),
+            ("file:///elsewhere/b.irul", src),
+        ] {
+            let uri = Uri::from_str(path).unwrap();
+            backend.documents.lock("test").await.insert(
+                uri.clone(),
+                DocumentState::new(src.to_owned(), "f5-irules".to_owned()),
+            );
+            let out = backend
+                .fix_all_safe_issues_command(&[serde_json::json!(uri.as_str())])
+                .await
+                .expect("ok")
+                .expect("a result");
+            assert_eq!(out["source"].as_str(), Some(expected), "{path}: {out}");
+        }
+    }
+
+    /// `getEffectiveConfig` and the INI export list the codes the policy
+    /// turns off, catalogued codes only: an uncatalogued spelling decides
+    /// nothing, and the default-off seed is listed until a layer turns the
+    /// code on (DP4.1).
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn the_effective_skip_lists_catalogued_codes_only() {
         let backend = test_backend();
