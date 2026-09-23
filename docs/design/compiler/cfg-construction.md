@@ -226,6 +226,12 @@ after the loop runs.  Otherwise the clause falls through, and
 exit paths share that edge with normal completion — they add paths, never
 remove one.
 
+A body that cannot fall through reaches a handler from its explicit throw
+points, or failing those from its terminal block — but not a terminal
+`break` / `continue` into a handler that cannot match one (`trap`, or `on`
+`ok`/`error`/`return`): `try {break} on error {} {}` offers no way to
+complete normally.
+
 A handler of a body with a resting tail takes its exception edges from the
 pre-`try` block, the tail, **and** every recorded throw point: an `error`
 inside a nested `if`, or a `finally` that only resumes unwinding, raises

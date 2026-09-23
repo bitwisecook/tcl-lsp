@@ -918,8 +918,19 @@ impl CfgBuilder<'_> {
                     throw_sources.push(tb.clone());
                 }
             }
+            // A terminal that is a loop jump raises no error: only a handler
+            // that can match `break` / `continue` catches it. Wiring
+            // `try {break} on error {} {}` to its handler made the `try` look
+            // as if it could complete normally (found in review).
             if throw_sources.is_empty()
                 && let Some(terminal) = body_terminal
+                && (handler_may_catch_loop_jump(handler)
+                    || !matches!(
+                        self.blocks
+                            .get(terminal)
+                            .and_then(|b| b.terminator.as_ref()),
+                        Some(crate::cfg::Terminator::Goto { .. })
+                    ))
             {
                 throw_sources.push(terminal.to_owned());
             }
@@ -1515,6 +1526,19 @@ impl CfgBuilder<'_> {
 
         end_block
     }
+}
+
+/// Whether a `try` handler can match a `break` or `continue` completion.
+///
+/// `trap` matches only errors, and `on` with a named or numeric code other
+/// than `break` (3) or `continue` (4) matches only that code. Anything else —
+/// a substituted selector, say — may.
+fn handler_may_catch_loop_jump(handler: &crate::ir::TryHandler) -> bool {
+    handler.kind != "trap"
+        && !matches!(
+            handler.match_arg.as_str(),
+            "ok" | "error" | "return" | "0" | "1" | "2"
+        )
 }
 
 #[cfg(test)]

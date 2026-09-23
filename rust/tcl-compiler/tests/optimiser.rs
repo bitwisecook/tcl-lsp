@@ -2930,6 +2930,11 @@ fn a_try_that_never_completes_does_not_fall_through_its_finally() {
             "`break` through nested clauses",
             "proc p {} {\n    while 1 {\n        try { try {break} finally {} } finally {}\n        set x 1\n    }\n    puts $x\n}\n",
         ),
+        // `on error` cannot catch a `break`, so it offers no way to complete.
+        (
+            "`break` past a handler that cannot catch it",
+            "proc p {} {\n    while 1 {\n        try {break} on error {} {} finally {}\n        set x 1\n    }\n    puts $x\n}\n",
+        ),
     ] {
         assert!(
             analyser_codes(src, TCL).iter().any(|c| c == "W210"),
