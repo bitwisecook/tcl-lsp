@@ -171,16 +171,20 @@ reachability edges (so handler bodies are not falsely unreachable).  The
 vector is empty in codegen builds.
 
 A `try` with a `finally` clause and **no** handler records one more kind:
-body→`try_end`, sourced from the body's throw points, when the body cannot
-fall through.  Without it nothing reaches `try_end` — a handler supplies no
-edge, and a body that always throws or returns supplies no normal one — so
-the `finally` block hanging off it read as dead and O107 emptied it, though
-Tcl runs `finally` on every completion path (#2142).  The edge is not added
-without a `finally`: there the tail really is unreachable, because the
-exception resumes unwinding past it.  Its cost is that `try_after_finally`
-becomes reachable from the throw path too, where Tcl in fact keeps
-unwinding; modelling that exactly would need the clause body lowered on two
-paths, one of them terminal.
+body→`try_end`, from every block of the body that leaves it — one ending in
+a `Return` (a `return`, `error` or `throw`) or jumping to a block outside
+the body (a `break` / `continue`).  Without them nothing reaches `try_end`
+on those paths — a handler supplies no edge, and a body that always leaves
+supplies no normal one — so a `finally` reached only that way read as dead
+and O107 emptied it, though Tcl runs `finally` on every completion path
+(#2142).  The exits are read off the body's own blocks, not its resting
+tail: `if {$c} {return ok} else {error boom}` cannot fall through yet still
+ends in a resting `if_end` block.  The edges are not added without a
+`finally`: there the tail really is unreachable on those paths, because the
+exception resumes unwinding past it.  Their cost is that
+`try_after_finally` becomes reachable from an exit path too, where Tcl in
+fact keeps unwinding; modelling that exactly would need the clause body
+lowered on two paths, one of them terminal.
 
 ### Block naming convention
 

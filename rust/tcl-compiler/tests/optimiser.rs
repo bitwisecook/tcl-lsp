@@ -2722,9 +2722,30 @@ fn a_finally_body_is_reachable_however_the_try_body_leaves() {
         ("return", "return early", ""),
         ("break", "break", "while {1} "),
         ("error in a loop", "error boom", "foreach i {1 2} "),
+        // Every branch leaves, so the body cannot fall through — yet it still
+        // ends in a resting `if_end` block. Gating on "has no tail" missed it
+        // (found in review).
+        (
+            "every branch of an if leaves",
+            "if {[info exists ::c]} {return ok} else {error boom}",
+            "",
+        ),
+        (
+            "every arm of a switch leaves",
+            "switch [info exists ::c] {1 {return ok} default {error boom}}",
+            "",
+        ),
     ] {
+        let stmt = format!("try {{{body}}} finally {{set g 1}}");
+        // Only a loop wraps the statement: `{wrapper}{ … }` with an empty
+        // wrapper is a braced command *name*, not a `try` at all.
+        let line = if wrapper.is_empty() {
+            stmt
+        } else {
+            format!("{wrapper}{{ {stmt} }}")
+        };
         let src = format!(
-            "set g 0\nproc p {{}} {{\n    global g\n    {wrapper}{{ try {{{body}}} finally {{set g 1}} }}\n}}\ncatch {{p}}\nputs $g\n"
+            "set g 0\nproc p {{}} {{\n    global g\n    {line}\n}}\ncatch {{p}}\nputs $g\n"
         );
         let out = optimised(&src, TCL);
         assert!(

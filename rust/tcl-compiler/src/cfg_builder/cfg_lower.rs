@@ -938,14 +938,14 @@ impl CfgBuilder<'_> {
         }
     }
 
-    /// Record the analysis-only edge that keeps a `finally` clause reachable when
-    /// the `try` body cannot fall through and no handler supplies one.
+    /// Record the analysis-only edges that keep a `finally` clause reachable
+    /// from every way the `try` body can leave, when no handler supplies one.
     ///
     /// `lower_try` gave `end_block` a predecessor from a body that falls through
-    /// normally, or from a handler's throw edge. A body that cannot fall through,
-    /// with no handler, left the whole tail — `end_block`, the `finally` block and
-    /// everything after — with no predecessor at all. SCCP called it dead and O107
-    /// emptied the clause, so
+    /// normally, or from a handler's throw edge. Nothing connected a body exit
+    /// that is neither — a `return`, `error`, `throw`, or a `break`/`continue`
+    /// out of the body — so a `finally` reached only that way read as dead, and
+    /// O107 emptied it:
     ///
     /// ```tcl
     /// set g 0
@@ -953,41 +953,49 @@ impl CfgBuilder<'_> {
     /// catch {p}; puts $g
     /// ```
     ///
-    /// printed `0` where tclsh 8.6.18 and 9.0.4 print `1`. Four more spellings
-    /// went the same way: `throw`, a `return` in the body, a `break` inside a
-    /// `while`, and the same `error` inside a `foreach` (#2142).
+    /// printed `0` where tclsh 8.6.18 and 9.0.4 print `1` (#2142). The exits
+    /// are read off the body's own blocks rather than its resting tail: a body
+    /// whose every branch leaves — `if {$c} {return ok} else {error boom}` —
+    /// still ends in a resting `if_end` block, so "has a tail" is not "can fall
+    /// through", and gating on it left that `finally` dead too.
     ///
-    /// Only this case. A body that falls through already reaches `end_block`
-    /// normally, a handler already contributes its own throw edge, and with no
-    /// `finally` the tail really is unreachable — the exception resumes unwinding
-    /// past it — so the edge would be a precision loss for no gain.
+    /// Not added without a `finally`: there the tail really is unreachable on
+    /// these paths, because the exception resumes unwinding past it.
     ///
-    /// What it does cost is that `try_after_finally` becomes reachable from the
-    /// throw path, where Tcl in fact resumes unwinding. Modelling that exactly
+    /// What it does cost is that `try_after_finally` becomes reachable from an
+    /// exit path, where Tcl in fact keeps unwinding. Modelling that exactly
     /// needs the clause body lowered on two paths, one of them terminal;
     /// over-approximating the *other* way — a `finally` clause that is never
-    /// entered — is what corrupted the programs above.
-    fn push_unhandled_finally_edges(
-        &mut self,
-        end_block: &str,
-        body_tail: Option<&str>,
-        body_throw_blocks: &[String],
-        body_terminal: Option<&str>,
-    ) {
-        if !self.faithful_exceptions || body_tail.is_some() {
+    /// entered — is what corrupted the program above.
+    fn push_finally_exit_edges(&mut self, end_block: &str, body_block: &str, first_body_id: usize) {
+        if !self.faithful_exceptions {
             return;
         }
-        let mut sources: Vec<String> = Vec::new();
-        for tb in body_throw_blocks {
-            if !sources.contains(tb) {
-                sources.push(tb.clone());
-            }
-        }
-        if sources.is_empty()
-            && let Some(terminal) = body_terminal
-        {
-            sources.push(terminal.to_owned());
-        }
+        let body_block_id = self.bid(body_block);
+        let in_body = |id: crate::cfg::BlockId| {
+            id == body_block_id || usize::try_from(id.0).is_ok_and(|i| i >= first_body_id)
+        };
+        let mut sources: Vec<String> = self
+            .block_ids
+            .iter()
+            .filter(|(_, id)| in_body(**id))
+            .filter(|(name, _)| {
+                self.blocks
+                    .get(name.as_str())
+                    .is_some_and(|block| match &block.terminator {
+                        Some(crate::cfg::Terminator::Return { .. }) => true,
+                        Some(crate::cfg::Terminator::Goto { target, .. }) => !in_body(*target),
+                        Some(crate::cfg::Terminator::Branch {
+                            true_target,
+                            false_target,
+                            ..
+                        }) => !in_body(*true_target) || !in_body(*false_target),
+                        None => false,
+                    })
+            })
+            .map(|(name, _)| name.clone())
+            .collect();
+        sources.sort();
         for src in sources {
             self.exception_edges.push((src, end_block.to_owned()));
         }
@@ -1028,6 +1036,7 @@ impl CfgBuilder<'_> {
         // to this handler.
         let outer_throw_blocks = self.throw_blocks.take();
         self.throw_blocks = Some(Vec::new());
+        let first_body_id = self.block_ids.len();
         let raw_body_tail = self.lower_script(body, &body_block);
         // Capture the body's terminating block *before* the handler bodies are
         // lowered below (each overwrites `last_terminal_block`).  Used to source
@@ -1114,12 +1123,7 @@ impl CfgBuilder<'_> {
         }
 
         if finally_body.is_some() && handlers.is_empty() {
-            self.push_unhandled_finally_edges(
-                &end_block,
-                body_tail.as_deref(),
-                &body_throw_blocks,
-                body_terminal.as_deref(),
-            );
+            self.push_finally_exit_edges(&end_block, &body_block, first_body_id);
         }
 
         // Finally block.
