@@ -2761,16 +2761,6 @@ impl CfgCommandClasses {
             .is_some_and(|facts| facts.has_traits(Traits::CONTINUES_LOOP))
     }
 
-    /// `exit` and its kin end the interpreter without unwinding, so no
-    /// enclosing `finally` runs: `try {exit 7} finally {puts FINALLY}` exits
-    /// with status 7 and prints nothing on tclsh 8.6.18 and 9.0.4. (A
-    /// `tailcall` is *not* this — both run the `finally` before the call.)
-    fn is_process_terminating_command(&self, command: &str) -> bool {
-        self.semantics
-            .command(command.trim_start_matches(':'))
-            .is_some_and(|facts| facts.has_traits(Traits::TERMINATES_PROCESS))
-    }
-
     fn is_catchable_throw(&self, command: &str) -> bool {
         self.semantics
             .command(command.trim_start_matches(':'))
@@ -2827,13 +2817,14 @@ pub(crate) enum Completion {
 /// "Nothing can stop it" is the whole difficulty, and review found it three
 /// ways: an earlier statement may `return`; the command's own words may throw
 /// before it runs (`exit [error boom]` runs the clause); and so may a literal
-/// word it rejects (`exit abc` raises "expected integer"). The same holds for
-/// an `if` condition or a `switch` subject in front of an all-`exit` body —
-/// `switch -glob $nosuch {…}` throws on the unset variable. So this accepts
-/// only the command itself with no argument or one plain decimal literal,
-/// and an enclosing construct is never looked through. Missing a real exit
+/// word it rejects (`exit abc` raises "expected integer"; `exit 09` does in
+/// 8.x). The same holds for an `if` condition or a `switch` subject in front
+/// of an all-`exit` body — `switch -glob $nosuch {…}` throws on the unset
+/// variable. So this accepts only the command itself, with every word
+/// literal and a status the registry says it accepts, and an enclosing
+/// construct is never looked through. Missing a real exit
 /// costs an O107; accepting a false one rewrote a live program.
-fn always_exits_process(stmt: &Statement, classes: &CfgCommandClasses) -> bool {
+fn always_exits_process(stmt: &Statement, registry: &CommandRegistry) -> bool {
     let (Statement::Call {
         command,
         canonical_command,
@@ -2849,20 +2840,30 @@ fn always_exits_process(stmt: &Statement, classes: &CfgCommandClasses) -> bool {
     else {
         return false;
     };
-    if !classes.is_process_terminating_command(canonical_command.as_deref().unwrap_or(command)) {
-        return false;
-    }
-    let Some(tokens) = tokens else {
+    // Every word must be literal: a substituted one runs first and may throw.
+    let Some(words) = tokens.as_ref().and_then(|tokens| {
+        tokens
+            .word_exprs
+            .iter()
+            .skip(1)
+            .map(|word| match word {
+                crate::ir::WordExpr::Literal { text, .. }
+                | crate::ir::WordExpr::BracedLiteral { text, .. } => Some(text.as_str()),
+                _ => None,
+            })
+            .collect::<Option<Vec<&str>>>()
+    }) else {
         return false;
     };
-    match tokens.word_exprs.as_slice() {
-        [_head] => true,
-        [_head, crate::ir::WordExpr::Literal { text, .. }] => {
-            let digits = text.strip_prefix(['-', '+']).unwrap_or(text);
-            !digits.is_empty() && digits.len() <= 9 && digits.bytes().all(|b| b.is_ascii_digit())
-        }
-        _ => false,
-    }
+    // Whether those literals make a status the command accepts is the
+    // registry's question, answered release-aware: `exit 09` is an invalid
+    // octal in 8.x and raises an error — which does run the clause — but exits
+    // with status 9 in 9.0 (found in review).
+    registry.exact_invocation_completion(
+        canonical_command.as_deref().unwrap_or(command),
+        &words,
+        None,
+    ) == Some(tcl_registry::registry::ExactInvocationCompletion::ProcessExit)
 }
 
 /// `(must-defines, completion)` for a single statement.

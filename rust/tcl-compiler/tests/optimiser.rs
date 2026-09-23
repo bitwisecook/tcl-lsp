@@ -2827,6 +2827,9 @@ fn an_exit_reaches_no_finally() {
         ),
         ("an exit whose argument throws", "exit [error boom]"),
         ("an exit that rejects its literal", "exit abc"),
+        // Release-aware: an invalid octal in 8.x (`TCL` is 8.6), status 9 in
+        // 9.0 — the registry answers, not a digit check.
+        ("an exit whose status is an invalid 8.x octal", "exit 09"),
     ] {
         let src = format!(
             "set g 0\nproc p {{x c}} {{\n    global g\n    try {{{body}}} finally {{set g 1}}\n}}\ncatch {{p a 1}}\nputs $g\n"

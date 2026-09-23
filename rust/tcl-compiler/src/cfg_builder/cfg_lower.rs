@@ -1015,7 +1015,7 @@ impl CfgBuilder<'_> {
                         // the clause. See `always_exits_process` for the rest.
                         Some(crate::cfg::Terminator::Return { .. }) => {
                             !matches!(block.statements.as_slice(), [only]
-                                if super::always_exits_process(only, &self.command_classes))
+                                if super::always_exits_process(only, self.registry))
                         }
                         Some(crate::cfg::Terminator::Goto { target, .. }) => {
                             !in_body(*target) && !completion.contains(target)
