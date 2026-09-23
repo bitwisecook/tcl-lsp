@@ -9,9 +9,10 @@ all-editors, tcl-lsp-cli, mcp
 
 ## Question
 
-When the constant-propagation pass meets `incr n`, `set x [llength $l]`, or
-a `foreach` header, where does it learn what the command computes, and what
-may I add to the compiler when a new command needs the same treatment?
+When the constant-propagation pass meets `incr n`, `set x [llength $l]`,
+`dict set d k v`, or a `foreach` header, where does it learn what the
+command computes, and what may I add to the compiler when a new command
+needs the same treatment?
 
 ## Answer
 
@@ -41,11 +42,16 @@ Two facts are separate columns in `docs/generated/value-transfers.md`:
 whether a descriptor exists and whether its route is *enabled*. `incr`,
 `append`, and `lappend` carry a derived cell update with an enabled direct
 route — the runtime's own value computation over the compile-time value
-model (`ConstOps`), under the target's release semantics — and `string
-range` declares one. A few shipped folds (`list`, `format`, `llength`,
-`string length`, `expr`) declare a route the compiler still implements;
-`NativeEvalId::owner` says so, and the migration plan's ledger names each
-with the slice that retires it.
+model (`ConstOps`), under the target's release semantics. `string range`,
+`list`, `llength`, and `string length` declare one; `set` declares the
+cell write, whose write form stores the value and whose read form answers
+the prior one; and the five keyed updates of `dict` declare theirs on the
+subcommand, which the `::tcl::dict::` spelling copies, so both find the
+dictionary by its `VarWrite` role and answer alike. `format` still
+declares a route the compiler implements, and `expr` the compiler's
+expression engine; `NativeEvalId::owner` and the inventory's *Owner*
+column say so, and the migration plan's ledger names the slice that
+retires each.
 
 To give a new command a value: declare it on the spec (or add the
 descriptor the derivation reads), add its route to the pinned set in

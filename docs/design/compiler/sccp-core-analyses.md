@@ -371,9 +371,10 @@ SCCP determines `x₁ = Const(Int(5))`:
 
 - `i₁ = Const(Int(0))` (before loop)
 - `i₂ = phi(i₁, i₃)` at `while_header_2` → `Overdefined` (loop-carried)
-- `evaluate_def` folds `Statement::Incr` only when the target's current
-  value is a single `Const(Int)`; `i₂` is `Overdefined`, so `i₃` is too, and
-  the phi cannot recover
+- `evaluate_def` folds `Statement::Incr` through the registry's `incr`
+  route only when the target's current value is exact; `i₂` is
+  `Overdefined`, so the route declines, `i₃` is `Overdefined` too, and the
+  phi cannot recover
 
 ## Decision rule
 
@@ -382,14 +383,21 @@ SCCP determines `x₁ = Const(Int(5))`:
   simply not a shape `evaluate_def` folds.
 - `evaluate_def` folds `Statement::AssignConst`, `Statement::AssignExpr`
   through the expression evaluator, a `Statement::AssignValue` whose RHS is a
-  literal / lattice-constant `$var` / foldable `[cmd …]`, a
-  single-variable single-list `foreach` (to the `ConstSet` of its elements),
-  and a `Statement::Incr` whose target holds a single `Const(Int)` and whose
-  amount is absent, a decimal literal, or a `$var` holding a `Const(Int)`
-  (`checked_add`; overflow, a non-integer base, or a dynamic key widens).
+  literal / lattice-constant `$var` / foldable `[cmd …]`, and a
+  single-variable single-list `foreach` (to the `ConstSet` of its elements).
+  A command's value — the typed `Statement::Incr`, a call such as `append`,
+  `lappend`, `set` or a `dict` keyed update, and a `[cmd …]` such as
+  `[string range …]`, `[llength …]` or `[set x]` — comes through the
+  registry's declared route for the resolved invocation
+  (`value_transfer.rs`, [value-transfers.md](value-transfers.md)): the
+  route reads its operands from the lattice and answers under the target's
+  release, one evaluated write gives the call's single definition its
+  value, and a decline — an inexact operand, a release-ambiguous axis
+  under a profile naming no release, a head the module rebinds — leaves it
+  `Overdefined`. Every statement's route and answer is in
+  `SccpResult::explanations`, which the Explorer's `sccp` view prints.
   Every other statement kind — and every `Statement::Barrier` — widens its
-  defs to `Overdefined`. The registry-owned replacement for these arms is
-  designed in [value-transfers.md](value-transfers.md).
+  defs to `Overdefined`.
 - Liveness is computed backward from uses to definitions — if a new IR
   node reads variables, ensure they appear in `SsaStatement::uses`.
 - SCCP runs once per function (no iterative refinement across functions —

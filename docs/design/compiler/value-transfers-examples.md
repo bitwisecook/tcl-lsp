@@ -17,6 +17,13 @@ set, and its programs are the fixed witnesses the slices in
 > example says so, and through Tcl 9.0.4 for ground truth. Every "under the
 > contracts" line is the proposal. The declarations in the last section are
 > proposed spellings, not loader syntax.
+>
+> A line marked `merged:` instead of `today:` is the same kind of
+> observation on the tree value-transfer slice 2 landed on, after the merge
+> of `rust` at `08bceb36`: it restates a program whose defect `rust` fixed
+> (#2050, #2051, #2052, #2053, #2054, #2132, #2144, and the nested-read
+> half of #2141), or one slice 2's routes changed, and was re-run through
+> `tclsh` 8.4 to 9.1.
 
 ## How to read an example
 
@@ -66,6 +73,10 @@ issue, and each is a contract point:
 | [#2143](https://github.com/bitwisecook/tcl-lsp/issues/2143) | the `::port` child a `subst -nocommands` factory materialises has no span, so its W214 is anchored at line 1, column 1 and the call to it is W123 | a materialised child carries the span of the factory call that produced it: the template-word plan gives the materialisation its provenance |
 | [#2144](https://github.com/bitwisecook/tcl-lsp/issues/2144) | O109 deletes `set a old` ahead of `catch {lassign {new second} a b}` under `tcl8.4`, where `lassign` does not exist and tclsh prints `old` | a write attributed to a command the profile does not have is not a write: the storage outcome is release-aware |
 
+`rust` has since fixed #2050 (#2215), #2051 (#2225), #2052, #2054 and #2144
+(#2211), #2053 (`33be5cef`), #2132 (#2220) and the nested-read half of
+#2141 (#2215); their programs below carry `merged:` lines.
+
 ## Optimisations
 
 ### O100 · propagate constant variables
@@ -73,25 +84,25 @@ issue, and each is a contract point:
 ```tcl
 set retries 1
 incr retries
-puts "$retries"            ;# today: O100 inlines 2 — the incr arm is the one cell transfer SCCP has
+puts "$retries"            ;# merged: O100 inlines 2 through the registry's `incr` route
 ```
 
 ```tcl
 set acc ""
 append acc foo
 append acc bar
-puts $acc                  ;# today: O104 folds the chain to `set acc foobar`; the read stays `$acc`
+puts $acc                  ;# merged: O104 folds the chain to `set acc foobar` and O100 forwards `foobar` into the read
 ```
 
-Today the chain folds textually (O104) but `acc` is `Overdefined` in the
-lattice, so nothing forwards `foobar` into the read in the same pass. Under
-the contracts the cell update makes `acc` `Const("foobar")` at the read;
-O100 forwards it, and the code stays O100 rather than O102 because the
-defining statement is a computed write.
+At `3b5eba8a` the chain folded textually (O104) but `acc` was `Overdefined`
+in the lattice, so nothing forwarded `foobar` into the read in the same
+pass. Since slice 2 the cell update makes `acc` `Const("foobar")` at the
+read; O100 forwards it, and the code stays O100 rather than O102 because
+the defining statement is a computed write.
 
 ```tcl
 set n 1
-set result [incr n]        ;# today: O109 deletes `set n 1` (#2050); the optimised program prints 1 and 1
+set result [incr n]        ;# merged: O109 keeps `set n 1` (#2050, fixed by #2215); the program prints 2 and 2, optimised or not
 puts $result
 puts $n
 ```
@@ -157,14 +168,15 @@ append s " world"          ;# today: O104 folds to `set s {hello world}`; an unr
 ```tcl
 set s hello
 set p again
-append s $p                ;# today: O102 forwards `again` into the call; the chain is not folded in the same pass
+append s $p                ;# merged: O104 folds the chain to `set s helloagain`, and O100 forwards it into the `puts`
 puts $s
 ```
 
-Under the contracts the classifier dispatches on the resolved cell update
-instead of three command names, and the chain folds through the lattice
-value at the last write, `helloagain`. With `set p { again}` today's
-rewrite drops the leading space (#2052); the exact-value ingress keeps it.
+The classifier dispatches on the resolved cell update instead of three
+command names, and the chain folds through the lattice value at the last
+write, `helloagain`. With `set p { again}` the rewrite at `3b5eba8a`
+dropped the leading space (#2052, fixed by #2211); the exact-value ingress
+keeps it, and the chain folds to `set s {hello again}`.
 
 ### O105 · redundant computation (GVN/CSE)
 
@@ -246,11 +258,13 @@ set limit 2
 puts $limit
 ```
 
-Two rewrites this pass makes today are unsound and are the witnesses for
-the storage contract: the store read by a nested `[incr n]` (#2050) and
-the store ahead of a `regexp` that does not match (#2051). A third is a
-span defect: deleting `set p "again"` leaves the closing quote behind
-(#2053).
+Two rewrites this pass made at `3b5eba8a` were unsound and are the
+witnesses for the storage contract: the store read by a nested `[incr n]`
+(#2050) and the store ahead of a `regexp` that does not match (#2051). A
+third was a span defect: deleting `set p "again"` left the closing quote
+behind (#2053). The merged tree keeps both stores and leaves no quote
+(#2215, #2225, `33be5cef`); the `regexp` no-match through `catch` (§
+*Completion paths* below) still loses its store.
 
 ### O110 · canonicalise expressions
 
@@ -541,19 +555,23 @@ that laziness is the one part of the ordered state the tool already has.
 
 ```tcl
 set x 1
-puts [expr {$x + [incr x] + $x}]   ;# today: not folded
-puts $x                            ;# today: O102 forwards 1, where the value is 2 (#2141)
+puts [expr {$x + [incr x] + $x}]   ;# merged: not folded
+puts $x                            ;# merged: not forwarded (#2141, fixed by #2215); the program prints 5 and 2, optimised or not
 ```
 
 ```tcl
 set x 1
-puts [expr {$x + [set x 10] + $x}]   ;# today: not folded
-puts $x                              ;# today: O102 forwards 1, where the value is 10
+puts [expr {$x + [set x 10] + $x}]   ;# merged: not folded
+puts $x                              ;# merged: O109 deletes `set x 1`, and the optimised program raises `can't read "x"`
 ```
 
-The first is `5` then `2` and the second `21` then `10` in every release,
-so both rewrites change the output: the nested `[incr x]` and `[set x 10]`
-are writes the forwarding never sees. Under the contracts they are the
+The first is `5` then `2` and the second `21` then `10` in every release.
+At `3b5eba8a` both rewrites changed the output: the nested `[incr x]` and
+`[set x 10]` were writes the forwarding never saw. The merged tree sees
+both writes, and the increment's read keeps its store; but the host
+statement's uses drop a name its nested `[set x 10]` defines, so the
+first `$x` is no use of `set x 1` and O109 finds the store dead — the gap
+slice 9's VT9.3 closes. Under the contracts they are the
 invocation's ordered stores — a read through the `variable` service
 consults the state's `writes` first, so `$x` after `[incr x]` is `2`, the
 expression folds to `5`, and the store the following `puts` forwards is
@@ -561,20 +579,21 @@ the nested one's.
 
 ```tcl
 proc p {} {
-    set n 1                ;# today: O109 deletes it — its only read sits inside the braced expr
+    set n 1                ;# merged: kept — the nested increment's read is a use (#2215)
     set r [expr {$n + [incr n]}]
     return $r
 }
 proc q {} {
-    set n 1                ;# today: W211 "set but never used", and O126 deletes it
+    set n 1                ;# merged: kept, with no W211
     set r [expr {[incr n] + [incr n]}]
     return $r
 }
 ```
 
-`p` is `3` and `q` is `5` in every release. Optimised, `p` raises
-`can't read "n": no such variable` in every release, and `q` raises it
-under 8.4 and answers `3` from 8.5, where the absent cell is created. This
+`p` is `3` and `q` is `5` in every release, optimised or not. At
+`3b5eba8a`, optimised, `p` raised `can't read "n": no such variable` in
+every release, and `q` raised it under 8.4 and answered `3` from 8.5,
+where the absent cell is created. This
 is the shape the comment on #2050 names: the read is inside a braced
 `expr`, so neither the dead-store guard nor the unused-variable check sees
 it. Under the contracts a read reached through the expression route is an
@@ -663,7 +682,7 @@ supplies them, not the finite-set lift.
 
 ```tcl
 proc bump {name} {
-    upvar 1 $name v        ;# today: O100 rewrites this to `upvar 1 n v` (#2134)
+    upvar 1 $name v        ;# merged: O100 still rewrites this to `upvar 1 n v` from the one call site (#2134)
     incr v
 }
 set n 1
@@ -892,7 +911,7 @@ set last [string index $s 9]   ;# today: no W232 — while the optimiser folds i
 ```tcl
 set xs {}
 lappend xs a b c
-lset xs 2 X                ;# today: W231 "list has 0 elements" (#2054); the program prints `a b X`
+lset xs 2 X                ;# merged: no W231 (#2054, fixed by #2211); O130 folds the chain to `set xs {a b c}`; the program prints `a b X`
 ```
 
 Under the contracts the container length comes from the value after the
@@ -918,7 +937,7 @@ proc p {} {
 proc p {} {
     set a before
     set b before
-    regexp {(x)(y)} zz a b ;# today: W220 on both sets; O109 deletes them; the program then errors (#2051)
+    regexp {(x)(y)} zz a b ;# merged: no W220, and both stores stay (#2051, fixed by #2225); the program prints `before before`
     puts "$a $b"
 }
 ```
@@ -986,16 +1005,16 @@ condition decides inside the fixed point, so the dead arm leaves
 
 ```tcl
 proc p {} {
-    set x 1                ;# today: W211, and O126 deletes the store (#2132)
+    set x 1                ;# merged: kept, with no W211 (#2132, fixed by #2220)
     if {[info exists x]} { puts yes }
 }
 proc q {} {
-    incr n                 ;# today: O109 deletes the increment
+    incr n                 ;# merged: kept
     if {[info exists n]} { puts yes }
 }
 proc r {} {
-    set a 1                ;# today: O108 deletes this store once the next one goes
-    set b [expr {$a + 1}]  ;# today: W211, and O126 deletes it although [info exists b] reads it
+    set a 1                ;# merged: O109 deletes it once O100 folds the next store to `set b 2`
+    set b [expr {$a + 1}]  ;# merged: kept as `set b 2`, with no W211
     if {[info exists b]} { puts yes }
 }
 proc s {c} {
@@ -1005,10 +1024,10 @@ proc s {c} {
 }
 ```
 
-`p` and `r` print `yes` in every release and print nothing once optimised;
-`q` is the absent-cell split — `can't read "n": no such variable` under
-8.4, `yes` from 8.5 — and prints nothing once optimised under every
-release. Under the contracts an existence read is a use of the binding, so
+`p` and `r` print `yes` in every release; `q` is the absent-cell split —
+`can't read "n": no such variable` under 8.4, `yes` from 8.5. At
+`3b5eba8a` all three printed nothing once optimised; the merged tree
+prints what the original prints. Under the contracts an existence read is a use of the binding, so
 none of those stores is removable while one remains and an unbind
 statement is never removed at all; W213 reads the same fact, so an `unset`
 of an `Unbound` place is definite and of a `MayBound` place is "may not
@@ -1033,15 +1052,17 @@ path, so the store is read and stays.
 ```tcl
 set a old
 array set b {k keep}
-catch {lassign {new second} a b} m   ;# today: W220 on `set a old`, and O109 deletes it (#2144 under 8.4)
+catch {lassign {new second} a b} m   ;# merged: under 8.6, W220 and O109 delete `set a old`; under 8.4 it stays (#2144, fixed by #2211)
 puts "$a $m"
 ```
 
 The `catch` is `1` from 8.5 with `a` equal to `new` and the message
 `can't set "b": variable is array`, because `lassign` wrote `a` before it
 failed on `b`; under 8.4 it is `1` with `a` still `old` and the message
-`invalid command name "lassign"`. So today's deletion is sound from 8.5
-and a miscompile under an 8.4 profile, for a reason no consumer states.
+`invalid command name "lassign"`. So the deletion is sound from 8.5; at
+`3b5eba8a` it was made under an 8.4 profile too, a miscompile, and the
+merged tree keeps the store there because a write by a command the
+profile lacks is no write (`command_is_unavailable_here`).
 Under the contracts the outcome is `Error { written: 1, … }` and the
 prefix rule is what proves the store dead — `written` is the proof, and
 the release that has no `lassign` at all declines instead.

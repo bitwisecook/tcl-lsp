@@ -33,9 +33,11 @@ release gives, and a decline where they differ. `incr x 5` still folds
 under iRules because every release adds 5; `incr x` over `010` does not,
 because 8.x and 9.x disagree, and folding either answer would bake the
 wrong constant into a program built for the other. The same rule keeps a
-non-ASCII operand off `string range` under 8.x: the source was decoded as
-UTF-8, which is the 9.x reader's answer, and an 8.x reader following
-`encoding system` may hold a different string.
+non-ASCII operand off `string range` and `string length` under 8.x: the
+source was decoded as UTF-8, which is the 9.x reader's answer, and an 8.x
+reader following `encoding system` may hold a different string — `string
+length` of one astral character read from a UTF-8 file is 1 under 9.0 and
+4 under 8.6 in a Latin-1 locale, so under 8.x neither command folds it.
 
 The decline is a recorded reason, not silence. `tcl explore --show sccp`
 lists every statement's route and answer — `direct cell-increment

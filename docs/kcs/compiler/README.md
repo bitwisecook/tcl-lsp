@@ -35,6 +35,11 @@ contract. This index does not duplicate that contract.
   numerals, the integer tower, and non-ASCII operands answer per release,
   and a profile naming none gets the unanimous answer or a recorded
   decline the Explorer's `sccp` view shows.
+- [kcs-qa-why-does-a-renamed-command-stop-folding.md](kcs-qa-why-does-a-renamed-command-stop-folding.md)
+  — a command the module shadows, renames, or aliases is no longer
+  evaluated with its builtin semantics: the shared lattice declines with
+  `rebinding-suspected`, the editor's memoised lattice and a standalone
+  build agree, and a rewrite re-proves under the whole module's trust.
 
 ## See also
 

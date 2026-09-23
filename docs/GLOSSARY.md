@@ -29,7 +29,7 @@ flowchart LR
 
 ## Alphabetic index
 
-[Admissibility](#admissibility) · [AST](#ast) · [Barrier](#barrier) · [Basic block](#basic-block) · [C extension shim](#c-extension-shim) · [Call-site evidence](#call-site-evidence) · [CFG](#cfg) · [Clause grammar](#clause-grammar) · [Codegen](#codegen) · [Codegen optimisation pass](#codegen-optimisation-pass) · [Command walk](#command-walk) · [CommandSpec](#commandspec) · [Compilation unit](#compilation-unit) · [Compiled artefact](#compiled-artefact) · [Completion path](#completion-path) · [Concrete syntax tree (CST) / red-green tree](#concrete-syntax-tree-cst--red-green-tree) · [Constant folding](#constant-folding) · [CSE](#cse) · [Data-flow graph](#data-flow-graph) · [DCE](#dce) · [Def-use chains](#def-use-chains) · [Diagnostic policy](#diagnostic-policy) · [Diagnostic report](#diagnostic-report) · [dialect](#dialect) · [Dispatch-stability proof](#dispatch-stability-proof) · [Dominance frontier](#dominance-frontier) · [Dominator / idom](#dominator--idom) · [Edge refinement](#edge-refinement) · [Escape tag](#escape-tag) · [Evaluator generation](#evaluator-generation) · [Evaluator route](#evaluator-route) · [Existence](#existence) · [Finding](#finding) · [FormSpec](#formspec) · [Frame-only var](#frame-only-var) · [GVN](#gvn) · [Guard identity](#guard-identity) · [ICIP](#icip) · [InstCombine](#instcombine) · [Interpreter domain](#interpreter-domain) · [IPA](#ipa) · [IR](#ir) · [Lattice](#lattice) · [LCP](#lcp) · [Lexing](#lexing) · [LICM](#licm) · [Lifecycle (registry)](#lifecycle-registry) · [Liveness](#liveness) · [Lowering](#lowering) · [LVT](#lvt) · [Member effect](#member-effect) · [Memory-SSA](#memory-ssa) · [Native proc entry](#native-proc-entry) · [Object handle](#object-handle) · [ObjectClassSpec](#objectclassspec) · [Option effect](#option-effect) · [Pattern recognition](#pattern-recognition) · [Phi node (φ)](#phi-node-φ) · [Rendered-value properties](#rendered-value-properties) · [Requirement straddle](#requirement-straddle) · [Runtime backing](#runtime-backing) · [salsa](#salsa) · [SCCP](#sccp) · [Shimmer](#shimmer) · [Side-effects](#side-effects) · [Site claim and pack fact stamp](#site-claim-and-pack-fact-stamp) · [Source edge](#source-edge) · [Special variable](#special-variable) · [SSA](#ssa) · [SSA value key](#ssa-value-key) · [Strength reduction](#strength-reduction) · [SubCommand](#subcommand) · [Symbol-definer command](#symbol-definer-command) · [Tail position](#tail-position) · [Tail-call optimisation](#tail-call-optimisation) · [Taint analysis](#taint-analysis) · [Taint colour](#taint-colour) · [Taint sink](#taint-sink) · [Taint source](#taint-source) · [Template word](#template-word) · [Trace](#trace) · [Transfer summary](#transfer-summary) · [Type inference](#type-inference) · [Unit linkage](#unit-linkage) · [Unused procs elimination](#unused-procs-elimination) · [Value provenance](#value-provenance) · [Value transfer](#value-transfer) · [ValueOps](#valueops) · [Var-escape analysis](#var-escape-analysis) · [Version floor](#version-floor) · [World-state contents lattice](#world-state-contents-lattice)
+[Admissibility](#admissibility) · [AST](#ast) · [Barrier](#barrier) · [Basic block](#basic-block) · [C extension shim](#c-extension-shim) · [Call-site evidence](#call-site-evidence) · [Cell write](#cell-write) · [CFG](#cfg) · [Clause grammar](#clause-grammar) · [Codegen](#codegen) · [Codegen optimisation pass](#codegen-optimisation-pass) · [Command walk](#command-walk) · [CommandSpec](#commandspec) · [Compilation unit](#compilation-unit) · [Compiled artefact](#compiled-artefact) · [Completion path](#completion-path) · [Concrete syntax tree (CST) / red-green tree](#concrete-syntax-tree-cst--red-green-tree) · [Constant folding](#constant-folding) · [CSE](#cse) · [Data-flow graph](#data-flow-graph) · [DCE](#dce) · [Def-use chains](#def-use-chains) · [Diagnostic policy](#diagnostic-policy) · [Diagnostic report](#diagnostic-report) · [dialect](#dialect) · [Dispatch-stability proof](#dispatch-stability-proof) · [Dominance frontier](#dominance-frontier) · [Dominator / idom](#dominator--idom) · [Edge refinement](#edge-refinement) · [Escape tag](#escape-tag) · [Evaluator generation](#evaluator-generation) · [Evaluator route](#evaluator-route) · [Existence](#existence) · [Finding](#finding) · [FormSpec](#formspec) · [Frame-only var](#frame-only-var) · [GVN](#gvn) · [Guard identity](#guard-identity) · [ICIP](#icip) · [InstCombine](#instcombine) · [Interpreter domain](#interpreter-domain) · [IPA](#ipa) · [IR](#ir) · [Keyed update](#keyed-update) · [Lattice](#lattice) · [LCP](#lcp) · [Lexing](#lexing) · [LICM](#licm) · [Lifecycle (registry)](#lifecycle-registry) · [Liveness](#liveness) · [Lowering](#lowering) · [LVT](#lvt) · [Member effect](#member-effect) · [Memory-SSA](#memory-ssa) · [Native proc entry](#native-proc-entry) · [Object handle](#object-handle) · [ObjectClassSpec](#objectclassspec) · [Option effect](#option-effect) · [Pattern recognition](#pattern-recognition) · [Phi node (φ)](#phi-node-φ) · [Rendered-value properties](#rendered-value-properties) · [Requirement straddle](#requirement-straddle) · [Runtime backing](#runtime-backing) · [salsa](#salsa) · [SCCP](#sccp) · [Shimmer](#shimmer) · [Side-effects](#side-effects) · [Site claim and pack fact stamp](#site-claim-and-pack-fact-stamp) · [Source edge](#source-edge) · [Special variable](#special-variable) · [SSA](#ssa) · [SSA value key](#ssa-value-key) · [Strength reduction](#strength-reduction) · [SubCommand](#subcommand) · [Symbol-definer command](#symbol-definer-command) · [Tail position](#tail-position) · [Tail-call optimisation](#tail-call-optimisation) · [Taint analysis](#taint-analysis) · [Taint colour](#taint-colour) · [Taint sink](#taint-sink) · [Taint source](#taint-source) · [Template word](#template-word) · [Trace](#trace) · [Transfer summary](#transfer-summary) · [Type inference](#type-inference) · [Unit linkage](#unit-linkage) · [Unused procs elimination](#unused-procs-elimination) · [Value provenance](#value-provenance) · [Value transfer](#value-transfer) · [ValueOps](#valueops) · [Var-escape analysis](#var-escape-analysis) · [Version floor](#version-floor) · [World-state contents lattice](#world-state-contents-lattice)
 
 ---
 
@@ -736,10 +736,44 @@ prove operands, resolve places, validate the answer, and join it into the
 deletion of the producing operation. Computed through a declared evaluator
 route (a shared core, the shared expression engine, or a declared
 implementation in the bounded engine), never inferred from purity.
-Proposed; nothing in the tree implements it.
+The direct route is built: `incr`, `append`, `lappend`, the
+[cell write](#cell-write) behind `set`, the [keyed updates](#keyed-update)
+of `dict`, `string range`, `list`, `llength`, and `string length` answer
+through it; the other routes and outcomes are proposed.
 
 See also: [Value transfers](design/compiler/value-transfers.md), [Value evaluation](design/compiler/value-evaluation.md), [Worked examples](design/compiler/value-transfers-examples.md), [Value-transfer migration](design/compiler/value-transfers-migration.md), [Registry consumer contracts](design/compiler/registry-consumer-contracts.md), [Diagnostic policy](design/compiler/diagnostic-policy.md), and
 [Constant folding](#constant-folding).
+
+### Cell write
+
+The [value transfer](#value-transfer) of `set`: `set name value` writes
+the value, byte for byte, to the place the resolver gives the `VarWrite`
+role and answers it as the result; `set name` answers the value the place
+holds and writes nothing. An absent or unproven prior is never a value:
+reading it is the program's error, so the route declines. In statement
+position the solver transfers the typed assignment itself; the route
+serves the invocation-shaped uses, `[set x]` first. `CellWriteSemantics`
+in `tcl_registry::value_transfer::cell_write`.
+
+See also: [Value transfers § Storage-writing commands](design/compiler/value-transfers.md#storage-writing-commands),
+[Keyed update](#keyed-update).
+
+### Keyed update
+
+A [value transfer](#value-transfer) that rewrites one key path of the
+dictionary a variable holds — `dict set`, `unset`, `incr`, `append`,
+`lappend`, and their `::tcl::dict::` spellings, which share one
+declaration because the dictionary is found by its `VarWrite` role. The
+route reads the prior dictionary, rebuilds it through the shared dict
+core, and writes it back: the new dictionary is both the result and the
+one store. A malformed dictionary, a missing intermediate key of `dict
+unset`, and a non-integer increment are the program's errors and decline;
+an absent variable is the empty dictionary only once its absence is
+proven. `KeyedUpdateSemantics` in
+`tcl_registry::value_transfer::keyed_update`.
+
+See also: [Value transfers § Storage-writing commands](design/compiler/value-transfers.md#storage-writing-commands),
+[Cell write](#cell-write).
 
 ### Completion path
 

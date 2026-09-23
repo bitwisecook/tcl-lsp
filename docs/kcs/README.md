@@ -341,6 +341,11 @@ under [`compiler/`](compiler/README.md).
   under Tcl 8.6, another under 9.0, and not at all under a vendor dialect:
   the direct route runs the shared core under the target's release, and a
   profile naming no release gets only the answer every release gives.
+- [kcs-qa-why-does-a-renamed-command-stop-folding.md](compiler/kcs-qa-why-does-a-renamed-command-stop-folding.md)
+  — why `incr n` stops folding once the file defines `proc incr` or renames
+  `incr`: the lattice evaluates a command only while the module's own
+  bindings prove its name means the builtin, in the editor and on the
+  command line alike.
 
 ## Diagnostics and optimisations (per-code pages)
 

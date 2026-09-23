@@ -1,11 +1,13 @@
-# Lane: value-transfers — slice 1 of the migration plan
+# Lane: value-transfers — the slices of the migration plan
 
 The crash-insurance and handover note for the `value-transfers` lane. A
 fresh agent resumes from this file and the `wip(value-transfers):` commits.
+Slices 1 and 2 have landed; § *Plan for slices 2–13* is the plan for the
+rest, and § *Status (2026-09-23): slice 2 landed* is where to start.
 
 ## Goal
 
-Slice 1 of [value-transfers-migration.md](../compiler/value-transfers-migration.md)
+The lane began as slice 1 of [value-transfers-migration.md](../compiler/value-transfers-migration.md)
 § *The slices*: the interface shapes in the registry, the value ingress that
 preserves exact strings, the corrected derivation, the analysis context in
 `FnLatticeKey`, the SCCP dispatcher re-expressed behind the interface
@@ -111,7 +113,9 @@ route enabled.
 - **Gap classification.** `KNOWN_GAPS` classifies every variable-writing
   command without semantics by the slice that gives it one: slice 2 (`set`,
   `const`, `lset`, `ledit`, `lpop`, the `dict` cell updates and their
-  `::tcl::dict::` spellings); slice 5 (`regexp`, `regsub`, `scan`, `binary
+  `::tcl::dict::` spellings — slice 2 closed `set` and the `dict` rows, and
+  VT2.8 moved `const` to slice 8 and `lset`, `ledit`, `lpop` to slice 7);
+  slice 5 (`regexp`, `regsub`, `scan`, `binary
   scan`, `lassign`, `dict with` / `update`, `array set`, `file stat` /
   `lstat`, `foreachLine`, the may-write commands `gets`, `chan gets`, `file
   tempfile`, `vwait`, `tk_optionMenu`, and the `trace` subcommands); slice 8
@@ -144,7 +148,24 @@ Done:
 - xtask: `value_transfers.rs`, the Makefile target in `xtask-check`, the
   owner-resolution dispatch entry.
 
-Remaining (in this slice): see the commit log and the report.
+Done in slice 2 (landed 2026-09-23):
+
+- registry: `const_ops.rs` (`ConstOps`, `Needs`, `TargetSemantics`),
+  `lift.rs`, `literal.rs`, `cell_write.rs` (`set`), `keyed_update.rs` (the
+  five `dict` keyed updates, both spellings); `incr`, `append`,
+  `lappend`, `string range`, `list`, `llength` and `string length` run
+  registry-owned direct routes; `CommandSemantics::incoming_targets`.
+- compiler: the driver's lift, explanations, `store_def`, the cooked
+  literal words (`literal_token_value`), `call_arguments`; the consumers
+  that read the resolved cell update (`chain_fold`, the tail fold,
+  `static_loops`, `intervals`, W231); the qualified global write and its
+  caller-side observation (#2214); `ModuleAnalysisFacts::command_trust`.
+- lsp-db: `ValueTransferContext::mutations`; `value_transfer_parity.rs`.
+- explorer: the `sccp` view's route rows, and their text test.
+- the witness binary `rust/tcl-compiler/tests/value_transfer_witnesses.rs`
+  and its shard row.
+
+Remaining: slices 3 to 13, and slice 2's CLI witness binary (D35).
 
 ## Behavioural deltas accepted
 
@@ -166,7 +187,10 @@ Remaining (in this slice): see the commit log and the report.
 
 - Whether the Explorer's `sccp` view should render route and decline reason
   in this slice (the plan's "part of this too if it fits"); the driver does
-  not yet record per-statement explanations in `SccpResult`.
+  not yet record per-statement explanations in `SccpResult`. Resolved in
+  slice 2: `SccpResult::explanations` records each statement's route and
+  answer, and the `sccp` view prints them
+  (`sccp_text_prints_the_route_of_each_cell_update`).
 - The lint's enforced scope stops at `rust/tcl-compiler/src` while other
   lanes own the tooling crates; the measured counts are in the inventory.
 
@@ -364,260 +388,20 @@ path runs the same context; the correlated finite-set limit is in force.
   as text, so a bounded loop over such a counter simulates only under a
   named release.
 
-## Status (2026-09-22): slice 2 checkpoint green, not complete
+## Status (2026-09-23): slice 2 landed
 
-Implementation moved to other agents at the owner's request. This section
-is what a fresh agent needs to resume from cold. The slice-2 sections
-above describe the design as intended; where they claim a witness, this
-section says whether it holds. The hand-off checkpoint is `f3f9390f`
-(`wip(value-transfers): slice 2 checkpoint — hand-off`, 2026-09-18, on
-top of `5bc40e95`); it left seven tests and the lane's gate failing and
-four checks never run. VT2.0 (2026-09-22) made it green without
-starting the slice's remaining steps, in `206f6eee` (the tests, the gate
-and clippy) and the commit that carries this section (the unrun checks
-and the full suites). The tree is the whole lane state — nothing is
-parked outside git. The crates the lane touched are `tcl-registry`,
-`tcl-compiler`, `tcl-explorer`, `tcl-lsp-db` and `xtask` (and, for one
-port-table entry, `tcl-spec-studio`); the other lane owns
-`tcl-lsp-core`, `tcl-lsp-server` and `tcl-mcp`.
-
-### What compiles and what was run (VT2.0)
-
-- `cargo check --workspace --all-targets`: green.
-- `cargo clippy -p tcl-registry -p tcl-compiler -p tcl-explorer
-  -p tcl-lsp-db -p xtask --all-targets -- -D warnings`: clean, with no
-  `#[allow]` added. Its first run found pedantic lints in slice-2 code,
-  each fixed at its cause: single-arm `match`es in `const_ops.rs` and
-  `context.rs`; `cell_update_assignment`'s `Option<Option<String>>`
-  (now `Option<CellUpdateWrite>`); a `?`-shaped block in
-  `chain_fold.rs`; `fold_cmd_subst_routes` over 100 lines (the two
-  identical explanations became `explain_fold`); and two registry tests
-  over 100 lines (helpers, and the increment test split in two).
-- `cargo fmt --all -- --check`: clean.
-- `cargo xtask value-transfers --check`: OK — 15 files clean, 16 sites
-  waived, 100 sites pinned across 41 ratcheted files, 6607 inventory
-  rows; `docs/generated/value-transfers.md` is the write-mode output.
-- `cargo xtask pack-goldens`: 0 snapshots rewritten, 24 packs scanned.
-- `bash scripts/dev/test-nextest-binary-shards.sh`: ok; VT2.0 adds no
-  test binary.
-- `cargo xtask kcs-index-links`: passed; `cargo xtask owner-resolution`:
-  OK, 43 owner rows.
-- `cargo test -p tcl-compiler -p tcl-registry -p tcl-explorer
-  -p tcl-lsp-db -p xtask --no-fail-fast`: every test binary passes.
-  `tcl-compiler`: lib 6428 passed (2 ignored), 65 integration binaries
-  3172 passed (4 ignored; `compiler_analysis_residual` 75), 7 doc-tests;
-  `tcl-registry`: lib 895, 19 integration binaries 275
-  (`differential_fold` 4, `value_transfers` 14), 1 doc-test;
-  `tcl-explorer`: lib 99; `tcl-lsp-db`: lib 92 (the parity test
-  included), 9 integration binaries 26 (5 ignored); `xtask`: 223. In
-  all 11218 passed, 0 failed, 11 ignored.
-- `cargo test -p tcl-spec-studio`: 282 passed, once `spectcl_ports`
-  documents `string range`'s new unrenderable fields (item 4).
-- `tcl explore --show sccp --text` (`target/debug/tcl` from
-  `cargo build -p tcl-cli`) over `set n 1; set result [incr n]; append s
-  x; append s y; lappend xs a b; set r [string range abcdef 1 3]; set q
-  [string range abc 010 end]` prints a `route <command>: <route>
-  (<owner>)` node per resolved statement with its `answer` and `line`:
-  `direct cell-increment (registry)` answering `pending` (item 11),
-  `direct cell-append` and `direct cell-list-append` answering
-  `declined: not-exact` over the unset cells, and `direct string-range`
-  answering `evaluated` (`r#1 = const('bcd')`, `q#1 = const('')`).
-
-### What landed (type-checked; the tests above qualify it)
-
-- `rust/tcl-registry/src/value_transfer/const_ops.rs` (new): `Needs`
-  (the admissibility bitset), `Representation`, `ConstValue`,
-  `TargetSemantics::of(profile)` (via `TclVersion::from_profile`; a
-  profile naming no release gets per-operation unanimity through
-  `NumberSyntax::unanimous` and `StringCharacterModel::count_for(None, …)`),
-  and `ConstOps` — `admit(ctx, budget, needs)`, `index(spec, len)`,
-  `admissible_text(value)`, `take(value)`, plus the `ValueOps`
-  implementation the runtime adapters' cores run over. Byte-exact,
-  poisoned by the first fault, charging `Budget`.
-- `rust/tcl-registry/src/value_transfer/lift.rs` (new): `PinnedInputs`,
-  `finite_inputs`, `LiftedAnswer`, `evaluate_lifted(semantics, inputs,
-  budget, cap)` — one distinct finite SSA identity evaluates per member,
-  two decline `CorrelatedSets`, over the cap declines `TooManyMembers`.
-- `rust/tcl-registry/src/value_transfer/literal.rs` (new):
-  `LiteralInputs::new(command, subcommand, args, profile)`,
-  `.with_prior(name, ExactValue)`, `evaluate_literal(semantics, command,
-  sub, args, version) -> Option<String>` — the literal-word ingress the
-  shipped folders and the lexical consumers (W231) use.
-- `cell_update.rs` (rewritten, REVISION 2): `incr` / `append` / `lappend`
-  over `ConstOps` through `ValueOps::int_add`,
-  `tcl_cmd_core::var::append_bytes`, `tcl_cmd_core::var::lappend_value`;
-  `needs()`, `evaluator()`; `exact_input` maps a `Pending` prior to
-  `EvalAnswer::Pending`, a finite one to `CorrelatedSets`.
-- `route.rs`: `NativeEvalId::{CellAppend, CellListAppend, StringRange}`
-  registry-owned. `ListOfArgs`, `ListLength`, `StringLength`,
-  `FormatTemplate` are still `EvaluatorOwner::Transitional
-  { retires_in_slice: 2 }` — nothing was started on retiring them.
-- `builtins.rs`: `StringRangeSemantics` / `STRING_RANGE` (NEEDS =
-  `INDEX_GRAMMAR | CHAR_INDEXING | SOURCE_ENCODING`; `evaluate_range`
-  resolves both indices through `ops.index` and runs
-  `tcl_cmd_core::string::range`). `commands/tcl/string_.rs`: `range`
-  declares `semantics: Declared(&STRING_RANGE)` and `const_fold_versioned:
-  Some(fold_range)` (`fold_range` at the top of the file calls
-  `evaluate_literal`); its unversioned `const_fold` is gone.
-- `context.rs`: `Budget::evaluation()`, `charge_work`,
-  `charge_allocation`, `charge_result`. `decline.rs`: `Axis::as_str()`.
-  `mod.rs`: the three new modules and their re-exports.
-- `rust/tcl-compiler/src/value_transfer.rs`: `RouteExplanation`
-  recording on the `LatticeDriver` (`explaining(span)`),
-  `cell_update_def`, lifted evaluation through `evaluate_lifted`,
-  `evaluate_call` applying a cell-update call's store to its target,
-  `exec_cell_update_in_env` / `EnvInputs` for the loop simulator,
-  `resolved_cell_update`, `cell_update_range_model`;
-  `fold_cmd_subst_routes` (the value-position folder) as before.
-- `sccp.rs`: `SccpResult.explanations`, `evaluate_def_dispatch`,
-  `BranchFold<'a> { policy, grammar, registry }`,
-  `TerminatorInputs.registry`, `collect_constant_branches(…, fold)`;
-  tests with the `cell_update_call` fixture and `folds_for(dialect)`.
-  `static_loops.rs`: `LoopSemantics<'a> { policy, registry }` through
-  `exec_*` / `summarise_*`; `parse_literal_value` is
-  `ExactValue::from_literal`. `intervals.rs`: the `Incr` arm reads
-  `cell_update_range_model`; `compute_intervals_with` keeps its four
-  arguments. `optimiser/chain_fold.rs`, `optimiser/propagation.rs`,
-  `cfg_builder/mod.rs`, `ir_helpers.rs`, `analyser/bounds_checks.rs`,
-  `analyser/diagnostics/usage.rs` read the resolved semantics as the
-  slice-2 decisions above describe; `optimiser/elimination.rs`,
-  `taint.rs`, `type_infer.rs`, `optimiser/branch_folding.rs` changed in
-  tests or literals only.
-- `rust/tcl-explorer/src/serialise.rs`: `serialise_sccp` emits `routes`
-  (tested at the JSON level); `view_tree.rs` renders a node per route.
-- `rust/tcl-lsp-db/src/lib.rs`: the parity test named above.
-- `rust/xtask/src/value_transfers.rs`: `CLEAN_FILES` gained
-  `analyser/bounds_checks.rs`, `analyser/diagnostics/usage.rs`,
-  `cfg_builder/mod.rs`, `intervals.rs`, `ir_helpers.rs`,
-  `optimiser/chain_fold.rs`, `static_loops.rs`; their `RATCHET` rows are
-  gone. The migration doc's ledger and ratchet rows moved with them.
-- Docs: the slice-2 sections above; the KCS pages
-  `docs/kcs/compiler/kcs-qa-why-does-a-constant-fold-depend-on-the-dialect.md`
-  (new) and `kcs-qa-what-does-a-value-transfer-declaration-say.md`, and
-  the two KCS indexes.
-
-### Where each unfinished piece stops
-
-Items 1–7 and 10 are done; each says what the cause was and what fixed
-it. Items 8 and 9 stand as the hand-off wrote them; item 11 is new.
-
-1. **The gate — done.** The six waivers were comments on the line below
-   each site; each is now on its own line directly above it (the
-   `chan configure` one inside the first arm, directly above its
-   `} else if`), the form `site_waiver` reads.
-2. **Rebase of the route explanations — done.** `rebase_function_unit`
-   shifts `explanations[*].span` beside the constant-branch spans.
-3. **#2050, the nested cell update's read — done.** The fixture does
-   take the synthetic-call path. The SSA builder's use filter
-   (`uses_of_classified`) keeps a name the statement also defines only as
-   a read-before-write, and the synthetic `<upvar-invalidate>` call is
-   not flagged `reads_own_defs`, so its read of `n` was dropped. The rule
-   that fixes it is in the slice-2 decisions above, with the
-   read-before-set rule that keeps W210 where it was.
-4. **`string_index_comparison_folds_match_tcl` — done.** `range` carries
-   `const_fold: Some(fold_range_unanimous)` beside
-   `const_fold_versioned: Some(fold_range)`, both the route through
-   `evaluate_literal`. The consumers allow both: `run_const_fold` tries
-   the versioned folder first, so the unanimous one answers only a caller
-   that reads `const_fold` itself. The subcommand's new `semantics` and
-   `const_fold_versioned` also failed `tcl-spec-studio`'s `spectcl_ports`
-   (never run on the checkpoint): its port table now documents them as
-   unrenderable on `range`, as slice 1 did for `foreach`.
-5. **`storage_outcome_witnesses_match_every_release_on_path` — done.**
-   The oracle writes each value as a double-quoted word with `\`, `"`,
-   `$`, `[`, `]`, `{` and `}` escaped (`tcl_quoted_word`). Seen and left
-   alone: `tclsh` reading a script on stdin exits 0 after printing an
-   error, so `run_tcl` never reports a raise and the oracle reads one as
-   empty output; no case in the matrix has a route that could answer the
-   empty string.
-6. **The increment's representation evidence — done.** The expectations
-   are `built_int(i)` (`Constructed(TclType::Int)`); the release rules
-   moved into
-   `the_increment_route_reads_numerals_under_the_target_release` to keep
-   each test under the line limit.
-7. **The pending `lappend` — done.** The block is gone; the direct
-   `EvalAnswer::Pending` assertion stays.
-8. **Escapes on the value-position route.** `fold_cmd_subst_routes`
-   (`tcl-compiler/src/value_transfer.rs`) hands the raw segment texts to
-   the `string range` route, while the const-fold engine
-   (`const_subst.rs::literal_words_at_depth`) cooks `Esc` tokens with
-   `tcl_lexer::backslash_subst_in(text, config.escapes)` and braced
-   `Str` tokens with `WordValueRules::from_config(&config)
-   .collapse_braced_word(text)`. IR texts keep escapes raw (`a\tb` is
-   four characters), so `[string range "a\tb" 0 1]` reached from value
-   position is computed over the raw text. No test pins it. Mirror the
-   cooking in `fold_cmd_subst_routes` and add the witness (`tclsh` gives
-   `a` followed by a tab).
-9. **The transitional handlers.** `ListOfArgs`, `ListLength`,
-   `StringLength` say `retires_in_slice: 2` in `route.rs` and in the
-   migration doc's ledger; `FormatTemplate` was to move to slice 3 (its
-   `format` core is not a `ConstOps` matter yet) but the ledger row and
-   the `retires_in_slice` value were not changed. Either retire the three
-   list/length handlers onto registry-owned routes over `ConstOps` (the
-   `string range` route is the pattern) or re-ledger all four to slice 3
-   with the doc rows; the `value_transfers.rs` pinned-route test and
-   `docs/generated/value-transfers.md` follow.
-10. **Verification — done.** The `tcl-lsp-db` parity test's first run
-    failed on its own loop: it asserted that `n` folds to 4 in both `p`
-    and `q`, and `q` has no `n`. The assertion now covers `p` alone; the
-    parity assertion covers both. Clippy and the explorer text: above.
-11. **Found by VT2.0, not fixed: a value-position cell update launders a
-    constant through a join.** In `proc f {cond} { set n 1; if {$cond} {
-    set x [incr n] } else { set x 5 }; puts $x }`, `tcl opt` rewrites
-    `puts $x` to `puts 5` (O100), and `f 1` prints 2 on `tclsh8.6`. The
-    `[incr n]` route runs in `fold_cmd_subst_routes` with the host
-    `AssignValue`'s uses, which do not hold `n` (its read is on the
-    synthetic call before the host), so `LatticeInputs::prior_store`
-    reads version 0 (`unwrap_or(0)`), finds no value and answers
-    `Pending`; `LiftedAnswer::Pending` becomes `LatticeValue::Unknown`,
-    which survives the fixed point, and the phi takes the other arm's
-    `Const(5)`. The explorer shows it as `answer: pending`. The smallest
-    fix is the rule `place` already states for a dynamic key: a missing
-    use is a permanent miss, so `prior_store` declines rather than
-    reading version 0, and `set x [incr n]` keeps slice 1's
-    `Overdefined`; this program is its witness. Not bisected: the
-    fallback and the pending mapping are in slice 1's code as well.
-
-### Remaining steps, in order
-
-1. Item 11: `prior_store` declines on a use the statement does not hold,
-   with the join witness.
-2. Cook escapes in `fold_cmd_subst_routes` (item 8) with its witness.
-3. Retire or re-ledger the transitional handlers (item 9).
-4. Add a `tcl-explorer` test that `--show sccp --text` prints a route
-   line for the `cell_update_call` fixture.
-5. Clippy over the five crates, the full `cargo test` of the five
-   crates, then the standing gates before the commit: `cargo xtask
-   value-transfers`, `cargo xtask pack-goldens` (stage the 24 snapshots
-   if any change), `bash scripts/dev/test-nextest-binary-shards.sh` (a
-   row per new test binary). Squash onto the checkpoint as
-   `wip(value-transfers): slice 2 — the direct vertical slice`; the
-   checkpoint commit's body is the draft of that message.
-
-### Decisions this checkpoint takes that the design pages do not state
-
-The slice-2 "Decisions taken, and why" list above stands (per-operation
-admission under an unnamed release, `SOURCE_ENCODING` subsuming
-`CHAR_INDEXING`, errors as `WrongRepresentation` before slice 10, the
-lift's one-finite-identity rule, the interval model from the
-descriptor). In addition:
-
-- A route's `ExactValue` carries the representation `ConstOps` built
-  (`Constructed(Int)` for an increment); tests that compare whole
-  `ExactValue`s must state it. Recorded here because the test that
-  fails on it predates the evidence.
-- `EvalAnswer::Pending` is an answer a test helper must pass through,
-  never a failure.
-- `string range` is folded by its route through `evaluate_literal` in
-  both the versioned and the unversioned folder; the unversioned answer
-  is the unanimous one.
-- `docs/generated/value-transfers.md` is the gate's write-mode output;
-  VT2.0 regenerated it once the gate passed.
-- VT2.0's two rules — the SSA reads a `reads` name its call also defines
-  as a read of the prior value, and read-before-set does not claim an
-  embedded cell update's read — are in the slice-2 decisions above.
-- The lane keeps `FormatTemplate` transitional; slice 3 is its intended
-  retirement slice (not yet ledgered).
+The hand-off checkpoint `f3f9390f` (2026-09-18) left seven tests and the
+lane's gate failing and four checks unrun; VT2.0 made it green in
+`206f6eee` and `bdfe3a96` (2026-09-22), and its open items became plan
+items — the escapes (VT2.2), the transitional handlers (VT2.7), the
+laundered join VT2.0 found (VT2.1), the explorer test (VT2.10) — with the
+squash superseded by D1. The coordinator then merged `origin/rust` at
+`08bceb36` (VT2.M). Slice 2 landed on 2026-09-23 in `6d0de164`,
+`4b8a6f6f` and the landing commit `wip(value-transfers): slice 2 — the
+direct vertical slice`; § *Plan for slices 2–13* › *Slice 2* › *Record
+(2026-09-23): slice 2 landed* has what each holds, the gates, the deltas
+and what was left. The detailed hand-off notes this section used to carry
+are in `bdfe3a96`'s tree. Slice 3, the expression slice, is next.
 
 ### Environment a fresh agent needs
 
@@ -789,7 +573,7 @@ slice keeps its number's position relative to its dependencies:
 
 | Slice | After | Before |
 |---|---|---|
-| 2 | slice 1 | everything |
+| 2 (landed 2026-09-23) | slice 1 | everything |
 | 3 | 2 | 9, 12 |
 | 4 | 2, 3 (the declared route reaches `evaluate_branch` through slice 3's `command` resolver) | 5 |
 | 5 | 2, 4 (from slice 4 the four surfaces carry every new declaration, and the parity tests fail closed) | 8, 9, 10 |
@@ -804,6 +588,10 @@ slice keeps its number's position relative to its dependencies:
 | 7 | 13 | — |
 
 ### Slice 2 — the direct vertical slice
+
+**Landed 2026-09-23**, every item but the CLI witness binary (D35); §
+*Record (2026-09-23): slice 2 landed* at the end of this slice has the
+commits, the gates and the deltas.
 
 #### Goal and exit
 
@@ -1556,9 +1344,9 @@ carry.
 |---|---|---|
 | `206f6eee`, `bdfe3a96` (`wip(value-transfers): slice 2 checkpoint green`, landed) | VT2.0 | the seven tests pass; G1 `--check` prints `OK`; the five crates' suites and `tcl-spec-studio`'s pass; G7 clean |
 | the coordinator's merge commit of `origin/rust`, then `wip(value-transfers): slice 2 — the upstream merge absorbed` | VT2.M | every test of both sides over the merged tree; G1 with the re-measured pins; G2; G3 |
-| `wip(value-transfers): slice 2 — the join, the escapes, the context and the stores` | VT2.1, VT2.2, VT2.3, VT2.4, VT2.9 | the join, escape, renamed-head and #2214 tests pass on both paths; every other lattice test of the merged tree byte-identical |
-| `wip(value-transfers): slice 2 — set, dict and the retired handlers` | VT2.5, VT2.6, VT2.7, VT2.8 | the route tests and the differential rows pass under every release on `PATH`; G1 without the closed gap rows; G2 with the rewritten snapshots staged |
-| `wip(value-transfers): slice 2 — the direct vertical slice` (the landing) | VT2.10 to VT2.13 | every exit test; G1 to G9 |
+| `6d0de164` (`wip(value-transfers): slice 2 — the join, the escapes, the context and the stores`, landed) | VT2.1, VT2.2, VT2.3, VT2.4, VT2.9 | the join, escape, renamed-head and #2214 tests pass on both paths; every other lattice test of the merged tree byte-identical |
+| `4b8a6f6f` (`wip(value-transfers): slice 2 — set, dict and the retired handlers`, landed) | VT2.5, VT2.6, VT2.7, VT2.8 | the route tests and the differential rows pass under every release on `PATH`; G1 without the closed gap rows; G2 with the rewritten snapshots staged |
+| `wip(value-transfers): slice 2 — the direct vertical slice` (the landing, landed) | VT2.10 to VT2.13 | every exit test; G1 to G9 |
 
 The landing message, from the checkpoint's draft body:
 
@@ -1663,10 +1451,16 @@ release and declines under an unnamed one; `string range abcdefghijkl
 | `string length` over a non-ASCII word declines under 8.x and an unnamed release | the ledger row (`CHAR_MODEL`); the slice-2 `SOURCE_ENCODING` decision; the oracle |
 | `puts $hits` after a procedure whose nested `[incr ::hits]` writes the global is not forwarded, and `set hits 0` is not deleted | #2214 |
 
-#### Progress (2026-09-23)
+#### Record (2026-09-23): slice 2 landed
 
 Executed by one implementer from HEAD `8b5a8c88`. The session offered no
 subagent tool, so the `sonnet` items are the implementer's own work too.
+Three commits carry the slice, on top of VT2.0 and the merge: `6d0de164`
+(VT2.1–VT2.4, VT2.9), `4b8a6f6f` (VT2.5–VT2.8), and the landing commit
+`wip(value-transfers): slice 2 — the direct vertical slice` (VT2.10–VT2.13).
+Every item landed except the CLI witness binary of VT2.10 (below). The
+decisions the plan did not state are D24–D37 in § *Decisions taken*; the
+checkpoint notes below are their first record.
 
 - **Checkpoint `wip(value-transfers): slice 2 — the join, the escapes, the
   context and the stores`** holds VT2.1, VT2.2, VT2.3, VT2.4 and VT2.9,
@@ -1787,6 +1581,91 @@ Deltas observed beyond the plan's list, each restated from its oracle:
   a UTF-8 file 8.4 to 8.6 print 4 and 9.0 and 9.1 print 1), where the
   compiler's model answered 2 under 8.6 — the plan's `string length`
   delta; ASCII still folds under an unnamed release.
+
+- **The landing commit** holds VT2.10 to VT2.13.
+  - VT2.10: the compiler binary gained
+    `program_three_folds_in_every_consumer`,
+    `the_three_incr_models_agree`, `set_result_incr_keeps_its_increment`,
+    `o104_and_o130_fold_a_chain_through_a_lattice_operand`,
+    `deleting_a_quoted_store_leaves_no_quote` and
+    `lassign_is_not_a_write_under_a_profile_without_it` (14 tests, each
+    output witness run under 8.4 to 9.1); `tcl-explorer` gained
+    `render::tests::sccp_text_prints_the_route_of_each_cell_update`. The
+    CLI binary `rust/tcl-cli/tests/value_transfers_cli.rs` was not
+    created (D35); its evidence was run by hand with `target/debug/tcl`
+    built from this tree: `tcl explore --source 'proc p {} {set n 1; incr
+    n; incr n 2; return $n}' --show sccp --text --no-colour` prints `n#3 =
+    const(4)`, `route incr: direct cell-increment (registry)` and `·
+    answer: evaluated` twice; under `--dialect f5-irules`, `proc p {} {set
+    z 010; incr z}` prints `· answer: declined: release-ambiguous:
+    numeral-grammar`; `set r [llength {a b}]` prints `route llength:
+    direct list-length (registry)`; `tcl opt --profile full --dialect
+    tcl8.6` rewrites program (3) to `puts 4` (O100) and keeps `set n 1`
+    ahead of `set result [incr n]`; `tcl opt --profile full` keeps `set
+    hits 0` and `puts $hits` around `bump`'s `[incr ::hits]`, and the
+    output prints 1 under 8.4 to 9.1.
+  - VT2.11: `rust/tcl-lsp-db/src/value_transfer_parity.rs` holds the
+    moved parity test and `the_memoised_lattice_declines_a_renamed_head`,
+    `keyed_updates_agree_on_both_paths`,
+    `a_trace_installation_invalidates_the_lattice` and
+    `file_token_facts_never_evaluates`; `lib.rs` keeps the `mod` line.
+  - VT2.12: the ownership matrix's value-transfer row; the
+    downstream-contracts anchor; the SCCP page's decision rule and `incr`
+    example; the constant-folding page's routes section; the
+    optimisation page's O100–O103, O104/O130 and O107–O109 rows; the
+    migration plan's Tier-1 sentence, its `intervals` and `static_loops`
+    rows and its O100, O104/O130 and O109/O126 rows; the interface page's
+    keyed updates; the glossary's *cell write* and *keyed update* (and
+    *value transfer* no longer "proposed; nothing implements it"); the
+    two KCS notes, the new
+    `kcs-qa-why-does-a-renamed-command-stop-folding.md` and both indexes;
+    the owner row (`ConstOps`, `CellWriteSemantics`,
+    `KeyedUpdateSemantics` and their files — the diagnostic-policy lane's
+    edit to the file was committed in `23eec80f`); the lanes README's
+    in-flight entry; and VT2.M's rule 2, the examples page's `today:`
+    lines on the programs upstream fixed, restated as `merged:` lines
+    re-run on this tree (D37).
+  - VT2.13: `a_keyed_update_lifts_its_dictionary_as_one_finite_input`
+    pins R7's last clause (a finite dictionary evaluates per member, a
+    finite key beside it declines `CorrelatedSets`).
+- **Green at the landing**: `cargo test -p tcl-compiler -p tcl-registry
+  -p tcl-explorer -p tcl-lsp-db -p xtask` 11330 passed, 0 failed, 11
+  ignored; `tcl-cli` and `tcl-spec-studio` 393 passed; `tcl-lsp-core` and
+  `tcl-mcp` 3639 passed; pedantic clippy on the five touched crates with
+  no `#[allow]` added (VT2.2 removed the one the checkpoint carried);
+  `cargo fmt` clean; `cargo xtask value-transfers --check` OK (15 files
+  clean, 15 sites waived, 100 pinned across 41 files, 6607 rows);
+  `pack-goldens` 0 rewritten; the shard script; `kcs-index-links`;
+  `owner-resolution` (43 rows); `make rust-check`.
+
+Rows for the diagnostic-policy lane's owner documents (B-DP4), drafted
+here and committed after that lane's slice 10:
+
+- `diagnostics-calculation.md`, § *Deep tier*, the compiler-checks row:
+  the lattice those checks and the optimiser read carries the values the
+  registry's routes compute (`incr`, `append`, `lappend`, `set`, the
+  `dict` keyed updates, `string range`, `list`, `llength`, `string
+  length`); a route's decline is recorded in `SccpResult::explanations`
+  and is never a diagnostic.
+- `diagnostics-integration.md`, § *Failure modes*: "the memoised and the
+  direct lattice answering differently for one analysis context —
+  `rust/tcl-lsp-db/src/value_transfer_parity.rs` pins their agreement";
+  § *Anchors*: that module.
+
+Found and left, outside the plan (recorded for the slices that own them):
+
+- **`set x 1; puts [expr {$x + [set x 10] + $x}]; puts $x`**: O109 now
+  deletes `set x 1`, and the optimised program raises `can't read "x"`
+  in every release (at `3b5eba8a` O102 forwarded 1 instead). The host
+  statement's uses drop a name its nested `[set x 10]` defines, so the
+  first `$x` is no use of `set x 1`. #2215's in-frame descent records
+  the nested write but not the read before it; VT9.3 ("a read inside a
+  braced `expr` is a use … fills any gap the ordered state exposes") is
+  where it belongs, and the examples page's ordered-state program now
+  says so.
+- The `regexp` no-match through `catch` (the examples page's completion
+  program) still loses `set a before` to O109 and W220: #2225 fixed the
+  direct `regexp` statement only. Slice 10's.
 
 ### Slice 3 — the expression slice
 
@@ -5492,6 +5371,74 @@ diagnostic-code table, the catalogue generators, and the adapter edits in
   fact W100 and O111 read, so a compiler-side `UnbracedExpression` record
   would be a second representation of it; VT5.13 proves the produced set
   complete instead.
+
+Taken while slice 2 was executed (its record, § *Slice 2* › *Record*, has
+the witnesses):
+
+- **D24 — One cooking rule for every literal word a route reads.**
+  `value_transfer::literal_token_value` (a single-token `Esc` word through
+  `backslash_subst_in`, a `Str` word through `collapse_braced_word`) serves
+  the value-position folder, the call arguments (`call_arguments`, through
+  the statement's token snapshot), `const_subst.rs`, the chain fold and
+  W231's walk, because the raw spelling reached three readers beyond item
+  8's, each a wrong rewrite or finding with an oracle witness.
+- **D25 — The command trust is a field of the module facts.**
+  `ModuleAnalysisFacts::command_trust`, and the interned
+  `ValueTransferContext` holds the rebuilt `ModuleCommandMutations` beside
+  its key (`ValueTransferContext::of`; `Hash` over the complete snapshot,
+  so it agrees with `Eq`), rebuilt once per distinct context.
+- **D26 — `store_def` takes no receiver** (pedantic `unused_self`), and the
+  source-layout call path is `evaluate_source_call` (pedantic
+  `too_many_lines`); `call_def` wraps both for the typed `incr` and every
+  call.
+- **D27 — #2214 is fixed at the caller too.** A `::`-qualified summary
+  name also records the spelling a global-frame caller reads
+  (`insert_outer_name`), and a call site records its callee's summary names
+  as observed (`record_alias_observed`), because O109 read no callee reads;
+  the summary records writes, not reads, so every such name counts as
+  observed — conservative, and `set hits 10` ahead of a `bump` that runs
+  `global hits; incr hits 5` is no longer deleted.
+- **D28 — `set` finds its forms by role**, the write form one `VarWrite`
+  operand with the value after it and last, the read form one `VarRead`
+  operand alone; registry tests state the resolver's roles
+  (`LiteralInputs::with_role`).
+- **D29 — Three keyed-update answers the plan does not list**, each the
+  oracle's under 8.5 to 9.1: an absent key's `dict incr d k 010` stores
+  `010` as written once it proves an integer; a missing intermediate key
+  of `dict unset` declines `WrongRepresentation`; an absent dictionary is
+  empty only when the inputs prove the variable unbound.
+- **D30 — The keyed-update differential asks the resolver**: the 8.4
+  registry still answers a `dict` record, which the resolver does not
+  select.
+- **D31 — `llength` reads no release axis**: `ConstOps::list_len` runs the
+  list parse alone, so `NEEDS = Needs::NONE` holds.
+- **D32 — The pinned route set pins each route's owner.**
+- **D33 — G2 has nothing to rewrite for the `tcl` commands**: they are the
+  registry's Rust specs, and no shipped `.tclspec` declares `set` or
+  `dict`.
+- **D34 — The `lassign` witness pins the merged behaviour.** Under 8.4
+  the store is not killed, so the optimiser forwards `old` into the
+  `puts` and the store is then dead — the program prints `old`, as
+  `tclsh8.4` does; the plan's "keeps `set a old`" predates #2211's
+  forwarding. Under 8.6 O109 deletes it soundly.
+- **D35 — The CLI witness binary waits for the diagnostic-policy lane.**
+  The implementer's brief forbade touching `rust/tcl-cli` while that lane
+  works there, so `value_transfers_cli.rs` and its shard row were not
+  added. D9 stands: the next slice that may touch `rust/tcl-cli` adds the
+  binary with the four tests VT2.10 names; until then their evidence is
+  the hand-run record and the explorer and compiler witnesses.
+- **D36 — Two parity tests read what the tree can observe.**
+  `keyed_updates_agree_on_both_paths` seeds `d` with `set d {}`, because
+  below the existence rung (slice 8) a local no store has bound is not
+  proven absent; the unseeded program declines on both paths, which the
+  test pins too. `file_token_facts_never_evaluates` observes the salsa
+  executions: no lattice-building query runs behind the token tier, and
+  no route is recorded anywhere else a test can read.
+- **D37 — The examples page's restated lines are `merged:` lines.** Its
+  `today:` lines are dated observations at `3b5eba8a`; the programs whose
+  defects `rust` fixed, and those slice 2's routes changed, were re-run on
+  this tree and marked `merged:`, with a status note, rather than
+  re-running the whole corpus.
 
 ### Open questions for the owner
 

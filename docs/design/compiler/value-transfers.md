@@ -1174,7 +1174,13 @@ dict with d {incr a; set result done}
   remainder, or a body command whose result is the body's and whose
   write-back is a reconciliation. `set` is the direct route's one-target
   write (`CellWriteSemantics`): the value as the result and one `Write`
-  for `set name value`, the prior value and no store for `set name`.
+  for `set name value`, the prior value and no store for `set name`. The
+  keyed updates of `dict` are one-target writes too
+  (`KeyedUpdateSemantics`): the dictionary operand is the one the resolver
+  gives the `VarWrite` role, so a subcommand and its `::tcl::dict::`
+  spelling share one declaration, and the rebuilt dictionary is both the
+  result and the one `Write`; a malformed prior declines rather than being
+  repaired.
 - **Duplicate targets resolve to places first.** `lassign … a a` writes
   `a` twice in order; the outcomes are composed after resolution, in
   execution order.

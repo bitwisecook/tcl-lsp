@@ -253,6 +253,41 @@ mod tests {
         serialise_result(&run_pipeline(src, "tcl8.6"))
     }
 
+    /// The `sccp` view prints each cell update's route and the answer it
+    /// gave at the fixed point — the lines `tcl explore --show sccp --text`
+    /// prints — and a decline names its reason.
+    #[test]
+    fn sccp_text_prints_the_route_of_each_cell_update() {
+        let sccp = |src: &str, dialect: &str| {
+            render_all(
+                &serialise_result(&run_pipeline(src, dialect)),
+                &["sccp".to_owned()],
+                false,
+            )
+        };
+        let text = sccp("proc p {} {set n 1; incr n; incr n 2; return $n}", "tcl8.6");
+        assert!(text.contains("n#3 = const(4)"), "{text}");
+        assert_eq!(
+            text.matches("route incr: direct cell-increment (registry)")
+                .count(),
+            2,
+            "{text}"
+        );
+        assert_eq!(text.matches("· answer: evaluated").count(), 2, "{text}");
+
+        let text = sccp("proc p {} {set z 010; incr z}", "f5-irules");
+        assert!(
+            text.contains("· answer: declined: release-ambiguous: numeral-grammar"),
+            "{text}"
+        );
+
+        let text = sccp("set r [llength {a b}]", "tcl8.6");
+        assert!(
+            text.contains("route llength: direct list-length (registry)"),
+            "{text}"
+        );
+    }
+
     #[test]
     fn render_view_draws_a_tree() {
         let d = data("set x 1\nset y 2");

@@ -1360,6 +1360,94 @@ fn the_lift_evaluates_per_member_over_one_finite_input() {
     );
 }
 
+/// The correlated limit holds for a keyed update: the dictionary the
+/// variable holds is one input, so a finite prior evaluates per member,
+/// and a finite key beside it is a second distinct value, which declines
+/// as correlated — the lattice holds no pairing of a dictionary with a
+/// key. The same identity read as the value is one distinct value.
+#[test]
+fn a_keyed_update_lifts_its_dictionary_as_one_finite_input() {
+    use tcl_registry::value_transfer::keyed_update::{DICT_INCR, DICT_SET};
+    let dictionaries = |identity: u64| {
+        FactView::Finite(
+            vec![ExactValue::text("a 1"), ExactValue::text("a 2")],
+            Some(ValueIdentity(identity)),
+        )
+    };
+    let results = |answer: LiftedAnswer| match answer {
+        LiftedAnswer::Evaluated(outcomes) => Ok(outcomes
+            .into_iter()
+            .map(|outcome| match outcome.result {
+                ExactValueOrUnavailable::Exact(value) => {
+                    String::from_utf8(value.bytes).expect("text")
+                }
+                ExactValueOrUnavailable::Unavailable(_) => panic!("unavailable"),
+            })
+            .collect::<Vec<_>>()),
+        LiftedAnswer::Declined(reason) => Err(reason),
+        LiftedAnswer::Pending => panic!("pending"),
+    };
+
+    // One finite input: the dictionary's prior.
+    let mut inputs = TestInputs::new(
+        "::tcl::dict::incr",
+        vec![literal("d", Some(ArgRole::VarWrite)), literal("a", None)],
+    );
+    inputs.prior.insert("d".to_owned(), dictionaries(1));
+    assert_eq!(
+        results(evaluate_lifted(
+            &DICT_INCR,
+            &inputs,
+            &mut Budget::evaluation(),
+            32
+        )),
+        Ok(vec!["a 2".to_owned(), "a 3".to_owned()])
+    );
+    // Two distinct finite inputs: the dictionary and the key.
+    let mut inputs = TestInputs::new(
+        "::tcl::dict::incr",
+        vec![literal("d", Some(ArgRole::VarWrite)), literal("$k", None)],
+    );
+    inputs.prior.insert("d".to_owned(), dictionaries(1));
+    inputs.operands.insert(
+        1,
+        FactView::Finite(
+            vec![ExactValue::text("a"), ExactValue::text("b")],
+            Some(ValueIdentity(2)),
+        ),
+    );
+    assert_eq!(
+        results(evaluate_lifted(
+            &DICT_INCR,
+            &inputs,
+            &mut Budget::evaluation(),
+            32
+        )),
+        Err(DeclineReason::CorrelatedSets)
+    );
+    // The dictionary's own identity read again as the value is one
+    // distinct value: `dict set d b $d` nests each member under `b`.
+    let mut inputs = TestInputs::new(
+        "::tcl::dict::set",
+        vec![
+            literal("d", Some(ArgRole::VarWrite)),
+            literal("b", None),
+            literal("$d", None),
+        ],
+    );
+    inputs.prior.insert("d".to_owned(), dictionaries(1));
+    inputs.operands.insert(2, dictionaries(1));
+    assert_eq!(
+        results(evaluate_lifted(
+            &DICT_SET,
+            &inputs,
+            &mut Budget::evaluation(),
+            32
+        )),
+        Ok(vec!["a 1 b {a 1}".to_owned(), "a 2 b {a 2}".to_owned()])
+    );
+}
+
 /// Every core a registry-owned direct route calls reads only axes the
 /// route admits: under an empty admissibility set each poisons the run,
 /// except the byte append, which reads nothing release-dependent.

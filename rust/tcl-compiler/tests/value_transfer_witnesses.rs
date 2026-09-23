@@ -32,8 +32,17 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use tcl_compiler::analyses::{ConstValue, LatticeValue};
 use tcl_compiler::compilation_unit::CompilationUnit;
+use tcl_compiler::intervals::{Interval, compute_intervals_with, numbers_for_dialect};
+use tcl_compiler::ir::Statement;
+use tcl_compiler::lowering::lower_to_ir_with_dialect;
 use tcl_compiler::optimiser::Optimisation;
-use tcl_compiler::optimiser::manager::optimise_source_multipass;
+use tcl_compiler::optimiser::manager::{optimise_source_multipass, optimise_with_dialect};
+use tcl_compiler::static_loops::{
+    DEFAULT_MAX_STATIC_LOOP_ITERS, LoopSemantics, StaticEnv, StaticValue, parse_literal_value,
+    summarise_for_statement,
+};
+use tcl_compiler::tcl_expr_eval::FoldPolicy;
+use tcl_core_types::DiagCode;
 use tcl_registry::model::ingress::{resolve_environment, static_context_for};
 
 /// The releases the oracle runs, oldest first.
@@ -41,6 +50,10 @@ const RELEASES: [&str; 5] = ["8.4", "8.5", "8.6", "9.0", "9.1"];
 
 /// The multipass optimiser's iteration ceiling for a witness program.
 const PASSES: usize = 8;
+
+/// The dialects the exit witnesses analyse under: a release per numeral
+/// grammar and integer tower, and a profile that names no single release.
+const DIALECTS: [&str; 4] = ["tcl8.4", "tcl8.6", "tcl9.0", "f5-irules"];
 
 /// Run `script` from a file under `tclsh`: whether it exited cleanly and
 /// what it printed. A script run from a file exits non-zero on an error,
@@ -97,6 +110,14 @@ fn optimised(source: &str, dialect: &str) -> (String, Vec<Optimisation>) {
     let registry = static_context_for(dialect).commands();
     let profile = resolve_environment(dialect).analyser_profile();
     optimise_source_multipass(source, registry, Some(profile), PASSES)
+}
+
+/// The single-pass rewrites of `source` under `dialect`, each span an
+/// offset into `source` itself.
+fn rewrites_of(source: &str, dialect: &str) -> Vec<Optimisation> {
+    let registry = static_context_for(dialect).commands();
+    let profile = resolve_environment(dialect).analyser_profile();
+    optimise_with_dialect(source, registry, Some(profile))
 }
 
 /// The compilation unit `CompilationUnit::build` makes of `source` under
@@ -355,5 +376,282 @@ fn a_value_position_set_reads_the_variable() {
             Some(LatticeValue::Overdefined),
             "{dialect}"
         );
+    }
+}
+
+/// Program (3) of the interface contract: `incr n` and `incr n 2` over
+/// `set n 1` give `n#3` the 4 every release prints, in the shared lattice
+/// under every dialect — each statement's route answering — and the
+/// optimiser forwards it into `puts $n` (O100).
+#[test]
+fn program_three_folds_in_every_consumer() {
+    let source = "proc p {} {set n 1; incr n; incr n 2; puts $n}\np\n";
+    for dialect in DIALECTS {
+        let unit = unit_of(source, dialect);
+        assert_eq!(
+            value_at(&unit, "::p", "n", 3),
+            Some(LatticeValue::Const(ConstValue::Int(4))),
+            "{dialect}"
+        );
+        assert_eq!(
+            answers_for(&unit, "::p", "incr"),
+            ["evaluated", "evaluated"],
+            "{dialect}"
+        );
+        let rewrites = rewrites_of(source, dialect);
+        assert!(
+            rewrites.iter().any(|r| r.code == DiagCode::O100),
+            "{dialect}: {rewrites:#?}"
+        );
+        let (rewritten, _) = optimised(source, dialect);
+        assert!(rewritten.contains("puts 4"), "{dialect}:\n{rewritten}");
+    }
+    prints_under_every_release(source, "4\n");
+}
+
+/// A model's answer for `x` after the statement: the text of its value, or
+/// `None` where it declines.
+fn lattice_text(value: LatticeValue) -> Option<String> {
+    match value {
+        LatticeValue::Const(ConstValue::Int(i)) => Some(i.to_string()),
+        LatticeValue::Const(ConstValue::String(s)) => Some(s),
+        _ => None,
+    }
+}
+
+/// The loop simulator's answer for `x` after `statement` runs once as the
+/// body of `for {set i 0} {$i < 1} {incr i} {…}`, seeded as the solver
+/// seeds it — `x` from `init` and `n` from 3 through the literal ingress.
+fn simulated_text(dialect: &str, init: &str, statement: &str) -> Option<String> {
+    let registry = static_context_for(dialect).commands();
+    let profile = resolve_environment(dialect).analyser_profile();
+    let module = lower_to_ir_with_dialect(
+        &format!("for {{set i 0}} {{$i < 1}} {{incr i}} {{{statement}}}\n"),
+        registry,
+        tcl_lexer::LexerConfig::default(),
+        Some(profile),
+    );
+    let for_stmt = module
+        .top_level
+        .statements
+        .iter()
+        .find(|stmt| matches!(stmt, Statement::For { .. }))
+        .expect("the loop");
+    let mut seed = StaticEnv::new();
+    seed.insert("x".to_owned(), parse_literal_value(init));
+    seed.insert("n".to_owned(), parse_literal_value("3"));
+    let env = summarise_for_statement(
+        for_stmt,
+        &seed,
+        DEFAULT_MAX_STATIC_LOOP_ITERS,
+        LoopSemantics {
+            policy: FoldPolicy::from_registry(registry),
+            registry,
+        },
+    )?;
+    match env.get("x").expect("x after the loop") {
+        StaticValue::Int(i) => Some(i.to_string()),
+        StaticValue::Str(s) => Some(s.clone()),
+        other => panic!("{dialect}: an increment gave {other:?}"),
+    }
+}
+
+/// The interval domain's answer at `x`'s last definition in `::p`.
+fn interval_at(unit: &CompilationUnit, dialect: &str) -> Interval {
+    let function = unit.procedures.get("::p").expect("the procedure");
+    let profile = resolve_environment(dialect).analyser_profile();
+    let intervals = compute_intervals_with(
+        &function.cfg,
+        &function.ssa,
+        &function.sccp.values,
+        numbers_for_dialect(Some(profile)),
+    );
+    let x = function.ssa.var_symbol("x").expect("x");
+    intervals
+        .iter()
+        .filter(|((symbol, _), _)| *symbol == x)
+        .max_by_key(|((_, version), _)| *version)
+        .map(|(_, interval)| *interval)
+        .expect("an interval for x")
+}
+
+/// Whether `interval` holds the integer `text` spells (a bignum included).
+fn interval_holds(interval: Interval, text: &str) -> bool {
+    let value: i128 = text.parse().expect("an integer");
+    interval.lo.is_none_or(|lo| i128::from(lo) <= value)
+        && interval.hi.is_none_or(|hi| value <= i128::from(hi))
+}
+
+/// The lattice, the loop simulator and the interval domain answer one
+/// increment alike: the lattice and the simulator give the same value or
+/// both decline, and the interval never excludes the lattice's value.
+/// Each value is the release's own: `incr x $n` is 8 everywhere; `incr x`
+/// over `010` is 9 up to 8.6 and 11 from 9.0; over `9223372036854775807`
+/// it is `9223372036854775808` from 8.5 and `-8` under 8.4, which no model
+/// computes, so 8.4 declines, as `f5-irules`, naming no single release,
+/// declines both release-dependent cases.
+#[test]
+fn the_three_incr_models_agree() {
+    let cases: [(&str, &str, [Option<&str>; 4]); 3] = [
+        ("5", "incr x $n", [Some("8"); 4]),
+        ("010", "incr x", [Some("9"), Some("9"), Some("11"), None]),
+        (
+            "9223372036854775807",
+            "incr x",
+            [
+                None,
+                Some("9223372036854775808"),
+                Some("9223372036854775808"),
+                None,
+            ],
+        ),
+    ];
+    for (init, statement, expected) in cases {
+        let source = format!("proc p {{}} {{set x {init}; set n 3; {statement}; return $x}}\n");
+        for (dialect, want) in DIALECTS.into_iter().zip(expected) {
+            let unit = unit_of(&source, dialect);
+            let lattice =
+                lattice_text(value_at(&unit, "::p", "x", 2).expect("the increment's definition"));
+            let simulated = simulated_text(dialect, init, statement);
+            assert_eq!(
+                lattice.as_deref(),
+                want,
+                "{dialect}: lattice, {statement} over {init}"
+            );
+            assert_eq!(
+                simulated, lattice,
+                "{dialect}: simulator, {statement} over {init}"
+            );
+            if let Some(value) = &lattice {
+                let interval = interval_at(&unit, dialect);
+                assert!(
+                    interval_holds(interval, value),
+                    "{dialect}: {interval:?} excludes {value}"
+                );
+            }
+        }
+        for (series, tclsh) in releases_on_path() {
+            let unit = unit_of(&source, &dialect_of(series));
+            let Some(value) = lattice_text(value_at(&unit, "::p", "x", 2).expect("the definition"))
+            else {
+                continue;
+            };
+            let program = format!("set x {init}; set n 3; {statement}; puts $x");
+            assert_eq!(
+                run_script(&tclsh, &program),
+                Some((true, format!("{value}\n"))),
+                "tclsh{series}: {program}"
+            );
+        }
+    }
+}
+
+/// `set result [incr n]` reads the store it increments, so neither dead
+/// store rewrite (O109, O126) takes `set n 1` and the increment stays;
+/// the optimised program prints 2 twice, as every release does (#2050).
+#[test]
+fn set_result_incr_keeps_its_increment() {
+    let source = "proc p {} {set n 1; set result [incr n]; puts $result; puts $n}\np\n";
+    let store = source.find("set n 1").expect("the store");
+    for dialect in DIALECTS {
+        let rewrites = rewrites_of(source, dialect);
+        assert!(
+            !rewrites.iter().any(|r| {
+                matches!(r.code, DiagCode::O109 | DiagCode::O126)
+                    && (r.span.start() as usize..r.span.end() as usize).contains(&store)
+            }),
+            "{dialect}: {rewrites:#?}"
+        );
+        let (rewritten, all) = optimised(source, dialect);
+        assert!(
+            rewritten.contains("set n 1") && rewritten.contains("[incr n]"),
+            "{dialect}:\n{rewritten}\n{all:#?}"
+        );
+    }
+    prints_under_every_release(source, "2\n2\n");
+}
+
+/// The string and list build chains fold through a `$var` piece the
+/// lattice proves: `append s $p` (O104) — a leading space kept (#2052) —
+/// and `lappend l a $x` (O130).
+#[test]
+fn o104_and_o130_fold_a_chain_through_a_lattice_operand() {
+    let cases = [
+        (
+            "set s hello\nset p again\nappend s $p\nputs $s\n",
+            DiagCode::O104,
+            "set s helloagain",
+            "helloagain\n",
+        ),
+        (
+            "set s hello\nset p { again}\nappend s $p\nputs $s\n",
+            DiagCode::O104,
+            "set s {hello again}",
+            "hello again\n",
+        ),
+        (
+            "set l {}\nset x b\nlappend l a $x\nputs $l\n",
+            DiagCode::O130,
+            "set l {a b}",
+            "a b\n",
+        ),
+    ];
+    for (source, code, folded, output) in cases {
+        for dialect in DIALECTS {
+            let rewrites = rewrites_of(source, dialect);
+            assert!(
+                rewrites
+                    .iter()
+                    .any(|r| r.code == code && r.replacement == folded),
+                "{dialect}: {source}\n{rewrites:#?}"
+            );
+        }
+        prints_under_every_release(source, output);
+    }
+}
+
+/// Deleting a store whose value was a quoted word takes the whole word:
+/// no line of the optimised program holds only its closing quote (#2053).
+#[test]
+fn deleting_a_quoted_store_leaves_no_quote() {
+    let source = "set s hello\nset p \"again\"\nappend s $p\nputs $s\n";
+    for dialect in DIALECTS {
+        let (rewritten, rewrites) = optimised(source, dialect);
+        assert!(
+            !rewritten.lines().any(|line| line.trim() == "\""),
+            "{dialect}:\n{rewritten}\n{rewrites:#?}"
+        );
+    }
+    prints_under_every_release(source, "helloagain\n");
+}
+
+/// `lassign` is no write under a profile whose release lacks it: under
+/// 8.4 the call is an unknown command `catch` absorbs, so `a` is still
+/// `old` at the `puts` — the optimiser forwards it, and the store that fed
+/// it is then dead, where deleting the store while keeping the read made
+/// 8.4 fail with `can't read "a"` — and 8.4 prints `old`. From 8.5
+/// `lassign` assigns `new`, which no rewrite forwards past (#2144).
+#[test]
+fn lassign_is_not_a_write_under_a_profile_without_it() {
+    let source = "set a old\ncatch {lassign {new second} a b}\nputs $a\n";
+    let (rewritten, rewrites) = optimised(source, "tcl8.4");
+    assert!(rewritten.contains("puts old"), "{rewritten}\n{rewrites:#?}");
+    for dialect in ["tcl8.6", "tcl9.0"] {
+        let (rewritten, rewrites) = optimised(source, dialect);
+        assert!(
+            rewritten.contains("puts $a"),
+            "{dialect}:\n{rewritten}\n{rewrites:#?}"
+        );
+    }
+    for (series, tclsh) in releases_on_path() {
+        let (rewritten, _) = optimised(source, &dialect_of(series));
+        let want = if series == "8.4" { "old\n" } else { "new\n" };
+        for program in [source, rewritten.as_str()] {
+            assert_eq!(
+                run_script(&tclsh, program),
+                Some((true, want.to_owned())),
+                "tclsh{series}:\n{program}"
+            );
+        }
     }
 }

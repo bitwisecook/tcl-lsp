@@ -59,8 +59,32 @@ independently because its def-use walk never consults `fu.sccp`; and
 half through `memory_ssa::compute_aliases` when the unit carries no
 `MemorySsa`. There is no separate bytecode-level shortcut to guard.
 
+### Command values: the registry's routes
+
+A command's value reaches the lattice through the route the registry
+declares for the resolved invocation, never through a compiler arm keyed by
+the command's name ([value-transfers.md](value-transfers.md)). The route runs
+the runtime's own core over the compile-time value model under the target's
+release, so `set x 010; incr x` is 9 under Tcl 8.6 and 11 under 9.0;
+`append`, `lappend`, `set`, and the `dict` keyed updates give their
+variable its exact new value; `string range`, `list`, `llength`, and
+`string length` give their result. A profile that names no release gets
+only the answer every release gives.
+
+**Example — `set s hello; set p again; append s $p; puts $s`:**
+
+1. `s₁ = CONST("hello")`, `p₁ = CONST("again")`
+2. The `append` route reads both from the lattice: `s₂ = CONST("helloagain")`
+3. O104 folds the chain to `set s helloagain`, and O100 forwards the value
+   into `puts`
+
 ### When folding fails
 
+- **A declined route**: the operand is not exact, the answer differs
+  between the releases a profile can denote, or the module rebinds the
+  command's name; the definition stays `OVERDEFINED`, and
+  `tcl explore --show sccp` prints the reason (`declined:
+  release-ambiguous: numeral-grammar`, `declined: rebinding-suspected`)
 - **Loop-carried values**: `phi(CONST, ...)` from a loop → `OVERDEFINED`
 - **Impure commands**: result cannot be known at compile time
 - **Unbraced expressions**: `ExprNode::Raw` — no AST to fold
