@@ -68,6 +68,7 @@
 //! decision, not an oversight.
 
 use tcl_registry::arity::Arity;
+use tcl_registry::clause_grammar::{ClauseGrammarSpec, ClauseRow, ClauseSlot, DefaultClause};
 use tcl_registry::definer::{
     BuiltinObjectMethod, DefinitionBodyGrammar, ManufacturerMethod, MemberBodyCommand,
 };
@@ -229,6 +230,7 @@ pub fn witness_command_spec(spec: &CommandSpec) {
         options: _,
         option_relations: _,
         option_effect_families: _,
+        clause_grammar: _,
         constraints: _,
         option_placement: _,
         reserved_trailing_words: _,
@@ -462,6 +464,7 @@ pub const COMMAND_SPEC: &[Field] = &[
     f("definition_body", Surface::Key("definition_body")),
     f("manufacturer_methods", Surface::Key("manufacturer_methods")),
     f("case_list", Surface::Key("case_list")),
+    f("clause_grammar", Surface::Key("clause_grammar")),
     f("object_class", Surface::Key("object_class")),
     f("defines_symbol", Surface::Key("defines_symbol")),
     f("body_scope", Surface::Key("body_scope")),
@@ -521,6 +524,7 @@ pub fn witness_sub_command(sub: &SubCommand) {
         options: _,
         option_relations: _,
         option_effect_families: _,
+        clause_grammar: _,
         constraints: _,
         option_placement: _,
         min_abbrev: _,
@@ -622,6 +626,7 @@ pub const SUB_COMMAND: &[Field] = &[
         "option_effect_families",
         Surface::Key("option_effect_families"),
     ),
+    f("clause_grammar", Surface::Key("clause_grammar")),
     f("constraints", Surface::Key("constraints")),
     f("option_placement", Surface::Key("option_placement")),
     f("min_abbrev", Surface::Key("min_abbrev")),
@@ -1238,6 +1243,90 @@ pub const OBJECT_CLASS_SPEC: &[Field] = &[
     ),
 ];
 
+/// Compile-time witness for [`CLAUSE_GRAMMAR_SPEC`].
+pub fn witness_clause_grammar_spec(grammar: &ClauseGrammarSpec) {
+    let ClauseGrammarSpec {
+        head: _,
+        rows: _,
+        tail: _,
+        fallthrough_body: _,
+        default_clause: _,
+        selection: _,
+        surface: _,
+    } = grammar;
+}
+
+/// Where the studio surfaces each [`ClauseGrammarSpec`] field.
+///
+/// Like `object_class`, the descriptor is plain data all the way down, so the
+/// draft carries it field by field inside the `clause_grammar` value and the
+/// `SpecTcl` renderer writes the whole block back out.
+pub const CLAUSE_GRAMMAR_SPEC: &[Field] = &[
+    f("head", Surface::Key("head")),
+    f("rows", Surface::Key("rows")),
+    f("tail", Surface::Key("tail")),
+    f("fallthrough_body", Surface::Key("fallthrough_body")),
+    f("default_clause", Surface::Key("default_clause")),
+    f("selection", Surface::Key("selection")),
+    f("surface", Surface::Key("surface")),
+];
+
+/// Compile-time witness for [`CLAUSE_ROW`].
+pub fn witness_clause_row(row: &ClauseRow) {
+    let ClauseRow {
+        keyword: _,
+        keyword_required: _,
+        shape: _,
+        timing: _,
+        surface: _,
+    } = row;
+}
+
+/// Where the studio surfaces each [`ClauseRow`] field. The shape is three
+/// keys: which shape, the slots of a `repeated` / `once` row, and the layout
+/// index a `group` row cites.
+pub const CLAUSE_ROW: &[Field] = &[
+    f("keyword", Surface::Key("keyword")),
+    f("keyword_required", Surface::Key("keyword_required")),
+    f("shape", Surface::Keys(&["shape", "slots", "layout"])),
+    f("timing", Surface::Key("timing")),
+    f("surface", Surface::Key("surface")),
+];
+
+/// Compile-time witness for [`CLAUSE_SLOT`].
+pub fn witness_clause_slot(slot: &ClauseSlot) {
+    let ClauseSlot {
+        role: _,
+        noise: _,
+        handler: _,
+        conditional_binding: _,
+        optional: _,
+    } = slot;
+}
+
+/// Where the studio surfaces each [`ClauseSlot`] field.
+pub const CLAUSE_SLOT: &[Field] = &[
+    f("role", Surface::Key("role")),
+    f("noise", Surface::Key("noise")),
+    f("handler", Surface::Key("handler")),
+    f("conditional_binding", Surface::Key("conditional_binding")),
+    f("optional", Surface::Key("optional")),
+];
+
+/// Compile-time witness for [`DEFAULT_CLAUSE`].
+pub fn witness_default_clause(default: &DefaultClause) {
+    let DefaultClause {
+        row: _,
+        final_only: _,
+    } = default;
+}
+
+/// Where the studio surfaces each [`DefaultClause`] field.
+pub const DEFAULT_CLAUSE: &[Field] = &[
+    f("row", Surface::Key("row")),
+    f("final_only", Surface::Key("final_only")),
+];
+
 /// Compile-time witness for [`CASE_LIST_SPEC`].
 pub fn witness_case_list_spec(spec: &CaseListSpec) {
     let CaseListSpec {
@@ -1499,6 +1588,43 @@ mod tests {
         let _ = draft::insert_lifecycle(&mut life, Lifecycle::UNSPECIFIED);
         let life_keys: Vec<&str> = life.keys().map(String::as_str).collect();
         assert_carried("Lifecycle", LIFECYCLE, &life_keys);
+    }
+
+    /// The clause-grammar descriptor is plain data all the way down: the
+    /// draft's JSON objects for the grammar, a row, a slot and the default
+    /// clause each carry a key per field. `if`'s grammar exercises every one —
+    /// a head, a keyword row, a tail, and a default clause.
+    #[test]
+    fn the_clause_grammar_types_are_fully_surfaced() {
+        let grammar = tcl_registry::default_registry()
+            .get("if")
+            .and_then(|spec| spec.clause_grammar)
+            .expect("`if` declares a clause grammar");
+        witness_clause_grammar_spec(grammar);
+        witness_clause_row(&grammar.head);
+        witness_clause_slot(&grammar.head.slots()[0]);
+        witness_default_clause(&grammar.default_clause.expect("`if`'s else is the default"));
+        let drafted = draft::clause_grammar(Some(grammar));
+        assert_carried(
+            "ClauseGrammarSpec",
+            CLAUSE_GRAMMAR_SPEC,
+            &object_keys("ClauseGrammarSpec", &drafted),
+        );
+        assert_carried(
+            "ClauseRow",
+            CLAUSE_ROW,
+            &object_keys("ClauseRow", &drafted["head"]),
+        );
+        assert_carried(
+            "ClauseSlot",
+            CLAUSE_SLOT,
+            &object_keys("ClauseSlot", &drafted["head"]["slots"][0]),
+        );
+        assert_carried(
+            "DefaultClause",
+            DEFAULT_CLAUSE,
+            &object_keys("DefaultClause", &drafted["default_clause"]),
+        );
     }
 
     /// Every exclusion states a reason, and names a type whose fields really

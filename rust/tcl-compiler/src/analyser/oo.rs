@@ -582,9 +582,10 @@ impl Analyser {
         let Some(member) = grammar.member(keyword) else {
             // Not a member word. Unknown to the registry, or script-taking:
             // either way this command can install members out of sight.
-            // Roles come from the static table *and* the per-call resolver
-            // (`foreach`'s layout depends on how many var/list pairs it was
-            // given, so its `Body` index is only knowable from the words).
+            // Roles come from the static table, the per-call resolver *and*
+            // the clause grammar's walk (`foreach`'s layout depends on how
+            // many var/list pairs it was given, so its `Body` index is only
+            // knowable from the words).
             return self.registry.as_ref().is_some_and(|registry| {
                 registry.get(keyword).is_none_or(|spec| {
                     let args: Vec<&str> = texts.iter().skip(1).map(String::as_str).collect();
@@ -596,6 +597,9 @@ impl Analyser {
                         .iter()
                         .chain(resolved.iter())
                         .any(|(_, role)| *role == ArgRole::Body)
+                        || spec.clause_plan(&args, None).is_some_and(|plan| {
+                            plan.roles.iter().any(|(_, role)| *role == ArgRole::Body)
+                        })
                 })
             });
         };

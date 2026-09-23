@@ -113,7 +113,28 @@ pairs\" — and a maintainer writes the few lines.",
 ever return. This is declarative even though the resolver itself is code. \
 Consumers use it when substitutions or expansions hide the exact argument \
 values, so omitting a possible role can suppress analysis while adding an \
-impossible role makes analysis needlessly conservative.",
+impossible role makes analysis needlessly conservative. A command whose \
+clause grammar replaced its resolver keeps this as the closed set the \
+grammar's walk emits.",
+    ),
+    (
+        "clause_grammar",
+        "The word grammar of a clause chain, as data: `if`'s `elseif`/`else` \
+chain, `try`'s handlers, a loop's fixtures and body. The registry walks every \
+call against it once, and that one walk answers where each keyword, condition \
+and script sits (the argument roles), which clause runs when (each row's \
+timing), and the chain's first structural defect (what `if`'s E004 \
+reports).\n\nA keyword is compared only where a clause could start and at a \
+`?noise?` slot; every other slot is filled positionally, so `if else {a}` is \
+a well-formed `if` whose condition is the bareword `else`. `try` in the DSL:\n\n\
+```\nclause_grammar {\n    head {Body} -timing protected\n    repeated on   \
+{Pattern LoopVarList Body} -timing selected -pattern completion-code\n    \
+repeated trap {Pattern LoopVarList Body} -timing selected -pattern \
+error-code-prefix\n    tail finally  {Body} -timing always\n    \
+fallthrough_body -\n    selection first-match\n}\n```\n\nA slot is a role \
+name, `?word?` for a noise word, or `{ROLE optional}`; `group N` cites the \
+`repeat` layout a loop's binder groups follow. The form shows the rows \
+read-only.",
     ),
     (
         "arg_presentation",
@@ -147,11 +168,11 @@ the frame behaviour in your issue notes if your command has one \
     (
         "clause_shape_check",
         "A validator for commands whose legal shapes cannot be captured by a \
-single min–max argument count — `if`'s `elseif`/`else` chain is the \
-canonical case: any length is fine, but only in the right rhythm. This is \
-code, so in the studio it is a reference; if your command has a clause \
-grammar, write the rhythm out in the issue notes (\"`cond body` pairs, \
-optionally ending `else body`\").",
+single min–max argument count. The escape hatch, not the mechanism: a chain \
+a clause grammar can spell — `if`'s `elseif`/`else` rhythm is the canonical \
+case — derives its defect from the grammar instead. This is code, so in the \
+studio it is a reference; write the grammar as a `clause_grammar` block \
+wherever the rows can say it.",
     ),
     (
         "command_prefixes",

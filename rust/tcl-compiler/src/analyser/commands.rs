@@ -1647,9 +1647,11 @@ impl Analyser {
     ///   before `handle_namespace_eval_command` so `namespace foo` is
     ///   flagged.
     /// - **E004** (malformed `if`) — dispatched generically off the
-    ///   resolved spec's `clause_shape_check` hook, not off `cmd_name`,
-    ///   so `if` is the trigger today only because it is the one
-    ///   command carrying that hook.
+    ///   registry's structural defect for the call (the clause grammar's
+    ///   walk for a command whose arity is checked structurally, else the
+    ///   `clause_shape_check` escape hatch), not off `cmd_name`, so `if` is
+    ///   the trigger today only because it is the one command whose arity
+    ///   its grammar owns.
     /// - **W101** (`eval` with substituted args) — before body-walk
     ///   dispatch so the `ArgRole::Body` recursion into the `eval`
     ///   body still runs.
@@ -1701,13 +1703,11 @@ impl Analyser {
             scope_path,
         );
         self.emit_w002_disabled_command(cmd_name, cmd_tok, scope_path);
-        if let Some(checker) = self
-            .registry
-            .as_ref()
-            .and_then(|r| r.get(cmd_name))
-            .and_then(|spec| spec.clause_shape_check)
-        {
-            self.emit_e004_clause_shape_diagnostic(cmd_name, checker, args, cmd_tok, arg_tokens);
+        if let Some(error) = self.registry.as_ref().and_then(|r| {
+            let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
+            r.clause_shape_defect(cmd_name, &arg_strs)
+        }) {
+            self.emit_e004_clause_shape_diagnostic(cmd_name, error, args, cmd_tok, arg_tokens);
         }
         if let Some(gate) = self
             .registry

@@ -2281,13 +2281,19 @@ const SPECTCL_NAME0_ROLES: &[(u8, ArgRole)] = &[(0, ArgRole::Name)];
 /// `value V ?-detail {…}? ?-min-tcl VER? ?-code N?`.
 const SPECTCL_VALUES_MEMBERS: &[MemberSpec] = &[MemberSpec::flat("value", SPECTCL_NAME0_ROLES)];
 
-/// The three clause rows of a `clause_grammar { … }` block.  `head` /
-/// `repeated` / `tail` each carry a braced *slot list*, which is a role
-/// vocabulary rather than a script, so no member declares a `Body`.
+/// The rows of a `clause_grammar { … }` block.  `head` / `repeated` /
+/// `once` / `tail` each carry a braced *slot list*, which is a role
+/// vocabulary rather than a script, and `group` a layout index, so no member
+/// declares a `Body`; the last three state the chain-level rules.
 const SPECTCL_CLAUSE_GRAMMAR_MEMBERS: &[MemberSpec] = &[
     MemberSpec::keyword_only("head"),
     MemberSpec::keyword_only("repeated"),
+    MemberSpec::keyword_only("once"),
+    MemberSpec::keyword_only("group"),
     MemberSpec::keyword_only("tail"),
+    MemberSpec::keyword_only("fallthrough_body"),
+    MemberSpec::keyword_only("default_clause"),
+    MemberSpec::keyword_only("selection"),
 ];
 
 /// The plain-data fields of a `case_list { … }` block. The command-level

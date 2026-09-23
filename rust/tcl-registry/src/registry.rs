@@ -471,6 +471,20 @@ fn parse_try_control_invocation(
     })
 }
 
+/// Whether a typed control invocation's clause chain is well formed: the
+/// clause grammar's walk, else the `clause_shape_check` escape hatch. `None`
+/// means the command states no chain grammar at all.
+fn control_chain_is_well_formed(
+    spec: &CommandSpec,
+    args: &[&str],
+    dialect: Option<SurfaceQuery<'_>>,
+) -> Option<bool> {
+    if let Some(plan) = spec.clause_plan(args, dialect) {
+        return Some(plan.defect.is_none());
+    }
+    spec.clause_shape_check.map(|check| check(args).is_none())
+}
+
 fn try_control_arms(
     args: &[&str],
     numbers: tcl_syntax::number::Numbers,
@@ -3328,7 +3342,7 @@ impl CommandRegistry {
         let resolved = self.resolve_call(name, args, None)?;
         match resolved.lowering_hook? {
             LoweringHookId::If => {
-                if (resolved.spec.clause_shape_check?)(args).is_some() {
+                if !control_chain_is_well_formed(resolved.spec, args, None)? {
                     return None;
                 }
                 self.arg_indices_for_role(name, args, ArgRole::Body)
@@ -3391,7 +3405,7 @@ impl CommandRegistry {
         let resolved = self.resolve_call(name, args, dialect)?;
         let hook = resolved.lowering_hook?;
         match hook {
-            LoweringHookId::If => Some((resolved.spec.clause_shape_check?)(args).is_none()),
+            LoweringHookId::If => control_chain_is_well_formed(resolved.spec, args, dialect),
             LoweringHookId::Switch => Some(self.case_invocation(name, args, dialect).is_some()),
             LoweringHookId::Try => {
                 Some(try_control_arms(args, self.control_numbers(dialect)).is_some())
@@ -4248,14 +4262,17 @@ impl CommandRegistry {
     /// For subcommand-based commands (e.g. `dict create`), pass the
     /// subcommand as the first element of `args`.
     ///
-    /// Three role sources feed this, in the order the registry contract
-    /// documents: a dynamic `arg_role_resolver`, the static `arg_roles`
-    /// table, and — for the unbounded regular tails a fixed table cannot
-    /// express — the [`RepeatedArgLayout`]s of
-    /// [`CommandSpec::repeated_args`].  The repeated layouts
-    /// are *additive*: a spec may pin its leading words with `arg_roles`
-    /// (`namespace upvar`'s leading namespace word) and still declare the
-    /// repeating pair tail.
+    /// Four role sources feed this, in the order the registry contract
+    /// documents: the [`CommandSpec::clause_grammar`] walk's flat roles (the
+    /// clause structure — keywords, conditions, scripts), a dynamic
+    /// `arg_role_resolver` or else the static `arg_roles` table, and — for
+    /// the unbounded regular tails a fixed table cannot express — the
+    /// [`RepeatedArgLayout`]s of [`CommandSpec::repeated_args`].  The
+    /// grammar and the repeated layouts are *additive*: a spec may pin its
+    /// leading words with `arg_roles` (`namespace upvar`'s leading namespace
+    /// word) and still declare the repeating pair tail, and `catch` states
+    /// its clause structure in a grammar while its `arg_roles` keep the
+    /// result words' `VarWrite`.
     ///
     /// [`RepeatedArgLayout`]: crate::repeated::RepeatedArgLayout
     #[must_use]
@@ -4301,6 +4318,15 @@ impl CommandRegistry {
                         .map(|(i, _)| *i as usize + 1),
                 );
             }
+            // The clause structure the subcommand's grammar states.
+            if let Some(plan) = sub.clause_plan(&args[1..], self.own_surface_query()) {
+                out.extend(
+                    plan.roles
+                        .iter()
+                        .filter(|(_, r)| *r == role)
+                        .map(|(i, _)| i + 1),
+                );
+            }
             // Repeated tails, over the words after the subcommand word.
             push_repeated_roles(&mut out, sub.repeated_args, n.saturating_sub(1), 1, role);
             // Value-taking options on the subcommand (scan past the sub word).
@@ -4344,6 +4370,19 @@ impl CommandRegistry {
                     .map(|(i, _)| *i as usize),
             );
         }
+        // The clause structure the command's grammar states — first in the
+        // resolution order, and additive: the walk names where keywords,
+        // conditions and scripts sit, and the tables above name the rest.
+        if let Some(plan) = spec.clause_plan(args, self.own_surface_query()) {
+            out.extend(
+                plan.roles
+                    .iter()
+                    .filter(|(_, r)| {
+                        *r == role && (role != ArgRole::Body || case_body_roles_allowed)
+                    })
+                    .map(|(i, _)| *i),
+            );
+        }
         // Repeated tails (`global a b c`, `upvar ?level? o l o l`).
         push_repeated_roles(&mut out, spec.repeated_args, n, 0, role);
         // Value-taking options carry roles at their (dynamic) value positions.
@@ -4352,6 +4391,38 @@ impl CommandRegistry {
         out.sort_unstable();
         out.dedup();
         out
+    }
+
+    /// The clause plan of a call to `name` with `args` — the command's (or,
+    /// when `args[0]` names one, the subcommand's) clause grammar walked under
+    /// this registry's own profile, in the same post-head coordinates as
+    /// [`Self::arg_indices_for_role`]. `None` when neither declares a grammar
+    /// or it is unavailable at the profile.
+    #[must_use]
+    pub fn clause_plan(&self, name: &str, args: &[&str]) -> Option<crate::ClausePlan> {
+        let spec = self.get(name)?;
+        let dialect = self.own_surface_query();
+        if !spec.subcommands.is_empty()
+            && let Some(sub) = args.first().and_then(|word| spec.resolve_subcommand(word))
+        {
+            return sub
+                .clause_plan(&args[1..], dialect)
+                .map(|plan| plan.offset_by(1));
+        }
+        spec.clause_plan(args, dialect)
+    }
+
+    /// The structural defect a consumer reports for a call to `name` in place
+    /// of the generic arity check — [`CommandSpec::clause_shape_defect`] under
+    /// this registry's own profile (`if`'s E004).
+    #[must_use]
+    pub fn clause_shape_defect(
+        &self,
+        name: &str,
+        args: &[&str],
+    ) -> Option<crate::ClauseShapeError> {
+        self.get(name)?
+            .clause_shape_defect(args, self.own_surface_query())
     }
 
     /// Resolve the argument indices whose **brace-quoted** word this command
@@ -4617,6 +4688,9 @@ impl CommandRegistry {
         };
         spec.arg_role_resolver_roles.contains(&role)
             || spec.arg_roles.iter().any(|(_, found)| *found == role)
+            || spec
+                .clause_grammar
+                .is_some_and(|grammar| grammar.may_assign(role))
             || spec.repeated_args.iter().any(|layout| layout.role == role)
             || options_have(spec.options)
             || spec.command_forms.iter().any(|form| {
@@ -4625,6 +4699,9 @@ impl CommandRegistry {
             || spec.subcommands.iter().any(|sub| {
                 sub.arg_role_resolver_roles.contains(&role)
                     || sub.arg_roles.iter().any(|(_, found)| *found == role)
+                    || sub
+                        .clause_grammar
+                        .is_some_and(|grammar| grammar.may_assign(role))
                     || sub.repeated_args.iter().any(|layout| layout.role == role)
                     || options_have(sub.options)
             })
@@ -5050,7 +5127,12 @@ impl CommandRegistry {
             Some(sub) => (sub.arg_roles, sub.arg_role_resolver, 1usize),
             None => (spec.arg_roles, spec.arg_role_resolver, 0usize),
         };
-        let declared: Vec<(usize, ArgRole)> = match dynamic_roles {
+        let own_args = args.get(sub_offset..).unwrap_or(&[]);
+        let plan = match sub {
+            Some(sub) => sub.clause_plan(own_args, self.own_surface_query()),
+            None => spec.clause_plan(own_args, self.own_surface_query()),
+        };
+        let mut declared: Vec<(usize, ArgRole)> = match dynamic_roles {
             Some(resolve) => resolve(args.get(sub_offset..).unwrap_or(&[]))
                 .into_iter()
                 .map(|(idx, role)| (idx as usize + sub_offset, role))
@@ -5060,6 +5142,11 @@ impl CommandRegistry {
                 .map(|(idx, role)| (*idx as usize + sub_offset, *role))
                 .collect(),
         };
+        declared.extend(
+            plan.into_iter()
+                .flat_map(|plan| plan.roles)
+                .map(|(idx, role)| (idx + sub_offset, role)),
+        );
         let ceiling = usize::from(spec.arity.max);
         (args.len()..ceiling)
             .map_while(|position| {
@@ -6113,13 +6200,72 @@ mod tests {
         check_command("set", &["name", "value"]);
         check_command("regexp", &["pattern", "text", "whole", "capture"]);
         check_command("regsub", &["pattern", "text", "replacement", "out"]);
-        check_command("if", &["expr", "then", "body", "else", "fallback"]);
-        check_command("try", &["body", "on", "0", "result", "handler"]);
+        // A clause grammar took the retired `if` / `try` resolvers' place; its
+        // walk's flat roles stay inside the same closed capability set.
+        let check_grammar = |name: &str, args: &[&str]| {
+            let spec = command(name);
+            let plan = spec.clause_plan(args, None).expect("a clause grammar");
+            for (_, role) in plan.roles {
+                assert!(
+                    spec.arg_role_resolver_roles.contains(&role)
+                        || spec.arg_roles.iter().any(|(_, found)| *found == role),
+                    "{name}'s grammar emitted {role:?} for {args:?}, outside its declared roles"
+                );
+            }
+        };
+        check_grammar("if", &["expr", "then", "body", "else", "fallback"]);
+        check_grammar("try", &["body", "on", "0", "result", "handler"]);
         check_subcommand("binary", "scan", &["bytes", "a*", "out"]);
         check_subcommand("dict", "update", &["d", "key", "local", "body"]);
         check_subcommand("namespace", "which", &["-variable", "name"]);
         check_subcommand("namespace", "which", &["-command", "name"]);
         check_subcommand("trace", "add", &["variable", "name", "write", "callback"]);
+    }
+
+    /// A clause grammar's flat roles are part of `may_have_arg_role`'s answer,
+    /// so every role a grammar can assign is one its spec already declares —
+    /// in the resolver's closed set (the set a grammar that replaced a
+    /// resolver keeps) or in the static table. Otherwise an expansion-blocked
+    /// call would abstain differently from a literal one.
+    #[test]
+    fn clause_grammar_roles_are_declared_capabilities() {
+        let registry = registry_with_every_resolver_surface();
+        let mut grammars = 0;
+        let declared = |roles: &[ArgRole], table: &[(u8, ArgRole)], role: ArgRole| {
+            roles.contains(&role) || table.iter().any(|(_, found)| *found == role)
+        };
+        for specs in registry.by_name.values() {
+            for spec in specs {
+                let owners = std::iter::once((
+                    spec.name.to_owned(),
+                    spec.clause_grammar,
+                    spec.arg_role_resolver_roles,
+                    spec.arg_roles,
+                ))
+                .chain(spec.subcommands.iter().map(|sub| {
+                    (
+                        format!("{} {}", spec.name, sub.name),
+                        sub.clause_grammar,
+                        sub.arg_role_resolver_roles,
+                        sub.arg_roles,
+                    )
+                }));
+                for (owner, grammar, roles, table) in owners {
+                    let Some(grammar) = grammar else { continue };
+                    grammars += 1;
+                    for &role in ArgRole::ALL {
+                        assert!(
+                            !grammar.may_assign(role) || declared(roles, table, role),
+                            "{owner}'s clause grammar can assign {role:?}, which it does not declare"
+                        );
+                    }
+                }
+            }
+        }
+        assert!(
+            grammars >= 11,
+            "the clause-grammar catalogue unexpectedly shrank"
+        );
     }
 
     /// The representative rows in the sibling test are hand-picked, so a

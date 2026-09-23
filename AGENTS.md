@@ -104,8 +104,10 @@ sites and are not debt.
   `.tclspec`, not Rust.
 - Add a command's `CommandSpec` and its WASM runtime backing in the same
   change (see *WASM command parity*).
-- Argument roles resolve `arg_role_resolver` → `arg_roles` →
-  `assigns_variable_at`; the resolver is authoritative. Compound commands
+- Argument roles resolve `clause_grammar` → `arg_role_resolver` →
+  `arg_roles` → `assigns_variable_at`; a clause grammar states where a
+  chain's keywords, conditions and scripts sit, and the resolver is
+  authoritative for the rest. Compound commands
   (`dict for`, `namespace upvar`) are a base command plus a subcommand word,
   handled by registry `SubCommand` entries and by hook IDs in the analyser,
   lowering, and codegen — check the spec's hook IDs before hunting for a

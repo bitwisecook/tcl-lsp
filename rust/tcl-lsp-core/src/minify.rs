@@ -1512,8 +1512,8 @@ fn rmw_target_var_names(
 /// keywords (`else` / `elseif` / `on` / `trap` / `finally`) plus the
 /// non-highlighted clause noise word (`then`).
 fn is_clause_keyword(word: &str) -> bool {
-    tcl_registry::traits::CLAUSE_KEYWORDS_WITHOUT_COMMAND_SPEC.contains(&word)
-        || tcl_registry::traits::CLAUSE_NOISE_KEYWORDS.contains(&word)
+    tcl_registry::traits::clause_keywords_without_command_spec().contains(&word)
+        || tcl_registry::traits::clause_noise_keywords().contains(&word)
 }
 
 /// Every compacted short name across the symbol map, so aggressive

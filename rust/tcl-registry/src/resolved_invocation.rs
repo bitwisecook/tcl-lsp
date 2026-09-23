@@ -111,11 +111,11 @@ fn resolve_invocation_semantics<'r>(
     form: Option<&'r CommandForm>,
     inherit_command: bool,
 ) -> InvocationSemantics<'r> {
-    let (arg_roles, arg_role_resolver) = match form {
-        Some(form) => (form.arg_roles, None),
+    let (arg_roles, arg_role_resolver, clause_grammar) = match form {
+        Some(form) => (form.arg_roles, None, None),
         None => match sub {
-            Some(sub) => (sub.arg_roles, sub.arg_role_resolver),
-            None => (spec.arg_roles, spec.arg_role_resolver),
+            Some(sub) => (sub.arg_roles, sub.arg_role_resolver, sub.clause_grammar),
+            None => (spec.arg_roles, spec.arg_role_resolver, spec.clause_grammar),
         },
     };
     let inherited_traits = if inherit_command {
@@ -194,6 +194,8 @@ fn resolve_invocation_semantics<'r>(
         argument_offset: usize::from(sub.is_some()),
         arg_roles,
         arg_role_resolver,
+        clause_grammar,
+        repeated_args: sub.map_or(spec.repeated_args, |sub| sub.repeated_args),
         options: InvocationOptions {
             base: sub.map_or(spec.options, |sub| sub.options),
             form: form.map_or(&[], |form| form.options),
@@ -579,6 +581,13 @@ pub struct InvocationSemantics<'r> {
     ///
     /// A matched form has only static roles and therefore supplies `None`.
     pub arg_role_resolver: Option<ArgRoleResolver>,
+    /// The effective clause grammar — the command's, or the resolved
+    /// subcommand's — read by [`ResolvedInvocation::clause_plan`]. A matched
+    /// form has only static roles and therefore supplies `None`.
+    pub clause_grammar: Option<&'r crate::clause_grammar::ClauseGrammarSpec>,
+    /// The effective repeated-argument layouts, which a clause grammar's group
+    /// rows cite.
+    pub repeated_args: &'r [crate::repeated::RepeatedArgLayout],
     /// Effective command/subcommand/form option descriptors.
     pub options: InvocationOptions<'r>,
     /// Where the options' effects come from — the families, reservation,
@@ -959,6 +968,39 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
         })
     }
 
+    /// The call's clause plan: the effective clause grammar walked over the
+    /// words after the head (and after the subcommand word), reported in the
+    /// invocation's post-head coordinates.
+    ///
+    /// `None` when no grammar applies or it is unavailable at `dialect`, when
+    /// a `{*}` expansion makes the word count unknown, or when a computed
+    /// word sits where the walk compares a keyword, a noise word or the
+    /// fall-through marker — Tcl decides those by value. A computed word in a
+    /// positional slot (`if $cond {…}`) is fine. `dialect` is the query the
+    /// call was resolved under, until the resolution carries it itself.
+    #[must_use]
+    pub fn clause_plan(
+        &self,
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> Option<crate::clause_grammar::ClausePlan> {
+        let grammar = self.semantics.clause_grammar?;
+        if !grammar.available(dialect) {
+            return None;
+        }
+        let arguments = self.words.arguments();
+        let len = arguments.exact_argv_len()?;
+        let offset = self.semantics.argument_offset.min(len);
+        let spellings: Vec<&str> = (offset..len)
+            .map(|index| arguments.literal_at(index).unwrap_or(""))
+            .collect();
+        let dynamic: Vec<bool> = (offset..len)
+            .map(|index| arguments.literal_at(index).is_none())
+            .collect();
+        grammar
+            .walk_words(&spellings, &dynamic, self.semantics.repeated_args, dialect)
+            .map(|plan| plan.offset_by(offset))
+    }
+
     /// Validate registry-declared relationships between literal arguments.
     ///
     /// An absent descriptor is a conservative abstention: it is never treated
@@ -968,6 +1010,50 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
         self.semantics
             .literal_argument_validator
             .map(|validator| validator(self.words.arguments()))
+    }
+
+    /// The effective flat role table over the literal words, and whether it is
+    /// complete.
+    ///
+    /// A dynamic resolver — or a clause grammar standing where a retired
+    /// resolver stood, on a descriptor with no static table — needs every
+    /// word literal; otherwise the static table is the answer and is marked
+    /// incomplete. The grammar's roles are appended after the resolver's or
+    /// the static table's, never reordering them.
+    fn role_table(&self) -> (Vec<(u8, ArgRole)>, bool) {
+        let semantics = &self.semantics;
+        let grammar_is_role_source =
+            semantics.clause_grammar.is_some() && semantics.arg_roles.is_empty();
+        if semantics.arg_role_resolver.is_none() && !grammar_is_role_source {
+            return (semantics.arg_roles.to_vec(), true);
+        }
+        let Some(arguments) = self
+            .words
+            .arguments()
+            .literal_values()
+            .and_then(|arguments| {
+                arguments
+                    .get(semantics.argument_offset..)
+                    .map(<[_]>::to_vec)
+            })
+        else {
+            return (semantics.arg_roles.to_vec(), false);
+        };
+        let mut roles = semantics.arg_role_resolver.map_or_else(
+            || semantics.arg_roles.to_vec(),
+            |resolver| resolver(&arguments),
+        );
+        if let Some(grammar) = semantics.clause_grammar {
+            let plan = grammar.walk(&arguments, semantics.repeated_args);
+            for (index, role) in plan.roles {
+                if let Ok(index) = u8::try_from(index)
+                    && !roles.contains(&(index, role))
+                {
+                    roles.push((index, role));
+                }
+            }
+        }
+        (roles, true)
     }
 
     /// Materialise the target-neutral facts for an owned consumer such as an
@@ -982,22 +1068,7 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
             .semantics
             .state_transitions
             .resolve_with_effect_coverage(self.words.arguments());
-        let (arg_roles, arg_roles_complete) = match self.semantics.arg_role_resolver {
-            Some(resolver) => self
-                .words
-                .arguments()
-                .literal_values()
-                .and_then(|arguments| {
-                    arguments
-                        .get(self.semantics.argument_offset..)
-                        .map(resolver)
-                })
-                .map_or_else(
-                    || (self.semantics.arg_roles.to_vec(), false),
-                    |roles| (roles, true),
-                ),
-            None => (self.semantics.arg_roles.to_vec(), true),
-        };
+        let (arg_roles, arg_roles_complete) = self.role_table();
         InvocationFacts {
             canonical_command: self.canonical_command.to_owned(),
             subcommand: self.subcommand.into_owned(),

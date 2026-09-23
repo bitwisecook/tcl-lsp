@@ -5875,8 +5875,8 @@ mod tests {
     // Fires ``Severity::Error`` when an ``if`` invocation's structural
     // shape doesn't match
     // ``if COND BODY ?elseif COND BODY ...? ?else BODY?``.  Detection
-    // reads `tcl_registry::commands::tcl::if_::check_if_shape` via the
-    // spec's `clause_shape_check` hook — the grammar itself is not
+    // reads the registry's walk of `if`'s clause grammar through
+    // `CommandRegistry::clause_shape_defect` — the grammar itself is not
     // reimplemented here (see `emit_e004_clause_shape_diagnostic`).
     // Every case is cross-checked against tclsh 8.6 and Tcl 9.0.4's
     // `TclNRIfObjCmd` source; see the truth table in
@@ -6069,7 +6069,7 @@ mod tests {
     }
 
     // -- FN (documented, intentional scope boundary): a renamed `if` is
-    // not checked. `if`'s registry `clause_shape_check` hook is looked
+    // not checked. `if`'s registry clause grammar is looked
     // up by resolving `cmd_name` as written — namespace-qualification
     // (`::if`) resolves through it (see
     // `tp_qualified_double_colon_if_is_checked_too`), but a `rename if

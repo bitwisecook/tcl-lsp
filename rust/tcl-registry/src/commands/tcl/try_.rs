@@ -50,62 +50,54 @@ const FORMS: &[FormSpec] = &[FormSpec {
     ..FormSpec::DEFAULT
 }];
 
-/// Whether a handler-body word is the literal `-` fallthrough marker
-/// Tcl recognises a body of `-` by string value, so the
-/// braced `{-}` and quoted `"-"` forms — which evaluate to the same
-/// string — are equally fallthroughs. Role-resolver callers may pass
-/// the word either stripped (`-`) or brace/quote-inclusive (`{-}`),
-/// so one layer of matched `{}`/`""` is stripped before comparing.
+/// Whether a handler-body word is the `-` fall-through marker — the grammar's
+/// [`ClauseGrammarSpec::is_fallthrough_body`], which Tcl decides by string
+/// value, so the braced `{-}` and quoted `"-"` forms are equally
+/// fall-throughs.
 pub(crate) fn is_dash_fallthrough(arg: &str) -> bool {
-    let stripped = arg
-        .strip_prefix('{')
-        .and_then(|s| s.strip_suffix('}'))
-        .or_else(|| arg.strip_prefix('"').and_then(|s| s.strip_suffix('"')))
-        .unwrap_or(arg);
-    stripped == "-"
+    GRAMMAR.is_fallthrough_body(arg)
 }
 
-/// Dynamic arg role resolver for `try`/`on`/`trap`/`finally`.
-///
-/// The structural keyword words (`on`/`trap`/`finally`) carry
-/// `ArgRole::Keyword` so the semantic-token layer highlights them as
-/// keywords rather than strings.
-fn try_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
-    let mut roles = Vec::new();
-    if !args.is_empty() {
-        roles.push((0, ArgRole::Body));
-    }
-    let mut i: usize = 1;
-    let push_keyword = |roles: &mut Vec<(u8, ArgRole)>, index: usize| {
-        if let Ok(idx) = u8::try_from(index) {
-            roles.push((idx, ArgRole::Keyword));
-        }
-    };
-    while i < args.len() {
-        let kw = args[i];
-        if kw == "finally" && i + 1 < args.len() {
-            push_keyword(&mut roles, i);
-            if let Ok(idx) = u8::try_from(i + 1) {
-                roles.push((idx, ArgRole::Body));
-            }
-            i += 2;
-        } else if (kw == "on" || kw == "trap") && i + 3 < args.len() {
-            push_keyword(&mut roles, i);
-            // A handler body of literal `-` is a fallthrough marker (shares the
-            // next handler's body, like `switch`); it is not a script, so it
-            // gets no BODY role.
-            if !is_dash_fallthrough(args[i + 3])
-                && let Ok(idx) = u8::try_from(i + 3)
-            {
-                roles.push((idx, ArgRole::Body));
-            }
-            i += 4;
-        } else {
-            i += 1;
-        }
-    }
-    roles
+/// The slots of a handler clause: the word that selects it, the
+/// `{resultVar optionsVar}` list it binds, and its script.
+const fn handler(matches: HandlerMatch) -> [ClauseSlot; 3] {
+    [
+        ClauseSlot::of(ArgRole::Pattern).selecting(matches),
+        ClauseSlot::of(ArgRole::LoopVarList),
+        ClauseSlot::of(ArgRole::Body),
+    ]
 }
+
+/// One script word: the protected body, and `finally`'s.
+const SCRIPT: &[ClauseSlot] = &[ClauseSlot::of(ArgRole::Body)];
+/// `on code {vars} script`.
+const ON_HANDLER: &[ClauseSlot] = &handler(HandlerMatch::CompletionCode);
+/// `trap pattern {vars} script`.
+const TRAP_HANDLER: &[ClauseSlot] = &handler(HandlerMatch::ErrorCodePrefix);
+
+/// `try body ?handler...? ?finally script?`: the protected body, any number
+/// of `on code {vars} script` / `trap pattern {vars} script` handlers tried in
+/// order, and an optional trailing `finally script`. A handler whose script is
+/// `-` runs the next handler's script. `cmd_try`'s own `parse_clauses`
+/// (`tcl-vm/src/cmd_try.rs`) enforces the same chain at runtime.
+pub const GRAMMAR: ClauseGrammarSpec = ClauseGrammarSpec {
+    head: ClauseRow::head(SCRIPT, ClauseTiming::Protected),
+    rows: &[
+        ClauseRow::repeated("on", ON_HANDLER, ClauseTiming::Selected),
+        ClauseRow::repeated("trap", TRAP_HANDLER, ClauseTiming::Selected),
+    ],
+    tail: Some(ClauseRow::once(
+        Some("finally"),
+        SCRIPT,
+        ClauseTiming::Always,
+    )),
+    fallthrough_body: Some("-"),
+    // `try` has no default clause: `on ok` matches a value of the pattern
+    // word, it is not "no handler matched".
+    default_clause: None,
+    selection: ClauseSelection::FirstMatch,
+    surface: None,
+};
 
 /// The word immediately after `body` (index 1), when present, is always
 /// the head of the first handler clause or a bare `finally` — every
@@ -114,7 +106,7 @@ fn try_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 /// fixed-index model can describe exactly (`cmd_try`'s own
 /// `parse_clauses` rejects anything else there with `bad handler type
 /// "X": must be finally, on, or trap`). Every occurrence — not just this
-/// first one — still gets `ArgRole::Keyword` from [`try_arg_roles`]
+/// first one — still gets `ArgRole::Keyword` from the clause grammar's walk
 /// above, which does not depend on position.
 const FIRST_CLAUSE_KEYWORD_VALUES: &[ArgValue] = &[
     ArgValue {
@@ -193,8 +185,10 @@ pub fn spec() -> CommandSpec {
         // this floor is the coarse static bound the generic arity check
         // uses.
         arity: Arity::at_least(1),
-        arg_role_resolver: Some(try_arg_roles),
+        // The closed set of roles the grammar's walk emits: a handler's
+        // pattern and variable list are clause facts, not flat roles.
         arg_role_resolver_roles: &[ArgRole::Body, ArgRole::Keyword],
+        clause_grammar: Some(&GRAMMAR),
         lowering_hook: Some(crate::hooks::LoweringHookId::Try),
         inline_codegen_hook: Some(crate::hooks::InlineCodegenHookId::Try),
         return_type: Some(TclType::String),
@@ -212,54 +206,5 @@ pub fn spec() -> CommandSpec {
         side_effects: SIDE_EFFECTS,
         analyser_hook: Some(crate::hooks::AnalyserHookId::Try),
         ..CommandSpec::DEFAULT
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn body_indices(args: &[&str]) -> Vec<u8> {
-        let mut idx: Vec<u8> = try_arg_roles(args)
-            .into_iter()
-            .filter(|(_, role)| *role == ArgRole::Body)
-            .map(|(i, _)| i)
-            .collect();
-        idx.sort_unstable();
-        idx
-    }
-
-    #[test]
-    fn dash_handler_body_gets_no_body_role() {
-        // A `-` fallthrough handler body is not a script, so it
-        // must carry no `ArgRole::Body` (mirrors `switch`). Index layout for
-        // `try <body> on ok result - trap NONE result <body>`:
-        //   0 body, 1 on, 2 ok, 3 result, 4 `-`, 5 trap, 6 NONE, 7 result, 8 body
-        let args = [
-            "{...}", "on", "ok", "result", "-", "trap", "NONE", "result", "{...}",
-        ];
-        let indices = body_indices(&args);
-        assert!(!indices.contains(&4), "`-` body must get no Body role");
-        assert!(indices.contains(&0), "try body keeps Body role");
-        assert!(indices.contains(&8), "real handler body keeps Body role");
-    }
-
-    #[test]
-    fn braced_and_quoted_dash_body_get_no_body_role() {
-        // The braced `{-}` / quoted `"-"` forms evaluate to the same string
-        // and are equally fallthroughs.
-        for dash in ["{-}", "\"-\""] {
-            let args = ["{...}", "on", "ok", "a", dash, "trap", "NONE", "b", "{...}"];
-            assert!(
-                !body_indices(&args).contains(&4),
-                "{dash} body must get no Body role",
-            );
-        }
-    }
-
-    #[test]
-    fn ordinary_handler_body_keeps_body_role() {
-        let args = ["{...}", "on", "error", "msg", "{puts $msg}"];
-        assert!(body_indices(&args).contains(&4));
     }
 }

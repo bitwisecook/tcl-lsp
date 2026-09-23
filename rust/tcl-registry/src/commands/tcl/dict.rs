@@ -34,6 +34,50 @@ const FORMS: &[FormSpec] = &[FormSpec {
     ..FormSpec::DEFAULT
 }];
 
+/// `{keyVar valueVar} dictionaryValue`: the one binder list and the value it
+/// iterates — `dict for` and `dict map` bind a single key/value list rather
+/// than `foreach`'s repeating groups, so their binder is the head, not a
+/// group row.
+const DICT_LOOP_HEAD: &[ClauseSlot] = &[
+    ClauseSlot::of(ArgRole::LoopVarList),
+    ClauseSlot::of(ArgRole::Value),
+];
+/// A body script.
+const SCRIPT: &[ClauseSlot] = &[ClauseSlot::of(ArgRole::Body)];
+
+/// `dict for {keyVar valueVar} dictionaryValue body` and `dict map`'s
+/// identical shape: the binder and the value, then the body per entry.
+/// `dict for`'s and `dict map`'s own `arg_roles` carry the binder's flat
+/// `LoopVarList`.
+pub const DICT_LOOP_GRAMMAR: ClauseGrammarSpec = ClauseGrammarSpec {
+    head: ClauseRow::head(DICT_LOOP_HEAD, ClauseTiming::PerIteration),
+    rows: &[],
+    tail: Some(ClauseRow::once(None, SCRIPT, ClauseTiming::PerIteration)),
+    fallthrough_body: None,
+    default_clause: None,
+    selection: ClauseSelection::All,
+    surface: None,
+};
+
+/// `dict update`'s dictionary variable: a value to the clause grammar — its
+/// read-modify-write pair is the resolver's.
+const DICT_VARIABLE: &[ClauseSlot] = &[ClauseSlot::of(ArgRole::Value)];
+
+/// `dict update dictionaryVariable key varName ?key varName ...? body`: the
+/// dictionary variable, the key/variable pairs — `repeated_args[0]`'s stride,
+/// each variable bound only when its key is present (the layout's
+/// `conditional_binding`) — and the body, which runs once whenever the call
+/// does.
+pub const DICT_UPDATE_GRAMMAR: ClauseGrammarSpec = ClauseGrammarSpec {
+    head: ClauseRow::head(DICT_VARIABLE, ClauseTiming::Always),
+    rows: &[ClauseRow::group(0, ClauseTiming::Always)],
+    tail: Some(ClauseRow::once(None, SCRIPT, ClauseTiming::Always)),
+    fallthrough_body: None,
+    default_clause: None,
+    selection: ClauseSelection::All,
+    surface: None,
+};
+
 /// Dynamic resolver: last arg is body for `dict update`/`dict with`.
 ///
 /// Arg 0 (the dict variable) plays both `VarRead` and `VarWrite` roles —
@@ -202,6 +246,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // result is not body's own result.
         return_type: Some(TclType::String),
         arg_roles: &[(0, ArgRole::LoopVarList), (2, ArgRole::Body)],
+        clause_grammar: Some(&DICT_LOOP_GRAMMAR),
         arg_types: &[(
             1,
             ArgTypeHint {
@@ -320,6 +365,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Apply a transformation to each dictionary entry.",
         synopsis: "dict map {keyVar valueVar} dictionaryValue body",
         arg_roles: &[(0, ArgRole::LoopVarList), (2, ArgRole::Body)],
+        clause_grammar: Some(&DICT_LOOP_GRAMMAR),
         arg_types: &[(
             1,
             ArgTypeHint {
@@ -477,6 +523,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "dict update dictionaryVariable key varName ?...? body",
         arg_role_resolver: Some(dict_last_arg_body),
         arg_role_resolver_roles: &[ArgRole::VarWrite, ArgRole::VarRead, ArgRole::Body],
+        // The clause structure; the resolver keeps the dictionary variable's
+        // read-modify-write pair, which one clause slot cannot carry.
+        clause_grammar: Some(&DICT_UPDATE_GRAMMAR),
         // `dictionaryVariable key varName ?key varName ...? body` — each
         // `varName` is a local the body sees, at every other index from 2
         // (after the subcommand word), with the trailing body excluded.

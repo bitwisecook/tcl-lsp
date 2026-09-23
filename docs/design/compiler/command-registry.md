@@ -162,7 +162,7 @@ covers the compiler-facing ones.
 | `NEEDS_START_CMD` | Bytecode control flow: needs a `startCmd` instruction |
 | `CREATES_SCOPE_ALIAS` | Creates a scope alias (upvar-like binding) |
 | `ALIASES_GLOBAL` | Refines `CREATES_SCOPE_ALIAS`: binds the interpreter global namespace |
-| `STRUCTURALLY_CHECKED_ARITY` | Registry `arity` is a descriptive floor only; a `clause_shape_check` hook owns real arity + shape validation, so the generic E002/E003 floor/ceiling check steps aside (`if`) |
+| `STRUCTURALLY_CHECKED_ARITY` | Registry `arity` is a descriptive floor only; the clause grammar's walk (or a `clause_shape_check` escape hatch) owns real arity + shape validation, so the generic E002/E003 floor/ceiling check steps aside and the walk's defect is reported instead (`if`'s E004) |
 
 Traits compose across levels: a `SubCommand` carries its own `traits`, and
 consumers read the union of the command's and the resolved subcommand's bits.
@@ -250,14 +250,15 @@ execution trace is absent.
 | Field | Type | Default | Purpose |
 |-------|------|---------|---------|
 | `arg_roles` | `&'static [(u8, ArgRole)]` | `&[]` | Static arg roles: `Body`, `Expr`, `VarWrite`, `VarRead`, `Pattern`, etc. |
-| `arg_role_resolver` | `Option<ArgRoleResolver>` | `None` | Dynamic arg-role resolution for variable-layout commands (if, try, switch) |
+| `arg_role_resolver` | `Option<ArgRoleResolver>` | `None` | Dynamic arg-role resolution for variable-layout commands (`switch`, `regexp`) whose layout no descriptor spells |
+| `clause_grammar` | `Option<&'static ClauseGrammarSpec>` | `None` | The word grammar of a clause chain (`if`/`elseif`/`else`, `try`/`on`/`trap`/`finally`, `for`, `while`, `foreach`, `lmap`, `catch`; `dict for`/`map`/`update` and `array for` on the subcommand): a positional head, keyword and keywordless rows, a tail, and the fall-through, default and selection rules, each row with its `ClauseTiming`. First in the role resolution order: the registry walks it once per call (`ClauseGrammarSpec::walk`, `CommandSpec::clause_plan`, `ResolvedInvocation::clause_plan`) for the keywords', conditions' and scripts' roles and the chain's `ClauseShapeError` — see `tcl_registry::clause_grammar` |
 | `arg_presentation` | `&'static [(u8, ArgPresentation)]` | `&[]` | Formatter layout override per argument index -- see [ArgPresentation](#argpresentation----how-a-formatter-lays-an-argument-out) |
 | `repeated_args` | `&'static [RepeatedArgLayout]` | `&[]` | Roles that recur at a fixed stride over the argument tail (`global a b c`, `foreach v l ... body`) |
 | `command_prefixes` | `&'static [(u8, AppendedArity)]` | `&[]` | Static `ArgRole::CommandPrefix` positions with the arity appended to the callback |
 | `command_prefix_resolver` | `Option<CommandPrefixResolver>` | `None` | Dynamic command-prefix positions (`trace add …`, `interp alias`) |
 | `script_timing_resolver` | `Option<ScriptTimingResolver>` | `None` | Invocation-sensitive `SameInvocation` / `Deferred` / `ReferenceOnly` timing for positions already classified as executable |
 | `callback_taint_inputs` | `&'static [(u8, &'static [CallbackTaintInput])]` | `&[]` | User-controlled substitutions injected into deferred positional callbacks; generic taint replay never infers framework metadata |
-| `clause_shape_check` | `Option<ClauseShapeChecker>` | `None` | Validates a clause-chain shape a plain `min..=max` arity can't express (if's `elseif`/`else` chain -- see `tcl_registry::clause_shape`); the compiler dispatches on the hook's presence, not the command name |
+| `clause_shape_check` | `Option<ClauseShapeChecker>` | `None` | The escape hatch for a clause chain no `clause_grammar` can spell (see `tcl_registry::clause_shape`); a grammar derives the same `ClauseShapeError` from its rows, which is where `if`'s check went. The compiler reads the defect through `CommandRegistry::clause_shape_defect`, never the command name |
 | `frame_effect` | `Option<FrameEffectSpec>` | `None` | How the command crosses stack frames: the level word, the frame-selected variable arguments, and caller-frame scripts |
 | `option_relations` | `&'static [OptionRelation]` | `&[]` | Typed relations between the invocation's options and arguments: mutual exclusion, directional requires, requires-one-of, forbids — over terms naming an option, an option *value*, a positional argument, or a positional value. Evaluated natively by `OptionRelation::evaluate`, driving generic W147 / W152 without naming the command. |
 | `option_effect_families` | `&'static [OptionEffectFamily]` | `&[]` | The families the options' declared effects cite: where each axis starts (`AllOn`, `AllOff`, `Only(axis)`) and how two options of the family combine (`Accumulate`, `LastWins`). With the rows' `OptionSpec::effect`, the whole option-effect descriptor — read through `CommandSpec::option_effects`, never by spelling (see [OptionSpec and option terminators](#optionspec-and-option-terminators)). |
@@ -1726,8 +1727,8 @@ gap for itself.
   `SubCommand` to the matching `LoweringHookId`.
 - If arity validation fails to fire, check that `arity` is set and subcommand
   arities are correct — and that `Traits::STRUCTURALLY_CHECKED_ARITY` is not
-  set, since it stands the generic check down in favour of
-  `clause_shape_check`.
+  set, since it stands the generic check down in favour of the clause
+  grammar's defect (or `clause_shape_check`).
 - Purity flows from command -> subcommand -> form; the most specific level wins.
 - To mark a command as safe on uninitialised variables: set `safe_on_uninit`
   on the `CommandSpec` or `SubCommand`.  Use `Some(SpecSurface::ALL_TCL)` for

@@ -3121,21 +3121,20 @@ impl Analyser {
         None
     }
 
-    /// **E004.** Emit a precise "malformed `if`" diagnostic from a
-    /// registry [`tcl_registry::ClauseShapeChecker`] hook — the grammar
-    /// walk itself lives once, in `tcl-registry`
-    /// (`commands::tcl::if_::walk_if`), shared with the `if_arg_roles`
-    /// highlighting resolver, so this emitter never re-parses `if`'s
-    /// shape independently.
+    /// **E004.** Emit a precise "malformed `if`" diagnostic from the
+    /// registry's structural defect for the call — the walk of `if`'s
+    /// clause grammar (`tcl_registry::clause_grammar`), the same walk that
+    /// answers its argument roles for highlighting, so this emitter never
+    /// re-parses `if`'s shape independently.
     ///
-    /// Dispatched generically off the resolved command spec's
-    /// `clause_shape_check` hook (see
+    /// Dispatched generically off
+    /// [`tcl_registry::CommandRegistry::clause_shape_defect`] (see
     /// [`Self::emit_dispatch_site_diagnostics`]) rather than
     /// `cmd_name == "if"`, so a namespace-qualified `::if` is covered
     /// too — registry name resolution already normalises the leading
-    /// `::` for every command. `if` is the only hook today, so the
-    /// diagnostic code below is hardcoded to `E004`; a second hook
-    /// consumer would need this to carry its own code.
+    /// `::` for every command. `if` is the only command whose arity its
+    /// grammar owns today, so the diagnostic code below is hardcoded to
+    /// `E004`; a second one would need this to carry its own code.
     ///
     /// Verified against Tcl 9.0.4's `TclNRIfObjCmd` /
     /// `IfConditionCallback` (`generic/tclCmdIL.c`) and tclsh 8.6 (same
@@ -3164,17 +3163,12 @@ impl Analyser {
     pub(in crate::analyser) fn emit_e004_clause_shape_diagnostic(
         &mut self,
         cmd_name: &str,
-        checker: tcl_registry::ClauseShapeChecker,
+        error: tcl_registry::ClauseShapeError,
         args: &[String],
         cmd_tok: tcl_lexer::Token,
         arg_tokens: &[tcl_lexer::Token],
     ) {
         use tcl_registry::ClauseShapeError;
-
-        let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
-        let Some(error) = checker(&arg_strs) else {
-            return;
-        };
 
         let word_span = |i: usize| {
             arg_tokens.get(i).map_or(cmd_tok.span, |t| {

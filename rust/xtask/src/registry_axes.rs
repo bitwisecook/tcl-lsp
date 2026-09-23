@@ -408,8 +408,9 @@ impl Vocabulary {
 
 /// The registry's vocabulary: every command and subcommand name, every
 /// option spelling and alias at command, subcommand and form level, every
-/// member keyword of every definition-body grammar a spec references, the
-/// clause keywords, and every special-variable name.
+/// member keyword of every definition-body grammar a spec references, every
+/// word a clause grammar matches by value (its rows' keywords and its noise
+/// words), and every special-variable name.
 fn vocabulary(registry: &CommandRegistry) -> Vocabulary {
     let mut vocabulary = Vocabulary::default();
     let mut grammars: Vec<&'static tcl_registry::definer::DefinitionBodyGrammar> = Vec::new();
@@ -440,11 +441,8 @@ fn vocabulary(registry: &CommandRegistry) -> Vocabulary {
             vocabulary.add(member.keyword, "definition_body");
         }
     }
-    for keyword in tcl_registry::traits::CLAUSE_KEYWORDS_WITHOUT_COMMAND_SPEC
-        .iter()
-        .chain(tcl_registry::traits::CLAUSE_NOISE_KEYWORDS)
-    {
-        vocabulary.add(keyword, "clause_grammar");
+    for keyword in tcl_registry::clause_grammar::clause_keywords(registry) {
+        vocabulary.add(keyword.word, "clause_grammar");
     }
     for var in tcl_registry::special_vars::SPECIAL_VARS {
         vocabulary.add(var.name, "special_vars");

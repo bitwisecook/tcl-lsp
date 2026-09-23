@@ -51,6 +51,7 @@
 
 use std::fmt;
 use std::ops::{BitOr, BitOrAssign};
+use std::sync::OnceLock;
 
 use crate::documentation::{DocumentationAnnotation, DocumentationCarrier, DocumentationExample};
 
@@ -1412,36 +1413,73 @@ pub const RETIRED_TRAITS: &[(&str, &str)] = &[
 /// (`else` only means anything as an `if` clause), so they cannot carry a
 /// registry entry of their own the way `if`/`foreach`/`proc` do.
 ///
-/// Single source of truth for every consumer that needs "the real Tcl
-/// keywords a `CommandSpec`-driven scan alone would miss": the LSP's
-/// semantic-token classifier
-/// (`tcl_lsp_core::semantic_tokens::LANGUAGE_KEYWORD_SUB_KEYWORDS`, which
-/// unions in its own further residue — the `TclOO` method-body helpers
-/// `callback`/`mymethod`/`link`, which are context-sensitive rather than
-/// unconditional keywords) and the static TextMate-grammar generator
-/// (`xtask`'s `gen_tmlanguage_keywords`, which unions in the iRules-only
-/// `when`). Keeping this list here instead of duplicating it in both means a
-/// new clause word is added once and both consumers pick it up.
-pub const CLAUSE_KEYWORDS_WITHOUT_COMMAND_SPEC: &[&str] =
-    &["else", "elseif", "on", "trap", "finally"];
+/// Derived once from the shipped clause grammars
+/// ([`crate::clause_grammar::clause_keywords`]): every row's introducing
+/// keyword that no command of the shipped registry spells, sorted. A new
+/// clause word is declared once, in its command's grammar, and every consumer
+/// picks it up — the LSP's semantic-token classifier (which unions in its own
+/// further residue, the `TclOO` method-body helpers `callback`/`mymethod`/
+/// `link`, context-sensitive rather than unconditional keywords) and the
+/// static TextMate-grammar generator (`xtask`'s `gen_tmlanguage_keywords`,
+/// which unions in the iRules-only `when`).
+#[must_use]
+pub fn clause_keywords_without_command_spec() -> &'static [&'static str] {
+    static WORDS: OnceLock<Vec<&'static str>> = OnceLock::new();
+    WORDS.get_or_init(|| {
+        let registry = crate::cache::default_registry();
+        derived_clause_words(|keyword| !keyword.noise && registry.get(keyword.word).is_none())
+    })
+}
 
 /// Clause *noise* words: accepted by a clause grammar as optional filler but
 /// deliberately **not** highlighted as keywords — today only `if`'s optional
-/// `then` (`if {c} then {b}`), which `if`'s arg-role resolver and clause-shape
-/// checker match by literal value.
+/// `then` (`if {c} then {b}`), a `?then?` slot of `if`'s grammar.
 ///
-/// Kept separate from [`CLAUSE_KEYWORDS_WITHOUT_COMMAND_SPEC`] because the two
-/// lists serve different consumers: the keyword list drives highlighting (the
+/// Derived once from the shipped clause grammars' noise slots, sorted. Kept
+/// apart from [`clause_keywords_without_command_spec`] because the two serve
+/// different consumers: the keyword list drives highlighting (the
 /// semantic-token classifier and the TextMate-grammar generator, which must
-/// not paint `then`), while the union of both lists is "every word a clause
-/// grammar matches by value", which value-sensitive rewriters (the minifier's
+/// not paint `then`), while the union of both is "every word a clause grammar
+/// matches by value", which value-sensitive rewriters (the minifier's
 /// argument aliasing — rewriting a literal `then` to `$alias` would break
 /// `if`'s clause parsing) must keep literal.
-pub const CLAUSE_NOISE_KEYWORDS: &[&str] = &["then"];
+#[must_use]
+pub fn clause_noise_keywords() -> &'static [&'static str] {
+    static WORDS: OnceLock<Vec<&'static str>> = OnceLock::new();
+    WORDS.get_or_init(|| derived_clause_words(|keyword| keyword.noise))
+}
+
+/// The shipped clause words `keep` selects, sorted and deduplicated.
+fn derived_clause_words(
+    keep: impl Fn(&crate::clause_grammar::ClauseKeyword) -> bool,
+) -> Vec<&'static str> {
+    let mut words: Vec<&'static str> = crate::clause_grammar::shipped_clause_keywords()
+        .iter()
+        .filter(|keyword| keep(keyword))
+        .map(|keyword| keyword.word)
+        .collect();
+    words.sort_unstable();
+    words.dedup();
+    words
+}
 
 #[cfg(test)]
 mod tests {
-    use super::{RETIRED_TRAITS, Trait};
+    use super::{
+        RETIRED_TRAITS, Trait, clause_keywords_without_command_spec, clause_noise_keywords,
+    };
+
+    /// The derivation replaced two hand-kept tables; it must answer exactly
+    /// what they said, which is also what the generated `TextMate` keyword
+    /// lists were built from.
+    #[test]
+    fn derived_clause_keyword_tables_equal_the_pinned_lists() {
+        assert_eq!(
+            clause_keywords_without_command_spec(),
+            ["else", "elseif", "finally", "on", "trap"]
+        );
+        assert_eq!(clause_noise_keywords(), ["then"]);
+    }
 
     /// The gate that stops a retired trait coming back. Reviving a spelling
     /// would leave the loader telling a pack author the flag moved while the

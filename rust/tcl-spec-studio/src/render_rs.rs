@@ -133,6 +133,131 @@ fn tk_geometry_expr(value: &Value) -> Option<String> {
     ))
 }
 
+/// Render the plain-data clause-grammar descriptor as an inline literal:
+/// every row and slot is a struct literal, so the whole expression is
+/// promoted to `'static` exactly as the shipped grammars' constants are.
+fn clause_grammar_expr(value: &Value, indent: &str) -> Option<String> {
+    let grammar = value.as_object()?;
+    let inner = format!("{indent}    ");
+    let rows: Option<Vec<String>> = as_array(grammar.get("rows").unwrap_or(&Value::Null))
+        .iter()
+        .map(clause_row_expr)
+        .collect();
+    let rows = rows?;
+    let rows = if rows.is_empty() {
+        "&[]".to_owned()
+    } else {
+        format!(
+            "&[\n{}\n{inner}]",
+            rows.iter()
+                .map(|row| format!("{inner}    {row},"))
+                .collect::<Vec<_>>()
+                .join("\n")
+        )
+    };
+    let tail = match grammar.get("tail") {
+        None | Some(Value::Null) => "None".to_owned(),
+        Some(row) => format!("Some({})", clause_row_expr(row)?),
+    };
+    let fallthrough = match grammar.get("fallthrough_body") {
+        None | Some(Value::Null) => "None".to_owned(),
+        Some(word) => format!("Some({})", rust_string(word.as_str()?)),
+    };
+    let default = match grammar.get("default_clause") {
+        None | Some(Value::Null) => "None".to_owned(),
+        Some(default) => {
+            let row = match default.get("row") {
+                None | Some(Value::Null) => "None".to_owned(),
+                Some(row) => format!("Some({})", row.as_u64()?),
+            };
+            let final_only = default.get("final_only").and_then(Value::as_bool)?;
+            format!("Some(DefaultClause {{ row: {row}, final_only: {final_only} }})")
+        }
+    };
+    let selection = tcl_registry::clause_grammar::ClauseSelection::from_spelling(
+        grammar.get("selection").and_then(Value::as_str)?,
+    )?;
+    let surface = surface_expr(grammar.get("surface").unwrap_or(&Value::Null));
+    Some(format!(
+        "Some(&ClauseGrammarSpec {{\n\
+         {inner}head: {head},\n\
+         {inner}rows: {rows},\n\
+         {inner}tail: {tail},\n\
+         {inner}fallthrough_body: {fallthrough},\n\
+         {inner}default_clause: {default},\n\
+         {inner}selection: ClauseSelection::{selection:?},\n\
+         {inner}surface: {surface},\n\
+         {indent}}})",
+        head = clause_row_expr(grammar.get("head")?)?,
+    ))
+}
+
+/// One clause row as a `ClauseRow` literal.
+fn clause_row_expr(row: &Value) -> Option<String> {
+    let keyword = match row.get("keyword") {
+        None | Some(Value::Null) => "None".to_owned(),
+        Some(word) => format!("Some({})", rust_string(word.as_str()?)),
+    };
+    let keyword_required = row.get("keyword_required").and_then(Value::as_bool)?;
+    let slots: Option<Vec<String>> = as_array(row.get("slots").unwrap_or(&Value::Null))
+        .iter()
+        .map(clause_slot_expr)
+        .collect();
+    let slots = slots?.join(", ");
+    let shape = match row.get("shape").and_then(Value::as_str)? {
+        "repeated" => format!("ClauseRowShape::Repeated {{ slots: &[{slots}] }}"),
+        "once" => format!("ClauseRowShape::Once {{ slots: &[{slots}] }}"),
+        "group" => format!(
+            "ClauseRowShape::Group {{ layout: {} }}",
+            row.get("layout").and_then(Value::as_u64)?
+        ),
+        _ => return None,
+    };
+    let timing = match tcl_registry::clause_grammar::ClauseTiming::from_spelling(
+        row.get("timing").and_then(Value::as_str)?,
+    )? {
+        tcl_registry::clause_grammar::ClauseTiming::LoopFixture(phase) => {
+            format!("ClauseTiming::LoopFixture(LoopPhase::{phase:?})")
+        }
+        timing => format!("ClauseTiming::{timing:?}"),
+    };
+    let surface = surface_expr(row.get("surface").unwrap_or(&Value::Null));
+    Some(format!(
+        "ClauseRow {{ keyword: {keyword}, keyword_required: {keyword_required}, shape: {shape}, \
+         timing: {timing}, surface: {surface} }}"
+    ))
+}
+
+/// One clause slot as a `ClauseSlot` literal.
+fn clause_slot_expr(slot: &Value) -> Option<String> {
+    let role = slot.get("role").and_then(Value::as_str)?;
+    let noise = match slot.get("noise") {
+        None | Some(Value::Null) => "None".to_owned(),
+        Some(word) => format!("Some({})", rust_string(word.as_str()?)),
+    };
+    let handler = match slot.get("handler") {
+        None | Some(Value::Null) => "None".to_owned(),
+        Some(word) => format!(
+            "Some(HandlerMatch::{:?})",
+            tcl_registry::clause_grammar::handler_from_spelling(word.as_str()?)?
+        ),
+    };
+    let conditional = slot.get("conditional_binding").and_then(Value::as_bool)?;
+    let optional = slot.get("optional").and_then(Value::as_bool)?;
+    Some(format!(
+        "ClauseSlot {{ role: ArgRole::{role}, noise: {noise}, handler: {handler}, \
+         conditional_binding: {conditional}, optional: {optional} }}"
+    ))
+}
+
+/// A surface key's value as an `Option<&[SpecSurface]>` expression.
+fn surface_expr(value: &Value) -> String {
+    match value.as_array() {
+        Some(items) => format!("Some({})", dialect_set(items)),
+        None => "None".to_owned(),
+    }
+}
+
 /// Render a `&'static [u8]` literal.
 fn index_slice(values: &[Value]) -> String {
     let items: Vec<String> = values.iter().map(|v| as_u64(v).to_string()).collect();
@@ -976,6 +1101,7 @@ fn field_expr(field: &FieldSchema, value: &Value, default: &Value, indent: &str)
         // every shipped class spec is written; the field just names it.
         FieldKind::ObjectClass => "Some(&OBJECT_CLASS)".to_owned(),
         FieldKind::TkGeometry => tk_geometry_expr(value)?,
+        FieldKind::ClauseGrammar => clause_grammar_expr(value, indent)?,
         FieldKind::Hover => {
             if value.is_null() {
                 return None;

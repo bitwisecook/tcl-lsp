@@ -121,6 +121,11 @@ pub enum FieldKind {
     /// `Option<TkGeometryManagerSpec>` — static geometry-container and
     /// placement semantics, edited field by field.
     TkGeometry,
+    /// `Option<&'static ClauseGrammarSpec>` — a clause chain's word grammar:
+    /// the head, the keyword and keywordless rows, the tail, and the chain's
+    /// fall-through, default and selection rules. Plain data, carried field by
+    /// field and shown read-only in the form.
+    ClauseGrammar,
     /// A field the studio cannot model as data — a function pointer or a
     /// reference to a `&'static` descriptor. Held (and emitted) as a verbatim
     /// Rust expression the author supplies.
@@ -168,6 +173,7 @@ impl FieldKind {
             Self::SubSubCommands => "subSubCommands",
             Self::ObjectClass => "objectClass",
             Self::TkGeometry => "tkGeometry",
+            Self::ClauseGrammar => "clauseGrammar",
             Self::RustExpr { .. } => "rustExpr",
         }
     }
@@ -496,6 +502,13 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
             catalogue: "argRole",
         },
         "Closed set of roles the dynamic resolver can emit when an invocation cannot be resolved precisely.",
+    ),
+    f(
+        "clause_grammar",
+        "Clause grammar",
+        ARGS,
+        FieldKind::ClauseGrammar,
+        "The word grammar of a clause chain (`if`/`elseif`/`else`, `try`/`on`/`trap`/`finally`, a loop's fixtures and body): where each keyword, condition, script and binder sits, and when each body runs. Its walk answers the argument roles and the chain's structural defect.",
     ),
     f(
         "arg_presentation",
@@ -1528,6 +1541,13 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
             catalogue: "argRole",
         },
         "Closed set of roles the dynamic resolver can emit when an invocation cannot be resolved precisely.",
+    ),
+    f(
+        "clause_grammar",
+        "Clause grammar",
+        ARGS,
+        FieldKind::ClauseGrammar,
+        "The word grammar of a clause chain (`if`/`elseif`/`else`, `try`/`on`/`trap`/`finally`, a loop's fixtures and body): where each keyword, condition, script and binder sits, and when each body runs. Its walk answers the argument roles and the chain's structural defect.",
     ),
     f(
         "arg_presentation",

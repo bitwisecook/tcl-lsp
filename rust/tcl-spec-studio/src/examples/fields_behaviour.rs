@@ -128,6 +128,26 @@ pub(super) const ENTRIES: &[(&str, Example)] = &[
         },
     ),
     (
+        "clause_grammar",
+        Example {
+            code: "try {\n    open $path\n} trap {POSIX ENOENT} {msg} {\n    puts $msg\n} finally {\n    cleanup\n}",
+            focuses: &[
+                focus(
+                    0,
+                    "try {",
+                    "the head: a protected body whose completion is observed",
+                ),
+                focus(
+                    2,
+                    "trap {POSIX ENOENT}",
+                    "a repeated row; its pattern selects by errorcode prefix",
+                ),
+                focus(2, "{msg}", "the handler's binder list, bound when it runs"),
+                focus(4, "finally", "the tail: runs whatever the outcome"),
+            ],
+        },
+    ),
+    (
         "clause_shape_check",
         Example {
             code: "if {$a} { one } elseif {$b}",

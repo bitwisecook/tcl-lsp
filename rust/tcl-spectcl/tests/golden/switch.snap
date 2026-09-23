@@ -12,4 +12,4 @@ registrations 1
 notices 1
 notice command switch 49 presentation names a lowering hook: this changes how the compiler translates the command, not just what the editor knows about it
 commands 1
-command switch line 10 overrides false degraded false spec 8b725b1478bf772d hooks 18a4376560a3f79b grammar 715ea0deb6f6f5f9
+command switch line 10 overrides false degraded false spec 5c1c9a758f5cd8e2 hooks 18a4376560a3f79b grammar 715ea0deb6f6f5f9

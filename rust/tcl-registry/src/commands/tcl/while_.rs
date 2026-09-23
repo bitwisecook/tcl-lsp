@@ -32,6 +32,22 @@ const FORMS: &[FormSpec] = &[FormSpec {
     ..FormSpec::DEFAULT
 }];
 
+/// `while test body`: the test before every iteration, the body per
+/// iteration.
+pub const GRAMMAR: ClauseGrammarSpec = ClauseGrammarSpec {
+    head: ClauseRow::head(TEST, ClauseTiming::Selected),
+    rows: &[],
+    tail: Some(ClauseRow::once(None, SCRIPT, ClauseTiming::PerIteration)),
+    fallthrough_body: None,
+    default_clause: None,
+    selection: ClauseSelection::All,
+    surface: None,
+};
+/// The `test` condition.
+const TEST: &[ClauseSlot] = &[ClauseSlot::of(ArgRole::Expr)];
+/// The body script.
+const SCRIPT: &[ClauseSlot] = &[ClauseSlot::of(ArgRole::Body)];
+
 /// Command spec for `while`.
 ///
 /// Synopsis, grammar, and semantics are identical across Tcl 8.4, 8.5, 8.6,
@@ -64,6 +80,7 @@ pub fn spec() -> CommandSpec {
             | Traits::NEVER_INLINE_BODY,
         arity: Arity::exact(2),
         arg_roles: &[(0, ArgRole::Expr), (1, ArgRole::Body)],
+        clause_grammar: Some(&GRAMMAR),
         lowering_hook: Some(crate::hooks::LoweringHookId::While),
         native_lowering: Some(NativeLowering::Structured(
             crate::hooks::LoweringHookId::While,

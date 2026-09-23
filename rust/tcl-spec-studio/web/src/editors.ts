@@ -1569,6 +1569,75 @@ export function makeEditors(ctx: EditorContext): Record<string, Editor> {
       return wrap;
     },
 
+    clauseGrammar: (_kind, value) => {
+      if (value === null) {
+        return el("span", {
+          class: "hint",
+          text: "None — the command declares no clause grammar.",
+        });
+      }
+      const grammar = asRecord(value);
+      const slotText = (slot: Json): string => {
+        const fields = asRecord(slot);
+        const noise = asString(fields.noise);
+        if (noise !== "") return `?${noise}?`;
+        const role = asString(fields.role);
+        return asBool(fields.optional) ? `{${role} optional}` : role;
+      };
+      const rowText = (statement: string, row: Json): string => {
+        const fields = asRecord(row);
+        const slots = asArray(fields.slots);
+        const words: string[] = [statement];
+        if (statement === "group") {
+          words.push(String(asNumber(fields.layout) ?? 0));
+        } else {
+          const keyword = asString(fields.keyword);
+          const required = asBool(fields.keyword_required);
+          if (keyword !== "") words.push(required ? keyword : `?${keyword}?`);
+          words.push(`{${slots.map(slotText).join(" ")}}`);
+        }
+        const timing = asString(fields.timing);
+        if (timing !== "" && timing !== "selected") words.push("-timing", timing);
+        const handler = slots.map((slot) => asString(asRecord(slot).handler)).find((h) => h !== "");
+        if (handler !== undefined) words.push("-pattern", handler);
+        if (slots.some((slot) => asBool(asRecord(slot).conditional_binding))) {
+          words.push("-conditional");
+        }
+        return words.join(" ");
+      };
+      const lines: string[] = [];
+      const head = asRecord(grammar.head);
+      if (asArray(head.slots).length > 0 || asString(head.timing) !== "selected") {
+        lines.push(rowText("head", grammar.head));
+      }
+      for (const row of asArray(grammar.rows)) {
+        const shape = asString(asRecord(row).shape);
+        lines.push(rowText(shape === "repeated" || shape === "group" ? shape : "once", row));
+      }
+      if (grammar.tail !== null && grammar.tail !== undefined) {
+        lines.push(rowText("tail", grammar.tail));
+      }
+      const marker = asString(grammar.fallthrough_body);
+      if (marker !== "") lines.push(`fallthrough_body ${marker}`);
+      if (grammar.default_clause !== null && grammar.default_clause !== undefined) {
+        const fallback = asRecord(grammar.default_clause);
+        const row = asNumber(fallback.row);
+        lines.push(
+          `default_clause ${row === null ? "tail" : String(row)}` +
+            (asBool(fallback.final_only) ? " -final-only" : ""),
+        );
+      }
+      const selection = asString(grammar.selection);
+      if (selection !== "" && selection !== "first-match") lines.push(`selection ${selection}`);
+      return el("div", {}, [
+        el("pre", { class: "clause-grammar", text: lines.join("\n") }),
+        el("span", {
+          class: "hint",
+          text: "Read-only here: the rows are authored in the pack's clause_grammar block.",
+        }),
+      ]);
+    },
+
     rustExpr: (kind, value, set) =>
       el("div", {}, [
         textInput(asString(value), (text) => set(text.trim() === "" ? null : text), {

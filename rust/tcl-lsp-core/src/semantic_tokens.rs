@@ -367,7 +367,7 @@ const METHOD_BODY_HELPER_SUB_KEYWORDS: &[&str] = &["callback", "mymethod"];
 /// same-named user proc outside a definition body is never mis-coloured and
 /// `TclOO` and snit members behave identically. This residue only covers what
 /// the grammar does not otherwise model: clause keywords of `if`/`try`/`switch`
-/// ([`tcl_registry::traits::CLAUSE_KEYWORDS_WITHOUT_COMMAND_SPEC`] —
+/// ([`tcl_registry::traits::clause_keywords_without_command_spec`] —
 /// shared with `xtask`'s `gen_tmlanguage_keywords` TextMate-grammar generator,
 /// so the two never drift on which clause words are real keywords) and the
 /// `TclOO` method-*body* helper commands
@@ -375,7 +375,7 @@ const METHOD_BODY_HELPER_SUB_KEYWORDS: &[&str] = &["callback", "mymethod"];
 /// standalone commands (`if`, `while`, `proc`, `when`, `oo::*`, …) come from
 /// the registry's `LANGUAGE_KEYWORD` trait.
 fn is_language_keyword_sub_keyword(name: &str) -> bool {
-    tcl_registry::traits::CLAUSE_KEYWORDS_WITHOUT_COMMAND_SPEC.contains(&name)
+    tcl_registry::traits::clause_keywords_without_command_spec().contains(&name)
         || METHOD_BODY_HELPER_SUB_KEYWORDS.contains(&name)
 }
 

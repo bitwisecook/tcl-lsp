@@ -26,7 +26,7 @@ use crate::abbrev::{Keyword, KeywordMatch, KeywordTable, PrefixMatching};
 use crate::arg_role::ArgRole;
 use crate::arity::{Arity, ArityWindow};
 use crate::body_kind::{BodyInterpreter, BodyKind};
-use crate::clause_shape::ClauseShapeChecker;
+use crate::clause_shape::{ClauseShapeChecker, ClauseShapeError};
 use crate::command_table::CommandTableEffect;
 use crate::dispatch_stability::{DispatchDependencies, DispatchDependencyDescriptor};
 use crate::events::{EventRequirementForm, ResolvedEventRequirements};
@@ -1321,8 +1321,23 @@ pub struct CommandSpec {
     ///
     /// Source-aware projections consult this closed capability set when
     /// expansion or substitution prevents calling the value-dependent
-    /// resolver precisely.
+    /// resolver precisely. A command whose clause grammar took its
+    /// resolver's place keeps the set as the closed set of roles the
+    /// grammar's walk emits.
     pub arg_role_resolver_roles: &'static [ArgRole],
+
+    /// The word grammar of a clause chain — `if` / `elseif` / `else`, `try` /
+    /// `on` / `trap` / `finally`, `for`, `while`, `foreach`, `lmap`, `catch`.
+    /// See [`crate::clause_grammar`].
+    ///
+    /// First in the argument-role resolution order (`clause_grammar` →
+    /// `arg_role_resolver` → `arg_roles` → `assigns_variable_at`): the walk
+    /// answers where the clause structure's keywords, conditions and scripts
+    /// sit, and the command's own tables answer the rest. The walk also
+    /// derives the chain's [`crate::ClauseShapeError`], which is why
+    /// [`Self::clause_shape_check`] is only the escape hatch for a chain no
+    /// grammar can spell.
+    pub clause_grammar: Option<&'static crate::clause_grammar::ClauseGrammarSpec>,
 
     /// Formatter **presentation** overrides, keyed by 0-based argument index
     /// — how an argument should be *laid out*, as distinct from what
@@ -2291,6 +2306,7 @@ impl CommandSpec {
         arg_roles: &[],
         arg_role_resolver: None,
         arg_role_resolver_roles: &[],
+        clause_grammar: None,
         arg_presentation: &[],
         repeated_args: &[],
         frame_effect: None,
@@ -3083,6 +3099,44 @@ impl CommandSpec {
         })
     }
 
+    /// The clause plan of a call to this command: its [`Self::clause_grammar`]
+    /// walked over `args` (the words after the command name), with the rows
+    /// gated to `dialect`. `None` when the command declares no grammar or the
+    /// grammar is unavailable at `dialect`.
+    #[must_use]
+    pub fn clause_plan(
+        &self,
+        args: &[&str],
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> Option<crate::clause_grammar::ClausePlan> {
+        let grammar = self.clause_grammar?;
+        grammar
+            .available(dialect)
+            .then(|| grammar.walk_at(args, self.repeated_args, dialect))
+    }
+
+    /// The structural defect a consumer reports in place of the generic arity
+    /// check (`if`'s E004): the clause grammar's, for a command whose arity is
+    /// checked structurally ([`Traits::STRUCTURALLY_CHECKED_ARITY`]), else the
+    /// [`Self::clause_shape_check`] escape hatch's.
+    ///
+    /// A grammar-carrying command without the trait (`for`, `foreach`, …)
+    /// keeps its arity range as the diagnostic's owner, so its walk's defect is
+    /// never reported a second time here.
+    #[must_use]
+    pub fn clause_shape_defect(
+        &self,
+        args: &[&str],
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> Option<ClauseShapeError> {
+        self.traits
+            .contains(Traits::STRUCTURALLY_CHECKED_ARITY)
+            .then(|| self.clause_plan(args, dialect))
+            .flatten()
+            .and_then(|plan| plan.defect)
+            .or_else(|| self.clause_shape_check.and_then(|check| check(args)))
+    }
+
     /// The spelling of the option whose declared effect selects `axis`, when
     /// one does — the generic way to name, say, the regex-mode switch of a
     /// case-list command without spelling it.
@@ -3280,6 +3334,12 @@ pub struct SubCommand {
     /// Roles the dynamic resolver can emit for some invocation. See the
     /// command-level field of the same name.
     pub arg_role_resolver_roles: &'static [ArgRole],
+
+    /// The subcommand's clause grammar (`dict for`, `dict map`, `dict
+    /// update`, `array for`) — the subcommand-level twin of
+    /// [`CommandSpec::clause_grammar`], walked over the words after the
+    /// subcommand word.
+    pub clause_grammar: Option<&'static crate::clause_grammar::ClauseGrammarSpec>,
 
     /// Formatter presentation overrides (after the subcommand word) — the
     /// subcommand-level twin of [`CommandSpec::arg_presentation`]. Empty
@@ -3726,6 +3786,7 @@ impl SubCommand {
         arg_roles: &[],
         arg_role_resolver: None,
         arg_role_resolver_roles: &[],
+        clause_grammar: None,
         arg_presentation: &[],
         repeated_args: &[],
         command_prefixes: &[],
@@ -3794,6 +3855,23 @@ impl SubCommand {
         defines_command_at: None,
         max_leading_option_words: None,
     };
+
+    /// The clause plan of a call to this subcommand: its
+    /// [`Self::clause_grammar`] walked over `args` — the words **after** the
+    /// subcommand word, so the plan's indices are the subcommand's own — with
+    /// the rows gated to `dialect`. `None` when the subcommand declares no
+    /// grammar or the grammar is unavailable at `dialect`.
+    #[must_use]
+    pub fn clause_plan(
+        &self,
+        args: &[&str],
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> Option<crate::clause_grammar::ClausePlan> {
+        let grammar = self.clause_grammar?;
+        grammar
+            .available(dialect)
+            .then(|| grammar.walk_at(args, self.repeated_args, dialect))
+    }
 
     /// Reusable base for a subcommand whose successful result depends only on
     /// its evaluated arguments and which has no mutable-world effects or

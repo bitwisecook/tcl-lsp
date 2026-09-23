@@ -32,22 +32,28 @@ const FORMS: &[FormSpec] = &[FormSpec {
     ..FormSpec::DEFAULT
 }];
 
-/// Dynamic arg role resolver: last argument is the body script.
-fn lmap_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
-    if args.len() >= 3 {
-        u8::try_from(args.len() - 1)
-            .map(|last| vec![(last, ArgRole::Body)])
-            .unwrap_or_default()
-    } else {
-        Vec::new()
-    }
-}
+/// `lmap varlist1 list1 ?varlist2 list2 ...? body`: binder groups — the
+/// stride and the excluded trailing body are `REPEATED`'s, which the group row
+/// cites — then the body per iteration. At least one whole group is needed,
+/// so the body is the last word once there are three.
+pub const GRAMMAR: ClauseGrammarSpec = ClauseGrammarSpec {
+    head: ClauseRow::EMPTY_HEAD,
+    rows: &[ClauseRow::group(0, ClauseTiming::PerIteration)],
+    tail: Some(ClauseRow::once(None, SCRIPT, ClauseTiming::PerIteration)),
+    fallthrough_body: None,
+    default_clause: None,
+    selection: ClauseSelection::All,
+    surface: None,
+};
+/// The body script.
+const SCRIPT: &[ClauseSlot] = &[ClauseSlot::of(ArgRole::Body)];
 
 /// Command spec for `lmap`.
 /// `?varlist list?...` repeats before the trailing body: the variable specs
 /// sit at every other argument from 0, and the body — the last word — is
-/// excluded.  The role resolver marks that body; this declares the repeating
-/// head so no consumer has to re-derive the stride from the command's name.
+/// excluded.  The clause grammar's group row cites this layout and marks the
+/// body; this declares the repeating head so no consumer has to re-derive the
+/// stride from the command's name.
 static REPEATED: &[RepeatedArgLayout] = &[RepeatedArgLayout {
     exclude_trailing: 1,
     ..RepeatedArgLayout::strided(ArgRole::LoopVarList, 0, 2)
@@ -92,8 +98,9 @@ pub fn spec() -> CommandSpec {
         // be "lmap varList list ?varList list ...? command"`).  A bare
         // `at_least(3)` would miss the odd/even parity `foreach` enforces.
         arity: Arity::stepped(3, Arity::UNLIMITED, 2),
-        arg_role_resolver: Some(lmap_arg_roles),
+        // The closed set of roles the grammar's walk emits.
         arg_role_resolver_roles: &[ArgRole::Body],
+        clause_grammar: Some(&GRAMMAR),
         repeated_args: REPEATED,
         // See `foreach`'s identical comment — index 0 is a fixed key read by
         // `shimmer::use_site::foreach_header_expected_type`, not a real

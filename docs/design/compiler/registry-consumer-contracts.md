@@ -357,7 +357,7 @@ The registry surface is far richer than the analyser's dispatch uses.
 | scope and interpreter transitions | resolvers on `upvar`, `global`, `variable`, `namespace`, `interp` (`rust/tcl-registry/src/state_transition.rs`) | the variable-alias, namespace, and interpreter families have no consumer under `rust/tcl-compiler/src/analyser/`; `frame_effect` is read only for alias-pair layout and level parsing (`param_traits.rs`, `diagnostics/usage.rs`); the command-binding family only by `interp alias` and the static-proc proof |
 | loop and bind positions | roles and strided `repeated_args` | hardcoded indices in five handlers (`handlers.rs`: `dict for`, `dict update`, `foreach`, `incr`, `append` / `lappend`) |
 | OO member effect | member layout only (`MemberKind`: `Flat`, `Wrapper`, `FlagKeyed`) — `MemberSpec` already carries `arg_roles`, `slot`, `retraction`, `visibility_effect`, and `surface` | an eleven-arm keyword match in `analyser/oo.rs`, plus snit and itcl prefix conventions; the ledger counts about thirty-two rows on this axis |
-| clause grammar | designed and loader-parsed (`ClauseGrammar::walk` in `rust/tcl-spectcl/src/loader.rs`), no registry type, `abstain_arg_roles` and `accept_clause_shape` installed as placeholders | three keyword walks (`lower_if` and `lower_try` in `lowering/structured.rs`, `handle_try_command` in `analyser/handlers.rs`), `orphaned_keyword_parent` in `analyser/commands.rs`, and the `on`-`ok` test in `cfg_builder/cfg_lower.rs`, plus `signature_scan/walker.rs`, the editor refactors, and `tcl-mcp`'s `datagroup.rs`; the ledger counts about thirty rows |
+| clause grammar | the clause-grammar descriptor (`ClauseGrammarSpec`, `rust/tcl-registry/src/clause_grammar.rs`), on `CommandSpec` and `SubCommand` since step 2: ten shipped grammars, one registry walk answering the roles and the clause-shape defect, and the loader reading the same type | three keyword walks (`lower_if` and `lower_try` in `lowering/structured.rs`, `handle_try_command` in `analyser/handlers.rs`), `orphaned_keyword_parent` in `analyser/commands.rs`, and the `on`-`ok` test in `cfg_builder/cfg_lower.rs`, plus `signature_scan/walker.rs`, the editor refactors, and `tcl-mcp`'s `datagroup.rs`; the ledger counts about thirty rows |
 | option-selected semantics | the option-effect descriptor (`OptionSpec::effect`, `option_effect_families`, `option_effect.rs`), which replaced the two native resolvers over a command's own option table — `substitution_resolver` and `lsearch_pattern_args` — in step 2; `pattern_arg_resolver` remains an escape hatch no shipped spec sets | three consumers ask `CommandRegistry::substitutions_performed` correctly; the dynamic-name barrier and the `inner_head_performs_substitution` gate read only the trait, and `push_substituted_commands` re-walks a braced template for regions the answer does not carry |
 
 Three descriptors are missing, and all three are specified below. The rest
@@ -387,15 +387,20 @@ contract names.
 
 ### The clause-grammar descriptor
 
-`ClauseGrammarSpec` is the registry type behind the loader's existing
+`ClauseGrammarSpec` is the registry type behind the loader's
 `clause_grammar { … }` block, on the spec as
-`CommandSpec::clause_grammar`. It gives locations and grammar and nothing
+`CommandSpec::clause_grammar` (and `SubCommand::clause_grammar`, for `dict
+for` and its siblings). It gives locations and grammar and nothing
 executable: first-match dispatch, list iteration, and completion belong to
 the consumer interface's structural plan, declared beside it and never
-inferred from the slots.
+inferred from the slots. Step 2 built it in
+`rust/tcl-registry/src/clause_grammar.rs` with two adaptations: `head` is a
+`ClauseRow` (keyword `None`, `Once`), so the head carries its own timing —
+`try`'s protected body, `for`'s init fixture — and `handler` is the
+value-transfer interface's own `HandlerMatch`.
 
 ```rust,ignore
-/// Proposed. The word grammar of a clause chain: `if` / `elseif` /
+/// The word grammar of a clause chain: `if` / `elseif` /
 /// `else`, `try` / `on` / `trap` / `finally`, `for`, `while`,
 /// `foreach` / `lmap` / `dict for` / `dict map` / `array for`, `catch`.
 struct ClauseGrammarSpec {
@@ -559,11 +564,14 @@ struct ResolvedClause {
 
 **How `clause_shape_check` and `case_list` relate to it.**
 `clause_shape_check` is the *escape hatch*, not the mechanism: the walk
-derives `ClauseShapeError` from the grammar, exactly as
-`ClauseGrammar::walk` already does in the loader, so `if_.rs`'s
-`if_arg_roles` and `check_if_shape` both retire and
+derives `ClauseShapeError` from the grammar (`ClauseGrammarSpec::walk`, the
+loader's former `ClauseGrammar::walk` moved into the registry), so `if_.rs`'s
+`if_arg_roles` and `check_if_shape` have retired and
 `CommandSpec::clause_shape_check` stays only for a chain no grammar can
-spell, with `Traits::STRUCTURALLY_CHECKED_ARITY` still declared beside it.
+spell. `Traits::STRUCTURALLY_CHECKED_ARITY` is the opt-in that makes the
+walk's defect a command's arity diagnostic (`if`'s E004, read through
+`CommandRegistry::clause_shape_defect`); `try` and the loops keep an
+ordinary arity range beside their grammars.
 `case_list` stays a separate field for the reason the frozen-syntax memo
 gives: a case list is a *value* — `{pattern body …}` inside one word —
 rather than a word grammar, so `CaseListSpec`'s own `invocation` and
@@ -609,18 +617,16 @@ clause_grammar {
 }
 ```
 
-**The studio field.** `clause_grammar` has no `GAPS` row, because it is
-not a `CommandSpec` field: the studio reports only whether a pack
-declaration carried one (`rust/tcl-spec-studio/src/store.rs`), and
-`rust/tcl-spec-studio/tests/spectcl_ports.rs` records it as the derivation
-that removes `if`'s two hooks from the `__unrenderable` list. As a
-`CommandSpec` field it needs no `GAPS` row either — `ClauseGrammarSpec` is
-plain data all the way down, the property that let `object_class` leave
-that bucket — so the four surfaces simply move together: the field on the
-type with its `rust/tcl-spec-studio/src/coverage.rs` witness, the loader
-spelling above recorded in the frozen-syntax memo's coverage matrix, the
-renderer emitting it, and `schema.rs` / `draft.rs` / `help.rs` surfacing
-it with an example.
+**The studio field.** `clause_grammar` has no `GAPS` row: as a
+`CommandSpec` field, `ClauseGrammarSpec` is plain data all the way down —
+the property that let `object_class` leave that bucket — so the four
+surfaces moved together in step 2: the field on the type with its
+`rust/tcl-spec-studio/src/coverage.rs` witnesses (the grammar, a row, a
+slot, the default clause), the loader spelling above recorded in the
+frozen-syntax memo's coverage matrix, the renderer emitting it, and
+`schema.rs` / `draft.rs` / `help.rs` surfacing it with an example
+(`rust/tcl-spec-studio/src/store.rs` reports the grammar itself, and the
+form shows its rows read-only).
 
 **Tests.** `rust/tcl-spec-studio/tests/spectcl_ports.rs`'s
 `the_clause_grammar_derivation_agrees_with_the_shipped_walk` widens from

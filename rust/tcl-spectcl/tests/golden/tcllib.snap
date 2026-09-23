@@ -17,6 +17,6 @@ notice command fileutil::traverse 295 presentation unknown flag `-readonly` on `
 notice command fileutil::traverse / object_class ::fileutil::traverse / method foreach 323 presentation unknown flag `-body-kind` on `arg` dropped
 notice command fileutil::traverse / object_class ::fileutil::traverse / method foreach 323 presentation unknown flag `Plain` on `arg` dropped
 commands 3
-command struct::tree line 36 overrides false degraded false spec b82af21d44bd9cab hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
-command struct::graph line 194 overrides false degraded false spec 904d8e06dc7d20ad hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
-command fileutil::traverse line 248 overrides false degraded false spec 0ea91f1da44a7e55 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command struct::tree line 36 overrides false degraded false spec 3945212768b57141 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command struct::graph line 194 overrides false degraded false spec f414201bb8772d2f hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command fileutil::traverse line 248 overrides false degraded false spec 32e622bce1d33acc hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9

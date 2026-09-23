@@ -15,7 +15,7 @@ one.
 | pack file | ported from | what it forced into the design |
 |---|---|---|
 | [`lsort.tclspec`](lsort.tclspec) | `commands/tcl/lsort_.rs` | option rows, command-prefix options, integer domains, per-option dialect gates |
-| [`foreach.tclspec`](foreach.tclspec) | `commands/tcl/foreach_.rs` | stepped arity, repeated-argument layouts, the first hook body |
+| [`foreach.tclspec`](foreach.tclspec) | `commands/tcl/foreach_.rs` | stepped arity, repeated-argument layouts, a clause grammar's group row |
 | [`string.tclspec`](string.tclspec) | `commands/tcl/string_.rs` (`length`, `is`, `map`, `range`) | pack-level shared tables, closed value sets, subcommand facts, const-folds as Tcl |
 | [`switch.tclspec`](switch.tclspec) | `commands/tcl/switch_.rs` | `-also` arity, an inline `case_list`, option-skipping in a resolver |
 | [`if.tclspec`](if.tclspec) | `commands/tcl/if_.rs` | the declarative `clause_grammar` (extra port — see below) |
@@ -417,7 +417,7 @@ the descriptor's own field names, so nothing new has to be learnt:
 | `hover` | `summary`, `synopsis`*, `description`, `source`, `example`*, `returns` |
 | `values NAME` | `value V ?-detail {…}? ?-min-tcl VER? ?-code N? ?-introduced V? ?-deprecated V? ?-retired V?`* |
 | `case_list` | `subject_args`, `two_arg_optionless_surface`, `fallthrough_body`, `value_options_require_regex`, `special_match_options`, `clause_flags`, `clause_regex_flag`, `clause_value_flags`, `clause_end_options_flag`, `clause_force_inline_flag`, `clause_force_list_flag`, `clause_force_list_shape` (`first_arg_only_remainder`), `allow_omitted_final_body`, `keyword_patterns {…} ?-final-only?`, `warn_unbraced_bodies`, `optional_subject_separator` |
-| `clause_grammar` | `head {slots}`, `repeated KEYWORD {slots}`*, `tail ?KEYWORD? {slots}` |
+| `clause_grammar` | `head {slots} ?-timing T?`, `repeated KEYWORD {slots} ?-timing T? ?-pattern completion-code\|error-code-prefix? ?-conditional? ?-optional-keyword? ?-available V?`*, `once ?KEYWORD? {slots} ?-timing T?`*, `group N ?-timing T?`*, `tail ?KEYWORD? {slots} ?-timing T?`, `fallthrough_body WORD`, `default_clause ROW\|tail ?-final-only?`, `selection first-match\|all`; timings `selected\|always\|per-iteration\|init\|next\|protected`; a slot is `ROLE`, `?noise?` or `{ROLE optional}` |
 | `event_requires` | `client_side`, `server_side`, `transport`, `profiles`, `also_in`, `init_only`, `flow`, `capability` |
 | `world_effects` | `composition`, `access …`*, `callback -kinds {…} -reentrancy R`, `resolver`, `dynamic_fallback` |
 | `state_transitions` | `composition`, `argument_shape`, `resolver`, `widen -operands L -domains {…}`*, `covers SOURCE -domains {…}`*, `commit` |
@@ -707,27 +707,69 @@ The body is compiled to bytecode once at pack load, not per call.
 
 `clause_shape_check` exists because `if`'s grammar is not a `min..=max`
 range. It is, however, perfectly regular, and the manpage already writes
-it down. So the DSL writes the manpage:
+it down. So the DSL writes the manpage, as the registry's own descriptor
+(`ClauseGrammarSpec`, `rust/tcl-registry/src/clause_grammar.rs`):
 
 ```tcl
 clause_grammar {
-    head            {Expr ?then? Body}
-    repeated elseif {Expr ?then? Body}
-    tail     ?else? {Body}
+    head            {Expr ?then? Body} -timing selected
+    repeated elseif {Expr ?then? Body} -timing selected
+    tail     ?else? {Body}             -timing selected
+    default_clause tail -final-only
 }
 ```
 
-- **`head {slots}`** — the mandatory leading clause, matched
+One row per statement:
+
+- **`head {slots} ?flags?`** — the mandatory leading clause, matched
   *positionally*. Its slots are never keyword-matched, which is why `if
   else {a}` is a well-formed `if` whose condition is the bareword `else`
-  — the behaviour `IfConditionCallback` has.
-- **`repeated KEYWORD {slots}`** — zero or more clauses, each introduced
-  by that literal word (role `Keyword`).
-- **`tail ?KEYWORD? {slots}`** — at most one clause, last. A bare
+  — the behaviour `IfConditionCallback` has. A grammar whose first words
+  are a group (`foreach`) declares no head.
+- **`repeated KEYWORD {slots} ?flags?`** — zero or more clauses, each
+  introduced by that literal word (role `Keyword`).
+- **`once ?KEYWORD? {slots} ?flags?`** — exactly one clause. A keywordless
+  `once` row is entered positionally, in declaration order — `for`'s test
+  and `next` script.
+- **`group N ?flags?`** — the keywordless binder groups of a loop: the
+  stride and the excluded trailing words are `repeat` layout `N`'s, which
+  the row cites and never restates. At least one whole group is required.
+- **`tail ?KEYWORD? {slots} ?flags?`** — at most one clause, last. A bare
   `KEYWORD` requires the word; `?KEYWORD?` makes it optional, which is
   what allows `if`'s implicit trailing body.
-- Inside a slot list, a bare word is an `ArgRole` name and `?word?` is an
-  optional noise keyword.
+- **`fallthrough_body WORD`** — a selected clause whose body is `WORD`
+  runs the next clause's body (`try`'s `-`).
+- **`default_clause ROW|tail ?-final-only?`** — the clause that runs when
+  no earlier one is selected (`if`'s final body), by row index or `tail`.
+- **`selection first-match|all`** — whether one call selects the first
+  matching clause (the default) or runs every clause present (a loop).
+- Inside a slot list, a bare word is an `ArgRole` name, `?word?` is an
+  optional noise keyword, and `{ROLE optional}` is a slot that may be
+  absent (`catch`'s result words). A clause uses six roles: `Expr`,
+  `Body`, `LoopVarList`, `Pattern`, `Keyword` (the noise words) and
+  `Value`.
+- Row flags: **`-timing selected|always|per-iteration|init|next|protected`**
+  (when the clause's body runs; `selected` when absent),
+  **`-pattern completion-code|error-code-prefix`** (the handler vocabulary
+  of the row's `Pattern` slot), **`-conditional`** (the row's
+  `LoopVarList` slots bind only when a runtime data condition holds),
+  **`-optional-keyword`**, and **`-available V`** (the row's releases).
+  `clause_grammar { … } -available V` gates the whole grammar.
+
+`try` in full:
+
+```tcl
+clause_grammar {
+    head {Body} -timing protected
+    repeated on   {Pattern LoopVarList Body} -timing selected \
+                                             -pattern completion-code
+    repeated trap {Pattern LoopVarList Body} -timing selected \
+                                             -pattern error-code-prefix
+    tail finally  {Body} -timing always
+    fallthrough_body -
+    selection first-match
+}
+```
 
 **Normative — where keywords match.** A `clause_grammar` keyword is
 matched **only at a clause boundary and at a `?noise?` position**; every
@@ -741,18 +783,25 @@ version an implementer can test against: at each step the walk asks
 "does a clause start here?", and only that question ever compares a word
 against a keyword.
 
-From that one declaration the loader derives **both** hook behaviours:
+From that one declaration the registry derives **both** hook behaviours,
+walking the call once:
 
-- `arg_role_resolver` — the roles the walk assigns, and
-- `clause_shape_check` — `MissingExpr{after}` for an absent `Expr` slot,
-  `MissingBody{after}` for an absent `Body` slot, `ExtraWords{first_extra}`
+- the argument roles — each keyword and noise word as `Keyword`, each
+  `Expr`, `Body` and pattern-language `Pattern` slot as its role (a
+  binder list, a handler's pattern and a fall-through body are clause
+  facts, read from the plan's clauses), and
+- the structural defect — `MissingExpr{after}` for an absent `Expr` slot,
+  `MissingBody{after}` for any other absent slot, `ExtraWords{first_extra}`
   for anything past the tail.
 
-Walked against `if_.rs`'s own test matrix, the generated walk agrees case
-for case with `walk_if`, including the two subtle rows (`if else {a}` is
-valid; a bare trailing body needs no `else` but nothing may follow it).
-`STRUCTURALLY_CHECKED_ARITY` is *not* implied — the pack still declares
-it, and the loader warns if a `clause_grammar` command omits it.
+The shipped grammars are the same descriptor — `if`, `try`, `catch`,
+`for`, `while`, `foreach`, `lmap`, `dict for` / `dict map` / `dict
+update`, `array for` — and walked against `if_.rs`'s retired test matrix
+the grammar agrees case for case, including the two subtle rows (`if else
+{a}` is valid; a bare trailing body needs no `else` but nothing may follow
+it). `STRUCTURALLY_CHECKED_ARITY` is *not* implied: it is the opt-in that
+makes the walk's defect the command's arity diagnostic (`if`'s E004),
+where `try` and the loops keep an ordinary arity range.
 
 Case lists are the other clause shape and stay a separate field, because
 they are a *value* (`{pattern body …}` inside one word) rather than a
@@ -808,8 +857,9 @@ implementation would silently differ from the shipped resolver
   the pairs after it still produce transitions.
 
 **`clause_grammar`.** Derives both `arg_role_resolver` and
-`clause_shape_check`; its own normative rule (where keywords match) is
-stated above.
+`clause_shape_check` — the registry walks the declared descriptor, so
+neither is installed as a hook; its own normative rule (where keywords
+match) is stated above.
 
 **Derivation is a proof obligation, not a shorthand.** Each keyword
 above asserts that a data-driven rule reproduces a shipped function.
@@ -1065,9 +1115,9 @@ What each port loses, if anything, against its `.rs`.
 | port | fidelity | what is missing |
 |---|---|---|
 | `lsort` | **complete** | — |
-| `foreach` | **complete** | the resolver's `u8::try_from` guard becomes the loader's index cap, which is the same behaviour stated once instead of per hook |
+| `foreach` | **complete** | the retired role resolver became the shipped clause grammar, and the port declares the same one: a group row citing the `repeat` layout and the body tail |
 | `switch` | **complete** | — |
-| `if` | **complete, and smaller** | two hook functions (~110 lines of Rust) become a three-line grammar; the derived walk agrees with `walk_if` on its whole test matrix |
+| `if` | **complete, and smaller** | two hook functions (~110 lines of Rust) became a four-row grammar — in the shipped spec too; the walk agrees with the retired `walk_if` on its whole test matrix |
 | `string` (4 subcommands) | **near-complete** | `string is`'s `const_fold_versioned` stays `-native`. Its Rust is a version-aware classifier (per-class availability floors, 8.x/9.x magnitude caps, radix prefixes, digit separators, ambiguous-form bail-outs); a Tcl body would be a re-implementation, not a port. `length` / `map` / `range` port fully — but see the note below. |
 | `oo::class` | **partial** | the three subcommands' `state_transitions` resolvers stay `-native`: they emit typed `CommandBinding::Define` + `ObjectDispatch::Create` facts, and the DSL has no vocabulary for constructing transition facts. Everything around them (composition, argument shape, widening rules, effect coverage, commit) is data and ports. `arg_role_resolver` is *removed*, derived from the `manufacturer` rows — a **derivation claim**, not a transcription, and one that must be **proved, not assumed**: `oo_class_arg_roles` reads `TCLOO_GRAMMAR.manufacturers`, while the port's rows are `TCLOO_ROOT_CLASS_MANUFACTURERS`. The two tables differ on `new`'s visibility and agree on every keyword and body index *today*, which is what makes the derivation correct now and not correct by construction. A loader must diff them; a future divergence must fail the equivalence gate. |
 | `uri::geturl` + `http::geturl` | **complete** | — |

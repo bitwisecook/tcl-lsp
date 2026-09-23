@@ -131,7 +131,28 @@ Roles are what make the editor light up a body argument as real code, treat `var
 
 *command and subcommand* — Closed set of roles the dynamic resolver can emit when an invocation cannot be resolved precisely.
 
-The complete set of roles the dynamic argument-role resolver can ever return. This is declarative even though the resolver itself is code. Consumers use it when substitutions or expansions hide the exact argument values, so omitting a possible role can suppress analysis while adding an impossible role makes analysis needlessly conservative.
+The complete set of roles the dynamic argument-role resolver can ever return. This is declarative even though the resolver itself is code. Consumers use it when substitutions or expansions hide the exact argument values, so omitting a possible role can suppress analysis while adding an impossible role makes analysis needlessly conservative. A command whose clause grammar replaced its resolver keeps this as the closed set the grammar's walk emits.
+
+### `clause_grammar` — Clause grammar
+
+*command and subcommand* — The word grammar of a clause chain (`if`/`elseif`/`else`, `try`/`on`/`trap`/`finally`, a loop's fixtures and body): where each keyword, condition, script and binder sits, and when each body runs. Its walk answers the argument roles and the chain's structural defect.
+
+The word grammar of a clause chain, as data: `if`'s `elseif`/`else` chain, `try`'s handlers, a loop's fixtures and body. The registry walks every call against it once, and that one walk answers where each keyword, condition and script sits (the argument roles), which clause runs when (each row's timing), and the chain's first structural defect (what `if`'s E004 reports).
+
+A keyword is compared only where a clause could start and at a `?noise?` slot; every other slot is filled positionally, so `if else {a}` is a well-formed `if` whose condition is the bareword `else`. `try` in the DSL:
+
+```
+clause_grammar {
+    head {Body} -timing protected
+    repeated on   {Pattern LoopVarList Body} -timing selected -pattern completion-code
+    repeated trap {Pattern LoopVarList Body} -timing selected -pattern error-code-prefix
+    tail finally  {Body} -timing always
+    fallthrough_body -
+    selection first-match
+}
+```
+
+A slot is a role name, `?word?` for a noise word, or `{ROLE optional}`; `group N` cites the `repeat` layout a loop's binder groups follow. The form shows the rows read-only.
 
 ### `arg_presentation` — Argument presentation
 
@@ -783,7 +804,7 @@ For commands that reach into another stack frame the way `upvar`, `uplevel`, and
 
 *command only* — Validator for a clause chain whose shapes are not a single min..=max range.
 
-A validator for commands whose legal shapes cannot be captured by a single min–max argument count — `if`'s `elseif`/`else` chain is the canonical case: any length is fine, but only in the right rhythm. This is code, so in the studio it is a reference; if your command has a clause grammar, write the rhythm out in the issue notes ("`cond body` pairs, optionally ending `else body`").
+A validator for commands whose legal shapes cannot be captured by a single min–max argument count. The escape hatch, not the mechanism: a chain a clause grammar can spell — `if`'s `elseif`/`else` rhythm is the canonical case — derives its defect from the grammar instead. This is code, so in the studio it is a reference; write the grammar as a `clause_grammar` block wherever the rows can say it.
 
 ### `command_prefix_resolver` — Command-prefix resolver
 

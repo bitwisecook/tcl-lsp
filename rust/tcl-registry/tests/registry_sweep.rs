@@ -2298,6 +2298,183 @@ fn repeated_arg_layouts_never_pair_conditional_binding_with_an_ssa_def_role() {
     );
 }
 
+/// One clause-grammar owner — a command or a subcommand — with the layouts
+/// its group rows cite and its own static role table.
+struct ClauseGrammarOwner {
+    path: String,
+    grammar: &'static tcl_registry::ClauseGrammarSpec,
+    layouts: &'static [tcl_registry::RepeatedArgLayout],
+    arg_roles: &'static [(u8, ArgRole)],
+}
+
+/// Every clause grammar of every loadable dialect's specs.
+fn clause_grammar_owners() -> Vec<ClauseGrammarOwner> {
+    let mut out = Vec::new();
+    for &dialect in LOADABLE_DIALECTS {
+        let reg = registry_for_dialect(dialect);
+        let names: Vec<String> = reg.command_names().map(str::to_owned).collect();
+        for name in &names {
+            let Some(spec) = reg.get(name) else { continue };
+            if let Some(grammar) = spec.clause_grammar {
+                out.push(ClauseGrammarOwner {
+                    path: format!("{dialect} {}", spec.name),
+                    grammar,
+                    layouts: spec.repeated_args,
+                    arg_roles: spec.arg_roles,
+                });
+            }
+            for sub in spec.subcommands {
+                if let Some(grammar) = sub.clause_grammar {
+                    out.push(ClauseGrammarOwner {
+                        path: format!("{dialect} {} {}", spec.name, sub.name),
+                        grammar,
+                        layouts: sub.repeated_args,
+                        arg_roles: sub.arg_roles,
+                    });
+                }
+            }
+        }
+    }
+    out
+}
+
+/// Every slot of every row of `grammar`, with the row it sits in.
+fn clause_slots(
+    grammar: &tcl_registry::ClauseGrammarSpec,
+) -> Vec<(tcl_registry::ClauseRowId, tcl_registry::ClauseSlot)> {
+    grammar
+        .all_rows()
+        .flat_map(|(id, row)| row.slots().iter().map(move |slot| (id, *slot)))
+        .collect()
+}
+
+/// A group row cites a `repeated_args` layout by index; the stride and the
+/// trailing exclusion are that layout's facts, so the index must name one.
+#[test]
+fn clause_grammar_group_rows_cite_a_real_layout() {
+    let owners = clause_grammar_owners();
+    let mut groups = 0usize;
+    for owner in &owners {
+        for (_, row) in owner.grammar.all_rows() {
+            if let tcl_registry::ClauseRowShape::Group { layout } = row.shape {
+                groups += 1;
+                assert!(
+                    usize::from(layout) < owner.layouts.len(),
+                    "{}: a group row cites repeated_args[{layout}], but the spec declares {} layout(s)",
+                    owner.path,
+                    owner.layouts.len()
+                );
+                assert!(
+                    row.keyword.is_none(),
+                    "{}: a group row is keywordless by construction",
+                    owner.path
+                );
+            }
+        }
+    }
+    assert!(
+        groups > 0,
+        "the sweep must reach a group row (foreach's binder groups)"
+    );
+}
+
+/// The clause-slot sibling of
+/// `repeated_arg_layouts_never_pair_conditional_binding_with_an_ssa_def_role`:
+/// a slot whose names are bound only under a runtime data condition never
+/// carries `VarWrite`, which every def-use site reads as an unconditional
+/// definition.
+#[test]
+fn conditional_binding_clause_slots_never_carry_var_write() {
+    for owner in clause_grammar_owners() {
+        for (row, slot) in clause_slots(owner.grammar) {
+            assert!(
+                !(slot.conditional_binding && slot.role == ArgRole::VarWrite),
+                "{} {row:?}: a conditional_binding clause slot declares VarWrite",
+                owner.path
+            );
+        }
+    }
+}
+
+/// A clause slot speaks the six roles a clause uses — `Expr`, `Body`,
+/// `LoopVarList`, `Pattern`, `Keyword` (a `?noise?` word), `Value` — so a
+/// consumer reading the plan learns no seventh; a noise word is a `Keyword`
+/// slot and a handler rides a `Pattern` slot.
+#[test]
+fn clause_slots_use_only_the_six_roles() {
+    const CLAUSE_ROLES: &[ArgRole] = &[
+        ArgRole::Expr,
+        ArgRole::Body,
+        ArgRole::LoopVarList,
+        ArgRole::Pattern,
+        ArgRole::Keyword,
+        ArgRole::Value,
+    ];
+    let owners = clause_grammar_owners();
+    assert!(
+        !owners.is_empty(),
+        "the shipped clause grammars must be reached"
+    );
+    for owner in owners {
+        for (row, slot) in clause_slots(owner.grammar) {
+            assert!(
+                CLAUSE_ROLES.contains(&slot.role),
+                "{} {row:?}: clause slot role {:?} is not one of the six",
+                owner.path,
+                slot.role
+            );
+            assert_eq!(
+                slot.noise.is_some(),
+                slot.role == ArgRole::Keyword,
+                "{} {row:?}: a noise word is exactly a Keyword slot",
+                owner.path
+            );
+            assert!(
+                slot.handler.is_none() || slot.role == ArgRole::Pattern,
+                "{} {row:?}: a handler vocabulary rides a Pattern slot",
+                owner.path
+            );
+        }
+    }
+}
+
+/// Where a grammar-carrying command also keeps a static role table (`catch`,
+/// `for`, `while`, `dict for`, `array for`), the two describe one call: every
+/// flat role the walk assigns on a representative call is the table's role at
+/// that position, so folding both never gives a word two readings.
+#[test]
+fn clause_grammars_agree_with_their_static_role_tables() {
+    for owner in clause_grammar_owners() {
+        if owner.arg_roles.is_empty() {
+            continue;
+        }
+        let width = owner
+            .arg_roles
+            .iter()
+            .map(|(index, _)| usize::from(*index) + 1)
+            .max()
+            .unwrap_or(0);
+        let words: Vec<String> = (0..width).map(|index| format!("w{index}")).collect();
+        let args: Vec<&str> = words.iter().map(String::as_str).collect();
+        let plan = owner.grammar.walk(&args, owner.layouts);
+        assert_eq!(
+            plan.defect, None,
+            "{}: the representative call is well formed",
+            owner.path
+        );
+        for (index, role) in plan.roles {
+            assert!(
+                owner
+                    .arg_roles
+                    .iter()
+                    .any(|(at, found)| usize::from(*at) == index && *found == role),
+                "{}: the grammar gives word {index} {role:?}, which its arg_roles do not",
+                owner.path
+            );
+        }
+    }
+}
+
 /// One option-effect scope — a command's options (and its forms'), or one
 /// subcommand's — with the families declared beside them.
 struct OptionEffectScope {

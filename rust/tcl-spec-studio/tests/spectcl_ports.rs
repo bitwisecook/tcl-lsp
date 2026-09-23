@@ -646,41 +646,149 @@ const IF_CORPUS: &[&str] = &[
     "1 then a elseif 2 then b else c",
 ];
 
+/// Call shapes for `foreach`'s binder groups: the well-formed ones and the
+/// off-by-one shapes whose body is still the last word.
+const FOREACH_CORPUS: &[&str] = &[
+    "",
+    "x",
+    "x l",
+    "x l b",
+    "x l y b",
+    "x l y m b",
+    "{k v} $d {puts $k}",
+    "a $l1 b $l2 body extra",
+];
+
+/// Every shipped command or subcommand carrying a clause grammar, with the
+/// dialect it is visible in and call shapes to walk.
+const SHIPPED_GRAMMARS: &[(&str, &str, &[&str])] = &[
+    ("if", "tcl9.1", IF_CORPUS),
+    (
+        "try",
+        "tcl9.1",
+        &[
+            "b",
+            "b on ok r h",
+            "b trap {POSIX ENOENT} {} h",
+            "b on error {m o} - on break {} h finally f",
+            "b on x y",
+            "b foo on e m h",
+        ],
+    ),
+    ("catch", "tcl9.1", &["", "s", "s r", "s r o", "s r o x"]),
+    (
+        "for",
+        "tcl9.1",
+        &["a", "a b", "a b c", "a b c d", "a b c d e"],
+    ),
+    ("while", "tcl9.1", &["", "1", "1 b", "1 b c"]),
+    ("foreach", "tcl9.1", FOREACH_CORPUS),
+    ("lmap", "tcl9.1", FOREACH_CORPUS),
+    (
+        "dict",
+        "tcl9.1",
+        &[
+            "for {k v} $d body",
+            "map {k v} $d body",
+            "update d k v body",
+            "update d k1 v1 k2 v2 body",
+            "update d body",
+        ],
+    ),
+    ("array", "tcl9.1", &["for {k v} a body", "for {k v} a"]),
+];
+
 /// **Derivation is a proof obligation, not a shorthand.**
 ///
-/// `if.tclspec` replaces two hook functions with a three-line
-/// `clause_grammar`. This walks the derived grammar against the shipped
-/// `if`'s own hooks over its whole test matrix and asserts they agree case
-/// for case — roles *and* the reported defect.
+/// `if.tclspec` and `foreach.tclspec` replace hook functions with a
+/// `clause_grammar` block. Each port's grammar must *be* the shipped one, and
+/// walk the command's call shapes — roles, clauses *and* the reported defect —
+/// exactly as the shipped grammar does. Beyond the ports, every shipped
+/// grammar-carrying command is rendered to `SpecTcl` and loaded back, and its
+/// grammar (and every subcommand's) must come back unchanged.
 #[test]
 fn the_clause_grammar_derivation_agrees_with_the_shipped_walk() {
-    let source = std::fs::read_to_string(examples_dir().join("if.tclspec")).expect("if");
-    let pack = spectcl::evaluate_pack(&source);
-    let ported = pack.command("if").expect("if");
-    let grammar = ported
-        .clause_grammar
-        .as_ref()
-        .expect("if.tclspec declares a clause_grammar");
-
-    let shipped = tcl_spec_studio::environment::store_for_dialect("tcl9.1")
-        .get("if")
-        .expect("shipped if");
-    let shipped_roles = shipped.arg_role_resolver.expect("if's role resolver");
-    let shipped_shape = shipped.clause_shape_check.expect("if's shape check");
-
-    for call in IF_CORPUS {
-        let words: Vec<&str> = call.split_whitespace().collect();
-        let derived = grammar.walk(&words);
+    for (file, name, corpus) in [
+        ("if.tclspec", "if", IF_CORPUS),
+        ("foreach.tclspec", "foreach", FOREACH_CORPUS),
+    ] {
+        let source = std::fs::read_to_string(examples_dir().join(file)).expect(file);
+        let pack = spectcl::evaluate_pack(&source);
+        let ported = pack.command(name).expect(name);
+        let grammar = ported
+            .clause_grammar
+            .unwrap_or_else(|| panic!("{file} declares a clause_grammar"));
         assert_eq!(
-            derived.roles,
-            shipped_roles(&words),
-            "roles disagree for `if {call}`"
+            ported.spec.clause_grammar.map(std::ptr::from_ref),
+            Some(std::ptr::from_ref(grammar)),
+            "{file}: the spec carries the declared grammar"
         );
+        let shipped = tcl_spec_studio::environment::store_for_dialect("tcl9.1")
+            .get(name)
+            .unwrap_or_else(|| panic!("shipped {name}"));
+        let shipped_grammar = shipped
+            .clause_grammar
+            .unwrap_or_else(|| panic!("shipped {name} declares a clause grammar"));
         assert_eq!(
-            derived.error,
-            shipped_shape(&words),
-            "shape disagrees for `if {call}`"
+            grammar, shipped_grammar,
+            "{file}'s grammar is the shipped one"
         );
+        for call in corpus {
+            let words: Vec<&str> = call.split_whitespace().collect();
+            assert_eq!(
+                grammar.walk(&words, ported.spec.repeated_args),
+                shipped_grammar.walk(&words, shipped.repeated_args),
+                "the walk disagrees for `{name} {call}`"
+            );
+        }
+    }
+
+    for (name, dialect, corpus) in SHIPPED_GRAMMARS {
+        let shipped = tcl_spec_studio::environment::store_for_dialect(dialect)
+            .get(name)
+            .unwrap_or_else(|| panic!("shipped {name}"));
+        let draft = load_command(name, dialect).expect("a draft of the shipped spec");
+        let text = tcl_spec_studio::render_spectcl::render_pack(
+            &[draft.as_object().expect("a draft object").clone()],
+            dialect,
+        );
+        let pack = spectcl::evaluate_pack(&text);
+        let reloaded = pack
+            .command(name)
+            .unwrap_or_else(|| panic!("`{name}` reloads from:\n{text}"));
+        assert_eq!(
+            reloaded.spec.clause_grammar, shipped.clause_grammar,
+            "`{name}`'s grammar survives the round trip:\n{text}"
+        );
+        for sub in shipped.subcommands {
+            let back = reloaded
+                .spec
+                .subcommands
+                .iter()
+                .find(|found| found.name == sub.name)
+                .unwrap_or_else(|| panic!("`{name} {}` reloads", sub.name));
+            assert_eq!(
+                back.clause_grammar, sub.clause_grammar,
+                "`{name} {}`'s grammar survives the round trip",
+                sub.name
+            );
+        }
+        for call in *corpus {
+            let words: Vec<&str> = call.split_whitespace().collect();
+            let walk = |spec: &tcl_registry::spec::CommandSpec| match spec
+                .subcommands
+                .iter()
+                .find(|sub| words.first() == Some(&sub.name))
+            {
+                Some(sub) => sub.clause_plan(&words[1..], None),
+                None => spec.clause_plan(&words, None),
+            };
+            assert_eq!(
+                walk(reloaded.spec),
+                walk(shipped),
+                "the reloaded walk disagrees for `{name} {call}`"
+            );
+        }
     }
 }
 

@@ -237,7 +237,7 @@ fn collect_spec(
         dialect,
         owner,
         "command",
-        spec.arg_role_resolver.is_some(),
+        dynamic_roles(spec.arg_role_resolver.is_some(), spec.clause_grammar),
         spec.command_prefix_resolver.is_some(),
         spec.script_timing_resolver.is_some(),
         &format_lifecycle(spec.lifecycle),
@@ -310,7 +310,7 @@ fn collect_spec(
             dialect,
             &sub_owner,
             "subcommand",
-            sub.arg_role_resolver.is_some(),
+            dynamic_roles(sub.arg_role_resolver.is_some(), sub.clause_grammar),
             sub.command_prefix_resolver.is_some(),
             sub.script_timing_resolver.is_some(),
             &combined_lifecycle(spec.lifecycle, sub.lifecycle),
@@ -386,7 +386,7 @@ fn collect_spec(
                 dialect,
                 &method_owner,
                 "instance-method",
-                method.arg_role_resolver.is_some(),
+                dynamic_roles(method.arg_role_resolver.is_some(), method.clause_grammar),
                 method.command_prefix_resolver.is_some(),
                 method.script_timing_resolver.is_some(),
                 &combined_lifecycle(spec.lifecycle, method.lifecycle),
@@ -596,13 +596,29 @@ fn classify_option(
     Some((kind, timing, appended, taint))
 }
 
+/// The note of an owner's `dynamic-arg-role` row, or `None` when its roles do
+/// not depend on the words: an argument-role resolver, or a clause grammar
+/// whose keywords, noise words or groups the call's words place.
+fn dynamic_roles(
+    resolver: bool,
+    grammar: Option<&tcl_registry::ClauseGrammarSpec>,
+) -> Option<&'static str> {
+    if resolver {
+        Some("argument-role resolver; executable positions, if any, are invocation-dependent")
+    } else if grammar.is_some_and(tcl_registry::ClauseGrammarSpec::layout_depends_on_words) {
+        Some("clause grammar; executable positions are invocation-dependent")
+    } else {
+        None
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn collect_dynamic(
     rows: &mut BTreeMap<String, InventoryRow>,
     dialect: &str,
     owner: &str,
     surface: &str,
-    arg_roles: bool,
+    arg_roles: Option<&'static str>,
     prefixes: bool,
     timing_resolver: bool,
     lifecycle: &str,
@@ -612,8 +628,8 @@ fn collect_dynamic(
     for (suffix, present, note) in [
         (
             "dynamic-arg-role",
-            arg_roles,
-            "argument-role resolver; executable positions, if any, are invocation-dependent",
+            arg_roles.is_some(),
+            arg_roles.unwrap_or_default(),
         ),
         (
             "dynamic-command-prefix",

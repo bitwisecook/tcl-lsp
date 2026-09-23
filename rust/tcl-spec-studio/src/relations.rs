@@ -43,6 +43,7 @@ pub const CLUSTERS: &[Cluster] = &[
               overrides them, and the layouts that repeat them.",
         members: &[
             "arg_roles",
+            "clause_grammar",
             "arg_role_resolver",
             "arg_role_resolver_roles",
             "repeated_args",
@@ -271,6 +272,7 @@ pub const CLUSTERS: &[Cluster] = &[
         why: "Commands whose arguments are pattern/body clauses rather than a \
               fixed list.",
         members: &[
+            "clause_grammar",
             "case_list",
             "clause_shape_check",
             "pattern_type",

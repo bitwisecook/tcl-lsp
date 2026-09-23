@@ -27,6 +27,28 @@ const FORMS: &[FormSpec] = &[FormSpec {
     ..FormSpec::DEFAULT
 }];
 
+/// `{keyVariable valueVariable} arrayName`: the one binder list and the array
+/// it iterates.
+const ARRAY_FOR_HEAD: &[ClauseSlot] = &[
+    ClauseSlot::of(ArgRole::LoopVarList),
+    ClauseSlot::of(ArgRole::Value),
+];
+/// The body script.
+const SCRIPT: &[ClauseSlot] = &[ClauseSlot::of(ArgRole::Body)];
+
+/// `array for {keyVariable valueVariable} arrayName body` — `dict for`'s shape
+/// over an array, Tcl 9.0 only. `array for`'s own `arg_roles` carries the
+/// binder's `LoopVarList` and the array's `VarRead`.
+pub const ARRAY_FOR_GRAMMAR: ClauseGrammarSpec = ClauseGrammarSpec {
+    head: ClauseRow::head(ARRAY_FOR_HEAD, ClauseTiming::PerIteration),
+    rows: &[],
+    tail: Some(ClauseRow::once(None, SCRIPT, ClauseTiming::PerIteration)),
+    fallthrough_body: None,
+    default_clause: None,
+    selection: ClauseSelection::All,
+    surface: Some(SpecSurface::TCL90_PLUS),
+};
+
 /// `array default`'s sub-verb (position 0 after the `default` word) — TIP
 /// 508, landed as Tcl 9.0 (the TIP's target "8.7" became the 9.0 release).
 /// Unlike `array names`' `mode` word (see [`NAMES_MODE_VALUES`]), this
@@ -170,6 +192,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             (1, ArgRole::VarRead),
             (2, ArgRole::Body),
         ],
+        clause_grammar: Some(&ARRAY_FOR_GRAMMAR),
         lowering_hook: Some(crate::hooks::LoweringHookId::ArrayFor),
         loop_list_header: true,
         surface: Some(SpecSurface::TCL90_PLUS),

@@ -1,9 +1,10 @@
 # Port of rust/tcl-registry/src/commands/tcl/if_.rs
 #
 # Not one of the eight assigned ports: `if` is here because it is the only
-# shipped consumer of `clause_shape_check`, and the DSL's whole answer to that
-# field is to make it unnecessary.  One `clause_grammar` declaration replaces
-# BOTH `if_arg_roles` and `check_if_shape` with no hook body at all.
+# consumer of the clause-shape defect (E004), and the DSL's whole answer to
+# `clause_shape_check` is to make it unnecessary.  One `clause_grammar`
+# declaration is the shipped spec's own descriptor — the registry walks it for
+# both the argument roles and the defect, with no hook body at all.
 
 speclib tcl 2.1 {
 
@@ -18,8 +19,8 @@ command if {
     arity 2..
 
     # `expr ?then? body (elseif expr ?then? body)* (?else? body)?`, exactly as
-    # if(n) writes it.  This one declaration replaces BOTH `if_arg_roles` and
-    # `check_if_shape`:
+    # if(n) writes it.  This one declaration answers both the roles and the
+    # structural defect:
     #
     #  * `head` is matched positionally and its slots are NEVER keyword-matched
     #    — `if else {a}` is a well-formed `if` whose condition is the bareword
@@ -30,10 +31,15 @@ command if {
     #  * `?else?` (an optional introducing keyword) is what makes the implicit
     #    trailing body legal with no keyword at all, and `tail` being last is
     #    what makes anything after it an error.
+    #  * `-timing` says when each clause's body runs: every `if` clause runs
+    #    only when it is the one selected, and `default_clause` names the
+    #    final body as the one that runs when no condition held.
     clause_grammar {
-        head            {Expr ?then? Body}
-        repeated elseif {Expr ?then? Body}
-        tail     ?else? {Body}
+        head            {Expr ?then? Body} -timing selected
+        repeated elseif {Expr ?then? Body} -timing selected
+        tail     ?else? {Body}             -timing selected
+        default_clause tail -final-only
+        selection first-match
     }
     arg_role_resolver_roles {Expr Body Keyword}
 

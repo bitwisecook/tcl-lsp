@@ -59,6 +59,28 @@ const FORMS: &[FormSpec] = &[
     },
 ];
 
+/// The protected script.
+const SCRIPT: &[ClauseSlot] = &[ClauseSlot::of(ArgRole::Body)];
+/// `?resultVarName? ?optionsVarName?`. The names are bound whatever the
+/// script's completion, and `catch`'s own `arg_roles` carries their
+/// `VarWrite`; here they are the clause's binding words.
+const RESULT_WORDS: &[ClauseSlot] = &[
+    ClauseSlot::of(ArgRole::LoopVarList).optional(),
+    ClauseSlot::of(ArgRole::LoopVarList).optional(),
+];
+
+/// `catch script ?resultVarName? ?optionsVarName?`: a protected script whose
+/// completion is observed, and the words that receive it.
+pub const GRAMMAR: ClauseGrammarSpec = ClauseGrammarSpec {
+    head: ClauseRow::head(SCRIPT, ClauseTiming::Protected),
+    rows: &[],
+    tail: Some(ClauseRow::once(None, RESULT_WORDS, ClauseTiming::Selected)),
+    fallthrough_body: None,
+    default_clause: None,
+    selection: ClauseSelection::All,
+    surface: None,
+};
+
 /// Command spec for `catch`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -74,6 +96,7 @@ pub fn spec() -> CommandSpec {
             (1, ArgRole::VarWrite),
             (2, ArgRole::VarWrite),
         ],
+        clause_grammar: Some(&GRAMMAR),
         lowering_hook: Some(crate::hooks::LoweringHookId::Catch),
         inline_codegen_hook: Some(crate::hooks::InlineCodegenHookId::Catch),
         return_type: Some(TclType::Int),

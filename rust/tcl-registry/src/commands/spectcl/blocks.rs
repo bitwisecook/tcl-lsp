@@ -371,8 +371,8 @@ pub(super) fn specs() -> Vec<CommandSpec> {
         block(
             "clause_grammar",
             &crate::definer::SPECTCL_CLAUSE_GRAMMAR_GRAMMAR,
-            "Declare a clause-chain word grammar (the `if` shape).",
-            "Both `arg_role_resolver` and `clause_shape_check` are derived from this one declaration. Normative: a keyword is matched only at a clause boundary and at a `?noise?` position; every other slot is filled positionally and consumes whatever word is there, including one spelled like a keyword. `STRUCTURALLY_CHECKED_ARITY` is not implied — the pack still declares it.",
+            "Declare a clause-chain word grammar (the `if`, `try` and loop shapes).",
+            "Rows: `head {slots}`, `repeated KEYWORD {slots}`, `once ?KEYWORD? {slots}`, `group N` (the binder groups `repeat` layout N lays out), `tail ?KEYWORD? {slots}`, then `fallthrough_body WORD`, `default_clause ROW|tail ?-final-only?`, `selection first-match|all`. Row flags: `-timing selected|always|per-iteration|init|next|protected`, `-pattern completion-code|error-code-prefix`, `-conditional`, `-optional-keyword`, `-available V`. The registry walks this one declaration for both the argument roles and the clause-shape defect. Normative: a keyword is matched only at a clause boundary and at a `?noise?` position; every other slot is filled positionally and consumes whatever word is there, including one spelled like a keyword. `STRUCTURALLY_CHECKED_ARITY` is not implied — it is the opt-in that makes the walk's defect the command's arity diagnostic.",
         ),
         block(
             "case_list",

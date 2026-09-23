@@ -52,6 +52,7 @@ use serde_json::{Map, Value, json};
 use tcl_registry::BodyInterpreter;
 use tcl_registry::arg_role::{AppendedArity, ArgRole};
 use tcl_registry::arity::Arity;
+use tcl_registry::clause_grammar::{ClauseGrammarSpec, ClauseRow, ClauseRowShape, ClauseSlot};
 use tcl_registry::definer::ManufacturerMethod;
 use tcl_registry::deprecation::{DeprecationFixHook, DeprecationFixSafety};
 use tcl_registry::forms::CommandForm;
@@ -543,6 +544,61 @@ fn manufacturer_method(method: &ManufacturerMethod) -> Value {
     })
 }
 
+/// Seed the `clause_grammar` value from a live [`ClauseGrammarSpec`].
+///
+/// The descriptor is plain data all the way down — rows of slots, each a role
+/// with a few flags — so the draft holds the grammar itself, spelt in the
+/// `.tclspec` vocabulary (`-timing per-iteration`, `-pattern
+/// completion-code`), never an [`Unrecovered`] note. A row's surface is the
+/// same dialect-name list every other surface key holds.
+pub(crate) fn clause_grammar(grammar: Option<&'static ClauseGrammarSpec>) -> Value {
+    let Some(grammar) = grammar else {
+        return Value::Null;
+    };
+    json!({
+        "head": clause_row(&grammar.head),
+        "rows": Value::Array(grammar.rows.iter().map(clause_row).collect()),
+        "tail": grammar.tail.as_ref().map_or(Value::Null, clause_row),
+        "fallthrough_body": grammar.fallthrough_body,
+        "default_clause": grammar.default_clause.map_or(Value::Null, |default| json!({
+            "row": default.row,
+            "final_only": default.final_only,
+        })),
+        "selection": grammar.selection.spelling(),
+        "surface": dialects(grammar.surface),
+    })
+}
+
+/// One clause row: its keyword, its shape (the slots, or the layout a group
+/// cites), its timing and its surface.
+pub(crate) fn clause_row(row: &ClauseRow) -> Value {
+    let (shape, layout) = match row.shape {
+        ClauseRowShape::Repeated { .. } => ("repeated", None),
+        ClauseRowShape::Once { .. } => ("once", None),
+        ClauseRowShape::Group { layout } => ("group", Some(layout)),
+    };
+    json!({
+        "keyword": row.keyword,
+        "keyword_required": row.keyword_required,
+        "shape": shape,
+        "slots": Value::Array(row.slots().iter().map(clause_slot).collect()),
+        "layout": layout,
+        "timing": row.timing.spelling(),
+        "surface": dialects(row.surface),
+    })
+}
+
+/// One clause slot: its role and the flags that qualify it.
+pub(crate) fn clause_slot(slot: &ClauseSlot) -> Value {
+    json!({
+        "role": catalogue::variant_name(&slot.role),
+        "noise": slot.noise,
+        "handler": slot.handler.map(tcl_registry::clause_grammar::handler_spelling),
+        "conditional_binding": slot.conditional_binding,
+        "optional": slot.optional,
+    })
+}
+
 /// Seed the `object_class` value from a live [`ObjectClassSpec`].
 ///
 /// The five fields are plain data — a class name, a method table that *is*
@@ -1024,6 +1080,7 @@ fn subcommand_identity(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) 
         "arg_role_resolver_roles".into(),
         role_list(sub.arg_role_resolver_roles),
     );
+    d.insert("clause_grammar".into(), clause_grammar(sub.clause_grammar));
     d.insert("command_prefixes".into(), prefix_map(sub.command_prefixes));
     d.insert(
         "callback_taint_inputs".into(),
@@ -1522,6 +1579,7 @@ fn command_identity(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
         "arg_role_resolver_roles".into(),
         role_list(spec.arg_role_resolver_roles),
     );
+    d.insert("clause_grammar".into(), clause_grammar(spec.clause_grammar));
     d.insert(
         "frame_effect".into(),
         lost.expr("frame_effect", spec.frame_effect.is_some()),

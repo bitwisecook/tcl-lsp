@@ -985,3 +985,71 @@ speclib probe 2.0 {
         first_diff(&snapshot(&fast), &snapshot(&slow))
     );
 }
+
+/// A clause row whose `-timing` names no timing this build knows is dropped
+/// with a notice — never read as some other timing — on both paths, and the
+/// rows around it still load. A subcommand's grammar loads through the same
+/// reader.
+#[test]
+fn a_clause_grammar_row_with_an_unknown_timing_is_dropped_with_a_notice() {
+    let source = r"speclib probe 2.1 {
+    command probe::chain {
+        arity 2..
+        clause_grammar {
+            head {Expr Body} -timing selected
+            repeated also {Expr Body} -timing sometimes
+            tail ?otherwise? {Body} -timing selected
+        }
+        subcommand loop {
+            arity 3
+            clause_grammar {
+                head {LoopVarList Value} -timing per-iteration
+                tail {Body} -timing per-iteration
+                selection all
+            }
+        }
+    }
+}
+";
+    for pack in [
+        evaluate_pack(source),
+        evaluate_through_the_interpreter(source),
+    ] {
+        let dropped: Vec<&str> = pack
+            .notices
+            .iter()
+            .map(|notice| notice.message.as_str())
+            .filter(|message| message.contains("unknown clause timing `sometimes`"))
+            .collect();
+        assert_eq!(dropped.len(), 1, "{:#?}", pack.notices);
+        let command = pack.command("probe::chain").expect("the command loads");
+        let grammar = command.clause_grammar.expect("the grammar loads");
+        assert!(
+            grammar.rows.is_empty(),
+            "the unreadable row is dropped: {grammar:?}"
+        );
+        assert_eq!(grammar.keywords().collect::<Vec<_>>(), ["otherwise"]);
+        let plan = grammar.walk(&["c", "{a}", "{b}"], &[]);
+        assert_eq!(plan.defect, None);
+        let sub = command
+            .spec
+            .subcommands
+            .iter()
+            .find(|sub| sub.name == "loop")
+            .expect("the subcommand loads");
+        let loop_grammar = sub.clause_grammar.expect("the subcommand's grammar loads");
+        assert_eq!(
+            loop_grammar.selection,
+            tcl_registry::clause_grammar::ClauseSelection::All
+        );
+        assert!(
+            command
+                .hooks
+                .iter()
+                .any(|hook| hook.field == "arg_role_resolver"
+                    && hook.owner == tcl_spectcl::HookOwner::Subcommand("loop".to_owned())),
+            "the subcommand's derivation is recorded: {:#?}",
+            command.hooks
+        );
+    }
+}

@@ -65,6 +65,8 @@ CC2.10, CC2.13, CC2.15) are dispatched separately after the opus items.
 |---|---|---|---|
 | CC2.1 the per-axis lint and its ledger | landed | `wip(consumer-contracts): step 2 — the registry-axes gate and its baseline` | 7831 vocabulary words; 1089 sites pinned across 163 files; `CLEAN_FILES` empty; D2.12, D2.13 |
 | CC2.6 `OptionEffect` in the registry, and the four clients | landed | `wip(consumer-contracts): step 2 — option effects` | `option_effect.rs`; `OptionSpec::effect` on 1373 literals; `subst`, `lsearch`, `regexp`, `switch` declare effects and families; `substitution_resolver`, `subst_substitutions`, `lsearch_pattern_args` and the five `CaseListSpec` switch fields gone; D2.14–D2.21 |
+| CC2.2 `ClauseGrammarSpec` in the registry | landed | `wip(consumer-contracts): step 2 — clause grammars as data` | `clause_grammar.rs` (the page's types, the walk, `clause_keywords`, `owner_of_keyword`); ten grammars (`if`, `try`, `catch`, `for`, `while`, `foreach`, `lmap`, `dict for`/`dict map` (one), `dict update`, `array for`); `if_arg_roles`, `check_if_shape`, `walk_if`, `try_arg_roles`, `foreach_arg_roles`, `lmap_arg_roles` gone; the two clause-keyword tables derived; E004 through `clause_shape_defect`; D2.22–D2.30 |
+| CC2.3 `clause_grammar` in the loader, renderer and studio | landed | same checkpoint as CC2.2 | loader builds the registry type (`ClauseGrammar`/`ClauseWalk` gone; subcommand grammars; derivations recorded, no placeholders); studio schema/draft/coverage/help/examples/render (Rust and `SpecTcl`)/store and a read-only form view; `if.tclspec` gains timings and its default clause, `foreach.tclspec` its grammar; 24 goldens and the callback inventory regenerated |
 
 ### Behavioural deltas accepted in step 2
 
@@ -83,6 +85,14 @@ CC2.10, CC2.13, CC2.15) are dispatched separately after the opus items.
 - CC2.6: an unknown switch before `regexp -inline` stops the scan, so the
   invalid call `regexp -bogus -inline a b v` keeps `VarWrite` on its
   trailing words (the retired name scan skipped the unknown word).
+- CC2.2: a malformed `try` is walked by its grammar, which stops at the
+  first defect: `try b foo on e m h` has no roles past `foo` (the retired
+  scan skipped the unknown word and kept looking for `on`), and an
+  incomplete handler (`try b on x y`, `try b finally`) highlights its
+  keyword (the retired scan required the whole clause). Every well-formed
+  `try` answers as before (`try_grammar_agrees_with_the_retired_walk`).
+- CC2.2: the callback inventory's `dynamic-arg-role` rows for `if`, `try`,
+  `foreach` and `lmap` now name a clause grammar as their source.
 
 ### CC2.6 — what the next items and the value-transfers lane read
 
@@ -126,6 +136,44 @@ CC2.10, CC2.13, CC2.15) are dispatched separately after the opus items.
   and the port's `unequal` entry, and adds the `subst` port. The five retired
   `case_list` rows already load with a notice.
 
+
+### CC2.2 / CC2.3 — what the next items read
+
+- **The answer.** `tcl_registry::ClausePlan { clauses: Vec<ResolvedClause>,
+  roles: Vec<(usize, ArgRole)>, defect: Option<ClauseShapeError> }`; a
+  `ResolvedClause` carries `keyword_index`, `row: ClauseRowId`,
+  `operands: Vec<(usize, ClauseSlot)>`, `timing`, `falls_through_to` (an
+  index into `clauses`) and `is_default`. `roles` is the flat projection
+  (D2.22) — a clause's binder list, a handler's pattern and a fall-through
+  body are read from `clauses`.
+- **The walks.** `ClauseGrammarSpec::walk(args, layouts)`, `walk_at(…,
+  dialect)`, `walk_words(args, dynamic, layouts, dialect) -> Option<_>`;
+  `CommandSpec::clause_plan(args, dialect)` /
+  `SubCommand::clause_plan(args_after_sub, dialect)`;
+  `CommandRegistry::clause_plan(name, args)` (post-head coordinates,
+  subcommand resolved); `ResolvedInvocation::clause_plan(dialect)` (post-head
+  coordinates; `None` on expansion or a computed word where a keyword could
+  stand). `CommandSpec::clause_shape_defect(args, dialect)` /
+  `CommandRegistry::clause_shape_defect(name, args)` is E004's source.
+- **Vocabulary.** `ClauseTiming::spelling`/`from_spelling`,
+  `ClauseSelection::spelling`/`from_spelling`,
+  `clause_grammar::handler_spelling`/`handler_from_spelling`,
+  `ClauseGrammarSpec::keywords`/`noise_words`/`all_rows`/
+  `layout_depends_on_words`/`is_fallthrough_body`/`may_assign`;
+  `clause_grammar::clause_keywords(reg)`, `owner_of_keyword(word)` (CC2.9's
+  `orphaned_keyword_parent`), and `traits::clause_keywords_without_command_spec()`
+  / `clause_noise_keywords()` (already called by `semantic_tokens.rs`,
+  `minify.rs` and `gen_tmlanguage_keywords.rs`; CC2.10's remaining work there
+  is the `then` literals and the refactors).
+- **Still reading keywords by spelling** (CC2.9/CC2.10's): `lower_if`,
+  `lower_try`, `handle_try_command`, `orphaned_keyword_parent`,
+  `cfg_lower.rs`'s `on ok`, `signature_scan/walker.rs`, the editor refactors,
+  `tcl-mcp`'s `datagroup.rs`, and the registry's own
+  `parse_try_control_invocation` (`registry.rs`), which CC2.9 moves onto the
+  plan. `tcl-compiler/src/value_transfer.rs`'s `view_of` (the value-transfers
+  lane's) reads `arg_role_resolver` directly, so `if` / `try` / `foreach` /
+  `lmap` operands carry only their static roles there until it reads
+  `ResolvedInvocation::clause_plan` or CC2.8's `arg_roles`.
 
 ## Plan for steps 2–10
 
@@ -2207,6 +2255,80 @@ everything else in this lane is independent of both.
   unknown property. Reason: the value-transfers plan cites the `tp_*` /
   `fp_*` rows as its own preserves, and a pack that used the rows is told
   where the fact went.
+- **D2.22** `ClausePlan::roles`, the flat projection the registry folds,
+  holds each present introducing keyword and noise word as `Keyword` and each
+  filled slot's role — except a `Value` slot (the unlisted default), a
+  `LoopVarList` slot, a `conditional_binding` slot, a `Pattern` slot carrying
+  a `HandlerMatch`, a fall-through body, and a `Group` row's words (its
+  layout's, folded already). Reason: every existing `arg_indices_for_role`
+  answer is preserved — `try`'s pattern and variable list, and `catch`'s
+  result words (the page's `LoopVarList`), keep the flat meaning their own
+  tables give them, since the flat `LoopVarList` is read as an iteration
+  binding by SSA, semantic tokens and the refactors.
+- **D2.23** The grammar is first in the documented order and *additive* in
+  `arg_indices_for_role`: its flat roles join the resolver's (or the static
+  table's), the repeated layouts and the option values.
+  `arg_role_resolver_roles` stays the closed set the walk emits
+  (`clause_grammar_roles_are_declared_capabilities`), and a grammar-carrying
+  command's static table agrees with its walk
+  (`clause_grammars_agree_with_their_static_role_tables`).
+  `InvocationFacts::arg_roles` treats a grammar as the dynamic role source
+  only where no static table exists — the four retired resolvers' place — so
+  its roles, their order and `arg_roles_complete` (read by backend selection)
+  are byte-identical. Reason: `catch`, `for`, `while`, `dict for`, `dict
+  map` and `array for` keep the static tables the analyser's `CommandSig`
+  reads, and `dict update`'s dictionary variable is `VarWrite` and `VarRead`
+  at once, which one slot cannot say.
+- **D2.24** Grammar shapes adapted from the plan: `catch`'s result words are
+  `{LoopVarList optional}` slots (the page's role; `catch`'s `arg_roles` keep
+  their `VarWrite`); `dict for` / `dict map` / `array for` bind one list, so
+  their binder is a `{LoopVarList Value}` head rather than a `Group` row (they
+  declare no `repeated_args` to cite) and `dict for` and `dict map` share one
+  `DICT_LOOP_GRAMMAR`; `dict update` keeps `dict_last_arg_body` beside its
+  grammar (D2.23) and its body is `Always` — it runs once whenever the call
+  does — not the plan's `Selected`, which would read as conditional; `if`
+  declares its tail the `default_clause` (`-final-only`); loops select
+  `All`, chains `FirstMatch`.
+- **D2.25** E004 moved in CC2.2, not CC2.9: `if`'s `clause_shape_check` went
+  to `None`, so the analyser reads `CommandRegistry::clause_shape_defect` —
+  the grammar's defect for a command carrying
+  `Traits::STRUCTURALLY_CHECKED_ARITY`, else the escape hatch — and
+  `control_arm_semantics` / `control_invocation_valid` read the grammar.
+  Reason: E004 positions are a CC2.2 preserve, and without the trait gate
+  every malformed loop and `try` would draw E004 beside E002/E003. CC2.9's
+  `clause_plan().defect` read keeps the gate.
+- **D2.26** A `Group` row needs one whole group; a partial last group is a
+  recorded defect the walk passes, so the excluded trailing words still reach
+  the tail. Reason: the retired `foreach` / `lmap` resolvers put the body on
+  the last word from three words on and on nothing before that, including
+  the off-by-one shapes (`foreach a b c body`).
+- **D2.27** `ResolvedInvocation::clause_plan` takes the dialect (D2.19's
+  reason) and abstains on a computed word where the walk compares a keyword,
+  a noise word or the fall-through marker; a computed word in a positional
+  slot is fine. Subcommand plans are reported in post-head coordinates
+  (`ClausePlan::offset_by`).
+- **D2.28** The `.tclspec` spelling beyond the plan's rows: a slot `{ROLE
+  optional}` (the plan names no optional-slot spelling, and `catch` needs
+  one), `-conditional` / `-pattern` on the row, `clause_grammar { … }
+  -available V` for the grammar's releases, `selected` and `first-match` as
+  the defaults a bare row or grammar reads as, and `ClauseRow::EMPTY_HEAD`
+  for a grammar with no `head` row. The spellings are the registry's
+  (`ClauseTiming::spelling`, …), shared by the loader, the draft and both
+  renderers. The loader's `STRUCTURALLY_CHECKED_ARITY` advice is gone (the
+  trait is an opt-in, and `try` and the loops carry grammars without it), and
+  "needs a `head`" became "declares no clause". The new row words carry no
+  vocabulary-version gate: the three rows the block had keep their meaning.
+- **D2.29** Consumers that re-derived the role order by hand moved
+  minimally in CC2.2 so nothing observable changed: `analyser/oo.rs`'s
+  opaque-member test adds the clause walk; `package_resolver/reachability.rs`
+  offers a command to its `if`-chain walk when its grammar selects
+  `FirstMatch` (or it has a resolver, as before); `callback_inventory.rs`
+  reports a grammar whose layout the words decide as a `dynamic-arg-role` row.
+  The two clause-keyword tables became functions and their three consumers
+  call them.
+- **D2.30** The studio files `clause_grammar` under the existing "Clause
+  grammars" and "Argument roles" clusters rather than a new "Structure"
+  cluster, and the form shows the rows read-only (Q2's assumption).
 - **D3.1** `WorkspaceTrust` lives in `tcl_dialect::model::environment`
   beside `Provenance`; `Tier` is unchanged and the trust rides `PackFile`,
   `MergedPack`, `EvalOptions`, `EvalSnapshotKey` and the cache key.

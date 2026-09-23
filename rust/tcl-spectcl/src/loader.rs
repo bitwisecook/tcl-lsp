@@ -98,6 +98,10 @@ use tcl_registry::arg_role::{AppendedArity, ArgRole};
 use tcl_registry::arity::{Arity, ArityWindow};
 use tcl_registry::body_kind::BodyKind;
 use tcl_registry::byte_array_effect::ByteArrayEffect;
+use tcl_registry::clause_grammar::{
+    ClauseGrammarSpec, ClauseRow, ClauseRowShape, ClauseSelection, ClauseSlot, ClauseTiming,
+    DefaultClause,
+};
 use tcl_registry::clause_shape::ClauseShapeError;
 use tcl_registry::command_table::CommandTableEffect;
 use tcl_registry::definer::{
@@ -816,9 +820,11 @@ pub struct PackCommand {
     pub overrides_shipped: bool,
     /// Every hook the command (or one of its subcommands / options) declares.
     pub hooks: Vec<HookDecl>,
-    /// The `clause_grammar` the command declares, when it has one. Both hook
-    /// behaviours are derived from it by [`ClauseGrammar::walk`].
-    pub clause_grammar: Option<ClauseGrammar>,
+    /// The `clause_grammar` the command declares, when it has one — the same
+    /// descriptor its spec carries. The registry's walk
+    /// ([`ClauseGrammarSpec::walk`]) derives both the argument roles and the
+    /// clause-shape defect from it.
+    pub clause_grammar: Option<&'static ClauseGrammarSpec>,
     /// Whether an assistance-class word this build does not speak was
     /// dropped from the spec (§6.1).
     ///
@@ -3821,139 +3827,33 @@ fn case_list_block(stmts: &[Stmt], log: &mut Log) -> CaseListSpec {
     spec
 }
 
-/// The clause grammar, kept as declared so a later walk can derive both hook
-/// behaviours from it.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct ClauseGrammar {
-    /// The mandatory leading clause's slots, matched positionally.
-    pub head: Vec<String>,
-    /// Zero-or-more clauses, each introduced by its literal keyword.
-    pub repeated: Vec<(String, Vec<String>)>,
-    /// At most one trailing clause; the keyword is optional when written
-    /// `?else?`.
-    pub tail: Option<(Option<String>, bool, Vec<String>)>,
-}
-
-/// The outcome of walking a call against a [`ClauseGrammar`].
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ClauseWalk {
-    /// The roles the walk assigns, 0-based after the command name.
-    pub roles: Vec<(u8, ArgRole)>,
-    /// The first structural defect, or `None` for any shape the grammar
-    /// accepts.
-    pub error: Option<ClauseShapeError>,
-}
-
-impl ClauseGrammar {
-    /// Walk `args` against the grammar, deriving **both** hook behaviours at
-    /// once — the roles `arg_role_resolver` would assign and the defect
-    /// `clause_shape_check` would report.
-    ///
-    /// **Normative — where keywords match.** A keyword is compared only at a
-    /// clause boundary and at a `?noise?` position; every other slot is filled
-    /// positionally and consumes whatever word is there, *including one
-    /// spelled like a keyword*. That is what makes `if else {a}` a well-formed
-    /// `if` whose condition is the bareword `else`, and `if 1 a elseif else b`
-    /// a well-formed chain whose second condition is the bareword `else`. The
-    /// one-line version: at each step the walk asks "does a clause start
-    /// here?", and only that question ever compares a word against a keyword.
-    #[must_use]
-    pub fn walk(&self, args: &[&str]) -> ClauseWalk {
-        let mut roles = Vec::new();
-        let n = args.len();
-        let mut i = 0usize;
-
-        if let Err(error) = Self::fill(&self.head, args, &mut i, &mut roles) {
-            return ClauseWalk { roles, error };
-        }
-
-        loop {
-            if i >= n {
-                return ClauseWalk { roles, error: None };
-            }
-            if let Some((_, slots)) = self.repeated.iter().find(|(keyword, _)| args[i] == keyword) {
-                push_role(&mut roles, i, ArgRole::Keyword);
-                i += 1;
-                if let Err(error) = Self::fill(slots, args, &mut i, &mut roles) {
-                    return ClauseWalk { roles, error };
-                }
-                continue;
-            }
-            let Some((keyword, optional, slots)) = &self.tail else {
-                return ClauseWalk {
-                    roles,
-                    error: Some(ClauseShapeError::ExtraWords { first_extra: i }),
-                };
-            };
-            match keyword {
-                Some(keyword) if args[i] == *keyword => {
-                    push_role(&mut roles, i, ArgRole::Keyword);
-                    i += 1;
-                }
-                // A tail whose keyword is mandatory does not match here, so
-                // nothing more is a clause and everything left is extra.
-                Some(_) if !optional => {
-                    return ClauseWalk {
-                        roles,
-                        error: Some(ClauseShapeError::ExtraWords { first_extra: i }),
-                    };
-                }
-                // `?else?` — the optional introducing keyword that makes a
-                // bare trailing body legal with no keyword at all.
-                _ => {}
-            }
-            if let Err(error) = Self::fill(slots, args, &mut i, &mut roles) {
-                return ClauseWalk { roles, error };
-            }
-            // `tail` is last, which is what makes anything after it an error.
-            let error = (i < n).then_some(ClauseShapeError::ExtraWords { first_extra: i });
-            return ClauseWalk { roles, error };
-        }
-    }
-
-    /// Fill one clause's slots positionally from `args[*i..]`.
-    fn fill(
-        slots: &[String],
-        args: &[&str],
-        i: &mut usize,
-        roles: &mut Vec<(u8, ArgRole)>,
-    ) -> Result<(), Option<ClauseShapeError>> {
-        for slot in slots {
-            if let Some(noise) = slot
-                .strip_prefix('?')
-                .and_then(|rest| rest.strip_suffix('?'))
-            {
-                if args.get(*i).is_some_and(|word| *word == noise) {
-                    push_role(roles, *i, ArgRole::Keyword);
-                    *i += 1;
-                }
-                continue;
-            }
-            let role = by_name(ArgRole::ALL, slot).unwrap_or(ArgRole::Value);
-            if *i >= args.len() {
-                let after = i.checked_sub(1);
-                return Err(Some(if role == ArgRole::Expr {
-                    ClauseShapeError::MissingExpr { after }
-                } else {
-                    // `after` is the index of the last present word; a body
-                    // slot always has one, because a clause is never entered
-                    // with nothing before it.
-                    ClauseShapeError::MissingBody {
-                        after: after.unwrap_or(0),
-                    }
-                }));
-            }
-            push_role(roles, *i, role);
-            *i += 1;
-        }
-        Ok(())
+/// Record the two hook behaviours a `clause_grammar` derives, as derivations:
+/// the registry's walk answers both, so neither is installed as a hook.
+fn record_clause_grammar_derivations(hooks: &mut Vec<HookDecl>, owner: &HookOwner) {
+    for (field, family) in [
+        ("arg_role_resolver", HookFamily::ArgRoleResolver),
+        ("clause_shape_check", HookFamily::ClauseShapeCheck),
+    ] {
+        hooks.push(HookDecl {
+            owner: owner.clone(),
+            field,
+            family,
+            source: HookSource::Derived {
+                keyword: "clause_grammar".to_owned(),
+            },
+        });
     }
 }
 
-/// Record a role, dropping an index the `u8` tables cannot hold.
-fn push_role(roles: &mut Vec<(u8, ArgRole)>, index: usize, role: ArgRole) {
-    if let Ok(index) = u8::try_from(index) {
-        roles.push((index, role));
+/// The notice a clause grammar that declares no clause at all earns.
+///
+/// `STRUCTURALLY_CHECKED_ARITY` is neither implied nor required: it is the
+/// opt-in that makes the walk's defect the command's arity diagnostic (`if`'s
+/// E004), where `try` and the loops keep an ordinary arity range beside their
+/// grammar.
+fn check_clause_grammar(grammar: &ClauseGrammarSpec, line: u32, log: &mut Log) {
+    if grammar.head.slots().is_empty() && grammar.rows.is_empty() && grammar.tail.is_none() {
+        log.say(line, "a `clause_grammar` declares no clause");
     }
 }
 
@@ -3990,33 +3890,368 @@ pub fn roles_from_manufacturers(spec: &CommandSpec, args: &[&str]) -> Vec<(u8, A
     }
 }
 
-fn clause_grammar_block(stmts: &[Stmt], log: &mut Log) -> ClauseGrammar {
-    let mut grammar = ClauseGrammar::default();
+/// `clause_grammar { … } ?-available V?` — the clause-grammar descriptor, a
+/// [`ClauseGrammarSpec`] the registry walks (`tcl_registry::clause_grammar`).
+///
+/// One row per statement:
+///
+/// - `head {SLOTS} ?FLAGS?` — the positional leading clause;
+/// - `repeated KEYWORD {SLOTS} ?FLAGS?` — zero or more keyword clauses;
+/// - `once ?KEYWORD? {SLOTS} ?FLAGS?` — one clause, keywordless ones entered
+///   in declaration order;
+/// - `group N ?FLAGS?` — the keywordless groups `repeated_args[N]` lays out;
+/// - `tail ?KEYWORD? {SLOTS} ?FLAGS?` — at most one trailing clause;
+/// - `fallthrough_body WORD`, `default_clause ROW|tail ?-final-only?`,
+///   `selection first-match|all` — the chain-level rules.
+///
+/// A slot is a role name (`Expr`, `Body`, `LoopVarList`, `Pattern`, `Value`),
+/// `?word?` for a noise word, or `{ROLE optional}` for a slot that may be
+/// absent. A keyword spelt `?word?` is optional. The row flags are
+/// `-timing selected|always|per-iteration|init|next|protected` (default
+/// `selected`), `-pattern completion-code|error-code-prefix` (the handler of
+/// the row's `Pattern` slot), `-conditional` (its `LoopVarList` slots bind
+/// only when a data condition holds), `-optional-keyword`, and
+/// `-available V`. A row this build cannot read is dropped with a notice,
+/// never guessed.
+fn clause_grammar_value(stmt: &Stmt, log: &mut Log) -> Option<&'static ClauseGrammarSpec> {
+    let body = stmt.arg(1)?;
+    let mut grammar = clause_grammar_block(&block(body), log);
+    let words = &stmt.words;
+    let mut i = 2;
+    while i < words.len() {
+        match words[i].text.as_str() {
+            "-available" => {
+                log.v20(stmt.line, "-available");
+                let text = next_text(words, &mut i);
+                let availability = available::from_flag(&text, stmt.line, log);
+                apply_availability(
+                    &mut grammar.surface,
+                    availability,
+                    "clause grammar",
+                    stmt.line,
+                    log,
+                );
+            }
+            other => log.unknown_flag("clause_grammar", stmt.line, other),
+        }
+        i += 1;
+    }
+    Some(leak_one(grammar))
+}
+
+fn clause_grammar_block(stmts: &[Stmt], log: &mut Log) -> ClauseGrammarSpec {
+    let mut grammar = ClauseGrammarSpec {
+        head: ClauseRow::EMPTY_HEAD,
+        rows: &[],
+        tail: None,
+        fallthrough_body: None,
+        default_clause: None,
+        selection: ClauseSelection::FirstMatch,
+        surface: None,
+    };
+    let mut rows: Vec<ClauseRow> = Vec::new();
     for stmt in stmts {
         match stmt.word_text(0) {
-            "head" => grammar.head = list_words(stmt.word_text(1)),
-            "repeated" => grammar
-                .repeated
-                .push((stmt.word_text(1).to_owned(), list_words(stmt.word_text(2)))),
-            "tail" => {
-                let (keyword, slots) = if stmt.words.len() >= 3 {
-                    (
-                        Some(stmt.word_text(1).to_owned()),
-                        list_words(stmt.word_text(2)),
-                    )
-                } else {
-                    (None, list_words(stmt.word_text(1)))
-                };
-                let optional = keyword
-                    .as_deref()
-                    .is_some_and(|k| k.starts_with('?') && k.ends_with('?') && k.len() > 1);
-                let keyword = keyword.map(|k| k.trim_matches('?').to_owned());
-                grammar.tail = Some((keyword, optional, slots));
+            "head" => {
+                if let Some(row) = clause_row(stmt, ClauseRowKind::Head, log) {
+                    grammar.head = row;
+                }
             }
+            "repeated" => {
+                if let Some(row) = clause_row(stmt, ClauseRowKind::Repeated, log) {
+                    rows.push(row);
+                }
+            }
+            "once" => {
+                if let Some(row) = clause_row(stmt, ClauseRowKind::Once, log) {
+                    rows.push(row);
+                }
+            }
+            "group" => {
+                if let Some(row) = clause_row(stmt, ClauseRowKind::Group, log) {
+                    rows.push(row);
+                }
+            }
+            "tail" => grammar.tail = clause_row(stmt, ClauseRowKind::Tail, log),
+            "fallthrough_body" => grammar.fallthrough_body = Some(leak_str(stmt.word_text(1))),
+            "default_clause" => {
+                let row = match stmt.word_text(1) {
+                    "tail" => Some(None),
+                    index => index.parse::<u8>().ok().map(Some),
+                };
+                match row {
+                    Some(row) => {
+                        grammar.default_clause = Some(DefaultClause {
+                            row,
+                            final_only: stmt.words.iter().any(|word| word.text == "-final-only"),
+                        });
+                    }
+                    None => log.say(
+                        stmt.line,
+                        format!(
+                            "`default_clause` names a row index or `tail`, not `{}`; dropped",
+                            stmt.word_text(1)
+                        ),
+                    ),
+                }
+            }
+            "selection" => match ClauseSelection::from_spelling(stmt.word_text(1)) {
+                Some(selection) => grammar.selection = selection,
+                None => log.say(
+                    stmt.line,
+                    format!(
+                        "unknown clause selection `{}` (first-match, all); `first-match` kept",
+                        stmt.word_text(1)
+                    ),
+                ),
+            },
             _ => log.unknown_property(stmt),
         }
     }
+    grammar.rows = leak_slice(rows);
     grammar
+}
+
+/// Which statement a clause row came from — what its positional words mean.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ClauseRowKind {
+    Head,
+    Repeated,
+    Once,
+    Group,
+    Tail,
+}
+
+/// The row flags a clause row may carry; any other word is positional.
+const CLAUSE_ROW_FLAGS: &[&str] = &[
+    "-timing",
+    "-pattern",
+    "-conditional",
+    "-optional-keyword",
+    "-available",
+];
+
+/// One `head` / `repeated` / `once` / `group` / `tail` row, or `None` (with a
+/// notice) when a word of it cannot be read.
+fn clause_row(stmt: &Stmt, kind: ClauseRowKind, log: &mut Log) -> Option<ClauseRow> {
+    let words = &stmt.words;
+    let mut positional: Vec<&str> = Vec::new();
+    let mut i = 1;
+    while i < words.len() && !CLAUSE_ROW_FLAGS.contains(&words[i].text.as_str()) {
+        positional.push(words[i].text.as_str());
+        i += 1;
+    }
+    let row = clause_row_shape(stmt, kind, &positional, log)?;
+    clause_row_flags(row, stmt, i, log)
+}
+
+/// The row a statement's positional words spell, before its flags.
+fn clause_row_shape(
+    stmt: &Stmt,
+    kind: ClauseRowKind,
+    positional: &[&str],
+    log: &mut Log,
+) -> Option<ClauseRow> {
+    let keyworded = |keyword: &str, slots: &str, log: &mut Log, repeated: bool| {
+        let (keyword, required) = clause_keyword(keyword);
+        let slots = clause_slots(slots, stmt.line, log);
+        let row = if repeated {
+            ClauseRow::repeated(keyword, slots, ClauseTiming::Selected)
+        } else {
+            ClauseRow::once(Some(keyword), slots, ClauseTiming::Selected)
+        };
+        if required {
+            row
+        } else {
+            row.optional_keyword()
+        }
+    };
+    Some(match (kind, positional) {
+        (ClauseRowKind::Group, [layout]) => {
+            let Ok(layout) = layout.parse::<u8>() else {
+                log.say(
+                    stmt.line,
+                    format!(
+                        "`group` cites a `repeat` layout by index, not `{layout}`; the row is \
+                         dropped"
+                    ),
+                );
+                return None;
+            };
+            ClauseRow::group(layout, ClauseTiming::Selected)
+        }
+        (ClauseRowKind::Head, [slots]) => {
+            ClauseRow::head(clause_slots(slots, stmt.line, log), ClauseTiming::Selected)
+        }
+        (ClauseRowKind::Repeated, [keyword, slots]) => keyworded(keyword, slots, log, true),
+        (ClauseRowKind::Once | ClauseRowKind::Tail, [slots]) => ClauseRow::once(
+            None,
+            clause_slots(slots, stmt.line, log),
+            ClauseTiming::Selected,
+        ),
+        (ClauseRowKind::Once | ClauseRowKind::Tail, [keyword, slots]) => {
+            keyworded(keyword, slots, log, false)
+        }
+        _ => {
+            log.say(
+                stmt.line,
+                format!(
+                    "`{}` row has the wrong number of words; the row is dropped",
+                    stmt.word_text(0)
+                ),
+            );
+            return None;
+        }
+    })
+}
+
+/// A row's flags, from word `i` on; `None` (with a notice) when a flag's value
+/// cannot be read — a row is dropped rather than read as some other row.
+fn clause_row_flags(
+    mut row: ClauseRow,
+    stmt: &Stmt,
+    mut i: usize,
+    log: &mut Log,
+) -> Option<ClauseRow> {
+    let words = &stmt.words;
+    let what = stmt.word_text(0);
+    while i < words.len() {
+        match words[i].text.as_str() {
+            "-timing" => {
+                let name = next_text(words, &mut i);
+                let Some(timing) = ClauseTiming::from_spelling(&name) else {
+                    log.say(
+                        stmt.line,
+                        format!(
+                            "unknown clause timing `{name}` (selected, always, per-iteration, \
+                             init, next, protected); the `{what}` row is dropped"
+                        ),
+                    );
+                    return None;
+                };
+                row.timing = timing;
+            }
+            "-pattern" => {
+                let name = next_text(words, &mut i);
+                let Some(handler) = tcl_registry::clause_grammar::handler_from_spelling(&name)
+                else {
+                    log.say(
+                        stmt.line,
+                        format!(
+                            "unknown handler pattern `{name}` (completion-code, \
+                             error-code-prefix); the `{what}` row is dropped"
+                        ),
+                    );
+                    return None;
+                };
+                row = with_slots(row, stmt.line, log, "-pattern", |slot| {
+                    (slot.role == ArgRole::Pattern).then(|| slot.selecting(handler))
+                })?;
+            }
+            "-conditional" => {
+                row = with_slots(row, stmt.line, log, "-conditional", |slot| {
+                    (slot.role == ArgRole::LoopVarList).then(|| slot.conditional())
+                })?;
+            }
+            "-optional-keyword" => row = row.optional_keyword(),
+            "-available" => {
+                log.v20(stmt.line, "-available");
+                let text = next_text(words, &mut i);
+                let availability = available::from_flag(&text, stmt.line, log);
+                apply_availability(&mut row.surface, availability, "clause row", stmt.line, log);
+            }
+            other => log.unknown_flag(what, stmt.line, other),
+        }
+        i += 1;
+    }
+    Some(row)
+}
+
+/// A clause keyword word: `?else?` is an optional keyword.
+fn clause_keyword(word: &str) -> (&'static str, bool) {
+    match word
+        .strip_prefix('?')
+        .and_then(|inner| inner.strip_suffix('?'))
+        .filter(|inner| !inner.is_empty())
+    {
+        Some(inner) => (leak_str(inner), false),
+        None => (leak_str(word), true),
+    }
+}
+
+/// A row with the slots `change` rewrites, or `None` (with a notice) when the
+/// flag names a slot the row does not have.
+fn with_slots(
+    mut row: ClauseRow,
+    line: u32,
+    log: &mut Log,
+    flag: &str,
+    change: impl Fn(ClauseSlot) -> Option<ClauseSlot>,
+) -> Option<ClauseRow> {
+    let mut changed = false;
+    let slots: Vec<ClauseSlot> = row
+        .slots()
+        .iter()
+        .map(|slot| {
+            change(*slot).map_or(*slot, |new| {
+                changed = true;
+                new
+            })
+        })
+        .collect();
+    if !changed {
+        log.say(
+            line,
+            format!("`{flag}` names a slot the row does not have; the row is dropped"),
+        );
+        return None;
+    }
+    row.shape = match row.shape {
+        ClauseRowShape::Repeated { .. } => ClauseRowShape::Repeated {
+            slots: leak_slice(slots),
+        },
+        ClauseRowShape::Once { .. } => ClauseRowShape::Once {
+            slots: leak_slice(slots),
+        },
+        group @ ClauseRowShape::Group { .. } => group,
+    };
+    Some(row)
+}
+
+/// A braced slot list: role names, `?word?` noise words, `{ROLE optional}`.
+fn clause_slots(text: &str, line: u32, log: &mut Log) -> &'static [ClauseSlot] {
+    let slots: Vec<ClauseSlot> = list_words(text)
+        .iter()
+        .map(|word| {
+            if let Some(noise) = word
+                .strip_prefix('?')
+                .and_then(|inner| inner.strip_suffix('?'))
+                .filter(|inner| !inner.is_empty())
+            {
+                return ClauseSlot::noise(leak_str(noise));
+            }
+            let parts = list_words(word);
+            let (name, flags) = parts
+                .split_first()
+                .map_or(("", &[][..]), |(name, flags)| (name.as_str(), flags));
+            let role = by_name(ArgRole::ALL, name).unwrap_or_else(|| {
+                log.say(
+                    line,
+                    format!("unknown clause slot role `{name}`; read as `Value`"),
+                );
+                ArgRole::Value
+            });
+            let mut slot = ClauseSlot::of(role);
+            for flag in flags {
+                match flag.as_str() {
+                    "optional" => slot = slot.optional(),
+                    other => log.say(line, format!("unknown clause slot flag `{other}` ignored")),
+                }
+            }
+            slot
+        })
+        .collect();
+    leak_slice(slots)
 }
 
 /// `definition_body { … }` — the inline definer grammar.
@@ -4697,7 +4932,7 @@ struct CommandAcc {
     callback_taint_inputs: Vec<(u8, &'static [CallbackTaintInput])>,
     event_requirement_forms: Vec<EventRequirementForm>,
     hooks: Vec<HookDecl>,
-    clause_grammar: Option<ClauseGrammar>,
+    clause_grammar: Option<&'static ClauseGrammarSpec>,
     declarations: semantics::Declarations,
 }
 
@@ -4747,40 +4982,18 @@ fn command_from_parts(
         log.command = outer_command;
         acc.declarations.report_orphan_option_flags(log);
 
-        // A `clause_grammar` derives BOTH hook behaviours; the pack still
-        // declares STRUCTURALLY_CHECKED_ARITY and the loader warns if it does
-        // not.
-        if let Some(grammar) = &acc.clause_grammar {
-            spec.arg_role_resolver = Some(abstain_arg_roles);
-            spec.clause_shape_check = Some(accept_clause_shape);
-            for field in ["arg_role_resolver", "clause_shape_check"] {
-                acc.hooks.push(HookDecl {
-                    owner: HookOwner::Command,
-                    field,
-                    family: if field == "arg_role_resolver" {
-                        HookFamily::ArgRoleResolver
-                    } else {
-                        HookFamily::ClauseShapeCheck
-                    },
-                    source: HookSource::Derived {
-                        keyword: "clause_grammar".to_owned(),
-                    },
-                });
-            }
-            if !spec.traits.contains(Traits::STRUCTURALLY_CHECKED_ARITY) {
-                log.say(
-                    line,
-                    "a `clause_grammar` command should also declare the \
-                     STRUCTURALLY_CHECKED_ARITY trait",
-                );
-            }
-            if grammar.head.is_empty() {
-                log.say(line, "a `clause_grammar` needs a `head` clause");
-            }
+        // A `clause_grammar` derives BOTH hook behaviours: the registry walks
+        // the descriptor the spec carries, so no placeholder is installed and
+        // the derivation is recorded for what it is.
+        if let Some(grammar) = acc.clause_grammar {
+            spec.clause_grammar = Some(grammar);
+            record_clause_grammar_derivations(&mut acc.hooks, &HookOwner::Command);
+            check_clause_grammar(grammar, line, log);
         }
 
         validate_arg_role_capabilities(
             spec.arg_role_resolver.is_some(),
+            spec.clause_grammar.is_some(),
             spec.arg_role_resolver_roles,
             "command",
             line,
@@ -5507,11 +5720,7 @@ fn apply_command_stmt(
         "case_list" => spec.case_list = case_list_value(stmt, tables, log),
         "definition_body" => spec.definition_body = definition_body_value(stmt, tables, log),
         "manufacturer" => acc.manufacturers.push(manufacturer_row(stmt, log)),
-        "clause_grammar" => {
-            if let Some(word) = stmt.arg(1) {
-                acc.clause_grammar = Some(clause_grammar_block(&block(word), log));
-            }
-        }
+        "clause_grammar" => acc.clause_grammar = clause_grammar_value(stmt, log),
         "binds_handle" => {
             spec.binds_handle = parse_handle_binding(&value, stmt.line, log).map(leak_one);
         }
@@ -5707,14 +5916,20 @@ fn arg_role_capabilities(text: &str, line: u32, log: &mut Log) -> &'static [ArgR
     if valid { leak_slice(roles) } else { &[] }
 }
 
+/// A resolver must state its closed capability set; a capability set must
+/// describe a role source. A clause grammar is one — its declared set is the
+/// closed set its walk emits — but needs none, since the registry reads the
+/// grammar's own slots when a call cannot be walked.
 fn validate_arg_role_capabilities(
     has_resolver: bool,
+    has_grammar: bool,
     roles: &[ArgRole],
     owner: &str,
     line: u32,
     log: &mut Log,
 ) {
     match (has_resolver, roles.is_empty()) {
+        (false, false) if has_grammar => {}
         (true, true) => log.say_classified(
             line,
             VocabularyClass::Assistance,
@@ -6448,8 +6663,12 @@ fn subcommand_from_parts(
         let mut acc = SubAcc::default();
         fill(&mut sub, &mut acc, log);
         acc.declarations.report_orphan_option_flags(log);
+        if let Some(grammar) = sub.clause_grammar {
+            check_clause_grammar(grammar, line, log);
+        }
         validate_arg_role_capabilities(
             sub.arg_role_resolver.is_some(),
+            sub.clause_grammar.is_some(),
             sub.arg_role_resolver_roles,
             kind,
             line,
@@ -6503,6 +6722,14 @@ fn apply_subcommand_stmt(
             (arity, None) => sub.arity = arity,
             (arity, Some(lifecycle)) => acc.arity_windows.push(ArityWindow { lifecycle, arity }),
         },
+        // `dict for`'s shape: a subcommand's own clause grammar, walked over
+        // the words after the subcommand word.
+        "clause_grammar" => {
+            sub.clause_grammar = clause_grammar_value(stmt, log);
+            if sub.clause_grammar.is_some() {
+                record_clause_grammar_derivations(hooks, &HookOwner::Subcommand(owner.to_owned()));
+            }
+        }
         "detail" => sub.detail = leak_str(&value),
         "synopsis" => sub.synopsis = leak_str(&value),
         "hover" => {

@@ -32,6 +32,27 @@ const FORMS: &[FormSpec] = &[FormSpec {
     ..FormSpec::DEFAULT
 }];
 
+/// One script word: `start`, `next` and `body`.
+const SCRIPT: &[ClauseSlot] = &[ClauseSlot::of(ArgRole::Body)];
+/// The `test` condition.
+const TEST: &[ClauseSlot] = &[ClauseSlot::of(ArgRole::Expr)];
+
+/// `for start test next body`: four positional clauses — `start` once before
+/// the first test, the test before every iteration, `next` between
+/// iterations, and the body per iteration.
+pub const GRAMMAR: ClauseGrammarSpec = ClauseGrammarSpec {
+    head: ClauseRow::head(SCRIPT, ClauseTiming::LoopFixture(LoopPhase::Init)),
+    rows: &[
+        ClauseRow::once(None, TEST, ClauseTiming::Selected),
+        ClauseRow::once(None, SCRIPT, ClauseTiming::LoopFixture(LoopPhase::Next)),
+    ],
+    tail: Some(ClauseRow::once(None, SCRIPT, ClauseTiming::PerIteration)),
+    fallthrough_body: None,
+    default_clause: None,
+    selection: ClauseSelection::All,
+    surface: None,
+};
+
 /// Command spec for `for`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -51,6 +72,7 @@ pub fn spec() -> CommandSpec {
             (2, ArgRole::Body),
             (3, ArgRole::Body),
         ],
+        clause_grammar: Some(&GRAMMAR),
         // `start` and `next` are genuine Tcl scripts — the semantic role above
         // is correct and every analysis consumer must keep walking them — but
         // a formatter keeps them on the `for` header line, expanding only the

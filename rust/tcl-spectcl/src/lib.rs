@@ -87,11 +87,11 @@ pub use discovery::{DiscoveryOptions, PackFile, Tier, discover};
 pub use export::{ExportLoss, Registration, export_pack, export_pack_reporting};
 pub use install::registry_with_packs;
 pub use loader::{
-    AmbientPackage, ClauseGrammar, CoProvides, EvalOptions, EvalSnapshotKey, HookDecl, HookFamily,
-    HookOwner, HookSource, IncludeContext, KNOWN_VOCABULARY_VERSIONS, LOADER_EVAL_VERSION,
-    LoadError, NEWEST_VOCABULARY_VERSION, Notice, Pack, PackCommand, PackCore, PackDialect,
-    PackDialectAxis, PackEnvironment, PackEnvironmentTier, PackProvides, VocabularyClass,
-    eval_snapshot_key, evaluate_pack, evaluate_pack_in, evaluate_pack_with, provenance_violation,
+    AmbientPackage, CoProvides, EvalOptions, EvalSnapshotKey, HookDecl, HookFamily, HookOwner,
+    HookSource, IncludeContext, KNOWN_VOCABULARY_VERSIONS, LOADER_EVAL_VERSION, LoadError,
+    NEWEST_VOCABULARY_VERSION, Notice, Pack, PackCommand, PackCore, PackDialect, PackDialectAxis,
+    PackEnvironment, PackEnvironmentTier, PackProvides, VocabularyClass, eval_snapshot_key,
+    evaluate_pack, evaluate_pack_in, evaluate_pack_with, provenance_violation,
     roles_from_manufacturers, speclib_version_span,
 };
 pub use pack::{MergedPack, PackNotice, PackSet};

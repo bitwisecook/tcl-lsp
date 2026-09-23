@@ -2558,7 +2558,8 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
     enum_word(out, ctx, draft, "default_form_first_word");
     text_list(out, ctx, draft, "self_receiver_words");
 
-    // Hooks.
+    // The clause grammar, then the hooks.
+    clause_grammar_block(out, ctx, draft);
     out.gap();
     native_hook(out, ctx, draft, "arg_role_resolver");
     if ctx.resolver_capabilities {
@@ -2922,6 +2923,140 @@ fn manufacturer_rows(out: &mut Out, draft: &Draft) {
     }
 }
 
+/// `clause_grammar { … } ?-available V?` — the clause-grammar descriptor, one
+/// row per statement, in the loader's spelling (`clause_grammar_value` in
+/// `tcl-spectcl`).
+///
+/// A row writes only what differs from the loader's reading of a bare row:
+/// `-timing` unless `selected`, `-pattern` for a handler slot, `-conditional`
+/// for a conditionally bound binder, `?KEYWORD?` for an optional keyword, and
+/// `-available` for a row's own releases. An empty head — the loops whose
+/// first words are a group — is no row at all.
+fn clause_grammar_block(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft) {
+    let Some(grammar) = draft.get("clause_grammar").filter(|value| !value.is_null()) else {
+        return;
+    };
+    if !ctx.set(draft, "clause_grammar") {
+        return;
+    }
+    let mut body = Out::at(out.indent + 1);
+    let mut lost = false;
+    let head = &grammar["head"];
+    let empty_head = as_array(&head["slots"]).is_empty()
+        && str_of(&head["timing"]) == "selected"
+        && head["surface"].is_null();
+    if !empty_head {
+        clause_row(&mut body, &mut lost, ctx, "head", head);
+    }
+    for row in as_array(&grammar["rows"]) {
+        let statement = match str_of(&row["shape"]) {
+            "repeated" => "repeated",
+            "group" => "group",
+            _ => "once",
+        };
+        clause_row(&mut body, &mut lost, ctx, statement, row);
+    }
+    if !grammar["tail"].is_null() {
+        clause_row(&mut body, &mut lost, ctx, "tail", &grammar["tail"]);
+    }
+    if let Some(marker) = grammar["fallthrough_body"].as_str() {
+        let mut row = vec!["fallthrough_body".to_owned()];
+        push_word(&mut row, &mut lost, word(marker));
+        body.row(&row, "");
+    }
+    if let Some(default) = grammar["default_clause"].as_object() {
+        let mut row = vec![
+            "default_clause".to_owned(),
+            default
+                .get("row")
+                .and_then(Value::as_u64)
+                .map_or_else(|| "tail".to_owned(), |row| row.to_string()),
+        ];
+        if default.get("final_only").and_then(Value::as_bool) == Some(true) {
+            row.push("-final-only".to_owned());
+        }
+        body.row(&row, "");
+    }
+    if str_of(&grammar["selection"]) != "first-match" {
+        body.line(&format!("selection {}", str_of(&grammar["selection"])));
+    }
+    let mut closing = vec!["}".to_owned()];
+    if !grammar["surface"].is_null() {
+        push_availability_flag(
+            &mut closing,
+            &mut lost,
+            &grammar["surface"],
+            ctx.availability,
+        );
+    }
+    if lost {
+        unwritable(out, "clause_grammar");
+        return;
+    }
+    out.gap();
+    out.line("clause_grammar {");
+    out.block(&body);
+    out.row(&closing, "");
+}
+
+/// One `head` / `repeated` / `once` / `group` / `tail` row.
+fn clause_row(out: &mut Out, lost: &mut bool, ctx: &Ctx<'_>, statement: &str, row: &Value) {
+    let mut words = vec![statement.to_owned()];
+    if statement == "group" {
+        words.push(row["layout"].as_u64().unwrap_or_default().to_string());
+    } else {
+        if let Some(keyword) = row["keyword"].as_str() {
+            let spelling = if row["keyword_required"].as_bool() == Some(false) {
+                format!("?{keyword}?")
+            } else {
+                keyword.to_owned()
+            };
+            push_word(&mut words, lost, word(&spelling));
+        }
+        let slots: Vec<String> = as_array(&row["slots"])
+            .iter()
+            .map(|slot| {
+                if let Some(noise) = slot["noise"].as_str() {
+                    format!("?{noise}?")
+                } else if slot["optional"].as_bool() == Some(true) {
+                    format!("{} optional", str_of(&slot["role"]))
+                } else {
+                    str_of(&slot["role"]).to_owned()
+                }
+            })
+            .collect();
+        push_word(
+            &mut words,
+            lost,
+            if slots.is_empty() {
+                Some("{}".to_owned())
+            } else {
+                list_word(&slots)
+            },
+        );
+    }
+    let timing = str_of(&row["timing"]);
+    if timing != "selected" {
+        words.push("-timing".to_owned());
+        words.push(timing.to_owned());
+    }
+    let slots = as_array(&row["slots"]);
+    if let Some(handler) = slots.iter().find_map(|slot| slot["handler"].as_str()) {
+        words.push("-pattern".to_owned());
+        words.push(handler.to_owned());
+    }
+    if slots
+        .iter()
+        .any(|slot| slot["conditional_binding"].as_bool() == Some(true))
+    {
+        words.push("-conditional".to_owned());
+    }
+    if !row["surface"].is_null() {
+        push_availability_flag(&mut words, lost, &row["surface"], ctx.availability);
+    }
+    out.row(&words, "-timing");
+}
+
 /// `object_class NAME ?-superclass {…}? ?-allow-unknown?`
 /// `?-method-prefix-matching Enabled|Strict? ?{ method … }?`.
 ///
@@ -3106,6 +3241,7 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft, keyword: &
         }
     }
 
+    clause_grammar_block(out_body, ctx, sub);
     native_hook(out_body, ctx, sub, "arg_role_resolver");
     if ctx.resolver_capabilities {
         set_word(out_body, ctx, sub, "arg_role_resolver_roles");

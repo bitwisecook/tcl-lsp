@@ -1,9 +1,9 @@
 # Port of rust/tcl-registry/src/commands/tcl/foreach_.rs
 #
 # Exercises: stepped arity, a repeated-argument layout with an excluded
-# trailing body, a Tcl `arg_role_resolver` hook body, a positional arg-type
-# hint used as a uniform key rather than a source index, var_write_typing,
-# and named native lowering/analyser hooks.
+# trailing body, a clause grammar whose group row cites that layout, a
+# positional arg-type hint used as a uniform key rather than a source index,
+# var_write_typing, and named native lowering/analyser hooks.
 
 speclib tcl 2.1 {
 
@@ -23,11 +23,14 @@ command foreach {
     # command's name (issue #1185).
     repeat LoopVarList -from 0 -stride 2 -exclude-trailing 1
 
-    # The last argument is always the body.
-    arg_role_resolver {words ctx} {
-        if {[llength $words] >= 3} {
-            role [expr {[llength $words] - 1}] Body
-        }
+    # The binder groups are the layout above — the group row cites it rather
+    # than restating the stride — and the body, the last word, runs once per
+    # iteration.  At least one whole group is needed, so the body is the last
+    # word once there are three.
+    clause_grammar {
+        group 0     -timing per-iteration
+        tail {Body} -timing per-iteration
+        selection all
     }
     arg_role_resolver_roles {Body}
 

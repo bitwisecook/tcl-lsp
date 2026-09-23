@@ -1789,11 +1789,9 @@ impl<'a> Resolution<'a> {
                     "fields_set": fields_set(d, &defaults),
                     "unrenderable": d.get(draft::UNRENDERABLE_KEY).cloned().unwrap_or(Value::Null),
                     "subcommands": subcommands,
-                    "clause_grammar": self
-                        .store
-                        .pack
-                        .command(name)
-                        .is_some_and(|c| c.clause_grammar.is_some()),
+                    // The declared grammar itself — the draft's value, plain
+                    // data — or `null` when the command declares none.
+                    "clause_grammar": d.get("clause_grammar").cloned().unwrap_or(Value::Null),
                     "hooks": hooks,
                 })
             })

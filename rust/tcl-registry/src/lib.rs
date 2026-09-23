@@ -56,6 +56,7 @@ pub mod body_kind;
 pub mod bpf_op;
 pub mod byte_array_effect;
 pub(crate) mod cache;
+pub mod clause_grammar;
 pub mod clause_shape;
 pub mod command_prefix_target;
 pub mod command_snapshot;
@@ -137,6 +138,10 @@ pub mod prelude {
         BpfVerdictKind,
     };
     pub use crate::byte_array_effect::ByteArrayEffect;
+    pub use crate::clause_grammar::{
+        ClauseGrammarSpec, ClauseRow, ClauseRowShape, ClauseSelection, ClauseSlot, ClauseTiming,
+        DefaultClause, LoopPhase,
+    };
     pub use crate::clause_shape::{ClauseShapeChecker, ClauseShapeError};
     pub use crate::command_table::CommandTableEffect;
     pub use crate::completion::{
@@ -232,7 +237,7 @@ pub mod prelude {
     };
     pub use crate::traits::Traits;
     pub use crate::types::{ReturnElements, TclType, VarElementsEffect, VarWriteTyping};
-    pub use crate::value_transfer::SemanticsDeclaration;
+    pub use crate::value_transfer::{HandlerMatch, SemanticsDeclaration};
     pub use crate::world_effect::{
         CallbackEffect, CallbackKinds, EffectAccessMode, Reentrancy, StaticEffectAccess,
         StaticEffectFootprint, StaticInterpreterScope, StaticNamespaceScope, StaticSubjectScope,
@@ -248,6 +253,10 @@ pub use bigip::{BigipObjectSpec, BigipPropertySpec, BigipRegistry, ValueKind};
 pub use body_kind::{BodyInterpreter, BodyKind};
 pub use byte_array_effect::ByteArrayEffect;
 pub use cache::{default_registry, registry_for_profile_with_overlay, safe_interp_hidden_commands};
+pub use clause_grammar::{
+    ClauseGrammarSpec, ClauseKeyword, ClausePlan, ClauseRow, ClauseRowId, ClauseRowShape,
+    ClauseSelection, ClauseSlot, ClauseTiming, DefaultClause, LoopPhase, ResolvedClause,
+};
 pub use clause_shape::{ClauseShapeChecker, ClauseShapeError};
 pub use command_prefix_target::CommandPrefixTarget;
 pub use command_table::CommandTableEffect;
