@@ -758,6 +758,10 @@ fn expr_braced_operand_is_literal_at_runtime() {
     );
     cmd_eq("set x 5; set e {{pre$x} eq \"pre$x\"}; expr $e", "0");
     cmd_eq("set x 5; set e {\"pre$x\"}; expr $e", "pre5");
+    // A braced operand still folds its backslash-newline, and only that:
+    // tclsh prints `a b` and `a\tb` (found in review).
+    cmd_eq(r#"set e "{a\\\n    b}"; expr $e"#, "a b");
+    cmd_eq(r#"set e "{a\\tb}"; expr $e"#, r"a\tb");
 }
 
 #[test]

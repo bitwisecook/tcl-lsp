@@ -849,11 +849,14 @@ impl ExprOps for ExprEval<'_> {
         // `[cmd]` / backslashes (the runtime-`expr` analogue of the compiler's
         // `emit_expr_string`), so `expr {"item $i"}` is `item 0`, not `item $i`.
         //
-        // A `{…}` operand is literal. Substituting it too ran the `[id 9]` in
+        // A `{…}` operand is literal but for its backslash-newlines, which
+        // fold even inside braces. Substituting it fully ran the `[id 9]` in
         // `set e {{[id 9]}}; expr $e`, which tclsh 8.4.20 through 9.1b0 all
         // return as the text `[id 9]` (#2227).
         if !substitutes {
-            return Ok(Value::string(inner));
+            return Ok(Value::string(
+                tcl_syntax::backslash::collapse_brace_continuations_str(inner).as_ref(),
+            ));
         }
         let s = crate::subst::subst_command(self.vm, inner, true, true, true)?;
         Ok(Value::string(s))

@@ -623,6 +623,12 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
         if substitutes && inner.contains(['$', '[', '\\']) {
             return Err(());
         }
+        // A `{…}` operand's backslash-newline folds to a space in Tcl and
+        // stays as written in Jim; the folder does not know which, so it
+        // declines rather than guess.
+        if inner.contains("\\\n") {
+            return Err(());
+        }
         Ok(FoldValue::Str(inner.to_owned()))
     }
     fn var(&mut self, name: &str) -> Result<FoldValue, ()> {

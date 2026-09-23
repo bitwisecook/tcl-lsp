@@ -39,6 +39,9 @@ fn a_braced_expr_operand_is_literal_and_a_quoted_one_substitutes() {
         ),
         ("set x 5; set e {{pre$x} eq \"pre$x\"}; expr $e", "0"),
         ("set x 5; set e {\"pre$x\"}; expr $e", "pre5"),
+        // A braced operand still folds its backslash-newline, and only that.
+        (r#"set e "{a\\\n    b}"; expr $e"#, "a b"),
+        (r#"set e "{a\\tb}"; expr $e"#, r"a\tb"),
     ] {
         assert_eq!(eval(script), (Code::Ok, expected.to_owned()), "{script}");
     }

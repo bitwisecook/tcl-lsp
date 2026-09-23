@@ -254,7 +254,11 @@ entry point, or gate moves without this contract being updated.
   substitute: the variant keeps both spellings with their delimiters, and
   only `"…"` substitutes. The walk hands `ExprOps::string` that answer, so
   the VM substitutes only a quoted operand and the const-folder declines one
-  it cannot substitute. The compiler's substitution walks read the same rule
+  it cannot substitute. A braced operand is not quite raw: its
+  backslash-newlines fold even inside braces, so the engines pass it through
+  `backslash::collapse_brace_continuations`, and the const-folder, which
+  does not know whether the dialect folds (Jim keeps the bytes), declines one
+  that carries a backslash-newline. The compiler's substitution walks read the same rule
   (#2227).
 - `rand` — the Park-Miller `rand()`/`srand()` generator both engines call
   (step, seed nudge, and C's reciprocal-multiply scaling). Only seed storage
