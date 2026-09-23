@@ -37,7 +37,8 @@ All paths are relative to `rust/tcl-compiler/src/` unless stated otherwise.
 | `taint.rs` | taint findings (`T100`–`T106`, `IRULE3xxx`) | diagnostics aggregation, security workflows | `find_taint_warnings`, `find_taint_warnings_for_cu` |
 | `shimmer/` | shimmer findings (`S100`–`S103`, `S110`) | diagnostics aggregation, performance guidance | `find_shimmer_warnings_for_cu` |
 | `irules_checks.rs` | iRules flow findings (`IRULE1xxx`–`IRULE5xxx`) | diagnostics aggregation for the iRules dialect | the `find_*_warnings` entry points |
-| `rust/tcl-lsp-db/src/lib.rs` | final LSP diagnostic projection, suppression policy | LSP publish pipeline, async tiering scheduler | `project_diagnostics`, `compiler_check_diagnostics` |
+| `rust/tcl-lsp-db/src/lib.rs` | final LSP diagnostic projection | LSP publish pipeline, async tiering scheduler | `project_diagnostics`, `compiler_check_diagnostics` |
+| `rust/tcl-lsp-core/src/diagnostic_policy.rs`, `diagnostic_report.rs` | diagnostic policy: directives applied, the five scopes, the seed, severity, optimiser and shimmer gates, overlaps, abstention; every finding kept with its reason | the LSP adapter, `tcl diag` / `lint` / `validate` / `opt`, the MCP tools, the code actions | `apply`, `PolicyBuilder`, `document_report` |
 
 ## Failure modes
 

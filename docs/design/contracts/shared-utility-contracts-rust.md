@@ -75,6 +75,7 @@ entry point, or gate moves without this contract being updated.
 | SslicTcl embedded source data | `rust/tcl-sslictcl/src/trust.rs` | `embedded_dataset` | pinned upstream revisions, recorded with hashes and licences in `data/provenance.json` | `xtask-sslictcl-data` |
 | SslicTcl declaration surface | `rust/tcl-registry/src/commands/sslictcl/mod.rs`; `rust/tcl-registry/src/definer.rs` | `sslictcl_command_specs`; `SSLICTCL_GRAMMARS` | the `sslictcl` authoring surface (`SpecSurface::SSLICTCL`); Tcl 9.0 core underneath | none |
 | SslicTcl editor projection | `rust/tcl-lsp-core/src/sslictcl_diagnostics.rs`; `rust/tcl-lsp-core/src/declaration_outline.rs` | `applies_to`; `diagnostics`; `SUPERSEDED_ANALYSER_CODES`; `is_declaration_document`; `declarations` | resolved authoring surface (the `sslictcl` package) per document | none |
+| diagnostic policy | `rust/tcl-lsp-core/src/diagnostic_policy.rs`; `rust/tcl-lsp-core/src/diagnostic_report.rs`; `rust/tcl-lsp-core/src/config_ini.rs` | `apply`; `Policy`; `PolicyBuilder`; `Report`; `Finding`; `Directives`; `dialect_overlaps`; `document_report`; `standalone_findings`; `optimise_under_policy`; `settings_from_ini`; `merge_settings`; `global_layer`; `project_layer_for` | the dialect's overlap table; the document's configuration layers, resolved per code; the step order is release-invariant | none |
 <!-- end-owner-resolution-manifest -->
 
 ### `tcl-dialect` + `tcl-test-support` — C Tcl reference toolchains
@@ -754,16 +755,21 @@ entry point, or gate moves without this contract being updated.
   matched the bare substring instead would silence every finding on the
   command below `# do not use noqa here`.
 - The analyser records the map but does not filter with it — only the surface
-  that renders a finding knows which line it lands on — so every consumer asks
-  through `line_suppressed`: the language server's analyser, compiler-check,
-  optimiser, source-style, XC and SslicTcl lifts, the `diag` / `lint` /
-  `validate` CLI verbs, and the W305 producer that the non-Tcl F5 adapters
-  share. That is what makes a directive mean the same thing in the editor and
-  on the command line, as
+  that renders a finding knows which line it lands on. One consumer applies
+  the map now: the policy step, through `Directives::reason_for`
+  (`rust/tcl-lsp-core/src/diagnostic_policy.rs`), whose bucket rule restates
+  `line_suppressed`'s and is pinned equal to it by
+  `directives_agree_with_line_suppressed`. That is what makes a directive
+  mean the same thing in the editor and on the command line, as
   [`docs/kcs/kcs-howto-suppress-diagnostics.md`](../../kcs/kcs-howto-suppress-diagnostics.md)
-  promises. A surface that reimplements the check drifts on the wildcard entry
-  or the file-level bucket, which silences a different set of findings than
-  the directive names.
+  promises; see [diagnostic-policy.md](../compiler/diagnostic-policy.md).
+  `line_suppressed`'s one production caller left is inside this crate: the
+  W305 producer (`rust/tcl-compiler/src/analyser/source_integrity.rs`) still
+  filters itself under a `# noqa`, with no reason recorded in the report —
+  open, alongside the analyser's own fold of the top-of-file directive into
+  its production skip (`apply_disabled_diagnostics`,
+  `rust/tcl-compiler/src/analyser/diagnostics.rs`), which the report declares
+  as a gap rather than reading as clean.
 
 ### `tcl-core-types` + `tcl-runtime-api` — command-table identity
 
@@ -869,6 +875,39 @@ entry point, or gate moves without this contract being updated.
   system, rooted in `CommandRegistry::document_grammar` for a dialect whose
   file is itself a declaration body. Completion and the token walk read it,
   and this owner must not grow a second answer to it.
+
+### `tcl-lsp-core` — diagnostic policy
+
+- `diagnostic_policy::apply` is the one function that decides whether and
+  how a finding shows: the five configuration scopes, the default-off seed,
+  severity overrides, the optimiser and shimmer switches, overlap
+  precedence and encoding abstention, in one fixed order, for every
+  producer's finding on every surface. `PolicyBuilder` resolves the
+  configuration layers, lowest first, into the `Policy` `apply` reads, so
+  only it — never a merged, already-flattened settings value — can name the
+  layer that decided a code. `Report` keeps every finding paired with its
+  outcome, including the ones it hides, each with a `Reason`, so "why is
+  this not firing" has one answer every surface can read.
+- `diagnostic_report::document_report` and `standalone_findings` are where
+  a surface without the language server's salsa database gets the same
+  producer set the editor does before handing it to `apply`:
+  `document_report` adds the producers this crate owns (the source-style
+  pass, the byte-integrity pass, the SslicTcl projection) to a surface's own
+  findings, and `standalone_findings` runs the analyser and the compiler
+  checks over one compilation unit for a surface with no database at all.
+  `optimise_under_policy` is the rewrite loop every rewrite surface
+  (`tcl opt`, MCP `optimize`, `tcl-lsp.optimiseDocument`) shares: it admits
+  a pass's rewrites into the optimiser's own multipass loop only where the
+  policy shows them.
+- `config_ini::settings_from_ini` and `merge_settings` are the one INI parse
+  and the one three-layer merge: every surface that reads a `config.ini` or
+  a `.tcl-lsp.ini` — the server, the CLI, the MCP tools — resolves the same
+  layers `PolicyBuilder` builds the policy from.
+- Consumers: `rust/tcl-lsp-server/src/lib.rs`,
+  `rust/tcl-cli/src/commands/diag.rs`, `transform.rs`, `policy.rs`,
+  `rust/tcl-mcp/src/tools.rs`. A producer emits a typed finding and reads no
+  policy; a surface renders a `Report` and decides nothing itself. Design:
+  [diagnostic-policy.md](../compiler/diagnostic-policy.md).
 
 ## Decision rules / contracts
 

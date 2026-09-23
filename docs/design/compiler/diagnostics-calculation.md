@@ -42,11 +42,17 @@ eval $cmd   ;# noqa: *     — suppress every code on this line
 The analyser builds the suppression map (`AnalysisResult::suppressed_lines:
 HashMap<i32, HashSet<String>>`, `rust/tcl-compiler/src/analyser/types.rs`) —
 inline `# noqa` per line, a top-of-file `# tcl-lsp: disable=…` in the `-1`
-bucket — and every lift applies it (`line_suppressed` in the server's
-analyser and compiler lifts; `tcl_lsp_core::diagnostic_policy::apply` for
-the style, byte-integrity and SslicTcl findings). Codes disabled with
-`tclLsp.diagnostics.<CODE> = false` are filtered at the same point. The
-policy step is where every lift is heading:
+bucket — as a directive fact. `tcl_lsp_core::diagnostic_policy::apply`
+applies it, and every other suppression step besides it — the five
+configuration scopes, the default-off seed, severity, the optimiser and
+shimmer switches, overlap precedence, encoding abstention — for every
+producer's finding on every surface: the editor's push and pull, `tcl diag`
+/ `lint` / `validate` / `opt`, the MCP tools and the code actions all read
+one report. Codes disabled with `tclLsp.diagnostics.<CODE> = false` are
+decided at the same point. A code the analyser skips computing at
+production — its own permitted saving, over the policy's own disabled set —
+is declared to the report (`Report::declare_analyser_skip`) with the reason
+the policy gives, so a gap reads as explained rather than as clean. Design:
 [diagnostic-policy.md](diagnostic-policy.md).
 
 ### Grouped optimisations
@@ -68,7 +74,9 @@ member offered only the inline — which runs the assignment twice (#2149).
 
 A group that loses a member to a `# noqa` or a per-code toggle can no longer
 be applied whole, so its survivors are published as advice with no payload at
-all rather than as a partial edit.
+all rather than as a partial edit — `Report::applicable_rewrites` (and
+`applicable_items` for the rewrite loop) is the only door to a rewrite, and
+it excludes such a group entirely, member by member.
 
 ## Decision rule
 

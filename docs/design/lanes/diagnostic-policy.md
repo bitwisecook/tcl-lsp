@@ -1648,6 +1648,70 @@ crates; `cargo clippy --workspace --all-targets -- -D warnings`; `make
 runtime-rust-lint`; `make xtask-check` (exit 0). `cargo check --workspace`
 is green.
 
+### DP10.2 — The owner documents point at the policy step
+
+`docs/design/compiler/diagnostics-integration.md` rewritten whole, as
+DP10.1 left it to do: the intro no longer names the deleted lifts
+(`lift_analyser_diagnostics`, `lift_source_style_diagnostics`,
+`lift_compiler_diagnostics`) or `finalise_diagnostics`, and instead
+describes `lifted_report`'s composition; rule 1 reads "Aggregation lives
+in the report"; rule 2 "Policy has one owner"; rule 5 names
+`dialect_overlaps` ("W110 over an O120 whose span holds it", and the
+SslicTcl loader over W123, document-wide) in place of
+`suppress_duplicate_o120`; § Failure modes' last bullet reads "without a
+conversion to `Finding`"; § Anchors' server line is `lifted_report`,
+`lift_report`, `document_policy`, with
+`rust/tcl-lsp-core/src/diagnostic_policy.rs` and `diagnostic_report.rs`
+added; § Related no longer calls the policy page a proposal.
+
+`docs/design/compiler/diagnostics-calculation.md` § Suppression now says
+`apply` is the one place every suppression step applies — not only the
+style, byte-integrity and SslicTcl findings the "Today" text named — for
+every producer's finding on every surface, and that a code the analyser
+skips at production is declared to the report rather than silently
+absent. § Grouped optimisations (already `rust`'s #2123 text after
+DP10.4's merge) gains one clause tying its last sentence to
+`Report::applicable_rewrites` / `applicable_items` as the only door to a
+rewrite.
+
+`docs/design/compiler/pass-fact-ownership-matrix.md`'s `tcl-lsp-db` row
+loses ", suppression policy"; a new row names
+`rust/tcl-lsp-core/src/diagnostic_policy.rs` / `diagnostic_report.rs` as
+the owner of directives applied, the five scopes, the seed, severity,
+the optimiser and shimmer gates, overlaps and abstention.
+
+`docs/design/contracts/shared-utility-contracts-rust.md`: the
+"diagnostic suppression directives" bullet names the policy step
+(`Directives::reason_for`, pinned equal to `line_suppressed` by
+`directives_agree_with_line_suppressed`) as the one consumer left, and
+records the two still-open producer-side exceptions the design page
+names — the W305 producer's own filter, and the analyser's file-directive
+fold; a new owner heading "`tcl-lsp-core` — diagnostic policy" and its
+manifest row, exactly as the item specifies (owner "diagnostic policy",
+the three source files, the fourteen entry points, the dialect/layer
+axis, drift gate `none`).
+
+`docs/design/contracts/config-precedence.md` § Precedence's
+implementation paragraph now leads with `PolicyBuilder` resolving the
+three layers per code, on every surface that decides one, states the
+invocation slot (over the editor setting, under the project file, an
+INI file's own per-code key included), and keeps `merge_settings` /
+`Backend::apply_global_config` for every non-policy setting.
+
+No deviation from the item's file list or edits.
+
+Gates: `cargo xtask kcs-index-links` (`KCS docs checks passed.`);
+`cargo xtask owner-resolution` (`owner-resolution: OK (44 owner row(s)
+resolve to live source and gates)`); the transitional-name grep — the
+names of § Transitional pieces plus `lift_compiler_diagnostics` and
+`suppress_duplicate_o120` — over `docs/` returns only
+`docs/design/lanes/diagnostic-policy.md`,
+`docs/design/lanes/value-transfers.md` (the other lane's tracking
+document) and one quoted, historical use in
+`docs/design/compiler/diagnostic-policy.md` § Slices item 4 (the page's
+own words for what the checkpoint's deliverable list said, kept as
+`rust` `3b5eba8a`'s record).
+
 ## Plan for finishing slices 4–7 and for slices 8–10
 
 The execution plan from the checkpoint `5bc40e95` to the end of the page's
@@ -4458,7 +4522,7 @@ Each item updates its row in the commit that lands it.
 | Ruling, § Open questions 10 | opus | S | done — § *The owner's ruling on § Open questions 10* | `W110 owns the O120 it sits in (the ruling on question 10)` | core `--lib` (2341), server `--lib` (590), the whole `e2e`, `tcl-mcp`, `tcl-cli --test cli -- truth_table`; the crate clippy; `cargo check --workspace` |
 | Ruling, § Open questions 11 | opus | S | done — § *The owner's ruling on § Open questions 11* | `the diagnostics surfaces declare what did not run (the ruling on question 11)` | core `--lib` (2341), `tcl-cli --test cli` (48), `tcl-mcp` (103), server `--lib -- policy_truth_table`; the crate clippy; `cargo check --workspace` |
 | DP10.1 | opus | M | done — § *Slices 8–10 as built* | `DP10.1 — the design page describes the built tree` | `kcs-index-links`; the transitional-name grep over `docs/` (only `diagnostics-integration.md`, DP10.2's, remains) |
-| DP10.2 | sonnet | M | not started | — | — |
+| DP10.2 | sonnet | M | done — § *Slices 8–10 as built* | `DP10.2 — the owner documents point at the policy step` | `kcs-index-links`; `owner-resolution`; the transitional-name grep over `docs/` (only the two lane documents and one quoted historical use remain) |
 | DP10.3 | sonnet | M | not started | — | — |
 | DP10.4 | opus | M | done — § *Slices 8–10 as built* | `DP10.4 — one multipass loop owner; the rust merge reviewed` | every suite of the lane's six crates, the whole `e2e`; the ten catalogue gates; `make rust-check` (red only on the value-transfers lane's `tcl-compiler` formatting; its later steps pass on their own) |
 | DP10.5 | sonnet | S | not started | — | — |

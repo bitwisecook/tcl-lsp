@@ -41,12 +41,24 @@ ruling of 2026-09-22, and
 [diagnostic-policy.md](../compiler/diagnostic-policy.md) § Configuration
 states it with the rest of the policy resolution.
 
-Implementation: `config_ini::merge_settings`
-(`rust/tcl-lsp-core/src/config_ini.rs`) deep-merges the three layers, later
-winning, sections merged key by key. Each file layer is parsed by
+Implementation: for a diagnostic, optimiser or shimmer decision,
+`PolicyBuilder` (`rust/tcl-lsp-core/src/diagnostic_policy.rs`) resolves the
+three layers per code, on every surface that decides one — the server,
+`tcl diag` / `lint` / `validate` / `opt`, and the MCP tools — rather than
+merging them first and reading the merged value back. A surface's own
+flags — `--disable` / `--enable`, the MCP tools' `disable` / `enable` —
+occupy the editor layer's slot: over the editor setting, under the project
+file, and (since an INI file's own per-code key can turn a code back on)
+under the project's own per-code key too
+([diagnostic-policy.md § Configuration](../compiler/diagnostic-policy.md#configuration)).
+Every non-policy setting — formatting, features, and the rest of the
+server's configuration — is still resolved through
+`Backend::apply_global_config` over `config_ini::merge_settings`
+(`rust/tcl-lsp-core/src/config_ini.rs`), which deep-merges the three layers,
+later winning, sections merged key by key; each file layer is parsed by
 `settings_from_ini` into the same JSON shape the editor's
-`workspace/configuration` payload has, so `Backend::apply_global_config`
-applies a file layer through exactly the code that applies the editor layer.
+`workspace/configuration` payload has, so a file layer is applied through
+exactly the code that applies the editor layer.
 
 ## Why project wins over editor
 
