@@ -207,12 +207,28 @@ way, so a jump out of nested clauses passes each of them in order.  A jump
 is rerouted even from a block a nested construct intercepts: that only
 replaces an edge that skipped this clause with one through it.
 
+Whether the clause then falls through into `try_after_finally` — and so
+into the statements after the `try` — depends on whether anything *can*
+complete normally.  `try_completes_normally` asks the graph, not the
+resting tails: it walks the construct's own blocks from the pre-`try`
+block, through the handlers' exception edges, and looks for a normal edge
+into `try_end`.  When there is none, every way into the clause is an exit,
+so the clause's last block ends in a `Return` as an `error` does and is
+recorded as a throw point for the constructs around it; the code after the
+`try` is unreachable, as in Tcl.  Otherwise the clause falls through, and
+exit paths share that edge with normal completion — they add paths, never
+remove one.
+
+A handler of a body with a resting tail takes its exception edges from the
+pre-`try` block, the tail, **and** every recorded throw point: an `error`
+inside a nested `if`, or a `finally` that only resumes unwinding, raises
+with its own block's definitions live.  Without them
+`try { if {$c} {set x 1; error b} else {set x 2; error c} } on error {} {}`
+called both stores dead.
+
 The edges are not added without a `finally`:
 there the tail really is unreachable on those paths, because the exception
-resumes unwinding past it.  Their cost is that `try_after_finally` becomes
-reachable from an exit path too, where Tcl in fact keeps unwinding;
-modelling that exactly would need the clause body lowered on two paths,
-one of them terminal.
+resumes unwinding past it.
 
 ### Block naming convention
 

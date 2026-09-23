@@ -935,6 +935,20 @@ impl CfgBuilder<'_> {
                 self.exception_edges
                     .push((tail.to_owned(), handler_block.to_owned()));
             }
+            // A resting tail does not mean the explicit throws went unseen:
+            // one inside a nested `if`, or a `finally` that only ever resumes
+            // unwinding, raises with its own block's defs live. Sourcing only
+            // the pre-`try` block and the tail read `x` as unset after
+            // `try { if {$c} {set x 1; error b} else {set x 2; error c} }
+            // on error {} {}` and called its stores dead.
+            let mut seen: Vec<&String> = Vec::new();
+            for tb in body_throw_blocks {
+                if tb != block_name && body_tail != Some(tb.as_str()) && !seen.contains(&tb) {
+                    seen.push(tb);
+                    self.exception_edges
+                        .push((tb.clone(), handler_block.to_owned()));
+                }
+            }
         }
     }
 
@@ -971,11 +985,14 @@ impl CfgBuilder<'_> {
     /// reported `x` read before it is set (found in review). The same holds
     /// for a jump a nested `try` has already resumed after its own clause.
     ///
-    /// What it does cost is that `try_after_finally` becomes reachable from an
-    /// exit path, where Tcl in fact keeps unwinding. Modelling that exactly
-    /// needs the clause body lowered on two paths, one of them terminal;
-    /// over-approximating the *other* way — a `finally` clause that is never
-    /// entered — is what corrupted the program above.
+    /// What it does cost, when the body or a handler can *also* complete
+    /// normally, is that the clause's normal exit into `try_after_finally` is
+    /// shared by the exit paths, where Tcl in fact keeps unwinding or jumps.
+    /// Modelling that exactly needs the clause body lowered once per way in;
+    /// the merge only adds paths, and over-approximating the *other* way — a
+    /// `finally` clause that is never entered — is what corrupted the program
+    /// above. When nothing can complete normally there is no merge:
+    /// [`Self::lower_try_finally`] ends the clause as an exit.
     fn push_finally_exit_edges(
         &mut self,
         end_block: &str,
@@ -1221,10 +1238,17 @@ impl CfgBuilder<'_> {
         let Some(fb) = finally_body else {
             return end_block;
         };
+        // Read before the exit edges below add paths into `end_block`.
+        let completes_normally =
+            self.try_completes_normally(block_name, &end_block, &body_block, first_body_id);
         let jump_targets =
             self.push_finally_exit_edges(&end_block, &post_body, &body_block, first_body_id);
-        let (after_finally, finally_tail) =
-            self.lower_try_finally(fb, finally_span.or(Some(*span)), &end_block);
+        let (after_finally, finally_tail) = self.lower_try_finally(
+            fb,
+            finally_span.or(Some(*span)),
+            &end_block,
+            completes_normally || !self.faithful_exceptions,
+        );
         // A saved jump resumes from the clause's own last block, not from
         // `after_finally`: the statements after the `try` are appended there,
         // and a `break` does not run them (found in review). A clause that
@@ -1237,6 +1261,63 @@ impl CfgBuilder<'_> {
             }
         }
         after_finally
+    }
+
+    /// Whether any path through a `try`'s body or handlers reaches `end_block`
+    /// by completing normally.
+    ///
+    /// Asked of the graph rather than of the resting tails, because a body
+    /// that cannot fall through still leaves one: an inner `try` that never
+    /// completes returns its unreachable `try_after_finally`, and an `if`
+    /// whose every branch leaves its `if_end`. Walks the construct's own
+    /// blocks from the pre-`try` block, whose exception edges lead into the
+    /// handlers; anything outside the construct is not a way to `end_block`.
+    fn try_completes_normally(
+        &self,
+        block_name: &str,
+        end_block: &str,
+        body_block: &str,
+        first_body_id: usize,
+    ) -> bool {
+        let end_id = self.bid(end_block);
+        let body_block_id = self.bid(body_block);
+        let in_body = |id: crate::cfg::BlockId| {
+            id == body_block_id || usize::try_from(id.0).is_ok_and(|i| i >= first_body_id)
+        };
+        let names: rustc_hash::FxHashMap<crate::cfg::BlockId, &str> = self
+            .block_ids
+            .iter()
+            .map(|(name, id)| (*id, name.as_str()))
+            .collect();
+        let mut seen: rustc_hash::FxHashSet<&str> = rustc_hash::FxHashSet::default();
+        let mut work = vec![block_name];
+        while let Some(name) = work.pop() {
+            if !seen.insert(name) {
+                continue;
+            }
+            let terminator_succs = self
+                .blocks
+                .get(name)
+                .and_then(|b| b.terminator.as_ref())
+                .map(crate::cfg::Terminator::successors)
+                .unwrap_or_default();
+            if terminator_succs.contains(&end_id) {
+                return true;
+            }
+            let exception_succs = self
+                .exception_edges
+                .iter()
+                .filter(|(from, _)| from == name)
+                .filter_map(|(_, to)| self.block_ids.get(to).copied());
+            for id in terminator_succs.into_iter().chain(exception_succs) {
+                if in_body(id)
+                    && let Some(next) = names.get(&id)
+                {
+                    work.push(next);
+                }
+            }
+        }
+        false
     }
 
     /// Bind a handler's `on`/`trap` variables at the top of its block, as the
@@ -1269,18 +1350,41 @@ impl CfgBuilder<'_> {
     /// Lower a `finally` clause after the `try`'s end block, returning the
     /// resting block the whole statement leaves behind and the clause's own
     /// last block, if it completes normally.
+    ///
+    /// Only a `try` whose body or some handler can complete normally falls
+    /// through the clause into the statements after it. When none can, every
+    /// path into the clause is an exit, which resumes unwinding or a saved
+    /// jump once the clause is done, so the clause ends as an `error` does and
+    /// the code after the `try` is unreachable: `while 1 { try {break}
+    /// finally {}; set x 1 }` never runs `set x 1` (found in review).
     fn lower_try_finally(
         &mut self,
         body: &crate::ir::Script,
         fin_span: Option<tcl_lexer::Span>,
         end_block: &str,
+        falls_through: bool,
     ) -> (String, Option<String>) {
         let finally_block = self.new_block("try_finally");
         self.ensure_goto(end_block, &finally_block, fin_span);
         let after_finally = self.new_block("try_after_finally");
         let tail = self.lower_script(body, &finally_block);
         if let Some(tail) = &tail {
-            self.ensure_goto(tail, &after_finally, fin_span);
+            if falls_through {
+                self.ensure_goto(tail, &after_finally, fin_span);
+            } else {
+                self.block_mut(tail).terminator = Some(crate::cfg::Terminator::Return {
+                    value: None,
+                    value_word: None,
+                    span: fin_span,
+                    expr: None,
+                    braced: false,
+                });
+                // The clause resumes unwinding, so an enclosing handler catches
+                // what it raises with the clause's defs live, as for `error`.
+                if let Some(blocks) = self.throw_blocks.as_mut() {
+                    blocks.push(tail.clone());
+                }
+            }
         }
         (after_finally, tail)
     }

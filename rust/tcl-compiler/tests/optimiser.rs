@@ -2847,9 +2847,11 @@ fn an_exit_reaches_no_finally() {
 #[test]
 fn a_try_finally_does_not_hide_the_names_bound_around_it() {
     for (why, src) in [
+        // The `catch` is what makes the read live: without it the error
+        // propagates, and the `return` after the `try` never runs.
         (
             "bound before the `try`, rebound by `finally`",
-            "proc p {} {\n    set f 0\n    try {error boom} finally {set f 1}\n    return $f\n}\n",
+            "proc p {} {\n    set f 0\n    catch { try {error boom} finally {set f 1} }\n    return $f\n}\n",
         ),
         // An inner `finally` runs before the outer one on every path, so the
         // name it binds is bound when the outer clause reads it. Wiring the
@@ -2887,6 +2889,56 @@ fn a_try_finally_does_not_hide_the_names_bound_around_it() {
         assert!(
             !analyser_codes(src, TCL).iter().any(|c| c == "W210"),
             "{why}: {:?}",
+            analyser_codes(src, TCL)
+        );
+    }
+}
+
+/// A `try` whose body and handlers can never complete normally does not fall
+/// through its `finally` into the code after it: every way in is an exit that
+/// resumes unwinding or a saved jump. Letting the clause fall through made
+/// `set x 1` look reachable from the `break` (found in review).
+#[test]
+fn a_try_that_never_completes_does_not_fall_through_its_finally() {
+    // tclsh 8.6.18 and 9.0.4 both fail these with `can't read "x"`.
+    for (why, src) in [
+        (
+            "`break`",
+            "proc p {} {\n    while 1 {\n        try {break} finally {}\n        set x 1\n    }\n    puts $x\n}\n",
+        ),
+        (
+            "`break` through nested clauses",
+            "proc p {} {\n    while 1 {\n        try { try {break} finally {} } finally {}\n        set x 1\n    }\n    puts $x\n}\n",
+        ),
+    ] {
+        assert!(
+            analyser_codes(src, TCL).iter().any(|c| c == "W210"),
+            "{why}: {:?}",
+            analyser_codes(src, TCL)
+        );
+    }
+}
+
+/// A handler is reached from the explicit throws inside a nested construct,
+/// with their block's stores live — including a `finally` that only ever
+/// resumes unwinding. tclsh 8.6.18 and 9.0.4 return `1` for both.
+#[test]
+fn a_try_handler_sees_the_stores_before_a_nested_throw() {
+    for (why, src) in [
+        (
+            "every arm of an `if` throws",
+            "proc p {c} {\n    try { if {$c} {set x 1; error b} else {set x 2; error c} } on error {} {}\n    return $x\n}\n",
+        ),
+        (
+            "an inner `finally` stores, then resumes the error",
+            "proc p {} {\n    try { try {error boom} finally {set x 1} } on error {} {}\n    return $x\n}\n",
+        ),
+    ] {
+        let codes = opt_codes(src, TCL);
+        assert!(
+            !codes.iter().any(|c| c == "O109")
+                && !analyser_codes(src, TCL).iter().any(|c| c == "W220"),
+            "{why}: the store is read after the handler: {codes:?} {:?}",
             analyser_codes(src, TCL)
         );
     }
