@@ -87,6 +87,47 @@ impl PlaceRef {
             kind: PlaceKind::Scalar,
         }
     }
+
+    /// Whether the place is one element of an array: its kind says so, or
+    /// its name is spelled `base(key)`.
+    #[must_use]
+    pub fn is_element(&self) -> bool {
+        matches!(self.kind, PlaceKind::Element { .. })
+            || (self.name.ends_with(')') && self.name.contains('('))
+    }
+
+    /// The variable that holds the place: the array for an element, the
+    /// name itself otherwise.
+    #[must_use]
+    pub fn base(&self) -> &str {
+        match &self.kind {
+            PlaceKind::Element { base, .. } => base,
+            PlaceKind::Scalar | PlaceKind::Array if self.is_element() => self
+                .name
+                .split_once('(')
+                .map_or(&self.name, |(base, _)| base),
+            PlaceKind::Scalar | PlaceKind::Array => &self.name,
+        }
+    }
+
+    /// Whether this place and `other` share storage: the same place, or an
+    /// array and one of its elements. Two elements of one array are
+    /// distinct places.
+    #[must_use]
+    pub fn shares_storage_with(&self, other: &Self) -> bool {
+        self.name == other.name || self.overlaps_as_element_and_base(other)
+    }
+
+    /// Whether one of the two places is an element and the other the whole
+    /// variable that holds it: a write to each is an element write and a
+    /// base write of one array, which no ordering of the two composes into
+    /// one value.
+    #[must_use]
+    pub fn overlaps_as_element_and_base(&self, other: &Self) -> bool {
+        self.name != other.name
+            && self.base() == other.base()
+            && self.is_element() != other.is_element()
+    }
 }
 
 /// The SSA identity that correlates uses of one value: two operands reading

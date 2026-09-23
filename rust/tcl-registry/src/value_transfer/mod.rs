@@ -61,7 +61,7 @@ pub use answers::{
     HandlerPlan, InvocationOutcome, IterableKind, IterationPlan, NumericValue, PlanAnswer,
     RangeModel, Reconcile, RepresentationEvidence, RouteIdentity, ScriptRegion, SegmentFacts,
     SelectionContract, SelectionFact, StoreOutcome, TaintTransfer, TemplateWordPlan,
-    TransferAnswer, TypeFacts, ValueShape, VariableRead,
+    TransferAnswer, TypeFacts, ValueShape, VariableRead, validate_outcome,
 };
 pub use const_ops::{ConstOps, ConstValue, Needs, Representation, TargetSemantics, WorkUnits};
 pub use context::{AnalysisContext, BindingEvidence, BindingIdentity, Budget, EvaluatorGeneration};
@@ -115,6 +115,26 @@ pub trait CommandSemantics: Sync + Send {
             PlanAnswer::CellReadModifyWrite { target, .. } => vec![target],
             _ => Vec::new(),
         }
+    }
+
+    /// The targets this invocation's ordered stores may name, in operand
+    /// order: every operand the resolver gives the `VarWrite` role, and the
+    /// target a cell-update plan names. The driver validates each outcome
+    /// against them ([`answers::validate_outcome`]) before anything is
+    /// published.
+    fn store_targets(&self, input: &dyn AnalysisInputs) -> Vec<TargetId> {
+        let mut targets: Vec<TargetId> = input
+            .invocation()
+            .operands_with_role(crate::arg_role::ArgRole::VarWrite)
+            .map(TargetId)
+            .collect();
+        if let PlanAnswer::CellReadModifyWrite { target, .. } = self.structure(input)
+            && !targets.contains(&target)
+        {
+            targets.push(target);
+            targets.sort_unstable();
+        }
+        targets
     }
 
     /// The variables this invocation's evaluation reads by name, through

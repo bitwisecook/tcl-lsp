@@ -292,7 +292,7 @@ impl DeclaredSemantics {
             let place = input.place(target.0)?;
             if places
                 .iter()
-                .any(|(_, _, seen)| overlaps(&seen.name, &place.name))
+                .any(|(_, _, seen)| seen.shares_storage_with(&place))
             {
                 return Err(DeclineReason::OverlappingTargets);
             }
@@ -638,6 +638,15 @@ impl CommandSemantics for DeclaredSemantics {
         Some(self)
     }
 
+    /// The targets the `stores` row declares, whatever roles the resolver
+    /// gives their words.
+    fn store_targets(&self, input: &dyn AnalysisInputs) -> Vec<TargetId> {
+        self.targets()
+            .iter()
+            .map(|&index| TargetId(Self::operand(input, index)))
+            .collect()
+    }
+
     fn incoming_targets(&self, input: &dyn AnalysisInputs) -> Vec<TargetId> {
         self.implementation()
             .into_iter()
@@ -655,17 +664,6 @@ impl CommandSemantics for DeclaredSemantics {
 /// A published value's size, for the result-bytes budget.
 fn byte_count(value: &str) -> u64 {
     u64::try_from(value.len()).unwrap_or(u64::MAX)
-}
-
-/// Whether two places share storage: the same name, or an array and one
-/// of its elements. Two elements of one array are distinct places.
-fn overlaps(left: &str, right: &str) -> bool {
-    let base = |name: &str| {
-        name.split_once('(')
-            .map_or(name, |(base, _)| base)
-            .to_owned()
-    };
-    left == right || (base(left) == base(right) && (!left.contains('(') || !right.contains('(')))
 }
 
 /// A declaration with no `evaluate` statement: the structure alone, and

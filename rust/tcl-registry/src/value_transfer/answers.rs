@@ -684,6 +684,60 @@ impl InvocationOutcome {
     }
 }
 
+/// The driver's structural checks on one outcome before anything publishes:
+/// every store names a target the invocation declares — one of `targets`,
+/// or the place a plan itself names — and no target has two outcomes; the
+/// type facts name only those targets; and an error completion ran no more
+/// stores than it lists. Two targets resolving to one place (`lassign …
+/// a a`) are two outcomes composed in order once the driver resolves them
+/// to places, which is also where an element and its array's base, or a
+/// traced or escaping place, are refused.
+///
+/// # Errors
+///
+/// `MalformedAnswer` for an outcome that fails a check: a pack or
+/// implementation failure, never a partial lattice update.
+pub fn validate_outcome(
+    plan: &PlanAnswer,
+    targets: &[TargetId],
+    outcome: &InvocationOutcome,
+) -> Result<(), DeclineReason> {
+    let planned = match plan {
+        PlanAnswer::CellReadModifyWrite { target, .. } => Some(*target),
+        PlanAnswer::Body {
+            reconcile: Reconcile::WriteBackKeys(dict),
+            ..
+        } => Some(TargetId(*dict)),
+        _ => None,
+    };
+    let declared = |target: &TargetId| targets.contains(target) || planned == Some(*target);
+    let mut seen: Vec<TargetId> = Vec::with_capacity(outcome.ordered_stores.len());
+    for store in &outcome.ordered_stores {
+        let target = store.target();
+        if !declared(&target) || seen.contains(&target) {
+            return Err(DeclineReason::MalformedAnswer);
+        }
+        seen.push(target);
+    }
+    let typed = outcome
+        .types
+        .per_target
+        .iter()
+        .map(|(target, _)| target)
+        .chain(outcome.types.shapes.iter().map(|(target, _)| target));
+    for target in typed {
+        if !declared(target) {
+            return Err(DeclineReason::MalformedAnswer);
+        }
+    }
+    if let CompletionOutcome::Error { written, .. } = outcome.completion
+        && written > outcome.ordered_stores.len()
+    {
+        return Err(DeclineReason::MalformedAnswer);
+    }
+    Ok(())
+}
+
 /// The exact answer. Produced by every route; consumed by the transfer
 /// driver, which validates it before anything is published.
 #[derive(Debug, Clone, PartialEq)]

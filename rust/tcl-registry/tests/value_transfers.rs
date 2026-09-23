@@ -2016,3 +2016,102 @@ fn the_cores_the_routes_call_read_only_admitted_axes() {
         Needs::DICT_ORDER | Needs::LIST_RENDERING | Needs::NUMERAL_GRAMMAR | Needs::INT_TOWER
     );
 }
+
+/// The driver's structural checks before anything publishes
+/// (`validate_outcome`): a store names a declared target — a `VarWrite`
+/// operand the driver passes, or the place a cell-update plan names — and
+/// each target has one outcome at most; the type facts name only targets;
+/// and an error completion runs no more stores than it lists. Two targets
+/// spelling one variable (`lassign … a a`) are two outcomes here: the
+/// driver composes them once they resolve to one place.
+#[test]
+fn validate_outcome_rejects_a_store_to_a_non_target() {
+    use tcl_registry::value_transfer::{
+        CompletionOutcome, DependencyEvidence, InvocationOutcome, TypeFacts, validate_outcome,
+    };
+    let target = |index| TargetId(OperandId(index));
+    let write = |index| StoreOutcome::Write {
+        target: target(index),
+        value: ExactValue::text("v"),
+    };
+    let outcome = |stores: Vec<StoreOutcome>| InvocationOutcome {
+        completion: CompletionOutcome::Normal,
+        result: ExactValueOrUnavailable::Exact(ExactValue::int(1)),
+        ordered_stores: stores,
+        types: TypeFacts::default(),
+        evidence: DependencyEvidence::default(),
+    };
+    let declared = [target(2), target(3)];
+    let plan = PlanAnswer::NoStructure;
+
+    assert_eq!(
+        validate_outcome(
+            &plan,
+            &declared,
+            &outcome(vec![write(2), StoreOutcome::Preserve { target: target(3) }]),
+        ),
+        Ok(()),
+        "a write and a preserve of two declared targets"
+    );
+    assert_eq!(
+        validate_outcome(&plan, &declared, &outcome(vec![write(1)])),
+        Err(DeclineReason::MalformedAnswer),
+        "a store to an operand that is no declared target"
+    );
+    assert_eq!(
+        validate_outcome(&plan, &declared, &outcome(vec![write(4)])),
+        Err(DeclineReason::MalformedAnswer),
+        "a store past the declared targets"
+    );
+    assert_eq!(
+        validate_outcome(
+            &plan,
+            &declared,
+            &outcome(vec![write(2), StoreOutcome::Preserve { target: target(2) }]),
+        ),
+        Err(DeclineReason::MalformedAnswer),
+        "two outcomes for one target"
+    );
+    assert_eq!(
+        validate_outcome(&plan, &[], &outcome(Vec::new())),
+        Ok(()),
+        "an outcome with no stores needs no target"
+    );
+
+    // A cell update's plan names its own target, whatever roles the
+    // resolver gave the words.
+    let cell = PlanAnswer::CellReadModifyWrite {
+        target: target(0),
+        operation: CellUpdate::Append,
+        amount: Some(OperandId(1)),
+        creates_absent: None,
+    };
+    assert_eq!(
+        validate_outcome(&cell, &[], &outcome(vec![write(0)])),
+        Ok(())
+    );
+    assert_eq!(
+        validate_outcome(&cell, &[], &outcome(vec![write(1)])),
+        Err(DeclineReason::MalformedAnswer)
+    );
+
+    // The type facts name declared targets only.
+    let mut typed = outcome(vec![write(2)]);
+    typed.types.per_target = vec![(target(5), tcl_registry::TclType::Int)];
+    assert_eq!(
+        validate_outcome(&plan, &declared, &typed),
+        Err(DeclineReason::MalformedAnswer)
+    );
+
+    // An error completion lists how many stores ran before it.
+    let mut failed = outcome(vec![write(2)]);
+    failed.completion = CompletionOutcome::Error {
+        written: 2,
+        message: ExactValueOrUnavailable::Exact(ExactValue::text("boom")),
+        error_code: ExactValueOrUnavailable::Exact(ExactValue::text("NONE")),
+    };
+    assert_eq!(
+        validate_outcome(&plan, &declared, &failed),
+        Err(DeclineReason::MalformedAnswer)
+    );
+}

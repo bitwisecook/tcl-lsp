@@ -53,6 +53,7 @@ use tcl_registry::value_transfer::{
     LanguageProfileId, LiftedAnswer, NestedPolicy, NumericValue, OperandId, OperandView, PlaceKind,
     PlaceRef, PlanAnswer, ResolvedInvocationView, RouteIdentity, StoreOutcome, TargetId,
     TransferAnswer, TypeFacts, ValueIdentity, WordPart, WordStructure, evaluate_lifted,
+    validate_outcome,
 };
 use tcl_registry::{
     ArgRole, CommandRegistry, InvocationWord, InvocationWordKind, InvocationWords,
@@ -215,6 +216,55 @@ fn lattice_of_outcomes(
         0 => LatticeValue::Overdefined,
         1 => LatticeValue::Const(consts.pop().unwrap()),
         _ => LatticeValue::constset(consts),
+    }
+}
+
+/// Every definition in `defs` widened: the answer for a statement whose
+/// evaluation declined.
+fn widened(defs: &[(String, ValueKey)]) -> Vec<(ValueKey, LatticeValue)> {
+    defs.iter()
+        .map(|(_, key)| (*key, LatticeValue::Overdefined))
+        .collect()
+}
+
+/// The statement's definitions, each with the variable name it defines.
+pub(crate) fn named_defs(stmt_ssa: &SsaStatement, ssa: &SsaFunction) -> Vec<(String, ValueKey)> {
+    let mut defs: Vec<(String, ValueKey)> = stmt_ssa
+        .defs
+        .iter()
+        .map(|(&sym, &ver)| (ssa.var_name(sym).to_owned(), (sym, ver)))
+        .collect();
+    defs.sort_unstable_by(|(left, _), (right, _)| left.cmp(right));
+    defs
+}
+
+/// Two members' values for one definition, joined: a widened member widens
+/// the definition and a pending one keeps it pending — a preserved prior
+/// the solver has not reached is never taken for the other member's value
+/// — and otherwise the definition holds the union of their constants.
+fn join_members(left: &LatticeValue, right: &LatticeValue) -> LatticeValue {
+    match (left, right) {
+        (LatticeValue::Overdefined, _) | (_, LatticeValue::Overdefined) => {
+            LatticeValue::Overdefined
+        }
+        (LatticeValue::Unknown, _) | (_, LatticeValue::Unknown) => LatticeValue::Unknown,
+        _ => crate::sccp::join(left, right),
+    }
+}
+
+/// A fact view's lattice projection: an exact value is its constant, a
+/// finite set its constants, a pending input unknown, and anything else
+/// widened.
+fn fact_to_lattice(view: &FactView) -> LatticeValue {
+    match view {
+        FactView::Pending => LatticeValue::Unknown,
+        FactView::Exact(value, _) => exact_to_lattice(value),
+        FactView::Finite(members, _) => members
+            .iter()
+            .map(exact_to_lattice)
+            .reduce(|left, right| join_members(&left, &right))
+            .unwrap_or(LatticeValue::Overdefined),
+        FactView::Domain(_) | FactView::Top(_) => LatticeValue::Overdefined,
     }
 }
 
@@ -487,21 +537,23 @@ impl<'a> LatticeDriver<'a> {
     /// of the command whose lowering it is (`incr name ?amount?`), and the
     /// registry's derived cell update evaluates it. A braced amount is its
     /// own text (`incr x {$n}` raises in every release), never a read.
+    /// Answers each of `defs`, the statement's definitions.
     pub(crate) fn evaluate_incr<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
         &self,
         name: &str,
         amount: Option<(&str, bool)>,
+        defs: &[(String, ValueKey)],
         uses: &HashMap<Symbol, Version, S1>,
         values: &HashMap<ValueKey, LatticeValue, S2>,
         ssa: &SsaFunction,
-    ) -> LatticeValue {
+    ) -> Vec<(ValueKey, LatticeValue)> {
         let heads = typed_node_commands(self.registry, LoweringHookId::Incr);
         let Some(&head) = heads.first() else {
-            return LatticeValue::Overdefined;
+            return widened(defs);
         };
         if !heads.iter().all(|head| self.trusted(head)) {
             self.explain(head, None, "declined: rebinding-suspected".to_owned());
-            return LatticeValue::Overdefined;
+            return widened(defs);
         }
         let texts: Vec<&str> = std::iter::once(name)
             .chain(amount.map(|(text, _)| text))
@@ -510,10 +562,10 @@ impl<'a> LatticeDriver<'a> {
             .chain(amount.map(amount_word))
             .collect();
         let Some(resolved) = self.resolve(head, &words) else {
-            return LatticeValue::Overdefined;
+            return widened(defs);
         };
         let Some(semantics) = resolved.semantics.value.semantics() else {
-            return LatticeValue::Overdefined;
+            return widened(defs);
         };
         let sources = std::iter::once(OperandSource::Literal)
             .chain(amount.map(|(text, braced)| {
@@ -535,20 +587,22 @@ impl<'a> LatticeDriver<'a> {
             ssa,
             sources,
         };
-        self.call_def(head, semantics, name, &inputs)
+        self.call_defs(head, semantics, defs, &inputs)
     }
 
-    /// The lattice value a resolved invocation leaves in `def`, the one
-    /// variable its statement defines: the registry's evaluator over the
+    /// The lattice values a resolved invocation leaves in `defs`, the
+    /// variables its statement defines: the registry's evaluator over the
     /// lattice inputs, lifted over one finite input, on the route the
-    /// registry owns, each outcome's store applied by [`Self::store_def`].
-    fn call_def(
+    /// registry owns; each outcome validated against the invocation's
+    /// targets ([`validate_outcome`]) and applied per place
+    /// ([`Self::apply_outcome`]), and the members joined per definition.
+    fn call_defs(
         &self,
         head: &str,
         semantics: &dyn tcl_registry::value_transfer::CommandSemantics,
-        def: &str,
+        defs: &[(String, ValueKey)],
         inputs: &dyn AnalysisInputs,
-    ) -> LatticeValue {
+    ) -> Vec<(ValueKey, LatticeValue)> {
         let route = semantics.route();
         match route {
             EvalRoute::Direct { id } if id.owner() == EvaluatorOwner::Registry => {
@@ -563,49 +617,157 @@ impl<'a> LatticeDriver<'a> {
                     Some(route),
                     "not evaluated: the route is not registry-owned".to_owned(),
                 );
-                return LatticeValue::Overdefined;
+                return widened(defs);
             }
         }
         let answer = evaluate_lifted(semantics, inputs, &mut self.budget(), MAX_CONSTSET_SIZE);
         self.explain(head, Some(route), answer_label(&answer));
-        match answer {
-            LiftedAnswer::Pending => LatticeValue::Unknown,
-            LiftedAnswer::Declined(_) => LatticeValue::Overdefined,
-            LiftedAnswer::Evaluated(outcomes) => {
-                lattice_of_outcomes(&outcomes, |outcome| Self::store_def(outcome, def, inputs))
+        let outcomes = match answer {
+            LiftedAnswer::Pending => {
+                return defs
+                    .iter()
+                    .map(|(_, key)| (*key, LatticeValue::Unknown))
+                    .collect();
             }
-        }
-    }
-
-    /// The value `outcome` leaves in `def`, the statement's one definition:
-    /// its only store other than a `Preserve` is one `Write` whose place is
-    /// `def`. Every other shape — two stores, an `Unbind`, a `MayWrite`, a
-    /// target that is not the definition — answers `None` and the
-    /// definition widens; write, preserve, unbind and may-write outcomes
-    /// apply per place from slice 5.
-    fn store_def(
-        outcome: &InvocationOutcome,
-        def: &str,
-        input: &dyn AnalysisInputs,
-    ) -> Option<LatticeValue> {
-        let mut stores = outcome
-            .ordered_stores
-            .iter()
-            .filter(|store| !matches!(store, StoreOutcome::Preserve { .. }));
-        let (Some(StoreOutcome::Write { target, value }), None) = (stores.next(), stores.next())
-        else {
-            return None;
+            LiftedAnswer::Declined(_) => return widened(defs),
+            LiftedAnswer::Evaluated(outcomes) => outcomes,
         };
-        let place = input.place(target.0).ok()?;
-        (place.name == crate::naming::element_var_name(def)).then(|| exact_to_lattice(value))
+        let plan = semantics.structure(inputs);
+        let targets = semantics.store_targets(inputs);
+        if let Some(reason) = outcomes
+            .iter()
+            .find_map(|outcome| validate_outcome(&plan, &targets, outcome).err())
+        {
+            self.explain(
+                head,
+                Some(route),
+                format!("declined: {}", reason_label(reason)),
+            );
+            return widened(defs);
+        }
+        let mut joined: Option<Vec<(ValueKey, LatticeValue)>> = None;
+        for outcome in &outcomes {
+            let applied = match self.apply_outcome(outcome, defs, inputs) {
+                Ok(applied) => applied,
+                Err(reason) => {
+                    self.explain(
+                        head,
+                        Some(route),
+                        format!("declined: {}", reason_label(reason)),
+                    );
+                    return widened(defs);
+                }
+            };
+            joined = Some(match joined {
+                None => applied,
+                Some(earlier) => earlier
+                    .into_iter()
+                    .zip(applied)
+                    .map(|((key, left), (_, right))| (key, join_members(&left, &right)))
+                    .collect(),
+            });
+        }
+        joined.unwrap_or_else(|| widened(defs))
     }
 
-    /// A `Call` statement's defs. The synthetic loop header the CFG
-    /// builder emits — the one `Call` carrying `foreach_groups` — has a
-    /// declared structure the solver applies: its iteration plan's single
-    /// list binder takes the set of the list's elements. Any other
-    /// resolved call that defines one variable takes the store its
-    /// registry-owned evaluation writes there ([`Self::store_def`]); every
+    /// The value one outcome leaves in each of `defs`, the statement's
+    /// definitions (`docs/design/compiler/value-transfers.md` § *Storage-
+    /// writing commands*). Every store's target resolves to its place
+    /// first, so two spellings of one cell are one place and a repeated
+    /// target composes in execution order: a `Write` is its value, the
+    /// last write winning; a `Preserve` keeps what the place holds at that
+    /// point, the prior version's value when nothing earlier wrote it (a
+    /// pending prior stays pending); a `MayWrite` and an `Unbind` widen,
+    /// their facts being the type domain's and the existence rung's. A
+    /// definition no store names widens.
+    ///
+    /// # Errors
+    ///
+    /// The whole answer declines, and every definition widens, for a
+    /// completion other than the normal one (the prefix rule is slice
+    /// 10's); a target that is no place (`DynamicName`, `EscapingPlace`
+    /// from the resolver); an element write beside its array's base write
+    /// (`OverlappingTargets`); and a traced place (`TracedPlace`), whose
+    /// trace runs on the write and can observe or rewrite the others.
+    fn apply_outcome(
+        &self,
+        outcome: &InvocationOutcome,
+        defs: &[(String, ValueKey)],
+        input: &dyn AnalysisInputs,
+    ) -> Result<Vec<(ValueKey, LatticeValue)>, DeclineReason> {
+        if outcome.completion != CompletionOutcome::Normal {
+            return Err(DeclineReason::Unsupported);
+        }
+        let mut placed: Vec<(PlaceRef, &StoreOutcome)> =
+            Vec::with_capacity(outcome.ordered_stores.len());
+        for store in &outcome.ordered_stores {
+            let place = input.place(store.target().0)?;
+            if placed
+                .iter()
+                .any(|(seen, _)| seen.overlaps_as_element_and_base(&place))
+            {
+                return Err(DeclineReason::OverlappingTargets);
+            }
+            if self.is_traced(&place) {
+                return Err(DeclineReason::TracedPlace);
+            }
+            placed.push((place, store));
+        }
+        Ok(defs
+            .iter()
+            .map(|(name, key)| {
+                let named: Vec<&(PlaceRef, &StoreOutcome)> = placed
+                    .iter()
+                    .filter(|(place, _)| place.name == *name)
+                    .collect();
+                let Some((place, _)) = named.first() else {
+                    return (*key, LatticeValue::Overdefined);
+                };
+                if self.is_escaping(place) {
+                    return (*key, LatticeValue::Overdefined);
+                }
+                let mut held: Option<LatticeValue> = None;
+                for (_, store) in &named {
+                    match store {
+                        StoreOutcome::Write { value, .. } => held = Some(exact_to_lattice(value)),
+                        StoreOutcome::Preserve { .. } => {}
+                        StoreOutcome::Unbind { .. } | StoreOutcome::MayWrite { .. } => {
+                            held = Some(LatticeValue::Overdefined);
+                        }
+                    }
+                }
+                let value = held.unwrap_or_else(|| {
+                    fact_to_lattice(&input.prior_store(place, FactDomain::ExactValue))
+                });
+                (*key, value)
+            })
+            .collect())
+    }
+
+    /// Whether a trace can observe `place`: the module names it in a trace,
+    /// or traces a computed name.
+    fn is_traced(&self, place: &PlaceRef) -> bool {
+        self.context.has_dynamic_variable_trace
+            || self.context.traced_variables.contains(&place.name)
+            || self.context.traced_variables.contains(place.base())
+    }
+
+    /// Whether `place` is writable from outside the function — the
+    /// solver's own rule ([`crate::sccp::is_externally_mutable`]), so a
+    /// definition it widens before any transfer runs is widened here too.
+    fn is_escaping(&self, place: &PlaceRef) -> bool {
+        let escaping = &self.context.escaping;
+        self.context.has_dynamic_variable_trace
+            || place.name.starts_with("::")
+            || escaping.contains(&place.name)
+    }
+
+    /// A `Call` statement's defs, each with its value. The synthetic loop
+    /// header the CFG builder emits — the one `Call` carrying
+    /// `foreach_groups` — has a declared structure the solver applies: its
+    /// iteration plan's single list binder takes the set of the list's
+    /// elements. Any other resolved call takes the ordered stores its
+    /// registry-owned evaluation makes ([`Self::apply_outcome`]); every
     /// other call keeps the conservative answer.
     pub(crate) fn evaluate_call<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
         &self,
@@ -613,26 +775,43 @@ impl<'a> LatticeDriver<'a> {
         values: &HashMap<ValueKey, LatticeValue, S2>,
         ssa: &SsaFunction,
         uses: &HashMap<Symbol, Version, S1>,
-    ) -> LatticeValue {
+    ) -> Vec<(ValueKey, LatticeValue)> {
+        let defs = named_defs(stmt_ssa, ssa);
         let Statement::Call {
             args,
-            defs,
+            defs: binders,
             tokens,
             foreach_groups,
             ..
         } = &stmt_ssa.statement
         else {
-            return LatticeValue::Overdefined;
+            return widened(&defs);
         };
         let head = stmt_ssa.statement.canonical_command_or_source();
         if !self.trusted(head) {
             self.explain(head, None, "declined: rebinding-suspected".to_owned());
-            return LatticeValue::Overdefined;
+            return widened(&defs);
         }
         if foreach_groups.is_none() {
             let cooked = call_arguments(args, tokens.as_ref(), &self.lexer_config);
-            return self.evaluate_source_call(head, &cooked, defs, uses, values, ssa);
+            return self.evaluate_source_call(head, &cooked, &defs, uses, values, ssa);
         }
+        let value = self.evaluate_loop_header(head, args, binders, uses, values, ssa);
+        defs.iter().map(|(_, key)| (*key, value.clone())).collect()
+    }
+
+    /// The synthetic loop header's value for its binders: the iteration
+    /// plan's single list binder takes the set of the list's elements; a
+    /// multi-variable or multi-list header stays `Overdefined`.
+    fn evaluate_loop_header<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
+        &self,
+        head: &str,
+        args: &[String],
+        defs: &[String],
+        uses: &HashMap<Symbol, Version, S1>,
+        values: &HashMap<ValueKey, LatticeValue, S2>,
+        ssa: &SsaFunction,
+    ) -> LatticeValue {
         let texts: Vec<&str> = args.iter().map(String::as_str).collect();
         let words: Vec<InvocationWord<'_>> = texts.iter().copied().map(word_of).collect();
         let Some(resolved) = self.resolve(head, &words) else {
@@ -707,33 +886,25 @@ impl<'a> LatticeDriver<'a> {
     }
 
     /// A call in its source layout, its arguments read as source words: the
-    /// store its registry-owned evaluation writes to the one variable it
-    /// defines ([`Self::call_def`]).
+    /// stores its registry-owned evaluation makes, applied to the variables
+    /// it defines ([`Self::call_defs`]).
     fn evaluate_source_call<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
         &self,
         head: &str,
         cooked: &[ArgWord<'_>],
-        defs: &[String],
+        defs: &[(String, ValueKey)],
         uses: &HashMap<Symbol, Version, S1>,
         values: &HashMap<ValueKey, LatticeValue, S2>,
         ssa: &SsaFunction,
-    ) -> LatticeValue {
+    ) -> Vec<(ValueKey, LatticeValue)> {
         let texts: Vec<&str> = cooked.iter().map(|arg| arg.text.as_ref()).collect();
         let words: Vec<InvocationWord<'_>> = cooked.iter().map(ArgWord::word).collect();
         let Some(resolved) = self.resolve(head, &words) else {
-            return LatticeValue::Overdefined;
+            return widened(defs);
         };
         let Some(semantics) = resolved.semantics.value.semantics() else {
             self.explain(head, None, "declined: no-semantics".to_owned());
-            return LatticeValue::Overdefined;
-        };
-        let [def] = defs else {
-            self.explain(
-                head,
-                Some(semantics.route()),
-                "not evaluated: the call does not define one variable".to_owned(),
-            );
-            return LatticeValue::Overdefined;
+            return widened(defs);
         };
         let view = view_of(&resolved, &texts, &words, InvocationLayout::Source);
         let inputs = LatticeInputs {
@@ -744,7 +915,7 @@ impl<'a> LatticeDriver<'a> {
             ssa,
             sources: cooked.iter().map(|arg| arg.source).collect(),
         };
-        self.call_def(head, semantics, def, &inputs)
+        self.call_defs(head, semantics, defs, &inputs)
     }
 
     /// Fold a `[cmd args…]` command substitution through the resolved

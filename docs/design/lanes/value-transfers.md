@@ -2,9 +2,9 @@
 
 The crash-insurance and handover note for the `value-transfers` lane. A
 fresh agent resumes from this file and the `wip(value-transfers):` commits.
-Slices 1 to 3 have landed; § *Plan for slices 2–13* is the plan for the
-rest. Slice 4 is in progress: § *Slice 4* › *Record (2026-09-23): the opus
-items of slice 4* has each checkpoint so far and is where to start.
+Slices 1 to 4 have landed; § *Plan for slices 2–13* is the plan for the
+rest. Slice 5 is in progress: § *Slice 5* › *Record (2026-09-23): the opus
+items of slice 5* has each checkpoint so far and is where to start.
 
 ## Goal
 
@@ -4213,6 +4213,37 @@ Closes #2055. Pins #2051 (closed on rust by #2225). Closes #2143, or
 | hover and inlay hints explain a computed format string | the inventory's item 4 |
 | a materialised proc's findings anchor at its factory call | #2143 |
 
+#### Record (2026-09-23): the opus items of slice 5
+
+One implementer runs the opus items in the order the coordinator gave —
+VT5.1, VT5.2, VT5.3, VT5.4, VT5.5, VT5.6, VT5.7, VT5.12, VT5.11, VT5.15,
+VT5.16, VT5.18 — and reports at the VT5.8 gate, which waits for the
+consumer-contracts lane's CC2.6 (`option_effects` and the
+`substitutions_performed` projection); VT5.8 to VT5.10 follow it. The
+sonnet items (VT5.13, VT5.14, VT5.17, VT5.19, VT5.20) are not this
+implementer's. The decisions are D105 onward in § *Decisions taken*; this
+table gains a row per item as it lands.
+
+| Item | Commit | What landed | Its tests |
+|---|---|---|---|
+| VT5.1 | `wip(value-transfers): slice 5 — every outcome kind, applied per place` | `validate_outcome` (`answers.rs`): every store names a declared target — the driver's `CommandSemantics::store_targets` (the `VarWrite` operands and a cell-update plan's target by default; a pack's `stores -targets` for `DeclaredSemantics`, D105) — each target has one outcome at most, the type facts name only targets, and an error completion lists no more stores than ran; the driver's `apply_outcome` replaces `store_def` (D26's shape): each store resolves to its place, a repeated place composes in execution order (the last write wins, a `Preserve` keeps what the place holds at that point, a `MayWrite` or `Unbind` widens), an element beside its array's base declines `OverlappingTargets`, a traced place declines `TracedPlace`, an escaping one widens its own definition (D106), a non-normal completion declines (D107); the lifted members join per definition with a pending member keeping it pending (D108); SCCP evaluates a statement once per sweep for every definition (`DefValues`), so a call that defines several variables takes each one's own value (D108); `PlaceRef::{is_element, base, shares_storage_with, overlaps_as_element_and_base}`, which `declared.rs` now reads in place of its private helper (D109) | `validate_outcome_rejects_a_store_to_a_non_target` (`value_transfers.rs`); every `evaluate_def_*`, `sccp_*` and witness test byte-identical |
+
+Green at VT5.1:
+
+- tests: `cargo test -p tcl-registry -p tcl-compiler --no-fail-fast`, no
+  failure (`tcl-compiler`'s lib 6475 passed, 2 ignored; `tcl-registry`'s
+  lib 905; `value_transfers` 27);
+- pedantic clippy (`--no-deps --all-targets -D warnings`) on
+  `tcl-registry` and `tcl-compiler`, no `#[allow]` added; `rustfmt` on the
+  touched files;
+- `cargo check --workspace --all-targets --exclude xtask` clean. `xtask`
+  does not compile at this commit's worktree for a reason outside it: the
+  consumer-contracts lane's uncommitted `rust/xtask/src/registry_axes.rs`
+  (its step-2 lint) is mid-edit, so G1 was not run here; this commit adds
+  no recogniser site to a scanned file and no declaration, so the gate's
+  verdict and the inventory are unchanged, and G1 runs at the next
+  checkpoint.
+
 ### Slice 8 — the existence rung
 
 #### Goal and exit
@@ -7085,6 +7116,46 @@ Taken while slice 4's opus items were executed (§ *Slice 4* › *Record
   where an analysis memoises the new plan's answers under the old key.
   Only the server builds a `TclDatabase`; `tcl-lsp-db`'s own tests keep 0
   unless they set it.
+
+Taken while slice 5's opus items were executed (§ *Slice 5* › *Record
+(2026-09-23): the opus items of slice 5* has the witnesses):
+
+- **D105 — The targets an outcome may name are the semantics' own.** The
+  plan's `validate_outcome(plan, targets, outcome)` takes the targets from
+  the driver, and `CommandSemantics::store_targets` answers them: every
+  operand the resolver gives the `VarWrite` role and a cell-update plan's
+  target by default, the `stores -targets` operands for a pack's
+  `DeclaredSemantics`, whose words need no role. A `Body` plan's
+  `WriteBackKeys` operand is a target too.
+- **D106 — A traced target declines the whole answer; an escaping one
+  widens its own definition.** A trace runs on the write and can observe or
+  rewrite the other targets, so a store to a place the module names in a
+  trace — or to an element of an array it names, or to anything under a
+  dynamic trace — declines `TracedPlace` and every definition widens. An
+  escaping place is the solver's own rule (`is_externally_mutable`, the
+  exact predicate, no base check), which already widens that definition
+  before any transfer; the driver applies the same rule so the answer does
+  not depend on who asks first. An element and its array's base in one
+  outcome decline `OverlappingTargets`; two targets on one place compose in
+  execution order.
+- **D107 — A non-normal completion declines in slice 5.** An outcome whose
+  completion is `Error` or `Code` publishes nothing and every definition
+  widens; slice 10's prefix rule is what publishes an error path's stores.
+- **D108 — One evaluation per statement, joined per definition.** The
+  solver evaluated a statement once per definition and gave every
+  definition the one value; it now evaluates once per sweep (`DefValues`:
+  one value a typed statement computes, or a call's value per definition)
+  and reads each definition's own value. Across the members of a lifted
+  evaluation a definition joins with `Overdefined` absorbing and a pending
+  member keeping it pending — a preserved prior the solver has not reached
+  is never taken for another member's constant — else the union of the
+  constants. `evaluate_def` and `evaluate_def_with_folds` answer for the
+  first variable a multi-definition call names.
+- **D109 — Storage overlap has one owner.** `PlaceRef::{is_element, base,
+  shares_storage_with, overlaps_as_element_and_base}` answer whether two
+  places share storage — the same name, or an array and one of its
+  elements, by kind or by the `base(key)` spelling — and `declared.rs`'s
+  private `overlaps` went.
 
 ### Open questions for the owner
 

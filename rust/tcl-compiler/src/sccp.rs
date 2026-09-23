@@ -796,7 +796,15 @@ fn sccp_process_statements(
             }
             _ => None,
         };
-        for (&var, ver) in &stmt_ssa.defs {
+        // The statement is evaluated once, when a definition first needs
+        // it: a call's ordered stores give each definition its own value.
+        let mut evaluated: Option<DefValues> = None;
+        for (&var, &ver) in &stmt_ssa.defs {
+            let mut value_of = |values: &HashMap<ValueKey, LatticeValue>| {
+                evaluated
+                    .get_or_insert_with(|| evaluate_defs_under(stmt_ssa, values, ssa, driver))
+                    .of((var, ver))
+            };
             let val =
                 if is_externally_mutable(ssa.var_name(var), escaping, has_dynamic_variable_trace)
                     || element_write_base == Some(var)
@@ -814,14 +822,14 @@ fn sccp_process_statements(
                                 .get(&(var, *prev_ver))
                                 .cloned()
                                 .unwrap_or(LatticeValue::Overdefined);
-                            join(&prev, &evaluate_def_under(stmt_ssa, &*values, ssa, driver))
+                            join(&prev, &value_of(values))
                         }
                         None => LatticeValue::Overdefined,
                     }
                 } else {
-                    evaluate_def_under(stmt_ssa, &*values, ssa, driver)
+                    value_of(values)
                 };
-            if set_value(values, (var, *ver), &val) {
+            if set_value(values, (var, ver), &val) {
                 changed = true;
             }
         }
@@ -1406,6 +1414,10 @@ pub fn evaluate_def<S: std::hash::BuildHasher>(
 /// additionally consults the registry `const_fold` engine — see
 /// [`BuiltinFoldInputs`] — and every resolved head answers to the
 /// whole-module trust fact. `None` is byte-identical to [`evaluate_def`].
+///
+/// A statement that defines several variables (`regexp … a b`) answers
+/// for the first one its command names; the solver itself reads every
+/// definition's own value.
 #[must_use]
 pub fn evaluate_def_with_folds<S: std::hash::BuildHasher>(
     stmt_ssa: &SsaStatement,
@@ -1415,34 +1427,76 @@ pub fn evaluate_def_with_folds<S: std::hash::BuildHasher>(
     folds: Option<BuiltinFoldInputs<'_>>,
 ) -> LatticeValue {
     let driver = LatticeDriver::detached(folds, policy);
-    evaluate_def_under(stmt_ssa, values, ssa, &driver)
+    evaluate_defs_under(stmt_ssa, values, ssa, &driver).primary(stmt_ssa, ssa)
 }
 
-/// [`evaluate_def_with_folds`] under one run's driver: the statement is
-/// dispatched by its typed shape, and every command-specific answer comes
-/// from the registry's declaration for the resolved invocation
-/// (`docs/design/compiler/value-transfers.md`). No command is recognised
-/// by its spelling here.
-fn evaluate_def_under<S: std::hash::BuildHasher>(
+/// What one statement's evaluation leaves in its definitions: the one
+/// value a typed statement computes, which every definition takes, or a
+/// call's value per definition, from its ordered stores.
+pub(crate) enum DefValues {
+    /// Every definition takes this value.
+    Each(LatticeValue),
+    /// Each definition's own value; a definition absent here widens.
+    PerDef(Vec<(ValueKey, LatticeValue)>),
+}
+
+impl DefValues {
+    /// The value definition `key` takes.
+    fn of(&self, key: ValueKey) -> LatticeValue {
+        match self {
+            Self::Each(value) => value.clone(),
+            Self::PerDef(values) => values
+                .iter()
+                .find(|(def, _)| *def == key)
+                .map_or(LatticeValue::Overdefined, |(_, value)| value.clone()),
+        }
+    }
+
+    /// The value of the statement's first named definition: the only one,
+    /// or the first variable a call's command names.
+    fn primary(&self, stmt_ssa: &SsaStatement, ssa: &SsaFunction) -> LatticeValue {
+        let key = if stmt_ssa.defs.len() == 1 {
+            stmt_ssa.defs.iter().next().map(|(&sym, &ver)| (sym, ver))
+        } else if let Statement::Call { defs, .. } = &stmt_ssa.statement {
+            defs.first()
+                .and_then(|name| ssa.var_symbol(crate::naming::normalise_var_name(name)))
+                .and_then(|sym| stmt_ssa.defs.get(&sym).map(|&ver| (sym, ver)))
+        } else {
+            None
+        };
+        match (self, key) {
+            (Self::Each(value), _) => value.clone(),
+            (Self::PerDef(_), Some(key)) => self.of(key),
+            (Self::PerDef(_), None) => LatticeValue::Overdefined,
+        }
+    }
+}
+
+/// [`evaluate_def_with_folds`] under one run's driver, for every
+/// definition of the statement: it is dispatched by its typed shape, and
+/// every command-specific answer comes from the registry's declaration for
+/// the resolved invocation (`docs/design/compiler/value-transfers.md`). No
+/// command is recognised by its spelling here.
+fn evaluate_defs_under<S: std::hash::BuildHasher>(
     stmt_ssa: &SsaStatement,
     values: &HashMap<ValueKey, LatticeValue, S>,
     ssa: &SsaFunction,
     driver: &LatticeDriver<'_>,
-) -> LatticeValue {
+) -> DefValues {
     driver.explaining(Some(stmt_ssa.statement.span()));
     let value = evaluate_def_dispatch(stmt_ssa, values, ssa, driver);
     driver.explaining(None);
     value
 }
 
-/// The typed dispatch of [`evaluate_def_under`].
+/// The typed dispatch of [`evaluate_defs_under`].
 fn evaluate_def_dispatch<S: std::hash::BuildHasher>(
     stmt_ssa: &SsaStatement,
     values: &HashMap<ValueKey, LatticeValue, S>,
     ssa: &SsaFunction,
     driver: &LatticeDriver<'_>,
-) -> LatticeValue {
-    match &stmt_ssa.statement {
+) -> DefValues {
+    let value = match &stmt_ssa.statement {
         // A typed assignment is `set`'s lowering, so it means nothing once
         // the module rebinds `set`.
         Statement::AssignConst { .. }
@@ -1479,21 +1533,27 @@ fn evaluate_def_dispatch<S: std::hash::BuildHasher>(
             ssa,
             driver,
         ),
-        Statement::Call { .. } => driver.evaluate_call(stmt_ssa, values, ssa, &stmt_ssa.uses),
+        Statement::Call { .. } => {
+            return DefValues::PerDef(driver.evaluate_call(stmt_ssa, values, ssa, &stmt_ssa.uses));
+        }
         Statement::Incr {
             name,
             amount,
             amount_braced,
             ..
-        } => driver.evaluate_incr(
-            name,
-            amount.as_deref().map(|text| (text, *amount_braced)),
-            &stmt_ssa.uses,
-            values,
-            ssa,
-        ),
+        } => {
+            return DefValues::PerDef(driver.evaluate_incr(
+                name,
+                amount.as_deref().map(|text| (text, *amount_braced)),
+                &crate::value_transfer::named_defs(stmt_ssa, ssa),
+                &stmt_ssa.uses,
+                values,
+                ssa,
+            ));
+        }
         _ => LatticeValue::Overdefined,
-    }
+    };
+    DefValues::Each(value)
 }
 
 /// Resolve `$var` / `${var}` to a lattice value by looking up the
