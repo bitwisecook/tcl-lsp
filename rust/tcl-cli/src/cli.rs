@@ -807,8 +807,9 @@ pub struct DiagArgs {
 #[derive(Debug, Args)]
 pub struct ReportArgs {
     /// Also list what the policy hides — every suppressed finding with its
-    /// reason, and every code a layer or a top-of-file directive turned
-    /// off — so a missing diagnostic has an answer.
+    /// reason, every code a layer or a top-of-file directive turned off, and
+    /// the optimiser this verb never runs, as one row per reason — so a
+    /// missing diagnostic has an answer.
     #[arg(long = "show-suppressed")]
     pub show_suppressed: bool,
 }

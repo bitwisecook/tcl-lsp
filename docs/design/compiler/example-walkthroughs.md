@@ -4047,9 +4047,9 @@ CompilationUnit (shared)
           → W120, W123 settled against the cross-file index
 ```
 
-Both tiers pass through the same lifts and `finalise_diagnostics`, so `# noqa`,
-`# tcl-lsp: disable=`, disabled codes, tags and severity overrides cannot
-differ between them.
+Both tiers render through the same `lifted_report` — the policy step, then
+`lift_report`, the LSP adapter — so `# noqa`, `# tcl-lsp: disable=`,
+disabled codes, tags and severity overrides cannot differ between them.
 
 ### Suppression with `# noqa`
 
@@ -4061,8 +4061,10 @@ eval $cmd   ;# noqa: *     — suppress ALL warnings on this line
 ```
 
 The suppression map `AnalysisResult::suppressed_lines:
-HashMap<i32, HashSet<String>>` is built during semantic analysis and checked by
-`finalise_diagnostics`, so both tiers see the same suppressions.
+HashMap<i32, HashSet<String>>` is built during semantic analysis and read by
+the policy step (`Directives::from_analysis`, applied by
+`diagnostic_policy::apply`), so both tiers — and the CLI and the MCP tools —
+see the same suppressions.
 `# noqa: *` suppresses all codes; `# noqa: O109` suppresses only the named
 code.
 

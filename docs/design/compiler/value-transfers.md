@@ -2298,13 +2298,14 @@ Three producers move onto the interface in the first slices:
   owner, not a name-dispatch cleanup.
 - The existence constant-branch fact is stored once with its kind
   (proven, selected, applied), as above.
-- `append_brace_expr_perf_hints` in `rust/tcl-lsp-server/src/lib.rs`
-  creates O111 by searching already-lifted diagnostics for W100, so O111's
-  production depends on another diagnostic surviving presentation policy.
-  Both rules consume the same unbraced-expression fact, or the product
-  encodes a shared rule-group policy; the same file's encoding abstention,
-  which uses byte-decode evidence rather than whether W109 is displayed, is
-  the pattern to follow.
+- O111 is a producer over the unbraced-expression fact: `brace_expr_hints`
+  in `rust/tcl-lsp-core/src/diagnostic_report.rs` emits one at the span of
+  every W100 the analyser emitted and reads no policy, so O111's production
+  no longer depends on another diagnostic surviving presentation policy,
+  and the policy step decides the two codes independently — the pattern
+  encoding abstention follows, deciding on byte-decode evidence rather than
+  on whether W109 is displayed ([diagnostic-policy.md](diagnostic-policy.md)
+  § *Producers that change*; built).
 
 Not every predicate needs a globally stored lattice: a rule-specific
 analysis may compute its finding from shared facts, as the interval
@@ -2559,7 +2560,7 @@ unit-level lattice evaluates.
 - `rust/tcl-compiler/src/connection_scope.rs`, `compilation_unit.rs` — `cross_event_defs`, `drop_cross_event_existence_folds`
 - `rust/tcl-compiler/src/compilation_unit.rs`, `compiler_checks.rs` — `FunctionUnit::build`, the diagnostic envelope
 - `rust/tcl-lsp-db/src/lib.rs` — `FnLatticeKey`, `compilation_unit`, `file_token_facts`, `spec_pack_key`
-- `rust/tcl-lsp-server/src/lib.rs` — `append_brace_expr_perf_hints`, the lifts
+- `rust/tcl-lsp-core/src/diagnostic_report.rs` — `brace_expr_hints`, the O111 producer; `rust/tcl-lsp-server/src/lib.rs` — `lifted_report`, the LSP adapter
 - `rust/tcl-compiler/src/analyser/handlers.rs` — the native `Foreach` handler, `switch_body_is_selected`
 - `specs/sdc_base.tclspec` — `foreach_in_collection`
 - `rust/bpf-tcl-ir/src/unroll.rs` — `MAX_UNROLL`

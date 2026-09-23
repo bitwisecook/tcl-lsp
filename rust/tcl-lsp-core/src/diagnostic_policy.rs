@@ -343,6 +343,11 @@ pub enum Reason {
 
 /// Which scope decided a code, lowest first.
 ///
+/// The declaration order is rule 5's precedence order, stated once:
+/// [`PolicyBuilder::build`] resolves the layers by it, whatever order a
+/// surface adds them in. `Editor` and `Invocation` share the slot between
+/// the global file and the project file; no surface adds both.
+///
 /// Distinct from [`crate::config_ini::Layer`], which names the *file role*
 /// of one INI parse (`[global]` versus `[project]`) and has no editor or
 /// invocation spelling to name.
@@ -386,8 +391,8 @@ pub enum OverlapOwner {
 
 /// One spelling for every reason, lower-case and hyphenated with an
 /// optional `:detail` — what the CLI rows, the MCP JSON and the truth table
-/// all render (`docs/design/lanes/diagnostic-policy.md` § Decisions taken,
-/// D23).
+/// all render (`docs/design/compiler/diagnostic-policy.md` § Adapters, the
+/// reason spellings; D23 in `git show c6ae07da`).
 impl core::fmt::Display for Reason {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -444,16 +449,47 @@ fn rewrite_group(finding: &Finding) -> Option<u32> {
     }
 }
 
+/// A producer a surface did not run, and the codes only it emits that the
+/// report explains with one reason — rendered as one row, not one per code
+/// (`docs/design/compiler/diagnostic-policy.md` § Adapters, "What a
+/// diagnostics surface did not run").
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NotRun {
+    /// The producer the surface did not run.
+    pub producer: Producer,
+    /// The policy's reason, the same for every code here.
+    pub reason: Reason,
+    /// The codes, in catalogue order.
+    pub codes: Vec<DiagCode>,
+}
+
+impl NotRun {
+    /// The row's sentence, the same on every rendering: `optimiser not run
+    /// on this surface`.
+    #[must_use]
+    pub fn message(&self) -> String {
+        format!("{} not run on this surface", self.producer.as_str())
+    }
+}
+
+/// One declared skip: the policy's reason for the code's absence and, when
+/// the surface did not run the producer at all, that producer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct DeclaredSkip {
+    reason: Reason,
+    not_run: Option<Producer>,
+}
+
 /// Every finding paired with its outcome, in the producers' order, and the
 /// codes a producer declared it left uncomputed.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Report {
     outcomes: Vec<(Finding, Outcome)>,
-    /// A producer's declared production-time skip, with the policy's reason
-    /// for each code — so a gap where nothing was produced is explained
-    /// rather than read as "clean" (`docs/design/compiler/diagnostic-policy.md`
-    /// § Producers that change).
-    skipped: BTreeMap<DiagCode, Reason>,
+    /// The declared skips, with the policy's reason for each code — so a
+    /// gap where nothing was produced is explained rather than read as
+    /// "clean" (`docs/design/compiler/diagnostic-policy.md` § Producers that
+    /// change).
+    skipped: BTreeMap<DiagCode, DeclaredSkip>,
 }
 
 impl Report {
@@ -470,11 +506,41 @@ impl Report {
     /// `policy` gives for the code's absence ([`Policy::gap_reason`]). A code
     /// the policy would show is not recorded: there is nothing to explain a
     /// skip of it with, and a truth-table row over the producer is what
-    /// catches that mismatch.
+    /// catches that mismatch. A code a producer the surface did not run
+    /// already explains ([`Self::declare_not_run`]) keeps that declaration.
     pub fn declare_skipped(&mut self, codes: impl IntoIterator<Item = DiagCode>, policy: &Policy) {
         for code in codes {
             if let Some(reason) = policy.gap_reason(code) {
-                self.skipped.insert(code, reason);
+                self.skipped.entry(code).or_insert(DeclaredSkip {
+                    reason,
+                    not_run: None,
+                });
+            }
+        }
+    }
+
+    /// Record that the surface did not run `producer`, which alone emits
+    /// `codes`, each with the reason `policy` gives for its absence. Where a
+    /// code is also declared skipped by name ([`Self::declare_skipped`] — a
+    /// layer's `false` or the file directive puts every code in the
+    /// analyser's skip, whichever producer emits it), this declaration
+    /// stands, in either order: the code is absent because its producer
+    /// never ran, and the reason is the policy's either way.
+    pub fn declare_not_run(
+        &mut self,
+        producer: Producer,
+        codes: impl IntoIterator<Item = DiagCode>,
+        policy: &Policy,
+    ) {
+        for code in codes {
+            if let Some(reason) = policy.gap_reason(code) {
+                self.skipped.insert(
+                    code,
+                    DeclaredSkip {
+                        reason,
+                        not_run: Some(producer),
+                    },
+                );
             }
         }
     }
@@ -489,40 +555,77 @@ impl Report {
     }
 
     /// Record that the surface did not run the optimiser: every catalogued
-    /// optimisation code, each with the reason `policy` gives for its
-    /// absence — [`Reason::OptimiserOff`] under a policy whose switch is off,
-    /// unless an earlier step names another, as for every declared skip.
-    /// What the diagnostics verbs and tools declare, which leave the
-    /// rewrites to the rewrite surfaces: an O-code only the optimiser emits
-    /// is then explained rather than read as clean, while one a compiler
-    /// check or the O111 producer emitted keeps its finding — a code with a
-    /// finding is no gap ([`Self::gaps`]).
+    /// optimisation code but [`PRODUCED_WITHOUT_THE_OPTIMISER`], each with
+    /// the reason `policy` gives for its absence — [`Reason::OptimiserOff`]
+    /// under a policy whose switch is off, unless an earlier step names
+    /// another, as for every declared skip. What the diagnostics verbs and
+    /// tools declare, which leave the rewrites to the rewrite surfaces: an
+    /// O-code only the optimiser emits is then explained rather than read as
+    /// clean ([`Self::not_run`]). A code the compiler checks or the O111
+    /// producer emit is not declared: those producers ran, so its absence is
+    /// a clean answer, and a finding of it carries its own reason.
     pub fn declare_optimiser_skip(&mut self, policy: &Policy) {
-        self.declare_skipped(
-            DiagCode::ALL
-                .iter()
-                .copied()
-                .filter(|code| code.is_optimisation()),
+        self.declare_not_run(
+            Producer::Optimiser,
+            DiagCode::ALL.iter().copied().filter(|code| {
+                code.is_optimisation() && !PRODUCED_WITHOUT_THE_OPTIMISER.contains(code)
+            }),
             policy,
         );
     }
 
     /// The declared skips, by code.
     pub fn skipped(&self) -> impl Iterator<Item = (DiagCode, Reason)> + '_ {
-        self.skipped.iter().map(|(code, reason)| (*code, *reason))
+        self.skipped.iter().map(|(code, skip)| (*code, skip.reason))
     }
 
-    /// The declared skips whose code no finding in the report carries: the
-    /// codes the policy turned off for this document that the report cannot
-    /// show as a finding. A declared code some other producer did emit is
-    /// not a gap — its findings carry their own reasons.
+    /// The codes declared skipped by name whose code no finding in the
+    /// report carries: the codes the policy turned off for this document
+    /// that the report cannot show as a finding. A declared code some other
+    /// producer did emit is not a gap — its findings carry their own
+    /// reasons. A code a producer the surface did not run explains is in
+    /// [`Self::not_run`] instead, so every declared code no finding carries
+    /// is in exactly one of the two.
     pub fn gaps(&self) -> impl Iterator<Item = (DiagCode, Reason)> + '_ {
-        self.skipped().filter(|(code, _)| {
-            !self
-                .outcomes
-                .iter()
-                .any(|(finding, _)| finding.code == *code)
-        })
+        self.skipped
+            .iter()
+            .filter(|(code, skip)| skip.not_run.is_none() && !self.carries(**code))
+            .map(|(code, skip)| (*code, skip.reason))
+    }
+
+    /// Every producer the surface declared it did not run, with the codes no
+    /// finding carries, one entry per producer and reason — in the order of
+    /// each entry's first code, its codes in catalogue order.
+    #[must_use]
+    pub fn not_run(&self) -> Vec<NotRun> {
+        let mut rows: Vec<NotRun> = Vec::new();
+        for (code, skip) in &self.skipped {
+            let Some(producer) = skip.not_run else {
+                continue;
+            };
+            if self.carries(*code) {
+                continue;
+            }
+            match rows
+                .iter_mut()
+                .find(|row| row.producer == producer && row.reason == skip.reason)
+            {
+                Some(row) => row.codes.push(*code),
+                None => rows.push(NotRun {
+                    producer,
+                    reason: skip.reason,
+                    codes: vec![*code],
+                }),
+            }
+        }
+        rows
+    }
+
+    /// Whether any finding in the report carries `code`.
+    fn carries(&self, code: DiagCode) -> bool {
+        self.outcomes
+            .iter()
+            .any(|(finding, _)| finding.code == code)
     }
 
     /// The findings that show, with their resolved severity and tag.
@@ -566,25 +669,8 @@ impl Report {
         match self.outcome_for(code, span) {
             Some(Outcome::Suppressed(reason)) => Some(reason),
             Some(Outcome::Shown { .. }) => None,
-            None => self.skipped.get(&code).copied(),
+            None => self.skipped.get(&code).map(|skip| skip.reason),
         }
-    }
-
-    /// `items`, one per finding in the producers' order, kept where the
-    /// finding shows — for a caller that keeps a producer's own record beside
-    /// the converted finding (the optimiser's rewrite record, say) and needs
-    /// the shown subset of those. [`apply`] is order-stable and keeps every
-    /// finding, which is what makes the pairing sound.
-    #[must_use]
-    pub fn shown_items<T>(&self, items: Vec<T>) -> Vec<T> {
-        debug_assert_eq!(items.len(), self.outcomes.len(), "one item per finding");
-        self.outcomes
-            .iter()
-            .zip(items)
-            .filter_map(|((_, outcome), item)| {
-                matches!(outcome, Outcome::Shown { .. }).then_some(item)
-            })
-            .collect()
     }
 
     /// The rewrites a surface may offer or publish as an edit. Ungrouped: a
@@ -641,8 +727,9 @@ impl Report {
 
     /// `items`, one per finding in the producers' order, kept where the
     /// finding shows and, for a grouped rewrite, where its whole group
-    /// shows — the rewrite loop's filter. Like [`Self::shown_items`], sound
-    /// because [`apply`] is order-stable and keeps every finding.
+    /// shows — the rewrite loop's filter, which keeps the optimiser's own
+    /// record beside each converted finding. Sound because [`apply`] is
+    /// order-stable and keeps every finding.
     #[must_use]
     pub fn applicable_items<T>(&self, items: Vec<T>) -> Vec<T> {
         debug_assert_eq!(items.len(), self.outcomes.len(), "one item per finding");
@@ -685,12 +772,6 @@ impl Report {
     /// Every pair, in the producers' order.
     pub fn iter(&self) -> impl Iterator<Item = &(Finding, Outcome)> {
         self.outcomes.iter()
-    }
-
-    /// Every pair, in the producers' order, as a slice.
-    #[must_use]
-    pub fn outcomes(&self) -> &[(Finding, Outcome)] {
-        &self.outcomes
     }
 
     /// How many findings the report holds, shown or not.
@@ -766,6 +847,32 @@ impl OptimiserPolicy {
             disabled: BTreeSet::new(),
         }
     }
+
+    /// The policy the layers resolve: `profile`, the profile in force, with
+    /// the layers' switch (`enabled`, on unless a layer says otherwise) and
+    /// their per-code overrides applied over its disabled set — a `true`
+    /// turns a code back on, a `false` off, anything else leaves the
+    /// profile's choice.
+    fn resolved(
+        profile: OptimisationProfile,
+        enabled: Option<&Value>,
+        overrides: &BTreeMap<DiagCode, Value>,
+    ) -> Self {
+        let mut optimiser = Self::for_profile(profile);
+        optimiser.enabled = enabled.and_then(Value::as_bool).unwrap_or(true);
+        for (code, value) in overrides {
+            match value.as_bool() {
+                Some(true) => {
+                    optimiser.disabled.remove(code);
+                }
+                Some(false) => {
+                    optimiser.disabled.insert(*code);
+                }
+                None => {}
+            }
+        }
+        optimiser
+    }
 }
 
 impl Default for OptimiserPolicy {
@@ -818,6 +925,20 @@ pub const WHOLE_FILE_CODES: &[DiagCode] = &[DiagCode::W107, DiagCode::W109, Diag
 /// modes); W100 and O111 consume the same unbraced-expression fact (§ Producers
 /// that change), so disabling W100 must not take O111's input away.
 pub const FACT_CODES: &[DiagCode] = &[DiagCode::W100];
+
+/// The optimisation codes a producer other than the optimiser emits: the
+/// compiler checks' SCCP (O100) and GVN (O105, O106) findings and the O111
+/// hints ([`crate::diagnostic_report::brace_expr_hints`]). A surface that
+/// runs those producers without the optimiser — `tcl diag`, `tcl lint`, the
+/// MCP diagnostics tools — computed these codes, so it never declares them
+/// among the optimiser's ([`Report::declare_optimiser_skip`]): with no
+/// finding, their absence is a clean answer, not a gap.
+pub const PRODUCED_WITHOUT_THE_OPTIMISER: &[DiagCode] = &[
+    DiagCode::O100,
+    DiagCode::O105,
+    DiagCode::O106,
+    DiagCode::O111,
+];
 
 /// The overlap entries every dialect carries.
 fn base_overlaps() -> Vec<Overlap> {
@@ -1101,7 +1222,7 @@ impl Policy {
     /// or `*`), then [`Self::code_reason`]. An inline directive is keyed by a
     /// line, so it cannot explain a whole code's absence. This is the reason
     /// a producer's declared skip is recorded with
-    /// ([`Report::declare_skipped`]).
+    /// ([`Report::declare_skipped`], [`Report::declare_not_run`]).
     #[must_use]
     pub fn gap_reason(&self, code: DiagCode) -> Option<Reason> {
         self.document_reason(code)
@@ -1161,8 +1282,8 @@ impl Policy {
     }
 }
 
-/// Builds one [`Policy`] from the configuration layers, lowest first, plus
-/// the document facts.
+/// Builds one [`Policy`] from the configuration layers, resolved lowest
+/// first in [`PolicyLayer`]'s order, plus the document facts.
 ///
 /// The layers are taken one at a time rather than merged: only the unmerged
 /// layers can name the layer that decided a code, which is what
@@ -1209,8 +1330,10 @@ impl PolicyBuilder {
     /// Add a configuration layer — the `tclLsp` content shape
     /// [`crate::config_ini::settings_from_ini`] produces and the editor
     /// delivers (a `{"tclLsp": …}` wrapper and flat-dotted
-    /// `tclLsp.<section>.<key>` keys are both read). Call lowest first:
-    /// global, then editor or invocation, then project.
+    /// `tclLsp.<section>.<key>` keys are both read). In any order:
+    /// [`Self::build`] resolves the layers in [`PolicyLayer`]'s order —
+    /// global, then editor or invocation, then project — and two layers of
+    /// one scope in the order they were added.
     #[must_use]
     pub fn layer(mut self, layer: PolicyLayer, settings: &Value) -> Self {
         self.layers.push((layer, settings.clone()));
@@ -1278,9 +1401,11 @@ impl PolicyBuilder {
         self
     }
 
-    /// Resolve the layers into one policy.
+    /// Resolve the layers into one policy, lowest first in
+    /// [`PolicyLayer`]'s order — the one place rule 5's order is applied, so
+    /// no surface's push order can change a decision.
     #[must_use]
-    pub fn build(self) -> Policy {
+    pub fn build(mut self) -> Policy {
         let mut codes: BTreeMap<DiagCode, CodeDecision> = BTreeMap::new();
         let mut severity_overrides: BTreeMap<DiagCode, Severity> = BTreeMap::new();
         let mut optimiser_enabled: Option<Value> = None;
@@ -1289,6 +1414,8 @@ impl PolicyBuilder {
         let mut shimmer: Option<Value> = None;
         let mut reporting: Option<Value> = None;
 
+        // Stable: two layers of one scope keep the order they were added in.
+        self.layers.sort_by_key(|(layer, _)| *layer);
         for (layer, settings) in &self.layers {
             for (key, value) in section_entries(settings, "diagnostics") {
                 let Ok(code) = DiagCode::from_str(&key) else {
@@ -1351,22 +1478,8 @@ impl PolicyBuilder {
                 .and_then(Value::as_str)
                 .map_or(self.default_profile, OptimisationProfile::parse)
         });
-        let mut optimiser = OptimiserPolicy::for_profile(profile);
-        optimiser.enabled = optimiser_enabled
-            .as_ref()
-            .and_then(Value::as_bool)
-            .unwrap_or(true);
-        for (code, value) in &optimiser_overrides {
-            match value.as_bool() {
-                Some(true) => {
-                    optimiser.disabled.remove(code);
-                }
-                Some(false) => {
-                    optimiser.disabled.insert(*code);
-                }
-                None => {}
-            }
-        }
+        let optimiser =
+            OptimiserPolicy::resolved(profile, optimiser_enabled.as_ref(), &optimiser_overrides);
 
         Policy {
             document: DocumentGates {
@@ -1859,6 +1972,64 @@ mod policy_tests {
         );
     }
 
+    /// Rule 5's order lives on [`PolicyLayer`]: a surface that adds the
+    /// project file first resolves exactly as one that adds the layers
+    /// lowest first, every section alike.
+    #[test]
+    fn the_layers_resolve_in_scope_order_whatever_order_they_are_added() {
+        let global = json!({
+            "diagnostics": {"W111": false, "W112": false},
+            "diagnosticSeverity": {"W210": "warning"},
+            "optimiser": {"profile": "full", "O114": false},
+            "shimmer": {"enabled": false},
+        });
+        let editor = json!({
+            "diagnostics": {"W111": true, "W242": true},
+            "diagnosticSeverity": {"W210": "error"},
+            "optimiser": {"enabled": false},
+        });
+        let project = json!({
+            "diagnostics": {"W111": false, "W112": true},
+            "optimiser": {"profile": "readability", "O114": true, "enabled": true},
+            "shimmer": {"enabled": true},
+        });
+        let lowest_first = PolicyBuilder::new()
+            .layer(PolicyLayer::Global, &global)
+            .layer(PolicyLayer::Editor, &editor)
+            .layer(PolicyLayer::Project, &project)
+            .build();
+        let project_first = PolicyBuilder::new()
+            .layer(PolicyLayer::Project, &project)
+            .layer(PolicyLayer::Global, &global)
+            .layer(PolicyLayer::Editor, &editor)
+            .build();
+        assert_eq!(project_first.codes, lowest_first.codes);
+        assert_eq!(
+            project_first.severity_overrides,
+            lowest_first.severity_overrides
+        );
+        assert_eq!(project_first.optimiser, lowest_first.optimiser);
+        assert_eq!(project_first.shimmer, lowest_first.shimmer);
+        assert_eq!(
+            decision(&project_first, DiagCode::W111),
+            Some(CodeDecision {
+                enabled: false,
+                layer: PolicyLayer::Project
+            }),
+            "the project file decides, though it was added first"
+        );
+        assert_eq!(
+            project_first.severity_overrides.get(&DiagCode::W210),
+            Some(&Severity::Error)
+        );
+        assert_eq!(
+            project_first.optimiser.profile,
+            OptimisationProfile::Readability
+        );
+        assert!(project_first.optimiser.enabled);
+        assert!(project_first.shimmer);
+    }
+
     #[test]
     fn the_default_off_seed_is_the_lowest_layer() {
         let policy = PolicyBuilder::new().build();
@@ -2197,7 +2368,7 @@ mod policy_tests {
 
     /// `Directives::hit` restates the bucket rule of the owner's
     /// `line_suppressed` rather than calling it, which needs a single-bucket
-    /// predicate `tcl-compiler` does not offer (§ Decisions taken, D24).
+    /// predicate `tcl-compiler` does not offer (D24 in `git show c6ae07da`).
     /// This keeps the two equal: an inline bucket or the file bucket, holding
     /// `*` or a code, silences a line code where `line_suppressed` says so,
     /// and a whole-file code only where the file bucket does.
@@ -2750,7 +2921,6 @@ mod apply_tests {
         };
         let report = apply(findings(&style), &policy);
         assert_eq!(shown_codes(&report), vec![DiagCode::W118]);
-        assert_eq!(report.shown_items(style.clone()).len(), 1);
 
         let mut file: HashMap<i32, HashSet<String>> = HashMap::new();
         file.insert(
@@ -2992,5 +3162,114 @@ mod apply_tests {
         report.declare_skipped([DiagCode::W210, DiagCode::T100], &policy);
         let gaps: Vec<DiagCode> = report.gaps().map(|(code, _)| code).collect();
         assert_eq!(gaps, vec![DiagCode::W210]);
+    }
+
+    /// The diagnostics surfaces' policy: the optimiser switched off.
+    fn optimiser_off() -> Policy {
+        let mut policy = Policy::default();
+        policy.optimiser.enabled = false;
+        policy
+    }
+
+    /// The optimiser's declared skip names only the codes the optimiser
+    /// alone emits: the compiler checks and the O111 producer ran, so O100,
+    /// O105, O106 and O111 are neither a gap nor in the optimiser's row.
+    #[test]
+    fn the_optimiser_skip_leaves_out_the_codes_other_producers_emit() {
+        let policy = optimiser_off();
+        let mut report = apply(Vec::new(), &policy);
+        report.declare_optimiser_skip(&policy);
+        let rows = report.not_run();
+        assert_eq!(rows.len(), 1, "{rows:?}");
+        assert_eq!(rows[0].producer, Producer::Optimiser);
+        assert_eq!(rows[0].reason, Reason::OptimiserOff);
+        assert_eq!(rows[0].message(), "optimiser not run on this surface");
+        let only_the_optimisers: Vec<DiagCode> = DiagCode::ALL
+            .iter()
+            .copied()
+            .filter(|code| code.is_optimisation() && !PRODUCED_WITHOUT_THE_OPTIMISER.contains(code))
+            .collect();
+        assert_eq!(rows[0].codes, only_the_optimisers);
+        for code in PRODUCED_WITHOUT_THE_OPTIMISER {
+            assert!(code.is_optimisation(), "{code}");
+            assert_eq!(
+                report.reason_for(*code, Span::new(0, 1)),
+                None,
+                "{code} is computed without the optimiser"
+            );
+        }
+        assert_eq!(report.gaps().count(), 0);
+    }
+
+    /// A producer the surface did not run is one row per reason: a code an
+    /// earlier step decides — the file directive here — leaves the switch's
+    /// row for a row of its own, and a code some finding carries is in
+    /// neither.
+    #[test]
+    fn a_producer_not_run_is_one_row_per_reason() {
+        let text = "# tcl-lsp: disable=O120\nputs ok\n";
+        let policy = Policy {
+            directives: Directives::scan(text, tcl9()),
+            ..optimiser_off()
+        };
+        let mut report = apply(
+            vec![finding(
+                DiagCode::O101,
+                Span::new(0, 1),
+                Producer::Optimiser,
+            )],
+            &policy,
+        );
+        report.declare_optimiser_skip(&policy);
+        let rows = report.not_run();
+        let row = |reason: Reason| {
+            rows.iter()
+                .find(|row| row.reason == reason)
+                .unwrap_or_else(|| panic!("no {reason} row: {rows:?}"))
+        };
+        assert_eq!(rows.len(), 2, "{rows:?}");
+        assert_eq!(row(Reason::FileDirective).codes, vec![DiagCode::O120]);
+        let switched = &row(Reason::OptimiserOff).codes;
+        assert!(!switched.contains(&DiagCode::O120), "{switched:?}");
+        assert!(
+            !switched.contains(&DiagCode::O101),
+            "a code a finding carries is no row's: {switched:?}"
+        );
+        assert_eq!(
+            report.reason_for(DiagCode::O120, Span::new(0, 1)),
+            Some(Reason::FileDirective)
+        );
+    }
+
+    /// A code declared both by name (the analyser's skip holds every code
+    /// the file directive names) and as a code of a producer the surface did
+    /// not run is the producer's, whichever is declared first.
+    #[test]
+    fn a_producer_not_run_explains_its_codes_in_either_order() {
+        let text = "# tcl-lsp: disable=O120\nputs ok\n";
+        let policy = Policy {
+            directives: Directives::scan(text, tcl9()),
+            ..optimiser_off()
+        };
+        assert!(policy.analyser_skip().contains(&DiagCode::O120));
+        let mut analyser_first = apply(Vec::new(), &policy);
+        analyser_first.declare_analyser_skip(&policy);
+        analyser_first.declare_optimiser_skip(&policy);
+        let mut optimiser_first = apply(Vec::new(), &policy);
+        optimiser_first.declare_optimiser_skip(&policy);
+        optimiser_first.declare_analyser_skip(&policy);
+        assert_eq!(analyser_first, optimiser_first);
+        assert!(
+            !analyser_first
+                .gaps()
+                .any(|(code, _)| code == DiagCode::O120),
+            "O120 is the optimiser's row's, not a gap of its own"
+        );
+        assert!(
+            analyser_first
+                .not_run()
+                .iter()
+                .any(|row| row.reason == Reason::FileDirective && row.codes == [DiagCode::O120])
+        );
     }
 }

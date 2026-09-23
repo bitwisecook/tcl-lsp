@@ -1574,12 +1574,14 @@ one answer any surface can read, and the pairs keep the producers' order,
 so two surfaces given the same findings and the same policy produce the
 same report. A **gap** is a code the policy turned off, or that the
 surface never ran at all — the diagnostics verbs and tools declare the
-optimiser's codes this way, since they never run it — that no finding in
-the report carries; the report still explains it, rather than leaving it
-to read as clean. Two renderings show a report's hidden half: the
+optimiser this way, since they never run it — that no finding in the
+report carries; the report still explains it, rather than leaving it to
+read as clean. Two renderings show a report's hidden half: the
 `--show-suppressed` flag on `tcl diag` and `tcl lint`, and the
 `suppressed` array on the MCP diagnostic payloads, each listing a
-suppressed finding and a gap with its reason. `Report` in
+suppressed finding and a gap with its reason — a producer the surface
+never ran as one row per reason, its codes listed together
+(`optimiser not run on this surface`). `Report` and `NotRun` in
 `tcl_lsp_core::diagnostic_policy`.
 
 See also: [Diagnostic policy § The outcome](design/compiler/diagnostic-policy.md#the-outcome),

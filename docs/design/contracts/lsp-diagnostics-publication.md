@@ -37,8 +37,12 @@ advertised during `initialize`, and cannot be switched safely by a later
 configuration refresh without a server restart and client reinitialisation.
 
 Whatever the delivery channel, a pull response and a push notification are
-built from the same `finalise_diagnostics` path, so the two cannot disagree
-about tags, severity overrides, or encoding abstention.
+built by the same `lifted_report` — `published_report`, the document's
+report under the policy step, rendered by `lift_report`, the LSP adapter
+([diagnostic-policy.md](../compiler/diagnostic-policy.md) § Adapters) — and
+the deep push and the pull assemble their findings with the same
+`published_findings`, so the two cannot disagree about tags, severity
+overrides, or encoding abstention.
 
 ### Diagnostic tags (issue #1333)
 
@@ -61,18 +65,20 @@ are load-bearing:
   which commands are deprecated is `CommandSpec` / iRules-registry data. So
   marking a newly-deprecated command stays a spec edit and the strikethrough
   follows for free.
-- Tags are attached in `finalise_diagnostics`, the one point every publish
-  path funnels through (fast tier, deep push, pull provider), so the three
-  cannot disagree.
-- **A code outside the table can never be tagged.** `apply_diagnostic_tags`
-  resolves the published `Diagnostic.code` through `DiagCode::from_str` and
-  skips anything it cannot parse, so a family that publishes free strings is
-  silently untaggable — and equally invisible to `is_optimisation`,
-  `refined_by_workspace`, the KCS code-table gates and the per-code settings
-  surface. Every family we publish therefore has rows in `diagnostic_codes!`,
-  including the `XC###` iRule → F5 Distributed Cloud translatability family
-  (section `xc`), whose producer carries a typed `DiagCode` end to end rather
-  than a string (issue #2121).
+- The tag is decided once, by the policy step (`Outcome::Shown::tag`, from
+  `DiagCode::lsp_tag`), and put on the wire by `lift_report`; `lifted_report`
+  is the one call every publish path makes (fast tier, deep push, pull
+  provider, F5 model report), so they cannot disagree.
+- **A code outside the table can never be tagged.** A finding carries a
+  `DiagCode`, and a producer that holds its code as a string converts
+  fallibly (`TryFrom<&ConfigDiagnostic> for Finding`), so a spelling the
+  catalogue lacks never reaches the report — a family that published free
+  strings would be silently untaggable, and equally invisible to
+  `is_optimisation`, `refined_by_workspace`, the KCS code-table gates and the
+  per-code settings surface. Every family we publish therefore has rows in
+  `diagnostic_codes!`, including the `XC###` iRule → F5 Distributed Cloud
+  translatability family (section `xc`), whose producer carries a typed
+  `DiagCode` end to end rather than a string (issue #2121).
 
 `Unnecessary` means "you wrote this and nothing reads it" — `W211`, `W214`,
 `W220`, `O126`. It deliberately does **not** cover `W210` ("read before set")
@@ -119,9 +125,11 @@ one canonical producer belongs to the analyser, so LSP, CLI, and MCP consumers
 receive it automatically. BIG-IP configuration and iApp APL adapters call the
 same pure producer because those formats do not run the Tcl analyser.
 
-When the decode report identifies UTF-16, UTF-32, or binary input,
-`apply_encoding_abstention` drops every diagnostic except the source-integrity
-set. The decision uses the report, not whether W109 was emitted. Disabling W109
+When the decode report identifies UTF-16, UTF-32, or binary input, the
+policy step's abstention (`DocumentGates::abstain`, from `should_abstain`)
+suppresses every finding except the source-integrity set and W305, with the
+reason `encoding-abstention`. The decision uses the report, not whether W109
+was emitted. Disabling W109
 therefore hides the explanation but never re-enables claims about mis-decoded
 content.
 That is a deliberate abstention, not a degradation: findings derived from
@@ -137,9 +145,11 @@ resembles lossy decoding.
 
 ## File-path anchors
 
-- `rust/tcl-lsp-server/src/lib.rs` — `finalise_diagnostics`,
-  `apply_diagnostic_tags`, `apply_encoding_abstention`,
-  `apply_severity_overrides`, the `lift_*_diagnostics` family
+- `rust/tcl-lsp-server/src/lib.rs` — `lifted_report`, `published_report`,
+  `published_findings`, `lift_report`, `lift_span`, `lsp_severity`
+- `rust/tcl-lsp-core/src/diagnostic_policy.rs` — `apply`, `Outcome`,
+  `DocumentGates`: the tag, the severity override and the abstention,
+  decided once for every surface
 - `rust/tcl-core-types/src/diag_code.rs` — the code table, `DiagTag`,
   `DiagCode::lsp_tag`
 - `rust/tcl-lsp-core/src/source_decode.rs` — the byte → text decoding

@@ -51,15 +51,22 @@ struct DiagItem {
     message: String,
 }
 
-/// One `--show-suppressed` entry: a suppressed finding (positioned), or a
+/// One `--show-suppressed` entry: a suppressed finding (positioned), a
 /// declared gap (`null` position, severity and message — the policy turned
-/// the code off before any producer could compute it for this document).
+/// the code off before any producer could compute it for this document), or
+/// a producer the verb did not run (`producer` and `codes` in place of
+/// `code`: one entry per producer and reason, not one per code).
 #[derive(Serialize)]
 struct SuppressedItem {
     line: Option<u32>,
     column: Option<u32>,
     severity: Option<&'static str>,
-    code: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    code: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    producer: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    codes: Option<Vec<String>>,
     message: Option<String>,
     reason: String,
 }
@@ -149,6 +156,21 @@ fn format_gap_line(file: &str, code: &str, reason: &str) -> String {
     format!("{file}: {:<7} {code:<8} [{reason}]", "hidden")
 }
 
+/// Render one not-run row's text — the producer's sentence and how many of
+/// its codes the row explains, in place of a code:
+/// `{file}: hidden<7> -<8> optimiser not run on this surface (27 codes) [reason]`.
+fn format_not_run_line(file: &str, message: &str, codes: usize, reason: &str) -> String {
+    let count = if codes == 1 {
+        "1 code".to_owned()
+    } else {
+        format!("{codes} codes")
+    };
+    format!(
+        "{file}: {:<7} {:<8} {message} ({count}) [{reason}]",
+        "hidden", "-"
+    )
+}
+
 /// One collected diagnostic, pre-resolved to a 1-based line / column.
 struct Row {
     line: u32,
@@ -159,13 +181,17 @@ struct Row {
 }
 
 /// One `--show-suppressed` row: a suppressed finding (positioned, the
-/// producer's own severity and message) or a declared gap (no position,
-/// severity or message).
+/// producer's own severity and message), a declared gap (no position,
+/// severity or message), or a producer the verb did not run (no position or
+/// severity, the producer's sentence as the message, and its codes).
 struct HiddenRow {
     line: Option<u32>,
     column: Option<u32>,
     severity: Option<Severity>,
-    code: String,
+    /// The finding's or the gap's code; `None` for a not-run row.
+    code: Option<String>,
+    /// A not-run row's producer and the codes it explains.
+    not_run: Option<(&'static str, Vec<String>)>,
     message: Option<String>,
     reason: String,
 }
@@ -279,7 +305,10 @@ fn collect_rows(
     // user's code, pointing at positions the file does not have, so the
     // analyser never runs. The report carries what the bytes themselves
     // justify — the integrity codes and W305, the codes the editor's
-    // abstention keeps — under the directives scanned from the text.
+    // abstention keeps — under the directives scanned from the text, and
+    // declares what any document declares: the analyser's skip and the
+    // optimiser, each code with the reason the policy gives —
+    // `encoding-abstention`, the step that fires first.
     if document.abstains_on_encoding() {
         let policy = diag_policy(base.directives(Directives::scan(&document.source, dialect)));
         let doc = DocumentSource {
@@ -289,11 +318,10 @@ fn collect_rows(
             dialect,
             pass: SourcePass::IntegrityOnly,
         };
-        return document_rows_of(
-            &document_report(&doc, Vec::new(), &policy),
-            source,
-            &line_index,
-        );
+        let mut report = document_report(&doc, Vec::new(), &policy);
+        report.declare_analyser_skip(&policy);
+        report.declare_optimiser_skip(&policy);
+        return document_rows_of(&report, source, &line_index);
     }
 
     // The analyser's production-time skip: the codes the policy hides by a
@@ -341,9 +369,9 @@ fn collect_rows(
     };
     let mut report = document_report(&doc, standalone.produced, &policy);
     report.declare_analyser_skip(&policy);
-    // Nor did this verb run the optimiser (`diag_policy`): its codes are
-    // declared too, so `--show-suppressed` says why a rewrite-only code is
-    // absent rather than leaving it to read as clean (D47).
+    // Nor did this verb run the optimiser (`diag_policy`): it is declared
+    // too, so `--show-suppressed` says why a rewrite-only code is absent
+    // rather than leaving it to read as clean (D47).
     report.declare_optimiser_skip(&policy);
     document_rows_of(&report, source, &line_index)
 }
@@ -351,8 +379,9 @@ fn collect_rows(
 /// This verb's policy over `builder`: the optimiser off, because the
 /// rewrites are the `optimise` verb's — every O-code the checks pass emits is
 /// then an `OptimiserOff` suppression in the report rather than a finding
-/// that silently never existed, and every one only the optimiser emits a
-/// declared gap for the same reason (`Report::declare_optimiser_skip`).
+/// that silently never existed, and every one only the optimiser emits is in
+/// the optimiser's not-run row for the same reason
+/// (`Report::declare_optimiser_skip`).
 fn diag_policy(builder: PolicyBuilder) -> Policy {
     let mut policy = builder.build();
     policy.optimiser.enabled = false;
@@ -384,10 +413,13 @@ fn rows_of(report: &Report, source: &str, line_index: &LineIndex) -> Vec<Row> {
 
 /// `--show-suppressed`'s rows: every suppressed finding (the producer's own
 /// severity and message), then every declared gap but the default-off seed
-/// — identical for every file, and would bury the answer
-/// (`docs/design/compiler/diagnostic-policy.md` § Adapters, CLI rows).
-/// Positioned rows sort by `(line, column, code)`; gaps carry no position
-/// and follow them, sorted by code.
+/// — identical for every file, and would bury the answer — then one row per
+/// producer the verb did not run and reason, for the same cause: the
+/// optimiser's codes are the same on every file, so they share a row rather
+/// than taking one each (`docs/design/compiler/diagnostic-policy.md`
+/// § Adapters). Positioned rows sort by `(line, column, code)`; gaps carry
+/// no position and follow them, sorted by code; the not-run rows come last,
+/// in the report's order.
 fn hidden_rows_of(report: &Report, source: &str, line_index: &LineIndex) -> Vec<HiddenRow> {
     let mut rows: Vec<HiddenRow> = report
         .suppressed()
@@ -397,15 +429,14 @@ fn hidden_rows_of(report: &Report, source: &str, line_index: &LineIndex) -> Vec<
                 line: Some(pos.line + 1),
                 column: Some(pos.character.get() + 1),
                 severity: Some(finding.severity),
-                code: finding.code.to_string(),
+                code: Some(finding.code.to_string()),
+                not_run: None,
                 message: Some(finding.message.clone()),
                 reason: reason.to_string(),
             }
         })
         .collect();
-    rows.sort_by(|a, b| {
-        (a.line, a.column, a.code.as_str()).cmp(&(b.line, b.column, b.code.as_str()))
-    });
+    rows.sort_by(|a, b| (a.line, a.column, &a.code).cmp(&(b.line, b.column, &b.code)));
 
     // A checks-emitted code can carry both a suppressed finding above (kept)
     // and a declared skip (`Policy::production_skip` declares every
@@ -418,13 +449,26 @@ fn hidden_rows_of(report: &Report, source: &str, line_index: &LineIndex) -> Vec<
             line: None,
             column: None,
             severity: None,
-            code: code.to_string(),
+            code: Some(code.to_string()),
+            not_run: None,
             message: None,
             reason: reason.to_string(),
         })
         .collect();
     gaps.sort_by(|a, b| a.code.cmp(&b.code));
     rows.extend(gaps);
+    rows.extend(report.not_run().into_iter().map(|row| HiddenRow {
+        line: None,
+        column: None,
+        severity: None,
+        code: None,
+        message: Some(row.message()),
+        reason: row.reason.to_string(),
+        not_run: Some((
+            row.producer.as_str(),
+            row.codes.iter().map(ToString::to_string).collect(),
+        )),
+    }));
     rows
 }
 
@@ -438,12 +482,12 @@ fn document_rows_of(report: &Report, source: &str, line_index: &LineIndex) -> Do
 
 /// One file's rendered text lines: the shown rows interleaved with a
 /// suppressed finding's row in `(line, column, code)` order, then a
-/// declared gap's row (no position) at the end. `hidden` is empty without
-/// `--show-suppressed`, in which case this is exactly the shown rows —
-/// preserving every byte of today's output.
+/// declared gap's row (no position) and a not-run row at the end. `hidden`
+/// is empty without `--show-suppressed`, in which case this is exactly the
+/// shown rows — preserving every byte of today's output.
 fn file_text_lines(file: &str, shown: &[DiagItem], hidden: &[SuppressedItem]) -> Vec<String> {
     let split = hidden.iter().take_while(|h| h.line.is_some()).count();
-    let (positioned, gaps) = hidden.split_at(split);
+    let (positioned, unpositioned) = hidden.split_at(split);
     let mut lines = Vec::with_capacity(shown.len() + hidden.len());
     let (mut si, mut hi) = (0usize, 0usize);
     while si < shown.len() || hi < positioned.len() {
@@ -453,7 +497,7 @@ fn file_text_lines(file: &str, shown: &[DiagItem], hidden: &[SuppressedItem]) ->
                     <= (
                         h.line.expect("positioned"),
                         h.column.expect("positioned"),
-                        h.code.as_str(),
+                        h.code.as_deref().unwrap_or(""),
                     )
             }
             (Some(_), None) => true,
@@ -471,15 +515,23 @@ fn file_text_lines(file: &str, shown: &[DiagItem], hidden: &[SuppressedItem]) ->
                 file,
                 h.line.expect("positioned"),
                 h.column.expect("positioned"),
-                &h.code,
+                h.code.as_deref().unwrap_or(""),
                 h.message.as_deref().unwrap_or(""),
                 &h.reason,
             ));
             hi += 1;
         }
     }
-    for h in gaps {
-        lines.push(format_gap_line(file, &h.code, &h.reason));
+    for h in unpositioned {
+        lines.push(match &h.codes {
+            Some(codes) => format_not_run_line(
+                file,
+                h.message.as_deref().unwrap_or(""),
+                codes.len(),
+                &h.reason,
+            ),
+            None => format_gap_line(file, h.code.as_deref().unwrap_or(""), &h.reason),
+        });
     }
     lines
 }
@@ -525,13 +577,18 @@ pub fn run_diag(input: &InputArgs, diag: &DiagArgs, report: &ReportArgs) -> anyh
             Some(
                 rows.hidden
                     .into_iter()
-                    .map(|h| SuppressedItem {
-                        line: h.line,
-                        column: h.column,
-                        severity: h.severity.map(severity_label),
-                        code: h.code,
-                        message: h.message,
-                        reason: h.reason,
+                    .map(|h| {
+                        let (producer, codes) = h.not_run.unzip();
+                        SuppressedItem {
+                            line: h.line,
+                            column: h.column,
+                            severity: h.severity.map(severity_label),
+                            code: h.code,
+                            producer,
+                            codes,
+                            message: h.message,
+                            reason: h.reason,
+                        }
                     })
                     .collect(),
             )

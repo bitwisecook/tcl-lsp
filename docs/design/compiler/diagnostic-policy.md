@@ -27,8 +27,9 @@ below both of them.
 > `Finding`, `Producer`, `Fix`, `FindingData`, `Severity`, `Outcome`,
 > `Shown`, `Reason`, `PolicyLayer`, `CodeDecision`, `Overlap`,
 > `OverlapOwner`, `OverlapScope`, `OptimiserPolicy`, `DocumentGates`,
-> `Directives`, `Policy`, `PolicyBuilder`, `Report`, `ApplicableRewrite`,
-> `apply`, `FACT_CODES` and `WHOLE_FILE_CODES`; the report functions of
+> `Directives`, `Policy`, `PolicyBuilder`, `Report`, `NotRun`,
+> `ApplicableRewrite`, `apply`, `FACT_CODES`, `WHOLE_FILE_CODES` and
+> `PRODUCED_WITHOUT_THE_OPTIMISER`; the report functions of
 > `tcl_lsp_core::diagnostic_report` — `document_report`,
 > `standalone_findings`, `brace_expr_hints` and `optimise_under_policy`;
 > `tcl_lsp_core::config_ini`; the truth table,
@@ -61,10 +62,12 @@ below both of them.
    No consumer re-scans the text for them.
 5. **One precedence order, stated once.** The five scopes resolve in the
    order the KCS documents — inline, file, project, editor or invocation,
-   global — and the order lives in one place. A surface's flags occupy the
-   editor layer's slot; they do not invent a sixth scope. An optimiser
-   profile a request names is not a scope at all but the request's own
-   parameter (§ Configuration).
+   global — and the order lives in one place: `apply`'s step order for the
+   directives, `PolicyLayer`'s declaration order for the configuration
+   layers, which `PolicyBuilder::build` sorts by whatever order a surface
+   adds them in. A surface's flags occupy the editor layer's slot; they do
+   not invent a sixth scope. An optimiser profile a request names is not a
+   scope at all but the request's own parameter (§ Configuration).
 6. **Adapters render the report and decide nothing.** An adapter maps
    spans, names severities in its own vocabulary, and serialises. It never
    filters, never re-derives a severity, and never infers a fact from
@@ -173,14 +176,18 @@ evidence, dialect and directives. The conversions — `analyser_findings`,
 `bigip_config_findings` and `apl_presentation_findings` — turn each
 producer's output into findings, and `published_findings` assembles the
 analyser's set, the O111 hints, the checks and the rewrites, and the XC
-findings, in the order they publish. `published_report` is the report and
-`lift_report` its LSP adapter; `lifted_report` composes the two, and it is
-the one call the fast push (`publish_fast_tier`), the deep push
+findings over the analysis form, in the order they publish — the one
+assembly the deep push, the pull and the lightbulb share, so a lone-`\r`
+document's XC findings are the same on each. `published_report` is the
+report and `lift_report` its LSP adapter; `lifted_report` composes the two,
+and it is the one call the fast push (`publish_fast_tier`), the deep push
 (`refine_and_lift_diagnostics`), the pull (`analysed_diagnostics_for`) and
 the F5 model report (`f5_model_report`) each make. The lightbulb reads
-`published_report` over the same findings, `tcl-lsp.optimiseDocument` runs
-`optimise_under_policy`, and `tcl-lsp.fixAllSafeIssues` applies the fixes of
-the findings its report shows.
+`published_report` over the same findings — `code_action_report` composes
+`published_findings`, over the uncached checks, with `published_report`
+and decides nothing — `tcl-lsp.optimiseDocument` runs
+`optimise_under_policy`, and `tcl-lsp.fixAllSafeIssues` applies the fixes
+of the findings its report shows.
 
 **tcl-lsp-db** — `rust/tcl-lsp-db/src/lib.rs`: `file_analysis` and
 `file_analysis_incremental` hand the analyser its production skip through
@@ -193,9 +200,11 @@ input file's global and project layers, and `invocation_layer` turns
 `--disable` / `--enable` into the editor slot's layer.
 `rust/tcl-cli/src/commands/diag.rs`: `collect_rows` runs
 `standalone_findings` under the production skip and `document_report` under
-`diag_policy` (the optimiser off), declares what it did not run, and renders
-the report — `rows_of` the shown findings, `--show-suppressed` the hidden
-ones and the gaps. `rust/tcl-cli/src/commands/transform.rs`: `run_opt` runs
+`diag_policy` (the optimiser off), declares what it did not run — on an
+abstaining document too, where only the integrity pass runs — and renders
+the report: `rows_of` the shown findings, `--show-suppressed` the hidden
+ones, the gaps and the not-run rows.
+`rust/tcl-cli/src/commands/transform.rs`: `run_opt` runs
 `optimise_under_policy` over each input as its own program.
 
 **MCP** — `rust/tcl-mcp/src/tools.rs`: `PolicyInputs` resolves the global
@@ -404,15 +413,35 @@ pub enum PolicyLayer {
 /// Every finding with its outcome, in the producers' order, and the codes
 /// a producer declared it left uncomputed, each with the policy's reason.
 pub struct Report { /* … */ }
+
+/// A producer a surface did not run, and the codes only it emits that the
+/// report explains with one reason — one row, not one per code.
+pub struct NotRun {
+    pub producer: Producer,
+    pub reason: Reason,
+    pub codes: Vec<DiagCode>,
+}
 ```
 
 `Report::shown()` and `suppressed()` split the pairs; `outcome_for` and
 `reason_for(code, span)` answer for one finding, and `reason_for` falls
 back to a declared skip when no finding of the code exists. A producer that
 leaves codes uncomputed declares them — `declare_skipped(codes, &policy)`,
-and its two uses `declare_analyser_skip` and `declare_optimiser_skip` — each
-with the reason `Policy::gap_reason` gives, and `gaps()` lists the declared
-codes no finding carries, so a gap is explained rather than read as clean.
+used as `declare_analyser_skip` — each with the reason `Policy::gap_reason`
+gives, and `gaps()` lists the declared codes no finding carries, so a gap
+is explained rather than read as clean. A surface that did not run a
+producer at all declares it — `declare_not_run(producer, codes, &policy)`,
+used as `declare_optimiser_skip` — and `not_run()` groups its codes no
+finding carries into one `NotRun` per producer and reason, whose
+`message()` is the one sentence every rendering uses (`optimiser not run on
+this surface`). A code both declarations name — a layer's `false` or the
+file directive puts every code it names in the analyser's skip, whichever
+producer emits it — is the producer's, in either order: it is absent
+because its producer never ran, and the policy's reason is the same either
+way. The optimiser's declaration leaves out `PRODUCED_WITHOUT_THE_OPTIMISER`
+— O100, O105 and O106 from the compiler checks, O111 from its producer —
+because those producers ran on every surface that declares it: with no
+finding, such a code's absence is a clean answer, not a gap.
 `applicable_rewrites()` and `applicable_items(items)` are the only doors to
 a rewrite: an ungrouped one that shows, or an optimisation group every
 member of which shows, never half a group (#2149). The pairs keep the
@@ -611,10 +640,14 @@ and `[optimiser]` read their `disabled` list and then every per-code key
 `disabled` in the same file, and a higher file can turn back on what a lower
 one turned off (`insert_code_toggles`).
 
-`PolicyBuilder` takes the configuration **layers one at a time, lowest
-first** (`layer(PolicyLayer, &json)`), rather than the merged JSON: only
-the unmerged layers can name the layer that decided a code, which is what
-`Disabled(PolicyLayer)` and the per-code tri-state need. It resolves the
+`PolicyBuilder` takes the configuration **layers one at a time**
+(`layer(PolicyLayer, &json)`), rather than the merged JSON: only the
+unmerged layers can name the layer that decided a code, which is what
+`Disabled(PolicyLayer)` and the per-code tri-state need. A surface may add
+them in any order: `build` stable-sorts them by `PolicyLayer`, whose
+declaration order is the precedence order — global, editor or invocation,
+project — so rule 5's order is stated once, on the type, rather than in
+each surface's call sequence. It resolves the
 per-code decision, the severity overrides, the shimmer switch and the
 optimiser's switch, profile (over `profile_to_disabled`) and per-code
 overrides, with `DEFAULT_OFF_CODES` as the seed and `parse_severity_value`
@@ -712,11 +745,15 @@ the deep tier: tier membership is scheduling (`is_fast_tier`), not policy.
 `shown()`: 1-based line and column from the document's line index, the
 severity label, and the deterministic `(line, column, code)` sort.
 `--show-suppressed` on `tcl diag` and `tcl lint` renders `suppressed()` too,
-one `hidden` row per finding with `[reason]`, and `gaps()` as rows with no
-position — the CLI's answer to "why is this not firing". A default-off gap
-is left out: the seed is the same on every file, and listing it everywhere
-buries the answer. `run_validate` filters on `Severity::Error` over the
-report's shown set, and takes no such flag.
+one `hidden` row per finding with `[reason]`, `gaps()` as rows with no
+position, and `not_run()` as one row per producer and reason — the CLI's
+answer to "why is this not firing". A default-off gap is left out: the seed
+is the same on every file, and listing it everywhere buries the answer. In
+`--json` a gap is `{line, column, severity, code, message, reason}` with
+the position, severity and message `null`, and a not-run row carries
+`producer` and a `codes` array in place of `code`, its sentence as the
+`message`. `run_validate` filters on `Severity::Error` over the report's
+shown set, and takes no such flag.
 
 **MCP JSON** — `rust/tcl-mcp/src/tools.rs`. `analyze`, `validate`,
 `review` and `find-legacy` read `shown()`, keeping their own grouping
@@ -724,22 +761,45 @@ report's shown set, and takes no such flag.
 convertible-code table), which is presentation and stays theirs. Each
 payload carries a `suppressed` array — `{code, range, reason, message}` for
 a hidden finding, `range` and `message` `null` for a gap, a default-off gap
-left out — which `review` and `find-legacy` filter to their own code sets,
-so an agent can see that a finding exists and was suppressed rather than
+left out, and `{producer, codes, range, reason, message}` for a not-run
+row — which `review` and `find-legacy` filter to their own code sets (a
+not-run row keeps the codes that pass, and goes when none does), so an
+agent can see that a finding exists and was suppressed rather than
 concluding the code is clean.
 
 **What a diagnostics surface did not run.** `tcl diag`, `tcl lint` and the
 MCP diagnostics tools run the analyser and the compiler checks with the
 optimiser off, and never run the optimiser itself. The accurate report says
-what did not run: besides the analyser's skip, they declare the optimiser's
-catalogued codes (`Report::declare_optimiser_skip`), so `--show-suppressed`
-and `suppressed` list a code only the optimiser emits as an `optimiser-off`
-gap — or with the earlier reason that decides it, a file directive or a
-layer's `false` — without running the optimiser to say so. A code a
-compiler check or the O111 producer emitted keeps its finding, hidden
-`optimiser-off` at its line (O100, O111). Running the optimiser there would
+what did not run: besides the analyser's skip, they declare the optimiser as
+a producer they did not run (`Report::declare_optimiser_skip`), with the
+codes only it emits — every catalogued optimisation code but
+`PRODUCED_WITHOUT_THE_OPTIMISER`, the O100, O105, O106 and O111 that the
+compiler checks and the O111 producer compute on these surfaces too — each
+with the reason the policy gives: `optimiser-off`, or the earlier reason
+that decides it, the abstention, a file directive or a layer's `false`. A
+code a compiler check or the O111 producer emitted keeps its finding,
+hidden `optimiser-off` at its line (O100, O111); one they did not emit has
+no finding and no gap, since they ran. Running the optimiser there would
 spend work to produce nothing shown, and leaving its codes out would hide a
 true statement.
+
+`--show-suppressed` and `suppressed` render that declaration as **one row
+per producer and reason**, not one per code — in text,
+
+```
+x.tcl: hidden  -        optimiser not run on this surface (27 codes) [optimiser-off]
+```
+
+and in JSON one entry whose `codes` array lists the 27. It is the argument
+that leaves the default-off seed out: the optimiser's codes are the same on
+every file, so a row each would put the same 27 rows under every file and
+bury the answer the flag exists to give. A code an earlier step decides —
+the file directive naming it, a layer's `false` — sits in the optimiser's
+row for that reason, so the reason stays per code even where the rows are
+not. The CLI declares both skips on an abstaining document as well, where
+only the integrity pass runs: a declared code there reads
+`encoding-abstention`, the step that fires first, unless it is one the
+abstention keeps (W107, W109, W305).
 
 **The reason spellings.** One lower-case, hyphenated spelling with an
 optional `:detail`, from `Display for Reason`, on every rendering:
@@ -841,15 +901,18 @@ the adapter crates' tests, which enable the feature from their
 `[dev-dependencies]`, so no shipped build carries it. Each row is a small
 program, the configuration by slot — the global file, the editor slot and
 the project file — and what the editor's report holds for the codes the row
-names: shown, shown at a severity, suppressed for a reason, or absent with
-the report's reason for the gap. The 41 rows cover one case per `Reason`
-variant, the precedence pairs that distinguish two reasons for the same
-finding (an inline directive over a project enable; a project enable over a
-global disable; a directive over the optimiser profile), the `*` wildcard in
-both directive spellings, the `FILE_SUPPRESS_KEY` bucket, a default-off
-code turned back on at each layer, the overlap scopes the table uses
-(`WithinSpan` for W110 over O120, `Document` for the loader over W123), and
-an abstaining document. A new `Reason` variant or `PolicyLayer` that no row
+names: shown, shown at a severity, suppressed for a reason, absent with the
+report's reason for the gap, or absent with nothing to explain (`Absent`:
+every producer of the code ran and found nothing, so no surface may render
+it). The 42 rows cover one case per `Reason` variant, the precedence pairs
+that distinguish two reasons for the same finding (an inline directive over
+a project enable; a project enable over a global disable; a directive over
+the optimiser profile), the `*` wildcard in both directive spellings, the
+`FILE_SUPPRESS_KEY` bucket, a default-off code turned back on at each
+layer, the overlap scopes the table uses (`WithinSpan` for W110 over O120,
+`Document` for the loader over W123), an abstaining document and the gap it
+declares, and the O-codes produced without the optimiser, which no surface
+declares as a gap. A new `Reason` variant or `PolicyLayer` that no row
 covers fails the table's own test.
 
 The expectations are written once, for the editor, and `Row::expected`
@@ -858,10 +921,13 @@ adapter publishes only what shows; a surface's flags occupy the editor
 layer's slot, so `Disabled(Editor)` reads `Disabled(Invocation)`; the
 diagnostics verbs and tools run with the optimiser off, so an O-code they
 have a finding for reads `OptimiserOff` and one only the optimiser emits is
-a declared gap; a default-off gap is not rendered; the CLI analyses no
-abstaining document; and an action is offered, or a rewrite applied,
-exactly when its finding shows. `Row::runs_on` says which surfaces can
-realise a row at all.
+in the optimiser's not-run row for its reason (`NotRun`); a default-off gap
+is not rendered; the CLI analyses no abstaining document, so an abstention
+suppression of a code its producers emit is absent there, while what it
+declares — the analyser's skip, the optimiser — still renders, for the
+abstention; and an action is offered, or a rewrite applied, exactly when
+its finding shows. `Row::runs_on` says which surfaces can realise a row at
+all.
 
 The table lives once and every adapter runs it: the core report in the
 module itself; the LSP adapter, the lightbulb and `optimiseDocument` in
@@ -964,10 +1030,11 @@ so the fix removes the marker; no row records one.
 ## Anchors
 
 - `rust/tcl-lsp-core/src/diagnostic_policy.rs` — `Finding`, `Producer`,
-  `Outcome`, `Reason`, `PolicyLayer`, `Report`, `ApplicableRewrite`,
-  `Policy`, `DocumentGates`, `PolicyBuilder`, `OptimiserPolicy`,
-  `Overlap`, `OverlapOwner`, `OverlapScope`, `Directives`, `apply`,
-  `dialect_overlaps`, `WHOLE_FILE_CODES`, `FACT_CODES`
+  `Outcome`, `Reason`, `PolicyLayer`, `Report`, `NotRun`,
+  `ApplicableRewrite`, `Policy`, `DocumentGates`, `PolicyBuilder`,
+  `OptimiserPolicy`, `Overlap`, `OverlapOwner`, `OverlapScope`,
+  `Directives`, `apply`, `dialect_overlaps`, `WHOLE_FILE_CODES`,
+  `FACT_CODES`, `PRODUCED_WITHOUT_THE_OPTIMISER`
 - `rust/tcl-lsp-core/src/diagnostic_policy/truth_table.rs` — `Row`,
   `ROWS`, `Surface`, `Want`, `Expect`, `Defect`, `check`, `offered`,
   `core_report`
@@ -992,7 +1059,8 @@ so the fix removes the marker; no row records one.
 - `rust/tcl-lsp-core/src/tcl_install.rs` — `user_config_path`,
   `project_config_path`, `PROJECT_CONFIG_FILENAME`
 - `rust/tcl-lsp-server/src/lib.rs` — `PolicyLayers`, `document_policy`,
-  `lifted_report`, `published_report`, `published_findings`, `lift_report`,
+  `lifted_report`, `published_report`, `published_findings`,
+  `code_action_report`, `lift_report`,
   `analyser_findings`, `compiler_findings`, `xc_findings`,
   `model_findings`, `bigip_config_findings`, `apl_presentation_findings`,
   `apply_session_layers`, `resolved_policy_layers`, `publish_fast_tier`,
@@ -1008,7 +1076,7 @@ so the fix removes the marker; no row records one.
 - `rust/tcl-cli/src/commands/policy.rs` — `ConfigLayers`,
   `invocation_layer`
 - `rust/tcl-cli/src/commands/diag.rs` — `collect_rows`, `rows_of`,
-  `diag_policy`
+  `hidden_rows_of`, `diag_policy`
 - `rust/tcl-cli/src/commands/transform.rs` — `run_opt`
 - `rust/tcl-cli-support/src/input.rs` — `InputDocument`,
   `analysis_source`, `abstains_on_encoding`, `combine_sources`,

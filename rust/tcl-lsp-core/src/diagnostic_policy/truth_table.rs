@@ -26,9 +26,10 @@
 //! gives for the gap. The expectations are written once, for the editor
 //! ([`Surface::Core`]); [`Row::expected`] derives every other surface's by
 //! the rules the page states, so one set of hand-checked expectations gates
-//! them all (`docs/design/lanes/diagnostic-policy.md` § Decisions taken,
-//! D30). [`Row::runs_on`] says which surfaces can realise a row at all, and
-//! [`check`] compares what a surface rendered with what it should have.
+//! them all. [`Row::runs_on`] says which surfaces can realise a row at all,
+//! and [`check`] compares what a surface rendered with what it should have.
+//! A D-number here is a decision recorded in the landing commit's message
+//! (`git show c6ae07da`): this one is D30.
 //!
 //! A row's program is a means: when a producer stops emitting a subject code
 //! where a row says, the program or the line changes, never the wanted
@@ -51,7 +52,8 @@ use tcl_compiler::optimiser::profiles::OptimisationProfile;
 use tcl_core_types::{DiagCode, Severity};
 
 use super::{
-    Directives, Finding, OverlapOwner, PolicyBuilder, PolicyLayer, Producer, Reason, Report,
+    Directives, Finding, OverlapOwner, PRODUCED_WITHOUT_THE_OPTIMISER, PolicyBuilder, PolicyLayer,
+    Producer, Reason, Report,
 };
 use crate::diagnostic_report::{
     DocumentSource, SourcePass, StandaloneDocument, document_report, standalone_findings,
@@ -70,6 +72,16 @@ pub enum Want {
     Suppressed(Reason),
     /// No finding at all; the report explains the code with this reason.
     Gap(Reason),
+    /// Neither a finding nor a gap: the report says nothing of the code,
+    /// because every producer that emits it ran and found nothing. Renders
+    /// nothing on any surface — and, being named, forbids any rendering of
+    /// the code there.
+    Absent,
+    /// No finding: the surface did not run the producer, which alone emits
+    /// the code, and renders the code in that producer's one row for this
+    /// reason ([`crate::diagnostic_policy::Report::not_run`]). Derived by
+    /// [`Row::expected`] for a diagnostics surface; a row never writes it.
+    NotRun(Producer, Reason),
     /// The finding's fix is offered as a code action, or is not. Derived by
     /// [`Row::expected`] for an action surface; a row never writes it.
     Offered(bool),
@@ -85,12 +97,13 @@ impl Want {
     }
 }
 
-/// One expectation. `line` is 1-based, as a reader counts; a `Gap` has none.
+/// One expectation. `line` is 1-based, as a reader counts; a `Gap`, an
+/// `Absent` code and a `NotRun` code have none.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Expect {
     /// The code.
     pub code: DiagCode,
-    /// The 1-based line of the finding; `None` for a gap.
+    /// The 1-based line of the finding; `None` for no finding.
     pub line: Option<u32>,
     /// What the report holds for it.
     pub want: Want,
@@ -200,7 +213,8 @@ impl Row {
     }
 
     /// The wanted expectations as `surface` renders them (a [`Defect`]'s
-    /// `today` renders by the same rules).
+    /// `today` renders by the same rules). An [`Want::Absent`] code renders
+    /// nothing anywhere.
     ///
     /// - `Lsp`: what shows stays; a suppressed finding or a gap is no
     ///   published diagnostic of the code — the adapter publishes only what
@@ -211,12 +225,19 @@ impl Row {
     ///   diagnostics verbs and tools run with the optimiser off, the first
     ///   family gate, while steps 1 to 4 fire before it and keep their
     ///   reasons. An O-code only the optimiser emits has no finding there
-    ///   at all: the surface declares the optimiser's codes, so it renders
-    ///   as a gap, `OptimiserOff` unless a file directive or a layer's
-    ///   decision fired first (D47). A default-off gap is not rendered
-    ///   (D21). `Cli` alone: an abstention suppression is absent, because
-    ///   the CLI does not analyse an abstaining document — the integrity
-    ///   pass alone runs.
+    ///   at all: the surface declares the optimiser a producer it did not
+    ///   run, so the code renders in the optimiser's row for its reason
+    ///   ([`Want::NotRun`]) — `OptimiserOff` unless abstention, a file
+    ///   directive or a layer's decision fired first (D47; one row per
+    ///   producer and reason rather than one per code). A code the compiler
+    ///   checks or the O111 producer emit is no gap there
+    ///   ([`PRODUCED_WITHOUT_THE_OPTIMISER`]). A default-off gap is not
+    ///   rendered (D21). `Cli` alone: an abstention suppression of a code
+    ///   the CLI's producers emit is absent, because the CLI does not
+    ///   analyse an abstaining document — the integrity pass alone runs —
+    ///   though it still declares the analyser's skip and the optimiser, so
+    ///   an abstention gap renders, and an optimiser-only code sits in the
+    ///   optimiser's row for the abstention.
     /// - `LspActions`, `McpActions`: each actionable subject is
     ///   [`Want::Offered`], true exactly when it shows. Code actions run
     ///   with the optimiser on, so the `Mcp` rule's O-code gate does not
@@ -384,6 +405,9 @@ fn scalar(value: &Value) -> String {
 /// One expectation as `surface` renders it; `None` when the surface renders
 /// nothing for it ([`Row::expected`] states the rules).
 fn rendered(expect: Expect, surface: Surface) -> Option<Expect> {
+    if expect.want == Want::Absent {
+        return None;
+    }
     let want = match surface {
         Surface::Core => expect.want,
         Surface::Lsp => {
@@ -409,17 +433,6 @@ fn rendered(expect: Expect, surface: Surface) -> Option<Expect> {
     Some(Expect { want, ..expect })
 }
 
-/// The O-codes the diagnostics verbs and tools have findings for without
-/// running the optimiser: the O111 hints and the compiler checks' SCCP
-/// (O100) and GVN (O105, O106) codes. Every other O-code is the optimiser's
-/// alone, and those surfaces declare it as a gap instead (D47).
-const PRODUCED_WITHOUT_THE_OPTIMISER: &[DiagCode] = &[
-    DiagCode::O100,
-    DiagCode::O105,
-    DiagCode::O106,
-    DiagCode::O111,
-];
-
 /// What a diagnostics verb or tool renders for `expect`.
 fn batch_rendered(expect: Expect, cli: bool) -> Option<Expect> {
     let invocation = |reason: Reason| match reason {
@@ -431,15 +444,19 @@ fn batch_rendered(expect: Expect, cli: bool) -> Option<Expect> {
         want: Want::Gap(reason),
         ..expect
     };
+    let not_run = |reason: Reason| Expect {
+        line: None,
+        want: Want::NotRun(Producer::Optimiser, reason),
+        ..expect
+    };
     let at = |want: Want| Expect { want, ..expect };
     let optimiser_only =
         expect.code.is_optimisation() && !PRODUCED_WITHOUT_THE_OPTIMISER.contains(&expect.code);
     Some(match expect.want {
         Want::Gap(Reason::DefaultOff) => return None,
-        Want::Suppressed(Reason::EncodingAbstention) if cli => return None,
-        // No finding: the declared gap carries the first reason that needs
-        // no line — the switch, unless a file directive or a layer's
-        // decision fired before it.
+        // No finding: the optimiser's row carries the first reason that
+        // needs no line — the switch, unless abstention, a file directive or
+        // a layer's decision fired before it.
         Want::Shown
         | Want::ShownAt(_)
         | Want::Suppressed(
@@ -447,8 +464,11 @@ fn batch_rendered(expect: Expect, cli: bool) -> Option<Expect> {
             | Reason::OptimiserProfile { .. }
             | Reason::Overlap { .. }
             | Reason::InlineDirective { .. },
-        ) if optimiser_only => gap(Reason::OptimiserOff),
-        Want::Suppressed(reason) | Want::Gap(reason) if optimiser_only => gap(invocation(reason)),
+        ) if optimiser_only => not_run(Reason::OptimiserOff),
+        Want::Suppressed(reason) | Want::Gap(reason) if optimiser_only => {
+            not_run(invocation(reason))
+        }
+        Want::Suppressed(Reason::EncodingAbstention) if cli => return None,
         Want::Shown
         | Want::ShownAt(_)
         | Want::Suppressed(Reason::OptimiserProfile { .. } | Reason::Overlap { .. })
@@ -478,7 +498,7 @@ pub struct SlotFlags {
 pub struct Observed {
     /// The code.
     pub code: DiagCode,
-    /// The 1-based line; `None` for a gap.
+    /// The 1-based line; `None` for a gap or a code in a not-run row.
     pub line: Option<u32>,
     /// What the surface rendered.
     pub state: ObservedState,
@@ -489,8 +509,17 @@ pub struct Observed {
 pub enum ObservedState {
     /// Shown, at this severity when the surface renders one.
     Shown(Option<Severity>),
-    /// Hidden, with the reason's spelling (`Reason`'s `Display`).
+    /// Hidden, with the reason's spelling (`Reason`'s `Display`) — a
+    /// suppressed finding, or a gap.
     Suppressed(String),
+    /// One of the codes of a not-run row: the producer's spelling
+    /// (`Producer::as_str`) and the row's reason's.
+    NotRun {
+        /// The producer the surface did not run.
+        producer: String,
+        /// The row's reason, as `Reason`'s `Display` spells it.
+        reason: String,
+    },
     /// Whether the finding's fix was offered as an action.
     Offered(bool),
     /// Whether the finding's rewrite was applied.
@@ -627,6 +656,13 @@ fn satisfies(expect: Expect, observed: &Observed) -> bool {
         (Want::Suppressed(reason) | Want::Gap(reason), ObservedState::Suppressed(got)) => {
             reason.to_string() == *got
         }
+        (
+            Want::NotRun(producer, reason),
+            ObservedState::NotRun {
+                producer: got_producer,
+                reason: got_reason,
+            },
+        ) => producer.as_str() == got_producer && reason.to_string() == *got_reason,
         (Want::Offered(want), ObservedState::Offered(got))
         | (Want::Applied(want), ObservedState::Applied(got)) => want == *got,
         _ => false,
@@ -758,6 +794,15 @@ const fn gap(code: DiagCode, reason: Reason) -> Expect {
     }
 }
 
+/// Neither a finding nor a gap of `code`.
+const fn absent(code: DiagCode) -> Expect {
+    Expect {
+        code,
+        line: None,
+        want: Want::Absent,
+    }
+}
+
 /// Suppressed by an inline `# noqa`, keyed by the finding's 0-based line.
 const fn inline(line: i32) -> Want {
     Want::Suppressed(Reason::InlineDirective { line })
@@ -770,8 +815,9 @@ const fn hidden(reason: Reason) -> Want {
 
 const DISABLED_EDITOR: Reason = Reason::Disabled(PolicyLayer::Editor);
 
-/// The rows, numbered as `docs/design/lanes/diagnostic-policy.md` § DP9.4
-/// numbers them.
+/// The rows, numbered from 1 in this order — the numbers the section
+/// comments below and `docs/design/compiler/diagnostic-policy.md` § The
+/// truth table use.
 pub const ROWS: &[Row] = &[
     // 1–2: the document-wide gates.
     Row {
@@ -796,7 +842,8 @@ pub const ROWS: &[Row] = &[
             ],
         )
     },
-    // 3–4: an abstaining document.
+    // 3–4: an abstaining document. Its declared skip — the default-off
+    // seed here — reads the abstention, the step that fires first.
     Row {
         bytes: Some(BOM),
         exhaustive: true,
@@ -807,6 +854,7 @@ pub const ROWS: &[Row] = &[
                 at(DiagCode::W109, 1, Want::Shown),
                 at(DiagCode::W112, 1, hidden(Reason::EncodingAbstention)),
                 at(DiagCode::W210, 2, hidden(Reason::EncodingAbstention)),
+                gap(DiagCode::W242, Reason::EncodingAbstention),
             ],
         )
     },
@@ -1078,7 +1126,7 @@ pub const ROWS: &[Row] = &[
     },
     // 36–38: the overlap table.
     row(
-        "a_same_span_overlap",
+        "a_within_span_overlap",
         STREQ,
         &[
             at(DiagCode::W110, 2, Want::Shown),
@@ -1150,6 +1198,20 @@ pub const ROWS: &[Row] = &[
             ],
         )
     },
+    // 42: an O-code a producer other than the optimiser emits, where it
+    // found nothing — no finding, and no gap on a surface without the
+    // optimiser either, since the producer ran.
+    row(
+        "a_code_produced_without_the_optimiser_is_no_gap",
+        UNSET,
+        &[
+            at(DiagCode::W210, 1, Want::Shown),
+            absent(DiagCode::O100),
+            absent(DiagCode::O105),
+            absent(DiagCode::O106),
+            absent(DiagCode::O111),
+        ],
+    ),
 ];
 
 #[cfg(test)]
@@ -1178,6 +1240,16 @@ mod tests {
             line: None,
             state: ObservedState::Suppressed(reason.to_string()),
         }));
+        for row in report.not_run() {
+            observed.extend(row.codes.iter().map(|&code| Observed {
+                code,
+                line: None,
+                state: ObservedState::NotRun {
+                    producer: row.producer.as_str().to_owned(),
+                    reason: row.reason.to_string(),
+                },
+            }));
+        }
         observed
     }
 
@@ -1275,7 +1347,7 @@ mod tests {
         let mut reasons: BTreeSet<&str> = BTreeSet::new();
         let mut layers: BTreeSet<&str> = BTreeSet::new();
         let mut note = |want: Want| {
-            if let Want::Suppressed(reason) | Want::Gap(reason) = want {
+            if let Want::Suppressed(reason) | Want::Gap(reason) | Want::NotRun(_, reason) = want {
                 reasons.insert(kind(reason));
                 if let Reason::Disabled(layer) = reason {
                     layers.insert(layer_kind(layer));
@@ -1320,10 +1392,11 @@ mod tests {
                 row.name
             );
         }
-        assert_eq!(ROWS.len(), 41);
+        assert_eq!(ROWS.len(), 42);
     }
 
-    /// The surfaces each row runs on, as § DP9.4's table lists them.
+    /// The surfaces each row runs on, one entry per row in [`ROWS`]'s order,
+    /// stated by hand against what [`Row::runs_on`] computes.
     #[test]
     fn the_surfaces_each_row_runs_on() {
         use Surface::{
@@ -1374,6 +1447,7 @@ mod tests {
             &[Core, Lsp, LspActions, Cli, Mcp, McpActions],
             &[Core, Lsp, LspActions, Cli, Mcp, McpActions],
             &[Core, Lsp, LspActions, Cli, Mcp, McpActions],
+            &[Core, Lsp, Cli, Mcp],
         ];
         assert_eq!(listed.len(), ROWS.len());
         for (row, surfaces) in ROWS.iter().zip(listed) {
@@ -1398,11 +1472,16 @@ mod tests {
         assert!(disabled.expected(Surface::Lsp).is_empty());
 
         let overlap = &ROWS[35];
-        assert_eq!(overlap.name, "a_same_span_overlap");
+        assert_eq!(overlap.name, "a_within_span_overlap");
         assert_eq!(
             overlap.expected(Surface::Mcp)[1],
-            gap(DiagCode::O120, Reason::OptimiserOff),
-            "the diagnostics tools declare what the optimiser alone emits (D47)"
+            Expect {
+                code: DiagCode::O120,
+                line: None,
+                want: Want::NotRun(Producer::Optimiser, Reason::OptimiserOff),
+            },
+            "the diagnostics tools declare the optimiser they did not run, in \
+             its one row (D47)"
         );
         let hint = &ROWS[38];
         assert_eq!(hint.name, "o111_survives_a_disabled_w100");
@@ -1411,6 +1490,22 @@ mod tests {
             at(DiagCode::O111, 2, hidden(Reason::OptimiserOff)),
             "a hint the O111 producer emits keeps its finding, with the optimiser off"
         );
+        let no_gap = &ROWS[41];
+        assert_eq!(
+            no_gap.name,
+            "a_code_produced_without_the_optimiser_is_no_gap"
+        );
+        for surface in [Surface::Core, Surface::Lsp, Surface::Cli, Surface::Mcp] {
+            assert_eq!(
+                no_gap
+                    .expected(surface)
+                    .iter()
+                    .map(|expect| expect.code)
+                    .collect::<Vec<_>>(),
+                vec![DiagCode::W210],
+                "an absent code renders nothing on {surface:?}"
+            );
+        }
 
         let default_off = &ROWS[18];
         assert_eq!(default_off.name, "default_off");
@@ -1421,10 +1516,29 @@ mod tests {
             abstaining
                 .expected(Surface::Cli)
                 .iter()
-                .map(|expect| expect.code)
+                .map(|expect| (expect.code, expect.want))
                 .collect::<Vec<_>>(),
-            vec![DiagCode::W109],
-            "the CLI analyses no abstaining document"
+            vec![
+                (DiagCode::W109, Want::Shown),
+                (DiagCode::W242, Want::Gap(Reason::EncodingAbstention)),
+            ],
+            "the CLI analyses no abstaining document, and declares the \
+             analyser's skip it did not compute"
+        );
+        let abstained = |code: DiagCode| at(code, 2, hidden(Reason::EncodingAbstention));
+        assert_eq!(
+            rendered(abstained(DiagCode::O101), Surface::Cli),
+            Some(Expect {
+                code: DiagCode::O101,
+                line: None,
+                want: Want::NotRun(Producer::Optimiser, Reason::EncodingAbstention),
+            }),
+            "an abstaining document still declares the optimiser"
+        );
+        assert_eq!(
+            rendered(abstained(DiagCode::O100), Surface::Cli),
+            None,
+            "the CLI runs no check over an abstaining document"
         );
 
         let fold = &ROWS[29];

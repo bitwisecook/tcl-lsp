@@ -798,15 +798,12 @@ fn style_orchestrator_merges_checks_and_policy_hides_a_disabled_code() {
         )
         .build();
     let report = apply(findings, &policy);
-    let filtered = report.shown_items(all);
-    assert!(
-        filtered.iter().all(|d| d.code.as_str() != "W112"),
-        "{filtered:?}"
-    );
-    assert!(
-        filtered.iter().any(|d| d.code.as_str() == "W111"),
-        "W111 still fires"
-    );
+    let shown: Vec<&str> = report
+        .shown()
+        .map(|shown| shown.finding.code.as_str())
+        .collect();
+    assert!(!shown.contains(&"W112"), "{shown:?}");
+    assert!(shown.contains(&"W111"), "W111 still fires: {shown:?}");
 }
 
 #[test]
@@ -834,14 +831,14 @@ fn style_orchestrator_honours_line_suppression_for_line_codes() {
         ..Policy::default()
     };
     let report = apply(findings, &policy);
-    let diags = report.shown_items(all);
+    let shown: Vec<&str> = report
+        .shown()
+        .map(|shown| shown.finding.code.as_str())
+        .collect();
+    assert!(!shown.contains(&"W112"), "line W112 suppressed: {shown:?}");
     assert!(
-        diags.iter().all(|d| d.code.as_str() != "W112"),
-        "line W112 suppressed: {diags:?}"
-    );
-    assert!(
-        diags.iter().any(|d| d.code.as_str() == "W118"),
-        "file-level W118 not line-suppressed: {diags:?}"
+        shown.contains(&"W118"),
+        "file-level W118 not line-suppressed: {shown:?}"
     );
 }
 

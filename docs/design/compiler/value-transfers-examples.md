@@ -296,18 +296,18 @@ pair above is a fixed regression.
 
 ```tcl
 set x 1
-set y [expr $x + 1]        ;# today: W100; O111 is never emitted by the CLI
+set y [expr $x + 1]        ;# W100, and O111 at the same span
 ```
 
-O111 is produced in the language server from the already-lifted W100
-(`append_brace_expr_perf_hints`), so it depends on W100 surviving
-presentation, and it reads the optimiser's own enablement to decide
-whether to run. Under the contracts O111 is a producer over the
-unbraced-expression fact, emitting at the same span for every unbraced
-expression, and policy decides the two codes independently: disabling
-W100 does not silence O111 — the rule
+O111 is a producer over the unbraced-expression fact:
+`brace_expr_hints` (`rust/tcl-lsp-core/src/diagnostic_report.rs`) emits one
+at the span of every W100 the analyser emitted and reads no policy, so it
+no longer depends on W100 surviving presentation, and policy decides the
+two codes independently: disabling W100 does not silence O111 — the rule
 [diagnostic-policy.md](diagnostic-policy.md) § *Producers that change*
-states.
+states. `tcl diag` runs the producer too and, keeping the optimiser off,
+holds its O111 as an `optimiser-off` suppression, which
+`--show-suppressed` lists.
 
 ### O112 · eliminate constant-condition compounds
 

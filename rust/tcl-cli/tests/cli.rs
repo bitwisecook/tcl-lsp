@@ -1339,7 +1339,7 @@ const UNPROVABLE_LOOP: &str = "set i 0\nwhile {$i < 3} {\n    puts $i\n}\n";
 
 /// An abstaining document keeps the codes its bytes justify — the integrity
 /// code and a bidirectional control, W305, which reads the decoded text as
-/// text — as the editor's abstention does (§ Decisions taken, D10). A UTF-16
+/// text — as the editor's abstention does (D10 in `git show c6ae07da`). A UTF-16
 /// byte-order mark ahead of UTF-8 text is what abstains here; the tail
 /// decodes losslessly, so the override it carries is still there to find.
 #[test]
@@ -1618,12 +1618,13 @@ fn diag_show_suppressed_lists_a_disabled_analyser_code_as_a_gap() {
         "--source",
         "puts $y",
     ]));
-    // The optimiser's codes are gaps on every document (D47); the rest is
-    // the one code the invocation turned off.
-    let rows: Vec<&serde_json::Value> = rows
-        .iter()
-        .filter(|r| r["reason"] != "optimiser-off")
-        .collect();
+    // The optimiser, which `diag` never runs, is one row on every document
+    // (D47); the rest is the one code the invocation turned off.
+    let (not_run, rows): (Vec<&serde_json::Value>, Vec<&serde_json::Value>) =
+        rows.iter().partition(|r| r.get("codes").is_some());
+    assert_eq!(not_run.len(), 1, "{not_run:?}");
+    assert_eq!(not_run[0]["producer"], "optimiser", "{not_run:?}");
+    assert_eq!(not_run[0]["reason"], "optimiser-off", "{not_run:?}");
     assert_eq!(rows.len(), 1, "{rows:?}");
     assert_eq!(rows[0]["line"], serde_json::Value::Null, "{rows:?}");
     assert_eq!(rows[0]["code"], "W210", "{rows:?}");
@@ -1632,6 +1633,123 @@ fn diag_show_suppressed_lists_a_disabled_analyser_code_as_a_gap() {
         !rows.iter().any(|r| r["code"] == "W242"),
         "the default-off seed is not listed as a gap: {rows:?}"
     );
+}
+
+/// The codes only the optimiser emits, which `tcl diag` declares as the one
+/// producer it did not run: every catalogued optimisation code but those
+/// the compiler checks and the O111 producer emit.
+fn codes_only_the_optimiser_emits() -> Vec<String> {
+    use tcl_compiler::compiler_checks::DiagCode;
+    use tcl_lsp_core::diagnostic_policy::PRODUCED_WITHOUT_THE_OPTIMISER;
+    DiagCode::ALL
+        .iter()
+        .filter(|code| code.is_optimisation() && !PRODUCED_WITHOUT_THE_OPTIMISER.contains(*code))
+        .map(ToString::to_string)
+        .collect()
+}
+
+/// The optimiser `diag` never runs is one `--show-suppressed` row per reason,
+/// not one per code (`docs/design/compiler/diagnostic-policy.md` § Adapters):
+/// the text row counts the codes, the JSON entry lists them, and a code the
+/// compiler checks or the O111 producer emit is in neither, since those
+/// producers ran.
+#[test]
+fn diag_show_suppressed_collapses_the_optimiser_into_one_row() {
+    let only_the_optimisers = codes_only_the_optimiser_emits();
+    let rows = diag_suppressed_rows(&run_tcl_allow_failure(&[
+        "diag",
+        "--show-suppressed",
+        "--json",
+        "--source",
+        "set x 1   \nputs $y\n",
+    ]));
+    let not_run: Vec<&serde_json::Value> =
+        rows.iter().filter(|r| r.get("codes").is_some()).collect();
+    assert_eq!(not_run.len(), 1, "{rows:?}");
+    let row = not_run[0];
+    assert_eq!(row["producer"], "optimiser", "{row}");
+    assert_eq!(row["reason"], "optimiser-off", "{row}");
+    assert_eq!(row["message"], "optimiser not run on this surface", "{row}");
+    assert_eq!(row["line"], serde_json::Value::Null, "{row}");
+    assert!(row.get("code").is_none(), "{row}");
+    assert_eq!(
+        row["codes"],
+        serde_json::json!(only_the_optimisers),
+        "{row}"
+    );
+    for code in ["O100", "O105", "O106", "O111"] {
+        assert!(
+            !rows.iter().any(|r| r["code"] == code),
+            "{code} is computed without the optimiser, so it is no gap: {rows:?}"
+        );
+    }
+
+    let output = tcl()
+        .args([
+            "diag",
+            "--show-suppressed",
+            "--source",
+            "set x 1   \nputs $y\n",
+        ])
+        .output()
+        .expect("failed to spawn tcl binary");
+    let rendered = String::from_utf8(output.stdout).expect("utf-8 output");
+    let sentence = format!(
+        "optimiser not run on this surface ({} codes) [optimiser-off]",
+        only_the_optimisers.len()
+    );
+    assert_eq!(
+        rendered
+            .lines()
+            .filter(|line| line.contains(&sentence))
+            .count(),
+        1,
+        "{rendered}"
+    );
+    assert_eq!(
+        rendered.matches("[optimiser-off]").count(),
+        1,
+        "no per-code optimiser row: {rendered}"
+    );
+}
+
+/// An abstaining document declares what `tcl diag` did not run, as any
+/// document does: the analyser's skip and the optimiser, each for the
+/// reason the policy gives — the abstention, the step that fires first. A
+/// UTF-16 byte-order mark ahead of UTF-8 text is what abstains here.
+#[test]
+fn diag_show_suppressed_declares_what_an_abstaining_document_did_not_run() {
+    let scratch = Scratch::new("abstain-declared");
+    let bom = scratch.write_bytes("bom.tcl", b"\xFF\xFEset x 1   \nputs $y\n");
+    let path = bom.to_str().expect("utf-8 path");
+
+    let output = tcl()
+        .args(["diag", "--show-suppressed", "--json", path])
+        .output()
+        .expect("failed to spawn tcl binary");
+    let codes: Vec<String> = diag_codes_by_file(&output.stdout)
+        .into_iter()
+        .map(|(_, code)| code)
+        .collect();
+    assert_eq!(codes, ["W109"], "the integrity code alone shows");
+    let rows = diag_suppressed_rows(&output.stdout);
+    let w242 = rows
+        .iter()
+        .find(|r| r["code"] == "W242")
+        .unwrap_or_else(|| panic!("the analyser's declared skip: {rows:?}"));
+    assert_eq!(w242["reason"], "encoding-abstention", "{w242}");
+    let not_run: Vec<&serde_json::Value> =
+        rows.iter().filter(|r| r.get("codes").is_some()).collect();
+    assert_eq!(not_run.len(), 1, "{rows:?}");
+    assert_eq!(not_run[0]["producer"], "optimiser", "{rows:?}");
+    assert_eq!(not_run[0]["reason"], "encoding-abstention", "{rows:?}");
+    assert_eq!(
+        not_run[0]["codes"],
+        serde_json::json!(codes_only_the_optimiser_emits()),
+        "{rows:?}"
+    );
+    let stderr = String::from_utf8(output.stderr).expect("utf-8 stderr");
+    assert!(stderr.contains("suppressed=2 "), "{stderr}");
 }
 
 /// O111 pairs with every W100 the analyser finds (DP8.2); `tcl diag` keeps
@@ -1841,9 +1959,9 @@ fn opt_runs_the_passes_of_the_profile_in_force() {
 /// A row's `xdg/tcl-lsp/config.ini`, `proj/.tcl-lsp.ini` and
 /// `proj/<name>.tcl` (the program, or the bytes for an abstaining document)
 /// — the two truth-table passes' shared scratch layout
-/// (`docs/design/lanes/diagnostic-policy.md` § DP9.6). Returns the input
-/// file's path and the `XDG_CONFIG_HOME` directory the run resolves the
-/// global layer under.
+/// (`docs/design/compiler/diagnostic-policy.md` § The truth table). Returns
+/// the input file's path and the `XDG_CONFIG_HOME` directory the run
+/// resolves the global layer under.
 fn truth_table_scratch(
     scratch: &Scratch,
     row: &tcl_lsp_core::diagnostic_policy::truth_table::Row,
@@ -1886,8 +2004,8 @@ fn push_slot_flags(
 /// The diagnostic-policy truth table's diagnostics rows, run through the
 /// built `tcl diag --show-suppressed`: each row's observed diagnostics and
 /// suppressions hold against what `Surface::Cli` expects of it
-/// (`docs/design/lanes/diagnostic-policy.md` § DP9.6). One spawn per row;
-/// not in the smoke tier.
+/// (`docs/design/compiler/diagnostic-policy.md` § The truth table). One
+/// spawn per row; not in the smoke tier.
 #[test]
 fn truth_table_rows_render_through_tcl_diag() {
     use tcl_compiler::analyser::Severity;
@@ -1911,7 +2029,8 @@ fn truth_table_rows_render_through_tcl_diag() {
 
     /// One file's `diagnostics` and `suppressed` rows (from `--json
     /// --show-suppressed`) as observations: `diag`'s lines are already
-    /// 1-based, and a gap's `line` is `null`.
+    /// 1-based, and a gap's `line` is `null`. A not-run row is one
+    /// observation per code it lists.
     fn observed_in(file: &serde_json::Value) -> Vec<Observed> {
         let mut observed: Vec<Observed> = file["diagnostics"]
             .as_array()
@@ -1925,19 +2044,34 @@ fn truth_table_rows_render_through_tcl_diag() {
                 })
             })
             .collect();
-        observed.extend(
-            file["suppressed"]
-                .as_array()
-                .expect("suppressed array (--show-suppressed was given)")
-                .iter()
-                .filter_map(|s| {
+        for s in file["suppressed"]
+            .as_array()
+            .expect("suppressed array (--show-suppressed was given)")
+        {
+            let reason = s["reason"].as_str().unwrap_or_default().to_owned();
+            if let Some(codes) = s["codes"].as_array() {
+                let producer = s["producer"].as_str().unwrap_or_default();
+                observed.extend(codes.iter().filter_map(|code| {
                     Some(Observed {
-                        code: s["code"].as_str()?.parse::<DiagCode>().ok()?,
-                        line: s["line"].as_u64().and_then(|n| u32::try_from(n).ok()),
-                        state: ObservedState::Suppressed(s["reason"].as_str()?.to_owned()),
+                        code: code.as_str()?.parse::<DiagCode>().ok()?,
+                        line: None,
+                        state: ObservedState::NotRun {
+                            producer: producer.to_owned(),
+                            reason: reason.clone(),
+                        },
                     })
-                }),
-        );
+                }));
+            } else if let Some(code) = s["code"]
+                .as_str()
+                .and_then(|code| code.parse::<DiagCode>().ok())
+            {
+                observed.push(Observed {
+                    code,
+                    line: s["line"].as_u64().and_then(|n| u32::try_from(n).ok()),
+                    state: ObservedState::Suppressed(reason),
+                });
+            }
+        }
         observed
     }
 
@@ -1978,8 +2112,8 @@ fn truth_table_rows_render_through_tcl_diag() {
 
 /// The truth table's rewrite rows, run through the built `tcl opt`: the
 /// fold applies exactly when `Surface::CliRewrite` wants it shown
-/// (`docs/design/lanes/diagnostic-policy.md` § DP9.6). One spawn per row;
-/// not in the smoke tier.
+/// (`docs/design/compiler/diagnostic-policy.md` § The truth table). One
+/// spawn per row; not in the smoke tier.
 #[test]
 fn truth_table_rewrite_rows_render_through_tcl_opt() {
     use tcl_lsp_core::diagnostic_policy::truth_table::{

@@ -240,8 +240,8 @@ impl Analysed {
     /// the loader — with the optimiser off, as `tcl diag` has it (D5): the
     /// rewrites are `optimize`'s, so an O-code a check emits is an
     /// `OptimiserOff` suppression rather than a finding that never existed,
-    /// and one only the optimiser emits is a declared gap for the same
-    /// reason (D47).
+    /// and one only the optimiser emits is in the optimiser's not-run entry
+    /// for the same reason (D47).
     fn diagnostics_report(&self) -> Report {
         let mut policy = self.policy.clone();
         policy.optimiser.enabled = false;
@@ -399,7 +399,7 @@ fn diag_to_json(shown: &Shown<'_>, sm: &SourceMap<'_>) -> Value {
 /// One suppressed finding as `{code, range, reason, message}`
 /// (`docs/design/compiler/diagnostic-policy.md` § Adapters, MCP JSON).
 /// `message` is added beside the page's three keys: without it a suppressed
-/// W210 does not say which variable (§ Decisions taken, D22).
+/// W210 does not say which variable (D22 in `git show c6ae07da`).
 fn suppressed_to_json(finding: &Finding, reason: Reason, sm: &SourceMap<'_>) -> Value {
     json!({
         "code": finding.code.as_str(),
@@ -411,9 +411,13 @@ fn suppressed_to_json(finding: &Finding, reason: Reason, sm: &SourceMap<'_>) -> 
 
 /// The `suppressed` array a diagnostics tool payload gains: every suppressed
 /// finding `keep` allows through [`suppressed_to_json`], then every declared
-/// gap but the default-off seed (`null` range and message), restricted the
-/// same way — so an agent can see that a finding exists and was suppressed
-/// rather than concluding the code is clean.
+/// gap but the default-off seed (`null` range and message), then one entry
+/// per producer the tool did not run and reason, `{producer, codes, range,
+/// reason, message}` — its codes listed together, not an entry each: like
+/// the seed, they are the same on every call and would bury the answer.
+/// `keep` restricts every part (a not-run entry keeps the codes that pass,
+/// and goes when none does), so an agent can see that a finding exists and
+/// was suppressed rather than concluding the code is clean.
 fn suppressed_json(report: &Report, sm: &SourceMap<'_>, keep: impl Fn(&str) -> bool) -> Vec<Value> {
     let mut out: Vec<Value> = report
         .suppressed()
@@ -433,6 +437,23 @@ fn suppressed_json(report: &Report, sm: &SourceMap<'_>, keep: impl Fn(&str) -> b
                 })
             }),
     );
+    out.extend(report.not_run().into_iter().filter_map(|row| {
+        let codes: Vec<&str> = row
+            .codes
+            .iter()
+            .map(|code| code.as_str())
+            .filter(|code| keep(code))
+            .collect();
+        (!codes.is_empty()).then(|| {
+            json!({
+                "producer": row.producer.as_str(),
+                "codes": codes,
+                "range": Value::Null,
+                "reason": row.reason.to_string(),
+                "message": row.message(),
+            })
+        })
+    }));
     out
 }
 
@@ -2774,6 +2795,56 @@ mod policy_tests {
         );
     }
 
+    /// The optimiser the diagnostics tools never run is one `suppressed`
+    /// entry per reason, listing its `codes`, rather than an entry per code
+    /// (`docs/design/compiler/diagnostic-policy.md` § Adapters); a code the
+    /// compiler checks or the O111 producer emit is not among them, since
+    /// those producers ran, and a tool's own code set restricts the list,
+    /// dropping the entry it empties.
+    #[test]
+    fn the_diagnostics_tools_collapse_the_optimiser_into_one_entry() {
+        use tcl_compiler::compiler_checks::DiagCode;
+        use tcl_lsp_core::diagnostic_policy::PRODUCED_WITHOUT_THE_OPTIMISER;
+
+        let only_the_optimisers: Vec<&str> = DiagCode::ALL
+            .iter()
+            .copied()
+            .filter(|code| code.is_optimisation() && !PRODUCED_WITHOUT_THE_OPTIMISER.contains(code))
+            .map(DiagCode::as_str)
+            .collect();
+        let args = json!({ "source": UNSET_READ, "dialect": "tcl9.0" });
+        let suppressed = analyze_suppressed(&args, "");
+        let not_run: Vec<&Value> = suppressed
+            .iter()
+            .filter(|s| s.get("codes").is_some())
+            .collect();
+        assert_eq!(not_run.len(), 1, "{suppressed:?}");
+        let entry = not_run[0];
+        assert_eq!(entry["producer"], "optimiser", "{entry}");
+        assert_eq!(entry["reason"], "optimiser-off", "{entry}");
+        assert_eq!(
+            entry["message"], "optimiser not run on this surface",
+            "{entry}"
+        );
+        assert_eq!(entry["range"], Value::Null, "{entry}");
+        assert_eq!(entry["codes"], json!(only_the_optimisers), "{entry}");
+        assert!(
+            !suppressed
+                .iter()
+                .any(|s| s["code"].as_str().is_some_and(|code| code.starts_with('O'))),
+            "no O-code has an entry of its own: {suppressed:?}"
+        );
+
+        let review_suppressed = review_with(&args, &inputs(&args, "diagnostics", ""))["suppressed"]
+            .as_array()
+            .expect("suppressed array")
+            .clone();
+        assert!(
+            !review_suppressed.iter().any(|s| s.get("codes").is_some()),
+            "no O-code is a review code, so the entry goes: {review_suppressed:?}"
+        );
+    }
+
     #[test]
     fn analyze_reports_the_resolved_severity() {
         let args = json!({ "source": UNSET_READ, "dialect": "tcl9.0" });
@@ -3058,12 +3129,13 @@ mod policy_tests {
         );
     }
 
-    // The diagnostic-policy truth table's rows, run through the MCP tools —
-    // DP9.7 (`docs/design/lanes/diagnostic-policy.md`).
+    // The diagnostic-policy truth table's rows, run through the MCP tools
+    // (`docs/design/compiler/diagnostic-policy.md` § The truth table).
 
     /// `analyze`'s `diagnostics` and `suppressed` arrays, as observations:
     /// `range` is 0-based (`byte_range`), so a line is `range.start.line`
-    /// plus one; a gap's `range` is `null`.
+    /// plus one; a gap's `range` is `null`, and a not-run entry is one
+    /// observation per code it lists.
     fn observed_from_analyze(
         result: &Value,
     ) -> Vec<tcl_lsp_core::diagnostic_policy::truth_table::Observed> {
@@ -3098,19 +3170,31 @@ mod policy_tests {
                 })
             })
             .collect();
-        observed.extend(
-            result["suppressed"]
-                .as_array()
-                .expect("suppressed array")
-                .iter()
-                .filter_map(|s| {
+        for s in result["suppressed"].as_array().expect("suppressed array") {
+            let reason = s["reason"].as_str().unwrap_or_default().to_owned();
+            if let Some(codes) = s["codes"].as_array() {
+                let producer = s["producer"].as_str().unwrap_or_default();
+                observed.extend(codes.iter().filter_map(|code| {
                     Some(Observed {
-                        code: s["code"].as_str()?.parse::<DiagCode>().ok()?,
-                        line: line_of(&s["range"]),
-                        state: ObservedState::Suppressed(s["reason"].as_str()?.to_owned()),
+                        code: code.as_str()?.parse::<DiagCode>().ok()?,
+                        line: None,
+                        state: ObservedState::NotRun {
+                            producer: producer.to_owned(),
+                            reason: reason.clone(),
+                        },
                     })
-                }),
-        );
+                }));
+            } else if let Some(code) = s["code"]
+                .as_str()
+                .and_then(|code| code.parse::<DiagCode>().ok())
+            {
+                observed.push(Observed {
+                    code,
+                    line: line_of(&s["range"]),
+                    state: ObservedState::Suppressed(reason),
+                });
+            }
+        }
         observed
     }
 

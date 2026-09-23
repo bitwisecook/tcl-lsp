@@ -6365,24 +6365,26 @@ fn xc_findings(source: &str) -> Vec<core_policy::Finding> {
 /// The findings a document publishes: the analyser's own set, the O111
 /// hints over its W100s, the compiler checks' and the optimiser's, and —
 /// for an `f5-irules` document with `xcDiagnostics` on — the XC
-/// translatability findings.
+/// translatability findings over `analysis_text`, the document's analysis
+/// form (a lone `\r` rewritten), which every producer reads.
 ///
-/// The pull provider's and the code-action handler's assembly of `produced`,
-/// in one place, so a lightbulb decides every fix against the exact set the
+/// The deep push's, the pull provider's and the code-action handler's
+/// assembly of `produced`, in one place, so the two deliveries cannot
+/// disagree and a lightbulb decides every fix against the exact set the
 /// document publishes (`docs/design/compiler/diagnostic-policy.md`
 /// § Adapters, code actions).
 fn published_findings(
     analyser_diags: &[tcl_compiler::analyser::Diagnostic],
     compiler_diags: &tcl_lsp_db::CompilerDiagnostics,
     xc_for_irules: bool,
-    xc_source: &str,
+    analysis_text: &str,
 ) -> Vec<core_policy::Finding> {
     let mut produced = analyser_findings(analyser_diags);
     let hints = core_report::brace_expr_hints(&produced);
     produced.extend(hints);
     produced.extend(compiler_findings(compiler_diags));
     if xc_for_irules {
-        produced.extend(xc_findings(xc_source));
+        produced.extend(xc_findings(analysis_text));
     }
     produced
 }
@@ -6550,25 +6552,23 @@ async fn refine_and_lift_diagnostics(
     let xc_for_irules = inputs.xc_diagnostics && inputs.dialect.is_irules();
     let compiler_diags = Arc::clone(compiler_diags);
     crate::rt::spawn_blocking(move || {
+        // Every producer reads the *analysis* form — a lone `\r` terminates a
+        // command for `tclsh` — while the spans lift against the client's
+        // buffer, which the rewrite leaves byte-for-byte the same length.
+        let analysis_text = tcl_lexer::normalise_lone_cr(&lift_text);
         // `analyser_diags` includes opt-in callback checks when enabled; direct
         // cross-file verdicts have already been settled by the workspace index.
-        // The O111 hints over the analyser's W100s follow them, then the
-        // compiler checks and the optimiser's rewrites, then — opt-in — the
-        // XC100-301 translatability findings for `f5-irules` documents when
-        // `xcDiagnostics` is enabled. The source-style pass and, for a
-        // `.sslictcl` document, the loader's findings are the report's own.
-        let mut produced = analyser_findings(&analyser_diags);
-        let hints = core_report::brace_expr_hints(&produced);
-        produced.extend(hints);
-        produced.extend(compiler_findings(&compiler_diags));
-        if xc_for_irules {
-            produced.extend(xc_findings(&lift_text));
-        }
-        // The `SslicTcl` loader parses the *analysis* form — a lone `\r`
-        // terminates a command for `tclsh` — while the spans lift against the
-        // client's buffer, which the rewrite leaves byte-for-byte the same
-        // length.
-        let analysis_text = tcl_lexer::normalise_lone_cr(&lift_text);
+        // The pull path's assembly, shared: the O111 hints over the analyser's
+        // W100s, the compiler checks and the optimiser's rewrites, then —
+        // opt-in — the XC100-301 translatability findings for `f5-irules`
+        // documents. The source-style pass and, for a `.sslictcl` document,
+        // the loader's findings are the report's own.
+        let produced = published_findings(
+            &analyser_diags,
+            &compiler_diags,
+            xc_for_irules,
+            &analysis_text,
+        );
         let doc = core_report::DocumentSource {
             text: &lift_text,
             analysis_text: &analysis_text,
@@ -32578,7 +32578,7 @@ mod tests {
     /// where the two meanings of "profile" are easy to conflate again.
     /// `tclLsp.features.diagnostics` turns off the published squiggles, not
     /// the rewrite a user asks for: `optimiseDocument` is `tcl opt`'s peer
-    /// and reads no whole-document gate (§ Decisions taken, D19 and D39).
+    /// and reads no whole-document gate (D19 and D39 in `git show c6ae07da`).
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn optimise_document_command_reads_no_diagnostics_feature_toggle() {
         let src = "puts [llength [list a b c]]\n";
@@ -35913,6 +35913,54 @@ mod tests {
         assert!(codes.contains(&"W118"), "{codes:?}");
     }
 
+    /// The deep push and the pull publish one set: both assemble it through
+    /// `published_findings`, whose XC walk reads the analysis form, so the
+    /// lone `\r` that ends the comment ends it for both, and the `pool`
+    /// command after it draws XC100 on either delivery.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn the_deep_push_and_the_pull_publish_one_set_on_a_lone_cr_irule() {
+        let backend = test_backend();
+        backend
+            .apply_global_config(&serde_json::json!({ "xcDiagnostics": { "enabled": true } }))
+            .await;
+        let uri = Uri::from_str("file:///oldmac-xc.irul").unwrap();
+        let src = "when HTTP_REQUEST {\n    # note \r    pool my_pool\n}\n";
+        backend.documents.lock("test").await.insert(
+            uri.clone(),
+            DocumentState::new(src.to_owned(), "f5-irules".to_owned())
+                .with_language_id("tcl-irule".to_owned()),
+        );
+        backend
+            .db_set_source(&uri, src, "f5-irules".to_owned())
+            .await;
+        backend
+            .publish_analyser_diagnostics(
+                uri.clone(),
+                src.to_owned(),
+                "f5-irules".to_owned(),
+                0,
+                Some(1),
+            )
+            .await;
+        let pushed = backend
+            .pull_diag_cache
+            .lock()
+            .await
+            .get(&uri)
+            .expect("the deep push primes the pull cache")
+            .diagnostics
+            .clone();
+        assert!(
+            diag_codes(&pushed).iter().any(|code| code == "XC100"),
+            "`pool` after the lone `\\r` is a command on the push: {:?}",
+            diag_codes(&pushed),
+        );
+        let pulled = backend
+            .full_diagnostics_for(&uri, Arc::from(src), "f5-irules".to_owned(), "tcl-irule")
+            .await;
+        assert_eq!(pushed, pulled, "the deep push and the pull disagree");
+    }
+
     /// The style lints are line-oriented, so on an old-Mac document their line
     /// numbers must follow the client's (and the analyser's) line model, not a
     /// `\n`-only split that would collapse the file to one line.
@@ -37731,7 +37779,7 @@ mod tests {
 
     /// A configured folder's documents resolve their policy from the folder's
     /// own three layers; a folder with none of its own resolves under the
-    /// session's (§ Decisions taken, D2).
+    /// session's (D2 in `git show c6ae07da`).
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn a_configured_folder_resolves_its_own_three_layers() {
         let backend = test_backend();
@@ -37781,10 +37829,9 @@ mod tests {
         );
     }
 
-    /// The multi-root corner of D2 (§ Open questions 7): a secondary root
-    /// whose own three layers carry no policy section does not inherit the
-    /// primary root's `.tcl-lsp.ini`. The owner's answer flips the first
-    /// assertion.
+    /// The multi-root corner of D2 (open question 7 in `git show c6ae07da`,
+    /// answered: it stands): a secondary root whose own three layers carry no
+    /// policy section does not inherit the primary root's `.tcl-lsp.ini`.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn a_secondary_root_does_not_inherit_the_primary_project_file() {
         let backend = test_backend();

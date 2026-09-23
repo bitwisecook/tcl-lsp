@@ -177,12 +177,15 @@ directive, or a config file.
   [kcs-qa-when-to-restart-server.md](kcs-qa-when-to-restart-server.md).
 - For the CLI and the MCP tools: run `tcl diag --show-suppressed` (or
   `tcl lint --show-suppressed`) to list every hidden finding as a
-  `hidden` row, with its reason. A code a layer turned off, or a code
-  the verb never runs at all — such as the optimiser's codes on `diag`
-  and `lint` — appears too, as a row with no position. The MCP
-  diagnostics tools (`analyze`, `validate`, `review`, `find-legacy`)
-  return the same information in a `suppressed` array on every call.
-  Each reason names the scope that decided it:
+  `hidden` row, with its reason. A code a layer turned off appears too,
+  as a row with no position. The optimiser, which `diag` and `lint`
+  never run, appears as a single row — `optimiser not run on this
+  surface (27 codes) [optimiser-off]` — rather than one row per code,
+  because those codes are the same on every file. The MCP diagnostics
+  tools (`analyze`, `validate`, `review`, `find-legacy`) return the same
+  information in a `suppressed` array on every call; the optimiser's
+  entry lists its codes in a `codes` array. Each reason names the scope
+  that decided it:
 
   | Reason | Scope |
   |---|---|
@@ -193,7 +196,7 @@ directive, or a config file.
   | `file-directive` | A top-of-file `# tcl-lsp: disable=`. |
   | `disabled:global` / `disabled:editor` / `disabled:invocation` / `disabled:project` | That layer, or `--disable` / `disable`, turned the code off. |
   | `default-off` | The code is opt-in and nothing turned it on. |
-  | `optimiser-off` | The optimiser's master switch is off, or the verb never runs it at all (`tcl diag` / `lint`, the MCP diagnostics tools). |
+  | `optimiser-off` | The optimiser's master switch is off, or the verb never runs it at all (`tcl diag` / `lint`, the MCP diagnostics tools) — then every code only the optimiser emits shares one row, `optimiser not run on this surface (27 codes)`, listed in its `codes` array in JSON. A code another reason decides first, such as a file directive, sits in an optimiser row for that reason instead. |
   | `optimiser-profile:<profile>` | The profile in force does not enable the code. |
   | `shimmer-off` | `tclLsp.shimmer.enabled` is off. |
   | `overlap:<code>` / `overlap:<producer>` | Another code, or a whole producer, owns this site (for example `overlap:W110`). |

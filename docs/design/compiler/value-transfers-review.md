@@ -728,7 +728,11 @@ However, three concrete paths show that the separation is incomplete:
    it was not exercised as an end-to-end configuration probe here. Both
    rules should consume the same semantic/syntax evidence. If the product
    deliberately wants them coupled, encode a shared rule-group policy,
-   not a semantic dependency on a displayed warning.
+   not a semantic dependency on a displayed warning. *Since resolved:*
+   `brace_expr_hints` (`rust/tcl-lsp-core/src/diagnostic_report.rs`) now
+   produces O111 at every W100 the analyser emitted, reading no policy, and
+   the policy step decides the two codes independently
+   ([diagnostic-policy.md](diagnostic-policy.md) § *Producers that change*).
 
 Evidence: [analyser dataflow diagnostics](../../../rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs),
 [function construction](../../../rust/tcl-compiler/src/compilation_unit.rs),
