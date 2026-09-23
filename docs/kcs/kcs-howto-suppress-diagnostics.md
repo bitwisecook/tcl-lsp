@@ -72,6 +72,7 @@ your project and commit it with the source. The format matches the
 ```ini
 [diagnostics]
 disabled = W111, IRULE1005
+W242 = true
 
 [optimiser]
 disabled = O109

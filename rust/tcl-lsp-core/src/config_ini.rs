@@ -419,7 +419,8 @@ fn json_enabled(b: bool) -> Value {
     Value::Object(m)
 }
 
-/// `[diagnostics]`: `disabled` codes → `{CODE: false}`,
+/// `[diagnostics]`: `disabled` codes → `{CODE: false}`, then each
+/// per-code key → `{CODE: bool}` ([`insert_code_toggles`]),
 /// `generic_variable_patterns` → `genericVariablePatterns`, and `exclude`
 /// glob patterns → `exclude`.
 fn insert_diagnostics(sections: &[Section], out: &mut Map<String, Value>) {
@@ -432,6 +433,7 @@ fn insert_diagnostics(sections: &[Section], out: &mut Map<String, Value>) {
             diag.insert(code, Value::Bool(false));
         }
     }
+    insert_code_toggles(sections, "diagnostics", &mut diag);
     // `exclude` — glob patterns naming files that produce no diagnostics at
     // all (#1556). One pattern per line (configparser continuation), never
     // comma-split: brace alternation (`{a,b}`) puts commas inside a pattern.
@@ -484,7 +486,8 @@ fn insert_diagnostic_severity(sections: &[Section], out: &mut Map<String, Value>
     }
 }
 
-/// `[optimiser]`: `enabled`, `profile`, and `disabled` codes → `{CODE: false}`.
+/// `[optimiser]`: `enabled`, `profile`, `disabled` codes → `{CODE: false}`,
+/// then each per-code key → `{CODE: bool}` ([`insert_code_toggles`]).
 fn insert_optimiser(sections: &[Section], out: &mut Map<String, Value>) {
     if !has_section(sections, "optimiser") {
         return;
@@ -504,8 +507,34 @@ fn insert_optimiser(sections: &[Section], out: &mut Map<String, Value>) {
             opt.insert(code, Value::Bool(false));
         }
     }
+    insert_code_toggles(sections, "optimiser", &mut opt);
     if !opt.is_empty() {
         out.insert("optimiser".to_owned(), Value::Object(opt));
+    }
+}
+
+/// The per-code keys of `section` — `W242 = true` turns a code on,
+/// `W111 = false` turns it off — as `{CODE: bool}` entries in `into`, in file
+/// order and after the section's `disabled` list, so within one file a
+/// per-code key wins over `disabled` for its code. A layer's contribution is
+/// a per-code tri-state (`docs/design/contracts/config-precedence.md`), and
+/// this is how an INI file turns a code back on that a lower layer turned
+/// off. The key is read case-insensitively and must name a catalogued code;
+/// a value `parse_bool` rejects contributes nothing. No catalogued code is
+/// spelled like `disabled`, `exclude`, `generic_variable_patterns`,
+/// `enabled` or `profile`, so a per-code key never shadows one of them.
+fn insert_code_toggles(sections: &[Section], section: &str, into: &mut Map<String, Value>) {
+    let Some(found) = sections.iter().find(|s| s.name == section) else {
+        return;
+    };
+    for (key, raw) in &found.entries {
+        let code = key.trim().to_ascii_uppercase();
+        if code.parse::<DiagCode>().is_err() {
+            continue;
+        }
+        if let Some(on) = parse_bool(raw) {
+            into.insert(code, Value::Bool(on));
+        }
     }
 }
 

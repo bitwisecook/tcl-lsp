@@ -145,6 +145,7 @@ interpreter to drift.
 | Key | Type | Description |
 |-----|------|-------------|
 | `disabled` | comma-separated codes | Diagnostic codes to suppress (e.g. `W111, T100, IRULE1005`) |
+| `<CODE>` | bool | Turns one code on or off (`W242 = true`, `W111 = false`); wins over `disabled` in the same file, and a higher layer's `true` turns back on what a lower layer disabled |
 | `generic_variable_patterns` | multi-line regexes | Patterns for IRULE4002 generic variable detection |
 
 ### `[optimiser]`
@@ -153,6 +154,7 @@ interpreter to drift.
 |-----|------|---------|-------------|
 | `enabled` | bool | `true` | Master switch for all optimiser suggestions |
 | `disabled` | comma-separated codes | (none) | Individual rules to suppress (e.g. `O109, O126`) |
+| `<CODE>` | bool | (none) | Turns one rule on or off over the profile (`O106 = true`); wins over `disabled` in the same file |
 
 ### `[shimmer]`
 

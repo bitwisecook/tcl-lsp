@@ -740,6 +740,25 @@ byte-order mark. The `sonnet` items of this plan were carried out by the
 lane's implementer directly: the session that ran them had no `Agent` tool
 to delegate with.
 
+### DP5.1 — an INI layer can turn a code back on
+
+`insert_diagnostics` and `insert_optimiser` read every key of their section
+whose trimmed, upper-cased spelling is a catalogued code and whose value
+`parse_bool` accepts, after the `disabled` list and in file order
+(`insert_code_toggles`), so `W242 = true` enables, `W111 = false` disables,
+and a per-code key wins over `disabled` in the same file. Tests:
+`a_per_code_key_turns_a_code_on_or_off` (which also resolves a project
+`W112 = true` over a global `disabled = W112` through `PolicyBuilder`),
+`an_optimiser_per_code_key_keeps_the_switch_keys`,
+`an_unparseable_per_code_value_is_ignored`, and CLI
+`diag_a_project_file_turns_a_code_back_on`. Documents: the `[diagnostics]`
+and `[optimiser]` tables of `xdg-config.md` gain the `<CODE>` row, and the
+suppression how-to's § 3 example gains `W242 = true` (DP10.3 writes the
+prose). One correction to the item's text: the server's `render_config_ini`
+does not write `disabled = …` — it writes one `CODE = false` line per
+disabled code under `[diagnostics]`, which no parser read until now; an
+exported file therefore reads back as it was written.
+
 ## Plan for finishing slices 4–7 and for slices 8–10
 
 The execution plan from the checkpoint `5bc40e95` to the end of the page's
@@ -3360,7 +3379,7 @@ Each item updates its row in the commit that lands it.
 | DP4.1 | opus | M | done | code: `DP4.1 — the analyser's skip is the policy's on every path, and the report declares it`; documentation: `d941667f` | core `--lib` and the six integration binaries, server `--lib`, the whole `e2e`, `tcl-cli`, `tcl-cli-support`, `tcl-mcp`; the crate clippy; `cargo check -p tcl-lsp-db` and its clippy; `cargo check --workspace` |
 | DP4.2 | opus | S | done (the merge of `rust`) | the merge commit | server `--lib`; the crate clippy |
 | DP4.3 | sonnet | S | done (by the lane implementer: no `Agent` tool in the session) | `DP4.3 — pin the hand-off decisions no test pinned` | the four tests; server `--lib` subset, `tcl-cli --test cli -- abstaining_document`; the crate clippy |
-| DP5.1 | opus | S | not started | — | — |
+| DP5.1 | opus | S | done | `DP5.1 — an INI layer can turn a code back on` | core `--lib -- config_ini` (31), `tcl-cli --test cli -- turns_a_code_back_on`; clippy on `tcl-lsp-core` and `tcl-cli`; `kcs-index-links` |
 | DP5.2 | opus | S | done (the merge of `rust`) | the merge commit | `cargo test -p tcl-cli`; the crate clippy |
 | DP5.3 | sonnet | S | not started | — | — |
 | DP5.4 | sonnet | S | not started | — | — |

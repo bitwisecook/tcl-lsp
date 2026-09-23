@@ -140,6 +140,49 @@ fn diagnostics_disabled_and_patterns() {
     );
 }
 
+/// A per-code key turns one code on or off, read case-insensitively and
+/// after the `disabled` list, so it wins over `disabled` in the same file —
+/// and a project file's `true` turns back on what the global file disabled,
+/// which `disabled =` alone could never say.
+#[test]
+fn a_per_code_key_turns_a_code_on_or_off() {
+    let ini = "[diagnostics]\ndisabled = W111\nW242 = true\nw111 = true\n";
+    let s = settings_from_ini(ini, Layer::Project);
+    assert_eq!(s["diagnostics"], json!({ "W111": true, "W242": true }));
+
+    let global = settings_from_ini("[diagnostics]\ndisabled = W112\n", Layer::Global);
+    let project = settings_from_ini("[diagnostics]\nW112 = true\n", Layer::Project);
+    let policy = crate::diagnostic_policy::PolicyBuilder::new()
+        .layer(crate::diagnostic_policy::PolicyLayer::Global, &global)
+        .layer(crate::diagnostic_policy::PolicyLayer::Project, &project)
+        .build();
+    assert_eq!(policy.code_reason(DiagCode::W112), None);
+}
+
+#[test]
+fn an_optimiser_per_code_key_keeps_the_switch_keys() {
+    let ini = "[optimiser]\nenabled = false\nO106 = true\n";
+    let s = settings_from_ini(ini, Layer::Global);
+    assert_eq!(s["optimiser"], json!({ "enabled": false, "O106": true }));
+}
+
+#[test]
+fn an_unparseable_per_code_value_is_ignored() {
+    let s = settings_from_ini("[diagnostics]\nW242 = maybe\n", Layer::Global);
+    assert!(s.get("diagnostics").is_none(), "{s}");
+    let s = settings_from_ini("[diagnostics]\nW999 = true\n", Layer::Global);
+    assert!(s.get("diagnostics").is_none(), "{s}");
+    let s = settings_from_ini(
+        "[diagnostics]\ndisabled = W111\nW111 = maybe\n",
+        Layer::Global,
+    );
+    assert_eq!(
+        s["diagnostics"],
+        json!({ "W111": false }),
+        "an unusable value leaves `disabled` standing"
+    );
+}
+
 #[test]
 fn diagnostics_exclude_glob_list() {
     // `exclude` is a one-pattern-per-line list (#1556); it is never

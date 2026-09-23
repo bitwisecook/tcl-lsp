@@ -1501,6 +1501,46 @@ fn diag_resolves_the_project_and_global_layers_per_input_file() {
     );
 }
 
+/// A project file turns back on a code the global file turned off: an INI
+/// layer's contribution is a per-code tri-state, spelled `CODE = true`
+/// (`docs/design/contracts/xdg-config.md` § `[diagnostics]`), and the
+/// project layer sits above the global one.
+#[test]
+fn diag_a_project_file_turns_a_code_back_on() {
+    let scratch = Scratch::new("turn-back-on");
+    let trailing = "set x 1   \nputs $x\n";
+    scratch.write("project/.tcl-lsp.ini", "[diagnostics]\nW112 = true\n");
+    let inside = scratch.write("project/inside.tcl", trailing);
+    let outside = scratch.write("sibling/outside.tcl", trailing);
+    let config = scratch.write("xdg/tcl-lsp/config.ini", "[diagnostics]\ndisabled = W112\n");
+    let xdg = config
+        .parent()
+        .and_then(std::path::Path::parent)
+        .expect("xdg root")
+        .as_os_str();
+    let rows = diag_codes_by_file(&run_tcl_env(
+        &[
+            "diag",
+            "--json",
+            inside.to_str().unwrap(),
+            outside.to_str().unwrap(),
+        ],
+        &[("XDG_CONFIG_HOME", xdg)],
+    ));
+    let has = |file: &str, code: &str| {
+        rows.iter()
+            .any(|(label, c)| label.ends_with(file) && c == code)
+    };
+    assert!(
+        has("inside.tcl", "W112"),
+        "the project's `W112 = true` overrules the global disable: {rows:?}"
+    );
+    assert!(
+        !has("outside.tcl", "W112"),
+        "outside the project the global disable stands: {rows:?}"
+    );
+}
+
 /// `tcl opt` applies only the rewrites the document's policy shows (issue
 /// #2062): a `# noqa` on the command keeps its fold off, a top-of-file
 /// `# tcl-lsp: disable=*` keeps every rewrite off, and two inputs whose
