@@ -3135,6 +3135,7 @@ Runs after the opus items above; each item its own commit, in plan order
 |---|---|---|---|
 | VT4.10 | `wip(value-transfers): slice 4 — -native ID for every family` | `tcl_registry::pack_hooks` gained fourteen `SCOPE::FIELD`-keyed native tables — one per pre-existing `HookFamily` variant (the eleven) plus `SEMANTICS_NATIVE`, `EVALUATE_NATIVE`, `FACTS_NATIVE` — real for `CONST_FOLD_NATIVE` (20 rows) and `CONST_FOLD_VERSIONED_NATIVE` (2 rows), the shipped folders' worked example, empty for the other twelve (nothing else ships a named native implementation yet); the shipped fold functions the tables reference (`string_.rs`, `format_.rs`, `regsub_.rs`, `scan_.rs`) exposed `pub(crate)` via `commands/tcl/mod.rs` re-exports; `loader/semantics.rs`'s `native_id` made generic over a table, so a full id the table holds now installs its value and one it does not keeps the existing "names nothing this build ships" notice; `evaluate -direct ID` split out from `-native` into its own resolution against `NativeEvalId::ALL` (`enum_by_name`, Rust-spelled, since it predates `-native`), leaving `-expression` untouched (already `LanguageProfileId::ALL`-matched); `tcl_spectcl::catalogue` gained the fourteen native-id pickers (id-spelled) and eight `value_transfer` vocabulary pickers (`NativeEvalId` Rust-spelled; `LanguageProfileId`, `HostKind`, `Exactness`, `ContextDependency::WORDS`, `OutcomeKind`, `DeclaredEffect`, `OptionEvaluation::REASONS` all DSL/`as_str()`-spelled) | `native_hook_tables_cover_their_catalogues` (+14 rows), `value_tables_cover_their_catalogues` (its original 9 rows, unchanged) and the new `value_transfer_tables_cover_their_catalogues` (+8 rows, split out for clippy's function-length lint), `catalogue_keys_are_unique` (+22 catalogues); `a_short_native_id_is_a_load_notice` adapted (`evaluate -direct go::evaluate` → `evaluate -native go::evaluate` at the same subcommand scope, plus a new `evaluate -direct nonexistent` line at command scope, since `-direct` no longer shares `-native`'s notice text — R6's witness is this item's own mandate to split them); `a_native_id_a_table_holds_installs_its_value` (new: `native_id` against a synthetic non-empty table, proving the "found" branch, since every real table but const-fold is empty) |
 | VT4.11 | `wip(value-transfers): slice 4 — the four surfaces` | `tcl-spec-studio/src/draft.rs`'s `semantics_value` replaces `lost.expr("semantics", …)` at command and subcommand scope: a `Declared` plan whose `as_declared()` gives a `DeclaredSemantics` renders in full (`effects`, `result`, `stores`, `iterate`, and the `None`/`Direct`/`Expression` evaluation kinds — plain data, one level deeper than `object_class`'s own precedent) unless its evaluation is `Implementation` (the body lives only in the loader's pack-hook table, never on `CommandSpec`) or it carries an option-level `-evaluate` decline (not yet carried back onto its option row) — both stay `Value::Null` and unrecoverable, exactly like a shipped, compiled-in specialisation (`as_declared() == None`) already was; `render_spectcl.rs`'s new `semantics_block` renders the recovered plan as `semantics { … }` / `evaluate …` (wired into `command_body` and `subcommand_block` beside `const_fold`/`const_fold_versioned`) or, unrecovered, the existing `-native SCOPE::FIELD` placeholder `native_hook` already gives every other opaque hook field; the `GAPS` row `semantics` is gone. `schema.rs` gained two `NestedFieldSchema` rows under `semantics` — `route` (the picker) and `body` (the box) — `relations.rs`'s "Effects and purity" cluster gained `semantics`, `route` and `body` alongside `const_fold`; `help.rs` and `examples/fields_behaviour.rs` gained matching entries, and `docs/references/command-spec/fields.md` is regenerated (`UPDATE_REFERENCE=1`). `store.rs`'s `carry_forward` now reaches one scope down: a new `find_subcommand` and a `reclaim` helper factored out of the old command-level-only loop run inside each `subcommand NAME { … }` matched by name, so a hook body hanging off a subcommand is spliced back in — closing the module doc's own documented "top level only" limitation — while a renamed/removed subcommand, or a sub-subcommand's own hook, still has nowhere to carry a body into and is still reported through `Write::dropped`. `tcl-spectcl/src/export.rs` needed no change at all: its registration record is a verbatim, property-agnostic replay of every statement the loader read, so `semantics`/`evaluate`/`facts` — including a declared implementation's body — already round-trip through it exactly as `const_fold`'s body does, proven by a new dedicated test rather than by any new code | `a_declared_semantics_plan_survives_the_round_trip` (new, `spectcl_roundtrip.rs`: a full structure-plus-`-expression` plan renders, reloads, and diffs byte-for-byte, no `GAPS` tolerance needed); `a_declared_implementations_body_stays_unrecoverable` (new, `draft.rs`: both the body and option-decline cases stay `Value::Null` and marked); `a_subcommands_hook_body_survives_a_form_edit` (`store.rs`, replacing `a_loss_carry_forward_cannot_reach_is_reported`, which pinned the bug this item fixes — R6's witness is this item's own mandate); `the_value_transfer_statements_round_trip_through_gate_a` (new, `tcl-spectcl/tests/export.rs`); `fields_doc_matches_the_schema` (`reference_doc.rs`, regenerated); `every_group_and_field_has_a_valid_example` and `every_field_is_clustered_or_declared_standalone` (existing gates, now covering `route` and `body` too); every existing `tcl-spec-studio` and `tcl-spectcl` suite green, `a_form_edit_on_a_real_pack_splices_and_preserves_its_neighbours` adapted (below) |
+| VT4.12 | `wip(value-transfers): slice 4 — the three spectcl_check findings` | `tcl-mcp/src/spectcl.rs` gained `evaluate_findings`, surfaced per-hook (`hook_json`'s new `"evaluate_findings"` array) and counted (`spectcl_check`'s new `"summary"."evaluate_findings"`), plus a new `declared_semantics_for` that resolves a hook's owner (`HookOwner::Command`/`Subcommand`) back to `CommandSpec.semantics`/`SubCommand.semantics` and downcasts through `SemanticsDeclaration::Declared(..).as_declared()` — `None` for `Inherited`/`Declined`/a shipped compiled-in specialisation/an option owner (no `-evaluate` decline surface yet), same as VT4.11's draft-side check. The three findings run only for `HookFamily::Evaluate` hooks with a `HookSource::Body`, against `declared.structure.stores.targets`: **(1) an evaluator reads a target it did not declare** — `DeclaredEvaluation::Implementation(..).capability.inputs`'s `IncomingTarget{index}` entries checked against `stores.targets` directly (a declaration-vs-declaration fact, not a body scan — see deviation below); **(2) silent on a declared target** and **(3) a write names a non-target** — both read from a new `EmissionScan`/`evaluate_emissions`, a textual, pessimistic scan (unattributed occurrences never resolved either way) over the body's `fold`/`write`/`preserve` verb calls, reusing the pre-existing `is_name_byte` word-boundary helper | `an_evaluator_reading_an_undeclared_target_is_flagged`, `an_evaluator_silent_on_a_declared_target_is_flagged`, `a_write_naming_a_non_target_is_flagged` (one per finding, each asserting the single expected message and `summary.evaluate_findings == 1`), `a_consistent_declared_implementation_has_no_evaluate_findings` (new: a `tenant::label`-style evaluator with no `semantics` block and no `target … incoming` input at all (both loops vacuously empty — the ordinary case), a `probe::split3` with three correctly-paired `stores -targets` rows and a body that `write`s or `preserve`s each in turn, and an unrelated `const_fold` hook, all read `evaluate_findings == []`, `summary.evaluate_findings == 0`) |
 
 Deviation from the plan's text, adapting to the tree: the plan's Items line
 groups "the eleven" `HookFamily` variants under one `NativeEvalTables`
@@ -3211,6 +3212,68 @@ value-transfers --check` OK and unchanged (17 clean, 13 waived, 98 pinned
 across 39 files, 6607 rows); `cargo xtask pack-goldens` 0 of 24 rewritten;
 no new integration-test binary, so no shard-script row; `cargo check
 --workspace --all-targets` clean.
+
+Deviation from the plan's text for VT4.12, adapting to the tree — a design
+interpretation, not a guess, recorded per the task's own instruction: the
+plan's Items line says all three findings are "each a report over `CtxScan`
+and the declarations." `CtxScan` turns out to be exactly the wrong tool for
+this family, not a stand-in this item merely renames. `CtxScan::of` returns
+its empty `Default` for anything that is not `HookSource::Body`, and for a
+body it scans literal `$ctx` occurrences (`ctx_reads`); but
+`rust/tcl-spec-hooks/src/host.rs`'s calling convention for `Evaluate` (the
+arm building an `-implementation` body's proc call, around lines 551–556)
+passes only the declared inputs as positional proc arguments — no `$ctx`
+dict is ever bound, confirmed against `rust/tcl-registry/src/value_transfer/declared.rs`'s
+`evaluate_implementation`, which builds the body's `words` strictly from
+`capability.inputs`. `CtxScan::of` on an evaluate body therefore always finds
+zero `$ctx` occurrences and would silently no-op two of the three findings;
+the third (target reads) cannot be a body scan at all under this convention,
+since a body cannot read what it was never given. Three consequences:
+
+- A new `EmissionScan`/`evaluate_emissions` carries `ctx_reads`'s own shape
+  (textual, and pessimistic in the same direction: an unattributed
+  occurrence never resolves either way) onto the verbs this family's engine
+  actually runs a body against — `fold` / `write` / `preserve` — rather than
+  `$ctx` reads, which do not occur for it.
+- **Finding 1** ("an evaluator reads a target it did not declare") is read
+  as a pure declaration-vs-declaration fact: an `IncomingTarget{index}`
+  entry in `capability.inputs` whose `index` is absent from
+  `structure.stores.targets`. Nothing else a body could be said to "read"
+  exists under this calling convention, and this reading has no
+  false-positive risk on a well-formed pack — the two lists either agree or
+  one names an index the other omits. Two other readings were considered
+  and ruled out first: a literal `$ctx` scan (impossible — confirmed above)
+  and folding it into finding 3's body scan (would make it indistinguishable
+  from "a write names a non-target", losing the distinction the plan's own
+  three-finding shape asks for — an unused `IncomingTarget` that the body
+  never writes anywhere is still worth flagging on its own, since it is
+  usually a stale `-inputs` line rather than a stray write).
+- **Findings 2 and 3** read the body through `EmissionScan` as the plan
+  intends: 2 is "declares a target `stores` names but the body never
+  `write`s or `preserve`s it" (rule 3 of the calling convention: silence
+  declines the whole answer, not just that target); 3 is "a `write` or
+  `preserve` names an index outside `stores.targets`" (raises at query
+  time — a decline the pack can avoid by fixing it at load time instead).
+  Both stay silent when a write/preserve target is unattributable (a
+  computed index), since the scan can only ever be pessimistic toward the
+  finding it can prove, exactly as `declaration_conflict`'s own `broader`/
+  `unattributed` split already treats `CtxScan`.
+
+Every check here is a report, never an enforcement — the driver already
+raises on a write to a non-target and declines silence on a declared target
+at query time (the three body-verb rules); `evaluate_findings` is what an
+author sees before a user does, the same relationship `declaration_conflict`
+already has to the cache's own runtime behaviour.
+
+Green: `cargo test -p tcl-mcp --no-fail-fast` 108 passed, 0 failed, 0
+ignored (104 before this item, +4 new); pedantic clippy
+(`--no-deps --all-targets -D warnings`) clean, no `#[allow]` added; `cargo
+fmt -p tcl-mcp` applied (line-wrap only — `git status --short rust/tcl-mcp`
+names only `spectcl.rs`); `cargo xtask value-transfers --check` OK and
+unchanged (17 clean, 13 waived, 98 pinned across 39 files, 6607 rows);
+`cargo xtask pack-goldens` 0 of 24 rewritten; no new integration-test
+binary, so no shard-script row; `cargo check --workspace --all-targets`
+clean.
 
 ### Slice 5 — destructuring and structured bodies
 
