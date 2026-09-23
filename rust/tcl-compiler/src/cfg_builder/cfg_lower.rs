@@ -962,6 +962,15 @@ impl CfgBuilder<'_> {
     /// Not added without a `finally`: there the tail really is unreachable on
     /// these paths, because the exception resumes unwinding past it.
     ///
+    /// A `break` or `continue` is different: the clause runs and then the jump
+    /// goes on to its loop target. The jump is retargeted at `end_block` and
+    /// the saved targets are returned for [`Self::lower_try`] to resume from
+    /// the far side of the clause. Adding an edge alongside the jump left a
+    /// path into the loop that skipped the clause, and
+    /// `while {$first || $x} { try {set first 0; continue} finally {set x 0} }`
+    /// reported `x` read before it is set (found in review). The same holds
+    /// for a jump a nested `try` has already resumed after its own clause.
+    ///
     /// What it does cost is that `try_after_finally` becomes reachable from an
     /// exit path, where Tcl in fact keeps unwinding. Modelling that exactly
     /// needs the clause body lowered on two paths, one of them terminal;
@@ -973,10 +982,11 @@ impl CfgBuilder<'_> {
         post_body: &str,
         body_block: &str,
         first_body_id: usize,
-    ) {
+    ) -> Vec<String> {
         if !self.faithful_exceptions {
-            return;
+            return Vec::new();
         }
+        let end_id = self.bid(end_block);
         let body_block_id = self.bid(body_block);
         // The body's blocks *and* the handlers': both are lowered after
         // `first_body_id`, and a handler that leaves — `on error {} {return
@@ -986,56 +996,104 @@ impl CfgBuilder<'_> {
         };
         // Normal completion already reaches `try_end`, directly or through
         // `try_ok`; a jump there is not an exit to wire a second time.
-        let completion = [self.bid(end_block), self.bid(post_body)];
-        // An exit a nested `try` or `catch` inside this body already
+        let completion = [end_id, self.bid(post_body)];
+        let leaves = |t: crate::cfg::BlockId| !in_body(t) && !completion.contains(&t);
+        // A `return` a nested `try` or `catch` inside this body already
         // intercepts is not an exit of *this* body: the inner construct was
         // lowered first and recorded its own edge, and control reaches this
         // `finally` only after the inner clause has run — through the inner
         // construct's normal flow. Wiring it here too would skip the inner
         // `finally`, and `try { try {return ok} finally {set x 1} }
-        // finally {puts $x}` read `x` as possibly unset (found in review).
+        // finally {puts $x}` read `x` as possibly unset (found in review). A
+        // jump needs no such care: rerouting it only replaces an edge that
+        // skipped this clause with one through it.
         let intercepted: std::collections::HashSet<&str> = self
             .exception_edges
             .iter()
             .filter(|(_, to)| self.block_ids.get(to).is_some_and(|id| in_body(*id)))
             .map(|(from, _)| from.as_str())
             .collect();
-        let mut sources: Vec<String> = self
+        let mut sources: Vec<String> = Vec::new();
+        let mut jumps: Vec<String> = Vec::new();
+        for (name, _) in self.block_ids.iter().filter(|(_, id)| in_body(**id)) {
+            let Some(block) = self.blocks.get(name.as_str()) else {
+                continue;
+            };
+            match &block.terminator {
+                // A process exit runs no `finally` (found in review) — only
+                // when it is the block's *only* statement: anything before it
+                // may raise an error, and an error does run the clause. See
+                // `always_exits_process` for the rest.
+                Some(crate::cfg::Terminator::Return { .. }) => {
+                    if !intercepted.contains(name.as_str())
+                        && !matches!(block.statements.as_slice(), [only]
+                            if super::always_exits_process(only, self.registry))
+                    {
+                        sources.push(name.clone());
+                    }
+                }
+                Some(crate::cfg::Terminator::Goto { target, .. }) if leaves(*target) => {
+                    jumps.push(name.clone());
+                }
+                Some(crate::cfg::Terminator::Branch {
+                    true_target,
+                    false_target,
+                    ..
+                }) if leaves(*true_target) || leaves(*false_target) => {
+                    jumps.push(name.clone());
+                }
+                _ => {}
+            }
+        }
+        let names: rustc_hash::FxHashMap<crate::cfg::BlockId, String> = self
             .block_ids
             .iter()
-            .filter(|(_, id)| in_body(**id))
-            .filter(|(name, _)| !intercepted.contains(name.as_str()))
-            .filter(|(name, _)| {
-                self.blocks
-                    .get(name.as_str())
-                    .is_some_and(|block| match &block.terminator {
-                        // A process exit runs no `finally` (found in review) —
-                        // only when it is the block's *only* statement: anything
-                        // before it may raise an error, and an error does run
-                        // the clause. See `always_exits_process` for the rest.
-                        Some(crate::cfg::Terminator::Return { .. }) => {
-                            !matches!(block.statements.as_slice(), [only]
-                                if super::always_exits_process(only, self.registry))
-                        }
-                        Some(crate::cfg::Terminator::Goto { target, .. }) => {
-                            !in_body(*target) && !completion.contains(target)
-                        }
-                        Some(crate::cfg::Terminator::Branch {
-                            true_target,
-                            false_target,
-                            ..
-                        }) => [true_target, false_target]
-                            .iter()
-                            .any(|t| !in_body(**t) && !completion.contains(*t)),
-                        None => false,
-                    })
-            })
-            .map(|(name, _)| name.clone())
+            .map(|(name, id)| (*id, name.clone()))
             .collect();
+        let mut targets: Vec<String> = Vec::new();
+        let mut resume = |t: &mut crate::cfg::BlockId| {
+            if leaves(*t) {
+                targets.push(names[t].clone());
+                *t = end_id;
+            }
+        };
+        jumps.sort();
+        for name in &jumps {
+            match &mut self.block_mut(name).terminator {
+                Some(crate::cfg::Terminator::Goto { target, .. }) => resume(target),
+                Some(crate::cfg::Terminator::Branch {
+                    true_target,
+                    false_target,
+                    ..
+                }) => {
+                    resume(true_target);
+                    resume(false_target);
+                }
+                _ => {}
+            }
+        }
+        // A jump a nested `try … finally` resumes after its own clause is
+        // still a jump out of this body, and must pass this clause too.
+        let (nested, kept): (Vec<_>, Vec<_>) = std::mem::take(&mut self.finally_jump_edges)
+            .into_iter()
+            .partition(|(from, to)| {
+                self.block_ids.get(from).is_some_and(|id| in_body(*id))
+                    && self.block_ids.get(to).is_some_and(|id| leaves(*id))
+            });
+        self.finally_jump_edges = kept;
+        for edge in nested {
+            self.exception_edges.retain(|e| *e != edge);
+            sources.push(edge.0);
+            targets.push(edge.1);
+        }
         sources.sort();
+        sources.dedup();
         for src in sources {
             self.exception_edges.push((src, end_block.to_owned()));
         }
+        targets.sort();
+        targets.dedup();
+        targets
     }
 
     /// Flatten `Statement::Try` into body → handlers → finally → end CFG.
@@ -1159,15 +1217,19 @@ impl CfgBuilder<'_> {
             self.ensure_goto(&post_body, &end_block, Some(*span));
         }
 
-        if finally_body.is_some() {
-            self.push_finally_exit_edges(&end_block, &post_body, &body_block, first_body_id);
-        }
-
         // Finally block.
-        match finally_body {
-            Some(fb) => self.lower_try_finally(fb, finally_span.or(Some(*span)), &end_block),
-            None => end_block,
+        let Some(fb) = finally_body else {
+            return end_block;
+        };
+        let jump_targets =
+            self.push_finally_exit_edges(&end_block, &post_body, &body_block, first_body_id);
+        let after_finally = self.lower_try_finally(fb, finally_span.or(Some(*span)), &end_block);
+        for target in jump_targets {
+            let edge = (after_finally.clone(), target);
+            self.exception_edges.push(edge.clone());
+            self.finally_jump_edges.push(edge);
         }
+        after_finally
     }
 
     /// Bind a handler's `on`/`trap` variables at the top of its block, as the

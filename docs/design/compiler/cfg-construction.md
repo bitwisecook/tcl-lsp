@@ -171,16 +171,15 @@ reachability edges (so handler bodies are not falsely unreachable).  The
 vector is empty in codegen builds.
 
 A `try` with a `finally` clause records one more kind: →`try_end`, from
-every block of the body **or of a handler** that leaves it — one ending in a
-`Return` (a `return`, `error` or `throw`) or jumping to a block outside the
-construct (a `break` / `continue`).  Without them nothing reaches `try_end`
+every block of the body **or of a handler** that leaves it by ending in a
+`Return` (a `return`, `error` or `throw`).  Without them nothing reaches `try_end`
 on those paths — a body or handler that always leaves supplies no normal
 edge — so a `finally` reached only that way read as dead and O107 emptied
 it, though Tcl runs `finally` on every completion path (#2142).  The exits
 are read off the construct's own blocks, not its resting tail:
 `if {$c} {return ok} else {error boom}` cannot fall through yet still ends
-in a resting `if_end` block.  Three kinds of block are not exits: a normal
-jump to `try_end` or `try_ok`; a block a nested `try` / `catch` already
+in a resting `if_end` block.  Two kinds of `Return` block are not exits:
+a `return` a nested `try` / `catch` already
 intercepts with its own edge — control reaches this `finally` only after
 the inner clause has run; and a process exit (`Traits::TERMINATES_PROCESS`,
 e.g. `exit`), which ends the interpreter without unwinding, so no `finally`
@@ -193,7 +192,20 @@ first — an earlier statement, a substituted word (`exit [error boom]`), a
 status the registry rejects (`exit abc`, or `exit 09` in 8.x),
 an `if` condition or `switch` subject — and those do run the clause, so an
 enclosing construct is never looked through.  `tailcall` *is* an exit: the
-clause runs before the call.  The edges are not added without a `finally`:
+clause runs before the call.
+
+A `break` / `continue` is not given an extra edge: its jump itself is
+retargeted at `try_end`, and `try_after_finally` records an edge on to the
+saved loop target, because the clause runs *before* the loop sees the jump.
+An edge alongside the jump left a path into the loop that skipped the
+clause, and `while {$first || $x} { try {set first 0; continue} finally
+{set x 0} }` reported `x` read before it is set.  An enclosing
+`try … finally` reroutes the resumed edge through its own clause the same
+way, so a jump out of nested clauses passes each of them in order.  A jump
+is rerouted even from a block a nested construct intercepts: that only
+replaces an edge that skipped this clause with one through it.
+
+The edges are not added without a `finally`:
 there the tail really is unreachable on those paths, because the exception
 resumes unwinding past it.  Their cost is that `try_after_finally` becomes
 reachable from an exit path too, where Tcl in fact keeps unwinding;

@@ -234,6 +234,11 @@ pub(crate) struct CfgBuilder<'a> {
     loop_stack: Vec<(String, String)>,
     /// `try` body→handler exception edges (analysis builds only).
     exception_edges: Vec<(String, String)>,
+    /// The subset of [`Self::exception_edges`] that resume a `break` /
+    /// `continue` after a `finally` clause: `(try_after_finally, jump
+    /// target)`. An enclosing `try … finally` reroutes them through its own
+    /// clause, as it does the jumps its own body makes.
+    finally_jump_edges: Vec<(String, String)>,
     /// When `true`, record [`Self::exception_edges`] in `lower_try`.  Off for
     /// codegen builds so the default bytecode is unchanged.
     faithful_exceptions: bool,
@@ -389,6 +394,7 @@ impl<'a> CfgBuilder<'a> {
             widen_oo_dispatch: false,
             loop_stack: Vec::new(),
             exception_edges: Vec::new(),
+            finally_jump_edges: Vec::new(),
             faithful_exceptions: false,
             plain_command_dispatch: false,
             registry,
@@ -1353,6 +1359,7 @@ impl<'a> CfgBuilder<'a> {
             .into_iter()
             .map(|(k, ln)| (self.bid(&k), ln))
             .collect();
+        self.finally_jump_edges.clear();
         func.exception_edges = std::mem::take(&mut self.exception_edges)
             .into_iter()
             .map(|(from, to)| (self.bid(&from), self.bid(&to)))

@@ -2859,6 +2859,30 @@ fn a_try_finally_does_not_hide_the_names_bound_around_it() {
             "bound by an inner `finally` before the outer one reads it",
             "proc p {} {\n    try { try {return ok} finally {set x 1} } finally {puts $x}\n}\n",
         ),
+        // A `break`/`continue` runs the clause before it reaches the loop.
+        // An edge into the `finally` alongside the jump still left a path
+        // into the loop that skipped it, carrying the `unset` (found in
+        // review); tclsh 8.6.18 and 9.0.4 print `5` for each of these.
+        (
+            "rebound by `finally` before a `continue` reaches the loop test",
+            "proc p {} {\n    set x 0\n    while {$x < 3} {\n        try {unset x; continue} finally {set x 5}\n    }\n    return $x\n}\n",
+        ),
+        (
+            "rebound by `finally` before a `break` leaves the loop",
+            "proc p {} {\n    set x 0\n    while 1 {\n        try {unset x; break} finally {set x 5}\n    }\n    return $x\n}\n",
+        ),
+        (
+            "rebound by `finally` after a handler's `continue`",
+            "proc p {} {\n    set x 0\n    while {$x < 3} {\n        try {error boom} on error {} {unset x; continue} finally {set x 5}\n    }\n    return $x\n}\n",
+        ),
+        (
+            "rebound by `finally` after a `continue` no handler catches",
+            "proc p {} {\n    set x 0\n    while {$x < 3} {\n        try {unset x; continue} on error {} {} finally {set x 5}\n    }\n    return $x\n}\n",
+        ),
+        (
+            "rebound by the outer of two nested clauses a `break` leaves",
+            "proc p {} {\n    set x 0\n    while 1 {\n        try { try {unset x; break} finally {set y 1} } finally {set x 5}\n    }\n    return $x\n}\n",
+        ),
     ] {
         assert!(
             !analyser_codes(src, TCL).iter().any(|c| c == "W210"),
