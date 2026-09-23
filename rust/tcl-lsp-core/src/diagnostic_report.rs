@@ -43,7 +43,7 @@ use std::sync::Arc;
 use tcl_compiler::analyser::{Analyser, AnalysisResult, bidi_control_diagnostics};
 use tcl_compiler::compilation_unit::{CompilationUnit, UnitBuildOptions};
 use tcl_compiler::compiler_checks::run_all_checks;
-use tcl_compiler::optimiser::{Optimisation, apply_optimisations, optimise_with_dialect};
+use tcl_compiler::optimiser::{Optimisation, optimise_source_multipass_admitting};
 use tcl_compiler::unit_scope::CallSiteEvidence;
 use tcl_core_types::{DiagCode, Severity};
 use tcl_dialect::DialectProfile;
@@ -285,7 +285,10 @@ pub struct OptimisedSource {
 /// `max_iterations == 1`.
 ///
 /// This is the shared loop behind `tcl opt`, the MCP `optimize` tool and
-/// the server's `tcl-lsp.optimiseDocument` command.
+/// the server's `tcl-lsp.optimiseDocument` command. The loop itself is the
+/// optimiser's ([`optimise_source_multipass_admitting`]), which re-runs the
+/// optimiser over each pass's text; this function is what it admits on a
+/// pass, so the multipass loop has one owner.
 #[must_use]
 pub fn optimise_under_policy(
     source: &str,
@@ -295,36 +298,28 @@ pub fn optimise_under_policy(
     policy: &Policy,
 ) -> OptimisedSource {
     let directive_dialect = dialect.map_or("", |d| d.name);
-    let mut current = source.to_owned();
-    let mut applied: Vec<Optimisation> = Vec::new();
-    let mut iterations = 0;
-    for _ in 0..max_iterations {
-        iterations += 1;
-        let opts = optimise_with_dialect(&current, registry, dialect);
-        let mut pass_policy = policy.clone();
-        pass_policy.directives = Directives::from_analysis(
-            &Analyser::new().analyse(&current, directive_dialect),
-            &current,
-        );
-        let report = apply(
-            opts.iter().cloned().map(Finding::from).collect(),
-            &pass_policy,
-        );
-        // A group applies whole or not at all: a directive over one member
-        // of an O127 pair keeps the other off too (#2149).
-        let kept = report.applicable_items(opts);
-        if kept.is_empty() {
-            break;
-        }
-        let next = apply_optimisations(&current, &kept);
-        applied.extend(kept);
-        if next == current {
-            break;
-        }
-        current = next;
-    }
+    let (text, applied, iterations) = optimise_source_multipass_admitting(
+        source,
+        registry,
+        dialect,
+        max_iterations,
+        |current, candidates| {
+            let mut pass_policy = policy.clone();
+            pass_policy.directives = Directives::from_analysis(
+                &Analyser::new().analyse(current, directive_dialect),
+                current,
+            );
+            let report = apply(
+                candidates.iter().cloned().map(Finding::from).collect(),
+                &pass_policy,
+            );
+            // A group applies whole or not at all: a directive over one
+            // member of an O127 pair keeps the other off too (#2149).
+            report.applicable_items(candidates)
+        },
+    );
     OptimisedSource {
-        text: current,
+        text,
         applied,
         iterations,
     }

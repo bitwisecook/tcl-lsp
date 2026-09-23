@@ -155,7 +155,8 @@ byte-integrity pass and the SslicTcl projection — and applies the policy;
 `standalone_findings` runs the analyser, the O111 producer
 (`brace_expr_hints`) and the compiler checks over one compilation unit, for
 a surface without the database; `optimise_under_policy` is the rewrite loop
-that applies only what the policy shows. `rust/tcl-lsp-core/src/config_ini.rs`
+that applies only what the policy shows, admitted into the optimiser's own
+multipass loop. `rust/tcl-lsp-core/src/config_ini.rs`
 holds the INI parse, the three-layer merge, `DEFAULT_OFF_CODES` and the
 readers of the global and project files (`global_layer`,
 `project_layer_for`). `rust/tcl-lsp-core/src/code_actions.rs` lifts fixes
@@ -768,9 +769,11 @@ rewrites under the layers' switch.
 
 **`tcl opt`** — `rust/tcl-cli/src/commands/transform.rs`. `run_opt`
 optimises each input as its own program (#2120) through
-`optimise_under_policy`: every pass reads the analyser's directive map over
+`optimise_under_policy`, which admits a pass's rewrites into the
+optimiser's own multipass loop (`optimise_source_multipass_admitting`), so
+the loop has one owner: every pass reads the analyser's directive map over
 that pass's text — the map the squiggles are decided under, so a `# noqa`
-before a multi-line command covers every line of it — and applies what the
+before a multi-line command covers every line of it — and admits what the
 report shows through `applicable_items`, so a group applies whole or not at
 all (#2149). The summary block lists what was applied. The MCP `optimize`
 tool and the server's `tcl-lsp.optimiseDocument` command take the same

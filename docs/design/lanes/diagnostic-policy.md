@@ -1585,6 +1585,69 @@ Gates: `cargo xtask kcs-index-links` passes. The grep for each name in
 `docs/design/compiler/diagnostics-integration.md`. That file is DP10.2's
 to rewrite whole (§ Anchors included), so it is left to that item.
 
+### DP10.4 — the reconciliation with `rust`, finished
+
+The orchestrator merged `origin/rust` at `8b5a8c88` (its head then was
+`08bceb36`, and it has not moved in the lane's files since). What the item
+still owed:
+
+- **One multipass loop owner.** `optimise_under_policy` is a thin wrapper
+  over `tcl_compiler::optimiser::optimise_source_multipass_admitting`. Its
+  admit closure runs the analyser for the pass's directive map (DP7.2),
+  applies the policy, and keeps what `applicable_items` admits (DP7.1).
+  The optimiser's loop reruns itself over each pass's text, stops when
+  nothing is admitted or the text stops changing, and counts the passes,
+  exactly as the removed loop did, so no output changes.
+  `tcl_compiler::optimiser` is only called, not edited (§ Boundaries).
+- **The merge review, table row by table row.**
+  - The thirteen XC rows are there once in `diag_code.rs`, with
+    `xc_family_is_in_the_code_table_issue_2121`.
+  - `f5-xc` keeps `XcDiagnostic::span`, `From<XcDiagnostic> for Finding`
+    and `emitted_codes_are_catalogued`.
+  - The generated catalogues are in sync (the ten gates below).
+  - `run_opt` is DP5.2's per-input one, and #2120's two tests exist once
+    each: `opt_does_not_fold_a_store_across_a_file_boundary` and
+    `opt_over_several_inputs_keeps_the_first_shebang_at_byte_zero`.
+  - `should_abstain` is called at the two surviving server sites,
+    `run_diagnostics_f5_dialect` and `f5_pull_report`.
+  - `optimiser_policy_for_command`, `group_counts`,
+    `grouped_quick_fix_payloads` and `lift_compiler_diagnostics` appear
+    nowhere under `rust/`.
+  - DP4.2's three `optimise_document_command_*_issue_2119`, DP7.1's two
+    `*_issue_2149` and `published_xc_codes_are_known_diag_codes_issue_2121`,
+    over `xc_findings`, exist once each.
+  - `diagnostics-calculation.md` § Grouped optimisations and the XC note
+    of `lsp-diagnostics-publication.md` are `rust`'s.
+
+  Nothing needed fixing.
+- The page's `tcl opt` paragraph and § Where each step lives name the
+  loop's owner.
+
+Suites, crate by crate:
+
+| Crate | Tests |
+|---|---|
+| `tcl-lsp-core` | 3562, over its 35 test binaries |
+| `tcl-lsp-server` | `--lib` 590; the whole `e2e` 1598 (5 ignored); `preview_tickets_e2e` 22; `smoke` 14; `stdio_deadlock` 6 |
+| `tcl-cli` | 124, over nine binaries |
+| `tcl-cli-support` | 19 |
+| `tcl-mcp` | 103 |
+| `tcl-lsp-db` | 123 (5 ignored), over eleven binaries |
+
+The ten catalogue gates pass (`diag-tables`, `diag-emission-check`,
+`gen-ai-diagnostics`, `gen-editor-settings`, `gen-vscode-package`,
+`gen-jetbrains-catalog`, `gen-editor-catalogs`, `kcs-index-links`,
+`owner-resolution`, `retired-api-gate`).
+
+`make rust-check` exits 2 at its first step, `cargo fmt --all --check`,
+and that step is red only on the value-transfers lane's uncommitted
+`tcl-compiler` files (`optimiser/helpers/expr_simplify.rs`,
+`optimiser/propagation.rs`, `tests/value_transfer_witnesses.rs`), as at C4.
+Its later steps, run on their own, pass: `cargo fmt --check` on the lane's
+crates; `cargo clippy --workspace --all-targets -- -D warnings`; `make
+runtime-rust-lint`; `make xtask-check` (exit 0). `cargo check --workspace`
+is green.
+
 ## Plan for finishing slices 4–7 and for slices 8–10
 
 The execution plan from the checkpoint `5bc40e95` to the end of the page's
@@ -4397,7 +4460,7 @@ Each item updates its row in the commit that lands it.
 | DP10.1 | opus | M | done — § *Slices 8–10 as built* | `DP10.1 — the design page describes the built tree` | `kcs-index-links`; the transitional-name grep over `docs/` (only `diagnostics-integration.md`, DP10.2's, remains) |
 | DP10.2 | sonnet | M | not started | — | — |
 | DP10.3 | sonnet | M | not started | — | — |
-| DP10.4 | opus | M | the merge landed; the wrapper and the review remain (§ `rust` has moved under the branch, *As merged*) | — | — |
+| DP10.4 | opus | M | done — § *Slices 8–10 as built* | `DP10.4 — one multipass loop owner; the rust merge reviewed` | every suite of the lane's six crates, the whole `e2e`; the ten catalogue gates; `make rust-check` (red only on the value-transfers lane's `tcl-compiler` formatting; its later steps pass on their own) |
 | DP10.5 | sonnet | S | not started | — | — |
 | R1 | opus | S | done — the owner's rulings of 2026-09-22: the invocation profile wins (D36); unanimity decides a release-less fold (documents only; the value-transfers lane's F1) | `wip(diagnostic-policy): an invocation profile wins; unanimity decides a release-less fold` | core, server (`--lib` and `e2e`), `tcl-cli`, `tcl-mcp`; the crates' clippy; `kcs-index-links` |
 | C4 | — | — | green, except `make rust-check`: its first step, `cargo fmt --all --check`, is red on the value-transfers lane's uncommitted `tcl-registry` / `tcl-compiler` files; the steps that concern this lane's crates ran individually and pass | `C4 — slice 4 checkpoint` | *the suites* of the lane's crates on DP4.1 plus DP4.3's tests; the whole `e2e` (1595, 5 ignored) on DP4.1 — DP4.3 changed no production code; the crate clippy; `cargo fmt --check` on the lane's crates; the ten catalogue gates; `cargo check -p tcl-lsp-db` and its clippy; `cargo check --workspace` |
