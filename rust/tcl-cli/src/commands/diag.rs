@@ -29,13 +29,13 @@ use serde::Serialize;
 use tcl_cli_support::{
     InputDocument, OutputTarget, read_input_documents, registry_for_dialect, write_text_output,
 };
-use tcl_compiler::analyser::{Analyser, Severity};
-use tcl_compiler::compilation_unit::{CompilationUnit, UnitBuildOptions};
-use tcl_compiler::compiler_checks::run_all_checks;
+use tcl_compiler::analyser::Severity;
 use tcl_compiler::unit_scope::CallSiteEvidence;
 use tcl_lexer::LineIndex;
-use tcl_lsp_core::diagnostic_policy::{Directives, Finding, Policy, PolicyBuilder, Report};
-use tcl_lsp_core::diagnostic_report::{DocumentSource, SourcePass, document_report};
+use tcl_lsp_core::diagnostic_policy::{Directives, Policy, PolicyBuilder, Report};
+use tcl_lsp_core::diagnostic_report::{
+    DocumentSource, SourcePass, StandaloneDocument, document_report, standalone_findings,
+};
 use tcl_lsp_core::source_style::DEFAULT_LINE_LENGTH;
 
 use crate::cli::{DiagArgs, InputArgs};
@@ -242,69 +242,28 @@ fn collect_rows(
     // — the same seeded set the editor's `file_analysis` passes. Declared to
     // the report below with the codes the analyser's own file-directive fold
     // skips, so a gap is explained rather than read as clean.
-    let skip: HashSet<String> = diag_policy(base.clone())
-        .production_skip()
-        .iter()
-        .map(ToString::to_string)
-        .collect();
+    let skip = diag_policy(base.clone()).production_skip();
 
-    // One compilation unit for both consumers, built with whatever cross-file
-    // call-site evidence the caller gathered.  The analyser's
-    // CFG/SSA tail would otherwise build its **own** unit — with no evidence —
-    // and its I230 / I231 constant-branch findings would disagree with the
-    // compiler-checks pass below.  The document's own environment grammar
-    // matches what `emit_cfg_ssa_diagnostics` builds for itself, mirroring the
-    // server's `set_cu_override` seam in `tcl_lsp_db::analyse_per_item_with`.
-    // Falling back to `LexerConfig::default()` on all four hosts would make
-    // them agree, but wrongly, for every non-9.x dialect.
+    // The analyser and the compiler checks — the same `run_all_checks` set
+    // the server lifts via `compiler_check_diagnostics` — over one unit built
+    // with the cross-file evidence the caller gathered: the producer run the
+    // MCP diagnostics tools share. Built once per document; `diag` is a batch
+    // verb, not latency-sensitive.
     let registry = registry_for_dialect(dialect.name);
     let file_path = document.path.as_deref().map(|p| p.display().to_string());
-    // The document's own stub declarations, ingested exactly as the analyser
-    // does — the unit supplied through the `cu_override` seam must declare
-    // what the analyser's own unit would, or a stubbed command's argument
-    // roles would reach one of the two and not the other.
-    let declared = tcl_compiler::analyser::utils::document_declared_surface(
-        source,
-        file_path.as_deref(),
-        dialect.name,
-    );
-    let analysis_cu = std::sync::Arc::new(CompilationUnit::build_with_options(
-        source,
-        UnitBuildOptions {
+    let standalone = standalone_findings(
+        &StandaloneDocument {
+            source,
+            file_path: file_path.as_deref(),
+            dialect,
             registry: &registry,
-            defer_top_level: false,
-            config: tcl_lexer::LexerConfig::for_profile(Some(dialect)),
-            dialect: Some(dialect),
+            pack_overlay: tcl_cli_support::spec_pack_key(dialect.name),
             external_call_sites,
-            declared_commands: Some(&declared),
         },
-    ));
-
-    let mut analyser = Analyser::with_disabled_diagnostics(skip.clone())
-        .with_file_path(file_path)
-        .with_pack_overlay(tcl_cli_support::spec_pack_key(dialect.name));
-    analyser.set_cu_override(std::sync::Arc::clone(&analysis_cu));
-    let result = analyser.analyse(source, dialect.name);
-    let policy = diag_policy(base.directives(Directives::from_analysis(&result, source)));
-
-    let mut produced: Vec<Finding> = result
-        .diagnostics
-        .iter()
-        .cloned()
-        .map(Finding::from)
-        .collect();
-    // Compiler-checks pass — the same `run_all_checks` set the server lifts via
-    // `compiler_check_diagnostics`. Built once per document; `diag` is a batch
-    // verb, not latency-sensitive.
-    // The checks pass lowers under the document's own environment grammar,
-    // which is what the analyser tail above builds under too — so the unit
-    // is always reused, exactly as the server's shared `compilation_unit`
-    // query shares it for every environment.
-    produced.extend(
-        run_all_checks(analysis_cu.as_ref(), &registry, Some(dialect))
-            .into_iter()
-            .map(Finding::from),
+        &skip,
     );
+    let policy =
+        diag_policy(base.directives(Directives::from_analysis(&standalone.analysis, source)));
 
     // The style pass reads `document.source` — the bytes as read, not the
     // analysis form — because W118 is the one lint whose subject *is* the
@@ -320,7 +279,7 @@ fn collect_rows(
             line_length: DEFAULT_LINE_LENGTH,
         },
     };
-    let mut report = document_report(&doc, produced, &policy);
+    let mut report = document_report(&doc, standalone.produced, &policy);
     report.declare_analyser_skip(&policy);
     rows_of(&report, source, &line_index)
 }

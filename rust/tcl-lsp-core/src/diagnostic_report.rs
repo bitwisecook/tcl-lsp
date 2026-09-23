@@ -27,12 +27,22 @@
 //! the byte-integrity pass and the `SslicTcl` projection — run here, so no
 //! surface can forget one of them. What comes back is the report: every
 //! finding, shown or suppressed, with its reason.
+//!
+//! A surface without the salsa database — `tcl diag`, the MCP tools — runs
+//! the analyser and the compiler checks through [`standalone_findings`], so
+//! those surfaces run one producer set rather than each assembling its own.
 
-use tcl_compiler::analyser::bidi_control_diagnostics;
+use std::collections::BTreeSet;
+use std::sync::Arc;
+
+use tcl_compiler::analyser::{Analyser, AnalysisResult, bidi_control_diagnostics};
+use tcl_compiler::compilation_unit::{CompilationUnit, UnitBuildOptions};
+use tcl_compiler::compiler_checks::run_all_checks;
 use tcl_compiler::optimiser::{Optimisation, apply_optimisations, optimise_with_dialect};
+use tcl_compiler::unit_scope::CallSiteEvidence;
 use tcl_core_types::{DiagCode, Severity};
 use tcl_dialect::DialectProfile;
-use tcl_lexer::LineIndex;
+use tcl_lexer::{LexerConfig, LineIndex};
 use tcl_registry::CommandRegistry;
 
 use crate::diagnostic_policy::{
@@ -122,6 +132,95 @@ pub fn document_report(
         findings.extend(sslictcl_diagnostics::diagnostics(doc.analysis_text));
     }
     apply(findings, policy)
+}
+
+/// One document as a surface without the salsa database analyses it.
+#[derive(Debug, Clone, Copy)]
+pub struct StandaloneDocument<'a> {
+    /// The analysis form of the text (lone `\r` rewritten).
+    pub source: &'a str,
+    /// The document's path, for the analyser's file-scoped facts.
+    pub file_path: Option<&'a str>,
+    /// The document's dialect.
+    pub dialect: &'static DialectProfile,
+    /// The registry the surface resolved for the dialect.
+    pub registry: &'a CommandRegistry,
+    /// `Analyser::with_pack_overlay`'s key.
+    pub pack_overlay: u64,
+    /// Cross-file call-site evidence, when the surface gathered any.
+    pub external_call_sites: Option<&'a CallSiteEvidence>,
+}
+
+/// What [`standalone_findings`] produced.
+#[derive(Debug)]
+pub struct StandaloneFindings {
+    /// The analysis, whose directive map feeds the policy.
+    pub analysis: AnalysisResult,
+    /// The analyser's findings, then the compiler checks', converted.
+    pub produced: Vec<Finding>,
+    /// The unit the analyser and the checks shared.
+    pub unit: Arc<CompilationUnit>,
+}
+
+/// The analyser under `skip` — the policy's production skip — and the
+/// compiler checks, over one compilation unit.
+///
+/// The producers a surface without the salsa database runs itself, once,
+/// so `tcl diag` and the MCP diagnostics tools run the same ones. It reads
+/// no policy (rule 2 of `docs/design/compiler/diagnostic-policy.md`): the
+/// skip is a producer input, as the analyser takes it, and the caller hands
+/// the findings to [`document_report`] and declares the skip there
+/// ([`Report::declare_analyser_skip`]).
+///
+/// One unit serves both producers, built with the document's own
+/// environment grammar, the caller's cross-file evidence and the document's
+/// stub declarations: the analyser's CFG/SSA tail would otherwise build its
+/// own unit without the evidence, and its constant-branch findings (I230,
+/// I231) would disagree with the checks'. A stubbed command's argument roles
+/// reach both producers for the same reason.
+#[must_use]
+pub fn standalone_findings(
+    doc: &StandaloneDocument<'_>,
+    skip: &BTreeSet<DiagCode>,
+) -> StandaloneFindings {
+    let declared = tcl_compiler::analyser::utils::document_declared_surface(
+        doc.source,
+        doc.file_path,
+        doc.dialect.name,
+    );
+    let unit = Arc::new(CompilationUnit::build_with_options(
+        doc.source,
+        UnitBuildOptions {
+            registry: doc.registry,
+            defer_top_level: false,
+            config: LexerConfig::for_profile(Some(doc.dialect)),
+            dialect: Some(doc.dialect),
+            external_call_sites: doc.external_call_sites,
+            declared_commands: Some(&declared),
+        },
+    ));
+    let mut analyser =
+        Analyser::with_disabled_diagnostics(skip.iter().map(ToString::to_string).collect())
+            .with_file_path(doc.file_path.map(str::to_owned))
+            .with_pack_overlay(doc.pack_overlay);
+    analyser.set_cu_override(Arc::clone(&unit));
+    let analysis = analyser.analyse(doc.source, doc.dialect.name);
+    let mut produced: Vec<Finding> = analysis
+        .diagnostics
+        .iter()
+        .cloned()
+        .map(Finding::from)
+        .collect();
+    produced.extend(
+        run_all_checks(unit.as_ref(), doc.registry, Some(doc.dialect))
+            .into_iter()
+            .map(Finding::from),
+    );
+    StandaloneFindings {
+        analysis,
+        produced,
+        unit,
+    }
 }
 
 /// The O111 "brace expression performance" hint, paired with every W100 the
@@ -221,7 +320,7 @@ pub fn optimise_under_policy(
         let opts = optimise_with_dialect(&current, registry, dialect);
         let mut pass_policy = policy.clone();
         pass_policy.directives = Directives::from_analysis(
-            &tcl_compiler::analyser::Analyser::new().analyse(&current, directive_dialect),
+            &Analyser::new().analyse(&current, directive_dialect),
             &current,
         );
         let report = apply(
@@ -252,7 +351,6 @@ pub fn optimise_under_policy(
 mod tests {
     use super::*;
     use crate::diagnostic_policy::{OptimiserPolicy, PolicyBuilder, PolicyLayer};
-    use tcl_compiler::analyser::Analyser;
     use tcl_lexer::Span;
 
     fn tcl9() -> &'static DialectProfile {

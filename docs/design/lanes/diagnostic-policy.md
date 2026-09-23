@@ -792,6 +792,29 @@ suite passes as before, and passes again when the test process itself
 runs under a global `config.ini` that disables W112, W210, W100, E002,
 W120 and SSLIC1101 and switches the optimiser off.
 
+### DP6.1 — one standalone producer run
+
+`diagnostic_report::standalone_findings(&StandaloneDocument, &skip) ->
+StandaloneFindings` is `collect_rows`' analysed path moved down unchanged:
+the document's declared surface, one `CompilationUnit` under the
+document's own environment grammar with the caller's evidence, the
+analyser over the skip with `set_cu_override` on that unit, and
+`run_all_checks` over it; it reads no policy. `tcl diag`'s `collect_rows`
+calls it (rows unchanged: the CLI suite passes as before), and so do the
+MCP diagnostics tools through `analyse_under`, which now hands the
+analysis form of the source (lone `\r` rewritten) to the producers and
+calls `registry(dialect)` before them. `Analysed` carries the source, the
+dialect, the analysis, the produced findings and the policy;
+`report_with(more, optimiser)` builds the report through `document_report`
+(so the style pass and, for `sslictcl`, the loader run) and declares the
+analyser skip — the four diagnostics tools with the optimiser off, as
+`tcl diag` has it (D5), `code_actions` with the layers' switch (D40).
+`code_actions_with` loses its private unit build and `run_all_checks`
+call. The four tools' descriptions name the compiler-check families and
+the style pass. The MCP suite, including `find_legacy_tests`,
+`source_integrity_tests` (one W305, not two) and DP4.0's `policy_tests`,
+passes unchanged.
+
 ## Plan for finishing slices 4–7 and for slices 8–10
 
 The execution plan from the checkpoint `5bc40e95` to the end of the page's
@@ -3179,6 +3202,14 @@ Decisions the implementation of slices 4–7 took (DP4.1 onwards):
   and § Adapters puts the command on `tcl opt`'s path, which D19 keeps off
   both gates: the toggle turns off published squiggles, not a rewrite the
   user asked for. Pinned by `optimise_document_command_reads_no_diagnostics_feature_toggle`.
+- **D40. `Analysed::report_with(more, optimiser)` forces the optimiser off
+  when `optimiser` is false and otherwise keeps the layers' switch
+  (DP6.1).** DP6.1 writes "`optimiser.enabled = optimiser`"; read
+  literally, `code_actions` (`true`) would switch the optimiser on over a
+  global `[optimiser] enabled = false` and offer rewrites the user turned
+  off, which changes `code_actions`' action JSON — the item preserves it —
+  and departs from the editor, whose lightbulb decides under the document's
+  policy. D5's "keep it on" is read as "do not force it off".
 
 ### Open questions for the owner
 
@@ -3424,7 +3455,7 @@ Each item updates its row in the commit that lands it.
 | DP5.2 | opus | S | done (the merge of `rust`) | the merge commit | `cargo test -p tcl-cli`; the crate clippy |
 | DP5.3 | sonnet | S | done (by the lane implementer) | `DP5.3 — the batch verbs read no LSP document gate` | `tcl-cli --lib` (27), `tcl-mcp` (92), server `--lib -- optimise_document` (6); the crate clippy |
 | DP5.4 | sonnet | S | done (by the lane implementer) | `DP5.4 — the CLI tests never read the machine's config.ini` | `tcl-cli --test cli` (40, and 40 again under a global `config.ini` that disables the codes the suite asserts); `tcl-cli` clippy |
-| DP6.1 | opus | M | not started | — | — |
+| DP6.1 | opus | M | done | `DP6.1 — one standalone producer run; the MCP diagnostics tools report the editor's set` | `tcl-mcp` (92), `tcl-cli --test cli` (40), core `--lib -- diagnostic_report` (9); the crate clippy |
 | DP6.2 | sonnet | S | not started | — | — |
 | DP7.1 | opus | M | done (the merge of `rust`) | the merge commit | core and server `--lib`, the whole `e2e`; the crate clippy |
 | DP7.2 | opus | S | done (the merge of `rust`) | the merge commit | core `--lib`, `tcl-cli`, `tcl-mcp`; the crate clippy |

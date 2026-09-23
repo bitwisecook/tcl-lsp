@@ -31,9 +31,13 @@ use tcl_lexer::{LexerConfig, LineIndex, SourceMap, Span, Utf16Col};
 use tcl_lsp_core::config_ini;
 use tcl_lsp_core::definition::LspRange;
 use tcl_lsp_core::diagnostic_policy::{
-    Directives, Finding, Policy, PolicyBuilder, PolicyLayer, Report, Shown, apply,
+    Directives, Finding, Policy, PolicyBuilder, PolicyLayer, Report, Shown,
 };
-use tcl_lsp_core::diagnostic_report::optimise_under_policy;
+use tcl_lsp_core::diagnostic_report::{
+    DocumentSource, SourcePass, StandaloneDocument, document_report, optimise_under_policy,
+    standalone_findings,
+};
+use tcl_lsp_core::source_style::DEFAULT_LINE_LENGTH;
 use tcl_registry::CommandRegistry;
 use tcl_registry::events::EventRegistry;
 use tcl_registry::profiles::ProfileRegistry;
@@ -210,32 +214,57 @@ fn invocation_layer(args: &Value, section: &str) -> Value {
     Value::Object(layer)
 }
 
-/// One analysis and the policy its findings are decided under.
+/// One source analysed as `tcl diag` analyses a document — the analyser and
+/// the compiler checks over one unit (`standalone_findings`) — and the
+/// policy its findings are decided under.
 struct Analysed {
+    /// The call's `source`, as the client sent it.
+    source: String,
+    /// The source's dialect.
+    dialect: &'static DialectProfile,
+    /// The analysis, for the tools that read its facts beside the report.
     analysis: AnalysisResult,
+    /// The analyser's findings, then the compiler checks', converted.
+    produced: Vec<Finding>,
     policy: Policy,
 }
 
 impl Analysed {
-    /// The analyser's own findings under the policy — what `analyze`,
-    /// `validate`, `review` and `find-legacy` render.
+    /// What `analyze`, `validate`, `review` and `find-legacy` render: the
+    /// report `tcl diag` builds for the same text — the analyser, the
+    /// compiler checks, the source-style pass and, for a `sslictcl` source,
+    /// the loader — with the optimiser off, as `tcl diag` has it: the
+    /// rewrites are `optimize`'s, so an O-code a check emits is an
+    /// `OptimiserOff` suppression rather than a finding that never existed.
     fn report(&self) -> Report {
-        self.report_with(Vec::new())
+        self.report_with(Vec::new(), false)
     }
 
-    /// The analyser's findings plus `more` — another producer's, converted —
-    /// under the same policy.
-    fn report_with(&self, more: Vec<Finding>) -> Report {
-        let mut produced: Vec<Finding> = self
-            .analysis
-            .diagnostics
-            .iter()
-            .cloned()
-            .map(Finding::from)
-            .collect();
+    /// The producers' findings plus `more` — another producer's, converted —
+    /// under the policy, with the optimiser off unless `optimiser` keeps the
+    /// layers' switch.
+    fn report_with(&self, more: Vec<Finding>, optimiser: bool) -> Report {
+        let mut produced = self.produced.clone();
         produced.extend(more);
-        let mut report = apply(produced, &self.policy);
-        report.declare_analyser_skip(&self.policy);
+        let mut policy = self.policy.clone();
+        if !optimiser {
+            policy.optimiser.enabled = false;
+        }
+        let analysis_text = tcl_lexer::normalise_lone_cr(&self.source);
+        let mut report = document_report(
+            &DocumentSource {
+                text: &self.source,
+                analysis_text: &analysis_text,
+                decode: None,
+                dialect: self.dialect,
+                pass: SourcePass::Tcl {
+                    line_length: DEFAULT_LINE_LENGTH,
+                },
+            },
+            produced,
+            &policy,
+        );
+        report.declare_analyser_skip(&policy);
         report
     }
 }
@@ -254,31 +283,43 @@ fn analyse(source: &str, dialect: &str) -> AnalysisResult {
         .analyse(source, dialect)
 }
 
-/// [`analyse`] for a diagnostics tool: the analyser runs with the policy
-/// `inputs` resolve — its production-time skip is the seeded default-off set
-/// and the codes a layer turned off, exactly as the editor's `file_analysis`
-/// passes it — and its findings are decided under the analysis's own
-/// directives.
+/// [`analyse`] for a diagnostics tool: the producer run `tcl diag` makes
+/// (`standalone_findings`) — the analyser, with the policy's production skip
+/// that `inputs` resolve, exactly as the editor's `file_analysis` is handed
+/// it, and the compiler checks over the same unit — whose findings are then
+/// decided under the analysis's own directives.
+///
+/// [`registry`] first, as [`analyse`] does, so the bundled loadables the
+/// overlay key names are installed; the analysis form of the source (a lone
+/// `\r` rewritten) is what the producers read, as on every other surface.
 fn analyse_under(source: &str, dialect: &str, inputs: &PolicyInputs) -> Analysed {
-    let _ = registry(dialect);
+    let registry = registry(dialect);
     let profile = crate::environment::profile_for_dialect(dialect);
-    let skip = inputs
-        .builder()
-        .dialect(profile)
-        .build()
-        .production_skip()
-        .iter()
-        .map(ToString::to_string)
-        .collect();
-    let analysis = Analyser::with_disabled_diagnostics(skip)
-        .with_pack_overlay(tcl_spectcl::bundled::packs().key)
-        .analyse(source, dialect);
+    let skip = inputs.builder().dialect(profile).build().production_skip();
+    let analysis_text = tcl_lexer::normalise_lone_cr(source);
+    let standalone = standalone_findings(
+        &StandaloneDocument {
+            source: &analysis_text,
+            file_path: None,
+            dialect: profile,
+            registry: &registry,
+            pack_overlay: tcl_spectcl::bundled::packs().key,
+            external_call_sites: None,
+        },
+        &skip,
+    );
     let policy = inputs
         .builder()
         .dialect(profile)
-        .directives(Directives::from_analysis(&analysis, source))
+        .directives(Directives::from_analysis(&standalone.analysis, source))
         .build();
-    Analysed { analysis, policy }
+    Analysed {
+        source: source.to_owned(),
+        dialect: profile,
+        analysis: standalone.analysis,
+        produced: standalone.produced,
+        policy,
+    }
 }
 
 /// `"true"`/`"1"`/`"yes"` (case-insensitive) or a JSON `true` — else `false`.
@@ -1114,8 +1155,6 @@ fn code_actions(args: &Value) -> Value {
 /// offered for a finding the document shows and for no other — and a shown
 /// rewrite is an offerable action, not only a diagnostic payload.
 fn code_actions_with(args: &Value, inputs: &PolicyInputs) -> Value {
-    use tcl_compiler::compilation_unit::{CompilationUnit, UnitBuildOptions};
-    use tcl_compiler::compiler_checks::run_all_checks;
     use tcl_compiler::optimiser::optimise_with_dialect;
 
     let source = arg_str(args, "source");
@@ -1128,33 +1167,15 @@ fn code_actions_with(args: &Value, inputs: &PolicyInputs) -> Value {
         end_character: arg_u32(args, "end_character"),
     };
     // The MCP tool analyses one standalone source string with no workspace
-    // behind it, so the analyser's own findings are the published set; the
-    // compiler checks and the rewrites join them under the same policy,
-    // built over the same unit `tcl diag` builds.
-    let registry = registry(&dialect);
-    let profile = crate::environment::profile_for_dialect(&dialect);
-    let declared = tcl_compiler::analyser::utils::document_declared_surface(source, None, &dialect);
-    let cu = CompilationUnit::build_with_options(
-        source,
-        UnitBuildOptions {
-            registry: &registry,
-            defer_top_level: false,
-            config: LexerConfig::for_profile(Some(profile)),
-            dialect: Some(profile),
-            external_call_sites: None,
-            declared_commands: Some(&declared),
-        },
-    );
-    let mut more: Vec<Finding> = run_all_checks(&cu, &registry, Some(profile))
-        .into_iter()
-        .map(Finding::from)
-        .collect();
-    more.extend(
-        optimise_with_dialect(source, &registry, Some(profile))
+    // behind it, so the analysed set — the analyser's and the compiler
+    // checks' findings — is the published set; the rewrites join it under
+    // the same policy, whose optimiser switch stays the layers'.
+    let rewrites: Vec<Finding> =
+        optimise_with_dialect(source, &registry(&dialect), Some(analysed.dialect))
             .into_iter()
-            .map(Finding::from),
-    );
-    let report = analysed.report_with(more);
+            .map(Finding::from)
+            .collect();
+    let report = analysed.report_with(rewrites, true);
     let actions: Vec<Value> = tcl_lsp_core::code_actions::code_actions(
         source,
         range,
@@ -1749,8 +1770,10 @@ const TOOLS: &[ToolDef] = &[
     ToolDef {
         name: "analyze",
         description: "Full analysis: diagnostics (+category), document symbols, detected events, and event firing order. \
-                      Diagnostics are the source's shown set — inline `# noqa`, top-of-file `# tcl-lsp: disable=`, \
-                      the global config.ini and the call's disable/enable arguments all apply, as in the editor.",
+                      Diagnostics are the source's shown set, including the compiler checks (S1xx, T1xx, \
+                      IRULE1xxx–5xxx) and the source-style pass (W111, W112, W115, W118) — inline `# noqa`, \
+                      top-of-file `# tcl-lsp: disable=`, the global config.ini and the call's disable/enable \
+                      arguments all apply, as in the editor.",
         params: &[SRC, DIALECT, DISABLE, ENABLE],
         required: &["source"],
         handler: analyze,
@@ -1758,23 +1781,27 @@ const TOOLS: &[ToolDef] = &[
     ToolDef {
         name: "validate",
         description: "Diagnostics grouped by category (security, taint, thread-safety, control-flow, performance, style, …), \
-                      from the source's shown set (directives, the global config.ini and disable/enable apply).",
+                      from the source's shown set, including the compiler checks (S1xx, T1xx, IRULE1xxx–5xxx) and \
+                      the source-style pass (W111, W112, W115, W118) (directives, the global config.ini and \
+                      disable/enable apply).",
         params: &[SRC, DIALECT, DISABLE, ENABLE],
         required: &["source"],
         handler: validate,
     },
     ToolDef {
         name: "review",
-        description: "Security, taint, and thread-safety diagnostics for a focused review, from the source's shown set \
-                      (directives, the global config.ini and disable/enable apply).",
+        description: "Security, taint, and thread-safety diagnostics for a focused review, from the source's shown set, \
+                      including the compiler checks (S1xx, T1xx, IRULE1xxx–5xxx) and the source-style pass (W111, \
+                      W112, W115, W118) (directives, the global config.ini and disable/enable apply).",
         params: &[SRC, DIALECT, DISABLE, ENABLE],
         required: &["source"],
         handler: review,
     },
     ToolDef {
         name: "find-legacy",
-        description: "Auto-convertible legacy patterns with a modernisation hint per finding, from the source's shown set \
-                      (directives, the global config.ini and disable/enable apply).",
+        description: "Auto-convertible legacy patterns with a modernisation hint per finding, from the source's shown set, \
+                      including the compiler checks (S1xx, T1xx, IRULE1xxx–5xxx) and the source-style pass (W111, \
+                      W112, W115, W118) (directives, the global config.ini and disable/enable apply).",
         params: &[SRC, DIALECT, DISABLE, ENABLE],
         required: &["source"],
         handler: find_legacy,
