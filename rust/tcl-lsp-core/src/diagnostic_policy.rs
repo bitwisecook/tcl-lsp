@@ -771,8 +771,14 @@ pub struct Overlap {
 /// Where an overlap's owner wins.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OverlapScope {
-    /// Only where the two spans coincide — the W110 / O120 rule.
+    /// Only where the two spans coincide.
     SameSpan,
+    /// Where the owner's span lies inside the superseded finding's span —
+    /// the W110 / O120 rule. Each producer anchors its own fact where it
+    /// belongs, the analyser W110 on the `==` operator and the optimiser
+    /// O120 on the whole condition it rewrites, so the owner sits inside
+    /// what it supersedes rather than on it.
+    WithinSpan,
     /// Everywhere in the document.
     Document,
 }
@@ -799,13 +805,13 @@ fn base_overlaps() -> Vec<Overlap> {
     vec![Overlap {
         owner: OverlapOwner::Code(DiagCode::W110),
         superseded: DiagCode::O120,
-        scope: OverlapScope::SameSpan,
+        scope: OverlapScope::WithinSpan,
     }]
 }
 
-/// The overlap table for a document of `dialect`: W110 owns O120 at the
-/// same span everywhere, and in a `.sslictcl` document the loader owns the
-/// analyser codes [`crate::sslictcl_diagnostics::SUPERSEDED_ANALYSER_CODES`]
+/// The overlap table for a document of `dialect`: W110 owns an O120 whose
+/// span holds it everywhere, and in a `.sslictcl` document the loader owns
+/// the analyser codes [`crate::sslictcl_diagnostics::SUPERSEDED_ANALYSER_CODES`]
 /// names, document-wide, whether or not it emitted a finding of its own.
 #[must_use]
 pub fn dialect_overlaps(dialect: &DialectProfile) -> Vec<Overlap> {
@@ -1404,7 +1410,14 @@ impl Overlap {
             OverlapOwner::Code(code) => owner.code == code,
             OverlapOwner::Producer(producer) => owner.producer == producer,
         };
-        is_owner && (self.scope == OverlapScope::Document || owner.span == site)
+        is_owner
+            && match self.scope {
+                OverlapScope::SameSpan => owner.span == site,
+                OverlapScope::WithinSpan => {
+                    site.start() <= owner.span.start() && owner.span.end() <= site.end()
+                }
+                OverlapScope::Document => true,
+            }
     }
 }
 
@@ -2067,7 +2080,7 @@ mod policy_tests {
             Overlap {
                 owner: OverlapOwner::Code(DiagCode::W110),
                 superseded: DiagCode::O120,
-                scope: OverlapScope::SameSpan,
+                scope: OverlapScope::WithinSpan,
             }
         );
         let sslic = dialect_overlaps(crate::profile_for_dialect("sslictcl"));
@@ -2530,30 +2543,38 @@ mod apply_tests {
     }
 
     #[test]
-    fn a_same_span_overlap_needs_a_standing_owner() {
+    fn w110_owns_an_o120_whose_span_holds_it() {
         let w110 = analyser(DiagCode::W110, 10, 12);
-        let o120 = Finding::from(Optimisation::new(
-            DiagCode::O120,
-            "eq",
-            Span::new(10, 12),
-            "eq",
-        ));
-        let elsewhere = Finding::from(Optimisation::new(
-            DiagCode::O120,
-            "eq",
-            Span::new(30, 32),
-            "eq",
-        ));
+        let o120_at = |start: u32, end: u32| {
+            Finding::from(Optimisation::new(
+                DiagCode::O120,
+                "eq",
+                Span::new(start, end),
+                "eq",
+            ))
+        };
+        // The analyser marks the operator, the optimiser the condition.
+        let o120 = o120_at(4, 20);
+        let same = o120_at(10, 12);
+        let across = o120_at(11, 20);
+        let elsewhere = o120_at(30, 32);
         let policy = Policy {
             optimiser: OptimiserPolicy::all_on(),
             ..Policy::default()
         };
-        let report = apply(vec![w110.clone(), o120.clone(), elsewhere.clone()], &policy);
+        let owned = Some(Reason::Overlap {
+            owner: OverlapOwner::Code(DiagCode::W110),
+        });
+        let report = apply(
+            vec![w110.clone(), o120.clone(), same, across, elsewhere],
+            &policy,
+        );
+        assert_eq!(report.reason_for(DiagCode::O120, Span::new(4, 20)), owned);
+        assert_eq!(report.reason_for(DiagCode::O120, Span::new(10, 12)), owned);
         assert_eq!(
-            report.reason_for(DiagCode::O120, Span::new(10, 12)),
-            Some(Reason::Overlap {
-                owner: OverlapOwner::Code(DiagCode::W110)
-            })
+            report.reason_for(DiagCode::O120, Span::new(11, 20)),
+            None,
+            "W110 does not lie inside a span that starts after it"
         );
         assert_eq!(report.reason_for(DiagCode::O120, Span::new(30, 32)), None);
         // An owner that policy suppressed cannot supersede anything.
@@ -2570,6 +2591,40 @@ mod apply_tests {
         );
         let report = apply(vec![w110, o120], &disabled);
         assert_eq!(shown_codes(&report), vec![DiagCode::O120]);
+    }
+
+    #[test]
+    fn a_same_span_overlap_claims_only_the_span_it_shares() {
+        let owner = analyser(DiagCode::W110, 10, 12);
+        let superseded = |start: u32, end: u32| {
+            Finding::from(Optimisation::new(
+                DiagCode::O120,
+                "eq",
+                Span::new(start, end),
+                "eq",
+            ))
+        };
+        let policy = Policy {
+            optimiser: OptimiserPolicy::all_on(),
+            overlaps: vec![Overlap {
+                owner: OverlapOwner::Code(DiagCode::W110),
+                superseded: DiagCode::O120,
+                scope: OverlapScope::SameSpan,
+            }],
+            ..Policy::default()
+        };
+        let report = apply(vec![owner, superseded(10, 12), superseded(4, 20)], &policy);
+        assert_eq!(
+            report.reason_for(DiagCode::O120, Span::new(10, 12)),
+            Some(Reason::Overlap {
+                owner: OverlapOwner::Code(DiagCode::W110)
+            })
+        );
+        assert_eq!(
+            report.reason_for(DiagCode::O120, Span::new(4, 20)),
+            None,
+            "a span that only holds the owner's is not the same span"
+        );
     }
 
     #[test]

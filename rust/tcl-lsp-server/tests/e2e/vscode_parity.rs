@@ -394,7 +394,10 @@ fn test_folding_toggle_suppresses_ranges() {
 fn test_optimiser_toggle_suppresses_o_codes() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
-    let src = "if {$x == \"foo\"} { puts yes }\n";
+    // An unbraced expression: O111, a readability hint the default profile
+    // shows. (A `==` string comparison no longer serves: W110 owns the O120
+    // over it — D46.)
+    let src = "set a 1\nputs [expr $a + 1]\n";
     let base = lsp.open_ready(&uri, src);
     assert!(codes(&base).iter().any(|c| c.starts_with('O')));
     lsp.clear_notifications();

@@ -1446,6 +1446,37 @@ Clippy on `tcl-mcp` with `--all-targets --no-deps -D warnings` is clean;
 `cargo fmt` is clean; `cargo check --workspace` is green. No lockfile
 change, and nothing regenerates.
 
+### The owner's ruling on § Open questions 10: W110 owns the O120 it sits in
+
+The ruling: the overlap is real, and both anchors are right — W110 on the
+`==` operator, O120 on the whole condition it rewrites — so the relation is
+containment, not equality (D46). `OverlapScope::WithinSpan` wins where the
+owner's span lies inside the superseded finding's span. The base overlap
+entry, W110 over O120, uses it, and `SameSpan` stays for an entry that
+needs equal spans. `Overlap::claimed_by` states the three scopes in one
+`match`.
+
+Tests: `w110_owns_an_o120_whose_span_holds_it` (was
+`a_same_span_overlap_needs_a_standing_owner`) holds an O120 over the whole
+condition and one on W110's own span, and releases one that starts after
+W110 and one elsewhere; its second half keeps the "a standing owner" case.
+`a_same_span_overlap_claims_only_the_span_it_shares` pins `SameSpan`
+through an explicit entry. `the_overlap_table_follows_the_dialect` reads
+`WithinSpan`. Truth-table row 36 now holds as wanted on `Core` and `Lsp`
+(W110 shown, O120 `overlap:W110`), so its defect on those surfaces is gone;
+`check` would fail with the marker kept. `a_fixed_defect_fails_its_row`
+runs over a row of its own. The `e2e` test
+`test_optimiser_toggle_suppresses_o_codes` needed an O-code the default
+profile shows, and `if {$x == "foo"}`'s O120 no longer shows beside its
+W110. It was red on the old program, and it reads O111 over `puts [expr
+$a + 1]` now. `kcs-qa-where-is-diagnostic-policy-applied.md` says
+"W110 owns an O120 whose span holds its own".
+
+Suites: core `--lib` 2341; server `--lib` 590; the whole `e2e` 1598 (5
+ignored); `tcl-mcp` 103; `tcl-cli --test cli -- truth_table` 2. Pedantic
+clippy on `tcl-lsp-core` and `tcl-lsp-server` is clean; `cargo fmt
+--check` is clean; `cargo check --workspace` is green.
+
 ## Plan for finishing slices 4–7 and for slices 8–10
 
 The execution plan from the checkpoint `5bc40e95` to the end of the page's
@@ -3902,8 +3933,19 @@ Decisions slices 8 and 9 took:
   and makes `check` fail once the wanted outcome holds. The fix then
   removes the marker in the same change, and the defect cannot drift
   unnoticed meanwhile. A row can record several defects, one for each set
-  of surfaces with its own `today`: row 36 records one on `Core` and `Lsp`
-  and one on `Cli` and `Mcp`.
+  of surfaces with its own `today`: row 36 recorded one on `Core` and `Lsp`
+  until D46, and one on `Cli` and `Mcp`.
+- **D46. W110 owns an O120 whose span holds it (the owner's ruling on
+  § Open questions 10).** The overlap is real and both anchors are right:
+  W110 belongs on the `==` operator, O120 on the whole condition it
+  rewrites. So the relation is containment, not equality, and
+  `OverlapScope::WithinSpan` states it. `SameSpan` stays for an entry that
+  needs equal spans. Moving either producer's anchor to satisfy the policy
+  was the other fix on offer, and it is rejected: "intentional overlap
+  policy such as W110 / O120 precedence is explicit and separate from fact
+  production" (`value-transfers.md` § Diagnostics consume facts, rule 4),
+  and an anchor moved to suit presentation is fact production bending to
+  it.
 
 ### Open questions for the owner
 
@@ -3961,7 +4003,9 @@ Each with the assumption the plan proceeds on.
     anchor O120 on the operator (a `tcl-compiler` change), let the owner's
     span lie within the superseded finding's span (a new `OverlapScope`),
     or anchor W110 on the condition. Assumption: left as it is; row 36
-    records the defect (D45).
+    records the defect (D45). **Closed — ruled: containment.** Both
+    anchors are right, and `OverlapScope::WithinSpan` owns an O120 whose
+    span holds W110's (D46).
 11. **The diagnostics verbs and tools do not run the optimiser (DP9.4).**
     `tcl diag` / `lint` / `validate` and the MCP diagnostics tools run the
     analyser, the O111 producer and the compiler checks. A rewrite only the
@@ -4177,6 +4221,12 @@ hand-off delta nothing mandates, for the owner.
 - `tcl diag` / `lint` gain `--show-suppressed`; the four MCP diagnostics
   payloads gain `suppressed` — the page's slice 9.
 - No output changes without the flag.
+- The editor no longer shows O120 beside the W110 it sits over (`if {$x ==
+  "foo"}`), and neither the lightbulb nor the MCP `code_actions` tool
+  offers O120's rewrite there; W110's own fix stands — the owner's ruling
+  on § Open questions 10 (D46). `tcl opt`, MCP `optimize` and
+  `optimiseDocument` are unchanged: their reports carry the optimiser's
+  findings alone, so no W110 owns anything there.
 
 **Slice 10.** Documents only.
 
@@ -4209,6 +4259,7 @@ Each item updates its row in the commit that lands it.
 | DP9.5 | opus | M | done — § *Slices 8–10 as built* | `DP9.5 — the LSP and code-action passes on the server` | server `--lib` (590); the `e2e` subset `config` and the whole `e2e`; pedantic clippy on `tcl-lsp-server` with `--all-targets --all-features`; `cargo check --workspace` |
 | DP9.6 | sonnet | M | done — § *Slices 8–10 as built* | `DP9.6 — the CLI passes` | `tcl-cli` lib (27), `cli` (47, `-- truth_table` 2), `compile_verbs` (11), `explorer_gui` (2), `pkg_verbs` (13), `spec_verbs` (18); `tcl-cli-support` (19); core `--lib --features truth-table` (2340); clippy on `tcl-cli` with `--all-targets --no-deps`; `cargo fmt`; `cargo check --workspace` |
 | DP9.7 | sonnet | M | done — § *Slices 8–10 as built* | `DP9.7 — the MCP passes` | `tcl-mcp` (103); core `--lib --features truth-table` (2340); clippy on `tcl-mcp` with `--all-targets --no-deps`; `cargo fmt`; `cargo check --workspace` |
+| Ruling, § Open questions 10 | opus | S | done — § *The owner's ruling on § Open questions 10* | `W110 owns the O120 it sits in (the ruling on question 10)` | core `--lib` (2341), server `--lib` (590), the whole `e2e`, `tcl-mcp`, `tcl-cli --test cli -- truth_table`; the crate clippy; `cargo check --workspace` |
 | DP10.1 | opus | M | not started | — | — |
 | DP10.2 | sonnet | M | not started | — | — |
 | DP10.3 | sonnet | M | not started | — | — |

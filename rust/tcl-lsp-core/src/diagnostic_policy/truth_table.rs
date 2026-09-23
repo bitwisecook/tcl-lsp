@@ -1055,19 +1055,7 @@ pub const ROWS: &[Row] = &[
     },
     // 36–38: the overlap table.
     Row {
-        defects: &[
-            Defect {
-                surfaces: &[Surface::Core, Surface::Lsp],
-                today: &[
-                    at(DiagCode::W110, 2, Want::Shown),
-                    at(DiagCode::O120, 2, Want::Shown),
-                ],
-                note: "W110 never owns O120: the analyser anchors W110 on the `==` \
-                       operator and the optimiser spans O120 over the whole \
-                       condition, so the same-span overlap never fires and both show",
-            },
-            REWRITE_NOT_RUN,
-        ],
+        defects: &[REWRITE_NOT_RUN],
         ..row(
             "a_same_span_overlap",
             STREQ,
@@ -1513,25 +1501,42 @@ mod tests {
         }
     }
 
+    /// A row that records a defect on `Lsp`: W210 is wanted hidden, and
+    /// shows today.
+    const RECORDED: Row = Row {
+        defects: &[Defect {
+            surfaces: &[Surface::Lsp],
+            today: &[at(DiagCode::W210, 1, Want::Shown)],
+            note: "a test's defect",
+        }],
+        ..row(
+            "a_recorded_defect",
+            UNSET,
+            &[at(DiagCode::W210, 1, hidden(Reason::FileDirective))],
+        )
+    };
+
     #[test]
     fn a_fixed_defect_fails_its_row() {
-        let row = ROWS
-            .iter()
-            .find(|row| row.name == "a_same_span_overlap")
-            .expect("the row that records the overlap defect");
-        let shown = |code: DiagCode| Observed {
-            code,
-            line: Some(2),
-            state: ObservedState::Shown(Some(Severity::Hint)),
-        };
-        let today = [shown(DiagCode::W110), shown(DiagCode::O120)];
-        assert!(check(row, Surface::Lsp, &today).is_ok());
-        let fixed = [shown(DiagCode::W110)];
-        let failure = check(row, Surface::Lsp, &fixed).expect_err("the wanted outcome holds");
+        let today = [Observed {
+            code: DiagCode::W210,
+            line: Some(1),
+            state: ObservedState::Shown(Some(Severity::Warning)),
+        }];
+        assert!(check(&RECORDED, Surface::Lsp, &today).is_ok());
+        let failure = check(&RECORDED, Surface::Lsp, &[]).expect_err("the wanted outcome holds");
         assert!(failure.contains("remove the marker"), "{failure}");
+        let neither = [Observed {
+            line: Some(2),
+            ..today[0].clone()
+        }];
         assert!(
-            check(row, Surface::Lsp, &[]).is_err(),
+            check(&RECORDED, Surface::Lsp, &neither).is_err(),
             "neither today nor the wanted outcome"
+        );
+        assert!(
+            check(&RECORDED, Surface::Core, &today).is_err(),
+            "a surface the defect does not name is held to the wanted outcome"
         );
     }
 

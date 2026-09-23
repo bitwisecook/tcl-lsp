@@ -37,7 +37,8 @@ recorded:
    This is the order the [suppression guide](kcs-howto-suppress-diagnostics.md)
    promises, and the layer that decided is recorded with the reason.
 5. The optimiser switch and profile, then the shimmer switch.
-6. The overlap table: W110 owns O120 at the same span, and in a SslicTcl
+6. The overlap table: W110 owns an O120 whose span holds its own (W110
+   marks the `==`, O120 the whole condition it rewrites), and in a SslicTcl
    document the loader owns W123.
 
 Three whole-file codes ignore an inline `# noqa`, because they have no line
