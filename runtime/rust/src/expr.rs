@@ -433,7 +433,11 @@ impl ExprOps for TowerOps<'_> {
     fn literal(&mut self, text: &str) -> Result<Owned, ExprError> {
         Ok(make_literal(text))
     }
-    fn string(&mut self, inner: &str) -> Result<Owned, ExprError> {
+    fn string(&mut self, inner: &str, substitutes: bool) -> Result<Owned, ExprError> {
+        // Only a `"…"` operand substitutes; a `{…}` one is its text (#2227).
+        if !substitutes {
+            return Ok(Owned::fresh(obj::new_string_bytes(inner.as_bytes())));
+        }
         self.ctx.subst_string(inner)
     }
     fn var(&mut self, name: &str) -> Result<Owned, ExprError> {
