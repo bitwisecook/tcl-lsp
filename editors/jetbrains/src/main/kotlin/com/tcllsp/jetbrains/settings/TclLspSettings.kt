@@ -264,6 +264,19 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
     var diagnosticIAPP7001: Boolean = true
     var diagnosticIAPP7002: Boolean = true
     var diagnosticIAPP7003: Boolean = true
+    var diagnosticXC100: Boolean = true
+    var diagnosticXC101: Boolean = true
+    var diagnosticXC102: Boolean = true
+    var diagnosticXC103: Boolean = true
+    var diagnosticXC105: Boolean = true
+    var diagnosticXC106: Boolean = true
+    var diagnosticXC107: Boolean = true
+    var diagnosticXC200: Boolean = true
+    var diagnosticXC201: Boolean = true
+    var diagnosticXC203: Boolean = true
+    var diagnosticXC250: Boolean = true
+    var diagnosticXC300: Boolean = true
+    var diagnosticXC301: Boolean = true
     var diagnosticSSLIC1001: Boolean = true
     var diagnosticSSLIC1002: Boolean = true
     var diagnosticSSLIC1003: Boolean = true
@@ -279,19 +292,6 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
     var diagnosticSSLIC1101: Boolean = true
     var diagnosticSSLIC1102: Boolean = true
     var diagnosticSSLIC1103: Boolean = true
-    var diagnosticXC100: Boolean = true
-    var diagnosticXC101: Boolean = true
-    var diagnosticXC102: Boolean = true
-    var diagnosticXC103: Boolean = true
-    var diagnosticXC105: Boolean = true
-    var diagnosticXC106: Boolean = true
-    var diagnosticXC107: Boolean = true
-    var diagnosticXC200: Boolean = true
-    var diagnosticXC201: Boolean = true
-    var diagnosticXC203: Boolean = true
-    var diagnosticXC250: Boolean = true
-    var diagnosticXC300: Boolean = true
-    var diagnosticXC301: Boolean = true
     // @generated:diagnostic-vars:end
 
     // Style
@@ -597,6 +597,19 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
                 "IAPP7001" to diagnosticIAPP7001,
                 "IAPP7002" to diagnosticIAPP7002,
                 "IAPP7003" to diagnosticIAPP7003,
+                "XC100" to diagnosticXC100,
+                "XC101" to diagnosticXC101,
+                "XC102" to diagnosticXC102,
+                "XC103" to diagnosticXC103,
+                "XC105" to diagnosticXC105,
+                "XC106" to diagnosticXC106,
+                "XC107" to diagnosticXC107,
+                "XC200" to diagnosticXC200,
+                "XC201" to diagnosticXC201,
+                "XC203" to diagnosticXC203,
+                "XC250" to diagnosticXC250,
+                "XC300" to diagnosticXC300,
+                "XC301" to diagnosticXC301,
                 "SSLIC1001" to diagnosticSSLIC1001,
                 "SSLIC1002" to diagnosticSSLIC1002,
                 "SSLIC1003" to diagnosticSSLIC1003,
@@ -612,19 +625,6 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
                 "SSLIC1101" to diagnosticSSLIC1101,
                 "SSLIC1102" to diagnosticSSLIC1102,
                 "SSLIC1103" to diagnosticSSLIC1103,
-                "XC100" to diagnosticXC100,
-                "XC101" to diagnosticXC101,
-                "XC102" to diagnosticXC102,
-                "XC103" to diagnosticXC103,
-                "XC105" to diagnosticXC105,
-                "XC106" to diagnosticXC106,
-                "XC107" to diagnosticXC107,
-                "XC200" to diagnosticXC200,
-                "XC201" to diagnosticXC201,
-                "XC203" to diagnosticXC203,
-                "XC250" to diagnosticXC250,
-                "XC300" to diagnosticXC300,
-                "XC301" to diagnosticXC301,
                 // @generated:diagnostic-map:end
             ).let { map ->
                 val patterns = diagnosticsGenericVariablePatterns

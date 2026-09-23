@@ -301,41 +301,64 @@ fn push_brace_expr_refactors(
     }
 }
 
-/// The optimiser rewrite a shown finding carries, as a quick-fix: the
-/// finding's span replaced by its `replacement`, titled with the finding's
-/// message.  A `hint_only` rewrite — whose span covers the consuming
-/// statement rather than a precise sub-span — is informational and never
+/// The optimiser rewrites the report may offer, as quick-fixes: one per
+/// applicable rewrite ([`Report::applicable_rewrites`]) any member of which
+/// overlaps `range`, titled with the first member's message and carrying
+/// every member's edit. A grouped rewrite is one action with the whole
+/// group's edits, and a group that lost a member to the policy is not
+/// offered at all — O127's inline without its delete runs the assignment
+/// twice (#2149). A `hint_only` rewrite, whose span covers the consuming
+/// statement rather than a precise sub-span, is informational and never
 /// offered, exactly as it never rides a published diagnostic's payload.
-fn rewrite_action(finding: &Finding, source: &str, line_index: &LineIndex) -> Option<CodeAction> {
-    let Some(FindingData::Rewrite {
-        replacement,
-        hint_only: false,
-        ..
-    }) = &finding.data
-    else {
-        return None;
+fn rewrite_actions(
+    report: &Report,
+    source: &str,
+    range: LspRange,
+    line_index: &LineIndex,
+) -> Vec<CodeAction> {
+    let lsp_range = |finding: &Finding| {
+        let start = line_index.position_at_utf16(finding.span.start(), source);
+        let end = line_index.position_at_utf16(finding.span.end(), source);
+        LspRange {
+            start_line: start.line,
+            start_character: start.character.get(),
+            end_line: end.line,
+            end_character: end.character.get(),
+        }
     };
-    if replacement.is_empty() {
-        return None;
-    }
-    let start = line_index.position_at_utf16(finding.span.start(), source);
-    let end = line_index.position_at_utf16(finding.span.end(), source);
-    Some(CodeAction {
-        title: finding.message.clone(),
-        edits: vec![crate::rename::TextEdit {
-            range: LspRange {
-                start_line: start.line,
-                start_character: start.character.get(),
-                end_line: end.line,
-                end_character: end.character.get(),
-            },
-            new_text: replacement.clone(),
-        }],
-        kind: ActionKind::QuickFix,
-        command: None,
-        data_group_definition: None,
-        disabled: None,
-    })
+    report
+        .applicable_rewrites()
+        .into_iter()
+        .filter(|rewrite| {
+            rewrite
+                .members
+                .iter()
+                .any(|member| ranges_overlap(lsp_range(member), range))
+        })
+        .filter_map(|rewrite| {
+            let edits: Vec<crate::rename::TextEdit> = rewrite
+                .members
+                .iter()
+                .filter_map(|member| match &member.data {
+                    Some(FindingData::Rewrite { replacement, .. }) => {
+                        Some(crate::rename::TextEdit {
+                            range: lsp_range(member),
+                            new_text: replacement.clone(),
+                        })
+                    }
+                    _ => None,
+                })
+                .collect();
+            Some(CodeAction {
+                title: rewrite.members.first()?.message.clone(),
+                edits,
+                kind: ActionKind::QuickFix,
+                command: None,
+                data_group_definition: None,
+                disabled: None,
+            })
+        })
+        .collect()
 }
 
 /// Compute code actions for `range` in `source`.
@@ -457,10 +480,8 @@ pub fn code_actions_in_program(
         {
             actions.push(action);
         }
-        if let Some(action) = rewrite_action(finding, source, &line_index) {
-            actions.push(action);
-        }
     }
+    actions.extend(rewrite_actions(report, source, range, &line_index));
 
     // Range-based refactors / source actions that don't depend on a diagnostic.
     actions.extend(continuation_comment_actions(
@@ -3476,6 +3497,40 @@ mod tests {
 
     fn analyse(source: &str) -> AnalysisResult {
         Analyser::new().analyse(source, "tcl8.6").clone()
+    }
+
+    /// An O127 pair is one quick-fix carrying both members' edits, never an
+    /// action for either member alone (#2149).
+    #[test]
+    fn a_grouped_rewrite_is_one_action_with_every_edit() {
+        let src = "proc p {y} {\n    set x [llength $y]\n    puts $x\n}\n";
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let pair: Vec<Finding> = tcl_compiler::optimiser::optimise_with_dialect(
+            src,
+            &registry,
+            Some(crate::profile_for_dialect("tcl8.6")),
+        )
+        .into_iter()
+        .filter(|o| o.code == DiagCode::O127)
+        .map(Finding::from)
+        .collect();
+        assert_eq!(pair.len(), 2, "the fixture yields the O127 pair: {pair:?}");
+        let policy = Policy {
+            optimiser: crate::diagnostic_policy::OptimiserPolicy::all_on(),
+            ..Policy::default()
+        };
+        let report = apply(pair, &policy);
+        let actions: Vec<CodeAction> =
+            code_actions(src, whole_document_range(src), Some(&analyse(src)), &report)
+                .into_iter()
+                .filter(|a| a.kind == ActionKind::QuickFix)
+                .collect();
+        assert_eq!(actions.len(), 1, "{actions:?}");
+        assert_eq!(actions[0].edits.len(), 2, "{actions:?}");
+        assert!(
+            actions[0].edits.iter().any(|e| e.new_text.is_empty()),
+            "the delete member rides the same action: {actions:?}"
+        );
     }
 
     #[test]

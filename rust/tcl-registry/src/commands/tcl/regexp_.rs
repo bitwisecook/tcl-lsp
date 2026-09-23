@@ -46,10 +46,41 @@ const FORMS: &[FormSpec] = &[
 /// pattern, arg 1 the string, and args 2+ are capture variables.  Resolve
 /// `VarWrite` for every trailing capture var dynamically (the leading-option
 /// shift means a static slot list cannot place them).
+///
+/// Two switches change that layout, so the table reads them rather than
+/// merely skipping them. Both rules are the ones
+/// [`tcl_cmd_core`'s `regexp`](../../../../tcl-cmd-core/src/regex.rs)
+/// implements from the C source, and both were measured identical on tclsh
+/// 8.4.20, 8.6.18 and 9.0.4:
+///
+/// * **`-about`** describes `exp` and returns before it ever looks at a
+///   subject, silently ignoring every later word — `regexp -about {(a)}
+///   extraarg` is `1 {}` and leaves `extraarg` untouched. Nothing after the
+///   pattern carries a role.
+/// * **`-inline`** returns the match data as a list, and any trailing word is
+///   `regexp match variables not allowed when using -inline` on every
+///   release. That is an arity finding, never a write.
+///
+/// Attributing `VarWrite` regardless deleted a live store: tclsh prints `old`
+/// for `set v old; regexp -about {a(b)} somestring v; puts $v`, and the
+/// optimised program failed outright with `can't read "v"` (#2135).
+///
+/// `--` is handled by the scan, not here: `regexp -- -about $s v` reports no
+/// switches, so `-about` is the pattern and `v` is a match variable — which
+/// is what tclsh does.
 fn regexp_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     let i = first_positional_index(REGEXP_OPTIONS, args, 0);
+    let pattern = std::iter::once((i, ArgRole::Pattern));
+    let layout_has_no_match_vars = leading_option_specs(REGEXP_OPTIONS, args, 0)
+        .iter()
+        .any(|option| option.name == "-about" || option.name == "-inline");
+    if layout_has_no_match_vars {
+        return pattern
+            .filter_map(|(index, role)| u8::try_from(index).ok().map(|index| (index, role)))
+            .collect();
+    }
     let capture_start = i + 2; // skip pattern + string
-    std::iter::once((i, ArgRole::Pattern))
+    pattern
         .chain((capture_start..args.len()).map(|index| (index, ArgRole::VarWrite)))
         .filter_map(|(index, role)| u8::try_from(index).ok().map(|index| (index, role)))
         .collect()
@@ -154,7 +185,15 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "regexp",
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
-        traits: Traits::BYTE_COMPILED | Traits::FRAME_HASH_BUILTIN,
+        // The match / conversion path is the only one that writes: a failed
+        // `regexp`, and a `scan` or `binary scan` whose input runs out, leave
+        // each remaining target's previous value in place and never create a
+        // target that did not exist. Measured identical on tclsh 8.4.20,
+        // 8.5.19, 8.6.18, 9.0.4 and 9.1b0. Without this the store feeding one
+        // looked overwritten-before-read and O109 deleted it (#2051).
+        traits: Traits::BYTE_COMPILED
+            | Traits::FRAME_HASH_BUILTIN
+            | Traits::CONDITIONAL_VARIABLE_WRITE,
         // The post-switch positional floor is 2 (`exp`, `string`) in the
         // general case, but `-about` relaxes it to 1 (`exp` alone) —
         // confirmed unchanged from Tcl 8.4 (`core-8-4-20`) through 9.0.4's
@@ -212,6 +251,72 @@ pub fn spec() -> CommandSpec {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Only the trailing words of a call that *can* carry match variables get
+    /// [`ArgRole::VarWrite`].
+    ///
+    /// `-about` describes the pattern and returns before it looks at a
+    /// subject, ignoring every later word; `-inline` returns the match data
+    /// as a list and rejects a match variable outright. Measured identical on
+    /// tclsh 8.4.20, 8.6.18 and 9.0.4:
+    ///
+    /// ```text
+    /// % puts [regexp -about {(a)} extraarg]
+    /// 1 {}
+    /// % puts [regexp -inline {a(b)} ab v]
+    /// regexp match variables not allowed when using -inline
+    /// ```
+    ///
+    /// Attributing the write anyway deleted a live store — `set v old; regexp
+    /// -about {a(b)} somestring v; puts $v` prints `old`, and the optimised
+    /// program failed with `can't read "v"` (#2135).
+    #[test]
+    fn about_and_inline_carry_no_match_variables() {
+        for args in [
+            ["-about", "a(b)", "somestring", "v"],
+            ["-inline", "a(b)", "ab", "v"],
+        ] {
+            let roles = regexp_arg_roles(&args);
+            assert!(
+                !roles.iter().any(|(_, role)| *role == ArgRole::VarWrite),
+                "{args:?} names no match variable: {roles:?}"
+            );
+            // The pattern is still placed, and still after the one switch:
+            // only the trailing layout changes.
+            assert!(
+                roles.contains(&(1, ArgRole::Pattern)),
+                "{args:?} still has its pattern: {roles:?}"
+            );
+        }
+    }
+
+    /// The switch scan, not a text match, decides — so the `--` terminator and
+    /// a value word that looks like a switch both behave as tclsh does.
+    #[test]
+    fn the_match_variable_layout_follows_the_switch_scan() {
+        // `regexp -- -about somestring v`: after `--`, `-about` is the
+        // *pattern*, so `v` is a match variable. tclsh 9.0.4 agrees — it
+        // prints `old`, because the pattern does not match, not because the
+        // word was never a variable.
+        let terminated = regexp_arg_roles(&["--", "-about", "somestring", "v"]);
+        assert!(
+            terminated.contains(&(3, ArgRole::VarWrite)),
+            "after `--` the trailing word is a match variable: {terminated:?}"
+        );
+        // `-start`'s value is not a switch, so a `-inline`-shaped value word
+        // must not change the layout either.
+        let valued = regexp_arg_roles(&["-start", "2", "(a)", "xxa", "v"]);
+        assert!(
+            valued.contains(&(4, ArgRole::VarWrite)),
+            "`-start`'s value is not a switch: {valued:?}"
+        );
+        // And an ordinary call is untouched.
+        let plain = regexp_arg_roles(&["(x)(y)", "zz", "v", "w"]);
+        assert!(
+            plain.contains(&(2, ArgRole::VarWrite)) && plain.contains(&(3, ArgRole::VarWrite)),
+            "every trailing word of a plain call is a match variable: {plain:?}"
+        );
+    }
 
     /// Membership pin against Tcl 9.0.4 `Tcl_RegexpObjCmd`
     /// (`generic/tclCmdMZ.c` options table): the exact switch set, with

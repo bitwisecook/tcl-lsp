@@ -88,6 +88,92 @@ pub fn detect_try_finally(
     result
 }
 
+/// Where a `catch` region begins and ends.
+#[derive(Debug, Clone)]
+pub struct CatchRegionInfo {
+    /// `catch_end_N` block name — the continuation both paths reach.
+    pub catch_end: String,
+    /// `catch`'s result variable, if the source named one.
+    pub result_var: Option<String>,
+    /// `catch`'s options-dict variable, if the source named one.
+    pub options_var: Option<String>,
+}
+
+/// Detect `catch` regions in the CFG.
+///
+/// The builder emits `catch_body_N → catch_end_N` ([`crate::cfg_builder`]'s
+/// `lower_catch`). Unlike try/finally the end block is *not* consumed: it is
+/// the continuation, carrying the result/options variable defs and whatever
+/// follows the `catch`. Only the scaffolding is spliced in at the body block.
+#[must_use]
+pub fn detect_catch_regions(
+    cfg: &CfgFunction,
+    block_order: &[String],
+) -> HashMap<String, CatchRegionInfo> {
+    let mut result: HashMap<String, CatchRegionInfo> = HashMap::new();
+
+    for bname in block_order {
+        if !bname.starts_with("catch_body_") {
+            continue;
+        }
+        let Some(catch_end) = follow_until_prefix(cfg, bname, "catch_end_") else {
+            continue;
+        };
+        // `lower_catch` parks the result/options variables on a defs-only
+        // `catch` call in the end block, so SSA sees them defined however the
+        // body ended. Codegen stores them itself, from C's stack order.
+        let (result_var, options_var) = catch_result_vars(cfg, &catch_end);
+        result.insert(
+            bname.clone(),
+            CatchRegionInfo {
+                catch_end,
+                result_var,
+                options_var,
+            },
+        );
+    }
+
+    result
+}
+
+/// The result and options variables recorded on a `catch_end` block's
+/// defs-only statement, in that order.
+///
+/// Returns `(None, None)` when the source named neither.
+fn catch_result_vars(cfg: &CfgFunction, catch_end: &str) -> (Option<String>, Option<String>) {
+    let Some(blk) = cfg.block_by_name(catch_end) else {
+        return (None, None);
+    };
+    for stmt in &blk.statements {
+        if let crate::ir::Statement::Call {
+            command,
+            args,
+            defs,
+            ..
+        } = stmt
+            // value-transfer-ok: irreducible — the defs-only marker `lower_catch` builds on a catch end block, not a Tcl invocation
+            && command == "catch"
+            && args.is_empty()
+        {
+            return (defs.first().cloned(), defs.get(1).cloned());
+        }
+    }
+    (None, None)
+}
+
+/// Whether `stmt` is the defs-only marker `lower_catch` leaves on a
+/// `catch_end` block. It exists for SSA, not for emission — the stores it
+/// stands for are emitted with the catch scaffolding.
+#[must_use]
+pub fn is_catch_defs_marker(stmt: &crate::ir::Statement) -> bool {
+    matches!(
+        stmt,
+        crate::ir::Statement::Call { command, args, .. }
+            // value-transfer-ok: irreducible — the defs-only marker `lower_catch` builds on a catch end block, not a Tcl invocation
+            if command == "catch" && args.is_empty()
+    )
+}
+
 /// Follow a chain of `Goto` terminators until reaching a block whose
 /// name starts with `prefix`. Returns that block's name, or `None` if
 /// the chain ends without finding one.

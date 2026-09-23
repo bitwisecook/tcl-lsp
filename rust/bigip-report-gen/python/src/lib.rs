@@ -591,7 +591,10 @@ fn order_profiles(profiles: Vec<String>, types: Option<HashMap<String, String>>)
 /// renderer — no LLM, no network. Returns `""` when there is nothing to draw.
 #[pyfunction]
 fn irule_flowchart(body: &str) -> String {
-    tcl_diagram::irule_flowchart_graph(body, tcl_registry::model::ingress::static_context_for("f5-irules").commands())
+    tcl_diagram::irule_flowchart_graph(
+        body,
+        tcl_registry::model::ingress::static_context_for("f5-irules").commands(),
+    )
 }
 
 /// Reconstruct the object-name patterns an iRule could dynamically attach.

@@ -39,7 +39,9 @@ use crate::events::{
 use crate::forms::CommandForm;
 use crate::hooks::{AnalyserHookId, CodegenHookId, InlineCodegenHookId, LoweringHookId};
 use crate::hover::CallbackTaintInput;
-use crate::invocation_words::{CommandPrefixArguments, InvocationWord, VariableWriteProjection};
+use crate::invocation_words::{
+    CommandPrefixArguments, InvocationWord, VariableReadProjection, VariableWriteProjection,
+};
 use crate::lifecycle::{Lifecycle, LifecycleState};
 use crate::resolved_invocation::{
     InvocationResolutionUnresolved, ResolvedInvocation, ResolvedSubcommand,
@@ -4365,6 +4367,51 @@ impl CommandRegistry {
         Some(self.arg_indices_for_role(name, &spellings, role))
     }
 
+    /// Project the variable cells source-aware invocation words read **by
+    /// name** — the read-only counterpart of
+    /// [`Self::variable_write_projection`], and resolved the same way, so an
+    /// alias or renamed spelling answers like the command it reaches.
+    ///
+    /// A name word that substitutes (`info exists $p`) denotes a cell only
+    /// the runtime knows, so it widens [`VariableReadProjection::
+    /// opaque_variable_frame`] rather than exposing its source spelling as a
+    /// variable name.
+    #[must_use]
+    pub fn variable_read_projection(&self, words: InvocationWords<'_>) -> VariableReadProjection {
+        let Some(name) = words.head_literal() else {
+            return VariableReadProjection {
+                literal_names: Vec::new(),
+                opaque_variable_frame: true,
+            };
+        };
+        if self
+            .resolve_structured_invocation(words, self.own_surface_query())
+            .resolved()
+            .is_none()
+        {
+            return VariableReadProjection::default();
+        }
+        let args = words.arguments();
+        let Some(indices) = self.arg_indices_for_role_words(name, args, ArgRole::VarRead) else {
+            return VariableReadProjection {
+                literal_names: Vec::new(),
+                opaque_variable_frame: self.may_have_arg_role(name, ArgRole::VarRead),
+            };
+        };
+        let mut projection = VariableReadProjection::default();
+        for index in indices {
+            match args.literal_at(index) {
+                Some(variable) if !variable.is_empty() => {
+                    if !projection.literal_names.iter().any(|f| f == variable) {
+                        projection.literal_names.push(variable.to_owned());
+                    }
+                }
+                _ => projection.opaque_variable_frame = true,
+            }
+        }
+        projection
+    }
+
     /// Project the variable-cell writes of source-aware invocation words.
     ///
     /// Command, subcommand, option, form, and repeated-tail selection stays
@@ -4376,6 +4423,7 @@ impl CommandRegistry {
         let Some(name) = words.head_literal() else {
             return VariableWriteProjection {
                 literal_names: Vec::new(),
+                read_before_write_names: Vec::new(),
                 opaque_variable_frame: true,
             };
         };
@@ -4384,6 +4432,23 @@ impl CommandRegistry {
             .resolved()
         else {
             return VariableWriteProjection::default();
+        };
+
+        // `incr` / `append` / `lappend` / `lset` / `lpop` / `ledit` fold the
+        // target's current value into the one they store, so the write is
+        // also a read of the same cell. Taken from the *resolved* invocation,
+        // so an alias or rename spelling answers like the builtin it reaches.
+        // Every VarWrite target of such a command is its read-modify-write
+        // target — none of them carries a second, write-only variable role.
+        let reads_before_write = invocation
+            .semantics
+            .traits
+            .contains(Traits::READS_BEFORE_WRITE);
+        let with_reads = |mut projection: VariableWriteProjection| {
+            if reads_before_write {
+                projection.read_before_write_names = projection.literal_names.clone();
+            }
+            projection
         };
 
         // A destroy is not a value definition. The registry's VarWrite role
@@ -4428,9 +4493,21 @@ impl CommandRegistry {
                     }
                 }
             }
-            return projection;
+            return with_reads(projection);
         }
 
+        with_reads(self.arg_role_variable_writes(name, words))
+    }
+
+    /// The [`ArgRole::VarWrite`] half of [`Self::variable_write_projection`]:
+    /// the targets named by this invocation's argument words, once the
+    /// declared-state-transition path has declined. Split out to keep each
+    /// half readable on its own.
+    fn arg_role_variable_writes(
+        &self,
+        name: &str,
+        words: InvocationWords<'_>,
+    ) -> VariableWriteProjection {
         let args = words.arguments();
         if args.exact_argv_len().is_some_and(|count| {
             self.spec_for_this_registry(name)
@@ -4446,6 +4523,7 @@ impl CommandRegistry {
         let Some(indices) = self.arg_indices_for_role_words(name, args, ArgRole::VarWrite) else {
             return VariableWriteProjection {
                 literal_names: Vec::new(),
+                read_before_write_names: Vec::new(),
                 opaque_variable_frame: self.may_have_arg_role(name, ArgRole::VarWrite),
             };
         };
@@ -5887,13 +5965,11 @@ mod tests {
     /// registry contract.  Source-aware callers cannot run a resolver after
     /// expansion, so every emitted role must be declared here instead of
     /// assuming a particular command's fallback shape.
-    #[test]
-    fn dynamic_role_capabilities_cover_every_resolver_and_representative_output() {
+    /// Every shipped surface, not just the always-loaded Tcl, stdlib, tcllib,
+    /// Itcl, and Tk catalogue.  Resolver capability metadata is equally
+    /// load-bearing for optional dialect/package overlays.
+    fn registry_with_every_resolver_surface() -> CommandRegistry {
         let mut registry = CommandRegistry::build_default();
-        // Exercise every shipped surface, not just the always-loaded Tcl,
-        // stdlib, tcllib, Itcl, and Tk catalogue.  Resolver capability
-        // metadata is equally load-bearing for optional dialect/package
-        // overlays.
         for layer in [
             SurfaceLayer::Package("bpf"),
             SurfaceLayer::Core(Family::F5Irules, ""),
@@ -5904,6 +5980,12 @@ mod tests {
         ] {
             registry.load_surface(layer);
         }
+        registry
+    }
+
+    #[test]
+    fn dynamic_role_capabilities_cover_every_resolver_and_representative_output() {
+        let registry = registry_with_every_resolver_surface();
         let mut resolver_count = 0;
         for specs in registry.by_name.values() {
             for spec in specs {
@@ -5980,6 +6062,119 @@ mod tests {
         check_subcommand("namespace", "which", &["-variable", "name"]);
         check_subcommand("namespace", "which", &["-command", "name"]);
         check_subcommand("trace", "add", &["variable", "name", "write", "callback"]);
+    }
+
+    /// The representative rows in the sibling test are hand-picked, so a
+    /// resolver nobody thought to list stays unchecked — `control::do` emitted
+    /// `ArgRole::Expr` without declaring it for exactly that reason (#2068).
+    /// Sweep every resolver instead: feed each one the literals its own spec
+    /// knows about (option names, `arg_values` words, sibling subcommand
+    /// names), at every position of every arity up to the widest form a
+    /// resolver in this tree inspects, and require the closed capability set
+    /// to cover the result.
+    #[test]
+    fn dynamic_role_capabilities_cover_every_resolver_argument_shape() {
+        let registry = registry_with_every_resolver_surface();
+        let mut swept = 0;
+        for specs in registry.by_name.values() {
+            for spec in specs {
+                if let Some(resolver) = spec.arg_role_resolver {
+                    swept += 1;
+                    sweep_resolver(
+                        resolver,
+                        spec.arg_role_resolver_roles,
+                        &resolver_literals(spec, None),
+                        spec.name,
+                    );
+                }
+                for sub in spec.subcommands {
+                    if let Some(resolver) = sub.arg_role_resolver {
+                        swept += 1;
+                        sweep_resolver(
+                            resolver,
+                            sub.arg_role_resolver_roles,
+                            &resolver_literals(spec, Some(sub)),
+                            &format!("{} {}", spec.name, sub.name),
+                        );
+                    }
+                }
+            }
+        }
+        // The same floor the capability test asserts, so the two stay in
+        // step: a resolver added without a capability set fails there, and
+        // one whose emitted roles drift fails here.
+        assert!(swept >= 52, "the resolver catalogue unexpectedly shrank");
+    }
+
+    /// The literal words a resolver is plausibly handed: the option names and
+    /// `arg_values` of the spec it belongs to, plus its sibling subcommand
+    /// names, which discriminator-dependent resolvers (`trace add`,
+    /// `namespace which`) branch on.  Deduplicated and bounded so the sweep
+    /// stays a fast unit test.
+    fn resolver_literals(
+        spec: &'static crate::CommandSpec,
+        sub: Option<&'static crate::spec::SubCommand>,
+    ) -> Vec<&'static str> {
+        let mut out: BTreeSet<&'static str> = BTreeSet::new();
+        let collect = |options: &'static [crate::hover::OptionSpec],
+                       arg_values: &'static [(u8, &'static [crate::hover::ArgValue])],
+                       out: &mut BTreeSet<&'static str>| {
+            for option in options {
+                out.insert(option.name);
+            }
+            for (_, values) in arg_values {
+                for value in *values {
+                    out.insert(value.value);
+                }
+            }
+        };
+        collect(spec.options, spec.arg_values, &mut out);
+        if let Some(sub) = sub {
+            collect(sub.options, sub.arg_values, &mut out);
+        }
+        for sibling in spec.subcommands {
+            out.insert(sibling.name);
+        }
+        // A bare word and a lone dash stand in for "some value" and "an
+        // option-shaped word the table does not know".
+        out.insert("x");
+        out.insert("-");
+        out.into_iter().take(48).collect()
+    }
+
+    /// Call `resolver` with every one-literal substitution into an
+    /// all-placeholder argument vector, for each arity up to `MAX_WORDS`, and
+    /// assert each emitted role is declared.
+    fn sweep_resolver(
+        resolver: ArgRoleResolver,
+        declared: &[ArgRole],
+        literals: &[&'static str],
+        label: &str,
+    ) {
+        // The widest form any resolver in this tree inspects is `trace add
+        // variable name ops callback` plus a trailing word; six covers it
+        // with room to spare, and a resolver that only reads a prefix is
+        // exercised by the shorter arities in the same loop.
+        const MAX_WORDS: usize = 6;
+        let check = |args: &[&str]| {
+            for (_, role) in resolver(args) {
+                assert!(
+                    declared.contains(&role),
+                    "`{label}`'s resolver emitted {role:?} for {args:?}, outside its declared {declared:?}"
+                );
+            }
+        };
+        for len in 0..=MAX_WORDS {
+            let base = vec!["x"; len];
+            check(&base);
+            for position in 0..len {
+                for literal in literals {
+                    let mut args = base.clone();
+                    args[position] = literal;
+                    check(&args);
+                }
+            }
+        }
     }
 
     // Cross-language RPC roles.

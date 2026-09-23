@@ -210,6 +210,19 @@ pub fn live_out_by_name(
     ssa: &SsaFunction,
     registry: &CommandRegistry,
 ) -> HashMap<BlockId, HashSet<String>> {
+    live_out_by_name_counted(cfg, ssa, registry).0
+}
+
+/// [`live_out_by_name`] plus the number of blocks the worklist popped.
+///
+/// The count is the whole point of the seeding order — the fixpoint is
+/// order-independent, so only the work it takes to reach it differs — and it
+/// is not observable in the result, so the tests read it here.
+fn live_out_by_name_counted(
+    cfg: &cfg::Function,
+    ssa: &SsaFunction,
+    registry: &CommandRegistry,
+) -> (HashMap<BlockId, HashSet<String>>, usize) {
     let (use_map, def_map) = block_use_def(cfg, ssa, registry);
 
     let mut live_in: HashMap<BlockId, HashSet<String>> = HashMap::new();
@@ -221,16 +234,20 @@ pub fn live_out_by_name(
 
     let preds = cfg.predecessors();
 
-    // The worklist is popped from the back, so seeding it with the reverse of
-    // reverse-postorder makes the first sweep run entry-first.
-    let mut order = cfg.reverse_postorder();
-    order.reverse();
-
-    let mut worklist: Vec<BlockId> = order.clone();
+    // A backward analysis settles fastest visiting blocks exit-first: a
+    // block's live-in is only as good as its successors' already are, so a
+    // sweep that runs the other way propagates one block per sweep and needs
+    // as many sweeps as the chain is long (#2079). The worklist is popped
+    // from the back, so reverse-postorder — entry-first — seeds it exit-first
+    // and straight-line code settles in a single sweep. (Correctness does not
+    // depend on this: the fixpoint is order-independent.)
+    let mut worklist: Vec<BlockId> = cfg.reverse_postorder();
     let mut queued: HashSet<BlockId> = worklist.iter().copied().collect();
 
+    let mut popped = 0usize;
     while let Some(bn) = worklist.pop() {
         queued.remove(&bn);
+        popped += 1;
 
         let succs: Vec<BlockId> = cfg.block_successors(bn);
         let mut out: HashSet<String> = HashSet::new();
@@ -263,7 +280,7 @@ pub fn live_out_by_name(
         }
     }
 
-    live_out
+    (live_out, popped)
 }
 
 /// Add the clique among the currently-live names to the interference graph:
@@ -416,4 +433,63 @@ pub fn coalesce_slots<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
 #[must_use]
 pub fn slot_count(mapping: &SlotMapping) -> usize {
     mapping.values().copied().max().map_or(0, |m| m + 1)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Lower `src`, build the analysis CFG for the named proc and its SSA.
+    /// `proc` is the qualified name, as `Module.procedures` keys it.
+    fn function(src: &str, proc: &str) -> (cfg::Function, SsaFunction, &'static CommandRegistry) {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let module = crate::lowering::lower_to_ir(src, registry);
+        let procedure = module
+            .procedures
+            .get(proc)
+            .unwrap_or_else(|| panic!("proc {proc} not lowered"));
+        // `false` / `false` = the analysis CFG: no loop inlining, matching
+        // every other liveness consumer.
+        let cfg =
+            crate::cfg_builder::build_cfg_function(proc, &procedure.body, false, registry, false);
+        let ssa = crate::ssa::build_ssa(&cfg, registry);
+        (cfg, ssa, registry)
+    }
+
+    /// The backward fixpoint sweeps exit-first, so a function whose blocks
+    /// form a DAG settles in exactly one visit per block (#2079).
+    ///
+    /// Popping the entry-first seed from the back is reverse-topological
+    /// order over a DAG: every block's successors are already final when it
+    /// is visited, so nothing is ever re-enqueued. Seeded the other way
+    /// round the same fixpoint drags `a`'s liveness back one block per
+    /// sweep and visits blocks repeatedly to reach the identical answer.
+    #[test]
+    fn the_backward_fixpoint_sweeps_exit_first() {
+        let src = "proc chain {} {\n\
+                   set a 1\n\
+                   if {$::x} { puts 1 }\n\
+                   if {$::x} { puts 2 }\n\
+                   if {$::x} { puts 3 }\n\
+                   if {$::x} { puts 4 }\n\
+                   puts $a\n\
+                   }";
+        let (cfg, ssa, registry) = function(src, "::chain");
+        let reachable = cfg.reverse_postorder().len();
+        assert!(
+            reachable >= 8,
+            "the chain of four branches must build a multi-block CFG, got {reachable}"
+        );
+        let (live_out, popped) = live_out_by_name_counted(&cfg, &ssa, registry);
+        assert_eq!(
+            popped, reachable,
+            "one visit per reachable block: a re-enqueue means the sweep ran entry-first"
+        );
+        // The order changes only the cost — `a` is live from its definition
+        // through to the final use either way.
+        assert!(
+            live_out[&cfg.entry].contains("a"),
+            "`a` is live out of the entry block: {live_out:?}"
+        );
+    }
 }

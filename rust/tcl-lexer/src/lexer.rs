@@ -152,13 +152,13 @@ pub struct LexerConfig {
     pub irules_brace_separator: bool,
     /// The F5 brace-line continuation axis (the N-rules of
     /// `docs/design/f5/bigip-irule-parser-measurements.md` §2): under
-    /// [`BraceLineContinuation::Continues`], a newline whose next line's
-    /// first non-whitespace character is `{` does not terminate the
-    /// command — it lexes as a SEP instead of an EOL, unconditionally
-    /// (N2) and at any nesting depth (N3, via body re-lexing under the
-    /// same config). Blank, whitespace-only, and comment lines still
-    /// terminate (N4); backslash-newline handling is unchanged. An
-    /// `f5-tcl` trunk axis.
+    /// [`BraceLineContinuation::Continues`](crate::BraceLineContinuation::Continues),
+    /// a newline whose next line's first non-whitespace character is `{`
+    /// does not terminate the command — it lexes as a SEP instead of an
+    /// EOL, unconditionally (N2) and at any nesting depth (N3, via body
+    /// re-lexing under the same config). Blank, whitespace-only, and
+    /// comment lines still terminate (N4); backslash-newline handling is
+    /// unchanged. An `f5-tcl` trunk axis.
     pub brace_line_continuation: tcl_dialect::BraceLineContinuation,
     /// When true, certain unterminated constructs (missing
     /// close-brace, missing close-bracket, extra chars after
@@ -287,9 +287,10 @@ impl LexerConfig {
         }
     }
 
-    /// Build a config from a dialect profile's [`LexerGrammar`] — the
-    /// dialect-derived fields come from the grammar; the call-site knobs
-    /// (strict quoting, sub-lexing offsets) keep their defaults.
+    /// Build a config from a dialect profile's
+    /// [`LexerGrammar`](tcl_dialect::LexerGrammar) — the dialect-derived
+    /// fields come from the grammar; the call-site knobs (strict quoting,
+    /// sub-lexing offsets) keep their defaults.
     #[must_use]
     pub fn from_grammar(grammar: tcl_dialect::LexerGrammar) -> Self {
         Self {
@@ -536,7 +537,7 @@ impl<'src> Lexer<'src> {
     /// double-quoted string, from byte 0: only `$`, `[`, and `\` escapes
     /// are special, and everything else — including `{` / `}`,
     /// whitespace, and `#` — is ordinary literal content, exactly like
-    /// [`Self::parse_quoted`]'s own in-quote dispatch. No top-level
+    /// `parse_quoted`'s own in-quote dispatch. No top-level
     /// word-splitting or brace-quoting is applied at all.
     ///
     /// For scanning already-extracted word/value text (a `set` value, a
@@ -551,7 +552,7 @@ impl<'src> Lexer<'src> {
     /// An unterminated quote is expected here (there is no real closing
     /// delimiter to find) and never surfaces as an error: same
     /// best-effort behaviour as any other unterminated quoted string
-    /// (see [`Self::parse_quoted`]).
+    /// (see `parse_quoted`).
     #[must_use]
     pub fn as_quoted_body(mut self) -> Self {
         self.in_quote = true;

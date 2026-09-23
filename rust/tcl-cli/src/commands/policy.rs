@@ -24,7 +24,7 @@
 //! span two projects and resolve each under its own layer.
 
 use std::cell::RefCell;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use serde_json::{Map, Value};
@@ -79,18 +79,6 @@ impl ConfigLayers {
         projects.insert(root, layer.clone());
         Some(layer)
     }
-}
-
-/// Whether every path resolves under one project layer (or none) — the
-/// first half of the test `tcl opt` makes before folding several inputs into
-/// one text.
-#[must_use]
-pub fn share_one_project<'a>(paths: impl IntoIterator<Item = Option<&'a Path>>) -> bool {
-    let roots: HashSet<Option<PathBuf>> = paths
-        .into_iter()
-        .map(|path| path.and_then(config_ini::project_root_for))
-        .collect();
-    roots.len() <= 1
 }
 
 /// The `--disable` / `--enable` flags (comma-separated, upper-cased,
@@ -159,6 +147,5 @@ mod tests {
         };
         let policy = layers.builder_for(None).build();
         assert_eq!(policy.code_reason(DiagCode::W242), Some(Reason::DefaultOff));
-        assert!(share_one_project([None, None]));
     }
 }

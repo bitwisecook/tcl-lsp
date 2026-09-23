@@ -32,7 +32,7 @@ use std::rc::Rc;
 use tcl_bytecode::{
     ErrorRegion, ErrorStackContext, FunctionAsm, INDEX_END, Instruction, ModuleAsm, Op, Operand,
 };
-use tcl_runtime_api::{Code, Completion, ScriptCompileTarget};
+use tcl_runtime_api::{Code, Completion, FatalTail, ScriptCompileTarget};
 use tcl_syntax::expr::{BinOp, UnaryOp};
 use tcl_syntax::value::string_char_len;
 
@@ -230,6 +230,13 @@ pub(crate) struct Frame {
     /// down the same way whether the call returned, errored, or unwound a
     /// `break`/`continue`/`return`. `None` for every other script activation.
     cleanup_proc: Option<String>,
+    /// The parse error to raise once this activation's commands have run, for
+    /// a script whose *later* commands do not parse.  C parses one command at
+    /// a time, so the clean prefix runs first and this is what it raises
+    /// afterwards (#1603).  Applied only to an `ok` completion: an error in an
+    /// earlier command is what C reports, the malformed tail never having been
+    /// parsed.  `None` for every script that parses whole.
+    fatal_tail: Option<FatalTail>,
 }
 
 /// One traced dispatch's leave-side state: the invoked command string, the
@@ -260,17 +267,34 @@ impl ExecStepScope {
 pub(crate) struct CatchCtx {
     resvar: Option<Value>,
     optvar: Option<Value>,
-    fatal_tail: Option<String>,
+    fatal_tail: Option<FatalTail>,
+}
+
+/// An `eval`/`uplevel`/`apply`-style body deferred to the explicit stack.
+///
+/// Parked in `Vm.pending.eval` by the builtin and drained into a transparent
+/// script activation, whose result replaces the builtin's placeholder.
+pub(crate) struct EvalReq {
+    pub(crate) script: crate::compiled::CompiledUnit,
+    /// The `errorInfo` body-frame label (`Some("eval")`/`Some("uplevel")`), or
+    /// `None` for a command substitution.
+    pub(crate) label: Option<&'static str>,
+    /// A command name to delete once the activation completes — `apply`'s
+    /// temporary lambda proc.
+    pub(crate) cleanup_proc: Option<String>,
+    /// The parse error to raise once the body's clean prefix has run, for a
+    /// body whose later commands do not parse (see [`Frame::fatal_tail`]).
+    pub(crate) fatal_tail: Option<FatalTail>,
 }
 
 /// A `catch` body deferred to the explicit stack: the compiled body plus the
-/// variable names to bind once it completes. Mirrors `pending_eval`'s tuple, but
+/// variable names to bind once it completes. Mirrors [`EvalReq`], but
 /// its completion is absorbed (see [`Frame::catch`]).
 pub(crate) struct CatchReq {
     pub(crate) script: crate::compiled::CompiledUnit,
     pub(crate) resvar: Option<Value>,
     pub(crate) optvar: Option<Value>,
-    pub(crate) fatal_tail: Option<String>,
+    pub(crate) fatal_tail: Option<FatalTail>,
 }
 
 /// A `subst` deferred to the explicit stack: the template plus its three
@@ -359,6 +383,7 @@ impl Frame {
             profile_generation,
             command_epoch,
             compiler,
+            fatal_tail,
         } = unit;
         let off2idx = Rc::new(build_off2idx(&asm));
         let foreach_pairs = Rc::new(pair_foreach(&asm));
@@ -389,6 +414,9 @@ impl Frame {
             try_ctx: None,
             exec_leave: Vec::new(),
             cleanup_proc: None,
+            // A unit compiled from only the clean prefix of a malformed body
+            // carries the error to raise once that prefix has run.
+            fatal_tail,
         }
     }
 
@@ -558,6 +586,7 @@ enum Tick {
         script: crate::compiled::CompiledUnit,
         label: Option<&'static str>,
         cleanup_proc: Option<String>,
+        fatal_tail: Option<FatalTail>,
         namespace: ScriptNamespace,
     },
     /// Run a `catch` body on the explicit stack (yieldable) via a catch
@@ -1431,10 +1460,12 @@ impl Vm {
                 script,
                 label,
                 cleanup_proc,
+                fatal_tail,
                 namespace,
             } => {
                 let mut frame = Frame::new_script(script, label);
                 frame.cleanup_proc = cleanup_proc;
+                frame.fatal_tail = fatal_tail;
                 if let ScriptNamespace::CommandBoundary(namespace) = namespace {
                     match self.enter_replay_namespace(namespace) {
                         Ok(previous) => frame.replay_namespace_restore = previous,
@@ -1872,6 +1903,19 @@ impl Vm {
         c = self.validate_unwind_boundary(acts, c);
         loop {
             let mut act = acts.pop().expect("unwinding a non-empty stack");
+            // The clean prefix of a partly-malformed body has now run: raise
+            // the parse error C raises after it (#1603).  This happens *first*,
+            // before any of the completion processing below, so the deferred
+            // error is an error for all of it — error-context frames, the proc
+            // boundary and leave traces each see code 1 rather than the
+            // prefix's `ok`, and `-errorinfo` is built the same way it is for a
+            // runtime error in the same position.  An earlier command's own
+            // completion wins, exactly as in `catch`/`try`.
+            if c.code == Code::Ok
+                && let Some(tail) = act.fatal_tail.take()
+            {
+                c = self.raise_fatal_tail(tail);
+            }
             // An error unwinding through an inlined command body (`eval {…}`)
             // adds the body frames the uncompiled command would, before this
             // activation's own proc frame (innermost first) — the compiled
@@ -1908,9 +1952,9 @@ impl Vm {
             // it straight through).
             if let Some(ctx) = act.catch.take() {
                 if c.code == Code::Ok
-                    && let Some(message) = ctx.fatal_tail
+                    && let Some(tail) = ctx.fatal_tail
                 {
-                    c = crate::interp::err(message);
+                    c = self.raise_fatal_tail(tail);
                 }
                 c = self.finish_catch(c, ctx.resvar.as_ref(), ctx.optvar.as_ref());
             }
@@ -1922,9 +1966,9 @@ impl Vm {
             // exactly as for any other completed activation.
             if let Some(mut ctx) = act.try_ctx.take() {
                 if c.code == Code::Ok
-                    && let Some(message) = ctx.fatal_tail.take()
+                    && let Some(tail) = ctx.fatal_tail.take()
                 {
-                    c = crate::interp::err(message);
+                    c = self.raise_fatal_tail(tail);
                 }
                 match crate::cmd_try::advance_try(self, *ctx, c) {
                     crate::cmd_try::TryOutcome::Push(req) => {
@@ -2240,6 +2284,7 @@ impl Vm {
                     script,
                     label: None,
                     cleanup_proc: None,
+                    fatal_tail: None,
                     namespace: ScriptNamespace::Inherit,
                 },
                 Err(e) => Tick::Return(err(e.message)),
@@ -2296,6 +2341,7 @@ impl Vm {
             script: body,
             label: None,
             cleanup_proc: None,
+            fatal_tail: None,
             namespace: ScriptNamespace::Inherit,
         }
     }
@@ -2474,6 +2520,7 @@ impl Vm {
                     script: self.compiled_unit(child, instr.source_command_namespace.clone()),
                     label: None,
                     cleanup_proc: None,
+                    fatal_tail: None,
                     namespace: ScriptNamespace::CommandBoundary(
                         instr.source_command_namespace.clone(),
                     ),
@@ -2642,6 +2689,7 @@ impl Vm {
                                 .compiled_unit(child, instr.source_command_namespace.clone()),
                             label: None,
                             cleanup_proc: None,
+                            fatal_tail: None,
                             namespace: ScriptNamespace::CommandBoundary(
                                 instr.source_command_namespace.clone(),
                             ),
@@ -4096,7 +4144,9 @@ impl Vm {
                 };
                 match list_v.as_list() {
                     Ok(items) => f.stack.extend(items.iter().cloned()),
-                    Err(e) => return Tick::Return(err(e.message)),
+                    Err(e) => {
+                        return Tick::Return(crate::command::completion_from_tcl_error(e));
+                    }
                 }
             }
             // `expandDrop` abandons the innermost expansion: pop its marker and
@@ -4116,23 +4166,26 @@ impl Vm {
                 }
                 let words = f.stack.split_off(marker);
                 if words.is_empty() {
-                    return Tick::Return(command_lookup_error(""));
-                }
-                let entered = f.take_entered_command();
-                match self.dispatch_words_with_entered(f, &words, entered.as_ref()) {
-                    Ok(Some(call)) => return call,
-                    Ok(None) => {}
-                    Err(c) => {
-                        let cmd_text = instr.source_cmd_text.clone();
-                        let msg = c.result.to_str().to_string();
-                        let line = instr.source_line;
-                        self.log_command_info_with_context(
-                            &cmd_text,
-                            Value::list(words),
-                            &msg,
-                            line,
-                        );
+                    if let Err(c) = Self::deliver_sync(f, ok(Value::empty())) {
                         return Tick::Return(c);
+                    }
+                } else {
+                    let entered = f.take_entered_command();
+                    match self.dispatch_words_with_entered(f, &words, entered.as_ref()) {
+                        Ok(Some(call)) => return call,
+                        Ok(None) => {}
+                        Err(c) => {
+                            let cmd_text = instr.source_cmd_text.clone();
+                            let msg = c.result.to_str().to_string();
+                            let line = instr.source_line;
+                            self.log_command_info_with_context(
+                                &cmd_text,
+                                Value::list(words),
+                                &msg,
+                                line,
+                            );
+                            return Tick::Return(c);
+                        }
                     }
                 }
             }
@@ -4625,6 +4678,7 @@ impl Vm {
                             script,
                             label: None,
                             cleanup_proc: None,
+                            fatal_tail: None,
                             namespace: ScriptNamespace::Inherit,
                         };
                     }
@@ -5203,11 +5257,12 @@ impl Vm {
         // An `eval`/`uplevel`/`apply`-style builtin defers its body to the
         // explicit stack (yieldable): drain it into a `PushScript`, whose
         // frame result replaces this builtin's placeholder (as for yield).
-        if let Some((script, label, cleanup_proc)) = self.pending.eval.take() {
+        if let Some(req) = self.pending.eval.take() {
             return Ok(Some(Tick::PushScript {
-                script,
-                label,
-                cleanup_proc,
+                script: req.script,
+                label: req.label,
+                cleanup_proc: req.cleanup_proc,
+                fatal_tail: req.fatal_tail,
                 namespace: ScriptNamespace::Inherit,
             }));
         }
@@ -5559,9 +5614,16 @@ impl Vm {
         // trampoline to push onto), so run the body via a nested drive —
         // a `yield` inside cannot cross it, exactly like every other
         // `invoke_command` re-entry.
-        if let Some((script, label, cleanup_proc)) = self.pending.eval.take() {
-            let comp = self.run_activation(Frame::new_script(script, label));
-            if let Some(name) = cleanup_proc {
+        if let Some(req) = self.pending.eval.take() {
+            // Carry the deferred parse error on the frame rather than patching
+            // the completion this returns: the unwind applies it before the
+            // activation's error-context and leave-trace processing, and a
+            // nested drive must not get a different lifecycle from the
+            // trampoline's `PushScript`.
+            let mut frame = Frame::new_script(req.script, req.label);
+            frame.fatal_tail = req.fatal_tail;
+            let comp = self.run_activation(frame);
+            if let Some(name) = req.cleanup_proc {
                 self.take_command_unchecked(&name);
             }
             return comp;
@@ -5572,9 +5634,9 @@ impl Vm {
         if let Some(req) = self.pending.catch.take() {
             let mut comp = self.run_activation(Frame::new_script(req.script, None));
             if comp.code == Code::Ok
-                && let Some(message) = req.fatal_tail
+                && let Some(tail) = req.fatal_tail
             {
-                comp = err(message);
+                comp = self.raise_fatal_tail(tail);
             }
             return self.finish_catch(comp, req.resvar.as_ref(), req.optvar.as_ref());
         }
@@ -5726,7 +5788,11 @@ impl Vm {
             return c;
         }
         for (local, storage) in link_vars {
-            if let Err(error) = self.add_tcloo_instance_link(local, 0, storage) {
+            // Whether this body compiled a local slot for the name decides only
+            // how `info consts` enumerates the projection (#2173); the link
+            // itself is the same either way.
+            let compiled_slot = proc.body.asm.lvt.is_source_local(local);
+            if let Err(error) = self.add_tcloo_instance_link(local, 0, storage, compiled_slot) {
                 self.pop_call_frame();
                 self.pop_ns();
                 return crate::command::upvar_link_error(error, storage, local);

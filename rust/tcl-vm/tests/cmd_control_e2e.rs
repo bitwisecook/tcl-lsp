@@ -314,6 +314,149 @@ fn plain_dispatch_try_executes_prefix_before_fatal_tail() {
     );
 }
 
+/// `eval` keeps Tcl's command-at-a-time parse boundary too (#1603): a body
+/// whose *later* commands do not parse still runs the commands ahead of them
+/// before the error is raised, exactly as a `catch`/`try` body does.
+///
+/// The literal-brace form is the one that used to escape entirely — it is
+/// inlined at compile time and lowered leniently, so `eval {set y "a"b}`
+/// quietly meant `set y ab` and the script carried on with status 0 (#1829).
+#[test]
+fn eval_executes_prefix_before_fatal_tail() {
+    // tclsh 8.6.18 / 9.0.4: `1 1 {missing "}`
+    assert_eq!(
+        run(
+            "set ::side 0; set code [catch {eval {incr ::side; set x \"}} msg]; \
+             list $code $::side $msg"
+        )
+        .1,
+        "1 1 {missing \"}",
+    );
+    // The same body reached through a variable, which never had the inlining
+    // escape but did lose the prefix.
+    // tclsh 8.6.18 / 9.0.4: `1 1 {missing "}`
+    assert_eq!(
+        run("set ::side 0; set b {incr ::side; set x \"}; \
+             set code [catch {eval $b} msg]; list $code $::side $msg")
+        .1,
+        "1 1 {missing \"}",
+    );
+    // The shape that produced a *silent wrong answer* rather than a loud one:
+    // lowered leniently, `set y "a"b` quietly meant `set y ab`, so the `eval`
+    // returned `ab` with status 0 where C raises.
+    // tclsh 8.6.18 / 9.0.4: `1 {extra characters after close-quote}`
+    assert_eq!(
+        run("set code [catch {eval {set y \"a\"b}} msg]; list $code $msg").1,
+        "1 {extra characters after close-quote}",
+    );
+    // Positive control: a literal body that parses still runs and still
+    // reports success, so neither assertion above can pass merely because
+    // `eval` started failing or stopped running its body.
+    // tclsh 8.6.18 / 9.0.4: `0 1 ok`
+    assert_eq!(
+        run(
+            "set ::side 0; set code [catch {eval {incr ::side; set x ok}} msg]; \
+             list $code $::side $msg"
+        )
+        .1,
+        "0 1 ok",
+    );
+}
+
+/// A procedure body is compiled when the procedure is **called**, so a body
+/// that does not parse neither refuses the definition nor runs with the
+/// lenient lowering's invented meaning (#1829).
+///
+/// The single asserted value pins all three facts at once: the procedure is
+/// defined (`info procs` sees it), its clean prefix runs on entry (`::side`
+/// reaches 1), and the parse error is raised after that prefix rather than at
+/// `proc` time.
+#[test]
+fn a_procedure_body_that_does_not_parse_raises_on_entry_not_at_definition() {
+    // tclsh 8.6.18 / 9.0.4: `p 1 1 {missing "}`
+    assert_eq!(
+        run("set ::side 0; proc p {} {incr ::side; set x \"}; \
+             set d [info procs p]; set code [catch {p} msg]; \
+             list $d $code $::side $msg")
+        .1,
+        "p 1 1 {missing \"}",
+    );
+    // A malformed body that is never called is not an error at all: the
+    // definition stands and the script runs on. This is the half that used to
+    // fail at `proc` time for a body reached through a variable.
+    // tclsh 8.6.18 / 9.0.4: `q survived`
+    assert_eq!(
+        run("proc q {} {set x \"}; list [info procs q] survived").1,
+        "q survived",
+    );
+    // The silent-wrong-answer shape: admitted from the enclosing module's
+    // lenient lowering, `set y "a"b` quietly meant `set y ab`, so calling `p`
+    // returned `ab` with status 0 where C raises.
+    // tclsh 8.6.18 / 9.0.4: `1 {extra characters after close-quote}`
+    assert_eq!(
+        run(
+            "proc p {} {set y \"a\"b; return $y}; set code [catch {p} msg]; \
+             list $code $msg"
+        )
+        .1,
+        "1 {extra characters after close-quote}",
+    );
+    // Positive control: a body that parses still runs on call and returns its
+    // value, so the two assertions above cannot pass because procedure bodies
+    // stopped executing.
+    // tclsh 8.6.18 / 9.0.4: `0 1 ok`
+    assert_eq!(
+        run("set ::side 0; proc r {} {incr ::side; set x ok}; \
+             set code [catch {r} msg]; list $code $::side $msg")
+        .1,
+        "0 1 ok",
+    );
+}
+
+/// The deferred parse error becomes an error *before* the activation's
+/// completion processing, not after it.
+///
+/// Raising it late would let the error-context frames, the procedure
+/// boundary and leave traces all run against the prefix's `ok` completion,
+/// so `-errorinfo` would carry no trace and a leave trace would observe
+/// code 0 while the caller received code 1.
+#[test]
+fn a_deferred_parse_error_is_raised_before_the_activation_is_torn_down() {
+    // tclsh 8.6.18 / 9.0.4: `1` — the trace is seeded with the message and
+    // carries the `eval` body frame.
+    assert_eq!(
+        run("catch {eval {set a 1; set x \"}} m o; \
+             list [string match {missing \"*} [dict get $o -errorinfo]] \
+                  [string match {*(\"eval\" body line 1)*invoked from within*} \
+                               [dict get $o -errorinfo]]")
+        .1,
+        "1 1",
+    );
+    // A leave trace on a procedure whose body has a malformed tail observes
+    // the error, not the prefix's success.
+    // tclsh 8.6.18 / 9.0.4: `1|missing "`
+    assert_eq!(
+        run("proc p {} {set a 1; set x \"}; set ::seen {}; \
+             trace add execution p leave \
+                 {apply {{c code r op} {set ::seen \"$code|$r\"}}}; \
+             catch {p} m; set ::seen")
+        .1,
+        "1|missing \"",
+    );
+    // Positive control: an ordinary runtime error in the same position
+    // already behaved this way, so the assertions above cannot pass merely
+    // because leave traces or `-errorinfo` stopped working.
+    // tclsh 8.6.18 / 9.0.4: `1|BOOM`
+    assert_eq!(
+        run("proc q {} {set a 1; error BOOM}; set ::seen2 {}; \
+             trace add execution q leave \
+                 {apply {{c code r op} {set ::seen2 \"$code|$r\"}}}; \
+             catch {q} m; set ::seen2")
+        .1,
+        "1|BOOM",
+    );
+}
+
 /// The narrow nested `catch {try ... on error ...}` compiler specialisation
 /// keeps distinct live ranges for the try body and handler. Both are complete
 /// scripts: body errors reach the handler, successful handler results reach the
@@ -1118,6 +1261,70 @@ fn unbraced_foreach_list_word_still_substitutes() {
     );
 }
 
+/// A whole-word array element is a dynamic list source, including when its
+/// index contains substitutions.  The header must evaluate that word at loop
+/// entry instead of iterating its source spelling.  These outputs match
+/// Tcl 9.0.4.
+#[test]
+fn foreach_dynamic_array_element_list_source_matches_tcl9() {
+    // The package.tcl shape that exposed #2194: the index is composed from
+    // the current loop variable.
+    assert_eq!(
+        run("proc p {} {\n\
+                 array set opts {-load {} -source foo}\n\
+                 set out {}\n\
+                 foreach key {load source} {\n\
+                     foreach filespec $opts(-$key) {\n\
+                         lappend out [list $key $filespec]\n\
+                     }\n\
+                 }\n\
+                 return $out\n\
+             }\n\
+             p",)
+        .1,
+        "{source foo}",
+    );
+
+    // A dynamic array source also works in a nested loop.
+    assert_eq!(
+        run("array set a {x {one two} y {three}}\n\
+             set out {}\n\
+             foreach key {x y} {\n\
+                 foreach item $a($key) { lappend out [list $key $item] }\n\
+             }\n\
+             set out",)
+        .1,
+        "{x one} {x two} {y three}",
+    );
+
+    // Braced list controls remain literal, even when the same spelling would
+    // be a variable reference in an unbraced word.
+    assert_eq!(
+        run("set x {a $b [bad]}\n\
+             set out {}\n\
+             foreach item {$x} { lappend out $item }\n\
+             set out",)
+        .1,
+        "{$x}",
+    );
+
+    // An index command runs once while resolving the list source.  This
+    // guards the left-to-right substitution order in the canonical array
+    // reference emitter.
+    assert_eq!(
+        run(
+            "proc nextKey {name counterVar} { upvar 1 $counterVar n; incr n; return $name }\n\
+             array set a {x {one two}}\n\
+             set n 0\n\
+             set out {}\n\
+             foreach item $a([nextKey x n]) { lappend out $item }\n\
+             list $n $out",
+        )
+        .1,
+        "1 {one two}",
+    );
+}
+
 /// A direct nested iterator routes the outer literal `foreach` through the
 /// runtime command boundary. That gives the inner loop a fresh activation;
 /// inlining both loops into one CFG would leave only the final outer item.
@@ -1732,4 +1939,238 @@ fn deeply_nested_command_substitution_is_unaffected() {
         src.push_str("}]");
     }
     assert_eq!(run(&format!("set x {src}\n")).1, "1");
+}
+
+/// A deferred parse error names the command that failed to parse, the way an
+/// ordinary runtime error in the same position does.
+///
+/// C compiles the failure through `Tcl_LogCommandInfo`, so `-errorinfo`
+/// carries a `while executing` / `"<command>"` pair. `tclvm` raised the bare
+/// message (#2172).
+#[test]
+fn a_deferred_parse_error_names_the_malformed_command() {
+    // tclsh 8.6.18 / 9.0.4, identical.
+    assert_eq!(
+        run("set c catch; $c {set a 1; set x \"} m o; dict get $o -errorinfo").1,
+        "missing \"\n    while executing\n\"set x \"\"",
+    );
+}
+
+/// The quoted text stops at the character that opened the unterminated
+/// construct, not at the end of the source.
+///
+/// C slices `source[commandStart ..= parsePtr->term]`, and for an unterminated
+/// quote `ParseQuotedString` sets `term` to the opening `"` itself — so the
+/// `abc\ndef` after it is not quoted. Reading the whole remainder instead (the
+/// obvious implementation, and what #2172 first proposed) is wrong for every
+/// row here but the first.
+#[test]
+fn the_named_command_stops_at_the_unterminated_delimiter() {
+    // All five verified against tclsh 8.6.18 and 9.0.4, which agree.
+    //
+    // The body is passed braced where it is brace-balanced and quoted where it
+    // is not — an unbalanced `{` cannot survive a braced wrapper, which is the
+    // same reason C never sees that command as a word either.
+    let cases = [
+        // Construct opens last and nothing follows: whole remainder is right.
+        (
+            "set c catch; $c {set a 1; set x \"} m o; dict get $o -errorinfo",
+            "missing \"",
+            "set x \"",
+        ),
+        // Text after the opening quote is *not* quoted.
+        (
+            "set c catch; $c \"set a 1\\nset x \\\"abc\\ndef\" m o; dict get $o -errorinfo",
+            "missing \"",
+            "set x \"",
+        ),
+        // Same for a bracket, whose body would otherwise be included.
+        (
+            "set c catch; $c {set a 1; set x [foo bar} m o; dict get $o -errorinfo",
+            "missing close-bracket",
+            "set x [",
+        ),
+        // And a brace.
+        (
+            "set c catch; $c \"set a 1\\nset x {abc def\" m o; dict get $o -errorinfo",
+            "missing close-brace",
+            "set x {",
+        ),
+        // Reported in place rather than at an opener: the term is the
+        // offending byte, and the frame stops there.
+        (
+            "set c catch; $c {set a 1; set x {a}b tail} m o; dict get $o -errorinfo",
+            "extra characters after close-brace",
+            "set x {a}b",
+        ),
+        // An earlier *complete* quoted word survives verbatim: the cut is at
+        // the delimiter that failed, not the first one seen.
+        (
+            "set c catch; $c {set a 1; set x \"a\" y \"} m o; dict get $o -errorinfo",
+            "missing \"",
+            "set x \"a\" y \"",
+        ),
+    ];
+    for (script, message, named) in cases {
+        assert_eq!(
+            run(script).1,
+            format!("{message}\n    while executing\n\"{named}\""),
+            "script: {script:?}",
+        );
+    }
+}
+
+/// Where the term cannot be pinned to the construct that failed, no frame is
+/// logged at all — the bare message, as before the frame existed.
+///
+/// A failure inside a `[…]` is reported by the cut owner at the bracket,
+/// because the word-part decomposition carries no extent for the inner
+/// construct. So `set x [list "oops]` yields `missing "` with the term on the
+/// `[`, a pair that cannot be C's: C quotes `set x [list "`. Quoting `set x [`
+/// (the term as given) or `set x [list "oops]` (the rest of the source) would
+/// both be wrong, and wrong in a way that reads as right.
+///
+/// The check is that the byte the term points at opens the construct the
+/// message names. When it does not, the text is dropped.
+#[test]
+fn an_unpinnable_term_logs_no_frame_rather_than_a_wrong_one() {
+    // tclsh 9.0.4 logs `missing "` + `while executing` + `"set x [list ""`.
+    // Matching that needs an inner extent the decomposition does not carry;
+    // until it does, omitting the frame is the honest answer.
+    assert_eq!(
+        run("set c catch; $c {set a 1; set x [list \"oops]} m o; dict get $o -errorinfo").1,
+        "missing \"",
+    );
+}
+
+/// A straight-line `catch` body compiles into the enclosing procedure rather
+/// than being dispatched whole (#2207), so its variables are real locals.
+///
+/// Verified against tclsh 9.0.4: `proc f {} { catch {set x 42}; return $x }`
+/// is `42` on both, and the disassembly agrees instruction for instruction —
+/// `beginCatch4`, `loadScalar1`, `storeScalar1`, where before the whole body
+/// was one `invokeStk1` and `x` never reached the local table.
+#[test]
+fn a_catch_body_write_is_visible_after_the_catch() {
+    assert_eq!(run("proc f {} { catch {set x 42}; return $x }; f").1, "42");
+    assert_eq!(run("proc g {} { catch {incr n 2}; return $n }; g").1, "2");
+    assert_eq!(
+        run("proc h {} { set n 5; catch {incr n 2}; return $n }; h").1,
+        "7"
+    );
+}
+
+/// The body still runs inside the exception range: a failure is caught, and
+/// nothing the body did not reach is defined.
+#[test]
+fn an_inlined_catch_still_catches() {
+    assert_eq!(run("proc f {} { catch {error boom} }; f").1, "1");
+    assert_eq!(
+        run("proc f {} { catch {error boom} m; return $m }; f").1,
+        "boom"
+    );
+    assert_eq!(
+        run("proc f {} { catch {expr {1/0}} m; return $m }; f").1,
+        "divide by zero"
+    );
+    // The write never happened, so the name is not defined.
+    assert_eq!(
+        run("proc f {} { catch {error a}; return [info exists q] }; f").1,
+        "0"
+    );
+}
+
+/// `catch`'s own value is its return code, in every position.
+#[test]
+fn catch_returns_its_code_wherever_it_sits() {
+    assert_eq!(run("proc f {} { catch {set q 1} }; f").1, "0");
+    assert_eq!(run("proc f {} { catch {set q 1}; set z 2 }; f").1, "2");
+    assert_eq!(
+        run("proc f {} { set rc [catch {error x}]; return $rc }; f").1,
+        "1"
+    );
+    assert_eq!(
+        run("proc f {} { catch {return 42} m; return \"caught:$m\" }; f").1,
+        "caught:42"
+    );
+}
+
+/// A `catch` outside a procedure keeps the dispatched form, as C does: there
+/// is no local variable table to hold the result variable's slot, and tclsh
+/// compiles a top-level `catch {set a 1} m o` to a plain `invokeStk`.
+#[test]
+fn a_top_level_catch_is_not_inlined() {
+    assert_eq!(run("catch {set a 1} m o; set m").1, "1");
+    assert_eq!(run("catch {error boom} m; set m").1, "boom");
+}
+
+/// `info exists` in statement position compiles inline in a procedure, so the
+/// name it tests becomes a compiled local (#2207).
+///
+/// tclsh 9.0.4 emits `existScalar %v0` for a bare `info exists pub` in a
+/// procedure, against our previous `invokeStk1`.
+#[test]
+fn statement_position_info_exists_answers_like_tclsh() {
+    assert_eq!(run("proc f {} { info exists pub }; f").1, "0");
+    assert_eq!(run("proc f {} { set pub 1; info exists pub }; f").1, "1");
+    // Not the last statement: the value is discarded, the next one stands.
+    assert_eq!(
+        run("proc f {} { set pub 1; info exists pub; return done }; f").1,
+        "done"
+    );
+}
+
+/// A name the inline form cannot address keeps the dispatched path: outside a
+/// procedure there is no slot, and a qualified name is not a frame local.
+#[test]
+fn info_exists_without_a_slot_stays_dispatched() {
+    assert_eq!(run("info exists nope; set x 1").1, "1");
+    assert_eq!(run("set ::gv 1; proc f {} { info exists ::gv }; f").1, "1");
+    // A braced name resolves once and is not substituted again.
+    assert_eq!(
+        run("set {{zz}} V\nputs [info exists {{zz}}]:[set {{zz}}]\n").1,
+        ""
+    );
+}
+
+/// Only the last statement of a `catch` body is its result; the earlier ones
+/// are discarded as ordinary script execution discards them.
+///
+/// Without that, `catch {set x 1; set y 2}` leaves `1` beneath the result and
+/// a loop around it grows the operand stack without bound. The bytecode is
+/// byte-identical to tclsh 9.0.4, which pops after each non-final command.
+#[test]
+fn a_multi_command_catch_body_discards_all_but_its_last_result() {
+    assert_eq!(
+        run("proc f {} { catch {set x 1; set y 2} m; return \"$m $x $y\" }; f").1,
+        "2 1 2"
+    );
+    assert_eq!(
+        run("proc f {} { catch {set x 1; set y 2; set z 3} m; return $m }; f").1,
+        "3"
+    );
+    // Repeated execution must not accumulate stack.
+    assert_eq!(
+        run("proc f {} { for {set i 0} {$i < 2000} {incr i} { catch {set x 1; set y 2} }; return ok }; f").1,
+        "ok"
+    );
+}
+
+/// A destination word that is not a literal scalar local keeps the dispatched
+/// path, because lowering has already normalised it: `$dst` arrives as `dst`
+/// and `a(key)` as `a`, so the inline store would write the wrong variable.
+#[test]
+fn catch_destinations_that_need_resolving_are_not_inlined() {
+    assert_eq!(
+        run("proc f {} { set dst m; catch {set x ok} $dst; return \"[info exists m] $dst\" }; f").1,
+        "1 m"
+    );
+    // `catch script ?result? ?options?` and no more — C raises this before
+    // running the body, so the body must not run.
+    let (ok, result, _) = run("proc f {} { catch {set ran 1} r o extra }; f");
+    assert!(!ok, "over-arity catch must fail, got {result}");
+    assert!(
+        result.contains("wrong # args"),
+        "and fail the way C does: {result}"
+    );
 }

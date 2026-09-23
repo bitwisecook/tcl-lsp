@@ -2867,6 +2867,7 @@ pub fn function_optimisations<'db>(
     let mut ir_procs = HashMap::new();
     ir_procs.insert(qname.clone(), proc);
     let ir_module = tcl_compiler::ir::Module {
+        top_level_kind: tcl_compiler::ir::TopLevelKind::Script,
         source: body_source.clone(),
         // This synthetic module has no executable top-level script; the
         // procedure entry below carries its own qualified-name namespace.
@@ -3111,6 +3112,7 @@ fn top_level_only_unit(
     CompilationUnit {
         source: cu.source.clone(),
         ir_module: tcl_compiler::ir::Module {
+            top_level_kind: tcl_compiler::ir::TopLevelKind::Script,
             source: cu.source.clone(),
             top_level_namespace: cu.ir_module.top_level_namespace.clone(),
             dialect: cu.ir_module.dialect.clone(),

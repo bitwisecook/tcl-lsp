@@ -275,14 +275,15 @@ pub fn sccp(
 /// bounded by the engine's structural depth cap
 /// (`crate::const_subst`).
 ///
-/// Only supplied by callers holding the whole-module command-mutation trust
-/// fact ([`crate::command_binding::ModuleCommandMutations`]) — a renamed /
-/// aliased / shadowed head must never fold with builtin semantics. The
-/// shared per-unit lattice (`crate::compilation_unit`) is built **without**
-/// it (its memoisation key does not carry the mutation fact); the optimiser
-/// propagation pass re-runs SCCP with it when a function contains a
-/// command-substitution assignment (see
-/// `crate::optimiser::propagation`).
+/// Carries the whole-module command-mutation trust fact
+/// ([`crate::command_binding::ModuleCommandMutations`]) — a renamed /
+/// aliased / shadowed head must never fold with builtin semantics — and is
+/// therefore what *every* resolved head's declared value transfer is gated
+/// on (`crate::value_transfer`'s driver, under the stance [`Self::trust`]
+/// names), and the registry `const_fold` engine besides. A caller that
+/// passes `None` holds no whole-module view and gets no builtin answer at
+/// all; `registry_engine` then selects whether a caller that does hold one
+/// also gets the registry `const_fold` engine.
 #[derive(Clone, Copy)]
 pub struct BuiltinFoldInputs<'a> {
     /// Command / subcommand specs — the fold callbacks live here. Carried
@@ -296,6 +297,39 @@ pub struct BuiltinFoldInputs<'a> {
     /// Proven defining class of the enclosing `TclOO` instance-method frame
     /// (enables `[self class]`-style frame-fact folds); `None` elsewhere.
     pub defining_class: Option<&'a str>,
+    /// Whether the registry `const_fold` engine may run after the resolved
+    /// head's declared route declines. The shared per-unit lattice
+    /// ([`crate::compilation_unit::FunctionUnit`]) supplies the trust fact
+    /// with the engine off, which gates its declared routes without widening
+    /// what it folds; the optimiser's own re-run turns it on. It never gates
+    /// a declared route.
+    pub registry_engine: bool,
+    /// Which half of `mutations` gates the declared routes — see
+    /// [`FoldTrust`].
+    pub trust: FoldTrust,
+}
+
+/// How much of the whole-module mutation summary gates a builtin fold.
+///
+/// The two answers differ only on
+/// [`crate::command_binding::ModuleCommandMutations`]'s unbounded `dynamic`
+/// top; on every *named* subject — a shadowing `proc`, a `rename`, an alias,
+/// an opaque import — they agree, which is what keeps one call from carrying
+/// two answers within one statement (#2164).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum FoldTrust {
+    /// Everything
+    /// [`crate::command_binding::ModuleCommandMutations::trusts`] clears,
+    /// the `dynamic` top included: nothing folds once *any* binding
+    /// transition in the module is unbounded. The stance for a fold that
+    /// becomes a source rewrite.
+    WholeModule,
+    /// What the module's own observed bindings clear
+    /// ([`crate::command_binding::ModuleCommandMutations::observed_binding_is_the_builtin`]).
+    /// The stance for the shared per-unit value lattice, which answers "what
+    /// does this call evaluate to given the definitions this module holds"
+    /// and must not lose every fold to one unresolved command head.
+    ObservedBindings,
 }
 
 /// Registry-driven whole-module trace facts [`sccp`] /
@@ -360,10 +394,12 @@ pub fn sccp_with_extra_escaping(
     )
 }
 
-/// Like [`sccp_with_extra_escaping`] but additionally folds pure-builtin
-/// command substitutions during lattice evaluation via the registry
-/// `const_fold` callbacks — see [`BuiltinFoldInputs`]. Passing
-/// `None` is byte-identical to [`sccp_with_extra_escaping`].
+/// Like [`sccp_with_extra_escaping`] but with the whole-module command-trust
+/// fact in hand, so a resolved command answers at all — its declared value
+/// transfer always, and the registry `const_fold` engine when
+/// [`BuiltinFoldInputs::registry_engine`] is set. Passing `None` is
+/// byte-identical to [`sccp_with_extra_escaping`], which answers for no
+/// resolved command for want of that fact.
 #[must_use]
 #[allow(clippy::implicit_hasher)]
 pub fn sccp_with_builtin_folds(
@@ -1318,9 +1354,13 @@ pub fn existence_constant_branches(
 /// Focused subset: constant-assignment, expression-assignment via the
 /// expression evaluator, the registry-declared value transfer of a typed
 /// cell update, a synthetic loop header, or a command substitution, and a
-/// conservative `Overdefined` fallback for everything else. Commands
-/// resolve against the process-wide default registry; a run over a unit's
-/// own registry goes through [`sccp_with_builtin_folds`].
+/// conservative `Overdefined` fallback for everything else.
+///
+/// Holds no whole-module command view, so no resolved command answers: there
+/// is no evidence that `[llength …]` or `incr` still means the builtin
+/// rather than a user `proc` of that name. A caller with the fact uses
+/// [`evaluate_def_with_folds`]; a run over a unit's own registry goes
+/// through [`sccp_with_builtin_folds`].
 #[must_use]
 pub fn evaluate_def<S: std::hash::BuildHasher>(
     stmt_ssa: &SsaStatement,
@@ -1747,11 +1787,69 @@ pub fn parse_literal_value(text: &str) -> ConstValue {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Whitespace inside a Tcl word is data, so the lattice keeps the exact
+    /// spelling (#2052).
+    ///
+    /// Trimming corrupted every consumer: `set p { again}` reached the lattice
+    /// as `again`, so `append s $p` was rewritten to `append s again` and the
+    /// program printed `helloagain` where tclsh 9.0.4 prints `hello again`.
+    /// `string length $p` folded to 5 against the true 6.
+    #[test]
+    fn a_literal_keeps_its_surrounding_whitespace() {
+        assert_eq!(
+            parse_literal_value(" again"),
+            ConstValue::String(" again".to_owned()),
+        );
+        assert_eq!(
+            parse_literal_value("trailing "),
+            ConstValue::String("trailing ".to_owned()),
+        );
+        // An integer with whitespace around it is not the integer: rendering
+        // it back as `5` would drop the space just as surely.
+        assert_eq!(
+            parse_literal_value(" 5"),
+            ConstValue::String(" 5".to_owned()),
+        );
+        // The bare integer still folds.
+        assert_eq!(parse_literal_value("5"), ConstValue::Int(5));
+        assert_eq!(parse_literal_value("-17"), ConstValue::Int(-17));
+    }
     use crate::cfg::{Block, BlockId, Function, Terminator};
     use crate::expr_ast::ExprNode;
 
     fn registry() -> CommandRegistry {
         CommandRegistry::build_default()
+    }
+
+    /// [`evaluate_def_with_folds`] under a module that mutates no command
+    /// binding — the stance the shared per-unit lattice takes for an
+    /// untouched file ([`FoldTrust::ObservedBindings`] over
+    /// [`crate::command_binding::ModuleCommandMutations`]'s `Default`).
+    ///
+    /// Plain [`evaluate_def`] holds no whole-module command view at all and
+    /// therefore folds no builtin command substitution, so a fold-arm test
+    /// has to state the trust fact it folds under.
+    fn evaluate_pristine<S: std::hash::BuildHasher>(
+        stmt: &SsaStatement,
+        values: &HashMap<ValueKey, LatticeValue, S>,
+        ssa: &SsaFunction,
+        policy: FoldPolicy,
+    ) -> LatticeValue {
+        evaluate_def_with_folds(
+            stmt,
+            values,
+            ssa,
+            policy,
+            Some(BuiltinFoldInputs {
+                registry: &registry(),
+                mutations: &crate::command_binding::ModuleCommandMutations::default(),
+                dialect: None,
+                defining_class: None,
+                registry_engine: false,
+                trust: FoldTrust::ObservedBindings,
+            }),
+        )
     }
 
     /// Convenience wrapper over [`sccp`] for tests with no `Module` in
@@ -1773,6 +1871,35 @@ mod tests {
                 has_dynamic_variable_trace: false,
                 analysis_context: None,
             },
+        )
+    }
+
+    /// [`sccp_no_traces`] under a module that mutates no command binding —
+    /// the shared per-unit lattice's stance for an untouched file, as
+    /// [`evaluate_pristine`] states it for one statement. Without the trust
+    /// fact no resolved command answers, so a test of a route states it.
+    fn sccp_pristine(cfg: &CfgFunction, ssa: &SsaFunction, policy: FoldPolicy) -> SccpResult {
+        let registry = registry();
+        sccp_with_builtin_folds(
+            cfg,
+            ssa,
+            None,
+            policy,
+            &HashSet::new(),
+            TraceInputs {
+                registry: &registry,
+                traced_variables: &BTreeSet::new(),
+                has_dynamic_variable_trace: false,
+                analysis_context: None,
+            },
+            Some(BuiltinFoldInputs {
+                registry: &registry,
+                mutations: &crate::command_binding::ModuleCommandMutations::default(),
+                dialect: None,
+                defining_class: None,
+                registry_engine: false,
+                trust: FoldTrust::ObservedBindings,
+            }),
         )
     }
 
@@ -1899,6 +2026,7 @@ mod tests {
         f.blocks.get_mut(&a).unwrap().terminator = Some(goto(b));
         f.blocks.get_mut(&b).unwrap().terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
@@ -1920,6 +2048,7 @@ mod tests {
         f.blocks.get_mut(&e).unwrap().terminator = Some(goto(join));
         f.blocks.get_mut(&join).unwrap().terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
@@ -2207,6 +2336,7 @@ mod tests {
         let entry = f.entry;
         f.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
@@ -2234,12 +2364,14 @@ mod tests {
         f.blocks.get_mut(&entry).unwrap().terminator = Some(branch(literal("1"), t, e));
         f.blocks.get_mut(&t).unwrap().terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
         });
         f.blocks.get_mut(&e).unwrap().terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
@@ -2265,12 +2397,14 @@ mod tests {
         f.blocks.get_mut(&entry).unwrap().terminator = Some(branch(literal("0"), t, e));
         f.blocks.get_mut(&t).unwrap().terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
         });
         f.blocks.get_mut(&e).unwrap().terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
@@ -2298,12 +2432,14 @@ mod tests {
         f.blocks.get_mut(&entry).unwrap().terminator = Some(branch(cond, t, e));
         f.blocks.get_mut(&t).unwrap().terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
         });
         f.blocks.get_mut(&e).unwrap().terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
@@ -2489,7 +2625,7 @@ mod tests {
         let mut values = HashMap::new();
         values.insert((x, 1), LatticeValue::Const(ConstValue::Int(5)));
         assert_eq!(
-            evaluate_def(&stmt, &values, &ssa, FoldPolicy::default()),
+            evaluate_pristine(&stmt, &values, &ssa, FoldPolicy::default()),
             LatticeValue::Const(ConstValue::Int(6))
         );
     }
@@ -2502,7 +2638,7 @@ mod tests {
         let mut values = HashMap::new();
         values.insert((x, 1), LatticeValue::Const(ConstValue::Int(3)));
         assert_eq!(
-            evaluate_def(&stmt, &values, &ssa, FoldPolicy::default()),
+            evaluate_pristine(&stmt, &values, &ssa, FoldPolicy::default()),
             LatticeValue::Const(ConstValue::Int(13))
         );
     }
@@ -2515,7 +2651,7 @@ mod tests {
         let mut values = HashMap::new();
         values.insert((x, 1), LatticeValue::Const(ConstValue::Int(10)));
         assert_eq!(
-            evaluate_def(&stmt, &values, &ssa, FoldPolicy::default()),
+            evaluate_pristine(&stmt, &values, &ssa, FoldPolicy::default()),
             LatticeValue::Const(ConstValue::Int(8))
         );
     }
@@ -2532,7 +2668,7 @@ mod tests {
         values.insert((x, 1), LatticeValue::Const(ConstValue::Int(6)));
         values.insert((y, 1), LatticeValue::Const(ConstValue::Int(4)));
         assert_eq!(
-            evaluate_def(&stmt, &values, &ssa, FoldPolicy::default()),
+            evaluate_pristine(&stmt, &values, &ssa, FoldPolicy::default()),
             LatticeValue::Const(ConstValue::Int(10))
         );
     }
@@ -2544,8 +2680,29 @@ mod tests {
         let values = HashMap::new();
         // No entry for x@1 → base is Unknown → result Unknown.
         assert_eq!(
-            evaluate_def(&stmt, &values, &ssa, FoldPolicy::default()),
+            evaluate_pristine(&stmt, &values, &ssa, FoldPolicy::default()),
             LatticeValue::Unknown
+        );
+    }
+
+    /// Without the whole-module trust fact there is no evidence a head still
+    /// denotes its registry command, so no resolved command answers — the
+    /// typed `incr` included; the same statement under the pristine stance
+    /// folds (#2164).
+    #[test]
+    fn evaluate_def_without_the_trust_fact_answers_for_no_command() {
+        let mut ssa = bare_ssa();
+        let stmt = incr_stmt(&mut ssa, "x", None, 1, 2);
+        let x = ssa.var_symbol("x").unwrap();
+        let mut values = HashMap::new();
+        values.insert((x, 1), LatticeValue::Const(ConstValue::Int(5)));
+        assert_eq!(
+            evaluate_def(&stmt, &values, &ssa, FoldPolicy::default()),
+            LatticeValue::Overdefined
+        );
+        assert_eq!(
+            evaluate_pristine(&stmt, &values, &ssa, FoldPolicy::default()),
+            LatticeValue::Const(ConstValue::Int(6))
         );
     }
 
@@ -2557,7 +2714,7 @@ mod tests {
         let mut values = HashMap::new();
         values.insert((x, 1), LatticeValue::Overdefined);
         assert_eq!(
-            evaluate_def(&stmt, &values, &ssa, FoldPolicy::default()),
+            evaluate_pristine(&stmt, &values, &ssa, FoldPolicy::default()),
             LatticeValue::Overdefined
         );
     }
@@ -2570,7 +2727,7 @@ mod tests {
         let mut values = HashMap::new();
         values.insert((x, 1), LatticeValue::Const(ConstValue::Int(1)));
         assert_eq!(
-            evaluate_def(&stmt, &values, &ssa, FoldPolicy::default()),
+            evaluate_pristine(&stmt, &values, &ssa, FoldPolicy::default()),
             LatticeValue::Overdefined
         );
     }
@@ -2621,6 +2778,8 @@ mod tests {
             mutations: MUTATIONS.get_or_init(Default::default),
             dialect: Some(environment.analyser_profile()),
             defining_class: None,
+            registry_engine: false,
+            trust: FoldTrust::ObservedBindings,
         }
     }
 
@@ -2637,7 +2796,7 @@ mod tests {
             LatticeValue::Const(ConstValue::String("hello".into())),
         );
         assert_eq!(
-            evaluate_def(&stmt, &values, &ssa, FoldPolicy::default()),
+            evaluate_pristine(&stmt, &values, &ssa, FoldPolicy::default()),
             LatticeValue::Const(ConstValue::String("hello world!".into()))
         );
     }
@@ -2661,7 +2820,7 @@ mod tests {
             LatticeValue::Const(ConstValue::String(" again".into())),
         );
         assert_eq!(
-            evaluate_def(&stmt, &values, &ssa, FoldPolicy::default()),
+            evaluate_pristine(&stmt, &values, &ssa, FoldPolicy::default()),
             LatticeValue::Const(ConstValue::String("hello again".into()))
         );
     }
@@ -2680,17 +2839,17 @@ mod tests {
             LatticeValue::Const(ConstValue::String("a b".into())),
         );
         assert_eq!(
-            evaluate_def(&stmt, &values, &ssa, FoldPolicy::default()),
+            evaluate_pristine(&stmt, &values, &ssa, FoldPolicy::default()),
             LatticeValue::Const(ConstValue::String("a b c {d e}".into()))
         );
         values.insert((l, 1), LatticeValue::Const(ConstValue::String("{".into())));
         assert_eq!(
-            evaluate_def(&stmt, &values, &ssa, FoldPolicy::default()),
+            evaluate_pristine(&stmt, &values, &ssa, FoldPolicy::default()),
             LatticeValue::Overdefined
         );
         // An unknown prior stays pending, never a manufactured empty list.
         assert_eq!(
-            evaluate_def(&stmt, &HashMap::new(), &ssa, FoldPolicy::default()),
+            evaluate_pristine(&stmt, &HashMap::new(), &ssa, FoldPolicy::default()),
             LatticeValue::Unknown
         );
     }
@@ -2708,7 +2867,7 @@ mod tests {
             LatticeValue::Const(ConstValue::String("stdin".into())),
         );
         assert_eq!(
-            evaluate_def(&stmt, &values, &ssa, FoldPolicy::default()),
+            evaluate_pristine(&stmt, &values, &ssa, FoldPolicy::default()),
             LatticeValue::Overdefined
         );
     }
@@ -2727,7 +2886,7 @@ mod tests {
             LatticeValue::ConstSet(vec![ConstValue::Int(1), ConstValue::Int(2)]),
         );
         assert_eq!(
-            evaluate_def(&stmt, &values, &ssa, FoldPolicy::default()),
+            evaluate_pristine(&stmt, &values, &ssa, FoldPolicy::default()),
             LatticeValue::ConstSet(vec![ConstValue::Int(11), ConstValue::Int(12)])
         );
 
@@ -2746,7 +2905,7 @@ mod tests {
             LatticeValue::ConstSet(vec![ConstValue::Int(10), ConstValue::Int(20)]),
         );
         assert_eq!(
-            evaluate_def(&stmt, &values, &ssa, FoldPolicy::default()),
+            evaluate_pristine(&stmt, &values, &ssa, FoldPolicy::default()),
             LatticeValue::Overdefined,
             "two distinct finite inputs are correlated"
         );
@@ -2760,7 +2919,7 @@ mod tests {
             LatticeValue::ConstSet(vec![ConstValue::Int(1), ConstValue::Int(2)]),
         );
         assert_eq!(
-            evaluate_def(&stmt, &values, &ssa, FoldPolicy::default()),
+            evaluate_pristine(&stmt, &values, &ssa, FoldPolicy::default()),
             LatticeValue::ConstSet(vec![ConstValue::Int(2), ConstValue::Int(4)])
         );
     }
@@ -2813,7 +2972,7 @@ mod tests {
         let padded = incr_stmt(&mut ssa, "x", Some(" 5"), 1, 2);
         values.insert((x, 1), LatticeValue::Const(ConstValue::Int(1)));
         assert_eq!(
-            evaluate_def(&padded, &values, &ssa, FoldPolicy::default()),
+            evaluate_pristine(&padded, &values, &ssa, FoldPolicy::default()),
             LatticeValue::Const(ConstValue::Int(6))
         );
     }
@@ -2845,7 +3004,7 @@ mod tests {
         assert_eq!(under("f5-irules"), LatticeValue::Overdefined);
         let plain = assign_value_stmt(&mut ssa, "t", "[string range { a } 0 end]", 1);
         assert_eq!(
-            evaluate_def(&plain, &HashMap::new(), &ssa, FoldPolicy::default()),
+            evaluate_pristine(&plain, &HashMap::new(), &ssa, FoldPolicy::default()),
             LatticeValue::Const(ConstValue::String(" a ".into()))
         );
     }
@@ -3031,7 +3190,7 @@ mod tests {
         // `foreach v {1 2 3}`'s outer `{…}` is already stripped.
         let mut ssa = bare_ssa();
         let stmt = foreach_stmt(&mut ssa, "v", "1 2 3", 1);
-        let result = evaluate_def(&stmt, &HashMap::new(), &ssa, FoldPolicy::default());
+        let result = evaluate_pristine(&stmt, &HashMap::new(), &ssa, FoldPolicy::default());
         match result {
             LatticeValue::ConstSet(ref vs) => {
                 assert_eq!(vs.len(), 3);
@@ -3048,7 +3207,7 @@ mod tests {
         // same element CONSTSET as the braced-literal form.
         let mut ssa = bare_ssa();
         let stmt = foreach_stmt(&mut ssa, "v", "[list a b c]", 1);
-        let result = evaluate_def(&stmt, &HashMap::new(), &ssa, FoldPolicy::default());
+        let result = evaluate_pristine(&stmt, &HashMap::new(), &ssa, FoldPolicy::default());
         match result {
             LatticeValue::ConstSet(ref vs) => {
                 assert_eq!(vs.len(), 3);
@@ -3066,7 +3225,7 @@ mod tests {
         let mut ssa = bare_ssa();
         let stmt = foreach_stmt(&mut ssa, "v", "only", 1);
         assert_eq!(
-            evaluate_def(&stmt, &HashMap::new(), &ssa, FoldPolicy::default()),
+            evaluate_pristine(&stmt, &HashMap::new(), &ssa, FoldPolicy::default()),
             LatticeValue::Const(ConstValue::String("only".into()))
         );
     }
@@ -3080,7 +3239,7 @@ mod tests {
         // {"a", "b}"} instead of the two list elements.
         let mut ssa = bare_ssa();
         let stmt = foreach_stmt(&mut ssa, "v", "{a b} {c d}", 1);
-        let result = evaluate_def(&stmt, &HashMap::new(), &ssa, FoldPolicy::default());
+        let result = evaluate_pristine(&stmt, &HashMap::new(), &ssa, FoldPolicy::default());
         match result {
             LatticeValue::ConstSet(ref vs) => {
                 assert_eq!(vs.len(), 2);
@@ -3103,7 +3262,7 @@ mod tests {
             (lst, 1),
             LatticeValue::Const(ConstValue::String("a b c".into())),
         );
-        let result = evaluate_def(&stmt, &values, &ssa, FoldPolicy::default());
+        let result = evaluate_pristine(&stmt, &values, &ssa, FoldPolicy::default());
         match result {
             LatticeValue::ConstSet(ref vs) => assert_eq!(vs.len(), 3),
             other => panic!("expected ConstSet, got {other:?}"),
@@ -3117,7 +3276,7 @@ mod tests {
         let lst = ssa.intern_var("lst");
         stmt.uses.insert(lst, 1);
         // Empty lattice — var not bound.
-        let result = evaluate_def(&stmt, &HashMap::new(), &ssa, FoldPolicy::default());
+        let result = evaluate_pristine(&stmt, &HashMap::new(), &ssa, FoldPolicy::default());
         assert_eq!(result, LatticeValue::Overdefined);
     }
 
@@ -3130,7 +3289,7 @@ mod tests {
             panic!();
         };
         defs.push("w".into());
-        let result = evaluate_def(&stmt, &HashMap::new(), &ssa, FoldPolicy::default());
+        let result = evaluate_pristine(&stmt, &HashMap::new(), &ssa, FoldPolicy::default());
         assert_eq!(result, LatticeValue::Overdefined);
     }
 
@@ -3194,7 +3353,7 @@ mod tests {
     fn evaluate_def_assign_value_folds_list_cmd() {
         let mut ssa = bare_ssa();
         let stmt = assign_value_stmt(&mut ssa, "x", "[list a b c]", 1);
-        let result = evaluate_def(&stmt, &HashMap::new(), &ssa, FoldPolicy::default());
+        let result = evaluate_pristine(&stmt, &HashMap::new(), &ssa, FoldPolicy::default());
         match result {
             LatticeValue::Const(ConstValue::String(s)) => assert_eq!(s, "a b c"),
             other => panic!("expected Const(String), got {other:?}"),
@@ -3206,7 +3365,7 @@ mod tests {
         let mut ssa = bare_ssa();
         let stmt = assign_value_stmt(&mut ssa, "n", "[llength {a b c d}]", 1);
         assert_eq!(
-            evaluate_def(&stmt, &HashMap::new(), &ssa, FoldPolicy::default()),
+            evaluate_pristine(&stmt, &HashMap::new(), &ssa, FoldPolicy::default()),
             LatticeValue::Const(ConstValue::Int(4))
         );
     }
@@ -3216,7 +3375,7 @@ mod tests {
         let mut ssa = bare_ssa();
         let stmt = assign_value_stmt(&mut ssa, "n", "[string length \"hello\"]", 1);
         assert_eq!(
-            evaluate_def(&stmt, &HashMap::new(), &ssa, FoldPolicy::default()),
+            evaluate_pristine(&stmt, &HashMap::new(), &ssa, FoldPolicy::default()),
             LatticeValue::Const(ConstValue::Int(5))
         );
     }
@@ -3247,6 +3406,8 @@ mod tests {
                 mutations,
                 dialect: None,
                 defining_class: None,
+                registry_engine: false,
+                trust: FoldTrust::WholeModule,
             }),
         )
     }
@@ -3301,6 +3462,187 @@ mod tests {
         );
     }
 
+    /// Evaluate `stmt` under `mutations` with the shared per-unit lattice's
+    /// stance ([`FoldTrust::ObservedBindings`]).
+    fn evaluate_under_lattice_stance(
+        stmt: &SsaStatement,
+        ssa: &SsaFunction,
+        registry: &CommandRegistry,
+        mutations: &crate::command_binding::ModuleCommandMutations,
+    ) -> LatticeValue {
+        evaluate_def_with_folds(
+            stmt,
+            &HashMap::new(),
+            ssa,
+            FoldPolicy::default(),
+            Some(BuiltinFoldInputs {
+                registry,
+                mutations,
+                dialect: None,
+                defining_class: None,
+                registry_engine: false,
+                trust: FoldTrust::ObservedBindings,
+            }),
+        )
+    }
+
+    /// A user `proc` shadowing a builtin is a *named* takeover, so both
+    /// stances decline it. This is the root of #2164: the shared per-unit
+    /// lattice took no trust fact at all and answered `3` for a
+    /// `[llength {a b c}]` the module resolves to a proc returning 99, which
+    /// the optimiser then published as `return 3` beside its own `set v 99`.
+    ///
+    /// tclsh 8.4.20 / 8.5.19 / 8.6.18 / 9.0.4 / 9.1b0 (unanimous): with
+    /// `proc llength {l} {return 99}` in scope, `[llength {a b c}]` is 99.
+    #[test]
+    fn both_stances_decline_a_builtin_a_proc_shadows() {
+        let reg = registry();
+        let mut ssa = bare_ssa();
+        let stmt = assign_value_stmt(&mut ssa, "n", "[llength {a b c}]", 1);
+
+        let shadowed = mutations_for("proc llength {l} { return 99 }\n");
+        assert_eq!(
+            evaluate_under_lattice_stance(&stmt, &ssa, &reg, &shadowed),
+            LatticeValue::Overdefined,
+            "the lattice must not answer with builtin semantics for a shadowed name"
+        );
+        assert_eq!(
+            evaluate_under_unit(&stmt, &ssa, &reg, &shadowed),
+            LatticeValue::Overdefined,
+            "nor may the rewrite stance"
+        );
+
+        // Positive control: the same statement, the same two stances, a module
+        // that shadows nothing — both fold, so the declines above are the
+        // shadow's doing and not a dead arm.
+        let untouched = mutations_for("set y 1\n");
+        assert_eq!(
+            evaluate_under_lattice_stance(&stmt, &ssa, &reg, &untouched),
+            LatticeValue::Const(ConstValue::Int(3)),
+        );
+        assert_eq!(
+            evaluate_under_unit(&stmt, &ssa, &reg, &untouched),
+            LatticeValue::Const(ConstValue::Int(3)),
+        );
+    }
+
+    /// Where the two stances deliberately differ: one command head the
+    /// registry cannot resolve raises the summary's unbounded `dynamic` top,
+    /// which names no subject. The rewrite stance declines on it (a rewrite
+    /// must be certain); the lattice stance keeps folding, or a single
+    /// unknown library call would cost a file every constant it has.
+    #[test]
+    fn only_the_rewrite_stance_declines_on_the_unbounded_top() {
+        let reg = registry();
+        let mut ssa = bare_ssa();
+        let stmt = assign_value_stmt(&mut ssa, "n", "[llength {a b c}]", 1);
+
+        let opaque = mutations_for("someUnknownLibraryCall x\n");
+        assert!(
+            opaque.has_dynamic_mutation(),
+            "an unresolved head is expected to raise the unbounded top"
+        );
+        assert!(
+            opaque.observed_binding_is_the_builtin("llength"),
+            "but it names no subject, so `llength`'s observed binding is intact"
+        );
+        assert_eq!(
+            evaluate_under_lattice_stance(&stmt, &ssa, &reg, &opaque),
+            LatticeValue::Const(ConstValue::Int(3)),
+        );
+        assert_eq!(
+            evaluate_under_unit(&stmt, &ssa, &reg, &opaque),
+            LatticeValue::Overdefined,
+            "a fold that becomes a rewrite declines on the unbounded top"
+        );
+    }
+
+    /// A `rename` whose **subject** the scan cannot name distrusts every
+    /// builtin, where an unresolved command *head* does not (#2168).
+    ///
+    /// Both raise the unbounded top, which is why gating the lattice on the
+    /// whole of it was rejected in #2164 — it would take the fold in
+    /// [`only_the_rewrite_stance_declines_on_the_unbounded_top`] with it. The
+    /// distinction is whether something was definitely rebound: `rename $a {}`
+    /// moved *some* command, so no name is claimable; `someUnknownLibraryCall
+    /// x` moved nothing.
+    ///
+    /// tclsh 8.6.18 and 9.0.4 both print 99 for the repro on #2168, where the
+    /// optimiser rewrote the body to `return 3` — and its own output literally
+    /// read `rename llength {}`, having constant-propagated the operands in
+    /// the same run.
+    #[test]
+    fn an_unnameable_rename_subject_distrusts_where_an_unknown_head_does_not() {
+        let reg = registry();
+        let mut ssa = bare_ssa();
+        let stmt = assign_value_stmt(&mut ssa, "n", "[llength {a b c}]", 1);
+
+        let computed = mutations_for(
+            "set a llength
+rename $a {}
+",
+        );
+        assert!(
+            computed.has_dynamic_mutation(),
+            "a computed rename raises the unbounded top"
+        );
+        assert!(
+            !computed.observed_binding_is_the_builtin("llength"),
+            "and, unlike an unknown head, it leaves no name claimable"
+        );
+        assert_eq!(
+            evaluate_under_lattice_stance(&stmt, &ssa, &reg, &computed),
+            LatticeValue::Overdefined,
+            "the lattice must not fold a builtin a computed rename may have moved"
+        );
+
+        // Positive control, and the coverage #2164 measured: an unresolved
+        // head still raises the top yet still folds, so this change cannot
+        // have been bought by gating on `dynamic`.
+        let opaque = mutations_for(
+            "someUnknownLibraryCall x
+",
+        );
+        assert!(opaque.has_dynamic_mutation());
+        assert_eq!(
+            evaluate_under_lattice_stance(&stmt, &ssa, &reg, &opaque),
+            LatticeValue::Const(ConstValue::Int(3)),
+        );
+    }
+
+    /// The same rule for a body the source-recursive walk never sees. A proc
+    /// installed through an alias prefix is recovered only by the closed
+    /// command lattice, so its unnameable rename subject reaches the optimiser
+    /// through `mutation_projection` or not at all (#2168).
+    ///
+    /// Measured end to end before this was joined: the program below prints
+    /// **99**, and `tcl optimise` rewrote it into one printing **3** on tclsh
+    /// 8.6.18 and 9.0.4.
+    #[test]
+    fn an_unnameable_rename_subject_inside_an_alias_defined_body_also_distrusts() {
+        let reg = registry();
+        let mut ssa = bare_ssa();
+        let stmt = assign_value_stmt(&mut ssa, "n", "[llength {a b c}]", 1);
+
+        // `makep {} BODY` is `proc p {} BODY`; BODY is never walked as source.
+        let aliased = mutations_for(
+            "proc mylen {l} { return 99 }
+interp alias {} makep {} proc p
+makep {} {set a llength; set b mylen; rename $a {}; rename $b $a}
+p
+",
+        );
+        assert!(
+            !aliased.observed_binding_is_the_builtin("llength"),
+            "the projection is the only witness that the subject was unnameable"
+        );
+        assert_eq!(
+            evaluate_under_lattice_stance(&stmt, &ssa, &reg, &aliased),
+            LatticeValue::Overdefined,
+            "folding here rewrites a program meaning 99 into one meaning 3"
+        );
+    }
+
     #[test]
     fn string_length_fold_counts_in_the_selected_dialects_character_model() {
         // U+1D11E is one Tcl 9 scalar but two Tcl 8 `Tcl_UniChar` units, so the
@@ -3309,7 +3651,7 @@ mod tests {
         let mut ssa = bare_ssa();
         let stmt = assign_value_stmt(&mut ssa, "n", "[string length \"\u{1D11E}\"]", 1);
         let fold = |dialect: Option<&'static tcl_dialect::DialectProfile>| {
-            evaluate_def(
+            evaluate_pristine(
                 &stmt,
                 &HashMap::new(),
                 &ssa,
@@ -3339,7 +3681,7 @@ mod tests {
         let mut ssa = bare_ssa();
         let ascii = assign_value_stmt(&mut ssa, "n", "[string length \"hello\"]", 1);
         assert_eq!(
-            evaluate_def(
+            evaluate_pristine(
                 &ascii,
                 &HashMap::new(),
                 &ssa,
@@ -3354,7 +3696,7 @@ mod tests {
         let mut ssa = bare_ssa();
         let stmt = assign_value_stmt(&mut ssa, "x", "[expr {1 + 2}]", 1);
         assert_eq!(
-            evaluate_def(&stmt, &HashMap::new(), &ssa, FoldPolicy::default()),
+            evaluate_pristine(&stmt, &HashMap::new(), &ssa, FoldPolicy::default()),
             LatticeValue::Const(ConstValue::Int(3))
         );
     }
@@ -3363,7 +3705,7 @@ mod tests {
     fn evaluate_def_assign_value_folds_format_literal() {
         let mut ssa = bare_ssa();
         let stmt = assign_value_stmt(&mut ssa, "s", "[format \"%d-%d\" 1 2]", 1);
-        match evaluate_def(&stmt, &HashMap::new(), &ssa, FoldPolicy::default()) {
+        match evaluate_pristine(&stmt, &HashMap::new(), &ssa, FoldPolicy::default()) {
             LatticeValue::Const(ConstValue::String(s)) => assert_eq!(s, "1-2"),
             other => panic!("expected Const(String), got {other:?}"),
         }
@@ -3410,7 +3752,7 @@ mod tests {
         values.insert((a, 1), LatticeValue::Const(ConstValue::Int(3)));
         values.insert((b, 1), LatticeValue::Const(ConstValue::Int(4)));
         assert_eq!(
-            evaluate_def(&stmt, &values, &ssa, FoldPolicy::default()),
+            evaluate_pristine(&stmt, &values, &ssa, FoldPolicy::default()),
             LatticeValue::Const(ConstValue::Int(7))
         );
     }
@@ -3435,7 +3777,7 @@ mod tests {
             LatticeValue::Const(ConstValue::String("beta".into())),
         );
         assert_eq!(
-            evaluate_def(&stmt, &values, &ssa, FoldPolicy::default()),
+            evaluate_pristine(&stmt, &values, &ssa, FoldPolicy::default()),
             LatticeValue::Const(ConstValue::Int(0))
         );
     }
@@ -3445,7 +3787,7 @@ mod tests {
         let mut ssa = bare_ssa();
         let stmt = assign_value_stmt(&mut ssa, "x", "[nonexistent_fold args]", 1);
         assert_eq!(
-            evaluate_def(&stmt, &HashMap::new(), &ssa, FoldPolicy::default()),
+            evaluate_pristine(&stmt, &HashMap::new(), &ssa, FoldPolicy::default()),
             LatticeValue::Overdefined
         );
     }
@@ -3462,7 +3804,7 @@ mod tests {
             LatticeValue::Const(ConstValue::String("a b c".into())),
         );
         assert_eq!(
-            evaluate_def(&stmt, &values, &ssa, FoldPolicy::default()),
+            evaluate_pristine(&stmt, &values, &ssa, FoldPolicy::default()),
             LatticeValue::Const(ConstValue::Int(3))
         );
     }
@@ -3491,12 +3833,14 @@ mod tests {
         let dead = block(&mut f, "dead");
         f.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
         });
         f.blocks.get_mut(&dead).unwrap().terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
@@ -3574,7 +3918,7 @@ mod tests {
             "proc ::p {} { foreach v {{a b} {c d}} { if {$v eq \"c d\"} { set r yes } else { set r no } } }",
         );
         let fu = c.function("::p").unwrap();
-        let r = sccp_no_traces(&fu.cfg, &fu.ssa, None, FoldPolicy::default());
+        let r = sccp_pristine(&fu.cfg, &fu.ssa, FoldPolicy::default());
         let v = fu.ssa.var_symbol("v").expect("v must be an SSA symbol");
         let const_sets: Vec<_> = r
             .values

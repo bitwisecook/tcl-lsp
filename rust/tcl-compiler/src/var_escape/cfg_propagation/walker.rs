@@ -45,7 +45,7 @@ use crate::var_escape::cfg_propagation::state::{CfgEscapeResult, CfgState};
 use crate::var_escape::handlers::has_expand_word;
 use crate::var_escape::helpers::{
     default_registry, invocation_facts, invocation_facts_from_tokens, is_dynamic_name,
-    is_dynamic_token, is_frameless_runtime_command, normalise_cmd_subst_head,
+    is_dynamic_token, is_frameless_runtime_command_in, normalise_cmd_subst_head,
     scan_value_for_info_hazards,
 };
 
@@ -53,14 +53,22 @@ use crate::var_escape::helpers::{
 /// flag a fallback when any non-frameless head appears, then
 /// run [`scan_value_for_info_hazards`] for embedded `[info ...]`
 /// shapes.
-fn apply_value_scan(value: &str, state: &mut CfgState, defs: &HashMap<String, Version>) {
+fn apply_value_scan(
+    value: &str,
+    state: &mut CfgState,
+    defs: &HashMap<String, Version>,
+    registry: &tcl_registry::CommandRegistry,
+) {
     if value.is_empty() {
         return;
     }
     if value.contains('[') {
         for head in extract_cmd_subst_heads(value) {
             let canonical = normalise_cmd_subst_head(&head);
-            if !is_frameless_runtime_command(canonical) {
+            // The selected registry, not the plain-Tcl allow-list: a head
+            // inside a substitution is the same command as a direct one, and
+            // must answer from the same profile (#2167).
+            if !is_frameless_runtime_command_in(canonical, registry) {
                 state.record_fallback();
                 break;
             }
@@ -76,12 +84,17 @@ fn apply_value_scan(value: &str, state: &mut CfgState, defs: &HashMap<String, Ve
     }
 }
 
-fn apply_expr_scan(expr: Option<&ExprNode>, state: &mut CfgState, defs: &HashMap<String, Version>) {
+fn apply_expr_scan(
+    expr: Option<&ExprNode>,
+    state: &mut CfgState,
+    defs: &HashMap<String, Version>,
+    registry: &tcl_registry::CommandRegistry,
+) {
     let Some(expr) = expr else {
         return;
     };
     let text = crate::expr_ast::render_expr(expr);
-    apply_value_scan(&text, state, defs);
+    apply_value_scan(&text, state, defs, registry);
 }
 
 /// Find the leading command-word of every `[cmd ...]` substitution
@@ -361,6 +374,7 @@ fn tree_assign_or_incr(
     stmt: &Statement,
     state: &mut CfgState,
     defs: &HashMap<String, Version>,
+    registry: &tcl_registry::CommandRegistry,
 ) -> bool {
     match stmt {
         Statement::AssignConst { name, value, .. } | Statement::AssignValue { name, value, .. } => {
@@ -369,7 +383,7 @@ fn tree_assign_or_incr(
                 return true;
             }
             state.escape(name, defs);
-            apply_value_scan(value, state, defs);
+            apply_value_scan(value, state, defs, registry);
             true
         }
         Statement::AssignExpr { name, expr, .. } => {
@@ -378,7 +392,7 @@ fn tree_assign_or_incr(
                 return true;
             }
             state.escape(name, defs);
-            apply_expr_scan(Some(expr), state, defs);
+            apply_expr_scan(Some(expr), state, defs, registry);
             true
         }
         Statement::Incr { name, amount, .. } => {
@@ -388,7 +402,7 @@ fn tree_assign_or_incr(
             }
             state.escape(name, defs);
             if let Some(a) = amount {
-                apply_value_scan(a, state, defs);
+                apply_value_scan(a, state, defs, registry);
             }
             true
         }
@@ -438,13 +452,13 @@ fn tree_call_or_barrier(
         }
         Statement::Return { value, expr, .. } => {
             if let Some(v) = value {
-                apply_value_scan(v, state, defs);
+                apply_value_scan(v, state, defs, registry);
             }
-            apply_expr_scan(expr.as_ref(), state, defs);
+            apply_expr_scan(expr.as_ref(), state, defs, registry);
             true
         }
         Statement::ExprEval { expr, .. } => {
-            apply_expr_scan(Some(expr), state, defs);
+            apply_expr_scan(Some(expr), state, defs, registry);
             true
         }
         _ => false,
@@ -462,7 +476,7 @@ fn tree_structural(
             clauses, else_body, ..
         } => {
             for c in clauses {
-                apply_expr_scan(Some(&c.condition), state, defs);
+                apply_expr_scan(Some(&c.condition), state, defs, registry);
                 escape_every_name_touched_tree(&c.body.statements, state, defs, registry);
             }
             if let Some(b) = else_body {
@@ -477,21 +491,21 @@ fn tree_structural(
             ..
         } => {
             escape_every_name_touched_tree(&init.statements, state, defs, registry);
-            apply_expr_scan(Some(condition), state, defs);
+            apply_expr_scan(Some(condition), state, defs, registry);
             escape_every_name_touched_tree(&next.statements, state, defs, registry);
             escape_every_name_touched_tree(&body.statements, state, defs, registry);
         }
         Statement::While {
             condition, body, ..
         } => {
-            apply_expr_scan(Some(condition), state, defs);
+            apply_expr_scan(Some(condition), state, defs, registry);
             escape_every_name_touched_tree(&body.statements, state, defs, registry);
         }
         Statement::Foreach {
             iterators, body, ..
         } => {
             for it in iterators {
-                apply_value_scan(&it.list_arg, state, defs);
+                apply_value_scan(&it.list_arg, state, defs, registry);
             }
             escape_every_name_touched_tree(&body.statements, state, defs, registry);
         }
@@ -541,7 +555,7 @@ pub(crate) fn escape_every_name_touched_tree(
         if state.dynamic_barrier() {
             return;
         }
-        if tree_assign_or_incr(stmt, state, defs) {
+        if tree_assign_or_incr(stmt, state, defs, registry) {
             continue;
         }
         if tree_call_or_barrier(stmt, state, defs, registry) {
@@ -597,13 +611,13 @@ fn handle_stmt_call_or_barrier(
         }
         Statement::Return { value, expr, .. } => {
             if let Some(v) = value {
-                apply_value_scan(v, state, defs);
+                apply_value_scan(v, state, defs, registry);
             }
-            apply_expr_scan(expr.as_ref(), state, defs);
+            apply_expr_scan(expr.as_ref(), state, defs, registry);
             true
         }
         Statement::ExprEval { expr, .. } => {
-            apply_expr_scan(Some(expr), state, defs);
+            apply_expr_scan(Some(expr), state, defs, registry);
             true
         }
         _ => false,
@@ -616,6 +630,7 @@ fn handle_stmt_assign_or_incr(
     stmt: &Statement,
     state: &mut CfgState,
     defs: &HashMap<String, Version>,
+    registry: &tcl_registry::CommandRegistry,
 ) -> bool {
     match stmt {
         Statement::AssignConst { name, value, .. } => {
@@ -624,7 +639,7 @@ fn handle_stmt_assign_or_incr(
             } else {
                 state.note_literal_assign(name, value);
             }
-            apply_value_scan(value, state, defs);
+            apply_value_scan(value, state, defs, registry);
             true
         }
         Statement::AssignValue { name, value, .. } => {
@@ -635,7 +650,7 @@ fn handle_stmt_assign_or_incr(
             } else {
                 state.invalidate_literal(name);
             }
-            apply_value_scan(value, state, defs);
+            apply_value_scan(value, state, defs, registry);
             true
         }
         Statement::AssignExpr { name, expr, .. } => {
@@ -644,7 +659,7 @@ fn handle_stmt_assign_or_incr(
             } else {
                 state.invalidate_literal(name);
             }
-            apply_expr_scan(Some(expr), state, defs);
+            apply_expr_scan(Some(expr), state, defs, registry);
             true
         }
         Statement::Incr { name, amount, .. } => {
@@ -654,7 +669,7 @@ fn handle_stmt_assign_or_incr(
                 state.invalidate_literal(name);
             }
             if let Some(a) = amount {
-                apply_value_scan(a, state, defs);
+                apply_value_scan(a, state, defs, registry);
             }
             true
         }
@@ -684,18 +699,18 @@ fn handle_statement(
     if handle_stmt_call_or_barrier(stmt, state, defs, registry) {
         return;
     }
-    if handle_stmt_assign_or_incr(stmt, state, defs) {
+    if handle_stmt_assign_or_incr(stmt, state, defs, registry) {
         return;
     }
     // Structured statements: recurse via the tree walker.
     match stmt {
         Statement::Return { value, expr, .. } => {
             if let Some(v) = value {
-                apply_value_scan(v, state, defs);
+                apply_value_scan(v, state, defs, registry);
             }
-            apply_expr_scan(expr.as_ref(), state, defs);
+            apply_expr_scan(expr.as_ref(), state, defs, registry);
         }
-        Statement::ExprEval { expr, .. } => apply_expr_scan(Some(expr), state, defs),
+        Statement::ExprEval { expr, .. } => apply_expr_scan(Some(expr), state, defs, registry),
         // Structured statements appear in the SSA stream as flat
         // statements after CFG lowering — but they may still be
         // present for non-flattened compound shapes. Recurse into
@@ -704,7 +719,7 @@ fn handle_statement(
             clauses, else_body, ..
         } => {
             for c in clauses {
-                apply_expr_scan(Some(&c.condition), state, defs);
+                apply_expr_scan(Some(&c.condition), state, defs, registry);
                 escape_every_name_touched_tree(&c.body.statements, state, defs, registry);
             }
             if let Some(b) = else_body {
@@ -719,21 +734,21 @@ fn handle_statement(
             ..
         } => {
             escape_every_name_touched_tree(&init.statements, state, defs, registry);
-            apply_expr_scan(Some(condition), state, defs);
+            apply_expr_scan(Some(condition), state, defs, registry);
             escape_every_name_touched_tree(&next.statements, state, defs, registry);
             escape_every_name_touched_tree(&body.statements, state, defs, registry);
         }
         Statement::While {
             condition, body, ..
         } => {
-            apply_expr_scan(Some(condition), state, defs);
+            apply_expr_scan(Some(condition), state, defs, registry);
             escape_every_name_touched_tree(&body.statements, state, defs, registry);
         }
         Statement::Foreach {
             iterators, body, ..
         } => {
             for it in iterators {
-                apply_value_scan(&it.list_arg, state, defs);
+                apply_value_scan(&it.list_arg, state, defs, registry);
             }
             escape_every_name_touched_tree(&body.statements, state, defs, registry);
         }
@@ -793,7 +808,7 @@ fn walk_block(
         // statement's defs, so we have no SSA version to tag —
         // pass an empty defs map and let the escape helper fall
         // back to the latest seen version.
-        apply_expr_scan(Some(cond), state, &HashMap::new());
+        apply_expr_scan(Some(cond), state, &HashMap::new(), registry);
     }
 }
 

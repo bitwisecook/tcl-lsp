@@ -1438,6 +1438,7 @@ The registry's behavioural vocabulary — one flag per fact a consumer might nee
 | `DEFINES_PROCEDURE` | defines a procedure |
 | `DESTROYS_VARIABLE` | destroys a variable |
 | `READS_BEFORE_WRITE` | reads its target before writing it |
+| `CONDITIONAL_VARIABLE_WRITE` | writes its target variables only when a runtime match succeeds |
 | `CREATES_SCOPE_ALIAS` | creates an upvar-like scope alias |
 | `ALIASES_GLOBAL` | creates an alias to the interpreter global namespace |
 | `CREATES_BARRIER` | creates an analysis barrier |

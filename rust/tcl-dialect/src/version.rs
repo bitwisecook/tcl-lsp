@@ -47,18 +47,52 @@ pub enum ByteStringEncoding {
 
 /// Character-counting model used by Tcl string operations.
 ///
-/// Tcl 8 stores `Tcl_UniChar` as a 16-bit unit, so a supplementary-plane
-/// character occupies a surrogate pair and contributes two to `string
-/// length`. Tcl 9 widened `Tcl_UniChar` and counts Unicode scalar values.
+/// Three-valued, because the releases are. Measured with
+/// `string length [encoding convertfrom utf-8 …]` on tclsh 8.4.20, 8.5.19,
+/// 8.6.18, 9.0.4 and 9.1b0:
+///
+/// | sequence | 8.4, 8.5 | 8.6 | 9.x |
+/// |---|---|---|---|
+/// | 2-byte (`é`, `U+00E9`) | 1 | 1 | 1 |
+/// | 3-byte (`€`, `U+20AC`) | 1 | 1 | 1 |
+/// | 4-byte (`😀`, `U+1F600`) | **4** | 2 | 1 |
+///
+/// Tcl 8.6 stores `Tcl_UniChar` as a 16-bit unit, so a supplementary-plane
+/// character occupies a surrogate pair and contributes two. Tcl 9 widened
+/// `Tcl_UniChar` and counts Unicode scalar values.
+///
+/// 8.4 and 8.5 are neither: their internal UTF-8 caps a character at three
+/// bytes (`TCL_UTF_MAX` 3), so a supplementary code point is never assembled
+/// into a character at all and each of its four bytes counts as one. That is
+/// *not* byte counting — `é` and `€` still count as one apiece, which is why
+/// this is its own variant rather than the `Bytes` model a Jim build without
+/// `JIM_UTF8` would need (there `é` would count two).
+///
+/// `string index` shows the same split from the other side: at index 0 of
+/// that four-byte string, 8.4/8.5 answer code point 240 (`0xF0`, the raw
+/// UTF-8 lead byte), 8.6 answers 55357 (`0xD83D`, the high surrogate), and
+/// 9.x answers 128512 (`U+1F600`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StringCharacterModel {
-    /// Tcl 8.x: count UTF-16 code units.
+    /// Tcl 8.4-8.5: count BMP characters, but a supplementary code point
+    /// counts as its four UTF-8 bytes (`TCL_UTF_MAX` 3).
+    BmpCharsElseUtf8Bytes,
+    /// Tcl 8.6: count UTF-16 code units.
     Utf16CodeUnits,
     /// Tcl 9.x: count Unicode scalar values.
     UnicodeScalars,
 }
 
 impl StringCharacterModel {
+    /// Every model, so a consumer reasoning across releases cannot silently
+    /// miss one — the two-valued unanimity rule this replaced was wrong for
+    /// any profile spanning 8.4 or 8.5.
+    pub const ALL: &'static [Self] = &[
+        Self::BmpCharsElseUtf8Bytes,
+        Self::Utf16CodeUnits,
+        Self::UnicodeScalars,
+    ];
+
     /// The number of Tcl characters `value` holds under this model.
     ///
     /// The one place the counting rule lives, so a compile-time fold and a
@@ -66,25 +100,36 @@ impl StringCharacterModel {
     #[must_use]
     pub fn count(self, value: &str) -> usize {
         match self {
+            // A BMP scalar is one character; anything above it was never
+            // assembled, so it contributes its UTF-8 byte count (always 4).
+            Self::BmpCharsElseUtf8Bytes => value
+                .chars()
+                .map(|c| if (c as u32) > 0xFFFF { c.len_utf8() } else { 1 })
+                .sum(),
             Self::Utf16CodeUnits => value.encode_utf16().count(),
             Self::UnicodeScalars => value.chars().count(),
         }
     }
 
     /// The character count `model` defines, or — when no release is selected —
-    /// the count both models agree on, if they agree.
+    /// the count **every** model agrees on, if they all agree.
     ///
     /// A dialect that names no runtime release still counts every string
-    /// outside the supplementary planes identically under both models, so a
-    /// consumer keeps those answers and gives up only the genuinely ambiguous
-    /// ones rather than declining wholesale.
+    /// outside the supplementary planes identically under all three models, so
+    /// a consumer keeps those answers and gives up only the genuinely
+    /// ambiguous ones rather than declining wholesale.
+    ///
+    /// Unanimity is over `ALL`, not over a hardcoded pair: a rule written from
+    /// the 8.6/9.0 pair alone answers 2 for a supplementary character under a
+    /// profile that also spans 8.4, where the real answer is 4.
     #[must_use]
     pub fn count_for(model: Option<Self>, value: &str) -> Option<usize> {
         if let Some(model) = model {
             return Some(model.count(value));
         }
-        let scalars = Self::UnicodeScalars.count(value);
-        (scalars == Self::Utf16CodeUnits.count(value)).then_some(scalars)
+        let mut counts = Self::ALL.iter().map(|m| m.count(value));
+        let first = counts.next()?;
+        counts.all(|c| c == first).then_some(first)
     }
 }
 
@@ -406,11 +451,26 @@ impl TclVersion {
         }
     }
 
+    /// Whether this release accepts a `+` suffix on package versions.
+    ///
+    /// Tcl 9 stops package-version conversion at the first `+`, while Tcl 8
+    /// rejects the suffix as part of the version. Keep this release fact on
+    /// the version vocabulary so package commands and shared version helpers
+    /// cannot drift apart.
+    #[must_use]
+    pub const fn allows_package_version_suffix(self) -> bool {
+        matches!(self, Self::V9_0 | Self::V9_1)
+    }
+
     /// The release-defined unit used by `string length` and character indices.
     #[must_use]
     pub const fn string_character_model(self) -> StringCharacterModel {
         match self {
-            Self::V8_4 | Self::V8_5 | Self::V8_6 => StringCharacterModel::Utf16CodeUnits,
+            // 8.4/8.5 cap a character at three UTF-8 bytes, so a
+            // supplementary code point is never assembled and counts as its
+            // four bytes — measured 4, where the 8.6 surrogate model says 2.
+            Self::V8_4 | Self::V8_5 => StringCharacterModel::BmpCharsElseUtf8Bytes,
+            Self::V8_6 => StringCharacterModel::Utf16CodeUnits,
             Self::V9_0 | Self::V9_1 => StringCharacterModel::UnicodeScalars,
         }
     }
@@ -701,10 +761,23 @@ impl<'v> ParsedVersion<'v> {
     /// 4. neither `a`, `b`, nor `.` may sit next to a `.`;
     /// 5. the last character may not be a separator.
     ///
+    /// When enabled by a Tcl 9 release policy, the C checker stops at a `+`
+    /// suffix. The suffix remains part of the package's recorded spelling,
+    /// but comparison and satisfaction use the version prefix before it.
+    ///
     /// Real Tcl raises `expected version number but got "…"` where this
     /// answers `None`; every caller here turns that into the conservative
     /// static answer (unsatisfiable / unselectable) rather than a panic.
     fn parse(string: &'v str) -> Option<Self> {
+        Self::parse_for(string, false)
+    }
+
+    fn parse_for(string: &'v str, allow_plus_suffix: bool) -> Option<Self> {
+        let string = if allow_plus_suffix {
+            string.split_once('+').map_or(string, |(prefix, _)| prefix)
+        } else {
+            string
+        };
         let bytes = string.as_bytes();
         if !bytes.first().is_some_and(u8::is_ascii_digit) {
             return None;
@@ -754,7 +827,12 @@ impl<'v> ParsedVersion<'v> {
     /// runs become segments, recognised separators become their markers, and
     /// any other character is skipped. Never used to decide satisfaction —
     /// only to order two strings that are not versions in the first place.
-    fn lenient(string: &'v str) -> Vec<Segment<'v>> {
+    fn lenient_for(string: &'v str, allow_plus_suffix: bool) -> Vec<Segment<'v>> {
+        let string = if allow_plus_suffix {
+            string.split_once('+').map_or(string, |(prefix, _)| prefix)
+        } else {
+            string
+        };
         let bytes = string.as_bytes();
         let mut segments = Vec::new();
         let mut run_start = 0usize;
@@ -783,6 +861,75 @@ impl<'v> ParsedVersion<'v> {
     }
 }
 
+/// The reason a package requirement failed Tcl's version grammar.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RequirementValidationError<'v> {
+    /// A bound was not a valid package version; the borrowed value is the
+    /// exact text Tcl reports.
+    InvalidVersion(&'v str),
+    /// More than one `-` appeared in the requirement; the borrowed value is
+    /// the exact text Tcl reports.
+    InvalidRange(&'v str),
+}
+
+/// Check one package version using the strict, release-agnostic parser.
+/// Runtime commands for a pinned interpreter use [`validate_version_for`].
+#[must_use]
+pub fn validate_version(version: &str) -> bool {
+    validate_version_for(version, TclVersion::V8_6)
+}
+
+/// Check one package version using a pinned Tcl release's grammar.
+#[must_use]
+pub fn validate_version_for(version: &str, release: TclVersion) -> bool {
+    ParsedVersion::parse_for(version, release.allows_package_version_suffix()).is_some()
+}
+
+/// Check one package requirement using the strict, release-agnostic parser.
+/// An empty upper bound is valid (`min-`); a second dash is a range error.
+pub fn validate_requirement(requirement: &str) -> Result<(), RequirementValidationError<'_>> {
+    validate_requirement_for(requirement, TclVersion::V8_6)
+}
+
+/// Check one package requirement using a pinned Tcl release's grammar.
+pub fn validate_requirement_for(
+    requirement: &str,
+    release: TclVersion,
+) -> Result<(), RequirementValidationError<'_>> {
+    validate_requirement_with_suffix_policy(requirement, release.allows_package_version_suffix())
+}
+
+fn validate_requirement_with_suffix_policy(
+    requirement: &str,
+    allow_plus_suffix: bool,
+) -> Result<(), RequirementValidationError<'_>> {
+    if allow_plus_suffix && requirement.contains('+') {
+        return ParsedVersion::parse_for(requirement, true)
+            .is_some()
+            .then_some(())
+            .ok_or(RequirementValidationError::InvalidVersion(requirement));
+    }
+    let dash = requirement.find('-');
+    let Some(dash) = dash else {
+        return ParsedVersion::parse_for(requirement, allow_plus_suffix)
+            .is_some()
+            .then_some(())
+            .ok_or(RequirementValidationError::InvalidVersion(requirement));
+    };
+    if requirement[dash + 1..].contains('-') {
+        return Err(RequirementValidationError::InvalidRange(requirement));
+    }
+    let (minimum, maximum) = requirement.split_at(dash);
+    if ParsedVersion::parse_for(minimum, allow_plus_suffix).is_none() {
+        return Err(RequirementValidationError::InvalidVersion(minimum));
+    }
+    let maximum = &maximum[1..];
+    if !maximum.is_empty() && ParsedVersion::parse_for(maximum, allow_plus_suffix).is_none() {
+        return Err(RequirementValidationError::InvalidVersion(maximum));
+    }
+    Ok(())
+}
+
 /// A digit run as a [`Segment::Number`], with C's leading-zero skip applied so
 /// `"0005"`, `"5"` compare equal and `"000"`, `"0"`, `""` all read as zero.
 fn number_segment(run: &str) -> Segment<'_> {
@@ -807,7 +954,9 @@ fn compare_internal(a: &[Segment<'_>], b: &[Segment<'_>]) -> (core::cmp::Orderin
     (Ordering::Equal, false)
 }
 
-/// Compare two version numbers exactly as `package vcompare` does.
+/// Compare two strict package version numbers as `package vcompare` does.
+/// A pinned runtime uses [`compare_versions_for`] when its release accepts
+/// Tcl 9 `+` suffixes.
 ///
 /// Trailing zero components are *not* significant (`1.2` == `1.2.0`), leading
 /// zeros are not either (`0005` == `5`), and an alpha/beta release orders below
@@ -823,8 +972,21 @@ fn compare_internal(a: &[Segment<'_>], b: &[Segment<'_>]) -> (core::cmp::Orderin
 /// that a recorder has already filtered and have no error channel.
 #[must_use]
 pub fn compare_versions(a: &str, b: &str) -> core::cmp::Ordering {
-    let va = ParsedVersion::parse(a).map_or_else(|| ParsedVersion::lenient(a), |p| p.segments);
-    let vb = ParsedVersion::parse(b).map_or_else(|| ParsedVersion::lenient(b), |p| p.segments);
+    compare_versions_for(a, b, TclVersion::V8_6)
+}
+
+/// Compare package versions using a pinned Tcl release's grammar.
+#[must_use]
+pub fn compare_versions_for(a: &str, b: &str, release: TclVersion) -> core::cmp::Ordering {
+    let allow_plus_suffix = release.allows_package_version_suffix();
+    let va = ParsedVersion::parse_for(a, allow_plus_suffix).map_or_else(
+        || ParsedVersion::lenient_for(a, allow_plus_suffix),
+        |p| p.segments,
+    );
+    let vb = ParsedVersion::parse_for(b, allow_plus_suffix).map_or_else(
+        || ParsedVersion::lenient_for(b, allow_plus_suffix),
+        |p| p.segments,
+    );
     compare_internal(&va, &vb).0
 }
 
@@ -835,10 +997,19 @@ pub fn compare_versions(a: &str, b: &str) -> core::cmp::Ordering {
 /// between the best and the best-stable candidate.
 #[must_use]
 pub fn version_is_stable(version: &str) -> bool {
-    ParsedVersion::parse(version).is_some_and(|p| p.stable)
+    version_is_stable_for(version, TclVersion::V8_6)
 }
 
-/// Does the concrete `version` satisfy one `package vsatisfies` requirement?
+/// Check package-version stability using a pinned Tcl release's grammar.
+#[must_use]
+pub fn version_is_stable_for(version: &str, release: TclVersion) -> bool {
+    ParsedVersion::parse_for(version, release.allows_package_version_suffix())
+        .is_some_and(|p| p.stable)
+}
+
+/// Does the concrete strict `version` satisfy one `package vsatisfies`
+/// requirement? A pinned runtime uses [`version_satisfies_for`] when its
+/// release accepts Tcl 9 `+` suffixes.
 ///
 /// The requirement forms Tcl accepts (`package(n)`, every row verified against
 /// `tclsh8.6` 8.6.14 and `tclsh9.0` 9.0.4 — byte-identical):
@@ -863,43 +1034,92 @@ pub fn version_is_stable(version: &str) -> bool {
 /// `" 1.2"` is rejected exactly as the interpreter rejects it.
 #[must_use]
 pub fn version_satisfies(version: &str, requirement: &str) -> bool {
-    let Some(have) = ParsedVersion::parse(version) else {
+    version_satisfies_for(version, requirement, TclVersion::V8_6)
+}
+
+/// Check package-version satisfaction using a pinned Tcl release's grammar.
+#[must_use]
+pub fn version_satisfies_for(version: &str, requirement: &str, release: TclVersion) -> bool {
+    let allow_plus_suffix = release.allows_package_version_suffix();
+    let Some(have) = ParsedVersion::parse_for(version, allow_plus_suffix) else {
         return false;
     };
-    satisfies_internal(&have.segments, requirement)
+    satisfies_internal(&have.segments, requirement, allow_plus_suffix)
+}
+
+/// Check exact package-version equality using a pinned Tcl release's grammar.
+/// This keeps `package require -exact` from encoding a version containing a
+/// Tcl 9 `+` suffix as an ambiguous textual range.
+#[must_use]
+pub fn version_matches_exact_for(version: &str, requested: &str, release: TclVersion) -> bool {
+    let allow_plus_suffix = release.allows_package_version_suffix();
+    let Some(version) = ParsedVersion::parse_for(version, allow_plus_suffix) else {
+        return false;
+    };
+    let Some(requested) = ParsedVersion::parse_for(requested, allow_plus_suffix) else {
+        return false;
+    };
+    compare_internal(&version.segments, &requested.segments).0 == core::cmp::Ordering::Equal
 }
 
 /// [`version_satisfies`] against an already-parsed candidate — the form
 /// [`select_package_version`] needs so a candidate is converted once for the
 /// whole requirement list.
-fn satisfies_internal(have: &[Segment<'_>], requirement: &str) -> bool {
-    use core::cmp::Ordering;
+fn satisfies_internal(have: &[Segment<'_>], requirement: &str, allow_plus_suffix: bool) -> bool {
     let Some((lo, hi)) = requirement.split_once('-') else {
-        // No dash: a simple version. The requirement is padded with an alpha
-        // segment, and the candidate must be equal or greater *without* the
-        // difference landing in the major component — which is what bounds a
-        // bare `X.Y` at the next major without naming an upper bound.
-        let Some(mut req) = ParsedVersion::parse(requirement).map(|p| p.segments) else {
-            return false;
-        };
-        req.push(Segment::Alpha);
-        let (ord, is_major) = compare_internal(have, &req);
-        return ord == Ordering::Equal || (ord == Ordering::Greater && !is_major);
+        return satisfies_bare(have, requirement, allow_plus_suffix);
     };
-    // `CheckRequirement`: at most one dash.
-    if hi.contains('-') {
+    // Tcl 8 checks the whole range before splitting it. Tcl 9's version
+    // conversion stops at `+` for each endpoint, so dashes after a suffix
+    // belong to that ignored suffix rather than making the upper endpoint a
+    // second range.
+    if !allow_plus_suffix && hi.contains('-') {
         return false;
     }
-    let Some(min) = ParsedVersion::parse(lo).map(|p| p.segments) else {
+    satisfies_range_with_policy(have, lo, (!hi.is_empty()).then_some(hi), allow_plus_suffix)
+}
+
+/// The no-dash arm: a simple version. The requirement is padded with an alpha
+/// segment, and the candidate must be equal or greater *without* the
+/// difference landing in the major component — which is what bounds a bare
+/// `X.Y` at the next major without naming an upper bound.
+fn satisfies_bare(have: &[Segment<'_>], requirement: &str, allow_plus_suffix: bool) -> bool {
+    use core::cmp::Ordering;
+    let Some(mut req) =
+        ParsedVersion::parse_for(requirement, allow_plus_suffix).map(|p| p.segments)
+    else {
         return false;
     };
-    if hi.is_empty() {
+    req.push(Segment::Alpha);
+    let (ord, is_major) = compare_internal(have, &req);
+    ord == Ordering::Equal || (ord == Ordering::Greater && !is_major)
+}
+
+/// The `min-max` arm, taking the two bounds rather than the string that
+/// spells them — so a caller holding a window already split in two
+/// ([`version_in_any_window`]) does not have to `format!` it back together
+/// only for this to split it again.
+fn satisfies_range(have: &[Segment<'_>], lo: &str, hi: Option<&str>) -> bool {
+    satisfies_range_with_policy(have, lo, hi, false)
+}
+
+fn satisfies_range_with_policy(
+    have: &[Segment<'_>],
+    lo: &str,
+    hi: Option<&str>,
+    allow_plus_suffix: bool,
+) -> bool {
+    use core::cmp::Ordering;
+    let Some(min) = ParsedVersion::parse_for(lo, allow_plus_suffix).map(|p| p.segments) else {
+        return false;
+    };
+    let Some(hi) = hi else {
         // `min-` — open-ended above.
         let mut min = min;
         min.push(Segment::Alpha);
         return compare_internal(have, &min).0 != Ordering::Less;
-    }
-    let Some(max) = ParsedVersion::parse(hi).map(|p| p.segments) else {
+    };
+    let Some(max) = ParsedVersion::parse_for(hi, allow_plus_suffix).map(|p| p.segments) else {
         return false;
     };
     if compare_internal(&min, &max).0 == Ordering::Equal {
@@ -912,6 +1132,29 @@ fn satisfies_internal(have: &[Segment<'_>], requirement: &str) -> bool {
     max.push(Segment::Alpha);
     compare_internal(&min, have).0 != Ordering::Greater
         && compare_internal(have, &max).0 == Ordering::Less
+}
+
+/// Whether `version` falls in any of the half-open `windows`, each given as
+/// its `(from, until)` bounds — [`version_satisfies`] against `"from-until"`
+/// (or `"from-"` for an open window), without spelling that requirement out.
+///
+/// The spec-surface gate asks this on every registry lookup, once per
+/// authored availability row, and it used to `format!` the requirement string
+/// and re-parse `version` for each one. Both are gone: the candidate is
+/// converted once for the whole list and each bound is read where it already
+/// sits (issue #2021, where the registry's version parsing showed up in the
+/// workspace-scan profile).
+///
+/// An empty `windows` is "no window", so `false` — the "admits everything"
+/// reading belongs to the caller that knows an empty list means unrestricted.
+#[must_use]
+pub fn version_in_any_window(version: &str, windows: &[(&str, Option<&str>)]) -> bool {
+    let Some(have) = ParsedVersion::parse(version) else {
+        return false;
+    };
+    windows
+        .iter()
+        .any(|&(from, until)| satisfies_range(&have.segments, from, until))
 }
 
 /// The requirement string `package require -exact NAME VERSION` builds:
@@ -965,17 +1208,29 @@ pub fn select_package_version<S: AsRef<str>>(
     requirements: &[&str],
     prefer: PackagePrefer,
 ) -> Option<usize> {
+    select_package_version_for(available, requirements, prefer, TclVersion::V8_6)
+}
+
+/// Select a package provider using a pinned Tcl release's grammar.
+#[must_use]
+pub fn select_package_version_for<S: AsRef<str>>(
+    available: &[S],
+    requirements: &[&str],
+    prefer: PackagePrefer,
+    release: TclVersion,
+) -> Option<usize> {
     use core::cmp::Ordering;
+    let allow_plus_suffix = release.allows_package_version_suffix();
     let mut best: Option<(usize, Vec<Segment<'_>>)> = None;
     let mut best_stable: Option<(usize, Vec<Segment<'_>>)> = None;
     for (i, candidate) in available.iter().enumerate() {
-        let Some(parsed) = ParsedVersion::parse(candidate.as_ref()) else {
+        let Some(parsed) = ParsedVersion::parse_for(candidate.as_ref(), allow_plus_suffix) else {
             continue;
         };
         if !requirements.is_empty()
             && !requirements
                 .iter()
-                .any(|r| satisfies_internal(&parsed.segments, r))
+                .any(|r| satisfies_internal(&parsed.segments, r, allow_plus_suffix))
         {
             continue;
         }
@@ -1000,6 +1255,23 @@ pub fn select_package_version<S: AsRef<str>>(
         PackagePrefer::Latest => best,
     }
     .map(|(i, _)| i)
+}
+
+/// Select an ifneeded provider that exactly matches a requested package
+/// version using a pinned Tcl release's grammar.
+#[must_use]
+pub fn select_package_version_exact_for<S: AsRef<str>>(
+    available: &[S],
+    requested: &str,
+    release: TclVersion,
+) -> Option<usize> {
+    let allow_plus_suffix = release.allows_package_version_suffix();
+    let requested = ParsedVersion::parse_for(requested, allow_plus_suffix)?;
+    available.iter().enumerate().find_map(|(index, candidate)| {
+        let candidate = ParsedVersion::parse_for(candidate.as_ref(), allow_plus_suffix)?;
+        (compare_internal(&candidate.segments, &requested.segments).0 == core::cmp::Ordering::Equal)
+            .then_some(index)
+    })
 }
 
 /// A three-valued behaviour policy, so a non-Tcl profile (`f5-bigip`) and
@@ -1043,7 +1315,96 @@ impl Ternary {
 
 #[cfg(test)]
 mod tests {
-    use super::{StringCharacterModel, TclVersion, Ternary, exact_requirement};
+    use super::{
+        RequirementValidationError, StringCharacterModel, TclVersion, Ternary, exact_requirement,
+        validate_requirement, validate_version,
+    };
+
+    #[test]
+    fn package_validation_reuses_the_version_parser() {
+        assert!(validate_version("2.3a1"));
+        assert!(!validate_version("2.a1"));
+        assert!(!validate_version("2.3+platform"));
+        assert_eq!(validate_requirement("2.1-3.2"), Ok(()));
+        assert_eq!(validate_requirement("2.1-"), Ok(()));
+        assert_eq!(
+            validate_requirement("2.1+platform"),
+            Err(RequirementValidationError::InvalidVersion("2.1+platform"))
+        );
+        assert_eq!(
+            validate_requirement("2.1+platform-3"),
+            Err(RequirementValidationError::InvalidVersion("2.1+platform"))
+        );
+        assert_eq!(
+            validate_requirement("2.1-3.2-4.5"),
+            Err(RequirementValidationError::InvalidRange("2.1-3.2-4.5"))
+        );
+        assert_eq!(
+            validate_requirement("3.2-x.y"),
+            Err(RequirementValidationError::InvalidVersion("x.y"))
+        );
+        assert!(!super::version_satisfies("2.1", "2.1+platform"));
+        assert!(!super::version_satisfies("1.3", "1.2+-1.25"));
+    }
+
+    #[test]
+    fn package_plus_suffix_policy_matches_tcl_release_lines() {
+        for release in [TclVersion::V8_4, TclVersion::V8_6] {
+            assert!(!release.allows_package_version_suffix());
+            assert!(!super::validate_version_for("1.2+platform", release));
+            assert!(super::validate_requirement_for("1.2+platform", release).is_err());
+            assert_eq!(
+                super::validate_requirement_for("1-2+platform", release),
+                Err(RequirementValidationError::InvalidVersion("2+platform"))
+            );
+            assert!(!super::version_satisfies_for(
+                "1.2",
+                "1.2+platform",
+                release
+            ));
+        }
+        for release in [TclVersion::V9_0, TclVersion::V9_1] {
+            assert!(release.allows_package_version_suffix());
+            assert!(super::validate_version_for("1.2+platform", release));
+            assert_eq!(
+                super::validate_requirement_for("1.2+platform-3", release),
+                Ok(())
+            );
+            assert_eq!(
+                super::validate_requirement_for("1-2+platform", release),
+                Err(RequirementValidationError::InvalidVersion("1-2+platform"))
+            );
+            assert!(super::version_satisfies_for("1.2", "1.2+-1.25", release));
+            assert!(!super::version_satisfies_for("1.30", "1.2+-1.25", release));
+            assert!(super::version_satisfies_for("1.3", "1.2+-2+x-y", release));
+            assert!(!super::version_satisfies_for("1.3", "1.2+x-1.2+x", release));
+            assert!(!super::version_matches_exact_for("1.3", "1.2+x", release));
+            assert!(super::version_matches_exact_for("1.3", "1.3+x", release));
+            assert_eq!(
+                super::compare_versions_for("1.2+platform", "1.2", release),
+                core::cmp::Ordering::Equal
+            );
+        }
+    }
+
+    #[test]
+    fn package_provider_selection_uses_the_release_suffix_policy() {
+        use super::{PackagePrefer, select_package_version_for};
+
+        let providers = ["1.1", "1.2+platform"];
+        assert_eq!(
+            select_package_version_for(&providers, &[], PackagePrefer::Latest, TclVersion::V8_6),
+            Some(0)
+        );
+        assert_eq!(
+            select_package_version_for(&providers, &[], PackagePrefer::Latest, TclVersion::V9_0),
+            Some(1)
+        );
+        assert_eq!(
+            super::select_package_version_exact_for(&["1.2+x", "1.3+x"], "1.2+x", TclVersion::V9_0),
+            Some(0)
+        );
+    }
 
     /// The core `Tcl` provide and `[info patchlevel]` are the same build
     /// fact, so the literal in [`TclVersion::core_provided_packages`] must
@@ -1401,6 +1762,55 @@ mod tests {
             TclVersion::V9_0.string_character_model(),
             StringCharacterModel::UnicodeScalars
         );
+    }
+
+    /// Issue #2128: the counting model is three-valued, not two. Each row is
+    /// a witness measured with
+    /// `string length [encoding convertfrom utf-8 …]` on the real tclsh of
+    /// that release, under `LANG=C.UTF-8`.
+    ///
+    /// The supplementary character is the discriminator; `é` and `€` are here
+    /// to pin that 8.4/8.5 are *not* byte counting, which is the reading that
+    /// would otherwise seem to fit the 4.
+    #[test]
+    fn string_character_model_is_three_valued_issue_2128() {
+        let two_byte = "\u{00E9}"; // é
+        let three_byte = "\u{20AC}"; // €
+        let supplementary = "\u{1F600}"; // 😀
+
+        for (version, expected_supplementary) in [
+            (TclVersion::V8_4, 4),
+            (TclVersion::V8_5, 4),
+            (TclVersion::V8_6, 2),
+            (TclVersion::V9_0, 1),
+            (TclVersion::V9_1, 1),
+        ] {
+            let model = version.string_character_model();
+            assert_eq!(
+                model.count(supplementary),
+                expected_supplementary,
+                "{version:?} counts a supplementary character",
+            );
+            // Every release agrees on everything inside the BMP.
+            assert_eq!(model.count(two_byte), 1, "{version:?} counts é");
+            assert_eq!(model.count(three_byte), 1, "{version:?} counts €");
+        }
+
+        // 8.4/8.5 must be their own variant, not the 8.6 one.
+        assert_eq!(
+            TclVersion::V8_4.string_character_model(),
+            StringCharacterModel::BmpCharsElseUtf8Bytes,
+        );
+        assert_ne!(
+            TclVersion::V8_4.string_character_model(),
+            TclVersion::V8_6.string_character_model(),
+        );
+
+        // Unanimity is over all three models. A BMP string is still folded
+        // without a stated release; a supplementary one is not, where the old
+        // 8.6/9.0-pair rule would have answered 2 and been wrong for 8.4.
+        assert_eq!(StringCharacterModel::count_for(None, three_byte), Some(1));
+        assert_eq!(StringCharacterModel::count_for(None, supplementary), None);
     }
 
     #[test]

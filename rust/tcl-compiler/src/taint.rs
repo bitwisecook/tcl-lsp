@@ -6359,6 +6359,7 @@ mod tests {
             .push(stmt.clone());
         cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
@@ -6430,6 +6431,7 @@ mod tests {
             .push(eval_call.clone());
         cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
@@ -6496,6 +6498,7 @@ mod tests {
             b.statements.push(sink.clone());
             b.terminator = Some(Terminator::Return {
                 value: None,
+                value_word: None,
                 span: None,
                 expr: None,
                 braced: false,
@@ -6668,6 +6671,7 @@ mod tests {
             b.statements.push(s2.clone());
             b.terminator = Some(Terminator::Return {
                 value: None,
+                value_word: None,
                 span: None,
                 expr: None,
                 braced: false,
@@ -6746,6 +6750,7 @@ mod tests {
             }
             b.terminator = Some(Terminator::Return {
                 value: None,
+                value_word: None,
                 span: None,
                 expr: None,
                 braced: false,
@@ -6946,6 +6951,7 @@ mod tests {
             .push(stmt.clone());
         cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
@@ -7018,6 +7024,7 @@ mod tests {
             .push(regexp_call.clone());
         cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
@@ -7112,6 +7119,7 @@ mod tests {
             .push(regexp_call.clone());
         cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,

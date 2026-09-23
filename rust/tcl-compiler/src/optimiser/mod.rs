@@ -67,7 +67,8 @@ pub use elimination::DeadStore;
 pub use manager::{
     apply_optimisations, finalise_optimisations, find_dead_stores, optimise, optimise_by_pass,
     optimise_raw, optimise_raw_for_profile, optimise_source_multipass,
-    optimise_source_multipass_filtered, optimise_unit, optimise_unit_raw, optimise_with_dialect,
+    optimise_source_multipass_admitting, optimise_source_multipass_filtered, optimise_unit,
+    optimise_unit_raw, optimise_with_dialect,
 };
 
 use std::collections::{HashMap, HashSet};

@@ -180,6 +180,19 @@
 | IAPP7001 | bigip | iApp implementation references a presentation field that is not defined. | ✓ |
 | IAPP7002 | bigip | iApp presentation field is never referenced by the implementation. | ✓ |
 | IAPP7003 | bigip | iApp presentation `#include` file could not be resolved. | ✓ |
+| XC100 | xc | iRule construct translates to an XC configuration object. | ✓ |
+| XC101 | xc | iRule construct translates to an XC L7 route. | ✓ |
+| XC102 | xc | iRule construct translates to an XC service policy rule. | ✓ |
+| XC103 | xc | iRule construct translates to an XC header action. | ✓ |
+| XC105 | xc | iRule data-group match translates to an XC service policy rule — each data-group entry may need a rule of its own. | ✓ |
+| XC106 | xc | iRule construct translates to an XC WAF exclusion rule. | ✓ |
+| XC107 | xc | No XC action needed — the iRule construct is already XC's default behaviour. | ✓ |
+| XC200 | xc | Construct is only partially translatable — the match criteria cannot be determined statically. | ✓ |
+| XC201 | xc | iRules event has no XC equivalent — the whole event handler is untranslatable. | ✓ |
+| XC203 | xc | Conditional logic is only partially translatable — review the XC match criteria manually. | ✓ |
+| XC250 | xc | iRules event maps to a separate XC feature rather than to this configuration. | ✓ |
+| XC300 | xc | Dynamic or procedural construct has no XC equivalent — consider App Stack for this logic. | ✓ |
+| XC301 | xc | L4/protocol-specific command has no XC equivalent — consider App Stack for this logic. | ✓ |
 | SSLIC1001 | sslictcl | SslicTcl declaration is not valid Tcl syntax or has an unclosed delimiter. | ✓ |
 | SSLIC1002 | sslictcl | SslicTcl declaration uses substitution or argument expansion; the vocabulary is declarative. | ✓ |
 | SSLIC1003 | sslictcl | SslicTcl document is missing its `sslictcl VERSION` header. | ✓ |
@@ -200,16 +213,3 @@
 | W132 | tclpkg | tclpkg.lock integrity mismatch — CAS hash differs from lockfile. | ✓ |
 | W133 | tclpkg | tclpkg.tcl directive not permitted in safe mode. | ✓ |
 | W134 | tclpkg | Package resolved but no pkgIndex.tcl found — 'package require' will fail at runtime. | ✓ |
-| XC100 | xc | iRule command maps directly to an XC construct (an origin pool, a catalogued command mapping). | ✓ |
-| XC101 | xc | iRule routing decision maps to an XC L7 route — path or host matching, a redirect, or a direct response. | ✓ |
-| XC102 | xc | iRule condition or response maps to an XC service policy rule — match criteria, method matching, or a deny. | ✓ |
-| XC103 | xc | HTTP header operation maps to an XC request or response header action. | ✓ |
-| XC105 | xc | Data-group (`class`) match maps to XC service policy rules — each entry may need its own rule. | ✓ |
-| XC106 | xc | `ASM::disable` maps to an XC WAF exclusion rule. | ✓ |
-| XC107 | xc | `ASM::enable` needs no XC action — the App Firewall is enabled by default. | ✓ |
-| XC200 | xc | `switch` on a dynamic value — the XC match criteria need manual configuration. | ✓ |
-| XC201 | xc | Event handler has no XC equivalent — an L4 or non-HTTP event the static translation cannot express. | ✓ |
-| XC203 | xc | Complex condition could not be mapped to XC match criteria automatically — review it manually. | ✓ |
-| XC250 | xc | Event maps to a separate XC feature (Rate Limiting, Bot Defence, …) rather than a route or policy. | ✓ |
-| XC300 | xc | Command creates dynamic or procedural behaviour with no XC equivalent — consider App Stack. | ✓ |
-| XC301 | xc | L4 or protocol-specific command with no XC equivalent — consider App Stack. | ✓ |

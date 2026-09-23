@@ -550,7 +550,7 @@ pub fn render_json(result: &XCTranslationResult, namespace: &str, lb_name: &str)
                 "command": item.irule_command,
                 "xc_description": item.xc_description,
                 "note": item.note,
-                "diagnostic_code": item.diagnostic_code,
+                "diagnostic_code": item.diagnostic_code.as_str(),
             })
         })
         .collect();

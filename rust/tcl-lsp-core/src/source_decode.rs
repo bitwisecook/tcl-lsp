@@ -505,6 +505,16 @@ fn replacement_range(text: &str, offset: usize) -> LspRange {
 /// Abstention here is a positive answer, not a silent degradation: the file
 /// gets one accurate diagnostic saying it is not UTF-8, instead of dozens of
 /// findings about characters that are decoding artefacts.
+///
+/// The *rule* is [`DecodeReport::requires_abstention`], and it has only ever
+/// had one implementation — this is its `Option`-lifting form, for the many
+/// callers that hold an `Option<&DecodeReport>` because a document may not
+/// have been decoded through this boundary at all. A caller holding a report
+/// outright (the CLI's `InputDocument::abstains_on_encoding`) asks the rule
+/// directly. Every surface that abstains goes through one of those two, so
+/// the editor and the CLI cannot drift — which is what
+/// `docs/design/contracts/lsp-diagnostics-publication.md` § Encoding
+/// integrity and abstention requires (#2122).
 #[must_use]
 pub fn should_abstain(report: Option<&DecodeReport>) -> bool {
     report.is_some_and(DecodeReport::requires_abstention)

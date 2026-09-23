@@ -425,8 +425,10 @@ version = "0.1.0"
 dependencies = [
  "serde_json",
  "tcl-compiler",
+ "tcl-core-types",
  "tcl-dialect",
  "tcl-lexer",
+ "tcl-lsp-core",
  "tcl-registry",
  "tcl-syntax",
 ]

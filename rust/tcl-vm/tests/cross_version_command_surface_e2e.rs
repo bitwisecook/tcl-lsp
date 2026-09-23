@@ -209,6 +209,56 @@ fn named_command_surface_override_cannot_hide_compiled_release_commands() {
     assert_eq!(&*completion.result.to_str(), "a");
 }
 
+/// `eval_source` reports a script it could not run *at all* through `Err`,
+/// the channel it has always used, and a script that ran a prefix before a
+/// malformed tail through the completion (#1603).
+///
+/// The boundary is whether a **command** ran, not whether the prefix has
+/// bytes: when the first command is the malformed one, the prefix still spans
+/// any leading whitespace and comments, so a byte-length test would send
+/// `" \n set x \""` down the completion channel having executed nothing.
+#[test]
+fn eval_source_reports_a_script_that_ran_nothing_through_the_error_channel() {
+    let mut vm = Vm::new();
+    vm.set_compiler(Box::new(
+        tcl_compiler::compile_service::BytecodeCompileService::default(),
+    ));
+
+    // Nothing parses at all.
+    assert!(vm.eval_source("set x \"").is_err(), "no command parsed");
+    // Nothing parses, behind leading trivia: whitespace, then a comment.
+    assert!(
+        vm.eval_source(" \n set x \"").is_err(),
+        "leading whitespace runs no command"
+    );
+    assert!(
+        vm.eval_source("# just a comment\nset x \"").is_err(),
+        "a leading comment runs no command"
+    );
+
+    // A prefix that *did* run reports through the completion, carrying the
+    // side effect the prefix performed — this is the half the `Err` channel
+    // must not swallow.
+    let completion = vm
+        .eval_source("set ::ran 1\nset x \"")
+        .expect("a script that ran a command reports through its completion");
+    assert_eq!(completion.code, Code::Error);
+    assert_eq!(&*completion.result.to_str(), "missing \"");
+    assert_eq!(
+        &*vm.eval_source("set ::ran")
+            .expect("prefix side effect")
+            .result
+            .to_str(),
+        "1",
+        "the clean prefix ran before the parse error"
+    );
+
+    // Positive control: a script that parses whole still reports success, so
+    // none of the above can pass because `eval_source` started failing.
+    let ok = vm.eval_source("set ::fine 2").expect("clean script");
+    assert!(ok.code.is_ok(), "{}", ok.result.to_str());
+}
+
 #[test]
 fn command_surface_override_rejects_a_same_release_narrower_profile() {
     let bpf = tcl_registry::model::ingress::resolve_environment("bpf").analyser_profile();
@@ -734,13 +784,14 @@ fn profile_mutation_recompiles_cached_bodies_and_rejects_live_continuations() {
         )
         .expect("8.6 coroutine setup compiles");
     assert!(newer_setup.code.is_ok(), "{}", newer_setup.result.to_str());
-    // This source is lexically accepted on 8.5+ (its eventual runtime
-    // command error is immaterial); retaining its compiled module exercises
-    // the lexer-sensitive eval cache that 8.4 must discard and re-lex.
+    // This source is accepted and expanded on 8.5+; retaining its compiled
+    // module exercises the lexer-sensitive eval cache that 8.4 must discard
+    // and re-lex.
     let lexer_86 = vm
         .eval_source("{*}[list set ::profile_mutation_lexer 1]")
         .expect("8.5 lexer source compiles");
-    assert_eq!(lexer_86.code, Code::Error);
+    assert_eq!(lexer_86.code, Code::Ok);
+    assert_eq!(lexer_86.result.to_str().as_ref(), "1");
 
     assert!(vm.set_child_dialect_profile("child", v84));
     vm.set_dialect_profile(v84);
@@ -771,7 +822,7 @@ fn profile_mutation_recompiles_cached_bodies_and_rejects_live_continuations() {
         Code::Error
     );
     assert!(
-        vm.eval_source("{*}[list set ::profile_mutation_lexer 2]")
+        vm.eval_source("{*}[list set ::profile_mutation_lexer 1]")
             .is_err()
     );
 

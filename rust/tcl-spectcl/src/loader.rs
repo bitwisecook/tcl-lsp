@@ -6831,8 +6831,168 @@ mod tests {
         );
     }
 
+    /// #2140: `case_list { … }` authors **every** plain-data field of
+    /// `CaseListSpec`, and that claim is checked rather than counted.
+    ///
+    /// Three documents carried a numeral for this — nineteen in the
+    /// spec-DSL README, eighteen in the same README's descriptor list and
+    /// in the `case_list` spec's own hover text, against twenty-two fields
+    /// in the struct. A count in prose drifts; the property does not, so
+    /// the numerals are gone and this stands in their place.
+    ///
+    /// Every row is given a value that differs from the field's
+    /// zero/empty default, so a field the block cannot reach fails here.
+    /// `keyword_patterns` carries two fields (its `-final-only` flag sets
+    /// `keyword_patterns_require_final`), which is why twenty-one rows
+    /// author twenty-two fields.
     #[test]
-    fn case_list_loader_preserves_every_clause_shape_field() {
+    fn case_list_rows_author_every_descriptor_field_issue_2140() {
+        let pack = evaluate_pack(
+            "speclib probe 1.1 { command demo { case_list { \
+             subject_args 2; \
+             two_arg_optionless_surface tcl8.5+; \
+             regex_option -regexp; exact_option -exact; glob_option -glob; \
+             nocase_option -nocase; end_options_option --; \
+             fallthrough_body -; \
+             value_options_require_regex {-indexvar -matchvar}; \
+             special_match_options {-sorted}; \
+             clause_flags {-re -gl -ex}; clause_regex_flag -re; \
+             clause_value_flags {-timeout}; clause_end_options_flag --; \
+             clause_force_inline_flag -nobrace; clause_force_list_flag -brace; \
+             clause_force_list_shape first_arg_only_remainder; \
+             allow_omitted_final_body 1; \
+             keyword_patterns {default} -final-only; \
+             warn_unbraced_bodies 1; \
+             optional_subject_separator -- } } }",
+        );
+        assert!(pack.notices.is_empty(), "{:?}", pack.notices);
+        let case = pack.command("demo").unwrap().spec.case_list.unwrap();
+
+        // One assertion per field of `CaseListSpec`. Adding a field to the
+        // struct without a row to author it leaves this list short of the
+        // struct, which the count assertion below catches.
+        assert_eq!(case.subject_args, 2);
+        assert_eq!(
+            case.two_arg_optionless_surface,
+            Some(SpecSurface::TCL85_PLUS)
+        );
+        assert_eq!(case.regex_option, Some("-regexp"));
+        assert_eq!(case.exact_option, Some("-exact"));
+        assert_eq!(case.glob_option, Some("-glob"));
+        assert_eq!(case.nocase_option, Some("-nocase"));
+        assert_eq!(case.end_options_option, Some("--"));
+        assert_eq!(case.fallthrough_body, Some("-"));
+        assert_eq!(case.value_options_require_regex, ["-indexvar", "-matchvar"]);
+        assert_eq!(case.special_match_options, ["-sorted"]);
+        assert_eq!(case.clause_flags, ["-re", "-gl", "-ex"]);
+        assert_eq!(case.clause_regex_flag, Some("-re"));
+        assert_eq!(case.clause_value_flags, ["-timeout"]);
+        assert_eq!(case.clause_end_options_flag, Some("--"));
+        assert_eq!(case.clause_force_inline_flag, Some("-nobrace"));
+        assert_eq!(case.clause_force_list_flag, Some("-brace"));
+        assert_eq!(
+            case.clause_force_list_shape,
+            Some(tcl_registry::CaseForceListShape::FirstArgOnlyRemainder)
+        );
+        assert!(case.allow_omitted_final_body);
+        assert_eq!(case.keyword_patterns, ["default"]);
+        assert!(case.keyword_patterns_require_final);
+        assert!(case.warn_unbraced_bodies);
+        assert_eq!(case.optional_subject_separator, Some("--"));
+
+        // …and the list above is the whole struct. Counted from the
+        // definition rather than from `Debug`, whose field *values*
+        // contain `": "` of their own.
+        let spec_source = include_str!("../../tcl-registry/src/spec.rs");
+        let from = spec_source
+            .find("pub struct CaseListSpec")
+            .expect("`CaseListSpec` by that name");
+        let to = spec_source[from..]
+            .find("\n}\n")
+            .expect("a struct body that ends");
+        let fields = spec_source[from..from + to]
+            .lines()
+            .filter(|line| line.starts_with("    pub ") && line.contains(':'))
+            .count();
+        assert_eq!(
+            fields, 22,
+            "`CaseListSpec` has {fields} fields; the assertions above cover 22 — a new field needs a `case_list` row and an assertion here"
+        );
+    }
+
+    /// #2140: `state_transitions` and `world_effects` load their
+    /// `composition` row and drop every other row with a notice.
+    ///
+    /// `spec-dsl-examples/README.md` claimed the opposite — "the
+    /// surrounding plain data *is* authorable; only the resolver is
+    /// `-native`, `none`, or a derivation keyword" — while
+    /// `registry/spec-packs.md` stated the true, stricter version. This
+    /// pins which one the tree agrees with, so growing either loader fails
+    /// here until the README is corrected with it.
+    ///
+    /// `composition` is asserted as `Replace` because `Extend` is what
+    /// both `EMPTY` descriptors already hold: asserting the default would
+    /// pass whether or not the row was read at all.
+    #[test]
+    fn state_transition_and_world_effect_blocks_load_only_composition_issue_2140() {
+        fn dropped_rows(pack: &Pack) -> Vec<&str> {
+            pack.notices
+                .iter()
+                .filter(|notice| notice.message.contains("is not yet loadable; dropped"))
+                .map(|notice| notice.message.as_str())
+                .collect()
+        }
+
+        let transitions = evaluate_pack(
+            "speclib probe 1.1 { command demo { state_transitions { \
+             composition Replace; argument_shape whatever; resolver none; \
+             widen -operands 1; covers x; commit yes } } }",
+        );
+        let descriptor = transitions
+            .command("demo")
+            .unwrap()
+            .spec
+            .state_transitions
+            .expect("a descriptor");
+        assert_eq!(
+            descriptor.composition,
+            tcl_registry::state_transition::StateTransitionComposition::Replace,
+            "`composition` is the one row that lands"
+        );
+        let dropped = dropped_rows(&transitions);
+        for row in ["argument_shape", "resolver", "widen", "covers", "commit"] {
+            assert!(
+                dropped.iter().any(|message| message.contains(row)),
+                "`{row}` should be dropped with a notice; got {dropped:?}"
+            );
+        }
+
+        let effects = evaluate_pack(
+            "speclib probe 1.1 { command demo { world_effects { \
+             composition Replace; access read; dynamic_fallback yes; \
+             resolver none } } }",
+        );
+        let descriptor = effects
+            .command("demo")
+            .unwrap()
+            .spec
+            .world_effects
+            .expect("a descriptor");
+        assert_eq!(
+            descriptor.composition,
+            tcl_registry::world_effect::WorldEffectComposition::Replace
+        );
+        let dropped = dropped_rows(&effects);
+        for row in ["access", "dynamic_fallback", "resolver"] {
+            assert!(
+                dropped.iter().any(|message| message.contains(row)),
+                "`{row}` should be dropped with a notice; got {dropped:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn case_list_loader_preserves_the_clause_shape_flags() {
         let pack = evaluate_pack(
             "speclib probe 1.1 { command demo { case_list { \
              two_arg_optionless_surface tcl8.5+; \

@@ -99,7 +99,7 @@ any, which is the shape a CI step wants.
 
 ## Verb contracts
 
-- `opt`: applies the optimiser rewrites the inputs' policy shows and emits rewritten Tcl. `--profile`, `--disable` and `--enable` are the invocation layer over the global `config.ini`, under each input file's own `.tcl-lsp.ini`; a `# noqa` on a command or a top-of-file `# tcl-lsp: disable=` keeps a rewrite off exactly as it keeps a squiggle off. Inputs are folded into one text only when their policies agree (one project, no directives); otherwise each is optimised on its own and the outputs joined.
+- `opt`: applies the optimiser rewrites the inputs' policy shows and emits rewritten Tcl. `--profile`, `--disable` and `--enable` are the invocation layer over the global `config.ini`, under each input file's own `.tcl-lsp.ini`; a `# noqa` on a command or a top-of-file `# tcl-lsp: disable=` keeps a rewrite off exactly as it keeps a squiggle off. Each input is optimised as its own program under its own policy and the outputs joined; the summary names each file's rewrites.
 - `diag`: runs diagnostics over each resolved document and reports findings — the same producers and the same policy the editor publishes under. Each file resolves its own layers: the global `config.ini`, `--disable` / `--enable` in the editor layer's slot, and the nearest `.tcl-lsp.ini` above the file (an inline `--source` has no project layer). The catalogue's default-off codes (W242) are off until a layer turns them on.
 - `lint`: runs the same diagnostics pass as `diag` with lint-oriented naming.
 - `validate`: reports error-severity diagnostics only, from the same shown set as `diag` (non-zero on any error, `--json` supported).

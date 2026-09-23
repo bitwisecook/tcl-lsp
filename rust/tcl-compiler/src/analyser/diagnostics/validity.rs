@@ -594,6 +594,13 @@ struct OptionScanContext {
     sub_name: Option<String>,
     /// Whether abbreviations resolve in this table.
     prefix_matching: tcl_registry::abbrev::PrefixMatching,
+    /// Mandatory trailing operands the scan must stop before, from
+    /// [`tcl_registry::CommandSpec::reserved_trailing_words`]. `subst`'s
+    /// `string`, `switch`'s `string` and pattern list, `lsearch`'s `list` and
+    /// `pattern` are operands whatever their shape: the C implementations
+    /// stop scanning for switches before them, so a `-`-looking value there
+    /// is data, not an option.
+    reserved_trailing_words: usize,
 }
 
 /// The dialect-available options (canonical spellings plus declared aliases)
@@ -4091,56 +4098,69 @@ before this value so it is treated as data, not an option."
         } else {
             spec.prefix_matching
         };
-        let (options, parent_surface, start_idx, sub_name) = if spec.subcommands.is_empty() {
-            (spec.options, spec.surface, 0usize, None::<String>)
-        } else {
-            // Ensemble-shaped: index 0 is always the subcommand word.  A
-            // `{*}`-expanded or substituted word resolves to an unknown name
-            // at runtime; abstain rather than guess.
-            if arg_expand.first().copied().unwrap_or(false) {
-                return None;
-            }
-            if arg_tokens
-                .first()
-                .is_some_and(|tok| has_substitution(&args[0], tok))
-            {
-                return None;
-            }
-            let sub = spec.resolve_subcommand_for_dialect(
-                &args[0],
-                Some(self.analysis_context().context().authoring_query()),
-            )?;
-            // A two-level ensemble dispatches once more on the next word, and
-            // its operations can carry genuinely different option tables
-            // (`namespace ensemble create` vs `configure`). Read
-            // that word only when it is a literal: a `{*}`-expanded or
-            // substituted dispatch word resolves at run time, and
-            // `option_scope` keeps the subcommand's wider table for it rather
-            // than guessing which operation is meant.
-            let dispatch = args.get(1).filter(|_| {
-                !arg_expand.get(1).copied().unwrap_or(false)
-                    && !arg_tokens
-                        .get(1)
-                        .is_some_and(|tok| has_substitution(&args[1], tok))
-            });
-            let scope = sub.option_scope(
-                dispatch.map(String::as_str),
-                Some(self.analysis_context().context().authoring_query()),
-                None,
-                spec.surface,
-            );
-            let name = match scope.sub_subcommand {
-                Some(op) => format!("{} {op}", sub.name),
-                None => sub.name.to_owned(),
+        let (options, parent_surface, start_idx, sub_name, reserved_trailing_words) =
+            if spec.subcommands.is_empty() {
+                (
+                    spec.options,
+                    spec.surface,
+                    0usize,
+                    None::<String>,
+                    spec.reserved_trailing_words,
+                )
+            } else {
+                // Ensemble-shaped: index 0 is always the subcommand word.  A
+                // `{*}`-expanded or substituted word resolves to an unknown name
+                // at runtime; abstain rather than guess.
+                if arg_expand.first().copied().unwrap_or(false) {
+                    return None;
+                }
+                if arg_tokens
+                    .first()
+                    .is_some_and(|tok| has_substitution(&args[0], tok))
+                {
+                    return None;
+                }
+                let sub = spec.resolve_subcommand_for_dialect(
+                    &args[0],
+                    Some(self.analysis_context().context().authoring_query()),
+                )?;
+                // A two-level ensemble dispatches once more on the next word, and
+                // its operations can carry genuinely different option tables
+                // (`namespace ensemble create` vs `configure`). Read
+                // that word only when it is a literal: a `{*}`-expanded or
+                // substituted dispatch word resolves at run time, and
+                // `option_scope` keeps the subcommand's wider table for it rather
+                // than guessing which operation is meant.
+                let dispatch = args.get(1).filter(|_| {
+                    !arg_expand.get(1).copied().unwrap_or(false)
+                        && !arg_tokens
+                            .get(1)
+                            .is_some_and(|tok| has_substitution(&args[1], tok))
+                });
+                let scope = sub.option_scope(
+                    dispatch.map(String::as_str),
+                    Some(self.analysis_context().context().authoring_query()),
+                    None,
+                    spec.surface,
+                );
+                let name = match scope.sub_subcommand {
+                    Some(op) => format!("{} {op}", sub.name),
+                    None => sub.name.to_owned(),
+                };
+                // No subcommand declares a reserved trailing operand today,
+                // the same convention `resolve_option_terminator` keeps: the
+                // field lives on `CommandSpec`, and an ensemble's parent
+                // reservation describes the parent's argument positions, not
+                // a subcommand's.
+                (scope.options, scope.surface, 1usize, Some(name), 0usize)
             };
-            (scope.options, scope.surface, 1usize, Some(name))
-        };
         (!options.is_empty()).then_some(OptionScanContext {
             options,
             parent_surface,
             start_idx,
             sub_name,
             prefix_matching,
+            reserved_trailing_words,
         })
     }
 
@@ -4197,10 +4217,17 @@ before this value so it is treated as data, not an option."
             start_idx,
             sub_name,
             prefix_matching,
+            reserved_trailing_words,
         } = context;
 
+        // The command's mandatory trailing operands are never option
+        // candidates — `subst -commands` is `subst`'s *string* operand, and
+        // tclsh 8.6.18 prints `-commands` for `puts [subst -commands]` rather
+        // than rejecting a 9.1-only switch. Same rule, same owner field, as
+        // the registry's own `source_option_layout_is_proven` (#2136).
+        let scan_end = args.len().saturating_sub(reserved_trailing_words);
         let mut i = start_idx;
-        while i < args.len() {
+        while i < scan_end {
             let arg = args[i].as_str();
             if arg == "--" {
                 break;

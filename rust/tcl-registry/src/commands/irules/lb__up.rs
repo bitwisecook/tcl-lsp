@@ -39,7 +39,10 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "pool",
-        arity: Arity::exact(3),
+        // Four operand words after `pool`: the pool name, the literal
+        // `member` keyword, the address and the port.  The keyword is an
+        // ordinary word to the arity count, exactly as it is to TMM.
+        arity: Arity::exact(4),
         detail: "Mark pool member as up.",
         synopsis: "LB::up pool <pool> member <address> <port>",
         mutator: true,

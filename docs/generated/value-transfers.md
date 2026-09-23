@@ -1134,15 +1134,17 @@ Every reviewed site the source lint found, with the waiver that names the axis i
 | arg_roles | `rust/tcl-compiler/src/analyser/bounds_checks.rs:666` | site | the W230–W232 index positions await an index-argument role on the registry |
 | arg_roles | `rust/tcl-compiler/src/analyser/bounds_checks.rs:688` | site | the W230–W232 index positions await an index-argument role on the registry |
 | arg_roles | `rust/tcl-compiler/src/analyser/bounds_checks.rs:759` | site | the W230–W232 index positions await an index-argument role on the registry |
-| arg_roles | `rust/tcl-compiler/src/analyser/bounds_checks.rs:1042` | site | the W230–W232 index positions await an index-argument role on the registry |
-| arg_roles | `rust/tcl-compiler/src/analyser/bounds_checks.rs:1075` | site | the W230–W232 index positions await an index-argument role on the registry |
-| arg_roles | `rust/tcl-compiler/src/analyser/bounds_checks.rs:1108` | site | the W230–W232 index positions await an index-argument role on the registry |
-| arg_roles | `rust/tcl-compiler/src/analyser/bounds_checks.rs:1144` | site | the W230–W232 index positions await an index-argument role on the registry |
-| dataflow | `rust/tcl-compiler/src/value_transfer.rs:691` | site | the transitional direct evaluators |
-| dataflow | `rust/tcl-compiler/src/value_transfer.rs:699` | site | the transitional direct evaluators |
-| dataflow | `rust/tcl-compiler/src/value_transfer.rs:709` | site | the transitional direct evaluators |
-| dataflow | `rust/tcl-compiler/src/value_transfer.rs:733` | site | the transitional direct evaluators |
-| dataflow | `rust/tcl-compiler/src/value_transfer.rs:744` | site | the transitional direct evaluators |
+| arg_roles | `rust/tcl-compiler/src/analyser/bounds_checks.rs:1071` | site | the W230–W232 index positions await an index-argument role on the registry |
+| arg_roles | `rust/tcl-compiler/src/analyser/bounds_checks.rs:1104` | site | the W230–W232 index positions await an index-argument role on the registry |
+| arg_roles | `rust/tcl-compiler/src/analyser/bounds_checks.rs:1137` | site | the W230–W232 index positions await an index-argument role on the registry |
+| arg_roles | `rust/tcl-compiler/src/analyser/bounds_checks.rs:1173` | site | the W230–W232 index positions await an index-argument role on the registry |
+| dataflow | `rust/tcl-compiler/src/value_transfer.rs:704` | site | the transitional direct evaluators |
+| dataflow | `rust/tcl-compiler/src/value_transfer.rs:712` | site | the transitional direct evaluators |
+| dataflow | `rust/tcl-compiler/src/value_transfer.rs:722` | site | the transitional direct evaluators |
+| dataflow | `rust/tcl-compiler/src/value_transfer.rs:746` | site | the transitional direct evaluators |
+| dataflow | `rust/tcl-compiler/src/value_transfer.rs:757` | site | the transitional direct evaluators |
+| irreducible | `rust/tcl-compiler/src/codegen/emitter/try_blocks.rs:155` | site | the defs-only marker `lower_catch` builds on a catch end block, not a Tcl invocation |
+| irreducible | `rust/tcl-compiler/src/codegen/emitter/try_blocks.rs:173` | site | the defs-only marker `lower_catch` builds on a catch end block, not a Tcl invocation |
 | options | `rust/tcl-compiler/src/analyser/diagnostics/usage.rs:313` | site | W311 reads the encoding option's position, which `option_placement` on the registry will carry |
 | options | `rust/tcl-compiler/src/analyser/diagnostics/usage.rs:316` | site | W311 reads the encoding option's position, which `option_placement` on the registry will carry |
 

@@ -150,7 +150,12 @@ same knowledge; the bytecode backend does not consume them.
    `GuardDomain::ObjectDispatch` is poisoned at interpreter creation, so no
    TclOO fast path can be guarded.
 4. **`execute_intrinsic` has one arm** (`StringLength`), while `IntrinsicId`
-   declares about twenty list/dict/string operations.
+   declares twenty-eight list/dict/string operations. That count is
+   `IntrinsicId::ALL`'s length, pinned by
+   `the_intrinsic_catalogue_is_the_size_this_plan_quotes_issue_2140` in
+   `rust/tcl-registry/src/intrinsic.rs`, which names this note — so the
+   number cannot drift away from the enum unnoticed, as "about twenty"
+   had.
 5. **Coroutines** are refused in the wasm build; `after`/`vwait` and `clock`
    are host gaps (see [wasm-target-surfaces.md](wasm-target-surfaces.md)).
 

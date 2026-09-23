@@ -190,6 +190,19 @@ object DiagnosticCatalog {
         DiagnosticDef("IAPP7001", "bigip", "IAPP7001: iApp implementation references a presentation field ...", true),
         DiagnosticDef("IAPP7002", "bigip", "IAPP7002: iApp presentation field is never referenced by the i...", true),
         DiagnosticDef("IAPP7003", "bigip", "IAPP7003: iApp presentation #include file could not be resolved", true),
+        DiagnosticDef("XC100", "xc", "XC100: iRule construct translates to an XC configuration ob...", true),
+        DiagnosticDef("XC101", "xc", "XC101: iRule construct translates to an XC L7 route", true),
+        DiagnosticDef("XC102", "xc", "XC102: iRule construct translates to an XC service policy rule", true),
+        DiagnosticDef("XC103", "xc", "XC103: iRule construct translates to an XC header action", true),
+        DiagnosticDef("XC105", "xc", "XC105: iRule data-group match translates to an XC service p...", true),
+        DiagnosticDef("XC106", "xc", "XC106: iRule construct translates to an XC WAF exclusion rule", true),
+        DiagnosticDef("XC107", "xc", "XC107: No XC action needed", true),
+        DiagnosticDef("XC200", "xc", "XC200: Construct is only partially translatable", true),
+        DiagnosticDef("XC201", "xc", "XC201: iRules event has no XC equivalent", true),
+        DiagnosticDef("XC203", "xc", "XC203: Conditional logic is only partially translatable", true),
+        DiagnosticDef("XC250", "xc", "XC250: iRules event maps to a separate XC feature rather th...", true),
+        DiagnosticDef("XC300", "xc", "XC300: Dynamic or procedural construct has no XC equivalent", true),
+        DiagnosticDef("XC301", "xc", "XC301: L4/protocol-specific command has no XC equivalent", true),
         DiagnosticDef("SSLIC1001", "sslictcl", "SSLIC1001: SslicTcl declaration is not valid Tcl syntax or has ...", true),
         DiagnosticDef("SSLIC1002", "sslictcl", "SSLIC1002: SslicTcl declaration uses substitution or argument e...", true),
         DiagnosticDef("SSLIC1003", "sslictcl", "SSLIC1003: SslicTcl document is missing its sslictcl VERSION he...", true),
@@ -205,19 +218,6 @@ object DiagnosticCatalog {
         DiagnosticDef("SSLIC1101", "sslictcl", "SSLIC1101: SslicTcl unknown declaration preserved as an extension", true),
         DiagnosticDef("SSLIC1102", "sslictcl", "SSLIC1102: SslicTcl document vocabulary is newer than this buil...", true),
         DiagnosticDef("SSLIC1103", "sslictcl", "SSLIC1103: SslicTcl predicate body is retained but never evalua...", true),
-        DiagnosticDef("XC100", "xc", "XC100: iRule command maps directly to an XC construct (an o...", true),
-        DiagnosticDef("XC101", "xc", "XC101: iRule routing decision maps to an XC L7 route", true),
-        DiagnosticDef("XC102", "xc", "XC102: iRule condition or response maps to an XC service po...", true),
-        DiagnosticDef("XC103", "xc", "XC103: HTTP header operation maps to an XC request or respo...", true),
-        DiagnosticDef("XC105", "xc", "XC105: Data-group (class) match maps to XC service policy r...", true),
-        DiagnosticDef("XC106", "xc", "XC106: ASM::disable maps to an XC WAF exclusion rule", true),
-        DiagnosticDef("XC107", "xc", "XC107: ASM::enable needs no XC action", true),
-        DiagnosticDef("XC200", "xc", "XC200: switch on a dynamic value", true),
-        DiagnosticDef("XC201", "xc", "XC201: Event handler has no XC equivalent", true),
-        DiagnosticDef("XC203", "xc", "XC203: Complex condition could not be mapped to XC match cr...", true),
-        DiagnosticDef("XC250", "xc", "XC250: Event maps to a separate XC feature (Rate Limiting, ...", true),
-        DiagnosticDef("XC300", "xc", "XC300: Command creates dynamic or procedural behaviour with...", true),
-        DiagnosticDef("XC301", "xc", "XC301: L4 or protocol-specific command with no XC equivalent", true),
     )
 
     val optimisations: List<OptimisationDef> = listOf(
@@ -264,9 +264,9 @@ object DiagnosticCatalog {
         "taint" to "Diagnostics — Taint",
         "irules" to "Diagnostics — iRules",
         "bigip" to "Diagnostics — BIG-IP Configuration",
+        "xc" to "Diagnostics — XC Translatability",
         "sslictcl" to "Diagnostics — SslicTcl",
         "tclpkg" to "Diagnostics — Package Manager",
-        "xc" to "Diagnostics — XC Translation",
     )
 
     val sectionOrder: List<String> = listOf(
@@ -279,8 +279,8 @@ object DiagnosticCatalog {
         "taint",
         "irules",
         "bigip",
+        "xc",
         "sslictcl",
         "tclpkg",
-        "xc",
     )
 }

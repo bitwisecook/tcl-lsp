@@ -92,6 +92,18 @@ entry point, or gate moves without this contract being updated.
   records the interpreter's reported value as provenance. An explicitly
   paired source-tree interpreter may name another patchlevel on the same
   release line, but its binary and `generic/tcl.h` must agree exactly.
+- `ParsedVersion::parse` owns package-version grammar. The versionless public
+  helpers (`validate_version`, `validate_requirement`, `compare_versions`,
+  `version_satisfies`, and provider selection) use the strict Tcl 8 grammar
+  and are for static, release-agnostic consumers. Runtime package commands
+  must pass their pinned `TclVersion` through the corresponding `*_for` API:
+  Tcl 9 accepts a `+` suffix and compares the numeric version prefix while Tcl
+  8 rejects it. Exact
+  package requests use the explicit exact-match/selection helpers rather than
+  reconstructing a `version-version` range, because a Tcl 9 suffix may itself
+  contain a dash. Checked validation remains the command boundary; comparison
+  and provider selection apply the same release policy at lookup time, even
+  after an interpreter profile is re-pinned.
 - The check-tcl-reference-toolchains Make target runs the hermetic
   stale-interpreter regression (including `/bin/sh` adapter execution) and the
   Rust all-axis release-fact test.

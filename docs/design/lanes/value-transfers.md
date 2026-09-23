@@ -1034,6 +1034,41 @@ upstream's pre-interface structure.
   and the re-measured pins.
 - **Model**: opus. **Size**: L. **After**: VT2.0 (landed); DP4.0
   (landed, `23eec80f`); the coordinator's merge.
+- **Record** (the coordinator's merge of `origin/rust` at `08bceb36`;
+  the merge commit's body has every resolution). Where the merged tree
+  differs from the item above:
+  - `compilation_unit.rs`: `build_with_param_constants_and_classes_under`
+    — the one path the memo (`function_lattice`) and the fresh procedure
+    build both take — folds under the key's own snapshot
+    (`analysis_context.bindings.to_mutations()`, `ObservedBindings`). That
+    is VT2.3's *Items*, carried by the merge because the driver now
+    declines every route without the fact, so a fact-free memoised unit
+    would fold nothing; VT2.3 keeps its test, VT2.11's memoised twin, and
+    caching the rebuilt summary in the interned `ValueTransferContext`
+    (today it is rebuilt per procedure). Upstream's memo bypass goes with
+    `build_procedure_unit_fresh` and `agrees_with_untouched_bindings` (its
+    only caller); its `a_shadowing_module_refuses_the_memoised_lattice`
+    is rewritten onto the keyed memo as
+    `a_shadowing_module_is_served_a_lattice_keyed_by_its_trust`.
+  - `chain_fold.rs`: a typed assignment keeps no head, so it is gated over
+    every registry spelling of its lowering operation
+    (`command_names_for_semantic_operation(StructuredLowering(Set))`); a
+    call is gated on its own resolved head.
+  - `command_binding.rs`: upstream's snapshot already carries
+    `rebinding_subjects`; the round-trip test pins all seven fields.
+  - `sccp.rs` tests that expected a route to fold under `evaluate_def` now
+    state the stance (`evaluate_pristine`, `sccp_pristine`);
+    `evaluate_def_without_the_trust_fact_answers_for_no_command` pins the
+    contract. `optimiser.rs`'s
+    `a_direct_read_before_write_still_forwards_its_literal` expects `set x
+    {1 1}`: the chain folds through the lattice's proven `$x` (8.4.20–9.1b0
+    print `1 1` for both programs).
+  - G1: upstream's `codegen/emitter/try_blocks.rs` (#2207) added two
+    `command == "catch"` sites on `lower_catch`'s defs-only marker, waived
+    `irreducible` (a `SyntheticMarker` would retire them; eight consumers
+    read `tokens.synthetic`, so not in the merge). Re-measured: 15 files
+    clean, 18 sites waived, 100 sites pinned across 41 files, each count
+    equal to its pin — no pin moved.
 
 ##### VT2.1 — a use the statement does not hold is a permanent miss
 

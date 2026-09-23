@@ -1833,16 +1833,17 @@ fn uses_in_call(
     // rather than substituting it, so they are `UseClass::Name` — a real read
     // with no operand word behind it.
     for name in reads {
-        if !name.is_empty() {
-            found.by_name.insert(name.clone());
-            // A named read of a cell the call also writes reads the prior
-            // value. Lowering flags that overlap `reads_own_defs`; the CFG
-            // builder records an embedded cell update's target (`set r [incr
-            // n]`) unflagged, since the call's other definitions are not
-            // read, and the store feeding the update stays live (#2050).
-            if defs.contains(name) {
-                reads_own_def.insert(name.clone());
-            }
+        if name.is_empty() {
+            continue;
+        }
+        found.by_name.insert(name.clone());
+        // A name this statement both reads and defines is read *before* it is
+        // written — the same rule `uses_in_barrier` applies to a `dict with`
+        // scope alias. Without it the closing def-filter in
+        // `uses_of_classified` drops the read, and the store feeding
+        // `puts [incr n]` looks overwritten-before-read (#2050).
+        if defs.contains(name) {
+            reads_own_def.insert(name.clone());
         }
     }
     if *reads_own_defs {
@@ -1862,6 +1863,35 @@ fn uses_in_call(
                 .contains(tcl_registry::Traits::DESTROYS_VARIABLE)
         });
     if destroys {
+        for name in defs {
+            found.by_name.insert(name.clone());
+            reads_own_def.insert(name.clone());
+        }
+    }
+    // A conditional writer (`regexp`, `scan`, `binary scan`) stores into its
+    // targets only on the match / conversion path; on the other path tclsh
+    // leaves each previous value in place and never creates a target that did
+    // not exist (8.4.20 through 9.1b0, all identical). So the definition this
+    // statement appears to kill is still live, and deleting the store feeding
+    // it changes the program: `set a before; regexp {(x)(y)} zz a b; puts $a`
+    // prints `before`, and with the store gone it failed outright with
+    // `can't read "a"` (#2051).
+    //
+    // Modelled exactly like the destroyer above, and for the same reason: the
+    // def stays, so `emit_provably_unset_w210` still sees it and the no-match
+    // prover keeps working, while the prior version becomes a read.
+    //
+    // `invocation_traits` rather than `get`, because `binary scan` carries the
+    // trait on its *subcommand*.
+    let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
+    let conditionally_writes = registry
+        .invocation_traits(
+            canonical_command.as_deref().unwrap_or(command),
+            &arg_strs,
+            registry.own_surface_query(),
+        )
+        .contains(tcl_registry::Traits::CONDITIONAL_VARIABLE_WRITE);
+    if conditionally_writes {
         for name in defs {
             found.by_name.insert(name.clone());
             reads_own_def.insert(name.clone());
@@ -2039,6 +2069,7 @@ fn scan_command_words(
                 described,
                 word: arg,
                 name: &name,
+                registry,
                 config: tcl_lexer::LexerConfig::for_profile(registry.profile()),
             });
             match class {
@@ -2174,6 +2205,9 @@ struct BracedWordSite<'a> {
     word: &'a str,
     /// The name the scan found inside it.
     name: &'a str,
+    /// The registry, asked which words of the word's own commands bind a
+    /// variable — see [`crate::script_binds::script_binds_name`].
+    registry: &'a CommandRegistry,
     /// The document's lexing configuration — the word is re-segmented as a
     /// script below, and that re-read must draw the same word boundaries the
     /// document's own grammar draws.
@@ -2198,36 +2232,25 @@ struct BracedWordSite<'a> {
 ///   describe: a user proc, an unknown definer. It may be a script, and if it
 ///   is it may run in this frame — a wrapper that hands it to an
 ///   `uplevel`-ing worker does exactly that, and tclsh then errors on an
-///   unset name — so the read stands. **Unless** the word sets the name
-///   itself first: then the read is of that script's own local whichever
-///   frame it runs in, which is the shape an un-hooked definer body takes
-///   frame it runs in.
+///   unset name — so the read stands. **Unless** the word binds the name
+///   itself: then the read is of that script's own local whichever frame it
+///   runs in, which is the shape an un-hooked definer body takes.
 fn braced_word_class(site: &BracedWordSite<'_>) -> UseClass {
     if !site.braced || site.evaluated_in_frame {
         return UseClass::Substituted;
     }
-    if site.described || word_sets_name(site.word, site.name, site.config) {
+    if site.described
+        || crate::script_binds::script_binds_name(
+            site.word,
+            site.name,
+            crate::script_binds::Ownership::Bindings,
+            site.registry,
+            site.config,
+        )
+    {
         return UseClass::Quoted;
     }
     UseClass::Substituted
-}
-
-/// True when `word`, read as a script, contains a top-level `set NAME …` for
-/// `name` — so a `$name` elsewhere in the same word reads that script's own
-/// local rather than a variable of the enclosing frame.
-///
-/// The `Call` twin of the analyser's `barrier_body_locally_sets`, which
-/// recovers the same fact for an opaque `Statement::Barrier` body. Segmenting
-/// is skipped unless the word plausibly holds a `set` at all.
-fn word_sets_name(word: &str, name: &str, config: tcl_lexer::LexerConfig) -> bool {
-    if !word.contains("set") {
-        return false;
-    }
-    crate::segmenter::segment_commands_with_offset_and_config(word, 0, config)
-        .into_iter()
-        .filter(|seg| seg.texts.first().map(String::as_str) == Some("set"))
-        .filter_map(|seg| seg.texts.get(1).map(|w| normalise_var_name(w).to_owned()))
-        .any(|target| target == name)
 }
 
 /// Reads of a non-lowered (`-glob`/`-regexp`, or `-exact` with a fall-through
@@ -3205,6 +3228,7 @@ mod tests {
     fn make_return() -> Terminator {
         Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
@@ -3480,6 +3504,7 @@ mod tests {
         let stmt = Statement::Return {
             span: Span::new(0, 10),
             value: Some("1".into()),
+            value_word: None,
             expr: None,
             command_binding: None,
             braced: false,
@@ -4088,6 +4113,7 @@ mod tests {
         let stmt = Statement::Return {
             span: Span::new(0, 15),
             value: Some("$result".into()),
+            value_word: None,
             expr: None,
             command_binding: None,
             braced: false,
@@ -4252,6 +4278,7 @@ mod tests {
         let stmt = Statement::Return {
             span: Span::new(0, 15),
             value: Some("$y".into()),
+            value_word: None,
             expr: None,
             command_binding: None,
             braced: true,
@@ -4687,6 +4714,7 @@ mod tests {
         }
         func.blocks.get_mut(&end).unwrap().terminator = Some(Terminator::Return {
             value: Some("$($a)".into()),
+            value_word: None,
             span: None,
             expr: None,
             braced: false,

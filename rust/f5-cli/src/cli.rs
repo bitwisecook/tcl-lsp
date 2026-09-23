@@ -594,7 +594,7 @@ pub enum Command {
     /// Replace or create a single object on a live BIG-IP via iControl REST.
     Push {
         /// Object kind to push.
-        #[arg(value_parser = ["virtual", "pool", "node", "rule"])]
+        #[arg(value_parser = crate::commands::remote::object_io::object_kind_names())]
         kind: String,
         /// Path to a JSON file (`-` for stdin) holding the iControl REST payload.
         payload: String,
@@ -633,7 +633,7 @@ pub enum Command {
     #[allow(clippy::doc_markdown)]
     Pull {
         /// Object kind to fetch.
-        #[arg(value_parser = ["virtual", "pool", "node", "rule"])]
+        #[arg(value_parser = crate::commands::remote::object_io::object_kind_names())]
         kind: String,
         /// Full path of the object (e.g. /Common/vs_app).
         full_path: String,

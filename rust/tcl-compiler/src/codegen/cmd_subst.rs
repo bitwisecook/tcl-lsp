@@ -25,6 +25,9 @@
 use tcl_bytecode::EnteredCommandSite;
 use tcl_registry::hooks::InlineCodegenHookId;
 
+use crate::ir::CommandTokens;
+use crate::registry_invocation::compiled_local_name_value;
+
 use super::emitter::bytecoded::applicable_codegen_binding;
 use super::helpers::{SubstPart, parse_subst_template, regexp_to_glob};
 use super::values::{is_qualified, parse_simple_var_ref, split_array_ref};
@@ -446,6 +449,61 @@ pub fn parse_cmd_parts_expand(text: &str) -> Vec<(String, bool, bool)> {
     parts
 }
 
+/// Evaluate an argument source word after proving it eligible for a direct
+/// local-name opcode. This preserves brace grouping and quoted-word decoding
+/// instead of passing a compatibility spelling to the bytecode emitter.
+pub(crate) fn source_direct_local_name_value(
+    tokens: Option<&CommandTokens>,
+    arg_index: usize,
+    escapes: tcl_dialect::EscapeSyntax,
+    word_rules: tcl_syntax::word_rules::WordValueRules,
+) -> Option<String> {
+    tokens
+        .and_then(|tokens| tokens.words().get(arg_index + 1))
+        .and_then(|word| compiled_local_name_value(word, escapes, word_rules))
+}
+
+/// Source availability and evaluated value for a nested local-name argument.
+enum NestedLocalName {
+    /// The caller did not retain a compatible structured source snapshot.
+    Unavailable,
+    /// An aligned source word is dynamic or requires backslash decoding.
+    Stack,
+    /// An aligned source word is direct and supplies this evaluated name.
+    Direct(String),
+}
+
+/// Evaluate a nested invocation's local-name argument when its canonical word
+/// snapshot still matches the compatibility parser's argv values. A missing or
+/// mismatched snapshot leaves the established value emitter unchanged; an
+/// aligned dynamic word selects the generic fallback, while an aligned direct
+/// word supplies its evaluated literal name.
+fn nested_local_name_value(
+    tokens: Option<&CommandTokens>,
+    parts: &[(String, bool)],
+    arg_index: usize,
+    escapes: tcl_dialect::EscapeSyntax,
+    word_rules: tcl_syntax::word_rules::WordValueRules,
+) -> NestedLocalName {
+    let Some(tokens) = tokens else {
+        return NestedLocalName::Unavailable;
+    };
+    if !tokens.words_align_with_argv_text()
+        || tokens.argv_texts.len() != parts.len()
+        || !tokens
+            .argv_texts
+            .iter()
+            .zip(parts)
+            .all(|(word, (text, _))| word == text)
+    {
+        return NestedLocalName::Unavailable;
+    }
+    match source_direct_local_name_value(Some(tokens), arg_index, escapes, word_rules) {
+        Some(name) => NestedLocalName::Direct(name),
+        None => NestedLocalName::Stack,
+    }
+}
+
 // CodegenCtx methods — emission helpers for command substitutions
 
 impl CodegenCtx<'_> {
@@ -739,6 +797,34 @@ impl CodegenCtx<'_> {
         }
     }
 
+    /// Emit the ordered words of one `{*}` invocation.
+    ///
+    /// The command head and argument tail deliberately share this loop: Tcl's
+    /// expansion marker belongs to a *word position*, including position zero,
+    /// and every position must finish its substitutions before that value is
+    /// split as a list.  Callers supply words as `(text, braced, expanded)`;
+    /// [`Self::emit_cmd_word`] remains the single value-emission path for both
+    /// statement and command-substitution invocations.
+    pub(crate) fn emit_expanded_words<'w>(
+        &mut self,
+        words: impl IntoIterator<Item = (&'w str, bool, bool)>,
+        comment: &str,
+    ) {
+        self.emit_comment(Op::EXPAND_START, vec![], comment);
+        for (index, (word, braced, expanded)) in words.into_iter().enumerate() {
+            self.emit_cmd_word(word, braced);
+            if expanded {
+                self.emit(
+                    Op::EXPAND_STKTOP,
+                    vec![Operand::Imm(
+                        i32::try_from(index + 1).expect("word count fits in i32"),
+                    )],
+                );
+            }
+        }
+        self.emit_comment(Op::INVOKE_EXPANDED, vec![], comment);
+    }
+
     /// Inline compile `[list {*}$a {*}$b]` as `load a; load b; listConcat`.
     ///
     /// Only matches the exact two-argument form — `[list {*}$x]` (one
@@ -1006,6 +1092,26 @@ impl CodegenCtx<'_> {
             .map(|(hook, _binding)| hook)
     }
 
+    /// Read a registry hook without retaining a command-binding dependency.
+    ///
+    /// This only gates a later source-form decision. The caller that actually
+    /// emits a specialised opcode must enter through
+    /// [`Self::inline_cmd_subst_resolution`] and retain its binding there.
+    pub(crate) fn inline_cmd_subst_hook_candidate(
+        &self,
+        cmd: &str,
+        args: &[(String, bool)],
+    ) -> Option<InlineCodegenHookId> {
+        if self.plain_command_dispatch {
+            return None;
+        }
+        let arg_refs: Vec<&str> = args.iter().map(|(arg, _)| arg.as_str()).collect();
+        let resolved =
+            self.registry
+                .resolve_call(cmd, &arg_refs, self.registry.own_surface_query())?;
+        (resolved.spec.name == cmd).then_some(resolved.inline_codegen_hook?)
+    }
+
     /// Resolve and retain the hook together with the exact entered command
     /// identity selected for this source invocation.
     fn inline_cmd_subst_resolution(
@@ -1063,6 +1169,42 @@ impl CodegenCtx<'_> {
         Some((hook, binding))
     }
 
+    /// Preserve source-proven local-name semantics before value-position
+    /// specialisation. Returns whether it emitted the conservative fallback.
+    fn emit_dynamic_local_introspection(
+        &mut self,
+        tokens: Option<&CommandTokens>,
+        parts: &mut [(String, bool)],
+    ) -> bool {
+        let source_local_name =
+            nested_local_name_value(tokens, parts, 1, self.escapes, self.word_rules);
+        let source_hook = self.inline_cmd_subst_hook_candidate(&parts[0].0, &parts[1..]);
+        let source_is_local_introspection = match source_hook {
+            Some(InlineCodegenHookId::InfoExists) => parts.len() == 3,
+            Some(InlineCodegenHookId::Array) => parts.len() == 3 && parts[1].0 == "exists",
+            _ => false,
+        };
+        if !source_is_local_introspection {
+            return false;
+        }
+        match source_local_name {
+            NestedLocalName::Direct(name) => {
+                parts[2].0 = name;
+                false
+            }
+            // The specialised emitters place their final name value on the
+            // stack verbatim. Without an aligned source word that proves the
+            // value is already final, that would suppress a live `$` or
+            // command substitution (notably a Return value, whose
+            // compatibility path retains no CommandTokens).
+            NestedLocalName::Stack | NestedLocalName::Unavailable => {
+                self.used_inline_cmd_subst = false;
+                self.emit_generic_cmd_subst(&parts[0].0, &parts[1..]);
+                true
+            }
+        }
+    }
+
     /// Resolve one fully-consuming inline specialisation whose source name
     /// must also remain untouched throughout this compilation unit.
     ///
@@ -1098,17 +1240,14 @@ impl CodegenCtx<'_> {
         &mut self,
         cmd: &str,
         args: &[String],
+        tokens: Option<&CommandTokens>,
         used_generic_invoke: &mut bool,
     ) -> bool {
         let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
         let Some((hook, binding)) = self.inline_codegen_resolution(cmd, &arg_refs) else {
             return false;
         };
-        if hook != InlineCodegenHookId::String {
-            return false;
-        }
-
-        let inline_args: Vec<(String, bool)> = args
+        let mut inline_args: Vec<(String, bool)> = args
             .iter()
             .enumerate()
             .map(|(i, arg)| {
@@ -1118,15 +1257,40 @@ impl CodegenCtx<'_> {
                 )
             })
             .collect();
-        let previous_inline = self.used_inline_cmd_subst;
-        if !self.try_emit_inline_string_invoke_replace(
-            previous_inline,
-            cmd,
-            &binding,
-            &inline_args,
-            false,
-        ) {
-            return false;
+
+        let local_name = source_direct_local_name_value(tokens, 1, self.escapes, self.word_rules);
+
+        // These hooks are also valid for a complete command statement. The
+        // statement dispatch checks the source-word facts, then reuses the
+        // value emitter's local opcode sequence instead of recognising command
+        // names itself. The result is discarded just as a normal statement
+        // invoke would discard it.
+        match hook {
+            InlineCodegenHookId::InfoExists if inline_args.len() == 2 && local_name.is_some() => {
+                inline_args[1].0 = local_name.expect("guard proved a source local name");
+                self.emit_inline_info_exists(&inline_args);
+            }
+            InlineCodegenHookId::Array
+                if inline_args.len() == 2
+                    && inline_args[0].0 == "exists"
+                    && local_name.is_some() =>
+            {
+                inline_args[1].0 = local_name.expect("guard proved a source local name");
+                self.emit_inline_array(&inline_args);
+            }
+            InlineCodegenHookId::String => {
+                let previous_inline = self.used_inline_cmd_subst;
+                if !self.try_emit_inline_string_invoke_replace(
+                    previous_inline,
+                    cmd,
+                    &binding,
+                    &inline_args,
+                    false,
+                ) {
+                    return false;
+                }
+            }
+            _ => return false,
         }
         self.emit(Op::POP, vec![]);
         *used_generic_invoke = true;
@@ -1154,6 +1318,20 @@ impl CodegenCtx<'_> {
     /// `control_flow` emits inline) — falls back to the generic
     /// invoke.
     pub fn emit_inline_cmd_subst(&mut self, text: &str) {
+        self.emit_inline_cmd_subst_with_tokens(text, None);
+    }
+
+    /// Emit one command substitution using an aligned canonical word snapshot
+    /// when its enclosing value preserved one.
+    ///
+    /// The compatibility parser continues to own value emission.  The source
+    /// snapshot only decides whether `info exists` / `array exists` can claim a
+    /// local-name slot; it never reconstructs command arguments from text.
+    pub fn emit_inline_cmd_subst_with_tokens(
+        &mut self,
+        text: &str,
+        tokens: Option<&CommandTokens>,
+    ) {
         // Multi-command scripts (a `;`/newline separator outside quotes/braces)
         // fall back to runtime eval — checked *before* the `{*}` form below so a
         // body that has both (`[set y 1; list {*}$a]`) runs as two commands
@@ -1168,10 +1346,7 @@ impl CodegenCtx<'_> {
             self.emit(Op::EVAL_STK, vec![]);
             return;
         }
-        // A `{*}`-expanded command substitution in value position compiles to the
-        // `expandStart … expandStkTop N; invokeExpanded` form (tclsh's), leaving
-        // the result on the stack (no trailing `pop`, unlike the statement form).
-        if text.contains("{*}") {
+        if self.recognises_expand_syntax() && text.contains("{*}") {
             let parts = parse_cmd_parts_expand(text);
             if parts.iter().any(|(_, _, expand)| *expand) {
                 self.emit_expanded_cmd_subst(&parts);
@@ -1179,12 +1354,15 @@ impl CodegenCtx<'_> {
             }
         }
 
-        let parts = parse_cmd_parts(text);
+        let mut parts = parse_cmd_parts(text);
         if parts.is_empty() {
             self.push_lit("");
             return;
         }
 
+        if self.emit_dynamic_local_introspection(tokens, &mut parts) {
+            return;
+        }
         let cmd = &parts[0].0;
         let args = &parts[1..];
 
@@ -1265,27 +1443,12 @@ impl CodegenCtx<'_> {
     /// trailing `pop`.
     pub(super) fn emit_expanded_cmd_subst(&mut self, parts: &[(String, bool, bool)]) {
         self.used_inline_cmd_subst = true;
-        self.emit_comment(Op::EXPAND_START, vec![], "(expanded)");
-        let mut word_count: u32 = 0;
-        for (part, braced, expand) in parts {
-            if *braced {
-                // A braced expanded word splits its *list* elements without
-                // substitution, so push it verbatim.
-                self.push_lit_verbatim(part);
-            } else {
-                self.emit_cmd_subst_arg(part, false);
-            }
-            word_count += 1;
-            if *expand {
-                self.emit(
-                    Op::EXPAND_STKTOP,
-                    vec![Operand::Imm(
-                        i32::try_from(word_count).expect("word count fits in i32"),
-                    )],
-                );
-            }
-        }
-        self.emit_comment(Op::INVOKE_EXPANDED, vec![], "");
+        self.emit_expanded_words(
+            parts
+                .iter()
+                .map(|(word, braced, expanded)| (word.as_str(), *braced, *expanded)),
+            "(expanded)",
+        );
     }
 
     // Private inline helpers for emit_inline_cmd_subst.
@@ -1381,7 +1544,7 @@ impl CodegenCtx<'_> {
             );
             self.emit(Op::NOP, vec![]);
         } else {
-            self.push_lit(var_name);
+            self.push_lit_exact(var_name);
             self.emit(Op::EXIST_STK, vec![]);
         }
     }
@@ -1959,6 +2122,42 @@ mod tests {
         assert!(ops.contains(&Op::IRULE_CONTAINS), "{ops:?}");
     }
 
+    /// Public codegen consumers may supply a profile-projected registry
+    /// without separately setting the optional module dialect. Nested source
+    /// must still follow that registry's grammar rather than ambient Tcl.
+    #[test]
+    fn inline_cmd_subst_expansion_uses_the_profiled_registry_grammar() {
+        let f5_registry = tcl_registry::model::ingress::static_context_for_profile(
+            tcl_dialect::DialectProfile::irules(),
+        )
+        .commands();
+        let mut f5 = CodegenCtx::new(true, &["head"], f5_registry);
+        assert!(f5.dialect.is_none());
+        f5.emit_inline_cmd_subst("[{*}$head ordinary]");
+        let f5_ops: Vec<Op> = f5
+            .instructions
+            .iter()
+            .map(|instruction| instruction.op)
+            .collect();
+        assert!(!f5_ops.contains(&Op::EXPAND_STKTOP), "{f5_ops:?}");
+        assert!(!f5_ops.contains(&Op::INVOKE_EXPANDED), "{f5_ops:?}");
+
+        let modern_profile =
+            tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile();
+        let modern_registry =
+            tcl_registry::model::ingress::static_context_for_profile(modern_profile).commands();
+        let mut modern = CodegenCtx::new(true, &["head"], modern_registry);
+        assert!(modern.dialect.is_none());
+        modern.emit_inline_cmd_subst("[{*}$head ordinary]");
+        let modern_ops: Vec<Op> = modern
+            .instructions
+            .iter()
+            .map(|instruction| instruction.op)
+            .collect();
+        assert!(modern_ops.contains(&Op::EXPAND_STKTOP), "{modern_ops:?}");
+        assert!(modern_ops.contains(&Op::INVOKE_EXPANDED), "{modern_ops:?}");
+    }
+
     /// The same site's release axis: an operator the target release lacks is
     /// not specialised at all, so the VM raises the interpreter's own
     /// diagnostic instead of executing an opcode 8.4 has no grammar for.
@@ -2259,7 +2458,7 @@ mod tests {
         let mut ctx = CodegenCtx::new(true, &[], &registry);
         let mut used_generic_invoke = false;
 
-        assert!(ctx.try_inline_statement_codegen("text", &args, &mut used_generic_invoke));
+        assert!(ctx.try_inline_statement_codegen("text", &args, None, &mut used_generic_invoke));
 
         assert!(used_generic_invoke);
         assert!(

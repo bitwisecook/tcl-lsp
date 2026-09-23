@@ -35,13 +35,12 @@ use serde_json::Value;
 fn summarise(source: &str) -> Value {
     let result = translate_irule(source);
 
-    let mut item_codes: Vec<String> = result
+    let mut item_codes: Vec<&str> = result
         .items
         .iter()
-        .filter(|i| !i.diagnostic_code.is_empty())
-        .map(|i| i.diagnostic_code.clone())
+        .map(|i| i.diagnostic_code.as_str())
         .collect();
-    item_codes.sort();
+    item_codes.sort_unstable();
 
     let count = |s: TranslateStatus| result.items.iter().filter(|i| i.status == s).count();
 
@@ -50,8 +49,8 @@ fn summarise(source: &str) -> Value {
     origin_pool_names.sort();
 
     let diags = get_xc_diagnostics(source);
-    let mut diag_codes: Vec<String> = diags.iter().map(|d| d.code.to_string()).collect();
-    diag_codes.sort();
+    let mut diag_codes: Vec<&str> = diags.iter().map(|d| d.code.as_str()).collect();
+    diag_codes.sort_unstable();
     let mut diag_messages: Vec<String> = diags.iter().map(|d| d.message.clone()).collect();
     diag_messages.sort();
 

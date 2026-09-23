@@ -40,7 +40,9 @@ use super::ordering::{
     self, LOOP_BODY_PREFIXES, LOOP_END_PREFIXES, VALUE_JOIN_PREFIXES, linearise, starts_with_any,
 };
 use super::proc_defs::is_static_proc;
-use super::try_blocks::{TryFinallyInfo, detect_try_finally};
+use super::try_blocks::{
+    CatchRegionInfo, TryFinallyInfo, detect_catch_regions, detect_try_finally, is_catch_defs_marker,
+};
 
 /// Per-block `(continue, break)` loop-target labels, innermost-first.
 /// Continue is `None` for a `for`-step block (continue propagates out).
@@ -63,6 +65,8 @@ struct GenerateState {
     skip_blocks: HashSet<String>,
     /// Detected try/finally chains keyed by `try_body` block.
     try_finally_info: HashMap<String, TryFinallyInfo>,
+    /// Detected `catch` regions keyed by `catch_body` block.
+    catch_region_info: HashMap<String, CatchRegionInfo>,
     /// While-loop startCommand end labels: `while_end_N` → deferred
     /// label to place at the end block.
     while_end_labels: HashMap<String, String>,
@@ -99,6 +103,7 @@ impl GenerateState {
             pending_proc_defs: VecDeque::from(sorted),
             skip_blocks: HashSet::new(),
             try_finally_info: HashMap::new(),
+            catch_region_info: HashMap::new(),
             while_end_labels: HashMap::new(),
             for_init_end_labels: HashMap::new(),
             foreach_end_labels: HashMap::new(),
@@ -479,7 +484,11 @@ fn emit_foreach_header(
         if fi.list_braced.get(i).copied().unwrap_or(false) {
             ctx.push_lit_verbatim(la);
         } else {
-            ctx.emit_value(la, false);
+            // Nonbraced list words substitute at loop entry. Use the
+            // canonical path for dynamic array references such as
+            // `$opts(-$key)`; `list_braced` is source-owned metadata, so this
+            // consumer never reparses flattened text.
+            ctx.emit_value(la, true);
         }
     }
     let fs_idx = ctx.emit(Op::FOREACH_START, vec![Operand::Imm(0)]);
@@ -555,7 +564,19 @@ fn emit_block_statements(
     let for_init_last_idx = detect_for_init_last_stmt(ctx, cfg, blk);
 
     let first_command_covered = state.first_command_covered_by_if.remove(bname);
+    let is_catch_end_block = state
+        .catch_region_info
+        .values()
+        .any(|info| info.catch_end == *bname);
     for (stmt_idx, stmt) in blk.statements.iter().enumerate() {
+        // The defs-only marker `lower_catch` leaves on a `catch_end` block
+        // exists for SSA; its stores were emitted with the scaffolding. Keyed
+        // on the block being a *detected* catch end, so an ordinary
+        // zero-argument command that happens to be named `catch` — a document
+        // stub, or a user command — is still emitted.
+        if is_catch_end_block && is_catch_defs_marker(stmt) {
+            continue;
+        }
         ctx.emit_pending_proc_defs(&mut state.pending_proc_defs, stmt.span().start());
         if first_command_covered && stmt_idx == 0 {
             ctx.emit_stmt_under_start_cmd(stmt);
@@ -772,6 +793,25 @@ fn emit_block(
                 .and_then(|id| cfg.command_boundary_sites.get(&id)),
         );
         ctx.emit_try_finally_inline(cfg, bname, &info.try_finally);
+        return;
+    }
+
+    // `catch` region inline compilation at the catch_body block. The body's
+    // statements are emitted with the scaffolding, not by the ordinary walk,
+    // which pops every statement's value — `catch` needs the last one kept
+    // for its result variable. The end block is *not* skipped: it carries the
+    // continuation.
+    if let Some(info) = state.catch_region_info.get(bname).cloned() {
+        ctx.set_command_boundary_site(
+            cfg.block_id(bname)
+                .and_then(|id| cfg.command_boundary_sites.get(&id)),
+        );
+        ctx.emit_catch_region_inline(
+            cfg,
+            bname,
+            info.result_var.as_deref(),
+            info.options_var.as_deref(),
+        );
         return;
     }
 
@@ -1055,6 +1095,7 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedur
     let mut loop_ctx = ordering::build_loop_context(cfg);
     let mut state = GenerateState::new(proc_defs);
     state.try_finally_info = detect_try_finally(cfg, &block_order);
+    state.catch_region_info = detect_catch_regions(cfg, &block_order);
 
     // The same-frame script bodies folded into this function, so the variable
     // emitters can decline the compiled-local forms inside them
@@ -1210,6 +1251,7 @@ mod tests {
         let entry = cfg.entry;
         cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
@@ -1283,6 +1325,7 @@ mod tests {
             });
         cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
@@ -1329,6 +1372,7 @@ mod tests {
             });
         cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
@@ -1352,6 +1396,7 @@ mod tests {
         let entry = cfg.entry;
         cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
@@ -1417,6 +1462,7 @@ mod tests {
         });
         cfg.blocks.get_mut(&end).unwrap().terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,

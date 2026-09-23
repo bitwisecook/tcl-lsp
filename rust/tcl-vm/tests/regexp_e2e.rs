@@ -37,7 +37,7 @@ use tcl_compiler::codegen::codegen_module;
 use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_compiler::lowering::lower_to_ir;
 use tcl_registry::CommandRegistry;
-use tcl_vm::Vm;
+use tcl_vm::{CompileService, Vm};
 
 #[derive(Clone)]
 struct Capture(Rc<RefCell<Vec<u8>>>);
@@ -68,6 +68,13 @@ fn run(src: &str) -> (bool, String) {
 /// `tclsh` 9.0.3.
 const CASES: &[(&str, &str)] = &[
     (r#"regexp ab*c aaabbbccc"#, "1"),
+    // `-about` end to end, including the `re_info` flag list the engine
+    // records as it compiles — the half that needs `AreEngine::info_names`,
+    // and the half Tcl's own `regexp-20.2` cannot discriminate because its
+    // pattern has no flags. tclsh8.6.18 and tclsh9.0.4 agree on all three.
+    (r#"regexp -about {a(b)c}"#, "1 {}"),
+    (r#"regexp -about {(?:a)}"#, "0 REG_UNONPOSIX"),
+    (r#"regexp -about {}"#, "0 {REG_UUNSPEC REG_UEMPTYMATCH}"),
     (r#"regexp -inline {a(b*)c} xabbbcx"#, "abbbc bbb"),
     (r#"regexp -indices -inline {a(b*)c} xabbbcx"#, "{1 5} {2 4}"),
     (r#"regexp -all -inline {[0-9]+} "a12b345c""#, "12 345"),
@@ -122,4 +129,170 @@ fn regexp_command_corpus() {
         failures.len(),
         failures.join("\n")
     );
+}
+
+/// Compile + run `src` pinned to `version` (the release the VM reports and
+/// the profile the compiler uses), returning `(ok, result)` — `regsub`'s
+/// `-command` option only exists from 9.0, so its refusal needs a VM that is
+/// not 9.0.
+fn run_for_version(src: &str, version: tcl_dialect::TclVersion) -> (bool, String) {
+    let profile = tcl_registry::model::ingress::resolve_environment(version.dialect_name())
+        .analyser_profile();
+    let service = BytecodeCompileService::for_profile(profile);
+    let asm = service
+        .compile_for_profile(src, profile)
+        .expect("test script compiles for its selected profile");
+    let buf = Rc::new(RefCell::new(Vec::new()));
+    let mut vm = Vm::with_output(Box::new(Capture(Rc::clone(&buf))));
+    vm.set_runtime_version(version);
+    vm.set_compiler(Box::new(service));
+    let c = vm.run_module(&asm);
+    (c.code.is_ok(), c.result.to_str().to_string())
+}
+
+/// `regsub -command` evaluates the prefix once per substitution with the whole
+/// match and each submatch appended. Verified on tclsh 9.0.4 and 9.1b0:
+///
+/// ```text
+/// % regsub -command {.x.} {abcxdef} {string length}
+/// ab3ef
+/// % regsub -command -all {(.)(.)} {abcdef} {list ,}
+/// , ab a b, cd c d, ef e f
+/// % regsub -command {(a)|(b)} ab {list <}
+/// < a a {}b
+/// % set n [regsub -command {.x.} abcxdef {string length} out]; list $n $out
+/// 1 ab3ef
+/// % regsub -command {z} abc {string toupper}
+/// abc
+/// ```
+#[test]
+fn regsub_command_evaluates_the_prefix() {
+    let cases: &[(&str, &str)] = &[
+        (
+            r#"regsub -command {.x.} {abcxdef} {string length}"#,
+            "ab3ef",
+        ),
+        (
+            r#"regsub -command -all {(.)(.)} {abcdef} {list ,}"#,
+            ", ab a b, cd c d, ef e f",
+        ),
+        // A submatch that did not participate is an empty word, not a missing
+        // one — the prefix still sees one word per submatch.
+        (r#"regsub -command {(a)|(b)} ab {list <}"#, "< a a {}b"),
+        (
+            r#"set n [regsub -command {.x.} abcxdef {string length} out]; list $n $out"#,
+            "1 ab3ef",
+        ),
+        // A pattern that never matches never calls the prefix.
+        (r#"regsub -command {z} abc {string toupper}"#, "abc"),
+    ];
+    for (src, want) in cases {
+        let (ok, result) = run(src);
+        assert!(ok, "script errored: {result}\n  src: {src}");
+        assert_eq!(&result.as_str(), want, "for script: {src}");
+    }
+}
+
+/// A script error inside the `-command` prefix propagates, and C's context
+/// frame is appended to `errorInfo`. tclsh 9.0.4 / 9.1b0:
+///
+/// ```text
+/// % proc boomp args { error boom }
+/// % catch {regsub -command {.x.} abcxdef boomp} e; set ::errorInfo
+/// boom
+///     while executing
+/// "error boom "
+///     (procedure "boomp" line 1)
+///     invoked from within
+/// "boomp cxd"
+///     (-command substitution computation script)
+///     invoked from within
+/// "regsub -command {.x.} abcxdef boomp"
+/// ```
+///
+/// The VM's trace omits the `invoked from within "boomp cxd"` frame because
+/// the prefix is invoked argv-wise (`Vm::dispatch`), which carries no source
+/// text to quote — the same pre-existing shape `lsort -command` has here
+/// (tclsh prints `invoked from within "errchk 1 2"` for `lsort -command
+/// errchk {1 2}`, the VM does not). Everything this change owns — the
+/// message, the `(-command substitution computation script)` frame and its
+/// position before the enclosing command's frame — matches C.
+#[test]
+fn regsub_command_error_appends_the_c_error_info_trailer() {
+    let (ok, result) = run(r#"proc boomp args { error boom }
+           catch {regsub -command {.x.} abcxdef boomp} e
+           list $e $::errorInfo"#);
+    assert!(ok, "script errored: {result}");
+    let (msg, info) = result
+        .split_once(' ')
+        .expect("the list is the message then the trace");
+    assert_eq!(msg, "boom");
+    assert_eq!(
+        info,
+        "{boom\n    while executing\n\"error boom\"\n    (procedure \"boomp\" line 1)\n    \
+         (-command substitution computation script)\n    invoked from within\n\"regsub -command \
+         {.x.} abcxdef boomp\"}"
+    );
+}
+
+/// A non-error completion code from the prefix propagates untouched, with no
+/// `errorInfo` trailer. tclsh 9.0.4:
+///
+/// ```text
+/// % proc q args { return -code continue }
+/// % catch {regsub -command {.x.} {abcxdef} q} r
+/// 4
+/// % info exists ::errorInfo
+/// 0
+/// ```
+#[test]
+fn regsub_command_non_error_code_propagates_untouched() {
+    let (ok, result) = run(r#"proc q args { return -code continue }
+           list [catch {regsub -command {.x.} {abcxdef} q} r] $r [info exists ::errorInfo]"#);
+    assert!(ok, "script errored: {result}");
+    assert_eq!(result, "4 {} 0");
+}
+
+/// `-command` is a 9.0 option: before it, `regsub` rejects it in that
+/// release's own noun and enumeration. The VM passes its pinned release to
+/// the core, so the refusal follows `info patchlevel`:
+///
+/// ```text
+/// $ tclsh8.4 / tclsh8.5   (8.4.20 / 8.5.19)
+/// % catch {regsub -command {a} abc {string toupper}} r; set r
+/// bad switch "-command": must be -all, -nocase, -expanded, -line, -linestop, -lineanchor, -start, or --
+/// $ tclsh8.6              (8.6.18)
+/// bad option "-command": must be -all, -nocase, -expanded, -line, -linestop, -lineanchor, -start, or --
+/// $ tclsh9.0 / tclsh9.1   (9.0.4 / 9.1b0)
+/// Abc
+/// ```
+#[test]
+fn regsub_command_is_a_9_0_option() {
+    use tcl_dialect::TclVersion;
+    const ENUM: &str =
+        "must be -all, -nocase, -expanded, -line, -linestop, -lineanchor, -start, or --";
+    let src = r#"regsub -command {a} abc {string toupper}"#;
+    for (version, want) in [
+        (
+            TclVersion::V8_4,
+            format!(r#"bad switch "-command": {ENUM}"#),
+        ),
+        (
+            TclVersion::V8_5,
+            format!(r#"bad switch "-command": {ENUM}"#),
+        ),
+        (
+            TclVersion::V8_6,
+            format!(r#"bad option "-command": {ENUM}"#),
+        ),
+    ] {
+        let (ok, result) = run_for_version(src, version);
+        assert!(!ok, "{version:?}: expected a refusal, got {result}");
+        assert_eq!(result, want, "for {version:?}");
+    }
+    for version in [TclVersion::V9_0, TclVersion::V9_1] {
+        let (ok, result) = run_for_version(src, version);
+        assert!(ok, "{version:?}: {result}");
+        assert_eq!(result, "Abc", "for {version:?}");
+    }
 }

@@ -64,11 +64,14 @@
 //!   document cannot see, so the name is marked `Rebound`.  Hidden commands in
 //!   a safe interpreter are likewise invisible: this document's own command
 //!   table is what is being described.
-//! * **Conditional or nested bindings** — only *top-level* statements are
-//!   scanned.  A `rename` inside an `if` body, a proc, an `eval`, or a
-//!   `namespace eval` block is not an unconditional document-wide fact, and a
+//! * **Conditional bindings** — a `rename` inside an `if` body, a proc, an
+//!   `eval`, or an `uplevel` is not an unconditional fact and is not scanned.
+//!   A `namespace eval` body *is* unconditional, so it is: its bindings are
+//!   recorded against that namespace rather than the document, because a
 //!   `proc` inside `namespace eval ::n` defines `::n::format`, not `::format`
-//!   (tclsh 9.0.4: `::n::format q` → `ns:q`, global `format` untouched).
+//!   (tclsh 9.0.4: `::n::format q` → `ns:q`, global `format` untouched).  A
+//!   bare head reads its own namespace's facts before the global ones, the way
+//!   C Tcl resolves a command.
 //! * **`unknown` fallback and traces** — nothing is inferred from them.
 //!
 //! # Positioned and unpositioned readers
@@ -205,6 +208,25 @@ struct RealmFact {
     from: u32,
     /// What the head is bound to from that offset.
     binding: FactBinding,
+    /// The namespace whose command table the fact belongs to: `None` for the
+    /// global one, otherwise an index into
+    /// [`CommandBindingRealm::namespaces`] of the body the statement sat in.
+    /// A bare head reads its own namespace's facts before the global ones.
+    scope: Option<u32>,
+}
+
+/// One `namespace eval` body the scan descended into.
+#[derive(Debug)]
+struct NamespaceScope {
+    /// The namespace's fully-qualified name (`::n`, `::a::b`).  Facts are
+    /// matched by *name*, not by body, so a proc declared in one
+    /// `namespace eval ::a` block is still in force in a later one (tclsh
+    /// 8.6.18 / 9.0.4: `namespace eval a {proc format {args} {return A}}` then
+    /// `namespace eval a {format %d 7}` answers `A`).
+    name: String,
+    /// Byte offsets of the body's inner text, `[start, end)`.
+    start: u32,
+    end: u32,
 }
 
 /// Every statically proven command-identity fact in one document, keyed by the
@@ -214,9 +236,17 @@ struct RealmFact {
 /// recorded, because C Tcl resolves them to the same command
 /// (`namespace which -command ::myfmt` → `::myfmt`) and a consumer must not
 /// have to strip qualifiers itself.
+///
+/// A fact stated inside a `namespace eval` body is scoped to that namespace
+/// rather than to the document, because that is what C Tcl does with it: a
+/// bare head is looked up in the current namespace's command table and only
+/// then in the global one.
 #[derive(Debug, Default)]
 pub struct CommandBindingRealm {
     facts: FxHashMap<String, Vec<RealmFact>>,
+    /// The `namespace eval` bodies the scan descended into, in source order;
+    /// a fact's `scope` indexes this, and an offset finds its namespace here.
+    namespaces: Vec<NamespaceScope>,
 }
 
 /// The shared empty map, for a consumer that has no document to scan (an
@@ -271,12 +301,55 @@ impl CommandBindingRealm {
 
     /// The latest applicable fact's binding for `head` at `at`, if any.
     fn fact_at(&self, head: &str, at: u32) -> Option<FactBinding> {
-        self.facts
-            .get(head)?
+        let facts = self.facts.get(head)?;
+        let latest = |scope: Option<&str>| {
+            facts
+                .iter()
+                .filter(|f| f.from <= at && self.scope_name(f.scope) == scope)
+                .max_by_key(|f| f.from)
+                .map(|f| f.binding)
+        };
+        // C Tcl resolves a bare head in the current namespace's command table
+        // and only then in the global one, so a namespace-local shadow
+        // outranks a global fact whichever came first in the file — and a
+        // namespace's own fact is invisible from anywhere else, including a
+        // namespace nested inside it (tclsh 8.6.18 / 9.0.4: with
+        // `proc format` declared in `::a`, a bare `format` inside
+        // `namespace eval b` nested in `::a` still runs the built-in).
+        let enclosing = self.namespace_at(at);
+        if enclosing.is_some()
+            && let Some(local) = latest(enclosing)
+        {
+            return Some(local);
+        }
+        latest(None)
+    }
+
+    /// The fully-qualified name of the namespace a fact's `scope` names.
+    fn scope_name(&self, scope: Option<u32>) -> Option<&str> {
+        let index = scope? as usize;
+        self.namespaces.get(index).map(|ns| ns.name.as_str())
+    }
+
+    /// The namespace whose command table a head at byte offset `at` resolves
+    /// against first — the innermost `namespace eval` body containing `at`,
+    /// or `None` at document level.
+    fn namespace_at(&self, at: u32) -> Option<&str> {
+        self.scope_name(self.scope_index_at(at))
+    }
+
+    /// The innermost `namespace eval` body containing `at`, as an index into
+    /// [`Self::namespaces`].
+    fn scope_index_at(&self, at: u32) -> Option<u32> {
+        // Bodies nest, so the innermost is the last one opened that still
+        // contains the offset; the scan descends, so source order makes that
+        // the highest index.
+        self.namespaces
             .iter()
-            .filter(|f| f.from <= at)
-            .max_by_key(|f| f.from)
-            .map(|f| f.binding)
+            .enumerate()
+            .rev()
+            .find(|(_, ns)| ns.start <= at && at < ns.end)
+            .and_then(|(i, _)| u32::try_from(i).ok())
     }
 
     /// The realm's [`BindingKnowledge`] for `head` at byte offset `at` —
@@ -381,14 +454,23 @@ impl CommandBindingRealm {
     }
 
     /// Record `head` → `binding` from byte offset `from`.
+    ///
+    /// The fact takes the scope the *statement* sits in, which is why the
+    /// scan registers a `namespace eval` body ([`Self::open_namespace`])
+    /// before recording anything inside it.
     fn record(&mut self, head: &str, binding: FactBinding, from: u32) {
         if head.is_empty() {
             return;
         }
+        let scope = self.scope_index_at(from);
         self.facts
             .entry(head.to_owned())
             .or_default()
-            .push(RealmFact { from, binding });
+            .push(RealmFact {
+                from,
+                binding,
+                scope,
+            });
     }
 
     /// Record a fact under both the written spelling and its explicitly global
@@ -396,7 +478,21 @@ impl CommandBindingRealm {
     fn record_both_spellings(&mut self, name: &str, binding: FactBinding, from: u32) {
         let bare = name.strip_prefix("::").unwrap_or(name);
         self.record(bare, binding, from);
-        self.record(&format!("::{bare}"), binding, from);
+        // Inside a `namespace eval` body the explicitly global spelling is a
+        // *different* command and the local binding says nothing about it —
+        // tclsh 8.6.18 / 9.0.4 run the built-in for `::format` inside a
+        // namespace that declares its own `format` — so only a document-level
+        // fact states both spellings.
+        if self.scope_index_at(from).is_none() {
+            self.record(&format!("::{bare}"), binding, from);
+        }
+    }
+
+    /// Register a `namespace eval` body the scan is about to descend into,
+    /// covering `[start, end)` of the source and evaluating in namespace
+    /// `name` (fully qualified).
+    fn open_namespace(&mut self, name: String, start: u32, end: u32) {
+        self.namespaces.push(NamespaceScope { name, start, end });
     }
 }
 
@@ -451,25 +547,157 @@ pub fn document_realm_bindings_with_config(
     for (name, (key, offset)) in imported_command_aliases(&segments, registry) {
         map.record(&name, FactBinding::Spec(key), offset);
     }
-    for seg in &segments {
+    record_segment_bindings(
+        &mut map,
+        source,
+        &segments,
+        NamespaceWalk {
+            enclosing: "",
+            depth: 0,
+        },
+        config,
+        registry,
+    );
+    map
+}
+
+/// How deep the scan follows `namespace eval` bodies into one another.
+///
+/// Bodies nest arbitrarily in principle; the ceiling keeps a pathological
+/// document from recursing without bound, and no real one declares a command
+/// shadow eight namespaces deep.  Past it the scan simply stops descending,
+/// which states fewer facts rather than wrong ones.
+const MAX_NAMESPACE_DEPTH: u8 = 8;
+
+/// Where one pass of [`record_segment_bindings`] sits in the namespace tree.
+#[derive(Clone, Copy)]
+struct NamespaceWalk<'a> {
+    /// Fully-qualified name of the namespace these segments evaluate in,
+    /// empty at document level.
+    enclosing: &'a str,
+    /// How many `namespace eval` bodies deep this pass already is.
+    depth: u8,
+}
+
+/// Record every command-binding fact `segments` states, then descend into the
+/// `namespace eval` bodies among them.
+///
+/// The descent is what makes a namespace-local shadow visible: a `proc format`
+/// inside `namespace eval n` is not a document-wide fact, but it *is* the
+/// binding every bare `format` in that namespace resolves to (tclsh 8.6.18 /
+/// 9.0.4: `namespace eval n {proc format {args} {return NS}; format %b 5}`
+/// answers `NS`), and the realm is the one place that identity is decided.
+fn record_segment_bindings(
+    map: &mut CommandBindingRealm,
+    source: &str,
+    segments: &[crate::segmenter::SegmentedCommand],
+    walk: NamespaceWalk<'_>,
+    config: tcl_lexer::LexerConfig,
+    registry: &CommandRegistry,
+) {
+    for seg in segments {
         let Some(head) = seg.texts.first() else {
             continue;
         };
         let args = &seg.texts[1..];
         let transitions = command_table_transitions(registry, head, args);
-        if transitions.command_bindings().next().is_none() {
-            continue;
+        if transitions.command_bindings().next().is_some() {
+            let at = seg.argv[0].span.start();
+            // A `proc` declaration is the one binding fact whose *validity*
+            // is dialect-gated: iRules restricts `proc` to its shared
+            // declaration surface, and a malformed body is not executable.
+            let declares_valid_procedure =
+                valid_irules_procedure_declaration(source, seg, registry);
+            for transition in transitions.command_bindings() {
+                record_binding_transition(map, transition, at, registry, declares_valid_procedure);
+            }
         }
-        let at = seg.argv[0].span.start();
-        // A `proc` declaration is the one binding fact whose *validity* is
-        // dialect-gated: iRules restricts `proc` to its shared declaration
-        // surface, and a malformed body is not executable.
-        let declares_valid_procedure = valid_irules_procedure_declaration(source, seg, registry);
-        for transition in transitions.command_bindings() {
-            record_binding_transition(&mut map, transition, at, registry, declares_valid_procedure);
-        }
+        descend_into_namespace_body(map, source, seg, walk, config, registry);
     }
-    map
+}
+
+/// Descend into `seg`'s body when it evaluates one in a namespace.
+///
+/// Recognition is the registry's [`AnalyserHookId::NamespaceEval`] stamp on
+/// the resolved subcommand, never the head spelling, and the dialect's own
+/// command table decides: iRules disables `namespace` outright, so nothing
+/// there is ever descended into.
+///
+/// Three shapes abstain rather than guess, each because the body this scan
+/// would read is not the script Tcl runs:
+///
+/// * a namespace word that is not a static name (`namespace eval $ns …`) —
+///   the facts inside belong to a namespace this scan cannot name;
+/// * a body that is not a single braced word — `namespace eval n $script` is
+///   opaque, and the multi-word form concatenates its arguments, so the
+///   commands are not the ones a segmentation of any one word finds;
+/// * a body nested past [`MAX_NAMESPACE_DEPTH`].
+///
+/// [`AnalyserHookId::NamespaceEval`]: tcl_registry::hooks::AnalyserHookId::NamespaceEval
+fn descend_into_namespace_body(
+    map: &mut CommandBindingRealm,
+    source: &str,
+    seg: &crate::segmenter::SegmentedCommand,
+    walk: NamespaceWalk<'_>,
+    config: tcl_lexer::LexerConfig,
+    registry: &CommandRegistry,
+) {
+    if walk.depth >= MAX_NAMESPACE_DEPTH || seg.texts.len() != 4 || seg.argv.len() != 4 {
+        return;
+    }
+    let evaluates_in_namespace = available_spec(registry, &seg.texts[0])
+        .and_then(|spec| spec.resolve_subcommand(&seg.texts[1]))
+        .and_then(|sub| sub.analyser_hook)
+        == Some(tcl_registry::hooks::AnalyserHookId::NamespaceEval);
+    if !evaluates_in_namespace || !is_static_name(&seg.texts[2]) {
+        return;
+    }
+    let body = seg.argv[3];
+    if body.kind != tcl_lexer::TokenType::Str {
+        return;
+    }
+    let name = qualified_namespace(walk.enclosing, &seg.texts[2]);
+    // The braced body's inner text starts past the `{`, and is carried
+    // literally, so its length gives the end of the region the facts inside
+    // it govern.
+    let start = body.span.start() + u32::from(body.content_offset);
+    let end = start + u32::try_from(seg.texts[3].len()).unwrap_or(0);
+    map.open_namespace(name.clone(), start, end);
+    let inner = segment_commands_with_offset_and_config(&seg.texts[3], start, config);
+    record_segment_bindings(
+        map,
+        source,
+        &inner,
+        NamespaceWalk {
+            enclosing: &name,
+            depth: walk.depth + 1,
+        },
+        config,
+        registry,
+    );
+}
+
+/// The fully-qualified name of the namespace `word` opens inside `enclosing`.
+///
+/// An absolute word names itself; a relative one hangs off the enclosing
+/// namespace, which is how C Tcl reads it (`namespace eval a {namespace eval b
+/// {namespace current}}` answers `::a::b` on tclsh 8.6.18 / 9.0.4).
+fn qualified_namespace(enclosing: &str, word: &str) -> String {
+    let absolute = if word.starts_with("::") {
+        word.to_string()
+    } else if enclosing == "::" {
+        format!("::{word}")
+    } else {
+        format!("{enclosing}::{word}")
+    };
+    // A trailing separator is not part of the name — `namespace eval ::snit::`
+    // and `namespace eval ::snit` open the same namespace.
+    let trimmed = absolute.trim_end_matches(':');
+    if trimmed.is_empty() {
+        "::".to_string()
+    } else {
+        trimmed.to_string()
+    }
 }
 
 /// Record one registry-stated command-binding transition as a realm fact.
@@ -1075,17 +1303,95 @@ mod tests {
 
     #[test]
     fn a_nested_binding_is_not_a_document_wide_fact() {
-        // Neither the conditional rename nor the namespaced proc is an
-        // unconditional top-level statement.
+        // A conditional or deferred binding is not an unconditional statement
+        // about the document's command table.
         for src in [
             "if {$x} { rename format origfmt }\n",
-            "namespace eval ::n { proc format {a} { return 1 } }\n",
             "proc p {} { rename format origfmt }\n",
             "eval { rename format origfmt }\n",
             "uplevel #0 { rename format origfmt }\n",
             "interp eval $child { rename format origfmt }\n",
         ] {
             assert!(map_for(src).is_empty(), "nested binding leaked: {src}");
+        }
+        // A `namespace eval` body *is* unconditional, but it binds in its own
+        // namespace: `proc format` there defines `::n::format` and leaves the
+        // global command table alone (#2065), so the fact is stated — scoped
+        // to that namespace — and never reaches a head outside it.
+        let src = "namespace eval ::n { proc format {a} { return 1 } }\nformat %b 5\n";
+        let map = map_for(src);
+        assert_eq!(
+            map.resolve("format", u32::try_from(src.len()).unwrap_or(0)),
+            RealmBinding::Command("format"),
+            "a namespace-local shadow must not leak to the document"
+        );
+    }
+
+    /// A `proc` inside a `namespace eval` body shadows the built-in for the
+    /// bare heads in that namespace and nowhere else (#2065).
+    ///
+    /// tclsh 8.6.18 / 9.0.4, byte-identical:
+    ///
+    /// ```tcl
+    /// namespace eval n {proc format {args} {return NS}; puts [format %b 5]}
+    /// puts [format %d 5]      ;# NS, then 5
+    /// namespace eval a {proc format {args} {return A}
+    ///   namespace eval b {puts [format %d 7]}}   ;# 7 — `b` is not `a`
+    /// namespace eval a {puts [format %d 7]}      ;# A — the block re-opens
+    /// ```
+    #[test]
+    fn a_namespace_local_proc_shadows_the_builtin_inside_that_namespace() {
+        let src = "namespace eval n {\n    proc format {args} { return NS }\n    format %b 5\n}\nformat %d 5\n";
+        let map = map_for(src);
+        let inside = u32::try_from(src.find("format %b").unwrap()).unwrap();
+        let outside = u32::try_from(src.rfind("format %d").unwrap()).unwrap();
+        assert_eq!(
+            map.resolve("format", inside),
+            RealmBinding::Rebound,
+            "the namespace-local proc owns the bare head inside its body"
+        );
+        assert_eq!(
+            map.resolve("format", outside),
+            RealmBinding::Command("format"),
+            "and says nothing about the global command table"
+        );
+        // The explicitly global spelling is the built-in even inside the body.
+        assert_eq!(
+            map.resolve("::format", inside),
+            RealmBinding::Command("::format")
+        );
+    }
+
+    /// The shadow is keyed by namespace, not by body: a later block re-opening
+    /// the same namespace sees it, a nested one does not.
+    #[test]
+    fn a_namespace_local_shadow_follows_the_namespace_not_the_block() {
+        let src = "namespace eval a {\n    proc format {args} { return A }\n    namespace eval b { format %b 1 }\n}\nnamespace eval a { format %b 2 }\n";
+        let map = map_for(src);
+        let nested = u32::try_from(src.find("format %b 1").unwrap()).unwrap();
+        let reopened = u32::try_from(src.find("format %b 2").unwrap()).unwrap();
+        assert_eq!(
+            map.resolve("format", nested),
+            RealmBinding::Command("format"),
+            "`::a::b` resolves its own table then the global one, never `::a`"
+        );
+        assert_eq!(
+            map.resolve("format", reopened),
+            RealmBinding::Rebound,
+            "re-opening `::a` sees the proc the first block declared"
+        );
+    }
+
+    /// A body this scan cannot read states nothing at all.
+    #[test]
+    fn an_unreadable_namespace_body_states_no_local_fact() {
+        for src in [
+            // A dynamic namespace word names a namespace we cannot identify.
+            "namespace eval $ns { proc format {args} { return 1 }\nformat %b 5 }\n",
+            // A non-braced body is not the script Tcl finally runs.
+            "namespace eval n $body\n",
+        ] {
+            assert!(map_for(src).is_empty(), "unreadable body leaked: {src}");
         }
     }
 

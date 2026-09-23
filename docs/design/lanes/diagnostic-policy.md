@@ -957,6 +957,22 @@ half a group (#2149); `optimiseDocument` answers an absent argument with
 branch, so the orchestrator's merge of `rust` resolves each conflict to the
 lane's side (§ Boundaries, `rust`), and DP10.4 finishes the reconciliation.
 
+**As merged.** The orchestrator merged `rust` (at `08bceb36`) before DP4.2,
+DP5.2 and DP7.1 had landed, so the merge resolved each conflict to those
+items' shapes by writing them, as specified here: DP4.2's
+`builder_with_invocation` and `optimise_document_command` with its four
+tests (`rust`'s three ported onto `apply_global_config`, and
+`a_project_profile_overrules_the_command_argument`); DP5.2's per-input
+`run_opt` (`share_one_project` deleted, the KCS bullet rewritten); DP7.1's
+`applicable_rewrites` / `applicable_items`, `rewrite_actions` and the
+`lift_report` group payloads with their core and server tests
+(`a_grouped_optimisation_is_never_independently_applicable_issue_2149`
+ported onto `lift_report`, now also pinning that a group that lost a
+member carries no payload); and DP7.2's analyser directive map in the
+rewrite loop, because `rust`'s #2119 already read that map per pass. The
+XC test runs over `xc_findings`. What DP10.4 still owes is the thin
+wrapper over `optimise_source_multipass_admitting` and the review.
+
 ### Goal and exit per slice
 
 | Slice | Deliverable, in the page's words | Exit evidence |
@@ -3219,16 +3235,16 @@ Each item updates its row in the commit that lands it.
 |---|---|---|---|---|---|
 | DP4.0 | opus | L | done | `slices 4–7 checkpoint green` | every suite of the lane crates, the whole `e2e`, the crate clippy, the catalogue gates, `owner-resolution`, `cargo check --workspace`; `make rust-check` left to C4 |
 | DP4.1 | opus | M | not started | — | — |
-| DP4.2 | opus | S | not started | — | — |
+| DP4.2 | opus | S | done (the merge of `rust`) | the merge commit | server `--lib`; the crate clippy |
 | DP4.3 | sonnet | S | not started | — | — |
 | DP5.1 | opus | S | not started | — | — |
-| DP5.2 | opus | S | not started | — | — |
+| DP5.2 | opus | S | done (the merge of `rust`) | the merge commit | `cargo test -p tcl-cli`; the crate clippy |
 | DP5.3 | sonnet | S | not started | — | — |
 | DP5.4 | sonnet | S | not started | — | — |
 | DP6.1 | opus | M | not started | — | — |
 | DP6.2 | sonnet | S | not started | — | — |
-| DP7.1 | opus | M | not started | — | — |
-| DP7.2 | opus | S | not started | — | — |
+| DP7.1 | opus | M | done (the merge of `rust`) | the merge commit | core and server `--lib`, the whole `e2e`; the crate clippy |
+| DP7.2 | opus | S | done (the merge of `rust`) | the merge commit | core `--lib`, `tcl-cli`, `tcl-mcp`; the crate clippy |
 | DP7.3 | sonnet | S | not started | — | — |
 | DP8.1 | opus | S | not started | — | — |
 | DP8.2 | opus | M | not started | — | — |
@@ -3243,5 +3259,5 @@ Each item updates its row in the commit that lands it.
 | DP10.1 | opus | M | not started | — | — |
 | DP10.2 | sonnet | M | not started | — | — |
 | DP10.3 | sonnet | M | not started | — | — |
-| DP10.4 | opus | M | waits for the merge of `rust` | — | — |
+| DP10.4 | opus | M | the merge landed; the wrapper and the review remain (§ `rust` has moved under the branch, *As merged*) | — | — |
 | DP10.5 | sonnet | S | not started | — | — |

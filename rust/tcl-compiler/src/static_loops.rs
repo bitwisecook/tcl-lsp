@@ -28,7 +28,7 @@ use std::collections::HashMap;
 
 use tcl_registry::CommandRegistry;
 
-use crate::expr_ast::{ExprNode, expr_text};
+use crate::expr_ast::ExprNode;
 use crate::ir::{IfClause, Script, Statement, SwitchArm, SwitchMode};
 use crate::naming::normalise_var_name;
 use crate::tcl_expr_eval::{Env, EnvValue, FoldPolicy, TclValue, eval_tcl_expr_with_policy};
@@ -394,7 +394,6 @@ pub fn summarise_for_statement(
     else {
         return None;
     };
-    let _ = expr_text(condition);
     summarise_static_for(
         init,
         condition,

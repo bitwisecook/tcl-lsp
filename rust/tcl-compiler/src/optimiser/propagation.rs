@@ -88,17 +88,35 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     // The top-level body's extra escaping set (names some other procedure
     // declares `global`) — shared by the top-level constants projection
     // below and by `run_load_forwarding`.
-    let top_level_extra_escaping =
-        crate::var_observability::scan_module_global_names(&cu.ir_module);
+    //
+    // `scan_module_global_names` resolves the `global` alias grammar through
+    // the registry, so it answers only for the dialect `cu` was lowered
+    // under — and a *missing* name is the unsound direction here: it tells
+    // the top level a name does not escape, licensing a fold of a value some
+    // other procedure reassigns through `global`. So this deliberately has no
+    // default-dialect fallback: with no registry the top-level body is left
+    // un-propagated rather than propagated against a guess.
+    //
+    // Every production entry point does set `ctx.registry` —
+    // `super::manager::build_pass_context` is the single chokepoint every
+    // `optimise*` / `find_dead_stores` entry builds through — so this `None`
+    // arm is reachable only from a hand-built `PassContext` in a pass-level
+    // unit test, and a test that wants top-level coverage wires the registry
+    // the way this pass's own `run_pass` helper does.
+    let top_level_extra_escaping = ctx.registry.map(|registry| {
+        crate::var_observability::scan_module_global_names(&cu.ir_module, registry)
+    });
     let no_extra_escaping = std::collections::HashSet::new();
-    run_function(
-        ctx,
-        cu,
-        &cu.top_level,
-        &cu.ir_module.top_level,
-        "::",
-        &top_level_extra_escaping,
-    );
+    if let Some(top_level_extra_escaping) = &top_level_extra_escaping {
+        run_function(
+            ctx,
+            cu,
+            &cu.top_level,
+            &cu.ir_module.top_level,
+            "::",
+            top_level_extra_escaping,
+        );
+    }
     for (qname, fu) in &cu.procedures {
         let Some(proc) = cu.ir_module.procedures.get(qname) else {
             continue;
@@ -122,14 +140,16 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     // module `Module::traced_variables`/`has_dynamic_variable_trace` facts),
     // or it would forward a stale literal past a call that reassigns or
     // traces the "sole" def.
-    if let Some(registry) = ctx.registry {
+    if let (Some(registry), Some(top_level_extra_escaping)) =
+        (ctx.registry, &top_level_extra_escaping)
+    {
         let trace = crate::sccp::TraceInputs {
             registry,
             traced_variables: &cu.ir_module.traced_variables,
             has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
             analysis_context: None,
         };
-        run_load_forwarding(ctx, &cu.top_level, &top_level_extra_escaping, trace);
+        run_load_forwarding(ctx, &cu.top_level, top_level_extra_escaping, trace);
         for fu in cu.procedures.values() {
             run_load_forwarding(ctx, fu, &no_extra_escaping, trace);
         }
@@ -1086,6 +1106,8 @@ fn oo_method_constants(
             mutations: &ctx.command_mutations,
             dialect: ctx.dialect,
             defining_class: Some(&frame.defining_class),
+            registry_engine: true,
+            trust: crate::sccp::FoldTrust::WholeModule,
         }),
     );
     sccp_constants_from(&sccp, &fu.ssa)
@@ -1398,6 +1420,8 @@ fn constants_with_builtin_folds(
             // No method frame here — `[self class]`-style frame facts fold
             // only in `run_oo_method_folds`' proven method re-runs.
             defining_class: None,
+            registry_engine: true,
+            trust: crate::sccp::FoldTrust::WholeModule,
         }),
     );
     for (name, text) in sccp_constants_from(&rerun, &fu.ssa) {
@@ -1600,17 +1624,31 @@ fn evaluate_proc_with_constants(
         Some(m) => (&m.traced_variables, m.has_dynamic_variable_trace),
         None => (&empty_traced, false),
     };
-    let result = crate::sccp::sccp(
+    let result = crate::sccp::sccp_with_builtin_folds(
         &callee.cfg,
         &callee.ssa,
         Some(&seed),
         policy,
+        &std::collections::HashSet::new(),
         crate::sccp::TraceInputs {
             registry,
             traced_variables,
             has_dynamic_variable_trace,
             analysis_context: None,
         },
+        // This re-run feeds an O103 *rewrite*, so it takes the whole-module
+        // stance. Without any trust fact — what it used before — it folded
+        // `[llength …]` with builtin semantics even where the module shadows
+        // `llength`, handing O103 a value the rest of the pipeline disagrees
+        // with (#2164).
+        Some(crate::sccp::BuiltinFoldInputs {
+            registry,
+            mutations: &ctx.command_mutations,
+            dialect: ctx.dialect,
+            defining_class: None,
+            registry_engine: false,
+            trust: crate::sccp::FoldTrust::WholeModule,
+        }),
     );
     resolve_return_constant(
         callee,
@@ -3492,6 +3530,7 @@ mod tests {
         )
         .with_interprocedural(&registry, None);
         let mut ctx = PassContext::new(&cu.source, cu.interproc.clone().unwrap_or_default());
+        ctx.registry = Some(&registry);
         run(&mut ctx, &cu);
         assert!(
             ctx.optimisations.iter().any(|o| o.code == DiagCode::O103),
@@ -3598,6 +3637,7 @@ mod tests {
             "proc ::tcl::mathfunc::abs {x} { return 999 }\nproc f {} { return [expr {abs(-5)}] }";
         let cu = CompilationUnit::build_for(source, &reg, false).with_interprocedural(&reg, None);
         let mut ctx = PassContext::new(&cu.source, cu.interproc.clone().unwrap_or_default());
+        ctx.registry = Some(&reg);
         run(&mut ctx, &cu);
         assert!(
             ctx.optimisations.iter().all(|o| o.code != DiagCode::O101),
@@ -3625,6 +3665,10 @@ mod tests {
         let reg = registry();
         let cu = CompilationUnit::build_for(source, &reg, false);
         let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
+        // Same production wiring `run_pass` above documents: the top-level
+        // body's `scan_module_global_names` set is registry-resolved, so a
+        // context without a registry is deliberately not propagated at all.
+        ctx.registry = Some(&reg);
         ctx.command_mutations =
             crate::command_binding::scan_module_command_mutations(&cu.ir_module, &reg);
         run(&mut ctx, &cu);
@@ -4099,6 +4143,7 @@ mod tests {
         let cu = CompilationUnit::build_for(source, &registry, false)
             .with_interprocedural(&registry, None);
         let mut ctx = PassContext::new(&cu.source, cu.interproc.clone().unwrap_or_default());
+        ctx.registry = Some(&registry);
         run(&mut ctx, &cu);
         let o103s: Vec<_> = ctx
             .optimisations
@@ -4124,6 +4169,7 @@ mod tests {
         let cu = CompilationUnit::build_for(source, &registry, false)
             .with_interprocedural(&registry, None);
         let mut ctx = PassContext::new(&cu.source, cu.interproc.clone().unwrap_or_default());
+        ctx.registry = Some(&registry);
         run(&mut ctx, &cu);
         let o103s: Vec<_> = ctx
             .optimisations
@@ -4153,6 +4199,7 @@ mod tests {
         let cu = CompilationUnit::build_for(source, &registry, false)
             .with_interprocedural(&registry, None);
         let mut ctx = PassContext::new(&cu.source, cu.interproc.clone().unwrap_or_default());
+        ctx.registry = Some(&registry);
         run(&mut ctx, &cu);
         let o103s: Vec<_> = ctx
             .optimisations
@@ -4181,6 +4228,7 @@ mod tests {
         )
         .with_interprocedural(&registry, None);
         let mut ctx = PassContext::new(&cu.source, cu.interproc.clone().unwrap_or_default());
+        ctx.registry = Some(&registry);
         run(&mut ctx, &cu);
         let o103s: Vec<_> = ctx
             .optimisations
@@ -4365,6 +4413,7 @@ mod tests {
         let cu =
             CompilationUnit::build_for(src, &registry, false).with_interprocedural(&registry, None);
         let mut ctx = PassContext::new(&cu.source, cu.interproc.clone().unwrap_or_default());
+        ctx.registry = Some(&registry);
         run(&mut ctx, &cu);
         assert!(
             ctx.optimisations
@@ -4394,6 +4443,7 @@ mod tests {
         let cu =
             CompilationUnit::build_for(src, &registry, false).with_interprocedural(&registry, None);
         let mut ctx = PassContext::new(&cu.source, cu.interproc.clone().unwrap_or_default());
+        ctx.registry = Some(&registry);
         run(&mut ctx, &cu);
         assert!(
             ctx.optimisations
@@ -4851,8 +4901,10 @@ mod tests {
 
     #[test]
     fn run_passes_dispatches_propagation() {
-        let cu = CompilationUnit::build_for("set x 9\nputs $x", &registry(), false);
+        let reg = registry();
+        let cu = CompilationUnit::build_for("set x 9\nputs $x", &reg, false);
         let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
+        ctx.registry = Some(&reg);
         super::super::run_passes(&mut ctx, &cu, &[super::super::PassId::Propagation]);
         assert!(
             ctx.optimisations.iter().any(|o| o.code == DiagCode::O100),

@@ -1144,6 +1144,10 @@ pub enum Statement {
         span: Span,
         /// Return value text, if any.
         value: Option<String>,
+        /// Canonical source word for [`Self::Return::value`], when the simple
+        /// return form retained one. Codegen uses it only to decide whether a
+        /// nested local-name opcode can consume a final literal value.
+        value_word: Option<WordExpr>,
         /// Return expression, if any (for `return [expr ...]`).
         expr: Option<ExprNode>,
         /// Live command binding whose registry identity justified compiling a
@@ -1643,6 +1647,18 @@ pub struct OoDefinitionEvidence {
     pub unretained_executable_roots: bool,
 }
 
+/// What a [`Module`]'s top level holds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum TopLevelKind {
+    /// A script's global level — code outside any procedure.
+    #[default]
+    Script,
+    /// A single `proc` or `TclOO` method body, compiled as its own module by
+    /// the runtime. It has a local variable table; a script's global level
+    /// does not.
+    ProcedureBody,
+}
+
 /// A top-level module: procedures + top-level script.
 ///
 /// This is the only mutable IR type — it accumulates procedures and
@@ -1670,6 +1686,14 @@ pub struct Module {
     /// Whether lowering deliberately preserved ordinary command dispatch for
     /// every invocation (trace/invalidation recovery compilation).
     pub plain_command_dispatch: bool,
+    /// What [`Self::top_level`] actually is.
+    ///
+    /// The runtime compiles a `proc` or `TclOO` method body as its own module
+    /// whose top level *is* that body, so the name alone cannot tell the two
+    /// apart — both are `::top`. Anything that depends on the body having a
+    /// local variable table has to ask this instead (#2207: a `catch` is only
+    /// inlined where its result variable can have a slot).
+    pub top_level_kind: TopLevelKind,
     /// Top-level script (code outside any procedure).
     pub top_level: Script,
     /// Named procedures.
@@ -2423,6 +2447,7 @@ mod tests {
         let stmt = Statement::Return {
             span: Span::new(0, 20),
             value: None,
+            value_word: None,
             expr: Some(ExprNode::Binary {
                 op: crate::expr_ast::BinOp::Add,
                 left: Box::new(ExprNode::Var {

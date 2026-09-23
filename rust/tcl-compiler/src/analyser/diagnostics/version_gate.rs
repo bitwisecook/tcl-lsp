@@ -1598,6 +1598,7 @@ impl Analyser {
     pub(in crate::analyser) fn record_dsl_format_sites(
         &mut self,
         cmd_name: &str,
+        cmd_tok: Token,
         args: &[String],
         arg_tokens: &[Token],
     ) {
@@ -1605,8 +1606,22 @@ impl Analyser {
         let Some(registry) = self.registry.as_deref() else {
             return;
         };
+        // Which command this head *is*, exactly as the W200/W202 binary gate
+        // and the semantic-token walk resolve it: a `proc format` shadow — at
+        // document level or local to the namespace the call sits in — a
+        // `rename` or an alias means the built-in's conversion table does not
+        // apply, and a proven alias of it means it does, whatever the
+        // spelling. The written spelling stays in the message, because that
+        // is the word the reader has to fix.
+        let resolved = self
+            .head_identities
+            .resolve(cmd_name, cmd_tok.span.start())
+            .spec_name();
+        if resolved.is_empty() {
+            return;
+        }
         let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
-        for found in registry.format_string_args(cmd_name, &arg_strs) {
+        for found in registry.format_string_args(resolved, &arg_strs) {
             if found.kind != FormatType::Sprintf {
                 continue;
             }
@@ -2354,6 +2369,59 @@ mod tests {
         assert!(msg.contains("8.5"), "{msg}");
         // Clean once the floor is met.
         assert!(dsl_diags("binary format q 1.0\n", "tcl8.6").is_empty());
+    }
+
+    /// The argument-DSL gates run against the command a head *is*, not the
+    /// word it is spelled with (#2065).
+    ///
+    /// Both reproductions shadow a built-in from inside a `namespace eval`
+    /// body, where C Tcl resolves the bare head in that namespace before the
+    /// global table — tclsh 8.6.18 / 9.0.4, byte-identical:
+    ///
+    /// ```tcl
+    /// namespace eval n {proc format {args} {return F}; puts [format %b 5]}
+    /// namespace eval m {proc binary {args} {return B}
+    ///                   puts [binary format q 1.0]}      ;# F, then B
+    /// ```
+    #[test]
+    fn a_shadowed_head_is_not_gated_as_the_builtin() {
+        for (src, code) in [
+            (
+                "namespace eval n { proc format {args} {}\nformat %b 5 }\n",
+                "W138",
+            ),
+            (
+                "namespace eval n { proc binary {args} {}\nbinary format q 1.0 }\n",
+                "W202",
+            ),
+            // The document-level shadow reads the same way.
+            ("proc format {args} {}\nformat %b 5\n", "W138"),
+            // As does a name the document renamed the built-in away from.
+            ("rename format origfmt\nformat %b 5\n", "W138"),
+        ] {
+            assert!(
+                dsl_diags(src, "tcl8.4").is_empty(),
+                "{code} must not gate a head the document rebound: {src}"
+            );
+        }
+        // The shadow is not a licence to stop gating everywhere: a call
+        // outside the namespace still runs the built-in, and the rename's
+        // target still *is* the built-in.
+        assert!(
+            dsl_diags(
+                "namespace eval n { proc format {args} {} }\nformat %b 5\n",
+                "tcl8.4"
+            )
+            .iter()
+            .any(|(c, _)| c == "W138"),
+            "a namespace-local shadow must not silence the global call"
+        );
+        assert!(
+            dsl_diags("rename format origfmt\norigfmt %b 5\n", "tcl8.4")
+                .iter()
+                .any(|(c, m)| c == "W138" && m.contains("origfmt")),
+            "the gate follows a proven rename onto its new name"
+        );
     }
 
     #[test]

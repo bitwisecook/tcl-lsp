@@ -65,9 +65,12 @@ pub use library::{LibraryPin, LibraryVersion, LibraryVersionOverrides, VersionKe
 pub use profile::{DialectFileExtension, DialectProfile};
 pub use profile::{KNOWN_DIALECTS, available_dialects};
 pub use version::{
-    ByteStringEncoding, CorePackage, PackagePrefer, StringCharacterModel, TclVersion, Ternary,
-    compare_versions, exact_requirement, select_package_version, version_is_stable,
-    version_satisfies,
+    ByteStringEncoding, CorePackage, PackagePrefer, RequirementValidationError,
+    StringCharacterModel, TclVersion, Ternary, compare_versions, compare_versions_for,
+    exact_requirement, select_package_version, select_package_version_exact_for,
+    select_package_version_for, validate_requirement, validate_requirement_for, validate_version,
+    validate_version_for, version_in_any_window, version_is_stable, version_is_stable_for,
+    version_matches_exact_for, version_satisfies, version_satisfies_for,
 };
 
 /// Crate version string.

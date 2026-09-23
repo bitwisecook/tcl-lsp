@@ -126,17 +126,36 @@ fn string_basics_index_range_repeat() {
     res_eq("string cat a", "a");
 }
 
+/// Issue #2128: the character model is three-valued, so this must cover
+/// 8.4/8.5 and not just the 8.6/9.0 pair it originally pinned.
+///
+/// `A` + `U+1F600` + `Z`, measured on the real tclsh of each release under
+/// `LANG=C.UTF-8`: 8.4 and 8.5 answer **6** (the supplementary code point is
+/// never assembled at `TCL_UTF_MAX` 3, so its four UTF-8 bytes each count),
+/// 8.6 answers 4 (surrogate pair), 9.x answers 3 (scalars).
+///
+/// `Z` rather than `B` deliberately. Probing this at the shell with
+/// `"A\xF0\x9F\x98\x80B"` measures a *different string* on 8.4, where `\x`
+/// consumes unlimited hex digits and `B` is one — the trailing escape becomes
+/// `\x80B` = code point 11. That is a real 8.4/8.6 escape difference (see
+/// `cross_version_escapes_e2e`) and it is easy to mistake for the counting
+/// model being wrong. The literal below has no escape at all.
 #[test]
 fn compiled_string_length_uses_the_selected_runtime_character_model() {
-    let script = "string length A😀B";
-    assert_eq!(
-        run_for_version(script, tcl_dialect::TclVersion::V8_6).1,
-        "4"
-    );
-    assert_eq!(
-        run_for_version(script, tcl_dialect::TclVersion::V9_0).1,
-        "3"
-    );
+    let script = "string length A😀Z";
+    for (version, expected) in [
+        (tcl_dialect::TclVersion::V8_4, "6"),
+        (tcl_dialect::TclVersion::V8_5, "6"),
+        (tcl_dialect::TclVersion::V8_6, "4"),
+        (tcl_dialect::TclVersion::V9_0, "3"),
+        (tcl_dialect::TclVersion::V9_1, "3"),
+    ] {
+        assert_eq!(
+            run_for_version(script, version).1,
+            expected,
+            "string length under {version:?}",
+        );
+    }
 }
 
 /// `string repeat` with a non-integer count -> canonical coercion error.
@@ -787,6 +806,18 @@ fn format_integer_conversions() {
     res_eq("format %*d -5 42", "42   "); // negative `*` width left-justifies
 }
 
+/// Tcl 9's `%p` is an unsigned, pointer-width hexadecimal conversion. Its
+/// precision applies to the digits after `0x`; `+` and space are accepted but
+/// do not add a sign. These exact results are from tclsh9.0.4.
+#[test]
+fn format_pointer_precision_and_flags() {
+    res_eq("format %.4p 42", "0x002a");
+    res_eq("format %08.4p 42", "  0x002a");
+    res_eq("format %.0p 0", "0x0");
+    res_eq("format %+.4p 42", "0x002a");
+    res_eq("format {% .4p} 42", "0x002a");
+}
+
 /// `format` string and character conversions.
 #[test]
 fn format_string_char_conversions() {
@@ -819,6 +850,21 @@ fn format_float_conversions() {
     res_eq("format %g 1.5", "1.5");
     res_eq("format %g 100.0", "100");
     res_eq("format %g 0.0001", "0.0001");
+}
+
+/// `#` does not add a decimal point to an infinity, and uppercase float verbs
+/// uppercase the non-finite spelling. These exact results are from tclsh9.0.4.
+#[test]
+fn format_float_nonfinite_alternate_and_uppercase() {
+    res_eq("format %#.0f Inf", "inf");
+    res_eq("format %#.0e -Inf", "-inf");
+    res_eq("format %#.0g Inf", "inf");
+    res_eq("format %.0E Inf", "INF");
+    res_eq("format %.0G -Inf", "-INF");
+    res_eq("format %08f Inf", "     inf");
+    res_eq("format %08E -Inf", "    -INF");
+    res_eq("format %+08G Inf", "    +INF");
+    res_eq("format %-08g Inf", "inf     ");
 }
 
 /// `format` argument / specifier errors. (The `%5` trailing-spec and `%n$`
@@ -970,6 +1016,11 @@ fn format_positional_mode_star_and_mixing() {
         "format {%d %1$d} 5 6",
         "cannot mix \"%\" and \"%n$\" conversion specifiers",
     );
+    // A zero selector is grammatical and rejected as an *index*, not as a
+    // malformed specifier — the `0` is not re-read as a zero-pad flag
+    // (#2076). tclsh8.6.18 / tclsh9.0.4 both report this.
+    err_eq("format {%0$d} a b", "\"%n$\" argument index out of range");
+    err_eq("format {%0$s} a b", "\"%n$\" argument index out of range");
 }
 
 /// A format string that ends with an incomplete specifier (a width but no

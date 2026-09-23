@@ -43,9 +43,9 @@ use tcl_runtime_api::guard::{
 };
 use tcl_runtime_api::{
     ArrayElementRead, ArrayInvalidation, ArrayReadFailure, ArrayReadMiss, ArrayTarget, Code,
-    CommandId, Commands, CompileService, Completion, FrameId, FrameLinkOrigin, Frames, Introspect,
-    Namespaces, NsId, ProcInfo, ProcParam, ProcedureCompileTarget, ProcedureDispatch, Procs,
-    ROOT_NS, ScriptCompileTarget, Traces, VarId, VarStore, VarUnsetError,
+    CommandId, Commands, CompileService, Completion, FatalTail, FrameId, FrameLinkOrigin, Frames,
+    Introspect, Namespaces, NsId, ProcInfo, ProcParam, ProcedureCompileTarget, ProcedureDispatch,
+    Procs, ROOT_NS, ScriptCompileTarget, Traces, VarId, VarStore, VarUnsetError,
 };
 use tcl_syntax::expr::{eval, parse_expr};
 
@@ -828,8 +828,8 @@ enum CommandSemantics {
 /// Deferred control requests handed from builtins to the explicit VM stack.
 #[derive(Default)]
 pub(crate) struct PendingControl {
-    /// Compiled script, error-info label, and optional temporary command cleanup.
-    pub(crate) eval: Option<(CompiledUnit, Option<&'static str>, Option<String>)>,
+    /// Body deferred by `eval`/`uplevel`/`apply` to the explicit stack.
+    pub(crate) eval: Option<crate::exec::EvalReq>,
     /// Catch body whose completion is absorbed by the catch epilogue.
     pub(crate) catch: Option<crate::exec::CatchReq>,
     /// Scanner-driven substitution request.
@@ -844,6 +844,18 @@ pub(crate) struct PendingControl {
 /// error state, traces, coroutines, channels, children. The engine ([`Vm`])
 /// executes with exactly one of these current at a time and swaps between
 /// them at interpreter boundaries.
+#[derive(Default)]
+struct PackageState {
+    /// Provided packages → version (`package provide`/`require`).
+    packages: HashMap<String, String>,
+    /// Package name → version → loader script (`package ifneeded`).
+    package_ifneeded: HashMap<String, HashMap<String, String>>,
+    /// Selected package loaders currently being evaluated. Tcl uses the
+    /// selected loader's required name/version as a circular-dependency guard;
+    /// the stack matters because loaders may require other packages.
+    package_loading: Vec<(String, String)>,
+}
+
 pub struct InterpState {
     /// The Tcl release whose number/expr grammar this VM emulates —
     /// threaded from `DialectProfile::vm_runtime_version` (dialect-profile
@@ -1014,10 +1026,7 @@ pub struct InterpState {
     /// is being dispatched, so a handler whose own head is unresolvable falls
     /// through to a hard `invalid command name` instead of recursing.
     ns_unknown_depth: u32,
-    /// Provided packages → version (`package provide`/`require`).
-    packages: HashMap<String, String>,
-    /// Package name → version → loader script (`package ifneeded`).
-    package_ifneeded: HashMap<String, HashMap<String, String>>,
+    package_state: PackageState,
     /// Command prefix invoked by `package require` when no suitable package is
     /// known yet (`package unknown`).
     package_unknown: Option<String>,
@@ -1309,7 +1318,7 @@ pub struct InterpState {
 /// tail; `fatal_tail` is raised only if that prefix finishes normally.
 pub(crate) struct PreparedScript {
     pub(crate) prefix: Option<CompiledUnit>,
-    pub(crate) fatal_tail: Option<String>,
+    pub(crate) fatal_tail: Option<FatalTail>,
 }
 
 /// Exact identity of one compiler-emitted procedure definition.
@@ -2055,8 +2064,7 @@ impl InterpState {
             ns_paths: HashMap::new(),
             ns_unknowns: HashMap::new(),
             ns_unknown_depth: 0,
-            packages: HashMap::new(),
-            package_ifneeded: HashMap::new(),
+            package_state: PackageState::default(),
             package_unknown: None,
             package_prefer: initial_package_prefer(),
             var_traces: HashMap::new(),
@@ -7811,25 +7819,28 @@ impl Vm {
 
     /// Record a provided package version.
     pub(crate) fn provide_package(&mut self, name: &str, version: &str) {
-        self.packages.insert(name.to_string(), version.to_string());
+        self.package_state
+            .packages
+            .insert(name.to_string(), version.to_string());
     }
 
     /// Withdraw a package's provided version (`package forget`, and the
     /// release re-pin that replaces the core's own pre-provided entries).
     pub(crate) fn forget_package(&mut self, name: &str) {
-        self.packages.remove(name);
+        self.package_state.packages.remove(name);
     }
 
     /// The provided version of a package, if any.
     pub(crate) fn package_version(&self, name: &str) -> Option<&str> {
-        self.packages.get(name).map(String::as_str)
+        self.package_state.packages.get(name).map(String::as_str)
     }
 
     /// Names of all provided packages.
     pub(crate) fn package_names(&self) -> Vec<String> {
-        self.packages
+        self.package_state
+            .packages
             .keys()
-            .chain(self.package_ifneeded.keys())
+            .chain(self.package_state.package_ifneeded.keys())
             .cloned()
             .collect::<std::collections::HashSet<_>>()
             .into_iter()
@@ -7837,29 +7848,62 @@ impl Vm {
     }
 
     pub(crate) fn set_package_ifneeded(&mut self, name: &str, version: &str, script: &str) {
-        self.package_ifneeded
+        self.package_state
+            .package_ifneeded
             .entry(name.to_owned())
             .or_default()
             .insert(version.to_owned(), script.to_owned());
     }
 
     pub(crate) fn package_ifneeded(&self, name: &str, version: &str) -> Option<&str> {
-        self.package_ifneeded
+        self.package_state
+            .package_ifneeded
             .get(name)
             .and_then(|versions| versions.get(version))
             .map(String::as_str)
     }
 
     pub(crate) fn package_ifneeded_versions(&self, name: &str) -> Vec<String> {
-        self.package_ifneeded
+        self.package_state
+            .package_ifneeded
             .get(name)
             .map(|versions| versions.keys().cloned().collect())
             .unwrap_or_default()
     }
 
+    /// The selected loader version for a package currently being evaluated.
+    pub(crate) fn package_loading_version(&self, name: &str) -> Option<&str> {
+        self.package_state
+            .package_loading
+            .iter()
+            .rev()
+            .find_map(|(loading_name, version)| (loading_name == name).then_some(version.as_str()))
+    }
+
+    /// Mark a selected `package ifneeded` loader as active.
+    pub(crate) fn begin_package_loading(&mut self, name: &str, version: &str) {
+        self.package_state
+            .package_loading
+            .push((name.to_owned(), version.to_owned()));
+    }
+
+    /// Unmark a selected loader after every completion path. A `package
+    /// forget` inside a loader can remove this entry before the loader returns,
+    /// so cleanup is deliberately tolerant of an already-removed marker.
+    pub(crate) fn end_package_loading(&mut self, name: &str, version: &str) {
+        if self.package_state.package_loading.last().is_some_and(
+            |(loading_name, loading_version)| loading_name == name && loading_version == version,
+        ) {
+            self.package_state.package_loading.pop();
+        }
+    }
+
     pub(crate) fn forget_package_completely(&mut self, name: &str) {
-        self.packages.remove(name);
-        self.package_ifneeded.remove(name);
+        self.package_state.packages.remove(name);
+        self.package_state.package_ifneeded.remove(name);
+        self.package_state
+            .package_loading
+            .retain(|(loading_name, _)| loading_name != name);
     }
 
     pub(crate) fn set_package_unknown(&mut self, script: Option<String>) {
@@ -9100,7 +9144,17 @@ impl Vm {
         namespace: &str,
         src: &str,
     ) -> Result<CompiledUnit, TclError> {
-        if let Some((name, parameter_source)) = admission
+        // C compiles a body when the procedure is *called*, so a body whose
+        // later commands do not parse must neither refuse the definition nor
+        // run with the lenient lowering's invented meaning: compile the clean
+        // prefix and carry the error for the unit to raise on entry (#1829).
+        let (body_src, fatal_tail, _) = self.script_prefix_and_fatal_tail(src);
+        // The AOT admission path returns assembly the *enclosing module*
+        // lowered, and that lowering is the lenient one — it would hand back a
+        // body that quietly means something C never means. Only a body that
+        // parses whole may be admitted from it.
+        if fatal_tail.is_none()
+            && let Some((name, parameter_source)) = admission
             && let Some(unit) = self.module_proc(name, parameter_source, src)
         {
             return Ok(unit);
@@ -9120,7 +9174,7 @@ impl Vm {
             compiler
                 .compile_procedure_for_profile(
                     ProcedureCompileTarget {
-                        source: src,
+                        source: body_src,
                         parameters: &parameter_names,
                         namespace,
                     },
@@ -9137,7 +9191,7 @@ impl Vm {
             module = compiler
                 .compile_procedure_for_profile(
                     ProcedureCompileTarget {
-                        source: src,
+                        source: body_src,
                         parameters: &parameter_names,
                         namespace,
                     },
@@ -9165,7 +9219,9 @@ impl Vm {
             ));
         }
         self.merge_procs(&module);
-        Ok(self.compiled_unit(Rc::new(module.top_level), module.source_namespace))
+        Ok(self
+            .compiled_unit(Rc::new(module.top_level), module.source_namespace)
+            .with_fatal_tail(fatal_tail))
     }
 
     /// Compile through the explicit plain-dispatch capability and verify the
@@ -9827,8 +9883,14 @@ impl Vm {
         local: &str,
         level: usize,
         target: &str,
+        compiled_slot: bool,
     ) -> Result<(), UpvarLinkError> {
-        self.add_link_with_origin(local, level, target, FrameLinkOrigin::TclOoInstance)
+        let origin = if compiled_slot {
+            FrameLinkOrigin::TclOoInstanceCompiled
+        } else {
+            FrameLinkOrigin::TclOoInstance
+        };
+        self.add_link_with_origin(local, level, target, origin)
     }
 
     fn add_link_with_origin(
@@ -9838,7 +9900,10 @@ impl Vm {
         target: &str,
         origin: FrameLinkOrigin,
     ) -> Result<(), UpvarLinkError> {
-        let target = if origin == FrameLinkOrigin::TclOoInstance {
+        let target = if matches!(
+            origin,
+            FrameLinkOrigin::TclOoInstance | FrameLinkOrigin::TclOoInstanceCompiled
+        ) {
             self.ensure_tcloo_storage_var_from(target, level)
         } else {
             self.ensure_target_var_from(target, level)
@@ -11640,6 +11705,26 @@ impl Vm {
     /// Seed the `errorInfo` trace with an explicit value and mark it logged —
     /// C's `error msg info` / `return -errorinfo`, which set the trace directly
     /// and suppress the command's own `while executing` frame.
+    /// Raise a [`ScriptCommandPlan`]'s malformed tail, logging the frame C
+    /// names the offending command in.
+    ///
+    /// C compiles a parse failure into a runtime error through
+    /// `Tcl_LogCommandInfo`, so the `while executing` / `"<command>"` pair is
+    /// part of `-errorinfo` exactly as it is for an ordinary runtime error in
+    /// the same position (#2172). Logging goes through the same helper an
+    /// ordinary command error uses, which owns the 150-byte truncation.
+    ///
+    /// A tail with no recorded command text falls back to seeding the bare
+    /// message: an empty pair of quotes would be a visible wrong answer.
+    pub(crate) fn raise_fatal_tail(&mut self, tail: FatalTail) -> Completion<Value> {
+        if tail.command_text.is_empty() {
+            self.seed_error_info(tail.message.clone());
+        } else {
+            self.log_command_info_only(&tail.command_text, &tail.message, tail.line);
+        }
+        err(tail.message)
+    }
+
     pub(crate) fn seed_error_info(&mut self, info: String) {
         self.error_info = Some(info);
         self.error_logged = true;
@@ -11998,8 +12083,38 @@ impl Vm {
     pub fn eval_source(&mut self, src: &str) -> Result<Completion<Value>, TclError> {
         self.claim_number_grammar();
         self.reset_error_state_for_eval();
-        let module = self.compile_cached(src)?;
-        let comp = self.run_current_module(&module);
+        // C parses one command immediately before evaluating it, so every
+        // command ahead of a malformed one runs before the parse error is
+        // raised (#1603). Compile and run that prefix, then raise.
+        let (prefix, fatal_tail, prefix_commands) = self.script_prefix_and_fatal_tail(src);
+        // No command parsed, so none ran and there is no prefix completion to
+        // carry: report the error on the channel this entry point has always
+        // used for a script it could not compile at all. Only a script that
+        // *did* run something reports through the completion below.
+        //
+        // The test is the command count, not the prefix's length: when the
+        // *first* command is the malformed one the prefix still spans any
+        // leading whitespace and comments, so ` \n set x "` has a nonzero
+        // prefix that runs nothing at all.
+        if prefix_commands == 0
+            && let Some(tail) = fatal_tail
+        {
+            // Nothing ran, but C still names the command that failed to parse.
+            if !tail.command_text.is_empty() {
+                self.log_command_info_only(&tail.command_text, &tail.message, tail.line);
+            }
+            return Err(TclError::new(tail.message));
+        }
+        let module = self.compile_cached(prefix)?;
+        let mut comp = self.run_current_module(&module);
+        // Only a prefix that ran to completion reaches the parse error: an
+        // error (or any non-`ok` completion) in an earlier command is what C
+        // reports, the malformed tail never being parsed at all.
+        if comp.code == Code::Ok
+            && let Some(tail) = fatal_tail
+        {
+            comp = self.raise_fatal_tail(tail);
+        }
         // Crossing back out of a nested script is a frame boundary: clear
         // `ERR_ALREADY_LOGGED` so the enclosing command (the `eval`/`[subst]`/
         // proc call site) logs its own `invoked from within` frame.
@@ -12007,6 +12122,33 @@ impl Vm {
             self.clear_error_logged();
         }
         Ok(comp)
+    }
+
+    /// Split `src` into the leading commands that parse and the parse error C
+    /// raises once they have run.
+    ///
+    /// The compiler owns the dialect-aware split ([`ScriptCommandPlan`]); this
+    /// is the non-compiling half of [`Self::prepare_script_commands`], for
+    /// callers that drive a whole module rather than a deferred activation.
+    /// Falls back to the whole source when no [`CompileService`] is attached or
+    /// the service hands back a boundary that is not a character boundary — the
+    /// caller then compiles `src` exactly as it did before.
+    fn script_prefix_and_fatal_tail<'s>(
+        &self,
+        src: &'s str,
+    ) -> (&'s str, Option<FatalTail>, usize) {
+        let Some(compiler) = self.compiler.as_ref() else {
+            return (src, None, usize::from(!src.is_empty()));
+        };
+        let plan = compiler.script_command_plan_for_profile(src, self.dialect_profile);
+        if plan.complete_prefix_len > src.len() || !src.is_char_boundary(plan.complete_prefix_len) {
+            return (src, None, usize::from(!src.is_empty()));
+        }
+        (
+            &src[..plan.complete_prefix_len],
+            plan.fatal_tail,
+            plan.complete_prefix_commands,
+        )
     }
 
     /// Compile a deferred/reusable script and bind its assembly to the dialect-
@@ -12063,7 +12205,7 @@ impl Vm {
         };
         Ok(PreparedScript {
             prefix,
-            fatal_tail: plan.fatal_tail.map(|error| error.0),
+            fatal_tail: plan.fatal_tail,
         })
     }
 }

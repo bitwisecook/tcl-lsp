@@ -22,8 +22,6 @@
 //! produces ranged [`XcDiagnostic`]s for the LSP diagnostics pipeline, and
 //! converts each into the policy step's [`Finding`].
 
-use core::str::FromStr;
-
 use tcl_core_types::{DiagCode, Severity};
 use tcl_lexer::{LineIndex, Span};
 use tcl_lsp_core::diagnostic_policy::{Finding, Producer};
@@ -65,7 +63,10 @@ pub struct Range {
 /// `Diagnostic`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct XcDiagnostic {
-    /// XC-series code (e.g. `XC100`), as the one catalogue spells it.
+    /// XC-series code (e.g. [`DiagCode::Xc100`]). A typed [`DiagCode`], so
+    /// the lift can read the code's published metadata — its section, its
+    /// description and its LSP `DiagnosticTag` — instead of re-parsing a
+    /// string that was never in the catalogue.
     pub code: DiagCode,
     /// Human-readable message (`xc_description`, plus `note` after `—`).
     pub message: String,
@@ -97,7 +98,8 @@ impl From<XcDiagnostic> for Finding {
 }
 
 /// Severity from a diagnostic-code prefix: `XC1xx` → Hint,
-/// `XC2xx`/`XC3xx` → Info (default Info).
+/// `XC2xx`/`XC3xx` → Info (default Info). Keyed off the code's published
+/// spelling ([`DiagCode::as_str`]) rather than a parallel per-code table.
 fn severity_for_code(code: DiagCode) -> XcSeverity {
     if code.as_str().starts_with("XC1") {
         XcSeverity::Hint
@@ -109,17 +111,14 @@ fn severity_for_code(code: DiagCode) -> XcSeverity {
 
 /// Convert a [`TranslationItem`] to an [`XcDiagnostic`], resolving its byte
 /// span to line/UTF-16-column positions via `line_index` / `source`.
-/// Returns `None` when the item carries no range, or a code the catalogue
-/// does not spell (every code the translator emits is catalogued; see
-/// `emitted_codes_are_catalogued`).
+/// Returns `None` when the item carries no range.
 fn item_to_diagnostic(
     item: &TranslationItem,
     line_index: &LineIndex,
     source: &str,
 ) -> Option<XcDiagnostic> {
     let span = item.irule_range?;
-    let code = DiagCode::from_str(&item.diagnostic_code).ok()?;
-    let severity = severity_for_code(code);
+    let severity = severity_for_code(item.diagnostic_code);
     let mut message = item.xc_description.clone();
     if !item.note.is_empty() {
         message.push_str(" — ");
@@ -128,7 +127,7 @@ fn item_to_diagnostic(
     let start = line_index.position_at_utf16(span.start(), source);
     let end = line_index.position_at_utf16(span.end(), source);
     Some(XcDiagnostic {
-        code,
+        code: item.diagnostic_code,
         message,
         severity,
         span,
@@ -162,25 +161,39 @@ pub fn get_xc_diagnostics(source: &str) -> Vec<XcDiagnostic> {
 mod tests {
     use super::*;
 
-    /// Every `diagnostic_code` spelling the translator writes onto a
-    /// [`TranslationItem`]. A spelling missing from the catalogue would make
-    /// [`item_to_diagnostic`] drop the item, so the set is pinned here; the
-    /// reverse direction (every catalogued XC code has an emission site) is
-    /// `cargo xtask diag-emission-check`.
-    const EMITTED: &[&str] = &[
-        "XC100", "XC101", "XC102", "XC103", "XC105", "XC106", "XC107", "XC200", "XC201", "XC203",
-        "XC250", "XC300", "XC301",
+    /// Every code the translator writes onto a [`TranslationItem`]. The
+    /// field is a typed [`DiagCode`], so each is catalogued by construction;
+    /// the set is pinned here against the catalogue's `xc` section and the
+    /// translator's source. The reverse direction (every catalogued XC code
+    /// has an emission site) is `cargo xtask diag-emission-check`.
+    const EMITTED: &[DiagCode] = &[
+        DiagCode::Xc100,
+        DiagCode::Xc101,
+        DiagCode::Xc102,
+        DiagCode::Xc103,
+        DiagCode::Xc105,
+        DiagCode::Xc106,
+        DiagCode::Xc107,
+        DiagCode::Xc200,
+        DiagCode::Xc201,
+        DiagCode::Xc203,
+        DiagCode::Xc250,
+        DiagCode::Xc300,
+        DiagCode::Xc301,
     ];
 
     #[test]
     fn emitted_codes_are_catalogued() {
-        for code in EMITTED {
-            assert!(DiagCode::from_str(code).is_ok(), "{code} is not catalogued");
-        }
+        let section: Vec<DiagCode> = DiagCode::ALL
+            .iter()
+            .copied()
+            .filter(|c| c.diag_section() == Some(tcl_core_types::DiagSection::Xc))
+            .collect();
+        assert_eq!(section, EMITTED, "the `xc` section is the translator's set");
         let translator = include_str!("translator.rs");
         for code in EMITTED {
             assert!(
-                translator.contains(&format!("\"{code}\"")),
+                translator.contains(&format!("DiagCode::{code:?}")),
                 "{code} is pinned here but the translator no longer emits it"
             );
         }

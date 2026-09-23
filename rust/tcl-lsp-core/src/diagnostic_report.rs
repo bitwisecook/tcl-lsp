@@ -189,14 +189,18 @@ pub struct OptimisedSource {
 }
 
 /// Iteratively optimise `source` until a fixpoint or `max_iterations` is
-/// reached, applying on every pass only the rewrites `policy` shows.
+/// reached, applying on every pass only the rewrites `policy` shows — and a
+/// grouped rewrite only with every member of its group.
 ///
 /// The optimiser's rewrites are findings like any other: a `# noqa` on the
 /// command, a file-wide `# tcl-lsp: disable=*`, a code the profile or a
 /// configuration layer turned off — each means to a rewrite what it means to
-/// a squiggle. The directives are rescanned from the current text on every
-/// pass, because an applied rewrite moves the lines the next pass's
-/// directives attach to. A single-pass profile is `max_iterations == 1`.
+/// a squiggle. The directives are the analyser's own map over the current
+/// text, read afresh on every pass: an applied rewrite moves the lines the
+/// next pass's directives attach to, and the analyser attributes a `# noqa`
+/// to every line of the command it precedes, which is what the editor's
+/// squiggles are decided under (#2119). A single-pass profile is
+/// `max_iterations == 1`.
 ///
 /// This is the shared loop behind `tcl opt`, the MCP `optimize` tool and
 /// the server's `tcl-lsp.optimiseDocument` command.
@@ -208,7 +212,7 @@ pub fn optimise_under_policy(
     max_iterations: usize,
     policy: &Policy,
 ) -> OptimisedSource {
-    let directive_dialect = dialect.unwrap_or_else(|| crate::profile_for_dialect(""));
+    let directive_dialect = dialect.map_or("", |d| d.name);
     let mut current = source.to_owned();
     let mut applied: Vec<Optimisation> = Vec::new();
     let mut iterations = 0;
@@ -216,12 +220,17 @@ pub fn optimise_under_policy(
         iterations += 1;
         let opts = optimise_with_dialect(&current, registry, dialect);
         let mut pass_policy = policy.clone();
-        pass_policy.directives = Directives::scan(&current, directive_dialect);
+        pass_policy.directives = Directives::from_analysis(
+            &tcl_compiler::analyser::Analyser::new().analyse(&current, directive_dialect),
+            &current,
+        );
         let report = apply(
             opts.iter().cloned().map(Finding::from).collect(),
             &pass_policy,
         );
-        let kept = report.shown_items(opts);
+        // A group applies whole or not at all: a directive over one member
+        // of an O127 pair keeps the other off too (#2149).
+        let kept = report.applicable_items(opts);
         if kept.is_empty() {
             break;
         }
@@ -400,5 +409,53 @@ mod tests {
         off.optimiser.enabled = false;
         let switched = optimise_under_policy(plain, &registry, dialect, 5, &off);
         assert_eq!(switched.text, plain, "the master switch reaches a rewrite");
+    }
+
+    /// A `# noqa` covers every line of the command it precedes, as the
+    /// analyser's map — the one the editor's squiggles are decided under —
+    /// attributes it, not only the next line.
+    #[test]
+    fn a_noqa_reaches_every_line_of_the_command_it_precedes() {
+        let registry = CommandRegistry::build_default();
+        let dialect = Some(tcl9());
+        let mut policy = PolicyBuilder::new().build();
+        policy.optimiser = OptimiserPolicy::all_on();
+        let marked = "# noqa: O101\nproc p {} {\n    return [expr {1 + 2}]\n}\nputs [p]\n";
+        let out = optimise_under_policy(marked, &registry, dialect, 1, &policy);
+        assert!(out.text.contains("return [expr {1 + 2}]"), "{}", out.text);
+        let plain = "proc p {} {\n    return [expr {1 + 2}]\n}\nputs [p]\n";
+        let out = optimise_under_policy(plain, &registry, dialect, 1, &policy);
+        assert!(out.text.contains("return 3"), "{}", out.text);
+    }
+
+    /// A line-keyed `# noqa` over one member of an O127 pair must not leave
+    /// the other applicable: the delete without its inline removes a store
+    /// the use site still reads (#2149).
+    #[test]
+    fn optimise_under_policy_never_applies_half_a_group() {
+        let registry = CommandRegistry::build_default();
+        let dialect = Some(crate::profile_for_dialect("tcl8.6"));
+        let mut policy = PolicyBuilder::new().build();
+        policy.optimiser = OptimiserPolicy::all_on();
+        let marked = "proc p {y} {\n    set x [llength $y]\n    # noqa\n    puts $x\n}\n";
+        let out = optimise_under_policy(marked, &registry, dialect, 1, &policy);
+        assert!(out.text.contains("set x [llength $y]"), "{}", out.text);
+        assert!(
+            !out.applied.iter().any(|o| o.code == DiagCode::O127),
+            "{:?}",
+            out.applied
+        );
+        // Positive control: without the directive the pair applies whole.
+        let plain = "proc p {y} {\n    set x [llength $y]\n    puts $x\n}\n";
+        let out = optimise_under_policy(plain, &registry, dialect, 1, &policy);
+        assert_eq!(
+            out.applied
+                .iter()
+                .filter(|o| o.code == DiagCode::O127)
+                .count(),
+            2,
+            "{:?}",
+            out.applied
+        );
     }
 }

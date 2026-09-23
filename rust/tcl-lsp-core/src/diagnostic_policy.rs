@@ -28,9 +28,9 @@
 //! Every conversion lands on the one code space, [`DiagCode`]: that is what
 //! makes the disabled set, the severity overrides, the tag table and the
 //! overlap table one mechanism each. A producer that carries its code as a
-//! string (`f5_xc::XcDiagnostic`, `tcl_bigip::validator::ConfigDiagnostic`)
-//! converts fallibly, so an uncatalogued code is a conversion failure rather
-//! than a value that silently skips every table.
+//! string (`tcl_bigip::validator::ConfigDiagnostic`) converts fallibly, so an
+//! uncatalogued code is a conversion failure rather than a value that
+//! silently skips every table.
 
 use core::str::FromStr;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
@@ -357,6 +357,24 @@ pub struct Shown<'a> {
     pub tag: Option<DiagTag>,
 }
 
+/// A rewrite a surface may offer: one shown ungrouped rewrite, or every
+/// member of an optimisation group all of whose members show.
+#[derive(Debug, Clone)]
+pub struct ApplicableRewrite<'a> {
+    /// The group, for a grouped rewrite.
+    pub group: Option<u32>,
+    /// The members in the producers' order — one for an ungrouped rewrite.
+    pub members: Vec<&'a Finding>,
+}
+
+/// The optimisation group `finding`'s rewrite belongs to, if any.
+fn rewrite_group(finding: &Finding) -> Option<u32> {
+    match &finding.data {
+        Some(FindingData::Rewrite { group, .. }) => *group,
+        _ => None,
+    }
+}
+
 /// Every finding paired with its outcome, in the producers' order, and the
 /// codes a producer declared it left uncomputed.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -458,6 +476,101 @@ impl Report {
             .collect()
     }
 
+    /// The rewrites a surface may offer or publish as an edit. Ungrouped: a
+    /// shown [`FindingData::Rewrite`] that is not `hint_only` and has a
+    /// non-empty replacement. Grouped: a group every member of which shows
+    /// and none of which is `hint_only` (a member's replacement may be empty
+    /// — a deletion). A group that lost a member to the policy — a directive
+    /// on one member's line, a per-code toggle — is not applicable at all:
+    /// its edits apply all-or-nothing, and offering the survivor alone is
+    /// the corruption #2149 describes (O127's inline without its delete runs
+    /// the assignment twice).
+    #[must_use]
+    pub fn applicable_rewrites(&self) -> Vec<ApplicableRewrite<'_>> {
+        let whole = self.whole_groups(GroupMembers::Actionable);
+        let mut out: Vec<ApplicableRewrite<'_>> = Vec::new();
+        let mut group_at: BTreeMap<u32, usize> = BTreeMap::new();
+        for (finding, outcome) in &self.outcomes {
+            let Some(FindingData::Rewrite {
+                replacement,
+                group,
+                hint_only,
+            }) = &finding.data
+            else {
+                continue;
+            };
+            match group {
+                None => {
+                    if matches!(outcome, Outcome::Shown { .. })
+                        && !hint_only
+                        && !replacement.is_empty()
+                    {
+                        out.push(ApplicableRewrite {
+                            group: None,
+                            members: vec![finding],
+                        });
+                    }
+                }
+                Some(g) if whole.contains(g) => {
+                    if let Some(&at) = group_at.get(g) {
+                        out[at].members.push(finding);
+                    } else {
+                        group_at.insert(*g, out.len());
+                        out.push(ApplicableRewrite {
+                            group: Some(*g),
+                            members: vec![finding],
+                        });
+                    }
+                }
+                Some(_) => {}
+            }
+        }
+        out
+    }
+
+    /// `items`, one per finding in the producers' order, kept where the
+    /// finding shows and, for a grouped rewrite, where its whole group
+    /// shows — the rewrite loop's filter. Like [`Self::shown_items`], sound
+    /// because [`apply`] is order-stable and keeps every finding.
+    #[must_use]
+    pub fn applicable_items<T>(&self, items: Vec<T>) -> Vec<T> {
+        debug_assert_eq!(items.len(), self.outcomes.len(), "one item per finding");
+        let whole = self.whole_groups(GroupMembers::Shown);
+        self.outcomes
+            .iter()
+            .zip(items)
+            .filter_map(|((finding, outcome), item)| {
+                (matches!(outcome, Outcome::Shown { .. })
+                    && rewrite_group(finding).is_none_or(|g| whole.contains(&g)))
+                .then_some(item)
+            })
+            .collect()
+    }
+
+    /// The optimisation groups every member of which passes `members`. The
+    /// report keeps every finding, so it knows each group's full size
+    /// without a second list.
+    fn whole_groups(&self, members: GroupMembers) -> BTreeSet<u32> {
+        let mut seen: BTreeSet<u32> = BTreeSet::new();
+        let mut broken: BTreeSet<u32> = BTreeSet::new();
+        for (finding, outcome) in &self.outcomes {
+            let Some(FindingData::Rewrite {
+                group: Some(g),
+                hint_only,
+                ..
+            }) = &finding.data
+            else {
+                continue;
+            };
+            seen.insert(*g);
+            let shows = matches!(outcome, Outcome::Shown { .. });
+            if !shows || (members == GroupMembers::Actionable && *hint_only) {
+                broken.insert(*g);
+            }
+        }
+        seen.difference(&broken).copied().collect()
+    }
+
     /// Every pair, in the producers' order.
     pub fn iter(&self) -> impl Iterator<Item = &(Finding, Outcome)> {
         self.outcomes.iter()
@@ -485,6 +598,17 @@ impl Report {
     pub fn is_empty(&self) -> bool {
         self.outcomes.is_empty()
     }
+}
+
+/// Which members a whole optimisation group needs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum GroupMembers {
+    /// Every member shows — the rewrite loop's reading, where the optimiser
+    /// itself skips a `hint_only` record.
+    Shown,
+    /// Every member shows and none is `hint_only` — what a surface may offer
+    /// or publish as an edit.
+    Actionable,
 }
 
 /// The resolved decision for one code and the layer that won it.
@@ -1733,6 +1857,60 @@ mod apply_tests {
 
     fn tcl9() -> &'static DialectProfile {
         crate::profile_for_dialect("tcl9.0")
+    }
+
+    /// A group's edits apply all-or-nothing (#2149): once a directive hides
+    /// one member of an O127 pair, the other is neither offered nor applied —
+    /// the inline without its delete runs the assignment twice.
+    #[test]
+    fn a_group_that_lost_a_member_is_neither_offered_nor_applied() {
+        let text = "proc p {y} {\n    set x [llength $y]\n    # noqa\n    puts $x\n}\n";
+        let at = |needle: &str| {
+            let start = u32::try_from(text.find(needle).expect(needle)).unwrap();
+            Span::new(start, start + u32::try_from(needle.len()).unwrap())
+        };
+        let mut delete = Optimisation::new(
+            DiagCode::O127,
+            "Inline the single-use assignment",
+            at("set x [llength $y]"),
+            "",
+        );
+        delete.group = Some(7);
+        let mut inline = Optimisation::new(
+            DiagCode::O127,
+            "Inline the single-use assignment",
+            at("$x"),
+            "[llength $y]",
+        );
+        inline.group = Some(7);
+        let findings = || vec![Finding::from(delete.clone()), Finding::from(inline.clone())];
+
+        let mut lines: HashMap<i32, HashSet<String>> = HashMap::new();
+        lines.insert(3, std::iter::once("*".to_owned()).collect());
+        let directed = Policy {
+            optimiser: OptimiserPolicy::all_on(),
+            directives: Directives::new(lines, text),
+            ..Policy::default()
+        };
+        let report = apply(findings(), &directed);
+        assert_eq!(
+            shown_codes(&report),
+            vec![DiagCode::O127],
+            "the directive hides the member on line 3 alone"
+        );
+        assert!(report.applicable_rewrites().is_empty());
+        assert!(report.applicable_items(vec![0, 1]).is_empty());
+
+        let plain = Policy {
+            optimiser: OptimiserPolicy::all_on(),
+            ..Policy::default()
+        };
+        let report = apply(findings(), &plain);
+        let rewrites = report.applicable_rewrites();
+        assert_eq!(rewrites.len(), 1, "{rewrites:?}");
+        assert_eq!(rewrites[0].group, Some(7));
+        assert_eq!(rewrites[0].members.len(), 2);
+        assert_eq!(report.applicable_items(vec![0, 1]), vec![0, 1]);
     }
 
     #[test]

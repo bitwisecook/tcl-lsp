@@ -28,7 +28,11 @@
 
 use std::collections::BTreeMap;
 
-use tcl_dialect::TclVersion;
+use tcl_dialect::{
+    compare_versions_for, exact_requirement, select_package_version_exact_for,
+    select_package_version_for, validate_requirement_for, validate_version_for,
+    version_matches_exact_for, version_satisfies_for, PackagePrefer, TclVersion,
+};
 
 use crate::interp::{obj_bytes, Code, Interp};
 use crate::obj::TclObj;
@@ -175,14 +179,24 @@ fn provide(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         4 => {
             let name = obj_bytes(argv[2]);
             let version = obj_bytes(argv[3]);
+            if !valid_version(&version, interp.runtime_version()) {
+                return invalid_version(interp, &version);
+            }
             let existing = interp.packages.borrow().provided.get(&name).cloned();
             if let Some(existing) = existing {
-                if existing != version {
-                    let mut m = b"conflicting versions provided for package \"".to_vec();
-                    m.extend_from_slice(&name);
-                    m.extend_from_slice(b"\"");
-                    return interp.set_error(&m);
+                if compare_versions(&existing, &version, interp.runtime_version())
+                    != core::cmp::Ordering::Equal
+                {
+                    let mut message = b"conflicting versions provided for package \"".to_vec();
+                    message.extend_from_slice(&name);
+                    message.extend_from_slice(b"\": ");
+                    message.extend_from_slice(&existing);
+                    message.extend_from_slice(b", then ");
+                    message.extend_from_slice(&version);
+                    return interp.error_with_code(&message, b"TCL PACKAGE VERSIONCONFLICT");
                 }
+                interp.set_result_bytes(b"");
+                return Code::Ok;
             }
             interp.packages.borrow_mut().provided.insert(name, version);
             interp.set_result_bytes(b"");
@@ -194,42 +208,75 @@ fn provide(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 /// `package require ?-exact? name ?requirement ...?`.
 fn require(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    let mut i = 2;
-    let exact = argv
-        .get(i)
-        .is_some_and(|&a| obj_bytes(a).as_slice() == b"-exact");
-    if exact {
-        i += 1;
-    }
-    let Some(&name_obj) = argv.get(i) else {
-        return interp.wrong_args(b"package require ?-exact? package ?requirement ...?");
-    };
-    let name = obj_bytes(name_obj);
-    let reqs: Vec<Vec<u8>> = argv[i + 1..].iter().map(|&a| obj_bytes(a)).collect();
+    package_lookup(interp, argv, true)
+}
 
-    // 1. Already provided and satisfactory?
-    if let Some(found) = check_provided(interp, &name, exact, &reqs) {
-        return match found {
-            Ok(v) => {
-                interp.set_result_bytes(&v);
-                Code::Ok
-            }
-            Err(code) => code,
-        };
+/// `package present ?-exact? name ?requirement ...?` — like require, no loading.
+fn present(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    package_lookup(interp, argv, false)
+}
+
+fn package_lookup(interp: &mut Interp, argv: &[*mut TclObj], load: bool) -> Code {
+    let mut index = 2;
+    let exact = argv
+        .get(index)
+        .is_some_and(|&arg| obj_bytes(arg).as_slice() == b"-exact");
+    if exact {
+        index += 1;
     }
-    // 2. Try an `ifneeded` load script for a satisfying version; if none yet,
-    //    run the `unknown` handler (auto-loader / pkgIndex search) and retry.
+    let Some(&name_obj) = argv.get(index) else {
+        return interp.wrong_args(if load {
+            b"package require ?-exact? package ?requirement ...?"
+        } else {
+            b"package present ?-exact? package ?requirement ...?"
+        });
+    };
+    let requirements: Vec<Vec<u8>> = argv[index + 1..]
+        .iter()
+        .map(|&arg| obj_bytes(arg))
+        .collect();
+    if exact && requirements.len() != 1 {
+        return interp.wrong_args(if load {
+            b"package require ?-exact? package ?requirement ...?"
+        } else {
+            b"package present ?-exact? package ?requirement ...?"
+        });
+    }
+    let release = interp.runtime_version();
+    if exact {
+        if !valid_version(&requirements[0], release) {
+            return invalid_version(interp, &requirements[0]);
+        }
+    } else {
+        for requirement in &requirements {
+            if let Some(error) = invalid_requirement_kind(requirement, release) {
+                return invalid_requirement(interp, error);
+            }
+        }
+    }
+    let name = obj_bytes(name_obj);
+    match check_provided(interp, &name, exact, &requirements) {
+        Some(Ok(version)) => {
+            interp.set_result_bytes(&version);
+            return Code::Ok;
+        }
+        Some(Err(code)) => return code,
+        None if !load => {
+            let mut message = b"package ".to_vec();
+            message.extend_from_slice(&name);
+            message.extend_from_slice(b" is not present");
+            return interp.set_error(&message);
+        }
+        None => {}
+    }
     for attempt in 0..2 {
-        if let Some(ver) = best_ifneeded(interp, &name, exact, &reqs) {
-            let script = interp.packages.borrow().ifneeded[&(name.clone(), ver)].clone();
-            // Package load scripts run at the global scope (C's `uplevel #0`),
-            // so a package's `namespace eval foo` creates `::foo` even when
-            // `package require` is called from inside another namespace.
+        if let Some(version) = best_ifneeded(interp, &name, exact, &requirements) {
+            let script = interp.packages.borrow().ifneeded[&(name.clone(), version)].clone();
             if interp.eval_uplevel(0, &script) == Code::Error {
                 return Code::Error;
             }
-            if let Some(Ok(v)) = check_provided(interp, &name, exact, &reqs) {
-                interp.set_result_bytes(&v);
+            if let Some(Ok(version)) = check_provided(interp, &name, exact, &requirements) {
+                interp.set_result_bytes(&version);
                 return Code::Ok;
             }
         }
@@ -239,43 +286,65 @@ fn require(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 break;
             }
             let mut script = handler;
-            for w in std::iter::once(&name).chain(reqs.iter()) {
+            script.push(b' ');
+            tcl_syntax::list::append_list_element(&mut script, &name, false);
+            for requirement in &requirements {
                 script.push(b' ');
-                script.extend_from_slice(w);
+                if exact {
+                    let exact_requirement = exact_requirement(&version_text(requirement));
+                    tcl_syntax::list::append_list_element(
+                        &mut script,
+                        exact_requirement.as_bytes(),
+                        false,
+                    );
+                } else {
+                    tcl_syntax::list::append_list_element(&mut script, requirement, false);
+                }
             }
-            // The `package unknown` handler (pkgIndex search) also runs globally.
             if interp.eval_uplevel(0, &script) == Code::Error {
                 return Code::Error;
             }
         }
     }
-    let mut m = b"can't find package ".to_vec();
-    m.extend_from_slice(&name);
-    interp.set_error(&m)
+    let mut message = b"can't find package ".to_vec();
+    message.extend_from_slice(&name);
+    interp.set_error(&message)
 }
 
 /// The highest `ifneeded` version of `name` satisfying the requirements (for
-/// `-exact`, an exact match), or `None`.
-fn best_ifneeded(interp: &Interp, name: &[u8], exact: bool, reqs: &[Vec<u8>]) -> Option<Vec<u8>> {
-    let mut best: Option<Vec<u8>> = None;
-    for (n, v) in interp.packages.borrow().ifneeded.keys() {
-        if n != name {
-            continue;
-        }
-        let ok = if exact {
-            reqs.first().is_none_or(|r| r == v)
-        } else {
-            reqs.iter().all(|r| vsatisfies(v, r))
-        };
-        if ok
-            && best
-                .as_ref()
-                .is_none_or(|b| vcompare(v, b) == core::cmp::Ordering::Greater)
-        {
-            best = Some(v.clone());
-        }
-    }
-    best
+/// `-exact`, an equivalent version), or `None`.
+fn best_ifneeded(
+    interp: &Interp,
+    name: &[u8],
+    exact: bool,
+    requirements: &[Vec<u8>],
+) -> Option<Vec<u8>> {
+    let candidates: Vec<Vec<u8>> = interp
+        .packages
+        .borrow()
+        .ifneeded
+        .keys()
+        .filter(|(candidate_name, _)| candidate_name.as_slice() == name)
+        .map(|(_, version)| version.clone())
+        .collect();
+    let versions: Vec<String> = candidates
+        .iter()
+        .map(|version| version_text(version))
+        .collect();
+    let release = interp.runtime_version();
+    let selected = if exact {
+        select_package_version_exact_for(&versions, &version_text(&requirements[0]), release)
+    } else {
+        let requirements: Vec<String> = requirements
+            .iter()
+            .map(|requirement| version_text(requirement))
+            .collect();
+        let requirements: Vec<&str> = requirements.iter().map(String::as_str).collect();
+        // `package prefer` is not implemented here, so preserve Tcl's initial
+        // preference: stable providers win when one satisfies the request.
+        select_package_version_for(&versions, &requirements, PackagePrefer::Stable, release)
+    }?;
+    Some(candidates[selected].clone())
 }
 
 /// If `name` is provided and satisfies the requirements, `Some(Ok(version))`; if
@@ -284,51 +353,42 @@ fn check_provided(
     interp: &mut Interp,
     name: &[u8],
     exact: bool,
-    reqs: &[Vec<u8>],
+    requirements: &[Vec<u8>],
 ) -> Option<Result<Vec<u8>, Code>> {
-    let v = interp.packages.borrow().provided.get(name)?.clone();
-    let ok = if exact {
-        reqs.first().is_none_or(|r| r == &v)
+    let version = interp.packages.borrow().provided.get(name)?.clone();
+    let release = interp.runtime_version();
+    let satisfied = requirements.is_empty()
+        || if exact {
+            version_matches_exact_for(
+                &version_text(&version),
+                &version_text(&requirements[0]),
+                release,
+            )
+        } else {
+            requirements.iter().any(|requirement| {
+                version_satisfies_for(&version_text(&version), &version_text(requirement), release)
+            })
+        };
+    if satisfied {
+        Some(Ok(version))
     } else {
-        reqs.iter().all(|r| vsatisfies(&v, r))
-    };
-    if ok {
-        Some(Ok(v))
-    } else {
-        let mut m = b"version conflict for package \"".to_vec();
-        m.extend_from_slice(name);
-        m.extend_from_slice(b"\": have ");
-        m.extend_from_slice(&v);
-        Some(Err(interp.set_error(&m)))
-    }
-}
-
-/// `package present ?-exact? name ?requirement ...?` — like require, no loading.
-fn present(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    let mut i = 2;
-    let exact = argv
-        .get(i)
-        .is_some_and(|&a| obj_bytes(a).as_slice() == b"-exact");
-    if exact {
-        i += 1;
-    }
-    let Some(&name_obj) = argv.get(i) else {
-        return interp.wrong_args(b"package present ?-exact? package ?requirement ...?");
-    };
-    let name = obj_bytes(name_obj);
-    let reqs: Vec<Vec<u8>> = argv[i + 1..].iter().map(|&a| obj_bytes(a)).collect();
-    match check_provided(interp, &name, exact, &reqs) {
-        Some(Ok(v)) => {
-            interp.set_result_bytes(&v);
-            Code::Ok
+        let mut message = b"version conflict for package \"".to_vec();
+        message.extend_from_slice(name);
+        message.extend_from_slice(b"\": have ");
+        message.extend_from_slice(&version);
+        message.extend_from_slice(b", need ");
+        if exact {
+            message.extend_from_slice(b"exactly ");
         }
-        Some(Err(code)) => code,
-        None => {
-            let mut m = b"package ".to_vec();
-            m.extend_from_slice(&name);
-            m.extend_from_slice(b" is not present");
-            interp.set_error(&m)
+        for (index, requirement) in requirements.iter().enumerate() {
+            if index != 0 {
+                message.push(b' ');
+            }
+            message.extend_from_slice(requirement);
         }
+        Some(Err(
+            interp.error_with_code(&message, b"TCL PACKAGE VERSIONCONFLICT")
+        ))
     }
 }
 
@@ -338,6 +398,9 @@ fn ifneeded(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return interp.wrong_args(b"package ifneeded package version ?script?");
     }
     let key = (obj_bytes(argv[2]), obj_bytes(argv[3]));
+    if !valid_version(&key.1, interp.runtime_version()) {
+        return invalid_version(interp, &key.1);
+    }
     if argv.len() == 5 {
         interp
             .packages
@@ -412,9 +475,25 @@ fn vsatisfies_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 4 {
         return interp.wrong_args(b"package vsatisfies version requirement ?requirement ...?");
     }
-    let v = obj_bytes(argv[2]);
-    let ok = argv[3..].iter().all(|&r| vsatisfies(&v, &obj_bytes(r)));
-    interp.set_result_bytes(if ok { b"1" } else { b"0" });
+    let version = obj_bytes(argv[2]);
+    let release = interp.runtime_version();
+    if !valid_version(&version, release) {
+        return invalid_version(interp, &version);
+    }
+    for &requirement in &argv[3..] {
+        let requirement = obj_bytes(requirement);
+        if let Some(error) = invalid_requirement_kind(&requirement, release) {
+            return invalid_requirement(interp, error);
+        }
+    }
+    let satisfied = argv[3..].iter().any(|&requirement| {
+        version_satisfies_for(
+            &version_text(&version),
+            &version_text(&obj_bytes(requirement)),
+            release,
+        )
+    });
+    interp.set_result_bytes(if satisfied { b"1" } else { b"0" });
     Code::Ok
 }
 
@@ -422,61 +501,69 @@ fn vcompare_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 4 {
         return interp.wrong_args(b"package vcompare version1 version2");
     }
-    let c = vcompare(&obj_bytes(argv[2]), &obj_bytes(argv[3]));
-    interp.set_result_bytes(format!("{}", c as i32).as_bytes());
+    let left = obj_bytes(argv[2]);
+    let right = obj_bytes(argv[3]);
+    let release = interp.runtime_version();
+    if !valid_version(&left, release) {
+        return invalid_version(interp, &left);
+    }
+    if !valid_version(&right, release) {
+        return invalid_version(interp, &right);
+    }
+    let comparison = compare_versions(&left, &right, release);
+    interp.set_result_bytes(match comparison {
+        core::cmp::Ordering::Less => b"-1",
+        core::cmp::Ordering::Equal => b"0",
+        core::cmp::Ordering::Greater => b"1",
+    });
     Code::Ok
 }
 
-// version arithmetic (TIP 268)
-
-fn components(v: &[u8]) -> Vec<i64> {
-    v.split(|&b| b == b'.')
-        .map(|p| {
-            core::str::from_utf8(p)
-                .ok()
-                .and_then(|s| s.parse().ok())
-                .unwrap_or(0)
-        })
-        .collect()
+fn version_text(bytes: &[u8]) -> String {
+    String::from_utf8_lossy(bytes).into_owned()
 }
 
-/// Compare two dot-separated integer versions.
-fn vcompare(a: &[u8], b: &[u8]) -> core::cmp::Ordering {
-    let (ca, cb) = (components(a), components(b));
-    let n = ca.len().max(cb.len());
-    for i in 0..n {
-        let x = ca.get(i).copied().unwrap_or(0);
-        let y = cb.get(i).copied().unwrap_or(0);
-        match x.cmp(&y) {
-            core::cmp::Ordering::Equal => {}
-            ord => return ord,
+fn valid_version(bytes: &[u8], release: TclVersion) -> bool {
+    validate_version_for(&version_text(bytes), release)
+}
+
+enum InvalidRequirement {
+    Version(Vec<u8>),
+    Range(Vec<u8>),
+}
+
+fn invalid_requirement_kind(bytes: &[u8], release: TclVersion) -> Option<InvalidRequirement> {
+    match validate_requirement_for(&version_text(bytes), release) {
+        Ok(()) => None,
+        Err(tcl_dialect::RequirementValidationError::InvalidVersion(version)) => {
+            Some(InvalidRequirement::Version(version.as_bytes().to_vec()))
+        }
+        Err(tcl_dialect::RequirementValidationError::InvalidRange(requirement)) => {
+            Some(InvalidRequirement::Range(requirement.as_bytes().to_vec()))
         }
     }
-    core::cmp::Ordering::Equal
 }
 
-/// Whether version `v` satisfies a single requirement (`min-`, `min-max`, or a
-/// bare `min` meaning the same major series).
-fn vsatisfies(v: &[u8], req: &[u8]) -> bool {
-    use core::cmp::Ordering::Less;
-    if let Some(dash) = req.iter().position(|&b| b == b'-') {
-        let min = &req[..dash];
-        let max = &req[dash + 1..];
-        if vcompare(v, min) == Less {
-            return false; // v < min
+fn compare_versions(left: &[u8], right: &[u8], release: TclVersion) -> core::cmp::Ordering {
+    compare_versions_for(&version_text(left), &version_text(right), release)
+}
+
+fn invalid_version(interp: &mut Interp, version: &[u8]) -> Code {
+    let mut message = b"expected version number but got \"".to_vec();
+    message.extend_from_slice(version);
+    message.push(b'"');
+    interp.error_with_code(&message, b"TCL VALUE VERSION")
+}
+
+fn invalid_requirement(interp: &mut Interp, error: InvalidRequirement) -> Code {
+    match error {
+        InvalidRequirement::Version(version) => invalid_version(interp, &version),
+        InvalidRequirement::Range(requirement) => {
+            let mut message = b"expected versionMin-versionMax but got \"".to_vec();
+            message.extend_from_slice(&requirement);
+            message.push(b'"');
+            interp.error_with_code(&message, b"TCL VALUE VERSIONRANGE")
         }
-        if max.is_empty() {
-            true // `min-` : unbounded above
-        } else {
-            vcompare(v, max) == Less // `min-max` : v < max
-        }
-    } else {
-        // Bare `min`: v >= min and v < (firstComponent(min) + 1).
-        if vcompare(v, req) == Less {
-            return false;
-        }
-        let bump = components(req).first().copied().unwrap_or(0) + 1;
-        vcompare(v, bump.to_string().as_bytes()) == Less
     }
 }
 
@@ -571,6 +658,71 @@ mod tests {
             assert_eq!(run(i, b"package vsatisfies 9.0 8.5"), b"0");
             assert_eq!(run(i, b"package vcompare 8.5 9.0"), b"-1");
             assert_eq!(run(i, b"package vcompare 9.0.4 9.0.4"), b"0");
+        });
+    }
+
+    #[test]
+    fn package_versions_use_the_pinned_shared_release_policy() {
+        leak_free(|i| {
+            i.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+            for command in [
+                "package provide p 1.2+x",
+                "package ifneeded p 1.2+x {}",
+                "package vsatisfies 1.2 1.2+x",
+                "package vcompare 1.2+x 1.2",
+                "package require absent 1.2+x",
+                "package present absent 1.2+x",
+            ] {
+                assert_eq!(i.eval_str(command.as_bytes()), Code::Error, "{command}");
+                let caught =
+                    format!("catch {{{command}}} message options; dict get $options -errorcode");
+                assert_eq!(run(i, caught.as_bytes()), b"TCL VALUE VERSION", "{command}");
+            }
+            assert_eq!(run(i, b"package provide p 1.2"), b"");
+            assert_eq!(
+                run(i, b"catch {package provide p 1.3} message; set message"),
+                b"conflicting versions provided for package \"p\": 1.2, then 1.3"
+            );
+            assert_eq!(
+                run(
+                    i,
+                    b"catch {package provide p 1.3} message options; dict get $options -errorcode"
+                ),
+                b"TCL PACKAGE VERSIONCONFLICT"
+            );
+
+            i.set_runtime_version(tcl_dialect::TclVersion::V9_0);
+            assert_eq!(
+                run(
+                    i,
+                    b"catch {package vsatisfies 1 1-bad} message; set message"
+                ),
+                b"expected version number but got \"bad\""
+            );
+            assert_eq!(
+                run(i, b"catch {package vsatisfies 1 1-2-3} message options; dict get $options -errorcode"),
+                b"TCL VALUE VERSIONRANGE"
+            );
+            assert_eq!(run(i, b"package provide q 1.2+x"), b"");
+            assert_eq!(run(i, b"package provide q 1.2+y"), b"");
+            assert_eq!(run(i, b"package vcompare 1.2+x 1.2"), b"0");
+            assert_eq!(
+                run(i, b"package ifneeded r 1.2+x {package provide r 1.2+x}"),
+                b""
+            );
+            assert_eq!(run(i, b"package require -exact r 1.2+y"), b"1.2+x");
+            run(
+                i,
+                b"proc package_callback args {set ::package_callback $args}",
+            );
+            run(i, b"package unknown package_callback");
+            assert_eq!(
+                run(
+                    i,
+                    b"catch {package require -exact absent {1.2+x space{brace}}}; set ::package_callback"
+                ),
+                b"absent {1.2+x space{brace}-1.2+x space{brace}}"
+            );
         });
     }
 

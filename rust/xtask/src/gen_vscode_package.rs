@@ -59,9 +59,9 @@ const SECTIONS: &[(&str, &str)] = &[
     ("irules_security", "Diagnostics — iRules"),
     ("irules_variable", "Diagnostics — iRules"),
     ("bigip", "Diagnostics — BIG-IP Configuration"),
+    ("xc", "Diagnostics — XC Translatability"),
     ("sslictcl", "Diagnostics — SslicTcl"),
     ("tclpkg", "Diagnostics — Package Manager"),
-    ("xc", "Diagnostics — XC Translation"),
 ];
 
 /// A user-configurable diagnostic row: `(code, default_on, description)`.

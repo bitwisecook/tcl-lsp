@@ -88,7 +88,6 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use tcl_dialect::model::surfaces_overlap;
 
-use tcl_dialect::model::environment::Provenance;
 use tcl_spec_hooks::pack_eval::{
     self, PackEvalConfig, PackEvalCtx, PackEvalFailure, UnknownHandler, WordHandler,
 };
@@ -112,10 +111,21 @@ pub const LOADER_EVAL_VERSION: u32 = 2;
 /// and the sandbox budget.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct EvalOptions {
-    /// The tier the pack loads from. [`Tier::Workspace`] and
-    /// [`Tier::StudioOverride`] are the untrusted provenance classes: their
-    /// registrations may not touch reserved compiled names or compiled
-    /// dialect axes.
+    /// The tier the pack loads from. Whether its registrations are gated by
+    /// E-R2's untrusted rules — no reserved compiled name, no compiled
+    /// dialect axis — is [`Provenance::is_untrusted`]'s answer about the
+    /// provenance [`super::PackEnvironmentTier::provenance`] maps this tier
+    /// to, never a property of the tier itself.
+    ///
+    /// Today that makes [`Tier::StudioOverride`] untrusted and
+    /// [`Tier::Workspace`] **trusted**: the latter maps to
+    /// [`Provenance::WorkspaceTrusted`] because nothing on the discovery
+    /// path is told the editor's Workspace Trust state yet (redesign ledger
+    /// item O9). This comment used to name both tiers as untrusted, which
+    /// was wrong for the first one it named (#2139).
+    ///
+    /// [`Provenance::is_untrusted`]: tcl_dialect::model::Provenance::is_untrusted
+    /// [`Provenance::WorkspaceTrusted`]: tcl_dialect::model::Provenance::WorkspaceTrusted
     pub tier: Tier,
     /// The budgets evaluation runs under.
     pub config: PackEvalConfig,
@@ -1764,11 +1774,13 @@ fn failed_pack(state: &State, failure: &PackEvalFailure) -> Pack {
 
 /// Whether this tier's registrations are gated by E-R2's untrusted rules.
 ///
-/// The class is the one [`super::PackEnvironmentTier::provenance`] already
-/// maps a tier to, so the loader and the registration layer cannot disagree
-/// about what a tier means — before this was derived, the loader called
-/// `Tier::Workspace` untrusted while the environment model called the same
-/// tier [`Provenance::WorkspaceTrusted`].
+/// The class itself is [`Provenance::is_untrusted`]'s to decide — this is
+/// only the tier-to-provenance step, through the map
+/// [`super::PackEnvironmentTier::provenance`] already owns, so the loader
+/// and the registration layer cannot disagree about what a tier means.
+/// Before the class was derived, the loader called `Tier::Workspace`
+/// untrusted while the environment model called the same tier
+/// [`Provenance::WorkspaceTrusted`].
 ///
 /// Redesign §6.4 keys the workspace half on the **editor's Workspace Trust
 /// state**, not on where the file was discovered: a *trusted* workspace pack
@@ -1776,16 +1788,19 @@ fn failed_pack(state: &State, failure: &PackEvalFailure) -> Pack {
 /// [`crate::install`] implements, tests, and reports through
 /// [`crate::pack::collision_notices`] — and only an *untrusted* workspace
 /// needs "explicit trusted opt-in". Nothing on the discovery path is told
-/// the trust state yet (redesign open item 19), so the untrusted class is
-/// reachable today through the live Spec Studio override tier; the day the
-/// editor's trust state is plumbed, it arrives as a tier whose provenance is
-/// [`Provenance::WorkspaceUntrusted`] and this predicate already answers for
-/// it.
+/// the trust state yet (redesign ledger item **O9**), so the untrusted class
+/// is reachable today through the live Spec Studio override tier; the day
+/// the editor's trust state is plumbed, it arrives as a tier whose
+/// provenance is [`Provenance::WorkspaceUntrusted`] and this predicate
+/// already answers for it.
+///
+/// [`Provenance::is_untrusted`]: tcl_dialect::model::Provenance::is_untrusted
+/// [`Provenance::WorkspaceTrusted`]: tcl_dialect::model::Provenance::WorkspaceTrusted
+/// [`Provenance::WorkspaceUntrusted`]: tcl_dialect::model::Provenance::WorkspaceUntrusted
 fn untrusted(tier: Tier) -> bool {
-    matches!(
-        super::PackEnvironmentTier::of(tier).provenance(),
-        Provenance::WorkspaceUntrusted | Provenance::StudioOverride | Provenance::Document
-    )
+    super::PackEnvironmentTier::of(tier)
+        .provenance()
+        .is_untrusted()
 }
 
 /// The compiled command surface a workspace pack may not shadow: the

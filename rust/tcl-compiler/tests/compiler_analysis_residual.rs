@@ -1416,3 +1416,132 @@ fn rch_while1_with_break_post_loop_is_reachable() {
         codes(src, D)
     );
 }
+
+/// Build `src` through the per-procedure lattice memo, exactly the way
+/// `tcl-lsp-db`'s `function_lattice` does: a single-CFG rebuild under the
+/// request's analysis context, whose command-trust snapshot is the module's
+/// whole-module view. Returns the unit, how many times the memo callback was
+/// reached, and the analysis context each request carried.
+fn memoised_unit(
+    src: &str,
+) -> (
+    CompilationUnit,
+    usize,
+    Vec<tcl_compiler::value_transfer::AnalysisContextKey>,
+) {
+    let registry = reg();
+    let mut hits = 0usize;
+    let mut contexts = Vec::new();
+    let cu = CompilationUnit::build_for_memoized(
+        src,
+        tcl_compiler::compilation_unit::UnitBuildOptions {
+            registry: &registry,
+            defer_top_level: false,
+            config: tcl_lexer::LexerConfig::default(),
+            dialect: Some(tcl_registry::model::ingress::resolve_environment(D).analyser_profile()),
+            external_call_sites: None,
+            declared_commands: None,
+        },
+        &mut |req: &tcl_compiler::compilation_unit::LatticeRequest<'_>| -> FunctionUnit {
+            hits += 1;
+            contexts.push(req.analysis_context.clone());
+            let cfg = tcl_compiler::cfg_builder::build_cfg_function_with_upvars_and_config(
+                req.qname,
+                req.body,
+                true,
+                &registry,
+                req.plain_command_dispatch,
+                (
+                    req.upvar_procs.clone(),
+                    req.proc_params.clone(),
+                    req.global_write_procs.clone(),
+                    req.command_bindings.clone(),
+                ),
+                tcl_lexer::LexerConfig::default(),
+            );
+            let pc = tcl_compiler::compilation_unit::decode_param_constants(req.param_constants);
+            let traced: std::collections::BTreeSet<String> =
+                req.traced_variables.iter().cloned().collect();
+            FunctionUnit::build_with_param_constants_and_classes_under(
+                req.qname,
+                cfg,
+                req.params,
+                tcl_compiler::compilation_unit::UnitDialect {
+                    registry: &registry,
+                    config: tcl_lexer::LexerConfig::default(),
+                },
+                pc.as_ref(),
+                &req.known_classes.iter().cloned().collect(),
+                tcl_compiler::compilation_unit::ModuleAnalysisFacts {
+                    trace: tcl_compiler::compilation_unit::ModuleTraceFacts {
+                        traced_variables: &traced,
+                        has_dynamic_variable_trace: req.has_dynamic_variable_trace,
+                    },
+                    analysis_context: req.analysis_context,
+                },
+            )
+        },
+    );
+    (cu, hits, contexts)
+}
+
+/// Whether `::g`'s lattice proves its local `v` is the integer 3.
+fn g_proves_v_is_three(cu: &CompilationUnit) -> bool {
+    let Some(fu) = cu.procedures.get("::g") else {
+        return false;
+    };
+    let Some(sym) = fu.ssa.var_symbol("v") else {
+        return false;
+    };
+    fu.sccp.values.iter().any(|((s, _), lv)| {
+        *s == sym
+            && matches!(
+                lv,
+                tcl_compiler::analyses::LatticeValue::Const(
+                    tcl_compiler::analyses::ConstValue::Int(3)
+                )
+            )
+    })
+}
+
+/// A `proc llength …` shadow declared elsewhere in the module is visible only
+/// to the whole-module command-mutation scan, so the per-procedure lattice
+/// memo must carry that scan in its key and fold under it: a module that
+/// shadows a builtin is never served a unit built as if every builtin still
+/// meant what it spells (#2164). The key's analysis context carries the
+/// module's command-trust snapshot, so the memo stays on and answers under
+/// the module's own trust — the rewrite, onto the value-transfer lane's
+/// keyed memo, of `rust`'s `a_shadowing_module_refuses_the_memoised_lattice`,
+/// which bypassed the memo because its key could not carry the fact.
+///
+/// tclsh 8.4.20 – 9.1b0 (unanimous): with the shadow, `[llength {a b c}]` is
+/// 99, so a lattice claiming `v == 3` is wrong.
+#[test]
+fn a_shadowing_module_is_served_a_lattice_keyed_by_its_trust() {
+    let (shadowed, hits, shadowed_contexts) = memoised_unit(
+        "proc llength {l} { return 99 }\nproc g {} { set v [llength {a b c}]; return $v }\n",
+    );
+    assert!(hits > 0, "the memo stays on, keyed by the module's trust");
+    assert!(
+        !g_proves_v_is_three(&shadowed),
+        "the memoised lattice must not answer with the builtin's 3"
+    );
+
+    // Positive control: the same shape with nothing shadowed reaches the
+    // memo under a different key, and the unit it returns does prove
+    // `v == 3` — so the assertions above measure the trust in the key, not
+    // an unreachable memo or a lattice that never had the fact.
+    let (control, hits, control_contexts) =
+        memoised_unit("proc g {} { set v [llength {a b c}]; return $v }\n");
+    assert!(hits > 0, "the control must reach the memo");
+    assert!(
+        g_proves_v_is_three(&control),
+        "the control's memoised lattice does prove v == 3"
+    );
+    assert!(
+        shadowed_contexts
+            .iter()
+            .all(|context| !control_contexts.contains(context)),
+        "a shadowing module's requests must not share the control's key"
+    );
+}

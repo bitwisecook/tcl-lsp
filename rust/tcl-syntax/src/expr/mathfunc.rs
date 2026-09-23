@@ -266,6 +266,50 @@ fn converts_to_integer(name: &str) -> bool {
     matches!(name, "entier" | "int" | "wide" | "round" | "isqrt")
 }
 
+/// How one of the three integer conversions treats an operand that is
+/// **already** an integer object.
+///
+/// C's `ExprEntierFunc` hands such an operand straight back, so the result
+/// keeps the operand's own string representation
+/// (`::tcl::mathfunc::entier 0x10` is `0x10`, not `16`, on tclsh 8.5-9.1).
+/// A conversion that narrows has to build a new integer and therefore cannot
+/// preserve it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IntegerConversion {
+    /// Hand the operand back as the same object, keeping its string rep.
+    Preserve,
+    /// Narrow to C's low-64-bit window, building a new integer.
+    Window,
+}
+
+/// What `name` does to an already-integral operand under `int_width`, or
+/// `None` when `name` is not an integer conversion that can preserve its
+/// operand, or the release is unresolved.
+///
+/// This is the single owner of the policy: `wide` windows in every release,
+/// `entier` is unbounded in every release, and `int` follows the release's
+/// [`IntWidth`] axis — 8.4-8.6 window it, 9.0+ bind it to the same unbounded
+/// conversion as `entier`. Under [`IntWidth::Unresolved`] the caller has not
+/// pinned a release, and `int` would differ between them, so it abstains
+/// rather than letting a consumer bake in one release's answer — the same
+/// rule [`abstains`] applies to the value table.
+///
+/// `round` and `isqrt` convert to an integer but always compute a new value,
+/// so they are not preservation candidates and answer `None`.
+#[must_use]
+pub fn integer_conversion(name: &str, int_width: IntWidth) -> Option<IntegerConversion> {
+    match name {
+        "wide" => Some(IntegerConversion::Window),
+        "entier" => Some(IntegerConversion::Preserve),
+        "int" => match int_width {
+            IntWidth::Windowed => Some(IntegerConversion::Window),
+            IntWidth::Unbounded => Some(IntegerConversion::Preserve),
+            IntWidth::Unresolved => None,
+        },
+        _ => None,
+    }
+}
+
 /// Dispatch with an **error channel**: the same table as
 /// [`dispatch_with_backend_int_width`], but each refusal keeps the class C
 /// reports it as, so a runtime can stamp the right message and `-errorcode`,
@@ -1785,5 +1829,65 @@ mod tests {
             IntWidth::for_tcl_version(tcl_dialect::TclVersion::V9_1),
             IntWidth::Unbounded
         );
+    }
+
+    /// The object-preserving integer policy has exactly one owner. Both
+    /// engines (`tcl-vm`'s `cmd_math` and `runtime/rust`'s `cmd_mathfunc`)
+    /// read [`integer_conversion`]; before this existed each carried its own
+    /// `wide`/`int`/`entier` name match and the two could drift.
+    #[test]
+    fn integer_conversion_owns_the_preserve_versus_window_policy() {
+        use IntegerConversion::{Preserve, Window};
+
+        // `wide` windows and `entier` preserves in every release.
+        for w in [
+            IntWidth::Windowed,
+            IntWidth::Unbounded,
+            IntWidth::Unresolved,
+        ] {
+            assert_eq!(integer_conversion("wide", w), Some(Window), "wide {w:?}");
+            assert_eq!(
+                integer_conversion("entier", w),
+                Some(Preserve),
+                "entier {w:?}"
+            );
+        }
+
+        // `int` follows the release axis, and abstains when it is unresolved
+        // rather than baking in one release's answer.
+        assert_eq!(integer_conversion("int", IntWidth::Windowed), Some(Window));
+        assert_eq!(
+            integer_conversion("int", IntWidth::Unbounded),
+            Some(Preserve)
+        );
+        assert_eq!(integer_conversion("int", IntWidth::Unresolved), None);
+
+        // Tied to the releases themselves, not just to the axis enum.
+        for (v, want) in [
+            (tcl_dialect::TclVersion::V8_4, Window),
+            (tcl_dialect::TclVersion::V8_5, Window),
+            (tcl_dialect::TclVersion::V8_6, Window),
+            (tcl_dialect::TclVersion::V9_0, Preserve),
+            (tcl_dialect::TclVersion::V9_1, Preserve),
+        ] {
+            assert_eq!(
+                integer_conversion("int", IntWidth::for_tcl_version(v)),
+                Some(want),
+                "int under {v:?}"
+            );
+        }
+
+        // `round`/`isqrt` convert to an integer but always compute a new
+        // value, so they are not preservation candidates; nor is anything
+        // outside the three.
+        for name in ["round", "isqrt", "abs", "double", "sqrt", "frobnicate"] {
+            for w in [
+                IntWidth::Windowed,
+                IntWidth::Unbounded,
+                IntWidth::Unresolved,
+            ] {
+                assert_eq!(integer_conversion(name, w), None, "{name} {w:?}");
+            }
+        }
     }
 }

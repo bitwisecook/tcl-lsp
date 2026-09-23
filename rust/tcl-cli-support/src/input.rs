@@ -434,9 +434,21 @@ pub fn read_input_documents(
 /// Combine documents into one source string: each doc's trailing newlines are
 /// stripped and the chunks are joined with a blank line (mirrors
 /// `_combine_sources`).
+///
+/// Every combining verb (the transforms, the graph verbs, the explorer, and
+/// the compile verbs) feeds its result straight into the analyser or the
+/// compiler, so this joins each document's [`InputDocument::analysis_source`]
+/// rather than its raw `source` — the one join point normalising lone `\r`
+/// once means a verb that starts combining documents tomorrow gets it by
+/// construction, rather than by remembering to call `analysis_source` itself
+/// (#1953: six verbs had not).
 #[must_use]
 pub fn combine_sources(documents: &[InputDocument]) -> String {
-    combine_texts(documents.iter().map(|d| d.source.as_str()))
+    let sources: Vec<_> = documents
+        .iter()
+        .map(InputDocument::analysis_source)
+        .collect();
+    combine_texts(sources.iter().map(AsRef::as_ref))
 }
 
 /// [`combine_sources`] over texts a verb already transformed one by one —

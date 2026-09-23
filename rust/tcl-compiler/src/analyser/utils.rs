@@ -2456,6 +2456,7 @@ mod tests {
         // A non-assign statement — return.
         let stmt = Statement::Return {
             value: None,
+            value_word: None,
             expr: None,
             command_binding: None,
             braced: false,

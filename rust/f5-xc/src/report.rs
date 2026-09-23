@@ -92,7 +92,7 @@ fn item_value(item: &TranslationItem) -> Value {
         "command": item.irule_command,
         "xc_description": item.xc_description,
         "note": item.note,
-        "diagnostic_code": item.diagnostic_code,
+        "diagnostic_code": item.diagnostic_code.as_str(),
     })
 }
 
@@ -146,10 +146,10 @@ pub fn translation_payload(
         .map(|i| json!({ "command": i.irule_command, "kind": i.kind.as_str(), "xc_description": i.xc_description }))
         .collect();
     let untranslatable: Vec<Value> = items_where(result, TranslateStatus::Untranslatable)
-        .map(|i| json!({ "command": i.irule_command, "reason": i.xc_description, "suggestion": i.note, "diagnostic_code": i.diagnostic_code }))
+        .map(|i| json!({ "command": i.irule_command, "reason": i.xc_description, "suggestion": i.note, "diagnostic_code": i.diagnostic_code.as_str() }))
         .collect();
     let partial: Vec<Value> = items_where(result, TranslateStatus::Partial)
-        .map(|i| json!({ "command": i.irule_command, "reason": i.xc_description, "suggestion": i.note, "diagnostic_code": i.diagnostic_code }))
+        .map(|i| json!({ "command": i.irule_command, "reason": i.xc_description, "suggestion": i.note, "diagnostic_code": i.diagnostic_code.as_str() }))
         .collect();
     let advisory: Vec<Value> = items_where(result, TranslateStatus::Advisory)
         .map(|i| json!({ "command": i.irule_command, "xc_description": i.xc_description, "note": i.note }))

@@ -1180,6 +1180,23 @@ impl<'r> Lowerer<'r> {
     /// This is the procedure-target counterpart of [`Self::lower`].  It uses
     /// the same fresh frame as a static `proc` body, while retaining all
     /// module-wide side effects (nested procedures, aliases, namespaces, OO
+    /// Whether `command` is absent from this lowering's own dialect surface.
+    ///
+    /// Only a command the registry *knows* and that the profile *excludes*
+    /// answers true: an unknown name (a user proc, a package command) is not
+    /// this question's subject and keeps its ordinary treatment.
+    fn command_is_unavailable_here(&self, command: &str) -> bool {
+        let bare = command.strip_prefix("::").unwrap_or(command);
+        self.registry
+            .get(bare)
+            .is_some_and(|spec| !spec.supports_dialect(self.registry.own_surface_query()))
+    }
+
+    /// Lower a runtime procedure body as this module's top-level script.
+    ///
+    /// This is the procedure-target counterpart of [`Self::lower`].  It uses
+    /// the same fresh frame as a static `proc` body, while retaining all
+    /// module-wide side effects (nested procedures, aliases, namespaces, OO
     /// definitions, and traces) for the bytecode backend.
     pub fn lower_procedure_target(&mut self, source: &str, namespace: &str) -> &Module {
         self.start_module();
@@ -1189,6 +1206,9 @@ impl<'r> Lowerer<'r> {
         // leading `::` here may belong to a literal-colon namespace segment.
         let namespace = tcl_syntax::naming::root_unrooted_key(namespace);
         self.module.top_level_namespace.clone_from(&namespace);
+        // This module's top level *is* a procedure body, which the `::top`
+        // name cannot convey to anything downstream (#2207).
+        self.module.top_level_kind = crate::ir::TopLevelKind::ProcedureBody;
         self.module.top_level = self
             .in_procedure_frame(Some(IrulesExecutionContext::ProcedureBody), |lowerer| {
                 lowerer.lower_script(source, &namespace)
@@ -2746,6 +2766,19 @@ impl<'r> Lowerer<'r> {
             if body_has_dynamic_barrier(body_text, self.registry, self.config) {
                 return None;
             }
+            // Parse gate: inlining lowers the body with the LSP-lenient
+            // lowering, which gives malformed text a meaning C never gives it
+            // — `eval {set y "a"b}` would quietly mean `set y ab` instead of
+            // raising `extra characters after close-quote` (#1829).  C parses
+            // an `eval` body when the command runs, so decline the relaxation
+            // and fall back to the runtime barrier, which is the path a
+            // non-literal `eval $body` already takes and which reports the
+            // error correctly.
+            if tcl_lexer::first_parse_cut(self.guarded_body_text(body_tok, body_text), self.config)
+                .is_some()
+            {
+                return None;
+            }
         }
         let body = if body_tok.kind == TokenType::Str {
             let body_text = self.guarded_body_text(body_tok, &args[0]);
@@ -3220,6 +3253,16 @@ impl<'r> Lowerer<'r> {
             // an aliased upvar falsely silence W210.  Keep the prepended-level
             // vector above for the other registry role queries, but do not
             // manufacture generic Call defs for this layout.
+            Vec::new()
+        } else if self.command_is_unavailable_here(&role_cmd) {
+            // A write by a command this profile does not have is not a write.
+            // Under `tcl8.4` there is no `lassign`, so
+            // `catch {lassign {new second} a b} m` raises
+            // `invalid command name` before writing anything and `a` keeps its
+            // previous value — tclsh 8.4.20 prints `old` for the issue's
+            // program. Manufacturing the def let O109 delete the store that
+            // fed it, and the rewritten program then failed with
+            // `can't read "a": no such variable` (#2144).
             Vec::new()
         } else {
             surface.arg_indices_for_role(&role_cmd, &role_args_ref, ArgRole::VarWrite)
@@ -4596,8 +4639,13 @@ pub fn first_fatal_parse_cut(
 pub(crate) struct CommandAtTimeScript {
     /// Complete commands before the malformed tail (all commands when clean).
     pub(crate) commands: Vec<crate::segmenter::SegmentedCommand>,
-    /// Byte offset and Tcl parse message for the first malformed command.
-    pub(crate) fatal_tail: Option<(usize, String)>,
+    /// Byte offset and Tcl parse message for the first malformed command,
+    /// with the offset of the unclosed delimiter when there is one.
+    ///
+    /// That third field is C's `parsePtr->term`: `TclCompileScript` quotes
+    /// `source[start ..= term]` in the `while executing` frame, so it is not
+    /// derivable from the start offset or from the end of input (#2172).
+    pub(crate) fatal_tail: Option<(usize, String, Option<u32>)>,
 }
 
 /// Segment `source` using `config`, retaining only complete commands before a
@@ -4623,6 +4671,7 @@ pub(crate) fn command_at_time_script_with_config(
                             || "invalid command parse".to_owned(),
                             |cut| cut.message.to_owned(),
                         ),
+                        None,
                     )),
                 };
             };
@@ -4630,6 +4679,10 @@ pub(crate) fn command_at_time_script_with_config(
             let partial_message = command
                 .partial_delimiter
                 .map(|delimiter| delimiter.missing_message().to_owned());
+            // C's `parsePtr->term`, from the cut owner — never re-derived from
+            // the token stream, which cannot see which construct actually
+            // failed inside a nested one.
+            let delimiter_offset = fatal.map(|cut| cut.term);
             commands.truncate(index);
             Some((
                 start,
@@ -4637,11 +4690,12 @@ pub(crate) fn command_at_time_script_with_config(
                     .map(|cut| cut.message.to_owned())
                     .or(partial_message)
                     .unwrap_or_else(|| "invalid command parse".to_owned()),
+                delimiter_offset,
             ))
         }
         (Some(cut), None) => {
             commands.clear();
-            Some((0, cut.message.to_owned()))
+            Some((0, cut.message.to_owned(), None))
         }
         (None, None) => None,
     };
@@ -7859,15 +7913,39 @@ mod tests {
             irules_module.top_level.statements
         );
 
+        // Under the default grammar the weld makes `{a}{eval $x}` a *single*
+        // word, and that word is not valid Tcl — C answers `extra characters
+        // after close-brace` for this very body, on 8.6 and 9.0 alike. So the
+        // relaxation is declined here too, by the parse gate rather than the
+        // barrier gate (#1829): inlining would lower the malformed text with
+        // the lenient lowering and give it a meaning C never gives it.
         let tcl_module =
             lower_to_ir_with_config(source, registry, tcl_lexer::LexerConfig::default());
         assert!(
             matches!(
                 tcl_module.top_level.statements.as_slice(),
+                [Statement::Barrier { .. }]
+            ),
+            "a body that does not parse keeps the runtime barrier: {:?}",
+            tcl_module.top_level.statements
+        );
+
+        // Positive control: the relaxation is still alive. A body with no
+        // nested barrier that *does* parse must still reach the inline Block,
+        // so neither assertion above can pass merely because relaxation
+        // stopped happening at all.
+        let relaxable = lower_to_ir_with_config(
+            "eval {foo a b}",
+            registry,
+            tcl_lexer::LexerConfig::default(),
+        );
+        assert!(
+            matches!(
+                relaxable.top_level.statements.as_slice(),
                 [Statement::Block { .. }]
             ),
-            "the default grammar sees no nested barrier and relaxes to a Block: {:?}",
-            tcl_module.top_level.statements
+            "a parsing, barrier-free body still relaxes to a Block: {:?}",
+            relaxable.top_level.statements
         );
     }
 

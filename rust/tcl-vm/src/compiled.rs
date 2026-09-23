@@ -19,6 +19,7 @@
 use std::rc::Rc;
 
 use tcl_bytecode::FunctionAsm;
+use tcl_runtime_api::FatalTail;
 
 /// How bytecode entered this VM's compilation domain.
 ///
@@ -58,6 +59,14 @@ pub(crate) struct CompiledUnit {
     pub(crate) profile_generation: u64,
     pub(crate) command_epoch: u64,
     pub(crate) compiler: CompilerProvenance,
+    /// The parse error to raise once this unit's commands have run, for a body
+    /// whose *later* commands do not parse.
+    ///
+    /// C compiles a procedure body when the procedure is **called**, so a
+    /// malformed body neither refuses the definition nor runs with the lenient
+    /// lowering's invented meaning: the clean prefix runs on entry and this is
+    /// raised after it (#1829).  `None` for every body that parses whole.
+    pub(crate) fatal_tail: Option<FatalTail>,
 }
 
 impl CompiledUnit {
@@ -74,6 +83,13 @@ impl CompiledUnit {
             profile_generation,
             command_epoch,
             compiler,
+            fatal_tail: None,
         }
+    }
+
+    /// Carry the parse error this unit raises once its clean prefix has run.
+    pub(crate) fn with_fatal_tail(mut self, fatal_tail: Option<FatalTail>) -> Self {
+        self.fatal_tail = fatal_tail;
+        self
     }
 }

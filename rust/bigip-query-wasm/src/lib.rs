@@ -56,9 +56,12 @@ pub fn run_query(
     let sources: Vec<(String, String)> = serde_json::from_str(sources_json)
         .map_err(|e| JsError::new(&format!("invalid sources JSON: {e}")))?;
 
-    let opts = QueryOptions { merge, ..QueryOptions::default() };
-    let result = engine_run_query(expr, &sources, &opts)
-        .map_err(|e| JsError::new(&e.to_string()))?;
+    let opts = QueryOptions {
+        merge,
+        ..QueryOptions::default()
+    };
+    let result =
+        engine_run_query(expr, &sources, &opts).map_err(|e| JsError::new(&e.to_string()))?;
 
     if result.has_mutation {
         return Err(JsError::new(
@@ -94,7 +97,11 @@ pub fn engine_version() -> String {
 pub fn build_architecture(devices_json: &str, manifest: &str) -> Result<String, JsError> {
     let devices: Vec<serde_json::Value> = serde_json::from_str(devices_json)
         .map_err(|e| JsError::new(&format!("invalid devices JSON: {e}")))?;
-    let m = if manifest.trim().is_empty() { None } else { Some(manifest) };
+    let m = if manifest.trim().is_empty() {
+        None
+    } else {
+        Some(manifest)
+    };
     let arch = tcl_bigip_query::build_architecture(&devices, m);
     serde_json::to_string(&arch).map_err(|e| JsError::new(&e.to_string()))
 }

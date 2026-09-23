@@ -120,7 +120,7 @@ pub mod version;
 pub mod version_range;
 pub mod world_effect;
 
-pub use crate::hover::first_positional_index;
+pub use crate::hover::{first_positional_index, leading_option_specs};
 
 /// Convenience prelude for command spec files.
 ///
@@ -174,7 +174,7 @@ pub mod prelude {
     pub use crate::hover::{
         ArgValue, CallbackTaintInput, FormKind, FormSpec, HoverSnippet, IntegerDomain, OptionArg,
         OptionArity, OptionSpec, OptionValue, OptionValueHook, OptionValueOutcome, ScriptTiming,
-        VariableScope, first_positional_index,
+        VariableScope, first_positional_index, leading_option_specs,
     };
     pub use crate::intrinsic::IntrinsicId;
     pub use crate::invocation_words::{CommandPrefixArguments, InvocationArguments};
@@ -271,7 +271,7 @@ pub use hover::{ArgValue, CallbackTaintInput, ScriptTiming, VariableScope};
 pub use intrinsic::IntrinsicId;
 pub use invocation_words::{
     CommandPrefixArguments, InvocationArgument, InvocationArguments, InvocationWord,
-    InvocationWordKind, InvocationWords, VariableWriteProjection,
+    InvocationWordKind, InvocationWords, VariableReadProjection, VariableWriteProjection,
 };
 pub use literal_validation::{
     LiteralArgumentIssue, LiteralArgumentIssueReason, LiteralArgumentValidation,

@@ -62,7 +62,8 @@ use crate::codegen::helpers::split_list_values;
 use crate::command_binding::CommandTrustSnapshot;
 use crate::ir::Statement;
 use crate::sccp::{
-    BuiltinFoldInputs, TraceInputs, extract_foreach_elements, resolve_foreach_list_via_lattice,
+    BuiltinFoldInputs, FoldTrust, TraceInputs, extract_foreach_elements,
+    resolve_foreach_list_via_lattice,
 };
 use crate::ssa::{SsaFunction, SsaStatement, Symbol, ValueKey, Version};
 use crate::tcl_expr_eval::{FoldPolicy, eval_tcl_expr_with_policy};
@@ -328,12 +329,22 @@ impl<'a> LatticeDriver<'a> {
         self.policy
     }
 
-    /// Binding validity for `head`: with the whole-module trust fact, the
-    /// name must still denote its registry command everywhere in the
-    /// module; without it — the mutation-fact-free shared lattice, which
-    /// no rewrite lands from — every binding is trusted, as it always was.
+    /// Binding validity for `head`, under the stance the caller states
+    /// ([`FoldTrust`]): a fold that becomes a source rewrite asks the whole
+    /// module ([`crate::command_binding::ModuleCommandMutations::trusts`],
+    /// the unbounded top included); the shared per-unit lattice asks only
+    /// the module's own observed bindings
+    /// ([`crate::command_binding::ModuleCommandMutations::observed_binding_is_the_builtin`]),
+    /// so one unresolved head does not cost a file every constant. Without
+    /// the fact there is no evidence the name still denotes its registry
+    /// command, and every route declines: a lattice that trusted every
+    /// binding answered `3` for `[llength {a b c}]` where the module's own
+    /// `proc llength` returns 99 (#2164).
     fn trusted(&self, head: &str) -> bool {
-        self.folds.is_none_or(|f| f.mutations.trusts(head))
+        self.folds.is_some_and(|f| match f.trust {
+            FoldTrust::WholeModule => f.mutations.trusts(head),
+            FoldTrust::ObservedBindings => f.mutations.observed_binding_is_the_builtin(head),
+        })
     }
 
     /// Resolve `head args…` through the invocation resolver under the
@@ -546,8 +557,10 @@ impl<'a> LatticeDriver<'a> {
         // this statement's use versions, so a folded value re-enters the
         // lattice and downstream statements see it — the multi-hop chain
         // the declared routes cannot close yet. Checked after them so
-        // single-hop results stay byte-identical.
-        let f = self.folds?;
+        // single-hop results stay byte-identical, and only for a caller that
+        // turns the engine on: the shared per-unit lattice holds the trust
+        // fact with the engine off, so its fold surface stays the routes'.
+        let f = self.folds.filter(|f| f.registry_engine)?;
         let inner = value.strip_prefix('[')?.strip_suffix(']')?;
         let trusts = |name: &str| f.mutations.trusts(name);
         let lookup = |name: &str| lattice_const_text(name, uses, values, ssa);

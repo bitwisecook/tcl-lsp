@@ -222,6 +222,13 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "scan",
+        // The match / conversion path is the only one that writes: a failed
+        // `regexp`, and a `scan` or `binary scan` whose input runs out, leave
+        // each remaining target's previous value in place and never create a
+        // target that did not exist. Measured identical on tclsh 8.4.20,
+        // 8.5.19, 8.6.18, 9.0.4 and 9.1b0. Without this the store feeding one
+        // looked overwritten-before-read and O109 deleted it (#2051).
+        traits: Traits::CONDITIONAL_VARIABLE_WRITE,
         arity: Arity::at_least(2),
         detail: "Parse fields out of a binary string into variables, using a cursor-driven format specification. Returns the number of variables successfully set.",
         synopsis: "binary scan string formatString ?varName ...?",

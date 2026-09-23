@@ -464,9 +464,10 @@ pub fn word_span(sm: &SourceMap<'_>, tok: Token) -> crate::Span {
 /// span** is *span*, or `None`.
 ///
 /// The token-free sibling of [`word_closer_offset`], for a caller that kept
-/// a word's [`Span`] but not the [`Token`] it came from — an optimiser pass
-/// holding a CFG terminator's condition span, a rename edit built from an
-/// analysis reference span, the compiler explorer widening an IR range.
+/// a word's [`Span`](crate::Span) but not the [`Token`] it came from — an
+/// optimiser pass holding a CFG terminator's condition span, a rename edit
+/// built from an analysis reference span, the compiler explorer widening an
+/// IR range.
 /// Callers hand-rolling this arithmetic independently drift: a textual
 /// `!text.ends_with('}')` guess makes a condition ending in a *nested*
 /// empty pair — `while {$x eq {}}` — look already-widened, dropping the

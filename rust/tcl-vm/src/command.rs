@@ -368,11 +368,26 @@ fn cmd_eval(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // the pending eval request, which pushes a transparent script frame whose result
     // replaces this placeholder. The script frame adds the `("eval" body line N)`
     // errorInfo frame itself on error (eval-2.5; see `Frame::body_label`).
-    match vm.compile_script_cached(&script) {
-        Ok(script) => {
-            vm.pending.eval = Some((script, Some("eval"), None));
-            ok(Value::empty())
-        }
+    // A body whose *later* commands do not parse still runs its clean prefix
+    // before the error is raised (#1603): C parses one command at a time, so
+    // the malformed tail is never reached until the commands ahead of it have
+    // run.  `catch`/`try` already prepare their bodies this way.
+    match vm.prepare_script_commands(&script) {
+        Ok(prepared) => match prepared.prefix {
+            Some(unit) => {
+                vm.pending.eval = Some(crate::exec::EvalReq {
+                    script: unit,
+                    label: Some("eval"),
+                    cleanup_proc: None,
+                    fatal_tail: prepared.fatal_tail,
+                });
+                ok(Value::empty())
+            }
+            // Nothing in the body parses, so raising is all this `eval` does.
+            None => prepared
+                .fatal_tail
+                .map_or_else(|| ok(Value::empty()), |tail| vm.raise_fatal_tail(tail)),
+        },
         Err(e) => err(e.message),
     }
 }
@@ -492,7 +507,12 @@ fn cmd_apply(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let script = tcl_syntax::list::join_list(words.iter().map(Value::to_str));
     match vm.compile_script_cached(&script) {
         Ok(script) => {
-            vm.pending.eval = Some((script, None, Some(name)));
+            vm.pending.eval = Some(crate::exec::EvalReq {
+                script,
+                label: None,
+                cleanup_proc: Some(name),
+                fatal_tail: None,
+            });
             ok(Value::empty())
         }
         Err(e) => {
@@ -1273,7 +1293,18 @@ fn cmd_expr(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         .collect::<Vec<_>>()
         .join(" ");
     match vm.eval_expr(&joined) {
-        Ok(v) => ok(v),
+        // C's `Tcl_ExprObj` finishes with the same normalisation the compiled
+        // path gets from `INST_TRY_CVT_TO_NUMERIC`, which codegen already
+        // emits over `Statement::ExprEval`. Applying it here too makes the
+        // interpreted `expr` agree with the compiled one — without it an
+        // uncompilable `expr` handed back whatever object its last step
+        // produced, so `expr $e` for `$e` of `$h`, or of
+        // `entier($h)` where `$h` is `0x10`, answered `0x10` where every
+        // tclsh answers `16`.
+        Ok(v) => match crate::expr::cvt_to_numeric(v) {
+            Ok(nv) => ok(nv),
+            Err(e) => completion_from_tcl_error(e),
+        },
         Err(e) => completion_from_tcl_error(e),
     }
 }
@@ -1977,10 +2008,9 @@ fn cmd_catch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             ok(Value::empty())
         }
         Ok(prepared) => {
-            let comp = prepared.fatal_tail.map_or_else(
-                || ok(Value::empty()),
-                |message| Completion::new(Code::Error, Value::string(message), Value::empty()),
-            );
+            let comp = prepared
+                .fatal_tail
+                .map_or_else(|| ok(Value::empty()), |tail| vm.raise_fatal_tail(tail));
             vm.finish_catch(comp, resvar, optvar)
         }
         // A body that fails to *parse* is itself a catchable error: run the
@@ -2444,7 +2474,12 @@ fn cmd_uplevel(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     if target == cur {
         return match vm.compile_script_cached(&script) {
             Ok(script) => {
-                vm.pending.eval = Some((script, Some("uplevel"), None));
+                vm.pending.eval = Some(crate::exec::EvalReq {
+                    script,
+                    label: Some("uplevel"),
+                    cleanup_proc: None,
+                    fatal_tail: None,
+                });
                 ok(Value::empty())
             }
             Err(e) => err(e.message),

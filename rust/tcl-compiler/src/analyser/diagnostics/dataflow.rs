@@ -1343,6 +1343,20 @@ file; this call falls through to the 'unknown' handler."
             ) {
                 continue;
             }
+            // A statement the lowering synthesised to carry an effect — the
+            // `<cond>` placeholder holding a branch condition's substitution
+            // reads, or `<upvar-invalidate>` holding a word's — has no source
+            // word to anchor a read at: its span is the whole `if` or the whole
+            // host statement. And the reads it carries are precisely the
+            // existence-tolerant ones — `[info exists x]` is the idiom for a
+            // name that may be unset, `[incr n]` creates its target on 8.5+ —
+            // so a read recorded there is not evidence of a read-before-set.
+            // Recording them made W210 fire on
+            // `if {[info exists q]} {…} else {…}`, which tclsh runs cleanly
+            // (#2132).
+            if stmt_opt.is_some_and(statement_is_synthetic_effect) {
+                continue;
+            }
             // Skip the existence-query word itself and
             // reads narrowed by an enclosing `[info exists X]` guard.
             if existence_exempt(
@@ -2652,20 +2666,38 @@ fn find_case_mismatch<'a>(variable: &str, defined_vars: &'a HashSet<String>) -> 
 
 /// True when `stmt` is a `Statement::Barrier` whose body-role argument (an
 /// opaque script run in a separate context — `interp eval PATH { ... }`)
-/// contains a top-level `set VAR ...` for `var`.
+/// binds `var`.
 ///
 /// Such a body is never flattened into this function's CFG (its target
 /// interpreter is unknowable to static analysis), so its whole script text is
 /// scanned as one statement's value: a `$var` read and the body's own `set
 /// var` collapse onto the same `Statement::Barrier`, and the version-0
 /// def-use chain then shows a read with no visible definition. Recovering the
-/// body's own top-level assignments here is the only place that write is
-/// visible, so a plain write-then-read *inside* the body doesn't false-fire
-/// W210. Deliberately conservative — it suppresses whenever the
-/// body sets the name, a false-negative direction (a genuine read-before-set
-/// entirely within the opaque body is unreported either way, and the outer
+/// body's own bindings here is the only place that write is visible, so a
+/// plain write-then-read *inside* the body doesn't false-fire W210.
+/// Deliberately conservative — it suppresses whenever the body binds the
+/// name, a false-negative direction (a genuine read-before-set entirely
+/// within the opaque body is unreported either way, and the outer
 /// interpreter-handle vs. inner-local name clash drops that outer read too),
 /// never a new false positive.
+///
+/// [`crate::script_binds::script_binds_name`] answers what "binds" means, for
+/// Whether a statement is one the lowering synthesised to carry a variable
+/// effect rather than one the user wrote.
+///
+/// It has no argv of its own, so no diagnostic can be anchored to a word in
+/// it, and its span is the whole construct it stands for.
+fn statement_is_synthetic_effect(stmt: &crate::ir::Statement) -> bool {
+    match stmt {
+        crate::ir::Statement::Call { tokens, .. }
+        | crate::ir::Statement::Barrier { tokens, .. } => tokens
+            .as_ref()
+            .is_some_and(|tokens| tokens.synthetic.is_some()),
+        _ => false,
+    }
+}
+
+/// this pass and for the `Statement::Call` twin in [`crate::ssa`] alike.
 fn barrier_body_locally_sets(
     stmt: Option<&crate::ir::Statement>,
     var: &str,
@@ -2681,16 +2713,15 @@ fn barrier_body_locally_sets(
         .arg_indices_for_role(command, &arg_strs, tcl_registry::ArgRole::Body)
         .into_iter()
         .filter_map(|idx| args.get(idx))
-        .flat_map(|body_text| {
-            crate::segmenter::segment_commands_with_offset_and_config(body_text, 0, config)
+        .any(|body_text| {
+            crate::script_binds::script_binds_name(
+                body_text,
+                var,
+                crate::script_binds::Ownership::BindingsOrNameReads,
+                registry,
+                config,
+            )
         })
-        .filter(|seg| seg.texts.first().map(String::as_str) == Some("set"))
-        .filter_map(|seg| {
-            seg.texts
-                .get(1)
-                .map(|w| crate::naming::normalise_var_name(w).to_owned())
-        })
-        .any(|name| name == var)
 }
 
 /// Variables this statement queries *only for
@@ -2789,14 +2820,17 @@ fn use_site_safe_initialises(stmt: Option<&crate::ir::Statement>, var: &str) -> 
 }
 
 /// Whether `var`'s use at `stmt` is the read of a cell update embedded in the
-/// statement's words (`[incr n]`, `[append s y]`): the CFG builder records it
-/// as a named read beside the definition it merges, so the store feeding it
-/// stays live (#2050). Lowering flags every call whose own named reads overlap
-/// its definitions `reads_own_defs`, so the overlap on an unflagged call is
-/// that scan's. The scan recovers every `[…]` in the words, braced ones
-/// included (a `proc` body, a `catch` script), so the read may not run here:
-/// like a quoted mention it keeps liveness conservative and is never a read
-/// *before set*.
+/// words of a host `Call` (`puts [incr n]`, `lappend l [append s y]`): the CFG
+/// builder merges the embedded update's read and write into the host call, so
+/// the store feeding it stays live (#2050). A non-`Call` host carries them on
+/// a synthetic `<upvar-invalidate>` statement instead, which
+/// [`statement_is_synthetic_effect`] already exempts; this is the host-`Call`
+/// half of the same exemption. Lowering flags every call whose own named
+/// reads overlap its definitions `reads_own_defs`, so the overlap on an
+/// unflagged call is the embedded scan's. The scan recovers every `[…]` in
+/// the words, braced ones included (a `proc` body, a `catch` script), so the
+/// read may not run here: like a quoted mention it keeps liveness
+/// conservative and is never a read *before set*.
 fn embedded_cell_update_read(stmt: Option<&crate::ir::Statement>, var: &str) -> bool {
     matches!(
         stmt,

@@ -553,12 +553,31 @@ mod tests {
         }
     }
 
+    /// An empty document yields exactly one link, not none — the old name
+    /// said the opposite, and its `x || !x` assertion was true of every
+    /// value, so it tested only that the call returned (#2072).
+    ///
+    /// One link rather than two is the load-bearing part: the line range and
+    /// the whole-document range both come out as `(0,0)-(0,0)` here, and
+    /// `dedup` collapses them. Without that collapse the client is handed a
+    /// chain whose "grow" step does not grow — commenting out the `dedup`
+    /// call makes this fail with `left: 2, right: 1`.
     #[test]
-    fn empty_source_returns_empty_chain() {
+    fn empty_source_still_yields_a_document_range() {
         let ranges = selection_range("", 0, 0, None);
-        // No word and no line content: the chain must still be built without
-        // panicking.
-        assert!(ranges.is_empty() || !ranges.is_empty());
+        assert_eq!(ranges.len(), 1, "{ranges:?}");
+        let doc = &ranges[0];
+        assert_eq!(
+            (
+                doc.range.start_line,
+                doc.range.start_character,
+                doc.range.end_line,
+                doc.range.end_character
+            ),
+            (0, 0, 0, 0),
+            "the one range covers the whole (empty) document"
+        );
+        assert!(doc.parent_index.is_none(), "it is the outermost range");
     }
 
     #[test]

@@ -28,12 +28,12 @@ repository.workspace = true
 authors.workspace = true
 
 [dependencies]
+tcl-core-types = { path = "../tcl-core-types" }
 tcl-dialect = { path = "../tcl-dialect" }
 tcl-lexer = { path = "../tcl-lexer" }
 tcl-syntax = { path = "../tcl-syntax" }
 tcl-registry = { path = "../tcl-registry" }
 tcl-compiler = { path = "../tcl-compiler" }
-tcl-core-types = { path = "../tcl-core-types" }
 # The `Finding` conversion (`diagnostic_policy`) — the shared crate stays
 # below this one, so the XC conversion lives here.
 tcl-lsp-core = { path = "../tcl-lsp-core" }

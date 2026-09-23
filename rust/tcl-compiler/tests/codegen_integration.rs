@@ -42,6 +42,7 @@ fn toplevel_with(statements: Vec<Statement>) -> CfgFunction {
         blk.statements = statements;
         blk.terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
@@ -58,6 +59,7 @@ fn proc_with(name: &str, params: &[&str], statements: Vec<Statement>) -> CfgFunc
         blk.statements = statements;
         blk.terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
@@ -161,6 +163,7 @@ fn proc_return_param_loads_and_dones() {
     let entry = cfg.entry;
     cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Return {
         value: Some("${x}".into()),
+        value_word: None,
         span: None,
         expr: None,
         braced: false,
@@ -231,6 +234,7 @@ fn if_else_diamond_emits_conditional_jump() {
     });
     cfg.blocks.get_mut(&end).unwrap().terminator = Some(Terminator::Return {
         value: None,
+        value_word: None,
         span: None,
         expr: None,
         braced: false,
@@ -279,6 +283,7 @@ fn if_const_true_dead_branch_eliminated() {
     });
     cfg.blocks.get_mut(&end).unwrap().terminator = Some(Terminator::Return {
         value: None,
+        value_word: None,
         span: None,
         expr: None,
         braced: false,
@@ -381,6 +386,7 @@ fn switch_dispatch_emits_jump_table() {
     });
     cfg.blocks.get_mut(&switch_end).unwrap().terminator = Some(Terminator::Return {
         value: None,
+        value_word: None,
         span: None,
         expr: None,
         braced: false,
@@ -625,6 +631,7 @@ fn foreach_emits_native_opcodes() {
     });
     cfg.blocks.get_mut(&end).unwrap().terminator = Some(Terminator::Return {
         value: None,
+        value_word: None,
         span: None,
         expr: None,
         braced: false,
@@ -749,6 +756,7 @@ fn complex_foreach_body_emits_step_at_end() {
 
     cfg.blocks.get_mut(&end).unwrap().terminator = Some(Terminator::Return {
         value: None,
+        value_word: None,
         span: None,
         expr: None,
         braced: false,
@@ -839,6 +847,7 @@ fn while_in_proc_emits_start_cmd() {
     });
     cfg.blocks.get_mut(&end).unwrap().terminator = Some(Terminator::Return {
         value: None,
+        value_word: None,
         span: None,
         expr: None,
         braced: false,
@@ -863,6 +872,7 @@ fn codegen_module_with_no_procs() {
         procedures: HashMap::new(),
     };
     let ir_mod = IrModule {
+        top_level_kind: tcl_compiler::ir::TopLevelKind::Script,
         plain_command_dispatch: false,
         source: String::new(),
         top_level_namespace: "::".to_owned(),
