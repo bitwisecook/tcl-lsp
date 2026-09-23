@@ -55,7 +55,8 @@ const COMMAND_SUBST_FRAME: &str = "\n    (-command substitution computation scri
 pub(crate) use tcl_regex::cmd_core::AreEngine as CrateEngine;
 
 /// Does `pattern` match anywhere in `subject` (ARE, optional `-nocase`)? A small
-/// boolean helper for the bytecode `MatchesRegex`-style opcode in `exec`.
+/// boolean helper for the bytecode `MatchesRegex`-style opcode in `exec`. A
+/// search that established neither answer is an error, never a `false`.
 pub(crate) fn regexp_matches(pattern: &str, subject: &str, nocase: bool) -> Result<bool, String> {
     let flags = RegexFlags {
         nocase,
@@ -66,7 +67,13 @@ pub(crate) fn regexp_matches(pattern: &str, subject: &str, nocase: bool) -> Resu
     let mut re = CrateEngine::compile(pattern.as_bytes(), flags)
         .map_err(|e| String::from_utf8_lossy(&e).into_owned())?;
     let cps: Vec<i32> = subject.chars().map(|c| c as i32).collect();
-    Ok(CrateEngine::exec(&mut re, &cps, 0, false).is_some())
+    match CrateEngine::exec(&mut re, &cps, 0, false) {
+        core_re::RegexpPrecision::Exact { .. } => Ok(true),
+        core_re::RegexpPrecision::NoMatch => Ok(false),
+        core_re::RegexpPrecision::Declined(decline) => {
+            Err(String::from_utf8_lossy(&decline.into_error().0).into_owned())
+        }
+    }
 }
 
 pub(crate) fn register(vm: &mut Vm) {

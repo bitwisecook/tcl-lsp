@@ -219,7 +219,15 @@ fn check(case: &Case) -> Result<(), String> {
                 return Err(format!("info {got_info:?} != expected {info:?}"));
             }
             if let Some(target) = target {
-                let got = re.exec(target, 0, eflags);
+                let got = match re.exec(target, 0, eflags) {
+                    tcl_regex::ExecOutcome::Matched(groups) => Some(groups),
+                    tcl_regex::ExecOutcome::NoMatch => None,
+                    // The corpus's subjects are short: a stopped search is an
+                    // engine failure, never a no-match.
+                    tcl_regex::ExecOutcome::Stopped(stop) => {
+                        return Err(format!("the search stopped: {stop:?}"));
+                    }
+                };
                 match (got, matched) {
                     (None, Some(true)) => Err("expected match, got none".to_string()),
                     (Some(_), Some(false)) => Err("expected no match, got one".to_string()),

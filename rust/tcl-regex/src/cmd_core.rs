@@ -23,8 +23,11 @@
 //! VM). Gated behind the `cmd-core` feature so the engine stays dependency-free
 //! by default.
 
-use crate::{InfoFlag, Regex, defs};
-use tcl_cmd_core::regex::{NO_MATCH, RegMatch, RegexEngine, RegexFlags};
+use crate::{ExecLimits, ExecOutcome, ExecStop, InfoFlag, Regex, defs};
+use tcl_cmd_core::regex::{
+    EngineIdentity, MatchLimits, PrecisionDecline, RegMatch, RegexEngine, RegexFlags,
+    RegexpPrecision,
+};
 
 /// The ARE engine as the shared plumbing's provider.
 pub struct AreEngine;
@@ -70,26 +73,65 @@ impl RegexEngine for AreEngine {
         re.info().flags().into_iter().map(InfoFlag::name).collect()
     }
 
-    fn exec(re: &mut Regex, cps: &[i32], offset: usize, _notbol: bool) -> Option<Vec<RegMatch>> {
+    fn exec(re: &mut Regex, cps: &[i32], offset: usize, notbol: bool) -> RegexpPrecision<RegMatch> {
+        Self::exec_within(re, cps, offset, notbol, MatchLimits::default())
+    }
+
+    /// The engine's three-way answer onto the plumbing's: the spans as
+    /// [`RegMatch`]es, a completed no-match, and a stopped search as the
+    /// decline it is.
+    fn exec_within(
+        re: &mut Regex,
+        cps: &[i32],
+        offset: usize,
+        _notbol: bool,
+        limits: MatchLimits<'_>,
+    ) -> RegexpPrecision<RegMatch> {
         // This engine is context-aware: anchors are resolved against absolute
         // positions in the whole subject, so the `notbol` hint is unnecessary
         // (the trait permits ignoring it).
         let subject: Vec<u32> = cps.iter().map(|&c| c as u32).collect();
-        let groups = re.exec(&subject, offset, 0)?;
-        Some(
-            groups
-                .iter()
-                .map(|g| match g {
-                    Some(s) => RegMatch {
-                        so: s.start,
-                        eo: s.end,
-                    },
-                    None => RegMatch {
-                        so: NO_MATCH,
-                        eo: NO_MATCH,
-                    },
-                })
-                .collect(),
-        )
+        let engine_limits = ExecLimits {
+            fuel: limits.fuel.unwrap_or(crate::MATCH_FUEL),
+            cancel: limits.cancel,
+        };
+        match re.exec_with(&subject, offset, 0, &engine_limits) {
+            ExecOutcome::Matched(groups) => {
+                let span = |s: &crate::Span| RegMatch {
+                    so: s.start,
+                    eo: s.end,
+                };
+                let whole = groups
+                    .first()
+                    .copied()
+                    .flatten()
+                    .map_or(RegMatch { so: 0, eo: 0 }, |s| span(&s));
+                RegexpPrecision::Exact {
+                    whole,
+                    groups: groups
+                        .iter()
+                        .skip(1)
+                        .map(|g| g.as_ref().map(span))
+                        .collect(),
+                    captures_exact: true,
+                }
+            }
+            ExecOutcome::NoMatch => RegexpPrecision::NoMatch,
+            ExecOutcome::Stopped(stop) => RegexpPrecision::Declined(match stop {
+                ExecStop::Fuel { spent } => PrecisionDecline::FuelExhausted { spent },
+                ExecStop::Depth { limit } => PrecisionDecline::DepthExhausted { limit },
+                ExecStop::Cancelled => PrecisionDecline::Cancelled,
+            }),
+        }
+    }
+
+    /// Bumped with any change to what a pattern compiles to or matches.
+    const IDENTITY: EngineIdentity = EngineIdentity {
+        name: "tcl-regex ARE",
+        revision: 2,
+    };
+
+    fn retained_bytes(re: &Regex) -> usize {
+        re.retained_bytes()
     }
 }

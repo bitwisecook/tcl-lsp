@@ -25,31 +25,30 @@
 //!    `REG_ETOOBIG` compile error instead.
 //! 2. **Backreference `ReDoS`** — `(a+)+\1$` against a run of "a"s sent the
 //!    backtracking matcher exponential (~4s on 20 chars). A shared step budget
-//!    now bounds the search; it bails (reporting no match) rather than hanging.
+//!    now bounds the search; it stops rather than hanging.
 //! 3. **Reach-core blow-up** — plain `a*` over a long input is O(n²) and `(a*)*`
 //!    cubic in the set-simulation core. The same budget bounds that core's total
 //!    work, so these inputs return promptly instead of locking up.
 //! 4. **Dissection/backtrack recursion → stack overflow** —
-//!    matching a repeat quantifier against a long subject recurses once per
+//!    matching a repeat quantifier against a long subject recursed once per
 //!    matched iteration in both `Matcher::dissect_repeat` (the POSIX
 //!    dissection phase run after every repeat match, not just backreference
 //!    ones) and `Bt::m_star`/`Bt::m_backref` (the backreference backtracking
-//!    path). `MATCH_FUEL` bounds neither as a *depth* budget — it is a
-//!    *work* budget, and for `Bt` in particular each recursive step
-//!    costs a fixed 1 unit regardless of native stack use, so depth can run
-//!    far ahead of any work-based bail-out. Both now cap their recursion
-//!    depth (`MAX_DISSECT_DEPTH` / `MAX_BT_DEPTH` in `exec.rs`) and degrade
-//!    gracefully — an approximate nested-capture span, or a clean "no match"
-//!    along that backtracking branch — instead of aborting the process.
+//!    path). Dissection now walks iterations and concatenations in loops, a
+//!    single character's repeat and a literal run are matched in loops, and
+//!    both still cap their recursion depth (`MAX_DISSECT_DEPTH` /
+//!    `MAX_BT_DEPTH` in `exec.rs`) for what remains: an operand's own
+//!    structural nesting.
 //!
-//! Each test simply asserts the engine *returns* — quickly. We do not pin the
-//! exact match outcome of the bailing cases (a tripped guard legitimately yields
-//! "no match"); the point is that no call hangs or aborts. The harness runs each
-//! case on a worker thread with a wall-clock deadline so a regression that
-//! reintroduces the hang fails loudly instead of stalling the suite. The #4
-//! tests additionally run on the default (un-spawned) test thread — `cargo
-//! test`'s per-test default 2 MiB stack — since that is the exact ambient
-//! stack the depth caps below were calibrated against.
+//! A tripped guard is `ExecOutcome::Stopped` — never a no-match, which would
+//! prove a negative the search did not establish. Each test asserts the
+//! engine *returns* — quickly — and, where the input is ordinary rather than
+//! pathological, what it answers. The harness runs each case on a worker
+//! thread with a wall-clock deadline so a regression that reintroduces the
+//! hang fails loudly instead of stalling the suite. The #4 tests additionally
+//! run on the default (un-spawned) test thread — `cargo test`'s per-test
+//! default 2 MiB stack — since that is the exact ambient stack the depth caps
+//! below were calibrated against.
 
 use std::sync::mpsc;
 use std::thread;
@@ -122,8 +121,9 @@ fn parser_deep_nesting_does_not_overflow() {
 #[test]
 fn backref_redos_is_bounded() {
     // `(a+)+\1$` on a run of "a"s is the textbook catastrophic-backtracking
-    // case. The step budget must make it bail quickly. We only require that exec
-    // *returns* (Some or None both acceptable — a tripped guard yields None).
+    // case. The step budget must make it stop quickly. We only require that
+    // exec *returns* (a match, or a stop — a tripped guard is never a
+    // no-match).
     within(5, "backref ReDoS exec", || {
         let re = Regex::compile_str("(a+)+\\1$", REG_ADVANCED).expect("compiles");
         let subject = cps(&"a".repeat(30));
@@ -139,9 +139,9 @@ fn reach_linear_star_is_bounded() {
         let re = Regex::compile_str("a*", REG_ADVANCED).expect("compiles");
         let subject = cps(&"a".repeat(20000));
         let got = re.exec(&subject, 0, 0);
-        // `a*` always matches (at least the empty string at position 0), so a
-        // result is expected here even though the budget may curtail the scan.
-        assert!(got.is_some(), "a* should match somewhere");
+        // `a*` always matches, and its repeat's closure expands each position
+        // once, so the scan completes within the budget.
+        assert!(got.matched().is_some(), "a* should match: {got:?}");
     });
 }
 
@@ -171,7 +171,7 @@ fn deeply_nested_dissect_repeat_survives() {
     let re = Regex::compile_str("a*", REG_ADVANCED).expect("compiles");
     let subject = cps(&"a".repeat(10_000));
     let got = re.exec(&subject, 0, 0);
-    assert!(got.is_some(), "a* should match somewhere");
+    assert!(got.matched().is_some(), "a* should match: {got:?}");
 }
 
 /// Regression coverage: `Bt::m_star` (the backtracking matcher's repeat
@@ -213,7 +213,11 @@ fn deeply_nested_backref_repeat_survives() {
 fn moderately_nested_capture_in_repeat_is_unaffected() {
     let re = Regex::compile_str("(x)*", REG_ADVANCED).expect("compiles");
     let subject = cps(&"x".repeat(200));
-    let got = re.exec(&subject, 0, 0).expect("(x)* matches 200 x's");
+    let got = re
+        .exec(&subject, 0, 0)
+        .matched()
+        .expect("(x)* matches 200 x's")
+        .to_vec();
     assert_eq!(
         got[0],
         Some(Span { start: 0, end: 200 }),
@@ -237,32 +241,38 @@ fn moderately_nested_backref_repeat_is_unaffected() {
     let subject = cps(&"x".repeat(101));
     let got = re.exec(&subject, 0, 0);
     assert_eq!(
-        got.map(|c| c[0]),
+        got.matched().map(|c| c[0]),
         Some(Some(Span { start: 0, end: 101 })),
         "moderate backref repeat should still match the whole subject"
     );
 }
 
-/// Regression coverage: `Matcher::dissect_repeat`'s depth-cap fallback
-/// approximates a nested capture's span by dissecting the remaining range as
-/// a single unit. Recursing into `dissect` for this fallback would trip
-/// `dissect`'s own top-of-function depth guard immediately, since the depth
-/// is already past `MAX_DISSECT_DEPTH`, leaving the capture `None` instead
-/// of the documented approximate span. `(x)*` past the 256-iteration cap
-/// must still report *some* span for capture 1, not an unset one.
+/// `(x)*` past the old 256-iteration dissection cap reports the final
+/// iteration's exact span, as tclsh 8.4 to 9.1 do (`regexp -indices {(x)*}`
+/// over 300 `x` gives `299 299` for the group): the repeat's iterations are
+/// walked in a loop, so its length no longer decides how deep the
+/// dissection nests, and nothing past a cap is approximated.
 #[test]
-fn capture_past_dissect_cap_gets_approximate_span_not_unset() {
+fn capture_past_the_old_dissect_cap_is_exact() {
     let re = Regex::compile_str("(x)*", REG_ADVANCED).expect("compiles");
     let subject = cps(&"x".repeat(300));
-    let got = re.exec(&subject, 0, 0).expect("(x)* matches 300 x's");
+    let got = re
+        .exec(&subject, 0, 0)
+        .matched()
+        .expect("(x)* matches 300 x's")
+        .to_vec();
     assert_eq!(
         got[0],
         Some(Span { start: 0, end: 300 }),
         "whole match spans the subject"
     );
-    assert!(
-        got[1].is_some(),
-        "capture 1 must get an approximate span past the dissect depth cap, not be left unset"
+    assert_eq!(
+        got[1],
+        Some(Span {
+            start: 299,
+            end: 300
+        }),
+        "capture 1 is the final iteration, exactly"
     );
 }
 
@@ -279,7 +289,7 @@ fn backref_repeat_past_old_cap_still_matches() {
     let subject = cps(&"a".repeat(300));
     let got = re.exec(&subject, 0, 0);
     assert_eq!(
-        got.map(|c| c[0]),
+        got.matched().map(|c| c[0]),
         Some(Some(Span { start: 0, end: 300 })),
         "(a)\\1*$ must match a 300-character run of the same character"
     );

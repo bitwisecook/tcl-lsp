@@ -37,7 +37,7 @@ use reference_toolchains::{REFERENCE_PATCHLEVELS, REFERENCE_SOURCE_TAGS};
 /// byte payload is always returned verbatim. This policy concerns the separate
 /// string-to-bytes shimmer used by commands such as `binary encode` and
 /// `binary scan`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ByteStringEncoding {
     /// Tcl 8.x's legacy low-byte conversion.
     LegacyTruncate,
@@ -72,7 +72,7 @@ pub enum ByteStringEncoding {
 /// that four-byte string, 8.4/8.5 answer code point 240 (`0xF0`, the raw
 /// UTF-8 lead byte), 8.6 answers 55357 (`0xD83D`, the high surrogate), and
 /// 9.x answers 128512 (`U+1F600`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum StringCharacterModel {
     /// Tcl 8.4-8.5: count BMP characters, but a supplementary code point
     /// counts as its four UTF-8 bytes (`TCL_UTF_MAX` 3).

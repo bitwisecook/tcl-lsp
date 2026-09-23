@@ -267,7 +267,16 @@ where
                 let mut re = E::compile(pat.as_bytes(), flags).map_err(|d| compile_error(&d))?;
                 let value_bytes = ops.as_bytes(value);
                 let (cps, byteoff) = decode_utf8(&value_bytes);
-                if let Some(m) = E::exec(&mut re, &cps, 0, false) {
+                let answer = E::exec(&mut re, &cps, 0, false);
+                if let crate::regex::RegexpPrecision::Declined(decline) = answer {
+                    // A search cut short selects no arm: it is raised, not
+                    // read as a pattern that did not match.
+                    let error = decline.into_error();
+                    return Err(CmdError::new(
+                        String::from_utf8_lossy(&error.0).into_owned(),
+                    ));
+                }
+                if let Some(m) = answer.match_vector() {
                     let writes = regexp_writes(ops, opts, &m, &value_bytes, &byteoff);
                     return Ok(Selection::Matched { index: p, writes });
                 }
@@ -499,9 +508,13 @@ mod tests {
             _cps: &[i32],
             _offset: usize,
             _notbol: bool,
-        ) -> Option<Vec<RegMatch>> {
+        ) -> crate::regex::RegexpPrecision<RegMatch> {
             unreachable!()
         }
+        const IDENTITY: crate::regex::EngineIdentity = crate::regex::EngineIdentity {
+            name: "none",
+            revision: 0,
+        };
     }
 
     fn exact_opts() -> Options<String> {

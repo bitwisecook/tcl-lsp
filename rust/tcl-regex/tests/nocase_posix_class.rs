@@ -34,7 +34,11 @@ fn matches(pattern: &str, subject: &str, nocase: bool) -> bool {
         REG_ADVANCED
     };
     let re = Regex::compile_str(pattern, flags).expect("pattern compiles");
-    re.exec(&cps(subject), 0, 0).is_some()
+    match re.exec(&cps(subject), 0, 0) {
+        tcl_regex::ExecOutcome::Matched(_) => true,
+        tcl_regex::ExecOutcome::NoMatch => false,
+        tcl_regex::ExecOutcome::Stopped(stop) => panic!("the search stopped: {stop:?}"),
+    }
 }
 
 #[test]

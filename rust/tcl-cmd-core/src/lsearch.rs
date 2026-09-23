@@ -389,7 +389,15 @@ pub fn lsearch<O: ValueOps, E: RegexEngine>(
                 SearchMode::Regexp => {
                     let kb = ops.as_bytes(&key);
                     let (cps, _) = decode_utf8(&kb);
-                    E::exec(re.as_mut().expect("compiled"), &cps, 0, false).is_some()
+                    match E::exec(re.as_mut().expect("compiled"), &cps, 0, false) {
+                        crate::regex::RegexpPrecision::Exact { .. } => true,
+                        crate::regex::RegexpPrecision::NoMatch => false,
+                        // A search cut short is raised, never counted as an
+                        // element that did not match.
+                        crate::regex::RegexpPrecision::Declined(decline) => {
+                            return Err(LsearchError::msg(decline.into_error().0));
+                        }
+                    }
                 }
                 SearchMode::Exact | SearchMode::Sorted => {
                     elem_cmp(ops, o.dtype, o.nocase, &pattern, &key)?.is_eq()

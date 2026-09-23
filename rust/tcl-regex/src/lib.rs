@@ -67,7 +67,7 @@ mod exec;
 mod parser;
 
 pub use defs::Err as ErrorCode;
-pub use exec::Span;
+pub use exec::{ExecLimits, ExecOutcome, ExecStop, MATCH_FUEL, Span};
 
 use ast::Node;
 
@@ -221,17 +221,59 @@ impl Regex {
     }
 
     /// Match against `subject` (codepoints), searching from character `from`,
-    /// under exec flags `eflags` (`REG_NOTBOL` / `REG_NOTEOL`). Returns the
-    /// capture spans (index 0 = whole match; `None` = non-participating
-    /// subexpression), or `None` if there is no match.
+    /// under exec flags `eflags` (`REG_NOTBOL` / `REG_NOTEOL`), within the
+    /// default work budget ([`MATCH_FUEL`]). The answer is three-way: the
+    /// capture spans of a completed match (index 0 = whole match; `None` =
+    /// non-participating subexpression), a completed no-match, or the
+    /// [`ExecStop`] that left the search incomplete — which proves neither
+    /// (`docs/design/compiler/value-evaluation.md` § *The typed precision
+    /// result*).
     #[must_use]
-    pub fn exec(&self, subject: &[u32], from: usize, eflags: i32) -> Option<Vec<Option<Span>>> {
+    pub fn exec(&self, subject: &[u32], from: usize, eflags: i32) -> ExecOutcome {
+        self.exec_with(subject, from, eflags, &ExecLimits::default())
+    }
+
+    /// [`Self::exec`] under `limits`: a work budget of the caller's, and the
+    /// token that stops the search where the budget is charged.
+    #[must_use]
+    pub fn exec_with(
+        &self,
+        subject: &[u32],
+        from: usize,
+        eflags: i32,
+        limits: &ExecLimits<'_>,
+    ) -> ExecOutcome {
         let prefer_shortest = self.info & defs::REG_USHORTEST != 0;
-        let mut m = exec::Matcher::new(subject, self.cflags, eflags, prefer_shortest);
+        let mut m = exec::Matcher::new(subject, self.cflags, eflags, prefer_shortest, limits);
         if self.has_backref {
             m.search_backref(&self.root, self.nsub, from)
         } else {
             m.search(&self.root, self.nsub, from)
+        }
+    }
+
+    /// The bytes the compiled pattern holds on the heap, estimated from its
+    /// tree: what a cache bounded by retained bytes charges for keeping it.
+    #[must_use]
+    pub fn retained_bytes(&self) -> usize {
+        std::mem::size_of::<Regex>() + node_bytes(&self.root)
+    }
+}
+
+/// The heap bytes `node`'s subtree holds, beyond `node` itself.
+fn node_bytes(node: &Node) -> usize {
+    let own = std::mem::size_of::<Node>();
+    match node {
+        Node::Empty | Node::Anchor(_) | Node::Backref { .. } => 0,
+        Node::Set(set) => {
+            set.ranges.capacity() * std::mem::size_of::<(defs::Chr, defs::Chr)>()
+                + set.classes.capacity() * std::mem::size_of::<ast::ClassKind>()
+        }
+        Node::Look { sub, .. } | Node::Capture { sub, .. } | Node::Repeat { sub, .. } => {
+            own + node_bytes(sub)
+        }
+        Node::Concat(items) | Node::Alt(items) => {
+            items.iter().map(|item| own + node_bytes(item)).sum()
         }
     }
 }

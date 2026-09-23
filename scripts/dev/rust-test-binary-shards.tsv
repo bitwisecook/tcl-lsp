@@ -60,6 +60,7 @@
 2	tcl-regex::dos_bounds	test	tcl-regex	dos_bounds
 2	tcl-regex::lazy_alt_backref	test	tcl-regex	lazy_alt_backref
 2	tcl-regex::nocase_posix_class	test	tcl-regex	nocase_posix_class
+2	tcl-regex::precision_oracle	test	tcl-regex	precision_oracle
 2	tcl-registry::dialect_oracle	test	tcl-registry	dialect_oracle
 2	tcl-registry::snapshot	test	tcl-registry	snapshot
 2	tcl-spec-hooks	lib	tcl-spec-hooks	tcl_spec_hooks

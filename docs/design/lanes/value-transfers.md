@@ -4304,6 +4304,30 @@ item; the grouping stays the plan's account of what lands together.
 |---|---|---|---|
 | VT5.1 | `wip(value-transfers): slice 5 — every outcome kind, applied per place` | `validate_outcome` (`answers.rs`): every store names a declared target — the driver's `CommandSemantics::store_targets` (the `VarWrite` operands and a cell-update plan's target by default; a pack's `stores -targets` for `DeclaredSemantics`, D105) — each target has one outcome at most, the type facts name only targets, and an error completion lists no more stores than ran; the driver's `apply_outcome` replaces `store_def` (D26's shape): each store resolves to its place, a repeated place composes in execution order (the last write wins, a `Preserve` keeps what the place holds at that point, a `MayWrite` or `Unbind` widens), an element beside its array's base declines `OverlappingTargets`, a traced place declines `TracedPlace`, an escaping one widens its own definition (D106), a non-normal completion declines (D107); the lifted members join per definition with a pending member keeping it pending (D108); SCCP evaluates a statement once per sweep for every definition (`DefValues`), so a call that defines several variables takes each one's own value (D108); `PlaceRef::{is_element, base, shares_storage_with, overlaps_as_element_and_base}`, which `declared.rs` now reads in place of its private helper (D109) | `validate_outcome_rejects_a_store_to_a_non_target` (`value_transfers.rs`); every `evaluate_def_*`, `sccp_*` and witness test byte-identical |
 | VT5.2 | `wip(value-transfers): slice 5 — folded types and representation evidence` | `FoldedType { intrep, shape, representation }` (`value_transfer.rs`) and `SccpResult::folded_types`: the driver's per-definition answers carry the folded type their evaluation states (`DefAnswer`; a result's from its type facts and value, a place's from the stores to it in order, a copy's from its source), SCCP records the settled sweep's, joins a φ's by agreement and forgets them at a barrier (D115); the Explorer's `sccp` view shows each (`h#1 = const(…)` · `type: bytearray (constructed)`); the shimmer purity read (`is_pure_value`, `is_free_first_conversion`, the commit facts' initial state) reads representation before the literal rule, so a computed constant no longer hides a conversion (D116); `type_infer` takes a folded type where its static typing knows nothing (D117); S110 takes a constructed byte array as a byte source (D118); `find_shimmer_warnings` and `find_byte_array_warnings` take the function's `SccpResult`, and the use-site and expression passes its `CommitCtx` | `folded_types_state_what_each_route_constructed` (witnesses); `serialise::tests::sccp_reports_folded_types`; `a_computed_constant_never_hides_a_conversion` (use-site S100, tclsh 8.6 to 9.1 checked); `a_folded_type_refines_only_what_the_static_typing_leaves_unknown`; `constructed_byte_array_evidence_is_a_byte_source` |
+| VT5.3 | `wip(value-transfers): slice 5 — the regexp owner` | the engine answers three ways (`tcl_regex::ExecOutcome`: `Matched`, `NoMatch`, `Stopped(ExecStop::{Fuel, Depth, Cancelled})`), `Regex::exec` and `Regex::exec_with(…, &ExecLimits { fuel, cancel })`, the token read where the fuel is charged (D119); dissection walks a repeat's iterations and a concatenation's items in loops with a backward finish table, skips a subtree without a capture, and stops rather than approximates past its depth cap, the unbounded repeat's reach is a worklist closure, and the backtracker matches a single character's repeat and a literal run in loops (D120, D121); the plumbing's `RegexpPrecision<RegMatch>` and `PrecisionDecline`, verbatim, `RegexEngine::exec` returning it with `exec_within`, `IDENTITY` and `retained_bytes`; `regexp`, `regsub`, `switch -regexp`, `lsearch -regexp` and the VM's match helper raise a decline (`error while matching regular expression: …`), the C API returns `REG_ESPACE`, and `regexp_analysis` / `regsub_analysis` keep it typed (D122); the thread's `PatternCacheKey`-keyed cache, 4 MiB of retained bytes, coldest first, a compile charged its length squared through `AnalysisMatch::charge` (D123) | `the_three_precision_witnesses` and `an_exhausted_search_is_never_a_no_match` (`precision_oracle.rs`, the page's table under tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1b0, all five agreeing); `a_stopped_search_is_raised_at_run_time_and_typed_in_analysis`, `the_pattern_cache_charges_a_compile_once_per_key`, `the_pattern_cache_stays_within_its_byte_bound` (`tcl-cmd-core`); `capture_past_the_old_dissect_cap_is_exact` replaces the approximate-span test; every other `tcl-regex` (the `reg.test` corpus included), `tcl-cmd-core`, `tcl-vm` and `runtime/rust` regexp test unchanged |
+
+Green at VT5.3:
+
+- tests: `tcl-regex --features cmd-core` 25 across 9 binaries;
+  `tcl-cmd-core` 130; `tcl-dialect` 166; `tcl-vm` (under `LANG=C.UTF-8`)
+  1473 across 50 binaries; `tcl-registry` 1198 (the consumer-contracts
+  lane's `c6a29f41` moved its own counts); `tcl-lsp-core`'s
+  `are_tokenizer_consistency`; `runtime/rust`'s regex lib tests (12) and
+  `parser_gaps` (34), that crate checked with `--all-targets`; no failure;
+- pedantic clippy (`--no-deps --all-targets -D warnings`) on `tcl-regex`
+  (with `cmd-core`), `tcl-cmd-core`, `tcl-vm` and `tcl-dialect`, no
+  `#[allow]` added (the one on `regexp_run` is the one `regexp` carried);
+  `rustfmt` on the touched files;
+- the shard row `2 tcl-regex::precision_oracle` and the shard verifier;
+  `cargo xtask value-transfers --check` and `registry-axes --check` OK,
+  unchanged; `cargo check --workspace --all-targets` clean.
+
+Beyond the plan's file list, each forced by the trait change or the key:
+`tcl-cmd-core`'s `switch.rs` and `lsearch.rs` (callers of
+`RegexEngine::exec`), `tcl-vm`'s `cmd_regexp.rs` (its match helper),
+`runtime/rust/src/regex_capi.rs` (the C API's `TclReExec`, outside the
+workspace), and `tcl-dialect`'s `version.rs` (`Hash` on the two
+target-semantics enums the cache key holds).
 
 Green at VT5.2:
 
@@ -7396,6 +7420,67 @@ has the witnesses):
   a pack evaluation without that return type reaches.
   `representation_plan.rs`, which the plan's file list named, reads no
   `TclType` and no lattice, so it needed nothing.
+
+- **D119 — The engine answers three ways; the plumbing's type is the
+  page's.** `tcl-regex` stays dependency-free, so the engine's own answer
+  is `ExecOutcome { Matched(groups), NoMatch, Stopped(ExecStop) }` with
+  `ExecStop::{Fuel { spent }, Depth { limit }, Cancelled}`, and
+  `AreEngine` maps it onto the plumbing's `RegexpPrecision<RegMatch>` and
+  `PrecisionDecline`, which are the page's verbatim with `V` the span type
+  of the layer (`RegMatch`; the page's `V` appears in no field). A
+  pattern's compile error and an unsupported form are the plumbing's to
+  say, so they are `PrecisionDecline` variants the engine never produces.
+  The limits are the engine's (`ExecLimits { fuel, cancel }`) and the
+  plumbing's (`MatchLimits`, through `RegexEngine::exec_within`); the token
+  is an `AtomicBool`, read in `spend_fuel_n` and the backtracker's
+  `spend_fuel` — the page's one cancellation point.
+- **D120 — Nothing is approximated.** Dissection walked a repeat's
+  iterations by recursion and fell back to an approximate span past 256,
+  so `(x)*` over 300 `x` reported group 1 at `256 299` where every tclsh
+  reports `299 299`. It now walks iterations and a concatenation's items in
+  loops — an unbounded repeat's "can the rest finish at `hi` from here"
+  answered once per position by a backward pass — so its depth is the
+  pattern's structural nesting; past the cap it stops (`Depth`). A subtree
+  without a capture is not dissected at all. `AreEngine` therefore always
+  answers `captures_exact: true`; `ApproximateCapture` stays for another
+  provider, and the analysis path names the first participating group
+  with it, since `Exact` carries only the flag.
+- **D121 — Exactness needs bounds that do not grow with the subject.**
+  Measured on the engine as it stood (`885e5ca1`), three of the page's
+  witnesses were wrong: `^a*(b)\1$` over 300 `a` and `bb` recursed past the
+  backtracker's cap and answered no match; `(x)*` over 300 `x` reported
+  group 1 at `256 299`; and `^(a+)+b$` over 300 `a` spent its fuel
+  re-expanding a frontier per repetition count, after which `reach_seq`
+  returned its partial frontier and the search reported a *match*
+  (`[0, 300)`, in 568 ms) where every release answers 0 — the page's
+  "opposite" answer. An unbounded repeat past its minimum now reaches the
+  closure of its frontier with a worklist that expands each position once,
+  and the backtracker matches a single character's repeat (`m_run`, in the
+  order `m_repeat` and `m_star` try lengths) and a run of literal
+  characters in loops. All three witnesses are exact and agree with tclsh
+  8.4.20 to 9.1b0, well inside the budget (the witness test runs in a
+  quarter of a second).
+- **D122 — A decline is raised at run time and kept typed in analysis.**
+  The runtime entry points keep their signatures — `regexp`, `regsub`,
+  `regsub_eval`, `switch::select`, `lsearch`, the VM's match helper — and
+  raise a decline as `error while matching regular expression: <reason>`,
+  C Tcl's `TclRegError` prefix, rather than answer 0, the unsubstituted
+  text, no arm, or no element; the C API's `TclReExec` returns
+  `REG_ESPACE`. `regexp_analysis` and `regsub_analysis` run the same
+  algorithm (`regexp_run`, `regsub_run`) and return
+  `RegexFailure::{Error, Declined}`; a `-command` substitution that is due
+  declines `FormUnsupported`, as the analysis path cannot run a script.
+- **D123 — The pattern cache is the analysis path's, in the plumbing.**
+  `PatternCacheKey` is the page's verbatim, its engine field
+  `RegexEngine::IDENTITY` (`AreEngine`'s revision 2, bumped by this
+  change) and its target the analysis context's pair, so
+  `StringCharacterModel` and `ByteStringEncoding` gained `Hash`. The
+  thread-local cache holds at most `PATTERN_CACHE_BYTES` (4 MiB) of
+  `RegexEngine::retained_bytes` (`AreEngine` sizes its tree), evicts the
+  coldest entry first, and keeps no compilation larger than the bound. A
+  miss is charged the pattern's length squared through
+  `AnalysisMatch::charge` before it compiles; a refused charge is
+  `Cancelled` and caches nothing. The runtime compiles fresh, as it did.
 
 ### Open questions for the owner
 

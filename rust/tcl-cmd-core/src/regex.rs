@@ -40,7 +40,13 @@
 //! Semantics follow tclsh 9.0, which `runtime/rust`'s linked ARE engine
 //! reproduces exactly.
 
-use tcl_dialect::TclVersion;
+use std::any::Any;
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::rc::Rc;
+use std::sync::atomic::AtomicBool;
+
+use tcl_dialect::{ByteStringEncoding, StringCharacterModel, TclVersion};
 use tcl_syntax::value::ValueOps;
 
 use crate::prefix::OptionTable;
@@ -51,10 +57,132 @@ pub const NO_MATCH: usize = usize::MAX;
 
 /// One reported (sub-)match: half-open `[so, eo)` in **character** offsets.
 /// `so == NO_MATCH` means the subexpression did not participate.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct RegMatch {
     pub so: usize,
     pub eo: usize,
+}
+
+/// What a bounded match establishes (`docs/design/compiler/value-evaluation.md`
+/// § *The typed precision result*). The only variant a compile-time fact may
+/// be built from is `Exact`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum RegexpPrecision<V> {
+    /// The search ran to completion and matched. Spans are half-open
+    /// `[so, eo)` character offsets, exactly as [`RegMatch`] carries them;
+    /// a non-participating subexpression is `None`.
+    Exact {
+        whole: V,
+        groups: Vec<Option<V>>,
+        /// Every span was produced by the exact path, never by an
+        /// approximation.
+        captures_exact: bool,
+    },
+    /// The search ran to completion and did not match. This is the only
+    /// answer that proves a negative.
+    NoMatch,
+    /// The search did not establish either, for a recorded reason.
+    Declined(PrecisionDecline),
+}
+
+impl RegexpPrecision<RegMatch> {
+    /// A completed match as the plumbing's match vector: the whole match,
+    /// then each subexpression, a non-participating one as [`NO_MATCH`].
+    #[must_use]
+    pub fn match_vector(&self) -> Option<Vec<RegMatch>> {
+        match self {
+            Self::Exact { whole, groups, .. } => Some(
+                std::iter::once(*whole)
+                    .chain(groups.iter().map(|group| {
+                        group.unwrap_or(RegMatch {
+                            so: NO_MATCH,
+                            eo: NO_MATCH,
+                        })
+                    }))
+                    .collect(),
+            ),
+            Self::NoMatch | Self::Declined(_) => None,
+        }
+    }
+
+    /// A match vector as an exact answer: index 0 the whole match, a
+    /// [`NO_MATCH`] entry a non-participating subexpression.
+    #[must_use]
+    pub fn exact(matches: &[RegMatch]) -> Self {
+        let Some((&whole, groups)) = matches.split_first() else {
+            return Self::NoMatch;
+        };
+        Self::Exact {
+            whole,
+            groups: groups
+                .iter()
+                .map(|group| (group.so != NO_MATCH).then_some(*group))
+                .collect(),
+            captures_exact: true,
+        }
+    }
+}
+
+/// Why a bounded match established neither a match nor a no-match.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum PrecisionDecline {
+    /// The engine's work budget ran out.
+    FuelExhausted { spent: u64 },
+    /// A recursion limit was reached.
+    DepthExhausted { limit: u32 },
+    /// A span came from an approximation.
+    ApproximateCapture { group: usize },
+    /// The pattern did not compile; carries the engine's detail bytes as
+    /// [`RegexError`] already does.
+    PatternError(RegexError),
+    /// The option or form is outside what the core implements.
+    FormUnsupported { option: &'static str },
+    /// The request budget or the cancellation token stopped the match.
+    Cancelled,
+}
+
+impl PrecisionDecline {
+    /// The error the runtime raises for a match that established nothing:
+    /// the search's own reason under C Tcl's `error while matching regular
+    /// expression: ` prefix (`TclRegError`), a pattern's compile error as it
+    /// stands, and an unsupported form as the refusal it is.
+    #[must_use]
+    pub fn into_error(self) -> RegexError {
+        let reason = match self {
+            Self::PatternError(error) => return error,
+            Self::FormUnsupported { option } => {
+                return RegexError(format!("{option} is not yet supported").into_bytes());
+            }
+            Self::FuelExhausted { .. } => "the search exceeded its work budget",
+            Self::DepthExhausted { .. } => "the search exceeded its recursion limit",
+            Self::ApproximateCapture { .. } => "a subexpression's span is only approximate",
+            Self::Cancelled => "operation cancelled",
+        };
+        let mut message = b"error while matching regular expression: ".to_vec();
+        message.extend_from_slice(reason.as_bytes());
+        RegexError(message)
+    }
+}
+
+/// An engine's identity and revision: part of every compiled-pattern cache
+/// key, so a change to the engine cannot serve a stale compilation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct EngineIdentity {
+    /// The engine's name.
+    pub name: &'static str,
+    /// Bumped whenever what a pattern compiles to, or what it matches, may
+    /// change.
+    pub revision: u32,
+}
+
+/// The limits one analysis-path match runs under: the engine's work
+/// budget, when the caller narrows it, and the token that stops it.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct MatchLimits<'c> {
+    /// The engine's work budget; `None` for its own default.
+    pub fuel: Option<u64>,
+    /// Set by the caller to stop the match.
+    pub cancel: Option<&'c AtomicBool>,
 }
 
 /// The compile-time options that affect matching, in an engine-neutral form
@@ -111,18 +239,43 @@ pub trait RegexEngine {
     /// Find the leftmost match in `cps` (the whole subject as codepoints) at or
     /// after character `offset`. `notbol` requests that `^` not match at
     /// `offset` (the FFI engine's `REG_NOTBOL`; a context-aware crate engine can
-    /// ignore it). Returns the match vector (index 0 = whole match, then each
-    /// subexpression) in **absolute** character offsets, or `None` on no match.
+    /// ignore it). The answer is three-way: the match in **absolute**
+    /// character offsets, a completed no-match, or why the search established
+    /// neither — which is never a no-match.
     fn exec(
         re: &mut Self::Regex,
         cps: &[i32],
         offset: usize,
         notbol: bool,
-    ) -> Option<Vec<RegMatch>>;
+    ) -> RegexpPrecision<RegMatch>;
+
+    /// [`Self::exec`] under `limits`. An engine without a budget of its own
+    /// to narrow, or a token to read, answers as [`Self::exec`] does.
+    fn exec_within(
+        re: &mut Self::Regex,
+        cps: &[i32],
+        offset: usize,
+        notbol: bool,
+        limits: MatchLimits<'_>,
+    ) -> RegexpPrecision<RegMatch> {
+        let _ = limits;
+        Self::exec(re, cps, offset, notbol)
+    }
+
+    /// The engine's identity and revision (the pattern cache's key).
+    const IDENTITY: EngineIdentity;
+
+    /// The bytes a compiled pattern keeps on the heap — what the pattern
+    /// cache charges against its bound. The default charges nothing beyond
+    /// the handle.
+    fn retained_bytes(re: &Self::Regex) -> usize {
+        let _ = re;
+        std::mem::size_of::<Self::Regex>()
+    }
 }
 
 /// A `regexp`/`regsub` failure: the full, ready-to-report message bytes.
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RegexError(pub Vec<u8>);
 
 /// The outcome of [`regexp`] for the adapter to apply (var writes stay in the
@@ -147,6 +300,237 @@ pub struct RegsubResult {
     pub text: Vec<u8>,
     pub count: i64,
     pub var: Option<Vec<u8>>,
+}
+
+impl RegexFlags {
+    /// The four booleans packed, for the pattern cache's key: nocase,
+    /// expanded, linestop, lineanchor.
+    #[must_use]
+    pub const fn packed(self) -> u8 {
+        (self.nocase as u8)
+            | ((self.expanded as u8) << 1)
+            | ((self.linestop as u8) << 2)
+            | ((self.lineanchor as u8) << 3)
+    }
+}
+
+/// The compiled-pattern cache key (`docs/design/compiler/value-evaluation.md`
+/// § *The pattern cache, its bound, and the cancellation point*). Every field
+/// is part of the identity a compiled pattern is only valid under.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct PatternCacheKey {
+    /// The pattern's exact bytes, never a normalised or trimmed form.
+    pub pattern: Rc<[u8]>,
+    /// [`RegexFlags`]' four booleans, packed ([`RegexFlags::packed`]).
+    pub flags: u8,
+    /// The engine's identity and revision, so a change to the engine cannot
+    /// serve a stale compilation.
+    pub engine: EngineIdentity,
+    /// The target's character model and byte-string encoding, the two axes
+    /// that change what a pattern matches.
+    pub target: (Option<StringCharacterModel>, Option<ByteStringEncoding>),
+}
+
+/// The most compiled-pattern bytes one thread's cache retains. The bound is
+/// on retained bytes, not entries: one pathological pattern compiles to far
+/// more than an average one, and an entry count would not limit memory.
+pub const PATTERN_CACHE_BYTES: usize = 4 * 1024 * 1024;
+
+/// One cached compilation.
+struct CachedPattern {
+    compiled: Rc<dyn Any>,
+    bytes: usize,
+    /// The cache clock at the last use; the coldest entry goes first.
+    used: u64,
+}
+
+/// A thread's compiled patterns, bounded by [`PATTERN_CACHE_BYTES`].
+#[derive(Default)]
+struct PatternCache {
+    entries: HashMap<PatternCacheKey, CachedPattern>,
+    retained: usize,
+    clock: u64,
+}
+
+impl PatternCache {
+    fn get(&mut self, key: &PatternCacheKey) -> Option<Rc<dyn Any>> {
+        self.clock += 1;
+        let clock = self.clock;
+        self.entries.get_mut(key).map(|entry| {
+            entry.used = clock;
+            Rc::clone(&entry.compiled)
+        })
+    }
+
+    /// Keep `compiled` under `key`, evicting the coldest entries until it
+    /// fits. A compilation larger than the whole bound is not kept.
+    fn insert(&mut self, key: PatternCacheKey, compiled: Rc<dyn Any>, bytes: usize) {
+        if bytes > PATTERN_CACHE_BYTES {
+            return;
+        }
+        while self.retained + bytes > PATTERN_CACHE_BYTES {
+            let Some(coldest) = self
+                .entries
+                .iter()
+                .min_by_key(|(_, entry)| entry.used)
+                .map(|(key, _)| key.clone())
+            else {
+                break;
+            };
+            if let Some(evicted) = self.entries.remove(&coldest) {
+                self.retained -= evicted.bytes;
+            }
+        }
+        self.clock += 1;
+        let used = self.clock;
+        if let Some(replaced) = self.entries.insert(
+            key,
+            CachedPattern {
+                compiled,
+                bytes,
+                used,
+            },
+        ) {
+            self.retained -= replaced.bytes;
+        }
+        self.retained += bytes;
+    }
+}
+
+thread_local! {
+    /// The thread's compiled-pattern cache.
+    static PATTERN_CACHE: RefCell<PatternCache> = RefCell::new(PatternCache::default());
+}
+
+/// The bytes the calling thread's pattern cache retains now.
+#[must_use]
+pub fn pattern_cache_retained_bytes() -> usize {
+    PATTERN_CACHE.with(|cache| cache.borrow().retained)
+}
+
+/// What an analysis-path run compiles and matches under: the target its
+/// pattern's meaning depends on, the charge a compile pays before it runs,
+/// and the limits every search runs under.
+pub struct AnalysisMatch<'c> {
+    /// The target's character model and byte-string encoding.
+    pub target: (Option<StringCharacterModel>, Option<ByteStringEncoding>),
+    /// Charge `units` of work; `false` once the caller's budget is spent,
+    /// which cancels the compile rather than cache a partial entry.
+    pub charge: &'c mut dyn FnMut(u64) -> bool,
+    /// The engine budget and cancellation token each search runs under.
+    pub limits: MatchLimits<'c>,
+}
+
+/// A `regexp` / `regsub` run on the analysis path that did not complete
+/// normally: the error the command raises, or the decline of a match that
+/// established nothing.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum RegexFailure {
+    /// The command raises this error.
+    Error(RegexError),
+    /// The match established neither a match nor a no-match.
+    Declined(PrecisionDecline),
+}
+
+impl From<RegexError> for RegexFailure {
+    fn from(error: RegexError) -> Self {
+        Self::Error(error)
+    }
+}
+
+impl RegexFailure {
+    /// The runtime's reading: a decline is raised as the error it is.
+    fn into_error(self) -> RegexError {
+        match self {
+            Self::Error(error) => error,
+            Self::Declined(decline) => decline.into_error(),
+        }
+    }
+}
+
+/// How one `regexp` / `regsub` run compiles its pattern and matches.
+enum Run<'a, 'c> {
+    /// The runtime: a fresh compile, the engine's own budget.
+    Runtime,
+    /// The analysis path: the thread's bounded cache, the caller's charge
+    /// and limits.
+    Analysis(&'a mut AnalysisMatch<'c>),
+}
+
+impl Run<'_, '_> {
+    /// Compile `pattern` under `flags`. On the analysis path the thread's
+    /// cache answers first; a miss charges the pattern's length squared —
+    /// the parser's worst case — before it compiles, and a refused charge is
+    /// `Cancelled`, never a partial entry.
+    fn compile<E: RegexEngine>(
+        &mut self,
+        pattern: &[u8],
+        flags: RegexFlags,
+    ) -> Result<Rc<RefCell<E::Regex>>, RegexFailure>
+    where
+        E::Regex: 'static,
+    {
+        let Self::Analysis(analysis) = self else {
+            let re = E::compile(pattern, flags).map_err(|detail| compile_error(&detail))?;
+            return Ok(Rc::new(RefCell::new(re)));
+        };
+        let key = PatternCacheKey {
+            pattern: Rc::from(pattern),
+            flags: flags.packed(),
+            engine: E::IDENTITY,
+            target: analysis.target,
+        };
+        if let Some(hit) = PATTERN_CACHE.with(|cache| cache.borrow_mut().get(&key))
+            && let Ok(re) = hit.downcast::<RefCell<E::Regex>>()
+        {
+            return Ok(re);
+        }
+        let length = u64::try_from(pattern.len()).unwrap_or(u64::MAX);
+        if !(analysis.charge)(length.saturating_mul(length)) {
+            return Err(RegexFailure::Declined(PrecisionDecline::Cancelled));
+        }
+        let re = E::compile(pattern, flags).map_err(|detail| {
+            RegexFailure::Declined(PrecisionDecline::PatternError(compile_error(&detail)))
+        })?;
+        let bytes = E::retained_bytes(&re).saturating_add(pattern.len());
+        let re = Rc::new(RefCell::new(re));
+        let kept: Rc<dyn Any> = Rc::clone(&re) as Rc<dyn Any>;
+        PATTERN_CACHE.with(|cache| cache.borrow_mut().insert(key, kept, bytes));
+        Ok(re)
+    }
+
+    /// One search. On the analysis path it runs under the caller's limits,
+    /// and a match with an approximate span declines: a capture consumer
+    /// needs exact captures.
+    fn exec<E: RegexEngine>(
+        &self,
+        re: &RefCell<E::Regex>,
+        cps: &[i32],
+        offset: usize,
+        notbol: bool,
+    ) -> RegexpPrecision<RegMatch> {
+        let mut re = re.borrow_mut();
+        match self {
+            Self::Runtime => E::exec(&mut re, cps, offset, notbol),
+            Self::Analysis(analysis) => {
+                match E::exec_within(&mut re, cps, offset, notbol, analysis.limits) {
+                    RegexpPrecision::Exact {
+                        groups,
+                        captures_exact: false,
+                        ..
+                    } => RegexpPrecision::Declined(PrecisionDecline::ApproximateCapture {
+                        // The engine says only that some span is approximate:
+                        // the first participating subexpression is named.
+                        group: groups
+                            .iter()
+                            .position(Option::is_some)
+                            .map_or(0, |at| at + 1),
+                    }),
+                    answer => answer,
+                }
+            }
+        }
+    }
 }
 
 /// Decode UTF-8 `bytes` into codepoints plus a parallel byte-offset table. The
@@ -295,12 +679,49 @@ const REGEXP_OPTIONS: OptionTable<'static> = OptionTable::exact_only("option", &
 /// command's arguments **without** the command name.
 ///
 /// # Errors
-/// Option/arg/compile errors as ready-to-report [`RegexError`] messages.
-#[allow(clippy::too_many_lines)] // option scan + match loop + result build, read top-to-bottom
+/// Option/arg/compile errors as ready-to-report [`RegexError`] messages, and
+/// a search that established neither a match nor a no-match as the error it
+/// raises ([`PrecisionDecline::into_error`]) — never a count of 0.
 pub fn regexp<O: ValueOps, E: RegexEngine>(
     ops: &mut O,
     args: &[&[u8]],
-) -> Result<RegexpResult<O::Value>, RegexError> {
+) -> Result<RegexpResult<O::Value>, RegexError>
+where
+    E::Regex: 'static,
+{
+    regexp_run::<O, E>(ops, args, &mut Run::Runtime).map_err(RegexFailure::into_error)
+}
+
+/// `regexp` on the analysis path: compiled through the thread's bounded
+/// pattern cache, each search under `analysis`' limits, and a match that
+/// established nothing kept typed ([`RegexFailure::Declined`]) rather than
+/// raised — the answer a compile-time fact may be built from, or its reason.
+///
+/// # Errors
+/// [`RegexFailure::Error`] for the error the command raises;
+/// [`RegexFailure::Declined`] for a pattern that does not compile, a refused
+/// compile charge, an exhausted or cancelled search, or an approximate span.
+pub fn regexp_analysis<O: ValueOps, E: RegexEngine>(
+    ops: &mut O,
+    args: &[&[u8]],
+    analysis: &mut AnalysisMatch<'_>,
+) -> Result<RegexpResult<O::Value>, RegexFailure>
+where
+    E::Regex: 'static,
+{
+    regexp_run::<O, E>(ops, args, &mut Run::Analysis(analysis))
+}
+
+/// The one `regexp` algorithm both paths run.
+#[allow(clippy::too_many_lines)] // option scan + match loop + result build, read top-to-bottom
+fn regexp_run<O: ValueOps, E: RegexEngine>(
+    ops: &mut O,
+    args: &[&[u8]],
+    run: &mut Run<'_, '_>,
+) -> Result<RegexpResult<O::Value>, RegexFailure>
+where
+    E::Regex: 'static,
+{
     let mut c = Common::default();
     let mut indices = false;
     let mut inline = false;
@@ -348,16 +769,16 @@ pub fn regexp<O: ValueOps, E: RegexEngine>(
     // `regexp -about {(a)} extraarg`, while bare `regexp -about` is still a
     // wrong-# args.
     if rest.len() + usize::from(about) < 2 {
-        return Err(wrong_args(REGEXP_USAGE));
+        return Err(wrong_args(REGEXP_USAGE).into());
     }
     // C tests `-inline` against the *exact* remaining count and does it before
     // branching to `-about`, so `regexp -about -inline {(a)}` is the mix error
     // rather than an about answer (tclsh 8.4.20–9.1b0). Without `-about` the
     // arity check above has already forced `>= 2`, so `!= 2` is the old `> 2`.
     if inline && rest.len() != 2 {
-        return Err(RegexError(
-            b"regexp match variables not allowed when using -inline".to_vec(),
-        ));
+        return Err(
+            RegexError(b"regexp match variables not allowed when using -inline".to_vec()).into(),
+        );
     }
 
     let pattern = rest[0];
@@ -369,7 +790,8 @@ pub fn regexp<O: ValueOps, E: RegexEngine>(
         // command runs: no subject decode, no `-start`, no match loop, and
         // `-indices`/`-all` are simply ignored (all tclsh-verified, 8.4.20
         // through 9.1b0).
-        let re = E::compile(pattern, c.flags).map_err(|d| compile_error(&d))?;
+        let re = run.compile::<E>(pattern, c.flags)?;
+        let re = re.borrow();
         let nsubs = i64::try_from(E::nsub(&re)).unwrap_or(i64::MAX);
         let count = ops.new_int(nsubs);
         let flags: Vec<O::Value> = E::info_names(&re)
@@ -388,8 +810,8 @@ pub fn regexp<O: ValueOps, E: RegexEngine>(
     let char_len = cps.len();
     let match_vars = &rest[2..];
 
-    let mut re = E::compile(pattern, c.flags).map_err(|d| compile_error(&d))?;
-    let nsubs = E::nsub(&re);
+    let re = run.compile::<E>(pattern, c.flags)?;
+    let nsubs = E::nsub(&re.borrow());
 
     let mut offset = c
         .start
@@ -403,7 +825,11 @@ pub fn regexp<O: ValueOps, E: RegexEngine>(
 
     loop {
         let notbol = notbol_at(&cps, offset);
-        let Some(matches) = E::exec(&mut re, &cps, offset, notbol) else {
+        let answer = run.exec::<E>(&re, &cps, offset, notbol);
+        if let RegexpPrecision::Declined(decline) = answer {
+            return Err(RegexFailure::Declined(decline));
+        }
+        let Some(matches) = answer.match_vector() else {
             if all_count <= 1 {
                 // No match at all (first time through).
                 return Ok(if inline {
@@ -675,13 +1101,77 @@ fn regsub_option_scan(
 ///
 /// # Errors
 /// Option/arg/compile errors as ready-to-report [`RegexError`] messages.
-pub fn regsub<E: RegexEngine>(args: &[&[u8]]) -> Result<RegsubResult, RegexError> {
+pub fn regsub<E: RegexEngine>(args: &[&[u8]]) -> Result<RegsubResult, RegexError>
+where
+    E::Regex: 'static,
+{
     regsub_eval::<E, RegexError>(args, TclVersion::V9_0, |_| {
         Err(RegexError(b"regsub -command is not yet supported".to_vec()))
     })
     .map_err(|e| match e {
         RegsubError::Regex(e) | RegsubError::Eval(e) => e,
     })
+}
+
+/// `regsub` on the analysis path for `version`: compiled through the
+/// thread's bounded pattern cache, each search under `analysis`' limits, and
+/// a match that established nothing kept typed. A `-command` substitution
+/// runs a script this path cannot, so one that is due declines
+/// `FormUnsupported` — never the unsubstituted text, which would claim that
+/// nothing matched.
+///
+/// # Errors
+/// [`RegexFailure::Error`] for the error the command raises;
+/// [`RegexFailure::Declined`] as for [`regexp_analysis`], and for a due
+/// `-command` substitution.
+pub fn regsub_analysis<E: RegexEngine>(
+    args: &[&[u8]],
+    version: TclVersion,
+    analysis: &mut AnalysisMatch<'_>,
+) -> Result<RegsubResult, RegexFailure>
+where
+    E::Regex: 'static,
+{
+    regsub_run::<E, RegexFailure>(
+        args,
+        version,
+        |_| {
+            Err(RegexFailure::Declined(PrecisionDecline::FormUnsupported {
+                option: "regsub -command",
+            }))
+        },
+        &mut Run::Analysis(analysis),
+    )
+    .map_err(|failure| match failure {
+        RunFailure::Regex(error) => RegexFailure::Error(error),
+        RunFailure::Eval(failure) => failure,
+        RunFailure::Declined(decline) => RegexFailure::Declined(decline),
+    })
+}
+
+/// A `regsub` run's failure on either path.
+enum RunFailure<Err> {
+    /// `regsub`'s own diagnostic.
+    Regex(RegexError),
+    /// The `-command` prefix's evaluation failed.
+    Eval(Err),
+    /// A match established neither a match nor a no-match.
+    Declined(PrecisionDecline),
+}
+
+impl<Err> From<RegexError> for RunFailure<Err> {
+    fn from(error: RegexError) -> Self {
+        Self::Regex(error)
+    }
+}
+
+impl<Err> From<RegexFailure> for RunFailure<Err> {
+    fn from(failure: RegexFailure) -> Self {
+        match failure {
+            RegexFailure::Error(error) => Self::Regex(error),
+            RegexFailure::Declined(decline) => Self::Declined(decline),
+        }
+    }
 }
 
 /// Drive `regsub` over the engine `E` for `version`, evaluating a `-command`
@@ -703,8 +1193,28 @@ pub fn regsub<E: RegexEngine>(args: &[&[u8]]) -> Result<RegsubResult, RegexError
 pub fn regsub_eval<E: RegexEngine, Err>(
     args: &[&[u8]],
     version: TclVersion,
+    eval: impl FnMut(&[Vec<u8>]) -> Result<Vec<u8>, Err>,
+) -> Result<RegsubResult, RegsubError<Err>>
+where
+    E::Regex: 'static,
+{
+    regsub_run::<E, Err>(args, version, eval, &mut Run::Runtime).map_err(|failure| match failure {
+        RunFailure::Regex(error) => RegsubError::Regex(error),
+        RunFailure::Eval(error) => RegsubError::Eval(error),
+        RunFailure::Declined(decline) => RegsubError::Regex(decline.into_error()),
+    })
+}
+
+/// The one `regsub` algorithm both paths run.
+fn regsub_run<E: RegexEngine, Err>(
+    args: &[&[u8]],
+    version: TclVersion,
     mut eval: impl FnMut(&[Vec<u8>]) -> Result<Vec<u8>, Err>,
-) -> Result<RegsubResult, RegsubError<Err>> {
+    run: &mut Run<'_, '_>,
+) -> Result<RegsubResult, RunFailure<Err>>
+where
+    E::Regex: 'static,
+{
     let (c, command, i) = regsub_option_scan(args, regsub_options(version))?;
 
     let rest = &args[i..];
@@ -729,8 +1239,8 @@ pub fn regsub_eval<E: RegexEngine, Err>(
     let (cps, byteoff) = decode_utf8(str_bytes);
     let char_len = cps.len();
 
-    let mut re = E::compile(pattern, c.flags).map_err(|d| compile_error(&d))?;
-    let nsubs = E::nsub(&re);
+    let re = run.compile::<E>(pattern, c.flags)?;
+    let nsubs = E::nsub(&re.borrow());
 
     let mut offset = c
         .start
@@ -783,20 +1293,8 @@ pub fn regsub_eval<E: RegexEngine, Err>(
         && scalars_are_the_models_units
         && !subspec.iter().any(|&b| b == b'&' || b == b'\\')
     {
-        // Saturating: on a 32-bit target (the WASM runtime) a long subject
-        // times a long replacement can overflow `usize`, and a capacity hint
-        // must never be the thing that aborts. Too small only costs a regrow.
-        let hint = subspec
-            .len()
-            .saturating_mul(char_len)
-            .saturating_add(str_bytes.len());
-        let mut text = Vec::with_capacity(hint);
-        for i in 0..char_len {
-            text.extend_from_slice(subspec);
-            text.extend_from_slice(&str_bytes[byteoff[i]..byteoff[i + 1]]);
-        }
         return Ok(RegsubResult {
-            text,
+            text: substitute_before_each_character(subspec, str_bytes, &byteoff),
             count: i64::try_from(char_len).unwrap_or(i64::MAX),
             var,
         });
@@ -807,7 +1305,13 @@ pub fn regsub_eval<E: RegexEngine, Err>(
 
     while offset <= char_len {
         let notbol = offset > 0 && cps[offset - 1] != i32::from(b'\n');
-        let Some(matches) = E::exec(&mut re, &cps, offset, notbol) else {
+        let answer = run.exec::<E>(&re, &cps, offset, notbol);
+        if let RegexpPrecision::Declined(decline) = answer {
+            // A search cut short is not a no-match: the unsubstituted text
+            // would claim nothing matched.
+            return Err(RunFailure::Declined(decline));
+        }
+        let Some(matches) = answer.match_vector() else {
             break;
         };
         if count == 0 && offset > 0 {
@@ -834,7 +1338,7 @@ pub fn regsub_eval<E: RegexEngine, Err>(
                 // passes `a a {}`).
                 _ => Vec::new(),
             }));
-            result.extend_from_slice(&eval(&words).map_err(RegsubError::Eval)?);
+            result.extend_from_slice(&eval(&words).map_err(RunFailure::Eval)?);
         } else {
             // The substitution spec, with `&`/`\N` expanded.
             apply_subspec(&mut result, subspec, &matches, nsubs, str_bytes, &byteoff);
@@ -870,6 +1374,29 @@ pub fn regsub_eval<E: RegexEngine, Err>(
     };
 
     Ok(RegsubResult { text, count, var })
+}
+
+/// The literal empty pattern's substitution: `subspec` before each
+/// character of `str_bytes`, never at end-of-string (see `regsub_run`).
+fn substitute_before_each_character(
+    subspec: &[u8],
+    str_bytes: &[u8],
+    byteoff: &[usize],
+) -> Vec<u8> {
+    let char_len = byteoff.len().saturating_sub(1);
+    // Saturating: on a 32-bit target (the WASM runtime) a long subject times
+    // a long replacement can overflow `usize`, and a capacity hint must never
+    // be the thing that aborts. Too small only costs a regrow.
+    let hint = subspec
+        .len()
+        .saturating_mul(char_len)
+        .saturating_add(str_bytes.len());
+    let mut text = Vec::with_capacity(hint);
+    for i in 0..char_len {
+        text.extend_from_slice(subspec);
+        text.extend_from_slice(&str_bytes[byteoff[i]..byteoff[i + 1]]);
+    }
+    text
 }
 
 /// Expand a `regsub` substitution spec into `out`: `&` / `\0` → whole match,
@@ -1070,13 +1597,23 @@ mod tests {
             cps: &[i32],
             offset: usize,
             _notbol: bool,
-        ) -> Option<Vec<RegMatch>> {
+        ) -> RegexpPrecision<RegMatch> {
             let n = re.text.len();
-            let at =
-                (offset..=cps.len().checked_sub(n)?).find(|&i| cps[i..i + n] == re.text[..])?;
+            let at = cps
+                .len()
+                .checked_sub(n)
+                .and_then(|last| (offset..=last).find(|&i| cps[i..i + n] == re.text[..]));
+            let Some(at) = at else {
+                return RegexpPrecision::NoMatch;
+            };
             let whole = RegMatch { so: at, eo: at + n };
-            Some(core::iter::repeat_n(whole, re.nsub + 1).collect())
+            RegexpPrecision::exact(&core::iter::repeat_n(whole, re.nsub + 1).collect::<Vec<_>>())
         }
+
+        const IDENTITY: EngineIdentity = EngineIdentity {
+            name: "literal",
+            revision: 1,
+        };
     }
 
     /// The same engine with `re_info` flags, to prove `-about` renders the
@@ -1099,9 +1636,177 @@ mod tests {
             cps: &[i32],
             offset: usize,
             notbol: bool,
-        ) -> Option<Vec<RegMatch>> {
+        ) -> RegexpPrecision<RegMatch> {
             LiteralEngine::exec(re, cps, offset, notbol)
         }
+
+        const IDENTITY: EngineIdentity = EngineIdentity {
+            name: "flaggy",
+            revision: 1,
+        };
+    }
+
+    /// An engine whose every search stops: what a search that ran out of
+    /// budget looks like to the plumbing.
+    struct StoppingEngine;
+
+    impl RegexEngine for StoppingEngine {
+        type Regex = LiteralRe;
+        fn compile(pattern: &[u8], flags: RegexFlags) -> Result<LiteralRe, Vec<u8>> {
+            LiteralEngine::compile(pattern, flags)
+        }
+        fn nsub(re: &LiteralRe) -> usize {
+            re.nsub
+        }
+        fn exec(
+            _re: &mut LiteralRe,
+            _cps: &[i32],
+            _offset: usize,
+            _notbol: bool,
+        ) -> RegexpPrecision<RegMatch> {
+            RegexpPrecision::Declined(PrecisionDecline::FuelExhausted { spent: 7 })
+        }
+        const IDENTITY: EngineIdentity = EngineIdentity {
+            name: "stopping",
+            revision: 1,
+        };
+    }
+
+    /// A search that established neither a match nor a no-match is raised on
+    /// the runtime path — never a count of 0, never the unsubstituted text —
+    /// and kept typed on the analysis path.
+    #[test]
+    fn a_stopped_search_is_raised_at_run_time_and_typed_in_analysis() {
+        let raised =
+            b"error while matching regular expression: the search exceeded its work budget";
+        let mut ops = ListOps;
+        assert!(matches!(
+            regexp::<ListOps, StoppingEngine>(&mut ops, &[b"abc", b"xabcx"]),
+            Err(RegexError(message)) if message == raised
+        ));
+        assert!(matches!(
+            regsub::<StoppingEngine>(&[b"abc", b"xabcx", b"-"]),
+            Err(RegexError(message)) if message == raised
+        ));
+        let mut charge = |_: u64| true;
+        let mut analysis = AnalysisMatch {
+            target: (None, None),
+            charge: &mut charge,
+            limits: MatchLimits::default(),
+        };
+        assert!(matches!(
+            regexp_analysis::<ListOps, StoppingEngine>(
+                &mut ops,
+                &[b"abc", b"xabcx"],
+                &mut analysis
+            ),
+            Err(RegexFailure::Declined(PrecisionDecline::FuelExhausted {
+                spent: 7
+            }))
+        ));
+        assert!(matches!(
+            regsub_analysis::<StoppingEngine>(
+                &[b"abc", b"xabcx", b"-"],
+                TclVersion::V9_0,
+                &mut analysis
+            ),
+            Err(RegexFailure::Declined(PrecisionDecline::FuelExhausted {
+                spent: 7
+            }))
+        ));
+    }
+
+    /// The analysis path compiles through the thread's cache: a pattern is
+    /// charged its length squared once, then served from the cache; a
+    /// different target is a different key; a refused charge is `Cancelled`
+    /// and caches nothing; and a `-command` substitution that is due
+    /// declines rather than answer with the unsubstituted text.
+    #[test]
+    fn the_pattern_cache_charges_a_compile_once_per_key() {
+        let mut ops = ListOps;
+        let mut ledger: Vec<u64> = Vec::new();
+        let mut charge = |units: u64| {
+            ledger.push(units);
+            true
+        };
+        {
+            let mut analysis = AnalysisMatch {
+                target: (None, None),
+                charge: &mut charge,
+                limits: MatchLimits::default(),
+            };
+            for _ in 0..2 {
+                let answer = regexp_analysis::<ListOps, LiteralEngine>(
+                    &mut ops,
+                    &[b"cached-abc", b"xcached-abcx"],
+                    &mut analysis,
+                );
+                assert!(matches!(answer, Ok(RegexpResult::Count { count: 1, .. })));
+            }
+            // Another target is another key.
+            analysis.target = (Some(StringCharacterModel::Utf16CodeUnits), None);
+            let answer = regexp_analysis::<ListOps, LiteralEngine>(
+                &mut ops,
+                &[b"cached-abc", b"xcached-abcx"],
+                &mut analysis,
+            );
+            assert!(answer.is_ok());
+            // A `-command` substitution that is due declines.
+            assert!(matches!(
+                regsub_analysis::<LiteralEngine>(
+                    &[b"-command", b"b", b"abc", b"string toupper"],
+                    TclVersion::V9_0,
+                    &mut analysis
+                ),
+                Err(RegexFailure::Declined(
+                    PrecisionDecline::FormUnsupported { .. }
+                ))
+            ));
+        }
+        assert_eq!(
+            ledger,
+            [100, 100, 1],
+            "one compile per key, charged its length squared"
+        );
+        let mut refuse = |_: u64| false;
+        let mut refused = AnalysisMatch {
+            target: (None, None),
+            charge: &mut refuse,
+            limits: MatchLimits::default(),
+        };
+        assert!(matches!(
+            regexp_analysis::<ListOps, LiteralEngine>(&mut ops, &[b"uncached", b"x"], &mut refused),
+            Err(RegexFailure::Declined(PrecisionDecline::Cancelled))
+        ));
+    }
+
+    /// The cache's bound is retained bytes: filling it past
+    /// [`PATTERN_CACHE_BYTES`] evicts the coldest entries, and it never
+    /// holds more.
+    #[test]
+    fn the_pattern_cache_stays_within_its_byte_bound() {
+        let mut ops = ListOps;
+        let mut charge = |_: u64| true;
+        let mut analysis = AnalysisMatch {
+            target: (None, None),
+            charge: &mut charge,
+            limits: MatchLimits::default(),
+        };
+        for n in 0..6u8 {
+            let mut pattern = vec![b'q'; 1024 * 1024];
+            pattern[0] = b'a' + n;
+            let answer = regexp_analysis::<ListOps, LiteralEngine>(
+                &mut ops,
+                &[&pattern, b"z"],
+                &mut analysis,
+            );
+            assert!(matches!(answer, Ok(RegexpResult::Count { count: 0, .. })));
+            assert!(pattern_cache_retained_bytes() <= PATTERN_CACHE_BYTES);
+        }
+        assert!(
+            pattern_cache_retained_bytes() >= 3 * 1024 * 1024,
+            "the cache keeps what fits"
+        );
     }
 
     fn about(args: &[&[u8]]) -> Result<String, String> {

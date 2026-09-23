@@ -121,7 +121,9 @@ pub unsafe extern "C" fn TclReComp(
 /// `TclReExec` — match `re` against `string` (`len` codepoints), filling up to
 /// `nmatch` entries of `pmatch` with `[rm_so, rm_eo)` per group (group 0 is the
 /// whole match; non-participating groups get `(size_t)-1`). `flags` carries
-/// `REG_NOTBOL`/`REG_NOTEOL`. Returns `REG_OKAY` or `REG_NOMATCH`. `details` is
+/// `REG_NOTBOL`/`REG_NOTEOL`. Returns `REG_OKAY`, `REG_NOMATCH`, or
+/// `REG_ESPACE` for a search that exhausted its budget or a recursion limit
+/// (never a no-match: it established nothing). `details` is
 /// accepted for ABI compatibility and ignored (no `REG_EXPECT` support).
 ///
 /// # Safety
@@ -152,7 +154,7 @@ pub unsafe extern "C" fn TclReExec(
         unsafe { core::slice::from_raw_parts(string, len) }
     };
     match rx.exec(subject, 0, flags) {
-        Some(groups) => {
+        tcl_regex::ExecOutcome::Matched(groups) => {
             if !pmatch.is_null() && nmatch != 0 {
                 let out = unsafe { core::slice::from_raw_parts_mut(pmatch, nmatch) };
                 for (slot, group) in out
@@ -173,7 +175,11 @@ pub unsafe extern "C" fn TclReExec(
             }
             REG_OKAY
         }
-        None => REG_NOMATCH,
+        tcl_regex::ExecOutcome::NoMatch => REG_NOMATCH,
+        // A search the engine could not finish proves neither a match nor
+        // its absence: it is the regex API's resource failure, never
+        // `REG_NOMATCH`.
+        tcl_regex::ExecOutcome::Stopped(_) => ErrorCode::Espace.code(),
     }
 }
 
