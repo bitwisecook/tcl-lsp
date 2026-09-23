@@ -747,6 +747,11 @@ fn storage_outcome_witnesses_match_every_release_on_path() {
             ("lappend", "", &["c"]),
             ("lappend", "{", &["v"]),
             ("lappend", "a", &["{", "b"]),
+            // A first element starting with `#` is brace-quoted from 8.5
+            // and bare in 8.4.
+            ("lappend", "", &["#", "b"]),
+            ("lappend", "#", &["b"]),
+            ("lappend", "#x", &["b"]),
             ("set", "old", &[" a "]),
             ("set", "old", &["a\\b"]),
             ("set", " 7 ", &[]),

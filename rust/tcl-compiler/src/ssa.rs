@@ -1967,6 +1967,7 @@ fn uses_in_assignment(
             name,
             name_braced,
             amount,
+            amount_braced,
             ..
         } => {
             if is_dynamic_write_target(name, *name_braced) {
@@ -1979,7 +1980,9 @@ fn uses_in_assignment(
                     reads_own_def.insert(norm.to_owned());
                 }
             }
-            if let Some(amt) = amount {
+            // A braced amount substitutes nothing: `incr x {$n}` reads no
+            // `n` (it raises `expected integer but got "$n"`).
+            if let Some(amt) = amount.as_ref().filter(|_| !*amount_braced) {
                 vars_found.extend(scanner.scan_word(amt, registry));
             }
         }
@@ -3460,6 +3463,7 @@ mod tests {
             name: "i".into(),
             name_braced: false,
             amount: None,
+            amount_braced: false,
             safe_on_uninit: false,
         };
         assert_eq!(defs_of(&stmt), vec!["i"]);
@@ -4007,6 +4011,7 @@ mod tests {
                 name: "i".into(),
                 name_braced: false,
                 amount: None,
+                amount_braced: false,
                 safe_on_uninit: false,
             });
 
@@ -4099,6 +4104,7 @@ mod tests {
             name: "i".into(),
             name_braced: false,
             amount: None,
+            amount_braced: false,
             safe_on_uninit: false,
         };
         let uses = uses_of(&stmt, &mut scanner, &reg);
@@ -4791,6 +4797,7 @@ mod tests {
                 name: "i".into(),
                 name_braced: false,
                 amount: None,
+                amount_braced: false,
                 safe_on_uninit: false,
             });
 

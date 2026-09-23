@@ -3274,10 +3274,15 @@ impl<'r> Lowerer<'r> {
         // current value of their target before rewriting it, so the prior
         // definition is live. Carry that as `reads_own_defs` so dead-store /
         // unused-variable analysis does not treat a feeding `set` as dead.
+        // The invocation's traits, not the head's: a keyed update declares
+        // the read on its subcommand, so `interp alias {} ds {} dict set`
+        // reaches `dict`'s `set` and must read `d` as `dict set` does — O109
+        // had deleted the store feeding `ds d k v`, and the program printed
+        // `k v` where tclsh 8.5 to 9.1 print `a 1 k v`.
         let reads_before_write = self
             .registry
-            .get(&role_cmd)
-            .is_some_and(|s| s.traits.contains(tcl_registry::Traits::READS_BEFORE_WRITE));
+            .invocation_traits(&role_cmd, &role_args_ref, None)
+            .contains(tcl_registry::Traits::READS_BEFORE_WRITE);
 
         // A stored callback is data for this invocation, not executable code
         // that can complete or mutate the caller before the command returns.

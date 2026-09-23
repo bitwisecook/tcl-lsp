@@ -170,6 +170,27 @@ pub enum FactView {
     Top(DeclineReason),
 }
 
+impl FactView {
+    /// The exact value this view holds, or the answer that stands in for
+    /// one it does not: a pending input stays pending, a finite set the lift
+    /// could not pin is correlated, a non-value domain fact is malformed,
+    /// and a top declines with its own reason. The one reading every route
+    /// takes of an input it needs exactly.
+    ///
+    /// # Errors
+    ///
+    /// The stand-in answer, as above.
+    pub fn exact(self) -> Result<ExactValue, EvalAnswer> {
+        match self {
+            Self::Pending => Err(EvalAnswer::Pending),
+            Self::Exact(value, _) => Ok(value),
+            Self::Finite(..) => Err(EvalAnswer::Declined(DeclineReason::CorrelatedSets)),
+            Self::Domain(_) => Err(EvalAnswer::Declined(DeclineReason::MalformedAnswer)),
+            Self::Top(reason) => Err(EvalAnswer::Declined(reason)),
+        }
+    }
+}
+
 /// Which argument layout an invocation view describes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InvocationLayout<'a> {

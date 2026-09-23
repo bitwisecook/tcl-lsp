@@ -43,6 +43,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use rustc_hash::FxHashSet;
 use tcl_lexer::{LexerConfig, Span, TokenType};
+use tcl_registry::hooks::LoweringHookId;
 use tcl_registry::value_transfer::{
     AnalysisContext, AnalysisInputs, AnalysisTier, BindingIdentity, BodyRegion, Budget,
     DeclineReason, EvalAnswer, EvalRoute, EvaluationState, EvaluatorOwner, ExactValue,
@@ -53,7 +54,7 @@ use tcl_registry::value_transfer::{
 };
 use tcl_registry::{
     ArgRole, CommandRegistry, InvocationWord, InvocationWordKind, InvocationWords,
-    ResolvedInvocation,
+    ResolvedInvocation, SemanticOperationId,
 };
 
 use crate::analyses::{ConstValue, LatticeValue, MAX_CONSTSET_SIZE};
@@ -137,6 +138,10 @@ pub(crate) struct LatticeDriver<'a> {
     policy: FoldPolicy,
     context: AnalysisContext,
     lexer_config: LexerConfig,
+    /// Whether every command whose lowering yields a typed assignment
+    /// (`set`) still denotes its builtin — the named half of the trust
+    /// fact, as the chain fold asks it.
+    typed_assignment: bool,
     /// The statement being evaluated, when the solver said which.
     explaining: Cell<Option<Span>>,
     /// The last explanation recorded per statement.
@@ -245,15 +250,38 @@ impl<'a> LatticeDriver<'a> {
             evaluator_revision: key.map_or(0, |k| k.evaluator_revision),
             tier: key.map_or(AnalysisTier::Deep, |k| k.tier),
         };
+        let typed_assignment = folds.is_none_or(|f| {
+            typed_node_commands(registry, LoweringHookId::Set)
+                .iter()
+                .all(|name| f.mutations.observed_binding_is_the_builtin(name))
+        });
         Self {
             registry,
             folds,
             policy,
             context,
             lexer_config: LexerConfig::for_profile(profile),
+            typed_assignment,
             explaining: Cell::new(None),
             explanations: RefCell::new(BTreeMap::new()),
         }
+    }
+
+    /// Whether a typed assignment (`AssignConst`, `AssignValue`,
+    /// `AssignExpr`) still means `set`. A module that shadows or renames
+    /// `set` turns `set s hello` into a call to something else, which need
+    /// not write `s` at all: `proc set {name value} {return ZZZ}; set s
+    /// hello; append s world; puts $s` prints `world` in every release.
+    /// Without a trust fact the typed node's own lowering stands.
+    pub(crate) const fn typed_assignment_trusted(&self) -> bool {
+        self.typed_assignment
+    }
+
+    /// A single-token literal word's value under the document's grammar —
+    /// [`literal_token_value`] for the typed statements, which carry their
+    /// word's text rather than its value.
+    pub(crate) fn literal_value<'t>(&self, text: &'t str, kind: TokenType) -> Option<Cow<'t, str>> {
+        literal_token_value(text, kind, &self.lexer_config)
     }
 
     /// The statement the solver is about to evaluate, so the answers below
@@ -360,27 +388,33 @@ impl<'a> LatticeDriver<'a> {
             .resolved()
     }
 
-    /// The `incr name ?amount?` statement: its typed node projects to the
-    /// invocation view `incr name ?amount?`, and the registry's derived
-    /// cell update evaluates it.
+    /// The typed `Incr` statement: its node projects to the invocation view
+    /// of the command whose lowering it is (`incr name ?amount?`), and the
+    /// registry's derived cell update evaluates it. A braced amount is its
+    /// own text (`incr x {$n}` raises in every release), never a read.
     pub(crate) fn evaluate_incr<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
         &self,
         name: &str,
-        amount: Option<&str>,
+        amount: Option<(&str, bool)>,
         uses: &HashMap<Symbol, Version, S1>,
         values: &HashMap<ValueKey, LatticeValue, S2>,
         ssa: &SsaFunction,
     ) -> LatticeValue {
-        const HEAD: &str = "incr";
-        if !self.trusted(HEAD) {
-            self.explain(HEAD, None, "declined: rebinding-suspected".to_owned());
+        let heads = typed_node_commands(self.registry, LoweringHookId::Incr);
+        let Some(&head) = heads.first() else {
+            return LatticeValue::Overdefined;
+        };
+        if !heads.iter().all(|head| self.trusted(head)) {
+            self.explain(head, None, "declined: rebinding-suspected".to_owned());
             return LatticeValue::Overdefined;
         }
-        let texts: Vec<&str> = std::iter::once(name).chain(amount).collect();
-        let words: Vec<InvocationWord<'_>> = std::iter::once(InvocationWord::Literal(name))
-            .chain(amount.map(word_of))
+        let texts: Vec<&str> = std::iter::once(name)
+            .chain(amount.map(|(text, _)| text))
             .collect();
-        let Some(resolved) = self.resolve(HEAD, &words) else {
+        let words: Vec<InvocationWord<'_>> = std::iter::once(InvocationWord::Literal(name))
+            .chain(amount.map(amount_word))
+            .collect();
+        let Some(resolved) = self.resolve(head, &words) else {
             return LatticeValue::Overdefined;
         };
         let Some(semantics) = resolved.semantics.value.semantics() else {
@@ -394,7 +428,7 @@ impl<'a> LatticeDriver<'a> {
             values,
             ssa,
         };
-        self.call_def(HEAD, semantics, name, &inputs)
+        self.call_def(head, semantics, name, &inputs)
     }
 
     /// The lattice value a resolved invocation leaves in `def`, the one
@@ -805,6 +839,29 @@ impl<'a> LatticeDriver<'a> {
 
 static EMPTY_NAMES: BTreeSet<String> = BTreeSet::new();
 
+/// The commands a typed statement stands for: every registry command whose
+/// lowering `hook` produces it, shortest spelling first so the head a
+/// consumer resolves through is stable. A typed node records no spelling,
+/// so these are what binding validity is asked about.
+fn typed_node_commands(registry: &CommandRegistry, hook: LoweringHookId) -> Vec<&str> {
+    let mut names: Vec<&str> = registry
+        .command_names_for_semantic_operation(SemanticOperationId::StructuredLowering(hook))
+        .collect();
+    names.sort_unstable_by(|a, b| a.len().cmp(&b.len()).then_with(|| a.cmp(b)));
+    names
+}
+
+/// The source-word classification of a typed `Incr`'s amount: a braced
+/// amount is a literal whatever it spells, any other is classified by its
+/// text ([`word_of`]).
+fn amount_word((text, braced): (&str, bool)) -> InvocationWord<'_> {
+    if braced {
+        InvocationWord::Literal(text)
+    } else {
+        word_of(text)
+    }
+}
+
 /// The source-word classification of one operand text: a literal unless
 /// it substitutes.
 fn word_of(text: &str) -> InvocationWord<'_> {
@@ -1157,22 +1214,27 @@ impl<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher> AnalysisInputs
     }
 }
 
-/// The bounded-loop simulator's cell update: `command name ?amount?`
-/// resolved through `registry` and evaluated by the registry's declared
-/// route over `env`, the simulator's constant environment. The written
-/// value replaces the target's entry; a decline leaves `env` untouched and
-/// answers `false`, which ends the simulation.
+/// The bounded-loop simulator's typed `Incr`: the command whose lowering
+/// the node is, `name ?amount?` resolved through `registry` and evaluated
+/// by the registry's declared route over `env`, the simulator's constant
+/// environment. The written value replaces the target's entry; a decline
+/// leaves `env` untouched and answers `false`, which ends the simulation.
+/// `amount` carries whether its word was braced, as [`LatticeDriver::evaluate_incr`] reads it.
 pub(crate) fn exec_cell_update_in_env(
     registry: &CommandRegistry,
     profile: Option<&'static tcl_dialect::DialectProfile>,
-    command: &str,
     name: &str,
-    amount: Option<&str>,
+    amount: Option<(&str, bool)>,
     env: &mut crate::static_loops::StaticEnv,
 ) -> bool {
-    let texts: Vec<&str> = std::iter::once(name).chain(amount).collect();
+    let Some(&command) = typed_node_commands(registry, LoweringHookId::Incr).first() else {
+        return false;
+    };
+    let texts: Vec<&str> = std::iter::once(name)
+        .chain(amount.map(|(text, _)| text))
+        .collect();
     let words: Vec<InvocationWord<'_>> = std::iter::once(InvocationWord::Literal(name))
-        .chain(amount.map(word_of))
+        .chain(amount.map(amount_word))
         .collect();
     let Some(resolved) = registry
         .resolve_structured_invocation(

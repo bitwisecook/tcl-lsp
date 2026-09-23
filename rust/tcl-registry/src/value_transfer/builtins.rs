@@ -39,7 +39,7 @@ use super::answers::{
 use super::const_ops::{ConstOps, ConstValue, Needs, TargetSemantics};
 use super::context::Budget;
 use super::decline::DeclineReason;
-use super::inputs::{AnalysisInputs, FactDomain, FactView, OperandId};
+use super::inputs::{AnalysisInputs, FactDomain, OperandId};
 use super::route::{EvalRoute, LanguageProfileId, NativeEvalId};
 
 /// The revision of the registry-owned `string range` evaluator.
@@ -51,16 +51,11 @@ const STRING_RANGE_REVISION: u64 = 1;
 const LIST_AND_LENGTH_REVISION: u64 = 1;
 
 /// Operand `index`'s exact value, or the answer that stands in for one that
-/// is not: pending passes through, a finite set the lift could not pin is
-/// correlated, anything else declines with its reason.
+/// is not ([`super::inputs::FactView::exact`]).
 fn exact_operand(input: &dyn AnalysisInputs, index: usize) -> Result<ExactValue, EvalAnswer> {
-    match input.operand(OperandId(index), FactDomain::ExactValue) {
-        FactView::Pending => Err(EvalAnswer::Pending),
-        FactView::Exact(value, _) => Ok(value),
-        FactView::Finite(..) => Err(EvalAnswer::Declined(DeclineReason::CorrelatedSets)),
-        FactView::Domain(_) => Err(EvalAnswer::Declined(DeclineReason::MalformedAnswer)),
-        FactView::Top(reason) => Err(EvalAnswer::Declined(reason)),
-    }
+    input
+        .operand(OperandId(index), FactDomain::ExactValue)
+        .exact()
 }
 
 /// Operands `range`'s exact values, in order.

@@ -839,6 +839,7 @@ fn while_in_proc_emits_start_cmd() {
             name: "i".into(),
             name_braced: false,
             amount: None,
+            amount_braced: false,
             safe_on_uninit: false,
         });
     cfg.blocks.get_mut(&body).unwrap().terminator = Some(Terminator::Goto {

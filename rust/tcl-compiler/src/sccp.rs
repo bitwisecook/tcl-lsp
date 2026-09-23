@@ -26,6 +26,7 @@
 use std::collections::{BTreeSet, HashMap, HashSet};
 
 use rustc_hash::FxHashSet;
+use tcl_lexer::TokenType;
 use tcl_registry::CommandRegistry;
 use tcl_registry::value_transfer::ExactValue;
 
@@ -1413,7 +1414,23 @@ fn evaluate_def_dispatch<S: std::hash::BuildHasher>(
     driver: &LatticeDriver<'_>,
 ) -> LatticeValue {
     match &stmt_ssa.statement {
-        Statement::AssignConst { value, .. } => LatticeValue::Const(parse_literal_value(value)),
+        // A typed assignment is `set`'s lowering, so it means nothing once
+        // the module rebinds `set`.
+        Statement::AssignConst { .. }
+        | Statement::AssignExpr { .. }
+        | Statement::AssignValue { .. }
+            if !driver.typed_assignment_trusted() =>
+        {
+            LatticeValue::Overdefined
+        }
+        // The value is a braced word's content by construction (the
+        // lowering's other arm is a canonical integer), so it is read as
+        // Tcl reads a braced word: backslash-newline collapses.
+        Statement::AssignConst { value, .. } => driver
+            .literal_value(value, TokenType::Str)
+            .map_or(LatticeValue::Overdefined, |value| {
+                LatticeValue::Const(parse_literal_value(&value))
+            }),
         Statement::AssignExpr { expr, .. } => {
             let env = env_from_uses(&stmt_ssa.uses, values, ssa);
             match eval_tcl_expr_with_policy(expr, &env, driver.policy()) {
@@ -1421,13 +1438,31 @@ fn evaluate_def_dispatch<S: std::hash::BuildHasher>(
                 None => LatticeValue::Overdefined,
             }
         }
-        Statement::AssignValue { value, .. } => {
-            fold_assign_value(value, &stmt_ssa.uses, values, ssa, driver)
-        }
+        Statement::AssignValue {
+            value,
+            value_needs_backsubst,
+            ..
+        } => fold_assign_value(
+            value,
+            *value_needs_backsubst,
+            &stmt_ssa.uses,
+            values,
+            ssa,
+            driver,
+        ),
         Statement::Call { .. } => driver.evaluate_call(stmt_ssa, values, ssa, &stmt_ssa.uses),
-        Statement::Incr { name, amount, .. } => {
-            driver.evaluate_incr(name, amount.as_deref(), &stmt_ssa.uses, values, ssa)
-        }
+        Statement::Incr {
+            name,
+            amount,
+            amount_braced,
+            ..
+        } => driver.evaluate_incr(
+            name,
+            amount.as_deref().map(|text| (text, *amount_braced)),
+            &stmt_ssa.uses,
+            values,
+            ssa,
+        ),
         _ => LatticeValue::Overdefined,
     }
 }
@@ -1734,8 +1769,13 @@ where
 /// Fold the RHS of an `AssignValue` statement to a lattice value.
 ///
 /// Covers three tiers:
-/// 1. **Plain literal** — no `$` / `[` → `Const(parse_literal_value)`, the
-///    text kept exactly: a value is a value, not a source token to trim.
+/// 1. **Plain literal** — no `$` / `[` → `Const(parse_literal_value)` of
+///    the word's value, kept exactly: a value is a value, not a source token
+///    to trim. The statement carries the word's spelling, so a word the
+///    lowering marked `value_needs_backsubst` (a bare or quoted word with an
+///    escape) is cooked under the document's escape grammar — `set s
+///    "a\tb"` holds three characters — and a spelling that holds a
+///    backslash the lowering did not account for has no known value.
 /// 2. **Simple var reference** `$x` / `${x}` → lattice lookup.
 /// 3. **Command substitution** `[cmd args…]` → the resolved command's
 ///    declared route through the value-transfer driver
@@ -1745,6 +1785,7 @@ where
 /// Anything else widens to `Overdefined`.
 fn fold_assign_value<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
     value: &str,
+    needs_backsubst: bool,
     uses: &HashMap<Symbol, crate::ssa::Version, S1>,
     values: &HashMap<ValueKey, LatticeValue, S2>,
     ssa: &SsaFunction,
@@ -1752,7 +1793,16 @@ fn fold_assign_value<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
 ) -> LatticeValue {
     // Plain literal.
     if !value.contains('$') && !value.contains('[') {
-        return LatticeValue::Const(parse_literal_value(value));
+        let cooked = if needs_backsubst {
+            driver.literal_value(value, TokenType::Esc)
+        } else if value.contains('\\') {
+            None
+        } else {
+            Some(std::borrow::Cow::Borrowed(value))
+        };
+        return cooked.map_or(LatticeValue::Overdefined, |value| {
+            LatticeValue::Const(parse_literal_value(&value))
+        });
     }
     // Simple var reference.
     if let Some(resolved) = resolve_simple_var_ref(value, uses, values, ssa) {
@@ -2606,6 +2656,7 @@ mod tests {
                 name: name.into(),
                 name_braced: false,
                 amount: amount.map(String::from),
+                amount_braced: false,
                 safe_on_uninit: false,
             },
             uses,

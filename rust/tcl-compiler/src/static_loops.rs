@@ -246,12 +246,16 @@ fn exec_statement(stmt: &Statement, env: &mut StaticEnv, semantics: LoopSemantic
         // The typed cell update: the registry's declared route evaluates
         // it over the environment, under the same target semantics as the
         // lattice — one increment model, not a second one here.
-        Statement::Incr { name, amount, .. } => crate::value_transfer::exec_cell_update_in_env(
+        Statement::Incr {
+            name,
+            amount,
+            amount_braced,
+            ..
+        } => crate::value_transfer::exec_cell_update_in_env(
             semantics.registry,
             policy.dialect,
-            "incr",
             name,
-            amount.as_deref(),
+            amount.as_deref().map(|text| (text, *amount_braced)),
             env,
         ),
         Statement::If {
@@ -447,6 +451,7 @@ mod tests {
             name: name.into(),
             name_braced: false,
             amount: amount.map(String::from),
+            amount_braced: false,
             safe_on_uninit: false,
         }
     }

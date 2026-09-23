@@ -485,6 +485,63 @@ fn the_qualified_dict_spellings_share_the_declaration() {
     );
 }
 
+/// A route that reads its target's prior value declares the read where
+/// every consumer asks for it: [`Traits::READS_BEFORE_WRITE`] on the scope
+/// that carries the route. The dictionary's keyed updates had the route but
+/// not the trait, so a spelling the lowering reaches by head —
+/// `::tcl::dict::set`, an alias of `dict set` — recorded no read, and O109
+/// deleted the store it read: `set d {a 1}; ::tcl::dict::set d k v` printed
+/// `k v` where tclsh 8.5 to 9.1 print `a 1 k v`.
+#[test]
+fn a_route_that_reads_its_target_declares_the_read() {
+    let reg = full_registry();
+    let mut names: Vec<&str> = reg.command_names().collect();
+    names.sort_unstable();
+    let mut checked = BTreeSet::new();
+    for name in names {
+        let Some(spec) = reg.get(name) else {
+            continue;
+        };
+        let scopes = std::iter::once(None).chain(spec.subcommands.iter().map(Some));
+        for sub in scopes {
+            let resolved = resolve_semantics(spec, sub, None);
+            let Some(identity) = resolved.semantics().map(CommandSemantics::identity) else {
+                continue;
+            };
+            if !(identity.starts_with("cell-update:") || identity.starts_with("keyed-update:")) {
+                continue;
+            }
+            let traits = spec.traits | sub.map_or_else(Traits::empty, |sub| sub.traits);
+            let label = sub.map_or_else(
+                || spec.name.to_owned(),
+                |sub| format!("{} {}", spec.name, sub.name),
+            );
+            assert!(
+                traits.contains(Traits::READS_BEFORE_WRITE),
+                "{label} reads its target through `{identity}` but does not declare the read"
+            );
+            checked.insert(label);
+        }
+    }
+    for label in [
+        "incr",
+        "append",
+        "lappend",
+        "dict set",
+        "dict unset",
+        "dict incr",
+        "dict append",
+        "dict lappend",
+        "::tcl::dict::set",
+        "::tcl::dict::lappend",
+    ] {
+        assert!(
+            checked.contains(label),
+            "{label} was not checked: {checked:?}"
+        );
+    }
+}
+
 /// `list`, `llength` and `string length` run the shared cores over
 /// `ConstOps` on registry-owned routes (tclsh 8.4 to 9.1 give `a {b c} {}`
 /// and 2; `llength "a {b"` raises; `string length héllo` read from a UTF-8
@@ -517,6 +574,33 @@ fn list_and_length_routes_run_the_shared_cores() {
     assert_eq!(
         run(&LIST_OF_ARGS, "list", &["a", "b c", ""], None).as_deref(),
         Ok("a {b c} {}")
+    );
+    // A first element starting with `#` is brace-quoted from 8.5 and bare
+    // in 8.4 (tclsh 8.4 prints `# a` for `puts [list # a]`, 8.5 to 9.1
+    // print `{#} a`), so a profile naming no release cannot render it; a
+    // `#` anywhere else is data in every release.
+    for (dialect, want) in [
+        (Some("tcl8.4"), Ok("# a")),
+        (Some("tcl8.5"), Ok("{#} a")),
+        (Some("tcl9.1"), Ok("{#} a")),
+        (
+            None,
+            Err(DeclineReason::ReleaseAmbiguous(Axis::ListRendering)),
+        ),
+        (
+            Some("f5-irules"),
+            Err(DeclineReason::ReleaseAmbiguous(Axis::ListRendering)),
+        ),
+    ] {
+        assert_eq!(
+            run(&LIST_OF_ARGS, "list", &["#", "a"], dialect),
+            want.map(str::to_owned),
+            "{dialect:?}"
+        );
+    }
+    assert_eq!(
+        run(&LIST_OF_ARGS, "list", &["a", "#b"], None).as_deref(),
+        Ok("a #b")
     );
     assert_eq!(
         run(&LIST_LENGTH, "llength", &["a {b c}"], None).as_deref(),

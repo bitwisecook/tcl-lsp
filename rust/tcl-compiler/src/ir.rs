@@ -1077,6 +1077,11 @@ pub enum Statement {
         name_braced: bool,
         /// Increment amount (None = 1).
         amount: Option<String>,
+        /// Whether the *amount* word was a brace-string literal
+        /// (`incr x {$n}`): its text is the amount itself, never a
+        /// substitution — the program raises `expected integer but got
+        /// "$n"` — mirroring [`Self::AssignConst::name_braced`] for the name.
+        amount_braced: bool,
         /// Whether it is safe if the variable is uninitialised.
         safe_on_uninit: bool,
     },
@@ -2213,6 +2218,7 @@ mod tests {
                 name: "i".into(),
                 name_braced: false,
                 amount: None,
+                amount_braced: false,
                 safe_on_uninit: false,
             }]),
             next_span: Span::new(23, 31),

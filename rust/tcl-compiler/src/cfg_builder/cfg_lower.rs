@@ -1259,6 +1259,7 @@ mod tests {
                 name: "i".into(),
                 name_braced: false,
                 amount: None,
+                amount_braced: false,
                 safe_on_uninit: false,
             }]),
             next_span: Span::new(23, 31),

@@ -152,19 +152,6 @@ impl KeyedUpdateSemantics {
         fits.then_some((TargetId(target), rest))
     }
 
-    /// An exact input, or the answer that stands in for one that is not.
-    /// A finite set that reaches the evaluator is one the driver's lift
-    /// could not pin, so it is the correlated case.
-    fn exact_input(view: FactView) -> Result<ExactValue, EvalAnswer> {
-        match view {
-            FactView::Pending => Err(EvalAnswer::Pending),
-            FactView::Exact(value, _) => Ok(value),
-            FactView::Finite(..) => Err(EvalAnswer::Declined(DeclineReason::CorrelatedSets)),
-            FactView::Domain(_) => Err(EvalAnswer::Declined(DeclineReason::MalformedAnswer)),
-            FactView::Top(reason) => Err(EvalAnswer::Declined(reason)),
-        }
-    }
-
     /// The dictionary the variable holds before the update: its exact
     /// value, or the empty dictionary when the inputs prove the variable
     /// unbound. An unknown prior is never taken for an absent one.
@@ -188,7 +175,7 @@ impl KeyedUpdateSemantics {
                     Err(EvalAnswer::Declined(reason))
                 }
             }
-            view => Self::exact_input(view).map(Some),
+            view => view.exact().map(Some),
         }
     }
 
@@ -202,7 +189,7 @@ impl KeyedUpdateSemantics {
         };
         let mut words = Vec::with_capacity(rest.len());
         for id in rest {
-            match Self::exact_input(input.operand(id, FactDomain::ExactValue)) {
+            match input.operand(id, FactDomain::ExactValue).exact() {
                 Ok(value) => words.push(ConstValue::from_exact(&value)),
                 Err(answer) => return answer,
             }

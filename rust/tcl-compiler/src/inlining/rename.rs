@@ -184,12 +184,22 @@ fn rewrite_assign_like(stmt: &Statement, rename: &HashMap<String, String>) -> St
             name,
             name_braced,
             amount,
+            amount_braced,
             safe_on_uninit,
         } => Statement::Incr {
             span: *span,
             name: rename_var_name(name, rename),
             name_braced: *name_braced,
-            amount: amount.as_ref().map(|a| rewrite_value_string(a, rename)),
+            // A braced amount substitutes nothing, so it names no variable
+            // a rename could reach.
+            amount: amount.as_ref().map(|a| {
+                if *amount_braced {
+                    a.clone()
+                } else {
+                    rewrite_value_string(a, rename)
+                }
+            }),
+            amount_braced: *amount_braced,
             safe_on_uninit: *safe_on_uninit,
         },
         Statement::ExprEval {

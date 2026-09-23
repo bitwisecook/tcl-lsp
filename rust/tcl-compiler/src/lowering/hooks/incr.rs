@@ -68,11 +68,17 @@ pub fn try_lower_incr(cmd: &LoweringCommand<'_>, safe_on_uninit: bool) -> Statem
     // array-element key — thread it through like `set` does.
     let name_braced = matches!(cmd.arg_kinds.first(), Some(ArgTokenKind::Str))
         && cmd.single_token_word.get(1).copied().unwrap_or(false);
+    // A braced amount (`incr x {$n}`) is its own text, so it is carried the
+    // same way: read as a substitution it would add `$n`'s value where every
+    // release raises `expected integer but got "$n"`.
+    let amount_braced = matches!(cmd.arg_kinds.get(1), Some(ArgTokenKind::Str))
+        && cmd.single_token_word.get(2).copied().unwrap_or(false);
     Statement::Incr {
         span: cmd.span,
         name: cmd.args[0].clone(),
         name_braced,
         amount: cmd.args.get(1).cloned(),
+        amount_braced,
         safe_on_uninit,
     }
 }

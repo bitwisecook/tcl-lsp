@@ -164,6 +164,9 @@ Done in slice 2 (landed 2026-09-23):
 - explorer: the `sccp` view's route rows, and their text test.
 - the witness binary `rust/tcl-compiler/tests/value_transfer_witnesses.rs`
   and its shard row.
+- the review fixes: `FactView::exact`, `TargetSemantics::render_list`,
+  `Statement::Incr::amount_braced`, the typed assignment's cooking and
+  trust, and `READS_BEFORE_WRITE` on the `dict` keyed updates.
 
 Remaining: slices 3 to 13, and slice 2's CLI witness binary (D35).
 
@@ -401,7 +404,10 @@ squash superseded by D1. The coordinator then merged `origin/rust` at
 direct vertical slice`; § *Plan for slices 2–13* › *Slice 2* › *Record
 (2026-09-23): slice 2 landed* has what each holds, the gates, the deltas
 and what was left. The detailed hand-off notes this section used to carry
-are in `bdfe3a96`'s tree. Slice 3, the expression slice, is next.
+are in `bdfe3a96`'s tree. The review of the landing returned "land
+after fixes"; `wip(value-transfers): review fixes for slice 2` holds them
+(§ *Slice 2* › *Record (2026-09-23): review fixes for slice 2*). Slice 3,
+the expression slice, is next.
 
 ### Environment a fresh agent needs
 
@@ -1520,11 +1526,12 @@ landing folds them into § *Decisions taken*):
   delete it (conservative), and `set hits 10; proc bump {} {global hits;
   incr hits 5}` is no longer rewritten to print 5 (tclsh prints 15).
 
-Found and left, outside the plan: a callee that only *reads* a global is
-invisible to O109 — `set hits 0; proc show {} {global hits; puts $hits};
-show; set hits 1` deletes `set hits 0` (tclsh prints 0 then 1; the
-rewrite prints 1 twice). Upstream's behaviour at `08bceb36`; the
-procedure summaries of slice 13 are where a callee's reads belong.
+Corrected by the review of the landing: this paragraph said that O109
+deletes `set hits 0` ahead of a callee that only *reads* the global (`set
+hits 0; proc show {} {global hits; puts $hits}; show; set hits 1`). It
+does not reproduce: the rewrite keeps both stores, and tclsh 8.4 to 9.1
+print 0 then 1 for the program and its rewrite alike
+(`a_store_a_global_reading_callee_observes_is_kept`).
 
 - **Checkpoint `wip(value-transfers): slice 2 — set, dict and the retired
   handlers`** holds VT2.5, VT2.6, VT2.7 and VT2.8. Green: the
@@ -1666,6 +1673,122 @@ Found and left, outside the plan (recorded for the slices that own them):
 - The `regexp` no-match through `catch` (the examples page's completion
   program) still loses `set a before` to O109 and W220: #2225 fixed the
   direct `regexp` statement only. Slice 10's.
+- **#2231 — a `catch` body's reads are invisible** (slice 10, VT10.3).
+  The statement form's opaque catch records the body's definitions and no
+  reads, and the embedded-substitution scan does not enter a nested
+  `[catch {…}]` body at all (`walk_braced_expr_words` descends `Expr`,
+  never `Body`), so neither its writes nor its reads reach the host. `set
+  x 1; set c [catch {incr x}]; if {$x == 2} {puts two} else {puts "not
+  two: $x"}` is reported always false (I230), O112 drops the branch, and
+  the rewrite prints `not two: 2`; `set x 5; catch {incr x} m; puts "$x
+  $m"` loses `set x 5` to O109; `set x 1; set c [catch {append x y}];
+  puts $x` is rewritten to `puts 1`. Recording the reads needs a descent
+  that orders a read before a write inside the body — VT10.3's body plan,
+  not a contained edit (D44).
+- **#2232 — a tab on the CLI's stdout.** O100 forwards `{a<TAB>b}` with
+  the tab verbatim (`o100_forwards_a_tab_verbatim`); the space the issue
+  shows is the CLI's: `tcl-cli-support`'s `write_highlighted_output`
+  expands every tab to spaces whenever the target is stdout, terminal or
+  not, for the program-emitting verbs (`rust/tcl-cli/src/commands/transform.rs`
+  passes `DEFAULT_TAB_WIDTH`), so `tcl opt f.tcl > g.tcl` changes any tab
+  inside any string of the program — O100's word or the source's own —
+  while `-o g.tcl` writes it. The fix is the CLI owner's (D43); the issue
+  stays open.
+- **A relative spelling of a builtin is an unknown command.** `proc p {}
+  {set d {a 1}; tcl::dict::set d k v; return $d}` is still rewritten to
+  `return {a 1}` (the rewrite prints `a 1`; tclsh 8.5 to 9.1 print `a 1 k
+  v`): `CommandRegistry::get` falls back from `::a::b` to `a::b`, never
+  from `a::b` to `::a::b`, and an unknown command is taken not to write
+  its caller's variables. A registry lookup change with editor-wide
+  reach; not this lane's to make in a review fix.
+- **The compiled `incr x {$n}` reads a variable named `$n`.** The codegen
+  loads the amount through `load_var`, so the bytecode raises `can't read
+  "$n": no such variable` where tclsh raises `expected integer but got
+  "$n"`; `Statement::Incr::amount_braced` now carries what its fix needs.
+
+#### Record (2026-09-23): review fixes for slice 2
+
+The fable review of `60db3875` returned "land after fixes". The commit
+`wip(value-transfers): review fixes for slice 2` holds every fix, each
+pinned by a test whose expected output was run under tclsh 8.4 to 9.1.
+The decisions are D38–D46 in § *Decisions taken*.
+
+- **The typed assignment reads its word as Tcl substitutes it.** The
+  typed nodes carry the word's spelling and the lattice stored it raw:
+  `set s "a\tb"; puts [string length $s]` folded to 4 (tclsh: 3), and so
+  did `set f [set e]` over `"p\tq"`; `set b "\t"; append b q` held a
+  backslash. `AssignConst` is now cooked as a braced word and a marked
+  `AssignValue` as an escaped one, through `literal_token_value`
+  (`LatticeDriver::literal_value`); an unmarked spelling holding a
+  backslash is no value (D38).
+  `a_typed_assignment_reads_its_word_as_tcl_substitutes_it` runs five
+  programs (3, 3, `<tab>q`, `{x<TAB>y}` and a braced backslash-newline) in
+  four dialects and every release.
+- **A braced `incr` amount is its text.** `proc p {} {set n 3; set x 1;
+  incr x {$n}; return $x}` had `x#2 = const(4)`; every release raises
+  `expected integer but got "$n"`. `Statement::Incr::amount_braced`
+  (D41); `x#2` is overdefined with `declined: wrong-representation`, and
+  `n` has no use (`a_braced_increment_amount_is_its_text`).
+- **A leading `#` is quoted per release.** `puts [list # a]` and `set l
+  {}; lappend l # b; puts $l` print `# a` / `# b` under tclsh 8.4 and
+  `{#} a` / `{#} b` from 8.5; the routes rendered the 8.5 form everywhere,
+  and a profile with no release folded it. `TargetSemantics::render_list`
+  and `ConstOps::new_list` read the target, and a release-less profile
+  declines `ReleaseAmbiguous(ListRendering)` for a first element starting
+  with `#` (D42). Two more consumers rendered with the fixed rule and
+  miscompiled under 8.4: O130's chain fold (the `lappend` program became
+  `{{#} b}`) and O103's variadic `args` seeding (`proc f {args} {return
+  $args}; puts [f # a]` became `puts {{#} a}`). Pinned by
+  `list_and_length_routes_run_the_shared_cores` (8.4, 8.5, 9.1, no
+  release, iRules), three `lappend` rows of
+  `storage_outcome_witnesses_match_every_release_on_path`, and
+  `a_leading_hash_is_quoted_per_release` (the lattice per dialect; both
+  programs' output per release, before and after the rewrite).
+- **A rebound `set` stops the typed assignment.** `proc set {name value}
+  {return ZZZ}; set s hello; append s world; puts $s` was rewritten to
+  `puts helloworld`; tclsh prints `world`. The three typed assignments
+  are overdefined unless every command lowered to them is still its
+  builtin (D39; `a_typed_assignment_declines_once_set_is_rebound`).
+- **#2232** is the CLI's stdout writer, not O100 (D43): the found-and-left
+  list above has the cause. `o100_forwards_a_tab_verbatim` pins the
+  compiler's half with the review's two programs. The commit does not
+  close the issue.
+- **#2231** is left to slice 10 (D44), in the found-and-left list above
+  with its three programs, and in VT10.3.
+- **The nits.** `FactView::exact` replaces the four `exact_input` copies
+  (D40). The typed `incr` and the loop simulator's
+  `exec_cell_update_in_env`, which lost its `command` parameter, take
+  their head from `typed_node_commands` (D39).
+  `value_position_routes_agree_on_both_paths` adds `[set x]`, `list`,
+  `llength`, `string length` and `::tcl::dict::set` to the parity module
+  (the iRules profile has no `dict`, so `d` holds no value there on either
+  path). The `hits` record above is corrected, and
+  `a_store_a_global_reading_callee_observes_is_kept` pins the correction.
+  `ValueTransferContext::of`'s interning of `mutations` is left as it is:
+  a later tidy (D46).
+- **Found through the parity nit: a keyed update's read** (D45). The
+  `::tcl::dict::` spelling in the parity test exposed a wrong rewrite
+  older than the lane. The `dict` ensemble's lowering marks its
+  sub-mutators as reading their target, but the registry declared no
+  `READS_BEFORE_WRITE` on the keyed updates, so every other spelling
+  recorded the write without the read and O109 deleted the store it read.
+  `proc p {} {set d {a 1}; ::tcl::dict::set d k v; return $d}; puts [p]`
+  printed `k v` (tclsh 8.5 to 9.1: `a 1 k v`), and so did a nested `puts
+  [dict set d k v]`, the qualified `unset`, `incr`, `append` and
+  `lappend`, and `interp alias {} ds {} dict set`.
+  `a_keyed_update_reads_its_dictionary_under_every_spelling` runs the
+  eight programs from 8.5 (under 8.4, which has no `dict`, each fails
+  alike before and after), and `a_route_that_reads_its_target_declares_the_read`
+  holds every cell and keyed update in the registry to the trait. The
+  relative spelling `tcl::dict::set` is left (above).
+- **Green**: `cargo test -p tcl-registry -p tcl-compiler -p tcl-lsp-db`
+  11012 passed, 0 failed, 11 ignored; `-p xtask -p tcl-explorer` 327
+  passed; pedantic clippy on the three touched crates (`--all-targets`),
+  with no `#[allow]` added; `cargo fmt` clean; `cargo xtask
+  value-transfers --check` OK (15 files clean, 15 sites waived, 100
+  pinned across 41 files, 6607 rows; only two waiver line numbers moved);
+  `pack-goldens` OK (24 packs; the `dict` specs are not a shipped pack);
+  `cargo check --workspace --all-targets`.
 
 ### Slice 3 — the expression slice
 
@@ -4053,6 +4176,11 @@ three shapes (opaque, flattened `catch`, faithful build).
   1} r` 0 with `r` 1; `return -code 5 custom` in a procedure 5; `catch
   {expr {1/0}}` 1 with `divide by zero`; `catch {incr absent}` 1 under 8.4
   with `absent` unbound, 0 from 8.5 with `absent` 1.
+- **Also**: #2231 (D44): the body's reads reach the host — the statement
+  form records them beside its definitions, and the nested `[catch {…}]`
+  is descended — so the issue's three programs (§ *Slice 2* › *Record*,
+  found and left) keep their stores and branches; they join VT10.8's
+  witnesses, and the landing says "Closes #2231".
 - **Gates**: G1 (`catch` row goes), G2, G7, G8, G9.
 - **Model**: opus. **Size**: M. **After**: VT10.2.
 
@@ -5439,6 +5567,64 @@ the witnesses):
   defects `rust` fixed, and those slice 2's routes changed, were re-run on
   this tree and marked `merged:`, with a status note, rather than
   re-running the whole corpus.
+
+Taken while the review of slice 2 was answered (§ *Slice 2* › *Record
+(2026-09-23): review fixes for slice 2* has the witnesses):
+
+- **D38 — The typed assignment's token kind is already on its node.**
+  The review asked for the value word's token kind on `AssignConst` and
+  `AssignValue`. An `AssignConst` value is a braced word's content by
+  construction (the lowering's other arm writes a canonical integer, which
+  cooks to itself), and `AssignValue` carries `value_needs_backsubst`,
+  which the lowering sets for a bare or quoted word with an escape. So the
+  driver cooks them through `literal_token_value` as `Str` and `Esc`, and
+  an unmarked spelling holding a backslash has no value; no IR field was
+  added.
+- **D39 — A typed node's head is every command lowered to it.**
+  `typed_node_commands(registry, hook)` lists
+  `command_names_for_semantic_operation(StructuredLowering(hook))`,
+  shortest first. The typed `incr` resolves through the first and needs
+  every one trusted; the typed assignment is overdefined unless every
+  `Set` command is still its builtin. That is the chain fold's
+  `observed_binding_is_the_builtin` question, asked once per driver; with
+  no trust fact (a detached run) the lowering stands.
+- **D40 — `FactView::exact` is the direct routes' one exact input.**
+  `Exact` answers; `Pending` stays pending; `Finite` declines
+  `CorrelatedSets`, because the lift evaluates per member before a route
+  sees a set; `Domain` declines `MalformedAnswer`; `Top` carries its
+  reason.
+- **D41 — A braced `incr` amount is a flag beside its text**
+  (`Statement::Incr::amount_braced`, as `name_braced` is for the name).
+  SSA takes no use from it, inlining does not rename it, and the lattice
+  and the loop simulator read it as a literal word. The codegen still
+  loads it as a variable name, which is recorded as found and left.
+- **D42 — List rendering reads the target in every consumer.** The rule
+  is `TargetSemantics::quotes_leading_hash` (8.5 onward, `None` without a
+  release), `TargetSemantics::render_list` (`None` where the releases
+  disagree), and `ConstOps::new_list`, which poisons
+  `ReleaseAmbiguous(ListRendering)`; `new_dict` gets the rule through
+  `new_list`. O130's `render_list_word` and O103's `seed_params_from_args`
+  render through `render_list` and skip the rewrite where it answers
+  `None`.
+- **D43 — #2232 is not closed here.** O100's word keeps the tab; the
+  space is the CLI's stdout writer (`write_highlighted_output` with
+  `DEFAULT_TAB_WIDTH`), which expands every tab in a program-emitting
+  verb's stdout. That writer and its callers are the CLI's, which the
+  diagnostic-policy lane holds. The lane pins the compiler's word, and
+  the issue waits for the CLI's half.
+- **D44 — #2231 waits for slice 10's `catch`.** Recording the body's
+  reads needs a descent that orders a read before a write inside the
+  body. It is needed for both the statement form and the nested `[catch
+  …]`, which the substitution scan does not enter. That is VT10.3's body
+  plan, not a contained edit.
+- **D45 — A read-modify-write is declared where its route is.** The five
+  `dict` keyed updates declare `READS_BEFORE_WRITE` on their subcommands,
+  and the `::tcl::dict::` specs inherit it. The generic lowering and the
+  variable-reference scan ask `invocation_traits` (`spec | sub`) rather
+  than the head's spec. `a_route_that_reads_its_target_declares_the_read`
+  holds every cell and keyed update to the trait.
+- **D46 — `ValueTransferContext::of` keeps interning `mutations`** beside
+  its key, as the review said. Revisiting it is a later tidy.
 
 ### Open questions for the owner
 

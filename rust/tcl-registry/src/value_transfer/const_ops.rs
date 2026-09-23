@@ -312,6 +312,11 @@ pub struct TargetSemantics {
     /// the one this front end gives every file. A non-ASCII operand is
     /// admissible only when the target agrees.
     pub source_utf8: bool,
+    /// Whether a list's first element that starts with `#` is brace-quoted
+    /// when the list is rendered, when one release names it: from 8.5
+    /// (`[list # a]` is `{#} a`, so the list is never a comment when it is
+    /// evaluated as a script), not in 8.4 (`# a`).
+    pub quotes_leading_hash: Option<bool>,
     /// The profile, when the request names one.
     pub profile: Option<&'static DialectProfile>,
 }
@@ -329,9 +334,46 @@ impl TargetSemantics {
             character_model: release.map(TclVersion::string_character_model),
             byte_strings: release.map(TclVersion::byte_string_encoding),
             source_utf8: release.is_some_and(|v| v >= TclVersion::V9_0),
+            quotes_leading_hash: release.map(|v| v >= TclVersion::V8_5),
             profile,
         }
     }
+
+    /// `elements` rendered as one canonical list under this target, or
+    /// `None` when the rendering depends on a release the target does not
+    /// name: a first element that starts with `#` is brace-quoted from 8.5
+    /// (`[list # a]` is `{#} a`) and bare in 8.4 (`# a`). The rule every
+    /// consumer that renders a list for a target reads, so a folded list is
+    /// the one the target prints.
+    #[must_use]
+    pub fn render_list<S: AsRef<str>>(&self, elements: &[S]) -> Option<String> {
+        let first_hash = elements
+            .first()
+            .is_some_and(|first| first.as_ref().starts_with('#'));
+        let quote_hash = match self.quotes_leading_hash {
+            Some(quotes) => quotes,
+            None if first_hash => return None,
+            None => true,
+        };
+        let rendered = render_list_bytes(
+            elements.iter().map(|element| element.as_ref().as_bytes()),
+            quote_hash,
+        );
+        String::from_utf8(rendered).ok()
+    }
+}
+
+/// Join `elements` into one canonical list, the first element's leading
+/// `#` brace-quoted when `quote_hash` says the target does.
+fn render_list_bytes<'e>(elements: impl Iterator<Item = &'e [u8]>, quote_hash: bool) -> Vec<u8> {
+    let mut rendered = Vec::new();
+    for (index, element) in elements.enumerate() {
+        if index != 0 {
+            rendered.push(b' ');
+        }
+        tcl_syntax::list::append_list_element(&mut rendered, element, index == 0 && quote_hash);
+    }
+    rendered
 }
 
 /// The one live compile-time value model. Byte-exact, release-bound,
@@ -553,6 +595,20 @@ impl<'ctx> ConstOps<'ctx> {
         }
     }
 
+    /// Whether the rendered list brace-quotes a leading `#` on `first`: the
+    /// named release's rule, or — with no release named and a first element
+    /// that starts with `#` — a `ReleaseAmbiguous(ListRendering)` fault,
+    /// because 8.4 renders `[list # a]` as `# a` and 8.5 onwards as `{#} a`.
+    fn quotes_leading_hash(&mut self, first: Option<&ConstValue>) -> bool {
+        if let Some(quotes) = self.target.quotes_leading_hash {
+            return quotes;
+        }
+        if first.is_some_and(|value| value.bytes.first() == Some(&b'#')) {
+            self.poison(DeclineReason::ReleaseAmbiguous(Axis::ListRendering));
+        }
+        true
+    }
+
     /// The canonical spelling of an integer past the wide boundary under a
     /// release that widens.
     fn widened(&mut self, sum: i128) -> Result<ConstValue, ValueError> {
@@ -590,18 +646,19 @@ impl ValueOps for ConstOps<'_> {
         ConstValue::bytes(if b { b"1" } else { b"0" }, Representation::Int)
     }
 
+    /// The canonical rendering under the target's list rules: the element
+    /// quoting every release shares, and the one rule they do not — whether
+    /// a leading `#` on the first element is brace-quoted, which a profile
+    /// naming no release cannot say.
     fn new_list(&mut self, items: Vec<ConstValue>) -> ConstValue {
         self.require(Needs::LIST_RENDERING);
-        let mut texts = Vec::with_capacity(items.len());
-        for item in &items {
-            match item.as_utf8() {
-                Some(text) => texts.push(text.to_owned()),
-                None => self.poison(DeclineReason::NotText),
-            }
+        let quote_hash = self.quotes_leading_hash(items.first());
+        if items.iter().any(|item| item.as_utf8().is_none()) {
+            self.poison(DeclineReason::NotText);
         }
-        let rendered = tcl_syntax::list::join_list(&texts);
+        let rendered = render_list_bytes(items.iter().map(|item| &*item.bytes), quote_hash);
         let _ = self.charge_bytes(u64::try_from(rendered.len()).unwrap_or(u64::MAX));
-        ConstValue::bytes(rendered.as_bytes(), Representation::List)
+        ConstValue::bytes(&rendered, Representation::List)
     }
 
     fn as_str(&mut self, v: &ConstValue) -> Rc<str> {

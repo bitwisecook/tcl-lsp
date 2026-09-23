@@ -194,6 +194,47 @@ fn keyed_updates_agree_on_both_paths() {
     }
 }
 
+/// The value-position routes answer alike on both paths: `[set x]` reads
+/// the variable, `list`, `llength` and `string length` run the shared
+/// cores, and the `::tcl::dict::` spelling of a keyed update shares its
+/// declaration with `dict set` — where the profile has `dict`: the iRules
+/// profile has none, so `d` holds no value there.
+#[test]
+fn value_position_routes_agree_on_both_paths() {
+    let src = "proc p {} {\n    set x hello\n    set r [set x]\n    set l [list a {b c}]\n    set n [llength $l]\n    set m [string length $x]\n    set d {}\n    ::tcl::dict::set d k v\n    return $d\n}\n";
+    for dialect in ["tcl8.6", "tcl9.0", "f5-irules"] {
+        let db = TclDatabase::default();
+        let file = SourceFile::new(&db, src.to_owned(), dialect.to_owned(), None);
+        let (memoised, direct) = both_paths(&db, file);
+        assert_eq!(
+            lattice_of(&memoised, "::p"),
+            lattice_of(&direct, "::p"),
+            "{dialect}"
+        );
+        let text = |value: &str| LatticeValue::Const(ConstValue::String(value.to_owned()));
+        let keyed = if dialect == "f5-irules" {
+            LatticeValue::Overdefined
+        } else {
+            text("k v")
+        };
+        for (path, unit) in [("memoised", &*memoised), ("direct", &direct)] {
+            for (name, version, want) in [
+                ("r", 1, text("hello")),
+                ("l", 1, text("a {b c}")),
+                ("n", 1, LatticeValue::Const(ConstValue::Int(2))),
+                ("m", 1, LatticeValue::Const(ConstValue::Int(5))),
+                ("d", 2, keyed.clone()),
+            ] {
+                assert_eq!(
+                    value_at(unit, "::p", name, version),
+                    Some(want),
+                    "{dialect} {path}: {name}#{version}"
+                );
+            }
+        }
+    }
+}
+
 /// A variable trace installed anywhere in the module is a whole-module
 /// fact the lattice reads: adding one for `n` re-keys `p`'s memoised
 /// lattice, which drops `n`'s constant as the direct build does.

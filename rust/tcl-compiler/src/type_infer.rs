@@ -1821,6 +1821,7 @@ mod tests {
             name: "n".to_owned(),
             name_braced: false,
             amount: None,
+            amount_braced: false,
             safe_on_uninit: false,
         };
         let ssa = SsaFunction::trivial("::top", BlockId(0), vec!["entry".into()]);

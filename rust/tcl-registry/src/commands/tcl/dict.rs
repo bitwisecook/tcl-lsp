@@ -104,6 +104,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "append",
         semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::DictAppend)),
+        // A keyed update reads the dictionary it rewrites: the store that
+        // feeds `dict set d k v` is observed, not overwritten, whatever the
+        // spelling (`::tcl::dict::set`, an alias) reaches it.
+        traits: Traits::READS_BEFORE_WRITE,
         arity: Arity::at_least(2),
         detail: "Append to a value in a dictionary.",
         synopsis: "dict append dictionaryVariable key ?string ...?",
@@ -237,6 +241,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "incr",
         semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::DictIncr)),
+        // A keyed update reads the dictionary it rewrites: the store that
+        // feeds `dict set d k v` is observed, not overwritten, whatever the
+        // spelling (`::tcl::dict::set`, an alias) reaches it.
+        traits: Traits::READS_BEFORE_WRITE,
         arity: Arity::new(2, 3),
         detail: "Increment a value in a dictionary.",
         synopsis: "dict incr dictionaryVariable key ?increment?",
@@ -277,6 +285,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "lappend",
         semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::DictListAppend)),
+        // A keyed update reads the dictionary it rewrites: the store that
+        // feeds `dict set d k v` is observed, not overwritten, whatever the
+        // spelling (`::tcl::dict::set`, an alias) reaches it.
+        traits: Traits::READS_BEFORE_WRITE,
         arity: Arity::at_least(2),
         detail: "Append list elements to a dictionary value.",
         synopsis: "dict lappend dictionaryVariable key ?value ...?",
@@ -372,6 +384,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "set",
         semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::DictSet)),
+        // A keyed update reads the dictionary it rewrites: the store that
+        // feeds `dict set d k v` is observed, not overwritten, whatever the
+        // spelling (`::tcl::dict::set`, an alias) reaches it.
+        traits: Traits::READS_BEFORE_WRITE,
         arity: Arity::at_least(3),
         detail: "Set a value in a dictionary.",
         synopsis: "dict set dictionaryVariable key ?key ...? value",
@@ -413,7 +429,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "unset",
         semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::DictUnset)),
-        traits: Traits::FIRE_AND_FORGET_TEARDOWN,
+        // The key removal keeps every other key: the prior dictionary is read.
+        traits: Traits::FIRE_AND_FORGET_TEARDOWN.union(Traits::READS_BEFORE_WRITE),
         arity: Arity::at_least(2),
         detail: "Remove keys from a dictionary variable.",
         synopsis: "dict unset dictionaryVariable key ?key ...?",

@@ -39,14 +39,14 @@ use crate::types::TclType;
 
 use super::CommandSemantics;
 use super::answers::{
-    BindingKind, CompletionOutcome, CompletionPath, DependencyEvidence, EvalAnswer, ExactValue,
+    BindingKind, CompletionOutcome, CompletionPath, DependencyEvidence, EvalAnswer,
     ExactValueOrUnavailable, ExistenceOutcome, ExistenceTransfer, InvocationOutcome, PlanAnswer,
     RangeModel, RouteIdentity, StoreOutcome, TransferAnswer, TypeFacts,
 };
 use super::const_ops::{ConstOps, ConstValue, Needs};
 use super::context::Budget;
 use super::decline::DeclineReason;
-use super::inputs::{AnalysisInputs, FactDomain, FactView, OperandId, TargetId};
+use super::inputs::{AnalysisInputs, FactDomain, OperandId, TargetId};
 use super::route::{EvalRoute, NativeEvalId};
 
 const NORMAL: &[CompletionCode] = &[CompletionCode::Ok];
@@ -114,20 +114,6 @@ impl CellUpdateSemantics {
         }
     }
 
-    /// An exact input, or the answer that stands in for one that is not.
-    /// A finite set that reaches the evaluator is one the driver's lift
-    /// could not pin — the lift pins exactly one distinct finite value per
-    /// evaluation — so it is the correlated case.
-    fn exact_input(view: FactView) -> Result<ExactValue, EvalAnswer> {
-        match view {
-            FactView::Pending => Err(EvalAnswer::Pending),
-            FactView::Exact(value, _) => Ok(value),
-            FactView::Finite(..) => Err(EvalAnswer::Declined(DeclineReason::CorrelatedSets)),
-            FactView::Domain(_) => Err(EvalAnswer::Declined(DeclineReason::MalformedAnswer)),
-            FactView::Top(reason) => Err(EvalAnswer::Declined(reason)),
-        }
-    }
-
     fn evaluate_update(self, input: &dyn AnalysisInputs, budget: &mut Budget) -> EvalAnswer {
         let operands = input.invocation().operands.len();
         if !self.accepts(operands) {
@@ -137,13 +123,16 @@ impl CellUpdateSemantics {
             Ok(place) => place,
             Err(reason) => return EvalAnswer::Declined(reason),
         };
-        let prior = match Self::exact_input(input.prior_store(&place, FactDomain::ExactValue)) {
+        let prior = match input.prior_store(&place, FactDomain::ExactValue).exact() {
             Ok(prior) => prior,
             Err(answer) => return answer,
         };
         let mut values = Vec::with_capacity(operands.saturating_sub(1));
         for index in 1..operands {
-            match Self::exact_input(input.operand(OperandId(index), FactDomain::ExactValue)) {
+            match input
+                .operand(OperandId(index), FactDomain::ExactValue)
+                .exact()
+            {
                 Ok(value) => values.push(ConstValue::from_exact(&value)),
                 Err(answer) => return answer,
             }

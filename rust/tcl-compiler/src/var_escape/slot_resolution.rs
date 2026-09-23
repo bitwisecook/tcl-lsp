@@ -747,6 +747,7 @@ mod tests {
                 name: "$varname".into(),
                 name_braced: false,
                 amount: None,
+                amount_braced: false,
                 safe_on_uninit: false,
             },
         ]);

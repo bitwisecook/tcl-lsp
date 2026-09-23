@@ -551,7 +551,7 @@ fn try_fold_chain_at(
             DiagCode::O130,
             "Fold write-only list build chain",
             "Remove dead intermediate list write",
-            render_list_word(els),
+            render_list_word(els, ctx.dialect)?,
         )
     } else {
         (
@@ -589,11 +589,17 @@ fn try_fold_chain_at(
 }
 
 /// Render `elements` as the single `set` value-word that recreates the
-/// list — join into a canonical Tcl list, then quote that as one element.
-/// The joined string never begins with a bare `#` (the join already quotes
-/// a leading `#`), so `list_element`'s first-element rule is equivalent here.
-fn render_list_word(elements: &[String]) -> String {
-    tcl_syntax::list::list_element(&tcl_syntax::list::join_list(elements))
+/// list the target builds — join into its canonical list, then quote that
+/// as one word — or `None` where the rendering is release-dependent (a
+/// first element that starts with `#`, under a profile naming no release).
+/// Under 8.4 `lappend l # b` builds `# b`, so the word is `{# b}`; from 8.5
+/// it builds `{#} b`.
+fn render_list_word(
+    elements: &[String],
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+) -> Option<String> {
+    let list = tcl_registry::value_transfer::TargetSemantics::of(dialect).render_list(elements)?;
+    Some(tcl_syntax::list::list_element(&list))
 }
 
 #[cfg(test)]

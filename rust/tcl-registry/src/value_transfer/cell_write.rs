@@ -84,19 +84,6 @@ impl CellWriteSemantics {
         })
     }
 
-    /// An exact input, or the answer that stands in for one that is not.
-    /// A finite set that reaches the evaluator is one the driver's lift
-    /// could not pin, so it is the correlated case.
-    fn exact_input(view: FactView) -> Result<ExactValue, EvalAnswer> {
-        match view {
-            FactView::Pending => Err(EvalAnswer::Pending),
-            FactView::Exact(value, _) => Ok(value),
-            FactView::Finite(..) => Err(EvalAnswer::Declined(DeclineReason::CorrelatedSets)),
-            FactView::Domain(_) => Err(EvalAnswer::Declined(DeclineReason::MalformedAnswer)),
-            FactView::Top(reason) => Err(EvalAnswer::Declined(reason)),
-        }
-    }
-
     /// The semantic type an exact value carries: its representation
     /// evidence, else its numeric classification, else a string.
     fn type_of(value: &ExactValue) -> TclType {
@@ -199,7 +186,7 @@ impl CommandSemantics for CellWriteSemantics {
                 if let Err(reason) = input.place(target.0) {
                     return EvalAnswer::Declined(reason);
                 }
-                match Self::exact_input(input.operand(value, FactDomain::ExactValue)) {
+                match input.operand(value, FactDomain::ExactValue).exact() {
                     Ok(value) => {
                         let store = StoreOutcome::Write {
                             target,
@@ -215,7 +202,7 @@ impl CommandSemantics for CellWriteSemantics {
                     Ok(place) => place,
                     Err(reason) => return EvalAnswer::Declined(reason),
                 };
-                match Self::exact_input(input.prior_store(&place, FactDomain::ExactValue)) {
+                match input.prior_store(&place, FactDomain::ExactValue).exact() {
                     Ok(value) => Self::outcome(value, Vec::new()),
                     Err(answer) => answer,
                 }

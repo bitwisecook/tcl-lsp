@@ -1615,7 +1615,7 @@ fn evaluate_proc_with_constants(
     args: &[ConstValue],
     policy: FoldPolicy,
 ) -> Option<ConstValue> {
-    let seed = seed_params_from_args(params, args)?;
+    let seed = seed_params_from_args(params, args, ctx.dialect)?;
     let registry: &CommandRegistry = ctx
         .registry
         .unwrap_or_else(|| tcl_registry::default_registry());
@@ -1677,6 +1677,7 @@ fn evaluate_proc_with_constants(
 fn seed_params_from_args(
     params: &[String],
     args: &[ConstValue],
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> Option<std::collections::HashMap<(String, crate::ssa::Version), LatticeValue>> {
     let is_variadic = params.last().is_some_and(|p| p == "args");
     let fixed = if is_variadic {
@@ -1693,8 +1694,12 @@ fn seed_params_from_args(
         seed.insert((p.clone(), 0), LatticeValue::Const(a.clone()));
     }
     if is_variadic {
+        // `args` is the list the target builds: a first element that
+        // starts with `#` is brace-quoted from 8.5 and bare in 8.4, and a
+        // profile naming no release cannot say which.
         let tail: Vec<String> = args[fixed..].iter().map(const_value_text).collect();
-        let list_text = tcl_syntax::list::join_list(tail);
+        let list_text =
+            tcl_registry::value_transfer::TargetSemantics::of(dialect).render_list(&tail)?;
         seed.insert(
             (params[fixed].clone(), 0),
             LatticeValue::Const(ConstValue::String(list_text)),

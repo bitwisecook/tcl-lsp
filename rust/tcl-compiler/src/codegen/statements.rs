@@ -1158,6 +1158,7 @@ mod tests {
             name: "x".into(),
             name_braced: false,
             amount: None,
+            amount_braced: false,
             safe_on_uninit: false,
         };
         let mut ugi = false;

@@ -358,6 +358,23 @@ fn a_store_a_global_writing_callee_reads_is_kept() {
     prints_under_every_release(source, "15\n");
 }
 
+/// A callee that only reads a global keeps the store it reads: the
+/// slice-two record said O109 deleted `set hits 0` ahead of `show`, and it
+/// does not — the rewrite keeps both stores, and tclsh 8.4 to 9.1 print 0
+/// then 1 for both programs.
+#[test]
+fn a_store_a_global_reading_callee_observes_is_kept() {
+    let source = "set hits 0\nproc show {} {global hits; puts $hits}\nshow\nset hits 1\nshow\n";
+    for dialect in ["tcl8.4", "tcl8.6", "tcl9.0"] {
+        let (rewritten, rewrites) = optimised(source, dialect);
+        assert!(
+            rewritten.contains("set hits 0") && rewritten.contains("set hits 1"),
+            "{dialect}:\n{rewritten}\n{rewrites:#?}"
+        );
+    }
+    prints_under_every_release(source, "0\n1\n");
+}
+
 /// `[set x]` in value position reads the variable through the cell-write
 /// route (the Tier-1 list); `[set x 10]` writes storage a value position
 /// cannot land, so its host keeps no value.
@@ -652,6 +669,257 @@ fn lassign_is_not_a_write_under_a_profile_without_it() {
                 Some((true, want.to_owned())),
                 "tclsh{series}:\n{program}"
             );
+        }
+    }
+}
+
+/// A typed assignment reads its value word as Tcl substitutes it: a quoted
+/// `\t` is a tab and a braced backslash-newline one space. Read by its
+/// spelling, `set s "a\tb"` held four characters, so `string length $s`
+/// folded to 4 and `[list $c]` quoted a backslash (tclsh 8.4 to 9.1 print
+/// 3, 3, 2, `{x<TAB>y}` and 3).
+#[test]
+fn a_typed_assignment_reads_its_word_as_tcl_substitutes_it() {
+    let cases: [(&str, &str, LatticeValue, &str); 5] = [
+        (
+            "proc p {} {set s \"a\\tb\"; puts [string length $s]}\np\n",
+            "s",
+            text("a\tb"),
+            "3\n",
+        ),
+        (
+            "proc p {} {set e \"p\\tq\"; set f [set e]; puts [string length $f]}\np\n",
+            "f",
+            text("p\tq"),
+            "3\n",
+        ),
+        (
+            "proc p {} {set b \"\\t\"; append b q; puts [string length $b]}\np\n",
+            "b",
+            text("\tq"),
+            "2\n",
+        ),
+        (
+            "proc p {} {set c \"x\\ty\"; set d [list $c]; puts $d}\np\n",
+            "d",
+            text("{x\ty}"),
+            "{x\ty}\n",
+        ),
+        (
+            "proc p {} {set s {a\\\nb}; puts [string length $s]}\np\n",
+            "s",
+            text("a b"),
+            "3\n",
+        ),
+    ];
+    for (source, var, value, output) in cases {
+        for dialect in DIALECTS {
+            assert_eq!(
+                last_value(source, dialect, "::p", var),
+                value,
+                "{dialect}: {source}"
+            );
+        }
+        prints_under_every_release(source, output);
+    }
+}
+
+/// A braced `incr` amount is its own text: `incr x {$n}` raises `expected
+/// integer but got "$n"` in every release, so `x#2` has no value and the
+/// statement reads no `n`. Read as a substitution it folded to 4.
+#[test]
+fn a_braced_increment_amount_is_its_text() {
+    let body = "proc p {} {set n 3; set x 1; incr x {$n}; return $x}\n";
+    for dialect in DIALECTS {
+        let unit = unit_of(body, dialect);
+        assert_eq!(
+            value_at(&unit, "::p", "x", 2),
+            Some(LatticeValue::Overdefined),
+            "{dialect}"
+        );
+        assert_eq!(
+            answers_for(&unit, "::p", "incr"),
+            ["declined: wrong-representation"],
+            "{dialect}"
+        );
+        let function = &unit.procedures["::p"];
+        let n = function.ssa.var_symbol("n").expect("n");
+        let increment = function
+            .ssa
+            .blocks
+            .values()
+            .flat_map(|block| &block.statements)
+            .find(|stmt| matches!(stmt.statement, Statement::Incr { .. }))
+            .expect("the increment");
+        assert!(
+            !increment.uses.contains_key(&n),
+            "{dialect}: a braced amount reads nothing"
+        );
+    }
+    let source = format!("{body}puts [catch p msg]; puts $msg\n");
+    prints_under_every_release(&source, "1\nexpected integer but got \"$n\"\n");
+}
+
+/// A list's first element that starts with `#` is brace-quoted from 8.5 and
+/// bare in 8.4 (`puts [list # a]` prints `# a` under tclsh 8.4 and `{#} a`
+/// from 8.5), so each release folds its own rendering and a profile naming
+/// no release declines.
+#[test]
+fn a_leading_hash_is_quoted_per_release() {
+    let source = "proc p {} {set r [list # a]; set l {}; lappend l # b; puts $r; puts $l}\np\n";
+    for (dialect, list, appended) in [
+        ("tcl8.4", Some("# a"), Some("# b")),
+        ("tcl8.6", Some("{#} a"), Some("{#} b")),
+        ("tcl9.0", Some("{#} a"), Some("{#} b")),
+        ("f5-irules", None, None),
+    ] {
+        let expect = |value: Option<&str>| value.map_or(LatticeValue::Overdefined, text);
+        assert_eq!(
+            last_value(source, dialect, "::p", "r"),
+            expect(list),
+            "{dialect}"
+        );
+        assert_eq!(
+            last_value(source, dialect, "::p", "l"),
+            expect(appended),
+            "{dialect}"
+        );
+    }
+    // The same rule reaches every consumer that renders a list for the
+    // target: the `lappend` chain fold (O130) and the `args` list an
+    // argument-sensitive procedure fold (O103) seeds.
+    let variadic = "proc f {args} {return $args}\nputs [f # a]\nputs [f #x b]\n";
+    for (series, tclsh) in releases_on_path() {
+        let (expected, variadic_expected) = if series == "8.4" {
+            ("# a\n# b\n", "# a\n#x b\n")
+        } else {
+            ("{#} a\n{#} b\n", "{#} a\n{#x} b\n")
+        };
+        for (program, expected) in [(source, expected), (variadic, variadic_expected)] {
+            let (rewritten, _) = optimised(program, &dialect_of(series));
+            for program in [program, rewritten.as_str()] {
+                assert_eq!(
+                    run_script(&tclsh, program),
+                    Some((true, expected.to_owned())),
+                    "tclsh{series}:\n{program}"
+                );
+            }
+        }
+    }
+}
+
+/// A typed assignment is `set`'s lowering, so once the module shadows
+/// `set` it proves nothing: with `proc set {name value} {return ZZZ}`,
+/// `set s hello` never writes `s` and `append s world` leaves `world`
+/// (tclsh 8.4 to 9.1), where folding the assignment rewrote the program to
+/// print `helloworld`.
+#[test]
+fn a_typed_assignment_declines_once_set_is_rebound() {
+    let source =
+        "proc set {name value} {return ZZZ}\nproc p {} {set s hello; append s world; puts $s}\np\n";
+    for dialect in ["tcl8.4", "tcl8.6", "tcl9.0"] {
+        let unit = unit_of(source, dialect);
+        assert_eq!(
+            value_at(&unit, "::p", "s", 1),
+            Some(LatticeValue::Overdefined),
+            "{dialect}"
+        );
+        let (rewritten, rewrites) = optimised(source, dialect);
+        assert!(
+            !rewritten.contains("helloworld"),
+            "{dialect}:\n{rewritten}\n{rewrites:#?}"
+        );
+    }
+    prints_under_every_release(source, "world\n");
+}
+
+/// O100 forwards a value holding a tab as a word that re-reads to the same
+/// value: the tab stays a tab inside the braces (tclsh 8.4 to 9.1 print
+/// `a<TAB>b` and `x<TAB>y`, before and after the rewrite).
+#[test]
+fn o100_forwards_a_tab_verbatim() {
+    for (source, word, output) in [
+        ("set r {a\tb}\nputs $r\n", "{a\tb}", "a\tb\n"),
+        (
+            "set b [string range \"x\\ty\" 0 2]\nputs $b\n",
+            "{x\ty}",
+            "x\ty\n",
+        ),
+    ] {
+        for dialect in ["tcl8.4", "tcl8.6", "tcl9.0"] {
+            let rewrites = rewrites_of(source, dialect);
+            assert!(
+                rewrites
+                    .iter()
+                    .any(|r| r.code == DiagCode::O100 && r.replacement == word),
+                "{dialect}: {rewrites:#?}"
+            );
+        }
+        prints_under_every_release(source, output);
+    }
+}
+
+/// A keyed update reads the dictionary it rewrites under every spelling
+/// that reaches it: the qualified `::tcl::dict::` commands, a nested
+/// `[dict set …]`, and an alias of `dict set`. The read had been recorded
+/// only for the `dict` ensemble at statement level, so O109 deleted the
+/// store feeding the others: `::tcl::dict::set d k v` printed `k v` where
+/// tclsh 8.5 to 9.1 print `a 1 k v`. Tcl 8.4 has no `dict`, and every
+/// program fails there the same way before and after.
+#[test]
+fn a_keyed_update_reads_its_dictionary_under_every_spelling() {
+    let programs = [
+        (
+            "proc p {} {set d {a 1}; ::tcl::dict::set d k v; return $d}\nputs [p]\n",
+            "a 1 k v\n",
+        ),
+        (
+            "proc p {} {set d {a 1}; puts [dict set d k v]}\np\n",
+            "a 1 k v\n",
+        ),
+        (
+            "proc p {} {set d {a 1}; puts [::tcl::dict::set d k v]}\np\n",
+            "a 1 k v\n",
+        ),
+        (
+            "proc p {} {set d {a 1 b 2}; ::tcl::dict::unset d a; return $d}\nputs [p]\n",
+            "b 2\n",
+        ),
+        (
+            "proc p {} {set d {a 1}; ::tcl::dict::incr d a; return $d}\nputs [p]\n",
+            "a 2\n",
+        ),
+        (
+            "proc p {} {set d {a 1}; ::tcl::dict::append d a x; return $d}\nputs [p]\n",
+            "a 1x\n",
+        ),
+        (
+            "proc p {} {set d {a 1}; ::tcl::dict::lappend d a x; return $d}\nputs [p]\n",
+            "a {1 x}\n",
+        ),
+        (
+            "interp alias {} ds {} dict set\nproc p {} {set d {a 1}; ds d k v; return $d}\nputs [p]\n",
+            "a 1 k v\n",
+        ),
+    ];
+    for (source, expected) in programs {
+        for (series, tclsh) in releases_on_path() {
+            let (rewritten, _) = optimised(source, &dialect_of(series));
+            if series == "8.4" {
+                assert_eq!(
+                    run_script(&tclsh, &rewritten),
+                    run_script(&tclsh, source),
+                    "tclsh8.4:\n{rewritten}"
+                );
+                continue;
+            }
+            for program in [source, rewritten.as_str()] {
+                assert_eq!(
+                    run_script(&tclsh, program),
+                    Some((true, expected.to_owned())),
+                    "tclsh{series}:\n{program}"
+                );
+            }
         }
     }
 }
