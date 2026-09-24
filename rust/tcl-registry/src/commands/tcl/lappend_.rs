@@ -74,7 +74,6 @@ pub fn spec() -> CommandSpec {
         native_lowering: Some(NativeLowering::CellReadModifyWrite(CellUpdate::ListAppend)),
         codegen_hook: Some(CodegenHookId::Lappend),
         forms: FORMS,
-        analyser_hook: Some(crate::hooks::AnalyserHookId::Lappend),
         ..CommandSpec::DEFAULT
     }
 }

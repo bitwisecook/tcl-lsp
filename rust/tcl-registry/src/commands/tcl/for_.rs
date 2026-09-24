@@ -105,7 +105,6 @@ pub fn spec() -> CommandSpec {
         }),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
-        analyser_hook: Some(crate::hooks::AnalyserHookId::For),
         ..CommandSpec::DEFAULT
     }
 }

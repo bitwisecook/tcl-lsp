@@ -188,7 +188,6 @@ pub fn spec() -> CommandSpec {
         lowering_hook: Some(LoweringHookId::Variable),
         native_lowering: Some(NativeLowering::Scope(ScopeKind::NamespaceVariable)),
         forms: FORMS,
-        analyser_hook: Some(crate::hooks::AnalyserHookId::Variable),
         // A value-bearing `variable name value` can run variable traces;
         // until value writes are transition-modelled, leave its world
         // declaration open rather than falsely claiming `EMPTY`.

@@ -89,14 +89,22 @@ fn full_registry() -> CommandRegistry {
 #[test]
 fn analyser_hook_stamps_match_the_former_guard_list() {
     use AnalyserHookId as H;
+    // Step 2 (CC2.13) retired eleven variants whose handler's only
+    // command-specific knowledge was a position or a keyword a descriptor
+    // now states — `Try`, `For`, `DictFor`, `DictUpdate`, `Incr`, `Append`,
+    // `Lappend`, `Upvar`, `NamespaceUpvar`, `Global` and `Variable` — so
+    // `variable`, `global`, `namespace upvar`, `foreach`'s `for` sibling,
+    // `switch`'s `try` sibling, `upvar`, `dict for` / `dict update` (and
+    // their `::tcl::dict::*` qualified spellings), `append`, `lappend` and
+    // `incr` carry no analyser hook any more: each falls through to the
+    // shared tail (`apply_invocation_transitions`, `handle_var_binding_command`,
+    // the generic `ArgRole::Body` walk) the same way `for` already did
+    // before this step. 43 variants, 56 stamp rows before the retirement;
+    // 32 variants, 43 rows after it.
     let expected: BTreeSet<(&str, &str, H)> = [
         // `if cmd_name != "set"` in handle_set_command (+ the
         // `set auto_path PATH` arm of handle_auto_path_command).
         ("set", "", H::Set),
-        // `matches!(cmd_name, "variable" | "global")` in
-        // handle_var_declaration_command.
-        ("variable", "", H::Variable),
-        ("global", "", H::Global),
         // `if cmd_name != "proc"` in handle_proc_command — the iRules
         // pack re-registers `proc`, so both specs carry the stamp.
         ("proc", "", H::Proc),
@@ -120,12 +128,10 @@ fn analyser_hook_stamps_match_the_former_guard_list() {
         ("namespace", "inscope", H::NamespaceEval),
         ("namespace", "path", H::NamespacePath),
         ("namespace", "unknown", H::NamespaceUnknown),
-        ("namespace", "upvar", H::NamespaceUpvar),
         // `matches!(cmd_name, "foreach" | "foreach_in_collection")` —
         // the EDA command shares the handler.
         ("foreach", "", H::Foreach),
         ("foreach_in_collection", "", H::Foreach),
-        ("for", "", H::For),
         ("switch", "", H::Switch),
         // The obsolete Tcl 8.x `case` shares `switch`'s clause-list handler:
         // one subject then either separate `patList body` pairs or a single
@@ -142,18 +148,12 @@ fn analyser_hook_stamps_match_the_former_guard_list() {
         ("expect_tty", "", H::Switch),
         ("expect_background", "", H::Switch),
         ("catch", "", H::Catch),
-        ("try", "", H::Try),
-        ("upvar", "", H::Upvar),
         // handle_dict_var_command matched `args[0]` per subcommand.
-        ("dict", "for", H::DictFor),
-        ("dict", "update", H::DictUpdate),
         ("dict", "with", H::DictWith),
         // The standalone `::tcl::dict::*` spellings carry each subcommand's
-        // own analyser hook too, so `::tcl::dict::for {k v} $d {…}` is
-        // analysed like `dict for` — landing as a *command-level* stamp on
+        // own analyser hook too, so `::tcl::dict::with {…} $d {…}` is
+        // analysed like `dict with` — landing as a *command-level* stamp on
         // the qualified spec.
-        ("::tcl::dict::for", "", H::DictFor),
-        ("::tcl::dict::update", "", H::DictUpdate),
         ("::tcl::dict::with", "", H::DictWith),
         // `cmd_name != "interp" || args[0] != "alias"` in
         // crate::alias's detectors, dispatched by handle_interp_alias.
@@ -189,12 +189,8 @@ fn analyser_hook_stamps_match_the_former_guard_list() {
         // which provider selection reads at the require's own offset.
         ("package", "prefer", H::PackagePrefer),
         ("source", "", H::Source),
-        ("append", "", H::Append),
-        // `lappend` additionally feeds the `lappend auto_path …` arm.
-        ("lappend", "", H::Lappend),
         ("regexp", "", H::RegexPatternCapture),
         ("regsub", "", H::RegexPatternCapture),
-        ("incr", "", H::Incr),
         // `cmd_name == "load"` in dispatch_command_handlers itself.
         ("load", "", H::Load),
     ]

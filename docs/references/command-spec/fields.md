@@ -1027,8 +1027,6 @@ Compiler internals: hand-written analyser families for commands whose behaviour 
 | Value | Meaning |
 |---|---|
 | `Set` | set |
-| `Variable` | variable |
-| `Global` | global |
 | `Proc` | proc |
 | `OptProc` | argparse-style proc |
 | `Apply` | apply |
@@ -1040,15 +1038,9 @@ Compiler internals: hand-written analyser families for commands whose behaviour 
 | `NamespaceForget` | namespace forget |
 | `NamespacePath` | namespace path |
 | `NamespaceUnknown` | namespace unknown |
-| `NamespaceUpvar` | namespace upvar |
 | `Foreach` | foreach |
-| `For` | for |
 | `Switch` | switch |
 | `Catch` | catch |
-| `Try` | try |
-| `Upvar` | upvar |
-| `DictFor` | dict for |
-| `DictUpdate` | dict update |
 | `DictWith` | dict with |
 | `InterpAlias` | interp alias |
 | `InterpEval` | interp eval |
@@ -1064,10 +1056,7 @@ Compiler internals: hand-written analyser families for commands whose behaviour 
 | `PackageIfneeded` | package ifneeded |
 | `PackagePrefer` | package prefer |
 | `Source` | source |
-| `Append` | append |
-| `Lappend` | lappend |
 | `RegexPatternCapture` | regexp capture binding |
-| `Incr` | incr |
 | `Load` | load |
 
 ### Appended arity

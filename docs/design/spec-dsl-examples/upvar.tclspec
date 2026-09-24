@@ -43,7 +43,6 @@ command upvar {
 
     lowering_hook -native Upvar
     codegen_hook  -native Upvar
-    analyser_hook -native Upvar
     xc_translatable no
 
     side_effect Variable -writes

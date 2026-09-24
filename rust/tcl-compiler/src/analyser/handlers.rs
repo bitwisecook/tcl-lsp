@@ -4218,7 +4218,12 @@ impl Analyser {
     /// source-ordered. Tcl list grouping and backslash substitutions are
     /// decoded for the variable name while each definition span remains the
     /// exact source range of its list element.
-    fn define_vars_from_list(&mut self, var_list_text: &str, tok: Token, scope_path: &[usize]) {
+    pub(super) fn define_vars_from_list(
+        &mut self,
+        var_list_text: &str,
+        tok: Token,
+        scope_path: &[usize],
+    ) {
         let Ok(names) = self.word_rules().split_list(var_list_text) else {
             return;
         };
@@ -4814,114 +4819,26 @@ impl Analyser {
         }
     }
 
-    /// Handle `try BODY ?handler ...? ?finally BODY?` by walking its clause
-    /// plan; arity checking lives in `compiler_checks::arity_checks`
-    /// already.
-    ///
-    /// Each clause is read by its timing, never by its keyword:
-    ///
-    /// - the **protected** body and every **selected** handler body walk
-    ///   through [`Self::analyse_selected_body`] — nothing either establishes
-    ///   dominates the code after the command;
-    /// - the body that runs **whatever the outcome** (`finally`) walks as
-    ///   straight-line code;
-    /// - a handler's variable-list slot (`{result options}`) is defined
-    ///   before its body walks;
-    /// - a handler whose body word is the grammar's fall-through marker runs
-    ///   the next handler's body, so its own word is never walked as a
-    ///   script — the solo `-` would otherwise read as a zero-arg `-` command
-    ///   and trip a spurious arity error.
-    ///
-    /// `plan` is the invocation's own, from the resolution that selected the
-    /// hook; a clause the chain's defect stopped in (no body word) is
-    /// skipped, and the words past the defect are not a chain at all.
-    ///
-    /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::Try`].
-    pub fn handle_try_command(
-        &mut self,
-        args: &[String],
-        arg_tokens: &[Token],
-        scope_path: &[usize],
-        plan: Option<&tcl_registry::ClausePlan>,
-    ) -> bool {
-        let Some(plan) = plan.filter(|_| !args.is_empty()) else {
-            return false;
-        };
-        for (index, clause) in plan.clauses.iter().enumerate() {
-            let Some(body) = clause.operand(tcl_registry::arg_role::ArgRole::Body) else {
-                continue;
-            };
-            if let Some(list) = clause.operand(tcl_registry::arg_role::ArgRole::LoopVarList)
-                && let (Some(text), Some(tok)) = (args.get(list), arg_tokens.get(list).copied())
-            {
-                self.define_vars_from_list(text, tok, scope_path);
-            }
-            if plan.falls_through(index) {
-                continue;
-            }
-            let (Some(text), Some(tok)) = (args.get(body), arg_tokens.get(body).copied()) else {
-                continue;
-            };
-            match clause.timing {
-                tcl_registry::ClauseTiming::Protected | tcl_registry::ClauseTiming::Selected => {
-                    self.analyse_selected_body(text, tok, scope_path, true);
-                }
-                _ => self.analyse_body(text, tok, scope_path),
-            }
-        }
-        true
-    }
-
-    /// [`Self::analyse_body`] with `conditional_depth` raised for the walk
-    /// when the owning command's bodies are branch-selected, so facts
-    /// recorded inside (a `package require`, a const-string write) do not
-    /// claim to dominate the code after the command.
-    ///
-    /// `branch_selected` comes from the owning command's
-    /// [`tcl_registry::Traits::BRANCH_SELECTED_BODY`] — the same trait the
-    /// generic body walk keys on — never from the command's name.
-    ///
-    /// Which of `try`'s clause bodies pass `true` follows C Tcl's `try`
-    /// semantics, modelled the way `if` already is: `if`'s always-evaluated
-    /// condition is an `ArgRole::Expr` argument and is never depth-bumped,
-    /// only its branch-selected bodies are.  For `try`:
-    ///
-    /// - the **main body** always *starts* running, but any statement in it
-    ///   may be superseded by an exception a handler then swallows, so
-    ///   nothing it establishes dominates the code after the `try`.
-    ///   Branch-selected — the same guarded-probe reading
-    ///   [`Self::handle_catch_command`] applies to `catch`'s script, and
-    ///   `try { package require Foo } on error {} {}` is precisely the
-    ///   idiomatic optional-dependency check.
-    /// - an **`on` / `trap` handler body** runs only when the body completed
-    ///   with a matching completion code / `-errorcode` prefix.
-    ///   Branch-selected.
-    /// - a **`finally` body** always runs: "an optional trailing finally
-    ///   script always runs — even when body or the handler raised an error,
-    ///   and irrespective of which handler, if any, matched" (Tcl 9.0.4
-    ///   `try(n)`; in `generic/tclCmdMZ.c` both of `TclNRTryObjCmd`'s
-    ///   continuations, `TryPostBody` and `TryPostHandler`, schedule the
-    ///   finally script before propagating).  So whenever control reaches
-    ///   past the `try` at all, the finally body has run — it is the one
-    ///   `try` clause that is **not** branch-selected, exactly as
-    ///   [`tcl_registry::Traits::BRANCH_SELECTED_BODY`]'s own documentation
-    ///   names it.  It is no more conditional than a straight-line statement,
-    ///   which can equally fail part-way.
-    fn analyse_selected_body(
-        &mut self,
-        body_text: &str,
-        body_tok: Token,
-        scope_path: &[usize],
-        branch_selected: bool,
-    ) {
-        if branch_selected {
-            self.conditional_depth += 1;
-        }
-        self.analyse_body(body_text, body_tok, scope_path);
-        if branch_selected {
-            self.conditional_depth -= 1;
-        }
-    }
+    // `handle_try_command` retired (step 2, CC2.13): `try`'s only
+    // command-specific knowledge was reading its clause plan's timings and
+    // its handler variable-list slot, both a descriptor now states, so `try`
+    // carries no analyser hook any more and falls through to the same
+    // generic dispatch `for` already used (see
+    // `Analyser::dispatch_analyser_hook`'s doc comment). The clause-body
+    // depths this handler used to compute by hand (the deleted
+    // `analyse_selected_body`) come from `dispatch_body_arguments`'s
+    // `body_depths` instead — every `Selected` body (every `on` / `trap`
+    // handler, like every `Protected` body) now also raises
+    // `control_flow_body_depth`, not `conditional_depth` alone, which the
+    // handler never did (recorded as a step 2 behavioural delta: a `rename`
+    // inside a `try` handler is no longer read as a straight-line deletion,
+    // matching how one inside a loop body already was not). The handler
+    // variable list is *not* carried by `handle_var_binding_command`'s flat
+    // role table — `clause_grammar.rs`'s own module doc: a repeating
+    // clause's `LoopVarList` is "bound per clause …, which the flat
+    // `LoopVarList` role … cannot say" — so `dispatch_body_arguments` reads
+    // it straight off `ClausePlan::clauses` instead, the same generic door
+    // that already threads `plan` through for `body_depths`.
 
     /// The fixed cell a frame-crossing alias's `otherVar` word names, or
     /// `None` when it names a frame-relative variable with no stable path.
@@ -14262,143 +14179,47 @@ mod tests {
         assert!(!handled);
     }
 
-    // handle_try_command
-
-    /// The clause plan `AnalyserHookId::Try` dispatch threads into
-    /// `handle_try_command` in production, resolved through that same path so
-    /// these unit tests cannot drift from it.
-    fn try_plan(a: &Analyser, args: &[String]) -> Option<tcl_registry::ClausePlan> {
-        a.resolved_analyser_hook_plan("try", args)
-    }
-
-    #[test]
-    fn handle_try_canonical_returns_true() {
-        let mut a = Analyser::new();
-        let args = ["body".to_string()];
-        let plan = try_plan(&a, &args);
-        let handled = a.handle_try_command(&args, &[str_tok(span(0, 4))], &[], plan.as_ref());
-        assert!(handled);
-    }
-
-    #[test]
-    fn handle_try_no_args_returns_false() {
-        let mut a = Analyser::new();
-        let plan = try_plan(&a, &[]);
-        let handled = a.handle_try_command(&[], &[], &[], plan.as_ref());
-        assert!(!handled);
-    }
-
-    /// The dispatch hands the handler `try`'s own clause plan: a protected
-    /// body, then each handler selected by its pattern, then `finally` —
-    /// the timings the walk reads in place of the keywords.
-    #[test]
-    fn try_dispatch_resolves_the_clause_plan() {
-        let a = Analyser::new();
-        let args: Vec<String> = ["body", "on", "error", "{m o}", "{h}", "finally", "{f}"]
-            .map(String::from)
-            .into();
-        let plan = try_plan(&a, &args).expect("hook dispatch hands the handler `try`'s plan");
-        let timings: Vec<tcl_registry::ClauseTiming> =
-            plan.clauses.iter().map(|clause| clause.timing).collect();
-        assert_eq!(
-            timings,
-            [
-                tcl_registry::ClauseTiming::Protected,
-                tcl_registry::ClauseTiming::Selected,
-                tcl_registry::ClauseTiming::Always,
-            ]
-        );
-    }
+    // try (handle_try_command retired, step 2 CC2.13 — retargeted onto the
+    // generic dispatch `for` already used; `try`'s own clause-timing
+    // resolution is `clause_grammar.rs`'s `try_grammar_agrees_with_the_retired_walk`
+    // and its neighbours, unaffected by the analyser no longer holding a hook)
 
     #[test]
     fn handle_try_walks_main_body() {
         // ``try {set y 1}`` — main body walks and lands ``y``.
         let mut a = Analyser::new();
-        let args = ["set y 1".to_string()];
-        let plan = try_plan(&a, &args);
-        a.handle_try_command(&args, &[str_tok(span(5, 14))], &[], plan.as_ref());
-        assert!(a.result.global_scope.variables.contains_key("y"));
+        let r = a.analyse("try {set y 1}\n", "tcl8.6");
+        assert!(r.global_scope.variables.contains_key("y"));
     }
 
     #[test]
     fn handle_try_walks_finally_body() {
         // ``try {} finally {set z 1}`` — finally clause body walks.
         let mut a = Analyser::new();
-        let args = [String::new(), "finally".to_string(), "set z 1".to_string()];
-        let plan = try_plan(&a, &args);
-        a.handle_try_command(
-            &args,
-            &[
-                str_tok(span(5, 7)),
-                esc_tok(span(8, 15)),
-                str_tok(span(16, 25)),
-            ],
-            &[],
-            plan.as_ref(),
-        );
-        assert!(a.result.global_scope.variables.contains_key("z"));
+        let r = a.analyse("try {} finally {set z 1}\n", "tcl8.6");
+        assert!(r.global_scope.variables.contains_key("z"));
     }
 
     #[test]
     fn handle_try_walks_on_handler_body() {
-        // ``try {} on error {result options} {set q 1}`` — the
-        // handler body at offset i+3 walks; the varList at i+2
-        // is *not* defined as a local.
-        let mut a = Analyser::new();
-        let args = [
-            String::new(),
-            "on".to_string(),
-            "error".to_string(),
-            "result options".to_string(),
-            "set q 1".to_string(),
-        ];
-        let plan = try_plan(&a, &args);
-        a.handle_try_command(
-            &args,
-            &[
-                str_tok(span(5, 7)),
-                esc_tok(span(8, 10)),
-                esc_tok(span(11, 16)),
-                str_tok(span(17, 33)),
-                str_tok(span(34, 43)),
-            ],
-            &[],
-            plan.as_ref(),
-        );
-        assert!(a.result.global_scope.variables.contains_key("q"));
-        // The `on error {result options}` var-list binds the result message +
-        // options dict in the handler body — both are defined (so completion
+        // ``try {} on error {result options} {set q 1}`` — the handler
+        // body walks and its var-list binds both names (so completion
         // offers `$result` / `$options`).
-        assert!(a.result.global_scope.variables.contains_key("result"));
-        assert!(a.result.global_scope.variables.contains_key("options"));
+        let mut a = Analyser::new();
+        let r = a.analyse("try {} on error {result options} {set q 1}\n", "tcl8.6");
+        assert!(r.global_scope.variables.contains_key("q"));
+        assert!(r.global_scope.variables.contains_key("result"));
+        assert!(r.global_scope.variables.contains_key("options"));
     }
 
     #[test]
     fn handle_try_walks_trap_handler_body() {
-        // ``try {} trap NONE {result} {set q 1}`` — same shape
-        // as ``on``, but the keyword is ``trap``.
+        // ``try {} trap NONE {result} {set q 1}`` — same shape as ``on``,
+        // but the keyword is ``trap`` and the var-list has one name.
         let mut a = Analyser::new();
-        let args = [
-            String::new(),
-            "trap".to_string(),
-            "NONE".to_string(),
-            "result".to_string(),
-            "set q 1".to_string(),
-        ];
-        let plan = try_plan(&a, &args);
-        a.handle_try_command(
-            &args,
-            &[
-                str_tok(span(5, 7)),
-                esc_tok(span(8, 12)),
-                esc_tok(span(13, 17)),
-                str_tok(span(18, 26)),
-                str_tok(span(27, 36)),
-            ],
-            &[],
-            plan.as_ref(),
-        );
-        assert!(a.result.global_scope.variables.contains_key("q"));
+        let r = a.analyse("try {} trap NONE {result} {set q 1}\n", "tcl8.6");
+        assert!(r.global_scope.variables.contains_key("q"));
+        assert!(r.global_scope.variables.contains_key("result"));
     }
 
     // resolve_proc_call

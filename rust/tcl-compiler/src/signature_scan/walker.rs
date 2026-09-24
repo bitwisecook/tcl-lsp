@@ -265,14 +265,29 @@ fn dispatch_signature_handler(
         Some(AnalyserHookId::Catch) => {
             handle_catch(texts, argv, ns_prefix, known_commands, ctx);
         }
-        Some(AnalyserHookId::Try) => {
-            handle_clause_bodies(dispatch, texts, argv, ns_prefix, known_commands, ctx);
-        }
-        Some(AnalyserHookId::Set | AnalyserHookId::Lappend) => {
+        Some(AnalyserHookId::Set) => {
             handlers::handle_auto_path(texts, argv, &mut ctx.result);
         }
-        _ if dispatch.lowering == Some(LoweringHookId::If) => {
+        // `if` and `try` (CC2.9, CC2.13) carry no analyser hook — their
+        // clause-carrying bodies walk through the lowering hook they still
+        // have instead.
+        _ if matches!(
+            dispatch.lowering,
+            Some(LoweringHookId::If | LoweringHookId::Try)
+        ) =>
+        {
             handle_clause_bodies(dispatch, texts, argv, ns_prefix, known_commands, ctx);
+        }
+        // `lappend` (CC2.13) carries no analyser hook either; a command that
+        // appends list elements to its target variable is exactly `lappend`
+        // (`append` writes a string, not list elements), the same registry
+        // fact the full analyser's own `auto_path` handling reads.
+        _ if matches!(
+            dispatch.spec.var_elements_effect,
+            Some(tcl_registry::VarElementsEffect::AppendsListElements { .. })
+        ) =>
+        {
+            handlers::handle_auto_path(texts, argv, &mut ctx.result);
         }
         _ => return false,
     }
@@ -545,9 +560,10 @@ fn scan_factory_structural(
         }
         return true;
     }
-    if dispatch.lowering == Some(LoweringHookId::If)
-        || dispatch.analyser == Some(AnalyserHookId::Try)
-    {
+    if matches!(
+        dispatch.lowering,
+        Some(LoweringHookId::If | LoweringHookId::Try)
+    ) {
         // The clause plan's script words — `if`'s bodies, `try`'s protected
         // body, handlers and `finally` — never a keyword walk.
         if let Some(plan) = dispatch.clause_plan_for(texts) {

@@ -2187,7 +2187,7 @@ fn collect_stored_callback_writes(
             matches!(
                 call.lowering_hook,
                 Some(LoweringHookId::Global | LoweringHookId::Variable | LoweringHookId::Upvar)
-            ) || call.analyser_hook == Some(tcl_registry::hooks::AnalyserHookId::NamespaceUpvar)
+            ) || call.sub.is_some_and(|sub| sub.creates_scope_alias)
         });
         let is_scalar_assignment =
             resolved_call.is_some_and(|call| call.lowering_hook == Some(LoweringHookId::Set));

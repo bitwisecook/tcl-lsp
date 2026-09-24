@@ -198,7 +198,6 @@ pub fn spec() -> CommandSpec {
         codegen_hook: Some(CodegenHookId::Upvar),
         forms: FORMS,
         xc_translatable: Some(false),
-        analyser_hook: Some(crate::hooks::AnalyserHookId::Upvar),
         world_effects: Some(WorldEffectDescriptor::EMPTY),
         state_transitions: Some(UPVAR_TRANSITIONS),
         ..CommandSpec::DEFAULT

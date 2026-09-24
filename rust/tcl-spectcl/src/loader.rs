@@ -2619,8 +2619,6 @@ const RETURN_TYPE_HOOKS: &[ReturnTypeHookId] = &[
 
 const ANALYSER_HOOKS: &[AnalyserHookId] = &[
     AnalyserHookId::Set,
-    AnalyserHookId::Variable,
-    AnalyserHookId::Global,
     AnalyserHookId::Proc,
     AnalyserHookId::OptProc,
     AnalyserHookId::Apply,
@@ -2632,15 +2630,9 @@ const ANALYSER_HOOKS: &[AnalyserHookId] = &[
     AnalyserHookId::NamespaceForget,
     AnalyserHookId::NamespacePath,
     AnalyserHookId::NamespaceUnknown,
-    AnalyserHookId::NamespaceUpvar,
     AnalyserHookId::Foreach,
-    AnalyserHookId::For,
     AnalyserHookId::Switch,
     AnalyserHookId::Catch,
-    AnalyserHookId::Try,
-    AnalyserHookId::Upvar,
-    AnalyserHookId::DictFor,
-    AnalyserHookId::DictUpdate,
     AnalyserHookId::DictWith,
     AnalyserHookId::InterpAlias,
     AnalyserHookId::InterpEval,
@@ -2656,10 +2648,7 @@ const ANALYSER_HOOKS: &[AnalyserHookId] = &[
     AnalyserHookId::PackageIfneeded,
     AnalyserHookId::PackagePrefer,
     AnalyserHookId::Source,
-    AnalyserHookId::Append,
-    AnalyserHookId::Lappend,
     AnalyserHookId::RegexPatternCapture,
-    AnalyserHookId::Incr,
     AnalyserHookId::Load,
 ];
 
