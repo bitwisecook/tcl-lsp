@@ -15044,3 +15044,48 @@ fn analyser_hook_selection_requires_binding_proof() {
         "a proved binding keeps its hook"
     );
 }
+
+/// VT5.13: W100's produced set is the fact DP8.2's `brace_expr_hints` reads
+/// for O111, so it must cover every unbraced expression argument — one
+/// finding, at the expression word's own span, for each EXPR-role form.
+#[test]
+fn w100_marks_every_unbraced_expression() {
+    fn w100_texts(src: &str) -> Vec<String> {
+        let mut a = crate::analyser::Analyser::new();
+        a.analyse(src, "tcl8.6")
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W100)
+            .map(|d| src[d.span.start() as usize..d.span.end() as usize].to_string())
+            .collect()
+    }
+
+    for (src, word) in [
+        ("expr $a+1\n", "$a+1"),
+        ("expr \"$a + 1\"\n", "\"$a + 1"),
+        ("if \"$x\" {puts hi}\n", "\"$x\""),
+        ("while $c {}\n", "$c"),
+        ("for {} $c {} {}\n", "$c"),
+        ("set y [expr $x+1]\n", "$x+1"),
+    ] {
+        assert_eq!(
+            w100_texts(src),
+            vec![word.to_string()],
+            "expected exactly one W100 at {word:?} for {src:?}"
+        );
+    }
+
+    for src in [
+        "expr {$a+1}\n",
+        "expr {$a + 1}\n",
+        "if {$x} {puts hi}\n",
+        "while {$c} {}\n",
+        "for {} {$c} {} {}\n",
+        "set y [expr {$x+1}]\n",
+    ] {
+        assert!(
+            w100_texts(src).is_empty(),
+            "the braced form must draw no W100 for {src:?}"
+        );
+    }
+}

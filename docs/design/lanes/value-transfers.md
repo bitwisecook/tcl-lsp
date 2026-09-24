@@ -4619,6 +4619,26 @@ Green at VT5.1:
   verdict and the inventory are unchanged, and G1 runs at the next
   checkpoint.
 
+#### Record (2026-09-24): the sonnet items of slice 5
+
+A second implementer runs the sonnet items the coordinator held back from
+the opus one — VT5.13, VT5.14, VT5.17, VT5.19, VT5.20, in that order —
+starting from `3c6714b4` (VT5.10 landed). Each item is its own checkpoint
+commit; this table gains a row as each lands, and any deviation from the
+plan's literal wording is called out beside the row it belongs to.
+
+| Item | Commit | What landed | Its tests |
+|---|---|---|---|
+| VT5.13 | `wip(value-transfers): slice 5 — W100's produced set is the unbraced-expression fact` | No production change: `emit_w100_unbraced_expr` and `push_w100` (`analyser/diagnostics/usage.rs`) are untouched, as the item specifies. The test proves the produced W100 set already covers every EXPR-role form — `expr $a+1`, `expr "$a + 1"`, `if "$x" {…}`, `while $c {…}`, `for {} $c {} {…}` and an unbraced `expr` nested in `[…]` — one finding at the expression word's own span (for the quoted-argument case, the span the walk already draws stops one short of the closing quote, the same inner-end convention `AGENTS.md` § *Word-token closing delimiters* documents for a bracketed token; unchanged by this item and pinned as found), and the braced forms of all six draw nothing — the fact DP8.1 keeps in `FACT_CODES` and DP8.2's `brace_expr_hints` reads for O111 (B-DP3, D23) | `w100_marks_every_unbraced_expression` (`analyser/diagnostics/tests.rs`, appended) |
+
+Green at VT5.13: `cargo test -p tcl-compiler --lib` 6495 passed, 2 ignored,
+0 failed (byte-identical; one test added); `cargo clippy -p tcl-compiler
+--all-targets --no-deps -- -D warnings` clean, no `#[allow]` added;
+`cargo fmt -p tcl-compiler` no further change. No production file touched,
+so `cargo xtask value-transfers --check` and `registry-axes --check` stay
+at the baseline (19 clean, 14 waived, 91 pinned across 37 files, 6607
+rows; 1070 pinned across 163 files); `cargo check --workspace` clean.
+
 ### Slice 8 — the existence rung
 
 #### Goal and exit
