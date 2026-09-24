@@ -41,6 +41,20 @@ folds in "absent value = 0". Its default is fixed-`i64` with overflow →
 the seam that let `incr` be shared (§2) without the core ever naming a number
 representation.
 
+Arbitrary-precision `format` conversions use
+`ValueOps::integer_magnitude(value, radix, syntax)`. The adapter returns a sign
+and unsigned lowercase digits without a radix prefix, under the selected
+release's numeral grammar. The VM uses its bignum value model and the native
+runtime uses libtommath; neither narrows this path through `i64`. Fixed-width
+format conversions on Tcl 8.5+/9 also use that magnitude seam: fixed-width
+`d`/`i`/`u`/`x`/`X`/`o`/`b`/`p` operands are reduced modulo 2^64 before the
+selected `short`/`int`/`wide` width is applied. Tcl 8.4 and Jim retain their
+legacy wide-integer coercion and overflow behavior. This truncation is local to
+the formatter; dynamic width and precision arguments, `%c`, and unbounded
+`ll`/`L` conversions retain their existing paths. The shared formatter owns
+modifier selection, prefixes, case, precision, padding, and the structured
+`TCL FORMAT BADUNSIGNED` error for negative unsigned bignum conversions.
+
 Notes:
 - `CompileService` (the runtime-`eval` injection point) was abstracted behind an
   associated `Module` type so the contract crate carries no bytecode dependency

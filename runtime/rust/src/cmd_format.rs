@@ -25,7 +25,7 @@ fn format_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             interp.set_result(value);
             Code::Ok
         }
-        Err(error) => interp.set_error(error.into_message().as_bytes()),
+        Err(error) => interp.report_cmd_error(error),
     }
 }
 
@@ -74,6 +74,16 @@ mod tests {
             assert_eq!(ok(i, b"format {%c%c%c} 72 105 33"), b"Hi!");
             assert_eq!(ok(i, b"format {%2$s %1$s} a b"), b"b a");
             assert_eq!(ok(i, b"format {%+d % d %o} 5 5 8"), b"+5  5 10");
+            assert_eq!(ok(i, b"format {%.*d} -1 0"), b"0");
+            assert_eq!(ok(i, b"format {%.*x} -1 0"), b"0");
+            assert_eq!(ok(i, b"format {%.0d} 0"), b"0");
+            assert_eq!(ok(i, b"format {%.0x} 0"), b"0");
+            i.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+            assert_eq!(ok(i, b"format {%.*d} -1 0"), b"0");
+            assert_eq!(ok(i, b"format {%.*x} -1 0"), b"0");
+            i.set_runtime_version(tcl_dialect::TclVersion::V8_4);
+            assert_eq!(ok(i, b"format {%.0d} 0"), b"");
+            assert_eq!(ok(i, b"format {%.0x} 0"), b"");
         });
     }
 
@@ -86,6 +96,10 @@ mod tests {
                 ok(i, b"format {%#d %#i %#o %#X} 42 42 8 12"),
                 b"42 42 010 0XC"
             );
+            assert_eq!(ok(i, b"format {%#x %#X %#b} 0 0 0"), b"0x0 0X0 0b0");
+            assert_eq!(ok(i, b"format {%#.0x %#.0X %#.0b} 0 0 0"), b"0x0 0X0 0b0");
+            i.set_runtime_version(tcl_dialect::TclVersion::V8_4);
+            assert_eq!(ok(i, b"format {%#.0x %#.0X} 0 0"), b" ");
             i.set_runtime_version(tcl_dialect::TclVersion::V9_0);
             assert_eq!(
                 ok(i, b"format {%#d %#i %#o %#X} 42 42 8 12"),
@@ -141,6 +155,177 @@ mod tests {
             // Width and precision still apply around the truncated value.
             assert_eq!(ok(i, b"format {%-6hd|} 70000"), b"4464  |");
             assert_eq!(ok(i, b"format %5.3d 7"), b"  007");
+        });
+    }
+
+    /// Tcl 9 bignum formatting keeps the exact magnitude in each supported
+    /// radix, and `u` rejects a negative bignum with C's structured code.
+    #[cfg(have_tommath)]
+    #[test]
+    fn format_bignums_issue_2162() {
+        leak_free(|i| {
+            // Fixed-width conversions first fold arbitrary magnitudes modulo
+            // 2^64, then apply their selected width. These are the runtime
+            // adapter's direct libtommath coverage for #2204.
+            assert_eq!(
+                ok(i, b"format %I64u 18446744073709551615"),
+                b"18446744073709551615"
+            );
+            assert_eq!(ok(i, b"format %I64d 18446744073709551615"), b"-1");
+            assert_eq!(ok(i, b"format %I64d 18446744073709551616"), b"0");
+            assert_eq!(
+                ok(i, b"format %I64d 340282366920938463463374607431768211457"),
+                b"1"
+            );
+            assert_eq!(ok(i, b"format %I64d -18446744073709551617"), b"-1");
+            assert_eq!(
+                ok(i, b"format %I64u -18446744073709551617"),
+                b"18446744073709551615"
+            );
+
+            for version in [tcl_dialect::TclVersion::V8_6, tcl_dialect::TclVersion::V9_0] {
+                i.set_runtime_version(version);
+                assert_eq!(
+                    ok(
+                        i,
+                        b"format {%+u % u %+x % x %+X % X %+o % o %+b % b} 0 0 0 0 0 0 0 0 0 0"
+                    ),
+                    b"0 0 0 0 0 0 0 0 0 0",
+                    "{version:?}"
+                );
+                assert_eq!(
+                    ok(i, b"format {%+u % u %+x % x %+X % X %+o % o %+b % b} 17 17 17 17 17 17 17 17 17 17"),
+                    b"17 17 11 11 11 11 21 21 10001 10001",
+                    "{version:?}"
+                );
+                assert_eq!(ok(i, b"format {%+08x %+#08x} 17 17"), b"00000011 0x000011");
+                assert_eq!(
+                    ok(
+                        i,
+                        b"format {%+u % x} 18446744073709551616 18446744073709551616"
+                    ),
+                    b"0 0",
+                    "{version:?}"
+                );
+                let negative = match version {
+                    tcl_dialect::TclVersion::V8_6 => {
+                        b"18446744073709551599 18446744073709551599 ffffffffffffffef ffffffffffffffef".as_slice()
+                    }
+                    tcl_dialect::TclVersion::V9_0 => {
+                        b"4294967279 4294967279 ffffffef ffffffef".as_slice()
+                    }
+                    _ => unreachable!(),
+                };
+                assert_eq!(
+                    ok(i, b"format {%+u % u %+x % x} -17 -17 -17 -17"),
+                    negative,
+                    "{version:?}"
+                );
+            }
+            i.set_runtime_version(tcl_dialect::TclVersion::V8_4);
+            assert_eq!(
+                ok(
+                    i,
+                    b"format {%+u % u %+x % x %+X % X %+o % o} 0 0 0 0 0 0 0 0"
+                ),
+                b"0 0 0 0 0 0 0 0"
+            );
+            assert_eq!(
+                ok(
+                    i,
+                    b"format {%+u % u %+x % x %+X % X %+o % o} 17 17 17 17 17 17 17 17"
+                ),
+                b"17 17 11 11 11 11 21 21"
+            );
+            i.set_runtime_version(tcl_dialect::TclVersion::V9_0);
+            assert_eq!(ok(i, b"format {%+08p % 08p} 17 17"), b"0x000011 0x000011");
+
+            assert_eq!(
+                ok(i, b"format %lld 18446744073709551616"),
+                b"18446744073709551616"
+            );
+            assert_eq!(
+                ok(i, b"format %Lx 18446744073709551616"),
+                b"10000000000000000"
+            );
+            assert_eq!(
+                ok(i, b"format %llu 0xabcdef0123456789abcdef"),
+                b"207698809136909011942886895"
+            );
+            assert_eq!(
+                ok(i, b"format %llx 0xabcdef0123456789abcdef"),
+                b"abcdef0123456789abcdef"
+            );
+            assert_eq!(
+                ok(i, b"format %llX 0xabcdef0123456789abcdef"),
+                b"ABCDEF0123456789ABCDEF"
+            );
+            assert_eq!(
+                ok(i, b"format {%+llx % llx %+llx % llx} 18446744073709551616 18446744073709551616 -17 -17"),
+                b"+10000000000000000  10000000000000000 -11 -11"
+            );
+            for format in [
+                b"%#.0lld".as_slice(),
+                b"%#.0llx",
+                b"%#.0llo",
+                b"%#.0llb",
+                b"%#.0Ld",
+                b"%#.0Lx",
+                b"%#.0Lo",
+                b"%#.0Lb",
+            ] {
+                let mut source = b"format ".to_vec();
+                source.extend_from_slice(format);
+                source.extend_from_slice(b" 0");
+                assert_eq!(ok(i, &source), b"0", "{format:?}");
+            }
+            i.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+            for (format, expected) in [
+                (b"%#.0llx".as_slice(), b"0x0".as_slice()),
+                (b"%#.0llX", b"0X0"),
+                (b"%#.0llb", b"0b0"),
+            ] {
+                let mut source = b"format ".to_vec();
+                source.extend_from_slice(format);
+                source.extend_from_slice(b" 0");
+                assert_eq!(ok(i, &source), expected, "{format:?}");
+            }
+            assert_eq!(ok(i, b"format %#.0o 0"), b"0");
+            assert_eq!(ok(i, b"format %#.4o 17"), b"0021");
+            assert_eq!(
+                ok(i, b"format %#.30llo 18446744073709551616"),
+                b"000000002000000000000000000000"
+            );
+            i.set_runtime_version(tcl_dialect::TclVersion::V9_0);
+            assert_eq!(
+                ok(i, b"format %#.30llo 18446744073709551616"),
+                b"0o000000002000000000000000000000"
+            );
+            assert_eq!(ok(i, b"format %+.0llu 0"), b"+0");
+            assert_eq!(
+                ok(i, b"catch {format %llu -9223372036854775808} m o; list $m [dict get $o -errorcode]"),
+                b"{unsigned bignum format is invalid} {TCL FORMAT BADUNSIGNED}",
+            );
+        });
+    }
+
+    /// Tcl 8.4 did not admit the `ll` bignum modifier.
+    #[test]
+    fn format_bignum_modifier_is_rejected_in_tcl84_issue_2162() {
+        leak_free(|i| {
+            i.set_runtime_version(tcl_dialect::TclVersion::V8_4);
+            assert_eq!(i.eval_str(b"format %lld 42"), Code::Error);
+            assert_eq!(i.result_bytes(), b"bad field specifier \"l\"");
+            assert_eq!(ok(i, b"format %#.0o 0"), b"0");
+            i.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+            assert_eq!(
+                i.eval_str(b"format %lld 0d18446744073709551616"),
+                Code::Error
+            );
+            assert_eq!(
+                i.result_bytes(),
+                b"expected integer but got \"0d18446744073709551616\""
+            );
         });
     }
 

@@ -25,8 +25,11 @@
 //!
 //! [`ValueOps`]: tcl_syntax::value::ValueOps
 
-use tcl_syntax::format::{FmtFlags, Spec, parse_spec_with_limit};
-use tcl_syntax::value::ValueOps;
+use tcl_syntax::format::{
+    FmtFlags, ParseSpecError, SizeModifier, Spec, parse_spec_with_limit_diagnostic,
+};
+use tcl_syntax::number::Radix;
+use tcl_syntax::value::{IntegerMagnitude, ValueOps};
 
 use crate::error::CmdError;
 
@@ -78,12 +81,7 @@ fn render<O: ValueOps>(
     let bytes = fmt.as_bytes();
     let mut out = String::new();
     let mut i = 0;
-    let mut ai = 0;
-    // Tcl forbids mixing positional (`%n$`) and sequential conversions in one
-    // format string ("cannot mix …"); track which mode the format has committed
-    // to so the second kind errors.
-    let mut saw_positional = false;
-    let mut saw_sequential = false;
+    let mut arg_state = FormatArgState::default();
     while i < bytes.len() {
         if bytes[i] != b'%' {
             // Copy a whole UTF-8 char, not a single byte.
@@ -98,18 +96,35 @@ fn render<O: ValueOps>(
             continue;
         }
         let mut j = i + 1;
-        let Some(mut spec) = parse_spec_with_limit(bytes, &mut j, usize::MAX) else {
-            // A `%` that is not `%%` always begins a conversion — Tcl has no
-            // literal lone `%`. C Tcl checks that the conversion's argument
-            // slot exists before parsing the rest of the field: when one is
-            // available, a bare trailing `%` reaches the more specific
-            // incomplete-specifier diagnostic; without one it reports the
-            // argument mismatch first (`format %5` and `format %`).
-            return Err(CmdError::new(if ai < args.len() {
-                "format string ended in middle of field specifier"
-            } else {
-                "not enough arguments for all format specifiers"
-            }));
+        let mut spec = match parse_spec_with_limit_diagnostic(bytes, &mut j, usize::MAX) {
+            Ok(Some(spec)) => spec,
+            Ok(None) => {
+                return Err(CmdError::new(if arg_state.next < args.len() {
+                    "format string ended in middle of field specifier"
+                } else {
+                    "not enough arguments for all format specifiers"
+                }));
+            }
+            Err(ParseSpecError::MissingVerb(partial)) => {
+                // C Tcl 8 rejects I-family modifiers before it can report the
+                // missing verb; Tcl 9 reports the conversion as incomplete.
+                // The parser retains this source fact, so the renderer does
+                // not need to re-scan the raw format.
+                let mut fields = ConversionFields::from(partial);
+                let _ = consume_conversion_args(ops, &mut fields, args, &mut arg_state)?;
+                let i_family = partial.size.is_some_and(|size| {
+                    matches!(
+                        size,
+                        SizeModifier::Int | SizeModifier::Int32 | SizeModifier::Int64
+                    )
+                });
+                if i_family && syntax != tcl_dialect::NumberSyntax::Tcl90 {
+                    return Err(CmdError::new("bad field specifier \"I\""));
+                }
+                return Err(CmdError::new(
+                    "format string ended in middle of field specifier",
+                ));
+            }
         };
         if spec.width.is_some_and(|width| width > MAX_RUNTIME_FIELD)
             || spec
@@ -118,66 +133,75 @@ fn render<O: ValueOps>(
         {
             return Err(CmdError::new("max size for a Tcl value exceeded"));
         }
-        if spec.verb != b'%' {
-            // Commit the format to positional or sequential mode and reject a mix
-            // (`format {%2$d %d} …` is a Tcl error, not arg-2-then-arg-1).
-            if spec.arg_index.is_some() {
-                if saw_sequential {
-                    return Err(CmdError::new(
-                        "cannot mix \"%\" and \"%n$\" conversion specifiers",
-                    ));
-                }
-                saw_positional = true;
-            } else {
-                if saw_positional {
-                    return Err(CmdError::new(
-                        "cannot mix \"%\" and \"%n$\" conversion specifiers",
-                    ));
-                }
-                saw_sequential = true;
-            }
-            // A positional `%n$` spec consumes consecutively starting at `n-1`
-            // (the `*` width, then the `.*` precision, then the value), leaving
-            // the sequential cursor untouched; an ordinary spec consumes from the
-            // running cursor `ai`. So `%2$*d` takes its width from arg 2 and its
-            // value from arg 3, matching tclsh.
-            let positional = spec.arg_index.is_some();
-            let mut cur = match spec.arg_index {
-                Some(n) => n
-                    .checked_sub(1)
-                    .ok_or_else(|| CmdError::new("\"%n$\" argument index out of range"))?,
-                None => ai,
-            };
-            // `*` width / `.*` precision take their value from a preceding
-            // argument (format-1.1/1.6). A negative `*` width left-justifies.
-            if spec.width_star {
-                let w = ops.as_int(take_arg(args, &mut cur, positional)?)?;
-                if w < 0 {
-                    spec.flags |= FmtFlags::MINUS;
-                }
-                let mag = usize::try_from(w.unsigned_abs()).unwrap_or(usize::MAX);
-                if mag > MAX_RUNTIME_FIELD {
-                    return Err(CmdError::new("max size for a Tcl value exceeded"));
-                }
-                spec.width = Some(mag);
-            }
-            if spec.precision_star {
-                let p = ops.as_int(take_arg(args, &mut cur, positional)?)?;
-                // C Tcl keeps the precision field active and clamps a
-                // negative dynamic precision to zero. This matters for `%s`
-                // and `%c`, where an omitted precision has a different
-                // result from an explicit zero precision.
-                spec.precision = Some(usize::try_from(p).unwrap_or(0).min(MAX_RUNTIME_FIELD));
-            }
-            let arg = take_arg(args, &mut cur, positional)?;
-            out.push_str(&render_spec(ops, &spec, arg, syntax)?);
-            if !positional {
-                ai = cur;
-            }
-        }
+        // A positional `%n$` spec consumes consecutively starting at `n-1`
+        // (the `*` width, then the `.*` precision, then the value), leaving
+        // the sequential cursor untouched; an ordinary spec consumes from the
+        // running cursor `ai`. So `%2$*d` takes its width from arg 2 and its
+        // value from arg 3, matching tclsh. The literal `%%` shortcut above
+        // is the only percent form that bypasses argument consumption;
+        // modified `%…%` forms must reach render_spec and report bad `%`.
+        let mut fields = ConversionFields::from(&spec);
+        let arg = consume_conversion_args(ops, &mut fields, args, &mut arg_state)?;
+        fields.apply_to(&mut spec);
+        out.push_str(&render_spec(ops, &spec, arg, syntax)?);
         i = j;
     }
     Ok(out)
+}
+
+/// The argument-consuming fields shared by complete and incomplete specs.
+/// Keeping these in one value avoids a second, subtly different implementation
+/// of `*`/`.*` and positional argument handling for parser error paths.
+#[derive(Debug, Clone, Copy)]
+struct ConversionFields {
+    flags: FmtFlags,
+    width: Option<usize>,
+    precision: Option<usize>,
+    width_star: bool,
+    precision_star: bool,
+    arg_index: Option<usize>,
+}
+
+impl From<&Spec> for ConversionFields {
+    fn from(spec: &Spec) -> Self {
+        Self {
+            flags: spec.flags,
+            width: spec.width,
+            precision: spec.precision,
+            width_star: spec.width_star,
+            precision_star: spec.precision_star,
+            arg_index: spec.arg_index,
+        }
+    }
+}
+
+impl From<tcl_syntax::format::PartialSpec> for ConversionFields {
+    fn from(spec: tcl_syntax::format::PartialSpec) -> Self {
+        Self {
+            flags: spec.flags,
+            width: spec.width,
+            precision: spec.precision,
+            width_star: spec.width_star,
+            precision_star: spec.precision_star,
+            arg_index: spec.arg_index,
+        }
+    }
+}
+
+impl ConversionFields {
+    fn apply_to(self, spec: &mut Spec) {
+        spec.flags = self.flags;
+        spec.width = self.width;
+        spec.precision = self.precision;
+    }
+}
+
+/// The cursor and mode committed by prior conversions in one format string.
+#[derive(Debug, Default)]
+struct FormatArgState {
+    next: usize,
+    saw_positional: bool,
+    saw_sequential: bool,
 }
 
 /// Take the argument at `*cur` and advance the cursor. Shared by the `*`/`.*`
@@ -195,6 +219,61 @@ fn take_arg<'a, V>(args: &'a [V], cur: &mut usize, positional: bool) -> Result<&
     Ok(arg)
 }
 
+/// Select and consume a conversion's dynamic fields and value. Complete and
+/// incomplete conversions use this same owner so sequential cursors and
+/// positional/sequential mixing cannot drift between their error paths.
+fn consume_conversion_args<'a, O: ValueOps>(
+    ops: &mut O,
+    fields: &mut ConversionFields,
+    args: &'a [O::Value],
+    state: &mut FormatArgState,
+) -> Result<&'a O::Value, CmdError> {
+    let positional = fields.arg_index.is_some();
+    if positional {
+        if state.saw_sequential {
+            return Err(CmdError::new(
+                "cannot mix \"%\" and \"%n$\" conversion specifiers",
+            ));
+        }
+        state.saw_positional = true;
+    } else {
+        if state.saw_positional {
+            return Err(CmdError::new(
+                "cannot mix \"%\" and \"%n$\" conversion specifiers",
+            ));
+        }
+        state.saw_sequential = true;
+    }
+    let mut cur = match fields.arg_index {
+        Some(n) => n
+            .checked_sub(1)
+            .ok_or_else(|| CmdError::new("\"%n$\" argument index out of range"))?,
+        None => state.next,
+    };
+    // `*` width / `.*` precision take their values before the conversion
+    // argument. A negative `*` width left-justifies.
+    if fields.width_star {
+        let w = ops.as_int(take_arg(args, &mut cur, positional)?)?;
+        if w < 0 {
+            fields.flags |= FmtFlags::MINUS;
+        }
+        let magnitude = usize::try_from(w.unsigned_abs()).unwrap_or(usize::MAX);
+        if magnitude > MAX_RUNTIME_FIELD {
+            return Err(CmdError::new("max size for a Tcl value exceeded"));
+        }
+        fields.width = Some(magnitude);
+    }
+    if fields.precision_star {
+        let p = ops.as_int(take_arg(args, &mut cur, positional)?)?;
+        fields.precision = Some(usize::try_from(p).unwrap_or(0).min(MAX_RUNTIME_FIELD));
+    }
+    let arg = take_arg(args, &mut cur, positional)?;
+    if !positional {
+        state.next = cur;
+    }
+    Ok(arg)
+}
+
 fn utf8_len(b: u8) -> usize {
     match b {
         0x00..=0x7f => 1,
@@ -202,6 +281,35 @@ fn utf8_len(b: u8) -> usize {
         0xe0..=0xef => 3,
         _ => 4,
     }
+}
+
+/// Coerce a fixed-width integer conversion through Tcl 8.5+/9's bignum
+/// magnitude seam. Tcl's `TclFormatInt` family first reduces arbitrary integer
+/// objects modulo 2^64, then applies the conversion's selected width. Tcl 8.4
+/// and Jim have no corresponding bignum format path, so they retain the legacy
+/// wide-integer coercion and overflow error.
+fn fixed_integer_value<O: ValueOps>(
+    ops: &mut O,
+    value: &O::Value,
+    syntax: tcl_dialect::NumberSyntax,
+) -> Result<i64, CmdError> {
+    if !matches!(
+        syntax,
+        tcl_dialect::NumberSyntax::Tcl85 | tcl_dialect::NumberSyntax::Tcl90
+    ) {
+        return Ok(ops.as_int(value)?);
+    }
+    let IntegerMagnitude { negative, digits } = ops.integer_magnitude(value, Radix::Dec, syntax)?;
+    let magnitude = digits.bytes().fold(0_u64, |bits, digit| {
+        debug_assert!(digit.is_ascii_digit());
+        bits.wrapping_mul(10).wrapping_add(u64::from(digit - b'0'))
+    });
+    let bits = if negative {
+        magnitude.wrapping_neg()
+    } else {
+        magnitude
+    };
+    Ok(i64::from_ne_bytes(bits.to_ne_bytes()))
 }
 
 /// Render one conversion against `arg`.
@@ -212,15 +320,45 @@ fn render_spec<O: ValueOps>(
     syntax: tcl_dialect::NumberSyntax,
 ) -> Result<String, CmdError> {
     let verb = spec.verb;
+    let i_family = spec.size.is_some_and(|size| {
+        matches!(
+            size,
+            SizeModifier::Int | SizeModifier::Int32 | SizeModifier::Int64
+        )
+    });
+    if i_family && syntax != tcl_dialect::NumberSyntax::Tcl90 {
+        return Err(CmdError::new("bad field specifier \"I\""));
+    }
     if verb == b'p' && syntax != tcl_dialect::NumberSyntax::Tcl90 {
         return Err(CmdError::new("bad field specifier \"p\""));
+    }
+    if spec.size == Some(SizeModifier::LongLong) && syntax == tcl_dialect::NumberSyntax::Tcl84 {
+        return Err(CmdError::new("bad field specifier \"l\""));
+    }
+    if spec.size == Some(SizeModifier::Big) && syntax != tcl_dialect::NumberSyntax::Tcl90 {
+        return Err(CmdError::new("bad field specifier \"L\""));
+    }
+    if spec.size.is_some_and(SizeModifier::is_big)
+        && verb == b'u'
+        && syntax != tcl_dialect::NumberSyntax::Tcl90
+    {
+        return Err(CmdError::with_error_code(
+            "unsigned bignum format is invalid",
+            "TCL FORMAT BADUNSIGNED",
+        ));
+    }
+    if spec.size.is_some_and(SizeModifier::is_big)
+        && matches!(verb, b'd' | b'i' | b'u' | b'x' | b'X' | b'o' | b'b')
+    {
+        return render_bignum_spec(ops, spec, arg, syntax);
     }
     match verb {
         b'd' | b'i' => {
             // The size modifier and the release pick the width; the low bits
             // are then read signed. See `tcl_syntax::format::integer_width`.
-            let n = tcl_syntax::format::integer_width(spec.size, syntax).signed(ops.as_int(arg)?);
-            let mut digits = int_digits(n, spec);
+            let n = tcl_syntax::format::integer_width(spec.size, syntax)
+                .signed(fixed_integer_value(ops, arg, syntax)?);
+            let mut digits = int_digits(n, spec, syntax);
             // Tcl 9 `%#d` / `%#i` alternate form: a `0d` radix prefix on a
             // non-zero value (dropped for zero, like `%#x 0` → `0`). `%u` takes
             // no prefix. The sign and width are applied around it by
@@ -234,8 +372,9 @@ fn render_spec<O: ValueOps>(
             // `%u` reads the same low bits *unsigned*: `format %u -1` is
             // 18446744073709551615 on 8.x and 4294967295 on 9.x, and
             // `format %hu 5000000000` is 61952 on every release.
-            let u = tcl_syntax::format::integer_width(spec.size, syntax).unsigned(ops.as_int(arg)?);
-            Ok(pad_number(&uint_digits(u, spec), false, spec))
+            let u = tcl_syntax::format::integer_width(spec.size, syntax)
+                .unsigned(fixed_integer_value(ops, arg, syntax)?);
+            Ok(pad_unsigned_number(&uint_digits(u, spec, syntax), spec))
         }
         b'p' => {
             // `%p` is Tcl's pointer-style hexadecimal conversion. It always
@@ -248,16 +387,13 @@ fn render_spec<O: ValueOps>(
             } else {
                 tcl_syntax::format::IntegerWidth::Int
             };
-            let u = width.unsigned(ops.as_int(arg)?);
-            // Tcl keeps `%p` unsigned even when `+`/space flags are present;
-            // those flags are accepted but do not add a sign to a pointer.
-            let mut pointer_spec = *spec;
-            pointer_spec.flags.remove(FmtFlags::PLUS | FmtFlags::SPACE);
-            Ok(pad_number(&pointer_digits(u, spec), false, &pointer_spec))
+            let u = width.unsigned(fixed_integer_value(ops, arg, syntax)?);
+            Ok(pad_unsigned_number(&pointer_digits(u, spec), spec))
         }
         b'x' | b'X' | b'o' | b'b' => {
-            let u = tcl_syntax::format::integer_width(spec.size, syntax).unsigned(ops.as_int(arg)?);
-            Ok(pad_number(&based_digits(u, spec, syntax), false, spec))
+            let u = tcl_syntax::format::integer_width(spec.size, syntax)
+                .unsigned(fixed_integer_value(ops, arg, syntax)?);
+            Ok(pad_unsigned_number(&based_digits(u, spec, syntax), spec))
         }
         b'c' => {
             let n = ops.as_int(arg)?;
@@ -289,14 +425,47 @@ fn render_spec<O: ValueOps>(
     }
 }
 
+/// Render Tcl's `ll`/`L` bignum conversion without narrowing through `i64`.
+fn render_bignum_spec<O: ValueOps>(
+    ops: &mut O,
+    spec: &Spec,
+    arg: &O::Value,
+    syntax: tcl_dialect::NumberSyntax,
+) -> Result<String, CmdError> {
+    let radix = match spec.verb {
+        b'd' | b'i' | b'u' => Radix::Dec,
+        b'o' => Radix::Oct,
+        b'x' | b'X' => Radix::Hex,
+        b'b' => Radix::Bin,
+        _ => unreachable!("caller filters integer bignum conversions"),
+    };
+    let IntegerMagnitude {
+        negative,
+        mut digits,
+    } = ops.integer_magnitude(arg, radix, syntax)?;
+    if spec.verb == b'u' && negative {
+        return Err(CmdError::with_error_code(
+            "unsigned bignum format is invalid",
+            "TCL FORMAT BADUNSIGNED",
+        ));
+    }
+    if spec.verb == b'X' {
+        digits.make_ascii_uppercase();
+    }
+    let nonzero = digits.bytes().any(|b| b != b'0');
+    let prefix = alternate_prefix(spec, nonzero, syntax);
+    digits = apply_radix_precision(digits, prefix, spec, syntax);
+    Ok(pad_number(&digits, negative && spec.verb != b'u', spec))
+}
+
 /// Decimal digits (no sign) for an integer, honouring `.precision`.
-fn int_digits(n: i64, spec: &Spec) -> String {
-    apply_precision(n.unsigned_abs().to_string(), spec)
+fn int_digits(n: i64, spec: &Spec, syntax: tcl_dialect::NumberSyntax) -> String {
+    apply_precision(n.unsigned_abs().to_string(), spec, syntax)
 }
 
 /// Decimal digits for an already-unsigned value, honouring `.precision`.
-fn uint_digits(u: u64, spec: &Spec) -> String {
-    apply_precision(u.to_string(), spec)
+fn uint_digits(u: u64, spec: &Spec, syntax: tcl_dialect::NumberSyntax) -> String {
+    apply_precision(u.to_string(), spec, syntax)
 }
 
 /// Digits for `x`/`X`/`o`/`b`, with the `#` alternate-form prefix.
@@ -304,55 +473,82 @@ fn based_digits(u: u64, spec: &Spec, syntax: tcl_dialect::NumberSyntax) -> Strin
     // `u` already carries the conversion's width: the caller read the value's
     // low bits unsigned, which is why `%x` of a negative int prints its
     // two's-complement pattern, matching C's `format`.
-    let (mut body, prefix) = match spec.verb {
-        b'x' => (
-            format!("{u:x}"),
-            if spec.flags.contains(FmtFlags::HASH) && u != 0 {
+    let body = match spec.verb {
+        b'x' => format!("{u:x}"),
+        b'X' => format!("{u:X}"),
+        b'o' => format!("{u:o}"),
+        _ => format!("{u:b}"),
+    };
+    let prefix = alternate_prefix(spec, u != 0, syntax);
+    apply_radix_precision(body, prefix, spec, syntax)
+}
+
+/// Apply precision around a radix marker as Tcl's release grammar requires.
+///
+/// Tcl 8.x's legacy octal marker is a single leading `0`, which counts
+/// toward integer precision. Tcl 9's two-byte `0o` marker, and the other
+/// radix markers, remain outside the digit precision.
+fn apply_radix_precision(
+    digits: String,
+    prefix: &str,
+    spec: &Spec,
+    syntax: tcl_dialect::NumberSyntax,
+) -> String {
+    if prefix == "0" {
+        // The legacy marker is the zero digit itself for an octal zero. Do not
+        // duplicate it, and retain it at `.0` where plain `%o` is empty on
+        // Tcl 8.4.
+        let marked = if digits == "0" {
+            digits
+        } else {
+            format!("{prefix}{digits}")
+        };
+        let marked = apply_precision(marked, spec, syntax);
+        if marked.is_empty() {
+            "0".to_owned()
+        } else {
+            marked
+        }
+    } else {
+        format!("{prefix}{}", apply_precision(digits, spec, syntax))
+    }
+}
+
+/// Return the alternate-form radix marker for a conversion and release.
+///
+/// Tcl 8.5/8.6 retain the `0x`/`0X`/`0b` marker for zero. Tcl 8.4 and Jim
+/// suppress it, as does Tcl 9, so this rule must be shared by the fixed-width
+/// and bignum renderers.
+fn alternate_prefix(spec: &Spec, nonzero: bool, syntax: tcl_dialect::NumberSyntax) -> &'static str {
+    if !spec.flags.contains(FmtFlags::HASH) {
+        return "";
+    }
+    let tcl9 = syntax.has_decimal_prefix();
+    let tcl85 = matches!(syntax, tcl_dialect::NumberSyntax::Tcl85);
+    let legacy_tcl = matches!(
+        syntax,
+        tcl_dialect::NumberSyntax::Tcl84 | tcl_dialect::NumberSyntax::Tcl85
+    );
+    match spec.verb {
+        b'd' | b'i' if tcl9 && nonzero => "0d",
+        b'x' if nonzero || tcl85 => "0x",
+        b'X' if nonzero || tcl85 => {
+            if tcl9 {
                 "0x"
             } else {
-                ""
-            },
-        ),
-        b'X' => (
-            format!("{u:X}"),
-            // Tcl 8.x follows the verb's case (`0XC`); Tcl 9's explicit
-            // radix spelling is lowercase even for `%#X` (`0xC`).
-            if spec.flags.contains(FmtFlags::HASH) && u != 0 {
-                if syntax.has_decimal_prefix() {
-                    "0x"
-                } else {
-                    "0X"
-                }
+                "0X"
+            }
+        }
+        b'o' if nonzero || legacy_tcl => {
+            if tcl9 {
+                "0o"
             } else {
-                ""
-            },
-        ),
-        b'o' => (
-            format!("{u:o}"),
-            // Tcl 9 `%#o` → `0o` radix prefix (8.6 used a bare leading `0`),
-            // dropped for zero (`%#o 0` → `0`).
-            if spec.flags.contains(FmtFlags::HASH) && u != 0 {
-                if syntax.has_decimal_prefix() {
-                    "0o"
-                } else {
-                    "0"
-                }
-            } else {
-                ""
-            },
-        ),
-        _ => (
-            format!("{u:b}"),
-            // `%#b` → `0b` prefix (Tcl 8.6 and 9.0 both emit it; format-1.x).
-            if spec.flags.contains(FmtFlags::HASH) && u != 0 {
-                "0b"
-            } else {
-                ""
-            },
-        ),
-    };
-    body = apply_precision(body, spec);
-    format!("{prefix}{body}")
+                "0"
+            }
+        }
+        b'b' if nonzero || tcl85 => "0b",
+        _ => "",
+    }
 }
 
 /// Hexadecimal `%p` digits. Tcl preserves one zero digit even for an explicit
@@ -492,11 +688,21 @@ fn trim_g_exp(body: &str) -> String {
     format!("{trimmed}{exp}")
 }
 
-/// Left-pad `mag` with `0` up to `.precision` digits. An explicit precision of
-/// zero renders the value zero as the empty string, as C does.
-fn apply_precision(mag: String, spec: &Spec) -> String {
+/// Left-pad `mag` with `0` up to `.precision` digits. Tcl 8.5+ and Tcl 9
+/// integer conversions keep one zero digit when precision is zero, including
+/// dynamic `.*` precision; Tcl 8.4 and Jim render that legacy case as empty.
+fn apply_precision(mag: String, spec: &Spec, syntax: tcl_dialect::NumberSyntax) -> String {
     match spec.precision {
         Some(p) if mag.len() < p => format!("{}{mag}", "0".repeat(p - mag.len())),
+        Some(0)
+            if mag == "0"
+                && matches!(
+                    syntax,
+                    tcl_dialect::NumberSyntax::Tcl85 | tcl_dialect::NumberSyntax::Tcl90
+                ) =>
+        {
+            mag
+        }
         Some(0) if mag == "0" => String::new(),
         _ => mag,
     }
@@ -540,6 +746,17 @@ fn pad_number(body: &str, negative: bool, spec: &Spec) -> String {
     } else {
         format!("{}{sign}{body}", " ".repeat(pad))
     }
+}
+
+/// Apply width to a fixed-width unsigned conversion.
+///
+/// C Tcl accepts `+` and space on fixed-width unsigned conversions, but does
+/// not render either sign. Unbounded `ll`/`L` conversions use `pad_number`
+/// directly because they retain those signs.
+fn pad_unsigned_number(body: &str, spec: &Spec) -> String {
+    let mut unsigned_spec = *spec;
+    unsigned_spec.flags.remove(FmtFlags::PLUS | FmtFlags::SPACE);
+    pad_number(body, false, &unsigned_spec)
 }
 
 /// Apply width / left-justify to a string conversion.
