@@ -644,7 +644,112 @@ export function makeEditors(ctx: EditorContext): Record<string, Editor> {
       );
     }
 
+    rows.push(optionEffectEditor(opt, patch));
+
     return el("div", { class: "row wide" }, rows);
+  }
+
+  // The axis vocabulary and value words the option-effect descriptor's
+  // axes take — `docs/design/compiler/registry-consumer-contracts.md`
+  // § *Options with semantic effects*. `case-sensitivity` takes no value.
+  const AXIS_VALUES: Record<string, string[]> = {
+    substitution: ["backslashes", "commands", "variables"],
+    "pattern-language": ["glob", "regex"],
+    "case-sensitivity": [],
+    selection: ["exact", "glob", "regexp", "other"],
+  };
+
+  // An option row's `effect` control: whether the option declares one, its
+  // kind (which selects the rest of the row's shape — `disables` /
+  // `selects` an axis value, `suppresses-role`, `reserves-trailing-words`,
+  // or the bare `ends-options`), and the family every kind carries.
+  function optionEffectEditor(
+    opt: Record<string, Json>,
+    patch: (next: Record<string, Json>, structural?: boolean) => void,
+  ): HTMLElement {
+    const present = opt.effect !== null && opt.effect !== undefined;
+    const effect = asRecord(opt.effect);
+    const patchEffect = (next: Record<string, Json> | null, structural = true): void => {
+      patch({ effect: next }, structural);
+    };
+    const defaultForKind = (kind: string): Record<string, Json> => {
+      const family = asString(effect.family);
+      if (kind === "disables" || kind === "selects") {
+        return { kind, axis: "substitution", value: AXIS_VALUES.substitution[0], family };
+      }
+      if (kind === "suppresses-role") return { kind, role: "VarWrite", family };
+      if (kind === "reserves-trailing-words") return { kind, n: 1, family };
+      return { kind: "ends-options", family };
+    };
+    const controls: Child[] = [
+      checkbox(present, (on) => patchEffect(on ? defaultForKind("disables") : null), "has an effect"),
+    ];
+    if (present) {
+      const kind = asString(effect.kind);
+      const kindSelect = el(
+        "select",
+        {},
+        ["disables", "selects", "suppresses-role", "reserves-trailing-words", "ends-options"].map((k) =>
+          el("option", { value: k, text: k }),
+        ),
+      );
+      kindSelect.value = kind;
+      kindSelect.addEventListener("change", () => patchEffect(defaultForKind(kindSelect.value)));
+      controls.push(labelled("effect", kindSelect));
+      if (kind === "disables" || kind === "selects") {
+        const axis = asString(effect.axis) || "substitution";
+        const axisSelect = el(
+          "select",
+          {},
+          Object.keys(AXIS_VALUES).map((a) => el("option", { value: a, text: a })),
+        );
+        axisSelect.value = axis;
+        axisSelect.addEventListener("change", () => {
+          const values = AXIS_VALUES[axisSelect.value] ?? [];
+          patchEffect({ ...effect, axis: axisSelect.value, value: values[0] ?? null });
+        });
+        controls.push(labelled("axis", axisSelect));
+        const values = AXIS_VALUES[axis] ?? [];
+        if (values.length > 0) {
+          const valueSelect = el(
+            "select",
+            {},
+            values.map((v) => el("option", { value: v, text: v })),
+          );
+          valueSelect.value = asString(effect.value) || values[0];
+          valueSelect.addEventListener("change", () =>
+            patchEffect({ ...effect, value: valueSelect.value }),
+          );
+          controls.push(labelled("value", valueSelect));
+        }
+      } else if (kind === "suppresses-role") {
+        controls.push(
+          labelled(
+            "role",
+            catalogueSelect({ tag: "enum", catalogue: "argRole" }, asString(effect.role), (role) =>
+              patchEffect({ ...effect, role }),
+            ),
+          ),
+        );
+      } else if (kind === "reserves-trailing-words") {
+        controls.push(
+          labelled(
+            "n",
+            numberInput(asNumber(effect.n) ?? 1, (n) => patchEffect({ ...effect, n: n ?? 1 })),
+          ),
+        );
+      }
+      controls.push(
+        labelled(
+          "family",
+          textInput(asString(effect.family), (t) => patchEffect({ ...effect, family: t }, false), {
+            size: 10,
+            placeholder: "family",
+          }),
+        ),
+      );
+    }
+    return el("div", { class: "ctl" }, controls);
   }
 
   const editors: Record<string, Editor> = {

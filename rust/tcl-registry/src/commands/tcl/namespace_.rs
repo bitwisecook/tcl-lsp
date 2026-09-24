@@ -1200,7 +1200,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         subcommand_forms: NAMESPACE_UPVAR_FORMS,
         creates_scope_alias: true,
         surface: Some(SpecSurface::TCL85_PLUS),
-        analyser_hook: Some(crate::hooks::AnalyserHookId::NamespaceUpvar),
         world_effects: Some(WorldEffectDescriptor::EMPTY),
         state_transitions: Some(NAMESPACE_UPVAR_TRANSITIONS),
         ..SubCommand::DEFAULT

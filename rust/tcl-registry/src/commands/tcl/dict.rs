@@ -257,7 +257,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         )],
         loop_list_header: true,
         cfg_rewrite_name: Some("::tcl::dict::for"),
-        analyser_hook: Some(crate::hooks::AnalyserHookId::DictFor),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -549,7 +548,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
             },
         )],
         mutator: true,
-        analyser_hook: Some(crate::hooks::AnalyserHookId::DictUpdate),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::body::DICT_UPDATE),
         ..SubCommand::DEFAULT
     },
@@ -1010,9 +1008,15 @@ mod tests {
             "::tcl::dict::for must mark its body (arg 2) as Body: {:?}",
             for_.arg_roles,
         );
+        // `DictFor` retired (step 2, CC2.13): `dict for`'s loop variables and
+        // body already bind and walk through the generic `arg_roles` /
+        // `ArgRole::Body` paths above (no handler ever read the hook for
+        // anything else), so the qualified spelling carrying no hook too is
+        // the subcommand's contract transferring verbatim, the same as
+        // every other field this test checks.
         assert!(
-            for_.analyser_hook.is_some(),
-            "::tcl::dict::for must carry the DictFor analyser hook",
+            for_.analyser_hook.is_none(),
+            "::tcl::dict::for carries no analyser hook post-retirement",
         );
         assert!(
             for_.traits

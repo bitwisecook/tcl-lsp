@@ -176,6 +176,32 @@ pub fn is_safe_command_name(name: &str) -> bool {
         .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == ':')
 }
 
+/// The analysis and tooling tiers: the compiler crate, the editor and MCP
+/// tiers, the CLI, the diagram generator, and the dialect-specific crates
+/// that read commands and subcommands by name (`tcl-irules`,
+/// `tcl-irule-test`, `tcl-bigip`, `tcl-sslictcl`, `tcl-syntax`). The registry
+/// is outside them by construction — it is where the vocabulary and the
+/// dispatch it drives both live. Shared by the two source lints that scan
+/// these same roots for vocabulary the registry should own instead: the
+/// value-transfer gate (`value_transfers::scan`, recognising a command name
+/// read outside the registry's own dispatch) and the registry-axes gate
+/// (`registry_axes::scan`, recognising a wider vocabulary — subcommands,
+/// options, member and clause keywords, special variables). A crate added to
+/// one gate's concern belongs to both, so the root list is one list, not two
+/// that drift.
+pub const ANALYSIS_TIER_ROOTS: &[&str] = &[
+    "rust/tcl-compiler/src",
+    "rust/tcl-lsp-core/src",
+    "rust/tcl-mcp/src",
+    "rust/tcl-cli/src",
+    "rust/tcl-diagram/src",
+    "rust/tcl-irules/src",
+    "rust/tcl-irule-test/src",
+    "rust/tcl-bigip/src",
+    "rust/tcl-sslictcl/src",
+    "rust/tcl-syntax/src",
+];
+
 /// `true` when `name` is registry noise that is real (has a `CommandSpec`)
 /// but not a "common built-in" or "common command" by any reasonable
 /// definition, so generated editor grammars/queries should exclude it even

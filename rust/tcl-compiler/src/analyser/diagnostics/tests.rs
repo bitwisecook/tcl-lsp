@@ -15030,21 +15030,23 @@ fn w144_core_subcommand_lifecycle_uses_registry_safe_fix() {
 /// registry); `analyse` itself clears the run state on exit.
 #[test]
 fn analyser_hook_selection_requires_binding_proof() {
-    let args = vec!["{ }".to_string(), "finally".to_string(), "{ }".to_string()];
+    // `oo::define` is 8.6+, like `try` (retired from this test's example in
+    // step 2, CC2.13 — `try` itself carries no analyser hook any more).
+    let args = vec!["Foo".to_string(), "{ }".to_string()];
     let mut old = crate::analyser::Analyser::new();
     let _ = old.resolve_walk_environment("tcl8.4");
     old.registry = Some(old.profile_registry());
     assert!(
-        old.resolve_analyser_hook("try", &args).is_none(),
-        "`try` is 8.6+: under tcl8.4 the binding is Absent, so no analyser \
-         hook may specialise (I4)"
+        old.resolve_analyser_hook("oo::define", &args).is_none(),
+        "`oo::define` is 8.6+: under tcl8.4 the binding is Absent, so no \
+         analyser hook may specialise (I4)"
     );
     let mut new = crate::analyser::Analyser::new();
     let _ = new.resolve_walk_environment("tcl9.0");
     new.registry = Some(new.profile_registry());
     assert_eq!(
-        new.resolve_analyser_hook("try", &args),
-        Some(tcl_registry::hooks::AnalyserHookId::Try),
+        new.resolve_analyser_hook("oo::define", &args),
+        Some(tcl_registry::hooks::AnalyserHookId::OoDefine),
         "a proved binding keeps its hook"
     );
 }

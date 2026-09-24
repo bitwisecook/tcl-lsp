@@ -14,19 +14,54 @@ Every site outside `tcl-registry` that compares a word the registry declares —
 | definition_body | 0 |
 | options | 0 |
 | special_vars | 0 |
-| irreducible | 1 |
+| irreducible | 36 |
 
 | Axis | Until | Site | Waiver | Reason |
 |---|---|---|---|---|
-| command | slice 8 | `rust/tcl-compiler/src/analyser/commands.rs:4587` | site | `set VAR [CLASS new]` instance tracking reads the assignment by name until the value word's evaluation answers it (VT8.9 retires set-by-name) |
-| command | slice 8 | `rust/tcl-compiler/src/analyser/commands.rs:4614` | site | `set VAR [CLASS new]` instance tracking reads the assignment by name until the value word's evaluation answers it (VT8.9 retires set-by-name) |
-| command | slice 8 | `rust/tcl-compiler/src/analyser/commands.rs:4712` | site | `set VAR [CLASS new]` instance tracking reads the assignment by name until the value word's evaluation answers it (VT8.9 retires set-by-name) |
-| command | slice 8 | `rust/tcl-compiler/src/analyser/commands.rs:5127` | site | `set VAR [CLASS new]` instance tracking reads the assignment by name until the value word's evaluation answers it (VT8.9 retires set-by-name) |
+| command | slice 8 | `rust/tcl-compiler/src/analyser/commands.rs:4570` | site | `set VAR [CLASS new]` instance tracking reads the assignment by name until the value word's evaluation answers it (VT8.9 retires set-by-name) |
+| command | slice 8 | `rust/tcl-compiler/src/analyser/commands.rs:4597` | site | `set VAR [CLASS new]` instance tracking reads the assignment by name until the value word's evaluation answers it (VT8.9 retires set-by-name) |
+| command | slice 8 | `rust/tcl-compiler/src/analyser/commands.rs:4695` | site | `set VAR [CLASS new]` instance tracking reads the assignment by name until the value word's evaluation answers it (VT8.9 retires set-by-name) |
+| command | slice 8 | `rust/tcl-compiler/src/analyser/commands.rs:5110` | site | `set VAR [CLASS new]` instance tracking reads the assignment by name until the value word's evaluation answers it (VT8.9 retires set-by-name) |
 | irreducible | never | `rust/tcl-compiler/src/analyser/handlers.rs:1862` | site | the variadic `args` formal is Tcl's proc grammar (`VAR_IS_ARGS` on the last formal, `tclProc.c`), no registry fact |
+| irreducible | never | `rust/tcl-compiler/src/analyser/recovery.rs:273` | site | this whole function is a switch-specific parser-repair heuristic (splicing orphaned pattern/body segments into a switch's argv when the source is missing its opening brace); no registry fact picks which command's *malformed* source this repair applies to more abstractly than its own name, and every other command's malformed source is left unrepaired |
+| irreducible | never | `rust/tcl-lsp-core/src/formatting/config.rs:91` | site | an editor-settings spelling for `tclLsp.formatting.docstringStyle` (a stub-placement choice), not a Tcl clause-grammar keyword; "body" here coincides with the registry's `ArgRole::Body` word by English spelling only |
+| irreducible | never | `rust/tcl-lsp-core/src/formatting/docstring.rs:247` | site | `args` here is a proc's own *formal parameter* name (Tcl's variadic-last-parameter convention, checked against the signature this stub is generated from), not a call to `info args`; the spelling coincides with `info`'s subcommand by coincidence only |
+| irreducible | never | `rust/tcl-lsp-core/src/formatting/engine.rs:530` | site | `blank_lines_between_procs` is a style policy about literally `proc` (its own doc comment: "Blank lines between proc definitions"), not about every `DefinesProcedure`-trait command (TclOO class/object definers, iRules' own `proc`, …); widening it to the trait would change formatter output for those other definers, which nothing asked for |
+| irreducible | never | `rust/tcl-lsp-core/src/formatting/engine.rs:534` | site | same reason |
+| irreducible | never | `rust/tcl-lsp-core/src/formatting/keywords.rs:545` | site | this scan is generic across every command's option scope (`scope.options`, any dialect); reading `OptionEffectKind::EndsOptions` off *this* scope's own rows, like `tcl-mcp/src/datagroup.rs`'s `analyse_switch`, would be correct for the two commands whose "--" row has that effect populated today, but silently stop recognising "--" as ending option scanning for the other ~21 commands that declare a "--" row without it — a formatter-safety regression, not a fix |
+| irreducible | never | `rust/tcl-lsp-core/src/minify.rs:292` | site | `section` is this parser's own section tag, set a few lines up from *this format's own* `# Procs` / `# Variables in …` headers (the `Self::format` writer's own vocabulary for its symbol-map file), not a dispatch on `info procs` / `info variables`; the spelling coincides with `info`'s subcommand names only |
+| irreducible | never | `rust/tcl-lsp-core/src/minify.rs:295` | site | `section` is this parser's own section tag, set a few lines up from *this format's own* `# Procs` / `# Variables in …` headers (the `Self::format` writer's own vocabulary for its symbol-map file), not a dispatch on `info procs` / `info variables`; the spelling coincides with `info`'s subcommand names only |
+| irreducible | never | `rust/tcl-lsp-core/src/minify.rs:1879` | site | same reason as `formatting/keywords.rs`'s `scan_options`: generic across every command's option table, and only 2 of the 23 commands that declare a "--" row have `OptionEffectKind::EndsOptions` populated on it today, so a per-command lookup here would stop recognising "--" as ending option scanning for the rest |
+| irreducible | never | `rust/tcl-lsp-core/src/refactor/datagroup.rs:165` | site | `eq` / `ne` are expr comparison-operator spellings (`tcl_syntax::expr::operators`'s own vocabulary), read here as parsed condition text; they coincide with `::tcl::mathop::eq` / `ne`'s bare registration only by spelling |
+| irreducible | never | `rust/tcl-lsp-core/src/refactor/datagroup.rs:192` | site | expr operator text, not a command name |
+| irreducible | never | `rust/tcl-lsp-core/src/refactor/datagroup.rs:208` | site | expr operator text, not a command name |
+| irreducible | never | `rust/tcl-lsp-core/src/refactor/datagroup.rs:307` | site | `set` and `return` are recognised as Tcl's own primitive syntax for this one-command-body shape, not as a pack-authorable command; no registry query narrower than "is the word literally `set`/`return`" answers this, and neither is ever a pack's to redeclare |
+| irreducible | never | `rust/tcl-lsp-core/src/refactor/datagroup.rs:312` | site | same primitive-syntax reason |
+| irreducible | never | `rust/tcl-lsp-core/src/refactor/if_to_switch.rs:62` | site | `op` is the parsed expr comparison operator's own text (`eq`/`ne`/`==`/`!=`), never a command name; it coincides with the bare `::tcl::mathop::ne` registration only by spelling |
+| irreducible | never | `rust/tcl-lsp-core/src/refactor/if_to_switch.rs:72` | site | same expr-operator text, not a command name |
+| irreducible | never | `rust/tcl-lsp-core/src/refactor/if_to_switch.rs:88` | site | `eq` / `ne` are expr comparison-operator spellings (`tcl_syntax::expr::operators`'s own vocabulary), read here as parsed condition text; they coincide with `::tcl::mathop::eq` / `ne`'s bare registration only by spelling |
+| irreducible | never | `rust/tcl-lsp-core/src/semantic_tokens.rs:360` | site | as the doc comment above explains, both words are genuinely without a `CommandSpec` to carry `LANGUAGE_KEYWORD` in every dialect below 9.0 (there is no registry fact to read instead) |
+| irreducible | never | `rust/tcl-lsp-core/src/semantic_tokens.rs:2470` | site | this whole function only runs once `registry.get(head).is_some()` has already returned `false` (a few lines up): a computed/dynamic head with no `CommandSpec` at all, so there is no per-command `EndsOptions` row here to read |
+| irreducible | never | `rust/tcl-lsp-core/src/semantic_tokens.rs:2496` | site | same reason as this function's other "--" check above: no `CommandSpec` exists for this head |
+| irreducible | never | `rust/tcl-lsp-core/src/semantic_tokens.rs:2707` | site | generic across every object method's option set; only `switch` and `regexp` have `OptionEffectKind::EndsOptions` populated on a "--" row today, so reading `method_sub`'s own row here would stop recognising "--" for virtually every other method (`formatting/keywords.rs`'s `scan_options` has the same gap, for the same reason) |
+| irreducible | never | `rust/tcl-lsp-core/src/semantic_tokens.rs:2822` | site | `oo::object`'s own `SUBCOMMANDS` doc comment spells out why this is `destroy` alone: it is "the [only] exported method" reachable through an instance's public name (`new` and `create` are class-level, not instance methods, despite being registered on the same command); no trait yet distinguishes instance-exported from class-level registry subcommands generically, so asking that query would take a new registry concept, not a mechanical read of an existing one |
+| irreducible | never | `rust/tcl-lsp-core/src/semantic_tokens.rs:2861` | site | `props` (above) is derived entirely from the class's own declared properties, not from any registered `OptionSpec` row — a generated property accessor has no command-level "--" fact in the registry to read at all |
+| irreducible | never | `rust/tcl-lsp-core/src/semantic_tokens.rs:2884` | site | same reason as this loop's other "--" check above |
+| irreducible | never | `rust/tcl-lsp-core/src/semantic_tokens.rs:2971` | site | finding *which* subcommand is the class-factory one still needs its well-known spelling somewhere; no registry field marks a `SubCommand` as the manufacturer entry point independently of a name (that would be new registry schema, not a mechanical read of an existing one) — but it is named only once here, and the source-word check just below reads the discovered name back rather than repeating the literal |
+| irreducible | never | `rust/tcl-lsp-core/src/semantic_tokens.rs:3066` | site | `self`/`this` are each one entry of their family's broader `implicit_vars` list (snit also implicitly binds `selfns`/`type`/`options`/…, itcl only `this`), and nothing marks which one of a family's implicit vars is *the* self-receiver, so reading `implicit_vars` here would still need to know which element to trust — the same naming-convention fact the comment above already gives by name |
+| irreducible | never | `rust/tcl-lsp-core/src/semantic_tokens.rs:3193` | site | same population gap as `formatting/keywords.rs`'s `scan_options`: only `switch` and `regexp` have `OptionEffectKind::EndsOptions` populated on a "--" row today, so reading `spec`'s own row here would stop recognising "--" for every other command's options |
+| irreducible | never | `rust/tcl-lsp-core/src/semantic_tokens.rs:4258` | site | ARE (`regexp`/`regsub` pattern-string) metacharacters, not Tcl command syntax; `\|`/`^`/`$` coincide with `::tcl::mathop` operator spellings the same way `eq`/`ne`/`-` do elsewhere in the tree (see the irreducible waivers on those) |
+| irreducible | never | `rust/tcl-lsp-core/src/semantic_tokens.rs:4259` | site | ARE (`regexp`/`regsub` pattern-string) metacharacters, not Tcl command syntax; `\|`/`^`/`$` coincide with `::tcl::mathop` operator spellings the same way `eq`/`ne`/`-` do elsewhere in the tree (see the irreducible waivers on those) |
+| irreducible | never | `rust/tcl-mcp/src/datagroup.rs:103` | site | dispatch to one of this tool's two bespoke heuristics, each shaped for exactly one command's own syntax; no registry fact picks between them more abstractly than their names, and every other command answers `None` here |
+| irreducible | never | `rust/tcl-mcp/src/datagroup.rs:104` | site | dispatch to one of this tool's two bespoke heuristics, each shaped for exactly one command's own syntax; no registry fact picks between them more abstractly than their names, and every other command answers `None` here |
+| irreducible | never | `rust/tcl-mcp/src/datagroup.rs:264` | site | `op` is the parsed expr comparison operator's own text (`eq`/`ne`/`==`/`!=`), never a command name; it coincides with the bare `::tcl::mathop::ne` registration only by spelling |
+| irreducible | never | `rust/tcl-mcp/src/datagroup.rs:273` | site | same expr-operator text |
+| irreducible | never | `rust/tcl-mcp/src/datagroup.rs:350` | site | `set` and `return` are recognised as Tcl's own primitive syntax for this one-command-body shape, not as a pack-authorable command |
+| irreducible | never | `rust/tcl-mcp/src/datagroup.rs:355` | site | same primitive-syntax reason |
 
 ## The ratchet
 
-The files the gate holds clean, with every site waived or gone: `rust/tcl-compiler/src/analyser/commands.rs`, `rust/tcl-compiler/src/cfg_builder/cfg_lower.rs`, `rust/tcl-compiler/src/executable_ir.rs`, `rust/tcl-compiler/src/signature_scan/walker.rs`, `rust/tcl-lsp-core/src/definition.rs`, `rust/tcl-lsp-core/src/workspace_index.rs`.
+The files the gate holds clean, with every site waived or gone: `rust/tcl-compiler/src/analyser/commands.rs`, `rust/tcl-compiler/src/analyser/recovery.rs`, `rust/tcl-compiler/src/cfg_builder/cfg_lower.rs`, `rust/tcl-compiler/src/executable_ir.rs`, `rust/tcl-compiler/src/signature_scan/walker.rs`, `rust/tcl-lsp-core/src/definition.rs`, `rust/tcl-lsp-core/src/formatting/config.rs`, `rust/tcl-lsp-core/src/formatting/docstring.rs`, `rust/tcl-lsp-core/src/formatting/engine.rs`, `rust/tcl-lsp-core/src/formatting/keywords.rs`, `rust/tcl-lsp-core/src/minify.rs`, `rust/tcl-lsp-core/src/refactor/datagroup.rs`, `rust/tcl-lsp-core/src/refactor/if_to_switch.rs`, `rust/tcl-lsp-core/src/semantic_tokens.rs`, `rust/tcl-lsp-core/src/workspace_index.rs`, `rust/tcl-mcp/src/datagroup.rs`.
 
 Every other scanned file with an unwaived site, and its count, which is the pin in `rust/xtask/src/registry_axes.rs`. The count may only fall: the change that removes or waives a file's sites lowers its pin.
 
@@ -84,7 +119,6 @@ Every other scanned file with an unwaived site, and its count, which is the pin 
 | `rust/tcl-compiler/src/analyser/oo.rs` | 5 |
 | `rust/tcl-compiler/src/analyser/param_traits.rs` | 16 |
 | `rust/tcl-compiler/src/analyser/per_item.rs` | 4 |
-| `rust/tcl-compiler/src/analyser/recovery.rs` | 4 |
 | `rust/tcl-compiler/src/analyser/tk_checks.rs` | 2 |
 | `rust/tcl-compiler/src/auto_path_eval.rs` | 6 |
 | `rust/tcl-compiler/src/cfg_builder/upvar_info.rs` | 1 |
@@ -147,27 +181,18 @@ Every other scanned file with an unwaived site, and its count, which is the pin 
 | `rust/tcl-lsp-core/src/diagnostic_policy/truth_table.rs` | 2 |
 | `rust/tcl-lsp-core/src/document_links.rs` | 7 |
 | `rust/tcl-lsp-core/src/document_symbols.rs` | 1 |
-| `rust/tcl-lsp-core/src/formatting/config.rs` | 1 |
-| `rust/tcl-lsp-core/src/formatting/docstring.rs` | 1 |
-| `rust/tcl-lsp-core/src/formatting/engine.rs` | 2 |
-| `rust/tcl-lsp-core/src/formatting/keywords.rs` | 1 |
 | `rust/tcl-lsp-core/src/hover.rs` | 4 |
 | `rust/tcl-lsp-core/src/inlay_hints.rs` | 3 |
-| `rust/tcl-lsp-core/src/minify.rs` | 7 |
 | `rust/tcl-lsp-core/src/oo_body.rs` | 2 |
 | `rust/tcl-lsp-core/src/oo_dispatch.rs` | 4 |
 | `rust/tcl-lsp-core/src/package_resolver.rs` | 9 |
 | `rust/tcl-lsp-core/src/package_resolver/reachability.rs` | 4 |
-| `rust/tcl-lsp-core/src/refactor/datagroup.rs` | 10 |
-| `rust/tcl-lsp-core/src/refactor/if_to_switch.rs` | 6 |
 | `rust/tcl-lsp-core/src/refactor/inline_proc.rs` | 3 |
 | `rust/tcl-lsp-core/src/refactor/mod.rs` | 4 |
 | `rust/tcl-lsp-core/src/refactor/switch_to_dict.rs` | 4 |
 | `rust/tcl-lsp-core/src/references.rs` | 1 |
-| `rust/tcl-lsp-core/src/semantic_tokens.rs` | 17 |
 | `rust/tcl-lsp-core/src/tk_preview.rs` | 1 |
 | `rust/tcl-mcp/src/bigip.rs` | 1 |
-| `rust/tcl-mcp/src/datagroup.rs` | 11 |
 | `rust/tcl-mcp/src/irule_gen.rs` | 18 |
 | `rust/tcl-mcp/src/irule_test.rs` | 21 |
 | `rust/tcl-mcp/src/spectcl.rs` | 4 |

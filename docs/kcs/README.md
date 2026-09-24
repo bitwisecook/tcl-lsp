@@ -257,6 +257,11 @@ symptom with several possible causes worth telling apart. See rule 13 in
   — the SpecTcl pack quickstart: the minimal `.tclspec` shape, the
   three discovery tiers, validation, and how the running server picks
   a saved pack up.
+- [kcs-howto-declare-an-option-effect-in-a-tclspec-pack.md](kcs-howto-declare-an-option-effect-in-a-tclspec-pack.md)
+  — give an option a semantic effect (disables or selects an axis value,
+  suppresses a role, reserves trailing words, or ends option parsing), the
+  family that groups options over one axis, and the worked `subst`
+  example.
 - [spectcl/kcs-howto-declare-an-evaluator-for-a-pack-command.md](spectcl/kcs-howto-declare-an-evaluator-for-a-pack-command.md)
   — give a pack command a computed answer: the `semantics` / `evaluate` /
   `facts` statements, the `-implementation` block's four rows, the body

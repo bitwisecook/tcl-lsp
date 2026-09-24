@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The equivalence gate for the eleven `.tclspec` ports.
+//! The equivalence gate for the twelve `.tclspec` ports.
 //!
 //! Every file in `docs/design/spec-dsl-examples/` names the `.rs` it was
 //! ported from. This test loads each pack through [`spectcl::evaluate_pack`],
@@ -114,16 +114,7 @@ const PORTS: &[Port] = &[
         commands: &[PortedCommand {
             name: "switch",
             dialect: "tcl9.1",
-            unequal: &[(
-                "__unrenderable",
-                "the shipped spec's match-mode, case-folding and `--` switches \
-                 declare option effects in three `option_effect_families`; \
-                 SpecTcl has no `option -effect` / `option_effect_family` \
-                 spelling until the option-effect step of the consumer-contracts \
-                 lane lands it, so the families stay on the unrenderable list and \
-                 the port does not transcribe them. Every field the port does \
-                 carry matches",
-            )],
+            unequal: NONE,
             unequal_subcommand: NO_SUBS,
             subcommand_subset: ALL_SUBS,
         }],
@@ -867,6 +858,55 @@ fn upvar_carries_its_frame_effect_verbatim() {
         .get("upvar")
         .expect("shipped upvar");
     assert_eq!(ported.spec.frame_effect, shipped.frame_effect);
+}
+
+/// The option-effect descriptor's own round-trip fixture (the design page's
+/// `command subst { … }` example, `docs/design/compiler/registry-consumer-contracts.md`
+/// § *Options with semantic effects*): the ported pack's two option-effect
+/// families and six `-effect` / `-family` option rows answer the same
+/// substitution kinds as the shipped spec does, over `option_effect.rs`'s
+/// own `subst` corpus (`tp_no_switches_runs_every_substitution` and its
+/// siblings).
+#[test]
+fn the_subst_port_answers_the_same_kinds_as_the_shipped_spec() {
+    let source = std::fs::read_to_string(examples_dir().join("subst.tclspec")).expect("subst");
+    let pack = spectcl::evaluate_pack(&source);
+    assert!(
+        pack.notices.is_empty(),
+        "the subst port should load without a notice: {:#?}",
+        pack.notices
+    );
+    let ported = pack.command("subst").expect("subst").spec;
+    let shipped = tcl_spec_studio::environment::store_for_dialect("tcl9.1")
+        .get("subst")
+        .expect("shipped subst");
+
+    let kinds_of = |spec: &tcl_registry::CommandSpec, args: &[&str]| {
+        tcl_registry::option_effect::substitution_kinds(
+            spec.options,
+            spec.option_effect_families,
+            tcl_registry::InvocationArguments::literals(args),
+            spec.reserved_trailing_words,
+            None,
+        )
+    };
+    for args in [
+        &["hello $name"][..],
+        &["-novariables", "hello $name"][..],
+        &["-nocommands", "hello $name"][..],
+        &["-nocommands", "-nocommands", "-novariables", "x"][..],
+        &["-variables", "hello $name"][..],
+        &["-backslashes", "-commands", "x"][..],
+        &["-novariables", "-commands", "x"][..],
+        &["-no", "x"][..],
+        &["-novar", "x"][..],
+    ] {
+        assert_eq!(
+            kinds_of(ported, args),
+            kinds_of(shipped, args),
+            "the ported and shipped `subst` disagree on {args:?}"
+        );
+    }
 }
 
 /// A `member` row states what the member declares: a row without an

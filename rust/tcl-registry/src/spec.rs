@@ -432,6 +432,34 @@ pub enum CaseMatchMode {
     Other,
 }
 
+impl CaseMatchMode {
+    /// Every mode, in `.tclspec` vocabulary order — the option-effect
+    /// descriptor's `selection` axis spelling
+    /// (`docs/design/compiler/registry-consumer-contracts.md` § *Options
+    /// with semantic effects*).
+    pub const ALL: &'static [Self] = &[Self::Exact, Self::Glob, Self::Regexp, Self::Other];
+
+    /// The `.tclspec` spelling of this mode.
+    #[must_use]
+    pub const fn spelling(self) -> &'static str {
+        match self {
+            Self::Exact => "exact",
+            Self::Glob => "glob",
+            Self::Regexp => "regexp",
+            Self::Other => "other",
+        }
+    }
+
+    /// The mode `word` spells, or `None` for any other word.
+    #[must_use]
+    pub fn from_spelling(word: &str) -> Option<Self> {
+        Self::ALL
+            .iter()
+            .copied()
+            .find(|mode| mode.spelling() == word)
+    }
+}
+
 /// Validated command-level layout of a case-list invocation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CaseInvocation {

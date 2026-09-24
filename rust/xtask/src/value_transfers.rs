@@ -71,28 +71,12 @@ use tcl_registry::spec::{CommandSpec, SubCommand};
 use tcl_registry::value_transfer::{EvalRoute, EvaluatorOwner, resolve_semantics};
 use tcl_registry::{ArgRole, CommandRegistry, ResultStability, Traits};
 
-use crate::util::repo_root;
+use crate::util::{ANALYSIS_TIER_ROOTS, repo_root};
 
 const REPORT_PATH: &str = "docs/generated/value-transfers.md";
 
 /// The design page whose ledger lists every ratcheted file with its pin.
 const LEDGER_PATH: &str = "docs/design/compiler/value-transfers-migration.md";
-
-/// The roots the lint scans: the compiler crate and the analysis and
-/// tooling tiers. The registry and this gate are outside them by
-/// construction — they are where the dispatch lives.
-const LINT_ROOTS: &[&str] = &[
-    "rust/tcl-compiler/src",
-    "rust/tcl-lsp-core/src",
-    "rust/tcl-mcp/src",
-    "rust/tcl-cli/src",
-    "rust/tcl-diagram/src",
-    "rust/tcl-irules/src",
-    "rust/tcl-irule-test/src",
-    "rust/tcl-bigip/src",
-    "rust/tcl-sslictcl/src",
-    "rust/tcl-syntax/src",
-];
 
 /// The files the lint holds clean: every recogniser-shaped site is waived
 /// or gone. Slice 1 touched each of these; a slice adds the files it
@@ -301,7 +285,7 @@ struct Lint {
 fn lint(root: &Path) -> Lint {
     let mut out = Lint::default();
     let mut files = Vec::new();
-    for dir in LINT_ROOTS {
+    for dir in ANALYSIS_TIER_ROOTS {
         collect_rs_files(&root.join(dir), &mut files);
     }
     files.sort();

@@ -168,6 +168,15 @@ impl PatternType {
         }
     }
 
+    /// The pattern type [`Self::as_str`] spells `word`, or `None` for any
+    /// other word — the option-effect descriptor's `pattern-language` axis
+    /// spelling (`docs/design/compiler/registry-consumer-contracts.md`
+    /// § *Options with semantic effects*).
+    #[must_use]
+    pub fn from_str_tag(word: &str) -> Option<Self> {
+        Self::ALL.iter().copied().find(|kind| kind.as_str() == word)
+    }
+
     /// Registry-owned program showing a shipped command whose `pattern_type`
     /// is this language, the pattern word it reads, and how the LSP then
     /// tokenises and checks that word. The carrier is the pattern-taking

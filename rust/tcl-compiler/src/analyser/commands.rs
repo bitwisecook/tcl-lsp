@@ -238,10 +238,6 @@ impl SourceCall<'_> {
 pub(super) struct ResolvedAnalyserHook {
     pub(super) hook: tcl_registry::hooks::AnalyserHookId,
     pub(super) traits: tcl_registry::Traits,
-    /// The invocation's clause plan, walked under the document's authoring
-    /// point — `None` when the resolved descriptor declares no clause
-    /// grammar.
-    pub(super) clause_plan: Option<tcl_registry::ClausePlan>,
 }
 
 /// Shared core registry standing in for [`Analyser::registry`] when a
@@ -1320,24 +1316,6 @@ impl Analyser {
             .map(|resolved| resolved.hook)
     }
 
-    /// The clause plan [`Self::dispatch_analyser_hook`] threads into a hook
-    /// handler for this head — `None` when the head resolves no hook or its
-    /// descriptor no grammar.
-    ///
-    /// Test-support only: it lets a handler's own unit tests, which call the
-    /// handler directly rather than through the dispatch, obtain exactly the
-    /// plan production passes, so a hand-written plan can never drift from
-    /// what the dispatch actually resolves.
-    #[cfg(test)]
-    pub(in crate::analyser) fn resolved_analyser_hook_plan(
-        &self,
-        cmd_name: &str,
-        args: &[String],
-    ) -> Option<tcl_registry::ClausePlan> {
-        self.resolve_analyser_hook_call(cmd_name, args)
-            .and_then(|resolved| resolved.clause_plan)
-    }
-
     /// `cmd_name args…` over its words' source facts
     /// ([`source_invocation_word`]), ready to resolve — so a registry
     /// resolver abstains exactly where the source is not static.
@@ -1471,10 +1449,6 @@ impl Analyser {
                 | resolved
                     .sub
                     .map_or_else(tcl_registry::Traits::empty, |sub| sub.traits),
-            clause_plan: resolved.clause_plan(
-                &arg_strs,
-                context.map(tcl_registry::model::ResolvedContext::authoring_query),
-            ),
         })
     }
 
@@ -1505,6 +1479,22 @@ impl Analyser {
     /// family (the caller stops, skipping the shared tail), `false`
     /// when the walk should continue — either a void family ran, or no
     /// hook (and no definition-grammar definer) matched.
+    ///
+    /// `for`, `try`, `dict for`, `dict update`, `incr`, `append`, `lappend`,
+    /// `upvar`, `namespace upvar`, `global` and `variable` carry no stamp at
+    /// all any more (step 2, CC2.13): their only command-specific knowledge
+    /// was a position or a keyword a descriptor now states, so they take the
+    /// "no stamped family" branch above and fall straight through to the
+    /// shared tail below like any other command with no hook — the generic
+    /// body walk reads when each body runs from its clause plan (`for`'s
+    /// `start` once, `next` and the body per iteration; `try`'s handler
+    /// bodies `Selected`), `apply_invocation_transitions` resolves a scope
+    /// alias as the invocation's `VariableCellAliasTransition`, and
+    /// `handle_var_binding_command` binds a loop or bound variable — with
+    /// `lappend auto_path DIR…`'s record, the list append's
+    /// `var_elements_effect` states — from its `LoopVarList` / `VarWrite`
+    /// role, `try`'s handler variable list (`ArgRole::LoopVarList` on the
+    /// clause grammar's own slot) included.
     #[allow(
         clippy::too_many_lines,
         reason = "exhaustive registry-hook dispatch (one arm per AnalyserHookId \
@@ -1522,9 +1512,8 @@ impl Analyser {
     ) -> bool {
         use tcl_registry::hooks::AnalyserHookId as Hook;
         let arg_single = words.single;
-        let Some(ResolvedAnalyserHook {
-            hook, clause_plan, ..
-        }) = self.resolve_analyser_hook_call(cmd_name, args)
+        let Some(ResolvedAnalyserHook { hook, .. }) =
+            self.resolve_analyser_hook_call(cmd_name, args)
         else {
             // No stamped family — the definition-grammar-driven definers
             // (TclOO metaclass create, snit::type/widget, itcl::class) get
@@ -1565,12 +1554,6 @@ impl Analyser {
             Hook::Foreach => self.handle_foreach_command(cmd_name, args, arg_tokens, scope_path),
             Hook::Switch => self.handle_switch_command(cmd_name, args, arg_tokens, scope_path),
             Hook::Catch => self.handle_catch_command(args, arg_tokens, scope_path),
-            // The clause plan is this invocation's own, from the same
-            // resolution that produced the hook — the handler reads each
-            // clause's timing off it rather than matching keywords.
-            Hook::Try => {
-                self.handle_try_command(args, arg_tokens, scope_path, clause_plan.as_ref())
-            }
             // apply {{params} body} — owns its body walk (binds params,
             // analyses element 1) so the generic `ArgRole::Body`
             // recursion never mis-reads the parameter list as a command.
@@ -1608,25 +1591,6 @@ impl Analyser {
                 );
                 false
             }
-            // Handled by the descriptors, in the tail below: `for`'s four
-            // clauses are positional, and the generic body walk reads when
-            // each runs from the clause plan (`start` once, `next` and the
-            // body per iteration); a scope alias is the invocation's
-            // `VariableCellAliasTransition` (`apply_state_transitions`); and a
-            // loop or bound variable — with `lappend auto_path DIR…`'s record,
-            // the list append its `var_elements_effect` states — is its
-            // `LoopVarList` / `VarWrite` role (`handle_var_binding_command`).
-            // The stamps retire with the hook re-baseline.
-            Hook::For
-            | Hook::Variable
-            | Hook::Global
-            | Hook::Incr
-            | Hook::Append
-            | Hook::Lappend
-            | Hook::Upvar
-            | Hook::NamespaceUpvar
-            | Hook::DictFor
-            | Hook::DictUpdate => false,
             Hook::DictWith => {
                 self.handle_dict_with_command(args, arg_tokens, scope_path);
                 false
@@ -2452,6 +2416,25 @@ impl Analyser {
         // and body per iteration, an `if` body only when selected — and from
         // the command's traits for every other body (`when`, `eval`, …).
         let plan = self.clause_plan_in_context(registry, body_cmd, &body_args);
+        // A clause's `LoopVarList` slot (`try`'s `on` / `trap` handler
+        // variables) binds per clause, not through the flat role table
+        // `handle_var_binding_command` reads — `clause_grammar.rs`'s own
+        // module doc: a repeating clause's var-list is "bound per clause
+        // …, which the flat `LoopVarList` role … cannot say"; a command
+        // whose flat table should also carry it (`dict for`) states it a
+        // second time in its own `arg_roles` instead, so this only ever
+        // fires where that second statement does not exist. Bound before
+        // any body below walks, matching the retired `handle_try_command`.
+        if let Some(plan) = plan.as_ref() {
+            for clause in &plan.clauses {
+                if let Some(list_idx) = clause.operand(tcl_registry::arg_role::ArgRole::LoopVarList)
+                    && let (Some(text), Some(tok)) =
+                        (args.get(list_idx), arg_tokens.get(list_idx).copied())
+                {
+                    self.define_vars_from_list(text, tok, scope_path);
+                }
+            }
+        }
         for idx in body_indices.into_iter().filter(|_| valid_irules_event) {
             if let (Some(body_text), Some(body_tok)) = (args.get(idx), arg_tokens.get(idx).copied())
             {
@@ -5968,8 +5951,8 @@ mod tests {
             None
         );
         assert_eq!(
-            a.resolve_analyser_hook("dict", &args(&["for", "{k v}", "$d", "{}"])),
-            Some(H::DictFor)
+            a.resolve_analyser_hook("dict", &args(&["with", "$d", "{}"])),
+            Some(H::DictWith)
         );
         // A namespaced registry spelling and its rooted form resolve
         // identically through the registry owner.

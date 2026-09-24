@@ -196,7 +196,6 @@ pub fn spec() -> CommandSpec {
         arg_values: &[(1, FIRST_CLAUSE_KEYWORD_VALUES)],
         closed_value_args: &[1],
         side_effects: SIDE_EFFECTS,
-        analyser_hook: Some(crate::hooks::AnalyserHookId::Try),
         ..CommandSpec::DEFAULT
     }
 }

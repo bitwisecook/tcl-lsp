@@ -72,6 +72,9 @@ use tcl_registry::hover::{
     OptionValue,
 };
 use tcl_registry::lifecycle::Lifecycle;
+use tcl_registry::option_effect::{
+    EffectAxis, FamilyBase, OptionEffect, OptionEffectFamily, OptionEffectKind,
+};
 use tcl_registry::presentation::ArgPresentation;
 use tcl_registry::remote_method::{MethodWord, RemoteDispatch, RemoteFamily, RemoteMethodRole};
 use tcl_registry::repeated::RepeatedArgLayout;
@@ -436,6 +439,50 @@ fn deprecation_fix_value(hook: Option<DeprecationFixHook>) -> (Value, bool) {
     }
 }
 
+/// The draft form of one [`EffectAxis`]: its axis word, and its value word
+/// when the axis carries one (`case-sensitivity` does not).
+fn insert_axis(d: &mut Map<String, Value>, axis: EffectAxis) {
+    d.insert("axis".into(), json!(axis.axis_word()));
+    d.insert(
+        "value".into(),
+        axis.value_word().map_or(Value::Null, |word| json!(word)),
+    );
+}
+
+/// The draft form of an [`OptionSpec::effect`]: `null`, or a flat tagged
+/// object naming the kind, its own payload (an axis and value, a role, or a
+/// count), and the family — the option-row form's own two controls, the
+/// inverse of `render_spectcl.rs`'s `option_effect_kind`.
+fn option_effect(effect: Option<OptionEffect>) -> Value {
+    let Some(OptionEffect { kind, family }) = effect else {
+        return Value::Null;
+    };
+    let mut d = Map::new();
+    d.insert("family".into(), json!(family));
+    match kind {
+        OptionEffectKind::Disables(axis) => {
+            d.insert("kind".into(), json!("disables"));
+            insert_axis(&mut d, axis);
+        }
+        OptionEffectKind::Selects(axis) => {
+            d.insert("kind".into(), json!("selects"));
+            insert_axis(&mut d, axis);
+        }
+        OptionEffectKind::SuppressesRole(role) => {
+            d.insert("kind".into(), json!("suppresses-role"));
+            d.insert("role".into(), json!(catalogue::variant_name(&role)));
+        }
+        OptionEffectKind::ReservesTrailingWords(n) => {
+            d.insert("kind".into(), json!("reserves-trailing-words"));
+            d.insert("n".into(), json!(n));
+        }
+        OptionEffectKind::EndsOptions => {
+            d.insert("kind".into(), json!("ends-options"));
+        }
+    }
+    Value::Object(d)
+}
+
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct OptionDraftCompleteness {
     pub(crate) arity_hook: bool,
@@ -499,6 +546,7 @@ pub(crate) fn option_spec(opt: &OptionSpec) -> (Value, OptionDraftCompleteness) 
             OPTION_DEPRECATION_FIX_UNRECOVERABLE_KEY: !deprecation_fix_hook,
             "min_abbrev": opt_index(opt.min_abbrev),
             "value": value,
+            "effect": option_effect(opt.effect),
         }),
         OptionDraftCompleteness {
             arity_hook,
@@ -1169,6 +1217,50 @@ fn option_relations_expr(constraints: &[OptionRelation]) -> Option<String> {
     Some(format!("&[{}]", items?.join(", ")))
 }
 
+/// The Rust expression for one [`EffectAxis`].
+fn effect_axis_expr(axis: EffectAxis) -> String {
+    match axis {
+        EffectAxis::Substitution(kind) => format!(
+            "EffectAxis::Substitution({})",
+            catalogue::qualified_variant("SubstitutionKind", &kind)
+        ),
+        EffectAxis::PatternLanguage(kind) => format!(
+            "EffectAxis::PatternLanguage({})",
+            catalogue::qualified_variant("PatternType", &kind)
+        ),
+        EffectAxis::CaseSensitivity => "EffectAxis::CaseSensitivity".to_owned(),
+        EffectAxis::Selection(mode) => format!(
+            "EffectAxis::Selection({})",
+            catalogue::qualified_variant("CaseMatchMode", &mode)
+        ),
+    }
+}
+
+/// The Rust expression for a `&'static [OptionEffectFamily]` field.
+fn option_effect_families_expr(families: &[OptionEffectFamily]) -> String {
+    let items: Vec<String> = families
+        .iter()
+        .map(|family| {
+            let base = match family.base {
+                FamilyBase::AllOn => "FamilyBase::AllOn".to_owned(),
+                FamilyBase::AllOff => "FamilyBase::AllOff".to_owned(),
+                FamilyBase::Only(axis) => format!("FamilyBase::Only({})", effect_axis_expr(axis)),
+            };
+            let surface = family.surface.map_or_else(
+                || "None".to_owned(),
+                |set| format!("Some({})", dialect_set_expr(set)),
+            );
+            format!(
+                "OptionEffectFamily {{ name: {}, base: {base}, combine: FamilyCombine::{:?}, \
+                 surface: {surface} }}",
+                rust_string(family.name),
+                family.combine,
+            )
+        })
+        .collect();
+    format!("&[{}]", items.join(", "))
+}
+
 /// A draft value for a descriptor field: the rendered Rust expression when the
 /// field is set, `null` when it is at its default.
 ///
@@ -1596,13 +1688,12 @@ fn subcommand_option_surface(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecov
             .map_or_else(|| lost.expr("option_relations", true), |expr| json!(expr))
     };
     d.insert("option_relations".into(), option_relations);
-    d.insert(
-        "option_effect_families".into(),
-        lost.expr(
-            "option_effect_families",
-            !sub.option_effect_families.is_empty(),
-        ),
-    );
+    let option_effect_families = if sub.option_effect_families.is_empty() {
+        Value::Null
+    } else {
+        json!(option_effect_families_expr(sub.option_effect_families))
+    };
+    d.insert("option_effect_families".into(), option_effect_families);
     d.insert(
         "option_placement".into(),
         json!(catalogue::variant_name(&sub.option_placement)),
@@ -2051,13 +2142,12 @@ fn command_options(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
             .map_or_else(|| lost.expr("option_relations", true), |expr| json!(expr))
     };
     d.insert("option_relations".into(), option_relations);
-    d.insert(
-        "option_effect_families".into(),
-        lost.expr(
-            "option_effect_families",
-            !spec.option_effect_families.is_empty(),
-        ),
-    );
+    let option_effect_families = if spec.option_effect_families.is_empty() {
+        Value::Null
+    } else {
+        json!(option_effect_families_expr(spec.option_effect_families))
+    };
+    d.insert("option_effect_families".into(), option_effect_families);
     d.insert(
         "reserved_trailing_words".into(),
         json!(spec.reserved_trailing_words),

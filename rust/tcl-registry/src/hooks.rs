@@ -295,12 +295,6 @@ pub enum AnalyserHookId {
     /// The `set auto_path PATH` special case is dispatched from the
     /// same arm.
     Set,
-    /// `variable name ?value? ...` — declares each name, skipping the
-    /// optional value words.
-    Variable,
-    /// `global name ...` — declares the unqualified tail of each name
-    /// as a local alias.
-    Global,
     /// `proc name params body` — records the proc and walks its body
     /// in a fresh proc scope.
     Proc,
@@ -353,33 +347,16 @@ pub enum AnalyserHookId {
     /// `namespace unknown handler` — installing a handler makes
     /// command resolution unknowable (dynamic providers).
     NamespaceUnknown,
-    /// `namespace upvar ns otherVar myVar ...` — binds each `myVar`
-    /// local alias.
-    NamespaceUpvar,
     /// `foreach varList list ?varList list ...? body` — defines the
     /// loop variables and walks the body.  Also stamped on the EDA
     /// `foreach_in_collection` (same shape).
     Foreach,
-    /// `for init test next body` — walks init / next / body.
-    For,
     /// `switch ?options? string ?pattern body ...?` — walks each arm
     /// body and records `-regexp` patterns.
     Switch,
     /// `catch script ?resultVar? ?optionsVar?` — walks the guarded
     /// body and defines the result / options variables.
     Catch,
-    /// `try body ?on/trap code varList body ...? ?finally body?` —
-    /// walks every clause and binds handler variable lists.
-    Try,
-    /// `upvar ?level? otherVar myVar ...` — binds each `myVar` local
-    /// alias.
-    Upvar,
-    /// `dict for {keyVar valueVar} dict body` — defines the two loop
-    /// variables (stamped on `dict`'s `for` subcommand).
-    DictFor,
-    /// `dict update dictVar key var ?key var ...? body` — binds each
-    /// `var` (stamped on `dict`'s `update` subcommand).
-    DictUpdate,
     /// `dict with dictVar body` — binds the keys of a
     /// constant-propagated dict value (stamped on `dict`'s `with`
     /// subcommand).
@@ -446,19 +423,9 @@ pub enum AnalyserHookId {
     /// `source fileName`, `source -encoding enc fileName`, or Tcl 9's
     /// `source -nopkg fileName` — records the source target.
     Source,
-    /// `append varName ?value ...?` — read-modify-write variable
-    /// definition.
-    Append,
-    /// `lappend varName ?value ...?` — like [`Self::Append`]; the
-    /// `lappend auto_path PATH ...` special case is dispatched from
-    /// the same arm.
-    Lappend,
     /// `regexp` / `regsub` — records literal / constant-propagated
     /// pattern arguments for highlighting.
     RegexPatternCapture,
-    /// `incr varName ?increment?` — defines the variable
-    /// (safe-on-uninit).
-    Incr,
     /// `load libFile ?prefix? ?interp?` — brings a shared library's
     /// commands in at runtime: flips the dynamic-providers flag.
     Load,

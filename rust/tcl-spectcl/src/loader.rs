@@ -131,6 +131,9 @@ use tcl_registry::hover::{
 use tcl_registry::intrinsic::IntrinsicId;
 use tcl_registry::lifecycle::Lifecycle;
 use tcl_registry::literal_validation::LiteralArgumentValidation;
+use tcl_registry::option_effect::{
+    EffectAxis, FamilyBase, FamilyCombine, OptionEffect, OptionEffectFamily, OptionEffectKind,
+};
 use tcl_registry::pack_hooks::HookInputs;
 use tcl_registry::patterns::{FormatType, PatternType};
 use tcl_registry::presentation::ArgPresentation;
@@ -2183,6 +2186,36 @@ fn checked_arity_windows(
     leak_slice(kept)
 }
 
+/// Drop an option's `-effect` when its `-family` names no
+/// `option_effect_family` this command or subcommand declares — the
+/// generic walk resolves a family by name against exactly this table, so
+/// an unresolvable name would otherwise silently narrow every axis the
+/// family covers rather than reading as absent.
+fn checked_option_effect_families(
+    mut options: Vec<OptionSpec>,
+    families: &[OptionEffectFamily],
+    what: &str,
+    line: u32,
+    log: &mut Log,
+) -> &'static [OptionSpec] {
+    for option in &mut options {
+        if let Some(effect) = option.effect
+            && !families.iter().any(|family| family.name == effect.family)
+        {
+            log.say(
+                line,
+                format!(
+                    "{what} option `{}` declares `-effect` naming family `{}`, which no \
+                     `option_effect_family` here declares; the effect is dropped",
+                    option.name, effect.family
+                ),
+            );
+            option.effect = None;
+        }
+    }
+    leak_slice(options)
+}
+
 /// A parsed lifecycle, or nothing when its releases are impossibly ordered.
 ///
 /// An entity whose lifecycle is rejected still loads: the declaration is a
@@ -2586,8 +2619,6 @@ const RETURN_TYPE_HOOKS: &[ReturnTypeHookId] = &[
 
 const ANALYSER_HOOKS: &[AnalyserHookId] = &[
     AnalyserHookId::Set,
-    AnalyserHookId::Variable,
-    AnalyserHookId::Global,
     AnalyserHookId::Proc,
     AnalyserHookId::OptProc,
     AnalyserHookId::Apply,
@@ -2599,15 +2630,9 @@ const ANALYSER_HOOKS: &[AnalyserHookId] = &[
     AnalyserHookId::NamespaceForget,
     AnalyserHookId::NamespacePath,
     AnalyserHookId::NamespaceUnknown,
-    AnalyserHookId::NamespaceUpvar,
     AnalyserHookId::Foreach,
-    AnalyserHookId::For,
     AnalyserHookId::Switch,
     AnalyserHookId::Catch,
-    AnalyserHookId::Try,
-    AnalyserHookId::Upvar,
-    AnalyserHookId::DictFor,
-    AnalyserHookId::DictUpdate,
     AnalyserHookId::DictWith,
     AnalyserHookId::InterpAlias,
     AnalyserHookId::InterpEval,
@@ -2623,10 +2648,7 @@ const ANALYSER_HOOKS: &[AnalyserHookId] = &[
     AnalyserHookId::PackageIfneeded,
     AnalyserHookId::PackagePrefer,
     AnalyserHookId::Source,
-    AnalyserHookId::Append,
-    AnalyserHookId::Lappend,
     AnalyserHookId::RegexPatternCapture,
-    AnalyserHookId::Incr,
     AnalyserHookId::Load,
 ];
 
@@ -3653,6 +3675,129 @@ fn validated_callback_taint_input_table(
         .collect()
 }
 
+/// `AXIS` or `AXIS VALUE` — the operand(s) of a `disables` / `selects` /
+/// `only` word, read off an already-listed value.
+fn effect_axis_words(words: &[String], line: u32, log: &mut Log) -> Option<EffectAxis> {
+    let axis = match words {
+        [axis] => EffectAxis::from_words(axis, None),
+        [axis, value] => EffectAxis::from_words(axis, Some(value)),
+        _ => None,
+    };
+    if axis.is_none() {
+        log.say(
+            line,
+            format!("unknown option-effect axis `{}`", words.join(" ")),
+        );
+    }
+    axis
+}
+
+/// `-effect VALUE` on an `option` row: `{disables AXIS VALUE}`,
+/// `{selects AXIS VALUE}`, `{suppresses-role ROLE}`,
+/// `{reserves-trailing-words N}`, or the bare `ends-options` — the
+/// option-effect descriptor's own spellings
+/// (`docs/design/compiler/registry-consumer-contracts.md` § *Options with
+/// semantic effects*). `None` (with a notice) for anything else.
+fn option_effect_kind(text: &str, line: u32, log: &mut Log) -> Option<OptionEffectKind> {
+    let words = list_words(text);
+    let kind = words
+        .split_first()
+        .and_then(|(kind, rest)| match (kind.as_str(), rest) {
+            ("disables", axis) => {
+                effect_axis_words(axis, line, log).map(OptionEffectKind::Disables)
+            }
+            ("selects", axis) => effect_axis_words(axis, line, log).map(OptionEffectKind::Selects),
+            ("suppresses-role", [role]) => {
+                by_name(ArgRole::ALL, role).map(OptionEffectKind::SuppressesRole)
+            }
+            ("reserves-trailing-words", [n]) => {
+                n.parse().ok().map(OptionEffectKind::ReservesTrailingWords)
+            }
+            ("ends-options", []) => Some(OptionEffectKind::EndsOptions),
+            _ => None,
+        });
+    if kind.is_none() {
+        log.say(line, format!("unreadable option effect `{text}`; dropped"));
+    }
+    kind
+}
+
+/// `option_effect_family NAME { base all-on|all-off|{only AXIS VALUE} \
+/// combine accumulate|last-wins ?-introduced V? }` at command or subcommand
+/// scope — the families an option row's `-effect` cites by name.
+fn option_effect_family_row(stmt: &Stmt, log: &mut Log) -> Option<OptionEffectFamily> {
+    let name = leak_str(stmt.word_text(1));
+    let Some(block_word) = stmt.arg(2) else {
+        log.say(
+            stmt.line,
+            format!("`option_effect_family {name}` needs a `{{ … }}` block; dropped"),
+        );
+        return None;
+    };
+    let words: Vec<Word> = block(block_word)
+        .into_iter()
+        .flat_map(|row| row.words)
+        .collect();
+    let mut base: Option<FamilyBase> = None;
+    let mut combine: Option<FamilyCombine> = None;
+    let mut surface = None;
+    let mut i = 0;
+    while i < words.len() {
+        match words[i].text.as_str() {
+            "base" => {
+                let text = next_text(&words, &mut i);
+                let parts = list_words(&text);
+                base = match parts.split_first() {
+                    Some((head, [])) if head == "all-on" => Some(FamilyBase::AllOn),
+                    Some((head, [])) if head == "all-off" => Some(FamilyBase::AllOff),
+                    Some((head, axis)) if head == "only" => {
+                        effect_axis_words(axis, stmt.line, log).map(FamilyBase::Only)
+                    }
+                    _ => None,
+                };
+                if base.is_none() {
+                    log.say(
+                        stmt.line,
+                        format!("unreadable `option_effect_family` base `{text}`"),
+                    );
+                }
+            }
+            "combine" => {
+                let text = next_text(&words, &mut i);
+                combine = FamilyCombine::from_spelling(&text);
+                if combine.is_none() {
+                    log.say(
+                        stmt.line,
+                        format!("unknown option-effect family combine rule `{text}` dropped"),
+                    );
+                }
+            }
+            "-introduced" => {
+                let text = next_text(&words, &mut i);
+                surface =
+                    available::from_texts(&["tcl".to_owned(), format!("{text}-")], stmt.line, log)
+                        .surface;
+            }
+            other => log.unknown_flag("option_effect_family", stmt.line, other),
+        }
+        i += 1;
+    }
+    if let (Some(base), Some(combine)) = (base, combine) {
+        Some(OptionEffectFamily {
+            name,
+            base,
+            combine,
+            surface,
+        })
+    } else {
+        log.say(
+            stmt.line,
+            format!("`option_effect_family {name}` needs both `base` and `combine`; dropped"),
+        );
+        None
+    }
+}
+
 /// Parse one `option NAME …` row, returning the spec and any `-arity-hook`.
 #[allow(clippy::too_many_lines)]
 fn option_row(
@@ -3674,6 +3819,10 @@ fn option_row(
     let mut wrote_callback_taint_inputs = false;
     let mut wrote_variable_scope = false;
     let mut wrote_taints_var_write = false;
+    let mut effect_kind: Option<OptionEffectKind> = None;
+    let mut effect_family: Option<&'static str> = None;
+    let mut wrote_effect = false;
+    let mut wrote_family = false;
 
     let words = &stmt.words;
     let mut i = 2;
@@ -3701,6 +3850,15 @@ fn option_row(
                 apply_availability(&mut option.surface, availability, "option", stmt.line, log);
             }
             "-min-abbrev" => option.min_abbrev = next_text(words, &mut i).parse().ok(),
+            "-effect" => {
+                wrote_effect = true;
+                let text = next_text(words, &mut i);
+                effect_kind = option_effect_kind(&text, stmt.line, log);
+            }
+            "-family" => {
+                wrote_family = true;
+                effect_family = Some(leak_str(&next_text(words, &mut i)));
+            }
             // The data form only: `{-replace WORD ?-replace-arg N? …}`, read by
             // the same flag reader the command-level `deprecation_fix`
             // statement uses. The contextual-callback variant stays
@@ -3917,6 +4075,28 @@ fn option_row(
         }
         option.value = OptionValue::Takes(arg);
     }
+    option.effect = if let (Some(kind), Some(family)) = (effect_kind, effect_family) {
+        Some(OptionEffect { kind, family })
+    } else {
+        if wrote_effect && !wrote_family {
+            log.say(
+                stmt.line,
+                format!(
+                    "option `{}` declares `-effect` without `-family`; dropped",
+                    option.name
+                ),
+            );
+        } else if wrote_family && !wrote_effect {
+            log.say(
+                stmt.line,
+                format!(
+                    "option `{}` declares `-family` without `-effect`; dropped",
+                    option.name
+                ),
+            );
+        }
+        None
+    };
     option.lifecycle = checked_lifecycle(
         option.lifecycle,
         &format!("option `{}`", option.name),
@@ -5532,6 +5712,7 @@ struct CommandAcc {
     manufacturers: Vec<ManufacturerMethod>,
     repeats: Vec<tcl_registry::repeated::RepeatedArgLayout>,
     option_relations: Vec<tcl_registry::spec::OptionRelation>,
+    option_effect_families: Vec<OptionEffectFamily>,
     versioned_arg_values: Vec<tcl_registry::spec::VersionedArgValue>,
     setter_constraints: Vec<tcl_registry::taint::SetterConstraint>,
     oo_context_facts: Vec<(&'static str, tcl_registry::spec::OoContextFact)>,
@@ -5631,7 +5812,13 @@ fn command_from_parts(
         spec.command_prefixes = leak_slice(args.prefixes);
         spec.callback_taint_inputs = leak_slice(callback_taint_inputs);
         spec.arity_windows = checked_arity_windows(acc.arity_windows, "command", line, log);
-        spec.options = leak_slice(acc.options);
+        spec.options = checked_option_effect_families(
+            acc.options,
+            &acc.option_effect_families,
+            "command",
+            line,
+            log,
+        );
         spec.command_forms = leak_slice(acc.refinements);
         spec.forms = leak_slice(acc.forms);
         spec.side_effects = leak_slice(acc.side_effects);
@@ -5639,6 +5826,7 @@ fn command_from_parts(
         spec.manufacturer_methods = leak_slice(acc.manufacturers);
         spec.repeated_args = leak_slice(acc.repeats);
         spec.option_relations = leak_slice(acc.option_relations);
+        spec.option_effect_families = leak_slice(acc.option_effect_families);
         spec.versioned_arg_values = leak_slice(acc.versioned_arg_values);
         spec.setter_constraints = leak_slice(acc.setter_constraints);
         spec.oo_context_facts = leak_slice(acc.oo_context_facts);
@@ -6309,6 +6497,12 @@ fn apply_command_stmt(
                 });
             }
             acc.options.push(option);
+        }
+        // The families an option row's own `-effect`/`-family` cite by name.
+        "option_effect_family" => {
+            if let Some(family) = option_effect_family_row(stmt, log) {
+                acc.option_effect_families.push(family);
+            }
         }
         // The four E-R14 option-relation statements, one shared row parser.
         // `option_conflict` is the 1.x spelling and keeps its exact shape; the
@@ -7559,6 +7753,7 @@ struct SubAcc {
     sub_subcommands: Vec<SubSubCommand>,
     repeats: Vec<tcl_registry::repeated::RepeatedArgLayout>,
     option_relations: Vec<tcl_registry::spec::OptionRelation>,
+    option_effect_families: Vec<OptionEffectFamily>,
     versioned_arg_values: Vec<tcl_registry::spec::VersionedArgValue>,
     callback_taint_inputs: Vec<(u8, &'static [CallbackTaintInput])>,
     declarations: semantics::Declarations,
@@ -7631,12 +7826,19 @@ fn subcommand_from_parts(
         sub.command_prefixes = leak_slice(args.prefixes);
         sub.callback_taint_inputs = leak_slice(callback_taint_inputs);
         sub.arity_windows = checked_arity_windows(acc.arity_windows, kind, line, log);
-        sub.options = leak_slice(acc.options);
+        sub.options = checked_option_effect_families(
+            acc.options,
+            &acc.option_effect_families,
+            kind,
+            line,
+            log,
+        );
         sub.subcommand_forms = leak_slice(acc.refinements);
         sub.side_effects = leak_slice(acc.side_effects);
         sub.sub_subcommands = leak_slice(acc.sub_subcommands);
         sub.repeated_args = leak_slice(acc.repeats);
         sub.option_relations = leak_slice(acc.option_relations);
+        sub.option_effect_families = leak_slice(acc.option_effect_families);
         sub.versioned_arg_values = leak_slice(acc.versioned_arg_values);
         sub.lifecycle = checked_lifecycle(sub.lifecycle, &format!("{kind} `{name}`"), line, log);
         Some(sub)
@@ -7810,6 +8012,11 @@ fn apply_subcommand_stmt(
                 });
             }
             acc.options.push(option);
+        }
+        "option_effect_family" => {
+            if let Some(family) = option_effect_family_row(stmt, log) {
+                acc.option_effect_families.push(family);
+            }
         }
         "refine" => {
             log.v20(stmt.line, "refine");

@@ -79,11 +79,12 @@ passes, and ownership matrices.
   criteria, what changes for every analysis, optimisation, and diagnostic,
   the third-party tiers, the drift gate, and the validation matrix.
 - [registry-consumer-contracts.md](compiler/registry-consumer-contracts.md)
-  — **proposal** companion: the description, identity, and backing contracts
-  under which the registry can drive the analyser, codegen, and the
-  runtimes — the four decided rulings, the three descriptors the
-  analyser lacks (clause grammar, member effect, option effect) behind one
-  derived query per axis, the four rungs of a pack claim reaching emitted
+  — companion: the description, identity, and backing contracts under
+  which the registry can drive the analyser, codegen, and the runtimes —
+  the four decided rulings, the description contract's three descriptors
+  (clause grammar, member effect, option effect) behind one derived query
+  per axis, **built** in step 2; the still-**proposal** identity and
+  backing contracts — the four rungs of a pack claim reaching emitted
   code with the site claim and pack fact stamp each rung records, and the
   dialect, package, and C-extension follow-ons.
 - [value-transfers-review.md](compiler/value-transfers-review.md) — review

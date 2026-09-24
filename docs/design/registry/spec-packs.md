@@ -310,7 +310,7 @@ is 16.6 µs; pack load by the static fast path is **4.28 ms** for a
 
 `rust/tcl-spectcl/tests/spec_corpus.rs` is the gate over **every
 `.tclspec` the repository ships** — the eight bundled loadables under
-`specs/`, the eleven ports and the five external drafts under
+`specs/`, the twelve ports and the five external drafts under
 [`spec-dsl-examples/`](../spec-dsl-examples/). Per pack it loads through the
 real loader, installs into a real per-profile registry, runs the analyser
 and the optimiser over the corpus files in `samples/` that call the pack's

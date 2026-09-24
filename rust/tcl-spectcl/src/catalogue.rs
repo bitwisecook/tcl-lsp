@@ -347,8 +347,6 @@ pub const RETURN_TYPE_HOOKS: &[Variant] = &[
 /// [`AnalyserHookId`] — the per-command analyser handler family.
 pub const ANALYSER_HOOKS: &[Variant] = &[
     v("Set", "set"),
-    v("Variable", "variable"),
-    v("Global", "global"),
     v("Proc", "proc"),
     v("OptProc", "argparse-style proc"),
     v("Apply", "apply"),
@@ -360,15 +358,9 @@ pub const ANALYSER_HOOKS: &[Variant] = &[
     v("NamespaceForget", "namespace forget"),
     v("NamespacePath", "namespace path"),
     v("NamespaceUnknown", "namespace unknown"),
-    v("NamespaceUpvar", "namespace upvar"),
     v("Foreach", "foreach"),
-    v("For", "for"),
     v("Switch", "switch"),
     v("Catch", "catch"),
-    v("Try", "try"),
-    v("Upvar", "upvar"),
-    v("DictFor", "dict for"),
-    v("DictUpdate", "dict update"),
     v("DictWith", "dict with"),
     v("InterpAlias", "interp alias"),
     v("InterpEval", "interp eval"),
@@ -384,10 +376,7 @@ pub const ANALYSER_HOOKS: &[Variant] = &[
     v("PackageIfneeded", "package ifneeded"),
     v("PackagePrefer", "package prefer"),
     v("Source", "source"),
-    v("Append", "append"),
-    v("Lappend", "lappend"),
     v("RegexPatternCapture", "regexp capture binding"),
-    v("Incr", "incr"),
     v("Load", "load"),
 ];
 
@@ -1066,8 +1055,6 @@ mod tests {
     fn covered_analyser(h: AnalyserHookId) -> bool {
         match h {
             AnalyserHookId::Set
-            | AnalyserHookId::Variable
-            | AnalyserHookId::Global
             | AnalyserHookId::Proc
             | AnalyserHookId::OptProc
             | AnalyserHookId::Apply
@@ -1079,15 +1066,9 @@ mod tests {
             | AnalyserHookId::NamespaceForget
             | AnalyserHookId::NamespacePath
             | AnalyserHookId::NamespaceUnknown
-            | AnalyserHookId::NamespaceUpvar
             | AnalyserHookId::Foreach
-            | AnalyserHookId::For
             | AnalyserHookId::Switch
             | AnalyserHookId::Catch
-            | AnalyserHookId::Try
-            | AnalyserHookId::Upvar
-            | AnalyserHookId::DictFor
-            | AnalyserHookId::DictUpdate
             | AnalyserHookId::DictWith
             | AnalyserHookId::InterpAlias
             | AnalyserHookId::InterpEval
@@ -1103,10 +1084,7 @@ mod tests {
             | AnalyserHookId::PackageIfneeded
             | AnalyserHookId::PackagePrefer
             | AnalyserHookId::Source
-            | AnalyserHookId::Append
-            | AnalyserHookId::Lappend
             | AnalyserHookId::RegexPatternCapture
-            | AnalyserHookId::Incr
             | AnalyserHookId::Load => true,
         }
     }

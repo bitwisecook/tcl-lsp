@@ -1,0 +1,47 @@
+# Port of rust/tcl-registry/src/commands/tcl/subst_.rs
+#
+# Exercises: the option-effect descriptor (registry-consumer-contracts.md
+# § "Options with semantic effects") — two option-effect families over one
+# axis, the loader's `-effect` / `-family` spelling on six options, and the
+# `-introduced` gate on a family itself. This is the design page's own
+# `command subst { ... }` example, with one adaptation the page's own prose
+# calls for: the page's illustrated `option_conflict {A} {B}` line is not
+# the built form — `Relation::terms` is one flat set, so it would also
+# reject `-nocommands -novariables` together — and does not parse (a
+# relation row takes one term-list word). The built form is three
+# `option_forbids` rows, each negated switch forbidding the whole positive
+# set, exactly as `subst_.rs`'s own `RELATIONS` declares it. The round-trip
+# fixture: `spectcl_ports.rs`'s `the_subst_port_answers_the_same_kinds_as_
+# the_shipped_spec` runs `option_effect.rs`'s own corpus of `subst` calls
+# through this port and the shipped spec, and checks they answer the same
+# substitution kinds.
+
+speclib tcl 2.1 {
+
+command subst {
+    arity 1..
+    reserved_trailing_words 1
+
+    option_effect_family negated { base all-on  combine accumulate }
+    option_effect_family positive { base all-off combine accumulate \
+                                    -introduced 9.1 }
+
+    option -nobackslashes -effect {disables substitution backslashes} \
+                          -family negated
+    option -nocommands    -effect {disables substitution commands} \
+                          -family negated
+    option -novariables   -effect {disables substitution variables} \
+                          -family negated
+    option -backslashes   -effect {selects substitution backslashes} \
+                          -family positive -introduced 9.1
+    option -commands      -effect {selects substitution commands} \
+                          -family positive -introduced 9.1
+    option -variables     -effect {selects substitution variables} \
+                          -family positive -introduced 9.1
+
+    option_forbids -nobackslashes {-backslashes -commands -variables}
+    option_forbids -nocommands {-backslashes -commands -variables}
+    option_forbids -novariables {-backslashes -commands -variables}
+}
+
+}

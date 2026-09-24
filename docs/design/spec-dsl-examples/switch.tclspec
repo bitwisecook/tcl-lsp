@@ -50,14 +50,28 @@ command switch {
     analyser_hook -native Switch
     return_type String
 
-    option -exact  -detail {Exact string compare mode. This is the default.}
-    option -glob   -detail {Glob-style pattern mode, as implemented by `string match`.}
-    option -integer -dialects tcl9.1 -detail {Integer comparison mode: string and every pattern (other than a trailing default) must be a valid integer, or switch raises an error. Cannot be combined with -nocase.}
-    option -regexp -detail {Regular expression pattern mode.}
-    option -nocase -dialects tcl8.5+ -detail {Case-insensitive matching. Not supported together with -integer (Tcl 9.1+).}
+    # The match mode, case folding, and end-of-options option-effect families
+    # (`docs/design/compiler/registry-consumer-contracts.md` § *Options with
+    # semantic effects*): one selected match mode wins, case folding
+    # accumulates from off, and `--` always ends the option run.
+    option_effect_family match { base {only selection exact} combine last-wins }
+    option_effect_family case { base all-off combine accumulate }
+    option_effect_family layout { base all-on combine accumulate }
+
+    option -exact  -effect {selects selection exact} -family match \
+                   -detail {Exact string compare mode. This is the default.}
+    option -glob   -effect {selects selection glob} -family match \
+                   -detail {Glob-style pattern mode, as implemented by `string match`.}
+    option -integer -dialects tcl9.1 -effect {selects selection other} -family match \
+                    -detail {Integer comparison mode: string and every pattern (other than a trailing default) must be a valid integer, or switch raises an error. Cannot be combined with -nocase.}
+    option -regexp -effect {selects selection regexp} -family match \
+                   -detail {Regular expression pattern mode.}
+    option -nocase -dialects tcl8.5+ -effect {selects case-sensitivity} -family case \
+                   -detail {Case-insensitive matching. Not supported together with -integer (Tcl 9.1+).}
     option -matchvar -takes varName -dialects tcl8.5+ -detail {Store the list of matched substrings here — element 0 is the overall match, each later element a capturing group (only legal with -regexp); an empty list when a default branch runs.}
     option -indexvar -takes varName -dialects tcl8.5+ -detail {Store the list of matched substring start/end index pairs here, parallel to -matchvar (only legal with -regexp); an empty list when a default branch runs.}
-    option -- -detail {End of options: the next word is always the subject string, even if it starts with -.}
+    option -- -effect ends-options -family layout \
+              -detail {End of options: the next word is always the subject string, even if it starts with -.}
 
     # TclNRSwitchObjCmd only scans for -flag words up to objc - 2: the trailing
     # `string` and pattern-list-or-first-pattern words are never mistaken for

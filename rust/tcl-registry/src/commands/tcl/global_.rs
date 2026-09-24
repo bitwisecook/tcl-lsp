@@ -157,7 +157,6 @@ pub fn spec() -> CommandSpec {
         native_lowering: Some(NativeLowering::Scope(ScopeKind::Global)),
         codegen_hook: Some(CodegenHookId::Global),
         forms: FORMS,
-        analyser_hook: Some(crate::hooks::AnalyserHookId::Global),
         world_effects: Some(WorldEffectDescriptor::EMPTY),
         state_transitions: Some(GLOBAL_TRANSITIONS),
         ..CommandSpec::DEFAULT

@@ -107,6 +107,24 @@ impl OptionEffectKind {
             Self::SuppressesRole(_) | Self::ReservesTrailingWords(_) | Self::EndsOptions => None,
         }
     }
+
+    /// The `.tclspec` spelling of this effect's kind — the first word of an
+    /// option row's `-effect` value
+    /// (`docs/design/compiler/registry-consumer-contracts.md` § *Options
+    /// with semantic effects*). The loader reads the rest of the value (the
+    /// axis, the role, or the count) against this word directly, the same
+    /// way [`crate::definer::MemberEffect::kind_spelling`] does for a member
+    /// row's `-effect`.
+    #[must_use]
+    pub const fn kind_spelling(self) -> &'static str {
+        match self {
+            Self::Disables(_) => "disables",
+            Self::Selects(_) => "selects",
+            Self::SuppressesRole(_) => "suppresses-role",
+            Self::ReservesTrailingWords(_) => "reserves-trailing-words",
+            Self::EndsOptions => "ends-options",
+        }
+    }
 }
 
 /// The closed catalogue of axes an option may move. One variant per axis,
@@ -124,6 +142,46 @@ pub enum EffectAxis {
     Selection(CaseMatchMode),
 }
 
+impl EffectAxis {
+    /// The `.tclspec` axis word — `substitution`, `pattern-language`,
+    /// `case-sensitivity`, `selection` — never the value.
+    #[must_use]
+    pub const fn axis_word(self) -> &'static str {
+        match self {
+            Self::Substitution(_) => "substitution",
+            Self::PatternLanguage(_) => "pattern-language",
+            Self::CaseSensitivity => "case-sensitivity",
+            Self::Selection(_) => "selection",
+        }
+    }
+
+    /// The `.tclspec` spelling of this axis's value, when it carries one:
+    /// `case-sensitivity` is a bare axis word with nothing after it.
+    #[must_use]
+    pub fn value_word(self) -> Option<&'static str> {
+        match self {
+            Self::Substitution(kind) => Some(kind.spelling()),
+            Self::PatternLanguage(kind) => Some(kind.as_str()),
+            Self::CaseSensitivity => None,
+            Self::Selection(mode) => Some(mode.spelling()),
+        }
+    }
+
+    /// The axis `axis` names, with `value` for the axes that need one, or
+    /// `None` for an unknown axis word or a value the axis's own vocabulary
+    /// does not have.
+    #[must_use]
+    pub fn from_words(axis: &str, value: Option<&str>) -> Option<Self> {
+        match axis {
+            "substitution" => Some(Self::Substitution(SubstitutionKind::from_spelling(value?)?)),
+            "pattern-language" => Some(Self::PatternLanguage(PatternType::from_str_tag(value?)?)),
+            "case-sensitivity" => Some(Self::CaseSensitivity),
+            "selection" => Some(Self::Selection(CaseMatchMode::from_spelling(value?)?)),
+            _ => None,
+        }
+    }
+}
+
 /// The three kinds of substitution Tcl's substitution phase distinguishes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SubstitutionKind {
@@ -133,6 +191,31 @@ pub enum SubstitutionKind {
     Commands,
     /// `$name` is replaced by the variable's value.
     Variables,
+}
+
+impl SubstitutionKind {
+    /// Every kind, in `.tclspec` vocabulary order.
+    pub const ALL: &'static [Self] = &[Self::Backslashes, Self::Commands, Self::Variables];
+
+    /// The `.tclspec` spelling of this kind — the `substitution` axis's
+    /// value word.
+    #[must_use]
+    pub const fn spelling(self) -> &'static str {
+        match self {
+            Self::Backslashes => "backslashes",
+            Self::Commands => "commands",
+            Self::Variables => "variables",
+        }
+    }
+
+    /// The kind `word` spells, or `None` for any other word.
+    #[must_use]
+    pub fn from_spelling(word: &str) -> Option<Self> {
+        Self::ALL
+            .iter()
+            .copied()
+            .find(|kind| kind.spelling() == word)
+    }
 }
 
 /// A family of options over one axis, declared once per command (or
@@ -160,6 +243,19 @@ pub enum FamilyBase {
     Only(EffectAxis),
 }
 
+impl FamilyBase {
+    /// The `.tclspec` spelling of this base's kind — `all-on`, `all-off`, or
+    /// `only` (which the loader then reads an `{AXIS VALUE}` row after).
+    #[must_use]
+    pub const fn kind_spelling(self) -> &'static str {
+        match self {
+            Self::AllOn => "all-on",
+            Self::AllOff => "all-off",
+            Self::Only(_) => "only",
+        }
+    }
+}
+
 /// How two options of one family combine.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FamilyCombine {
@@ -168,6 +264,29 @@ pub enum FamilyCombine {
     /// The last option Tcl accepts decides (`lsearch`'s match styles): each
     /// option resets the family's values before it applies.
     LastWins,
+}
+
+impl FamilyCombine {
+    /// Every combine rule, in `.tclspec` vocabulary order.
+    pub const ALL: &'static [Self] = &[Self::Accumulate, Self::LastWins];
+
+    /// The `.tclspec` spelling of this combine rule.
+    #[must_use]
+    pub const fn spelling(self) -> &'static str {
+        match self {
+            Self::Accumulate => "accumulate",
+            Self::LastWins => "last-wins",
+        }
+    }
+
+    /// The combine rule `word` spells, or `None` for any other word.
+    #[must_use]
+    pub fn from_spelling(word: &str) -> Option<Self> {
+        Self::ALL
+            .iter()
+            .copied()
+            .find(|rule| rule.spelling() == word)
+    }
 }
 
 /// Where one resolved invocation's option effects come from, beside its
