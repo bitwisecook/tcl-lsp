@@ -2822,7 +2822,13 @@ fn find_taint_warnings_for_cu_base_with_external_variable_seeds(
             &identities,
         ));
         out.extend(find_setter_constraint_warnings(
-            registry, &fu.cfg, &fu.ssa, &taints, exec, dialect,
+            registry,
+            &fu.cfg,
+            &fu.ssa,
+            &taints,
+            Some(&fu.sccp.values),
+            exec,
+            dialect,
         ));
         out.extend(crate::uri_split::find_uri_split_suggestions(
             &fu.cfg,
@@ -6044,15 +6050,22 @@ fn emit_option_injection<S: std::hash::BuildHasher>(
 /// Three cases per constraint:
 ///
 /// 1. **Literal** (not `$`-prefixed, no `[`) — check the prefix directly.
-/// 2. **Pure var-ref** — look up the SSA-resolved taint colour; suppress
+/// 2. **Pure var-ref** — a value the lattice proves at the call (`values`)
+///    is checked as a literal is (#2055: `set p /a; HTTP::path $p` is
+///    clean); otherwise look up the SSA-resolved taint colour and suppress
 ///    when `PATH_PREFIXED | PATH_NORMALISED | PATH_BOUNDED` is set.
 /// 3. **Dynamic expression** (interpolation, command sub) — always warn.
 #[must_use]
-pub fn find_setter_constraint_warnings<S: std::hash::BuildHasher, E: std::hash::BuildHasher>(
+pub fn find_setter_constraint_warnings<
+    S: std::hash::BuildHasher,
+    V: std::hash::BuildHasher,
+    E: std::hash::BuildHasher,
+>(
     registry: &CommandRegistry,
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     taints: &HashMap<ValueKey, TaintLattice, S>,
+    values: Option<&HashMap<ValueKey, crate::analyses::LatticeValue, V>>,
     executable_blocks: &HashSet<BlockId, E>,
     dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> Vec<TaintWarning> {
@@ -6111,6 +6124,20 @@ pub fn find_setter_constraint_warnings<S: std::hash::BuildHasher, E: std::hash::
                         .and_then(|s| ssa_stmt.uses.get(&s))
                         .copied()
                         .unwrap_or(0);
+                    let proven =
+                        sym.and_then(|s| values?.get(&(s, ver)))
+                            .and_then(|value| match value {
+                                crate::analyses::LatticeValue::Const(c) => {
+                                    crate::value_transfer::const_text(c)
+                                }
+                                _ => None,
+                            });
+                    if let Some(proven) = proven {
+                        if !proven.starts_with(constraint.required_prefix) {
+                            out.push(warn(var_name.to_owned()));
+                        }
+                        continue;
+                    }
                     let t = sym
                         .and_then(|s| taints.get(&(s, ver)))
                         .copied()
@@ -8052,6 +8079,7 @@ mod tests {
                 &fu.cfg,
                 &fu.ssa,
                 &fu.taints,
+                Some(&fu.sccp.values),
                 &fu.sccp.executable_blocks,
                 dialect,
             ));
@@ -8096,15 +8124,23 @@ mod tests {
     #[test]
     fn irule3101_pure_var_ref_always_warns_without_safe_colour() {
         // A plain `$p` setter value (no taint + no provable path colour)
-        // cannot be proved `/`-prefixed by the static analyser, so
-        // IRULE3101 fires. Latent suppression paths
-        // via tainted-with-PATH_PREFIXED / _NORMALISED / _BOUNDED colours
-        // will light up once iRules source `taint_hints` reach the
-        // lattice.
-        let w = setter_warnings_for("set p /safe\nHTTP::uri $p");
+        // that the lattice cannot pin — two arms set two values — cannot be
+        // proved `/`-prefixed by the static analyser, so IRULE3101 fires.
+        // Latent suppression paths via tainted-with-PATH_PREFIXED /
+        // _NORMALISED / _BOUNDED colours will light up once iRules source
+        // `taint_hints` reach the lattice. A value the lattice proves is
+        // checked as a literal is (#2055): `set p /safe` is clean.
+        let w = setter_warnings_for(
+            "if {[HTTP::has_responded]} { set p /safe } else { set p safe }\nHTTP::uri $p",
+        );
         assert!(
             w.iter().any(|x| x.code == DiagCode::Irule3101),
             "pure var-ref setter value must warn without tainted-safe-colour, got {w:?}"
+        );
+        let w = setter_warnings_for("set p /safe\nHTTP::uri $p");
+        assert!(
+            !w.iter().any(|x| x.code == DiagCode::Irule3101),
+            "a proven `/` path is clean, got {w:?}"
         );
     }
 

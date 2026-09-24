@@ -2317,6 +2317,11 @@ pub(crate) fn const_to_exact(c: &ConstValue) -> ExactValue {
     }
 }
 
+/// The text a lattice constant renders as, when it is text.
+pub(crate) fn const_text(c: &ConstValue) -> Option<String> {
+    String::from_utf8(const_to_exact(c).bytes).ok()
+}
+
 /// An exact value as a lattice constant: the classification when it has
 /// one, else the exact text.
 pub(crate) fn exact_to_const(value: &ExactValue) -> ConstValue {

@@ -680,6 +680,7 @@ fn collect_taint_warnings(
             &fu.cfg,
             &fu.ssa,
             taints,
+            Some(&fu.sccp.values),
             &fu.sccp.executable_blocks,
             Some(profile),
         ) {

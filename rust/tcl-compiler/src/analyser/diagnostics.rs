@@ -105,11 +105,13 @@ pub(in crate::analyser) use validity::{
 
 // The W110 operator-anchor selector is consumed by the EXPR-argument
 // dispatch in `crate::analyser::commands`.
+pub(in crate::analyser) use proven::{CallWords, ProvenSite};
 pub(in crate::analyser) use usage::W110Anchor;
 
 mod const_dispatch;
 mod dataflow;
 pub(in crate::analyser) mod helpers;
+mod proven;
 mod security;
 mod unresolved;
 mod usage;
@@ -605,6 +607,16 @@ impl Analyser {
             &unit_commands,
         );
 
+        self.emit_cross_function_diagnostics(cu, registry);
+    }
+
+    /// The post-passes over the whole unit's walk-collected sites, run once
+    /// every function's own pass has.
+    fn emit_cross_function_diagnostics(
+        &mut self,
+        cu: &crate::compilation_unit::CompilationUnit,
+        registry: &tcl_registry::CommandRegistry,
+    ) {
         // Cross-function post-pass: resolve $var-as-command sites
         // collected during the walk.
         self.emit_var_command_diagnostics(cu, registry);
@@ -623,6 +635,10 @@ impl Analyser {
         // emitting the indirect head references and their writable
         // literal-anchored twins.
         self.settle_const_dispatches(cu);
+
+        // The literal-only checks the walk abstained from, over the words
+        // the lattice proves.
+        self.emit_proven_word_diagnostics(cu);
     }
 
     /// `TclOO`/snit method bodies.  `cu.methods` is kept in a *separate* map

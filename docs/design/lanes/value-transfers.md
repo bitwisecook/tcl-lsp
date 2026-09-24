@@ -4312,6 +4312,7 @@ item; the grouping stays the plan's account of what lands together.
 | VT5.12 | `wip(value-transfers): slice 5 — the branch fact records its kind` | `BranchFactKind { Proven, Selected, Applied }` (`sccp.rs`) on `ConstantBranch`: the solver's decided branches are `Applied`, the existence post-pass's folds `Proven`, and `Selected` waits for slice 6's selection record; `emit_constant_branch_diagnostics` reads the `Applied` facts and `emit_existence_constant_branch_diagnostics` the `Proven` ones, and no longer reruns `existence_constant_branches` (the analyser's `BodyFrame::existence_frame` went with its one caller); `compiler_checks.rs` already reported every stored fact and needed nothing (D141) | `the_existence_branch_fact_is_stored_once` (`analyser/diagnostics/tests.rs`: the kinds as stored, one I230 per stored fact, a unit whose proven fact is removed reports nothing for it, and under iRules no I230 for a variable another event sets); every other I230, I231 and `info_exists_*` test unchanged |
 | VT5.11 | `wip(value-transfers): slice 5 — W210 reads preserve outcomes` | `SccpResult::preserved` (`sccp.rs`): each definition its statement left untouched — every store the evaluated outcome makes to its place a `Preserve` (`DefAnswer::preserved`), a pack command's declared preserve included — with the version its place held before the statement, and each definition a condition's `<cond>` statement reads first when the shared engine decided that condition, every nested command it ran having answered without a store (D142); the undef trace reads through a preserved definition to that version (`PhiUndefCtx::preserved`), so W210 on a read, a `return` or a condition's no-match arm, and W213 on an `unset`, come from the general read-before-set pass, counted only in executable blocks and past the name-level condition-write suppression the fact answers (`UndefSuppression::preserved_undef`, `suppresses_read`) (D143); the private prover is gone — `emit_provably_unset_w210`, its embedded-condition walk, `regexp_scan_no_match`, `skip_options` and the literal-substring matcher — G1's `dataflow.rs` 4 → 2 with its ledger row, `registry-axes`' 17 → 9; a conditional writer nested in a word or a condition reads its targets as the statement form does (`ir_helpers::variable_write_effects_from_commands`), so the optimiser keeps the store a no-match preserves there too (D144) | `w210_reads_a_no_match_preserve_outcome` (`analyser/diagnostics/tests.rs`: W210 at `$a` after `regexp {(x)(y)} zz a b`, on `return $b`, and in `if {![regexp {x} y -> v]}`'s arm; none after a matching subject or a `set` before the call, or in the arm when `v` was set first — each checked on tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1b0); `a_no_match_keeps_the_store_it_preserves` (compiler witnesses: #2051's program and the condition and word forms keep `set … before` under every dialect, no O109, no W210 or W220 naming it, and the original and optimised programs print the same under tclsh 8.4 to 9.1); `a_pack_declared_preserve_holds_the_prior_version` (a `write_or_preserve` pack command's preserved definition names the root in one procedure and the `set` in the other); changed by the mandate ("W210 follows any registry-declared preserve outcome"): `fp_sty_11_binary_scan_many_vars_no_false_w210` reads an input that fills its twenty fields, and its empty input is now the true positive tclsh reports (`can't read "t"` on every release); every other `w210_*`, `emit_cfg_ssa_diagnostics_w210_*`, `fp_rbs_02_*`, `fp_sty_10_*` and `scan_predicate_w210_*` test unchanged |
 | VT5.15 | `wip(value-transfers): slice 5 — one query for a proven word` | `value_transfer::proven_word_value(fu, statement, word, config)`: the exact value a call's word has at that statement from the lattice alone — a literal word's text; a substituted word's decoded runs and variable reads at the statement's use versions, concatenated; the folded type its definition states for a whole-word read — and `None` for a command substitution, a finite or unknown read, an expansion, a respelled word or an unreached block; `StatementId { block, index }` and `FunctionUnit::word_at(span)`, the address a consumer holding a word's source range reads it at (D145) | `proven_word_value_reads_the_lattice_at_the_statement` (`value_transfer.rs`: `$f` after `set f %d` is `%d`, never `$f`; `$n` after `set n [string length abc]` is `3` typed int; `"x$f"` is `x%d`; `7` is itself; a `[…]` word and the command word are `None`; `$f` after an `if` redefines it is `None`) |
+| VT5.16 | `wip(value-transfers): slice 5 — the literal-only diagnostics read proven values` | the walk keeps each call with a word a literal-only check could not read — a variable read, or a substituted word with no command substitution (`ProvenSite`, `analyser/diagnostics/proven.rs`, recorded by one hunk in `commands.rs`); once the unit exists the pass substitutes each word the lattice proves at its statement (`proven_word_value`, through an index of the unit's call words by span) and runs the checks again: W121, W127, W137, W138, W145 (subcommand and option words), W146, W200, W202 and W303 keep only what they report at a proven word, with no fix; W147 and W152 evaluate the declared relations over the proven option words and keep what the written words did not draw; W230 and W232 keep what the index checks draw over a proven list or string and did not draw over the written one; a verdict the arity flush settles (W146, W147, W152) settles through the same user-resolution rule (`settle_builtin_verdicts`, factored out of `flush_arity_diagnostics`) (D146); IRULE4004 hoists a value that reads no variable and that the lattice proves; IRULE3101 checks a proven setter value as a literal — `find_setter_constraint_warnings` takes the unit's values, and `tcl-lsp-core`'s `graphs.rs` passes them; IRULE3103 reads any proven constant, a condition's variable operand included (D147); W141 and a computed subcommand word stay out of reach (D148) | `literal_only_checks_read_proven_words` (`analyser/diagnostics/tests.rs`: for each of W121, W127, W137, W138, W145, W146, W147, W152, W200, W202, W230, W232 and W303, the row's program reports at the proven word, or over the relation's options, or at the literal index, and the same call over a parameter draws nothing); `a_proven_word_is_reported_once_beside_a_written_one`; `irule4004_proven_command_value_is_hoistable` (`irules_checks.rs`); `irule3101_reads_the_proven_path` (#2055's program is clean, a proven `a` still warns) and `irule3103_reads_a_proven_operand` (`tests/taint.rs`); changed by the mandate (#2055): `irule3101_pure_var_ref_always_warns_without_safe_colour` warns over a value two arms set, and its proven `/safe` is clean; every other test of these codes unchanged |
 
 A container restart ended the first implementer at VT5.5, uncommitted;
 a second implementer took the opus items over from VT5.5 on (VT5.5, VT5.6,
@@ -4326,6 +4327,22 @@ three `scan` answers were wrong against every oracle from 8.5 (`scan -1
 compared non-ASCII witnesses against a misread script (D133); the two doc
 comments the oracle contradicted were corrected, and the per-byte charges
 the page states were added. Nothing was backed out.
+
+Green at VT5.16:
+
+- tests: `tcl-compiler`, `tcl-lsp-core` and `tcl-cli` together 13431
+  passed, 6 ignored, no failure — the one expectation the mandate moves,
+  `irule3101_pure_var_ref_always_warns_without_safe_colour`, pinned
+  #2055's false positive (`set p /safe; HTTP::uri $p`) and is restated
+  over a value two arms set, with the proven `/safe` clean;
+  `samples_optimiser_profiles_are_regenerated` among them, no sample
+  moved;
+- pedantic clippy (`--no-deps --all-targets -D warnings`) on
+  `tcl-compiler` and `tcl-lsp-core`, no `#[allow]` added; `rustfmt` on
+  the touched files;
+- `cargo xtask value-transfers --check` and `registry-axes --check`
+  unchanged (the new `proven.rs` has no site on either); `cargo check
+  --workspace` clean.
 
 Green at VT5.15:
 
@@ -7906,6 +7923,47 @@ has the witnesses):
   `FunctionUnit::word_at` finds it from a word's source range or its
   representative token's, for the consumers (VT5.16, VT5.17) that hold a
   span rather than a statement.
+
+- **D146 — One pass runs the literal-only checks again over proven
+  words.** The plan has each check record the spans it abstains on; the
+  checks share one call's words, so the walk records the call once instead
+  (one hunk in `commands.rs`, the dispatch the checks already hang from)
+  and the pass substitutes every proven word at once — its text as a
+  braced literal at the word's own span — then runs each check the plan
+  names. A finding is kept only at a proven word's exact span, which is
+  what "no finding twice, none at a span the user did not write" comes to
+  for a check that reports where it reads; the index and relation checks
+  report at a literal index or over a pair of options, so they are diffed
+  against the same check over the written words instead. A kept finding
+  carries no fix, which would replace the user's substitution with a
+  constant. W146, W147 and W152 are verdicts the arity flush settles
+  against a shadowing user command; the flush has run by then, so the
+  pass settles them with the same rule, now one method. A word inside a
+  nested command substitution is not reached: the CFG has no statement of
+  its own for it.
+- **D147 — The iRules checks read the lattice where they already are.**
+  IRULE4004, IRULE3101 and IRULE3103 run per function over the unit, so
+  they read its values directly rather than through the walk's sites.
+  IRULE4004 hoists a value that reads no variable and that the lattice
+  proves (`set x [string range CONST 0 3]` is the same on every request);
+  a value reading a variable stays unhoisted, since hoisting it alone
+  would move a read of a request-local. IRULE3101's setter check takes the
+  unit's values as a parameter, which its four callers pass — one of them
+  `tcl-lsp-core`'s `graphs.rs`, a file the plan does not name — so #2055's
+  `set p /a; HTTP::path $p` is clean where the taint colour could not
+  prove it. IRULE3103 reads any proven constant, where it read only a
+  `Const(String)`, and a condition's variable operand, which it had not
+  read at all.
+- **D148 — Three rows the lattice does not reach yet.** W141's one
+  producer, `return -errorstack`, lowers as a barrier, and a barrier
+  widens every value the function holds, so no proven value reaches it;
+  the pass runs the check, and a command whose option arity is a hook
+  would draw it. A computed subcommand word (`string $sub …`) makes the
+  function's dynamic-name barrier widen every value, so W145 is reached
+  through option words only. `[string tolower CONST]` has no route in the
+  shared lattice yet, so the plan's "propagated or `[string tolower
+  CONST]` option value" is met for the propagated value; a route that
+  lands makes the other follow with no change here.
 
 ### Open questions for the owner
 

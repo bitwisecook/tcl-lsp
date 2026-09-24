@@ -2378,6 +2378,31 @@ mod setter_constraints {
         assert!(of_code("set p [HTTP::path]\nHTTP::path $p", IR, "IRULE3101").is_empty());
     }
 
+    /// #2055: a path the lattice proves at the setter is checked as a
+    /// literal is — `set p /a; HTTP::path $p` is clean — and a proven value
+    /// without the `/` still warns (VT5.16).
+    #[test]
+    fn irule3101_reads_the_proven_path() {
+        assert!(of_code("set p /a\nHTTP::path $p", IR, "IRULE3101").is_empty());
+        let ws = of_code("set p a\nHTTP::path $p", IR, "IRULE3101");
+        assert_eq!(ws.len(), 1);
+        assert_eq!(ws[0].variable, "p");
+    }
+
+    /// A computed operand reads as the constant the lattice proves (VT5.16):
+    /// `[HTTP::uri] starts_with $p` over `set p [string range /api/v1 0 3]`
+    /// is IRULE3103, as the literal `/api` is, and the same test over a
+    /// header value is not.
+    #[test]
+    fn irule3103_reads_a_proven_operand() {
+        let proven = "set p [string range /api/v1 0 3]\n\
+                      if {[HTTP::uri] starts_with $p} { pool api }";
+        assert_eq!(of_code(proven, IR, "IRULE3103").len(), 1);
+        let unknown = "set p [HTTP::header value X-Prefix]\n\
+                       if {[HTTP::uri] starts_with $p} { pool api }";
+        assert!(of_code(unknown, IR, "IRULE3103").is_empty());
+    }
+
     #[test]
     fn untainted_var_warns() {
         // Untainted var without a known `/` prefix → can't prove safety → warn.

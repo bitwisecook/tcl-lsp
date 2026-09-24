@@ -513,6 +513,10 @@ pub struct Analyser {
     /// [`Self::flush_dsl_gate_diagnostics`] against the effective Tcl
     /// version.
     pub(super) dsl_gate_sites: Vec<super::diagnostics::version_gate::DslGateSite>,
+    /// The calls the walk dispatched with a word a literal-only check could
+    /// not read, which the CFG/SSA pass checks again over the words' proven
+    /// values.
+    pub(super) proven_sites: Vec<super::diagnostics::ProvenSite>,
     /// Proven W147 option conflicts whose `OptionRelation` is version-gated
     /// — decided post-walk by [`Self::flush_gated_option_conflicts`], which
     /// promotes the ones the resolved floor actually has onto
@@ -1554,6 +1558,7 @@ impl Analyser {
             tk_domains: std::collections::BTreeMap::new(),
             version_gate_sites: Vec::new(),
             dsl_gate_sites: Vec::new(),
+            proven_sites: Vec::new(),
             pending_option_conflicts: Vec::new(),
             pending_gated_arity: Vec::new(),
             pending_gated_bare_ensemble: Vec::new(),
@@ -3206,6 +3211,7 @@ impl Analyser {
         // entries behind, and a reused analyser must not carry one document's
         // deferred calls into the next.
         self.deferred_class_creations.clear();
+        self.proven_sites.clear();
         self.pending_bareword_dispatch_sites = None;
         self.line_offsets = None;
         self.cached_line_index = tcl_lexer::LineIndex::new("");

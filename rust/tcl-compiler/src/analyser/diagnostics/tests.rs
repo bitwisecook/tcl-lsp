@@ -1670,6 +1670,156 @@ fn w004_skips_option_value_that_looks_like_a_flag() {
     );
 }
 
+/// The literal-only checks read proven words (VT5.16): each program's
+/// checked word is a variable the lattice proves at the call, and the check
+/// reports there — at the word the user wrote, once — where it had
+/// abstained; the same call over an unknown value (a parameter) draws
+/// nothing. W147 reports over the conflicting options, from the first to
+/// the proven one, as the literal form reports over its pair, and the index
+/// checks at the literal index a proven list or string makes checkable.
+/// One row of [`literal_only_checks_read_proven_words`]: the code, the
+/// dialect, the program whose checked word is proven, the same call over an
+/// unknown value, and the text the finding lands on.
+type ProvenRow = (
+    DiagCode,
+    &'static str,
+    &'static str,
+    &'static str,
+    &'static str,
+);
+
+/// The rows of [`literal_only_checks_read_proven_words`].
+const PROVEN_ROWS: [ProvenRow; 13] = [
+    (
+        DiagCode::W121,
+        "f5-irules",
+        "when CLIENT_ACCEPTED {\n    set ip [IP::client_addr]\n    set m 255.0\n    \
+             append m .255.0\n    IP::addr $ip mask $m\n}\n",
+        "when CLIENT_ACCEPTED {\n    set ip [IP::client_addr]\n    \
+             IP::addr $ip mask [IP::client_addr]\n}\n",
+        "$m",
+    ),
+    (
+        DiagCode::W127,
+        "tk",
+        "proc p {} {\n    set r bogus\n    button .b -relief $r\n}\n",
+        "proc p {r} {\n    button .b -relief $r\n}\n",
+        "$r",
+    ),
+    (
+        DiagCode::W137,
+        "tcl8.6",
+        "proc p {config} {\n    set c dict\n    string is $c $config\n}\n",
+        "proc p {c config} {\n    string is $c $config\n}\n",
+        "$c",
+    ),
+    (
+        DiagCode::W138,
+        "tcl8.5",
+        "proc p {mask} {\n    set f {flags: %b}\n    format $f $mask\n}\n",
+        "proc p {f mask} {\n    format $f $mask\n}\n",
+        "$f",
+    ),
+    (
+        DiagCode::W145,
+        "tcl8.6",
+        "proc p {l} {\n    set o -in\n    lsort $o $l\n}\n",
+        "proc p {o l} {\n    lsort $o $l\n}\n",
+        "$o",
+    ),
+    (
+        DiagCode::W146,
+        "tcl8.6",
+        "proc p {} {\n    set ops {read rename write}\n    \
+             trace add variable ::config(port) $ops logChange\n}\n",
+        "proc p {ops} {\n    trace add variable ::config(port) $ops logChange\n}\n",
+        "$ops",
+    ),
+    (
+        DiagCode::W147,
+        "tcl9.0",
+        "proc p {} {\n    set o -path\n    glob -directory root $o prefix *.tcl\n}\n",
+        "proc p {o} {\n    glob -directory root $o prefix *.tcl\n}\n",
+        "-directory root $o",
+    ),
+    (
+        DiagCode::W152,
+        "tcl8.6",
+        "package require http\nproc p {cb} {\n    set opt -queryprogress\n    \
+             ::http::geturl http://example.invalid/ $opt $cb\n}\n",
+        "package require http\nproc p {opt cb} {\n    \
+             ::http::geturl http://example.invalid/ $opt $cb\n}\n",
+        "$opt",
+    ),
+    (
+        DiagCode::W200,
+        "tcl8.4",
+        "proc p {} {\n    set t cu\n    binary format $t 5\n}\n",
+        "proc p {t} {\n    binary format $t 5\n}\n",
+        "$t",
+    ),
+    (
+        DiagCode::W202,
+        "tcl8.4",
+        "proc p {b} {\n    set t t\n    binary scan $b $t v\n}\n",
+        "proc p {b t} {\n    binary scan $b $t v\n}\n",
+        "$t",
+    ),
+    (
+        DiagCode::W230,
+        "tcl8.6",
+        "proc p {} {\n    set l {a b c}\n    lindex $l 9\n}\n",
+        "proc p {l} {\n    lindex $l 9\n}\n",
+        "9",
+    ),
+    (
+        DiagCode::W232,
+        "tcl8.6",
+        "proc p {} {\n    set s abc\n    string index $s 9\n}\n",
+        "proc p {s} {\n    string index $s 9\n}\n",
+        "9",
+    ),
+    (
+        DiagCode::W303,
+        "tcl8.6",
+        "proc p {s} {\n    set re {(a+)+$}\n    regexp $re $s\n}\n",
+        "proc p {re s} {\n    regexp $re $s\n}\n",
+        "$re",
+    ),
+];
+
+#[test]
+fn literal_only_checks_read_proven_words() {
+    for (code, dialect, proven, unknown, word) in PROVEN_ROWS {
+        let reported = |src: &str| -> Vec<String> {
+            Analyser::new()
+                .analyse(src, dialect)
+                .diagnostics
+                .iter()
+                .filter(|d| d.code == code)
+                .map(|d| src[d.span.as_range()].to_owned())
+                .collect()
+        };
+        assert_eq!(reported(proven), [word], "{code}: {proven}");
+        assert_eq!(reported(unknown), Vec::<String>::new(), "{code}: {unknown}");
+    }
+}
+
+/// A call that writes one bad word and reads a proven one reports each once:
+/// the walk the written word, the proven-word pass the proven one.
+#[test]
+fn a_proven_word_is_reported_once_beside_a_written_one() {
+    let both = "proc p {} {\n    set m 255.0.255.0\n    list 255.0.255.0 $m\n}\n";
+    let reported: Vec<String> = Analyser::new()
+        .analyse(both, "tcl8.6")
+        .diagnostics
+        .iter()
+        .filter(|d| d.code == DiagCode::W121 && d.span.start() > 20)
+        .map(|d| both[d.span.as_range()].to_owned())
+        .collect();
+    assert_eq!(reported, ["255.0.255.0", "255.0.255.0", "$m"], "{both}");
+}
+
 #[test]
 fn w127_fires_on_invalid_option_enum_value() {
     // `-relief` carries a closed Tk value set; a literal outside it is W127.

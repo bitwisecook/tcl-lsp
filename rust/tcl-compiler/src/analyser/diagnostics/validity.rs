@@ -387,6 +387,20 @@ fn statically_known_word(text: &str, token: Option<&tcl_lexer::Token>) -> bool {
 /// `Anywhere` keeps recognising declared options between positional words, up
 /// to an explicit `--`, which is the script-level `foreach {flag value}`
 /// shape (`http::geturl`).
+/// A call's words as the walk wrote them and as the lattice proves them,
+/// for the relation checks over proven words.
+pub(in crate::analyser) struct ProvenCall<'a> {
+    pub cmd_name: &'a str,
+    pub cmd_tok: tcl_lexer::Token,
+    /// The written words: arguments and their tokens.
+    pub written: (&'a [String], &'a [tcl_lexer::Token]),
+    /// The words with each proven one substituted.
+    pub proven: (&'a [String], &'a [tcl_lexer::Token]),
+    /// Parallel to the whole argv, the command word at `0`.
+    pub arg_expand_in: &'a [bool],
+    pub scope_path: &'a [usize],
+}
+
 pub(in crate::analyser) fn scan_invocation_words(
     option_specs: &[&'static tcl_registry::prelude::OptionSpec],
     placement: tcl_registry::OptionPlacement,
@@ -1572,6 +1586,113 @@ impl Analyser {
         );
     }
 
+    /// W147 / W152 over a call's proven words: the relations the call's
+    /// signature declares, evaluated over the words as `proven` spells them,
+    /// each violation the `written` words did not already draw — a
+    /// relation needing an option the walk could not read abstained there.
+    /// Returned as builtin-call verdicts for
+    /// [`Self::settle_builtin_verdicts`]; a relation carrying a lifecycle
+    /// is left to the version-gated path, which has settled by now.
+    pub(in crate::analyser) fn proven_option_relations(
+        &self,
+        call: &ProvenCall<'_>,
+    ) -> Vec<(String, String, bool, crate::analyser::types::Diagnostic)> {
+        use super::dispatch::CommandSignature;
+        let arg_expand = call.arg_expand_in.get(1..).unwrap_or(&[]);
+        let (display_name, sig, skip) = match self.resolve_command_signature(call.cmd_name) {
+            Some(CommandSignature::Simple(sig)) => (call.cmd_name.to_owned(), sig, 0),
+            Some(CommandSignature::WithSubcommands(sig)) => {
+                let (Some(sub_name), Some(sub_token)) =
+                    (call.proven.0.first(), call.proven.1.first())
+                else {
+                    return Vec::new();
+                };
+                if arg_expand.first().copied().unwrap_or(false)
+                    || has_substitution(sub_name, sub_token)
+                {
+                    return Vec::new();
+                }
+                let Some(sub_sig) = sig.resolve(sub_name) else {
+                    return Vec::new();
+                };
+                (format!("{} {sub_name}", call.cmd_name), sub_sig.clone(), 1)
+            }
+            None => return Vec::new(),
+        };
+        if sig
+            .traits
+            .contains(tcl_registry::Traits::STRUCTURALLY_CHECKED_ARITY)
+        {
+            return Vec::new();
+        }
+        let relations = |(args, tokens): (&[String], &[tcl_lexer::Token])| {
+            let scanned = scan_invocation_words(
+                &sig.leading_option_specs,
+                sig.option_placement,
+                args.get(skip..).unwrap_or(&[]),
+                tokens.get(skip..).unwrap_or(&[]),
+                arg_expand.get(skip..).unwrap_or(&[]),
+                &self.source,
+                call.cmd_tok.span,
+            );
+            option_relation_diagnostics(
+                &display_name,
+                &sig.option_relations,
+                sig.constraints_hook,
+                &scanned,
+                call.cmd_tok.span,
+            )
+        };
+        let written = relations(call.written);
+        let ns = self.command_resolution_namespace(call.scope_path);
+        let enforce_order = !self.scope_path_in_proc_body(call.scope_path);
+        relations(call.proven)
+            .into_iter()
+            .filter(|(lifecycle, diagnostic)| {
+                lifecycle.is_unspecified()
+                    && !written.iter().any(|(_, seen)| {
+                        seen.code == diagnostic.code
+                            && seen.span == diagnostic.span
+                            && seen.message == diagnostic.message
+                    })
+            })
+            .map(|(_, diagnostic)| {
+                (
+                    call.cmd_name.to_owned(),
+                    ns.clone(),
+                    enforce_order,
+                    diagnostic,
+                )
+            })
+            .collect()
+    }
+
+    /// W145 for a subcommand word the walk could not read: its proven value
+    /// resolved against `cmd_name`'s ensemble exactly as
+    /// [`Self::emit_w001_unknown_subcommand`] resolves a literal word, and
+    /// reported only as an ambiguous abbreviation — an unknown word stays
+    /// the literal path's.
+    pub(in crate::analyser) fn emit_w145_for_proven_word(
+        &mut self,
+        cmd_name: &str,
+        word: &str,
+        cmd_tok: tcl_lexer::Token,
+        arg_tokens: &[tcl_lexer::Token],
+    ) {
+        let Some(super::dispatch::CommandSignature::WithSubcommands(sig)) =
+            self.resolve_command_signature(cmd_name)
+        else {
+            return;
+        };
+        if sig.allow_unknown || shape_exempt_from_w001(&sig, word) {
+            return;
+        }
+        if let tcl_registry::abbrev::KeywordMatch::Ambiguous(candidates) = sig.resolve_word(word) {
+            let candidates: Vec<String> = candidates.iter().map(|s| (*s).to_string()).collect();
+            self.emit_w145_ambiguous_abbreviation(cmd_name, word, &candidates, cmd_tok, arg_tokens);
+        }
+    }
+
     /// Whether `cmd_name subcommand_name …` is a call into an ensemble
     /// whose `-map` may have been reconfigured at runtime to add
     /// `subcommand_name`, pointing at a proc this file defines at the
@@ -2376,6 +2497,42 @@ impl Analyser {
             .any(|imported| imported == pkg)
     }
 
+    /// Push each queued verdict about a builtin call whose call does not
+    /// resolve to a user definition — the drain
+    /// [`Self::flush_arity_diagnostics`] runs over `pending_arity`, shared
+    /// with the proven-word pass, which settles its own verdicts after the
+    /// flush.
+    pub(super) fn settle_builtin_verdicts(
+        &mut self,
+        facts: &UserResolutionFacts,
+        pending: Vec<(String, String, bool, crate::analyser::types::Diagnostic)>,
+    ) {
+        for (cmd_name, ns, enforce_order, diag) in pending {
+            let call_off = diag.span.start();
+            let path = crate::analyser::scope::implicit_command_namespace_path_at(
+                &self.result.global_scope,
+                call_off,
+            );
+            if facts.resolves_to_user(&cmd_name, &ns, path, enforce_order, call_off) {
+                continue;
+            }
+            // Arity verdicts only — the *count* claim is the one that needs
+            // the spec to be the command actually being called. W001
+            // (unknown subcommand) and W004 (dialect-invalid option) share
+            // this queue but are claims about the *word the user wrote*
+            // against a name the registry knows, and they stay useful for a
+            // package the file has not required yet (`wm bogus` is still a
+            // typo whether or not `package require Tk` is present) — the two
+            // TP tests in `fp::sty` pin exactly that.
+            if matches!(diag.code, DiagCode::E002 | DiagCode::E003 | DiagCode::E005)
+                && self.spec_is_an_unloaded_package_command(&cmd_name)
+            {
+                continue;
+            }
+            self.result.diagnostics.push(diag);
+        }
+    }
+
     /// Post-walk flush of the [`Self::pending_arity`] / [`Self::pending_user_call_arity`]
     /// candidates collected by [`Self::emit_arity_diagnostics`] and
     /// [`Self::queue_user_call_arity_candidate`].
@@ -2420,30 +2577,7 @@ impl Analyser {
         let facts = UserResolutionFacts::build(self);
 
         let pending = std::mem::take(&mut self.pending_arity);
-        for (cmd_name, ns, enforce_order, diag) in pending {
-            let call_off = diag.span.start();
-            let path = crate::analyser::scope::implicit_command_namespace_path_at(
-                &self.result.global_scope,
-                call_off,
-            );
-            if facts.resolves_to_user(&cmd_name, &ns, path, enforce_order, call_off) {
-                continue;
-            }
-            // Arity verdicts only — the *count* claim is the one that needs
-            // the spec to be the command actually being called. W001
-            // (unknown subcommand) and W004 (dialect-invalid option) share
-            // this queue but are claims about the *word the user wrote*
-            // against a name the registry knows, and they stay useful for a
-            // package the file has not required yet (`wm bogus` is still a
-            // typo whether or not `package require Tk` is present) — the two
-            // TP tests in `fp::sty` pin exactly that.
-            if matches!(diag.code, DiagCode::E002 | DiagCode::E003 | DiagCode::E005)
-                && self.spec_is_an_unloaded_package_command(&cmd_name)
-            {
-                continue;
-            }
-            self.result.diagnostics.push(diag);
-        }
+        self.settle_builtin_verdicts(&facts, pending);
 
         // Same-file proc / TclOO forward / `interp alias` / static
         // `rename` arity — resolved now that `all_procs`,

@@ -1775,6 +1775,19 @@ impl Analyser {
         // W138 — format/scan %-string conversions gated behind a Tcl
         // release (buffered, decided post-walk — §6 argument-DSL rung).
         self.record_dsl_format_sites(cmd_name, cmd_tok, args, arg_tokens);
+        // A word those checks could not read is checked again over the value
+        // the lattice proves for it, once the unit exists.
+        if !presubstituted_args {
+            self.record_proven_site(&super::diagnostics::CallWords {
+                cmd_name,
+                cmd_tok,
+                args,
+                arg_tokens,
+                arg_single,
+                arg_expand_in,
+                scope_path,
+            });
+        }
         self.emit_arity_diagnostics(
             cmd_name,
             args,

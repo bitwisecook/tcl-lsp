@@ -1534,7 +1534,8 @@ pub fn find_hoistable_set_warnings(
         let Some(block) = fu.cfg.blocks.get(&fu.cfg.entry) else {
             continue;
         };
-        for stmt in &block.statements {
+        let ssa_block = fu.ssa.blocks.get(&fu.cfg.entry);
+        for (index, stmt) in block.statements.iter().enumerate() {
             let (name, value, span) = match stmt {
                 Statement::AssignConst {
                     name, value, span, ..
@@ -1552,8 +1553,24 @@ pub fn find_hoistable_set_warnings(
             {
                 continue;
             }
-            // Skip dynamic values — `$x` / `[cmd]` interpolation.
-            if value.contains('$') || value.contains('[') {
+            // Skip dynamic values — `$x` / `[cmd]` interpolation — unless
+            // the value reads no variable and the lattice proves what its
+            // commands compute (`set x [string range CONST 0 3]`): the same
+            // on every request, so hoistable like a literal.
+            if value.contains('$')
+                || (value.contains('[')
+                    && !ssa_block
+                        .and_then(|ssa_block| ssa_block.statements.get(index))
+                        .is_some_and(|ssa_stmt| {
+                            ssa_stmt.defs.iter().any(|(&symbol, &version)| {
+                                fu.ssa.var_name(symbol) == name.as_str()
+                                    && matches!(
+                                        fu.sccp.values.get(&(symbol, version)),
+                                        Some(crate::analyses::LatticeValue::Const(_))
+                                    )
+                            })
+                        }))
+            {
                 continue;
             }
             out.push(IrulesCheckWarning {
@@ -2698,6 +2715,24 @@ mod tests {
         assert!(
             !ws.iter().any(|w| w.code == DiagCode::Irule4004),
             "no IRULE4004 expected — value depends on request, got {ws:?}",
+        );
+    }
+
+    /// A value the lattice proves reads no request data, whatever its
+    /// commands (VT5.16): `[string range ABCDEFG 0 3]` is `ABCD` on every
+    /// request and hoists like a literal, where the same range over the host
+    /// header does not.
+    #[test]
+    fn irule4004_proven_command_value_is_hoistable() {
+        let ws = hoist_warnings("when HTTP_REQUEST { set svc [string range ABCDEFG 0 3] }");
+        assert!(
+            ws.iter().any(|w| w.code == DiagCode::Irule4004),
+            "expected IRULE4004 on a proven value, got {ws:?}",
+        );
+        let ws = hoist_warnings("when HTTP_REQUEST { set svc [string range [HTTP::host] 0 3] }");
+        assert!(
+            !ws.iter().any(|w| w.code == DiagCode::Irule4004),
+            "no IRULE4004 expected — the value reads the request, got {ws:?}",
         );
     }
 

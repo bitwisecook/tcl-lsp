@@ -484,6 +484,7 @@ pub fn push_taint_and_module_checks(
                 &fu.cfg,
                 &fu.ssa,
                 &taints,
+                Some(&fu.sccp.values),
                 &fu.sccp.executable_blocks,
                 dialect,
             ) {

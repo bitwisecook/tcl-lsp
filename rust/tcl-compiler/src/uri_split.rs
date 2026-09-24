@@ -43,7 +43,7 @@ use tcl_core_types::DiagCode;
 use tcl_lexer::Span;
 use tcl_registry::CommandRegistry;
 
-use crate::analyses::{ConstValue, LatticeValue};
+use crate::analyses::LatticeValue;
 use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
 use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::expr_ast::{BinOp, ExprNode};
@@ -147,6 +147,9 @@ struct TraceCtx<'a> {
     /// dialect profile at the entry point and used for every re-read of
     /// command-substitution text below.
     config: tcl_lexer::LexerConfig,
+    /// The text of an SSA value the lattice proves constant, whatever the
+    /// constant's kind: how a computed operand reads.
+    constants: &'a dyn Fn(ValueKey) -> Option<String>,
 }
 
 // Tcl quoting helper
@@ -191,11 +194,11 @@ fn resolve_literal<S: std::hash::BuildHasher>(
     }
     let sym = ssa.var_symbol(var_name)?;
     let ver = *uses.get(&sym).unwrap_or(&0);
-    let lv = sccp.get(&(sym, ver))?;
-    if let LatticeValue::Const(ConstValue::String(s)) = lv {
-        Some(s.clone())
-    } else {
-        None
+    // Any constant the lattice proves, a computed one included, reads as
+    // the text it renders as.
+    match sccp.get(&(sym, ver))? {
+        LatticeValue::Const(value) => crate::value_transfer::const_text(value),
+        _ => None,
     }
 }
 
@@ -587,10 +590,19 @@ fn is_comparison_op(op: BinOp) -> bool {
 }
 
 /// Return the unquoted literal text from an expression node, or `None`.
-fn expr_literal_text(node: &ExprNode) -> Option<String> {
+fn expr_literal_text(
+    node: &ExprNode,
+    ssa_versions: &HashMap<Symbol, Version>,
+    ctx: TraceCtx<'_>,
+) -> Option<String> {
     match node {
         ExprNode::String { text, .. } => Some(strip_tcl_quotes(text).to_owned()),
         ExprNode::Literal { text, .. } => Some(text.clone()),
+        // A variable the lattice proves constant at the condition.
+        ExprNode::Var { name, .. } => {
+            let symbol = ctx.ssa.var_symbol(normalise_var_name(name))?;
+            (ctx.constants)((symbol, *ssa_versions.get(&symbol)?))
+        }
         _ => None,
     }
 }
@@ -642,7 +654,7 @@ fn check_expr_binary(
 
     // Pattern: <uri_expr> op <literal>
     if let Some(uri_cmd) = expr_traces_to_uri(left, ssa_versions, ctx)
-        && let Some(lit) = expr_literal_text(right)
+        && let Some(lit) = expr_literal_text(right, ssa_versions, ctx)
         && let Some(component) = classify_operand_for_op(op, &lit)
     {
         return Some((uri_cmd, op.as_str().to_owned(), component.to_owned()));
@@ -651,7 +663,7 @@ fn check_expr_binary(
     // Reversed operand order (uncommon but possible with eq/equals/==).
     if matches!(op, BinOp::StrEq | BinOp::StrEquals | BinOp::Eq)
         && let Some(uri_cmd) = expr_traces_to_uri(right, ssa_versions, ctx)
-        && let Some(lit) = expr_literal_text(left)
+        && let Some(lit) = expr_literal_text(left, ssa_versions, ctx)
         && let Some(component) = classify_operand_for_op(op, &lit)
     {
         return Some((uri_cmd, op.as_str().to_owned(), component.to_owned()));
@@ -1032,6 +1044,10 @@ where
 
     let def_sites = build_def_site_map(ssa);
     let phi_index = build_phi_index(ssa);
+    let constant = |key: ValueKey| match sccp_values?.get(&key)? {
+        LatticeValue::Const(value) => crate::value_transfer::const_text(value),
+        _ => None,
+    };
     let ctx = TraceCtx {
         cfg,
         ssa,
@@ -1039,6 +1055,7 @@ where
         def_sites: &def_sites,
         phi_index: &phi_index,
         config: tcl_lexer::LexerConfig::for_profile(dialect),
+        constants: &constant,
     };
 
     let mut warnings: Vec<TaintWarning> = Vec::new();
@@ -1118,6 +1135,7 @@ mod tests {
             def_sites: &def_sites,
             phi_index: &phi_index,
             config: tcl_lexer::LexerConfig::default(),
+            constants: &|_| None,
         };
         let uses: HashMap<Symbol, u32> = HashMap::new();
         let mut node = ExprNode::Var {
