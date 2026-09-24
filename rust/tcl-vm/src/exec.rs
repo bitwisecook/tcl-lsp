@@ -2018,7 +2018,7 @@ impl Vm {
             // unwinding (an error, or an uncaught `return`).
             if acts.last().is_some_and(|p| p.each_loop.is_some()) {
                 let parent = acts.last_mut().expect("each_loop parent present");
-                match self.fold_each_loop(parent, c) {
+                match Self::fold_each_loop(parent, c) {
                     EachLoopFold::Resume => return None,
                     EachLoopFold::Unwind(nc) => {
                         c = nc;
@@ -2350,16 +2350,17 @@ impl Vm {
     /// state, matching the synchronous engine this replaces exactly: `Ok`
     /// collects the result (`lmap`) and continues; `Continue` skips collection
     /// and continues; `Break` stops the loop (delivered as the final result on
-    /// the next tick, since `it` is set to `iterations`); `Error` adds the
-    /// `each_loop`'s own body-frame label (`vm.append_body_frame(name)`) and
-    /// unwinds; `Return`/`Other` propagate immediately, uncollected, exactly as
+    /// the next tick, since `it` is set to `iterations`); `Error` marks the
+    /// `each_loop`'s body-frame label for activation unwind, which appends the
+    /// body frame and logs the invoking command; `Return`/`Other` propagate
+    /// immediately, uncollected, exactly as
     /// C Tcl's `EachloopCmd` passes a body `return` straight out of the loop.
-    fn fold_each_loop(&mut self, parent: &mut Frame, c: Completion<Value>) -> EachLoopFold {
+    fn fold_each_loop(parent: &mut Frame, c: Completion<Value>) -> EachLoopFold {
         if matches!(c.code, Code::Error | Code::Return | Code::Other(_)) {
             let name = parent.each_loop.as_ref().expect("each_loop state").name;
             parent.each_loop = None;
             if c.code == Code::Error {
-                self.append_body_frame(name);
+                parent.body_label = Some(name);
             }
             return EachLoopFold::Unwind(c);
         }

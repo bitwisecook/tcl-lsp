@@ -1434,6 +1434,36 @@ fn foreach_runtime_body_error_adds_frame() {
     );
 }
 
+/// The runtime loop must log its invoking command after the body frame even
+/// when `error` supplies explicit errorInfo (Tcl 9.0.4).
+#[test]
+fn foreach_lmap_runtime_explicit_error_info_logs_invocation() {
+    for name in ["foreach", "lmap"] {
+        let script = format!("set c {name}; catch {{$c x 1 {{error direct EI}}}}; set ::errorInfo");
+        let expected = format!(
+            "EI\n    (\"{name}\" body line 1)\n    invoked from within\n\"$c x 1 {{error direct EI}}\""
+        );
+        assert_eq!(run(&script).1, expected, "{name}");
+    }
+}
+
+#[test]
+fn foreach_in_package_ifneeded_logs_invocation_before_loader_frame() {
+    assert_eq!(
+        run(concat!(
+            "package ifneeded badloop 1.0 {set c foreach; $c x 1 {error direct EI}}; ",
+            "catch {package require badloop}; set ::errorInfo"
+        ))
+        .1,
+        concat!(
+            "EI\n    (\"foreach\" body line 1)\n    invoked from within\n",
+            "\"$c x 1 {error direct EI}\"\n",
+            "    (\"package ifneeded badloop 1.0\" script)\n",
+            "    invoked from within\n\"package require badloop\""
+        ),
+    );
+}
+
 /// A malformed list as the value list errors (the `as_list` Err arm).
 #[test]
 fn foreach_runtime_bad_list_value() {

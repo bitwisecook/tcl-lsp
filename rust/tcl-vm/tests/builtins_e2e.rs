@@ -1810,6 +1810,68 @@ puts [list $afterFailure [package require P 1] [package provide P]]
     );
 }
 
+#[test]
+fn package_ifneeded_non_error_completions_become_badresult_and_can_be_retried() {
+    out_eq(
+        r#"foreach {kind script} {break {break} continue {continue} return {return} custom {return -level 0 -code 10}} {
+    package forget foo
+    package ifneeded foo 1 "package provide foo 1; $script"
+    set status [catch {package require foo 1} message options]
+    puts [list $kind $status $message [dict get $options -errorcode] [string match {* ("package ifneeded foo 1" script)*} [dict get $options -errorinfo]] [package provide foo] [expr {[package ifneeded foo 1] eq "package provide foo 1; $script"}]]
+    package ifneeded foo 1 {package provide foo 1}
+    puts [list retry [package require foo 1]]
+}
+"#,
+        "break 1 {attempt to provide package foo 1 failed: bad return code: 3} {TCL PACKAGE BADRESULT} 1 {} 1\n\
+retry 1\n\
+continue 1 {attempt to provide package foo 1 failed: bad return code: 4} {TCL PACKAGE BADRESULT} 1 {} 1\n\
+retry 1\n\
+return 1 {attempt to provide package foo 1 failed: bad return code: 2} {TCL PACKAGE BADRESULT} 1 {} 1\n\
+retry 1\n\
+custom 1 {attempt to provide package foo 1 failed: bad return code: 10} {TCL PACKAGE BADRESULT} 1 {} 1\n\
+retry 1\n",
+    );
+}
+
+#[test]
+fn package_unknown_non_error_completions_become_badresult() {
+    out_eq(
+        r#"set previous [package unknown]
+foreach {kind script} {break {break} continue {continue} return {return} custom {return -level 0 -code 10}} {
+    package forget foo
+    package unknown "$script ;#"
+    set status [catch {package require foo 1} message options]
+    puts [list $kind $status $message [dict get $options -errorcode] [string match {* ("package unknown" script)*} [dict get $options -errorinfo]]]
+}
+package unknown {package ifneeded foo 1 {package provide foo 1};#}
+puts [list retry [package require foo 1]]
+package unknown $previous
+"#,
+        "break 1 {bad return code: 3} {TCL PACKAGE BADRESULT} 1\n\
+continue 1 {bad return code: 4} {TCL PACKAGE BADRESULT} 1\n\
+return 1 {bad return code: 2} {TCL PACKAGE BADRESULT} 1\n\
+custom 1 {bad return code: 10} {TCL PACKAGE BADRESULT} 1\n\
+retry 1\n",
+    );
+}
+
+#[test]
+fn package_discovery_preserves_ordinary_script_errors() {
+    out_eq(
+        r#"package forget foo bar
+package ifneeded foo 1 {error boom LOAD {LOADER ORIGINAL}}
+set status [catch {package require foo 1} message options]
+puts [list ifneeded $status $message [dict get $options -errorcode] [string match {LOAD*} [dict get $options -errorinfo]] [string match {* ("package ifneeded foo 1" script)*} [dict get $options -errorinfo]] [package provide foo]]
+set previous [package unknown]
+package unknown {error boom UNKNOWN {UNKNOWN ORIGINAL};#}
+set status [catch {package require bar 1} message options]
+puts [list unknown $status $message [dict get $options -errorcode] [string match {UNKNOWN*} [dict get $options -errorinfo]] [string match {* ("package unknown" script)*} [dict get $options -errorinfo]]]
+package unknown $previous
+"#,
+        "ifneeded 1 boom {LOADER ORIGINAL} 1 1 {}\nunknown 1 boom {UNKNOWN ORIGINAL} 1 1\n",
+    );
+}
+
 /// `package forget` removes the active package record, including a loader's
 /// circular marker. A loader can therefore replace its record and require the
 /// replacement before the outer loader returns.
