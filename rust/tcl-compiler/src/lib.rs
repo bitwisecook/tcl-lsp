@@ -157,6 +157,7 @@ pub mod semantic_optimisation;
 pub mod shimmer;
 pub mod side_effects;
 pub mod signature_scan;
+pub mod site_claims;
 pub mod slot_allocation;
 pub mod specialise_factories;
 pub mod ssa;

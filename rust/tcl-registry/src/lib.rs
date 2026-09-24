@@ -90,6 +90,7 @@ pub mod model;
 pub mod native_lowering;
 pub mod option_effect;
 pub mod pack_hooks;
+pub mod pack_origin;
 pub mod patterns;
 pub mod presentation;
 pub mod private_tcl_namespaces;

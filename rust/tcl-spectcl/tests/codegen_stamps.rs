@@ -38,9 +38,10 @@ use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_dialect::DialectProfile;
 use tcl_registry::CommandRegistry;
 use tcl_runtime_api::{
-    CommandBindingIdentity, CompileError, ProcedureCompileTarget, ProcedureDispatch,
-    ScriptCommandPlan, ScriptCompileTarget,
+    CommandBindingIdentity, CompileError, PackFactStamp, ProcedureCompileTarget, ProcedureDispatch,
+    ScriptCommandPlan, ScriptCompileTarget, SiteClaim,
 };
+use tcl_spectcl::PackSet;
 use tcl_vm::{Code, CompileService, Vm};
 
 /// The default compile service, counting the plain-dispatch compiles the VM
@@ -170,14 +171,40 @@ fn scratch(name: &str) -> PathBuf {
     dir
 }
 
+/// `llength` overridden by a bundled pack whose `const_fold` names the
+/// shipped folder: a constant computed at compile time from the pack's facts.
+/// The `dialects` row scopes the override to the release the test compiles
+/// for: a profile's resolution prefers a scoped spec over a catch-all one,
+/// so an unscoped override would lose to the shipped `llength`'s own scope.
+const FOLD_PACK: &str = "speclib vendor 2.0 {\n    \
+     command llength -override {\n        \
+         dialects tcl9.0\n        \
+         arity 1\n        \
+         arg 0 -role Value\n        \
+         const_fold -native llength::const_fold\n    \
+     }\n\
+ }\n";
+
 /// The pack loaded as the bundled tier from a `specs/` directory, and the
 /// registry it installs into.
-fn bundled_registry(name: &str, alias_of: &str) -> Arc<CommandRegistry> {
+fn bundled(name: &str, alias_of: &str) -> (PackSet, Arc<CommandRegistry>) {
+    bundled_source(name, &unpack_pack(alias_of))
+}
+
+/// [`bundled`] for any pack source.
+fn bundled_source(name: &str, source: &str) -> (PackSet, Arc<CommandRegistry>) {
     let specs = scratch(name).join("specs");
     std::fs::create_dir_all(&specs).expect("specs dir");
-    std::fs::write(specs.join("vendor.tclspec"), unpack_pack(alias_of)).expect("write pack");
+    std::fs::write(specs.join("vendor.tclspec"), source).expect("write pack");
     let set = tcl_spectcl::bundled::load_from(&specs);
-    tcl_spectcl::bundled::registry_for_dialect_from("tcl9.0", &set)
+    let registry = tcl_spectcl::bundled::registry_for_dialect_from("tcl9.0", &set);
+    (set, registry)
+}
+
+/// The facts a VM holds for `set`, under this thread's evaluator revision —
+/// the one the compiling thread's sites recorded.
+fn facts(set: &PackSet) -> Vec<PackFactStamp> {
+    set.fact_stamps(tcl_compiler::site_claims::evaluator_revision())
 }
 
 /// Compile `source` against `registry` — the pipeline a compile service runs,
@@ -206,10 +233,11 @@ const USE: &str = "set l {1 2 3}\nvendor::unpack $l a b\nlist $a $b\n";
 
 /// The site records `lassign`'s identity, never the pack command's own name:
 /// the binding names the spelling the source wrote and the builtin the
-/// stamp is the own of.
+/// stamp is the own of. Beside it the site claims the pack facts that made
+/// the target admissible — exactly one of the facts a VM holds for the set.
 #[test]
 fn an_admitted_alias_stamp_records_the_targets_identity() {
-    let registry = bundled_registry("identity", "lassign");
+    let (set, registry) = bundled("identity", "lassign");
     assert_eq!(
         registry
             .get("vendor::unpack")
@@ -220,27 +248,39 @@ fn an_admitted_alias_stamp_records_the_targets_identity() {
     );
     let module = compile(USE, &registry);
     let bindings = &module.top_level.command_bindings;
-    assert!(
-        bindings.contains(&CommandBindingIdentity::new("vendor::unpack", "lassign")),
-        "{bindings:#?}"
-    );
+    let binding = CommandBindingIdentity::new("vendor::unpack", "lassign");
+    assert!(bindings.contains(&binding), "{bindings:#?}");
     assert!(
         bindings.iter().all(|b| b.identity != "vendor::unpack"),
         "{bindings:#?}"
+    );
+
+    let held = facts(&set);
+    assert_eq!(held.len(), 1, "one pack file: {held:#?}");
+    assert_eq!(held[0].pack, "vendor");
+    assert_eq!(held[0].overlay_generation, set.key);
+    assert_eq!(
+        module.top_level.site_claims,
+        vec![SiteClaim::BuiltinAlias {
+            binding,
+            facts: held[0].clone(),
+        }]
     );
 }
 
 /// The VM admits the module through the alias hop: `vendor::unpack` is an
 /// alias of `lassign`, whose builtin identity is the one recorded, and the
-/// module runs with no plain recompile. Before the alias exists the same
-/// module is refused — recompiled plain, where the pack name is unknown.
+/// VM holds the pack's facts, so the module runs with no plain recompile.
+/// Before the alias exists the same module is refused — recompiled plain,
+/// where the pack name is unknown.
 #[test]
 fn the_vm_admits_it_through_the_alias_hop() {
-    let registry = bundled_registry("admitted", "lassign");
+    let (set, registry) = bundled("admitted", "lassign");
     let module = compile(USE, &registry);
 
     let mut vm = Vm::new();
     let plain = PlainCounting::installed_on(&mut vm);
+    vm.set_pack_facts(facts(&set));
     let refused = vm.run_module(&module);
     assert_eq!(refused.code, Code::Error, "{}", refused.result.to_str());
     assert!(
@@ -267,16 +307,105 @@ fn the_vm_admits_it_through_the_alias_hop() {
     );
 }
 
-/// The negative: a proc at the pack name is not the builtin, so the VM
-/// refuses the specialised site and recompiles the module plain — the proc
-/// runs, where the specialised `lassign` code would have assigned `1 2`.
+/// Rung 1's check on a rung-2 site: the VM holds facts for a pack whose
+/// content hash differs — the pack changed after the module was compiled —
+/// so the site is refused and the module recompiled plain, the alias
+/// answering through ordinary dispatch. The negative control: the same VM
+/// holding the set's own facts admits it.
 #[test]
-fn a_proc_at_the_pack_name_recompiles_plain() {
-    let registry = bundled_registry("proc", "lassign");
+fn a_changed_pack_invalidates_the_site() {
+    let (set, registry) = bundled("changed", "lassign");
     let module = compile(USE, &registry);
 
     let mut vm = Vm::new();
     let plain = PlainCounting::installed_on(&mut vm);
+    prepare(
+        &mut vm,
+        "namespace eval vendor {}\ninterp alias {} vendor::unpack {} lassign",
+    );
+
+    let changed: Vec<PackFactStamp> = facts(&set)
+        .into_iter()
+        .map(|stamp| PackFactStamp {
+            content_hash: stamp.content_hash ^ 1,
+            ..stamp
+        })
+        .collect();
+    vm.set_pack_facts(changed);
+    let before = plain.get();
+    let invalidated = vm.run_module(&module);
+    assert_eq!(
+        invalidated.code,
+        Code::Ok,
+        "{}",
+        invalidated.result.to_str()
+    );
+    assert_eq!(invalidated.result.to_str().as_ref(), "1 2");
+    assert!(
+        plain.get() > before,
+        "a changed pack: refused, recompiled plain"
+    );
+
+    vm.set_pack_facts(facts(&set));
+    let before = plain.get();
+    let admitted = vm.run_module(&module);
+    assert_eq!(admitted.code, Code::Ok, "{}", admitted.result.to_str());
+    assert_eq!(plain.get(), before, "the set's own facts admit it");
+}
+
+/// Rung 1 on its own: a constant the pack's `const_fold` computed at compile
+/// time claims the pack's facts beside the binding, which is the builtin's
+/// own. A VM holding no facts refuses the unit though the binding matches —
+/// recompiled plain, the builtin answering at run time — and the same VM
+/// holding the set's facts runs the folded constant as compiled.
+#[test]
+fn a_pack_fold_is_admitted_only_under_its_pack_s_facts() {
+    let (set, registry) = bundled_source("fold", FOLD_PACK);
+    let module = compile("set n [llength {a b c}]\nset n\n", &registry);
+    let held = facts(&set);
+    assert_eq!(held.len(), 1, "one pack file: {held:#?}");
+    assert!(
+        module
+            .top_level
+            .command_bindings
+            .contains(&CommandBindingIdentity::new("llength", "llength")),
+        "{:#?}",
+        module.top_level.command_bindings
+    );
+    assert_eq!(
+        module.top_level.site_claims,
+        vec![SiteClaim::PackFacts(held[0].clone())],
+        "{:#?}",
+        module.top_level
+    );
+
+    let mut vm = Vm::new();
+    let plain = PlainCounting::installed_on(&mut vm);
+    let refused = vm.run_module(&module);
+    assert_eq!(refused.code, Code::Ok, "{}", refused.result.to_str());
+    assert_eq!(refused.result.to_str().as_ref(), "3");
+    assert!(plain.get() > 0, "no facts held: refused, recompiled plain");
+
+    vm.set_pack_facts(held);
+    let before = plain.get();
+    let admitted = vm.run_module(&module);
+    assert_eq!(admitted.code, Code::Ok, "{}", admitted.result.to_str());
+    assert_eq!(admitted.result.to_str().as_ref(), "3");
+    assert_eq!(plain.get(), before, "the set's facts admit the fold");
+}
+
+/// The negative: a proc at the pack name is not the builtin, so the VM
+/// refuses the specialised site and recompiles the module plain — the proc
+/// runs, where the specialised `lassign` code would have assigned `1 2` —
+/// even though it holds the pack's facts.
+#[test]
+fn a_proc_at_the_pack_name_recompiles_plain() {
+    let (set, registry) = bundled("proc", "lassign");
+    let module = compile(USE, &registry);
+
+    let mut vm = Vm::new();
+    let plain = PlainCounting::installed_on(&mut vm);
+    vm.set_pack_facts(facts(&set));
     prepare(
         &mut vm,
         "namespace eval vendor {}\n\

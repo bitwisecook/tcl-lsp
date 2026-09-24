@@ -43,6 +43,9 @@ tcl-compiler = { path = "../tcl-compiler" }
 tcl-lexer = { path = "../tcl-lexer" }
 tcl-syntax = { path = "../tcl-syntax" }
 tcl-userdirs = { path = "../tcl-userdirs" }
+# `PackFactStamp` only: the facts an embedder's VM holds for a pack set
+# (`PackSet::fact_stamps`), in the runtime's own vocabulary.
+tcl-runtime-api = { path = "../tcl-runtime-api" }
 rustc-hash = { workspace = true }
 xxhash-rust = { workspace = true }
 
@@ -58,7 +61,6 @@ tcl-test-support = { path = "../tcl-test-support" }
 # `tests/codegen_stamps.rs` compiles against a pack-installed registry and
 # runs the module on the VM, so the identity a stamp records is checked by
 # the VM's own admission rather than asserted about it.
-tcl-runtime-api = { path = "../tcl-runtime-api" }
 tcl-vm = { path = "../tcl-vm" }
 
 [lints]

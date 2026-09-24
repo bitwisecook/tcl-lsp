@@ -62,14 +62,20 @@ slices proceed without deciding anything here.
 > `alias_of` names the shipped builtin carrying it, and every other is
 > dropped with a warning on its row — and the identity codegen records at
 > such a site: the target's (`ResolvedCall::stamp_identity`), which the
-> VM admits through its alias hop.
+> VM admits through its alias hop. A site whose emitted code rests on a
+> pack's facts records them — `SiteClaim::PackFacts` for a constant a
+> pack's `const_fold` computed, `SiteClaim::BuiltinAlias` for a binding
+> reached through `alias_of`, each carrying the pack's `PackFactStamp`
+> (`tcl_runtime_api`) in `FunctionAsm::site_claims` — and the VM admits
+> the unit only while it holds that stamp (`Vm::set_pack_facts`).
 >
 > The rest of the vocabulary is proposed and names nothing in the
 > workspace:
 >
-> - **Identity and backing** — `SiteClaim`, `PackFactStamp`,
->   `RuntimeBacking` with the `runtime_backing` field, `BodySource`,
->   `IdentityKind`, `CodegenCapability`, and `ArtefactIdentityManifest`.
+> - **Identity and backing** — the `ReferenceBody` and
+>   `ShippedImplementation` claims, `RuntimeBacking` with the
+>   `runtime_backing` field, `BodySource`, `IdentityKind`,
+>   `CodegenCapability`, and `ArtefactIdentityManifest`.
 > - **Packages** — `SpecDirective`, `DependencyTier`, and the `tcl spec
 >   test` verb.
 >
@@ -1446,19 +1452,24 @@ error.
   through `register_spec_builtin` in `runtime/rust/src/cmd_string.rs`) and
   `execute_intrinsic` implements one of the 28 `IntrinsicId` members. Its
   guard resolves through `CommandRegistry::build_default()` with no pack
-  overlay. Emitted modules carry no identity: no ABI version, no dialect
-  pin, no registry generation, no pack hashes.
+  overlay. Its emitted modules carry no identity: no ABI version, no
+  dialect pin, no registry generation, no pack hashes.
 - A pack's `codegen_hook`, `inline_codegen_hook`, and `semantic_operation
   {Intrinsic …}` stamps survive the load only as a bundled pack's
   `alias_of` target's own, and are dropped with a warning naming the
   provenance and the target everywhere else (§ *The loader's stamp
   rejection rule*, `rust/tcl-spectcl/src/stamps.rs`); the refused stamp
-  under the tier gate is that section's first witness. Every production VM
-  embedder compiles through the un-overlaid profile generation, so an
-  admitted stamp is inert there. On the language server's optimise path the
-  emitter specialises it and records the alias target's identity, which the
-  VM's alias hop resolves — the second witness
-  (`rust/tcl-spectcl/tests/codegen_stamps.rs`; rung 2 below).
+  under the tier gate is that section's first witness. No production VM
+  runs code compiled against a pack: the `tclvm` engine compiles through
+  `build_default` and the debugger through the profile's shared
+  generation, `tcl compile` and the Explorer compile against the
+  discovered set and run nothing, and the language server compiles no
+  bytecode — its optimise path is the source-to-source optimiser. So an
+  admitted stamp is inert in production, and the second witness compiles
+  one directly: the emitter specialises it and records the alias target's
+  identity and the pack facts behind it, which the VM's alias hop and its
+  held facts admit (`rust/tcl-spectcl/tests/codegen_stamps.rs`; rungs 1
+  and 2 below).
 - The BPF backend is a third closed catalogue (`bpf_op`) with no id table
   for packs to resolve against (the redesign's § *11.2 Deferred model
   items*, D3), and the engine interface excludes it by rule; it joins the
@@ -1496,8 +1507,8 @@ and lifetime argument.
 | Rung | The pack states | Attestation at admission | State |
 |---|---|---|---|
 | 0 | arity and roles | none needed; generic dispatch | exists, sound |
-| 1 | purity, effects, types, transfers, evaluators | none possible at run time; the fact is authoritative for analysis by ruling; what emitted code can check is the binding | evaluators exist; the answer protocol does not |
-| 2 | this command is a shipped builtin | the live binding is that builtin | `alias_of` decides which codegen stamps a bundled pack keeps, and codegen records the target's identity; no site claim yet |
+| 1 | purity, effects, types, transfers, evaluators | none possible at run time; the fact is authoritative for analysis by ruling; what emitted code can check is the binding, and the pack facts it was compiled under | evaluators exist; the answer protocol does not; a constant a pack's `const_fold` computed claims the pack's facts, checked at admission |
+| 2 | this command is a shipped builtin | the live binding is that builtin | `alias_of` decides which codegen stamps a bundled pack keeps, and codegen records the target's identity and claims the pack's facts, checked at admission |
 | 3 | a reference Tcl body | exact definition match of the live proc | the admission seam exists; no spec field |
 | 4 | a runtime implementation ships with the package | the runtime reports what it loaded; the artefact pins it | no `runtime_backing` field, no bundler |
 
@@ -1530,14 +1541,27 @@ flowchart LR
 ### What the artefact records per rung
 
 One claim per specialised site, and the rung is the variant. Rung 0
-records nothing because there is nothing a generic dispatch can get wrong.
+records nothing because there is nothing a generic dispatch can get wrong:
+a unit with no claims is the rung-0 case, and no variant stands for it.
+
+Rungs 1 and 2 are built (step 4). `SiteClaim` and `PackFactStamp` live in
+`rust/tcl-runtime-api/src/site_claim.rs`, and `FunctionAsm::site_claims`
+carries a function's claims beside its `command_bindings`. Codegen records
+`PackFacts` where a spec an installed pack supplied answered a constant
+fold (`rust/tcl-compiler/src/const_subst.rs`), and `BuiltinAlias` where a
+binding's identity came through `alias_of` (`ResolvedCall::stamp_identity`
+answered the target). `rust/tcl-compiler/src/site_claims.rs` builds both
+from the origin the installer records beside each spec it inserts
+(`CommandRegistry::pack_origin`, `rust/tcl-registry/src/pack_origin.rs`),
+the registry's overlay generation, and the compiling thread's evaluator
+revision. Rungs 3 and 4's variants are steps 8's and 7's.
 
 ```rust,ignore
-/// Proposed. What a specialised site carries in the artefact.
+/// What a specialised site carries in the artefact. Rungs 1 and 2 are
+/// built; rungs 3 and 4 are proposed.
 enum SiteClaim {
-    /// Rung 0. Generic dispatch; no claim, no admission check.
-    Generic,
-    /// Rung 1. The pack facts this site's specialisation rests on.
+    /// Rung 1. The pack facts this site's specialisation rests on — a
+    /// constant a pack's `const_fold` computed at compile time.
     PackFacts(PackFactStamp),
     /// Rung 2. The command the pack said this is, as the identity the
     /// VM's alias hop resolves — the *target's* identity, never the pack
@@ -1546,15 +1570,15 @@ enum SiteClaim {
         binding: CommandBindingIdentity,
         facts: PackFactStamp,
     },
-    /// Rung 3. A reference Tcl body, plus the backing that says a proc is
-    /// the right thing to compare against at all.
+    /// Proposed. Rung 3. A reference Tcl body, plus the backing that says
+    /// a proc is the right thing to compare against at all.
     ReferenceBody {
         procedure: ProcedureBindingIdentity,
         backing: RuntimeBacking,
         facts: PackFactStamp,
     },
-    /// Rung 4. A shipped implementation, and the identity kind codegen
-    /// chose from the backing.
+    /// Proposed. Rung 4. A shipped implementation, and the identity kind
+    /// codegen chose from the backing.
     ShippedImplementation {
         backing: RuntimeBacking,
         identity: IdentityKind,
@@ -1563,13 +1587,16 @@ enum SiteClaim {
 }
 
 /// Which pack facts a site rests on, so a changed pack invalidates the
-/// artefact rather than silently changing its meaning.
+/// artefact rather than silently changing its meaning. Built.
 struct PackFactStamp {
     /// The pack's name as `PackSet` holds it.
     pack: String,
-    /// The pack's content hash — the same value `EvalSnapshotKey` interns.
-    content_hash: [u8; 32],
-    /// `speclib`'s version word, so a vocabulary meaning change
+    /// The content hash of the pack file that declared the command — the
+    /// `u64` xxh3 its `EvalSnapshotKey` interns, folded with the hash of
+    /// every file an `include` row brought in.
+    content_hash: u64,
+    /// The loader's vocabulary version (`VOCABULARY_VERSION`, which the
+    /// snapshot key interns too), so a change in what a word means
     /// invalidates even at an unchanged content hash.
     vocabulary_version: String,
     /// The registry overlay generation the site compiled under.
@@ -1629,10 +1656,16 @@ otherwise.
 | Rung | Checked at admission | By | Refused when |
 |---|---|---|---|
 | 0 | nothing | — | never |
-| 1 | the stamp's content hash, vocabulary version, and overlay generation equal the loaded pack's; the evaluator revision equals the installed one | the VM's admission path, against the pinned generation | a pack changed, an overlay changed, or a revision moved |
-| 2 | `command_binding_matches` re-resolves the recorded identity, follows one prefix-free alias hop, and accepts a `Command::Builtin` whose identity matches or a registry TclOO root | `rust/tcl-vm/src/interp.rs` | a proc, a host command, an ensemble, a shimmed C command, or any execution trace |
+| 1 | every claim's `PackFactStamp` is one the VM holds, compared whole: pack, content hash, vocabulary version, overlay generation, and evaluator revision | the admission check in `rust/tcl-vm/src/interp.rs` (`function_command_bindings_match`), against the facts the embedder set with `Vm::set_pack_facts` — `PackSet::fact_stamps` for the set its registry installs | a pack changed, an overlay changed, a revision moved, or the VM holds no facts for the pack |
+| 2 | `command_binding_matches` re-resolves the recorded identity, follows one prefix-free alias hop, and accepts a `Command::Builtin` whose identity matches or a registry TclOO root; the claim's stamp is held, as for rung 1 | `rust/tcl-vm/src/interp.rs` | a proc, a host command, an ensemble, a shimmed C command, any execution trace, or a changed pack |
 | 3 | `procedure_binding_matches` compares creation name, parameters, and body text against the live proc, *and* the backing is `TclBody` | `rust/tcl-vm/src/interp.rs` plus the backing query | the body differs, or the backing is `ShippedBuiltin`, `HostNative`, or `None` — a proc is then a model of a C command, not the command |
 | 4 | the runtime's loaded report equals the claimed backing, and the artefact's manifest matches the runtime's own context pin | the runtime's backing query and `ArtefactIdentityManifest` | the report names a different backing, or the manifest disagrees on ABI version, environment, release, packs, or the intrinsic-table hash |
+
+Rungs 1 and 2's checks are built (step 4). `Vm::set_pack_facts` replaces
+the facts a VM holds and advances its compilation-deopt epoch, so a unit
+admitted under the old facts is checked again at its next entry or
+source-command boundary. A VM that holds none admits exactly the units that
+claim nothing, which is every unit compiled without a pack.
 
 Rung 3's extra conjunct is the one that is easy to lose: an exact body
 match is a true statement about a proc and says nothing about whether the
@@ -1684,8 +1717,8 @@ Rules 1 to 3 are built (step 4); rule 4 is step 6's.
 
 - **Rung 1** is where analysis facts live, and the analyser needs nothing
   from this page to use them. For *emitted code* the artefact records
-  `PackFactStamp`, so a changed pack invalidates the artefact rather than
-  silently changing its meaning. The floor
+  `PackFactStamp` (`SiteClaim::PackFacts`, built), so a changed pack
+  invalidates the artefact rather than silently changing its meaning. The floor
   (`rust/tcl-registry/src/security_floor.rs`) is a codegen-axis contract
   about which stamps may change emitted code, not a trust gate on analysis
   facts, and § *The loader's stamp rejection rule* above is what widens it.
@@ -1701,7 +1734,8 @@ Rules 1 to 3 are built (step 4); rule 4 is step 6's.
   answers the target exactly where the target's own spec carries the stamp
   at the same site, and `registry_codegen_hook`
   (`rust/tcl-compiler/src/codegen/emitter/bytecoded.rs`) and the inline path
-  (`codegen/cmd_subst.rs`) record it. Only there: an `-override` keeps a
+  (`codegen/cmd_subst.rs`) record it, claiming beside it the pack facts
+  that made the target admissible (`SiteClaim::BuiltinAlias`). Only there: an `-override` keeps a
   shipped command's codegen hook through the floor whatever `alias_of` it
   declares, and recording an unrelated target would let a runtime alias of
   the builtin's name to that target admit the builtin's code for another
@@ -2064,7 +2098,8 @@ and come before any runtime guard work.
 - `rust/tcl-compiler/src/dynamic_names.rs`, `analyser/diagnostics/security.rs` — the substitution barrier and W102
 - `rust/tcl-compiler/src/codegen/emitter/bytecoded.rs`, `codegen/cmd_subst.rs`, `codegen/statements.rs`, `codegen/values.rs` — the typed hook dispatch and the residual by-name sites
 - `rust/tcl-compiler/src/realm.rs`, `command_binding.rs` — alias knowledge and binding validity
-- `rust/tcl-runtime-api/src/lib.rs`, `guard.rs`, `codegen_abi.rs` — `CommandBindingIdentity`, `ProcedureBindingIdentity`, `GuardIdentity`, the ABI descriptor table
+- `rust/tcl-runtime-api/src/lib.rs`, `guard.rs`, `codegen_abi.rs`, `site_claim.rs` — `CommandBindingIdentity`, `ProcedureBindingIdentity`, `GuardIdentity`, the ABI descriptor table, `SiteClaim` and `PackFactStamp`
+- `rust/tcl-compiler/src/site_claims.rs`, `rust/tcl-registry/src/pack_origin.rs`, `codegen_stamp.rs` — the claims codegen records, the pack origin they are built from, and the one "same stamp, same site" predicate
 - `rust/tcl-vm/src/interp.rs`, `exec.rs`, `command.rs`, `cmd_string.rs`, `environment.rs` — `command_binding_matches`, `procedure_binding_matches`, `guarded_commands`, `bump_cmd_epoch`, registration, the pin
 - `runtime/rust/src/interp.rs`, `codegen_abi.rs`, `cmd_string.rs`, `builtins.rs`, `capi.rs` — the WASM runtime's guard table, `execute_intrinsic`, `register_spec_builtin`, `invalidate_command_environment`, and the C surface
 - `rust/tcl-spectcl/src/loader.rs`, `loader/eval.rs`, `loader/environment_block.rs`, `discovery.rs`, `install.rs` — what a pack may write, tier to provenance, discovery, and the floor's application
@@ -2094,7 +2129,8 @@ and come before any runtime guard work.
 - `rust/tcl-lsp-server/tests/preview_tickets_e2e.rs` — the definer spelling that reaches every provider with no consumer edit
 - `rust/tcl-cshim/tests/pkga_e2e.rs` — the byte-for-byte expectations captured against Tcl 9.0.4's own `tcl.h`, the shared conformance vectors for both C legs
 - `rust/tcl-spectcl/tests/i6_security_floor.rs` — the floor the take-shipped extension widens
-- `rust/tcl-spectcl/tests/workspace_packs.rs`, `codegen_stamps.rs` — the stamp rejection rule's two witnesses: a refused stamp under the tier gate, and a bundled `alias_of` stamp whose recorded target identity the VM admits through its alias hop (refused for a proc at the pack name)
+- `rust/tcl-spectcl/tests/workspace_packs.rs`, `codegen_stamps.rs` — the stamp rejection rule's two witnesses: a refused stamp under the tier gate, and a bundled `alias_of` stamp whose recorded target identity the VM admits through its alias hop (refused for a proc at the pack name); and the claims' admission: a changed pack refuses the site, and a pack's fold is admitted only under its facts
+- `rust/tcl-vm/tests/command_mutation_deopt_e2e.rs` — `a_rung_zero_module_is_admitted_under_a_changed_pack_set`, the claims check's rung-0 floor
 
 ## Related docs
 

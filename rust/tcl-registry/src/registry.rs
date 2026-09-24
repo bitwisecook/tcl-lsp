@@ -645,6 +645,11 @@ pub struct CommandRegistry {
     /// The workspace pack overlay this registry was built with
     /// ([`crate::registry_for_profile_with_overlay`]), when it was one.
     overlay: Option<u64>,
+    /// The spec pack each installed pack command came from, keyed by the
+    /// installed spec's address ([`Self::pack_origin`]). Every spec the
+    /// registry indexes is `&'static` and never freed, so an address names
+    /// one spec for the life of the process.
+    pack_origins: FxHashMap<usize, crate::pack_origin::PackOrigin>,
     /// This registry's generation: a number no other registry, and no
     /// earlier state of this one, has had. Every mutation draws a new one,
     /// so a memo keyed by it names exactly the command surface it resolved
@@ -1502,6 +1507,7 @@ impl CommandRegistry {
             document_grammar: None,
             effective_semantics: OnceLock::new(),
             overlay: None,
+            pack_origins: FxHashMap::default(),
             generation: next_registry_generation(),
         };
         for spec in tcl_specs() {
@@ -1719,6 +1725,10 @@ impl CommandRegistry {
             }
         }
         projected.overlay_specs.clone_from(&self.overlay_specs);
+        // The same authored world, projected: its overlay generation and the
+        // pack each authored spec came from travel with the specs themselves.
+        projected.overlay = self.overlay;
+        projected.pack_origins.clone_from(&self.pack_origins);
         projected.invalidate_effective_semantics();
         projected
     }
@@ -1780,6 +1790,25 @@ impl CommandRegistry {
         self.by_name.entry(spec.name).or_default().push(spec);
         self.overlay_specs.push(spec);
         self.invalidate_effective_semantics();
+    }
+
+    /// Record that the installed `spec` came from a spec pack — the facts a
+    /// site specialised on it stamps ([`Self::pack_origin`]). The installer
+    /// calls this for each pack command it inserts.
+    pub fn insert_pack_origin(
+        &mut self,
+        spec: &'static CommandSpec,
+        origin: crate::pack_origin::PackOrigin,
+    ) {
+        self.pack_origins
+            .insert(std::ptr::from_ref(spec).addr(), origin);
+    }
+
+    /// The spec pack `spec` was installed from, or `None` for a shipped spec
+    /// and for one an embedder inserted itself.
+    #[must_use]
+    pub fn pack_origin(&self, spec: &CommandSpec) -> Option<&crate::pack_origin::PackOrigin> {
+        self.pack_origins.get(&std::ptr::from_ref(spec).addr())
     }
 
     /// Index one row from the compiled-in command universe without recording
@@ -6273,6 +6302,7 @@ impl std::fmt::Debug for CommandRegistry {
                 &self.effective_semantics.get().is_some(),
             )
             .field("overlay", &self.overlay)
+            .field("pack_origins", &self.pack_origins.len())
             .field("generation", &self.generation)
             .finish()
     }

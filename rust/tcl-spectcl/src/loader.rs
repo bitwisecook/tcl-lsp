@@ -873,6 +873,12 @@ pub struct PackCommand {
     /// during the merge, so every command in a [`crate::MergedPack`] carries
     /// exact `(file, line)` attribution even when the pack spans many files.
     pub file: std::path::PathBuf,
+    /// The content hash of the source the command was declared in: the xxh3
+    /// of the pack file's bytes — the value its [`EvalSnapshotKey`] interns —
+    /// folded with every fragment an `include` row brought in, so an edit
+    /// to either moves it. The pack-fact stamp a specialised site records
+    /// is built from it.
+    pub content_hash: u64,
 }
 
 /// A loaded `.tclspec` pack.
@@ -5882,6 +5888,9 @@ fn command_from_parts(
             degraded: log.assistance_unknown,
             line,
             file: std::path::PathBuf::new(),
+            // Set for every command once the whole evaluation is known
+            // (`evaluate_pack_in`), which is the only place the bytes are.
+            content_hash: 0,
         })
     })
 }

@@ -272,6 +272,33 @@ impl PackSet {
         self.notices.iter().filter(move |n| n.path == path)
     }
 
+    /// The pack facts a VM holds while it runs code compiled against this
+    /// set's installed registry (`tcl_vm::Vm::set_pack_facts`): one stamp
+    /// for each pack file whose commands the set installs, under the set's
+    /// key (the registry's overlay generation) and `evaluator_revision` —
+    /// the revision the compiling thread's sites recorded
+    /// (`tcl_compiler::site_claims::evaluator_revision`). A site whose claim
+    /// is not among them is refused, so a changed pack turns its sites plain.
+    #[must_use]
+    pub fn fact_stamps(&self, evaluator_revision: u64) -> Vec<tcl_runtime_api::PackFactStamp> {
+        let mut stamps: Vec<tcl_runtime_api::PackFactStamp> = self
+            .packs
+            .iter()
+            .flat_map(|pack| {
+                pack.commands.iter().map(move |command| {
+                    tcl_compiler::site_claims::pack_fact_stamp(
+                        &crate::install::pack_origin(pack, command),
+                        self.key,
+                        evaluator_revision,
+                    )
+                })
+            })
+            .collect();
+        stamps.sort();
+        stamps.dedup();
+        stamps
+    }
+
     /// Every `(extension, dialect)` routing pair the set's packs declare —
     /// the rows with a `-dialect`, deduplicated first-pack-wins in the
     /// set's (name-sorted) pack order.

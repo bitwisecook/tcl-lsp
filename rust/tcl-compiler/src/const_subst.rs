@@ -110,6 +110,10 @@ pub struct ResolvedConstSubst {
     pub value: String,
     /// Exact source spelling → registry implementation dependencies.
     pub command_bindings: Vec<CommandBindingIdentity>,
+    /// The spec-pack facts the fold rests on: one rung-1 claim for each
+    /// folding spec a pack supplied ([`crate::site_claims::pack_facts_claim`]),
+    /// nested folds included.
+    pub site_claims: Vec<tcl_runtime_api::SiteClaim>,
     /// Registry-declared return type of the outer invocation.
     pub return_type: Option<TclType>,
 }
@@ -136,7 +140,8 @@ impl ConstSubstCtx<'_> {
         if depth > MAX_CONST_SUBST_DEPTH {
             return None;
         }
-        let (words, mut command_bindings) = self.literal_words_at_depth(inner, depth)?;
+        let (words, mut command_bindings, mut site_claims) =
+            self.literal_words_at_depth(inner, depth)?;
         let (head, rest) = words.split_first()?;
         if !(self.trusts)(head) {
             return None;
@@ -159,9 +164,11 @@ impl ConstSubstCtx<'_> {
                 head,
                 spec.name,
             ));
+            site_claims.extend(crate::site_claims::pack_facts_claim(self.registry, spec));
             return Some(ResolvedConstSubst {
                 value: folded,
                 command_bindings,
+                site_claims,
                 return_type: spec.return_type_for_call(&arg_refs),
             });
         }
@@ -180,9 +187,13 @@ impl ConstSubstCtx<'_> {
             head,
             spec.name,
         ));
+        // A pack-supplied spec answered at compile time: the constant rests
+        // on that pack's facts, so the site claims them (rung 1).
+        site_claims.extend(crate::site_claims::pack_facts_claim(self.registry, spec));
         Some(ResolvedConstSubst {
             value: folded,
             command_bindings,
+            site_claims,
             return_type: spec.return_type_for_call(&arg_refs),
         })
     }
@@ -201,14 +212,18 @@ impl ConstSubstCtx<'_> {
     #[must_use]
     pub fn literal_words(&self, inner: &str) -> Option<Vec<String>> {
         self.literal_words_at_depth(inner, 0)
-            .map(|(words, _)| words)
+            .map(|(words, _, _)| words)
     }
 
     fn literal_words_at_depth(
         &self,
         inner: &str,
         depth: u32,
-    ) -> Option<(Vec<String>, Vec<CommandBindingIdentity>)> {
+    ) -> Option<(
+        Vec<String>,
+        Vec<CommandBindingIdentity>,
+        Vec<tcl_runtime_api::SiteClaim>,
+    )> {
         use tcl_lexer::{Lexer, LexerConfig, SourceMap, TokenType};
 
         // Re-split the substitution under the selected registry profile, so
@@ -221,6 +236,7 @@ impl ConstSubstCtx<'_> {
         let tokens = Lexer::with_config(inner, config).tokenise_all().ok()?;
         let mut words: Vec<String> = Vec::new();
         let mut command_bindings = Vec::new();
+        let mut site_claims = Vec::new();
         let mut prev_is_sep = true;
         for tok in &tokens {
             match tok.kind {
@@ -276,13 +292,14 @@ impl ConstSubstCtx<'_> {
                     let folded = self.fold_at_depth(nested, depth + 1)?;
                     words.push(folded.value);
                     command_bindings.extend(folded.command_bindings);
+                    site_claims.extend(folded.site_claims);
                     prev_is_sep = false;
                 }
                 // `{*}$x`-style expansion is substitution-bearing → bail.
                 TokenType::Expand => return None,
             }
         }
-        Some((words, command_bindings))
+        Some((words, command_bindings, site_claims))
     }
 }
 

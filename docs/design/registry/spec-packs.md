@@ -929,7 +929,13 @@ publishes a warning on the command's row naming the provenance and the
 `alias_of` the stamp would have had to sit on; the command keeps every
 other fact it declared
 ([../compiler/registry-consumer-contracts.md](../compiler/registry-consumer-contracts.md)
-§ *The loader's stamp rejection rule*).
+§ *The loader's stamp rejection rule*). Bytecode specialised through an
+admitted stamp, or folded to a constant by a pack's `const_fold`, records
+the pack's name, content hash and vocabulary version with the overlay
+generation it compiled under, and the VM runs it only while it holds the
+same facts: an edited pack turns such a site back to ordinary dispatch
+rather than changing what it computes (§ *What the artefact records per
+rung* there).
 
 The `world_effects` block rows stay documented vocabulary the loader does
 not read, a library-defined completion code scoped to one command's body

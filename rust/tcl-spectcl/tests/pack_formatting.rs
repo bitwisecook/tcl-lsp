@@ -32,7 +32,7 @@
 //! examples): format each one, load both spellings, and require the loaded
 //! packs to agree.
 //!
-//! Two differences are legitimate and are normalised away rather than
+//! Three differences are legitimate and are normalised away rather than
 //! asserted against:
 //!
 //! * **Declaration lines move.** The formatter removes a blank line and
@@ -45,6 +45,10 @@
 //!   is exactly what the formatter is for, and none of it changes what the
 //!   body does. The body *text* is therefore exempt; that a hook is still
 //!   declared, on the same field, with the same parameter list, is not.
+//! * **The content hash moves.** Each command carries the hash of the bytes
+//!   it was declared in — the value the pack's snapshot key and a
+//!   specialised site's pack-fact stamp read — and formatting rewrites those
+//!   bytes by definition, exactly as it moves the snapshot key.
 //!
 //! Everything else — every property, every trait, every prose field, every
 //! arity — must survive untouched.
@@ -93,12 +97,16 @@ fn loaded(path: &Path, source: &str) -> Vec<String> {
     normalise(&format!("{:#?}", set.packs))
 }
 
-/// Erase the two differences formatting is *allowed* to make (see the module
-/// docs): a declaration's line number, and the whitespace inside a hook body.
+/// Erase the three differences formatting is *allowed* to make (see the
+/// module docs): a declaration's line number, the whitespace inside a hook
+/// body, and the content hash of the rewritten bytes.
 fn normalise(dump: &str) -> Vec<String> {
     dump.lines()
         .map(|line| {
             let trimmed = line.trim_start();
+            if trimmed.starts_with("content_hash: ") {
+                return "content_hash: <rehashed>".to_owned();
+            }
             if let Some(rest) = trimmed.strip_prefix("line: ") {
                 return format!(
                     "line: <moved>{}",

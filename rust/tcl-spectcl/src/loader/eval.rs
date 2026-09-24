@@ -184,7 +184,7 @@ pub struct EvalSnapshotKey {
 #[must_use]
 pub fn eval_snapshot_key(source: &str, options: &EvalOptions) -> EvalSnapshotKey {
     EvalSnapshotKey {
-        content_hash: xxhash_rust::xxh3::xxh3_64(source.as_bytes()),
+        content_hash: content_hash(source),
         vocabulary: crate::VOCABULARY_VERSION,
         loader_eval_version: LOADER_EVAL_VERSION,
         tier: options.tier,
@@ -703,6 +703,10 @@ struct State {
     /// Content hashes on the current inclusion path, the root source
     /// first — the determinism contract's cycle key.
     include_stack: Vec<u64>,
+    /// The content hash of every fragment an `include` row evaluated, in
+    /// inclusion order — what the commands' content hash folds in beside
+    /// the root file's own ([`pack_content_hash`]).
+    included: Vec<u64>,
     /// Whether an included fragment is currently being evaluated: the
     /// verbatim index describes the *root* file, so line-keyed lookups
     /// must not fire inside an included one.
@@ -1331,7 +1335,7 @@ fn stage_include(
         }
     };
     let text = text.strip_prefix('\u{feff}').unwrap_or(&text).to_owned();
-    let hash = xxhash_rust::xxh3::xxh3_64(text.as_bytes());
+    let hash = content_hash(&text);
     {
         let mut st = state.borrow_mut();
         if st.include_stack.contains(&hash) {
@@ -1362,6 +1366,7 @@ fn stage_include(
             return Ok(());
         }
         st.include_stack.push(hash);
+        st.included.push(hash);
         st.base_lines.push(1);
     }
     let was_in_include = {
@@ -1644,6 +1649,9 @@ pub fn evaluate_pack_in(
     options: &EvalOptions,
     include: Option<Rc<super::IncludeContext>>,
 ) -> Pack {
+    // The file's own content hash, taken before the prologue is stripped:
+    // the value its snapshot key interns (`eval_snapshot_key`).
+    let root = content_hash(source);
     // The file entry point treats a leading byte-order mark as a prologue,
     // exactly as `pack_statements` does.
     let source = source.strip_prefix('\u{feff}').unwrap_or(source);
@@ -1658,7 +1666,8 @@ pub fn evaluate_pack_in(
     if options.static_fast_path
         && let Some(state) = drive_file_statically(source, include.clone())
     {
-        return replay(state, options);
+        let hash = pack_content_hash(root, &state.included);
+        return with_content_hash(replay(state, options), hash);
     }
 
     let state = new_state(source, include);
@@ -1687,9 +1696,41 @@ pub fn evaluate_pack_in(
         .unwrap_or_default();
 
     match outcome {
-        Ok(()) => replay(state, options),
+        Ok(()) => {
+            let hash = pack_content_hash(root, &state.included);
+            with_content_hash(replay(state, options), hash)
+        }
         Err(failure) => failed_pack(&state, &failure),
     }
+}
+
+/// xxh3 of a pack source's bytes — the one hashing rule the snapshot key,
+/// the include-cycle key, and a pack-fact stamp all use.
+#[must_use]
+pub(crate) fn content_hash(source: &str) -> u64 {
+    xxhash_rust::xxh3::xxh3_64(source.as_bytes())
+}
+
+/// The content hash a pack's commands carry: the root file's own when it
+/// included nothing, otherwise one xxh3 over the root's hash and each
+/// included fragment's in inclusion order, so an edit to an included file
+/// moves it too.
+fn pack_content_hash(root: u64, included: &[u64]) -> u64 {
+    if included.is_empty() {
+        return root;
+    }
+    let bytes: Vec<u8> = std::iter::once(root)
+        .chain(included.iter().copied())
+        .flat_map(u64::to_le_bytes)
+        .collect();
+    xxhash_rust::xxh3::xxh3_64(&bytes)
+}
+
+fn with_content_hash(mut pack: Pack, hash: u64) -> Pack {
+    for command in &mut pack.commands {
+        command.content_hash = hash;
+    }
+    pack
 }
 
 /// The staging state one load starts from.
@@ -1699,7 +1740,7 @@ fn new_state(source: &str, include: Option<Rc<super::IncludeContext>>) -> Rc<Ref
         let mut st = state.borrow_mut();
         st.verbatim = VerbatimIndex::of(source);
         st.include = include;
-        st.include_stack = vec![xxhash_rust::xxh3::xxh3_64(source.as_bytes())];
+        st.include_stack = vec![content_hash(source)];
     }
     state
 }

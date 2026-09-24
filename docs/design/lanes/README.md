@@ -101,6 +101,7 @@ checkpoint compiling.
   2–10*, is in progress item by item in the tracking document's § *Step
   4 — progress*: CC4.1 (`alias_of` as a `CommandSpec` field), CC4.2
   (the loader's stamp rejection rule: a codegen-axis stamp survives only
-  as a bundled pack's `alias_of` target's own) and CC4.3 (codegen records
-  that target's identity, which the VM admits through its alias hop) have
-  landed.
+  as a bundled pack's `alias_of` target's own), CC4.3 (codegen records
+  that target's identity, which the VM admits through its alias hop) and
+  CC4.4 (a site resting on a pack's facts claims them, and the VM admits
+  it only while it holds the same facts) have landed.

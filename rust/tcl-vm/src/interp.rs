@@ -1131,6 +1131,10 @@ pub struct InterpState {
     // (stateless) compile service, so these are `Rc` rather than owned.
     out: Rc<RefCell<Box<dyn Write>>>,
     compiler: Option<Rc<dyn CompileService<Module = ModuleAsm>>>,
+    /// The spec-pack facts this VM runs under ([`Vm::set_pack_facts`]): a
+    /// unit whose site claims a stamp not among them is not admitted.
+    /// Empty — the default — admits exactly the units that claim nothing.
+    pack_facts: Vec<tcl_runtime_api::PackFactStamp>,
     /// Optional debug hook fired once per source command (the execution-control
     /// seam a step debugger drives). `None` in normal runs — the only
     /// per-instruction cost is an `Option` check.
@@ -2093,6 +2097,7 @@ impl InterpState {
             ns_script_frames: Vec::new(),
             out,
             compiler: None,
+            pack_facts: Vec::new(),
             debug_hook: None,
             line_watch: None,
             last_debug_key: None,
@@ -4577,6 +4582,31 @@ impl Vm {
                 .procedure_bindings
                 .iter()
                 .all(|binding| self.procedure_binding_matches(binding))
+            && self.site_claims_hold(asm)
+    }
+
+    /// The rung-1 check: every spec-pack claim `asm`'s sites make stamps
+    /// facts this VM holds — the same pack, content hash, vocabulary
+    /// version, overlay generation and evaluator revision. A unit that
+    /// claims nothing, as every unit compiled without a pack does, holds
+    /// trivially.
+    fn site_claims_hold(&self, asm: &FunctionAsm) -> bool {
+        asm.site_claims
+            .iter()
+            .all(|claim| self.pack_facts.contains(claim.facts()))
+    }
+
+    /// Run under the facts of the spec-pack set code is compiled against —
+    /// one [`tcl_runtime_api::PackFactStamp`] per pack file the set installs
+    /// (`tcl_spectcl::PackSet::fact_stamps`). A compiled unit is admitted
+    /// only when every site claim it carries stamps one of them; anything
+    /// else is plain dispatch when the unit has source and a compile service
+    /// is installed, and an admission error otherwise. Replacing the facts
+    /// advances the compilation-deopt epoch, so a unit admitted under the
+    /// old facts is checked again at its next entry.
+    pub fn set_pack_facts(&mut self, stamps: Vec<tcl_runtime_api::PackFactStamp>) {
+        self.pack_facts = stamps;
+        self.bump_trace_deopt_epoch();
     }
 
     /// Whether a compiler-inlined user-procedure body still belongs to the

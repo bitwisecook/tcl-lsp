@@ -374,6 +374,7 @@ mod tests {
             degraded: false,
             line: 3,
             file: std::path::PathBuf::new(),
+            content_hash: 0,
         }
     }
 

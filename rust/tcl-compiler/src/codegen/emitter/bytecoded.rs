@@ -31,10 +31,10 @@ use tcl_registry::hooks::CodegenHookId;
 
 use crate::ir::CommandTokens;
 
-use super::super::CodegenCtx;
 use super::super::Op;
 use super::super::Operand;
 use super::super::values::{is_qualified, split_array_ref};
+use super::super::{CodegenCtx, SiteBinding};
 use super::super::{INDEX_END, bytecode_imm, parse_tcl_index};
 
 /// Try to emit specialised bytecode for `cmd args...` via a typed registry
@@ -63,10 +63,10 @@ pub fn try_bytecoded_with_tokens(
     tokens: Option<&CommandTokens>,
     used_generic_invoke: &mut bool,
 ) -> bool {
-    if let Some((hook, identity)) = resolved_codegen_hook(ctx, cmd, args) {
+    if let Some((hook, site)) = resolved_codegen_hook(ctx, cmd, args) {
         let emitted = dispatch_codegen_hook(hook, ctx, args, used_generic_invoke);
         if emitted {
-            ctx.require_command_binding(&identity);
+            ctx.require_site_binding(&site);
             return true;
         }
     }
@@ -83,7 +83,7 @@ fn resolved_codegen_hook(
     ctx: &CodegenCtx,
     cmd: &str,
     args: &[String],
-) -> Option<(CodegenHookId, tcl_runtime_api::CommandBindingIdentity)> {
+) -> Option<(CodegenHookId, SiteBinding)> {
     if ctx.plain_command_dispatch {
         return None;
     }
@@ -102,7 +102,7 @@ fn registry_codegen_hook(
     ctx: &CodegenCtx,
     cmd: &str,
     args: &[String],
-) -> Option<(CodegenHookId, tcl_runtime_api::CommandBindingIdentity)> {
+) -> Option<(CodegenHookId, SiteBinding)> {
     let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
     // The registry's own point: a
     // profile-built registry suppresses the specialised emission of a
@@ -115,16 +115,14 @@ fn registry_codegen_hook(
     // The builtin a pack command is, when the hook is that builtin's own
     // (`alias_of`, the one admissible source): the VM's alias hop resolves
     // the pack name to the target, so recording the target is what lets the
-    // specialised site be admitted at all. Everything else records its own
-    // name.
-    let identity = ctx.command_binding_identity(
+    // specialised site be admitted at all, and the pack facts behind the
+    // claim travel with it. Everything else records its own name.
+    let site = ctx.stamped_binding(
         cmd,
-        resolved.stamp_identity(
-            ctx.registry,
-            tcl_registry::codegen_stamp::CodegenStamp::Codegen(hook),
-        ),
+        &resolved,
+        tcl_registry::codegen_stamp::CodegenStamp::Codegen(hook),
     );
-    Some((hook, identity))
+    Some((hook, site))
 }
 
 /// Binding assumed when this exact command shape would use a typed bytecode
@@ -139,11 +137,11 @@ pub(crate) fn applicable_codegen_binding(
     ctx: &CodegenCtx,
     cmd: &str,
     args: &[String],
-) -> Option<tcl_runtime_api::CommandBindingIdentity> {
+) -> Option<SiteBinding> {
     if ctx.plain_command_dispatch {
         return None;
     }
-    let (hook, identity) = registry_codegen_hook(ctx, cmd, args)?;
+    let (hook, site) = registry_codegen_hook(ctx, cmd, args)?;
     let mut probe = CodegenCtx::new(ctx.is_proc, &[], ctx.registry);
     probe.numbers = ctx.numbers;
     probe.escapes = ctx.escapes;
@@ -151,7 +149,7 @@ pub(crate) fn applicable_codegen_binding(
     probe.dialect = ctx.dialect;
     probe.cmd_arg_braced.clone_from(&ctx.cmd_arg_braced);
     let mut used_generic_invoke = false;
-    dispatch_codegen_hook(hook, &mut probe, args, &mut used_generic_invoke).then_some(identity)
+    dispatch_codegen_hook(hook, &mut probe, args, &mut used_generic_invoke).then_some(site)
 }
 
 /// Dispatch a typed [`CodegenHookId`] to its emitter.

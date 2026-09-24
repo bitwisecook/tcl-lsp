@@ -81,6 +81,22 @@ carries its target's own codegen stamp, that identity is the target's
 `interp alias` hop from the pack spelling to the builtin; a proc, a native
 command, or anything else at the pack spelling refuses the site.
 
+A site whose emitted code rests on a spec pack's facts also records a
+`tcl_runtime_api::SiteClaim` in `FunctionAsm::site_claims`: `PackFacts` for a
+constant a pack-supplied spec's `const_fold` computed at compile time, and
+`BuiltinAlias` beside a binding whose identity came through `alias_of`. Each
+carries the pack's `PackFactStamp` — its name, the content hash its snapshot
+key interns, the loader's vocabulary version, the registry overlay
+generation, and the evaluator revision the site compiled under. A pack may
+claim; only the VM attests: admission (`function_command_bindings_match`)
+requires every claim's stamp to be one the VM holds, compared whole.
+`Vm::set_pack_facts` sets them; an embedder that compiles against a pack set
+hands the VM `tcl_spectcl::PackSet::fact_stamps` for that set. A VM holding
+no facts, the default, admits exactly the units that claim nothing — every
+unit compiled without a pack — and refuses the rest like any other failed
+binding: plain dispatch when the unit carries source and a compile service
+is installed, an admission error otherwise.
+
 `BytecodeCompileService::for_profile` follows the profile's shared registry.
 `BytecodeCompileService::new(custom_registry)` owns the embedder registry and
 keeps it when `compile_for_profile` selects the profile grammar. Profile
@@ -97,6 +113,7 @@ two services for the same profile, therefore advances `compiler_generation`.
 | Dialect/profile | Clear | Recompile lazily | Fail closed |
 | Compile service | Clear | Recompile lazily | Fail closed |
 | Command/trace epoch | Revalidate, or compile plain dispatch | Recompile or revalidate lazily | Redispatch at a source-command boundary |
+| Pack facts (`set_pack_facts`) | Revalidate, or compile plain dispatch | Recompile or revalidate lazily | Redispatch at a source-command boundary |
 
 `set_compiler` clears both eval caches and `module_procs`. Procedures,
 methods, and function handles retain source and recompile on their next entry.
@@ -168,11 +185,16 @@ provenance changes must not bypass the central host bootstrap introduced by
   a self-contained source-less AOT module;
 - fail-closed suspended coroutines before injection, exactly-once stale
   cleanup traces, stack-wide handler/`finally` suspension or return, and
-  non-OK tail-call settlement after a compiler swap; and
+  non-OK tail-call settlement after a compiler swap;
 - terminal profile changes from inline and computed-head catch/try plus
-  variable-trace paths.
+  variable-trace paths; and
+- a module that claims no pack facts admitted under a VM holding facts for
+  a changed pack set (`a_rung_zero_module_is_admitted_under_a_changed_pack_set`).
 
 `rust/tcl-spectcl/tests/codegen_stamps.rs` covers a bundled spec pack's
 `alias_of lassign` command: its specialised site records `lassign`'s
-identity, the VM admits it through the alias hop with no plain recompile,
-and a proc at the pack spelling is refused and recompiled plain.
+identity and the pack's facts, the VM holding those facts admits it through
+the alias hop with no plain recompile, and a proc at the pack spelling, or
+facts for a changed pack, is refused and recompiled plain. A bundled
+pack's `llength` override folding a constant through its `const_fold` is
+admitted only while the VM holds the pack's facts.
