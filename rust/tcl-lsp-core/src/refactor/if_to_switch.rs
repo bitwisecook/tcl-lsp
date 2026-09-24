@@ -19,7 +19,7 @@
 //! Convert an `if`/`elseif` equality chain to a `switch` statement.
 
 use tcl_lexer::{LexerConfig, LineIndex};
-use tcl_registry::CommandRegistry;
+use tcl_registry::{ArgRole, CommandRegistry};
 
 use super::{RefactorEdit, Refactoring, find_command_at, reindent_body};
 use crate::code_actions::ActionKind;
@@ -55,6 +55,10 @@ fn parse_eq_test(condition: &str) -> Option<EqTest> {
     }
 
     if let Some((var, op, value)) = split_var_op_value(cond) {
+        // registry-axis-ok: irreducible — `op` is the parsed expr comparison
+        // operator's own text (`eq`/`ne`/`==`/`!=`), never a command name; it
+        // coincides with the bare `::tcl::mathop::ne` registration only by
+        // spelling; until never
         let is_ne = op == "ne" || op == "!=";
         return Some(EqTest {
             var,
@@ -63,6 +67,8 @@ fn parse_eq_test(condition: &str) -> Option<EqTest> {
         });
     }
     if let Some((value, op, var)) = split_value_op_var(cond) {
+        // registry-axis-ok: irreducible — same expr-operator text, not a
+        // command name; until never
         let is_ne = op == "ne" || op == "!=";
         return Some(EqTest {
             var,
@@ -75,6 +81,10 @@ fn parse_eq_test(condition: &str) -> Option<EqTest> {
 
 /// Recognised equality operators, longest-first so `==` wins over a bare
 /// fragment.
+// registry-axis-ok: irreducible — `eq` / `ne` are expr comparison-operator
+// spellings (`tcl_syntax::expr::operators`'s own vocabulary), read here as
+// parsed condition text; they coincide with `::tcl::mathop::eq` / `ne`'s
+// bare registration only by spelling; until never
 const OPS: &[&str] = &["==", "!=", "eq", "ne"];
 
 /// Split `$var OP value` / `"$var" OP value` → `(var, op, value)`.
@@ -168,43 +178,32 @@ pub fn if_to_switch(
         return None;
     }
 
+    // Walk the chain through `if`'s own clause grammar — the condition and
+    // body of each `if` / `elseif` clause, and the default (`else`, or its
+    // optional-keyword bare final body) — rather than comparing keyword
+    // spellings by hand; a structural defect (a stray word, a chain the
+    // grammar cannot parse) declines the conversion.
+    let args: Vec<&str> = texts[1..].iter().map(String::as_str).collect();
+    let resolved = registry.resolve_call("if", &args, None)?;
+    let plan = resolved.clause_plan(&args, None)?;
+    if plan.defect.is_some() {
+        return None;
+    }
+
     // Parse the if/elseif chain: `if cond body ?elseif cond body?... ?else body?`.
     let mut branches: Vec<(String, String)> = Vec::new(); // (value, body)
     let mut else_body: Option<String> = None;
     let mut target_var: Option<String> = None;
 
-    let mut i = 1;
-    while i < texts.len() {
-        let word = &texts[i];
-        if word == "elseif" || word == "then" {
-            i += 1;
+    for clause in &plan.clauses {
+        let body = args[clause.operand(ArgRole::Body)?].to_owned();
+        if clause.is_default {
+            else_body = Some(body);
             continue;
         }
-        if word == "else" {
-            if i + 1 < texts.len() {
-                else_body = Some(texts[i + 1].clone());
-            }
-            break;
-        }
+        let condition = args[clause.operand(ArgRole::Expr)?];
 
-        // This should be a condition.
-        let condition = word.clone();
-        if i + 1 >= texts.len() {
-            return None;
-        }
-        let mut body = texts[i + 1].clone();
-        i += 2;
-
-        // Skip an optional `then` after the condition.
-        if i < texts.len() && texts[i] == "then" {
-            i += 1;
-            if i < texts.len() {
-                body.clone_from(&texts[i]);
-                i += 1;
-            }
-        }
-
-        let parsed = parse_eq_test(&condition)?;
+        let parsed = parse_eq_test(condition)?;
         match &target_var {
             None => target_var = Some(parsed.var.clone()),
             Some(v) if *v != parsed.var => return None,
@@ -378,5 +377,68 @@ mod tests {
         // argument list and the enclosing proc intact.
         assert!(applied.contains("apply {{m} {"), "{applied:?}");
         assert!(applied.starts_with("proc handler {} {\n"), "{applied:?}");
+    }
+
+    /// This refactor walks whatever clause plan the registry resolves for
+    /// `if` — never a hardcoded Rust-side `if`/`elseif`/`else` keyword
+    /// table — so a pack overlay that redeclares `if`'s own grammar (a
+    /// registry fact a `.tclspec` pack states exactly the same way) is
+    /// still read correctly. Negative: a pack overlay for `if` with no
+    /// clause grammar at all has nothing for `clause_plan` to walk, so the
+    /// conversion declines rather than guessing.
+    #[test]
+    fn if_to_switch_reads_the_clause_plan() {
+        use tcl_registry::{
+            Arity, ClauseGrammarSpec, ClauseRow, ClauseSelection, ClauseSlot, ClauseTiming,
+            CommandSpec,
+        };
+
+        const COND_CLAUSE: &[ClauseSlot] =
+            &[ClauseSlot::of(ArgRole::Expr), ClauseSlot::of(ArgRole::Body)];
+        // Deliberately not the shipped grammar's shape (no `then` noise
+        // word, no `else` tail) — a pack's own if-shaped grammar, not a
+        // copy of `if`'s real one.
+        const PACK_GRAMMAR: ClauseGrammarSpec = ClauseGrammarSpec {
+            head: ClauseRow::head(COND_CLAUSE, ClauseTiming::Selected),
+            rows: &[ClauseRow::repeated(
+                "elseif",
+                COND_CLAUSE,
+                ClauseTiming::Selected,
+            )],
+            tail: None,
+            fallthrough_body: None,
+            default_clause: None,
+            selection: ClauseSelection::FirstMatch,
+            surface: None,
+        };
+
+        let source = "if {$x eq \"a\"} {\n    puts \"alpha\"\n} elseif {$x eq \"b\"} {\n    puts \"beta\"\n}";
+        let li = LineIndex::new(source);
+
+        let mut with_grammar = super::super::test_registry();
+        with_grammar.insert(CommandSpec {
+            name: "if",
+            arity: Arity::at_least(2),
+            arg_role_resolver_roles: &[ArgRole::Expr, ArgRole::Body],
+            clause_grammar: Some(&PACK_GRAMMAR),
+            ..CommandSpec::DEFAULT
+        });
+        let r = if_to_switch(source, 0, &with_grammar, &li, LexerConfig::default());
+        assert!(
+            r.is_some(),
+            "a pack-declared if-shaped grammar still converts"
+        );
+
+        let mut without_grammar = super::super::test_registry();
+        without_grammar.insert(CommandSpec {
+            name: "if",
+            arity: Arity::at_least(2),
+            clause_grammar: None,
+            ..CommandSpec::DEFAULT
+        });
+        assert!(
+            if_to_switch(source, 0, &without_grammar, &li, LexerConfig::default()).is_none(),
+            "a command without a clause grammar is never converted"
+        );
     }
 }

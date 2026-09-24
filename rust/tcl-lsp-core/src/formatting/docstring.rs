@@ -239,6 +239,11 @@ pub fn render_comment_block(
 /// The stub [`ParamDoc`] for one parameter — `args` gets a prose note,
 /// defaulted params get a `(default: …)` note, others are bare.
 fn stub_param_doc(name: &str, has_default: bool, default_value: Option<&str>) -> ParamDoc {
+    // registry-axis-ok: irreducible — `args` here is a proc's own *formal
+    // parameter* name (Tcl's variadic-last-parameter convention, checked
+    // against the signature this stub is generated from), not a call to
+    // `info args`; the spelling coincides with `info`'s subcommand by
+    // coincidence only; until never
     let description = if name == "args" {
         "Additional arguments".to_owned()
     } else if has_default {

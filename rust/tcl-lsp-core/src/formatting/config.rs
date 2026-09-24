@@ -81,6 +81,11 @@ impl DocstringStyle {
     /// catalogue ship.
     #[must_use]
     pub fn parse(value: &str) -> Self {
+        // registry-axis-ok: irreducible — an editor-settings spelling for
+        // `tclLsp.formatting.docstringStyle` (a stub-placement choice), not
+        // a Tcl clause-grammar keyword; "body" here coincides with the
+        // registry's `ArgRole::Body` word by English spelling only; until
+        // never
         match value.to_ascii_lowercase().as_str() {
             "preceding" => Self::Preceding,
             "body" => Self::Body,

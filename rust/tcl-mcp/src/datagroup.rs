@@ -34,6 +34,7 @@ use serde_json::{Value, json};
 use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_lexer::{LexerConfig, LineIndex};
 use tcl_lsp_core::refactor::{extract_to_datagroup, walk_commands};
+use tcl_registry::{ArgRole, CommandRegistry};
 use tcl_syntax::switch_body::parse_braced_pairs;
 
 const DIALECT: &str = "f5-irules";
@@ -93,9 +94,14 @@ fn suggest(source: &str) -> Vec<Value> {
 
     for (texts, line, character) in walk_commands(source, registry, config()) {
         let Some(head) = texts.first() else { continue };
+        // registry-axis-ok: irreducible — dispatch to one of this tool's two
+        // bespoke heuristics, each shaped for exactly one command's own
+        // syntax; no registry fact picks between them more abstractly than
+        // their names, and every other command answers `None` here; until
+        // never
         let mut cand = match head.as_str() {
-            "if" => analyse_if_chain(&texts, line),
-            "switch" => analyse_switch(&texts, line),
+            "if" => analyse_if_chain(&texts, line, registry),
+            "switch" => analyse_switch(&texts, line, registry),
             _ => None,
         };
         if let Some(c) = cand.as_mut() {
@@ -251,6 +257,10 @@ fn parse_eq(cond: &str) -> Option<(String, String, bool)> {
     if let Some(m) = res.forward.captures(cond) {
         let var = m.get(1).or_else(|| m.get(2))?.as_str().to_owned();
         let op = m.get(3)?.as_str();
+        // registry-axis-ok: irreducible — `op` is the parsed expr
+        // comparison operator's own text (`eq`/`ne`/`==`/`!=`), never a
+        // command name; it coincides with the bare `::tcl::mathop::ne`
+        // registration only by spelling; until never
         let is_ne = op == "ne" || op == "!=";
         let value = m.get(4)?.as_str().trim().to_owned();
         return Some((var, value, negated ^ is_ne));
@@ -258,6 +268,8 @@ fn parse_eq(cond: &str) -> Option<(String, String, bool)> {
     if let Some(m) = res.reverse.captures(cond) {
         let var = m.get(3).or_else(|| m.get(4))?.as_str().to_owned();
         let op = m.get(2)?.as_str();
+        // registry-axis-ok: irreducible — same expr-operator text; until
+        // never
         let is_ne = op == "ne" || op == "!=";
         let value = m.get(1)?.as_str().trim().to_owned();
         return Some((var, value, negated ^ is_ne));
@@ -332,9 +344,14 @@ fn parse_set_or_return(text: &str) -> Option<SetOrReturn> {
         return None;
     }
     let texts = &commands[0].texts;
+    // registry-axis-ok: irreducible — `set` and `return` are recognised as
+    // Tcl's own primitive syntax for this one-command-body shape, not as a
+    // pack-authorable command; until never
     if texts[0] == "set" && texts.len() == 3 {
         return Some(SetOrReturn::Set(texts[1].clone()));
     }
+    // registry-axis-ok: irreducible — same primitive-syntax reason; until
+    // never
     if texts[0] == "return" && texts.len() == 2 {
         return Some(SetOrReturn::Return);
     }
@@ -401,9 +418,16 @@ fn confidence_for(shape: &str) -> &'static str {
 // ── Pattern analysis ──────────────────────────────────────────────────
 
 /// Analyse an `if`/`elseif` chain (or single OR-chain condition) comparing one
-/// variable to literals.
-fn analyse_if_chain(texts: &[String], line: u32) -> Option<Candidate> {
+/// variable to literals — through `if`'s own clause grammar rather than
+/// comparing keyword spellings by hand.
+fn analyse_if_chain(texts: &[String], line: u32, registry: &CommandRegistry) -> Option<Candidate> {
     if texts.len() < 3 {
+        return None;
+    }
+    let args: Vec<&str> = texts[1..].iter().map(String::as_str).collect();
+    let resolved = registry.resolve_call("if", &args, None)?;
+    let plan = resolved.clause_plan(&args, None)?;
+    if plan.defect.is_some() {
         return None;
     }
 
@@ -416,23 +440,14 @@ fn analyse_if_chain(texts: &[String], line: u32) -> Option<Candidate> {
         values = or_values;
         bodies.push(texts[2].clone());
     } else {
-        let mut i = 1;
-        while i < texts.len() {
-            let word = &texts[i];
-            if word == "elseif" || word == "then" {
-                i += 1;
-                continue;
-            }
-            if word == "else" {
+        for clause in &plan.clauses {
+            if clause.is_default {
                 break;
             }
-            if i + 1 >= texts.len() {
-                break;
-            }
-            let body = texts[i + 1].clone();
-            i += 2;
+            let body = args[clause.operand(ArgRole::Body)?].to_owned();
+            let condition = args[clause.operand(ArgRole::Expr)?];
 
-            let (var, value, negated) = parse_eq(word)?;
+            let (var, value, negated) = parse_eq(condition)?;
             if negated {
                 return None;
             }
@@ -473,14 +488,28 @@ fn analyse_if_chain(texts: &[String], line: u32) -> Option<Candidate> {
 }
 
 /// Analyse a `switch -exact` over literal patterns.
-fn analyse_switch(texts: &[String], line: u32) -> Option<Candidate> {
+fn analyse_switch(texts: &[String], line: u32, registry: &CommandRegistry) -> Option<Candidate> {
+    let switch_spec = registry.get("switch")?;
+    let case_list = switch_spec.case_list?;
+    let default_word = case_list.keyword_patterns.first().copied();
+    let fallthrough_word = case_list.fallthrough_body;
+
+    // Which match mode each flag selects, and which ends option parsing —
+    // `switch`'s own option-effect rows, rather than the flag spellings.
     let mut i = 1;
     let mut mode = "exact";
     while i < texts.len() && texts[i].starts_with('-') {
         let flag = texts[i].as_str();
-        match flag {
-            "-exact" | "-glob" | "-regexp" => mode = &flag[1..],
-            "--" => {
+        let effect = switch_spec
+            .options
+            .iter()
+            .find(|opt| opt.name == flag)
+            .and_then(|opt| opt.effect);
+        match effect.map(|e| e.kind) {
+            Some(tcl_registry::option_effect::OptionEffectKind::Selects(
+                tcl_registry::option_effect::EffectAxis::Selection(selected),
+            )) => mode = selected.spelling(),
+            Some(tcl_registry::option_effect::OptionEffectKind::EndsOptions) => {
                 i += 1;
                 break;
             }
@@ -509,7 +538,10 @@ fn analyse_switch(texts: &[String], line: u32) -> Option<Candidate> {
 
     let regular: Vec<(String, String)> = pairs
         .into_iter()
-        .filter(|(pat, body)| pat != "default" && body.trim() != "-")
+        .filter(|(pat, body)| {
+            Some(pat.as_str()) != default_word
+                && fallthrough_word.is_none_or(|marker| body.trim() != marker)
+        })
         .collect();
     if regular.len() < 3 {
         return None;

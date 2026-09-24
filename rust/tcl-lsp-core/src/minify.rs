@@ -282,6 +282,12 @@ impl SymbolMap {
                 continue;
             };
             let (short, original) = (short.trim().to_owned(), original.trim().to_owned());
+            // registry-axis-ok: irreducible — `section` is this parser's own
+            // section tag, set a few lines up from *this format's own*
+            // `# Procs` / `# Variables in …` headers (the `Self::format`
+            // writer's own vocabulary for its symbol-map file), not a
+            // dispatch on `info procs` / `info variables`; the spelling
+            // coincides with `info`'s subcommand names only; until never
             match section {
                 "procs" => {
                     sm.procs.insert(original, short);
@@ -733,7 +739,7 @@ fn minify_body(source: &str, env: MinifyEnv<'_>, depth: u32) -> String {
     for cmd_args in &commands {
         let mut arg_strs = render_command(&sm, cmd_args, env, depth);
         if arg_strs.len() >= 2 {
-            arg_strs[1] = abbreviated_subcommand(&arg_strs[0], &arg_strs[1], dialect);
+            arg_strs[1] = abbreviated_subcommand(&arg_strs[0], &arg_strs[1], dialect, env.registry);
         }
         rendered.push(arg_strs);
     }
@@ -1864,6 +1870,12 @@ fn abbreviate_command(
         return;
     }
     for word in &args[start.min(args.len())..] {
+        // registry-axis-ok: irreducible — same reason as
+        // `formatting/keywords.rs`'s `scan_options`: generic across every
+        // command's option table, and only 2 of the 23 commands that
+        // declare a "--" row have `OptionEffectKind::EndsOptions` populated
+        // on it today, so a per-command lookup here would stop recognising
+        // "--" as ending option scanning for the rest; until never
         if word.text == "--" {
             break;
         }
@@ -2688,80 +2700,32 @@ fn abbreviated_subcommand(
     command_name: &str,
     subcommand_name: &str,
     dialect: &'static tcl_dialect::DialectProfile,
+    registry: &CommandRegistry,
 ) -> String {
     if !tcl_dialect::DialectProfile::name_has_fixed_ensembles(Some(dialect.name)) {
         return subcommand_name.to_owned();
     }
-    subcommand_abbreviation(command_name, subcommand_name)
+    subcommand_abbreviation(command_name, subcommand_name, registry)
         .unwrap_or(subcommand_name)
         .to_owned()
 }
 
-/// Shortest unambiguous abbreviation for `sub` of ensemble
-/// `command`, or `None`. (only the
-/// entries strictly shorter than the full subcommand are kept).
-fn subcommand_abbreviation(command: &str, sub: &str) -> Option<&'static str> {
-    let table: &[(&str, &str)] = match command {
-        "string" => &[
-            ("bytelength", "b"),
-            ("cat", "ca"),
-            ("compare", "co"),
-            ("equal", "e"),
-            ("first", "f"),
-            ("index", "in"),
-            ("last", "la"),
-            ("length", "le"),
-            ("match", "mat"),
-            ("range", "ra"),
-            ("repeat", "repe"),
-            ("replace", "repl"),
-            ("reverse", "rev"),
-            ("tolower", "tol"),
-            ("totitle", "tot"),
-            ("toupper", "tou"),
-            ("trimleft", "triml"),
-            ("trimright", "trimr"),
-            ("wordend", "worde"),
-            ("wordstart", "words"),
-        ],
-        "info" => &[
-            ("args", "a"),
-            ("body", "b"),
-            ("cmdcount", "cm"),
-            ("commands", "comm"),
-            ("complete", "comp"),
-            ("default", "d"),
-            ("exists", "e"),
-            ("frame", "fr"),
-            ("functions", "fu"),
-            ("globals", "g"),
-            ("hostname", "h"),
-            ("level", "le"),
-            ("library", "li"),
-            ("loaded", "loa"),
-            ("locals", "loc"),
-            ("nameofexecutable", "n"),
-            ("patchlevel", "pa"),
-            ("procs", "pr"),
-            ("script", "sc"),
-            ("sharedlibextension", "sh"),
-            ("tclversion", "t"),
-        ],
-        "clock" => &[
-            ("add", "a"),
-            ("clicks", "c"),
-            ("format", "f"),
-            ("microseconds", "mic"),
-            ("milliseconds", "mil"),
-            ("scan", "sc"),
-            ("seconds", "se"),
-        ],
-        _ => return None,
-    };
-    table
-        .iter()
-        .find(|(full, _)| *full == sub)
-        .map(|(_, abbr)| *abbr)
+/// Shortest unambiguous abbreviation for `sub` of ensemble `command`, read
+/// off the registry's own subcommand table (the same one
+/// [`keyword_tables`]/[`abbreviate_keywords`] use for the aggressive tier),
+/// rather than a hand-kept copy of a handful of ensembles' subcommands —
+/// every ensemble the registry knows gets the same treatment here.
+/// `KeywordTable::minimal_unique_prefix` already requires `sub` to be an
+/// exact canonical spelling, so (as before) a subcommand not written out in
+/// full is left alone.
+fn subcommand_abbreviation(
+    command: &str,
+    sub: &str,
+    registry: &CommandRegistry,
+) -> Option<&'static str> {
+    let table = registry.get(command)?.subcommand_table(None, None, None);
+    let short = table.minimal_unique_prefix(sub)?;
+    (short.len() < sub.len()).then_some(short)
 }
 
 /// Group a token stream into commands (lists of arguments),
@@ -3201,7 +3165,11 @@ fn minify_case_list(
             };
             parts.push(case_element_text(inner, flag).to_owned());
             i += 1;
-            if canonical_flag == "--" {
+            // Read off `cl`'s own descriptor, like `CaseListSpec::inline_clauses`
+            // does for the compiler — a future case-list command's own
+            // end-of-clause-options flag (if it even has one) is whatever its
+            // pack declares, not necessarily "--".
+            if cl.clause_end_options_flag == Some(canonical_flag) {
                 options_ended = true;
             } else if shape.flag_takes_value(canonical_flag) && i < elements.len() {
                 parts.push(case_element_text(inner, &elements[i]).to_owned());
@@ -4326,9 +4294,14 @@ mod tests {
             min_dialect("string length $x\n", tcl_dialect::DialectProfile::irules()),
             "string le $x"
         );
+        // `info e` would also prefix `info errorstack` (Tcl 8.6+) — reading
+        // the abbreviation from `info`'s own registry table (rather than a
+        // hand-kept copy that only knew of `exists`) surfaces that and picks
+        // the shortest spelling actually safe against the whole table:
+        // `ex`, not the old table's `e`.
         assert_eq!(
             min_dialect("info exists $x\n", tcl_dialect::DialectProfile::irules()),
-            "info e $x"
+            "info ex $x"
         );
     }
 

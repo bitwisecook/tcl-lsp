@@ -533,6 +533,15 @@ fn scan_options(
     let mut i = scope.start;
     while i < args.len() {
         let word = args[i].as_str();
+        // registry-axis-ok: irreducible — this scan is generic across every
+        // command's option scope (`scope.options`, any dialect); reading
+        // `OptionEffectKind::EndsOptions` off *this* scope's own rows, like
+        // `tcl-mcp/src/datagroup.rs`'s `analyse_switch`, would be correct
+        // for the two commands whose "--" row has that effect populated
+        // today, but silently stop recognising "--" as ending option
+        // scanning for the other ~21 commands that declare a "--" row
+        // without it — a formatter-safety regression, not a fix; until
+        // never
         if word == "--" {
             break;
         }
