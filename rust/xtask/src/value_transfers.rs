@@ -893,22 +893,6 @@ fn target_roles(
 /// `ledit` and `lpop` wait for the existence rung and the new list cores.
 const KNOWN_GAPS: &[(&str, &str)] = &[
     // Slice 5, destructuring and structured bodies.
-    (
-        "dict with",
-        "slice 5 — the structural plan with a key-binding projection",
-    ),
-    (
-        "dict update",
-        "slice 5 — the structural plan with a key-binding projection",
-    ),
-    (
-        "::tcl::dict::with",
-        "slice 5 — the structural plan with a key-binding projection",
-    ),
-    (
-        "::tcl::dict::update",
-        "slice 5 — the structural plan with a key-binding projection",
-    ),
     ("file stat", "slice 5 — the array-valued structured write"),
     ("file lstat", "slice 5 — the array-valued structured write"),
     (

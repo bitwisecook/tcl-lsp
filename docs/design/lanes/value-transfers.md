@@ -4308,6 +4308,7 @@ item; the grouping stays the plan's account of what lands together.
 | VT5.4 | `wip(value-transfers): slice 5 — regexp and regsub` | `RegexpSemantics` and `RegsubSemantics` (`value_transfer/regex.rs`, `NativeEvalId::{RegexpMatch, RegsubSubstitute}`, registry-owned) over `regexp_analysis` / `regsub_analysis` and `AreEngine`, declared on both specs: a match writes one value per match variable (an unmatched subgroup the empty string, `-1 -1` with `-indices`), a completed no-match, `-inline`, `-about` and a variable-less `regsub` preserve every declared target, `-all` counts, `regsub` with a variable writes it whether or not anything matched, and every `PrecisionDecline` declines the whole answer (`Approximate`, `Unsupported`, the cancelled budget, the command's error) (D126); `-about` is evaluated and the `-command` form is `NoRoute(Callback)` (D124); the axes gain `LIST_RENDERING` and a `-start` index evaluates only as a plain decimal integer (D125); the engine's work is metered (`Regex::exec_metered`, `MatchLimits::spent`) and charged to the evaluation's budget with the published bytes (`ConstOps::remaining_work`, `ConstOps::take_all`) (D127); `regsub`'s folders are the route through `evaluate_literal`, `const_fold_versioned` new, `CONST_FOLD_VERSIONED_NATIVE` at 4 rows (D128); G1's `regexp` and `regsub` gap rows gone, the inventory regenerated; the page's two core-table rows and its table count updated. Not done: the `RegexPatternCapture` hook's retirement and `handle_regex_pattern_capture` wait for CC2.13 (D129) | `regexp_writes_or_preserves_its_match_variables`, `a_regexp_that_established_nothing_declines`, `regsub_writes_its_variable_and_declines_its_callback` (`value_transfers.rs`); `regexp_witnesses_match_every_release_on_path` (`differential_fold.rs`: 22 witnesses, 18 answered and agreeing on each of tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1b0, the plan's five answered on every one); `a_search_reports_the_work_it_spent` and `searches_charged_to_one_counter_share_one_budget` (`precision_oracle.rs`); `route_stamps_match_the_pinned_set` gains the two stamps; changed by the mandate ("a no-match `regexp` keeps its match variables' values in the lattice; a match writes them"): `a_conditional_writer_does_not_kill_the_store_it_may_preserve` asserts each preserved store survives by line and that `puts "$a $b"` now reads `before before`, and `var_write_typing_shapes_destructure_target_types` reads the registry's typing over an unknown subject and the written `String` over a literal one |
 | VT5.5 | `wip(value-transfers): slice 5 — scan, binary scan, lassign, array set` | `ScanSemantics`, `BinaryScanSemantics`, `LassignSemantics` and `ArraySetSemantics` (`value_transfer/destructure.rs`, `NativeEvalId::{ScanFormat, BinaryScan, ListAssign, ArraySet}`, registry-owned) over `scan::validate_format` / `scan_match`, `binary::scan` and `ConstOps::list_elements`, declared on the four specs: a converted field writes its variable typed as it was built and a field the input did not reach preserves it (`-1` and every variable preserved when the input ended first), `lassign` writes in order and returns the rest, `array set` writes one element per key; each answers only where every release the target names reads the words alike (D132); the writing routes share `value_transfer/publication.rs` (`open_words`, `targets_are`, `PendingStore`, `Publication`, moved out of `regex.rs`, D134); `StoreOutcome::WriteElement` names an element of an array target by key (D130), and SCCP takes a stated element write for a fanned may-write rather than joining it with the prior (`DefAnswer::stated`, D131); the scan and unpack work is charged per byte, the page's two core rows updated; G1's four gap rows gone and the inventory regenerated; the oracle harness spells non-ASCII as `\uXXXX` (D133) | `destructuring_writers_run_the_shared_cores` (`value_transfers.rs`, with the `%u`, infinity and negative-zero declines); `destructuring_witnesses_match_every_release_on_path` (`differential_fold.rs`: 46 witnesses, the plan's four answered and agreeing on every release that has the command; answered and agreeing 21 on tclsh 8.4.20, 30 on 8.5.19, 32 on 8.6.18, 35 on 9.0.4 and 35 on 9.1b0, every other one declined by the route or raised by `tclsh`); `an_array_set_writes_the_elements_it_names` (`value_transfer.rs`); `route_stamps_match_the_pinned_set` gains the four stamps; `var_write_typing_shapes_destructure_target_types` (`type_infer.rs`) reads a written `scan` target as the `String` its conversion built over literal operands and keeps the unknown subject's case |
 | VT5.6 | `wip(value-transfers): slice 5 — binary format, program (2)` | `BinaryFormatSemantics` (`value_transfer/builtins.rs`, `NativeEvalId::BinaryFormat`, registry-owned) over `binary::format`, declared on the `binary format` subcommand: the packed bytes as the characters `U+0000` to `U+00FF`, `RepresentationEvidence::Constructed(ByteArray)`, the result type `ByteArray`; `binary::format_size_bound` (the page's proposed core, built beside the packer) charged as allocation before the run and the output per byte after it; only what every release packs alike answers (D136); a rewrite never writes a computed byte array into the source — `SccpResult::materialises`, read by O100's two projections, O103's return read, O127's skip and the chain folds, so the optimised program keeps the command that builds it (D135); the page's two rows updated; the inventory regenerated | `program_two_folds_and_is_a_byte_array` (compiler witnesses: `h#1` is `ABCDEF` with the folded type `bytearray (constructed)` under `tcl8.4`, `tcl8.6`, `tcl9.0`, `f5-irules` and `tcl`, no S100, S101 or S110, no rewrite spells `ABCDEF` or a returned `GH`, and the original and optimised programs print the same under tclsh 8.4 to 9.1); `binary_format_witnesses_match_every_release_on_path` (`differential_fold.rs`: 49 witnesses; the 24 every release packs alike answered and agreeing on each of tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1b0, the non-ASCII argument from 9.0 and the 8.5 fields from 8.5, every spelling the releases part on declined); `format_size_bound_covers_the_packed_output` (`tcl-cmd-core`); `route_stamps_match_the_pinned_set` gains the stamp; `tcl explore --source 'set h [binary format H* 414243444546]' --show sccp --text --no-colour` prints `h#1 = const('ABCDEF')` · `type: bytearray (constructed)` |
+| VT5.7 | `wip(value-transfers): slice 5 — structural plans` | `DictWithSemantics` and `DictUpdateSemantics` (`value_transfer/body.rs`, new) answering `PlanAnswer::Body` — the binders a projection on body entry (the proven keys of the dictionary, or of the nested one a key path names, for `dict with`; the declared variables for `dict update`), the body in the caller's frame, `Reconcile::WriteBackKeys` of the dictionary operand, `CompletionProtocol::TclBody`, no route — declared on both subcommands and so on their `::tcl::dict::` spellings (D137); `IterationSemantics` answers the source layout (one binder per var-list name, one list, the body, `break` and `continue` absorbed, nothing bound on zero iterations) (D138); the driver's loop header binds each binder the elements it takes, so a two-binder `foreach` is two finite inputs (D139); G1's four `dict` body rows gone and the inventory regenerated. Not done: the `DictWith` hook's retirement and `handle_dict_with_command` reading the binders wait for CC2.13 (D140) | `dict_with_binds_the_proven_keys`, `the_source_layout_answers_an_iteration_plan` (`value_transfers.rs`); `dict_with_binds_the_keys_tclsh_binds` (`differential_fold.rs`: the variables five dictionaries and key paths bind on body entry are the plan's binders, and the page's program answers `done` and leaves `d` as `a 2`, on tclsh 8.5.19, 8.6.18, 9.0.4 and 9.1b0); `a_loop_header_binds_each_binder_its_elements` (`value_transfer.rs`); `the_mirror_pairs_decline_as_correlated` asserts both quotients decline `correlated-sets` (D64's deferral closed); `route_stamps_match_the_pinned_set` gains the four body stamps; `the_loop_header_projects_to_the_declared_iteration_plan`'s source-layout row reads the new answer (a call without its body is the command's error, where it read "not yet described") |
 
 A container restart ended the first implementer at VT5.5, uncommitted;
 a second implementer took the opus items over from VT5.5 on (VT5.5, VT5.6,
@@ -4322,6 +4323,23 @@ three `scan` answers were wrong against every oracle from 8.5 (`scan -1
 compared non-ASCII witnesses against a misread script (D133); the two doc
 comments the oracle contradicted were corrected, and the per-byte charges
 the page states were added. Nothing was backed out.
+
+Green at VT5.7:
+
+- tests: `tcl-registry`, `tcl-compiler` and `xtask` together 11184
+  passed, 6 ignored, no failure (the one expectation the mandate moves,
+  `evaluate_def_foreach_multi_var_widens`, restated as
+  `evaluate_def_foreach_multi_var_binds_each_its_elements`: a two-binder
+  header over `a b` gives its first binder `a` where it had widened);
+  `tcl-cli`'s `samples_optimiser_profiles_are_regenerated` passes over this
+  checkpoint and VT5.6's, no sample moved;
+- pedantic clippy (`--no-deps --all-targets -D warnings`) on
+  `tcl-registry`, `tcl-compiler` and `xtask`, no `#[allow]` added;
+  `rustfmt` on the touched files;
+- `cargo xtask value-transfers` (the four `dict` body rows declared) and
+  `--check` (17 clean, 13 waived, 98 pinned across 39 files, 6607 rows),
+  `registry-axes --check` (1089 pinned across 163 files), `pack-goldens
+  --check` (24 packs, no snapshot moved), `cargo check --workspace` clean.
 
 Green at VT5.6:
 
@@ -7727,6 +7745,49 @@ has the witnesses):
   packer error decline as the program's error. `NEEDS` is the plan's
   `BINARY_FIELDS | BYTE_STRINGS` plus `SOURCE_ENCODING`, as for
   `binary scan`.
+
+- **D137 — The body plans' binders are a projection; an unknown
+  dictionary names none.** `DictWithSemantics` reads the dictionary
+  variable's prior exact value — and walks a key path into the nested
+  dictionary, the last value of a repeated key winning — and binds its
+  distinct keys, first occurrence first, as declared scalar binders. A
+  dictionary the analysis does not know exactly binds keys no plan can
+  name, so the plan declines `NotExact` and the generic transfer stands; a
+  path key the dictionary lacks, or a value that is no dictionary, is the
+  command's error (`WrongRepresentation`). `DictUpdateSemantics` binds its
+  declared variable operands whatever the dictionary holds (a key the
+  dictionary lacks leaves its variable unbound on entry, which a binder
+  cannot say and a consumer must not assume). Both write the bound keys
+  back into the dictionary operand, run the body in the caller's frame,
+  complete as the body does, and declare no route: the command's value is
+  the body's. Operands count from the resolved form's `argument_offset`,
+  so the subcommand and the `::tcl::dict::` spelling, which
+  `qualified_specs` gives the same `semantics`, share one declaration.
+  `dict with` is still a barrier in the CFG, so the solver reads neither
+  plan; the consumers do (VT5.18).
+- **D138 — The loops' source layout is one var-list and one list.** The
+  page's `IterationPlan` holds one iterable, so several var-list and list
+  pairs, which step several iterables in lockstep, decline `Unsupported`;
+  a var-list the analysis does not know names no binders (`NotExact`);
+  an empty or malformed var-list, or a call without its body, is the
+  command's error (`WrongRepresentation`).
+- **D139 — A loop header binds each binder the elements it takes.** Binder
+  `i` of `n` takes the elements at `i`, `i + n`, …, the empty string where
+  the last iteration runs past the list's end, and a repeated binder its
+  last position's; an empty list or one the analysis cannot read leaves
+  every binder `Overdefined`, as before. So `foreach {a b} {1 10 2 20}`
+  gives `a` `{1 2}` and `b` `{10 20}`, two distinct finite inputs, and the
+  mirror pairs decline `CorrelatedSets` — the reason D64 deferred.
+- **D140 — The `DictWith` hook waits for CC2.13, as D129's did.** The
+  plan retires `AnalyserHookId::DictWith` and has
+  `handle_dict_with_command` bind the plan's binders; the variant, the
+  handler and `tests/analyser_hooks.rs` are the consumer-contracts lane's
+  files, CC2.13 (their re-baseline, after CC2.12) has not landed, and the
+  coordinator's rule is to retire a hook only after it does. The
+  analyser's binding over a literal dictionary is unchanged; the walk has
+  no lattice, so "a `dict with` over a lattice-constant dictionary binds
+  its keys" is delivered where the lattice is, the per-function
+  harvesters (VT5.18).
 
 ### Open questions for the owner
 

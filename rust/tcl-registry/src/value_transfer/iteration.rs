@@ -24,19 +24,20 @@
 //! here answers the synthetic loop header the CFG builder emits — its
 //! operands are the iterable words in group order and its binders the
 //! names defined per iteration — which is what the solver's per-element
-//! transfer consumes. The source layout's plan (the var-list grammar, the
-//! body) lands with the structural plans.
+//! transfer consumes — and the source layout: the var-list word's names,
+//! the one list, and the body.
 
 use crate::completion::CompletionCode;
 
 use super::CommandSemantics;
 use super::answers::{
-    Binder, BinderName, BindingKind, CompletionProtocol, ExitRule, IterableKind, IterationPlan,
-    PlanAnswer,
+    Binder, BinderName, BindingKind, BodyPlan, CompletionProtocol, ExitRule, IterableKind,
+    IterationPlan, PlanAnswer,
 };
 use super::decline::{DeclineReason, NoRouteReason};
-use super::inputs::{AnalysisInputs, InvocationLayout, OperandId};
+use super::inputs::{AnalysisInputs, FactDomain, FactView, InvocationLayout, OperandId};
 use super::route::EvalRoute;
+use crate::frame_effect::FrameLevel;
 
 /// The completion codes a loop body absorbs.
 const ABSORBED: &[CompletionCode] = &[CompletionCode::Break, CompletionCode::Continue];
@@ -94,7 +95,61 @@ impl CommandSemantics for IterationSemantics {
                     completion: CompletionProtocol::Absorb(ABSORBED),
                 })
             }
-            InvocationLayout::Source => PlanAnswer::Declined(DeclineReason::Unsupported),
+            InvocationLayout::Source => Self::source_plan(input),
         }
+    }
+}
+
+impl IterationSemantics {
+    /// The plan of `foreach varList list body` in its source layout: one
+    /// binder per name of the var-list word, padded with the empty string
+    /// past the list's end, over the one list, the body run in the caller's
+    /// frame with `break` and `continue` absorbed, and no binder bound when
+    /// the list is empty. Several var-list and list pairs step several
+    /// iterables in lockstep, which one plan does not describe; a var-list
+    /// the analysis does not know exactly names no binders.
+    fn source_plan(input: &dyn AnalysisInputs) -> PlanAnswer {
+        let view = input.invocation();
+        let first = view.argument_offset;
+        let words = view.operands.len().saturating_sub(first);
+        // One pair or more and the body: the command's own arity.
+        if words < 3 || words.is_multiple_of(2) {
+            return PlanAnswer::Declined(DeclineReason::WrongRepresentation);
+        }
+        if words > 3 {
+            return PlanAnswer::Declined(DeclineReason::Unsupported);
+        }
+        let names = match input.operand(OperandId(first), FactDomain::ExactValue) {
+            FactView::Exact(value, _) => match String::from_utf8(value.bytes) {
+                Ok(text) => tcl_syntax::list::split_list(&text)
+                    .map(|names| names.iter().map(ToString::to_string).collect::<Vec<_>>()),
+                Err(_) => return PlanAnswer::Declined(DeclineReason::NotText),
+            },
+            FactView::Top(reason) => return PlanAnswer::Declined(reason),
+            FactView::Pending | FactView::Finite(..) | FactView::Domain(_) => {
+                return PlanAnswer::Declined(DeclineReason::NotExact);
+            }
+        };
+        // An empty or malformed var-list is the command's error.
+        let Some(names) = names.ok().filter(|names| !names.is_empty()) else {
+            return PlanAnswer::Declined(DeclineReason::WrongRepresentation);
+        };
+        PlanAnswer::Iterate(IterationPlan {
+            binders: names
+                .into_iter()
+                .map(|name| Binder {
+                    name: BinderName::Declared(name),
+                    kind: BindingKind::Scalar,
+                })
+                .collect(),
+            iterable: IterableKind::List(OperandId(first + 1)),
+            body: Some(BodyPlan {
+                body: OperandId(first + 2),
+                frame: FrameLevel::Relative(0),
+            }),
+            exit: ExitRule::Exhaustion,
+            zero_iterations_bind: false,
+            completion: CompletionProtocol::Absorb(ABSORBED),
+        })
     }
 }

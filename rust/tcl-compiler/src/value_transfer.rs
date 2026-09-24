@@ -46,7 +46,7 @@ use tcl_lexer::{LexerConfig, Span, TokenType};
 use tcl_registry::hooks::LoweringHookId;
 use tcl_registry::value_transfer::builtins::ExpressionRoute;
 use tcl_registry::value_transfer::{
-    AnalysisContext, AnalysisInputs, AnalysisTier, BindingIdentity, BodyRegion, Budget,
+    AnalysisContext, AnalysisInputs, AnalysisTier, BinderName, BindingIdentity, BodyRegion, Budget,
     BudgetLimit, CommandSemantics, CompletionOutcome, DeclineReason, DependencyEvidence,
     EvalAnswer, EvalRoute, EvaluationState, EvaluatorOwner, ExactValue, ExactValueOrUnavailable,
     ExistenceOutcome, FactDomain, FactView, InvocationLayout, InvocationOutcome, IterableKind,
@@ -1054,15 +1054,24 @@ impl<'a> LatticeDriver<'a> {
             let cooked = call_arguments(args, tokens.as_ref(), &self.lexer_config);
             return self.evaluate_source_call(head, &cooked, &defs, uses, values, ssa);
         }
-        let value = self.evaluate_loop_header(head, args, binders, uses, values, ssa);
+        let bound = self.evaluate_loop_header(head, args, binders, uses, values, ssa);
         defs.iter()
-            .map(|(_, key)| DefAnswer::untyped(*key, value.clone()))
+            .map(|(name, key)| {
+                let value = bound
+                    .iter()
+                    .find(|(binder, _)| binder == name)
+                    .map_or(LatticeValue::Overdefined, |(_, value)| value.clone());
+                DefAnswer::untyped(*key, value)
+            })
             .collect()
     }
 
-    /// The synthetic loop header's value for its binders: the iteration
-    /// plan's single list binder takes the set of the list's elements; a
-    /// multi-variable or multi-list header stays `Overdefined`.
+    /// The synthetic loop header's value for each binder of its iteration
+    /// plan over one list: the set of the elements it takes — binder `i` of
+    /// `n` the elements at `i`, `i + n`, …, and the empty string where the
+    /// last iteration runs past the list's end. A repeated binder takes its
+    /// last position's. A multi-list header, an empty list, or a list the
+    /// analysis cannot read leaves every binder `Overdefined`.
     fn evaluate_loop_header<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
         &self,
         head: &str,
@@ -1071,15 +1080,15 @@ impl<'a> LatticeDriver<'a> {
         uses: &HashMap<Symbol, Version, S1>,
         values: &HashMap<ValueKey, LatticeValue, S2>,
         ssa: &SsaFunction,
-    ) -> LatticeValue {
+    ) -> Vec<(String, LatticeValue)> {
         let texts: Vec<&str> = args.iter().map(String::as_str).collect();
         let words: Vec<InvocationWord<'_>> = texts.iter().copied().map(word_of).collect();
         let Some(resolved) = self.resolve(head, &words) else {
-            return LatticeValue::Overdefined;
+            return Vec::new();
         };
         let Some(semantics) = resolved.semantics.value.semantics() else {
             self.explain(head, None, "declined: no-semantics".to_owned());
-            return LatticeValue::Overdefined;
+            return Vec::new();
         };
         let view = view_of(
             &resolved,
@@ -1102,16 +1111,25 @@ impl<'a> LatticeDriver<'a> {
                 .collect(),
         };
         let PlanAnswer::Iterate(plan) = semantics.structure(&inputs) else {
-            return LatticeValue::Overdefined;
+            return Vec::new();
         };
-        // One binder over one list: the per-element transfer. A
-        // multi-variable or multi-list header stays `Overdefined`.
-        let (IterableKind::List(iterable), 1) = (&plan.iterable, plan.binders.len()) else {
-            return LatticeValue::Overdefined;
+        let IterableKind::List(iterable) = &plan.iterable else {
+            return Vec::new();
         };
         let Some(list) = texts.get(iterable.0) else {
-            return LatticeValue::Overdefined;
+            return Vec::new();
         };
+        let binders: Vec<&str> = plan
+            .binders
+            .iter()
+            .filter_map(|binder| match &binder.name {
+                BinderName::Declared(name) => Some(name.as_str()),
+                BinderName::Operand(id) => texts.get(id.0).copied(),
+            })
+            .collect();
+        if binders.len() != plan.binders.len() || binders.is_empty() {
+            return Vec::new();
+        }
         let rules = self.policy.word_rules;
         let elements = extract_foreach_elements(list, rules)
             .or_else(|| resolve_foreach_list_via_lattice(list, uses, values, ssa, rules))
@@ -1128,21 +1146,35 @@ impl<'a> LatticeDriver<'a> {
                 }
                 None
             });
-        match elements {
-            Some(items) if items.is_empty() => LatticeValue::Overdefined,
-            Some(items) => {
-                let consts: Vec<ConstValue> = items
+        let Some(items) = elements.filter(|items| !items.is_empty()) else {
+            return Vec::new();
+        };
+        let stride = binders.len();
+        binders
+            .iter()
+            .enumerate()
+            .map(|(at, name)| {
+                // A repeated binder is assigned at each of its positions, so
+                // it holds its last one's element.
+                let position = binders
                     .iter()
-                    .map(|s| exact_to_const(&ExactValue::from_literal(s)))
+                    .rposition(|other| other == name)
+                    .unwrap_or(at);
+                let consts: Vec<ConstValue> = (0..items.len().div_ceil(stride))
+                    .map(|iteration| {
+                        let element = items
+                            .get(iteration * stride + position)
+                            .map_or("", String::as_str);
+                        exact_to_const(&ExactValue::from_literal(element))
+                    })
                     .collect();
-                if consts.len() == 1 {
-                    LatticeValue::Const(consts.into_iter().next().unwrap())
-                } else {
-                    LatticeValue::constset(consts)
-                }
-            }
-            None => LatticeValue::Overdefined,
-        }
+                let value = match consts.as_slice() {
+                    [only] => LatticeValue::Const(only.clone()),
+                    _ => LatticeValue::constset(consts),
+                };
+                ((*name).to_owned(), value)
+            })
+            .collect()
     }
 
     /// A call in its source layout, its arguments read as source words: the
@@ -3008,6 +3040,53 @@ mod tests {
             value("arr(k1)", 2),
             text("v1"),
             "a dynamic key may have hit the element"
+        );
+    }
+
+    /// A loop header binds each binder of its plan the elements it is
+    /// assigned (VT5.7): `foreach {a b} {1 10 2 20 3} {…}` gives `a` the
+    /// set `{1 2 3}` and `b` the set `{10 20 ""}`, the empty string where the
+    /// last iteration runs past the list's end; a repeated binder holds its
+    /// last position's element (`foreach {c c} {x y z w}` gives `c` `{y w}`).
+    #[test]
+    fn a_loop_header_binds_each_binder_its_elements() {
+        let source = "proc p {} {\n    foreach {a b} {1 10 2 20 3} {\n        puts $a$b\n    }\n    \
+                      foreach {c c} {x y z w} {\n        puts $c\n    }\n}\n";
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
+            source, registry, false, "tcl8.6",
+        );
+        let function = unit.procedures.get("::p").expect("the procedure");
+        let set_of = |texts: &[&str]| {
+            LatticeValue::constset(
+                texts
+                    .iter()
+                    .map(|text| exact_to_const(&ExactValue::from_literal(text)))
+                    .collect(),
+            )
+        };
+        let holds = |name: &str, expected: &LatticeValue| {
+            let symbol = function.ssa.var_symbol(name).expect("the variable");
+            function
+                .sccp
+                .values
+                .iter()
+                .any(|((sym, _), value)| *sym == symbol && value == expected)
+        };
+        assert!(
+            holds("a", &set_of(&["1", "2", "3"])),
+            "{:?}",
+            function.sccp.values
+        );
+        assert!(
+            holds("b", &set_of(&["10", "20", ""])),
+            "{:?}",
+            function.sccp.values
+        );
+        assert!(
+            holds("c", &set_of(&["y", "w"])),
+            "{:?}",
+            function.sccp.values
         );
     }
 

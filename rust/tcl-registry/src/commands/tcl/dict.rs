@@ -550,6 +550,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         )],
         mutator: true,
         analyser_hook: Some(crate::hooks::AnalyserHookId::DictUpdate),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::body::DICT_UPDATE),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -592,6 +593,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         )],
         mutator: true,
         analyser_hook: Some(crate::hooks::AnalyserHookId::DictWith),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::body::DICT_WITH),
         ..SubCommand::DEFAULT
     },
     SubCommand {

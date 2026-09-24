@@ -1248,11 +1248,11 @@ fn the_loop_header_projects_to_the_declared_iteration_plan() {
             }
             other => panic!("{name}: {other:?}"),
         }
-        // The source layout's plan is not yet described.
+        // A source layout without its body is the command's error.
         let source = TestInputs::new(name, vec![literal("x", None), literal("a b c", None)]);
         assert!(matches!(
             semantics.structure(&source),
-            PlanAnswer::Declined(DeclineReason::Unsupported)
+            PlanAnswer::Declined(DeclineReason::WrongRepresentation)
         ));
     }
 }
@@ -1322,6 +1322,8 @@ fn pinned_route_stamps() -> BTreeSet<(String, &'static str, &'static str)> {
         ("::tcl::dict::lappend", "direct:dict-lappend", "registry"),
         ("::tcl::dict::set", "direct:dict-set", "registry"),
         ("::tcl::dict::unset", "direct:dict-unset", "registry"),
+        ("::tcl::dict::update", "none:unauthored", "-"),
+        ("::tcl::dict::with", "none:unauthored", "-"),
         ("append", "direct:cell-append", "registry"),
         ("append_to_collection", "none:declared", "-"),
         ("array set", "direct:array-set", "registry"),
@@ -1332,6 +1334,8 @@ fn pinned_route_stamps() -> BTreeSet<(String, &'static str, &'static str)> {
         ("dict lappend", "direct:dict-lappend", "registry"),
         ("dict set", "direct:dict-set", "registry"),
         ("dict unset", "direct:dict-unset", "registry"),
+        ("dict update", "none:unauthored", "-"),
+        ("dict with", "none:unauthored", "-"),
         ("expr", "expression:tcl.expr", "-"),
         ("foreach", "none:unauthored", "-"),
         ("foreach_in_collection", "none:declared", "-"),
@@ -2630,4 +2634,236 @@ fn the_byte_and_array_writers_run_the_shared_cores() {
         Err(DeclineReason::WrongRepresentation),
         "an odd-length list raises"
     );
+}
+
+/// The loops' source layout answers an iteration plan (VT5.7): one binder
+/// per name of the var-list word, padded past the list's end, over the one
+/// list, the body in the caller's frame with `break` and `continue`
+/// absorbed, and nothing bound on the zero-iteration path. Several var-list
+/// and list pairs are several iterables, which one plan does not describe;
+/// a var-list the analysis does not know names no binders; an empty one is
+/// the command's error.
+#[test]
+fn the_source_layout_answers_an_iteration_plan() {
+    use tcl_registry::FrameLevel;
+    use tcl_registry::value_transfer::{
+        Binder, BinderName, BindingKind, BodyPlan, CompletionProtocol, ExitRule, IterationPlan,
+    };
+    let reg = CommandRegistry::build_default();
+    for name in ["foreach", "lmap"] {
+        let resolved = resolve_semantics(reg.get(name).expect(name), None, None);
+        let semantics = resolved.semantics().expect("declared");
+        let words = |var_list| {
+            TestInputs::new(
+                name,
+                vec![
+                    literal(var_list, None),
+                    literal("1 10 2 20", None),
+                    literal("puts $a", Some(ArgRole::Body)),
+                ],
+            )
+        };
+        let PlanAnswer::Iterate(plan) = semantics.structure(&words("a b")) else {
+            panic!("{name}: no iteration plan");
+        };
+        assert_eq!(
+            plan,
+            IterationPlan {
+                binders: ["a", "b"]
+                    .map(|binder| Binder {
+                        name: BinderName::Declared(binder.to_owned()),
+                        kind: BindingKind::Scalar,
+                    })
+                    .to_vec(),
+                iterable: IterableKind::List(OperandId(1)),
+                body: Some(BodyPlan {
+                    body: OperandId(2),
+                    frame: FrameLevel::Relative(0),
+                }),
+                exit: ExitRule::Exhaustion,
+                zero_iterations_bind: false,
+                completion: CompletionProtocol::Absorb(&[
+                    tcl_registry::completion::CompletionCode::Break,
+                    tcl_registry::completion::CompletionCode::Continue,
+                ]),
+            },
+            "{name}"
+        );
+        assert_eq!(
+            semantics.structure(&words("")),
+            PlanAnswer::Declined(DeclineReason::WrongRepresentation),
+            "{name}: an empty var-list"
+        );
+        let mut unknown = words("a b");
+        unknown
+            .operands
+            .insert(0, FactView::Top(DeclineReason::NotExact));
+        assert_eq!(
+            semantics.structure(&unknown),
+            PlanAnswer::Declined(DeclineReason::NotExact),
+            "{name}: an unknown var-list"
+        );
+        let lockstep = TestInputs::new(
+            name,
+            vec![
+                literal("a", None),
+                literal("1 2", None),
+                literal("b", None),
+                literal("3 4", None),
+                literal("puts $a$b", Some(ArgRole::Body)),
+            ],
+        );
+        assert_eq!(
+            semantics.structure(&lockstep),
+            PlanAnswer::Declined(DeclineReason::Unsupported),
+            "{name}: two lists in lockstep"
+        );
+    }
+}
+
+/// The structural plan `dict SUB` (or its `::tcl::dict::` spelling when
+/// `qualified`) answers over `words`, with `d` holding `prior` when it is
+/// not empty.
+fn dict_body_plan(
+    reg: &CommandRegistry,
+    sub: &str,
+    qualified: bool,
+    words: &[(&'static str, Option<ArgRole>)],
+    prior: &str,
+) -> PlanAnswer {
+    let dict = reg.get("dict").expect("dict");
+    let (semantics, command) = if qualified {
+        let spec = reg
+            .get(if sub == "with" {
+                "::tcl::dict::with"
+            } else {
+                "::tcl::dict::update"
+            })
+            .expect("the qualified spelling");
+        (resolve_semantics(spec, None, None), spec.name)
+    } else {
+        (
+            resolve_semantics(dict, Some(dict.subcommand(sub).expect(sub)), None),
+            "dict",
+        )
+    };
+    let semantics = semantics.semantics().expect("a body plan");
+    let mut operands: Vec<OperandView<'static>> = Vec::new();
+    if !qualified {
+        operands.push(literal(if sub == "with" { "with" } else { "update" }, None));
+    }
+    operands.extend(words.iter().map(|&(text, role)| literal(text, role)));
+    let mut inputs = TestInputs::new(command, operands);
+    if !qualified {
+        inputs.view.argument_offset = 1;
+    }
+    if !prior.is_empty() {
+        inputs.prior.insert(
+            "d".to_owned(),
+            FactView::Exact(ExactValue::from_literal(prior), None),
+        );
+    }
+    semantics.structure(&inputs)
+}
+
+/// `dict with` and `dict update` are structural plans (VT5.7), under both
+/// spellings: the binders are a projection on body entry — the proven keys
+/// of the dictionary for `dict with` (`set d {a 1}; dict with d {incr a;
+/// set result done}` binds `a`; tclsh 8.5 to 9.1 answer `done` and leave
+/// `d` as `a 2`), a key path's nested dictionary's keys, and the declared
+/// variables for `dict update` — the body runs in the caller's frame, the
+/// bound keys are written back into the dictionary operand, and the body's
+/// completion is the command's. A dictionary the analysis does not know
+/// names no binders, so `dict with` declines; a path key it lacks, or a
+/// value that is no dictionary, is the command's error.
+#[test]
+fn dict_with_binds_the_proven_keys() {
+    use tcl_registry::FrameLevel;
+    use tcl_registry::value_transfer::{
+        Binder, BinderName, BindingKind, BodyPlan, CompletionProtocol, Reconcile,
+    };
+    let reg = CommandRegistry::build_default();
+    let plan_of = |sub, qualified, words: &[(&'static str, Option<ArgRole>)], prior| {
+        dict_body_plan(&reg, sub, qualified, words, prior)
+    };
+    let declared = |names: &[&str]| -> Vec<Binder> {
+        names
+            .iter()
+            .map(|name| Binder {
+                name: BinderName::Declared((*name).to_owned()),
+                kind: BindingKind::Scalar,
+            })
+            .collect()
+    };
+    let body = |at: usize| BodyPlan {
+        body: OperandId(at),
+        frame: FrameLevel::Relative(0),
+    };
+    let var = ("d", Some(ArgRole::VarWrite));
+    let script = ("incr a; set result done", Some(ArgRole::Body));
+    for qualified in [false, true] {
+        let offset = usize::from(!qualified);
+        assert_eq!(
+            plan_of("with", qualified, &[var, script], "a 1"),
+            PlanAnswer::Body {
+                binders: declared(&["a"]),
+                body: body(offset + 1),
+                reconcile: Reconcile::WriteBackKeys(OperandId(offset)),
+                completion: CompletionProtocol::TclBody,
+            },
+            "qualified: {qualified}"
+        );
+        assert_eq!(
+            plan_of(
+                "with",
+                qualified,
+                &[var, ("x", None), script],
+                "x {a 1 b 2 a 3} y 4"
+            ),
+            PlanAnswer::Body {
+                binders: declared(&["a", "b"]),
+                body: body(offset + 2),
+                reconcile: Reconcile::WriteBackKeys(OperandId(offset)),
+                completion: CompletionProtocol::TclBody,
+            },
+            "qualified: {qualified}: a key path"
+        );
+        assert_eq!(
+            plan_of("with", qualified, &[var, script], ""),
+            PlanAnswer::Declined(DeclineReason::NotExact),
+            "qualified: {qualified}: an unknown dictionary"
+        );
+        assert_eq!(
+            plan_of("with", qualified, &[var, ("z", None), script], "x 1"),
+            PlanAnswer::Declined(DeclineReason::WrongRepresentation),
+            "qualified: {qualified}: a path key the dictionary lacks"
+        );
+        assert_eq!(
+            plan_of(
+                "update",
+                qualified,
+                &[
+                    var,
+                    ("k", None),
+                    ("v", None),
+                    ("j", None),
+                    ("w", None),
+                    script
+                ],
+                ""
+            ),
+            PlanAnswer::Body {
+                binders: [offset + 2, offset + 4]
+                    .map(|at| Binder {
+                        name: BinderName::Operand(OperandId(at)),
+                        kind: BindingKind::Scalar,
+                    })
+                    .to_vec(),
+                body: body(offset + 5),
+                reconcile: Reconcile::WriteBackKeys(OperandId(offset)),
+                completion: CompletionProtocol::TclBody,
+            },
+            "qualified: {qualified}: dict update"
+        );
+    }
 }

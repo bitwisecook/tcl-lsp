@@ -1555,3 +1555,88 @@ fn binary_format_witnesses_match_every_release_on_path() {
         eprintln!("no tclsh on PATH: the binary format witnesses were not exercised");
     }
 }
+
+/// `dict with`'s key projection against the real `tclsh` (VT5.7), from 8.5,
+/// the release `dict` arrives in: the variables a body sees on entry, beyond
+/// the dictionary variable, are the plan's binders — every key of the
+/// dictionary, a repeated key once, or of the nested one a key path names —
+/// and the page's program answers `done` and leaves `d` as `a 2`.
+#[test]
+fn dict_with_binds_the_keys_tclsh_binds() {
+    use tcl_registry::value_transfer::{
+        BinderName, ExactValue, LiteralInputs, PlanAnswer, resolve_semantics,
+    };
+    const DICTS: &[(&str, &[&str])] = &[
+        ("a 1", &[]),
+        ("a 1 b 2 a 3", &[]),
+        ("", &[]),
+        ("x {p 1 q 2} y 3", &["x"]),
+        ("x {y {k v}}", &["x", "y"]),
+    ];
+    let reg = CommandRegistry::build_default();
+    let spec = reg.get("dict").expect("dict");
+    let semantics = resolve_semantics(spec, Some(spec.subcommand("with").expect("with")), None);
+    let semantics = semantics.semantics().expect("the dict with plan");
+    let mut releases = 0usize;
+    for version in tcl_dialect::TclVersion::ALL {
+        if version < tcl_dialect::TclVersion::V8_5 {
+            continue;
+        }
+        let Some(tclsh) = find_tclsh(version.version_string()) else {
+            continue;
+        };
+        releases += 1;
+        let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name());
+        for &(dict, path) in DICTS {
+            let mut words = vec!["d"];
+            words.extend_from_slice(path);
+            words.push("return [lsort [info locals]]");
+            let inputs = LiteralInputs::new("dict", Some("with"), &words, profile)
+                .with_prior("d", ExactValue::from_literal(dict));
+            let PlanAnswer::Body { binders, .. } = semantics.structure(&inputs) else {
+                panic!("{dict:?} {path:?}: no body plan");
+            };
+            let mut planned: Vec<String> = binders
+                .iter()
+                .map(|binder| match &binder.name {
+                    BinderName::Declared(name) => name.clone(),
+                    BinderName::Operand(id) => words[id.0 - 1].to_owned(),
+                })
+                .collect();
+            planned.sort();
+            let mut script = format!(
+                "proc p {{}} {{\n    set d {}\n    dict with d",
+                tcl_quoted_word(dict)
+            );
+            for key in path {
+                script.push(' ');
+                script.push_str(key);
+            }
+            script.push_str(" {return [lsort [info locals]]}\n}\nputs -nonewline [p]\n");
+            let (true, locals) = run_tcl(&tclsh, &script).expect("tclsh runs") else {
+                panic!("tclsh{}: {script}", version.version_string());
+            };
+            let bound: Vec<&str> = locals
+                .split(' ')
+                .filter(|name| *name != "d" && !name.is_empty())
+                .collect();
+            assert_eq!(
+                planned,
+                bound,
+                "tclsh{}: dict with over {dict:?} {path:?}",
+                version.version_string()
+            );
+        }
+        let program =
+            "set d {a 1}\nputs [dict with d {incr a; set result done}]\nputs -nonewline $d\n";
+        assert_eq!(
+            run_tcl(&tclsh, program),
+            Some((true, "done\na 2".to_owned())),
+            "tclsh{}",
+            version.version_string()
+        );
+    }
+    if releases == 0 {
+        eprintln!("no tclsh on PATH: dict_with_binds_the_keys_tclsh_binds ran nothing");
+    }
+}

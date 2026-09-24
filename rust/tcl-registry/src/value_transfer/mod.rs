@@ -38,6 +38,7 @@
 //! (`docs/design/compiler/value-evaluation.md`).
 
 pub mod answers;
+pub mod body;
 pub mod builtins;
 pub mod cell_update;
 pub mod cell_write;

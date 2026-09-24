@@ -3724,8 +3724,10 @@ mod tests {
     }
 
     #[test]
-    fn evaluate_def_foreach_multi_var_widens() {
-        // 2-element defs → no constset extraction.
+    fn evaluate_def_foreach_multi_var_binds_each_its_elements() {
+        // Two binders over one list (VT5.7): each takes the elements it is
+        // assigned, so over `a b` the first binder, `v`, holds `a` (it had
+        // widened while the plan answered one binder only).
         let mut ssa = bare_ssa();
         let mut stmt = foreach_stmt(&mut ssa, "v", "a b", 1);
         let Statement::Call { defs, .. } = &mut stmt.statement else {
@@ -3733,7 +3735,7 @@ mod tests {
         };
         defs.push("w".into());
         let result = evaluate_pristine(&stmt, &HashMap::new(), &ssa, FoldPolicy::default());
-        assert_eq!(result, LatticeValue::Overdefined);
+        assert_eq!(result, LatticeValue::Const(ConstValue::String("a".into())));
     }
 
     // AssignValue + command-substitution folding.

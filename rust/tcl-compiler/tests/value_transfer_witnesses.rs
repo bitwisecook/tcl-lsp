@@ -1346,14 +1346,11 @@ fn the_square_of_one_finite_input_stays_correlated() {
 /// 25 in every release, but only ordered enumeration (slice 12) answers
 /// that, never the finite-set lift.
 ///
-/// On this pre-slice-5 tree a two-binder `foreach`'s source layout is
-/// still declined (the migration plan's ledger: `foreach` / `lmap`
-/// "declining the source layout until slice 5"), so `a` and `b` are
-/// `Overdefined` from the header rather than the page's two distinct
-/// `Finite` identities, and `expr` declines `not-exact` rather than the
-/// page's `CorrelatedSets` — the reason slice 5 gives its named shape.
-/// The outcome this test pins, that `x` / `y` never fold and neither
-/// branch decides, holds either way.
+/// Since VT5.7 the loop header answers each binder of the two-binder
+/// source with the elements it takes (`a` is `{1 2}`, `b` is `{10 20}`),
+/// so each quotient sees the page's two distinct `Finite` identities and
+/// declines `CorrelatedSets`, the reason D64 deferred to this slice; `x`
+/// and `y` never fold and neither branch decides.
 #[test]
 fn the_mirror_pairs_decline_as_correlated() {
     let source = "proc p {} {\n\
@@ -1390,6 +1387,14 @@ fn the_mirror_pairs_decline_as_correlated() {
                 function.sccp.constant_branches
             );
         }
+        // The two-binder source is lowered (VT5.7): `a` and `b` are two
+        // distinct finite inputs, so each quotient declines as correlated.
+        let answers = answers_for(&unit, "::p", "expr");
+        assert_eq!(
+            answers,
+            ["declined: correlated-sets", "declined: correlated-sets"],
+            "{dialect}"
+        );
     }
 }
 
