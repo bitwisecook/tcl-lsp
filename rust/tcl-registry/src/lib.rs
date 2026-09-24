@@ -334,7 +334,7 @@ pub use special_vars::{
     special_var_write_effect, special_vars_for_dialect,
 };
 pub use state_transition::{
-    AbruptTransitionTransfer, CallerFrameSelection, ChildInterpreterSafety,
+    AbruptTransitionTransfer, AliasWords, CallerFrameSelection, ChildInterpreterSafety,
     CommandBindingDefinitionKind, CommandBindingTransition, CommandResolutionImpact,
     InterpreterTransition, NamespaceTransition, NamespaceTransitionTarget, ObjectDispatchKind,
     ObjectDispatchLayer, ObjectDispatchTarget, ObjectDispatchTransition, ObjectPrivateNamespace,

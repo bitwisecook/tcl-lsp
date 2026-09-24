@@ -9218,3 +9218,113 @@ mod issue_1367_template_method_self_dispatch {
         );
     }
 }
+
+// ── Pack-declared transitions and special variables ─────────────────────────
+
+mod pack_declared_transitions {
+    use super::*;
+
+    /// Load `source` as a workspace pack and return an analyser bound to the
+    /// registry generation it installs — the path the language server takes
+    /// for a document under `.tcl-lsp/`.
+    fn analyser_with_pack(source: &str) -> Analyser {
+        let packs = tcl_spectcl::pack::load_in_memory(vec![(
+            tcl_spectcl::PackFile {
+                tier: tcl_spectcl::Tier::Workspace,
+                path: std::path::PathBuf::from("/workspace/.tcl-lsp/scoped.tclspec"),
+                origin: tcl_spectcl::discovery::Origin::DotDir,
+            },
+            source.to_owned(),
+        )]);
+        let _registry = tcl_spectcl::install::registry_for_dialect_with_packs(D, &packs);
+        Analyser::new().with_pack_overlay(packs.key)
+    }
+
+    /// A command no shipped registry knows, crossing frames exactly as
+    /// `upvar` does: its `frame_effect` is `upvar`'s, and its
+    /// `state_transitions` resolver derives the alias facts from it.
+    const LINKER_PACK: &str = "speclib scoped 1.0 {\n\
+        \x20   command scoped_link {\n\
+        \x20       arity 2..\n\
+        \x20       frame_effect -level-word ArityParity -layout AliasPairs\n\
+        \x20       state_transitions {\n\
+        \x20           argument_shape Positional\n\
+        \x20           resolver from-frame-effect\n\
+        \x20           widen -operands EveryArgument -domains {VariableCells VariableTraces}\n\
+        \x20           commit MayCommitBeforeAbruptCompletion\n\
+        \x20       }\n\
+        \x20   }\n\
+        }\n";
+
+    /// The analyser binds a pack command's alias facts as it binds
+    /// `upvar`'s — it reads the invocation's transitions, never the
+    /// command's name: `scoped_link #0 counter c` defines `c` and links it to the
+    /// global cell. Negative: with a computed level word the derived
+    /// resolver abstains for the whole call (the shipped `upvar` would state
+    /// its alias with an unknown frame), so nothing binds.
+    #[test]
+    fn a_pack_declared_scope_alias_binds_its_local() {
+        let bound = analyser_with_pack(LINKER_PACK).analyse(
+            "proc p {} {\n    scoped_link #0 counter c\n    return $c\n}\n",
+            D,
+        );
+        let proc_scope = &bound.global_scope.children[0];
+        let c = proc_scope
+            .variables
+            .get("c")
+            .unwrap_or_else(|| panic!("`c` is bound: {:?}", proc_scope.variables.keys()));
+        assert_eq!(c.link_target.as_deref(), Some("::counter"));
+        assert!(!c.warn_if_unused);
+
+        let unbound = analyser_with_pack(LINKER_PACK)
+            .analyse("proc p {lvl} {\n    scoped_link $lvl counter c\n}\n", D);
+        assert!(
+            !unbound.global_scope.children[0].variables.contains_key("c"),
+            "a computed level word binds nothing"
+        );
+    }
+
+    /// A pack declaring an interpreter-provided global bound at startup.
+    const HOST_PACK: &str = "speclib hosted 2.1 {\n\
+        \x20   special_var sim_home -kind Scalar -access ReadOnly -origin Dialect -startup Interpreter\n\
+        \x20   special_var sim_opts -kind Array -access ReadWrite -origin Environment\n\
+        }\n";
+
+    /// A pack's `special_var` row reaches the registry generation the
+    /// analyser walks under through the one door every reader asks
+    /// (`CommandRegistry::special_vars`), with the facts the shipped table
+    /// states: `sim_home` is readable before user code, `sim_opts` exists but
+    /// is not. Negative: the generation without the pack knows neither.
+    #[test]
+    fn a_pack_declared_special_variable_is_readable_at_startup() {
+        let packs = tcl_spectcl::pack::load_in_memory(vec![(
+            tcl_spectcl::PackFile {
+                tier: tcl_spectcl::Tier::Workspace,
+                path: std::path::PathBuf::from("/workspace/.tcl-lsp/hosted.tclspec"),
+                origin: tcl_spectcl::discovery::Origin::DotDir,
+            },
+            HOST_PACK.to_owned(),
+        )]);
+        assert!(
+            !packs.is_empty(),
+            "a pack of special variables is not empty"
+        );
+        let overlaid = tcl_spectcl::install::registry_for_dialect_with_packs(D, &packs);
+        let query = Some(tcl_dialect::model::SurfaceQuery::core(
+            tcl_dialect::model::Family::Tcl,
+            "8.6",
+        ));
+        assert!(overlaid.is_readable_at_startup("sim_home", query));
+        assert!(overlaid.special_var_in_dialect("sim_opts", query).is_some());
+        assert!(!overlaid.is_readable_at_startup("sim_opts", query));
+        // The shipped rows still answer through the same door.
+        assert!(overlaid.is_readable_at_startup("tcl_version", query));
+
+        let plain = tcl_spectcl::install::registry_for_dialect_with_packs(
+            D,
+            &tcl_spectcl::PackSet::default(),
+        );
+        assert!(plain.special_var("sim_home").is_none());
+        assert!(!plain.is_readable_at_startup("sim_home", query));
+    }
+}

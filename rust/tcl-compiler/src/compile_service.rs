@@ -46,7 +46,9 @@ use tcl_runtime_api::{
 
 enum RegistryTarget {
     Owned {
-        registry: CommandRegistry,
+        // Boxed: a registry is far larger than the profile variant's one
+        // pointer.
+        registry: Box<CommandRegistry>,
         profile_views: Mutex<FxHashMap<&'static str, Arc<CommandRegistry>>>,
     },
     Profile(&'static CommandRegistry),
@@ -117,7 +119,7 @@ impl BytecodeCompileService {
     pub fn new(registry: CommandRegistry) -> Self {
         Self {
             registry: RegistryTarget::Owned {
-                registry,
+                registry: Box::new(registry),
                 profile_views: Mutex::new(FxHashMap::default()),
             },
             config: LexerConfig::default(),

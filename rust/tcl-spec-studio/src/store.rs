@@ -1458,6 +1458,7 @@ fn merged(name: &str, pack: &Pack, tier: Tier) -> MergedPack {
         display_name: pack.display_name.clone(),
         file_extensions: pack.file_extensions.clone(),
         ambient_packages: pack.ambient_packages.clone(),
+        special_vars: pack.special_vars.clone(),
         environments: pack.environments.clone(),
         dialects: pack.dialects.clone(),
         surface_rosters: pack.surface_rosters.clone(),

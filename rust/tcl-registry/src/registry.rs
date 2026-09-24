@@ -611,6 +611,13 @@ pub struct CommandRegistry {
     /// to packs — a package's own version floor must not depend
     /// on whether this crate happens to know the package's name.
     ambient_packages: Vec<(&'static str, &'static str)>,
+    /// Special variables a `SpecTcl` pack declared with `special_var`, in
+    /// installation order — the pack-authored rows [`Self::special_vars`]
+    /// reads beside the shipped table.
+    ///
+    /// Empty for every compiled-in registry; a pack fills it through
+    /// [`Self::insert_special_var`].
+    special_vars: Vec<&'static crate::special_vars::SpecialVarSpec>,
     /// The member grammar of a **document** in this registry's dialect, when
     /// its command surface declares one.
     ///
@@ -1491,6 +1498,7 @@ impl CommandRegistry {
             loaded_layers: Vec::new(),
             profile: None,
             ambient_packages: Vec::new(),
+            special_vars: Vec::new(),
             document_grammar: None,
             effective_semantics: OnceLock::new(),
             overlay: None,
@@ -1835,6 +1843,70 @@ impl CommandRegistry {
     #[must_use]
     pub fn ambient_package_rows(&self) -> &[(&'static str, &'static str)] {
         &self.ambient_packages
+    }
+
+    /// Record a special variable a `SpecTcl` pack declares — the pack's
+    /// `special_var` statement.
+    pub fn insert_special_var(&mut self, spec: &'static crate::special_vars::SpecialVarSpec) {
+        self.special_vars.push(spec);
+        self.generation = next_registry_generation();
+    }
+
+    /// Every special variable this registry knows: the rows loaded packs
+    /// declared, the latest first, then the shipped table
+    /// ([`crate::special_vars::SPECIAL_VARS`]) less any name a pack row
+    /// already answers for — the one door a consumer reads, so a variable a
+    /// pack declares answers exactly as a shipped one does. A pack row
+    /// shadows a shipped row of the same name, as an authored command spec
+    /// shadows a shipped one.
+    pub fn special_vars(
+        &self,
+    ) -> impl Iterator<Item = &'static crate::special_vars::SpecialVarSpec> + '_ {
+        let declared = || self.special_vars.iter().rev().copied();
+        declared().chain(
+            crate::special_vars::SPECIAL_VARS
+                .iter()
+                .filter(move |shipped| !declared().any(|pack| pack.name == shipped.name)),
+        )
+    }
+
+    /// The special variable named `name`, ignoring dialect — the registry
+    /// face of [`crate::special_vars::special_var`], pack rows included.
+    #[must_use]
+    pub fn special_var(&self, name: &str) -> Option<&'static crate::special_vars::SpecialVarSpec> {
+        self.special_vars().find(|spec| spec.name == name)
+    }
+
+    /// The special variable named `name` when `dialect` provides it — the
+    /// registry face of [`crate::special_vars::special_var_in_dialect`].
+    #[must_use]
+    pub fn special_var_in_dialect(
+        &self,
+        name: &str,
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> Option<&'static crate::special_vars::SpecialVarSpec> {
+        self.special_var(name)
+            .filter(|spec| spec.available_in(dialect))
+    }
+
+    /// The special variables `dialect` provides, pack rows first — the
+    /// registry face of [`crate::special_vars::special_vars_for_dialect`].
+    pub fn special_vars_for_dialect<'a>(
+        &'a self,
+        dialect: Option<SurfaceQuery<'a>>,
+    ) -> impl Iterator<Item = &'static crate::special_vars::SpecialVarSpec> + 'a {
+        self.special_vars()
+            .filter(move |spec| spec.available_in(dialect))
+    }
+
+    /// Whether a bare global `name` is readable before user code in
+    /// `dialect` — the registry face of
+    /// [`crate::special_vars::is_readable_at_startup`], so a pack-declared
+    /// startup binding answers too.
+    #[must_use]
+    pub fn is_readable_at_startup(&self, name: &str, dialect: Option<SurfaceQuery<'_>>) -> bool {
+        self.special_var(name)
+            .is_some_and(|spec| spec.readable_at_startup_in(dialect))
     }
 
     /// Whether `name` exists as a command in *any* dialect, independent of
@@ -6164,6 +6236,7 @@ impl std::fmt::Debug for CommandRegistry {
             .field("loaded_layers", &self.loaded_layers)
             .field("profile", &self.profile.map(|p| p.name))
             .field("ambient_packages", &self.ambient_packages)
+            .field("special_vars", &self.special_vars)
             .field(
                 "document_grammar",
                 &self.document_grammar.map(|g| g.members.len()),

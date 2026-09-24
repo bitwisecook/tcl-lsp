@@ -189,40 +189,68 @@ const INTERP_BGERROR_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor {
     dynamic_fallback: WorldEffectDynamicFallback::Declared(INTERP_POLICY_DYNAMIC_EFFECTS),
 };
 
+/// `interp create ?-safe? ?--? ?path?`, read as `Tcl_InterpObjCmd`'s
+/// `create` arm reads it (`generic/tclInterp.c`): until `--`, a word starting
+/// with `-` is an option, `-safe` or `--` by unique prefix; `--` takes the
+/// next word as the path whatever it spells; and a word naming neither option
+/// (`-` alone is ambiguous), or a second path, fails the command, which then
+/// creates nothing. tclsh 8.4 through 9.1 agree on every shape:
+///
+/// * `interp create x -safe`, `-safe -- z`, `-s x` — safe `x` / `z` / `x`;
+/// * `interp create -- -safe`, `-- --` — an unsafe child named `-safe` / `--`;
+/// * `interp create n -bogus`, `-bogus x`, `-`, `a b`, `-- x -safe`, `x --` —
+///   an error, and no child.
+///
+/// A computed word where an option could still stand may be `-safe`, `--`,
+/// the path, or a failing option, so the child's path is unknown from there
+/// on (and so is its safety, unless `-safe` came first: a later option can
+/// only add it).
 fn interp_create_state_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
-    let mut transitions = StateTransitions::default();
+    const OPTIONS: [&str; 2] = ["-safe", "--"];
+    let failed = StateTransitions::default;
     let mut interpreter = None;
     let mut options_ended = false;
     let mut safety = ChildInterpreterSafety::Inherited;
-
-    for index in 1..arguments.len() {
+    let mut index = 1;
+    while index < arguments.len() {
         let Some(word) = arguments.get(index) else {
-            return transitions;
+            return failed();
         };
-        let Some(value) = word.literal() else {
-            // A computed word can be an option, an option terminator, or the
-            // child path. Widening retains that typed operand; avoid treating
-            // its source spelling as any one of those Tcl values.
-            safety = ChildInterpreterSafety::Unknown;
-            continue;
-        };
-        if !options_ended {
-            match value {
-                "-safe" => {
-                    safety = ChildInterpreterSafety::Safe;
-                    continue;
+        match word.literal() {
+            Some(value) if !options_ended && value.starts_with('-') => {
+                let mut named = OPTIONS.iter().filter(|option| option.starts_with(value));
+                match (named.next(), named.next()) {
+                    (Some(&"-safe"), None) => {
+                        safety = ChildInterpreterSafety::Safe;
+                        index += 1;
+                        continue;
+                    }
+                    // `--` ends the options and takes the next word as the
+                    // path, read below.
+                    (Some(_), None) => {
+                        options_ended = true;
+                        index += 1;
+                    }
+                    _ => return failed(),
                 }
-                "--" => {
-                    options_ended = true;
-                    continue;
-                }
-                _ => {}
             }
+            None if !options_ended => {
+                if safety != ChildInterpreterSafety::Safe {
+                    safety = ChildInterpreterSafety::Unknown;
+                }
+                interpreter =
+                    interpreter.or_else(|| TransitionSubject::from_argument(arguments, index));
+                break;
+            }
+            _ => {}
         }
-        if interpreter.is_none() {
-            interpreter = TransitionSubject::from_argument(arguments, index);
+        if interpreter.is_some() {
+            return failed();
         }
+        interpreter = TransitionSubject::from_argument(arguments, index);
+        index += 1;
     }
+    let mut transitions = StateTransitions::default();
     transitions.push(StateTransition::Interpreter(
         InterpreterTransition::Create {
             interpreter,
@@ -992,6 +1020,102 @@ mod tests {
                 safety: ChildInterpreterSafety::Safe,
             }) if path == "child"
         ));
+    }
+
+    /// The creation `Tcl_InterpObjCmd` performs for `interp create WORDS…`:
+    /// the child's literal path (or `None`) and its safety, or `None` when
+    /// the command fails and creates nothing.
+    fn created(words: &[&str]) -> Option<(Option<String>, ChildInterpreterSafety)> {
+        let arguments: Vec<&str> = std::iter::once("create")
+            .chain(words.iter().copied())
+            .collect();
+        let transitions =
+            INTERP_CREATE_TRANSITIONS.resolve(InvocationArguments::literals(&arguments));
+        transitions
+            .facts()
+            .iter()
+            .find_map(|fact| match &fact.transition {
+                StateTransition::Interpreter(InterpreterTransition::Create {
+                    interpreter,
+                    safety,
+                }) => Some((
+                    interpreter
+                        .as_ref()
+                        .and_then(TransitionSubject::literal)
+                        .map(str::to_owned),
+                    *safety,
+                )),
+                _ => None,
+            })
+    }
+
+    /// tclsh 8.4, 8.5, 8.6, 9.0 and 9.1 agree on every row: the option scan
+    /// continues past the path, `-safe` and `--` match by unique prefix,
+    /// `--` takes the next word as the path whatever it spells, and a bad or
+    /// ambiguous option or a second path is an error that creates nothing.
+    #[test]
+    fn create_reads_the_c_option_scan() {
+        use ChildInterpreterSafety::{Inherited, Safe};
+        let named = |path: &str, safety| Some((Some(path.to_owned()), safety));
+        assert_eq!(created(&["x", "-safe"]), named("x", Safe));
+        assert_eq!(created(&["-safe", "--", "z"]), named("z", Safe));
+        assert_eq!(created(&["-s", "x"]), named("x", Safe));
+        assert_eq!(created(&["--", "-safe"]), named("-safe", Inherited));
+        assert_eq!(created(&["--", "--"]), named("--", Inherited));
+        assert_eq!(created(&["-safe"]), Some((None, Safe)));
+        assert_eq!(created(&[]), Some((None, Inherited)));
+        for failing in [
+            &["n", "-bogus"][..],
+            &["-bogus", "x"],
+            &["-"],
+            &["a", "b"],
+            &["--", "x", "-safe"],
+            &["x", "--"],
+        ] {
+            assert_eq!(created(failing), None, "`interp create {failing:?}` fails");
+        }
+    }
+
+    /// A computed word where an option could stand leaves the path unknown;
+    /// it can only add safety, never take it away.
+    #[test]
+    fn create_abstains_on_a_computed_word_among_the_options() {
+        let create = |words: &[InvocationWord<'_>]| {
+            let arguments: Vec<InvocationWord<'_>> =
+                std::iter::once(InvocationWord::Literal("create"))
+                    .chain(words.iter().copied())
+                    .collect();
+            INTERP_CREATE_TRANSITIONS
+                .resolve(InvocationArguments::structured(&arguments))
+                .facts()
+                .iter()
+                .find_map(|fact| match &fact.transition {
+                    StateTransition::Interpreter(InterpreterTransition::Create {
+                        interpreter,
+                        safety,
+                    }) => Some((interpreter.clone(), *safety)),
+                    _ => None,
+                })
+        };
+        let unknown = |argument_index| {
+            Some(TransitionSubject::Unknown {
+                argument_index,
+                word_kind: InvocationWordKind::Dynamic,
+            })
+        };
+        assert_eq!(
+            create(&[InvocationWord::Dynamic, InvocationWord::Literal("child")]),
+            Some((unknown(1), ChildInterpreterSafety::Unknown))
+        );
+        assert_eq!(
+            create(&[InvocationWord::Literal("-safe"), InvocationWord::Dynamic]),
+            Some((unknown(2), ChildInterpreterSafety::Safe))
+        );
+        // After `--` a computed word is the path, and nothing else.
+        assert_eq!(
+            create(&[InvocationWord::Literal("--"), InvocationWord::Dynamic]),
+            Some((unknown(2), ChildInterpreterSafety::Inherited))
+        );
     }
 
     #[test]

@@ -246,6 +246,11 @@ pub fn render(pack: &Pack) -> String {
     let _ = writeln!(out, "provides {:?}", pack.provides);
     let _ = writeln!(out, "co_provides {:?}", pack.co_provides);
     let _ = writeln!(out, "ambient_packages {:?}", pack.ambient_packages);
+    // Printed only when declared, so a pack with no `special_var` row
+    // renders as it did before the statement existed.
+    if !pack.special_vars.is_empty() {
+        let _ = writeln!(out, "special_vars {:?}", pack.special_vars);
+    }
     let _ = writeln!(
         out,
         "environments {}",

@@ -729,6 +729,7 @@ mod tests {
                     local: variable.clone(),
                     target: VariableAliasTarget::Global { variable },
                     writes_value: false,
+                    words: tcl_registry::AliasWords::same(0),
                 },
             ));
         }

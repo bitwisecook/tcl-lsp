@@ -130,6 +130,104 @@ struct BarewordDispatch<'a> {
     arg_expand: &'a [bool],
 }
 
+/// A dispatched call's per-word source facts, parallel to its post-head
+/// words.
+#[derive(Clone, Copy)]
+struct WordFacts<'a> {
+    /// Whether each word is a single token.
+    single: &'a [bool],
+    /// Whether each word is a `{*}` expansion.
+    expanded: &'a [bool],
+}
+
+/// What the registry may read of one dispatched source word: an expansion
+/// stays an expansion, a word that substitutes is computed, and a braced or
+/// plain word is the literal it spells
+/// ([`super::diagnostics::helpers::has_substitution`], the boundary the
+/// analyser's other static-word checks draw).
+fn source_invocation_word<'t>(
+    text: &'t str,
+    tok: Option<&Token>,
+    expanded: bool,
+) -> tcl_registry::InvocationWord<'t> {
+    use tcl_registry::InvocationWord;
+    if expanded {
+        return InvocationWord::Expanded;
+    }
+    match tok {
+        Some(tok)
+            if tok.kind == TokenType::Str
+                || !super::diagnostics::helpers::has_substitution(text, tok) =>
+        {
+            InvocationWord::Literal(text)
+        }
+        Some(_) => InvocationWord::Dynamic,
+        None => InvocationWord::Opaque,
+    }
+}
+
+/// The words of `text` when it is exactly one `[…]` command substitution,
+/// each with whether it was braced, read as a Tcl list: a braced word is its
+/// source text, so `[interp create {parent child}]` has the one path word
+/// `parent child`, never the fragments `{parent` and `child}`. `None` when
+/// `text` is not bracketed or its content is not a well-formed list — a
+/// malformed tail (`[interp create good {child]`) is not rescued by a valid
+/// prefix, which would read an incomplete edit as some other call.
+pub(super) fn substitution_elements(text: &str) -> Option<Vec<(&str, bool)>> {
+    let inner = text.strip_prefix('[')?.strip_suffix(']')?;
+    let mut words = Vec::new();
+    let mut pos = 0usize;
+    loop {
+        match tcl_syntax::list::find_element(inner, pos) {
+            Ok(Some(element)) => {
+                words.push((inner.get(element.value.clone())?, element.braced));
+                pos = element.next;
+            }
+            Ok(None) => return Some(words),
+            Err(_) => return None,
+        }
+    }
+}
+
+/// A call's head and word facts, with the registry and context generations
+/// a resolution over them borrows — owned here, so the resolution borrows
+/// nothing of the walk and a consumer may mutate the analyser while it holds
+/// one.
+pub(super) struct SourceCall<'a> {
+    registry: Arc<CommandRegistry>,
+    context: Option<Arc<tcl_registry::model::ContextRegistry>>,
+    head: &'a str,
+    words: Vec<tcl_registry::InvocationWord<'a>>,
+}
+
+impl SourceCall<'_> {
+    /// The call resolved under invariant I4, as the hook dispatch resolves
+    /// heads: a carried context must prove the head, and selection proceeds
+    /// at the context's authoring point; a harness walk with no context
+    /// keeps the store selection. `None` when nothing resolves the head.
+    pub(super) fn resolve(&self) -> Option<tcl_registry::ResolvedInvocation<'_, '_>> {
+        tcl_registry::model::resolve_invocation_words_in_context(
+            &self.registry,
+            self.context
+                .as_deref()
+                .map(tcl_registry::model::ContextRegistry::context),
+            tcl_registry::InvocationWords::structured(
+                tcl_registry::InvocationWord::Literal(self.head),
+                &self.words,
+            ),
+        )
+    }
+
+    /// The state transitions the call states, or none when it resolves no
+    /// descriptor that declares any.
+    pub(super) fn state_transitions(&self) -> tcl_registry::StateTransitions {
+        self.resolve()
+            .filter(|call| call.semantics.state_transitions.is_declared())
+            .map(|call| call.state_transitions())
+            .unwrap_or_default()
+    }
+}
+
 /// One resolved analyser-hook dispatch: the hook the head resolved to, plus
 /// the composed traits (`spec.traits | sub.traits`) and the clause plan of the
 /// concrete spec / subcommand it resolved to.
@@ -830,21 +928,9 @@ impl Analyser {
         if self.safe_interp_visibility_gate(cmd_name, arg_tokens_in[0]) {
             return;
         }
-        let args = if argv_texts.len() > 1 {
-            &argv_texts[1..]
-        } else {
-            &[]
-        };
-        let arg_tokens = if arg_tokens_in.len() > 1 {
-            &arg_tokens_in[1..]
-        } else {
-            &[]
-        };
-        let arg_single = if single_token_word.len() > 1 {
-            &single_token_word[1..]
-        } else {
-            &[]
-        };
+        let args = argv_texts.get(1..).unwrap_or(&[]);
+        let arg_tokens = arg_tokens_in.get(1..).unwrap_or(&[]);
+        let arg_single = single_token_word.get(1..).unwrap_or(&[]);
         // Bracket-substitution indirection invisible to the
         // gate above — see `check_indirect_hiding`'s doc.
         if self.check_indirect_hiding(argv_texts, arg_tokens_in, arg_expand_in, scope_path) {
@@ -1031,7 +1117,11 @@ impl Analyser {
             });
         } // end `if !self.structure_only`
 
-        self.dispatch_command_handlers(cmd_name, args, arg_tokens, arg_single, cmd_tok, scope_path);
+        let words = WordFacts {
+            single: arg_single,
+            expanded: arg_expand_in.get(1..).unwrap_or(&[]),
+        };
+        self.dispatch_command_handlers(cmd_name, args, arg_tokens, words, cmd_tok, scope_path);
     }
 
     /// Run E006 for the argument shapes the active command spec identifies as
@@ -1130,7 +1220,7 @@ impl Analyser {
         cmd_name: &str,
         args: &[String],
         arg_tokens: &[Token],
-        arg_single: &[bool],
+        words: WordFacts<'_>,
         cmd_tok: Token,
         scope_path: &[usize],
     ) {
@@ -1144,7 +1234,7 @@ impl Analyser {
             self.irules_debug_gate_depth += 1;
         }
         self.dispatch_command_handlers_inner(
-            cmd_name, args, arg_tokens, arg_single, cmd_tok, scope_path,
+            cmd_name, args, arg_tokens, words, cmd_tok, scope_path,
         );
         if gated {
             self.irules_debug_gate_depth -= 1;
@@ -1158,19 +1248,23 @@ impl Analyser {
         cmd_name: &str,
         args: &[String],
         arg_tokens: &[Token],
-        arg_single: &[bool],
+        words: WordFacts<'_>,
         cmd_tok: Token,
         scope_path: &[usize],
     ) {
-        if self.dispatch_analyser_hook(cmd_name, args, arg_tokens, arg_single, cmd_tok, scope_path)
-        {
+        let arg_single = words.single;
+        if self.dispatch_analyser_hook(cmd_name, args, arg_tokens, words, cmd_tok, scope_path) {
             return;
         }
 
-        // Any command with registry `VarWrite`-role args (`lassign`, `scan`,
-        // `regexp`, `regsub`, `gets`, `binary scan`, `vwait`, …) writes
-        // results into named variable arguments; bind them so
-        // completion/hover/definition see the destructured / captured names.
+        // The scope aliases the call's state transitions state — `global`,
+        // `variable`, `upvar`, `namespace upvar`, a pack command's alias
+        // facts — resolved over the words' source facts, so a computed word
+        // reaches the registry resolver as computed.
+        self.apply_invocation_transitions(cmd_name, args, arg_tokens, words, scope_path);
+        // The loop and output variables the call's roles name (`foreach`'s
+        // var lists, `dict for`'s pair, `lassign`, `scan`, `regexp`, `incr`,
+        // `append`, …), so completion/hover/definition see the bound names.
         self.handle_var_binding_command(cmd_name, args, arg_tokens, scope_path);
         // Registry symbol-definer commands (`tcltest::test NAME …`) contribute a
         // lightweight named definition to the outline.  Void handler — it only
@@ -1242,6 +1336,82 @@ impl Analyser {
     ) -> Option<tcl_registry::ClausePlan> {
         self.resolve_analyser_hook_call(cmd_name, args)
             .and_then(|resolved| resolved.clause_plan)
+    }
+
+    /// `cmd_name args…` over its words' source facts
+    /// ([`source_invocation_word`]), ready to resolve — so a registry
+    /// resolver abstains exactly where the source is not static.
+    pub(super) fn source_call<'a>(
+        &self,
+        cmd_name: &'a str,
+        args: &'a [String],
+        arg_tokens: &[Token],
+        expanded: &[bool],
+    ) -> SourceCall<'a> {
+        SourceCall {
+            registry: self.registry.clone().unwrap_or_else(fallback_registry),
+            context: self.context.clone(),
+            head: cmd_name,
+            words: args
+                .iter()
+                .enumerate()
+                .map(|(index, text)| {
+                    source_invocation_word(
+                        text,
+                        arg_tokens.get(index),
+                        expanded.get(index).copied().unwrap_or(false),
+                    )
+                })
+                .collect(),
+        }
+    }
+
+    /// `[head word…]`'s words when `text` is exactly one bracketed command
+    /// substitution, read as a Tcl list — braced words are the literal they
+    /// spell, a bare word carrying `$` or `[` is computed — ready to resolve.
+    /// `None` when `text` is not one substitution, its head is computed, or
+    /// its words are not a well-formed list (an incomplete edit, or a word
+    /// the list grammar cannot split, names no call).
+    pub(super) fn substitution_call<'a>(&self, text: &'a str) -> Option<SourceCall<'a>> {
+        let words = substitution_elements(text)?;
+        let (&(head, head_braced), rest) = words.split_first()?;
+        if !head_braced && crate::naming::is_dynamic_word(head) {
+            return None;
+        }
+        Some(SourceCall {
+            registry: self.registry.clone().unwrap_or_else(fallback_registry),
+            context: self.context.clone(),
+            head,
+            words: rest
+                .iter()
+                .map(|&(word, braced)| {
+                    if braced || !crate::naming::is_dynamic_word(word) {
+                        tcl_registry::InvocationWord::Literal(word)
+                    } else {
+                        tcl_registry::InvocationWord::Dynamic
+                    }
+                })
+                .collect(),
+        })
+    }
+
+    /// Apply the scope aliases the call's state transitions state
+    /// ([`Self::apply_state_transitions`]), the call resolved over its words'
+    /// source facts ([`Self::source_call`]).
+    fn apply_invocation_transitions(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+        words: WordFacts<'_>,
+        scope_path: &[usize],
+    ) {
+        let call = self.source_call(cmd_name, args, arg_tokens, words.expanded);
+        if let Some(invocation) = call.resolve()
+            && invocation.semantics.state_transitions.is_declared()
+        {
+            self.apply_state_transitions(&invocation, args, arg_tokens, scope_path);
+        }
     }
 
     /// Note, in the per-item shell walk, a definer only the workspace's packs
@@ -1346,11 +1516,12 @@ impl Analyser {
         cmd_name: &str,
         args: &[String],
         arg_tokens: &[Token],
-        arg_single: &[bool],
+        words: WordFacts<'_>,
         cmd_tok: Token,
         scope_path: &[usize],
     ) -> bool {
         use tcl_registry::hooks::AnalyserHookId as Hook;
+        let arg_single = words.single;
         let Some(ResolvedAnalyserHook {
             hook, clause_plan, ..
         }) = self.resolve_analyser_hook_call(cmd_name, args)
@@ -1391,7 +1562,7 @@ impl Analyser {
             // variable set.  Only the `#0` form is consumed; other
             // levels fall through to the generic body recursion.
             Hook::Uplevel => self.handle_uplevel_command(args, arg_tokens, scope_path),
-            Hook::Foreach => self.handle_foreach_command(args, arg_tokens, scope_path),
+            Hook::Foreach => self.handle_foreach_command(cmd_name, args, arg_tokens, scope_path),
             Hook::Switch => self.handle_switch_command(cmd_name, args, arg_tokens, scope_path),
             Hook::Catch => self.handle_catch_command(args, arg_tokens, scope_path),
             // The clause plan is this invocation's own, from the same
@@ -1405,16 +1576,13 @@ impl Analyser {
             // recursion never mis-reads the parameter list as a command.
             Hook::Apply => self.handle_apply_command(args, arg_tokens, scope_path),
 
-            // `for`'s four clauses are positional, and the generic body walk
-            // reads when each runs from the clause plan: `start` once,
-            // `next` and the body per iteration. The stamp retires in the
-            // hook re-baseline; until then it falls through to that walk.
-            Hook::For => false,
-
             // Void families: run the handler(s), then fall through to
             // the shared tail.
             Hook::InterpCreate => {
-                self.handle_interp_create_command(args);
+                let transitions = self
+                    .source_call(cmd_name, args, arg_tokens, words.expanded)
+                    .state_transitions();
+                self.handle_interp_create_command(&transitions);
                 false
             }
             Hook::InterpDelete => {
@@ -1431,46 +1599,34 @@ impl Analyser {
             }
             Hook::Set => {
                 self.handle_set_command(args, arg_tokens, arg_single, scope_path);
-                self.handle_auto_path_set(args, arg_tokens);
+                self.record_search_path_write(
+                    args,
+                    arg_tokens,
+                    0,
+                    1..args.len().min(2),
+                    super::types::AutoPathForm::Assign,
+                );
                 false
             }
-            Hook::Variable => {
-                self.handle_variable_command(args, arg_tokens, scope_path);
-                false
-            }
-            Hook::Global => {
-                self.handle_global_command(args, arg_tokens, scope_path);
-                false
-            }
-            Hook::Incr => {
-                self.handle_incr_command(args, arg_tokens, scope_path);
-                false
-            }
-            Hook::Append => {
-                self.handle_append_lappend_command(args, arg_tokens, scope_path);
-                false
-            }
-            Hook::Lappend => {
-                self.handle_append_lappend_command(args, arg_tokens, scope_path);
-                self.handle_auto_path_lappend(args, arg_tokens);
-                false
-            }
-            Hook::Upvar => {
-                self.handle_upvar_command(args, arg_tokens, scope_path);
-                false
-            }
-            Hook::NamespaceUpvar => {
-                self.handle_namespace_upvar_command(args, arg_tokens, scope_path);
-                false
-            }
-            Hook::DictFor => {
-                self.handle_dict_for_command(args, arg_tokens, scope_path);
-                false
-            }
-            Hook::DictUpdate => {
-                self.handle_dict_update_command(args, arg_tokens, scope_path);
-                false
-            }
+            // Handled by the descriptors, in the tail below: `for`'s four
+            // clauses are positional, and the generic body walk reads when
+            // each runs from the clause plan (`start` once, `next` and the
+            // body per iteration); a scope alias is the invocation's
+            // `VariableCellAliasTransition` (`apply_state_transitions`); and a
+            // loop or bound variable — with `lappend auto_path DIR…`'s record,
+            // the list append its `var_elements_effect` states — is its
+            // `LoopVarList` / `VarWrite` role (`handle_var_binding_command`).
+            // The stamps retire with the hook re-baseline.
+            Hook::For
+            | Hook::Variable
+            | Hook::Global
+            | Hook::Incr
+            | Hook::Append
+            | Hook::Lappend
+            | Hook::Upvar
+            | Hook::NamespaceUpvar
+            | Hook::DictFor
+            | Hook::DictUpdate => false,
             Hook::DictWith => {
                 self.handle_dict_with_command(args, arg_tokens, scope_path);
                 false
@@ -1485,15 +1641,15 @@ impl Analyser {
             }
             Hook::OoObjdefine => self.handle_oo_objdefine(args, arg_tokens, arg_single, scope_path),
             Hook::PackageRequire => {
-                self.handle_package_require(cmd_tok, args, arg_tokens);
+                self.handle_package_require(cmd_name, cmd_tok, args, arg_tokens);
                 false
             }
             Hook::PackageProvide => {
-                self.handle_package_provide(cmd_tok, args);
+                self.handle_package_provide(cmd_name, cmd_tok, args);
                 false
             }
             Hook::PackageIfneeded => {
-                self.handle_package_ifneeded(cmd_tok, args);
+                self.handle_package_ifneeded(cmd_name, cmd_tok, args);
                 false
             }
             Hook::PackagePrefer => {
@@ -3768,10 +3924,10 @@ impl Analyser {
         // not a "set but never used" target (no W211).
         match self.resolve_analyser_hook(&cmd_name, args) {
             Some(tcl_registry::hooks::AnalyserHookId::PackageRequire) => {
-                self.handle_package_require(cmd_tok, args, arg_tokens);
+                self.handle_package_require(&cmd_name, cmd_tok, args, arg_tokens);
             }
             Some(tcl_registry::hooks::AnalyserHookId::PackageProvide) => {
-                self.handle_package_provide(cmd_tok, args);
+                self.handle_package_provide(&cmd_name, cmd_tok, args);
             }
             Some(tcl_registry::hooks::AnalyserHookId::Catch) => {
                 if let Some(registry) = self.registry.as_deref() {

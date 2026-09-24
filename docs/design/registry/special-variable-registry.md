@@ -125,6 +125,48 @@ The crate exposes name + dialect queries; consumers never hold their own list:
   (`tcl-lsp-core`) renders a variable's summary, dialect-gated array keys, and
   the iRules CMP-safety note.
 
+The registry face of these queries is `CommandRegistry::special_vars()` —
+the rows loaded packs declared, then the shipped table — with
+`special_var`, `special_var_in_dialect`, `special_vars_for_dialect` and
+`is_readable_at_startup` beside it. A consumer holding the registry
+generation it walks under (the analyser's `set auto_path` / `lappend
+auto_path` record, which reads `auto_path`'s `VarAccess` there) asks the
+registry, so a pack's row answers as a shipped one does. The free functions
+above read the shipped table alone; their consumers move to the door as
+they come to hold a registry (W210's startup read, the `[info exists]`
+fold and the taint seed live in the value-transfers lane's files).
+
+## Declaring one in a pack
+
+A `SpecTcl` pack declares a special variable with a pack-level statement:
+
+```tcl
+special_var NAME -kind K -access A -origin O ?-dialects {…}? ?-startup B?
+```
+
+- `-kind` is `Scalar`, `Array` or `Namespace`; `-access` is `ReadOnly` or
+  `ReadWrite`; `-origin` is `Interpreter`, `AutoLoader`, `Platform`,
+  `Environment` or `Dialect`. All three are required: a row missing one is
+  dropped with a notice rather than defaulted, since a guessed kind or
+  access would state a fact the pack never made.
+- `-dialects` gates the variable's existence exactly as a command's
+  `dialects` row does; a row naming none takes the pack's `default
+  dialects`, else every Tcl release, and a row whose `-dialects` names
+  nothing this build knows is dropped rather than widened.
+- `-startup` is the lifecycle event that makes the variable readable before
+  user code: `None` (the default), `Interpreter`, `TclInit`, `TclMain`,
+  `AppInit` — each binding it on the row's own dialects
+  (`initially_bound`) — or `ReadTrace`, a core read trace materialising it
+  on first read (`lazily_readable`).
+- The row's other facts take the shipped table's empty values: no known
+  array keys, no runtime-observed write, no write effect, no read taint, no
+  hover summary.
+
+The loader builds a `SpecialVarSpec` from the row and the installer adds it
+to the pack's registry generation (`CommandRegistry::insert_special_var`);
+a row naming a variable the shipped table has shadows the shipped row in
+that generation. Two rows for one name keep the first, with a notice.
+
 ## Extending the table
 
 Adding a variable — or a dialect's variant of one — is an edit to

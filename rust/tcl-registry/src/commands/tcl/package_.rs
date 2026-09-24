@@ -32,6 +32,39 @@ fn package_unknown_script_timing(args: &[&str]) -> Vec<(u8, ScriptTiming)> {
         .collect()
 }
 
+/// `package require` / `package present`'s one option. `PkgRequireCore`
+/// (`generic/tclPkg.c`) compares the word after the subcommand with
+/// `strcmp(…, "-exact")`, so the spelling is exact — tclsh 8.4–9.0: `package
+/// require -e Tcl` asks for a package named `-e` — and the two subcommands
+/// declare their tables [`PrefixMatching::Strict`].
+const EXACT_OPTION: &[OptionSpec] = &[OptionSpec {
+    name: "-exact",
+    value: OptionValue::flag(),
+    detail: "Restricts the match to exactly the given version — a single version word, not a requirement list. Equivalent to `package require package version-version`; a different already-provided version is a hard error.",
+    surface: None,
+    aliases: &[],
+    lifecycle: Lifecycle::UNSPECIFIED,
+    min_abbrev: None,
+    effect: None,
+}];
+
+/// `require ?-exact? package ?requirement ...?`'s layout after the
+/// subcommand word: the package name follows the option run, and every word
+/// after it is one requirement.
+fn package_require_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
+    let start = leading_option_word_count_with(EXACT_OPTION, args, PrefixMatching::Strict);
+    (start..args.len())
+        .filter_map(|index| {
+            let role = if index == start {
+                ArgRole::Name
+            } else {
+                ArgRole::Value
+            };
+            u8::try_from(index).ok().map(|index| (index, role))
+        })
+        .collect()
+}
+
 // The command's own wrong-#-args usage message — the generic ensemble
 // dispatch shape. NOT actually unchanged across 8.4-9.1: confirmed via
 // the real Tcl core source (generic/tclPkg.c's `Tcl_WrongNumArgs(interp,
@@ -142,7 +175,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // structural body like `bind`'s/`after`'s deferred scripts, not a
         // caller-frame one: `body_kind: Structural` keeps SSA from scanning
         // it as part of the enclosing `package ifneeded` call's own scope.
-        arg_roles: &[(2, ArgRole::Body)],
+        // The package name, the version it registers, and the stored
+        // script.
+        arg_roles: &[(0, ArgRole::Name), (1, ArgRole::Value), (2, ArgRole::Body)],
         body_kind: BodyKind::Structural,
         // `DEFERS_BODY` — "stored and run later" said in data, and scoped to
         // this subcommand rather than to `package` as a whole, since it is the
@@ -196,6 +231,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // Unlike `require`, it therefore only ever reads existing
         // interpreter state, so it is genuinely side-effect-free.
         pure: true,
+        // `-exact` is matched by exact spelling, as `require`'s is.
+        prefix_matching: PrefixMatching::Strict,
         options: const {
             &[OptionSpec {
                 name: "-exact",
@@ -216,6 +253,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Declares that version of package is now present in the interpreter; errors if a different version was already provided. With version omitted, returns the currently provided version, or an empty string if package has not been provided.",
         synopsis: "package provide package ?version?",
         return_type: Some(TclType::String),
+        // The package name, and the version it now provides.
+        arg_roles: &[(0, ArgRole::Name), (1, ArgRole::Value)],
         analyser_hook: Some(crate::hooks::AnalyserHookId::PackageProvide),
         // Declares the file a loadable package: every command it defines
         // is reachable from any file that `package require`s it, so a
@@ -229,18 +268,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Ensures a version of package satisfying the given requirements is loaded: if not already provided, evaluates the highest-acceptable package ifneeded script (in the global namespace), falling back to package unknown as a last resort. Returns the loaded version; raises an error if no acceptable version becomes available. The highest acceptable version is selected; from Tcl 8.5, this is subject to the package prefer mode (stable by default, preferring a stable version over an unstable one) — Tcl 8.4 has no package prefer and no stable/unstable distinction, so it always simply picks the highest acceptable version.",
         synopsis: "package require ?-exact? package ?requirement...?",
         return_type: Some(TclType::String),
-        options: const {
-            &[OptionSpec {
-                name: "-exact",
-                value: OptionValue::flag(),
-                detail: "Restricts the match to exactly the given version — a single version word, not a requirement list. Equivalent to `package require package version-version`; a different already-provided version is a hard error.",
-                surface: None,
-                aliases: &[],
-                lifecycle: Lifecycle::UNSPECIFIED,
-                min_abbrev: None,
-                effect: None,
-            }]
-        },
+        prefix_matching: PrefixMatching::Strict,
+        options: EXACT_OPTION,
+        // The name follows the option run; each later word is a requirement.
+        arg_role_resolver: Some(package_require_arg_roles),
+        arg_role_resolver_roles: &[ArgRole::Name, ArgRole::Value],
         analyser_hook: Some(crate::hooks::AnalyserHookId::PackageRequire),
         // Evaluates another unit's `ifneeded` script in this interpreter,
         // so that unit's top level can call straight back into whatever

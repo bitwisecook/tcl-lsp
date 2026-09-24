@@ -638,7 +638,7 @@ fn a_write_to_a_non_target_raises() {
 #[test]
 fn a_state_transition_body_emits_alias_facts_only() {
     use tcl_registry::state_transition::{
-        CallerFrameSelection, StateTransition, TransitionSubject, VariableAliasTarget,
+        AliasWords, CallerFrameSelection, StateTransition, TransitionSubject, VariableAliasTarget,
         VariableCellAliasTransition,
     };
     let literal = |word: &str| TransitionSubject::Literal(word.to_owned());
@@ -671,6 +671,10 @@ fn a_state_transition_body_emits_alias_facts_only() {
                 variable: literal("total"),
             },
             writes_value: false,
+            words: AliasWords {
+                local: 2,
+                target: 1,
+            },
         })
     );
     assert_eq!(
@@ -681,6 +685,7 @@ fn a_state_transition_body_emits_alias_facts_only() {
                 variable: literal("::app::count"),
             },
             writes_value: false,
+            words: AliasWords::same(3),
         })
     );
     assert!(

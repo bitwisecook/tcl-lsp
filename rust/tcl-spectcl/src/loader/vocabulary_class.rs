@@ -145,6 +145,10 @@ const MARKERS: &[(&str, VocabularyClass)] = &[
     ("option", VocabularyClass::Assistance),
     ("type", VocabularyClass::Assistance),
     ("abbrev", VocabularyClass::Assistance),
+    // A dropped `special_var` row loses a startup binding the pack declared:
+    // the analysis degrades to reading the variable as unset (a spurious
+    // read-before-set), never to a stronger claim.
+    ("special_var", VocabularyClass::Assistance),
 ];
 
 /// The class of an unknown `word`.
@@ -216,7 +220,13 @@ mod tests {
 
     #[test]
     fn shape_and_value_words_classify_assistance() {
-        for word in ["arity_window", "-min-abbrev", "arg_role", "option_values"] {
+        for word in [
+            "arity_window",
+            "-min-abbrev",
+            "arg_role",
+            "option_values",
+            "special_var",
+        ] {
             assert_eq!(classify(word), VocabularyClass::Assistance, "{word}");
         }
     }

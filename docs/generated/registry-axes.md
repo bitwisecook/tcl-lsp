@@ -9,26 +9,20 @@ Every site outside `tcl-registry` that compares a word the registry declares —
 | Axis | Waived sites |
 |---|---|
 | command | 4 |
-| subcommands | 1 |
+| subcommands | 0 |
 | clause_grammar | 0 |
 | definition_body | 0 |
-| options | 3 |
-| special_vars | 2 |
+| options | 0 |
+| special_vars | 0 |
 | irreducible | 1 |
 
 | Axis | Until | Site | Waiver | Reason |
 |---|---|---|---|---|
-| command | slice 8 | `rust/tcl-compiler/src/analyser/commands.rs:4418` | site | `set VAR [CLASS new]` instance tracking reads the assignment by name until the value word's evaluation answers it (VT8.9 retires set-by-name) |
-| command | slice 8 | `rust/tcl-compiler/src/analyser/commands.rs:4445` | site | `set VAR [CLASS new]` instance tracking reads the assignment by name until the value word's evaluation answers it (VT8.9 retires set-by-name) |
-| command | slice 8 | `rust/tcl-compiler/src/analyser/commands.rs:4543` | site | `set VAR [CLASS new]` instance tracking reads the assignment by name until the value word's evaluation answers it (VT8.9 retires set-by-name) |
-| command | slice 8 | `rust/tcl-compiler/src/analyser/commands.rs:4958` | site | `set VAR [CLASS new]` instance tracking reads the assignment by name until the value word's evaluation answers it (VT8.9 retires set-by-name) |
-| irreducible | never | `rust/tcl-compiler/src/analyser/handlers.rs:1787` | site | the variadic `args` formal is Tcl's proc grammar (`VAR_IS_ARGS` on the last formal, `tclProc.c`), no registry fact |
-| options | step 2 | `rust/tcl-compiler/src/analyser/handlers.rs:168` | site | the flag scan the registry's `InterpreterTransition::Create` answers (safety, child path); CC2.12 consumes it |
-| options | step 2 | `rust/tcl-compiler/src/analyser/handlers.rs:169` | site | the flag scan the registry's `InterpreterTransition::Create` answers (safety, child path); CC2.12 consumes it |
-| options | step 2 | `rust/tcl-compiler/src/analyser/handlers.rs:5877` | site | `-exact` read by spelling; CC2.12 reads it through the option effects and the roles `package_.rs` declares |
-| special_vars | step 2 | `rust/tcl-compiler/src/analyser/handlers.rs:10099` | site | `auto_path` by name; CC2.12 reads `special_var("auto_path")`'s access |
-| special_vars | step 2 | `rust/tcl-compiler/src/analyser/handlers.rs:10132` | site | `auto_path` by name; CC2.12 reads `special_var("auto_path")`'s access |
-| subcommands | step 2 | `rust/tcl-compiler/src/analyser/handlers.rs:221` | site | a nested `[interp create …]` read by spelling; CC2.12 resolves it and reads its `InterpreterTransition::Create` |
+| command | slice 8 | `rust/tcl-compiler/src/analyser/commands.rs:4574` | site | `set VAR [CLASS new]` instance tracking reads the assignment by name until the value word's evaluation answers it (VT8.9 retires set-by-name) |
+| command | slice 8 | `rust/tcl-compiler/src/analyser/commands.rs:4601` | site | `set VAR [CLASS new]` instance tracking reads the assignment by name until the value word's evaluation answers it (VT8.9 retires set-by-name) |
+| command | slice 8 | `rust/tcl-compiler/src/analyser/commands.rs:4699` | site | `set VAR [CLASS new]` instance tracking reads the assignment by name until the value word's evaluation answers it (VT8.9 retires set-by-name) |
+| command | slice 8 | `rust/tcl-compiler/src/analyser/commands.rs:5114` | site | `set VAR [CLASS new]` instance tracking reads the assignment by name until the value word's evaluation answers it (VT8.9 retires set-by-name) |
+| irreducible | never | `rust/tcl-compiler/src/analyser/handlers.rs:1862` | site | the variadic `args` formal is Tcl's proc grammar (`VAR_IS_ARGS` on the last formal, `tclProc.c`), no registry fact |
 
 ## The ratchet
 

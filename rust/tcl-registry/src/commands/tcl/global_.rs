@@ -20,7 +20,7 @@
 
 use crate::hooks::{CodegenHookId, LoweringHookId};
 use crate::prelude::*;
-use crate::state_transition::local_alias_name;
+use crate::state_transition::{AliasWords, local_alias_name};
 use tcl_dialect::model::Family;
 use tcl_dialect::model::SpecSurface;
 use tcl_dialect::surface;
@@ -60,6 +60,7 @@ fn global_state_transitions(arguments: InvocationArguments<'_>) -> StateTransiti
                 local: local_alias_name(&variable),
                 target: VariableAliasTarget::Global { variable },
                 writes_value: false,
+                words: AliasWords::same(argument_index),
             },
         ));
     }

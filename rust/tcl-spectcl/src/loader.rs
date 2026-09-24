@@ -901,6 +901,11 @@ pub struct Pack {
     /// modelled as a pack without having to be compiled into `tcl-dialect`
     /// first.
     pub ambient_packages: Vec<AmbientPackage>,
+    /// The interpreter-provided globals this pack declares with
+    /// `special_var`, in declaration order — the pack-authored rows of the
+    /// special-variable registry, installed through
+    /// [`tcl_registry::CommandRegistry::insert_special_var`].
+    pub special_vars: Vec<PackSpecialVar>,
     /// The `environment NAME { … }` blocks the pack declares (`SpecTcl`
     /// 2.0, §6.2), in declaration order, with the rejected ones dropped.
     pub environments: Vec<PackEnvironment>,
@@ -1031,6 +1036,17 @@ pub struct AmbientPackage {
     pub line: u32,
 }
 
+/// One `special_var NAME -kind K -access A -origin O ?-dialects {…}?
+/// ?-startup B?` row: a global the pack's dialect provides, as the
+/// special-variable registry states one.
+#[derive(Debug, Clone, Copy)]
+pub struct PackSpecialVar {
+    /// The row, built as a shipped [`tcl_registry::SpecialVarSpec`] is.
+    pub spec: &'static tcl_registry::SpecialVarSpec,
+    /// The declaring line, for notices and editors.
+    pub line: u32,
+}
+
 /// One `file_extension` row: an extension the pack's language is written
 /// under, with an optional human-readable name and an optional dialect the
 /// server routes files of this extension to.
@@ -1074,6 +1090,7 @@ fn empty_pack() -> Pack {
         provides: Vec::new(),
         co_provides: Vec::new(),
         ambient_packages: Vec::new(),
+        special_vars: Vec::new(),
         environments: Vec::new(),
         dialects: Vec::new(),
         surface_rosters: Vec::new(),
@@ -1235,6 +1252,22 @@ fn apply_pack_stmt(pack: &mut Pack, tables: &mut PackTables, stmt: &Stmt, log: &
             log.v12(stmt.line, "ambient_package");
             if let Some(row) = ambient_package_row(stmt, log) {
                 pack.ambient_packages.push(row);
+            }
+        }
+        "special_var" => {
+            if let Some(row) = special_var_row(stmt, tables.defaults.surface, log) {
+                if pack
+                    .special_vars
+                    .iter()
+                    .any(|prior| prior.spec.name == row.spec.name)
+                {
+                    log.say(
+                        stmt.line,
+                        format!("`special_var {}` redeclared; first wins", row.spec.name),
+                    );
+                } else {
+                    pack.special_vars.push(row);
+                }
             }
         }
         "provides" => {
@@ -1484,6 +1517,158 @@ fn ambient_package_row(stmt: &Stmt, log: &mut Log) -> Option<AmbientPackage> {
         name: leak_str(name),
         version: leak_str(version),
         line: stmt.line,
+    })
+}
+
+/// `special_var NAME -kind K -access A -origin O ?-dialects {…}? ?-startup B?`
+/// — one interpreter-provided global the pack's dialect has, as the
+/// special-variable registry states one: its value shape (`Scalar`, `Array`,
+/// `Namespace`), whether user code writes it (`ReadOnly`, `ReadWrite`), where
+/// it comes from (`Interpreter`, `AutoLoader`, `Platform`, `Environment`,
+/// `Dialect`), the dialects that provide it — the pack's `default dialects`
+/// when the row names none, else every Tcl release — and the lifecycle event
+/// that makes it readable before user code (`None`, the default;
+/// `Interpreter`, `TclInit`, `TclMain`, `AppInit`; or `ReadTrace`, a core read
+/// trace materialising it on first read).
+///
+/// The three descriptors are required: a row missing one is dropped rather
+/// than defaulted, since a guessed kind or access would state a fact the pack
+/// never made. The row's remaining facts — known array keys, a runtime-observed
+/// write, a write's interpreter effect, a read's taint, the hover summary —
+/// take the shipped table's empty values.
+fn special_var_row(
+    stmt: &Stmt,
+    default_surface: Option<&'static [SpecSurface]>,
+    log: &mut Log,
+) -> Option<PackSpecialVar> {
+    use tcl_registry::{SpecialVarKind, SpecialVarSpec, StartupBinding, VarAccess};
+    let name = stmt.word_text(1);
+    if name.is_empty() || name.starts_with('-') {
+        log.say(stmt.line, "`special_var` needs a variable name");
+        return None;
+    }
+    let (mut kind, mut access, mut origin, mut surface) = (None, None, None, None);
+    let mut startup = Some(StartupBinding::None);
+    // A `-dialects` naming nothing this build knows narrows to nothing it
+    // can honour: the row goes rather than widening to every dialect.
+    let mut dialects_unread = false;
+    let words = &stmt.words;
+    let mut i = 2;
+    while i < words.len() {
+        let flag = words[i].text.clone();
+        if !["-kind", "-access", "-origin", "-dialects", "-startup"].contains(&flag.as_str()) {
+            // An unknown flag consumes no value.
+            log.unknown_flag("special_var", stmt.line, &flag);
+            i += 1;
+            continue;
+        }
+        let value = next_text(words, &mut i);
+        let recognised = match flag.as_str() {
+            "-kind" => {
+                kind = match value.as_str() {
+                    "Scalar" => Some(SpecialVarKind::Scalar),
+                    "Array" => Some(SpecialVarKind::Array),
+                    "Namespace" => Some(SpecialVarKind::Namespace),
+                    _ => None,
+                };
+                kind.is_some()
+            }
+            "-access" => {
+                access = match value.as_str() {
+                    "ReadOnly" => Some(VarAccess::ReadOnly),
+                    "ReadWrite" => Some(VarAccess::ReadWrite),
+                    _ => None,
+                };
+                access.is_some()
+            }
+            "-origin" => {
+                origin = special_var_origin(&value);
+                origin.is_some()
+            }
+            "-dialects" => {
+                surface = parse_dialects(&value, stmt.line, log);
+                dialects_unread |= surface.is_none();
+                surface.is_some()
+            }
+            _ => {
+                startup = startup_binding(&value);
+                startup.is_some()
+            }
+        };
+        if !recognised {
+            log.say(
+                stmt.line,
+                format!("`special_var {name} {flag} {value}` names no such value; dropped"),
+            );
+        }
+        i += 1;
+    }
+    let (Some(kind), Some(access), Some(origin), Some(startup), false) =
+        (kind, access, origin, startup, dialects_unread)
+    else {
+        log.say(
+            stmt.line,
+            format!(
+                "`special_var {name}` needs `-kind`, `-access` and `-origin`, and every \
+                 flag it writes must name a value this build reads; dropped rather than \
+                 widened"
+            ),
+        );
+        return None;
+    };
+    let surface = surface.or(default_surface).unwrap_or(SpecSurface::ALL_TCL);
+    let (initially_bound, lazily_readable): (&'static [SpecSurface], &'static [SpecSurface]) =
+        match startup {
+            StartupBinding::None => (&[], &[]),
+            StartupBinding::ReadTrace => (&[], surface),
+            _ => (surface, &[]),
+        };
+    Some(PackSpecialVar {
+        spec: leak_one(SpecialVarSpec {
+            name: leak_str(name),
+            kind,
+            access,
+            origin,
+            surface,
+            initially_bound,
+            lazily_readable,
+            startup_binding: startup,
+            keys: &[],
+            externally_read: false,
+            cmp_unsafe: false,
+            write_effect: None,
+            read_taint: None,
+            summary: "",
+        }),
+        line: stmt.line,
+    })
+}
+
+/// A `special_var -origin` value.
+fn special_var_origin(value: &str) -> Option<tcl_registry::VarOrigin> {
+    use tcl_registry::VarOrigin;
+    Some(match value {
+        "Interpreter" => VarOrigin::Interpreter,
+        "AutoLoader" => VarOrigin::AutoLoader,
+        "Platform" => VarOrigin::Platform,
+        "Environment" => VarOrigin::Environment,
+        "Dialect" => VarOrigin::Dialect,
+        _ => return None,
+    })
+}
+
+/// A `special_var -startup` value: the lifecycle event that makes the
+/// variable readable before user code.
+fn startup_binding(value: &str) -> Option<tcl_registry::StartupBinding> {
+    use tcl_registry::StartupBinding;
+    Some(match value {
+        "None" => StartupBinding::None,
+        "Interpreter" => StartupBinding::Interpreter,
+        "TclInit" => StartupBinding::TclInit,
+        "TclMain" => StartupBinding::TclMain,
+        "AppInit" => StartupBinding::AppInit,
+        "ReadTrace" => StartupBinding::ReadTrace,
+        _ => return None,
     })
 }
 
@@ -9531,6 +9716,81 @@ mod tests {
                 .any(|n| n.message.contains("arity window")),
             "{:?}",
             pack.notices
+        );
+    }
+
+    /// `special_var NAME -kind K -access A -origin O ?-dialects {…}?
+    /// ?-startup B?` builds a special-variable row as the shipped table
+    /// states one: the startup binding gates `initially_bound` (or, for a read
+    /// trace, `lazily_readable`) on the row's own dialects, and a row missing
+    /// one of its three descriptors is dropped rather than guessed.
+    #[test]
+    fn special_var_rows_build_registry_rows_and_an_incomplete_one_is_dropped() {
+        use tcl_registry::{SpecialVarKind, StartupBinding, VarAccess, VarOrigin};
+        let pack = evaluate_pack(
+            "speclib probe 2.1 {\n \
+             special_var sim_home -kind Scalar -access ReadOnly -origin Dialect -startup Interpreter\n \
+             special_var sim_opts -kind Array -access ReadWrite -origin Environment -dialects {tcl8.6}\n \
+             special_var sim_lazy -kind Scalar -access ReadOnly -origin Interpreter -startup ReadTrace\n \
+             command demo { arity 1 }\n}",
+        );
+        assert!(pack.notices.is_empty(), "{:?}", pack.notices);
+        let [home, opts, lazy] = pack.special_vars.as_slice() else {
+            panic!("three rows: {:?}", pack.special_vars);
+        };
+        assert_eq!(home.spec.name, "sim_home");
+        assert_eq!(home.spec.kind, SpecialVarKind::Scalar);
+        assert_eq!(home.spec.access, VarAccess::ReadOnly);
+        assert_eq!(home.spec.origin, VarOrigin::Dialect);
+        assert_eq!(home.spec.startup_binding, StartupBinding::Interpreter);
+        let tcl86 = Some(tcl_dialect::model::SurfaceQuery::core(
+            tcl_dialect::model::Family::Tcl,
+            "8.6",
+        ));
+        let tcl90 = Some(tcl_dialect::model::SurfaceQuery::core(
+            tcl_dialect::model::Family::Tcl,
+            "9.0",
+        ));
+        assert!(home.spec.readable_at_startup_in(tcl86));
+        assert!(home.spec.readable_at_startup_in(tcl90));
+        // No `-startup`: recognised, never readable before user code; and its
+        // `-dialects` gate its existence.
+        assert_eq!(opts.spec.kind, SpecialVarKind::Array);
+        assert!(!opts.spec.readable_at_startup_in(tcl86));
+        assert!(opts.spec.available_in(tcl86));
+        assert!(!opts.spec.available_in(tcl90));
+        // A read trace is readable at startup, but not bound.
+        assert!(lazy.spec.readable_at_startup_in(tcl90));
+        assert!(lazy.spec.initially_bound.is_empty());
+
+        let incomplete = evaluate_pack(
+            "speclib probe 2.1 {\n \
+             special_var sim_home -kind Scalar -origin Dialect\n \
+             special_var sim_bad -kind Matrix -access ReadOnly -origin Dialect\n \
+             special_var sim_nowhere -kind Scalar -access ReadOnly -origin Dialect -dialects {nosuch}\n \
+             command demo { arity 1 }\n}",
+        );
+        assert!(
+            incomplete.special_vars.is_empty(),
+            "a row missing a descriptor, or naming dialects this build cannot read, is \
+             dropped rather than widened: {:?}",
+            incomplete.special_vars
+        );
+        assert!(
+            incomplete
+                .notices
+                .iter()
+                .any(|n| n.message.contains("needs `-kind`, `-access` and `-origin`")),
+            "{:?}",
+            incomplete.notices
+        );
+        assert!(
+            incomplete
+                .notices
+                .iter()
+                .any(|n| n.message.contains("-kind Matrix")),
+            "{:?}",
+            incomplete.notices
         );
     }
 

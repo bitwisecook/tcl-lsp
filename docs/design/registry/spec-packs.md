@@ -490,6 +490,17 @@ message. See [W139](../../kcs/codes/kcs-diagnostic-w139-retired-at-resolved-vers
   naming the environment spelling, because an availability-**narrowing**
   word a reader cannot honour must not leave the wider claim standing.
 
+- **`special_var NAME -kind K -access A -origin O ?-dialects {…}?
+  ?-startup B?`.** An interpreter-provided global the pack's dialect has —
+  the pack-authored twin of a `SPECIAL_VARS` row, installed into the pack's
+  registry generation and read through `CommandRegistry::special_vars()`
+  beside the shipped rows. `-dialects` gates the variable as a command's
+  `dialects` row gates a command (it narrows where the variable exists; it
+  is not an environment placement), and `-startup` states the lifecycle
+  event that makes it readable before user code. The vocabulary is in
+  [special-variable-registry.md](special-variable-registry.md) § *Declaring
+  one in a pack*.
+
 - **Callback timing and taint.** `option … -script-timing
   SameInvocation|Deferred|ReferenceOnly` separates temporal control flow
   from `-body-kind`; `SameInvocation` is the default and remains a

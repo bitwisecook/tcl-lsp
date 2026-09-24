@@ -3193,7 +3193,7 @@ pub(super) fn apply_oo_subcommand_in(
             apply_slot_member(Some(member), words, &mut class_def.variables);
         }
         MemberLanding::Relation(slot) => {
-            apply_relation_member(member, slot, words, class_def, side)
+            apply_relation_member(member, slot, words, class_def, side);
         }
         MemberLanding::Retraction => retract_named_members(member, words, tokens, class_def, side),
         MemberLanding::Visibility => apply_visibility_member(member, words, class_def, side),

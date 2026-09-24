@@ -1144,7 +1144,7 @@ pub struct Analyser {
     /// that names one fixed, frame-independent cell, which today means
     /// `upvar`'s `otherVar` word (`upvar ::tk::FocusGrab($i) data`, `upvar
     /// #0 counter c`; see
-    /// [`Analyser::handle_upvar_command`](super::state::Analyser)).
+    /// [`Analyser::apply_state_transitions`](super::state::Analyser)).
     ///
     /// The graft merges the fragment's *proc* scope, never its (throwaway)
     /// root, so without this capture such a cell reached `all_variables` but

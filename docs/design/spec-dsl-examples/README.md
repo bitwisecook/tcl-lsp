@@ -34,6 +34,7 @@ speclib <pack-name> <dsl-version> {
     display_name {…}              ;# the pack's human-readable name
     file_extension <ext> ?-name {…}? ?-dialect DIALECT?  ;# one extension row
     ambient_package <name> <version>  ;# a package the dialect provides
+    special_var  <name> -kind K -access A -origin O ?-dialects {…}? ?-startup B?  ;# a global it provides
     values       <name> { … }     ;# a shared argument-value table
     hook         <name> {params} { … }  ;# a shared hook body
     descriptor   <key> <name> { … }     ;# a shared block-valued descriptor
@@ -405,6 +406,25 @@ and share a version between environments with an ordinary Tcl variable.
 is dropped whole rather than applied everywhere, because dropping only
 the flag would leave the wider claim standing. See
 [`spec-packs.md`](../registry/spec-packs.md), "Scoping an ambient package".
+
+**`special_var NAME -kind K -access A -origin O ?-dialects {…}? ?-startup
+B?`** declares an interpreter-provided global the pack's dialect has — a
+row of the special-variable registry, installed into the pack's registry
+generation beside the shipped `SPECIAL_VARS` table and read through
+`CommandRegistry::special_vars()`. `-kind` (`Scalar`, `Array`,
+`Namespace`), `-access` (`ReadOnly`, `ReadWrite`) and `-origin`
+(`Interpreter`, `AutoLoader`, `Platform`, `Environment`, `Dialect`) are
+required, and a row missing one is dropped with a notice. `-dialects`
+narrows where the variable exists, as a command's `dialects` row does
+(unlike `ambient_package`, whose scoping is an environment placement);
+a row naming none takes the pack's `default dialects`, else every Tcl
+release, and one naming nothing this build knows is dropped rather than
+widened. `-startup` (`None` by default; `Interpreter`, `TclInit`,
+`TclMain`, `AppInit`, `ReadTrace`) is the lifecycle event that makes the
+variable readable before user code. The statement is additive vocabulary
+and needs no vocabulary bump; see
+[`special-variable-registry.md`](../registry/special-variable-registry.md)
+§ *Declaring one in a pack*.
 
 ### Block statements
 

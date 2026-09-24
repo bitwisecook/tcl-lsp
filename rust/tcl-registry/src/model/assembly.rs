@@ -412,6 +412,31 @@ pub fn resolve_invocation_in_context<'r, 'w>(
     commands.resolve_invocation(name, args, Some(context.authoring_query()))
 }
 
+/// [`resolve_invocation_in_context`] over structured source words: a word
+/// the caller knows was substituted, expanded or opaque stays so, and every
+/// derived query of the resolution — the state transitions an alias consumer
+/// applies among them — abstains on it rather than reading its spelling.
+///
+/// Same invariant (I4), same proof: a carried context must prove the literal
+/// head, and selection proceeds at the context's authoring point. A computed
+/// head selects nothing.
+#[must_use]
+pub fn resolve_invocation_words_in_context<'r, 'w>(
+    commands: &'r CommandRegistry,
+    context: Option<&'w ResolvedContext>,
+    words: crate::InvocationWords<'w>,
+) -> Option<ResolvedInvocation<'r, 'w>> {
+    let Some(context) = context else {
+        return commands
+            .resolve_structured_invocation(words, None)
+            .resolved();
+    };
+    context.resolve_spec(commands, words.head_literal()?)?;
+    commands
+        .resolve_structured_invocation(words, Some(context.authoring_query()))
+        .resolved()
+}
+
 /// The legacy-selection twin of [`resolve_invocation_in_context`] for the
 /// analyser-hook path, which resolves through the registry's
 /// `resolve_call` compatibility selection (exact subcommand lookup) and

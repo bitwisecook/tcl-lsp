@@ -71,7 +71,7 @@ use crate::spec::{
     ArgRoleResolver, CommandPrefixResolver, ConstraintsHook, ContextGate, ScriptTimingResolver,
 };
 use crate::state_transition::{
-    CallerFrameSelection, StateTransition, StateTransitionResolver, StateTransitions,
+    AliasWords, CallerFrameSelection, StateTransition, StateTransitionResolver, StateTransitions,
     TransitionSubject, VARIABLE_ALIAS_DOMAINS, VariableAliasTarget, VariableCellAliasTransition,
 };
 use crate::value_transfer::{
@@ -1943,6 +1943,7 @@ fn stated_alias(
                 variable: literal(target)?,
             },
             writes_value: false,
+            words: AliasWords { local, target },
         },
         PackTransition::NamespaceVariable { name } => {
             let variable = literal(name)?;
@@ -1950,6 +1951,7 @@ fn stated_alias(
                 local: crate::state_transition::local_alias_name(&variable),
                 target: VariableAliasTarget::CurrentNamespace { variable },
                 writes_value: false,
+                words: AliasWords::same(name),
             }
         }
     })
@@ -2198,6 +2200,10 @@ mod tests {
                         variable: TransitionSubject::Literal("other".to_owned()),
                     },
                     writes_value: false,
+                    words: AliasWords {
+                        local: 2,
+                        target: 1,
+                    },
                 }),
                 &StateTransition::Widen(StateTransitionWidening {
                     domains: VARIABLE_ALIAS_DOMAINS.to_vec(),

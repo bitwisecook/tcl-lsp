@@ -412,7 +412,8 @@ every hover:
   `caller_frame_bindings` answers for those names with the *call-head word* as
   the binding span.  A fully-qualified target (`upvar ::tk::FocusGrab($i)
   data`) is not a caller-frame variable at all — it names one fixed global
-  cell, which `handle_upvar_command` defines and links directly.
+  cell, which the analyser's alias consumer (`apply_state_transitions`)
+  defines and links directly.
 
 One gap remains: cross-document resolution needs the workspace-level
 interning described above, which nothing supplies.  A callee reached by

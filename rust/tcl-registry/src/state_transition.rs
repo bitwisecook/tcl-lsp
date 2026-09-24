@@ -346,6 +346,36 @@ pub struct VariableCellAliasTransition {
     /// operation.  Consumers must not infer that distinction from a command
     /// spelling or argument layout.
     pub writes_value: bool,
+    /// Where the local and the target's variable name are spelled.
+    pub words: AliasWords,
+}
+
+/// Where an alias fact's two names are spelled in its invocation.
+///
+/// A [`TransitionSubject::Literal`] keeps a word's Tcl value but not its
+/// place, so a consumer that anchors the alias in source — the analyser's
+/// definition of the local, and the word a rename of the aliased cell
+/// rewrites — reads the place here. Both are post-head argument indices,
+/// counted as [`TransitionSubject::Unknown`] counts them (a subcommand word
+/// included). `global` and `variable` name the local and the cell with one
+/// word, so the two indices are equal there.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct AliasWords {
+    /// The word spelling the current-frame local.
+    pub local: usize,
+    /// The word spelling the target cell's variable name.
+    pub target: usize,
+}
+
+impl AliasWords {
+    /// One word names both the local and the cell it aliases.
+    #[must_use]
+    pub const fn same(index: usize) -> Self {
+        Self {
+            local: index,
+            target: index,
+        }
+    }
 }
 
 /// The namespace selected by a namespace-state transition.
@@ -1457,6 +1487,10 @@ fn alias_pairs(
                     variable,
                 },
                 writes_value: false,
+                words: AliasWords {
+                    local: other + 1,
+                    target: other,
+                },
             },
         ));
     }
@@ -1500,7 +1534,8 @@ mod tests {
         let resolve = |level_word, words: &[InvocationWord<'_>]| {
             alias_pairs_resolver(level_word)(InvocationArguments::structured(words))
         };
-        let alias = |local: &str, frame: CallerFrameSelection, variable: &str| {
+        // Each pair's `otherVar` word at `target`, its local one word later.
+        let alias = |local: &str, frame: CallerFrameSelection, variable: &str, target: usize| {
             StateTransition::VariableCellAlias(VariableCellAliasTransition {
                 local: TransitionSubject::Literal(local.to_owned()),
                 target: VariableAliasTarget::CallerSelectedFrame {
@@ -1508,6 +1543,10 @@ mod tests {
                     variable: TransitionSubject::Literal(variable.to_owned()),
                 },
                 writes_value: false,
+                words: AliasWords {
+                    local: target + 1,
+                    target,
+                },
             })
         };
         let widen = |argument_index| {
@@ -1545,9 +1584,9 @@ mod tests {
                 ]
             )),
             [
-                alias("b", level("1"), "a"),
+                alias("b", level("1"), "a", 1),
                 widen(3),
-                alias("f", level("1"), "e")
+                alias("f", level("1"), "e", 5)
             ]
         );
         assert_eq!(
@@ -1555,7 +1594,7 @@ mod tests {
                 FrameLevelWord::ArityParity,
                 &[InvocationWord::Literal("a"), InvocationWord::Literal("b")]
             )),
-            [alias("b", CallerFrameSelection::DefaultCaller, "a")]
+            [alias("b", CallerFrameSelection::DefaultCaller, "a", 0)]
         );
         // A computed level word: no alias for the call, not the default frame.
         assert_eq!(
@@ -1579,7 +1618,7 @@ mod tests {
                     InvocationWord::Literal("b"),
                 ]
             )),
-            [alias("b", level("#0"), "a")]
+            [alias("b", level("#0"), "a", 1)]
         );
         // An expansion hides the pairs: nothing is stated.
         assert!(
@@ -1590,6 +1629,148 @@ mod tests {
             .facts()
             .is_empty()
         );
+    }
+
+    /// The subjects an alias or command-binding fact names.
+    fn alias_and_binding_subjects(transition: &StateTransition) -> Vec<&TransitionSubject> {
+        match transition {
+            StateTransition::VariableCellAlias(alias) => {
+                let mut subjects = vec![&alias.local];
+                match &alias.target {
+                    VariableAliasTarget::Global { variable }
+                    | VariableAliasTarget::CurrentNamespace { variable } => subjects.push(variable),
+                    VariableAliasTarget::CallerSelectedFrame { frame, variable } => {
+                        if let CallerFrameSelection::Explicit(level) = frame {
+                            subjects.push(level);
+                        }
+                        subjects.push(variable);
+                    }
+                    VariableAliasTarget::Namespace {
+                        namespace,
+                        variable,
+                    } => subjects.extend([namespace, variable]),
+                }
+                subjects
+            }
+            StateTransition::CommandBinding(binding) => match binding {
+                CommandBindingTransition::Define { name, .. } => vec![name],
+                CommandBindingTransition::Move { from, to } => vec![from, to],
+                CommandBindingTransition::Delete { interpreter, name } => {
+                    interpreter.iter().chain([name]).collect()
+                }
+                CommandBindingTransition::Alias {
+                    source_interpreter,
+                    alias,
+                    target_interpreter,
+                    target,
+                    arguments,
+                } => [source_interpreter, alias, target_interpreter, target]
+                    .into_iter()
+                    .chain(arguments)
+                    .collect(),
+                CommandBindingTransition::Unknown { operands } => operands.iter().collect(),
+            },
+            _ => Vec::new(),
+        }
+    }
+
+    /// The witness the analyser's isolated per-item pass needs before it
+    /// consumes transitions (`registry-consumer-contracts.md` § *The
+    /// analyser*): no shipped alias or command-binding resolver states a name
+    /// the source does not spell. A computed word reaches a fact only as a
+    /// typed unknown subject at its own index — the shipped `upvar` states
+    /// its alias with an unknown local, a derived resolver states none — and
+    /// the call widens the domain that word's identity lives in, so a
+    /// consumer binds nothing it cannot name.
+    #[test]
+    fn alias_and_binding_resolvers_abstain_on_a_dynamic_word() {
+        use crate::InvocationWord::{Dynamic, Literal};
+        use StateTransitionDomain::{CommandBindings, VariableCells};
+        let registry = crate::default_registry();
+        let cases: &[(&str, &[InvocationWord<'_>], usize, StateTransitionDomain)] = &[
+            ("global", &[Dynamic, Literal("g")], 0, VariableCells),
+            ("variable", &[Dynamic, Literal("1")], 0, VariableCells),
+            (
+                "upvar",
+                &[Literal("1"), Dynamic, Literal("l")],
+                1,
+                VariableCells,
+            ),
+            (
+                "upvar",
+                &[Literal("1"), Literal("o"), Dynamic],
+                2,
+                VariableCells,
+            ),
+            (
+                "upvar",
+                &[Dynamic, Literal("o"), Literal("l")],
+                0,
+                VariableCells,
+            ),
+            (
+                "namespace",
+                &[Literal("upvar"), Dynamic, Literal("o"), Literal("l")],
+                1,
+                VariableCells,
+            ),
+            (
+                "namespace",
+                &[Literal("upvar"), Literal("::a"), Literal("o"), Dynamic],
+                3,
+                VariableCells,
+            ),
+            (
+                "proc",
+                &[Dynamic, Literal("a"), Literal("b")],
+                0,
+                CommandBindings,
+            ),
+            ("rename", &[Dynamic, Literal("new")], 0, CommandBindings),
+            ("rename", &[Literal("old"), Dynamic], 1, CommandBindings),
+            (
+                "interp",
+                &[
+                    Literal("alias"),
+                    Literal("i"),
+                    Dynamic,
+                    Literal("j"),
+                    Literal("t"),
+                ],
+                2,
+                CommandBindings,
+            ),
+        ];
+        for &(command, words, computed, domain) in cases {
+            let invocation = registry
+                .resolve_structured_invocation(
+                    InvocationWords::structured(Literal(command), words),
+                    None,
+                )
+                .resolved()
+                .unwrap_or_else(|| panic!("`{command}` resolves"));
+            let transitions = invocation.state_transitions();
+            assert!(
+                transitions.widens(domain),
+                "`{command}` {words:?} widens {domain:?}: {transitions:#?}"
+            );
+            for fact in transitions.facts() {
+                for subject in alias_and_binding_subjects(&fact.transition) {
+                    match subject {
+                        TransitionSubject::Unknown { argument_index, .. } => assert_eq!(
+                            *argument_index, computed,
+                            "`{command}` {words:?}: an unknown subject stands at the computed word"
+                        ),
+                        TransitionSubject::Literal(name) => assert!(
+                            words
+                                .iter()
+                                .any(|word| word.literal() == Some(name.as_str())),
+                            "`{command}` {words:?} states `{name}`, which no literal word spells"
+                        ),
+                    }
+                }
+            }
+        }
     }
 
     const VARIABLE_DOMAINS: &[StateTransitionDomain] = &[

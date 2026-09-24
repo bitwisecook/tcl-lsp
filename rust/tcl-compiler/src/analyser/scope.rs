@@ -680,8 +680,8 @@ fn record_known_winner<A>(
 }
 
 /// The [`VarDef`] a fully qualified `target` (always `::`-rooted; see
-/// [`crate::analyser::handlers::Analyser::handle_global_command`]'s
-/// convention) names, when it was declared by a *literal* `set` whose own
+/// [`crate::analyser::handlers::Analyser::apply_state_transitions`]'s
+/// convention for a `global` alias) names, when it was declared by a *literal* `set` whose own
 /// spelling already carried some or all of its namespace qualification
 /// (`set ::tolComp val`, or `set Bar::baz val` written inside `namespace
 /// eval Foo`) — [`define_var`] never re-qualifies a name it's given, it
