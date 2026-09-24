@@ -2583,6 +2583,7 @@ fn harvest_table_command_value_spans(
                 let canonical = stmt.canonical_command_or_source();
                 match (command.as_str(), canonical) {
                     // set arr(k) value
+                    // value-transfer-ok: dataflow — needs each value's token span, which no outcome carries
                     ("set", _) | (_, "::set")
                         if args.len() == 2 && args[0].contains('(') && is_literal(&args[1]) =>
                     {
@@ -2591,6 +2592,7 @@ fn harvest_table_command_value_spans(
                         }
                     }
                     // array set arr {k v ...}
+                    // value-transfer-ok: dataflow — needs each value's token span, which no outcome carries
                     ("array", _) | (_, "::array")
                         if args.len() >= 3
                             && args.first().map(String::as_str) == Some("set")
@@ -2614,6 +2616,7 @@ fn harvest_table_command_value_spans(
                         }
                     }
                     // dict set d k value  /  dict create k v ... (assigned via set)
+                    // value-transfer-ok: dataflow — needs each value's token span, which no outcome carries
                     ("dict", _) | (_, "::dict")
                         if args.len() >= 4
                             && args.first().map(String::as_str) == Some("set")

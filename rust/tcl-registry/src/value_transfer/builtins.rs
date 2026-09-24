@@ -32,10 +32,10 @@ use crate::types::TclType;
 
 use super::CommandSemantics;
 use super::answers::{
-    Binder, BinderName, BindingKind, BodyPlan, CompletionOutcome, CompletionProtocol,
-    DependencyEvidence, EvalAnswer, ExactValue, ExactValueOrUnavailable, ExitRule,
-    InvocationOutcome, IterableKind, IterationPlan, PlanAnswer, RouteIdentity, TransferAnswer,
-    TypeFacts,
+    Binder, BinderName, BindingKind, BodyPlan, CompletionOutcome, CompletionPath,
+    CompletionProtocol, DependencyEvidence, EvalAnswer, ExactValue, ExactValueOrUnavailable,
+    ExistenceOutcome, ExistenceTransfer, ExitRule, InvocationOutcome, IterableKind, IterationPlan,
+    PlanAnswer, RouteIdentity, TransferAnswer, TypeFacts,
 };
 use super::const_ops::{ConstOps, ConstValue, Needs, TargetSemantics};
 use super::context::Budget;
@@ -947,29 +947,40 @@ impl CommandSemantics for ExpressionRoute {
 /// A command declared to write its named targets with no route to
 /// evaluate the written value: `evaluate` declines with the given
 /// reason, and the driver's conservative fallback — the same one an
-/// undeclared write already took — is what actually widens each target
-/// (VT5.14; the classification is new, the lattice answer is not).
+/// undeclared write already took — is what widens each target's value
+/// (VT5.14; the classification is new, the lattice answer is not). Its
+/// existence transfer is a may-bind of each target, as the kind the
+/// command writes: the place may be bound afterwards, and never loses a
+/// binding it had. A command that may also unbind its target declares no
+/// kind and keeps the generic transfer, whose widening to may-bound is
+/// that answer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MayWriteSemantics {
     /// The roles whose operands this call may write.
     pub targets: &'static [ArgRole],
     /// Why no route reads the written value.
     pub reason: NoRouteReason,
+    /// What the call binds a target as; `None` when it may unbind the
+    /// target instead.
+    pub kind: Option<BindingKind>,
 }
 
-/// `file stat name varName`.
+/// `file stat name varName`: an array of the file's attributes.
 pub static FILE_STAT: MayWriteSemantics = MayWriteSemantics {
     targets: &[ArgRole::VarWrite],
     reason: NoRouteReason::Platform,
+    kind: Some(BindingKind::Array),
 };
 
 /// `file lstat name varName`: the same platform-decided array as `stat`.
 pub static FILE_LSTAT: MayWriteSemantics = FILE_STAT;
 
-/// `file tempfile ?nameVar? ?template?`: the platform names the file.
+/// `file tempfile ?nameVar? ?template?`: the platform names the file, a
+/// scalar.
 pub static FILE_TEMPFILE: MayWriteSemantics = MayWriteSemantics {
     targets: &[ArgRole::VarWrite],
     reason: NoRouteReason::Platform,
+    kind: Some(BindingKind::Scalar),
 };
 
 /// `gets channelId ?varName?` / `chan gets channelId ?varName?`: the
@@ -977,13 +988,18 @@ pub static FILE_TEMPFILE: MayWriteSemantics = MayWriteSemantics {
 pub static GETS: MayWriteSemantics = MayWriteSemantics {
     targets: &[ArgRole::VarWrite],
     reason: NoRouteReason::Declared,
+    kind: Some(BindingKind::Scalar),
 };
 
 /// `vwait varName`: the event loop writes `varName` from whichever event
-/// fires first.
+/// fires first. The wait also ends on an unset (`Tcl_VwaitObjCmd` traces
+/// `TCL_TRACE_UNSETS` too: `set x 1; after 0 {unset x}; vwait x` leaves no
+/// `x` on 8.4 to 9.1), so it declares no kind and its existence transfer
+/// stays generic.
 pub static VWAIT: MayWriteSemantics = MayWriteSemantics {
     targets: &[ArgRole::VarWrite],
     reason: NoRouteReason::Declared,
+    kind: None,
 };
 
 /// `tk_optionMenu pathName varName value ?value ...?`: the widget writes
@@ -991,16 +1007,17 @@ pub static VWAIT: MayWriteSemantics = MayWriteSemantics {
 pub static TK_OPTION_MENU: MayWriteSemantics = MayWriteSemantics {
     targets: &[ArgRole::VarWrite],
     reason: NoRouteReason::Declared,
+    kind: Some(BindingKind::Scalar),
 };
 
 /// `trace add|remove|variable|vdelete … commandPrefix`: the traced place
 /// becomes externally mutable through the callback the call installs —
-/// `NoRouteReason::Callback`, the same reason `regsub -command` declares
-/// — and `transfer` keeps its inherited `TransferAnswer::Generic`, the
-/// same answer an unclassified write already took.
+/// `NoRouteReason::Callback`, the same reason `regsub -command` declares.
+/// A traced variable may be a scalar or an array.
 pub static TRACE: MayWriteSemantics = MayWriteSemantics {
     targets: &[ArgRole::VarWrite],
     reason: NoRouteReason::Callback,
+    kind: Some(BindingKind::Either),
 };
 
 impl CommandSemantics for MayWriteSemantics {
@@ -1021,6 +1038,32 @@ impl CommandSemantics for MayWriteSemantics {
             .flat_map(|role| view.operands_with_role(*role))
             .map(TargetId)
             .collect()
+    }
+
+    /// A may-bind of each target on the normal completion, as `unset`'s
+    /// transfer is an unbind of each; every other domain, and a command
+    /// that may unbind its target, is generic.
+    fn transfer(
+        &self,
+        domain: FactDomain,
+        input: &dyn AnalysisInputs,
+        _budget: &mut Budget,
+    ) -> TransferAnswer {
+        let (FactDomain::Existence, Some(kind)) = (domain, self.kind) else {
+            return TransferAnswer::Generic;
+        };
+        TransferAnswer::Existence(ExistenceTransfer {
+            paths: vec![CompletionPath {
+                completion: crate::completion::CompletionCodeDomain::Exact(&[
+                    crate::completion::CompletionCode::Ok,
+                ]),
+                outcomes: self
+                    .store_targets(input)
+                    .into_iter()
+                    .map(|target| (target, ExistenceOutcome::MayBind(kind)))
+                    .collect(),
+            }],
+        })
     }
 }
 

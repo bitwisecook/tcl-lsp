@@ -1642,7 +1642,7 @@ impl<'a> LatticeDriver<'a> {
             return widened(defs);
         };
         let view = view_of(&resolved, &texts, &words, InvocationLayout::Source);
-        let inputs = LatticeInputs {
+        let mut inputs = LatticeInputs {
             driver: self,
             view,
             uses,
@@ -1650,6 +1650,7 @@ impl<'a> LatticeDriver<'a> {
             ssa,
             sources: cooked.iter().map(|arg| arg.source).collect(),
         };
+        inputs.resolve_roles_over_values(&resolved);
         self.call_defs(head, semantics, defs, &inputs)
     }
 
@@ -2753,6 +2754,66 @@ struct LatticeInputs<'a, S1, S2> {
 }
 
 impl<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher> LatticeInputs<'_, S1, S2> {
+    /// Re-resolve the view's roles over the words' lattice values, when the
+    /// command's roles depend on its words (`arg_role_resolver`) and a
+    /// substituted word kept the resolver from reading them: the command
+    /// sees the values, so a subject the lattice proves (`regexp {(a+)b} $s
+    /// -> g`, `lassign $l a b`) no longer hides its targets' roles. Only
+    /// when every word is exact, and every word the values make a target
+    /// is a literal name — a computed name is no place.
+    fn resolve_roles_over_values(&mut self, resolved: &ResolvedInvocation<'_, '_>) {
+        let semantics = &resolved.semantics;
+        let Some(derive_roles) = semantics.arg_role_resolver else {
+            return;
+        };
+        if self
+            .view
+            .operands
+            .iter()
+            .all(|operand| operand.kind == InvocationWordKind::Literal)
+        {
+            return;
+        }
+        let values: Option<Vec<String>> = (0..self.view.operands.len())
+            .map(
+                |index| match self.operand(OperandId(index), FactDomain::ExactValue) {
+                    FactView::Exact(value, _) => String::from_utf8(value.bytes).ok(),
+                    _ => None,
+                },
+            )
+            .collect();
+        let Some(values) = values else {
+            return;
+        };
+        let words: Vec<&str> = values.iter().map(String::as_str).collect();
+        let offset = semantics.argument_offset;
+        let Some(arguments) = words.get(offset..) else {
+            return;
+        };
+        let roles = derive_roles(arguments);
+        let role_at = |index: usize| {
+            index
+                .checked_sub(offset)
+                .and_then(|i| u8::try_from(i).ok())
+                .and_then(|i| roles.iter().find(|(at, _)| *at == i).map(|(_, role)| *role))
+        };
+        let names_are_literal = self
+            .view
+            .operands
+            .iter()
+            .enumerate()
+            .all(|(index, operand)| {
+                role_at(index) != Some(ArgRole::VarWrite)
+                    || operand.kind == InvocationWordKind::Literal
+            });
+        if !names_are_literal {
+            return;
+        }
+        for (index, operand) in self.view.operands.iter_mut().enumerate() {
+            operand.role = role_at(index);
+        }
+    }
+
     /// The lattice fact for `name` at this statement's use version.
     fn named_fact(&self, name: &str) -> FactView {
         let Some(sym) = self.ssa.var_symbol(name) else {
@@ -3581,15 +3642,16 @@ pub(crate) fn dict_body(
     dictionary: &str,
 ) -> Option<Vec<DictBinder>> {
     let (_, binders, path) = dict_body_plan(registry, head, args, Prior::Known(dictionary))?;
+    let rules = WordValueRules::of_profile(registry.profile());
     let level = path.iter().try_fold(dictionary.to_owned(), |level, key| {
-        dict_value_at(&level, key)
+        dict_value_at(rules, &level, key)
     })?;
     Some(
         binders
             .into_iter()
             .filter_map(|binder| match binder.name {
                 BinderName::Declared(name) => {
-                    let value = dict_value_at(&level, &name)?;
+                    let value = dict_value_at(rules, &level, &name)?;
                     Some(DictBinder::Key { name, value })
                 }
                 // `dict update d k v …`: the variable takes the value of the
@@ -3598,7 +3660,7 @@ pub(crate) fn dict_body(
                     variable: id.0,
                     bound: args.get(key).is_some_and(|word| {
                         matches!(word_of(word), InvocationWord::Literal(_))
-                            && dict_value_at(&level, word).is_some()
+                            && dict_value_at(rules, &level, word).is_some()
                     }),
                 }),
             })
@@ -3606,10 +3668,11 @@ pub(crate) fn dict_body(
     )
 }
 
-/// The value `key` maps to in the dictionary `text`: the last pair's, as
-/// `dict get` reads a list with a repeated key.
-fn dict_value_at(text: &str, key: &str) -> Option<String> {
-    let elements = tcl_syntax::list::split_list(text).ok()?;
+/// The value `key` maps to in the dictionary `text`, split as the
+/// dialect's `rules` split a list: the last pair's, as `dict get` reads a
+/// list with a repeated key.
+fn dict_value_at(rules: WordValueRules, text: &str, key: &str) -> Option<String> {
+    let elements = rules.split_list(text).ok()?;
     if !elements.len().is_multiple_of(2) {
         return None;
     }
@@ -3922,6 +3985,38 @@ mod tests {
             text("v1"),
             "a dynamic key may have hit the element"
         );
+    }
+
+    /// A destructuring route resolves its targets' roles over the values the
+    /// lattice proves (the slice 5 review's S2): a substituted subject no
+    /// longer hides them, so `regexp` writes its match variable, `lassign`
+    /// both of its targets, and a no-match preserves its target — tclsh 8.5
+    /// to 9.1 print `aa`, `1 2` and `before`.
+    #[test]
+    fn a_proven_subject_resolves_the_targets_roles() {
+        let source = "proc p {} {\n    set s aab\n    regexp {(a+)b} $s -> g\n    \
+                      set l {1 2}\n    lassign $l a b\n    set t zz\n    set m before\n    \
+                      regexp {(x)} $t -> m\n    puts \"$g $a $b $m\"\n}\n";
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
+            source, registry, false, "tcl8.6",
+        );
+        let function = unit.procedures.get("::p").expect("the procedure");
+        let last = |name: &str| {
+            let symbol = function.ssa.var_symbol(name).expect("the variable");
+            function
+                .sccp
+                .values
+                .iter()
+                .filter(|((sym, _), _)| *sym == symbol)
+                .max_by_key(|((_, version), _)| *version)
+                .map(|(_, value)| value.clone())
+        };
+        let text = |value: &str| Some(LatticeValue::Const(ConstValue::String(value.into())));
+        assert_eq!(last("g"), text("aa"));
+        assert_eq!(last("a"), Some(LatticeValue::Const(ConstValue::Int(1))));
+        assert_eq!(last("b"), Some(LatticeValue::Const(ConstValue::Int(2))));
+        assert_eq!(last("m"), text("before"), "the no-match preserves `m`");
     }
 
     /// `proven_word_value` reads the lattice at the statement (VT5.15): a

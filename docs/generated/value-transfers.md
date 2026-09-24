@@ -1139,6 +1139,9 @@ Every reviewed site the source lint found, with the waiver that names the axis i
 | arg_roles | `rust/tcl-compiler/src/analyser/bounds_checks.rs:1112` | site | the W230–W232 index positions await an index-argument role on the registry |
 | arg_roles | `rust/tcl-compiler/src/analyser/bounds_checks.rs:1145` | site | the W230–W232 index positions await an index-argument role on the registry |
 | arg_roles | `rust/tcl-compiler/src/analyser/bounds_checks.rs:1181` | site | the W230–W232 index positions await an index-argument role on the registry |
+| dataflow | `rust/tcl-compiler/src/analyser/diagnostics/var_command.rs:2587` | site | needs each value's token span, which no outcome carries |
+| dataflow | `rust/tcl-compiler/src/analyser/diagnostics/var_command.rs:2596` | site | needs each value's token span, which no outcome carries |
+| dataflow | `rust/tcl-compiler/src/analyser/diagnostics/var_command.rs:2620` | site | needs each value's token span, which no outcome carries |
 | definition_body | `rust/tcl-compiler/src/specialise_factories.rs:233` | site | the factory's one statement is a |
 | irreducible | `rust/tcl-compiler/src/codegen/emitter/try_blocks.rs:155` | site | the defs-only marker `lower_catch` builds on a catch end block, not a Tcl invocation |
 | irreducible | `rust/tcl-compiler/src/codegen/emitter/try_blocks.rs:173` | site | the defs-only marker `lower_catch` builds on a catch end block, not a Tcl invocation |
@@ -1157,6 +1160,7 @@ Every other scanned file with an unwaived recogniser-shaped site, and its count,
 |---|---|
 | `rust/tcl-cli/src/commands/minimize.rs` | 1 |
 | `rust/tcl-compiler/src/analyser/class_lattice.rs` | 3 |
+| `rust/tcl-compiler/src/analyser/commands.rs` | 4 |
 | `rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs` | 2 |
 | `rust/tcl-compiler/src/analyser/diagnostics/helpers.rs` | 5 |
 | `rust/tcl-compiler/src/analyser/diagnostics/security.rs` | 2 |
@@ -1179,6 +1183,7 @@ Every other scanned file with an unwaived recogniser-shaped site, and its count,
 | `rust/tcl-compiler/src/place_bridge.rs` | 2 |
 | `rust/tcl-compiler/src/shimmer/thunking.rs` | 1 |
 | `rust/tcl-compiler/src/ssa.rs` | 1 |
+| `rust/tcl-compiler/src/taint.rs` | 3 |
 | `rust/tcl-compiler/src/uri_split.rs` | 6 |
 | `rust/tcl-compiler/src/var_escape/handlers.rs` | 2 |
 | `rust/tcl-compiler/src/var_escape/helpers.rs` | 1 |

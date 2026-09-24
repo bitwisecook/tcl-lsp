@@ -168,11 +168,11 @@ executes that runtime.
    the decisions (D72–D104) are
    [value-transfers.md (lane)](../lanes/value-transfers.md) § *Plan for
    slices 2–13* › *Slice 4*.
-5. **Destructuring and structured bodies.** Write, preserve, unbind, and
-   may-write outcomes with heterogeneous per-target types and duplicate
-   targets resolved to places; the regexp owner's typed precision result;
-   `regexp`, `scan`, `lassign`, `binary scan`; `dict with` and `dict
-   update` as structural plans with a key-binding projection; the
+5. **Destructuring and structured bodies (landed).** Write, preserve,
+   unbind, and may-write outcomes with heterogeneous per-target types and
+   duplicate targets resolved to places; the regexp owner's typed precision
+   result; `regexp`, `scan`, `lassign`, `binary scan`; `dict with` and
+   `dict update` as structural plans with a key-binding projection; the
    template-word plan, with `subst`'s option rows declaring the kinds; W210
    consuming preserve outcomes; the existence branch fact stored once with
    its kind; O111 consuming the same fact as W100 or an explicit rule-group
@@ -180,6 +180,10 @@ executes that runtime.
    private regexp / scan prover in `dataflow.rs` is retired; the no-match
    preserve, partial `scan`, and `lassign … a a` witnesses pass; the four
    consumers read `TemplateWordPlan` and none walks a template word.
+   Landed 2026-09-24; the record and the decisions (D105–D109, D115–D156,
+   and the review's D162–D164) are
+   [value-transfers.md (lane)](../lanes/value-transfers.md) § *Plan for
+   slices 2–13* › *Slice 5*.
 6. **Branch integration and optional rewrites.** The exact whole-variable
    `Raw` resolution; selection facts for opaque forms through
    `tcl_cmd_core::switch`; O112, the analyser's `switch_body_is_selected`,
@@ -811,6 +815,7 @@ which waives the sites by axis.
 |---|---|---|
 | `rust/tcl-cli/src/commands/minimize.rs` | 1 | the `arg_roles` axis — `var_target_positions`, a reimplementation of the role axis for eight commands |
 | `rust/tcl-compiler/src/analyser/class_lattice.rs` | 3 | the `definition_body` axis — `oo::objdefine`, `oo::copy`, and `info` by name |
+| `rust/tcl-compiler/src/analyser/commands.rs` | 4 | slice 8 — VT8.9 retires the `set VAR [CLASS new]` instance tracking by name, which reads the value word's evaluation instead |
 | `rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs` | 2 | slice 8 retires the `unset` scans |
 | `rust/tcl-compiler/src/analyser/diagnostics/helpers.rs` | 5 | slices 8 and 13 — the `unset` and binder checks |
 | `rust/tcl-compiler/src/analyser/diagnostics/security.rs` | 2 | the `return_type` axis — a `pattern_type` conditional on `-regexp` absorbs the `switch`-specific ReDoS scan |
@@ -833,6 +838,7 @@ which waives the sites by axis.
 | `rust/tcl-compiler/src/place_bridge.rs` | 2 | the `arg_roles` axis — `namespace upvar` positions by name |
 | `rust/tcl-compiler/src/shimmer/thunking.rs` | 1 | the `native_lowering` axis — a thunked `break` |
 | `rust/tcl-compiler/src/ssa.rs` | 1 | the `arg_roles` axis — `trace add variable` positions by name |
+| `rust/tcl-compiler/src/taint.rs` | 3 | the `side_effects` and `traits` axes — the `file` path-sink narrowing, the `string match` / `first` / `equal` guard parse, and the `interp` / `proc` rebinding order |
 | `rust/tcl-compiler/src/uri_split.rs` | 6 | slice 7 — the direct routes for `split`, `string first`, and `string match` replace the private URI evaluator |
 | `rust/tcl-compiler/src/var_escape/handlers.rs` | 2 | the `arg_roles` and `traits` axes — `namespace upvar`'s positions and `info exists` by name; the walker still calls the file, so it is reviewed, not deleted |
 | `rust/tcl-compiler/src/var_escape/helpers.rs` | 1 | the `traits` axis — `info exists` beside `INTROSPECTS_BY_NAME` |

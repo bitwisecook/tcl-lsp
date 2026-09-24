@@ -130,6 +130,7 @@ const CLEAN_FILES: &[&str] = &[
 const RATCHET: &[(&str, usize)] = &[
     ("rust/tcl-cli/src/commands/minimize.rs", 1),
     ("rust/tcl-compiler/src/analyser/class_lattice.rs", 3),
+    ("rust/tcl-compiler/src/analyser/commands.rs", 4),
     ("rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs", 2),
     ("rust/tcl-compiler/src/analyser/diagnostics/helpers.rs", 5),
     ("rust/tcl-compiler/src/analyser/diagnostics/security.rs", 2),
@@ -152,6 +153,7 @@ const RATCHET: &[(&str, usize)] = &[
     ("rust/tcl-compiler/src/place_bridge.rs", 2),
     ("rust/tcl-compiler/src/shimmer/thunking.rs", 1),
     ("rust/tcl-compiler/src/ssa.rs", 1),
+    ("rust/tcl-compiler/src/taint.rs", 3),
     ("rust/tcl-compiler/src/uri_split.rs", 6),
     ("rust/tcl-compiler/src/var_escape/handlers.rs", 2),
     ("rust/tcl-compiler/src/var_escape/helpers.rs", 1),
@@ -427,8 +429,99 @@ fn is_literal_arm(line: &str) -> bool {
     }
 }
 
+/// Whether a line is a tuple-pattern `match` arm naming a string literal:
+/// `("set", _) | (_, "::set")`, with the guard and `=>` on this line or the
+/// next.
+fn is_tuple_literal_arm(line: &str) -> bool {
+    let t = line.trim_start();
+    if !t.starts_with('(') {
+        return false;
+    }
+    let mut rest = t;
+    let mut named = false;
+    loop {
+        let Some(inner) = rest.strip_prefix('(') else {
+            return false;
+        };
+        let Some(close) = inner.find(')') else {
+            return false;
+        };
+        named |= inner[..close].contains('"');
+        rest = inner[close + 1..].trim_start();
+        if let Some(r) = rest.strip_prefix('|') {
+            rest = r.trim_start();
+            continue;
+        }
+        return named && (rest.is_empty() || rest.starts_with("=>") || rest.starts_with("if "));
+    }
+}
+
+/// Where the item a `#[cfg(test)]` at `index` annotates ends: `None` when
+/// it is an inline test module, whose end is the file's; else the index of
+/// the item's last line — a module declaration's own line, the line that
+/// closes the item's braces, or the one that ends it with `;`.
+fn test_item_end(lines: &[&str], index: usize) -> Option<usize> {
+    let mut depth = 0usize;
+    let mut opened = false;
+    for (at, raw) in lines.iter().enumerate().skip(index + 1) {
+        let line = code_part(raw);
+        let t = line.trim_start();
+        if !opened && (t.is_empty() || t.starts_with("//") || t.starts_with("#[")) {
+            continue;
+        }
+        if !opened && (t.starts_with("mod ") || t.starts_with("pub mod ")) {
+            return t.trim_end().ends_with(';').then_some(at);
+        }
+        for c in code_braces(line) {
+            if c == '{' {
+                depth += 1;
+                opened = true;
+            } else {
+                depth = depth.saturating_sub(1);
+            }
+        }
+        if (opened && depth == 0) || (!opened && t.trim_end().ends_with(';')) {
+            return Some(at);
+        }
+    }
+    None
+}
+
+/// The braces of `line` outside its string and character literals, in
+/// order.
+fn code_braces(line: &str) -> Vec<char> {
+    let mut out = Vec::new();
+    let mut in_string = false;
+    let mut chars = line.chars().peekable();
+    while let Some(c) = chars.next() {
+        match c {
+            '\\' if in_string => {
+                chars.next();
+            }
+            '"' => in_string = !in_string,
+            '\'' if !in_string => {
+                // A character literal `'{'` or `'\''`; a lifetime has no
+                // closing quote within three characters.
+                let rest: String = chars.clone().take(3).collect();
+                if rest.chars().nth(1) == Some('\'') {
+                    chars.next();
+                    chars.next();
+                } else if rest.starts_with('\\') && rest.chars().nth(2) == Some('\'') {
+                    chars.next();
+                    chars.next();
+                    chars.next();
+                }
+            }
+            '{' | '}' if !in_string => out.push(c),
+            _ => {}
+        }
+    }
+    out
+}
+
 /// Yield `(1-based line, trimmed line text)` for every recogniser-shaped
-/// site in `text`. A `#[cfg(test)]` module ends the scan.
+/// site in `text`. A `#[cfg(test)]` module ends the scan; any other
+/// `#[cfg(test)]` item — a test-only helper — is skipped alone.
 fn scan(text: &str) -> Vec<(usize, String)> {
     let lines: Vec<&str> = text.lines().collect();
     let mut out: Vec<(usize, String)> = Vec::new();
@@ -438,9 +531,19 @@ fn scan(text: &str) -> Vec<(usize, String)> {
             out.push((index + 1, snippet));
         }
     };
+    let mut skip_to: Option<usize> = None;
     for (index, raw) in lines.iter().enumerate() {
+        if skip_to.is_some_and(|end| index <= end) {
+            continue;
+        }
         if raw.trim_start().starts_with("#[cfg(test)]") {
-            break;
+            match test_item_end(&lines, index) {
+                Some(end) => {
+                    skip_to = Some(end);
+                    continue;
+                }
+                None => break,
+            }
         }
         let line = code_part(raw);
         if line.trim_start().starts_with("//") {
@@ -486,6 +589,20 @@ fn scan(text: &str) -> Vec<(usize, String)> {
                 .iter()
                 .take(48)
                 .any(|l| is_literal_arm(code_part(l)))
+        {
+            hit(index);
+        }
+        // A tuple-pattern arm naming a literal, in a `match (…) {` whose
+        // tuple holds a head binding: each arm recognises its command.
+        if is_tuple_literal_arm(line)
+            && lines[..index]
+                .iter()
+                .rev()
+                .take(48)
+                .map(|l| code_part(l).trim_start())
+                .find_map(|l| l.strip_prefix("match ("))
+                .and_then(|subject| subject.rfind(')').map(|close| &subject[..close]))
+                .is_some_and(|tuple| tuple.split(',').any(ends_with_head_binding))
         {
             hit(index);
         }
@@ -1224,6 +1341,21 @@ mod tests {
     fn a_test_module_ends_the_scan() {
         let src = "fn f(command: &str) -> bool { command == \"a\" }\n#[cfg(test)]\nmod tests { fn g(command: &str) -> bool { command == \"b\" } }\n";
         assert_eq!(scan(src).len(), 1);
+    }
+
+    #[test]
+    fn a_test_only_item_is_skipped_alone() {
+        let src = "#[cfg(test)]\npub(crate) fn helper(command: &str) -> bool {\n    let _ = \"}\";\n    command == \"a\"\n}\n#[cfg(test)]\nuse std::fmt;\n#[cfg(test)]\nmod support;\nfn f(command: &str) -> bool { command == \"b\" }\n#[cfg(test)]\nmod tests {\n    fn g(command: &str) -> bool { command == \"c\" }\n}\n";
+        let hits = scan(src);
+        assert_eq!(hits.len(), 1, "{hits:?}");
+        assert_eq!(hits[0].0, 10);
+    }
+
+    #[test]
+    fn flags_a_tuple_match_arm_naming_a_literal() {
+        let src = "match (command.as_str(), canonical) {\n    (\"set\", _) | (_, \"::set\")\n        if args.len() == 2 =>\n    {\n    }\n    (\"array\", _) | (_, \"::array\") if ok => {}\n    _ => {}\n}\nmatch (kind, other) {\n    (\"x\", _) => {}\n    _ => {}\n}\n";
+        let hits: Vec<usize> = scan(src).into_iter().map(|(line, _)| line).collect();
+        assert_eq!(hits, [2, 6]);
     }
 
     #[test]

@@ -1334,6 +1334,37 @@ const DESTRUCTURE_WITNESSES: &[StorageWitness] = &[
     ("array", Some("set"), &["arr", ""], &[], &[]),
 ];
 
+/// `scan`'s conversion count (the slice 5 review, B1): a `%n` and a
+/// suppressed success are conversions, as C's `nconversions` counts them,
+/// so an input that runs out after one is not the underflow. Measured
+/// alike on tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1b0: `scan {} %n%d
+/// n a` is 1 with `n` written 0 and `a` preserved, `scan abc %s%n a n` is
+/// 2, the suppressed forms are 0 with `a` preserved, and only `scan {}
+/// %*d%d a` is -1. Every row answers on every release.
+const SCAN_COUNT_WITNESSES: &[StorageWitness] = &[
+    (
+        "scan",
+        None,
+        &["", "%n%d", "n", "a"],
+        &[("n", "5"), ("a", "7")],
+        &["n", "a"],
+    ),
+    (
+        "scan",
+        None,
+        &["abc", "%s%n", "a", "n"],
+        &[("a", "7"), ("n", "5")],
+        &["a", "n"],
+    ),
+    ("scan", None, &["", "%*n%d", "a"], &[("a", "7")], &["a"]),
+    ("scan", None, &["5", "%*d%d", "a"], &[("a", "7")], &["a"]),
+    ("scan", None, &["", "%*d%d", "a"], &[("a", "7")], &["a"]),
+    ("scan", None, &["", "%n%d"], &[], &[]),
+    ("scan", None, &["", "%*n%d"], &[], &[]),
+    ("scan", None, &["5", "%*d%d"], &[], &[]),
+    ("scan", None, &["", "%*d%d"], &[], &[]),
+];
+
 /// The destructuring writers' witnesses (VT5.5), per release found on
 /// `PATH`, each under that release's profile against the real `tclsh`
 /// (8.5 on for `lassign`, which 8.4 lacks): a converted field writes its
@@ -1342,8 +1373,8 @@ const DESTRUCTURE_WITNESSES: &[StorageWitness] = &[
 /// route answers it must match; when `tclsh` raises the route must
 /// decline; a decline where `tclsh` answers is allowed — a 32-bit overflow,
 /// a positional conversion, a float or `0x` spelling 8.4 reads another way,
-/// a field a release lacks — but the plan's four answer on every release
-/// that has the command.
+/// a field a release lacks — but the plan's four and the conversion count's
+/// witnesses answer on every release that has the command.
 #[test]
 fn destructuring_witnesses_match_every_release_on_path() {
     let reg = CommandRegistry::build_default();
@@ -1355,10 +1386,12 @@ fn destructuring_witnesses_match_every_release_on_path() {
         releases += 1;
         let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name());
         let mut agreed = 0usize;
-        for (index, &witness) in DESTRUCTURE_WITNESSES.iter().enumerate() {
+        let witnesses = DESTRUCTURE_WITNESSES.iter().chain(SCAN_COUNT_WITNESSES);
+        for (index, &witness) in witnesses.enumerate() {
             let want = storage_oracle(&tclsh, witness);
             let got = storage_route(&reg, profile, witness);
             let (command, sub, args, _, _) = witness;
+            let answers = index < 4 || index >= DESTRUCTURE_WITNESSES.len();
             match (&want, &got) {
                 (Some(want), Some(got)) => {
                     assert_eq!(
@@ -1374,7 +1407,7 @@ fn destructuring_witnesses_match_every_release_on_path() {
                     version.version_string()
                 ),
                 (Some(_), None) => assert!(
-                    index >= 4,
+                    !answers,
                     "tclsh{}: the route declined the witness {command} {sub:?} {args:?}",
                     version.version_string()
                 ),
@@ -1382,7 +1415,7 @@ fn destructuring_witnesses_match_every_release_on_path() {
             }
         }
         assert!(
-            agreed >= 21,
+            agreed >= 21 + SCAN_COUNT_WITNESSES.len(),
             "tclsh{}: only {agreed} witnesses agreed",
             version.version_string()
         );

@@ -4799,6 +4799,49 @@ tcl-lsp-core -p tcl-compiler -p tcl-cli -p tcl-lsp-db -p xtask
 --all-targets --no-deps -- -D warnings` clean, no `#[allow]` added; `cargo
 fmt` (the same six crates) `-- --check` clean, no diff.
 
+#### Record (2026-09-24): review fixes for slice 5
+
+The review of the slice 5 landing (`e4404113` to `9906d6af`) returned
+"land with fixes". The commit `wip(value-transfers): slice 5 — review
+fixes` holds every fix, applied after VT8.1 (`f73ffe63`) and before any
+slice 8 item reads a preserve outcome; each is pinned by a test whose
+expectation was run under tclsh 8.4 to 9.1. The decisions are D162–D164
+and D156's amendment.
+
+| Finding | What changed | Its tests |
+|---|---|---|
+| B1 (blocking) — `%n` before an exhausted conversion | `tcl_cmd_core::scan::scan_match` counts `nconv` as C's `nconversions` (D163): `%n`, suppressed or not, and every successful conversion, suppressed or not, so the underflow fires only when the input ran out before any of them. `scan {} %n%d n a` is 1 with `n` written 0 and `a` preserved, `scan abc %s%n a n` 2, `scan {} %*n%d a` and `scan 5 %*d%d a` 0, and only `scan {} %*d%d a` -1, on every release; the route had answered -1 and preserved `n`, so `tcl opt` rewrote `puts $n` to `puts 5` and W210 reported the read. The route's `ended_first` and the VM's variable-mode `-1` follow from the core with no edit of their own, so the VM's `scan` result for the same inputs is corrected by the same change. Deviation: the review named `%n` and allowed only `percent_n_reports_consumed` to move; C counts a suppressed success with the same increment, and `scan 5 %*d%d a` answered -1 where every release answers 0, so it is fixed in the same place and `float_suppress_and_width` moves too (`%f %*d` over `3.5 99`: `nconv` 1 → 2, its values unchanged). Deviation: the fixed route proves `n` is 0, so the witness asserts the optimised program is not `puts 5` and prints 0 rather than that `puts $n` stays — O100's `puts 0` prints what the original prints | `percent_n_reports_consumed` (`nconv` 1 → 2) and `float_suppress_and_width` (1 → 2) move; `percent_n_and_a_suppressed_success_prevent_the_underflow` (`scan.rs`, new); `destructuring_witnesses_match_every_release_on_path` (`tcl-registry/tests/differential_fold.rs`) reads `SCAN_COUNT_WITNESSES` after its table, nine rows (the review's two, the suppressed forms, their inline forms) that must answer on every release; `the_percent_n_count_witness` (`value_transfer_witnesses.rs`, new): `n` is 0 in five dialects, no `puts 5`, no W210 on `n` with or without the prior `set`, and both programs print 0 before and after `tcl opt` under 8.4 to 9.1. `cargo test -p tcl-cmd-core -p tcl-vm` moved no other expectation |
+| S1 — the no-route writers' existence transfer | `MayWriteSemantics` gains `kind: Option<BindingKind>` and answers `TransferAnswer::Existence` with one `MayBind(kind)` per target on the normal path; the driver's `transferred` already reads a declaration's existence transfer for a route-less call, so each target steps `Join(Bound(kind))` in place of D159's widening. `file tempfile`'s variable is a scalar and `vwait` stays generic (D156, amended) | `each_may_write_declaration_answers_a_may_bind_of_its_target` (`tcl-registry/tests/value_transfers.rs`, new): the eleven declarations from the full registry, each `VarWrite` operand from `arg_indices_for_role`; ten answer one `MayBind` of it, `vwait` `Generic`, and every type transfer is `Generic` |
+| S2 — a substituted subject hid the targets | `LatticeInputs::resolve_roles_over_values` (`value_transfer.rs`), called after `view_of` in `evaluate_source_call`, re-runs the command's `arg_role_resolver` over the words' exact lattice texts (D164) | `a_proven_subject_resolves_the_targets_roles` (`value_transfer.rs`, new): `regexp {(a+)b} $s -> g` gives `g` `aa`, `lassign $l a b` binds 1 and 2, and a no-match `regexp {(x)} $t -> m` preserves `m` at `before` (tclsh 8.5 to 9.1: `aa 1 2 before`) |
+| S3 — unwaived tuple arms in a clean file | `harvest_table_command_value_spans`'s `set`, `array set` and `dict set` arms (`var_command.rs`) each carry `// value-transfer-ok: dataflow — needs each value's token span, which no outcome carries`, the VT5.18 record's own reason; G1's `scan()` recognises a tuple-pattern arm naming a literal under a `match (…)` whose tuple binds a head (`is_tuple_literal_arm`), so the waivers are what keep the file clean | `flags_a_tuple_match_arm_naming_a_literal` (xtask, new): the two arms under `match (command.as_str(), canonical)` are sites, the arm under `match (kind, other)` is not |
+| S4 — two stale doc lines | `pass-fact-ownership-matrix.md`'s `value_transfer.rs` row: hover and inlay hints read `proven_word_value` for a computed pattern or format argument, and the semantic-token families stay literal-only; `value-transfers-migration.md`'s item 5 carries the "(landed)" marker and the closing line item 4 carries | none (docs) |
+| 6 — G1 stopped at a test-only item | `scan()` (`xtask/src/value_transfers.rs`) ends only at an inline test module; `test_item_end` skips any other annotated item alone, counting braces outside string and character literals (`code_braces`). The wider scan's per-file deltas: `analyser/commands.rs` 0 → 4 and `taint.rs` 0 → 3, pinned (D162); every other file unchanged. The four in `commands.rs` are VT8.9's; the three in `taint.rs` are listed in D162 | `a_test_only_item_is_skipped_alone` (xtask, new): a test-only function, `use` and `mod name;` are skipped, the function after them is a site, and the inline tests module ends the scan |
+| Dialect drift (#2253) | `dict_value_at` (`value_transfer.rs`), the site the coordinator named at `value_transfer.rs:3294`, splits the dictionary with the dialect's `WordValueRules` (`of_profile(registry.profile())`) instead of `tcl_syntax::list::split_list`; `cargo xtask dialect-drift` is back to its eight pre-existing sites (the gate is disabled pending #2253) | the dictionary-body tests (`dict with` / `dict update`) unchanged |
+| The slice 8 heading | The slice 5 landing's docs dropped this document's `### Slice 8 — the existence rung` heading, leaving slice 8's goal and items under slice 5; it is restored | none (docs) |
+
+Green at the review fixes:
+
+- tests: `tcl-compiler` 9753 passed, 6 ignored across its 67 binaries,
+  and 7 doctests; `tcl-registry` 1242; `tcl-lsp-db` 128, 5 ignored;
+  `tcl-cli` 128; `tcl-lsp-core` 3567; `tcl-explorer` 103; `tcl-cmd-core`
+  131 and a doctest; `xtask` 237; `tcl-vm` 912 under `LC_ALL=C.UTF-8` —
+  under this container's `POSIX` locale
+  `ensemble_subcommand_words_resolve_like_tclsh` (`builtins_e2e`) fails
+  as VT5.20's battery recorded, `encoding system` answering `iso8859-1`,
+  which nothing here touches — no other failure;
+- pedantic clippy (`--all-targets --no-deps -D warnings`) on
+  `tcl-cmd-core`, `tcl-registry`, `tcl-compiler` and `xtask`, no
+  `#[allow]` added; `cargo fmt` on the four;
+- `cargo xtask value-transfers` (the inventory gains the three waived
+  `var_command.rs` sites and the two pinned files) and `--check` (20
+  clean, 19 waived, 90 pinned across 36 files, 6607 rows);
+  `registry-axes --check` (956 pinned across 157 files, 5 waived, 6
+  clean); `pack-goldens` (24 packs, 0 rewritten); `dialect-drift` 8
+  sites, the eight upstream ones (#2253); `cargo check --workspace`
+  clean.
+
+### Slice 8 — the existence rung
+
 #### Goal and exit
 
 In the plan's words: "A flow-sensitive bound/unbound fact per place and
@@ -5140,8 +5183,9 @@ VT8.1, VT8.6, VT8.8 (the plan's first checkpoint), VT8.2, VT8.3 (the
 second), VT8.4, VT8.5, VT8.7, VT8.9 (the third) — each its own checkpoint
 commit, as slices 4 and 5 did; VT8.10 and VT8.11 are the sonnet
 implementer's. The decisions are D157 onward in § *Decisions taken*. The
-slice 5 review's fixes land as their own commit at the first coherent
-point after they arrive (§ *Slice 5* › its record's review-fixes row).
+slice 5 review's fixes landed as their own commit after VT8.1, before any
+item reads a preserve outcome (§ *Slice 5* › *Record (2026-09-24): review
+fixes for slice 5*, D162–D164).
 
 | Item | Commit | What landed | Its tests |
 |---|---|---|---|
@@ -8429,6 +8473,22 @@ has the witnesses):
   outcome's validation, is inert for every `EvalRoute::None` command
   either way — `call_defs` (`tcl-compiler/src/value_transfer.rs`) returns
   `widened(defs)` before it is ever read).
+  *Amended by the slice 5 review (S1):* the item's "whose transfer is
+  `MayWrite` on each declared target" holds now. `MayWriteSemantics`
+  carries `kind: Option<BindingKind>` and overrides `transfer`: under
+  `FactDomain::Existence`, one normal-completion path with a
+  `MayBind(kind)` per `store_targets` target, as `unbind.rs` answers
+  `Unbind`; every other domain stays `Generic`. The kinds: `Array` for
+  `file stat` and `file lstat`; `Scalar` for `file tempfile`'s name
+  variable, `gets`, `chan gets` and `tk_optionMenu`; `Either` for the four
+  `trace` forms. Two depart from the review's note. `file tempfile`'s
+  variable is a scalar, not an array: `set f [file tempfile p]; list
+  [info exists p] [array exists p]` is `1 0` on 8.6 to 9.1 (8.4 and 8.5
+  lack the subcommand). `vwait` declares no kind and keeps the generic
+  transfer: its wait ends on an unset as on a write (`Tcl_VwaitObjCmd`
+  traces `TCL_TRACE_UNSETS`; `set x 1; after 0 {unset x}; vwait x; info
+  exists x` is 0 on 8.4 to 9.1), and a may-bind never loses a binding, so
+  D159's widening to `MayBound` is its answer.
 
 - **D157 — The special-variable faces are the registry's.** The
   consumer-contracts lane's hand-over: the existence rung's entry state,
@@ -8491,6 +8551,45 @@ has the witnesses):
   each region block's points are kept for it. The per-edge exit alone
   would have read `try {set y 1; foo; unset y} on error {} {…}`'s
   handler as `y` unbound.
+- **D162 — G1 scans past a test-only item, and the ratchet is measured
+  from that scan** (the slice 5 review, item 6). The lint stopped at the
+  first `#[cfg(test)]` line, so a test-only helper above a file's tests
+  module hid the rest of the file — twenty scanned files had one. Only an
+  inline test module ends the scan now; any other annotated item — a
+  `mod name;` declaration, a `use`, a braced item — is skipped alone. The
+  wider scan found sites in two files the ratchet held at zero,
+  `analyser/commands.rs` (4) and `taint.rs` (3), and nowhere else;
+  `RATCHET` and the ledger pin them, and "only lowered" is measured from
+  this baseline. `commands.rs`'s four are the `set VAR [CLASS new]`
+  instance tracking VT8.9 retires; `taint.rs`'s three — the `file`
+  path-sink narrowing, the `string` guard parse and the `interp` / `proc`
+  rebinding order — are registry axes (`side_effects`, `traits`) no slice
+  8 item moves, so they are pinned rather than fixed here. The lint also
+  sees a tuple-pattern `match` arm naming a literal under a subject that
+  binds a head (S3), so `var_command.rs`'s three reviewed arms carry
+  waivers.
+- **D163 — `scan`'s conversion count is C's `nconversions`.** The
+  shared core counted only non-suppressed, non-`%n` successes, and the
+  underflow (`-1`, or the inline form's empty result) fires when the
+  input runs out with that count at zero. `tclScan.c` increments
+  `nconversions` in the `%n` arm whether or not it is suppressed, and
+  after every successful conversion, suppressed or not, so `scan {}
+  %n%d n a` is 1 and `scan 5 %*d%d a` is 0 on every release where the
+  core answered -1 for both. The review named `%n`; the suppressed
+  success is the same increment and the same wrong -1, so both are
+  fixed in `scan_match` and the variable-mode count stays the
+  conversions assigned. The route (`destructure.rs`) and the VM
+  (`cmd_format.rs`) read the core's count and needed no edit.
+- **D164 — A substituted word re-resolves the roles over its proven
+  value** (the slice 5 review, S2). `view_of` runs a command's
+  `arg_role_resolver` only over all-literal words and otherwise keeps the
+  static roles, which for `regexp`, `regsub`, `scan`, `binary scan`,
+  `lassign` and `array set` name no targets, so a route over a
+  substituted subject declined `Unsupported` and a no-match lost its
+  preserve. The driver's inputs re-run the resolver over the words' exact
+  lattice texts when every word is exact, and take its roles when every
+  operand they make a `VarWrite` is a literal word: the command itself
+  reads the values, and a computed name is still no place.
 
 ### Open questions for the owner
 

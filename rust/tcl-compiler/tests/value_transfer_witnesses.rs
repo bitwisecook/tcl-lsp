@@ -2420,6 +2420,43 @@ fn the_partial_scan_witness() {
     prints_under_every_release(source, "12 before\n");
 }
 
+/// The conversion-count witness (the slice 5 review, B1): `%n` is a
+/// conversion for `scan`'s underflow, as C's `nconversions` counts it, so
+/// `scan "" %n%d n a` is 1 and writes `n` the characters consumed, 0, on
+/// every release. The route had answered the underflow's -1 and preserved
+/// `n`, so `tcl opt` rewrote `puts $n` to `puts 5` and W210 reported the
+/// read of an `n` the call binds.
+#[test]
+fn the_percent_n_count_witness() {
+    use tcl_compiler::analyser::Analyser;
+    let kept = "proc p {} {\n    set n 5\n    scan \"\" %n%d n a\n    puts $n\n}\np\n";
+    let bound = "proc q {} {\n    scan \"\" %n%d n a\n    puts $n\n}\nq\n";
+    for dialect in DIALECTS {
+        assert_eq!(
+            last_value(kept, dialect, "::p", "n"),
+            LatticeValue::Const(ConstValue::Int(0)),
+            "{dialect}: `%n` writes the characters consumed"
+        );
+        let (rewritten, rewrites) = optimised(kept, dialect);
+        assert!(
+            !rewritten.contains("puts 5"),
+            "{dialect}: the scan wrote `n`\n{rewritten}\n{rewrites:#?}"
+        );
+        for source in [kept, bound] {
+            let reported: Vec<String> = Analyser::new()
+                .analyse(source, dialect)
+                .diagnostics
+                .into_iter()
+                .filter(|d| d.code == DiagCode::W210 && d.message.contains("'n'"))
+                .map(|d| d.message)
+                .collect();
+            assert!(reported.is_empty(), "{dialect}: {source}{reported:?}");
+        }
+    }
+    prints_under_every_release(kept, "0\n");
+    prints_under_every_release(bound, "0\n");
+}
+
 /// The repeated-target witness: a call whose declared targets name the
 /// same place twice composes in execution order, so the last position's
 /// value wins. `lassign`'s repeated-target form (the interface page's own
