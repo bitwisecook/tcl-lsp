@@ -86,8 +86,9 @@ impl TemplateSemantics {
     /// The kinds the switches run, over their proven values: an exact value
     /// is its spelling, a finite set one spelling per member, and a switch
     /// the analysis does not prove runs every kind. Each combination of
-    /// spellings is read at every release the profile names; a combination
-    /// that raises runs nothing, the others join, a kind on in any being on.
+    /// spellings is read at every release the profile names (surface-blind
+    /// when there is no profile); a combination that raises runs nothing, the
+    /// others join, a kind on in any being on.
     /// A combination the releases read differently declines
     /// `ReleaseAmbiguous`, and a call every combination of which raises is
     /// the command's error (`WrongRepresentation`).
@@ -138,15 +139,16 @@ impl TemplateSemantics {
         joined.ok_or(DeclineReason::WrongRepresentation)
     }
 
-    /// The kinds one spelling of the switches runs at `release`, or `None`
-    /// when the call raises there: a spelling the release lacks or that names
-    /// several switches, the two families together, or a word the switch run
-    /// stops at before the template.
+    /// The kinds one spelling of the switches runs at `release` (every
+    /// option available when there is none), or `None` when the call raises
+    /// there: a spelling the release lacks or that names several switches,
+    /// the two families together, or a word the switch run stops at before
+    /// the template.
     fn kinds_at(
         &self,
         switches: &[&str],
         template: &str,
-        release: TclVersion,
+        release: Option<TclVersion>,
     ) -> Option<SubstitutionKinds> {
         let words: Vec<&str> = switches
             .iter()
@@ -158,7 +160,7 @@ impl TemplateSemantics {
             self.families,
             InvocationArguments::literals(&words),
             self.reserved_trailing_words,
-            Some(SurfaceQuery::core(Family::Tcl, release.version_string())),
+            release.map(|release| SurfaceQuery::core(Family::Tcl, release.version_string())),
         );
         (effects.complete && effects.option_end + self.reserved_trailing_words >= words.len())
             .then(|| effects.substitution_kinds())
@@ -249,12 +251,18 @@ fn combinations(spellings: &[Vec<String>]) -> Option<Vec<Vec<String>>> {
     Some(out)
 }
 
-/// The releases `profile` evaluates under: the one it declares, or every
-/// modelled release when it declares none.
-fn releases_of(profile: Option<&'static DialectProfile>) -> Vec<TclVersion> {
-    profile
-        .and_then(DialectProfile::runtime_version)
-        .map_or_else(|| TclVersion::ALL.to_vec(), |release| vec![release])
+/// The releases a question reads the switches at: the one the profile
+/// declares, every modelled release when it declares none (the lenient
+/// `tcl`), and — with no profile at all, a surface-blind question as a
+/// profile-less registry's own is — no release gate.
+fn releases_of(profile: Option<&'static DialectProfile>) -> Vec<Option<TclVersion>> {
+    match profile {
+        None => vec![None],
+        Some(profile) => profile.runtime_version().map_or_else(
+            || TclVersion::ALL.iter().copied().map(Some).collect(),
+            |release| vec![Some(release)],
+        ),
+    }
 }
 
 /// A kind on in either answer is on.

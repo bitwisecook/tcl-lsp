@@ -102,7 +102,7 @@ Every other scanned file with an unwaived site, and its count, which is the pin 
 | `rust/tcl-compiler/src/interval_bounds.rs` | 5 |
 | `rust/tcl-compiler/src/ir.rs` | 5 |
 | `rust/tcl-compiler/src/irules_checks.rs` | 7 |
-| `rust/tcl-compiler/src/lowering/mod.rs` | 26 |
+| `rust/tcl-compiler/src/lowering/mod.rs` | 25 |
 | `rust/tcl-compiler/src/lowering/structured.rs` | 19 |
 | `rust/tcl-compiler/src/lowering_hooks.rs` | 2 |
 | `rust/tcl-compiler/src/object_types.rs` | 2 |
@@ -121,7 +121,7 @@ Every other scanned file with an unwaived site, and its count, which is the pin 
 | `rust/tcl-compiler/src/signature_scan/handlers.rs` | 1 |
 | `rust/tcl-compiler/src/signature_scan/params.rs` | 1 |
 | `rust/tcl-compiler/src/signature_scan/walker.rs` | 10 |
-| `rust/tcl-compiler/src/specialise_factories.rs` | 2 |
+| `rust/tcl-compiler/src/specialise_factories.rs` | 1 |
 | `rust/tcl-compiler/src/ssa.rs` | 1 |
 | `rust/tcl-compiler/src/taint.rs` | 12 |
 | `rust/tcl-compiler/src/taint_interproc.rs` | 2 |

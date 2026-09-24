@@ -1139,6 +1139,7 @@ Every reviewed site the source lint found, with the waiver that names the axis i
 | arg_roles | `rust/tcl-compiler/src/analyser/bounds_checks.rs:1112` | site | the W230–W232 index positions await an index-argument role on the registry |
 | arg_roles | `rust/tcl-compiler/src/analyser/bounds_checks.rs:1145` | site | the W230–W232 index positions await an index-argument role on the registry |
 | arg_roles | `rust/tcl-compiler/src/analyser/bounds_checks.rs:1181` | site | the W230–W232 index positions await an index-argument role on the registry |
+| definition_body | `rust/tcl-compiler/src/specialise_factories.rs:233` | site | the factory's one statement is a |
 | irreducible | `rust/tcl-compiler/src/codegen/emitter/try_blocks.rs:155` | site | the defs-only marker `lower_catch` builds on a catch end block, not a Tcl invocation |
 | irreducible | `rust/tcl-compiler/src/codegen/emitter/try_blocks.rs:173` | site | the defs-only marker `lower_catch` builds on a catch end block, not a Tcl invocation |
 | options | `rust/tcl-compiler/src/analyser/diagnostics/usage.rs:313` | site | W311 reads the encoding option's position, which `option_placement` on the registry will carry |
@@ -1146,7 +1147,7 @@ Every reviewed site the source lint found, with the waiver that names the axis i
 
 ## The ratchet
 
-The files the gate holds clean, with every site waived or gone: `rust/tcl-compiler/src/analyser/bounds_checks.rs`, `rust/tcl-compiler/src/analyser/diagnostics/usage.rs`, `rust/tcl-compiler/src/analyser/diagnostics/var_command.rs`, `rust/tcl-compiler/src/cfg_builder/mod.rs`, `rust/tcl-compiler/src/command_binding.rs`, `rust/tcl-compiler/src/compilation_unit.rs`, `rust/tcl-compiler/src/dataflow_graph.rs`, `rust/tcl-compiler/src/intervals.rs`, `rust/tcl-compiler/src/ir_helpers.rs`, `rust/tcl-compiler/src/lib.rs`, `rust/tcl-compiler/src/optimiser/chain_fold.rs`, `rust/tcl-compiler/src/optimiser/propagation.rs`, `rust/tcl-compiler/src/sccp.rs`, `rust/tcl-compiler/src/shimmer/commit.rs`, `rust/tcl-compiler/src/shimmer/mod.rs`, `rust/tcl-compiler/src/static_loops.rs`, `rust/tcl-compiler/src/value_transfer.rs`, `rust/tcl-compiler/src/word_subst.rs`.
+The files the gate holds clean, with every site waived or gone: `rust/tcl-compiler/src/analyser/bounds_checks.rs`, `rust/tcl-compiler/src/analyser/diagnostics/usage.rs`, `rust/tcl-compiler/src/analyser/diagnostics/var_command.rs`, `rust/tcl-compiler/src/cfg_builder/mod.rs`, `rust/tcl-compiler/src/command_binding.rs`, `rust/tcl-compiler/src/compilation_unit.rs`, `rust/tcl-compiler/src/dataflow_graph.rs`, `rust/tcl-compiler/src/intervals.rs`, `rust/tcl-compiler/src/ir_helpers.rs`, `rust/tcl-compiler/src/lib.rs`, `rust/tcl-compiler/src/optimiser/chain_fold.rs`, `rust/tcl-compiler/src/optimiser/propagation.rs`, `rust/tcl-compiler/src/sccp.rs`, `rust/tcl-compiler/src/shimmer/commit.rs`, `rust/tcl-compiler/src/shimmer/mod.rs`, `rust/tcl-compiler/src/specialise_factories.rs`, `rust/tcl-compiler/src/static_loops.rs`, `rust/tcl-compiler/src/value_transfer.rs`, `rust/tcl-compiler/src/word_subst.rs`.
 
 Every other scanned file with an unwaived recogniser-shaped site, and its count, which is the pin in `rust/xtask/src/value_transfers.rs`. The count may only fall: a slice lowers the pin beside the review that removes or waives the file's sites, and the ledger in `docs/design/compiler/value-transfers-migration.md` names that slice or axis migration.
 
@@ -1177,7 +1178,6 @@ Every other scanned file with an unwaived recogniser-shaped site, and its count,
 | `rust/tcl-compiler/src/optimiser/end_offset.rs` | 1 |
 | `rust/tcl-compiler/src/place_bridge.rs` | 2 |
 | `rust/tcl-compiler/src/shimmer/thunking.rs` | 1 |
-| `rust/tcl-compiler/src/specialise_factories.rs` | 1 |
 | `rust/tcl-compiler/src/ssa.rs` | 1 |
 | `rust/tcl-compiler/src/uri_split.rs` | 6 |
 | `rust/tcl-compiler/src/var_escape/handlers.rs` | 2 |

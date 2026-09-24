@@ -73,6 +73,9 @@ pub struct FactoryShape {
     /// [`subst_nocommands`] with a `param -> literal-arg` map per
     /// call site.
     pub child_body_template: String,
+    /// The template-word plan over [`Self::child_body_template`]: the
+    /// reads and escapes [`subst_nocommands`] renders.
+    pub child_body_plan: tcl_registry::value_transfer::TemplateWordPlan,
 }
 
 /// Default per-factory specialisation cap.
@@ -113,8 +116,8 @@ pub fn specialise_factories_with_cap(module: &mut Module, registry: &CommandRegi
     let mut top = std::mem::take(&mut module.top_level);
     let synthesised_top = rewrite_script(&mut top, &factories, registry, "::", &mut counts, cap);
     module.top_level = top;
-    for (name, params, body) in synthesised_top {
-        register_synthesised(module, &name, &params, body);
+    for (name, params, body, span) in synthesised_top {
+        register_synthesised(module, &name, &params, body, span);
     }
 
     let proc_qnames: Vec<String> = module.procedures.keys().cloned().collect();
@@ -131,13 +134,22 @@ pub fn specialise_factories_with_cap(module: &mut Module, registry: &CommandRegi
             cap,
         );
         proc.body = body;
-        for (n, p, b) in synthesised_proc {
-            register_synthesised(module, &n, &p, b);
+        for (n, p, b, span) in synthesised_proc {
+            register_synthesised(module, &n, &p, b, span);
         }
     }
 }
 
-fn register_synthesised(module: &mut Module, name: &str, params: &str, body: Script) {
+/// Register the child a factory call materialised, at the span of the call
+/// that produced it (#2143): the child exists nowhere in the source, so its
+/// findings anchor at the call rather than at 1:1.
+fn register_synthesised(
+    module: &mut Module,
+    name: &str,
+    params: &str,
+    body: Script,
+    span: tcl_lexer::Span,
+) {
     let qualified = if name.starts_with("::") {
         name.to_string()
     } else {
@@ -147,7 +159,7 @@ fn register_synthesised(module: &mut Module, name: &str, params: &str, body: Scr
         name: name.to_string(),
         qualified_name: qualified.clone(),
         params: parse_simple_params(params),
-        span: tcl_lexer::Span::new(0, 0),
+        span,
         body,
         params_raw: params.to_string(),
         body_source: None,
@@ -215,6 +227,9 @@ pub fn detect_factory_shape(
     else {
         return None;
     };
+    // value-transfer-ok: definition_body — the factory's one statement is a
+    // `proc` definition with a computed name; the definer is the
+    // `definition_body` axis's fact, not a value transfer.
     if reason != "dynamic proc name" || command != "proc" {
         return None;
     }
@@ -278,7 +293,7 @@ pub fn detect_factory_shape(
         return None;
     }
     let inner = &body_text[1..body_text.len() - 1];
-    let template = extract_subst_nocommands_template(inner, config, registry)?;
+    let (template, plan) = extract_subst_nocommands_template(inner, config, registry)?;
 
     Some(FactoryShape {
         qualified_name: proc.qualified_name.clone(),
@@ -286,50 +301,51 @@ pub fn detect_factory_shape(
         name_param: name_param.to_string(),
         child_params,
         child_body_template: template,
+        child_body_plan: plan,
     })
 }
 
-/// Extract the brace-string template from a `subst` command-substitution
-/// body the registry says performs
-/// [`SUBST_NOCOMMANDS_KINDS`](crate::lowering::SUBST_NOCOMMANDS_KINDS) — the
-/// effect set [`subst_nocommands`] reproduces, whether the call spells it
-/// `-nocommands` or, from Tcl 9.1, `-variables -backslashes`. Returns `None`
-/// for any other shape, including one that also turns backslash or variable
-/// substitution off: those change what the template substitutes to, so the
-/// materialised body would not match. Used by [`detect_factory_shape`].
+/// Extract the brace-string template, with its template-word plan, from a
+/// command-substitution body whose plan runs exactly
+/// [`SUBST_NOCOMMANDS_KINDS`](crate::lowering::SUBST_NOCOMMANDS_KINDS) over a
+/// braced template — the effect set [`subst_nocommands`] reproduces, whether
+/// the call spells it `-nocommands` or, from Tcl 9.1, `-variables
+/// -backslashes`. Returns `None` for any other shape, including one that
+/// also turns backslash or variable substitution off: those change what the
+/// template substitutes to, so the materialised body would not match. Used
+/// by [`detect_factory_shape`].
 ///
-/// The registry answers a call it cannot read — a computed switch word —
-/// with every kind, which is not this set, so the shape is refused.
+/// The plan is the registry's over the call's literal words, so a computed
+/// switch word is no spelling a release accepts and the shape is refused.
 fn extract_subst_nocommands_template(
     inner: &str,
     config: tcl_lexer::LexerConfig,
     registry: &CommandRegistry,
-) -> Option<String> {
+) -> Option<(String, tcl_registry::value_transfer::TemplateWordPlan)> {
     let segments = crate::segmenter::segment_commands_with_offset_and_config(inner, 0, config);
-    if segments.len() != 1 {
+    let [cmd] = segments.as_slice() else {
         return None;
-    }
-    let cmd = &segments[0];
-    if cmd.texts.is_empty() || cmd.texts[0] != "subst" {
-        return None;
-    }
+    };
+    let head = cmd.texts.first()?;
     let texts = cmd.args();
     let arg_refs: Vec<&str> = texts.iter().map(String::as_str).collect();
-    if registry.substitutions_performed(&cmd.texts[0], &arg_refs)
-        != Some(crate::lowering::SUBST_NOCOMMANDS_KINDS)
-    {
+    // A braced word is one `Str` token; only it is a template the
+    // materialiser can substitute into.
+    let braced = |index: usize| {
+        cmd.single_token_word
+            .get(index + 1)
+            .copied()
+            .unwrap_or(false)
+            && cmd
+                .arg_tokens()
+                .get(index)
+                .is_some_and(|token| token.kind == TokenType::Str)
+    };
+    let plan = crate::value_transfer::literal_template_plan(registry, head, &arg_refs, braced)?;
+    if plan.kinds != crate::lowering::SUBST_NOCOMMANDS_KINDS || !plan.braced || plan.dynamic {
         return None;
     }
-    // The operand is the call's final argument; only a braced literal one is
-    // a template the materialiser can substitute into.
-    let idx = texts.len().checked_sub(1)?;
-    if !cmd.single_token_word.get(idx + 1).copied().unwrap_or(false) {
-        return None;
-    }
-    if cmd.arg_tokens().get(idx)?.kind != TokenType::Str {
-        return None;
-    }
-    Some(texts[idx].clone())
+    Some((texts.get(plan.operand.0)?.clone(), plan))
 }
 
 /// Walk *script*, rewriting matching call sites and collecting the
@@ -341,8 +357,8 @@ fn rewrite_script(
     namespace: &str,
     counts: &mut HashMap<String, usize>,
     cap: usize,
-) -> Vec<(String, String, Script)> {
-    let mut synthesised: Vec<(String, String, Script)> = Vec::new();
+) -> Vec<(String, String, Script, tcl_lexer::Span)> {
+    let mut synthesised: Vec<(String, String, Script, tcl_lexer::Span)> = Vec::new();
     for stmt in &mut script.statements {
         // Recurse into Block bodies; call sites nested in other structured
         // statements are not rewritten.
@@ -355,7 +371,7 @@ fn rewrite_script(
             try_specialise_call(stmt, factories, registry, namespace, counts, cap)
         {
             let (new_stmt, name, params, body) = replacement;
-            synthesised.push((name, params, body));
+            synthesised.push((name, params, body, new_stmt.span()));
             *stmt = new_stmt;
         }
     }
@@ -419,7 +435,11 @@ fn try_specialise_call(
         }
         bindings.insert(param.clone(), arg_text.clone());
     }
-    let materialised = subst_nocommands(&shape.child_body_template, &bindings)?;
+    let materialised = subst_nocommands(
+        &shape.child_body_template,
+        &shape.child_body_plan,
+        &bindings,
+    )?;
     // The child proc's name comes from the bound name_param.
     let child_name = bindings.get(&shape.name_param)?.clone();
     if child_name.is_empty() || child_name.contains(' ') {

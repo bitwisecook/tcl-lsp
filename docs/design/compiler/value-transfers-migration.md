@@ -825,7 +825,6 @@ which waives the sites by axis.
 | `rust/tcl-compiler/src/optimiser/end_offset.rs` | 1 | the `arg_roles` axis — O128's length-position table is the index-argument role the registry does not carry yet, the same debt as the W230–W232 family |
 | `rust/tcl-compiler/src/place_bridge.rs` | 2 | the `arg_roles` axis — `namespace upvar` positions by name |
 | `rust/tcl-compiler/src/shimmer/thunking.rs` | 1 | the `native_lowering` axis — a thunked `break` |
-| `rust/tcl-compiler/src/specialise_factories.rs` | 1 | the `definition_body` axis — `proc` as the definer |
 | `rust/tcl-compiler/src/ssa.rs` | 1 | the `arg_roles` axis — `trace add variable` positions by name |
 | `rust/tcl-compiler/src/uri_split.rs` | 6 | slice 7 — the direct routes for `split`, `string first`, and `string match` replace the private URI evaluator |
 | `rust/tcl-compiler/src/var_escape/handlers.rs` | 2 | the `arg_roles` and `traits` axes — `namespace upvar`'s positions and `info exists` by name; the walker still calls the file, so it is reviewed, not deleted |

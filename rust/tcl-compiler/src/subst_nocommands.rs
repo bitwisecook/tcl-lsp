@@ -22,159 +22,99 @@
 //! -nocommands {…}]` shape and want to materialise the body string
 //! at compile time instead of deferring to the runtime interpreter.
 //!
-//! Semantics (matching `tclsh 9.0`'s `subst -nocommands`):
+//! The template's structure is the registry's template-word plan
+//! (`docs/design/compiler/value-transfers.md` § *The template-word plan*):
+//! the reads it performs outside any script region, and the backslash
+//! escapes that materialise. This file only renders that plan over a
+//! const-map, matching `tclsh`'s `subst -nocommands`:
 //!
-//! * `$var` / `${var}` — variable substitution. The name is looked
-//!   up in the supplied const-map; a miss refuses the whole
-//!   evaluation by returning `None` (the caller keeps the dynamic
-//!   dispatch path in that case).
-//! * `\…` — standard backslash processing via
-//!   [`tcl_lexer::backslash_subst`]. Handles `\n \t \xNN \uNNNN`
-//!   and octal / continuation-line forms.
-//! * `[` / `]` — ordinary literal characters. `-nocommands` disables
-//!   *command* substitution only, so `[` no longer opens a command
-//!   substitution: it (and `]`) are copied verbatim while any `$var`
-//!   / `\escape` *inside* the brackets is still substituted. This
-//!   mirrors the VM's `subst_command` with `commands = false`
-//!   (`subst.rs`), where the `[` arm is gated on `commands` and a
-//!   bare `[` falls through to the literal-copy path. There is no
-//!   bracket matching and an unbalanced `[` is not an error.
-//! * `$a(b)` — array references are refused.
-//! * `$::ns::var` — namespace-qualified var refs are refused.
+//! * a `$var` / `${var}` read takes the const-map's value; a miss refuses
+//!   the whole evaluation by returning `None` (the caller keeps the dynamic
+//!   dispatch path in that case);
+//! * an escape decodes through [`tcl_lexer::backslash_subst`] (`\n \t \xNN
+//!   \uNNNN`, octal and continuation-line forms);
+//! * `[` and `]` are ordinary characters under `-nocommands`, copied
+//!   verbatim while a read or escape inside them still substitutes;
+//! * an array read (`$a(b)`), a namespace-qualified one (`$::ns::var`), and
+//!   any script region — an array index runs its `[…]` whatever the switches
+//!   say — are refused.
 
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::hash::BuildHasher;
 
-/// Evaluate a `subst -nocommands` template at compile time.
+use tcl_registry::value_transfer::TemplateWordPlan;
+
+/// Render a `subst -nocommands` template at compile time from its plan.
 ///
-/// Returns the substituted string on success, or `None` if any
-/// condition above refuses the evaluation. Refusal is always safe
-/// — the caller falls back to runtime dispatch, preserving the
+/// `template` is the braced word's content and `plan` the plan over it,
+/// whose spans count the opening brace. Returns the substituted string, or
+/// `None` if any condition above refuses the evaluation. Refusal is always
+/// safe — the caller falls back to runtime dispatch, preserving the
 /// original semantics.
 ///
-/// *`const_map`* maps variable names (without the leading `$`) to
-/// their literal string values. Names are looked up with their
-/// `{…}`-stripped form, so `${foo}` and `$foo` resolve the same
-/// entry.
-///
-/// The `${…}` scan below is deliberately **not** threaded through
-/// [`tcl_lexer::braced_var_name_end`], and that is sound here. The two release
-/// rules can only disagree about a name containing
-/// `{`, `}`, or `\` — and [`is_complex_var_name`] refuses every one of those
-/// (`is_name_byte` is alphanumerics and `_`), so both readings decline the
-/// same templates at the same offsets. A mutation pinning this scan to
-/// `FirstClose` survives, which is the proof. Do not add the parameter back
-/// without first widening `is_complex_var_name`, which is what would make the
-/// rule observable here.
+/// *`const_map`* maps variable names (without the leading `$`) to their
+/// literal string values; `${foo}` and `$foo` read the same name.
 #[must_use]
 pub fn subst_nocommands<S: BuildHasher>(
     template: &str,
+    plan: &TemplateWordPlan,
     const_map: &HashMap<String, String, S>,
 ) -> Option<String> {
-    let bytes = template.as_bytes();
-    let n = bytes.len();
-    let mut out = String::with_capacity(n);
-    let mut i = 0usize;
-    while i < n {
-        let c = bytes[i];
-        if c == b'\\' {
-            // Defer to the shared backslash processor for the single
-            // following escape; the canonical extent rule covers the
-            // continuation-line (LF / CR / CRLF) and octal / hex /
-            // unicode forms, so decode always sees one whole escape.
-            let j = tcl_lexer::backslash_escape_end(template, i);
-            let decoded = tcl_lexer::backslash_subst(&template[i..j]);
-            out.push_str(&decoded);
-            i = j;
-            continue;
-        }
-        if c == b'$' {
-            // ``$$`` — Tcl treats first ``$`` as start of a name,
-            // and if no name follows, leaves it literal.
-            if i + 1 >= n {
-                out.push('$');
-                i += 1;
-                continue;
-            }
-            let nxt = bytes[i + 1];
-            if nxt == b'{' {
-                let close = template[i + 2..].find('}').map(|p| i + 2 + p)?;
-                let name = &template[i + 2..close];
-                if is_complex_var_name(name) {
-                    return None;
-                }
-                let value = const_map.get(name)?;
-                out.push_str(value);
-                i = close + 1;
-                continue;
-            }
-            if is_name_byte(nxt) {
-                let mut j = i + 1;
-                while j < n && is_name_byte(bytes[j]) {
-                    j += 1;
-                }
-                let name = &template[i + 1..j];
-                // Array reference ``$name(index)`` — refuse.
-                if j < n && bytes[j] == b'(' {
-                    return None;
-                }
-                // Namespace qualifier ``$a::b`` — refuse.
-                if j + 1 < n && bytes[j] == b':' && bytes[j + 1] == b':' {
-                    return None;
-                }
-                let value = const_map.get(name)?;
-                out.push_str(value);
-                i = j;
-                continue;
-            }
-            // ``$::name`` — refuse.
-            if nxt == b':' {
-                return None;
-            }
-            // ``$`` followed by a non-name character — leave the
-            // ``$`` literal and continue.
-            out.push('$');
-            i += 1;
-            continue;
-        }
-        // `[` and `]` are literal under -nocommands (command substitution
-        // is disabled); `$`/`\` inside them were already handled above, so
-        // they need no special case — they fall through to the copy path.
-        // ASCII fast path; for non-ASCII we read as a char.
-        if c < 128 {
-            out.push(c as char);
-            i += 1;
-        } else {
-            let ch = template[i..].chars().next().unwrap();
-            out.push(ch);
-            i += ch.len_utf8();
-        }
+    if !plan.braced || plan.dynamic || !plan.script_regions.is_empty() {
+        return None;
     }
+    // The plan's spans count the opening brace; the content does not.
+    let content = |span: tcl_lexer::Span| -> Option<(usize, usize)> {
+        Some((
+            usize::try_from(span.start().checked_sub(1)?).ok()?,
+            usize::try_from(span.end().checked_sub(1)?).ok()?,
+        ))
+    };
+    let mut pieces: Vec<(usize, usize, Cow<'_, str>)> =
+        Vec::with_capacity(plan.reads.len() + plan.escapes.len());
+    for read in &plan.reads {
+        if read.element.is_some() || read.name.contains("::") {
+            return None;
+        }
+        let (start, end) = content(read.span)?;
+        pieces.push((start, end, Cow::Borrowed(const_map.get(&read.name)?)));
+    }
+    for &escape in &plan.escapes {
+        let (start, end) = content(escape)?;
+        pieces.push((
+            start,
+            end,
+            tcl_lexer::backslash_subst(template.get(start..end)?),
+        ));
+    }
+    pieces.sort_by_key(|&(start, end, _)| (start, end));
+    let mut out = String::with_capacity(template.len());
+    let mut at = 0;
+    for (start, end, value) in pieces {
+        out.push_str(template.get(at..start)?);
+        out.push_str(&value);
+        at = end;
+    }
+    out.push_str(template.get(at..)?);
     Some(out)
-}
-
-fn is_name_byte(b: u8) -> bool {
-    b.is_ascii_alphanumeric() || b == b'_'
-}
-
-fn is_complex_var_name(name: &str) -> bool {
-    if name.is_empty() {
-        return true;
-    }
-    if name.contains("::")
-        || name.contains('(')
-        || name.contains(')')
-        || name.contains('$')
-        || name.contains('[')
-    {
-        return true;
-    }
-    !name.bytes().all(is_name_byte)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::collections::HashMap;
+
+    /// `subst -nocommands {template}` rendered through its plan.
+    fn subst_nocommands(template: &str, const_map: &HashMap<String, String>) -> Option<String> {
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let plan = crate::value_transfer::literal_template_plan(
+            &registry,
+            "subst",
+            &["-nocommands", template],
+            |index| index == 1,
+        )?;
+        super::subst_nocommands(template, &plan, const_map)
+    }
 
     fn map_of(pairs: &[(&str, &str)]) -> HashMap<String, String> {
         pairs

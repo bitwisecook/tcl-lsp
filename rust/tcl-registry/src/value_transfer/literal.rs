@@ -31,7 +31,7 @@ use super::context::{AnalysisContext, BindingIdentity, Budget};
 use super::decline::{AnalysisTier, DeclineReason};
 use super::inputs::{
     AnalysisInputs, BodyRegion, EvaluationState, FactDomain, FactView, InvocationLayout, OperandId,
-    OperandView, PlaceRef, ResolvedInvocationView, WordStructure,
+    OperandView, PlaceRef, ResolvedInvocationView, WordPart, WordStructure,
 };
 
 /// Inputs over literal words: every operand is exact, no place has a
@@ -40,6 +40,8 @@ pub struct LiteralInputs<'a> {
     view: ResolvedInvocationView<'a>,
     context: AnalysisContext,
     priors: Vec<(String, ExactValue)>,
+    /// The operands written as brace-quoted words.
+    braced: Vec<OperandId>,
 }
 
 impl<'a> LiteralInputs<'a> {
@@ -73,7 +75,17 @@ impl<'a> LiteralInputs<'a> {
             },
             context: AnalysisContext::detached(profile),
             priors: Vec::new(),
+            braced: Vec::new(),
         }
+    }
+
+    /// Operand `id` as a brace-quoted word: its structure is its text as one
+    /// literal run from offset 1, past the opening brace — what a template
+    /// plan decomposes. Any other operand's structure is unavailable.
+    #[must_use]
+    pub fn with_braced(mut self, id: OperandId) -> Self {
+        self.braced.push(id);
+        self
     }
 
     /// The value the scalar place `name` holds before the invocation runs.
@@ -133,8 +145,21 @@ impl AnalysisInputs for LiteralInputs<'_> {
             })
     }
 
-    fn word_structure(&self, _id: OperandId) -> Result<WordStructure, DeclineReason> {
-        Err(DeclineReason::Unsupported)
+    fn word_structure(&self, id: OperandId) -> Result<WordStructure, DeclineReason> {
+        if !self.braced.contains(&id) {
+            return Err(DeclineReason::Unsupported);
+        }
+        let text = self.view.operand(id).ok_or(DeclineReason::NotExact)?.text;
+        let end = u32::try_from(text.len())
+            .map_err(|_| DeclineReason::NotExact)?
+            .saturating_add(1);
+        Ok(WordStructure {
+            braced: true,
+            parts: vec![WordPart::Literal {
+                span: tcl_lexer::Span::new(1, end),
+                text: text.to_owned(),
+            }],
+        })
     }
 
     fn body(&self, _id: OperandId) -> Result<BodyRegion, DeclineReason> {

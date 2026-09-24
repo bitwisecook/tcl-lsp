@@ -33,7 +33,8 @@
 //!   * type-inference → `CompilationUnit::build_for(src, …)` then the
 //!     per-function `FunctionUnit::types` map keyed by `(name, version)`.
 //!   * subst → the public `subst_nocommands::subst_nocommands(template,
-//!     const_map)` function directly.
+//!     plan, const_map)` function directly, over the template-word plan of
+//!     `subst -nocommands {template}`.
 //!
 //! ## C-Tcl proof split
 //!
@@ -168,7 +169,14 @@ fn subst(template: &str, pairs: &[(&str, &str)]) -> Option<String> {
 }
 
 fn var_escape_subst(template: &str, m: &HashMap<String, String>) -> Option<String> {
-    tcl_compiler::subst_nocommands::subst_nocommands(template, m)
+    let registry = tcl_registry::CommandRegistry::build_default();
+    let plan = tcl_compiler::value_transfer::literal_template_plan(
+        &registry,
+        "subst",
+        &["-nocommands", template],
+        |index| index == 1,
+    )?;
+    tcl_compiler::subst_nocommands::subst_nocommands(template, &plan, m)
 }
 
 // var_escape: escape via scope-crossing constructs

@@ -2676,60 +2676,51 @@ impl<'r> Lowerer<'r> {
         })
     }
 
-    /// If *`cmd_text`* is a `subst` call the registry says performs
-    /// [`SUBST_NOCOMMANDS_KINDS`] over a braced literal operand AND every
-    /// `$var` inside that template is in the current const-map, return the
-    /// substituted string. Otherwise `None` so the caller falls back to
-    /// runtime dispatch.
+    /// If *`cmd_text`* is a call whose template-word plan
+    /// (`docs/design/compiler/value-transfers.md` § *The template-word
+    /// plan*) runs exactly [`SUBST_NOCOMMANDS_KINDS`] over a braced
+    /// template AND every variable that template reads is in the current
+    /// const-map, return the substituted string. Otherwise `None` so the
+    /// caller falls back to runtime dispatch.
     ///
     /// Used to materialise the tcltest-style `Option` factory body
     /// at compile time when the surrounding proc has all the
     /// template vars const-tracked.
     ///
-    /// Which substitutions the call performs is
-    /// [`tcl_registry::CommandRegistry::substitutions_performed`]'s answer,
-    /// not a switch-spelling match here: any other effect set is a call this
-    /// evaluator does not reproduce, and a call the registry cannot read — a
-    /// computed switch word — answers every kind and folds nothing.
+    /// The plan is the registry's answer over the call's literal words: any
+    /// other set of kinds is a call this evaluator does not reproduce, and a
+    /// computed switch word is no spelling a release accepts, so it folds
+    /// nothing.
     fn eval_subst_nocommands_body(&self, cmd_text: &str) -> Option<String> {
         use tcl_lexer::TokenType;
         let inner = segment_commands_with_offset_and_config(cmd_text, 0, self.config);
-        if inner.len() != 1 {
+        let [inner_cmd] = inner.as_slice() else {
             return None;
-        }
-        let inner_cmd = &inner[0];
-        if inner_cmd.texts.is_empty() || inner_cmd.texts[0] != "subst" {
-            return None;
-        }
+        };
+        let head = inner_cmd.texts.first()?;
         let texts = inner_cmd.args();
         let arg_refs: Vec<&str> = texts.iter().map(String::as_str).collect();
-        if self
-            .registry
-            .substitutions_performed(&inner_cmd.texts[0], &arg_refs)
-            != Some(SUBST_NOCOMMANDS_KINDS)
-        {
+        // A braced word is one `Str` token; only it is a template this can
+        // substitute at compile time.
+        let braced = |index: usize| {
+            inner_cmd
+                .single_token_word
+                .get(index + 1)
+                .copied()
+                .unwrap_or(false)
+                && inner_cmd
+                    .arg_tokens()
+                    .get(index)
+                    .is_some_and(|token| token.kind == TokenType::Str)
+        };
+        let plan =
+            crate::value_transfer::literal_template_plan(self.registry, head, &arg_refs, braced)?;
+        if plan.kinds != SUBST_NOCOMMANDS_KINDS || self.proc_depth == 0 {
             return None;
         }
-        // The operand is the call's final argument; only a braced literal one
-        // is a template this can substitute at compile time.
-        let idx = texts.len().checked_sub(1)?;
-        if !inner_cmd
-            .single_token_word
-            .get(idx + 1)
-            .copied()
-            .unwrap_or(false)
-        {
-            return None;
-        }
-        if inner_cmd.arg_tokens().get(idx)?.kind != TokenType::Str {
-            return None;
-        }
-        let template = texts[idx].as_str();
-        if self.proc_depth == 0 {
-            return None;
-        }
+        let template = arg_refs.get(plan.operand.0)?;
         let scope = self.const_map_stack.last()?;
-        crate::subst_nocommands::subst_nocommands(template, scope)
+        crate::subst_nocommands::subst_nocommands(template, &plan, scope)
     }
 
     /// Try to lower `eval ?body?` to a static-body

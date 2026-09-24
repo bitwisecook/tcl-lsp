@@ -2902,7 +2902,11 @@ fn template_plan_of(
             }],
         },
     );
-    inputs.context = AnalysisContext::detached(tcl_dialect::DialectProfile::find(dialect));
+    // `tcl` is the permissive sink, which names no release; an empty name
+    // is no profile at all.
+    let profile = tcl_dialect::DialectProfile::find(dialect)
+        .or_else(|| (dialect == "tcl").then(tcl_dialect::DialectProfile::plain_tcl));
+    inputs.context = AnalysisContext::detached(profile);
     semantics.structure(&inputs)
 }
 
@@ -3157,8 +3161,9 @@ fn the_template_plan_answers_the_fourteen_witnesses() {
 /// The 9.1 positive family (VT5.8): it answers under a 9.1 profile, is the
 /// command's error below it (`bad switch "-variables"` on tclsh 8.4 and
 /// 8.5, `bad option` on 8.6 and 9.0), and declines as release-ambiguous
-/// under a profile that spans both; the two families together raise on
-/// every release, so they raise under the spanning profile too.
+/// under a profile that spans both, while a question with no profile reads
+/// every switch; the two families together raise on every release, so
+/// they raise under the spanning profile too.
 #[test]
 fn the_positive_switches_are_9_1s() {
     let span = tcl_lexer::Span::new;
@@ -3202,6 +3207,12 @@ fn the_positive_switches_are_9_1s() {
             );
         }
         assert_eq!(template_plan_of("tcl", &[switch(word)], template), spanning);
+        // With no profile at all the question is surface-blind, as a
+        // profile-less registry's own: every switch is available.
+        assert_eq!(
+            template_plan_of("", &[switch(word)], template),
+            template_plan_of("tcl9.1", &[switch(word)], template)
+        );
     }
     assert_eq!(
         template_plan_of("tcl", &[switch("-nocommands"), switch("-variables")], "a$b"),

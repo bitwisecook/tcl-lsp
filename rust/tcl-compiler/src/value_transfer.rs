@@ -3338,6 +3338,43 @@ pub(crate) fn literal_element_writes(
         .collect()
 }
 
+/// The template-word plan the call `head args…` declares over its literal
+/// words, the operands `braced` marks written as brace-quoted words — the
+/// plan a folder that runs before the lattice reads
+/// (`docs/design/compiler/value-transfers.md` § *The template-word plan*).
+/// Every word reads as its own spelling, so a computed switch is a
+/// spelling no release accepts and the call answers no plan a folder acts
+/// on. `None` when the call declares no template plan.
+#[must_use]
+pub fn literal_template_plan(
+    registry: &CommandRegistry,
+    head: &str,
+    args: &[&str],
+    braced: impl Fn(usize) -> bool,
+) -> Option<tcl_registry::value_transfer::TemplateWordPlan> {
+    let words: Vec<InvocationWord<'_>> = args.iter().copied().map(word_of).collect();
+    let resolved = registry
+        .resolve_structured_invocation(
+            InvocationWords::structured(InvocationWord::Literal(head), &words),
+            registry.own_surface_query(),
+        )
+        .resolved()?;
+    let semantics = resolved.semantics.value.semantics()?;
+    let mut inputs = tcl_registry::value_transfer::LiteralInputs::new(
+        resolved.canonical_command,
+        None,
+        args,
+        registry.profile(),
+    );
+    for index in (0..args.len()).filter(|&index| braced(index)) {
+        inputs = inputs.with_braced(OperandId(index));
+    }
+    match semantics.structure(&inputs) {
+        PlanAnswer::TemplateWord(plan) => Some(plan),
+        _ => None,
+    }
+}
+
 /// Split a command-substitution body into `(head_word, rest)`. `rest` is
 /// `None` if the body is a single word, otherwise the remaining text with
 /// the leading whitespace stripped.

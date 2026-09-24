@@ -2328,3 +2328,27 @@ fn a_pack_declared_preserve_holds_the_prior_version() {
     }
     tcl_spectcl::hooks::publish(&tcl_spectcl::PackSet::default());
 }
+
+/// A materialised child carries the span of the factory call that produced
+/// it (VT5.9, #2143): `Configure port 8080 {the port}` materialises `proc
+/// port {x} {return 8080}`, and the child's W214 for `x` anchors at that
+/// call — line 4 — where, with no span of its own, it anchored at 1:1. The
+/// factory's template is read through its template-word plan, and `port
+/// ignored` is `8080` under tclsh 8.4 to 9.1 before and after `tcl opt`.
+#[test]
+fn a_materialised_child_carries_its_factory_call_span() {
+    use tcl_compiler::analyser::Analyser;
+    let source = "proc Configure {name default description} {\n    \
+                  proc $name {x} [subst -nocommands {return $default}]\n}\n\
+                  Configure port 8080 {the port}\n";
+    for dialect in ["tcl8.4", "tcl8.6", "tcl9.0", "tcl"] {
+        let reported = Analyser::new().analyse(source, dialect).diagnostics;
+        let lines: Vec<usize> = reported
+            .iter()
+            .filter(|d| d.code == DiagCode::W214 && d.message.contains("'::port'"))
+            .map(|d| source[..d.span.start() as usize].matches('\n').count() + 1)
+            .collect();
+        assert_eq!(lines, [4], "{dialect}: {reported:?}");
+    }
+    prints_under_every_release(&format!("{source}puts [port ignored]\n"), "8080\n");
+}
