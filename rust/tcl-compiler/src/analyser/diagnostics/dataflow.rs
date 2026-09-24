@@ -32,6 +32,7 @@
 use std::collections::HashSet;
 use tcl_core_types::DiagCode;
 use tcl_dialect::model::SurfaceQuery;
+use tcl_registry::value_transfer::Existence;
 
 use rustc_hash::{FxHashMap, FxHashSet};
 
@@ -73,6 +74,12 @@ pub(super) struct ReadBeforeSetCtx<'a> {
 }
 
 pub(super) struct ReturnUndefCtx<'a> {
+    /// The variables the read pass already reported: W210 is one per
+    /// variable, so a `return` read of one of them adds nothing.
+    pub already_reported: &'a HashSet<String>,
+    /// The analyser's registry, whose special-variable faces answer the
+    /// startup facts, pack rows included (D157).
+    pub registry: &'a tcl_registry::CommandRegistry,
     pub initial_global: bool,
     pub global_aliases: &'a HashSet<String>,
     pub dialect: Option<SurfaceQuery<'a>>,
@@ -95,10 +102,9 @@ struct StartupReadFacts {
 
 fn startup_read_facts(
     name: &str,
-    version: crate::ssa::Version,
-    killed: bool,
-    initial_global: bool,
-    global_aliases: &HashSet<String>,
+    (version, killed): (crate::ssa::Version, bool),
+    (initial_global, global_aliases): (bool, &HashSet<String>),
+    registry: &tcl_registry::CommandRegistry,
     dialect: Option<SurfaceQuery<'_>>,
 ) -> StartupReadFacts {
     let global_binding =
@@ -108,13 +114,43 @@ fn startup_read_facts(
         readable: global_binding
             && version == 0
             && !killed
-            && tcl_registry::special_vars::is_readable_at_startup(startup_name, dialect),
+            && registry.is_readable_at_startup(startup_name, dialect),
         initially_bound: global_binding
             && version == 0
-            && tcl_registry::special_vars::is_initially_bound(startup_name, dialect),
-        lazy_read: global_binding
-            && tcl_registry::special_vars::is_lazily_readable(startup_name, dialect),
+            && registry.is_initially_bound(startup_name, dialect),
+        lazy_read: global_binding && registry.is_lazily_readable(startup_name, dialect),
     }
+}
+
+/// The existence fact the read at `index` of `block` finds at `var`'s place
+/// (VT8.4): the statement's own read, or — for the terminator, `index` -1
+/// — the block's exit; `None` where the run computed none, which is
+/// neither bound nor unbound.
+fn place_fact(
+    fu: &crate::compilation_unit::FunctionUnit,
+    block: &str,
+    index: i32,
+    var: &str,
+) -> Option<Existence> {
+    let block = fu.cfg.block_id(block)?;
+    let symbol = fu.ssa.var_symbol(var)?;
+    match usize::try_from(index) {
+        Ok(index) => fu.sccp.existence_before(block, index, symbol),
+        Err(_) => fu.sccp.existence_at_exit(block, symbol),
+    }
+}
+
+/// Whether the command the source spells `command` destroys a variable
+/// (`Traits::DESTROYS_VARIABLE`), looked up under that exact spelling: a
+/// rooted `::unset` or an alias is not canonicalised onto it here.
+fn destroys_variable(registry: Option<&tcl_registry::CommandRegistry>, command: &str) -> bool {
+    registry
+        .unwrap_or_else(|| tcl_registry::default_registry())
+        .get_exact(command)
+        .is_some_and(|spec| {
+            spec.traits
+                .contains(tcl_registry::Traits::DESTROYS_VARIABLE)
+        })
 }
 
 /// Facts used while recording the read sites of one undef def-use chain.
@@ -369,10 +405,7 @@ file; this call falls through to the 'unknown' handler."
             // ``tcl_precision``, …) are read by the runtime / auto-loader even
             // when the script never reads them back, so ``set auto_path …`` is
             // not a dead store.  Dialect-aware: the iRules set differs.
-            if tcl_registry::special_vars::is_externally_read(
-                crate::naming::normalise_var_name(var),
-                Some(self.analysis_context().context().authoring_query()),
-            ) {
+            if self.externally_read(var) {
                 continue;
             }
             // A synthetic may-def (base refresh / element fan) is not a
@@ -587,6 +620,19 @@ file; this call falls through to the 'unknown' handler."
         find_var(&slice, stmt_span.start(), target, self.lexer_config(), 0)
     }
 
+    /// Whether the runtime reads `var` when the script does not — a special
+    /// variable such as `auto_path`, whose write the host observes — under
+    /// the analyser's registry, pack-declared rows included (D157).
+    fn externally_read(&self, var: &str) -> bool {
+        self.registry
+            .as_deref()
+            .unwrap_or_else(|| tcl_registry::default_registry())
+            .is_externally_read(
+                crate::naming::normalise_var_name(var),
+                Some(self.analysis_context().context().authoring_query()),
+            )
+    }
+
     /// W211 — unused-variable hint.
     ///
     /// Fires when an
@@ -670,10 +716,7 @@ file; this call falls through to the 'unknown' handler."
             // …) are consumed by the runtime even when the script never reads
             // them, so a bare ``set auto_path …`` is not an unused variable.
             // Dialect-aware via the special-variable registry.
-            if tcl_registry::special_vars::is_externally_read(
-                crate::naming::normalise_var_name(var),
-                Some(self.analysis_context().context().authoring_query()),
-            ) {
+            if self.externally_read(var) {
                 continue;
             }
             // Only emit when no other SSA version of this var is
@@ -1097,7 +1140,7 @@ file; this call falls through to the 'unknown' handler."
         fu: &crate::compilation_unit::FunctionUnit,
         ir_proc: Option<&crate::ir::Procedure>,
         ctx: &ReadBeforeSetCtx<'_>,
-    ) {
+    ) -> HashSet<String> {
         use crate::def_use::DefKind;
         use std::fmt::Write as _;
 
@@ -1106,7 +1149,7 @@ file; this call falls through to the 'unknown' handler."
         // 8.6.14: `proc g {n} {set $n 1; puts $foo}; g foo` prints `1`).
         // Abstain toward silence for the whole function.
         if fu.dynamic_names.writes {
-            return;
+            return HashSet::new();
         }
 
         // Top-level RBS uses the ``extra_known_defined`` set
@@ -1156,10 +1199,11 @@ file; this call falls through to the 'unknown' handler."
             // (for example argv) deliberately does not get this exemption.
             let startup = startup_read_facts(
                 var,
-                *version,
-                ctx.supp.killed.contains(&chain.key),
-                ctx.initial_global,
-                ctx.global_aliases,
+                (*version, ctx.supp.killed.contains(&chain.key)),
+                (ctx.initial_global, ctx.global_aliases),
+                self.registry
+                    .as_deref()
+                    .unwrap_or_else(|| tcl_registry::default_registry()),
                 Some(self.analysis_context().context().authoring_query()),
             );
             if startup.lazy_read && ctx.supp.killed.contains(&chain.key) {
@@ -1246,6 +1290,7 @@ file; this call falls through to the 'unknown' handler."
 
         let mut entries: Vec<(String, tcl_lexer::Span)> = w210_min.into_iter().collect();
         entries.sort_by_key(|(_, s)| s.start());
+        let reported = entries.iter().map(|(var, _)| var.clone()).collect();
         for (var, span) in entries {
             let mut message = format!("Variable '{var}' is read before it is set");
             if let Some(similar) = undefined_var_suggestion(&var, ctx.defined_vars) {
@@ -1260,6 +1305,7 @@ file; this call falls through to the 'unknown' handler."
                     Severity::Warning,
                 ));
         }
+        reported
     }
 
     /// Record the earliest read-before-set span for one undef def-use chain
@@ -1309,6 +1355,17 @@ file; this call falls through to the 'unknown' handler."
             // loop runs, matching C Tcl. A read *inside* the loop body still
             // fires.
             if ctx.supp.after_loop_defined(&chain.key, &use_site.block) {
+                continue;
+            }
+            // A read at or after an `expr` substitution's write of the name.
+            if fu.cfg.block_id(&use_site.block).is_some_and(|block| {
+                ctx.supp.written_by_substitution_before(
+                    var,
+                    &fu.ssa,
+                    block,
+                    use_site.statement_index,
+                )
+            }) {
                 continue;
             }
             let Some(block) = fu.cfg.block_by_name(&use_site.block) else {
@@ -1382,16 +1439,28 @@ file; this call falls through to the 'unknown' handler."
             ) {
                 continue;
             }
-            // ``unset`` without ``-nocomplain`` → W213.
+            // An unbind of the place — a command the registry declares
+            // `DESTROYS_VARIABLE`, under the spelling the source uses —
+            // reads the existence fact where it runs (VT8.4): W213 is
+            // definite on an unbound place, "may not exist" on a may-bound
+            // one, and nothing on a bound one or where the run computed no
+            // fact. The `-nocomplain` form raises nothing, so it reports
+            // neither W213 nor, since destroying is no read, W210.
             if let Some(Statement::Call {
                 command,
                 args,
                 tokens,
                 ..
             }) = stmt_opt
-                && command == "unset"
-                && !args.iter().any(|a| a == "-nocomplain")
+                && destroys_variable(self.registry.as_deref(), command)
             {
+                if args.iter().any(|a| a == "-nocomplain") {
+                    continue;
+                }
+                let fact = place_fact(fu, &use_site.block, use_site.statement_index, var);
+                if !matches!(fact, Some(Existence::Unbound | Existence::MayBound)) {
+                    continue;
+                }
                 // Eager startup bindings (`argv`, `tcl_version`, …) already
                 // exist when their first `unset` runs. A lazy read trace is
                 // different: its first `unset` still errors until an earlier
@@ -1407,10 +1476,17 @@ file; this call falls through to the 'unknown' handler."
                 {
                     continue;
                 }
-                let message = format!(
-                    "Variable '{var}' may not exist; \
+                let message = if fact == Some(Existence::Unbound) {
+                    format!(
+                        "Variable '{var}' does not exist here; \
                          use 'unset -nocomplain' to suppress the error",
-                );
+                    )
+                } else {
+                    format!(
+                        "Variable '{var}' may not exist; \
+                         use 'unset -nocomplain' to suppress the error",
+                    )
+                };
                 // Narrow the squiggle to the offending variable word (so
                 // `unset a b c` flags only the missing name), and attach a
                 // quick fix that inserts `-nocomplain` right after `unset` —
@@ -1441,6 +1517,15 @@ file; this call falls through to the 'unknown' handler."
             // applies to the initial global frame, a qualified global, or a
             // registry-declared global alias — never a same-named local.
             if ctx.startup.readable {
+                continue;
+            }
+            // The existence rung has the last word (VT8.4): a read at a place
+            // bound there, or where the run computed no fact, is no
+            // read-before-set.
+            if !matches!(
+                place_fact(fu, &use_site.block, use_site.statement_index, var),
+                Some(Existence::Unbound | Existence::MayBound)
+            ) {
                 continue;
             }
             // Anchor at the `$var` read token; fall back to the command
@@ -1479,7 +1564,8 @@ file; this call falls through to the 'unknown' handler."
             return;
         };
 
-        let (phi_def, phi_block, killed) = build_phi_undef_index(&fu.ssa, considered);
+        let (phi_def, phi_block, killed) =
+            build_phi_undef_index(&fu.ssa, considered, Some(registry));
         let phi_idx = PhiUndefIndex {
             phi_def: &phi_def,
             phi_block: &phi_block,
@@ -1499,7 +1585,7 @@ file; this call falls through to the 'unknown' handler."
             self.lexer_config(),
         );
 
-        let mut reported: FxHashSet<String> = FxHashSet::default();
+        let mut reported: FxHashSet<String> = ctx.already_reported.iter().cloned().collect();
         // Deterministic block order for stable diagnostics (by BlockId =
         // creation order; the analyser re-sorts diagnostics by span/code).
         let mut block_ids: Vec<crate::cfg::BlockId> = considered.iter().copied().collect();
@@ -1561,6 +1647,14 @@ file; this call falls through to the 'unknown' handler."
                 if !Self::return_read_fires_w210(fu, &name, ver, bn, &phi_idx, ctx, &mut memo) {
                     continue;
                 }
+                // The existence rung has the last word here too (VT8.4).
+                let fact = fu
+                    .ssa
+                    .var_symbol(&name)
+                    .and_then(|symbol| fu.sccp.existence_at_exit(bn, symbol));
+                if !matches!(fact, Some(Existence::Unbound | Existence::MayBound)) {
+                    continue;
+                }
                 reported.insert(name.clone());
                 let mut message = format!("Variable '{name}' is read before it is set");
                 if let Some(similar) = undefined_var_suggestion(&name, defined_vars) {
@@ -1602,6 +1696,7 @@ file; this call falls through to the 'unknown' handler."
             return false;
         }
         let undef_ctx = super::helpers::PhiUndefCtx {
+            registry: ctx.registry,
             phi_def: phi_idx.phi_def,
             phi_block: phi_idx.phi_block,
             killed: phi_idx.killed,
@@ -1626,6 +1721,9 @@ file; this call falls through to the 'unknown' handler."
             || ctx.extra_known_defined.contains(name)
             || (name.contains("::") && !known_killed)
             || ctx.supp.suppresses_read(&(name.to_owned(), ver))
+            || ctx
+                .supp
+                .written_by_substitution_before(name, &fu.ssa, bn, -1)
         {
             return false;
         }
@@ -2220,9 +2318,9 @@ file; this call falls through to the 'unknown' handler."
         let mut emitted_spans: FxHashSet<u32> = FxHashSet::default();
         for block in fu.ssa.blocks.values() {
             for stmt in &block.statements {
-                // Skip unset — not a real write.
+                // An unbind is no write (`Traits::DESTROYS_VARIABLE`).
                 if let crate::ir::Statement::Call { command, .. } = &stmt.statement
-                    && command == "unset"
+                    && destroys_variable(self.registry.as_deref(), command)
                 {
                     continue;
                 }

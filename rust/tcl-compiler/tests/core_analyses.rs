@@ -1397,24 +1397,40 @@ mod flow_sensitive_narrowing {
     }
 
     #[test]
-    fn and_pure_right_keeps_both_facts_diverges() {
-        // The analyser narrows only a single top-level existence guard, not an
-        // `&&` conjunction, so with `[info exists X] && [info exists Y]` both X
-        // and Y are still flagged. The reads are guard-safe in Tcl; the
-        // over-warn is sound (it never suppresses a real read). Asserted at the
-        // actual verdict.
-        let f = flagged("if {[info exists X] && [info exists Y]} { puts $X$Y }");
+    fn and_pure_right_keeps_both_facts() {
+        // The existence guard refines through `&&` (value-transfers slice 8):
+        // with X and Y set on one path, `[info exists X] && [info exists Y]`
+        // binds both on its true edge, so neither read is flagged — tclsh
+        // reads both only when both exist. With neither ever set the guard
+        // decides false, the arm is dead, and a read there carries no fact.
+        let f = flagged(
+            "if {[string length $cmd]} { set X 1; set Y 1 }\n\
+             if {[info exists X] && [info exists Y]} { puts $X$Y }",
+        );
         assert!(
-            f.contains("X") && f.contains("Y"),
-            "Rust does not narrow through `&&`; both X and Y flagged; got {f:?}"
+            !f.contains("X") && !f.contains("Y"),
+            "both facts narrow the arm; got {f:?}"
+        );
+        let dead = flagged("if {[info exists X] && [info exists Y]} { puts $X$Y }");
+        assert!(
+            !dead.contains("X") && !dead.contains("Y"),
+            "a dead arm reports nothing; got {dead:?}"
         );
     }
 
     #[test]
     fn and_impure_right_drops_left_fact() {
         // An impure right operand could mutate X before the branch, so the left
-        // `info exists X` fact must not narrow the body → X stays flagged.
-        assert!(flagged("if {[info exists X] && [otherproc]} { puts $X }").contains("X"));
+        // `info exists X` fact must not narrow the body → X stays flagged. X
+        // is set on one path, so the guard decides nothing (value-transfers
+        // slice 8: a never-set X makes the arm dead, where no read reports).
+        assert!(
+            flagged(
+                "if {[string length $cmd]} { set X 1 }\n\
+                 if {[info exists X] && [otherproc]} { puts $X }"
+            )
+            .contains("X")
+        );
     }
 }
 

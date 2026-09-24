@@ -951,13 +951,19 @@ impl Analyser {
             extra_known_defined,
             supp: &supp,
         };
-        self.emit_read_before_set_diagnostics(function_unit, ir_proc, &read_before_set_ctx);
+        let already_reported =
+            self.emit_read_before_set_diagnostics(function_unit, ir_proc, &read_before_set_ctx);
+        let registry = self.registry.clone();
         // Phi-from-undef on `return $v` reads (the def-use builder records
         // statement + branch-condition uses but NOT `Terminator::Return`
         // values).
         self.emit_return_phi_undef_w210(
             function_unit,
             &dataflow::ReturnUndefCtx {
+                already_reported: &already_reported,
+                registry: registry
+                    .as_deref()
+                    .unwrap_or_else(|| tcl_registry::default_registry()),
                 initial_global,
                 global_aliases: &global_aliases,
                 dialect: Some(self.analysis_context().context().authoring_query()),

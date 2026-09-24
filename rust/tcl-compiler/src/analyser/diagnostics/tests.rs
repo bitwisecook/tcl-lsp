@@ -15095,3 +15095,143 @@ fn w100_marks_every_unbraced_expression() {
         );
     }
 }
+
+/// The lifecycle diagnostics a program draws, as `(code, message)`.
+fn lifecycle_findings(src: &str) -> Vec<(DiagCode, String)> {
+    Analyser::new()
+        .analyse(src, "tcl8.6")
+        .diagnostics
+        .into_iter()
+        .filter(|d| matches!(d.code, DiagCode::W210 | DiagCode::W213))
+        .map(|d| (d.code, d.message))
+        .collect()
+}
+
+/// A second `unset` after the first killed the version reads an unbound
+/// place, so its W213 is definite (VT8.4): tclsh 8.4 to 9.1 raise `can't
+/// unset "x": no such variable` there.
+#[test]
+fn a_second_unset_is_a_definite_w213() {
+    let found = lifecycle_findings("proc f {} {\n    set x 1\n    unset x\n    unset x\n}\n");
+    assert_eq!(found.len(), 1, "{found:?}");
+    assert_eq!(found[0].0, DiagCode::W213);
+    assert!(found[0].1.contains("does not exist"), "{found:?}");
+}
+
+/// An `unset` on one path leaves the read after the merge may-unbound, so
+/// it draws W210 (VT8.4); tclsh raises `can't read "x"` when `c` is true.
+#[test]
+fn a_conditional_unset_gives_w210() {
+    let found =
+        lifecycle_findings("proc f {c} {\n    set x 1\n    if {$c} {unset x}\n    puts $x\n}\n");
+    assert!(
+        found
+            .iter()
+            .any(|(code, message)| *code == DiagCode::W210 && message.contains("'x'")),
+        "{found:?}"
+    );
+}
+
+/// `unset -nocomplain` raises nothing, whatever the place holds, so it
+/// draws neither W213 nor W210 (VT8.4).
+#[test]
+fn nocomplain_never_reports_w213() {
+    for src in [
+        "proc f {} {\n    unset -nocomplain x\n}\n",
+        "proc f {} {\n    set x 1\n    unset x\n    unset -nocomplain x\n}\n",
+        "proc f {c} {\n    if {$c} {set x 1}\n    unset -nocomplain x\n}\n",
+    ] {
+        let found = lifecycle_findings(src);
+        assert!(found.is_empty(), "{src}: {found:?}");
+    }
+}
+
+/// W210 is one per variable: a `return` of a variable an `unset` killed is
+/// reported once, where the read pass and the `return` pass had each
+/// reported it.
+#[test]
+fn a_killed_return_read_reports_once() {
+    let found = lifecycle_findings("proc f {} {set v 1; unset v; return $v}\n");
+    assert_eq!(found.len(), 1, "{found:?}");
+    assert_eq!(found[0].0, DiagCode::W210);
+}
+
+/// A write a condition's command substitution makes suppresses the reads
+/// after it, not the ones before: the first `puts $x` runs before the
+/// `catch` sets `x` and raises in every release, the second does not.
+#[test]
+fn a_read_before_the_conditions_write_still_reports() {
+    let found = lifecycle_findings(
+        "proc g {} {\n    puts $x\n    if {[catch {set x 1}]} {}\n    puts $x\n}\n",
+    );
+    assert_eq!(found.len(), 1, "{found:?}");
+    assert_eq!(found[0].0, DiagCode::W210);
+    let expr = lifecycle_findings(
+        "proc h {} {\n    puts $t\n    set e [expr {[catch {error x} t] || $t}]\n    puts $t\n}\n",
+    );
+    assert_eq!(expr.len(), 1, "{expr:?}");
+}
+
+/// The script a concatenating command runs writes a name only through a
+/// command the document's registry knows: `lassign` exists from 8.5, so
+/// `eval lassign {1 2} a b` binds `a` under a Tcl 8.6 profile and binds
+/// nothing under 8.4, where tclsh raises `invalid command name "lassign"`
+/// and the read after it is a read before set.
+#[test]
+fn a_concatenated_script_writes_through_the_documents_registry() {
+    let src = "proc p {} {\n    eval lassign {1 2} a b\n    puts $a\n}\n";
+    let w210 = |dialect: &str| {
+        Analyser::new()
+            .analyse(src, dialect)
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W210)
+            .count()
+    };
+    assert_eq!(w210("tcl8.6"), 0, "8.6: lassign writes a");
+    assert_eq!(w210("tcl8.4"), 1, "8.4: lassign is no command");
+}
+
+/// An existence read and an unbind are uses of their place (VT8.4): a
+/// variable only asked about or unset draws no W211, and a parameter only
+/// asked about or unset — its entry state read — draws no W214.
+#[test]
+fn an_existence_read_or_an_unbind_is_a_use() {
+    let codes_of = |src: &str| -> Vec<DiagCode> {
+        Analyser::new()
+            .analyse(src, "tcl8.6")
+            .diagnostics
+            .into_iter()
+            .map(|d| d.code)
+            .collect()
+    };
+    for src in [
+        "proc f {} {\n    set x 1\n    if {[info exists x]} {puts yes}\n}\n",
+        "proc f {} {\n    set x 1\n    puts [array exists x]\n}\n",
+        "proc f {} {\n    set x 1\n    unset x\n}\n",
+    ] {
+        assert!(!codes_of(src).contains(&DiagCode::W211), "{src}");
+    }
+    for src in [
+        "proc f {a} {\n    if {[info exists a]} {puts yes}\n}\n",
+        "proc f {a} {\n    unset a\n}\n",
+    ] {
+        assert!(!codes_of(src).contains(&DiagCode::W214), "{src}");
+    }
+}
+
+/// A guard's refinement narrows the read under `&&` too (VT8.3, VT8.4):
+/// `x` set on one path reads bound on the true edge of `[info exists x] &&
+/// $flag`, so no W210; the read past the `if` still draws one.
+#[test]
+fn a_guard_under_and_narrows_the_read() {
+    let found = lifecycle_findings(
+        "proc f {c flag} {\n    if {$c} {set x 1}\n    if {[info exists x] && $flag} {puts $x}\n}\n",
+    );
+    assert!(found.is_empty(), "{found:?}");
+    let past = lifecycle_findings(
+        "proc f {c flag} {\n    if {$c} {set x 1}\n    if {[info exists x] && $flag} {puts $x}\n    puts $x\n}\n",
+    );
+    assert_eq!(past.len(), 1, "{past:?}");
+    assert_eq!(past[0].0, DiagCode::W210);
+}

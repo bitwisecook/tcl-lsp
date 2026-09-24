@@ -537,6 +537,12 @@ fn cmd_substitution_out_vars(
     if arg_words.iter().any(|word| word.expanded) {
         return;
     }
+    // A command the document's release does not have writes nothing: under
+    // Tcl 8.4 `lassign` raises `invalid command name`, so its words name no
+    // place. A profile-less registry answers for every release.
+    if !registry.has_command_in_this_dialect(cmd) {
+        return;
+    }
     if registry
         .get(cmd)
         .is_some_and(|s| s.traits.contains(Traits::DESTROYS_VARIABLE))

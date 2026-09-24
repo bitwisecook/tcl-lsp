@@ -318,6 +318,9 @@ fn whole_unset_names(args: &[String]) -> FxHashSet<String> {
 /// the dominating existence guards, the registry-owned startup binding, and
 /// the SSA function itself.
 pub(super) struct PhiUndefCtx<'a> {
+    /// The registry whose special-variable faces answer the startup facts,
+    /// pack rows included (D157).
+    pub registry: &'a tcl_registry::CommandRegistry,
     pub phi_def: &'a PhiDefMap,
     pub phi_block: &'a PhiBlockMap,
     pub killed: &'a FxHashSet<(String, crate::ssa::Version)>,
@@ -404,9 +407,11 @@ impl StartupFacts {
             has_global_startup_binding(name, ctx.initial_global, ctx.global_aliases);
         Self {
             readable_at_startup: global_binding
-                && tcl_registry::special_vars::is_readable_at_startup(startup_name, ctx.dialect),
+                && ctx
+                    .registry
+                    .is_readable_at_startup(startup_name, ctx.dialect),
             rematerialises_after_unset: global_binding
-                && tcl_registry::special_vars::is_lazily_readable(startup_name, ctx.dialect),
+                && ctx.registry.is_lazily_readable(startup_name, ctx.dialect),
         }
     }
 }
@@ -638,6 +643,7 @@ pub(super) type PhiBlockMap = FxHashMap<(String, crate::ssa::Version), BlockId>;
 pub(super) fn build_phi_undef_index(
     ssa: &crate::ssa::SsaFunction,
     considered: &HashSet<BlockId>,
+    registry: Option<&tcl_registry::CommandRegistry>,
 ) -> (
     PhiDefMap,
     PhiBlockMap,
@@ -666,8 +672,18 @@ pub(super) fn build_phi_undef_index(
             else {
                 continue;
             };
-            let is_unset = canonical_command.as_deref() == Some("::unset") || command == "unset";
-            if !is_unset {
+            // A killing call is one the registry declares
+            // `DESTROYS_VARIABLE`, under its canonical or its source spelling.
+            let destroys = |name: &str| {
+                registry
+                    .unwrap_or_else(|| tcl_registry::default_registry())
+                    .get(name)
+                    .is_some_and(|spec| {
+                        spec.traits
+                            .contains(tcl_registry::Traits::DESTROYS_VARIABLE)
+                    })
+            };
+            if !(canonical_command.as_deref().is_some_and(destroys) || destroys(command)) {
                 continue;
             }
             let whole = whole_unset_names(args);
@@ -699,12 +715,13 @@ pub(super) struct UndefSuppression {
     explicitly_defined: HashSet<String>,
     /// Local-alias tails declared by a qualified `variable ns::tail`.
     alias_tails: FxHashSet<String>,
-    /// Names written by a command substitution buried inside an `expr`
-    /// argument (`set e [expr {[catch {…} tmp] || $tmp}]` writes `tmp` during
-    /// expr evaluation).  The `[…]` is opaque to SSA def tracking, so a later
-    /// `$tmp` read in the same expression looks read-before-set.  Name-level,
-    /// suppress-only.
-    cmd_sub_writes: FxHashSet<String>,
+    /// Where a command substitution buried inside an `expr` argument writes
+    /// a name (`set e [expr {[catch {…} tmp] || $tmp}]` writes `tmp` during
+    /// expr evaluation): per name, each `(block, statement)` that writes it.
+    /// The `[…]` is opaque to SSA def tracking, so a `$tmp` read in the same
+    /// expression or after it looks read-before-set; a read before it is
+    /// still one. Suppress-only.
+    cmd_sub_writes: FxHashMap<String, Vec<(BlockId, usize)>>,
     /// Names written by a `Traits::SCRIPT_CONCATENATES_ARGS` call whose
     /// script the lowering left as an opaque barrier — `eval set l2 hello`
     /// really does set `l2` in the caller's own frame, but its words reach
@@ -790,10 +807,31 @@ impl UndefSuppression {
     /// SCCP cannot yet resolve) must still fire so a genuine missing-key read
     /// is not hidden.
     pub(super) fn suppresses_strict(&self, name: &str) -> bool {
-        self.cmd_sub_writes.contains(name) || self.suppresses_unsubstituted(name)
+        self.suppresses_unsubstituted(name)
     }
 
-    /// [`Self::suppresses_strict`] without the substitution writes.
+    /// Whether an `expr` argument's command substitution writes `name` at
+    /// or before the read at `index` of `block` — earlier in the block, or
+    /// in a block that dominates it; `index` -1 is the block's terminator.
+    pub(super) fn written_by_substitution_before(
+        &self,
+        name: &str,
+        ssa: &crate::ssa::SsaFunction,
+        block: BlockId,
+        index: i32,
+    ) -> bool {
+        self.cmd_sub_writes.get(name).is_some_and(|sites| {
+            sites.iter().any(|&(site, at)| {
+                if site == block {
+                    usize::try_from(index).map_or(true, |index| at <= index)
+                } else {
+                    block_dominated_by(ssa, block, site)
+                }
+            })
+        })
+    }
+
+    /// The name-level suppressions, none of them a substitution's write.
     fn suppresses_unsubstituted(&self, name: &str) -> bool {
         if self.alias_tails.contains(name)
             || self.dict_vars.contains(name)
@@ -807,38 +845,30 @@ impl UndefSuppression {
     }
 }
 
-/// Build the [`UndefSuppression`] context over `considered` blocks.
-/// Names written by a command substitution buried inside an `expr` argument.
-/// `set e [expr {[catch {…} tmp] || $tmp}]` writes `tmp` during expr
-/// evaluation; the `set x [expr {E}]` form lowers to `AssignExpr`, so the
-/// condition-out-var extractor over its expr recovers those writes.
-/// Name-level, suppress-only.
+/// Where a command substitution buried inside an `expr` argument writes: per
+/// name, each `(block, statement)` that writes it. `set e [expr {[catch {…}
+/// tmp] || $tmp}]` writes `tmp` during expr evaluation; the `set x [expr
+/// {E}]` form lowers to `AssignExpr`, so the condition-out-var extractor
+/// over its expr recovers those writes, under the analyser's own registry.
+/// A branch condition's writes need no entry: the `<cond>` statement the
+/// lowering places before the branch defines them in SSA. Suppress-only.
 fn collect_expr_cmd_sub_writes(
     fu: &crate::compilation_unit::FunctionUnit,
     considered: &HashSet<BlockId>,
-) -> FxHashSet<String> {
+    registry: &tcl_registry::CommandRegistry,
+) -> FxHashMap<String, Vec<(BlockId, usize)>> {
     use crate::ir::Statement;
-    let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
-    let mut out = FxHashSet::default();
+    let mut out: FxHashMap<String, Vec<(BlockId, usize)>> = FxHashMap::default();
     for &bn in considered {
         let Some(block) = fu.cfg.blocks.get(&bn) else {
             continue;
         };
-        for stmt in &block.statements {
+        for (index, stmt) in block.statements.iter().enumerate() {
             if let Statement::AssignExpr { expr, .. } = stmt {
-                out.extend(crate::ir_helpers::condition_command_out_vars(
-                    expr, registry,
-                ));
+                for name in crate::ir_helpers::condition_command_out_vars(expr, registry) {
+                    out.entry(name).or_default().push((bn, index));
+                }
             }
-        }
-        // A branch condition (`if {![catch {set x 1}]} …`) evaluates its command
-        // substitutions before either arm, so any variables they write — the
-        // catch result var *and* the catch body's assignments — are (maybe) set
-        // in the taken arm and must not look read-before-set.
-        if let Some(crate::cfg::Terminator::Branch { condition, .. }) = &block.terminator {
-            out.extend(crate::ir_helpers::condition_command_out_vars(
-                condition, registry,
-            ));
         }
     }
     out
@@ -866,9 +896,9 @@ fn collect_expr_cmd_sub_writes(
 fn collect_script_concat_writes(
     fu: &crate::compilation_unit::FunctionUnit,
     considered: &HashSet<BlockId>,
+    registry: &tcl_registry::CommandRegistry,
 ) -> FxHashSet<String> {
     use crate::ir::Statement;
-    let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
     let mut out = FxHashSet::default();
     for &bn in considered {
         let Some(block) = fu.cfg.blocks.get(&bn) else {
@@ -1092,12 +1122,14 @@ pub(super) fn build_undef_suppression(
         rules,
         lexer_config,
     } = semantics;
-    let (phi_def, phi_block, killed) = build_phi_undef_index(&fu.ssa, considered);
+    let commands = registry.unwrap_or_else(|| tcl_registry::default_registry());
+    let (phi_def, phi_block, killed) = build_phi_undef_index(&fu.ssa, considered, registry);
     // Phi versions that can reach an undef origin on some executable path —
     // a statement read of one is read-before-set. The per-use existence
     // guard + suppression set still apply in the emitter loop.
     let exists_guards = collect_existence_guards(fu, registry, lexer_config);
     let undef_ctx = PhiUndefCtx {
+        registry: commands,
         phi_def: &phi_def,
         phi_block: &phi_block,
         killed: &killed,
@@ -1136,8 +1168,8 @@ pub(super) fn build_undef_suppression(
     let loop_entry_only_undef =
         build_loop_entry_only_undef(fu, &can_undef, &undef_ctx, rules, &mut memo);
     let mut s = UndefSuppression {
-        cmd_sub_writes: collect_expr_cmd_sub_writes(fu, considered),
-        script_concat_writes: collect_script_concat_writes(fu, considered),
+        cmd_sub_writes: collect_expr_cmd_sub_writes(fu, considered, commands),
+        script_concat_writes: collect_script_concat_writes(fu, considered, commands),
         killed,
         can_undef,
         preserved_undef,

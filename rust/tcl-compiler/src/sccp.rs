@@ -1339,7 +1339,8 @@ type EdgeFacts = (Vec<(String, Existence)>, Vec<(String, Existence)>);
 /// and on its false edge (`docs/design/compiler/value-transfers.md` §
 /// *Edge refinement*): an existence query's own ([`query_facts`]), `!`
 /// swapping the edges, `C1 && C2` both true-edge answers on its true edge
-/// and `C1 || C2` both false-edge answers on its false edge.
+/// and `C1 || C2` both false-edge answers on its false edge — `C1`'s only
+/// when `C2`, which runs after it, changes no place ([`existence_pure`]).
 fn condition_facts(
     node: &crate::expr_ast::ExprNode,
     registry: &CommandRegistry,
@@ -1354,13 +1355,17 @@ fn condition_facts(
             let (on_true, on_false) = condition_facts(operand, registry, config);
             (on_false, on_true)
         }
+        // The right operand runs after the left one, so the left operand's
+        // facts reach the edge only when the right one changes no place.
         ExprNode::Binary {
             op: BinOp::And,
             left,
             right,
         } => {
-            let (mut on_true, _) = condition_facts(left, registry, config);
-            on_true.extend(condition_facts(right, registry, config).0);
+            let (mut on_true, _) = condition_facts(right, registry, config);
+            if existence_pure(right, registry, config) {
+                on_true.extend(condition_facts(left, registry, config).0);
+            }
             (on_true, Vec::new())
         }
         ExprNode::Binary {
@@ -1368,13 +1373,47 @@ fn condition_facts(
             left,
             right,
         } => {
-            let (_, mut on_false) = condition_facts(left, registry, config);
-            on_false.extend(condition_facts(right, registry, config).1);
+            let (_, mut on_false) = condition_facts(right, registry, config);
+            if existence_pure(right, registry, config) {
+                on_false.extend(condition_facts(left, registry, config).1);
+            }
             (Vec::new(), on_false)
         }
         ExprNode::Command { text, .. } => crate::existence_query::in_text(text, registry, config)
             .map_or_else(Default::default, |(name, kind)| query_facts(&name, kind)),
         _ => Default::default(),
+    }
+}
+
+/// Whether evaluating `node` changes no place's existence: every command
+/// it substitutes is an existence query over a name that runs no command,
+/// and no operand substitutes a command of its own. A math function may be
+/// a procedure, and an unparsed operand may be anything, so neither is.
+fn existence_pure(
+    node: &crate::expr_ast::ExprNode,
+    registry: &CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+) -> bool {
+    use crate::expr_ast::ExprNode;
+    match node {
+        ExprNode::Command { text, .. } => crate::existence_query::in_text(text, registry, config)
+            .is_some_and(|(name, _)| !name.contains('[')),
+        ExprNode::Binary { left, right, .. } => {
+            existence_pure(left, registry, config) && existence_pure(right, registry, config)
+        }
+        ExprNode::Unary { operand, .. } => existence_pure(operand, registry, config),
+        ExprNode::Ternary {
+            condition,
+            true_branch,
+            false_branch,
+        } => [condition, true_branch, false_branch]
+            .iter()
+            .all(|operand| existence_pure(operand, registry, config)),
+        ExprNode::Literal { .. } => true,
+        ExprNode::Var { text, .. }
+        | ExprNode::String { text, .. }
+        | ExprNode::CompiledWord { text, .. } => !text.contains('['),
+        ExprNode::Call { .. } | ExprNode::Raw { .. } => false,
     }
 }
 
@@ -3264,6 +3303,31 @@ mod tests {
                 "{proc}: the other arm holds the place unbound"
             );
         }
+    }
+
+    /// `C1 && C2` refines by both answers only when `C2`, which runs after
+    /// `C1`, changes no place: `[info exists x] && [info exists y]` binds
+    /// both, `[otherproc] && [info exists x]` binds `x`, and `[info exists
+    /// x] && [otherproc]` binds nothing — the procedure may unset `x`
+    /// through an alias before the edge is taken.
+    #[test]
+    fn an_impure_operand_ends_the_facts_before_it() {
+        let registry = CommandRegistry::build_default();
+        let cu = crate::compilation_unit::CompilationUnit::build_for(
+            "proc f {c} { if {$c} { set x 1; set y 1 }; if {[info exists x] && [info exists y]} { puts $x$y } }\n\
+             proc g {c} { if {$c} { set x 1 }; if {[otherproc] && [info exists x]} { puts $x } }\n\
+             proc h {c} { if {$c} { set x 1 }; if {[info exists x] && [otherproc]} { puts $x } }\n",
+            &registry,
+            false,
+        );
+        let bound = vec![Existence::Bound(BindingKind::Either)];
+        let f = cu.function("::f").expect("procedure analysed");
+        assert_eq!(puts_reads(f, "x"), bound, "::f x");
+        assert_eq!(puts_reads(f, "y"), bound, "::f y");
+        let g = cu.function("::g").expect("procedure analysed");
+        assert_eq!(puts_reads(g, "x"), bound, "::g");
+        let h = cu.function("::h").expect("procedure analysed");
+        assert_eq!(puts_reads(h, "x"), vec![Existence::MayBound], "::h");
     }
 
     /// The two canonical idioms read their place bound through the edge

@@ -47,7 +47,10 @@ Assign the variable before using it.
 raises `W210`. (A scalar `set X 1` makes `info exists` true but leaves `array
 exists` false.) A check also narrows the branches it guards: inside
 `if {[info exists X]} { … }` reading `$X` is safe; on the `else` side it is
-still unset and still flagged. When existence is statically provable the check
+still unset and still flagged. The narrowing holds through `&&` — inside
+`if {[info exists X] && $ok} { … }` too — and lasts until a command the
+analyser cannot see through, such as an `eval` of a computed script, may
+have unset the variable again. When existence is statically provable the check
 folds to a constant and is reported as
 [`I230`](kcs-diagnostic-i230-constant-existence-check.md) instead.
 
