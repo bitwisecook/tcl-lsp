@@ -992,6 +992,163 @@ fn lifecycle_line(key: &str, draft: &Value, indent: &str) -> LifecycleLine {
 // Keep every OptionArg field in one renderer so adding registry metadata
 // cannot silently miss one shorthand or generic literal path.
 #[allow(clippy::too_many_lines)]
+/// The Rust expression for a drafted [`tcl_registry::option_effect::EffectAxis`]
+/// (`axis` and, for every axis but `case-sensitivity`, `value`).
+fn effect_axis_expr(axis: &str, value: Option<&str>) -> Option<String> {
+    match axis {
+        "substitution" => {
+            let kind = match value? {
+                "backslashes" => "Backslashes",
+                "commands" => "Commands",
+                "variables" => "Variables",
+                _ => return None,
+            };
+            Some(format!(
+                "EffectAxis::Substitution(SubstitutionKind::{kind})"
+            ))
+        }
+        "pattern-language" => {
+            let kind = match value? {
+                "glob" => "Glob",
+                "regex" => "Regex",
+                _ => return None,
+            };
+            Some(format!("EffectAxis::PatternLanguage(PatternType::{kind})"))
+        }
+        "case-sensitivity" => Some("EffectAxis::CaseSensitivity".to_owned()),
+        "selection" => {
+            let mode = match value? {
+                "exact" => "Exact",
+                "glob" => "Glob",
+                "regexp" => "Regexp",
+                "other" => "Other",
+                _ => return None,
+            };
+            Some(format!("EffectAxis::Selection(CaseMatchMode::{mode})"))
+        }
+        _ => None,
+    }
+}
+
+/// The Rust expression for a drafted `option` row's `effect` key, or `None`
+/// for an unset or unreadable one.
+fn option_effect_expr(entry: &Value) -> Option<String> {
+    if entry.is_null() {
+        return None;
+    }
+    let axis = || effect_axis_expr(as_str(&entry["axis"]), entry["value"].as_str());
+    let kind = match as_str(&entry["kind"]) {
+        "disables" => format!("OptionEffectKind::Disables({})", axis()?),
+        "selects" => format!("OptionEffectKind::Selects({})", axis()?),
+        "suppresses-role" => format!(
+            "OptionEffectKind::SuppressesRole(ArgRole::{})",
+            as_str(&entry["role"])
+        ),
+        "reserves-trailing-words" => format!(
+            "OptionEffectKind::ReservesTrailingWords({})",
+            as_u64(&entry["n"])
+        ),
+        "ends-options" => "OptionEffectKind::EndsOptions".to_owned(),
+        _ => return None,
+    };
+    Some(format!(
+        "OptionEffect {{ kind: {kind}, family: {} }}",
+        rust_string(as_str(&entry["family"]))
+    ))
+}
+
+/// The `value: OptionValue::Takes(OptionArg { … }),` line for an option
+/// whose drafted `value` is set, or `None` for a bare flag.
+fn option_value_expr(value: &Value, inner: &str) -> Option<String> {
+    if !value.is_object() {
+        return None;
+    }
+    let arg_indent = format!("{inner}    ");
+    let mut arg_parts: Vec<String> = Vec::new();
+    let arity = &value["arity"];
+    let arity_expr = match as_str(&arity["kind"]) {
+        "Fixed" => Some(format!("OptionArity::Fixed({})", as_u64(&arity["n"]))),
+        // The hook is a function pointer, so seeding cannot recover it — but
+        // the author can type it, and then it renders like any other arity.
+        // Empty still falls through to the TODO below.
+        "Hook" => hook_expr(arity).map(|h| format!("OptionArity::Hook({h})")),
+        _ => Some("OptionArity::One".to_owned()),
+    };
+    match arity_expr {
+        Some(expr) if expr != "OptionArity::One" => {
+            arg_parts.push(format!("{arg_indent}    arity: {expr},"));
+        }
+        Some(_) => {}
+        None => arg_parts.push(format!(
+            "{arg_indent}    // TODO: this option consumed a computed number of words \
+             (OptionArity::Hook); supply the hook.",
+        )),
+    }
+    let role = as_str(&value["role"]);
+    if !role.is_empty() && role != "Value" {
+        arg_parts.push(format!("{arg_indent}    role: ArgRole::{role},"));
+    }
+    let also_role = value["also_role"].as_str();
+    if let Some(also) = also_role {
+        arg_parts.push(format!("{arg_indent}    also_role: Some(ArgRole::{also}),"));
+    }
+    let body_kind = as_str(&value["body_kind"]);
+    if body_kind == "Structural" {
+        arg_parts.push(format!("{arg_indent}    body_kind: BodyKind::Structural,"));
+    }
+    let script_timing = as_str(&value["script_timing"]);
+    if !script_timing.is_empty() && script_timing != "SameInvocation" {
+        arg_parts.push(format!(
+            "{arg_indent}    script_timing: ScriptTiming::{script_timing},"
+        ));
+    }
+    let callback_inputs = as_array(&value["callback_taint_inputs"]);
+    if !callback_inputs.is_empty() {
+        arg_parts.push(format!(
+            "{arg_indent}    callback_taint_inputs: {},",
+            callback_taint_inputs_expr(callback_inputs)
+        ));
+    }
+    if as_str(&value["variable_scope"]) == "Global" {
+        arg_parts.push(format!(
+            "{arg_indent}    variable_scope: VariableScope::Global,"
+        ));
+    }
+    let values = as_array(&value["values"]);
+    if !values.is_empty() {
+        let vals: Vec<String> = values
+            .iter()
+            .map(|v| arg_value_expr(v, &format!("{arg_indent}        ")))
+            .collect();
+        arg_parts.push(format!(
+            "{arg_indent}    values: &[\n{}\n{arg_indent}    ],",
+            vals.join("\n")
+        ));
+    }
+    if as_bool(&value["closed"]) {
+        arg_parts.push(format!("{arg_indent}    closed: true,"));
+    }
+    if let Some(domain) = integer_domain_expr(&value["integer"]) {
+        arg_parts.push(format!("{arg_indent}    integer: Some({domain}),"));
+    }
+    let hint = as_str(&value["hint"]);
+    if !hint.is_empty() {
+        arg_parts.push(format!("{arg_indent}    hint: {},", rust_string(hint)));
+    }
+    let appended = appended_arity_expr(&value["appended_arity"]);
+    if appended != "AppendedArity::Unknown" {
+        arg_parts.push(format!("{arg_indent}    appended_arity: {appended},"));
+    }
+    if as_bool(&value["taints_var_write"]) && (role == "VarWrite" || also_role == Some("VarWrite"))
+    {
+        arg_parts.push(format!("{arg_indent}    taints_var_write: true,"));
+    }
+    Some(format!(
+        "{inner}value: OptionValue::Takes(OptionArg {{\n{}\n{arg_indent}..OptionArg::DEFAULT\n{inner}}}),",
+        arg_parts.join("\n")
+    ))
+}
+
 fn option_expr(entry: &Value, indent: &str) -> String {
     let inner = format!("{indent}    ");
     let mut parts = vec![format!(
@@ -999,94 +1156,7 @@ fn option_expr(entry: &Value, indent: &str) -> String {
         rust_string(as_str(&entry["name"]))
     )];
 
-    let value = &entry["value"];
-    if value.is_object() {
-        let arg_indent = format!("{inner}    ");
-        let mut arg_parts: Vec<String> = Vec::new();
-        let arity = &value["arity"];
-        let arity_expr = match as_str(&arity["kind"]) {
-            "Fixed" => Some(format!("OptionArity::Fixed({})", as_u64(&arity["n"]))),
-            // The hook is a function pointer, so seeding cannot recover it —
-            // but the author can type it, and then it renders like any other
-            // arity. Empty still falls through to the TODO below.
-            "Hook" => hook_expr(arity).map(|h| format!("OptionArity::Hook({h})")),
-            _ => Some("OptionArity::One".to_owned()),
-        };
-        match arity_expr {
-            Some(expr) if expr != "OptionArity::One" => {
-                arg_parts.push(format!("{arg_indent}    arity: {expr},"));
-            }
-            Some(_) => {}
-            None => arg_parts.push(format!(
-                "{arg_indent}    // TODO: this option consumed a computed number of words \
-                 (OptionArity::Hook); supply the hook.",
-            )),
-        }
-        let role = as_str(&value["role"]);
-        if !role.is_empty() && role != "Value" {
-            arg_parts.push(format!("{arg_indent}    role: ArgRole::{role},"));
-        }
-        let also_role = value["also_role"].as_str();
-        if let Some(also) = also_role {
-            arg_parts.push(format!("{arg_indent}    also_role: Some(ArgRole::{also}),"));
-        }
-        let body_kind = as_str(&value["body_kind"]);
-        if body_kind == "Structural" {
-            arg_parts.push(format!("{arg_indent}    body_kind: BodyKind::Structural,"));
-        }
-        let script_timing = as_str(&value["script_timing"]);
-        if !script_timing.is_empty() && script_timing != "SameInvocation" {
-            arg_parts.push(format!(
-                "{arg_indent}    script_timing: ScriptTiming::{script_timing},"
-            ));
-        }
-        let callback_inputs = as_array(&value["callback_taint_inputs"]);
-        if !callback_inputs.is_empty() {
-            arg_parts.push(format!(
-                "{arg_indent}    callback_taint_inputs: {},",
-                callback_taint_inputs_expr(callback_inputs)
-            ));
-        }
-        if as_str(&value["variable_scope"]) == "Global" {
-            arg_parts.push(format!(
-                "{arg_indent}    variable_scope: VariableScope::Global,"
-            ));
-        }
-        let values = as_array(&value["values"]);
-        if !values.is_empty() {
-            let vals: Vec<String> = values
-                .iter()
-                .map(|v| arg_value_expr(v, &format!("{arg_indent}        ")))
-                .collect();
-            arg_parts.push(format!(
-                "{arg_indent}    values: &[\n{}\n{arg_indent}    ],",
-                vals.join("\n")
-            ));
-        }
-        if as_bool(&value["closed"]) {
-            arg_parts.push(format!("{arg_indent}    closed: true,"));
-        }
-        if let Some(domain) = integer_domain_expr(&value["integer"]) {
-            arg_parts.push(format!("{arg_indent}    integer: Some({domain}),"));
-        }
-        let hint = as_str(&value["hint"]);
-        if !hint.is_empty() {
-            arg_parts.push(format!("{arg_indent}    hint: {},", rust_string(hint)));
-        }
-        let appended = appended_arity_expr(&value["appended_arity"]);
-        if appended != "AppendedArity::Unknown" {
-            arg_parts.push(format!("{arg_indent}    appended_arity: {appended},"));
-        }
-        if as_bool(&value["taints_var_write"])
-            && (role == "VarWrite" || also_role == Some("VarWrite"))
-        {
-            arg_parts.push(format!("{arg_indent}    taints_var_write: true,"));
-        }
-        parts.push(format!(
-            "{inner}value: OptionValue::Takes(OptionArg {{\n{}\n{arg_indent}..OptionArg::DEFAULT\n{inner}}}),",
-            arg_parts.join("\n")
-        ));
-    }
+    parts.extend(option_value_expr(&entry["value"], &inner));
 
     let detail = as_str(&entry["detail"]);
     if !detail.is_empty() {
@@ -1104,6 +1174,9 @@ fn option_expr(entry: &Value, indent: &str) -> String {
     }
     if let Some(min_abbrev) = entry["min_abbrev"].as_u64() {
         parts.push(format!("{inner}min_abbrev: Some({min_abbrev}),"));
+    }
+    if let Some(effect) = option_effect_expr(&entry["effect"]) {
+        parts.push(format!("{inner}effect: Some({effect}),"));
     }
     format!(
         "{indent}OptionSpec {{\n{}\n{inner}..OptionSpec::DEFAULT\n{indent}}},",

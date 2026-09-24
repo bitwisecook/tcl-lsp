@@ -268,6 +268,41 @@ other flag value is one, and because a row parser must not have to tell
 `{words ctx}` from an enum payload by inspection. See "The option-arity
 hook" under Hooks, and [`return.tclspec`](return.tclspec).
 
+### Options with semantic effects
+
+An option that turns a declared axis on or off, suppresses a role, changes
+the trailing-operand reservation, or ends option parsing states it with
+`-effect` and `-family`
+(`docs/design/compiler/registry-consumer-contracts.md` § *Options with
+semantic effects*); a family the command's own options cite is declared
+once with `option_effect_family`, at command or subcommand scope:
+
+```tcl
+option_effect_family negated { base all-on  combine accumulate }
+option_effect_family positive { base all-off combine accumulate \
+                                -introduced 9.1 }
+option -nobackslashes -effect {disables substitution backslashes} \
+                      -family negated
+option -backslashes   -effect {selects substitution backslashes} \
+                      -family positive -introduced 9.1
+```
+
+`-effect`'s value is `{disables AXIS VALUE}`, `{selects AXIS VALUE}`,
+`{suppresses-role ROLE}`, `{reserves-trailing-words N}`, or the bare
+`ends-options`; `ROLE` is an `ArgRole` spelling (`-role`'s own vocabulary).
+The closed axis vocabulary: `substitution backslashes|commands|variables`,
+`pattern-language` (the `PatternType` spellings `Glob`/`Regex`, `pattern
+-language`'s own — every other axis has its own lowercase word instead),
+`case-sensitivity` (no value: it is a plain on/off axis), and `selection
+exact|glob|regexp|other`. `option_effect_family`'s `base` is `all-on`,
+`all-off`, or `{only AXIS VALUE}`; `combine` is `accumulate` (every
+matching option's effect applies) or `last-wins` (each option resets the
+family before applying); `-introduced V` gates the family from `V` onward
+on the command's own core-Tcl axis, the same reading `-introduced` carries
+everywhere else in this vocabulary. `subst.tclspec` is this row's own
+worked example, ported from the design page's `command subst { … }` body
+verbatim.
+
 ### Other rows
 
 ```tcl
@@ -1328,8 +1363,9 @@ schema order. "excluded" rows carry the reason.
 | `data_collection` | `data_collection -native ID` | reference-only: the collect/release descriptor is paired with protocol machinery outside the registry |
 | `side_switch_target` | `side_switch_target Client\|Server` |  |
 | `event_handler_priority` | `event_handler_priority -default N ?-warn-implicit?` |  |
-| `options` | `option NAME ?-flag value? …` | one row per option; see the option flag table |
+| `options` | `option NAME ?-flag value? …` | one row per option; see the option flag table. `-effect {disables\|selects AXIS VALUE}\|{suppresses-role ROLE}\|{reserves-trailing-words N}\|ends-options` and `-family NAME` declare the option's option-effect descriptor — see "Options with semantic effects" |
 | `option_relations` | `option_conflict {TERM …}` / `option_requires SUBJECT {TERM …}` / `option_requires_one_of SUBJECT {TERM …}` / `option_forbids SUBJECT {TERM …}`, each `?-dialects {…}? ?-message {…}? ?-introduced V? ?-deprecated V? ?-retired V?` | one row per relation; a relation only exists once both its operands do, which is what its own three releases say. A term is `-name`, `{-name value}`, `{arg N}` or `{arg N value}`; an empty subject (`{}`) makes the relation unconditional |
+| `option_effect_families` | `option_effect_family NAME { base all-on\|all-off\|{only AXIS VALUE} combine accumulate\|last-wins ?-introduced V? }` | one row per family; the options that cite it by name (`-family NAME`) share where its axis starts and how they combine — see "Options with semantic effects" |
 | `option_placement` | `option_placement Leading\|Anywhere` | where the command's options may be found — `Leading` (the default, and what core Tcl's C option loops do) stops at the first non-option word; `Anywhere` keeps recognising them between positionals up to `--` |
 | `reserved_trailing_words` | `reserved_trailing_words N` |  |
 | `arg_values` | `arg N -values {v …}` \| `arg N -values-from NAME` | `values NAME { … }` declares the shared table, whose rows carry `-min-tcl` (the Tcl axis) and the three releases (the package axis) independently |
@@ -1414,8 +1450,9 @@ schema order. "excluded" rows carry the reason.
 | `analyser_hook` | `analyser_hook -native ID` | closed catalogue |
 | `return_type_hook` | `return_type_hook -native ID` | closed catalogue; names the algorithm that types a call whose result shape moves with the call (`lsearch -inline`, `regsub`'s positional count). `return_type` stays the one-value-per-command answer and the hook wins over it |
 | `command_table_effect` | `command_table_effect DefinesProcedure\|RenamesCommands\|CreatesAliases` |  |
-| `options` | `option NAME ?-flag value? …` | one row per option; see the option flag table |
+| `options` | `option NAME ?-flag value? …` | one row per option; see the option flag table. `-effect {disables\|selects AXIS VALUE}\|{suppresses-role ROLE}\|{reserves-trailing-words N}\|ends-options` and `-family NAME` declare the option's option-effect descriptor — see "Options with semantic effects" |
 | `option_relations` | `option_conflict {TERM …}` / `option_requires SUBJECT {TERM …}` / `option_requires_one_of SUBJECT {TERM …}` / `option_forbids SUBJECT {TERM …}`, each `?-dialects {…}? ?-message {…}? ?-introduced V? ?-deprecated V? ?-retired V?` | one row per relation; a relation only exists once both its operands do, which is what its own three releases say. A term is `-name`, `{-name value}`, `{arg N}` or `{arg N value}`; an empty subject (`{}`) makes the relation unconditional |
+| `option_effect_families` | `option_effect_family NAME { base all-on\|all-off\|{only AXIS VALUE} combine accumulate\|last-wins ?-introduced V? }` | one row per family; the options that cite it by name (`-family NAME`) share where its axis starts and how they combine — see "Options with semantic effects" |
 | `option_placement` | `option_placement Leading\|Anywhere` | where the command's options may be found — `Leading` (the default, and what core Tcl's C option loops do) stops at the first non-option word; `Anywhere` keeps recognising them between positionals up to `--` |
 | `min_abbrev` | `min_abbrev N` |  |
 | `prefix_matching` | `prefix_matching Enabled\|Strict` |  |

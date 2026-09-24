@@ -1106,6 +1106,71 @@ fn a_clause_grammar_row_with_an_unknown_timing_is_dropped_with_a_notice() {
     }
 }
 
+/// An option's `-effect` names a family by string, resolved by the generic
+/// walk against exactly the command's (or subcommand's) own
+/// `option_effect_family` rows — so a name matching none of them would
+/// otherwise narrow the axis silently rather than reading as absent.
+/// Dropped with a notice instead, at both command and subcommand scope
+/// (negative: a declared family's effect survives).
+#[test]
+fn an_effect_naming_an_undeclared_family_is_a_notice() {
+    let source = r"speclib probe 2.1 {
+    command probe::echo {
+        arity 0..
+        option_effect_family known { base all-on combine accumulate }
+        option -a -effect {disables substitution backslashes} -family known
+        option -b -effect {disables substitution commands} -family ghost
+        subcommand sub {
+            arity 0..
+            option -c -effect {disables substitution variables} -family ghost
+        }
+    }
+}
+";
+    for pack in [
+        evaluate_pack(source),
+        evaluate_through_the_interpreter(source),
+    ] {
+        let dropped: Vec<&str> = pack
+            .notices
+            .iter()
+            .map(|notice| notice.message.as_str())
+            .filter(|message| message.contains("naming family `ghost`"))
+            .collect();
+        assert_eq!(dropped.len(), 2, "{:#?}", pack.notices);
+        let command = pack.command("probe::echo").expect("the command loads");
+        let a = command
+            .spec
+            .options
+            .iter()
+            .find(|opt| opt.name == "-a")
+            .expect("-a loads");
+        assert!(a.effect.is_some(), "a declared family keeps its effect");
+        let b = command
+            .spec
+            .options
+            .iter()
+            .find(|opt| opt.name == "-b")
+            .expect("-b loads");
+        assert!(b.effect.is_none(), "an undeclared family drops the effect");
+        let sub = command
+            .spec
+            .subcommands
+            .iter()
+            .find(|sub| sub.name == "sub")
+            .expect("the subcommand loads");
+        let c = sub
+            .options
+            .iter()
+            .find(|opt| opt.name == "-c")
+            .expect("-c loads");
+        assert!(
+            c.effect.is_none(),
+            "the same rule applies at subcommand scope"
+        );
+    }
+}
+
 /// A `state_transitions` block loads every row the descriptor has — the
 /// composition, the argument shape, the widening rules, the effect coverage,
 /// the commit edge — and its `resolver` body is a hook of the

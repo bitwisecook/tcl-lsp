@@ -23,7 +23,7 @@
 //! `.tclspec` text out, so a shipped spec can be *exported* to a pack, a pack
 //! can be round-tripped through the studio's editor, and the studio's DSL pane
 //! has something to show. The syntax is the frozen one in
-//! `docs/design/spec-dsl-examples/README.md`, and the eleven `*.tclspec` ports
+//! `docs/design/spec-dsl-examples/README.md`, and the twelve `*.tclspec` ports
 //! beside it are the formatting exemplars: one-screen simple commands, row
 //! statements rather than nested blocks, `\`-continued option rows with the
 //! prose flag last.
@@ -298,16 +298,6 @@ pub const GAPS: &[Gap] = &[
         key: "body_interpreter",
         spelling: "body_interpreter Current|{Argument INDEX}",
         kind: GapKind::LoaderGap,
-    },
-    // Transient: the families' draft value, the loader's
-    // `option_effect_family` statement and the renderer land together in the
-    // `option -effect` step (CC2.7 of the consumer-contracts lane), which
-    // removes this row. Until then the draft records only that a spec
-    // declares families.
-    Gap {
-        key: "option_effect_families",
-        spelling: "option_effect_family NAME { base all-on|all-off|{only AXIS VALUE} combine accumulate|last-wins ?-introduced V? }",
-        kind: GapKind::DraftOpaque,
     },
     // Excluded by design.
     Gap {
@@ -1384,6 +1374,130 @@ fn relation_term_word(expr: &str) -> Option<String> {
     Some(words.join(" "))
 }
 
+/// The `.tclspec` axis and value words from a rendered [`EffectAxis`]
+/// expression (`EffectAxis::Substitution(SubstitutionKind::Backslashes)`,
+/// `EffectAxis::CaseSensitivity`, …) — the inverse of `draft.rs`'s
+/// `effect_axis_expr`.
+fn effect_axis_words(expr: &str) -> Option<(&'static str, Option<String>)> {
+    let expr = expr.trim();
+    if expr == "EffectAxis::CaseSensitivity" {
+        return Some(("case-sensitivity", None));
+    }
+    if let Some(inner) = between(expr, "EffectAxis::Substitution(", ")") {
+        let word = match variant_of(inner) {
+            "Backslashes" => "backslashes",
+            "Commands" => "commands",
+            "Variables" => "variables",
+            _ => return None,
+        };
+        return Some(("substitution", Some(word.to_owned())));
+    }
+    if let Some(inner) = between(expr, "EffectAxis::PatternLanguage(", ")") {
+        let word = match variant_of(inner) {
+            "Glob" => "glob",
+            "Regex" => "regex",
+            _ => return None,
+        };
+        return Some(("pattern-language", Some(word.to_owned())));
+    }
+    if let Some(inner) = between(expr, "EffectAxis::Selection(", ")") {
+        let word = match variant_of(inner) {
+            "Exact" => "exact",
+            "Glob" => "glob",
+            "Regexp" => "regexp",
+            "Other" => "other",
+            _ => return None,
+        };
+        return Some(("selection", Some(word.to_owned())));
+    }
+    None
+}
+
+/// The `option_effect_family NAME { … }` rows from a rendered
+/// `&[OptionEffectFamily]` — the inverse of `draft.rs`'s
+/// `option_effect_families_expr`.
+fn option_effect_family_rows(expr: &str) -> Option<Vec<Vec<String>>> {
+    let mut rows = Vec::new();
+    for item in slice_items(expr)? {
+        let fields = struct_fields(item)?;
+        let name = word(&rust_str(fields.get("name")?)?)?;
+        let base_expr = (*fields.get("base")?).trim();
+        let base = if base_expr == "FamilyBase::AllOn" {
+            "all-on".to_owned()
+        } else if base_expr == "FamilyBase::AllOff" {
+            "all-off".to_owned()
+        } else {
+            let inner = between(base_expr, "FamilyBase::Only(", ")")?;
+            let (axis, value) = effect_axis_words(inner)?;
+            value.map_or_else(
+                || format!("{{only {axis}}}"),
+                |v| format!("{{only {axis} {v}}}"),
+            )
+        };
+        let combine = match variant_of(fields.get("combine")?) {
+            "Accumulate" => "accumulate",
+            "LastWins" => "last-wins",
+            _ => return None,
+        };
+        let mut block = vec![
+            "base".to_owned(),
+            base,
+            "combine".to_owned(),
+            combine.to_owned(),
+        ];
+        if let Some(inner) = unwrap_some(fields.get("surface")?) {
+            let members = dialect_names(inner)?;
+            // `-introduced V` is the one gate a family may declare — the
+            // lowest release the surface admits, on the family's own (Tcl
+            // core) axis; anything else the loader could not have produced.
+            let mut versions: Vec<&str> = members
+                .iter()
+                .filter_map(|member| member.strip_prefix("tcl"))
+                .collect();
+            versions.sort_by(|a, b| {
+                tcl_dialect::model::Version::parse(a)
+                    .ok()
+                    .cmp(&tcl_dialect::model::Version::parse(b).ok())
+            });
+            let lowest = versions.first()?;
+            if versions.len() != members.len() {
+                return None;
+            }
+            block.push("-introduced".to_owned());
+            block.push((*lowest).to_owned());
+        }
+        rows.push(vec![
+            "option_effect_family".to_owned(),
+            name,
+            braced(&block.join(" "))?,
+        ]);
+    }
+    Some(rows)
+}
+
+/// An option row's `-effect` value: `{disables|selects AXIS VALUE}`,
+/// `{suppresses-role ROLE}`, `{reserves-trailing-words N}`, or
+/// `ends-options` — read off the drafted, structured `effect` object (never
+/// `null`, checked by the caller). `None` for an unreadable kind.
+fn option_effect_block(effect: &Value) -> Option<String> {
+    match str_of(&effect["kind"]) {
+        kind @ ("disables" | "selects") => {
+            let axis = str_of(&effect["axis"]);
+            Some(match effect["value"].as_str() {
+                Some(value) => format!("{{{kind} {axis} {value}}}"),
+                None => format!("{{{kind} {axis}}}"),
+            })
+        }
+        "suppresses-role" => Some(format!("{{suppresses-role {}}}", str_of(&effect["role"]))),
+        "reserves-trailing-words" => Some(format!(
+            "{{reserves-trailing-words {}}}",
+            effect["n"].as_u64().unwrap_or(0)
+        )),
+        "ends-options" => Some("ends-options".to_owned()),
+        _ => None,
+    }
+}
+
 /// The four E-R14 option-relation rows from a rendered `&[OptionRelation]`.
 ///
 /// `option_conflict` keeps its 1.x shape exactly — statement word then the
@@ -2339,6 +2453,21 @@ fn option_row(out: &mut Out, ctx: &mut Ctx<'_>, option: &Value) {
         row.push("-min-abbrev".to_owned());
         row.push(n.to_string());
     }
+    if !option["effect"].is_null() {
+        match option_effect_block(&option["effect"]) {
+            Some(block) => {
+                row.push("-effect".to_owned());
+                row.push(block);
+                push_flag(
+                    &mut row,
+                    &mut lost,
+                    "-family",
+                    word(str_of(&option["effect"]["family"])),
+                );
+            }
+            None => lost = true,
+        }
+    }
     push_lifecycle_flags(&mut row, &mut lost, option);
     // The data form of the quick-fix hook: the same flags the command-level
     // `deprecation_fix` statement takes, wrapped in one block word. The
@@ -2734,6 +2863,18 @@ fn option_block(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
                 }
             }
             None => todo(out, "option_relations"),
+        }
+    }
+    if ctx.set(draft, "option_effect_families")
+        && let Some(expr) = draft["option_effect_families"].as_str()
+    {
+        match option_effect_family_rows(expr) {
+            Some(rows) => {
+                for row in rows {
+                    out.row(&row, "");
+                }
+            }
+            None => todo(out, "option_effect_families"),
         }
     }
 }

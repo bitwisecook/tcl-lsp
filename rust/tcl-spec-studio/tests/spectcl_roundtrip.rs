@@ -820,7 +820,7 @@ fn notice_shape(notice: &str) -> String {
 /// rendered text loads again and produces the same draft: the round-trip gate,
 /// applied to the packs the syntax was designed from.
 #[test]
-fn the_eleven_port_fixtures_render_and_reload_as_themselves() {
+fn the_twelve_port_fixtures_render_and_reload_as_themselves() {
     let dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../docs/design/spec-dsl-examples");
     let mut report = String::new();
@@ -833,7 +833,7 @@ fn the_eleven_port_fixtures_render_and_reload_as_themselves() {
         .filter(|name| name.ends_with(".tclspec"))
         .collect();
     files.sort();
-    assert_eq!(files.len(), 11, "the eleven ports: {files:?}");
+    assert_eq!(files.len(), 12, "the twelve ports: {files:?}");
 
     for file in &files {
         let source = std::fs::read_to_string(dir.join(file)).expect("a port");

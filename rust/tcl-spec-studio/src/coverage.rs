@@ -746,17 +746,8 @@ pub const OPTION_SPEC: &[Field] = &[
     f("aliases", Surface::Key("aliases")),
     f("lifecycle", Surface::Keys(LIFECYCLE_KEYS)),
     f("min_abbrev", Surface::Key("min_abbrev")),
-    f("effect", Surface::Excluded(OPTION_EFFECT_PENDING)),
+    f("effect", Surface::Key("effect")),
 ];
-
-/// Why an option row's effect is not drafted yet. Transient: CC2.7 of the
-/// consumer-contracts lane lands the option-row control, the loader's
-/// `-effect` / `-family` spelling and the renderer together, and turns this
-/// entry into a `Key`.
-const OPTION_EFFECT_PENDING: &str = "the option-row form, the loader's `-effect` / `-family` spelling and the \
-     renderer land together in the `option -effect` step (registry-consumer-contracts.md \
-     § *Options with semantic effects*); until then a drafted option row carries no \
-     effect and the round trip compares none";
 
 /// Compile-time witness for [`OPTION_ARG`].
 pub fn witness_option_arg(arg: &OptionArg) {

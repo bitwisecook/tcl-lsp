@@ -102,3 +102,29 @@ fn switching_the_arity_kind_still_rebuilds() {
         "switching to a hook must rebuild so the `hook fn` input appears"
     );
 }
+
+#[test]
+fn option_effect_edits_are_marked_non_structural() {
+    let src = squashed(EDITORS_TS);
+    assert!(
+        src.contains("patchEffect({...effect,family:t},false)"),
+        "an option-effect's family name input must patch non-structurally, \
+         or it cannot be typed into continuously"
+    );
+}
+
+#[test]
+fn switching_the_effect_kind_still_rebuilds() {
+    // `disables`/`selects` show an axis and value picker, `suppresses-role`
+    // a role picker, `reserves-trailing-words` a count, and `ends-options`
+    // nothing else — so switching the kind *must* rebuild the row, unlike
+    // the family text edit above.
+    let src = squashed(EDITORS_TS);
+    assert!(
+        src.contains(
+            "kindSelect.addEventListener(\"change\",()=>patchEffect(defaultForKind(kindSelect.value)));"
+        ),
+        "switching an option's effect kind must rebuild the row so its \
+         kind-specific controls appear or disappear"
+    );
+}
