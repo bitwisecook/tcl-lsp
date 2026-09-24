@@ -2914,6 +2914,11 @@ fn a_dead_assignment_whose_value_cannot_raise_is_still_deleted() {
             "an `info default` variable",
             "proc p {} {\n    info default p x v\n    set y $v\n    puts hi\n}\n",
         ),
+        // An alias that prepends words keeps its target (found in review).
+        (
+            "a `gets` target through an alias that prepends the channel",
+            "interp alias {} mygets {} gets stdin\nproc p {} {\n    mygets line\n    set y $line\n    puts hi\n}\n",
+        ),
         (
             "a `cmdline::getKnownOpt` value variable",
             "package require cmdline\nproc p {argv} {\n    cmdline::getKnownOpt argv {a.arg} o v\n    set y $v\n    puts hi\n}\n",

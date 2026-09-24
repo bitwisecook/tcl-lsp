@@ -472,8 +472,11 @@ impl<'a> RaiseProof<'a> {
 }
 
 /// The variable targets of a command statement, split by how the registry
-/// says the invocation writes them. A def the statement takes from a script
-/// argument (`catch {set a 1} x` defining `a`) is in neither.
+/// says the invocation writes them. The targets are the call's `defs` that
+/// one of its own words names: lowering resolved those defs against the
+/// effective argument vector, so an `interp alias` that prepends words still
+/// finds them, while a def taken from a script argument (`catch {set a 1} x`
+/// defining `a`) is named by no word and is in neither.
 #[derive(Default)]
 struct CommandWriteTargets<'s> {
     /// Written whenever the command completes (`UNCONDITIONAL_VARIABLE_WRITE`).
@@ -493,6 +496,7 @@ fn command_write_targets<'s>(
         command,
         canonical_command,
         args,
+        defs,
         ..
     } = stmt
     else {
@@ -508,10 +512,12 @@ fn command_write_targets<'s>(
     if !always && !maybe {
         return CommandWriteTargets::default();
     }
-    let names: Vec<&str> = registry
-        .arg_indices_for_role(lookup, &arg_strs, tcl_registry::ArgRole::VarWrite)
-        .into_iter()
-        .filter_map(|i| arg_strs.get(i).copied())
+    // A target is spelled by one of the call's own words; a name a script
+    // argument assigns is buried inside that script word instead.
+    let names: Vec<&str> = defs
+        .iter()
+        .map(String::as_str)
+        .filter(|name| args.iter().any(|word| word == name))
         .collect();
     if always {
         CommandWriteTargets {
