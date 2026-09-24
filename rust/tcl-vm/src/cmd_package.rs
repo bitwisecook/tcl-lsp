@@ -26,7 +26,7 @@ use tcl_dialect::{
     select_package_version_for, validate_requirement_for, validate_version_for,
     version_matches_exact_for, version_satisfies_for as vsatisfies,
 };
-use tcl_runtime_api::Completion;
+use tcl_runtime_api::{Code, Completion};
 
 use crate::command::err_with_code;
 use crate::interp::{Vm, err, ok};
@@ -401,8 +401,13 @@ fn pkg_require(vm: &mut Vm, rest: &[Value], discover: bool) -> Completion<Value>
             callback.push_str(&tcl_syntax::list::list_element(requirement));
         }
         let completion = eval_package_script(vm, &callback);
-        if !completion.code.is_ok() {
-            return completion;
+        match completion.code {
+            Code::Ok => {}
+            Code::Error => {
+                append_loader_error_frame(vm, &completion.result.to_str(), None);
+                return completion;
+            }
+            code => return bad_return_code(vm, code, None),
         }
     }
 
@@ -534,13 +539,45 @@ fn eval_package_script(vm: &mut Vm, script: &str) -> Completion<Value> {
     vm.eval_at_level(0, script)
 }
 
+fn bad_return_code(vm: &mut Vm, code: Code, loader: Option<(&str, &str)>) -> Completion<Value> {
+    let message = match loader {
+        Some((name, version)) => format!(
+            "attempt to provide package {name} {version} failed: bad return code: {}",
+            code.as_int()
+        ),
+        None => format!("bad return code: {}", code.as_int()),
+    };
+    append_loader_error_frame(vm, &message, loader);
+    err_with_code(message, "TCL PACKAGE BADRESULT")
+}
+
+fn append_loader_error_frame(vm: &mut Vm, message: &str, loader: Option<(&str, &str)>) {
+    let frame = match loader {
+        Some((name, version)) => format!("\n    (\"package ifneeded {name} {version}\" script)"),
+        None => "\n    (\"package unknown\" script)".to_owned(),
+    };
+    vm.seed_error_info_frame(message, &frame);
+}
+
 fn evaluate_loader(vm: &mut Vm, name: &str, loader: &SelectedLoader) -> Completion<Value> {
     vm.begin_package_loading(name, &loader.version);
     let completion = eval_package_script(vm, &loader.script);
     vm.end_package_loading(name, &loader.version);
-    if !completion.code.is_ok() {
-        vm.forget_package(name);
-        return completion;
+    match completion.code {
+        Code::Ok => {}
+        Code::Error => {
+            vm.forget_package(name);
+            append_loader_error_frame(
+                vm,
+                &completion.result.to_str(),
+                Some((name, &loader.version)),
+            );
+            return completion;
+        }
+        code => {
+            vm.forget_package(name);
+            return bad_return_code(vm, code, Some((name, &loader.version)));
+        }
     }
     match vm.package_version(name).map(str::to_owned) {
         Some(provided)

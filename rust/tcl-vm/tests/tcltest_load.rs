@@ -174,6 +174,29 @@ fn real_tcl_9_0_4_init_discovers_tcltest_via_package_require() {
     );
 }
 
+/// Run the Tcl 9.0.4 package loader completion cases verbatim, including
+/// break, continue, return, and custom return codes in both discovery hooks.
+#[test]
+fn upstream_package_badresult_definitions_pass_after_real_startup() {
+    let Some((ok, error, output)) = run_upstream_definitions(
+        "package.test",
+        "test package-3.35.1 {",
+        "test package-3.44 {",
+        "tcltest-package-badresult",
+    ) else {
+        eprintln!("skipping: no Tcl 9.0.4 source tree available");
+        return;
+    };
+    assert!(
+        ok,
+        "focused upstream package.test failed: {error}\n{output}"
+    );
+    assert!(
+        output.contains("Total\t9\tPassed\t9\tSkipped\t0\tFailed\t0"),
+        "missing parseable upstream package BADRESULT summary: {output:?}"
+    );
+}
+
 /// Execute a bounded slice of one pinned upstream test file through the real
 /// Tcl 9.0.4 `init.tcl` and `tcltest` package.
 fn run_upstream_definitions(
