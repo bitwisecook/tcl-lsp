@@ -300,29 +300,6 @@ impl<'a> BodyFrame<'a> {
             Self::TopLevel | Self::Method(_) => None,
         }
     }
-
-    /// The entry facts the `[info exists]` fold needs: the
-    /// frame's formal parameters, plus a method's instance variables.
-    #[must_use]
-    fn existence_frame(self) -> crate::sccp::ExistenceFrame<'a> {
-        match self {
-            Self::TopLevel => crate::sccp::ExistenceFrame {
-                params: &[],
-                object_state: None,
-                initial_global: true,
-            },
-            Self::Procedure(p) => crate::sccp::ExistenceFrame {
-                params: &p.params,
-                object_state: None,
-                initial_global: false,
-            },
-            Self::Method(m) => crate::sccp::ExistenceFrame {
-                params: &m.params,
-                object_state: Some(&m.instance_vars),
-                initial_global: false,
-            },
-        }
-    }
 }
 
 impl Analyser {
@@ -914,7 +891,6 @@ impl Analyser {
         // [`BodyFrame`]).
         let ir_proc = frame.procedure();
         let initial_global = frame.is_initial_global();
-        let existence_frame = frame.existence_frame();
         self.emit_dead_store_diagnostics(function_unit, &defined, &scope_aliases, cross_event_vars);
         self.emit_unused_variable_diagnostics(
             function_unit,
@@ -980,7 +956,7 @@ impl Analyser {
         // W210 on reads of a provably-no-match regexp / scan output var.
         self.emit_provably_unset_w210(function_unit, &considered, &defined);
         self.emit_constant_branch_diagnostics(function_unit);
-        self.emit_existence_constant_branch_diagnostics(function_unit, existence_frame);
+        self.emit_existence_constant_branch_diagnostics(function_unit);
         self.emit_invalid_ip_diagnostics(function_unit);
         self.emit_w233_divide_by_zero(function_unit);
         self.emit_interval_bounds_diagnostics(function_unit);

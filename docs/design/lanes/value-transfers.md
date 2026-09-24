@@ -4309,6 +4309,7 @@ item; the grouping stays the plan's account of what lands together.
 | VT5.5 | `wip(value-transfers): slice 5 — scan, binary scan, lassign, array set` | `ScanSemantics`, `BinaryScanSemantics`, `LassignSemantics` and `ArraySetSemantics` (`value_transfer/destructure.rs`, `NativeEvalId::{ScanFormat, BinaryScan, ListAssign, ArraySet}`, registry-owned) over `scan::validate_format` / `scan_match`, `binary::scan` and `ConstOps::list_elements`, declared on the four specs: a converted field writes its variable typed as it was built and a field the input did not reach preserves it (`-1` and every variable preserved when the input ended first), `lassign` writes in order and returns the rest, `array set` writes one element per key; each answers only where every release the target names reads the words alike (D132); the writing routes share `value_transfer/publication.rs` (`open_words`, `targets_are`, `PendingStore`, `Publication`, moved out of `regex.rs`, D134); `StoreOutcome::WriteElement` names an element of an array target by key (D130), and SCCP takes a stated element write for a fanned may-write rather than joining it with the prior (`DefAnswer::stated`, D131); the scan and unpack work is charged per byte, the page's two core rows updated; G1's four gap rows gone and the inventory regenerated; the oracle harness spells non-ASCII as `\uXXXX` (D133) | `destructuring_writers_run_the_shared_cores` (`value_transfers.rs`, with the `%u`, infinity and negative-zero declines); `destructuring_witnesses_match_every_release_on_path` (`differential_fold.rs`: 46 witnesses, the plan's four answered and agreeing on every release that has the command; answered and agreeing 21 on tclsh 8.4.20, 30 on 8.5.19, 32 on 8.6.18, 35 on 9.0.4 and 35 on 9.1b0, every other one declined by the route or raised by `tclsh`); `an_array_set_writes_the_elements_it_names` (`value_transfer.rs`); `route_stamps_match_the_pinned_set` gains the four stamps; `var_write_typing_shapes_destructure_target_types` (`type_infer.rs`) reads a written `scan` target as the `String` its conversion built over literal operands and keeps the unknown subject's case |
 | VT5.6 | `wip(value-transfers): slice 5 — binary format, program (2)` | `BinaryFormatSemantics` (`value_transfer/builtins.rs`, `NativeEvalId::BinaryFormat`, registry-owned) over `binary::format`, declared on the `binary format` subcommand: the packed bytes as the characters `U+0000` to `U+00FF`, `RepresentationEvidence::Constructed(ByteArray)`, the result type `ByteArray`; `binary::format_size_bound` (the page's proposed core, built beside the packer) charged as allocation before the run and the output per byte after it; only what every release packs alike answers (D136); a rewrite never writes a computed byte array into the source — `SccpResult::materialises`, read by O100's two projections, O103's return read, O127's skip and the chain folds, so the optimised program keeps the command that builds it (D135); the page's two rows updated; the inventory regenerated | `program_two_folds_and_is_a_byte_array` (compiler witnesses: `h#1` is `ABCDEF` with the folded type `bytearray (constructed)` under `tcl8.4`, `tcl8.6`, `tcl9.0`, `f5-irules` and `tcl`, no S100, S101 or S110, no rewrite spells `ABCDEF` or a returned `GH`, and the original and optimised programs print the same under tclsh 8.4 to 9.1); `binary_format_witnesses_match_every_release_on_path` (`differential_fold.rs`: 49 witnesses; the 24 every release packs alike answered and agreeing on each of tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1b0, the non-ASCII argument from 9.0 and the 8.5 fields from 8.5, every spelling the releases part on declined); `format_size_bound_covers_the_packed_output` (`tcl-cmd-core`); `route_stamps_match_the_pinned_set` gains the stamp; `tcl explore --source 'set h [binary format H* 414243444546]' --show sccp --text --no-colour` prints `h#1 = const('ABCDEF')` · `type: bytearray (constructed)` |
 | VT5.7 | `wip(value-transfers): slice 5 — structural plans` | `DictWithSemantics` and `DictUpdateSemantics` (`value_transfer/body.rs`, new) answering `PlanAnswer::Body` — the binders a projection on body entry (the proven keys of the dictionary, or of the nested one a key path names, for `dict with`; the declared variables for `dict update`), the body in the caller's frame, `Reconcile::WriteBackKeys` of the dictionary operand, `CompletionProtocol::TclBody`, no route — declared on both subcommands and so on their `::tcl::dict::` spellings (D137); `IterationSemantics` answers the source layout (one binder per var-list name, one list, the body, `break` and `continue` absorbed, nothing bound on zero iterations) (D138); the driver's loop header binds each binder the elements it takes, so a two-binder `foreach` is two finite inputs (D139); G1's four `dict` body rows gone and the inventory regenerated. Not done: the `DictWith` hook's retirement and `handle_dict_with_command` reading the binders wait for CC2.13 (D140) | `dict_with_binds_the_proven_keys`, `the_source_layout_answers_an_iteration_plan` (`value_transfers.rs`); `dict_with_binds_the_keys_tclsh_binds` (`differential_fold.rs`: the variables five dictionaries and key paths bind on body entry are the plan's binders, and the page's program answers `done` and leaves `d` as `a 2`, on tclsh 8.5.19, 8.6.18, 9.0.4 and 9.1b0); `a_loop_header_binds_each_binder_its_elements` (`value_transfer.rs`); `the_mirror_pairs_decline_as_correlated` asserts both quotients decline `correlated-sets` (D64's deferral closed); `route_stamps_match_the_pinned_set` gains the four body stamps; `the_loop_header_projects_to_the_declared_iteration_plan`'s source-layout row reads the new answer (a call without its body is the command's error, where it read "not yet described") |
+| VT5.12 | `wip(value-transfers): slice 5 — the branch fact records its kind` | `BranchFactKind { Proven, Selected, Applied }` (`sccp.rs`) on `ConstantBranch`: the solver's decided branches are `Applied`, the existence post-pass's folds `Proven`, and `Selected` waits for slice 6's selection record; `emit_constant_branch_diagnostics` reads the `Applied` facts and `emit_existence_constant_branch_diagnostics` the `Proven` ones, and no longer reruns `existence_constant_branches` (the analyser's `BodyFrame::existence_frame` went with its one caller); `compiler_checks.rs` already reported every stored fact and needed nothing (D141) | `the_existence_branch_fact_is_stored_once` (`analyser/diagnostics/tests.rs`: the kinds as stored, one I230 per stored fact, a unit whose proven fact is removed reports nothing for it, and under iRules no I230 for a variable another event sets); every other I230, I231 and `info_exists_*` test unchanged |
 
 A container restart ended the first implementer at VT5.5, uncommitted;
 a second implementer took the opus items over from VT5.5 on (VT5.5, VT5.6,
@@ -4323,6 +4324,16 @@ three `scan` answers were wrong against every oracle from 8.5 (`scan -1
 compared non-ASCII witnesses against a misread script (D133); the two doc
 comments the oracle contradicted were corrected, and the per-byte charges
 the page states were added. Nothing was backed out.
+
+Green at VT5.12:
+
+- tests: `tcl-compiler`, `tcl-lsp-core` and `tcl-cli` together 13422
+  passed, 6 ignored, no failure (`samples_optimiser_profiles_are_regenerated`
+  among them, no sample moved);
+- pedantic clippy (`--no-deps --all-targets -D warnings`) on
+  `tcl-compiler`, no `#[allow]` added; `rustfmt` on the touched files;
+- `cargo xtask value-transfers --check` and `registry-axes --check`
+  unchanged; `cargo check --workspace` clean.
 
 Green at VT5.7:
 
@@ -7788,6 +7799,23 @@ has the witnesses):
   no lattice, so "a `dict with` over a lattice-constant dictionary binds
   its keys" is delivered where the lattice is, the per-function
   harvesters (VT5.18).
+
+- **D141 — The branch fact records its kind, and I230 reads it.** The
+  solver's decided branches are `Applied`; the existence post-pass's
+  `[info exists X]` / `[array exists X]` folds are `Proven` — proven
+  conditions the executable blocks do not reflect; `Selected` has no
+  producer until slice 6. Each emitter reads the kind it owns, so the
+  existence I230 is the stored fact's and the analyser no longer reruns
+  the proof over a frame of its own. That removes one drift the page
+  names: for an iRules event, `FunctionUnit` drops a fold that queries a
+  variable another event sets (`drop_cross_event_existence_folds`, the
+  optimiser's rule), while the rerun still reported it — `when
+  HTTP_REQUEST {set ans_cleared 1}` beside `when HTTP_RESPONSE {if {[info
+  exists ans_cleared]} …}` drew "always false". That false I230 is gone,
+  the slice's one observable change here (mandate: § *Branch facts*, "the
+  stored fact says which of the three it is, and emission never reruns
+  the proof"). `compiler_checks.rs`, on the plan's file list, already
+  reported every stored fact whatever its kind and needed no edit.
 
 ### Open questions for the owner
 

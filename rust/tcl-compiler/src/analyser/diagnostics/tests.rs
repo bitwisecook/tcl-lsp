@@ -6940,6 +6940,67 @@ fn i230_message_keeps_braced_var_spelling() {
     );
 }
 
+/// The existence branch fact is stored once, with its kind (VT5.12;
+/// `docs/design/compiler/value-transfers.md` § *Branch facts*): the unit
+/// stores the post-pass's `[info exists X]` fold as a `Proven` fact and the
+/// solver's decided branch as `Applied`, and I230 reports each from the
+/// stored fact without rerunning the proof — a unit whose proven fact is
+/// gone reports nothing for it. So a fold the unit drops is not reported
+/// either: under iRules `[info exists ans_cleared]` in one event is not
+/// decided when another event sets the variable, the optimiser's rule,
+/// where the analyser's own rerun had reported it always false.
+#[test]
+fn the_existence_branch_fact_is_stored_once() {
+    use crate::sccp::BranchFactKind;
+    let src = "proc f {a} {\n    if {[info exists b]} { puts hi }\n    if {1} { puts one }\n}\n";
+    let registry = tcl_registry::CommandRegistry::build_default();
+    let unit = crate::compilation_unit::CompilationUnit::build_for(src, &registry, false);
+    let function = unit.function("::f").expect("the procedure");
+    let kinds: Vec<(&str, BranchFactKind)> = function
+        .sccp
+        .constant_branches
+        .iter()
+        .map(|branch| (branch.condition.as_str(), branch.kind))
+        .collect();
+    assert!(
+        kinds.contains(&("[info exists b]", BranchFactKind::Proven))
+            && kinds.contains(&("1", BranchFactKind::Applied)),
+        "{kinds:?}"
+    );
+    assert_eq!(
+        codes_for(src).iter().filter(|code| *code == "I230").count(),
+        2,
+        "one I230 per stored fact"
+    );
+    let mut dropped = function.clone();
+    dropped
+        .sccp
+        .constant_branches
+        .retain(|branch| branch.kind != BranchFactKind::Proven);
+    let mut analyser = Analyser::new();
+    analyser.emit_existence_constant_branch_diagnostics(&dropped);
+    assert!(
+        analyser.result.diagnostics.is_empty(),
+        "the emitter reran the proof: {:?}",
+        analyser.result.diagnostics
+    );
+
+    let irule = "when HTTP_REQUEST {\n    set ans_cleared 1\n}\nwhen HTTP_RESPONSE {\n    \
+                 if {[info exists ans_cleared]} { log local0. cleared }\n    \
+                 if {[info exists never_set]} { log local0. never }\n}\n";
+    let result = Analyser::new().analyse(irule, "f5-irules");
+    let reported: Vec<&str> = result
+        .diagnostics
+        .iter()
+        .filter(|d| d.code == DiagCode::I230)
+        .map(|d| d.message.as_str())
+        .collect();
+    assert!(
+        reported.len() == 1 && reported[0].contains("never_set"),
+        "{reported:?}"
+    );
+}
+
 #[test]
 fn info_exists_folds_false_for_never_defined_local() {
     // A never-defined non-parameter never

@@ -1789,13 +1789,15 @@ flowchart LR
     A -. reachability .-> R["O107 · W210 · taint · shimmer"]
 ```
 
-Today `FunctionUnit::build` appends existence-derived constant branches to
-`sccp.constant_branches`, but those post-pass facts do not update
-`executable_blocks`, so `emit_existence_constant_branch_diagnostics` calls
-the same semantic helper again to learn which kind it has. Sharing a helper
-prevents algorithm drift; it does not give consumers one complete stored
-fact. The stored fact says which of the three it is, and emission never
-reruns the proof. With the existence rung (§ Existence) the existence
+`FunctionUnit::build` appends existence-derived constant branches to
+`sccp.constant_branches`, and those post-pass facts do not update
+`executable_blocks`. Until slice 5 `emit_existence_constant_branch_diagnostics`
+called the same semantic helper again to learn which kind it had, and the
+two drifted: an iRules fold the unit dropped for a cross-event variable was
+still reported. The stored fact now says which of the three it is
+(`BranchFactKind` on `ConstantBranch` in `rust/tcl-compiler/src/sccp.rs`:
+the solver's decided branches `Applied`, the post-pass's `Proven`), and
+emission never reruns the proof. With the existence rung (§ Existence) the existence
 condition decides inside the fixed point, so the post-pass and its second
 run retire and the three kinds are the only distinction left.
 

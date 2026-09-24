@@ -1859,7 +1859,14 @@ file; this call falls through to the 'unknown' handler."
         &mut self,
         fu: &crate::compilation_unit::FunctionUnit,
     ) {
-        for branch in &fu.sccp.constant_branches {
+        // The solver's decided branches: a proven condition is
+        // [`Self::emit_existence_constant_branch_diagnostics`]'s.
+        for branch in fu
+            .sccp
+            .constant_branches
+            .iter()
+            .filter(|branch| branch.kind == crate::sccp::BranchFactKind::Applied)
+        {
             // A branch is dead when the not-taken target is
             // unreachable.  SCCP exposes
             // ``executable_blocks`` (the complement); a block
@@ -1952,55 +1959,29 @@ file; this call falls through to the 'unknown' handler."
         }
     }
 
-    /// I230 — fold `[info exists X]` / `[array exists X]` conditions.
+    /// I230 — the `[info exists X]` / `[array exists X]` conditions the
+    /// existence post-pass proved.
     ///
-    /// SCCP can't fold these (the predicate lowers to an
-    /// opaque `ExprNode::Command`, and SCCP has no parameter/existence
-    /// facts), so the fold is computed by
-    /// [`crate::sccp::existence_constant_branches`] using the frame's formal
-    /// parameters — the same helper whose result
-    /// `FunctionUnit::build` appends to `sccp.constant_branches` for the
-    /// optimiser's O101 fold / DCE.  Emitting the I230 here (rather than
-    /// via [`Self::emit_constant_branch_diagnostics`]) is deliberate:
-    /// that emitter gates on the not-taken arm being unreachable in
-    /// `executable_blocks`, which these post-pass folds don't update, so
-    /// it skips them and there is no double emission.
-    ///
-    /// `frame` supplies the typed entry facts for whichever kind of body
-    /// this is: a procedure contributes its parameters, a
-    /// `TclOO` method body contributes its parameters **and** its class's
-    /// instance variables, on which the fold must abstain.  Both halves come
-    /// from the same IR the optimiser's copy of the fold reads, so the two
-    /// consumers cannot drift.
+    /// SCCP cannot fold these (the predicate lowers to an opaque
+    /// `ExprNode::Command`, and SCCP has no parameter or existence facts), so
+    /// `FunctionUnit::build` proves them with
+    /// [`crate::sccp::existence_constant_branches`] over the frame's entry
+    /// facts and stores each in `sccp.constant_branches` as a
+    /// [`crate::sccp::BranchFactKind::Proven`] fact — the one the optimiser's
+    /// O101 fold and DCE read too. This emitter reads the stored facts and
+    /// never reruns the proof (`docs/design/compiler/value-transfers.md`
+    /// § *Branch facts*), so what the unit dropped — an iRules cross-event
+    /// variable's fold — is not reported either; the solver's decided
+    /// branches are [`Self::emit_constant_branch_diagnostics`]'s.
     pub(super) fn emit_existence_constant_branch_diagnostics(
         &mut self,
         fu: &crate::compilation_unit::FunctionUnit,
-        frame: crate::sccp::ExistenceFrame<'_>,
     ) {
-        // The fold consults the registry's scope-alias roles to skip
-        // out-of-frame-linked locals; a registry-less analyser falls back to
-        // the cached default registry (the same convention as
-        // `command_takes_regex_pattern` — direct handler calls in unit
-        // tests), so the alias skip stays sound there too.
-        let branches = {
-            // Scoped borrow: `self.registry.as_deref()` must release before the
-            // `&mut self` diagnostic pushes below.
-            let registry = self.registry.as_deref().map_or_else(
-                || {
-                    tcl_registry::model::ingress::static_context_for("tcl8.6")
-                        .commands()
-                        .as_ref()
-                },
-                |r| r,
-            );
-            crate::sccp::existence_constant_branches(
-                &fu.cfg,
-                frame,
-                registry,
-                fu.dynamic_names,
-                self.lexer_config(),
-            )
-        };
+        let branches = fu
+            .sccp
+            .constant_branches
+            .iter()
+            .filter(|branch| branch.kind == crate::sccp::BranchFactKind::Proven);
         for cb in branches {
             let Some(span) = cb.span.map(|s| fu.abs_span(s)) else {
                 continue;

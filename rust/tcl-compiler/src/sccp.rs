@@ -171,6 +171,24 @@ fn cv_eq(a: &ConstValue, b: &ConstValue) -> bool {
 
 // Driver
 
+/// Which of the three branch facts a [`ConstantBranch`] is
+/// (`docs/design/compiler/value-transfers.md` § *Branch facts*): a proven
+/// condition, a selected arm with no CFG edge of its own, or applied
+/// reachability. A consumer reads the kind stored with the fact and never
+/// reruns the proof to learn it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum BranchFactKind {
+    /// The condition is proven, and reachability was not updated from it:
+    /// the existence post-pass's `[info exists X]` / `[array exists X]`
+    /// folds, which `executable_blocks` does not reflect.
+    Proven,
+    /// An arm is selected that the CFG has no edge of its own for.
+    Selected,
+    /// The solver decided the branch and applied it to the executable
+    /// blocks and edges.
+    Applied,
+}
+
 /// A branch whose condition SCCP determined to be constant.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConstantBranch {
@@ -188,6 +206,8 @@ pub struct ConstantBranch {
     pub taken_target: String,
     /// Target skipped.
     pub not_taken_target: String,
+    /// Which branch fact this is.
+    pub kind: BranchFactKind,
 }
 
 /// Full SCCP result: per-SSA-value lattice entries, the set of
@@ -1087,6 +1107,7 @@ fn collect_constant_branches(
                 value: true,
                 taken_target: true_name,
                 not_taken_target: false_name,
+                kind: BranchFactKind::Applied,
             }),
             Some(false) => constant_branches.push(ConstantBranch {
                 block: cfg.block_name(*bn).to_owned(),
@@ -1095,6 +1116,7 @@ fn collect_constant_branches(
                 value: false,
                 taken_target: false_name,
                 not_taken_target: true_name,
+                kind: BranchFactKind::Applied,
             }),
             None => {}
         }
@@ -1457,6 +1479,7 @@ pub fn existence_constant_branches(
             value,
             taken_target: taken,
             not_taken_target: not_taken,
+            kind: BranchFactKind::Proven,
         });
     }
     out

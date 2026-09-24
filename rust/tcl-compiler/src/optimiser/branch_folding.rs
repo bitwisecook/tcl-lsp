@@ -583,6 +583,7 @@ mod tests {
                 value: true,
                 taken_target: "t".into(),
                 not_taken_target: "e".into(),
+                kind: crate::sccp::BranchFactKind::Applied,
             }],
         };
         let cu = compilation_unit(source, function_unit("::top", cfg, ssa, sccp));
@@ -643,6 +644,7 @@ mod tests {
                 value: false,
                 taken_target: "e".into(),
                 not_taken_target: "t".into(),
+                kind: crate::sccp::BranchFactKind::Applied,
             }],
         };
         let cu = compilation_unit(source, function_unit("::top", cfg, ssa, sccp));
@@ -697,6 +699,7 @@ mod tests {
                 value: false,
                 taken_target: "e".into(),
                 not_taken_target: "t".into(),
+                kind: crate::sccp::BranchFactKind::Applied,
             }],
         };
         let cu = compilation_unit(source, function_unit("::top", cfg, ssa, sccp));
@@ -749,6 +752,7 @@ mod tests {
                     value: true,
                     taken_target: "mid".into(),
                     not_taken_target: "after".into(),
+                    kind: crate::sccp::BranchFactKind::Applied,
                 },
                 ConstantBranch {
                     block: "mid".into(),
@@ -757,6 +761,7 @@ mod tests {
                     value: false,
                     taken_target: "inner_else".into(),
                     not_taken_target: "inner_then".into(),
+                    kind: crate::sccp::BranchFactKind::Applied,
                 },
             ],
         };
@@ -831,6 +836,7 @@ mod tests {
                 value: true,
                 taken_target: "t".into(),
                 not_taken_target: "e".into(),
+                kind: crate::sccp::BranchFactKind::Applied,
             }],
         };
         let cu = compilation_unit(source, function_unit("::top", cfg, ssa, sccp));
@@ -923,6 +929,7 @@ mod tests {
                 value: true,
                 taken_target: "t".into(),
                 not_taken_target: "e".into(),
+                kind: crate::sccp::BranchFactKind::Applied,
             }],
         };
         let cu = compilation_unit(source, function_unit("::top", cfg, ssa, sccp));
@@ -973,6 +980,7 @@ mod tests {
                 value: true,
                 taken_target: "arm_a".into(),
                 not_taken_target: "switch_next_1".into(),
+                kind: crate::sccp::BranchFactKind::Applied,
             }],
         };
         let cu = compilation_unit(source, function_unit("::top", cfg, ssa, sccp));
