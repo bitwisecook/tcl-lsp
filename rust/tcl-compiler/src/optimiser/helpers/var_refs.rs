@@ -65,7 +65,9 @@ pub fn count_var_refs(text: &str, var: &str) -> usize {
 /// string (`"x=$x"`) or braces are not reads and must not count.
 #[must_use]
 pub fn bareword_occurrences(text: &str, var: &str) -> usize {
-    // The empty name has no bareword spelling (`set {} 5`), so none is seen.
+    // The empty name is only ever spelled as a word (`set {} 5`, `[set ""]`),
+    // never bare. Counting none makes the caller's exactly-one guard keep the
+    // store; its by-name reads belong to the SSA's name roles (#2260).
     if var.is_empty() {
         return 0;
     }
