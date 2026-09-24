@@ -444,11 +444,11 @@ const OWNED: &[OwnedPattern] = &[
     // `diag.rs` builds one per document to hand that scan.
     // `optimiser/branch_folding.rs` is on the list for a test fixture that
     // hand-builds a `CompilationUnit` and so has to name the field's type.
-    // `tcl-lsp-core`'s `minify.rs` is a carrier too: its rename-barrier walk
-    // holds the set `build_declared_surface` ingests from the analysis's
-    // `stub_commands` only to hand it to `DocumentCommandSurface`, and never
-    // spells the type — listed so that exemption is deliberate rather than
-    // textual luck.
+    // `tcl-lsp-core`'s `minify.rs` is a carrier too (its rename-barrier walk
+    // hands `build_declared_surface`'s set to `DocumentCommandSurface`), but
+    // it never spells `DeclaredSurface` itself, so it is not listed as an
+    // owner: an inert entry would silence a future hand-built
+    // `DeclaredSurface::new()` there instead of catching it.
     OwnedPattern {
         needle: "DeclaredSurface",
         owners: &[
@@ -459,7 +459,6 @@ const OWNED: &[OwnedPattern] = &[
             "rust/tcl-compiler/src/lowering/",
             "rust/tcl-compiler/src/optimiser/branch_folding.rs",
             "rust/tcl-compiler/src/unit_scope.rs",
-            "rust/tcl-lsp-core/src/minify.rs",
             "rust/tcl-lsp-db/src/",
             "rust/tcl-cli/src/commands/diag.rs",
         ],
