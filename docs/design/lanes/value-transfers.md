@@ -598,6 +598,98 @@ Closes #2055. Pins #2051 (closed on rust by #2225). Pins the span half of
 #2143 (Q3: the W123 half was not assigned here, so this landing does not
 claim it).
 
+## Status (2026-09-24): slice 8 landed
+
+The opus items (VT8.1 to VT8.9) landed across nine commits, `f73ffe63` to
+`c387a2ce`, each its own checkpoint — a finer grain than the plan's own
+four-checkpoint grouping, which "commit at each coherent point" also
+allows (§ *Plan for slices 2–13* › *Slice 8* › *Record (2026-09-24): the
+opus items of slice 8*, D157–D172). Two commits from elsewhere landed in
+the same sequence: `4c9dc675` (the slice 5 review's fixes, after VT8.1
+and before any slice 8 item reads a preserve outcome — D162–D164, D156's
+amendment) and `b39e012b` (the consumer-contracts lane's step 2 merge,
+over VT8.2). A second implementer then ran the two sonnet items:
+`dbd545a1` (VT8.10, the slice's witnesses) and this docs commit,
+`wip(value-transfers): slice 8 — the existence rung` (VT8.11, the
+landing).
+
+VT8.10 found two gaps the plan's own witnesses did not cover and fixed
+them as small, local changes rather than leaving them red: a dead `incr`
+on a place the existence rung proves absent was removable even under a
+profile spanning 8.4, where the release rule means it may raise —
+`assignment_safe_to_delete_with_effect` (`optimiser/elimination.rs`) now
+refuses when the statement's own route explanation declined
+`unbound-place`; and `chain_fold.rs`'s O104 / O130 pass never anchored a
+chain at anything but a literal `set`, so an absent-start `lappend` /
+`append` chain (the O104 / O130 row's own claim) did not fold — the
+`FunctionLattice` gains an `existence_before` query and the chain may now
+anchor at the absent cell's own first write. Both are recorded in
+VT8.10's commit and neither moved an existing test's expectation.
+
+Green at the landing, the review checklist's suite plus every standing
+gate, run after VT8.11's docs:
+
+- `cargo check --workspace --all-targets`: clean;
+- `cargo test -p tcl-registry -p tcl-compiler -p tcl-explorer -p
+  tcl-lsp-db -p tcl-cli -p xtask`: every crate green — `tcl-compiler`
+  alone 9784 passed across 67 binaries, 6 ignored, and 7 doctests;
+  `tcl-registry` 1247 and a doctest; `tcl-explorer` 103; `tcl-lsp-db` 129,
+  5 ignored; `tcl-cli` 129; `xtask` 237 — no failure;
+- `cargo test -p tcl-lsp-server` (not in the review checklist's own
+  suite, run in addition since this slice's production fixes touch the
+  optimiser core every diagnostic and code action goes through): 1598
+  passed, 1 failed, 5 ignored in its e2e binary, plus 593 passed in its
+  other binaries; the one failure,
+  `rename_safety::fp_namespace_variable_rename_refuses_beside_a_computed_alias_cell`,
+  is pre-existing and the consumer-contracts lane's (its CC2.13 row
+  records it, fixed on that lane's branch, awaiting merge) — not this
+  slice's, and unchanged from VT8.9's own count of it;
+- pedantic clippy (`--all-targets --no-deps -D warnings`) on every crate
+  VT8.10 touched (`tcl-compiler`, `tcl-cli`, `tcl-lsp-db`), no `#[allow]`
+  added anywhere in the slice; `cargo fmt` on the three;
+- `cargo xtask value-transfers --check`: 22 files clean, 19 sites waived,
+  83 pinned across 34 ratcheted files, 6607 inventory rows, unchanged
+  since VT8.9;
+- `cargo xtask registry-axes --check`: 7831 vocabulary words, 16 files
+  clean, 36 sites waived, 893 pinned across 147 ratcheted files, unchanged
+  from VT8.9's baseline — `LANDED` gaining `"slice 5"` and `"slice 8"`
+  expires no `until slice N` waiver, so the counts do not move;
+- `cargo xtask pack-goldens`: 25 packs, 0 rewritten;
+- `cargo xtask kcs-index-links`: "KCS docs checks passed";
+- `cargo xtask owner-resolution`: OK, 45 owner rows;
+- `cargo xtask retired-api-gate`: OK;
+- `cargo xtask dialect-drift`: 8 sites, the eight pre-existing upstream
+  ones, none new.
+
+R1's shortfall: none — `dataflow.rs` and `commands.rs` are in
+`CLEAN_FILES`, `helpers.rs` is pinned at 4, and `sccp.rs` recognises no
+command by spelling (all landed at VT8.4's and VT8.9's own checkpoints).
+R6: every existing existence test is byte-identical; the only
+expectations that moved are the ones the slice's own Record table names,
+each against a witness. R7: checked directly against D166 (the guard
+refines every place with no exclusion list, sound because a barrier or
+up-frame resets the place first) and D165 (a run without the rung, or a
+query the rung leaves undecided, never reads as `Unbound`); no
+manufactured value and no re-narrowed widened place in any of this
+slice's own tests.
+
+Left to later slices: slice 6 (branch integration) is next in delivery
+order, now that the existence branch fact it consumes is stored once;
+slice 7 is not this lane's numbering to land yet. The read-recording gaps
+VT8.5 and VT8.10 found and left, outside this slice's own scope, are
+recorded in
+[precision-limitations.md](../compiler/precision-limitations.md): a
+nested substitution body and an `uplevel 0` body record no read or write
+of the outer frame at all, and a `foreach` list word's own substitution
+is not materialised as a use of what it reads (one "Open" entry; the
+nested-substitution case is #2231, slice 9's, and the other two are not
+yet assigned to a slice); a nested unbind's kill is deliberately left
+unmodelled (D167, its own "Accepted" entry); and a procedure's implicit
+return value is not a recorded SSA use at all — unrelated to existence,
+but found by the same audit (its own "Open" entry).
+
+Closes #2133. Pins #2132 (closed on rust by #2220).
+
 ## Plan for slices 2–13
 
 The delivery plan for the rest of
@@ -1826,10 +1918,21 @@ here and committed after that lane's slice 10:
   `dict` keyed updates, `string range`, `list`, `llength`, `string
   length`); a route's decline is recorded in `SccpResult::explanations`
   and is never a diagnostic.
+- `diagnostics-calculation.md`, § *Deep tier*, the compiler-checks row
+  (slice 8): the same lattice's existence rung (`SccpResult::existence`,
+  a flow-sensitive bound / unbound / may-bound fact per place and per SSA
+  version) is what W210, W211, W213, W214, O108, O109, and S100 read
+  alongside the values the row already names, and what the SCCP
+  constant-branch row's I230 / O101 decide an existence-tested condition
+  from, one path with every other decided branch; a fast-tier request or
+  a unit built below the deep tier never sees it — `Unavailable`, never
+  `Unbound`.
 - `diagnostics-integration.md`, § *Failure modes*: "the memoised and the
   direct lattice answering differently for one analysis context —
   `rust/tcl-lsp-db/src/value_transfer_parity.rs` pins their agreement";
-  § *Anchors*: that module.
+  § *Anchors*: that module. Since slice 8 the same module's
+  `existence_agrees_on_both_paths` pins the existence rung's parity too,
+  no separate row needed.
 
 Found and left, outside the plan (recorded for the slices that own them):
 

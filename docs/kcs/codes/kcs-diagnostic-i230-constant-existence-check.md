@@ -39,8 +39,30 @@ check runs, `[info exists handle]` is always false, and the re-use branch is
 dead. Re-entrancy does not change this: a new call (from APM, an ILX callback,
 or anywhere) is a new frame with empty locals.
 
-The fold needs a body that never writes the name: a `set handle …` anywhere
-in the procedure is enough for the analyser to abstain.
+The fold reads a flow-sensitive fact: whether the variable is provably set,
+provably unset, or uncertain at the exact point the check runs, tracking
+every assignment and every `unset` on the way there — not merely whether the
+name is ever written anywhere in the procedure. A `set handle …` earlier in
+the body no longer blocks the fold by itself:
+
+```tcl
+proc reset {} {
+    set handle 1
+    unset handle
+    if {[info exists handle]} {   ;# I230: always false
+        return $handle
+    }
+    return [ILX::init Access-Plugin Access-Extension]
+}
+```
+
+`handle` is written and then removed before the check, so it is still
+provably unset there and the re-use branch is still dead — even though the
+procedure does contain a `set handle`. What still stops the fold is an
+assignment that can actually **reach** the check on some path: a `set` that
+runs before it with nothing between them that undoes it, or a branch that
+sets the name on one path and not the other (`if {$c} {set handle 1}` leaves
+the check genuinely undecided, and no `I230` is reported).
 
 The analyser folds the check to its constant value and reports **`I230`** on the
 condition. The optimiser can then drop the dead branch

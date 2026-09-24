@@ -125,3 +125,83 @@ of different names overlapping: rare, and sound in the suppress-only direction.
 The consequence is a false negative rather than a false positive: a genuinely
 dead write through one alias is not reported when an unrelated alias in the same
 frame is read.
+
+## Open — a read inside some nested or cross-frame bodies is not recorded
+
+`ir_helpers::variable_read_effects_from_commands` and the SSA's own use
+scan see a nested command's read or write only where the lowering places a
+synthetic statement for it: a condition's `<cond>`, a value word's or a
+`return` word's own `<upvar-invalidate>`, and a host statement's own uses.
+Slice 8's audit of every position an existence read can reach (VT8.5)
+found three positions with no synthetic statement at all, so **both** an
+existence and a value read there are invisible — not a precision loss but
+a miscompile, verified against `tclsh` 8.6.18 (each pair below is the
+original's printed output, then the optimised program's):
+
+- **A script body nested in a substitution** (`[catch {…}]`, `[eval {…}]`,
+  `[lmap v {1} {…}]`) — records no read or write of the outer frame's
+  names at all (#2231): `set x 1; puts [catch {unset x}]` loses `set x 1`
+  to O109 / O126.
+- **An `uplevel 0 {…}` body** — that is the *current* frame, not a nested
+  one, so its reads and writes are the caller's, but nothing records them:
+  `proc p {} {set x 1; uplevel 0 {puts $x}; set x 2; puts $x}` prints `1`
+  then `2`; with `set x 1` removed as dead (O109) the rewrite raises
+  `can't read "x": no such variable`.
+- **A `foreach` list word's own substitution** — the list expression's
+  side effects are real but not materialised as a use of what it reads,
+  so a later read of a name the expression itself mutated is forwarded
+  from its stale prior value instead: `proc p {} {set n 1; foreach v
+  [incr n] {}; puts $n}` prints `2` (`incr n` runs once, as the list
+  word); the optimised program prints `1`, O102 having forwarded `n`'s
+  value from before the loop header ran.
+
+Why it has not been done: each position needs the lowering to model a body
+it does not open a synthetic statement for at all, which is more than a
+scan-order fix — the nested-substitution case is tracked as #2231 and
+named for the interface contract's slice 9 (nested writes in expressions);
+`uplevel 0` and the loop header's list word are not yet assigned to a
+slice. Extend the synthetic-statement placement (or, for `uplevel 0`,
+model the body as reading and writing the *current* frame rather than a
+nested one) when one of these is the motivating case.
+
+## Accepted — a nested unbind's kill is not a definition
+
+A nested `[unset x]` (D167) is recorded as reading the version of `x` it
+observes — the fix every other existence-read position (a condition, a
+value word, a `return` word) takes — but never as *killing* it. A killing
+definition would have to sit on the synthetic statement the lowering
+places **before** its host statement, so the host word's own reads would
+see the killed version too: `set y $x[unset x]` would draw a spurious
+W210 on `$x` and read no value, where `tclsh` 8.4.20 to 9.1b0 read `$x`
+before the unset runs and then remove it, in source order within the one
+word. `proc p {} {set x 1; puts [unset x]; puts $x}` therefore still
+rewrites `puts $x` to `puts 1` (O102), where every release raises `can't
+read "x"` on the second `puts`.
+
+The suppress-only direction — an existence read keeps the store live,
+never the reverse — means the unmodelled kill can only under-report a
+read-before-set past a nested unbind, never delete a store a real read
+still needs. Modelling the kill precisely needs a second synthetic
+statement per nested unbind (one for the read it makes, ordered before its
+host word; one for the kill, ordered after it), which no other existence
+read needs and which the placement machinery does not have a slot for
+today.
+
+## Open — a procedure's implicit return value is not a recorded use
+
+Every Tcl command returns a value, and the last one a procedure body runs
+supplies the call's own result when nothing calls `return` explicitly.
+Nothing in the SSA records that implicit read: `proc p {} {set y 5; set y}`
+prints `5` under every release (`set y`, the bare form, reads `y`), but O126
+sees only that `y`'s one definition has no recorded use and removes
+`set y 5` (VT8.5's find), leaving `set y` to read an undefined `y` — the
+rewritten procedure raises `can't read "y"` where the original returns `5`.
+
+Why it has not been done: the CFG's terminator for a body with no explicit
+`return` does not carry an operand the way `Terminator::Return { value }`
+does for an explicit one, so there is no use site to attach; giving the
+implicit return path a value operand is a small CFG change with a
+correctness payoff (every procedure without a trailing `return`, which
+idiomatic Tcl leans on heavily) disproportionate to how the case was
+found — auditing existence-read positions for slice 8. Not assigned to a
+slice.

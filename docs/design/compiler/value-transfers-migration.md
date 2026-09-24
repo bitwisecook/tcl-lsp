@@ -202,22 +202,25 @@ executes that runtime.
    [registry-consumer-contracts.md](registry-consumer-contracts.md).
    *Exit:* every command that declares purity has a route or an explicit
    "none" with its reason in the inventory.
-8. **The existence rung.** A flow-sensitive bound/unbound fact per place
-   and per SSA version of the binding, owned by the solver and fed by
-   storage outcomes: the entry states, the join, the absent-cell release
-   rule (`safe_on_uninit`, the plan's `creates_absent`), `[info exists]`
-   and `[array exists]` through the expression route's `nested` service,
-   and the guard narrowing as an edge refinement in the existence domain.
-   W210, W211, W213, W214, O108, O109, I230, O101, and S100 consume the
-   one fact; a fast-tier request and a function over the complexity
-   ceiling read `Unavailable`, which is neither bound nor unbound.
-   *After:* slice 5, and before slice 6, whose branch work then has the
-   existence branch fact to consume. *Exit:* `sccp.rs` recognises no
-   command by spelling; `existence_constant_branches` and
+8. **The existence rung (landed).** A flow-sensitive bound/unbound fact per
+   place and per SSA version of the binding, owned by the solver and fed
+   by storage outcomes: the entry states, the join, the absent-cell
+   release rule (`safe_on_uninit`, the plan's `creates_absent`),
+   `[info exists]` and `[array exists]` through the expression route's
+   `nested` service, and the guard narrowing as an edge refinement in the
+   existence domain. W210, W211, W213, W214, O108, O109, I230, O101, and
+   S100 consume the one fact; a fast-tier request and a function over the
+   complexity ceiling read `Unavailable`, which is neither bound nor
+   unbound. *After:* slice 5, and before slice 6, whose branch work then
+   has the existence branch fact to consume. *Exit:* `sccp.rs` recognises
+   no command by spelling; `existence_constant_branches` and
    `scan_defined_and_unset` are deleted; `emit_provably_unset_w210` reads
    the fact; the release table for an absent cell, `set x 1; unset x; info
    exists x` deciding `0`, the definite W213 after a killed version, the
-   two O109 refusals, and the S100 silence pass.
+   two O109 refusals, and the S100 silence pass. Landed 2026-09-24; the
+   record and the decisions (D157–D172) are
+   [value-transfers.md (lane)](../lanes/value-transfers.md) § *Plan for
+   slices 2–13* › *Slice 8*.
 9. **Nested writes in expressions.** The ordered evaluation state at
    `LocalWrites`: a nested invocation whose ordered stores name only
    places the state can own is applied to the state in order, so the next
@@ -345,7 +348,7 @@ and a diagnostic is never that proof.
 | O104, O130 | `chain_fold.rs` | since slice 2 the classifier dispatches on the resolved cell update, gated on the observed binding of the statement's own head, and a `$var` piece folds through the lattice value it holds; a piece that needs backslash substitution ends the run; an unrelated statement between the writes is tolerated, and the chain must start at a literal `set` | a chain starting at an absent cell folds through the value at the last write (the existence rung, slice 8); coercion, traces, errors, and the implicit result are preserved |
 | O105, O106 | `rust/tcl-compiler/src/gvn.rs` | reachability | unchanged; same value is not same observable computation |
 | O107 | `elimination.rs` | `executable_blocks` | more arms decide; applied reachability only, never a selection fact |
-| O108 | `elimination.rs` ADCE | def-use, `assignment_safe_to_delete_with_effect`; an existence read is not a use, so the pair behind `[info exists b]` is deleted | a cell update in statement position is removable only under the totality proof of permission 3: old value proven well-formed, place proven bound, no trace; a direct-route pure command in statement position likewise; an unbind statement is never removed; from slice 8 an existence read of a version keeps its store |
+| O108 | `elimination.rs` ADCE | def-use, `assignment_safe_to_delete_with_effect`; since slice 8 an existence read — `[info exists x]`, `[array exists x]`, an unbind — is an SSA use of the version it observes, so the pair behind `[info exists b]` (#2132) stays; a dead `incr` is removable only when its own route explanation never declined `unbound-place` (the release rule finding a spanned release that raises rather than creating the absent cell), so it is retained under a profile spanning 8.4 and removed under one that does not | a cell update in statement position is removable only under the totality proof of permission 3: old value proven well-formed, place proven bound, no trace; a direct-route pure command in statement position likewise; an unbind statement is never removed |
 | O109, O126 | `elimination.rs`, `manager.rs` coupling | def-use, twelve guards; since slice 2 a nested cell update's read is an SSA use (#2050), and a call records the names its callee's global-write summary holds as observed, so a store the callee may read stays (#2214) | guard 2 generalises; `collect_rmw_hidden_reads` shrinks because the read is an SSA use; slice 8 adds the existence read as a use, so the #2132 store and the `incr n` behind `[info exists n]` stay; slice 9 makes a read inside a braced `expr` a use of the version it reads; slice 10 makes a store ahead of a partial write dead only when the prefix rule proves it |
 | O110 | `expr_simplify.rs` | operand types | reassociation consumes the type and target proofs; the floating-point counterexample is a fixed regression; residuals are typed, never rendered constants |
 | O111 | `rust/tcl-lsp-core/src/diagnostic_report.rs` `brace_expr_hints` | none; it reads the analyser's W100 findings as the unbraced-expression fact — W100 is a fact code, computed whatever a layer says — and no policy | a producer over the unbraced-expression fact, emitting a `Finding` at the same span for every unbraced expression, with policy deciding W100 and O111 independently — the rule [diagnostic-policy.md](diagnostic-policy.md) § *Producers that change* states; built by that design's slice 8 |

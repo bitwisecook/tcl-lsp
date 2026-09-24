@@ -79,9 +79,17 @@ checkpoint compiling.
   dynamic-name barrier read instead of walking; the stored existence
   branch fact and W210's preserve-outcome reads; W100's proven produced
   set; and hover, inlay hints, semantic tokens and document links reading
-  proven values) have landed; slice 8, the existence rung, is in
-  progress item by item in the tracking document's § *Slice 8* ›
-  *Record (2026-09-24): the opus items of slice 8*.
+  proven values), and slice 8 (the existence rung: a flow-sensitive
+  bound / unbound / may-bound fact per place and per SSA version, owned
+  by the solver and fed by storage outcomes, the entry states, the join,
+  the absent-cell release rule, `[info exists]` and `[array exists]`
+  deciding inside the fixed point through the expression route, and the
+  guard narrowing as an edge refinement; W210, W211, W213, W214, O108,
+  O109, I230, O101 and S100 consume the one fact; `const`, `array unset`
+  and `array default` have semantics; a fast-tier request reads
+  `Unavailable`) have landed; slice 6, branch integration and optional
+  rewrites, is next, item by item in the tracking document's § *Plan for
+  slices 2–13*.
 - [consumer-contracts.md](consumer-contracts.md) — step 1 and step 2 of
   [registry-consumer-contracts.md](../compiler/registry-consumer-contracts.md)
   § *Build order*: step 1 (the four rulings taken as decided, and the

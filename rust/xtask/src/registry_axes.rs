@@ -94,7 +94,7 @@ const AXES: &[&str] = &[
 /// expiry names one of them is stale: the change that was to retire the site
 /// has shipped without it. A lane bumps this when its step or slice lands.
 const LANDED: &[&str] = &[
-    "step 1", "step 2", "slice 1", "slice 2", "slice 3", "slice 4",
+    "step 1", "step 2", "slice 1", "slice 2", "slice 3", "slice 4", "slice 5", "slice 8",
 ];
 
 /// The files the lint holds clean: every site waived or gone. A step that
