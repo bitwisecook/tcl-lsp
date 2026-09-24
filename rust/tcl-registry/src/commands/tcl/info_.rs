@@ -493,7 +493,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
         name: "default",
         // Reflects a named proc's parameter defaults by the proc's spelled
         // name — observable identity for both symbol kinds.
-        traits: Traits::INTROSPECTS_BY_NAME.union(Traits::REFLECTS_COMMAND_NAMES),
+        // `varname` is written either way: the default, or `""` without one.
+        traits: Traits::INTROSPECTS_BY_NAME
+            .union(Traits::REFLECTS_COMMAND_NAMES)
+            .union(Traits::UNCONDITIONAL_VARIABLE_WRITE),
         arity: Arity::exact(3),
         detail: "If the parameter has a default value, stores that value in varname and returns 1; otherwise returns 0.",
         synopsis: "info default procname parameter varname",

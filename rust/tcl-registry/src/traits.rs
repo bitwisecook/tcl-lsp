@@ -376,6 +376,9 @@ declare_traits! {
     /// for targets an `arg_role_resolver` places rather than a repeated
     /// layout.
     ///
+    /// `string is class -failindex var` is one too: it writes `var` only when
+    /// the class test fails.
+    ///
     /// Do **not** apply to `regsub`, `gets`, `lassign` or `catch`: each was
     /// measured writing unconditionally, including on the failure path
     /// (`regsub {xx} zz YY a` leaves `a` as `zz`, `gets` at EOF writes `""`),
@@ -389,7 +392,10 @@ declare_traits! {
     /// and `lassign` writes `""` to a target with no value. `append`, `lappend` and the
     /// `dict` mutators (`set`, `append`, `lappend`, `incr`, `unset`) create
     /// an unset target (`append a` with no value raises instead, so it never
-    /// completes). Measured identical on tclsh 8.4.20 (which has no `lassign`
+    /// completes). `file tempfile nameVar`, `info default … varname` (`""`
+    /// without a default), `zlib gunzip -headerVar`, and Tcl 9's `const` and
+    /// `encoding convertto|convertfrom -failindex` (`-1` on success) write
+    /// theirs too. Measured identical on tclsh 8.4.20 (which has no `lassign`
     /// or `dict`), 8.5.19, 8.6.18, 9.0.4 and 9.1b0.
     ///
     /// Only scalar writers: `array set` creates an array, which a scalar read

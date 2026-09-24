@@ -2906,6 +2906,14 @@ fn a_dead_assignment_whose_value_cannot_raise_is_still_deleted() {
             "an `lset` target set before",
             "proc p {} {\n    set x {old}\n    lset x 0 new\n    set y $x\n    puts hi\n}\n",
         ),
+        (
+            "a `file tempfile` name variable",
+            "proc p {} {\n    file tempfile path\n    set y $path\n    puts hi\n}\n",
+        ),
+        (
+            "an `info default` variable",
+            "proc p {} {\n    info default p x v\n    set y $v\n    puts hi\n}\n",
+        ),
     ] {
         assert!(
             opt_fires(src, TCL, "O126"),
@@ -2913,6 +2921,34 @@ fn a_dead_assignment_whose_value_cannot_raise_is_still_deleted() {
             opt_codes(src, TCL)
         );
     }
+    // Tcl 9 writers.
+    for (why, src) in [
+        (
+            "a `const`",
+            "proc p {} {\n    const c 5\n    set y $c\n    puts hi\n}\n",
+        ),
+        (
+            "an `encoding -failindex` variable",
+            "proc p {s} {\n    encoding convertto -failindex fi utf-8 $s\n    set y $fi\n    puts hi\n}\n",
+        ),
+    ] {
+        assert!(
+            opt_fires(src, "tcl9.0", "O126"),
+            "{why}: the unused store goes: {:?}",
+            opt_codes(src, "tcl9.0")
+        );
+    }
+}
+
+/// `string is class -failindex var` writes `var` only when the test fails and
+/// leaves it as it was otherwise, so a store before it is not dead. tclsh
+/// 8.5.19 to 9.1b0 print `keep`; O109 deleted `set fi keep` and the program
+/// failed with `can't read "fi"`.
+#[test]
+fn a_store_before_string_is_failindex_is_kept() {
+    let src = "proc p {} {\n    set fi keep\n    string is integer -failindex fi 123\n    return $fi\n}\nputs [p]\n";
+    let out = optimised(src, TCL);
+    assert!(out.contains("set fi keep"), "the store stays: {out}");
 }
 
 /// Tcl substitutes inside a `"…"` expression operand, so a call written there

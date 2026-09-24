@@ -405,3 +405,129 @@ fn tcl_specs_m_through_z() -> Vec<CommandSpec> {
         zlib::spec(),
     ]
 }
+
+#[cfg(test)]
+mod tests {
+    use super::tcl_command_specs;
+    use crate::hover::{OptionSpec, OptionValue};
+    use crate::{ArgRole, Traits};
+
+    /// How a writer leaves its target, one of which every core `VarWrite`
+    /// position must declare so a consumer (the O109/O126 raise proof) never
+    /// has to guess: always written, written on a match, read then written,
+    /// destroyed, aliased, or a loop variable that an empty loop leaves unset.
+    const WRITE_CLASSES: Traits = Traits::UNCONDITIONAL_VARIABLE_WRITE
+        .union(Traits::CONDITIONAL_VARIABLE_WRITE)
+        .union(Traits::READS_BEFORE_WRITE)
+        .union(Traits::DESTROYS_VARIABLE)
+        .union(Traits::CREATES_SCOPE_ALIAS)
+        .union(Traits::HAS_LOOP_BODY)
+        .union(Traits::LOOP_LIST_HEADER);
+
+    fn writes_a_variable(
+        arg_roles: &[(u8, ArgRole)],
+        resolver_roles: &[ArgRole],
+        repeated: &[crate::repeated::RepeatedArgLayout],
+        options: &[OptionSpec],
+    ) -> bool {
+        arg_roles.iter().any(|&(_, r)| r == ArgRole::VarWrite)
+            || resolver_roles.contains(&ArgRole::VarWrite)
+            || repeated.iter().any(|l| l.role == ArgRole::VarWrite)
+            || options
+                .iter()
+                .any(|o| matches!(o.value, OptionValue::Takes(a) if a.role == ArgRole::VarWrite))
+    }
+
+    /// Writers left deliberately without a class, so every consumer treats
+    /// their target as possibly unset afterwards.
+    const LEFT_POSSIBLY_UNSET: &[(&str, &str)] = &[
+        (
+            "set",
+            "lowered to an IR assignment, which carries its own write",
+        ),
+        (
+            "array default",
+            "writes an array, which a scalar read still raises on",
+        ),
+        (
+            "array set",
+            "writes an array, which a scalar read still raises on",
+        ),
+        ("array unset", "removes array elements"),
+        (
+            "file stat",
+            "writes an array, which a scalar read still raises on",
+        ),
+        (
+            "file lstat",
+            "writes an array, which a scalar read still raises on",
+        ),
+        (
+            "dict update",
+            "writes a key variable only for a key the dictionary holds",
+        ),
+        (
+            "dict with",
+            "writes a key variable only for a key the dictionary holds",
+        ),
+        (
+            "::tcl::dict::update",
+            "writes a key variable only for a key the dictionary holds",
+        ),
+        (
+            "::tcl::dict::with",
+            "writes a key variable only for a key the dictionary holds",
+        ),
+        (
+            "namespace upvar",
+            "links a namespace variable; it writes nothing",
+        ),
+        ("my variable", "links an object variable; it writes nothing"),
+        ("tcl_findLibrary", "writes a global, not the caller's local"),
+        ("trace add", "registers a trace; it writes nothing"),
+        ("trace remove", "removes a trace; it writes nothing"),
+        ("trace variable", "registers a trace; it writes nothing"),
+        ("trace vdelete", "removes a trace; it writes nothing"),
+        ("vwait", "waits for a write; it writes nothing itself"),
+    ];
+
+    #[test]
+    fn every_core_variable_writer_says_how_it_writes() {
+        let mut unclassified = Vec::new();
+        for spec in tcl_command_specs() {
+            if writes_a_variable(
+                spec.arg_roles,
+                spec.arg_role_resolver_roles,
+                spec.repeated_args,
+                spec.options,
+            ) && !spec.traits.intersects(WRITE_CLASSES)
+            {
+                unclassified.push(spec.name.to_owned());
+            }
+            for sub in spec.subcommands {
+                if writes_a_variable(
+                    sub.arg_roles,
+                    sub.arg_role_resolver_roles,
+                    sub.repeated_args,
+                    sub.options,
+                ) && !sub.traits.union(spec.traits).intersects(WRITE_CLASSES)
+                {
+                    unclassified.push(format!("{} {}", spec.name, sub.name));
+                }
+            }
+        }
+        unclassified.sort();
+        unclassified.dedup();
+        let mut expected: Vec<String> = LEFT_POSSIBLY_UNSET
+            .iter()
+            .map(|(name, _)| (*name).to_owned())
+            .collect();
+        expected.sort();
+        assert_eq!(
+            unclassified, expected,
+            "a core `VarWrite` position needs a write class \
+             (`UNCONDITIONAL_VARIABLE_WRITE`, `CONDITIONAL_VARIABLE_WRITE`, …) or an entry \
+             with its reason in `LEFT_POSSIBLY_UNSET`"
+        );
+    }
+}
