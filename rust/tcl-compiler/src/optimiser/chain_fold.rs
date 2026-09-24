@@ -151,13 +151,22 @@ struct Chains<'a> {
     protected: &'a HashSet<String>,
 }
 
-/// A function's SSA statements by span, over its shared lattice, so a
-/// `$var` value word resolves to the constant the lattice proves at that
-/// statement.
+/// A function's SSA statements by span, with where each sits, over its
+/// shared lattice, so a `$var` value word resolves to the constant the
+/// lattice proves at that statement.
 #[derive(Default)]
 struct FunctionLattice<'a> {
     unit: Option<&'a FunctionUnit>,
-    statements: HashMap<(u32, u32), &'a SsaStatement>,
+    statements: HashMap<(u32, u32), LocatedStatement<'a>>,
+}
+
+/// One SSA statement and its place in the function: its block and its
+/// index there.
+#[derive(Clone, Copy)]
+struct LocatedStatement<'a> {
+    block: crate::cfg::BlockId,
+    index: usize,
+    statement: &'a SsaStatement,
 }
 
 impl<'a> FunctionLattice<'a> {
@@ -167,17 +176,27 @@ impl<'a> FunctionLattice<'a> {
         let statements = unit
             .ssa
             .blocks
-            .values()
-            .flat_map(|block| block.statements.iter())
-            .filter(|stmt| {
+            .iter()
+            .flat_map(|(&block, ssa_block)| {
+                ssa_block
+                    .statements
+                    .iter()
+                    .enumerate()
+                    .map(move |(index, statement)| LocatedStatement {
+                        block,
+                        index,
+                        statement,
+                    })
+            })
+            .filter(|located| {
                 !matches!(
-                    &stmt.statement,
+                    &located.statement.statement,
                     Statement::Call { tokens: Some(tokens), .. } if tokens.synthetic.is_some()
                 )
             })
-            .map(|stmt| {
-                let span = stmt.statement.span();
-                ((span.start(), span.end()), stmt)
+            .map(|located| {
+                let span = located.statement.statement.span();
+                ((span.start(), span.end()), located)
             })
             .collect();
         Self {
@@ -190,7 +209,7 @@ impl<'a> FunctionLattice<'a> {
     /// the lattice proves one.
     fn constant_at(&self, span: tcl_lexer::Span, name: &str) -> Option<String> {
         let unit = self.unit?;
-        let stmt = self.statements.get(&(span.start(), span.end()))?;
+        let stmt = self.statements.get(&(span.start(), span.end()))?.statement;
         // A byte array a route constructed is never written into the folded
         // string ([`crate::sccp::SccpResult::materialises`]).
         let symbol = unit.ssa.var_symbol(name)?;
@@ -201,21 +220,23 @@ impl<'a> FunctionLattice<'a> {
         crate::value_transfer::lattice_const_text(name, &stmt.uses, &unit.sccp.values, &unit.ssa)
     }
 
-    /// The existence fact the run proved for `name` immediately before the
-    /// statement spanning `span` — the prior version its own
-    /// read-modify-write observes (`incr` / `append` / `lappend` all read
-    /// their target's existence before they write it), or `None` when the
-    /// lattice has nothing to say.
-    fn existence_before(
+    /// The existence fact `name`'s place holds where the statement
+    /// spanning `span` reads it — the state its own read-modify-write
+    /// observes (`incr` / `append` / `lappend` all read their target's
+    /// existence before they write it), after every clobber since the
+    /// version's definition (the slice 8 review's B2: a non-lowered
+    /// `switch` arm's clobber reaches the statement, not the version) — or
+    /// `None` when the run computed none.
+    fn existence_at_statement(
         &self,
         span: tcl_lexer::Span,
         name: &str,
     ) -> Option<tcl_registry::value_transfer::Existence> {
         let unit = self.unit?;
-        let stmt = self.statements.get(&(span.start(), span.end()))?;
+        let located = self.statements.get(&(span.start(), span.end()))?;
         let symbol = unit.ssa.var_symbol(name)?;
-        let version = *stmt.uses.get(&symbol)?;
-        unit.sccp.existence.get(&(symbol, version)).copied()
+        unit.sccp
+            .existence_before(located.block, located.index, symbol)
     }
 }
 
@@ -513,7 +534,7 @@ fn chain_anchor(
     let absent = !matches!(write, Write::Set { .. })
         && chains
             .lattice
-            .existence_before(stmt.span(), write_var(&write))
+            .existence_at_statement(stmt.span(), write_var(&write))
             == Some(tcl_registry::value_transfer::Existence::Unbound);
     match write {
         Write::Set { var, value } => Some((var, value, None)),

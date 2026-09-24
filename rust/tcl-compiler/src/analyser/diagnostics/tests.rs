@@ -15250,6 +15250,24 @@ fn a_nested_unbind_is_an_existence_read() {
 /// A guard's refinement narrows the read under `&&` too (VT8.3, VT8.4):
 /// `x` set on one path reads bound on the true edge of `[info exists x] &&
 /// $flag`, so no W210; the read past the `if` still draws one.
+/// The guarded read of a global draws no W210 although the existence rung
+/// no longer refines an externally mutable place (D166): the qualified-name
+/// and scope-alias filters and the guard walk (`collect_existence_guards`,
+/// D8) keep `if {[info exists ::errorInfo]} {puts $::errorInfo}` silent at
+/// the top level and in a procedure, and so does the `global` spelling.
+/// Slice 11 inherits this obligation when it retires the guard walk.
+#[test]
+fn the_guarded_global_idiom_draws_no_w210() {
+    for src in [
+        "if {[info exists ::errorInfo]} {puts $::errorInfo}\n",
+        "proc f {} {\n    if {[info exists ::errorInfo]} {puts $::errorInfo}\n}\n",
+        "proc f {} {\n    global errorInfo\n    if {[info exists errorInfo]} {puts $errorInfo}\n}\n",
+    ] {
+        let found = lifecycle_findings(src);
+        assert!(found.is_empty(), "{src}: {found:?}");
+    }
+}
+
 #[test]
 fn a_guard_under_and_narrows_the_read() {
     let found = lifecycle_findings(

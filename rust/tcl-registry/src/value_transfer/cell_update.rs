@@ -125,8 +125,10 @@ impl CellUpdateSemantics {
 
     /// Whether every release `target` names creates an absent cell: the
     /// declared release, or each release on the ladder when the target
-    /// names none (ruling 7's unanimity).
-    fn creates_absent_under(self, target: &TargetSemantics) -> bool {
+    /// names none (ruling 7's unanimity). The rule the route applies, and
+    /// the totality question a rewrite asks before removing the update.
+    #[must_use]
+    pub fn creates_absent_under(self, target: &TargetSemantics) -> bool {
         let Some(rows) = self.creates_absent else {
             return false;
         };

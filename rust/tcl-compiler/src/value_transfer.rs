@@ -413,6 +413,11 @@ pub(crate) struct LatticeDriver<'a> {
     /// The rung's slots past the SSA's symbols: a place only an existence
     /// query names (`if {[info exists x]}` with no other `x`).
     existence_places: RefCell<HashMap<String, Symbol>>,
+    /// Per slot, whether the place is externally mutable — qualified,
+    /// aliased, traced, an instance variable, a connection's name or a
+    /// special variable of the initial global frame: an existence query
+    /// about one decides nothing (D166).
+    existence_external: RefCell<Vec<bool>>,
     /// Whether the run is the document's initial global frame, where an
     /// existence query about a registry special variable decides nothing:
     /// the host, not the script, binds it.
@@ -795,6 +800,7 @@ impl<'a> LatticeDriver<'a> {
             iteration: RefCell::new(iteration),
             existence: RefCell::new(None),
             existence_places: RefCell::new(HashMap::new()),
+            existence_external: RefCell::new(Vec::new()),
             existence_initial_global: trace.existence.is_some_and(|entry| entry.initial_global),
         }
     }
@@ -960,6 +966,27 @@ impl<'a> LatticeDriver<'a> {
         *self.existence_places.borrow_mut() = places;
     }
 
+    /// Hand the driver, per slot, whether the rung holds the place
+    /// externally mutable.
+    pub(crate) fn existence_external(&self, external: Vec<bool>) {
+        *self.existence_external.borrow_mut() = external;
+    }
+
+    /// Whether the place `name` is one the rung holds externally mutable: a
+    /// call to a procedure the module cannot see may bind or unset it, so
+    /// no fact about it is proven at a point (D166).
+    fn existence_is_external(&self, ssa: &SsaFunction, name: &str) -> bool {
+        ssa.var_symbol(name)
+            .or_else(|| self.existence_places.borrow().get(name).copied())
+            .is_some_and(|symbol| {
+                self.existence_external
+                    .borrow()
+                    .get(symbol.0 as usize)
+                    .copied()
+                    .unwrap_or(false)
+            })
+    }
+
     /// The existence query `kind` over its source words (VT8.2): a literal
     /// name reads its place, and an element name its array; a computed key
     /// leaves a bareword array fixed, so `Params($k)` asks about `Params` as
@@ -993,8 +1020,10 @@ impl<'a> LatticeDriver<'a> {
     /// holds none, whatever the key. Anything else decides nothing —
     /// `MayBound`, `Bound(Either)` for `array exists`, an element of an
     /// array that may exist, a run with no rung (`Unavailable`, never read
-    /// as unbound), and a special variable in the initial global frame,
-    /// which the host rather than the script binds.
+    /// as unbound), a special variable in the initial global frame, which
+    /// the host rather than the script binds, and any other externally
+    /// mutable place (D166), which a call the module cannot see may bind
+    /// or unset.
     fn existence_of(
         &self,
         kind: crate::existence_query::ExistenceKind,
@@ -1013,7 +1042,7 @@ impl<'a> LatticeDriver<'a> {
                     )),
                 )
                 .is_some();
-        if host_bound {
+        if host_bound || self.existence_is_external(ssa, base) {
             return LiftedAnswer::Declined(DeclineReason::EscapingPlace);
         }
         let fact = match self.existence_fact(ssa, base) {
@@ -3284,6 +3313,27 @@ pub(crate) fn exec_cell_update_in_env(
     };
     env.insert(place.name, value);
     true
+}
+
+/// Whether a typed `Incr` over an absent place completes under every
+/// release `registry`'s profile names — the release rule's
+/// `creates_absent`, read from the declaration the typed node lowers from:
+/// 8.5 onwards create the cell, 8.4 raises `can't read`. `false` when the
+/// declaration says nothing.
+pub(crate) fn typed_incr_creates_absent(registry: &CommandRegistry) -> bool {
+    typed_node_commands(registry, LoweringHookId::Incr)
+        .first()
+        .and_then(|command| registry.get(command))
+        .is_some_and(|spec| {
+            match tcl_registry::value_transfer::resolve_semantics(spec, None, None) {
+                tcl_registry::value_transfer::ResolvedSemantics::Derived(
+                    tcl_registry::value_transfer::DerivedSemantics::CellUpdate(update),
+                ) => update.creates_absent_under(
+                    &tcl_registry::value_transfer::TargetSemantics::of(registry.profile()),
+                ),
+                _ => false,
+            }
+        })
 }
 
 /// The cell update a `head args…` call resolves to under `registry`, when

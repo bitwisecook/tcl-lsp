@@ -675,7 +675,10 @@ refines every place with no exclusion list, sound because a barrier or
 up-frame resets the place first) and D165 (a run without the rung, or a
 query the rung leaves undecided, never reads as `Unbound`); no
 manufactured value and no re-narrowed widened place in any of this
-slice's own tests.
+slice's own tests. The slice's review found D166 unsound — a plain call
+to a procedure the module cannot see acts without a barrier — and the
+owner ruled the page's rule back in: § *Slice 8* › *Record (2026-09-24):
+the opus items of slice 8*'s review-fixes row and D166 as rewritten.
 
 Left to later slices: slice 6 (branch integration) is next in delivery
 order, now that the existence branch fact it consumes is stored once;
@@ -5268,8 +5271,11 @@ Closes #2133. Pins #2132 (closed on rust by #2220).
 - Suites: `cargo test -p tcl-registry -p tcl-compiler -p tcl-explorer -p
   tcl-lsp-db -p tcl-cli -p xtask`.
 - R7: `Unavailable` is never read as `Unbound`; a cross-event or aliased
-  place is never `Unbound` at entry; a refinement never survives a
-  barrier or an up-frame; an absent cell's value is never manufactured.
+  place is never `Unbound` at entry; no re-narrowed widened place — an
+  externally mutable place (escaping, traced, aliased, dynamically named,
+  qualified, a special variable, an instance variable, a cross-event
+  name) is never refined, and a refinement never survives a barrier or an
+  up-frame; an absent cell's value is never manufactured.
 
 #### Behavioural deltas
 
@@ -5304,6 +5310,7 @@ fixes for slice 5*, D162–D164).
 | VT8.5 | `wip(value-transfers): slice 8 — O108 and O109 keep what an existence read observes` | A store is removable only when no value read and no existence read of its version remains, and an existence read is an SSA use in every position the lowering materialises (D167). The registry's read projection (`CommandRegistry::variable_read_projection`) names a `DESTROYS_VARIABLE` command's targets beside its `VarRead` words, so the one consumer of it (`ir_helpers::variable_read_effects_from_commands`) records a nested `[unset x]` — in an argument, a value word, a condition or a `return` word — as a read of the version it observes, and code sinking refuses to move a store past one: #2220's condition case and the statement rule are one implementation. A nested unbind gets no kill definition (D167). `array unset` carries `Traits::CONDITIONAL_VARIABLE_WRITE` (D168: every release leaves a scalar, an absent variable and every element the pattern misses in place), so the SSA reads the prior version at a statement's and a nested `array unset` alike. W210 treats a nested destroyer's target as an existence word (`existence_query_vars`, `ir_helpers::destroyed_variables`), so `puts [unset -nocomplain x]` of a never-set `x` draws nothing, as before; W211 no longer reports the store a nested `[unset x]` needs. `collect_rmw_hidden_reads` drops every name the SSA records where the word runs — a statement's own uses, and those of the synthetic statements the lowering pushes ahead of a host or a `return` terminator under its span (D169) — so what is left is what the SSA cannot see. An unbind statement is a `Call`, which `assignment_safe_to_delete_with_effect` never deems deletable, so "an unbind statement is never removed" held already; its doc and the module doc say so, and the witness pins it. The coordinator's gate fix rides here: `cmd_substitution_out_vars` asks the availability owner (the invocation resolved under the registry's own surface) instead of `has_command_in_this_dialect`, which `cargo xtask retired-api-gate` (R10) keeps to the registry and codegen (the VT8.4 row). The O108, O109, O126 and W211 KCS notes and the design page's W211 and O108 / O109 bullets state the built rule. Deviations: the item names `elimination.rs` alone; the existence read it asks for is recorded where the SSA's uses are made, so `ir_helpers.rs`, `registry.rs`, `array_.rs`, `traits.rs` and `dataflow.rs` (the W210 existence word) are edited too, as the slice's § *Upstream starting point* assigns VT8.5 "the existence read to every position". Found and left, value and existence reads alike (tclsh 8.6.18 prints what the original does, the rewrite does not): a script body nested in a substitution records no read or write (#2231, VT10.3: `set x 1; puts [catch {unset x}]` loses `set x 1`, and `[eval {info exists x}]`, `[lmap v {1} {unset x}]` the same); an `uplevel 0 {…}` body records none (`UpFrame`: `set x 1; uplevel 0 {info exists x}` loses its store to O126, `set x 1; uplevel 0 {puts $x}; set x 2` to O109); a `foreach` list word's substitution effects are not materialised (`set n 1; foreach v [incr n] {}; puts $n` rewrites to `puts 1`; `foreach v [unset x] {}` loses its store); a nested unbind's kill is no definition (`set x 1; puts [unset x]; puts $x` rewrites to `puts 1` by O102, where tclsh raises `can't read "x"`); a procedure's last command's value is no use (`proc p {} {set y 5; set y}` loses `set y 5` to O126); and a dead `incr` under 8.4, which raises on an absent place, is still removed (permission 3's totality proof) | `o109_keeps_a_store_an_existence_read_observes` (compiler witnesses, the draft completed: the item's two refusals — `set x 1` and `incr n` behind `[info exists …]` survive one pass under `tcl8.4` to `tcl9.0` and `tcl` / `tcl8.6` and `tcl9.0`, and both print `yes` before and after the multipass optimiser, the `incr` program from 8.5 — and fourteen positions — a bare statement, a `catch` body, a value word, a `return`, `array exists`, an `expr` word, a statement and a conditional `unset`, a nested `[unset x]` in an argument, a value word, a condition and a `return`, `array unset` of a scalar as a statement and nested — each keeping its store under `tcl8.4`, `tcl8.6` and `tcl9.0`, every unbind surviving the multipass optimiser, and the program printing `1 1 1 1 1 yes 0 1 0 0 0 0 {} 1 1` before and after it under tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1b0); `hidden_reads_are_what_the_ssa_does_not_record` (`elimination.rs`, new); `a_nested_unbind_is_an_existence_read` (analyser `tests.rs`, new: no W211 on the store a nested `[unset x]` needs, no W210 on a nested `[unset x]` or `[unset -nocomplain x]` of a never-set `x`); `variable_read_projection_names_a_destroyers_targets` (`registry.rs`, new); one test moves — `issue_1078_braced_double_store_matches_the_plain_control` (`fp/rbs.rs`; mandate: the item's "`collect_rmw_hidden_reads` shrinks to what the SSA does not already record", D169): the `return` word's `[set n]` was a name-level hidden read that silenced W220 on both stores, and the SSA records it as a use of the second store's version alone, so both spellings now draw the same one W220, on the first store, which tclsh 8.4.20 to 9.1b0 return 2 without and O109 already deleted; every other test unchanged |
 | VT8.7 | `wip(value-transfers): slice 8 — Unavailable at the fast tier and past the ceiling` | The existence rung is a deep-tier fact and its every read is typed (D170). `FunctionUnit::tier` records the tier the unit's lattices ran at — the context key's (`AnalysisContextKey::at_tier` makes a request below the deep tier), `ComplexityGuarded` for a trivial guarded unit — and `FunctionUnit::existence(symbol, ExistencePoint)` answers the registry's `FactView`: `Domain(Existence(_))` where the run computed a fact, `Pending` where it never reached the point, `Top(Unavailable(tier))` below the deep tier or past the ceiling. A build under a key below the deep tier runs no rung (`build_full`), so the lattice driver answers an existence query inside it `Unavailable(tier)` too and `info exists` decides nothing. W210, W213 and the `return` pass read through the view (`place_fact`, `reportable`: only `Unbound` and `MayBound` report), so each stays silent on `Unavailable`; S100 reads the per-version map its producer hands it, where an absent entry is never `Unbound`; O108 and O109 read SSA uses, not the fact, and skip a guarded unit whole. A consumer with no SSA: the detached inputs already answered `Unavailable` for an existence read, and the literal-word inputs (`LiteralInputs::variable`) now do too, at the structure tier, where they answered `NotExact`. The Explorer's `semantic` view shows the tier beside `complexityGuarded`, since its durable-field inventory asks every field for a row. The design page's availability paragraph states the built read. Deviations: `dataflow.rs` (the consumers), `literal.rs` (the no-SSA consumer) and the Explorer's `coverage.rs` and `serialise.rs` (its durable-field witness does not compile past a new field) are edited beside the item's two files | `existence_is_unavailable_at_the_fast_tier` (`compilation_unit.rs`, new: `proc p {} {set x 1; unset x; unset x; puts $x}` — the deep unit computes the fact and the analyser reports W213 and W210; the same procedure rebuilt under a fast-tier key has no existence map, answers `Unavailable(Fast)` at every point, and the analyser, handed that unit, reports neither; a trivial guarded unit answers `Unavailable(ComplexityGuarded)`); `literal_inputs_answer_existence_unavailable` (`tcl-registry` `value_transfers.rs`, new); every existing test unchanged |
 | VT8.9 | `wip(value-transfers): slice 8 — the Set analyser hook retires` | `AnalyserHookId::Set` is gone: from `hooks.rs`, from `set_.rs`'s stamp, from the pinned set in `analyser_hooks.rs` (31 variants, 42 stamp rows) and from `tcl-spectcl`'s `ANALYSER_HOOKS` tables, so a pack may no longer name `analyser_hook -native Set`; `fields.md` is regenerated. `set`'s two-word form is defined by the generic role binding (`handle_var_binding_command`, over `VarWrite`), then by `Analyser::bind_value_word_assignment`, which runs in the dispatch tail for every invocation whose resolved semantics is the direct one-target write of a value word (`ResolvedSemantics::writes_value_word`, new in `declaration.rs`: the route `Direct { CellWrite }`) and escalates the definition's `warn_if_unused` to the assignment's `true` (D171). The constant-string environment reads the value word's `CellWrite` evaluation over the call's literal words with the resolver's roles (`value_word_write`, `LiteralInputs`) when the word is one literal token; otherwise a value word creating an interpreter binds the name to its interpreter-domain key (Q5, reached from the generic binding), a folded `[cmd]` binds its constant, and anything else clears both. `set auto_path …`'s record reads the same predicate, in the analyser and in the signature scan (`walker.rs`). The one-word read form was already the walk's `VarRead`-role reference pass's. The four `set VAR [CLASS new]` instance-tracking sites in `commands.rs` read the registry's handle-binding layout (`CommandRegistry::handle_binding`, `HandleClassSource::ConstructionValue`) through `construction_value_binding` (D172), so the file joins `CLEAN_FILES` (G1: `commands.rs` 4 → 0) and its four `until slice 8` registry-axes waivers go with the sites (40 → 36 waived). Behaviour, each change checked against tclsh 8.4.20 to 9.1b0 where Tcl can show it: a literal value word is recorded cooked, as Tcl reads it — `set p "a\\d"` holds `a\d` in every release, where the hook kept the token's raw text; a computed target (`set $n 1`, which writes the variable `n` names) defines no variable, where the hook defined `n`; and a rooted `::set d [Dog new]` is tracked as an instance of `::Dog`, as `set`'s is, where the tracking compared the spelling (8.6.18 to 9.1b0). A rooted `::set`'s constant was bound through the hook's resolved dispatch and still is. A pack command declaring `evaluate -direct CellWrite` takes the same binding, its target an assignment; its constant is what the declaration's own evaluation writes, and a pack's named route evaluates nothing yet (the lattice driver declines it `Unsupported` too), so it records none. The design page's analyser-hook answer and the migration page's object-binding survey line state the retirement. The consumer-contracts lane doc's CC2.13 record still says "`Set` keeps `handle_set_command`"; it is that step's history and is not edited. Of that lane's code only what the retirement needs is touched: the binder's doc paragraph on the double binding and `record_search_path_write`'s doc (`handlers.rs`), the signature scan's new arm beside CC2.13's `lappend` one, the two `ANALYSER_HOOKS` tables and the pinned set in `analyser_hooks.rs`. Deviations: beyond the item's four files, `commands.rs` (the dispatch tail, the instance tracking), `scope.rs`, `walker.rs` (the signature scan's `set auto_path`), `declaration.rs` (the predicate), `tcl-spectcl`'s `loader.rs` and `catalogue.rs` (the hook tables), two comments in `tcl-lsp-core` and the G1 files are edited, since each named the hook or `set`'s spelling, and `state.rs` and the compiler's `tests/analyser.rs` hold new witnesses | `a_literal_value_word_is_recorded_as_tcl_reads_it` and `a_computed_set_target_defines_no_variable` (`handlers.rs`, new: `set p "a\\d"` holds `a\d`, and `set $n 1` defines no `n`, as tclsh 8.4.20 to 9.1b0 read them); `analyse_records_instance_class_rooted_set_new` (`state.rs`, new: `::set d [Dog new]` binds `d` to `::Dog`, as `$d bark` dispatches under tclsh 8.6.18 to 9.1b0); `a_rooted_set_propagates_its_constant_pattern` (compiler `tests/analyser.rs`, new: the retirement keeps `::set pat {^\d+$}`'s pattern for the later `regexp`, which is 1 under every release); the six `handle_set_*` tests in `handlers.rs` keep their names and assertions and move off the deleted `handle_set_command` onto `dispatch_tokens`, which dispatches the whole command through `process_command` (mandate: the item's "every `handlers.rs` test of `set`" preserved) — `handle_set_defines_variable` also asserts the definition is an assignment (`warn_if_unused`), and `handle_set_no_value_records_read_not_definition` reads the one-word form's reference from a whole-file analysis, since the walk's `VarRead`-role pass, which runs after `process_command`, records it; the pinned set in `analyser_hooks.rs` re-baselined without `("set", "", Set)`, and `tcl-spectcl`'s catalogue test asserts `covered_analyser(Proc)` where it named `Set` (mandate: the item's "`AnalyserHookId::Set` leaves the pinned set"); the regex-source tests of a `set`-held pattern (`set_then_regexp_and_regsub_propagate_constant_pattern`, `set_then_switch_regexp_propagates`, `variable_pattern_in_proc_scope`, `literal_and_variable_patterns_mixed`), the `interp create` bindings (`interp_value_flow`, all thirteen) and every `analyse_records_instance_class_*` test unchanged |
+| Review fixes | `wip(value-transfers): slice 8 — review fixes` | The slice's review (verdict "land with fixes") found two blocking soundness defects and two more, each fixed with its witness against tclsh 8.4.20 to 9.1b0. **B1** (D166 rewritten, the owner's ruling): an externally mutable place is never refined — `edge_refinements` skips a slot `ExistenceRun::external` holds (the `mutable` places — qualified, aliased, traced, under a computed trace — and, through `linked_elsewhere`, a `TclOO` instance variable, a connection-scoped name and a special variable of the initial global frame), and the driver's `existence_of` declines `EscapingPlace` for one (`existence_is_external`, fed by `LatticeDriver::existence_external`); a plain call to a procedure the module cannot see had carried a refinement past a write to a global. **B2**: the chain fold's absent-start anchor reads the fact where the statement reads its target (`FunctionLattice::existence_at_statement`, over `SccpResult::existence_before(block, index, symbol)`; the lattice's statements are keyed with their block and index), not the version's own, so a non-lowered `switch` arm's clobber reaches it; the helper is renamed so it no longer collides with `SccpResult::existence_before`. **S2** (D173): a dead `incr` is removable only when every release the profile names creates an absent cell (`value_transfer::typed_incr_creates_absent`, over the registry's now-public `CellUpdateSemantics::creates_absent_under`) or the rung proves its target bound where it reads it (`elimination::incr_is_total`, keyed by `(block, index)` through `StatementSite`), replacing the match on the explanation string `declined: unbound-place`, which missed a may-bound place. **S3** (D174): a script body nested in a command substitution clobbers what it defines or destroys — `BodyTouch` in `sccp.rs` lowers each `[…]` script, takes the statements of the bodies its commands run in this frame (`nested_bodies`) and every name they define (`defs_of_with_registry`), a barrier or up-frame among them touching every place, for a statement's words and, through the new `terminator_clobber`, a branch condition or a returned word; `before_terminator` now applies a terminator's touched places as `finish_statement` does a statement's. **S4**: D166, the slice's R7 line and the Status paragraph are rewritten; `sccp-core-analyses.md` states that an externally mutable place is never refined and the substitution-body clobber; the W210 KCS note says the narrowing covers the procedure's own variables. The review's own test instructions left one conflict, resolved here: the ruling names an instance variable among the places never refined, while `a_barrier_ends_the_refinement` ("stays") refined one — the test keeps its name and its claim (a refinement never survives a barrier) over a local, `proc m {script c}`, whose guard the rung still refines | `an_unseen_call_ends_no_refinement_because_none_is_made`, `an_absent_start_anchor_reads_the_fact_at_the_statement`, `a_failing_dead_incr_on_a_maybound_place_is_retained_under_84` and `a_substituted_body_clobbers_what_it_unsets` (compiler witnesses, new: the review's programs, each printing `yes yes gone`, `z a b` / `a b`, `1` under 8.4 and `0` from 8.5, and `no` before and after the optimiser under every release, with no I230 and no fold); `the_guarded_global_idiom_draws_no_w210` (analyser `tests.rs`, new: the global idiom at the top level, in a procedure and through `global` draws no W210). Moved by the mandate (the ruling, B1): `the_refinement_alone_reads_the_idioms_bound` becomes `an_externally_mutable_place_is_never_refined` (no refinement, each read `MayBound`); `a_negated_guard_refines_a_special_variable_on_one_edge` becomes `a_negated_guard_never_refines_a_special_variable` (no refinement, both reads `MayBound`); `the_existence_guard_refines_its_edges`'s `::h` (a `global x` alias) reads `MayBound` twice with no refinement, `::f` and `::g` unchanged; `a_barrier_ends_the_refinement` moves onto a local as above. Every other test unchanged |
 
 Green at VT8.1:
 
@@ -5435,6 +5442,17 @@ rewritten); `retired-api-gate`, `callback-inventory --check`,
 `owner-resolution`, `kcs-index-links`, `gen-editor-catalogs --check` and
 `gen-zed-queries --check` pass; `dialect-drift` 8 sites, none new;
 `cargo check --workspace` clean.
+
+Green at the review fixes: `tcl-compiler` 9790 passed, 6 ignored across
+its 67 binaries, and 6 doctests; `tcl-registry --lib` 925; `tcl-lsp-db
+--lib` 103; `tcl-cli` `cli` 50 and `value_transfers_cli` 8 — the moved
+tests are the row's; pedantic clippy on the workspace (`cargo clippy
+--workspace --all-targets -- -D warnings`, the form `make rust-check`
+runs), no `#[allow]` added, and `cargo fmt --all -- --check`;
+`value-transfers --check` (22 clean, 19 waived, 83 pinned across 34
+files, 6607 rows, unchanged); `registry-axes --check` (893 pinned across
+147 files, unchanged); `dialect-drift` 8 sites, none new;
+`retired-api-gate`, `owner-resolution` and `kcs-index-links` pass.
 
 ### Slice 6 — branch integration and optional rewrites
 
@@ -8838,18 +8856,33 @@ has the witnesses):
   post-pass did. A name the function only asks about has no SSA symbol,
   so the run gives it a slot past the symbols; its version map is
   untouched.
-- **D166 — The guard refines every place the solver tracks.** The guard
-  refines every place the solver tracks, on both edges, with no exclusion
-  list. The soundness argument for an externally mutable place is the
-  barrier reset, not an exclusion: a TclOO instance variable, an iRules
-  cross-event name and an interpreter-set special variable can only
-  change without a visible statement across a barrier or an up-frame, and
-  VT8.1 already turns every place `MayBound` there, so a refinement never
-  survives the point at which another actor could act. Excluding those
-  places would make W210 report the canonical `if {[info exists
-  ::errorInfo]} {puts $::errorInfo}` and the TclOO `if {[info exists x]}
-  {return $x}` idioms once slice 11 removes the old
-  `collect_existence_guards` callers, which is the wrong trade.
+- **D166 — An externally mutable place is never refined** (rewritten by
+  the slice 8 review, B1; the owner's ruling). The guard refines a place
+  of the procedure's own frame on both edges; it never refines an
+  externally mutable place — a qualified, aliased (`global`, `upvar`,
+  `variable`), traced or computed-trace place, a `TclOO` instance
+  variable, an iRules connection-scoped name, or a special variable of the
+  initial global frame (`ExistenceRun::external`, `linked_elsewhere`) —
+  and the driver's `existence_of` declines `EscapingPlace` for one, so no
+  existence query about it decides. The rule is the page's (§ *Predicate
+  refinement*: "a place that is externally mutable … is never refined")
+  and the value lattice's own stance, which declines `EscapingPlace`
+  rather than folding across a call. What was built first refined every
+  place, on the argument that another actor acts only across a barrier or
+  an up-frame; that is false: a plain `Call` to a procedure the module
+  cannot see — defined in another file, or reached through a computed
+  head — can set or unset a global, an alias or an object's variable with
+  no barrier, and the review's witness (`init`, `cleanup` reached through
+  `[lindex $::handlers …]`) folded three inner conditions to the wrong arm
+  with three false I230s. The more precise form — refine, but clobber at
+  every call not proven, by the registry's side-effect classification and
+  the module's write summaries, to write nothing — is a candidate for
+  slice 11 once the consumer-contracts descriptors prove it; it is not
+  built now. W210's silence on `if {[info exists ::errorInfo]} {puts
+  $::errorInfo}` does not rest on the refinement (the qualified-name and
+  scope-alias filters and `collect_existence_guards`, D8, cover it), and
+  `the_guarded_global_idiom_draws_no_w210` pins it, so slice 11 inherits
+  that obligation when it retires the guard walk.
 - **D167 — An unbind reads its place's existence wherever it runs, and a
   nested one kills nothing yet.** The registry's read projection
   (`CommandRegistry::variable_read_projection`) names a
@@ -8940,6 +8973,35 @@ has the witnesses):
   instead"; the layout is the registry's statement of which word's
   construction the variable receives, and the class still comes from the
   construction parsed out of that word, as before.
+- **D173 — A dead `incr` is total by the fact where it reads** (the
+  slice 8 review, S2). Removing a dead `incr` is sound only when it cannot
+  raise, and under a profile spanning 8.4 it raises on an absent place.
+  VT8.10 asked whether the statement's own route explanation read
+  `declined: unbound-place`, which a may-bound place never produces (the
+  route declines it otherwise), and matched the explanation by span,
+  which a synthetic statement shares with its host. The rule now asks the
+  facts directly: every release the profile names creates the absent cell
+  (the registry's `creates_absent_under`, read through the typed node's
+  declaration), or the rung proves the target `Bound(_)` where the
+  statement reads it, at its `(block, index)`. A may-bound, unbound or
+  unknown place under 8.4 keeps the statement.
+- **D174 — A body nested in a substitution clobbers what it defines**
+  (the slice 8 review, S3). The rung clobbered a statement's inline nested
+  bodies (a non-lowered `switch`'s arms) but not a script body run by a
+  command substitution — `[catch {unset x}]`, `[eval {…}]`, `[lmap v {1}
+  {…}]` run their body in this frame — so `set x 1; if {[catch {unset
+  x}]} {…}; if {[info exists x]} …` folded to "yes" where every release
+  prints "no" (#2231's consequence, made a wrong fold by the in-fixpoint
+  decision). The clobber lowers each substitution's script and takes the
+  statements of the bodies its commands run (`nested_bodies`), with every
+  name they define (`defs_of_with_registry`) — the statement-level rule,
+  applied one substitution deep and recursively through the words those
+  statements carry — and a barrier or an up-frame among them, or text
+  past the bracket depth cap, touches every place. A substitution's own
+  commands' definitions are not taken: the lowering's synthetic
+  statements state those already, and D167 keeps a nested unbind's kill
+  unmodelled. A branch condition and a returned word are clobbered the
+  same way before the terminator reads them.
 
 ### Open questions for the owner
 

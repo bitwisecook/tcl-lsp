@@ -246,21 +246,39 @@ fn expr_has_observable_side_effect(node: &ExprNode, effect: EffectCtx<'_>, depth
     }
 }
 
+/// Where a candidate statement sits: its function unit, its block and its
+/// index there — what a read fact at the statement is asked by.
+#[derive(Clone, Copy)]
+pub(crate) struct StatementSite<'a> {
+    pub(crate) unit: &'a FunctionUnit,
+    pub(crate) block: crate::cfg::BlockId,
+    pub(crate) index: usize,
+}
+
+impl<'a> StatementSite<'a> {
+    /// The statement at `index` of `block` in `unit`.
+    pub(crate) const fn at(
+        unit: &'a FunctionUnit,
+        block: crate::cfg::BlockId,
+        index: usize,
+    ) -> Self {
+        Self { unit, block, index }
+    }
+}
+
 /// `true` when `stmt` is an assignment whose RHS can be discarded
 /// without losing observable behaviour. A literal (`AssignConst`) is
 /// always safe; value / expr forms require every embedded command
 /// substitution to be provably side-effect-free; `incr v` is safe when
-/// its optional amount word has no side effect *and* the run never
-/// declined this statement's own route `unbound-place` — that decline
-/// means a release the target profile spans raises on `v`'s absent cell
-/// (§ *Existence*'s release table), so removal is not total. Any other
-/// statement form is conservatively unsafe — a `Call` among them, so an
-/// unbind (`unset x`, `array unset x`) is never removed, whatever reads
-/// the definition it makes.
+/// its optional amount word has no side effect *and* it cannot raise on an
+/// absent `v` ([`incr_is_total`]). Any other statement form is
+/// conservatively unsafe — a `Call` among them, so an unbind (`unset x`,
+/// `array unset x`) is never removed, whatever reads the definition it
+/// makes.
 pub(crate) fn assignment_safe_to_delete(
     stmt: &Statement,
     purity: PurityCtx<'_>,
-    explanations: &[crate::value_transfer::RouteExplanation],
+    site: StatementSite<'_>,
 ) -> bool {
     assignment_safe_to_delete_with_effect(
         stmt,
@@ -268,29 +286,42 @@ pub(crate) fn assignment_safe_to_delete(
             purity,
             execution_namespace: None,
         },
-        explanations,
+        site,
     )
 }
 
-/// Whether the solver's own route explanation for the statement spanning
-/// `span` declined `unbound-place` — the release rule finding a release
-/// that does not create the target's absent cell, so the statement is not
-/// provably total under the target profile.
-fn declined_unbound_place(
-    span: tcl_lexer::Span,
-    explanations: &[crate::value_transfer::RouteExplanation],
+/// Whether the dead `incr` of the place `name` at `site` completes on
+/// every release the profile names (the slice 8 review's S2): every such
+/// release creates an absent cell (8.5 onwards), or the existence rung
+/// proves the place bound where the statement reads it. Under a profile
+/// spanning 8.4, where `incr` of an absent place raises `can't read`, a
+/// may-bound or unbound place — or one the run computed no fact for — is
+/// not provably total, so the statement stays.
+fn incr_is_total(
+    name: &str,
+    name_braced: bool,
+    registry: Option<&CommandRegistry>,
+    site: StatementSite<'_>,
 ) -> bool {
-    explanations.iter().any(|explanation| {
-        explanation.span.start() == span.start()
-            && explanation.span.end() == span.end()
-            && explanation.answer == "declined: unbound-place"
-    })
+    if registry.is_some_and(crate::value_transfer::typed_incr_creates_absent) {
+        return true;
+    }
+    let place = crate::naming::element_var_name_braced(name, name_braced);
+    site.unit
+        .ssa
+        .var_symbol(place)
+        .and_then(|symbol| {
+            site.unit
+                .sccp
+                .existence_before(site.block, site.index, symbol)
+        })
+        .is_some_and(|fact| matches!(fact, tcl_registry::value_transfer::Existence::Bound(_)))
 }
 
 fn assignment_safe_to_delete_with_effect(
     stmt: &Statement,
     effect: EffectCtx<'_>,
-    explanations: &[crate::value_transfer::RouteExplanation],
+    site: StatementSite<'_>,
 ) -> bool {
     match stmt {
         Statement::AssignConst { .. } => true,
@@ -298,12 +329,15 @@ fn assignment_safe_to_delete_with_effect(
         Statement::AssignExpr { expr, .. } => !expr_has_observable_side_effect(expr, effect, 0),
         // `incr v` reads + writes v — the assignment itself is the
         // observable effect, so deleting it is OK when v is dead, the
-        // optional amount word is side-effect-free, and the statement's
-        // own outcome is total (never the release rule's `UnboundPlace`
-        // decline — the profile-mixed or 8.4 case where `v` starts
-        // absent and a spanned release raises instead of creating it).
-        Statement::Incr { amount, .. } => {
-            if declined_unbound_place(stmt.span(), explanations) {
+        // optional amount word is side-effect-free, and the statement
+        // cannot raise on an absent `v` under a release the profile spans.
+        Statement::Incr {
+            name,
+            name_braced,
+            amount,
+            ..
+        } => {
+            if !incr_is_total(name, *name_braced, effect.purity.registry, site) {
                 return false;
             }
             match amount {
@@ -652,7 +686,7 @@ fn emit_dead_stores_and_unused(
                 purity,
                 execution_namespace,
             },
-            &fu.sccp.explanations,
+            StatementSite::at(fu, def_block, idx),
         ) {
             continue;
         }
@@ -935,7 +969,7 @@ fn run_adce_fixpoint(
                     purity,
                     execution_namespace,
                 },
-                &fu.sccp.explanations,
+                StatementSite::at(fu, def_block, idx),
             ) {
                 continue;
             }

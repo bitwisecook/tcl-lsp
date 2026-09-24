@@ -262,8 +262,7 @@ is `Unavailable`, never `Unbound`.
 - **Entry.** Parameters enter `Bound(Scalar)`; an externally mutable place
   (qualified, in the escaping set — scope aliases and traced names included
   — or under a computed trace) enters `MayBound` and every definition of it
-  leaves it `MayBound`, so only a guard's refinement narrows it, until the
-  next barrier or up-frame; a `TclOO`
+  leaves it `MayBound`, and no guard refines it; a `TclOO`
   method's instance variables and an iRules `when` handler's
   connection-scoped names (every name a handler of the module binds,
   `AnalysisContextKey::connection_scoped`) enter `MayBound`; in the initial
@@ -286,7 +285,10 @@ is `Unavailable`, never `Unbound`.
   on (`dynamic_names::statement_barrier`): a dynamic write turns an
   `Unbound` place `MayBound`, a dynamic destroy a bound one; a statement that
   keeps a nested body inline makes every place the body defines or unsets
-  `MayBound`.
+  `MayBound`, and so does a script body a command substitution runs in
+  this frame (`[catch {unset x}]`, `[eval {…}]`, `[lmap v {1} {…}]`),
+  in a statement's words or in a branch condition or returned word —
+  every place, when such a body holds a barrier or an up-frame (D174).
 - **Edge refinement** (slice 8, VT8.3). A branch whose condition states an
   existence fact refines the place on that edge (`EdgeRefinement`, the
   design's shape with its domain `FactDomain::Existence`): the true edge of
@@ -300,14 +302,16 @@ is `Unavailable`, never `Unbound`.
   narrows the place as the edge arrives — a `MayBound` place to it, a
   `Bound(Either)` one to a kind — and a fact the place contradicts, on an
   edge the query did not decide (a special variable the host binds, D165),
-  leaves it as it is. Every place the rung carries is refined, the
-  externally mutable ones included (D166): an instance variable, a
-  cross-event iRules name, an interpreter-set special variable or an alias
-  changes without a visible statement only across a barrier or an
-  up-frame, where every place is `MayBound` again, so no refinement
-  survives the point at which another actor could act. The refined fact
-  flows on through every block the arm reaches, joining at a merge like
-  any other.
+  leaves it as it is. An externally mutable place is never refined
+  (D166): a qualified, aliased, traced or computed-trace place, a `TclOO`
+  instance variable, a cross-event iRules name and a special variable of
+  the initial global frame can be set or unset by a plain call to a
+  procedure the module cannot see, with no barrier in between, so an
+  existence query about one decides nothing either (`EscapingPlace`). A
+  place of the procedure's own frame is refined, and its refinement ends
+  at the next barrier or up-frame, where every place is `MayBound` again.
+  The refined fact flows on through every block the arm reaches, joining
+  at a merge like any other.
 - **Answer.** `SccpResult::existence` per SSA version (version 0 its entry
   fact), `existence_reads` per statement and place it reads — after any
   clobber since the version's definition and any refinement since the

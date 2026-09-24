@@ -50,7 +50,12 @@ exists` false.) A check also narrows the branches it guards: inside
 still unset and still flagged. The narrowing holds through `&&` — inside
 `if {[info exists X] && $ok} { … }` too — and lasts until a command the
 analyser cannot see through, such as an `eval` of a computed script, may
-have unset the variable again. When existence is statically provable the check
+have unset the variable again. It narrows the procedure's own variables
+only: a global, a variable reached through `global` or `upvar`, an object's
+variable or an interpreter variable such as `errorInfo` can be set or unset
+by any call, so a check on one proves nothing past it — reading one inside
+`if {[info exists ::errorInfo]} { … }` is still not flagged, but a later
+check on it is never folded. When existence is statically provable the check
 folds to a constant and is reported as
 [`I230`](kcs-diagnostic-i230-constant-existence-check.md) instead.
 

@@ -2974,3 +2974,131 @@ fn a_failing_dead_incr_is_retained_under_84() {
         }
     }
 }
+
+/// Whether the analyser reports `code` anywhere in `source` under
+/// `dialect`.
+fn reports(source: &str, dialect: &str, code: DiagCode) -> bool {
+    tcl_compiler::analyser::Analyser::new()
+        .analyse(source, dialect)
+        .diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.code == code)
+}
+
+/// An externally mutable place is never refined (D166, the slice 8
+/// review's B1): a call the module cannot see — here a computed head —
+/// sets or unsets a global between the guard and the inner query, with no
+/// barrier in between, so the inner `info exists` decides nothing. tclsh
+/// 8.4 to 9.1 print `yes yes gone`; the refinement had folded the inner
+/// conditions to `no no still`, with three false I230s.
+#[test]
+fn an_unseen_call_ends_no_refinement_because_none_is_made() {
+    let source = "\
+proc init {} { set ::x 1 }
+proc cleanup {} { unset ::x }
+set handlers {init cleanup}
+proc p {} {
+    if {![info exists ::x]} {
+        [lindex $::handlers 0]
+        if {[info exists ::x]} { puts yes } else { puts no }
+    }
+}
+proc q {} {
+    global x
+    if {![info exists x]} {
+        [lindex $::handlers 0]
+        if {[info exists x]} { puts yes } else { puts no }
+    }
+}
+proc r {} {
+    set ::x 1
+    if {[info exists ::x]} {
+        [lindex $::handlers 1]
+        if {[info exists ::x]} { puts still } else { puts gone }
+    }
+}
+p; unset ::x; q; r
+";
+    for dialect in DIALECTS {
+        assert!(
+            !reports(source, dialect, DiagCode::I230),
+            "{dialect}: no inner query is decided"
+        );
+        let (rewritten, rewrites) = optimised(source, dialect);
+        assert!(
+            rewritten.contains("puts yes")
+                && rewritten.contains("puts no")
+                && rewritten.contains("puts still")
+                && rewritten.contains("puts gone"),
+            "{dialect}: no arm is folded away:\n{rewritten}\n{rewrites:#?}"
+        );
+    }
+    prints_under_every_release(source, "yes\nyes\ngone\n");
+}
+
+/// The absent-start chain anchor reads the fact at the statement (the
+/// slice 8 review's B2): after a non-lowered `switch` whose arm may bind
+/// `l`, the per-version fact of `l`'s version 0 is still `Unbound`, but
+/// the fact at `lappend l a` is `MayBound` — the arm's clobber — so no
+/// chain anchors there. tclsh 8.4 to 9.1 print `z a b` and `a b`, before
+/// and after the optimiser.
+#[test]
+fn an_absent_start_anchor_reads_the_fact_at_the_statement() {
+    let source = "proc p {c} { switch -glob -- $c { a* { set l z } }; lappend l a; lappend l b; puts $l }\np abc\np q\n";
+    for dialect in ["tcl8.4", "tcl8.6", "tcl9.0", "tcl"] {
+        let rewrites = rewrites_of(source, dialect);
+        assert!(
+            !rewrites.iter().any(|o| o.code == DiagCode::O130),
+            "{dialect}: {rewrites:#?}"
+        );
+    }
+    prints_under_every_release(source, "z a b\na b\n");
+}
+
+/// A failing dead `incr` on a may-bound place is retained under 8.4 (the
+/// slice 8 review's S2): `incr n` after `if {$c} {set n 1}` raises `can't
+/// read "n"` under 8.4 when `c` is false, so removing it would silence a
+/// raising program there; a profile whose every release creates the cell
+/// still removes it. tclsh 8.4 prints `1` (the call raised) and 8.5 to 9.1
+/// print `0`.
+#[test]
+fn a_failing_dead_incr_on_a_maybound_place_is_retained_under_84() {
+    let source =
+        "proc p {c} {\n    if {$c} {set n 1}\n    incr n\n    return\n}\nputs [catch {p 0} msg]\n";
+    for dialect in ["tcl8.4", "tcl", "f5-irules"] {
+        assert!(!removes_store(source, dialect, "incr n"), "{dialect}");
+    }
+    for dialect in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+        assert!(removes_store(source, dialect, "incr n"), "{dialect}");
+    }
+    for (series, tclsh) in releases_on_path() {
+        let expected = if series == "8.4" { "1\n" } else { "0\n" };
+        let (rewritten, _) = optimised(source, &dialect_of(series));
+        for program in [source, rewritten.as_str()] {
+            assert_eq!(
+                run_script(&tclsh, program),
+                Some((true, expected.to_owned())),
+                "tclsh{series}:\n{program}"
+            );
+        }
+    }
+}
+
+/// A script body nested in a substitution clobbers what it may unset (the
+/// slice 8 review's S3, #2231's consequence): `[catch {unset x}]` in a
+/// condition leaves `x` may-bound, so the later `[info exists x]` decides
+/// nothing — it had folded to `1` with an I230. tclsh 8.4 to 9.1 print
+/// `no`, before and after the optimiser.
+#[test]
+fn a_substituted_body_clobbers_what_it_unsets() {
+    let source = "set x 1\nif {[catch {unset x}]} { puts err }\nif {[info exists x]} {puts yes} else {puts no}\n";
+    for dialect in DIALECTS {
+        assert!(!reports(source, dialect, DiagCode::I230), "{dialect}");
+        let (rewritten, rewrites) = optimised(source, dialect);
+        assert!(
+            rewritten.contains("puts no"),
+            "{dialect}: the else arm stays:\n{rewritten}\n{rewrites:#?}"
+        );
+    }
+    prints_under_every_release(source, "no\n");
+}

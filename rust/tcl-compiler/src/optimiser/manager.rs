@@ -521,7 +521,8 @@ fn couple_const_dead_store_chain(
     {
         return None;
     }
-    let def_block = fu.cfg.block_by_name(&chain.definition.block)?;
+    let def_block_id = fu.cfg.block_id(&chain.definition.block)?;
+    let def_block = fu.cfg.blocks.get(&def_block_id)?;
     let def_idx = usize::try_from(chain.definition.statement_index).ok()?;
     let def_stmt = def_block.statements.get(def_idx)?;
     // The def must be a const-foldable scalar assignment whose inlined
@@ -560,7 +561,8 @@ fn couple_const_dead_store_chain(
         enclosing_class: None,
         config: tcl_lexer::LexerConfig::for_profile(registry.profile()),
     };
-    if !super::elimination::assignment_safe_to_delete(def_stmt, purity, &fu.sccp.explanations) {
+    let site = super::elimination::StatementSite::at(fu, def_block_id, def_idx);
+    if !super::elimination::assignment_safe_to_delete(def_stmt, purity, site) {
         return None;
     }
 

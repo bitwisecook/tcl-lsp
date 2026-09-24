@@ -645,6 +645,7 @@ pub fn sccp_with_builtin_folds(
         .map(|entry| ExistenceRun::new(cfg, ssa, entry, &escaping, trace.registry));
     if let Some(run) = &existence {
         driver.existence_places(run.query_only.clone());
+        driver.existence_external(run.external.clone());
     }
 
     let executable_blocks: HashSet<BlockId> = cfg
@@ -942,11 +943,18 @@ impl ExistenceAt<'_> {
         self.run.record_version(key, fact)
     }
 
-    /// Apply a computed name in the terminator's words before the branch
+    /// Apply a computed name in the terminator's words, and the places a
+    /// body nested in one of its substitutions may touch, before the branch
     /// reads its condition.
     fn before_terminator(&self, driver: &LatticeDriver<'_>) {
         if let Some(clobber) = self.run.terminator_clobbers.get(&self.block) {
             driver.existence_clobber(|fact| clobber.applied(fact));
+            for &symbol in &clobber.touched {
+                driver.existence_step(
+                    symbol,
+                    crate::value_transfer::ExistenceStep::Set(Existence::MayBound),
+                );
+            }
         }
     }
 
@@ -1022,6 +1030,12 @@ struct ExistenceRun {
     /// qualified, aliased, traced, or under a computed trace — and so
     /// may-bound wherever it is read.
     mutable: Vec<bool>,
+    /// Whether each slot's place is externally mutable: a `mutable` one, or
+    /// one linked to state another invocation, the object or the host
+    /// holds ([`linked_elsewhere`]). Such a place is never refined, and an
+    /// existence query about one decides nothing: whatever holds it can
+    /// change it through any call, not only across a barrier.
+    external: Vec<bool>,
     /// The clobber each statement performs, by `(block, index)`.
     clobbers: HashMap<(BlockId, usize), Clobber>,
     /// The clobber each block's terminator performs.
@@ -1105,6 +1119,11 @@ impl ExistenceRun {
         let dialect = Some(tcl_registry::special_vars::surface_query_for_profile(
             registry.profile(),
         ));
+        let external: Vec<bool> = names
+            .iter()
+            .zip(&mutable)
+            .map(|(name, &mutable)| mutable || linked_elsewhere(name, entry, registry, dialect))
+            .collect();
         let caller_frame = Clobber::of_names(cfg.caller_frame_barrier);
         let entry_state: Vec<Existence> = names
             .iter()
@@ -1128,17 +1147,14 @@ impl ExistenceRun {
                 }
             }
             if let Some(terminator) = &block.terminator {
-                let clobber = Clobber::of_names(crate::dynamic_names::terminator_barrier(
-                    terminator,
-                    registry,
-                    entry.config,
-                ));
+                let clobber = terminator_clobber(terminator, ssa, registry, entry.config);
                 if !clobber.is_empty() {
                     terminator_clobbers.insert(block_id, clobber);
                 }
             }
         }
-        let refinements = edge_refinements(cfg, ssa, (registry, entry.config), &query_only);
+        let refinements =
+            edge_refinements(cfg, ssa, (registry, entry.config), (&query_only, &external));
         let mut by_edge: HashMap<(BlockId, BlockId), Vec<(usize, Existence)>> = HashMap::new();
         for refinement in &refinements {
             if let tcl_registry::value_transfer::DomainFact::Existence(fact) = &refinement.fact {
@@ -1159,6 +1175,7 @@ impl ExistenceRun {
         Self {
             entry: entry_state,
             mutable,
+            external,
             clobbers,
             terminator_clobbers,
             handler_regions,
@@ -1460,16 +1477,16 @@ fn query_facts(name: &str, kind: crate::existence_query::ExistenceKind) -> EdgeF
 /// The existence refinements of the function's guarded edges
 /// ([`EdgeRefinement`]): each branch whose condition states a fact about a
 /// place the rung carries ([`condition_facts`]) refines the place on that
-/// edge. Every place is refined, the externally mutable ones included
-/// (D166): another scope, method, event or the host acts on one only
-/// across a barrier or an up-frame, where the rung makes every place
-/// may-bound again, so no refinement survives the point at which another
-/// actor could act.
+/// edge. An externally mutable place (`external`, by slot) is never refined
+/// (D166): a plain call to a procedure the module cannot see, or to a
+/// computed head, may write or unset a global, an alias, an instance
+/// variable or a connection's name without any barrier or up-frame, so a
+/// refinement there would outlive the point at which another actor acts.
 fn edge_refinements(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     (registry, config): (&CommandRegistry, tcl_lexer::LexerConfig),
-    query_only: &HashMap<String, Symbol>,
+    (query_only, external): (&HashMap<String, Symbol>, &[bool]),
 ) -> Vec<EdgeRefinement> {
     use tcl_registry::value_transfer::{DependencyEvidence, DomainFact, FactDomain};
     let mut out = Vec::new();
@@ -1499,6 +1516,9 @@ fn edge_refinements(
                 else {
                     continue;
                 };
+                if external.get(symbol.0 as usize).copied().unwrap_or(true) {
+                    continue;
+                }
                 let version = exit_versions
                     .and_then(|versions| versions.get(&symbol))
                     .copied()
@@ -1566,19 +1586,8 @@ fn entry_fact(
     registry: &CommandRegistry,
     dialect: Option<tcl_dialect::model::SurfaceQuery<'static>>,
 ) -> Existence {
-    let linked = |name: &str| {
-        entry.object_state.is_some_and(|state| state.contains(name))
-            && !entry.params.iter().any(|param| param == name)
-            || entry
-                .connection_scoped
-                .is_some_and(|scoped| scoped.holds(name))
-    };
-    let special = |name: &str| {
-        entry
-            .initial_global
-            .then(|| registry.special_var_in_dialect(name, dialect))
-            .flatten()
-    };
+    let linked = |name: &str| linked_to_state(name, entry);
+    let special = |name: &str| special_at_entry(name, entry, registry, dialect);
     let base = place_base(name);
     if base != name {
         // Which elements an array holds is its own fact: an element of a
@@ -1614,6 +1623,47 @@ fn entry_fact(
     Existence::Unbound
 }
 
+/// Whether `name` is a `TclOO` instance variable (not shadowed by a
+/// parameter) or a name an iRules `when` handler's connection binds: state
+/// another invocation holds.
+fn linked_to_state(name: &str, entry: ExistenceEntry<'_>) -> bool {
+    entry.object_state.is_some_and(|state| state.contains(name))
+        && !entry.params.iter().any(|param| param == name)
+        || entry
+            .connection_scoped
+            .is_some_and(|scoped| scoped.holds(name))
+}
+
+/// The registry's special variable `name`, when the body is the document's
+/// initial global frame, where the host rather than the script binds it.
+fn special_at_entry(
+    name: &str,
+    entry: ExistenceEntry<'_>,
+    registry: &CommandRegistry,
+    dialect: Option<tcl_dialect::model::SurfaceQuery<'static>>,
+) -> Option<&'static tcl_registry::special_vars::SpecialVarSpec> {
+    entry
+        .initial_global
+        .then(|| registry.special_var_in_dialect(name, dialect))
+        .flatten()
+}
+
+/// Whether the place `name`, or the array it is an element of, is linked
+/// to state another invocation, the object or the host holds: a `TclOO`
+/// instance variable, a connection-scoped name, or a special variable of
+/// the initial global frame. Beside the qualified, aliased and traced
+/// places the rung already holds may-bound, these are the externally
+/// mutable places a refinement never narrows (D166).
+fn linked_elsewhere(
+    name: &str,
+    entry: ExistenceEntry<'_>,
+    registry: &CommandRegistry,
+    dialect: Option<tcl_dialect::model::SurfaceQuery<'static>>,
+) -> bool {
+    let base = place_base(name);
+    linked_to_state(base, entry) || special_at_entry(base, entry, registry, dialect).is_some()
+}
+
 /// The clobber one statement performs: every place for a barrier or a
 /// static-body `uplevel`, the computed-name facts its words raise, and the
 /// places a nested body it keeps inline may define or destroy.
@@ -1633,29 +1683,205 @@ fn statement_clobber(
         clobber.all = true;
         return clobber;
     }
-    let mut named: HashSet<String> = HashSet::new();
+    let mut touch = BodyTouch::default();
     for script in crate::ir_helpers::nested_bodies(statement) {
-        crate::ir::for_each_statement(script, &mut |inner| {
-            if matches!(inner, Statement::Barrier { .. } | Statement::UpFrame { .. }) {
-                clobber.all = true;
-            }
-            named.extend(crate::ssa::defs_of_with_registry(inner, Some(registry)));
-        });
+        touch.script(script, registry, config, 0);
     }
-    if !named.is_empty() {
-        // A place and the array it sits in, and every element of an array
-        // the body touches whole.
-        let bases: HashSet<&str> = named.iter().map(|name| place_base(name)).collect();
-        for (index, name) in ssa.var_names().iter().enumerate() {
-            let base = place_base(name);
-            if named.contains(name) || bases.contains(name.as_str()) || bases.contains(base) {
-                clobber
-                    .touched
-                    .push(Symbol(u32::try_from(index).unwrap_or(u32::MAX)));
+    touch.statement_words(statement, registry, config, 0);
+    clobber.all |= touch.all;
+    clobber.touched = touched_symbols(&touch.names, ssa);
+    clobber
+}
+
+/// The clobber a block's terminator performs: the computed-name facts its
+/// condition or returned word raise, and the places a script body nested
+/// in one of its command substitutions may define or destroy.
+fn terminator_clobber(
+    terminator: &Terminator,
+    ssa: &SsaFunction,
+    registry: &CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+) -> Clobber {
+    let mut clobber = Clobber::of_names(crate::dynamic_names::terminator_barrier(
+        terminator, registry, config,
+    ));
+    let mut touch = BodyTouch::default();
+    match terminator {
+        Terminator::Branch { condition, .. } => touch.expr(condition, registry, config, 0),
+        Terminator::Return { value, expr, .. } => {
+            if let Some(value) = value {
+                touch.word(value, registry, config, 0);
+            }
+            if let Some(expr) = expr {
+                touch.expr(expr, registry, config, 0);
             }
         }
+        Terminator::Goto { .. } => {}
     }
+    clobber.all |= touch.all;
+    clobber.touched = touched_symbols(&touch.names, ssa);
     clobber
+}
+
+/// The symbols of every place `named` holds: a place and the array it sits
+/// in, and every element of an array touched whole.
+fn touched_symbols(named: &HashSet<String>, ssa: &SsaFunction) -> Vec<Symbol> {
+    if named.is_empty() {
+        return Vec::new();
+    }
+    let bases: HashSet<&str> = named.iter().map(|name| place_base(name)).collect();
+    ssa.var_names()
+        .iter()
+        .enumerate()
+        .filter(|(_, name)| {
+            named.contains(name.as_str())
+                || bases.contains(name.as_str())
+                || bases.contains(place_base(name))
+        })
+        .map(|(index, _)| Symbol(u32::try_from(index).unwrap_or(u32::MAX)))
+        .collect()
+}
+
+/// What the script bodies a statement runs in this frame may define or
+/// destroy: an inline nested body's (a non-lowered `switch`'s arms), and one
+/// nested in a command substitution — `[catch {unset x}]`, `[eval {…}]`,
+/// `[lmap v {1} {…}]` run their body here, so the rung clobbers every name
+/// it defines or destroys (the slice 8 review's S3, #2231's consequence). A
+/// body lowers to the statements the IR builds for it and each is asked
+/// what it defines ([`crate::ssa::defs_of_with_registry`]); a barrier or an
+/// up-frame among them, or text nested past the depth cap, touches every
+/// place.
+#[derive(Default)]
+struct BodyTouch {
+    /// The places the bodies define or destroy.
+    names: HashSet<String>,
+    /// Whether a body may touch any place.
+    all: bool,
+}
+
+impl BodyTouch {
+    /// Every statement of `script`, however nested: what it defines, and
+    /// the substitutions its own words run.
+    fn script(
+        &mut self,
+        script: &crate::ir::Script,
+        registry: &CommandRegistry,
+        config: tcl_lexer::LexerConfig,
+        depth: u32,
+    ) {
+        crate::ir::for_each_statement(script, &mut |inner| {
+            if matches!(inner, Statement::Barrier { .. } | Statement::UpFrame { .. }) {
+                self.all = true;
+            }
+            self.names
+                .extend(crate::ssa::defs_of_with_registry(inner, Some(registry)));
+            self.statement_words(inner, registry, config, depth);
+        });
+    }
+
+    /// The command substitutions one statement's words run.
+    fn statement_words(
+        &mut self,
+        statement: &Statement,
+        registry: &CommandRegistry,
+        config: tcl_lexer::LexerConfig,
+        depth: u32,
+    ) {
+        match statement {
+            Statement::Call { args, .. } | Statement::Barrier { args, .. } => {
+                for arg in args {
+                    self.word(arg, registry, config, depth);
+                }
+            }
+            Statement::AssignConst { value, .. }
+            | Statement::AssignValue { value, .. }
+            | Statement::Switch { subject: value, .. } => {
+                self.word(value, registry, config, depth);
+            }
+            Statement::AssignExpr { expr, .. } | Statement::ExprEval { expr, .. } => {
+                self.expr(expr, registry, config, depth);
+            }
+            Statement::Return { value, expr, .. } => {
+                if let Some(value) = value {
+                    self.word(value, registry, config, depth);
+                }
+                if let Some(expr) = expr {
+                    self.expr(expr, registry, config, depth);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// Every `[…]` in a word's spelling.
+    fn word(
+        &mut self,
+        text: &str,
+        registry: &CommandRegistry,
+        config: tcl_lexer::LexerConfig,
+        depth: u32,
+    ) {
+        for inner in crate::var_refs::command_subst_texts_with_config(text, config) {
+            self.substitution(&inner, registry, config, depth + 1);
+        }
+    }
+
+    /// Every `[…]` in an expression.
+    fn expr(
+        &mut self,
+        expr: &ExprNode,
+        registry: &CommandRegistry,
+        config: tcl_lexer::LexerConfig,
+        depth: u32,
+    ) {
+        let mut commands = Vec::new();
+        crate::ir_helpers::collect_expr_commands(expr, &mut commands);
+        for text in &commands {
+            let trimmed = text.trim();
+            let inner = trimmed
+                .strip_prefix('[')
+                .and_then(|inner| inner.strip_suffix(']'))
+                .unwrap_or(trimmed);
+            self.substitution(inner, registry, config, depth + 1);
+        }
+    }
+
+    /// One substitution's script: the bodies its commands run in this frame
+    /// — never its own commands' definitions, which the statements the
+    /// lowering places for a substitution already state — and the
+    /// substitutions its words nest. A command the lowering keeps opaque
+    /// (`[eval $script]`, `[dict with d {…}]`) may touch any place.
+    fn substitution(
+        &mut self,
+        script: &str,
+        registry: &CommandRegistry,
+        config: tcl_lexer::LexerConfig,
+        depth: u32,
+    ) {
+        if crate::depth_guard::MAX_BRACKET_TEXT_DEPTH.exceeded(depth) {
+            self.all = true;
+            return;
+        }
+        // A script with no braced or quoted word holds no body, and one with
+        // no bracket nests no substitution.
+        if !script.contains(['{', '"', '[']) {
+            return;
+        }
+        let module =
+            crate::lowering::lower_to_ir_with_dialect(script, registry, config, registry.profile());
+        for statement in &module.top_level.statements {
+            if matches!(
+                statement,
+                Statement::Barrier { .. } | Statement::UpFrame { .. }
+            ) {
+                self.all = true;
+            }
+            for body in crate::ir_helpers::nested_bodies(statement) {
+                self.script(body, registry, config, depth);
+            }
+            self.statement_words(statement, registry, config, depth);
+        }
+    }
 }
 
 /// The variable that holds the place `name`: the array for an element
@@ -3265,8 +3491,8 @@ mod tests {
     /// The existence guard refines its edges (VT8.3): on a may-bound place
     /// the true edge of `[info exists x]` carries `Bound(Either)` and the
     /// false edge `Unbound`, `!` swaps the two, and past the merge the
-    /// place is may-bound again. A `global` alias is refined like any
-    /// other place (D166).
+    /// place is may-bound again. A `global` alias is externally mutable and
+    /// never refined (D166): both its reads stay may-bound.
     #[test]
     fn the_existence_guard_refines_its_edges() {
         use tcl_registry::value_transfer::DomainFact;
@@ -3278,7 +3504,13 @@ mod tests {
             &registry,
             false,
         );
-        for proc in ["::f", "::g", "::h"] {
+        let h = cu.function("::h").expect("procedure analysed");
+        assert!(h.sccp.refinements.is_empty(), "{:?}", h.sccp.refinements);
+        assert_eq!(
+            puts_reads(h, "x"),
+            vec![Existence::MayBound, Existence::MayBound]
+        );
+        for proc in ["::f", "::g"] {
             let f = cu.function(proc).expect("procedure analysed");
             assert_eq!(
                 puts_reads(f, "x"),
@@ -3330,14 +3562,15 @@ mod tests {
         assert_eq!(puts_reads(h, "x"), vec![Existence::MayBound], "::h");
     }
 
-    /// The two canonical idioms read their place bound through the edge
-    /// refinement alone (D166), which is the fact W210 reads (VT8.4):
-    /// `if {[info exists ::errorInfo]} {puts $::errorInfo}` at the top level
-    /// and in a procedure, and a `TclOO` instance variable's `if {[info
-    /// exists x]} {return $x}` — spelled with absolute heads, which keep a
-    /// method body analysable (its namespace is the receiver's).
+    /// An externally mutable place is never refined (D166): the guard on
+    /// `::errorInfo`, at the top level and in a procedure, and on a
+    /// `TclOO` instance variable's `if {[info exists x]} {return $x}` —
+    /// spelled with absolute heads, which keep a method body analysable
+    /// (its namespace is the receiver's) — leaves each read may-bound, since
+    /// a call to a procedure the module cannot see may unset the global or
+    /// the object's variable without any barrier.
     #[test]
-    fn the_refinement_alone_reads_the_idioms_bound() {
+    fn an_externally_mutable_place_is_never_refined() {
         let registry = CommandRegistry::build_default();
         let cu = crate::compilation_unit::CompilationUnit::build_for(
             "if {[info exists ::errorInfo]} {puts $::errorInfo}\n\
@@ -3349,13 +3582,19 @@ mod tests {
         );
         for unit in ["::top", "::p"] {
             let f = cu.function(unit).expect("unit analysed");
+            assert!(
+                f.sccp.refinements.is_empty(),
+                "{unit}: {:?}",
+                f.sccp.refinements
+            );
             assert_eq!(
                 puts_reads(f, "::errorInfo"),
-                vec![Existence::Bound(BindingKind::Either)],
+                vec![Existence::MayBound],
                 "{unit}"
             );
         }
         let m = cu.methods.values().next().expect("the method analysed");
+        assert!(m.sccp.refinements.is_empty(), "{:?}", m.sccp.refinements);
         let x = m.ssa.var_symbol("x").expect("x");
         let returned: Vec<Existence> = m
             .cfg
@@ -3368,23 +3607,21 @@ mod tests {
                 _ => None,
             })
             .collect();
-        assert_eq!(returned, vec![Existence::Bound(BindingKind::Either)]);
+        assert_eq!(returned, vec![Existence::MayBound]);
     }
 
-    /// A refinement never survives a barrier (D166): an instance variable
-    /// its guard refines bound reads bound before `eval $script`, which
-    /// lowers to a barrier, and may-bound after it — another method may
-    /// have unset it there.
+    /// A refinement never survives a barrier (D166): a local its guard
+    /// refines bound reads bound before `eval $script`, which lowers to a
+    /// barrier, and may-bound after it — the script may have unset it.
     #[test]
     fn a_barrier_ends_the_refinement() {
         let registry = CommandRegistry::build_default();
         let cu = crate::compilation_unit::CompilationUnit::build_for(
-            "oo::class create C {\n variable x\n \
-             method m {script} { ::if {[::info exists x]} { ::puts $x; ::eval $script; ::puts $x } }\n}\n",
+            "proc m {script c} { if {$c} {set x 1}; if {[info exists x]} { puts $x; eval $script; puts $x } }\n",
             &registry,
             false,
         );
-        let m = cu.methods.values().next().expect("the method analysed");
+        let m = cu.function("::m").expect("the procedure analysed");
         assert!(
             m.cfg
                 .blocks
@@ -3399,14 +3636,13 @@ mod tests {
         );
     }
 
-    /// The negated guard on a special variable refines one edge: at the
-    /// top level of a Tcl 8.6 script `errorCode` enters may-bound — startup
-    /// binds it only under 8.4 — and `if {![info exists errorCode]}` holds it
-    /// unbound on the edge where the query is false, bound on the other,
-    /// and may-bound again past the merge.
+    /// A special variable of the initial global frame is never refined
+    /// (D166): at the top level of a Tcl 8.6 script `errorCode` enters
+    /// may-bound — startup binds it only under 8.4 — and `if {![info exists
+    /// errorCode]}` refines neither edge, since the host, or any command
+    /// that raises, may set it without a barrier.
     #[test]
-    fn a_negated_guard_refines_a_special_variable_on_one_edge() {
-        use tcl_registry::value_transfer::DomainFact;
+    fn a_negated_guard_never_refines_a_special_variable() {
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         let cu = crate::compilation_unit::CompilationUnit::build_for_dialect(
             "if {![info exists errorCode]} { puts none } else { puts $errorCode }\nputs $errorCode\n",
@@ -3415,22 +3651,14 @@ mod tests {
             "tcl8.6",
         );
         let top = cu.function("::top").expect("top level analysed");
-        let unbound: Vec<&EdgeRefinement> = top
-            .sccp
-            .refinements
-            .iter()
-            .filter(|refinement| refinement.fact == DomainFact::Existence(Existence::Unbound))
-            .collect();
-        let [unbound] = unbound.as_slice() else {
-            panic!("one edge is refined unbound: {:?}", top.sccp.refinements);
-        };
-        assert_eq!(
-            top.sccp.existence_at(unbound.edge.1, unbound.key),
-            Some(Existence::Unbound)
+        assert!(
+            top.sccp.refinements.is_empty(),
+            "{:?}",
+            top.sccp.refinements
         );
         assert_eq!(
             puts_reads(top, "errorCode"),
-            vec![Existence::Bound(BindingKind::Either), Existence::MayBound]
+            vec![Existence::MayBound, Existence::MayBound]
         );
     }
 
