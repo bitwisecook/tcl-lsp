@@ -302,8 +302,10 @@ enum DefSite {
     /// A φ: set when every incoming value is set.
     Phi(Vec<crate::ssa::Version>),
     /// A statement: `true` when it certainly writes the variable once it
-    /// completes — an assignment or `incr` of the variable itself, never a
-    /// synthetic array may-def, nor a command (`regexp`, `scan`, `unset`)
+    /// completes — an assignment or `incr` of the variable itself, or a
+    /// variable target of a command the registry marks as always writing it
+    /// (`catch`, `gets`, `lassign`, `regsub`). Never a synthetic array
+    /// may-def, nor a command (`regexp`, `scan`, `unset`, a `foreach` header)
     /// that may leave it unset.
     Stmt(bool),
 }
@@ -345,10 +347,12 @@ impl<'a> RaiseProof<'a> {
                         | Statement::AssignExpr { .. }
                         | Statement::Incr { .. }
                 );
+                let targets = unconditional_write_targets(&ssa_stmt.statement, registry);
                 for (&sym, &ver) in &ssa_stmt.defs {
+                    let certain = writes || targets.contains(&fu.ssa.var_name(sym));
                     sites.insert(
                         (sym, ver),
-                        DefSite::Stmt(writes && !ssa_stmt.may_defs.contains(&sym)),
+                        DefSite::Stmt(certain && !ssa_stmt.may_defs.contains(&sym)),
                     );
                 }
             }
@@ -449,6 +453,38 @@ impl<'a> RaiseProof<'a> {
             None => false,
         }
     }
+}
+
+/// The variable targets a command statement writes whenever it completes:
+/// its `VarWrite` words, when the registry marks the invocation as an
+/// unconditional writer. A def the statement takes from a script argument
+/// (`catch {set a 1} x` defining `a`) is not among them.
+fn unconditional_write_targets<'s>(
+    stmt: &'s Statement,
+    registry: &CommandRegistry,
+) -> Vec<&'s str> {
+    let Statement::Call {
+        command,
+        canonical_command,
+        args,
+        ..
+    } = stmt
+    else {
+        return Vec::new();
+    };
+    let lookup = canonical_command.as_deref().unwrap_or(command);
+    let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
+    if !registry
+        .invocation_traits(lookup, &arg_strs, registry.own_surface_query())
+        .contains(tcl_registry::Traits::UNCONDITIONAL_VARIABLE_WRITE)
+    {
+        return Vec::new();
+    }
+    registry
+        .arg_indices_for_role(lookup, &arg_strs, tcl_registry::ArgRole::VarWrite)
+        .into_iter()
+        .filter_map(|i| arg_strs.get(i).copied())
+        .collect()
 }
 
 /// Collect the qualified names of procs / methods that interprocedural

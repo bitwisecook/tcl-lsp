@@ -2802,6 +2802,16 @@ fn a_dead_assignment_whose_value_can_raise_is_kept() {
             "::set unused $x",
         ),
         (
+            "a `foreach` variable over a list that may be empty",
+            "proc p {l} {\n    foreach x $l {}\n    set y $x\n    puts hi\n}\n",
+            "set y $x",
+        ),
+        (
+            "a variable only a `catch` script assigns",
+            "proc p {} {\n    catch {error boom; set a 1} x\n    set y $a\n    puts hi\n}\n",
+            "set y $a",
+        ),
+        (
             "an overwritten store of an unset variable (O109)",
             "proc p {} {\n    set y $x\n    set y 1\n    return $y\n}\n",
             "set y $x",
@@ -2837,6 +2847,24 @@ fn a_dead_assignment_whose_value_cannot_raise_is_still_deleted() {
         (
             "`expr` SCCP folds to a constant",
             "proc p {} {\n    set a 1\n    set y [expr {$a + 1}]\n    puts hi\n}\n",
+        ),
+        // Commands the registry marks as always writing their targets
+        // (found in review).
+        (
+            "a `catch` result variable",
+            "proc p {} {\n    catch {error boom} x\n    set y $x\n    puts hi\n}\n",
+        ),
+        (
+            "a `gets` target",
+            "proc p {c} {\n    gets $c line\n    set y $line\n    puts hi\n}\n",
+        ),
+        (
+            "an `lassign` target",
+            "proc p {l} {\n    lassign $l a\n    set y $a\n    puts hi\n}\n",
+        ),
+        (
+            "a `regsub` target",
+            "proc p {s} {\n    regsub {xx} $s YY a\n    set y $a\n    puts hi\n}\n",
         ),
     ] {
         assert!(
