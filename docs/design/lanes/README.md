@@ -82,26 +82,27 @@ checkpoint compiling.
   proven values) have landed; slice 8, the existence rung, is in
   progress item by item in the tracking document's § *Slice 8* ›
   *Record (2026-09-24): the opus items of slice 8*.
-- [consumer-contracts.md](consumer-contracts.md) — steps 1 to 3 of
+- [consumer-contracts.md](consumer-contracts.md) — steps 1 to 4 of
   [registry-consumer-contracts.md](../compiler/registry-consumer-contracts.md)
   § *Build order*: step 1 (the four rulings taken as decided, and the
   documents whose stated rule they replace repaired), step 2 (the
   description contract — `ClauseGrammarSpec`, `MemberEffect`, and
   `OptionEffect`, each behind one derived query, and every consumer this
-  build order names moved onto them), and step 3 (trust gates execution —
+  build order names moved onto them), step 3 (trust gates execution —
   `WorkspaceTrust` plumbed from the LSP client through discovery, pack
   hook-body execution gated on it with the dormant-hook notice, and the
   one `untrusted` predicate; stub flags reach their fields — the six
   `StubFlags` on their catalogue fields with nearest-wins role
-  resolution, and `spectcl_check`'s `tier`/`trust` preview) have landed,
-  item by item in the tracking document's § *Step 2 — progress* (with the
-  review's fixes applied after it) and § *Step 3 — progress*; step 4
-  (identity: `alias_of`, the alias target's identity, the stamp rule,
-  `SiteClaim`), planned in the tracking document's § *Plan for steps
-  2–10*, is in progress item by item in the tracking document's § *Step
-  4 — progress*: CC4.1 (`alias_of` as a `CommandSpec` field), CC4.2
-  (the loader's stamp rejection rule: a codegen-axis stamp survives only
-  as a bundled pack's `alias_of` target's own), CC4.3 (codegen records
-  that target's identity, which the VM admits through its alias hop) and
-  CC4.4 (a site resting on a pack's facts claims them, and the VM admits
-  it only while it holds the same facts) have landed.
+  resolution, and `spectcl_check`'s `tier`/`trust` preview) and step 4
+  (identity — `alias_of` as the one source of a pack command's builtin
+  identity; the loader's stamp rejection rule, under which a codegen-axis
+  stamp survives only as a bundled pack's `alias_of` target's own; codegen
+  recording that target's identity, which the VM admits through its alias
+  hop; and `SiteClaim` with its `PackFactStamp`, so a site resting on a
+  pack's facts claims them and the VM admits it only while it holds the
+  same facts) have landed, item by item in the tracking document's
+  § *Step 2 — progress* (with the review's fixes applied after it),
+  § *Step 3 — progress* and § *Step 4 — progress*; step 5 (persisted
+  guard identities, per-member semantics keys, the Explorer record),
+  planned in the tracking document's § *Plan for steps 2–10*, has not
+  started.

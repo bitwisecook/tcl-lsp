@@ -415,6 +415,32 @@ fn arity_windows_survive_the_round_trip() {
     assert_eq!(trip.reloaded["arity"]["max"], serde_json::json!(1));
 }
 
+/// `alias_of` survives render → load → re-seed.
+///
+/// No shipped spec declares it — it names the builtin a *pack* command is —
+/// so the whole-surface trip never meets it, as with arity windows. This
+/// drives one pack command that does.
+#[test]
+fn alias_of_survives_the_round_trip() {
+    let spec = tcl_registry::CommandSpec {
+        name: "vendor::unpack",
+        arity: tcl_registry::arity::Arity::at_least(1),
+        alias_of: Some("lassign"),
+        ..tcl_registry::CommandSpec::DEFAULT
+    };
+    let draft = Value::Object(draft::from_command_spec(&spec));
+    let trip = round_trip(&draft);
+
+    assert!(trip.notices.is_empty(), "{:?}\n{}", trip.notices, trip.text);
+    assert!(trip.text.contains("alias_of lassign"), "{}", trip.text);
+    assert_eq!(
+        trip.reloaded["alias_of"],
+        serde_json::json!("lassign"),
+        "{}",
+        trip.text
+    );
+}
+
 /// A declared `semantics` / `evaluate` plan is plain data — like
 /// `object_class` a level up — so it round-trips in full: no `GAPS` entry,
 /// no notice, the reloaded declaration equal to the one drafted.

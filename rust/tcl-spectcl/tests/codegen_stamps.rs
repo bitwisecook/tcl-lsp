@@ -11,22 +11,28 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU Affero General Public License for more details.
 //
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! A pack's codegen-axis stamp, from the pack file to the VM's admission —
 //! `docs/design/compiler/registry-consumer-contracts.md` § *The loader's
-//! stamp rejection rule* and rung 2 of § *Four rungs of codegen meeting
-//! `.tclspec`*.
+//! stamp rejection rule* and rungs 1 and 2 of § *Four rungs of codegen
+//! meeting `.tclspec`*.
 //!
 //! A bundled pack declares `vendor::unpack` as `alias_of lassign` and
 //! carries `lassign`'s own `codegen_hook`. The load admits the stamp;
 //! codegen specialises a call of `vendor::unpack` and records the
 //! **target's** identity, `lassign`, at the site; and the VM admits the
 //! module only where the pack name still resolves — through its alias hop —
-//! to the `lassign` builtin. The VM's compile service counts every
-//! plain-dispatch compile it is asked for, which is what a refused site
-//! costs: an admitted module runs with none, so a refusal cannot hide behind
-//! a correct result.
+//! to the `lassign` builtin and it holds the pack's facts, which the site
+//! claims beside the binding. From the workspace tier the same stamp is
+//! refused and the call compiles generic; a constant a pack's `const_fold`
+//! computed claims the pack's facts too (rung 1). The VM's compile service
+//! counts every plain-dispatch compile it is asked for, which is what a
+//! refused site costs: an admitted module runs with none, so a refusal
+//! cannot hide behind a correct result.
 
 use std::cell::Cell;
 use std::path::PathBuf;
@@ -231,6 +237,46 @@ fn prepare(vm: &mut Vm, script: &str) {
 
 const USE: &str = "set l {1 2 3}\nvendor::unpack $l a b\nlist $a $b\n";
 
+/// The tier gate at the emitter: the same pack loaded from the workspace
+/// tier keeps `alias_of` but loses the stamp, so the call compiles to
+/// generic dispatch — no `lassign` identity at the site and no claim — and
+/// the VM runs the module as compiled, the alias answering at run time.
+#[test]
+fn a_workspace_stamp_is_refused_and_specialises_nothing() {
+    let set = tcl_spectcl::pack::load_in_memory(vec![(
+        tcl_spectcl::PackFile {
+            tier: tcl_spectcl::Tier::Workspace,
+            path: scratch("workspace").join("vendor.tclspec"),
+            origin: tcl_spectcl::discovery::Origin::DotDir,
+        },
+        unpack_pack("lassign"),
+    )]);
+    let registry = tcl_spectcl::install::registry_for_dialect_with_packs("tcl9.0", &set);
+    let unpack = registry.get("vendor::unpack").expect("installed");
+    assert_eq!(unpack.alias_of, Some("lassign"));
+    assert_eq!(unpack.codegen_hook, None, "the tier gate drops the stamp");
+
+    let module = compile(USE, &registry);
+    let bindings = &module.top_level.command_bindings;
+    assert!(
+        bindings.iter().all(|b| b.identity != "lassign"),
+        "{bindings:#?}"
+    );
+    assert!(module.top_level.site_claims.is_empty());
+
+    let mut vm = Vm::new();
+    let plain = PlainCounting::installed_on(&mut vm);
+    prepare(
+        &mut vm,
+        "namespace eval vendor {}\ninterp alias {} vendor::unpack {} lassign",
+    );
+    let before = plain.get();
+    let completion = vm.run_module(&module);
+    assert_eq!(completion.code, Code::Ok, "{}", completion.result.to_str());
+    assert_eq!(completion.result.to_str().as_ref(), "1 2");
+    assert_eq!(plain.get(), before, "generic dispatch needs no recompile");
+}
+
 /// The site records `lassign`'s identity, never the pack command's own name:
 /// the binding names the spelling the source wrote and the builtin the
 /// stamp is the own of. Beside it the site claims the pack facts that made
@@ -288,7 +334,7 @@ fn the_vm_admits_it_through_the_alias_hop() {
         "nothing at the pack name: refused, recompiled plain"
     );
 
-    // The namespace first: Tcl 8.5 to 9.1 create it for a qualified alias
+    // The namespace first: Tcl 8.4 to 9.1 create it for a qualified alias
     // themselves, and this VM does not yet, so without it the pack name
     // would not resolve at all and the test would prove nothing about the
     // hop.

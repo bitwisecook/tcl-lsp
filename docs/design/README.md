@@ -86,10 +86,12 @@ passes, and ownership matrices.
   per axis, **built** in step 2; step 3's trust ruling (`WorkspaceTrust`
   gates pack hook-body execution, never authority) and stub ruling (the
   six `StubFlags` on their catalogue fields, nearest-wins), also **built**;
-  the still-**proposal** identity and backing contracts — the four rungs
-  of a pack claim reaching emitted code with the site claim and pack fact
-  stamp each rung records, and the dialect, package, and C-extension
-  follow-ons.
+  step 4's half of the identity contract — `alias_of`, the loader's stamp
+  rejection rule, codegen recording the alias target's identity, and the
+  site claim and pack fact stamp rungs 1 and 2 record, checked at the
+  VM's admission — **built**; the still-**proposal** rest — rungs 3 and 4
+  of a pack claim reaching emitted code, the backing contract, and the
+  dialect, package, and C-extension follow-ons.
 - [value-transfers-review.md](compiler/value-transfers-review.md) — review
   of the value-transfer and consumer-contract proposals: registry-owned
   specialisation, shared expression/regexp evaluation, correctness findings,

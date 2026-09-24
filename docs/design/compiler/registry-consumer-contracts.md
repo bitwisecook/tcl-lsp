@@ -18,12 +18,13 @@ loaded pack's facts are authoritative for analysis and optimisation as
 soon as they are loaded, and the direct, expression, and private-pack
 slices proceed without deciding anything here.
 
-> **Status — decided rulings; the description vocabulary built, the rest
-> proposed.** The five rulings — the four in § *Rulings* and the narrower
-> one in § *The two hook bodies that remain* — are the owner's decisions,
-> and the build takes them as settled. Every identifier, count, and file
-> path on this page was checked against the tree. Step 2 of § *Build
-> order* built the description contract's vocabulary, under these names:
+> **Status — decided rulings; the description vocabulary and the first
+> half of the identity contract built, the rest proposed.** The five
+> rulings — the four in § *Rulings* and the narrower one in § *The two
+> hook bodies that remain* — are the owner's decisions, and the build
+> takes them as settled. Every identifier, count, and file path on this
+> page was checked against the tree. Step 2 of § *Build order* built the
+> description contract's vocabulary, under these names:
 >
 > - **Clause grammar** — `ClauseGrammarSpec`, `ClauseRow`,
 >   `ClauseRowShape`, `ClauseSlot`, `HandlerMatch`, `ClauseTiming`,
@@ -55,17 +56,18 @@ slices proceed without deciding anything here.
 > nearest-wins — `traits`, `invocation_traits` and `side_effects` beside
 > the role queries, under the security floor.
 >
-> Step 4 has begun: `CommandSpec::alias_of`, the `alias_of NAME`
-> declaration naming the shipped builtin a pack command is, is the target
-> the loader's stamp rejection rule reads (`tcl_spectcl::stamps`) — a
-> codegen-axis stamp survives only on a bundled pack's command whose
-> `alias_of` names the shipped builtin carrying it, and every other is
-> dropped with a warning on its row — and the identity codegen records at
-> such a site: the target's (`ResolvedCall::stamp_identity`), which the
-> VM admits through its alias hop. A site whose emitted code rests on a
-> pack's facts records them — `SiteClaim::PackFacts` for a constant a
-> pack's `const_fold` computed, `SiteClaim::BuiltinAlias` for a binding
-> reached through `alias_of`, each carrying the pack's `PackFactStamp`
+> Step 4 builds the first half of the identity contract.
+> `CommandSpec::alias_of`, the `alias_of NAME` declaration naming the
+> shipped builtin a pack command is, is the target the loader's stamp
+> rejection rule reads (`tcl_spectcl::stamps`) — a codegen-axis stamp
+> survives only on a bundled pack's command whose `alias_of` names the
+> shipped builtin carrying it, and every other is dropped with a warning
+> on its row — and the identity codegen records at such a site: the
+> target's (`ResolvedCall::stamp_identity`), which the VM admits through
+> its alias hop. A site whose emitted code rests on a pack's facts
+> records them — `SiteClaim::PackFacts` for a constant a pack's
+> `const_fold` computed, `SiteClaim::BuiltinAlias` for a binding reached
+> through `alias_of`, each carrying the pack's `PackFactStamp`
 > (`tcl_runtime_api`) in `FunctionAsm::site_claims` — and the VM admits
 > the unit only while it holds that stamp (`Vm::set_pack_facts`).
 >
@@ -2121,7 +2123,7 @@ and come before any runtime guard work.
 - `rust/tcl-spectcl/tests/spec_corpus.rs` — every shipped pack loaded, analysed, and run through the hook host at budget; a loading and containment gate, not a value oracle
 - `rust/tcl-spectcl/src/loader.rs` — `native_hook_tables_cover_their_catalogues`, the gate the argument-role hook body keeps
 - `rust/tcl-spec-studio/tests/spectcl_ports.rs` — `the_clause_grammar_derivation_agrees_with_the_shipped_walk`, widened to every grammar-carrying command
-- `rust/tcl-spec-studio/tests/spectcl_roundtrip.rs` — the round trip that loses the `semantic_operation` and `definition_body` `GAPS` rows
+- `rust/tcl-spec-studio/tests/spectcl_roundtrip.rs` — the round trip that loses the `semantic_operation` and `definition_body` `GAPS` rows, and carries `alias_of` (`alias_of_survives_the_round_trip`)
 - `rust/tcl-spec-studio/tests/option_row_editing.rs` — the option-row form that gains `-effect` and `option_effect_family`
 - `rust/tcl-registry/tests/registry_sweep.rs` — the descriptor agreement rules, beside `repeated_arg_layouts_never_pair_conditional_binding_with_an_ssa_def_role`
 - `rust/tcl-registry/tests/tcl91_dialect.rs` — the availability of `subst`'s positive option family

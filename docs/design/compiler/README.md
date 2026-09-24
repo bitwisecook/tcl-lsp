@@ -106,11 +106,14 @@ User-facing compiler troubleshooting and how-tos live in
   ruling (`WorkspaceTrust`, plumbed from the LSP client, gates pack
   hook-body execution and nothing else — authority is never gated) and
   stub ruling (the six `StubFlags` on their catalogue fields, nearest-wins
-  role resolution), also **built**; the still-**proposal** identity and
-  backing contracts: the four rungs of a pack claim reaching emitted code,
-  with the site claim and pack fact stamp each rung records and its
-  admission check; `RuntimeBacking` and the identity kind codegen chooses
-  from it; and the dialect, package, and C-extension follow-ons.
+  role resolution), also **built**; step 4's half of the identity
+  contract — `alias_of` as the one source of a pack command's builtin
+  identity, the loader's stamp rejection rule, codegen recording the alias
+  target's identity, and the site claim and pack fact stamp rungs 1 and 2
+  record with their admission check — **built**; the still-**proposal**
+  rest: rungs 3 and 4 of a pack claim reaching emitted code;
+  `RuntimeBacking` and the identity kind codegen chooses from it; and the
+  dialect, package, and C-extension follow-ons.
 - [value-transfers-review.md](value-transfers-review.md) — review of those
   proposals against registry-owned specialisation, with shared expression
   and regexp evaluation, analysis/diagnostic separation, correctness findings,
