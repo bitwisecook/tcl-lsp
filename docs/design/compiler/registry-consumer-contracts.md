@@ -360,16 +360,16 @@ The registry surface is far richer than the analyser's dispatch uses.
 
 | Fact | Registry | Analyser |
 |---|---|---|
-| analyser hook variants | 43 (`AnalyserHookId`, `rust/tcl-registry/src/hooks.rs`) | most exist because a descriptor is missing or unconsumed; the residue is short |
+| analyser hook variants | 32 (`AnalyserHookId`, `rust/tcl-registry/src/hooks.rs`), down from 43: step 2 retired the eleven whose handler knew only a position or a keyword a descriptor now states (`Try`, `For`, `DictFor`, `DictUpdate`, `Incr`, `Append`, `Lappend`, `Upvar`, `NamespaceUpvar`, `Global`, `Variable`) | the residue is analyser policy over typed facts — procedure definition, the dynamic-target and namespace domains, the interpreter-domain stack, rename epochs, member routing, literal-iteration simulation, the case-list walk and the completion protocol, package-index bookkeeping, `source` and `load` — plus three on the migration ledger (`Set`, `DictWith`, `RegexPatternCapture`), command-specific and left for the value axis to retire; a retired command falls to the dispatch tail's generic reads |
 | scope and interpreter transitions | resolvers on `upvar`, `global`, `variable`, `namespace`, `interp` (`rust/tcl-registry/src/state_transition.rs`), and a pack's `state_transitions` resolver | since step 2 the dispatch tail applies every `VariableCellAliasTransition` an invocation states (`apply_state_transitions`, over the call's source words: `global`, `variable`, `upvar`, `namespace upvar`, a pack command's alias facts) and `interp create` — direct, or the nested `[interp create …]` a `set` binds — reads its `InterpreterTransition::Create`; the namespace family still has no consumer there; `frame_effect` is read only for alias-pair layout and level parsing (`param_traits.rs`, `diagnostics/usage.rs`); the command-binding family only by `interp alias` and the static-proc proof |
 | loop and bind positions | roles and strided `repeated_args` | since step 2 one binder (`handle_var_binding_command`) binds every `LoopVarList` and `VarWrite` position the roles name — `foreach` (which keeps its literal-iteration simulation), `lmap`, `dict for` / `map` / `update`, `array for`, `incr`, `append`, `lappend`, `lassign`, … — and `package require` / `provide` / `ifneeded` read the roles their subcommands declare |
 | OO member effect | the member-effect descriptor (`MemberSpec::effect`, `MemberEffect`, in `rust/tcl-registry/src/definer.rs`) since step 2, beside the layout (`MemberKind`: `Flat`, `Wrapper`, `FlagKeyed`) and `arg_roles`, `slot`, `retraction`, `visibility_effect`, `surface`; every TclOO, snit, itcl, `SpecTcl` and `SslicTcl` member states one, and `DefinitionBodyGrammar::member_row` answers a statement's row | since step 2 one `match` on the row's effect (`member_landing`) routes the `TclOO` fold and the snit and itcl walkers, `MethodKind::from_effect` names the lowering's frames, and the providers read the recorded member; `property`'s flag words and snit's type-body implicit variable are the axis's residue in `analyser/oo.rs` |
-| clause grammar | the clause-grammar descriptor (`ClauseGrammarSpec`, `rust/tcl-registry/src/clause_grammar.rs`), on `CommandSpec` and `SubCommand` since step 2: ten shipped grammars, one registry walk answering the roles and the clause-shape defect, and the loader reading the same type | since step 2 the lowering (`lower_if`, `lower_try`), `handle_try_command`, the generic body walk's depths, the stray-keyword report, the CFG's `on ok` edge and `signature_scan/walker.rs` read the plan; the editor refactors and `tcl-mcp`'s `datagroup.rs` still walk keywords |
+| clause grammar | the clause-grammar descriptor (`ClauseGrammarSpec`, `rust/tcl-registry/src/clause_grammar.rs`), on `CommandSpec` and `SubCommand` since step 2: ten shipped grammars, one registry walk answering the roles and the clause-shape defect, and the loader reading the same type | since step 2 the lowering (`lower_if`, `lower_try`), the generic body walk (each body's depths by its clause's timing, and a clause's variable list — `try`'s handlers, whose `handle_try_command` step 2 retired), the stray-keyword report, the CFG's `on ok` edge, `signature_scan/walker.rs`, the editor refactors (`if_to_switch.rs`, `refactor/datagroup.rs`) and `tcl-mcp`'s `datagroup.rs` read the plan |
 | option-selected semantics | the option-effect descriptor (`OptionSpec::effect`, `option_effect_families`, `option_effect.rs`), which replaced the two native resolvers over a command's own option table — `substitution_resolver` and `lsearch_pattern_args` — in step 2; `pattern_arg_resolver` remains an escape hatch no shipped spec sets | three consumers ask `CommandRegistry::substitutions_performed` correctly; the dynamic-name barrier and the `inner_head_performs_substitution` gate read only the trait, and `push_substituted_commands` re-walks a braced template for regions the answer does not carry |
 
-Three descriptors are missing, and all three are specified below. The rest
-is consumer migration, through the generic operations the interface
-contract names.
+Three descriptors were missing; step 2 built all three, and each is
+specified below. The rest is consumer migration, through the generic
+operations the interface contract names.
 
 - Scope aliases become one generic application of the
   `VariableCellAliasTransition` the registry already emits; namespace and
@@ -606,23 +606,28 @@ refactors (`refactor/if_to_switch.rs`, `refactor/datagroup.rs`), and
 semantic-token classifier read the slot's `noise` word for the `then`
 distinction they draw by hand.
 
-*As built in step 2 (CC2.9).* The compiler consumers read the plan:
-`lower_if` and `lower_try` through `ResolvedInvocation::clause_walk`, whose
-walk compares the words' *values* (so the fall-through marker is exact) and,
-where a computed word stands where it compares one, abstains with the inert
-reading the lowering needs to defer the construct as the retired keyword
-walk did; `TryHandler::kind` is the row's `HandlerMatch`; `cfg_lower.rs`'s
-`on ok` edge reads `HandlerMatch::CompletionCode` and the registry's
-completion-code parse (`try` declares no default clause, so `is_default`
-never applies); `handle_try_command` walks the plan by timing, and the
-generic body walk sets each body's depth from its clause's timing —
-`for`'s handler retired onto it; the stray-keyword report asks
-`clause_grammar::owner_of_keyword`; `signature_scan/walker.rs` reads each
-clause's script word; and the registry's own `try_control_invocation`
+*As built in step 2 (CC2.9, CC2.10, CC2.13).* The compiler consumers read
+the plan: `lower_if` and `lower_try` through
+`ResolvedInvocation::clause_walk`, whose walk compares the words' *values*
+(so the fall-through marker is exact) and, where a computed word stands
+where it compares one, abstains with the inert reading the lowering needs
+to defer the construct as the retired keyword walk did; `TryHandler::kind`
+is the row's `HandlerMatch`; `cfg_lower.rs`'s `on ok` edge reads
+`HandlerMatch::CompletionCode` and the registry's completion-code parse
+(`try` declares no default clause, so `is_default` never applies); the
+generic body walk sets each body's depth from its clause's timing and binds
+every variable-list operand a clause fills — `for`'s handler retired onto it
+first, and `handle_try_command` after it, so a `try` handler body is
+`Selected`, conditional and control flow alike; the stray-keyword report
+asks `clause_grammar::owner_of_keyword`; `signature_scan/walker.rs` reads
+each clause's script word; and the registry's own `try_control_invocation`
 parses the plan rather than the keywords. A marker falls through to the next
 *selected* clause only — never to `finally` — and `ClausePlan::falls_through`
-names a marker with no clause to fall to. The editor tiers are step 2's
-next item.
+names a marker with no clause to fall to. The editor tiers read it too:
+`if_to_switch.rs` takes `lower_if`'s shape, `refactor/datagroup.rs` and
+`tcl-mcp`'s `datagroup.rs` read the plan and `CaseListSpec`, and recovery,
+the minifier and the semantic-token classifier read the option effects,
+subcommand tables and member kinds where they matched spellings.
 
 **The `.tclspec` row shape** extends the block the loader already reads
 ([../spec-dsl-examples/if.tclspec](../spec-dsl-examples/if.tclspec) is
@@ -1290,9 +1295,9 @@ extract-proc (`rust/tcl-lsp-core/src/refactor/`) keep their call.
 `lsearch_.rs` keeps its options and drops `lsearch_pattern_args`;
 `pattern_arg_resolver` stays on `CommandSpec` only for a pattern layout no
 axis can express. The Tcl 9.1 positive family carries the release gate its options carry,
-so Rust and `.tclspec` declare one thing (the loader's `option -effect` /
-`option_effect_family` spelling is the step's next item, CC2.7, and until it
-lands the studio draft records only that a spec declares families):
+so Rust and `.tclspec` declare one thing (the loader reads the same
+descriptor as `option -effect` and `option_effect_family`, and the studio
+drafts, renders and round-trips both):
 
 ```tcl
 command subst {
@@ -1346,10 +1351,11 @@ separate field at all.
 **The studio field.** Both `substitution_resolver` and
 `pattern_arg_resolver` lost their `GapKind::Excluded` rows: the first left
 `CommandSpec`, and the second is an escape hatch no shipped spec sets.
-`option -effect` / `option_effect_family` join the option-row form with the
-loader spelling (`rust/tcl-spec-studio/tests/option_row_editing.rs` is that
-form's gate); until then `option_effect_families` is a transient
-`DraftOpaque` row and an option row's `effect` is not drafted.
+`option -effect` / `option_effect_family` joined the option-row form with
+the loader spelling in step 2 (`rust/tcl-spec-studio/tests/option_row_editing.rs`
+is that form's gate): an option row's `effect` is drafted and written back,
+and `option_effect_families` has its generator and reverse parser, so
+neither carries a `GAPS` row.
 
 **Tests.** `rust/tcl-registry/src/substitution.rs`'s own unit rows —
 including `tp_no_switches_runs_every_substitution` — became rows of the
@@ -1991,7 +1997,7 @@ and come before any runtime guard work.
 - `rust/tcl-registry/src/definer.rs` — `DefinitionBodyGrammar`, `MemberSpec`, `MemberKind`, `SlotSpec`, `MemberRetraction`, `MemberVisibility`, `DeclaredMemberVisibility`, `member_body_indices_in`
 - `rust/tcl-registry/src/model/declaration.rs`, `registration.rs` — `DeclaredCommand`, `DocumentCommandSurface`, and the second `untrusted(…)` predicate
 - `rust/tcl-registry/src/traits.rs` — `Traits::PURE`, `CREATES_SCOPE_ALIAS`, `CREATES_DYNAMIC_BARRIER`, `HAS_LOOP_BODY`, `UNSAFE`, `SAFE_INTERP_HIDDEN`, `CLAUSE_KEYWORDS_WITHOUT_COMMAND_SPEC`, `CLAUSE_NOISE_KEYWORDS`
-- `rust/tcl-compiler/src/analyser/handlers.rs`, `oo.rs`, `commands.rs`, `dispatch.rs`, `param_traits.rs`, `utils.rs`, `types.rs` — the hook dispatch, `apply_oo_subcommand_in`'s eleven arms, `handle_try_command`, `orphaned_keyword_parent`, `parse_stub_flags`, and `StubCommandDef::to_declared_command`
+- `rust/tcl-compiler/src/analyser/handlers.rs`, `oo.rs`, `commands.rs`, `dispatch.rs`, `param_traits.rs`, `utils.rs`, `types.rs` — the hook dispatch and its generic tail (`apply_state_transitions`, `handle_var_binding_command`, `dispatch_body_arguments`), `member_landing` and `apply_oo_subcommand_in`, `parse_stub_flags`, and `StubCommandDef::to_declared_command`
 - `rust/tcl-compiler/src/lowering/structured.rs`, `lowering/mod.rs`, `ir.rs`, `executable_ir.rs`, `cfg_builder/cfg_lower.rs`, `signature_scan/walker.rs` — `lower_if`, `lower_try`, `MethodKind::from_str_lossy`, `TryHandler`, `IfClause`, and the remaining clause-keyword walks
 - `rust/tcl-compiler/src/dynamic_names.rs`, `analyser/diagnostics/security.rs` — the substitution barrier and W102
 - `rust/tcl-compiler/src/codegen/emitter/bytecoded.rs`, `codegen/cmd_subst.rs`, `codegen/statements.rs`, `codegen/values.rs` — the typed hook dispatch and the residual by-name sites

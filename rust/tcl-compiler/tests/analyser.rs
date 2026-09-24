@@ -9284,6 +9284,42 @@ mod pack_declared_transitions {
         );
     }
 
+    /// A pack command whose grammar gives one clause two `LoopVarList`
+    /// slots — the shipped `catch` shape — with no `arg` rows stating them
+    /// again as flat roles, so the clause is the only place they are named.
+    const TWO_LISTS_PACK: &str = "speclib twolists 2.1 {\n\
+        \x20   command cmd {\n\
+        \x20       arity 1..3\n\
+        \x20       clause_grammar {\n\
+        \x20           head {Body} -timing protected\n\
+        \x20           tail {{LoopVarList optional} {LoopVarList optional}}\n\
+        \x20       }\n\
+        \x20   }\n\
+        }\n";
+
+    /// The generic tail binds every variable-list operand a clause fills,
+    /// not only the first: `cmd {} a b` binds `a` and `b`. Negative: the
+    /// optional second slot left unfilled binds nothing more.
+    #[test]
+    fn a_clause_with_two_variable_lists_binds_both() {
+        let both = analyser_with_pack(TWO_LISTS_PACK).analyse("cmd {} a b\n", D);
+        for name in ["a", "b"] {
+            assert!(
+                both.global_scope.variables.contains_key(name),
+                "`{name}` is bound: {:?}",
+                both.global_scope.variables.keys().collect::<Vec<_>>()
+            );
+        }
+        let one = analyser_with_pack(TWO_LISTS_PACK).analyse("cmd {} a\n", D);
+        assert!(one.global_scope.variables.contains_key("a"));
+        assert_eq!(
+            one.global_scope.variables.len(),
+            1,
+            "{:?}",
+            one.global_scope.variables.keys().collect::<Vec<_>>()
+        );
+    }
+
     /// A pack declaring an interpreter-provided global bound at startup.
     const HOST_PACK: &str = "speclib hosted 2.1 {\n\
         \x20   special_var sim_home -kind Scalar -access ReadOnly -origin Dialect -startup Interpreter\n\

@@ -89,6 +89,8 @@ checkpoint compiling.
   description contract — `ClauseGrammarSpec`, `MemberEffect`, and
   `OptionEffect`, each behind one derived query, and every consumer this
   build order names moved onto them) have landed, item by item in the
-  tracking document's § *Step 2 — progress*; step 3 (trust gates
-  execution; stub flags reach their fields), planned in the tracking
-  document's § *Plan for steps 2–10*, has not started.
+  tracking document's § *Step 2 — progress*, with the review's fixes
+  applied after it; step 3 (trust gates execution; stub flags reach their
+  fields), planned in the tracking document's § *Plan for steps 2–10*, is
+  in progress item by item in the tracking document's § *Step 3 —
+  progress*.

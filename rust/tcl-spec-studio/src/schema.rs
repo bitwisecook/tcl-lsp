@@ -1248,7 +1248,7 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Pattern-argument resolver",
         OPTS,
         FieldKind::RustExpr {
-            hint: "Some(lsearch_pattern_args)",
+            hint: "Some(my_pattern_resolver)",
         },
         "Native hook selecting pattern positions and languages for a concrete call.",
     ),

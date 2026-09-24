@@ -298,8 +298,8 @@ impl Analyser {
     /// `scope_path`.
     ///
     /// Used by every body-walking handler (`handle_proc_command`,
-    /// `handle_switch_command`, `handle_try_command`,
-    /// `handle_catch_command`, etc.).
+    /// `handle_switch_command`, `handle_catch_command`, the generic
+    /// `dispatch_body_arguments`, etc.).
     ///
     /// Body recursion does **not** use the segmenter's re-segmentation
     /// recovery — that splits a runaway top-level command and only
@@ -1221,8 +1221,8 @@ impl Analyser {
         scope_path: &[usize],
     ) {
         // IRULE5001's debug gate spans everything below: the hook handlers
-        // that own their own body walk (`switch`, `foreach`, `catch`, `try`)
-        // and the generic `ArgRole::Body` recursion (`if`, `while`, `for`)
+        // that own their own body walk (`switch`, `foreach`, `catch`) and the
+        // generic `ArgRole::Body` recursion (`if`, `while`, `for`, `try`)
         // alike. Bracketing the whole dispatch is what makes nested bodies
         // inherit the gate.
         let gated = self.irules_debug_gate_opens(cmd_name, args);
@@ -1289,7 +1289,8 @@ impl Analyser {
         // grammar, the command's traits) gives it.  The early-return hook
         // arms above already consumed the commands that own their body
         // walk (proc, oo::class, oo::define, namespace eval, foreach,
-        // switch, catch, try), so this loop only fires for the rest.
+        // switch, catch), so this loop only fires for the rest — `try`
+        // among them since its hook retired.
         //
         // For `when EVENT { body }` the iRules dialect spec
         // marks arg 1 as BODY; set `current_event` for the body
@@ -1493,8 +1494,8 @@ impl Analyser {
     /// `handle_var_binding_command` binds a loop or bound variable — with
     /// `lappend auto_path DIR…`'s record, the list append's
     /// `var_elements_effect` states — from its `LoopVarList` / `VarWrite`
-    /// role, `try`'s handler variable list (`ArgRole::LoopVarList` on the
-    /// clause grammar's own slot) included.
+    /// role, and the generic body walk binds the variable lists a clause
+    /// fills (`try`'s handler variables, a slot the flat roles leave out).
     #[allow(
         clippy::too_many_lines,
         reason = "exhaustive registry-hook dispatch (one arm per AnalyserHookId \
@@ -2416,22 +2417,25 @@ impl Analyser {
         // and body per iteration, an `if` body only when selected — and from
         // the command's traits for every other body (`when`, `eval`, …).
         let plan = self.clause_plan_in_context(registry, body_cmd, &body_args);
-        // A clause's `LoopVarList` slot (`try`'s `on` / `trap` handler
-        // variables) binds per clause, not through the flat role table
-        // `handle_var_binding_command` reads — `clause_grammar.rs`'s own
-        // module doc: a repeating clause's var-list is "bound per clause
-        // …, which the flat `LoopVarList` role … cannot say"; a command
-        // whose flat table should also carry it (`dict for`) states it a
-        // second time in its own `arg_roles` instead, so this only ever
-        // fires where that second statement does not exist. Bound before
+        // Every `LoopVarList` operand a clause fills binds per clause, not
+        // through the flat role table `handle_var_binding_command` reads —
+        // `clause_grammar.rs`'s own module doc: a repeating clause's var-list
+        // is "bound per clause …, which the flat `LoopVarList` role … cannot
+        // say" (D2.22 keeps the slot out of the flat projection). For `try`'s
+        // `on` / `trap` handler variables, and a pack grammar with no `arg`
+        // rows, this is the only binding; a command whose static table states
+        // the same list a second time (`dict for`, `dict map`, `array for`)
+        // was bound by the binder already, and binding it again here is
+        // idempotent (`define_var`'s same-span re-definition). Bound before
         // any body below walks, matching the retired `handle_try_command`.
         if let Some(plan) = plan.as_ref() {
             for clause in &plan.clauses {
-                if let Some(list_idx) = clause.operand(tcl_registry::arg_role::ArgRole::LoopVarList)
-                    && let (Some(text), Some(tok)) =
+                for list_idx in clause.operands(tcl_registry::arg_role::ArgRole::LoopVarList) {
+                    if let (Some(text), Some(tok)) =
                         (args.get(list_idx), arg_tokens.get(list_idx).copied())
-                {
-                    self.define_vars_from_list(text, tok, scope_path);
+                    {
+                        self.define_vars_from_list(text, tok, scope_path);
+                    }
                 }
             }
         }

@@ -971,6 +971,36 @@ speclib timed 1.2 {
         );
     }
 
+    /// A pack-authored `state_transitions` resolver body is a hook like any
+    /// other family's: reported under the family's field spelling, with the
+    /// two verbs its sandbox defines and what its silence means.
+    #[test]
+    fn a_state_transition_resolver_is_reported_as_a_hook() {
+        let source = r"
+speclib linked 2.1 {
+    command linked::alias {
+        arity 2
+        state_transitions {
+            argument_shape Positional
+            resolver {words ctx} { alias 1 0 }
+        }
+    }
+}
+";
+        let result = check(source, "tcl9.0");
+        assert_eq!(result["notices"], json!([]), "{result}");
+        assert_eq!(
+            strings(&result["commands"][0]["hook_families"]),
+            vec!["state_transitions.resolver"]
+        );
+        let hook = &result["commands"][0]["hooks"][0];
+        assert_eq!(hook["family"], "state_transitions.resolver", "{hook}");
+        assert_eq!(hook["field"], "state_transitions.resolver", "{hook}");
+        assert_eq!(hook["source"], "body", "{hook}");
+        assert_eq!(hook["verbs"], json!(["alias", "namespace-variable"]));
+        assert_eq!(hook["silence_means"], "no transitions");
+    }
+
     /// A body that declares nothing may read anything, and is never cached —
     /// the safe default, and the reason a pack pays 28 µs per call site until
     /// it opts in. The keys it reads are still reported.

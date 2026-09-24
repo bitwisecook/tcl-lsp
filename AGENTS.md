@@ -111,9 +111,11 @@ sites and are not debt.
   chain's keywords, conditions and scripts sit, and the resolver is
   authoritative for the rest. Compound commands
   (`dict for`, `namespace upvar`) are a base command plus a subcommand word,
-  handled by registry `SubCommand` entries and by hook IDs in the analyser,
-  lowering, and codegen — check the spec's hook IDs before hunting for a
-  missing branch. A document's own `# tcl-lsp: stub` declarations widen that
+  handled by registry `SubCommand` entries, whose roles, clause grammar and
+  state transitions the analyser reads generically, and by hook IDs in
+  lowering, codegen, and the analyser's short residue; check the
+  subcommand's descriptors and hook IDs before hunting for a missing branch.
+  A document's own `# tcl-lsp: stub` declarations widen that
   same query through `DocumentCommandSurface`, and travel to lowering and the
   interprocedural scan on `UnitBuildOptions::declared_commands`
   ([dialect-stubs.md](docs/design/contracts/dialect-stubs.md)) — so a role a

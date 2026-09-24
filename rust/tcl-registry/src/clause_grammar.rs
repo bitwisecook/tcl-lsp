@@ -405,12 +405,21 @@ impl ClausePlan {
 impl ResolvedClause {
     /// The word index of the first operand filling a slot of `role` — the
     /// clause's condition for [`ArgRole::Expr`], its script word for
-    /// [`ArgRole::Body`] — or `None` when no such slot was filled.
+    /// [`ArgRole::Body`] — or `None` when no such slot was filled. A clause
+    /// with two slots of one role (`catch`'s result and options words) names
+    /// the rest through [`Self::operands`].
     #[must_use]
     pub fn operand(&self, role: ArgRole) -> Option<usize> {
+        self.operands(role).next()
+    }
+
+    /// The word index of every operand filling a slot of `role`, in word
+    /// order: both of `catch`'s `{LoopVarList optional}` result words, where
+    /// [`Self::operand`] names only the first.
+    pub fn operands(&self, role: ArgRole) -> impl Iterator<Item = usize> + '_ {
         self.operands
             .iter()
-            .find(|(_, slot)| slot.role == role)
+            .filter(move |(_, slot)| slot.role == role)
             .map(|&(index, _)| index)
     }
 
@@ -1599,6 +1608,23 @@ mod tests {
         assert_eq!(plan.clauses[0].operand(Body), Some(2));
         assert_eq!(plan.clauses[1].operand(Body), Some(4));
         assert!(plan.clauses[1].is_default);
+    }
+
+    #[test]
+    fn every_operand_of_a_role_is_named_in_word_order() {
+        // `catch`'s tail has two `LoopVarList` slots: `operands` names both,
+        // `operand` the first; a slot the call leaves unfilled names nothing.
+        let plan = shipped("catch").walk(&["{s}", "r", "o"], &[]);
+        let tail = plan.clauses.last().expect("the result words' clause");
+        assert_eq!(
+            tail.operands(ArgRole::LoopVarList).collect::<Vec<_>>(),
+            [1, 2]
+        );
+        assert_eq!(tail.operand(ArgRole::LoopVarList), Some(1));
+        assert_eq!(tail.operands(Body).count(), 0);
+        let plan = shipped("catch").walk(&["{s}", "r"], &[]);
+        let tail = plan.clauses.last().expect("the result words' clause");
+        assert_eq!(tail.operands(ArgRole::LoopVarList).collect::<Vec<_>>(), [1]);
     }
 
     #[test]

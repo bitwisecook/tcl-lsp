@@ -1212,7 +1212,12 @@ impl Analyser {
     /// - `namespace upvar ns other local` aliases `ns::other`, a relative
     ///   `ns` resolved against the current namespace and `other` kept whole
     ///   within it (`namespace upvar ::a b::c local` aliases `::a::b::c`); a
-    ///   computed namespace or variable word names no path;
+    ///   computed namespace or variable word is kept as written, marker and
+    ///   all (`namespace upvar $ns v local` aliases `::$ns::v`), because the
+    ///   workspace index reads that marker to know the alias binds no
+    ///   statically-known cell and refuses a rename beside it — the analyser
+    ///   records the spelling rather than inventing a name or dropping the
+    ///   link;
     /// - a frame-crossing alias (`upvar`, a pack's `alias` verb) has a path
     ///   only for the two spellings [`Self::upvar_link_target`] qualifies —
     ///   and that cell is then [`AliasCell::fixed_frame`].
@@ -1223,6 +1228,20 @@ impl Analyser {
         scope_path: &[usize],
     ) -> Option<AliasCell> {
         use tcl_registry::VariableAliasTarget as Target;
+        /// A subject's value when the resolver knew it, else its source word
+        /// as written — the spelling, substitution marker included, never
+        /// taken for the value it computes.
+        fn spelt<'a>(
+            subject: &'a tcl_registry::TransitionSubject,
+            args: &'a [String],
+        ) -> Option<&'a str> {
+            match subject {
+                tcl_registry::TransitionSubject::Literal(name) => Some(name),
+                tcl_registry::TransitionSubject::Unknown { argument_index, .. } => {
+                    args.get(*argument_index).map(String::as_str)
+                }
+            }
+        }
         let relative_to = |namespace: &str, name: &str| {
             if name.starts_with("::") {
                 name.to_owned()
@@ -1240,25 +1259,20 @@ impl Analyser {
                 namespace,
                 variable,
             } => {
-                let namespace = namespace.literal()?;
+                let namespace = spelt(namespace, args)?;
                 let namespace = if namespace.starts_with("::") {
                     namespace.to_owned()
                 } else {
                     relative_to(&self.command_resolution_namespace(scope_path), namespace)
                 };
-                relative_to(&namespace, variable.literal()?)
+                relative_to(&namespace, spelt(variable, args)?)
             }
             Target::CallerSelectedFrame { frame, variable } => {
                 // The array an element word lives in is named by the word's
                 // base whatever its key, so a computed key still leaves the
                 // written base readable: the source spelling is read for that
                 // base alone, never taken as the variable's value.
-                let other = match variable {
-                    tcl_registry::TransitionSubject::Literal(name) => name.as_str(),
-                    tcl_registry::TransitionSubject::Unknown { argument_index, .. } => {
-                        args.get(*argument_index)?.as_str()
-                    }
-                };
+                let other = spelt(variable, args)?;
                 let path = Self::upvar_link_target(other, self.alias_frame_level(frame))?;
                 return Some(AliasCell {
                     path,
@@ -4749,7 +4763,15 @@ impl Analyser {
     ///   [`Self::apply_state_transitions`]'s — tail-stripping (`global
     ///   ::ns::v` binds the local alias `v`, not the qualified name) and
     ///   name/value pairing are the resolver's, which a flat `VarWrite` walk
-    ///   would get wrong.
+    ///   would get wrong. The opt-out reads the command's trait only:
+    ///   `SubCommand::creates_scope_alias` is not folded into the
+    ///   invocation's traits, because `dict update`, `dict with` and `my
+    ///   variable` carry it for aliases no `VariableCellAliasTransition`
+    ///   states — this binder is what binds their names. So `namespace
+    ///   upvar`, the one flagged subcommand whose aliases the resolver does
+    ///   state, has its strided `VarWrite` locals bound here as well as
+    ///   there: the same name at the same word, which [`Self::define_var`]
+    ///   re-defines idempotently, and the link the alias set is kept.
     /// - [`tcl_registry::Traits::DESTROYS_VARIABLE`] (`unset`): its
     ///   `VarWrite` role marks a *removal* target (an SSA def that kills the
     ///   value), not a binding to record.
@@ -4828,9 +4850,10 @@ impl Analyser {
     // depths this handler used to compute by hand (the deleted
     // `analyse_selected_body`) come from `dispatch_body_arguments`'s
     // `body_depths` instead — every `Selected` body (every `on` / `trap`
-    // handler, like every `Protected` body) now also raises
-    // `control_flow_body_depth`, not `conditional_depth` alone, which the
-    // handler never did (recorded as a step 2 behavioural delta: a `rename`
+    // handler) now also raises `control_flow_body_depth`, not
+    // `conditional_depth` alone, which the handler never did (recorded as a
+    // step 2 behavioural delta, pinned by
+    // `a_rename_in_a_try_handler_is_not_a_straight_line_deletion`: a `rename`
     // inside a `try` handler is no longer read as a straight-line deletion,
     // matching how one inside a loop body already was not). The handler
     // variable list is *not* carried by `handle_var_binding_command`'s flat
@@ -10676,16 +10699,39 @@ mod tests {
     }
 
     #[test]
-    fn namespace_upvar_with_a_computed_word_links_nothing_it_cannot_name() {
-        // A computed local binds nothing; a computed namespace names no path,
-        // so its local is defined but linked to no cell.
+    fn namespace_upvar_with_a_computed_word_keeps_the_cell_as_written() {
+        // A computed local binds nothing.
         let mut a = Analyser::new();
         dispatch_words(&mut a, &["namespace", "upvar", "::a", "x", "$local"]);
         assert!(!a.result.global_scope.variables.contains_key("local"));
+        // A computed namespace or `otherVar` word links the local to the cell
+        // as written, marker and all: the workspace index reads the marker
+        // (`alias_cell_is_computed`) to refuse a rename beside an alias whose
+        // cell it cannot name, so dropping the link would lose the refusal.
         let mut a = Analyser::new();
         dispatch_words(&mut a, &["namespace", "upvar", "$ns", "x", "l"]);
-        assert!(a.result.global_scope.variables.contains_key("l"));
-        assert_eq!(a.result.global_scope.variables["l"].link_target, None);
+        assert_eq!(
+            a.result.global_scope.variables["l"].link_target.as_deref(),
+            Some("::$ns::x"),
+        );
+        // The cell is named by the `otherVar` word, not the local.
+        assert_eq!(
+            a.result.global_scope.variables["l"].link_target_span,
+            Some(span(12, 13)),
+        );
+        let mut a = Analyser::new();
+        dispatch_words(&mut a, &["namespace", "upvar", "::mypkg", "$v", "l"]);
+        assert_eq!(
+            a.result.global_scope.variables["l"].link_target.as_deref(),
+            Some("::mypkg::$v"),
+        );
+        // An absolute `otherVar` names its cell whatever the namespace word.
+        let mut a = Analyser::new();
+        dispatch_words(&mut a, &["namespace", "upvar", "$ns", "::abs", "l"]);
+        assert_eq!(
+            a.result.global_scope.variables["l"].link_target.as_deref(),
+            Some("::abs"),
+        );
     }
 
     // `upvar` — the `otherVar` link
@@ -15258,14 +15304,19 @@ mod tests {
     #[test]
     fn a_written_array_element_binds_its_array_and_a_computed_name_binds_nothing() {
         // `incr hits($word)` writes an element of `hits` whatever the key;
-        // `append $name x` writes a variable no static name spells.
+        // `append $name x` and `incr $count` write a variable no static name
+        // spells (step 2, CC2.12: the retired handlers defined `name` /
+        // `count`).
         let mut a = Analyser::new();
         dispatch_words(&mut a, &["incr", "hits($word)"]);
         dispatch_words(&mut a, &["append", "$name", "x"]);
+        dispatch_words(&mut a, &["incr", "$count"]);
         dispatch_words(&mut a, &["lappend", "items", "x"]);
         assert!(a.result.global_scope.variables.contains_key("hits"));
         assert!(a.result.global_scope.variables.contains_key("items"));
         assert!(!a.result.global_scope.variables.contains_key("name"));
+        assert!(!a.result.global_scope.variables.contains_key("count"));
+        assert!(!a.result.global_scope.variables.contains_key("$count"));
     }
 
     #[test]
@@ -15398,24 +15449,23 @@ mod tests {
             vec![false],
             "a loop body is skippable-and-repeatable, a different question",
         );
-        // `try` carries the trait too and reaches its bodies through its own
-        // analyser hook; that hook now honours the same trait,
-        // so the main body is conditional like `if`'s.
+        // `try`'s bodies take the generic body walk at their clause's timing:
+        // the protected body is a guarded probe, so it is conditional like
+        // `if`'s.
         assert_eq!(
             conditional_flags("try { package require Tcl 8.6 } on error {} {}\n"),
             vec![true],
         );
     }
 
-    /// FIX — `handle_try_command` bumps the branch-selected
-    /// depth per clause kind, so a `package require` records the right
+    /// The generic body walk raises the branch-selected depth per clause
+    /// timing (`body_depths`), so a `package require` records the right
     /// conditionality wherever in a `try` it sits.
     ///
     /// Clause semantics are C Tcl's (Tcl 9.0.4 `try(n)`, `TclNRTryObjCmd` in
     /// `generic/tclCmdMZ.c`): the main body may be cut short by an exception a
     /// handler swallows and the `on`/`trap` handlers run only on a match — both
-    /// branch-selected — while `finally` always runs, so it is not.  See
-    /// `Analyser::analyse_selected_body` for the full reasoning.
+    /// branch-selected — while `finally` always runs, so it is not.
     #[test]
     fn package_require_conditionality_per_try_clause_kind() {
         let conditional_flags = |src: &str| -> Vec<bool> {
@@ -15472,6 +15522,55 @@ mod tests {
             ),
             vec![true, false],
         );
+    }
+
+    /// `for`'s bodies take the generic body walk at their clause's timing
+    /// (D2.55), the reading the retired `handle_for_command` gave: `start`
+    /// runs once, at the enclosing depth; `next` and the body run per
+    /// iteration, at a control-flow depth. None is branch-selected.
+    #[test]
+    fn for_start_runs_at_the_enclosing_depth_and_next_and_body_per_iteration() {
+        let mut a = crate::analyser::Analyser::new();
+        let depths: Vec<(bool, bool)> = a
+            .analyse(
+                "for {package require A} {$i < 3} {package require B} {package require C}\n\
+                 package require D\n",
+                "tcl8.6",
+            )
+            .package_requires
+            .iter()
+            .map(|p| (p.conditional, p.control_flow))
+            .collect();
+        assert_eq!(
+            depths,
+            vec![(false, false), (false, true), (false, true), (false, false)],
+            "start straight-line; next and body control flow; the depth \
+             restored after the loop",
+        );
+    }
+
+    /// A `try` handler body is `Selected` — conditional and control flow — so
+    /// a `rename` there may never run and is not a straight-line deletion,
+    /// as one inside a loop body already was not (step 2, CC2.13). A
+    /// `finally` body always runs, so its `rename` still is one.
+    #[test]
+    fn a_rename_in_a_try_handler_is_not_a_straight_line_deletion() {
+        let destroys_foo = |src: &str| {
+            let mut a = crate::analyser::Analyser::new();
+            a.analyse(src, "tcl8.6")
+                .destroyed_commands
+                .contains_key("::foo")
+        };
+        assert!(!destroys_foo(
+            "proc foo {} {}\ntry { set x 1 } on error {} { rename foo {} }\n"
+        ));
+        assert!(!destroys_foo(
+            "proc foo {} {}\ntry { set x 1 } trap {POSIX ENOENT} {} { rename foo {} }\n"
+        ));
+        assert!(destroys_foo(
+            "proc foo {} {}\ntry { set x 1 } finally { rename foo {} }\n"
+        ));
+        assert!(destroys_foo("proc foo {} {}\nrename foo {}\n"));
     }
 
     /// A `proc unknown` nested inside `namespace eval`

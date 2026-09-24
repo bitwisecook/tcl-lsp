@@ -1202,16 +1202,23 @@ analysis layers handle these at different levels:
 - The **registry** uses `SubCommand` entries on the parent `CommandSpec`.
   The parent's `arg_role_resolver`, or the subcommand's own `arg_roles` and
   `repeated_args`, assign roles to the remaining arguments.
-- The **analyser** dispatches on `analyser_hook`, whose `AnalyserHookId`
-  values include the compound forms directly (`DictFor`, `DictUpdate`,
-  `DictWith`, `NamespaceUpvar`, `InterpAlias`, …), so scope handling for a
-  compound command is selected by ID rather than by name.
+- The **analyser** reads the subcommand's descriptors through the same
+  generic tail as any other command: `dict for`'s loop variables are its
+  `LoopVarList` role, `namespace upvar`'s aliases are the
+  `VariableCellAliasTransition`s its `state_transitions` resolver states,
+  and a clause-carrying subcommand's bodies are walked at its clause
+  grammar's timings. Where the analyser still keeps policy of its own, the
+  subcommand carries an `analyser_hook` (`DictWith`, `InterpAlias`,
+  `NamespaceEval`, …) and scope handling is selected by that ID rather than
+  by name.
 - The **lowering** and **codegen** layers dispatch on `lowering_hook` /
   `codegen_hook` in the same way.
 
-When verifying whether a compound command is handled, check which hook IDs
-its spec carries before looking in a consumer: an unhandled compound form is
-usually a missing subcommand entry or an unset hook ID, not a missing branch.
+When verifying whether a compound command is handled, check its subcommand
+entry's descriptors (roles, clause grammar, state transitions) and the hook
+IDs it carries before looking in a consumer: an unhandled compound form is
+usually a missing subcommand entry, descriptor or hook ID, not a missing
+branch.
 
 ### OptionSpec and option terminators
 
@@ -1533,6 +1540,45 @@ The by-name functions (`arg_indices_for_role_words`, `pattern_args_words`,
 query's rule and stay until their callers move
 ([registry-consumer-contracts.md](registry-consumer-contracts.md)
 § *The derived-query layer*).
+
+**The analyser's hook residue.** The analyser dispatches on one typed
+`match` over `AnalyserHookId` (`dispatch_analyser_hook` in
+`analyser/commands.rs`); a command with no stamp, or whose arm is void,
+continues to a tail that reads descriptors only — the scope aliases its
+state transitions state (`apply_state_transitions`), the `LoopVarList` and
+`VarWrite` positions its roles name (`handle_var_binding_command`), and its
+`Body` words, each walked at the depth its clause's timing gives and with
+its clause's variable lists bound (`dispatch_body_arguments`). Step 2
+retired the eleven hooks whose handler knew only a position or a keyword a
+descriptor now states — `Try`, `For`, `DictFor`, `DictUpdate`, `Incr`,
+`Append`, `Lappend`, `Upvar`, `NamespaceUpvar`, `Global`, `Variable` —
+leaving 32 variants on 43 stamp rows, which
+`rust/tcl-registry/tests/analyser_hooks.rs` pins. What stays is analyser
+policy over typed facts, documented where it runs:
+
+- procedure definition and the `all_procs` table — `Proc`, `OptProc`,
+  `Apply`;
+- dynamic-target synthetic domains — `Uplevel`, `NamespaceEval`;
+- export tombstone ordering and the namespace domain —
+  `NamespaceEnsemble`, `NamespaceImport`, `NamespaceExport`,
+  `NamespaceForget`, `NamespacePath`, `NamespaceUnknown`;
+- literal-iteration simulation — `Foreach`;
+- the case-list walk and the completion protocol — `Switch`, `Catch`;
+- the interpreter-domain stack and value binding of a created
+  interpreter — `InterpAlias`, `InterpEval`, `InterpCreate`,
+  `InterpDelete`, `InterpHide`, `InterpExpose`;
+- rename epochs — `Rename`;
+- member routing to `ClassDef` fields — `OoDefine`, `OoObjdefine`;
+- package-index bookkeeping — `PackageRequire`, `PackageProvide`,
+  `PackageIfneeded`, `PackagePrefer`;
+- source and library loading — `Source`, `Load`.
+
+Three more — `Set`, `DictWith` and `RegexPatternCapture` — are
+command-specific and sit on the migration ledger for the value axis to
+retire. A new hook variant whose handler would implement one command's
+binding rules is a missing descriptor, not residue
+([registry-consumer-contracts.md](registry-consumer-contracts.md)
+§ *The analyser: the description contract*).
 
 ### Resolution order across the three levels
 
