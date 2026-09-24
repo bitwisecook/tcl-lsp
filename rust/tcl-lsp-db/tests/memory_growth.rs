@@ -71,7 +71,7 @@ use tcl_lsp_db::{
 /// slot and every memoised query result — the same `size_of_fields()` +
 /// `heap_size_of_fields()` figures `examples/edit_memory.rs`'s
 /// `report_ingredients` prints per-ingredient, summed into one number.
-fn total_salsa_retained_bytes(db: &TclDatabase) -> u64 {
+fn total_salsa_retained_bytes(db: &mut TclDatabase) -> u64 {
     let usage = <dyn salsa::Database>::memory_usage(db);
     let struct_bytes: u64 = usage
         .structs
@@ -236,7 +236,7 @@ fn edit_session_memory_growth_plateaus() {
     let _ = compiler_check_diagnostics(&db, file, config);
 
     let mut rss: Vec<Option<u64>> = vec![rss_kib()];
-    let mut checkpoints: Vec<u64> = vec![total_salsa_retained_bytes(&db)];
+    let mut checkpoints: Vec<u64> = vec![total_salsa_retained_bytes(&mut db)];
 
     let edits = edits();
     let quartile = quartile();
@@ -253,7 +253,7 @@ fn edit_session_memory_growth_plateaus() {
         let _ = compiler_check_diagnostics(&db, file, config);
 
         if i % quartile == 0 {
-            checkpoints.push(total_salsa_retained_bytes(&db));
+            checkpoints.push(total_salsa_retained_bytes(&mut db));
             rss.push(rss_kib());
         }
     }

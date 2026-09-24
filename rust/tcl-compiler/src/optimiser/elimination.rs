@@ -269,6 +269,269 @@ fn assignment_safe_to_delete_with_effect(stmt: &Statement, effect: EffectCtx<'_>
     }
 }
 
+/// Whether evaluating a dead assignment's value provably cannot raise, so
+/// deleting the statement cannot remove an error the program would stop on.
+///
+/// Reading an unset variable, an array as a scalar, or a variable a read trace
+/// guards raises; so does `expr` arithmetic on a bad operand (`1/0`, `abc + 1`).
+/// O109, O126 and O108 deleted those statements and let the program run on
+/// (#2249). The proof:
+///
+/// * a literal (`AssignConst`) cannot raise;
+/// * a value SCCP folds to a constant evaluated cleanly: SCCP declines on an
+///   evaluation error and reads an undefined, traced or escaping name as
+///   overdefined, so a `Const` for the def is a clean evaluation;
+/// * otherwise a word value (`AssignValue`) qualifies when every variable it
+///   reads is definitely set ([`Self::definitely_set`]). An `expr` or `incr`
+///   value needs the SCCP proof, since its operators can raise on a defined
+///   operand.
+struct RaiseProof<'a> {
+    fu: &'a FunctionUnit,
+    /// The procedure's parameters: bound on entry, so a version-0 read of one
+    /// is set.
+    params: Vec<String>,
+    /// Names a scope alias binds, which another frame may unset.
+    scope_aliases: HashSet<String>,
+    /// Names a module-wide trace guards; a read trace may raise.
+    module_traced: Option<&'a std::collections::BTreeSet<String>>,
+    /// Every SSA value's definition site.
+    sites: HashMap<crate::ssa::ValueKey, DefSite>,
+}
+
+enum DefSite {
+    /// A φ: set when every incoming value is set.
+    Phi(Vec<crate::ssa::Version>),
+    /// A statement: `true` when it certainly writes the variable once it
+    /// completes — an assignment or `incr` of the variable itself, or a
+    /// variable target of a command the registry marks as always writing it
+    /// (`catch`, `gets`, `lassign`, `regsub`). Never a synthetic array
+    /// may-def, nor a command (`regexp`, `scan`, `unset`, a `foreach` header)
+    /// that may leave it unset.
+    Stmt(bool),
+    /// A conditional writer's target (`regexp`, `scan`, `binary scan`), or a
+    /// read-modify-write target (`lset`, `lpop`, `ledit`): set exactly when
+    /// the version it keeps or reads was.
+    Carry(crate::ssa::Version),
+}
+
+impl<'a> RaiseProof<'a> {
+    /// `enclosing_class` is set only for a `TclOO` method unit.
+    fn new(ctx: &PassContext<'a>, fu: &'a FunctionUnit, enclosing_class: Option<&str>) -> Self {
+        // Alias recognition is registry-driven; a registry-less context (unit
+        // tests) falls back to the cached default.
+        let registry = ctx.registry.unwrap_or_else(|| {
+            tcl_registry::model::ingress::static_context_for("tcl8.6").commands()
+        });
+        // A proc or a method binds its parameters on entry. A proc and a
+        // method may share a qualified name, so the unit's kind picks the map.
+        let params = ctx
+            .ir_module
+            .and_then(|m| {
+                if enclosing_class.is_some() {
+                    m.methods.get(&fu.name).map(|d| &d.params)
+                } else {
+                    m.procedures.get(&fu.name).map(|p| &p.params)
+                }
+            })
+            .cloned()
+            .unwrap_or_default();
+        let mut sites = HashMap::new();
+        for block in fu.ssa.blocks.values() {
+            for phi in &block.phis {
+                sites.insert(
+                    (phi.name, phi.version),
+                    DefSite::Phi(phi.incoming.values().copied().collect()),
+                );
+            }
+            for ssa_stmt in &block.statements {
+                let writes = matches!(
+                    ssa_stmt.statement,
+                    Statement::AssignConst { .. }
+                        | Statement::AssignValue { .. }
+                        | Statement::AssignExpr { .. }
+                        | Statement::Incr { .. }
+                );
+                let targets = command_write_targets(&ssa_stmt.statement, registry);
+                for (&sym, &ver) in &ssa_stmt.defs {
+                    let name = fu.ssa.var_name(sym);
+                    let site = if ssa_stmt.may_defs.contains(&sym) {
+                        DefSite::Stmt(false)
+                    } else if writes || targets.always.contains(&name) {
+                        DefSite::Stmt(true)
+                    } else if targets.maybe.contains(&name) {
+                        // The SSA records the kept value as the statement's
+                        // own read of the target (#2051).
+                        ssa_stmt
+                            .uses
+                            .get(&sym)
+                            .map_or(DefSite::Stmt(false), |&prev| DefSite::Carry(prev))
+                    } else {
+                        DefSite::Stmt(false)
+                    };
+                    sites.insert((sym, ver), site);
+                }
+            }
+        }
+        Self {
+            fu,
+            params,
+            scope_aliases: scan_scope_aliases(&fu.cfg, registry),
+            module_traced: ctx.ir_module.map(|m| &m.traced_variables),
+            sites,
+        }
+    }
+
+    /// Whether a trace, a scope alias or an alias-observed link may unset or
+    /// guard `name` where this function cannot see it. Element names check
+    /// their base too.
+    fn observed(&self, name: &str) -> bool {
+        let base = crate::naming::normalise_var_name(name);
+        self.scope_aliases.contains(name)
+            || self.scope_aliases.contains(base)
+            || self.fu.cfg.alias_observed_vars.contains(name)
+            || self.fu.cfg.alias_observed_vars.contains(base)
+            || self
+                .module_traced
+                .is_some_and(|t| t.contains(base.trim_start_matches("::")))
+    }
+
+    /// Whether the statement at `idx` of `block`, whose def is `def`, can be
+    /// deleted without losing an error its value would raise.
+    fn value_cannot_raise(
+        &self,
+        block: crate::cfg::BlockId,
+        idx: usize,
+        stmt: &Statement,
+        def: &(String, u32),
+    ) -> bool {
+        let folded = || {
+            self.fu.ssa.var_symbol(&def.0).is_some_and(|sym| {
+                matches!(
+                    self.fu.sccp.values.get(&(sym, def.1)),
+                    Some(
+                        crate::analyses::LatticeValue::Const(_)
+                            | crate::analyses::LatticeValue::ConstSet(_)
+                    )
+                )
+            })
+        };
+        match stmt {
+            Statement::AssignConst { .. } => true,
+            Statement::AssignValue { .. } => folded() || self.reads_are_set(block, idx),
+            _ => folded(),
+        }
+    }
+
+    /// Whether every variable the statement substitutes is definitely set.
+    fn reads_are_set(&self, block: crate::cfg::BlockId, idx: usize) -> bool {
+        let Some(ssa_stmt) = self
+            .fu
+            .ssa
+            .blocks
+            .get(&block)
+            .and_then(|b| b.statements.get(idx))
+        else {
+            return false;
+        };
+        ssa_stmt
+            .uses
+            .iter()
+            .filter(|(sym, _)| !ssa_stmt.quoted_uses.contains(sym))
+            .all(|(&sym, &ver)| {
+                let name = self.fu.ssa.var_name(sym);
+                !self.observed(name) && self.definitely_set(sym, ver, &mut HashSet::new())
+            })
+    }
+
+    /// Whether `(sym, ver)` is set on every path that reaches it: a parameter
+    /// on entry, or a value every definition of which certainly writes it.
+    /// A φ cycle adds no unset input of its own, so a revisited value counts
+    /// as set; any unset input reaches the cycle through another φ operand.
+    fn definitely_set(
+        &self,
+        sym: crate::ssa::Symbol,
+        ver: crate::ssa::Version,
+        visiting: &mut HashSet<crate::ssa::ValueKey>,
+    ) -> bool {
+        if ver == 0 {
+            let name = self.fu.ssa.var_name(sym);
+            return self.params.iter().any(|p| p == name);
+        }
+        if !visiting.insert((sym, ver)) {
+            return true;
+        }
+        match self.sites.get(&(sym, ver)) {
+            Some(DefSite::Stmt(writes)) => *writes,
+            Some(DefSite::Carry(prev)) => self.definitely_set(sym, *prev, visiting),
+            Some(DefSite::Phi(incoming)) => incoming
+                .iter()
+                .all(|&v| self.definitely_set(sym, v, visiting)),
+            None => false,
+        }
+    }
+}
+
+/// The variable targets of a command statement, split by how the registry
+/// says the invocation writes them. The targets are the call's `defs` that
+/// one of its own words names: lowering resolved those defs against the
+/// effective argument vector, so an `interp alias` that prepends words still
+/// finds them, while a def taken from a script argument (`catch {set a 1} x`
+/// defining `a`) is named by no word and is in neither.
+#[derive(Default)]
+struct CommandWriteTargets<'s> {
+    /// Written whenever the command completes (`UNCONDITIONAL_VARIABLE_WRITE`).
+    always: Vec<&'s str>,
+    /// Written only on a runtime match, else left as they were
+    /// (`CONDITIONAL_VARIABLE_WRITE`), or read before the write
+    /// (`READS_BEFORE_WRITE`: `lset`, `lpop`, `ledit`), so set after the
+    /// command exactly when they were set before it.
+    maybe: Vec<&'s str>,
+}
+
+fn command_write_targets<'s>(
+    stmt: &'s Statement,
+    registry: &CommandRegistry,
+) -> CommandWriteTargets<'s> {
+    let Statement::Call {
+        command,
+        canonical_command,
+        args,
+        defs,
+        ..
+    } = stmt
+    else {
+        return CommandWriteTargets::default();
+    };
+    let lookup = canonical_command.as_deref().unwrap_or(command);
+    let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
+    let traits = registry.invocation_traits(lookup, &arg_strs, registry.own_surface_query());
+    let always = traits.contains(tcl_registry::Traits::UNCONDITIONAL_VARIABLE_WRITE);
+    let maybe = traits.contains(tcl_registry::Traits::CONDITIONAL_VARIABLE_WRITE)
+        || (traits.contains(tcl_registry::Traits::READS_BEFORE_WRITE)
+            && !traits.contains(tcl_registry::Traits::DESTROYS_VARIABLE));
+    if !always && !maybe {
+        return CommandWriteTargets::default();
+    }
+    // A target is spelled by one of the call's own words; a name a script
+    // argument assigns is buried inside that script word instead.
+    let names: Vec<&str> = defs
+        .iter()
+        .map(String::as_str)
+        .filter(|name| args.iter().any(|word| word == name))
+        .collect();
+    if always {
+        CommandWriteTargets {
+            always: names,
+            maybe: Vec::new(),
+        }
+    } else {
+        CommandWriteTargets {
+            always: Vec::new(),
+            maybe: names,
+        }
+    }
+}
+
 /// Collect the qualified names of procs / methods that interprocedural
 /// analysis has proven pure — threaded into the O109 / O126 RHS-purity
 /// gates so `set unused [pureProc]` / `set unused [my pureMethod]` can
@@ -544,6 +807,7 @@ fn emit_dead_stores_and_unused(
         .registry
         .unwrap_or_else(|| tcl_registry::model::ingress::static_context_for("tcl8.6").commands());
     let scope_aliases = scan_scope_aliases(&fu.cfg, scan_registry);
+    let raise_proof = RaiseProof::new(ctx, fu, purity.enclosing_class);
     // Caller-locals this function passes by name to an
     // upvar callee — not dead/unused even when the name-level SSA sees
     // no read (the callee reads/writes it through the alias).
@@ -598,14 +862,15 @@ fn emit_dead_stores_and_unused(
         // dead at the SSA level, but its RHS may have observable side
         // effects (`set unused [puts X]` prints, `set unused [my
         // impureMethod]` mutates object state). Only delete when every
-        // embedded command substitution is provably side-effect-free.
-        if !assignment_safe_to_delete_with_effect(
-            stmt,
-            EffectCtx {
-                purity,
-                execution_namespace,
-            },
-        ) {
+        // embedded command substitution is provably side-effect-free, and
+        // when evaluating the value cannot raise (#2249).
+        let effect = EffectCtx {
+            purity,
+            execution_namespace,
+        };
+        if !assignment_safe_to_delete_with_effect(stmt, effect)
+            || !raise_proof.value_cannot_raise(def_block, idx, stmt, &chain.key)
+        {
             continue;
         }
         // Suppress when this element write is observed by a read the name-level
@@ -776,14 +1041,18 @@ fn emit_adce(
     };
     let (consumer_stmt_keys, keep_forever) = build_adce_consumers(fu);
     let stmt_to_defs = build_stmt_to_defs(fu);
+    let raise_proof = RaiseProof::new(ctx, fu, enclosing_class);
     let removed = run_adce_fixpoint(
         fu,
         baseline,
         &consumer_stmt_keys,
         &keep_forever,
         &stmt_to_defs,
-        purity,
-        execution_namespace,
+        EffectCtx {
+            purity,
+            execution_namespace,
+        },
+        &raise_proof,
     );
     emit_adce_reports(ctx, fu, baseline, &removed);
 }
@@ -845,8 +1114,8 @@ fn run_adce_fixpoint(
     consumer_stmt_keys: &ConsumerMap,
     keep_forever: &HashSet<(String, u32)>,
     stmt_to_defs: &StmtDefsMap,
-    purity: PurityCtx<'_>,
-    execution_namespace: Option<&crate::ir::ExecutionNamespace>,
+    effect: EffectCtx<'_>,
+    raise_proof: &RaiseProof<'_>,
 ) -> HashSet<(String, u32)> {
     let unreachable = unreachable_blocks(&fu.cfg, &fu.sccp);
     let mut removed = baseline.clone();
@@ -881,13 +1150,9 @@ fn run_adce_fixpoint(
             // statement live. This reuses the same `PurityCtx` /
             // `assignment_safe_to_delete` gate O109/DSE applies rather than
             // treating every assignment as pure.
-            if !assignment_safe_to_delete_with_effect(
-                stmt,
-                EffectCtx {
-                    purity,
-                    execution_namespace,
-                },
-            ) {
+            if !assignment_safe_to_delete_with_effect(stmt, effect)
+                || !raise_proof.value_cannot_raise(def_block, idx, stmt, key)
+            {
                 continue;
             }
             let empty: Vec<(String, usize)> = Vec::new();

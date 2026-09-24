@@ -192,7 +192,9 @@ pub fn spec() -> CommandSpec {
         name: "regsub",
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         byte_array_effect: ByteArrayEffect::Coerces,
-        traits: Traits::BYTE_COMPILED | Traits::FRAME_HASH_BUILTIN,
+        traits: Traits::BYTE_COMPILED
+            | Traits::FRAME_HASH_BUILTIN
+            | Traits::UNCONDITIONAL_VARIABLE_WRITE,
         // Positional floor/ceiling — `exp`, `string`, `subSpec` required
         // (3), optional `varName` (4). Confirmed identical in the fetched
         // 8.4, 8.5, 8.6, 9.0, and 9.1 manpages' `regsub ?switches? exp

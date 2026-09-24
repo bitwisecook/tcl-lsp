@@ -11,4 +11,4 @@ dialects []
 registrations 1
 notices 0
 commands 1
-command snit::type line 36 overrides false degraded false spec 2ee1f26c7f960b08 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command snit::type line 36 overrides false degraded false spec 11afded0c0b606d4 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
