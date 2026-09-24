@@ -386,8 +386,15 @@ declare_traits! {
     /// failure path too: `catch` binds its result and options variables
     /// whatever the script's completion code, `gets` at end of file writes
     /// `""`, `regsub` with no match writes the unchanged input, and `lassign`
-    /// writes `""` to a target with no value. Measured identical on tclsh
-    /// 8.4.20 (which has no `lassign`), 8.5.19, 8.6.18, 9.0.4 and 9.1b0.
+    /// writes `""` to a target with no value. `append`, `lappend` and the
+    /// `dict` mutators (`set`, `append`, `lappend`, `incr`, `unset`) create
+    /// an unset target (`append a` with no value raises instead, so it never
+    /// completes). Measured identical on tclsh 8.4.20 (which has no `lassign`
+    /// or `dict`), 8.5.19, 8.6.18, 9.0.4 and 9.1b0.
+    ///
+    /// Only scalar writers: `array set` creates an array, which a scalar read
+    /// still raises on, and `dict update` / `dict with` write their key
+    /// variables only for keys the dictionary holds.
     ///
     /// The positive counterpart of [`Traits::CONDITIONAL_VARIABLE_WRITE`]: a
     /// consumer may treat a target as set after the command only when this

@@ -2807,6 +2807,11 @@ fn a_dead_assignment_whose_value_can_raise_is_kept() {
             "set y $x",
         ),
         (
+            "an array read as a scalar after `array set`",
+            "proc p {} {\n    array set a {}\n    set y $a\n    puts hi\n}\n",
+            "set y $a",
+        ),
+        (
             "a variable only a `catch` script assigns",
             "proc p {} {\n    catch {error boom; set a 1} x\n    set y $a\n    puts hi\n}\n",
             "set y $a",
@@ -2865,6 +2870,22 @@ fn a_dead_assignment_whose_value_cannot_raise_is_still_deleted() {
         (
             "a `regsub` target",
             "proc p {s} {\n    regsub {xx} $s YY a\n    set y $a\n    puts hi\n}\n",
+        ),
+        (
+            "an `append` target",
+            "proc p {v} {\n    append x $v\n    set y $x\n    puts hi\n}\n",
+        ),
+        (
+            "an `lappend` target",
+            "proc p {v} {\n    lappend x $v\n    set y $x\n    puts hi\n}\n",
+        ),
+        (
+            "a `dict set` target",
+            "proc p {v} {\n    dict set d k $v\n    set y $d\n    puts hi\n}\n",
+        ),
+        (
+            "a `dict incr` target",
+            "proc p {} {\n    dict incr d k\n    set y $d\n    puts hi\n}\n",
         ),
     ] {
         assert!(
