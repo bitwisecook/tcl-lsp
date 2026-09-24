@@ -545,7 +545,7 @@ once. "Charge" is in `WorkUnits` (§ *Budgets and cancellation*).
 | `string::cat` | none | none | an output past the charge | 1 per output byte, charged first |
 | `index::resolve`, `resolve_with`, `resolve_opt`, `resolve_opt_with`, `encodable`, `bad_index` | `INDEX_GRAMMAR` | measured on a 12-element list `a`…`l`: `lindex $l 010` is `i` up to 8.6 and `k` from 9.0, `lindex $l end-010` is `d` up to 8.6 and `b` from 9.0, `lindex $l 1_0` and `lindex $l 0d1` are `bad index` up to 8.6 and `k` and `b` from 9.0, while `lindex $l 0x2` is `c` on every release | disagreement with no named release | 1 |
 | `index::drill` | `INDEX_GRAMMAR`, `LIST_RENDERING` | as above | a non-list step, an out-of-range step | 1 per path step |
-| `binary::format` | `BINARY_FIELDS`, `BYTE_STRINGS` | `t n m r R q Q` arrive in 8.5 (`specifier_min_version`); the `u` suffix is 8.5+ (`signedness_available`) | a field the target lacks; an output past the charge | `binary::format_size_bound` (proposed), charged first |
+| `binary::format` (`BinaryFormatSemantics` in `value_transfer/builtins.rs`, the result `Constructed(ByteArray)`) | `BINARY_FIELDS`, `BYTE_STRINGS`, `SOURCE_ENCODING` | `t n m r R q Q` arrive in 8.5 (`specifier_min_version`); the `u` suffix is 8.5+ (`signedness_available`); `c 010` packs 8 up to 8.6 and 10 from 9.0, `0b`, `0o` and `1_0` spellings arrive in 8.5 and 9.0, and past 64 bits 8.x raises where 9.x wraps; `d 010` is 10.0 on 8.4 and 9.x and 8.0 on 8.5 and 8.6, `d -0` is -0.0 on 8.4 and 0.0 after, 8.4 raises past the double range and below its normal range, and a single-precision value past `FLT_MAX` is clamped by 8.x and packed as an infinity by 9.x | a field the target lacks; a numeral other than a plain decimal, or a value past those ranges; a character above `U+00FF`; `x*` and a countless `@`, which C Tcl refuses; an output past the charge | `binary::format_size_bound`, charged first as allocation, then 1 per output byte |
 | `binary::scan` (`BinaryScanSemantics` in `value_transfer/destructure.rs`) | `BINARY_FIELDS`, `BYTE_STRINGS`, `SOURCE_ENCODING` | as above; a float field's value is spelt `%.12g` on 8.4 | a field the target lacks; a float field under 8.4; a character above `U+00FF`; a format with more value fields than variables (the command raises once it reaches one with data left, and the route does not follow where the data runs out) | 1 per scanned byte, plus 1 per published byte |
 | `binary::specifiers`, `is_specifier`, `specifier_min_version`, `signedness_available` | `BINARY_FIELDS` | as above | — | 1 per format byte |
 | `binary::hex_encode` / `base64_encode` / `uu_encode` / `hex_decode` / `base64_decode` / `uu_decode` (and `DecodeError`) | `BYTE_STRINGS` | the Tcl 9 checked conversion against the 8.x low-byte truncation | a `DecodeError`; an output past the charge | 1 per byte both ways, charged first |
@@ -571,13 +571,15 @@ once. "Charge" is in `WorkUnits` (§ *Budgets and cancellation*).
 
 Four names the declarations in
 [value-transfers-examples.md](value-transfers-examples.md) use are
-*proposed* cores, and each has a standing-in owner today:
+*proposed* cores, and each but `binary::format_size_bound` (built beside
+`binary::format` for the `binary format` route) has a standing-in owner
+today:
 
 | Proposed | Stands in for | Note |
 |---|---|---|
 | `scan::parse_format` | `scan::validate_format` | today it returns the conversion count or a message, not a parsed format |
 | `scan::convert` | `scan::scan_match` → `ScanOutcome` | the outcome already carries the per-target `Scanned` values |
-| `binary::format_size_bound` | nothing | the charge cannot be derived from `binary::specifiers` alone, because `a`, `A`, and `x` take explicit counts; the bound is new code beside `binary::format` |
+| `binary::format_size_bound` | built | the charge cannot be derived from `binary::specifiers` alone, because `a`, `A`, and `x` take explicit counts; the bound is the widest write of every field plus the furthest `@`, saturating |
 | `numeric_core::tcl_incr` | `ValueOps::int_add` plus `tcl_syntax::number::parse` | the seam already folds the absent-value-as-zero case in, so the proposed wrapper adds only the release's parse and the existence check |
 
 No core gains a `*_with` variant for this page: the axes the cores read

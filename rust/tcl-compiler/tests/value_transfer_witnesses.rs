@@ -1820,6 +1820,52 @@ fn tenant_workspace() -> tcl_spectcl::PackSet {
     pack_workspace("tenant", TENANT_PACK)
 }
 
+/// Program (2) of the interface page (VT5.6): `binary format` declares a
+/// registry-owned route, so `set h [binary format H* 414243444546]` is
+/// `ABCDEF` in the shared lattice under every profile, typed a byte array by
+/// construction, and neither S100 nor S110 reports a conversion for it. A
+/// computed byte array has no lossless source spelling, so no rewrite writes
+/// it into the program (`SccpResult::materialises`): the optimised program
+/// keeps the command that builds it and prints what every release prints.
+#[test]
+fn program_two_folds_and_is_a_byte_array() {
+    use tcl_compiler::shimmer::{find_byte_array_warnings_for_cu, find_shimmer_warnings_for_cu};
+    use tcl_compiler::value_transfer::FoldedType;
+    use tcl_registry::TclType;
+    use tcl_registry::value_transfer::RepresentationEvidence;
+    let source = "proc p {} {\n    set h [binary format H* 414243444546]\n    puts $h\n}\n\
+                  proc b {} {\n    set g [binary format H* 4748]\n    return $g\n}\np\nputs [b]\n";
+    let byte_array = FoldedType {
+        intrep: Some(TclType::ByteArray),
+        shape: None,
+        representation: RepresentationEvidence::Constructed(TclType::ByteArray),
+    };
+    for dialect in DIALECTS {
+        let unit = unit_of(source, dialect);
+        assert_eq!(
+            value_at(&unit, "::p", "h", 1),
+            Some(text("ABCDEF")),
+            "{dialect}"
+        );
+        assert_eq!(
+            folded_at(&unit, "::p", "h", 1),
+            Some(byte_array.clone()),
+            "{dialect}"
+        );
+        let registry = static_context_for(dialect).commands();
+        let shimmers = find_shimmer_warnings_for_cu(&unit, registry);
+        assert!(shimmers.is_empty(), "{dialect}: {shimmers:?}");
+        let damage = find_byte_array_warnings_for_cu(&unit, registry);
+        assert!(damage.is_empty(), "{dialect}: {damage:?}");
+        let (rewritten, _) = optimised(source, dialect);
+        assert!(
+            !rewritten.contains("ABCDEF") && !rewritten.contains("GH"),
+            "{dialect}: a byte array was written into the source:\n{rewritten}"
+        );
+    }
+    prints_under_every_release(source, "ABCDEF\nGH\n");
+}
+
 /// The folded type of `var`'s version `version` in `proc`: the semantic
 /// type and representation evidence the evaluation that produced it stated.
 fn folded_at(

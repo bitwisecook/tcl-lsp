@@ -184,6 +184,13 @@ impl<'a> FunctionLattice<'a> {
     fn constant_at(&self, span: tcl_lexer::Span, name: &str) -> Option<String> {
         let unit = self.unit?;
         let stmt = self.statements.get(&(span.start(), span.end()))?;
+        // A byte array a route constructed is never written into the folded
+        // string ([`crate::sccp::SccpResult::materialises`]).
+        let symbol = unit.ssa.var_symbol(name)?;
+        let version = *stmt.uses.get(&symbol)?;
+        if !unit.sccp.materialises((symbol, version)) {
+            return None;
+        }
         crate::value_transfer::lattice_const_text(name, &stmt.uses, &unit.sccp.values, &unit.ssa)
     }
 }

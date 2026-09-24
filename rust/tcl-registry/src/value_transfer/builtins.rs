@@ -21,7 +21,7 @@
 //! Each declaration names its route — a catalogued direct evaluator or the
 //! shared expression engine — and its result type. Every direct evaluator
 //! ([`STRING_RANGE`], [`LIST_OF_ARGS`], [`LIST_LENGTH`], [`STRING_LENGTH`],
-//! [`FORMAT_TEMPLATE`]) is registry-owned: a call into the shared core over
+//! [`FORMAT_TEMPLATE`], [`BINARY_FORMAT`]) is registry-owned: a call into the shared core over
 //! [`ConstOps`]. The expression route ([`EXPR`]) assembles its arguments
 //! here ([`ExpressionRoute::assemble`]) and is evaluated by the driver's
 //! engine adapter, which feeds the shared engine the analysis services.
@@ -527,6 +527,256 @@ impl CommandSemantics for FormatTemplateSemantics {
             Some(Err(reason)) => EvalAnswer::Declined(reason),
             None => EvalAnswer::Declined(DeclineReason::Unsupported),
         }
+    }
+}
+
+/// `binary format formatString ?arg …?` on the direct route: the shared
+/// packer (`tcl_cmd_core::binary::format`) over the arguments' bytes, its
+/// output bound (`binary::format_size_bound`) charged before it runs, and
+/// the result a byte array by construction, spelt as the string of the
+/// characters `U+0000` to `U+00FF` its bytes are. Only what every release
+/// the target names packs alike is evaluated, each difference measured on
+/// tclsh 8.4 to 9.1:
+///
+/// - a field letter from its release (`t n m r R q Q` from 8.5); the `u`
+///   suffix, which the packer refuses, and every other packer error decline
+///   as the program's error;
+/// - an integer only as a plain decimal within 64 bits: `binary format c
+///   010` is `\x08` up to 8.6 and `\x0a` from 9.0, `0b` and `0o` arrive in
+///   8.5 and `1_0` in 9.0, and past 64 bits 8.x raises where 9.x wraps;
+/// - a float only as a plain decimal whose value every release reads alike:
+///   `d 010` is 10.0 on 8.4 and 9.x and 8.0 on 8.5 and 8.6, an integer
+///   spelling reads as an integer from 8.5 (`d -0` is -0.0 on 8.4 and 0.0
+///   after), past the double range or below its normal range 8.4 raises, and
+///   a single-precision value past `FLT_MAX` is clamped by 8.x and packed as
+///   an infinity by 9.x; a float field without a count takes its whole
+///   argument, where the packer would take a list's first element;
+/// - a character above `U+00FF` in an argument, which crosses to bytes by
+///   the release's rule;
+/// - `x*` and an `@` without a count, which C Tcl refuses and the packer
+///   does not.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BinaryFormatSemantics;
+
+/// `binary format formatString ?arg …?`.
+pub static BINARY_FORMAT: BinaryFormatSemantics = BinaryFormatSemantics;
+
+impl BinaryFormatSemantics {
+    /// The axes the route reads: the field set, the crossing of characters
+    /// to bytes, and the source decoding of a non-ASCII operand.
+    pub const NEEDS: Needs = Needs::BINARY_FIELDS
+        .union(Needs::BYTE_STRINGS)
+        .union(Needs::SOURCE_ENCODING);
+
+    /// The revision of the registry-owned evaluator.
+    const REVISION: u64 = 1;
+
+    /// Whether `text` is an integer every release reads alike: a plain
+    /// decimal, optionally signed and surrounded by whitespace, with no
+    /// leading zero, within 64 bits.
+    fn plain_integer(text: &str) -> bool {
+        let text = text.trim_matches(|c: char| c.is_ascii_whitespace());
+        let digits = text.strip_prefix(['+', '-']).unwrap_or(text);
+        !digits.is_empty()
+            && digits.bytes().all(|b| b.is_ascii_digit())
+            && (digits == "0" || !digits.starts_with('0'))
+            && text.parse::<i64>().is_ok()
+    }
+
+    /// Whether `text` is a float every release reads as one value: a plain
+    /// decimal mantissa (no leading zero before another digit) with an
+    /// optional exponent, whose value is zero from zero digits or a normal
+    /// double — within single precision for a single-precision field — and
+    /// whose integer spelling, which 8.5 on reads as an integer first, is
+    /// exact in a double and not a negative zero.
+    fn plain_float(text: &str, single: bool) -> bool {
+        let text = text.trim_matches(|c: char| c.is_ascii_whitespace());
+        let unsigned = text.strip_prefix(['+', '-']).unwrap_or(text);
+        let (mantissa, exponent) = match unsigned.find(['e', 'E']) {
+            Some(at) => (&unsigned[..at], Some(&unsigned[at + 1..])),
+            None => (unsigned, None),
+        };
+        let (whole, fraction) = mantissa.split_once('.').unwrap_or((mantissa, ""));
+        let digits = |part: &str| part.bytes().all(|b| b.is_ascii_digit());
+        let exponent_ok = exponent.is_none_or(|exponent| {
+            let exponent = exponent.strip_prefix(['+', '-']).unwrap_or(exponent);
+            !exponent.is_empty() && digits(exponent)
+        });
+        if whole.len() + fraction.len() == 0
+            || !digits(whole)
+            || !digits(fraction)
+            || !exponent_ok
+            || (whole.len() > 1 && whole.starts_with('0'))
+        {
+            return false;
+        }
+        let Ok(value) = text.parse::<f64>() else {
+            return false;
+        };
+        let zero_digits = mantissa.bytes().all(|b| matches!(b, b'0' | b'.'));
+        let in_range = if value == 0.0 {
+            zero_digits
+        } else {
+            value.is_finite()
+                && value.abs() >= f64::MIN_POSITIVE
+                && (!single || value.abs() <= f64::from(f32::MAX))
+        };
+        let integer_spelling = !mantissa.contains('.') && exponent.is_none();
+        in_range
+            && (!integer_spelling
+                || (!(value == 0.0 && value.is_sign_negative())
+                    && value.abs() <= 9_007_199_254_740_992.0))
+    }
+
+    /// The decline for a field, or a value one takes, that the target's
+    /// releases do not all pack alike, when there is one. A format or an
+    /// argument the packer refuses is left for the packer to refuse.
+    fn field_decline(
+        release: Option<tcl_dialect::TclVersion>,
+        format: &str,
+        args: &[String],
+    ) -> Option<DeclineReason> {
+        let mut next = args.iter();
+        for field in tcl_cmd_core::binary::specifiers(format.as_bytes(), false) {
+            if let Some(floor) = tcl_cmd_core::binary::specifier_min_version(field.letter)
+                && release.is_none_or(|release| release < floor)
+            {
+                return Some(DeclineReason::ReleaseAmbiguous(Axis::Availability(
+                    tcl_dialect::model::SpecSurface::TCL85_PLUS[0],
+                )));
+            }
+            let counted = field.star || field.count.is_some();
+            match field.letter {
+                b'x' if field.star => return Some(DeclineReason::WrongRepresentation),
+                b'@' if !counted => return Some(DeclineReason::WrongRepresentation),
+                b'x' | b'X' | b'@' => {}
+                b'a' | b'A' | b'b' | b'B' | b'h' | b'H' => {
+                    next.next();
+                }
+                letter => {
+                    // A missing argument is the packer's error to raise.
+                    let arg = next.next()?;
+                    let float = matches!(letter, b'f' | b'r' | b'R' | b'd' | b'q' | b'Q');
+                    let single = matches!(letter, b'f' | b'r' | b'R');
+                    let plain = |value: &str| {
+                        if float {
+                            Self::plain_float(value, single)
+                        } else {
+                            Self::plain_integer(value)
+                        }
+                    };
+                    let readable = if counted {
+                        let Ok(elements) = tcl_syntax::list::split_list(arg) else {
+                            return None;
+                        };
+                        let used = field.count.unwrap_or(elements.len()).min(elements.len());
+                        elements[..used].iter().all(|element| plain(element))
+                    } else {
+                        plain(arg)
+                    };
+                    if !readable {
+                        return Some(DeclineReason::ReleaseAmbiguous(Axis::NumeralGrammar));
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    fn evaluate_format(input: &dyn AnalysisInputs, budget: &mut Budget) -> EvalAnswer {
+        let view = input.invocation();
+        let first = view.argument_offset;
+        if view.operands.len() <= first {
+            // `wrong # args`: the program's error.
+            return EvalAnswer::Declined(DeclineReason::WrongRepresentation);
+        }
+        let words = match exact_operands(input, first..view.operands.len()) {
+            Ok(words) => words,
+            Err(answer) => return answer,
+        };
+        let mut ops = match ConstOps::admit(input.context(), budget, Self::NEEDS) {
+            Ok(ops) => ops,
+            Err(reason) => return EvalAnswer::Declined(reason),
+        };
+        let target = *ops.target();
+        let texts = match words
+            .iter()
+            .map(|word| ops.admissible_text(word).map(|text| text.to_string()))
+            .collect::<Result<Vec<_>, _>>()
+        {
+            Ok(texts) => texts,
+            Err(reason) => return EvalAnswer::Declined(reason),
+        };
+        let Some((format, args)) = texts.split_first() else {
+            return EvalAnswer::Declined(DeclineReason::WrongRepresentation);
+        };
+        if let Some(reason) = Self::field_decline(target.release, format, args) {
+            return EvalAnswer::Declined(reason);
+        }
+        let Some(bytes) = args
+            .iter()
+            .map(|arg| {
+                arg.chars()
+                    .map(|c| u8::try_from(u32::from(c)).ok())
+                    .collect::<Option<Vec<u8>>>()
+            })
+            .collect::<Option<Vec<Vec<u8>>>>()
+        else {
+            return EvalAnswer::Declined(DeclineReason::ReleaseAmbiguous(Axis::ByteStrings));
+        };
+        let refs: Vec<&[u8]> = bytes.iter().map(Vec::as_slice).collect();
+        // The output is allocated before it is packed: its bound is charged
+        // first, so a count no budget pays for is never allocated.
+        let bound = tcl_cmd_core::binary::format_size_bound(format.as_bytes(), &refs);
+        if let Err(reason) = ops.charge_bytes(bound) {
+            return EvalAnswer::Declined(reason);
+        }
+        let Ok(packed) = tcl_cmd_core::binary::format(format.as_bytes(), &refs) else {
+            return EvalAnswer::Declined(DeclineReason::WrongRepresentation);
+        };
+        if let Err(reason) = ops.charge(u64::try_from(packed.len()).unwrap_or(u64::MAX)) {
+            return EvalAnswer::Declined(reason);
+        }
+        let text: String = packed.iter().copied().map(char::from).collect();
+        let value = ConstValue::bytes(text.as_bytes(), super::const_ops::Representation::ByteArray);
+        match ops.take(value) {
+            Ok(value) => pure_outcome(
+                NativeEvalId::BinaryFormat,
+                Self::REVISION,
+                value,
+                TclType::ByteArray,
+                DependencyEvidence {
+                    release: target.release,
+                    ..DependencyEvidence::default()
+                },
+            ),
+            Err(reason) => EvalAnswer::Declined(reason),
+        }
+    }
+}
+
+impl CommandSemantics for BinaryFormatSemantics {
+    fn identity(&self) -> &'static str {
+        NativeEvalId::BinaryFormat.as_str()
+    }
+
+    fn route(&self) -> EvalRoute {
+        EvalRoute::Direct {
+            id: NativeEvalId::BinaryFormat,
+        }
+    }
+
+    fn transfer(
+        &self,
+        domain: FactDomain,
+        _input: &dyn AnalysisInputs,
+        _budget: &mut Budget,
+    ) -> TransferAnswer {
+        result_type_transfer(domain, TclType::ByteArray)
+    }
+
+    fn evaluate(&self, input: &dyn AnalysisInputs, budget: &mut Budget) -> EvalAnswer {
+        Self::evaluate_format(input, budget)
     }
 }
 

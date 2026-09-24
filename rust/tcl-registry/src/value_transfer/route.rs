@@ -374,6 +374,9 @@ pub enum NativeEvalId {
     ListAssign,
     /// `array set`: one element write per pair.
     ArraySet,
+    /// `binary format`: the shared packer's bytes, a byte array by
+    /// construction.
+    BinaryFormat,
 }
 
 impl NativeEvalId {
@@ -399,6 +402,7 @@ impl NativeEvalId {
         Self::BinaryScan,
         Self::ListAssign,
         Self::ArraySet,
+        Self::BinaryFormat,
     ];
 
     /// Stable spelling for the inventory and the Explorer.
@@ -425,6 +429,7 @@ impl NativeEvalId {
             Self::BinaryScan => "binary-scan",
             Self::ListAssign => "list-assign",
             Self::ArraySet => "array-set",
+            Self::BinaryFormat => "binary-format",
         }
     }
 
@@ -451,7 +456,8 @@ impl NativeEvalId {
             | Self::ScanFormat
             | Self::BinaryScan
             | Self::ListAssign
-            | Self::ArraySet => EvaluatorOwner::Registry,
+            | Self::ArraySet
+            | Self::BinaryFormat => EvaluatorOwner::Registry,
         }
     }
 }

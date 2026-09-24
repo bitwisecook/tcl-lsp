@@ -718,13 +718,16 @@ fn forward_candidate(
     }
 
     let def_key = chain.key.clone();
-    // Skip SCCP constants (O100 owns those). The def-use chain keys on the
-    // variable name; resolve it to the SSA symbol to index the SCCP lattice.
+    // Skip SCCP constants (O100 owns those) — the ones O100 may write into
+    // source; a byte array a route constructed is forwarded as the command
+    // that builds it. The def-use chain keys on the variable name; resolve
+    // it to the SSA symbol to index the SCCP lattice.
     if let Some(sym) = fu.ssa.var_symbol(&def_key.0)
         && matches!(
             fu.sccp.values.get(&(sym, def_key.1)),
             Some(LatticeValue::Const(_))
         )
+        && fu.sccp.materialises((sym, def_key.1))
     {
         return None;
     }
@@ -1908,7 +1911,7 @@ fn fold_var_ref_under_lattice(
         .and_then(|b| b.exit_versions.get(&sym).copied())
         .unwrap_or(0);
     match result.values.get(&(sym, ver)) {
-        Some(LatticeValue::Const(c)) => Some(c.clone()),
+        Some(LatticeValue::Const(c)) if result.materialises((sym, ver)) => Some(c.clone()),
         _ => None,
     }
 }
@@ -3105,6 +3108,9 @@ fn sccp_value_literal(
     use super::helpers::literals::format_constant;
 
     let sym = fu.ssa.var_symbol(var_name)?;
+    if !fu.sccp.materialises((sym, version)) {
+        return None;
+    }
     match fu.sccp.values.get(&(sym, version))? {
         LatticeValue::Const(cv) => format_constant(cv),
         _ => None,
@@ -3130,15 +3136,17 @@ fn sccp_constants_from(
     let mut per_var: std::collections::HashMap<crate::ssa::Symbol, Vec<&ConstValue>> =
         std::collections::HashMap::new();
     let mut dirty: std::collections::HashSet<crate::ssa::Symbol> = std::collections::HashSet::new();
-    for ((sym, _ver), lv) in &sccp.values {
-        if dirty.contains(sym) {
+    for (&(sym, ver), lv) in &sccp.values {
+        if dirty.contains(&sym) {
             continue;
         }
-        if let LatticeValue::Const(cv) = lv {
-            per_var.entry(*sym).or_default().push(cv);
+        if let LatticeValue::Const(cv) = lv
+            && sccp.materialises((sym, ver))
+        {
+            per_var.entry(sym).or_default().push(cv);
         } else {
-            dirty.insert(*sym);
-            per_var.remove(sym);
+            dirty.insert(sym);
+            per_var.remove(&sym);
         }
     }
     let mut out = std::collections::HashMap::new();

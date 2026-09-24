@@ -207,6 +207,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // works on a truncated copy without erroring) is not modelled and a
         // damaged operand conservatively stays damaged.
         return_type: Some(TclType::ByteArray),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::BINARY_FORMAT),
         // The format string is read via its string rep only — cached
         // alongside the intrep, so a list-typed format spec keeps its list
         // intrep (tclsh-verified). No shimmer.

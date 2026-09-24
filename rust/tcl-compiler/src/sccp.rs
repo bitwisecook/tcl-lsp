@@ -219,6 +219,25 @@ pub struct SccpResult {
     pub folded_types: HashMap<ValueKey, crate::value_transfer::FoldedType>,
 }
 
+impl SccpResult {
+    /// Whether the constant definition `key` holds may be written into
+    /// source as a literal. A value a route constructed as a byte array has
+    /// no lossless source spelling (`docs/design/compiler/value-transfers.md`
+    /// § *Exact values, types, and representation*: a computed `binary
+    /// format` needs a lossless materialisation contract before it is
+    /// emitted anywhere), so no rewrite materialises one; the analyses still
+    /// read its value.
+    #[must_use]
+    pub fn materialises(&self, key: ValueKey) -> bool {
+        self.folded_types.get(&key).is_none_or(|folded| {
+            folded.representation
+                != tcl_registry::value_transfer::RepresentationEvidence::Constructed(
+                    tcl_registry::TclType::ByteArray,
+                )
+        })
+    }
+}
+
 /// Sparse Conditional Constant Propagation driver.
 ///
 /// Iterates to a fixed point over the lattice values of every SSA

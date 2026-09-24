@@ -515,6 +515,7 @@ pub const NATIVE_EVAL_IDS: &[Variant] = &[
     v("BinaryScan", "binary scan"),
     v("ListAssign", "lassign"),
     v("ArraySet", "array set"),
+    v("BinaryFormat", "binary format"),
 ];
 
 /// [`tcl_registry::value_transfer::LanguageProfileId::ALL`] — `evaluate

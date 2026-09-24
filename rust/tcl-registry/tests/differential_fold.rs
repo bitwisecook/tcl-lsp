@@ -1391,3 +1391,167 @@ fn destructuring_witnesses_match_every_release_on_path() {
         eprintln!("no tclsh on PATH: the destructuring witnesses were not exercised");
     }
 }
+
+/// `binary format` witnesses: the format and its arguments. Program (2)
+/// first, then the fields every release packs alike, then the spellings and
+/// fields the releases part on, which the route declines.
+const BINARY_FORMAT_WITNESSES: &[&[&str]] = &[
+    &["H*", "414243444546"],
+    &["a3 c", "foo", "65"],
+    &["A5", "ab"],
+    &["a*", "hello"],
+    &["a0", "x"],
+    &["b8 B8", "10100000", "10100000"],
+    &["h2 H3", "4a", "4a5"],
+    &["b*", "101"],
+    &[
+        "c s S i I w W",
+        "-1",
+        "70000",
+        "258",
+        "4294967297",
+        "1",
+        "-2",
+        "3",
+    ],
+    &["c* c2", "1 2 3", "4 5 6"],
+    &["c", " 5 "],
+    &["c", "+5"],
+    &["c", "300"],
+    &["f d", "1.5", "0.1"],
+    &["d*", "1.5 2 .5 5. 1e3"],
+    &["d", "-0.0"],
+    &["f", "1e-40"],
+    &["c x2 X c", "1", "2"],
+    &["@5 c", "1"],
+    &["c @0 c", "1", "2"],
+    &["c @* c", "1", "2"],
+    &["c X* c", "1", "2"],
+    &["", ""],
+    &["c", "1", "2"],
+    &["a4", "\u{ff}"],
+    &["c", "010"],
+    &["c", "0b101"],
+    &["c", "0o17"],
+    &["c", "1_0"],
+    &["w", "18446744073709551616"],
+    &["c* c2", "1 2 010", "4 5 010"],
+    &["d", "010"],
+    &["d", "-0"],
+    &["d", "1e400"],
+    &["d", "1e-310"],
+    &["d", "0x1p3"],
+    &["d", "1.5 2"],
+    &["f", "1e40"],
+    &["f", "3.4028235677973366e38"],
+    &["t n m", "5", "5", "5"],
+    &["r R q Q", "1.5", "1.5", "1.5", "1.5"],
+    &["iu", "42"],
+    &["x*"],
+    &["c @ c", "1", "2"],
+    &["c", "1 2"],
+    &["c4", "1 2 3"],
+    &["Z", "1"],
+    &["c"],
+    &["b4", "102"],
+];
+
+/// What the `binary format` route answers for `witness` under `profile`,
+/// as the hex of its bytes, or `None` when it declines.
+fn binary_format_route(
+    reg: &CommandRegistry,
+    profile: Option<&'static tcl_dialect::DialectProfile>,
+    witness: &[&str],
+) -> Option<String> {
+    use std::fmt::Write as _;
+    use tcl_registry::value_transfer::{
+        Budget, EvalAnswer, ExactValueOrUnavailable, LiteralInputs, RepresentationEvidence,
+        resolve_semantics,
+    };
+    let spec = reg.get("binary").expect("binary");
+    let semantics = resolve_semantics(spec, Some(spec.subcommand("format").expect("format")), None);
+    let semantics = semantics.semantics().expect("the binary format route");
+    let inputs = LiteralInputs::new("binary", Some("format"), witness, profile);
+    let EvalAnswer::Evaluated(outcome) = semantics.evaluate(&inputs, &mut Budget::evaluation())
+    else {
+        return None;
+    };
+    let ExactValueOrUnavailable::Exact(value) = outcome.result else {
+        return None;
+    };
+    assert_eq!(
+        value.representation,
+        RepresentationEvidence::Constructed(tcl_registry::TclType::ByteArray),
+        "{witness:?}"
+    );
+    let text = String::from_utf8(value.bytes).expect("text");
+    let mut hex = String::new();
+    for c in text.chars() {
+        let byte = u8::try_from(u32::from(c)).expect("a byte");
+        let _ = write!(hex, "{byte:02x}");
+    }
+    Some(hex)
+}
+
+/// What `tclsh` packs for `witness`, as hex, or `None` when it raises.
+fn binary_format_oracle(tclsh: &str, witness: &[&str]) -> Option<String> {
+    let mut script = String::from("if {[catch {binary format");
+    for word in witness {
+        script.push(' ');
+        script.push_str(&tcl_quoted_word(word));
+    }
+    script.push_str(
+        "} __packed]} {exit 1}\nbinary scan $__packed H* __hex\nputs -nonewline $__hex\n",
+    );
+    match run_tcl(tclsh, &script)? {
+        (true, out) => Some(out),
+        (false, _) => None,
+    }
+}
+
+/// Program (2) of the interface page and the `binary format` witnesses
+/// (VT5.6), per release found on `PATH`, each under that release's profile
+/// against the real `tclsh`: when the route answers it packs the bytes
+/// `tclsh` packs, a byte array by construction; when `tclsh` raises the
+/// route declines; a decline where `tclsh` answers is allowed only past the
+/// shared fields — the spellings, fields and ranges the releases part on.
+#[test]
+fn binary_format_witnesses_match_every_release_on_path() {
+    /// The witnesses every release packs alike, which the route must answer.
+    const SHARED: usize = 25;
+    let reg = CommandRegistry::build_default();
+    let mut releases = 0usize;
+    for version in tcl_dialect::TclVersion::ALL {
+        let Some(tclsh) = find_tclsh(version.version_string()) else {
+            continue;
+        };
+        releases += 1;
+        let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name());
+        for (index, &witness) in BINARY_FORMAT_WITNESSES.iter().enumerate() {
+            let want = binary_format_oracle(&tclsh, witness);
+            let got = binary_format_route(&reg, profile, witness);
+            match (&want, &got) {
+                (Some(want), Some(got)) => assert_eq!(
+                    got,
+                    want,
+                    "tclsh{}: binary format {witness:?}",
+                    version.version_string()
+                ),
+                (None, Some(got)) => panic!(
+                    "tclsh{} raises on binary format {witness:?}, the route answered {got}",
+                    version.version_string()
+                ),
+                (Some(_), None) => assert!(
+                    index >= SHARED
+                        || (witness[0] == "a4" && version < tcl_dialect::TclVersion::V9_0),
+                    "tclsh{}: the route declined binary format {witness:?}",
+                    version.version_string()
+                ),
+                (None, None) => {}
+            }
+        }
+    }
+    if releases == 0 {
+        eprintln!("no tclsh on PATH: the binary format witnesses were not exercised");
+    }
+}
