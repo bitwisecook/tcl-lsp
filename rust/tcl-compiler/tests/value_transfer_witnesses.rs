@@ -2367,3 +2367,74 @@ fn a_computed_template_that_runs_commands_keeps_the_stores_it_reads() {
     }
     prints_under_every_release(source, "1\n");
 }
+
+// VT5.19: the slice's exit witnesses (the interface page's § *Test
+// anchors*, "fixed witnesses to add"), each read off the shared lattice
+// through the memoised unit and checked against `tcl opt`'s rewritten
+// program, printed under every release on `PATH`.
+
+/// The no-match preserve witness: a `regexp` that cannot match leaves its
+/// match variables exactly as they were — the lattice holds `a`'s prior
+/// value at the call's own definition (a `Preserve`, not a manufactured
+/// one), and `zz` never matches `(x)(y)`, so both the original and the
+/// `tcl opt`-rewritten program print `before` on every release.
+#[test]
+fn the_no_match_preserve_witness() {
+    let source = "proc p {} {\n    set a before\n    regexp {(x)(y)} zz a b\n    puts $a\n}\np\n";
+    for dialect in DIALECTS {
+        assert_eq!(
+            last_value(source, dialect, "::p", "a"),
+            text("before"),
+            "{dialect}: the no-match leaves $a at its prior value"
+        );
+    }
+    prints_under_every_release(source, "before\n");
+}
+
+/// The partial-scan witness: `scan "12" "%d %d" a b` converts one field
+/// from the two-integer format before the input is exhausted — `a` takes
+/// the converted `12`, `b` is left exactly as it was (a `Preserve`, the
+/// same outcome kind the no-match witness reads) — and both agree with
+/// `tclsh` before and after `tcl opt`. Run as its own statement, not
+/// nested in a `[…]` value position: a nested invocation's stores answer
+/// under the effect-free policy `fold_cmd_subst_routes` documents, which
+/// has no definition for them to land on, so `a` and `b` would be
+/// `Overdefined` for a reason unrelated to what this witness proves.
+#[test]
+fn the_partial_scan_witness() {
+    let source = "proc p {} {\n    set a before\n    set b before\n    \
+                  scan \"12\" \"%d %d\" a b\n    puts \"$a $b\"\n}\np\n";
+    for dialect in DIALECTS {
+        assert_eq!(
+            last_value(source, dialect, "::p", "a"),
+            LatticeValue::Const(ConstValue::Int(12)),
+            "{dialect}: the converted field takes the scanned value, typed as %d built it"
+        );
+        assert_eq!(
+            last_value(source, dialect, "::p", "b"),
+            text("before"),
+            "{dialect}: the field past the exhausted input is preserved"
+        );
+    }
+    prints_under_every_release(source, "12 before\n");
+}
+
+/// The repeated-target witness: a call whose declared targets name the
+/// same place twice composes in execution order, so the last position's
+/// value wins. `lassign`'s repeated-target form (the interface page's own
+/// "`lassign … a a`") is 8.5+ and raises under 8.4, so this reads the same
+/// fact through `regexp`'s match-variable list, which every release
+/// shares: `(a)(b)` against `ab` captures `a` into `x` and then `b` into
+/// `x` again, and `x` ends the call as `b`.
+#[test]
+fn the_repeated_target_witness() {
+    let source = "proc p {} {\n    regexp {(a)(b)} ab -> x x\n    puts $x\n}\np\n";
+    for dialect in DIALECTS {
+        assert_eq!(
+            last_value(source, dialect, "::p", "x"),
+            text("b"),
+            "{dialect}: the second position's capture is the one that survives"
+        );
+    }
+    prints_under_every_release(source, "b\n");
+}

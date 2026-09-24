@@ -85,6 +85,65 @@ fn explore_sccp_prints_the_route_tally() {
     );
 }
 
+/// VT5.19, slice 5's own exit line: `tcl explore --show sccp` prints the
+/// folded type a route's representation evidence states, beside the
+/// value, and says nothing where a route states none. `binary format` is
+/// the exit criterion's own program — `h#1 = const('ABCDEF')` typed
+/// `bytearray (constructed)` (VT5.6) — read beside `format`'s `string
+/// (constructed)` and `list`'s `list (constructed)` (VT5.2) so "types" is
+/// not one route's alone; a plain literal constructs nothing and prints
+/// no type line at all.
+#[test]
+fn explore_sccp_prints_folded_types() {
+    let binary = run_tcl(&[
+        "explore",
+        "--source",
+        "set h [binary format H* 414243444546]",
+        "--show",
+        "sccp",
+        "--text",
+        "--no-colour",
+    ]);
+    assert!(binary.contains("h#1 = const('ABCDEF')"), "{binary}");
+    assert!(binary.contains("type: bytearray (constructed)"), "{binary}");
+
+    let format = run_tcl(&[
+        "explore",
+        "--source",
+        "set s [format %d 5]",
+        "--show",
+        "sccp",
+        "--text",
+        "--no-colour",
+    ]);
+    assert!(format.contains("s#1 = const(5)"), "{format}");
+    assert!(format.contains("type: string (constructed)"), "{format}");
+
+    let list = run_tcl(&[
+        "explore",
+        "--source",
+        "set l [list a b c]",
+        "--show",
+        "sccp",
+        "--text",
+        "--no-colour",
+    ]);
+    assert!(list.contains("l#1 = const('a b c')"), "{list}");
+    assert!(list.contains("type: list (constructed)"), "{list}");
+
+    let literal = run_tcl(&[
+        "explore",
+        "--source",
+        "set n 5",
+        "--show",
+        "sccp",
+        "--text",
+        "--no-colour",
+    ]);
+    assert!(literal.contains("n#1 = const(5)"), "{literal}");
+    assert!(!literal.contains("type:"), "{literal}");
+}
+
 /// VT2.10's deferred CLI witness binary (D9, D35): the `tcl explore` exit
 /// lines slice 2's § *Goal and exit* names — program (3)'s `incr` route
 /// twice, a release-ambiguous decline, and `llength`'s direct route — each

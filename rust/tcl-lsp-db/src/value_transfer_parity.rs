@@ -565,3 +565,65 @@ fn an_evaluator_epoch_re_keys_the_memoised_lattices() {
     );
     tcl_spectcl::hooks::publish(&tcl_spectcl::PackSet::default());
 }
+
+/// VT5.19: slice 5's destructuring writers — `regexp`'s no-match preserve,
+/// `scan`'s partial conversion, and `lassign` — answer alike on the
+/// memoised editor path and a direct build, value for value, under a
+/// release (`tcl8.6`) and a release with its own numeral grammar
+/// (`tcl9.0`). `array set arr {k v}` runs beside them so the element-write
+/// outcome the container harvesters read (VT5.18) is part of the parity
+/// too, even though `arr` itself carries no scalar lattice value.
+#[test]
+fn destructuring_agrees_on_both_paths() {
+    const SRC: &str = "proc p {} {\n    set a before\n    set b before\n    \
+                       regexp {(x)(y)} zz a b\n    set c before\n    set d before\n    \
+                       scan \"12\" \"%d %d\" c d\n    lassign {1 2} e f\n    \
+                       array set arr {k v}\n    return $a\n}\n";
+    let text = |value: &str| LatticeValue::Const(ConstValue::String(value.to_owned()));
+    for dialect in ["tcl8.6", "tcl9.0"] {
+        let db = TclDatabase::default();
+        let file = SourceFile::new(&db, SRC.to_owned(), dialect.to_owned(), None);
+        let (memoised, direct) = both_paths(&db, file);
+        assert_eq!(
+            lattice_of(&memoised, "::p"),
+            lattice_of(&direct, "::p"),
+            "{dialect}"
+        );
+        for (path, unit) in [("memoised", &*memoised), ("direct", &direct)] {
+            // `regexp`'s no-match preserves both match variables.
+            assert_eq!(
+                value_at(unit, "::p", "a", 2),
+                Some(text("before")),
+                "{dialect} {path}: a no-match preserves $a"
+            );
+            assert_eq!(
+                value_at(unit, "::p", "b", 2),
+                Some(text("before")),
+                "{dialect} {path}: a no-match preserves $b"
+            );
+            // `scan` converts the field the input reaches and preserves the
+            // one past it.
+            assert_eq!(
+                value_at(unit, "::p", "c", 2),
+                Some(LatticeValue::Const(ConstValue::Int(12))),
+                "{dialect} {path}: %d converts $c"
+            );
+            assert_eq!(
+                value_at(unit, "::p", "d", 2),
+                Some(text("before")),
+                "{dialect} {path}: the exhausted field preserves $d"
+            );
+            // `lassign` writes each named target its position takes.
+            assert_eq!(
+                value_at(unit, "::p", "e", 1),
+                Some(LatticeValue::Const(ConstValue::Int(1))),
+                "{dialect} {path}: lassign writes $e"
+            );
+            assert_eq!(
+                value_at(unit, "::p", "f", 1),
+                Some(LatticeValue::Const(ConstValue::Int(2))),
+                "{dialect} {path}: lassign writes $f"
+            );
+        }
+    }
+}
