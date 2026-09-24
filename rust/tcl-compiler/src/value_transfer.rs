@@ -234,6 +234,12 @@ impl FoldedType {
                     RepresentationEvidence::Unknown,
                 ),
                 StoreOutcome::Unbind { .. } => None,
+                // The type facts state types per target, and the target of
+                // an element write is the whole array: only the written
+                // value's own evidence speaks for the element.
+                StoreOutcome::WriteElement { value, .. } => {
+                    Self::informative(None, None, value.representation)
+                }
             };
         }
         held
@@ -384,21 +390,29 @@ pub(crate) struct DefAnswer {
     pub(crate) value: LatticeValue,
     /// Its folded type, when the evaluation states one.
     pub(crate) folded: Option<FoldedType>,
+    /// Whether an evaluated outcome's stores name the definition's place,
+    /// so the value is what the place holds afterwards. A definition the
+    /// SSA could only fan out as a may-write — an element of an array a
+    /// whole-array writer names — takes such a value as it stands rather
+    /// than joining it with the prior version.
+    pub(crate) stated: bool,
 }
 
 impl DefAnswer {
-    /// A definition with `value` and no folded type.
+    /// A definition with `value`, no folded type, and no store naming it.
     pub(crate) const fn untyped(key: ValueKey, value: LatticeValue) -> Self {
         Self {
             key,
             value,
             folded: None,
+            stated: false,
         }
     }
 
     /// The join of two members' answers for one definition: the values
-    /// join as members do ([`join_members`]) and the folded types keep
-    /// what both state ([`FoldedType::join`]).
+    /// join as members do ([`join_members`]), the folded types keep what
+    /// both state ([`FoldedType::join`]), and the place is stated only
+    /// when both state it.
     fn join(self, other: &Self) -> Self {
         let folded = match (&self.folded, &other.folded) {
             (Some(left), Some(right)) => left.join(right),
@@ -408,6 +422,7 @@ impl DefAnswer {
             key: self.key,
             value: join_members(&self.value, &other.value),
             folded,
+            stated: self.stated && other.stated,
         }
     }
 }
@@ -899,9 +914,10 @@ impl<'a> LatticeDriver<'a> {
     /// The value one outcome leaves in each of `defs`, the statement's
     /// definitions (`docs/design/compiler/value-transfers.md` § *Storage-
     /// writing commands*). Every store's target resolves to its place
-    /// first, so two spellings of one cell are one place and a repeated
-    /// target composes in execution order: a `Write` is its value, the
-    /// last write winning; a `Preserve` keeps what the place holds at that
+    /// first — an element write's to the element of its target's array —
+    /// so two spellings of one cell are one place and a repeated target
+    /// composes in execution order: a `Write` is its value, the last write
+    /// winning; a `Preserve` keeps what the place holds at that
     /// point, the prior version's value when nothing earlier wrote it (a
     /// pending prior stays pending); a `MayWrite` and an `Unbind` widen,
     /// their facts being the type domain's and the existence rung's. A
@@ -927,7 +943,12 @@ impl<'a> LatticeDriver<'a> {
         let mut placed: Vec<(PlaceRef, &StoreOutcome)> =
             Vec::with_capacity(outcome.ordered_stores.len());
         for store in &outcome.ordered_stores {
-            let place = input.place(store.target().0)?;
+            let place = match store {
+                StoreOutcome::WriteElement { target, key, .. } => {
+                    element_place(&input.place(target.0)?, key)?
+                }
+                _ => input.place(store.target().0)?,
+            };
             if placed
                 .iter()
                 .any(|(seen, _)| seen.overlaps_as_element_and_base(&place))
@@ -955,7 +976,10 @@ impl<'a> LatticeDriver<'a> {
                 let mut held: Option<LatticeValue> = None;
                 for (_, store) in &named {
                     match store {
-                        StoreOutcome::Write { value, .. } => held = Some(exact_to_lattice(value)),
+                        StoreOutcome::Write { value, .. }
+                        | StoreOutcome::WriteElement { value, .. } => {
+                            held = Some(exact_to_lattice(value));
+                        }
                         StoreOutcome::Preserve { .. } => {}
                         StoreOutcome::Unbind { .. } | StoreOutcome::MayWrite { .. } => {
                             held = Some(LatticeValue::Overdefined);
@@ -972,6 +996,7 @@ impl<'a> LatticeDriver<'a> {
                         outcome,
                         named.iter().map(|(_, store)| *store),
                     ),
+                    stated: true,
                 }
             })
             .collect())
@@ -2668,6 +2693,22 @@ impl AnalysisInputs for EnvInputs<'_> {
     }
 }
 
+/// The element `key` of the array `base` names: the place an element write
+/// lands on. An element of an element is no place — the command raises on
+/// it — so it declines.
+fn element_place(base: &PlaceRef, key: &str) -> Result<PlaceRef, DeclineReason> {
+    if base.is_element() {
+        return Err(DeclineReason::Unsupported);
+    }
+    Ok(PlaceRef {
+        name: format!("{}({key})", base.name),
+        kind: PlaceKind::Element {
+            base: base.name.clone(),
+            key: key.to_owned(),
+        },
+    })
+}
+
 /// A place for a normalised name.
 fn place_named(name: &str) -> PlaceRef {
     let kind = crate::naming::split_element_ref(name).map_or(PlaceKind::Scalar, |(base, key)| {
@@ -2931,6 +2972,42 @@ mod tests {
             value(&unit, 11),
             Some(LatticeValue::Overdefined),
             "the last statement is past what the request pays for"
+        );
+    }
+
+    /// A whole-array writer's evaluated element writes reach the lattice:
+    /// `array set arr {k1 v1 k2 v2}` names `arr(k1)` and `arr(k2)`, which the
+    /// SSA fans out as may-writes of the array's known elements, and each
+    /// takes the written value rather than its join with the prior version.
+    /// An element the pairs do not name stays a may-write and widens, and a
+    /// dynamic-key write (`set arr($i) x`) still joins every element it may
+    /// have hit with its prior.
+    #[test]
+    fn an_array_set_writes_the_elements_it_names() {
+        let source = "proc p {i} {\n    set arr(k3) keep\n    array set arr {k1 v1 k2 v2}\n    \
+                      puts \"$arr(k1) $arr(k2) $arr(k3)\"\n    set arr($i) x\n    puts $arr(k1)\n}\n";
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
+            source, registry, false, "tcl8.6",
+        );
+        let function = unit.procedures.get("::p").expect("the procedure");
+        let value = |name: &str, version: u32| {
+            let symbol = function.ssa.var_symbol(name).expect("the variable");
+            function.sccp.values.get(&(symbol, version)).cloned()
+        };
+        let text = |value: &str| Some(LatticeValue::Const(ConstValue::String(value.into())));
+        assert_eq!(value("arr(k1)", 1), text("v1"));
+        assert_eq!(value("arr(k2)", 1), text("v2"));
+        assert_eq!(value("arr(k3)", 1), text("keep"));
+        assert_eq!(
+            value("arr(k3)", 2),
+            Some(LatticeValue::Overdefined),
+            "an element the pairs do not name is a may-write"
+        );
+        assert_ne!(
+            value("arr(k1)", 2),
+            text("v1"),
+            "a dynamic key may have hit the element"
         );
     }
 

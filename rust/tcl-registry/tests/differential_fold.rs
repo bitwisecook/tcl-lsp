@@ -120,15 +120,24 @@ fn tcl_command(head: &str, sub: Option<&str>, args: &[&str]) -> String {
 /// word (`\`, `"`, `$`, `[`, `]`) and before each brace, so a lone `{` cannot
 /// leave the script incomplete. Brace-wrapping cannot carry an unbalanced
 /// value: `lappend v {{}` never finishes the command, and `tclsh` reading stdin
-/// exits quietly without running it.
+/// exits quietly without running it. A character beyond ASCII is spelt as a
+/// `\uXXXX` escape: `tclsh` reads the piped script in the system encoding,
+/// which is not UTF-8 without a locale, and every release reads the escape
+/// as the one character it names.
 fn tcl_quoted_word(text: &str) -> String {
+    use std::fmt::Write as _;
     let mut word = String::with_capacity(text.len() + 2);
     word.push('"');
     for c in text.chars() {
         if matches!(c, '\\' | '"' | '$' | '[' | ']' | '{' | '}') {
             word.push('\\');
         }
-        word.push(c);
+        match u32::from(c) {
+            code @ 0x80..=0xFFFF => {
+                let _ = write!(word, "\\u{code:04x}");
+            }
+            _ => word.push(c),
+        }
     }
     word.push('"');
     word
@@ -858,8 +867,17 @@ fn storage_outcome_witnesses_match_every_release_on_path() {
     }
 }
 
-/// One regexp-owner witness: `command args…` with `priors` set first, then
-/// the command's result and each `observed` variable read after it.
+/// One storage witness: `command ?sub? args…` with `priors` set first,
+/// then the command's result and each `observed` place read after it.
+type StorageWitness = (
+    &'static str,
+    Option<&'static str>,
+    &'static [&'static str],
+    &'static [(&'static str, &'static str)],
+    &'static [&'static str],
+);
+
+/// One regexp-owner witness: a [`StorageWitness`] with no subcommand.
 type RegexWitness = (
     &'static str,
     &'static [&'static str],
@@ -867,13 +885,13 @@ type RegexWitness = (
     &'static [&'static str],
 );
 
-/// What the regexp owner's route leaves: the result, then each `observed`
-/// variable — a write's value, a preserved variable's prior, `<unset>` for
-/// one never set — or `None` when the route declines.
-fn regex_route(
+/// What a writing route leaves: the result, then each `observed` place — a
+/// write's value, a preserved place's prior, `<unset>` for one never set —
+/// or `None` when the route declines.
+fn storage_route(
     reg: &CommandRegistry,
     profile: Option<&'static tcl_dialect::DialectProfile>,
-    (command, args, priors, observed): RegexWitness,
+    (command, sub, args, priors, observed): StorageWitness,
 ) -> Option<Vec<String>> {
     use tcl_registry::ArgRole;
     use tcl_registry::value_transfer::{
@@ -881,15 +899,24 @@ fn regex_route(
         StoreOutcome, resolve_semantics,
     };
 
-    let semantics = resolve_semantics(reg.get(command).expect(command), None, None);
-    let semantics = semantics.semantics().expect("the regexp owner's route");
-    let mut inputs = LiteralInputs::new(command, None, args, profile);
+    let spec = reg.get(command).expect(command);
+    let semantics = match sub {
+        Some(name) => {
+            let sub = spec.subcommand(name).expect(name);
+            resolve_semantics(spec, Some(sub), None)
+        }
+        None => resolve_semantics(spec, None, None),
+    };
+    let semantics = semantics.semantics().expect("a writing route");
+    // The operands in the resolver's coordinates: the subcommand word first.
+    let words: Vec<&str> = sub.into_iter().chain(args.iter().copied()).collect();
+    let mut inputs = LiteralInputs::new(command, sub, args, profile);
     for (name, value) in priors {
         inputs = inputs.with_prior(name, ExactValue::from_literal(value));
     }
-    // The roles the resolver gives the same words: the match and result
-    // variables the route's stores must name.
-    for index in reg.arg_indices_for_role(command, args, ArgRole::VarWrite) {
+    // The roles the resolver gives the same words: the variables the
+    // route's stores must name.
+    for index in reg.arg_indices_for_role(command, &words, ArgRole::VarWrite) {
         inputs = inputs.with_role(OperandId(index), ArgRole::VarWrite);
     }
     let EvalAnswer::Evaluated(outcome) = semantics.evaluate(&inputs, &mut Budget::evaluation())
@@ -904,16 +931,17 @@ fn regex_route(
         .map(|(name, value)| ((*name).to_owned(), (*value).to_owned()))
         .collect();
     for store in outcome.ordered_stores {
-        match store {
-            StoreOutcome::Write { target, value } => {
-                let name = args[(target.0).0].to_owned();
-                let value = String::from_utf8(value.bytes).expect("text");
-                held.retain(|(held_name, _)| *held_name != name);
-                held.push((name, value));
+        let (name, value) = match store {
+            StoreOutcome::Write { target, value } => (words[(target.0).0].to_owned(), value),
+            StoreOutcome::WriteElement { target, key, value } => {
+                (format!("{}({key})", words[(target.0).0]), value)
             }
-            StoreOutcome::Preserve { .. } => {}
+            StoreOutcome::Preserve { .. } => continue,
             other => panic!("{command} {args:?}: unexpected store {other:?}"),
-        }
+        };
+        let value = String::from_utf8(value.bytes).expect("text");
+        held.retain(|(held_name, _)| *held_name != name);
+        held.push((name, value));
     }
     let mut seen = vec![String::from_utf8(result.bytes).expect("text")];
     for name in observed {
@@ -927,22 +955,25 @@ fn regex_route(
 }
 
 /// What `tclsh` leaves for the same witness, one line per value, or `None`
-/// when it raises.
-fn regex_oracle(
+/// when the command raises.
+fn storage_oracle(
     tclsh: &str,
-    (command, args, priors, observed): RegexWitness,
+    (command, sub, args, priors, observed): StorageWitness,
 ) -> Option<Vec<String>> {
     use std::fmt::Write as _;
     let mut script = String::new();
     for (name, value) in priors {
         let _ = writeln!(script, "set {name} {}", tcl_quoted_word(value));
     }
-    let _ = write!(script, "set __result [{command}");
-    for arg in args {
+    // `tclsh` reading a script from standard input carries on past an
+    // error and exits 0, so the command's own error ends the run with a
+    // failing status.
+    let _ = write!(script, "if {{[catch {{{command}");
+    for arg in sub.into_iter().chain(args.iter().copied()) {
         script.push(' ');
         script.push_str(&tcl_quoted_word(arg));
     }
-    script.push_str("]\nputs $__result\n");
+    script.push_str("} __result]} {exit 1}\nputs $__result\n");
     let _ = writeln!(
         script,
         "foreach __name {{{}}} {{\n\
@@ -1054,8 +1085,9 @@ fn regexp_witnesses_match_every_release_on_path() {
         let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name());
         let mut agreed = 0usize;
         for (index, &witness) in REGEX_WITNESSES.iter().enumerate() {
-            let want = regex_oracle(&tclsh, witness);
-            let got = regex_route(&reg, profile, witness);
+            let (command, args, priors, observed) = witness;
+            let want = storage_oracle(&tclsh, (command, None, args, priors, observed));
+            let got = storage_route(&reg, profile, (command, None, args, priors, observed));
             match (&want, &got) {
                 (Some(want), Some(got)) => {
                     assert_eq!(
@@ -1091,5 +1123,271 @@ fn regexp_witnesses_match_every_release_on_path() {
     }
     if releases == 0 {
         eprintln!("no tclsh on PATH: the regexp owner's witnesses were not exercised");
+    }
+}
+
+/// The destructuring writers' witnesses: the plan's four first — `scan`'s
+/// partial conversion, `lassign`'s repeated variable, `binary scan`'s two
+/// fields, `array set`'s two elements — then the forms each route reads
+/// and the ones it declines.
+const DESTRUCTURE_WITNESSES: &[StorageWitness] = &[
+    (
+        "scan",
+        None,
+        &["12 nope", "%d %d", "a", "b"],
+        &[("a", "A"), ("b", "B")],
+        &["a", "b"],
+    ),
+    (
+        "lassign",
+        None,
+        &["first second extra", "a", "a"],
+        &[("a", "A")],
+        &["a"],
+    ),
+    (
+        "binary",
+        Some("scan"),
+        &["\u{1}\u{2}", "cc", "a", "b"],
+        &[],
+        &["a", "b"],
+    ),
+    (
+        "array",
+        Some("set"),
+        &["arr", "k1 v1 k2 v2"],
+        &[],
+        &["arr(k1)", "arr(k2)"],
+    ),
+    ("scan", None, &["12 34", "%d %d"], &[], &[]),
+    ("scan", None, &["abc", "%d"], &[], &[]),
+    ("scan", None, &["12 ab", "%d %d %s"], &[], &[]),
+    (
+        "scan",
+        None,
+        &["", "%d %d", "a", "b"],
+        &[("a", "A"), ("b", "B")],
+        &["a", "b"],
+    ),
+    (
+        "scan",
+        None,
+        &["hi x", "%s %c%n", "w", "c", "n"],
+        &[],
+        &["w", "c", "n"],
+    ),
+    (
+        "scan",
+        None,
+        &["12345", "%2d%3d", "a", "b"],
+        &[],
+        &["a", "b"],
+    ),
+    (
+        "scan",
+        None,
+        &["abc123", "%[a-z]%d", "w", "n"],
+        &[],
+        &["w", "n"],
+    ),
+    ("scan", None, &["12 34", "%*d %d", "a"], &[], &["a"]),
+    (
+        "scan",
+        None,
+        &["1.5 2", "%f %d", "f", "d"],
+        &[],
+        &["f", "d"],
+    ),
+    (
+        "scan",
+        None,
+        &["ff 017", "%x %i", "h", "i"],
+        &[],
+        &["h", "i"],
+    ),
+    ("scan", None, &["-0xff", "%x", "h"], &[("h", "H")], &["h"]),
+    ("scan", None, &["101", "%b", "a"], &[("a", "A")], &["a"]),
+    (
+        "scan",
+        None,
+        &["4294967296", "%d", "a"],
+        &[("a", "A")],
+        &["a"],
+    ),
+    (
+        "scan",
+        None,
+        &["12 34", "%2$d %1$d", "a", "b"],
+        &[],
+        &["a", "b"],
+    ),
+    ("scan", None, &["12", "%d %d", "a"], &[], &[]),
+    ("scan", None, &["-1 12", "%u %u"], &[], &[]),
+    ("scan", None, &["-0 -0.0", "%f %f"], &[], &[]),
+    ("scan", None, &["-inf 1", "%f %d"], &[], &[]),
+    (
+        "scan",
+        None,
+        &["Infinity", "%g", "g"],
+        &[("g", "G")],
+        &["g"],
+    ),
+    ("scan", None, &["nan 1.5", "%f %f"], &[], &[]),
+    (
+        "binary",
+        Some("scan"),
+        &["\u{1}", "cc", "a", "b"],
+        &[("b", "B")],
+        &["a", "b"],
+    ),
+    ("binary", Some("scan"), &["\u{1}\u{2}", "cc", "a"], &[], &[]),
+    (
+        "binary",
+        Some("scan"),
+        &["abc", "a2A*", "x", "y"],
+        &[],
+        &["x", "y"],
+    ),
+    ("binary", Some("scan"), &["ab  ", "A*", "x"], &[], &["x"]),
+    (
+        "binary",
+        Some("scan"),
+        &["abc", "H*b8", "h", "b"],
+        &[],
+        &["h", "b"],
+    ),
+    (
+        "binary",
+        Some("scan"),
+        &["\u{1}\u{2}", "c*", "l"],
+        &[],
+        &["l"],
+    ),
+    (
+        "binary",
+        Some("scan"),
+        &["\u{1}\u{2}", "c0x1c", "e", "c"],
+        &[],
+        &["e", "c"],
+    ),
+    (
+        "binary",
+        Some("scan"),
+        &["abc", "a4", "x"],
+        &[("x", "X")],
+        &["x"],
+    ),
+    (
+        "binary",
+        Some("scan"),
+        &["\u{0}\u{0} @", "r", "v"],
+        &[],
+        &["v"],
+    ),
+    (
+        "binary",
+        Some("scan"),
+        &["\u{7f}\u{7e}", "su", "v"],
+        &[],
+        &["v"],
+    ),
+    ("binary", Some("scan"), &["abc", "Z", "v"], &[], &[]),
+    (
+        "binary",
+        Some("scan"),
+        &["\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}\u{f0}\u{7f}", "d", "v"],
+        &[],
+        &["v"],
+    ),
+    (
+        "binary",
+        Some("scan"),
+        &[
+            "\u{ff}\u{ff}\u{ff}\u{ff}\u{ff}\u{ff}\u{ff}\u{ff}",
+            "wuw",
+            "u",
+            "s",
+        ],
+        &[],
+        &["u", "s"],
+    ),
+    (
+        "binary",
+        Some("scan"),
+        &["\u{cd}\u{cc}\u{cc}\u{3d}", "f", "v"],
+        &[],
+        &["v"],
+    ),
+    (
+        "lassign",
+        None,
+        &["a b", "x", "y", "z"],
+        &[("z", "Z")],
+        &["x", "y", "z"],
+    ),
+    ("lassign", None, &["a {b c} d", "x"], &[], &["x"]),
+    ("lassign", None, &["x #a b", "y"], &[], &["y"]),
+    ("lassign", None, &["a b"], &[], &[]),
+    ("lassign", None, &["a {b", "x"], &[], &[]),
+    ("array", Some("set"), &["arr", "k 1 k 2"], &[], &["arr(k)"]),
+    ("array", Some("set"), &["arr", "k1 v1 k2"], &[], &[]),
+    ("array", Some("set"), &["arr", ""], &[], &[]),
+];
+
+/// The destructuring writers' witnesses (VT5.5), per release found on
+/// `PATH`, each under that release's profile against the real `tclsh`
+/// (8.5 on for `lassign`, which 8.4 lacks): a converted field writes its
+/// variable and one the input did not reach keeps its value, a repeated
+/// variable composes, `array set` writes one element per key. When the
+/// route answers it must match; when `tclsh` raises the route must
+/// decline; a decline where `tclsh` answers is allowed — a 32-bit overflow,
+/// a positional conversion, a float or `0x` spelling 8.4 reads another way,
+/// a field a release lacks — but the plan's four answer on every release
+/// that has the command.
+#[test]
+fn destructuring_witnesses_match_every_release_on_path() {
+    let reg = CommandRegistry::build_default();
+    let mut releases = 0usize;
+    for version in tcl_dialect::TclVersion::ALL {
+        let Some(tclsh) = find_tclsh(version.version_string()) else {
+            continue;
+        };
+        releases += 1;
+        let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name());
+        let mut agreed = 0usize;
+        for (index, &witness) in DESTRUCTURE_WITNESSES.iter().enumerate() {
+            let want = storage_oracle(&tclsh, witness);
+            let got = storage_route(&reg, profile, witness);
+            let (command, sub, args, _, _) = witness;
+            match (&want, &got) {
+                (Some(want), Some(got)) => {
+                    assert_eq!(
+                        got,
+                        want,
+                        "tclsh{}: {command} {sub:?} {args:?}",
+                        version.version_string()
+                    );
+                    agreed += 1;
+                }
+                (None, Some(got)) => panic!(
+                    "tclsh{} raises on {command} {sub:?} {args:?}, the route answered {got:?}",
+                    version.version_string()
+                ),
+                (Some(_), None) => assert!(
+                    index >= 4,
+                    "tclsh{}: the route declined the witness {command} {sub:?} {args:?}",
+                    version.version_string()
+                ),
+                (None, None) => {}
+            }
+        }
+        assert!(
+            agreed >= 21,
+            "tclsh{}: only {agreed} witnesses agreed",
+            version.version_string()
+        );
+    }
+    if releases == 0 {
+        eprintln!("no tclsh on PATH: the destructuring witnesses were not exercised");
     }
 }

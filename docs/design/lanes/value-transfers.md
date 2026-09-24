@@ -4306,6 +4306,38 @@ item; the grouping stays the plan's account of what lands together.
 | VT5.2 | `wip(value-transfers): slice 5 — folded types and representation evidence` | `FoldedType { intrep, shape, representation }` (`value_transfer.rs`) and `SccpResult::folded_types`: the driver's per-definition answers carry the folded type their evaluation states (`DefAnswer`; a result's from its type facts and value, a place's from the stores to it in order, a copy's from its source), SCCP records the settled sweep's, joins a φ's by agreement and forgets them at a barrier (D115); the Explorer's `sccp` view shows each (`h#1 = const(…)` · `type: bytearray (constructed)`); the shimmer purity read (`is_pure_value`, `is_free_first_conversion`, the commit facts' initial state) reads representation before the literal rule, so a computed constant no longer hides a conversion (D116); `type_infer` takes a folded type where its static typing knows nothing (D117); S110 takes a constructed byte array as a byte source (D118); `find_shimmer_warnings` and `find_byte_array_warnings` take the function's `SccpResult`, and the use-site and expression passes its `CommitCtx` | `folded_types_state_what_each_route_constructed` (witnesses); `serialise::tests::sccp_reports_folded_types`; `a_computed_constant_never_hides_a_conversion` (use-site S100, tclsh 8.6 to 9.1 checked); `a_folded_type_refines_only_what_the_static_typing_leaves_unknown`; `constructed_byte_array_evidence_is_a_byte_source` |
 | VT5.3 | `wip(value-transfers): slice 5 — the regexp owner` | the engine answers three ways (`tcl_regex::ExecOutcome`: `Matched`, `NoMatch`, `Stopped(ExecStop::{Fuel, Depth, Cancelled})`), `Regex::exec` and `Regex::exec_with(…, &ExecLimits { fuel, cancel })`, the token read where the fuel is charged (D119); dissection walks a repeat's iterations and a concatenation's items in loops with a backward finish table, skips a subtree without a capture, and stops rather than approximates past its depth cap, the unbounded repeat's reach is a worklist closure, and the backtracker matches a single character's repeat and a literal run in loops (D120, D121); the plumbing's `RegexpPrecision<RegMatch>` and `PrecisionDecline`, verbatim, `RegexEngine::exec` returning it with `exec_within`, `IDENTITY` and `retained_bytes`; `regexp`, `regsub`, `switch -regexp`, `lsearch -regexp` and the VM's match helper raise a decline (`error while matching regular expression: …`), the C API returns `REG_ESPACE`, and `regexp_analysis` / `regsub_analysis` keep it typed (D122); the thread's `PatternCacheKey`-keyed cache, 4 MiB of retained bytes, coldest first, a compile charged its length squared through `AnalysisMatch::charge` (D123) | `the_three_precision_witnesses` and `an_exhausted_search_is_never_a_no_match` (`precision_oracle.rs`, the page's table under tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1b0, all five agreeing); `a_stopped_search_is_raised_at_run_time_and_typed_in_analysis`, `the_pattern_cache_charges_a_compile_once_per_key`, `the_pattern_cache_stays_within_its_byte_bound` (`tcl-cmd-core`); `capture_past_the_old_dissect_cap_is_exact` replaces the approximate-span test; every other `tcl-regex` (the `reg.test` corpus included), `tcl-cmd-core`, `tcl-vm` and `runtime/rust` regexp test unchanged |
 | VT5.4 | `wip(value-transfers): slice 5 — regexp and regsub` | `RegexpSemantics` and `RegsubSemantics` (`value_transfer/regex.rs`, `NativeEvalId::{RegexpMatch, RegsubSubstitute}`, registry-owned) over `regexp_analysis` / `regsub_analysis` and `AreEngine`, declared on both specs: a match writes one value per match variable (an unmatched subgroup the empty string, `-1 -1` with `-indices`), a completed no-match, `-inline`, `-about` and a variable-less `regsub` preserve every declared target, `-all` counts, `regsub` with a variable writes it whether or not anything matched, and every `PrecisionDecline` declines the whole answer (`Approximate`, `Unsupported`, the cancelled budget, the command's error) (D126); `-about` is evaluated and the `-command` form is `NoRoute(Callback)` (D124); the axes gain `LIST_RENDERING` and a `-start` index evaluates only as a plain decimal integer (D125); the engine's work is metered (`Regex::exec_metered`, `MatchLimits::spent`) and charged to the evaluation's budget with the published bytes (`ConstOps::remaining_work`, `ConstOps::take_all`) (D127); `regsub`'s folders are the route through `evaluate_literal`, `const_fold_versioned` new, `CONST_FOLD_VERSIONED_NATIVE` at 4 rows (D128); G1's `regexp` and `regsub` gap rows gone, the inventory regenerated; the page's two core-table rows and its table count updated. Not done: the `RegexPatternCapture` hook's retirement and `handle_regex_pattern_capture` wait for CC2.13 (D129) | `regexp_writes_or_preserves_its_match_variables`, `a_regexp_that_established_nothing_declines`, `regsub_writes_its_variable_and_declines_its_callback` (`value_transfers.rs`); `regexp_witnesses_match_every_release_on_path` (`differential_fold.rs`: 22 witnesses, 18 answered and agreeing on each of tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1b0, the plan's five answered on every one); `a_search_reports_the_work_it_spent` and `searches_charged_to_one_counter_share_one_budget` (`precision_oracle.rs`); `route_stamps_match_the_pinned_set` gains the two stamps; changed by the mandate ("a no-match `regexp` keeps its match variables' values in the lattice; a match writes them"): `a_conditional_writer_does_not_kill_the_store_it_may_preserve` asserts each preserved store survives by line and that `puts "$a $b"` now reads `before before`, and `var_write_typing_shapes_destructure_target_types` reads the registry's typing over an unknown subject and the written `String` over a literal one |
+| VT5.5 | `wip(value-transfers): slice 5 — scan, binary scan, lassign, array set` | `ScanSemantics`, `BinaryScanSemantics`, `LassignSemantics` and `ArraySetSemantics` (`value_transfer/destructure.rs`, `NativeEvalId::{ScanFormat, BinaryScan, ListAssign, ArraySet}`, registry-owned) over `scan::validate_format` / `scan_match`, `binary::scan` and `ConstOps::list_elements`, declared on the four specs: a converted field writes its variable typed as it was built and a field the input did not reach preserves it (`-1` and every variable preserved when the input ended first), `lassign` writes in order and returns the rest, `array set` writes one element per key; each answers only where every release the target names reads the words alike (D132); the writing routes share `value_transfer/publication.rs` (`open_words`, `targets_are`, `PendingStore`, `Publication`, moved out of `regex.rs`, D134); `StoreOutcome::WriteElement` names an element of an array target by key (D130), and SCCP takes a stated element write for a fanned may-write rather than joining it with the prior (`DefAnswer::stated`, D131); the scan and unpack work is charged per byte, the page's two core rows updated; G1's four gap rows gone and the inventory regenerated; the oracle harness spells non-ASCII as `\uXXXX` (D133) | `destructuring_writers_run_the_shared_cores` (`value_transfers.rs`, with the `%u`, infinity and negative-zero declines); `destructuring_witnesses_match_every_release_on_path` (`differential_fold.rs`: 46 witnesses, the plan's four answered and agreeing on every release that has the command; answered and agreeing 21 on tclsh 8.4.20, 30 on 8.5.19, 32 on 8.6.18, 35 on 9.0.4 and 35 on 9.1b0, every other one declined by the route or raised by `tclsh`); `an_array_set_writes_the_elements_it_names` (`value_transfer.rs`); `route_stamps_match_the_pinned_set` gains the four stamps; `var_write_typing_shapes_destructure_target_types` (`type_infer.rs`) reads a written `scan` target as the `String` its conversion built over literal operands and keeps the unknown subject's case |
+
+A container restart ended the first implementer at VT5.5, uncommitted;
+a second implementer took the opus items over from VT5.5 on (VT5.5, VT5.6,
+VT5.7, VT5.12, VT5.11, VT5.15, VT5.16, VT5.18, then VT5.8 to VT5.10, CC2.6
+having landed at `e67ae23e`). What it recovered from the worktree was
+VT5.5 nearly whole: the four routes, `publication.rs`, `WriteElement`, the
+driver's element place, both registry tests and the gate rows. Kept: all of
+it. Changed before the checkpoint: the element writes did not reach the
+lattice, since SCCP joined each fanned may-write with its prior (D131);
+three `scan` answers were wrong against every oracle from 8.5 (`scan -1
+%u`, `scan -inf %f`, `scan -0 %f`) and now decline (D132); the harness
+compared non-ASCII witnesses against a misread script (D133); the two doc
+comments the oracle contradicted were corrected, and the per-byte charges
+the page states were added. Nothing was backed out.
+
+Green at VT5.5:
+
+- tests: `tcl-registry`, `tcl-spectcl`, `xtask` and `tcl-compiler`
+  together 11482 passed, 7 ignored, no failure; after the last `scan`
+  declines, `tcl-registry` again in full (1217) and `tcl-compiler`'s
+  `value_transfer`, `type_infer` and `sccp` unit tests (147) and witness
+  binary (39);
+- pedantic clippy (`--no-deps --all-targets -D warnings`) on
+  `tcl-registry`, `tcl-compiler`, `tcl-spectcl` and `xtask`, no `#[allow]`
+  added; `rustfmt` on the touched files;
+- `cargo xtask value-transfers` (the inventory regenerated: `scan`,
+  `binary scan`, `lassign` and `array set` declared with direct routes)
+  and `--check` (17 clean, 13 waived, 98 pinned across 39 files, 6607
+  rows), `registry-axes --check` (1089 pinned across 163 files, unchanged),
+  `pack-goldens --check` (24 packs, no snapshot moved), `cargo check
+  --workspace` clean.
 
 Green at VT5.4:
 
@@ -7590,6 +7622,57 @@ has the witnesses):
   lane's files, and the coordinator's rule is to retire a hook only after
   CC2.13 lands. It has not: the hook, the handler and the ledger row are
   unchanged, and the retirement is recorded as this item's remainder.
+
+- **D130 — An element write names its key.** `array set`'s places are
+  elements no operand spells, and the page's four outcomes name a place
+  by its operand alone, so `StoreOutcome` gains `WriteElement { target,
+  key, value }`: the element `key` of the array the target names.
+  `validate_outcome` allows one outcome per target and key, and the
+  driver resolves the store to the element place (`element_place`), which
+  declines for an element of an element; an element beside its base in
+  one outcome still declines `OverlappingTargets`, and a traced base
+  `TracedPlace`. The type facts are per target, so an element write's
+  value carries its own representation evidence.
+- **D131 — A stated element write is definite.** The SSA fans a
+  whole-array writer's base definition over every constant-keyed element
+  the function names, as a may-write whose value SCCP joins with the
+  element's prior version. An evaluated outcome that names the element's
+  place makes that write definite: `DefAnswer::stated` says so, and SCCP
+  takes the value as it stands (and its folded type). An element no store
+  names keeps the join and widens, as it did, and a typed dynamic-key
+  write (`set arr($i) x`) still joins. Without it, `array set arr {k v}`
+  evaluated and left `arr(k)` overdefined.
+- **D132 — The destructuring routes answer where every release agrees,
+  measured.** `scan`: no positional or size-modified conversion; `%b` from
+  8.6; a float conversion from 8.5 (8.4 spells `%.12g`), never over a
+  subject spelling an infinity (`scan -inf %f` is `-Inf` from 8.5 where
+  the matcher converts nothing) or to a negative zero (`scan -0 %f` is
+  `0.0` from 8.5, which reads the integer spelling as an integer); no
+  `%u`, which the matcher reads signed (`scan -1 %u` is
+  `18446744073709551615` on every release); no `0x` input to a radix
+  conversion under 8.4; integers within 32 bits (`scan 2147483648 %d` is
+  `-2147483648` on 8.4, 9.0 and 9.1 and `2147483648` on 8.5 and 8.6).
+  `binary scan`: a field letter or the `u` suffix from its release, a
+  float field from 8.5, no character above `U+00FF`, and no format with
+  more value fields than variables — the command raises once it reaches
+  such a field with data left and answers when the data runs out first
+  (`binary scan \x01 ccc a b` is 1), which the route does not follow.
+  `lassign` from 8.5, a variable-less call from 8.6. `array set`: one
+  write per key, the last value of a repeated key, an odd list the
+  program's error.
+- **D133 — The oracle harness spells non-ASCII as `\uXXXX`.** `tclsh`
+  reads a piped script in the system encoding, which is not UTF-8
+  without a locale, so a witness holding `U+00F0` reached 9.0 as two
+  characters and was compared with the wrong answer (the regexp witnesses
+  reach no non-ASCII answer, and stay green). `tcl_quoted_word` escapes
+  every character from `U+0080` to `U+FFFF`, which every release reads
+  as the one character it names.
+- **D134 — One publication for the writing routes.** `regex.rs`'s
+  `Publication` (its opening over exact words, its per-byte charge, its
+  take-all and its typing of each write) moves to the private
+  `value_transfer/publication.rs` with `open_words`, `targets_are` and
+  `PendingStore`, so the regexp and destructuring routes publish one way;
+  the route revision is the caller's.
 
 ### Open questions for the owner
 

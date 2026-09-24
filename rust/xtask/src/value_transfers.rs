@@ -894,18 +894,6 @@ fn target_roles(
 const KNOWN_GAPS: &[(&str, &str)] = &[
     // Slice 5, destructuring and structured bodies.
     (
-        "scan",
-        "slice 5 — the destructuring write with per-target types",
-    ),
-    (
-        "binary scan",
-        "slice 5 — the destructuring write with per-target types",
-    ),
-    (
-        "lassign",
-        "slice 5 — the destructuring write with duplicate targets resolved to places",
-    ),
-    (
         "dict with",
         "slice 5 — the structural plan with a key-binding projection",
     ),
@@ -921,7 +909,6 @@ const KNOWN_GAPS: &[(&str, &str)] = &[
         "::tcl::dict::update",
         "slice 5 — the structural plan with a key-binding projection",
     ),
-    ("array set", "slice 5 — the multi-element structured write"),
     ("file stat", "slice 5 — the array-valued structured write"),
     ("file lstat", "slice 5 — the array-valued structured write"),
     (

@@ -1324,6 +1324,8 @@ fn pinned_route_stamps() -> BTreeSet<(String, &'static str, &'static str)> {
         ("::tcl::dict::unset", "direct:dict-unset", "registry"),
         ("append", "direct:cell-append", "registry"),
         ("append_to_collection", "none:declared", "-"),
+        ("array set", "direct:array-set", "registry"),
+        ("binary scan", "direct:binary-scan", "registry"),
         ("dict append", "direct:dict-append", "registry"),
         ("dict incr", "direct:dict-incr", "registry"),
         ("dict lappend", "direct:dict-lappend", "registry"),
@@ -1335,12 +1337,14 @@ fn pinned_route_stamps() -> BTreeSet<(String, &'static str, &'static str)> {
         ("format", "direct:format-template", "registry"),
         ("incr", "direct:cell-increment", "registry"),
         ("lappend", "direct:cell-list-append", "registry"),
+        ("lassign", "direct:list-assign", "registry"),
         ("list", "direct:list-of-args", "registry"),
         ("llength", "direct:list-length", "registry"),
         ("lmap", "none:unauthored", "-"),
         ("regexp", "direct:regexp-match", "registry"),
         ("regsub", "direct:regsub-substitute", "registry"),
         ("remove_from_collection", "none:declared", "-"),
+        ("scan", "direct:scan-format", "registry"),
         ("set", "direct:cell-write", "registry"),
         ("string length", "direct:string-length", "registry"),
         ("string range", "direct:string-range", "registry"),
@@ -1449,6 +1453,10 @@ fn route_label(route: EvalRoute) -> &'static str {
             NativeEvalId::StringLength => "direct:string-length",
             NativeEvalId::RegexpMatch => "direct:regexp-match",
             NativeEvalId::RegsubSubstitute => "direct:regsub-substitute",
+            NativeEvalId::ScanFormat => "direct:scan-format",
+            NativeEvalId::BinaryScan => "direct:binary-scan",
+            NativeEvalId::ListAssign => "direct:list-assign",
+            NativeEvalId::ArraySet => "direct:array-set",
         },
         EvalRoute::Expression { .. } => "expression:tcl.expr",
         EvalRoute::Implementation(_) => "implementation",
@@ -2388,5 +2396,236 @@ fn regsub_writes_its_variable_and_declines_its_callback() {
             &mut budget()
         ),
         EvalAnswer::Declined(DeclineReason::NoRoute(NoRouteReason::Callback))
+    );
+}
+
+/// A writing route's answer for `command words…` under `dialect`'s profile,
+/// the words marked `true` given the `VarWrite` role, rendered for
+/// comparison: the result, then each store in order as `write N value`,
+/// `element N key value` or `preserve N` — or the decline.
+fn destructured(
+    command: &str,
+    sub: Option<&str>,
+    words: &[(&str, bool)],
+    dialect: Option<&str>,
+) -> Result<(String, Vec<String>), DeclineReason> {
+    use tcl_registry::value_transfer::validate_outcome;
+    let reg = CommandRegistry::build_default();
+    let spec = reg.get(command).expect(command);
+    let semantics = match sub {
+        Some(name) => resolve_semantics(spec, Some(spec.subcommand(name).expect(name)), None),
+        None => resolve_semantics(spec, None, None),
+    };
+    let semantics = semantics.semantics().expect("a destructuring route");
+    let operands = words
+        .iter()
+        .map(|&(text, target)| literal(text, target.then_some(ArgRole::VarWrite)))
+        .collect();
+    let mut inputs = TestInputs::new(command, operands);
+    inputs.context = AnalysisContext::detached(
+        dialect.map(|name| tcl_dialect::DialectProfile::find(name).expect(name)),
+    );
+    match semantics.evaluate(&inputs, &mut Budget::evaluation()) {
+        EvalAnswer::Evaluated(outcome) => {
+            assert_eq!(
+                validate_outcome(
+                    &semantics.structure(&inputs),
+                    &semantics.store_targets(&inputs),
+                    &outcome
+                ),
+                Ok(()),
+                "{command} {words:?}"
+            );
+            let text = |value: &ExactValue| String::from_utf8(value.bytes.clone()).expect("text");
+            let ExactValueOrUnavailable::Exact(result) = &outcome.result else {
+                panic!("no exact result: {outcome:?}");
+            };
+            let stores = outcome
+                .ordered_stores
+                .iter()
+                .map(|store| match store {
+                    StoreOutcome::Write { target, value } => {
+                        format!("write {} {}", (target.0).0, text(value))
+                    }
+                    StoreOutcome::WriteElement { target, key, value } => {
+                        format!("element {} {key} {}", (target.0).0, text(value))
+                    }
+                    StoreOutcome::Preserve { target } => format!("preserve {}", (target.0).0),
+                    other => panic!("unexpected store {other:?}"),
+                })
+                .collect();
+            Ok((text(result), stores))
+        }
+        EvalAnswer::Declined(reason) => Err(reason),
+        EvalAnswer::Pending => panic!("pending over literal words"),
+    }
+}
+
+/// A word the destructuring tests pass: its text, and whether the resolver
+/// gives it the `VarWrite` role.
+const fn target(text: &str) -> (&str, bool) {
+    (text, true)
+}
+
+/// A word the resolver gives no `VarWrite` role.
+const fn word(text: &str) -> (&str, bool) {
+    (text, false)
+}
+
+/// [`destructured`]'s rendering of an answer: the result and each store.
+fn answered(result: &str, stores: &[&str]) -> (String, Vec<String>) {
+    (
+        result.to_owned(),
+        stores.iter().map(ToString::to_string).collect(),
+    )
+}
+
+/// The destructuring writers run the shared cores (VT5.5; the Storage row's
+/// "partial `scan`; … repeated targets; array and base overlap"): a
+/// converted field writes its variable and a field the input did not reach
+/// preserves it (`scan {12 nope} {%d %d} a b` is 1, `a` 12, `b` as it was);
+/// `lassign` writes in order, a repeated variable twice, and returns the
+/// rest; `binary scan` writes each field it scanned; `array set` writes one
+/// element per key. Every answer is tclsh's under 8.4 to 9.1 (8.5 on for
+/// `lassign`, `destructuring_witnesses_match_every_release_on_path`), and a
+/// form a release reads differently declines on its axis.
+#[test]
+fn destructuring_writers_run_the_shared_cores() {
+    let (t, w) = (target, word);
+    let tcl90 = Some("tcl9.0");
+
+    assert_eq!(
+        destructured(
+            "scan",
+            None,
+            &[w("12 nope"), w("%d %d"), t("a"), t("b")],
+            tcl90
+        ),
+        Ok(answered("1", &["write 2 12", "preserve 3"]))
+    );
+    assert_eq!(
+        destructured("scan", None, &[w(""), w("%d %d"), t("a"), t("b")], tcl90),
+        Ok(answered("-1", &["preserve 2", "preserve 3"])),
+        "the input ended before any conversion"
+    );
+    assert_eq!(
+        destructured("scan", None, &[w("12 34"), w("%d %d")], None),
+        Ok(answered("12 34", &[])),
+        "the inline form"
+    );
+    assert_eq!(
+        destructured("scan", None, &[w("abc"), w("%d")], None),
+        Ok(answered("{}", &[])),
+        "a failed inline field is the empty string"
+    );
+    // Past the 32-bit range the releases disagree: `4294967296` is kept up
+    // to 8.6 and clamps to `2147483647` from 9.0, so no release is taken.
+    assert_eq!(
+        destructured("scan", None, &[w("4294967296"), w("%d"), t("a")], tcl90),
+        Err(DeclineReason::ReleaseAmbiguous(Axis::IntTower))
+    );
+    // `%b` arrives in 8.6.
+    assert!(matches!(
+        destructured("scan", None, &[w("101"), w("%b"), t("a")], Some("tcl8.5")),
+        Err(DeclineReason::ReleaseAmbiguous(Axis::Availability(_)))
+    ));
+    assert_eq!(
+        destructured("scan", None, &[w("101"), w("%b"), t("a")], Some("tcl8.6")),
+        Ok(answered("1", &["write 2 5"]))
+    );
+
+    assert_eq!(
+        destructured(
+            "lassign",
+            None,
+            &[w("first second extra"), t("a"), t("a")],
+            tcl90
+        ),
+        Ok(answered("extra", &["write 1 first", "write 2 second"]))
+    );
+    assert_eq!(
+        destructured("lassign", None, &[w("a b"), t("x"), t("y"), t("z")], tcl90),
+        Ok(answered("", &["write 1 a", "write 2 b", "write 3 "])),
+        "past the end the variable is the empty string"
+    );
+    assert!(matches!(
+        destructured("lassign", None, &[w("a b"), t("x")], Some("tcl8.4")),
+        Err(DeclineReason::ReleaseAmbiguous(Axis::Availability(_)))
+    ));
+
+    scan_declines_what_the_matcher_reads_apart();
+    the_byte_and_array_writers_run_the_shared_cores();
+}
+
+/// [`destructuring_writers_run_the_shared_cores`]'s `scan` declines where
+/// the shared matcher and the releases part: `%u` (the matcher reads it
+/// signed, where `scan -1 %u` is `18446744073709551615` on every release),
+/// an infinity spelling (`-Inf` from 8.5, no conversion in the matcher) and
+/// a negative zero (`scan -0 %f` is `0.0` from 8.5).
+fn scan_declines_what_the_matcher_reads_apart() {
+    let (t, w) = (target, word);
+    let tcl90 = Some("tcl9.0");
+    for (subject, format) in [("-1", "%u"), ("-inf", "%f"), ("-0", "%f")] {
+        assert_eq!(
+            destructured("scan", None, &[w(subject), w(format), t("v")], tcl90),
+            Err(DeclineReason::Unsupported),
+            "scan {subject} {format}"
+        );
+    }
+}
+
+/// [`destructuring_writers_run_the_shared_cores`]'s `binary scan` and
+/// `array set` half.
+fn the_byte_and_array_writers_run_the_shared_cores() {
+    let (t, w) = (target, word);
+    let tcl90 = Some("tcl9.0");
+    assert_eq!(
+        destructured(
+            "binary",
+            Some("scan"),
+            &[w("scan"), w("\u{1}\u{2}"), w("cc"), t("a"), t("b")],
+            tcl90
+        ),
+        Ok(answered("2", &["write 3 1", "write 4 2"]))
+    );
+    assert_eq!(
+        destructured(
+            "binary",
+            Some("scan"),
+            &[w("scan"), w("\u{1}"), w("cc"), t("a"), t("b")],
+            tcl90
+        ),
+        Ok(answered("1", &["write 3 1", "preserve 4"])),
+        "the data ran out before the second field"
+    );
+    assert_eq!(
+        destructured(
+            "binary",
+            Some("scan"),
+            &[w("scan"), w("\u{1}\u{2}"), w("cc"), t("a")],
+            tcl90
+        ),
+        Err(DeclineReason::WrongRepresentation),
+        "a field without a variable raises once the scan reaches it with data left"
+    );
+
+    assert_eq!(
+        destructured(
+            "array",
+            Some("set"),
+            &[w("set"), t("arr"), w("k1 v1 k2 v2 k1 v3")],
+            None
+        ),
+        Ok(answered("", &["element 1 k1 v3", "element 1 k2 v2"]))
+    );
+    assert_eq!(
+        destructured(
+            "array",
+            Some("set"),
+            &[w("set"), t("arr"), w("k1 v1 k2")],
+            None
+        ),
+        Err(DeclineReason::WrongRepresentation),
+        "an odd-length list raises"
     );
 }

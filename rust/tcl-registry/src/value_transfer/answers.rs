@@ -613,6 +613,18 @@ pub enum StoreOutcome {
         /// What is still known.
         facts: FactBounds,
     },
+    /// One element of the array `target` names holds exactly `value`
+    /// afterwards: a whole-array writer's pairs (`array set arr {k v}`),
+    /// whose places are elements no operand spells. The place is the
+    /// element `key` of the target's place.
+    WriteElement {
+        /// The target naming the array.
+        target: TargetId,
+        /// The element key, exactly.
+        key: String,
+        /// The written value.
+        value: ExactValue,
+    },
 }
 
 impl StoreOutcome {
@@ -623,7 +635,21 @@ impl StoreOutcome {
             Self::Write { target, .. }
             | Self::Preserve { target }
             | Self::Unbind { target }
-            | Self::MayWrite { target, .. } => *target,
+            | Self::MayWrite { target, .. }
+            | Self::WriteElement { target, .. } => *target,
+        }
+    }
+
+    /// The element key an element write names within its target, `None`
+    /// for an outcome on the target's own place.
+    #[must_use]
+    pub fn element(&self) -> Option<&str> {
+        match self {
+            Self::WriteElement { key, .. } => Some(key),
+            Self::Write { .. }
+            | Self::Preserve { .. }
+            | Self::Unbind { .. }
+            | Self::MayWrite { .. } => None,
         }
     }
 }
@@ -711,13 +737,15 @@ pub fn validate_outcome(
         _ => None,
     };
     let declared = |target: &TargetId| targets.contains(target) || planned == Some(*target);
-    let mut seen: Vec<TargetId> = Vec::with_capacity(outcome.ordered_stores.len());
+    // One outcome per place the answer names: a target's own place, or one
+    // element of it for an element write.
+    let mut seen: Vec<(TargetId, Option<&str>)> = Vec::with_capacity(outcome.ordered_stores.len());
     for store in &outcome.ordered_stores {
-        let target = store.target();
-        if !declared(&target) || seen.contains(&target) {
+        let slot = (store.target(), store.element());
+        if !declared(&slot.0) || seen.contains(&slot) {
             return Err(DeclineReason::MalformedAnswer);
         }
-        seen.push(target);
+        seen.push(slot);
     }
     let typed = outcome
         .types

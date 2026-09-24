@@ -271,6 +271,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arg_role_resolver: Some(binary_scan_arg_roles),
         arg_role_resolver_roles: &[ArgRole::ScanFormat, ArgRole::VarWrite],
         format_string_type: Some(FormatType::Binary),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::destructure::BINARY_SCAN),
         ..SubCommand::DEFAULT
     },
 ];

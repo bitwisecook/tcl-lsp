@@ -844,7 +844,11 @@ fn sccp_process_statements(
             let mut value_of = |values: &HashMap<ValueKey, LatticeValue>| {
                 let evaluated = evaluated
                     .get_or_insert_with(|| evaluate_defs_under(stmt_ssa, values, ssa, driver));
-                (evaluated.of((var, ver)), evaluated.folded_of((var, ver)))
+                (
+                    evaluated.of((var, ver)),
+                    evaluated.folded_of((var, ver)),
+                    evaluated.stated((var, ver)),
+                )
             };
             // A definition's folded type is its own evaluation's: a widened
             // or a joined definition states none.
@@ -857,21 +861,29 @@ fn sccp_process_statements(
                     // A synthetic array-element may-def: the write may or may
                     // not have hit this element, so its value is the JOIN of
                     // the prior version (recorded as a use) and the written
-                    // value. The base refresh of an element write carries no
-                    // prior use — the base holds no value of its own.
-                    let value = match stmt_ssa.uses.get(&var) {
+                    // value — unless the statement's evaluated outcome names
+                    // the element's place (`array set arr {k v}` writes
+                    // `arr(k)`), which makes the write definite. The base
+                    // refresh of an element write carries no prior use — the
+                    // base holds no value of its own.
+                    match stmt_ssa.uses.get(&var) {
                         Some(prev_ver) => {
-                            let prev = values
-                                .get(&(var, *prev_ver))
-                                .cloned()
-                                .unwrap_or(LatticeValue::Overdefined);
-                            join(&prev, &value_of(values).0)
+                            let (written, folded, stated) = value_of(values);
+                            if stated {
+                                (written, folded)
+                            } else {
+                                let prev = values
+                                    .get(&(var, *prev_ver))
+                                    .cloned()
+                                    .unwrap_or(LatticeValue::Overdefined);
+                                (join(&prev, &written), None)
+                            }
                         }
-                        None => LatticeValue::Overdefined,
-                    };
-                    (value, None)
+                        None => (LatticeValue::Overdefined, None),
+                    }
                 } else {
-                    value_of(values)
+                    let (value, folded, _) = value_of(values);
+                    (value, folded)
                 };
             driver.record_folded((var, ver), folded);
             if set_value(values, (var, ver), &val) {
@@ -1507,6 +1519,17 @@ impl DefValues {
                 .iter()
                 .find(|answer| answer.key == key)
                 .and_then(|answer| answer.folded.clone()),
+        }
+    }
+
+    /// Whether an evaluated outcome's stores name definition `key`'s place
+    /// ([`crate::value_transfer::DefAnswer::stated`]).
+    fn stated(&self, key: ValueKey) -> bool {
+        match self {
+            Self::Each(..) => false,
+            Self::PerDef(answers) => answers
+                .iter()
+                .any(|answer| answer.key == key && answer.stated),
         }
     }
 

@@ -244,6 +244,7 @@ pub fn spec() -> CommandSpec {
         // must not be typed `Int`.
         var_write_typing: VarWriteTyping::Destructured,
         const_fold: Some(fold_scan),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::destructure::SCAN),
         hover: Some(HoverSnippet {
             summary: "Parse string using conversion specifiers in the style of sscanf",
             synopsis: &["scan string format ?varName varName ...?"],

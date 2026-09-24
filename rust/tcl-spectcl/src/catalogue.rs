@@ -511,6 +511,10 @@ pub const NATIVE_EVAL_IDS: &[Variant] = &[
     v("StringLength", "string length"),
     v("RegexpMatch", "regexp"),
     v("RegsubSubstitute", "regsub"),
+    v("ScanFormat", "scan"),
+    v("BinaryScan", "binary scan"),
+    v("ListAssign", "lassign"),
+    v("ArraySet", "array set"),
 ];
 
 /// [`tcl_registry::value_transfer::LanguageProfileId::ALL`] — `evaluate

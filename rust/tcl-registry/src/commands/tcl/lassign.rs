@@ -85,6 +85,7 @@ pub fn spec() -> CommandSpec {
             return_value: "The empty string when every list element was assigned to a variable; otherwise a list of the elements left over after the last variable was assigned.",
         }),
         codegen_hook: Some(CodegenHookId::Lassign),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::destructure::LASSIGN),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
         arg_role_resolver: Some(lassign_arg_roles),

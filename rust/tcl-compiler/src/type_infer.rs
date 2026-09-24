@@ -2019,9 +2019,18 @@ mod tests {
         );
 
         // `scan` target — OVERDEFINED (format-dependent), never Int.
-        let cu = CompilationUnit::build_for("scan hello %s word", &registry(), false);
+        let cu = CompilationUnit::build_for("scan $s %s word", &registry(), false);
         let fu = cu.function("::top").unwrap();
         assert!(none_known(fu, "word"), "scan target must not be Known Int");
+        // Over exact operands the route writes the conversion (VT5.5): the
+        // String `%s` built, still never the count.
+        let cu = CompilationUnit::build_for("scan hello %s word", &registry(), false);
+        let fu = cu.function("::top").unwrap();
+        assert!(
+            any_known(fu, "word", TclType::String) && !any_known(fu, "word", TclType::Int),
+            "a written scan target is the String its conversion built: {:?}",
+            fu.types
+        );
 
         // `binary scan` target (subcommand-level typing) — OVERDEFINED.
         let cu = CompilationUnit::build_for("binary scan $d a3 chars", &registry(), false);

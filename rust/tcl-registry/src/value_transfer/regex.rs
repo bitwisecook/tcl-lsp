@@ -38,19 +38,15 @@ use tcl_cmd_core::regex::{
 use tcl_dialect::TclVersion;
 use tcl_regex::cmd_core::AreEngine;
 
-use crate::arg_role::ArgRole;
 use crate::types::TclType;
 
 use super::CommandSemantics;
-use super::answers::{
-    CompletionOutcome, DependencyEvidence, EvalAnswer, ExactValueOrUnavailable, InvocationOutcome,
-    RepresentationEvidence, RouteIdentity, StoreOutcome, TypeFacts,
-};
-use super::builtins::exact_operands;
+use super::answers::EvalAnswer;
 use super::const_ops::{ConstOps, ConstValue, Needs, TargetSemantics};
 use super::context::Budget;
 use super::decline::{BudgetLimit, DeclineReason, NoRouteReason};
 use super::inputs::{AnalysisInputs, OperandId, TargetId};
+use super::publication::{PendingStore, Publication, open_words};
 use super::route::{EvalRoute, NativeEvalId};
 
 /// This module's revision of the two routes; the engine's own revision is
@@ -71,18 +67,6 @@ const NEEDS: Needs = Needs::REGEXP_FEATURES
 /// other.
 fn route_revision() -> u64 {
     (ROUTE_REVISION << 32) | u64::from(<AreEngine as RegexEngine>::IDENTITY.revision)
-}
-
-/// Every operand as text the target reads alike: its exact value, admitted
-/// by [`ConstOps::admissible_text`].
-fn admissible_words(
-    ops: &mut ConstOps<'_>,
-    words: &[ConstValue],
-) -> Result<Vec<String>, DeclineReason> {
-    words
-        .iter()
-        .map(|word| ops.admissible_text(word).map(|text| text.to_string()))
-        .collect()
 }
 
 /// Where `args`' option run ends and the `-start` values it holds, scanned
@@ -203,107 +187,15 @@ fn failure_reason(ops: &ConstOps<'_>, failure: &RegexFailure) -> DeclineReason {
     }
 }
 
-/// What one evaluation publishes, before its values are taken: the result,
-/// then each store in execution order, a write carrying its value.
-struct Publication {
-    result: ConstValue,
-    result_type: TclType,
-    stores: Vec<(TargetId, Option<ConstValue>)>,
-}
-
-impl Publication {
-    /// A result and a `Preserve` for every declared target: the call wrote
-    /// nothing.
-    fn preserving(result: ConstValue, result_type: TclType, targets: &[OperandId]) -> Self {
-        Self {
-            result,
-            result_type,
-            stores: targets.iter().map(|id| (TargetId(*id), None)).collect(),
-        }
-    }
-
-    /// Charge the published bytes as work — one unit per capture or output
-    /// byte — take every value, and build the outcome.
-    fn publish(self, mut ops: ConstOps<'_>, id: NativeEvalId) -> EvalAnswer {
-        let target = *ops.target();
-        let bytes = self.result.bytes.len()
-            + self
-                .stores
-                .iter()
-                .filter_map(|(_, value)| value.as_ref())
-                .map(|value| value.bytes.len())
-                .sum::<usize>();
-        if let Err(reason) = ops.charge(u64::try_from(bytes).unwrap_or(u64::MAX)) {
-            return EvalAnswer::Declined(reason);
-        }
-        let written: Vec<ConstValue> = self
-            .stores
-            .iter()
-            .filter_map(|(_, value)| value.clone())
-            .collect();
-        let mut taken = match ops.take_all(
-            std::iter::once(self.result)
-                .chain(written)
-                .collect::<Vec<_>>(),
-        ) {
-            Ok(taken) => taken.into_iter(),
-            Err(reason) => return EvalAnswer::Declined(reason),
-        };
-        let Some(result) = taken.next() else {
-            return EvalAnswer::Declined(DeclineReason::MalformedAnswer);
-        };
-        let mut ordered_stores = Vec::with_capacity(self.stores.len());
-        let mut per_target = Vec::new();
-        for (target, value) in self.stores {
-            if value.is_none() {
-                ordered_stores.push(StoreOutcome::Preserve { target });
-                continue;
-            }
-            let Some(value) = taken.next() else {
-                return EvalAnswer::Declined(DeclineReason::MalformedAnswer);
-            };
-            if let RepresentationEvidence::Constructed(built) = value.representation {
-                per_target.push((target, built));
-            }
-            ordered_stores.push(StoreOutcome::Write { target, value });
-        }
-        EvalAnswer::Evaluated(Box::new(InvocationOutcome {
-            completion: CompletionOutcome::Normal,
-            result: ExactValueOrUnavailable::Exact(result),
-            ordered_stores,
-            types: TypeFacts {
-                result: Some(self.result_type),
-                per_target,
-                shapes: Vec::new(),
-            },
-            evidence: DependencyEvidence {
-                route: Some(RouteIdentity {
-                    route: EvalRoute::Direct { id },
-                    implementation: id.as_str(),
-                    revision: route_revision(),
-                }),
-                characters: target.character_model,
-                release: target.release,
-                ..DependencyEvidence::default()
-            },
-        }))
-    }
-}
-
 /// The exact words of every operand and the operands the resolver gives the
 /// `VarWrite` role, with a value model admitted for the routes' axes — or
-/// the answer that stands in for an input that is not exact.
+/// the answer that stands in for an input that is not exact, or a `-start`
+/// index the releases read differently.
 fn open<'b>(
     input: &dyn AnalysisInputs,
     budget: &'b mut Budget,
 ) -> Result<(ConstOps<'b>, Vec<String>, Vec<OperandId>), EvalAnswer> {
-    let words = exact_operands(input, 0..input.invocation().operands.len())?;
-    let targets: Vec<OperandId> = input
-        .invocation()
-        .operands_with_role(ArgRole::VarWrite)
-        .collect();
-    let mut ops = ConstOps::admit(input.context(), budget, NEEDS).map_err(EvalAnswer::Declined)?;
-    let texts = admissible_words(&mut ops, &words).map_err(EvalAnswer::Declined)?;
+    let (ops, texts, targets) = open_words(input, budget, NEEDS)?;
     if let Some(reason) = start_decline(&texts) {
         return Err(EvalAnswer::Declined(reason));
     }
@@ -369,12 +261,12 @@ impl RegexpSemantics {
                     stores: targets
                         .iter()
                         .zip(pairs)
-                        .map(|(id, (_, value))| (TargetId(*id), Some(value)))
+                        .map(|(id, (_, value))| PendingStore::Write(TargetId(*id), value))
                         .collect(),
                 }
             }
         };
-        publication.publish(ops, NativeEvalId::RegexpMatch)
+        publication.publish(ops, NativeEvalId::RegexpMatch, route_revision())
     }
 }
 
@@ -461,11 +353,11 @@ impl RegsubSemantics {
                 Publication {
                     result: ConstValue::int(substituted.count),
                     result_type: TclType::Int,
-                    stores: vec![(TargetId(*id), Some(ConstValue::text(&text)))],
+                    stores: vec![PendingStore::Write(TargetId(*id), ConstValue::text(&text))],
                 }
             }
         };
-        publication.publish(ops, NativeEvalId::RegsubSubstitute)
+        publication.publish(ops, NativeEvalId::RegsubSubstitute, route_revision())
     }
 }
 

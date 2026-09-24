@@ -264,6 +264,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             writes: true,
             ..SideEffect::DEFAULT
         }],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::destructure::ARRAY_SET),
         ..SubCommand::DEFAULT
     },
     SubCommand {

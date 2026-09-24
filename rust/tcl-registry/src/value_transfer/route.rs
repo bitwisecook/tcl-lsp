@@ -364,6 +364,16 @@ pub enum NativeEvalId {
     /// `regsub`: the regexp owner's substitution — the text as the result,
     /// or the count with the text written to the result variable.
     RegsubSubstitute,
+    /// `scan`: the shared matcher's conversions — the count with one write
+    /// per converted variable, or the inline list.
+    ScanFormat,
+    /// `binary scan`: the shared unpacker's fields, one write per scanned
+    /// variable.
+    BinaryScan,
+    /// `lassign`: the list's elements written in order, the rest returned.
+    ListAssign,
+    /// `array set`: one element write per pair.
+    ArraySet,
 }
 
 impl NativeEvalId {
@@ -385,6 +395,10 @@ impl NativeEvalId {
         Self::StringLength,
         Self::RegexpMatch,
         Self::RegsubSubstitute,
+        Self::ScanFormat,
+        Self::BinaryScan,
+        Self::ListAssign,
+        Self::ArraySet,
     ];
 
     /// Stable spelling for the inventory and the Explorer.
@@ -407,6 +421,10 @@ impl NativeEvalId {
             Self::StringLength => "string-length",
             Self::RegexpMatch => "regexp-match",
             Self::RegsubSubstitute => "regsub-substitute",
+            Self::ScanFormat => "scan-format",
+            Self::BinaryScan => "binary-scan",
+            Self::ListAssign => "list-assign",
+            Self::ArraySet => "array-set",
         }
     }
 
@@ -429,7 +447,11 @@ impl NativeEvalId {
             | Self::StringLength
             | Self::FormatTemplate
             | Self::RegexpMatch
-            | Self::RegsubSubstitute => EvaluatorOwner::Registry,
+            | Self::RegsubSubstitute
+            | Self::ScanFormat
+            | Self::BinaryScan
+            | Self::ListAssign
+            | Self::ArraySet => EvaluatorOwner::Registry,
         }
     }
 }
