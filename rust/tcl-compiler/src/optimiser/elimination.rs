@@ -34,6 +34,14 @@
 //!   last command's result may be the script return value) and
 //!   for scope-alias commands (`global` / `variable` / `upvar`).
 //!
+//! A store is removable only when no value read and no existence read of
+//! its version remains (value-transfers slice 8): `[info exists x]`,
+//! `[array exists x]` and an unbind — `unset x`, `array unset x` — read the
+//! version they observe as an SSA use wherever they run, a statement, a
+//! condition, a nested word or a `return` word, so the store they observe
+//! stays. An unbind statement is never removed: the error on an absent
+//! place and the binding's disappearance are its effects.
+//!
 //! Emission order is the deterministic CFG `cfg_order` (reverse
 //! post-order from the entry, unreachable blocks appended).
 
@@ -236,7 +244,9 @@ fn expr_has_observable_side_effect(node: &ExprNode, effect: EffectCtx<'_>, depth
 /// always safe; value / expr forms require every embedded command
 /// substitution to be provably side-effect-free; `incr v` is safe
 /// unless its optional amount word has a side effect. Any other
-/// statement form is conservatively unsafe.
+/// statement form is conservatively unsafe — a `Call` among them, so an
+/// unbind (`unset x`, `array unset x`) is never removed, whatever reads
+/// the definition it makes.
 pub(crate) fn assignment_safe_to_delete(stmt: &Statement, purity: PurityCtx<'_>) -> bool {
     assignment_safe_to_delete_with_effect(
         stmt,
@@ -1180,13 +1190,23 @@ pub(crate) fn collect_textual_var_references(
 }
 
 /// Variable names read *inside command substitutions* that the shallow word
-/// scan misses — chiefly a read-modify-write command's target buried in a
-/// substitution (`lappend r [incr i $j]` reads `i`), plus vars read via a
-/// `VarRead`-role argument of a substituted command.  Name-level only and
-/// **suppress-only**: it keeps a feeding `set i 0` from being reported as a
-/// dead store / unused variable.  Deliberately computed *outside* SSA `uses`
-/// so read-before-set versioning is unperturbed.  Computed as the deep RMW
-/// scan minus the shallow scan.
+/// scan misses and the SSA does not record where the word runs — a
+/// read-modify-write target or a `VarRead`-role argument buried where the
+/// lowering records no use, and every `$var` inside a substitution's braced
+/// `expr` body or script. Name-level only and **suppress-only**: it keeps a
+/// feeding `set i 0` from being reported as a dead store or an unused
+/// variable.
+///
+/// Computed as the deep RMW scan minus the shallow scan, less every name the
+/// SSA records where the word runs (value-transfers slice 8): a nested cell
+/// update (`lappend r [incr i $j]` reads `i`), a `VarRead` role and an
+/// existence read — `[info exists x]`, `[array exists x]`, a nested `[unset
+/// x]` — are uses of the version they read, which keep exactly that store
+/// live, so only what the SSA cannot see is left to suppress at name level.
+/// A statement's words are checked against the uses recorded under its span
+/// — its own, and those of the synthetic statements the lowering pushes
+/// ahead of it for its words' substitutions — and a `return` word against
+/// those of the synthetic statements pushed ahead of the terminator.
 pub(crate) fn collect_rmw_hidden_reads(
     fu: &FunctionUnit,
     registry: &CommandRegistry,
@@ -1206,13 +1226,14 @@ pub(crate) fn collect_rmw_hidden_reads(
     );
     let mut shallow = VarReferenceScanner::with_config(VarScanOptions::default(), config);
     let mut out: HashSet<String> = HashSet::new();
-    let mut scan = |word: &str| {
+    let mut found: HashSet<String> = HashSet::new();
+    let mut scan = |word: &str, found: &mut HashSet<String>| {
         if !word.contains('[') {
             return;
         }
         let d = deep.scan_word(word, registry);
         let s = shallow.scan_word(word, registry);
-        out.extend(d.difference(&s).cloned());
+        found.extend(d.difference(&s).cloned());
         // Reads buried inside a `[expr {…}]` (or any `[…]`) command substitution
         // whose `{…}` braces suppress `$`-substitution to the generic scanner,
         // but which the inner command re-evaluates as an expression — e.g.
@@ -1221,26 +1242,46 @@ pub(crate) fn collect_rmw_hidden_reads(
         // safe for the dead-store / unused suppression: it only ever silences a
         // warning, matching the analyser's correctness-first (err-toward-silence)
         // bias.
-        out.extend(dollar_reads_in_cmd_subs(word, registry, config));
+        found.extend(dollar_reads_in_cmd_subs(word, registry, config));
     };
-    let mut terminator_values: Vec<String> = Vec::new();
-    for block in fu.cfg.blocks.values() {
+    let mut terminator_values: Vec<(String, HashSet<&str>)> = Vec::new();
+    for (block_id, block) in &fu.cfg.blocks {
+        // Per span, the names the SSA records as read there: a statement's
+        // own uses, and those of the synthetic statements the lowering
+        // pushed ahead of it (or of the terminator) to carry its words'
+        // substitutions, which take the host's span.
+        let mut recorded: HashMap<tcl_lexer::Span, HashSet<&str>> = HashMap::new();
+        if let Some(ssa_block) = fu.ssa.blocks.get(block_id) {
+            for (stmt, statement) in block.statements.iter().zip(&ssa_block.statements) {
+                recorded
+                    .entry(stmt.span())
+                    .or_default()
+                    .extend(statement.uses.keys().map(|&symbol| fu.ssa.var_name(symbol)));
+            }
+        }
         for stmt in &block.statements {
+            found.clear();
             match stmt {
                 Statement::Call { args, .. } | Statement::Barrier { args, .. } => {
                     for arg in args {
-                        scan(arg);
+                        scan(arg, &mut found);
                     }
                 }
-                Statement::AssignValue { value, .. } => scan(value),
+                Statement::AssignValue { value, .. } => scan(value, &mut found),
                 // `incr i [expr {$w}]`: the amount word is not a Call/AssignValue
                 // arg, so scan it explicitly for the same buried-read reason.
                 Statement::Incr {
                     amount: Some(amount),
                     ..
-                } => scan(amount),
+                } => scan(amount, &mut found),
                 _ => {}
             }
+            let recorded = recorded.get(&stmt.span());
+            out.extend(
+                found
+                    .drain()
+                    .filter(|name| !recorded.is_some_and(|names| names.contains(name.as_str()))),
+            );
         }
         // A `return`'s value word is a terminator, not a statement, so the
         // loop above never saw it — yet `return [set x]` / `return [incr i]`
@@ -1255,18 +1296,29 @@ pub(crate) fn collect_rmw_hidden_reads(
         // (`return [subst {$a$b}]`) would silence a genuine dead store of `b`
         // earlier in the proc (FP-DS-12's TN control).  A terminator read is
         // recoverable exactly, so approximating it buys nothing.
-        if let Some(crate::cfg::Terminator::Return { value: Some(v), .. }) = &block.terminator
+        if let Some(crate::cfg::Terminator::Return {
+            value: Some(v),
+            span,
+            ..
+        }) = &block.terminator
             && v.contains('[')
         {
-            terminator_values.push(v.clone());
+            let recorded = span
+                .and_then(|span| recorded.remove(&span))
+                .unwrap_or_default();
+            terminator_values.push((v.clone(), recorded));
         }
     }
     // Collected above rather than scanned in place: `scan` holds `deep` /
     // `shallow` / `out` mutably borrowed for the duration of the walk.
-    for v in &terminator_values {
+    for (v, recorded) in &terminator_values {
         let d = deep.scan_word(v, registry);
         let sh = shallow.scan_word(v, registry);
-        out.extend(d.difference(&sh).cloned());
+        out.extend(
+            d.difference(&sh)
+                .filter(|name| !recorded.contains(name.as_str()))
+                .cloned(),
+        );
     }
     out
 }
@@ -1546,6 +1598,48 @@ mod tests {
         let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
         run(&mut ctx, &cu);
         ctx.optimisations
+    }
+
+    /// The hidden-read scan keeps only what the SSA does not record
+    /// (value-transfers slice 8): an existence read, a `VarRead` role and a
+    /// nested cell update in a statement's words, or in a `return` word, are
+    /// uses of the version they read — on the statement itself or on the
+    /// synthetic one the lowering pushes ahead of it under the same span —
+    /// so they leave the scan; a braced `expr` body in an `incr` amount,
+    /// which nothing records, stays.
+    #[test]
+    fn hidden_reads_are_what_the_ssa_does_not_record() {
+        let reg = registry();
+        for (src, expected) in [
+            (
+                "proc p {} {set x 1; puts [info exists x]}",
+                Vec::<&str>::new(),
+            ),
+            (
+                "proc p {} {set x 1; set y [info exists x]; return $y}",
+                vec![],
+            ),
+            (
+                "proc p {j} {set i 0; lappend r [incr i $j]; return $r}",
+                vec![],
+            ),
+            (
+                "proc p {} {set x 1; set y [string length [set x]]; return $y}",
+                vec![],
+            ),
+            ("proc p {} {set x 1; return [info exists x]}", vec![]),
+            ("proc p {} {set n 1; return [incr n]}", vec![]),
+            (
+                "proc p {w} {set i 0; incr i [expr {$w}]; return $i}",
+                vec!["w"],
+            ),
+        ] {
+            let cu = CompilationUnit::build_for(src, &reg, false);
+            let fu = cu.function("::p").expect("procedure analysed");
+            let mut got: Vec<String> = collect_rmw_hidden_reads(fu, &reg).into_iter().collect();
+            got.sort();
+            assert_eq!(got, expected, "{src}");
+        }
     }
 
     // internal helper tests

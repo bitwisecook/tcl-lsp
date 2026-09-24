@@ -4809,6 +4809,14 @@ impl CommandRegistry {
     /// the runtime knows, so it widens [`VariableReadProjection::
     /// opaque_variable_frame`] rather than exposing its source spelling as a
     /// variable name.
+    ///
+    /// A destroyer's targets are read too (`unset x`, the
+    /// [`Traits::DESTROYS_VARIABLE`] trait): an unbind reads its place's
+    /// existence before it removes it — an absent place raises unless
+    /// `-nocomplain` says otherwise — so the store feeding the place is
+    /// observed. [`Self::variable_write_projection`] leaves a destroy out, a
+    /// destroy being no value definition, so without this a nested `[unset
+    /// x]` observed nothing and the store before it was deleted as dead.
     #[must_use]
     pub fn variable_read_projection(&self, words: InvocationWords<'_>) -> VariableReadProjection {
         let Some(name) = words.head_literal() else {
@@ -4817,18 +4825,26 @@ impl CommandRegistry {
                 opaque_variable_frame: true,
             };
         };
-        if self
+        let Some(invocation) = self
             .resolve_structured_invocation(words, self.own_surface_query())
             .resolved()
-            .is_none()
-        {
+        else {
             return VariableReadProjection::default();
-        }
+        };
+        let role = if invocation
+            .semantics
+            .traits
+            .contains(Traits::DESTROYS_VARIABLE)
+        {
+            ArgRole::VarWrite
+        } else {
+            ArgRole::VarRead
+        };
         let args = words.arguments();
-        let Some(indices) = self.arg_indices_for_role_words(name, args, ArgRole::VarRead) else {
+        let Some(indices) = self.arg_indices_for_role_words(name, args, role) else {
             return VariableReadProjection {
                 literal_names: Vec::new(),
-                opaque_variable_frame: self.may_have_arg_role(name, ArgRole::VarRead),
+                opaque_variable_frame: self.may_have_arg_role(name, role),
             };
         };
         let mut projection = VariableReadProjection::default();
@@ -10985,6 +11001,46 @@ mod tests {
             &arguments,
         ));
         assert_eq!(projection, VariableWriteProjection::default());
+    }
+
+    /// An unbind reads its place's existence (value-transfers slice 8): the
+    /// read projection names a destroyer's targets, past `-nocomplain` and
+    /// `--`, where the write projection names none, and a substituted target
+    /// widens the frame.
+    #[test]
+    fn variable_read_projection_names_a_destroyers_targets() {
+        use crate::InvocationWord::{Dynamic, Literal};
+        let reg = CommandRegistry::build_default();
+        for (arguments, expected) in [
+            (vec![Literal("x")], vec!["x"]),
+            (
+                vec![
+                    Literal("-nocomplain"),
+                    Literal("--"),
+                    Literal("a"),
+                    Literal("b"),
+                ],
+                vec!["a", "b"],
+            ),
+        ] {
+            let words = InvocationWords::structured(Literal("unset"), &arguments);
+            assert_eq!(reg.variable_read_projection(words).literal_names, expected);
+            assert_eq!(
+                reg.variable_write_projection(words),
+                VariableWriteProjection::default()
+            );
+        }
+        let computed = [Dynamic];
+        let projection =
+            reg.variable_read_projection(InvocationWords::structured(Literal("unset"), &computed));
+        assert!(projection.literal_names.is_empty());
+        assert!(projection.opaque_variable_frame);
+        let query = [Literal("exists"), Literal("x")];
+        assert_eq!(
+            reg.variable_read_projection(InvocationWords::structured(Literal("info"), &query))
+                .literal_names,
+            vec!["x"]
+        );
     }
 
     #[test]

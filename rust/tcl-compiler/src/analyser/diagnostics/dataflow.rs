@@ -2566,8 +2566,10 @@ fn barrier_body_locally_sets(
 
 /// Variables this statement queries *only for
 /// existence* (`info exists X` / `array exists X`, whether a bare call
-/// or a `[...]` command substitution inside an assignment / argument).
-/// Such a reference is not a value read, so it must not raise W210.
+/// or a `[...]` command substitution inside an assignment / argument), and
+/// the targets a destroyer nested in its words unbinds (`puts [unset X]`),
+/// which the lowering records as reads of what they observe. Such a
+/// reference is not a value read, so it must not raise W210.
 fn existence_query_vars(
     stmt: &crate::ir::Statement,
     registry: Option<&tcl_registry::CommandRegistry>,
@@ -2607,6 +2609,11 @@ fn existence_query_vars(
         if let Some((v, _kind)) = crate::existence_query::in_text(t, registry, config) {
             out.push(v);
         }
+    }
+    let embedded =
+        crate::ir_helpers::evaluated_command_substitutions_with_heads(stmt, registry, None);
+    for words in embedded.all_commands() {
+        out.extend(crate::ir_helpers::destroyed_variables(words, registry));
     }
     out
 }

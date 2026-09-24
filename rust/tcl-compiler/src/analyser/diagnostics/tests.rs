@@ -15220,6 +15220,33 @@ fn an_existence_read_or_an_unbind_is_a_use() {
     }
 }
 
+/// A nested unbind reads its place's existence (VT8.5): the store `puts
+/// [unset x]` observes is used, so no W211, and the read is no value read,
+/// so an unbind of a never-set name — `-nocomplain` or not — draws no W210.
+#[test]
+fn a_nested_unbind_is_an_existence_read() {
+    let codes_of = |src: &str| -> Vec<DiagCode> {
+        Analyser::new()
+            .analyse(src, "tcl8.6")
+            .diagnostics
+            .into_iter()
+            .map(|d| d.code)
+            .collect()
+    };
+    for src in [
+        "proc f {} {\n    set x 1\n    puts [unset x]\n}\n",
+        "proc f {} {\n    set x 1\n    set y [unset x]\n    return $y\n}\n",
+    ] {
+        assert!(!codes_of(src).contains(&DiagCode::W211), "{src}");
+    }
+    for src in [
+        "proc f {} {\n    puts [unset x]\n}\n",
+        "proc f {} {\n    puts [unset -nocomplain x]\n}\n",
+    ] {
+        assert!(!codes_of(src).contains(&DiagCode::W210), "{src}");
+    }
+}
+
 /// A guard's refinement narrows the read under `&&` too (VT8.3, VT8.4):
 /// `x` set on one path reads bound on the true edge of `[info exists x] &&
 /// $flag`, so no W210; the read past the `if` still draws one.

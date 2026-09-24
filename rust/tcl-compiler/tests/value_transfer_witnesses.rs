@@ -2717,3 +2717,90 @@ fn the_absent_cell_release_table() {
     the_lines_every_release_reads_alike(&releases);
     the_increment_split(&releases);
 }
+
+/// Whether one pass of the optimiser under `dialect` deletes the statement
+/// spelled `store` in `source` (O108, O109 or O126).
+fn removes_store(source: &str, dialect: &str, store: &str) -> bool {
+    let at = u32::try_from(source.find(store).expect("the store")).expect("an offset");
+    rewrites_of(source, dialect).iter().any(|rewrite| {
+        matches!(
+            rewrite.code,
+            DiagCode::O108 | DiagCode::O109 | DiagCode::O126
+        ) && rewrite.span.start() <= at
+            && at < rewrite.span.end()
+    })
+}
+
+/// O109 keeps a store an existence read observes (VT8.5, #2132): while the
+/// read stands, no pass deletes the store behind it — the item's two
+/// programs keep `set x 1` and `incr n` behind `[info exists …]`, and an
+/// existence read in a bare statement, a `catch` body, a value word, a
+/// `return`, an `expr` word and `array exists` keeps its store, as does an
+/// unbind the store feeds: a nested `[unset x]` in an argument, a value
+/// word, a condition or a `return` (it raises on an absent `x`), and an
+/// `array unset` of a scalar, which leaves the scalar bound. An unbind
+/// statement is never removed. Every program the multipass optimiser
+/// rewrites, folding a decided read and then the store it no longer
+/// needs, prints what the original does under every release on `PATH` —
+/// the `incr` program from 8.5, where the original creates `n`; 8.4
+/// raises there.
+#[test]
+fn o109_keeps_a_store_an_existence_read_observes() {
+    let set_first = "proc p {} {set x 1; if {[info exists x]} {puts yes}}\np\n";
+    let incr_first = "proc p {} {incr n; if {[info exists n]} {puts yes}}\np\n";
+    for dialect in ["tcl8.4", "tcl8.6", "tcl9.0", "tcl"] {
+        assert!(!removes_store(set_first, dialect, "set x 1"), "{dialect}");
+    }
+    for dialect in ["tcl8.6", "tcl9.0"] {
+        assert!(!removes_store(incr_first, dialect, "incr n"), "{dialect}");
+    }
+    prints_under_every_release(set_first, "yes\n");
+    for (series, tclsh) in releases_on_path()
+        .into_iter()
+        .filter(|(series, _)| *series != "8.4")
+    {
+        let (rewritten, _) = optimised(incr_first, &dialect_of(series));
+        for program in [incr_first, rewritten.as_str()] {
+            assert_eq!(
+                run_script(&tclsh, program),
+                Some((true, "yes\n".to_owned())),
+                "tclsh{series}:\n{program}"
+            );
+        }
+    }
+    let positions = "proc p1 {} {set x 1; info exists x}\n\
+         proc p2 {} {set x 1; catch {info exists x} r; return $r}\n\
+         proc p3 {} {set x 1; lappend l [info exists x]; return $l}\n\
+         proc p4 {} {set x 1; return [info exists x]}\n\
+         proc p5 {} {set x(a) 1; array exists x}\n\
+         proc p6 {} {set x 1; set y [expr {[info exists x] ? \"yes\" : \"no\"}]; return $y}\n\
+         proc p7 {} {set x 1; unset x; info exists x}\n\
+         proc p8 {c} {set x 1; if {$c} {unset x}; info exists x}\n\
+         proc p9 {} {set x 1; lappend l [unset x]; info exists x}\n\
+         proc p10 {} {set x 1; set y [unset x]; info exists x}\n\
+         proc p11 {} {set x 1; if {[unset x] eq \"\"} {info exists x}}\n\
+         proc p12 {} {set x 1; return [unset x]}\n\
+         proc p13 {} {set x 1; array unset x; return $x}\n\
+         proc p14 {} {set x 1; lappend l [array unset x]; info exists x}\n\
+         puts [list [p1] [p2] [p3] [p4] [p5] [p6] [p7] [p8 0] [p8 1] \
+         [p9] [p10] [p11] [p12] [p13] [p14]]\n";
+    let unbinds = positions.matches("unset x").count();
+    for dialect in ["tcl8.4", "tcl8.6", "tcl9.0"] {
+        for line in positions.lines().filter(|line| line.starts_with("proc ")) {
+            let store = if line.contains("set x(a) 1") {
+                "set x(a) 1"
+            } else {
+                "set x 1"
+            };
+            let one = format!("{line}\n");
+            assert!(!removes_store(&one, dialect, store), "{dialect}: {one}");
+        }
+        let (rewritten, _) = optimised(positions, dialect);
+        assert_eq!(
+            rewritten.matches("unset x").count(),
+            unbinds,
+            "{dialect}: an unbind is never removed:\n{rewritten}"
+        );
+    }
+    prints_under_every_release(positions, "1 1 1 1 1 yes 0 1 0 0 0 0 {} 1 1\n");
+}

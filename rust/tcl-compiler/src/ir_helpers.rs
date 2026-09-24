@@ -537,10 +537,16 @@ fn cmd_substitution_out_vars(
     if arg_words.iter().any(|word| word.expanded) {
         return;
     }
+    let args: Vec<&str> = arg_words.iter().map(|w| w.text.as_str()).collect();
     // A command the document's release does not have writes nothing: under
     // Tcl 8.4 `lassign` raises `invalid command name`, so its words name no
-    // place. A profile-less registry answers for every release.
-    if !registry.has_command_in_this_dialect(cmd) {
+    // place. Availability is the registry's answer, asked by resolving the
+    // invocation under the registry's own surface — which a profile-less
+    // registry leaves blind, answering for every release.
+    if registry
+        .resolve_invocation(cmd, &args, registry.own_surface_query())
+        .is_none()
+    {
         return;
     }
     if registry
@@ -549,7 +555,6 @@ fn cmd_substitution_out_vars(
     {
         return;
     }
-    let args: Vec<&str> = arg_words.iter().map(|w| w.text.as_str()).collect();
     for idx in registry.arg_indices_for_role(cmd, &args, ArgRole::VarWrite) {
         if let Some(w) = arg_words.get(idx) {
             push_out_var(w, out);
@@ -960,12 +965,15 @@ pub(crate) struct VariableReadEffects {
 
 /// Project the variable cells recursively recovered command substitutions read
 /// **by name** — an [`ArgRole::VarRead`](tcl_registry::ArgRole::VarRead) word
-/// such as `info exists n` or `array size a`.
+/// such as `info exists n` or `array size a`, and a destroyer's target
+/// (`unset x`), whose existence the unbind reads.
 ///
 /// The read half of [`variable_write_effects_from_commands`], and needed for
 /// the same reason: a store observed only by an existence query looked unread,
 /// so `proc p {} {set x 1; if {[info exists x]} {puts yes}}` had `set x 1`
-/// removed and stopped printing `yes` (#2132).
+/// removed and stopped printing `yes` (#2132), and one observed only by a
+/// nested `[unset x]` was removed until the unset raised (value-transfers
+/// slice 8).
 #[must_use]
 pub(crate) fn variable_read_effects_from_commands<'a>(
     commands: impl IntoIterator<Item = &'a Vec<CommandWord>>,
@@ -991,6 +999,35 @@ pub(crate) fn variable_read_effects_from_commands<'a>(
         }
     }
     out
+}
+
+/// The variables a recovered command destroys — the targets of a
+/// [`Traits::DESTROYS_VARIABLE`] invocation (`unset x`), which
+/// [`variable_read_effects_from_commands`] records as reads of what they
+/// observe: an existence read, never a value read.
+#[must_use]
+pub(crate) fn destroyed_variables(
+    words: &[CommandWord],
+    registry: &CommandRegistry,
+) -> Vec<String> {
+    let Some(head) = words.first() else {
+        return Vec::new();
+    };
+    let args: Vec<InvocationWord<'_>> = words
+        .iter()
+        .skip(1)
+        .map(CommandWord::invocation_word)
+        .collect();
+    let words = InvocationWords::structured(head.invocation_word(), &args);
+    let destroys = registry
+        .resolve_structured_invocation(words, registry.own_surface_query())
+        .resolved()
+        .is_some_and(|call| call.semantics.traits.contains(Traits::DESTROYS_VARIABLE));
+    if destroys {
+        registry.variable_read_projection(words).literal_names
+    } else {
+        Vec::new()
+    }
 }
 
 /// Project variable writes from recursively recovered command substitutions.

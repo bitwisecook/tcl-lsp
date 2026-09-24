@@ -41,6 +41,7 @@ proc handle {} {
 - Skipped when the `set` command's right-hand side has [side effects](../../GLOSSARY.md#side-effects) that must be preserved.
 - Skipped when the variable has a [trace](../../GLOSSARY.md#trace) attached.
 - Skipped when the variable could be read via `upvar`, `uplevel`, or other dynamic access.
+- Skipped when an existence check or an unset observes the stored value — `info exists v`, `array exists v`, `unset v` or `array unset v`, whether it is a command of its own, a condition, or a `[…]` substitution inside another command — because removing the store changes the check's answer or makes the `unset` fail.
 - Skipped at the top level of a file, where another file or an interactive session can still read the variable.
 
 ## How to disable

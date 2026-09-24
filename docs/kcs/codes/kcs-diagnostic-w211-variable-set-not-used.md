@@ -42,6 +42,23 @@ set result [expr {1 + 1}]
 puts $result
 ```
 
+## Existence checks and unset count as uses
+
+A variable that is only checked with `info exists` or `array exists`, or only
+unset, is used: the check's answer and whether the `unset` succeeds depend on
+the assignment. That holds wherever the check or the `unset` sits — a command
+of its own, an `if` condition, or a `[…]` substitution inside another command:
+
+```tcl
+proc drain {} {
+    set pending 1          ;# not flagged — the unset below needs it
+    puts [unset pending]
+}
+```
+
+Without the assignment, `unset pending` raises `can't unset "pending": no such
+variable`.
+
 ## Reads through a computed name
 
 A variable read through a name Tcl computes at run time counts as a use, even

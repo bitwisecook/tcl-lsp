@@ -1741,19 +1741,37 @@ emitted: {:?}",
     );
 }
 
-/// The **two false `W220`s** to avoid.  The braced verdict must match the
-/// identically-shaped plain-named control exactly — both silent, because
-/// `[set …]` really does read the store.
+/// The **false `W220`** to avoid.  The braced verdict must match the
+/// identically-shaped plain-named control exactly: `[set …]` really does read
+/// the second store, so it draws no `W220` in either spelling, and the first
+/// store — overwritten before anything reads it — draws the one `W220` in
+/// both (tclsh 8.4.20 to 9.1b0 return 2 with or without it, and O109 deletes
+/// it). Until value-transfers slice 8 (VT8.5) the return word's `[set n]` was
+/// a name-level hidden read that silenced both stores; the SSA records it
+/// now, as a use of the second store's version alone.
 #[test]
 fn issue_1078_braced_double_store_matches_the_plain_control() {
     let braced = "proc f {} { set {$n} 1; set {$n} 2; return [set {$n}] }\n";
     let plain = "proc f {} { set n 1; set n 2; return [set n] }\n";
-    assert!(
-        !fires(braced, D, "W220"),
-        "#1078: `[set {{$n}}]` reads the store, so neither assignment is dead \
-(tclsh returns 2); emitted: {:?}",
-        codes(braced, D)
-    );
+    for src in [braced, plain] {
+        let dead_stores: Vec<u32> = crate::analyser::Analyser::new()
+            .analyse(src, D)
+            .diagnostics
+            .iter()
+            .filter(|d| d.code.to_string() == "W220")
+            .map(|d| d.span.start())
+            .collect();
+        // The finding anchors at the first store's name word.
+        let first_store = src.find("set ").expect("the first store") + "set ".len();
+        let first_store = u32::try_from(first_store).expect("an offset");
+        assert_eq!(
+            dead_stores,
+            vec![first_store],
+            "#1078: `[set …]` reads the second store, so only the first is dead; \
+emitted: {:?}",
+            codes(src, D)
+        );
+    }
     assert_eq!(
         codes(braced, D),
         codes(plain, D),

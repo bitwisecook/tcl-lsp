@@ -1390,16 +1390,29 @@ dominance and which stays byte-identical in effect.
   error.
 - **W211** (`emit_unused_variable_diagnostics`): an existence read —
   `info exists`, `array exists`, an `unset`, a `DESTROYS_VARIABLE`
-  command — is a use of the binding. Today
-  `proc p {} { set x 1; if {[info exists x]} { puts yes } }` reports W211
-  on `set x 1`, and `tcl opt --profile full` deletes the store, so the
-  optimised procedure prints nothing where the original prints `yes`.
+  command — is a use of the binding. Until #2220
+  `proc p {} { set x 1; if {[info exists x]} { puts yes } }` reported W211
+  on `set x 1`, and `tcl opt --profile full` deleted the store, so the
+  optimised procedure printed nothing where the original prints `yes`.
+  Since slice 8 (VT8.5) the registry's read projection
+  (`CommandRegistry::variable_read_projection`) names a destroyer's
+  targets beside its `VarRead` words, so a nested `[unset x]` — in an
+  argument, a value word, a condition or a `return` — is a use too, and
+  never a W210 value read.
 - **O108 and O109** (`elimination.rs`): a store is removable only when
   no value read *and no existence read* of its version remains; an
   unbind statement is never removed, because the error on an absent
-  place and the binding's disappearance are its effects. Today
-  `proc p {} { incr n; if {[info exists n]} { puts yes } }` loses its
-  `incr n` to O109 under `--profile full`.
+  place and the binding's disappearance are its effects. Since slice 8
+  (VT8.5) every existence read the lowering can place is an SSA use of
+  the version it observes — a statement's, a condition's (`<cond>`), a
+  value word's and a `return` word's (`<upvar-invalidate>`) — and
+  `array unset` is a conditional write (`Traits::CONDITIONAL_VARIABLE_WRITE`),
+  since it leaves a scalar and every element its pattern misses in
+  place; so `proc p {} { incr n; if {[info exists n]} { puts yes } }`
+  keeps its `incr n`, and `collect_rmw_hidden_reads` keeps only the
+  names the SSA does not record. A read inside a script body nested in a
+  substitution (`[catch {unset x}]`, #2231) or an `uplevel 0` body is not
+  recorded yet, for existence and value reads alike.
 - **I230 and O101**: the existence branch fact is an ordinary
   `ConstantBranch` with applied reachability; the post-pass extension in
   `FunctionUnit::build` and its cross-event retention retire with it.

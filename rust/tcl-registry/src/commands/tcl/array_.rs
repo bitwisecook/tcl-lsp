@@ -313,7 +313,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "unset",
-        traits: Traits::FIRE_AND_FORGET_TEARDOWN,
+        // `CONDITIONAL_VARIABLE_WRITE`: the unbind removes only an array's
+        // matching elements and leaves a scalar, an absent variable and
+        // every other element as it was (tclsh 8.4.20 to 9.1b0: `set x 1;
+        // array unset x; set x` is 1), so the definition it appears to make
+        // does not kill the one before it.
+        traits: Traits::FIRE_AND_FORGET_TEARDOWN.union(Traits::CONDITIONAL_VARIABLE_WRITE),
         arity: Arity::new(1, 2),
         detail: "Unsets all of the elements in the array that match pattern.",
         synopsis: "array unset arrayName ?pattern?",

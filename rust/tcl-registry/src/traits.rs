@@ -377,6 +377,10 @@ declare_traits! {
     /// for targets an `arg_role_resolver` places rather than a repeated
     /// layout.
     ///
+    /// `array unset` carries it for the same reason: its unbind removes only
+    /// an array's matching elements, so a scalar, an absent variable and
+    /// every element the pattern misses keep what they held.
+    ///
     /// Do **not** apply to `regsub`, `gets`, `lassign` or `catch`: each was
     /// measured writing unconditionally, including on the failure path
     /// (`regsub {xx} zz YY a` leaves `a` as `zz`, `gets` at EOF writes `""`).
