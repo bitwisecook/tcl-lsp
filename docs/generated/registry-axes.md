@@ -18,10 +18,10 @@ Every site outside `tcl-registry` that compares a word the registry declares —
 
 | Axis | Until | Site | Waiver | Reason |
 |---|---|---|---|---|
-| command | slice 8 | `rust/tcl-compiler/src/analyser/commands.rs:4396` | site | `set VAR [CLASS new]` instance tracking reads the assignment by name until the value word's evaluation answers it (VT8.9 retires set-by-name) |
-| command | slice 8 | `rust/tcl-compiler/src/analyser/commands.rs:4423` | site | `set VAR [CLASS new]` instance tracking reads the assignment by name until the value word's evaluation answers it (VT8.9 retires set-by-name) |
-| command | slice 8 | `rust/tcl-compiler/src/analyser/commands.rs:4521` | site | `set VAR [CLASS new]` instance tracking reads the assignment by name until the value word's evaluation answers it (VT8.9 retires set-by-name) |
-| command | slice 8 | `rust/tcl-compiler/src/analyser/commands.rs:4936` | site | `set VAR [CLASS new]` instance tracking reads the assignment by name until the value word's evaluation answers it (VT8.9 retires set-by-name) |
+| command | slice 8 | `rust/tcl-compiler/src/analyser/commands.rs:4418` | site | `set VAR [CLASS new]` instance tracking reads the assignment by name until the value word's evaluation answers it (VT8.9 retires set-by-name) |
+| command | slice 8 | `rust/tcl-compiler/src/analyser/commands.rs:4445` | site | `set VAR [CLASS new]` instance tracking reads the assignment by name until the value word's evaluation answers it (VT8.9 retires set-by-name) |
+| command | slice 8 | `rust/tcl-compiler/src/analyser/commands.rs:4543` | site | `set VAR [CLASS new]` instance tracking reads the assignment by name until the value word's evaluation answers it (VT8.9 retires set-by-name) |
+| command | slice 8 | `rust/tcl-compiler/src/analyser/commands.rs:4958` | site | `set VAR [CLASS new]` instance tracking reads the assignment by name until the value word's evaluation answers it (VT8.9 retires set-by-name) |
 | irreducible | never | `rust/tcl-compiler/src/analyser/handlers.rs:1787` | site | the variadic `args` formal is Tcl's proc grammar (`VAR_IS_ARGS` on the last formal, `tclProc.c`), no registry fact |
 | options | step 2 | `rust/tcl-compiler/src/analyser/handlers.rs:168` | site | the flag scan the registry's `InterpreterTransition::Create` answers (safety, child path); CC2.12 consumes it |
 | options | step 2 | `rust/tcl-compiler/src/analyser/handlers.rs:169` | site | the flag scan the registry's `InterpreterTransition::Create` answers (safety, child path); CC2.12 consumes it |
@@ -32,7 +32,7 @@ Every site outside `tcl-registry` that compares a word the registry declares —
 
 ## The ratchet
 
-The files the gate holds clean, with every site waived or gone: `rust/tcl-compiler/src/analyser/commands.rs`, `rust/tcl-compiler/src/cfg_builder/cfg_lower.rs`, `rust/tcl-compiler/src/executable_ir.rs`, `rust/tcl-compiler/src/signature_scan/walker.rs`.
+The files the gate holds clean, with every site waived or gone: `rust/tcl-compiler/src/analyser/commands.rs`, `rust/tcl-compiler/src/cfg_builder/cfg_lower.rs`, `rust/tcl-compiler/src/executable_ir.rs`, `rust/tcl-compiler/src/signature_scan/walker.rs`, `rust/tcl-lsp-core/src/definition.rs`, `rust/tcl-lsp-core/src/workspace_index.rs`.
 
 Every other scanned file with an unwaived site, and its count, which is the pin in `rust/xtask/src/registry_axes.rs`. The count may only fall: the change that removes or waives a file's sites lowers its pin.
 
@@ -87,7 +87,7 @@ Every other scanned file with an unwaived site, and its count, which is the pin 
 | `rust/tcl-compiler/src/analyser/diagnostics/version_gate.rs` | 1 |
 | `rust/tcl-compiler/src/analyser/handlers.rs` | 9 |
 | `rust/tcl-compiler/src/analyser/irules_event_checks.rs` | 8 |
-| `rust/tcl-compiler/src/analyser/oo.rs` | 43 |
+| `rust/tcl-compiler/src/analyser/oo.rs` | 5 |
 | `rust/tcl-compiler/src/analyser/param_traits.rs` | 16 |
 | `rust/tcl-compiler/src/analyser/per_item.rs` | 4 |
 | `rust/tcl-compiler/src/analyser/recovery.rs` | 4 |
@@ -108,9 +108,9 @@ Every other scanned file with an unwaived site, and its count, which is the pin 
 | `rust/tcl-compiler/src/inlining/mod.rs` | 1 |
 | `rust/tcl-compiler/src/interprocedural.rs` | 6 |
 | `rust/tcl-compiler/src/interval_bounds.rs` | 5 |
-| `rust/tcl-compiler/src/ir.rs` | 5 |
+| `rust/tcl-compiler/src/ir.rs` | 2 |
 | `rust/tcl-compiler/src/irules_checks.rs` | 7 |
-| `rust/tcl-compiler/src/lowering/mod.rs` | 25 |
+| `rust/tcl-compiler/src/lowering/mod.rs` | 18 |
 | `rust/tcl-compiler/src/lowering/structured.rs` | 8 |
 | `rust/tcl-compiler/src/lowering_hooks.rs` | 2 |
 | `rust/tcl-compiler/src/object_types.rs` | 2 |
@@ -149,7 +149,6 @@ Every other scanned file with an unwaived site, and its count, which is the pin 
 | `rust/tcl-lsp-core/src/call_hierarchy.rs` | 4 |
 | `rust/tcl-lsp-core/src/completion.rs` | 4 |
 | `rust/tcl-lsp-core/src/config_ini.rs` | 4 |
-| `rust/tcl-lsp-core/src/definition.rs` | 4 |
 | `rust/tcl-lsp-core/src/diagnostic_policy.rs` | 1 |
 | `rust/tcl-lsp-core/src/diagnostic_policy/truth_table.rs` | 2 |
 | `rust/tcl-lsp-core/src/document_links.rs` | 7 |
@@ -158,7 +157,7 @@ Every other scanned file with an unwaived site, and its count, which is the pin 
 | `rust/tcl-lsp-core/src/formatting/docstring.rs` | 1 |
 | `rust/tcl-lsp-core/src/formatting/engine.rs` | 2 |
 | `rust/tcl-lsp-core/src/formatting/keywords.rs` | 1 |
-| `rust/tcl-lsp-core/src/hover.rs` | 6 |
+| `rust/tcl-lsp-core/src/hover.rs` | 4 |
 | `rust/tcl-lsp-core/src/inlay_hints.rs` | 3 |
 | `rust/tcl-lsp-core/src/minify.rs` | 7 |
 | `rust/tcl-lsp-core/src/oo_body.rs` | 2 |
@@ -170,10 +169,9 @@ Every other scanned file with an unwaived site, and its count, which is the pin 
 | `rust/tcl-lsp-core/src/refactor/inline_proc.rs` | 3 |
 | `rust/tcl-lsp-core/src/refactor/mod.rs` | 4 |
 | `rust/tcl-lsp-core/src/refactor/switch_to_dict.rs` | 4 |
-| `rust/tcl-lsp-core/src/references.rs` | 6 |
+| `rust/tcl-lsp-core/src/references.rs` | 1 |
 | `rust/tcl-lsp-core/src/semantic_tokens.rs` | 17 |
 | `rust/tcl-lsp-core/src/tk_preview.rs` | 1 |
-| `rust/tcl-lsp-core/src/workspace_index.rs` | 8 |
 | `rust/tcl-mcp/src/bigip.rs` | 1 |
 | `rust/tcl-mcp/src/datagroup.rs` | 11 |
 | `rust/tcl-mcp/src/irule_gen.rs` | 18 |

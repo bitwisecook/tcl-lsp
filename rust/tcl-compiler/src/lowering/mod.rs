@@ -25,9 +25,13 @@
 use std::collections::{HashMap, HashSet};
 
 use tcl_lexer::TokenType;
+use tcl_registry::definer::{
+    DefinitionBodyGrammar, InitTiming, MemberCurrentNamespace, MemberEffect, MemberReceiver,
+    MemberRow,
+};
 use tcl_registry::events::{IrulesCommandPlacement, IrulesExecutionContext};
 use tcl_registry::hooks::LoweringHookId;
-use tcl_registry::{ArgRole, CommandRegistry};
+use tcl_registry::{ArgRole, CommandRegistry, InvocationArguments, InvocationWord};
 
 use crate::alias::{
     CommandAliasMap, command_table_transitions, is_current_interpreter, resolve_alias,
@@ -3719,7 +3723,7 @@ impl<'r> Lowerer<'r> {
             // modifiers) either prefixes an inner member (shift one place
             // right) or — for `wrapper_block_body` wrappers — carries a
             // whole nested definition script to recurse into.
-            let (member, kw, base, wrapper) = match member.kind {
+            let (member, kw, base) = match member.kind {
                 tcl_registry::definer::MemberKind::Wrapper => match seg.texts.get(1) {
                     Some(inner) if call.grammar.is_member(inner) => {
                         let inner_member = call.grammar.member(inner).expect("checked is_member");
@@ -3730,7 +3734,7 @@ impl<'r> Lowerer<'r> {
                                 member_supplies_body;
                             continue;
                         }
-                        (inner_member, inner.as_str(), 2usize, Some(head))
+                        (inner_member, inner.as_str(), 2usize)
                     }
                     Some(_)
                         if member.wrapper_block_body
@@ -3746,12 +3750,22 @@ impl<'r> Lowerer<'r> {
                             off,
                             self.config,
                         );
-                        // A `self { variable v }` declares per-class-object
-                        // state, not instance state; keep it out of the
-                        // instance union — only the members are lifted.
+                        // A block whose wrapper moves its members off the
+                        // instances (`self { variable v }`) declares
+                        // per-class-object state, not instance state; keep
+                        // it out of the instance union — only the members
+                        // are lifted.
                         let wrapped_call = DefinerCall { ..*call };
                         let empty = HashSet::new();
-                        let ivars = if head == "self" { &empty } else { class_ivars };
+                        let moves_off_the_instances = member
+                            .wrapper_shift
+                            .and_then(|shift| shift.receiver)
+                            .is_some_and(|receiver| receiver != MemberReceiver::Instance);
+                        let ivars = if moves_off_the_instances {
+                            &empty
+                        } else {
+                            class_ivars
+                        };
                         self.extract_members_from_wrapper_block(
                             &wrapped_call,
                             &sub,
@@ -3767,7 +3781,7 @@ impl<'r> Lowerer<'r> {
                         continue;
                     }
                 },
-                tcl_registry::definer::MemberKind::Flat => (member, head, 1usize, None),
+                tcl_registry::definer::MemberKind::Flat => (member, head, 1usize),
                 // Flag-keyed bodies (`property … -get/-set …`) are accessor
                 // scripts, not method frames — no unit today (documented
                 // limit).
@@ -3776,6 +3790,13 @@ impl<'r> Lowerer<'r> {
                     continue;
                 }
             };
+            let words = statement_words(seg, &[]);
+            let frame = MemberFrame::of_row(
+                call.grammar,
+                call.grammar
+                    .member_row(0, InvocationArguments::structured(&words), None)
+                    .as_ref(),
+            );
             self.extract_one_member(
                 MemberExtraction {
                     call,
@@ -3783,7 +3804,7 @@ impl<'r> Lowerer<'r> {
                     member,
                     kw,
                     base,
-                    wrapper,
+                    frame,
                 },
                 class_qname,
                 class_ivars,
@@ -3792,10 +3813,11 @@ impl<'r> Lowerer<'r> {
         }
     }
 
-    /// Recurse into a wrapper's block form with the wrapper name forced —
-    /// `self { method m … }` records `m` as a class-object method, and
-    /// `private { method m … }` as an instance method, exactly like their
-    /// prefix spellings.
+    /// Recurse into a wrapper's block form with the wrapper prefixed onto
+    /// each member — `self { method m … }` records `m` as a class-object
+    /// method, and `private { method m … }` as an instance method, exactly
+    /// like their prefix spellings, because the registry answers the prefixed
+    /// statement's row with the wrapper's shift applied.
     fn extract_members_from_wrapper_block(
         &mut self,
         call: &DefinerCall,
@@ -3824,6 +3846,13 @@ impl<'r> Lowerer<'r> {
                 self.module.oo_evidence.unretained_executable_roots |= member_supplies_body;
                 continue;
             }
+            let words = statement_words(seg, &[InvocationWord::Literal(wrapper)]);
+            let frame = MemberFrame::of_row(
+                call.grammar,
+                call.grammar
+                    .member_row(0, InvocationArguments::structured(&words), None)
+                    .as_ref(),
+            );
             self.extract_one_member(
                 MemberExtraction {
                     call,
@@ -3831,7 +3860,7 @@ impl<'r> Lowerer<'r> {
                     member,
                     kw: head,
                     base: 1,
-                    wrapper: Some(wrapper),
+                    frame,
                 },
                 class_qname,
                 class_ivars,
@@ -3858,7 +3887,7 @@ impl<'r> Lowerer<'r> {
             member,
             kw,
             base,
-            wrapper,
+            frame,
         } = ex;
         let args = &seg.texts[base..];
         // Argument layout comes from the grammar: which relative index (0-
@@ -3869,15 +3898,29 @@ impl<'r> Lowerer<'r> {
         else {
             return;
         };
-        let Some(kind) = member_method_kind(kw, wrapper == Some("self")) else {
-            self.module.oo_evidence.unretained_executable_roots = true;
-            return;
+        let kind = match frame {
+            MemberFrame::Opens(kind) => kind,
+            MemberFrame::NoFrame => {
+                self.module.oo_evidence.unretained_executable_roots = true;
+                return;
+            }
+            // The layout the body word sits in is unknowable (a computed word
+            // where an optional one may stand): whichever method it defines,
+            // no scan can read it, so the class abstains as a whole — the
+            // same answer a computed name gives below.
+            MemberFrame::Unreadable => {
+                self.module
+                    .oo_unanalysed_classes
+                    .insert(class_qname.to_string());
+                self.module.oo_evidence.unretained_executable_roots = true;
+                return;
+            }
         };
         // A member that also declares a variable (itcl `variable NAME ?init?
         // ?configbody?`, snit 1.x `onconfigure`) is a declaration whose
         // trailing script is not an ordinary method frame — skipped
-        // (documented limit; `member_method_kind` already excludes them by
-        // keyword, this keeps the exclusion structural too).
+        // (documented limit; `MemberFrame::of_row` already excludes them by
+        // effect, this keeps the exclusion structural too).
         if member
             .indices_for_call(args, ArgRole::VarWrite)
             .next()
@@ -3990,7 +4033,7 @@ impl<'r> Lowerer<'r> {
             params,
             body: body_script,
             execution_namespace,
-            kind: MethodKind::from_str_lossy(kind),
+            kind,
             span: Some(seg.span),
             instance_vars: method_ivars,
         };
@@ -4049,37 +4092,83 @@ struct MemberExtraction<'a, 'b> {
     /// Index of the member's first argument word in `seg.texts` (1, or 2
     /// past a wrapper prefix).
     base: usize,
-    /// The wrapper the member was written under, when any (`self`,
-    /// `private`, itcl's access modifiers).
-    wrapper: Option<&'a str>,
+    /// The frame the member's body opens, read off its row.
+    frame: MemberFrame,
 }
 
-/// Which [`MethodDef`] kind a member keyword's body opens, or `None` for
-/// members whose trailing script is **not** a method frame (`initialise` /
-/// `initialize` evaluate a *definition script* in the class object's
-/// namespace; `property` accessors are flag-keyed scripts; declarations
-/// carry no frame at all).
-///
-/// Routing a member keyword to its `MethodDef` kind is the analyser-local
-/// semantics AGENTS.md's definition-body contract leaves with the consumer
-/// (an object `destructor` and a class-level `initialise` are structurally
-/// identical single-body members — the difference is frame modelling, not
-/// command structure).  Recognition and argument layout still come from the
-/// registry grammar; this routes only.
-fn member_method_kind(kw: &str, wrapped_in_self: bool) -> Option<&'static str> {
-    Some(match kw {
-        "method" if wrapped_in_self => "classmethod",
-        // snit's `typemethod` / `typeconstructor` dispatch on the type
-        // command with no instance in frame — the class-method shape.
-        "classmethod" | "typemethod" | "typeconstructor" => "classmethod",
-        // A snit / itcl class-scoped `proc` opens a fresh frame like a
-        // method (with no instance state auto-bound; the over-approximated
-        // instance-var set only widens abstention, never a false claim).
-        "method" | "proc" => "method",
-        "constructor" => "constructor",
-        "destructor" => "destructor",
-        _ => return None,
-    })
+/// The frame a member statement's body opens, read off the statement's
+/// [`MemberRow`] — its effect and the side it resolves to after every wrapper
+/// shift — never its keyword.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum MemberFrame {
+    /// A method frame of this shape ([`MethodKind::from_effect`]).
+    Opens(MethodKind),
+    /// A body that is not a method frame: an option accessor or mutator, a
+    /// declaration's configuration script, a definition-time script whose
+    /// namespace no name reaches.
+    NoFrame,
+    /// The registry cannot read the statement's layout (a computed word where
+    /// an optional one may stand).
+    Unreadable,
+}
+
+impl MemberFrame {
+    /// The frame `row` opens under `grammar`.
+    ///
+    /// A callable opens the frame [`MethodKind::from_effect`] names. A script
+    /// run once at definition opens a class-level frame when the family runs
+    /// member bodies in the defined entity's own namespace
+    /// ([`MemberCurrentNamespace::DefinedEntity`] — snit's `typeconstructor`
+    /// is the proc `${type}::Snit_typeconstructor`, run with `type` bound);
+    /// under [`MemberCurrentNamespace::RuntimeReceiver`] it runs in the class
+    /// object's own namespace (`TclOO`'s `initialise`, in `::oo::ObjN`), which
+    /// neither the class name nor a receiver names, so it opens none.
+    fn of_row(grammar: &DefinitionBodyGrammar, row: Option<&MemberRow>) -> Self {
+        let Some(row) = row else {
+            return Self::Unreadable;
+        };
+        let kind = match row.effect {
+            MemberEffect::Callable { role, .. } => MethodKind::from_effect(role, row.receiver),
+            MemberEffect::InitScript {
+                timing: InitTiming::AtDefinition,
+                ..
+            } if grammar.member_current_namespace() == MemberCurrentNamespace::DefinedEntity => {
+                Some(MethodKind::ClassMethod)
+            }
+            _ => None,
+        };
+        kind.map_or(Self::NoFrame, Self::Opens)
+    }
+}
+
+/// The words of one definition-body statement as the registry reads them,
+/// after `prefix` (a block's wrapper, which the block's own statements do not
+/// repeat): a literal where the source proves the value, and otherwise the
+/// kind of word it is — the boundary callback arity and the literal-argument
+/// checks draw ([`crate::signature_scan::command_prefix::invocation_word`]).
+fn statement_words<'s>(
+    seg: &'s SegmentedCommand,
+    prefix: &[InvocationWord<'s>],
+) -> Vec<InvocationWord<'s>> {
+    let expanded = |index: usize| {
+        seg.expand_word
+            .as_ref()
+            .and_then(|flags| flags.get(index).copied())
+            .unwrap_or(false)
+    };
+    prefix
+        .iter()
+        .copied()
+        .chain(seg.texts.iter().enumerate().map(|(index, text)| {
+            crate::signature_scan::command_prefix::invocation_word(
+                None,
+                text,
+                seg.argv.get(index).copied(),
+                seg.single_token_word.get(index).copied().unwrap_or(false),
+                expanded(index),
+            )
+        }))
+        .collect()
 }
 
 /// The instance variables one definition body declares at class level, per

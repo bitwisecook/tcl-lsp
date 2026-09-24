@@ -363,7 +363,7 @@ The registry surface is far richer than the analyser's dispatch uses.
 | analyser hook variants | 43 (`AnalyserHookId`, `rust/tcl-registry/src/hooks.rs`) | most exist because a descriptor is missing or unconsumed; the residue is short |
 | scope and interpreter transitions | resolvers on `upvar`, `global`, `variable`, `namespace`, `interp` (`rust/tcl-registry/src/state_transition.rs`) | the variable-alias, namespace, and interpreter families have no consumer under `rust/tcl-compiler/src/analyser/`; `frame_effect` is read only for alias-pair layout and level parsing (`param_traits.rs`, `diagnostics/usage.rs`); the command-binding family only by `interp alias` and the static-proc proof |
 | loop and bind positions | roles and strided `repeated_args` | hardcoded indices in five handlers (`handlers.rs`: `dict for`, `dict update`, `foreach`, `incr`, `append` / `lappend`) |
-| OO member effect | the member-effect descriptor (`MemberSpec::effect`, `MemberEffect`, in `rust/tcl-registry/src/definer.rs`) since step 2, beside the layout (`MemberKind`: `Flat`, `Wrapper`, `FlagKeyed`) and `arg_roles`, `slot`, `retraction`, `visibility_effect`, `surface`; every TclOO, snit, itcl, `SpecTcl` and `SslicTcl` member states one, and `DefinitionBodyGrammar::member_row` answers a statement's row | an eleven-arm keyword match in `analyser/oo.rs`, plus snit and itcl prefix conventions; the ledger counts about thirty-two rows on this axis |
+| OO member effect | the member-effect descriptor (`MemberSpec::effect`, `MemberEffect`, in `rust/tcl-registry/src/definer.rs`) since step 2, beside the layout (`MemberKind`: `Flat`, `Wrapper`, `FlagKeyed`) and `arg_roles`, `slot`, `retraction`, `visibility_effect`, `surface`; every TclOO, snit, itcl, `SpecTcl` and `SslicTcl` member states one, and `DefinitionBodyGrammar::member_row` answers a statement's row | since step 2 one `match` on the row's effect (`member_landing`) routes the `TclOO` fold and the snit and itcl walkers, `MethodKind::from_effect` names the lowering's frames, and the providers read the recorded member; `property`'s flag words and snit's type-body implicit variable are the axis's residue in `analyser/oo.rs` |
 | clause grammar | the clause-grammar descriptor (`ClauseGrammarSpec`, `rust/tcl-registry/src/clause_grammar.rs`), on `CommandSpec` and `SubCommand` since step 2: ten shipped grammars, one registry walk answering the roles and the clause-shape defect, and the loader reading the same type | since step 2 the lowering (`lower_if`, `lower_try`), `handle_try_command`, the generic body walk's depths, the stray-keyword report, the CFG's `on ok` edge and `signature_scan/walker.rs` read the plan; the editor refactors and `tcl-mcp`'s `datagroup.rs` still walk keywords |
 | option-selected semantics | the option-effect descriptor (`OptionSpec::effect`, `option_effect_families`, `option_effect.rs`), which replaced the two native resolvers over a command's own option table — `substitution_resolver` and `lsearch_pattern_args` — in step 2; `pattern_arg_resolver` remains an escape hatch no shipped spec sets | three consumers ask `CommandRegistry::substitutions_performed` correctly; the dynamic-name barrier and the `inner_head_performs_substitution` gate read only the trait, and `push_substituted_commands` re-walks a braced template for regions the answer does not carry |
 
@@ -750,7 +750,7 @@ enum MemberReceiver {
     Both,
 }
 
-enum CallableRole { Method, Constructor, Destructor, Accessor, Mutator }
+enum CallableRole { Method, Constructor, Destructor, Accessor, Mutator, Procedure }
 
 enum StateScope { PerInstance, PerType, Option }
 
@@ -809,8 +809,14 @@ today:
   where `$obj variable v` does not becomes a comparison of the row's
   receiver against the dispatch spelling, not a name list.
 
+`Procedure` is step 2's addition: snit's `proc` defines a procedure in the
+type's namespace that sees the type's state and is reached by name, never
+dispatched (snit 2.3.4 on tclsh 8.6.18 and 9.0.4: `::app::Dog::helper 10`
+runs it, `::app::Dog helper 1` is a construction), which no other role
+says.
+
 **The sites this retires.** `apply_oo_subcommand_in` in
-`rust/tcl-compiler/src/analyser/oo.rs` has eleven keyword arms —
+`rust/tcl-compiler/src/analyser/oo.rs` had eleven keyword arms —
 `superclass`, `mixin`, `method`, `classmethod`, `constructor`,
 `destructor`, `variable`, `property`, `forward`, `private`, `self` — and
 each becomes one `match` on `MemberEffect`: the two slot arms fold through
@@ -822,11 +828,14 @@ wrapper's shift is already `MemberKind::Wrapper` and its side is the
 row's resolved `receiver`. `MethodKind::from_str_lossy` in
 `rust/tcl-compiler/src/ir.rs` retires with its call site in
 `rust/tcl-compiler/src/lowering/mod.rs`: `MethodKind` stays as the IR's
-*shape* fact and is constructed from `CallableRole` and `MemberReceiver`,
-the same two-facts-one-operation relationship `LoweringHookId::Incr` has to
-`NativeLowering::CellReadModifyWrite`. The `constructor` / `destructor`
-literals the ledger counts across ten `tcl-lsp-core` providers read the
-row instead.
+*shape* fact and is constructed from `CallableRole` and `MemberReceiver`
+(`MethodKind::from_effect`), the same two-facts-one-operation relationship
+`LoweringHookId::Incr` has to `NativeLowering::CellReadModifyWrite`. The
+`constructor` / `destructor` literals the ledger counts across the
+`tcl-lsp-core` providers read the recorded member instead. Step 2 landed
+all of it; the one match is `member_landing`, shared by the snit and itcl
+walkers, and `property` stays its flag-keyed extraction until its 9.0
+accessors are `Callable` rows of their own.
 
 **The `.tclspec` row shape** is one flag on the `member` row the loader
 already reads, so the snit port gains nothing but the word:

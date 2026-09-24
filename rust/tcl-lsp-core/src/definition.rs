@@ -113,6 +113,7 @@ use rustc_hash::FxHashSet;
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_compiler::analyser::indirection;
 use tcl_lexer::{LineIndex, Utf16Col};
+use tcl_registry::definer::DeclaredMemberVisibility;
 
 use crate::hover::{find_var_at_position, find_word_span_at_position};
 use crate::namespace_import::{ExportVerdict, NamespaceExportOracle};
@@ -737,7 +738,7 @@ fn instance_method_definition(
         // `unknown method`, the class chain notwithstanding.
         if let Some(st) = object_state
             && let Some(md) = st.methods.get(&method)
-            && md.visibility != "public"
+            && md.visibility != DeclaredMemberVisibility::Public.as_str()
         {
             return Some(Vec::new());
         }
@@ -833,9 +834,9 @@ fn instance_method_definition(
 /// unrelated feature — see [`ClassDef::linked_members`]'s doc).
 /// Returns the matched member's `name_span` when found.
 ///
-/// `"constructor"` matches any defined constructor;
-/// `"destructor"` matches the destructor.  Other words match
-/// against the member's `name`.
+/// The keyword a constructor or destructor was declared by (`constructor`,
+/// `destructor`) matches that member — the recorded member says which, not
+/// the word's spelling.  Other words match against the member's `name`.
 fn lookup_class_member(
     analysis: &AnalysisResult,
     word: &str,
@@ -855,8 +856,11 @@ fn lookup_class_member(
             return Some(p.name_span);
         }
     }
-    if word == "constructor"
-        && let Some(c) = class_def.constructors.first()
+    // A constructor or destructor keyword: the member it declared says so.
+    if let Some(c) = class_def
+        .constructors
+        .first()
+        .filter(|c| c.is_declared_by_keyword(word))
     {
         if !c.name_span.is_empty() {
             return Some(c.name_span);
@@ -868,8 +872,10 @@ fn lookup_class_member(
         // body opener.
         return Some(c.body_span);
     }
-    if word == "destructor"
-        && let Some(d) = &class_def.destructor
+    if let Some(d) = class_def
+        .destructor
+        .as_ref()
+        .filter(|d| d.is_declared_by_keyword(word))
     {
         if !d.name_span.is_empty() {
             return Some(d.name_span);
@@ -984,7 +990,7 @@ pub fn object_masks_external_dispatch(
         return false;
     };
     if let Some(md) = st.methods.get(&method) {
-        return md.visibility != "public";
+        return md.visibility != DeclaredMemberVisibility::Public.as_str();
     }
     st.unexports.contains(&method)
 }

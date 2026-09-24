@@ -1244,6 +1244,26 @@ impl Analyser {
             .and_then(|resolved| resolved.clause_plan)
     }
 
+    /// Note, in the per-item shell walk, a definer only the workspace's packs
+    /// declare: the shell reads the un-overlaid store, where `cmd_name` has no
+    /// definition-body grammar, while the walk's own generation (the overlaid
+    /// one) gives it one. The per-item analysis then takes the full path
+    /// ([`super::per_item::PerItemFallback::PackDefiner`]), so the class the
+    /// definer makes is not lost.
+    fn note_pack_definer(&mut self, cmd_name: &str) {
+        if self.defer_proc_bodies
+            && self.pack_overlay != 0
+            && self.definition_grammar(cmd_name).is_none()
+            && self
+                .analysis_context()
+                .commands()
+                .get(cmd_name)
+                .is_some_and(|spec| spec.definition_body.is_some())
+        {
+            self.pack_definer_seen = true;
+        }
+    }
+
     /// [`Self::resolve_analyser_hook`] plus the traits and the clause plan of
     /// the concrete spec / subcommand the head resolved to — one resolution,
     /// every fact.
@@ -1345,6 +1365,7 @@ impl Analyser {
             // tcl-registry's analyser-hook drift tests for the registry
             // ones), so running them only on the hookless path preserves the
             // dispatch order.
+            self.note_pack_definer(cmd_name);
             return self.handle_oo_class_command(cmd_name, args, arg_tokens, scope_path, cmd_tok)
                 || self.handle_snit_type_command(cmd_name, args, arg_tokens, scope_path)
                 || self.handle_itcl_class_command(cmd_name, args, arg_tokens, scope_path)
@@ -3815,6 +3836,7 @@ impl Analyser {
                     self.handle_apply_command(args, arg_tokens, scope_path);
                 }
                 None => {
+                    self.note_pack_definer(&cmd_name);
                     let _claimed = self
                         .handle_oo_class_command(&cmd_name, args, arg_tokens, scope_path, cmd_tok)
                         || self.handle_snit_type_command(&cmd_name, args, arg_tokens, scope_path)

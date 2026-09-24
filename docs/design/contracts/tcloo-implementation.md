@@ -23,8 +23,10 @@ are pure registry data; the shared walkers hold no member-keyword lists.
 What each member *declares* is registry data as well: `MemberSpec::effect`,
 a family-neutral `MemberEffect` — `Callable` (receiver, `CallableRole`, and
 the name / parameter-list / body slots) for `method`, `classmethod`,
-`constructor`, `destructor`, snit's `typemethod` / `proc` / `onconfigure` /
-`oncget` and itcl's `proc`; `Forward` for `forward`; `StateDeclaration` for
+`constructor`, `destructor`, snit's `typemethod` / `onconfigure` / `oncget`,
+itcl's `proc`, and snit's `proc` (role `Procedure`: a procedure in the
+type's namespace, reached by name and never dispatched); `Forward` for
+`forward`; `StateDeclaration` for
 `variable`, `typevariable`, `component`, `common` and snit's `option`;
 `Relation` for `superclass`, `mixin`, `filter` and itcl's `inherit`;
 `Visibility` for `export` / `unexport`; `Retraction` for `deletemethod` /
@@ -133,6 +135,38 @@ entries in the semantic model.  These feed the `rust/tcl-lsp-core` providers:
   the owner-aware class-hierarchy index.
 - **Folding + semantic tokens** — the shared `oo_body.rs` walker, dispatching
   on `MemberKind`, never a keyword.
+
+Every member statement — in a `TclOO` body, a snit type's or an itcl
+class's — is read through its `MemberRow`, and one `match` on the row's
+effect (`member_landing` in `oo.rs`) decides where it lands; the `TclOO`
+fold (`apply_oo_subcommand_in`) and the snit and itcl walkers share it, and
+a wrapper has no arm of its own because its shift is already in the row's
+receiver and visibility.  The providers then read the recorded member, never
+the keyword: a constructor's or destructor's declaring keyword is its
+synthetic `<keyword>` name (`MethodDef::is_declared_by_keyword`) and what it
+is its `kind`.
+
+| Row | Lands in (`ClassDef`) | Notes |
+|---|---|---|
+| `Callable`, role `Method`, on the instances | `methods`, kind `method` | `method`; `private method` with visibility `private` |
+| `Callable`, role `Method`, on the type object | `class_methods`, kind `classmethod` | `classmethod`, snit's `typemethod`, itcl's `proc`, `self method`; `is_self_method` when a receiver-moving wrapper put it there |
+| `Callable`, role `Constructor` / `Destructor`, on the instances | `constructors` / `destructor`, named `<keyword>` | a type-object spelling (`self constructor`) is no member |
+| `Callable`, role `Accessor` / `Mutator` | the methods of its side, named `<keyword -option>` | snit's `oncget` / `onconfigure` |
+| `Callable`, role `Procedure` | an ordinary proc | snit's `proc` |
+| `InitScript` at definition | `MemberCurrentNamespace::DefinedEntity`: the class methods, named `<keyword>`; `RuntimeReceiver`: the class's init script, walked in a class-keyed scope | snit's `typeconstructor`; `TclOO`'s `initialise` |
+| `Forward`, on the instances | `methods`, kind `forward`, with its target and prepended words | a class-object forward is not recorded |
+| `StateDeclaration`, on the instances | `variables`, through the slot fold | `variable`, `private variable`; `self variable` is not an instance variable |
+| `Relation` | `superclasses` / `mixins` (the instances only) and each side's filter slot | the slot fold; itcl's `inherit` adds its list |
+| `Retraction` / `Visibility` | the named members of the row's side | `deletemethod`, `renamemethod`, `export`, `unexport` |
+| `Configuration`, flag-keyed | `properties` | `property`, until its 9.0 accessors are `Callable` rows of their own |
+| `Configuration` | nothing | the wrappers themselves, `definitionnamespace`, snit's `delegate` / `expose` |
+
+The lowering reads the same row: `MethodKind::from_effect(role, receiver)`
+names the IR frame a callable opens (a method on the instances, a
+class-method frame on the type object or for a procedure, a constructor or
+destructor on the instances; nothing for an option handler or a type-object
+constructor), and a definition-time script opens a class-method frame only
+under `DefinedEntity`.
 
 ### MRO algorithm (`rust/tcl-syntax/src/mro.rs`)
 

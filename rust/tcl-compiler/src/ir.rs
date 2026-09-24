@@ -28,6 +28,7 @@
 //! design established in the lexer crate.
 
 use tcl_lexer::{LexerConfig, SourceMap, Span, Token};
+use tcl_registry::definer::{CallableRole, MemberReceiver};
 /// A [`TryHandler`]'s selection vocabulary, the registry's clause-row fact.
 pub use tcl_registry::value_transfer::HandlerMatch;
 
@@ -1611,14 +1612,35 @@ pub enum MethodKind {
 }
 
 impl MethodKind {
-    /// Parse from the string representation.
+    /// The frame shape a callable member opens, read off its member-effect
+    /// facts (`registry-consumer-contracts.md` § *The member-effect
+    /// descriptor*): its [`CallableRole`] and the side its row resolves to
+    /// after every wrapper shift.
+    ///
+    /// A method on the instances is a [`Self::Method`] and one on the class or
+    /// type object a [`Self::ClassMethod`]; a namespace procedure
+    /// ([`CallableRole::Procedure`], snit's `proc`) runs with no instance in
+    /// frame, the class-method shape. A constructor or destructor exists only
+    /// on the instances: the type-object spelling is no member at all (tclsh
+    /// 8.6.18 and 9.0.4: `oo::class create X { self constructor {} {} }` →
+    /// `invalid command name "constructor"`). An option accessor or mutator
+    /// opens no method frame of its own, and nothing is a method on both
+    /// sides at once, so each of those answers `None`.
     #[must_use]
-    pub fn from_str_lossy(s: &str) -> Self {
-        match s {
-            "classmethod" => Self::ClassMethod,
-            "constructor" => Self::Constructor,
-            "destructor" => Self::Destructor,
-            _ => Self::Method,
+    pub const fn from_effect(role: CallableRole, receiver: MemberReceiver) -> Option<Self> {
+        match (role, receiver) {
+            (CallableRole::Method, MemberReceiver::Instance) => Some(Self::Method),
+            (CallableRole::Method, MemberReceiver::TypeObject) | (CallableRole::Procedure, _) => {
+                Some(Self::ClassMethod)
+            }
+            (CallableRole::Constructor, MemberReceiver::Instance) => Some(Self::Constructor),
+            (CallableRole::Destructor, MemberReceiver::Instance) => Some(Self::Destructor),
+            (CallableRole::Method, MemberReceiver::Both)
+            | (
+                CallableRole::Constructor | CallableRole::Destructor,
+                MemberReceiver::TypeObject | MemberReceiver::Both,
+            )
+            | (CallableRole::Accessor | CallableRole::Mutator, _) => None,
         }
     }
 
@@ -2252,15 +2274,45 @@ mod tests {
     }
 
     #[test]
-    fn method_kind_roundtrip() {
-        for kind in [
+    fn method_kind_from_effect() {
+        use tcl_registry::definer::{CallableRole as R, MemberReceiver as S};
+        let cases = [
+            (R::Method, S::Instance, Some(MethodKind::Method)),
+            (R::Method, S::TypeObject, Some(MethodKind::ClassMethod)),
+            (R::Procedure, S::TypeObject, Some(MethodKind::ClassMethod)),
+            (R::Procedure, S::Instance, Some(MethodKind::ClassMethod)),
+            (R::Constructor, S::Instance, Some(MethodKind::Constructor)),
+            (R::Destructor, S::Instance, Some(MethodKind::Destructor)),
+            (R::Method, S::Both, None),
+            (R::Constructor, S::TypeObject, None),
+            (R::Destructor, S::TypeObject, None),
+            (R::Accessor, S::Instance, None),
+            (R::Mutator, S::Instance, None),
+        ];
+        for (role, receiver, kind) in cases {
+            assert_eq!(
+                MethodKind::from_effect(role, receiver),
+                kind,
+                "{role:?} on {receiver:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn method_kind_spellings_are_the_analysers() {
+        let spellings: Vec<&str> = [
             MethodKind::Method,
             MethodKind::ClassMethod,
             MethodKind::Constructor,
             MethodKind::Destructor,
-        ] {
-            assert_eq!(MethodKind::from_str_lossy(kind.as_str()), kind);
-        }
+        ]
+        .into_iter()
+        .map(MethodKind::as_str)
+        .collect();
+        assert_eq!(
+            spellings,
+            ["method", "classmethod", "constructor", "destructor"]
+        );
     }
 
     #[test]

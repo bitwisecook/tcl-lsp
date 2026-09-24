@@ -1031,9 +1031,10 @@ declarations — `oo::class create`, `snit::type`, `itcl::class`. The \
 grammar lists the member keywords (`method`, `constructor`, `variable`, \
 …), which words of each are the name, the parameter list, and the \
 body, and what each member *declares* — its effect: a callable (a method, \
-constructor or option handler, on the instances or the type), a forward, \
-state, a class relation, a visibility change, a retraction, a \
-definition-time script, or configuration. Navigation, folding, \
+constructor or option handler, on the instances or the type, or a \
+procedure in the definition's own namespace), a forward, state, a class \
+relation, a visibility change, a retraction, a definition-time script, or \
+configuration. Navigation, folding, \
 highlighting and the class model all read it, with no code written.\n\n\
 A shipped grammar is picked by name (`tcloo`, `snit`, `itcl`, …). A \
 package with its own definer spells the grammar out in its pack's \

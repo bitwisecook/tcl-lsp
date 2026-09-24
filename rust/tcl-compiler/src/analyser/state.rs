@@ -1076,6 +1076,12 @@ pub struct Analyser {
     /// of recursing into it immediately.  Set only for the shell pass; the
     /// per-body passes run with it `false` so nested defs walk in place.
     pub defer_proc_bodies: bool,
+    /// Set by the per-item shell walk when it meets a definer only the
+    /// workspace's packs declare — a command whose overlaid spec carries a
+    /// definition-body grammar the un-overlaid store the shell reads lacks —
+    /// so [`Self::analyse_per_item_with`] takes the full path
+    /// ([`super::per_item::PerItemFallback::PackDefiner`]).
+    pub(super) pack_definer_seen: bool,
     /// When `true`, [`Self::define_var`] runs in **structural rebind** mode:
     /// it skips the W215 unreachable-name check *and* the
     /// `record_qualified_var_ref` occurrence record.  Set only while the
@@ -1627,6 +1633,7 @@ impl Analyser {
             workspace_class_factories: None,
             workspace_subclass_methods: None,
             defer_proc_bodies: false,
+            pack_definer_seen: false,
             structural_rebind: false,
             deferred_bodies: Vec::new(),
             minted_synthetic_names: std::collections::HashSet::new(),
@@ -2682,6 +2689,7 @@ impl Analyser {
     pub(super) fn fresh_full_analyse(&self, new_text: &str, dialect: &str) -> AnalysisResult {
         let mut fresh = Analyser::with_disabled_diagnostics(self.disabled_diagnostics.clone())
             .with_non_ascii_mode(self.non_ascii_mode)
+            .with_pack_overlay(self.pack_overlay)
             .with_shared_extra_commands(Arc::clone(&self.extra_commands))
             .with_package_provides(self.package_provides.clone());
         fresh.analyse(new_text, dialect)

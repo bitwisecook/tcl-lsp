@@ -72,6 +72,7 @@ CC2.10, CC2.13, CC2.15) are dispatched separately after the opus items.
 | CC2.8 the derived-query layer | landed | `wip(consumer-contracts): step 2 — the derived-query layer` | `CommandRegistry::invocation(words, ctx)`; `ResolvedInvocation` carries its `SurfaceQuery` and selection; `arg_roles`, `pattern_args`, `case_invocation`, `frame_effect`, `return_type`, `effects` added, `clause_plan` / `option_effects` / `substitutions_performed` lose the `dialect` parameter; one rule per query shared with the by-name functions (`arg_roles_in`, `command_prefixes_in`, `pattern_args_in`, `layout_is_proven_in`); `derived_queries_agree_with_the_by_name_answers`; D2.37–D2.43 |
 | CC2.14 the `state_transitions` resolver family in the loader | landed | `wip(consumer-contracts): step 2 — the state-transition resolver family` | `HookFamily::StateTransitionResolver` (thirteenth family: `alias LOCAL TARGET ?-level LEVEL?`, `namespace-variable NAME`, silence "no transitions", field `state_transitions.resolver`); `PackTransition`, the thunk and `STATE_TRANSITION_RESOLVER_NATIVE`; `alias_pairs_resolver` for `from-frame-effect`; the loader reads every `state_transitions` row; 21 corpus notices and the two port goldens move; D2.44–D2.49 |
 | CC2.9 clause consumers in the compiler | landed | `wip(consumer-contracts): step 2 — lowering and the analyser read the clause plan` | `lower_if` / `lower_try` from `ResolvedInvocation::clause_walk` (values; the inert reading on abstention); `TryHandler::kind: HandlerMatch` (IR, inlining, `executable_ir.rs`, `cfg_lower.rs`'s `on ok` through the completion-code parse, the diagram's wire spelling); `handle_try_command` walks the plan; `handle_for_command` gone — the generic body walk reads timings; `owner_of_keyword` for the stray-keyword report; `signature_scan/walker.rs` reads clause bodies; the registry's `try_control_invocation` parses the plan; `a_try_handler_walk_reads_timing_not_keywords` (and its negative); four files in `CLEAN_FILES`, `structured.rs` 19 → 8 and `handlers.rs` 20 → 9 pinned; the deprecated `effect_footprint` alias removed; D2.50–D2.62 |
+| CC2.11 member consumers | landed | `wip(consumer-contracts): step 2 — members by effect` | every member statement read through its `MemberRow`: one `match` on the effect (`member_landing`) routes `apply_oo_subcommand_in` and the snit and itcl walkers — `apply_oo_private`, `apply_oo_self`, the sided-effects helper, the `filter` keyword test, `apply_oo_ctor_or_dtor`, the snit `type` prefix and the itcl keyword maps gone; `CallableRole::Procedure` for snit's `proc` (D2.63); `MethodKind::from_effect` in `ir.rs`, `from_str_lossy` and `member_method_kind` gone, the lowering's frame read off the row; the providers read the recorded member (`MethodDef::is_declared_by_keyword`, `kind`); the per-item path's `PackDefiner` fallback (D2.70); `a_pack_declared_member_spelling_reaches_every_provider` and its negative; `oo.rs` 43 → 5, `lowering/mod.rs` 26 → 19, `ir.rs` 5 → 2, `hover.rs` 6 → 4, `references.rs` 6 → 1, `definition.rs` and `workspace_index.rs` to `CLEAN_FILES`; D2.63–D2.71 |
 
 ### Behavioural deltas accepted in step 2
 
@@ -145,6 +146,65 @@ CC2.10, CC2.13, CC2.15) are dispatched separately after the opus items.
   its head resolves to the `Catch` hook (a `::catch` spelling too), and
   `[list namespace unknown H]` is recognised through `BUILDS_COMMAND_PREFIX`
   and the `NamespaceUnknown` hook.
+
+- CC2.11: a wrapped `TclOO` member lands by its row where the old arms
+  ignored every wrapped spelling but `method` / `classmethod` and the sided
+  words: `private variable x` declares an instance variable (tclsh 9.0.4:
+  the class's methods read it back), `private forward f cmd` a private
+  forward, `private superclass` / `private mixin` fold into the class's
+  slots, `self private method m` (and `private self method m`) a private
+  class method, `private constructor` the constructor. A class-object
+  `forward`, `variable`, `superclass` or `mixin` stays unrecorded.
+- CC2.11: `self constructor` / `self destructor` (tclsh 8.6.18 and 9.0.4:
+  `invalid command name "constructor"`) no longer lift a lowering unit or
+  collect a class-side body; a `foreach` installer's `self method $m` records
+  class methods, where it recorded instance methods.
+- CC2.11: a computed word where `TclOO`'s optional method word may stand
+  (`method m $opt {} {…}`) makes the statement unreadable: the analyser
+  records no member (it read the fixed layout) and the lowering marks the
+  class unanalysed (it lifted the method under the fixed layout).
+- CC2.11: an itcl `protected` member's `MethodDef::visibility` is
+  `unexported`, the registry's spelling of the tier (it was `protected`);
+  every consumer compares with `public` / `private`, so no answer moves.
+  The IR's `MethodKind` for a snit or itcl `proc` body is `ClassMethod`
+  (was `Method`); its one reader is `TclOO`'s `self class` fold.
+- CC2.11: a document that invokes a definer only a workspace pack declares
+  takes the per-item path's full-analysis fallback (`PackDefiner`), so the
+  class it defines reaches the editor (the per-item shell reads the
+  un-overlaid store, where the definer has no grammar); every fresh
+  full-analysis fallback now carries the pack overlay, which it dropped.
+### CC2.11 — what the next items read
+
+- **The routing.** `analyser/oo.rs`'s `MemberStatement::read(grammar,
+  texts, argv, dialect)` reads one member statement through
+  `DefinitionBodyGrammar::member_row` over structured words (a braced or
+  substitution-free word is its literal, anything else computed — D2.64);
+  `member_landing(grammar, member, row) -> MemberLanding` is the one
+  `match` on `MemberEffect`, and `apply_oo_subcommand_in`, the snit walker
+  (`dispatch_snit_member`) and the itcl walker all read it. Members are
+  still recorded under their written spelling (`${m}` stays in the
+  outline).
+- **The IR.** `MethodKind::from_effect(role: CallableRole, receiver:
+  MemberReceiver) -> Option<MethodKind>`; the lowering's `MemberFrame::of_row`
+  adds the definition-time script rule (D2.65). `MethodDef::kind` (the
+  analyser's) is `MethodKind::as_str()` or `forward`.
+- **The vocabulary.** `CallableRole::Procedure` (`-role procedure`) for a
+  procedure in the definition's own namespace; snit's `proc` states it,
+  itcl's `proc` keeps `-role method` on the type object (D2.63).
+- **The providers.** `MethodDef::is_declared_by_keyword(word)` answers
+  whether a nameless member was declared by the keyword under the cursor;
+  hover, definition, references and document symbols read `kind` from the
+  member. `workspace_index.rs` spells the class side
+  `MethodKind::ClassMethod.as_str()` and the visibilities through
+  `DeclaredMemberVisibility`.
+- **The ledger.** `CLEAN_FILES` gains `tcl-lsp-core`'s `definition.rs` and
+  `workspace_index.rs`. Pinned: `analyser/oo.rs` 5 (the `property` flag
+  words, three, until the 9.0 `property` accessor rows; snit's type-body
+  implicit `type`, one; the unknown-proc walk's `default` arm, one — D2.68),
+  `ir.rs` 2 (`SwitchMode`), `lowering/mod.rs` 19 (none on the member axis),
+  `hover.rs` 4 (regex tokens), `references.rs` 1 (the `switch` marker).
+  The value-transfer ledger loses `analyser/oo.rs`'s row and
+  `lowering/mod.rs` drops to 1 (D2.71).
 
 ### CC2.9 — what the next items read
 
@@ -306,11 +366,11 @@ CC2.10, CC2.13, CC2.15) are dispatched separately after the opus items.
   `draft::definition_body_block(grammar)` (public) and the draft keys
   `definition_body` (null / name / block) and `semantic_operation` (null /
   `{kind, detail}`).
-- **Still keyed on member spellings** (CC2.11's): `apply_oo_subcommand_in`'s
-  arms, `apply_oo_private` / `apply_oo_self`, `extract_property_defs`,
+- **Formerly keyed on member spellings** (CC2.11's, landed):
+  `apply_oo_subcommand_in`'s arms, `apply_oo_private` / `apply_oo_self`,
   `MethodKind::from_str_lossy`, the snit / itcl body walkers and the
-  `constructor` / `destructor` literals in `tcl-lsp-core`. None reads
-  `member_row` yet; CC2.11 moves them onto it.
+  `constructor` / `destructor` literals in `tcl-lsp-core` read `member_row`
+  now; `extract_property_defs` keeps its flag words (D2.68).
 
 ### CC2.8 — what the next items read
 
@@ -2805,6 +2865,88 @@ everything else in this lane is independent of both.
 - **D2.62** The deprecated `ResolvedInvocation::effect_footprint` alias is
   removed, and the registry's `try_body_is_fallthrough` with it. Reason:
   D2.42's one checkpoint; no caller remained.
+- **D2.63** `CallableRole` gains `Procedure` (`-role procedure`): a
+  procedure in the definition's own namespace, reached by name and never
+  dispatched, whose receiver is the side whose state its body sees. snit's
+  `proc` states it (`-receiver type-object -role procedure`, in `definer.rs`
+  and the `snit-type.tclspec` port, whose golden moves); itcl's `proc` keeps
+  `-role method` on the type object. Reason: the page's vocabulary made snit's
+  `proc` and `typemethod` one effect, so one `match` could not keep the
+  analyser's reading of each (an ordinary proc; a class method) without the
+  keyword, and the class-method reading is wrong for snit — snit 2.3.4
+  (tcllib 2.0) on tclsh 8.6.18 and 9.0.4: `snit::type ::app::Dog { proc
+  helper {a} {…} }` defines `::app::Dog::helper`, while `::app::Dog helper
+  1` is a construction and an instance's `helper` an unknown subcommand, so
+  a class-method reading would turn a construction into a typemethod call.
+  itcl's `proc` keeps its reading because the providers' qualified
+  `Class::proc` dispatch reads `class_methods` (`name_resolution.rs`'s itcl
+  rows) and itcl is not installed here to oracle a change.
+- **D2.64** The analyser reads a member statement's words structurally (a
+  braced word, or one with no substitution, is its literal; anything else is
+  computed — the boundary `has_substitution` draws for the walker's other
+  static-word checks) and keeps recording members under their written
+  spelling, a computed name included; such a member's visibility is the
+  family's name rule read on the written spelling unless its option word or
+  wrapper says otherwise. Reason: the row's `name` abstains on a computed
+  word, and dropping `${m}` would move the outline; its `Public` answer for
+  a nameless row would offer `${m}` to completion, where the analyser has
+  always kept it unexported.
+- **D2.65** An option accessor or mutator (snit's `oncget` /
+  `onconfigure`) lands among the methods of its side though
+  `MethodKind::from_effect` names no frame for it, and a definition-time
+  script is a class-side method when the family runs member bodies in the
+  defined entity's namespace (`MemberCurrentNamespace::DefinedEntity`: snit's
+  `typeconstructor`) and the class's init script under `RuntimeReceiver`
+  (`TclOO`'s `initialise`) — the same rule in the analyser's
+  `member_landing` and the lowering's `MemberFrame::of_row`. Reason: each is
+  the reading the walkers and the lowering had, now decided by registry data
+  rather than the keyword; the namespace policy is what makes snit's script
+  a nameable frame (`${type}::Snit_typeconstructor`) and `TclOO`'s not
+  (`::oo::ObjN`).
+- **D2.66** `MethodDef::is_self_method` is set for a class-side method a
+  receiver-moving wrapper was crossed to reach (`self method`, `self
+  classmethod`), read off the wrappers' shifts, not the receivers. Reason:
+  `self classmethod`'s natural receiver is already the type object, and the
+  existing test keeps it tagged.
+- **D2.67** A forward, a state declaration, a superclass or mixin relation
+  and flag-keyed accessors land only when their row is on the instances; a
+  class-object spelling (`self forward`, `self variable`, `self mixin`)
+  records nothing, and a type-object constructor or destructor is no member
+  (`MethodKind::from_effect` answers none). Reason: `class_methods` holds
+  the `classmethod`-kind entries the class-command dispatch reads, the
+  class has no class-object variable or ancestry list, and those were the
+  readings before; tclsh 8.6.18 and 9.0.4 reject `self constructor`.
+- **D2.68** `analyser/oo.rs` keeps five pinned sites, unwaived: the three
+  `property` flag words (`get`, `set`) until the 9.0 `property` accessor rows
+  are `Callable` rows of their own, snit's type-body implicit `type`
+  (`SNIT_TYPE_IMPLICIT`) until the grammar carries a type-body implicit
+  list, and the unknown-proc walk's `default` switch arm. Reason: a waiver's
+  expiry is a step or a slice, and no build-order step schedules either
+  registry field, so the pin (which may only fall) is the honest record.
+- **D2.69** The providers read the recorded member:
+  `MethodDef::is_declared_by_keyword(word)` (a nameless member's synthetic
+  `<keyword>` name) finds the constructor or destructor the keyword under the
+  cursor declared, and its `kind` says which; `workspace_index.rs` spells
+  the class side `MethodKind::ClassMethod.as_str()` and the visibilities
+  `DeclaredMemberVisibility::{Public, Private}.as_str()`. Reason: the plan's
+  "read `MethodDef::kind`" for a cursor on a keyword needs the member the
+  keyword declared, and the synthetic name is the one place the analyser
+  records it.
+- **D2.70** The per-item analysis falls back to the full path
+  (`PerItemFallback::PackDefiner`) when its shell walk meets a definer only
+  the workspace's packs declare, and `fresh_full_analyse` carries the pack
+  overlay. Reason: the plan's end-to-end test found that the server's
+  memoised path never saw a pack-declared definer — `per_item_setup` reads
+  the un-overlaid store, by design, while the per-body memo key carries no
+  overlay — and that the fresh fallback dropped the overlay; a fallback is
+  the one change that keeps the memo key and still gives the editor the
+  class.
+- **D2.71** The value-transfer ratchet's `analyser/oo.rs` row (the
+  `definition_body` axis's keywords) is removed with its pin and
+  `lowering/mod.rs`'s drops to 1 (the `namespace` body; the `self`
+  comparison is gone). Reason: CC2.11 retired those sites, and
+  `value-transfers --check` requires the ledger to match; the plan's
+  "untouched" assumed they would survive.
 - **D3.1** `WorkspaceTrust` lives in `tcl_dialect::model::environment`
   beside `Provenance`; `Tier` is unchanged and the trust rides `PackFile`,
   `MergedPack`, `EvalOptions`, `EvalSnapshotKey` and the cache key.

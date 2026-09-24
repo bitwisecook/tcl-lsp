@@ -3581,12 +3581,25 @@ fn class_member_hover_text(
             ));
         }
     }
-    if word == "constructor" && !class_def.constructors.is_empty() {
-        let nparam = class_def.constructors.first().map_or(0, |c| c.params.len());
-        return Some(format!("**constructor** of `{qname}` ({nparam} param(s))"));
+    // A constructor or destructor keyword: the member it declared says what
+    // it is.
+    if let Some(ctor) = class_def
+        .constructors
+        .first()
+        .filter(|c| c.is_declared_by_keyword(word))
+    {
+        let nparam = ctor.params.len();
+        return Some(format!(
+            "**{}** of `{qname}` ({nparam} param(s))",
+            ctor.kind
+        ));
     }
-    if word == "destructor" && class_def.destructor.is_some() {
-        return Some(format!("**destructor** of `{qname}`"));
+    if let Some(dtor) = class_def
+        .destructor
+        .as_ref()
+        .filter(|d| d.is_declared_by_keyword(word))
+    {
+        return Some(format!("**{}** of `{qname}`", dtor.kind));
     }
     None
 }

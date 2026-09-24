@@ -1160,7 +1160,6 @@ Every other scanned file with an unwaived recogniser-shaped site, and its count,
 | `rust/tcl-compiler/src/analyser/diagnostics/security.rs` | 2 |
 | `rust/tcl-compiler/src/analyser/diagnostics/validity.rs` | 2 |
 | `rust/tcl-compiler/src/analyser/irules_event_checks.rs` | 7 |
-| `rust/tcl-compiler/src/analyser/oo.rs` | 4 |
 | `rust/tcl-compiler/src/analyser/param_traits.rs` | 1 |
 | `rust/tcl-compiler/src/auto_path_eval.rs` | 3 |
 | `rust/tcl-compiler/src/codegen/cmd_subst.rs` | 3 |
@@ -1172,7 +1171,7 @@ Every other scanned file with an unwaived recogniser-shaped site, and its count,
 | `rust/tcl-compiler/src/inline_uplevel.rs` | 1 |
 | `rust/tcl-compiler/src/interprocedural.rs` | 2 |
 | `rust/tcl-compiler/src/irules_checks.rs` | 3 |
-| `rust/tcl-compiler/src/lowering/mod.rs` | 2 |
+| `rust/tcl-compiler/src/lowering/mod.rs` | 1 |
 | `rust/tcl-compiler/src/lowering/structured.rs` | 2 |
 | `rust/tcl-compiler/src/optimiser/end_offset.rs` | 1 |
 | `rust/tcl-compiler/src/place_bridge.rs` | 2 |

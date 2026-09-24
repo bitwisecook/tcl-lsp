@@ -807,7 +807,6 @@ which waives the sites by axis.
 | `rust/tcl-compiler/src/analyser/diagnostics/security.rs` | 2 | the `return_type` axis — a `pattern_type` conditional on `-regexp` absorbs the `switch`-specific ReDoS scan |
 | `rust/tcl-compiler/src/analyser/diagnostics/validity.rs` | 2 | the `traits` axis — `unset` beside the `DESTROYS_VARIABLE` query, `matchclass` by its lifecycle field |
 | `rust/tcl-compiler/src/analyser/irules_event_checks.rs` | 7 | slice 12 — the loop-bound reader; the `static::`, `log`, and `global` checks are `special_vars` / `side_effects` debt |
-| `rust/tcl-compiler/src/analyser/oo.rs` | 4 | the `definition_body` axis — the `variable` / `typevariable` / `proc` / `constructor` / `destructor` keywords |
 | `rust/tcl-compiler/src/analyser/param_traits.rs` | 1 | slice 13 — the summary's `Name` outcomes replace the two-command copy tracker |
 | `rust/tcl-compiler/src/auto_path_eval.rs` | 3 | slice 7 — the direct routes for `file dirname` / `normalize` / `join` replace the private path folder |
 | `rust/tcl-compiler/src/codegen/cmd_subst.rs` | 3 | the `native_lowering` axis — instruction selection for `set` and the `array` intrinsics |
@@ -819,7 +818,7 @@ which waives the sites by axis.
 | `rust/tcl-compiler/src/inline_uplevel.rs` | 1 | the `native_lowering` axis — the inliner's synthesised `break` / `continue`, the expected waiver |
 | `rust/tcl-compiler/src/interprocedural.rs` | 2 | slice 13 — `ParamRole::Name { level }` carries the `upvar` level as a `FrameLevel`; the `global` / `variable` name lists follow |
 | `rust/tcl-compiler/src/irules_checks.rs` | 3 | the `side_effects` axis — `drop` / `reject` / `discard`, `DNS::return`, `event disable all` |
-| `rust/tcl-compiler/src/lowering/mod.rs` | 2 | the `frame_effect` axis — the `namespace` body and TclOO's `self` |
+| `rust/tcl-compiler/src/lowering/mod.rs` | 1 | the `frame_effect` axis — the `namespace` body |
 | `rust/tcl-compiler/src/lowering/structured.rs` | 2 | the `native_lowering` axis — `dict for` / `dict map` lowering by subcommand |
 | `rust/tcl-compiler/src/optimiser/end_offset.rs` | 1 | the `arg_roles` axis — O128's length-position table is the index-argument role the registry does not carry yet, the same debt as the W230–W232 family |
 | `rust/tcl-compiler/src/place_bridge.rs` | 2 | the `arg_roles` axis — `namespace upvar` positions by name |
