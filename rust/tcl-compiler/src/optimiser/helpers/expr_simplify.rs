@@ -1525,6 +1525,23 @@ fn streq_promote_node(node: &ExprNode) -> Option<ExprNode> {
     })
 }
 
+/// Whether `left == right` (and `!=`) compares its operands as strings
+/// whatever the other one holds, so `eq` / `ne` give the same answer.
+///
+/// Tcl compares numerically only when both operands are numbers, so it is
+/// enough that one is a fixed string that is not a number under any release.
+/// A boolean word counts as a string here: `==` never reads `true` as `1`
+/// (`expr {"true" == 1}` is `0` on tclsh 8.4.20 through 9.1b0), while `nan`,
+/// ` 1`, `0x10`, `08` (9.0) and `1_0` (9.0) are numbers. A substituting
+/// operand proves nothing: `"$x" == 1` is numeric when `x` is `1.0`.
+pub(crate) fn eq_ne_compares_as_strings(left: &ExprNode, right: &ExprNode) -> bool {
+    let fixed_non_numeric = |node: &ExprNode| {
+        matches!(node, ExprNode::String { text, .. }
+            if fixed_operand_text(text).is_some_and(|value| !is_numeric_string_in_any_release(value)))
+    };
+    fixed_non_numeric(left) || fixed_non_numeric(right)
+}
+
 /// Whether `node` is provably **not** a number for `expr` — the dual of
 /// [`node_provably_numeric`], used to gate the eq/ne string-compare
 /// promotion (O120). Only a string literal whose stripped text is neither
