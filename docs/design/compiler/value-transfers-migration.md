@@ -832,7 +832,6 @@ which waives the sites by axis.
 | `rust/tcl-compiler/src/var_escape/slot_resolution.rs` | 6 | slice 13 — `info level` / `frame` and the `trace` subcommands read the frame-effect and trace facts |
 | `rust/tcl-compiler/src/var_scoping.rs` | 1 | the `arg_roles` axis — `namespace upvar` positions by name |
 | `rust/tcl-irules/src/lib.rs` | 1 | the `options` axis — the `class match` / `class search` option scan ahead of the data-group reference |
-| `rust/tcl-lsp-core/src/document_links.rs` | 2 | slice 5 lands the editor consumers; the `speclib` / `include` rows are the pack grammar, an `irreducible` waiver at review |
 | `rust/tcl-lsp-core/src/oo_body.rs` | 1 | the `definition_body` axis — `oo::define` / `oo::objdefine` by name |
 | `rust/tcl-mcp/src/irule_gen.rs` | 5 | slice 7 — the `set` / `incr` recognisers behind the CMP-sensitivity facts read the resolved cell update once the tooling crates are this lane's to edit; `table` and the terminal-action table are `side_effects` debt |
 | `rust/tcl-mcp/src/irule_test.rs` | 2 | the `side_effects` axis — the `pool` / `node` sinks and the terminal-action table, where every listed command carries a `TaintColour` |

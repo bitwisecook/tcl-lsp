@@ -452,10 +452,21 @@ fn variable_hover(
             // count.
             let (type_info, taint_info) =
                 var_type_annotations(source, line, character, &var_name, registry, profile);
+            // VT5.17: this read's own occurrence may be a registry pattern
+            // or format-string argument the lattice proves — the same table
+            // a literal spelling already renders, appended rather than
+            // replacing the variable card, since the `$`-led read is still
+            // definitively a variable reference (see this function's doc).
+            let format_info = registry.and_then(|registry| {
+                registry_pattern_format_hover(
+                    source, line, character, analysis, ctx, registry, profile,
+                )
+            });
             return Some(Hover::markdown(var_hover_text(
                 var_def,
                 type_info.as_deref(),
                 taint_info.as_deref(),
+                format_info.as_ref().map(|h| h.value.as_str()),
             )));
         }
         // No user definition: an interpreter-provided special variable
@@ -498,6 +509,7 @@ fn variable_hover(
         var_def,
         type_info.as_deref(),
         taint_info.as_deref(),
+        None,
     )))
 }
 
@@ -596,6 +608,49 @@ struct PatternFormatContext<'a> {
     cursor: u32,
 }
 
+/// The text a computed token's word proves, tried only once a literal read
+/// at `token` has already failed (VT5.17): the enclosing function's exact
+/// value at the statement [`FunctionUnit::word_at`] resolves the token's
+/// span to, so `set fmt "%-20s %d"; format $fmt a 1` hovers `$fmt` the way
+/// the literal `format "%-20s %d" a 1` already did. `unit` is built at most
+/// once per command — the same [`CompilationUnit`] construction
+/// [`infer_var_type_and_taint`] uses for a `$var` hover — and reused across
+/// every pattern and format candidate the call carries.
+fn proven_text_at_token(
+    unit: &mut Option<CompilationUnit>,
+    context: &PatternFormatContext<'_>,
+    token: Token,
+) -> Option<String> {
+    if context.cursor < token.span.start() || context.cursor > token.span.end() {
+        return None;
+    }
+    let config = LexerConfig::for_file_grammar(context.profile.grammar);
+    let unit = unit.get_or_insert_with(|| {
+        let declared = tcl_compiler::analyser::utils::document_declared_surface(
+            context.source,
+            None,
+            context.profile.name,
+        );
+        CompilationUnit::build_with_options(
+            context.source,
+            tcl_compiler::compilation_unit::UnitBuildOptions {
+                registry: context.registry,
+                defer_top_level: false,
+                config,
+                dialect: Some(context.profile),
+                external_call_sites: None,
+                declared_commands: Some(&declared),
+            },
+        )
+    });
+    function_units_in_order(unit).into_iter().find_map(|fu| {
+        let (statement, word) = fu.word_at(token.span)?;
+        let (value, _folded) =
+            tcl_compiler::value_transfer::proven_word_value(fu, statement, word, config)?;
+        value.as_str().ok().map(str::to_owned)
+    })
+}
+
 /// Resolve one command's registry-declared pattern and format arguments.
 fn pattern_format_hover_for_command(
     context: &PatternFormatContext<'_>,
@@ -639,6 +694,8 @@ fn pattern_format_hover_for_command(
     )?;
 
     let source_args = segmented_command_arguments(command);
+    // Built at most once, only if a literal read below fails — VT5.17.
+    let mut proven_unit: Option<CompilationUnit> = None;
     for pattern in context.registry.pattern_args_words_for_dialect(
         head,
         InvocationArguments::structured(&source_args),
@@ -652,7 +709,8 @@ fn pattern_format_hover_for_command(
             LexerConfig::for_file_grammar(context.profile.grammar),
             token,
             context.cursor,
-        ) else {
+        )
+        .or_else(|| proven_text_at_token(&mut proven_unit, context, token)) else {
             continue;
         };
         let text = match pattern.kind {
@@ -661,9 +719,30 @@ fn pattern_format_hover_for_command(
         };
         return Some(Hover::markdown(text));
     }
+    format_hover_for_command(
+        context,
+        command,
+        head,
+        &args,
+        &source_args,
+        &mut proven_unit,
+    )
+}
+
+/// The format-string hover among `command`'s registry-declared format
+/// arguments, extracted from [`pattern_format_hover_for_command`] to stay
+/// within the line budget.
+fn format_hover_for_command(
+    context: &PatternFormatContext<'_>,
+    command: &tcl_compiler::segmenter::SegmentedCommand,
+    head: &str,
+    args: &[&str],
+    source_args: &[tcl_registry::InvocationWord<'_>],
+    proven_unit: &mut Option<CompilationUnit>,
+) -> Option<Hover> {
     for format in context.registry.format_string_args_words_for_dialect(
         head,
-        InvocationArguments::structured(&source_args),
+        InvocationArguments::structured(source_args),
         Some(crate::document_context_for_profile(context.profile).authoring_query()),
     ) {
         let Some(&token) = command.argv.get(format.index + 1) else {
@@ -674,7 +753,8 @@ fn pattern_format_hover_for_command(
             LexerConfig::for_file_grammar(context.profile.grammar),
             token,
             context.cursor,
-        ) else {
+        )
+        .or_else(|| proven_text_at_token(proven_unit, context, token)) else {
             continue;
         };
         let text = match format.kind {
@@ -3241,7 +3321,18 @@ fn caller_frame_hover_text(
     }
 }
 
-fn var_hover_text(var_def: &VarDef, type_info: Option<&str>, taint_info: Option<&str>) -> String {
+/// `format_info` is the same embedded-language table
+/// [`registry_pattern_format_hover`] renders for a literal argument — VT5.17
+/// appends it here too, at *this* read's own occurrence, when the lattice
+/// proves the variable is used as a registry pattern or format-string
+/// argument right where the cursor sits (`set fmt "%-20s %d"; format $fmt a
+/// 1` hovering `$fmt`). `None` leaves the card exactly as before.
+fn var_hover_text(
+    var_def: &VarDef,
+    type_info: Option<&str>,
+    taint_info: Option<&str>,
+    format_info: Option<&str>,
+) -> String {
     use std::fmt::Write as _;
     let ref_count = var_def.references.len();
     let mut text = format!(
@@ -3253,6 +3344,9 @@ fn var_hover_text(var_def: &VarDef, type_info: Option<&str>, taint_info: Option<
     }
     if let Some(t) = taint_info {
         let _ = write!(text, "\n\n**Taint**: {t}");
+    }
+    if let Some(f) = format_info {
+        let _ = write!(text, "\n\n{f}");
     }
     text
 }
@@ -4610,7 +4704,7 @@ mod tests {
             .variables
             .get("x")
             .expect("x recorded");
-        let text = var_hover_text(var_def, None, None);
+        let text = var_hover_text(var_def, None, None, None);
         assert!(text.contains("**Variable** `x`"), "{}", text);
         assert!(text.contains("reference"), "{}", text);
     }
@@ -4626,9 +4720,25 @@ mod tests {
             link_target: None,
             link_target_span: None,
         };
-        let text = var_hover_text(&var_def, Some("int"), Some("tainted (from I/O)"));
+        let text = var_hover_text(&var_def, Some("int"), Some("tainted (from I/O)"), None);
         assert!(text.contains("**Inferred intrep**: int"), "{text}");
         assert!(text.contains("**Taint**: tainted (from I/O)"), "{text}");
+    }
+
+    #[test]
+    fn var_hover_text_appends_proven_format_info() {
+        let var_def = VarDef {
+            name: "fmt".to_owned(),
+            definition_span: tcl_lexer::Span::new(0, 1),
+            references: Vec::new(),
+            warn_if_unused: false,
+            array_indices: std::collections::BTreeSet::new(),
+            link_target: None,
+            link_target_span: None,
+        };
+        let text = var_hover_text(&var_def, None, None, Some("**Format string**"));
+        assert!(text.contains("**Variable** `fmt`"), "{text}");
+        assert!(text.contains("**Format string**"), "{text}");
     }
 
     #[test]
@@ -5204,6 +5314,47 @@ mod tests {
         assert!(
             found.value.contains("Substitution spec"),
             "a declared -start value has a fixed width: {}",
+            found.value
+        );
+    }
+
+    #[test]
+    fn hover_explains_a_computed_format_string() {
+        // VT5.17: a literal `format "%-20s %d" a 1` already explains its
+        // specifiers; the lattice proves the same text when it reaches the
+        // word through a variable, so the computed spelling must not go
+        // blind.
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let src = "set fmt \"%-20s %d\"\nformat $fmt a 1\n";
+        let analysis = analyse(src);
+        let (line, character) = position_of(src, "$fmt");
+        let found = hover(src, line, character, &analysis, Some(&registry)).expect("hover");
+        assert!(
+            found.value.contains("**Format string** (sprintf-style)"),
+            "{}",
+            found.value
+        );
+        assert!(
+            found.value.contains("| `%d` | Signed decimal integer |"),
+            "{}",
+            found.value
+        );
+
+        // Negative: an unknown `$fmt` (a bare parameter, never assigned a
+        // literal) proves nothing, so the plain variable card shows with no
+        // format-string section appended.
+        let src = "proc p {fmt} {\n    format $fmt a 1\n}\n";
+        let analysis = analyse(src);
+        let (line, character) = position_of(src, "$fmt");
+        let found = hover(src, line, character, &analysis, Some(&registry)).expect("hover");
+        assert!(
+            found.value.contains("**Variable** `fmt`"),
+            "{}",
+            found.value
+        );
+        assert!(
+            !found.value.contains("Format string"),
+            "an unproven $fmt must not draw a format-string hover: {}",
             found.value
         );
     }

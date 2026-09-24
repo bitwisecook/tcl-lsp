@@ -11322,4 +11322,42 @@ mod tests {
 
         assert!(failures.is_empty(), "{}", failures.join("\n  "));
     }
+
+    /// VT5.17: `insert_format_overrides` marks a format/clock/binary-role
+    /// argument by its registry-declared *position*, independent of
+    /// whether that word is literal — so a computed word (`$fmt`) reaches
+    /// the sub-tokeniser exactly as a literal one does, and each
+    /// sub-tokeniser already "falls back to the default classification"
+    /// (its own doc comment, `ArgOverride`) when it finds no specifier in
+    /// the token's own bytes. `$fmt`'s own text is `"$fmt"`, never a `%`
+    /// specifier, so it renders as a plain `variable` token — a computed
+    /// pattern is explained at its use through hover (VT5.17's
+    /// `hover.rs`/`inlay_hints.rs` changes), never painted here at a token
+    /// range it does not have.
+    #[test]
+    fn a_computed_format_word_falls_back_to_its_plain_classification() {
+        let names = legend_token_types();
+        let kind_of = |src: &str, needle: &str| {
+            decode_words(src, &reg())
+                .into_iter()
+                .find(|(_, _, _, _, word)| word == needle)
+                .map(|(_, _, _, kind, _)| names[kind as usize])
+        };
+        assert_eq!(
+            kind_of("set fmt \"%-20s %d\"\nformat $fmt a 1\n", "$fmt"),
+            Some("variable"),
+            "a computed format argument is an ordinary variable token, not formatSpec"
+        );
+        assert_eq!(
+            kind_of(
+                "set fmt \"%Y-%m-%d\"\nclock format 0 -format $fmt\n",
+                "$fmt"
+            ),
+            Some("variable")
+        );
+        assert_eq!(
+            kind_of("set fmt \"a3 i\"\nbinary format $fmt foo 1\n", "$fmt"),
+            Some("variable")
+        );
+    }
 }

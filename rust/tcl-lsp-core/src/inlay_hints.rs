@@ -168,19 +168,17 @@ pub fn inlay_hints_in_program(
     let mut out = Vec::new();
 
     if type_hints && let Some(registry) = registry {
-        collect_type_hints(
-            source,
-            dialect,
-            analysis,
-            registry,
-            range,
-            &line_index,
-            &mut out,
-        );
+        // One `CompilationUnit`, built once and read by both families below
+        // (VT5.17): the type hints' own per-variable lattices, and the
+        // format-string hints' fallback when a format word is computed
+        // rather than literal — the lattice's proven value for it, through
+        // [`tcl_compiler::value_transfer::proven_word_value`].
+        let cu = CompilationUnit::build_for_profile(source, registry, false, dialect);
+        collect_type_hints(source, analysis, &cu, range, &line_index, &mut out);
         // Format-string specifier labels are registry-driven too (which
         // words carry a conversion string, and in which mini-language), so
         // they need the registry the same way the type hints do.
-        collect_format_string_hints(source, dialect, registry, range, &line_index, &mut out);
+        collect_format_string_hints(source, dialect, registry, &cu, range, &line_index, &mut out);
     }
 
     if parameter_hints {
@@ -284,15 +282,12 @@ fn type_display(tl: &TypeLattice) -> Option<String> {
 /// is known.
 fn collect_type_hints(
     source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
     analysis: &AnalysisResult,
-    registry: &CommandRegistry,
+    cu: &CompilationUnit,
     range: LspRange,
     line_index: &LineIndex,
     out: &mut Vec<InlayHint>,
 ) {
-    let cu = CompilationUnit::build_for_profile(source, registry, false, dialect);
-
     // Build a *per-function* name → display map, keyed by the function's
     // qualified name (leading `::` stripped so it matches the analyser's
     // scope names). A single flat map was last-writer-wins across functions,
@@ -585,11 +580,15 @@ fn push_format_hint(
     });
 }
 
-/// Collect format-string specifier hints for the whole document.
+/// Collect format-string specifier hints for the whole document. `cu` is the
+/// same [`CompilationUnit`] the caller built for the type hints (VT5.17): a
+/// format word with no literal content of its own falls back to the
+/// lattice's proven value for it, read off `cu`.
 fn collect_format_string_hints(
     source: &str,
     dialect: &'static tcl_dialect::DialectProfile,
     registry: &CommandRegistry,
+    cu: &CompilationUnit,
     range: LspRange,
     line_index: &LineIndex,
     out: &mut Vec<InlayHint>,
@@ -603,101 +602,142 @@ fn collect_format_string_hints(
     // The document's proven command-identity facts, computed once for the
     // whole file (empty, and lookup-free, unless it binds something).
     let identities = tcl_compiler::realm::document_realm_bindings(source, dialect, registry);
+    let config = tcl_lexer::LexerConfig::for_file_grammar(dialect.grammar);
+    let ctx = FormatHintCtx {
+        range,
+        source,
+        line_index,
+        profile,
+    };
     for seg in &segments {
         for (idx, kind) in format_args(seg, registry, &identities) {
-            let Some(tok) = seg.argv.get(idx) else {
+            let Some(&tok) = seg.argv.get(idx) else {
                 continue;
             };
-            let Some((cstart, cend)) = format_content_range(source, tok.span) else {
+            // `format_content_range` only strips a delimiter it finds; a
+            // computed word's own source text (`$fmt`, `[set x]`) has none
+            // to strip, so the literal path is gated on the token actually
+            // being one — the same `Str | Esc` test `literal_at_token`
+            // (`hover.rs`) uses.
+            if matches!(
+                tok.kind,
+                tcl_lexer::TokenType::Str | tcl_lexer::TokenType::Esc
+            ) && let Some((cstart, cend)) = format_content_range(source, tok.span)
+            {
+                let content = &source[cstart..cend];
+                emit_format_specifier_hints(kind, content, &|offset| cstart + offset, &ctx, out);
                 continue;
-            };
-            let content = &source[cstart..cend];
-            match kind {
-                tcl_registry::FormatType::Sprintf => {
-                    let bytes = content.as_bytes();
-                    let mut i = 0;
-                    while i < bytes.len() {
-                        if bytes[i] != b'%' {
-                            i += 1;
-                            continue;
-                        }
-                        let start = i;
-                        i += 1;
-                        if bytes.get(i) == Some(&b'%') {
-                            i += 1;
-                            continue;
-                        }
-                        let mut end = i;
-                        let Some(spec) = tcl_syntax::format::parse_spec(bytes, &mut end) else {
-                            i = start + 1;
-                            continue;
-                        };
-                        if tcl_cmd_core::format::is_verb(spec.verb)
-                            && tcl_cmd_core::format::is_available(&spec, profile)
-                            && let Some(label) = sprintf_short(char::from(spec.verb))
-                        {
-                            push_format_hint(label, cstart + end, range, source, line_index, out);
-                        }
-                        i = end;
-                    }
-                }
-                tcl_registry::FormatType::Clock => {
-                    for spec in tcl_cmd_core::clock::specifiers(content) {
-                        let letter = char::from(spec.letter);
-                        if let Some(label) = clock_short(letter) {
-                            push_format_hint(
-                                label,
-                                cstart + spec.end,
-                                range,
-                                source,
-                                line_index,
-                                out,
-                            );
-                        }
-                    }
-                }
-                tcl_registry::FormatType::Binary => {
-                    collect_binary_hints(content, cstart, range, source, line_index, profile, out);
-                }
-                tcl_registry::FormatType::Regsub => {
-                    for m in REGSUB_RE.captures_iter(content) {
-                        let whole = m.get(0).expect("group 0");
-                        let ch = m
-                            .get(1)
-                            .and_then(|g| g.as_str().chars().next())
-                            .unwrap_or(' ');
-                        if let Some(label) = regsub_short(ch) {
-                            push_format_hint(
-                                label,
-                                cstart + whole.end(),
-                                range,
-                                source,
-                                line_index,
-                                out,
-                            );
-                        }
-                    }
-                }
             }
+            // The word is computed, not literal: no source span of its own
+            // to decorate in place. Every specifier the proven text carries
+            // anchors at the token's own end instead of a content offset —
+            // `format_args` already declines a word the registry itself
+            // cannot type as a format string, so a word that reaches here
+            // failing both is a genuinely unproven one.
+            let end = tok.span.end() as usize;
+            let Some(text) = cu.functions().find_map(|fu| {
+                let (statement, word) = fu.word_at(tok.span)?;
+                let (value, _folded) =
+                    tcl_compiler::value_transfer::proven_word_value(fu, statement, word, config)?;
+                value.as_str().ok().map(str::to_owned)
+            }) else {
+                continue;
+            };
+            emit_format_specifier_hints(kind, &text, &|_offset| end, &ctx, out);
         }
     }
 }
 
-/// Scan a `binary format`/`scan` template using the shared field grammar and
-/// emit a hint after each recognised specifier.
-fn collect_binary_hints(
-    content: &str,
-    cstart: usize,
+/// The read-only context every [`emit_format_specifier_hints`] call shares,
+/// bundled so the function stays within clippy's argument-count budget.
+struct FormatHintCtx<'a> {
     range: LspRange,
-    source: &str,
-    line_index: &LineIndex,
-    profile: &tcl_dialect::DialectProfile,
+    source: &'a str,
+    line_index: &'a LineIndex,
+    profile: &'a tcl_dialect::DialectProfile,
+}
+
+/// Emit one `Type`-kind hint per recognised conversion specifier in
+/// `content`, at the position `position_at` maps each specifier's own
+/// end-offset within `content` to — `cstart + offset` for a literal word's
+/// own source span, or a fixed anchor for a computed word's proven text,
+/// which carries no span of its own (VT5.17).
+fn emit_format_specifier_hints(
+    kind: tcl_registry::FormatType,
+    content: &str,
+    position_at: &dyn Fn(usize) -> usize,
+    ctx: &FormatHintCtx<'_>,
     out: &mut Vec<InlayHint>,
 ) {
-    let allow_modifier = tcl_cmd_core::binary::signedness_available(profile);
-    for spec in tcl_cmd_core::binary::specifiers(content.as_bytes(), allow_modifier) {
-        if let Some(label) = binary_short(char::from(spec.letter)) {
-            push_format_hint(label, cstart + spec.end, range, source, line_index, out);
+    let FormatHintCtx {
+        range,
+        source,
+        line_index,
+        profile,
+    } = *ctx;
+    match kind {
+        tcl_registry::FormatType::Sprintf => {
+            let bytes = content.as_bytes();
+            let mut i = 0;
+            while i < bytes.len() {
+                if bytes[i] != b'%' {
+                    i += 1;
+                    continue;
+                }
+                let start = i;
+                i += 1;
+                if bytes.get(i) == Some(&b'%') {
+                    i += 1;
+                    continue;
+                }
+                let mut end = i;
+                let Some(spec) = tcl_syntax::format::parse_spec(bytes, &mut end) else {
+                    i = start + 1;
+                    continue;
+                };
+                if tcl_cmd_core::format::is_verb(spec.verb)
+                    && tcl_cmd_core::format::is_available(&spec, profile)
+                    && let Some(label) = sprintf_short(char::from(spec.verb))
+                {
+                    push_format_hint(label, position_at(end), range, source, line_index, out);
+                }
+                i = end;
+            }
+        }
+        tcl_registry::FormatType::Clock => {
+            for spec in tcl_cmd_core::clock::specifiers(content) {
+                let letter = char::from(spec.letter);
+                if let Some(label) = clock_short(letter) {
+                    push_format_hint(label, position_at(spec.end), range, source, line_index, out);
+                }
+            }
+        }
+        tcl_registry::FormatType::Binary => {
+            let allow_modifier = tcl_cmd_core::binary::signedness_available(profile);
+            for spec in tcl_cmd_core::binary::specifiers(content.as_bytes(), allow_modifier) {
+                if let Some(label) = binary_short(char::from(spec.letter)) {
+                    push_format_hint(label, position_at(spec.end), range, source, line_index, out);
+                }
+            }
+        }
+        tcl_registry::FormatType::Regsub => {
+            for m in REGSUB_RE.captures_iter(content) {
+                let whole = m.get(0).expect("group 0");
+                let ch = m
+                    .get(1)
+                    .and_then(|g| g.as_str().chars().next())
+                    .unwrap_or(' ');
+                if let Some(label) = regsub_short(ch) {
+                    push_format_hint(
+                        label,
+                        position_at(whole.end()),
+                        range,
+                        source,
+                        line_index,
+                        out,
+                    );
+                }
+            }
         }
     }
 }
@@ -1785,6 +1825,23 @@ mod tests {
         let names: Vec<&str> = labels.iter().map(|(_, l)| l.as_str()).collect();
         assert!(names.contains(&"strN"), "{labels:?}");
         assert!(names.contains(&"i32le"), "{labels:?}");
+    }
+
+    #[test]
+    fn inlay_hints_label_a_computed_format_string() {
+        // VT5.17: a literal `format "%d" 1` already labels its specifier;
+        // the lattice proves the same text when it reaches the word
+        // through a variable, so the computed spelling must not go blind
+        // (there is no in-place span of its own, so the label anchors at
+        // the `$fmt` token's own end instead of a content offset).
+        let labels = type_labels("set fmt \"%d\"\nformat $fmt 1\n");
+        let names: Vec<&str> = labels.iter().map(|(_, l)| l.as_str()).collect();
+        assert!(names.contains(&"int"), "{labels:?}");
+
+        // Negative: an unproven `$fmt` (a bare parameter, never assigned a
+        // literal) proves nothing, so no hint is fabricated.
+        let labels = type_labels("proc p {fmt} {\n    format $fmt 1\n}\n");
+        assert!(labels.is_empty(), "{labels:?}");
     }
 
     #[test]
