@@ -1165,7 +1165,15 @@ impl CodegenCtx<'_> {
             return None;
         }
         let hook = resolved.inline_codegen_hook?;
-        let binding = self.command_binding_identity(cmd, resolved.spec.name);
+        // As `registry_codegen_hook`: the `alias_of` target's identity where
+        // the hook is the target's own, the command's own name otherwise.
+        let binding = self.command_binding_identity(
+            cmd,
+            resolved.stamp_identity(
+                self.registry,
+                tcl_registry::codegen_stamp::CodegenStamp::InlineCodegen(hook),
+            ),
+        );
         Some((hook, binding))
     }
 

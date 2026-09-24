@@ -58,7 +58,8 @@ pub(super) const ENTRIES: &[(&str, Example)] = &[
                 0,
                 "vendor::unpack",
                 "a pack command declaring alias_of lassign — the one command a \
-                 bundled pack's codegen_hook Lassign may sit on",
+                 bundled pack's codegen_hook Lassign may sit on, and the \
+                 specialised site records lassign's identity, never this name",
             )],
         },
     ),

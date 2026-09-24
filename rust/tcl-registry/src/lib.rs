@@ -58,6 +58,7 @@ pub mod byte_array_effect;
 pub(crate) mod cache;
 pub mod clause_grammar;
 pub mod clause_shape;
+pub mod codegen_stamp;
 pub mod command_prefix_target;
 pub mod command_snapshot;
 pub mod command_table;

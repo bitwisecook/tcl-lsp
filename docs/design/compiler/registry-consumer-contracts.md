@@ -60,8 +60,9 @@ slices proceed without deciding anything here.
 > the loader's stamp rejection rule reads (`tcl_spectcl::stamps`) — a
 > codegen-axis stamp survives only on a bundled pack's command whose
 > `alias_of` names the shipped builtin carrying it, and every other is
-> dropped with a warning on its row. Codegen does not yet record the
-> target's identity.
+> dropped with a warning on its row — and the identity codegen records at
+> such a site: the target's (`ResolvedCall::stamp_identity`), which the
+> VM admits through its alias hop.
 >
 > The rest of the vocabulary is proposed and names nothing in the
 > workspace:
@@ -1455,10 +1456,9 @@ error.
   under the tier gate is that section's first witness. Every production VM
   embedder compiles through the un-overlaid profile generation, so an
   admitted stamp is inert there. On the language server's optimise path the
-  emitter specialises it, but records the pack command's own name as the
-  identity, so the VM recompiles plain: the second witness, an accepted
-  stamp whose recorded identity the VM's alias hop resolves, waits for
-  codegen to record the alias target (rung 2 below).
+  emitter specialises it and records the alias target's identity, which the
+  VM's alias hop resolves — the second witness
+  (`rust/tcl-spectcl/tests/codegen_stamps.rs`; rung 2 below).
 - The BPF backend is a third closed catalogue (`bpf_op`) with no id table
   for packs to resolve against (the redesign's § *11.2 Deferred model
   items*, D3), and the engine interface excludes it by rule; it joins the
@@ -1497,7 +1497,7 @@ and lifetime argument.
 |---|---|---|---|
 | 0 | arity and roles | none needed; generic dispatch | exists, sound |
 | 1 | purity, effects, types, transfers, evaluators | none possible at run time; the fact is authoritative for analysis by ruling; what emitted code can check is the binding | evaluators exist; the answer protocol does not |
-| 2 | this command is a shipped builtin | the live binding is that builtin | `alias_of` decides which codegen stamps a bundled pack keeps; codegen records the pack command's own name |
+| 2 | this command is a shipped builtin | the live binding is that builtin | `alias_of` decides which codegen stamps a bundled pack keeps, and codegen records the target's identity; no site claim yet |
 | 3 | a reference Tcl body | exact definition match of the live proc | the admission seam exists; no spec field |
 | 4 | a runtime implementation ships with the package | the runtime reports what it loaded; the artefact pins it | no `runtime_backing` field, no bundler |
 
@@ -1693,14 +1693,21 @@ Rules 1 to 3 are built (step 4); rule 4 is step 6's.
   under the real shell and diffs it against the pack's declared facts, is
   a quality tool for shipped packs, not a prerequisite for a workspace
   author's facts.
-- **Rung 2** needs two corrections. The loader refuses a stamp whose hook
-  is not the target builtin's own (rule 1 above, built). And
-  `registry_codegen_hook` in
-  `rust/tcl-compiler/src/codegen/emitter/bytecoded.rs` records the resolved
-  spec's own name as the identity, so for a pack command the VM's alias hop
-  can never match; codegen records the alias target's identity instead.
-  The declaration that names the target is `alias_of NAME` on the pack
-  command, the only admissible source: the
+- **Rung 2** needed two corrections, and both are built. The loader
+  refuses a stamp whose hook is not the target builtin's own (rule 1
+  above). And codegen records the alias target's identity where it used to
+  record the pack command's own name, which the VM's alias hop could never
+  match: `ResolvedCall::stamp_identity` (`rust/tcl-registry/src/codegen_stamp.rs`)
+  answers the target exactly where the target's own spec carries the stamp
+  at the same site, and `registry_codegen_hook`
+  (`rust/tcl-compiler/src/codegen/emitter/bytecoded.rs`) and the inline path
+  (`codegen/cmd_subst.rs`) record it. Only there: an `-override` keeps a
+  shipped command's codegen hook through the floor whatever `alias_of` it
+  declares, and recording an unrelated target would let a runtime alias of
+  the builtin's name to that target admit the builtin's code for another
+  command, so such a site records its own name. The declaration that names
+  the target is `alias_of NAME` on the pack command, the only admissible
+  source: the
   realm learns aliases from script statements
   (`rust/tcl-compiler/src/realm.rs`), and that knowledge is a candidate,
   never proof, so it may seed a suggestion in the studio and never admit a
@@ -2087,6 +2094,7 @@ and come before any runtime guard work.
 - `rust/tcl-lsp-server/tests/preview_tickets_e2e.rs` — the definer spelling that reaches every provider with no consumer edit
 - `rust/tcl-cshim/tests/pkga_e2e.rs` — the byte-for-byte expectations captured against Tcl 9.0.4's own `tcl.h`, the shared conformance vectors for both C legs
 - `rust/tcl-spectcl/tests/i6_security_floor.rs` — the floor the take-shipped extension widens
+- `rust/tcl-spectcl/tests/workspace_packs.rs`, `codegen_stamps.rs` — the stamp rejection rule's two witnesses: a refused stamp under the tier gate, and a bundled `alias_of` stamp whose recorded target identity the VM admits through its alias hop (refused for a proc at the pack name)
 
 ## Related docs
 

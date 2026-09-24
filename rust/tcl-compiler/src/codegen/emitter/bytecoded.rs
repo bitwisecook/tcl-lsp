@@ -112,7 +112,18 @@ fn registry_codegen_hook(
         .registry
         .resolve_call(cmd, &arg_refs, ctx.registry.own_surface_query())?;
     let hook = resolved.codegen_hook?;
-    let identity = ctx.command_binding_identity(cmd, resolved.spec.name);
+    // The builtin a pack command is, when the hook is that builtin's own
+    // (`alias_of`, the one admissible source): the VM's alias hop resolves
+    // the pack name to the target, so recording the target is what lets the
+    // specialised site be admitted at all. Everything else records its own
+    // name.
+    let identity = ctx.command_binding_identity(
+        cmd,
+        resolved.stamp_identity(
+            ctx.registry,
+            tcl_registry::codegen_stamp::CodegenStamp::Codegen(hook),
+        ),
+    );
     Some((hook, identity))
 }
 

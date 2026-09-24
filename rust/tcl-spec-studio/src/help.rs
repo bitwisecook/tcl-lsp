@@ -1018,8 +1018,10 @@ of a builtin identity for a pack command: a codegen stamp \
 (`codegen_hook`, `inline_codegen_hook`, an intrinsic \
 `semantic_operation`) survives only as the builtin this names carries it, \
 and only in a bundled pack — anywhere else the load drops it with a \
-warning. Unset for a shipped command, or a pack command that claims no \
-builtin identity.",
+warning. A site specialised on such a stamp records the builtin's \
+identity, so the compiled code runs where the pack name is an alias of \
+that builtin. Unset for a shipped command, or a pack command that claims \
+no builtin identity.",
     ),
     (
         "byte_array_payload",

@@ -65,47 +65,12 @@ use std::sync::{Mutex, OnceLock, PoisonError};
 use rustc_hash::FxHashMap;
 use tcl_dialect::model::Provenance;
 use tcl_registry::forms::CommandForm;
-use tcl_registry::hooks::{CodegenHookId, InlineCodegenHookId};
-use tcl_registry::intrinsic::IntrinsicId;
 use tcl_registry::registry::CommandRegistry;
-use tcl_registry::semantic_operation::SemanticOperationId;
 use tcl_registry::spec::{CommandSpec, SubCommand};
 
 use crate::loader::PackCommand;
 
-/// One codegen-axis stamp, as the row that states it names it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Stamp {
-    /// `codegen_hook -native ID`.
-    Codegen(CodegenHookId),
-    /// `inline_codegen_hook -native ID`.
-    InlineCodegen(InlineCodegenHookId),
-    /// `semantic_operation {Intrinsic ID}`.
-    Intrinsic(IntrinsicId),
-}
-
-impl Stamp {
-    /// The stamp as its row reads, without the `-native` flag.
-    #[must_use]
-    pub fn spelling(self) -> String {
-        match self {
-            Self::Codegen(id) => format!("codegen_hook {id:?}"),
-            Self::InlineCodegen(id) => format!("inline_codegen_hook {id:?}"),
-            Self::Intrinsic(id) => format!("semantic_operation {{Intrinsic {id:?}}}"),
-        }
-    }
-}
-
-/// Where on a pack command a stamp sits.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum StampSite {
-    /// The command itself.
-    Command,
-    /// The subcommand of this name.
-    Subcommand(&'static str),
-    /// The invocation form of this name.
-    Form(&'static str),
-}
+pub use tcl_registry::codegen_stamp::{CodegenStamp, StampSite};
 
 /// Which part of the rule refused a stamp.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -130,7 +95,7 @@ pub struct StampRefusal {
     /// Where on the command.
     pub site: StampSite,
     /// The stamp that was dropped.
-    pub stamp: Stamp,
+    pub stamp: CodegenStamp,
     /// The provenance the pack loaded under.
     pub provenance: Provenance,
     /// Why it was dropped.
@@ -210,7 +175,7 @@ pub fn stamps_admitted_from(provenance: Provenance) -> bool {
 /// Whether `spec` carries any codegen-axis stamp, at any site.
 #[must_use]
 pub fn carries_stamp(spec: &CommandSpec) -> bool {
-    !stamps_of(spec).is_empty()
+    !spec.codegen_stamps().is_empty()
 }
 
 /// The shipped registry the rule reads a target from: the permissive
@@ -232,7 +197,7 @@ pub fn stamp_refusals(
     provenance: Provenance,
     shipped: &CommandRegistry,
 ) -> Vec<StampRefusal> {
-    stamps_of(spec)
+    spec.codegen_stamps()
         .into_iter()
         .filter_map(|(site, stamp)| {
             refusal_reason(spec, site, stamp, provenance, shipped).map(|reason| StampRefusal {
@@ -276,8 +241,11 @@ pub fn admit_codegen_stamps(
 /// which makes its address its identity for the life of the process. The
 /// drops are part of the key because they, and nothing else, decide the
 /// clone.
-fn stripped(spec: &'static CommandSpec, drops: Vec<(StampSite, Stamp)>) -> &'static CommandSpec {
-    type Memo = FxHashMap<(usize, Vec<(StampSite, Stamp)>), &'static CommandSpec>;
+fn stripped(
+    spec: &'static CommandSpec,
+    drops: Vec<(StampSite, CodegenStamp)>,
+) -> &'static CommandSpec {
+    type Memo = FxHashMap<(usize, Vec<(StampSite, CodegenStamp)>), &'static CommandSpec>;
     static STRIPPED: OnceLock<Mutex<Memo>> = OnceLock::new();
     let key = (std::ptr::from_ref(spec).addr(), drops);
     let mut memo = STRIPPED
@@ -300,7 +268,7 @@ fn stripped(spec: &'static CommandSpec, drops: Vec<(StampSite, Stamp)>) -> &'sta
 fn refusal_reason(
     spec: &CommandSpec,
     site: StampSite,
-    stamp: Stamp,
+    stamp: CodegenStamp,
     provenance: Provenance,
     shipped: &CommandRegistry,
 ) -> Option<RefusalReason> {
@@ -313,83 +281,19 @@ fn refusal_reason(
     let Some(target) = shipped.get(named) else {
         return Some(RefusalReason::UnknownTarget(named));
     };
-    (!carried_at(target, site, stamp)).then_some(RefusalReason::NotTheTargetsOwn(named))
-}
-
-/// Every stamp `spec` carries, with its site, in declaration order: the
-/// command's own, then each subcommand's, then each form's.
-fn stamps_of(spec: &CommandSpec) -> Vec<(StampSite, Stamp)> {
-    let mut out: Vec<(StampSite, Stamp)> = command_stamps(spec)
-        .map(|stamp| (StampSite::Command, stamp))
-        .collect();
-    for sub in spec.subcommands {
-        out.extend(subcommand_stamps(sub).map(|stamp| (StampSite::Subcommand(sub.name), stamp)));
-    }
-    for form in spec.command_forms {
-        out.extend(form_stamps(form).map(|stamp| (StampSite::Form(form.name), stamp)));
-    }
-    out
-}
-
-fn intrinsic(operation: Option<SemanticOperationId>) -> Option<Stamp> {
-    match operation {
-        Some(SemanticOperationId::Intrinsic(id)) => Some(Stamp::Intrinsic(id)),
-        _ => None,
-    }
-}
-
-fn command_stamps(spec: &CommandSpec) -> impl Iterator<Item = Stamp> {
-    [
-        spec.codegen_hook.map(Stamp::Codegen),
-        spec.inline_codegen_hook.map(Stamp::InlineCodegen),
-        intrinsic(spec.semantic_operation),
-    ]
-    .into_iter()
-    .flatten()
-}
-
-fn subcommand_stamps(sub: &SubCommand) -> impl Iterator<Item = Stamp> {
-    [
-        sub.codegen_hook.map(Stamp::Codegen),
-        sub.inline_codegen_hook.map(Stamp::InlineCodegen),
-        intrinsic(sub.semantic_operation),
-    ]
-    .into_iter()
-    .flatten()
-}
-
-fn form_stamps(form: &CommandForm) -> impl Iterator<Item = Stamp> {
-    [
-        form.codegen_hook.map(Stamp::Codegen),
-        intrinsic(form.semantic_operation),
-    ]
-    .into_iter()
-    .flatten()
-}
-
-/// Whether `target` carries `stamp` at `site`: on itself, on its subcommand
-/// of the same name, or on its form of the same name.
-fn carried_at(target: &CommandSpec, site: StampSite, stamp: Stamp) -> bool {
-    match site {
-        StampSite::Command => command_stamps(target).any(|own| own == stamp),
-        StampSite::Subcommand(name) => target
-            .subcommands
-            .iter()
-            .filter(|sub| sub.name == name)
-            .any(|sub| subcommand_stamps(sub).any(|own| own == stamp)),
-        StampSite::Form(name) => target
-            .command_forms
-            .iter()
-            .filter(|form| form.name == name)
-            .any(|form| form_stamps(form).any(|own| own == stamp)),
-    }
+    (!target.carries_codegen_stamp_at(site, stamp))
+        .then_some(RefusalReason::NotTheTargetsOwn(named))
 }
 
 /// The shipped command that carries `stamp` — at the same site when one
 /// does, anywhere in its spec otherwise — so a refusal can name the target
 /// the stamp would have had to sit on. The first by name, so the answer does
 /// not depend on the registry's map order.
-fn carrier(shipped: &CommandRegistry, site: StampSite, stamp: Stamp) -> Option<&'static str> {
+fn carrier(
+    shipped: &CommandRegistry,
+    site: StampSite,
+    stamp: CodegenStamp,
+) -> Option<&'static str> {
     let mut names: Vec<&str> = shipped.command_names().collect();
     names.sort_unstable();
     let specs: Vec<&'static CommandSpec> = names
@@ -398,18 +302,18 @@ fn carrier(shipped: &CommandRegistry, site: StampSite, stamp: Stamp) -> Option<&
         .collect();
     specs
         .iter()
-        .find(|spec| carried_at(spec, site, stamp))
+        .find(|spec| spec.carries_codegen_stamp_at(site, stamp))
         .or_else(|| {
             specs
                 .iter()
-                .find(|spec| stamps_of(spec).iter().any(|(_, own)| *own == stamp))
+                .find(|spec| spec.codegen_stamps().iter().any(|(_, own)| *own == stamp))
         })
         .map(|spec| spec.name)
 }
 
 /// Clear `stamp` at `site` on `spec`, leaking a fresh subcommand or form
 /// slice when the stamp sits on one.
-fn drop_stamp(spec: &mut CommandSpec, site: StampSite, stamp: Stamp) {
+fn drop_stamp(spec: &mut CommandSpec, site: StampSite, stamp: CodegenStamp) {
     match site {
         StampSite::Command => clear_command(spec, stamp),
         StampSite::Subcommand(name) => {
@@ -429,34 +333,37 @@ fn drop_stamp(spec: &mut CommandSpec, site: StampSite, stamp: Stamp) {
     }
 }
 
-fn clear_command(spec: &mut CommandSpec, stamp: Stamp) {
+fn clear_command(spec: &mut CommandSpec, stamp: CodegenStamp) {
     match stamp {
-        Stamp::Codegen(_) => spec.codegen_hook = None,
-        Stamp::InlineCodegen(_) => spec.inline_codegen_hook = None,
-        Stamp::Intrinsic(_) => spec.semantic_operation = None,
+        CodegenStamp::Codegen(_) => spec.codegen_hook = None,
+        CodegenStamp::InlineCodegen(_) => spec.inline_codegen_hook = None,
+        CodegenStamp::Intrinsic(_) => spec.semantic_operation = None,
     }
 }
 
-fn clear_subcommand(sub: &mut SubCommand, stamp: Stamp) {
+fn clear_subcommand(sub: &mut SubCommand, stamp: CodegenStamp) {
     match stamp {
-        Stamp::Codegen(_) => sub.codegen_hook = None,
-        Stamp::InlineCodegen(_) => sub.inline_codegen_hook = None,
-        Stamp::Intrinsic(_) => sub.semantic_operation = None,
+        CodegenStamp::Codegen(_) => sub.codegen_hook = None,
+        CodegenStamp::InlineCodegen(_) => sub.inline_codegen_hook = None,
+        CodegenStamp::Intrinsic(_) => sub.semantic_operation = None,
     }
 }
 
-fn clear_form(form: &mut CommandForm, stamp: Stamp) {
+fn clear_form(form: &mut CommandForm, stamp: CodegenStamp) {
     match stamp {
-        Stamp::Codegen(_) => form.codegen_hook = None,
+        CodegenStamp::Codegen(_) => form.codegen_hook = None,
         // A form carries no inline hook, so this stamp cannot sit on one.
-        Stamp::InlineCodegen(_) => {}
-        Stamp::Intrinsic(_) => form.semantic_operation = None,
+        CodegenStamp::InlineCodegen(_) => {}
+        CodegenStamp::Intrinsic(_) => form.semantic_operation = None,
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tcl_registry::hooks::CodegenHookId;
+    use tcl_registry::intrinsic::IntrinsicId;
+    use tcl_registry::semantic_operation::SemanticOperationId;
 
     fn command(spec: CommandSpec) -> PackCommand {
         PackCommand {
@@ -565,7 +472,7 @@ mod tests {
         let refusal = StampRefusal {
             command: "vendor::x",
             site: StampSite::Command,
-            stamp: Stamp::InlineCodegen(InlineCodegenHookId::Expr),
+            stamp: CodegenStamp::InlineCodegen(tcl_registry::hooks::InlineCodegenHookId::Expr),
             provenance: Provenance::Document,
             reason: RefusalReason::TierGate,
             alias_of: None,

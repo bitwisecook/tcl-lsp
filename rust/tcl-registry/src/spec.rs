@@ -2006,8 +2006,10 @@ pub struct CommandSpec {
     /// load only from a bundled pack, and only when this field names the
     /// shipped builtin whose spec carries that same stamp at the same site
     /// (`docs/design/compiler/registry-consumer-contracts.md` § *The
-    /// loader's stamp rejection rule*). Codegen does not read it yet: a
-    /// specialised site records the pack command's own name.
+    /// loader's stamp rejection rule*). Codegen reads it through
+    /// [`crate::ResolvedCall::stamp_identity`]: a site specialised on a
+    /// stamp this field's target carries records the target's identity, so
+    /// the VM's alias hop from the pack name to the builtin admits it.
     pub alias_of: Option<&'static str>,
 
     /// `<proto>::payload` byte-array layout — `Some` when this command's

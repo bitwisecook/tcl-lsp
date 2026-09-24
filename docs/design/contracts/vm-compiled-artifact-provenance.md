@@ -73,6 +73,14 @@ namespace-local or namespace-path command shadowing an otherwise unchanged
 target. Constructed namespaces lose exactly one leading `::` root marker and
 are never passed through written Tcl name canonicalisation.
 
+A specialised command site records `FunctionAsm::command_bindings`: the
+source spelling, its resolution namespace, and the registry identity the
+site was compiled for. For a spec-pack command that declares `alias_of` and
+carries its target's own codegen stamp, that identity is the target's
+(`ResolvedCall::stamp_identity`), so admission follows one prefix-free
+`interp alias` hop from the pack spelling to the builtin; a proc, a native
+command, or anything else at the pack spelling refuses the site.
+
 `BytecodeCompileService::for_profile` follows the profile's shared registry.
 `BytecodeCompileService::new(custom_registry)` owns the embedder registry and
 keeps it when `compile_for_profile` selects the profile grammar. Profile
@@ -163,3 +171,8 @@ provenance changes must not bypass the central host bootstrap introduced by
   non-OK tail-call settlement after a compiler swap; and
 - terminal profile changes from inline and computed-head catch/try plus
   variable-trace paths.
+
+`rust/tcl-spectcl/tests/codegen_stamps.rs` covers a bundled spec pack's
+`alias_of lassign` command: its specialised site records `lassign`'s
+identity, the VM admits it through the alias hop with no plain recompile,
+and a proc at the pack spelling is refused and recompiled plain.

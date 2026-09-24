@@ -4625,10 +4625,12 @@ dependencies = [
  "tcl-lexer",
  "tcl-lsp-core",
  "tcl-registry",
+ "tcl-runtime-api",
  "tcl-spec-hooks",
  "tcl-syntax",
  "tcl-test-support",
  "tcl-userdirs",
+ "tcl-vm",
  "xxhash-rust",
 ]
 
