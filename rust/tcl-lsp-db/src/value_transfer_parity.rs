@@ -164,9 +164,10 @@ fn the_memoised_lattice_declines_a_renamed_head() {
 }
 
 /// The keyed updates of `dict` answer alike on both paths: `dict set` then
-/// `dict incr` over an empty dictionary gives `a 3`. A local no store has
-/// bound is not proven absent below the existence rung (slice 8), so a
-/// keyed update over one declines — on both paths.
+/// `dict incr` over an empty dictionary gives `a 3`. The existence rung
+/// proves a local no store has bound absent, and every keyed update creates
+/// its dictionary, so `dict set d a 1` over one is `a 1` — on both paths, as
+/// tclsh 8.5 to 9.1 print.
 #[test]
 fn keyed_updates_agree_on_both_paths() {
     let bound = "proc p {} {set d {}; dict set d a 1; dict incr d a 2; return $d}\n";
@@ -178,7 +179,11 @@ fn keyed_updates_agree_on_both_paths() {
                 3,
                 LatticeValue::Const(ConstValue::String("a 3".to_owned())),
             ),
-            (unbound, 1, LatticeValue::Overdefined),
+            (
+                unbound,
+                1,
+                LatticeValue::Const(ConstValue::String("a 1".to_owned())),
+            ),
         ] {
             let db = TclDatabase::default();
             let file = SourceFile::new(&db, src.to_owned(), dialect.to_owned(), None);

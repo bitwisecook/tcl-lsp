@@ -5133,6 +5133,36 @@ Closes #2133. Pins #2132 (closed on rust by #2220).
 | `incr` of an absent place binds under 8.5 onwards, declines under 8.4 | the absent-cell release rule |
 | an absent-start `lappend` chain folds (O130) | the O104 / O130 row |
 
+#### Record (2026-09-24): the opus items of slice 8
+
+One implementer runs the opus items in the order the coordinator gave —
+VT8.1, VT8.6, VT8.8 (the plan's first checkpoint), VT8.2, VT8.3 (the
+second), VT8.4, VT8.5, VT8.7, VT8.9 (the third) — each its own checkpoint
+commit, as slices 4 and 5 did; VT8.10 and VT8.11 are the sonnet
+implementer's. The decisions are D157 onward in § *Decisions taken*. The
+slice 5 review's fixes land as their own commit at the first coherent
+point after they arrive (§ *Slice 5* › its record's review-fixes row).
+
+| Item | Commit | What landed | Its tests |
+|---|---|---|---|
+| VT8.1 | `wip(value-transfers): slice 8 — the existence domain in the solver` | The existence rung in the solver (`sccp.rs`): a forward fact per place — the registry's `Existence`, with `Existence::join` and `after` and `BindingKind::join` added in `answers.rs` — run beside the values over the same executable blocks and edges when the caller passes `TraceInputs::existence` (`ExistenceEntry`: the parameters, the object state, the initial global frame, the iRules connection-scoped names, the module's own computed-trace fact, the document's lexer config); `SccpResult::existence` per SSA version (version 0 its entry fact, a φ the join of its executable edges), `existence_reads` per statement read and `existence_exits` per block exit (D158). Entry: parameters `Bound(Scalar)`; qualified, escaping (scope aliases and traced names included) and computed-trace places `MayBound` wherever read; `TclOO` instance variables, a `when` handler's connection-scoped names (`AnalysisContextKey::connection_scoped`, every name a handler of the module binds, so the memoised lattice re-keys) and an element of a held array `MayBound`; in the initial global frame a special variable bound as its registry kind when startup binds it (`CommandRegistry::is_initially_bound`, D157), `MayBound` otherwise; the caller-frame barrier from the entry (D160). Transfer: a typed assignment binds its place (an element write the element as a scalar and its array as an array, a fanned element may-bind); a call takes its evaluated outcome's per-store steps (`ExistenceStep`, `value_transfer.rs`), else its declaration's own `transfer(Existence)` on the normal completion, else widens to `MayBound` (D159); the loop header binds on a proven non-empty list and preserves on a proven-empty one; a `Barrier` / `UpFrame` makes every place `MayBound`; a computed name applies from its own statement on (`dynamic_names::statement_barrier`, `terminator_barrier`); an inline nested body makes what it defines `MayBound`; an exception edge carries every point of its handler's region (D161). The release rule (`cell_update.rs`): an `Unbound` place is an absent cell, run over no prior value only where every release the target names creates it (`creates_absent`), else `UnboundPlace`; `LatticeInputs::prior_store` / `variable` answer `FactDomain::Existence` from the driver's cursor. The hand-over: the taint seed and the existence post-pass read the registry's special variables, a pack-declared one included (D157). Not done here: `info exists` still decides only in the post-pass (VT8.2) | `the_absent_cell_release_table` (compiler witnesses: every line of the page's table but the `unset p nosuch q` prefix line under `tcl8.4` to `tcl9.1` and the spanning `tcl`, each fact checked against tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1b0 wherever the line completes; `incr fresh`, `incr fresh 2` and `incr arr(k)` bind from 8.5 and decline `unbound-place` under 8.4 and `tcl`); `an_absent_cell_is_created_where_every_release_creates_it` (`tcl-registry` `value_transfers.rs`); changed by the mandate (the release rule): `sccp_records_a_route_explanation_per_statement` reads `append s x` over an unbound `s` as evaluated (the table's `append s foo` is `foo` on every release), and `keyed_updates_agree_on_both_paths` (`tcl-lsp-db`) reads `dict set d a 1` over an unbound `d` as `a 1` on both paths — tclsh 8.5 to 9.1 print `a 1` — where D36 pinned the decline below the rung; every other test unchanged |
+
+Green at VT8.1:
+
+- tests: `tcl-compiler` 9751 passed, 6 ignored across its 67 binaries, and
+  7 doctests; `tcl-registry` 1241; `tcl-lsp-db` 128, 5 ignored;
+  `tcl-explorer` 103; `tcl-cli` 128; `tcl-lsp-core` 3567; `xtask` 235 —
+  no failure;
+- pedantic clippy (`--all-targets --no-deps -D warnings`) on
+  `tcl-registry`, `tcl-compiler` and `tcl-lsp-db`, no `#[allow]` added;
+  `cargo fmt` on the three;
+- `cargo xtask value-transfers` (no pin moved, no generated page changed)
+  and `--check` (20 clean, 16 waived, 83 pinned across 34 files, 6607
+  rows); `registry-axes --check` (956 pinned across 157 files, 5 waived,
+  6 clean); `dialect-drift` 9 sites, the eight upstream ones and the
+  slice 5 review's `value_transfer.rs` split, none new; `cargo check
+  --workspace` clean.
+
 ### Slice 6 — branch integration and optional rewrites
 
 #### Goal and exit
@@ -8399,6 +8429,68 @@ has the witnesses):
   outcome's validation, is inert for every `EvalRoute::None` command
   either way — `call_defs` (`tcl-compiler/src/value_transfer.rs`) returns
   `widened(defs)` before it is ever read).
+
+- **D157 — The special-variable faces are the registry's.** The
+  consumer-contracts lane's hand-over: the existence rung's entry state,
+  the taint seed and the existence post-pass read
+  `CommandRegistry::special_vars_for_dialect`, `special_var_in_dialect`
+  and the new `is_initially_bound` (VT8.1), and W210's startup read and
+  W211 / W220's externally-read suppression read `is_readable_at_startup`,
+  the new `is_lazily_readable` and `is_externally_read` (VT8.4) — each
+  new face the shipped table less any name a pack row answers for, beside
+  `is_readable_at_startup` in `registry.rs` — so a pack-declared special
+  variable is honoured wherever a shipped one is. The free functions in
+  `special_vars.rs` stay for the consumers outside this lane.
+- **D158 — Existence is a forward fact per place, reported three ways.**
+  The plan's `SccpResult::existence: HashMap<ValueKey, Existence>` alone
+  cannot hold "after a barrier or a computed name, every place is
+  `MayBound` from that statement on": neither statement defines a new
+  version of the places it clobbers, so one version is read on both
+  sides of it. The solver keeps a state per place and per point — the
+  join over executable edges, advanced by storage outcomes and clobbers,
+  held at the driver's cursor while a block is evaluated, so the routes
+  read it through `prior_store(place, FactDomain::Existence)` — and
+  reports it per version (`existence`, the plan's map: each definition's
+  fact where it is established), per statement read (`existence_reads`)
+  and per block exit (`existence_exits`, what a terminator reads). The
+  per-version map is what S100 and the phi-arm consumers read; the other
+  two are what a read at a point reads. `values` is untouched: a run with
+  and without the rung computes the same values but for the cell updates
+  the release rule decides.
+- **D159 — The generic existence transfer widens.** A command with no
+  evaluated outcome and no existence transfer of its own may bind or
+  destroy its targets — `array unset` has neither until VT8.8 — so each
+  of its definitions takes `MayBound`, as its value widens; a may-bind
+  (`Join(Bound(_))`) would have claimed `array set a {k v}; array unset
+  a; info exists a` is 1, where every release prints 0. An evaluated
+  outcome's stores state per-place steps (a place no store names widens
+  too), and a declaration's own `transfer(FactDomain::Existence)` on the
+  normal completion states them for a declined or route-less evaluation
+  (`set`, the cell updates, `unset`, the keyed updates).
+- **D160 — The entry rules as built.** Three depart from the page's
+  wording. A scope-alias local is `MayBound` from the entry, not from its
+  declaration: the escaping set the values already read holds it
+  flow-insensitively, and `namespace upvar` records no definition to hang
+  the declaration's step on. A special variable enters bound as its
+  registry kind — `env` and `tcl_platform` are arrays, and the page's
+  `Bound(Scalar)` would answer 0 to `array exists env`. An iRules `when`
+  handler enters every name any handler of the module binds `MayBound`,
+  a superset of `ConnectionScope::cross_event_defs`: a handler's own
+  names persist across its firings on one connection (the per-connection
+  counter `if {![info exists n]} {set n 0}; incr n` must never fold), and
+  the set rides on `AnalysisContextKey::connection_scoped`, so a
+  memoised handler re-keys when another handler binds a new name; a
+  computed-name write in any handler makes every name `MayBound` in all
+  of them. `drop_cross_event_existence_folds` keeps filtering the
+  post-pass until VT8.2 deletes both.
+- **D161 — An exception edge carries every point of its handler's
+  region.** The CFG builder sources a `try` or `catch` handler's edges at
+  the block before the body, its tail and its explicit throws, but any
+  command in the body may raise, so the state at the handler is the join
+  over every point of the region between those sources on normal edges —
+  each region block's points are kept for it. The per-edge exit alone
+  would have read `try {set y 1; foo; unset y} on error {} {…}`'s
+  handler as `y` unbound.
 
 ### Open questions for the owner
 

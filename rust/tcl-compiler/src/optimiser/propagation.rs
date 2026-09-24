@@ -148,6 +148,7 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
             traced_variables: &cu.ir_module.traced_variables,
             has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
             analysis_context: None,
+            existence: None,
         };
         run_load_forwarding(ctx, &cu.top_level, top_level_extra_escaping, trace);
         for fu in cu.procedures.values() {
@@ -1103,6 +1104,7 @@ fn oo_method_constants(
             traced_variables: &cu.ir_module.traced_variables,
             has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
             analysis_context: None,
+            existence: None,
         },
         Some(crate::sccp::BuiltinFoldInputs {
             registry,
@@ -1415,6 +1417,7 @@ fn constants_with_builtin_folds(
             traced_variables: &cu.ir_module.traced_variables,
             has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
             analysis_context: None,
+            existence: None,
         },
         Some(crate::sccp::BuiltinFoldInputs {
             registry,
@@ -1638,6 +1641,7 @@ fn evaluate_proc_with_constants(
             traced_variables,
             has_dynamic_variable_trace,
             analysis_context: None,
+            existence: None,
         },
         // This re-run feeds an O103 *rewrite*, so it takes the whole-module
         // stance. Without any trust fact — what it used before — it folded

@@ -1788,6 +1788,9 @@ mod tests {
             folded_types: HashMap::new(),
             preserved: HashMap::new(),
             template_plans: Vec::new(),
+            existence: HashMap::new(),
+            existence_reads: HashMap::new(),
+            existence_exits: HashMap::new(),
             values: HashMap::new(),
             executable_blocks: blocks
                 .iter()

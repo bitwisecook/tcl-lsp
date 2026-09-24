@@ -1909,6 +1909,33 @@ impl CommandRegistry {
             .is_some_and(|spec| spec.readable_at_startup_in(dialect))
     }
 
+    /// Whether `name` is eagerly bound before user code in `dialect` — the
+    /// registry face of [`crate::special_vars::is_initially_bound`], so a
+    /// pack-declared startup binding answers too.
+    #[must_use]
+    pub fn is_initially_bound(&self, name: &str, dialect: Option<SurfaceQuery<'_>>) -> bool {
+        self.special_var(name)
+            .is_some_and(|spec| surface_admits(spec.initially_bound, dialect.as_ref()))
+    }
+
+    /// Whether a read of `name` in `dialect` runs a declared read trace that
+    /// materialises its value again after `unset` — the registry face of
+    /// [`crate::special_vars::is_lazily_readable`], pack rows included.
+    #[must_use]
+    pub fn is_lazily_readable(&self, name: &str, dialect: Option<SurfaceQuery<'_>>) -> bool {
+        self.special_var(name)
+            .is_some_and(|spec| surface_admits(spec.lazily_readable, dialect.as_ref()))
+    }
+
+    /// Whether the runtime observes a write to `name` in `dialect` — the
+    /// registry face of [`crate::special_vars::is_externally_read`], pack
+    /// rows included.
+    #[must_use]
+    pub fn is_externally_read(&self, name: &str, dialect: Option<SurfaceQuery<'_>>) -> bool {
+        self.special_var_in_dialect(name, dialect)
+            .is_some_and(|spec| spec.externally_read)
+    }
+
     /// Whether `name` exists as a command in *any* dialect, independent of
     /// which dialects this registry instance loaded.
     ///

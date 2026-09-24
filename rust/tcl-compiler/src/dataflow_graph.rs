@@ -559,6 +559,7 @@ mod tests {
                 traced_variables: &BTreeSet::new(),
                 has_dynamic_variable_trace: false,
                 analysis_context: None,
+                existence: None,
             },
         );
         let g = extract_function_dataflow::<std::collections::hash_map::RandomState>(

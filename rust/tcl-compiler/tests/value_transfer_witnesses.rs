@@ -44,6 +44,7 @@ use tcl_compiler::static_loops::{
 use tcl_compiler::tcl_expr_eval::FoldPolicy;
 use tcl_core_types::DiagCode;
 use tcl_registry::model::ingress::{resolve_environment, static_context_for};
+use tcl_registry::value_transfer::{BindingKind, Existence};
 
 /// The releases the oracle runs, oldest first.
 const RELEASES: [&str; 5] = ["8.4", "8.5", "8.6", "9.0", "9.1"];
@@ -2437,4 +2438,192 @@ fn the_repeated_target_witness() {
         );
     }
     prints_under_every_release(source, "b\n");
+}
+
+/// The existence fact `var`'s last version holds in `proc`: the fact the
+/// solver established where the version was defined.
+fn last_existence(unit: &CompilationUnit, proc: &str, var: &str) -> Option<Existence> {
+    let function = unit.procedures.get(proc).expect("the procedure");
+    let symbol = function.ssa.var_symbol(var).expect("the variable");
+    function
+        .sccp
+        .existence
+        .iter()
+        .filter(|((sym, _), _)| *sym == symbol)
+        .max_by_key(|((_, version), _)| *version)
+        .map(|(_, fact)| *fact)
+}
+
+/// What `tclsh` reports of `places` after `body` runs in a procedure:
+/// `None` when the body raises, else each place's `info exists` and
+/// `array exists`.
+fn oracle_existence(tclsh: &str, body: &str, places: &[&str]) -> Option<Vec<(bool, bool)>> {
+    let mut probes = String::new();
+    for place in places {
+        probes.push_str(" [info exists ");
+        probes.push_str(place);
+        probes.push_str("] [array exists ");
+        probes.push_str(place);
+        probes.push(']');
+    }
+    let script = format!(
+        "proc p {{}} {{\n{body}\nreturn [list{probes}]\n}}\n\
+         if {{[catch p answer]}} {{puts -nonewline error}} else {{puts -nonewline $answer}}\n"
+    );
+    let (ok, output) = run_script(tclsh, &script)?;
+    assert!(ok, "{tclsh} ran the probe for {body:?}");
+    if output == "error" {
+        return None;
+    }
+    let bits: Vec<bool> = output.split_whitespace().map(|bit| bit == "1").collect();
+    Some(bits.chunks(2).map(|pair| (pair[0], pair[1])).collect())
+}
+
+/// Whether `fact` agrees with what `tclsh` reports of a place: a proven
+/// binding exists, as an array exactly when it is one, and a proven
+/// absence does not; a fact that proves neither claims nothing.
+fn existence_agrees(fact: Option<Existence>, (exists, array): (bool, bool)) -> bool {
+    match fact {
+        Some(Existence::Unbound) => !exists && !array,
+        Some(Existence::Bound(BindingKind::Scalar)) => exists && !array,
+        Some(Existence::Bound(BindingKind::Array)) => exists && array,
+        Some(Existence::Bound(BindingKind::Either)) => exists,
+        Some(Existence::MayBound | Existence::Pending) | None => true,
+    }
+}
+
+const SCALAR: Option<Existence> = Some(Existence::Bound(BindingKind::Scalar));
+const ARRAY: Option<Existence> = Some(Existence::Bound(BindingKind::Array));
+const UNBOUND: Option<Existence> = Some(Existence::Unbound);
+
+/// The dialects the release table is analysed under: each release, and
+/// the `tcl` profile that spans them all.
+const RELEASE_DIALECTS: [&str; 6] = ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "tcl"];
+
+/// The release table's lines every release reads alike: each place's fact
+/// after the line, under every dialect, and against every `tclsh` on
+/// `PATH` wherever the line completes.
+fn the_lines_every_release_reads_alike(releases: &[(&'static str, String)]) {
+    type Row = (&'static str, &'static [(&'static str, Option<Existence>)]);
+    let alike: [Row; 9] = [
+        ("append s foo", &[("s", SCALAR)]),
+        ("lappend l foo", &[("l", SCALAR)]),
+        ("regexp {(x)(y)} zz a b", &[("a", UNBOUND), ("b", UNBOUND)]),
+        (
+            "scan {12 nope} {%d %d} a b",
+            &[("a", SCALAR), ("b", UNBOUND)],
+        ),
+        ("unset nosuch", &[("nosuch", UNBOUND)]),
+        ("unset -nocomplain nosuch", &[("nosuch", UNBOUND)]),
+        (
+            "set arr(k) 1; unset arr(k)",
+            &[("arr", ARRAY), ("arr(k)", UNBOUND)],
+        ),
+        ("set x 1; unset x; set x 2", &[("x", SCALAR)]),
+        ("foreach x {} {}", &[("x", UNBOUND)]),
+    ];
+    for (body, places) in alike {
+        let source = format!("proc p {{}} {{{body}}}\n");
+        for dialect in RELEASE_DIALECTS {
+            let unit = unit_of(&source, dialect);
+            for &(place, expected) in places {
+                assert_eq!(
+                    last_existence(&unit, "::p", place),
+                    expected,
+                    "{dialect}: `{place}` after `{body}`"
+                );
+            }
+        }
+        let names: Vec<&str> = places.iter().map(|(place, _)| *place).collect();
+        for (series, tclsh) in releases {
+            let Some(answers) = oracle_existence(tclsh, body, &names) else {
+                continue;
+            };
+            let unit = unit_of(&source, &dialect_of(series));
+            for (&(place, _), answer) in places.iter().zip(answers) {
+                assert!(
+                    existence_agrees(last_existence(&unit, "::p", place), answer),
+                    "tclsh{series}: `{place}` after `{body}` is {answer:?}"
+                );
+            }
+        }
+    }
+    for dialect in RELEASE_DIALECTS {
+        assert_eq!(
+            last_value("proc p {} {append s foo}\n", dialect, "::p", "s"),
+            text("foo"),
+            "{dialect}: `append` creates its cell in every release"
+        );
+        assert_eq!(
+            last_value("proc p {} {lappend l foo}\n", dialect, "::p", "l"),
+            text("foo"),
+            "{dialect}: `lappend` creates its cell in every release"
+        );
+    }
+}
+
+/// The release table's `incr` lines: the cell is created from 8.5, with
+/// the amount as its value, and the value declines as an unbound place
+/// under 8.4 and under the spanning profile, where `tclsh8.4` raises.
+fn the_increment_split(releases: &[(&'static str, String)]) {
+    let increments: [(&str, &str, i64); 3] = [
+        ("incr fresh", "fresh", 1),
+        ("incr fresh 2", "fresh", 2),
+        ("incr arr(k)", "arr(k)", 1),
+    ];
+    for (body, place, amount) in increments {
+        let source = format!("proc p {{}} {{{body}}}\n");
+        for dialect in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let unit = unit_of(&source, dialect);
+            assert_eq!(
+                last_value(&source, dialect, "::p", place),
+                LatticeValue::Const(ConstValue::Int(amount)),
+                "{dialect}: `{body}` creates its cell"
+            );
+            assert_eq!(last_existence(&unit, "::p", place), SCALAR, "{dialect}");
+            if place == "arr(k)" {
+                assert_eq!(last_existence(&unit, "::p", "arr"), ARRAY, "{dialect}");
+            }
+        }
+        for dialect in ["tcl8.4", "tcl"] {
+            let unit = unit_of(&source, dialect);
+            assert_eq!(
+                last_value(&source, dialect, "::p", place),
+                LatticeValue::Overdefined,
+                "{dialect}: `{body}` raises under 8.4, so its value declines"
+            );
+            let answers = answers_for(&unit, "::p", "incr");
+            assert!(
+                answers
+                    .iter()
+                    .any(|answer| answer == "declined: unbound-place"),
+                "{dialect}: `{body}` declines as an unbound place: {answers:?}"
+            );
+        }
+        for (series, tclsh) in releases {
+            let answer = oracle_existence(tclsh, body, &[place]);
+            if *series == "8.4" {
+                assert_eq!(answer, None, "tclsh8.4 raises on `{body}`");
+            } else {
+                assert_eq!(answer, Some(vec![(true, false)]), "tclsh{series}: `{body}`");
+            }
+        }
+    }
+}
+
+/// The page's release table for an absent cell
+/// (`docs/design/compiler/value-transfers.md` § *Existence*), every line but
+/// the `unset p nosuch q` prefix line, which is slice 10's: each place's
+/// existence after the line, and the value a cell update leaves, under
+/// each release's dialect and the `tcl` profile that spans them all. An
+/// `incr` of an absent place binds from 8.5 and declines under 8.4 and
+/// under the spanning profile; `append` and `lappend` bind in every
+/// release; a no-match and an exhausted `scan` leave their places as they
+/// were; an unbind leaves the place unbound, and an unset element its array
+/// bound. Every fact is checked against `tclsh` wherever the line completes.
+#[test]
+fn the_absent_cell_release_table() {
+    let releases = releases_on_path();
+    the_lines_every_release_reads_alike(&releases);
+    the_increment_split(&releases);
 }

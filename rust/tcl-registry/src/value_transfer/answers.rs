@@ -367,6 +367,51 @@ pub enum Existence {
     MayBound,
 }
 
+impl BindingKind {
+    /// The join of two kinds: equal kinds stay, a scalar and an array are
+    /// `Either`.
+    #[must_use]
+    pub const fn join(self, other: Self) -> Self {
+        match (self, other) {
+            (Self::Scalar, Self::Scalar) => Self::Scalar,
+            (Self::Array, Self::Array) => Self::Array,
+            _ => Self::Either,
+        }
+    }
+}
+
+impl Existence {
+    /// The lattice join (`docs/design/compiler/value-transfers.md`
+    /// § *Existence*): `Pending` is the identity, equal facts stay, two
+    /// bound kinds join as kinds, and `Unbound` beside `Bound(_)`, or
+    /// anything beside `MayBound`, is `MayBound`.
+    #[must_use]
+    pub const fn join(self, other: Self) -> Self {
+        match (self, other) {
+            (Self::Pending, fact) | (fact, Self::Pending) => fact,
+            (Self::Unbound, Self::Unbound) => Self::Unbound,
+            (Self::Bound(left), Self::Bound(right)) => Self::Bound(left.join(right)),
+            (Self::MayBound, _)
+            | (_, Self::MayBound)
+            | (Self::Unbound, Self::Bound(_))
+            | (Self::Bound(_), Self::Unbound) => Self::MayBound,
+        }
+    }
+
+    /// The fact after `outcome` runs on a place that held `self`: a bind
+    /// is bound, an unbind unbound, a preserve keeps the fact, and a
+    /// may-bind joins it with the bound kind.
+    #[must_use]
+    pub const fn after(self, outcome: ExistenceOutcome) -> Self {
+        match outcome {
+            ExistenceOutcome::Bind(kind) => Self::Bound(kind),
+            ExistenceOutcome::Unbind => Self::Unbound,
+            ExistenceOutcome::Preserve => self,
+            ExistenceOutcome::MayBind(kind) => self.join(Self::Bound(kind)),
+        }
+    }
+}
+
 /// The per-target existence delta on one completion path.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ExistenceOutcome {

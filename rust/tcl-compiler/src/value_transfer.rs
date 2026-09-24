@@ -46,14 +46,15 @@ use tcl_lexer::{LexerConfig, Span, TokenType};
 use tcl_registry::hooks::LoweringHookId;
 use tcl_registry::value_transfer::builtins::ExpressionRoute;
 use tcl_registry::value_transfer::{
-    AnalysisContext, AnalysisInputs, AnalysisTier, BinderName, BindingIdentity, BodyRegion, Budget,
-    BudgetLimit, CommandSemantics, CompletionOutcome, DeclineReason, DependencyEvidence,
-    EvalAnswer, EvalRoute, EvaluationState, EvaluatorOwner, ExactValue, ExactValueOrUnavailable,
-    ExistenceOutcome, FactDomain, FactView, InvocationLayout, InvocationOutcome, IterableKind,
-    LanguageProfileId, LiftedAnswer, NestedPolicy, NumericValue, OperandId, OperandView, PlaceKind,
-    PlaceRef, PlanAnswer, RepresentationEvidence, ResolvedInvocationView, RouteIdentity,
-    StoreOutcome, TargetId, TransferAnswer, TypeFacts, ValueIdentity, ValueShape, WordPart,
-    WordStructure, evaluate_lifted, validate_outcome,
+    AnalysisContext, AnalysisInputs, AnalysisTier, BinderName, BindingIdentity, BindingKind,
+    BodyRegion, Budget, BudgetLimit, CommandSemantics, CompletionOutcome, DeclineReason,
+    DependencyEvidence, DomainFact, EvalAnswer, EvalRoute, EvaluationState, EvaluatorOwner,
+    ExactValue, ExactValueOrUnavailable, Existence, ExistenceOutcome, FactDomain, FactView,
+    InvocationLayout, InvocationOutcome, IterableKind, LanguageProfileId, LiftedAnswer,
+    NestedPolicy, NumericValue, OperandId, OperandView, PlaceKind, PlaceRef, PlanAnswer,
+    RepresentationEvidence, ResolvedInvocationView, RouteIdentity, StoreOutcome, TargetId,
+    TransferAnswer, TypeFacts, ValueIdentity, ValueShape, WordPart, WordStructure, evaluate_lifted,
+    validate_outcome,
 };
 use tcl_registry::{
     ArgRole, CommandRegistry, InvocationWord, InvocationWordKind, InvocationWords,
@@ -99,6 +100,35 @@ pub struct AnalysisContextKey {
     /// serves the declared implementations, and in what health, so a
     /// host-present and a host-absent worker never share a lattice.
     pub evaluator_revision: u64,
+    /// The names an iRules `when` handler of the module may find bound on
+    /// entry ([`ConnectionScoped`]); empty for a module with no handler.
+    pub connection_scoped: ConnectionScoped,
+}
+
+/// The names an iRules `when` handler may find bound on entry
+/// (`docs/design/compiler/value-transfers.md` § *Existence*, the entry
+/// state): a handler's variables live as long as its connection, so another
+/// event — or an earlier firing of the same one — may have bound any name a
+/// handler of the module binds.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
+pub struct ConnectionScoped {
+    /// Every name a handler of the module binds, and the array each element
+    /// among them sits in, sorted and without repeats.
+    pub names: Vec<String>,
+    /// Whether a handler writes a computed name, so any name may be bound.
+    pub any: bool,
+}
+
+impl ConnectionScoped {
+    /// Whether a handler may find `name` bound on entry.
+    #[must_use]
+    pub fn holds(&self, name: &str) -> bool {
+        self.any
+            || self
+                .names
+                .binary_search_by(|held| held.as_str().cmp(name))
+                .is_ok()
+    }
 }
 
 impl AnalysisContextKey {
@@ -116,7 +146,16 @@ impl AnalysisContextKey {
             bindings: mutations.snapshot(),
             tier: AnalysisTier::Deep,
             evaluator_revision: u64::from(tcl_registry::pack_hooks::evaluator_generation().0),
+            connection_scoped: ConnectionScoped::default(),
         }
+    }
+
+    /// The key with the module's connection-scoped names
+    /// ([`Self::connection_scoped`]).
+    #[must_use]
+    pub fn with_connection_scoped(mut self, scoped: ConnectionScoped) -> Self {
+        self.connection_scoped = scoped;
+        self
     }
 
     /// The key for a consumer with no module view: no mutations observed,
@@ -358,6 +397,11 @@ pub(crate) struct LatticeDriver<'a> {
     request: RefCell<Budget>,
     /// The current solver pass's share of the request.
     iteration: RefCell<Budget>,
+    /// The existence rung at the point being evaluated, one fact per
+    /// symbol: the state before the statement, or at its block's exit for
+    /// the terminator. `None` for a run that computes no existence (a
+    /// re-run, a detached evaluation), whose reads are `Unavailable`.
+    existence: RefCell<Option<Vec<Existence>>>,
 }
 
 /// The lattice value of one member-wise evaluation: the constant `pick`
@@ -383,6 +427,70 @@ fn lattice_of_outcomes(
     }
 }
 
+/// What one statement does to one place's existence
+/// (`docs/design/compiler/value-transfers.md` § *Existence*): afterwards the
+/// place holds `Set`'s fact whatever it held before, or the join of what it
+/// held with `Join`'s. A write is `Set(Bound(_))`, an unbind
+/// `Set(Unbound)`, a preserve `Join(Pending)` and a may-write
+/// `Join(Bound(_))`; a statement whose outcome waits on an input the solver
+/// has not reached is `Set(Pending)`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ExistenceStep {
+    /// The fact afterwards, whatever the place held.
+    Set(Existence),
+    /// Joined with what the place held.
+    Join(Existence),
+}
+
+impl ExistenceStep {
+    /// A statement whose effect on the place the analysis cannot state — a
+    /// command with no existence transfer, a rebound head, a declined
+    /// answer: the place may have been written or destroyed, so its fact
+    /// widens, as its value does.
+    pub(crate) const UNKNOWN: Self = Self::Set(Existence::MayBound);
+    /// The place is left as it was.
+    pub(crate) const PRESERVE: Self = Self::Join(Existence::Pending);
+    /// The outcome is not known yet.
+    pub(crate) const PENDING: Self = Self::Set(Existence::Pending);
+
+    /// The step a storage outcome's existence delta takes.
+    pub(crate) const fn of(outcome: ExistenceOutcome) -> Self {
+        match outcome {
+            ExistenceOutcome::Bind(kind) => Self::Set(Existence::Bound(kind)),
+            ExistenceOutcome::Unbind => Self::Set(Existence::Unbound),
+            ExistenceOutcome::Preserve => Self::PRESERVE,
+            ExistenceOutcome::MayBind(kind) => Self::Join(Existence::Bound(kind)),
+        }
+    }
+
+    /// The fact afterwards on a place that held `prior`.
+    pub(crate) const fn apply(self, prior: Existence) -> Existence {
+        match self {
+            Self::Set(fact) => fact,
+            Self::Join(fact) => prior.join(fact),
+        }
+    }
+
+    /// `self` followed by `next` on the same place, as one step.
+    pub(crate) const fn then(self, next: Self) -> Self {
+        match (self, next) {
+            (_, Self::Set(fact)) => Self::Set(fact),
+            (Self::Set(first), Self::Join(fact)) => Self::Set(first.join(fact)),
+            (Self::Join(first), Self::Join(fact)) => Self::Join(first.join(fact)),
+        }
+    }
+
+    /// The step two members of a finite input take together: the fact
+    /// afterwards is the join of each member's.
+    pub(crate) const fn join(self, other: Self) -> Self {
+        match (self, other) {
+            (Self::Set(left), Self::Set(right)) => Self::Set(left.join(right)),
+            (Self::Set(left) | Self::Join(left), Self::Join(right))
+            | (Self::Join(left), Self::Set(right)) => Self::Join(left.join(right)),
+        }
+    }
+}
+
 /// One definition's answer: the lattice value the statement leaves in it,
 /// and the folded type the evaluation that produced the value states.
 #[derive(Debug, Clone, PartialEq)]
@@ -404,10 +512,13 @@ pub(crate) struct DefAnswer {
     /// definition is the prior version's value and existence
     /// ([`crate::sccp::SccpResult::preserved`]).
     pub(crate) preserved: bool,
+    /// What the statement does to the definition's place's existence.
+    pub(crate) existence: ExistenceStep,
 }
 
 impl DefAnswer {
-    /// A definition with `value`, no folded type, and no store naming it.
+    /// A definition with `value`, no folded type, no store naming it, and
+    /// the generic existence transfer, which widens.
     pub(crate) const fn untyped(key: ValueKey, value: LatticeValue) -> Self {
         Self {
             key,
@@ -415,6 +526,7 @@ impl DefAnswer {
             folded: None,
             stated: false,
             preserved: false,
+            existence: ExistenceStep::UNKNOWN,
         }
     }
 
@@ -433,6 +545,7 @@ impl DefAnswer {
             folded,
             stated: self.stated && other.stated,
             preserved: self.preserved && other.preserved,
+            existence: self.existence.join(other.existence),
         }
     }
 }
@@ -443,6 +556,74 @@ fn widened(defs: &[(String, ValueKey)]) -> Vec<DefAnswer> {
     defs.iter()
         .map(|(_, key)| DefAnswer::untyped(*key, LatticeValue::Overdefined))
         .collect()
+}
+
+/// The existence step one store takes on its place: a write binds a
+/// scalar (an element is one), an unbind unbinds, a preserve keeps the
+/// fact, and a may-write joins it with the kind its bounds state.
+fn store_existence(store: &StoreOutcome) -> ExistenceStep {
+    match store {
+        StoreOutcome::Write { .. } | StoreOutcome::WriteElement { .. } => {
+            ExistenceStep::Set(Existence::Bound(BindingKind::Scalar))
+        }
+        StoreOutcome::Preserve { .. } => ExistenceStep::PRESERVE,
+        StoreOutcome::Unbind { .. } => ExistenceStep::Set(Existence::Unbound),
+        StoreOutcome::MayWrite { facts, .. } => ExistenceStep::Join(Existence::Bound(match facts
+            .existence
+        {
+            Existence::Bound(kind) => kind,
+            Existence::Pending | Existence::Unbound | Existence::MayBound => BindingKind::Either,
+        })),
+    }
+}
+
+/// The existence step a definition of `name` takes from an outcome's
+/// ordered steps per place: its own place's steps in execution order; for
+/// the array that holds an element the outcome writes, unbinds or may
+/// write, an array binding (an element exists only in an array, and
+/// unsetting one leaves the array); for an element of an array the outcome
+/// unbinds whole, an unbinding. `None` when no step names the definition.
+fn existence_from(steps: &[(PlaceRef, ExistenceStep)], name: &str) -> Option<ExistenceStep> {
+    let own = steps
+        .iter()
+        .filter(|(place, _)| place.name == name)
+        .map(|(_, step)| *step)
+        .reduce(ExistenceStep::then);
+    if own.is_some() {
+        return own;
+    }
+    let array = steps
+        .iter()
+        .filter(|(place, _)| place.is_element() && place.base() == name)
+        .filter_map(|(_, step)| match step {
+            ExistenceStep::Set(_) => Some(ExistenceStep::Set(Existence::Bound(BindingKind::Array))),
+            ExistenceStep::Join(Existence::Pending) => None,
+            ExistenceStep::Join(_) => {
+                Some(ExistenceStep::Join(Existence::Bound(BindingKind::Array)))
+            }
+        })
+        .reduce(ExistenceStep::then);
+    if array.is_some() {
+        return array;
+    }
+    let base = name
+        .split_once('(')
+        .filter(|_| name.ends_with(')'))
+        .map(|(base, _)| base)?;
+    steps
+        .iter()
+        .any(|(place, step)| place.name == base && *step == ExistenceStep::Set(Existence::Unbound))
+        .then_some(ExistenceStep::Set(Existence::Unbound))
+}
+
+/// Whether a completion domain admits the normal completion.
+fn completes_normally(domain: tcl_registry::completion::CompletionCodeDomain) -> bool {
+    match domain {
+        tcl_registry::completion::CompletionCodeDomain::Exact(codes) => {
+            codes.contains(&tcl_registry::completion::CompletionCode::Ok)
+        }
+        tcl_registry::completion::CompletionCodeDomain::Any => true,
+    }
 }
 
 /// The statement's definitions, each with the variable name it defines.
@@ -597,6 +778,7 @@ impl<'a> LatticeDriver<'a> {
             tally: Cell::new(RouteTally::default()),
             request: RefCell::new(request),
             iteration: RefCell::new(iteration),
+            existence: RefCell::new(None),
         }
     }
 
@@ -699,6 +881,59 @@ impl<'a> LatticeDriver<'a> {
     /// Every preserved definition the run holds at its end.
     pub(crate) fn take_preserved(&self) -> HashMap<ValueKey, Version> {
         std::mem::take(&mut *self.preserved.borrow_mut())
+    }
+
+    /// Position the existence rung at a block's entry: `state` holds one
+    /// fact per symbol, and the statements the solver evaluates next read
+    /// and advance it.
+    pub(crate) fn existence_enter(&self, state: Vec<Existence>) {
+        *self.existence.borrow_mut() = Some(state);
+    }
+
+    /// The existence state at the current point, taken: the block's exit
+    /// once its statements have run. `None` when the run computes none.
+    pub(crate) fn existence_leave(&self) -> Option<Vec<Existence>> {
+        self.existence.borrow_mut().take()
+    }
+
+    /// The existence fact `symbol` holds at the current point, when the
+    /// run computes existence.
+    pub(crate) fn existence_now(&self, symbol: Symbol) -> Option<Existence> {
+        self.existence
+            .borrow()
+            .as_ref()
+            .and_then(|state| state.get(symbol.0 as usize).copied())
+    }
+
+    /// Advance `symbol`'s fact at the current point by `step`, returning
+    /// the fact afterwards.
+    pub(crate) fn existence_step(&self, symbol: Symbol, step: ExistenceStep) -> Option<Existence> {
+        let mut state = self.existence.borrow_mut();
+        let fact = state.as_mut()?.get_mut(symbol.0 as usize)?;
+        *fact = step.apply(*fact);
+        Some(*fact)
+    }
+
+    /// Replace every fact at the current point by `clobber`'s answer for
+    /// it: a barrier's, or a computed name's.
+    pub(crate) fn existence_clobber(&self, clobber: impl Fn(Existence) -> Existence) {
+        if let Some(state) = self.existence.borrow_mut().as_mut() {
+            for fact in state.iter_mut() {
+                *fact = clobber(*fact);
+            }
+        }
+    }
+
+    /// The existence fact the place `name` holds at the current point, as
+    /// an input view: `Unavailable` when the run computes none, or the name
+    /// is no symbol of the function.
+    fn existence_fact(&self, ssa: &SsaFunction, name: &str) -> FactView {
+        ssa.var_symbol(name)
+            .and_then(|symbol| self.existence_now(symbol))
+            .map_or(
+                FactView::Top(DeclineReason::Unavailable(self.context.tier)),
+                |fact| FactView::Domain(DomainFact::Existence(fact)),
+            )
     }
 
     /// What the run recorded beside the lattice, at its end: the route
@@ -859,6 +1094,7 @@ impl<'a> LatticeDriver<'a> {
                 traced_variables: &EMPTY_NAMES,
                 has_dynamic_variable_trace: false,
                 analysis_context: None,
+                existence: None,
             },
             folds,
             policy,
@@ -983,19 +1219,25 @@ impl<'a> LatticeDriver<'a> {
                     Some(route),
                     "not evaluated: the route is not registry-owned".to_owned(),
                 );
-                return widened(defs);
+                return self.transferred(semantics, defs, inputs, widened(defs));
             }
         }
         let answer = evaluate_lifted(semantics, inputs, &mut self.budget(), MAX_CONSTSET_SIZE);
         self.explain(head, Some(route), answer_label(&answer));
         let outcomes = match answer {
             LiftedAnswer::Pending => {
-                return defs
+                let pending = defs
                     .iter()
-                    .map(|(_, key)| DefAnswer::untyped(*key, LatticeValue::Unknown))
+                    .map(|(_, key)| DefAnswer {
+                        existence: ExistenceStep::PENDING,
+                        ..DefAnswer::untyped(*key, LatticeValue::Unknown)
+                    })
                     .collect();
+                return self.transferred(semantics, defs, inputs, pending);
             }
-            LiftedAnswer::Declined(_) => return widened(defs),
+            LiftedAnswer::Declined(_) => {
+                return self.transferred(semantics, defs, inputs, widened(defs));
+            }
             LiftedAnswer::Evaluated(outcomes) => outcomes,
         };
         let plan = semantics.structure(inputs);
@@ -1009,7 +1251,7 @@ impl<'a> LatticeDriver<'a> {
                 Some(route),
                 format!("declined: {}", reason_label(reason)),
             );
-            return widened(defs);
+            return self.transferred(semantics, defs, inputs, widened(defs));
         }
         let mut joined: Option<Vec<DefAnswer>> = None;
         for outcome in &outcomes {
@@ -1021,7 +1263,7 @@ impl<'a> LatticeDriver<'a> {
                         Some(route),
                         format!("declined: {}", reason_label(reason)),
                     );
-                    return widened(defs);
+                    return self.transferred(semantics, defs, inputs, widened(defs));
                 }
             };
             joined = Some(match joined {
@@ -1034,6 +1276,50 @@ impl<'a> LatticeDriver<'a> {
             });
         }
         joined.unwrap_or_else(|| widened(defs))
+    }
+
+    /// `answers` with the existence each definition takes from the
+    /// declaration's own existence transfer, when it states one: the
+    /// normal completion's outcome for each target's place
+    /// ([`existence_from`]). A definition the transfer does not name, and
+    /// every definition of a command whose transfer is generic, keeps the
+    /// step its answer carries — a pending evaluation's, or the generic
+    /// widening.
+    fn transferred(
+        &self,
+        semantics: &dyn CommandSemantics,
+        defs: &[(String, ValueKey)],
+        inputs: &dyn AnalysisInputs,
+        mut answers: Vec<DefAnswer>,
+    ) -> Vec<DefAnswer> {
+        let TransferAnswer::Existence(transfer) =
+            semantics.transfer(FactDomain::Existence, inputs, &mut self.budget())
+        else {
+            return answers;
+        };
+        let Some(normal) = transfer
+            .paths
+            .iter()
+            .find(|path| completes_normally(path.completion))
+        else {
+            return answers;
+        };
+        let steps: Vec<(PlaceRef, ExistenceStep)> = normal
+            .outcomes
+            .iter()
+            .filter_map(|(target, outcome)| {
+                inputs
+                    .place(target.0)
+                    .ok()
+                    .map(|place| (place, ExistenceStep::of(*outcome)))
+            })
+            .collect();
+        for (answer, (name, _)) in answers.iter_mut().zip(defs) {
+            if let Some(step) = existence_from(&steps, name) {
+                answer.existence = step;
+            }
+        }
+        answers
     }
 
     /// The value one outcome leaves in each of `defs`, the statement's
@@ -1085,18 +1371,29 @@ impl<'a> LatticeDriver<'a> {
             }
             placed.push((place, store));
         }
+        let steps: Vec<(PlaceRef, ExistenceStep)> = placed
+            .iter()
+            .map(|(place, store)| (place.clone(), store_existence(store)))
+            .collect();
         Ok(defs
             .iter()
             .map(|(name, key)| {
+                let existence = existence_from(&steps, name).unwrap_or(ExistenceStep::UNKNOWN);
                 let named: Vec<&(PlaceRef, &StoreOutcome)> = placed
                     .iter()
                     .filter(|(place, _)| place.name == *name)
                     .collect();
                 let Some((place, _)) = named.first() else {
-                    return DefAnswer::untyped(*key, LatticeValue::Overdefined);
+                    return DefAnswer {
+                        existence,
+                        ..DefAnswer::untyped(*key, LatticeValue::Overdefined)
+                    };
                 };
                 if self.is_escaping(place) {
-                    return DefAnswer::untyped(*key, LatticeValue::Overdefined);
+                    return DefAnswer {
+                        existence,
+                        ..DefAnswer::untyped(*key, LatticeValue::Overdefined)
+                    };
                 }
                 let mut held: Option<LatticeValue> = None;
                 for (_, store) in &named {
@@ -1125,6 +1422,7 @@ impl<'a> LatticeDriver<'a> {
                     preserved: named
                         .iter()
                         .all(|(_, store)| matches!(store, StoreOutcome::Preserve { .. })),
+                    existence,
                 }
             })
             .collect())
@@ -1182,14 +1480,17 @@ impl<'a> LatticeDriver<'a> {
             let cooked = call_arguments(args, tokens.as_ref(), &self.lexer_config);
             return self.evaluate_source_call(head, &cooked, &defs, uses, values, ssa);
         }
-        let bound = self.evaluate_loop_header(head, args, binders, uses, values, ssa);
+        let (bound, existence) = self.evaluate_loop_header(head, args, binders, uses, values, ssa);
         defs.iter()
             .map(|(name, key)| {
                 let value = bound
                     .iter()
                     .find(|(binder, _)| binder == name)
                     .map_or(LatticeValue::Overdefined, |(_, value)| value.clone());
-                DefAnswer::untyped(*key, value)
+                DefAnswer {
+                    existence,
+                    ..DefAnswer::untyped(*key, value)
+                }
             })
             .collect()
     }
@@ -1200,6 +1501,12 @@ impl<'a> LatticeDriver<'a> {
     /// last iteration runs past the list's end. A repeated binder takes its
     /// last position's. A multi-list header, an empty list, or a list the
     /// analysis cannot read leaves every binder `Overdefined`.
+    ///
+    /// Beside the values, the existence step every binder takes at the
+    /// header: bound once the list is proven to have an element — every
+    /// later visit of the header follows an iteration that bound it —
+    /// left as it was when the list is proven empty and the plan binds
+    /// nothing on zero iterations, and otherwise a may-bind.
     fn evaluate_loop_header<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
         &self,
         head: &str,
@@ -1208,15 +1515,17 @@ impl<'a> LatticeDriver<'a> {
         uses: &HashMap<Symbol, Version, S1>,
         values: &HashMap<ValueKey, LatticeValue, S2>,
         ssa: &SsaFunction,
-    ) -> Vec<(String, LatticeValue)> {
+    ) -> (Vec<(String, LatticeValue)>, ExistenceStep) {
+        const MAY_BIND: ExistenceStep = ExistenceStep::Join(Existence::Bound(BindingKind::Scalar));
+        const BINDS: ExistenceStep = ExistenceStep::Set(Existence::Bound(BindingKind::Scalar));
         let texts: Vec<&str> = args.iter().map(String::as_str).collect();
         let words: Vec<InvocationWord<'_>> = texts.iter().copied().map(word_of).collect();
         let Some(resolved) = self.resolve(head, &words) else {
-            return Vec::new();
+            return (Vec::new(), MAY_BIND);
         };
         let Some(semantics) = resolved.semantics.value.semantics() else {
             self.explain(head, None, "declined: no-semantics".to_owned());
-            return Vec::new();
+            return (Vec::new(), MAY_BIND);
         };
         let view = view_of(
             &resolved,
@@ -1239,13 +1548,13 @@ impl<'a> LatticeDriver<'a> {
                 .collect(),
         };
         let PlanAnswer::Iterate(plan) = semantics.structure(&inputs) else {
-            return Vec::new();
+            return (Vec::new(), MAY_BIND);
         };
         let IterableKind::List(iterable) = &plan.iterable else {
-            return Vec::new();
+            return (Vec::new(), MAY_BIND);
         };
         let Some(list) = texts.get(iterable.0) else {
-            return Vec::new();
+            return (Vec::new(), MAY_BIND);
         };
         let binders: Vec<&str> = plan
             .binders
@@ -1256,7 +1565,7 @@ impl<'a> LatticeDriver<'a> {
             })
             .collect();
         if binders.len() != plan.binders.len() || binders.is_empty() {
-            return Vec::new();
+            return (Vec::new(), MAY_BIND);
         }
         let rules = self.policy.word_rules;
         let elements = extract_foreach_elements(list, rules)
@@ -1274,11 +1583,16 @@ impl<'a> LatticeDriver<'a> {
                 }
                 None
             });
+        let existence = match &elements {
+            Some(items) if !items.is_empty() || plan.zero_iterations_bind => BINDS,
+            Some(_) => ExistenceStep::PRESERVE,
+            None => MAY_BIND,
+        };
         let Some(items) = elements.filter(|items| !items.is_empty()) else {
-            return Vec::new();
+            return (Vec::new(), existence);
         };
         let stride = binders.len();
-        binders
+        let bound = binders
             .iter()
             .enumerate()
             .map(|(at, name)| {
@@ -1302,7 +1616,8 @@ impl<'a> LatticeDriver<'a> {
                 };
                 ((*name).to_owned(), value)
             })
-            .collect()
+            .collect();
+        (bound, existence)
     }
 
     /// A call in its source layout, its arguments read as source words: the
@@ -2505,15 +2820,18 @@ impl<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher> AnalysisInputs
     }
 
     fn variable(&self, name: &str, domain: FactDomain) -> FactView {
-        if domain != FactDomain::ExactValue {
-            return FactView::Top(DeclineReason::Unavailable(self.driver.context.tier));
+        match domain {
+            FactDomain::ExactValue => self.named_fact(name),
+            FactDomain::Existence => self.driver.existence_fact(self.ssa, name),
+            _ => FactView::Top(DeclineReason::Unavailable(self.driver.context.tier)),
         }
-        self.named_fact(name)
     }
 
     fn prior_store(&self, place: &PlaceRef, domain: FactDomain) -> FactView {
-        if domain != FactDomain::ExactValue {
-            return FactView::Top(DeclineReason::Unavailable(self.driver.context.tier));
+        match domain {
+            FactDomain::ExactValue => {}
+            FactDomain::Existence => return self.driver.existence_fact(self.ssa, &place.name),
+            _ => return FactView::Top(DeclineReason::Unavailable(self.driver.context.tier)),
         }
         let Some(sym) = self.ssa.var_symbol(&place.name) else {
             return FactView::Top(DeclineReason::DynamicName);

@@ -79,7 +79,9 @@ checkpoint compiling.
   dynamic-name barrier read instead of walking; the stored existence
   branch fact and W210's preserve-outcome reads; W100's proven produced
   set; and hover, inlay hints, semantic tokens and document links reading
-  proven values) have landed; slice 8, the existence rung, is next.
+  proven values) have landed; slice 8, the existence rung, is in
+  progress item by item in the tracking document's § *Slice 8* ›
+  *Record (2026-09-24): the opus items of slice 8*.
 - [consumer-contracts.md](consumer-contracts.md) — step 1 of
   [registry-consumer-contracts.md](../compiler/registry-consumer-contracts.md)
   § *Build order*: step 1 (the four rulings taken as decided, and the

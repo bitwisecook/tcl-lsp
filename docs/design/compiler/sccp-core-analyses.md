@@ -259,6 +259,56 @@ Abstentions, each declining the fold rather than guessing:
 - a name that is not a bare `[A-Za-z0-9_]` local: a qualified name
   (`::ns::X`) may be populated outside the function's view.
 
+### The existence rung (`SccpResult::existence`)
+
+Beside the values, the run carries a flow-sensitive bound / unbound fact per
+place ([value-transfers.md](value-transfers.md) § *Existence*): the
+registry's `Existence` (`Pending` ⊥, `Unbound`, `Bound(Scalar | Array |
+Either)`, `MayBound` ⊤), joined as that page states. It is a forward fact
+per place over the same executable blocks and edges the value lattice runs
+over, asked for by the caller through `TraceInputs::existence`
+(`ExistenceEntry`); a run that does not ask for it — the optimiser's
+re-runs, a detached evaluation — has none, and every existence read in it
+is `Unavailable`, never `Unbound`.
+
+- **Entry.** Parameters enter `Bound(Scalar)`; an externally mutable place
+  (qualified, in the escaping set — scope aliases and traced names included
+  — or under a computed trace) is `MayBound` wherever it is read; a `TclOO`
+  method's instance variables and an iRules `when` handler's
+  connection-scoped names (every name a handler of the module binds,
+  `AnalysisContextKey::connection_scoped`) enter `MayBound`; in the initial
+  global frame a registry special variable (a pack-declared one included)
+  enters bound as its kind when startup binds it, `MayBound` otherwise;
+  every other local enters `Unbound`. The CFG builder's caller-frame barrier
+  applies from the entry.
+- **Transfer.** A block enters with the join of its executable edges' exits
+  — across a `try` / `catch` exception edge, of every point in the region
+  the handler covers — which is each φ's fact. A typed assignment binds its
+  place (an element write binds the element as a scalar and its array as an
+  array); a call takes the steps its evaluated outcome's stores state
+  (`Write` binds, `Preserve` keeps, `Unbind` unbinds, `MayWrite` joins with
+  bound), else the declaration's own existence transfer on the normal
+  completion, else the generic transfer, which widens to `MayBound`; the
+  synthetic loop header binds its binders once the list is proven to have an
+  element and leaves them as they were over a proven-empty list.
+- **Clobbers.** A `Barrier` or `UpFrame` makes every place `MayBound`, as
+  it widens every value; a computed name is applied from its own statement
+  on (`dynamic_names::statement_barrier`): a dynamic write turns an
+  `Unbound` place `MayBound`, a dynamic destroy a bound one; a statement that
+  keeps a nested body inline makes every place the body defines or unsets
+  `MayBound`.
+- **Answer.** `SccpResult::existence` per SSA version (version 0 its entry
+  fact), `existence_reads` per statement and place it reads — after any
+  clobber since the version's definition — and `existence_exits` per block,
+  what its terminator reads.
+
+The cell updates read it through `prior_store(place, FactDomain::Existence)`:
+an `Unbound` place is an absent cell, which `append` and `lappend` create in
+every release and `incr` from 8.5 (`creates_absent`), so `incr fresh`
+evaluates to 1 under `tcl8.5` onwards and declines with `UnboundPlace` under
+`tcl8.4` and a profile spanning both; the `dict` keyed updates create an
+absent dictionary the same way.
+
 ### Preserve outcomes (`SccpResult::preserved`)
 
 Since slice 5, a definition whose statement left its place untouched — a

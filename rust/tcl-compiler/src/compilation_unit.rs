@@ -206,6 +206,55 @@ pub struct UnitBuildOptions<'a> {
     pub declared_commands: Option<&'a tcl_registry::model::DeclaredSurface>,
 }
 
+/// The qualified-name prefix of an iRules `when` handler's procedure.
+const WHEN_HANDLER_PREFIX: &str = "::when::";
+
+/// The names an iRules `when` handler of the module may find bound on
+/// entry: every name any handler binds, with the array each element sits
+/// in, and whether a handler writes a computed name
+/// ([`crate::value_transfer::ConnectionScoped`]). A handler's variables
+/// live as long as its connection, so another event — or an earlier firing
+/// of the same one — may have bound them; empty for a module with no
+/// handler.
+fn connection_scoped_names(
+    cfg_module: &CfgModule,
+    registry: &CommandRegistry,
+    options: UnitBuildOptions<'_>,
+) -> crate::value_transfer::ConnectionScoped {
+    let config = options.config;
+    let mut names: BTreeSet<String> = BTreeSet::new();
+    let mut any = false;
+    for (qname, cfg) in &cfg_module.procedures {
+        if !qname.starts_with(WHEN_HANDLER_PREFIX) {
+            continue;
+        }
+        any |= crate::dynamic_names::dynamic_name_barrier(cfg, registry, config).writes;
+        for block in cfg.blocks.values() {
+            for statement in &block.statements {
+                names.extend(crate::ssa::defs_of_with_registry(statement, Some(registry)));
+                for script in crate::ir_helpers::nested_bodies(statement) {
+                    crate::ir::for_each_statement(script, &mut |inner| {
+                        names.extend(crate::ssa::defs_of_with_registry(inner, Some(registry)));
+                    });
+                }
+            }
+        }
+    }
+    let arrays: Vec<String> = names
+        .iter()
+        .filter_map(|name| {
+            name.split_once('(')
+                .filter(|_| name.ends_with(')'))
+                .map(|(base, _)| base.to_owned())
+        })
+        .collect();
+    names.extend(arrays);
+    crate::value_transfer::ConnectionScoped {
+        names: names.into_iter().collect(),
+        any,
+    }
+}
+
 /// Callback type for [`CompilationUnit::with_interprocedural_memoized`].
 ///
 /// Given a procedure's qualified name and the whole-module
@@ -464,6 +513,26 @@ struct FunctionBuildInputs<'a> {
     initial_global: bool,
 }
 
+impl<'a> FunctionBuildInputs<'a> {
+    /// The frame facts the existence rung enters the function `name` with.
+    /// It reads the computed names per statement, so it takes the module's
+    /// own trace fact rather than the widened one the values run under; an
+    /// iRules `when` handler adds the names its connection may hold.
+    fn existence_entry(&self, name: &str) -> crate::sccp::ExistenceEntry<'a> {
+        crate::sccp::ExistenceEntry {
+            params: self.params,
+            object_state: self.object_state,
+            initial_global: self.initial_global,
+            connection_scoped: self
+                .analysis_context
+                .map(|key| &key.connection_scoped)
+                .filter(|_| name.starts_with(WHEN_HANDLER_PREFIX)),
+            dynamic_trace: self.trace_facts.has_dynamic_variable_trace,
+            config: self.config,
+        }
+    }
+}
+
 impl ModuleTraceFacts<'_> {
     /// No `Module` in hand (a standalone per-function build) — behaviourally
     /// identical to "nothing is traced".
@@ -561,7 +630,7 @@ impl FunctionUnit {
         let no_extra_escaping = HashSet::new();
         let UnitDialect { registry, config } = dialect;
         Self::build_full(
-            name,
+            name.into(),
             cfg,
             FunctionBuildInputs {
                 config,
@@ -611,7 +680,7 @@ impl FunctionUnit {
         let no_extra_escaping = HashSet::new();
         let UnitDialect { registry, config } = dialect;
         Self::build_full(
-            name,
+            name.into(),
             cfg,
             FunctionBuildInputs {
                 config,
@@ -645,7 +714,7 @@ impl FunctionUnit {
         command_trust: &crate::command_binding::ModuleCommandMutations,
     ) -> Self {
         Self::build_full(
-            "::top",
+            "::top".to_owned(),
             cfg,
             FunctionBuildInputs {
                 config,
@@ -688,7 +757,7 @@ impl FunctionUnit {
         let no_extra_escaping = HashSet::new();
         let UnitDialect { registry, config } = dialect;
         let mut unit = Self::build_full(
-            name,
+            name.into(),
             cfg,
             FunctionBuildInputs {
                 config,
@@ -720,14 +789,10 @@ impl FunctionUnit {
     /// per-procedure build passes an empty set via
     /// [`Self::build_with_param_constants_and_classes`].
     #[must_use]
-    fn build_full(
-        name: impl Into<String>,
-        cfg: CfgFunction,
-        inputs: FunctionBuildInputs<'_>,
-    ) -> Self {
+    fn build_full(name: String, cfg: CfgFunction, inputs: FunctionBuildInputs<'_>) -> Self {
+        let existence = inputs.existence_entry(&name);
         let FunctionBuildInputs {
             config,
-            params,
             registry,
             param_constants,
             known_classes,
@@ -735,8 +800,7 @@ impl FunctionUnit {
             trace_facts,
             analysis_context,
             command_trust,
-            object_state,
-            initial_global,
+            ..
         } = inputs;
         // Complexity guard (block-count half): a pathologically large body
         // would cost seconds of SSA + dataflow for near-zero findings, so skip
@@ -790,6 +854,7 @@ impl FunctionUnit {
                     || dynamic_names.writes
                     || dynamic_names.destroys,
                 analysis_context,
+                existence: Some(existence),
             },
             // The trust fact, and only the trust fact: every declared route
             // the value-transfer driver runs is gated on it, while the
@@ -817,9 +882,9 @@ impl FunctionUnit {
             .extend(crate::sccp::existence_constant_branches(
                 &cfg,
                 crate::sccp::ExistenceFrame {
-                    params,
-                    object_state,
-                    initial_global,
+                    params: existence.params,
+                    object_state: existence.object_state,
+                    initial_global: existence.initial_global,
                 },
                 registry,
                 dynamic_names,
@@ -855,7 +920,7 @@ impl FunctionUnit {
             &instance_classes,
         );
         Self {
-            name: name.into(),
+            name,
             cfg,
             ssa,
             def_use: Arc::new(def_use),
@@ -1778,8 +1843,12 @@ impl CompilationUnit {
             prepared_command_trust(&ir_module, registry, &prepared_cfg_context);
         // The module's analysis context: one value every per-procedure
         // lattice in this build — memoised or not — is keyed and run under.
+        // The names an iRules handler may find bound on entry ride on it,
+        // so a handler's memoised lattice re-keys when another handler binds
+        // a new name.
         let analysis_context =
-            crate::value_transfer::AnalysisContextKey::for_module(&command_mutations, registry);
+            crate::value_transfer::AnalysisContextKey::for_module(&command_mutations, registry)
+                .with_connection_scoped(connection_scoped_names(&cfg_module, registry, options));
         // Module-wide upvar/param context — the CFG-determining context a
         // procedure body is rebuilt under.  Computed once and shared by every
         // memoised request, the methods/body-units below, and the call-site
@@ -2032,7 +2101,7 @@ impl CompilationUnit {
                     FunctionUnit::trivial_guarded(qname, cfg)
                 } else {
                     FunctionUnit::build_full(
-                        qname,
+                        qname.clone(),
                         cfg,
                         FunctionBuildInputs {
                             config,

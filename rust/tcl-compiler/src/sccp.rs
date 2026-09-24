@@ -28,7 +28,7 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 use rustc_hash::FxHashSet;
 use tcl_lexer::TokenType;
 use tcl_registry::CommandRegistry;
-use tcl_registry::value_transfer::ExactValue;
+use tcl_registry::value_transfer::{BindingKind, ExactValue, Existence};
 
 use crate::analyses::{ConstValue, LatticeValue, MAX_CONSTSET_SIZE};
 use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
@@ -269,9 +269,51 @@ pub struct SccpResult {
     /// what W102, the template folders, extract-proc and the dynamic-name
     /// barrier read instead of walking the template themselves.
     pub template_plans: Vec<TemplatePlanRecord>,
+    /// Per SSA value, the existence rung
+    /// (`docs/design/compiler/value-transfers.md` § *Existence*): whether
+    /// the place is bound where the version is established — by its
+    /// definition's storage outcome, by the join a φ takes over the
+    /// executable edges, or by the frame's entry rules for version 0. A
+    /// version the solver never reached, and every version of a run that
+    /// computes no existence (a re-run, a guarded function), has no entry,
+    /// which a consumer reads as unavailable — never as unbound.
+    pub existence: HashMap<ValueKey, Existence>,
+    /// Per statement and variable it reads, the existence fact the place
+    /// holds just before the statement runs — after every barrier and
+    /// computed name between the version's definition and the statement,
+    /// which the per-version fact does not see. Keyed `(block, statement
+    /// index, symbol)`.
+    pub existence_reads: HashMap<(BlockId, u32, Symbol), Existence>,
+    /// Per executable block, the existence fact of every symbol at its
+    /// exit, indexed by the symbol: what its terminator reads.
+    pub existence_exits: HashMap<BlockId, Vec<Existence>>,
 }
 
 impl SccpResult {
+    /// The existence fact the statement at `index` of `block` finds at
+    /// `symbol`'s place, when the statement reads it and the run computed
+    /// existence; `None` is unavailable, which is neither bound nor
+    /// unbound.
+    #[must_use]
+    pub fn existence_before(
+        &self,
+        block: BlockId,
+        index: usize,
+        symbol: Symbol,
+    ) -> Option<Existence> {
+        let index = u32::try_from(index).ok()?;
+        self.existence_reads.get(&(block, index, symbol)).copied()
+    }
+
+    /// The existence fact `symbol`'s place holds at `block`'s exit, where
+    /// its terminator reads, when the run computed existence.
+    #[must_use]
+    pub fn existence_at_exit(&self, block: BlockId, symbol: Symbol) -> Option<Existence> {
+        self.existence_exits
+            .get(&block)
+            .and_then(|state| state.get(symbol.0 as usize).copied())
+    }
+
     /// Whether the constant definition `key` holds may be written into
     /// source as a literal. A value a route constructed as a byte array has
     /// no lossless source spelling (`docs/design/compiler/value-transfers.md`
@@ -438,6 +480,40 @@ pub struct TraceInputs<'a> {
     /// tier, and the evaluator revision — when the caller carries one; a
     /// caller with no module view passes `None` and runs detached.
     pub analysis_context: Option<&'a AnalysisContextKey>,
+    /// The frame facts the existence rung enters the function with, when
+    /// the caller asks for it; `None` computes no existence, and every
+    /// existence read of the run is unavailable.
+    pub existence: Option<ExistenceEntry<'a>>,
+}
+
+/// What a function's frame binds on entry, for the existence rung
+/// (`docs/design/compiler/value-transfers.md` § *Existence*, the entry
+/// state): parameters bound as scalars; a `TclOO` method's instance
+/// variables and, in an iRules `when` handler, the connection's variables,
+/// linked to state another invocation may have bound; in the document's
+/// initial global frame the registry's special variables as startup binds
+/// them. Every other local enters unbound.
+#[derive(Clone, Copy)]
+pub struct ExistenceEntry<'a> {
+    /// The formal parameter names: bound as scalars on entry.
+    pub params: &'a [String],
+    /// A `TclOO` method body's instance variables
+    /// ([`crate::ir::MethodDef::instance_vars`]): linked on entry, bound
+    /// exactly when object state holds them.
+    pub object_state: Option<&'a HashSet<String>>,
+    /// Whether the body is the document's initial global frame, the
+    /// interpreter's own globals.
+    pub initial_global: bool,
+    /// The names an iRules `when` handler may find bound on entry
+    /// ([`crate::value_transfer::AnalysisContextKey::connection_scoped`]);
+    /// `None` for every other body.
+    pub connection_scoped: Option<&'a crate::value_transfer::ConnectionScoped>,
+    /// Whether the module traces a computed variable name, so a trace may
+    /// create or destroy any place at any time.
+    pub dynamic_trace: bool,
+    /// The document's lexer configuration, under which the per-statement
+    /// computed-name scan re-reads the words the lowering read.
+    pub config: tcl_lexer::LexerConfig,
 }
 
 /// Like [`sccp`] but additionally forces every name in `extra_escaping` to
@@ -522,13 +598,36 @@ pub fn sccp_with_builtin_folds(
     // declaration for the resolved invocation, through one driver whose
     // context is this run's identity.
     let driver = LatticeDriver::new(trace, folds, policy, &escaping);
+    // The existence rung runs beside the values, over the same executable
+    // blocks and edges, when the caller asks for it.
+    let existence = trace
+        .existence
+        .map(|entry| ExistenceRun::new(cfg, ssa, entry, &escaping, trace.registry));
 
-    let mut executable_blocks: HashSet<BlockId> = HashSet::new();
-    let mut executable_edges: HashSet<(BlockId, BlockId)> = HashSet::new();
-    if cfg.blocks.contains_key(&cfg.entry) {
-        executable_blocks.insert(cfg.entry);
-    }
+    let executable_blocks: HashSet<BlockId> = cfg
+        .blocks
+        .contains_key(&cfg.entry)
+        .then_some(cfg.entry)
+        .into_iter()
+        .collect();
     let order = cfg_order(cfg);
+    let sweep = SweepContext {
+        cfg,
+        ssa,
+        preds: &preds,
+        escaping: &escaping,
+        has_dynamic_variable_trace: trace.has_dynamic_variable_trace,
+        policy,
+        grammar,
+        registry: trace.registry,
+        driver: &driver,
+    };
+    let mut state = SweepState {
+        values,
+        executable_blocks,
+        executable_edges: HashSet::new(),
+        existence,
+    };
 
     // Optimistic fixpoint over the RPO sweep, followed by a finalising pass
     // that forces both arms for any executable branch still stuck on an UNKNOWN
@@ -547,58 +646,8 @@ pub fn sccp_with_builtin_folds(
             driver.reset_tally_for_sweep();
             driver.open_iteration();
             for bn in &order {
-                if !executable_blocks.contains(bn) {
-                    continue;
-                }
-                let Some(ssa_block) = ssa.blocks.get(bn) else {
-                    continue;
-                };
-
-                let incoming_exec: Vec<BlockId> = preds
-                    .get(bn)
-                    .map(|set| {
-                        set.iter()
-                            .copied()
-                            .filter(|p| executable_edges.contains(&(*p, *bn)))
-                            .collect()
-                    })
-                    .unwrap_or_default();
-
-                // Phi nodes (not at entry, only when some predecessor is
-                // executable).
-                if bn != &cfg.entry {
-                    changed |= sccp_process_phis(&mut values, ssa_block, &incoming_exec);
-                    record_phi_folded_types(&values, ssa_block, &incoming_exec, &driver);
-                }
-
-                // Statements.
-                changed |= sccp_process_statements(
-                    &mut values,
-                    ssa_block,
-                    ssa,
-                    &escaping,
-                    trace.has_dynamic_variable_trace,
-                    &driver,
-                );
-
-                // Terminator.
-                let inputs = TerminatorInputs {
-                    cfg,
-                    ssa,
-                    values: &values,
-                    policy,
-                    grammar,
-                    registry: trace.registry,
-                    driver: &driver,
-                };
-                if sccp_process_terminator(
-                    *bn,
-                    &inputs,
-                    &mut executable_blocks,
-                    &mut executable_edges,
-                    finalizing,
-                ) {
-                    changed = true;
+                if state.executable_blocks.contains(bn) {
+                    changed |= sweep.block(*bn, &mut state, finalizing);
                 }
             }
         }
@@ -608,6 +657,12 @@ pub fn sccp_with_builtin_folds(
         finalizing = true;
     }
 
+    let SweepState {
+        values,
+        executable_blocks,
+        executable_edges,
+        existence,
+    } = state;
     let constant_branches = collect_constant_branches(
         cfg,
         ssa,
@@ -620,17 +675,679 @@ pub fn sccp_with_builtin_folds(
             registry: trace.registry,
             driver: &driver,
         },
+        existence.as_ref().map(|run| &run.exits),
     );
 
     let template_plans = driver.template_plans(ssa, &values, &executable_blocks);
+    let (existence, existence_reads, existence_exits) =
+        existence.map_or_else(Default::default, |run| (run.versions, run.reads, run.exits));
     SccpResult {
         values,
         executable_blocks,
         executable_edges,
         constant_branches,
         template_plans,
+        existence,
+        existence_reads,
+        existence_exits,
         ..driver.take_run_facts()
     }
+}
+
+/// The read-only context one solver sweep runs each block under.
+struct SweepContext<'a> {
+    cfg: &'a CfgFunction,
+    ssa: &'a SsaFunction,
+    preds: &'a HashMap<BlockId, HashSet<BlockId>>,
+    escaping: &'a HashSet<String>,
+    has_dynamic_variable_trace: bool,
+    policy: FoldPolicy,
+    grammar: tcl_dialect::LexerGrammar,
+    registry: &'a CommandRegistry,
+    driver: &'a LatticeDriver<'a>,
+}
+
+/// What the sweeps advance: the lattice values, the executable blocks and
+/// edges, and the existence rung when the run computes it.
+struct SweepState {
+    values: HashMap<ValueKey, LatticeValue>,
+    executable_blocks: HashSet<BlockId>,
+    executable_edges: HashSet<(BlockId, BlockId)>,
+    existence: Option<ExistenceRun>,
+}
+
+impl SweepContext<'_> {
+    /// One executable block of a sweep: its φs, its statements, the
+    /// existence rung through them, and its terminator's edges; whether
+    /// anything moved.
+    fn block(&self, bn: BlockId, state: &mut SweepState, finalizing: bool) -> bool {
+        let Some(ssa_block) = self.ssa.blocks.get(&bn) else {
+            return false;
+        };
+        let mut changed = false;
+        let incoming_exec: Vec<BlockId> = self
+            .preds
+            .get(&bn)
+            .map(|set| {
+                set.iter()
+                    .copied()
+                    .filter(|p| state.executable_edges.contains(&(*p, bn)))
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        // Phi nodes (not at entry, only when some predecessor is
+        // executable).
+        if bn != self.cfg.entry {
+            changed |= sccp_process_phis(&mut state.values, ssa_block, &incoming_exec);
+            record_phi_folded_types(&state.values, ssa_block, &incoming_exec, self.driver);
+        }
+
+        // The existence rung enters the block with the join of its
+        // executable edges, which is each φ's fact.
+        let mut at = state.existence.as_mut().map(|run| {
+            run.enter(
+                self.cfg,
+                (bn, ssa_block),
+                &incoming_exec,
+                self.driver,
+                &mut changed,
+            )
+        });
+
+        // Statements.
+        changed |= sccp_process_statements(
+            &mut state.values,
+            ssa_block,
+            self.ssa,
+            self.escaping,
+            self.has_dynamic_variable_trace,
+            self.driver,
+            at.as_mut(),
+        );
+        if let Some(at) = &at {
+            at.before_terminator(self.driver);
+        }
+
+        // Terminator.
+        let inputs = TerminatorInputs {
+            cfg: self.cfg,
+            ssa: self.ssa,
+            values: &state.values,
+            policy: self.policy,
+            grammar: self.grammar,
+            registry: self.registry,
+            driver: self.driver,
+        };
+        changed |= sccp_process_terminator(
+            bn,
+            &inputs,
+            &mut state.executable_blocks,
+            &mut state.executable_edges,
+            finalizing,
+        );
+        if let Some(at) = at {
+            changed |= at.leave(self.driver);
+        }
+        changed
+    }
+}
+
+/// The existence rung at one block during a sweep: the run, the block, and
+/// — for a block some handler region holds — the join of the points passed
+/// so far.
+struct ExistenceAt<'r> {
+    run: &'r mut ExistenceRun,
+    block: BlockId,
+    through: Option<Vec<Existence>>,
+}
+
+impl ExistenceAt<'_> {
+    /// Record the facts the statement at `index` finds at each place it
+    /// reads: the settled sweep's stay.
+    fn record_reads(&mut self, index: usize, stmt_ssa: &SsaStatement, driver: &LatticeDriver<'_>) {
+        let Ok(index) = u32::try_from(index) else {
+            return;
+        };
+        for &symbol in stmt_ssa.uses.keys() {
+            let fact = driver.existence_now(symbol).unwrap_or(Existence::Pending);
+            self.run.reads.insert((self.block, index, symbol), fact);
+        }
+    }
+
+    /// Join the current point into the block's points, for a region block.
+    fn note_point(&mut self, driver: &LatticeDriver<'_>) {
+        if let Some(points) = self.through.as_mut() {
+            for (fact, symbol) in points.iter_mut().zip(0u32..) {
+                if let Some(now) = driver.existence_now(Symbol(symbol)) {
+                    *fact = fact.join(now);
+                }
+            }
+        }
+    }
+
+    /// Apply the clobber the statement at `index` performs, after its own
+    /// storage outcomes, and join the point into the block's points.
+    fn finish_statement(&mut self, index: usize, driver: &LatticeDriver<'_>) {
+        if let Some(clobber) = self.run.clobbers.get(&(self.block, index)) {
+            driver.existence_clobber(|fact| clobber.applied(fact));
+            for &symbol in &clobber.touched {
+                driver.existence_step(
+                    symbol,
+                    crate::value_transfer::ExistenceStep::Set(Existence::MayBound),
+                );
+            }
+        }
+        self.note_point(driver);
+    }
+
+    /// A barrier or a static-body `uplevel` at `index`: every place is
+    /// may-bound afterwards, its own definitions included; whether a
+    /// version's fact moved.
+    fn barrier(
+        &mut self,
+        index: usize,
+        stmt_ssa: &SsaStatement,
+        driver: &LatticeDriver<'_>,
+    ) -> bool {
+        self.finish_statement(index, driver);
+        let mut changed = false;
+        for (&var, &ver) in &stmt_ssa.defs {
+            changed |= self.run.record_version((var, ver), Existence::MayBound);
+        }
+        changed
+    }
+
+    /// The step the definition `var` takes: an externally mutable place
+    /// stays may-bound, a typed assignment binds, and any other statement's
+    /// comes from its evaluation.
+    fn step_for(
+        &self,
+        stmt_ssa: &SsaStatement,
+        (var, element_write_base): (Symbol, Option<Symbol>),
+        driver: &LatticeDriver<'_>,
+        evaluated: impl FnOnce() -> crate::value_transfer::ExistenceStep,
+    ) -> crate::value_transfer::ExistenceStep {
+        if self
+            .run
+            .mutable
+            .get(var.0 as usize)
+            .copied()
+            .unwrap_or(true)
+        {
+            return crate::value_transfer::ExistenceStep::Set(Existence::MayBound);
+        }
+        assignment_existence(stmt_ssa, var, element_write_base, driver).unwrap_or_else(evaluated)
+    }
+
+    /// Advance the definition `key`'s place by `step` and record the fact
+    /// its version is established with; whether it moved.
+    fn advance(
+        &mut self,
+        key: ValueKey,
+        step: crate::value_transfer::ExistenceStep,
+        driver: &LatticeDriver<'_>,
+    ) -> bool {
+        let fact = driver
+            .existence_step(key.0, step)
+            .unwrap_or(Existence::Pending);
+        self.run.record_version(key, fact)
+    }
+
+    /// Apply a computed name in the terminator's words before the branch
+    /// reads its condition.
+    fn before_terminator(&self, driver: &LatticeDriver<'_>) {
+        if let Some(clobber) = self.run.terminator_clobbers.get(&self.block) {
+            driver.existence_clobber(|fact| clobber.applied(fact));
+        }
+    }
+
+    /// Leave the block: record its exit, and for a region block the join
+    /// of its points; whether either moved.
+    fn leave(self, driver: &LatticeDriver<'_>) -> bool {
+        let Some(exit) = driver.existence_leave() else {
+            return false;
+        };
+        let through = self.through.map(|mut points| {
+            join_state(&mut points, &exit);
+            points
+        });
+        self.run.finish_block(self.block, exit, through)
+    }
+}
+
+/// A whole-frame effect on the existence rung that no storage outcome
+/// states: a barrier's, a computed name's, or a nested body's.
+#[derive(Debug, Clone, Default)]
+struct Clobber {
+    /// A barrier or a static-body `uplevel`: any place may have been
+    /// written or destroyed, so every place is may-bound afterwards.
+    all: bool,
+    /// A computed name written: an unbound place may be bound afterwards.
+    writes: bool,
+    /// A computed name destroyed: a bound place may be unbound afterwards.
+    destroys: bool,
+    /// The places a nested body the statement keeps inline (a non-lowered
+    /// `switch`'s arms) may write or destroy.
+    touched: Vec<Symbol>,
+}
+
+impl Clobber {
+    /// The clobber a statement's computed-name facts state.
+    fn of_names(barrier: crate::dynamic_names::DynamicNameBarrier) -> Self {
+        Self {
+            writes: barrier.writes,
+            destroys: barrier.destroys,
+            ..Self::default()
+        }
+    }
+
+    /// Whether the clobber changes nothing.
+    fn is_empty(&self) -> bool {
+        !self.all && !self.writes && !self.destroys && self.touched.is_empty()
+    }
+
+    /// The fact a place holds after the clobber, when it held `fact`.
+    const fn applied(&self, fact: Existence) -> Existence {
+        match fact {
+            _ if self.all => Existence::MayBound,
+            Existence::Unbound if self.writes => Existence::MayBound,
+            Existence::Bound(_) if self.destroys => Existence::MayBound,
+            other => other,
+        }
+    }
+}
+
+/// One run's existence rung (`docs/design/compiler/value-transfers.md`
+/// § *Existence*): a forward fact per place, flowing through the same
+/// executable blocks and edges the value lattice runs over. A block enters
+/// with the join of its executable predecessors' exits — an exception edge
+/// contributes every point of the region its handler covers, since any
+/// command in it may throw — each statement's storage outcomes advance the
+/// places it defines, and a barrier, a computed name or an inline nested
+/// body clobbers what it may touch. The per-version facts, the facts each
+/// statement reads, and each block's exit are the run's answer.
+struct ExistenceRun {
+    /// The fact each symbol holds on entry to the function.
+    entry: Vec<Existence>,
+    /// Whether each symbol's place is writable from outside the function —
+    /// qualified, aliased, traced, or under a computed trace — and so
+    /// may-bound wherever it is read.
+    mutable: Vec<bool>,
+    /// The clobber each statement performs, by `(block, index)`.
+    clobbers: HashMap<(BlockId, usize), Clobber>,
+    /// The clobber each block's terminator performs.
+    terminator_clobbers: HashMap<BlockId, Clobber>,
+    /// Per handler block, the blocks whose every point its exception edges
+    /// may leave from.
+    handler_regions: HashMap<BlockId, Vec<BlockId>>,
+    /// The blocks some handler region holds, whose inner points are kept.
+    in_regions: HashSet<BlockId>,
+    /// Each executable block's exit state.
+    exits: HashMap<BlockId, Vec<Existence>>,
+    /// The join of every point in each region block.
+    through: HashMap<BlockId, Vec<Existence>>,
+    /// The fact each SSA version is established with.
+    versions: HashMap<ValueKey, Existence>,
+    /// The fact each statement finds at each place it reads.
+    reads: HashMap<(BlockId, u32, Symbol), Existence>,
+}
+
+/// Join `incoming` into `state`, place by place.
+fn join_state(state: &mut [Existence], incoming: &[Existence]) {
+    for (fact, other) in state.iter_mut().zip(incoming) {
+        *fact = fact.join(*other);
+    }
+}
+
+/// Join `state` into what `states` holds for `block`; whether it moved.
+fn join_into(
+    states: &mut HashMap<BlockId, Vec<Existence>>,
+    block: BlockId,
+    state: Vec<Existence>,
+) -> bool {
+    if let Some(old) = states.get_mut(&block) {
+        let before = old.clone();
+        join_state(old, &state);
+        return *old != before;
+    }
+    states.insert(block, state);
+    true
+}
+
+impl ExistenceRun {
+    /// The run for `cfg` / `ssa` entered under `entry`; `escaping` is the
+    /// value lattice's externally-mutable set.
+    fn new(
+        cfg: &CfgFunction,
+        ssa: &SsaFunction,
+        entry: ExistenceEntry<'_>,
+        escaping: &HashSet<String>,
+        registry: &CommandRegistry,
+    ) -> Self {
+        let names = ssa.var_names();
+        let mutable: Vec<bool> = names
+            .iter()
+            .map(|name| {
+                entry.dynamic_trace
+                    || name.contains("::")
+                    || escaping.contains(name.as_str())
+                    || escaping.contains(place_base(name))
+            })
+            .collect();
+        let dialect = Some(tcl_registry::special_vars::surface_query_for_profile(
+            registry.profile(),
+        ));
+        let caller_frame = Clobber::of_names(cfg.caller_frame_barrier);
+        let entry_state: Vec<Existence> = names
+            .iter()
+            .zip(&mutable)
+            .map(|(name, &mutable)| {
+                let fact = if mutable {
+                    Existence::MayBound
+                } else {
+                    entry_fact(name, entry, registry, dialect)
+                };
+                caller_frame.applied(fact)
+            })
+            .collect();
+        let mut clobbers = HashMap::new();
+        let mut terminator_clobbers = HashMap::new();
+        for (&block_id, block) in &cfg.blocks {
+            for (index, statement) in block.statements.iter().enumerate() {
+                let clobber = statement_clobber(statement, ssa, registry, entry.config);
+                if !clobber.is_empty() {
+                    clobbers.insert((block_id, index), clobber);
+                }
+            }
+            if let Some(terminator) = &block.terminator {
+                let clobber = Clobber::of_names(crate::dynamic_names::terminator_barrier(
+                    terminator,
+                    registry,
+                    entry.config,
+                ));
+                if !clobber.is_empty() {
+                    terminator_clobbers.insert(block_id, clobber);
+                }
+            }
+        }
+        let handler_regions = handler_regions(cfg);
+        let in_regions = handler_regions.values().flatten().copied().collect();
+        // Version 0 of each place is what the frame enters with.
+        let versions = (0u32..)
+            .zip(&entry_state)
+            .map(|(symbol, fact)| ((Symbol(symbol), 0), *fact))
+            .collect();
+        Self {
+            entry: entry_state,
+            mutable,
+            clobbers,
+            terminator_clobbers,
+            handler_regions,
+            in_regions,
+            exits: HashMap::new(),
+            through: HashMap::new(),
+            versions,
+            reads: HashMap::new(),
+        }
+    }
+
+    /// Enter `block` for a sweep: its entry state, which each φ takes, at
+    /// the driver's cursor; `changed` is set when a φ's fact moved.
+    fn enter<'r>(
+        &'r mut self,
+        cfg: &CfgFunction,
+        (block, ssa_block): (BlockId, &crate::ssa::SsaBlock),
+        incoming: &[BlockId],
+        driver: &LatticeDriver<'_>,
+        changed: &mut bool,
+    ) -> ExistenceAt<'r> {
+        let state = self.block_entry(cfg, block, incoming);
+        for phi in &ssa_block.phis {
+            let fact = state
+                .get(phi.name.0 as usize)
+                .copied()
+                .unwrap_or(Existence::Pending);
+            *changed |= self.record_version((phi.name, phi.version), fact);
+        }
+        let through = self.in_regions.contains(&block).then(|| state.clone());
+        driver.existence_enter(state);
+        ExistenceAt {
+            run: self,
+            block,
+            through,
+        }
+    }
+
+    /// The state `block` enters with: the entry rules for the function's
+    /// entry, joined with every executable incoming edge's contribution —
+    /// a predecessor's exit, or across an exception edge every point of the
+    /// handler's region. A predecessor the sweep has not reached yet
+    /// contributes nothing.
+    fn block_entry(
+        &self,
+        cfg: &CfgFunction,
+        block: BlockId,
+        incoming: &[BlockId],
+    ) -> Vec<Existence> {
+        let mut state = if block == cfg.entry {
+            self.entry.clone()
+        } else {
+            vec![Existence::Pending; self.entry.len()]
+        };
+        for &pred in incoming {
+            let normal = cfg
+                .blocks
+                .get(&pred)
+                .is_some_and(|b| b.successors().contains(&block));
+            if normal && let Some(exit) = self.exits.get(&pred) {
+                join_state(&mut state, exit);
+            }
+            if cfg.exception_edges.contains(&(pred, block)) {
+                for region in self.handler_regions.get(&block).into_iter().flatten() {
+                    if let Some(points) = self.through.get(region) {
+                        join_state(&mut state, points);
+                    }
+                }
+            }
+        }
+        state
+    }
+
+    /// Record `fact` for `key`, joined with what an earlier sweep recorded;
+    /// whether the record moved.
+    fn record_version(&mut self, key: ValueKey, fact: Existence) -> bool {
+        let old = self
+            .versions
+            .get(&key)
+            .copied()
+            .unwrap_or(Existence::Pending);
+        let joined = old.join(fact);
+        if joined == old && self.versions.contains_key(&key) {
+            return false;
+        }
+        self.versions.insert(key, joined);
+        true
+    }
+
+    /// Record a block's exit and, for a region block, the join of its
+    /// points; whether either moved.
+    fn finish_block(
+        &mut self,
+        block: BlockId,
+        exit: Vec<Existence>,
+        through: Option<Vec<Existence>>,
+    ) -> bool {
+        let mut changed = join_into(&mut self.exits, block, exit);
+        if let Some(points) = through {
+            changed |= join_into(&mut self.through, block, points);
+        }
+        changed
+    }
+}
+
+/// The fact a place named `name` enters an unaliased frame with: a
+/// parameter bound as a scalar; an element whose array the frame links or
+/// holds from elsewhere, a `TclOO` instance variable, a connection-scoped
+/// name, and a special variable startup does not bind all may-bound; a
+/// special variable startup binds bound as its kind; anything else unbound.
+fn entry_fact(
+    name: &str,
+    entry: ExistenceEntry<'_>,
+    registry: &CommandRegistry,
+    dialect: Option<tcl_dialect::model::SurfaceQuery<'static>>,
+) -> Existence {
+    let linked = |name: &str| {
+        entry.object_state.is_some_and(|state| state.contains(name))
+            && !entry.params.iter().any(|param| param == name)
+            || entry
+                .connection_scoped
+                .is_some_and(|scoped| scoped.holds(name))
+    };
+    let special = |name: &str| {
+        entry
+            .initial_global
+            .then(|| registry.special_var_in_dialect(name, dialect))
+            .flatten()
+    };
+    let base = place_base(name);
+    if base != name {
+        // Which elements an array holds is its own fact: an element of a
+        // parameter, a linked array or a special one is not provably
+        // absent.
+        let held_elsewhere = entry.params.iter().any(|param| param == base)
+            || linked(base)
+            || special(base).is_some();
+        return if held_elsewhere {
+            Existence::MayBound
+        } else {
+            Existence::Unbound
+        };
+    }
+    if entry.params.iter().any(|param| param == name) {
+        return Existence::Bound(BindingKind::Scalar);
+    }
+    if linked(name) {
+        return Existence::MayBound;
+    }
+    if let Some(spec) = special(name) {
+        let bound = registry.is_initially_bound(name, dialect);
+        return match spec.kind {
+            tcl_registry::special_vars::SpecialVarKind::Scalar if bound => {
+                Existence::Bound(BindingKind::Scalar)
+            }
+            tcl_registry::special_vars::SpecialVarKind::Array if bound => {
+                Existence::Bound(BindingKind::Array)
+            }
+            _ => Existence::MayBound,
+        };
+    }
+    Existence::Unbound
+}
+
+/// The clobber one statement performs: every place for a barrier or a
+/// static-body `uplevel`, the computed-name facts its words raise, and the
+/// places a nested body it keeps inline may define or destroy.
+fn statement_clobber(
+    statement: &Statement,
+    ssa: &SsaFunction,
+    registry: &CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+) -> Clobber {
+    let mut clobber = Clobber::of_names(crate::dynamic_names::statement_barrier(
+        statement, registry, config,
+    ));
+    if matches!(
+        statement,
+        Statement::Barrier { .. } | Statement::UpFrame { .. }
+    ) {
+        clobber.all = true;
+        return clobber;
+    }
+    let mut named: HashSet<String> = HashSet::new();
+    for script in crate::ir_helpers::nested_bodies(statement) {
+        crate::ir::for_each_statement(script, &mut |inner| {
+            if matches!(inner, Statement::Barrier { .. } | Statement::UpFrame { .. }) {
+                clobber.all = true;
+            }
+            named.extend(crate::ssa::defs_of_with_registry(inner, Some(registry)));
+        });
+    }
+    if !named.is_empty() {
+        // A place and the array it sits in, and every element of an array
+        // the body touches whole.
+        let bases: HashSet<&str> = named.iter().map(|name| place_base(name)).collect();
+        for (index, name) in ssa.var_names().iter().enumerate() {
+            let base = place_base(name);
+            if named.contains(name) || bases.contains(name.as_str()) || bases.contains(base) {
+                clobber
+                    .touched
+                    .push(Symbol(u32::try_from(index).unwrap_or(u32::MAX)));
+            }
+        }
+    }
+    clobber
+}
+
+/// The variable that holds the place `name`: the array for an element
+/// `base(key)`, the name itself otherwise.
+fn place_base(name: &str) -> &str {
+    name.split_once('(')
+        .filter(|_| name.ends_with(')'))
+        .map_or(name, |(base, _)| base)
+}
+
+/// Per handler block, the region its exception edges leave from: every
+/// block on a normal path from one of its edges' sources to another — a
+/// `try` or `catch` body between the block before it and its tail —
+/// sources included. Any command in the region may throw, so the handler
+/// sees every point of it.
+fn handler_regions(cfg: &CfgFunction) -> HashMap<BlockId, Vec<BlockId>> {
+    let mut sources: HashMap<BlockId, Vec<BlockId>> = HashMap::new();
+    for &(from, to) in &cfg.exception_edges {
+        let listed = sources.entry(to).or_default();
+        if !listed.contains(&from) {
+            listed.push(from);
+        }
+    }
+    if sources.is_empty() {
+        return HashMap::new();
+    }
+    let mut predecessors: HashMap<BlockId, Vec<BlockId>> = HashMap::new();
+    for (&id, block) in &cfg.blocks {
+        for successor in block.successors() {
+            predecessors.entry(successor).or_default().push(id);
+        }
+    }
+    let reach = |starts: &[BlockId], next: &dyn Fn(BlockId) -> Vec<BlockId>| {
+        let mut seen: HashSet<BlockId> = starts.iter().copied().collect();
+        let mut work: Vec<BlockId> = starts.to_vec();
+        while let Some(block) = work.pop() {
+            for other in next(block) {
+                if seen.insert(other) {
+                    work.push(other);
+                }
+            }
+        }
+        seen
+    };
+    sources
+        .into_iter()
+        .map(|(handler, starts)| {
+            let forward = reach(&starts, &|block| {
+                cfg.blocks
+                    .get(&block)
+                    .map(crate::cfg::Block::successors)
+                    .unwrap_or_default()
+            });
+            let backward = reach(&starts, &|block| {
+                predecessors.get(&block).cloned().unwrap_or_default()
+            });
+            let mut region: Vec<BlockId> = forward.intersection(&backward).copied().collect();
+            region.sort_unstable_by_key(|block| block.0);
+            (handler, region)
+        })
+        .collect()
 }
 
 /// The lattice's starting values: the interprocedural parameter seed. The
@@ -840,6 +1557,10 @@ fn record_phi_folded_types(
 
 /// Evaluate each statement's defs for one block, widening across barriers.
 /// Returns `true` if any lattice value changed. Extracted from [`sccp`].
+///
+/// With the existence rung, each statement also records the facts it
+/// reads, advances each place it defines by its storage outcome — the
+/// externally mutable ones stay may-bound — and applies its clobber.
 fn sccp_process_statements(
     values: &mut HashMap<ValueKey, LatticeValue>,
     ssa_block: &crate::ssa::SsaBlock,
@@ -847,9 +1568,13 @@ fn sccp_process_statements(
     escaping: &HashSet<String>,
     has_dynamic_variable_trace: bool,
     driver: &LatticeDriver<'_>,
+    mut existence: Option<&mut ExistenceAt<'_>>,
 ) -> bool {
     let mut changed = false;
     for (index, stmt_ssa) in ssa_block.statements.iter().enumerate() {
+        if let Some(at) = existence.as_deref_mut() {
+            at.record_reads(index, stmt_ssa, driver);
+        }
         if matches!(
             stmt_ssa.statement,
             Statement::Barrier { .. } | Statement::UpFrame { .. }
@@ -892,6 +1617,11 @@ fn sccp_process_statements(
                     changed = true;
                 }
             }
+            // Every place is may-bound after a barrier, as every value is
+            // widened.
+            if let Some(at) = existence.as_deref_mut() {
+                changed |= at.barrier(index, stmt_ssa, driver);
+            }
             continue;
         }
         // An element write's base def carries no scalar value of its own —
@@ -920,8 +1650,10 @@ fn sccp_process_statements(
                     evaluated.folded_of((var, ver)),
                     evaluated.stated((var, ver)),
                     evaluated.preserved((var, ver)),
+                    evaluated.existence((var, ver)),
                 )
             };
+
             // A definition's folded type is its own evaluation's: a widened
             // or a joined definition states none. One whose outcome left its
             // place untouched names the version the place held.
@@ -942,7 +1674,7 @@ fn sccp_process_statements(
                     // base holds no value of its own.
                     match stmt_ssa.uses.get(&var) {
                         Some(prev_ver) => {
-                            let (written, folded, stated, _) = value_of(values);
+                            let (written, folded, stated, _, _) = value_of(values);
                             if stated {
                                 (written, folded)
                             } else {
@@ -956,7 +1688,7 @@ fn sccp_process_statements(
                         None => (LatticeValue::Overdefined, None),
                     }
                 } else {
-                    let (value, folded, _, kept) = value_of(values);
+                    let (value, folded, _, kept, _) = value_of(values);
                     if kept {
                         preserved = Some(prior_version(ssa_block, index, var));
                     }
@@ -967,9 +1699,50 @@ fn sccp_process_statements(
             if set_value(values, (var, ver), &val) {
                 changed = true;
             }
+            if let Some(at) = existence.as_deref_mut() {
+                let step = at.step_for(stmt_ssa, (var, element_write_base), driver, || {
+                    value_of(values).4
+                });
+                changed |= at.advance((var, ver), step, driver);
+            }
+        }
+        if let Some(at) = existence.as_deref_mut() {
+            at.finish_statement(index, driver);
         }
     }
     changed
+}
+
+/// The existence step a typed assignment (`set`'s lowering) takes on the
+/// definition `var`: the written place binds as a scalar, the array an
+/// element write refreshes binds as an array, and an element the SSA fans a
+/// dynamic-key write over may have been bound. `None` for any other
+/// statement, whose step is its evaluation's; a typed assignment whose
+/// `set` the module rebinds takes the generic widening.
+fn assignment_existence(
+    stmt_ssa: &SsaStatement,
+    var: Symbol,
+    element_write_base: Option<Symbol>,
+    driver: &LatticeDriver<'_>,
+) -> Option<crate::value_transfer::ExistenceStep> {
+    use crate::value_transfer::ExistenceStep;
+    if !matches!(
+        stmt_ssa.statement,
+        Statement::AssignConst { .. }
+            | Statement::AssignExpr { .. }
+            | Statement::AssignValue { .. }
+    ) {
+        return None;
+    }
+    Some(if !driver.typed_assignment_trusted() {
+        ExistenceStep::UNKNOWN
+    } else if element_write_base == Some(var) {
+        ExistenceStep::Set(Existence::Bound(BindingKind::Array))
+    } else if stmt_ssa.may_defs.contains(&var) {
+        ExistenceStep::Join(Existence::Bound(BindingKind::Scalar))
+    } else {
+        ExistenceStep::Set(Existence::Bound(BindingKind::Scalar))
+    })
 }
 
 /// The version of `var` the statement at `index` of `block` finds in its
@@ -1122,6 +1895,7 @@ fn collect_constant_branches(
     executable_blocks: &HashSet<BlockId>,
     order: &[BlockId],
     fold: BranchFold<'_>,
+    existence_exits: Option<&HashMap<BlockId, Vec<Existence>>>,
 ) -> Vec<ConstantBranch> {
     let mut constant_branches: Vec<ConstantBranch> = Vec::new();
     for bn in order {
@@ -1145,7 +1919,12 @@ fn collect_constant_branches(
             continue;
         };
         fold.driver.explaining(*term_span);
+        // The condition reads the existence rung at the block's exit.
+        if let Some(exit) = existence_exits.and_then(|exits| exits.get(bn)) {
+            fold.driver.existence_enter(exit.clone());
+        }
         let decision = branch_decision(cfg, ssa, *bn, ssa_block, condition, values, fold);
+        fold.driver.existence_leave();
         fold.driver.explaining(None);
         if decision.is_some() && !cfg.loop_nodes.contains_key(bn) {
             record_condition_preserves(cfg, ssa, *bn, fold.driver);
@@ -1473,10 +2252,11 @@ pub fn existence_constant_branches(
     // already covered by the scope-alias skip above.
     if frame.initial_global {
         aliased.extend(
-            tcl_registry::special_vars::special_vars_for_dialect(Some(
-                tcl_registry::special_vars::surface_query_for_profile(registry.profile()),
-            ))
-            .map(|spec| spec.name.to_owned()),
+            registry
+                .special_vars_for_dialect(Some(
+                    tcl_registry::special_vars::surface_query_for_profile(registry.profile()),
+                ))
+                .map(|spec| spec.name.to_owned()),
         );
     }
     for block in cfg.blocks.values() {
@@ -1686,6 +2466,21 @@ impl DefValues {
             Self::PerDef(answers) => answers
                 .iter()
                 .any(|answer| answer.key == key && answer.preserved),
+        }
+    }
+
+    /// The existence step definition `key` takes
+    /// ([`crate::value_transfer::DefAnswer::existence`]); a statement the
+    /// evaluation has no per-definition answer for widens.
+    fn existence(&self, key: ValueKey) -> crate::value_transfer::ExistenceStep {
+        match self {
+            Self::Each(..) => crate::value_transfer::ExistenceStep::UNKNOWN,
+            Self::PerDef(answers) => answers
+                .iter()
+                .find(|answer| answer.key == key)
+                .map_or(crate::value_transfer::ExistenceStep::UNKNOWN, |answer| {
+                    answer.existence
+                }),
         }
     }
 
@@ -2188,6 +2983,7 @@ mod tests {
                 traced_variables: &BTreeSet::new(),
                 has_dynamic_variable_trace: false,
                 analysis_context: None,
+                existence: None,
             },
         )
     }
@@ -2209,6 +3005,7 @@ mod tests {
                 traced_variables: &BTreeSet::new(),
                 has_dynamic_variable_trace: false,
                 analysis_context: None,
+                existence: None,
             },
             Some(BuiltinFoldInputs {
                 registry: &registry,
@@ -2616,6 +3413,7 @@ mod tests {
             &escaping,
             false,
             &LatticeDriver::detached(None, FoldPolicy::default()),
+            None,
         ));
         assert_eq!(
             values.get(&(x, 2)),
@@ -3610,11 +4408,13 @@ mod tests {
             explained.contains(&("incr".to_owned(), "evaluated".to_owned())),
             "{explained:?}"
         );
+        // The existence rung proves `s` unbound, and `append` creates its
+        // cell in every release, so the absent cell evaluates
+        // (`the_absent_cell_release_table`: `append s foo` is `foo` under
+        // tclsh 8.4 to 9.1).
         assert!(
-            explained
-                .iter()
-                .any(|(command, answer)| command == "append" && answer != "evaluated"),
-            "an append over an unbound cell is pending or declined: {explained:?}"
+            explained.contains(&("append".to_owned(), "evaluated".to_owned())),
+            "an append over an unbound cell creates it: {explained:?}"
         );
         assert!(
             fu.sccp

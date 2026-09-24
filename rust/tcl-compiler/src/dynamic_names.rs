@@ -83,11 +83,13 @@
 //! the same three bits, so every consumer's abstention rule is unchanged
 //! and the cost stays `O(1)` per query.
 //!
-//! Deliberately **not** a per-call-site fact: every consumer of this
-//! lattice (`W210` / `W211` / `W220` / `I230`, `O101` / `O109` / `O126`)
-//! already reads it once per function and abstains for the whole function.
-//! A per-site fact would need flow-sensitivity none of them have, and would
-//! buy nothing — the flow-insensitive union is what they would compute.
+//! The function's flags are the flow-insensitive union, which every
+//! whole-function consumer (`W210` / `W211` / `W220`, `O109` / `O126`)
+//! reads once and abstains on. The one flow-sensitive consumer, the
+//! existence rung, reads each statement's own flags
+//! ([`statement_barrier`], [`terminator_barrier`]) and applies them from
+//! that statement on, so a computed name after a `[info exists …]` test no
+//! longer blinds the test.
 //!
 //! `uplevel 1 $body` written *inside* a proc raises nothing for that proc:
 //! the script runs one frame **up**, so the proc's own locals are
@@ -464,31 +466,64 @@ pub fn dynamic_name_barrier(
     let mut barrier = cfg.caller_frame_barrier;
     for block in cfg.blocks.values() {
         for stmt in &block.statements {
-            scan_statement(stmt, registry, &mut barrier, config);
-            // The CFG builder flattens structured control flow, but a
-            // non-lowered (glob / regexp / fall-through) `switch` keeps its
-            // arm bodies inline; descend through whatever nests.
-            for script in crate::ir_helpers::nested_bodies(stmt) {
-                crate::ir::for_each_statement(script, &mut |inner| {
-                    scan_statement(inner, registry, &mut barrier, config);
-                });
+            barrier = barrier.union(statement_barrier(stmt, registry, config));
+        }
+        if let Some(terminator) = &block.terminator {
+            barrier = barrier.union(terminator_barrier(terminator, registry, config));
+        }
+    }
+    barrier
+}
+
+/// The computed-name facts one statement raises, its `[…]` substitutions
+/// and nested bodies included: the per-statement half of
+/// [`dynamic_name_barrier`], for the one consumer that applies a computed
+/// name from the statement that performs it on — the existence rung
+/// (`docs/design/compiler/value-transfers.md` § *Existence*), where a
+/// dynamic write turns every unbound place may-bound from that statement
+/// on, and a dynamic destroy every bound one.
+#[must_use]
+pub fn statement_barrier(
+    stmt: &Statement,
+    registry: &CommandRegistry,
+    config: LexerConfig,
+) -> DynamicNameBarrier {
+    let mut barrier = DynamicNameBarrier::default();
+    scan_statement(stmt, registry, &mut barrier, config);
+    // The CFG builder flattens structured control flow, but a non-lowered
+    // (glob / regexp / fall-through) `switch` keeps its arm bodies inline;
+    // descend through whatever nests.
+    for script in crate::ir_helpers::nested_bodies(stmt) {
+        crate::ir::for_each_statement(script, &mut |inner| {
+            scan_statement(inner, registry, &mut barrier, config);
+        });
+    }
+    barrier
+}
+
+/// The computed-name facts a block's terminator raises: a branch
+/// condition's substitutions, or a returned word's — `return [set $n]`
+/// lowers to a terminator, not a statement.
+#[must_use]
+pub fn terminator_barrier(
+    terminator: &Terminator,
+    registry: &CommandRegistry,
+    config: LexerConfig,
+) -> DynamicNameBarrier {
+    let mut barrier = DynamicNameBarrier::default();
+    match terminator {
+        Terminator::Branch { condition, .. } => {
+            scan_expr(condition, registry, &mut barrier, config);
+        }
+        Terminator::Return { value, expr, .. } => {
+            if let Some(v) = value {
+                scan_text(v, registry, &mut barrier, 0, config);
+            }
+            if let Some(e) = expr {
+                scan_expr(e, registry, &mut barrier, config);
             }
         }
-        match &block.terminator {
-            Some(Terminator::Branch { condition, .. }) => {
-                scan_expr(condition, registry, &mut barrier, config);
-            }
-            // `return [set $n]` lowers to a terminator, not a statement.
-            Some(Terminator::Return { value, expr, .. }) => {
-                if let Some(v) = value {
-                    scan_text(v, registry, &mut barrier, 0, config);
-                }
-                if let Some(e) = expr {
-                    scan_expr(e, registry, &mut barrier, config);
-                }
-            }
-            _ => {}
-        }
+        Terminator::Goto { .. } => {}
     }
     barrier
 }

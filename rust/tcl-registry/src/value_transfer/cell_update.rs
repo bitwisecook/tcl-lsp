@@ -29,8 +29,17 @@
 //! widens from 8.5 and declines under 8.4 or an unnamed release, and a
 //! list append over a value that is not a list is the program's error,
 //! which is never a value.
+//!
+//! A place the existence rung proves unbound is an absent cell
+//! (`docs/design/compiler/value-transfers.md` § *Existence*, the release
+//! rule): the operation runs over no prior value only where every release
+//! the target names creates the cell (`creates_absent`) — `append` and
+//! `lappend` in every release, `incr` from 8.5 — and otherwise declines
+//! with `UnboundPlace`, since 8.4's `incr fresh` raises `can't read
+//! "fresh": no such variable` and an error is never a value.
 
-use tcl_dialect::model::SpecSurface;
+use tcl_dialect::TclVersion;
+use tcl_dialect::model::{Family, SpecSurface, SurfaceQuery, surface_admits};
 use tcl_syntax::value::ValueOps;
 
 use crate::completion::{CompletionCode, CompletionCodeDomain};
@@ -40,13 +49,13 @@ use crate::types::TclType;
 use super::CommandSemantics;
 use super::answers::{
     BindingKind, CompletionOutcome, CompletionPath, DependencyEvidence, EvalAnswer,
-    ExactValueOrUnavailable, ExistenceOutcome, ExistenceTransfer, InvocationOutcome, PlanAnswer,
-    RangeModel, RouteIdentity, StoreOutcome, TransferAnswer, TypeFacts,
+    ExactValueOrUnavailable, Existence, ExistenceOutcome, ExistenceTransfer, InvocationOutcome,
+    PlanAnswer, RangeModel, RouteIdentity, StoreOutcome, TransferAnswer, TypeFacts,
 };
-use super::const_ops::{ConstOps, ConstValue, Needs};
+use super::const_ops::{ConstOps, ConstValue, Needs, TargetSemantics};
 use super::context::Budget;
 use super::decline::DeclineReason;
-use super::inputs::{AnalysisInputs, FactDomain, OperandId, TargetId};
+use super::inputs::{AnalysisInputs, DomainFact, FactDomain, FactView, OperandId, TargetId};
 use super::route::{EvalRoute, NativeEvalId};
 
 const NORMAL: &[CompletionCode] = &[CompletionCode::Ok];
@@ -114,6 +123,25 @@ impl CellUpdateSemantics {
         }
     }
 
+    /// Whether every release `target` names creates an absent cell: the
+    /// declared release, or each release on the ladder when the target
+    /// names none (ruling 7's unanimity).
+    fn creates_absent_under(self, target: &TargetSemantics) -> bool {
+        let Some(rows) = self.creates_absent else {
+            return false;
+        };
+        let creates = |release: TclVersion| {
+            surface_admits(
+                rows,
+                Some(&SurfaceQuery::core(Family::Tcl, release.version_string())),
+            )
+        };
+        match target.release {
+            Some(release) => creates(release),
+            None => TclVersion::ALL.into_iter().all(creates),
+        }
+    }
+
     fn evaluate_update(self, input: &dyn AnalysisInputs, budget: &mut Budget) -> EvalAnswer {
         let operands = input.invocation().operands.len();
         if !self.accepts(operands) {
@@ -123,9 +151,20 @@ impl CellUpdateSemantics {
             Ok(place) => place,
             Err(reason) => return EvalAnswer::Declined(reason),
         };
-        let prior = match input.prior_store(&place, FactDomain::ExactValue).exact() {
-            Ok(prior) => prior,
-            Err(answer) => return answer,
+        // An unbound place is an absent cell, whose prior is no value at
+        // all; any other fact reads the prior value, which the lattice
+        // proves exactly only for a bound place.
+        let absent = matches!(
+            input.prior_store(&place, FactDomain::Existence),
+            FactView::Domain(DomainFact::Existence(Existence::Unbound))
+        );
+        let prior = if absent {
+            None
+        } else {
+            match input.prior_store(&place, FactDomain::ExactValue).exact() {
+                Ok(prior) => Some(prior),
+                Err(answer) => return answer,
+            }
         };
         let mut values = Vec::with_capacity(operands.saturating_sub(1));
         for index in 1..operands {
@@ -142,25 +181,22 @@ impl CellUpdateSemantics {
             Err(reason) => return EvalAnswer::Declined(reason),
         };
         let target = *ops.target();
-        let current = ConstValue::from_exact(&prior);
+        if absent && !self.creates_absent_under(&target) {
+            return EvalAnswer::Declined(DeclineReason::UnboundPlace);
+        }
+        let current = prior.as_ref().map(ConstValue::from_exact);
         let computed = match self.update {
             CellUpdate::Increment => {
                 let step = values
                     .first()
                     .cloned()
                     .unwrap_or_else(|| ConstValue::int(1));
-                ops.int_add(Some(&current), &step)
+                ops.int_add(current.as_ref(), &step)
                     .map_err(|error| ops.decline_value(&error))
             }
-            CellUpdate::Append => Ok(tcl_cmd_core::var::append_bytes(
-                &mut ops,
-                Some(current),
-                &values,
-            )),
-            CellUpdate::ListAppend => {
-                tcl_cmd_core::var::lappend_value(&mut ops, Some(current), &values)
-                    .map_err(|error| ops.decline(&error))
-            }
+            CellUpdate::Append => Ok(tcl_cmd_core::var::append_bytes(&mut ops, current, &values)),
+            CellUpdate::ListAppend => tcl_cmd_core::var::lappend_value(&mut ops, current, &values)
+                .map_err(|error| ops.decline(&error)),
         };
         let value = match computed.and_then(|value| ops.take(value)) {
             Ok(value) => value,

@@ -329,6 +329,65 @@ fn a_cell_read_modify_write_descriptor_derives_the_same_cell_update() {
     }
 }
 
+/// A cell update of a place the inputs prove unbound runs over no prior
+/// value only where every release the target names creates the cell
+/// (`docs/design/compiler/value-transfers.md` § *Existence*, the release
+/// rule): `incr fresh` is 1 and `incr fresh 2` is 2 from 8.5 and raises
+/// `can't read "fresh": no such variable` under 8.4, so it declines under
+/// 8.4 and under the `tcl` profile that spans both; `append` and `lappend`
+/// create the cell in every release (tclsh 8.4 to 9.1).
+#[test]
+fn an_absent_cell_is_created_where_every_release_creates_it() {
+    let reg = CommandRegistry::build_default();
+    let run = |name: &'static str, words: &[&'static str], dialect: &str| {
+        let semantics = resolve_semantics(reg.get(name).expect(name), None, None);
+        let semantics = semantics.semantics().expect("a cell update");
+        let mut operands = vec![literal("v", Some(ArgRole::VarWrite))];
+        operands.extend(words.iter().map(|word| literal(word, None)));
+        let mut inputs = TestInputs::new(name, operands);
+        inputs.prior.insert("v".to_owned(), absent());
+        inputs.context = AnalysisContext::detached(tcl_dialect::DialectProfile::find(dialect));
+        evaluated(semantics.evaluate(&inputs, &mut Budget::evaluation())).map(|outcome| {
+            assert_eq!(
+                outcome.ordered_stores.len(),
+                1,
+                "{name} {words:?}: the one write"
+            );
+            let ExactValueOrUnavailable::Exact(result) = &outcome.result else {
+                panic!("unavailable");
+            };
+            String::from_utf8(result.bytes.clone()).expect("text")
+        })
+    };
+    for dialect in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+        assert_eq!(run("incr", &[], dialect), Ok("1".to_owned()), "{dialect}");
+        assert_eq!(
+            run("incr", &["2"], dialect),
+            Ok("2".to_owned()),
+            "{dialect}"
+        );
+    }
+    for dialect in ["tcl8.4", "tcl"] {
+        assert_eq!(
+            run("incr", &[], dialect),
+            Err(DeclineReason::UnboundPlace),
+            "{dialect}"
+        );
+    }
+    for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "tcl"] {
+        assert_eq!(
+            run("append", &["foo"], dialect),
+            Ok("foo".to_owned()),
+            "{dialect}"
+        );
+        assert_eq!(
+            run("lappend", &["foo"], dialect),
+            Ok("foo".to_owned()),
+            "{dialect}"
+        );
+    }
+}
+
 /// Descriptor availability and enabled evaluation are separate columns:
 /// the increment has a registry-owned direct route; append and list-append
 /// carry the descriptor and no route.

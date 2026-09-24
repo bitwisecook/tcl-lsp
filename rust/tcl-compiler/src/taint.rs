@@ -1783,7 +1783,14 @@ pub(crate) fn propagate_taints(
     };
 
     let mut taints: HashMap<ValueKey, TaintLattice> = HashMap::new();
-    seed_entry_taints(&mut taints, ssa, cfg, interproc, param_taints, dialect);
+    seed_entry_taints(
+        &mut taints,
+        ssa,
+        cfg,
+        interproc,
+        param_taints,
+        (registry, dialect),
+    );
 
     let mut changed = true;
     while changed {
@@ -1811,7 +1818,10 @@ fn seed_entry_taints(
     cfg: &CfgFunction,
     interproc: Option<&InterproceduralAnalysis>,
     param_taints: Option<&HashMap<String, TaintLattice>>,
-    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    (registry, dialect): (
+        &CommandRegistry,
+        Option<&'static tcl_dialect::DialectProfile>,
+    ),
 ) {
     // Seed entry taints for tainted parameters (interprocedural solve).
     // Only tainted params seed a slot; clean params leave the version-0
@@ -1853,11 +1863,11 @@ fn seed_entry_taints(
     // Interpreter-provided external-input globals (`env`, `argv`, `argv0`) are
     // taint sources: their version-0 (external) read is attacker-influenced.
     // The set is dialect-aware — the restricted iRules interpreter provides
-    // none of them — and sourced from the special-variable registry. A later
-    // local `set env …` writes a higher SSA version, so a read that resolves
-    // to the local (version > 0) is unaffected; shadowing falls out of the SSA
-    // versioning, not a check here.
-    for spec in tcl_registry::special_vars::special_vars_for_dialect(Some(
+    // none of them — and sourced from the registry's special variables, a
+    // pack-declared one included. A later local `set env …` writes a higher
+    // SSA version, so a read that resolves to the local (version > 0) is
+    // unaffected; shadowing falls out of the SSA versioning, not a check here.
+    for spec in registry.special_vars_for_dialect(Some(
         tcl_registry::special_vars::surface_query_for_profile(dialect),
     )) {
         let Some(colour) = spec.read_taint else {
@@ -6173,6 +6183,9 @@ mod tests {
             folded_types: HashMap::new(),
             preserved: HashMap::new(),
             template_plans: Vec::new(),
+            existence: HashMap::new(),
+            existence_reads: HashMap::new(),
+            existence_exits: HashMap::new(),
             values: HashMap::new(),
             executable_blocks: blocks.iter().copied().collect(),
             executable_edges: HashSet::new(),
