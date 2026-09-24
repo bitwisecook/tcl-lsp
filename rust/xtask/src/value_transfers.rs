@@ -128,7 +128,7 @@ const RATCHET: &[(&str, usize)] = &[
     ("rust/tcl-cli/src/commands/minimize.rs", 1),
     ("rust/tcl-compiler/src/analyser/class_lattice.rs", 3),
     ("rust/tcl-compiler/src/analyser/commands.rs", 1),
-    ("rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs", 4),
+    ("rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs", 2),
     ("rust/tcl-compiler/src/analyser/diagnostics/helpers.rs", 6),
     ("rust/tcl-compiler/src/analyser/diagnostics/security.rs", 2),
     ("rust/tcl-compiler/src/analyser/diagnostics/validity.rs", 2),

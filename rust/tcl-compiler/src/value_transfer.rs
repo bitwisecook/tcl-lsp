@@ -348,6 +348,9 @@ pub(crate) struct LatticeDriver<'a> {
     /// The folded type of each definition the last evaluation of its
     /// statement stated one for ([`crate::sccp::SccpResult::folded_types`]).
     folded: RefCell<HashMap<ValueKey, FoldedType>>,
+    /// The definitions the last evaluation of their statement preserved,
+    /// with the version each preserved ([`crate::sccp::SccpResult::preserved`]).
+    preserved: RefCell<HashMap<ValueKey, Version>>,
     /// The run's route-entry counts so far.
     tally: Cell<RouteTally>,
     /// The run's request budget: every evaluation of this run charges
@@ -396,6 +399,11 @@ pub(crate) struct DefAnswer {
     /// whole-array writer names — takes such a value as it stands rather
     /// than joining it with the prior version.
     pub(crate) stated: bool,
+    /// Whether every store the outcome makes to the definition's place is
+    /// a `Preserve`: the command left the place untouched, so the
+    /// definition is the prior version's value and existence
+    /// ([`crate::sccp::SccpResult::preserved`]).
+    pub(crate) preserved: bool,
 }
 
 impl DefAnswer {
@@ -406,6 +414,7 @@ impl DefAnswer {
             value,
             folded: None,
             stated: false,
+            preserved: false,
         }
     }
 
@@ -423,6 +432,7 @@ impl DefAnswer {
             value: join_members(&self.value, &other.value),
             folded,
             stated: self.stated && other.stated,
+            preserved: self.preserved && other.preserved,
         }
     }
 }
@@ -583,6 +593,7 @@ impl<'a> LatticeDriver<'a> {
             explaining: Cell::new(None),
             explanations: RefCell::new(BTreeMap::new()),
             folded: RefCell::new(HashMap::new()),
+            preserved: RefCell::new(HashMap::new()),
             tally: Cell::new(RouteTally::default()),
             request: RefCell::new(request),
             iteration: RefCell::new(iteration),
@@ -667,6 +678,40 @@ impl<'a> LatticeDriver<'a> {
     /// Every folded type the run holds at its end.
     pub(crate) fn take_folded_types(&self) -> HashMap<ValueKey, FoldedType> {
         std::mem::take(&mut *self.folded.borrow_mut())
+    }
+
+    /// Record whether the latest evaluation of `key`'s statement preserved
+    /// its place, and the version it preserved; the settled sweep's answer
+    /// stays, as for [`Self::record_folded`]. `None` removes an earlier
+    /// sweep's.
+    pub(crate) fn record_preserved(&self, key: ValueKey, prior: Option<Version>) {
+        let mut map = self.preserved.borrow_mut();
+        match prior {
+            Some(prior) => {
+                map.insert(key, prior);
+            }
+            None => {
+                map.remove(&key);
+            }
+        }
+    }
+
+    /// Every preserved definition the run holds at its end.
+    pub(crate) fn take_preserved(&self) -> HashMap<ValueKey, Version> {
+        std::mem::take(&mut *self.preserved.borrow_mut())
+    }
+
+    /// What the run recorded beside the lattice, at its end: the route
+    /// explanations and tally, the folded types and the preserved
+    /// definitions, in an otherwise empty result.
+    pub(crate) fn take_run_facts(&self) -> crate::sccp::SccpResult {
+        crate::sccp::SccpResult {
+            explanations: self.take_explanations(),
+            route_tally: self.take_route_tally(),
+            folded_types: self.take_folded_types(),
+            preserved: self.take_preserved(),
+            ..crate::sccp::SccpResult::default()
+        }
     }
 
     /// Count one entry into the direct-evaluator family.
@@ -997,6 +1042,9 @@ impl<'a> LatticeDriver<'a> {
                         named.iter().map(|(_, store)| *store),
                     ),
                     stated: true,
+                    preserved: named
+                        .iter()
+                        .all(|(_, store)| matches!(store, StoreOutcome::Preserve { .. })),
                 }
             })
             .collect())

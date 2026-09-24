@@ -1878,8 +1878,11 @@ fn uses_in_call(
     // `can't read "a"` (#2051).
     //
     // Modelled exactly like the destroyer above, and for the same reason: the
-    // def stays, so `emit_provably_unset_w210` still sees it and the no-match
-    // prover keeps working, while the prior version becomes a read.
+    // def stays, and the prior version becomes a read. A def whose evaluated
+    // outcome preserves its place holds that prior version
+    // (`SccpResult::preserved`), which is how W210 sees a no-match read.
+    // The same commands nested in a word or a condition take the same read
+    // from `ir_helpers::variable_write_effects_from_commands`.
     //
     // `invocation_traits` rather than `get`, because `binary scan` carries the
     // trait on its *subcommand*.

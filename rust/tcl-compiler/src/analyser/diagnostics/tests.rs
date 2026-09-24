@@ -10201,6 +10201,51 @@ fn w210_matchable_regexp_scan_silent() {
     );
 }
 
+/// W210 reads the preserve outcome (VT5.11; "W210 consuming preserve
+/// outcomes"): a match variable a `regexp` leaves untouched holds its prior
+/// version (`SccpResult::preserved`), so a read of one no earlier statement
+/// set is a read before set, reported at the read — a `return` and a
+/// condition's no-match arm included — and a read of one an earlier
+/// statement set is not. tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1b0:
+/// `regexp {(x)(y)} zz a b; puts $a` fails with `can't read "a": no such
+/// variable` (and `return $b` with `can't read "b"`), the matching subject
+/// prints `xy`, and `set a before` first prints `before`, where the private
+/// prover reported that read too.
+#[test]
+fn w210_reads_a_no_match_preserve_outcome() {
+    let reads = |src: &str| -> Vec<String> {
+        Analyser::new()
+            .analyse(src, "tcl8.6")
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W210)
+            .map(|d| src[d.span.as_range()].to_owned())
+            .collect()
+    };
+    assert_eq!(
+        reads("proc f {} {\n    regexp {(x)(y)} zz a b\n    puts $a\n}\n"),
+        ["$a"]
+    );
+    // The return pass and the def-use pass each report a `return` read of
+    // an undefined version, as they do after an `unset`.
+    let returned = reads("proc g {} {\n    regexp {(x)(y)} zz a b\n    return $b\n}\n");
+    assert!(
+        !returned.is_empty() && returned.iter().all(|read| read.contains("$b")),
+        "{returned:?}"
+    );
+    assert_eq!(
+        reads("proc n {} {\n    if {![regexp {x} y -> v]} { puts $v }\n}\n"),
+        ["$v"]
+    );
+    for silent in [
+        "proc h {} {\n    regexp {(x)(y)} xy a b\n    puts $a\n}\n",
+        "proc k {} {\n    set a before\n    regexp {(x)(y)} zz a b\n    puts $a\n}\n",
+        "proc m {} {\n    set v before\n    if {![regexp {x} y -> v]} { puts $v }\n}\n",
+    ] {
+        assert_eq!(reads(silent), Vec::<String>::new(), "{silent}");
+    }
+}
+
 #[test]
 fn w210_incr_on_uninit_is_silent() {
     // `incr z` initialises z to 0 (Tcl 8.5+) — not read-before-set.

@@ -331,6 +331,28 @@ pub(super) struct PhiUndefCtx<'a> {
     pub global_aliases: &'a HashSet<String>,
     pub dialect: Option<SurfaceQuery<'a>>,
     pub ssa: &'a crate::ssa::SsaFunction,
+    /// The definitions a route's outcome preserved, each with the version
+    /// it read ([`crate::sccp::SccpResult::preserved`]).
+    pub preserved: &'a std::collections::HashMap<crate::ssa::ValueKey, crate::ssa::Version>,
+}
+
+/// The version a read of `version` reads through the definitions a route
+/// preserved: a preserved definition is its prior version's value and
+/// existence, followed until a version no outcome preserved.
+fn through_preserved(
+    preserved: &std::collections::HashMap<crate::ssa::ValueKey, crate::ssa::Version>,
+    symbol: crate::ssa::Symbol,
+    mut version: crate::ssa::Version,
+) -> crate::ssa::Version {
+    // A preserved definition reads an earlier version, so the chain ends;
+    // the bound keeps a malformed map from looping.
+    for _ in 0..=preserved.len() {
+        match preserved.get(&(symbol, version)) {
+            Some(&prior) if prior != version => version = prior,
+            _ => break,
+        }
+    }
+    version
 }
 
 /// Return the registry spelling for a potential startup variable, removing
@@ -514,6 +536,8 @@ impl PhiUndefIndex {
                 {
                     continue;
                 }
+                // A definition a route preserved is its prior version.
+                let incoming = through_preserved(ctx.preserved, symbol, incoming);
                 let operand = (symbol, incoming);
                 let origin = if let Some(&answer) = killed.get(&operand) {
                     answer
@@ -585,6 +609,7 @@ pub(super) fn phi_can_undef(
         // neither a phi nor a kill: only the startup answer can apply.
         return version == 0 && !StartupFacts::for_name(name, ctx).readable_at_startup;
     };
+    let version = through_preserved(ctx.preserved, symbol, version);
     let index = memo.index(ctx);
     if let Some(&answer) = index.killed.get(&(symbol, version)) {
         return answer;
@@ -695,6 +720,12 @@ pub(super) struct UndefSuppression {
     /// read of one is read-before-set; the def-use pass can't express this
     /// because the read targets the *phi* version, not a version-0 origin.
     pub(super) can_undef: FxHashSet<(String, crate::ssa::Version)>,
+    /// The definitions of [`Self::can_undef`] whose statement left their
+    /// place untouched ([`crate::sccp::SccpResult::preserved`]): the solver
+    /// proved no substitution wrote them, so the name-level
+    /// [`Self::cmd_sub_writes`] does not suppress a read of one
+    /// ([`Self::suppresses_read`]).
+    pub(super) preserved_undef: FxHashSet<(String, crate::ssa::Version)>,
     /// Loop-header phi versions whose *only* undef source is the loop's entry
     /// (zero-trip) edge — the loop body assigns the variable on every back
     /// edge, so the value is defined whenever the loop ran ≥1 time. Maps each
@@ -718,10 +749,23 @@ impl UndefSuppression {
     /// "might-have-the-key" stance, used where no truth source can confirm
     /// the dict is empty — e.g. a `return` after a `dict with` on a param).
     pub(super) fn suppresses(&self, name: &str) -> bool {
-        self.suppresses_strict(name)
-            || (self.has_dict_with
-                && self.dict_with_any_unknown
-                && !self.explicitly_defined.contains(name))
+        self.suppresses_strict(name) || self.dict_with_blanket(name)
+    }
+
+    /// [`Self::suppresses`] for a read of the version `key`. A version in
+    /// [`Self::preserved_undef`] was written by no substitution, so the
+    /// condition-write suppression does not speak for it; every other one
+    /// still does.
+    pub(super) fn suppresses_read(&self, key: &(String, crate::ssa::Version)) -> bool {
+        if self.preserved_undef.contains(key) {
+            return self.suppresses_unsubstituted(&key.0) || self.dict_with_blanket(&key.0);
+        }
+        self.suppresses(&key.0)
+    }
+
+    /// The unknown-shape `dict with` blanket of [`Self::suppresses`].
+    fn dict_with_blanket(&self, name: &str) -> bool {
+        self.has_dict_with && self.dict_with_any_unknown && !self.explicitly_defined.contains(name)
     }
 
     /// True when reading `key` at `block` is a safe *after-loop* read of a
@@ -746,9 +790,13 @@ impl UndefSuppression {
     /// SCCP cannot yet resolve) must still fire so a genuine missing-key read
     /// is not hidden.
     pub(super) fn suppresses_strict(&self, name: &str) -> bool {
+        self.cmd_sub_writes.contains(name) || self.suppresses_unsubstituted(name)
+    }
+
+    /// [`Self::suppresses_strict`] without the substitution writes.
+    fn suppresses_unsubstituted(&self, name: &str) -> bool {
         if self.alias_tails.contains(name)
             || self.dict_vars.contains(name)
-            || self.cmd_sub_writes.contains(name)
             || self.script_concat_writes.contains(name)
         {
             return true;
@@ -1065,6 +1113,7 @@ pub(super) fn build_undef_suppression(
         global_aliases,
         dialect,
         ssa: &fu.ssa,
+        preserved: &fu.sccp.preserved,
     };
     let mut can_undef: FxHashSet<(String, crate::ssa::Version)> = FxHashSet::default();
     // One memo for the whole sweep and the loop-entry fixpoint below: both run
@@ -1077,6 +1126,18 @@ pub(super) fn build_undef_suppression(
             can_undef.insert(key.clone());
         }
     }
+    // A definition its statement left untouched — a `regexp` that did not
+    // match, a `scan` whose input ran out, any declared `Preserve` — holds
+    // its prior version, so it is undefined exactly when that version can
+    // be: a read of it is then a read before set.
+    let mut preserved_undef: FxHashSet<(String, crate::ssa::Version)> = FxHashSet::default();
+    for &(symbol, version) in fu.sccp.preserved.keys() {
+        let name = fu.ssa.var_name(symbol);
+        if phi_can_undef(name, version, &undef_ctx, &mut memo) {
+            can_undef.insert((name.to_owned(), version));
+            preserved_undef.insert((name.to_owned(), version));
+        }
+    }
     let loop_entry_only_undef =
         build_loop_entry_only_undef(fu, &can_undef, &undef_ctx, rules, &mut memo);
     let mut s = UndefSuppression {
@@ -1084,6 +1145,7 @@ pub(super) fn build_undef_suppression(
         script_concat_writes: collect_script_concat_writes(fu, considered),
         killed,
         can_undef,
+        preserved_undef,
         loop_entry_only_undef,
         ..Default::default()
     };

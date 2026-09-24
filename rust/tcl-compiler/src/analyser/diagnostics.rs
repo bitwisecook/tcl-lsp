@@ -953,8 +953,6 @@ impl Analyser {
                 supp: &supp,
             },
         );
-        // W210 on reads of a provably-no-match regexp / scan output var.
-        self.emit_provably_unset_w210(function_unit, &considered, &defined);
         self.emit_constant_branch_diagnostics(function_unit);
         self.emit_existence_constant_branch_diagnostics(function_unit);
         self.emit_invalid_ip_diagnostics(function_unit);

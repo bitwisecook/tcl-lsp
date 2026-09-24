@@ -4310,6 +4310,7 @@ item; the grouping stays the plan's account of what lands together.
 | VT5.6 | `wip(value-transfers): slice 5 — binary format, program (2)` | `BinaryFormatSemantics` (`value_transfer/builtins.rs`, `NativeEvalId::BinaryFormat`, registry-owned) over `binary::format`, declared on the `binary format` subcommand: the packed bytes as the characters `U+0000` to `U+00FF`, `RepresentationEvidence::Constructed(ByteArray)`, the result type `ByteArray`; `binary::format_size_bound` (the page's proposed core, built beside the packer) charged as allocation before the run and the output per byte after it; only what every release packs alike answers (D136); a rewrite never writes a computed byte array into the source — `SccpResult::materialises`, read by O100's two projections, O103's return read, O127's skip and the chain folds, so the optimised program keeps the command that builds it (D135); the page's two rows updated; the inventory regenerated | `program_two_folds_and_is_a_byte_array` (compiler witnesses: `h#1` is `ABCDEF` with the folded type `bytearray (constructed)` under `tcl8.4`, `tcl8.6`, `tcl9.0`, `f5-irules` and `tcl`, no S100, S101 or S110, no rewrite spells `ABCDEF` or a returned `GH`, and the original and optimised programs print the same under tclsh 8.4 to 9.1); `binary_format_witnesses_match_every_release_on_path` (`differential_fold.rs`: 49 witnesses; the 24 every release packs alike answered and agreeing on each of tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1b0, the non-ASCII argument from 9.0 and the 8.5 fields from 8.5, every spelling the releases part on declined); `format_size_bound_covers_the_packed_output` (`tcl-cmd-core`); `route_stamps_match_the_pinned_set` gains the stamp; `tcl explore --source 'set h [binary format H* 414243444546]' --show sccp --text --no-colour` prints `h#1 = const('ABCDEF')` · `type: bytearray (constructed)` |
 | VT5.7 | `wip(value-transfers): slice 5 — structural plans` | `DictWithSemantics` and `DictUpdateSemantics` (`value_transfer/body.rs`, new) answering `PlanAnswer::Body` — the binders a projection on body entry (the proven keys of the dictionary, or of the nested one a key path names, for `dict with`; the declared variables for `dict update`), the body in the caller's frame, `Reconcile::WriteBackKeys` of the dictionary operand, `CompletionProtocol::TclBody`, no route — declared on both subcommands and so on their `::tcl::dict::` spellings (D137); `IterationSemantics` answers the source layout (one binder per var-list name, one list, the body, `break` and `continue` absorbed, nothing bound on zero iterations) (D138); the driver's loop header binds each binder the elements it takes, so a two-binder `foreach` is two finite inputs (D139); G1's four `dict` body rows gone and the inventory regenerated. Not done: the `DictWith` hook's retirement and `handle_dict_with_command` reading the binders wait for CC2.13 (D140) | `dict_with_binds_the_proven_keys`, `the_source_layout_answers_an_iteration_plan` (`value_transfers.rs`); `dict_with_binds_the_keys_tclsh_binds` (`differential_fold.rs`: the variables five dictionaries and key paths bind on body entry are the plan's binders, and the page's program answers `done` and leaves `d` as `a 2`, on tclsh 8.5.19, 8.6.18, 9.0.4 and 9.1b0); `a_loop_header_binds_each_binder_its_elements` (`value_transfer.rs`); `the_mirror_pairs_decline_as_correlated` asserts both quotients decline `correlated-sets` (D64's deferral closed); `route_stamps_match_the_pinned_set` gains the four body stamps; `the_loop_header_projects_to_the_declared_iteration_plan`'s source-layout row reads the new answer (a call without its body is the command's error, where it read "not yet described") |
 | VT5.12 | `wip(value-transfers): slice 5 — the branch fact records its kind` | `BranchFactKind { Proven, Selected, Applied }` (`sccp.rs`) on `ConstantBranch`: the solver's decided branches are `Applied`, the existence post-pass's folds `Proven`, and `Selected` waits for slice 6's selection record; `emit_constant_branch_diagnostics` reads the `Applied` facts and `emit_existence_constant_branch_diagnostics` the `Proven` ones, and no longer reruns `existence_constant_branches` (the analyser's `BodyFrame::existence_frame` went with its one caller); `compiler_checks.rs` already reported every stored fact and needed nothing (D141) | `the_existence_branch_fact_is_stored_once` (`analyser/diagnostics/tests.rs`: the kinds as stored, one I230 per stored fact, a unit whose proven fact is removed reports nothing for it, and under iRules no I230 for a variable another event sets); every other I230, I231 and `info_exists_*` test unchanged |
+| VT5.11 | `wip(value-transfers): slice 5 — W210 reads preserve outcomes` | `SccpResult::preserved` (`sccp.rs`): each definition its statement left untouched — every store the evaluated outcome makes to its place a `Preserve` (`DefAnswer::preserved`), a pack command's declared preserve included — with the version its place held before the statement, and each definition a condition's `<cond>` statement reads first when the shared engine decided that condition, every nested command it ran having answered without a store (D142); the undef trace reads through a preserved definition to that version (`PhiUndefCtx::preserved`), so W210 on a read, a `return` or a condition's no-match arm, and W213 on an `unset`, come from the general read-before-set pass, counted only in executable blocks and past the name-level condition-write suppression the fact answers (`UndefSuppression::preserved_undef`, `suppresses_read`) (D143); the private prover is gone — `emit_provably_unset_w210`, its embedded-condition walk, `regexp_scan_no_match`, `skip_options` and the literal-substring matcher — G1's `dataflow.rs` 4 → 2 with its ledger row, `registry-axes`' 17 → 9; a conditional writer nested in a word or a condition reads its targets as the statement form does (`ir_helpers::variable_write_effects_from_commands`), so the optimiser keeps the store a no-match preserves there too (D144) | `w210_reads_a_no_match_preserve_outcome` (`analyser/diagnostics/tests.rs`: W210 at `$a` after `regexp {(x)(y)} zz a b`, on `return $b`, and in `if {![regexp {x} y -> v]}`'s arm; none after a matching subject or a `set` before the call, or in the arm when `v` was set first — each checked on tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1b0); `a_no_match_keeps_the_store_it_preserves` (compiler witnesses: #2051's program and the condition and word forms keep `set … before` under every dialect, no O109, no W210 or W220 naming it, and the original and optimised programs print the same under tclsh 8.4 to 9.1); `a_pack_declared_preserve_holds_the_prior_version` (a `write_or_preserve` pack command's preserved definition names the root in one procedure and the `set` in the other); changed by the mandate ("W210 follows any registry-declared preserve outcome"): `fp_sty_11_binary_scan_many_vars_no_false_w210` reads an input that fills its twenty fields, and its empty input is now the true positive tclsh reports (`can't read "t"` on every release); every other `w210_*`, `emit_cfg_ssa_diagnostics_w210_*`, `fp_rbs_02_*`, `fp_sty_10_*` and `scan_predicate_w210_*` test unchanged |
 
 A container restart ended the first implementer at VT5.5, uncommitted;
 a second implementer took the opus items over from VT5.5 on (VT5.5, VT5.6,
@@ -4324,6 +4325,27 @@ three `scan` answers were wrong against every oracle from 8.5 (`scan -1
 compared non-ASCII witnesses against a misread script (D133); the two doc
 comments the oracle contradicted were corrected, and the per-byte charges
 the page states were added. Nothing was backed out.
+
+Green at VT5.11:
+
+- tests: `tcl-compiler`, `tcl-lsp-core` and `tcl-cli` together 13425
+  passed, 6 ignored, no failure (`samples_optimiser_profiles_are_regenerated`
+  among them, no sample moved), and `xtask`'s own;
+- pedantic clippy (`--no-deps --all-targets -D warnings`) on
+  `tcl-compiler` and `xtask`, no `#[allow]` added; `rustfmt` on the
+  touched files;
+- `cargo xtask value-transfers` (`dataflow.rs` 4 → 2) and `--check` (17
+  clean, 13 waived, 96 pinned across 39 files, 6607 rows),
+  `registry-axes` (`dataflow.rs` 17 → 9) and `--check` (1081 pinned
+  across 163 files), `cargo check --workspace` clean.
+
+Found and left, outside this item: W210 reports a `return` read of a
+version that can be undefined twice, once from the return pass and once
+from the def-use pass (`proc f {} {set v 1; unset v; return $v}` already
+drew both); and `collect_expr_cmd_sub_writes` suppresses W210 by name for
+the whole function wherever a condition's substitution writes the name —
+under a hard-coded `tcl8.6` registry, and for a read before the condition
+too. Both are the existence readings slice 8 folds into one query.
 
 Green at VT5.12:
 
@@ -7816,6 +7838,48 @@ has the witnesses):
   stored fact says which of the three it is, and emission never reruns
   the proof"). `compiler_checks.rs`, on the plan's file list, already
   reported every stored fact whatever its kind and needed no edit.
+
+- **D142 — A preserved definition names the version it holds.** A
+  `Preserve` leaves the place as it was, value and existence alike, which
+  the lattice value alone cannot say: `SccpResult::preserved` maps each
+  such definition to the version before its statement — the block's
+  latest earlier definition, else the block's entry version, else the
+  root — rather than to the statement's recorded use, because only the
+  `CONDITIONAL_VARIABLE_WRITE` commands record one, and a pack command's
+  declared `write_or_preserve` carries no trait. A `<cond>` statement
+  gets no outcome of its own; its definitions it reads first are
+  preserved when the shared engine decided the branch it immediately
+  precedes, since that answer ran every nested command it reached without
+  a store (any other declines `StatefulNested`) — a `for` loop's static
+  summary evaluates no command and does not count, and a definition the
+  statement does not read (an `upvar` or global writer's) is left alone.
+  The lattice value of a `<cond>` definition stays widened; the fact is
+  existence's, and the optimiser's inputs do not move.
+- **D143 — W210 reads a preserved definition through the general
+  pass.** The prover's own sweep went with it: the undef trace resolves a
+  preserved definition to the version it holds, so a read after a
+  no-match — a statement, a `return` (which the prover never read), a
+  condition's no-match arm — is read before set exactly when that version
+  can be unset, and a `set` before the call silences it where the prover
+  reported it. Two guards keep the fact to where it holds: a read in a
+  block the outcome makes unreachable (the match arm of a `regexp` that
+  never matches) is not counted, and the name-level condition-write
+  suppression, which exists because a condition's writes had no facts,
+  does not cover a version the solver proved no substitution wrote. W213
+  follows from the same trace: `unset v` after a no-match is "may not
+  exist", as tclsh raises.
+- **D144 — A nested conditional writer's targets are read.** The SSA's
+  rule for a `regexp`, `scan` or `binary scan` statement records each
+  target's prior version as read (#2051), but the same commands in a
+  word or a condition wrote their targets with no read, so `tcl opt`
+  deleted the store a no-match preserves: `set v before; if {[regexp {(x)}
+  $s -> v]} {…}; puts $v` and `set v before; puts [regexp {x} y v]; puts
+  $v` optimised to programs that fail with `can't read "v"`, where tclsh
+  8.4 to 9.1 print `before`. `variable_write_effects_from_commands` now
+  lists a conditional writer's targets among the names it reads, from the
+  registry's trait over the recovered words; that is also the use D142's
+  `<cond>` fact reads. The hunk is in `ir_helpers.rs`, a file the plan
+  does not name, and is the whole of this lane's change there.
 
 ### Open questions for the owner
 

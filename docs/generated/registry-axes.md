@@ -67,7 +67,7 @@ Every other scanned file with an unwaived site, and its count, which is the pin 
 | `rust/tcl-compiler/src/analyser/bounds_checks.rs` | 34 |
 | `rust/tcl-compiler/src/analyser/class_lattice.rs` | 5 |
 | `rust/tcl-compiler/src/analyser/commands.rs` | 12 |
-| `rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs` | 17 |
+| `rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs` | 9 |
 | `rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs` | 1 |
 | `rust/tcl-compiler/src/analyser/diagnostics/helpers.rs` | 10 |
 | `rust/tcl-compiler/src/analyser/diagnostics/security.rs` | 8 |

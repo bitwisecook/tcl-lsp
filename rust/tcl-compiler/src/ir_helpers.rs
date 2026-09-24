@@ -1011,6 +1011,19 @@ pub(crate) fn variable_write_effects_from_commands<'a>(
                 out.read_names.push(name);
             }
         }
+        // A conditional writer (`regexp`, `scan`, `binary scan`) leaves each
+        // target it does not reach as it was, so the store feeding one is
+        // observed, not overwritten: the nested twin of the SSA's rule for
+        // the same commands as statements. `set v d; if {[regexp {(x)} $s
+        // -> v]} {…}; puts $v` prints `d` when nothing matches, and without
+        // the read `set v d` was deleted as a dead store (#2051).
+        if conditionally_writes(words, registry) {
+            for name in &projection.literal_names {
+                if !out.read_names.contains(name) {
+                    out.read_names.push(name.clone());
+                }
+            }
+        }
         for name in projection.literal_names {
             if !out.names.contains(&name) {
                 out.names.push(name);
@@ -1018,6 +1031,22 @@ pub(crate) fn variable_write_effects_from_commands<'a>(
         }
     }
     out
+}
+
+/// Whether the recovered command `words` names a conditional writer: the
+/// registry's `CONDITIONAL_VARIABLE_WRITE` trait on the invocation (a
+/// subcommand's included, `binary scan`'s), resolved over its literal words.
+fn conditionally_writes(words: &[CommandWord], registry: &CommandRegistry) -> bool {
+    let Some(head) = words.first().and_then(CommandWord::literal) else {
+        return false;
+    };
+    let args: Vec<&str> = words[1..]
+        .iter()
+        .map(|word| word.literal().unwrap_or_default())
+        .collect();
+    registry
+        .invocation_traits(head, &args, registry.own_surface_query())
+        .contains(tcl_registry::Traits::CONDITIONAL_VARIABLE_WRITE)
 }
 
 /// Tokenise source text into a list of commands, each a list of words.

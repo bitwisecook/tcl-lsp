@@ -237,6 +237,15 @@ pub struct SccpResult {
     /// what every executable incoming value states alike; a definition a
     /// barrier widened, or one no evaluation produced, has none.
     pub folded_types: HashMap<ValueKey, crate::value_transfer::FoldedType>,
+    /// Per SSA value its statement left untouched — every store an
+    /// evaluated outcome makes to its place a `Preserve` (a `regexp` that
+    /// did not match, a `scan` whose input ran out, a pack command's
+    /// declared preserve), or a condition's substitution the shared engine
+    /// ran without a store ([`record_condition_preserves`]) — the version
+    /// the place held before the statement. The definition holds that
+    /// version's value and exists exactly when it does, so a read of one
+    /// whose prior version is unset is a read before set.
+    pub preserved: HashMap<ValueKey, crate::ssa::Version>,
 }
 
 impl SccpResult {
@@ -595,9 +604,7 @@ pub fn sccp_with_builtin_folds(
         executable_blocks,
         executable_edges,
         constant_branches,
-        explanations: driver.take_explanations(),
-        route_tally: driver.take_route_tally(),
-        folded_types: driver.take_folded_types(),
+        ..driver.take_run_facts()
     }
 }
 
@@ -817,7 +824,7 @@ fn sccp_process_statements(
     driver: &LatticeDriver<'_>,
 ) -> bool {
     let mut changed = false;
-    for stmt_ssa in &ssa_block.statements {
+    for (index, stmt_ssa) in ssa_block.statements.iter().enumerate() {
         if matches!(
             stmt_ssa.statement,
             Statement::Barrier { .. } | Statement::UpFrame { .. }
@@ -887,10 +894,13 @@ fn sccp_process_statements(
                     evaluated.of((var, ver)),
                     evaluated.folded_of((var, ver)),
                     evaluated.stated((var, ver)),
+                    evaluated.preserved((var, ver)),
                 )
             };
             // A definition's folded type is its own evaluation's: a widened
-            // or a joined definition states none.
+            // or a joined definition states none. One whose outcome left its
+            // place untouched names the version the place held.
+            let mut preserved = None;
             let (val, folded) =
                 if is_externally_mutable(ssa.var_name(var), escaping, has_dynamic_variable_trace)
                     || element_write_base == Some(var)
@@ -907,7 +917,7 @@ fn sccp_process_statements(
                     // base holds no value of its own.
                     match stmt_ssa.uses.get(&var) {
                         Some(prev_ver) => {
-                            let (written, folded, stated) = value_of(values);
+                            let (written, folded, stated, _) = value_of(values);
                             if stated {
                                 (written, folded)
                             } else {
@@ -921,16 +931,32 @@ fn sccp_process_statements(
                         None => (LatticeValue::Overdefined, None),
                     }
                 } else {
-                    let (value, folded, _) = value_of(values);
+                    let (value, folded, _, kept) = value_of(values);
+                    if kept {
+                        preserved = Some(prior_version(ssa_block, index, var));
+                    }
                     (value, folded)
                 };
             driver.record_folded((var, ver), folded);
+            driver.record_preserved((var, ver), preserved);
             if set_value(values, (var, ver), &val) {
                 changed = true;
             }
         }
     }
     changed
+}
+
+/// The version of `var` the statement at `index` of `block` finds in its
+/// place: the block's latest earlier definition, else the version the block
+/// enters with, else the undefined root.
+fn prior_version(block: &crate::ssa::SsaBlock, index: usize, var: Symbol) -> crate::ssa::Version {
+    block.statements[..index]
+        .iter()
+        .rev()
+        .find_map(|statement| statement.defs.get(&var).copied())
+        .or_else(|| block.entry_versions.get(&var).copied())
+        .unwrap_or(0)
 }
 
 /// Read-only inputs shared by [`sccp_process_terminator`].
@@ -1060,8 +1086,10 @@ fn sccp_process_terminator(
 }
 
 /// Post-fixpoint sweep that records every reachable branch whose
-/// condition evaluated to a constant lattice value.  Extracted
-/// from [`sccp`].
+/// condition evaluated to a constant lattice value, and the definitions a
+/// condition the shared engine decided left untouched
+/// ([`record_condition_preserves`]; a `for` loop's static summary is not
+/// the engine's). Extracted from [`sccp`].
 fn collect_constant_branches(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
@@ -1094,6 +1122,9 @@ fn collect_constant_branches(
         fold.driver.explaining(*term_span);
         let decision = branch_decision(cfg, ssa, *bn, ssa_block, condition, values, fold);
         fold.driver.explaining(None);
+        if decision.is_some() && !cfg.loop_nodes.contains_key(bn) {
+            record_condition_preserves(cfg, ssa, *bn, fold.driver);
+        }
         let cond_text = crate::expr_ast::expr_text(condition);
         let (true_name, false_name) = (
             cfg.block_name(*true_target).to_owned(),
@@ -1122,6 +1153,53 @@ fn collect_constant_branches(
         }
     }
     constant_branches
+}
+
+/// The `<cond>` statement before a branch carries what the condition's
+/// command substitutions may write ([`crate::ir::SyntheticMarker::Condition`]).
+/// When the shared engine decided the condition, every nested command it
+/// ran answered without a store — any other declines `StatefulNested` — so
+/// each definition the statement reads before it writes (a conditional
+/// writer's target, a read-modify-write's) holds the version it read
+/// ([`SccpResult::preserved`]). Only the block's last statement, the one
+/// right before the branch whose condition it summarises, speaks for it.
+fn record_condition_preserves(
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    bn: BlockId,
+    driver: &LatticeDriver<'_>,
+) {
+    let (Some(block), Some(ssa_block)) = (cfg.blocks.get(&bn), ssa.blocks.get(&bn)) else {
+        return;
+    };
+    let Some(Terminator::Branch {
+        span: Some(branch), ..
+    }) = &block.terminator
+    else {
+        return;
+    };
+    let Some(last) = ssa_block.statements.last() else {
+        return;
+    };
+    let Statement::Call {
+        tokens: Some(tokens),
+        span,
+        ..
+    } = &last.statement
+    else {
+        return;
+    };
+    let summarises_branch = tokens.synthetic == Some(crate::ir::SyntheticMarker::Condition)
+        && span.start() <= branch.start()
+        && branch.end() <= span.end();
+    if !summarises_branch {
+        return;
+    }
+    for (&var, &ver) in &last.defs {
+        if let Some(&prior) = last.uses.get(&var) {
+            driver.record_preserved((var, ver), Some(prior));
+        }
+    }
 }
 
 /// Every variable name the function assigns, and every name a call unbinds
@@ -1572,6 +1650,17 @@ impl DefValues {
             Self::PerDef(answers) => answers
                 .iter()
                 .any(|answer| answer.key == key && answer.stated),
+        }
+    }
+
+    /// Whether the outcome left definition `key`'s place untouched
+    /// ([`crate::value_transfer::DefAnswer::preserved`]).
+    fn preserved(&self, key: ValueKey) -> bool {
+        match self {
+            Self::Each(..) => false,
+            Self::PerDef(answers) => answers
+                .iter()
+                .any(|answer| answer.key == key && answer.preserved),
         }
     }
 

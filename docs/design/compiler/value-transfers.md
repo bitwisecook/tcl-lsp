@@ -1372,13 +1372,15 @@ dominance and which stays byte-identical in effect.
 **Consumers.**
 
 - **W210** (`emit_read_before_set_diagnostics`,
-  `record_chain_w210_uses`, `emit_return_phi_undef_w210`,
-  `emit_provably_unset_w210`): a value read at a place whose fact is
-  `Unbound` reports; a read at `MayBound` reports, as today's
-  may-undefined chain does; a read at `Bound(_)` is silent. The version-0
-  origin, `whole_unset_names`, `phi_can_undef`, the existence guards, and
-  the private `regexp` / `scan` no-match prover are all readings of this
-  one fact: no match is a `Preserve`, so the prior fact stands. A use
+  `record_chain_w210_uses`, `emit_return_phi_undef_w210`): a value read
+  at a place whose fact is `Unbound` reports; a read at `MayBound`
+  reports, as today's may-undefined chain does; a read at `Bound(_)` is
+  silent. The version-0 origin, `whole_unset_names`, `phi_can_undef`, the
+  existence guards, and the preserved definitions are all readings of
+  this one fact: no match is a `Preserve`, so the prior fact stands —
+  `SccpResult::preserved` names the version a preserved definition holds
+  and the undef trace reads through it, which retired the private
+  `regexp` / `scan` no-match prover in slice 5. A use
   that safely initialises (`use_site_safe_initialises`) is a cell update
   whose `creates_absent` admits the release.
 - **W213** (the `command == "unset"` site in `record_chain_w210_uses`):
@@ -2300,15 +2302,19 @@ not replaced, under six rules:
 Three producers move onto the interface in the first slices:
 
 - `emit_provably_unset_w210` in
-  `rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs` recognises
-  `regexp` and `scan` by name, parses their forms, and computes no-match
+  `rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs` recognised
+  `regexp` and `scan` by name, parsed their forms, and computed no-match
   consequences inside a diagnostic producer, with a second traversal for
-  embedded conditions; its own comment says the registry lacks these
+  embedded conditions; its own comment said the registry lacked these
   per-form semantics. The owner is the registry transfer's *preserve*
   outcome plus the existence rung (§ Existence): no match preserves, so
-  the prior cell fact is necessary, and W210 consumes the resulting proof. This
-  is the end-to-end acceptance test for storage outcomes and the regexp
-  owner, not a name-dispatch cleanup.
+  the prior cell fact is necessary, and W210 consumes the resulting proof.
+  Slice 5 retired it: SCCP records each preserved definition with the
+  version it holds (`SccpResult::preserved`, a condition's substitutions
+  included when the shared engine decided the condition), and the
+  read-before-set pass reads through it. This is the end-to-end acceptance
+  test for storage outcomes and the regexp owner, not a name-dispatch
+  cleanup.
 - The existence constant-branch fact is stored once with its kind
   (proven, selected, applied), as above.
 - O111 is a producer over the unbraced-expression fact: `brace_expr_hints`

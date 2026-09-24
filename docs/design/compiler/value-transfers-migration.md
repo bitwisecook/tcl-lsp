@@ -803,7 +803,7 @@ which waives the sites by axis.
 | `rust/tcl-cli/src/commands/minimize.rs` | 1 | the `arg_roles` axis — `var_target_positions`, a reimplementation of the role axis for eight commands |
 | `rust/tcl-compiler/src/analyser/class_lattice.rs` | 3 | the `definition_body` axis — `oo::objdefine`, `oo::copy`, and `info` by name |
 | `rust/tcl-compiler/src/analyser/commands.rs` | 1 | the `case_list` axis — the orphaned-keyword parent table (`else` / `elseif` / `then`, `on` / `trap` / `finally`) |
-| `rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs` | 4 | slice 5 retires the `regexp` / `scan` no-match prover; slice 8 the `unset` scans |
+| `rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs` | 2 | slice 8 retires the `unset` scans |
 | `rust/tcl-compiler/src/analyser/diagnostics/helpers.rs` | 6 | slice 5 — the `dict with` / `dict update` key harvest; the `unset` and binder checks follow with slices 8 and 13 |
 | `rust/tcl-compiler/src/analyser/diagnostics/security.rs` | 2 | the `return_type` axis — a `pattern_type` conditional on `-regexp` absorbs the `switch`-specific ReDoS scan |
 | `rust/tcl-compiler/src/analyser/diagnostics/validity.rs` | 2 | the `traits` axis — `unset` beside the `DESTROYS_VARIABLE` query, `matchclass` by its lifecycle field |

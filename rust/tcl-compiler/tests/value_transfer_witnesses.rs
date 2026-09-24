@@ -2228,3 +2228,103 @@ fn a_pack_write_through_an_incoming_target_reaches_the_driver() {
     );
     tcl_spectcl::hooks::publish(&tcl_spectcl::PackSet::default());
 }
+
+/// The no-match preserve (VT5.11, #2051's program): a `regexp` that cannot
+/// match leaves its match variables as they were, so the store feeding one
+/// stays — no O109 deletes it, no W220 calls it unread, no W210 reports the
+/// read — and the original and optimised programs print `before` under
+/// every release. The same commands in a condition or a word keep the
+/// stores their targets may preserve: `tcl opt` had deleted `set v before`
+/// from both, and the optimised programs failed with `can't read "v": no
+/// such variable`.
+#[test]
+fn a_no_match_keeps_the_store_it_preserves() {
+    use tcl_compiler::analyser::Analyser;
+    let programs = [
+        (
+            "proc p {} {\n    set a before\n    regexp {(x)(y)} zz a b\n    puts $a\n}\np\n",
+            "a",
+            "before\n",
+        ),
+        (
+            "proc q {s} {\n    set v before\n    if {[regexp {(x)} $s -> v]} {\n        \
+             puts matched\n    }\n    puts $v\n}\nq abc\n",
+            "v",
+            "before\n",
+        ),
+        (
+            "proc r {} {\n    set v before\n    puts [regexp {x} y v]\n    puts $v\n}\nr\n",
+            "v",
+            "0\nbefore\n",
+        ),
+    ];
+    for (source, kept, printed) in programs {
+        let named = format!("'{kept}'");
+        for dialect in DIALECTS {
+            let rewrites = rewrites_of(source, dialect);
+            assert!(
+                !rewrites
+                    .iter()
+                    .any(|rewrite| rewrite.code == DiagCode::O109),
+                "{dialect}: {source}{rewrites:#?}"
+            );
+            let reported: Vec<(DiagCode, String)> = Analyser::new()
+                .analyse(source, dialect)
+                .diagnostics
+                .into_iter()
+                .filter(|d| matches!(d.code, DiagCode::W210 | DiagCode::W220))
+                .map(|d| (d.code, d.message))
+                .collect();
+            assert!(
+                !reported.iter().any(|(_, message)| message.contains(&named)),
+                "{dialect}: {source}{reported:?}"
+            );
+        }
+        prints_under_every_release(source, printed);
+    }
+}
+
+/// A pack command's declared preserve is a preserved definition like a
+/// builtin's (VT5.11): `keep::miss VAR PIECE` declares `write_or_preserve`
+/// on its target and its body preserves it, so the definition holds the
+/// version before the call — the undefined root in `p`, the `set` in `q` —
+/// which is what W210 reads, though the command carries no trait that
+/// records a use of that version.
+#[test]
+fn a_pack_declared_preserve_holds_the_prior_version() {
+    const KEEP_PACK: &str = "speclib keep 2.2 {
+    command keep::miss {
+        arity 2
+        arg 0 -role VarWrite
+        semantics {
+            stores -targets {0} -outcome write_or_preserve
+            result -semantic int
+        }
+        evaluate -implementation keep.miss.v1 -host bounded_tcl {
+            inputs {arg 1 exact}
+            body {piece} { preserve 0; fold 0 }
+        }
+    }
+}
+";
+    let _published = PUBLISHED_PACKS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let packs = pack_workspace("keep", KEEP_PACK);
+    let registry = tcl_spectcl::install::registry_for_dialect_with_packs("tcl9.0", &packs);
+    let source = "proc p {} {\n    keep::miss v x\n    return $v\n}\n\
+                  proc q {} {\n    set v before\n    keep::miss v x\n    return $v\n}\n";
+    let unit = CompilationUnit::build_for_dialect(source, &registry, false, "tcl9.0");
+    for (proc, prior) in [("::p", 0), ("::q", 1)] {
+        let function = unit.procedures.get(proc).expect("the procedure");
+        let symbol = function.ssa.var_symbol("v").expect("the variable");
+        assert_eq!(
+            function.sccp.preserved.get(&(symbol, prior + 1)),
+            Some(&prior),
+            "{proc}: {:?}",
+            function.sccp.preserved
+        );
+        assert_eq!(answers_for(&unit, proc, "keep::miss"), ["evaluated"]);
+    }
+    tcl_spectcl::hooks::publish(&tcl_spectcl::PackSet::default());
+}
