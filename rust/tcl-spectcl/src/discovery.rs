@@ -47,6 +47,7 @@
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
+use tcl_dialect::model::WorkspaceTrust;
 use tcl_lsp_core::vfs::{NativeStore, SourceStore};
 
 use crate::PACK_EXTENSION;
@@ -75,6 +76,21 @@ impl Tier {
             Tier::Workspace => "workspace",
             Tier::User => "user",
             Tier::Bundled => "bundled",
+        }
+    }
+
+    /// The trust a file of this tier loads under when the editor's state for
+    /// the workspace is `workspace`: the workspace tier takes it, and every
+    /// other tier is [`WorkspaceTrust::Trusted`] — the bundled and user tiers
+    /// are not the workspace's to vouch for, and a Spec Studio override is
+    /// untrusted by its own provenance whatever the editor says. One
+    /// normalisation, so a snapshot key and a merged pack never carry a trust
+    /// state their provenance does not read.
+    #[must_use]
+    pub fn trust_under(self, workspace: WorkspaceTrust) -> WorkspaceTrust {
+        match self {
+            Tier::Workspace => workspace,
+            Tier::StudioOverride | Tier::User | Tier::Bundled => WorkspaceTrust::Trusted,
         }
     }
 }
@@ -206,6 +222,14 @@ pub struct DiscoveryOptions {
     /// Skip the user tier entirely (`tclLsp.specPacks.includeUserPacks:
     /// false`), for a workspace that wants only what it declares.
     pub skip_user_tier: bool,
+    /// The editor's Workspace Trust state for these folders — the one input
+    /// the trust ruling plumbs from the LSP client. It decides nothing about
+    /// *which* files exist, so the scan never reads it; every workspace-tier
+    /// file the scan finds loads under it ([`Tier::trust_under`]), which is
+    /// what the load a caller makes with these options is handed
+    /// ([`crate::bundled::load_discovered_in`]). The default, a client that
+    /// reports nothing, is [`WorkspaceTrust::Trusted`].
+    pub workspace_trust: WorkspaceTrust,
 }
 
 /// The platform default per-user pack directory:
@@ -744,6 +768,7 @@ mod tests {
             user_dir: Some(root.join("no-user")),
             bundled_dir: Some(root.join("no-bundled")),
             skip_user_tier: false,
+            workspace_trust: WorkspaceTrust::Trusted,
         });
         assert!(found.is_empty());
         let _ = std::fs::remove_dir_all(&root);
@@ -836,7 +861,7 @@ mod tests {
                 ..DiscoveryOptions::default()
             },
         );
-        let loaded = crate::bundled::load_discovered_in(&store, &found);
+        let loaded = crate::bundled::load_discovered_in(&store, &found, WorkspaceTrust::Trusted);
         let names: Vec<&str> = loaded.packs.iter().map(|p| p.name.as_str()).collect();
         assert!(names.contains(&"hostvendor"), "{names:?}");
         assert!(

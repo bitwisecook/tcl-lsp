@@ -95,7 +95,12 @@ fn an_environment_scoped_ambient_version_floors_only_its_own_environment() {
         placement.version
     );
 
-    let outcome = register_pack_environments(&pack, Tier::User).expect("registration succeeds");
+    let outcome = register_pack_environments(
+        &pack,
+        Tier::User,
+        tcl_dialect::model::WorkspaceTrust::Trusted,
+    )
+    .expect("registration succeeds");
     assert_eq!(outcome.declared, 2);
 
     // The floor applies where the pack placed the package…

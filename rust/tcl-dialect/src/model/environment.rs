@@ -296,6 +296,37 @@ impl Provenance {
     }
 }
 
+/// The editor's Workspace Trust state for the folders it opened — the one
+/// input that decides whether a workspace-authored definition is
+/// [`Provenance::WorkspaceTrusted`] or [`Provenance::WorkspaceUntrusted`]
+/// (§6.4; `registry-consumer-contracts.md` § *Ruling — trust gates
+/// execution, not authority*).
+///
+/// A second axis beside the discovery tier, never folded into it: the tier
+/// says where a file was found and orders precedence, the trust says what
+/// the editor thinks of the folder it was found in. A client that reports
+/// nothing is [`WorkspaceTrust::Trusted`], which is what the workspace tier
+/// was before the state was plumbed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+pub enum WorkspaceTrust {
+    /// The editor trusts the workspace, or does not say.
+    #[default]
+    Trusted,
+    /// The editor has not marked the workspace trusted.
+    Untrusted,
+}
+
+impl WorkspaceTrust {
+    /// The provenance of a workspace-authored definition under this state.
+    #[must_use]
+    pub const fn workspace_provenance(self) -> Provenance {
+        match self {
+            Self::Trusted => Provenance::WorkspaceTrusted,
+            Self::Untrusted => Provenance::WorkspaceUntrusted,
+        }
+    }
+}
+
 /// One environment definition (§3.3) — dynamic data, held behind `Arc`,
 /// identified by `(id, generation, overlay hash)`, never by pointer.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1477,13 +1508,23 @@ mod tests {
         }
     }
 
-    /// A workspace is trusted until the editor's trust state is plumbed
-    /// (ledger item O9) — the fact the `EvalOptions::tier` doc comment used
-    /// to deny.
+    /// A workspace is trusted until the editor says otherwise — the fact the
+    /// `EvalOptions::tier` doc comment used to deny — and a client that says
+    /// nothing leaves it trusted.
     #[test]
     fn a_workspace_is_trusted_until_the_editor_says_otherwise_issue_2139() {
         assert!(!Provenance::WorkspaceTrusted.is_untrusted());
         assert!(Provenance::WorkspaceUntrusted.is_untrusted());
+        assert_eq!(WorkspaceTrust::default(), WorkspaceTrust::Trusted);
+        assert!(
+            !WorkspaceTrust::Trusted
+                .workspace_provenance()
+                .is_untrusted()
+        );
+        assert_eq!(
+            WorkspaceTrust::Untrusted.workspace_provenance(),
+            Provenance::WorkspaceUntrusted
+        );
     }
 
     #[test]

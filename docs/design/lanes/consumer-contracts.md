@@ -586,11 +586,43 @@ predicate CC3.2 collapses.
 
 | Item | State | Checkpoint | Notes |
 |---|---|---|---|
-| CC3.1 `WorkspaceTrust` through discovery, provenance and the cache key | next | `wip(consumer-contracts): step 3 — workspace trust through discovery, provenance and the cache key` | opus |
-| CC3.3 hook bodies gated; the dormant notice | not started | `wip(consumer-contracts): step 3 — dormant hook bodies` | opus |
+| CC3.1 `WorkspaceTrust` through discovery, provenance and the cache key | landed | `wip(consumer-contracts): step 3 — workspace trust through discovery, provenance and the cache key` | `tcl_dialect::model::WorkspaceTrust { Trusted (default), Untrusted }` beside `Provenance`, with `workspace_provenance()` (D3.1); `DiscoveryOptions::workspace_trust` (default trusted); `Tier::trust_under` — the workspace tier reads the state, every other tier is trusted; the trust rides the load, not `PackFile` (D3.5): `pack::load_under`, `pack::load_in_memory_under`, `bundled::load_discovered_in(store, files, trust)`, with `load`, `load_in_memory`, `load_discovered` and `load_embedded` the trusted doors the CLI and MCP already call, so neither needed an edit; `MergedPack::trust` and `MergedPack::provenance()`; `PackEnvironmentTier::Workspace(WorkspaceTrust)` with `of(tier, trust)` and `label()` (D3.6), so registration (`register_pack_set`, the dialect and roster conversions, `untrusted_compiled_extension`) and `to_definition` carry the pack's own class; `register_pack_environments` / `register_environments` take the trust; `EvalOptions::trust`, `EvalSnapshotKey::trust` and the `tier` doc comment naming the trust state; `untrusted(PackEnvironmentTier)` gates E-R2 on the pair, and the refusal names "untrusted workspace" (D3.8); `cache::{key_for, evaluate_pack_cached, evaluate_pack_including, snapshot_memoised}` take the trust, `entry_key` and the pack-set key mix it (D3.7); the server passes `options.workspace_trust`, still the default until CC3.3 sets it. Tests: `rust/tcl-spectcl/tests/workspace_trust.rs` (new; shard `5 tcl-spectcl::workspace_trust`) — `an_untrusted_workspace_pack_is_workspace_untrusted_provenance` (and the user tier stays `User`), `an_untrusted_workspace_pack_still_declares_its_facts` (arity, `Body` / `Value` roles and a `Declared` semantics reach the installed registry, equal under both states), `an_untrusted_workspace_pack_cannot_override_a_compiled_name` (the negative: `-override lsort` refused naming "untrusted workspace", the shipped `lsort` standing; trusted, it loads), `a_client_that_reports_nothing_is_trusted` (the three defaults, and a discovered `.tcl-lsp/` pack loading as `WorkspaceTrusted` with its override), `the_snapshot_key_distinguishes_trust` (snapshot key, entry key and set key split for the workspace tier, not for bundled); `cache.rs`'s key and identity tests gain the trust rows; `surface_roster_trust.rs` pins both states; `loader.rs`'s environment test pins `to_definition` under both; `tcl-dialect`'s trust-class test pins the default and the map. Gates: `cargo test -p tcl-spectcl` (every binary: lib 188, `workspace_trust` 5, …), `-p tcl-dialect --lib` (153), `-p tcl-spec-studio --lib` (198); `cargo check --workspace --all-targets`; clippy (`-p tcl-dialect -p tcl-spectcl -p tcl-spec-studio -p tcl-lsp-server`) and `cargo fmt` clean; `verify-nextest-binary-shards.py --metadata-only` (327 targets) and `test-nextest-binary-shards.sh` green; `registry-axes` / `value-transfers --check` unchanged; `pack-goldens --check` (25) unchanged; `kcs-index-links` green; `dialect-drift` at its 8. Docs: `spec-packs.md` § *Workspace trust* (the loader maps by the state; the client wire and the hook gate still to come) and the cache bullet; the redesign's O9 narrowed, not closed (D3.9); the design page's status box moves `WorkspaceTrust` to built. Deviations: the brief's order runs CC3.1 before CC3.5 (the plan put CC3.5 first); the trust rides the load (D3.5) and the tier value (D3.6) rather than `PackFile` and a `provenance(trust)` parameter; no `cache::VERSION` exists to bump (D3.7); O9 closes with CC3.3 (D3.9); the MCP and CLI callers needed no edit (D3.5) |
+| CC3.3 hook bodies gated; the dormant notice | next | `wip(consumer-contracts): step 3 — dormant hook bodies` | opus |
 | CC3.5 the six `StubFlags` on their catalogue fields; nearest-wins | not started | `wip(consumer-contracts): step 3 — stub flags reach their fields` | opus |
 | CC3.2 one `untrusted` predicate | not started | — | sonnet, dispatched separately |
 | CC3.4 `spectcl_check`'s tier and trust | not started | — | sonnet, dispatched separately |
+
+### CC3.1 — what the next items read
+
+- **The input.** `tcl_dialect::model::WorkspaceTrust` (`Trusted`, the
+  default, and `Untrusted`); `workspace_provenance()` maps it onto
+  `Provenance::WorkspaceTrusted` / `WorkspaceUntrusted`. It arrives on
+  `DiscoveryOptions::workspace_trust`, which the scan never reads; the
+  load is handed it (`bundled::load_discovered_in(store, files, trust)`,
+  `pack::load_under`, `pack::load_in_memory_under`), and each file reads it
+  through `Tier::trust_under`. The server's reload already passes
+  `options.workspace_trust`, so CC3.3 only has to set it in
+  `spec_pack_discovery`.
+- **The pack's class.** `MergedPack::trust` (normalised by the winning
+  tier) and `MergedPack::provenance()` — what CC3.3's `load_sources`
+  notice and `hooks::plan_for` read (D3.3). `PackEnvironmentTier::of(tier,
+  trust).provenance()` is the same answer for a bare `Pack`.
+- **The key.** `EvalOptions::trust`, `EvalSnapshotKey::trust`,
+  `cache::key_for(source, tier, trust)`, and the pack-set key, which moves
+  when the state does — so a reload that only changed the trust state is a
+  changed set, and `reload_spec_packs` re-installs.
+- **For CC3.2.** The tree already decides the class in one place:
+  `Provenance::is_untrusted` (`tcl_dialect::model`, #2139, `44c58a5b`),
+  which `loader/eval.rs`'s private `untrusted(PackEnvironmentTier)` and
+  `tcl_registry::model::registration` both call — the plan's two
+  identical predicates were collapsed into one before step 3. What remains
+  is the plan's API shape: a `tcl_registry::model::untrusted(provenance)`
+  would be a second door onto `is_untrusted`, and `provenance_violation(pack,
+  tier)` (whose hypothetical is now "as if untrusted", D3.8) still takes a
+  tier. `grep -rn "fn untrusted(" rust/` answers one hit today (the
+  loader's private shim); the checklist's looser `"fn untrusted"` also
+  matches `untrusted_compiled_extension` and the studio's
+  `untrusted_tier_refusal`, which are not predicates.
 
 ## Plan for steps 2–10
 
@@ -3237,6 +3269,47 @@ everything else in this lane is independent of both.
 - **D3.4** `DeclaredCommand` gains `traits` and `side_effects`;
   `DocumentCommandSurface` gains `traits` and `side_effects` doors;
   `SubCommand::pure` is moot for a stub. Reason: the page's field map.
+- **D3.5** The trust rides the load, not `PackFile`:
+  `DiscoveryOptions::workspace_trust` is the one input, the load doors
+  take it (`bundled::load_discovered_in(store, files, trust)`,
+  `pack::load_under`, `pack::load_in_memory_under`), each file reads it
+  through `Tier::trust_under`, and `MergedPack::trust` records the winning
+  tier's. `load`, `load_in_memory`, `load_discovered` and `load_embedded`
+  keep their signatures and load trusted — the CLI's and MCP's reading, an
+  author's own files — so neither caller changed. Reason: `PackFile` is
+  built by struct literal in 31 places across 20 files, three of them the
+  value-transfers lane's (`tests/value_transfers.rs`,
+  `value_transfer_witnesses.rs`, `value_transfer_parity.rs`; B1) and edited
+  mid-slice, so a new field would break that lane's files; and the trust is
+  one state per workspace window, never per file.
+- **D3.6** `PackEnvironmentTier::Workspace(WorkspaceTrust)` carries the
+  trust: `of(tier, trust)` builds the value, `provenance()` keeps its
+  signature, and `label()` names the class a refusal prints ("untrusted
+  workspace"; the discovery tier's own label otherwise, so the studio
+  override's messages are unchanged). Reason: the plan's
+  `provenance(self, trust)` would thread a second parameter through
+  `to_definition`, `to_extension`, `reserved_name_for` and
+  `to_dynamic_family` too, while the tier value is already "the trust
+  class" its module doc says it is.
+- **D3.7** The trust is normalised to what the tier reads
+  (`Tier::trust_under`): a bundled, user or studio-override snapshot keys
+  the same under either state and a workspace one splits. The on-disk
+  entry key mixes the trust byte for every tier, so every entry key moved
+  once and the cache rebuilds on the first load (disposable by contract,
+  unobservable); `FORMAT` is not bumped, since no layout changed — the
+  plan's `cache::VERSION` names no constant in the tree. The pack-set key
+  mixes each file's trust, so granting or withdrawing trust re-installs.
+- **D3.8** `provenance_violation(pack, tier)` answers "as if untrusted",
+  so for the workspace tier it names the untrusted workspace; the load's
+  own gate names the class it refused under. `register_pack_environments`
+  and `register_environments` take the trust beside the tier. Reason: the
+  step's expected delta — an `-override` refused "with the provenance
+  named" — and CC3.2 changes the violation's signature anyway.
+- **D3.9** The redesign's O9 is narrowed at CC3.1 and closed at CC3.3, not
+  closed at CC3.1 as the plan's Docs line says. Reason: O9's resolution is
+  "plumbing the LSP client's Workspace Trust state to `discovery`", and
+  the client half — the server reading `initializationOptions` and the VS
+  Code client sending it — is CC3.3's.
 - **D4.1** `alias_of` is a `CommandSpec` field only. **D4.2** The stamp
   rule runs in `pack::load_sources` on the loaded command. **D4.3**
   `PackFactStamp::content_hash` is the `u64` xxh3 the snapshot key

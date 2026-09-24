@@ -21163,7 +21163,11 @@ impl Backend {
             // and the shipped EDA loadables have to come from the embedded
             // copy. A plain load would leave every EDA command unknown in
             // exactly those clients.
-            let loaded = tcl_spectcl::bundled::load_discovered_in(pack_store.as_ref(), &files);
+            let loaded = tcl_spectcl::bundled::load_discovered_in(
+                pack_store.as_ref(),
+                &files,
+                options.workspace_trust,
+            );
             // The test seam, and the only place it can go: the snapshot is
             // taken, the publish has not happened, so the world is free to
             // change underneath a view that is already stale. The signal goes

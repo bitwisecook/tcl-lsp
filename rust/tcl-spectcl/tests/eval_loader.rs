@@ -699,18 +699,19 @@ fn available_query_marks_the_pack_target_dependent_and_uncacheable() {
 
     // And the cache refuses it.
     let tier = Tier::Bundled;
-    let cached = tcl_spectcl::evaluate_pack_cached(source, tier);
+    let trust = tcl_dialect::model::WorkspaceTrust::Trusted;
+    let cached = tcl_spectcl::evaluate_pack_cached(source, tier, trust);
     assert!(cached.target_dependent);
     assert!(
-        !tcl_spectcl::snapshot_memoised(source, tier),
+        !tcl_spectcl::snapshot_memoised(source, tier, trust),
         "a target-dependent pack must not be memoised (E-R1)"
     );
 
     // A target-independent pack IS memoised, so the exclusion above is
     // meaningful.
     let independent = "speclib cacheable 2.0 {\n    command base { arity 1 }\n}\n";
-    let _ = tcl_spectcl::evaluate_pack_cached(independent, tier);
-    assert!(tcl_spectcl::snapshot_memoised(independent, tier));
+    let _ = tcl_spectcl::evaluate_pack_cached(independent, tier, trust);
+    assert!(tcl_spectcl::snapshot_memoised(independent, tier, trust));
 }
 
 #[test]

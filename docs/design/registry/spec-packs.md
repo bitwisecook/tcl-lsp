@@ -567,8 +567,10 @@ message. See [W139](../../kcs/codes/kcs-diagnostic-w139-retired-at-resolved-vers
   (`$XDG_CACHE_HOME/tcl-lsp/spectcl/` and platform equivalents): a pack's
   evaluated snapshot is written keyed by `EvalSnapshotKey` — a
   non-cryptographic hash of the pack source **plus the SpecTcl vocabulary
-  version, the loader-eval version and the tier** — so an edited pack or
-  an upgraded server recompiles exactly once. The cache is disposable by
+  version, the loader-eval version, the tier and the workspace trust
+  state** — so an edited pack or an upgraded server recompiles exactly
+  once, and an untrusted workspace's snapshot never answers for a trusted
+  one's. The cache is disposable by
   contract: delete it and nothing breaks but first-load time; a corrupt or
   stale entry falls back to a fresh evaluation, never an error.
 - **CLI and MCP.** `tcl spec import` derives version ranges for a
@@ -672,13 +674,19 @@ as a declared-but-unbound hook does, and each dormant hook is reported on
 the pack file. Pack *evaluation* stays ungated, because its only input is
 the pack itself, it runs once per `EvalSnapshotKey` under the budget, and
 the frozen snapshot is what carries the declarative facts authority
-protects. The trust state arrives from the LSP client as one input,
-`WorkspaceTrust`; a client that does not report it is treated as trusted.
-The loader today maps every workspace pack to
-`Provenance::WorkspaceTrusted` and the hook host runs a body under the
-sandbox whatever the workspace's trust state; step 3 of
+protects. The trust state is one input, `WorkspaceTrust`
+(`tcl_dialect::model`), carried on `DiscoveryOptions::workspace_trust` into
+the load; a client that does not report it is treated as trusted. The
+loader maps a workspace pack to `Provenance::WorkspaceTrusted` or
+`Provenance::WorkspaceUntrusted` by it — `MergedPack::provenance`, the E-R2
+gate and the evaluated snapshot's cache key all read it, so a pack in an
+untrusted workspace that `-override`s a compiled name is refused as a Spec
+Studio override's is, with every declarative fact of an unrefused pack
+reaching the registry either way. The language server does not yet read
+the client's state, and the hook host still runs a body under the sandbox
+whatever the state says; step 3 of
 [../compiler/registry-consumer-contracts.md](../compiler/registry-consumer-contracts.md)
-§ *Build order* plumbs the input and gates the bodies.
+§ *Build order* wires the client and gates the bodies.
 
 What makes the ungated evaluation safe is the sandbox, not trust: a pack's
 executable surface is its evaluation and its hook bodies, both pure

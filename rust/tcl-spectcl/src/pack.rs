@@ -37,6 +37,7 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
+use tcl_dialect::model::{Provenance, WorkspaceTrust};
 use tcl_registry::registry::CommandRegistry;
 
 use crate::discovery::{Origin, PackFile, Tier};
@@ -105,6 +106,11 @@ pub struct MergedPack {
     pub dsl_version: String,
     /// The tier the pack loaded from.
     pub tier: Tier,
+    /// The editor's Workspace Trust state the pack loaded under — the
+    /// workspace's for a workspace-tier pack, [`WorkspaceTrust::Trusted`]
+    /// for every other tier ([`Tier::trust_under`]). With [`Self::tier`] it
+    /// is the pack's provenance ([`Self::provenance`]).
+    pub trust: WorkspaceTrust,
     /// The files that contributed, in merge (sorted path) order.
     pub files: Vec<PathBuf>,
     /// The pack's human-readable name, from the first file that declares
@@ -162,6 +168,16 @@ impl MergedPack {
     #[must_use]
     pub fn command(&self, name: &str) -> Option<&PackCommand> {
         self.commands.iter().find(|c| c.spec.name == name)
+    }
+
+    /// The §6.4 trust class the pack's definitions carry: its tier read
+    /// under its trust state, so a pack from a workspace the editor has not
+    /// trusted is [`Provenance::WorkspaceUntrusted`]. Authority does not
+    /// read this — every declarative fact the pack states reaches the
+    /// registry whatever it answers — only the gates the trust ruling names.
+    #[must_use]
+    pub fn provenance(&self) -> Provenance {
+        crate::loader::PackEnvironmentTier::of(self.tier, self.trust).provenance()
     }
 }
 
@@ -238,22 +254,36 @@ impl PackSet {
 
 /// [`load_sources`] with the sources already in hand and no prior notices —
 /// the door `tcl spec upgrade --verify` loads a rewritten pack through
-/// without ever putting it on disk.
+/// without ever putting it on disk. Trusted: an authoring tool's own file,
+/// never an editor's workspace ([`load_in_memory_under`] names the state).
 #[must_use]
 pub fn load_in_memory(sources: Vec<(PackFile, String)>) -> PackSet {
-    load_sources(sources, Vec::new())
+    load_in_memory_under(sources, WorkspaceTrust::Trusted)
 }
 
-/// Load and merge every discovered file.
-///
-/// Reads each file, loads it through [`crate::cache::evaluate_pack_cached`]
-/// at the file's own provenance tier (so an unchanged pack costs a hash check,
-/// and design E-R2 gates what an untrusted tier may register), then groups by
-/// `speclib` name.
+/// [`load_in_memory`] with the workspace tier's files loaded under `trust`.
+#[must_use]
+pub fn load_in_memory_under(sources: Vec<(PackFile, String)>, trust: WorkspaceTrust) -> PackSet {
+    load_sources(sources, Vec::new(), trust)
+}
+
+/// Load and merge every discovered file, the workspace tier trusted — a
+/// caller holding an editor's trust state loads through [`load_under`].
 #[must_use]
 pub fn load(files: &[PackFile]) -> PackSet {
+    load_under(files, WorkspaceTrust::Trusted)
+}
+
+/// Load and merge every discovered file, the workspace tier's under `trust`.
+///
+/// Reads each file, loads it through [`crate::cache::evaluate_pack_cached`]
+/// at the file's own provenance tier and trust state (so an unchanged pack
+/// costs a hash check, and design E-R2 gates what an untrusted provenance may
+/// register), then groups by `speclib` name.
+#[must_use]
+pub fn load_under(files: &[PackFile], trust: WorkspaceTrust) -> PackSet {
     let (sources, notices) = read_sources(&tcl_lsp_core::vfs::NativeStore, files);
-    load_sources(sources, notices)
+    load_sources(sources, notices, trust)
 }
 
 /// Read every discovered file, turning an unreadable one into a notice rather
@@ -301,14 +331,19 @@ pub(crate) fn read_sources(
 /// `notices` carries whatever the caller already collected before sources
 /// were in hand (e.g. [`load`]'s unreadable-file notices); embedded sources
 /// never fail to "read", so [`crate::bundled`] always passes an empty vec.
+///
+/// `trust` is the editor's Workspace Trust state; each file reads it through
+/// its own tier ([`Tier::trust_under`]), so only the workspace tier's files
+/// evaluate, cache and merge under it.
 #[must_use]
 pub(crate) fn load_sources(
     sources: Vec<(PackFile, String)>,
     mut notices: Vec<PackNotice>,
+    trust: WorkspaceTrust,
 ) -> PackSet {
     // Keyed from the bytes, before anything is parsed: the key must describe
     // the input, not what the loader made of it.
-    let key = set_key(&sources);
+    let key = set_key(&sources, trust);
 
     // Group by declared pack name. `BTreeMap` so the resulting pack order is
     // by name, deterministically. Each file is parsed exactly once here — the
@@ -319,14 +354,16 @@ pub(crate) fn load_sources(
         // include context scoped to its own directory, and bypasses both
         // cache tiers — the key hashes only this file's bytes and so cannot
         // see an included file change under it.
+        let file_trust = file.tier.trust_under(trust);
         let pack = if crate::loader::uses_include(&source) {
             crate::cache::evaluate_pack_including(
                 &source,
                 file.tier,
+                file_trust,
                 &std::rc::Rc::new(crate::loader::IncludeContext::for_file(&file.path)),
             )
         } else {
-            crate::cache::evaluate_pack_cached(&source, file.tier)
+            crate::cache::evaluate_pack_cached(&source, file.tier, file_trust)
         };
         if pack.name.is_empty() {
             // No `speclib` wrapper: nothing to merge, but the loader's
@@ -364,7 +401,13 @@ pub(crate) fn load_sources(
             ));
         }
 
-        packs.push(merge_group(&name, winning_tier, winners, &mut notices));
+        packs.push(merge_group(
+            &name,
+            winning_tier,
+            winning_tier.trust_under(trust),
+            winners,
+            &mut notices,
+        ));
     }
 
     // Cross-pack collisions, once every pack is merged — the only point where
@@ -609,6 +652,7 @@ fn merge_first_wins<T>(into: &mut Vec<T>, rows: Vec<T>, name: impl for<'a> Fn(&'
 fn merge_group(
     name: &str,
     tier: Tier,
+    trust: WorkspaceTrust,
     files: Vec<(PackFile, Pack)>,
     notices: &mut Vec<PackNotice>,
 ) -> MergedPack {
@@ -616,6 +660,7 @@ fn merge_group(
         name: name.to_owned(),
         dsl_version: String::new(),
         tier,
+        trust,
         files: files.iter().map(|(f, _)| f.path.clone()).collect(),
         display_name: None,
         file_extensions: Vec::new(),
@@ -728,10 +773,11 @@ fn merge_group(
 
 /// The content key for a whole pack set.
 ///
-/// Covers, in order, every file's tier, path and byte content, plus the
-/// vocabulary version and loader build — so moving a pack between tiers, or
+/// Covers, in order, every file's tier, trust state, path and byte content,
+/// plus the vocabulary version and loader build — so moving a pack between
+/// tiers, the editor granting or withdrawing trust in the workspace, or
 /// upgrading the server, is as much a change as editing it.
-fn set_key(sources: &[(PackFile, String)]) -> u64 {
+fn set_key(sources: &[(PackFile, String)], trust: WorkspaceTrust) -> u64 {
     if sources.is_empty() {
         return 0;
     }
@@ -739,6 +785,7 @@ fn set_key(sources: &[(PackFile, String)]) -> u64 {
     crate::cache::stamp_build(&mut hasher);
     for (file, source) in sources {
         hasher.update(&[file.tier as u8]);
+        hasher.update(&[file.tier.trust_under(trust) as u8]);
         hasher.update(file.path.to_string_lossy().as_bytes());
         hasher.update(&[0]);
         hasher.update(source.as_bytes());

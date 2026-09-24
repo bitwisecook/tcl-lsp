@@ -1454,6 +1454,9 @@ fn merged(name: &str, pack: &Pack, tier: Tier) -> MergedPack {
         name: name.to_owned(),
         dsl_version: pack.dsl_version.clone(),
         tier,
+        // The studio evaluates its buffer trusted — the author's own file,
+        // as its `EvalOptions` say — whichever tier it layers from.
+        trust: tcl_dialect::model::WorkspaceTrust::Trusted,
         files: vec![std::path::PathBuf::from(format!("{name}.tclspec"))],
         display_name: pack.display_name.clone(),
         file_extensions: pack.file_extensions.clone(),

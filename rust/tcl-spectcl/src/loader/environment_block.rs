@@ -70,7 +70,8 @@ use tcl_dialect::model::{BuildProfileId, Family, Release};
 use tcl_dialect::model::{
     CoreProfileSelector, DetectionFacts, EditorLanguageIdentityId, EnvironmentDefinition,
     EnvironmentId, EnvironmentPolicy, FileExtensionClaim, KeyedAxis, PackagePlacement, Placement,
-    Provenance, VersionAxisId, VersionSet, WorldPolicy, release_line, reserved_against,
+    Provenance, VersionAxisId, VersionSet, WorkspaceTrust, WorldPolicy, release_line,
+    reserved_against,
 };
 
 use super::{Log, Stmt, block, next_text};
@@ -79,39 +80,59 @@ use crate::discovery::Tier;
 /// The trust tier a pack-declared environment carries into the model.
 ///
 /// A thin, total map onto [`Provenance`]: the loader knows the tier a pack
-/// came from, and §6.4 says the tier *is* the trust class.
+/// came from and, for the workspace tier, the editor's Workspace Trust state,
+/// and §6.4 says the pair *is* the trust class.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PackEnvironmentTier {
     /// Shipped with the distribution.
     Bundled,
     /// A per-user config directory pack.
     User,
-    /// A workspace pack (`.tcl-lsp/`), trusted or not by the editor.
-    Workspace,
+    /// A workspace pack (`.tcl-lsp/`), under the editor's trust state for
+    /// the workspace.
+    Workspace(WorkspaceTrust),
     /// A live Spec Studio override.
     StudioOverride,
 }
 
 impl PackEnvironmentTier {
-    /// The tier of a discovered pack.
+    /// The tier of a discovered pack loaded under `trust` — the editor's
+    /// state for the workspace, which only the workspace tier reads
+    /// ([`Tier::trust_under`]).
     #[must_use]
-    pub fn of(tier: Tier) -> Self {
+    pub fn of(tier: Tier, trust: WorkspaceTrust) -> Self {
         match tier {
             Tier::Bundled => Self::Bundled,
             Tier::User => Self::User,
-            Tier::Workspace => Self::Workspace,
+            Tier::Workspace => Self::Workspace(trust),
             Tier::StudioOverride => Self::StudioOverride,
         }
     }
 
-    /// The §6.4 trust class this tier maps to.
+    /// The §6.4 trust class this tier maps to: a workspace pack is
+    /// [`Provenance::WorkspaceTrusted`] or [`Provenance::WorkspaceUntrusted`]
+    /// by the editor's state, every other tier its own class.
     #[must_use]
     pub fn provenance(self) -> Provenance {
         match self {
             Self::Bundled => Provenance::BundledPack,
             Self::User => Provenance::User,
-            Self::Workspace => Provenance::WorkspaceTrusted,
+            Self::Workspace(trust) => trust.workspace_provenance(),
             Self::StudioOverride => Provenance::StudioOverride,
+        }
+    }
+
+    /// The tier's name as a refusal names it — the discovery tier's own
+    /// label, except that an untrusted workspace says so, since that is the
+    /// class the refusal is about.
+    #[must_use]
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Bundled => Tier::Bundled.label(),
+            Self::User => Tier::User.label(),
+            Self::Workspace(WorkspaceTrust::Trusted) => Tier::Workspace.label(),
+            Self::Workspace(WorkspaceTrust::Untrusted) => "untrusted workspace",
+            Self::StudioOverride => Tier::StudioOverride.label(),
         }
     }
 }

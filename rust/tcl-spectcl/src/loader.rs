@@ -10648,10 +10648,21 @@ mod tests {
         assert_eq!(environment.world_policy, WorldPolicy::AmbientPlusRequire);
         assert_eq!(environment.file_extensions[0].extension.as_ref(), "xdc");
 
-        let definition = environment.to_definition(PackEnvironmentTier::Workspace);
+        let definition = environment.to_definition(PackEnvironmentTier::Workspace(
+            tcl_dialect::model::WorkspaceTrust::Trusted,
+        ));
         assert_eq!(definition.id.as_str(), "vivado-tcl");
         assert_eq!(definition.display_name.as_ref(), "Xilinx Vivado");
         assert_eq!(definition.provenance, Provenance::WorkspaceTrusted);
+        // The editor's trust state is what decides the workspace's class.
+        assert_eq!(
+            environment
+                .to_definition(PackEnvironmentTier::Workspace(
+                    tcl_dialect::model::WorkspaceTrust::Untrusted,
+                ))
+                .provenance,
+            Provenance::WorkspaceUntrusted
+        );
         assert_eq!(
             definition.core.expect("a core selector").default_release,
             Release::TCL_8_6

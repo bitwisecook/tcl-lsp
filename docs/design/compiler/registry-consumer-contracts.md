@@ -43,6 +43,9 @@ slices proceed without deciding anything here.
 >   `ResolvedInvocation`, `InvocationWords` and `EffectFootprint`, and
 >   `template_plan` is the value axis's.
 >
+> Step 3 adds `WorkspaceTrust` (`tcl_dialect::model`), the trust
+> ruling's one input, carried on `DiscoveryOptions::workspace_trust`.
+>
 > The rest of the vocabulary is proposed and names nothing in the
 > workspace:
 >
@@ -50,8 +53,8 @@ slices proceed without deciding anything here.
 >   `RuntimeBacking` with the `runtime_backing` field, `BodySource`,
 >   `IdentityKind`, `CodegenCapability`, `ArtefactIdentityManifest`, and
 >   the `alias_of` declaration.
-> - **Packages and trust** — `SpecDirective`, `DependencyTier`,
->   `WorkspaceTrust`, and the `tcl spec test` verb.
+> - **Packages** — `SpecDirective`, `DependencyTier`, and the `tcl spec
+>   test` verb.
 >
 > `AnalysisContext`, `AnalysisInputs`, `PlanAnswer`, `OperandId`,
 > `TemplateWordPlan`, and `EvalAnswer` are

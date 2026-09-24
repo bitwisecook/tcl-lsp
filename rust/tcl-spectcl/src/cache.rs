@@ -22,9 +22,10 @@
 //! `docs/design/registry/spec-packs.md`: on first load a pack's compiled form is
 //! written to `$XDG_CACHE_HOME/tcl-lsp/spectcl/` (and the platform
 //! equivalents) keyed by an **xxhash-class** digest of the pack source *plus
-//! the `SpecTcl` vocabulary version, the loader build and the provenance
-//! tier*, so an edited pack or an upgraded server recompiles exactly once and
-//! everything else is a hash check and a fast read.
+//! the `SpecTcl` vocabulary version, the loader build, the provenance tier
+//! and the workspace trust state*, so an edited pack or an upgraded server
+//! recompiles exactly once and everything else is a hash check and a fast
+//! read.
 //!
 //! ## Disposable by contract
 //!
@@ -42,8 +43,8 @@
 //!
 //! Two tiers, one key. The key is [`crate::loader::EvalSnapshotKey`] —
 //! content hash × vocabulary version × loader-eval version × provenance tier
-//! — stamped with this build ([`stamp_build`]); there is no second cache
-//! identity anywhere in the crate.
+//! × workspace trust — stamped with this build ([`stamp_build`]); there is
+//! no second cache identity anywhere in the crate.
 //!
 //! - **In memory**: the finished [`Pack`]. It cannot go to disk at all — a
 //!   resolved `CommandSpec` holds function pointers into this binary — so this
@@ -88,6 +89,8 @@ use std::sync::{LazyLock, Mutex};
 
 use rustc_hash::FxHashMap;
 use xxhash_rust::xxh3::Xxh3;
+
+use tcl_dialect::model::WorkspaceTrust;
 
 use crate::VOCABULARY_VERSION;
 use crate::discovery::Tier;
@@ -177,32 +180,38 @@ pub(crate) fn stamp_build(hasher: &mut Xxh3) {
 }
 
 /// The on-disk entry key for one snapshot identity: the build stamp plus the
-/// two fields of [`EvalSnapshotKey`] the stamp does not already carry.
+/// three fields of [`EvalSnapshotKey`] the stamp does not already carry.
 ///
 /// The vocabulary and loader-eval versions are in the stamp rather than added
 /// again here, so no field of the identity is counted twice and the two tiers
-/// key off exactly the same facts.
+/// key off exactly the same facts. The trust byte is mixed for every tier,
+/// trusted included, so adding it moved every entry key once: the cache
+/// rebuilt on the first load after the change, which the disposable contract
+/// makes invisible — no [`FORMAT`] bump, since no entry's layout changed.
 fn entry_key(key: &EvalSnapshotKey) -> u64 {
     let mut hasher = Xxh3::new();
     stamp_build(&mut hasher);
     hasher.update(&key.content_hash.to_le_bytes());
     hasher.update(&[key.tier as u8]);
+    hasher.update(&[key.trust as u8]);
     hasher.digest()
 }
 
-/// The cache key for one pack source at one provenance tier.
+/// The cache key for one pack source at one provenance tier, under one
+/// workspace trust state.
 #[must_use]
-pub fn key_for(source: &str, tier: Tier) -> u64 {
-    entry_key(&eval_snapshot_key(source, &options_for(tier)))
+pub fn key_for(source: &str, tier: Tier, trust: WorkspaceTrust) -> u64 {
+    entry_key(&eval_snapshot_key(source, &options_for(tier, trust)))
 }
 
-/// The evaluation options a cached load runs under: the caller's tier and the
-/// default budget. The budget is deliberately *not* part of the identity —
-/// a pack that completes under one budget completes identically under a
-/// larger one, and one that blows a budget is not stored.
-fn options_for(tier: Tier) -> EvalOptions {
+/// The evaluation options a cached load runs under: the caller's tier and
+/// trust state and the default budget. The budget is deliberately *not* part
+/// of the identity — a pack that completes under one budget completes
+/// identically under a larger one, and one that blows a budget is not stored.
+fn options_for(tier: Tier, trust: WorkspaceTrust) -> EvalOptions {
     EvalOptions {
         tier,
+        trust,
         ..EvalOptions::default()
     }
 }
@@ -273,11 +282,11 @@ pub(crate) fn forget_snapshots() {
 /// Whether one source's snapshot is currently held in memory — the observable
 /// face of the E-R1 cacheability downgrade, for tests.
 #[must_use]
-pub fn snapshot_memoised(source: &str, tier: Tier) -> bool {
+pub fn snapshot_memoised(source: &str, tier: Tier, trust: WorkspaceTrust) -> bool {
     SNAPSHOT
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner)
-        .contains_key(&eval_snapshot_key(source, &options_for(tier)))
+        .contains_key(&eval_snapshot_key(source, &options_for(tier, trust)))
 }
 
 /// Load a pack source through both cache tiers.
@@ -291,8 +300,8 @@ pub fn snapshot_memoised(source: &str, tier: Tier) -> bool {
 /// path). A caller that wants no cache calls
 /// [`crate::loader::evaluate_pack_with`] directly.
 #[must_use]
-pub fn evaluate_pack_cached(source: &str, tier: Tier) -> Pack {
-    let options = options_for(tier);
+pub fn evaluate_pack_cached(source: &str, tier: Tier, trust: WorkspaceTrust) -> Pack {
+    let options = options_for(tier, trust);
     if disabled() {
         return crate::loader::evaluate_pack_with(source, &options);
     }
@@ -316,8 +325,13 @@ pub fn evaluate_pack_cached(source: &str, tier: Tier) -> Pack {
 /// that cannot describe this input switched off, which is exactly what
 /// [`DISABLE_ENV`] does for a whole process.
 #[must_use]
-pub fn evaluate_pack_including(source: &str, tier: Tier, include: &Rc<IncludeContext>) -> Pack {
-    crate::loader::evaluate_pack_in(source, &options_for(tier), Some(Rc::clone(include)))
+pub fn evaluate_pack_including(
+    source: &str,
+    tier: Tier,
+    trust: WorkspaceTrust,
+    include: &Rc<IncludeContext>,
+) -> Pack {
+    crate::loader::evaluate_pack_in(source, &options_for(tier, trust), Some(Rc::clone(include)))
 }
 
 /// Run `load` with this identity's on-disk entry seeded as the segmentation
@@ -794,13 +808,13 @@ speclib mylib 1 {
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         let cache = CacheDir::new("roundtrip");
 
-        let cold = evaluate_pack_cached(SOURCE, Tier::Bundled);
+        let cold = evaluate_pack_cached(SOURCE, Tier::Bundled, WorkspaceTrust::Trusted);
         assert_eq!(cache.entries().len(), 1, "a cold load writes one entry");
 
         // Drop the in-memory tier so the second load really reads the entry
         // rather than answering from the snapshot.
         forget_snapshots();
-        let warm = evaluate_pack_cached(SOURCE, Tier::Bundled);
+        let warm = evaluate_pack_cached(SOURCE, Tier::Bundled, WorkspaceTrust::Trusted);
         assert_eq!(shape(&cold), shape(&warm));
         assert_eq!(
             shape(&crate::loader::evaluate_pack(SOURCE)),
@@ -817,9 +831,9 @@ speclib mylib 1 {
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         let cache = CacheDir::new("edit");
 
-        let _ = evaluate_pack_cached(SOURCE, Tier::Bundled);
+        let _ = evaluate_pack_cached(SOURCE, Tier::Bundled, WorkspaceTrust::Trusted);
         let edited = SOURCE.replace("arity 2..3", "arity 2..4");
-        let after = evaluate_pack_cached(&edited, Tier::Bundled);
+        let after = evaluate_pack_cached(&edited, Tier::Bundled, WorkspaceTrust::Trusted);
 
         assert_eq!(cache.entries().len(), 2, "an edit is a different key");
         assert_eq!(shape(&after), shape(&crate::loader::evaluate_pack(&edited)));
@@ -833,7 +847,7 @@ speclib mylib 1 {
         let cache = CacheDir::new("corrupt");
         let expected = shape(&crate::loader::evaluate_pack(SOURCE));
 
-        let _ = evaluate_pack_cached(SOURCE, Tier::Bundled);
+        let _ = evaluate_pack_cached(SOURCE, Tier::Bundled, WorkspaceTrust::Trusted);
         forget_snapshots();
         let entry = cache.entries().pop().expect("one entry");
         let good = std::fs::read(&entry).expect("read entry");
@@ -868,7 +882,7 @@ speclib mylib 1 {
         for (what, bytes) in mutations {
             std::fs::write(&entry, &bytes).expect("write mutation");
             forget_snapshots();
-            let loaded = evaluate_pack_cached(SOURCE, Tier::Bundled);
+            let loaded = evaluate_pack_cached(SOURCE, Tier::Bundled, WorkspaceTrust::Trusted);
             assert_eq!(shape(&loaded), expected, "{what} must not change the load");
         }
     }
@@ -886,7 +900,7 @@ speclib mylib 1 {
         }
         std::fs::write(&cache.0, b"not a directory").expect("place blocker");
 
-        let loaded = evaluate_pack_cached(SOURCE, Tier::Bundled);
+        let loaded = evaluate_pack_cached(SOURCE, Tier::Bundled, WorkspaceTrust::Trusted);
         assert_eq!(shape(&loaded), shape(&crate::loader::evaluate_pack(SOURCE)));
         let _ = std::fs::remove_file(&cache.0);
     }
@@ -918,12 +932,16 @@ speclib mylib 1 {
 
     #[test]
     fn the_key_covers_the_build_and_the_tier_not_just_the_source() {
-        let a = key_for(SOURCE, Tier::Bundled);
-        let b = key_for(&SOURCE.replace("arity 1..", "arity 1..2"), Tier::Bundled);
+        let a = key_for(SOURCE, Tier::Bundled, WorkspaceTrust::Trusted);
+        let b = key_for(
+            &SOURCE.replace("arity 1..", "arity 1..2"),
+            Tier::Bundled,
+            WorkspaceTrust::Trusted,
+        );
         assert_ne!(a, b, "different sources key differently");
         assert_eq!(
             a,
-            key_for(SOURCE, Tier::Bundled),
+            key_for(SOURCE, Tier::Bundled, WorkspaceTrust::Trusted),
             "the same source keys the same"
         );
 
@@ -931,8 +949,21 @@ speclib mylib 1 {
         // part of the answer's identity and part of the key.
         assert_ne!(
             a,
-            key_for(SOURCE, Tier::Workspace),
+            key_for(SOURCE, Tier::Workspace, WorkspaceTrust::Trusted),
             "the tier is part of the key"
+        );
+        // So is the trust state, where the tier reads it — and only there: a
+        // bundled pack is the bundled tier's whatever the editor thinks of the
+        // workspace, so its key does not split on the trust.
+        assert_ne!(
+            key_for(SOURCE, Tier::Workspace, WorkspaceTrust::Trusted),
+            key_for(SOURCE, Tier::Workspace, WorkspaceTrust::Untrusted),
+            "the workspace trust is part of the key"
+        );
+        assert_eq!(
+            a,
+            key_for(SOURCE, Tier::Bundled, WorkspaceTrust::Untrusted),
+            "a tier that does not read the trust keys the same under either"
         );
 
         // The build stamp is genuinely mixed in: a digest of the source alone
@@ -952,15 +983,41 @@ speclib mylib 1 {
         let cache = CacheDir::new("identity");
         let source = SOURCE.replace("mylib", "identitylib");
 
-        let _ = evaluate_pack_cached(&source, Tier::Bundled);
-        assert!(snapshot_memoised(&source, Tier::Bundled));
-        assert!(!snapshot_memoised(&source, Tier::Workspace));
+        let _ = evaluate_pack_cached(&source, Tier::Bundled, WorkspaceTrust::Trusted);
+        assert!(snapshot_memoised(
+            &source,
+            Tier::Bundled,
+            WorkspaceTrust::Trusted
+        ));
+        assert!(!snapshot_memoised(
+            &source,
+            Tier::Workspace,
+            WorkspaceTrust::Trusted
+        ));
         assert_eq!(cache.entries().len(), 1);
 
         // A load at the other tier is a different identity in both tiers.
-        let _ = evaluate_pack_cached(&source, Tier::Workspace);
-        assert!(snapshot_memoised(&source, Tier::Workspace));
+        let _ = evaluate_pack_cached(&source, Tier::Workspace, WorkspaceTrust::Trusted);
+        assert!(snapshot_memoised(
+            &source,
+            Tier::Workspace,
+            WorkspaceTrust::Trusted
+        ));
         assert_eq!(cache.entries().len(), 2);
+
+        // And a load at the same tier under the other trust state is a third.
+        assert!(!snapshot_memoised(
+            &source,
+            Tier::Workspace,
+            WorkspaceTrust::Untrusted
+        ));
+        let _ = evaluate_pack_cached(&source, Tier::Workspace, WorkspaceTrust::Untrusted);
+        assert!(snapshot_memoised(
+            &source,
+            Tier::Workspace,
+            WorkspaceTrust::Untrusted
+        ));
+        assert_eq!(cache.entries().len(), 3);
         clear().expect("clear");
     }
 
@@ -971,9 +1028,9 @@ speclib mylib 1 {
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         let cache = CacheDir::new("disabled");
         cache.disable();
-        let loaded = evaluate_pack_cached(SOURCE, Tier::Bundled);
+        let loaded = evaluate_pack_cached(SOURCE, Tier::Bundled, WorkspaceTrust::Trusted);
         assert!(
-            !snapshot_memoised(SOURCE, Tier::Bundled),
+            !snapshot_memoised(SOURCE, Tier::Bundled, WorkspaceTrust::Trusted),
             "the disable switch turns off both tiers, not just the disk one"
         );
         assert_eq!(shape(&loaded), shape(&crate::loader::evaluate_pack(SOURCE)));
@@ -1006,7 +1063,7 @@ speclib mylib 1 {
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         let cache = CacheDir::new("clear");
-        let _ = evaluate_pack_cached(SOURCE, Tier::Bundled);
+        let _ = evaluate_pack_cached(SOURCE, Tier::Bundled, WorkspaceTrust::Trusted);
         assert!(!cache.entries().is_empty());
         clear().expect("clear a populated cache");
         assert!(cache.entries().is_empty());
