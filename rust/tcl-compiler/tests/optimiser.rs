@@ -2887,6 +2887,15 @@ fn a_dead_assignment_whose_value_cannot_raise_is_still_deleted() {
             "a `dict incr` target",
             "proc p {} {\n    dict incr d k\n    set y $d\n    puts hi\n}\n",
         ),
+        (
+            "a `chan gets` target",
+            "proc p {c} {\n    chan gets $c line\n    set y $line\n    puts hi\n}\n",
+        ),
+        // A conditional writer keeps the previous value on a miss.
+        (
+            "a `regexp` output variable set before",
+            "proc p {s} {\n    set x old\n    regexp {(z)} $s -> x\n    set y $x\n    puts hi\n}\n",
+        ),
     ] {
         assert!(
             opt_fires(src, TCL, "O126"),

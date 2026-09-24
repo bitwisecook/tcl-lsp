@@ -384,7 +384,7 @@ declare_traits! {
         "writes its target variables only when a runtime match succeeds";
     /// Writes every variable target it names whenever it completes, on its
     /// failure path too: `catch` binds its result and options variables
-    /// whatever the script's completion code, `gets` at end of file writes
+    /// whatever the script's completion code, `gets` (and `chan gets`) at end of file writes
     /// `""`, `regsub` with no match writes the unchanged input, and `lassign`
     /// writes `""` to a target with no value. `append`, `lappend` and the
     /// `dict` mutators (`set`, `append`, `lappend`, `incr`, `unset`) create

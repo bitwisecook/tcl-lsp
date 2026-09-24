@@ -308,6 +308,10 @@ enum DefSite {
     /// may-def, nor a command (`regexp`, `scan`, `unset`, a `foreach` header)
     /// that may leave it unset.
     Stmt(bool),
+    /// A conditional writer's target (`regexp`, `scan`, `binary scan`): set
+    /// exactly when the version it may keep was, since the match path writes
+    /// it and the other path leaves the previous value in place.
+    Carry(crate::ssa::Version),
 }
 
 impl<'a> RaiseProof<'a> {
@@ -347,13 +351,24 @@ impl<'a> RaiseProof<'a> {
                         | Statement::AssignExpr { .. }
                         | Statement::Incr { .. }
                 );
-                let targets = unconditional_write_targets(&ssa_stmt.statement, registry);
+                let targets = command_write_targets(&ssa_stmt.statement, registry);
                 for (&sym, &ver) in &ssa_stmt.defs {
-                    let certain = writes || targets.contains(&fu.ssa.var_name(sym));
-                    sites.insert(
-                        (sym, ver),
-                        DefSite::Stmt(certain && !ssa_stmt.may_defs.contains(&sym)),
-                    );
+                    let name = fu.ssa.var_name(sym);
+                    let site = if ssa_stmt.may_defs.contains(&sym) {
+                        DefSite::Stmt(false)
+                    } else if writes || targets.always.contains(&name) {
+                        DefSite::Stmt(true)
+                    } else if targets.maybe.contains(&name) {
+                        // The SSA records the kept value as the statement's
+                        // own read of the target (#2051).
+                        ssa_stmt
+                            .uses
+                            .get(&sym)
+                            .map_or(DefSite::Stmt(false), |&prev| DefSite::Carry(prev))
+                    } else {
+                        DefSite::Stmt(false)
+                    };
+                    sites.insert((sym, ver), site);
                 }
             }
         }
@@ -447,6 +462,7 @@ impl<'a> RaiseProof<'a> {
         }
         match self.sites.get(&(sym, ver)) {
             Some(DefSite::Stmt(writes)) => *writes,
+            Some(DefSite::Carry(prev)) => self.definitely_set(sym, *prev, visiting),
             Some(DefSite::Phi(incoming)) => incoming
                 .iter()
                 .all(|&v| self.definitely_set(sym, v, visiting)),
@@ -455,14 +471,22 @@ impl<'a> RaiseProof<'a> {
     }
 }
 
-/// The variable targets a command statement writes whenever it completes:
-/// its `VarWrite` words, when the registry marks the invocation as an
-/// unconditional writer. A def the statement takes from a script argument
-/// (`catch {set a 1} x` defining `a`) is not among them.
-fn unconditional_write_targets<'s>(
+/// The variable targets of a command statement, split by how the registry
+/// says the invocation writes them. A def the statement takes from a script
+/// argument (`catch {set a 1} x` defining `a`) is in neither.
+#[derive(Default)]
+struct CommandWriteTargets<'s> {
+    /// Written whenever the command completes (`UNCONDITIONAL_VARIABLE_WRITE`).
+    always: Vec<&'s str>,
+    /// Written only on a runtime match, else left as they were
+    /// (`CONDITIONAL_VARIABLE_WRITE`).
+    maybe: Vec<&'s str>,
+}
+
+fn command_write_targets<'s>(
     stmt: &'s Statement,
     registry: &CommandRegistry,
-) -> Vec<&'s str> {
+) -> CommandWriteTargets<'s> {
     let Statement::Call {
         command,
         canonical_command,
@@ -470,21 +494,32 @@ fn unconditional_write_targets<'s>(
         ..
     } = stmt
     else {
-        return Vec::new();
+        return CommandWriteTargets::default();
     };
     let lookup = canonical_command.as_deref().unwrap_or(command);
     let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
-    if !registry
-        .invocation_traits(lookup, &arg_strs, registry.own_surface_query())
-        .contains(tcl_registry::Traits::UNCONDITIONAL_VARIABLE_WRITE)
-    {
-        return Vec::new();
+    let traits = registry.invocation_traits(lookup, &arg_strs, registry.own_surface_query());
+    let always = traits.contains(tcl_registry::Traits::UNCONDITIONAL_VARIABLE_WRITE);
+    let maybe = traits.contains(tcl_registry::Traits::CONDITIONAL_VARIABLE_WRITE);
+    if !always && !maybe {
+        return CommandWriteTargets::default();
     }
-    registry
+    let names: Vec<&str> = registry
         .arg_indices_for_role(lookup, &arg_strs, tcl_registry::ArgRole::VarWrite)
         .into_iter()
         .filter_map(|i| arg_strs.get(i).copied())
-        .collect()
+        .collect();
+    if always {
+        CommandWriteTargets {
+            always: names,
+            maybe: Vec::new(),
+        }
+    } else {
+        CommandWriteTargets {
+            always: Vec::new(),
+            maybe: names,
+        }
+    }
 }
 
 /// Collect the qualified names of procs / methods that interprocedural
