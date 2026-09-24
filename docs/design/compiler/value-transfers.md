@@ -1405,8 +1405,10 @@ dominance and which stays byte-identical in effect.
   `FunctionUnit::build` and its cross-event retention retire with it.
 - **S100** (`shimmer/`): an unbind is not a typed value, so a phi that
   merges a bound version with an unbound one is not a representation
-  merge; today `set x 1; if {$c} { unset x }; puts $x` reports S100
-  beside its W210.
+  merge. Since slice 8 (VT8.6) a whole-variable kill is typed the type
+  lattice's bottom and the merge classification skips an arm whose
+  existence is `Unbound`, so `set x 1; if {$c} { unset x }; puts $x`
+  keeps its W210 and reports no S100.
 
 **Availability across tiers.** The fact is a deep-tier fact. A fast-tier
 request, a function over the complexity ceiling (`FunctionUnit`'s

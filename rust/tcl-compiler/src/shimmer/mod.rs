@@ -224,7 +224,7 @@ pub(crate) fn find_shimmer_warnings(
         cfg,
         ssa,
         types,
-        executable_blocks,
+        sccp,
         &facts.loop_blocks,
     ));
     out.extend(expr::find_expr_shimmers(

@@ -1030,6 +1030,15 @@ fn evaluate_type_def<S: std::hash::BuildHasher>(
                 return DefTyping::Uniform(value_word_type(ctx, arg_refs[1]));
             }
 
+            // A destroying command's whole-variable kill (`unset x`) leaves
+            // nothing behind to carry a representation: its definition is the
+            // lattice's bottom, which a φ joins away, not the command's
+            // empty-string result (#2133). An element kill (`unset a(k)`)
+            // keeps the typing below — the array's other elements live on.
+            if kills_whole_variables(ctx.registry, canon, defs, &arg_refs) {
+                return DefTyping::Uniform(TypeLattice::unknown());
+            }
+
             let resolved = tcl_registry::model::resolve_invocation_in_context(
                 ctx.registry,
                 ctx.context,
@@ -1114,6 +1123,21 @@ fn evaluate_type_def<S: std::hash::BuildHasher>(
         // overdefined.
         _ => DefTyping::Uniform(TypeLattice::overdefined()),
     }
+}
+
+/// Whether the call `canon args…` is a destroying command
+/// (`Traits::DESTROYS_VARIABLE`, `unset`) naming each of `defs` whole — a
+/// word spelling the variable itself, never one of its elements.
+fn kills_whole_variables(
+    registry: &CommandRegistry,
+    canon: &str,
+    defs: &[String],
+    args: &[&str],
+) -> bool {
+    registry.get(canon).is_some_and(|spec| {
+        spec.traits
+            .contains(tcl_registry::Traits::DESTROYS_VARIABLE)
+    }) && defs.iter().all(|def| args.contains(&def.as_str()))
 }
 
 /// Positional element typing for a [`VarWriteTyping::ElementsOf`] writer.
