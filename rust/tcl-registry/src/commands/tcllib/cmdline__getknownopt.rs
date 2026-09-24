@@ -27,6 +27,9 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "cmdline::getKnownOpt",
         surface: None,
+        // optVar and valVar are reset to "" on entry, and argvVar is read then
+        // rewritten (tcllib 2.0, measured on tclsh 8.6.18 and 9.0.4).
+        traits: Traits::UNCONDITIONAL_VARIABLE_WRITE,
         arity: Arity::exact(4),
         hover: Some(HoverSnippet {
             summary: "Parse a single known command-line option.",

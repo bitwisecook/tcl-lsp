@@ -408,70 +408,113 @@ fn tcl_specs_m_through_z() -> Vec<CommandSpec> {
 
 #[cfg(test)]
 mod tests {
-    use super::tcl_command_specs;
+    use crate::registry::CommandRegistry;
+
+    const IR_ASSIGNMENT: &str = "lowered to an IR assignment, which carries its own write";
+    const ARRAY_TARGET: &str = "writes an array, which a scalar read still raises on";
+    const DICT_KEYS: &str = "writes a key variable only for a key the dictionary holds";
+    const LINK: &str = "links a variable; it writes nothing at the call";
+    const TRACE: &str = "registers or removes a trace; it writes nothing";
+    const TK_LINK: &str =
+        "links a variable to widget state; Tk writes it later, from the event loop";
+    const LOOP_VAR: &str = "binds a loop variable, which empty input leaves unset";
+    const UNMEASURED: &str = "writes only on some paths; not measured, so left conservative";
 
     /// Writers left deliberately without a class, so every consumer treats
     /// their target as possibly unset afterwards.
     const LEFT_POSSIBLY_UNSET: &[(&str, &str)] = &[
-        (
-            "set",
-            "lowered to an IR assignment, which carries its own write",
-        ),
-        (
-            "array default",
-            "writes an array, which a scalar read still raises on",
-        ),
-        (
-            "array set",
-            "writes an array, which a scalar read still raises on",
-        ),
+        ("set", IR_ASSIGNMENT),
+        ("array default", ARRAY_TARGET),
+        ("array set", ARRAY_TARGET),
         ("array unset", "removes array elements"),
-        (
-            "file stat",
-            "writes an array, which a scalar read still raises on",
-        ),
-        (
-            "file lstat",
-            "writes an array, which a scalar read still raises on",
-        ),
-        (
-            "dict update",
-            "writes a key variable only for a key the dictionary holds",
-        ),
-        (
-            "dict with",
-            "writes a key variable only for a key the dictionary holds",
-        ),
-        (
-            "::tcl::dict::update",
-            "writes a key variable only for a key the dictionary holds",
-        ),
-        (
-            "::tcl::dict::with",
-            "writes a key variable only for a key the dictionary holds",
-        ),
-        (
-            "namespace upvar",
-            "links a namespace variable; it writes nothing",
-        ),
-        ("my variable", "links an object variable; it writes nothing"),
+        ("file stat", ARRAY_TARGET),
+        ("file lstat", ARRAY_TARGET),
+        ("dict update", DICT_KEYS),
+        ("dict with", DICT_KEYS),
+        ("::tcl::dict::update", DICT_KEYS),
+        ("::tcl::dict::with", DICT_KEYS),
+        ("namespace upvar", LINK),
+        ("my variable", LINK),
+        ("sharedvar", LINK),
+        ("tie::tie", LINK),
+        ("tie::untie", LINK),
         ("tcl_findLibrary", "writes a global, not the caller's local"),
-        ("trace add", "registers a trace; it writes nothing"),
-        ("trace remove", "removes a trace; it writes nothing"),
-        ("trace variable", "registers a trace; it writes nothing"),
-        ("trace vdelete", "removes a trace; it writes nothing"),
+        ("trace add", TRACE),
+        ("trace remove", TRACE),
+        ("trace variable", TRACE),
+        ("trace vdelete", TRACE),
         ("vwait", "waits for a write; it writes nothing itself"),
+        ("fileutil::foreachLine", LOOP_VAR),
+        ("math::statistics::filter", LOOP_VAR),
+        ("math::statistics::map", LOOP_VAR),
+        ("math::statistics::samplescount", LOOP_VAR),
+        ("struct::list filterfor", LOOP_VAR),
+        ("struct::list foreachperm", LOOP_VAR),
+        ("struct::list mapfor", LOOP_VAR),
+        ("base32::core::define", UNMEASURED),
+        ("base32::core::valid", UNMEASURED),
+        ("fileutil::test", UNMEASURED),
+        ("tcltest::normalizePath", UNMEASURED),
+        ("button", TK_LINK),
+        ("checkbutton", TK_LINK),
+        ("entry", TK_LINK),
+        ("label", TK_LINK),
+        ("listbox", TK_LINK),
+        ("menu add", TK_LINK),
+        ("menu entryconfigure", TK_LINK),
+        ("menu insert", TK_LINK),
+        ("menubutton", TK_LINK),
+        ("message", TK_LINK),
+        ("radiobutton", TK_LINK),
+        ("scale", TK_LINK),
+        ("spinbox", TK_LINK),
+        ("tk::button", TK_LINK),
+        ("tk::checkbutton", TK_LINK),
+        ("tk::entry", TK_LINK),
+        ("tk::label", TK_LINK),
+        ("tk::listbox", TK_LINK),
+        ("tk::menubutton", TK_LINK),
+        ("tk::message", TK_LINK),
+        ("tk::radiobutton", TK_LINK),
+        ("tk::scale", TK_LINK),
+        ("tk::spinbox", TK_LINK),
+        ("tk_getOpenFile", TK_LINK),
+        ("tk_getSaveFile", TK_LINK),
+        ("tk_optionMenu", TK_LINK),
+        ("ttk::button", TK_LINK),
+        ("ttk::checkbutton", TK_LINK),
+        ("ttk::combobox", TK_LINK),
+        ("ttk::entry", TK_LINK),
+        ("ttk::label", TK_LINK),
+        ("ttk::progressbar", TK_LINK),
+        ("ttk::radiobutton", TK_LINK),
+        ("ttk::scale", TK_LINK),
+        ("ttk::spinbox", TK_LINK),
+        ("ttk::toggleswitch", TK_LINK),
     ];
 
-    /// Every core `VarWrite` position says how it writes its target
-    /// ([`crate::spec::VARIABLE_WRITE_CLASSES`]) or is listed above with the
-    /// reason it is left possibly unset.
+    fn unclassified_in(registry: &CommandRegistry, out: &mut Vec<String>) {
+        for name in registry.command_names() {
+            for spec in registry.specs(name) {
+                out.extend(spec.unclassified_variable_writers());
+            }
+        }
+    }
+
+    /// Every native `VarWrite` position — core Tcl, the packages the default
+    /// registry folds in, and each dialect's own commands — says how it
+    /// writes its target ([`crate::spec::VARIABLE_WRITE_CLASSES`]) or is
+    /// listed above with the reason it is left possibly unset.
     #[test]
-    fn every_core_variable_writer_says_how_it_writes() {
-        let mut unclassified: Vec<String> = tcl_command_specs()
-            .iter()
-            .flat_map(crate::spec::CommandSpec::unclassified_variable_writers)
-            .collect();
+    fn every_native_variable_writer_says_how_it_writes() {
+        let mut unclassified = Vec::new();
+        unclassified_in(&CommandRegistry::build_default(), &mut unclassified);
+        for dialect in ["tcl8.4", "tcl9.0", "f5-irules", "f5-iapps"] {
+            unclassified_in(
+                crate::model::ingress::static_context_for(dialect).commands(),
+                &mut unclassified,
+            );
+        }
         unclassified.sort();
         unclassified.dedup();
         let mut expected: Vec<String> = LEFT_POSSIBLY_UNSET
@@ -481,7 +524,7 @@ mod tests {
         expected.sort();
         assert_eq!(
             unclassified, expected,
-            "a core `VarWrite` position needs a write class \
+            "a native `VarWrite` position needs a write class \
              (`UNCONDITIONAL_VARIABLE_WRITE`, `CONDITIONAL_VARIABLE_WRITE`, …) or an entry \
              with its reason in `LEFT_POSSIBLY_UNSET`"
         );

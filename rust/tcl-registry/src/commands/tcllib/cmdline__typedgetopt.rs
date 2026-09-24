@@ -27,6 +27,8 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "cmdline::typedGetopt",
         surface: None,
+        // optVar and argVar are written only while arguments remain.
+        traits: Traits::CONDITIONAL_VARIABLE_WRITE,
         arity: Arity::exact(4),
         hover: Some(HoverSnippet {
             summary: "Parse a single typed command-line option.",

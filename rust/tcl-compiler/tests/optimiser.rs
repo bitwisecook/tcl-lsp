@@ -2914,6 +2914,10 @@ fn a_dead_assignment_whose_value_cannot_raise_is_still_deleted() {
             "an `info default` variable",
             "proc p {} {\n    info default p x v\n    set y $v\n    puts hi\n}\n",
         ),
+        (
+            "a `cmdline::getKnownOpt` value variable",
+            "package require cmdline\nproc p {argv} {\n    cmdline::getKnownOpt argv {a.arg} o v\n    set y $v\n    puts hi\n}\n",
+        ),
     ] {
         assert!(
             opt_fires(src, TCL, "O126"),
@@ -2921,7 +2925,11 @@ fn a_dead_assignment_whose_value_cannot_raise_is_still_deleted() {
             opt_codes(src, TCL)
         );
     }
-    // Tcl 9 writers.
+}
+
+/// The same precision for writers that exist only in Tcl 9.
+#[test]
+fn a_dead_copy_of_a_tcl9_writer_target_is_still_deleted() {
     for (why, src) in [
         (
             "a `const`",
