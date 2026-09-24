@@ -1517,6 +1517,23 @@ and the studio's use of it, is in
 | Code actions | registry-owned lifecycle and literal-validation edit plans; the generic analyser contributes only source spans and LSP conversion |
 | Completions | `arg_values`, `versioned_arg_values`, `options` |
 
+A consumer that has a call's words asks the **derived-query layer** rather
+than a per-name function: `CommandRegistry::invocation(words, ctx)` resolves
+the call once, under the surface query its `AnalysisContext` fixes, and the
+resolution answers each axis — `clause_plan`, `option_effects` (and
+`substitutions_performed`), `arg_roles`, `pattern_args`,
+`case_invocation`, `frame_effect`, `return_type`, `effects`,
+`state_transitions`, `facts` — in `resolved_invocation.rs`. Every answer is
+a value, carries its abstention (`None`, `complete: false`, a
+`FrameLevel::Dynamic`) rather than a default that reads as a fact, and is
+computed under the resolution's own release. A definition body's members
+answer one statement at a time through `DefinitionBodyGrammar::member_row`.
+The by-name functions (`arg_indices_for_role_words`, `pattern_args_words`,
+`command_prefixes`, `case_invocation`, `return_type_for_call`) share each
+query's rule and stay until their callers move
+([registry-consumer-contracts.md](registry-consumer-contracts.md)
+§ *The derived-query layer*).
+
 ### Resolution order across the three levels
 
 `tcl_registry::resolved_invocation` resolves a call once, against the

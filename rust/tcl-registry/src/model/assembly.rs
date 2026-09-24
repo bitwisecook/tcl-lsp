@@ -397,7 +397,7 @@ fn prune_overlaid_generations(
 #[must_use]
 pub fn resolve_invocation_in_context<'r, 'w>(
     commands: &'r CommandRegistry,
-    context: Option<&ResolvedContext>,
+    context: Option<&'w ResolvedContext>,
     name: &'w str,
     args: &'w [&'w str],
 ) -> Option<ResolvedInvocation<'r, 'w>> {

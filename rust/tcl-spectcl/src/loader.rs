@@ -4703,9 +4703,11 @@ const SLOT_OPS: &[SlotOp] = &[
 const MEMBER_VISIBILITIES: &[MemberVisibility] =
     &[MemberVisibility::Exported, MemberVisibility::Unexported];
 
-fn member_row(stmt: &Stmt, log: &mut Log) -> Option<MemberSpec> {
-    let mut member = MemberSpec {
-        keyword: leak_str(stmt.word_text(1)),
+/// A `member` row before its flags: a flat member with no roles, declaring
+/// nothing until its `-effect` is read.
+fn blank_member(keyword: &'static str) -> MemberSpec {
+    MemberSpec {
+        keyword,
         arg_roles: &[],
         optional_argument: None,
         all_args_var: false,
@@ -4718,7 +4720,11 @@ fn member_row(stmt: &Stmt, log: &mut Log) -> Option<MemberSpec> {
         visibility_effect: None,
         effect: MemberEffect::Configuration,
         wrapper_shift: None,
-    };
+    }
+}
+
+fn member_row(stmt: &Stmt, log: &mut Log) -> Option<MemberSpec> {
+    let mut member = blank_member(leak_str(stmt.word_text(1)));
     let mut slot_op: Option<SlotOp> = None;
     let mut dedup = false;
     let mut effect = EffectFlag::Missing;

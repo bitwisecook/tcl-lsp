@@ -69,6 +69,7 @@ CC2.10, CC2.13, CC2.15) are dispatched separately after the opus items.
 | CC2.3 `clause_grammar` in the loader, renderer and studio | landed | same checkpoint as CC2.2 | loader builds the registry type (`ClauseGrammar`/`ClauseWalk` gone; subcommand grammars; derivations recorded, no placeholders); studio schema/draft/coverage/help/examples/render (Rust and `SpecTcl`)/store and a read-only form view; `if.tclspec` gains timings and its default clause, `foreach.tclspec` its grammar; 24 goldens and the callback inventory regenerated |
 | CC2.4 `MemberEffect` in the registry | landed | `wip(consumer-contracts): step 2 — member effects and the studio round trip` | the page's types verbatim plus `WrapperShift` (D2.31); `MemberSpec::effect` required on every constructor; every TclOO, snit, itcl, `SpecTcl` and `SslicTcl` member states one; `DefinitionBodyGrammar::member_row` (D2.32), `MemberArity::parse`, `MemberEffect::natural_receiver`, the `.tclspec` spellings; sweep `every_member_carries_an_effect_that_agrees_with_its_roles` (D2.33) and `no_member_effect_names_a_family`; eleven `definer.rs` unit rows |
 | CC2.5 `definition_body` and `semantic_operation` leave `GAPS` | landed | same checkpoint as CC2.4 | loader `-effect` / `-shift` on `member`, `member_option` rows, `family SpecTcl\|SslicTcl` (D2.35); studio seeds a shipped grammar by name — by data, not pointer (D2.34) — or the whole block, `semantic_operation` as `{kind, detail}`; both renderers write both; the two `GAPS` rows deleted; `DefinitionBody` / `SemanticOperation` field kinds, catalogues, help, examples, form (D2.36); `snit-type.tclspec` gains `-effect` on every row; the `oo-class` / `snit-type` golden hashes regenerated |
+| CC2.8 the derived-query layer | landed | `wip(consumer-contracts): step 2 — the derived-query layer` | `CommandRegistry::invocation(words, ctx)`; `ResolvedInvocation` carries its `SurfaceQuery` and selection; `arg_roles`, `pattern_args`, `case_invocation`, `frame_effect`, `return_type`, `effects` added, `clause_plan` / `option_effects` / `substitutions_performed` lose the `dialect` parameter; one rule per query shared with the by-name functions (`arg_roles_in`, `command_prefixes_in`, `pattern_args_in`, `layout_is_proven_in`); `derived_queries_agree_with_the_by_name_answers`; D2.37–D2.43 |
 
 ### Behavioural deltas accepted in step 2
 
@@ -124,10 +125,10 @@ CC2.10, CC2.13, CC2.15) are dispatched separately after the opus items.
   `CommandSpec::substitutions_performed(args, dialect) ->
   Option<SubstitutionKinds>`, `CommandSpec::option_selects_pattern_language()`,
   `CommandSpec::option_selecting(axis) -> Option<&'static str>`.
-- **Per resolution.** `ResolvedInvocation::option_effects(dialect)` and
-  `ResolvedInvocation::substitutions_performed(dialect)`, over the selected
+- **Per resolution.** `ResolvedInvocation::option_effects()` and
+  `ResolvedInvocation::substitutions_performed()`, over the selected
   table (`InvocationSemantics::option_scope`); `option_end` is post-head.
-  CC2.8 drops the `dialect` parameter when the resolution carries its query.
+  CC2.8 dropped the `dialect` parameter: the resolution carries its query.
 - **The registry projection.** `CommandRegistry::substitutions_performed(name:
   &str, args: &[&str]) -> Option<SubstitutionKinds>`, signature unchanged,
   under the registry's own profile.
@@ -163,9 +164,9 @@ CC2.10, CC2.13, CC2.15) are dispatched separately after the opus items.
   `CommandSpec::clause_plan(args, dialect)` /
   `SubCommand::clause_plan(args_after_sub, dialect)`;
   `CommandRegistry::clause_plan(name, args)` (post-head coordinates,
-  subcommand resolved); `ResolvedInvocation::clause_plan(dialect)` (post-head
-  coordinates; `None` on expansion or a computed word where a keyword could
-  stand). `CommandSpec::clause_shape_defect(args, dialect)` /
+  subcommand resolved); `ResolvedInvocation::clause_plan()` (post-head
+  coordinates, under the resolution's query since CC2.8; `None` on
+  expansion or a computed word where a keyword could stand). `CommandSpec::clause_shape_defect(args, dialect)` /
   `CommandRegistry::clause_shape_defect(name, args)` is E004's source.
 - **Vocabulary.** `ClauseTiming::spelling`/`from_spelling`,
   `ClauseSelection::spelling`/`from_spelling`,
@@ -226,6 +227,43 @@ CC2.10, CC2.13, CC2.15) are dispatched separately after the opus items.
   `MethodKind::from_str_lossy`, the snit / itcl body walkers and the
   `constructor` / `destructor` literals in `tcl-lsp-core`. None reads
   `member_row` yet; CC2.11 moves them onto it.
+
+### CC2.8 — what the next items read
+
+- **The resolution.** `CommandRegistry::invocation(words: InvocationWords<'w>,
+  ctx: &AnalysisContext) -> StructuredInvocationResolution<'r, 'w>` is
+  `resolve_structured_invocation(words, ctx.surface_query())`;
+  `AnalysisContext::surface_query()` answers the profile's
+  `SurfaceQuery<'static>` (the one addition to `value_transfer/context.rs`,
+  B1 — the value-transfers lane is to be told). `ResolvedInvocation::dialect:
+  Option<SurfaceQuery<'w>>` is the query it resolved under, and a
+  crate-private `selected` holds the spec, the subcommand (or instance
+  method) and whether it is an instance call. `resolve_invocation`,
+  `resolve_structured_invocation` and the instance pair take
+  `SurfaceQuery<'w>` (D2.39).
+- **The queries**, all `&self` with no `dialect` parameter:
+  `clause_plan() -> Option<ClausePlan>`; `option_effects() -> OptionEffects`;
+  `substitutions_performed() -> Option<SubstitutionKinds>`;
+  `arg_roles() -> Option<Vec<(usize, ArgRole)>>` — post-head, sorted by
+  position and then `ArgRole::ALL` order, `CommandPrefix` included, `None`
+  for an expansion, a computed subcommand word, or a computed word where a
+  resolver reads an option (D2.37); `pattern_args() -> Vec<PatternArg>`;
+  `case_invocation() -> Option<(CaseInvocation, Vec<InlineCaseClause>)>`
+  (D2.40); `frame_effect() -> Option<(FrameLevel, Vec<OperandId>)>` with
+  post-head operands (D2.41); `return_type() -> Option<TclType>` (D2.41);
+  `effects() -> EffectFootprint`, whose former name `effect_footprint` is a
+  `#[deprecated]` alias for one checkpoint (D2.42). `member_rows` is
+  `DefinitionBodyGrammar::member_row` (D2.6); `template_plan` is slice 5's
+  (D2.4).
+- **One rule each** (`registry.rs`, crate-private): `arg_roles_in(spec, sub,
+  args, wanted, dialect, case_gate, option_patterns)` — the per-role
+  `arg_indices_for_role` is its single-role filter — `command_prefixes_in`,
+  `pattern_args_in`, `layout_is_proven_in`, `sort_role_table`,
+  `sub_options_at`. The by-name methods pass their release-blind
+  subcommand; the queries pass the resolution's (D2.38).
+- **Nothing consumes the queries yet.** Every compiler, analyser and editor
+  call site still asks the by-name functions; CC2.9–CC2.12 move them, and
+  the by-name functions go as their last callers do.
 
 ## Plan for steps 2–10
 
@@ -2444,6 +2482,71 @@ everything else in this lane is independent of both.
   `semantic_operation_spelling`), which the studio renderer calls and
   `eval_loader`'s `semantic_operation_round_trips_through_the_renderer`
   reads back, since `tcl-spectcl` cannot depend on the studio.
+- **D2.37** `ResolvedInvocation::arg_roles` answers
+  `Option<Vec<(usize, ArgRole)>>`, not the plan's `Vec`: the function it
+  re-keys, `arg_indices_for_role_words`, answers `None` for an expansion, a
+  computed subcommand word, or a computed word where a resolver reads an
+  option, and the page's second rule requires the abstention to travel with
+  the answer. An empty call is read (`Some` of nothing), where the by-name
+  function abstained on an empty ensemble call. Reason: a consumer moving
+  onto the query must be able to tell "no roles" from "cannot tell".
+- **D2.38** The queries read the resolution's own selection — its spec and
+  the subcommand it selected under its release — where the by-name
+  functions look the subcommand up release-blind; the two differ only for a
+  subcommand the release lacks or a prefix whose uniqueness the release
+  changes (`array d a s` at 8.6 selects `donesearch`, which a release-blind
+  lookup finds ambiguous with 9.0's `default` —
+  `a_prefix_the_release_makes_unique_selects_its_subcommand`), and
+  `derived_queries_agree_with_the_by_name_answers` (every shipped command of
+  every loadable dialect, literal words) and
+  `arg_roles_agree_with_the_registry_role_answer_on_computed_words` (a
+  corpus of computed words under 8.6 and 9.0) hold them equal everywhere
+  else. Each rule exists once: the in-flight copy of the role, prefix,
+  pattern and layout-proof bodies became the one body the by-name methods
+  delegate to, parameterised by the caller's selection, and the role fold
+  answers every wanted role in one pass (`arg_roles` asked the per-role
+  core once per role, re-walking the grammar and the resolver 26 times).
+  Reason: the page's third rule — every answer under the context's release
+  — and one rule per axis.
+- **D2.39** The resolution stores its query as `SurfaceQuery<'w>` (the
+  words' lifetime) rather than adding a lifetime to `ResolvedInvocation`;
+  the resolvers take `SurfaceQuery<'w>`, which no caller had to change
+  (the query is covariant), and `resolve_invocation_in_context` borrows its
+  context for `'w`. The option tables are the profile-less
+  `option_specs(dialect)`; a profile-bound registry's `ProfileQueries`
+  table can differ only for a profile whose query names no release but
+  whose version ceiling excludes an option. Reason: the plan fixes the
+  query as the key, and the growth (a query and two pointers) keeps the
+  compiler's constrained-stack test (`the_source_walk_cap_fits_its_stack_budget`)
+  green.
+- **D2.40** `case_invocation` abstains when its reading depends on a
+  computed word's value: it must hold whether each computed word is an
+  operand or a dash word — in the option run always, and at a clause start
+  only where the descriptor declares per-clause flags, since
+  `inline_clauses` reads any dash word at a clause start as a flag attempt
+  and `switch x $p {…}` would otherwise abstain. `arg_roles`' case-body
+  gate keeps the by-name placeholder reading. Reason: the page's second
+  rule for the new query, and parity for the re-keyed one (`case $x in {…}`
+  keeps its body roles, as `arg_indices_for_role_words` gives them).
+- **D2.41** `return_type` feeds a return-type hook a computed word spelt
+  `$` — the hooks' own reading of a substituted source word
+  (`switches_are_certain`) — and abstains under an expansion, so it answers
+  what `return_type_for_call` answers over the source text (`lsearch $l
+  $p` is `Int`); `frame_effect` parses the level with
+  `FrameLevel::parse_for` under the query's Tcl release (`upvar 010 a b` is
+  8 up at 8.6 and 10 at 9.0), where `FrameEffectSpec::resolve_for_version`
+  parses release-blind, and a query naming no Tcl release (a vendor
+  profile) answers `Dynamic` where the releases disagree. Reason: parity
+  where a caller's answer exists, the context's release where the answer
+  is new.
+- **D2.42** `effect_footprint` stays one checkpoint as a `#[deprecated]`
+  alias of `effects`; no caller outside the registry used it, and the
+  registry's own tests call `effects`. Reason: the plan's one-checkpoint
+  alias, for a concurrent lane mid-edit.
+- **D2.43** The loader's `member_row` (CC2.5) was 103 lines, which the
+  pedantic `too_many_lines` rejects; the blank row moved to
+  `blank_member`. Reason: the step's clippy gate, and the function is this
+  lane's.
 - **D3.1** `WorkspaceTrust` lives in `tcl_dialect::model::environment`
   beside `Provenance`; `Tier` is unchanged and the trust rides `PackFile`,
   `MergedPack`, `EvalOptions`, `EvalSnapshotKey` and the cache key.

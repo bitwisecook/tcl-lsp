@@ -549,7 +549,7 @@ mod tests {
                     )
             }));
 
-            let effects = invocation.effect_footprint();
+            let effects = invocation.effects();
             assert!(
                 !effects
                     .accesses()

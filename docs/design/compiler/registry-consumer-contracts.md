@@ -17,11 +17,12 @@ loaded pack's facts are authoritative for analysis and optimisation as
 soon as they are loaded, and the direct, expression, and private-pack
 slices proceed without deciding anything here.
 
-> **Status — decided rulings, proposed vocabulary.** The five rulings —
-> the four in § *Rulings* and the narrower one in § *The two hook bodies
-> that remain* — are the owner's decisions, and the build takes them as
-> settled. Every identifier, count, and file path on this page was checked
-> against the tree. The proposed vocabulary names nothing in the workspace:
+> **Status — decided rulings; the description vocabulary built, the rest
+> proposed.** The five rulings — the four in § *Rulings* and the narrower
+> one in § *The two hook bodies that remain* — are the owner's decisions,
+> and the build takes them as settled. Every identifier, count, and file
+> path on this page was checked against the tree. Step 2 of § *Build
+> order* built the description contract's vocabulary, under these names:
 >
 > - **Clause grammar** — `ClauseGrammarSpec`, `ClauseRow`,
 >   `ClauseRowShape`, `ClauseSlot`, `HandlerMatch`, `ClauseTiming`,
@@ -34,11 +35,17 @@ slices proceed without deciding anything here.
 > - **Option effects** — `OptionEffect`, `OptionEffectKind`, `EffectAxis`,
 >   `SubstitutionKind`, `OptionEffectFamily`, `FamilyBase`,
 >   `FamilyCombine`, and the answer shape `OptionEffects`.
-> - **The derived-query layer** — `RegistryQueries` with the queries
->   `clause_plan`, `member_rows`, `option_effects`, `template_plan`,
->   `case_invocation`, `frame_effect`, `arg_roles`, `pattern_args`,
->   `return_type`, and `effects`, plus `CallWords` and
->   `ResolvedEffects`.
+> - **The derived-query layer** — the queries `clause_plan`,
+>   `option_effects`, `case_invocation`, `frame_effect`, `arg_roles`,
+>   `pattern_args`, `return_type`, and `effects` on `ResolvedInvocation`,
+>   with `member_rows` as `DefinitionBodyGrammar::member_row`; the page's
+>   `RegistryQueries`, `CallWords` and `ResolvedEffects` are
+>   `ResolvedInvocation`, `InvocationWords` and `EffectFootprint`, and
+>   `template_plan` is the value axis's.
+>
+> The rest of the vocabulary is proposed and names nothing in the
+> workspace:
+>
 > - **Identity and backing** — `SiteClaim`, `PackFactStamp`,
 >   `RuntimeBacking` with the `runtime_backing` field, `BodySource`,
 >   `IdentityKind`, `CodegenCapability`, `ArtefactIdentityManifest`, and
@@ -918,6 +925,32 @@ word, an unreadable call, a release the profile does not name — rather than
 returning a default that reads as a fact. And an answer is keyed on the
 analysis context, so a query asked under a different overlay generation,
 binding set, or target profile is a different query.
+
+As built in step 2, the layer is inherent methods on `ResolvedInvocation`
+(`rust/tcl-registry/src/resolved_invocation.rs`), and `invocation(words,
+ctx)` is `CommandRegistry::invocation` — `resolve_structured_invocation(words,
+ctx.surface_query())`, the surface query `AnalysisContext` fixes. The
+resolution carries that query (`ResolvedInvocation::dialect`) and the
+descriptors it selected, so every query answers under one release:
+`clause_plan`, `option_effects` and its `substitutions_performed`
+projection, `arg_roles`, `pattern_args`, `case_invocation`,
+`frame_effect`, `return_type`, and `effects` (the former
+`effect_footprint`), beside the `state_transitions` and `facts` it
+answered already. `arg_roles` answers `Option<Vec<(usize, ArgRole)>>` —
+`None` is the abstention an expansion, a computed subcommand word, or a
+computed word where a resolver reads an option carries — and
+`case_invocation` abstains when its reading depends on whether a computed
+word begins with `-`. `member_rows` is `DefinitionBodyGrammar::member_row`,
+one member statement at a time, since the analyser already segments a
+definition body; `template_plan` is the value axis's slice 5. The re-keyed
+by-name functions (`arg_indices_for_role_words`, `pattern_args_words`,
+`command_prefixes`, `CommandSpec::return_type_for_call`) share each
+query's rule rather than restating it, and
+`rust/tcl-registry/tests/registry_sweep.rs`'s
+`derived_queries_agree_with_the_by_name_answers` holds every query to the
+by-name answer on every shipped command of every loadable dialect; they
+differ only where the resolution's subcommand, selected under the release,
+is not the one a release-blind lookup finds.
 
 ### The per-axis lint and ledger
 

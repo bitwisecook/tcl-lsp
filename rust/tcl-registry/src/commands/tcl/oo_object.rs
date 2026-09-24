@@ -312,7 +312,7 @@ mod tests {
         );
 
         for invocation in [named, fresh] {
-            let effects = invocation.effect_footprint();
+            let effects = invocation.effects();
             assert!(
                 !effects
                     .accesses()

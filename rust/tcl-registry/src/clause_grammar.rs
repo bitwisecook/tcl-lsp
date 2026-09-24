@@ -1535,9 +1535,7 @@ mod tests {
                     Some(SurfaceQuery::core(Family::Tcl, release)),
                 )
                 .resolved()
-                .and_then(|invocation| {
-                    invocation.clause_plan(Some(SurfaceQuery::core(Family::Tcl, release)))
-                })
+                .and_then(|invocation| invocation.clause_plan())
         };
         assert!(at("8.6").is_none(), "`array for` is Tcl 9.0");
         let plan = at("9.0").expect("`array for` walks at 9.0");
