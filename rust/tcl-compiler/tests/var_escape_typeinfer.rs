@@ -174,7 +174,7 @@ fn var_escape_subst(template: &str, m: &HashMap<String, String>) -> Option<Strin
         &registry,
         "subst",
         &["-nocommands", template],
-        |index| index == 1,
+        |index| tcl_compiler::value_transfer::SourceWord::of(None, index == 1),
     )?;
     tcl_compiler::subst_nocommands::subst_nocommands(template, &plan, m)
 }

@@ -40,8 +40,10 @@ pub struct LiteralInputs<'a> {
     view: ResolvedInvocationView<'a>,
     context: AnalysisContext,
     priors: Vec<(String, ExactValue)>,
-    /// The operands written as brace-quoted words.
-    braced: Vec<OperandId>,
+    /// The operands' substitution structures, as the caller read them.
+    structures: Vec<(OperandId, WordStructure)>,
+    /// The operands the caller does not prove a value for.
+    unproven: Vec<OperandId>,
 }
 
 impl<'a> LiteralInputs<'a> {
@@ -75,7 +77,8 @@ impl<'a> LiteralInputs<'a> {
             },
             context: AnalysisContext::detached(profile),
             priors: Vec::new(),
-            braced: Vec::new(),
+            structures: Vec::new(),
+            unproven: Vec::new(),
         }
     }
 
@@ -83,8 +86,33 @@ impl<'a> LiteralInputs<'a> {
     /// literal run from offset 1, past the opening brace — what a template
     /// plan decomposes. Any other operand's structure is unavailable.
     #[must_use]
-    pub fn with_braced(mut self, id: OperandId) -> Self {
-        self.braced.push(id);
+    pub fn with_braced(self, id: OperandId) -> Self {
+        let text = self.view.operand(id).map_or("", |operand| operand.text);
+        let end = u32::try_from(text.len()).map_or(u32::MAX, |len| len.saturating_add(1));
+        let structure = WordStructure {
+            braced: true,
+            parts: vec![WordPart::Literal {
+                span: tcl_lexer::Span::new(1, end),
+                text: text.to_owned(),
+            }],
+        };
+        self.with_structure(id, structure)
+    }
+
+    /// Operand `id`'s substitution structure as the caller read it from
+    /// the source.
+    #[must_use]
+    pub fn with_structure(mut self, id: OperandId, structure: WordStructure) -> Self {
+        self.structures.push((id, structure));
+        self
+    }
+
+    /// Operand `id` as a word whose value the caller does not prove — one
+    /// the parser substitutes: its fact is unavailable, whatever its
+    /// spelling.
+    #[must_use]
+    pub fn with_unproven(mut self, id: OperandId) -> Self {
+        self.unproven.push(id);
         self
     }
 
@@ -116,6 +144,9 @@ impl AnalysisInputs for LiteralInputs<'_> {
         if domain != FactDomain::ExactValue {
             return FactView::Top(DeclineReason::Unavailable(AnalysisTier::Structure));
         }
+        if self.unproven.contains(&id) {
+            return FactView::Top(DeclineReason::NotExact);
+        }
         match self.view.operand(id) {
             Some(operand) => FactView::Exact(ExactValue::from_literal(operand.text), None),
             None => FactView::Top(DeclineReason::NotExact),
@@ -146,20 +177,11 @@ impl AnalysisInputs for LiteralInputs<'_> {
     }
 
     fn word_structure(&self, id: OperandId) -> Result<WordStructure, DeclineReason> {
-        if !self.braced.contains(&id) {
-            return Err(DeclineReason::Unsupported);
-        }
-        let text = self.view.operand(id).ok_or(DeclineReason::NotExact)?.text;
-        let end = u32::try_from(text.len())
-            .map_err(|_| DeclineReason::NotExact)?
-            .saturating_add(1);
-        Ok(WordStructure {
-            braced: true,
-            parts: vec![WordPart::Literal {
-                span: tcl_lexer::Span::new(1, end),
-                text: text.to_owned(),
-            }],
-        })
+        self.structures
+            .iter()
+            .find(|(held, _)| *held == id)
+            .map(|(_, structure)| structure.clone())
+            .ok_or(DeclineReason::Unsupported)
     }
 
     fn body(&self, _id: OperandId) -> Result<BodyRegion, DeclineReason> {

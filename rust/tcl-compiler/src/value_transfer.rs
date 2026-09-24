@@ -721,6 +721,7 @@ impl<'a> LatticeDriver<'a> {
             }
             for stmt_ssa in &block.statements {
                 let Statement::Call {
+                    command,
                     args,
                     tokens: Some(tokens),
                     foreach_groups: None,
@@ -760,7 +761,22 @@ impl<'a> LatticeDriver<'a> {
                 if let PlanAnswer::TemplateWord(plan) = semantics.structure(&inputs)
                     && let Some(&span) = tokens.argv.get(plan.operand.0 + 1)
                 {
-                    records.push(crate::sccp::TemplatePlanRecord { span, plan });
+                    // The spelling each switch reads as, when the lattice
+                    // proves every one exactly.
+                    let switches = (0..plan.operand.0)
+                        .map(|index| {
+                            match inputs.operand(OperandId(index), FactDomain::ExactValue) {
+                                FactView::Exact(value, _) => String::from_utf8(value.bytes).ok(),
+                                _ => None,
+                            }
+                        })
+                        .collect();
+                    records.push(crate::sccp::TemplatePlanRecord {
+                        span,
+                        command: command.clone(),
+                        switches,
+                        plan,
+                    });
                 }
             }
         }
@@ -3338,19 +3354,47 @@ pub(crate) fn literal_element_writes(
         .collect()
 }
 
-/// The template-word plan the call `head args…` declares over its literal
-/// words, the operands `braced` marks written as brace-quoted words — the
-/// plan a folder that runs before the lattice reads
+/// How one word of a call reads in its source, for a template plan asked
+/// before the lattice ([`literal_template_plan`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SourceWord {
+    /// A brace-quoted word: its content is its value and its text.
+    Braced,
+    /// A bare or quoted word the parser leaves as literal text.
+    Literal,
+    /// A word the parser substitutes: its value is computed.
+    Substituted,
+}
+
+impl SourceWord {
+    /// The word `text` reads as: brace-quoted when `braced`, else computed
+    /// when it spells a `$` or `[`, else literal text (as when no text is
+    /// given).
+    #[must_use]
+    pub fn of(text: Option<&str>, braced: bool) -> Self {
+        if braced {
+            Self::Braced
+        } else if text.is_some_and(|text| text.contains('$') || text.contains('[')) {
+            Self::Substituted
+        } else {
+            Self::Literal
+        }
+    }
+}
+
+/// The template-word plan the call `head args…` declares over its source
+/// words, each read as `source` says — the plan a folder that runs before
+/// the lattice, or the analyser's walk, reads
 /// (`docs/design/compiler/value-transfers.md` § *The template-word plan*).
-/// Every word reads as its own spelling, so a computed switch is a
-/// spelling no release accepts and the call answers no plan a folder acts
-/// on. `None` when the call declares no template plan.
+/// A literal word reads as its own spelling and a substituted one is
+/// unproven, so a computed switch runs every kind. `None` when the call
+/// declares no template plan or the plan declines.
 #[must_use]
 pub fn literal_template_plan(
     registry: &CommandRegistry,
     head: &str,
     args: &[&str],
-    braced: impl Fn(usize) -> bool,
+    source: impl Fn(usize) -> SourceWord,
 ) -> Option<tcl_registry::value_transfer::TemplateWordPlan> {
     let words: Vec<InvocationWord<'_>> = args.iter().copied().map(word_of).collect();
     let resolved = registry
@@ -3360,14 +3404,41 @@ pub fn literal_template_plan(
         )
         .resolved()?;
     let semantics = resolved.semantics.value.semantics()?;
+    let config = LexerConfig::for_profile(registry.profile());
     let mut inputs = tcl_registry::value_transfer::LiteralInputs::new(
         resolved.canonical_command,
         None,
         args,
         registry.profile(),
     );
-    for index in (0..args.len()).filter(|&index| braced(index)) {
-        inputs = inputs.with_braced(OperandId(index));
+    for (index, text) in args.iter().enumerate() {
+        let id = OperandId(index);
+        inputs = match source(index) {
+            SourceWord::Braced => inputs.with_braced(id),
+            SourceWord::Literal => inputs.with_structure(
+                id,
+                WordStructure {
+                    braced: false,
+                    parts: vec![WordPart::Literal {
+                        span: Span::new(0, u32::try_from(text.len()).unwrap_or(u32::MAX)),
+                        text: (*text).to_owned(),
+                    }],
+                },
+            ),
+            SourceWord::Substituted => {
+                let inputs = inputs.with_unproven(id);
+                match word_parts(text, config) {
+                    Ok(parts) => inputs.with_structure(
+                        id,
+                        WordStructure {
+                            braced: false,
+                            parts,
+                        },
+                    ),
+                    Err(_) => inputs,
+                }
+            }
+        };
     }
     match semantics.structure(&inputs) {
         PlanAnswer::TemplateWord(plan) => Some(plan),

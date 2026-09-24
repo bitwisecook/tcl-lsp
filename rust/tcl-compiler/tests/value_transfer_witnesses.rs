@@ -2352,3 +2352,18 @@ fn a_materialised_child_carries_its_factory_call_span() {
     }
     prints_under_every_release(&format!("{source}puts [port ignored]\n"), "8080\n");
 }
+
+/// A computed template that runs commands can read any variable (VT5.10,
+/// D155): `subst -novariables $t` over `[set x]` reads `x`, so the store
+/// before it stays — the original and optimised programs print `1` under
+/// tclsh 8.4 to 9.1, where dropping `set x 1` as unused made them raise.
+#[test]
+fn a_computed_template_that_runs_commands_keeps_the_stores_it_reads() {
+    let source = "proc f {t} {\n    set x 1\n    return [subst -novariables $t]\n}\n\
+                  puts [f {[set x]}]\n";
+    for dialect in ["tcl8.4", "tcl8.6", "tcl9.0", "tcl"] {
+        let (rewritten, _) = optimised(source, dialect);
+        assert!(rewritten.contains("set x 1"), "{dialect}: {rewritten}");
+    }
+    prints_under_every_release(source, "1\n");
+}

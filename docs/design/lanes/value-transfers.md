@@ -4316,6 +4316,7 @@ item; the grouping stays the plan's account of what lands together.
 | VT5.18 | `wip(value-transfers): slice 5 — the container harvesters read structured writes` | W307's constant sets read the writes each statement states and the plans rather than the spellings: `var_command.rs`'s three harvesters go — a literal `set arr(k) v` is the lowering's own element assignment, `array set` (and any route's element write) is the `WriteElement` outcome its registry route states over the call's literal words (`value_transfer::literal_element_writes`), and a `dict with` binds the keys `DictWithSemantics` declares over the dictionary the lattice holds at the version the statement reads, with each key's value at the plan's key path (D150); `helpers.rs`'s W210 key harvest finds a dictionary body by its plan whatever the dictionary holds (`value_transfer::dict_body_operand`, over a probe dictionary that holds the key path the plan reads) and reads the plan's binders over a known one (`value_transfer::dict_body`): each key `dict with` binds at its key path, and each `dict update` variable whose literal key the dictionary holds (D149); G1's `var_command.rs` 3 → 0 (clean) and `helpers.rs` 6 → 5 with the ledger's rows, `registry-axes`' 12 → 7 and 10 → 6 | `a_dictionary_body_is_found_by_its_plan` (`value_transfer.rs`: both spellings, a key path over an unknown dictionary, a repeated key's last value, a path the dictionary lacks, and `dict update`'s literal and dynamic keys); `w210_dict_body_keys_come_from_the_plan` (`analyser/diagnostics/tests.rs`: a key path binds its nested keys, an unknown dictionary's key path stays unknown shape, `::tcl::dict::with` is the same plan, and `dict update` binds only a present key — each program's answer checked on tclsh 8.5.19, 8.6.18, 9.0.4 and 9.1b0); `w307_reads_element_and_body_bindings` (a key path's nested key, a lattice-constant `array set`, and a literal `array set` or `set arr(k)` in a function with a barrier, each silent over `puts` and firing over a non-command); changed: `dict with d a {…}` over `{a {x 1}}` binds `x`, where the spelling harvest bound `a`, so the false W210 on `$x` after it and the false W307 on a `$cmd` dispatch inside it are gone; every other W210, W307 and W308 test unchanged |
 | VT5.8 | `wip(value-transfers): slice 5 — the template-word plan` | `TemplateSemantics` (`value_transfer/template.rs`, new; `template:subst`, route none) declared on `subst` over its own switch table: `structure` answers `PlanAnswer::TemplateWord` — the kinds from `option_effects` over each switch's proven value (an exact value its spelling, a finite set joined per member, an unproven switch every kind), read at every release the profile names, a spelling that raises contributing nothing, the releases reading one differently `ReleaseAmbiguous(Availability(9.1))`, every spelling raising `WrongRepresentation` (D151); `braced`, `dynamic`, the script regions (caller's frame), the reads outside them and the escapes from the template's word structure decomposed under the kinds, an array index substituting every kind whatever the switches say, every span an offset into the word, and a template `subst` rejects the command's error (D152); the driver records one `TemplatePlanRecord { span, plan }` per executable trusted `subst` call over the settled lattice (`SccpResult::template_plans`, the template word's token span), which `rebase_function_unit` shifts; the inventory's `subst` row declared | `the_template_plan_answers_the_fourteen_witnesses`, `the_positive_switches_are_9_1s`, `a_template_plan_joins_proven_switches_and_reads_indexes` (`value_transfers.rs`: the page's programs as plan fixtures under `tcl8.4` to `tcl9.1` and the spanning `tcl`); `template_witnesses_match_every_release_on_path` (`differential_fold.rs`: the fourteen programs and four more — an array index, `-nobackslashes` over `\$`, and an unclosed bracket with and without `-nocommands` — under tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1b0 — where tclsh raises the plan is the command's error, where it answers the kinds are the ones tclsh runs, probed one at a time, and the output rebuilt from the plan's escapes, reads and regions is the output tclsh prints; the three 9.1-only rows answer on 9.1b0 alone); `a_subst_call_records_its_template_plan` (`value_transfer.rs`: `set opt -novariables; subst $opt {hello $name}` reads no `name`); `route_stamps_match_the_pinned_set` gains `subst`; `rebase_shifted_unit_spans_match_fresh` carries a `subst` and fails without the shift; the `tp_*` and `fp_*` tests in `substitution.rs` unchanged |
 | VT5.9 | `wip(value-transfers): slice 5 — the template folders read the plan` | both `subst -nocommands` folders — `eval_subst_nocommands_body` in lowering and `extract_subst_nocommands_template` in `specialise_factories.rs` — ask the registry for the template-word plan over the call's literal words (`value_transfer::literal_template_plan`; `LiteralInputs::with_braced` answers a brace-quoted word's structure, since lowering runs before SSA) and act only on `kinds == SUBST_NOCOMMANDS_KINDS` over a braced template, so neither matches the head `subst` by spelling any more; `subst_nocommands` renders the plan's `reads` and `escapes` over the const-map instead of scanning the template, refusing an element read, a qualified name or any script region; a profile-less question reads every switch, as the registry's own surface-blind query does (D153); `register_synthesised` records the factory call's statement span on the materialised child, so its findings anchor at the call — the span half of #2143; G1's `specialise_factories.rs` 1 → 0, its `proc` definer site waived `definition_body`, the file clean; `registry-axes`' `lowering/mod.rs` 26 → 25 and `specialise_factories.rs` 2 → 1 | `a_materialised_child_carries_its_factory_call_span` (compiler witnesses: the #2143 program's W214 for `::port` on line 4 under `tcl8.4`, `tcl8.6`, `tcl9.0` and `tcl`, where it was at 1:1; `port ignored` prints `8080` under tclsh 8.4 to 9.1 before and after `tcl opt`); `the_positive_switches_are_9_1s` gains the profile-less question; the `subst_nocommands` unit tests and `var_escape_typeinfer.rs`'s read through the plan with their answers unchanged; `proc_subst_nocommands_body_materialised`, `proc_subst_nocommands_missing_var_skips_materialisation`, `proc_subst_nocommands_nobackslashes_refused`, `detects_*` and `rejects_factory_with_computed_subst_switch` unchanged |
+| VT5.10 | `wip(value-transfers): slice 5 — W102, extract-proc and the barrier read the plan` | W102 reads the call's template-word plan — its kinds, `dynamic` and template word — over the source words in the walk (`value_transfer::literal_template_plan` with `SourceWord`: a substituted word unproven, so a computed switch runs every kind), and the per-function pass re-reads each call the unit has a record for over the lattice and replaces the walk's finding at the template word, so a proven switch narrows the warning and its advice as the literal spelling does (`emit_w102_template_plans`; `TemplatePlanRecord` gains the command's spelling and the proven switch spellings the advice reads) (D154); the dynamic-name barrier sets `reads` only when the plan's template is `dynamic` and variable or command substitution runs over it — `subst -nocommands -novariables $t` stops blinding, `subst -novariables $t` keeps it, since its `[set x]` reads — and scans each script region as script in the frame (`scan_template`; `template_word_is_substituted` gone) (D155); extract-proc keeps or cuts a braced word by the plan's `kinds.variables` and takes its `script_regions` as the same-frame regions (`refactor::source_word`), a substituting command with no plan keeping the registry's answer | `w102_narrows_a_proven_switch_word` (`analyser/diagnostics/tests.rs`: `set opt -novariables; subst $opt $x` reports what `subst -novariables $x` reports, a parameter switch keeps every kind and no advice, proven switches turning both kinds off report nothing); `a_computed_template_blinds_reads_while_it_substitutes` (`dynamic_names.rs`: `-nocommands -novariables` clear, `-novariables`, `-nocommands` and no switch blinding, a braced template's region scanned); `a_computed_template_that_runs_commands_keeps_the_stores_it_reads` (compiler witnesses: the D155 program keeps `set x 1` under `tcl8.4`, `tcl8.6`, `tcl9.0` and `tcl`, and prints `1` under tclsh 8.4 to 9.1 before and after `tcl opt`); every `w102_*`, `subst_injection` and `tp_*` extract-proc test unchanged |
 
 A container restart ended the first implementer at VT5.5, uncommitted;
 a second implementer took the opus items over from VT5.5 on (VT5.5, VT5.6,
@@ -4330,6 +4331,31 @@ three `scan` answers were wrong against every oracle from 8.5 (`scan -1
 compared non-ASCII witnesses against a misread script (D133); the two doc
 comments the oracle contradicted were corrected, and the per-byte charges
 the page states were added. Nothing was backed out.
+
+Green at VT5.10:
+
+- tests: `tcl-registry`, `tcl-compiler`, `tcl-lsp-core` and `tcl-cli`
+  together 14664 passed, 6 ignored, no failure — no existing expectation
+  moved; `samples_optimiser_profiles_are_regenerated` among them, no
+  sample moved; after the barrier test's rename (D155), `dynamic_names`'
+  45 unit tests again;
+- pedantic clippy (`--no-deps --all-targets -D warnings`) on
+  `tcl-registry`, `tcl-compiler` and `tcl-lsp-core`, no `#[allow]` added;
+  `rustfmt` on the touched files;
+- `cargo xtask value-transfers` (no pin moved, no generated page changed)
+  and `--check` (19 clean, 14 waived, 91 pinned across 37 files, 6607
+  rows), `registry-axes --check` (1070 pinned across 163 files),
+  `pack-goldens --check` (24 packs, no snapshot moved), the test-binary
+  shard verifier's self-test, `cargo check --workspace` clean.
+
+Left, inside this item's file list: W309's gate,
+`inner_head_performs_substitution`, still asks only whether the nested
+command performs substitution at all. A `subst` that runs backslashes
+alone still decodes `\x5b` into a `[` the outer command runs (`set x
+{\x5bputs hi\x5d}; eval [subst -nocommands -novariables $x]` prints `hi`
+on tclsh 8.4, 8.6 and 9.0), so reading the plan would clear W309 only
+for `subst -nobackslashes -nocommands -novariables`, which substitutes
+nothing; the item's Items and Changes ask nothing of W309.
 
 Green at VT5.9:
 
@@ -8127,6 +8153,45 @@ has the witnesses):
   reads every modelled release (D151). The factory call's statement span
   becomes the child's `Procedure::span`; the W123 half of #2143 (Q3) is
   not assigned here, so the landing pins the span half.
+- **D154 — W102 stays in the walk and the lattice refines it.** The plan
+  moves W102 to the per-function pass, but the records are the CFG's own
+  `subst` calls, and the walk reaches bodies the CFG has no statement for —
+  an `after` callback, a `dict with` or `namespace eval` body, a
+  `[subst …]` nested in another command's word — where W102 fires today.
+  So the walk emits W102 from the plan over the call's source words (a
+  substituted switch unproven, so it runs every kind and advises nothing,
+  as the registry's unreadable-call answer did), and the per-function pass
+  re-reads each recorded call over the lattice and replaces the walk's
+  finding at the template word: `set opt -novariables; subst $opt $x` then
+  reports what `subst -novariables $x` reports, and proven switches that
+  turn both kinds off report nothing. The advice needs the switch
+  spellings, which the plan does not carry, so `TemplatePlanRecord` gains
+  the command as spelled and each switch's proven spelling (`None` when one
+  is unproven); the page's record shape is `{ span, plan }`. The walk, the
+  barrier, extract-proc and VT5.9's folders ask one helper,
+  `literal_template_plan`, which now takes each word's `SourceWord`
+  (braced, literal, substituted) — `LiteralInputs` gains `with_structure`
+  and `with_unproven` — so a substituted word is unproven everywhere rather
+  than read as its own spelling.
+- **D155 — A computed template blinds reads while it can run a command.**
+  The mandate asks that `subst -novariables $t` stop blinding every read,
+  and the plan says the barrier sets `reads` only for `dynamic &&
+  kinds.variables`. That is unsound while command substitution runs: `proc
+  f {t} {set x 1; return [subst -novariables $t]}; f {[set x]}` prints `1`
+  on tclsh 8.4 to 9.1, and with `reads` clear the optimiser removed `set x
+  1` as unused (O126), so the rewritten program raises. The barrier
+  therefore sets `reads` when variable *or* command substitution runs over
+  a computed template: `subst -nocommands -novariables $t`, which read a
+  name no more than a literal does and blinded the function before, is
+  what stops blinding; `subst -novariables $t` keeps it. A computed
+  template's commands can write too (`[set x 2]`); the barrier never
+  modelled that, and the lattice keeps `$x` unfolded after such a call on
+  its own. Each script region of a braced template is scanned as script in
+  the frame, which the generic bracket scan over every argument already
+  did. Under this rule the plan's barrier test name,
+  `a_novariables_subst_of_a_dynamic_template_does_not_blind_reads`, would
+  state the opposite of what the test asserts, so the test is
+  `a_computed_template_blinds_reads_while_it_substitutes`.
 
 ### Open questions for the owner
 

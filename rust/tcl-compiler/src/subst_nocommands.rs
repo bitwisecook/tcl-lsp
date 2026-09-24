@@ -111,7 +111,7 @@ mod tests {
             &registry,
             "subst",
             &["-nocommands", template],
-            |index| index == 1,
+            |index| crate::value_transfer::SourceWord::of(None, index == 1),
         )?;
         super::subst_nocommands(template, &plan, const_map)
     }

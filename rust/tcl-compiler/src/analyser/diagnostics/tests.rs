@@ -11551,6 +11551,39 @@ fn w102_advice_never_mixes_switch_families() {
     );
 }
 
+/// W102 reads the lattice's template-word plan (VT5.10): `set opt
+/// -novariables; subst $opt $x` warns of `[cmd]` alone and advises
+/// `-nocommands`, exactly as `subst -novariables $x` does (tclsh 8.4 to 9.1,
+/// `set x {[set y 1]$y}`: both run the command and leave `$y`), where the
+/// computed switch word had made the call unreadable; a switch the lattice
+/// does not prove — a parameter — keeps every kind and advises nothing; and
+/// proven switches that turn both kinds off warn of nothing.
+#[test]
+fn w102_narrows_a_proven_switch_word() {
+    let w102 = |src: &str| -> Vec<String> {
+        let mut a = Analyser::new();
+        a.analyse(src, "tcl8.6")
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W102)
+            .map(|d| d.message.clone())
+            .collect()
+    };
+    let literal = w102("proc f {x} { subst -novariables $x }\n");
+    let proven = w102("proc f {x} { set opt -novariables\n subst $opt $x }\n");
+    assert_eq!(proven, literal);
+    assert_eq!(proven.len(), 1, "{proven:?}");
+    assert!(proven[0].contains("any [cmd] in the string"), "{proven:?}");
+    assert!(proven[0].contains("Add -nocommands to limit"), "{proven:?}");
+    let unproven = w102("proc f {opt x} { subst $opt $x }\n");
+    assert_eq!(unproven.len(), 1, "{unproven:?}");
+    assert!(
+        unproven[0].contains("any [cmd] and $var") && !unproven[0].contains("Add "),
+        "{unproven:?}"
+    );
+    assert!(w102("proc f {x} { set opt -nocommands\n subst $opt -novariables $x }\n").is_empty());
+}
+
 #[test]
 fn w103_open_pipeline() {
     // `|`-pipeline with substitution → WARNING (injection).

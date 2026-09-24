@@ -532,7 +532,11 @@ fn scan_statement(
                     matches!(kind, tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd)
                 });
             if !head_dynamic {
-                scan_command(command, args, braced.as_deref(), registry, barrier);
+                let words = CommandWords {
+                    args,
+                    braced: braced.as_deref(),
+                };
+                scan_command(command, &words, registry, barrier, (0, config));
             }
             for arg in args {
                 scan_text(arg, registry, barrier, 0, config);
@@ -630,25 +634,16 @@ fn scan_script_text(
         // content spelling has already dropped it.
         let arg_texts: Vec<String> = args.iter().map(|w| w.raw.clone()).collect();
         let braced: Vec<bool> = args.iter().map(|w| w.braced_literal).collect();
-        scan_command(&command.text, &arg_texts, Some(&braced), registry, barrier);
+        let words = CommandWords {
+            args: &arg_texts,
+            braced: Some(&braced),
+        };
+        scan_command(&command.text, &words, registry, barrier, (depth, config));
     }
     // The script's own words may nest further substitutions; `text` still has
     // their brackets intact (a word's raw spelling does not — a delimited
     // token's closer sits one past its span), so recurse from here.
     scan_text(text, registry, barrier, depth, config);
-}
-
-/// Whether a template word handed to a substituting command was itself
-/// produced by substitution — i.e. its content comes from run-time data
-/// rather than from source text the ordinary scanners can read.
-///
-/// A brace-quoted word (`subst {$a}`) is the one literal form that can
-/// legally carry a `$`, and Tcl leaves it verbatim: the `$a` inside is
-/// source text naming `a`, so the read is *not* blind.  Every other word
-/// carrying `$` or `[` (`subst $t`, `subst "$t"`, `subst [gen]`) reaches
-/// `subst` already substituted, so the names it then expands come from data.
-fn template_word_is_substituted(word: &str, braced_literal: bool) -> bool {
-    !braced_literal && (word.contains('$') || word.contains('['))
 }
 
 /// Raise the flags a frame-crossing command imposes on the frame it is
@@ -716,20 +711,32 @@ fn script_words_are_opaque(words: &[&str], arg_braced: Option<&[bool]>, offset: 
     })
 }
 
-/// Apply the registry's name-role answers for one `command args…` call.
-///
-/// `arg_braced`, when present, says for each argument whether it is a single
-/// brace-quoted word — a distinction the segmenter's reconstructed `args`
-/// text has already erased, and the one thing that separates a literal name
-/// or template (`set {$n} 1`, `subst {$a}`) from a substituted one
-/// (`set $n 1`, `subst $a`).
+/// One call's argument words, as [`scan_command`] reads them.
+#[derive(Clone, Copy)]
+struct CommandWords<'a> {
+    /// The argument texts.
+    args: &'a [String],
+    /// When present, whether each argument is a single brace-quoted word —
+    /// a distinction the segmenter's reconstructed `args` text has already
+    /// erased, and the one thing that separates a literal name or template
+    /// (`set {$n} 1`, `subst {$a}`) from a substituted one (`set $n 1`,
+    /// `subst $a`).
+    braced: Option<&'a [bool]>,
+}
+
+/// Apply the registry's name-role answers for one `command args…` call,
+/// `at` the bracket depth and lexer configuration its script is read under.
 fn scan_command(
     command: &str,
-    args: &[String],
-    arg_braced: Option<&[bool]>,
+    words: &CommandWords<'_>,
     registry: &CommandRegistry,
     barrier: &mut DynamicNameBarrier,
+    at: (u32, LexerConfig),
 ) {
+    let CommandWords {
+        args,
+        braced: arg_braced,
+    } = *words;
     let Some(spec) = registry.get(command) else {
         return;
     };
@@ -797,21 +804,53 @@ fn scan_command(
             barrier.reads = true;
         }
     }
-    // A template-expanding command (`subst`) performs `$name` substitution
-    // over its argument string. With a literal template the names are in the
-    // text and the ordinary scanners see them; with a computed one the names
-    // come from run-time data, so every local is reachable —
-    // `[subst $[subst $locVar]]` is exactly this shape.
-    if spec.traits.contains(Traits::PERFORMS_SUBSTITUTION)
-        && arg_strs.iter().enumerate().any(|(i, w)| {
-            !w.starts_with('-')
-                && template_word_is_substituted(
-                    w,
-                    arg_braced.and_then(|b| b.get(i)).copied().unwrap_or(false),
-                )
-        })
-    {
-        barrier.reads = true;
+    if spec.traits.contains(Traits::PERFORMS_SUBSTITUTION) {
+        scan_template(command, &arg_strs, arg_braced, registry, barrier, at);
+    }
+}
+
+/// A template-expanding command (`subst`) performs substitution over its
+/// template word, as the call's template-word plan says. A literal template
+/// names its reads in its text, which the ordinary scanners see, and each
+/// `[…]` region it runs is script in this frame, scanned here. A computed
+/// one reads names that come from run-time data whenever variable or
+/// command substitution runs over it — `[subst $[subst $locVar]]` is exactly
+/// this shape, and `subst -novariables $t` still runs `[set x]` — so every
+/// local is reachable; `subst -nocommands -novariables $t` reads none. A
+/// call with no plan to read keeps the conservative answer: any substituted
+/// word past the switches reads.
+fn scan_template(
+    command: &str,
+    args: &[&str],
+    arg_braced: Option<&[bool]>,
+    registry: &CommandRegistry,
+    barrier: &mut DynamicNameBarrier,
+    (depth, config): (u32, LexerConfig),
+) {
+    use crate::value_transfer::SourceWord;
+    let source = |index: usize| {
+        let braced = arg_braced
+            .and_then(|b| b.get(index))
+            .copied()
+            .unwrap_or(false);
+        SourceWord::of(args.get(index).copied(), braced)
+    };
+    match crate::value_transfer::literal_template_plan(registry, command, args, source) {
+        Some(plan) => {
+            if plan.dynamic && (plan.kinds.variables || plan.kinds.commands) {
+                barrier.reads = true;
+            }
+            for region in &plan.script_regions {
+                scan_script_text(&region.script.script, registry, barrier, depth + 1, config);
+            }
+        }
+        None => {
+            if args.iter().enumerate().any(|(index, word)| {
+                !word.starts_with('-') && source(index) == SourceWord::Substituted
+            }) {
+                barrier.reads = true;
+            }
+        }
     }
 }
 
@@ -1022,6 +1061,28 @@ mod tests {
     fn dynamic_subst_template_sets_the_read_flag() {
         let b = barrier_for("proc f {t} { return [subst $t] }\n");
         assert!(b.reads, "`subst $t` can dereference any name");
+    }
+
+    /// The barrier reads the call's template-word plan (VT5.10): a computed
+    /// template reads any name only when variable or command substitution
+    /// runs over it, so `subst -nocommands -novariables $t` no longer blinds
+    /// every read, while `subst -novariables $t` still does — its `[set x]`
+    /// reads `x` (tclsh 8.4 to 9.1: `proc f {t} {set x 1; return [subst
+    /// -novariables $t]}; f {[set x]}` is `1`, and removing the `set` as a
+    /// dead store makes it raise) — as `subst -nocommands $t` and `subst $t`
+    /// do; a braced template's `[…]` region is script in this frame and is
+    /// scanned as such.
+    #[test]
+    fn a_computed_template_blinds_reads_while_it_substitutes() {
+        let off = barrier_for("proc f {t} { return [subst -nocommands -novariables $t] }\n");
+        assert!(!off.reads, "no variable of the template is read");
+        assert!(barrier_for("proc f {t} { return [subst -novariables $t] }\n").reads);
+        assert!(barrier_for("proc f {t} { return [subst -nocommands $t] }\n").reads);
+        assert!(barrier_for("proc f {t} { return [subst $t] }\n").reads);
+        assert!(
+            barrier_for("proc f {n} { return [subst {x[set $n]}] }\n").reads,
+            "the region's own dynamic read"
+        );
     }
 
     #[test]

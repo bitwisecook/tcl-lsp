@@ -331,17 +331,19 @@ fn extract_subst_nocommands_template(
     let arg_refs: Vec<&str> = texts.iter().map(String::as_str).collect();
     // A braced word is one `Str` token; only it is a template the
     // materialiser can substitute into.
-    let braced = |index: usize| {
-        cmd.single_token_word
+    let source = |index: usize| {
+        let braced = cmd
+            .single_token_word
             .get(index + 1)
             .copied()
             .unwrap_or(false)
             && cmd
                 .arg_tokens()
                 .get(index)
-                .is_some_and(|token| token.kind == TokenType::Str)
+                .is_some_and(|token| token.kind == TokenType::Str);
+        crate::value_transfer::SourceWord::of(arg_refs.get(index).copied(), braced)
     };
-    let plan = crate::value_transfer::literal_template_plan(registry, head, &arg_refs, braced)?;
+    let plan = crate::value_transfer::literal_template_plan(registry, head, &arg_refs, source)?;
     if plan.kinds != crate::lowering::SUBST_NOCOMMANDS_KINDS || !plan.braced || plan.dynamic {
         return None;
     }

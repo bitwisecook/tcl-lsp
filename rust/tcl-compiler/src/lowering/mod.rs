@@ -2702,8 +2702,8 @@ impl<'r> Lowerer<'r> {
         let arg_refs: Vec<&str> = texts.iter().map(String::as_str).collect();
         // A braced word is one `Str` token; only it is a template this can
         // substitute at compile time.
-        let braced = |index: usize| {
-            inner_cmd
+        let source = |index: usize| {
+            let braced = inner_cmd
                 .single_token_word
                 .get(index + 1)
                 .copied()
@@ -2711,10 +2711,11 @@ impl<'r> Lowerer<'r> {
                 && inner_cmd
                     .arg_tokens()
                     .get(index)
-                    .is_some_and(|token| token.kind == TokenType::Str)
+                    .is_some_and(|token| token.kind == TokenType::Str);
+            crate::value_transfer::SourceWord::of(arg_refs.get(index).copied(), braced)
         };
         let plan =
-            crate::value_transfer::literal_template_plan(self.registry, head, &arg_refs, braced)?;
+            crate::value_transfer::literal_template_plan(self.registry, head, &arg_refs, source)?;
         if plan.kinds != SUBST_NOCOMMANDS_KINDS || self.proc_depth == 0 {
             return None;
         }

@@ -220,6 +220,11 @@ pub struct TemplatePlanRecord {
     /// from its `{` to its content's end; the plan's own spans are offsets
     /// from its start (a braced template's content from 1).
     pub span: tcl_lexer::Span,
+    /// The command as the call spells it.
+    pub command: String,
+    /// The spelling each switch reads as, when the lattice proves every one
+    /// exactly — what W102's narrowing advice reads.
+    pub switches: Option<Vec<String>>,
     /// The plan.
     pub plan: tcl_registry::value_transfer::TemplateWordPlan,
 }

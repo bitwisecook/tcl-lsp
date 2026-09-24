@@ -915,6 +915,7 @@ impl Analyser {
             &textually_referenced,
         );
         self.emit_possible_paste_error_diagnostics(function_unit);
+        self.emit_w102_template_plans(function_unit);
         // Shared read-before-set context: the SCCP-executable block set and
         // the name-level suppression (`dict with` keys, qualified-`variable`
         // alias tails, dict vars), threaded through both the version-0

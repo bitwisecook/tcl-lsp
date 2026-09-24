@@ -932,26 +932,29 @@ cause code injection. Use braces: {cmd_name} {sub_name} $child {{...}}"
     }
 
     /// **W102.** Emit "subst on variable input" when a substitution
-    /// performer's operand is a *computed* word — a `$var` reference, or any
+    /// performer's template is a *computed* word — a `$var` reference, or any
     /// word carrying a substitution — and the call still performs command or
     /// variable substitution over it, so whatever that word resolves to is
     /// evaluated a second time.
     ///
-    /// *Which* substitutions a call performs is the registry's question, not
-    /// this check's: [`tcl_registry::CommandRegistry::substitutions_performed`]
-    /// reads both switch families and answers every kind for a call it cannot
-    /// read.  Asking it is what keeps two shapes right: `subst $opt {hello
-    /// $name}` reports nothing, because the operand is the *final* argument —
-    /// the braced literal — and the computed word is a switch; and the Tcl 9.1
-    /// positive family
-    /// `subst -backslashes $tmpl` reports nothing, because it substitutes
-    /// neither commands nor variables.
+    /// *Which* substitutions a call performs, and which word is its template,
+    /// is the call's template-word plan
+    /// ([`crate::value_transfer::literal_template_plan`]) over its source
+    /// words: `subst $opt {hello $name}` reports nothing, because the template
+    /// is the *final* argument — the braced literal — and the computed word is
+    /// a switch; and the Tcl 9.1 positive family `subst -backslashes $tmpl`
+    /// reports nothing, because it substitutes neither commands nor
+    /// variables. A command with no plan of its own keeps the registry's
+    /// `substitutions_performed` answer. The walk reaches every body the
+    /// analyser reads; [`Self::emit_w102_template_plans`] re-reads a call the
+    /// lattice has a plan for, whose switch words it may prove.
     pub(in crate::analyser) fn emit_w102_subst_injection(
         &mut self,
         cmd_name: &str,
         args: &[String],
         arg_tokens: &[tcl_lexer::Token],
     ) {
+        use crate::value_transfer::SourceWord;
         // Registry gate: [`Traits::PERFORMS_SUBSTITUTION`] marks the
         // template-expanding command (`subst`) — any spec that performs
         // `$var` / `[cmd]` substitution over an argument string.  Checked
@@ -965,61 +968,76 @@ cause code injection. Use braces: {cmd_name} {sub_name} $child {{...}}"
         {
             return;
         }
+        let Some(registry) = self.registry.as_deref() else {
+            return;
+        };
         let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-        let Some(performed) = self
-            .registry
-            .as_deref()
-            .and_then(|r| r.substitutions_performed(cmd_name, &arg_refs))
-        else {
-            return;
-        };
-        if !performed.commands && !performed.variables {
-            // Backslash substitution alone rewrites text; it neither reads a
-            // variable nor runs a command, so there is nothing to inject.
-            return;
-        }
-        // The operand is the call's final argument, as the resolver defines
-        // it; every earlier word is a switch.
-        let idx = args.len() - 1;
-        let Some(tok) = arg_tokens.get(idx) else {
-            return;
-        };
-        // A braced operand is the template as written — its `$var`s are the
+        // A braced word is the template as written — its `$var`s are the
         // substitution the call was made for, not a value spliced in from
         // elsewhere.  Any other word carrying a substitution reaches `subst`
         // already expanded once, and is expanded again.
-        if is_braced_word(tok) || !has_substitution(&args[idx], tok) {
+        let source = |index: usize| match arg_tokens.get(index) {
+            Some(tok) if is_braced_word(tok) => SourceWord::Braced,
+            Some(tok) if !has_substitution(&args[index], tok) => SourceWord::Literal,
+            _ => SourceWord::Substituted,
+        };
+        let plan =
+            crate::value_transfer::literal_template_plan(registry, cmd_name, &arg_refs, source);
+        let (performed, dynamic, idx) = if let Some(plan) = plan {
+            (plan.kinds, plan.dynamic, plan.operand.0)
+        } else {
+            let Some(performed) = registry.substitutions_performed(cmd_name, &arg_refs) else {
+                return;
+            };
+            let idx = args.len() - 1;
+            (performed, source(idx) == SourceWord::Substituted, idx)
+        };
+        let Some(tok) = arg_tokens.get(idx) else {
+            return;
+        };
+        // Backslash substitution alone rewrites text; it neither reads a
+        // variable nor runs a command, so there is nothing to inject.
+        if !dynamic || (!performed.commands && !performed.variables) {
             return;
         }
-        let active = match (performed.commands, performed.variables) {
-            (true, true) => "[cmd] and $var",
-            (true, false) => "[cmd]",
-            _ => "$var",
-        };
-        let advice = self
-            .substitution_narrowing_switches(cmd_name, &arg_refs, performed)
-            .map_or_else(
-                || "Use [format] / [string map] for safe templating.".to_owned(),
-                |switches| {
-                    format!(
-                        "Add {} to limit substitution scope, or use [format] / \
-[string map] for safe templating.",
-                        switches.join(" ")
-                    )
-                },
-            );
-        let message = format!(
-            "{cmd_name} with a variable argument enables code injection: any \
-{active} in the string will be evaluated. {advice}"
-        );
+        let advice = self.substitution_narrowing_switches(cmd_name, &arg_refs, performed);
         self.result
             .diagnostics
-            .push(crate::analyser::types::Diagnostic::new(
-                DiagCode::W102,
-                tok.span,
-                message,
-                Severity::Warning,
+            .push(w102_diagnostic(cmd_name, tok.span, performed, advice));
+    }
+
+    /// **W102** over the lattice: each call the unit holds a template-word
+    /// plan for (`SccpResult::template_plans`) is re-read with the switch
+    /// values the lattice proves, and its finding replaces the walk's at the
+    /// template word — so `set opt -novariables; subst $opt $x` warns of
+    /// `[cmd]` alone and advises `-nocommands`, as the literal spelling does,
+    /// and a call whose proven switches turn both kinds off warns of nothing.
+    pub(in crate::analyser) fn emit_w102_template_plans(
+        &mut self,
+        function_unit: &crate::compilation_unit::FunctionUnit,
+    ) {
+        for record in &function_unit.sccp.template_plans {
+            self.result
+                .diagnostics
+                .retain(|d| !(d.code == DiagCode::W102 && d.span == record.span));
+            let performed = record.plan.kinds;
+            if !record.plan.dynamic || (!performed.commands && !performed.variables) {
+                continue;
+            }
+            // The advice reads the proven spellings; a switch the lattice does
+            // not prove leaves the call unreadable, and advises nothing.
+            let advice = record.switches.as_ref().and_then(|switches| {
+                let mut words: Vec<&str> = switches.iter().map(String::as_str).collect();
+                words.push("");
+                self.substitution_narrowing_switches(&record.command, &words, performed)
+            });
+            self.result.diagnostics.push(w102_diagnostic(
+                &record.command,
+                record.span,
+                performed,
+                advice,
             ));
+        }
     }
 
     /// **W103.** Emit "open with a pipeline" when `open`'s first
@@ -2043,4 +2061,34 @@ fn find_regex_patterns_in_command(
         }
         _ => Vec::new(),
     }
+}
+
+/// The W102 finding for `cmd_name`'s template at `span`, naming the kinds
+/// `performed` still runs and the switches that would narrow them.
+fn w102_diagnostic(
+    cmd_name: &str,
+    span: tcl_lexer::Span,
+    performed: tcl_registry::substitution::SubstitutionKinds,
+    advice: Option<Vec<&'static str>>,
+) -> crate::analyser::types::Diagnostic {
+    let active = match (performed.commands, performed.variables) {
+        (true, true) => "[cmd] and $var",
+        (true, false) => "[cmd]",
+        _ => "$var",
+    };
+    let advice = advice.map_or_else(
+        || "Use [format] / [string map] for safe templating.".to_owned(),
+        |switches| {
+            format!(
+                "Add {} to limit substitution scope, or use [format] / [string map] for safe \
+templating.",
+                switches.join(" ")
+            )
+        },
+    );
+    let message = format!(
+        "{cmd_name} with a variable argument enables code injection: any {active} in the \
+string will be evaluated. {advice}"
+    );
+    crate::analyser::types::Diagnostic::new(DiagCode::W102, span, message, Severity::Warning)
 }
