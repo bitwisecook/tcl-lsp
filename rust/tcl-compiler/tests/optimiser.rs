@@ -2812,6 +2812,11 @@ fn a_dead_assignment_whose_value_can_raise_is_kept() {
             "set y $a",
         ),
         (
+            "an `lset` target that was never set",
+            "proc p {} {\n    catch {lset x 0 new}\n    set y $x\n    puts hi\n}\n",
+            "set y $x",
+        ),
+        (
             "a variable only a `catch` script assigns",
             "proc p {} {\n    catch {error boom; set a 1} x\n    set y $a\n    puts hi\n}\n",
             "set y $a",
@@ -2895,6 +2900,11 @@ fn a_dead_assignment_whose_value_cannot_raise_is_still_deleted() {
         (
             "a `regexp` output variable set before",
             "proc p {s} {\n    set x old\n    regexp {(z)} $s -> x\n    set y $x\n    puts hi\n}\n",
+        ),
+        // A read-modify-write target stays set once it was set.
+        (
+            "an `lset` target set before",
+            "proc p {} {\n    set x {old}\n    lset x 0 new\n    set y $x\n    puts hi\n}\n",
         ),
     ] {
         assert!(

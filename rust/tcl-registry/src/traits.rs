@@ -384,9 +384,9 @@ declare_traits! {
         "writes its target variables only when a runtime match succeeds";
     /// Writes every variable target it names whenever it completes, on its
     /// failure path too: `catch` binds its result and options variables
-    /// whatever the script's completion code, `gets` (and `chan gets`) at end of file writes
-    /// `""`, `regsub` with no match writes the unchanged input, and `lassign`
-    /// writes `""` to a target with no value. `append`, `lappend` and the
+    /// whatever the script's completion code, `gets` and `chan gets` at end
+    /// of file write `""`, `regsub` with no match writes the unchanged input,
+    /// and `lassign` writes `""` to a target with no value. `append`, `lappend` and the
     /// `dict` mutators (`set`, `append`, `lappend`, `incr`, `unset`) create
     /// an unset target (`append a` with no value raises instead, so it never
     /// completes). Measured identical on tclsh 8.4.20 (which has no `lassign`

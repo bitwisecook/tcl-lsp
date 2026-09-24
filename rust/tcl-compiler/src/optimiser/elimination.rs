@@ -308,9 +308,9 @@ enum DefSite {
     /// may-def, nor a command (`regexp`, `scan`, `unset`, a `foreach` header)
     /// that may leave it unset.
     Stmt(bool),
-    /// A conditional writer's target (`regexp`, `scan`, `binary scan`): set
-    /// exactly when the version it may keep was, since the match path writes
-    /// it and the other path leaves the previous value in place.
+    /// A conditional writer's target (`regexp`, `scan`, `binary scan`), or a
+    /// read-modify-write target (`lset`, `lpop`, `ledit`): set exactly when
+    /// the version it keeps or reads was.
     Carry(crate::ssa::Version),
 }
 
@@ -479,7 +479,9 @@ struct CommandWriteTargets<'s> {
     /// Written whenever the command completes (`UNCONDITIONAL_VARIABLE_WRITE`).
     always: Vec<&'s str>,
     /// Written only on a runtime match, else left as they were
-    /// (`CONDITIONAL_VARIABLE_WRITE`).
+    /// (`CONDITIONAL_VARIABLE_WRITE`), or read before the write
+    /// (`READS_BEFORE_WRITE`: `lset`, `lpop`, `ledit`), so set after the
+    /// command exactly when they were set before it.
     maybe: Vec<&'s str>,
 }
 
@@ -500,7 +502,9 @@ fn command_write_targets<'s>(
     let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
     let traits = registry.invocation_traits(lookup, &arg_strs, registry.own_surface_query());
     let always = traits.contains(tcl_registry::Traits::UNCONDITIONAL_VARIABLE_WRITE);
-    let maybe = traits.contains(tcl_registry::Traits::CONDITIONAL_VARIABLE_WRITE);
+    let maybe = traits.contains(tcl_registry::Traits::CONDITIONAL_VARIABLE_WRITE)
+        || (traits.contains(tcl_registry::Traits::READS_BEFORE_WRITE)
+            && !traits.contains(tcl_registry::Traits::DESTROYS_VARIABLE));
     if !always && !maybe {
         return CommandWriteTargets::default();
     }
