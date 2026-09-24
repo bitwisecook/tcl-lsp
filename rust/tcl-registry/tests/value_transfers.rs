@@ -1392,6 +1392,30 @@ fn each_may_write_declaration_answers_a_may_bind_of_its_target() {
     }
 }
 
+/// A consumer with no SSA reads no existence (VT8.7): literal-word inputs
+/// answer every existence read — a variable, a prior store, an operand —
+/// `Unavailable` at the structure tier, which is neither bound nor unbound,
+/// and a variable's exact value `NotExact`.
+#[test]
+fn literal_inputs_answer_existence_unavailable() {
+    use tcl_registry::value_transfer::{AnalysisTier, LiteralInputs};
+    let inputs = LiteralInputs::new("set", None, &["x", "1"], None);
+    let unavailable = FactView::Top(DeclineReason::Unavailable(AnalysisTier::Structure));
+    assert_eq!(inputs.variable("x", FactDomain::Existence), unavailable);
+    assert_eq!(
+        inputs.prior_store(&PlaceRef::scalar("x"), FactDomain::Existence),
+        unavailable
+    );
+    assert_eq!(
+        inputs.operand(OperandId(0), FactDomain::Existence),
+        unavailable
+    );
+    assert_eq!(
+        inputs.variable("x", FactDomain::ExactValue),
+        FactView::Top(DeclineReason::NotExact)
+    );
+}
+
 /// `const` (VT8.8) binds only an absent place: over an unbound place it
 /// writes the value and returns the empty string; over any other place it
 /// declines, since an existing variable raises and an existing constant

@@ -465,6 +465,7 @@ mod tests {
             memory_ssa: None,
             dynamic_names: crate::dynamic_names::DynamicNameBarrier::default(),
             complexity_guarded: false,
+            tier: tcl_registry::value_transfer::AnalysisTier::Deep,
             base_offset: 0,
             method_facts: None,
             semantic_facts: crate::semantic_analysis::SemanticAnalysisBundle::unavailable(None),

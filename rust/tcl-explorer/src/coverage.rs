@@ -126,6 +126,11 @@ pub const ARTIFACT_COVERAGE: &[ArtifactCoverage] = &[
         exclusion: None,
     },
     ArtifactCoverage {
+        artifact: "FunctionUnit::tier",
+        view: Some("semantic"),
+        exclusion: None,
+    },
+    ArtifactCoverage {
         artifact: "FunctionUnit::base_offset",
         view: Some("sourceMap"),
         exclusion: None,
@@ -222,6 +227,7 @@ durable_inventory!(
     memory_ssa,
     dynamic_names,
     complexity_guarded,
+    tier,
     base_offset,
     method_facts,
     semantic_facts,

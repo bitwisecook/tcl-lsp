@@ -156,6 +156,16 @@ impl AnalysisContextKey {
         self
     }
 
+    /// The key for a request at `tier`. Below the deep tier a function
+    /// built under the key runs no existence rung, so the driver answers
+    /// each existence read `Unavailable(tier)` and so does
+    /// [`crate::compilation_unit::FunctionUnit::existence`].
+    #[must_use]
+    pub fn at_tier(mut self, tier: AnalysisTier) -> Self {
+        self.tier = tier;
+        self
+    }
+
     /// The key for a consumer with no module view: no mutations observed,
     /// against the process-wide default registry.
     #[must_use]

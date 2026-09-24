@@ -1427,7 +1427,19 @@ dominance and which stays byte-identical in effect.
 request, a function over the complexity ceiling (`FunctionUnit`'s
 trivial lattices), and a consumer without SSA read
 `FactView::Top(DeclineReason::Unavailable)`, which is neither `Unbound`
-nor `MayBound`: every consumer above stays silent on it. An empty
+nor `MayBound`: every consumer above stays silent on it. Since slice 8
+(VT8.7) the read is `FunctionUnit::existence(symbol, ExistencePoint)`,
+typed by the tier the unit's lattices ran at (`FunctionUnit::tier`): a
+unit built under a context key below the deep tier
+(`AnalysisContextKey::at_tier`) runs no rung and answers
+`Unavailable(tier)` — as the lattice driver does for an existence query
+inside it, so `info exists` decides nothing there — a guarded unit
+answers `Unavailable(ComplexityGuarded)`, and a point the run never
+reached answers `Pending`; W210, W213 and the `return` pass read through
+it, and S100 reads the per-version map, where an absent entry is never
+`Unbound`. The detached inputs — a condition re-proved without SSA, the
+loop simulator's environment, a literal-word evaluation — answer
+`Unavailable` for every existence read. An empty
 reachable-block set has no universal meaning outside its producing
 analysis — missing or deferred analysis, no normal successor, and a
 proved unreachable branch are different answers, and each is typed as

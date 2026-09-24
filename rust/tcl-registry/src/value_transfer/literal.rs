@@ -160,7 +160,12 @@ impl AnalysisInputs for LiteralInputs<'_> {
             .ok_or(DeclineReason::NotExact)
     }
 
-    fn variable(&self, _name: &str, _domain: FactDomain) -> FactView {
+    fn variable(&self, _name: &str, domain: FactDomain) -> FactView {
+        // No SSA stands behind a literal word, so no other domain's fact is
+        // computed here: `Unavailable`, which no consumer reads as unbound.
+        if domain != FactDomain::ExactValue {
+            return FactView::Top(DeclineReason::Unavailable(AnalysisTier::Structure));
+        }
         FactView::Top(DeclineReason::NotExact)
     }
 

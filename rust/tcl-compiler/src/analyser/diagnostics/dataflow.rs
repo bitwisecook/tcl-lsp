@@ -32,7 +32,7 @@
 use std::collections::HashSet;
 use tcl_core_types::DiagCode;
 use tcl_dialect::model::SurfaceQuery;
-use tcl_registry::value_transfer::Existence;
+use tcl_registry::value_transfer::{DomainFact, Existence, FactView};
 
 use rustc_hash::{FxHashMap, FxHashSet};
 
@@ -44,6 +44,7 @@ use super::helpers::{
 use crate::analyser::state::Analyser;
 use crate::analyser::types::Severity;
 use crate::analyser::utils::param_name_spans;
+use crate::compilation_unit::ExistencePoint;
 use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::expr_ast::ExprNode;
 
@@ -124,19 +125,36 @@ fn startup_read_facts(
 
 /// The existence fact the read at `index` of `block` finds at `var`'s place
 /// (VT8.4): the statement's own read, or — for the terminator, `index` -1
-/// — the block's exit; `None` where the run computed none, which is
-/// neither bound nor unbound.
+/// — the block's exit, as the unit's typed view
+/// ([`crate::compilation_unit::FunctionUnit::existence`], VT8.7): `Pending`
+/// where the run never reached it, and `Unavailable` below the deep tier or
+/// past the complexity ceiling, neither of which is bound or unbound.
 fn place_fact(
     fu: &crate::compilation_unit::FunctionUnit,
     block: &str,
     index: i32,
     var: &str,
-) -> Option<Existence> {
-    let block = fu.cfg.block_id(block)?;
-    let symbol = fu.ssa.var_symbol(var)?;
-    match usize::try_from(index) {
-        Ok(index) => fu.sccp.existence_before(block, index, symbol),
-        Err(_) => fu.sccp.existence_at_exit(block, symbol),
+) -> FactView {
+    let (Some(block), Some(symbol)) = (fu.cfg.block_id(block), fu.ssa.var_symbol(var)) else {
+        return FactView::Pending;
+    };
+    let point = match usize::try_from(index) {
+        Ok(index) => ExistencePoint::Before(block, index),
+        Err(_) => ExistencePoint::Exit(block),
+    };
+    fu.existence(symbol, point)
+}
+
+/// The existence fact a W210 or W213 read reports on: an unbound or a
+/// may-bound place. A bound one, one the run never reached, and one it
+/// computed nothing for — `Unavailable` below the deep tier or past the
+/// complexity ceiling (VT8.7) — report nothing.
+fn reportable(fact: &FactView) -> Option<Existence> {
+    match fact {
+        FactView::Domain(DomainFact::Existence(
+            fact @ (Existence::Unbound | Existence::MayBound),
+        )) => Some(*fact),
+        _ => None,
     }
 }
 
@@ -1457,10 +1475,14 @@ file; this call falls through to the 'unknown' handler."
                 if args.iter().any(|a| a == "-nocomplain") {
                     continue;
                 }
-                let fact = place_fact(fu, &use_site.block, use_site.statement_index, var);
-                if !matches!(fact, Some(Existence::Unbound | Existence::MayBound)) {
+                let Some(fact) = reportable(&place_fact(
+                    fu,
+                    &use_site.block,
+                    use_site.statement_index,
+                    var,
+                )) else {
                     continue;
-                }
+                };
                 // Eager startup bindings (`argv`, `tcl_version`, …) already
                 // exist when their first `unset` runs. A lazy read trace is
                 // different: its first `unset` still errors until an earlier
@@ -1476,7 +1498,7 @@ file; this call falls through to the 'unknown' handler."
                 {
                     continue;
                 }
-                let message = if fact == Some(Existence::Unbound) {
+                let message = if fact == Existence::Unbound {
                     format!(
                         "Variable '{var}' does not exist here; \
                          use 'unset -nocomplain' to suppress the error",
@@ -1522,10 +1544,14 @@ file; this call falls through to the 'unknown' handler."
             // The existence rung has the last word (VT8.4): a read at a place
             // bound there, or where the run computed no fact, is no
             // read-before-set.
-            if !matches!(
-                place_fact(fu, &use_site.block, use_site.statement_index, var),
-                Some(Existence::Unbound | Existence::MayBound)
-            ) {
+            if reportable(&place_fact(
+                fu,
+                &use_site.block,
+                use_site.statement_index,
+                var,
+            ))
+            .is_none()
+            {
                 continue;
             }
             // Anchor at the `$var` read token; fall back to the command
@@ -1651,8 +1677,10 @@ file; this call falls through to the 'unknown' handler."
                 let fact = fu
                     .ssa
                     .var_symbol(&name)
-                    .and_then(|symbol| fu.sccp.existence_at_exit(bn, symbol));
-                if !matches!(fact, Some(Existence::Unbound | Existence::MayBound)) {
+                    .map_or(FactView::Pending, |symbol| {
+                        fu.existence(symbol, ExistencePoint::Exit(bn))
+                    });
+                if reportable(&fact).is_none() {
                     continue;
                 }
                 reported.insert(name.clone());

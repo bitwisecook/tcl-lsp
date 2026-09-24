@@ -1981,6 +1981,7 @@ pub fn serialise_semantic(result: &ExplorerResult, li: &LineIndex, source: &str)
                     "status": semantic_status(availability),
                     "decline": semantic_decline_value(availability),
                     "complexityGuarded": snap.unit.complexity_guarded,
+                    "tier": snap.unit.tier.as_str(),
                     "dynamicNames": {
                         "writes": snap.unit.dynamic_names.writes,
                         "destroys": snap.unit.dynamic_names.destroys,

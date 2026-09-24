@@ -33,6 +33,7 @@ use std::sync::Arc;
 
 use tcl_registry::CommandRegistry;
 use tcl_registry::model::semantic::SemanticContext;
+use tcl_registry::value_transfer::{AnalysisTier, DeclineReason, DomainFact, FactView};
 
 use crate::cfg::{CfgModule, Function as CfgFunction};
 use crate::cfg_builder::{
@@ -208,6 +209,18 @@ pub struct UnitBuildOptions<'a> {
 
 /// The qualified-name prefix of an iRules `when` handler's procedure.
 const WHEN_HANDLER_PREFIX: &str = "::when::";
+
+/// Where a consumer reads a place's existence fact
+/// ([`FunctionUnit::existence`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExistencePoint {
+    /// Just before the statement at this index of the block runs.
+    Before(crate::cfg::BlockId, usize),
+    /// At the block's exit, where its terminator reads.
+    Exit(crate::cfg::BlockId),
+    /// Where this version of the place is established.
+    Version(crate::ssa::Version),
+}
 
 /// The names an iRules `when` handler of the module may find bound on
 /// entry: every name any handler binds, with the array each element sits
@@ -386,6 +399,13 @@ pub struct FunctionUnit {
     /// so byte-large-but-block-light generated bodies are guarded
     /// consistently).
     pub complexity_guarded: bool,
+    /// The precision tier the unit's lattices were computed at: the deep
+    /// tier for every full build, the request's own tier for a request
+    /// below it — the existence rung is a deep-tier fact, so such a request
+    /// computes none — and [`AnalysisTier::ComplexityGuarded`] for a unit
+    /// over the complexity ceiling, whose lattices are trivial.
+    /// [`Self::existence`] answers `Unavailable` with it below the deep tier.
+    pub tier: AnalysisTier,
     /// Byte offset to add to this unit's (otherwise relative) spans to recover
     /// **absolute** source positions (Approach B — offset-aware consumers).
     ///
@@ -791,6 +811,12 @@ impl FunctionUnit {
     #[must_use]
     fn build_full(name: String, cfg: CfgFunction, inputs: FunctionBuildInputs<'_>) -> Self {
         let existence = inputs.existence_entry(&name);
+        // The request's tier: a context key names it, a detached build is
+        // deep. Below the deep tier the existence rung is not run, so its
+        // every read answers `Unavailable` rather than a fact.
+        let tier = inputs
+            .analysis_context
+            .map_or(AnalysisTier::Deep, |key| key.tier);
         let FunctionBuildInputs {
             config,
             registry,
@@ -854,7 +880,7 @@ impl FunctionUnit {
                     || dynamic_names.writes
                     || dynamic_names.destroys,
                 analysis_context,
-                existence: Some(existence),
+                existence: (tier == AnalysisTier::Deep).then_some(existence),
             },
             // The trust fact, and only the trust fact: every declared route
             // the value-transfer driver runs is gated on it, while the
@@ -912,6 +938,7 @@ impl FunctionUnit {
             memory_ssa: None,
             dynamic_names,
             complexity_guarded: false,
+            tier,
             base_offset: 0,
             method_facts: None,
             semantic_facts: SemanticAnalysisBundle::unavailable(None),
@@ -940,10 +967,38 @@ impl FunctionUnit {
             // pass skips it, so the barrier stays clear (never consulted).
             dynamic_names: crate::dynamic_names::DynamicNameBarrier::default(),
             complexity_guarded: true,
+            tier: AnalysisTier::ComplexityGuarded,
             base_offset: 0,
             method_facts: None,
             semantic_facts: SemanticAnalysisBundle::unavailable(None),
         }
+    }
+
+    /// The existence fact `symbol`'s place holds at `point`, as the
+    /// registry's input view (`docs/design/compiler/value-transfers.md`
+    /// § *Existence*, availability across tiers): `Domain(Existence(_))`
+    /// where the run computed one, `Pending` where it never reached the
+    /// point, and `Top(Unavailable(tier))` for a unit computed below the
+    /// deep tier or over the complexity ceiling ([`Self::tier`]) — neither
+    /// bound nor unbound, so no consumer reads it as either and every one
+    /// stays silent on it.
+    #[must_use]
+    pub fn existence(&self, symbol: crate::ssa::Symbol, point: ExistencePoint) -> FactView {
+        if self.tier != AnalysisTier::Deep {
+            return FactView::Top(DeclineReason::Unavailable(self.tier));
+        }
+        let fact = match point {
+            ExistencePoint::Before(block, index) => {
+                self.sccp.existence_before(block, index, symbol)
+            }
+            ExistencePoint::Exit(block) => self.sccp.existence_at_exit(block, symbol),
+            ExistencePoint::Version(version) => {
+                self.sccp.existence.get(&(symbol, version)).copied()
+            }
+        };
+        fact.map_or(FactView::Pending, |fact| {
+            FactView::Domain(DomainFact::Existence(fact))
+        })
     }
 
     /// Whether this function's [`Self::dynamic_names`] barrier forbids any
@@ -2773,6 +2828,84 @@ mod tests {
                 *s == sym && matches!(lv, crate::analyses::LatticeValue::Const(_))
             });
         assert!(has_const, "expected `safe_const` to still fold to a Const");
+    }
+
+    /// Existence is a deep-tier fact (VT8.7): a procedure lattice requested
+    /// at the fast tier runs no rung, so every read of it answers
+    /// `Unavailable(Fast)` — neither bound nor unbound — and W210 and W213
+    /// stay silent where the deep build reports both; a unit over the
+    /// complexity ceiling answers `Unavailable(ComplexityGuarded)`.
+    #[test]
+    fn existence_is_unavailable_at_the_fast_tier() {
+        use tcl_core_types::DiagCode;
+        let reg = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let src = "proc p {} {set x 1; unset x; unset x; puts $x}\n";
+        let lifecycle = |cu: CompilationUnit| -> Vec<DiagCode> {
+            let mut analyser = crate::analyser::Analyser::new();
+            analyser.set_cu_override(Arc::new(cu));
+            analyser
+                .analyse(src, "tcl8.6")
+                .diagnostics
+                .into_iter()
+                .map(|d| d.code)
+                .filter(|code| matches!(code, DiagCode::W210 | DiagCode::W213))
+                .collect()
+        };
+        let deep = CompilationUnit::build_for_dialect(src, reg, false, "tcl8.6");
+        let deep_p = deep.function("::p").expect("::p built");
+        assert_eq!(deep_p.tier, AnalysisTier::Deep);
+        let x = deep_p.ssa.var_symbol("x").expect("x interned");
+        let entry = deep_p.cfg.entry;
+        let cfg = deep_p.cfg.clone();
+        assert!(matches!(
+            deep_p.existence(x, ExistencePoint::Exit(entry)),
+            FactView::Domain(DomainFact::Existence(_))
+        ));
+
+        let key = crate::value_transfer::AnalysisContextKey::detached().at_tier(AnalysisTier::Fast);
+        let fast_p = FunctionUnit::build_with_param_constants_and_classes_under(
+            "::p",
+            cfg.clone(),
+            &[],
+            UnitDialect {
+                registry: reg,
+                config: tcl_lexer::LexerConfig::default(),
+            },
+            None,
+            &HashSet::new(),
+            ModuleAnalysisFacts {
+                trace: ModuleTraceFacts::none(),
+                analysis_context: &key,
+                command_trust: &crate::command_binding::ModuleCommandMutations::default(),
+            },
+        );
+        assert_eq!(fast_p.tier, AnalysisTier::Fast);
+        assert!(fast_p.sccp.existence.is_empty());
+        for point in [
+            ExistencePoint::Exit(entry),
+            ExistencePoint::Before(entry, 0),
+            ExistencePoint::Version(1),
+        ] {
+            assert_eq!(
+                fast_p.existence(x, point),
+                FactView::Top(DeclineReason::Unavailable(AnalysisTier::Fast))
+            );
+        }
+        let mut fast = deep.clone();
+        fast.procedures.insert("::p".to_owned(), fast_p);
+
+        let found = lifecycle(deep);
+        assert!(
+            found.contains(&DiagCode::W213) && found.contains(&DiagCode::W210),
+            "{found:?}"
+        );
+        assert_eq!(lifecycle(fast), Vec::<DiagCode>::new());
+
+        let guarded = FunctionUnit::trivial_guarded("::p", cfg);
+        assert_eq!(
+            guarded.existence(x, ExistencePoint::Exit(entry)),
+            FactView::Top(DeclineReason::Unavailable(AnalysisTier::ComplexityGuarded))
+        );
     }
 
     #[test]
