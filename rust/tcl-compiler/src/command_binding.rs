@@ -332,6 +332,57 @@ impl PartialEq for ModuleCommandBindings {
 impl Eq for ModuleCommandBindings {}
 
 impl ModuleCommandBindings {
+    /// Source-order projection for a user procedure without an available
+    /// command-table effect summary. Kept private to binding consumers so the
+    /// historical module lattice cannot be widened accidentally.
+    pub(crate) fn mark_source_order_user_procedure_call(&mut self) {
+        self.mark_opaque_binding_mutation();
+    }
+
+    /// Resolve recovered substitutions in Tcl evaluation order for the
+    /// scalar-barrier projection. Each command advances the local source-order
+    /// state before the next one is resolved, including registry binding
+    /// transitions such as `rename` and opaque readable-eval bodies.
+    pub(crate) fn source_order_registry_barrier_in_commands(
+        &mut self,
+        commands: &[Vec<crate::ir_helpers::CommandWord>],
+        registry: &CommandRegistry,
+        namespace: &crate::ir_helpers::ExecutionNamespace,
+        barrier_traits: tcl_registry::Traits,
+    ) -> bool {
+        for words in commands {
+            let Some(head) = words
+                .first()
+                .and_then(crate::ir_helpers::CommandWord::literal)
+            else {
+                self.mark_opaque_binding_mutation();
+                return true;
+            };
+            let Some(command_namespace) = namespace.for_head(head) else {
+                self.mark_opaque_binding_mutation();
+                return true;
+            };
+            let source_may_be_unknown = self.target_may_be_unknown(head, command_namespace);
+            let reaches_user_procedure = self
+                .targets(head, command_namespace)
+                .iter()
+                .any(|target| !target.registry_backed);
+            let facts = self.resolve_command_words(words, registry, command_namespace);
+            let barrier = source_may_be_unknown
+                || facts
+                    .iter()
+                    .any(|facts| facts.traits.intersects(barrier_traits));
+            apply_resolved_may_transitions(facts, source_may_be_unknown, true, self, namespace);
+            if reaches_user_procedure {
+                self.mark_source_order_user_procedure_call();
+            }
+            if barrier {
+                return true;
+            }
+        }
+        false
+    }
+
     #[cfg(test)]
     pub(crate) fn effective_semantics(&self) -> &Arc<EffectiveRegistrySemantics> {
         &self.baseline.semantics
@@ -585,13 +636,15 @@ impl ModuleCommandBindings {
         for discarded_module in &discarded.modules {
             retained_roots.extend_module_roots(discarded_module, false);
         }
-        let top = collect_binding_states(
-            top_level,
-            registry,
-            &state,
-            &top_namespace,
-            &mut retained_roots,
-        );
+        let top = {
+            let mut context = BindingWalkContext {
+                registry,
+                retained_roots: &mut retained_roots,
+                timeline: None,
+                source_order_mode: false,
+            };
+            collect_binding_states(top_level, &mut context, &state, &top_namespace)
+        };
         let mut live = top.post;
         let mut observed = top.observed;
 
@@ -605,13 +658,15 @@ impl ModuleCommandBindings {
             let body_roots = retained_roots.snapshot();
             let mut next = live.clone();
             for root in &body_roots {
-                let outcome = collect_binding_states(
-                    &root.script,
-                    registry,
-                    &live,
-                    &root.namespace,
-                    &mut retained_roots,
-                );
+                let outcome = {
+                    let mut context = BindingWalkContext {
+                        registry,
+                        retained_roots: &mut retained_roots,
+                        timeline: None,
+                        source_order_mode: false,
+                    };
+                    collect_binding_states(&root.script, &mut context, &live, &root.namespace)
+                };
                 if !next.same_state(&outcome.post) {
                     next.join(&outcome.post);
                 }
@@ -638,6 +693,56 @@ impl ModuleCommandBindings {
         }
     }
 
+    /// Replay one root in source order for CFG-local registry projections.
+    /// Top level begins with its fresh registry state; independently callable
+    /// procedure roots begin from the historical state reachable after module
+    /// initialisation and never feed their transient states back into it.
+    #[must_use]
+    pub(crate) fn source_binding_timeline(
+        &self,
+        script: &Script,
+        registry: &CommandRegistry,
+        namespace: &crate::ir::ExecutionNamespace,
+        top_level_root: bool,
+    ) -> SourceBindingTimeline {
+        let mut initial = self.clone();
+        if top_level_root {
+            initial.bindings = Arc::new(HashMap::new());
+            initial.root_boundary_bindings = Arc::new(HashMap::new());
+            initial.opaque_domain = false;
+            initial.opaque_binding_mutation = false;
+            initial.dynamic_proc_binding = false;
+            initial.unnameable_rebinding_subject = false;
+            initial.namespace_resolution = NamespaceResolutionProjection::default();
+            initial.rebound_names.clear();
+            initial.proc_rebound_names.clear();
+        }
+        Self::source_binding_timeline_from_initial(script, registry, namespace, &initial)
+    }
+
+    /// Replay one source root from a caller-provided entry state. Procedure
+    /// CFGs use this to start from the states reachable after their own
+    /// definition, instead of the module's historical union from before that
+    /// definition existed.
+    #[must_use]
+    pub(crate) fn source_binding_timeline_from_initial(
+        script: &Script,
+        registry: &CommandRegistry,
+        namespace: &crate::ir::ExecutionNamespace,
+        initial: &ModuleCommandBindings,
+    ) -> SourceBindingTimeline {
+        let mut timeline = SourceBindingTimeline::default();
+        let mut retained_roots = RetainedBindingRoots::default();
+        let mut context = BindingWalkContext {
+            registry,
+            retained_roots: &mut retained_roots,
+            timeline: Some(&mut timeline),
+            source_order_mode: true,
+        };
+        timeline.post = Some(collect_binding_states(script, &mut context, initial, namespace).post);
+        timeline
+    }
+
     /// Resolve every live source-safe invocation selected by the exact active
     /// registry. Alias chains are expanded to their terminal target.
     #[must_use]
@@ -647,6 +752,9 @@ impl ModuleCommandBindings {
         registry: &CommandRegistry,
         namespace: &str,
     ) -> Vec<ResolvedBindingInvocation> {
+        if !stmt.is_executable_invocation() {
+            return Vec::new();
+        }
         let source_span = stmt.span();
         let (Statement::Call { args, tokens, .. } | Statement::Barrier { args, tokens, .. }) = stmt
         else {
@@ -715,6 +823,9 @@ impl ModuleCommandBindings {
     ) where
         F: for<'w> FnMut(&'w ResolvedCommandTarget, tcl_registry::InvocationWords<'w>),
     {
+        if !stmt.is_executable_invocation() {
+            return;
+        }
         let (Statement::Call {
             command,
             args,
@@ -839,7 +950,10 @@ impl ModuleCommandBindings {
             .profile()
             .map(tcl_registry::model::semantic::SemanticContext::for_profile);
         let mut resolved = Vec::new();
-        self.for_each_resolved_command_words(words, namespace, |_, invocation_words| {
+        self.for_each_resolved_command_words(words, namespace, |target, invocation_words| {
+            if !target.registry_backed {
+                return;
+            }
             if let Some(facts) =
                 tcl_registry::model::semantic::resolve_structured_invocation_in_context(
                     registry,
@@ -1021,13 +1135,15 @@ impl ModuleCommandBindings {
         baseline.bindings.clone_from(&self.root_boundary_bindings);
         let mut retained_roots = RetainedBindingRoots::default();
         let execution_namespace = crate::ir::ExecutionNamespace::exact(namespace);
-        let outcome = collect_binding_states(
-            script,
-            registry,
-            &baseline,
-            &execution_namespace,
-            &mut retained_roots,
-        );
+        let outcome = {
+            let mut context = BindingWalkContext {
+                registry,
+                retained_roots: &mut retained_roots,
+                timeline: None,
+                source_order_mode: false,
+            };
+            collect_binding_states(script, &mut context, &baseline, &execution_namespace)
+        };
         outcome.post.opaque_binding_mutation || outcome.observed.opaque_binding_mutation
     }
 
@@ -1546,6 +1662,150 @@ struct BindingWalkOutcome {
     observed: ModuleCommandBindings,
 }
 
+/// Source-order command states for one executable script root. The two
+/// snapshots distinguish substitutions, which run before the host command,
+/// from the direct invocation itself.
+#[derive(Debug, Clone, Default)]
+pub(crate) struct SourceBindingTimeline {
+    states: HashMap<tcl_lexer::Span, StatementBindingStates>,
+    /// State after this source root completes. This is not historical
+    /// observation: a procedure defined late in the root can begin from it,
+    /// while a procedure defined earlier joins it with the suffix it could
+    /// have observed after becoming callable.
+    post: Option<ModuleCommandBindings>,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct StatementBindingStates {
+    before_substitutions: ModuleCommandBindings,
+    before_direct_call: Option<ModuleCommandBindings>,
+}
+
+impl SourceBindingTimeline {
+    /// States a procedure may enter after its defining command at
+    /// `definition_span` has run.
+    ///
+    /// Source snapshots before that definition are deliberately excluded: a
+    /// later `proc eval` has replaced the builtin before a later `proc p`
+    /// first becomes callable. The source suffix and final post-state retain
+    /// temporary and terminal transitions that occur after `p` is available.
+    /// The closed root-boundary state adds independently executable roots
+    /// without replaying the module's earlier historical observations.
+    pub(crate) fn entry_after(
+        &self,
+        definition_span: tcl_lexer::Span,
+        module: &ModuleCommandBindings,
+    ) -> Option<ModuleCommandBindings> {
+        let mut entry = self.post.clone()?;
+        for (span, states) in self
+            .states
+            .iter()
+            .filter(|(span, _)| span.start() > definition_span.start())
+        {
+            if let Some(state) = self.before_substitutions(*span)
+                && !entry.same_state(state)
+            {
+                entry.join(state);
+            }
+            if let Some(state) = &states.before_direct_call
+                && !entry.same_state(state)
+            {
+                entry.join(state);
+            }
+        }
+        let mut boundary = module.clone();
+        boundary.bindings = Arc::clone(&module.root_boundary_bindings);
+        if !entry.same_state(&boundary) {
+            entry.join(&boundary);
+        }
+        Some(entry)
+    }
+
+    fn join_region(&mut self, script: &Script, state: &ModuleCommandBindings) {
+        crate::ir::for_each_statement(script, &mut |stmt| {
+            self.record_before_substitutions(stmt.span(), state);
+            self.record_before_direct_call(stmt.span(), state);
+        });
+    }
+
+    fn record_before_substitutions(
+        &mut self,
+        span: tcl_lexer::Span,
+        state: &ModuleCommandBindings,
+    ) {
+        self.record(span, state, true);
+    }
+
+    fn record_before_direct_call(&mut self, span: tcl_lexer::Span, state: &ModuleCommandBindings) {
+        self.record(span, state, false);
+    }
+
+    fn record(
+        &mut self,
+        span: tcl_lexer::Span,
+        state: &ModuleCommandBindings,
+        substitutions: bool,
+    ) {
+        if let Some(existing) = self.states.get_mut(&span) {
+            if substitutions {
+                if !existing.before_substitutions.same_state(state) {
+                    existing.before_substitutions.join(state);
+                }
+            } else {
+                match &mut existing.before_direct_call {
+                    Some(before_direct_call) => {
+                        if !before_direct_call.same_state(state) {
+                            before_direct_call.join(state);
+                        }
+                    }
+                    None => existing.before_direct_call = Some(state.clone()),
+                }
+            }
+        } else {
+            self.states.insert(
+                span,
+                StatementBindingStates {
+                    before_substitutions: state.clone(),
+                    before_direct_call: (!substitutions).then(|| state.clone()),
+                },
+            );
+        }
+    }
+
+    pub(crate) fn before_substitutions(
+        &self,
+        span: tcl_lexer::Span,
+    ) -> Option<&ModuleCommandBindings> {
+        self.states
+            .get(&span)
+            .map(|states| &states.before_substitutions)
+    }
+
+    pub(crate) fn before_direct_call(
+        &self,
+        span: tcl_lexer::Span,
+    ) -> Option<&ModuleCommandBindings> {
+        self.states
+            .get(&span)
+            .and_then(|states| states.before_direct_call.as_ref())
+    }
+}
+
+/// Shared ownership for a binding walk. Normal historical analysis leaves the
+/// timeline absent; source-order projection records statement snapshots.
+struct BindingWalkContext<'a> {
+    registry: &'a CommandRegistry,
+    retained_roots: &'a mut RetainedBindingRoots,
+    timeline: Option<&'a mut SourceBindingTimeline>,
+    source_order_mode: bool,
+}
+
+/// Invocation-local walk state shared by direct and readable-body transfers.
+struct InvocationBindingContext<'a> {
+    retained_roots: &'a mut RetainedBindingRoots,
+    source_order_mode: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct RetainedBindingRoot {
     /// A recovered body must outlive the temporary `Module` used to lower
@@ -1673,20 +1933,18 @@ fn observe_binding_state(
 #[allow(clippy::too_many_lines)]
 fn collect_binding_states(
     script: &Script,
-    registry: &CommandRegistry,
+    context: &mut BindingWalkContext<'_>,
     initial: &ModuleCommandBindings,
     namespace: &crate::ir::ExecutionNamespace,
-    retained_roots: &mut RetainedBindingRoots,
 ) -> BindingWalkOutcome {
     // Recursive walker keeps branch joins and side effects together.
     #[allow(clippy::too_many_lines)]
     fn walk(
         script: &Script,
-        registry: &CommandRegistry,
+        context: &mut BindingWalkContext<'_>,
         current: &mut ModuleCommandBindings,
         observed: &mut Option<ModuleCommandBindings>,
         namespace: &crate::ir_helpers::ExecutionNamespace,
-        retained_roots: &mut RetainedBindingRoots,
         depth: u32,
     ) {
         if crate::optimiser::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) {
@@ -1709,8 +1967,44 @@ fn collect_binding_states(
         }
         let statement_spans: HashSet<_> = script.statements.iter().map(Statement::span).collect();
         for stmt in &script.statements {
-            if apply_embedded_transitions(stmt, registry, current, namespace) {
+            let source_order_entry = context.source_order_mode.then(|| current.clone());
+            if let Some(timeline) = &mut context.timeline {
+                timeline.record_before_substitutions(stmt.span(), current);
+            }
+            let conditional_substitutions = context.source_order_mode
+                && crate::ir_helpers::evaluated_command_substitution_surfaces(
+                    stmt,
+                    context.registry,
+                )
+                .conditional;
+            if apply_embedded_transitions(
+                stmt,
+                context.registry,
+                current,
+                namespace,
+                context.source_order_mode,
+            ) {
                 observe_binding_state(observed, current);
+            }
+            if conditional_substitutions
+                && source_order_entry
+                    .as_ref()
+                    .is_some_and(|before| !before.same_state(current))
+            {
+                // `&&`, `||`, ternary arms, and later elseif conditions have
+                // a skipped path. A flat recovered invocation list cannot
+                // select one, so retain only the bounded region uncertainty.
+                current.mark_opaque_binding_mutation();
+                // Embedded-barrier projection replays from this statement's
+                // pre-substitution snapshot. Join the uncertainty there too,
+                // so a later substitution in the same expression cannot rely
+                // on the flat replay having taken an optional transition.
+                if let Some(timeline) = &mut context.timeline {
+                    timeline.record_before_substitutions(stmt.span(), current);
+                }
+            }
+            if let Some(timeline) = &mut context.timeline {
+                timeline.record_before_direct_call(stmt.span(), current);
             }
             let mut binding_site_widened = false;
             for site in binding_sites_by_span
@@ -1728,14 +2022,18 @@ fn collect_binding_states(
             }
             if let Statement::Call { command, .. } | Statement::Barrier { command, .. } = stmt {
                 if let Some(statement_namespace) = namespace.for_head(command) {
+                    let mut invocation_context = InvocationBindingContext {
+                        retained_roots: context.retained_roots,
+                        source_order_mode: context.source_order_mode,
+                    };
                     let observation_was_updated = apply_may_invocation_transitions(
                         stmt,
-                        registry,
+                        context.registry,
                         current,
                         observed,
                         statement_namespace,
                         namespace,
-                        retained_roots,
+                        &mut invocation_context,
                     );
                     if !observation_was_updated {
                         observe_binding_state(observed, current);
@@ -1750,15 +2048,7 @@ fn collect_binding_states(
                     for (body, body_namespace) in
                         crate::ir_helpers::nested_execution_bodies(stmt, namespace)
                     {
-                        walk(
-                            body,
-                            registry,
-                            current,
-                            observed,
-                            &body_namespace,
-                            retained_roots,
-                            depth + 1,
-                        );
+                        walk(body, context, current, observed, &body_namespace, depth + 1);
                     }
                 }
                 Statement::If {
@@ -1768,15 +2058,7 @@ fn collect_binding_states(
                     let mut joined: Option<ModuleCommandBindings> = None;
                     for body in clauses.iter().map(|clause| &clause.body).chain(else_body) {
                         let mut branch = incoming.clone();
-                        walk(
-                            body,
-                            registry,
-                            &mut branch,
-                            observed,
-                            namespace,
-                            retained_roots,
-                            depth + 1,
-                        );
+                        walk(body, context, &mut branch, observed, namespace, depth + 1);
                         if let Some(state) = &mut joined {
                             if !state.same_state(&branch) {
                                 state.join(&branch);
@@ -1801,19 +2083,45 @@ fn collect_binding_states(
                     for body in nested_bodies(stmt) {
                         let incoming = current.clone();
                         let mut branch = incoming.clone();
-                        walk(
-                            body,
-                            registry,
-                            &mut branch,
-                            observed,
-                            namespace,
-                            retained_roots,
-                            depth + 1,
-                        );
+                        walk(body, context, &mut branch, observed, namespace, depth + 1);
                         if !current.same_state(&branch) {
                             current.join(&branch);
                         }
                         observe_binding_state(observed, current);
+                    }
+                }
+            }
+            if context.source_order_mode
+                && matches!(
+                    stmt,
+                    Statement::If { .. }
+                        | Statement::For { .. }
+                        | Statement::While { .. }
+                        | Statement::Foreach { .. }
+                )
+            {
+                if matches!(
+                    stmt,
+                    Statement::For { .. } | Statement::While { .. } | Statement::Foreach { .. }
+                ) && source_order_entry
+                    .as_ref()
+                    .is_some_and(|before| !before.same_state(current))
+                {
+                    // One source pass cannot close a loop-carried command
+                    // binding state. Publish an explicitly opaque region
+                    // state rather than mistaking the first post-state for a
+                    // fixed point.
+                    current.mark_opaque_binding_mutation();
+                }
+                // A structured node can execute its condition/body more than
+                // once or select a later branch. Join the post-region state
+                // back at the source span so CFG consumers never reuse an
+                // earlier precise binding after a transition on another path.
+                if let Some(timeline) = &mut context.timeline {
+                    timeline.record_before_substitutions(stmt.span(), current);
+                    timeline.record_before_direct_call(stmt.span(), current);
+                    for body in nested_bodies(stmt) {
+                        timeline.join_region(body, current);
                     }
                 }
             }
@@ -1832,15 +2140,7 @@ fn collect_binding_states(
 
     let mut current = initial.clone();
     let mut observed = None;
-    walk(
-        script,
-        registry,
-        &mut current,
-        &mut observed,
-        namespace,
-        retained_roots,
-        0,
-    );
+    walk(script, context, &mut current, &mut observed, namespace, 0);
     BindingWalkOutcome {
         observed: observed.unwrap_or_else(|| current.clone()),
         post: current,
@@ -1890,6 +2190,7 @@ fn apply_embedded_transitions(
     registry: &CommandRegistry,
     bindings: &mut ModuleCommandBindings,
     namespace: &crate::ir_helpers::ExecutionNamespace,
+    source_order_mode: bool,
 ) -> bool {
     let embedded = evaluated_command_substitutions(stmt, registry);
     let observed = embedded.opaque || !embedded.commands.is_empty();
@@ -1909,6 +2210,14 @@ fn apply_embedded_transitions(
             continue;
         };
         let source_may_be_unknown = bindings.target_may_be_unknown(head_name, command_namespace);
+        if source_order_mode
+            && bindings
+                .targets(head_name, command_namespace)
+                .iter()
+                .any(|target| !target.registry_backed)
+        {
+            bindings.mark_opaque_binding_mutation();
+        }
         let facts = bindings.resolve_command_words(&words, registry, command_namespace);
         apply_resolved_may_transitions(
             facts,
@@ -1923,6 +2232,42 @@ fn apply_embedded_transitions(
     observed
 }
 
+fn invocation_transition_inputs(
+    stmt: &Statement,
+    registry: &CommandRegistry,
+    bindings: &ModuleCommandBindings,
+    command_namespace: &str,
+    source_order_mode: bool,
+) -> (bool, Vec<ResolvedBindingInvocation>, bool) {
+    let (Statement::Call { command, .. } | Statement::Barrier { command, .. }) = stmt else {
+        return (false, Vec::new(), false);
+    };
+    let source_may_be_unknown = bindings.target_may_be_unknown(command, command_namespace);
+    let reaches_user_procedure = source_order_mode
+        && bindings
+            .targets(command, command_namespace)
+            .iter()
+            .any(|target| !target.registry_backed);
+    (
+        source_may_be_unknown,
+        bindings.resolve_statement(stmt, registry, command_namespace),
+        reaches_user_procedure,
+    )
+}
+
+fn join_transition_alternative(
+    joined: &mut Option<ModuleCommandBindings>,
+    alternative: ModuleCommandBindings,
+) {
+    if let Some(state) = joined {
+        if !state.same_state(&alternative) {
+            state.join(&alternative);
+        }
+    } else {
+        *joined = Some(alternative);
+    }
+}
+
 fn apply_may_invocation_transitions(
     stmt: &Statement,
     registry: &CommandRegistry,
@@ -1930,15 +2275,15 @@ fn apply_may_invocation_transitions(
     observed: &mut Option<ModuleCommandBindings>,
     command_namespace: &str,
     execution_namespace: &crate::ir_helpers::ExecutionNamespace,
-    retained_roots: &mut RetainedBindingRoots,
+    context: &mut InvocationBindingContext<'_>,
 ) -> bool {
-    let source_may_be_unknown = match stmt {
-        Statement::Call { command, .. } | Statement::Barrier { command, .. } => {
-            bindings.target_may_be_unknown(command, command_namespace)
-        }
-        _ => false,
-    };
-    let invocations = bindings.resolve_statement(stmt, registry, command_namespace);
+    let (source_may_be_unknown, invocations, reaches_user_procedure) = invocation_transition_inputs(
+        stmt,
+        registry,
+        bindings,
+        command_namespace,
+        context.source_order_mode,
+    );
     let single_exact_invocation = !source_may_be_unknown && invocations.len() == 1;
     let mut joined: Option<ModuleCommandBindings> = source_may_be_unknown.then(|| bindings.clone());
     let mut exact_definition_key = None;
@@ -1968,7 +2313,7 @@ fn apply_may_invocation_transitions(
                 alternative.extend_procedure_bodies(
                     std::iter::once(qname.clone()).chain(module.procedures.keys().cloned()),
                 );
-                retained_roots.extend_module_roots(module, false);
+                context.retained_roots.extend_module_roots(module, false);
                 if single_exact_invocation && inventory_was_complete {
                     exact_definition_key = exact_procedure_definition_key(
                         &invocation.facts,
@@ -2008,7 +2353,7 @@ fn apply_may_invocation_transitions(
                 &mut alternative,
                 observed,
                 execution_namespace,
-                retained_roots,
+                context,
             );
         if invocation
             .facts
@@ -2032,16 +2377,13 @@ fn apply_may_invocation_transitions(
             // observation, so retain the ordinary full-state join.
             exact_definition_key = None;
         }
-        if let Some(state) = &mut joined {
-            if !state.same_state(&alternative) {
-                state.join(&alternative);
-            }
-        } else {
-            joined = Some(alternative);
-        }
+        join_transition_alternative(&mut joined, alternative);
     }
     if let Some(state) = joined {
         *bindings = state;
+    }
+    if reaches_user_procedure {
+        bindings.mark_opaque_binding_mutation();
     }
     observe_exact_procedure_definition(observed, bindings, exact_definition_key)
 }
@@ -2319,7 +2661,7 @@ fn apply_readable_evaluated_body(
     bindings: &mut ModuleCommandBindings,
     observed: &mut Option<ModuleCommandBindings>,
     namespace: &crate::ir_helpers::ExecutionNamespace,
-    retained_roots: &mut RetainedBindingRoots,
+    context: &mut InvocationBindingContext<'_>,
 ) -> bool {
     use tcl_registry::SemanticOperationId;
     use tcl_registry::frame_effect::{FrameArgLayout, FrameLevel};
@@ -2517,16 +2859,20 @@ fn apply_readable_evaluated_body(
 
     for source in sources {
         let execution_namespace = crate::ir::ExecutionNamespace::exact(&body_namespace);
-        if let Some(script) =
-            retained_roots.evaluated_body(&source, &execution_namespace, invocation.source_span)
-        {
-            let outcome = collect_binding_states(
-                &script,
-                registry,
-                bindings,
-                &execution_namespace,
-                retained_roots,
-            );
+        if let Some(script) = context.retained_roots.evaluated_body(
+            &source,
+            &execution_namespace,
+            invocation.source_span,
+        ) {
+            let outcome = {
+                let mut context = BindingWalkContext {
+                    registry,
+                    retained_roots: context.retained_roots,
+                    timeline: None,
+                    source_order_mode: context.source_order_mode,
+                };
+                collect_binding_states(&script, &mut context, bindings, &execution_namespace)
+            };
             observe_binding_state(observed, &outcome.observed);
             *bindings = outcome.post;
             continue;
@@ -2553,20 +2899,27 @@ fn apply_readable_evaluated_body(
         if module.oo_evidence.unretained_executable_roots {
             bindings.mark_opaque_binding_mutation();
         }
-        retained_roots.extend_module_roots(&module, true);
+        context.retained_roots.extend_module_roots(&module, true);
         let script_namespace = if module.top_level_namespace.is_empty() {
             "::"
         } else {
             &module.top_level_namespace
         };
         let execution_namespace = crate::ir::ExecutionNamespace::exact(script_namespace);
-        let outcome = collect_binding_states(
-            &module.top_level,
-            registry,
-            bindings,
-            &execution_namespace,
-            retained_roots,
-        );
+        let outcome = {
+            let mut context = BindingWalkContext {
+                registry,
+                retained_roots: context.retained_roots,
+                timeline: None,
+                source_order_mode: context.source_order_mode,
+            };
+            collect_binding_states(
+                &module.top_level,
+                &mut context,
+                bindings,
+                &execution_namespace,
+            )
+        };
         observe_binding_state(observed, &outcome.observed);
         *bindings = outcome.post;
     }
@@ -2619,13 +2972,20 @@ fn command_bindings_unchanged_by_script(
         let module = lowerer.finish_module(source);
         let mut retained_roots = RetainedBindingRoots::default();
         let execution_namespace = crate::ir::ExecutionNamespace::exact(&namespace);
-        let outcome = collect_binding_states(
-            &module.top_level,
-            registry,
-            bindings,
-            &execution_namespace,
-            &mut retained_roots,
-        );
+        let outcome = {
+            let mut context = BindingWalkContext {
+                registry,
+                retained_roots: &mut retained_roots,
+                timeline: None,
+                source_order_mode: false,
+            };
+            collect_binding_states(
+                &module.top_level,
+                &mut context,
+                bindings,
+                &execution_namespace,
+            )
+        };
         outcome.post.same_state(bindings) && outcome.observed.same_state(bindings)
     })
 }
@@ -3246,6 +3606,9 @@ fn apply_registry_transitions(
 /// receiver calls remain a small separate path because their source head is a
 /// value, not a statically registered command.
 fn stmt_gen(stmt: &Statement, state: &mut State, registry: &CommandRegistry) {
+    if !stmt.is_executable_invocation() {
+        return;
+    }
     let (Statement::Call { args, .. } | Statement::Barrier { args, .. }) = stmt else {
         return;
     };

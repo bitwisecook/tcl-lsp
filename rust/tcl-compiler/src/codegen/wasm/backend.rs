@@ -1441,6 +1441,9 @@ fn function_facts(
             continue;
         };
         for (stmt_idx, statement) in cfg_block.statements.iter().enumerate() {
+            if !statement.is_executable_invocation() {
+                continue;
+            }
             if let Statement::AssignConst {
                 span,
                 name,

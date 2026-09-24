@@ -1548,15 +1548,24 @@ impl CodegenCtx<'_> {
         // others — without this `catch {set x 1; set y 2}` leaves `1` under
         // the result, and a loop around it grows the operand stack without
         // bound. C pops after each non-final command.
-        let last = body_blk.statements.len().saturating_sub(1);
+        let last = body_blk
+            .statements
+            .iter()
+            .rposition(Statement::is_executable_invocation);
         for (index, stmt) in body_blk.statements.iter().enumerate() {
-            if index == last {
+            if !stmt.is_executable_invocation() {
+                continue;
+            }
+            if Some(index) == last {
                 self.emit_try_body_stmt(stmt);
             } else {
                 let mut ugi = false;
                 self.emit_stmt(stmt, &mut ugi);
                 self.cmd_index += 1;
             }
+        }
+        if last.is_none() {
+            self.push_lit("");
         }
         self.emit_catch_region_epilogue(begin_idx, &handler_label, result_var, options_var);
     }
@@ -1713,6 +1722,7 @@ impl CodegenCtx<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cfg::Block;
     use tcl_registry::CommandRegistry;
 
     /// The catch-body `expr` re-parse follows the compile's dialect, and its
@@ -1773,6 +1783,55 @@ mod tests {
         let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
         assert!(ops.contains(&Op::BEGIN_CATCH4));
         assert!(ops.contains(&Op::END_CATCH));
+    }
+
+    #[test]
+    fn inline_catch_ignores_a_trailing_registry_barrier() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
+        let mut cfg = CfgFunction::new("::p", "entry_0");
+        let body = cfg.intern_block("catch_body_1");
+        cfg.blocks.insert(
+            body,
+            Block {
+                name: "catch_body_1".into(),
+                statements: vec![
+                    Statement::Call {
+                        span: tcl_lexer::Span::new(0, 0),
+                        command: "puts".into(),
+                        canonical_command: None,
+                        args: vec!["body".into()],
+                        defs: vec![],
+                        reads: vec![],
+                        reads_own_defs: false,
+                        safe_on_uninit: false,
+                        tokens: None,
+                        foreach_groups: None,
+                    },
+                    Statement::Barrier {
+                        span: tcl_lexer::Span::new(0, 0),
+                        reason: "scalar facts".into(),
+                        command: "<registry-barrier>".into(),
+                        canonical_command: None,
+                        args: vec![],
+                        tokens: Some(crate::ir::CommandTokens::marker(
+                            crate::ir::SyntheticMarker::RegistryBarrier,
+                        )),
+                    },
+                ],
+                terminator: None,
+            },
+        );
+
+        ctx.emit_catch_region_inline(&cfg, "catch_body_1", None, None);
+
+        assert_eq!(ctx.cmd_index, 1, "the marker is not a catch-body command");
+        assert!(
+            ctx.instructions
+                .iter()
+                .any(|instruction| instruction.op == Op::END_CATCH),
+            "the real final command still supplies the catch result",
+        );
     }
 
     #[test]

@@ -563,7 +563,15 @@ fn emit_block_statements(
     // it with a count=2 startCommand spanning the whole for loop.
     let for_init_last_idx = detect_for_init_last_stmt(ctx, cfg, blk);
 
-    let first_command_covered = state.first_command_covered_by_if.remove(bname);
+    let first_command_covered = state
+        .first_command_covered_by_if
+        .remove(bname)
+        .then(|| {
+            blk.statements
+                .iter()
+                .position(crate::ir::Statement::is_executable_invocation)
+        })
+        .flatten();
     let is_catch_end_block = state
         .catch_region_info
         .values()
@@ -578,7 +586,7 @@ fn emit_block_statements(
             continue;
         }
         ctx.emit_pending_proc_defs(&mut state.pending_proc_defs, stmt.span().start());
-        if first_command_covered && stmt_idx == 0 {
+        if Some(stmt_idx) == first_command_covered {
             ctx.emit_stmt_under_start_cmd(stmt);
             continue;
         }
@@ -760,6 +768,30 @@ fn emit_block_terminator(
     }
 }
 
+fn preserve_value_join_result(
+    ctx: &mut CodegenCtx,
+    cfg: &CfgFunction,
+    blk: &crate::cfg::Block,
+    is_loop_end: bool,
+) {
+    let Some(Terminator::Goto { target, .. }) = &blk.terminator else {
+        return;
+    };
+    if !starts_with_any(cfg.block_name(*target), VALUE_JOIN_PREFIXES) {
+        return;
+    }
+    let has_executable_statement = blk
+        .statements
+        .iter()
+        .any(crate::ir::Statement::is_executable_invocation);
+    if has_executable_statement && ctx.instructions.last().is_some_and(|i| i.op == Op::POP) {
+        ctx.instructions.pop();
+    } else if !has_executable_statement && !is_loop_end {
+        // Else-less if: false path needs an empty-string result.
+        ctx.push_lit("");
+    }
+}
+
 /// Emit one CFG block (the body of the main block-order loop). Skips
 /// try/finally-consumed blocks, dispatches foreach headers/bodies, emits
 /// statements, and finishes with the block's terminator.
@@ -836,18 +868,8 @@ fn emit_block(
 
     emit_inline_block_command_boundary(ctx, cfg, state, bname);
 
-    // If/switch arms: keep last statement value on TOS instead of
-    // popping — the value is the arm's result.
-    if let Some(Terminator::Goto { target, .. }) = &blk.terminator
-        && starts_with_any(cfg.block_name(*target), VALUE_JOIN_PREFIXES)
-    {
-        if !blk.statements.is_empty() && ctx.instructions.last().is_some_and(|i| i.op == Op::POP) {
-            ctx.instructions.pop();
-        } else if blk.statements.is_empty() && !is_loop_end {
-            // Else-less if: false path needs an empty-string result.
-            ctx.push_lit("");
-        }
-    }
+    // If/switch arms preserve their final executable value for the join.
+    preserve_value_join_result(ctx, cfg, blk, is_loop_end);
 
     // Complex foreach: suppress back-edge Gotos from body blocks
     // to the foreach header. Fall through to foreach_step/foreach_end
@@ -1177,7 +1199,8 @@ fn build_loop_targets(
 ///
 /// A for-init block ends with a `Goto` to a `for_header_N` block and
 /// is not itself a `for_step_*` block. The init statement is the
-/// last one in the block.
+/// last executable one in the block; analysis-only markers do not own a
+/// source-command boundary.
 fn detect_for_init_last_stmt(
     ctx: &CodegenCtx,
     cfg: &CfgFunction,
@@ -1203,7 +1226,9 @@ fn detect_for_init_last_stmt(
     if !matches!(header.terminator, Some(Terminator::Branch { .. })) {
         return None;
     }
-    Some(blk.statements.len() - 1)
+    blk.statements
+        .iter()
+        .rposition(crate::ir::Statement::is_executable_invocation)
 }
 
 /// Place `label` at the instruction immediately before a trailing

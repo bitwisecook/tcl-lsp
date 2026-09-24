@@ -510,6 +510,9 @@ pub fn is_complexity_guarded(func: &cfg::Function) -> bool {
 /// helpers.
 #[must_use]
 pub fn defs_of(stmt: &Statement) -> Vec<String> {
+    if !stmt.is_executable_invocation() {
+        return Vec::new();
+    }
     defs_of_with_registry(stmt, None)
 }
 
@@ -706,6 +709,9 @@ fn registry_barrier_defs(
 /// `VarWrite` walk).
 #[must_use]
 pub fn defs_of_with_registry(stmt: &Statement, registry: Option<&CommandRegistry>) -> Vec<String> {
+    if !stmt.is_executable_invocation() {
+        return Vec::new();
+    }
     match stmt {
         Statement::AssignConst {
             name, name_braced, ..
@@ -1476,6 +1482,9 @@ pub fn uses_of(
     scanner: &mut VarReferenceScanner,
     registry: &CommandRegistry,
 ) -> Vec<String> {
+    if !stmt.is_executable_invocation() {
+        return Vec::new();
+    }
     uses_of_classified(stmt, scanner, registry)
         .into_iter()
         .map(|(name, _)| name)
@@ -1531,6 +1540,9 @@ pub fn uses_of_classified(
     scanner: &mut VarReferenceScanner,
     registry: &CommandRegistry,
 ) -> Vec<(String, UseClass)> {
+    if !stmt.is_executable_invocation() {
+        return Vec::new();
+    }
     let mut found = ClassifiedUses::default();
     let mut reads_own_def: BTreeSet<String> = BTreeSet::new();
 

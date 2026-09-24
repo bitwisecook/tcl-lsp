@@ -373,6 +373,9 @@ fn collect_global_frame_effects_in_frame(
     use tcl_registry::frame_effect::FrameLevel;
 
     for stmt in &script.statements {
+        if !stmt.is_executable_invocation() {
+            continue;
+        }
         match stmt {
             Statement::UpFrame {
                 absolute: true,

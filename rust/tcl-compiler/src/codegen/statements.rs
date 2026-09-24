@@ -111,6 +111,9 @@ impl CodegenCtx<'_> {
         count_override: Option<u32>,
         deferred_end_label: Option<&str>,
     ) {
+        if !stmt.is_executable_invocation() {
+            return;
+        }
         // The wrapping startCommand shares the statement's source span.
         self.set_command_source_span(stmt.span());
         let count = count_override.unwrap_or(1);
@@ -182,6 +185,9 @@ impl CodegenCtx<'_> {
     /// command indexing and generic-invoke bookkeeping cannot diverge between
     /// the two paths.
     pub fn emit_stmt_under_start_cmd(&mut self, stmt: &Statement) {
+        if !stmt.is_executable_invocation() {
+            return;
+        }
         self.set_command_source_span(stmt.span());
         let mut used_generic_invoke = false;
         self.emit_stmt(stmt, &mut used_generic_invoke);
@@ -491,6 +497,9 @@ impl CodegenCtx<'_> {
         // Stamp every instruction this statement lowers to with its source
         // span so the explorer can map each op back to source.
         self.set_command_source_span(stmt.span());
+        if !stmt.is_executable_invocation() {
+            return;
+        }
         if self.emit_assign_or_incr(stmt) {
             return;
         }
@@ -1393,6 +1402,98 @@ mod tests {
         ctx.emit_stmt(&stmt, &mut ugi);
         assert!(!ugi);
         assert_eq!(opcodes(&ctx), vec![Op::NOP]);
+    }
+
+    #[test]
+    fn registry_barrier_marker_is_not_dispatched() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
+        let stmt = Statement::Barrier {
+            span: sp(),
+            reason: "scalar facts".into(),
+            command: "<registry-barrier>".into(),
+            canonical_command: None,
+            args: vec![],
+            tokens: Some(crate::ir::CommandTokens::marker(
+                crate::ir::SyntheticMarker::RegistryBarrier,
+            )),
+        };
+        let mut ugi = false;
+        ctx.emit_stmt(&stmt, &mut ugi);
+        assert!(!ugi);
+        assert!(opcodes(&ctx).is_empty());
+    }
+
+    #[test]
+    fn registry_barrier_wrapper_keeps_the_next_command_boundary() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
+        let first = Statement::AssignConst {
+            span: sp(),
+            name: "x".into(),
+            value: "1".into(),
+            name_braced: false,
+            value_span: None,
+        };
+        let barrier = Statement::Barrier {
+            span: sp(),
+            reason: "scalar facts".into(),
+            command: "<registry-barrier>".into(),
+            canonical_command: None,
+            args: vec![],
+            tokens: Some(crate::ir::CommandTokens::marker(
+                crate::ir::SyntheticMarker::RegistryBarrier,
+            )),
+        };
+        let second = Statement::AssignConst {
+            span: sp(),
+            name: "y".into(),
+            value: "2".into(),
+            name_braced: false,
+            value_span: None,
+        };
+
+        ctx.emit_stmt_with_start_cmd(&first, None, None);
+        ctx.emit_stmt_with_start_cmd(&barrier, None, None);
+        ctx.emit_stmt_with_start_cmd(&second, None, None);
+
+        assert_eq!(
+            opcodes(&ctx)
+                .iter()
+                .filter(|&&op| op == Op::START_CMD)
+                .count(),
+            1,
+            "only the second real command receives a startCommand boundary",
+        );
+        assert_eq!(ctx.cmd_index, 2, "the marker is not a source command");
+    }
+
+    #[test]
+    fn registry_barrier_under_start_cmd_does_not_advance_command_index() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
+        let first = Statement::AssignConst {
+            span: sp(),
+            name: "x".into(),
+            value: "1".into(),
+            name_braced: false,
+            value_span: None,
+        };
+        let barrier = Statement::Barrier {
+            span: sp(),
+            reason: "scalar facts".into(),
+            command: "<registry-barrier>".into(),
+            canonical_command: None,
+            args: vec![],
+            tokens: Some(crate::ir::CommandTokens::marker(
+                crate::ir::SyntheticMarker::RegistryBarrier,
+            )),
+        };
+
+        ctx.emit_stmt_with_start_cmd(&first, None, None);
+        ctx.emit_stmt_under_start_cmd(&barrier);
+
+        assert_eq!(ctx.cmd_index, 1, "the marker is not a source command");
     }
 
     #[test]

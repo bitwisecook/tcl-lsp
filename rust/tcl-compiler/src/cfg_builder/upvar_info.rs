@@ -1247,6 +1247,9 @@ fn compose_selected_frame_alias_writes(
     }
     let any_write = opaque_write || !projected_names.is_empty();
     for stmt in &script.statements {
+        if !stmt.is_executable_invocation() {
+            continue;
+        }
         if let Statement::Call { command, .. } | Statement::Barrier { command, .. } = stmt {
             let execution_namespace = ExecutionNamespace::RuntimeSelected;
             if let Some(command_namespace) = execution_namespace.for_head(command) {
@@ -1397,6 +1400,9 @@ fn record_nested_upframe_effects(
         return;
     }
     for stmt in &script.statements {
+        if !stmt.is_executable_invocation() {
+            continue;
+        }
         if let Statement::Call { command, .. } | Statement::Barrier { command, .. } = stmt {
             let execution_namespace = ExecutionNamespace::RuntimeSelected;
             if let Some(bindings) = bindings

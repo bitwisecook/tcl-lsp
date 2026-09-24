@@ -1483,6 +1483,382 @@ fn g_proves_v_is_three(cu: &CompilationUnit) -> bool {
     })
 }
 
+#[test]
+fn unresolved_handler_barrier_blocks_scalar_constant_branch() {
+    // Tcl 9.0.4: the default unresolved handler may load and invoke a command
+    // which changes caller-frame state. The SCCP consumer therefore cannot
+    // retain the pre-call constant for this branch, even though the runtime
+    // invocation itself remains generic.
+    let cu = CompilationUnit::build_for(
+        "proc p {} { set x 5; missing_command; if {$x == 5} { return stale } else { return changed } }",
+        &reg(),
+        false,
+    );
+    let fu = cu.function("::p").expect("procedure");
+    assert!(
+        fu.sccp.constant_branches.is_empty(),
+        "unresolved handler barrier must prevent stale scalar branch folding: {:?}",
+        fu.sccp.constant_branches,
+    );
+}
+
+#[test]
+fn embedded_handler_barrier_blocks_host_scalar_constant_branch() {
+    let cu = CompilationUnit::build_for(
+        "proc p {} { set x 5; set result [missing_command]; if {$x == 5} { return stale } else { return changed } }",
+        &reg(),
+        false,
+    );
+    let fu = cu.function("::p").expect("procedure");
+    assert!(
+        fu.sccp.constant_branches.is_empty(),
+        "an embedded unresolved handler must invalidate host-following scalar facts",
+    );
+}
+
+#[test]
+fn condition_handler_barrier_blocks_scalar_constant_branch() {
+    let cu = CompilationUnit::build_for(
+        "proc p {} { set x 5; if {[missing_command]} {}; if {$x == 5} { return stale } else { return changed } }",
+        &reg(),
+        false,
+    );
+    let fu = cu.function("::p").expect("procedure");
+    assert!(
+        fu.sccp.constant_branches.is_empty(),
+        "a condition substitution reaching the unresolved handler must invalidate following scalar facts",
+    );
+}
+
+#[test]
+fn foreach_list_handler_barrier_blocks_scalar_constant_branch() {
+    let cu = CompilationUnit::build_for(
+        "proc p {} { set x 5; foreach item [missing_command] {}; if {$x == 5} { return stale } else { return changed } }",
+        &reg(),
+        false,
+    );
+    let fu = cu.function("::p").expect("procedure");
+    assert!(
+        fu.sccp.constant_branches.is_empty(),
+        "a foreach list substitution reaching the unresolved handler must invalidate following scalar facts",
+    );
+}
+
+#[test]
+fn braced_foreach_list_does_not_create_handler_barrier() {
+    let cu = CompilationUnit::build_for(
+        "proc p {} { set x 5; foreach item {[missing_command]} {}; if {$x == 5} { return kept } else { return changed } }",
+        &reg(),
+        false,
+    );
+    let fu = cu.function("::p").expect("procedure");
+    assert!(
+        !fu.sccp.constant_branches.is_empty(),
+        "a braced foreach list does not evaluate its bracket text",
+    );
+}
+
+#[test]
+fn known_safe_registry_handler_preserves_scalar_constant_branch() {
+    let cu = CompilationUnit::build_for(
+        "proc p {} { set x 5; string length value; if {$x == 5} { return kept } else { return changed } }",
+        &reg(),
+        false,
+    );
+    let fu = cu.function("::p").expect("procedure");
+    assert!(
+        !fu.sccp.constant_branches.is_empty(),
+        "a known safe registry handler should retain scalar precision",
+    );
+}
+
+#[test]
+fn embedded_shadowed_builtin_does_not_borrow_registry_barrier_traits() {
+    let cu = CompilationUnit::build_for(
+        "proc eval args {return 0}; proc p {} {set x 5; set ignored [eval {set x 6}]; if {$x == 5} {return kept} else {return changed}}",
+        &reg(),
+        false,
+    );
+    let fu = cu.function("::p").expect("procedure");
+    assert!(
+        !fu.sccp.constant_branches.is_empty(),
+        "a user procedure named eval must not inherit eval's registry barrier",
+    );
+}
+
+#[test]
+fn embedded_alias_to_user_proc_does_not_borrow_registry_barrier_traits() {
+    let cu = CompilationUnit::build_for(
+        "proc fake args {return 0}; interp alias {} eval {} fake; proc p {} {set x 5; set ignored [eval {set x 6}]; if {$x == 5} {return kept} else {return changed}}",
+        &reg(),
+        false,
+    );
+    let fu = cu.function("::p").expect("procedure");
+    assert!(
+        !fu.sccp.constant_branches.is_empty(),
+        "an alias to a user procedure must not borrow its source spelling's registry traits",
+    );
+}
+
+#[test]
+fn temporal_unknown_handler_keeps_auto_load_barrier() {
+    let cu = CompilationUnit::build_for(
+        "set auto_index(missing_command) { proc missing_command {} { upvar 1 x x; set x 6 } }; proc p {} { set x 5; missing_command; if {$x == 5} { return stale } else { return changed } }; set observed [p]; proc unknown {args} { return harmless }; puts $observed",
+        &reg(),
+        false,
+    );
+    let fu = cu.function("::p").expect("procedure");
+    assert!(
+        fu.sccp.constant_branches.is_empty(),
+        "an auto-loaded caller-mutating generation must keep the unresolved barrier",
+    );
+}
+
+#[test]
+fn embedded_user_call_makes_later_embedded_binding_opaque() {
+    let cu = CompilationUnit::build_for(
+        "proc mutate {} {rename safe {}; interp alias {} safe {} eval; return 0}; proc safe args {return 0}; proc p {} {set x 5; if {[mutate] + [safe {set x 6}]} {}; if {$x == 5} {return stale} {return changed}}; puts [p]",
+        &reg(),
+        false,
+    );
+    let fu = cu.function("::p").expect("procedure");
+    assert!(
+        fu.sccp.constant_branches.is_empty(),
+        "a later embedded call must see the earlier user call's source-order binding opacity",
+    );
+}
+
+#[test]
+fn embedded_rename_makes_later_embedded_binding_opaque() {
+    let cu = CompilationUnit::build_for(
+        "proc p {} {set x 5; if {[rename safe {}] + [safe {set x 6}]} {}; if {$x == 5} {return stale} {return changed}}; proc safe args {return 0}; puts [p]",
+        &reg(),
+        false,
+    );
+    let fu = cu.function("::p").expect("procedure");
+    assert!(
+        fu.sccp.constant_branches.is_empty(),
+        "later embedded resolution must observe a preceding rename transition",
+    );
+}
+
+#[test]
+fn sibling_if_conditions_join_source_order_binding_states() {
+    let cu = CompilationUnit::build_for(
+        "proc safe args {return 0}; set x 5; if {0} {} elseif {[rename safe {}; rename eval safe] eq \"never\"} {} elseif {[safe {set x 6; expr 0}]} {}; if {$x == 5} {puts stale} else {puts changed}",
+        &reg(),
+        false,
+    );
+    assert!(
+        !cu.top_level
+            .sccp
+            .constant_branches
+            .iter()
+            .any(|branch| branch.condition == "$x == 5"),
+        "a later elseif condition must observe preceding condition transitions",
+    );
+}
+
+#[test]
+fn for_init_transition_reaches_first_condition_projection() {
+    let cu = CompilationUnit::build_for(
+        "proc safe args {return 0}; set x 5; for {rename safe {}; rename eval safe} {[safe {set x 6; expr 0}]} {} {}; if {$x == 5} {puts stale} else {puts changed}",
+        &reg(),
+        false,
+    );
+    assert!(
+        !cu.top_level
+            .sccp
+            .constant_branches
+            .iter()
+            .any(|branch| branch.condition == "$x == 5"),
+        "a for init transition must widen the first condition projection",
+    );
+}
+
+#[test]
+fn foreach_backedge_transition_widens_next_iteration() {
+    let cu = CompilationUnit::build_for(
+        "proc safe args {return 0}; set x 5; foreach i {1 2} {safe {set x 6}; if {$i == 1} {rename safe {}; rename eval safe}}; if {$x == 5} {puts stale} else {puts changed}",
+        &reg(),
+        false,
+    );
+    assert!(
+        !cu.top_level
+            .sccp
+            .constant_branches
+            .iter()
+            .any(|branch| branch.condition == "$x == 5"),
+        "a foreach backedge transition must widen later list/body evaluation",
+    );
+}
+
+#[test]
+fn sibling_substitutions_follow_tcl_argument_order() {
+    let cu = CompilationUnit::build_for(
+        "proc aaa args {return 0}; set x 5; list [rename aaa {}; rename eval aaa] [aaa {set x 6}]; if {$x == 5} {puts stale} else {puts changed}",
+        &reg(),
+        false,
+    );
+    assert!(
+        cu.top_level.sccp.constant_branches.is_empty(),
+        "later substitution arguments must see earlier transitions",
+    );
+}
+
+#[test]
+fn nested_substitution_runs_before_outer_invocation() {
+    let cu = CompilationUnit::build_for(
+        "proc aaa args {return 0}; set x 5; set ignored [aaa [rename aaa {}; rename eval aaa; set _ {set x 6}]]; if {$x == 5} {puts stale} else {puts changed}",
+        &reg(),
+        false,
+    );
+    assert!(
+        cu.top_level.sccp.constant_branches.is_empty(),
+        "nested substitutions must transition bindings before their outer command",
+    );
+}
+
+#[test]
+fn nested_alias_substitution_runs_before_outer_invocation() {
+    let cu = CompilationUnit::build_for(
+        "interp alias {} safe {} string length; set x 5; set ignored [safe [rename safe {}; rename eval safe; set _ {set x 6}]]; if {$x == 5} {puts stale} else {puts changed}",
+        &reg(),
+        false,
+    );
+    assert!(
+        cu.top_level.sccp.constant_branches.is_empty(),
+        "a nested rename must reach the outer registry alias before it is resolved",
+    );
+}
+
+#[test]
+fn bracket_script_segments_run_in_order_around_nested_substitution() {
+    let cu = CompilationUnit::build_for(
+        "proc aaa args {return 0}; set x 5; set ignored [rename eval zzz; aaa [rename aaa {}; rename zzz aaa; set _ {set x 6}]]; if {$x == 5} {puts stale} else {puts changed}",
+        &reg(),
+        false,
+    );
+    assert!(
+        cu.top_level.sccp.constant_branches.is_empty(),
+        "a nested substitution in command two must not run before command one",
+    );
+}
+
+#[test]
+fn short_circuit_condition_keeps_skipped_binding_path() {
+    let cu = CompilationUnit::build_for(
+        "proc unknown args {return 0}; rename eval safe; set x 5; if {[pid] < 0 && [rename safe {}]} {}; safe {set x 6}; if {$x == 5} {puts stale} else {puts changed}",
+        &reg(),
+        false,
+    );
+    assert!(
+        cu.top_level.sccp.constant_branches.is_empty(),
+        "a skipped short-circuit RHS must not erase the reachable eval alias",
+    );
+}
+
+#[test]
+fn short_circuit_expression_keeps_skipped_binding_path() {
+    let cu = CompilationUnit::build_for(
+        "proc unknown args {return 0}; rename eval safe; set x 5; expr {[pid] < 0 && [rename safe {}]}; safe {set x 6}; if {$x == 5} {puts stale} else {puts changed}",
+        &reg(),
+        false,
+    );
+    assert!(
+        cu.top_level.sccp.constant_branches.is_empty(),
+        "conditional expression substitutions outside if must retain their skipped path",
+    );
+}
+
+#[test]
+fn later_substitution_keeps_short_circuit_binding_uncertainty() {
+    let cu = CompilationUnit::build_for(
+        "proc unknown args {return 0}; rename eval safe; set x 5; expr {([pid] < 0 && [rename safe {}]) + [safe {set x 6; expr 0}]}; if {$x == 5} {puts stale} else {puts changed}",
+        &reg(),
+        false,
+    );
+    assert!(
+        cu.top_level.sccp.constant_branches.is_empty(),
+        "a later substitution must retain the skipped binding path in the same expression",
+    );
+}
+
+#[test]
+fn foreach_binding_projection_closes_more_than_one_backedge() {
+    let cu = CompilationUnit::build_for(
+        "proc b args {return 0}; proc c args {return 0}; rename eval a; set x 5; foreach i {1 2 3} {c {set x 6}; if {$i < 3} {rename c {}; rename b c; if {$i == 1} {rename a b}}}; if {$x == 5} {puts stale} else {puts changed}",
+        &reg(),
+        false,
+    );
+    assert!(
+        !cu.top_level
+            .sccp
+            .constant_branches
+            .iter()
+            .any(|branch| branch.condition == "$x == 5"),
+        "a loop binding projection must not mistake its first post-state for closure",
+    );
+}
+
+#[test]
+fn braced_nested_substitution_text_does_not_execute() {
+    let cu = CompilationUnit::build_for(
+        "interp alias {} safe {} string length; set x 5; set ignored [list {[rename safe {}; rename eval safe]}]; safe {set x 6}; if {$x == 5} {puts kept} else {puts changed}",
+        &reg(),
+        false,
+    );
+    assert!(
+        !cu.top_level.sccp.constant_branches.is_empty(),
+        "braced text in a recovered command word must remain inert",
+    );
+}
+
+#[test]
+fn opaque_user_call_keeps_later_builtin_resolution_barrier() {
+    // tclsh: evaluates the later `puts` as `eval`, so `x` becomes 6 and the
+    // final branch selects `changed`. The dynamic rename subjects prevent the
+    // module summary from resolving this transition ahead of the call.
+    let cu = CompilationUnit::build_for(
+        "proc mutate {a b} {rename $a {}; rename $b $a}; proc p {} {set x 5; mutate puts eval; puts {set x 6}; if {$x == 5} {return stale} else {return changed}}; puts [p]",
+        &reg(),
+        false,
+    );
+    let fu = cu.function("::p").expect("procedure");
+    assert!(
+        fu.sccp.constant_branches.is_empty(),
+        "a source-opaque user call must invalidate later direct builtin resolution",
+    );
+}
+
+#[test]
+fn readable_eval_user_call_makes_later_binding_opaque() {
+    let cu = CompilationUnit::build_for(
+        "proc mutate {} {rename safe {}; interp alias {} safe {} eval; return 0}; proc safe args {return 0}; proc p {} {set x 5; eval {mutate}; safe {set x 6}; if {$x == 5} {return stale} {return changed}}; puts [p]",
+        &reg(),
+        false,
+    );
+    let fu = cu.function("::p").expect("procedure");
+    assert!(
+        fu.sccp.constant_branches.is_empty(),
+        "a readable eval body shares the source-order binding transfer",
+    );
+}
+
+#[test]
+fn alias_to_unresolved_handler_keeps_terminal_barrier_effect() {
+    let cu = CompilationUnit::build_for(
+        "interp alias {} forward {} unknown\nproc p {} { set x 5; forward missing_command; if {$x == 5} { return stale } else { return changed } }",
+        &reg(),
+        false,
+    );
+    let fu = cu.function("::p").expect("procedure");
+    assert!(
+        fu.sccp.constant_branches.is_empty(),
+        "an alias reaching the registry unknown handler must keep the scalar barrier",
+    );
+}
+
 /// The per-procedure lattice memo keys on the procedure body and the closed
 /// binding lattice, neither of which can see a `proc llength …` shadow
 /// declared elsewhere in the module — so a memoised unit is built as if every
