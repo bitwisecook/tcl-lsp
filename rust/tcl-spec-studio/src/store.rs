@@ -1458,6 +1458,7 @@ fn merged(name: &str, pack: &Pack, tier: Tier) -> MergedPack {
         display_name: pack.display_name.clone(),
         file_extensions: pack.file_extensions.clone(),
         ambient_packages: pack.ambient_packages.clone(),
+        special_vars: pack.special_vars.clone(),
         environments: pack.environments.clone(),
         dialects: pack.dialects.clone(),
         surface_rosters: pack.surface_rosters.clone(),
@@ -1919,6 +1920,7 @@ fn family_key(family: loader::HookFamily) -> &'static str {
         F::Constraints => "constraints",
         F::OptionArity => "-arity-hook",
         F::Evaluate => "evaluate",
+        F::StateTransitionResolver => "state_transitions.resolver",
     }
 }
 
@@ -2514,6 +2516,51 @@ command add_parameter {\narity 1..\n}\n}\n";
                 .and_then(Value::as_array)
                 .is_some_and(|lost| lost.iter().any(|k| k == "arg_role_resolver")),
             "the reloaded command should carry the resolver again"
+        );
+    }
+
+    /// A `state_transitions` resolver body is the author's Tcl like any other
+    /// hook body: a form edit carries the whole block forward verbatim, and
+    /// the reloaded command carries the descriptor again.
+    #[test]
+    fn a_state_transitions_resolver_body_survives_a_form_edit() {
+        let source = "speclib demo 2.1 {\n\
+                      command link {\n\
+                      \x20   arity 2..\n\
+                      \x20   state_transitions {\n\
+                      \x20       argument_shape Positional\n\
+                      \x20       resolver {words ctx} {\n\
+                      \x20           alias 1 0\n\
+                      \x20       }\n\
+                      \x20       commit MayCommitBeforeAbruptCompletion\n\
+                      \x20   }\n\
+                      }\n}\n";
+        let mut store = PackStore::from_source(source);
+        let mut edited = store.draft("link").expect("link").clone();
+        edited.insert("return_type".to_owned(), json!("String"));
+
+        let write = store.set_command("link", &edited, false);
+        assert_eq!(write.dropped, Vec::<String>::new(), "{}", store.source());
+        assert!(
+            store.source().contains("alias 1 0"),
+            "the resolver body survives verbatim:\n{}",
+            store.source()
+        );
+        assert!(
+            store
+                .source()
+                .contains("commit MayCommitBeforeAbruptCompletion"),
+            "{}",
+            store.source()
+        );
+        assert!(store.source().contains("return_type"), "{}", store.source());
+        assert!(
+            store
+                .draft("link")
+                .and_then(|d| d.get(draft::UNRENDERABLE_KEY))
+                .and_then(Value::as_array)
+                .is_some_and(|lost| lost.iter().any(|k| k == "state_transitions")),
+            "the reloaded command carries the descriptor again"
         );
     }
 

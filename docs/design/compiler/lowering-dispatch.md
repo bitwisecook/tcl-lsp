@@ -36,12 +36,12 @@ Lowerer::lower_command(seg, namespace)
     │   ├─ Proc          → extract params, lower body, register a Procedure
     │   ├─ When          → lower iRules event handler body (::when::EVENT#N)
     │   ├─ NamespaceEval → lower the namespace body
-    │   ├─ If            → lower_if()      → Statement::If with IfClause list
+    │   ├─ If            → lower_if()      → Statement::If from the clause plan
     │   ├─ For           → lower_for()     → Statement::For (init, cond, step, body)
     │   ├─ While         → lower_while()   → Statement::While (cond, body)
     │   ├─ Foreach/Lmap/ForeachLine → lower_foreach() → Statement::Foreach
     │   ├─ Catch         → lower_catch()   → Statement::Catch
-    │   ├─ Try           → lower_try()     → Statement::Try with TryHandler
+    │   ├─ Try           → lower_try()     → Statement::Try from the clause plan
     │   ├─ Switch        → lower_switch()  → Statement::Switch with SwitchArm
     │   └─ Dict / Eval / Uplevel / Apply / ArrayFor
     │
@@ -56,6 +56,41 @@ falls through to `lower_default`.  Trace-visible compilation
 (`CompileTarget::BytecodeTraced`) skips every hook and goes straight to
 `lower_default`, so an execution trace observes each command as a plain
 runtime dispatch.
+
+### Clause-carrying forms read the clause plan
+
+`lower_if` and `lower_try` never compare a keyword. Each asks the call's
+clause plan — `ResolvedInvocation::clause_walk`, the command's
+`ClauseGrammarSpec` walked over the words' *values* (a substituted word is
+computed, a backslash-escaped one decoded, so `\-` is `try`'s fall-through
+marker and `{\-}` is not) — and builds the statement from the clauses by
+their slots and timings:
+
+| Clause | `if` | `try` |
+|---|---|---|
+| an `Expr` slot and a `Body` | an `IfClause` | — |
+| the default clause (`else`, or the bare final body) | `else_body` | — |
+| `Protected` | — | the body |
+| `Selected`, its pattern slot carrying a `HandlerMatch` | — | a `TryHandler` whose `kind` is that `HandlerMatch`; a body word the plan reads as the marker is `fallthrough` |
+| `Always` | — | `finally_body` |
+
+A plan with a defect defers the whole construct to the runtime command, a
+`Statement::Barrier` in the words the runtime error would use; the clauses
+before the defect are lowered first, as the retired keyword walk lowered
+them. Where a computed word stands where a keyword or the marker could
+(`if $c {a} $w {b}`), the walk abstains and says where: the lowering reads
+the *inert* plan — every computed word matching nothing — to take the same
+steps, and still defers. A pack command stamped `lowering_hook -native Try`
+with `try`'s grammar under other keywords lowers to `try`'s own CFG
+(`tests/cfg.rs`'s `a_try_handler_walk_reads_timing_not_keywords`); without a
+grammar it stays one opaque statement. The registry reads the same plan for
+`try_control_invocation` and `control_arm_semantics`.
+
+The dispatcher resolves the head in `structured_dispatch`, a frame of its
+own: `try_dispatch_structured_hook` stays on the stack while the lowerer
+recurses into a command's bodies, and a resolution held there would cost the
+braced-body depth budget (`depth_guard::SOURCE_WALK_BYTES_PER_LEVEL`) its
+size at every nesting level.
 
 ### Lowering hooks — the `Set` hook
 

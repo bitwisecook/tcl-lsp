@@ -69,6 +69,11 @@ CC2.10, CC2.13, CC2.15) are dispatched separately after the opus items.
 | CC2.3 `clause_grammar` in the loader, renderer and studio | landed | same checkpoint as CC2.2 | loader builds the registry type (`ClauseGrammar`/`ClauseWalk` gone; subcommand grammars; derivations recorded, no placeholders); studio schema/draft/coverage/help/examples/render (Rust and `SpecTcl`)/store and a read-only form view; `if.tclspec` gains timings and its default clause, `foreach.tclspec` its grammar; 24 goldens and the callback inventory regenerated |
 | CC2.4 `MemberEffect` in the registry | landed | `wip(consumer-contracts): step 2 — member effects and the studio round trip` | the page's types verbatim plus `WrapperShift` (D2.31); `MemberSpec::effect` required on every constructor; every TclOO, snit, itcl, `SpecTcl` and `SslicTcl` member states one; `DefinitionBodyGrammar::member_row` (D2.32), `MemberArity::parse`, `MemberEffect::natural_receiver`, the `.tclspec` spellings; sweep `every_member_carries_an_effect_that_agrees_with_its_roles` (D2.33) and `no_member_effect_names_a_family`; eleven `definer.rs` unit rows |
 | CC2.5 `definition_body` and `semantic_operation` leave `GAPS` | landed | same checkpoint as CC2.4 | loader `-effect` / `-shift` on `member`, `member_option` rows, `family SpecTcl\|SslicTcl` (D2.35); studio seeds a shipped grammar by name — by data, not pointer (D2.34) — or the whole block, `semantic_operation` as `{kind, detail}`; both renderers write both; the two `GAPS` rows deleted; `DefinitionBody` / `SemanticOperation` field kinds, catalogues, help, examples, form (D2.36); `snit-type.tclspec` gains `-effect` on every row; the `oo-class` / `snit-type` golden hashes regenerated |
+| CC2.8 the derived-query layer | landed | `wip(consumer-contracts): step 2 — the derived-query layer` | `CommandRegistry::invocation(words, ctx)`; `ResolvedInvocation` carries its `SurfaceQuery` and selection; `arg_roles`, `pattern_args`, `case_invocation`, `frame_effect`, `return_type`, `effects` added, `clause_plan` / `option_effects` / `substitutions_performed` lose the `dialect` parameter; one rule per query shared with the by-name functions (`arg_roles_in`, `command_prefixes_in`, `pattern_args_in`, `layout_is_proven_in`); `derived_queries_agree_with_the_by_name_answers`; D2.37–D2.43 |
+| CC2.14 the `state_transitions` resolver family in the loader | landed | `wip(consumer-contracts): step 2 — the state-transition resolver family` | `HookFamily::StateTransitionResolver` (thirteenth family: `alias LOCAL TARGET ?-level LEVEL?`, `namespace-variable NAME`, silence "no transitions", field `state_transitions.resolver`); `PackTransition`, the thunk and `STATE_TRANSITION_RESOLVER_NATIVE`; `alias_pairs_resolver` for `from-frame-effect`; the loader reads every `state_transitions` row; 21 corpus notices and the two port goldens move; D2.44–D2.49 |
+| CC2.9 clause consumers in the compiler | landed | `wip(consumer-contracts): step 2 — lowering and the analyser read the clause plan` | `lower_if` / `lower_try` from `ResolvedInvocation::clause_walk` (values; the inert reading on abstention); `TryHandler::kind: HandlerMatch` (IR, inlining, `executable_ir.rs`, `cfg_lower.rs`'s `on ok` through the completion-code parse, the diagram's wire spelling); `handle_try_command` walks the plan; `handle_for_command` gone — the generic body walk reads timings; `owner_of_keyword` for the stray-keyword report; `signature_scan/walker.rs` reads clause bodies; the registry's `try_control_invocation` parses the plan; `a_try_handler_walk_reads_timing_not_keywords` (and its negative); four files in `CLEAN_FILES`, `structured.rs` 19 → 8 and `handlers.rs` 20 → 9 pinned; the deprecated `effect_footprint` alias removed; D2.50–D2.62 |
+| CC2.11 member consumers | landed | `wip(consumer-contracts): step 2 — members by effect` | every member statement read through its `MemberRow`: one `match` on the effect (`member_landing`) routes `apply_oo_subcommand_in` and the snit and itcl walkers — `apply_oo_private`, `apply_oo_self`, the sided-effects helper, the `filter` keyword test, `apply_oo_ctor_or_dtor`, the snit `type` prefix and the itcl keyword maps gone; `CallableRole::Procedure` for snit's `proc` (D2.63); `MethodKind::from_effect` in `ir.rs`, `from_str_lossy` and `member_method_kind` gone, the lowering's frame read off the row; the providers read the recorded member (`MethodDef::is_declared_by_keyword`, `kind`); the per-item path's `PackDefiner` fallback (D2.70); `a_pack_declared_member_spelling_reaches_every_provider` and its negative; `oo.rs` 43 → 5, `lowering/mod.rs` 26 → 19, `ir.rs` 5 → 2, `hover.rs` 6 → 4, `references.rs` 6 → 1, `definition.rs` and `workspace_index.rs` to `CLEAN_FILES`; D2.63–D2.71 |
+| CC2.12 transitions, roles, special variables and the package layout | landed | `wip(consumer-contracts): step 2 — transitions, roles and special variables` | `apply_state_transitions` applies every `VariableCellAliasTransition` from the dispatch tail, over the call's source words (`resolve_invocation_words_in_context`, `SourceCall`); `VariableCellAliasTransition::words: AliasWords` (D2.72); the `global`, `variable`, `upvar`, `namespace upvar`, `dict for`, `dict update`, `incr` and `append` / `lappend` handlers gone — one binder reads `LoopVarList` / `VarWrite` roles (D2.74), `foreach` binds through it; `package require` / `provide` / `ifneeded` read roles (`package_require_arg_roles`, `-exact` exact-spelt) and `-exact` from the option run (D2.76); `interp create` reads `InterpreterTransition::Create`, direct and nested, with the resolver on the C option scan (D2.77); `special_var` pack statement, `CommandRegistry::special_vars()` door, the two `auto_path` arms one registry read (D2.78–D2.80); witness `alias_and_binding_resolvers_abstain_on_a_dynamic_word`; `a_pack_declared_scope_alias_binds_its_local` and `a_pack_declared_special_variable_is_readable_at_startup`; the six `until step 2` waivers gone (`handlers.rs` stays at 9 pinned); `package require`'s dynamic role pinned in the callback baseline; D2.72–D2.82 |
 
 ### Behavioural deltas accepted in step 2
 
@@ -106,6 +111,239 @@ CC2.10, CC2.13, CC2.15) are dispatched separately after the opus items.
   The `oo-class` and `snit-type` pack goldens' spec hashes moved (the
   `MemberSpec` literal gained two fields); no EDA pack declares a grammar.
 
+- CC2.14: a pack's `state_transitions` block loads every row
+  (`argument_shape`, `resolver`, `widen`, `covers`, `commit` beside
+  `composition`), where each was dropped with "not yet loadable"; a value a
+  row cannot read is dropped with its own notice. The `oo-class` port's
+  three `resolver -native` ids now read `SCOPE::state_transitions.resolver`
+  and name nothing this build ships (three notices); the `upvar` port's
+  `from-frame-effect` derives. The corpus baseline loses 21 notices and
+  gains those three; the `oo-class` and `upvar` goldens move.
+
+- CC2.9: `lower_if` follows the grammar where the retired keyword walk
+  did not. `if 0 {a} {b}` — a bare final body, valid Tcl (tclsh 8.6 runs
+  `b`) — lowers to `Statement::If` with that `else` body, where the walk
+  deferred it as "extra words"; a condition spelt like a keyword
+  (`if else {a}`, `if elseif c {a}`, `if 0 {a} elseif else {b}`) is lowered
+  as the expression it is (tclsh: `invalid bareword "else"`), where the
+  walk skipped the keyword and mis-lowered `if elseif c {a}` as `if c {a}`
+  and the third as an `else`; `if 1 {a} $w` lowers its bare final body's
+  barrier as "if with non-literal body" rather than "if with extra words".
+- CC2.9: `lower_try` defers `try … finally {…} on …` (tclsh: "finally
+  clause must be last"), which the walk lowered with both clauses; a chain
+  whose clause word is computed defers before its protected body is
+  lowered (the walk lowered the body first, then deferred).
+- CC2.9: `cfg_lower.rs`'s `on ok` edge reads the registry's completion-code
+  parse, so `on 0` (and `+0`, `0x0`) is `on ok` too.
+- CC2.9: `for` bodies take the generic body walk: an unbraced one draws W105
+  as `while`'s does, and a bareword body (`for {} {$i<3} {incr i} step`) is
+  processed as a call, where `handle_for_command` walked each word as a
+  script. `start` still runs at the enclosing depth; `next` and the body
+  at a control-flow depth, as before.
+- CC2.9: the analyser's `try` walk and the signature scan stop at a chain's
+  first defect (`try {a} bogus on error {} {b}` no longer walks `{b}`), and
+  neither walks a braced `{-}` marker as a script.
+- CC2.9: `[catch …]` nested in a substitution binds its result words when
+  its head resolves to the `Catch` hook (a `::catch` spelling too), and
+  `[list namespace unknown H]` is recognised through `BUILDS_COMMAND_PREFIX`
+  and the `NamespaceUnknown` hook.
+
+- CC2.11: a wrapped `TclOO` member lands by its row where the old arms
+  ignored every wrapped spelling but `method` / `classmethod` and the sided
+  words: `private variable x` declares an instance variable (tclsh 9.0.4:
+  the class's methods read it back), `private forward f cmd` a private
+  forward, `private superclass` / `private mixin` fold into the class's
+  slots, `self private method m` (and `private self method m`) a private
+  class method, `private constructor` the constructor. A class-object
+  `forward`, `variable`, `superclass` or `mixin` stays unrecorded.
+- CC2.11: `self constructor` / `self destructor` (tclsh 8.6.18 and 9.0.4:
+  `invalid command name "constructor"`) no longer lift a lowering unit or
+  collect a class-side body; a `foreach` installer's `self method $m` records
+  class methods, where it recorded instance methods.
+- CC2.11: a computed word where `TclOO`'s optional method word may stand
+  (`method m $opt {} {…}`) makes the statement unreadable: the analyser
+  records no member (it read the fixed layout) and the lowering marks the
+  class unanalysed (it lifted the method under the fixed layout).
+- CC2.11: an itcl `protected` member's `MethodDef::visibility` is
+  `unexported`, the registry's spelling of the tier (it was `protected`);
+  every consumer compares with `public` / `private`, so no answer moves.
+  The IR's `MethodKind` for a snit or itcl `proc` body is `ClassMethod`
+  (was `Method`); its one reader is `TclOO`'s `self class` fold.
+- CC2.11: a document that invokes a definer only a workspace pack declares
+  takes the per-item path's full-analysis fallback (`PackDefiner`), so the
+  class it defines reaches the editor (the per-item shell reads the
+  un-overlaid store, where the definer has no grammar); every fresh
+  full-analysis fallback now carries the pack overlay, which it dropped.
+- CC2.12: a scope alias binds through the registry's alias facts. `global
+  {$x}` (braced) binds the local `$x` (it was skipped: the handler tested
+  the brace-stripped text for `$`); a `namespace upvar` whose namespace or
+  `otherVar` word is computed still defines its local but links it to no
+  cell (it linked a path spelt from the substitution text); a `{*}` word
+  in an `upvar`, `namespace upvar` or `variable` call leaves its layout
+  unknown, so the call binds nothing (`upvar {*}$lvl a b` bound `b`); a
+  pack command whose `state_transitions` resolver states alias facts binds
+  as `upvar` does.
+- CC2.12: one binder reads the roles. `lmap`, `dict map` and `array for`
+  loop variables bind (nothing bound them); a nested `[lmap …]`, `[foreach
+  …]` or `[dict for …]` binds its loop variables in the enclosing scope (the
+  substitution path ran only the `VarWrite` binder); `foreach $names …` and
+  `dict for $kv …` no longer define `names` / `kv` (a computed var list
+  names nothing); a written array element binds its array for every
+  `VarWrite` command (`lassign $l a(1)`, `regexp … m(1)`), as `incr` /
+  `append` / `lappend` did, and a braced written name with a space binds
+  (`lassign $l {a b}`); a computed written name (`incr $name`, `append
+  $name x`) no longer defines `name`; `dict update d k {a b} body` binds `a`
+  and `b` — the role is a list, where Tcl binds one variable `a b`, the
+  reading the SSA harvester and `script_binds` already give it; `incr`'s
+  `VarDef::warn_if_unused` is `false` (D2.75); a head the walk's context
+  does not provide binds nothing (invariant I4).
+- CC2.12: `package require -exact` with no package records nothing (tclsh
+  8.4–9.0: `wrong # args`), where it recorded a package named `-exact`;
+  `package require -e 1.0` records nothing — `-e` is a package name to Tcl,
+  but the registry's option scan reads a dash word naming no option as a
+  call Tcl rejects (D2.76).
+- CC2.12: `interp create` follows the C option scan. `interp create -s x`
+  records a safe `x` (it was unsafe); `interp create -bogus x`, `x --` and
+  `-` create nothing (the scan recorded `x`, `x`, nothing); `set i [interp
+  create a b]` and `set i [interp create n -bogus]` bind `i` to nothing
+  (they bound an auto-named interpreter and `n`); `interp create $opt
+  child` makes interpreter existence unknowable (it recorded nothing);
+  `interp create {$x}` records an interpreter named `$x` (a braced literal,
+  which the parse treated as dynamic).
+- CC2.12: `set auto_path …` / `lappend auto_path …` record the search path
+  only where the dialect provides `auto_path` writable, so iRules records
+  nothing and no longer flips `has_dynamic_providers`; a nested `[lappend
+  auto_path DIR]` records its directory (the substitution path never did).
+
+### CC2.12 — what the next items read
+
+- **The alias consumer.** `Analyser::apply_state_transitions(&mut self,
+  inv: &ResolvedInvocation, args, arg_tokens, scope_path)` applies every
+  `VariableCellAliasTransition` the invocation states; the dispatch tail
+  calls it for every command whose descriptor declares transitions, over
+  `SourceCall` — the call's head and word facts (`source_invocation_word`:
+  `{*}` expanded, braced or substitution-free literal, else computed) with
+  the walk's registry and context, resolved by
+  `tcl_registry::model::resolve_invocation_words_in_context` (I4).
+  `dispatch_command_handlers` and `dispatch_analyser_hook` take
+  `WordFacts { single, expanded }`.
+- **The binder.** `handle_var_binding_command(cmd_name, args, arg_tokens,
+  scope_path)` binds every `LoopVarList` (a static list, each name at its
+  element's span) and `VarWrite` (`names_static_variable`) position the
+  roles name, over the words' spellings (`read_spelled_invocation`, the
+  literal view, D2.74). It also records `lappend auto_path DIR…` from the
+  descriptor's `VarElementsEffect::AppendsListElements`.
+- **The hook arms CC2.13 retires.** `Hook::For`, `Global`, `Variable`,
+  `Upvar`, `NamespaceUpvar`, `Incr`, `Append`, `Lappend`, `DictFor` and
+  `DictUpdate` are one `=> false` arm in `dispatch_analyser_hook`: no
+  handler runs, so the variants carry only their stamps; `Try` keeps
+  `handle_try_command` (the CC2.9 note stands). `Set` keeps
+  `handle_set_command` and the `set auto_path` record
+  (`record_search_path_write`), `Foreach` the literal-iteration simulation,
+  `InterpCreate` `handle_interp_create_command(&StateTransitions)`, the
+  three `Package*` arms their handlers — each now reading roles.
+- **The registry.** `VariableCellAliasTransition::words: AliasWords {
+  local, target }` (`AliasWords::same(i)` for a one-word alias);
+  `CommandRegistry::{insert_special_var, special_vars, special_var,
+  special_var_in_dialect, special_vars_for_dialect,
+  is_readable_at_startup}`; the free `special_vars::*` functions read the
+  shipped table only (D2.78). `package require` has
+  `package_require_arg_roles` (`Name` then `Value`s after the option run)
+  and `PrefixMatching::Strict`, as has `present`; `provide` and `ifneeded`
+  declare `(0 Name) (1 Value)`. `interp create`'s resolver reads the C
+  option scan (`create_reads_the_c_option_scan`).
+- **Not yet in the editor's per-item path.** `per_item_setup` reads the
+  un-overlaid store by design (D2.70), and the tail's `SourceCall` resolves
+  against the walk's store, so a pack command's alias facts bind in a full
+  analysis (`Analyser::analyse`, the CLI, the MCP server, the per-item
+  path's `PackDefiner` fallback) but not in the server's memoised per-item
+  walk; carrying the overlay into the per-body memo key is the question
+  D2.70 left open.
+- **The value-transfers lane (B1).** W210's startup read
+  (`diagnostics/dataflow.rs`'s `startup_read_facts`, `helpers.rs`'s
+  `StartupFacts::for_name`), the `[info exists]` fold (`sccp.rs`) and the
+  taint seed (`taint.rs`) read the free functions; switching each to the
+  registry door (`registry.is_readable_at_startup(name, dialect)`,
+  `registry.special_vars_for_dialect(dialect)`) makes a pack's startup
+  binding silence W210 there — one call per site, handed to that lane.
+
+### CC2.11 — what the next items read
+
+- **The routing.** `analyser/oo.rs`'s `MemberStatement::read(grammar,
+  texts, argv, dialect)` reads one member statement through
+  `DefinitionBodyGrammar::member_row` over structured words (a braced or
+  substitution-free word is its literal, anything else computed — D2.64);
+  `member_landing(grammar, member, row) -> MemberLanding` is the one
+  `match` on `MemberEffect`, and `apply_oo_subcommand_in`, the snit walker
+  (`dispatch_snit_member`) and the itcl walker all read it. Members are
+  still recorded under their written spelling (`${m}` stays in the
+  outline).
+- **The IR.** `MethodKind::from_effect(role: CallableRole, receiver:
+  MemberReceiver) -> Option<MethodKind>`; the lowering's `MemberFrame::of_row`
+  adds the definition-time script rule (D2.65). `MethodDef::kind` (the
+  analyser's) is `MethodKind::as_str()` or `forward`.
+- **The vocabulary.** `CallableRole::Procedure` (`-role procedure`) for a
+  procedure in the definition's own namespace; snit's `proc` states it,
+  itcl's `proc` keeps `-role method` on the type object (D2.63).
+- **The providers.** `MethodDef::is_declared_by_keyword(word)` answers
+  whether a nameless member was declared by the keyword under the cursor;
+  hover, definition, references and document symbols read `kind` from the
+  member. `workspace_index.rs` spells the class side
+  `MethodKind::ClassMethod.as_str()` and the visibilities through
+  `DeclaredMemberVisibility`.
+- **The ledger.** `CLEAN_FILES` gains `tcl-lsp-core`'s `definition.rs` and
+  `workspace_index.rs`. Pinned: `analyser/oo.rs` 5 (the `property` flag
+  words, three, until the 9.0 `property` accessor rows; snit's type-body
+  implicit `type`, one; the unknown-proc walk's `default` arm, one — D2.68),
+  `ir.rs` 2 (`SwitchMode`), `lowering/mod.rs` 19 (none on the member axis),
+  `hover.rs` 4 (regex tokens), `references.rs` 1 (the `switch` marker).
+  The value-transfer ledger loses `analyser/oo.rs`'s row and
+  `lowering/mod.rs` drops to 1 (D2.71).
+
+### CC2.9 — what the next items read
+
+- **The plan's walks.** `ResolvedInvocation::clause_walk() ->
+  Option<Result<ClausePlan, ClauseAbstention>>` walks the words' *values*
+  (`InvocationWord::Literal`), so the fall-through marker is compared
+  exactly; `Err` names the first computed word the walk compared and carries
+  the *inert* plan (every computed word matching nothing) — never the call's
+  plan, only how far its literal clauses go (D2.52). `clause_plan()` is
+  `clause_walk()?.ok()`. The spelling walks (`ClauseGrammarSpec::walk`,
+  `CommandSpec::clause_plan`, `CommandRegistry::clause_plan`, the new
+  `ResolvedCall::clause_plan(args, dialect)`) keep the one-layer strip for
+  callers holding source spellings (D2.50).
+- **Reading a clause.** `ResolvedClause::operand(role)` (the first operand
+  of a slot of `role`) and `ResolvedClause::handler()` (the pattern operand
+  and its `HandlerMatch`); `ClausePlan::falls_through(index)` — a clause
+  whose body word is the marker, target or not. A marker falls through to
+  the next `Selected` clause only, never to `finally` (D2.51).
+- **The compiler.** `TryHandler::kind: HandlerMatch` (re-exported as
+  `tcl_compiler::ir::HandlerMatch`); `lower_if` / `lower_try` in
+  `lowering/structured.rs` build from `clause_walk_of(seg)`; the dispatcher
+  resolves in `structured_dispatch` (D2.60). The editor refactors
+  (CC2.10) can ask either walk; `if_to_switch`'s shape is `lower_if`'s.
+- **The analyser.** `ResolvedAnalyserHook::clause_plan` (walked at the
+  document's authoring point) is what `handle_try_command` takes;
+  `Analyser::clause_plan_in_context` answers the same plan for a head the
+  generic body walk resolves, and `body_depths` maps each body's timing to
+  its two depths (D2.55). `Hook::For => false` routes `for` to that walk: the
+  `For` variant has no handler left for CC2.13 to delete, only its stamp.
+  `Try` keeps `handle_try_command` — retiring it (CC2.13) moves `try` onto
+  the generic walk, where a handler body is `Selected` (conditional *and*
+  control-flow) while the handler walked it conditional only, and the
+  var-list slot binds nothing: CC2.13 must carry both or record the delta.
+- **The ledger.** `CLEAN_FILES`: `analyser/commands.rs`,
+  `cfg_builder/cfg_lower.rs`, `executable_ir.rs`, `signature_scan/walker.rs`.
+  Pinned: `lowering/structured.rs` 8 (the `switch` option parser, five; the
+  `dict` subcommand routing, three), `analyser/handlers.rs` 9 (the ensemble
+  configuration walk and its `dict merge` splice, eight; `$handle eval`,
+  one), `tcl-diagram`'s `data.rs` 4 (D2.59). Waived until step 2, for
+  CC2.12: `handlers.rs`'s `interp create` flag scan and nested
+  `[interp create …]` (`InterpreterTransition::Create`), `package require
+  -exact`, and the two `auto_path` arms. Waived until slice 8: the four
+  `set VAR [CLASS new]` sites in `commands.rs` (VT8.9). Irreducible: W218's
+  variadic `args`.
+
 ### CC2.6 — what the next items and the value-transfers lane read
 
 - **The answer.** `tcl_registry::option_effect::OptionEffects { axes:
@@ -124,10 +362,10 @@ CC2.10, CC2.13, CC2.15) are dispatched separately after the opus items.
   `CommandSpec::substitutions_performed(args, dialect) ->
   Option<SubstitutionKinds>`, `CommandSpec::option_selects_pattern_language()`,
   `CommandSpec::option_selecting(axis) -> Option<&'static str>`.
-- **Per resolution.** `ResolvedInvocation::option_effects(dialect)` and
-  `ResolvedInvocation::substitutions_performed(dialect)`, over the selected
+- **Per resolution.** `ResolvedInvocation::option_effects()` and
+  `ResolvedInvocation::substitutions_performed()`, over the selected
   table (`InvocationSemantics::option_scope`); `option_end` is post-head.
-  CC2.8 drops the `dialect` parameter when the resolution carries its query.
+  CC2.8 dropped the `dialect` parameter: the resolution carries its query.
 - **The registry projection.** `CommandRegistry::substitutions_performed(name:
   &str, args: &[&str]) -> Option<SubstitutionKinds>`, signature unchanged,
   under the registry's own profile.
@@ -163,9 +401,9 @@ CC2.10, CC2.13, CC2.15) are dispatched separately after the opus items.
   `CommandSpec::clause_plan(args, dialect)` /
   `SubCommand::clause_plan(args_after_sub, dialect)`;
   `CommandRegistry::clause_plan(name, args)` (post-head coordinates,
-  subcommand resolved); `ResolvedInvocation::clause_plan(dialect)` (post-head
-  coordinates; `None` on expansion or a computed word where a keyword could
-  stand). `CommandSpec::clause_shape_defect(args, dialect)` /
+  subcommand resolved); `ResolvedInvocation::clause_plan()` (post-head
+  coordinates, under the resolution's query since CC2.8; `None` on
+  expansion or a computed word where a keyword could stand). `CommandSpec::clause_shape_defect(args, dialect)` /
   `CommandRegistry::clause_shape_defect(name, args)` is E004's source.
 - **Vocabulary.** `ClauseTiming::spelling`/`from_spelling`,
   `ClauseSelection::spelling`/`from_spelling`,
@@ -177,7 +415,8 @@ CC2.10, CC2.13, CC2.15) are dispatched separately after the opus items.
   / `clause_noise_keywords()` (already called by `semantic_tokens.rs`,
   `minify.rs` and `gen_tmlanguage_keywords.rs`; CC2.10's remaining work there
   is the `then` literals and the refactors).
-- **Still reading keywords by spelling** (CC2.9/CC2.10's): `lower_if`,
+- **Still reading keywords by spelling** (CC2.9/CC2.10's; since CC2.9 only
+  the editor refactors and `tcl-mcp`'s `datagroup.rs` remain): `lower_if`,
   `lower_try`, `handle_try_command`, `orphaned_keyword_parent`,
   `cfg_lower.rs`'s `on ok`, `signature_scan/walker.rs`, the editor refactors,
   `tcl-mcp`'s `datagroup.rs`, and the registry's own
@@ -221,11 +460,79 @@ CC2.10, CC2.13, CC2.15) are dispatched separately after the opus items.
   `draft::definition_body_block(grammar)` (public) and the draft keys
   `definition_body` (null / name / block) and `semantic_operation` (null /
   `{kind, detail}`).
-- **Still keyed on member spellings** (CC2.11's): `apply_oo_subcommand_in`'s
-  arms, `apply_oo_private` / `apply_oo_self`, `extract_property_defs`,
+- **Formerly keyed on member spellings** (CC2.11's, landed):
+  `apply_oo_subcommand_in`'s arms, `apply_oo_private` / `apply_oo_self`,
   `MethodKind::from_str_lossy`, the snit / itcl body walkers and the
-  `constructor` / `destructor` literals in `tcl-lsp-core`. None reads
-  `member_row` yet; CC2.11 moves them onto it.
+  `constructor` / `destructor` literals in `tcl-lsp-core` read `member_row`
+  now; `extract_property_defs` keeps its flag words (D2.68).
+
+### CC2.8 — what the next items read
+
+- **The resolution.** `CommandRegistry::invocation(words: InvocationWords<'w>,
+  ctx: &AnalysisContext) -> StructuredInvocationResolution<'r, 'w>` is
+  `resolve_structured_invocation(words, ctx.surface_query())`;
+  `AnalysisContext::surface_query()` answers the profile's
+  `SurfaceQuery<'static>` (the one addition to `value_transfer/context.rs`,
+  B1 — the value-transfers lane is to be told). `ResolvedInvocation::dialect:
+  Option<SurfaceQuery<'w>>` is the query it resolved under, and a
+  crate-private `selected` holds the spec, the subcommand (or instance
+  method) and whether it is an instance call. `resolve_invocation`,
+  `resolve_structured_invocation` and the instance pair take
+  `SurfaceQuery<'w>` (D2.39).
+- **The queries**, all `&self` with no `dialect` parameter:
+  `clause_plan() -> Option<ClausePlan>`; `option_effects() -> OptionEffects`;
+  `substitutions_performed() -> Option<SubstitutionKinds>`;
+  `arg_roles() -> Option<Vec<(usize, ArgRole)>>` — post-head, sorted by
+  position and then `ArgRole::ALL` order, `CommandPrefix` included, `None`
+  for an expansion, a computed subcommand word, or a computed word where a
+  resolver reads an option (D2.37); `pattern_args() -> Vec<PatternArg>`;
+  `case_invocation() -> Option<(CaseInvocation, Vec<InlineCaseClause>)>`
+  (D2.40); `frame_effect() -> Option<(FrameLevel, Vec<OperandId>)>` with
+  post-head operands (D2.41); `return_type() -> Option<TclType>` (D2.41);
+  `effects() -> EffectFootprint`, whose former name `effect_footprint` is a
+  `#[deprecated]` alias for one checkpoint (D2.42). `member_rows` is
+  `DefinitionBodyGrammar::member_row` (D2.6); `template_plan` is slice 5's
+  (D2.4).
+- **One rule each** (`registry.rs`, crate-private): `arg_roles_in(spec, sub,
+  args, wanted, dialect, case_gate, option_patterns)` — the per-role
+  `arg_indices_for_role` is its single-role filter — `command_prefixes_in`,
+  `pattern_args_in`, `layout_is_proven_in`, `sort_role_table`,
+  `sub_options_at`. The by-name methods pass their release-blind
+  subcommand; the queries pass the resolution's (D2.38).
+- **Nothing consumes the queries yet.** Every compiler, analyser and editor
+  call site still asks the by-name functions; CC2.9–CC2.12 move them, and
+  the by-name functions go as their last callers do.
+
+### CC2.14 — what the next items read
+
+- **The family.** `HookFamily::StateTransitionResolver` (index 12,
+  `HOOK_FAMILIES: [HookFamily; 13]`): verbs `alias LOCAL TARGET ?-level
+  LEVEL?` and `namespace-variable NAME`, word indices each; silence "no
+  transitions"; not literal-only. `HookAnswer::Transitions(Vec<PackTransition>)`
+  and `pack_hooks::state_transition_resolver_fn(slot)`; the thunk reads each
+  index against the call's own `InvocationArguments`: a literal alias is a
+  `VariableCellAliasTransition` (`CallerSelectedFrame` for `alias`, the
+  current namespace's cell under its tail for `namespace-variable`), a
+  computed word widens `VARIABLE_ALIAS_DOMAINS` (`VariableCells`,
+  `VariableTraces`) instead, an index past the call names nothing (D2.44,
+  D2.45).
+- **The derivation.** `state_transition::alias_pairs_resolver(level_word)`
+  — the `from-frame-effect` resolver for an `AliasPairs` frame effect, with
+  the README's two abstentions, each widening (D2.46). The loader installs it
+  at the command's seal (`derive_transitions_from_frame_effect`), for the
+  command and its subcommands.
+- **The loader.** `state_transitions_value` reads `composition`,
+  `argument_shape`, `resolver none|from-frame-effect|-native ID|{words ctx}
+  {…}`, `widen -operands EveryArgument|{Indices N …}|{Strided F S} -domains
+  {…}`, `covers SOURCE -domains {…}`, `commit`; a body is a `HookDecl` with
+  field `state_transitions.resolver` and the abstaining placeholder until
+  `tcl_spectcl::hooks` binds its slot; a form binds no body (D2.47).
+  `StateTransitionDomain::ALL` is the domain vocabulary.
+- **What CC2.12 consumes.** A pack command's alias facts arrive through
+  `ResolvedInvocation::state_transitions()` exactly as a shipped command's
+  do; a dynamic level or name word in a pack resolver states no alias for
+  that fact (CC2.12's negative test), where the shipped `upvar` states one
+  with an unknown subject.
 
 ## Plan for steps 2–10
 
@@ -2444,6 +2751,382 @@ everything else in this lane is independent of both.
   `semantic_operation_spelling`), which the studio renderer calls and
   `eval_loader`'s `semantic_operation_round_trips_through_the_renderer`
   reads back, since `tcl-spectcl` cannot depend on the studio.
+- **D2.37** `ResolvedInvocation::arg_roles` answers
+  `Option<Vec<(usize, ArgRole)>>`, not the plan's `Vec`: the function it
+  re-keys, `arg_indices_for_role_words`, answers `None` for an expansion, a
+  computed subcommand word, or a computed word where a resolver reads an
+  option, and the page's second rule requires the abstention to travel with
+  the answer. An empty call is read (`Some` of nothing), where the by-name
+  function abstained on an empty ensemble call. Reason: a consumer moving
+  onto the query must be able to tell "no roles" from "cannot tell".
+- **D2.38** The queries read the resolution's own selection — its spec and
+  the subcommand it selected under its release — where the by-name
+  functions look the subcommand up release-blind; the two differ only for a
+  subcommand the release lacks or a prefix whose uniqueness the release
+  changes (`array d a s` at 8.6 selects `donesearch`, which a release-blind
+  lookup finds ambiguous with 9.0's `default` —
+  `a_prefix_the_release_makes_unique_selects_its_subcommand`), and
+  `derived_queries_agree_with_the_by_name_answers` (every shipped command of
+  every loadable dialect, literal words) and
+  `arg_roles_agree_with_the_registry_role_answer_on_computed_words` (a
+  corpus of computed words under 8.6 and 9.0) hold them equal everywhere
+  else. Each rule exists once: the in-flight copy of the role, prefix,
+  pattern and layout-proof bodies became the one body the by-name methods
+  delegate to, parameterised by the caller's selection, and the role fold
+  answers every wanted role in one pass (`arg_roles` asked the per-role
+  core once per role, re-walking the grammar and the resolver 26 times).
+  Reason: the page's third rule — every answer under the context's release
+  — and one rule per axis.
+- **D2.39** The resolution stores its query as `SurfaceQuery<'w>` (the
+  words' lifetime) rather than adding a lifetime to `ResolvedInvocation`;
+  the resolvers take `SurfaceQuery<'w>`, which no caller had to change
+  (the query is covariant), and `resolve_invocation_in_context` borrows its
+  context for `'w`. The option tables are the profile-less
+  `option_specs(dialect)`; a profile-bound registry's `ProfileQueries`
+  table can differ only for a profile whose query names no release but
+  whose version ceiling excludes an option. Reason: the plan fixes the
+  query as the key, and the growth (a query and two pointers) keeps the
+  compiler's constrained-stack test (`the_source_walk_cap_fits_its_stack_budget`)
+  green.
+- **D2.40** `case_invocation` abstains when its reading depends on a
+  computed word's value: it must hold whether each computed word is an
+  operand or a dash word — in the option run always, and at a clause start
+  only where the descriptor declares per-clause flags, since
+  `inline_clauses` reads any dash word at a clause start as a flag attempt
+  and `switch x $p {…}` would otherwise abstain. `arg_roles`' case-body
+  gate keeps the by-name placeholder reading. Reason: the page's second
+  rule for the new query, and parity for the re-keyed one (`case $x in {…}`
+  keeps its body roles, as `arg_indices_for_role_words` gives them).
+- **D2.41** `return_type` feeds a return-type hook a computed word spelt
+  `$` — the hooks' own reading of a substituted source word
+  (`switches_are_certain`) — and abstains under an expansion, so it answers
+  what `return_type_for_call` answers over the source text (`lsearch $l
+  $p` is `Int`); `frame_effect` parses the level with
+  `FrameLevel::parse_for` under the query's Tcl release (`upvar 010 a b` is
+  8 up at 8.6 and 10 at 9.0), where `FrameEffectSpec::resolve_for_version`
+  parses release-blind, and a query naming no Tcl release (a vendor
+  profile) answers `Dynamic` where the releases disagree. Reason: parity
+  where a caller's answer exists, the context's release where the answer
+  is new.
+- **D2.42** `effect_footprint` stays one checkpoint as a `#[deprecated]`
+  alias of `effects`; no caller outside the registry used it, and the
+  registry's own tests call `effects`. Reason: the plan's one-checkpoint
+  alias, for a concurrent lane mid-edit.
+- **D2.43** The loader's `member_row` (CC2.5) was 103 lines, which the
+  pedantic `too_many_lines` rejects. The coordinator's d89c7ea0 split its
+  named flags into `member_named_flag` on the main branch while CC2.8 split
+  the blank row out; after the rebase the CC2.8 split was dropped, so the
+  main branch's fix is the only one. Reason: one fix per defect.
+- **D2.44** The verbs name words by index, and the thunk, not the body,
+  builds each fact from the call's own words. Reason: a body sees a
+  computed word as the empty string, so only the host knows it is computed;
+  reading the index there makes "abstain and widen on a dynamic word" the
+  family's guarantee rather than each author's discipline, and the typed
+  `PackTransition` has no variant for any other family.
+- **D2.45** `namespace-variable NAME` states the alias `variable` states —
+  a local under the name's tail bound to the current namespace's cell — and
+  no verb builds a `NamespaceTransition`. Reason: the tree has no namespace
+  transition for a variable declaration (`variable_state_transitions`
+  states it as a `VariableCellAlias` with a `CurrentNamespace` target), and
+  the ruling permits namespace facts without requiring them; a namespace
+  verb is a later need's.
+- **D2.46** `from-frame-effect` takes the README's pinned abstentions (a
+  computed level word aborts the call; a computed pair member skips its
+  pair) and widens for each, where the shipped `upvar_state_transitions`
+  states the alias with an unknown subject. Reason: the page's resolver
+  contract ("abstains … widens rather than producing a narrower fact") is
+  the pack's, and CC2.12's negative witness needs a pack alias with a
+  computed level word to bind nothing; the shipped resolver keeps its own
+  answer. It is registry code (`alias_pairs_resolver`, one fn per level-word
+  policy) because a resolver pointer cannot carry the frame effect.
+- **D2.47** A `-native` resolver id is `SCOPE::state_transitions.resolver`
+  (the `SCOPE::FIELD` rule the loader's other tables use, and the field
+  `HookFamily::field` names), looked up in
+  `STATE_TRANSITION_RESOLVER_NATIVE`, which ships empty like most families'
+  tables; the `oo-class` port's ids were respelt to that form. A form's
+  resolver may be `none` or `-native ID` only — forms bind no body and own no
+  frame effect. Reason: one id rule; populating the table with the shipped
+  resolvers is not this item's.
+- **D2.48** The studio keeps `state_transitions` one `DraftOpaque` `GAPS`
+  row; its spelling now lists the rows, and
+  `a_state_transitions_resolver_body_survives_a_form_edit` proves the
+  author's block — resolver body included — is carried forward verbatim.
+  The plan's "the row shrinks to the resolver's `-native` form" is not
+  taken: a draft holds no hook body for any family (every body survives by
+  the pack store's carry-forward of its whole statement), so drafting the
+  plain rows while the resolver stayed opaque would make a form edit write
+  a block without the author's body. Reason: shrinking the row needs hook
+  bodies in drafts, a studio change beyond this item — recorded as
+  remaining.
+- **D2.49** `callback-inventory --check` is unchanged: a pack resolver body
+  is a hook body, not a Tcl callback position in a shipped spec, so it adds
+  no inventory row or tier. The plan's "a new executable position tier" did
+  not materialise.
+- **D2.50** The value walk (`ClauseGrammarSpec::walk_words`, which is
+  `ResolvedInvocation::clause_plan`'s) compares the fall-through marker
+  exactly; the spelling walks keep the one-layer strip. Reason: an
+  invocation word's literal is its Tcl *value*, so a value `{-}` (the source
+  `"{-}"`) is a script, while a caller holding source spellings still reads
+  the braced `{-}` as the marker. `arg_roles` keeps the spelling rule D2.38
+  pins it to.
+- **D2.51** A marker falls through to the next `Selected` clause only; a
+  marker with none after it has no target and no new defect, and
+  `ClausePlan::falls_through` names it from the flat projection, which
+  leaves exactly such a body out. Reason: the walk linked a marker before
+  `finally` to `finally`'s body, where Tcl raises "last non-finally clause
+  must not have a body of `-`"; making that a `ClauseShapeError` would
+  change the plan's defect vocabulary the page fixes, and every consumer
+  already treats it by its own rule (the lowering keeps the handler's empty
+  body, `try_control_invocation` rejects the chain).
+- **D2.52** An abstaining walk goes on reading computed words as matching
+  nothing and names the first one it compared
+  (`ClauseAbstention { word, inert }`, `walk_words_or_abstain`,
+  `ResolvedInvocation::clause_walk`); `clause_plan` stays the abstaining
+  answer. Reason: the lowering must defer a `try` whose handler body is
+  computed with the reason and after the steps the retired walk took
+  (`try_dollar_var_handler_body_falls_through_to_barrier` pins "try with
+  dynamic handler body"), and the inert plan says how far the literal
+  clauses go without ever standing for the call.
+- **D2.53** The lowering follows the grammar where the retired keyword walk
+  differed (the behavioural deltas above), and with a defect lowers the
+  clauses before it before deferring: `if` never lowers the clause the
+  defect stopped in or the tail extra words follow, `try` lowers every
+  clause that has its script word. Reason: the grammar is verified against
+  C Tcl word for word (`if_.rs`), the walk's differences were
+  mis-lowerings, and the pre-defect lowering keeps the nested procedures a
+  deferred construct registered.
+- **D2.54** E004 keeps `CommandRegistry::clause_shape_defect`. Reason: since
+  CC2.2 (D2.25) it *is* the plan's defect behind the
+  `STRUCTURALLY_CHECKED_ARITY` gate, then the escape hatch — the plan's
+  `clause_plan().and_then(|p| p.defect)` at `:1708` would restate that gate
+  in the analyser.
+- **D2.55** The generic body walk takes each body's depths from its clause's
+  timing where a plan places it — `Selected` conditional and control-flow,
+  `PerIteration` and a `next` fixture control-flow, `Protected` conditional,
+  `Always` and an `init` fixture neither — and from the traits otherwise.
+  Reason: the plan's rule ("control-flow for a `PerIteration` or
+  `LoopFixture` body, conditional for a `Selected` one") would bump `for`'s
+  `start`, which runs once, and drop `if` bodies' control-flow depth; this
+  mapping reproduces every depth the traits and `handle_for_command` gave
+  the shipped commands.
+- **D2.56** The analyser's hook resolution carries the invocation's plan
+  (`ResolvedAnalyserHook::clause_plan`), and `handle_try_command` takes the
+  plan, reading `analyse_selected_body` for `Protected` / `Selected` and
+  `analyse_body` for the rest, in place of the traits. Reason: one
+  resolution, as the traits were; `BRANCH_SELECTED_BODY` stays the generic
+  walk's reading for a body no plan places.
+- **D2.57** The diagram's `kind_handler` stays `on` / `trap`: the protocol's
+  own two-word vocabulary, mapped from `HandlerMatch`. Reason: the editors
+  read it (`TclLspActionsTest.kt`), and a respelt command's handlers are the
+  same two kinds.
+- **D2.58** `cfg_lower.rs`'s `on ok` test parses the pattern word with
+  `completion::completion_code_selector` under the profile-less numeral
+  grammar, as `executable_ir.rs`'s `try_handler_code` does. Reason: the
+  plan's `CompletionCode::from_word` is that function; the IR carries no
+  profile there.
+- **D2.59** The six files' non-clause sites: migrated where a registry fact
+  answers them (`[list namespace unknown H]` through
+  `list_build_effective_command` and the `NamespaceUnknown` hook; nested
+  `catch` through the `Catch` hook; the created name's `--` through the new
+  `leading_option_run_is_terminated`; `switch`'s marker and `default`
+  through `CaseListSpec`; the lambda's `list` through
+  `BUILDS_COMMAND_PREFIX`), waived where a planned change retires them
+  (six until step 2 for CC2.12, four until slice 8 for VT8.9, `args`
+  irreducible), and pinned where none does: `structured.rs`'s `switch`
+  option parser (`CommandRegistry::case_invocation` reads the same options,
+  but moving the lowering onto it changes which shapes lower — unique
+  prefixes, Tcl 8.5's two-word form, a repeated mode — a change this item's
+  "none observable" excludes) and its `dict` routing (whether `dict map`
+  collects has no descriptor: the value-transfer lane's iteration semantics
+  are declared for `foreach` / `lmap` only; the value-transfer ledger names
+  the same two sites `native_lowering` debt), and `handlers.rs`'s ensemble
+  configuration walk (`NamespaceTransition::Ensemble` names only the
+  namespace) and `$handle eval` (no descriptor models a child
+  interpreter's command). Reason: a waiver names the change that retires
+  its site, and these have none yet; `structured.rs` and `handlers.rs`
+  therefore stay out of `CLEAN_FILES`, where the plan put all six.
+- **D2.60** `try_dispatch_structured_hook` resolves the head in
+  `structured_dispatch`, a frame of its own. Reason: the dispatcher stays on
+  the stack while the lowerer recurses, and `depth_guard`'s
+  `the_source_walk_cap_fits_its_stack_budget` had no headroom left — it
+  failed on the unchanged tree once a test function was added beside it.
+  The frame fell from 10,704 to 7,920 bytes a level (measured under gdb,
+  dev profile); the deepest walk from about 1,576,000 to 1,401,208 bytes of
+  the 1,572,864 budget.
+- **D2.61** The value-transfer ratchet's `analyser/commands.rs` row (the
+  orphaned-keyword table) is removed with its pin. Reason: its one site is
+  gone; `value-transfers --check` requires the ledger row to match.
+- **D2.62** The deprecated `ResolvedInvocation::effect_footprint` alias is
+  removed, and the registry's `try_body_is_fallthrough` with it. Reason:
+  D2.42's one checkpoint; no caller remained.
+- **D2.63** `CallableRole` gains `Procedure` (`-role procedure`): a
+  procedure in the definition's own namespace, reached by name and never
+  dispatched, whose receiver is the side whose state its body sees. snit's
+  `proc` states it (`-receiver type-object -role procedure`, in `definer.rs`
+  and the `snit-type.tclspec` port, whose golden moves); itcl's `proc` keeps
+  `-role method` on the type object. Reason: the page's vocabulary made snit's
+  `proc` and `typemethod` one effect, so one `match` could not keep the
+  analyser's reading of each (an ordinary proc; a class method) without the
+  keyword, and the class-method reading is wrong for snit — snit 2.3.4
+  (tcllib 2.0) on tclsh 8.6.18 and 9.0.4: `snit::type ::app::Dog { proc
+  helper {a} {…} }` defines `::app::Dog::helper`, while `::app::Dog helper
+  1` is a construction and an instance's `helper` an unknown subcommand, so
+  a class-method reading would turn a construction into a typemethod call.
+  itcl's `proc` keeps its reading because the providers' qualified
+  `Class::proc` dispatch reads `class_methods` (`name_resolution.rs`'s itcl
+  rows) and itcl is not installed here to oracle a change.
+- **D2.64** The analyser reads a member statement's words structurally (a
+  braced word, or one with no substitution, is its literal; anything else is
+  computed — the boundary `has_substitution` draws for the walker's other
+  static-word checks) and keeps recording members under their written
+  spelling, a computed name included; such a member's visibility is the
+  family's name rule read on the written spelling unless its option word or
+  wrapper says otherwise. Reason: the row's `name` abstains on a computed
+  word, and dropping `${m}` would move the outline; its `Public` answer for
+  a nameless row would offer `${m}` to completion, where the analyser has
+  always kept it unexported.
+- **D2.65** An option accessor or mutator (snit's `oncget` /
+  `onconfigure`) lands among the methods of its side though
+  `MethodKind::from_effect` names no frame for it, and a definition-time
+  script is a class-side method when the family runs member bodies in the
+  defined entity's namespace (`MemberCurrentNamespace::DefinedEntity`: snit's
+  `typeconstructor`) and the class's init script under `RuntimeReceiver`
+  (`TclOO`'s `initialise`) — the same rule in the analyser's
+  `member_landing` and the lowering's `MemberFrame::of_row`. Reason: each is
+  the reading the walkers and the lowering had, now decided by registry data
+  rather than the keyword; the namespace policy is what makes snit's script
+  a nameable frame (`${type}::Snit_typeconstructor`) and `TclOO`'s not
+  (`::oo::ObjN`).
+- **D2.66** `MethodDef::is_self_method` is set for a class-side method a
+  receiver-moving wrapper was crossed to reach (`self method`, `self
+  classmethod`), read off the wrappers' shifts, not the receivers. Reason:
+  `self classmethod`'s natural receiver is already the type object, and the
+  existing test keeps it tagged.
+- **D2.67** A forward, a state declaration, a superclass or mixin relation
+  and flag-keyed accessors land only when their row is on the instances; a
+  class-object spelling (`self forward`, `self variable`, `self mixin`)
+  records nothing, and a type-object constructor or destructor is no member
+  (`MethodKind::from_effect` answers none). Reason: `class_methods` holds
+  the `classmethod`-kind entries the class-command dispatch reads, the
+  class has no class-object variable or ancestry list, and those were the
+  readings before; tclsh 8.6.18 and 9.0.4 reject `self constructor`.
+- **D2.68** `analyser/oo.rs` keeps five pinned sites, unwaived: the three
+  `property` flag words (`get`, `set`) until the 9.0 `property` accessor rows
+  are `Callable` rows of their own, snit's type-body implicit `type`
+  (`SNIT_TYPE_IMPLICIT`) until the grammar carries a type-body implicit
+  list, and the unknown-proc walk's `default` switch arm. Reason: a waiver's
+  expiry is a step or a slice, and no build-order step schedules either
+  registry field, so the pin (which may only fall) is the honest record.
+- **D2.69** The providers read the recorded member:
+  `MethodDef::is_declared_by_keyword(word)` (a nameless member's synthetic
+  `<keyword>` name) finds the constructor or destructor the keyword under the
+  cursor declared, and its `kind` says which; `workspace_index.rs` spells
+  the class side `MethodKind::ClassMethod.as_str()` and the visibilities
+  `DeclaredMemberVisibility::{Public, Private}.as_str()`. Reason: the plan's
+  "read `MethodDef::kind`" for a cursor on a keyword needs the member the
+  keyword declared, and the synthetic name is the one place the analyser
+  records it.
+- **D2.70** The per-item analysis falls back to the full path
+  (`PerItemFallback::PackDefiner`) when its shell walk meets a definer only
+  the workspace's packs declare, and `fresh_full_analyse` carries the pack
+  overlay. Reason: the plan's end-to-end test found that the server's
+  memoised path never saw a pack-declared definer — `per_item_setup` reads
+  the un-overlaid store, by design, while the per-body memo key carries no
+  overlay — and that the fresh fallback dropped the overlay; a fallback is
+  the one change that keeps the memo key and still gives the editor the
+  class.
+- **D2.71** The value-transfer ratchet's `analyser/oo.rs` row (the
+  `definition_body` axis's keywords) is removed with its pin and
+  `lowering/mod.rs`'s drops to 1 (the `namespace` body; the `self`
+  comparison is gone). Reason: CC2.11 retired those sites, and
+  `value-transfers --check` requires the ledger to match; the plan's
+  "untouched" assumed they would survive.
+- **D2.72** `VariableCellAliasTransition` gains `words: AliasWords {
+  local, target }`, the post-head indices of the words spelling the local
+  and the target variable (`AliasWords::same` where one word names both, as
+  `global` / `variable` / `namespace-variable` do). Reason: a
+  `TransitionSubject::Literal` keeps a value but not its place, and the
+  analyser anchors the local's definition and the rename span of the cell
+  at words; widening `TransitionSubject` itself would touch every family.
+- **D2.73** `apply_state_transitions` takes `args` beside the plan's
+  parameters, and reads a computed `upvar` target's source word for its
+  array base alone (`::tk::FocusGrab($index)` links to `::tk::FocusGrab`,
+  as the handler did); the plan's "`NamespaceTransition` (namespace
+  variable declarations)" is the `CurrentNamespace` alias target, since the
+  tree states a namespace variable as a `VariableCellAliasTransition`
+  (`variable`, and a pack's `namespace-variable` verb, D2.45). The call is
+  resolved over the source words by a new
+  `model::resolve_invocation_words_in_context`, the structured twin of
+  `resolve_invocation_in_context`. Reason: the shipped `upvar` resolver
+  states an element target as unknown; the base is the analyser's variable
+  grammar, not a value.
+- **D2.74** The binder reads the roles over the words' spellings — the
+  literal view `resolve_invocation_in_context` gives, then
+  `ResolvedInvocation::arg_roles` — not over source facts. Reason: the
+  structured `arg_roles` abstains when a computed word stands where an
+  option a resolver reads could (`regexp $re $s m`), which would unbind
+  names the editor has always bound; the literal view is what the by-name
+  table answered. Both resolutions go through the walk's context (I4).
+  A written name binds when it substitutes nothing or is an array element
+  whose base is written literally (`incr hits($w)`); a loop var list binds
+  when static, split as a list (the SSA harvester's and `script_binds`'
+  reading, `dict update`'s single name included).
+- **D2.75** Every `VarWrite` binding is `warn_if_unused = false`, `incr`'s
+  included, and loop variables keep `true`. The plan's "`incr x` no longer
+  draws W211" is moot in this tree: W211 is the SSA dead-store pass's and
+  never read `VarDef::warn_if_unused` (`incr x` unread drew no W211 before
+  this item either); only the flag moves.
+- **D2.76** `package require`'s `exact` is "the option run is non-empty"
+  (`option_effects().option_end > argument_offset`) — `require`'s one option
+  is `-exact`, the reading `signature_scan`'s handler already gives — and
+  its name and requirements are the `Name` / `Value` roles of
+  `package_require_arg_roles` after the option run. `require` and
+  `present` declare `PrefixMatching::Strict` (`PkgRequireCore`'s `strcmp`;
+  tclsh: `package require -e Tcl` asks for a package `-e`). Reason: the
+  plan's `EndsOptions`- and `Selects`-free rows; the presence check needs
+  no option effect. A dash word naming no option leaves the layout
+  unproven, so `package require -e 1.0` records nothing — the registry's
+  option model has no "unknown dash word is an operand" policy.
+- **D2.77** `interp create`'s registry resolver reads `Tcl_InterpObjCmd`'s
+  option scan: `-safe` and `--` by unique prefix, `--` taking the next word
+  as the path, a bad or ambiguous option or a second path creating nothing,
+  and a computed word among live options leaving the path unknown (safety
+  too, unless `-safe` came first). The nested `[interp create …]` is parsed
+  as a list (`substitution_elements`) and resolved as a call
+  (`substitution_call`), so no spelling is compared. Reason: the
+  analyser's parse and the resolver disagreed in the error corners, and the
+  analyser now reads the resolver; tclsh 8.4–9.1 agree on every row pinned.
+- **D2.78** A pack's `special_var` rows live on the registry generation
+  (`CommandRegistry::insert_special_var`, read through `special_vars()`,
+  pack rows first and shadowing a shipped row of the same name); the free
+  functions keep their signatures and read the shipped table. Reason: the
+  free functions have no registry, their W210, `[info exists]` and taint
+  consumers are the value-transfers lane's files (B1), and the plan's door
+  is the registry. `a_pack_declared_special_variable_is_readable_at_startup`
+  pins the answer the analyser's generation gives; the W210 switch is handed
+  to that lane.
+- **D2.79** The `set auto_path` / `lappend auto_path` arms are one
+  `record_search_path_write`, reading `special_var_in_dialect("auto_path")`
+  on the walk's generation and requiring `VarAccess::ReadWrite`; the
+  append form is recorded by the binder from
+  `VarElementsEffect::AppendsListElements`, so the `Lappend` arm has no
+  handler left for CC2.13. Reason: the plan's "one read of
+  `special_var("auto_path")`'s `VarAccess`"; the append trigger is a
+  descriptor the registry already states.
+- **D2.80** `special_var` is additive vocabulary, not gated (as step 2's
+  other statements), classified Assistance (a dropped row degrades to a
+  read-before-set, never to a stronger claim); `-dialects` narrows where
+  the variable exists, like a command's `dialects` (it is not refused as
+  `ambient_package`'s is: it places nothing in an environment); a row with
+  no `-dialects` takes the pack's `default dialects`, else `ALL_TCL`; a
+  pack golden prints `special_vars` only when a pack declares one. Reason:
+  no shipped pack declares one, so no golden moves.
+- **D2.81** `compile_service.rs`'s `RegistryTarget::Owned` boxes its
+  registry. Reason: `CommandRegistry` grew by the `special_vars` field, and
+  the owned variant crossed clippy's `large_enum_variant` threshold.
+- **D2.82** `analyser/oo.rs` gains the `;` clippy asked for after CC2.11's
+  `apply_relation_member` arm was reformatted into a block. Reason:
+  pedantic clippy on the touched crate.
 - **D3.1** `WorkspaceTrust` lives in `tcl_dialect::model::environment`
   beside `Provenance`; `Tier` is unchanged and the trust rides `PackFile`,
   `MergedPack`, `EvalOptions`, `EvalSnapshotKey` and the cache key.

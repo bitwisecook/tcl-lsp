@@ -1076,6 +1076,12 @@ pub struct Analyser {
     /// of recursing into it immediately.  Set only for the shell pass; the
     /// per-body passes run with it `false` so nested defs walk in place.
     pub defer_proc_bodies: bool,
+    /// Set by the per-item shell walk when it meets a definer only the
+    /// workspace's packs declare — a command whose overlaid spec carries a
+    /// definition-body grammar the un-overlaid store the shell reads lacks —
+    /// so [`Self::analyse_per_item_with`] takes the full path
+    /// ([`super::per_item::PerItemFallback::PackDefiner`]).
+    pub(super) pack_definer_seen: bool,
     /// When `true`, [`Self::define_var`] runs in **structural rebind** mode:
     /// it skips the W215 unreachable-name check *and* the
     /// `record_qualified_var_ref` occurrence record.  Set only while the
@@ -1138,7 +1144,7 @@ pub struct Analyser {
     /// that names one fixed, frame-independent cell, which today means
     /// `upvar`'s `otherVar` word (`upvar ::tk::FocusGrab($i) data`, `upvar
     /// #0 counter c`; see
-    /// [`Analyser::handle_upvar_command`](super::state::Analyser)).
+    /// [`Analyser::apply_state_transitions`](super::state::Analyser)).
     ///
     /// The graft merges the fragment's *proc* scope, never its (throwaway)
     /// root, so without this capture such a cell reached `all_variables` but
@@ -1627,6 +1633,7 @@ impl Analyser {
             workspace_class_factories: None,
             workspace_subclass_methods: None,
             defer_proc_bodies: false,
+            pack_definer_seen: false,
             structural_rebind: false,
             deferred_bodies: Vec::new(),
             minted_synthetic_names: std::collections::HashSet::new(),
@@ -2682,6 +2689,7 @@ impl Analyser {
     pub(super) fn fresh_full_analyse(&self, new_text: &str, dialect: &str) -> AnalysisResult {
         let mut fresh = Analyser::with_disabled_diagnostics(self.disabled_diagnostics.clone())
             .with_non_ascii_mode(self.non_ascii_mode)
+            .with_pack_overlay(self.pack_overlay)
             .with_shared_extra_commands(Arc::clone(&self.extra_commands))
             .with_package_provides(self.package_provides.clone());
         fresh.analyse(new_text, dialect)
@@ -5336,10 +5344,9 @@ mod tests {
     #[test]
     fn analyse_w110_fires_on_for_condition() {
         // ``for {set i 0} {$x == "foo"} {incr i} {body}`` —
-        // ``handle_for_command`` returns early from
-        // ``process_command``, so the EXPR-role dispatch must
-        // run *before* the early-return handlers (otherwise
-        // W110 on a ``for`` condition would silently miss).
+        // the EXPR-role dispatch runs *before* the hook handlers,
+        // so W110 on a ``for`` condition fires whichever walk
+        // owns the bodies.
         let mut a = Analyser::new();
         let r = a.analyse("for {set i 0} {$x == \"foo\"} {incr i} { break }\n", "tcl");
         let w110: Vec<_> = r

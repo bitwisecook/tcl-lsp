@@ -95,14 +95,15 @@ command snit::type {
         # first `-roles` positions typed `Name` / `ParamList` / `Body`.
         #
         # `method` / `typemethod` / `proc` share METHOD_ROLES; `proc` is a
-        # type-private procedure with the same NAME PARAMS BODY shape, on the
-        # type object like a typemethod.
+        # type-private procedure with the same NAME PARAMS BODY shape: a
+        # command in the type's namespace that sees the type's state, reached
+        # by name and never dispatched (`-role procedure`).
         member method         -roles {0 Name 1 ParamList 2 Body} \
                               -effect {callable -receiver instance -role method}
         member typemethod     -roles {0 Name 1 ParamList 2 Body} \
                               -effect {callable -receiver type-object -role method}
         member proc           -roles {0 Name 1 ParamList 2 Body} \
-                              -effect {callable -receiver type-object -role method}
+                              -effect {callable -receiver type-object -role procedure}
 
         member constructor    -roles {0 ParamList 1 Body} \
                               -effect {callable -receiver instance -role constructor}

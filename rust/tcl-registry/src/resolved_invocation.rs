@@ -31,23 +31,26 @@ use crate::command_table::CommandTableEffect;
 use crate::completion::CompletionDescriptor;
 use crate::dispatch_stability::{DispatchDependencies, ResolvedDispatchDependencies};
 use crate::forms::CommandForm;
-use crate::frame_effect::FrameEffectSpec;
+use crate::frame_effect::{FrameEffectSpec, FrameLevel, FrameLevelWord};
 use crate::hooks::{CodegenHookId, InlineCodegenHookId, LoweringHookId};
 use crate::hover::OptionSpec;
 use crate::intrinsic::IntrinsicId;
-use crate::invocation_words::{InvocationWordKind, InvocationWords};
+use crate::invocation_words::{
+    CommandPrefixArguments, InvocationArgument, InvocationWord, InvocationWordKind, InvocationWords,
+};
 use crate::literal_validation::{LiteralArgumentValidation, LiteralArgumentValidator};
 use crate::option_effect::{OptionEffectScope, OptionEffects};
 use crate::representation::RepresentationEffect;
 use crate::result_stability::ResultStability;
 use crate::semantic_operation::SemanticOperationId;
 use crate::side_effects::SideEffect;
-use crate::spec::{ArgRoleResolver, CommandSpec, SubCommand};
+use crate::spec::{ArgRoleResolver, CaseInvocation, CommandSpec, InlineCaseClause, SubCommand};
 use crate::state_transition::{
     ResolvedStateTransitions, StateTransitionKnowledge, StateTransitions,
 };
 use crate::traits::Traits;
 use crate::types::{ReturnElements, TclType, VarElementsEffect, VarWriteTyping};
+use crate::value_transfer::inputs::OperandId;
 use crate::world_effect::TransitionEffectCoverages;
 use crate::world_effect::{EffectFootprint, ResolvedWorldEffects};
 use tcl_dialect::model::{SpecSurface, SurfaceQuery};
@@ -623,7 +626,7 @@ pub struct InvocationSemantics<'r> {
     /// Effective declared mutable-world descriptor.
     ///
     /// Command, resolved-subcommand, and form descriptors in composition
-    /// order.  Call [`ResolvedInvocation::effect_footprint`] to resolve this
+    /// order.  Call [`ResolvedInvocation::effects`] to resolve this
     /// cheap descriptor chain and bridge existing effect metadata into the
     /// owned representation common compiler passes consume.
     pub world_effects: ResolvedWorldEffects,
@@ -667,6 +670,25 @@ pub struct ResolvedInvocation<'r, 'w> {
     pub form: Option<ResolvedForm<'r>>,
     /// Effective target-neutral semantic and effect descriptors.
     pub semantics: InvocationSemantics<'r>,
+    /// The surface query the invocation was resolved under — `None` for a
+    /// dialect-blind resolution. Every derived query answers under it.
+    pub dialect: Option<SurfaceQuery<'w>>,
+    /// The descriptors the registry selected — the derived queries' own
+    /// inputs, beside the effective [`Self::semantics`].
+    pub(crate) selected: SelectedDescriptors<'r>,
+}
+
+/// The command (or class) and subcommand (or instance method) descriptors an
+/// invocation resolved to.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct SelectedDescriptors<'r> {
+    /// The command's descriptor — the class command's for an instance call.
+    pub(crate) spec: &'r CommandSpec,
+    /// The resolved subcommand, or the instance method.
+    pub(crate) sub: Option<&'r SubCommand>,
+    /// Whether `sub` is an instance method reached through an object, whose
+    /// class command's own tables do not apply.
+    pub(crate) instance: bool,
 }
 
 /// An owned, target-neutral projection of a resolved registry invocation.
@@ -807,6 +829,7 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
         sub: Option<&'r SubCommand>,
         form: Option<&'r CommandForm>,
         subcommand: SubcommandResolution<'w>,
+        dialect: Option<SurfaceQuery<'w>>,
     ) -> Self {
         let semantics = resolve_invocation_semantics(spec, sub, form, true);
         Self {
@@ -820,6 +843,12 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
                 options: form.options,
             }),
             semantics,
+            dialect,
+            selected: SelectedDescriptors {
+                spec,
+                sub,
+                instance: false,
+            },
         }
     }
 
@@ -829,6 +858,7 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
         method: &'r SubCommand,
         form: Option<&'r CommandForm>,
         subcommand: SubcommandResolution<'w>,
+        dialect: Option<SurfaceQuery<'w>>,
     ) -> Self {
         let semantics = resolve_invocation_semantics(class_spec, Some(method), form, false);
         Self {
@@ -842,10 +872,17 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
                 options: form.options,
             }),
             semantics,
+            dialect,
+            selected: SelectedDescriptors {
+                spec: class_spec,
+                sub: Some(method),
+                instance: true,
+            },
         }
     }
 
-    /// Resolve the complete mutable-world footprint for this invocation.
+    /// Resolve the complete mutable-world footprint for this invocation — the
+    /// derived-query layer's `effects` answer.
     ///
     /// This is the sole common-compiler entry point for command-level world
     /// effects.  It applies a static descriptor, then any argument-dependent
@@ -856,7 +893,7 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
     /// legacy facts are added to that unknown footprint rather than being
     /// mistaken for a proof that no other Tcl-world effect can occur.
     #[must_use]
-    pub fn effect_footprint(&self) -> EffectFootprint {
+    pub fn effects(&self) -> EffectFootprint {
         let (transitions, coverage) = self
             .semantics
             .state_transitions
@@ -909,13 +946,12 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
     /// (`docs/design/compiler/registry-consumer-contracts.md` § *Options with
     /// semantic effects*): the generic walk over the selected option table —
     /// the subcommand's own, when one was resolved — with the options
-    /// available at `dialect`. [`OptionEffects::option_end`] is a post-head
-    /// argument index, like every other index this resolution answers.
-    ///
-    /// Until the derived-query layer fixes the release in the resolution
-    /// itself, the caller passes the `dialect` it resolved under.
+    /// available at the invocation's [`Self::dialect`].
+    /// [`OptionEffects::option_end`] is a post-head argument index, like
+    /// every other index this resolution answers.
     #[must_use]
-    pub fn option_effects(&self, dialect: Option<SurfaceQuery<'_>>) -> OptionEffects {
+    pub fn option_effects(&self) -> OptionEffects {
+        let dialect = self.dialect;
         let scope = self.semantics.option_scope;
         let options: Vec<&OptionSpec> = self
             .semantics
@@ -946,10 +982,7 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
     /// call, or one whose option run stops before the reserved operands,
     /// performs every kind.
     #[must_use]
-    pub fn substitutions_performed(
-        &self,
-        dialect: Option<SurfaceQuery<'_>>,
-    ) -> Option<crate::substitution::SubstitutionKinds> {
+    pub fn substitutions_performed(&self) -> Option<crate::substitution::SubstitutionKinds> {
         if !self
             .semantics
             .traits
@@ -957,7 +990,7 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
         {
             return None;
         }
-        let effects = self.option_effects(dialect);
+        let effects = self.option_effects();
         let reaches_operands = self.words.arguments().exact_argv_len().is_some_and(|len| {
             effects.option_end + self.semantics.option_scope.reserved_trailing_words >= len
         });
@@ -969,20 +1002,30 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
     }
 
     /// The call's clause plan: the effective clause grammar walked over the
-    /// words after the head (and after the subcommand word), reported in the
-    /// invocation's post-head coordinates.
+    /// words' values after the head (and after the subcommand word), reported
+    /// in the invocation's post-head coordinates.
     ///
-    /// `None` when no grammar applies or it is unavailable at `dialect`, when
-    /// a `{*}` expansion makes the word count unknown, or when a computed
-    /// word sits where the walk compares a keyword, a noise word or the
-    /// fall-through marker — Tcl decides those by value. A computed word in a
-    /// positional slot (`if $cond {…}`) is fine. `dialect` is the query the
-    /// call was resolved under, until the resolution carries it itself.
+    /// `None` when no grammar applies or it is unavailable at the
+    /// invocation's [`Self::dialect`], when a `{*}` expansion makes the word
+    /// count unknown, or when a computed word sits where the walk compares a
+    /// keyword, a noise word or the fall-through marker — Tcl decides those by
+    /// value. A computed word in a positional slot (`if $cond {…}`) is fine.
     #[must_use]
-    pub fn clause_plan(
+    pub fn clause_plan(&self) -> Option<crate::clause_grammar::ClausePlan> {
+        self.clause_walk()?.ok()
+    }
+
+    /// The walk behind [`Self::clause_plan`], saying where it abstained: `Err`
+    /// names the first computed word standing where the walk compares one,
+    /// with the call read with every computed word matching nothing
+    /// ([`crate::clause_grammar::ClauseAbstention`]). `None` exactly where
+    /// [`Self::clause_plan`] has no grammar to walk or no argv shape.
+    #[must_use]
+    pub fn clause_walk(
         &self,
-        dialect: Option<SurfaceQuery<'_>>,
-    ) -> Option<crate::clause_grammar::ClausePlan> {
+    ) -> Option<Result<crate::clause_grammar::ClausePlan, crate::clause_grammar::ClauseAbstention>>
+    {
+        let dialect = self.dialect;
         let grammar = self.semantics.clause_grammar?;
         if !grammar.available(dialect) {
             return None;
@@ -990,15 +1033,311 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
         let arguments = self.words.arguments();
         let len = arguments.exact_argv_len()?;
         let offset = self.semantics.argument_offset.min(len);
-        let spellings: Vec<&str> = (offset..len)
+        let values: Vec<&str> = (offset..len)
             .map(|index| arguments.literal_at(index).unwrap_or(""))
             .collect();
         let dynamic: Vec<bool> = (offset..len)
             .map(|index| arguments.literal_at(index).is_none())
             .collect();
-        grammar
-            .walk_words(&spellings, &dynamic, self.semantics.repeated_args, dialect)
-            .map(|plan| plan.offset_by(offset))
+        Some(
+            grammar
+                .walk_words_or_abstain(&values, &dynamic, self.semantics.repeated_args, dialect)
+                .map(|plan| plan.offset_by(offset))
+                .map_err(|abstention| crate::clause_grammar::ClauseAbstention {
+                    word: abstention.word + offset,
+                    inert: abstention.inert.offset_by(offset),
+                }),
+        )
+    }
+
+    /// Every word's literal value, a computed word standing in as an inert
+    /// empty placeholder — or `None` when an expansion makes the argv shape
+    /// unknown. The spelling projection the registry's position-only readers
+    /// take; never read a placeholder as a value.
+    fn placeholder_spellings(&self) -> Option<Vec<&'w str>> {
+        let arguments = self.words.arguments();
+        arguments.has_exact_argv_len().then(|| {
+            (0..arguments.len())
+                .map(|index| arguments.literal_at(index).unwrap_or(""))
+                .collect()
+        })
+    }
+
+    /// The release the invocation's [`Self::dialect`] names on the Tcl
+    /// ladder, for a rule whose grammar is a release's numerals.
+    fn tcl_version(&self) -> Option<tcl_dialect::TclVersion> {
+        match self.dialect?.core {
+            Some((tcl_dialect::model::Family::Tcl, Some(release))) => {
+                tcl_dialect::TclVersion::from_version_string(release)
+            }
+            _ => None,
+        }
+    }
+
+    /// The selected command's options available at [`Self::dialect`].
+    fn spec_options(&self) -> Vec<&'static OptionSpec> {
+        self.selected.spec.option_specs(self.dialect)
+    }
+
+    /// Whether the words prove the layout a resolver-derived role depends on
+    /// — no expansion, a literal subcommand word, and an option run whose
+    /// every word is literal while an option could stand: the registry's
+    /// source-layout proof over this resolution's own selection.
+    fn layout_is_proven(&self) -> bool {
+        let SelectedDescriptors { spec, sub, .. } = self.selected;
+        let arguments = self.words.arguments();
+        if !spec.subcommands.is_empty()
+            && !arguments.is_empty()
+            && arguments.literal_at(0).is_none()
+        {
+            return false;
+        }
+        crate::registry::layout_is_proven_in(
+            spec,
+            sub,
+            arguments,
+            || self.spec_options(),
+            |sub| crate::registry::sub_options_at(spec, sub, self.dialect),
+        )
+    }
+
+    /// The call's argument roles — every `(position, role)` the registry
+    /// assigns, in post-head coordinates, sorted by position (the roles one
+    /// position carries in [`ArgRole::ALL`] order): the clause grammar, the
+    /// resolver or the static table, repeated tails, option values and
+    /// command prefixes, as
+    /// [`crate::CommandRegistry::arg_indices_for_role_words`] answers them
+    /// role by role, for the command or subcommand (or instance method) this
+    /// resolution selected under its [`Self::dialect`].
+    ///
+    /// `None` when the words cannot prove the layout — a `{*}` expansion, a
+    /// computed subcommand word, or a computed word where an option a
+    /// resolver reads could stand. A computed ordinary operand is fine: it
+    /// occupies one position. An empty call is read, not abstained on.
+    #[must_use]
+    pub fn arg_roles(&self) -> Option<Vec<(usize, ArgRole)>> {
+        if !self.layout_is_proven() {
+            return None;
+        }
+        let spellings = self.placeholder_spellings()?;
+        let SelectedDescriptors { spec, sub, .. } = self.selected;
+        let mut roles = crate::registry::arg_roles_in(
+            spec,
+            sub,
+            &spellings,
+            |_| true,
+            self.dialect,
+            // The registry's role answer gates a case-list command's body
+            // roles on the placeholder reading; so does this.
+            || {
+                spec.case_list.is_some_and(|case| {
+                    case.invocation(&spellings, &self.spec_options(), self.dialect)
+                        .is_some()
+                })
+            },
+            || {
+                self.pattern_args()
+                    .into_iter()
+                    .map(|pattern| usize::from(pattern.index))
+                    .collect()
+            },
+        );
+        roles.extend(
+            self.command_prefixes_over(&spellings)
+                .into_iter()
+                .map(|(index, _)| (index, ArgRole::CommandPrefix)),
+        );
+        crate::registry::sort_role_table(&mut roles);
+        Some(roles)
+    }
+
+    /// The command-prefix positions and appended arities over the placeholder
+    /// spellings, with this resolution's word facts behind them so a
+    /// literal-sensitive resolver abstains on a computed word.
+    fn command_prefixes_over(
+        &self,
+        spellings: &[&'w str],
+    ) -> Vec<(usize, crate::arg_role::AppendedArity)> {
+        let arguments = self.words.arguments();
+        let words: Vec<InvocationWord<'w>> = (0..spellings.len())
+            .map(|index| arguments.get(index).unwrap_or(InvocationWord::Opaque))
+            .collect();
+        let Some(arguments) = CommandPrefixArguments::structured(spellings, &words) else {
+            return Vec::new();
+        };
+        let SelectedDescriptors { spec, sub, .. } = self.selected;
+        crate::registry::command_prefixes_in(spec, sub, arguments)
+    }
+
+    /// The call's pattern-bearing arguments and the language each is written
+    /// in — [`crate::CommandRegistry::pattern_args_words_for_dialect`]
+    /// re-keyed on the resolution. Empty when the command declares none, for
+    /// an instance method (the class command's pattern tables are not the
+    /// method's), and when the words cannot prove the layout that decides
+    /// them.
+    #[must_use]
+    pub fn pattern_args(&self) -> Vec<crate::patterns::PatternArg> {
+        let SelectedDescriptors {
+            spec,
+            sub,
+            instance,
+        } = self.selected;
+        if instance || !self.layout_is_proven() {
+            return Vec::new();
+        }
+        let Some(spellings) = self.placeholder_spellings() else {
+            return Vec::new();
+        };
+        crate::registry::pattern_args_in(
+            spec,
+            sub,
+            &spellings,
+            || self.spec_options(),
+            self.dialect,
+            || {
+                crate::registry::arg_roles_in(
+                    spec,
+                    sub,
+                    &spellings,
+                    |role| role == ArgRole::Pattern,
+                    self.dialect,
+                    || true,
+                    Vec::new,
+                )
+                .into_iter()
+                .map(|(index, _)| index)
+                .collect()
+            },
+        )
+    }
+
+    /// The call read as a case list — its subject, clause-list or inline
+    /// clauses, and match mode — with the inline clauses when the call writes
+    /// them inline: `CaseListSpec::invocation` and `inline_clauses` re-keyed
+    /// on the resolution, over the options available at its
+    /// [`Self::dialect`].
+    ///
+    /// `None` when the command declares no case list, the words do not read
+    /// as one, or the reading depends on a computed word's value: it must
+    /// hold whether each computed word is an operand or a dash word — in the
+    /// option run always, and at a clause start where the descriptor declares
+    /// per-clause flags (without them a clause starts with its pattern).
+    #[must_use]
+    pub fn case_invocation(&self) -> Option<(CaseInvocation, Vec<InlineCaseClause>)> {
+        let SelectedDescriptors { spec, instance, .. } = self.selected;
+        if instance {
+            return None;
+        }
+        let case = spec.case_list?;
+        let spellings = self.placeholder_spellings()?;
+        let options = self.spec_options();
+        let invocation = case.invocation(&spellings, &options, self.dialect)?;
+        let clauses = match invocation.inline_clause_start {
+            Some(start) => case.inline_clauses(&spellings, start)?,
+            None => Vec::new(),
+        };
+        let arguments = self.words.arguments();
+        let dashed: Vec<&str> = spellings
+            .iter()
+            .enumerate()
+            .map(|(index, spelling)| match arguments.get(index) {
+                Some(InvocationWord::Dynamic) => "-",
+                _ => spelling,
+            })
+            .collect();
+        if dashed != spellings {
+            if case.invocation(&dashed, &options, self.dialect) != Some(invocation) {
+                return None;
+            }
+            if !case.clause_flags.is_empty()
+                && let Some(start) = invocation.inline_clause_start
+                && case.inline_clauses(&dashed, start).as_ref() != Some(&clauses)
+            {
+                return None;
+            }
+        }
+        Some((invocation, clauses))
+    }
+
+    /// The frame the call crosses into, and the operands that act there — the
+    /// command's `FrameEffectSpec` read over the call's words under its
+    /// [`Self::dialect`]'s release: `upvar`'s level decided by argument-count
+    /// parity, `uplevel`'s by the leading word. The operands are the words
+    /// after the level word.
+    ///
+    /// `None` when the command crosses no frame, or when a `{*}` expansion
+    /// makes the level word's presence unknown. A computed level word is
+    /// [`FrameLevel::Dynamic`], not an abstention, and so is a level whose
+    /// spelling the releases read differently when the dialect names none.
+    #[must_use]
+    pub fn frame_effect(&self) -> Option<(FrameLevel, Vec<OperandId>)> {
+        let frame = self.semantics.frame_effect?;
+        let arguments = self.words.arguments();
+        let len = arguments.exact_argv_len()?;
+        let version = self.tcl_version();
+        let taken = match frame.level_word {
+            FrameLevelWord::None | FrameLevelWord::ArityParity => {
+                frame.level_word_len_for_argument_count(len)?
+            }
+            FrameLevelWord::LeadingProbe => match arguments.argv_at(0) {
+                InvocationArgument::Word(InvocationWord::Literal(word)) => {
+                    frame.level_word_len_for_version(&[word, ""][..len.min(2)], version)
+                }
+                // A computed word separates from the script only when a
+                // script word follows it.
+                InvocationArgument::Word(_) => usize::from(len >= 2),
+                InvocationArgument::Missing | InvocationArgument::Indeterminate => 0,
+            },
+        };
+        let level = if taken == 0 {
+            FrameLevel::DEFAULT
+        } else {
+            arguments
+                .literal_at(0)
+                .and_then(|word| FrameLevel::parse_for(word, version))
+                .unwrap_or(FrameLevel::Dynamic)
+        };
+        Some((level, (taken..len).map(OperandId).collect()))
+    }
+
+    /// The type this call's result is represented as —
+    /// `CommandSpec::return_type_for_call` re-keyed on the resolution: the
+    /// selected subcommand's (or instance method's) declared type for a
+    /// command with subcommands, else the command's return-type hook over the
+    /// words, else the command's declared type.
+    ///
+    /// `None` when the type is unknown for this call — a subcommand the call
+    /// does not select, a hook that cannot tell (a computed word where a
+    /// switch could stand), or a `{*}` expansion under a hook.
+    #[must_use]
+    pub fn return_type(&self) -> Option<TclType> {
+        let SelectedDescriptors {
+            spec,
+            sub,
+            instance,
+        } = self.selected;
+        if instance || !spec.subcommands.is_empty() {
+            return sub.and_then(|sub| sub.return_type);
+        }
+        match spec.return_type_hook {
+            Some(hook) => crate::return_type::resolve(hook, spec, &self.hook_spellings()?),
+            None => spec.return_type,
+        }
+    }
+
+    /// The words as the return-type hooks read them — source spellings, in
+    /// which a substituted word shows its `$` — or `None` under an
+    /// expansion. A computed word is spelt `$`, which a hook reads as a
+    /// value it cannot see, never as a switch or a literal operand.
+    fn hook_spellings(&self) -> Option<Vec<&'w str>> {
+        let arguments = self.words.arguments();
+        (0..arguments.len())
+            .map(|index| match arguments.get(index)? {
+                InvocationWord::Literal(word) => Some(word),
+                InvocationWord::Dynamic | InvocationWord::DynamicNonOption => Some("$"),
+                InvocationWord::Expanded | InvocationWord::Opaque => None,
+            })
+            .collect()
     }
 
     /// Validate registry-declared relationships between literal arguments.
@@ -1346,7 +1685,7 @@ mod tests {
             SemanticOperationId::Invoke,
             "the conservative descriptor does not enable a specialisation"
         );
-        let generic_effects = generic.effect_footprint();
+        let generic_effects = generic.effects();
         assert!(generic_effects.callback().kinds.is_unknown());
         assert!(
             generic_effects.requires_world_barrier(),
@@ -1362,7 +1701,7 @@ mod tests {
         let explicit_empty = registry
             .resolve_invocation("explicit-closed-effect-fixture", &[], None)
             .expect("explicitly effect-free fixture resolves")
-            .effect_footprint();
+            .effects();
         assert!(explicit_empty.accesses().is_empty());
         assert!(
             !explicit_empty.requires_world_barrier(),
@@ -1465,7 +1804,7 @@ mod tests {
         let command = registry
             .resolve_invocation("world-effect-fixture", &[], None)
             .expect("fixture command resolves");
-        let command_effects = command.effect_footprint();
+        let command_effects = command.effects();
         assert_eq!(command_effects.accesses().len(), 1);
         assert_eq!(
             command_effects.accesses()[0].domain,
@@ -1476,7 +1815,7 @@ mod tests {
         let subcommand = registry
             .resolve_invocation("world-effect-fixture", &["sub"], None)
             .expect("fixture subcommand resolves");
-        let subcommand_effects = subcommand.effect_footprint();
+        let subcommand_effects = subcommand.effects();
         assert!(
             subcommand_effects
                 .accesses()
@@ -1493,7 +1832,7 @@ mod tests {
         let form = registry
             .resolve_invocation("world-effect-fixture", &["sub", "targetCell"], None)
             .expect("fixture form resolves");
-        let form_effects = form.effect_footprint();
+        let form_effects = form.effects();
         assert!(
             form_effects
                 .accesses()
@@ -1514,7 +1853,7 @@ mod tests {
         let refined = registry
             .resolve_invocation("world-effect-fixture", &["refine", "targetCell"], None)
             .expect("refining fixture form resolves");
-        let refined_effects = refined.effect_footprint();
+        let refined_effects = refined.effects();
         assert_eq!(refined_effects.accesses().len(), 1);
         assert_eq!(
             refined_effects.accesses()[0].domain,
@@ -1558,7 +1897,7 @@ mod tests {
             Some("argument-targeted"),
             "a dynamic non-expanded word preserves the arity without becoming a value"
         );
-        let effects = invocation.effect_footprint();
+        let effects = invocation.effects();
         assert!(effects.requires_world_barrier());
         assert!(effects.callback().kinds.is_unknown());
         assert!(
@@ -2187,7 +2526,7 @@ mod tests {
                 Some(SurfaceQuery::core(Family::Tcl, "8.6")),
             )
             .expect("core registry command resolves");
-        let footprint = invocation.effect_footprint();
+        let footprint = invocation.effects();
 
         assert!(
             !footprint.accesses().iter().any(|access| {
@@ -2246,5 +2585,407 @@ mod tests {
                     EffectAccessMode::Write | EffectAccessMode::ReadWrite
                 )
         }));
+    }
+
+    /// The context a derived-query test resolves under: `profile`'s.
+    fn derived_context(profile: &str) -> crate::value_transfer::AnalysisContext {
+        crate::value_transfer::AnalysisContext::detached(Some(
+            tcl_dialect::DialectProfile::find(profile).expect("a catalogued profile"),
+        ))
+    }
+
+    /// The derived-query layer on a literal call: every query answers, under
+    /// the query the invocation resolved at — the one the context fixes.
+    #[test]
+    fn derived_queries_answer_a_literal_call() {
+        let context = derived_context("tcl9.0");
+        let registry = CommandRegistry::build_default();
+        let resolve = |name, args: &'static [&'static str]| {
+            registry
+                .invocation(InvocationWords::literals(name, args), &context)
+                .resolved()
+                .expect("a shipped command resolves")
+        };
+
+        let array_for = resolve("array", &["for", "{k v}", "a", "{body}"]);
+        assert_eq!(array_for.dialect, context.surface_query());
+        let plan = array_for.clause_plan().expect("`array for` walks at 9.0");
+        assert!(plan.roles.contains(&(3, ArgRole::Body)), "{plan:?}");
+
+        let subst = resolve("subst", &["-nocommands", "$x"]);
+        let effects = subst.option_effects();
+        assert!(effects.complete);
+        assert_eq!(effects.option_end, 1);
+        let kinds = subst.substitutions_performed().expect("subst substitutes");
+        assert!(kinds.variables && kinds.backslashes && !kinds.commands);
+
+        let upvar = resolve("upvar", &["1", "a", "b"]);
+        let roles = upvar.arg_roles().expect("a literal layout");
+        assert!(roles.contains(&(2, ArgRole::VarWrite)), "{roles:?}");
+        assert_eq!(
+            upvar.frame_effect(),
+            Some((FrameLevel::Relative(1), vec![OperandId(1), OperandId(2)]))
+        );
+
+        let lsearch = resolve("lsearch", &["-regexp", "$list", "a.*"]);
+        let patterns = lsearch.pattern_args();
+        assert_eq!(patterns.len(), 1, "{patterns:?}");
+        assert_eq!(patterns[0].index, 2);
+
+        let switch = resolve("switch", &["-glob", "x", "a*", "body"]);
+        let (case, clauses) = switch.case_invocation().expect("a case list");
+        assert_eq!(case.subject_index, Some(1));
+        assert_eq!(case.mode, crate::spec::CaseMatchMode::Glob);
+        assert_eq!(clauses.len(), 1);
+        assert_eq!(clauses[0].body_index, Some(3));
+
+        assert_eq!(
+            resolve("string", &["length", "abc"]).return_type(),
+            Some(TclType::Int)
+        );
+        assert!(!resolve("set", &["x", "1"]).effects().accesses().is_empty());
+    }
+
+    /// Two resolutions no query can answer from: a computed head resolves
+    /// nothing, and neither does a command the context's release lacks.
+    #[test]
+    fn derived_queries_abstain_on_a_computed_head_and_an_absent_command() {
+        let registry = CommandRegistry::build_default();
+        let context = derived_context("tcl8.6");
+        let arguments = [crate::InvocationWord::Literal("x")];
+        let computed_head = registry.invocation(
+            InvocationWords::structured(crate::InvocationWord::Dynamic, &arguments),
+            &context,
+        );
+        assert!(computed_head.resolved().is_none());
+        assert!(matches!(
+            computed_head.unresolved(),
+            Some(InvocationResolutionUnresolved::ComputedHead { .. })
+        ));
+        let absent = registry.invocation(InvocationWords::literals("lpop", &["l"]), &context);
+        assert!(absent.resolved().is_none(), "`lpop` is Tcl 9.0");
+        assert!(matches!(
+            absent.unresolved(),
+            Some(InvocationResolutionUnresolved::UnknownLiteralHead { spelling: "lpop" })
+        ));
+    }
+
+    /// Each query abstains rather than answering for words it cannot read:
+    /// an expansion abstains the role table, the frame and a return-type
+    /// hook; a computed word where an option could stand abstains the role
+    /// table and the case-list reading; a computed word where none can is an
+    /// operand like any other.
+    #[test]
+    fn derived_queries_abstain_on_words_they_cannot_read() {
+        use crate::InvocationWord::{Dynamic, Expanded, Literal};
+        let registry = CommandRegistry::build_default();
+        let context = derived_context("tcl8.6");
+        let resolve = |head: &'static str, arguments: &'static [crate::InvocationWord<'static>]| {
+            registry
+                .invocation(
+                    InvocationWords::structured(Literal(head), arguments),
+                    &context,
+                )
+                .resolved()
+                .expect("a shipped command resolves")
+        };
+
+        let upvar = resolve("upvar", &[Expanded, Literal("b")]);
+        assert_eq!(upvar.arg_roles(), None);
+        assert_eq!(upvar.frame_effect(), None);
+        assert_eq!(
+            resolve("regexp", &[Expanded, Literal("s")]).return_type(),
+            None
+        );
+
+        let switch = resolve("switch", &[Dynamic, Literal("x"), Literal("a {}")]);
+        assert_eq!(switch.case_invocation(), None);
+        assert_eq!(switch.arg_roles(), None);
+
+        let switch = resolve("switch", &[Dynamic, Literal("a {}")]);
+        let (case, _) = switch.case_invocation().expect("the reading holds");
+        assert_eq!(case.subject_index, Some(0));
+        assert_eq!(case.clause_list_index, Some(1));
+        // A computed pattern is a pattern: `switch` has no clause flags.
+        let switch = resolve("switch", &[Literal("x"), Dynamic, Literal("{b}")]);
+        let (_, clauses) = switch.case_invocation().expect("the reading holds");
+        assert_eq!(clauses[0].pattern_index, 1);
+
+        let uplevel = resolve("uplevel", &[Dynamic, Literal("{set x 1}")]);
+        assert_eq!(
+            uplevel.frame_effect(),
+            Some((FrameLevel::Dynamic, vec![OperandId(1)]))
+        );
+        let uplevel = resolve("uplevel", &[Dynamic]);
+        assert_eq!(
+            uplevel.frame_effect(),
+            Some((FrameLevel::DEFAULT, vec![OperandId(0)])),
+            "a lone computed word is the script"
+        );
+    }
+
+    /// Every answer is keyed on the context: the same words answer
+    /// differently under releases that read them differently.
+    #[test]
+    fn derived_queries_answer_under_the_context_release() {
+        let registry = CommandRegistry::build_default();
+        let at = |profile: &str, name: &'static str, args: &'static [&'static str]| {
+            let context = derived_context(profile);
+            let invocation = registry
+                .invocation(InvocationWords::literals(name, args), &context)
+                .resolved()
+                .expect("a shipped command resolves");
+            (
+                invocation.clause_plan().is_some(),
+                invocation.frame_effect().map(|(level, _)| level),
+                invocation.substitutions_performed(),
+            )
+        };
+        // `array for` is Tcl 9.0.
+        assert!(!at("tcl8.6", "array", &["for", "{k v}", "a", "{}"]).0);
+        assert!(at("tcl9.0", "array", &["for", "{k v}", "a", "{}"]).0);
+        // A leading-zero level is octal on 8.6 and decimal on 9.0.
+        assert_eq!(
+            at("tcl8.6", "upvar", &["010", "a", "b"]).1,
+            Some(FrameLevel::Relative(8))
+        );
+        assert_eq!(
+            at("tcl9.0", "upvar", &["010", "a", "b"]).1,
+            Some(FrameLevel::Relative(10))
+        );
+        // `subst`'s positive switches are Tcl 9.1: below it the call is
+        // unreadable and every kind runs.
+        let positive = at("tcl9.1", "subst", &["-variables", "$x"])
+            .2
+            .expect("subst substitutes");
+        assert!(positive.variables && !positive.commands && !positive.backslashes);
+        let below = at("tcl9.0", "subst", &["-variables", "$x"])
+            .2
+            .expect("subst substitutes");
+        assert!(below.variables && below.commands && below.backslashes);
+    }
+
+    /// The one place the derived queries and the by-name answers part: the
+    /// resolution selects its subcommand under its release, so a prefix the
+    /// release makes unique selects it — `array d` is `donesearch` at 8.6,
+    /// where a release-blind lookup finds it ambiguous with 9.0's `default`.
+    #[test]
+    fn a_prefix_the_release_makes_unique_selects_its_subcommand() {
+        let registry = crate::model::ingress::static_context_for("tcl8.6").commands();
+        let invocation = registry
+            .invocation(
+                InvocationWords::literals("array", &["d", "a", "s"]),
+                &derived_context("tcl8.6"),
+            )
+            .resolved()
+            .expect("`array` resolves");
+        assert_eq!(
+            invocation
+                .subcommand
+                .resolved()
+                .map(|sub| sub.canonical_name),
+            Some("donesearch")
+        );
+        let roles = invocation.arg_roles().expect("a literal layout");
+        assert!(roles.contains(&(1, ArgRole::VarRead)), "{roles:?}");
+        assert!(
+            registry
+                .arg_indices_for_role("array", &["d", "a", "s"], ArgRole::VarRead)
+                .is_empty(),
+            "the release-blind lookup finds `d` ambiguous"
+        );
+    }
+
+    /// Calls whose layout a computed word decides, or leaves decided: the
+    /// corpus the derived role table is held to the by-name one on.
+    const COMPUTED_WORD_CORPUS: &[(&str, &[crate::InvocationWord<'static>])] = {
+        use crate::InvocationWord::{Dynamic, DynamicNonOption, Expanded, Literal};
+        &[
+            ("upvar", &[Dynamic, Literal("a"), Literal("b")]),
+            ("upvar", &[Literal("1"), Dynamic, Literal("b"), Dynamic]),
+            ("switch", &[Dynamic, Literal("{a {b}}")]),
+            ("switch", &[Dynamic, Literal("x"), Literal("{a b}")]),
+            (
+                "switch",
+                &[Literal("-glob"), Literal("--"), Dynamic, Literal("{a b}")],
+            ),
+            (
+                "switch",
+                &[DynamicNonOption, Literal("x"), Literal("{a b}")],
+            ),
+            ("case", &[Dynamic, Literal("in"), Literal("{a {b}}")]),
+            ("lsearch", &[Dynamic, Literal("l"), Literal("a*")]),
+            ("lsearch", &[Literal("-glob"), Dynamic, Dynamic]),
+            ("regexp", &[Dynamic, Literal("s"), Literal("m")]),
+            ("regexp", &[Literal("-inline"), Dynamic, Dynamic]),
+            ("foreach", &[Dynamic, Dynamic, Literal("{body}")]),
+            ("foreach", &[Literal("{a b}"), Dynamic, Literal("{body}")]),
+            (
+                "if",
+                &[Dynamic, Literal("{a}"), Literal("else"), Literal("{b}")],
+            ),
+            ("if", &[Literal("{$c}"), Dynamic, Literal("{a}")]),
+            (
+                "try",
+                &[
+                    Literal("{a}"),
+                    Literal("on"),
+                    Literal("error"),
+                    Dynamic,
+                    Literal("{b}"),
+                ],
+            ),
+            (
+                "try",
+                &[
+                    Literal("{a}"),
+                    Dynamic,
+                    Literal("error"),
+                    Literal("m"),
+                    Literal("{b}"),
+                ],
+            ),
+            (
+                "dict",
+                &[Literal("for"), Literal("{k v}"), Dynamic, Literal("{body}")],
+            ),
+            ("dict", &[Dynamic, Literal("d")]),
+            ("string", &[Dynamic, Literal("abc")]),
+            ("lsort", &[Literal("-command"), Dynamic, Dynamic]),
+            ("after", &[Literal("100"), Dynamic]),
+            ("format", &[Dynamic, Literal("a")]),
+            ("scan", &[Dynamic, Literal("%d"), Literal("v")]),
+            ("set", &[Expanded]),
+            ("namespace", &[Literal("eval"), Dynamic, Literal("{body}")]),
+            (
+                "trace",
+                &[
+                    Literal("add"),
+                    Literal("variable"),
+                    Literal("x"),
+                    Literal("write"),
+                    Dynamic,
+                ],
+            ),
+            ("lassign", &[Dynamic, Literal("a"), Literal("b")]),
+            (
+                "interp",
+                &[
+                    Literal("alias"),
+                    Literal("{}"),
+                    Literal("a"),
+                    Literal("{}"),
+                    Dynamic,
+                ],
+            ),
+        ]
+    };
+
+    /// `arg_roles` is `arg_indices_for_role_words` over every role, re-keyed
+    /// on the resolution — on computed words too, where the layout proof
+    /// decides between a position and an abstention.
+    #[test]
+    fn arg_roles_agree_with_the_registry_role_answer_on_computed_words() {
+        use crate::InvocationWord::Literal;
+        let corpus = COMPUTED_WORD_CORPUS;
+        for (profile, &(name, arguments)) in ["tcl8.6", "tcl9.0"]
+            .into_iter()
+            .flat_map(|profile| corpus.iter().map(move |row| (profile, row)))
+        {
+            let registry = crate::model::ingress::static_context_for(profile).commands();
+            let context = derived_context(profile);
+            let Some(invocation) = registry
+                .invocation(
+                    InvocationWords::structured(Literal(name), arguments),
+                    &context,
+                )
+                .resolved()
+            else {
+                assert_eq!(
+                    name, "case",
+                    "{profile}: only `case` is absent (Tcl 9 dropped it)"
+                );
+                continue;
+            };
+            let words = InvocationArguments::structured(arguments);
+            let expected = ArgRole::ALL
+                .iter()
+                .map(|&role| {
+                    registry
+                        .arg_indices_for_role_words(name, words, role)
+                        .map(|indices| indices.into_iter().map(move |index| (index, role)))
+                })
+                .collect::<Option<Vec<_>>>()
+                .map(|per_role| {
+                    let mut roles: Vec<(usize, ArgRole)> = per_role.into_iter().flatten().collect();
+                    roles.sort_by_key(|&(index, _)| index);
+                    roles.dedup();
+                    roles
+                });
+            assert_eq!(
+                invocation.arg_roles(),
+                expected,
+                "{profile} {name} {arguments:?}: the derived table"
+            );
+            assert_eq!(
+                invocation.pattern_args(),
+                registry.pattern_args_words(name, words),
+                "{profile} {name} {arguments:?}: the pattern answer"
+            );
+        }
+    }
+
+    /// The return-type hooks read a computed word as its source spelling
+    /// would read — a value they cannot see — so the query answers what
+    /// `return_type_for_call` answers over the source text.
+    #[test]
+    fn return_type_reads_a_computed_word_as_its_source_spelling_reads() {
+        use crate::InvocationWord::{Dynamic, Literal};
+        let registry = CommandRegistry::build_default();
+        let context = derived_context("tcl9.0");
+        let corpus: &[(&str, &[crate::InvocationWord<'static>], &[&str])] = &[
+            ("lsearch", &[Dynamic, Dynamic], &["$l", "$p"]),
+            (
+                "lsearch",
+                &[Literal("-all"), Dynamic, Dynamic],
+                &["-all", "$l", "$p"],
+            ),
+            (
+                "regexp",
+                &[Dynamic, Literal("a"), Literal("b")],
+                &["$opt", "a", "b"],
+            ),
+            ("regexp", &[Literal("-about"), Dynamic], &["-about", "$re"]),
+            (
+                "regexp",
+                &[Literal("--"), Dynamic, Dynamic],
+                &["--", "$re", "$s"],
+            ),
+            (
+                "scan",
+                &[Dynamic, Literal("%d"), Literal("v")],
+                &["$s", "%d", "v"],
+            ),
+            (
+                "regsub",
+                &[Dynamic, Dynamic, Dynamic],
+                &["$re", "$s", "$sub"],
+            ),
+        ];
+        for &(name, arguments, source) in corpus {
+            let invocation = registry
+                .invocation(
+                    InvocationWords::structured(Literal(name), arguments),
+                    &context,
+                )
+                .resolved()
+                .expect("a shipped command resolves");
+            let spec = registry.get(name).expect("a shipped command");
+            assert_eq!(
+                invocation.return_type(),
+                spec.return_type_for_call(source),
+                "{name} {source:?}"
+            );
+        }
     }
 }

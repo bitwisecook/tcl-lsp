@@ -435,8 +435,8 @@ impl DeclaredMemberVisibility {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MemberEffect {
     /// A callable member: `method`, `classmethod`, `typemethod`,
-    /// `constructor`, `destructor`, snit's `onconfigure` / `oncget`, a
-    /// class-scoped `proc`.
+    /// `constructor`, `destructor`, snit's `onconfigure` / `oncget` and
+    /// namespace `proc`, itcl's class-scoped `proc`.
     Callable {
         /// Which dispatch side the member lands on, before any
         /// [`MemberKind::Wrapper`] shift is applied.
@@ -580,6 +580,18 @@ pub enum CallableRole {
     Accessor,
     /// Handles an option or property write (snit's `onconfigure`).
     Mutator,
+    /// A procedure in the definition's own namespace, called by name from the
+    /// definition's code and never dispatched through the type or instance
+    /// command (snit's `proc`). Its receiver is the side whose state its body
+    /// sees.
+    ///
+    /// snit 2.3.4 (tcllib 2.0) on tclsh 8.6.18 and 9.0.4 alike: `snit::type
+    /// ::app::Dog { typevariable count 5; proc helper {a} { expr {$a + $count}
+    /// } }` defines the command `::app::Dog::helper` (`::app::Dog::helper 10`
+    /// → `15`), while `::app::Dog helper 1` is a construction (`Error in
+    /// constructor: …`) and an instance's `helper` is `unknown subcommand
+    /// "helper"` — no dispatch side reaches it.
+    Procedure,
 }
 
 /// Whose state a [`MemberEffect::StateDeclaration`] declares.
@@ -651,6 +663,7 @@ member_effect_spellings! {
         Destructor => "destructor",
         Accessor => "accessor",
         Mutator => "mutator",
+        Procedure => "procedure",
     }
     StateScope {
         PerInstance => "per-instance",
@@ -2125,11 +2138,19 @@ const TCL90_MEMBERS: &[SpecSurface] = SpecSurface::TCL90_PLUS;
 /// `method NAME PARAMS BODY` on the instances.
 const INSTANCE_METHOD: MemberEffect =
     callable(MemberReceiver::Instance, CallableRole::Method, METHOD_SLOTS);
-/// `classmethod` / `typemethod` / a class-scoped `proc NAME PARAMS BODY`, on
-/// the class or type object.
+/// `classmethod` / `typemethod` / itcl's class-scoped `proc NAME PARAMS BODY`,
+/// on the class or type object.
 const TYPE_METHOD: MemberEffect = callable(
     MemberReceiver::TypeObject,
     CallableRole::Method,
+    METHOD_SLOTS,
+);
+/// snit's `proc NAME PARAMS BODY`: a procedure in the type's namespace that
+/// sees the type's state and is reached by name, never by dispatch
+/// ([`CallableRole::Procedure`]).
+const TYPE_PROCEDURE: MemberEffect = callable(
+    MemberReceiver::TypeObject,
+    CallableRole::Procedure,
     METHOD_SLOTS,
 );
 /// `constructor PARAMS BODY`.
@@ -2506,8 +2527,9 @@ const ONCGET_ROLES: &[(u8, ArgRole)] = &[(1, ArgRole::Body)];
 const SNIT_MEMBERS: &[MemberSpec] = &[
     MemberSpec::flat("method", METHOD_ROLES, INSTANCE_METHOD),
     MemberSpec::flat("typemethod", METHOD_ROLES, TYPE_METHOD),
-    // A type-private `proc NAME ARGS BODY` — same shape as a method.
-    MemberSpec::flat("proc", METHOD_ROLES, TYPE_METHOD),
+    // A type-private `proc NAME ARGS BODY` — same shape as a method, but a
+    // procedure in the type's namespace rather than a dispatched member.
+    MemberSpec::flat("proc", METHOD_ROLES, TYPE_PROCEDURE),
     MemberSpec::flat("constructor", CTOR_ROLES, CONSTRUCTOR),
     MemberSpec::flat("destructor", BODY0_ROLES, DESTRUCTOR),
     MemberSpec::flat("typeconstructor", BODY0_ROLES, INIT_AT_DEFINITION),

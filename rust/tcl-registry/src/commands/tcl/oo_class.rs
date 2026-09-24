@@ -333,7 +333,7 @@ mod tests {
             }) if target.literal() == Some("::C")
         )));
 
-        let effects = invocation.effect_footprint();
+        let effects = invocation.effects();
         assert!(
             !effects
                 .accesses()

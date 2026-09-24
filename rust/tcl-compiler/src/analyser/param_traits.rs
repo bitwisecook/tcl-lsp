@@ -1065,7 +1065,7 @@ pub fn caller_frame_upvar_params(
 ///   different frame entirely, see [`caller_frame_upvar_params`]'s table;
 /// * a `::`-qualified source (`upvar 1 ::ns::x local`) — a fixed global/
 ///   namespace cell, level-independent, already linked by the analyser's
-///   `handle_upvar_command` `otherVar` link;
+///   alias consumer (`apply_state_transitions`) `otherVar` link;
 /// * an array element or any substituted/computed source — not a plain
 ///   caller-frame scalar name this scan can claim;
 /// * a dynamic **local** side — with no alias name, the write-through scan

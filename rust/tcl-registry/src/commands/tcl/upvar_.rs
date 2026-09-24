@@ -97,6 +97,10 @@ fn upvar_state_transitions(arguments: InvocationArguments<'_>) -> StateTransitio
                     variable,
                 },
                 writes_value: false,
+                words: crate::state_transition::AliasWords {
+                    local: other_index + 1,
+                    target: other_index,
+                },
             },
         ));
     }

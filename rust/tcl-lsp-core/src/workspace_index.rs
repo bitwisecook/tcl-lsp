@@ -82,7 +82,18 @@ use crate::workspace_symbols::{
 };
 use tcl_compiler::analyser::class_hierarchy::{build_tail_index, resolve_class_name};
 use tcl_compiler::analyser::{AnalysisResult, MemberRetractionRecord, MemberSide};
+use tcl_compiler::ir::MethodKind;
 use tcl_lexer::Span;
+use tcl_registry::definer::DeclaredMemberVisibility;
+
+/// The class-object side's member kind — [`MethodKind::ClassMethod`]'s
+/// spelling, which the analyser records on every class-side member and this
+/// index keys the side on.
+const CLASS_METHOD: &str = MethodKind::ClassMethod.as_str();
+/// The analyser's spelling of an exported member's visibility.
+const PUBLIC: &str = DeclaredMemberVisibility::Public.as_str();
+/// The analyser's spelling of a private member's visibility.
+const PRIVATE: &str = DeclaredMemberVisibility::Private.as_str();
 
 /// One proc definition recorded in the workspace index.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -264,7 +275,7 @@ impl WorkspaceClass {
     pub fn instance_method(&self, name: &str) -> Option<&WorkspaceMethod> {
         self.methods
             .iter()
-            .find(|m| m.name == name && m.kind != "classmethod")
+            .find(|m| m.name == name && m.kind != CLASS_METHOD)
     }
 
     /// The typed record for the *class-receiver* member `name` — a
@@ -274,7 +285,7 @@ impl WorkspaceClass {
     pub fn class_method(&self, name: &str) -> Option<&WorkspaceMethod> {
         self.methods
             .iter()
-            .find(|m| m.name == name && m.kind == "classmethod")
+            .find(|m| m.name == name && m.kind == CLASS_METHOD)
     }
 }
 
@@ -283,7 +294,7 @@ impl WorkspaceClass {
 /// named once so the member fold and the tombstone lookup agree on it.
 #[must_use]
 fn method_side(m: &WorkspaceMethod) -> MemberSide {
-    if m.kind == "classmethod" {
+    if m.kind == CLASS_METHOD {
         MemberSide::ClassObject
     } else {
         MemberSide::Instance
@@ -1504,8 +1515,8 @@ impl DocumentRecords {
                     .map(|m| WorkspaceMethod {
                         name: m.name.clone(),
                         kind: m.kind.clone(),
-                        exported: m.visibility == "public",
-                        private: m.visibility == "private",
+                        exported: m.visibility == PUBLIC,
+                        private: m.visibility == PRIVATE,
                         is_self_method: m.is_self_method,
                         name_span: m.name_span,
                     })
@@ -1514,9 +1525,9 @@ impl DocumentRecords {
                             .into_iter()
                             .map(|m| WorkspaceMethod {
                                 name: m.name.clone(),
-                                kind: "classmethod".to_string(),
-                                exported: m.visibility == "public",
-                                private: m.visibility == "private",
+                                kind: CLASS_METHOD.to_string(),
+                                exported: m.visibility == PUBLIC,
+                                private: m.visibility == PRIVATE,
                                 is_self_method: m.is_self_method,
                                 name_span: m.name_span,
                             }),
@@ -3450,7 +3461,7 @@ impl WorkspaceIndex {
                     let names = self
                         .effective_members(x)
                         .into_iter()
-                        .filter(|m| m.method.kind != "classmethod" && !m.method.private)
+                        .filter(|m| m.method.kind != CLASS_METHOD && !m.method.private)
                         .map(|m| m.name.to_owned())
                         .collect();
                     member_names.insert(x.clone(), names);
@@ -5961,7 +5972,7 @@ mod tests {
                         index
                             .effective_members(x)
                             .into_iter()
-                            .filter(|m| m.method.kind != "classmethod" && !m.method.private)
+                            .filter(|m| m.method.kind != CLASS_METHOD && !m.method.private)
                             .map(|m| m.name.to_owned()),
                     );
                 }

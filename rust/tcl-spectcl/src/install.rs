@@ -134,6 +134,11 @@ fn install_into(
         for ambient in &pack.ambient_packages {
             registry.insert_ambient_package(ambient.name, ambient.version);
         }
+        // Special variables likewise: each row carries its own dialect
+        // gate, which every reader applies at the query.
+        for special in &pack.special_vars {
+            registry.insert_special_var(special.spec);
+        }
         for command in &pack.commands {
             if context.required_package_available(command.spec.required_package)
                 && installs_over(command, registry)

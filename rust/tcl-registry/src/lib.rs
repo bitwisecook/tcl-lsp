@@ -256,8 +256,9 @@ pub use body_kind::{BodyInterpreter, BodyKind};
 pub use byte_array_effect::ByteArrayEffect;
 pub use cache::{default_registry, registry_for_profile_with_overlay, safe_interp_hidden_commands};
 pub use clause_grammar::{
-    ClauseGrammarSpec, ClauseKeyword, ClausePlan, ClauseRow, ClauseRowId, ClauseRowShape,
-    ClauseSelection, ClauseSlot, ClauseTiming, DefaultClause, LoopPhase, ResolvedClause,
+    ClauseAbstention, ClauseGrammarSpec, ClauseKeyword, ClausePlan, ClauseRow, ClauseRowId,
+    ClauseRowShape, ClauseSelection, ClauseSlot, ClauseTiming, DefaultClause, LoopPhase,
+    ResolvedClause,
 };
 pub use clause_shape::{ClauseShapeChecker, ClauseShapeError};
 pub use command_prefix_target::CommandPrefixTarget;
@@ -333,7 +334,7 @@ pub use special_vars::{
     special_var_write_effect, special_vars_for_dialect,
 };
 pub use state_transition::{
-    AbruptTransitionTransfer, CallerFrameSelection, ChildInterpreterSafety,
+    AbruptTransitionTransfer, AliasWords, CallerFrameSelection, ChildInterpreterSafety,
     CommandBindingDefinitionKind, CommandBindingTransition, CommandResolutionImpact,
     InterpreterTransition, NamespaceTransition, NamespaceTransitionTarget, ObjectDispatchKind,
     ObjectDispatchLayer, ObjectDispatchTarget, ObjectDispatchTransition, ObjectPrivateNamespace,

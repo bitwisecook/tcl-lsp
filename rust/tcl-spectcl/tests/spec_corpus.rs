@@ -1417,7 +1417,7 @@ const BASELINE_HEADER: &str = "\
 #
 #     <pack file>\\t<severity>\\t<context>\\t<message>
 #
-# tab-separated, sorted, one line per occurrence — 49 of them today, in four
+# tab-separated, sorted, one line per occurrence — 25 of them today, in six
 # groups. `tests/spec_corpus.rs`
 # compares the notices of every pack against this file as a multiset and fails
 # on any difference in either direction, so a notice that gets fixed must also
@@ -1430,24 +1430,21 @@ const BASELINE_HEADER: &str = "\
 # `docs/design/spec-dsl-examples/`, and each is a known, named gap rather than
 # a defect:
 #
-#   `unknown property `object_class` dropped` (13 lines, all four external
-#       drafts) — a REAL LOADER GAP, and the most useful thing this baseline
-#       records. `object_class NAME ?-superclass {…}? ?-allow-unknown?
-#       { method … }` is ratified vocabulary: it is in the frozen syntax
-#       (`docs/design/spec-dsl-examples/README.md`, the field table and the
-#       statement index) and it is a compiled-in `SpecTcl` self-spec statement
-#       (`tcl-registry/src/commands/spectcl/blocks.rs`). `tcl-spectcl`'s
-#       loader implements none of it — `object_class` does not appear in
-#       `src/loader.rs` at all — so every handle-returning factory in the four
-#       external drafts loses its method table on the way in. Nothing under
-#       `specs/` uses the statement, which is why the gap survived the EDA
-#       migration unnoticed.
+#   `unknown flag … on `arg` dropped` (6, the `apave` and `tcllib` external
+#       drafts' object-class methods) — the drafts spell `arg` columns the
+#       vocabulary does not have (`-body-kind`, `-repeats`, a bare `Plain`, an
+#       inline `row {…}`), dropped exactly as the compatibility policy
+#       promises.
 #
 #   `unknown flag `-readonly` on `option` dropped` (3, tcllib draft) — not a
 #       gap: the draft says so itself at `tcllib.tclspec:288`, \"no field in the
 #       DSL to lower `-readonly` into — written on all three options anyway\".
 #       A marked invention, dropped exactly as the compatibility policy
 #       promises.
+#
+#   `hook body on `method walk` is not yet bindable` (1, tcllib draft) — an
+#       object-class method's hook body has no slot to bind to yet, so the
+#       field abstains.
 #
 #   `names a lowering hook` / `names a codegen hook` (6, the `foreach`, `if`,
 #       `return`, `switch` and `upvar` ports) — deliberate. A pack naming a
@@ -1456,12 +1453,15 @@ const BASELINE_HEADER: &str = "\
 #       are ports of shipped specs that legitimately carry those hooks; a
 #       private pack getting the same warning is being told something true.
 #
-#   ``state_transitions` row … is not yet loadable` /
-#   ``world_effects` row … is not yet loadable` (27, the `oo-class` and `upvar`
-#       ports) — the loader's own words. Those two descriptor families are the
-#       named, still-unimplemented tail of the schema; the ports transcribe
-#       them because the ports were written against the *design*, and the
-#       notices are the honest record of the distance left.
+#   ``world_effects` row … is not yet loadable` (6, the `oo-class` port) —
+#       the loader's own words: the `world_effects` block's rows beside
+#       `composition` are the named, still-unimplemented tail of the schema.
+#
+#   `state_transitions.resolver -native … names nothing this build ships`
+#       (3, the `oo-class` port) — the port names the shipped `oo::class`
+#       resolvers by id, and no build ships a transition resolver by id yet;
+#       every other row of those blocks loads, and the `upvar` port's
+#       `resolver from-frame-effect` derives.
 #
 # Adding a line here is therefore an admission with a reason attached. Adding
 # one for a file under `specs/` would be a regression in the only tier that

@@ -243,7 +243,7 @@ mod tests {
                 && namespace.literal() == Some("::private::target")
         )));
 
-        let effects = invocation.effect_footprint();
+        let effects = invocation.effects();
         assert!(!effects.accesses().iter().any(|access| {
             access.domain == WorldStateDomain::InterpreterPolicy
                 && matches!(

@@ -569,8 +569,9 @@ pub struct MethodDef {
     pub name_span: Span,
     /// Source span of the method body (braces excluded).
     pub body_span: Span,
-    /// Method kind: ``"method"`` / ``"classmethod"`` /
-    /// ``"forward"`` / ``"constructor"`` / ``"destructor"``.
+    /// Method kind: the spelling of the [`crate::ir::MethodKind`] its row
+    /// lands in (``"method"`` / ``"classmethod"`` / ``"constructor"`` /
+    /// ``"destructor"``), or ``"forward"``.
     pub kind: String,
     /// `true` only for a `classmethod`-kind entry declared via `TclOO`'s
     /// `self` wrapper (`self method NAME …`) directly on this class.
@@ -619,6 +620,23 @@ impl MethodDef {
             return tcl_registry::Arity::new(0, tcl_registry::Arity::UNLIMITED);
         }
         crate::signature_scan::arity::arity_of(&self.params)
+    }
+
+    /// Whether this nameless member — a constructor or destructor, recorded
+    /// under the synthetic `<keyword>` name its member keyword gives it — was
+    /// declared by the keyword `word`.
+    ///
+    /// A provider meeting the keyword itself (the cursor on `constructor` in a
+    /// class body) asks the member it declared, and reads what that member is
+    /// off [`Self::kind`], rather than comparing the word with a spelling: a
+    /// definer whose constructor member is spelt otherwise resolves the same
+    /// way.
+    #[must_use]
+    pub fn is_declared_by_keyword(&self, word: &str) -> bool {
+        self.name
+            .strip_prefix('<')
+            .and_then(|rest| rest.strip_suffix('>'))
+            == Some(word)
     }
 }
 

@@ -195,9 +195,17 @@ pub const GAPS: &[Gap] = &[
         spelling: "world_effects none|NAME|{ … }",
         kind: GapKind::DraftOpaque,
     },
+    // Every row of the block loads — `resolver` a body of the
+    // `state_transitions` resolver family, `from-frame-effect`, `none` or
+    // `-native ID` — but a draft holds no hook body for any family: a body
+    // survives a form edit because the pack store carries its statement
+    // forward verbatim. So the block stays one row here and travels the same
+    // way, rather than splitting into drafted rows around a resolver the
+    // draft could only hold as opaque.
     Gap {
         key: "state_transitions",
-        spelling: "state_transitions NAME|{ … }",
+        spelling: "state_transitions NAME|{ composition … argument_shape … resolver \
+                   none|from-frame-effect|-native ID|{words ctx} {…} widen … covers … commit … }",
         kind: GapKind::DraftOpaque,
     },
     Gap {

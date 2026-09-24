@@ -19,45 +19,46 @@
 //! `TclOO` class / method body parsing + unknown-proc detection.
 //!
 //! Walks the body of an ``oo::class create Name { ... }`` or
-//! ``oo::define Name { ... }`` block and populates the
-//! [`super::types::ClassDef`] fields: the full field set
+//! ``oo::define Name { ... }`` block (and a snit type's or an itcl class's)
+//! and populates the [`super::types::ClassDef`] fields: the full field set
 //! (``constructors``, ``destructor``, ``variables``,
 //! ``properties``, ``filters``, ``exports``, ``unexports``) plus
 //! [`Analyser::extract_unknown_proc_info`] — the W123 gating
 //! analysis for user-defined ``unknown`` procs.
 //!
-//! Subcommand coverage:
+//! Every member statement is read through its registry row
+//! (`DefinitionBodyGrammar::member_row`) and lands by its effect and the side
+//! its receiver resolves to, never by its keyword (`member_landing`):
 //!
-//! - ``superclass ?-op? <names>`` — folds into ``ClassDef::superclasses``
-//!   through the registry slot spec (default ``-set``).
-//! - ``mixin ?-op? <names>`` — folds into ``ClassDef::mixins`` the same
-//!   way (default ``-set``).
-//! - ``method NAME PARAMS BODY`` — adds to ``ClassDef::methods``.
-//! - ``classmethod NAME PARAMS BODY`` — adds to
-//!   ``ClassDef::class_methods``.
-//! - ``constructor PARAMS BODY`` — appends a synthetic-named
-//!   ``MethodDef`` to ``ClassDef::constructors``.
-//! - ``destructor BODY`` — sets ``ClassDef::destructor``.
-//! - ``forward NAME ?TARGET ARGS?`` — adds to ``methods`` with
-//!   ``kind = "forward"``.
-//! - ``variable ?-op? <names>`` — folds into ``ClassDef::variables``
-//!   (slot default ``-append`` with dedup).
-//! - ``filter ?-op? <names>`` — folds into ``ClassDef::filters``
-//!   (slot default ``-append``, duplicates kept).
-//! - ``export <names>`` / ``unexport <names>`` — extends the
-//!   matching ``HashSet`` field.
-//! - ``property NAME ?-get BODY? ?-set BODY? ?-kind K?`` —
-//!   extracts a [`super::types::PropertyDef`] per name.
-//! - ``initialise`` / ``initialize`` — recognised; the body is
-//!   walked in the enclosing scope for variable tracking.
+//! - a callable — in the table `MethodKind::from_effect` names: an instance
+//!   method in ``ClassDef::methods``, a type-object one in
+//!   ``ClassDef::class_methods``, a constructor appended to
+//!   ``ClassDef::constructors`` under its synthetic `<keyword>` name, a
+//!   destructor in ``ClassDef::destructor``; snit's option handlers and
+//!   `typeconstructor` among the methods of their side; snit's namespace
+//!   `proc` through the ordinary proc handling;
+//! - a forward — ``methods`` with ``kind = "forward"``;
+//! - per-instance state — folds into ``ClassDef::variables`` through the
+//!   registry slot spec (``-append`` with dedup for `TclOO`'s `variable`);
+//! - a relation — the superclass and mixin slots (default ``-set``) and each
+//!   side's filter slot (default ``-append``, duplicates kept);
+//! - a retraction or visibility word — the members it names, on its side;
+//! - flag-keyed accessors (``property NAME ?-get BODY? ?-set BODY? ?-kind
+//!   K?``) — a [`super::types::PropertyDef`] per name;
+//! - a definition-time script (``initialise`` / ``initialize``) — its body is
+//!   walked in a class-keyed scope for variable tracking.
 
 use tcl_dialect::model::SurfaceQuery;
 use tcl_dialect::model::surface_admits;
 use tcl_lexer::{Span, Token, TokenType};
 use tcl_registry::arg_role::ArgRole;
-use tcl_registry::definer::{DefinitionBodyGrammar, MemberRefKind, MemberSpec, MemberVisibility};
+use tcl_registry::definer::{
+    CallableRole, DefinitionBodyGrammar, InitTiming, MemberCurrentNamespace, MemberEffect,
+    MemberKind, MemberReceiver, MemberRefKind, MemberRow, MemberSpec, MemberVisibility,
+    RelationSlot, StateScope, WrapperShift,
+};
 use tcl_registry::side_effects::SideEffectTarget;
-use tcl_registry::{CommandRegistry, Traits};
+use tcl_registry::{CommandRegistry, InvocationArguments, InvocationWord, Traits};
 use tcl_syntax::word_rules::WordValueRules;
 
 use super::diagnostics::helpers::has_substitution;
@@ -68,7 +69,7 @@ use super::types::{
     RenamedMember, Scope, ScopeKind, UnknownProcInfo,
 };
 use super::utils::{param_name_spans_for_token, parse_param_list};
-use crate::ir::{Module, Statement, SwitchMode};
+use crate::ir::{MethodKind, Module, Statement, SwitchMode};
 use crate::signature_scan::types::ParamDef;
 
 /// The names by which a user handler conventionally keeps the original
@@ -154,15 +155,15 @@ struct ClassBodyCtx<'a> {
 }
 
 /// A body-bearing member ready to extract: its grammar spec (argument layout),
-/// the target [`MethodDef::kind`], and the synthetic name for the nameless
-/// forms.  Bundled to keep [`Analyser::extract_class_member`] under the argument
-/// limit.
+/// the table its row lands in, and the synthetic name for the nameless forms.
+/// Bundled to keep [`Analyser::extract_class_member`] under the argument limit.
 struct MemberForm<'a> {
     member: &'a MemberSpec,
-    kind: &'a str,
+    kind: MethodKind,
     label: &'a str,
-    /// The member's declared visibility (`"public"` for snit / `TclOO`; the itcl
-    /// access modifier `public` / `protected` / `private`).
+    /// The member's declared visibility — its row's: the family's name rule
+    /// (every snit and itcl member is exported), or the visibility an itcl
+    /// access modifier's shift declares.
     visibility: &'a str,
 }
 
@@ -174,18 +175,16 @@ struct SnitDefiner {
     grammar: &'static DefinitionBodyGrammar,
 }
 
-/// Whether `member` is a pure variable/component *declaration* — it names a
-/// [`ArgRole::VarWrite`] but carries no recursable body (`variable v`,
-/// `typevariable v`, `component c`, `typecomponent c`).  Members that carry
-/// both (snit 1.x `onconfigure`'s value var) are method bodies, not
-/// declarations, and are excluded.
-fn is_var_declaration(member: &MemberSpec) -> bool {
-    let has_var = member
-        .arg_roles
-        .iter()
-        .any(|(_, r)| *r == ArgRole::VarWrite);
-    let has_body = member.arg_roles.iter().any(|(_, r)| *r == ArgRole::Body);
-    has_var && !has_body
+/// Whether `member` declares variables by name: a
+/// [`MemberEffect::StateDeclaration`] whose words name them — every argument
+/// (`TclOO`'s `variable a b c`) or its [`ArgRole::VarWrite`] word (snit's
+/// `variable` / `typevariable` / `component` / `typecomponent`, itcl's
+/// `variable` / `common`). snit's `option` declares state but names an option,
+/// not a variable, so it is not one. A callable that binds a value variable
+/// (snit 1.x `onconfigure`) is a body, not a declaration.
+fn declares_variables(member: &MemberSpec) -> bool {
+    matches!(member.effect, MemberEffect::StateDeclaration { .. })
+        && (member.all_args_var || member.indices_for(ArgRole::VarWrite).next().is_some())
 }
 
 /// Map each declared instance-variable name in `known` to the span of its
@@ -210,22 +209,22 @@ fn collect_var_decl_spans(
         if cmd.is_partial {
             continue;
         }
-        let Some((sub, _)) = cmd.texts.split_first() else {
+        // A statement is a variable declaration when its row declares the
+        // instances' state and its member names variables — the same answer
+        // the class fold gives it, so the span map and `ClassDef::variables`
+        // cannot disagree.  Gating additionally on `known_set` below means a
+        // stray non-declaration match cannot leak.
+        let Some(statement) = MemberStatement::read(grammar, &cmd.texts, &cmd.argv, None) else {
             continue;
         };
-        // A command is a variable declaration when the grammar marks it one
-        // (snit `typevariable`/`component`, …) OR it is TclOO's `variable` /
-        // `typevariable`, which `apply_oo_subcommand` handles with a hardcoded
-        // arm rather than through the grammar.  Gating additionally on
-        // `known_set` below means a stray non-declaration match cannot leak.
-        let is_decl = matches!(sub.as_str(), "variable" | "typevariable")
-            || grammar.member(sub).is_some_and(is_var_declaration);
-        if !is_decl {
+        if !declares_variables(statement.member)
+            || statement.row.receiver != MemberReceiver::Instance
+        {
             continue;
         }
-        // argv[0] / texts[0] is the member keyword; the remaining words are the
-        // declared names (`variable a b c`).
-        for (text, tok) in cmd.texts.iter().zip(cmd.argv.iter()).skip(1) {
+        // The words after the member keyword are the declared names
+        // (`variable a b c`).
+        for (text, tok) in statement.args().iter().zip(statement.arg_tokens()) {
             let base = crate::naming::normalise_var_name(text);
             if known_set.contains(base) {
                 out.entry(base.to_string()).or_insert(tok.span);
@@ -237,18 +236,15 @@ fn collect_var_decl_spans(
 
 /// Strip a leading member wrapper (a registry [`MemberKind::Wrapper`] — itcl's
 /// `public` / `protected` / `private` access modifiers, `TclOO`'s `self`) from a
-/// member call, returning the effective member keyword, its argument texts +
-/// tokens (the words *after* the keyword), and the declared visibility.  A
-/// non-wrapped member reports `"public"` (itcl's members are callable; the
-/// precise default is not modelled).  Returns `None` for an empty command or a
-/// bare wrapper with no inner member keyword (a wrapper's bare script-block
-/// form, `self { … }`, has no inner member).
+/// member call, returning the effective member keyword and its argument texts
+/// and tokens (the words *after* the keyword).  Returns `None` for an empty
+/// command or a bare wrapper with no inner member keyword (a wrapper's bare
+/// script-block form, `self { … }`, has no inner member).
 fn unwrap_wrapper_member<'a>(
     grammar: &DefinitionBodyGrammar,
     texts: &'a [String],
     argv: &'a [Token],
-) -> Option<(&'a str, &'a [String], &'a [Token], &'a str)> {
-    use tcl_registry::definer::MemberKind;
+) -> Option<(&'a str, &'a [String], &'a [Token])> {
     let (first, rest_texts) = texts.split_first()?;
     let rest_toks = argv.get(1..).unwrap_or(&[]);
     if grammar
@@ -258,9 +254,240 @@ fn unwrap_wrapper_member<'a>(
         // `<modifier> <member> args…` — the inner member follows.
         let (inner, inner_texts) = rest_texts.split_first()?;
         let inner_toks = rest_toks.get(1..).unwrap_or(&[]);
-        Some((inner.as_str(), inner_texts, inner_toks, first.as_str()))
+        Some((inner.as_str(), inner_texts, inner_toks))
     } else {
-        Some((first.as_str(), rest_texts, rest_toks, "public"))
+        Some((first.as_str(), rest_texts, rest_toks))
+    }
+}
+
+/// The words of one definition-body member statement as the registry reads
+/// them: a braced word, or one with no substitution, is the literal it spells;
+/// anything else is a computed word ([`has_substitution`], the boundary this
+/// walker's other static-word checks draw).
+fn member_statement_words<'t>(texts: &'t [String], argv: &[Token]) -> Vec<InvocationWord<'t>> {
+    texts
+        .iter()
+        .enumerate()
+        .map(|(index, text)| match argv.get(index) {
+            Some(tok) if tok.kind == TokenType::Str || !has_substitution(text, tok) => {
+                InvocationWord::Literal(text)
+            }
+            Some(_) => InvocationWord::Dynamic,
+            None => InvocationWord::Opaque,
+        })
+        .collect()
+}
+
+/// One definition-body member statement read through its registry
+/// [`MemberRow`]: the row, the member spec at its keyword (the wrapped
+/// member's own for a wrapper's prefix form), and the statement's words.
+struct MemberStatement<'a> {
+    grammar: &'a DefinitionBodyGrammar,
+    row: MemberRow,
+    member: &'static MemberSpec,
+    texts: &'a [String],
+    argv: &'a [Token],
+}
+
+impl<'a> MemberStatement<'a> {
+    /// The statement `texts` / `argv` spell, read under `dialect`; `None`
+    /// when the registry cannot read it — an unknown or computed keyword, a
+    /// wrapper around nothing it recognises, a recognised option word the
+    /// dialect lacks, or a computed word where an optional one may stand.
+    fn read(
+        grammar: &'a DefinitionBodyGrammar,
+        texts: &'a [String],
+        argv: &'a [Token],
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> Option<Self> {
+        let words = member_statement_words(texts, argv);
+        let row = grammar.member_row(0, InvocationArguments::structured(&words), dialect)?;
+        let member = grammar.member(texts.get(row.keyword_index)?)?;
+        Some(Self {
+            grammar,
+            row,
+            member,
+            texts,
+            argv,
+        })
+    }
+
+    /// The member keyword as written.
+    fn keyword(&self) -> &'a str {
+        &self.texts[self.row.keyword_index]
+    }
+
+    /// The member keyword's token.
+    fn keyword_token(&self) -> Option<Token> {
+        self.argv.get(self.row.keyword_index).copied()
+    }
+
+    /// The words after the member keyword.
+    fn args(&self) -> &'a [String] {
+        self.texts.get(self.row.keyword_index + 1..).unwrap_or(&[])
+    }
+
+    /// The tokens of [`Self::args`], word for word.
+    fn arg_tokens(&self) -> &'a [Token] {
+        self.argv.get(self.row.keyword_index + 1..).unwrap_or(&[])
+    }
+
+    /// Where the row lands in the class model.
+    fn landing(&self) -> MemberLanding {
+        member_landing(self.grammar, self.member, &self.row)
+    }
+
+    /// What the wrappers written before the member keyword do to it,
+    /// innermost first ([`WrapperShift::within`]) — the shift the row's
+    /// receiver and visibility already include.
+    fn shift(&self) -> WrapperShift {
+        self.texts[..self.row.keyword_index]
+            .iter()
+            .fold(WrapperShift::NONE, |outer, word| {
+                self.grammar
+                    .member(word)
+                    .and_then(|wrapper| wrapper.wrapper_shift)
+                    .map_or(outer, |inner| inner.within(outer))
+            })
+    }
+
+    /// The visibility a declared member is recorded with.
+    ///
+    /// A literal name takes the row's answer — its option word, then its
+    /// wrapper, then the family's name rule. A computed name is still recorded
+    /// under its written spelling (the class outline shows `${m}`), so the
+    /// same three steps read that spelling: `${m}` fails `TclOO`'s `[a-z]*`
+    /// rule, and is unexported unless its option word or wrapper says
+    /// otherwise.
+    fn recorded_visibility(&self, written_name: &str, dialect: Option<SurfaceQuery<'_>>) -> String {
+        let named = matches!(
+            self.row.effect,
+            MemberEffect::Callable {
+                name_slot: Some(_),
+                ..
+            } | MemberEffect::Forward { .. }
+        );
+        if self.row.name.is_some() || !named {
+            return self.row.visibility.as_str().to_string();
+        }
+        let fallback = self.shift().visibility.map_or_else(
+            || default_visibility(self.grammar, written_name),
+            |visibility| visibility.as_str().to_string(),
+        );
+        declared_member_visibility(self.member, self.args(), fallback, dialect)
+    }
+}
+
+/// Where one member row lands in the class model — the one `match` on
+/// [`MemberEffect`] the `TclOO` fold and the snit and itcl body walkers share,
+/// so no walker routes a member by its keyword.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum MemberLanding {
+    /// A body recorded as a [`MethodDef`] in the table this kind names.
+    Method(MethodKind),
+    /// A procedure in the definition's own namespace (snit's `proc`): an
+    /// ordinary proc, not a member.
+    Procedure,
+    /// A definition-time script no member table models (`TclOO`'s
+    /// `initialise`, walked as the class's own init script, and a wrapper's
+    /// block form, whose members are read one by one).
+    InitScript,
+    /// A forwarded method.
+    Forward,
+    /// Declared state.
+    State(StateScope),
+    /// A contribution to an ancestry or interposition slot.
+    Relation(RelationSlot),
+    /// Removes the members it names.
+    Retraction,
+    /// Changes the visibility of the members it names.
+    Visibility,
+    /// Flag-keyed accessor declarations (`property … ?-get …? ?-set …?`),
+    /// until they are `Callable` rows of their own.
+    Accessors,
+    /// Configures the definition and records nothing.
+    Nothing,
+}
+
+/// Where `row` — a statement of `member` under `grammar` — lands.
+///
+/// A callable lands in the table [`MethodKind::from_effect`] names; an
+/// option's read or write handler opens no method frame of its own (the IR
+/// lifts none), but the class model keeps its body, under its synthetic
+/// `<keyword -option>` label, on the side that holds the option. A script run
+/// once at definition is a class-side body when the family runs member bodies
+/// in the defined entity's own namespace
+/// ([`MemberCurrentNamespace::DefinedEntity`]: snit's `typeconstructor` is the
+/// proc `${type}::Snit_typeconstructor`, run with `type` bound); under
+/// `TclOO`'s runtime-receiver policy it runs in the class object's own
+/// namespace, and the walker reads it as the class's init script.
+fn member_landing(
+    grammar: &DefinitionBodyGrammar,
+    member: &MemberSpec,
+    row: &MemberRow,
+) -> MemberLanding {
+    match row.effect {
+        MemberEffect::Callable {
+            role: CallableRole::Procedure,
+            ..
+        } => MemberLanding::Procedure,
+        MemberEffect::Callable {
+            role: CallableRole::Accessor | CallableRole::Mutator,
+            ..
+        } => MemberLanding::Method(side_kind(row.receiver)),
+        MemberEffect::Callable { role, .. } => MethodKind::from_effect(role, row.receiver)
+            .map_or(MemberLanding::Nothing, MemberLanding::Method),
+        MemberEffect::InitScript {
+            timing: InitTiming::AtDefinition,
+            ..
+        } if member.kind == MemberKind::Flat
+            && grammar.member_current_namespace() == MemberCurrentNamespace::DefinedEntity =>
+        {
+            MemberLanding::Method(side_kind(row.receiver))
+        }
+        MemberEffect::InitScript { .. } => MemberLanding::InitScript,
+        MemberEffect::Forward { .. } => MemberLanding::Forward,
+        MemberEffect::StateDeclaration { scope } => MemberLanding::State(scope),
+        MemberEffect::Relation { slot } => MemberLanding::Relation(slot),
+        MemberEffect::Retraction => MemberLanding::Retraction,
+        MemberEffect::Visibility => MemberLanding::Visibility,
+        MemberEffect::Configuration if member.kind == MemberKind::FlagKeyed => {
+            MemberLanding::Accessors
+        }
+        MemberEffect::Configuration => MemberLanding::Nothing,
+    }
+}
+
+/// The method table a body with no lifecycle role of its own lands in: the
+/// class object's for a type-object row, the instances' otherwise.
+const fn side_kind(receiver: MemberReceiver) -> MethodKind {
+    match receiver {
+        MemberReceiver::TypeObject => MethodKind::ClassMethod,
+        MemberReceiver::Instance | MemberReceiver::Both => MethodKind::Method,
+    }
+}
+
+/// The method table a row's resolved receiver names, or `None` for a row on
+/// both sides at once, which no member table models.
+const fn member_side(receiver: MemberReceiver) -> Option<MemberSide> {
+    match receiver {
+        MemberReceiver::Instance => Some(MemberSide::Instance),
+        MemberReceiver::TypeObject => Some(MemberSide::ClassObject),
+        MemberReceiver::Both => None,
+    }
+}
+
+/// File a recorded member under the table its kind names.
+fn record_method(class_def: &mut ClassDef, kind: MethodKind, md: MethodDef) {
+    match kind {
+        MethodKind::Method => {
+            class_def.methods.insert(md.name.clone(), md);
+        }
+        MethodKind::ClassMethod => {
+            class_def.class_methods.insert(md.name.clone(), md);
+        }
+        MethodKind::Constructor => class_def.constructors.push(md),
+        MethodKind::Destructor => class_def.destructor = Some(md),
     }
 }
 
@@ -336,12 +563,12 @@ fn literal_loop_elements(
 }
 
 /// Whether a loop's body is exactly one member declaration (per `grammar`,
-/// unwrapped of any `self`/`private`) that names itself with exactly a
+/// under any `self`/`private` wrapper) that names itself with exactly a
 /// reference to the loop variable `var_name` — `foreach`'s installer idiom.
 /// Returns the member's `(kind, body_span)` on a match; `None` for anything
 /// else (more than one statement, a fixed name, a name built from more than
-/// the bare variable, a non-`method`/`classmethod` member) — left exactly as
-/// opaque as before, not a partial guess.
+/// the bare variable, a member that is no method on either side) — left
+/// exactly as opaque as before, not a partial guess.
 fn loop_installed_member_shape(
     grammar: &DefinitionBodyGrammar,
     body_word: &str,
@@ -349,7 +576,7 @@ fn loop_installed_member_shape(
     lexer_config: tcl_lexer::LexerConfig,
     dialect: Option<SurfaceQuery<'_>>,
     var_name: &str,
-) -> Option<(&'static str, Span)> {
+) -> Option<(MethodKind, Span)> {
     let inner_cmds = crate::segmenter::segment_commands_with_offset_and_config(
         body_word,
         body_content_start,
@@ -362,14 +589,14 @@ fn loop_installed_member_shape(
     if real_cmds.next().is_some() {
         return None; // more than one statement — not the simple installer shape
     }
-    let (inner_keyword, inner_texts, inner_argv, _modifier) =
-        unwrap_wrapper_member(grammar, &inner.texts, &inner.argv)?;
-    let kind = match inner_keyword {
-        "method" => "method",
-        "classmethod" => "classmethod",
-        _ => return None,
+    let statement = MemberStatement::read(grammar, &inner.texts, &inner.argv, dialect)?;
+    let MemberLanding::Method(kind @ (MethodKind::Method | MethodKind::ClassMethod)) =
+        statement.landing()
+    else {
+        return None;
     };
-    let member = grammar.member(inner_keyword)?;
+    let (member, inner_texts, inner_argv) =
+        (statement.member, statement.args(), statement.arg_tokens());
     let name_idx = member
         .indices_for_call_in(inner_texts, dialect, ArgRole::Name)
         .next()?;
@@ -384,12 +611,12 @@ fn loop_installed_member_shape(
     Some((kind, body_span))
 }
 
-/// The synthetic name for a nameless snit member (one with no
-/// [`ArgRole::Name`]): `<keyword>`, with a leading roleless option word
-/// (snit 1.x `onconfigure`/`oncget`'s `-option`) appended when present so the
-/// two option handlers for the same keyword stay distinct
-/// (`<onconfigure -foo>` vs `<onconfigure -bar>`).  Unused for named members.
-fn snit_member_label(member: &MemberSpec, keyword: &str, args: &[String]) -> String {
+/// The synthetic name for a nameless member (one with no [`ArgRole::Name`]):
+/// `<keyword>`, with a leading roleless option word (snit 1.x
+/// `onconfigure`/`oncget`'s `-option`) appended when present so the two
+/// option handlers for the same keyword stay distinct (`<onconfigure -foo>` vs
+/// `<onconfigure -bar>`).  Unused for named members.
+fn member_label(member: &MemberSpec, keyword: &str, args: &[String]) -> String {
     let role_at_zero = member.arg_roles.iter().any(|(i, _)| *i == 0);
     if !role_at_zero && let Some(opt) = args.first() {
         return format!("<{keyword} {opt}>");
@@ -749,7 +976,7 @@ impl Analyser {
                 params_computed: true,
                 name_span,
                 body_span,
-                kind: kind.to_string(),
+                kind: kind.as_str().to_string(),
                 is_self_method: false,
                 doc: String::new(),
                 forward_target: None,
@@ -758,7 +985,7 @@ impl Analyser {
             // always outranks a name merely *inferred* from the loop's list —
             // this only ever fills a gap, never overrides real data, however
             // the two are ordered in the source.
-            let table = if kind == "classmethod" {
+            let table = if kind == MethodKind::ClassMethod {
                 &mut class_def.class_methods
             } else {
                 &mut class_def.methods
@@ -779,8 +1006,7 @@ impl Analyser {
         // returned texts/tokens are the words *after* the effective keyword, so
         // grammar arg-role indices (0-based after the keyword) index them
         // directly.
-        let Some((keyword, arg_texts, arg_toks, _vis)) =
-            unwrap_wrapper_member(grammar, texts, argv)
+        let Some((keyword, arg_texts, arg_toks)) = unwrap_wrapper_member(grammar, texts, argv)
         else {
             return;
         };
@@ -1447,40 +1673,38 @@ impl Analyser {
             .collect();
 
         // First pass: collect declared instance / type variable + component
-        // names.  Which members are pure declarations (a `VarWrite` arg and no
-        // body — `variable` / `typevariable` / `component` / `typecomponent`)
-        // and which argument holds the name are read from the registry grammar,
-        // not a hardcoded keyword list.  Snit names every *type*-scoped member
-        // with a `type` prefix, so that family convention routes the name to the
-        // type- vs instance-variable set.
+        // names.  Which members declare state, and whose, is each statement's
+        // row (`StateDeclaration`'s scope: per-type state is the type
+        // variables', per-instance the instance variables'); which argument
+        // holds the name is the member's registry layout.
+        let context = self.analysis_context();
+        let dialect = Some(context.context().authoring_query());
         for cmd in &cmds {
             if cmd.is_partial {
                 continue;
             }
-            let Some((sub, sub_args)) = cmd.texts.split_first() else {
-                continue;
-            };
-            let Some(member) = grammar.member(sub) else {
-                continue;
-            };
-            if !is_var_declaration(member) {
-                continue;
-            }
-            let Some(name) = member
-                .indices_for_call_in(
-                    sub_args,
-                    Some(self.analysis_context().context().authoring_query()),
-                    ArgRole::VarWrite,
-                )
-                .next()
-                .and_then(|i| sub_args.get(i))
+            let Some(statement) = MemberStatement::read(grammar, &cmd.texts, &cmd.argv, dialect)
             else {
                 continue;
             };
-            if sub.starts_with("type") {
-                type_vars.push(name.clone());
-            } else {
-                instance_vars.push(name.clone());
+            let MemberLanding::State(scope) = statement.landing() else {
+                continue;
+            };
+            let args = statement.args();
+            let Some(name) = statement
+                .member
+                .indices_for_call_in(args, dialect, ArgRole::VarWrite)
+                .next()
+                .and_then(|i| args.get(i))
+            else {
+                continue;
+            };
+            match scope {
+                StateScope::PerType => type_vars.push(name.clone()),
+                StateScope::PerInstance => instance_vars.push(name.clone()),
+                // An option is configured through the instance, not read as
+                // a variable of its own.
+                StateScope::Option => {}
             }
         }
 
@@ -1506,110 +1730,96 @@ impl Analyser {
 
         // Second pass: analyse method-bearing declarations in method scopes.
         for cmd in &cmds {
-            if cmd.is_partial {
+            if cmd.is_partial || cmd.texts.is_empty() {
                 continue;
             }
-            if let Some((sub, sub_args)) = cmd.texts.split_first() {
-                let sub_tokens = cmd.argv.get(1..).unwrap_or(&[]);
-                let mut ctx = ClassBodyCtx {
-                    grammar,
-                    class_def,
-                    class_qualified,
-                    scope_path,
-                };
-                self.dispatch_snit_member(
-                    sub,
-                    sub_args,
-                    sub_tokens,
-                    &mut ctx,
-                    &instance_vars,
-                    &type_vars,
-                );
-            }
+            let mut ctx = ClassBodyCtx {
+                grammar,
+                class_def,
+                class_qualified,
+                scope_path,
+            };
+            self.dispatch_snit_member(cmd, &mut ctx, &instance_vars, &type_vars);
         }
     }
 
-    /// Dispatch one snit body subcommand to the matching method extractor (or,
-    /// for `proc`, the ordinary proc handler).  Split out of
+    /// Dispatch one snit body statement by its row: a callable or a
+    /// definition-time script to the method extractor, a namespace procedure
+    /// to the ordinary proc handler.  Split out of
     /// [`Self::parse_snit_definition_body`] so the two-pass walk stays small.
     ///
-    /// Recognition (is this a member?) and argument layout (which words are the
-    /// name / parameter list / value var / body) are read from the registry
-    /// grammar member; only the analyser-level *semantics* — the target
-    /// [`MethodDef::kind`], whether the body sees instance or type variables,
-    /// and the synthetic name of the nameless forms — are decided here.
+    /// Recognition, argument layout (which words are the name / parameter list
+    /// / value var / body) and what the statement declares all come from its
+    /// registry row ([`member_landing`], the routing the `TclOO` fold shares):
+    /// a type-object row's body sees the type variables and lands among the
+    /// class methods, an instance row's sees the instance variables.  Only the
+    /// synthetic name of the nameless forms is decided here.
     fn dispatch_snit_member(
         &mut self,
-        sub: &str,
-        sub_args: &[String],
-        sub_tokens: &[Token],
+        cmd: &crate::segmenter::SegmentedCommand,
         ctx: &mut ClassBodyCtx<'_>,
         instance_vars: &[String],
         type_vars: &[String],
     ) {
-        let Some(member) = ctx.grammar.member(sub) else {
-            return;
-        };
-        let parameter_indices: Vec<usize> = member
-            .indices_for_call_in(
+        let context = self.analysis_context();
+        let dialect = Some(context.context().authoring_query());
+        let (sub_args, sub_tokens) = (&cmd.texts[1..], cmd.argv.get(1..).unwrap_or(&[]));
+        if let Some(member) = ctx.grammar.member(&cmd.texts[0]) {
+            let parameter_indices: Vec<usize> = member
+                .indices_for_call_in(sub_args, dialect, ArgRole::ParamList)
+                .collect();
+            super::diagnostics::emit_invalid_formal_parameter_list_diagnostics(
+                self,
                 sub_args,
-                Some(self.analysis_context().context().authoring_query()),
-                ArgRole::ParamList,
-            )
-            .collect();
-        super::diagnostics::emit_invalid_formal_parameter_list_diagnostics(
-            self,
-            sub_args,
-            sub_tokens,
-            &parameter_indices,
-        );
-        // snit allows a type-private `proc name args body` — analyse it as an
-        // ordinary proc in the enclosing scope, not a method.
-        if sub == "proc" {
-            // No per-argument single-token info is threaded this deep into
-            // the snit member dispatcher; `&[]` is the same safe default
-            // `resolve_dynamic_word` already falls back to elsewhere (a
-            // dynamic type-private proc name still gets a chance to resolve
-            // via `fold_interpolation_single`, just not the single-`$var`
-            // fast path).
-            self.handle_proc_command(sub_args, sub_tokens, &[], ctx.scope_path);
-            return;
+                sub_tokens,
+                &parameter_indices,
+            );
         }
-        // Only body-bearing members define a walkable method scope; pure
-        // declarations (`variable` …) and option/delegate members carry none.
-        if member
-            .indices_for_call_in(
-                sub_args,
-                Some(self.analysis_context().context().authoring_query()),
-                ArgRole::Body,
-            )
-            .next()
-            .is_none()
-        {
+        let Some(statement) = MemberStatement::read(ctx.grammar, &cmd.texts, &cmd.argv, dialect)
+        else {
             return;
+        };
+        match statement.landing() {
+            // A type-private `proc name args body` is a procedure in the
+            // type's namespace — analyse it as an ordinary proc in the
+            // enclosing scope, not a method.
+            MemberLanding::Procedure => {
+                // No per-argument single-token info is threaded this deep into
+                // the snit member dispatcher; `&[]` is the same safe default
+                // `resolve_dynamic_word` already falls back to elsewhere (a
+                // dynamic type-private proc name still gets a chance to resolve
+                // via `fold_interpolation_single`, just not the single-`$var`
+                // fast path).
+                self.handle_proc_command(
+                    statement.args(),
+                    statement.arg_tokens(),
+                    &[],
+                    ctx.scope_path,
+                );
+            }
+            MemberLanding::Method(kind) => {
+                let seed_vars = if statement.row.receiver == MemberReceiver::TypeObject {
+                    type_vars
+                } else {
+                    instance_vars
+                };
+                let label = member_label(statement.member, statement.keyword(), statement.args());
+                let form = MemberForm {
+                    member: statement.member,
+                    kind,
+                    label: &label,
+                    visibility: statement.row.visibility.as_str(),
+                };
+                self.extract_class_member(
+                    statement.args(),
+                    statement.arg_tokens(),
+                    ctx,
+                    seed_vars,
+                    &form,
+                );
+            }
+            _ => {}
         }
-        // Snit names every *type*-scoped member with a `type` prefix — the
-        // family convention that decides whether the body sees the type or the
-        // instance variables, and which `MethodDef` bucket receives it.
-        let is_type = sub.starts_with("type");
-        let seed_vars = if is_type { type_vars } else { instance_vars };
-        let kind = if is_type {
-            "classmethod"
-        } else if sub == "constructor" {
-            "constructor"
-        } else if sub == "destructor" {
-            "destructor"
-        } else {
-            "method"
-        };
-        let label = snit_member_label(member, sub, sub_args);
-        let form = MemberForm {
-            member,
-            kind,
-            label: &label,
-            visibility: "public",
-        };
-        self.extract_class_member(sub_args, sub_tokens, ctx, seed_vars, &form);
     }
 
     /// Analyse one snit method / constructor / etc. body in a method scope
@@ -1690,22 +1900,13 @@ impl Analyser {
             params_computed: false,
             name_span,
             body_span,
-            kind: kind.to_string(),
+            kind: kind.as_str().to_string(),
             is_self_method: false,
             visibility: visibility.to_string(),
             doc: String::new(),
             forward_target: None,
         };
-        match kind {
-            "constructor" => ctx.class_def.constructors.push(method_def),
-            "destructor" => ctx.class_def.destructor = Some(method_def),
-            "classmethod" => {
-                ctx.class_def.class_methods.insert(name.clone(), method_def);
-            }
-            _ => {
-                ctx.class_def.methods.insert(name.clone(), method_def);
-            }
-        }
+        record_method(ctx.class_def, kind, method_def);
 
         // Walk the body in a method scope seeded with the params + seed vars,
         // reusing the TclOO method-body walker (it pre-binds the params and the
@@ -1804,11 +2005,13 @@ impl Analyser {
         true
     }
 
-    /// Parse an itcl class body: `inherit` → superclasses, `variable` / `common`
-    /// → instance/class variables, `method` / `proc` / `constructor` /
-    /// `destructor` → method scopes.  Two passes (so a method can reference any
-    /// variable regardless of declaration order); access modifiers are unwrapped
-    /// via [`unwrap_wrapper_member`].
+    /// Parse an itcl class body through each statement's registry row: a
+    /// superclass relation (`inherit`) → superclasses, declared state
+    /// (`variable` / `common`) → the variables in scope, a callable (`method` /
+    /// `proc` / `constructor` / `destructor`) → a method scope in the table its
+    /// row lands in.  Two passes (so a method can reference any variable
+    /// regardless of declaration order); an access modifier is a wrapper whose
+    /// shift the row already carries — its member's visibility.
     fn parse_itcl_definition_body(
         &mut self,
         body: &str,
@@ -1833,27 +2036,40 @@ impl Analyser {
         let mut instance_vars: Vec<String> =
             implicit_vars.iter().map(|s| (*s).to_string()).collect();
 
-        // Pass 1: declared `variable` / `common` names + `inherit` bases.
+        // Pass 1: declared state names (`variable` / `common`, under any
+        // access modifier) + the ancestry an `inherit` names — each read off
+        // the statement's row.
+        let context = self.analysis_context();
+        let dialect = Some(context.context().authoring_query());
         for cmd in &cmds {
-            if cmd.is_partial {
+            if cmd.is_partial || cmd.texts.is_empty() {
                 continue;
             }
-            let Some((kw, kw_args, _kw_toks, _vis)) =
-                unwrap_wrapper_member(grammar, &cmd.texts, &cmd.argv)
-            else {
-                continue;
-            };
             // A base class an `inherit` names is a command reference (the same
             // registry-driven path TclOO's `superclass`/`mixin` use), so
             // find-references / go-to-definition / rename reach it across files.
             self.record_member_command_references(grammar, &cmd.texts, &cmd.argv, scope_path);
-            match kw {
-                "variable" | "common" => {
-                    if let Some(name) = kw_args.first() {
+            let Some(statement) = MemberStatement::read(grammar, &cmd.texts, &cmd.argv, dialect)
+            else {
+                continue;
+            };
+            let args = statement.args();
+            match statement.landing() {
+                // Per-instance and per-type (`common`) state are both in scope
+                // in an itcl method body.
+                MemberLanding::State(_) => {
+                    if let Some(name) = statement
+                        .member
+                        .indices_for_call_in(args, dialect, ArgRole::VarWrite)
+                        .next()
+                        .and_then(|i| args.get(i))
+                    {
                         instance_vars.push(name.clone());
                     }
                 }
-                "inherit" => class_def.superclasses.extend(kw_args.iter().cloned()),
+                MemberLanding::Relation(RelationSlot::Superclass) => {
+                    apply_slot_member(Some(statement.member), args, &mut class_def.superclasses);
+                }
                 _ => {}
             }
         }
@@ -1868,56 +2084,33 @@ impl Analyser {
             if cmd.is_partial {
                 continue;
             }
-            let Some((kw, kw_args, kw_toks, vis)) =
+            if let Some((keyword, kw_args, kw_toks)) =
                 unwrap_wrapper_member(grammar, &cmd.texts, &cmd.argv)
+                && let Some(member) = grammar.member(keyword)
+            {
+                let parameter_indices: Vec<usize> = member
+                    .indices_for_call_in(kw_args, dialect, ArgRole::ParamList)
+                    .collect();
+                super::diagnostics::emit_invalid_formal_parameter_list_diagnostics(
+                    self,
+                    kw_args,
+                    kw_toks,
+                    &parameter_indices,
+                );
+            }
+            // Only a body the row lands in a method table is a method scope:
+            // `variable` / `common` are declarations (handled in pass 1) even
+            // though `variable`'s optional config body carries an
+            // `ArgRole::Body` (that body is highlighted by the token walker,
+            // not recorded as a method here), and `inherit` carries no body.
+            let Some(statement) = MemberStatement::read(grammar, &cmd.texts, &cmd.argv, dialect)
             else {
                 continue;
             };
-            let Some(member) = grammar.member(kw) else {
+            let MemberLanding::Method(kind) = statement.landing() else {
                 continue;
             };
-            let parameter_indices: Vec<usize> = member
-                .indices_for_call_in(
-                    kw_args,
-                    Some(self.analysis_context().context().authoring_query()),
-                    ArgRole::ParamList,
-                )
-                .collect();
-            super::diagnostics::emit_invalid_formal_parameter_list_diagnostics(
-                self,
-                kw_args,
-                kw_toks,
-                &parameter_indices,
-            );
-            // `variable` / `common` are declarations (handled in pass 1) — skip
-            // them even though `variable`'s optional config body carries an
-            // `ArgRole::Body` (that body is highlighted by the token walker, not
-            // recorded as a method here).  `inherit` and the like carry no body.
-            if matches!(kw, "variable" | "common")
-                || member
-                    .indices_for_call_in(
-                        kw_args,
-                        Some(self.analysis_context().context().authoring_query()),
-                        ArgRole::Body,
-                    )
-                    .next()
-                    .is_none()
-            {
-                continue;
-            }
-            // A class-scoped `proc` maps to the class-method bucket; constructor
-            // / destructor to their dedicated fields; everything else a method.
-            let kind = match kw {
-                "proc" => "classmethod",
-                "constructor" => "constructor",
-                "destructor" => "destructor",
-                _ => "method",
-            };
-            let label = match kw {
-                "constructor" => "<constructor>",
-                "destructor" => "<destructor>",
-                _ => "",
-            };
+            let label = member_label(statement.member, statement.keyword(), statement.args());
             let mut ctx = ClassBodyCtx {
                 grammar,
                 class_def,
@@ -1925,12 +2118,18 @@ impl Analyser {
                 scope_path,
             };
             let form = MemberForm {
-                member,
+                member: statement.member,
                 kind,
-                label,
-                visibility: vis,
+                label: &label,
+                visibility: statement.row.visibility.as_str(),
             };
-            self.extract_class_member(kw_args, kw_toks, &mut ctx, &instance_vars, &form);
+            self.extract_class_member(
+                statement.args(),
+                statement.arg_tokens(),
+                &mut ctx,
+                &instance_vars,
+                &form,
+            );
         }
     }
 
@@ -2217,21 +2416,25 @@ fn collect_class_level_bodies(
     accessor_bodies: &mut Vec<CollectedMethodBody>,
     init_bodies: &mut Vec<CollectedMethodBody>,
 ) {
-    match texts.first().map(String::as_str) {
-        Some("property") => collect_property_accessor_bodies(texts, argv, accessor_bodies),
-        Some(kw @ ("initialise" | "initialize")) => {
-            if let Some(body_idx) = grammar
-                .member(kw)
-                .and_then(|m| {
-                    m.indices_for_call_in(&texts[1..], dialect, ArgRole::Body)
-                        .next()
-                })
-                .map(|i| i + 1)
+    // Written directly in the class body — a wrapped spelling is no
+    // class-level script of the class's own.
+    let Some(statement) = MemberStatement::read(grammar, texts, argv, dialect)
+        .filter(|statement| statement.row.keyword_index == 0)
+    else {
+        return;
+    };
+    match statement.landing() {
+        MemberLanding::Accessors => collect_property_accessor_bodies(texts, argv, accessor_bodies),
+        // A wrapper's block form is an init script too, but its members are
+        // read one by one ([`expand_wrapper_block_members`]); only a member
+        // of its own runs as the class's init script.
+        MemberLanding::InitScript if statement.member.kind == MemberKind::Flat => {
+            if let Some(body_idx) = statement.row.body.map(|body| body.0)
                 && let (Some(body), Some(tok)) = (texts.get(body_idx), argv.get(body_idx).copied())
                 && tok.kind == TokenType::Str
             {
                 init_bodies.push(CollectedMethodBody {
-                    name: format!("<{kw}>"),
+                    name: format!("<{}>", statement.keyword()),
                     params: Vec::new(),
                     body_text: body.clone(),
                     body_tok: tok,
@@ -2404,14 +2607,6 @@ fn splice_static_member_expansions(
     spliced.then_some((texts, argv))
 }
 
-/// Per-subcommand dispatcher shared by the body-form and
-/// inline-form walkers.
-///
-/// `texts` and `argv` are parallel: `texts[0]` / `argv[0]` is
-/// the subcommand name (``superclass`` / ``method`` / etc.).
-/// `oo::define Cls private <subcmd> ...` — wraps a method-defining
-/// subcommand with `visibility = "private"`.  Extracted from
-/// [`apply_oo_subcommand`] to keep the dispatch under threshold.
 /// A `TclOO` method body collected during the class-body walk, to be analysed
 /// in a [`ScopeKind::Method`] scope once the whole `ClassDef` is populated.
 struct CollectedMethodBody {
@@ -2445,20 +2640,21 @@ struct CollectedDefinitionBodies {
     initialisers: Vec<CollectedMethodBody>,
 }
 
-/// Recognise a method-defining subcommand in a class body and return its body
+/// Recognise a method-defining statement in a class body and return its body
 /// to walk in a fresh [`ScopeKind::Method`] scope.
 ///
-/// The member's argument layout — which word is the name, the parameter list,
-/// and the recursable body — comes entirely from its registry
-/// [`MemberSpec`] arg-roles (never hardcoded indices), so a definer that adds
-/// or reshapes a method-bearing member is picked up from the grammar alone.
+/// Whether the statement opens a method frame is its registry row's answer (a
+/// callable landing in a method table), and the member's argument layout —
+/// which word is the name, the parameter list, and the recursable body — comes
+/// entirely from its registry [`MemberSpec`] arg-roles (never hardcoded
+/// indices), so a definer that adds or reshapes a method-bearing member is
+/// picked up from the grammar alone.
 ///
-/// Restricted to the members whose body is a *method* body: `initialise` /
-/// `initialize` are class-level init scripts (walked in the enclosing scope by
-/// the caller) and `private` is a visibility wrapper / block, so both are
-/// excluded here even though the grammar marks them as carrying a body. The
-/// `forward` form has no body; dynamic (non-braced) bodies are filtered
-/// downstream by [`Analyser::walk_method_body`].
+/// A class-level init script (`initialise` / `initialize`, walked in a scope
+/// of its own by the caller) and a wrapper's block form are not method frames,
+/// even though the grammar marks each as carrying a body. A forward has no
+/// body; dynamic (non-braced) bodies are filtered downstream by
+/// [`Analyser::walk_method_body`].
 fn collect_method_body(
     grammar: &DefinitionBodyGrammar,
     texts: &[String],
@@ -2466,32 +2662,29 @@ fn collect_method_body(
     dialect: Option<SurfaceQuery<'_>>,
     rules: WordValueRules,
 ) -> Option<CollectedMethodBody> {
-    // Unwrap a leading `self`/`private` modifier first: its body would
-    // otherwise never be walked at all (no internal
+    // A wrapped member (`self method …`, `private method …`) is read through
+    // its wrapper: its body would otherwise never be walked at all (no internal
     // diagnostics inside a `self method`/`private method` body — confirmed
-    // empirically, a deliberately-wrong-arity call inside one drew
-    // nothing, while the identical call in a plain `method` body correctly
-    // fired). `unwrap_wrapper_member` is a no-op for an already-bare
-    // `method`/`classmethod`/`constructor`/`destructor` keyword — its
-    // returned slices start right after the *effective* keyword either
-    // way, wrapper word included, so no `+ 1` shift is needed below.
-    let (keyword, texts, argv, modifier) = unwrap_wrapper_member(grammar, texts, argv)?;
-    if !matches!(
-        keyword,
-        "method" | "classmethod" | "constructor" | "destructor"
-    ) {
+    // empirically, a deliberately-wrong-arity call inside one drew nothing,
+    // while the identical call in a plain `method` body correctly fired). The
+    // row's keyword is the wrapped member's own, so the slices below start
+    // right after the *effective* keyword either way.
+    let statement = MemberStatement::read(grammar, texts, argv, dialect)?;
+    if !matches!(statement.landing(), MemberLanding::Method(_)) {
         return None;
     }
-    // `classmethod` and `self method` define on the class object — a
-    // class-side frame, where `[self class]` never answers the written
-    // class (tclsh 9.0.4: it raises "method not defined by a class" in a
+    // A member on the class object (`classmethod`, `self method`) runs in a
+    // class-side frame, where `[self class]` never answers the written class
+    // (tclsh 9.0.4: it raises "method not defined by a class" in a
     // `self method`, and answers the internal `::oo::ObjN:: oo ::delegate`
     // class in a `classmethod`).
-    let class_side = keyword == "classmethod" || modifier == "self";
-    let member = grammar.member(keyword)?;
-    if member.unavailable_option_for(texts, dialect).is_some() {
-        return None;
-    }
+    let class_side = statement.row.receiver != MemberReceiver::Instance;
+    let (member, keyword, texts, argv) = (
+        statement.member,
+        statement.keyword(),
+        statement.args(),
+        statement.arg_tokens(),
+    );
     let body_idx = member
         .indices_for_call_in(texts, dialect, ArgRole::Body)
         .next()?;
@@ -2521,90 +2714,6 @@ fn collect_method_body(
         params_tok,
         class_side,
     })
-}
-
-fn apply_oo_private(
-    grammar: &DefinitionBodyGrammar,
-    sub_args: &[String],
-    sub_tokens: &[Token],
-    class_def: &mut ClassDef,
-    dialect: MemberDialect<'_>,
-) {
-    if sub_args.is_empty() {
-        return;
-    }
-    let inner_subcmd = sub_args[0].as_str();
-    let inner_args: &[String] = &sub_args[1..];
-    let inner_tokens: &[Token] = if sub_tokens.len() > 1 {
-        &sub_tokens[1..]
-    } else {
-        &[]
-    };
-    let Some(member) = grammar.member(inner_subcmd) else {
-        return;
-    };
-    if member
-        .unavailable_option_for(inner_args, dialect.surface)
-        .is_some()
-    {
-        return;
-    }
-    // `private deletemethod m` removes an instance-side member — `private`'s
-    // own side — including one this same block just recorded; `private unexport
-    // m` / `private { … export m … }` flip that same side, exactly as the
-    // unwrapped spelling does, and `private filter s` fills the *instance*
-    // filter slot (`info class filters` — pinned on tclsh 9.0.4; `private` does
-    // not exist on 8.6 at all, where the whole body is an `invalid command
-    // name` error).
-    apply_sided_member_effects(
-        member,
-        inner_subcmd,
-        inner_args,
-        inner_tokens,
-        class_def,
-        MemberSide::Instance,
-    );
-    match inner_subcmd {
-        "method" => {
-            if let Some(mut md) = extract_method_def_in(
-                member,
-                inner_args,
-                inner_tokens,
-                "method",
-                "private",
-                "",
-                dialect,
-            ) {
-                md.visibility = declared_member_visibility(
-                    member,
-                    inner_args,
-                    "private".to_string(),
-                    dialect.surface,
-                );
-                class_def.methods.insert(md.name.clone(), md);
-            }
-        }
-        "classmethod" => {
-            if let Some(mut md) = extract_method_def_in(
-                member,
-                inner_args,
-                inner_tokens,
-                "classmethod",
-                "private",
-                "",
-                dialect,
-            ) {
-                md.visibility = declared_member_visibility(
-                    member,
-                    inner_args,
-                    "private".to_string(),
-                    dialect.surface,
-                );
-                class_def.class_methods.insert(md.name.clone(), md);
-            }
-        }
-        _ => {}
-    }
 }
 
 /// Apply a *retracting* member word (`deletemethod m`, `self renamemethod old
@@ -2834,62 +2943,49 @@ fn apply_visibility_member(
     set_member_visibility(class_def, names, visibility, side);
 }
 
-/// Every effect a member word has on the members it *names*, applied to the one
-/// side the word is scoped to — the single decision path all three spellings go
-/// through (unwrapped, `self`-scoped, `private`-scoped).
+/// Fold a relation row into the graph its slot feeds, on the side the row
+/// resolved to.
 ///
-/// Keeping it one function is what makes "which side does this word act on" a
-/// caller's single argument rather than three near-copies that can drift: the
-/// unwrapped and `private` spellings pass [`MemberSide::Instance`], `self`
-/// passes [`MemberSide::ClassObject`], and every effect below follows.
+/// `superclasses` / `mixins` feed the class-hierarchy graph (inherited
+/// methods, MRO).  The navigable *references* to those base classes are
+/// recorded separately as `command_invocations` by
+/// `record_member_command_references`, so no per-name span is kept here.
+/// A class object's own ancestry is not the class's (`self mixin M` mixes
+/// into the class object, which no instance inherits), so a class-side
+/// superclass or mixin row records nothing.
 ///
-/// `names` / `arg_tokens` are the word's arguments after the member keyword,
-/// aligned index for index.
-fn apply_sided_member_effects(
+/// The two filter slots are separate slots that intercept different
+/// dispatches (see [`ClassDef::filters`] and [`ClassDef::class_filters`] for
+/// the oracle), so a `filter` call lands in the slot of the side its wrapper
+/// put it on, never in one flat list: `self filter f` fills the class
+/// object's own filter slot, which intercepts dispatches on the *class
+/// command* (`::B cls`, and even `::B new`) while leaving instances unfiltered
+/// — `info object filters ::B` -> `f`, `info class filters ::B` -> empty, on
+/// tclsh 9.0.4 and 8.6.14 alike — and `private filter s` fills the
+/// *instance* slot (`info class filters`, tclsh 9.0.4; `private` does not
+/// exist on 8.6).
+///
+/// What the word does to the slot is registry data ([`MemberSpec::slot`]):
+/// `filter a; filter b` leaves both live (`-append` default — tclsh 9.0.4 /
+/// 8.6.16: `info class filters` → `a b`), `superclass` / `mixin` replace
+/// (`-set` default — tclsh 9.0.4: `superclass A` then `superclass -append B`
+/// → `::A ::B`), and the explicit operations fold through
+/// [`tcl_registry::definer::SlotSpec::apply`] — the same fold every slot
+/// consumer uses, so they cannot diverge.
+fn apply_relation_member(
     member: &MemberSpec,
-    keyword: &str,
-    names: &[String],
-    arg_tokens: &[Token],
+    slot: RelationSlot,
+    args: &[String],
     class_def: &mut ClassDef,
     side: MemberSide,
 ) {
-    retract_named_members(member, names, arg_tokens, class_def, side);
-    apply_visibility_member(member, names, class_def, side);
-    apply_filter_member(member, keyword, names, class_def, side);
-}
-
-/// `filter f…` / `self filter f…` — fold the call into this side's
-/// method-filter slot.
-///
-/// The two sides are separate slots that intercept different dispatches (see
-/// [`ClassDef::filters`] and [`ClassDef::class_filters`] for the oracle), so
-/// a `filter` call must land in the slot for the wrapper it was written under,
-/// never in one flat list.
-///
-/// The keyword is matched here rather than read off the spec because *which
-/// `ClassDef` field a member routes to* is analyser-local semantics the registry
-/// deliberately does not model — the same judgement as the `superclass` /
-/// `mixin` / `variable` arms of [`apply_oo_subcommand`]. What the registry does
-/// decide is *what the word does to the slot* ([`MemberSpec::slot`]):
-/// `filter a; filter b` leaves both live (`-append` default —
-/// tclsh 9.0.4 / 8.6.16: `info class filters` → `a b`), and the explicit
-/// `-set` / `-clear` / `-prepend` / `-remove` / `-appendifnew` operations
-/// fold through [`tcl_registry::definer::SlotSpec::apply`] — the same fold
-/// every other slot consumer uses, so they cannot diverge.  The registry
-/// also decides that `filter` neither retracts nor flips visibility
-/// ([`MemberSpec::retraction`] / [`MemberSpec::visibility_effect`] are both
-/// `None` for it), which is why the two calls above leave it alone.
-fn apply_filter_member(
-    member: &MemberSpec,
-    keyword: &str,
-    names: &[String],
-    class_def: &mut ClassDef,
-    side: MemberSide,
-) {
-    if keyword != "filter" {
-        return;
-    }
-    apply_slot_member(Some(member), names, side.filter_list(class_def));
+    let list = match (slot, side) {
+        (RelationSlot::Superclass, MemberSide::Instance) => &mut class_def.superclasses,
+        (RelationSlot::Mixin, MemberSide::Instance) => &mut class_def.mixins,
+        (RelationSlot::Filter, side) => side.filter_list(class_def),
+        (RelationSlot::Superclass | RelationSlot::Mixin, MemberSide::ClassObject) => return,
+    };
+    apply_slot_member(Some(member), args, list);
 }
 
 /// Fold one slot-member call (`filter` / `superclass` / `mixin` /
@@ -2898,109 +2994,13 @@ fn apply_filter_member(
 /// the instance / class-object filter slots, the superclass list, the mixin
 /// list, and the declared-variable slot all take the identical fold.
 ///
-/// A member with no slot spec (defensive fallback only — every `TclOO` slot
-/// word carries one) falls back to plain assignment.
+/// A member with no slot spec — a relation that is a plain list of class
+/// references, like itcl's `inherit`, which takes no operation words — adds
+/// the names it lists.
 fn apply_slot_member(member: Option<&MemberSpec>, args: &[String], list: &mut Vec<String>) {
     match member.and_then(|m| m.slot) {
         Some(slot) => slot.apply(list, args),
-        None => *list = args.to_vec(),
-    }
-}
-
-/// `self method NAME ARGS BODY` / `self classmethod NAME ARGS BODY`
-/// — `TclOO`'s own spelling for a class-level method,
-/// the stock-library counterpart to `ooutil`'s `classmethod` keyword (both
-/// end up dispatched through the class's own bound command). Either inner
-/// spelling records into `class_methods`, tagged `is_self_method: true` so
-/// the class-command MRO walk in `tcl-lsp-core` knows NOT to treat it as
-/// inherited the way an `ooutil`-style `classmethod` is (real tclsh: a
-/// subclass with no override does not gain a `self method` at all).
-///
-/// Consumes the **prefix** form only.  `self { method NAME ARGS BODY; … }`'s
-/// block form (and `private`'s symmetric one) is normalised *into* this form
-/// by [`expand_wrapper_block_members`] before the member walker runs, so both
-/// spellings land here.
-fn apply_oo_self(
-    grammar: &DefinitionBodyGrammar,
-    sub_args: &[String],
-    sub_tokens: &[Token],
-    class_def: &mut ClassDef,
-    dialect: MemberDialect<'_>,
-) {
-    if sub_args.is_empty() {
-        return;
-    }
-    let inner_subcmd = sub_args[0].as_str();
-    let inner_args: &[String] = &sub_args[1..];
-    let inner_tokens: &[Token] = if sub_tokens.len() > 1 {
-        &sub_tokens[1..]
-    } else {
-        &[]
-    };
-    let Some(member) = grammar.member(inner_subcmd) else {
-        return;
-    };
-    if member
-        .unavailable_option_for(inner_args, dialect.surface)
-        .is_some()
-    {
-        return;
-    }
-    // Every effect this word has on the members it names lands on the
-    // class-object side — the wrapper's own — and nowhere else. `self
-    // deletemethod m` / `self renamemethod old new` remove (or move) class-side
-    // members, including ones this same block just recorded; `self filter f`
-    // fills the class object's own filter slot, which
-    // intercepts dispatches on the *class command* (`::B cls`, and even `::B
-    // new`) while leaving instances unfiltered — `info object filters ::B` ->
-    // `f`, `info class filters ::B` -> empty, on tclsh 9.0.4 and 8.6.14 alike.
-    // Handled before the declaration arms below so the wrapper's
-    // own side is the only table touched.
-    //
-    // `self unexport m` / `self { … unexport m … }` flip the class-object
-    // side's visibility and nothing else. Oracle, byte-identical
-    // on tclsh 9.0.4 and 8.6.14:
-    //
-    //   oo::class create C { method m {} {…}
-    //                        self { method m {} {…}; unexport m } }
-    //   info object methods ::C   ;# -> (empty)     class-side `m` unexported
-    //   info class methods ::C    ;# -> m           instance side untouched
-    //   ::C m                     ;# -> unknown method "m"
-    //   [::C new] m               ;# -> inst-m      still dispatches
-    //
-    // and a `self unexport` naming a method that exists only on the *other*
-    // side is a silent no-op, not the hard error `deletemethod` raises:
-    // `oo::class create E { method onlyinst {} {…} }; oo::define E { self
-    // unexport onlyinst }` succeeds and leaves `onlyinst` exported on the
-    // instance side. Restricting the flip to this side reproduces both.
-    apply_sided_member_effects(
-        member,
-        inner_subcmd,
-        inner_args,
-        inner_tokens,
-        class_def,
-        MemberSide::ClassObject,
-    );
-    if !matches!(inner_subcmd, "method" | "classmethod") {
-        return;
-    }
-    if let Some(mut md) = extract_method_def_in(
-        member,
-        inner_args,
-        inner_tokens,
-        "classmethod",
-        "public",
-        "",
-        dialect,
-    ) {
-        md.visibility = declared_member_visibility(
-            member,
-            inner_args,
-            default_visibility(grammar, &md.name),
-            dialect.surface,
-        );
-        md.is_self_method = true;
-        class_def.class_methods.insert(md.name.clone(), md);
+        None => list.extend(args.iter().cloned()),
     }
 }
 
@@ -3055,20 +3055,32 @@ fn set_member_visibility(
 /// arguments (`forward`'s own version of `interp alias` partial
 /// application) so a call through the forward can be arity-checked
 /// against `target`'s own signature, shifted by the prepended count —
-/// see `Analyser::resolve_indirect_call_target`.
+/// see `Analyser::resolve_indirect_call_target`.  Which words are the name and
+/// the target is the row's [`MemberEffect::Forward`] slots.
 fn apply_oo_forward(
-    grammar: &DefinitionBodyGrammar,
-    sub_args: &[String],
-    sub_tokens: &[Token],
+    statement: &MemberStatement<'_>,
     class_def: &mut ClassDef,
+    dialect: Option<SurfaceQuery<'_>>,
 ) {
-    if let Some(name) = sub_args.first() {
-        let span = sub_tokens
-            .first()
+    let MemberEffect::Forward {
+        name_slot,
+        prefix_slot,
+    } = statement.row.effect
+    else {
+        return;
+    };
+    let (args, tokens) = (statement.args(), statement.arg_tokens());
+    let (name_slot, prefix_slot) = (usize::from(name_slot), usize::from(prefix_slot));
+    if let Some(name) = args.get(name_slot) {
+        let span = tokens
+            .get(name_slot)
             .map_or(tcl_lexer::Span::new(0, 0), |token| token.span);
-        let forward_target = sub_args
-            .get(1)
-            .map(|target| (target.clone(), sub_args.get(2..).unwrap_or(&[]).to_vec()));
+        let forward_target = args.get(prefix_slot).map(|target| {
+            (
+                target.clone(),
+                args.get(prefix_slot + 1..).unwrap_or(&[]).to_vec(),
+            )
+        });
         let md = MethodDef {
             name: name.clone(),
             params: Vec::new(),
@@ -3079,49 +3091,12 @@ fn apply_oo_forward(
             is_self_method: false,
             // A forward is dispatched by the same name rule as a method
             // (C computes `isPublic` identically for both).
-            visibility: default_visibility(grammar, name),
+            visibility: statement.recorded_visibility(name, dialect),
             doc: String::new(),
             forward_target,
         };
         class_def.methods.insert(md.name.clone(), md);
     }
-}
-
-/// Extract a `constructor`/`destructor` member definition, anchoring its
-/// name span on the keyword token (`argv[0]`) — neither has a name word of
-/// its own, so editors land on the keyword for go-to-definition/hover.
-/// Extracted from [`apply_oo_subcommand`] to keep it within the line
-/// budget; the two members share this shape (`kind` param, no name word,
-/// synthetic id) exactly, differing only in which `ClassDef` field the
-/// caller stores the result into.
-fn apply_oo_ctor_or_dtor(
-    member: Option<&'static MemberSpec>,
-    sub_args: &[String],
-    sub_tokens: &[Token],
-    argv: &[Token],
-    kind: &str,
-    dialect: MemberDialect<'_>,
-) -> Option<MethodDef> {
-    let synthetic_id = if kind == "constructor" {
-        "<constructor>"
-    } else {
-        "<destructor>"
-    };
-    let mut md = member.and_then(|m| {
-        extract_method_def_in(
-            m,
-            sub_args,
-            sub_tokens,
-            kind,
-            "public",
-            synthetic_id,
-            dialect,
-        )
-    })?;
-    if let Some(kw) = argv.first() {
-        md.name_span = kw.span;
-    }
-    Some(md)
 }
 
 #[cfg(test)]
@@ -3144,6 +3119,46 @@ pub(super) fn apply_oo_subcommand(
 }
 
 /// Apply one registry member using the selected dialect's concrete layout.
+///
+/// The statement's [`MemberRow`] decides everything: its effect says what the
+/// member declares ([`member_landing`], the routing the snit and itcl walkers
+/// share) and its resolved receiver says which side it lands on. A wrapper's
+/// shift is already in that receiver, so `self` and `private` have no arm of
+/// their own: `self method` lands among the class methods because its row's
+/// receiver is the type object, `private method` among the instance methods
+/// with the visibility its shift declares, and the block forms reach here
+/// member by member, prefixed with their wrapper by
+/// [`expand_wrapper_block_members`]. A statement the registry cannot read
+/// records nothing.
+///
+/// A member word that *removes* the members it names — `deletemethod m`,
+/// `renamemethod old new` — and one that flips their visibility — `export`
+/// / `unexport` — act on their row's side and nowhere else: written with no
+/// wrapper, the **instance** side; under `self`, the class-object side;
+/// under `private`, `private`'s own (instance) side, including a member the
+/// same block just recorded. Oracle, byte-identical on tclsh 9.0.4 and
+/// 8.6.14:
+///
+/// ```tcl
+/// oo::class create ::I1 { method gone {} {…}; method kept {} {…}
+///                         deletemethod gone }
+/// info class methods ::I1   ;# -> kept
+/// oo::class create ::I3 { method old {} {…}; renamemethod old new }
+/// info class methods ::I3   ;# -> new          (`old` really is gone)
+/// oo::class create ::I4 { method gone {} {…} }
+/// oo::define ::I4 { deletemethod gone }
+/// info class methods ::I4   ;# -> (empty)
+/// oo::class create C { method m {} {…}
+///                      self { method m {} {…}; unexport m } }
+/// info object methods ::C   ;# -> (empty)     class-side `m` unexported
+/// info class methods ::C    ;# -> m           instance side untouched
+/// ```
+///
+/// and `oo::class create E2 { self { method onlyclass {} {…} } }` then
+/// `oo::define E2 { unexport onlyclass }` leaves the class-object side's
+/// `onlyclass` exported and dispatchable, while `oo::define E { self
+/// unexport onlyinst }` naming a method only the *other* side has is a
+/// silent no-op, not the hard error `deletemethod` raises.
 pub(super) fn apply_oo_subcommand_in(
     grammar: &DefinitionBodyGrammar,
     texts: &[String],
@@ -3151,165 +3166,95 @@ pub(super) fn apply_oo_subcommand_in(
     class_def: &mut ClassDef,
     dialect: MemberDialect<'_>,
 ) {
-    let Some(subcmd) = texts.first().map(String::as_str) else {
+    let Some(statement) = MemberStatement::read(grammar, texts, argv, dialect.surface) else {
         return;
     };
-    let sub_args: &[String] = if texts.len() > 1 { &texts[1..] } else { &[] };
-    let sub_tokens: &[Token] = if argv.len() > 1 { &argv[1..] } else { &[] };
-    // The member's argument layout (name / params / body positions) comes from
-    // its registry grammar spec; field routing below stays analyser-local.
-    let member = grammar.member(subcmd);
-    if member.is_some_and(|member| {
-        member
-            .unavailable_option_for(sub_args, dialect.surface)
-            .is_some()
-    }) {
+    let Some(side) = member_side(statement.row.receiver) else {
         return;
-    }
-
-    // A member word that *removes* the members it names — `deletemethod m`,
-    // `renamemethod old new` — written with no `self` / `private` wrapper acts
-    // on the instance side, so the class must not keep describing what it
-    // deleted. Which words retract is registry data
-    // ([`MemberSpec::retraction`]), never a keyword matched here;
-    // the wrapped spellings route to their wrapper's own side in
-    // [`apply_oo_self`] / [`apply_oo_private`]. Neither `deletemethod` nor
-    // `renamemethod` has a declaring arm in the match below, so this is their
-    // whole effect. Oracle, byte-identical on tclsh 9.0.4 and 8.6.14:
-    //
-    //   oo::class create ::I1 { method gone {} {…}; method kept {} {…}
-    //                           deletemethod gone }
-    //   info class methods ::I1   ;# -> kept
-    //   oo::class create ::I3 { method old {} {…}; renamemethod old new }
-    //   info class methods ::I3   ;# -> new          (`old` really is gone)
-    //   oo::class create ::I4 { method gone {} {…} }
-    //   oo::define ::I4 { deletemethod gone }
-    //   info class methods ::I4   ;# -> (empty)
-    //
-    // Its sibling registry effect — the visibility a member word imposes
-    // (`export` / `unexport`, [`MemberSpec::visibility_effect`]) — is applied
-    // the same way and on the same side, so neither word needs an arm of its
-    // own below: unwrapped, both act on the **instance** side only.
-    // `oo::class create E2 { self { method onlyclass {} {…} } }` then
-    // `oo::define E2 { unexport onlyclass }` leaves the class-object side's
-    // `onlyclass` exported and dispatchable on 9.0.4 and 8.6.14 alike.
-    if let Some(m) = member {
-        apply_sided_member_effects(
-            m,
-            subcmd,
-            sub_args,
-            sub_tokens,
-            class_def,
-            MemberSide::Instance,
-        );
-    }
-
-    match subcmd {
-        // `superclasses` / `mixins` feed the class-hierarchy graph (inherited
-        // methods, MRO).  The navigable *references* to those base classes are
-        // recorded separately as `command_invocations` by
-        // `record_member_command_references`, so no per-name span is kept here.
-        //
-        // Both are slots: a bare list applies the slot's
-        // C-pinned default operation — `-set` for `superclass` / `mixin`
-        // (so the plain spelling still replaces), `-append` and friends
-        // fold through the shared registry fold instead of being dropped
-        // or, worse, recorded as class names.  tclsh 9.0.4:
-        // `superclass A` then `superclass -append B` → `::A ::B`.
-        "superclass" => {
-            apply_slot_member(member, sub_args, &mut class_def.superclasses);
+    };
+    let (member, words, tokens) = (statement.member, statement.args(), statement.arg_tokens());
+    match statement.landing() {
+        MemberLanding::Method(kind) => record_declared_method(&statement, kind, class_def, dialect),
+        // `class_methods` holds the `classmethod`-kind entries the
+        // class-command dispatch reads, so a class-object forward
+        // (`self forward`) stays unrecorded.
+        MemberLanding::Forward if side == MemberSide::Instance => {
+            apply_oo_forward(&statement, class_def, dialect.surface);
         }
-        "mixin" => {
-            apply_slot_member(member, sub_args, &mut class_def.mixins);
+        // Additive, not a reset (tclsh9.0-verified: `oo::define Cls
+        // variable a b; oo::define Cls variable c` leaves all of `a`, `b`, `c`
+        // live simultaneously), because the class `variable` word is a slot
+        // whose default operation is `-append` (with dedup — tclsh 9.0.4:
+        // `variable a; variable a b` → `a b`); the explicit `-set` / `-clear`
+        // / `-remove` operations fold through the same registry fold as every
+        // other slot. A class-object variable (`self variable`) is no instance
+        // variable of the class.
+        MemberLanding::State(_) if side == MemberSide::Instance => {
+            apply_slot_member(Some(member), words, &mut class_def.variables);
         }
-        "method" => {
-            if let Some((member, mut md)) = member.and_then(|member| {
-                extract_method_def_in(
-                    member, sub_args, sub_tokens, "method", "public", "", dialect,
-                )
-                .map(|method| (member, method))
-            }) {
-                // A method (re)definition applies the family's name-based
-                // default export state, discarding any earlier explicit
-                // `export`/`unexport` of the name (tclsh 9.0.4-pinned; the
-                // rule itself is registry data — `[a-z]*` for TclOO).
-                md.visibility = declared_member_visibility(
-                    member,
-                    sub_args,
-                    default_visibility(grammar, &md.name),
-                    dialect.surface,
-                );
-                class_def.methods.insert(md.name.clone(), md);
-            }
+        MemberLanding::Relation(slot) => {
+            apply_relation_member(member, slot, words, class_def, side);
         }
-        "classmethod" => {
-            if let Some((member, mut md)) = member.and_then(|member| {
-                extract_method_def_in(
-                    member,
-                    sub_args,
-                    sub_tokens,
-                    "classmethod",
-                    "public",
-                    "",
-                    dialect,
-                )
-                .map(|method| (member, method))
-            }) {
-                md.visibility = declared_member_visibility(
-                    member,
-                    sub_args,
-                    default_visibility(grammar, &md.name),
-                    dialect.surface,
-                );
-                class_def.class_methods.insert(md.name.clone(), md);
-            }
+        MemberLanding::Retraction => retract_named_members(member, words, tokens, class_def, side),
+        MemberLanding::Visibility => apply_visibility_member(member, words, class_def, side),
+        MemberLanding::Accessors if side == MemberSide::Instance => {
+            extract_property_defs(words, tokens, class_def);
         }
-        "constructor" => {
-            if let Some(md) =
-                apply_oo_ctor_or_dtor(member, sub_args, sub_tokens, argv, "constructor", dialect)
-            {
-                class_def.constructors.push(md);
-            }
-        }
-        "destructor" => {
-            if let Some(md) =
-                apply_oo_ctor_or_dtor(member, sub_args, sub_tokens, argv, "destructor", dialect)
-            {
-                class_def.destructor = Some(md);
-            }
-        }
-        "variable" => {
-            // Additive, not a reset (tclsh9.0-verified: `oo::define Cls
-            // variable a b; oo::define Cls variable c` leaves all of `a`,
-            // `b`, `c` live simultaneously — the same "always present in
-            // every method" declaration `variable` inside a method body
-            // itself would make, just issued once for the whole class
-            // rather than per-call). A second `variable` statement in the
-            // same class body must not silently discard the names the
-            // first one declared.
-            //
-            // "Additive" because the class `variable` word is a slot whose
-            // default operation is `-append` (with dedup — tclsh 9.0.4:
-            // `variable a; variable a b` → `a b`); the explicit `-set` /
-            // `-clear` / `-remove` operations fold through the same
-            // registry fold as every other slot.
-            apply_slot_member(member, sub_args, &mut class_def.variables);
-        }
-        // `filter` has no arm of its own: it is one of the sided member effects
-        // above ([`apply_filter_member`]), so the unwrapped and `self` spellings
-        // reach their own slot through the one shared path.
-        "property" => {
-            extract_property_defs(sub_args, sub_tokens, class_def);
-        }
-        "forward" => apply_oo_forward(grammar, sub_args, sub_tokens, class_def),
-        "private" => apply_oo_private(grammar, sub_args, sub_tokens, class_def, dialect),
-        "self" => apply_oo_self(grammar, sub_args, sub_tokens, class_def, dialect),
-        // No `ClassDef` mutation here for the remaining subcommands.
-        // ``initialise`` / ``initialize`` are class-level initialisation
-        // scripts whose bodies are collected and walked separately in
-        // [`Analyser::parse_oo_definition_body`]; everything else is ignored.
+        // A class-level init script's body is collected and walked on its
+        // own ([`collect_class_level_bodies`]); a procedure, a configuration
+        // word and the wrapped spellings of the sided arms above record
+        // nothing here.
         _ => {}
     }
+}
+
+/// Record a callable member row as the [`MethodDef`] its kind names.
+///
+/// The name, parameter list and body words come from the member's registry
+/// layout ([`extract_method_def_in`]); a nameless member (a constructor or
+/// destructor) is recorded under its synthetic `<keyword>` name and anchored on
+/// its keyword, where an editor lands for go-to-definition and hover. A method
+/// (re)definition takes the visibility its row names — the family's name-based
+/// default unless its option word or wrapper says otherwise — discarding any
+/// earlier explicit `export`/`unexport` of the name (tclsh 9.0.4-pinned; the
+/// rule itself is registry data — `[a-z]*` for `TclOO`).
+///
+/// A member a receiver-moving wrapper put on the class object (`self method
+/// NAME ARGS BODY`, `TclOO`'s own spelling of a class-level method) is tagged
+/// `is_self_method`, so the class-command MRO walk in `tcl-lsp-core` knows not
+/// to treat it as inherited the way a `classmethod` is (real tclsh: a subclass
+/// with no override does not gain a `self method` at all).
+fn record_declared_method(
+    statement: &MemberStatement<'_>,
+    kind: MethodKind,
+    class_def: &mut ClassDef,
+    dialect: MemberDialect<'_>,
+) {
+    let synthetic = format!("<{}>", statement.keyword());
+    let Some(mut md) = extract_method_def_in(
+        statement.member,
+        statement.args(),
+        statement.arg_tokens(),
+        kind.as_str(),
+        "public",
+        &synthetic,
+        dialect,
+    ) else {
+        return;
+    };
+    if matches!(
+        statement.row.effect,
+        MemberEffect::Callable {
+            name_slot: None,
+            ..
+        }
+    ) && let Some(keyword) = statement.keyword_token()
+    {
+        md.name_span = keyword.span;
+    }
+    md.visibility = statement.recorded_visibility(&md.name, dialect.surface);
+    md.is_self_method = kind == MethodKind::ClassMethod && statement.shift().receiver.is_some();
+    record_method(class_def, kind, md);
 }
 
 /// Extract property definitions from a ``property`` subcommand.
@@ -3486,7 +3431,8 @@ fn extract_method_def_in(
         name_span,
         body_span,
         kind: kind.to_string(),
-        // Flipped by the one caller that needs it (`apply_oo_self`) —
+        // Flipped by the one caller that needs it (`record_declared_method`,
+        // for a member a receiver-moving wrapper put on the class object) —
         // every other caller means it literally, so `false` is the
         // correct default here, not just a placeholder.
         is_self_method: false,
@@ -3864,8 +3810,9 @@ mod tests {
     fn self_method_subcommand_records_class_method_tagged_is_self_method() {
         // TP: `self method NAME ARGS BODY` (TclOO's own spelling of a
         // class-level method, the stock counterpart to ooutil's `classmethod`
-        // keyword) needs its own `apply_oo_subcommand` arm, or `class_methods`
-        // gains no entry for it. Recorded with `kind: "classmethod"` (both
+        // keyword) must land by its row's type-object receiver, or
+        // `class_methods` gains no entry for it. Recorded with
+        // `kind: "classmethod"` (both
         // spellings mean "dispatched via the class's own bound command")
         // but tagged `is_self_method` so the class-command MRO walk knows
         // NOT to treat it as inherited the way ooutil's `classmethod` is.

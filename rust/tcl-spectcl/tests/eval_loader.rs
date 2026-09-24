@@ -1105,3 +1105,181 @@ fn a_clause_grammar_row_with_an_unknown_timing_is_dropped_with_a_notice() {
         );
     }
 }
+
+/// A `state_transitions` block loads every row the descriptor has — the
+/// composition, the argument shape, the widening rules, the effect coverage,
+/// the commit edge — and its `resolver` body is a hook of the
+/// `state_transitions` resolver family, carried as a placeholder until the
+/// host binds it. No row is dropped as "not yet loadable".
+#[test]
+fn a_state_transitions_block_loads_its_rows_and_its_resolver_body() {
+    use tcl_registry::pack_hooks::HookFamily;
+    use tcl_registry::state_transition::{
+        StateTransitionArgumentShape, StateTransitionCommit, StateTransitionDomain,
+        StateTransitionOperandLayout,
+    };
+    use tcl_registry::world_effect::{WorldEffectWriteSource, WorldStateDomain};
+    use tcl_spectcl::loader::HookSource;
+    let source = r"speclib probe 2.1 {
+    command probe::link {
+        arity 2..
+        state_transitions {
+            composition    Extend
+            argument_shape Positional
+            resolver {words ctx} { alias 1 0 }
+            widen  -operands EveryArgument -domains {VariableCells VariableTraces}
+            widen  -operands {Strided 0 2} -domains {VariableCells}
+            covers LegacyFrame -domains {VariableStore}
+            covers {LegacySideEffect Variable} -domains {VariableStore}
+            commit MayCommitBeforeAbruptCompletion
+        }
+    }
+}
+";
+    for pack in [
+        evaluate_pack(source),
+        evaluate_through_the_interpreter(source),
+    ] {
+        assert!(
+            !pack
+                .notices
+                .iter()
+                .any(|notice| notice.message.contains("state_transitions")),
+            "{:#?}",
+            pack.notices
+        );
+        let command = pack.command("probe::link").expect("the command loads");
+        let descriptor = command
+            .spec
+            .state_transitions
+            .expect("the descriptor loads");
+        assert_eq!(
+            descriptor.argument_shape,
+            StateTransitionArgumentShape::Positional
+        );
+        assert_eq!(
+            descriptor.commit,
+            StateTransitionCommit::MayCommitBeforeAbruptCompletion
+        );
+        assert!(descriptor.resolver.is_some(), "the body's placeholder");
+        assert_eq!(descriptor.dynamic_widening.len(), 2);
+        assert_eq!(
+            descriptor.dynamic_widening[0].operands,
+            StateTransitionOperandLayout::EveryArgument
+        );
+        assert_eq!(
+            descriptor.dynamic_widening[1].operands,
+            StateTransitionOperandLayout::Strided {
+                first: 0,
+                stride: 2
+            }
+        );
+        assert_eq!(
+            descriptor.dynamic_widening[0].domains,
+            [
+                StateTransitionDomain::VariableCells,
+                StateTransitionDomain::VariableTraces
+            ]
+        );
+        let sources: Vec<WorldEffectWriteSource> = descriptor
+            .effect_coverage
+            .iter()
+            .map(|coverage| coverage.source)
+            .collect();
+        assert_eq!(
+            sources,
+            [
+                WorldEffectWriteSource::LegacyFrame,
+                WorldEffectWriteSource::LegacySideEffect(
+                    tcl_registry::side_effects::SideEffectTarget::Variable
+                ),
+            ]
+        );
+        assert!(
+            descriptor
+                .effect_coverage
+                .iter()
+                .all(|coverage| coverage.domains == [WorldStateDomain::VariableStore])
+        );
+        let hook = command
+            .hooks
+            .iter()
+            .find(|hook| hook.family == HookFamily::StateTransitionResolver)
+            .expect("the resolver body is a hook");
+        assert_eq!(hook.field, "state_transitions.resolver");
+        assert!(
+            matches!(&hook.source, HookSource::Body { body, .. } if body.contains("alias 1 0"))
+        );
+    }
+}
+
+/// `resolver from-frame-effect` derives the alias pairs the command's own
+/// `frame_effect` lays out, whichever of the two is written first — at the
+/// command, and for a subcommand from its command's frame effect. With no
+/// `AliasPairs` frame effect there is nothing to derive: a notice, and the
+/// descriptor keeps no resolver (negative).
+#[test]
+fn from_frame_effect_derives_the_alias_pairs_resolver() {
+    use tcl_registry::InvocationArguments;
+    use tcl_registry::state_transition::StateTransition;
+    let source = r"speclib probe 2.1 {
+    command probe::alias {
+        arity 2..
+        state_transitions {
+            argument_shape Positional
+            resolver from-frame-effect
+        }
+        frame_effect -level-word ArityParity -layout AliasPairs
+        subcommand pair {
+            arity 2..
+            state_transitions { resolver from-frame-effect }
+        }
+    }
+    command probe::plain {
+        arity 1
+        state_transitions { resolver from-frame-effect }
+    }
+}
+";
+    for pack in [
+        evaluate_pack(source),
+        evaluate_through_the_interpreter(source),
+    ] {
+        let alias = pack.command("probe::alias").expect("the command loads");
+        let resolver = alias
+            .spec
+            .state_transitions
+            .and_then(|descriptor| descriptor.resolver)
+            .expect("the derived resolver");
+        let facts = resolver(InvocationArguments::literals(&["1", "other", "mine"]));
+        assert!(
+            matches!(
+                facts.facts().first().map(|fact| &fact.transition),
+                Some(StateTransition::VariableCellAlias(alias))
+                    if alias.local.literal() == Some("mine")
+            ),
+            "{facts:?}"
+        );
+        assert!(
+            alias.spec.subcommands[0]
+                .state_transitions
+                .and_then(|descriptor| descriptor.resolver)
+                .is_some(),
+            "the subcommand derives from its command's frame effect"
+        );
+        let plain = pack.command("probe::plain").expect("the command loads");
+        assert!(
+            plain
+                .spec
+                .state_transitions
+                .is_some_and(|descriptor| descriptor.resolver.is_none())
+        );
+        assert!(
+            pack.notices.iter().any(|notice| notice
+                .message
+                .contains("needs the command's `frame_effect -layout AliasPairs`")),
+            "{:#?}",
+            pack.notices
+        );
+    }
+}

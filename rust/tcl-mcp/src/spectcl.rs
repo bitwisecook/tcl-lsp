@@ -375,6 +375,7 @@ fn family_key(family: HookFamily) -> &'static str {
         HookFamily::Constraints => "constraints",
         HookFamily::OptionArity => "-arity-hook",
         HookFamily::Evaluate => "evaluate",
+        HookFamily::StateTransitionResolver => "state_transitions.resolver",
     }
 }
 

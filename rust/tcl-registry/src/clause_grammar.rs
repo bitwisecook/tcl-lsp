@@ -255,6 +255,21 @@ pub struct ResolvedClause {
     pub is_default: bool,
 }
 
+/// Why a source-aware walk ([`ClauseGrammarSpec::walk_words`]) has no sound
+/// plan: a computed word stands where the walk compares one — a keyword, a
+/// noise word or the fall-through marker — and Tcl decides those by value.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClauseAbstention {
+    /// The first such word.
+    pub word: usize,
+    /// The call read with every computed word matching nothing: what it is
+    /// if none of them turns out to spell a keyword, a noise word or the
+    /// marker. Never the call's plan — a consumer that defers the call to the
+    /// runtime command reads it only to take the same steps before deferring
+    /// that it takes for a call whose plan it has.
+    pub inert: ClausePlan,
+}
+
 /// Which row of a [`ClauseGrammarSpec`] a [`ResolvedClause`] matched.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ClauseRowId {
@@ -339,6 +354,21 @@ pub fn handler_from_spelling(word: &str) -> Option<HandlerMatch> {
 }
 
 impl ClausePlan {
+    /// Whether clause `index`'s body word is the grammar's fall-through
+    /// marker — whether or not a later clause supplies the body it runs
+    /// ([`ResolvedClause::falls_through_to`] is `None` for a marker with no
+    /// target). The flat projection leaves exactly such a body out of
+    /// [`Self::roles`], so a body operand missing there is the marker.
+    #[must_use]
+    pub fn falls_through(&self, index: usize) -> bool {
+        self.clauses.get(index).is_some_and(|clause| {
+            clause.falls_through_to.is_some()
+                || clause
+                    .operand(ArgRole::Body)
+                    .is_some_and(|body| !self.roles.contains(&(body, ArgRole::Body)))
+        })
+    }
+
     /// This plan with every word index moved `offset` words right — a
     /// subcommand grammar walks the words after the subcommand word, and its
     /// plan is reported in the invocation's own post-head coordinates, the
@@ -369,6 +399,29 @@ impl ClausePlan {
             },
         });
         self
+    }
+}
+
+impl ResolvedClause {
+    /// The word index of the first operand filling a slot of `role` — the
+    /// clause's condition for [`ArgRole::Expr`], its script word for
+    /// [`ArgRole::Body`] — or `None` when no such slot was filled.
+    #[must_use]
+    pub fn operand(&self, role: ArgRole) -> Option<usize> {
+        self.operands
+            .iter()
+            .find(|(_, slot)| slot.role == role)
+            .map(|&(index, _)| index)
+    }
+
+    /// The pattern operand that selects this clause, with the vocabulary it
+    /// selects by (`try`'s `on` code, `trap` prefix), or `None` for a clause
+    /// no handler pattern selects.
+    #[must_use]
+    pub fn handler(&self) -> Option<(usize, HandlerMatch)> {
+        self.operands
+            .iter()
+            .find_map(|(index, slot)| slot.handler.map(|handler| (*index, handler)))
     }
 }
 
@@ -562,9 +615,14 @@ impl ClauseGrammarSpec {
         walk.run().0
     }
 
-    /// The source-aware walk: `dynamic[i]` marks a word whose value only the
-    /// runtime knows (its spelling in `args` is a placeholder). `None` when
-    /// such a word sits where the walk compares a keyword, a noise word or the
+    /// The source-aware walk over the words' *values* — an
+    /// `InvocationWord::Literal`'s, what `ResolvedInvocation::clause_plan`
+    /// holds — so the fall-through marker is compared exactly: a value that
+    /// merely looks braced (`{-}`, from the source word `"{-}"`) is a script,
+    /// not the marker, where [`Self::walk`]'s callers hold source spellings
+    /// and strip one layer. `dynamic[i]` marks a word whose value only the
+    /// runtime knows (its entry in `args` is a placeholder). `None` when such
+    /// a word sits where the walk compares a keyword, a noise word or the
     /// fall-through marker — Tcl decides those by value, so no plan is sound.
     #[must_use]
     pub fn walk_words(
@@ -574,8 +632,26 @@ impl ClauseGrammarSpec {
         layouts: &[RepeatedArgLayout],
         dialect: Option<SurfaceQuery<'_>>,
     ) -> Option<ClausePlan> {
-        let (plan, abstained) = Walk::new(self, args, dynamic, layouts, dialect).run();
-        (!abstained).then_some(plan)
+        self.walk_words_or_abstain(args, dynamic, layouts, dialect)
+            .ok()
+    }
+
+    /// [`Self::walk_words`], saying where it abstained: `Err` names the first
+    /// computed word the walk compared and carries the call read with every
+    /// computed word matching nothing ([`ClauseAbstention`]).
+    pub fn walk_words_or_abstain(
+        &self,
+        args: &[&str],
+        dynamic: &[bool],
+        layouts: &[RepeatedArgLayout],
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> Result<ClausePlan, ClauseAbstention> {
+        let mut walk = Walk::new(self, args, dynamic, layouts, dialect);
+        walk.values = true;
+        match walk.run() {
+            (plan, None) => Ok(plan),
+            (inert, Some(word)) => Err(ClauseAbstention { word, inert }),
+        }
     }
 
     /// Whether `word` is this grammar's fall-through body marker. Tcl compares
@@ -656,6 +732,9 @@ struct Walk<'a> {
     grammar: &'a ClauseGrammarSpec,
     args: &'a [&'a str],
     dynamic: &'a [bool],
+    /// Whether `args` hold the words' values rather than their source
+    /// spellings — see [`ClauseGrammarSpec::walk_words`].
+    values: bool,
     layouts: &'a [RepeatedArgLayout],
     dialect: Option<SurfaceQuery<'a>>,
     at: usize,
@@ -663,7 +742,9 @@ struct Walk<'a> {
     falls: Vec<bool>,
     roles: Vec<(usize, ArgRole)>,
     defect: Option<ClauseShapeError>,
-    abstained: bool,
+    /// The first computed word the walk compared, when one was: the answer
+    /// is then the inert reading, not a plan.
+    abstained: Option<usize>,
 }
 
 impl<'a> Walk<'a> {
@@ -678,6 +759,7 @@ impl<'a> Walk<'a> {
             grammar,
             args,
             dynamic,
+            values: false,
             layouts,
             dialect,
             at: 0,
@@ -685,12 +767,13 @@ impl<'a> Walk<'a> {
             falls: Vec::new(),
             roles: Vec::new(),
             defect: None,
-            abstained: false,
+            abstained: None,
         }
     }
 
-    /// Walk the whole call; the flag is set when the answer is unsound.
-    fn run(mut self) -> (ClausePlan, bool) {
+    /// Walk the whole call, with the first computed word it compared when
+    /// the answer is unsound.
+    fn run(mut self) -> (ClausePlan, Option<usize>) {
         let head = self.grammar.head;
         let mut entered = vec![false; self.grammar.rows.len()];
         let mut tail_taken = false;
@@ -705,7 +788,8 @@ impl<'a> Walk<'a> {
     }
 
     /// Everything after the head: one clause per step until the words run
-    /// out, a defect stops the walk, or a dynamic word makes it unsound.
+    /// out or a defect stops the walk. A computed word compared on the way
+    /// matches nothing, and the walk goes on — the inert reading.
     fn chain(&mut self, entered: &mut [bool], tail_taken: &mut bool) {
         let grammar = self.grammar;
         let rows = grammar.rows;
@@ -724,9 +808,6 @@ impl<'a> Walk<'a> {
                     return;
                 }
                 continue;
-            }
-            if self.abstained {
-                return;
             }
             // 2. The next keywordless row not yet entered, in declaration
             //    order.
@@ -764,8 +845,6 @@ impl<'a> Walk<'a> {
                     self.roles.push((index, ArgRole::Keyword));
                     self.at += 1;
                     Some(index)
-                } else if self.abstained {
-                    return;
                 } else if tail.keyword_required {
                     // A tail whose keyword is mandatory does not start here,
                     // so nothing more is a clause.
@@ -827,15 +906,11 @@ impl<'a> Walk<'a> {
             if self.word_is(self.at, keyword) {
                 return Some(index);
             }
-            if self.abstained {
-                return None;
-            }
         }
         None
     }
 
-    /// Fill one clause of `row`; `false` when a defect or a dynamic word stops
-    /// the walk.
+    /// Fill one clause of `row`; `false` when a defect stops the walk.
     fn enter(&mut self, id: ClauseRowId, row: &ClauseRow, keyword_index: Option<usize>) -> bool {
         match row.shape {
             ClauseRowShape::Repeated { slots } | ClauseRowShape::Once { slots } => {
@@ -862,9 +937,6 @@ impl<'a> Walk<'a> {
                     self.roles.push((self.at, ArgRole::Keyword));
                     self.at += 1;
                 }
-                if self.abstained {
-                    return false;
-                }
                 continue;
             }
             if self.at >= self.args.len() {
@@ -882,9 +954,6 @@ impl<'a> Walk<'a> {
                 && row.timing == ClauseTiming::Selected
                 && self.grammar.fallthrough_body.is_some()
                 && self.is_fallthrough_at(index);
-            if self.abstained {
-                return false;
-            }
             if marker {
                 falls = true;
             } else if slot.is_flat() {
@@ -996,11 +1065,11 @@ impl<'a> Walk<'a> {
         row.admits(self.dialect.as_ref())
     }
 
-    /// Whether the word at `index` is `literal`; a dynamic word makes the
-    /// walk unsound instead.
+    /// Whether the word at `index` is `literal`; a dynamic word matches
+    /// nothing and makes the walk unsound.
     fn word_is(&mut self, index: usize, literal: &str) -> bool {
         if self.is_dynamic(index) {
-            self.abstained = true;
+            self.abstained.get_or_insert(index);
             return false;
         }
         self.args.get(index).is_some_and(|word| *word == literal)
@@ -1008,12 +1077,16 @@ impl<'a> Walk<'a> {
 
     fn is_fallthrough_at(&mut self, index: usize) -> bool {
         if self.is_dynamic(index) {
-            self.abstained = true;
+            self.abstained.get_or_insert(index);
             return false;
         }
-        self.args
-            .get(index)
-            .is_some_and(|word| self.grammar.is_fallthrough_body(word))
+        self.args.get(index).is_some_and(|word| {
+            if self.values {
+                self.grammar.fallthrough_body == Some(*word)
+            } else {
+                self.grammar.is_fallthrough_body(word)
+            }
+        })
     }
 
     fn is_dynamic(&self, index: usize) -> bool {
@@ -1021,17 +1094,24 @@ impl<'a> Walk<'a> {
     }
 
     /// Link fall-throughs, mark the default clause, and hand back the plan.
-    fn finish(mut self) -> (ClausePlan, bool) {
-        let has_body = |clause: &ResolvedClause| {
-            clause
-                .operands
-                .iter()
-                .any(|(_, slot)| slot.role == ArgRole::Body)
+    ///
+    /// A marker runs the body of the next selected clause that supplies one
+    /// of its own. A clause that runs whatever the outcome (`try`'s
+    /// `finally`) is never that clause, so a marker with no selected clause
+    /// after it has no target — Tcl's "last non-finally clause must not have
+    /// a body of `-`".
+    fn finish(mut self) -> (ClausePlan, Option<usize>) {
+        let supplies_body = |clause: &ResolvedClause| {
+            clause.timing == ClauseTiming::Selected
+                && clause
+                    .operands
+                    .iter()
+                    .any(|(_, slot)| slot.role == ArgRole::Body)
         };
         for index in 0..self.clauses.len() {
             if self.falls[index] {
                 self.clauses[index].falls_through_to = (index + 1..self.clauses.len())
-                    .find(|&next| !self.falls[next] && has_body(&self.clauses[next]));
+                    .find(|&next| !self.falls[next] && supplies_body(&self.clauses[next]));
             }
         }
         if let Some(default) = self.grammar.default_clause {
@@ -1454,6 +1534,73 @@ mod tests {
         );
     }
 
+    /// A marker runs the next *handler's* body: `finally` runs whatever the
+    /// outcome, so a marker with only `finally` after it has no target —
+    /// Tcl's "last non-finally clause must not have a body of `-`" — while
+    /// [`ClausePlan::falls_through`] still names the clause whose body is the
+    /// marker.
+    #[test]
+    fn a_marker_falls_through_to_the_next_handler_never_to_finally() {
+        let grammar = shipped("try");
+        let plan = grammar.walk(&["{b}", "on", "ok", "{}", "-", "finally", "{f}"], &[]);
+        assert_eq!(plan.defect, None);
+        assert_eq!(plan.clauses[1].falls_through_to, None);
+        assert!(plan.falls_through(1));
+        assert!(!plan.falls_through(2), "`finally` is a script");
+        assert!(!plan.falls_through(0), "the protected body is a script");
+        let plan = grammar.walk(
+            &[
+                "{b}", "on", "ok", "{}", "-", "on", "error", "{}", "-", "trap", "{X}", "{}", "{h}",
+            ],
+            &[],
+        );
+        assert_eq!(plan.clauses[1].falls_through_to, Some(3));
+        assert_eq!(plan.clauses[2].falls_through_to, Some(3));
+        assert!(plan.falls_through(1) && plan.falls_through(2));
+        assert!(!plan.falls_through(3));
+        assert!(!plan.falls_through(9), "no such clause");
+    }
+
+    /// The value walk compares the marker exactly: a word whose *value* is
+    /// `{-}` (the source `"{-}"`) is a script, where a source spelling `{-}`
+    /// is the braced marker.
+    #[test]
+    fn the_value_walk_compares_the_marker_exactly() {
+        let grammar = shipped("try");
+        let words = |body: &'static str| ["b", "on", "ok", "", body, "trap", "X", "", "h"];
+        let plan = grammar
+            .walk_words(&words("-"), &[false; 9], &[], None)
+            .expect("every word is a value");
+        assert_eq!(plan.clauses[1].falls_through_to, Some(2));
+        let plan = grammar
+            .walk_words(&words("{-}"), &[false; 9], &[], None)
+            .expect("every word is a value");
+        assert!(!plan.falls_through(1), "the value `{{-}}` is a script");
+        assert!(plan.roles.contains(&(4, Body)));
+        assert!(grammar.walk(&words("{-}"), &[]).falls_through(1));
+        // A computed body word is where the marker is compared: no plan.
+        let mut dynamic = [false; 9];
+        dynamic[4] = true;
+        assert_eq!(grammar.walk_words(&words(""), &dynamic, &[], None), None);
+    }
+
+    #[test]
+    fn a_resolved_clause_names_its_operands_and_handler() {
+        let plan = shipped("try").walk(&["{b}", "on", "ok", "{r o}", "{h}"], &[]);
+        let handler = &plan.clauses[1];
+        assert_eq!(handler.operand(Body), Some(4));
+        assert_eq!(handler.operand(ArgRole::LoopVarList), Some(3));
+        assert_eq!(handler.operand(Expr), None);
+        assert_eq!(handler.handler(), Some((2, HandlerMatch::CompletionCode)));
+        assert_eq!(plan.clauses[0].handler(), None);
+        let plan = walk(shipped("if"), "{$c} then {a} else {b}");
+        assert_eq!(plan.clauses[0].operand(Expr), Some(0));
+        assert_eq!(plan.clauses[0].operand(Keyword), Some(1), "the noise word");
+        assert_eq!(plan.clauses[0].operand(Body), Some(2));
+        assert_eq!(plan.clauses[1].operand(Body), Some(4));
+        assert!(plan.clauses[1].is_default);
+    }
+
     #[test]
     fn foreach_group_row_cites_layout_zero() {
         let spec = crate::cache::default_registry()
@@ -1535,9 +1682,7 @@ mod tests {
                     Some(SurfaceQuery::core(Family::Tcl, release)),
                 )
                 .resolved()
-                .and_then(|invocation| {
-                    invocation.clause_plan(Some(SurfaceQuery::core(Family::Tcl, release)))
-                })
+                .and_then(|invocation| invocation.clause_plan())
         };
         assert!(at("8.6").is_none(), "`array for` is Tcl 9.0");
         let plan = at("9.0").expect("`array for` walks at 9.0");

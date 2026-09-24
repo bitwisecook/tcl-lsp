@@ -905,7 +905,15 @@ impl CfgBuilder<'_> {
         if !self.faithful_exceptions {
             return;
         }
-        let is_on_ok = handler.kind == "on" && handler.match_arg == "ok";
+        // The handler selects by completion code and its pattern word is the
+        // `ok` code — the registry's completion-code parse, so `0` is `ok`
+        // too. `try` declares no default clause: `ok` is a value of the
+        // pattern word, not "no handler matched".
+        let is_on_ok = handler.kind == crate::ir::HandlerMatch::CompletionCode
+            && tcl_registry::completion::completion_code_selector(
+                &handler.match_arg,
+                tcl_syntax::number::Numbers::of_profile(None),
+            ) == Some(tcl_registry::completion::CompletionCode::Ok);
         if is_on_ok {
             if let Some(tail) = body_tail {
                 self.exception_edges
@@ -1495,7 +1503,7 @@ mod tests {
             body: Script::new(),
             body_span: Span::new(4, 6),
             handlers: vec![TryHandler {
-                kind: "on".into(),
+                kind: crate::ir::HandlerMatch::CompletionCode,
                 match_arg: "error".into(),
                 trap_pattern: None,
                 var_name: Some("e".into()),

@@ -770,6 +770,10 @@
       "location": "arg[0]"
     },
     {
+      "owner": "package require",
+      "location": "dynamic-arg-role"
+    },
+    {
       "owner": "package unknown",
       "location": "dynamic-script-timing"
     },

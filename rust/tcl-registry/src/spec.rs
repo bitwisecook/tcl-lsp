@@ -2248,8 +2248,18 @@ pub fn leading_option_word_count_with(
     args: &[&str],
     prefix_matching: PrefixMatching,
 ) -> usize {
+    leading_option_run_with(options, args, prefix_matching).0
+}
+
+/// The leading option run of `args`: how many words its options (and their
+/// values) cover, and whether the declared end-of-options word ended it.
+fn leading_option_run_with(
+    options: &[OptionSpec],
+    args: &[&str],
+    prefix_matching: PrefixMatching,
+) -> (usize, bool) {
     if options.is_empty() {
-        return 0;
+        return (0, false);
     }
     let mut i = 0;
     while let Some(&word) = args.get(i) {
@@ -2266,10 +2276,10 @@ pub fn leading_option_word_count_with(
             // Without this, the loop above would keep matching option-shaped
             // words past the terminator and swallow a literal name meant to
             // land in a positional slot such as `defines_command_at`.
-            break;
+            return (i, true);
         }
     }
-    i
+    (i, false)
 }
 
 /// The trailing run of `?placeholder?` words in a synopsis, `?` stripped.
@@ -3159,6 +3169,15 @@ impl CommandSpec {
     #[must_use]
     pub fn leading_option_word_count(&self, args: &[&str]) -> usize {
         leading_option_word_count_with(self.options, args, self.prefix_matching)
+    }
+
+    /// Whether the end-of-options word ended [`Self::leading_option_word_count`]'s
+    /// run — after which every word is positional, so a name slot may hold a
+    /// word shaped like an option (`interp create -- -safe` names the child
+    /// `-safe`).
+    #[must_use]
+    pub fn leading_option_run_is_terminated(&self, args: &[&str]) -> bool {
+        leading_option_run_with(self.options, args, self.prefix_matching).1
     }
 
     /// Like [`Self::switch_names`], but optionally including documented
@@ -4074,6 +4093,19 @@ impl SubCommand {
             Some(cap) => counted.min(usize::from(cap)),
             None => counted,
         }
+    }
+
+    /// Whether the end-of-options word ended [`Self::leading_option_word_count`]'s
+    /// run within the subcommand's cap — after which every word is
+    /// positional, so a name slot may hold a word shaped like an option.
+    #[must_use]
+    pub fn leading_option_run_is_terminated(&self, args: &[&str]) -> bool {
+        let (counted, terminated) =
+            leading_option_run_with(self.options, args, self.prefix_matching);
+        terminated
+            && self
+                .max_leading_option_words
+                .is_none_or(|cap| counted <= usize::from(cap))
     }
 
     /// Run this subcommand's constant folder for `args` under a resolved Tcl

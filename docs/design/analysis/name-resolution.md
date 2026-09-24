@@ -335,11 +335,12 @@ one storage cell** — one variable with two names. Identical 8.4 → 9.1; only
 ### 4.1 The analyser's link model
 
 `VarDef::link_target` holds the qualified cell name, mirroring `VAR_LINK`.
-It is populated by `handle_global_command` (`::v`),
-`handle_variable_command` (`<current-ns>::v`), and
-`handle_namespace_upvar_command` (`<ns>::otherVar`) — each keeping the
-**full qualified path**, so a relative `variable child::v` targets
-`<ns>::child::v` and `namespace upvar ::a b::c local` targets `::a::b::c`.
+It is populated by `apply_state_transitions`, from the
+`VariableCellAliasTransition` each invocation states — `global` (`::v`),
+`variable` (`<current-ns>::v`), `namespace upvar` (`<ns>::otherVar`), and a
+pack command's alias facts alike — each keeping the **full qualified
+path**, so a relative `variable child::v` targets `<ns>::child::v` and
+`namespace upvar ::a b::c local` targets `::a::b::c`.
 `definition::linked_var_reference_spans` walks the scope tree and unions the
 uses of every `VarDef` sharing one cell, wired into references, rename, and
 document highlight, and surviving the incremental graft. Two same-named

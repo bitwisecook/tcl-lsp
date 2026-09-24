@@ -147,7 +147,9 @@
 
 use rustc_hash::{FxHashMap, FxHashSet};
 use tcl_compiler::analyser::AnalysisResult;
+use tcl_compiler::ir::MethodKind;
 use tcl_lexer::LineIndex;
+use tcl_registry::definer::DeclaredMemberVisibility;
 
 use crate::definition::LspRange;
 use crate::hover::find_word_span_at_position;
@@ -835,23 +837,24 @@ fn constructor_or_destructor_references(ctx: &RefCtx<'_>, word: &str) -> Option<
         include_declaration,
         ..
     } = *ctx;
-    if word != "constructor" && word != "destructor" {
-        return None;
-    }
     let cursor_offset = crate::definition::byte_offset_at(line_index, source, line, character);
     let class_def = analysis
         .all_classes
         .values()
         .find(|cd| cd.body_span.start() < cursor_offset && cursor_offset < cd.body_span.end())?;
-    let name_span = if word == "constructor" {
-        class_def.constructors.last().map(|c| c.name_span)
-    } else {
-        class_def.destructor.as_ref().map(|d| d.name_span)
-    }?;
-    if !(name_span.start() <= cursor_offset && cursor_offset <= name_span.end()) {
-        return None;
-    }
-    let (decl_span, call_spans) = if word == "constructor" {
+    // The effective constructor or the destructor whose declaring keyword the
+    // cursor is on — the recorded member says which it is, not the word.
+    let member = class_def
+        .constructors
+        .last()
+        .into_iter()
+        .chain(class_def.destructor.as_ref())
+        .find(|md| {
+            md.is_declared_by_keyword(word)
+                && md.name_span.start() <= cursor_offset
+                && cursor_offset <= md.name_span.end()
+        })?;
+    let (decl_span, call_spans) = if member.kind == MethodKind::Constructor.as_str() {
         constructor_next_chain_references(source, dialect, analysis, &class_def.qualified_name)
     } else {
         destructor_next_chain_references(source, dialect, analysis, &class_def.qualified_name)
@@ -1561,7 +1564,7 @@ pub(crate) fn method_references_for_class(
             &bodies,
             method,
             Some(decl_span),
-            method_def.visibility == "public",
+            method_def.visibility == DeclaredMemberVisibility::Public.as_str(),
         ));
     } else {
         let bodies: Vec<Span> = collect_member_bodies_scoped(class_def, false);
@@ -1571,7 +1574,7 @@ pub(crate) fn method_references_for_class(
             &bodies,
             method,
             Some(decl_span),
-            method_def.visibility == "public",
+            method_def.visibility == DeclaredMemberVisibility::Public.as_str(),
         ));
         for (other_q, other_cd) in &analysis.all_classes {
             if other_q.as_str() == class_q {

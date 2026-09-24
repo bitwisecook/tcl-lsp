@@ -20,13 +20,15 @@
 //! `namespace eval`, the loop and branch forms, `catch`/`try`, `interp
 //! alias` and `oo::objdefine`.
 //!
-//! The variable-write trio:
+//! The variable bindings:
 //!
 //! - [`Analyser::handle_set_command`] — `set var ?value?`
-//! - [`Analyser::handle_variable_command`] /
-//!   [`Analyser::handle_global_command`] —
-//!   `variable name ?value? ...?` and `global name...`
-//! - [`Analyser::handle_incr_command`] — `incr var ?amount?`
+//! - [`Analyser::apply_state_transitions`] — every scope alias an
+//!   invocation's state transitions state (`global`, `variable`, `upvar`,
+//!   `namespace upvar`, a pack command's alias facts)
+//! - [`Analyser::handle_var_binding_command`] — every loop and written
+//!   variable a call's roles name (`foreach`, `dict for`, `incr`, `append`,
+//!   `lassign`, …)
 //!
 //! Plus the remaining structural command handlers: proc-body
 //! walking, `namespace eval`/`namespace ensemble`, `foreach`/`for`/
@@ -131,95 +133,75 @@ pub(super) fn interp_path_key(path: &str) -> String {
     path.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
-/// Parse `interp create`'s `?-safe? ?--? ?path?` words:
-/// returns `(safe, path)`, where `path` is the sole non-flag word (or
-/// `None` for a bare, uncaptured `interp create -safe`). Shared by
-/// `Analyser::handle_interp_create_command` and the `set VAR [interp
-/// create ...]` value-flow detector in `Analyser::handle_set_command`, so
-/// both parse the flag/path shape identically.
-///
-/// Mirrors C Tcl's own loop (`Tcl_InterpObjCmd`, the `create` arm): every
-/// word is examined, and a `-`-prefixed word is a *flag* until `--` is
-/// seen, whether or not the path has already been read. The scan does not
-/// stop at the path.
-///
-/// Oracle (tclsh8.6 and tclsh9.0):
-///
-/// * `interp create x -safe` — path `x`, and it **is** safe.
-/// * `interp create -safe -- z` — path `z`, safe.
-/// * `interp create -- -safe` — path is the literal `-safe`, not safe.
-/// * `interp create n -bogus` — `bad option "-bogus"`, so flags really are
-///   still being parsed after the path.
-/// * `interp create a b` — `wrong # args`; a second path word is an error
-///   shape, not a rebinding, so no path is reported rather than the wrong
-///   one.
-fn parse_interp_create_words<'a>(words: &[&'a str]) -> (bool, Option<&'a str>) {
-    let mut safe = false;
-    let mut path: Option<&str> = None;
-    let mut past_flags = false;
-    let mut too_many_paths = false;
-    for &word in words {
-        if !past_flags && word.starts_with('-') {
-            if word == "--" {
-                past_flags = true;
-            } else if word == "-safe" {
-                safe = true;
-            }
-            // Any other `-` word is a bad option in real Tcl. Skipping it
-            // keeps the path reading unaffected, which is the conservative
-            // choice for a command that will fail anyway.
-            continue;
-        }
-        if path.is_none() {
-            path = Some(word);
-        } else {
-            too_many_paths = true;
-        }
-    }
-    if too_many_paths {
-        return (safe, None);
-    }
-    (safe, path)
+/// The child an invocation's transitions create: its path (`None` for an
+/// auto-named child) and whether it starts safe — `None` when the call states
+/// no creation (another command, or a shape Tcl rejects). A child whose
+/// safety a computed option leaves unknown is not recorded as safe.
+fn created_interpreter(
+    transitions: &tcl_registry::StateTransitions,
+) -> Option<(Option<tcl_registry::TransitionSubject>, bool)> {
+    transitions
+        .facts()
+        .iter()
+        .find_map(|fact| match &fact.transition {
+            tcl_registry::StateTransition::Interpreter(
+                tcl_registry::InterpreterTransition::Create {
+                    interpreter,
+                    safety,
+                },
+            ) => Some((
+                interpreter.clone(),
+                *safety == tcl_registry::ChildInterpreterSafety::Safe,
+            )),
+            _ => None,
+        })
 }
 
-/// `set VAR [interp create ?-safe? ?--? ?path?]`'s value word, stripped
-/// to just the words after `interp`/`create`, when `text` is exactly
-/// that literal `[...]` substitution shape and nothing else — feeds
-/// `Analyser::handle_set_command`'s value-flow detector through
-/// [`parse_interp_create_words`].
-fn interp_create_words_from_value(text: &str) -> Option<Vec<&str>> {
-    let inner = text.strip_prefix('[')?.strip_suffix(']')?;
-    // Tcl-list parse, not `split_whitespace`: the direct
-    // `interp create` handler sees segmenter-decoded words, so a braced
-    // path word (`{child}`, `{parent child}`) reaches it already stripped.
-    // Whitespace-splitting the raw substitution text instead keeps the
-    // braces and can even split one word in two (`{parent child}` →
-    // `"{parent"`, `"child}"`), binding the variable to a key the direct
-    // handler never records — later `$i eval` / `interp alias $i …` then
-    // resolve against a phantom interpreter.
-    // A parse error means `inner` is not a well-formed Tcl list at all
-    // (`interp create {child]`), so there is no interpreter here to record.
-    // Keeping the words parsed so far would bind the variable to a path
-    // real Tcl never creates — a phantom interpreter that later `$i eval` /
-    // `interp alias $i …` sites then resolve against, which is exactly what
-    // an incomplete edit looks like mid-keystroke.
-    let mut words = Vec::new();
-    let mut pos = 0usize;
-    loop {
-        match find_element(inner, pos) {
-            Ok(Some(el)) => {
-                words.push(inner.get(el.value.clone())?);
-                pos = el.next;
-            }
-            Ok(None) => break,
-            Err(_) => return None,
-        }
+/// The first position `roles` assigns `role`.
+fn role_position(
+    roles: &[(usize, tcl_registry::ArgRole)],
+    role: tcl_registry::ArgRole,
+) -> Option<usize> {
+    roles
+        .iter()
+        .find(|&&(_, assigned)| assigned == role)
+        .map(|&(index, _)| index)
+}
+
+/// The words at every position `roles` assigns `role`, in position order.
+fn role_texts(
+    roles: &[(usize, tcl_registry::ArgRole)],
+    role: tcl_registry::ArgRole,
+    args: &[String],
+) -> Vec<String> {
+    roles
+        .iter()
+        .filter(|&&(_, assigned)| assigned == role)
+        .filter_map(|&(index, _)| args.get(index).cloned())
+        .collect()
+}
+
+/// Whether a word substitutes at all: a braced word never does, whatever it
+/// holds; any other word does when it carries a `$` or `[` or is itself a
+/// variable or command substitution.
+fn word_substitutes(text: &str, tok: Token) -> bool {
+    tok.kind != TokenType::Str && super::diagnostics::helpers::has_substitution(text, &tok)
+}
+
+/// Whether a written-variable word names a static variable: a non-empty word
+/// that substitutes nothing, or an element of an array whose name is written
+/// literally — the key may substitute (`incr hits($word)`), the base may not.
+fn names_static_variable(text: &str, tok: Token) -> bool {
+    if text.is_empty() {
+        return false;
     }
-    let mut words = words.into_iter();
-    if words.next()? != "interp" || words.next()? != "create" {
-        return None;
+    if !word_substitutes(text, tok) {
+        return true;
     }
-    Some(words.collect())
+    text.ends_with(')')
+        && text
+            .split_once('(')
+            .is_some_and(|(base, _)| !base.is_empty() && !crate::naming::is_dynamic_word(base))
 }
 
 /// Condense a definition's description argument into a single-line outline
@@ -239,6 +221,14 @@ fn summarise_detail(description: &str) -> String {
     } else {
         line.to_string()
     }
+}
+
+/// The cell an alias fact links its local to: the namespace path that names
+/// it, and whether a frame-crossing alias reached it by a fixed path (the
+/// cell then gets a definition of its own in the global scope).
+struct AliasCell {
+    path: String,
+    fixed_frame: bool,
 }
 
 /// A recorded class that is itself a `TclOO` class factory, with the
@@ -991,17 +981,22 @@ impl Analyser {
         if value_is_single_token && matches!(value_token_kind, TokenType::Esc | TokenType::Str) {
             self.set_const_string(&args[0], args[1].clone(), value_token.span, scope_path);
             self.clear_interp_var_binding(&args[0], scope_path);
-        } else if let Some(words) = interp_create_words_from_value(&args[1]) {
+        } else if let Some((path, safe)) = self
+            .substitution_call(&args[1])
+            .and_then(|call| created_interpreter(&call.state_transitions()))
+        {
             // `set VAR [interp create ?-safe? ?--? ?path?]` — bind VAR, in
             // this scope, to the interpreter-domain
-            // key this call records. Mirrors `record_instance_creation`'s
-            // TclOO `set g [Foo new]` value-flow shape, but scope-chain
-            // -aware like `const_strings` rather than flat like
-            // `instance_classes` — see `interp_var_bindings`'s doc for why.
+            // key this call records. The substitution is read as a call and
+            // resolved like any other, so what it creates is its
+            // `InterpreterTransition::Create`, never its spelling. Mirrors
+            // `record_instance_creation`'s TclOO `set g [Foo new]` value-flow
+            // shape, but scope-chain -aware like `const_strings` rather than
+            // flat like `instance_classes` — see `interp_var_bindings`'s doc
+            // for why.
             self.clear_const_string(&args[0], scope_path);
-            let (safe, path) = parse_interp_create_words(&words);
             match path {
-                Some(p) if crate::naming::is_dynamic_word(p) => {
+                Some(tcl_registry::TransitionSubject::Unknown { .. }) => {
                     // A dynamic path argument (not just a missing one) —
                     // mirrors `handle_interp_create_command`'s own
                     // handling of the identical shape: existence becomes
@@ -1009,7 +1004,7 @@ impl Analyser {
                     self.dynamic_interp_ops = true;
                     self.clear_interp_var_binding(&args[0], scope_path);
                 }
-                _ => {
+                path => {
                     // A literal path resolves to its qualified key; a
                     // missing path (Tcl auto-generates a fresh, always-
                     // unique name) gets a synthetic per-call-site key —
@@ -1018,8 +1013,10 @@ impl Analyser {
                     // VAR [interp create -safe]` call sites never collide
                     // just because they wrote the same variable name.
                     let key = match path {
-                        Some(p) => self.qualified_interp_key(p),
-                        None => {
+                        Some(tcl_registry::TransitionSubject::Literal(p)) => {
+                            self.qualified_interp_key(&p)
+                        }
+                        _ => {
                             self.mint_synthetic_offset_name("@autoname@", value_token.span.start())
                         }
                     };
@@ -1135,88 +1132,168 @@ impl Analyser {
         found
     }
 
-    /// Handle a `global` declaration: a flat list of names; each gets
-    /// a var binding with `warn_if_unused = false` (declared, not
-    /// "set but unused").
+    /// Apply the scope aliases one invocation's state transitions state: each
+    /// [`tcl_registry::VariableCellAliasTransition`] defines its local and
+    /// links it to the cell it aliases, whichever command — `global`,
+    /// `variable`, `upvar`, `namespace upvar`, or a pack command whose
+    /// `state_transitions` resolver states alias facts — said so. Nothing
+    /// here knows a command's layout: the registry resolver located every
+    /// word, and [`tcl_registry::AliasWords`] says where each is spelled.
     ///
-    /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::Global`].
-    pub fn handle_global_command(
+    /// Called from the dispatch tail for every command the walk's context
+    /// proves, with `invocation` resolved over the words' source facts, so a
+    /// computed word reaches the resolver as computed and the fact abstains
+    /// on it (`alias_and_binding_resolvers_abstain_on_a_dynamic_word` pins
+    /// the registry side).
+    pub fn apply_state_transitions(
         &mut self,
+        invocation: &tcl_registry::ResolvedInvocation<'_, '_>,
         args: &[String],
         arg_tokens: &[Token],
         scope_path: &[usize],
     ) {
-        // `global ::ns::v` makes the *unqualified tail* (`v`) a local alias
-        // to the global variable, so define the tail name locally (matches
-        // Tcl + completion's expectation of both `$v` and `$::ns::v`).
-        for (i, name) in args.iter().enumerate() {
-            let local = name.rsplit("::").next().unwrap_or(name);
-            // A dynamic name (`global $dyn`) computes its name at runtime — not
-            // a static declaration.
-            if let Some(tok) = arg_tokens.get(i)
-                && !crate::naming::is_dynamic_word(name)
-            {
-                self.define_var(local, *tok, scope_path, false, None);
-                // `global v` aliases the global cell `::v`; `global ::ns::v`
-                // aliases `::ns::v` as written.  Record the target so every
-                // `global` alias and the global declaration unify.
-                let target = if name.starts_with("::") {
-                    name.clone()
-                } else {
-                    format!("::{name}")
-                };
-                // The declaration word *is* the cell's name here (`global v`
-                // / `global ::ns::v`), so a rename of the cell rewrites this
-                // very word — see `VarDef::link_target_span`.
-                self.set_var_link_target(local, scope_path, target, tok.span);
+        for fact in invocation.state_transitions().facts() {
+            if let tcl_registry::StateTransition::VariableCellAlias(alias) = &fact.transition {
+                self.apply_variable_alias(alias, args, arg_tokens, scope_path);
             }
         }
     }
 
-    /// Handle a `variable` declaration: alternating `name ?value?`
-    /// pairs; only the names get bindings. The optional value words
-    /// are skipped (the IR pass handles their assignment if the value
-    /// form actually fires).
+    /// Define one alias fact's local and link it to its cell.
     ///
-    /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::Variable`].
-    pub fn handle_variable_command(
+    /// The local is a declaration (`warn_if_unused = false`), never a "set
+    /// but unused" write. A computed local names no static variable, so the
+    /// fact binds nothing. The link unifies every alias of one cell for
+    /// Find-References and Rename; `target_span` is the word that names the
+    /// cell — the declaration word itself for `global v`, one word earlier
+    /// for `upvar #0 v local` — see [`super::types::VarDef::link_target_span`].
+    fn apply_variable_alias(
         &mut self,
+        alias: &tcl_registry::VariableCellAliasTransition,
         args: &[String],
         arg_tokens: &[Token],
         scope_path: &[usize],
     ) {
-        // `variable name ?value? name ?value? ...`
-        // Each `name` aliases the cell `<current-namespace>::<name>`; every
-        // `variable name` across that namespace's procs, plus the namespace
-        // -level declaration, shares that target and so unifies.
-        let ns = self.command_resolution_namespace(scope_path);
-        let ns_prefix = ns.trim_end_matches("::");
-        let mut i = 0;
-        while i < args.len() {
-            // A dynamic name (`variable $dyn` / `variable [f]`) is computed at
-            // runtime — its literal text is not the variable's name, so it is
-            // not a static declaration.  Skip it rather than record the
-            // substitution text as a variable.
-            if let Some(tok) = arg_tokens.get(i)
-                && !crate::naming::is_dynamic_word(&args[i])
-            {
-                // Mirror `global` above: the *unqualified tail* is the local
-                // alias name, but the target keeps the FULL qualified path so a
-                // relative `variable child::v` aliases `<ns>::child::v` (and an
-                // absolute `variable ::x::v` aliases `::x::v`), never the
-                // tail-collapsed `<ns>::v`.  Keying the link on the tail is what
-                // lets a later `$v` reference share the target and unify.
-                let local = args[i].rsplit("::").next().unwrap_or(&args[i]);
-                self.define_var(local, *tok, scope_path, false, None);
-                let target = if args[i].starts_with("::") {
-                    args[i].clone()
-                } else {
-                    format!("{ns_prefix}::{}", args[i])
-                };
-                // As with `global`, the declaration word names the cell.
-                self.set_var_link_target(local, scope_path, target, tok.span);
+        let Some(local) = alias.local.literal() else {
+            return;
+        };
+        let Some(local_tok) = arg_tokens.get(alias.words.local).copied() else {
+            return;
+        };
+        self.define_var(local, local_tok, scope_path, false, None);
+        let (Some(target_tok), Some(cell)) = (
+            arg_tokens.get(alias.words.target).copied(),
+            self.alias_cell(&alias.target, args, scope_path),
+        ) else {
+            return;
+        };
+        self.set_var_link_target(local, scope_path, cell.path.clone(), target_tok.span);
+        if cell.fixed_frame {
+            // The cell a frame-crossing alias names by a fixed path gets its
+            // own definition at the word naming it: `upvar
+            // ::tk::FocusGrab($index) data` is the only place that array ever
+            // comes to exist, so without a `VarDef` for `::tk::FocusGrab`
+            // every occurrence — this word, a sibling proc's
+            // `$::tk::FocusGrab($idx)` read, its `info exists` / `unset` —
+            // answered nothing. Defined in the global scope: both qualifying
+            // spellings (a `::`-qualified target, any target at `#0`) name a
+            // cell reachable from everywhere.
+            self.define_var(&cell.path, target_tok, &[], false, None);
+        }
+    }
+
+    /// The namespace path of the cell an alias targets, or `None` when the
+    /// target has no stable path.
+    ///
+    /// - `global v` aliases `::v` (`global ::ns::v` aliases `::ns::v`);
+    /// - `variable v` aliases `<current namespace>::v`, keeping a relative
+    ///   name's full path (`variable child::v` aliases `<ns>::child::v`, an
+    ///   absolute one names its cell directly);
+    /// - `namespace upvar ns other local` aliases `ns::other`, a relative
+    ///   `ns` resolved against the current namespace and `other` kept whole
+    ///   within it (`namespace upvar ::a b::c local` aliases `::a::b::c`); a
+    ///   computed namespace or variable word names no path;
+    /// - a frame-crossing alias (`upvar`, a pack's `alias` verb) has a path
+    ///   only for the two spellings [`Self::upvar_link_target`] qualifies —
+    ///   and that cell is then [`AliasCell::fixed_frame`].
+    fn alias_cell(
+        &self,
+        target: &tcl_registry::VariableAliasTarget,
+        args: &[String],
+        scope_path: &[usize],
+    ) -> Option<AliasCell> {
+        use tcl_registry::VariableAliasTarget as Target;
+        let relative_to = |namespace: &str, name: &str| {
+            if name.starts_with("::") {
+                name.to_owned()
+            } else {
+                format!("{}::{name}", namespace.trim_end_matches("::"))
             }
-            i += if i + 1 < args.len() { 2 } else { 1 };
+        };
+        let path = match target {
+            Target::Global { variable } => relative_to("", variable.literal()?),
+            Target::CurrentNamespace { variable } => relative_to(
+                &self.command_resolution_namespace(scope_path),
+                variable.literal()?,
+            ),
+            Target::Namespace {
+                namespace,
+                variable,
+            } => {
+                let namespace = namespace.literal()?;
+                let namespace = if namespace.starts_with("::") {
+                    namespace.to_owned()
+                } else {
+                    relative_to(&self.command_resolution_namespace(scope_path), namespace)
+                };
+                relative_to(&namespace, variable.literal()?)
+            }
+            Target::CallerSelectedFrame { frame, variable } => {
+                // The array an element word lives in is named by the word's
+                // base whatever its key, so a computed key still leaves the
+                // written base readable: the source spelling is read for that
+                // base alone, never taken as the variable's value.
+                let other = match variable {
+                    tcl_registry::TransitionSubject::Literal(name) => name.as_str(),
+                    tcl_registry::TransitionSubject::Unknown { argument_index, .. } => {
+                        args.get(*argument_index)?.as_str()
+                    }
+                };
+                let path = Self::upvar_link_target(other, self.alias_frame_level(frame))?;
+                return Some(AliasCell {
+                    path,
+                    fixed_frame: true,
+                });
+            }
+        };
+        Some(AliasCell {
+            path,
+            fixed_frame: false,
+        })
+    }
+
+    /// The frame an alias's caller-frame selection reaches, in the analysed
+    /// release's level grammar (`uplevel 010` is 8 frames up on 8.6 and 10
+    /// on 9.0). With no registry loaded there is no release to name, so the
+    /// parse abstains with `Dynamic` wherever the releases disagree, as does
+    /// a computed level word — the direction every consumer of this level
+    /// already treats conservatively.
+    fn alias_frame_level(
+        &self,
+        frame: &tcl_registry::CallerFrameSelection,
+    ) -> tcl_registry::frame_effect::FrameLevel {
+        use tcl_registry::frame_effect::FrameLevel;
+        match frame {
+            tcl_registry::CallerFrameSelection::DefaultCaller => FrameLevel::DEFAULT,
+            tcl_registry::CallerFrameSelection::Explicit(level) => level
+                .literal()
+                .and_then(|level| {
+                    self.registry.as_ref().map_or_else(
+                        || FrameLevel::parse(level),
+                        |r| FrameLevel::parse_in(level, r),
+                    )
+                })
+                .unwrap_or(FrameLevel::Dynamic),
         }
     }
 
@@ -1781,6 +1858,7 @@ impl Analyser {
             return;
         };
         for (i, p) in params.iter().enumerate() {
+            // registry-axis-ok: irreducible — the variadic `args` formal is Tcl's proc grammar (`VAR_IS_ARGS` on the last formal, `tclProc.c`), no registry fact; until never
             if i == last || p.name != "args" {
                 continue;
             }
@@ -2454,7 +2532,19 @@ impl Analyser {
                 let [cmd] = segmented.as_slice() else {
                     return None;
                 };
-                if cmd.texts.first().map(String::as_str) != Some("list") {
+                // A lambda built word by word: the head is the command whose
+                // result quotes each of its words as one element — the
+                // registry's `BUILDS_COMMAND_PREFIX` reading, not a spelling.
+                let registry = self
+                    .registry
+                    .clone()
+                    .unwrap_or_else(super::commands::fallback_registry);
+                if !cmd.texts.first().is_some_and(|head| {
+                    registry.get(head).is_some_and(|spec| {
+                        spec.traits
+                            .contains(tcl_registry::Traits::BUILDS_COMMAND_PREFIX)
+                    })
+                }) {
                     return None;
                 }
                 let mut out = Vec::with_capacity(cmd.texts.len().saturating_sub(1));
@@ -3285,26 +3375,30 @@ impl Analyser {
 
     /// Handle `interp create ?-safe? ?--? ?path?` — record the child
     /// interpreter's existence and safe state in the interpreter-domain
-    /// map.  A dynamic path makes interpreter
-    /// existence unknowable file-wide; a missing path auto-generates a
-    /// name this file cannot reference literally, so nothing is recorded.
+    /// map, read off the invocation's `InterpreterTransition::Create`: the
+    /// registry resolver scans the options as Tcl does (the scan continues
+    /// past the path, `-safe` and `--` match by prefix, and a shape Tcl
+    /// rejects states no creation). A computed path makes interpreter
+    /// existence unknowable file-wide; a missing path auto-generates a name
+    /// this file cannot reference literally, so nothing is recorded.
     ///
-    /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::InterpCreate`];
-    /// `args[0]` is the subcommand word.
-    pub fn handle_interp_create_command(&mut self, args: &[String]) {
-        let words: Vec<&str> = args[1..].iter().map(String::as_str).collect();
-        let (safe, path) = parse_interp_create_words(&words);
-        let Some(path) = path else { return };
-        if crate::naming::is_dynamic_word(path) {
-            self.dynamic_interp_ops = true;
-            return;
+    /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::InterpCreate`],
+    /// with the transitions the call states over its source words.
+    pub fn handle_interp_create_command(&mut self, transitions: &tcl_registry::StateTransitions) {
+        match created_interpreter(transitions) {
+            Some((Some(tcl_registry::TransitionSubject::Literal(path)), safe)) => {
+                let state = super::state::InterpState {
+                    safe,
+                    ..Default::default()
+                };
+                let key = self.qualified_interp_key(&path);
+                self.interpreters.insert(key, state);
+            }
+            Some((Some(tcl_registry::TransitionSubject::Unknown { .. }), _)) => {
+                self.dynamic_interp_ops = true;
+            }
+            Some((None, _)) | None => {}
         }
-        let state = super::state::InterpState {
-            safe,
-            ..Default::default()
-        };
-        let key = self.qualified_interp_key(path);
-        self.interpreters.insert(key, state);
     }
 
     /// Handle `interp delete ?path ...?` — remove the recorded state and
@@ -4151,15 +4245,17 @@ impl Analyser {
     /// `foreach_in_collection` dialect variant, whose spec carries the same
     /// hook).
     ///
-    /// Defines every `varListN` (the registry's own arity spec,
-    /// `Arity::stepped(3, Arity::UNLIMITED, 2)`, documents an unlimited
-    /// number of `varList`/`list` pairs, tclsh 8.6/9.0-verified) in the
-    /// active scope, then recurses into the body so
-    /// vars defined inside the loop land in the enclosing scope.
+    /// Defines every `varListN` the registry's roles name (its repeated
+    /// `LoopVarList` layout covers an unlimited number of `varList`/`list`
+    /// pairs, tclsh 8.6/9.0-verified) in the active scope, through the one
+    /// binder [`Self::handle_var_binding_command`], then recurses into the
+    /// body so vars defined inside the loop land in the enclosing scope. What
+    /// stays here is the literal-iteration simulation, the page's residue.
     ///
     /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::Foreach`].
     pub fn handle_foreach_command(
         &mut self,
+        cmd_name: &str,
         args: &[String],
         arg_tokens: &[Token],
         scope_path: &[usize],
@@ -4167,15 +4263,7 @@ impl Analyser {
         if args.len() < 3 {
             return false;
         }
-        // Every `varList` sits at an even index, paired with its `list` at
-        // the next odd index; the final argument (odd count, since each
-        // pair contributes 2 and the body adds 1 more) is always the body,
-        // so this walks pairs only up to (not including) the last index.
-        for i in (0..args.len() - 1).step_by(2) {
-            if let Some(tok) = arg_tokens.get(i) {
-                self.define_vars_from_list(&args[i], *tok, scope_path);
-            }
-        }
+        self.handle_var_binding_command(cmd_name, args, arg_tokens, scope_path);
         // A single-pair `foreach VAR {literal list} { rename ::$VAR ... ;
         // proc ::$VAR ... }` loop over a fully literal list (the real
         // `tk/library/accessibility.tcl` rename-away-and-reinstall idiom)
@@ -4386,37 +4474,6 @@ impl Analyser {
         }
     }
 
-    /// Handle `for init test next body`.
-    ///
-    /// Recurses into init / next / body so locals defined inside any
-    /// of the three statement positions land in the enclosing scope's
-    /// variable set.
-    ///
-    /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::For`].
-    pub fn handle_for_command(
-        &mut self,
-        args: &[String],
-        arg_tokens: &[Token],
-        scope_path: &[usize],
-    ) -> bool {
-        if args.len() < 4 {
-            return false;
-        }
-        // init body
-        if let Some(tok) = arg_tokens.first().copied() {
-            self.analyse_body(&args[0], tok, scope_path);
-        }
-        // next body
-        if let Some(tok) = arg_tokens.get(2).copied() {
-            self.analyse_control_flow_body(&args[2], tok, scope_path);
-        }
-        // main body
-        if let Some(tok) = arg_tokens.get(3).copied() {
-            self.analyse_control_flow_body(&args[3], tok, scope_path);
-        }
-        true
-    }
-
     /// Handle `switch ?options? string ?pattern body? ...`.
     ///
     /// Arity checking lives in `compiler_checks::arity_checks` via
@@ -4624,41 +4681,78 @@ impl Analyser {
         true
     }
 
-    /// Bind the output variables of any command that writes results into
-    /// named arguments — `lassign`, `scan`, `regexp`, `regsub`, `gets`,
-    /// `binary scan`, `vwait`, `chan gets`, `file stat`, `dict set`,
-    /// `info default`, … — every command whose registry spec marks a
-    /// `VarWrite`-role argument (an empty role set no-ops).
+    /// Read `cmd_name args…` resolved over its words' spellings, under the
+    /// invocation the walk's context proves (invariant I4, as the hook
+    /// dispatch resolves heads): a computed word takes one position and never
+    /// stands for an option — the reading the editor has always given a call,
+    /// where the resolution over source facts
+    /// ([`Self::apply_state_transitions`]'s) abstains. `None` when the head
+    /// resolves no descriptor here.
+    fn read_spelled_invocation<T>(
+        &self,
+        cmd_name: &str,
+        args: &[String],
+        read: impl FnOnce(tcl_registry::ResolvedInvocation<'_, '_>) -> T,
+    ) -> Option<T> {
+        let registry = self
+            .registry
+            .clone()
+            .unwrap_or_else(super::commands::fallback_registry);
+        let context = self.context.clone();
+        let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
+        tcl_registry::model::resolve_invocation_in_context(
+            &registry,
+            context
+                .as_deref()
+                .map(tcl_registry::model::ContextRegistry::context),
+            cmd_name,
+            &arg_strs,
+        )
+        .map(read)
+    }
+
+    /// Bind the loop and output variables a call's argument roles name — the
+    /// one binder behind every command that binds a variable by position,
+    /// read off the registry's roles and never a per-command layout:
     ///
-    /// The registry's `VarWrite` arg-role resolver already encodes each
-    /// command's option/positional shape (leading `-switches`, the `--`
-    /// terminator, the pattern / format / subSpec positionals, and the
-    /// variadic capture tail), so this reuses it rather than re-deriving the
-    /// layout per command.  Binding these makes the destructured / captured
-    /// names visible to completion, hover, and go-to-definition in the
-    /// enclosing scope.  `warn_if_unused = false`: like `catch`'s result
-    /// variable, the binding is a documented side effect, not a "set but never
-    /// read" target, so it must not raise W211.
+    /// - an [`tcl_registry::ArgRole::LoopVarList`] word is a Tcl list of
+    ///   names bound before a body runs — `foreach` / `lmap` var lists,
+    ///   `dict for` / `dict map` / `array for` key-value pairs, `dict
+    ///   update`'s locals — each name defined at its own element's span
+    ///   ([`Self::define_vars_from_list`]);
+    /// - an [`tcl_registry::ArgRole::VarWrite`] word names a variable the
+    ///   command writes — `lassign`, `scan`, `regexp`, `regsub`, `gets`,
+    ///   `binary scan`, `vwait`, `incr`, `append`, `lappend`, `dict set`,
+    ///   `info default`, … — bound with `warn_if_unused = false`: like
+    ///   `catch`'s result variable the binding is a documented side effect,
+    ///   and a read-modify-write command (`incr`, `append`, `lappend`) reads
+    ///   the target before it writes it.
     ///
-    /// Two trait families opt out:
+    /// Only a word that names a static variable binds: one that substitutes
+    /// nothing, or (for a written variable) an element of an array whose name
+    /// is written literally — `incr hits($word)` writes an element of `hits`
+    /// whatever the key. A computed name (`scan $s $fmt $dyn`, `foreach
+    /// $names …`) names nothing statically.
+    ///
+    /// The roles are read over the words' spellings, a computed word taking
+    /// one position and never standing for an option (the reading the editor
+    /// has always given a call), under the invocation the walk's context
+    /// proves. Two trait families opt out:
     ///
     /// - [`tcl_registry::Traits::CREATES_SCOPE_ALIAS`] (`global` /
-    ///   `variable` / `upvar`): their dedicated handlers
-    ///   ([`Self::handle_var_declaration_command`] /
-    ///   [`Self::handle_upvar_command`]) own the alias layout —
-    ///   tail-stripping (`global ::ns::v` binds the local alias `v`, not
-    ///   the qualified name) and name/value pairing — which a flat
-    ///   `VarWrite` walk would get wrong.
+    ///   `variable` / `upvar`): the alias an invocation states is
+    ///   [`Self::apply_state_transitions`]'s — tail-stripping (`global
+    ///   ::ns::v` binds the local alias `v`, not the qualified name) and
+    ///   name/value pairing are the resolver's, which a flat `VarWrite` walk
+    ///   would get wrong.
     /// - [`tcl_registry::Traits::DESTROYS_VARIABLE`] (`unset`): its
-    ///   `VarWrite` role marks a *removal* target (an SSA def that kills
-    ///   the value), not a binding to record.
+    ///   `VarWrite` role marks a *removal* target (an SSA def that kills the
+    ///   value), not a binding to record.
     ///
-    /// Commands whose dedicated handlers already bind the same name
-    /// (`set` / `incr` / `append` / `lappend`, the `dict` subforms) stay
-    /// in: those handlers run first and [`Self::define_var`]'s
-    /// re-definition path is idempotent for the same token span — no
-    /// duplicate reference is pushed and this call's
-    /// `warn_if_unused = false` never downgrades an earlier `true`.
+    /// A name a hook handler also binds (`set`) is bound twice for one word:
+    /// [`Self::define_var`]'s re-definition path is idempotent for the same
+    /// token span, and `warn_if_unused = false` never downgrades an earlier
+    /// `true`.
     ///
     /// Void-returning (self-guards on the role set) so it composes with the
     /// other side-effect handlers — `regexp` / `regsub` also feed
@@ -4670,58 +4764,77 @@ impl Analyser {
         arg_tokens: &[Token],
         scope_path: &[usize],
     ) {
-        let Some(registry) = self.registry.as_deref() else {
+        use tcl_registry::arg_role::ArgRole;
+        let Some((Some(roles), appends_from)) =
+            self.read_spelled_invocation(cmd_name, args, |call| {
+                let opted_out = call.semantics.traits.intersects(
+                    tcl_registry::Traits::CREATES_SCOPE_ALIAS
+                        | tcl_registry::Traits::DESTROYS_VARIABLE,
+                );
+                let appends_from = match call.semantics.var_elements_effect {
+                    Some(tcl_registry::VarElementsEffect::AppendsListElements { values_from }) => {
+                        Some(call.semantics.argument_offset + usize::from(values_from))
+                    }
+                    _ => None,
+                };
+                (
+                    (!opted_out).then(|| call.arg_roles()).flatten(),
+                    appends_from,
+                )
+            })
+        else {
             return;
         };
-        if registry.get(cmd_name).is_none_or(|spec| {
-            spec.traits.intersects(
-                tcl_registry::Traits::CREATES_SCOPE_ALIAS | tcl_registry::Traits::DESTROYS_VARIABLE,
-            )
-        }) {
-            return;
+        // A list append to the package search path is a new directory per
+        // word (`lappend auto_path DIR…`).
+        if let (Some(values_from), Some(written)) =
+            (appends_from, role_position(&roles, ArgRole::VarWrite))
+        {
+            self.record_search_path_write(
+                args,
+                arg_tokens,
+                written,
+                values_from..args.len(),
+                super::types::AutoPathForm::Append,
+            );
         }
-        let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
-        let indices = registry.arg_indices_for_role(
-            cmd_name,
-            &arg_strs,
-            tcl_registry::arg_role::ArgRole::VarWrite,
-        );
-        for idx in indices {
-            let (Some(name), Some(tok)) = (args.get(idx), arg_tokens.get(idx)) else {
+        for (index, role) in roles {
+            let (Some(text), Some(&tok)) = (args.get(index), arg_tokens.get(index)) else {
                 continue;
             };
-            // Only a plain literal names a definite scope variable.  A computed
-            // target (`scan $s $fmt $dyn`), an array element (`arr(i)`), or a
-            // brace/bracket-bearing word is not a simple local to bind.
-            if name.is_empty() || name.contains(['$', '[', ']', '(', ')', '{', '}', ' ']) {
-                continue;
+            match role {
+                ArgRole::LoopVarList if !word_substitutes(text, tok) => {
+                    self.define_vars_from_list(text, tok, scope_path);
+                }
+                ArgRole::VarWrite if names_static_variable(text, tok) => {
+                    self.define_var(text, tok, scope_path, false, None);
+                }
+                _ => {}
             }
-            self.define_var(name, *tok, scope_path, false, None);
         }
     }
 
-    /// Handle `try BODY ?on/trap CODE VARLIST BODY?... ?finally BODY?`.
-    ///
-    /// Walks the main try body and every handler / finally clause;
-    /// arity checking lives in `compiler_checks::arity_checks`
+    /// Handle `try BODY ?handler ...? ?finally BODY?` by walking its clause
+    /// plan; arity checking lives in `compiler_checks::arity_checks`
     /// already.
     ///
-    /// Clause shapes:
+    /// Each clause is read by its timing, never by its keyword:
     ///
-    /// - ``finally BODY`` (2 words) — recurse into ``BODY``.
-    /// - ``on CODE VARLIST BODY`` / ``trap PATTERN VARLIST BODY``
-    ///   (4 words) — define the handler's ``VARLIST`` (e.g.
-    ///   ``{result options}``), then recurse into ``BODY``.
+    /// - the **protected** body and every **selected** handler body walk
+    ///   through [`Self::analyse_selected_body`] — nothing either establishes
+    ///   dominates the code after the command;
+    /// - the body that runs **whatever the outcome** (`finally`) walks as
+    ///   straight-line code;
+    /// - a handler's variable-list slot (`{result options}`) is defined
+    ///   before its body walks;
+    /// - a handler whose body word is the grammar's fall-through marker runs
+    ///   the next handler's body, so its own word is never walked as a
+    ///   script — the solo `-` would otherwise read as a zero-arg `-` command
+    ///   and trip a spurious arity error.
     ///
-    /// Conditional-body depth, per clause kind: the main body
-    /// and the `on` / `trap` handler bodies are branch-selected, the
-    /// `finally` body is not.  See [`Self::analyse_selected_body`].
-    ///
-    /// `traits` are the composed traits of the concrete spec / subcommand the
-    /// dispatch already resolved this head to, threaded in rather than
-    /// re-fetched by name: a name lookup would put per-command knowledge back
-    /// in the analyser and would silently diverge from the dispatch the moment
-    /// a dialect variant shares this hook.
+    /// `plan` is the invocation's own, from the resolution that selected the
+    /// hook; a clause the chain's defect stopped in (no body word) is
+    /// skipped, and the words past the defect are not a chain at all.
     ///
     /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::Try`].
     pub fn handle_try_command(
@@ -4729,52 +4842,31 @@ impl Analyser {
         args: &[String],
         arg_tokens: &[Token],
         scope_path: &[usize],
-        traits: tcl_registry::Traits,
+        plan: Option<&tcl_registry::ClausePlan>,
     ) -> bool {
-        if args.is_empty() {
+        let Some(plan) = plan.filter(|_| !args.is_empty()) else {
             return false;
-        }
-        // The same trait-driven depth the generic body walk in
-        // `dispatch_body_arguments` applies — `Traits::BRANCH_SELECTED_BODY`,
-        // carried by exactly `if` and `try`.  `try` reaches its bodies
-        // through this hook instead of that walk, so without asking here a
-        // `package require` inside a `try` was recorded unconditional.
-        let branch_selected = traits.contains(tcl_registry::Traits::BRANCH_SELECTED_BODY);
-        // Main try body at args[0].
-        if let Some(body_tok) = arg_tokens.first().copied() {
-            self.analyse_selected_body(&args[0], body_tok, scope_path, branch_selected);
-        }
-        // Walk handler / finally clauses.
-        let mut i = 1;
-        while i < args.len() {
-            let kw = args[i].as_str();
-            if kw == "finally" && i + 1 < args.len() {
-                if let Some(body_tok) = arg_tokens.get(i + 1).copied() {
-                    // A `finally` body is *not* branch-selected — see
-                    // `analyse_selected_body`.
-                    self.analyse_body(&args[i + 1], body_tok, scope_path);
+        };
+        for (index, clause) in plan.clauses.iter().enumerate() {
+            let Some(body) = clause.operand(tcl_registry::arg_role::ArgRole::Body) else {
+                continue;
+            };
+            if let Some(list) = clause.operand(tcl_registry::arg_role::ArgRole::LoopVarList)
+                && let (Some(text), Some(tok)) = (args.get(list), arg_tokens.get(list).copied())
+            {
+                self.define_vars_from_list(text, tok, scope_path);
+            }
+            if plan.falls_through(index) {
+                continue;
+            }
+            let (Some(text), Some(tok)) = (args.get(body), arg_tokens.get(body).copied()) else {
+                continue;
+            };
+            match clause.timing {
+                tcl_registry::ClauseTiming::Protected | tcl_registry::ClauseTiming::Selected => {
+                    self.analyse_selected_body(text, tok, scope_path, true);
                 }
-                i += 2;
-            } else if matches!(kw, "on" | "trap") && i + 3 < args.len() {
-                // `on CODE {msg opts} body` / `trap PAT {msg opts} body` — the
-                // var-list at i+2 binds the result message + options dict in
-                // the handler body, so define them before walking it.
-                if let Some(vl_tok) = arg_tokens.get(i + 2).copied() {
-                    self.define_vars_from_list(&args[i + 2], vl_tok, scope_path);
-                }
-                // A handler body of literal `-` is a fallthrough marker (shares
-                // the next handler's body, like `switch`); it is not a script,
-                // so it must not be re-lexed as one — otherwise the solo `-`
-                // reads as a zero-arg `-` command and trips a spurious arity
-                // error. Mirrors the `switch` arm handling above.
-                if let Some(body_tok) = arg_tokens.get(i + 3).copied()
-                    && args[i + 3] != "-"
-                {
-                    self.analyse_selected_body(&args[i + 3], body_tok, scope_path, branch_selected);
-                }
-                i += 4;
-            } else {
-                i += 1;
+                _ => self.analyse_body(text, tok, scope_path),
             }
         }
         true
@@ -4831,22 +4923,15 @@ impl Analyser {
         }
     }
 
-    /// Register the local-alias names introduced by `upvar`, and link the
-    /// alias to its target cell whenever the target is frame-independent.
+    /// The fixed cell a frame-crossing alias's `otherVar` word names, or
+    /// `None` when it names a frame-relative variable with no stable path.
     ///
-    /// `upvar ?level? otherVar myVar ?otherVar myVar ...?` — C Tcl decides
-    /// whether the level word is present from the **argument count parity**
-    /// (`Tcl_UpvarObjCmd` tests `objc`), so an odd count means the first word
-    /// is the level. tclsh 9.0.4 / 8.6.14, identical: `upvar 1 b` has an even
-    /// count and therefore aliases the caller variable literally named `1`,
-    /// while `upvar $lvl a b` really does take `$lvl` as its level.
-    ///
-    /// **`otherVar`** normally names a variable in *another frame*, which has
-    /// no namespace path to link to — a bare `x` at level 1 is whatever local
+    /// `otherVar` normally names a variable in *another frame*, which has no
+    /// namespace path to link to — a bare `x` at level 1 is whatever local
     /// the caller happens to have. Two spellings escape that and name one
-    /// fixed cell whatever the call depth, so both get a link target
-    /// (without them `upvar ::tk::FocusGrab($index) data` leaves the array
-    /// completely unregistered):
+    /// fixed cell whatever the call depth (without them `upvar
+    /// ::tk::FocusGrab($index) data` leaves the array completely
+    /// unregistered):
     ///
     /// * a **fully-qualified** target — `upvar 1 ::myns::q g` binds
     ///   `::myns::q` from any depth (tclsh 9.0.4 / 8.6.14: reached
@@ -4857,71 +4942,6 @@ impl Analyser {
     /// An array element (`::tk::FocusGrab($index)`) links to its **base**:
     /// the element key is runtime data, but the array it lives in is the
     /// named cell every sibling access shares.
-    ///
-    /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::Upvar`].
-    pub fn handle_upvar_command(
-        &mut self,
-        args: &[String],
-        arg_tokens: &[Token],
-        scope_path: &[usize],
-    ) {
-        use tcl_registry::frame_effect::FrameLevel;
-
-        if args.is_empty() || arg_tokens.is_empty() {
-            return;
-        }
-        let pair_start = usize::from(args.len() % 2 == 1);
-        let level = if pair_start == 1 {
-            // The level word's grammar is the analysed release's (`uplevel 010`
-            // is 8 frames up on 8.6 and 10 on 9.0). With no registry loaded
-            // there is no release to name, so `parse` abstains with `Dynamic`
-            // wherever the releases disagree — the direction every consumer of
-            // this level already treats conservatively.
-            self.registry
-                .as_ref()
-                .map_or_else(
-                    || FrameLevel::parse(&args[0]),
-                    |r| FrameLevel::parse_in(&args[0], r),
-                )
-                .unwrap_or(FrameLevel::Dynamic)
-        } else {
-            FrameLevel::DEFAULT
-        };
-        let mut i = pair_start + 1;
-        while i < args.len() && i < arg_tokens.len() {
-            // The local alias name may be dynamic (`upvar 1 x $local`) — skip
-            // it rather than record the substitution text.
-            if !crate::naming::is_dynamic_word(&args[i]) {
-                self.define_var(&args[i], arg_tokens[i], scope_path, false, None);
-                if let Some(target) = Self::upvar_link_target(&args[i - 1], level)
-                    && let Some(other_tok) = arg_tokens.get(i - 1)
-                {
-                    // `otherVar` (at `i - 1`) names the cell; `args[i]` is an
-                    // independent local spelling.  Renaming the cell must
-                    // rewrite the former, never the latter.
-                    self.set_var_link_target(&args[i], scope_path, target.clone(), other_tok.span);
-                    // The fixed cell itself gets a definition at the
-                    // `otherVar` word: `upvar ::tk::FocusGrab($index) data`
-                    // is the
-                    // only place the array ever comes to exist, so without
-                    // a `VarDef` for `::tk::FocusGrab` every occurrence —
-                    // this word, a sibling proc's `$::tk::FocusGrab($idx)`
-                    // read, its `info exists` / `unset` — answered nothing.
-                    // Defined in the GLOBAL scope: both qualifying
-                    // spellings (a `::`-qualified target, any target at
-                    // `#0`) name a cell reachable from everywhere.
-                    self.define_var(&target, *other_tok, &[], false, None);
-                }
-            }
-            i += 2;
-        }
-    }
-
-    /// The fixed cell an `upvar` `otherVar` word names, or `None` when it
-    /// names a frame-relative variable with no stable path.
-    ///
-    /// See [`Self::handle_upvar_command`] for the two qualifying spellings
-    /// and their oracle transcripts.
     fn upvar_link_target(
         other: &str,
         level: tcl_registry::frame_effect::FrameLevel,
@@ -4939,100 +4959,6 @@ impl Analyser {
             return Some(format!("::{base}"));
         }
         None
-    }
-
-    /// Register the local aliases introduced by `namespace upvar`.
-    ///
-    /// `namespace upvar nsname otherVar myVar ?otherVar myVar ...?` — `myVar`
-    /// lives at indices 3, 5, 7, …
-    ///
-    /// Dispatched via
-    /// [`tcl_registry::hooks::AnalyserHookId::NamespaceUpvar`] (stamped
-    /// on `namespace`'s `upvar` subcommand); `args[0]` is still the
-    /// subcommand word.
-    pub fn handle_namespace_upvar_command(
-        &mut self,
-        args: &[String],
-        arg_tokens: &[Token],
-        scope_path: &[usize],
-    ) {
-        if args.len() < 4 {
-            return;
-        }
-        // `namespace upvar nsname otherVar myVar ?otherVar myVar ...?`: `myVar`
-        // (indices 3, 5, …) aliases `nsname::otherVar` (`otherVar` at 2, 4, …).
-        // Resolve a relative `nsname` against the current namespace.
-        let cur = self.command_resolution_namespace(scope_path);
-        let cur_prefix = cur.trim_end_matches("::");
-        let target_ns = if args[1].starts_with("::") {
-            args[1].trim_end_matches("::").to_string()
-        } else {
-            format!("{cur_prefix}::{}", args[1].trim_end_matches("::"))
-        };
-        let mut i = 3;
-        while i < args.len() && i < arg_tokens.len() {
-            // Skip a dynamic local alias name (`namespace upvar ns x $local`).
-            if !crate::naming::is_dynamic_word(&args[i]) {
-                self.define_var(&args[i], arg_tokens[i], scope_path, false, None);
-                // `otherVar` is resolved *within* the target namespace, so keep
-                // its full path: `namespace upvar ::a b::c local` aliases `local`
-                // to `::a::b::c`, not the tail-collapsed `::a::c`.  An absolute
-                // `otherVar` names its cell directly.
-                let other = &args[i - 1];
-                let target = if other.starts_with("::") {
-                    other.clone()
-                } else {
-                    format!("{target_ns}::{other}")
-                };
-                if let Some(other_tok) = arg_tokens.get(i - 1) {
-                    // `otherVar` (at `i - 1`) names the cell, not the local
-                    // alias at `i` — see `VarDef::link_target_span`.
-                    self.set_var_link_target(&args[i], scope_path, target, other_tok.span);
-                }
-            }
-            i += 2;
-        }
-    }
-
-    /// Register the loop variables of `dict for {keyVar valueVar}
-    /// dictValue body`.
-    ///
-    /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::DictFor`]
-    /// (stamped on `dict`'s `for` subcommand); `args[0]` is still the
-    /// subcommand word.
-    pub fn handle_dict_for_command(
-        &mut self,
-        args: &[String],
-        arg_tokens: &[Token],
-        scope_path: &[usize],
-    ) {
-        if args.len() >= 4 && arg_tokens.len() >= 2 {
-            self.define_vars_from_list(&args[1], arg_tokens[1], scope_path);
-        }
-    }
-
-    /// Register the alias variables of `dict update dictVar key1 var1
-    /// ?key2 var2 ...? body` — vars at 3, 5, 7, … (i.e. `len-2` last).
-    ///
-    /// Dispatched via
-    /// [`tcl_registry::hooks::AnalyserHookId::DictUpdate`] (stamped on
-    /// `dict`'s `update` subcommand).
-    pub fn handle_dict_update_command(
-        &mut self,
-        args: &[String],
-        arg_tokens: &[Token],
-        scope_path: &[usize],
-    ) {
-        if args.len() < 5 || !(args.len() - 3).is_multiple_of(2) {
-            return;
-        }
-        let mut i = 3;
-        while i + 1 < args.len() {
-            if let Some(tok) = arg_tokens.get(i) {
-                self.define_var(&args[i], *tok, scope_path, false, None);
-            }
-            i += 2;
-        }
     }
 
     /// Register the key variables of `dict with dictVar body` — only
@@ -5868,22 +5794,19 @@ impl Analyser {
         self.result.diagnostics.extend(diagnostics);
     }
 
-    /// Handle ``package require`` (and ``package provide``) —
-    /// record the package dependency so later passes can gate
-    /// W123 (unresolved-command) suppression and dynamic-
-    /// provider detection.
+    /// Handle ``package require ?-exact? NAME ?requirement ...?`` — record
+    /// the package dependency so later passes can gate W123
+    /// (unresolved-command) suppression and dynamic-provider detection.
     ///
-    /// Two shapes are recognised:
-    ///
-    /// - ``package require ?-exact? NAME ?requirement ...?`` — appends a
-    ///   ``SignaturePackageRequire`` record to
-    ///   ``result.package_requires`` (carrying ``exact`` when the
-    ///   flag is present, which narrows each requirement to an exact
-    ///   version for the resolver)
-    ///   and flips ``has_dynamic_providers`` when the name argument
-    ///   is a ``$``-substitution / ``[…]``-substitution token.
-    /// - ``package provide NAME ?VERSION?`` — consumed silently;
-    ///   there's no field to record it on yet.
+    /// Appends a ``SignaturePackageRequire`` record to
+    /// ``result.package_requires`` and flips ``has_dynamic_providers`` when
+    /// the name is a ``$``-substitution / ``[…]``-substitution. Where each
+    /// word sits is the registry's: the name and the requirements are the
+    /// roles `require` declares after its option run, and ``exact`` is
+    /// whether that run is non-empty — the subcommand's one option,
+    /// ``-exact``, narrows each requirement to an exact version for the
+    /// resolver (the reading `signature_scan`'s handler gives the same
+    /// call). A call too short to carry a name records nothing.
     ///
     /// The conditional flag is ``self.conditional_depth > 0``.
     ///
@@ -5896,29 +5819,29 @@ impl Analyser {
     ///
     /// Dispatched via
     /// [`tcl_registry::hooks::AnalyserHookId::PackageRequire`] (stamped
-    /// on `package`'s `require` subcommand — other ``package``
-    /// subcommands like ``ifneeded`` / ``forget`` / ``vsatisfies``
-    /// carry no hook and aren't recorded); `args[0]` is still the
+    /// on `package`'s `require` subcommand); `args[0]` is still the
     /// subcommand word.
     pub fn handle_package_require(
         &mut self,
+        cmd_name: &str,
         cmd_tok: Token,
         args: &[String],
         arg_tokens: &[Token],
     ) {
-        if args.len() < 2 {
+        use tcl_registry::arg_role::ArgRole;
+        let Some((Some(roles), exact)) = self.read_spelled_invocation(cmd_name, args, |call| {
+            (
+                call.arg_roles(),
+                call.option_effects().option_end > call.semantics.argument_offset,
+            )
+        }) else {
             return;
-        }
-        // ``package require -exact NAME ?requirement ...?`` —
-        // record the flag and shift the name index.
-        let exact = args[1] == "-exact" && args.len() >= 3;
-        let (name_idx, name_text) = if exact {
-            (2usize, args[2].clone())
-        } else {
-            (1usize, args[1].clone())
         };
-        let version_idx = name_idx + 1;
-        let requirements = args[version_idx..].to_vec();
+        let Some(name_idx) = role_position(&roles, ArgRole::Name) else {
+            return;
+        };
+        let name_text = args[name_idx].clone();
+        let requirements = role_texts(&roles, ArgRole::Value, args);
         let version = requirements.first().cloned();
 
         // Dynamic-provider detection — non-literal package
@@ -5947,27 +5870,29 @@ impl Analyser {
             });
     }
 
-    /// Record ``package provide NAME ?VERSION?``.
+    /// Record ``package provide NAME ?VERSION?`` — the name and the version
+    /// are the roles `provide` declares.
     ///
     /// Dispatched via
     /// [`tcl_registry::hooks::AnalyserHookId::PackageProvide`] (stamped
     /// on `package`'s `provide` subcommand).  See
     /// [`Self::handle_package_require`] for the `cmd_tok` anchoring
     /// convention.
-    pub fn handle_package_provide(&mut self, cmd_tok: Token, args: &[String]) {
-        if args.len() < 2 {
+    pub fn handle_package_provide(&mut self, cmd_name: &str, cmd_tok: Token, args: &[String]) {
+        use tcl_registry::arg_role::ArgRole;
+        let Some(Some(roles)) =
+            self.read_spelled_invocation(cmd_name, args, |call| call.arg_roles())
+        else {
             return;
-        }
-        let name = args[1].clone();
-        let version = if args.len() >= 3 {
-            Some(args[2].clone())
-        } else {
-            None
         };
+        let Some(name_idx) = role_position(&roles, ArgRole::Name) else {
+            return;
+        };
+        let version = role_position(&roles, ArgRole::Value).map(|index| args[index].clone());
         self.result
             .package_provides
             .push(super::types::PackageProvide {
-                name,
+                name: args[name_idx].clone(),
                 version,
                 range: cmd_tok.span,
                 conditional: self.conditional_depth > 0,
@@ -5980,7 +5905,8 @@ impl Analyser {
     /// VERSION`` with no script is a *query* that registers nothing,
     /// so treating it as a registration would abstain a
     /// package-derived load order on a document that merely asked
-    /// what was registered.
+    /// what was registered. The name, the version and the script are the
+    /// roles `ifneeded` declares; the setter form is the one with a script.
     ///
     /// The script is not kept — see
     /// [`PackageIfneeded`](super::types::PackageIfneeded) for why the
@@ -5991,17 +5917,25 @@ impl Analyser {
     /// (stamped on `package`'s `ifneeded` subcommand).  See
     /// [`Self::handle_package_require`] for the `cmd_tok` anchoring
     /// convention.
-    pub fn handle_package_ifneeded(&mut self, cmd_tok: Token, args: &[String]) {
-        // args[0] is the `ifneeded` subcommand word; the setter form
-        // is NAME + VERSION + SCRIPT.
-        if args.len() < 4 {
+    pub fn handle_package_ifneeded(&mut self, cmd_name: &str, cmd_tok: Token, args: &[String]) {
+        use tcl_registry::arg_role::ArgRole;
+        let Some(Some(roles)) =
+            self.read_spelled_invocation(cmd_name, args, |call| call.arg_roles())
+        else {
             return;
-        }
+        };
+        let (Some(name_idx), Some(version_idx), Some(_script)) = (
+            role_position(&roles, ArgRole::Name),
+            role_position(&roles, ArgRole::Value),
+            role_position(&roles, ArgRole::Body),
+        ) else {
+            return;
+        };
         self.result
             .package_ifneededs
             .push(super::types::PackageIfneeded {
-                name: args[1].clone(),
-                version: args[2].clone(),
+                name: args[name_idx].clone(),
+                version: args[version_idx].clone(),
                 range: cmd_tok.span,
             });
     }
@@ -10116,67 +10050,76 @@ impl Analyser {
         );
     }
 
-    /// Record a `lappend auto_path PATH...` mutation.
+    /// Record a write to the package search path: `lappend auto_path
+    /// PATH...` ([`AutoPathForm::Append`], one entry per word) or `set
+    /// auto_path PATH` ([`AutoPathForm::Assign`], one entry for the list).
     ///
-    /// Dispatched from the
-    /// [`tcl_registry::hooks::AnalyserHookId::Lappend`] arm alongside
-    /// the ordinary variable handling — the `auto_path` check is a
-    /// *variable-name* shape check, not a command guard.  Any
-    /// ``auto_path`` mutation flips ``has_dynamic_providers``:
+    /// The search path is the special variable the registry names
+    /// `auto_path`, where the document's dialect provides it for user code to
+    /// write ([`tcl_registry::VarAccess::ReadWrite`]) — one read of the
+    /// special-variable registry, so a dialect with no auto-loader (iRules)
+    /// records nothing. The check is on the written *variable*, not a
+    /// command guard. Any such mutation flips ``has_dynamic_providers``:
     /// packages discovered at runtime can register commands the static
-    /// analyser can't see, so W123 unknown-command diagnostics
-    /// suppress on the document.
+    /// analyser can't see, so W123 unknown-command diagnostics suppress on
+    /// the document.
     ///
-    /// `lappend` appends **one list element per argument word**, so this
-    /// records one [`AutoPathForm::Append`] entry per word and each is a whole
-    /// directory — `lappend auto_path {p q}` names the single directory
-    /// `p q`, not two.  Contrast [`Self::handle_auto_path_set`].
-    pub fn handle_auto_path_lappend(&mut self, args: &[String], arg_tokens: &[Token]) {
-        if args.first().map(String::as_str) != Some("auto_path") {
+    /// `lappend` appends **one list element per argument word**, so an
+    /// append records one entry per word and each is a whole directory —
+    /// `lappend auto_path {p q}` names the single directory `p q`, not two.
+    /// An assignment's right-hand side is a **list**, so its one record may
+    /// name several directories; the split is deliberately *not* done here:
+    /// the record keeps the source word verbatim (its `range` is the whole
+    /// argument), and [`crate::auto_path_eval::evaluate_auto_path_entry`]
+    /// applies the list grammar at consumption.
+    ///
+    /// `written` is the position of the written variable and `values` the
+    /// words recorded. The assignment is recorded from the
+    /// [`tcl_registry::hooks::AnalyserHookId::Set`] arm; an append by the
+    /// binder ([`Self::handle_var_binding_command`]) for any command whose
+    /// descriptor appends list elements to the variable it writes
+    /// ([`tcl_registry::VarElementsEffect::AppendsListElements`]).
+    pub fn record_search_path_write(
+        &mut self,
+        args: &[String],
+        arg_tokens: &[Token],
+        written: usize,
+        values: std::ops::Range<usize>,
+        form: super::types::AutoPathForm,
+    ) {
+        let Some(written) = args.get(written) else {
+            return;
+        };
+        let context = self.analysis_context();
+        let dialect = Some(context.context().authoring_query());
+        if !context
+            .commands()
+            .special_var_in_dialect("auto_path", dialect)
+            .is_some_and(|search_path| {
+                search_path.access == tcl_registry::VarAccess::ReadWrite
+                    && search_path.name == written
+            })
+        {
             return;
         }
-        for (i, path) in args.iter().enumerate().skip(1) {
+        // An assignment with no value reads the path; it writes nothing. An
+        // append of nothing still names the path as written.
+        if values.is_empty() && form == super::types::AutoPathForm::Assign {
+            return;
+        }
+        for i in values {
             let Some(tok) = arg_tokens.get(i) else {
                 continue;
             };
             self.result
                 .auto_path_entries
                 .push(super::types::AutoPathEntry {
-                    raw_path: path.clone(),
+                    raw_path: args[i].clone(),
                     range: tok.span,
-                    form: super::types::AutoPathForm::Append,
+                    form,
                 });
         }
         self.result.has_dynamic_providers = true;
-    }
-
-    /// Record a `set auto_path PATH` mutation.
-    ///
-    /// Dispatched from the [`tcl_registry::hooks::AnalyserHookId::Set`]
-    /// arm; see [`Self::handle_auto_path_lappend`] for why any
-    /// ``auto_path`` mutation flips ``has_dynamic_providers``.
-    ///
-    /// The right-hand side is assigned as a **list**, so the one record this
-    /// pushes may name several directories and is tagged
-    /// [`AutoPathForm::Assign`] to say so.  The split is deliberately *not*
-    /// done here: the record keeps the source word verbatim (its `range` is
-    /// the whole argument), and
-    /// [`crate::auto_path_eval::evaluate_auto_path_entry`] applies the list
-    /// grammar at consumption.
-    pub fn handle_auto_path_set(&mut self, args: &[String], arg_tokens: &[Token]) {
-        if args.first().map(String::as_str) != Some("auto_path") || args.len() < 2 {
-            return;
-        }
-        if let Some(tok) = arg_tokens.get(1) {
-            self.result
-                .auto_path_entries
-                .push(super::types::AutoPathEntry {
-                    raw_path: args[1].clone(),
-                    range: tok.span,
-                    form: super::types::AutoPathForm::Assign,
-                });
-            self.result.has_dynamic_providers = true;
-        }
     }
 
     /// Record the pattern arguments of regex-pattern commands
@@ -10268,50 +10211,6 @@ impl Analyser {
                     command: command.to_string(),
                 });
             }
-        }
-    }
-
-    /// Handle the `incr` command: `incr var ?amount?`.
-    ///
-    /// `incr` is safe-on-uninit (it initialises the variable to 0 if
-    /// not yet set), so the var binding is created with
-    /// `warn_if_unused = true` — the diagnostic emitter will
-    /// still flag a `set`-only-no-read variable, but won't flag
-    /// an `incr`-only-no-read one.
-    ///
-    /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::Incr`].
-    pub fn handle_incr_command(
-        &mut self,
-        args: &[String],
-        arg_tokens: &[Token],
-        scope_path: &[usize],
-    ) {
-        if let (Some(name), Some(tok)) = (args.first(), arg_tokens.first()) {
-            self.define_var(name, *tok, scope_path, true, None);
-        }
-    }
-
-    /// Handle `append VARNAME ?value ...?` / `lappend VARNAME ?value ...?`.
-    ///
-    /// Both read-modify-write their first argument, creating it if absent, so
-    /// the target is a variable *definition* for symbol/scope purposes and must
-    /// surface in `symbols` / completion / hover.
-    /// `warn_if_unused = false` because the command itself reads the prior
-    /// value, so an `append`/`lappend` target is never "set but never used"
-    /// (no W211 for it).
-    ///
-    /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::Append`]
-    /// and [`tcl_registry::hooks::AnalyserHookId::Lappend`] (the two
-    /// commands share this handler; the `Lappend` arm additionally
-    /// records `lappend auto_path …`).
-    pub fn handle_append_lappend_command(
-        &mut self,
-        args: &[String],
-        arg_tokens: &[Token],
-        scope_path: &[usize],
-    ) {
-        if let (Some(name), Some(tok)) = (args.first(), arg_tokens.first()) {
-            self.define_var(name, *tok, scope_path, false, None);
         }
     }
 
@@ -10560,7 +10459,12 @@ mod tests {
         Span::new(start, end)
     }
 
-    // interp_create_words_from_value
+    // `substitution_elements` — a `[…]` value read as a call's words
+
+    fn elements(text: &str) -> Option<Vec<&str>> {
+        super::super::commands::substitution_elements(text)
+            .map(|words| words.into_iter().map(|(word, _)| word).collect())
+    }
 
     #[test]
     fn interp_create_value_words_strip_a_single_braced_path_issue_1025() {
@@ -10568,8 +10472,8 @@ mod tests {
         // direct handler sees it segmenter-decoded, so the value-flow path
         // must strip the braces too rather than binding to `"{child}"`.
         assert_eq!(
-            interp_create_words_from_value("[interp create {child}]"),
-            Some(vec!["child"])
+            elements("[interp create {child}]"),
+            Some(vec!["interp", "create", "child"])
         );
     }
 
@@ -10579,8 +10483,8 @@ mod tests {
         // `split_whitespace` would yield `["{parent", "child}"]`, whose first
         // fragment would become the bound key.
         assert_eq!(
-            interp_create_words_from_value("[interp create {parent child}]"),
-            Some(vec!["parent child"])
+            elements("[interp create {parent child}]"),
+            Some(vec!["interp", "create", "parent child"])
         );
     }
 
@@ -10589,58 +10493,57 @@ mod tests {
         // TN — the shapes that already worked must be byte-for-byte
         // unchanged by the switch to list parsing.
         assert_eq!(
-            interp_create_words_from_value("[interp create -safe]"),
-            Some(vec!["-safe"])
+            elements("[interp create -safe -- name]"),
+            Some(vec!["interp", "create", "-safe", "--", "name"])
         );
-        assert_eq!(
-            interp_create_words_from_value("[interp create -safe -- name]"),
-            Some(vec!["-safe", "--", "name"])
-        );
-        assert_eq!(
-            interp_create_words_from_value("[interp create]"),
-            Some(vec![])
-        );
-        assert_eq!(interp_create_words_from_value("[set x 1]"), None);
-        assert_eq!(interp_create_words_from_value("interp create child"), None);
+        assert_eq!(elements("[interp create]"), Some(vec!["interp", "create"]));
+        // Only one whole bracketed substitution is a call.
+        assert_eq!(elements("interp create child"), None);
     }
 
     #[test]
     fn interp_create_value_words_reject_an_unmatched_brace_issue_1025() {
         // A malformed (mid-edit) path is not a list at all, so the whole
         // substitution is rejected. Returning the prefix parsed before the
-        // error instead — `Some(vec![])` here — read as a bare `interp
-        // create`, binding the variable to an auto-named interpreter real
-        // Tcl never creates. Later `$i eval` / `interp alias $i …` sites
-        // then resolve against that phantom.
+        // error instead would read as a bare `interp create`, binding the
+        // variable to an auto-named interpreter real Tcl never creates.
+        // Later `$i eval` / `interp alias $i …` sites then resolve against
+        // that phantom.
+        assert_eq!(elements("[interp create {child]"), None);
         assert_eq!(
-            interp_create_words_from_value("[interp create {child]"),
-            None
-        );
-        assert_eq!(
-            interp_create_words_from_value("[interp create good {child]"),
+            elements("[interp create good {child]"),
             None,
             "a valid prefix does not rescue a malformed tail",
         );
     }
 
-    // parse_interp_create_words — full flag scan, mirroring tclInterp.c
+    // `interp create` — the registry's `InterpreterTransition::Create`,
+    // whose option scan mirrors tclInterp.c (`create_reads_the_c_option_scan`
+    // in `tcl-registry`'s `interp.rs` pins every row against tclsh 8.4–9.1).
+
+    /// Dispatch `interp create WORDS…` and report whether `path` was
+    /// recorded, and as safe.
+    fn created_by(words: &[&str], path: &str) -> Option<bool> {
+        let mut a = Analyser::new();
+        let call: Vec<&str> = ["interp", "create"]
+            .into_iter()
+            .chain(words.iter().copied())
+            .collect();
+        dispatch_words(&mut a, &call);
+        let key = a.qualified_interp_key(path);
+        a.interpreters.get(&key).map(|state| state.safe)
+    }
 
     #[test]
     fn interp_create_flags_are_still_scanned_after_the_path() {
         // C Tcl examines every word and treats a `-` word as a flag until
         // `--`, whether or not the path has been read. tclsh8.6/9.0:
-        // `interp create x -safe` yields `interp issafe x` == 1, and
-        // `interp create n -bogus` errors `bad option "-bogus"` — proof the
-        // scan does not stop at the path. Stopping at the path recorded `x`
-        // as an *unsafe* interpreter.
-        assert_eq!(
-            parse_interp_create_words(&["x", "-safe"]),
-            (true, Some("x"))
-        );
-        assert_eq!(
-            parse_interp_create_words(&["-safe", "y"]),
-            (true, Some("y"))
-        );
+        // `interp create x -safe` yields `interp issafe x` == 1. Stopping at
+        // the path recorded `x` as an *unsafe* interpreter.
+        assert_eq!(created_by(&["x", "-safe"], "x"), Some(true));
+        assert_eq!(created_by(&["-safe", "y"], "y"), Some(true));
+        // `-safe` matches by unique prefix.
+        assert_eq!(created_by(&["-s", "x"], "x"), Some(true));
     }
 
     #[test]
@@ -10648,39 +10551,38 @@ mod tests {
         // tclsh8.6/9.0: `interp create -safe -- z` creates a safe `z`, and
         // `interp create -- -safe` creates an *unsafe* interpreter whose
         // path is the literal `-safe`.
-        assert_eq!(
-            parse_interp_create_words(&["-safe", "--", "z"]),
-            (true, Some("z"))
-        );
-        assert_eq!(
-            parse_interp_create_words(&["--", "-safe"]),
-            (false, Some("-safe"))
-        );
+        assert_eq!(created_by(&["-safe", "--", "z"], "z"), Some(true));
+        assert_eq!(created_by(&["--", "-safe"], "-safe"), Some(false));
     }
 
     #[test]
     fn interp_create_two_path_words_record_no_path() {
-        // tclsh8.6/9.0: `interp create a b` is `wrong # args`. No
-        // interpreter is created, so recording either word would bind a
-        // name that does not exist. A `-safe` seen alongside is still
-        // reported — it costs nothing and the command creates nothing.
-        assert_eq!(parse_interp_create_words(&["a", "b"]), (false, None));
+        // tclsh8.6/9.0: `interp create a b` is `wrong # args`, and `interp
+        // create n -bogus` a bad option. No interpreter is created, so
+        // recording either word would bind a name that does not exist.
+        assert_eq!(created_by(&["a", "b"], "a"), None);
+        assert_eq!(created_by(&["a", "b"], "b"), None);
+        assert_eq!(created_by(&["n", "-bogus"], "n"), None);
         assert_eq!(
-            parse_interp_create_words(&["--", "x", "-safe"]),
-            (false, None),
+            created_by(&["--", "x", "-safe"], "x"),
+            None,
             "after `--` a second `-` word is a path word, so this is the error shape too",
         );
     }
 
     #[test]
     fn interp_create_bare_and_flag_only_forms_are_unchanged() {
-        // TN control for the rewritten scan.
-        assert_eq!(parse_interp_create_words(&[]), (false, None));
-        assert_eq!(parse_interp_create_words(&["-safe"]), (true, None));
-        assert_eq!(
-            parse_interp_create_words(&["child"]),
-            (false, Some("child"))
-        );
+        // TN control: a named child is recorded; an auto-named one has no
+        // name this file can reference, so nothing is.
+        assert_eq!(created_by(&["child"], "child"), Some(false));
+        let mut a = Analyser::new();
+        dispatch_words(&mut a, &["interp", "create", "-safe"]);
+        assert!(a.interpreters.is_empty());
+        // A computed path makes interpreter existence unknowable.
+        let mut a = Analyser::new();
+        dispatch_words(&mut a, &["interp", "create", "$name"]);
+        assert!(a.interpreters.is_empty());
+        assert!(a.dynamic_interp_ops);
     }
 
     // handle_set_command
@@ -10765,47 +10667,57 @@ mod tests {
         assert!(!a.result.global_scope.variables.contains_key("x"));
     }
 
-    // handle_var_declaration_command
+    // Scope aliases through the generic consumer — the dispatch tail's
+    // `apply_state_transitions`, reached by `process_command` exactly as a
+    // walked command reaches it.
+
+    /// Dispatch one command whose words are bare (`Esc`) tokens four bytes
+    /// apart — a word carrying `$` or `[` reads as computed, as it would in
+    /// source.
+    fn dispatch_words(a: &mut Analyser, words: &[&str]) {
+        let owned: Vec<String> = words.iter().map(|s| (*s).to_string()).collect();
+        let toks: Vec<Token> = (0..owned.len())
+            .map(|i| {
+                let at = u32::try_from(i).unwrap() * 4;
+                esc_tok(span(at, at + 1))
+            })
+            .collect();
+        let single = vec![true; owned.len()];
+        let expanded = vec![false; owned.len()];
+        a.process_command(&owned, &toks, &single, &expanded, &[]);
+    }
 
     #[test]
     fn handle_global_defines_each_name() {
         let mut a = Analyser::new();
-        a.handle_global_command(
-            &["x".to_string(), "y".to_string(), "z".to_string()],
-            &[
-                esc_tok(span(0, 1)),
-                esc_tok(span(2, 3)),
-                esc_tok(span(4, 5)),
-            ],
-            &[],
-        );
+        dispatch_words(&mut a, &["global", "x", "y", "z"]);
         for name in ["x", "y", "z"] {
             assert!(a.result.global_scope.variables.contains_key(name));
             assert!(!a.result.global_scope.variables[name].warn_if_unused);
+            assert_eq!(
+                a.result.global_scope.variables[name].link_target.as_deref(),
+                Some(format!("::{name}").as_str()),
+            );
         }
+    }
+
+    #[test]
+    fn global_binds_the_tail_of_a_qualified_name_and_skips_a_computed_one() {
+        let mut a = Analyser::new();
+        dispatch_words(&mut a, &["global", "::ns::v", "$dyn"]);
+        let v = &a.result.global_scope.variables["v"];
+        assert_eq!(v.link_target.as_deref(), Some("::ns::v"));
+        // The declaration word names the cell, so a rename rewrites it.
+        assert_eq!(v.link_target_span, Some(span(4, 5)));
+        assert!(!a.result.global_scope.variables.contains_key("dyn"));
+        assert!(!a.result.global_scope.variables.contains_key("$dyn"));
     }
 
     #[test]
     fn handle_variable_defines_only_names_skipping_values() {
         let mut a = Analyser::new();
         // `variable x 1 y 2 z` — names at 0, 2, 4; values at 1, 3.
-        a.handle_variable_command(
-            &[
-                "x".to_string(),
-                "1".to_string(),
-                "y".to_string(),
-                "2".to_string(),
-                "z".to_string(),
-            ],
-            &[
-                esc_tok(span(0, 1)),
-                esc_tok(span(2, 3)),
-                esc_tok(span(4, 5)),
-                esc_tok(span(6, 7)),
-                esc_tok(span(8, 9)),
-            ],
-            &[],
-        );
+        dispatch_words(&mut a, &["variable", "x", "1", "y", "2", "z"]);
         for name in ["x", "y", "z"] {
             assert!(a.result.global_scope.variables.contains_key(name));
         }
@@ -10817,26 +10729,58 @@ mod tests {
     #[test]
     fn handle_variable_single_name_no_value() {
         let mut a = Analyser::new();
-        a.handle_variable_command(&["x".to_string()], &[esc_tok(span(0, 1))], &[]);
+        dispatch_words(&mut a, &["variable", "x"]);
         assert!(a.result.global_scope.variables.contains_key("x"));
+        // At the top level the current namespace is the global one.
+        assert_eq!(
+            a.result.global_scope.variables["x"].link_target.as_deref(),
+            Some("::x"),
+        );
     }
 
-    // handle_upvar_command — the `otherVar` link
+    #[test]
+    fn namespace_upvar_links_each_local_to_its_namespace_cell() {
+        // `namespace upvar ns other local` — `other` resolved within `ns`
+        // and kept whole (`b::c` is `::a::b::c`, not the tail-collapsed
+        // `::a::c`), `ns` relative to the current namespace; the rename span
+        // is the `other` word, not the local.
+        let mut a = Analyser::new();
+        dispatch_words(
+            &mut a,
+            &["namespace", "upvar", "::a", "b::c", "l", "d", "m"],
+        );
+        let l = &a.result.global_scope.variables["l"];
+        assert_eq!(l.link_target.as_deref(), Some("::a::b::c"));
+        assert_eq!(l.link_target_span, Some(span(12, 13)));
+        assert_eq!(
+            a.result.global_scope.variables["m"].link_target.as_deref(),
+            Some("::a::d"),
+        );
+    }
 
-    /// Run `upvar <args>` through the handler and report the alias's link
-    /// target, if it got one.
+    #[test]
+    fn namespace_upvar_with_a_computed_word_links_nothing_it_cannot_name() {
+        // A computed local binds nothing; a computed namespace names no path,
+        // so its local is defined but linked to no cell.
+        let mut a = Analyser::new();
+        dispatch_words(&mut a, &["namespace", "upvar", "::a", "x", "$local"]);
+        assert!(!a.result.global_scope.variables.contains_key("local"));
+        let mut a = Analyser::new();
+        dispatch_words(&mut a, &["namespace", "upvar", "$ns", "x", "l"]);
+        assert!(a.result.global_scope.variables.contains_key("l"));
+        assert_eq!(a.result.global_scope.variables["l"].link_target, None);
+    }
+
+    // `upvar` — the `otherVar` link
+
+    /// Dispatch `upvar <args>` and report the alias's link target, if it got
+    /// one.
     fn upvar_link_of(args: &[&str], local: &str) -> Option<String> {
         let mut a = Analyser::new();
-        let owned: Vec<String> = args.iter().map(|s| (*s).to_string()).collect();
-        let toks: Vec<Token> = (0..owned.len())
-            .map(|i| {
-                esc_tok(span(
-                    u32::try_from(i).unwrap() * 4,
-                    u32::try_from(i).unwrap() * 4 + 1,
-                ))
-            })
+        let words: Vec<&str> = std::iter::once("upvar")
+            .chain(args.iter().copied())
             .collect();
-        a.handle_upvar_command(&owned, &toks, &[]);
+        dispatch_words(&mut a, &words);
         a.result
             .global_scope
             .variables
@@ -10900,11 +10844,7 @@ mod tests {
         // caller-side variable name — the alias is `b` (tclsh 9.0.4 /
         // 8.6.14: with `set 1 ONE` in the caller, the callee reads `ONE`).
         let mut a = Analyser::new();
-        a.handle_upvar_command(
-            &["1".to_string(), "b".to_string()],
-            &[esc_tok(span(0, 1)), esc_tok(span(2, 3))],
-            &[],
-        );
+        dispatch_words(&mut a, &["upvar", "1", "b"]);
         assert!(a.result.global_scope.variables.contains_key("b"));
         assert!(!a.result.global_scope.variables.contains_key("1"));
     }
@@ -13790,6 +13730,7 @@ mod tests {
     fn handle_foreach_defines_single_loop_var() {
         let mut a = Analyser::new();
         let handled = a.handle_foreach_command(
+            "foreach",
             &[
                 "i".to_string(),
                 "{1 2 3}".to_string(),
@@ -13810,6 +13751,7 @@ mod tests {
     fn handle_foreach_defines_multiple_loop_vars() {
         let mut a = Analyser::new();
         a.handle_foreach_command(
+            "foreach",
             &["k v".to_string(), "{a 1 b 2}".to_string(), String::new()],
             &[
                 esc_tok(span(8, 11)),
@@ -13835,6 +13777,7 @@ mod tests {
         let mut a = Analyser::new();
         let var_list = r#"{one name} "two name" three\ name plain"#;
         a.handle_foreach_command(
+            "foreach",
             &[var_list.to_string(), "values".to_string(), String::new()],
             &[
                 esc_tok(span(100, 139)),
@@ -13855,6 +13798,7 @@ mod tests {
     fn malformed_foreach_varlist_defines_no_variables() {
         let mut a = Analyser::new();
         a.handle_foreach_command(
+            "foreach",
             &[
                 "{unterminated".to_string(),
                 "values".to_string(),
@@ -13915,6 +13859,7 @@ mod tests {
         // varList/list pair binds its own names, not just `args[0]`.
         let mut a = Analyser::new();
         let handled = a.handle_foreach_command(
+            "foreach",
             &[
                 "dirName".to_string(),
                 "{src src {src core}}".to_string(),
@@ -13946,6 +13891,7 @@ mod tests {
         // 3-or-more-pair `foreach`, equally legal Tcl).
         let mut a = Analyser::new();
         a.handle_foreach_command(
+            "foreach",
             &[
                 "a".to_string(),
                 "{1 2}".to_string(),
@@ -13975,6 +13921,7 @@ mod tests {
     fn handle_foreach_too_few_args_returns_false() {
         let mut a = Analyser::new();
         let handled = a.handle_foreach_command(
+            "foreach",
             &["i".to_string(), "{1 2}".to_string()],
             &[esc_tok(span(0, 1)), str_tok(span(2, 7))],
             &[],
@@ -14116,32 +14063,6 @@ mod tests {
         let r = a.analyse(src, "tcl8.6");
         assert!(r.renamed_commands.is_empty());
         assert!(!r.all_procs.keys().any(|k| k.contains('$')));
-    }
-
-    // handle_for_command
-
-    #[test]
-    fn handle_for_returns_true_for_canonical_shape() {
-        let mut a = Analyser::new();
-        let handled = a.handle_for_command(
-            &[
-                "set i 0".to_string(),
-                "$i < 10".to_string(),
-                "incr i".to_string(),
-                "puts $i".to_string(),
-            ],
-            &[],
-            &[],
-        );
-        assert!(handled);
-    }
-
-    #[test]
-    fn handle_for_too_few_args_returns_false() {
-        let mut a = Analyser::new();
-        let handled =
-            a.handle_for_command(&["set i 0".to_string(), "$i < 10".to_string()], &[], &[]);
-        assert!(!handled);
     }
 
     // handle_switch_command
@@ -14343,40 +14264,49 @@ mod tests {
 
     // handle_try_command
 
-    /// The traits `AnalyserHookId::Try` dispatch threads into
+    /// The clause plan `AnalyserHookId::Try` dispatch threads into
     /// `handle_try_command` in production, resolved through that same path so
     /// these unit tests cannot drift from it.
-    fn try_traits(a: &Analyser, args: &[String]) -> tcl_registry::Traits {
-        a.resolved_analyser_hook_traits("try", args)
-            .expect("`try` resolves the Try analyser hook")
+    fn try_plan(a: &Analyser, args: &[String]) -> Option<tcl_registry::ClausePlan> {
+        a.resolved_analyser_hook_plan("try", args)
     }
 
     #[test]
     fn handle_try_canonical_returns_true() {
         let mut a = Analyser::new();
         let args = ["body".to_string()];
-        let traits = try_traits(&a, &args);
-        let handled = a.handle_try_command(&args, &[str_tok(span(0, 4))], &[], traits);
+        let plan = try_plan(&a, &args);
+        let handled = a.handle_try_command(&args, &[str_tok(span(0, 4))], &[], plan.as_ref());
         assert!(handled);
     }
 
     #[test]
     fn handle_try_no_args_returns_false() {
         let mut a = Analyser::new();
-        let traits = try_traits(&a, &[]);
-        let handled = a.handle_try_command(&[], &[], &[], traits);
+        let plan = try_plan(&a, &[]);
+        let handled = a.handle_try_command(&[], &[], &[], plan.as_ref());
         assert!(!handled);
     }
 
-    /// The dispatch really does resolve `BRANCH_SELECTED_BODY` for a `try`
-    /// call, so the depth bump keys off a fact and not off a default.
+    /// The dispatch hands the handler `try`'s own clause plan: a protected
+    /// body, then each handler selected by its pattern, then `finally` —
+    /// the timings the walk reads in place of the keywords.
     #[test]
-    fn try_dispatch_resolves_the_branch_selected_body_trait() {
+    fn try_dispatch_resolves_the_clause_plan() {
         let a = Analyser::new();
-        let args = ["body".to_string()];
-        assert!(
-            try_traits(&a, &args).contains(tcl_registry::Traits::BRANCH_SELECTED_BODY),
-            "hook dispatch must hand the handler `try`'s own traits"
+        let args: Vec<String> = ["body", "on", "error", "{m o}", "{h}", "finally", "{f}"]
+            .map(String::from)
+            .into();
+        let plan = try_plan(&a, &args).expect("hook dispatch hands the handler `try`'s plan");
+        let timings: Vec<tcl_registry::ClauseTiming> =
+            plan.clauses.iter().map(|clause| clause.timing).collect();
+        assert_eq!(
+            timings,
+            [
+                tcl_registry::ClauseTiming::Protected,
+                tcl_registry::ClauseTiming::Selected,
+                tcl_registry::ClauseTiming::Always,
+            ]
         );
     }
 
@@ -14385,8 +14315,8 @@ mod tests {
         // ``try {set y 1}`` — main body walks and lands ``y``.
         let mut a = Analyser::new();
         let args = ["set y 1".to_string()];
-        let traits = try_traits(&a, &args);
-        a.handle_try_command(&args, &[str_tok(span(5, 14))], &[], traits);
+        let plan = try_plan(&a, &args);
+        a.handle_try_command(&args, &[str_tok(span(5, 14))], &[], plan.as_ref());
         assert!(a.result.global_scope.variables.contains_key("y"));
     }
 
@@ -14395,7 +14325,7 @@ mod tests {
         // ``try {} finally {set z 1}`` — finally clause body walks.
         let mut a = Analyser::new();
         let args = [String::new(), "finally".to_string(), "set z 1".to_string()];
-        let traits = try_traits(&a, &args);
+        let plan = try_plan(&a, &args);
         a.handle_try_command(
             &args,
             &[
@@ -14404,7 +14334,7 @@ mod tests {
                 str_tok(span(16, 25)),
             ],
             &[],
-            traits,
+            plan.as_ref(),
         );
         assert!(a.result.global_scope.variables.contains_key("z"));
     }
@@ -14422,7 +14352,7 @@ mod tests {
             "result options".to_string(),
             "set q 1".to_string(),
         ];
-        let traits = try_traits(&a, &args);
+        let plan = try_plan(&a, &args);
         a.handle_try_command(
             &args,
             &[
@@ -14433,7 +14363,7 @@ mod tests {
                 str_tok(span(34, 43)),
             ],
             &[],
-            traits,
+            plan.as_ref(),
         );
         assert!(a.result.global_scope.variables.contains_key("q"));
         // The `on error {result options}` var-list binds the result message +
@@ -14455,7 +14385,7 @@ mod tests {
             "result".to_string(),
             "set q 1".to_string(),
         ];
-        let traits = try_traits(&a, &args);
+        let plan = try_plan(&a, &args);
         a.handle_try_command(
             &args,
             &[
@@ -14466,7 +14396,7 @@ mod tests {
                 str_tok(span(27, 36)),
             ],
             &[],
-            traits,
+            plan.as_ref(),
         );
         assert!(a.result.global_scope.variables.contains_key("q"));
     }
@@ -15477,34 +15407,60 @@ mod tests {
         assert!(!handled);
     }
 
-    // handle_incr_command
+    // `incr` / `append` / `lappend` / `dict` — bound by role
 
     #[test]
-    fn handle_incr_defines_var() {
+    fn incr_binds_its_target_by_role() {
         let mut a = Analyser::new();
-        a.handle_incr_command(&["counter".to_string()], &[esc_tok(span(0, 7))], &[]);
+        dispatch_words(&mut a, &["incr", "counter"]);
         assert!(a.result.global_scope.variables.contains_key("counter"));
-        // incr-defined vars warn_if_unused = true (so a `set`-only
-        // var pattern still fires; an `incr`-only-no-read does too).
-        assert!(a.result.global_scope.variables["counter"].warn_if_unused);
+        // A read-modify-write target is read before it is written, so the
+        // binding is a side effect, never a "set but unused" write.
+        assert!(!a.result.global_scope.variables["counter"].warn_if_unused);
     }
 
     #[test]
     fn handle_incr_with_amount() {
         let mut a = Analyser::new();
-        a.handle_incr_command(
-            &["counter".to_string(), "5".to_string()],
-            &[esc_tok(span(0, 7)), esc_tok(span(8, 9))],
-            &[],
-        );
+        dispatch_words(&mut a, &["incr", "counter", "5"]);
         assert!(a.result.global_scope.variables.contains_key("counter"));
+        assert!(!a.result.global_scope.variables.contains_key("5"));
     }
 
     #[test]
     fn handle_incr_no_args_no_op() {
         let mut a = Analyser::new();
-        a.handle_incr_command(&[], &[], &[]);
+        dispatch_words(&mut a, &["incr"]);
         assert!(a.result.global_scope.variables.is_empty());
+    }
+
+    #[test]
+    fn a_written_array_element_binds_its_array_and_a_computed_name_binds_nothing() {
+        // `incr hits($word)` writes an element of `hits` whatever the key;
+        // `append $name x` writes a variable no static name spells.
+        let mut a = Analyser::new();
+        dispatch_words(&mut a, &["incr", "hits($word)"]);
+        dispatch_words(&mut a, &["append", "$name", "x"]);
+        dispatch_words(&mut a, &["lappend", "items", "x"]);
+        assert!(a.result.global_scope.variables.contains_key("hits"));
+        assert!(a.result.global_scope.variables.contains_key("items"));
+        assert!(!a.result.global_scope.variables.contains_key("name"));
+    }
+
+    #[test]
+    fn dict_for_and_dict_update_bind_their_loop_variables_by_role() {
+        let mut a = Analyser::new();
+        dispatch_words(&mut a, &["dict", "for", "k v", "$d", ""]);
+        dispatch_words(&mut a, &["dict", "update", "d", "key", "w", ""]);
+        for name in ["k", "v", "w"] {
+            assert!(
+                a.result.global_scope.variables.contains_key(name),
+                "{name}: {:?}",
+                a.result.global_scope.variables.keys().collect::<Vec<_>>()
+            );
+        }
+        // Neither the key word nor the dictionary variable is a loop variable.
+        assert!(!a.result.global_scope.variables.contains_key("key"));
     }
 
     // ClassDef extended fields + UnknownProcInfo
@@ -15904,11 +15860,22 @@ mod tests {
         // TP: the flag reaches the record, so the resolver can
         // narrow `8.6` to the degenerate range `8.6-8.6`.
         assert!(p.exact);
-        // FP guard — a package *named* `-exact` is not the flag.
+        // A lone `-exact` is the option with no package after it — tclsh
+        // 8.4–9.0: `wrong # args` (`PkgRequireCore` compares the word with
+        // `strcmp(…, "-exact")` whatever follows) — so nothing is required.
         let r = a.analyse("package require -exact", "tcl");
-        let p = &r.package_requires[0];
-        assert_eq!(p.name, "-exact");
-        assert!(!p.exact);
+        assert!(r.package_requires.is_empty(), "{:?}", r.package_requires);
+        // FP guard — only the exact spelling is the flag: `-e` is not
+        // `-exact` (tclsh: `package require -e Tcl` asks for a package named
+        // `-e`). The registry's option scan reads a dash word naming no
+        // option as a call Tcl rejects, so the layout is unproven and no
+        // requirement — exact or not — is recorded for it.
+        let r = a.analyse("package require -e 1.0", "tcl");
+        assert!(
+            !r.package_requires.iter().any(|p| p.exact),
+            "{:?}",
+            r.package_requires
+        );
     }
 
     /// `package ifneeded NAME VER SCRIPT` registers a load script; the

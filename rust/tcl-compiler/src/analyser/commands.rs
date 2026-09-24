@@ -130,16 +130,118 @@ struct BarewordDispatch<'a> {
     arg_expand: &'a [bool],
 }
 
+/// A dispatched call's per-word source facts, parallel to its post-head
+/// words.
+#[derive(Clone, Copy)]
+struct WordFacts<'a> {
+    /// Whether each word is a single token.
+    single: &'a [bool],
+    /// Whether each word is a `{*}` expansion.
+    expanded: &'a [bool],
+}
+
+/// What the registry may read of one dispatched source word: an expansion
+/// stays an expansion, a word that substitutes is computed, and a braced or
+/// plain word is the literal it spells
+/// ([`super::diagnostics::helpers::has_substitution`], the boundary the
+/// analyser's other static-word checks draw).
+fn source_invocation_word<'t>(
+    text: &'t str,
+    tok: Option<&Token>,
+    expanded: bool,
+) -> tcl_registry::InvocationWord<'t> {
+    use tcl_registry::InvocationWord;
+    if expanded {
+        return InvocationWord::Expanded;
+    }
+    match tok {
+        Some(tok)
+            if tok.kind == TokenType::Str
+                || !super::diagnostics::helpers::has_substitution(text, tok) =>
+        {
+            InvocationWord::Literal(text)
+        }
+        Some(_) => InvocationWord::Dynamic,
+        None => InvocationWord::Opaque,
+    }
+}
+
+/// The words of `text` when it is exactly one `[…]` command substitution,
+/// each with whether it was braced, read as a Tcl list: a braced word is its
+/// source text, so `[interp create {parent child}]` has the one path word
+/// `parent child`, never the fragments `{parent` and `child}`. `None` when
+/// `text` is not bracketed or its content is not a well-formed list — a
+/// malformed tail (`[interp create good {child]`) is not rescued by a valid
+/// prefix, which would read an incomplete edit as some other call.
+pub(super) fn substitution_elements(text: &str) -> Option<Vec<(&str, bool)>> {
+    let inner = text.strip_prefix('[')?.strip_suffix(']')?;
+    let mut words = Vec::new();
+    let mut pos = 0usize;
+    loop {
+        match tcl_syntax::list::find_element(inner, pos) {
+            Ok(Some(element)) => {
+                words.push((inner.get(element.value.clone())?, element.braced));
+                pos = element.next;
+            }
+            Ok(None) => return Some(words),
+            Err(_) => return None,
+        }
+    }
+}
+
+/// A call's head and word facts, with the registry and context generations
+/// a resolution over them borrows — owned here, so the resolution borrows
+/// nothing of the walk and a consumer may mutate the analyser while it holds
+/// one.
+pub(super) struct SourceCall<'a> {
+    registry: Arc<CommandRegistry>,
+    context: Option<Arc<tcl_registry::model::ContextRegistry>>,
+    head: &'a str,
+    words: Vec<tcl_registry::InvocationWord<'a>>,
+}
+
+impl SourceCall<'_> {
+    /// The call resolved under invariant I4, as the hook dispatch resolves
+    /// heads: a carried context must prove the head, and selection proceeds
+    /// at the context's authoring point; a harness walk with no context
+    /// keeps the store selection. `None` when nothing resolves the head.
+    pub(super) fn resolve(&self) -> Option<tcl_registry::ResolvedInvocation<'_, '_>> {
+        tcl_registry::model::resolve_invocation_words_in_context(
+            &self.registry,
+            self.context
+                .as_deref()
+                .map(tcl_registry::model::ContextRegistry::context),
+            tcl_registry::InvocationWords::structured(
+                tcl_registry::InvocationWord::Literal(self.head),
+                &self.words,
+            ),
+        )
+    }
+
+    /// The state transitions the call states, or none when it resolves no
+    /// descriptor that declares any.
+    pub(super) fn state_transitions(&self) -> tcl_registry::StateTransitions {
+        self.resolve()
+            .filter(|call| call.semantics.state_transitions.is_declared())
+            .map(|call| call.state_transitions())
+            .unwrap_or_default()
+    }
+}
+
 /// One resolved analyser-hook dispatch: the hook the head resolved to, plus
-/// the composed traits (`spec.traits | sub.traits`) of the concrete spec /
-/// subcommand it resolved to.
+/// the composed traits (`spec.traits | sub.traits`) and the clause plan of the
+/// concrete spec / subcommand it resolved to.
 ///
-/// Carrying the traits alongside the hook is what lets a handler ask a
-/// registry question about *its own invocation* without re-fetching a spec by
-/// literal name — see [`Analyser::resolve_analyser_hook_call`].
+/// Carrying them alongside the hook is what lets a handler ask a registry
+/// question about *its own invocation* without re-fetching a spec by literal
+/// name — see [`Analyser::resolve_analyser_hook_call`].
 pub(super) struct ResolvedAnalyserHook {
     pub(super) hook: tcl_registry::hooks::AnalyserHookId,
     pub(super) traits: tcl_registry::Traits,
+    /// The invocation's clause plan, walked under the document's authoring
+    /// point — `None` when the resolved descriptor declares no clause
+    /// grammar.
+    pub(super) clause_plan: Option<tcl_registry::ClausePlan>,
 }
 
 /// Shared core registry standing in for [`Analyser::registry`] when a
@@ -153,18 +255,45 @@ pub(super) struct ResolvedAnalyserHook {
 /// is one: the two are alternatives at the same call site, so they need one
 /// type. This one is never retired — the `OnceLock` holds it for the process,
 /// which is right for a fixed core build with no pack content in it.
-fn fallback_registry() -> Arc<CommandRegistry> {
+pub(super) fn fallback_registry() -> Arc<CommandRegistry> {
     static FALLBACK: OnceLock<Arc<CommandRegistry>> = OnceLock::new();
     Arc::clone(FALLBACK.get_or_init(|| Arc::new(CommandRegistry::build_default())))
 }
 
-/// Parent command for a control-flow keyword that is only valid as an
-/// argument *within* a parent command, or `None` for any other name.
-fn orphaned_keyword_parent(cmd_name: &str) -> Option<&'static str> {
-    match cmd_name {
-        "else" | "elseif" | "then" => Some("if"),
-        "on" | "trap" | "finally" => Some("try"),
-        _ => None,
+/// Which depths a body word raises while it is walked: `conditional_depth`
+/// (branch-selected — nothing inside dominates the code after the command)
+/// and `control_flow_body_depth` (not straight-line — it may run zero times
+/// or many).
+///
+/// A body the call's clause plan places answers by its clause's timing: a
+/// selected body is both, a per-iteration body or a loop's `next` fixture is
+/// control flow, a protected body is a guarded probe, and a body that runs
+/// exactly once whenever the call does (`for`'s `start`, `dict update`'s
+/// body, `finally`) is neither. Any other body keeps the command's traits'
+/// reading: `BRANCH_SELECTED_BODY` and `CONTROL_FLOW`.
+fn body_depths(
+    plan: Option<&tcl_registry::ClausePlan>,
+    body: usize,
+    traits: tcl_registry::Traits,
+) -> (bool, bool) {
+    use tcl_registry::{ClauseTiming, LoopPhase};
+    let timing = plan.and_then(|plan| {
+        plan.clauses
+            .iter()
+            .find(|clause| clause.operand(tcl_registry::arg_role::ArgRole::Body) == Some(body))
+            .map(|clause| clause.timing)
+    });
+    match timing {
+        Some(ClauseTiming::Selected) => (true, true),
+        Some(ClauseTiming::PerIteration | ClauseTiming::LoopFixture(LoopPhase::Next)) => {
+            (false, true)
+        }
+        Some(ClauseTiming::Protected) => (true, false),
+        Some(ClauseTiming::Always | ClauseTiming::LoopFixture(LoopPhase::Init)) => (false, false),
+        None => (
+            traits.contains(tcl_registry::Traits::BRANCH_SELECTED_BODY),
+            traits.contains(tcl_registry::Traits::CONTROL_FLOW),
+        ),
     }
 }
 
@@ -799,21 +928,9 @@ impl Analyser {
         if self.safe_interp_visibility_gate(cmd_name, arg_tokens_in[0]) {
             return;
         }
-        let args = if argv_texts.len() > 1 {
-            &argv_texts[1..]
-        } else {
-            &[]
-        };
-        let arg_tokens = if arg_tokens_in.len() > 1 {
-            &arg_tokens_in[1..]
-        } else {
-            &[]
-        };
-        let arg_single = if single_token_word.len() > 1 {
-            &single_token_word[1..]
-        } else {
-            &[]
-        };
+        let args = argv_texts.get(1..).unwrap_or(&[]);
+        let arg_tokens = arg_tokens_in.get(1..).unwrap_or(&[]);
+        let arg_single = single_token_word.get(1..).unwrap_or(&[]);
         // Bracket-substitution indirection invisible to the
         // gate above — see `check_indirect_hiding`'s doc.
         if self.check_indirect_hiding(argv_texts, arg_tokens_in, arg_expand_in, scope_path) {
@@ -1000,7 +1117,11 @@ impl Analyser {
             });
         } // end `if !self.structure_only`
 
-        self.dispatch_command_handlers(cmd_name, args, arg_tokens, arg_single, cmd_tok, scope_path);
+        let words = WordFacts {
+            single: arg_single,
+            expanded: arg_expand_in.get(1..).unwrap_or(&[]),
+        };
+        self.dispatch_command_handlers(cmd_name, args, arg_tokens, words, cmd_tok, scope_path);
     }
 
     /// Run E006 for the argument shapes the active command spec identifies as
@@ -1099,13 +1220,13 @@ impl Analyser {
         cmd_name: &str,
         args: &[String],
         arg_tokens: &[Token],
-        arg_single: &[bool],
+        words: WordFacts<'_>,
         cmd_tok: Token,
         scope_path: &[usize],
     ) {
         // IRULE5001's debug gate spans everything below: the hook handlers
-        // that own their own body walk (`switch`, `foreach`, `for`, `catch`,
-        // `try`) and the generic `ArgRole::Body` recursion (`if`, `while`)
+        // that own their own body walk (`switch`, `foreach`, `catch`, `try`)
+        // and the generic `ArgRole::Body` recursion (`if`, `while`, `for`)
         // alike. Bracketing the whole dispatch is what makes nested bodies
         // inherit the gate.
         let gated = self.irules_debug_gate_opens(cmd_name, args);
@@ -1113,7 +1234,7 @@ impl Analyser {
             self.irules_debug_gate_depth += 1;
         }
         self.dispatch_command_handlers_inner(
-            cmd_name, args, arg_tokens, arg_single, cmd_tok, scope_path,
+            cmd_name, args, arg_tokens, words, cmd_tok, scope_path,
         );
         if gated {
             self.irules_debug_gate_depth -= 1;
@@ -1127,19 +1248,23 @@ impl Analyser {
         cmd_name: &str,
         args: &[String],
         arg_tokens: &[Token],
-        arg_single: &[bool],
+        words: WordFacts<'_>,
         cmd_tok: Token,
         scope_path: &[usize],
     ) {
-        if self.dispatch_analyser_hook(cmd_name, args, arg_tokens, arg_single, cmd_tok, scope_path)
-        {
+        let arg_single = words.single;
+        if self.dispatch_analyser_hook(cmd_name, args, arg_tokens, words, cmd_tok, scope_path) {
             return;
         }
 
-        // Any command with registry `VarWrite`-role args (`lassign`, `scan`,
-        // `regexp`, `regsub`, `gets`, `binary scan`, `vwait`, …) writes
-        // results into named variable arguments; bind them so
-        // completion/hover/definition see the destructured / captured names.
+        // The scope aliases the call's state transitions state — `global`,
+        // `variable`, `upvar`, `namespace upvar`, a pack command's alias
+        // facts — resolved over the words' source facts, so a computed word
+        // reaches the registry resolver as computed.
+        self.apply_invocation_transitions(cmd_name, args, arg_tokens, words, scope_path);
+        // The loop and output variables the call's roles name (`foreach`'s
+        // var lists, `dict for`'s pair, `lassign`, `scan`, `regexp`, `incr`,
+        // `append`, …), so completion/hover/definition see the bound names.
         self.handle_var_binding_command(cmd_name, args, arg_tokens, scope_path);
         // Registry symbol-definer commands (`tcltest::test NAME …`) contribute a
         // lightweight named definition to the outline.  Void handler — it only
@@ -1161,13 +1286,14 @@ impl Analyser {
         self.handle_tcllib_import_wrapper(cmd_name, cmd_tok, args, scope_path);
 
         // Generic body recursion via the command registry's
-        // `ArgRole::Body`.  Picks up `if` / `while` / `when` /
+        // `ArgRole::Body`.  Picks up `if` / `while` / `for` / `when` /
         // `eval` / `uplevel` / `subst` / etc. — every command whose
-        // registry spec marks an argument index as `BODY`.  The
-        // early-return hook arms above already consumed the commands
-        // that own their body walk (proc, oo::class, oo::define,
-        // namespace eval, foreach, for, switch, catch, try), so this
-        // loop only fires for the rest.
+        // registry spec marks an argument index as `BODY`, each body
+        // walked at the depth its clause timing (or, without a clause
+        // grammar, the command's traits) gives it.  The early-return hook
+        // arms above already consumed the commands that own their body
+        // walk (proc, oo::class, oo::define, namespace eval, foreach,
+        // switch, catch, try), so this loop only fires for the rest.
         //
         // For `when EVENT { body }` the iRules dialect spec
         // marks arg 1 as BODY; set `current_event` for the body
@@ -1194,31 +1320,130 @@ impl Analyser {
             .map(|resolved| resolved.hook)
     }
 
-    /// The traits [`Self::dispatch_analyser_hook`] threads into a hook handler
-    /// for this head — `None` when the head resolves no hook.
+    /// The clause plan [`Self::dispatch_analyser_hook`] threads into a hook
+    /// handler for this head — `None` when the head resolves no hook or its
+    /// descriptor no grammar.
     ///
     /// Test-support only: it lets a handler's own unit tests, which call the
     /// handler directly rather than through the dispatch, obtain exactly the
-    /// traits production passes, so a hand-written trait set can never drift
-    /// from what the dispatch actually resolves.
+    /// plan production passes, so a hand-written plan can never drift from
+    /// what the dispatch actually resolves.
     #[cfg(test)]
-    pub(in crate::analyser) fn resolved_analyser_hook_traits(
+    pub(in crate::analyser) fn resolved_analyser_hook_plan(
         &self,
         cmd_name: &str,
         args: &[String],
-    ) -> Option<tcl_registry::Traits> {
+    ) -> Option<tcl_registry::ClausePlan> {
         self.resolve_analyser_hook_call(cmd_name, args)
-            .map(|resolved| resolved.traits)
+            .and_then(|resolved| resolved.clause_plan)
     }
 
-    /// [`Self::resolve_analyser_hook`] plus the traits of the concrete spec /
-    /// subcommand the head resolved to — one resolution, both facts.
+    /// `cmd_name args…` over its words' source facts
+    /// ([`source_invocation_word`]), ready to resolve — so a registry
+    /// resolver abstains exactly where the source is not static.
+    pub(super) fn source_call<'a>(
+        &self,
+        cmd_name: &'a str,
+        args: &'a [String],
+        arg_tokens: &[Token],
+        expanded: &[bool],
+    ) -> SourceCall<'a> {
+        SourceCall {
+            registry: self.registry.clone().unwrap_or_else(fallback_registry),
+            context: self.context.clone(),
+            head: cmd_name,
+            words: args
+                .iter()
+                .enumerate()
+                .map(|(index, text)| {
+                    source_invocation_word(
+                        text,
+                        arg_tokens.get(index),
+                        expanded.get(index).copied().unwrap_or(false),
+                    )
+                })
+                .collect(),
+        }
+    }
+
+    /// `[head word…]`'s words when `text` is exactly one bracketed command
+    /// substitution, read as a Tcl list — braced words are the literal they
+    /// spell, a bare word carrying `$` or `[` is computed — ready to resolve.
+    /// `None` when `text` is not one substitution, its head is computed, or
+    /// its words are not a well-formed list (an incomplete edit, or a word
+    /// the list grammar cannot split, names no call).
+    pub(super) fn substitution_call<'a>(&self, text: &'a str) -> Option<SourceCall<'a>> {
+        let words = substitution_elements(text)?;
+        let (&(head, head_braced), rest) = words.split_first()?;
+        if !head_braced && crate::naming::is_dynamic_word(head) {
+            return None;
+        }
+        Some(SourceCall {
+            registry: self.registry.clone().unwrap_or_else(fallback_registry),
+            context: self.context.clone(),
+            head,
+            words: rest
+                .iter()
+                .map(|&(word, braced)| {
+                    if braced || !crate::naming::is_dynamic_word(word) {
+                        tcl_registry::InvocationWord::Literal(word)
+                    } else {
+                        tcl_registry::InvocationWord::Dynamic
+                    }
+                })
+                .collect(),
+        })
+    }
+
+    /// Apply the scope aliases the call's state transitions state
+    /// ([`Self::apply_state_transitions`]), the call resolved over its words'
+    /// source facts ([`Self::source_call`]).
+    fn apply_invocation_transitions(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+        words: WordFacts<'_>,
+        scope_path: &[usize],
+    ) {
+        let call = self.source_call(cmd_name, args, arg_tokens, words.expanded);
+        if let Some(invocation) = call.resolve()
+            && invocation.semantics.state_transitions.is_declared()
+        {
+            self.apply_state_transitions(&invocation, args, arg_tokens, scope_path);
+        }
+    }
+
+    /// Note, in the per-item shell walk, a definer only the workspace's packs
+    /// declare: the shell reads the un-overlaid store, where `cmd_name` has no
+    /// definition-body grammar, while the walk's own generation (the overlaid
+    /// one) gives it one. The per-item analysis then takes the full path
+    /// ([`super::per_item::PerItemFallback::PackDefiner`]), so the class the
+    /// definer makes is not lost.
+    fn note_pack_definer(&mut self, cmd_name: &str) {
+        if self.defer_proc_bodies
+            && self.pack_overlay != 0
+            && self.definition_grammar(cmd_name).is_none()
+            && self
+                .analysis_context()
+                .commands()
+                .get(cmd_name)
+                .is_some_and(|spec| spec.definition_body.is_some())
+        {
+            self.pack_definer_seen = true;
+        }
+    }
+
+    /// [`Self::resolve_analyser_hook`] plus the traits and the clause plan of
+    /// the concrete spec / subcommand the head resolved to — one resolution,
+    /// every fact.
     ///
     /// A handler reached through hook dispatch must read its command's traits
-    /// from *this* resolution rather than re-fetching a spec by literal name:
-    /// the name test puts per-command knowledge back in the analyser, and it
-    /// silently diverges the moment a dialect variant (or a subcommand) shares
-    /// the hook. Traits are composed `spec.traits | sub.traits`, matching
+    /// and clause structure from *this* resolution rather than re-fetching a
+    /// spec by literal name: the name test puts per-command knowledge back in
+    /// the analyser, and it silently diverges the moment a dialect variant (or
+    /// a subcommand) shares the hook. Traits are composed
+    /// `spec.traits | sub.traits`, matching
     /// [`tcl_registry::CommandRegistry::invocation_traits`].
     pub(super) fn resolve_analyser_hook_call(
         &self,
@@ -1234,21 +1459,44 @@ impl Analyser {
         // outside the release window, an iRules-disabled builtin) takes
         // the generic path instead of a specialised handler. A harness
         // walk with no context keeps the store selection (NotRequired).
-        let resolved = tcl_registry::model::resolve_call_in_context(
-            &registry,
-            self.context
-                .as_deref()
-                .map(tcl_registry::model::ContextRegistry::context),
-            cmd_name,
-            &arg_strs,
-        )?;
+        let context = self
+            .context
+            .as_deref()
+            .map(tcl_registry::model::ContextRegistry::context);
+        let resolved =
+            tcl_registry::model::resolve_call_in_context(&registry, context, cmd_name, &arg_strs)?;
         Some(ResolvedAnalyserHook {
             hook: resolved.analyser_hook?,
             traits: resolved.spec.traits
                 | resolved
                     .sub
                     .map_or_else(tcl_registry::Traits::empty, |sub| sub.traits),
+            clause_plan: resolved.clause_plan(
+                &arg_strs,
+                context.map(tcl_registry::model::ResolvedContext::authoring_query),
+            ),
         })
+    }
+
+    /// The clause plan of a call to `cmd_name` with `args`, resolved as the
+    /// hook dispatch resolves heads: through the document's context when the
+    /// walk carries one, and walked at its authoring point. `None` when the
+    /// head resolves no descriptor or the descriptor no grammar.
+    pub(super) fn clause_plan_in_context(
+        &self,
+        registry: &tcl_registry::CommandRegistry,
+        cmd_name: &str,
+        args: &[&str],
+    ) -> Option<tcl_registry::ClausePlan> {
+        let context = self
+            .context
+            .as_deref()
+            .map(tcl_registry::model::ContextRegistry::context);
+        tcl_registry::model::resolve_call_in_context(registry, context, cmd_name, args)?
+            .clause_plan(
+                args,
+                context.map(tcl_registry::model::ResolvedContext::authoring_query),
+            )
     }
 
     /// The single typed `match` over the resolved [`AnalyserHookId`].
@@ -1268,13 +1516,15 @@ impl Analyser {
         cmd_name: &str,
         args: &[String],
         arg_tokens: &[Token],
-        arg_single: &[bool],
+        words: WordFacts<'_>,
         cmd_tok: Token,
         scope_path: &[usize],
     ) -> bool {
         use tcl_registry::hooks::AnalyserHookId as Hook;
-        let Some(ResolvedAnalyserHook { hook, traits }) =
-            self.resolve_analyser_hook_call(cmd_name, args)
+        let arg_single = words.single;
+        let Some(ResolvedAnalyserHook {
+            hook, clause_plan, ..
+        }) = self.resolve_analyser_hook_call(cmd_name, args)
         else {
             // No stamped family — the definition-grammar-driven definers
             // (TclOO metaclass create, snit::type/widget, itcl::class) get
@@ -1286,6 +1536,7 @@ impl Analyser {
             // tcl-registry's analyser-hook drift tests for the registry
             // ones), so running them only on the hookless path preserves the
             // dispatch order.
+            self.note_pack_definer(cmd_name);
             return self.handle_oo_class_command(cmd_name, args, arg_tokens, scope_path, cmd_tok)
                 || self.handle_snit_type_command(cmd_name, args, arg_tokens, scope_path)
                 || self.handle_itcl_class_command(cmd_name, args, arg_tokens, scope_path)
@@ -1311,15 +1562,15 @@ impl Analyser {
             // variable set.  Only the `#0` form is consumed; other
             // levels fall through to the generic body recursion.
             Hook::Uplevel => self.handle_uplevel_command(args, arg_tokens, scope_path),
-            Hook::Foreach => self.handle_foreach_command(args, arg_tokens, scope_path),
-            Hook::For => self.handle_for_command(args, arg_tokens, scope_path),
+            Hook::Foreach => self.handle_foreach_command(cmd_name, args, arg_tokens, scope_path),
             Hook::Switch => self.handle_switch_command(cmd_name, args, arg_tokens, scope_path),
             Hook::Catch => self.handle_catch_command(args, arg_tokens, scope_path),
-            // `traits` are this invocation's own, from the same resolution
-            // that produced the hook — the handler reads
-            // `BRANCH_SELECTED_BODY` off them rather than re-fetching a spec
-            // by literal name.
-            Hook::Try => self.handle_try_command(args, arg_tokens, scope_path, traits),
+            // The clause plan is this invocation's own, from the same
+            // resolution that produced the hook — the handler reads each
+            // clause's timing off it rather than matching keywords.
+            Hook::Try => {
+                self.handle_try_command(args, arg_tokens, scope_path, clause_plan.as_ref())
+            }
             // apply {{params} body} — owns its body walk (binds params,
             // analyses element 1) so the generic `ArgRole::Body`
             // recursion never mis-reads the parameter list as a command.
@@ -1328,7 +1579,10 @@ impl Analyser {
             // Void families: run the handler(s), then fall through to
             // the shared tail.
             Hook::InterpCreate => {
-                self.handle_interp_create_command(args);
+                let transitions = self
+                    .source_call(cmd_name, args, arg_tokens, words.expanded)
+                    .state_transitions();
+                self.handle_interp_create_command(&transitions);
                 false
             }
             Hook::InterpDelete => {
@@ -1345,46 +1599,34 @@ impl Analyser {
             }
             Hook::Set => {
                 self.handle_set_command(args, arg_tokens, arg_single, scope_path);
-                self.handle_auto_path_set(args, arg_tokens);
+                self.record_search_path_write(
+                    args,
+                    arg_tokens,
+                    0,
+                    1..args.len().min(2),
+                    super::types::AutoPathForm::Assign,
+                );
                 false
             }
-            Hook::Variable => {
-                self.handle_variable_command(args, arg_tokens, scope_path);
-                false
-            }
-            Hook::Global => {
-                self.handle_global_command(args, arg_tokens, scope_path);
-                false
-            }
-            Hook::Incr => {
-                self.handle_incr_command(args, arg_tokens, scope_path);
-                false
-            }
-            Hook::Append => {
-                self.handle_append_lappend_command(args, arg_tokens, scope_path);
-                false
-            }
-            Hook::Lappend => {
-                self.handle_append_lappend_command(args, arg_tokens, scope_path);
-                self.handle_auto_path_lappend(args, arg_tokens);
-                false
-            }
-            Hook::Upvar => {
-                self.handle_upvar_command(args, arg_tokens, scope_path);
-                false
-            }
-            Hook::NamespaceUpvar => {
-                self.handle_namespace_upvar_command(args, arg_tokens, scope_path);
-                false
-            }
-            Hook::DictFor => {
-                self.handle_dict_for_command(args, arg_tokens, scope_path);
-                false
-            }
-            Hook::DictUpdate => {
-                self.handle_dict_update_command(args, arg_tokens, scope_path);
-                false
-            }
+            // Handled by the descriptors, in the tail below: `for`'s four
+            // clauses are positional, and the generic body walk reads when
+            // each runs from the clause plan (`start` once, `next` and the
+            // body per iteration); a scope alias is the invocation's
+            // `VariableCellAliasTransition` (`apply_state_transitions`); and a
+            // loop or bound variable — with `lappend auto_path DIR…`'s record,
+            // the list append its `var_elements_effect` states — is its
+            // `LoopVarList` / `VarWrite` role (`handle_var_binding_command`).
+            // The stamps retire with the hook re-baseline.
+            Hook::For
+            | Hook::Variable
+            | Hook::Global
+            | Hook::Incr
+            | Hook::Append
+            | Hook::Lappend
+            | Hook::Upvar
+            | Hook::NamespaceUpvar
+            | Hook::DictFor
+            | Hook::DictUpdate => false,
             Hook::DictWith => {
                 self.handle_dict_with_command(args, arg_tokens, scope_path);
                 false
@@ -1399,15 +1641,15 @@ impl Analyser {
             }
             Hook::OoObjdefine => self.handle_oo_objdefine(args, arg_tokens, arg_single, scope_path),
             Hook::PackageRequire => {
-                self.handle_package_require(cmd_tok, args, arg_tokens);
+                self.handle_package_require(cmd_name, cmd_tok, args, arg_tokens);
                 false
             }
             Hook::PackageProvide => {
-                self.handle_package_provide(cmd_tok, args);
+                self.handle_package_provide(cmd_name, cmd_tok, args);
                 false
             }
             Hook::PackageIfneeded => {
-                self.handle_package_ifneeded(cmd_tok, args);
+                self.handle_package_ifneeded(cmd_name, cmd_tok, args);
                 false
             }
             Hook::PackagePrefer => {
@@ -1496,7 +1738,7 @@ impl Analyser {
         let resolves_to_proc = self.resolve_proc_call(cmd_name, scope_path).is_some();
 
         if !resolves_to_proc
-            && let Some(parent) = orphaned_keyword_parent(cmd_name)
+            && let Some(parent) = tcl_registry::clause_grammar::owner_of_keyword(cmd_name)
             && self
                 .registry
                 .as_ref()
@@ -2205,23 +2447,21 @@ impl Analyser {
         // the outer event's context, while one inside a proc retains `None`.
         let (valid_irules_event, entered_event, prev_event) =
             self.enter_registry_event_context(cmd_name, spec_traits, args, arg_tokens, arg_single);
-        let is_conditional = spec_traits.contains(tcl_registry::Traits::BRANCH_SELECTED_BODY);
-        if is_conditional {
-            self.conditional_depth += 1;
-        }
-        // Whether these bodies are guaranteed to run once when the enclosing
-        // script runs. A `Traits::CONTROL_FLOW` command's body may run zero
-        // times (`if {0}`, an empty `foreach` list, an untaken `switch` arm)
-        // or many, so anything inside it is not straight-line. `namespace
-        // eval` / `eval` / `uplevel` bodies carry no such trait and stay
-        // straight-line, which is correct — they always run.
-        let is_control_flow = spec_traits.contains(tcl_registry::Traits::CONTROL_FLOW);
-        if is_control_flow {
-            self.control_flow_body_depth += 1;
-        }
+        // When each body runs, read from the call's clause plan where the
+        // command declares a grammar — `for`'s `start` runs once, its `next`
+        // and body per iteration, an `if` body only when selected — and from
+        // the command's traits for every other body (`when`, `eval`, …).
+        let plan = self.clause_plan_in_context(registry, body_cmd, &body_args);
         for idx in body_indices.into_iter().filter(|_| valid_irules_event) {
             if let (Some(body_text), Some(body_tok)) = (args.get(idx), arg_tokens.get(idx).copied())
             {
+                let (conditional, control_flow) = body_depths(plan.as_ref(), idx, spec_traits);
+                if conditional {
+                    self.conditional_depth += 1;
+                }
+                if control_flow {
+                    self.control_flow_body_depth += 1;
+                }
                 let is_single_token = arg_single.get(idx).copied().unwrap_or(false);
                 self.dispatch_one_body_argument(
                     cmd_name,
@@ -2231,13 +2471,13 @@ impl Analyser {
                     scope_path,
                     body_scope,
                 );
+                if conditional {
+                    self.conditional_depth -= 1;
+                }
+                if control_flow {
+                    self.control_flow_body_depth -= 1;
+                }
             }
-        }
-        if is_conditional {
-            self.conditional_depth -= 1;
-        }
-        if is_control_flow {
-            self.control_flow_body_depth -= 1;
         }
         if entered_event {
             self.current_event = prev_event;
@@ -3354,9 +3594,11 @@ impl Analyser {
     /// is invisible to every existing path. Narrowly recognises the
     /// exact `list namespace unknown ?HANDLER?` shape and, on a match,
     /// calls [`Self::handle_namespace_unknown_command`] unmodified with
-    /// a synthesised `["unknown", HANDLER?]` args slice, reusing its
+    /// the quoted command's `["unknown", HANDLER?]` args slice, reusing its
     /// established empty/query-form gating rather than reimplementing
-    /// it.
+    /// it. Both halves are registry facts: the `list` build is the command
+    /// carrying `BUILDS_COMMAND_PREFIX`, and the quoted command is the one
+    /// the `NamespaceUnknown` hook is stamped on.
     ///
     /// Deliberately narrow: does not recognise the same idiom built via
     /// `concat`, `format`, `linsert`, string concatenation, or a
@@ -3387,16 +3629,23 @@ impl Analyser {
             }
             segs
         };
+        let registry = self.registry.clone().unwrap_or_else(fallback_registry);
         for seg in &segs {
-            if seg.texts.len() < 3
-                || seg.texts.len() > 4
-                || seg.texts[0] != "list"
-                || seg.texts[1] != "namespace"
-                || seg.texts[2] != "unknown"
+            // `list HEAD word …` quotes the command it builds — the
+            // registry's `BUILDS_COMMAND_PREFIX` reading — and that command
+            // installs the handler when it resolves to the hook `namespace
+            // unknown` is stamped with: no spelling is compared here.
+            let Some(quoted) = crate::script_arg::list_build_effective_command(&registry, seg)
+            else {
+                continue;
+            };
+            if !(2..=3).contains(&quoted.texts.len())
+                || self.resolve_analyser_hook(quoted.name(), quoted.args())
+                    != Some(tcl_registry::hooks::AnalyserHookId::NamespaceUnknown)
             {
                 continue;
             }
-            self.handle_namespace_unknown_command(&seg.texts[2..]);
+            self.handle_namespace_unknown_command(quoted.args());
         }
     }
 
@@ -3661,36 +3910,38 @@ impl Analyser {
         // this, W120 ("requires `package require Tk`") false-positives on every
         // file using the standard guard, and the W123 conservative
         // any-require-seen gate never engages.  Only the two `package`
-        // hooks run here — the substitution path deliberately dispatches
-        // no other handler family.
-        match self.resolve_analyser_hook(&cmd_name, args) {
-            Some(tcl_registry::hooks::AnalyserHookId::PackageRequire) => {
-                self.handle_package_require(cmd_tok, args, arg_tokens);
-            }
-            Some(tcl_registry::hooks::AnalyserHookId::PackageProvide) => {
-                self.handle_package_provide(cmd_tok, args);
-            }
-            _ => {}
-        }
+        // hooks and `catch`'s variable binding run here — the substitution
+        // path deliberately dispatches no other handler family.
+        //
         // A variable-binding tail (`catch SCRIPT ?resultVar? ?optionsVar?`)
         // nested in a `[...]` substitution (`set out [catch {…} msg]`,
         // `if {[catch {…} e]} …`) still binds its variables in the enclosing
         // scope, so record them for `symbols`/completion/hover — var-defs are
-        // collected from substitution commands too.  The bound positions come
-        // from the registry's `ArgRole::VarWrite` rows, not a hardcoded
-        // `catch` shape.
+        // collected from substitution commands too.  The command is the one
+        // the `Catch` hook is stamped on, and the bound positions come from
+        // the registry's `ArgRole::VarWrite` rows — no `catch` shape here.
         // `warn_if_unused = false`: the binding is a command side effect,
         // not a "set but never used" target (no W211).
-        if cmd_name == "catch"
-            && let Some(registry) = self.registry.as_deref()
-        {
-            let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
-            for i in registry.arg_indices_for_role(&cmd_name, &arg_strs, ArgRole::VarWrite) {
-                if let (Some(name), Some(tok)) = (args.get(i), arg_tokens.get(i)) {
-                    let name = name.clone();
-                    self.define_var(&name, *tok, scope_path, false, None);
+        match self.resolve_analyser_hook(&cmd_name, args) {
+            Some(tcl_registry::hooks::AnalyserHookId::PackageRequire) => {
+                self.handle_package_require(&cmd_name, cmd_tok, args, arg_tokens);
+            }
+            Some(tcl_registry::hooks::AnalyserHookId::PackageProvide) => {
+                self.handle_package_provide(&cmd_name, cmd_tok, args);
+            }
+            Some(tcl_registry::hooks::AnalyserHookId::Catch) => {
+                if let Some(registry) = self.registry.as_deref() {
+                    let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
+                    for i in registry.arg_indices_for_role(&cmd_name, &arg_strs, ArgRole::VarWrite)
+                    {
+                        if let (Some(name), Some(tok)) = (args.get(i), arg_tokens.get(i)) {
+                            let name = name.clone();
+                            self.define_var(&name, *tok, scope_path, false, None);
+                        }
+                    }
                 }
             }
+            _ => {}
         }
 
         // A definition command (`proc`, a class definer, `oo::define`) or an
@@ -3741,6 +3992,7 @@ impl Analyser {
                     self.handle_apply_command(args, arg_tokens, scope_path);
                 }
                 None => {
+                    self.note_pack_definer(&cmd_name);
                     let _claimed = self
                         .handle_oo_class_command(&cmd_name, args, arg_tokens, scope_path, cmd_tok)
                         || self.handle_snit_type_command(&cmd_name, args, arg_tokens, scope_path)
@@ -4331,8 +4583,9 @@ impl Analyser {
         // the two instance-creation shapes and let the graft replay them against
         // the shell's full `all_classes` instead (see `pending_instances`).
         if let Some(pending) = self.pending_instances.as_mut() {
-            let shape_a =
-                cmd_name == "set" && args.len() >= 2 && args[1].trim_start().starts_with('[');
+            // registry-axis-ok: command — `set VAR [CLASS new]` instance tracking reads the assignment by name until the value word's evaluation answers it (VT8.9 retires set-by-name); until slice 8
+            let assigns = cmd_name == "set";
+            let shape_a = assigns && args.len() >= 2 && args[1].trim_start().starts_with('[');
             let shape_b = args.first().is_some_and(|method| {
                 self.registry.as_deref().is_some_and(|registry| {
                     registry
@@ -4357,6 +4610,7 @@ impl Analyser {
         // Pattern A: `set VAR [CLASS new|create ...]` — a *user* class (the
         // registry-factory subset is handled by `record_registry_factory_instance`
         // above).
+        // registry-axis-ok: command — `set VAR [CLASS new]` instance tracking reads the assignment by name until the value word's evaluation answers it (VT8.9 retires set-by-name); until slice 8
         if cmd_name == "set"
             && args.len() >= 2
             && let Some(class_q) = self.class_from_constructor_subst(&args[1])
@@ -4454,6 +4708,7 @@ impl Analyser {
         // Factory-return: `set g [struct::graph …]` — the registry-factory subset
         // of `class_from_constructor_subst`.  A user-class `[Class new]` returns
         // `None` here and is left to Pattern A / the graft (it needs `all_classes`).
+        // registry-axis-ok: command — `set VAR [CLASS new]` instance tracking reads the assignment by name until the value word's evaluation answers it (VT8.9 retires set-by-name); until slice 8
         if cmd_name == "set"
             && args.len() >= 2
             && let Some(class) = self.registry_factory_class_from_subst(&args[1])
@@ -4509,32 +4764,37 @@ impl Analyser {
         // past the subcommand word itself — either way, further shifted past
         // any leading declared option words the command/subcommand accepts
         // before its name argument.
-        let name_idx = if let Some(idx) = spec.defines_command_at {
-            Some(usize::from(idx) + spec.leading_option_word_count(&arg_strs))
+        // The name's index, and whether the declared end-of-options word
+        // ended the option run before it.
+        let name_slot = if let Some(idx) = spec.defines_command_at {
+            Some((
+                usize::from(idx) + spec.leading_option_word_count(&arg_strs),
+                spec.leading_option_run_is_terminated(&arg_strs),
+            ))
         } else {
             args.first()
                 .and_then(|sub| spec.resolve_subcommand(sub))
                 .and_then(|sub| {
                     let idx = usize::from(sub.defines_command_at?) + 1;
-                    Some(idx + sub.leading_option_word_count(arg_strs.get(1..).unwrap_or(&[])))
+                    let own = arg_strs.get(1..).unwrap_or(&[]);
+                    Some((
+                        idx + sub.leading_option_word_count(own),
+                        sub.leading_option_run_is_terminated(own),
+                    ))
                 })
         };
-        let Some(idx) = name_idx else {
+        let Some((idx, options_ended)) = name_slot else {
             return;
         };
         let Some(name) = args.get(idx) else {
             return;
         };
-        // A word right after a consumed `--` terminator is positional no
+        // A word past a consumed end-of-options terminator is positional no
         // matter its shape (Tcl's own convention: `--` means "every later
         // word is an argument, not an option"), so `interp create -- -safe`
         // must record `-safe` as the created command rather than treating it
         // like the undeclared/ambiguous flag it would be without that `--`.
-        let past_double_dash = idx
-            .checked_sub(1)
-            .and_then(|i| arg_strs.get(i))
-            .is_some_and(|&w| w == "--");
-        if (!past_double_dash && name.starts_with('-')) || !is_plain_created_name(name) {
+        if (!options_ended && name.starts_with('-')) || !is_plain_created_name(name) {
             return;
         }
         self.result.created_instance_commands.insert(name.clone());
@@ -4863,6 +5123,7 @@ impl Analyser {
         args: &[String],
         arg_tokens: &[Token],
     ) {
+        // registry-axis-ok: command — `set VAR [CLASS new]` instance tracking reads the assignment by name until the value word's evaluation answers it (VT8.9 retires set-by-name); until slice 8
         if cmd_name != "set"
             || args.len() < 2
             || self.class_from_constructor_subst(&args[1]).is_some()
@@ -5176,7 +5437,11 @@ fn record_command_invocations(
                     config,
                 );
                 for (_, (arm_text, arm_tok)) in clauses {
-                    if arm_text != "-" && arm_tok.kind == TokenType::Str {
+                    // The case list's fall-through body runs the next arm's
+                    // script and is none of its own.
+                    if case.fallthrough_body != Some(arm_text.as_str())
+                        && arm_tok.kind == TokenType::Str
+                    {
                         let arm = descend_token(sm, arm_tok, config);
                         for inner in segments_from_tree(arm.tree(), sm) {
                             record_command_invocations(
@@ -6169,15 +6434,18 @@ mod tests {
         diag_codes(source, dialect).iter().any(|(c, _)| c == code)
     }
 
+    /// A stray clause word is reported against the command whose clause
+    /// grammar owns it — the registry's keyword table, not a list here.
     #[test]
-    fn orphaned_keyword_parent_maps_keywords() {
-        assert_eq!(orphaned_keyword_parent("else"), Some("if"));
-        assert_eq!(orphaned_keyword_parent("elseif"), Some("if"));
-        assert_eq!(orphaned_keyword_parent("then"), Some("if"));
-        assert_eq!(orphaned_keyword_parent("on"), Some("try"));
-        assert_eq!(orphaned_keyword_parent("trap"), Some("try"));
-        assert_eq!(orphaned_keyword_parent("finally"), Some("try"));
-        assert_eq!(orphaned_keyword_parent("set"), None);
+    fn orphaned_keywords_name_the_grammar_that_owns_them() {
+        use tcl_registry::clause_grammar::owner_of_keyword;
+        assert_eq!(owner_of_keyword("else"), Some("if"));
+        assert_eq!(owner_of_keyword("elseif"), Some("if"));
+        assert_eq!(owner_of_keyword("then"), Some("if"));
+        assert_eq!(owner_of_keyword("on"), Some("try"));
+        assert_eq!(owner_of_keyword("trap"), Some("try"));
+        assert_eq!(owner_of_keyword("finally"), Some("try"));
+        assert_eq!(owner_of_keyword("set"), None);
     }
 
     #[test]

@@ -40,7 +40,7 @@ use tcl_registry::literal_validation::{
     LiteralArgumentIssue, LiteralArgumentIssueReason, LiteralArgumentValidation,
     LiteralValidationDecline,
 };
-use tcl_registry::pack_hooks::{EvaluationAnswer, HookAnswer, HookFamily};
+use tcl_registry::pack_hooks::{EvaluationAnswer, HookAnswer, HookFamily, PackTransition};
 use tcl_registry::spec::{ConstraintReport, ConstraintSlot};
 
 use crate::intern::{intern, intern_words};
@@ -99,6 +99,9 @@ pub enum Emission {
         /// The declared target, as the body names it.
         target: usize,
     },
+    /// The `state_transitions` resolver family's `alias LOCAL TARGET ?-level
+    /// LEVEL?` and `namespace-variable NAME`.
+    Transition(PackTransition),
 }
 
 /// Where every verb of one invocation writes.
@@ -420,6 +423,15 @@ impl HostCommand for Verb {
             }
             "consume" => consume_emission(arguments)?,
             "write" | "preserve" => self.store_emission(arguments)?,
+            "alias" => alias_emission(arguments)?,
+            "namespace-variable" => {
+                let [name] = arguments else {
+                    return Err(misuse(self.name, "expected NAME"));
+                };
+                Emission::Transition(PackTransition::NamespaceVariable {
+                    name: index_of(self.name, name)?,
+                })
+            }
             other => return Err(misuse(other, "not an emitter verb of this family")),
         };
         self.sink.push(emission);
@@ -547,6 +559,22 @@ fn constraint_slot(spelling: &str) -> Result<ConstraintSlot, EngineError> {
         "invalid",
         &format!("slot must be an option, `arg N`, or `command`, got \"{spelling}\""),
     ))
+}
+
+/// `alias LOCAL TARGET ?-level LEVEL?` — word indices, each: the local
+/// variable, the variable it reaches, and the level word selecting that
+/// variable's frame.
+fn alias_emission(arguments: &[Value]) -> Result<Emission, EngineError> {
+    let (local, target, level) = match arguments {
+        [local, target] => (local, target, None),
+        [local, target, flag, level] if text(flag) == "-level" => (local, target, Some(level)),
+        _ => return Err(misuse("alias", "expected LOCAL TARGET ?-level LEVEL?")),
+    };
+    Ok(Emission::Transition(PackTransition::Alias {
+        local: index_of("alias", local)?,
+        target: index_of("alias", target)?,
+        level: level.map(|level| index_of("alias", level)).transpose()?,
+    }))
 }
 
 /// `consume N ?-invalid MESSAGE?`
@@ -734,6 +762,20 @@ pub fn answer_of(family: HookFamily, emissions: Vec<Emission>, targets: &[usize]
             }
         }
         HookFamily::Evaluate => evaluation_answer(emissions, targets),
+        HookFamily::StateTransitionResolver => {
+            let stated: Vec<PackTransition> = emissions
+                .into_iter()
+                .filter_map(|emission| match emission {
+                    Emission::Transition(fact) => Some(fact),
+                    _ => None,
+                })
+                .collect();
+            if stated.is_empty() {
+                HookAnswer::Abstain
+            } else {
+                HookAnswer::Transitions(stated)
+            }
+        }
     }
 }
 

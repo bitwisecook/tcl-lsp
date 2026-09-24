@@ -17,11 +17,12 @@ loaded pack's facts are authoritative for analysis and optimisation as
 soon as they are loaded, and the direct, expression, and private-pack
 slices proceed without deciding anything here.
 
-> **Status — decided rulings, proposed vocabulary.** The five rulings —
-> the four in § *Rulings* and the narrower one in § *The two hook bodies
-> that remain* — are the owner's decisions, and the build takes them as
-> settled. Every identifier, count, and file path on this page was checked
-> against the tree. The proposed vocabulary names nothing in the workspace:
+> **Status — decided rulings; the description vocabulary built, the rest
+> proposed.** The five rulings — the four in § *Rulings* and the narrower
+> one in § *The two hook bodies that remain* — are the owner's decisions,
+> and the build takes them as settled. Every identifier, count, and file
+> path on this page was checked against the tree. Step 2 of § *Build
+> order* built the description contract's vocabulary, under these names:
 >
 > - **Clause grammar** — `ClauseGrammarSpec`, `ClauseRow`,
 >   `ClauseRowShape`, `ClauseSlot`, `HandlerMatch`, `ClauseTiming`,
@@ -34,11 +35,17 @@ slices proceed without deciding anything here.
 > - **Option effects** — `OptionEffect`, `OptionEffectKind`, `EffectAxis`,
 >   `SubstitutionKind`, `OptionEffectFamily`, `FamilyBase`,
 >   `FamilyCombine`, and the answer shape `OptionEffects`.
-> - **The derived-query layer** — `RegistryQueries` with the queries
->   `clause_plan`, `member_rows`, `option_effects`, `template_plan`,
->   `case_invocation`, `frame_effect`, `arg_roles`, `pattern_args`,
->   `return_type`, and `effects`, plus `CallWords` and
->   `ResolvedEffects`.
+> - **The derived-query layer** — the queries `clause_plan`,
+>   `option_effects`, `case_invocation`, `frame_effect`, `arg_roles`,
+>   `pattern_args`, `return_type`, and `effects` on `ResolvedInvocation`,
+>   with `member_rows` as `DefinitionBodyGrammar::member_row`; the page's
+>   `RegistryQueries`, `CallWords` and `ResolvedEffects` are
+>   `ResolvedInvocation`, `InvocationWords` and `EffectFootprint`, and
+>   `template_plan` is the value axis's.
+>
+> The rest of the vocabulary is proposed and names nothing in the
+> workspace:
+>
 > - **Identity and backing** — `SiteClaim`, `PackFactStamp`,
 >   `RuntimeBacking` with the `runtime_backing` field, `BodySource`,
 >   `IdentityKind`, `CodegenCapability`, `ArtefactIdentityManifest`, and
@@ -354,10 +361,10 @@ The registry surface is far richer than the analyser's dispatch uses.
 | Fact | Registry | Analyser |
 |---|---|---|
 | analyser hook variants | 43 (`AnalyserHookId`, `rust/tcl-registry/src/hooks.rs`) | most exist because a descriptor is missing or unconsumed; the residue is short |
-| scope and interpreter transitions | resolvers on `upvar`, `global`, `variable`, `namespace`, `interp` (`rust/tcl-registry/src/state_transition.rs`) | the variable-alias, namespace, and interpreter families have no consumer under `rust/tcl-compiler/src/analyser/`; `frame_effect` is read only for alias-pair layout and level parsing (`param_traits.rs`, `diagnostics/usage.rs`); the command-binding family only by `interp alias` and the static-proc proof |
-| loop and bind positions | roles and strided `repeated_args` | hardcoded indices in five handlers (`handlers.rs`: `dict for`, `dict update`, `foreach`, `incr`, `append` / `lappend`) |
-| OO member effect | the member-effect descriptor (`MemberSpec::effect`, `MemberEffect`, in `rust/tcl-registry/src/definer.rs`) since step 2, beside the layout (`MemberKind`: `Flat`, `Wrapper`, `FlagKeyed`) and `arg_roles`, `slot`, `retraction`, `visibility_effect`, `surface`; every TclOO, snit, itcl, `SpecTcl` and `SslicTcl` member states one, and `DefinitionBodyGrammar::member_row` answers a statement's row | an eleven-arm keyword match in `analyser/oo.rs`, plus snit and itcl prefix conventions; the ledger counts about thirty-two rows on this axis |
-| clause grammar | the clause-grammar descriptor (`ClauseGrammarSpec`, `rust/tcl-registry/src/clause_grammar.rs`), on `CommandSpec` and `SubCommand` since step 2: ten shipped grammars, one registry walk answering the roles and the clause-shape defect, and the loader reading the same type | three keyword walks (`lower_if` and `lower_try` in `lowering/structured.rs`, `handle_try_command` in `analyser/handlers.rs`), `orphaned_keyword_parent` in `analyser/commands.rs`, and the `on`-`ok` test in `cfg_builder/cfg_lower.rs`, plus `signature_scan/walker.rs`, the editor refactors, and `tcl-mcp`'s `datagroup.rs`; the ledger counts about thirty rows |
+| scope and interpreter transitions | resolvers on `upvar`, `global`, `variable`, `namespace`, `interp` (`rust/tcl-registry/src/state_transition.rs`), and a pack's `state_transitions` resolver | since step 2 the dispatch tail applies every `VariableCellAliasTransition` an invocation states (`apply_state_transitions`, over the call's source words: `global`, `variable`, `upvar`, `namespace upvar`, a pack command's alias facts) and `interp create` — direct, or the nested `[interp create …]` a `set` binds — reads its `InterpreterTransition::Create`; the namespace family still has no consumer there; `frame_effect` is read only for alias-pair layout and level parsing (`param_traits.rs`, `diagnostics/usage.rs`); the command-binding family only by `interp alias` and the static-proc proof |
+| loop and bind positions | roles and strided `repeated_args` | since step 2 one binder (`handle_var_binding_command`) binds every `LoopVarList` and `VarWrite` position the roles name — `foreach` (which keeps its literal-iteration simulation), `lmap`, `dict for` / `map` / `update`, `array for`, `incr`, `append`, `lappend`, `lassign`, … — and `package require` / `provide` / `ifneeded` read the roles their subcommands declare |
+| OO member effect | the member-effect descriptor (`MemberSpec::effect`, `MemberEffect`, in `rust/tcl-registry/src/definer.rs`) since step 2, beside the layout (`MemberKind`: `Flat`, `Wrapper`, `FlagKeyed`) and `arg_roles`, `slot`, `retraction`, `visibility_effect`, `surface`; every TclOO, snit, itcl, `SpecTcl` and `SslicTcl` member states one, and `DefinitionBodyGrammar::member_row` answers a statement's row | since step 2 one `match` on the row's effect (`member_landing`) routes the `TclOO` fold and the snit and itcl walkers, `MethodKind::from_effect` names the lowering's frames, and the providers read the recorded member; `property`'s flag words and snit's type-body implicit variable are the axis's residue in `analyser/oo.rs` |
+| clause grammar | the clause-grammar descriptor (`ClauseGrammarSpec`, `rust/tcl-registry/src/clause_grammar.rs`), on `CommandSpec` and `SubCommand` since step 2: ten shipped grammars, one registry walk answering the roles and the clause-shape defect, and the loader reading the same type | since step 2 the lowering (`lower_if`, `lower_try`), `handle_try_command`, the generic body walk's depths, the stray-keyword report, the CFG's `on ok` edge and `signature_scan/walker.rs` read the plan; the editor refactors and `tcl-mcp`'s `datagroup.rs` still walk keywords |
 | option-selected semantics | the option-effect descriptor (`OptionSpec::effect`, `option_effect_families`, `option_effect.rs`), which replaced the two native resolvers over a command's own option table — `substitution_resolver` and `lsearch_pattern_args` — in step 2; `pattern_arg_resolver` remains an escape hatch no shipped spec sets | three consumers ask `CommandRegistry::substitutions_performed` correctly; the dynamic-name barrier and the `inner_head_performs_substitution` gate read only the trait, and `push_substituted_commands` re-walks a braced template for regions the answer does not carry |
 
 Three descriptors are missing, and all three are specified below. The rest
@@ -599,6 +606,24 @@ refactors (`refactor/if_to_switch.rs`, `refactor/datagroup.rs`), and
 semantic-token classifier read the slot's `noise` word for the `then`
 distinction they draw by hand.
 
+*As built in step 2 (CC2.9).* The compiler consumers read the plan:
+`lower_if` and `lower_try` through `ResolvedInvocation::clause_walk`, whose
+walk compares the words' *values* (so the fall-through marker is exact) and,
+where a computed word stands where it compares one, abstains with the inert
+reading the lowering needs to defer the construct as the retired keyword
+walk did; `TryHandler::kind` is the row's `HandlerMatch`; `cfg_lower.rs`'s
+`on ok` edge reads `HandlerMatch::CompletionCode` and the registry's
+completion-code parse (`try` declares no default clause, so `is_default`
+never applies); `handle_try_command` walks the plan by timing, and the
+generic body walk sets each body's depth from its clause's timing —
+`for`'s handler retired onto it; the stray-keyword report asks
+`clause_grammar::owner_of_keyword`; `signature_scan/walker.rs` reads each
+clause's script word; and the registry's own `try_control_invocation`
+parses the plan rather than the keywords. A marker falls through to the next
+*selected* clause only — never to `finally` — and `ClausePlan::falls_through`
+names a marker with no clause to fall to. The editor tiers are step 2's
+next item.
+
 **The `.tclspec` row shape** extends the block the loader already reads
 ([../spec-dsl-examples/if.tclspec](../spec-dsl-examples/if.tclspec) is
 the port that designed it), adding the row flags and the two chain-level
@@ -725,7 +750,7 @@ enum MemberReceiver {
     Both,
 }
 
-enum CallableRole { Method, Constructor, Destructor, Accessor, Mutator }
+enum CallableRole { Method, Constructor, Destructor, Accessor, Mutator, Procedure }
 
 enum StateScope { PerInstance, PerType, Option }
 
@@ -784,8 +809,14 @@ today:
   where `$obj variable v` does not becomes a comparison of the row's
   receiver against the dispatch spelling, not a name list.
 
+`Procedure` is step 2's addition: snit's `proc` defines a procedure in the
+type's namespace that sees the type's state and is reached by name, never
+dispatched (snit 2.3.4 on tclsh 8.6.18 and 9.0.4: `::app::Dog::helper 10`
+runs it, `::app::Dog helper 1` is a construction), which no other role
+says.
+
 **The sites this retires.** `apply_oo_subcommand_in` in
-`rust/tcl-compiler/src/analyser/oo.rs` has eleven keyword arms —
+`rust/tcl-compiler/src/analyser/oo.rs` had eleven keyword arms —
 `superclass`, `mixin`, `method`, `classmethod`, `constructor`,
 `destructor`, `variable`, `property`, `forward`, `private`, `self` — and
 each becomes one `match` on `MemberEffect`: the two slot arms fold through
@@ -797,11 +828,14 @@ wrapper's shift is already `MemberKind::Wrapper` and its side is the
 row's resolved `receiver`. `MethodKind::from_str_lossy` in
 `rust/tcl-compiler/src/ir.rs` retires with its call site in
 `rust/tcl-compiler/src/lowering/mod.rs`: `MethodKind` stays as the IR's
-*shape* fact and is constructed from `CallableRole` and `MemberReceiver`,
-the same two-facts-one-operation relationship `LoweringHookId::Incr` has to
-`NativeLowering::CellReadModifyWrite`. The `constructor` / `destructor`
-literals the ledger counts across ten `tcl-lsp-core` providers read the
-row instead.
+*shape* fact and is constructed from `CallableRole` and `MemberReceiver`
+(`MethodKind::from_effect`), the same two-facts-one-operation relationship
+`LoweringHookId::Incr` has to `NativeLowering::CellReadModifyWrite`. The
+`constructor` / `destructor` literals the ledger counts across the
+`tcl-lsp-core` providers read the recorded member instead. Step 2 landed
+all of it; the one match is `member_landing`, shared by the snit and itcl
+walkers, and `property` stays its flag-keyed extraction until its 9.0
+accessors are `Callable` rows of their own.
 
 **The `.tclspec` row shape** is one flag on the `member` row the loader
 already reads, so the snit port gains nothing but the word:
@@ -919,6 +953,32 @@ returning a default that reads as a fact. And an answer is keyed on the
 analysis context, so a query asked under a different overlay generation,
 binding set, or target profile is a different query.
 
+As built in step 2, the layer is inherent methods on `ResolvedInvocation`
+(`rust/tcl-registry/src/resolved_invocation.rs`), and `invocation(words,
+ctx)` is `CommandRegistry::invocation` — `resolve_structured_invocation(words,
+ctx.surface_query())`, the surface query `AnalysisContext` fixes. The
+resolution carries that query (`ResolvedInvocation::dialect`) and the
+descriptors it selected, so every query answers under one release:
+`clause_plan`, `option_effects` and its `substitutions_performed`
+projection, `arg_roles`, `pattern_args`, `case_invocation`,
+`frame_effect`, `return_type`, and `effects` (the former
+`effect_footprint`), beside the `state_transitions` and `facts` it
+answered already. `arg_roles` answers `Option<Vec<(usize, ArgRole)>>` —
+`None` is the abstention an expansion, a computed subcommand word, or a
+computed word where a resolver reads an option carries — and
+`case_invocation` abstains when its reading depends on whether a computed
+word begins with `-`. `member_rows` is `DefinitionBodyGrammar::member_row`,
+one member statement at a time, since the analyser already segments a
+definition body; `template_plan` is the value axis's slice 5. The re-keyed
+by-name functions (`arg_indices_for_role_words`, `pattern_args_words`,
+`command_prefixes`, `CommandSpec::return_type_for_call`) share each
+query's rule rather than restating it, and
+`rust/tcl-registry/tests/registry_sweep.rs`'s
+`derived_queries_agree_with_the_by_name_answers` holds every query to the
+by-name answer on every shipped command of every loadable dialect; they
+differ only where the resolution's subcommand, selected under the release,
+is not the one a release-blind lookup finds.
+
 ### The per-axis lint and ledger
 
 Each axis gets a lint whose scope is every tier, not the compiler alone.
@@ -988,12 +1048,22 @@ analyser:
   and the abstention widens through `StateTransitionWidening` rather than
   producing a narrower fact.
 
-  That reverses `state_transitions_value` in
-  `rust/tcl-spectcl/src/loader.rs`, which reads the `composition` row,
-  drops `argument_shape`, `resolver`, `widen`, `covers`, and `commit` with
-  a notice, and records in its own comment that "the resolver in
+  That reversed `state_transitions_value` in
+  `rust/tcl-spectcl/src/loader.rs`, which read the `composition` row,
+  dropped `argument_shape`, `resolver`, `widen`, `covers`, and `commit`
+  with a notice, and recorded in its own comment that "the resolver in
   particular is reference-only by design". So it is a **ruling**, narrower
-  than the four in § *Rulings* and decided with them. *The reason*: the
+  than the four in § *Rulings* and decided with them. Step 2 built it:
+  the loader reads every row, and a `resolver {words ctx} { … }` body is
+  `HookFamily::StateTransitionResolver`, whose two verbs — `alias LOCAL
+  TARGET ?-level LEVEL?` and `namespace-variable NAME` — name words by
+  index; the thunk reads each against the call's own words, so a computed
+  word's fact widens `VariableCells` and `VariableTraces` instead, and the
+  family has no verb for any other fact. A namespace variable a call
+  declares is the alias `variable` states to the current namespace's cell,
+  so no verb builds a `NamespaceTransition` yet; `from-frame-effect`
+  derives the alias pairs a command's `frame_effect` lays out, with the
+  same abstentions. *The reason*: the
   alias family is the one whose answer is a pure function of literal
   words, its consumer — the generic scope-alias application — is already
   generic, and refusing it leaves a vendor `upvar`-alike unauthorable

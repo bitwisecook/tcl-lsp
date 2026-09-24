@@ -50,14 +50,6 @@ const FORMS: &[FormSpec] = &[FormSpec {
     ..FormSpec::DEFAULT
 }];
 
-/// Whether a handler-body word is the `-` fall-through marker — the grammar's
-/// [`ClauseGrammarSpec::is_fallthrough_body`], which Tcl decides by string
-/// value, so the braced `{-}` and quoted `"-"` forms are equally
-/// fall-throughs.
-pub(crate) fn is_dash_fallthrough(arg: &str) -> bool {
-    GRAMMAR.is_fallthrough_body(arg)
-}
-
 /// The slots of a handler clause: the word that selects it, the
 /// `{resultVar optionsVar}` list it binds, and its script.
 const fn handler(matches: HandlerMatch) -> [ClauseSlot; 3] {

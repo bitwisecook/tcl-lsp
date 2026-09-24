@@ -128,6 +128,13 @@ pub enum PerItemFallback {
     /// read walk-level state the isolated-body memo key does not carry,
     /// so a declared document takes the full path rather than diverge.
     DeclaredTargets,
+    /// The document invokes a definer only the workspace's packs declare.
+    /// The shell reads the un-overlaid store (`per_item_setup`),
+    /// where that command has no definition-body grammar, so the class it
+    /// makes — and every member its body declares — would be invisible;
+    /// the full path reads the overlaid store, until the per-body memo key
+    /// carries the pack overlay.
+    PackDefiner,
 }
 
 impl PerItemFallback {
@@ -149,6 +156,7 @@ impl PerItemFallback {
             Self::ClassFactsCollide => "class-facts-collide",
             Self::MethodInstanceReplay => "method-instance-replay",
             Self::DeclaredTargets => "declared-targets",
+            Self::PackDefiner => "pack-definer",
         }
     }
 }
@@ -376,10 +384,15 @@ impl Analyser {
         self.pending_instances = Some(Vec::new());
         self.pending_bareword_dispatch_sites = Some(Vec::new());
         self.defer_proc_bodies = true;
+        self.pack_definer_seen = false;
         self.walk_commands_top_level(&commands, false);
         self.defer_proc_bodies = false;
         if file_env_pushed {
             self.body_scope_stack.pop();
+        }
+        if self.pack_definer_seen {
+            self.per_item_fallback = Some(PerItemFallback::PackDefiner);
+            return self.fresh_full_analyse(source, dialect);
         }
 
         // Tk activation, first opportunity.  A `package require

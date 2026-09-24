@@ -203,6 +203,7 @@ const ROW_WORDS: &[&str] = &[
     "display_name",
     "file_extension",
     "ambient_package",
+    "special_var",
     "provides",
     "co_provides",
     // command scope

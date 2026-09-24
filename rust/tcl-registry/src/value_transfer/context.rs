@@ -93,6 +93,15 @@ pub struct AnalysisContext {
 }
 
 impl AnalysisContext {
+    /// The surface query the context fixes — its target profile's — under
+    /// which every derived query of an invocation resolved through
+    /// [`crate::CommandRegistry::invocation`] answers. `None` for a context
+    /// that names no profile.
+    #[must_use]
+    pub fn surface_query(&self) -> Option<tcl_dialect::model::SurfaceQuery<'static>> {
+        self.profile.map(DialectProfile::surface_query)
+    }
+
     /// A context for a consumer with no module view: no bindings evidence,
     /// no traces, no escaping set, the deep tier, and the profile's grammar
     /// when it has one.

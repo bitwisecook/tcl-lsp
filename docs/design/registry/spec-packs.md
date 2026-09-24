@@ -321,8 +321,8 @@ commands loaded, notices, hooks invoked, quarantines, and load + analysis
 wall clock. Accepted load notices live in
 `rust/tcl-spectcl/tests/spec_corpus_baseline.txt`, compared as a multiset
 in both directions so a fixed notice must also be deleted from the
-baseline. The `state_transitions` / `world_effects` rows the loader does
-not yet read are the bulk of that baseline.
+baseline. The `world_effects` rows the loader does not yet read are part
+of that baseline.
 
 Its negative half is `rust/tcl-spectcl/tests/fixtures/hostile.tclspec`: an
 unbounded loop, a dispatch-heavy fold, and a body that panics. All three
@@ -489,6 +489,17 @@ message. See [W139](../../kcs/codes/kcs-diagnostic-w139-retired-at-resolved-vers
   -dialects {…}` is not vocabulary: the row is dropped whole with a notice
   naming the environment spelling, because an availability-**narrowing**
   word a reader cannot honour must not leave the wider claim standing.
+
+- **`special_var NAME -kind K -access A -origin O ?-dialects {…}?
+  ?-startup B?`.** An interpreter-provided global the pack's dialect has —
+  the pack-authored twin of a `SPECIAL_VARS` row, installed into the pack's
+  registry generation and read through `CommandRegistry::special_vars()`
+  beside the shipped rows. `-dialects` gates the variable as a command's
+  `dialects` row gates a command (it narrows where the variable exists; it
+  is not an environment placement), and `-startup` states the lifecycle
+  event that makes it readable before user code. The vocabulary is in
+  [special-variable-registry.md](special-variable-registry.md) § *Declaring
+  one in a pack*.
 
 - **Callback timing and taint.** `option … -script-timing
   SameInvocation|Deferred|ReferenceOnly` separates temporal control flow
@@ -866,9 +877,15 @@ families and no more: it may emit `VariableCellAliasTransition` and
 fact, because those four decide binding and realm identity — the
 compiler's own proof
 ([../compiler/registry-consumer-contracts.md](../compiler/registry-consumer-contracts.md)
-§ *The two hook bodies that remain*). The loader today reads the
-`composition` row of a `state_transitions` block and drops `resolver`
-beside `argument_shape`, `widen`, `covers`, and `commit` with a notice.
+§ *The two hook bodies that remain*). The loader reads every row of a
+`state_transitions` block, and a `resolver {words ctx} { … }` body is a
+hook of its own family whose two verbs — `alias LOCAL TARGET ?-level
+LEVEL?` and `namespace-variable NAME`, word indices each — state
+variable-cell alias facts: a namespace variable a call declares is the
+alias `variable` states to the current namespace's cell, so no verb
+builds a `NamespaceTransition` today. A fact naming a computed word
+abstains and widens the variable-cell domains instead of naming a cell,
+and no verb reaches the four forbidden families.
 The `world_effects` block rows stay documented vocabulary the loader does
 not read, a library-defined completion code scoped to one command's body
 has no spelling, and a method-scoped taint sink is a registry change

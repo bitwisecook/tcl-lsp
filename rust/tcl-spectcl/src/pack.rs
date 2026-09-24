@@ -119,6 +119,9 @@ pub struct MergedPack {
     /// are floors, and [`CommandRegistry::ambient_package_floor`] takes the
     /// highest. Dropping one here would silently lower the floor instead.
     pub ambient_packages: Vec<crate::loader::AmbientPackage>,
+    /// The special variables the pack declares, merged
+    /// first-declaration-wins across the pack's files.
+    pub special_vars: Vec<crate::loader::PackSpecialVar>,
     /// The `environment NAME { … }` blocks the pack declares (`SpecTcl`
     /// 2.0), merged first-declaration-wins across the pack's files.
     ///
@@ -188,9 +191,9 @@ impl PackSet {
     /// loader exists to make impossible.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.packs
-            .iter()
-            .all(|p| p.commands.is_empty() && p.ambient_packages.is_empty())
+        self.packs.iter().all(|p| {
+            p.commands.is_empty() && p.ambient_packages.is_empty() && p.special_vars.is_empty()
+        })
     }
 
     /// Every file that contributed to, or produced a notice about, this set —
@@ -592,6 +595,16 @@ fn cross_pack_extension_notices(packs: &[MergedPack]) -> Vec<PackNotice> {
     out
 }
 
+/// Append each of `rows` whose name no row in `into` already has: across a
+/// pack's files the first declaration wins, as it does within one file.
+fn merge_first_wins<T>(into: &mut Vec<T>, rows: Vec<T>, name: impl for<'a> Fn(&'a T) -> &'a str) {
+    for row in rows {
+        if !into.iter().any(|prior| name(prior) == name(&row)) {
+            into.push(row);
+        }
+    }
+}
+
 /// Merge one tier's files for one pack name, first-definition-wins.
 fn merge_group(
     name: &str,
@@ -607,6 +620,7 @@ fn merge_group(
         display_name: None,
         file_extensions: Vec::new(),
         ambient_packages: Vec::new(),
+        special_vars: Vec::new(),
         environments: Vec::new(),
         dialects: Vec::new(),
         surface_rosters: Vec::new(),
@@ -653,6 +667,9 @@ fn merge_group(
             }
         }
         merged.ambient_packages.extend(pack.ambient_packages);
+        merge_first_wins(&mut merged.special_vars, pack.special_vars, |row| {
+            row.spec.name
+        });
         for environment in pack.environments {
             // Declarations dedupe by id (first wins, as within one file);
             // `-extend` blocks are additive contributions and every one is
@@ -666,15 +683,9 @@ fn merge_group(
                 merged.environments.push(environment);
             }
         }
-        for dialect in pack.dialects {
-            if !merged
-                .dialects
-                .iter()
-                .any(|prior| prior.name == dialect.name)
-            {
-                merged.dialects.push(dialect);
-            }
-        }
+        merge_first_wins(&mut merged.dialects, pack.dialects, |dialect| {
+            dialect.name.as_str()
+        });
         merged.surface_rosters.extend(pack.surface_rosters);
         for mut command in pack.commands {
             // The merge is the only layer that knows which file a command came
