@@ -1709,8 +1709,9 @@ const TIER: Param = (
     "string",
     "Discovery tier to preview this pack loading at — bundled, user, workspace, or \
      studio-override; defaults to workspace, the tier a .tclspec file actually installs \
-     at. Governs untrusted_tier_refusal and, with trust, dormant_hooks; never which \
-     commands, notices, or hooks are reported — the pack is always evaluated as trusted",
+     at. Governs untrusted_tier_refusal (never raised for bundled or user, which no trust \
+     state makes untrusted) and, with trust, dormant_hooks; never which commands, notices, \
+     or hooks are reported — the pack is always evaluated as trusted",
 );
 const TRUST: Param = (
     TRUST_PARAM,
@@ -2287,7 +2288,7 @@ const TOOLS: &[ToolDef] = &[
     },
     ToolDef {
         name: "spectcl_check",
-        description: "Validate a SpecTcl (.tclspec) pack by evaluating it in the deterministic sandbox (no clock/IO, budgets, transactional registration — safe on generated packs). Returns per-command draft fields, loader notices (dropped/unknown words), hooks with family and cacheability, hooks reading past their `-inputs`, and collisions with the shipped registry; plus `load_error` (determinism denial, budget, or Tcl error — nothing loads), `target_dependent` (`available?` was queried), `provenance` (what `tier`/`trust` resolve to), `untrusted_tier_refusal`, and `dormant_hooks` (hook bodies that stay dormant under that provenance — declarative facts install regardless). Use spectcl_expand to see what a templated pack registered.",
+        description: "Validate a SpecTcl (.tclspec) pack by evaluating it in the deterministic sandbox (no clock/IO, budgets, transactional registration — safe on generated packs). Returns per-command draft fields, loader notices (dropped/unknown words), hooks with family and cacheability, hooks reading past their `-inputs`, and collisions with the shipped registry; plus `load_error` (determinism denial, budget, or Tcl error — nothing loads), `target_dependent` (`available?` was queried), `provenance` (what `tier`/`trust` resolve to), `untrusted_tier_refusal` (what an untrusted install at `tier` would refuse the pack for), and `dormant_hooks` (hook bodies that stay dormant under that provenance — declarative facts install regardless; empty when that provenance refuses the pack, since nothing of it loads). Use spectcl_expand to see what a templated pack registered.",
         params: &[
             (
                 "source",
@@ -2346,10 +2347,9 @@ const TOOLS: &[ToolDef] = &[
     },
 ];
 
-// registry-axis-ok: irreducible — the four Tier discovery-tier spellings
-// [`TIER`] advertises, in canonical order; not command-registry vocabulary;
-// until never
-const TIER_VALUES: [&str; 4] = ["bundled", "user", "workspace", "studio-override"];
+/// The four discovery-tier spellings [`TIER`] advertises — each tier's own
+/// label, owned beside the argument's reader in `spectcl.rs`.
+const TIER_VALUES: [&str; 4] = crate::spectcl::TIER_ARGUMENTS;
 
 /// The two [`tcl_dialect::model::WorkspaceTrust`] spellings [`TRUST`]
 /// advertises.

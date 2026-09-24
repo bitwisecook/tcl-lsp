@@ -70,7 +70,7 @@ pub enum Tier {
 impl Tier {
     /// The tier's name as it appears in a notice or a log line.
     #[must_use]
-    pub fn label(self) -> &'static str {
+    pub const fn label(self) -> &'static str {
         match self {
             Tier::StudioOverride => "Spec Studio override",
             Tier::Workspace => "workspace",

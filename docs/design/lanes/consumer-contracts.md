@@ -592,6 +592,7 @@ predicate CC3.2 collapses.
 | CC3.2 one `untrusted` predicate | landed | `wip(consumer-contracts): step 3 — one untrusted predicate` (`fca87728`) | `tcl_registry::model::registration::untrusted(provenance: Provenance) -> bool` beside `provenance_label`, re-exported as `tcl_registry::model::untrusted` — a thin door onto `Provenance::is_untrusted`; `rust/tcl-spectcl/src/loader/eval.rs`'s private `fn untrusted(tier: PackEnvironmentTier) -> bool` shim deleted, its one call site in `replay()` now calling the registry's predicate over `tier.provenance()` directly. Tests: `registration.rs` unit row `the_one_untrusted_predicate_names_the_three_classes` (every `Provenance` variant checked against `is_untrusted` directly; the three untrusted classes and the four trusted ones each asserted). Gates: `cargo test -p tcl-registry` (928 lib and all 21 binaries), `-p tcl-spectcl` (every binary: lib 188, `workspace_trust` 7, `eval_loader` and the rest — the pinned `a_workspace_pack_may_still_override_a_shipped_command` and `an_untrusted_pack_declaring_dialect_axes_fails_with_the_provenance_error` stand unmodified); `cargo check --workspace --all-targets`; clippy (`-p tcl-registry -p tcl-spectcl --all-targets`) and `cargo fmt` clean; `registry-axes --check` OK (7831 / 16 / 40 / 896 across 147, unchanged) and `value-transfers --check` OK (20 / 19 / 90 across 36 / 6607, unchanged); `pack-goldens --check` (25) unchanged; `kcs-index-links` green; `dialect-drift` at its 8. Deviations: `provenance_violation` and `provenance_violation_in` keep their `Tier` / `PackEnvironmentTier` parameters rather than becoming `Provenance`-typed as the plan's prose reads (D3.24) — `reserved_name_for`'s `PackEnvironmentTier` argument and the pinned `"Spec Studio override"` notice text depend on the tier value, and the outward rename would ripple into `tcl-spec-studio/src/store.rs`'s two callers, which the item's own file list omits; `rust/tcl-mcp/src/spectcl.rs` needed no edit for this item — nothing there called the deleted shim or depends on `provenance_violation`'s (unchanged) signature; CC3.4, next, rewrites that file's tier/trust handling on its own terms. D3.24 |
 | CC3.4 `spectcl_check`'s tier and trust | landed | `wip(consumer-contracts): step 3 — spectcl_check reports tier and trust` (`6e9668c8`) | `spectcl_check` gains `tier` (`bundled`/`user`/`workspace`/`studio-override`, default `workspace` — the tier a `.tclspec` file actually installs at) and `trust` (`trusted`/`untrusted`, default `trusted`); the pack is still always evaluated as trusted (D3.25 — the authority ruling; evaluating under an actually-untrusted pair would let E-R2 discard the whole pack transactionally, emptying the per-command report the tool exists for), so `tier`/`trust` instead parameterise two previews over that one snapshot: `untrusted_tier_refusal` keeps reading `tier` alone, unconditional, exactly as before (`trust` never gates it — the pinned `a_workspace_tier_refusal_is_reported_without_failing_the_check` and `an_ordinary_pack_carries_no_tier_refusal` stand unmodified); `dormant_hooks` (new) is `tcl_spectcl::hooks::dormant_hooks` over the pack's own commands and `PackEnvironmentTier::of(tier, trust).provenance()` (empty unless the pair is an untrusted workspace, D3.12); `provenance` (new, D3.26) names that same verdict as a label (`tcl_registry::model::provenance_label`), answering "the provenance verdict computed for that pair" as an output, not only an input to `dormant_hooks`. `hook_json` also reports `HookDecl::line`. `tools.rs` gains the two properties with closed JSON-Schema enums (`closed_string_schema`, beside `dialect_schema`); `spectcl_check`'s description names the two new fields. Tests: `spectcl.rs` gains `the_default_tier_and_trust_equal_an_explicit_workspace_trusted_call` (a bare call answers byte-identically to an explicit `tier=workspace`/`trust=trusted` one; `dormant_hooks` empty, `provenance` "trusted workspace") and `trust_untrusted_lists_the_hook_as_dormant_and_still_refuses_an_override` (a `const_fold` hook beside an `-override` of a compiled command, checked at `trust=untrusted`: the hook is dormant, the override still refused, both commands still load — neither preview costs an analysis fact). Gates: `cargo test -p tcl-mcp` (111, was 109); `cargo check --workspace --all-targets`; clippy (`-p tcl-mcp --all-targets`) and `cargo fmt` clean; `registry-axes --check` OK (7831 / 16 / 42 / 896 across 147 — two new `irreducible` waivers, the `Tier`/`WorkspaceTrust` MCP-argument spellings in `declared_tier` and `TIER_VALUES`, neither command-registry vocabulary); `value-transfers --check` unchanged; `pack-goldens --check` (25) unchanged; `kcs-index-links` green; `dialect-drift` at its 8. Docs: the redesign's § 11.1 O4 row removed (closed); `spec-packs.md`'s "CLI and MCP" bullet reworded from "what the workspace tier would refuse" to the general `tier`/`trust` preview. Deviations: `gen-ai-diagnostics --check`'s conditional does not apply — it generates `ai/shared/diagnostics.json` from the `DiagCode` catalogue, not from `tools.rs`'s `ToolDef` list, and no generator derives from the tool catalogue (checked); `docs/kcs/features/kcs-feature-mcp-server.md`'s conditional does not apply either — its tool table is one line per tool and does not enumerate any tool's arguments, `spectcl_check` included (checked); no KCS note lists `spectcl_check`'s arguments. D3.25, D3.26 |
 | Gate fix — the surface test asks its owner | landed | `wip(consumer-contracts): step 3 — the surface test asks its owner` | CC3.5's `a_declared_command_classifies_from_its_declaration` (`rust/tcl-compiler/src/side_effects.rs`) built its declaration set by hand (`DeclaredSurface::new` and `declare`), two spellings of the type outside its owner files, which `retired-api-gate`'s one-oracle sweep (ruling R10) reports. It now states its three declarations the way a document does (`# tcl-lsp: stub my_pure {} -pure`, `my_mut {} -mutator`, `my_plain {}`) and takes the set from the analyser's one ingestion door, `analyser::utils::document_declared_surface` (`document_stub_declarations` ingested through `build_declared_surface`, the path the analyser builds its own set by; `bounds_checks.rs`'s declared-loop tests already take it) — so the test no longer names the type and needs neither a `one-oracle-ok` waiver nor a centralisation-ledger row. The facts are the ones the hand-built declarations stated (`-pure` is `PURE`; `-mutator` is `READS_BEFORE_WRITE` beside a `Variable` read and write, D3.15; an inline block is `Provenance::Document`), so every assertion stands unchanged. Gates: `cargo test -p tcl-compiler --lib a_declared_command_classifies_from_its_declaration`; `retired-api-gate` OK (0 hits, was 2); `cargo check --workspace`; clippy (`-p tcl-compiler --all-targets`) and `cargo fmt` clean; `registry-axes --check` (7831 / 16 / 42 / 896 across 147) and `value-transfers --check` (20 / 19 / 90 across 36 / 6607) unchanged; `dialect-drift` at its 8; `owner-resolution` OK (45). |
+| Review fixes | landed | `wip(consumer-contracts): step 3 — review fixes` | The step 3 review ("land with fixes"), item by item. **B1** `provenance_violation(pack, tier)` answered "as if untrusted" at every tier, so `spectcl_check` at `tier: bundled` or `user` reported an E-R2 refusal the load never gives (`untrusted` is false for `BundledPack` and `User`); it now returns `None` unless `tcl_registry::model::untrusted(PackEnvironmentTier::of(tier, WorkspaceTrust::Untrusted).provenance())` — the load's own predicate — so the Studio's two callers (`Workspace`, `StudioOverride`) and the pinned `a_workspace_tier_refusal_is_reported_without_failing_the_check` / `an_ordinary_pack_carries_no_tier_refusal` answer as before; new `a_bundled_or_user_tier_draws_no_refusal` (both tiers over `command lsort -override`: refusal null, no `provenance` notice, `provenance` `bundled` / `user`; the negative: the workspace default still previews it). **B2** the gate-fix row above, with the reviewer's fixture (`my_mut {v:var} -mutator`, so the declaration's facts flow through `declared_traits` / `declared_side_effects` from a real argument); `retired_api_gate.rs`'s `DeclaredSurface` owners gain `rust/tcl-lsp-core/src/minify.rs` with a carrier comment (it holds `build_declared_surface`'s set only to hand to `DocumentCommandSurface`, D3.23), so that exemption is deliberate rather than textual. **S1** `AGENTS.md`: stub declarations "answer that same query nearest-wins through `DocumentCommandSurface`". **S2** the design page's status box takes `alias_of` out of the proposed list (step 4 has begun: a field with its loader row and studio surfaces, nothing reads it yet), and the rung table's rung-2 cell reads "`alias_of` is a field nothing reads yet". **S3** the page's intro: the three descriptors step 2 "gave the analyser", the option effect "retired" the two native resolvers; the `substitution.rs` / `patterns.rs` file-path anchor names the projections that replaced them. **S4** the page's stub-ruling consequences call the SSA and memory-SSA readers deferred residue, give the boundary reason (`compilation_unit.rs`, the value-transfers lane's), name the false W210 below, and state the intended wiring; D3.22 is rewritten with the corrected reasons. **S5** D3.27. **S6** `declared_tier` matches `Tier::{Bundled, User, Workspace}.label()` and the one MCP-only token `studio-override`; `TIER_ARGUMENTS` beside it is the schema's list (`tools.rs`'s `TIER_VALUES` reads it) and `Tier::label` became `const fn` for it; both `irreducible` waivers go (`registry-axes` waived 42 → 40, ledger regenerated). **S7** D3.29. **S8** D3.30. **S9** D3.28. **S10** the KCS how-to's § *Stubbing a command tcl-lsp already knows* says a stub has no subcommands, so it replaces what tcl-lsp knows about each (`stub dict {args}` and `dict set`'s read of `d`). Beside them, the Studio's `untrusted_tier_refusal` doc comment loses its stale O9 sentence (discovery is told the trust state since CC3.1). The reviewer's W210 question, confirmed by a probe (not committed): `# tcl-lsp: stub run_with {v:var script:body}` then `run_with x { puts hi }` and `puts $x`, in a proc and at top level, draws `W210 Variable 'x' is read before it is set` — `lower_default` keeps the call a `Statement::Barrier` (the `body` word is a same-invocation executable) and SSA's `registry_barrier_defs` asks the catalogue alone; without the `body` word the call lowers plain with its declared def and there is no W210. Reported for filing, not fixed: the fix threads the surface through `compilation_unit.rs` (D3.22). Tests moved: CC3.4's `trust_untrusted_lists_the_hook_as_dormant_and_still_refuses_an_override` split into `trust_untrusted_lists_the_hook_as_dormant` (the hook alone: dormant, no refusal) and `a_pack_the_untrusted_install_refuses_holds_no_dormant_hook` (the hook beside `-override lsort`: the conditional refusal and no dormant hook; the negative: trusted, the preview refusal and still none dormant). Gates: `cargo test -p tcl-mcp` (113, was 111), `-p tcl-spectcl --no-fail-fast` (lib 188 and all 19 binaries; `eval_loader` 25, the load's own E-R2 messages byte-identical), `-p tcl-spec-studio --lib` (198), `-p tcl-registry --lib` (928), `-p tcl-compiler --lib a_declared_command_classifies_from_its_declaration`, `-p xtask retired_api` (9); `cargo check --workspace --all-targets`; clippy (`-p tcl-spectcl -p tcl-registry -p tcl-mcp -p tcl-compiler -p tcl-spec-studio -p xtask --all-targets`) and `cargo fmt` clean; `tsc --noEmit -p editors/vscode`, eslint and prettier on `clientCore.ts`; `registry-axes --check` (7831 / 16 / 40 / 896 across 147), `value-transfers --check` unchanged, `pack-goldens --check` (25) unchanged, `retired-api-gate` and `owner-resolution` (45) OK, `kcs-index-links` green, `dialect-drift` at its 8. D3.22, D3.27–D3.30 |
 
 **Step 3 is landed.** All five items above (CC3.1, CC3.2, CC3.3, CC3.4 and
 CC3.5) are `landed`; the review checklist below is run against this tree and
@@ -739,9 +740,12 @@ against the landed tree with evidence:
   `elimination.rs` is free of VT8.5 and the pass context carries the unit's
   `declared_commands`. `ssa.rs`'s `registry_barrier_defs` and
   `uses_in_barrier`, and `memory_ssa.rs`'s `is_clobber`, read the
-  catalogue only. The loop-exit set (`TERMINATES_BLOCK`) and the
-  interprocedural `INVOKES_USER_PROC` head read traits no flag states and
-  stay on the catalogue.
+  catalogue only — deferred until `compilation_unit.rs` is free, with the
+  intended wiring in D3.22; meanwhile a stub declaring a `var` word beside
+  a `body` word draws a false W210 on the variable (the review's probe).
+  The loop-exit set (`TERMINATES_BLOCK`) and the interprocedural
+  `INVOKES_USER_PROC` head read traits no flag states and stay on the
+  catalogue.
 - **For the landing.** The two design indexes' lines for the page still
   read "built in step 2"; they name neither the trust gate nor the stub
   flags.
@@ -781,6 +785,20 @@ against the landed tree with evidence:
 - CC3.4: `spectcl_check` gains `tier` and `trust` arguments and two output
   fields, `provenance` and `dormant_hooks`; every existing field's value at
   the defaults (`tier: "workspace"`, `trust: "trusted"`) is unchanged.
+- Review fixes: `spectcl_check` at `tier: "bundled"` or `"user"` no longer
+  reports an `untrusted_tier_refusal` — the load never refuses either tier,
+  so the report was false.
+- Review fixes: an authoring tool's refusal preview (`spectcl_check`'s
+  `untrusted_tier_refusal`, the Spec Studio's two refusal reports) reads
+  "…, so the pack would not be loaded from the {class} tier (design
+  E-R2)"; the load's own refusal notice is unchanged.
+- Review fixes: `spectcl_check` for an untrusted pair that refuses the pack
+  reports no `dormant_hooks`.
+- Review fixes: the studio override's provenance label reads "Spec Studio
+  override" (was "studio override") in `spectcl_check`'s `provenance` and
+  in the two environment-registration refusals.
+- Review fixes: in VS Code, granting Workspace Trust while the language
+  server is stopped no longer leaves an unhandled promise rejection.
 
 ## Step 4 — progress
 
@@ -3608,18 +3626,31 @@ everything else in this lane is independent of both.
   `bounds_checks::loop_shape`, the plan's "W240 family". A declared name
   answers the loop question from its declaration alone, so a stub
   redeclaring `while` without `-loop` is not a loop.
-- **D3.22** `ssa.rs` (`:625`, `:1693`) and `memory_ssa.rs` (`is_clobber`)
-  are not wired. Reason: `registry_barrier_defs` withholds barrier defs
-  the catalogue's `VarWrite` / `LoopVarList` roles produce, and a
-  stub-declared command has none there, so reading the discriminator off
-  the surface changes no def; `uses_in_barrier` reads a *subcommand's*
-  `creates_scope_alias`, which a declaration cannot state. `is_clobber`
-  answers "clobbers" for every command the catalogue lacks; answering from
-  the surface would make every flagless stub a non-clobber — less
-  conservative than before, against the preserve — and only `-pure` could
-  honestly lift it. Threading a surface into `build_ssa_with_config` and
-  `build_memory_ssa` also runs through `compilation_unit.rs` (VT8.7's
-  file).
+- **D3.22** `ssa.rs` (`registry_barrier_defs`, `uses_in_barrier`) and
+  `memory_ssa.rs` (`is_clobber`) are not wired: deferred residue, and the
+  reason that defers it is the boundary — threading a surface into
+  `build_ssa_with_config` and `build_memory_ssa` runs through
+  `compilation_unit.rs`, the value-transfers lane's file, held clean and
+  edited in its slice 8 (B1). The two other reasons first given here were
+  corrected by the step 3 review. `registry_barrier_defs` takes its
+  `VarWrite` / `LoopVarList` roles from the catalogue's
+  `arg_indices_for_role`, so the gap is not only a name the catalogue
+  lacks: a redeclared catalogued name is walked with the catalogue's roles,
+  and a stub-declared name gets no def at all — a stub declaring `{v:var
+  script:body}` lowers to a `Statement::Barrier` (its `body` word is a
+  same-invocation executable, `lower_default`), so `run_with x { puts hi }`
+  then `puts $x` draws a false W210, confirmed by a probe at the review
+  (without the `body` word the call lowers as a plain call with its
+  declared def, and there is no W210); reported for filing, not fixed
+  here. And `is_clobber` already answers "clobbers" for a name the
+  catalogue lacks, so reading the surface need not lose conservatism.
+  `uses_in_barrier` reads a *subcommand's* `creates_scope_alias`, which a
+  declaration cannot state. The intended wiring once `compilation_unit.rs`
+  is free: the barrier-def walk and its scope-alias discriminator read the
+  document's surface, and memory SSA clobbers for a declared name unless
+  its declaration states `PURE` — the reading `classify_declared` gives a
+  declaration that states nothing (`fallback_unknown_write`). The
+  coordinator schedules it after the value-transfers slice 8 merge.
 - **D3.23** The minifier builds the document's surface from
   `analysis.stub_commands` (`build_declared_surface`), reads a head's
   command-level traits off it, and skips subcommand observability for a
@@ -3656,6 +3687,35 @@ everything else in this lane is independent of both.
   `PackEnvironmentTier::of(tier, trust).provenance()`), reading the
   plan's "the provenance verdict computed for that pair" as a reported
   fact rather than only `dormant_hooks`'s internal input.
+- **D3.27** `spectcl_check`'s `dormant_hooks` is empty when the `(tier,
+  trust)` pair's provenance is itself untrusted and `untrusted_tier_refusal`
+  is set: that install refuses the whole pack (E-R2 is transactional), and
+  a pack that does not load holds nothing dormant — one report, one
+  install. Chosen over stating in the tool description that
+  `dormant_hooks` assumes the pack loads, which would describe an install
+  that cannot happen. The refusal field stays `tier`'s preview of an
+  untrusted install, so at a trusted pair it is still reported while the
+  pack loads and its bodies run.
+- **D3.28** An E-R2 message has two moods from one builder (`Verdict` in
+  `loader/eval.rs`): the load's refusal keeps its wording byte-for-byte
+  ("…, but this pack loads from the {class} tier; … so the pack is not
+  loaded (design E-R2)"), and the preview `provenance_violation` answers
+  for authoring tools says "…; an untrusted pack may not …, so the pack
+  would not be loaded from the {class} tier (design E-R2)" — true at the
+  default `workspace` / `trusted` preview, where the pack does load.
+- **D3.29** The studio class is spelt "Spec Studio override" wherever a
+  report names it: `provenance_label(Provenance::StudioOverride)` takes
+  `Tier::StudioOverride.label()`'s spelling (it fed two
+  environment-registration messages and `spectcl_check`'s `provenance`,
+  none pinned). The `tier` argument keeps the token `studio-override`,
+  since an argument cannot carry the label's prose; `spectcl.rs` owns it as
+  `STUDIO_OVERRIDE_ARGUMENT`, and it needs no waiver.
+- **D3.30** The trust-grant notification is guarded with a `.catch`, not a
+  `client.isRunning()` test: the handler is registered before
+  `client.start()`, and a grant during start-up is queued by the client
+  until the connection is up — an `isRunning()` guard would drop exactly
+  that grant. A stopped client's rejection is dropped deliberately: the
+  next start's `initializationOptions` read the state afresh.
 - **D4.1** `alias_of` is a `CommandSpec` field only. **D4.2** The stamp
   rule runs in `pack::load_sources` on the loaded command. **D4.3**
   `PackFactStamp::content_hash` is the `u64` xxh3 the snapshot key

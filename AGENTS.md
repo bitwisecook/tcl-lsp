@@ -115,9 +115,9 @@ sites and are not debt.
   state transitions the analyser reads generically, and by hook IDs in
   lowering, codegen, and the analyser's short residue; check the
   subcommand's descriptors and hook IDs before hunting for a missing branch.
-  A document's own `# tcl-lsp: stub` declarations widen that
-  same query through `DocumentCommandSurface`, and travel to lowering and the
-  interprocedural scan on `UnitBuildOptions::declared_commands`
+  A document's own `# tcl-lsp: stub` declarations answer that same query
+  nearest-wins through `DocumentCommandSurface`, and travel to lowering and
+  the interprocedural scan on `UnitBuildOptions::declared_commands`
   ([dialect-stubs.md](docs/design/contracts/dialect-stubs.md)) — so a role a
   consumer reads from the registry it also reads from a stub.
 - Two drift gates in `make xtask-check` keep the spec surface honest:

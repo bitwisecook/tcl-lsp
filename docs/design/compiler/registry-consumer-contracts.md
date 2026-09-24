@@ -7,11 +7,12 @@ the companion to [value-transfers.md](value-transfers.md), which states
 the consumer interface for one axis (values), and to
 [value-evaluation.md](value-evaluation.md), which states how an answer on
 that axis is computed. This page places the value axis among the others
-and holds the rest of the programme: the three descriptors the analyser
-lacks — a clause grammar, a member effect, and an option effect that
-retires the two native resolvers over a command's own option table — and
-the identity and backing contracts a code generator or a runtime needs
-before a pack claim can change *emitted code*. Analysis facts wait for
+and holds the rest of the programme: the three descriptors step 2 of
+§ *Build order* gave the analyser — a clause grammar, a member effect, and
+an option effect that retired the two native resolvers over a command's
+own option table — and the identity and backing contracts a code
+generator or a runtime needs before a pack claim can change *emitted
+code*. Analysis facts wait for
 none of it — under the rulings recorded in the interface contract, a
 loaded pack's facts are authoritative for analysis and optimisation as
 soon as they are loaded, and the direct, expression, and private-pack
@@ -54,13 +55,16 @@ slices proceed without deciding anything here.
 > nearest-wins — `traits`, `invocation_traits` and `side_effects` beside
 > the role queries, under the security floor.
 >
+> Step 4 has begun: `CommandSpec::alias_of`, the `alias_of NAME`
+> declaration naming the shipped builtin a pack command is, exists as a
+> field with its loader row and studio surfaces, and nothing reads it yet.
+>
 > The rest of the vocabulary is proposed and names nothing in the
 > workspace:
 >
 > - **Identity and backing** — `SiteClaim`, `PackFactStamp`,
 >   `RuntimeBacking` with the `runtime_backing` field, `BodySource`,
->   `IdentityKind`, `CodegenCapability`, `ArtefactIdentityManifest`, and
->   the `alias_of` declaration.
+>   `IdentityKind`, `CodegenCapability`, and `ArtefactIdentityManifest`.
 > - **Packages** — `SpecDirective`, `DependencyTier`, and the `tcl spec
 >   test` verb.
 >
@@ -293,13 +297,20 @@ summary, the safe-interpreter gate, and the minifier's rename barriers see
 a stubbed command the way they see a catalogued one. `-mutator` lands as
 the read-modify-write shape `lset` states — `Traits::READS_BEFORE_WRITE`
 beside a `SideEffect` that reads and writes the variable — because a write
-alone would kill the store the command reads. `memory_ssa.rs`'s
-`CLOBBER_TRAITS` and `ssa.rs`'s scope-alias discriminator stay on the
-catalogue: SSA's barrier-def walk reads no declared role, so a stubbed
-command's barrier carries no def for the discriminator to withhold, and
-memory SSA's verdict on a command the catalogue lacks is already the
-conservative "clobbers", which no flag but `-pure` could lift. Code
-predicates: the union in `DocumentCommandSurface`, the flag drop in
+alone would kill the store the command reads. Three readers are
+deferred residue, not design: `ssa.rs`'s barrier-def walk
+(`registry_barrier_defs`) and scope-alias discriminator, and
+`memory_ssa.rs`'s clobber verdict (`is_clobber` over `CLOBBER_TRAITS`),
+still ask the catalogue alone, because reaching them means threading the
+document's surface through `compilation_unit.rs`, which the value-transfers
+lane holds. Until then a stub's declared roles miss the barrier-def walk —
+a call the lowering keeps as a barrier because its stub declares a `body`
+word writes no def for its `var` word, and a later read of that variable
+draws a false `W210` — and a redeclared catalogued name is walked with the
+catalogue's roles. Once the file is free, the walk takes a declared name's
+roles from the surface, and memory SSA clobbers for a declared name unless
+its declaration states `PURE`, the same conservative reading side-effect
+classification gives a declaration that states nothing. Code predicates: the union in `DocumentCommandSurface`, the flag drop in
 `to_declared_command`, and the `Provenance::WorkspaceUntrusted` class a
 sidecar ingests at — which becomes a provenance label for explanation, not
 a precision class.
@@ -1479,7 +1490,7 @@ and lifetime argument.
 |---|---|---|---|
 | 0 | arity and roles | none needed; generic dispatch | exists, sound |
 | 1 | purity, effects, types, transfers, evaluators | none possible at run time; the fact is authoritative for analysis by ruling; what emitted code can check is the binding | evaluators exist; the answer protocol does not |
-| 2 | this command is a shipped builtin | the live binding is that builtin | `-override` exists; `alias_of` is new vocabulary |
+| 2 | this command is a shipped builtin | the live binding is that builtin | `-override` exists; `alias_of` is a field nothing reads yet |
 | 3 | a reference Tcl body | exact definition match of the live proc | the admission seam exists; no spec field |
 | 4 | a runtime implementation ships with the package | the runtime reports what it loaded; the artefact pins it | no `runtime_backing` field, no bundler |
 
@@ -2019,7 +2030,7 @@ and come before any runtime guard work.
 - `rust/tcl-registry/src/hooks.rs` — `AnalyserHookId`, `CodegenHookId`, `InlineCodegenHookId`, `LoweringHookId`
 - `rust/tcl-registry/src/state_transition.rs`, `frame_effect.rs`, `definer.rs`, `special_vars.rs`, `security_floor.rs`, `intrinsic.rs` — the descriptors the analyser under-consumes, the codegen-axis floor, and the intrinsic catalogue
 - `rust/tcl-registry/src/clause_shape.rs`, `spec.rs`, `repeated.rs`, `relation.rs` — `ClauseShapeError`, `CaseListSpec`, `OptionSpec`, `option_relations`, `reserved_trailing_words`, `RepeatedArgLayout`, `Relation::evaluate`
-- `rust/tcl-registry/src/substitution.rs`, `patterns.rs` — `subst_substitutions` and `lsearch_pattern_args`, the two native resolvers over a command's own option table
+- `rust/tcl-registry/src/substitution.rs`, `patterns.rs` — the substitution kinds and `option_selected_pattern_args`, which replaced `subst_substitutions` and `lsearch_pattern_args`, the two native resolvers over a command's own option table, with projections of the option-effect walk
 - `rust/tcl-registry/src/definer.rs` — `DefinitionBodyGrammar`, `MemberSpec`, `MemberKind`, `SlotSpec`, `MemberRetraction`, `MemberVisibility`, `DeclaredMemberVisibility`, `member_body_indices_in`
 - `rust/tcl-registry/src/model/declaration.rs`, `registration.rs` — `DeclaredCommand`, `DocumentCommandSurface`, and the second `untrusted(…)` predicate
 - `rust/tcl-registry/src/traits.rs` — `Traits::PURE`, `CREATES_SCOPE_ALIAS`, `CREATES_DYNAMIC_BARRIER`, `HAS_LOOP_BODY`, `UNSAFE`, `SAFE_INTERP_HIDDEN`, `CLAUSE_KEYWORDS_WITHOUT_COMMAND_SPEC`, `CLAUSE_NOISE_KEYWORDS`

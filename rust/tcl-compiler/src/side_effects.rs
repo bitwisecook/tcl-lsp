@@ -1765,7 +1765,7 @@ mod tests {
         let declared = crate::analyser::utils::document_declared_surface(
             "# tcl-lsp: stubs-begin\n\
              # tcl-lsp: stub my_pure {} -pure\n\
-             # tcl-lsp: stub my_mut {} -mutator\n\
+             # tcl-lsp: stub my_mut {v:var} -mutator\n\
              # tcl-lsp: stub my_plain {}\n\
              # tcl-lsp: stubs-end\n",
             None,

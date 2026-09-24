@@ -1798,28 +1798,64 @@ fn compiled_command_exists(name: &str) -> bool {
 /// The first E-R2 violation in a pack's registration record **as if** the
 /// pack were untrusted at `tier` — for the workspace tier, as if the editor
 /// had not trusted the workspace: the line it was declared on, and a
-/// notice-ready message naming the provenance class.
+/// notice-ready message naming the provenance class, in the conditional
+/// ("the pack would not be loaded from …"), since the pack it is asked of
+/// has loaded.
 ///
-/// Deliberately unconditional — it answers the hypothetical, so `tier` only
-/// supplies the class the message names. That is what the caller wants:
-/// reading the **record** rather than the evaluator's own staging lets the
-/// verdict be asked of a snapshot that has already loaded, which is how an
-/// authoring tool (`spectcl_check`, the Spec Studio's
+/// It answers the hypothetical, so `tier` supplies the class the message
+/// names, and the one thing it does not assume is a trust state the tier
+/// cannot have: the bundled and user tiers are trusted whatever the editor
+/// says ([`Tier::trust_under`]), the load never refuses them, and so neither
+/// does this — `None` there, by the same [`tcl_registry::model::untrusted`]
+/// predicate the load's own gate in [`replay`] asks. That is what the caller
+/// wants: reading the **record** rather than the evaluator's own staging lets
+/// the verdict be asked of a snapshot that has already loaded, which is how
+/// an authoring tool (`spectcl_check`, the Spec Studio's
 /// `untrusted_tier_refusal`) tells its user "this loads for you, and would
 /// be refused from an untrusted workspace" without evaluating the pack a
-/// second time. The load's own gate is in [`replay`], under
-/// [`tcl_registry::model::untrusted`].
+/// second time.
 #[must_use]
 pub fn provenance_violation(pack: &Pack, tier: Tier) -> Option<(u32, String)> {
-    provenance_violation_in(
-        &pack.registrations,
-        super::PackEnvironmentTier::of(tier, WorkspaceTrust::Untrusted),
-    )
+    let hypothetical = super::PackEnvironmentTier::of(tier, WorkspaceTrust::Untrusted);
+    if !tcl_registry::model::untrusted(hypothetical.provenance()) {
+        return None;
+    }
+    provenance_violation_in(&pack.registrations, hypothetical, Verdict::Previewed)
+}
+
+/// Whether an E-R2 message reports the load's own refusal or an authoring
+/// tool's preview of one — the same finding, told in the mood that is true
+/// where it is read.
+#[derive(Debug, Clone, Copy)]
+enum Verdict {
+    /// The load refused the pack, so it is not loaded.
+    Refused,
+    /// The pack loaded; an untrusted install of it would not.
+    Previewed,
+}
+
+impl Verdict {
+    /// One E-R2 message: what the row does, where the pack loads from (the
+    /// load's own tier, or the tier the preview imagines), and the rule an
+    /// untrusted pack may not break.
+    fn message(self, fact: &str, connective: &str, class: &str, rule: &str) -> String {
+        match self {
+            Self::Refused => format!(
+                "{fact}{connective} this pack loads from the {class} tier; an untrusted pack \
+                 may not {rule}, so the pack is not loaded (design E-R2)"
+            ),
+            Self::Previewed => format!(
+                "{fact}; an untrusted pack may not {rule}, so the pack would not be loaded \
+                 from the {class} tier (design E-R2)"
+            ),
+        }
+    }
 }
 
 fn provenance_violation_in(
     registrations: &[Registration],
     tier: super::PackEnvironmentTier,
+    verdict: Verdict,
 ) -> Option<(u32, String)> {
     let class = tier.label();
     for reg in registrations {
@@ -1827,23 +1863,25 @@ fn provenance_violation_in(
             "command" if reg.has_flag("-override") && compiled_command_exists(reg.arg(1)) => {
                 return Some((
                     reg.line(),
-                    format!(
-                        "command `{}` declares `-override` for a compiled command \
-                         name, but this pack loads from the {class} tier; an \
-                         untrusted pack may not shadow compiled family names, so \
-                         the pack is not loaded (design E-R2)",
-                        reg.arg(1)
+                    verdict.message(
+                        &format!(
+                            "command `{}` declares `-override` for a compiled command name",
+                            reg.arg(1)
+                        ),
+                        ", but",
+                        class,
+                        "shadow compiled family names",
                     ),
                 ));
             }
             "dialect" => {
                 return Some((
                     reg.line(),
-                    format!(
-                        "`dialect {}` declares compiled dialect axes, but this pack \
-                         loads from the {class} tier; an untrusted pack may not alter \
-                         dialect axes, so the pack is not loaded (design E-R2)",
-                        reg.arg(1)
+                    verdict.message(
+                        &format!("`dialect {}` declares compiled dialect axes", reg.arg(1)),
+                        ", but",
+                        class,
+                        "alter dialect axes",
                     ),
                 ));
             }
@@ -1859,12 +1897,15 @@ fn provenance_violation_in(
                     };
                     return Some((
                         reg.line(),
-                        format!(
-                            "`environment {}` {verb} `{reserved}`, a compiled \
-                             environment name, and this pack loads from the {class} \
-                             tier; an untrusted pack may not touch reserved names, so \
-                             the pack is not loaded (design E-R2)",
-                            reg.arg(1)
+                        verdict.message(
+                            &format!(
+                                "`environment {}` {verb} `{reserved}`, a compiled \
+                                 environment name",
+                                reg.arg(1)
+                            ),
+                            ", and",
+                            class,
+                            "touch reserved names",
                         ),
                     ));
                 }
@@ -1929,7 +1970,8 @@ fn replay(state: State, options: &EvalOptions) -> Pack {
     // keeps its own copy of the same match (#2139).
     let tier = super::PackEnvironmentTier::of(options.tier, options.trust);
     if tcl_registry::model::untrusted(tier.provenance())
-        && let Some((line, message)) = provenance_violation_in(&registrations, tier)
+        && let Some((line, message)) =
+            provenance_violation_in(&registrations, tier, Verdict::Refused)
     {
         let error = LoadError::Provenance(message.clone());
         pack.notices.push(Notice {

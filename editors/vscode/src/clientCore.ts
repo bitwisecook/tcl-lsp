@@ -70,12 +70,21 @@ export function workspaceTrustState(): "trusted" | "untrusted" {
  * `initializationOptions` of any later restart read the state afresh. VS Code
  * never withdraws trust within a session — that reloads the window, and the
  * server starts again with the new state.
+ *
+ * A client that is not running (the server exited, or the extension is
+ * shutting down) rejects the notification. That rejection is handled here
+ * rather than left unhandled: the next start reads the state afresh, so
+ * nothing is lost by dropping it.
  */
 export function registerWorkspaceTrustGrant(client: BaseLanguageClient): Disposable {
   return workspace.onDidGrantWorkspaceTrust(() => {
-    void client.sendNotification("workspace/didChangeConfiguration", {
-      settings: { workspaceTrust: workspaceTrustState() },
-    });
+    client
+      .sendNotification("workspace/didChangeConfiguration", {
+        settings: { workspaceTrust: workspaceTrustState() },
+      })
+      .catch(() => {
+        // Not running: the next start's `initializationOptions` carry the grant.
+      });
   });
 }
 

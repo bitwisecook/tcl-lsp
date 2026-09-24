@@ -150,8 +150,12 @@ fn ctx_key_in_shape(key: &str) -> bool {
 /// `untrusted`; default `trusted`) instead choose which install this report
 /// *previews*, over that one evaluated snapshot rather than a second,
 /// possibly-discarding evaluation: `untrusted_tier_refusal` is the E-R2
-/// refusal `tier` would draw, and `dormant_hooks` is every hook body that
-/// stays dormant under the `(tier, trust)` pair's provenance (redesign O4).
+/// refusal `tier` would draw from an untrusted install (never for the
+/// bundled or user tier, which no trust state makes untrusted), and
+/// `dormant_hooks` is every hook body that stays dormant under the
+/// `(tier, trust)` pair's provenance (redesign O4) — empty when that
+/// provenance is itself untrusted and refuses the pack, since a pack that
+/// does not load holds nothing dormant.
 pub fn spectcl_check(args: &Value) -> Value {
     let source = args.get("source").and_then(Value::as_str).unwrap_or("");
     let dialect = crate::tools::declared_dialect(args);
@@ -199,13 +203,20 @@ pub fn spectcl_check(args: &Value) -> Value {
     }
     // The `(tier, trust)` pair's provenance — what `dormant_hooks` gates on
     // (D3.12: only an untrusted workspace holds bodies dormant) and what the
-    // report names so an author sees which install this preview is of.
+    // report names so an author sees which install this preview is of. When
+    // that provenance is itself untrusted, the refusal above is this
+    // install's own, the pack does not load there, and no body of it is
+    // dormant — the report says one thing about one install.
     let provenance = tcl_spectcl::PackEnvironmentTier::of(tier, trust).provenance();
-    let dormant_hooks: Vec<Value> =
+    let refused_here = tcl_registry::model::untrusted(provenance) && tier_refusal.is_some();
+    let dormant_hooks: Vec<Value> = if refused_here {
+        Vec::new()
+    } else {
         tcl_spectcl::hooks::dormant_hooks(&pack.name, &pack.commands, provenance)
             .iter()
             .map(dormant_hook_json)
-            .collect();
+            .collect()
+    };
     let collisions: Vec<Value> = pack
         .commands
         .iter()
@@ -263,18 +274,34 @@ pub fn spectcl_check(args: &Value) -> Value {
     })
 }
 
+/// The `tier` argument's spelling of [`Tier::StudioOverride`] — the one
+/// tier whose own label ("Spec Studio override") is prose rather than a
+/// token an argument can carry.
+const STUDIO_OVERRIDE_ARGUMENT: &str = "studio-override";
+
+/// The four `tier` argument values the schema advertises: each discovery
+/// tier's own [`Tier::label`], and [`STUDIO_OVERRIDE_ARGUMENT`].
+pub(crate) const TIER_ARGUMENTS: [&str; 4] = [
+    Tier::Bundled.label(),
+    Tier::User.label(),
+    Tier::Workspace.label(),
+    STUDIO_OVERRIDE_ARGUMENT,
+];
+
 /// The tier `tier`/`trust` name, from the MCP arguments: the tier a
 /// workspace `.tclspec` file actually installs at by default, the other
-/// three discovery tiers on request.
+/// three discovery tiers on request, each by its own label.
 fn declared_tier(args: &Value) -> Tier {
-    match args.get("tier").and_then(Value::as_str) {
-        Some("bundled") => Tier::Bundled,
-        // registry-axis-ok: irreducible — Tier's own MCP argument spelling,
-        // not command-registry vocabulary; until never
-        Some("user") => Tier::User,
-        Some("studio-override") => Tier::StudioOverride,
-        _ => Tier::Workspace,
+    let Some(named) = args.get("tier").and_then(Value::as_str) else {
+        return Tier::Workspace;
+    };
+    if named == STUDIO_OVERRIDE_ARGUMENT {
+        return Tier::StudioOverride;
     }
+    [Tier::Bundled, Tier::User, Tier::Workspace]
+        .into_iter()
+        .find(|tier| tier.label() == named)
+        .unwrap_or(Tier::Workspace)
 }
 
 /// The editor's Workspace Trust state to preview `dormant_hooks` under —
@@ -1634,6 +1661,42 @@ speclib mylib 1.0 {
         assert!(classes.contains(&"provenance"), "{result}");
     }
 
+    /// The bundled and user tiers are trusted whatever the editor says, and
+    /// the load never refuses them, so a preview at either draws no refusal
+    /// — even for an `-override` of a compiled command the workspace tier
+    /// would refuse — while the workspace default still does.
+    #[test]
+    fn a_bundled_or_user_tier_draws_no_refusal() {
+        let source =
+            "speclib sneaky 2.0 {\n    command lsort -override {\n        arity 1..\n    }\n}\n";
+        for (tier, provenance) in [("bundled", "bundled"), ("user", "user")] {
+            let result = dispatch(
+                "spectcl_check",
+                &json!({ "source": source, "dialect": "tcl9.0", "tier": tier }),
+            )
+            .expect("spectcl_check tool");
+            assert_eq!(
+                result["untrusted_tier_refusal"],
+                Value::Null,
+                "{tier}: {result}"
+            );
+            assert_eq!(result["provenance"], provenance, "{tier}: {result}");
+            let classes: Vec<&str> = result["notices"]
+                .as_array()
+                .expect("notices")
+                .iter()
+                .filter_map(|n| n["class"].as_str())
+                .collect();
+            assert!(!classes.contains(&"provenance"), "{tier}: {result}");
+            assert_eq!(result["summary"]["commands"], 1, "{tier}: {result}");
+        }
+        let workspace = check(source, "tcl9.0");
+        assert!(
+            workspace["untrusted_tier_refusal"].is_string(),
+            "the workspace default still previews the refusal: {workspace}"
+        );
+    }
+
     /// A pack that touches nothing reserved carries no refusal.
     #[test]
     fn an_ordinary_pack_carries_no_tier_refusal() {
@@ -1675,46 +1738,75 @@ speclib mylib 1.0 {
         assert_eq!(default["summary"]["dormant_hooks"], 0, "{default}");
     }
 
-    /// A pack with a `const_fold` hook and an `-override` of a compiled
-    /// command, checked as `trust: untrusted` (tier still the `workspace`
-    /// default): the hook is reported dormant and the `-override` is still
-    /// refused — the two previews the `(tier, trust)` pair drives, together,
-    /// with the pack's commands still fully reported either way (the
-    /// authority ruling: refusing the tier, or holding a body dormant,
-    /// costs no analysis fact).
+    /// A `const_fold` body checked as `trust: untrusted` (tier still the
+    /// `workspace` default): the pack loads there, its body is held dormant,
+    /// and its command is still fully reported — holding a body dormant
+    /// costs no analysis fact.
     #[test]
-    fn trust_untrusted_lists_the_hook_as_dormant_and_still_refuses_an_override() {
-        let source = "speclib trustfold 2.2 {\n    \
-             command trustfold::strlen {\n        \
-                 arity 1\n        \
-                 arg 0 -role Value\n        \
-                 const_fold -inputs {words} {words ctx} {\n            \
-                     fold [string length [lindex $words 0]]\n        \
-                 }\n    \
-             }\n    \
-             command lsort -override {\n        \
-                 arity 1..\n    \
-             }\n}\n";
+    fn trust_untrusted_lists_the_hook_as_dormant() {
+        let result = dispatch(
+            "spectcl_check",
+            &json!({ "source": STRLEN_FOLD, "dialect": "tcl9.0", "trust": "untrusted" }),
+        )
+        .expect("spectcl_check tool");
+        assert_eq!(result["provenance"], "untrusted workspace", "{result}");
+        assert_eq!(result["untrusted_tier_refusal"], Value::Null, "{result}");
+        let dormant = result["dormant_hooks"].as_array().expect("dormant_hooks");
+        assert_eq!(dormant.len(), 1, "{result}");
+        assert_eq!(dormant[0]["command"], "trustfold::strlen", "{result}");
+        assert_eq!(dormant[0]["field"], "const_fold", "{result}");
+        assert_eq!(result["summary"]["dormant_hooks"], 1, "{result}");
+        assert_eq!(result["summary"]["commands"], 1, "{result}");
+        assert_eq!(result["load_error"], Value::Null, "{result}");
+    }
+
+    /// The same body beside an `-override` of a compiled command, checked as
+    /// `trust: untrusted`: that install refuses the whole pack, so the
+    /// report names the refusal and no dormant body — a pack that does not
+    /// load holds nothing dormant. The author's own check still reports both
+    /// commands (the authority ruling: the preview costs no analysis fact).
+    #[test]
+    fn a_pack_the_untrusted_install_refuses_holds_no_dormant_hook() {
+        let source = STRLEN_FOLD.replace(
+            "\n}\n",
+            "\n    command lsort -override {\n        arity 1..\n    }\n}\n",
+        );
         let result = dispatch(
             "spectcl_check",
             &json!({ "source": source, "dialect": "tcl9.0", "trust": "untrusted" }),
         )
         .expect("spectcl_check tool");
         assert_eq!(result["provenance"], "untrusted workspace", "{result}");
-        let dormant = result["dormant_hooks"].as_array().expect("dormant_hooks");
-        assert_eq!(dormant.len(), 1, "{result}");
-        assert_eq!(dormant[0]["command"], "trustfold::strlen", "{result}");
-        assert_eq!(dormant[0]["field"], "const_fold", "{result}");
-        assert_eq!(result["summary"]["dormant_hooks"], 1, "{result}");
         let refusal = result["untrusted_tier_refusal"]
             .as_str()
             .unwrap_or_default();
         assert!(refusal.contains("design E-R2"), "{result}");
-        assert!(refusal.contains("workspace"), "{result}");
-        // Neither preview costs an analysis fact: both commands still load.
+        assert!(
+            refusal.contains("would not be loaded from the untrusted workspace tier"),
+            "{result}"
+        );
+        assert_eq!(result["dormant_hooks"], json!([]), "{result}");
+        assert_eq!(result["summary"]["dormant_hooks"], 0, "{result}");
         assert_eq!(result["summary"]["commands"], 2, "{result}");
         assert_eq!(result["load_error"], Value::Null, "{result}");
+
+        // Negative control: the trusted install loads the pack, so the
+        // refusal is only the preview's, and still no body is dormant there
+        // because a trusted workspace runs it.
+        let trusted = check(&source, "tcl9.0");
+        assert!(trusted["untrusted_tier_refusal"].is_string(), "{trusted}");
+        assert_eq!(trusted["dormant_hooks"], json!([]), "{trusted}");
     }
+
+    /// One `const_fold` body — the hook the dormancy previews are about.
+    const STRLEN_FOLD: &str = "speclib trustfold 2.2 {\n    \
+         command trustfold::strlen {\n        \
+             arity 1\n        \
+             arg 0 -role Value\n        \
+             const_fold -inputs {words} {words ctx} {\n            \
+                 fold [string length [lindex $words 0]]\n        \
+             }\n    \
+         }\n}\n";
 
     // ── spectcl_expand ────────────────────────────────────────────────
 

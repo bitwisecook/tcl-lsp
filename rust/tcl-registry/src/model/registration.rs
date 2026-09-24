@@ -156,7 +156,9 @@ pub fn provenance_label(provenance: Provenance) -> &'static str {
         Provenance::User => "user",
         Provenance::WorkspaceTrusted => "trusted workspace",
         Provenance::WorkspaceUntrusted => "untrusted workspace",
-        Provenance::StudioOverride => "studio override",
+        // The discovery tier's own label (`tcl_spectcl::Tier::label`), so a
+        // report naming both the provenance and the tier spells the class once.
+        Provenance::StudioOverride => "Spec Studio override",
         Provenance::Document => "document",
     }
 }

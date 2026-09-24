@@ -177,9 +177,12 @@ A stub can declare a command tcl-lsp ships, and then the stub wins for that
 file: its argument roles and flags are the command's, and a role the built-in
 command has that the stub does not declare is gone. `stub after {ms script}`
 makes `after`'s script a plain value, so the procs it calls are no longer
-edges of the caller. The built-in command's security facts stay: a stub for
-`exec` cannot make it safe. An inline stub for a built-in draws `W116`,
-because it is usually a mistake.
+edges of the caller. A stub has no subcommands, so it replaces what
+tcl-lsp knows about each subcommand as well: after `stub dict {args}`,
+tcl-lsp no longer knows that `dict set d k v` reads `d` before it writes
+it. The built-in command's security facts stay: a stub for `exec` cannot
+make it safe. An inline stub for a built-in draws `W116`, because it is
+usually a mistake.
 
 ### What a stub does not do
 

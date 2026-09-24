@@ -501,11 +501,11 @@ impl PackStore {
     /// What an untrusted tier would refuse this document for, as
     /// `(line, why)` — E-R2 asked of the snapshot rather than of the load.
     ///
-    /// A **hypothetical**, deliberately: `Tier::Workspace` is
-    /// `Provenance::WorkspaceTrusted` today (§6.4 keys the untrusted class on
-    /// the editor's Workspace Trust state, which nothing on the discovery
-    /// path is told — redesign §11.1 O9), so a workspace pack that overrides
-    /// a shipped command still loads. This answers the question the author
+    /// A **hypothetical**, deliberately: a workspace pack the editor trusts
+    /// is `Provenance::WorkspaceTrusted` (§6.4 keys the untrusted class on
+    /// the editor's Workspace Trust state, which reaches discovery on
+    /// `DiscoveryOptions::workspace_trust`), so one that overrides a shipped
+    /// command loads for its author. This answers the question the author
     /// wants answered anyway: *would* an untrusted workspace refuse this?
     ///
     /// `None` for every pack that touches nothing reserved, which is nearly

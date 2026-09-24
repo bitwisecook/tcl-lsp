@@ -14,7 +14,7 @@ Every site outside `tcl-registry` that compares a word the registry declares —
 | definition_body | 0 |
 | options | 0 |
 | special_vars | 0 |
-| irreducible | 38 |
+| irreducible | 36 |
 
 | Axis | Until | Site | Waiver | Reason |
 |---|---|---|---|---|
@@ -58,8 +58,6 @@ Every site outside `tcl-registry` that compares a word the registry declares —
 | irreducible | never | `rust/tcl-mcp/src/datagroup.rs:273` | site | same expr-operator text |
 | irreducible | never | `rust/tcl-mcp/src/datagroup.rs:350` | site | `set` and `return` are recognised as Tcl's own primitive syntax for this one-command-body shape, not as a pack-authorable command |
 | irreducible | never | `rust/tcl-mcp/src/datagroup.rs:355` | site | same primitive-syntax reason |
-| irreducible | never | `rust/tcl-mcp/src/spectcl.rs:274` | site | Tier's own MCP argument spelling, not command-registry vocabulary |
-| irreducible | never | `rust/tcl-mcp/src/tools.rs:2352` | site | the four Tier discovery-tier spellings [`TIER`] advertises, in canonical order; not command-registry vocabulary |
 
 ## The ratchet
 
