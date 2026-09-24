@@ -2780,6 +2780,34 @@ fn a_quoted_expression_operand_is_not_inert() {
             optimised(src, TCL)
         );
     }
+    // Nor may a rewrite read a substituting operand's spelling as its value:
+    // `"$x"` may be `1.0` or `NaN`. tclsh 8.6.18 and 9.0.4 print `1`, `1`
+    // and `0` for these at `p 1.0`, `r NaN` and `s NaN`; O120 and the
+    // inversion rewrote them to `eq`, `>=` and `eq` (#2227, found in review).
+    for (why, src, kept) in [
+        (
+            "O120 on a numeric compare",
+            "proc p {x} {\n    return [expr {\"$x\" == 1}]\n}\n",
+            "==",
+        ),
+        (
+            "the inversion of an ordered compare",
+            "proc r {x} {\n    return [expr {!(\"$x\" < 1)}]\n}\n",
+            "<",
+        ),
+        (
+            "O120 on a self-compare",
+            "proc s {x} {\n    return [expr {\"$x\" == \"$x\"}]\n}\n",
+            "==",
+        ),
+    ] {
+        assert!(
+            optimised(src, TCL).contains(kept),
+            "{why}: {}",
+            optimised(src, TCL)
+        );
+    }
+
     // Nor is an overwritten store whose operand runs a command a dead store
     // to report: W220 offered to delete the `incr`.
     let store = "proc p {} {\n    set x 0\n    set y [expr {\"[incr x]\"}]\n    set y 2\n    return \"$x$y\"\n}\n";
