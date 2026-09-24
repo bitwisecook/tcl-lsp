@@ -580,8 +580,11 @@ message. See [W139](../../kcs/codes/kcs-diagnostic-w139-retired-at-resolved-vers
   §6); `tcl spec export` renders a pack as canonical SpecTcl — its
   expansion, if it is a program. The MCP server carries `spectcl_check`
   (evaluate a pack and report notices, `load_error`, target-dependence,
-  and what the workspace tier would refuse), `spectcl_expand` (`spec
-  export` over MCP), and `spec_import`. There is no CLI `spec check`
+  and — for a caller-chosen `tier`/`trust` pair, defaulting to a trusted
+  workspace — the provenance an `-override`/`dialect`/reserved-name
+  declaration would be refused under and which hook bodies stay dormant),
+  `spectcl_expand` (`spec export` over MCP), and `spec_import`. There is no
+  CLI `spec check`
   verb. The `spec-author` skill emits the DSL for the private-library
   path.
 

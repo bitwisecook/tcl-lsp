@@ -1640,6 +1640,16 @@ type Param = (&'static str, &'static str, &'static str);
 /// catalogue per tool.
 const DIALECT_PARAM: &str = "dialect";
 
+/// [`spectcl_check`](crate::spectcl::spectcl_check)'s discovery-tier
+/// parameter. [`input_schema`] gives it a closed `enum`, the four
+/// [`tcl_spectcl::Tier`] spellings.
+const TIER_PARAM: &str = "tier";
+
+/// [`spectcl_check`](crate::spectcl::spectcl_check)'s Workspace Trust
+/// parameter. [`input_schema`] gives it a closed `enum`, the two
+/// [`tcl_dialect::model::WorkspaceTrust`] spellings.
+const TRUST_PARAM: &str = "trust";
+
 /// Every canonical dialect name, in catalogue order.
 fn dialect_names() -> Vec<&'static str> {
     DialectProfile::all().iter().map(|p| p.name).collect()
@@ -1693,6 +1703,21 @@ const DIALECT: Param = (
     DIALECT_PARAM,
     "string",
     "Language dialect; auto-detected if empty",
+);
+const TIER: Param = (
+    TIER_PARAM,
+    "string",
+    "Discovery tier to preview this pack loading at — bundled, user, workspace, or \
+     studio-override; defaults to workspace, the tier a .tclspec file actually installs \
+     at. Governs untrusted_tier_refusal and, with trust, dormant_hooks; never which \
+     commands, notices, or hooks are reported — the pack is always evaluated as trusted",
+);
+const TRUST: Param = (
+    TRUST_PARAM,
+    "string",
+    "Workspace Trust state to preview this pack loading under — trusted or untrusted; \
+     defaults to trusted. With tier, decides dormant_hooks (a workspace hook body stays \
+     dormant only when untrusted)",
 );
 const LINE: Param = ("line", "integer", "0-based line of the cursor");
 const CHAR: Param = ("character", "integer", "0-based character of the cursor");
@@ -2262,7 +2287,7 @@ const TOOLS: &[ToolDef] = &[
     },
     ToolDef {
         name: "spectcl_check",
-        description: "Validate a SpecTcl (.tclspec) pack by evaluating it in the deterministic sandbox (no clock/IO, budgets, transactional registration — safe on generated packs). Returns per-command draft fields, loader notices (dropped/unknown words), hooks with family and cacheability, hooks reading past their `-inputs`, and collisions with the shipped registry; plus `load_error` (determinism denial, budget, or Tcl error — nothing loads), `target_dependent` (`available?` was queried), and `untrusted_tier_refusal`. Use spectcl_expand to see what a templated pack registered.",
+        description: "Validate a SpecTcl (.tclspec) pack by evaluating it in the deterministic sandbox (no clock/IO, budgets, transactional registration — safe on generated packs). Returns per-command draft fields, loader notices (dropped/unknown words), hooks with family and cacheability, hooks reading past their `-inputs`, and collisions with the shipped registry; plus `load_error` (determinism denial, budget, or Tcl error — nothing loads), `target_dependent` (`available?` was queried), `provenance` (what `tier`/`trust` resolve to), `untrusted_tier_refusal`, and `dormant_hooks` (hook bodies that stay dormant under that provenance — declarative facts install regardless). Use spectcl_expand to see what a templated pack registered.",
         params: &[
             (
                 "source",
@@ -2274,6 +2299,8 @@ const TOOLS: &[ToolDef] = &[
                 "string",
                 "Dialect whose shipped registry to check names against; defaults to the session dialect",
             ),
+            TIER,
+            TRUST,
         ],
         required: &["source"],
         handler: crate::spectcl::spectcl_check,
@@ -2319,6 +2346,22 @@ const TOOLS: &[ToolDef] = &[
     },
 ];
 
+// registry-axis-ok: irreducible — the four Tier discovery-tier spellings
+// [`TIER`] advertises, in canonical order; not command-registry vocabulary;
+// until never
+const TIER_VALUES: [&str; 4] = ["bundled", "user", "workspace", "studio-override"];
+
+/// The two [`tcl_dialect::model::WorkspaceTrust`] spellings [`TRUST`]
+/// advertises.
+const TRUST_VALUES: [&str; 2] = ["trusted", "untrusted"];
+
+/// The schema for a property whose value is one of a fixed, small word list —
+/// a JSON-Schema `enum`, the same shape [`dialect_schema`] gives the dialect
+/// property, without that property's dynamic catalogue lookup.
+fn closed_string_schema(desc: &str, values: &[&str]) -> Value {
+    json!({ "type": "string", "description": desc, "enum": values })
+}
+
 /// The JSON-Schema input-schema object (`{type, properties, required}`) for a
 /// tool's parameters.
 fn input_schema(t: &ToolDef) -> Value {
@@ -2326,6 +2369,10 @@ fn input_schema(t: &ToolDef) -> Value {
     for (name, ty, desc) in t.params {
         let schema = if *name == DIALECT_PARAM {
             dialect_schema(desc)
+        } else if *name == TIER_PARAM {
+            closed_string_schema(desc, &TIER_VALUES)
+        } else if *name == TRUST_PARAM {
+            closed_string_schema(desc, &TRUST_VALUES)
         } else {
             json!({ "type": ty, "description": desc })
         };
