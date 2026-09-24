@@ -18,10 +18,10 @@ Every site outside `tcl-registry` that compares a word the registry declares —
 
 | Axis | Until | Site | Waiver | Reason |
 |---|---|---|---|---|
-| command | slice 8 | `rust/tcl-compiler/src/analyser/commands.rs:4574` | site | `set VAR [CLASS new]` instance tracking reads the assignment by name until the value word's evaluation answers it (VT8.9 retires set-by-name) |
-| command | slice 8 | `rust/tcl-compiler/src/analyser/commands.rs:4601` | site | `set VAR [CLASS new]` instance tracking reads the assignment by name until the value word's evaluation answers it (VT8.9 retires set-by-name) |
-| command | slice 8 | `rust/tcl-compiler/src/analyser/commands.rs:4699` | site | `set VAR [CLASS new]` instance tracking reads the assignment by name until the value word's evaluation answers it (VT8.9 retires set-by-name) |
-| command | slice 8 | `rust/tcl-compiler/src/analyser/commands.rs:5114` | site | `set VAR [CLASS new]` instance tracking reads the assignment by name until the value word's evaluation answers it (VT8.9 retires set-by-name) |
+| command | slice 8 | `rust/tcl-compiler/src/analyser/commands.rs:4587` | site | `set VAR [CLASS new]` instance tracking reads the assignment by name until the value word's evaluation answers it (VT8.9 retires set-by-name) |
+| command | slice 8 | `rust/tcl-compiler/src/analyser/commands.rs:4614` | site | `set VAR [CLASS new]` instance tracking reads the assignment by name until the value word's evaluation answers it (VT8.9 retires set-by-name) |
+| command | slice 8 | `rust/tcl-compiler/src/analyser/commands.rs:4712` | site | `set VAR [CLASS new]` instance tracking reads the assignment by name until the value word's evaluation answers it (VT8.9 retires set-by-name) |
+| command | slice 8 | `rust/tcl-compiler/src/analyser/commands.rs:5127` | site | `set VAR [CLASS new]` instance tracking reads the assignment by name until the value word's evaluation answers it (VT8.9 retires set-by-name) |
 | irreducible | never | `rust/tcl-compiler/src/analyser/handlers.rs:1862` | site | the variadic `args` formal is Tcl's proc grammar (`VAR_IS_ARGS` on the last formal, `tclProc.c`), no registry fact |
 
 ## The ratchet
