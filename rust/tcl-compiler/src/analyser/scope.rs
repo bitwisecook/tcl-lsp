@@ -810,9 +810,8 @@ impl Analyser {
     /// [`Self::record_var_read`] for each.  This is how the
     /// analyser tracks `$x` substitutions in arg positions
     /// (`puts $x`, `string length $name`, etc.) — without it,
-    /// `VarDef.references` would only carry the explicit
-    /// single-arg `set x` read sites that `handle_set_command`
-    /// records.
+    /// `VarDef.references` would carry only the registry `VarRead`-role
+    /// name words (`set x`, `info exists x`) collected at its end.
     ///
     /// The token-text helper uses [`tcl_lexer::SourceMap`] to
     /// recover each `$name` token's textual content from the
@@ -3355,7 +3354,7 @@ mod tests {
 
     #[test]
     fn qualified_name_for_var_decl_does_not_double_prefix_a_literal_qualified_name() {
-        // TP: `handle_set_command`/`define_var` never
+        // TP: `bind_value_word_assignment`/`define_var` never
         // re-qualify a name they're given (`normalise_var_name` only strips
         // a `$`/`${…}` wrapper and an array index), so a literal `set
         // ::tolComp val` stores `VarDef::name == "::tolComp"` verbatim, not

@@ -5030,7 +5030,7 @@ mod tests {
     fn references_unify_global_alias_and_canonical_set_when_the_set_is_unqualified() {
         // A second repro: an *unqualified* `set tolComp
         // 0.05` at global scope reproduces the identical split, ruling out
-        // the `::`-prefix as the sole cause — `handle_set_command` never
+        // the `::`-prefix as the sole cause — `set`'s binding never
         // calls `set_var_link_target` regardless of how the name is spelled,
         // so the shape is the same either way.
         let src =

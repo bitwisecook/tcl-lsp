@@ -100,11 +100,12 @@ fn analyser_hook_stamps_match_the_former_guard_list() {
     // shared tail (`apply_invocation_transitions`, `handle_var_binding_command`,
     // the generic `ArgRole::Body` walk) the same way `for` already did
     // before this step. 43 variants, 56 stamp rows before the retirement;
-    // 32 variants, 43 rows after it.
+    // 32 variants, 43 rows after it. Value-transfers slice 8 (VT8.9)
+    // retired `Set` too: the generic role binding defines `set`'s target,
+    // and the constant-string environment, the interpreter value binding
+    // and the `set auto_path` record read the value word through the
+    // registry's `CellWrite` declaration — 31 variants, 42 rows.
     let expected: BTreeSet<(&str, &str, H)> = [
-        // `if cmd_name != "set"` in handle_set_command (+ the
-        // `set auto_path PATH` arm of handle_auto_path_command).
-        ("set", "", H::Set),
         // `if cmd_name != "proc"` in handle_proc_command — the iRules
         // pack re-registers `proc`, so both specs carry the stamp.
         ("proc", "", H::Proc),

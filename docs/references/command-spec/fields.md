@@ -1026,7 +1026,6 @@ Compiler internals: hand-written analyser families for commands whose behaviour 
 
 | Value | Meaning |
 |---|---|
-| `Set` | set |
 | `Proc` | proc |
 | `OptProc` | argparse-style proc |
 | `Apply` | apply |

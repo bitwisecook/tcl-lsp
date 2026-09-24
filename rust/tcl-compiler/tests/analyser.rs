@@ -1570,6 +1570,18 @@ mod regex_patterns {
         assert!(p2.iter().all(|(pat, _)| pat == "foo"));
     }
 
+    /// A rooted `::set` still binds its constant as `set` does (VT8.9): the
+    /// binding reads the `CellWrite` declaration of the command the head
+    /// resolves to, as the retired hook's dispatch resolved it, never the
+    /// spelling (tclsh 8.4.20 to 9.1b0: `::set pat {^\d+$}; regexp $pat 123`
+    /// is 1).
+    #[test]
+    fn a_rooted_set_propagates_its_constant_pattern() {
+        let p = pats("::set pat {^\\d+$}\nregexp $pat $str");
+        assert_eq!(p.len(), 2);
+        assert!(p.iter().all(|(pat, _)| pat == "^\\d+$"));
+    }
+
     #[test]
     fn set_then_switch_regexp_propagates() {
         let p = pats("set pat {^hello}\nswitch -regexp $x $pat {puts matched}");

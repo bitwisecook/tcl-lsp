@@ -898,7 +898,8 @@ impl Analyser {
     /// the arguments. `arg_tokens[0]` is the command-name token.
     /// `single_token_word` is parallel to argv and indicates
     /// whether each word is a single atomic token (used by
-    /// ``handle_set_command`` for the const-string heuristic).
+    /// [`Self::bind_value_word_assignment`] for the const-string
+    /// environment).
     ///
     /// Simple-command arity (E002 / E003) is emitted here via
     /// [`Self::emit_arity_diagnostics`]; the candidates are
@@ -1262,6 +1263,12 @@ impl Analyser {
         // var lists, `dict for`'s pair, `lassign`, `scan`, `regexp`, `incr`,
         // `append`, …), so completion/hover/definition see the bound names.
         self.handle_var_binding_command(cmd_name, args, arg_tokens, scope_path);
+        // A direct one-target write of a value word (`set name value`) binds
+        // its name to that word — the constant-string environment, a
+        // created interpreter's key and the search-path record — from the
+        // registry's `CellWrite` declaration, not the command's spelling
+        // (value-transfers VT8.9 retired the `Set` analyser hook).
+        self.bind_value_word_assignment(cmd_name, args, arg_tokens, arg_single, scope_path);
         // Registry symbol-definer commands (`tcltest::test NAME …`) contribute a
         // lightweight named definition to the outline.  Void handler — it only
         // records the symbol; the body still recurses via the generic
@@ -1578,17 +1585,6 @@ impl Analyser {
             }
             Hook::InterpExpose => {
                 self.handle_interp_expose_command(args);
-                false
-            }
-            Hook::Set => {
-                self.handle_set_command(args, arg_tokens, arg_single, scope_path);
-                self.record_search_path_write(
-                    args,
-                    arg_tokens,
-                    0,
-                    1..args.len().min(2),
-                    super::types::AutoPathForm::Assign,
-                );
                 false
             }
             Hook::DictWith => {
@@ -4565,10 +4561,12 @@ impl Analyser {
         // here (`all_classes` is empty), so capture the raw `(command, args)` for
         // the two instance-creation shapes and let the graft replay them against
         // the shell's full `all_classes` instead (see `pending_instances`).
-        if let Some(pending) = self.pending_instances.as_mut() {
-            // registry-axis-ok: command — `set VAR [CLASS new]` instance tracking reads the assignment by name until the value word's evaluation answers it (VT8.9 retires set-by-name); until slice 8
-            let assigns = cmd_name == "set";
-            let shape_a = assigns && args.len() >= 2 && args[1].trim_start().starts_with('[');
+        if self.pending_instances.is_some() {
+            // Shape A binds a variable to its value word's construction
+            // (`set VAR [CLASS new]`), the registry's handle-binding layout.
+            let shape_a = self
+                .construction_value_binding(cmd_name, args)
+                .is_some_and(|(_, value, _)| value.trim_start().starts_with('['));
             let shape_b = args.first().is_some_and(|method| {
                 self.registry.as_deref().is_some_and(|registry| {
                     registry
@@ -4577,7 +4575,10 @@ impl Analyser {
                 })
             });
             // A registry factory already bound above needs no user-class replay.
-            if (shape_a || shape_b) && !bound_registry_factory {
+            if (shape_a || shape_b)
+                && !bound_registry_factory
+                && let Some(pending) = self.pending_instances.as_mut()
+            {
                 pending.push((
                     cmd_name.to_owned(),
                     args.to_vec(),
@@ -4590,17 +4591,14 @@ impl Analyser {
         if bound_registry_factory {
             return;
         }
-        // Pattern A: `set VAR [CLASS new|create ...]` — a *user* class (the
-        // registry-factory subset is handled by `record_registry_factory_instance`
-        // above).
-        // registry-axis-ok: command — `set VAR [CLASS new]` instance tracking reads the assignment by name until the value word's evaluation answers it (VT8.9 retires set-by-name); until slice 8
-        if cmd_name == "set"
-            && args.len() >= 2
-            && let Some(class_q) = self.class_from_constructor_subst(&args[1])
+        // Pattern A: `set VAR [CLASS new|create ...]` — a variable bound to
+        // its value word's construction of a *user* class, the registry's
+        // handle-binding layout (the registry-factory subset is handled by
+        // `record_registry_factory_instance` above).
+        if let Some((var, value, _)) = self.construction_value_binding(cmd_name, args)
+            && let Some(class_q) = self.class_from_constructor_subst(value)
         {
-            self.result
-                .instance_classes
-                .insert(args[0].clone(), class_q);
+            self.result.instance_classes.insert(var.to_owned(), class_q);
             return;
         }
         // Pattern B: a registry-declared named manufacturer. The descriptor,
@@ -4691,15 +4689,36 @@ impl Analyser {
         // Factory-return: `set g [struct::graph …]` — the registry-factory subset
         // of `class_from_constructor_subst`.  A user-class `[Class new]` returns
         // `None` here and is left to Pattern A / the graft (it needs `all_classes`).
-        // registry-axis-ok: command — `set VAR [CLASS new]` instance tracking reads the assignment by name until the value word's evaluation answers it (VT8.9 retires set-by-name); until slice 8
-        if cmd_name == "set"
-            && args.len() >= 2
-            && let Some(class) = self.registry_factory_class_from_subst(&args[1])
+        if let Some((var, value, _)) = self.construction_value_binding(cmd_name, args)
+            && let Some(class) = self.registry_factory_class_from_subst(value)
         {
-            self.bind_registry_instance_class(args[0].clone(), class);
+            self.bind_registry_instance_class(var.to_owned(), class);
             return true;
         }
         false
+    }
+
+    /// The variable a call binds to the construction its value word runs,
+    /// that value word, and its position: the registry's handle-binding
+    /// layout whose class source is a construction value
+    /// ([`tcl_registry::handle_binding::HandleClassSource::ConstructionValue`],
+    /// `set NAME [TYPE …]`), resolved over the call's words, so a rooted
+    /// `::set` binds as the bare spelling does and no command is named here
+    /// (value-transfers VT8.9). `None` for any other call.
+    fn construction_value_binding<'a>(
+        &self,
+        cmd_name: &str,
+        args: &'a [String],
+    ) -> Option<(&'a str, &'a str, usize)> {
+        let binding = self.registry.as_deref()?.handle_binding(cmd_name)?;
+        let tcl_registry::handle_binding::HandleClassSource::ConstructionValue(at) =
+            binding.class_from
+        else {
+            return None;
+        };
+        let words: Vec<&'a str> = args.iter().map(String::as_str).collect();
+        let bound = binding.resolve(&words)?;
+        Some((bound.name, bound.class_word, usize::from(at)))
     }
 
     /// Record a command name bound by a registry `defines_command_at` spec —
@@ -5106,18 +5125,16 @@ impl Analyser {
         args: &[String],
         arg_tokens: &[Token],
     ) {
-        // registry-axis-ok: command — `set VAR [CLASS new]` instance tracking reads the assignment by name until the value word's evaluation answers it (VT8.9 retires set-by-name); until slice 8
-        if cmd_name != "set"
-            || args.len() < 2
-            || self.class_from_constructor_subst(&args[1]).is_some()
-        {
-            return;
-        }
-        let Some(&arg_tok) = arg_tokens.get(1) else {
+        let Some((var, value, at)) = self.construction_value_binding(cmd_name, args) else {
             return;
         };
-        let Some((class_var, manufacturer_word, offset)) =
-            class_var_head_constructor_subst(&args[1])
+        if self.class_from_constructor_subst(value).is_some() {
+            return;
+        }
+        let Some(&arg_tok) = arg_tokens.get(at) else {
+            return;
+        };
+        let Some((class_var, manufacturer_word, offset)) = class_var_head_constructor_subst(value)
         else {
             return;
         };
@@ -5128,7 +5145,7 @@ impl Analyser {
                 class_var,
                 manufacturer_word,
                 span: Span::new(start, start + len),
-                target_name: args[0].clone(),
+                target_name: var.to_owned(),
             });
     }
 

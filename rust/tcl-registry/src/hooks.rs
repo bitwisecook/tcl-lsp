@@ -290,11 +290,6 @@ pub enum InlineCodegenHookId {
 /// must match its `SubCommand` name exactly (no prefix abbreviation).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum AnalyserHookId {
-    /// `set varName ?value?` — defines (two-arg form) or reads
-    /// (one-arg form) the variable and tracks constant-string values.
-    /// The `set auto_path PATH` special case is dispatched from the
-    /// same arm.
-    Set,
     /// `proc name params body` — records the proc and walks its body
     /// in a fresh proc scope.
     Proc,

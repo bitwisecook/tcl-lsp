@@ -265,9 +265,6 @@ fn dispatch_signature_handler(
         Some(AnalyserHookId::Catch) => {
             handle_catch(texts, argv, ns_prefix, known_commands, ctx);
         }
-        Some(AnalyserHookId::Set) => {
-            handlers::handle_auto_path(texts, argv, &mut ctx.result);
-        }
         // `if` and `try` (CC2.9, CC2.13) carry no analyser hook — their
         // clause-carrying bodies walk through the lowering hook they still
         // have instead.
@@ -286,6 +283,19 @@ fn dispatch_signature_handler(
             dispatch.spec.var_elements_effect,
             Some(tcl_registry::VarElementsEffect::AppendsListElements { .. })
         ) =>
+        {
+            handlers::handle_auto_path(texts, argv, &mut ctx.result);
+        }
+        // `set` (value-transfers VT8.9) carries no analyser hook either: a
+        // command whose declared semantics stores its value word into the
+        // variable it names assigns the search path, the registry fact the
+        // full analyser's `bind_value_word_assignment` reads.
+        _ if tcl_registry::value_transfer::resolve_semantics(
+            dispatch.spec,
+            dispatch.subcommand,
+            None,
+        )
+        .writes_value_word() =>
         {
             handlers::handle_auto_path(texts, argv, &mut ctx.result);
         }

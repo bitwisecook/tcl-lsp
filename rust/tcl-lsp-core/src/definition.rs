@@ -4485,7 +4485,7 @@ mod tests {
         // extra level of $var-to-$var forwarding beyond the one hop
         // `resolve_dynamic_apply_lambda` follows from `apply`'s own
         // argument (`set a $lambda`'s value is itself a `$`-prefixed Var
-        // token, which `handle_set_command` never records as a constant
+        // token, which `set`'s binding never records as a constant
         // string at all, so `apply $a` can't resolve even one hop back to
         // the literal lambda). Two conflicting `cleanup` procs, matching
         // the other scenarios' shape, so a wrong resolution would be

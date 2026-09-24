@@ -346,7 +346,6 @@ pub const RETURN_TYPE_HOOKS: &[Variant] = &[
 
 /// [`AnalyserHookId`] — the per-command analyser handler family.
 pub const ANALYSER_HOOKS: &[Variant] = &[
-    v("Set", "set"),
     v("Proc", "proc"),
     v("OptProc", "argparse-style proc"),
     v("Apply", "apply"),
@@ -1054,8 +1053,7 @@ mod tests {
     /// Every [`AnalyserHookId`] variant is catalogued in `ANALYSER_HOOKS`.
     fn covered_analyser(h: AnalyserHookId) -> bool {
         match h {
-            AnalyserHookId::Set
-            | AnalyserHookId::Proc
+            AnalyserHookId::Proc
             | AnalyserHookId::OptProc
             | AnalyserHookId::Apply
             | AnalyserHookId::Uplevel
@@ -1098,7 +1096,7 @@ mod tests {
         assert!(covered_lowering(LoweringHookId::Expr));
         assert!(covered_codegen(CodegenHookId::Dict));
         assert!(covered_inline(InlineCodegenHookId::Expr));
-        assert!(covered_analyser(AnalyserHookId::Set));
+        assert!(covered_analyser(AnalyserHookId::Proc));
     }
 
     #[test]

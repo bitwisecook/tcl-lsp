@@ -22,7 +22,9 @@
 //!
 //! The variable bindings:
 //!
-//! - [`Analyser::handle_set_command`] — `set var ?value?`
+//! - [`Analyser::bind_value_word_assignment`] — a direct one-target write
+//!   of a value word (`set var value`), read off the registry's `CellWrite`
+//!   declaration
 //! - [`Analyser::apply_state_transitions`] — every scope alias an
 //!   invocation's state transitions state (`global`, `variable`, `upvar`,
 //!   `namespace upvar`, a pack command's alias facts)
@@ -924,101 +926,131 @@ struct ProcBodyWalkArgs<'a> {
 }
 
 impl Analyser {
-    /// Handle the `set` command: `set var ?value?`.
+    /// Bind the variable a direct one-target write names to the value word
+    /// it stores — `set name value` — for any invocation whose declared
+    /// semantics is that write
+    /// ([`tcl_registry::value_transfer::ResolvedSemantics::writes_value_word`]),
+    /// the registry's declaration rather than the command's spelling or an
+    /// analyser hook (value-transfers VT8.9):
     ///
-    /// - **Two-arg form** (`set var value`) — defines the variable
-    ///   in the scope at `scope_path` and tracks the value as a
-    ///   constant string when the value is a single-token literal
-    ///   (no interpolation, no command sub).
-    /// - **One-arg form** (`set var`) — records a var read on the
-    ///   variable.  Tcl `set` with no value returns the current
-    ///   value, so this is a reference, not a definition.
+    /// - the written name is an assignment the unused-variable hint may
+    ///   report, so its definition escalates `warn_if_unused` over the one
+    ///   the generic role binding ([`Self::handle_var_binding_command`])
+    ///   gave the same word;
+    /// - the constant-string environment reads the value word's `CellWrite`
+    ///   evaluation (`value_word_write`) when the word is one literal
+    ///   token, so a regex source or a namespace a later word names
+    ///   resolves through the variable;
+    /// - a value word that is one `[…]` substitution creating a child
+    ///   interpreter binds the name to that interpreter's key, the
+    ///   interpreter domain reached from this binding;
+    /// - a value word that is one `[…]` substitution the registry folds
+    ///   binds the folded constant, and anything else clears both;
+    /// - `set auto_path …` records the search path the value word names.
     ///
-    /// `single_token_word` parallels `args` and `arg_tokens` —
-    /// `true` when the corresponding word is a single atomic
-    /// token, i.e. when the word's text is the same as a single
-    /// token's raw text.
-    ///
-    /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::Set`];
-    /// only the argument-shape checks live here.
-    pub fn handle_set_command(
+    /// The one-word read form (`set name`) binds nothing: the walk's
+    /// `VarRead`-role reference recording
+    /// ([`Self::record_arg_var_reads`]) takes it.
+    pub fn bind_value_word_assignment(
         &mut self,
+        cmd_name: &str,
         args: &[String],
         arg_tokens: &[Token],
         single_token_word: &[bool],
         scope_path: &[usize],
     ) {
-        if args.is_empty() {
-            return;
-        }
-
-        // Arg-count branch: two-arg form defines, one-arg form reads.
-        let Some(name_tok) = arg_tokens.first() else {
+        use tcl_registry::arg_role::ArgRole;
+        let Some(Some((Some(roles), semantics, canonical))) =
+            self.read_spelled_invocation(cmd_name, args, |call| {
+                call.semantics.value.writes_value_word().then(|| {
+                    (
+                        call.arg_roles(),
+                        call.semantics.value,
+                        call.canonical_command.to_owned(),
+                    )
+                })
+            })
+        else {
             return;
         };
-        if args.len() >= 2 {
-            self.define_var(&args[0], *name_tok, scope_path, true, None);
-        } else {
-            // `[set {$n}]` reads the variable literally called `$n` — the
-            // braces suppressed substitution, so the word's content is the
-            // name.
-            self.record_var_read_braced(
-                &args[0],
-                name_tok.span,
-                scope_path,
-                name_tok.kind == TokenType::Str,
-            );
-        }
-
-        // Track constant-string assignments for regex propagation.
-        // Skipped for the 1-arg read form (no value to track).
-        if args.len() < 2 || arg_tokens.len() < 2 {
+        // The write's shape (`CellWriteSemantics`): one `VarWrite` word, and
+        // the value word after it, last.
+        let Some(target) = role_position(&roles, ArgRole::VarWrite) else {
+            return;
+        };
+        let value = target + 1;
+        let (Some(name), Some(&name_tok), Some(value_text), Some(&value_tok)) = (
+            args.get(target),
+            arg_tokens.get(target),
+            args.get(value),
+            arg_tokens.get(value),
+        ) else {
+            return;
+        };
+        if value + 1 != args.len() {
             return;
         }
-        let value_token = arg_tokens[1];
-        let value_is_single_token = single_token_word.get(1).copied().unwrap_or(false);
-        let value_token_kind = value_token.kind;
-        if value_is_single_token && matches!(value_token_kind, TokenType::Esc | TokenType::Str) {
-            self.set_const_string(&args[0], args[1].clone(), value_token.span, scope_path);
-            self.clear_interp_var_binding(&args[0], scope_path);
+        if names_static_variable(name, name_tok) {
+            self.define_var(name, name_tok, scope_path, true, None);
+        }
+        self.record_search_path_write(
+            args,
+            arg_tokens,
+            target,
+            value..value + 1,
+            super::types::AutoPathForm::Assign,
+        );
+        let single = single_token_word.get(value).copied().unwrap_or(false);
+        let written = single
+            .then(|| {
+                self.value_word_write(
+                    semantics,
+                    &canonical,
+                    (args, roles.as_slice()),
+                    (target, value),
+                    value_tok,
+                )
+            })
+            .flatten();
+        if let Some(written) = written {
+            self.set_const_string(name, written, value_tok.span, scope_path);
+            self.clear_interp_var_binding(name, scope_path);
         } else if let Some((path, safe)) = self
-            .substitution_call(&args[1])
+            .substitution_call(value_text)
             .and_then(|call| created_interpreter(&call.state_transitions()))
         {
             // `set VAR [interp create ?-safe? ?--? ?path?]` — bind VAR, in
-            // this scope, to the interpreter-domain
-            // key this call records. The substitution is read as a call and
-            // resolved like any other, so what it creates is its
+            // this scope, to the interpreter-domain key this call records.
+            // The substitution is read as a call and resolved like any
+            // other, so what it creates is its
             // `InterpreterTransition::Create`, never its spelling. Mirrors
             // `record_instance_creation`'s TclOO `set g [Foo new]` value-flow
-            // shape, but scope-chain -aware like `const_strings` rather than
+            // shape, but scope-chain-aware like `const_strings` rather than
             // flat like `instance_classes` — see `interp_var_bindings`'s doc
             // for why.
-            self.clear_const_string(&args[0], scope_path);
+            self.clear_const_string(name, scope_path);
             match path {
                 Some(tcl_registry::TransitionSubject::Unknown { .. }) => {
                     // A dynamic path argument (not just a missing one) —
-                    // mirrors `handle_interp_create_command`'s own
-                    // handling of the identical shape: existence becomes
-                    // unknowable file-wide, nothing recorded.
+                    // mirrors `handle_interp_create_command`'s own handling
+                    // of the identical shape: existence becomes unknowable
+                    // file-wide, nothing recorded.
                     self.dynamic_interp_ops = true;
-                    self.clear_interp_var_binding(&args[0], scope_path);
+                    self.clear_interp_var_binding(name, scope_path);
                 }
                 path => {
-                    // A literal path resolves to its qualified key; a
-                    // missing path (Tcl auto-generates a fresh, always-
-                    // unique name) gets a synthetic per-call-site key —
-                    // mirrors `handle_namespace_eval_command`'s
-                    // `@dynns@<offset>` pattern — so two unrelated `set
-                    // VAR [interp create -safe]` call sites never collide
-                    // just because they wrote the same variable name.
+                    // A literal path resolves to its qualified key; a missing
+                    // path (Tcl auto-generates a fresh, always-unique name)
+                    // gets a synthetic per-call-site key — mirrors
+                    // `handle_namespace_eval_command`'s `@dynns@<offset>`
+                    // pattern — so two unrelated `set VAR [interp create
+                    // -safe]` call sites never collide just because they
+                    // wrote the same variable name.
                     let key = match path {
                         Some(tcl_registry::TransitionSubject::Literal(p)) => {
                             self.qualified_interp_key(&p)
                         }
-                        _ => {
-                            self.mint_synthetic_offset_name("@autoname@", value_token.span.start())
-                        }
+                        _ => self.mint_synthetic_offset_name("@autoname@", value_tok.span.start()),
                     };
                     self.interpreters.insert(
                         key.clone(),
@@ -1027,25 +1059,83 @@ impl Analyser {
                             ..Default::default()
                         },
                     );
-                    self.set_interp_var_binding(&args[0], key, scope_path);
+                    self.set_interp_var_binding(name, key, scope_path);
                 }
             }
-        } else if value_is_single_token
-            && value_token_kind == TokenType::Cmd
-            && let Some(folded) = self.try_fold_const_cmd_subst_rhs(&args[1], scope_path)
+        } else if single
+            && value_tok.kind == TokenType::Cmd
+            && let Some(folded) = self.try_fold_const_cmd_subst_rhs(value_text, scope_path)
         {
             // `set VAR [cmd …]` whose substitution is a compile-time
-            // constant: the registry `const_fold` /
-            // frame-fact engine proves the value, so VAR enters the same
-            // constant-string lattice a literal RHS does — unblocking the
-            // `${ns}::setdef`-style navigation chain
-            // (`resolve_dynamic_command_head`) for the
+            // constant: the registry `const_fold` / frame-fact engine proves
+            // the value, so VAR enters the same constant-string lattice a
+            // literal value does — unblocking the `${ns}::setdef`-style
+            // navigation chain (`resolve_dynamic_command_head`) for the
             // `set ns [namespace qualifiers ::tc::X]` shape.
-            self.set_const_string(&args[0], folded, value_token.span, scope_path);
-            self.clear_interp_var_binding(&args[0], scope_path);
+            self.set_const_string(name, folded, value_tok.span, scope_path);
+            self.clear_interp_var_binding(name, scope_path);
         } else {
-            self.clear_const_string(&args[0], scope_path);
-            self.clear_interp_var_binding(&args[0], scope_path);
+            self.clear_const_string(name, scope_path);
+            self.clear_interp_var_binding(name, scope_path);
+        }
+    }
+
+    /// The value a direct one-target write stores when its value word is
+    /// one literal token: the declared semantics' `CellWrite` evaluation
+    /// over the call's words, the value word cooked as Tcl reads it
+    /// (backslashes substituted in a bare or quoted word, the braces' content
+    /// in a braced one), the resolver's roles on its operands. `None` for a
+    /// word that is no literal, or an evaluation that writes no exact value
+    /// to the target.
+    fn value_word_write(
+        &self,
+        semantics: tcl_registry::value_transfer::ResolvedSemantics,
+        canonical: &str,
+        (args, roles): (&[String], &[(usize, tcl_registry::ArgRole)]),
+        (target, value): (usize, usize),
+        value_tok: Token,
+    ) -> Option<String> {
+        use tcl_registry::value_transfer::{
+            Budget, EvalAnswer, LiteralInputs, OperandId, StoreOutcome,
+        };
+        let config = self.lexer_config();
+        let cooked =
+            crate::value_transfer::literal_token_value(&args[value], value_tok.kind, &config)?;
+        let words: Vec<&str> = args
+            .iter()
+            .enumerate()
+            .map(|(index, word)| {
+                if index == value {
+                    cooked.as_ref()
+                } else {
+                    word.as_str()
+                }
+            })
+            .collect();
+        let profile = self
+            .registry
+            .as_deref()
+            .and_then(tcl_registry::CommandRegistry::profile);
+        let mut inputs = LiteralInputs::new(canonical, None, &words, profile);
+        for &(index, role) in roles {
+            inputs = inputs.with_role(OperandId(index), role);
+        }
+        match semantics
+            .semantics()?
+            .evaluate(&inputs, &mut Budget::evaluation())
+        {
+            EvalAnswer::Evaluated(outcome) => {
+                outcome
+                    .ordered_stores
+                    .into_iter()
+                    .find_map(|store| match store {
+                        StoreOutcome::Write { target: t, value } if t.0 == OperandId(target) => {
+                            String::from_utf8(value.bytes).ok()
+                        }
+                        _ => None,
+                    })
+            }
+            EvalAnswer::Pending | EvalAnswer::Declined(_) => None,
         }
     }
 
@@ -4754,10 +4844,10 @@ impl Analyser {
     ///   `VarWrite` role marks a *removal* target (an SSA def that kills the
     ///   value), not a binding to record.
     ///
-    /// A name a hook handler also binds (`set`) is bound twice for one word:
-    /// [`Self::define_var`]'s re-definition path is idempotent for the same
-    /// token span, and `warn_if_unused = false` never downgrades an earlier
-    /// `true`.
+    /// A name [`Self::bind_value_word_assignment`] also binds (`set`'s) is
+    /// bound twice for one word: [`Self::define_var`]'s re-definition path is
+    /// idempotent for the same token span, and the assignment's
+    /// `warn_if_unused = true` escalates this binding's `false`.
     ///
     /// Void-returning (self-guards on the role set) so it composes with the
     /// other side-effect handlers — `regexp` / `regsub` also feed
@@ -9991,11 +10081,12 @@ impl Analyser {
     /// applies the list grammar at consumption.
     ///
     /// `written` is the position of the written variable and `values` the
-    /// words recorded. The assignment is recorded from the
-    /// [`tcl_registry::hooks::AnalyserHookId::Set`] arm; an append by the
-    /// binder ([`Self::handle_var_binding_command`]) for any command whose
-    /// descriptor appends list elements to the variable it writes
-    /// ([`tcl_registry::VarElementsEffect::AppendsListElements`]).
+    /// words recorded. The assignment is recorded by
+    /// [`Self::bind_value_word_assignment`] for any command whose declared
+    /// semantics stores its value word into the variable it names; an
+    /// append by the binder ([`Self::handle_var_binding_command`]) for any
+    /// command whose descriptor appends list elements to the variable it
+    /// writes ([`tcl_registry::VarElementsEffect::AppendsListElements`]).
     pub fn record_search_path_write(
         &mut self,
         args: &[String],
@@ -10502,28 +10593,45 @@ mod tests {
         assert!(a.dynamic_interp_ops);
     }
 
-    // handle_set_command
+    // `set`'s binding through the generic dispatch tail — the role binding
+    // and `bind_value_word_assignment` — since VT8.9 retired the `Set` hook.
+
+    /// Dispatch one command whose words carry the given tokens and
+    /// single-token flags, through `process_command` exactly as a walked
+    /// command reaches it.
+    fn dispatch_tokens(a: &mut Analyser, words: &[(&str, Token, bool)]) {
+        let owned: Vec<String> = words.iter().map(|(w, _, _)| (*w).to_string()).collect();
+        let toks: Vec<Token> = words.iter().map(|&(_, tok, _)| tok).collect();
+        let single: Vec<bool> = words.iter().map(|&(_, _, single)| single).collect();
+        let expanded = vec![false; owned.len()];
+        a.process_command(&owned, &toks, &single, &expanded, &[]);
+    }
 
     #[test]
     fn handle_set_defines_variable() {
         let mut a = Analyser::new();
-        a.handle_set_command(
-            &["x".to_string(), "1".to_string()],
-            &[esc_tok(span(0, 1)), esc_tok(span(2, 3))],
-            &[true, true],
-            &[],
+        dispatch_tokens(
+            &mut a,
+            &[
+                ("set", esc_tok(span(0, 3)), true),
+                ("x", esc_tok(span(4, 5)), true),
+                ("1", esc_tok(span(6, 7)), true),
+            ],
         );
         assert!(a.result.global_scope.variables.contains_key("x"));
+        assert!(a.result.global_scope.variables["x"].warn_if_unused);
     }
 
     #[test]
     fn handle_set_tracks_single_token_literal_value() {
         let mut a = Analyser::new();
-        a.handle_set_command(
-            &["x".to_string(), "hello".to_string()],
-            &[esc_tok(span(0, 1)), esc_tok(span(2, 7))],
-            &[true, true],
-            &[],
+        dispatch_tokens(
+            &mut a,
+            &[
+                ("set", esc_tok(span(0, 3)), true),
+                ("x", esc_tok(span(4, 5)), true),
+                ("hello", esc_tok(span(6, 11)), true),
+            ],
         );
         assert_eq!(a.lookup_const_string("x", &[]), Some("hello"));
     }
@@ -10531,11 +10639,13 @@ mod tests {
     #[test]
     fn handle_set_tracks_braced_string_value() {
         let mut a = Analyser::new();
-        a.handle_set_command(
-            &["x".to_string(), "hello world".to_string()],
-            &[esc_tok(span(0, 1)), str_tok(span(2, 15))],
-            &[true, true],
-            &[],
+        dispatch_tokens(
+            &mut a,
+            &[
+                ("set", esc_tok(span(0, 3)), true),
+                ("x", esc_tok(span(4, 5)), true),
+                ("hello world", str_tok(span(6, 19)), true),
+            ],
         );
         assert_eq!(a.lookup_const_string("x", &[]), Some("hello world"));
     }
@@ -10545,43 +10655,78 @@ mod tests {
         let mut a = Analyser::new();
         // Pre-seed a constant tracking entry.
         a.set_const_string("x", "old".to_string(), span(0, 0), &[]);
-        // Re-assign with a multi-token (interpolation) value —
-        // single_token_word[1] is false, so const_string is cleared.
-        a.handle_set_command(
-            &["x".to_string(), "$other".to_string()],
-            &[esc_tok(span(0, 1)), esc_tok(span(2, 8))],
-            &[true, false],
-            &[],
+        // Re-assign with a multi-token (interpolation) value — the value
+        // word is not one token, so the const string is cleared.
+        dispatch_tokens(
+            &mut a,
+            &[
+                ("set", esc_tok(span(0, 3)), true),
+                ("x", esc_tok(span(4, 5)), true),
+                ("$other", esc_tok(span(6, 12)), false),
+            ],
         );
         assert_eq!(a.lookup_const_string("x", &[]), None);
     }
 
     #[test]
     fn handle_set_no_value_records_read_not_definition() {
-        // ``set x`` (one-arg form) is a *read*, not a definition —
-        // Tcl returns the current value of ``x``.
+        // ``set x`` (one-arg form) is a *read*, not a definition — Tcl
+        // returns the current value of ``x`` — recorded by the walk's
+        // `VarRead`-role reference pass, with no const-string tracking.
+        let src = "set x 1\nset x\n";
         let mut a = Analyser::new();
-        // Pre-define x so the read records a reference.
-        a.define_var("x", esc_tok(span(0, 1)), &[], false, None);
-        a.handle_set_command(&["x".to_string()], &[esc_tok(span(10, 11))], &[true], &[]);
-        // The read appended a reference; no second definition.
-        assert!(a.result.global_scope.variables.contains_key("x"));
+        let r = a.analyse(src, "tcl8.6");
+        let read = u32::try_from(src.rfind('x').expect("the read")).expect("an offset");
         assert_eq!(
-            a.result.global_scope.variables["x"].references,
-            vec![span(10, 11)],
+            r.global_scope.variables["x"].references,
+            vec![span(read, read + 1)],
         );
-        // No const-string tracking for the 1-arg form.
-        assert_eq!(a.lookup_const_string("x", &[]), None);
+        let mut read_only = Analyser::new();
+        dispatch_tokens(
+            &mut read_only,
+            &[
+                ("set", esc_tok(span(0, 3)), true),
+                ("x", esc_tok(span(4, 5)), true),
+            ],
+        );
+        assert_eq!(read_only.lookup_const_string("x", &[]), None);
+    }
+
+    /// A literal value word is recorded as Tcl reads it (VT8.9): the
+    /// `CellWrite` evaluation cooks a bare or quoted token, so `set p
+    /// "a\\d"` holds `a\d` — tclsh 8.4.20 to 9.1b0 print `a\d` — where the
+    /// hook kept the token's raw text.
+    #[test]
+    fn a_literal_value_word_is_recorded_as_tcl_reads_it() {
+        let mut a = Analyser::new();
+        dispatch_tokens(
+            &mut a,
+            &[
+                ("set", esc_tok(span(0, 3)), true),
+                ("p", esc_tok(span(4, 5)), true),
+                ("a\\\\d", esc_tok(span(6, 12)), true),
+            ],
+        );
+        assert_eq!(a.lookup_const_string("p", &[]), Some("a\\d"));
+    }
+
+    /// A computed target defines no variable (VT8.9): `set $n 1` writes
+    /// the variable `n` names — tclsh 8.4.20 to 9.1b0 leave `n` as it was
+    /// — so the role binding's static-name rule binds nothing, where the
+    /// hook defined `n`.
+    #[test]
+    fn a_computed_set_target_defines_no_variable() {
+        let r = Analyser::new().analyse("set $n 1\n", "tcl8.6");
+        assert!(!r.global_scope.variables.contains_key("n"));
     }
 
     #[test]
     fn handle_set_no_value_undefined_var_is_silent() {
-        // ``set x`` on an undefined variable is still a read; the
-        // record_var_read helper silently no-ops when the name
-        // isn't in scope, so no spurious binding lands.
-        let mut a = Analyser::new();
-        a.handle_set_command(&["x".to_string()], &[esc_tok(span(0, 1))], &[true], &[]);
-        assert!(!a.result.global_scope.variables.contains_key("x"));
+        // ``set x`` on an undefined variable is still a read; the read
+        // recording silently no-ops when the name isn't in scope, so no
+        // spurious binding lands.
+        let r = Analyser::new().analyse("set x\n", "tcl8.6");
+        assert!(!r.global_scope.variables.contains_key("x"));
     }
 
     // Scope aliases through the generic consumer — the dispatch tail's

@@ -128,7 +128,6 @@ pub fn spec() -> CommandSpec {
         native_lowering: Some(NativeLowering::Structured(LoweringHookId::Set)),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
-        analyser_hook: Some(crate::hooks::AnalyserHookId::Set),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::cell_write::CELL_WRITE),
         ..CommandSpec::DEFAULT
     }

@@ -37,7 +37,7 @@ use crate::spec::{CommandSpec, SubCommand};
 use crate::traits::Traits;
 
 use super::cell_update::CellUpdateSemantics;
-use super::route::EvalRoute;
+use super::route::{EvalRoute, NativeEvalId};
 use super::unbind::UnbindSemantics;
 use super::{
     AnalysisInputs, Budget, CommandSemantics, EvalAnswer, FactDomain, PlanAnswer, TransferAnswer,
@@ -244,6 +244,22 @@ impl ResolvedSemantics {
     #[must_use]
     pub fn route(&self) -> Option<EvalRoute> {
         self.semantics().map(CommandSemantics::route)
+    }
+
+    /// Whether the specialisation is the direct route's one-target write of
+    /// a value word ([`super::cell_write::CellWriteSemantics`], `set name
+    /// value`): the command stores its last word, as Tcl substitutes it,
+    /// into the place its `VarWrite` word names, and returns it. What a
+    /// consumer reads to bind the written variable to the value word — the
+    /// analyser's assignment binding and constant-string environment, the
+    /// search-path record — in place of the command's spelling or an
+    /// analyser hook.
+    #[must_use]
+    pub fn writes_value_word(&self) -> bool {
+        self.route()
+            == Some(EvalRoute::Direct {
+                id: NativeEvalId::CellWrite,
+            })
     }
 }
 

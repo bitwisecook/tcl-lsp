@@ -2565,8 +2565,13 @@ optional string.
 `AnalyserHookId` is scope and definition structure — what a `proc`, a
 `namespace eval`, or a `dict for` *declares* — and is the structural plan
 in the table above. Its constant-string store (`Analyser::const_strings`)
-is a consumer of constants, not a producer of transfers. `DictWith` is a
-structural plan around a body plus a projection of a constant dict's keys;
+is a consumer of constants, not a producer of transfers: since slice 8
+(VT8.9) the `Set` hook is retired, and the store reads a direct
+one-target write's `CellWrite` evaluation over its literal words
+(`Analyser::bind_value_word_assignment`, for any invocation whose
+resolved semantics `writes_value_word`), with the written name bound by
+the generic role binding. `DictWith` is a structural plan around a body
+plus a projection of a constant dict's keys;
 keeping the axes apart is what lets the analyser's isolated per-item pass
 stay sound with `ModuleCommandMutations::distrust_all()` while the
 unit-level lattice evaluates.

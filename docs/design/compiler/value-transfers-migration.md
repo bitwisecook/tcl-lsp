@@ -490,8 +490,10 @@ each is a consumer of the interface once it exists:
   harvests `dict with` / `dict update` keys; `analyser/handlers.rs` folds a
   two-operand `dict merge` and evaluates `[interp create …]` behind a
   `set`; `interval_bounds.rs` knows `lset` preserves length.
-- **Object bindings.** `analyser/commands.rs` recognises `set VAR [CLASS
-  new|create …]` and factory returns by the `set` head, four times.
+- **Object bindings.** `analyser/commands.rs` recognised `set VAR [CLASS
+  new|create …]` and factory returns by the `set` head, four times; since
+  slice 8 (VT8.9) the four read `set`'s handle-binding layout
+  (`HandleClassSource::ConstructionValue`) instead of its spelling.
 - **Value-copy tracking.** `analyser/param_traits.rs` tracks `set n $p` as a
   copy and invalidates it on `incr` / `append` / `lappend` — a two-command
   approximation of the transfer, which slice 13's summary `Name` outcomes
@@ -814,7 +816,6 @@ which waives the sites by axis.
 |---|---|---|
 | `rust/tcl-cli/src/commands/minimize.rs` | 1 | the `arg_roles` axis — `var_target_positions`, a reimplementation of the role axis for eight commands |
 | `rust/tcl-compiler/src/analyser/class_lattice.rs` | 3 | the `definition_body` axis — `oo::objdefine`, `oo::copy`, and `info` by name |
-| `rust/tcl-compiler/src/analyser/commands.rs` | 4 | slice 8 — VT8.9 retires the `set VAR [CLASS new]` instance tracking by name, which reads the value word's evaluation instead |
 | `rust/tcl-compiler/src/analyser/diagnostics/helpers.rs` | 4 | slice 13 — the binder checks: `global`, `variable` and `upvar`, with the `unset` the global-write harvest skips beside them |
 | `rust/tcl-compiler/src/analyser/diagnostics/security.rs` | 2 | the `return_type` axis — a `pattern_type` conditional on `-regexp` absorbs the `switch`-specific ReDoS scan |
 | `rust/tcl-compiler/src/analyser/diagnostics/validity.rs` | 2 | the `traits` axis — `unset` beside the `DESTROYS_VARIABLE` query, `matchclass` by its lifecycle field |

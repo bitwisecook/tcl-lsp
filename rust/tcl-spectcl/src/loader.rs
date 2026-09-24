@@ -2618,7 +2618,6 @@ const RETURN_TYPE_HOOKS: &[ReturnTypeHookId] = &[
 ];
 
 const ANALYSER_HOOKS: &[AnalyserHookId] = &[
-    AnalyserHookId::Set,
     AnalyserHookId::Proc,
     AnalyserHookId::OptProc,
     AnalyserHookId::Apply,
