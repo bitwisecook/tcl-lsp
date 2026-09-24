@@ -2906,6 +2906,11 @@ fn visit_string_interpolation(
 /// `None` when any `$` is seen whose name is not a known
 /// constant (a partial substitution would be worse than no
 /// substitution).
+///
+/// Unchanged text is copied as `&str` slices, so a multi-byte character
+/// keeps its bytes (#2251). Inside a command substitution, a braced word is
+/// copied as written: it substitutes nothing, so `"b:[list {$x}]"` keeps its
+/// `$x` (#2250).
 fn substitute_dollar_refs(
     text: &str,
     constants: &std::collections::HashMap<String, String>,
@@ -2914,6 +2919,8 @@ fn substitute_dollar_refs(
     let bytes = text.as_bytes();
     let mut out = String::with_capacity(text.len());
     let mut i = 0;
+    // Start of the text not yet copied to `out`.
+    let mut copied = 0;
     // Command-substitution nesting depth. A `$var` inside a `"…[cmd $var]…"`
     // command substitution is a *command argument*, not literal string text:
     // its value is re-parsed into words, so a multi-word value (e.g. the list
@@ -2921,36 +2928,40 @@ fn substitute_dollar_refs(
     // the depth so those occurrences are held to the single-word bar.
     let mut cmd_depth = 0u32;
     while i < bytes.len() {
-        if bytes[i] == b'\\' {
-            // Copy a two-char backslash-escape verbatim.
-            if i + 1 < bytes.len() {
-                out.push(bytes[i] as char);
-                out.push(bytes[i + 1] as char);
-                i += 2;
-            } else {
-                out.push('\\');
-                i += 1;
+        match bytes[i] {
+            // A backslash escapes the byte after it, which stays as written.
+            b'\\' => {
+                i = (i + 2).min(bytes.len());
+                continue;
             }
-            continue;
-        }
-        if bytes[i] == b'[' {
-            cmd_depth += 1;
-            out.push('[');
-            i += 1;
-            continue;
-        }
-        if bytes[i] == b']' {
-            cmd_depth = cmd_depth.saturating_sub(1);
-            out.push(']');
-            i += 1;
-            continue;
-        }
-        if bytes[i] != b'$' {
-            out.push(bytes[i] as char);
-            i += 1;
-            continue;
+            b'[' => {
+                cmd_depth += 1;
+                i += 1;
+                continue;
+            }
+            b']' => {
+                cmd_depth = cmd_depth.saturating_sub(1);
+                i += 1;
+                continue;
+            }
+            // A braced word of the substituted script: at a word start, it
+            // runs to its matching close brace and substitutes nothing.
+            b'{' if cmd_depth > 0
+                && (i == 0
+                    || matches!(bytes[i - 1], b'[' | b';')
+                    || bytes[i - 1].is_ascii_whitespace()) =>
+            {
+                i = braced_word_end(bytes, i)?;
+                continue;
+            }
+            b'$' => {}
+            _ => {
+                i += 1;
+                continue;
+            }
         }
         // `$` — parse the var name.
+        out.push_str(&text[copied..i]);
         i += 1;
         if i >= bytes.len() {
             return None;
@@ -3007,8 +3018,33 @@ fn substitute_dollar_refs(
         }
         out.push_str(value);
         i = new_i;
+        copied = i;
     }
+    out.push_str(&text[copied..]);
     Some(out)
+}
+
+/// The index just past the brace that closes the braced word opening at
+/// `open`, skipping backslash escapes and nested braces; `None` when it
+/// never closes.
+fn braced_word_end(bytes: &[u8], open: usize) -> Option<usize> {
+    let mut depth = 0u32;
+    let mut j = open;
+    while j < bytes.len() {
+        match bytes[j] {
+            b'\\' => j += 1,
+            b'{' => depth += 1,
+            b'}' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(j + 1);
+                }
+            }
+            _ => {}
+        }
+        j += 1;
+    }
+    None
 }
 
 /// Return the variable name inside a `$var` or `${var}` word, or
@@ -3731,6 +3767,51 @@ mod tests {
             substitute_dollar_refs("$unknown", &c, tcl_dialect::BracedVarStyle::default())
                 .is_none()
         );
+    }
+
+    /// Inside a command substitution a braced word substitutes nothing, so
+    /// its `$x` stays; a `$x` elsewhere, including one after a mid-word
+    /// brace, is inlined. tclsh 8.4.20 through 9.1b0 print `b:{$x}`,
+    /// `b:{a $x b}`, `m:a{5}` and `w:{5} {$x} 5` for these (#2250).
+    #[test]
+    fn substitute_dollar_refs_leaves_a_braced_word_in_a_cmd_sub_as_written() {
+        let mut c = std::collections::HashMap::new();
+        c.insert("x".into(), "5".into());
+        let sub =
+            |text: &str| substitute_dollar_refs(text, &c, tcl_dialect::BracedVarStyle::default());
+        for (text, want) in [
+            ("b:[list {$x}]", "b:[list {$x}]"),
+            ("b:[list {a $x b}]", "b:[list {a $x b}]"),
+            ("b:[list [list {$x}]]", "b:[list [list {$x}]]"),
+            ("s:[set y 1;list {$x}]", "s:[set y 1;list {$x}]"),
+            ("c:[list {a]b} $x]", "c:[list {a]b} 5]"),
+            ("b:[list {a\\}b $x}]", "b:[list {a\\}b $x}]"),
+            ("m:[list a{$x}]", "m:[list a{5}]"),
+            ("w:{$x} [list {$x}] $x", "w:{5} [list {$x}] 5"),
+        ] {
+            assert_eq!(sub(text).as_deref(), Some(want), "{text}");
+        }
+        // A braced word that never closes is not a rewrite this can prove.
+        assert!(sub("b:[list {$x]").is_none());
+    }
+
+    /// Unchanged text keeps its bytes: copying a byte at a time as `char`
+    /// turned `é` into `Ã©` (#2251).
+    #[test]
+    fn substitute_dollar_refs_keeps_non_ascii_text() {
+        let mut c = std::collections::HashMap::new();
+        c.insert("x".into(), "5".into());
+        for (text, want) in [
+            ("café $x", "café 5"),
+            ("é\\t$x€", "é\\t5€"),
+            ("v:[string length é$x]", "v:[string length é5]"),
+        ] {
+            assert_eq!(
+                substitute_dollar_refs(text, &c, tcl_dialect::BracedVarStyle::default()).as_deref(),
+                Some(want),
+                "{text}"
+            );
+        }
     }
 
     #[test]
