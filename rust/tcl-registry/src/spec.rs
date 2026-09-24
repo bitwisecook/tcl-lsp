@@ -2282,6 +2282,66 @@ fn optional_trailing_placeholders(synopsis: &'static str) -> Vec<&'static str> {
     names
 }
 
+/// The write classes one of which every `VarWrite` position should declare,
+/// so a consumer (the O109/O126 raise proof) knows whether the target is set
+/// once the command completes: always written, written on a match, read then
+/// written, destroyed, aliased, or a loop variable an empty loop leaves unset.
+pub const VARIABLE_WRITE_CLASSES: Traits = Traits::UNCONDITIONAL_VARIABLE_WRITE
+    .union(Traits::CONDITIONAL_VARIABLE_WRITE)
+    .union(Traits::READS_BEFORE_WRITE)
+    .union(Traits::DESTROYS_VARIABLE)
+    .union(Traits::CREATES_SCOPE_ALIAS)
+    .union(Traits::HAS_LOOP_BODY)
+    .union(Traits::LOOP_LIST_HEADER);
+
+fn declares_variable_write(
+    arg_roles: &[(u8, ArgRole)],
+    resolver_roles: &[ArgRole],
+    repeated: &[RepeatedArgLayout],
+    options: &[OptionSpec],
+) -> bool {
+    arg_roles.iter().any(|&(_, role)| role == ArgRole::VarWrite)
+        || resolver_roles.contains(&ArgRole::VarWrite)
+        || repeated.iter().any(|layout| layout.role == ArgRole::VarWrite)
+        || options.iter().any(|option| {
+            matches!(option.value, crate::hover::OptionValue::Takes(arg) if arg.role == ArgRole::VarWrite)
+        })
+}
+
+impl CommandSpec {
+    /// This command's, and each subcommand's, `VarWrite` positions that
+    /// declare none of [`VARIABLE_WRITE_CLASSES`], named `name` or
+    /// `name sub`. A consumer treats such a target as possibly unset.
+    #[must_use]
+    pub fn unclassified_variable_writers(&self) -> Vec<String> {
+        let mut out = Vec::new();
+        if declares_variable_write(
+            self.arg_roles,
+            self.arg_role_resolver_roles,
+            self.repeated_args,
+            self.options,
+        ) && !self.traits.intersects(VARIABLE_WRITE_CLASSES)
+        {
+            out.push(self.name.to_owned());
+        }
+        for sub in self.subcommands {
+            if declares_variable_write(
+                sub.arg_roles,
+                sub.arg_role_resolver_roles,
+                sub.repeated_args,
+                sub.options,
+            ) && !sub
+                .traits
+                .union(self.traits)
+                .intersects(VARIABLE_WRITE_CLASSES)
+            {
+                out.push(format!("{} {}", self.name, sub.name));
+            }
+        }
+        out
+    }
+}
+
 impl CommandSpec {
     /// Default value for all fields — used with `..CommandSpec::DEFAULT`.
     pub const DEFAULT: Self = Self {

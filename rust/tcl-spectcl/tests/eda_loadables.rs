@@ -278,3 +278,42 @@ fn the_compiled_registry_has_no_eda_commands_left() {
         );
     }
 }
+
+/// Bundled pack writers left deliberately without a write class, so every
+/// consumer treats their target as possibly unset afterwards.
+const PACK_WRITERS_LEFT_POSSIBLY_UNSET: &[(&str, &str)] = &[
+    (
+        "append_to_collection",
+        "no reference implementation to measure whether it creates an unset collection",
+    ),
+    (
+        "remove_from_collection",
+        "no reference implementation to measure; in PrimeTime it returns a new collection",
+    ),
+];
+
+/// Every `VarWrite` position a bundled pack declares says how it writes its
+/// target ([`tcl_registry::spec::VARIABLE_WRITE_CLASSES`]) or is listed above
+/// with the reason it is left possibly unset — the same rule the core
+/// registry's tripwire holds.
+#[test]
+fn every_bundled_pack_variable_writer_says_how_it_writes() {
+    let mut unclassified: Vec<String> = shipped()
+        .packs
+        .iter()
+        .flat_map(|pack| &pack.commands)
+        .flat_map(|command| command.spec.unclassified_variable_writers())
+        .collect();
+    unclassified.sort();
+    unclassified.dedup();
+    let mut expected: Vec<String> = PACK_WRITERS_LEFT_POSSIBLY_UNSET
+        .iter()
+        .map(|(name, _)| (*name).to_owned())
+        .collect();
+    expected.sort();
+    assert_eq!(
+        unclassified, expected,
+        "a bundled pack's `VarWrite` position needs a write class or an entry with its \
+         reason in `PACK_WRITERS_LEFT_POSSIBLY_UNSET`"
+    );
+}
