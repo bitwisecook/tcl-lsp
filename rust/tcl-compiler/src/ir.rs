@@ -28,6 +28,8 @@
 //! design established in the lexer crate.
 
 use tcl_lexer::{LexerConfig, SourceMap, Span, Token};
+/// A [`TryHandler`]'s selection vocabulary, the registry's clause-row fact.
+pub use tcl_registry::value_transfer::HandlerMatch;
 
 use crate::expr_ast::ExprNode;
 use crate::segmenter::SegmentedCommand;
@@ -902,11 +904,14 @@ pub struct IfClause {
     pub body_span: Span,
 }
 
-/// A `try` handler clause (`on`/`trap`).
+/// A `try` handler clause — a clause of the command's clause plan that is
+/// selected by its pattern word.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TryHandler {
-    /// Handler kind: `"on"` or `"trap"`.
-    pub kind: String,
+    /// The vocabulary the handler's pattern word selects it by — the clause
+    /// row's [`HandlerMatch`]: a completion code (`try`'s `on`) or an
+    /// `-errorcode` prefix (`trap`).
+    pub kind: HandlerMatch,
     /// Return code or error class pattern to match.
     pub match_arg: String,
     /// Parsed error-code prefix for a statically literal `trap` selector.
@@ -2370,7 +2375,7 @@ mod tests {
             body: Script::new(),
             body_span: Span::new(4, 10),
             handlers: vec![TryHandler {
-                kind: "on".into(),
+                kind: HandlerMatch::CompletionCode,
                 match_arg: "error".into(),
                 trap_pattern: None,
                 var_name: Some("e".into()),
@@ -2390,7 +2395,7 @@ mod tests {
         } = &stmt
         {
             assert_eq!(handlers.len(), 1);
-            assert_eq!(handlers[0].kind, "on");
+            assert_eq!(handlers[0].kind, HandlerMatch::CompletionCode);
             assert!(finally_body.is_some());
         }
     }

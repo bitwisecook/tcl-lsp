@@ -160,14 +160,15 @@ fn parse_interp_create_words<'a>(words: &[&'a str]) -> (bool, Option<&'a str>) {
     let mut too_many_paths = false;
     for &word in words {
         if !past_flags && word.starts_with('-') {
-            if word == "--" {
-                past_flags = true;
-            } else if word == "-safe" {
-                safe = true;
-            }
             // Any other `-` word is a bad option in real Tcl. Skipping it
             // keeps the path reading unaffected, which is the conservative
             // choice for a command that will fail anyway.
+            // registry-axis-ok: options — the flag scan the registry's `InterpreterTransition::Create` answers (safety, child path); CC2.12 consumes it; until step 2
+            match word {
+                "--" => past_flags = true,
+                "-safe" => safe = true,
+                _ => {}
+            }
             continue;
         }
         if path.is_none() {
@@ -216,6 +217,7 @@ fn interp_create_words_from_value(text: &str) -> Option<Vec<&str>> {
         }
     }
     let mut words = words.into_iter();
+    // registry-axis-ok: subcommands — a nested `[interp create …]` read by spelling; CC2.12 resolves it and reads its `InterpreterTransition::Create`; until step 2
     if words.next()? != "interp" || words.next()? != "create" {
         return None;
     }
@@ -1781,6 +1783,7 @@ impl Analyser {
             return;
         };
         for (i, p) in params.iter().enumerate() {
+            // registry-axis-ok: irreducible — the variadic `args` formal is Tcl's proc grammar (`VAR_IS_ARGS` on the last formal, `tclProc.c`), no registry fact; until never
             if i == last || p.name != "args" {
                 continue;
             }
@@ -2454,7 +2457,19 @@ impl Analyser {
                 let [cmd] = segmented.as_slice() else {
                     return None;
                 };
-                if cmd.texts.first().map(String::as_str) != Some("list") {
+                // A lambda built word by word: the head is the command whose
+                // result quotes each of its words as one element — the
+                // registry's `BUILDS_COMMAND_PREFIX` reading, not a spelling.
+                let registry = self
+                    .registry
+                    .clone()
+                    .unwrap_or_else(super::commands::fallback_registry);
+                if !cmd.texts.first().is_some_and(|head| {
+                    registry.get(head).is_some_and(|spec| {
+                        spec.traits
+                            .contains(tcl_registry::Traits::BUILDS_COMMAND_PREFIX)
+                    })
+                }) {
                     return None;
                 }
                 let mut out = Vec::with_capacity(cmd.texts.len().saturating_sub(1));
@@ -4386,37 +4401,6 @@ impl Analyser {
         }
     }
 
-    /// Handle `for init test next body`.
-    ///
-    /// Recurses into init / next / body so locals defined inside any
-    /// of the three statement positions land in the enclosing scope's
-    /// variable set.
-    ///
-    /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::For`].
-    pub fn handle_for_command(
-        &mut self,
-        args: &[String],
-        arg_tokens: &[Token],
-        scope_path: &[usize],
-    ) -> bool {
-        if args.len() < 4 {
-            return false;
-        }
-        // init body
-        if let Some(tok) = arg_tokens.first().copied() {
-            self.analyse_body(&args[0], tok, scope_path);
-        }
-        // next body
-        if let Some(tok) = arg_tokens.get(2).copied() {
-            self.analyse_control_flow_body(&args[2], tok, scope_path);
-        }
-        // main body
-        if let Some(tok) = arg_tokens.get(3).copied() {
-            self.analyse_control_flow_body(&args[3], tok, scope_path);
-        }
-        true
-    }
-
     /// Handle `switch ?options? string ?pattern body? ...`.
     ///
     /// Arity checking lives in `compiler_checks::arity_checks` via
@@ -4700,28 +4684,27 @@ impl Analyser {
         }
     }
 
-    /// Handle `try BODY ?on/trap CODE VARLIST BODY?... ?finally BODY?`.
-    ///
-    /// Walks the main try body and every handler / finally clause;
-    /// arity checking lives in `compiler_checks::arity_checks`
+    /// Handle `try BODY ?handler ...? ?finally BODY?` by walking its clause
+    /// plan; arity checking lives in `compiler_checks::arity_checks`
     /// already.
     ///
-    /// Clause shapes:
+    /// Each clause is read by its timing, never by its keyword:
     ///
-    /// - ``finally BODY`` (2 words) — recurse into ``BODY``.
-    /// - ``on CODE VARLIST BODY`` / ``trap PATTERN VARLIST BODY``
-    ///   (4 words) — define the handler's ``VARLIST`` (e.g.
-    ///   ``{result options}``), then recurse into ``BODY``.
+    /// - the **protected** body and every **selected** handler body walk
+    ///   through [`Self::analyse_selected_body`] — nothing either establishes
+    ///   dominates the code after the command;
+    /// - the body that runs **whatever the outcome** (`finally`) walks as
+    ///   straight-line code;
+    /// - a handler's variable-list slot (`{result options}`) is defined
+    ///   before its body walks;
+    /// - a handler whose body word is the grammar's fall-through marker runs
+    ///   the next handler's body, so its own word is never walked as a
+    ///   script — the solo `-` would otherwise read as a zero-arg `-` command
+    ///   and trip a spurious arity error.
     ///
-    /// Conditional-body depth, per clause kind: the main body
-    /// and the `on` / `trap` handler bodies are branch-selected, the
-    /// `finally` body is not.  See [`Self::analyse_selected_body`].
-    ///
-    /// `traits` are the composed traits of the concrete spec / subcommand the
-    /// dispatch already resolved this head to, threaded in rather than
-    /// re-fetched by name: a name lookup would put per-command knowledge back
-    /// in the analyser and would silently diverge from the dispatch the moment
-    /// a dialect variant shares this hook.
+    /// `plan` is the invocation's own, from the resolution that selected the
+    /// hook; a clause the chain's defect stopped in (no body word) is
+    /// skipped, and the words past the defect are not a chain at all.
     ///
     /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::Try`].
     pub fn handle_try_command(
@@ -4729,52 +4712,31 @@ impl Analyser {
         args: &[String],
         arg_tokens: &[Token],
         scope_path: &[usize],
-        traits: tcl_registry::Traits,
+        plan: Option<&tcl_registry::ClausePlan>,
     ) -> bool {
-        if args.is_empty() {
+        let Some(plan) = plan.filter(|_| !args.is_empty()) else {
             return false;
-        }
-        // The same trait-driven depth the generic body walk in
-        // `dispatch_body_arguments` applies — `Traits::BRANCH_SELECTED_BODY`,
-        // carried by exactly `if` and `try`.  `try` reaches its bodies
-        // through this hook instead of that walk, so without asking here a
-        // `package require` inside a `try` was recorded unconditional.
-        let branch_selected = traits.contains(tcl_registry::Traits::BRANCH_SELECTED_BODY);
-        // Main try body at args[0].
-        if let Some(body_tok) = arg_tokens.first().copied() {
-            self.analyse_selected_body(&args[0], body_tok, scope_path, branch_selected);
-        }
-        // Walk handler / finally clauses.
-        let mut i = 1;
-        while i < args.len() {
-            let kw = args[i].as_str();
-            if kw == "finally" && i + 1 < args.len() {
-                if let Some(body_tok) = arg_tokens.get(i + 1).copied() {
-                    // A `finally` body is *not* branch-selected — see
-                    // `analyse_selected_body`.
-                    self.analyse_body(&args[i + 1], body_tok, scope_path);
+        };
+        for (index, clause) in plan.clauses.iter().enumerate() {
+            let Some(body) = clause.operand(tcl_registry::arg_role::ArgRole::Body) else {
+                continue;
+            };
+            if let Some(list) = clause.operand(tcl_registry::arg_role::ArgRole::LoopVarList)
+                && let (Some(text), Some(tok)) = (args.get(list), arg_tokens.get(list).copied())
+            {
+                self.define_vars_from_list(text, tok, scope_path);
+            }
+            if plan.falls_through(index) {
+                continue;
+            }
+            let (Some(text), Some(tok)) = (args.get(body), arg_tokens.get(body).copied()) else {
+                continue;
+            };
+            match clause.timing {
+                tcl_registry::ClauseTiming::Protected | tcl_registry::ClauseTiming::Selected => {
+                    self.analyse_selected_body(text, tok, scope_path, true);
                 }
-                i += 2;
-            } else if matches!(kw, "on" | "trap") && i + 3 < args.len() {
-                // `on CODE {msg opts} body` / `trap PAT {msg opts} body` — the
-                // var-list at i+2 binds the result message + options dict in
-                // the handler body, so define them before walking it.
-                if let Some(vl_tok) = arg_tokens.get(i + 2).copied() {
-                    self.define_vars_from_list(&args[i + 2], vl_tok, scope_path);
-                }
-                // A handler body of literal `-` is a fallthrough marker (shares
-                // the next handler's body, like `switch`); it is not a script,
-                // so it must not be re-lexed as one — otherwise the solo `-`
-                // reads as a zero-arg `-` command and trips a spurious arity
-                // error. Mirrors the `switch` arm handling above.
-                if let Some(body_tok) = arg_tokens.get(i + 3).copied()
-                    && args[i + 3] != "-"
-                {
-                    self.analyse_selected_body(&args[i + 3], body_tok, scope_path, branch_selected);
-                }
-                i += 4;
-            } else {
-                i += 1;
+                _ => self.analyse_body(text, tok, scope_path),
             }
         }
         true
@@ -5911,6 +5873,7 @@ impl Analyser {
         }
         // ``package require -exact NAME ?requirement ...?`` —
         // record the flag and shift the name index.
+        // registry-axis-ok: options — `-exact` read by spelling; CC2.12 reads it through the option effects and the roles `package_.rs` declares; until step 2
         let exact = args[1] == "-exact" && args.len() >= 3;
         let (name_idx, name_text) = if exact {
             (2usize, args[2].clone())
@@ -10132,6 +10095,7 @@ impl Analyser {
     /// directory — `lappend auto_path {p q}` names the single directory
     /// `p q`, not two.  Contrast [`Self::handle_auto_path_set`].
     pub fn handle_auto_path_lappend(&mut self, args: &[String], arg_tokens: &[Token]) {
+        // registry-axis-ok: special_vars — `auto_path` by name; CC2.12 reads `special_var("auto_path")`'s access; until step 2
         if args.first().map(String::as_str) != Some("auto_path") {
             return;
         }
@@ -10164,6 +10128,7 @@ impl Analyser {
     /// [`crate::auto_path_eval::evaluate_auto_path_entry`] applies the list
     /// grammar at consumption.
     pub fn handle_auto_path_set(&mut self, args: &[String], arg_tokens: &[Token]) {
+        // registry-axis-ok: special_vars — `auto_path` by name; CC2.12 reads `special_var("auto_path")`'s access; until step 2
         if args.first().map(String::as_str) != Some("auto_path") || args.len() < 2 {
             return;
         }
@@ -14118,32 +14083,6 @@ mod tests {
         assert!(!r.all_procs.keys().any(|k| k.contains('$')));
     }
 
-    // handle_for_command
-
-    #[test]
-    fn handle_for_returns_true_for_canonical_shape() {
-        let mut a = Analyser::new();
-        let handled = a.handle_for_command(
-            &[
-                "set i 0".to_string(),
-                "$i < 10".to_string(),
-                "incr i".to_string(),
-                "puts $i".to_string(),
-            ],
-            &[],
-            &[],
-        );
-        assert!(handled);
-    }
-
-    #[test]
-    fn handle_for_too_few_args_returns_false() {
-        let mut a = Analyser::new();
-        let handled =
-            a.handle_for_command(&["set i 0".to_string(), "$i < 10".to_string()], &[], &[]);
-        assert!(!handled);
-    }
-
     // handle_switch_command
 
     fn switch_analyser() -> Analyser {
@@ -14343,40 +14282,49 @@ mod tests {
 
     // handle_try_command
 
-    /// The traits `AnalyserHookId::Try` dispatch threads into
+    /// The clause plan `AnalyserHookId::Try` dispatch threads into
     /// `handle_try_command` in production, resolved through that same path so
     /// these unit tests cannot drift from it.
-    fn try_traits(a: &Analyser, args: &[String]) -> tcl_registry::Traits {
-        a.resolved_analyser_hook_traits("try", args)
-            .expect("`try` resolves the Try analyser hook")
+    fn try_plan(a: &Analyser, args: &[String]) -> Option<tcl_registry::ClausePlan> {
+        a.resolved_analyser_hook_plan("try", args)
     }
 
     #[test]
     fn handle_try_canonical_returns_true() {
         let mut a = Analyser::new();
         let args = ["body".to_string()];
-        let traits = try_traits(&a, &args);
-        let handled = a.handle_try_command(&args, &[str_tok(span(0, 4))], &[], traits);
+        let plan = try_plan(&a, &args);
+        let handled = a.handle_try_command(&args, &[str_tok(span(0, 4))], &[], plan.as_ref());
         assert!(handled);
     }
 
     #[test]
     fn handle_try_no_args_returns_false() {
         let mut a = Analyser::new();
-        let traits = try_traits(&a, &[]);
-        let handled = a.handle_try_command(&[], &[], &[], traits);
+        let plan = try_plan(&a, &[]);
+        let handled = a.handle_try_command(&[], &[], &[], plan.as_ref());
         assert!(!handled);
     }
 
-    /// The dispatch really does resolve `BRANCH_SELECTED_BODY` for a `try`
-    /// call, so the depth bump keys off a fact and not off a default.
+    /// The dispatch hands the handler `try`'s own clause plan: a protected
+    /// body, then each handler selected by its pattern, then `finally` —
+    /// the timings the walk reads in place of the keywords.
     #[test]
-    fn try_dispatch_resolves_the_branch_selected_body_trait() {
+    fn try_dispatch_resolves_the_clause_plan() {
         let a = Analyser::new();
-        let args = ["body".to_string()];
-        assert!(
-            try_traits(&a, &args).contains(tcl_registry::Traits::BRANCH_SELECTED_BODY),
-            "hook dispatch must hand the handler `try`'s own traits"
+        let args: Vec<String> = ["body", "on", "error", "{m o}", "{h}", "finally", "{f}"]
+            .map(String::from)
+            .into();
+        let plan = try_plan(&a, &args).expect("hook dispatch hands the handler `try`'s plan");
+        let timings: Vec<tcl_registry::ClauseTiming> =
+            plan.clauses.iter().map(|clause| clause.timing).collect();
+        assert_eq!(
+            timings,
+            [
+                tcl_registry::ClauseTiming::Protected,
+                tcl_registry::ClauseTiming::Selected,
+                tcl_registry::ClauseTiming::Always,
+            ]
         );
     }
 
@@ -14385,8 +14333,8 @@ mod tests {
         // ``try {set y 1}`` — main body walks and lands ``y``.
         let mut a = Analyser::new();
         let args = ["set y 1".to_string()];
-        let traits = try_traits(&a, &args);
-        a.handle_try_command(&args, &[str_tok(span(5, 14))], &[], traits);
+        let plan = try_plan(&a, &args);
+        a.handle_try_command(&args, &[str_tok(span(5, 14))], &[], plan.as_ref());
         assert!(a.result.global_scope.variables.contains_key("y"));
     }
 
@@ -14395,7 +14343,7 @@ mod tests {
         // ``try {} finally {set z 1}`` — finally clause body walks.
         let mut a = Analyser::new();
         let args = [String::new(), "finally".to_string(), "set z 1".to_string()];
-        let traits = try_traits(&a, &args);
+        let plan = try_plan(&a, &args);
         a.handle_try_command(
             &args,
             &[
@@ -14404,7 +14352,7 @@ mod tests {
                 str_tok(span(16, 25)),
             ],
             &[],
-            traits,
+            plan.as_ref(),
         );
         assert!(a.result.global_scope.variables.contains_key("z"));
     }
@@ -14422,7 +14370,7 @@ mod tests {
             "result options".to_string(),
             "set q 1".to_string(),
         ];
-        let traits = try_traits(&a, &args);
+        let plan = try_plan(&a, &args);
         a.handle_try_command(
             &args,
             &[
@@ -14433,7 +14381,7 @@ mod tests {
                 str_tok(span(34, 43)),
             ],
             &[],
-            traits,
+            plan.as_ref(),
         );
         assert!(a.result.global_scope.variables.contains_key("q"));
         // The `on error {result options}` var-list binds the result message +
@@ -14455,7 +14403,7 @@ mod tests {
             "result".to_string(),
             "set q 1".to_string(),
         ];
-        let traits = try_traits(&a, &args);
+        let plan = try_plan(&a, &args);
         a.handle_try_command(
             &args,
             &[
@@ -14466,7 +14414,7 @@ mod tests {
                 str_tok(span(27, 36)),
             ],
             &[],
-            traits,
+            plan.as_ref(),
         );
         assert!(a.result.global_scope.variables.contains_key("q"));
     }

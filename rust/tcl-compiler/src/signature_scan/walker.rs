@@ -35,7 +35,8 @@
 //!   recursively by [`maybe_recurse_body`] for braced bodies.
 //! - [`maybe_recurse_body`] — gates body recursion on `Str`
 //!   (braced) tokens; called from the registry-dispatched namespace-eval arm,
-//!   `handle_if` / `handle_catch` / `handle_try` here.
+//!   `handle_clause_bodies` (`if`, `try`: the clause plan's script words) and
+//!   `handle_catch` here.
 //! - [`scan_factory_candidates`] — secondary walker called from
 //!   `handle_proc`; only collects four-token factory candidates and
 //!   recurses into structural-control bodies via
@@ -45,9 +46,10 @@ use std::collections::HashSet;
 
 use tcl_lexer::{Token, TokenType};
 use tcl_registry::Traits;
+use tcl_registry::arg_role::ArgRole;
 use tcl_registry::definer::DefinerFamily;
 use tcl_registry::hooks::{AnalyserHookId, LoweringHookId};
-use tcl_registry::{CommandSpec, SubCommand};
+use tcl_registry::{ClausePlan, CommandSpec, SubCommand};
 
 use super::command_prefix::command_prefix_invocations;
 use super::ctx::ScanCtx;
@@ -161,6 +163,36 @@ struct ResolvedScanDispatch<'r> {
     lowering: Option<LoweringHookId>,
 }
 
+impl ResolvedScanDispatch<'_> {
+    /// The clause plan of the scanned call: the resolved descriptor's clause
+    /// grammar walked over `texts` after the head (and after the subcommand
+    /// word), in post-head coordinates. A background scan carries no
+    /// document point, so every row is available, as the dispatch itself is
+    /// dialect-blind.
+    fn clause_plan_for(&self, texts: &[String]) -> Option<ClausePlan> {
+        let args: Vec<&str> = texts.iter().skip(1).map(String::as_str).collect();
+        match self.subcommand {
+            Some(sub) => sub
+                .clause_plan(args.get(1..).unwrap_or_default(), None)
+                .map(|plan| plan.offset_by(1)),
+            None => self.spec.clause_plan(&args, None),
+        }
+    }
+}
+
+/// The script words of a clause-carrying call, in source order and in the
+/// scanned command's own coordinates (the head is word 0): each clause's body
+/// word, except one that is the grammar's fall-through marker — it runs
+/// another clause's body and is no script of its own.
+fn clause_body_words(plan: &ClausePlan) -> impl Iterator<Item = usize> + '_ {
+    plan.clauses
+        .iter()
+        .enumerate()
+        .filter(|&(index, _)| !plan.falls_through(index))
+        .filter_map(|(_, clause)| clause.operand(ArgRole::Body))
+        .map(|word| word + 1)
+}
+
 fn resolve_scan_dispatch<'r>(
     registry: Option<&'r tcl_registry::CommandRegistry>,
     head: &str,
@@ -234,13 +266,13 @@ fn dispatch_signature_handler(
             handle_catch(texts, argv, ns_prefix, known_commands, ctx);
         }
         Some(AnalyserHookId::Try) => {
-            handle_try(texts, argv, ns_prefix, known_commands, ctx);
+            handle_clause_bodies(dispatch, texts, argv, ns_prefix, known_commands, ctx);
         }
         Some(AnalyserHookId::Set | AnalyserHookId::Lappend) => {
             handlers::handle_auto_path(texts, argv, &mut ctx.result);
         }
         _ if dispatch.lowering == Some(LoweringHookId::If) => {
-            handle_if(texts, argv, ns_prefix, known_commands, ctx);
+            handle_clause_bodies(dispatch, texts, argv, ns_prefix, known_commands, ctx);
         }
         _ => return false,
     }
@@ -409,44 +441,26 @@ pub(super) fn maybe_recurse_body(
 // Body-recursion handlers
 // Handlers for commands that recurse into braced bodies.
 
-fn handle_if(
+/// Recurse into every script word of a clause-carrying call (`if`'s bodies,
+/// `try`'s protected body, handlers and `finally`), read from the call's
+/// clause plan. Every recursed body is marked `conditional=true`: it is
+/// branch-selected or guarded, so nothing it records dominates the code after
+/// the command.
+fn handle_clause_bodies(
+    dispatch: ResolvedScanDispatch<'_>,
     texts: &[String],
     argv: &[Token],
     ns_prefix: &str,
     known_commands: &HashSet<&str>,
     ctx: &mut ScanCtx,
 ) {
-    // Tcl's `if` takes the shape:
-    //   if EXPR ?then? BODY ?elseif EXPR ?then? BODY?... ?else? ?BODY?
-    // Alternate between expecting an expression and expecting a body,
-    // resetting the expectation whenever `then` / `elseif` / `else`
-    // appears. Every recursed body is marked `conditional=true`.
-    let mut i = 1;
-    let mut expect_body = false;
-    while i < texts.len() {
-        let word = texts[i].as_str();
-        if word == "then" {
-            expect_body = true;
-            i += 1;
-            continue;
+    let Some(plan) = dispatch.clause_plan_for(texts) else {
+        return;
+    };
+    for word in clause_body_words(&plan) {
+        if let (Some(text), Some(tok)) = (texts.get(word), argv.get(word)) {
+            maybe_recurse_body(text, *tok, ns_prefix, true, known_commands, ctx);
         }
-        if word == "elseif" {
-            expect_body = false;
-            i += 1;
-            continue;
-        }
-        if word == "else" {
-            expect_body = true;
-            i += 1;
-            continue;
-        }
-        if expect_body {
-            maybe_recurse_body(&texts[i], argv[i], ns_prefix, true, known_commands, ctx);
-            expect_body = false;
-        } else {
-            expect_body = true;
-        }
-        i += 1;
     }
 }
 
@@ -464,51 +478,6 @@ fn handle_catch(
         return;
     }
     maybe_recurse_body(&texts[1], argv[1], ns_prefix, true, known_commands, ctx);
-}
-
-fn handle_try(
-    texts: &[String],
-    argv: &[Token],
-    ns_prefix: &str,
-    known_commands: &HashSet<&str>,
-    ctx: &mut ScanCtx,
-) {
-    // `try BODY ?on CODE VARLIST BODY?... ?trap PATTERN VARLIST BODY?...
-    //  ?finally BODY?` — the main body sits at index 1; handler clauses
-    // (`on`/`trap`) take 4 words each with the body at +3; `finally`
-    // takes 2 words with the body at +1.
-    if texts.len() < 2 {
-        return;
-    }
-    maybe_recurse_body(&texts[1], argv[1], ns_prefix, true, known_commands, ctx);
-    let mut i = 2;
-    while i < texts.len() {
-        let clause = texts[i].as_str();
-        if clause == "finally" && i + 1 < texts.len() {
-            maybe_recurse_body(
-                &texts[i + 1],
-                argv[i + 1],
-                ns_prefix,
-                true,
-                known_commands,
-                ctx,
-            );
-            return;
-        }
-        if (clause == "on" || clause == "trap") && i + 3 < texts.len() {
-            maybe_recurse_body(
-                &texts[i + 3],
-                argv[i + 3],
-                ns_prefix,
-                true,
-                known_commands,
-                ctx,
-            );
-            i += 4;
-        } else {
-            i += 1;
-        }
-    }
 }
 
 /// Scan a proc body specifically for factory-wrapper candidate
@@ -576,62 +545,25 @@ fn scan_factory_structural(
         }
         return true;
     }
-    if dispatch.lowering == Some(LoweringHookId::If) {
-        let mut i = 1;
-        let mut expect_body = false;
-        while i < texts.len() {
-            let w = texts[i].as_str();
-            if w == "then" {
-                expect_body = true;
-                i += 1;
-                continue;
+    if dispatch.lowering == Some(LoweringHookId::If)
+        || dispatch.analyser == Some(AnalyserHookId::Try)
+    {
+        // The clause plan's script words — `if`'s bodies, `try`'s protected
+        // body, handlers and `finally` — never a keyword walk.
+        if let Some(plan) = dispatch.clause_plan_for(texts) {
+            for word in clause_body_words(&plan) {
+                if let (Some(text), Some(tok)) = (texts.get(word), argv.get(word))
+                    && tok.kind == TokenType::Str
+                {
+                    scan_factory_candidates(text, *tok, ns_prefix, ctx);
+                }
             }
-            if w == "elseif" {
-                expect_body = false;
-                i += 1;
-                continue;
-            }
-            if w == "else" {
-                expect_body = true;
-                i += 1;
-                continue;
-            }
-            if expect_body && argv[i].kind == TokenType::Str {
-                scan_factory_candidates(&texts[i], argv[i], ns_prefix, ctx);
-                expect_body = false;
-            } else {
-                expect_body = true;
-            }
-            i += 1;
         }
         return true;
     }
     if dispatch.analyser == Some(AnalyserHookId::Catch) {
         if texts.len() >= 2 && argv[1].kind == TokenType::Str {
             scan_factory_candidates(&texts[1], argv[1], ns_prefix, ctx);
-        }
-        return true;
-    }
-    if dispatch.analyser == Some(AnalyserHookId::Try) && texts.len() >= 2 {
-        if argv[1].kind == TokenType::Str {
-            scan_factory_candidates(&texts[1], argv[1], ns_prefix, ctx);
-        }
-        let mut i = 2;
-        while i < texts.len() {
-            let clause = texts[i].as_str();
-            if clause == "finally" && i + 1 < texts.len() && argv[i + 1].kind == TokenType::Str {
-                scan_factory_candidates(&texts[i + 1], argv[i + 1], ns_prefix, ctx);
-                return true;
-            }
-            if (clause == "on" || clause == "trap")
-                && i + 3 < texts.len()
-                && argv[i + 3].kind == TokenType::Str
-            {
-                scan_factory_candidates(&texts[i + 3], argv[i + 3], ns_prefix, ctx);
-                i += 4;
-            } else {
-                i += 1;
-            }
         }
         return true;
     }

@@ -436,7 +436,7 @@ mod expr_has_command_shapes {
 // These assert IR-walk structure (compiler-internal), not a Tcl runtime value.
 mod defs_from_ir_script_arms {
     use super::*;
-    use tcl_compiler::ir::{ForeachIterator, SwitchArm, TryHandler};
+    use tcl_compiler::ir::{ForeachIterator, HandlerMatch, SwitchArm, TryHandler};
 
     fn assign(name: &str) -> Statement {
         Statement::AssignConst {
@@ -523,7 +523,7 @@ mod defs_from_ir_script_arms {
             body: Script::from_statements(vec![assign("tb")]),
             body_span: Span::new(4, 10),
             handlers: vec![TryHandler {
-                kind: "on".into(),
+                kind: HandlerMatch::CompletionCode,
                 match_arg: "error".into(),
                 trap_pattern: None,
                 var_name: Some("e".into()),

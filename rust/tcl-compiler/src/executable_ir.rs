@@ -3445,11 +3445,13 @@ fn structured_region_projection(
 /// The completion code a `try` handler clause selects, when its selector is
 /// statically a completion code.
 ///
-/// `trap` always selects `TCL_ERROR` and narrows it further by `-errorcode`
-/// prefix; `on` names a code directly. The selector spelling is decoded by the
-/// registry's completion-code table, never by a local keyword match.
+/// A handler selecting by `-errorcode` prefix (`trap`) always selects
+/// `TCL_ERROR` and narrows it further by the prefix; one selecting by
+/// completion code (`on`) names a code directly. The selector spelling is
+/// decoded by the registry's completion-code table, never by a local keyword
+/// match.
 fn try_handler_code(handler: &crate::ir::TryHandler) -> Option<CompletionCode> {
-    if handler.trap_pattern.is_some() || handler.kind == "trap" {
+    if handler.kind == crate::ir::HandlerMatch::ErrorCodePrefix {
         return Some(CompletionCode::Error);
     }
     tcl_registry::completion::completion_code_selector(

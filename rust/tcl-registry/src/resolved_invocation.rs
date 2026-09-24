@@ -904,14 +904,6 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
         )
     }
 
-    /// The former name of [`Self::effects`], kept for one checkpoint while
-    /// callers move.
-    #[must_use]
-    #[deprecated(note = "renamed `effects`, the derived-query layer's name")]
-    pub fn effect_footprint(&self) -> EffectFootprint {
-        self.effects()
-    }
-
     fn effect_footprint_with_transition_coverage(
         &self,
         command_table_mutation: bool,
@@ -1010,8 +1002,8 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
     }
 
     /// The call's clause plan: the effective clause grammar walked over the
-    /// words after the head (and after the subcommand word), reported in the
-    /// invocation's post-head coordinates.
+    /// words' values after the head (and after the subcommand word), reported
+    /// in the invocation's post-head coordinates.
     ///
     /// `None` when no grammar applies or it is unavailable at the
     /// invocation's [`Self::dialect`], when a `{*}` expansion makes the word
@@ -1020,6 +1012,19 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
     /// value. A computed word in a positional slot (`if $cond {…}`) is fine.
     #[must_use]
     pub fn clause_plan(&self) -> Option<crate::clause_grammar::ClausePlan> {
+        self.clause_walk()?.ok()
+    }
+
+    /// The walk behind [`Self::clause_plan`], saying where it abstained: `Err`
+    /// names the first computed word standing where the walk compares one,
+    /// with the call read with every computed word matching nothing
+    /// ([`crate::clause_grammar::ClauseAbstention`]). `None` exactly where
+    /// [`Self::clause_plan`] has no grammar to walk or no argv shape.
+    #[must_use]
+    pub fn clause_walk(
+        &self,
+    ) -> Option<Result<crate::clause_grammar::ClausePlan, crate::clause_grammar::ClauseAbstention>>
+    {
         let dialect = self.dialect;
         let grammar = self.semantics.clause_grammar?;
         if !grammar.available(dialect) {
@@ -1028,15 +1033,21 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
         let arguments = self.words.arguments();
         let len = arguments.exact_argv_len()?;
         let offset = self.semantics.argument_offset.min(len);
-        let spellings: Vec<&str> = (offset..len)
+        let values: Vec<&str> = (offset..len)
             .map(|index| arguments.literal_at(index).unwrap_or(""))
             .collect();
         let dynamic: Vec<bool> = (offset..len)
             .map(|index| arguments.literal_at(index).is_none())
             .collect();
-        grammar
-            .walk_words(&spellings, &dynamic, self.semantics.repeated_args, dialect)
-            .map(|plan| plan.offset_by(offset))
+        Some(
+            grammar
+                .walk_words_or_abstain(&values, &dynamic, self.semantics.repeated_args, dialect)
+                .map(|plan| plan.offset_by(offset))
+                .map_err(|abstention| crate::clause_grammar::ClauseAbstention {
+                    word: abstention.word + offset,
+                    inert: abstention.inert.offset_by(offset),
+                }),
+        )
     }
 
     /// Every word's literal value, a computed word standing in as an inert

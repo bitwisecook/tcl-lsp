@@ -71,6 +71,7 @@ CC2.10, CC2.13, CC2.15) are dispatched separately after the opus items.
 | CC2.5 `definition_body` and `semantic_operation` leave `GAPS` | landed | same checkpoint as CC2.4 | loader `-effect` / `-shift` on `member`, `member_option` rows, `family SpecTcl\|SslicTcl` (D2.35); studio seeds a shipped grammar by name — by data, not pointer (D2.34) — or the whole block, `semantic_operation` as `{kind, detail}`; both renderers write both; the two `GAPS` rows deleted; `DefinitionBody` / `SemanticOperation` field kinds, catalogues, help, examples, form (D2.36); `snit-type.tclspec` gains `-effect` on every row; the `oo-class` / `snit-type` golden hashes regenerated |
 | CC2.8 the derived-query layer | landed | `wip(consumer-contracts): step 2 — the derived-query layer` | `CommandRegistry::invocation(words, ctx)`; `ResolvedInvocation` carries its `SurfaceQuery` and selection; `arg_roles`, `pattern_args`, `case_invocation`, `frame_effect`, `return_type`, `effects` added, `clause_plan` / `option_effects` / `substitutions_performed` lose the `dialect` parameter; one rule per query shared with the by-name functions (`arg_roles_in`, `command_prefixes_in`, `pattern_args_in`, `layout_is_proven_in`); `derived_queries_agree_with_the_by_name_answers`; D2.37–D2.43 |
 | CC2.14 the `state_transitions` resolver family in the loader | landed | `wip(consumer-contracts): step 2 — the state-transition resolver family` | `HookFamily::StateTransitionResolver` (thirteenth family: `alias LOCAL TARGET ?-level LEVEL?`, `namespace-variable NAME`, silence "no transitions", field `state_transitions.resolver`); `PackTransition`, the thunk and `STATE_TRANSITION_RESOLVER_NATIVE`; `alias_pairs_resolver` for `from-frame-effect`; the loader reads every `state_transitions` row; 21 corpus notices and the two port goldens move; D2.44–D2.49 |
+| CC2.9 clause consumers in the compiler | landed | `wip(consumer-contracts): step 2 — lowering and the analyser read the clause plan` | `lower_if` / `lower_try` from `ResolvedInvocation::clause_walk` (values; the inert reading on abstention); `TryHandler::kind: HandlerMatch` (IR, inlining, `executable_ir.rs`, `cfg_lower.rs`'s `on ok` through the completion-code parse, the diagram's wire spelling); `handle_try_command` walks the plan; `handle_for_command` gone — the generic body walk reads timings; `owner_of_keyword` for the stray-keyword report; `signature_scan/walker.rs` reads clause bodies; the registry's `try_control_invocation` parses the plan; `a_try_handler_walk_reads_timing_not_keywords` (and its negative); four files in `CLEAN_FILES`, `structured.rs` 19 → 8 and `handlers.rs` 20 → 9 pinned; the deprecated `effect_footprint` alias removed; D2.50–D2.62 |
 
 ### Behavioural deltas accepted in step 2
 
@@ -116,6 +117,78 @@ CC2.10, CC2.13, CC2.15) are dispatched separately after the opus items.
   and name nothing this build ships (three notices); the `upvar` port's
   `from-frame-effect` derives. The corpus baseline loses 21 notices and
   gains those three; the `oo-class` and `upvar` goldens move.
+
+- CC2.9: `lower_if` follows the grammar where the retired keyword walk
+  did not. `if 0 {a} {b}` — a bare final body, valid Tcl (tclsh 8.6 runs
+  `b`) — lowers to `Statement::If` with that `else` body, where the walk
+  deferred it as "extra words"; a condition spelt like a keyword
+  (`if else {a}`, `if elseif c {a}`, `if 0 {a} elseif else {b}`) is lowered
+  as the expression it is (tclsh: `invalid bareword "else"`), where the
+  walk skipped the keyword and mis-lowered `if elseif c {a}` as `if c {a}`
+  and the third as an `else`; `if 1 {a} $w` lowers its bare final body's
+  barrier as "if with non-literal body" rather than "if with extra words".
+- CC2.9: `lower_try` defers `try … finally {…} on …` (tclsh: "finally
+  clause must be last"), which the walk lowered with both clauses; a chain
+  whose clause word is computed defers before its protected body is
+  lowered (the walk lowered the body first, then deferred).
+- CC2.9: `cfg_lower.rs`'s `on ok` edge reads the registry's completion-code
+  parse, so `on 0` (and `+0`, `0x0`) is `on ok` too.
+- CC2.9: `for` bodies take the generic body walk: an unbraced one draws W105
+  as `while`'s does, and a bareword body (`for {} {$i<3} {incr i} step`) is
+  processed as a call, where `handle_for_command` walked each word as a
+  script. `start` still runs at the enclosing depth; `next` and the body
+  at a control-flow depth, as before.
+- CC2.9: the analyser's `try` walk and the signature scan stop at a chain's
+  first defect (`try {a} bogus on error {} {b}` no longer walks `{b}`), and
+  neither walks a braced `{-}` marker as a script.
+- CC2.9: `[catch …]` nested in a substitution binds its result words when
+  its head resolves to the `Catch` hook (a `::catch` spelling too), and
+  `[list namespace unknown H]` is recognised through `BUILDS_COMMAND_PREFIX`
+  and the `NamespaceUnknown` hook.
+
+### CC2.9 — what the next items read
+
+- **The plan's walks.** `ResolvedInvocation::clause_walk() ->
+  Option<Result<ClausePlan, ClauseAbstention>>` walks the words' *values*
+  (`InvocationWord::Literal`), so the fall-through marker is compared
+  exactly; `Err` names the first computed word the walk compared and carries
+  the *inert* plan (every computed word matching nothing) — never the call's
+  plan, only how far its literal clauses go (D2.52). `clause_plan()` is
+  `clause_walk()?.ok()`. The spelling walks (`ClauseGrammarSpec::walk`,
+  `CommandSpec::clause_plan`, `CommandRegistry::clause_plan`, the new
+  `ResolvedCall::clause_plan(args, dialect)`) keep the one-layer strip for
+  callers holding source spellings (D2.50).
+- **Reading a clause.** `ResolvedClause::operand(role)` (the first operand
+  of a slot of `role`) and `ResolvedClause::handler()` (the pattern operand
+  and its `HandlerMatch`); `ClausePlan::falls_through(index)` — a clause
+  whose body word is the marker, target or not. A marker falls through to
+  the next `Selected` clause only, never to `finally` (D2.51).
+- **The compiler.** `TryHandler::kind: HandlerMatch` (re-exported as
+  `tcl_compiler::ir::HandlerMatch`); `lower_if` / `lower_try` in
+  `lowering/structured.rs` build from `clause_walk_of(seg)`; the dispatcher
+  resolves in `structured_dispatch` (D2.60). The editor refactors
+  (CC2.10) can ask either walk; `if_to_switch`'s shape is `lower_if`'s.
+- **The analyser.** `ResolvedAnalyserHook::clause_plan` (walked at the
+  document's authoring point) is what `handle_try_command` takes;
+  `Analyser::clause_plan_in_context` answers the same plan for a head the
+  generic body walk resolves, and `body_depths` maps each body's timing to
+  its two depths (D2.55). `Hook::For => false` routes `for` to that walk: the
+  `For` variant has no handler left for CC2.13 to delete, only its stamp.
+  `Try` keeps `handle_try_command` — retiring it (CC2.13) moves `try` onto
+  the generic walk, where a handler body is `Selected` (conditional *and*
+  control-flow) while the handler walked it conditional only, and the
+  var-list slot binds nothing: CC2.13 must carry both or record the delta.
+- **The ledger.** `CLEAN_FILES`: `analyser/commands.rs`,
+  `cfg_builder/cfg_lower.rs`, `executable_ir.rs`, `signature_scan/walker.rs`.
+  Pinned: `lowering/structured.rs` 8 (the `switch` option parser, five; the
+  `dict` subcommand routing, three), `analyser/handlers.rs` 9 (the ensemble
+  configuration walk and its `dict merge` splice, eight; `$handle eval`,
+  one), `tcl-diagram`'s `data.rs` 4 (D2.59). Waived until step 2, for
+  CC2.12: `handlers.rs`'s `interp create` flag scan and nested
+  `[interp create …]` (`InterpreterTransition::Create`), `package require
+  -exact`, and the two `auto_path` arms. Waived until slice 8: the four
+  `set VAR [CLASS new]` sites in `commands.rs` (VT8.9). Irreducible: W218's
+  variadic `args`.
 
 ### CC2.6 — what the next items and the value-transfers lane read
 
@@ -188,7 +261,8 @@ CC2.10, CC2.13, CC2.15) are dispatched separately after the opus items.
   / `clause_noise_keywords()` (already called by `semantic_tokens.rs`,
   `minify.rs` and `gen_tmlanguage_keywords.rs`; CC2.10's remaining work there
   is the `then` literals and the refactors).
-- **Still reading keywords by spelling** (CC2.9/CC2.10's): `lower_if`,
+- **Still reading keywords by spelling** (CC2.9/CC2.10's; since CC2.9 only
+  the editor refactors and `tcl-mcp`'s `datagroup.rs` remain): `lower_if`,
   `lower_try`, `handle_try_command`, `orphaned_keyword_parent`,
   `cfg_lower.rs`'s `on ok`, `signature_scan/walker.rs`, the editor refactors,
   `tcl-mcp`'s `datagroup.rs`, and the registry's own
@@ -2634,6 +2708,103 @@ everything else in this lane is independent of both.
   is a hook body, not a Tcl callback position in a shipped spec, so it adds
   no inventory row or tier. The plan's "a new executable position tier" did
   not materialise.
+- **D2.50** The value walk (`ClauseGrammarSpec::walk_words`, which is
+  `ResolvedInvocation::clause_plan`'s) compares the fall-through marker
+  exactly; the spelling walks keep the one-layer strip. Reason: an
+  invocation word's literal is its Tcl *value*, so a value `{-}` (the source
+  `"{-}"`) is a script, while a caller holding source spellings still reads
+  the braced `{-}` as the marker. `arg_roles` keeps the spelling rule D2.38
+  pins it to.
+- **D2.51** A marker falls through to the next `Selected` clause only; a
+  marker with none after it has no target and no new defect, and
+  `ClausePlan::falls_through` names it from the flat projection, which
+  leaves exactly such a body out. Reason: the walk linked a marker before
+  `finally` to `finally`'s body, where Tcl raises "last non-finally clause
+  must not have a body of `-`"; making that a `ClauseShapeError` would
+  change the plan's defect vocabulary the page fixes, and every consumer
+  already treats it by its own rule (the lowering keeps the handler's empty
+  body, `try_control_invocation` rejects the chain).
+- **D2.52** An abstaining walk goes on reading computed words as matching
+  nothing and names the first one it compared
+  (`ClauseAbstention { word, inert }`, `walk_words_or_abstain`,
+  `ResolvedInvocation::clause_walk`); `clause_plan` stays the abstaining
+  answer. Reason: the lowering must defer a `try` whose handler body is
+  computed with the reason and after the steps the retired walk took
+  (`try_dollar_var_handler_body_falls_through_to_barrier` pins "try with
+  dynamic handler body"), and the inert plan says how far the literal
+  clauses go without ever standing for the call.
+- **D2.53** The lowering follows the grammar where the retired keyword walk
+  differed (the behavioural deltas above), and with a defect lowers the
+  clauses before it before deferring: `if` never lowers the clause the
+  defect stopped in or the tail extra words follow, `try` lowers every
+  clause that has its script word. Reason: the grammar is verified against
+  C Tcl word for word (`if_.rs`), the walk's differences were
+  mis-lowerings, and the pre-defect lowering keeps the nested procedures a
+  deferred construct registered.
+- **D2.54** E004 keeps `CommandRegistry::clause_shape_defect`. Reason: since
+  CC2.2 (D2.25) it *is* the plan's defect behind the
+  `STRUCTURALLY_CHECKED_ARITY` gate, then the escape hatch — the plan's
+  `clause_plan().and_then(|p| p.defect)` at `:1708` would restate that gate
+  in the analyser.
+- **D2.55** The generic body walk takes each body's depths from its clause's
+  timing where a plan places it — `Selected` conditional and control-flow,
+  `PerIteration` and a `next` fixture control-flow, `Protected` conditional,
+  `Always` and an `init` fixture neither — and from the traits otherwise.
+  Reason: the plan's rule ("control-flow for a `PerIteration` or
+  `LoopFixture` body, conditional for a `Selected` one") would bump `for`'s
+  `start`, which runs once, and drop `if` bodies' control-flow depth; this
+  mapping reproduces every depth the traits and `handle_for_command` gave
+  the shipped commands.
+- **D2.56** The analyser's hook resolution carries the invocation's plan
+  (`ResolvedAnalyserHook::clause_plan`), and `handle_try_command` takes the
+  plan, reading `analyse_selected_body` for `Protected` / `Selected` and
+  `analyse_body` for the rest, in place of the traits. Reason: one
+  resolution, as the traits were; `BRANCH_SELECTED_BODY` stays the generic
+  walk's reading for a body no plan places.
+- **D2.57** The diagram's `kind_handler` stays `on` / `trap`: the protocol's
+  own two-word vocabulary, mapped from `HandlerMatch`. Reason: the editors
+  read it (`TclLspActionsTest.kt`), and a respelt command's handlers are the
+  same two kinds.
+- **D2.58** `cfg_lower.rs`'s `on ok` test parses the pattern word with
+  `completion::completion_code_selector` under the profile-less numeral
+  grammar, as `executable_ir.rs`'s `try_handler_code` does. Reason: the
+  plan's `CompletionCode::from_word` is that function; the IR carries no
+  profile there.
+- **D2.59** The six files' non-clause sites: migrated where a registry fact
+  answers them (`[list namespace unknown H]` through
+  `list_build_effective_command` and the `NamespaceUnknown` hook; nested
+  `catch` through the `Catch` hook; the created name's `--` through the new
+  `leading_option_run_is_terminated`; `switch`'s marker and `default`
+  through `CaseListSpec`; the lambda's `list` through
+  `BUILDS_COMMAND_PREFIX`), waived where a planned change retires them
+  (six until step 2 for CC2.12, four until slice 8 for VT8.9, `args`
+  irreducible), and pinned where none does: `structured.rs`'s `switch`
+  option parser (`CommandRegistry::case_invocation` reads the same options,
+  but moving the lowering onto it changes which shapes lower — unique
+  prefixes, Tcl 8.5's two-word form, a repeated mode — a change this item's
+  "none observable" excludes) and its `dict` routing (whether `dict map`
+  collects has no descriptor: the value-transfer lane's iteration semantics
+  are declared for `foreach` / `lmap` only; the value-transfer ledger names
+  the same two sites `native_lowering` debt), and `handlers.rs`'s ensemble
+  configuration walk (`NamespaceTransition::Ensemble` names only the
+  namespace) and `$handle eval` (no descriptor models a child
+  interpreter's command). Reason: a waiver names the change that retires
+  its site, and these have none yet; `structured.rs` and `handlers.rs`
+  therefore stay out of `CLEAN_FILES`, where the plan put all six.
+- **D2.60** `try_dispatch_structured_hook` resolves the head in
+  `structured_dispatch`, a frame of its own. Reason: the dispatcher stays on
+  the stack while the lowerer recurses, and `depth_guard`'s
+  `the_source_walk_cap_fits_its_stack_budget` had no headroom left — it
+  failed on the unchanged tree once a test function was added beside it.
+  The frame fell from 10,704 to 7,920 bytes a level (measured under gdb,
+  dev profile); the deepest walk from about 1,576,000 to 1,401,208 bytes of
+  the 1,572,864 budget.
+- **D2.61** The value-transfer ratchet's `analyser/commands.rs` row (the
+  orphaned-keyword table) is removed with its pin. Reason: its one site is
+  gone; `value-transfers --check` requires the ledger row to match.
+- **D2.62** The deprecated `ResolvedInvocation::effect_footprint` alias is
+  removed, and the registry's `try_body_is_fallthrough` with it. Reason:
+  D2.42's one checkpoint; no caller remained.
 - **D3.1** `WorkspaceTrust` lives in `tcl_dialect::model::environment`
   beside `Provenance`; `Tier` is unchanged and the trust rides `PackFile`,
   `MergedPack`, `EvalOptions`, `EvalSnapshotKey` and the cache key.

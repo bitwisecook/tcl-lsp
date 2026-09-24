@@ -364,7 +364,7 @@ The registry surface is far richer than the analyser's dispatch uses.
 | scope and interpreter transitions | resolvers on `upvar`, `global`, `variable`, `namespace`, `interp` (`rust/tcl-registry/src/state_transition.rs`) | the variable-alias, namespace, and interpreter families have no consumer under `rust/tcl-compiler/src/analyser/`; `frame_effect` is read only for alias-pair layout and level parsing (`param_traits.rs`, `diagnostics/usage.rs`); the command-binding family only by `interp alias` and the static-proc proof |
 | loop and bind positions | roles and strided `repeated_args` | hardcoded indices in five handlers (`handlers.rs`: `dict for`, `dict update`, `foreach`, `incr`, `append` / `lappend`) |
 | OO member effect | the member-effect descriptor (`MemberSpec::effect`, `MemberEffect`, in `rust/tcl-registry/src/definer.rs`) since step 2, beside the layout (`MemberKind`: `Flat`, `Wrapper`, `FlagKeyed`) and `arg_roles`, `slot`, `retraction`, `visibility_effect`, `surface`; every TclOO, snit, itcl, `SpecTcl` and `SslicTcl` member states one, and `DefinitionBodyGrammar::member_row` answers a statement's row | an eleven-arm keyword match in `analyser/oo.rs`, plus snit and itcl prefix conventions; the ledger counts about thirty-two rows on this axis |
-| clause grammar | the clause-grammar descriptor (`ClauseGrammarSpec`, `rust/tcl-registry/src/clause_grammar.rs`), on `CommandSpec` and `SubCommand` since step 2: ten shipped grammars, one registry walk answering the roles and the clause-shape defect, and the loader reading the same type | three keyword walks (`lower_if` and `lower_try` in `lowering/structured.rs`, `handle_try_command` in `analyser/handlers.rs`), `orphaned_keyword_parent` in `analyser/commands.rs`, and the `on`-`ok` test in `cfg_builder/cfg_lower.rs`, plus `signature_scan/walker.rs`, the editor refactors, and `tcl-mcp`'s `datagroup.rs`; the ledger counts about thirty rows |
+| clause grammar | the clause-grammar descriptor (`ClauseGrammarSpec`, `rust/tcl-registry/src/clause_grammar.rs`), on `CommandSpec` and `SubCommand` since step 2: ten shipped grammars, one registry walk answering the roles and the clause-shape defect, and the loader reading the same type | since step 2 the lowering (`lower_if`, `lower_try`), `handle_try_command`, the generic body walk's depths, the stray-keyword report, the CFG's `on ok` edge and `signature_scan/walker.rs` read the plan; the editor refactors and `tcl-mcp`'s `datagroup.rs` still walk keywords |
 | option-selected semantics | the option-effect descriptor (`OptionSpec::effect`, `option_effect_families`, `option_effect.rs`), which replaced the two native resolvers over a command's own option table — `substitution_resolver` and `lsearch_pattern_args` — in step 2; `pattern_arg_resolver` remains an escape hatch no shipped spec sets | three consumers ask `CommandRegistry::substitutions_performed` correctly; the dynamic-name barrier and the `inner_head_performs_substitution` gate read only the trait, and `push_substituted_commands` re-walks a braced template for regions the answer does not carry |
 
 Three descriptors are missing, and all three are specified below. The rest
@@ -605,6 +605,24 @@ refactors (`refactor/if_to_switch.rs`, `refactor/datagroup.rs`), and
 `tcl-mcp`'s `datagroup.rs` ask the plan. Recovery, the formatter, and the
 semantic-token classifier read the slot's `noise` word for the `then`
 distinction they draw by hand.
+
+*As built in step 2 (CC2.9).* The compiler consumers read the plan:
+`lower_if` and `lower_try` through `ResolvedInvocation::clause_walk`, whose
+walk compares the words' *values* (so the fall-through marker is exact) and,
+where a computed word stands where it compares one, abstains with the inert
+reading the lowering needs to defer the construct as the retired keyword
+walk did; `TryHandler::kind` is the row's `HandlerMatch`; `cfg_lower.rs`'s
+`on ok` edge reads `HandlerMatch::CompletionCode` and the registry's
+completion-code parse (`try` declares no default clause, so `is_default`
+never applies); `handle_try_command` walks the plan by timing, and the
+generic body walk sets each body's depth from its clause's timing —
+`for`'s handler retired onto it; the stray-keyword report asks
+`clause_grammar::owner_of_keyword`; `signature_scan/walker.rs` reads each
+clause's script word; and the registry's own `try_control_invocation`
+parses the plan rather than the keywords. A marker falls through to the next
+*selected* clause only — never to `finally` — and `ClausePlan::falls_through`
+names a marker with no clause to fall to. The editor tiers are step 2's
+next item.
 
 **The `.tclspec` row shape** extends the block the loader already reads
 ([../spec-dsl-examples/if.tclspec](../spec-dsl-examples/if.tclspec) is

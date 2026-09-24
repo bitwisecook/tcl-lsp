@@ -5336,10 +5336,9 @@ mod tests {
     #[test]
     fn analyse_w110_fires_on_for_condition() {
         // ``for {set i 0} {$x == "foo"} {incr i} {body}`` —
-        // ``handle_for_command`` returns early from
-        // ``process_command``, so the EXPR-role dispatch must
-        // run *before* the early-return handlers (otherwise
-        // W110 on a ``for`` condition would silently miss).
+        // the EXPR-role dispatch runs *before* the hook handlers,
+        // so W110 on a ``for`` condition fires whichever walk
+        // owns the bodies.
         let mut a = Analyser::new();
         let r = a.analyse("for {set i 0} {$x == \"foo\"} {incr i} { break }\n", "tcl");
         let w110: Vec<_> = r

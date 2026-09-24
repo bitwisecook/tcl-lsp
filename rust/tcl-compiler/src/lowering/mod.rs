@@ -1716,19 +1716,8 @@ impl<'r> Lowerer<'r> {
         namespace: &str,
     ) -> Option<Statement> {
         let args = seg.args();
-        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-        // Resolved at the registry's own point: a
-        // profile-built registry suppresses the structured
-        // lowering of a command its release does not have (`lmap` at 8.4),
-        // so the call flows to `lower_default` and reaches the runtime's
-        // availability gate as a generic dispatch. A profile-less registry
-        // keeps the dialect-blind resolution.
-        let resolved = self.registry.resolve_invocation(
-            cmd_name,
-            &arg_refs,
-            self.registry.own_surface_query(),
-        )?;
-        let hook = resolved.semantics.lowering_hook?;
+        let (hook, inline_body_error_context, canonical_command) =
+            self.structured_dispatch(cmd_name, args)?;
         // The expansion gate lives here, keyed on the same typed hook the
         // dispatch below uses, so it can never name a different set of
         // commands than the lowerers it protects.
@@ -1740,7 +1729,6 @@ impl<'r> Lowerer<'r> {
         {
             return Some(self.structured_expand_barrier(cmd_name, args, seg));
         }
-        let inline_body_error_context = resolved.semantics.operation.inline_body_error_context();
         match hook {
             // Static-body uplevel.  Match `uplevel 1 {body}`,
             // `uplevel #0 {body}`, and the canonical no-level form
@@ -1764,7 +1752,7 @@ impl<'r> Lowerer<'r> {
                 seg,
                 namespace,
                 inline_body_error_context,
-                resolved.canonical_command,
+                canonical_command,
             )),
 
             // `apply {{params} body ?ns?} …` — walk the braced body so nested
@@ -1778,7 +1766,7 @@ impl<'r> Lowerer<'r> {
             // braced literal body is walked in a fresh frame bound to the two
             // loop variables so it is analysable.
             LoweringHookId::ArrayFor => {
-                self.record_consumed_command_binding(seg, namespace, resolved.canonical_command);
+                self.record_consumed_command_binding(seg, namespace, canonical_command);
                 Some(self.lower_array_for(seg, namespace))
             }
 
@@ -1786,26 +1774,26 @@ impl<'r> Lowerer<'r> {
             // single-method dispatch with no arity / shared-method /
             // subcommand complications.
             LoweringHookId::If => {
-                self.record_consumed_command_binding(seg, namespace, resolved.canonical_command);
+                self.record_consumed_command_binding(seg, namespace, canonical_command);
                 Some(self.lower_if(seg, namespace))
             }
             LoweringHookId::Switch => {
-                self.record_consumed_command_binding(seg, namespace, resolved.canonical_command);
+                self.record_consumed_command_binding(seg, namespace, canonical_command);
                 Some(self.lower_switch(seg, namespace))
             }
             LoweringHookId::For => {
-                self.record_consumed_command_binding(seg, namespace, resolved.canonical_command);
+                self.record_consumed_command_binding(seg, namespace, canonical_command);
                 Some(self.lower_for(seg, namespace))
             }
             LoweringHookId::While => {
-                self.record_consumed_command_binding(seg, namespace, resolved.canonical_command);
+                self.record_consumed_command_binding(seg, namespace, canonical_command);
                 Some(self.lower_while(seg, namespace))
             }
             LoweringHookId::Catch => {
-                Some(self.lower_catch_with_binding(seg, namespace, resolved.canonical_command))
+                Some(self.lower_catch_with_binding(seg, namespace, canonical_command))
             }
             LoweringHookId::Try => {
-                self.record_consumed_command_binding(seg, namespace, resolved.canonical_command);
+                self.record_consumed_command_binding(seg, namespace, canonical_command);
                 Some(self.lower_try(seg, namespace))
             }
 
@@ -1819,7 +1807,7 @@ impl<'r> Lowerer<'r> {
             // at least three token slices (the body needs to
             // be a real token, not synthesised whitespace).
             LoweringHookId::Proc => {
-                self.try_lower_proc_declaration(seg, namespace, resolved.canonical_command)
+                self.try_lower_proc_declaration(seg, namespace, canonical_command)
             }
             // `namespace eval ns body` — the subcommand match
             // is already handled by `resolve_call`, so the
@@ -1838,11 +1826,11 @@ impl<'r> Lowerer<'r> {
             // dedicated lowerer handles its own shape errors,
             // so no precondition here.
             LoweringHookId::Foreach => {
-                self.record_consumed_command_binding(seg, namespace, resolved.canonical_command);
+                self.record_consumed_command_binding(seg, namespace, canonical_command);
                 Some(self.lower_foreach(seg, namespace, false))
             }
             LoweringHookId::Lmap => {
-                self.record_consumed_command_binding(seg, namespace, resolved.canonical_command);
+                self.record_consumed_command_binding(seg, namespace, canonical_command);
                 Some(self.lower_foreach(seg, namespace, true))
             }
             // `dict <subcommand> ...` — must have at least one
@@ -1852,11 +1840,7 @@ impl<'r> Lowerer<'r> {
                 if args.is_empty() {
                     None
                 } else {
-                    self.record_consumed_command_binding(
-                        seg,
-                        namespace,
-                        resolved.canonical_command,
-                    );
+                    self.record_consumed_command_binding(seg, namespace, canonical_command);
                     Some(self.lower_dict(seg, namespace))
                 }
             }
@@ -1876,7 +1860,7 @@ impl<'r> Lowerer<'r> {
             // misconfiguration; the dialect needs to match the
             // source.
             LoweringHookId::When => {
-                self.try_lower_when_declaration(seg, namespace, resolved.canonical_command)
+                self.try_lower_when_declaration(seg, namespace, canonical_command)
             }
             // `foreachLine varName filename body` — Tcl 9.0
             // (TIP 670).  Always registered in `build_default()`
@@ -1888,7 +1872,7 @@ impl<'r> Lowerer<'r> {
             // flowing to `lower_default` instead of triggering a
             // barrier inside the dedicated emitter.
             LoweringHookId::ForeachLine => {
-                self.try_lower_foreach_line_structured(seg, namespace, resolved.canonical_command)
+                self.try_lower_foreach_line_structured(seg, namespace, canonical_command)
             }
 
             // Non-structured hooks (`Expr` / `Return` / `Set` /
@@ -1909,6 +1893,44 @@ impl<'r> Lowerer<'r> {
             | LoweringHookId::Variable
             | LoweringHookId::Upvar => None,
         }
+    }
+
+    /// The structured lowering a command head selects, with the two facts the
+    /// dispatch reads beside the hook: the operation's inline-body error
+    /// context and the canonical command.
+    ///
+    /// Resolved at the registry's own point: a profile-built registry
+    /// suppresses the structured lowering of a command its release does not
+    /// have (`lmap` at 8.4), so the call flows to `lower_default` and reaches
+    /// the runtime's availability gate as a generic dispatch. A profile-less
+    /// registry keeps the dialect-blind resolution.
+    ///
+    /// Its own frame, never inlined into [`Self::try_dispatch_structured_hook`]:
+    /// the dispatcher stays on the stack while the lowerer recurses into the
+    /// command's bodies, and the resolution is kilobytes the braced-body
+    /// depth budget (`depth_guard::SOURCE_WALK_BYTES_PER_LEVEL`) would
+    /// otherwise pay at every nesting level.
+    #[inline(never)]
+    fn structured_dispatch(
+        &self,
+        cmd_name: &str,
+        args: &[String],
+    ) -> Option<(
+        LoweringHookId,
+        Option<tcl_registry::InlineBodyErrorContext>,
+        &'static str,
+    )> {
+        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+        let resolved = self.registry.resolve_invocation(
+            cmd_name,
+            &arg_refs,
+            self.registry.own_surface_query(),
+        )?;
+        Some((
+            resolved.semantics.lowering_hook?,
+            resolved.semantics.operation.inline_body_error_context(),
+            resolved.canonical_command,
+        ))
     }
 
     /// Retain the resolved head of a command whose typed lowering consumes its

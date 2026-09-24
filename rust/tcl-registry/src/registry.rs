@@ -413,60 +413,73 @@ fn parse_try_completion_selector(
 }
 
 fn parse_try_control_invocation(
+    plan: &crate::ClausePlan,
     args: &[&str],
     numbers: tcl_syntax::number::Numbers,
 ) -> Option<TryControlInvocation> {
-    args.first()?;
-    let mut clauses = Vec::new();
-    let mut trailing_fallthrough = false;
-    let mut i = 1usize;
-    while i < args.len() {
-        match args.get(i).copied() {
-            Some("finally") if i + 2 == args.len() && !trailing_fallthrough => {
-                clauses.push(TryControlClause {
-                    kind: TryClauseKind::Finally,
-                    selector_index: None,
-                    variable_list_index: None,
-                    body_index: i + 1,
-                    fallthrough: false,
-                });
-                i += 2;
-            }
-            Some("on" | "trap") if i + 3 < args.len() => {
-                let clause = args[i];
-                let selector = args[i + 1];
-                let kind = if clause == "on" {
-                    TryClauseKind::On(parse_try_completion_selector(selector, numbers)?)
-                } else {
-                    if tcl_syntax::naming::is_dynamic_word(selector)
-                        || tcl_syntax::list::split_list(selector).is_err()
-                    {
-                        return None;
+    // The clause grammar's walk decides the chain — which words introduce a
+    // handler, which is `finally`, where the chain stops making sense — and
+    // this reads each clause by its timing and its handler vocabulary, never
+    // by a keyword.
+    if plan.defect.is_some() {
+        return None;
+    }
+    let (head, rest) = plan.clauses.split_first()?;
+    let body_index = head.operand(ArgRole::Body)?;
+    let mut clauses = Vec::with_capacity(rest.len());
+    for (offset, clause) in rest.iter().enumerate() {
+        let body_index = clause.operand(ArgRole::Body)?;
+        match clause.timing {
+            crate::clause_grammar::ClauseTiming::Always => clauses.push(TryControlClause {
+                kind: TryClauseKind::Finally,
+                selector_index: None,
+                variable_list_index: None,
+                body_index,
+                fallthrough: false,
+            }),
+            crate::clause_grammar::ClauseTiming::Selected => {
+                let (selector_index, handler) = clause.handler()?;
+                let selector = *args.get(selector_index)?;
+                let kind = match handler {
+                    crate::value_transfer::HandlerMatch::CompletionCode => {
+                        TryClauseKind::On(parse_try_completion_selector(selector, numbers)?)
                     }
-                    TryClauseKind::Trap
+                    crate::value_transfer::HandlerMatch::ErrorCodePrefix => {
+                        if tcl_syntax::naming::is_dynamic_word(selector)
+                            || tcl_syntax::list::split_list(selector).is_err()
+                        {
+                            return None;
+                        }
+                        TryClauseKind::Trap
+                    }
                 };
-                if tcl_syntax::naming::is_dynamic_word(args[i + 2]) {
+                let variable_list_index = clause.operand(ArgRole::LoopVarList)?;
+                let variable_list = *args.get(variable_list_index)?;
+                if tcl_syntax::naming::is_dynamic_word(variable_list) {
                     return None;
                 }
-                let variables = tcl_syntax::list::split_list(args[i + 2]).ok()?;
-                if variables.len() > 2 {
+                if tcl_syntax::list::split_list(variable_list).ok()?.len() > 2 {
                     return None;
                 }
-                trailing_fallthrough = crate::commands::tcl::try_body_is_fallthrough(args[i + 3]);
+                // A marker with no later handler to run is Tcl's "last
+                // non-finally clause must not have a body of `-`".
+                let fallthrough = plan.falls_through(offset + 1);
+                if fallthrough && clause.falls_through_to.is_none() {
+                    return None;
+                }
                 clauses.push(TryControlClause {
                     kind,
-                    selector_index: Some(i + 1),
-                    variable_list_index: Some(i + 2),
-                    body_index: i + 3,
-                    fallthrough: trailing_fallthrough,
+                    selector_index: Some(selector_index),
+                    variable_list_index: Some(variable_list_index),
+                    body_index,
+                    fallthrough,
                 });
-                i += 4;
             }
             _ => return None,
         }
     }
-    (!trailing_fallthrough).then_some(TryControlInvocation {
-        body_index: 0,
+    Some(TryControlInvocation {
+        body_index,
         clauses,
     })
 }
@@ -486,10 +499,11 @@ fn control_chain_is_well_formed(
 }
 
 fn try_control_arms(
+    plan: &crate::ClausePlan,
     args: &[&str],
     numbers: tcl_syntax::number::Numbers,
 ) -> Option<Vec<(usize, ControlArmSemantics)>> {
-    let invocation = parse_try_control_invocation(args, numbers)?;
+    let invocation = parse_try_control_invocation(plan, args, numbers)?;
     let mut arms = vec![(invocation.body_index, ControlArmSemantics::Always)];
     arms.extend(invocation.clauses.into_iter().filter_map(|clause| {
         (!clause.fallthrough).then_some((
@@ -3661,6 +3675,7 @@ impl CommandRegistry {
             }
             LoweringHookId::For | LoweringHookId::While => Some(ControlArmSemantics::Uncertain),
             LoweringHookId::Try => try_control_arms(
+                &resolved.clause_plan(args, None)?,
                 args,
                 tcl_syntax::number::Numbers::of_profile(self.profile()),
             )?
@@ -3685,9 +3700,12 @@ impl CommandRegistry {
         match hook {
             LoweringHookId::If => control_chain_is_well_formed(resolved.spec, args, dialect),
             LoweringHookId::Switch => Some(self.case_invocation(name, args, dialect).is_some()),
-            LoweringHookId::Try => {
-                Some(try_control_arms(args, self.control_numbers(dialect)).is_some())
-            }
+            LoweringHookId::Try => Some(
+                resolved
+                    .clause_plan(args, dialect)
+                    .and_then(|plan| try_control_arms(&plan, args, self.control_numbers(dialect)))
+                    .is_some(),
+            ),
             LoweringHookId::NamespaceEval
             | LoweringHookId::Catch
             | LoweringHookId::For
@@ -3710,8 +3728,14 @@ impl CommandRegistry {
         dialect: Option<SurfaceQuery<'_>>,
     ) -> Option<TryControlInvocation> {
         let resolved = self.resolve_call(name, args, dialect)?;
-        (resolved.lowering_hook == Some(crate::hooks::LoweringHookId::Try))
-            .then(|| parse_try_control_invocation(args, self.control_numbers(dialect)))?
+        if resolved.lowering_hook != Some(crate::hooks::LoweringHookId::Try) {
+            return None;
+        }
+        parse_try_control_invocation(
+            &resolved.clause_plan(args, dialect)?,
+            args,
+            self.control_numbers(dialect),
+        )
     }
 
     /// Numeral grammar for a control invocation query.
@@ -5954,6 +5978,27 @@ impl ResolvedCall<'_> {
     pub fn var_elements_effect(&self) -> Option<crate::types::VarElementsEffect> {
         self.sub
             .map_or(self.spec.var_elements_effect, |s| s.var_elements_effect)
+    }
+
+    /// The clause plan of this call: the matched subcommand's grammar walked
+    /// over the words after the subcommand word, else the command's over
+    /// `args`, in the post-head coordinates of `args` — the plan
+    /// [`CommandRegistry::clause_plan`] answers for the same descriptors.
+    /// `args` are source spellings (a braced `{-}` is the fall-through
+    /// marker). `None` when neither declares a grammar or it is unavailable
+    /// at `dialect`.
+    #[must_use]
+    pub fn clause_plan(
+        &self,
+        args: &[&str],
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> Option<crate::ClausePlan> {
+        match self.sub {
+            Some(sub) => sub
+                .clause_plan(args.get(1..).unwrap_or_default(), dialect)
+                .map(|plan| plan.offset_by(1)),
+            None => self.spec.clause_plan(args, dialect),
+        }
     }
 }
 

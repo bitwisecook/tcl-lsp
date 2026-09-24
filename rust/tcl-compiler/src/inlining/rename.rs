@@ -443,7 +443,7 @@ fn rewrite_binding_scope(stmt: &Statement, rename: &HashMap<String, String>) -> 
             handlers: handlers
                 .iter()
                 .map(|h| TryHandler {
-                    kind: h.kind.clone(),
+                    kind: h.kind,
                     match_arg: h.match_arg.clone(),
                     trap_pattern: h.trap_pattern.clone(),
                     var_name: h.var_name.as_ref().map(|v| rename_local(v, rename)),

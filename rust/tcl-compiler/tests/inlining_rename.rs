@@ -846,7 +846,7 @@ fn try_on_handler_var_and_body_renamed() {
 #[test]
 fn try_trap_handler_vars_renamed() {
     // A `trap {ERRCODE} {m o}` handler — same rename arm as `on`, exercising
-    // the `kind == "trap"` path. The match_arg (`ARITH`) is a literal error
+    // an error-code-prefix handler. The match_arg (`ARITH`) is a literal error
     // code, never a variable; only the handler vars and body rename.
     let out = inlined("proc f {} { try { set x 1 } trap {ARITH} {m o} { puts $m } }\nf\n");
     let Statement::Try { handlers, .. } = out
@@ -859,7 +859,11 @@ fn try_trap_handler_vars_renamed() {
         unreachable!()
     };
     let h = &handlers[0];
-    assert_eq!(h.kind, "trap", "trap handler kind preserved");
+    assert_eq!(
+        h.kind,
+        tcl_compiler::ir::HandlerMatch::ErrorCodePrefix,
+        "trap handler kind preserved"
+    );
     assert_eq!(h.match_arg, "ARITH", "literal error code untouched");
     let vn = h.var_name.clone().expect("trap var");
     assert!(

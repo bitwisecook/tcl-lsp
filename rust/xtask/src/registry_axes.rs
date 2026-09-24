@@ -113,7 +113,12 @@ const LANDED: &[&str] = &["step 1", "slice 1", "slice 2", "slice 3", "slice 4"];
 
 /// The files the lint holds clean: every site waived or gone. A step that
 /// rewrites a file adds it here with its pin removed; a file never leaves.
-const CLEAN_FILES: &[&str] = &[];
+const CLEAN_FILES: &[&str] = &[
+    "rust/tcl-compiler/src/analyser/commands.rs",
+    "rust/tcl-compiler/src/cfg_builder/cfg_lower.rs",
+    "rust/tcl-compiler/src/executable_ir.rs",
+    "rust/tcl-compiler/src/signature_scan/walker.rs",
+];
 
 /// The pinned count of unwaived sites per scanned file, from the gate's first
 /// run. A count may only fall: a pin is lowered beside the review that
@@ -158,7 +163,6 @@ const RATCHET: &[(&str, usize)] = &[
     ("rust/tcl-cli/src/lib.rs", 1),
     ("rust/tcl-compiler/src/analyser/bounds_checks.rs", 34),
     ("rust/tcl-compiler/src/analyser/class_lattice.rs", 5),
-    ("rust/tcl-compiler/src/analyser/commands.rs", 12),
     ("rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs", 9),
     ("rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs", 1),
     ("rust/tcl-compiler/src/analyser/diagnostics/helpers.rs", 6),
@@ -173,7 +177,7 @@ const RATCHET: &[(&str, usize)] = &[
         "rust/tcl-compiler/src/analyser/diagnostics/version_gate.rs",
         1,
     ),
-    ("rust/tcl-compiler/src/analyser/handlers.rs", 20),
+    ("rust/tcl-compiler/src/analyser/handlers.rs", 9),
     ("rust/tcl-compiler/src/analyser/irules_event_checks.rs", 8),
     ("rust/tcl-compiler/src/analyser/oo.rs", 43),
     ("rust/tcl-compiler/src/analyser/param_traits.rs", 16),
@@ -181,7 +185,6 @@ const RATCHET: &[(&str, usize)] = &[
     ("rust/tcl-compiler/src/analyser/recovery.rs", 4),
     ("rust/tcl-compiler/src/analyser/tk_checks.rs", 2),
     ("rust/tcl-compiler/src/auto_path_eval.rs", 6),
-    ("rust/tcl-compiler/src/cfg_builder/cfg_lower.rs", 1),
     ("rust/tcl-compiler/src/cfg_builder/upvar_info.rs", 1),
     ("rust/tcl-compiler/src/codegen/cmd_subst.rs", 21),
     ("rust/tcl-compiler/src/codegen/control_flow.rs", 3),
@@ -193,7 +196,6 @@ const RATCHET: &[(&str, usize)] = &[
     ("rust/tcl-compiler/src/codegen/structured.rs", 2),
     ("rust/tcl-compiler/src/common_aot_plan.rs", 1),
     ("rust/tcl-compiler/src/connection_scope.rs", 1),
-    ("rust/tcl-compiler/src/executable_ir.rs", 1),
     ("rust/tcl-compiler/src/inline_uplevel.rs", 1),
     ("rust/tcl-compiler/src/inlining/mod.rs", 1),
     ("rust/tcl-compiler/src/interprocedural.rs", 6),
@@ -201,7 +203,7 @@ const RATCHET: &[(&str, usize)] = &[
     ("rust/tcl-compiler/src/ir.rs", 5),
     ("rust/tcl-compiler/src/irules_checks.rs", 7),
     ("rust/tcl-compiler/src/lowering/mod.rs", 25),
-    ("rust/tcl-compiler/src/lowering/structured.rs", 19),
+    ("rust/tcl-compiler/src/lowering/structured.rs", 8),
     ("rust/tcl-compiler/src/lowering_hooks.rs", 2),
     ("rust/tcl-compiler/src/object_types.rs", 2),
     ("rust/tcl-compiler/src/optimiser/end_offset.rs", 7),
@@ -218,7 +220,6 @@ const RATCHET: &[(&str, usize)] = &[
     ("rust/tcl-compiler/src/signature_scan/factory.rs", 1),
     ("rust/tcl-compiler/src/signature_scan/handlers.rs", 1),
     ("rust/tcl-compiler/src/signature_scan/params.rs", 1),
-    ("rust/tcl-compiler/src/signature_scan/walker.rs", 10),
     ("rust/tcl-compiler/src/specialise_factories.rs", 1),
     ("rust/tcl-compiler/src/ssa.rs", 1),
     ("rust/tcl-compiler/src/taint.rs", 12),
@@ -232,7 +233,7 @@ const RATCHET: &[(&str, usize)] = &[
     ("rust/tcl-compiler/src/var_escape/slot_resolution.rs", 7),
     ("rust/tcl-compiler/src/var_scoping.rs", 2),
     ("rust/tcl-diagram/src/attach.rs", 7),
-    ("rust/tcl-diagram/src/data.rs", 5),
+    ("rust/tcl-diagram/src/data.rs", 4),
     ("rust/tcl-diagram/src/graph.rs", 9),
     ("rust/tcl-irules/src/ilx.rs", 2),
     ("rust/tcl-irules/src/lib.rs", 26),
