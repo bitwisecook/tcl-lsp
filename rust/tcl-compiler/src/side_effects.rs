@@ -1753,26 +1753,24 @@ mod tests {
     /// declaration states — nearest wins — and a declaration stating none
     /// classifies exactly as an undeclared command does; every other name is
     /// the catalogue's.
+    ///
+    /// The declarations arrive the way a document states them, through the
+    /// analyser's one ingestion path (`document_declared_surface`), so the
+    /// facts classified here are the flags' own: `-pure` is `PURE`, and
+    /// `-mutator` is `READS_BEFORE_WRITE` beside a variable read and write.
     #[test]
     fn a_declared_command_classifies_from_its_declaration() {
-        use tcl_dialect::model::Provenance;
-        use tcl_registry::model::{DeclaredCommand, DeclaredSurface, DocumentCommandSurface};
+        use tcl_registry::model::DocumentCommandSurface;
         let registry = CommandRegistry::build_default();
-        let declare =
-            |name: &str| DeclaredCommand::new(name.to_owned(), Vec::new(), Provenance::Document);
-        let mut declared = DeclaredSurface::new();
-        declared.declare(declare("my_pure").with_traits(Traits::PURE));
-        declared.declare(
-            declare("my_mut")
-                .with_traits(Traits::READS_BEFORE_WRITE)
-                .with_side_effects(vec![RegistrySideEffect {
-                    target: RegistryTarget::Variable,
-                    reads: true,
-                    writes: true,
-                    ..RegistrySideEffect::DEFAULT
-                }]),
+        let declared = crate::analyser::utils::document_declared_surface(
+            "# tcl-lsp: stubs-begin\n\
+             # tcl-lsp: stub my_pure {} -pure\n\
+             # tcl-lsp: stub my_mut {} -mutator\n\
+             # tcl-lsp: stub my_plain {}\n\
+             # tcl-lsp: stubs-end\n",
+            None,
+            "tcl8.6",
         );
-        declared.declare(declare("my_plain"));
         let surface = DocumentCommandSurface::new(&registry, Some(&declared));
         let classify = |name: &str, args: &[String]| {
             classify_side_effects_in(&surface, name, args, None, None)
