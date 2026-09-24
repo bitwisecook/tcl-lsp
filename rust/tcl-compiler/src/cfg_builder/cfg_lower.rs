@@ -117,12 +117,20 @@ fn literal_true_expr() -> ExprNode {
 /// keeps the `Raw` form, whose codegen has dedicated scalar-load arms and so
 /// never involves `exprStk`.
 ///
-/// `String` folds where `Raw` did not, but not *here*: branch folding skips any
-/// `StrEq` terminator as a switch dispatch
+/// The analysis reads that `Raw` subject as the variable it names, and only
+/// where the variable-name owner proves the text is exactly one reference
+/// under the document's `${…}` close rule with none of `{`, `}` or `\` in
+/// the name (`sccp::with_whole_variable_operands` over
+/// `value_transfer::whole_variable_operand`, VT6.1): the dispatch then
+/// decides per arm from the lattice, so a dead arm draws I231 and O107
+/// removes its unreachable body. Any other `Raw` text stays undecided.
+///
+/// Neither form is rewritten as a branch: branch folding skips any `StrEq`
+/// terminator as a switch dispatch
 /// (`optimiser::branch_folding::is_switch_dispatch_cond`), and codegen's
 /// `fold_const_branch` only folds a whole-condition literal, never a `Binary`.
-/// So the arm-pruning behaviour is unchanged, and an unsubstituted subject word
-/// can never be compared as if it were its own literal text.
+/// So an unsubstituted subject word can never be compared as if it were its
+/// own literal text.
 fn switch_subject_operand(subject: &str, braced: bool) -> ExprNode {
     // A braced subject is a literal: its `$` and `[` are data. `ExprNode::String`
     // carries *source text including delimiters* — that is its documented

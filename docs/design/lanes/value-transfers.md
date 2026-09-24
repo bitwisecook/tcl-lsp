@@ -5508,6 +5508,13 @@ unchanged.
   with a backslash stays `Raw` and undecided).
 - **Gates**: G7, G8, G9.
 - **Model**: opus. **Size**: S. **After**: slice 8.
+- **Deviation** (D175): the tree has no `env_from_uses` — a branch
+  condition reaches the lattice only through `evaluate_branch`'s `uses`
+  and the driver's `evaluate_condition` — so the resolution sits in
+  `evaluate_branch` alone. The proof also requires the name to hold none
+  of `{`, `}` or `\`, the three characters on which the close rules and
+  the name readers can disagree; that is the plan's negative case, stated
+  as the rule.
 
 ##### VT6.2 — `switch` declares its selection contract
 
@@ -5699,6 +5706,34 @@ Closes #2056. Closes #2057.
 | the loop simulator honours `switch`'s mode | step 2 of § *`switch`* |
 | IRULE1201 ignores a respond in a dead arm | #2056 |
 | a constant `while` condition gives W240 or W241 instead of W242 | #2057 |
+
+#### Record (2026-09-24): the opus items of slice 6
+
+One implementer runs the opus items in order — VT6.1, VT6.2, VT6.3,
+VT6.4, VT6.5, VT6.7 — each its own checkpoint commit, as slices 4, 5 and
+8 did; VT6.6, VT6.8 and VT6.9 are the sonnet implementer's. The decisions
+are D175 onward in § *Decisions taken*. The first commit also cites the
+issues filed from slice 8's audit in `precision-limitations.md` — the
+`uplevel 0` body (#2261), the `foreach` list word's substitution (#2262),
+the nested unbind's kill (#2263, the Accepted entry) and a procedure's
+implicit result (#2264) — and marks slice 6 in progress in the lanes
+README.
+
+| Item | Commit | What landed | Its tests |
+|---|---|---|---|
+| VT6.1 | ``wip(value-transfers): slice 6 — the whole-variable `Raw` subject`` | `evaluate_branch` (`sccp.rs`) reads a `Raw` operand as the variable it names through `with_whole_variable_operands`, which rewrites an operand `Raw` to a `Var` only where `value_transfer::whole_variable_operand` proves it: `simple_var_ref_name` — now under the document's `${…}` close rule, locating the closer through the variable-name owner (`naming::split_braced_var_ref`) where it had stripped the last `}` at every release, the 9.x answer — reads exactly one reference, and the name holds none of `{`, `}` or `\` (D175). A root `Raw`, an unparsed condition, is never an operand and stays undecided, as does any other `Raw` text. The flattened `switch -- $acc` over a constant now decides per arm: program (4) draws I231 at `baz`'s pattern and O107 removes `puts never`, while O101 stays suppressed on the chain (`is_switch_dispatch` unchanged). The four other readers of `simple_var_ref_name` (`proven_substitution`, `LatticeInputs::operand` and `substituted`, `EnvInputs::operand`) pass their grammar's close rule. `switch_subject_operand` (`cfg_lower.rs`) is unchanged; its doc names the resolution | `the_flattened_form_yields_o107` (compiler witnesses, new: program (4) under every analysed dialect gives I231 at `baz`'s pattern and O107 with `puts never` gone, printing `always` under 8.4 to 9.1 before and after the optimiser; negative: `set {a\b} baz; switch -- ${a\b} …` gives no I231 and no O107 and prints `hit`); `a_raw_operand_is_a_variable_only_when_every_rule_agrees` (`value_transfer.rs`, new); `a_simple_reference_is_one_reference_only` extended to both close rules, `${a{b}c}` and `${a\}`. `switch_dispatch_branches_are_skipped` unchanged; no existing test moved |
+
+Green at VT6.1: `tcl-compiler` 9791 passed, 6 ignored across its 67
+binaries, and 7 doctests; `tcl-lsp-core --lib` 2350; `tcl-lsp-db --lib`
+103; `tcl-cli` 129 across its binaries (`cli` 50, `value_transfers_cli`
+8); `tcl-explorer` 103 — no existing test moved; workspace clippy
+(`--all-targets -D warnings`), no `#[allow]` added, and `cargo fmt
+--check`; `value-transfers --check` (22 clean, 19 waived, 83 pinned
+across 34 files, 6607 rows) and `registry-axes --check` (893 pinned
+across 147 files, 36 waived, 16 clean), both unchanged; `pack-goldens`
+(25 packs, 0 rewritten); `retired-api-gate`, `owner-resolution` (45 rows)
+and `kcs-index-links` pass; `dialect-drift` 8 sites, none new; `cargo
+check --workspace` clean.
 
 ### Slice 9 — nested writes in expressions
 
@@ -9002,6 +9037,24 @@ has the witnesses):
   statements state those already, and D167 keeps a nested unbind's kill
   unmodelled. A branch condition and a returned word are clobbered the
   same way before the terminator reads them.
+- **D175 — A `Raw` operand is a variable only where the name owner
+  proves it** (VT6.1). The flattened `switch` dispatch keeps a
+  whole-variable subject `Raw` so codegen loads the name intact, and the
+  lowering's gate accepts a reference whole under *either* close rule,
+  having no dialect in hand. The branch evaluation has one: it reads the
+  `Raw` operand as a variable only when `simple_var_ref_name`, under the
+  document's `${…}` rule, reads exactly one reference, and the name holds
+  none of `{`, `}` or `\`. Those three are where the rules disagree with
+  each other (`${a{b}c}`, `${a\}`) and with the name readers downstream
+  (`var_reference` and the SSA's normalisation read under the default
+  rule), so a name carrying one stays `Raw` and decides nothing — the
+  plan's negative case, stated as the rule; `${a\b}` names `a\b` under
+  both rules, and still decides nothing. The plan named `env_from_uses`
+  beside `evaluate_branch`; the tree has none (a condition reaches the
+  lattice only through `evaluate_branch`'s `uses`), so the resolution is
+  one function, `with_whole_variable_operands`. Only an operand resolves:
+  the parser makes `Raw` only for a whole unparsed condition, which stays
+  undecided.
 
 ### Open questions for the owner
 

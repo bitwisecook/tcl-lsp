@@ -2247,7 +2247,7 @@ fn proven_substitution(
             _ => None,
         }
     };
-    if let Some(name) = simple_var_ref_name(text) {
+    if let Some(name) = simple_var_ref_name(text, config.braced_var) {
         let (value, key) = read(name)?;
         return Some((value, fu.sccp.folded_types.get(&key).cloned()));
     }
@@ -2998,7 +2998,7 @@ impl<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher> AnalysisInputs
             }
             InvocationWordKind::Dynamic => match self.sources.get(id.0) {
                 Some(OperandSource::Substituted) => self.substituted(operand.text),
-                _ => simple_var_ref_name(operand.text)
+                _ => simple_var_ref_name(operand.text, self.driver.lexer_config.braced_var)
                     .map_or(FactView::Top(DeclineReason::NotExact), |name| {
                         self.named_fact(name)
                     }),
@@ -3115,7 +3115,7 @@ impl<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher> LatticeInputs<'_, S
     /// a pending part makes it pending.
     fn substituted(&self, text: &str) -> FactView {
         use tcl_lexer::word_parts::{SubstFlags, WordBody, WordPart as Part, decompose};
-        if let Some(name) = simple_var_ref_name(text) {
+        if let Some(name) = simple_var_ref_name(text, self.driver.lexer_config.braced_var) {
             return self.named_fact(name);
         }
         let parts = match decompose(
@@ -3443,7 +3443,7 @@ impl AnalysisInputs for EnvInputs<'_> {
         let Some(operand) = self.view.operand(id) else {
             return FactView::Top(DeclineReason::NotExact);
         };
-        if let Some(name) = simple_var_ref_name(operand.text) {
+        if let Some(name) = simple_var_ref_name(operand.text, self.context.grammar.braced_var) {
             return self.variable(name, domain);
         }
         if operand.text.contains('$') || operand.text.contains('[') {
@@ -3530,20 +3530,34 @@ fn place_named(name: &str) -> PlaceRef {
     }
 }
 
-/// The name a `$var` / `${var}` word reads, or `None` for any other shape.
-fn simple_var_ref_name(text: &str) -> Option<&str> {
-    // `${a} + ${b}` starts and ends like one braced reference and is not.
-    if let Some(name) = text
-        .strip_prefix("${")
-        .and_then(|s| s.strip_suffix('}'))
-        .filter(|name| !name.contains('}'))
-    {
-        return Some(name);
+/// The name a `$var` / `${var}` word reads, or `None` for any other shape:
+/// a bare `$name` of name characters, or one `${…}` reference whose closer
+/// — located by the variable-name owner under `style`, the document's
+/// release rule — is the word's last byte.
+fn simple_var_ref_name(text: &str, style: tcl_dialect::BracedVarStyle) -> Option<&str> {
+    if text.starts_with("${") {
+        // `${a} + ${b}` starts and ends like one braced reference and is not.
+        return crate::naming::split_braced_var_ref(text, style)
+            .and_then(|(name, rest)| rest.is_empty().then_some(name));
     }
     let name = text.strip_prefix('$')?;
     name.bytes()
         .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b':')
         .then_some(name)
+}
+
+/// The variable a branch condition's `Raw` operand reads (§ `switch`, step
+/// 1): the variable-name owner proves the text is exactly one reference
+/// under `style` ([`simple_var_ref_name`]), and the name holds none of `{`,
+/// `}` or `\`, the three characters on which the release close rules and
+/// the name readers can disagree — so a backslash-bearing `${…}` subject,
+/// which `Raw` exists to carry intact under either rule, stays `Raw` and
+/// decides nothing. Any other `Raw` text is never read as a variable.
+pub(crate) fn whole_variable_operand(
+    text: &str,
+    style: tcl_dialect::BracedVarStyle,
+) -> Option<&str> {
+    simple_var_ref_name(text, style).filter(|name| !name.contains(['{', '}', '\\']))
 }
 
 /// Inputs for a structure-only question over source words: literal words
@@ -4419,15 +4433,41 @@ mod tests {
 
     /// D60: `simple_var_ref_name` reads exactly one reference. A lowered
     /// quoted `expr` word spells `${a} + ${b}`, which starts and ends like one
-    /// braced reference and is not the variable `a} + ${b`.
+    /// braced reference and is not the variable `a} + ${b`. The `${…}`
+    /// closer is the release rule's (VT6.1): `${a{b}c}` is one reference
+    /// under 9.x and `${a{b}` followed by `c}` under 8.x.
     #[test]
     fn a_simple_reference_is_one_reference_only() {
-        assert_eq!(simple_var_ref_name("$a"), Some("a"));
-        assert_eq!(simple_var_ref_name("${a b}"), Some("a b"));
-        assert_eq!(simple_var_ref_name("$::ns::v"), Some("::ns::v"));
-        assert_eq!(simple_var_ref_name("${a} + ${b}"), None);
-        assert_eq!(simple_var_ref_name("$a + $b"), None);
-        assert_eq!(simple_var_ref_name("a"), None);
+        use tcl_dialect::BracedVarStyle::{FirstClose, Tcl9Nesting};
+        for style in [Tcl9Nesting, FirstClose] {
+            assert_eq!(simple_var_ref_name("$a", style), Some("a"));
+            assert_eq!(simple_var_ref_name("${a b}", style), Some("a b"));
+            assert_eq!(simple_var_ref_name("$::ns::v", style), Some("::ns::v"));
+            assert_eq!(simple_var_ref_name("${a} + ${b}", style), None);
+            assert_eq!(simple_var_ref_name("$a + $b", style), None);
+            assert_eq!(simple_var_ref_name("a", style), None);
+        }
+        assert_eq!(simple_var_ref_name("${a{b}c}", Tcl9Nesting), Some("a{b}c"));
+        assert_eq!(simple_var_ref_name("${a{b}c}", FirstClose), None);
+        assert_eq!(simple_var_ref_name("${a\\}", FirstClose), Some("a\\"));
+        assert_eq!(simple_var_ref_name("${a\\}", Tcl9Nesting), None);
+    }
+
+    /// A `Raw` operand reads a variable only when it is one reference whose
+    /// name the release rules read alike (VT6.1): `${acc}` and `$acc` do, a
+    /// backslash or brace in the name never does, and neither does any
+    /// other `Raw` text.
+    #[test]
+    fn a_raw_operand_is_a_variable_only_when_every_rule_agrees() {
+        use tcl_dialect::BracedVarStyle::{FirstClose, Tcl9Nesting};
+        for style in [Tcl9Nesting, FirstClose] {
+            assert_eq!(whole_variable_operand("${acc}", style), Some("acc"));
+            assert_eq!(whole_variable_operand("$acc", style), Some("acc"));
+            assert_eq!(whole_variable_operand("${a\\b}", style), None);
+            assert_eq!(whole_variable_operand("<switch_jump>", style), None);
+            assert_eq!(whole_variable_operand("$a + $b", style), None);
+        }
+        assert_eq!(whole_variable_operand("${a{b}c}", Tcl9Nesting), None);
     }
 
     /// A condition's truth as `if` reads it: a number is true when non-zero,

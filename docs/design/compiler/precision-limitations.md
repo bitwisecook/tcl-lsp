@@ -142,13 +142,15 @@ original's printed output, then the optimised program's):
   `[lmap v {1} {…}]`) — records no read or write of the outer frame's
   names at all (#2231): `set x 1; puts [catch {unset x}]` loses `set x 1`
   to O109 / O126.
-- **An `uplevel 0 {…}` body** — that is the *current* frame, not a nested
-  one, so its reads and writes are the caller's, but nothing records them:
+- **An `uplevel 0 {…}` body** (#2261) — that is the *current* frame, not a
+  nested one, so its reads and writes are the caller's, but nothing records
+  them:
   `proc p {} {set x 1; uplevel 0 {puts $x}; set x 2; puts $x}` prints `1`
   then `2`; with `set x 1` removed as dead (O109) the rewrite raises
   `can't read "x": no such variable`.
-- **A `foreach` list word's own substitution** — the list expression's
-  side effects are real but not materialised as a use of what it reads,
+- **A `foreach` list word's own substitution** (#2262) — the list
+  expression's side effects are real but not materialised as a use of what
+  it reads,
   so a later read of a name the expression itself mutated is forwarded
   from its stale prior value instead: `proc p {} {set n 1; foreach v
   [incr n] {}; puts $n}` prints `2` (`incr n` runs once, as the list
@@ -159,10 +161,10 @@ Why it has not been done: each position needs the lowering to model a body
 it does not open a synthetic statement for at all, which is more than a
 scan-order fix — the nested-substitution case is tracked as #2231 and
 named for the interface contract's slice 9 (nested writes in expressions);
-`uplevel 0` and the loop header's list word are not yet assigned to a
-slice. Extend the synthetic-statement placement (or, for `uplevel 0`,
-model the body as reading and writing the *current* frame rather than a
-nested one) when one of these is the motivating case.
+`uplevel 0` (#2261) and the loop header's list word (#2262) are not yet
+assigned to a slice. Extend the synthetic-statement placement (or, for
+`uplevel 0`, model the body as reading and writing the *current* frame
+rather than a nested one) when one of these is the motivating case.
 
 ## Accepted — a nested unbind's kill is not a definition
 
@@ -185,7 +187,7 @@ still needs. Modelling the kill precisely needs a second synthetic
 statement per nested unbind (one for the read it makes, ordered before its
 host word; one for the kill, ordered after it), which no other existence
 read needs and which the placement machinery does not have a slot for
-today.
+today. Tracked as #2263.
 
 ## Open — a procedure's implicit return value is not a recorded use
 
@@ -203,5 +205,5 @@ does for an explicit one, so there is no use site to attach; giving the
 implicit return path a value operand is a small CFG change with a
 correctness payoff (every procedure without a trailing `return`, which
 idiomatic Tcl leans on heavily) disproportionate to how the case was
-found — auditing existence-read positions for slice 8. Not assigned to a
-slice.
+found — auditing existence-read positions for slice 8. Tracked as #2264;
+not assigned to a slice.

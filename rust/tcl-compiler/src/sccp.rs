@@ -2955,7 +2955,9 @@ fn loop_summary_decision(
 /// `Some(true)`, every member false `Some(false)`, and a mixed or undecided
 /// answer is `None`. Two finite values decline as correlated. The reads
 /// are the block's exit versions, and a variable the block never defines
-/// — a parameter's caller-provided seed — reads its version 0.
+/// — a parameter's caller-provided seed — reads its version 0. A `Raw`
+/// operand reads a variable only as [`with_whole_variable_operands`] proves
+/// it; any other `Raw` text leaves the condition undecided.
 #[must_use]
 pub(crate) fn evaluate_branch<S: std::hash::BuildHasher>(
     ssa_block: &crate::ssa::SsaBlock,
@@ -2975,8 +2977,86 @@ pub(crate) fn evaluate_branch<S: std::hash::BuildHasher>(
             uses.entry(sym).or_insert(0);
         }
     }
+    let resolved = with_whole_variable_operands(condition, fold.grammar.braced_var);
     fold.driver
-        .evaluate_condition(condition, &uses, values, ssa)
+        .evaluate_condition(resolved.as_ref().unwrap_or(condition), &uses, values, ssa)
+}
+
+/// `condition` with every `Raw` *operand* the variable-name owner proves is
+/// exactly one variable reference read as that variable (VT6.1; § `switch`,
+/// step 1) — the flattened dispatch's whole-variable subject, which
+/// `switch_subject_operand` keeps `Raw` so codegen loads the name intact.
+/// `None` when no operand resolves. The proof is
+/// [`crate::value_transfer::whole_variable_operand`] under `style`, the
+/// document's `${…}` close rule; a root `Raw` is an unparsed condition, not
+/// an operand, and stays undecided, as does any `Raw` text the owner does
+/// not prove.
+fn with_whole_variable_operands(
+    condition: &ExprNode,
+    style: tcl_dialect::BracedVarStyle,
+) -> Option<ExprNode> {
+    let operand = |node: &ExprNode| match node {
+        ExprNode::Raw { text } => {
+            crate::value_transfer::whole_variable_operand(text, style).map(|name| ExprNode::Var {
+                text: text.clone(),
+                name: name.to_owned(),
+                start: 0,
+                end: 0,
+            })
+        }
+        other => with_whole_variable_operands(other, style),
+    };
+    let or_same = |resolved: Option<ExprNode>, node: &ExprNode| {
+        Box::new(resolved.unwrap_or_else(|| node.clone()))
+    };
+    match condition {
+        ExprNode::Binary { op, left, right } => {
+            let (l, r) = (operand(left), operand(right));
+            (l.is_some() || r.is_some()).then(|| ExprNode::Binary {
+                op: *op,
+                left: or_same(l, left),
+                right: or_same(r, right),
+            })
+        }
+        ExprNode::Unary { op, operand: inner } => operand(inner).map(|inner| ExprNode::Unary {
+            op: *op,
+            operand: Box::new(inner),
+        }),
+        ExprNode::Ternary {
+            condition: test,
+            true_branch,
+            false_branch,
+        } => {
+            let (c, t, f) = (operand(test), operand(true_branch), operand(false_branch));
+            (c.is_some() || t.is_some() || f.is_some()).then(|| ExprNode::Ternary {
+                condition: or_same(c, test),
+                true_branch: or_same(t, true_branch),
+                false_branch: or_same(f, false_branch),
+            })
+        }
+        ExprNode::Call {
+            function,
+            args,
+            start,
+            end,
+        } => {
+            let resolved: Vec<Option<ExprNode>> = args.iter().map(operand).collect();
+            resolved
+                .iter()
+                .any(Option::is_some)
+                .then(|| ExprNode::Call {
+                    function: function.clone(),
+                    args: resolved
+                        .into_iter()
+                        .zip(args)
+                        .map(|(resolved, arg)| resolved.unwrap_or_else(|| arg.clone()))
+                        .collect(),
+                    start: *start,
+                    end: *end,
+                })
+        }
+        _ => None,
+    }
 }
 
 /// Extract iteration-variable elements from a foreach list arg

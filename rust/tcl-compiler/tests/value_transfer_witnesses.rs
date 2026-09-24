@@ -3102,3 +3102,43 @@ fn a_substituted_body_clobbers_what_it_unsets() {
     }
     prints_under_every_release(source, "no\n");
 }
+
+/// A whole-variable `switch` subject resolves from the lattice (VT6.1; §
+/// `switch`, step 1), so program (4)'s flattened form decides per arm: I231
+/// on the dead arm's pattern and O107 on its body, the optimised program
+/// printing `always` under 8.4 to 9.1. A `${…}` subject whose name carries
+/// a backslash stays `Raw` and decides nothing — no I231 and no O107 — and
+/// tclsh prints `hit` before and after the optimiser.
+#[test]
+fn the_flattened_form_yields_o107() {
+    let source = "set acc \"\"; append acc foo; append acc bar\nswitch -- $acc {\n    baz     { puts never }\n    default { puts always }\n}\n";
+    let pattern = u32::try_from(source.find("baz").expect("the dead arm")).expect("an offset");
+    for dialect in DIALECTS {
+        let diagnostics = tcl_compiler::analyser::Analyser::new()
+            .analyse(source, dialect)
+            .diagnostics;
+        assert!(
+            diagnostics
+                .iter()
+                .any(|d| d.code == DiagCode::I231 && d.span.start() == pattern),
+            "{dialect}: I231 on the dead arm's pattern: {diagnostics:#?}"
+        );
+        let (rewritten, rewrites) = optimised(source, dialect);
+        assert!(
+            rewrites.iter().any(|o| o.code == DiagCode::O107) && !rewritten.contains("puts never"),
+            "{dialect}: O107 removes the dead arm's body:\n{rewritten}\n{rewrites:#?}"
+        );
+    }
+    prints_under_every_release(source, "always\n");
+
+    let negative = "set {a\\b} baz\nswitch -- ${a\\b} {\n    baz     { puts hit }\n    default { puts miss }\n}\n";
+    for dialect in DIALECTS {
+        assert!(!reports(negative, dialect, DiagCode::I231), "{dialect}");
+        let rewrites = rewrites_of(negative, dialect);
+        assert!(
+            !rewrites.iter().any(|o| o.code == DiagCode::O107),
+            "{dialect}: {rewrites:#?}"
+        );
+    }
+    prints_under_every_release(negative, "hit\n");
+}

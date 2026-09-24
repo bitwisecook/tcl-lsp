@@ -88,8 +88,8 @@ checkpoint compiling.
   O109, I230, O101 and S100 consume the one fact; `const`, `array unset`
   and `array default` have semantics; a fast-tier request reads
   `Unavailable`) have landed; slice 6, branch integration and optional
-  rewrites, is next, item by item in the tracking document's § *Plan for
-  slices 2–13*.
+  rewrites, is in progress, item by item in the tracking document's §
+  *Plan for slices 2–13*.
 - [consumer-contracts.md](consumer-contracts.md) — step 1 and step 2 of
   [registry-consumer-contracts.md](../compiler/registry-consumer-contracts.md)
   § *Build order*: step 1 (the four rulings taken as decided, and the
