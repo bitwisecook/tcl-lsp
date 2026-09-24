@@ -40,7 +40,14 @@
 //! version they observe as an SSA use wherever they run, a statement, a
 //! condition, a nested word or a `return` word, so the store they observe
 //! stays. An unbind statement is never removed: the error on an absent
-//! place and the binding's disappearance are its effects.
+//! place and the binding's disappearance are its effects. A dead `incr` is
+//! removable only when its own outcome is a total `Write` under every
+//! release its target profile spans (value-transfers slice 8's totality
+//! proof, permission 3): the release rule's `UnboundPlace` decline —
+//! recorded on the statement's own [`crate::value_transfer::RouteExplanation`]
+//! — means a release that does not create the cell may raise instead, so
+//! "the write is the whole observable effect" does not hold and the
+//! statement stays.
 //!
 //! Emission order is the deterministic CFG `cfg_order` (reverse
 //! post-order from the entry, unreachable blocks appended).
@@ -242,33 +249,68 @@ fn expr_has_observable_side_effect(node: &ExprNode, effect: EffectCtx<'_>, depth
 /// `true` when `stmt` is an assignment whose RHS can be discarded
 /// without losing observable behaviour. A literal (`AssignConst`) is
 /// always safe; value / expr forms require every embedded command
-/// substitution to be provably side-effect-free; `incr v` is safe
-/// unless its optional amount word has a side effect. Any other
+/// substitution to be provably side-effect-free; `incr v` is safe when
+/// its optional amount word has no side effect *and* the run never
+/// declined this statement's own route `unbound-place` — that decline
+/// means a release the target profile spans raises on `v`'s absent cell
+/// (§ *Existence*'s release table), so removal is not total. Any other
 /// statement form is conservatively unsafe — a `Call` among them, so an
 /// unbind (`unset x`, `array unset x`) is never removed, whatever reads
 /// the definition it makes.
-pub(crate) fn assignment_safe_to_delete(stmt: &Statement, purity: PurityCtx<'_>) -> bool {
+pub(crate) fn assignment_safe_to_delete(
+    stmt: &Statement,
+    purity: PurityCtx<'_>,
+    explanations: &[crate::value_transfer::RouteExplanation],
+) -> bool {
     assignment_safe_to_delete_with_effect(
         stmt,
         EffectCtx {
             purity,
             execution_namespace: None,
         },
+        explanations,
     )
 }
 
-fn assignment_safe_to_delete_with_effect(stmt: &Statement, effect: EffectCtx<'_>) -> bool {
+/// Whether the solver's own route explanation for the statement spanning
+/// `span` declined `unbound-place` — the release rule finding a release
+/// that does not create the target's absent cell, so the statement is not
+/// provably total under the target profile.
+fn declined_unbound_place(
+    span: tcl_lexer::Span,
+    explanations: &[crate::value_transfer::RouteExplanation],
+) -> bool {
+    explanations.iter().any(|explanation| {
+        explanation.span.start() == span.start()
+            && explanation.span.end() == span.end()
+            && explanation.answer == "declined: unbound-place"
+    })
+}
+
+fn assignment_safe_to_delete_with_effect(
+    stmt: &Statement,
+    effect: EffectCtx<'_>,
+    explanations: &[crate::value_transfer::RouteExplanation],
+) -> bool {
     match stmt {
         Statement::AssignConst { .. } => true,
         Statement::AssignValue { value, .. } => !word_has_observable_side_effect(value, effect, 0),
         Statement::AssignExpr { expr, .. } => !expr_has_observable_side_effect(expr, effect, 0),
         // `incr v` reads + writes v — the assignment itself is the
-        // observable effect, so deleting it is OK when v is dead and
-        // the optional amount word is side-effect-free.
-        Statement::Incr { amount, .. } => match amount {
-            None => true,
-            Some(a) => !word_has_observable_side_effect(a, effect, 0),
-        },
+        // observable effect, so deleting it is OK when v is dead, the
+        // optional amount word is side-effect-free, and the statement's
+        // own outcome is total (never the release rule's `UnboundPlace`
+        // decline — the profile-mixed or 8.4 case where `v` starts
+        // absent and a spanned release raises instead of creating it).
+        Statement::Incr { amount, .. } => {
+            if declined_unbound_place(stmt.span(), explanations) {
+                return false;
+            }
+            match amount {
+                None => true,
+                Some(a) => !word_has_observable_side_effect(a, effect, 0),
+            }
+        }
         // Unknown statement form — conservative.
         _ => false,
     }
@@ -610,6 +652,7 @@ fn emit_dead_stores_and_unused(
                 purity,
                 execution_namespace,
             },
+            &fu.sccp.explanations,
         ) {
             continue;
         }
@@ -892,6 +935,7 @@ fn run_adce_fixpoint(
                     purity,
                     execution_namespace,
                 },
+                &fu.sccp.explanations,
             ) {
                 continue;
             }

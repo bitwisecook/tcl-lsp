@@ -219,6 +219,35 @@ fn explore_sccp_prints_the_route_of_each_statement() {
     );
 }
 
+/// Slice 8's exit line (VT8.10): the existence branch decides inside the
+/// fixed point — `unset x` leaves `x` provably unbound, so `[info exists
+/// x]` folds `False` as an ordinary `Applied` branch — and the `if`'s
+/// true block (`puts yes`) is outside `executable blocks`.
+#[test]
+fn explore_sccp_prints_the_existence_branch_decided() {
+    let text = run_tcl(&[
+        "explore",
+        "--source",
+        "proc p {} {set x 1; unset x; if {[info exists x]} {puts yes}}",
+        "--show",
+        "sccp",
+        "--text",
+        "--no-colour",
+    ]);
+    assert!(
+        text.contains("branch entry_1: False") && text.contains("condition: [info exists x]"),
+        "the existence branch decides inside the fixed point:\n{text}"
+    );
+    assert!(
+        text.contains("executable blocks: entry_1, exit_5, if_end_2, if_next_4"),
+        "the true block is outside executable blocks:\n{text}"
+    );
+    assert!(
+        !text.contains("if_then_3"),
+        "the if's true block never appears:\n{text}"
+    );
+}
+
 /// VT2.10: `tcl opt --profile full --dialect tcl8.6` forwards program
 /// (3)'s constant return into its call site (O100 / O103).
 #[test]

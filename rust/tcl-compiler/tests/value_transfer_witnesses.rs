@@ -2804,3 +2804,173 @@ fn o109_keeps_a_store_an_existence_read_observes() {
     }
     prints_under_every_release(positions, "1 1 1 1 1 yes 0 1 0 0 0 0 {} 1 1\n");
 }
+
+/// The entry rule for a parameter and a never-assigned local (VT8.10, the
+/// Existence row): a parameter enters `Bound(Scalar)`, so `[info exists
+/// a]` decides true, and a local nothing ever assigns enters `Unbound`, so
+/// `[info exists b]` decides false — both inside the fixed point, so
+/// neither dead arm survives the optimiser.
+#[test]
+fn a_parameter_binds_and_a_never_assigned_local_stays_unbound() {
+    let source = "proc p {a} {\n    if {[info exists a]} {puts yes} else {puts no}\n    \
+                  if {[info exists b]} {puts wrong} else {puts right}\n}\np 1\n";
+    for dialect in DIALECTS {
+        let unit = unit_of(source, dialect);
+        assert_eq!(
+            last_existence(&unit, "::p", "a"),
+            SCALAR,
+            "{dialect}: a parameter binds at entry"
+        );
+        assert_eq!(
+            last_existence(&unit, "::p", "b"),
+            UNBOUND,
+            "{dialect}: a never-assigned local is unbound at entry"
+        );
+        let (rewritten, rewrites) = optimised(source, dialect);
+        assert!(
+            !rewritten.contains("puts no") && !rewritten.contains("puts wrong"),
+            "{dialect}: both guards decide inside the fixed point:\n{rewritten}\n{rewrites:#?}"
+        );
+    }
+    prints_under_every_release(source, "yes\nright\n");
+}
+
+/// `unset -nocomplain` never raises, whether the place was bound or
+/// always absent — its completion domain has no error, unlike a plain
+/// `unset` of an absent name (the release table's own `unset -nocomplain
+/// nosuch` line, read here through the whole program rather than the
+/// existence probe alone): a second, redundant `-nocomplain` and one over
+/// a name never set both leave silently.
+#[test]
+fn unset_nocomplain_never_raises_bound_or_not() {
+    let source = "proc p {} {\n    set x 1\n    unset -nocomplain x\n    \
+                  unset -nocomplain x\n    unset -nocomplain never\n    \
+                  puts done\n    puts [info exists x]\n}\np\n";
+    for dialect in RELEASE_DIALECTS {
+        let unit = unit_of(source, dialect);
+        assert_eq!(
+            last_existence(&unit, "::p", "x"),
+            UNBOUND,
+            "{dialect}: a repeated -nocomplain leaves the place unbound"
+        );
+    }
+    prints_under_every_release(source, "done\n0\n");
+}
+
+/// A scope-alias local enters `MayBound`, never provably `Unbound`,
+/// however little the visible source writes the linked global: the alias
+/// tracks a cell other, unanalysed code may already have set, so the
+/// guard on it never decides and both arms of `[info exists g]` survive
+/// the optimiser — even though this program's own `::g` is never set
+/// anywhere, so tclsh always takes the "no" arm.
+#[test]
+fn a_scope_alias_enters_maybound() {
+    let source =
+        "proc p {} {\n    global g\n    if {[info exists g]} {puts yes} else {puts no}\n}\np\n";
+    for dialect in DIALECTS {
+        let unit = unit_of(source, dialect);
+        assert_eq!(
+            last_existence(&unit, "::p", "g"),
+            Some(Existence::MayBound),
+            "{dialect}: a scope alias is MayBound, not provably absent"
+        );
+        let (rewritten, rewrites) = optimised(source, dialect);
+        assert!(
+            rewritten.contains("puts yes") && rewritten.contains("puts no"),
+            "{dialect}: a MayBound guard never folds away either arm:\n{rewritten}\n{rewrites:#?}"
+        );
+    }
+    prints_under_every_release(source, "no\n");
+}
+
+/// A cross-event iRules variable enters `MayBound` (D160, a superset of
+/// `ConnectionScope::cross_event_defs`): `y` is bound in `CLIENT_ACCEPTED`
+/// and read at `HTTP_REQUEST`'s own entry, so the guard there never
+/// decides either — no oracle here, since `when` is not a command a plain
+/// `tclsh` runs.
+#[test]
+fn a_cross_event_variable_enters_maybound() {
+    let source = "when CLIENT_ACCEPTED {\n    set y 1\n}\n\
+                  when HTTP_REQUEST {\n    if {[info exists y]} {puts yes} else {puts no}\n}\n";
+    let unit = unit_of(source, "f5-irules");
+    assert_eq!(
+        last_existence(&unit, "::when::HTTP_REQUEST", "y"),
+        Some(Existence::MayBound),
+        "a cross-event variable is MayBound at another handler's entry"
+    );
+    let (rewritten, rewrites) = optimised(source, "f5-irules");
+    assert!(
+        rewritten.contains("puts yes") && rewritten.contains("puts no"),
+        "a MayBound guard never folds away either arm:\n{rewritten}\n{rewrites:#?}"
+    );
+}
+
+/// O130 folds a chain starting at an absent cell (the O104 / O130 row):
+/// the release rule creates `l` in every release, so `lappend l a;
+/// lappend l b` folds through the value at the last write exactly as a
+/// `set`-anchored chain does. The single O130 rewrite is read here
+/// (`rewrites_of`, matching `chain_fold.rs`'s own unit-test shape) since
+/// the multipass optimiser goes on to propagate `l`'s now-known value
+/// into `return $l` and drop the fold as unused in its turn — a further,
+/// sound reduction the exit line's own program does not name.
+#[test]
+fn o130_folds_a_chain_from_an_absent_cell() {
+    let source = "proc p {} {\n    lappend l a\n    lappend l b\n    return $l\n}\nputs [p]\n";
+    for dialect in ["tcl8.4", "tcl8.6", "tcl9.0", "tcl"] {
+        let rewrites = rewrites_of(source, dialect);
+        let fold = rewrites
+            .iter()
+            .find(|o| o.code == DiagCode::O130 && o.replacement.starts_with("set"))
+            .unwrap_or_else(|| panic!("{dialect}: expected an O130 fold: {rewrites:#?}"));
+        assert_eq!(fold.replacement, "set l {a b}", "{dialect}");
+    }
+    prints_under_every_release(source, "a b\n");
+}
+
+/// A failing dead write is retained (O108's totality proof, the Rewrites
+/// row's "failing dead write retained"): `lappend l c` over the malformed
+/// list `"a {b"` raises `unmatched open brace in list` in every release,
+/// so deleting it — `l` is never read afterwards — would turn a raising
+/// program into a silent one.
+#[test]
+fn a_failing_dead_lappend_is_retained() {
+    let source = "proc p {} {\n    set l \"a {b\"\n    lappend l c\n}\np\n";
+    for dialect in ["tcl8.4", "tcl8.6", "tcl9.0", "tcl"] {
+        assert!(!removes_store(source, dialect, "lappend l c"), "{dialect}");
+    }
+    for (series, tclsh) in releases_on_path() {
+        assert_eq!(
+            run_script(&tclsh, source).map(|(ok, _)| ok),
+            Some(false),
+            "tclsh{series}: a malformed list raises on `lappend`"
+        );
+    }
+}
+
+/// A failing dead `incr` is retained under 8.4 (O108's totality proof,
+/// permission 3): `incr n` on the never-bound, never-read `n` raises
+/// `can't read "n": no such variable` under 8.4, so removing it would turn
+/// a raising program into a silent one there; a profile whose every
+/// release creates the cell (8.5 onwards) still removes it.
+#[test]
+fn a_failing_dead_incr_is_retained_under_84() {
+    let source = "proc p {} {\n    incr n\n    return\n}\np\n";
+    for dialect in ["tcl8.4", "tcl", "f5-irules"] {
+        assert!(!removes_store(source, dialect, "incr n"), "{dialect}");
+    }
+    for dialect in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+        assert!(removes_store(source, dialect, "incr n"), "{dialect}");
+    }
+    for (series, tclsh) in releases_on_path() {
+        let ok = run_script(&tclsh, source).map(|(ok, _)| ok);
+        if series == "8.4" {
+            assert_eq!(
+                ok,
+                Some(false),
+                "tclsh8.4: `incr n` raises on an absent place"
+            );
+        } else {
+            assert_eq!(ok, Some(true), "tclsh{series}: `incr n` creates the cell");
+        }
+    }
+}

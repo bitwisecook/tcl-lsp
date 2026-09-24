@@ -71,6 +71,18 @@ fn value_at(unit: &CompilationUnit, qname: &str, name: &str, version: u32) -> Op
     fu.sccp.values.get(&(sym, version)).cloned()
 }
 
+/// The existence fact `name`'s version `version` holds in `qname`.
+fn existence_at(
+    unit: &CompilationUnit,
+    qname: &str,
+    name: &str,
+    version: u32,
+) -> Option<tcl_registry::value_transfer::Existence> {
+    let fu = unit.procedures.get(qname).expect(qname);
+    let sym = fu.ssa.var_symbol(name).expect(name);
+    fu.sccp.existence.get(&(sym, version)).copied()
+}
+
 /// The answers recorded for `command`'s statements in `qname`.
 fn answers_for(unit: &CompilationUnit, qname: &str, command: &str) -> Vec<String> {
     unit.procedures
@@ -628,6 +640,37 @@ fn destructuring_agrees_on_both_paths() {
                 value_at(unit, "::p", "f", 1),
                 Some(LatticeValue::Const(ConstValue::Int(2))),
                 "{dialect} {path}: lassign writes $f"
+            );
+        }
+    }
+}
+
+/// The existence rung agrees on both paths (VT8.10): `x` decides
+/// `Unbound` after `unset x`, and `n` binds on `incr n`'s normal path,
+/// value for value with the direct build, under a release, a vendor
+/// dialect declaring its base (`f5-irules`, 8.4's), and the lenient `tcl`
+/// profile that spans them all.
+#[test]
+fn existence_agrees_on_both_paths() {
+    use tcl_registry::value_transfer::{BindingKind, Existence};
+
+    const SRC: &str = "proc p {} {\n    set x 1\n    unset x\n    \
+                       if {[info exists x]} {puts yes}\n    \
+                       incr n\n    if {[info exists n]} {puts also}\n}\n";
+    for dialect in ["tcl8.6", "tcl9.0", "f5-irules", "tcl"] {
+        let db = TclDatabase::default();
+        let file = SourceFile::new(&db, SRC.to_owned(), dialect.to_owned(), None);
+        let (memoised, direct) = both_paths(&db, file);
+        for (path, unit) in [("memoised", &*memoised), ("direct", &direct)] {
+            assert_eq!(
+                existence_at(unit, "::p", "x", 2),
+                Some(Existence::Unbound),
+                "{dialect} {path}: unset leaves x unbound"
+            );
+            assert_eq!(
+                existence_at(unit, "::p", "n", 1),
+                Some(Existence::Bound(BindingKind::Scalar)),
+                "{dialect} {path}: incr binds n on its normal path"
             );
         }
     }
