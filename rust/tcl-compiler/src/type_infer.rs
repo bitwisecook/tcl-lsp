@@ -1815,6 +1815,8 @@ mod tests {
             existence: HashMap::new(),
             existence_reads: HashMap::new(),
             existence_exits: HashMap::new(),
+            existence_entries: HashMap::new(),
+            refinements: Vec::new(),
             values: HashMap::new(),
             executable_blocks: blocks
                 .iter()

@@ -261,7 +261,9 @@ is `Unavailable`, never `Unbound`.
 
 - **Entry.** Parameters enter `Bound(Scalar)`; an externally mutable place
   (qualified, in the escaping set — scope aliases and traced names included
-  — or under a computed trace) is `MayBound` wherever it is read; a `TclOO`
+  — or under a computed trace) enters `MayBound` and every definition of it
+  leaves it `MayBound`, so only a guard's refinement narrows it, until the
+  next barrier or up-frame; a `TclOO`
   method's instance variables and an iRules `when` handler's
   connection-scoped names (every name a handler of the module binds,
   `AnalysisContextKey::connection_scoped`) enter `MayBound`; in the initial
@@ -285,10 +287,36 @@ is `Unavailable`, never `Unbound`.
   `Unbound` place `MayBound`, a dynamic destroy a bound one; a statement that
   keeps a nested body inline makes every place the body defines or unsets
   `MayBound`.
+- **Edge refinement** (slice 8, VT8.3). A branch whose condition states an
+  existence fact refines the place on that edge (`EdgeRefinement`, the
+  design's shape with its domain `FactDomain::Existence`): the true edge of
+  `[info exists x]` carries `Bound(Either)` and its false edge `Unbound`;
+  the true edge of `[array exists x]` carries `Bound(Array)` and its false
+  edge nothing; `!` swaps the edges, `C1 && C2` states both true-edge
+  answers on its true edge and `C1 || C2` both false-edge answers on its
+  false edge. `[info exists a(k)]` binds the element as a scalar and `a` as
+  an array on its true edge and unbinds the element on its false edge; a
+  computed key binds only a bareword array, on the true edge. The fact
+  narrows the place as the edge arrives — a `MayBound` place to it, a
+  `Bound(Either)` one to a kind — and a fact the place contradicts, on an
+  edge the query did not decide (a special variable the host binds, D165),
+  leaves it as it is. Every place the rung carries is refined, the
+  externally mutable ones included (D166): an instance variable, a
+  cross-event iRules name, an interpreter-set special variable or an alias
+  changes without a visible statement only across a barrier or an
+  up-frame, where every place is `MayBound` again, so no refinement
+  survives the point at which another actor could act. The refined fact
+  flows on through every block the arm reaches, joining at a merge like
+  any other.
 - **Answer.** `SccpResult::existence` per SSA version (version 0 its entry
   fact), `existence_reads` per statement and place it reads — after any
-  clobber since the version's definition — and `existence_exits` per block,
-  what its terminator reads.
+  clobber since the version's definition and any refinement since the
+  guard — and `existence_exits` per block, what its terminator reads.
+  `SccpResult::existence_at(block, key)` is the block-qualified lookup: the
+  fact the version live at the block's entry holds there — from
+  `existence_entries` where a refinement or a clobber changed it on the
+  way in, else the version's own. `SccpResult::refinements` lists the
+  function's refinements, one per edge and place.
 
 The cell updates read it through `prior_store(place, FactDomain::Existence)`:
 an `Unbound` place is an absent cell, which `append` and `lappend` create in

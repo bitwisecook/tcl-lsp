@@ -5161,9 +5161,8 @@ Closes #2133. Pins #2132 (closed on rust by #2220).
 - Suites: `cargo test -p tcl-registry -p tcl-compiler -p tcl-explorer -p
   tcl-lsp-db -p tcl-cli -p xtask`.
 - R7: `Unavailable` is never read as `Unbound`; a cross-event or aliased
-  place is never `Unbound`; a `MayBound` guard refines only a place that
-  is not externally mutable; an absent cell's value is never manufactured
-  (the 8.4 `incr` declines).
+  place is never `Unbound` at entry; a refinement never survives a
+  barrier or an up-frame; an absent cell's value is never manufactured.
 
 #### Behavioural deltas
 
@@ -5193,6 +5192,7 @@ fixes for slice 5*, D162–D164).
 | VT8.6 | `wip(value-transfers): slice 8 — an unbound arm carries no representation` | `evaluate_type_def` (`type_infer.rs`) types a destroying command's whole-variable kill `TypeLattice::unknown()` — `kills_whole_variables`: the call's spec carries `Traits::DESTROYS_VARIABLE` and a word spells each definition whole, so `unset x` qualifies and `unset a(k)` keeps the typing it had — where it took `unset`'s empty-string return type and a φ joined that string with the bound arm's int. `find_phi_shimmers` (`shimmer/phi.rs`) takes the `SccpResult` and `classify_incoming_types` skips an incoming version whose existence (`SccpResult::existence`) is `Unbound`, so an arm on which the variable does not exist brings no intrep to the merge whatever its definition is typed. The S100 KCS note gains "A branch that unsets the variable"; the design page's S100 bullet states the built behaviour. Mandate: #2133, the S100 row | `s100_ignores_an_unset_arm` (`set x 1; if {$c} {unset x}; puts $x`: no S100 or S101 on `x`, W210 kept); `s100_still_fires_between_the_bound_arms_of_a_three_way_switch` (arms `set x 1`, `set x "hi"`, `default {unset -nocomplain x}`: one S100 merging int and string); `phi_shimmer_emitted_for_int_string_merge` and the other phi tests unchanged but for the new argument |
 | VT8.8 | `wip(value-transfers): slice 8 — const, array unset, array default` | `ConstWriteSemantics` (`value_transfer/cell_write.rs`, `NativeEvalId::ConstWrite`, `"const-write"`): over an `Unbound` place a `Write` of the value and the empty string as the result; `Pending` is pending; any other fact declines `Unsupported`, since an existing variable raises and an existing constant keeps its value; the existence transfer is `Bind(Scalar)` on the normal path. `ArrayUnsetSemantics` (`value_transfer/unbind.rs`, `EvalRoute::None { Unauthored }`): without a pattern it reads the prior fact — `Bound(Array)` unbinds, `Bound(Scalar)`, `Unbound`, `MayBound` and `Pending` preserve, `Bound(Either)` keeps the generic widening; with a pattern the array's place is preserved. `ARRAY_DEFAULT` (`builtins.rs`): a `MayWriteSemantics` of the name as an array, `NoRouteReason::Declared`. `const_.rs` and `array_.rs` declare them; the three `KNOWN_GAPS` rows go; `tcl-spectcl`'s `NATIVE_EVAL_IDS` catalogue gains `ConstWrite`, so a pack may name `evaluate -direct ConstWrite`. Deviation: the item says `array unset arr` is an `Unbind` of the array; every release leaves a scalar in place (`set s 1; array unset s` keeps `s`, never raising), so the pattern-less form unbinds only a place proven an array. The oracle test is a compiler witness, not a `differential_fold.rs` row: `LiteralInputs` answers no existence fact, so the route declines every literal-input call, as R7 requires. `sccp-core-analyses.md` states the three | `const_binds_only_an_absent_place` and `array_unset_unbinds_only_an_array` (`tcl-registry/tests/value_transfers.rs`, new); `const_writes_only_an_absent_place` (`value_transfer_witnesses.rs`, new: `const c 5; puts $c; const c 7; puts $c` prints `5` twice before and after `tcl opt` under tclsh 9.0 and 9.1, the lattice holding 5 after the first and no value after the second; `set x 1; const x 2` raises there and the route declines); `route_stamps_match_the_pinned_set` gains `array default`, `array unset` and `const` |
 | VT8.2 | `wip(value-transfers): slice 8 — info exists decides inside the fixed point` | The driver's `run_script` (`value_transfer.rs`) answers an invocation whose resolved operation is `IntrinsicId::InfoExists` or `ArrayExists` (`existence_query::kind_of`, shared with `in_text`) from the rung at the current point, through `LatticeDriver::existence_answer`, before any route: `Bound(_)` is 1 to `info exists`, `Bound(Array)` 1 and `Bound(Scalar)` 0 to `array exists`, `Unbound` 0 to both; an element query reads its array and decides 0 only on an unbound one, so a computed key on a bareword array (`Params($k)`, `existence_query::computed_element_base`, the old `array_element_base` test) reads its array too; `Pending` is pending; `MayBound`, `Bound(Either)` for `array exists`, `Unavailable`, any other computed name and a registry special variable in the initial global frame decide nothing (D165). The nested service and a value-position `[info exists x]` reach it alike, so `evaluate_branch` decides the condition inside the fixed point and the branch is an ordinary `Applied` fact that updates `executable_blocks`. A name the function only asks about takes a rung slot past the SSA's symbols (`query_only_places`, handed to the driver as `existence_places`), so its entry rule and every clobber reach it. Gone: `existence_constant_branches`, `scan_defined_and_unbound` and `ExistenceFrame` (`sccp.rs`), the post-pass in `FunctionUnit::build` and `drop_cross_event_existence_folds` (`compilation_unit.rs`), `emit_existence_constant_branch_diagnostics` (`dataflow.rs`) and its call, and `value_transfer::unbound_names` with the ledger's `unset` row. Deviation: the reachability gate in `emit_constant_branch_diagnostics` stays — it now serves the existence branch too, which is the "one path" the item asks for, and removing it would let I230 say an arm reached by another edge is unreachable. `BranchFactKind::Proven` stays in the enum with no producer. `sccp-core-analyses.md` describes the in-fixpoint decision | `set_unset_info_exists_decides_zero` (`sccp.rs`, new: the branch is `Applied`, value false, its true arm unreachable); `a_computed_key_leaves_a_bareword_array_fixed` (`existence_query.rs`, new); `the_existence_branch_fact_is_stored_once` moves (mandate: the item's "ordinary `Applied` branch") — the `[info exists b]` fact is `Applied`, its dead arm unreachable, and the emitter it pinned is gone; `info_exists_does_not_fold_unset_parameter` moves to `info_exists_folds_an_unset_parameter_false` (mandate: the rung reads the `unset`, so the guard folds always false — tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1b0 print 0 for `proc f {a} { unset a; info exists a }; f 1` — where the old test pinned the post-pass's missing "always true" by the absence of any I230); three `core_analyses.rs` tests that pinned the post-pass's flow-insensitive non-folds move to the rung's verdicts (mandate: the query reads the place's fact where it runs; tclsh 8.4.20 to 9.1b0 agree on each) — `lazy_init_reuse_branch_is_dead_for_local_diverges` becomes `lazy_init_reuse_branch_is_dead_for_local` (`H` is unbound at the check, so "always false"), `set_before_check_diverges_no_fold` becomes `set_before_check_folds_true`, and `tn_unset_parameter_abstains` becomes `unset_parameter_follows_the_rung` (`unset a; array set a {x 1}` then `array exists a` decides true, `unset a` alone false); `a_condition_substitution_reads_the_frames_variables` (`optimiser.rs`) moves its `info exists` program out of the no-rewrite loop (mandate: the decided query folds) — the condition folds to `1` (O101) and the store it read stays, which still prints `yes`; every other `existence_fold_abstains_*`, `upframe_body_models_*` and `info_exists_*` test, and `i230_existence_fold_abstains_on_interpreter_globals_at_top_level`, unchanged |
+| VT8.3 | `wip(value-transfers): slice 8 — the guard as an edge refinement` | `EdgeRefinement` (`sccp.rs`, the page's shape: `edge`, `key`, `domain` — `FactDomain::Existence` in this slice — `fact`, `evidence`), built per run by `edge_refinements` from each branch whose condition states an existence fact (`condition_facts`, the page's table): `info exists` binds its true edge `Bound(Either)` and unbinds its false edge, `array exists` binds its true edge `Bound(Array)`, `!` swaps, `&&` states both true-edge answers and `\|\|` both false-edge answers; a literal element's guard binds the element as a scalar and its array as an array on the true edge and unbinds the element on the false edge, a computed key only the bareword array on the true edge (`query_facts`). `ExistenceRun::block_entry` narrows each refined place as the edge arrives (`arriving`, `narrowed`: a `MayBound` place to the fact, a `Bound(Either)` one to a kind; a contradicted fact, on an edge D165 left undecided, keeps the place). Every place the rung carries is refined, with no exclusion list (D166): a definition of an externally mutable place still steps to `MayBound`, and a barrier or an up-frame clobbers every place, so the refinement ends there — VT8.1's "`MayBound` wherever read" for such a place now reads "`MayBound` at entry, after every definition and after every barrier or up-frame". `SccpResult` gains `refinements` and the block-qualified `existence_entries` — the fact the version live at a block's entry holds there, where a refinement or a clobber made it differ from the version's own (`ExistenceRun::block_qualified`, over each block's recorded entry state after the run) — read through `SccpResult::existence_at(block, key)`; every literal `SccpResult` in the tests gains the two fields. The slice's R7 line takes D166's form. `collect_existence_guards` keeps its three callers (D8). `sccp-core-analyses.md` states the refinement | `the_existence_guard_refines_its_edges` (`sccp.rs`, new: the guarded read of a conditionally set `x`, and of a `global x`, is `Bound(Either)`, the other arm holds it `Unbound` through `existence_at`, `!` swaps the arms, and past the merge it is `MayBound`); the coordinator's witnesses, all `sccp.rs` and new — `the_refinement_alone_reads_the_idioms_bound` (`puts $::errorInfo` under its guard at the top level and in a procedure, and a `TclOO` instance variable's `return $x`, read `Bound(Either)` through the refinement alone), `a_barrier_ends_the_refinement` (the instance variable reads bound before `eval $script`, which lowers to a barrier, and `MayBound` after it) and `a_negated_guard_refines_a_special_variable_on_one_edge` (`![info exists errorCode]` at the top level: one edge `Unbound`, the other arm bound, `MayBound` past the merge); `info_exists_guard_narrows_read_in_then_arm`, `info_exists_negated_guard_narrows_false_arm` and `info_exists_read_outside_guard_still_flags_w210` unchanged |
 
 Green at VT8.1:
 
@@ -5237,6 +5237,24 @@ pedantic clippy on `tcl-compiler`, no `#[allow]` added, and `cargo fmt`;
 `value-transfers` (no pin moved, no generated page changed) and
 `--check` (20 clean, 19 waived, 90 pinned across 36 files, 6607 rows);
 `registry-axes --check` (956 pinned across 157 files, unchanged);
+`owner-resolution` passes; `dialect-drift` 8 sites, none new; `cargo
+check --workspace` clean.
+
+After the consumer-contracts step 2 merge (`b39e012b`, over VT8.2):
+`cargo check --workspace` clean; `tcl-compiler` 9756 passed, 6 ignored
+across its 67 binaries (the merge retired three `try` hook tests and
+added one); `tcl-registry` 1244; `value-transfers --check` unchanged;
+`registry-axes --check` at the merge's own baseline (896 pinned across
+147 files, 40 waived, 16 clean); `dialect-drift` 8 sites — nothing to fix.
+
+Green at VT8.3: `tcl-compiler` 9760 passed, 6 ignored across its 67
+binaries, and 7 doctests; `tcl-lsp-core --lib` 2350; `tcl-lsp-db --lib`
+102; the `tcl-lsp-server` e2e diagnostic modules 580; `tcl-cli` `cli`
+and `value_transfers_cli` 57 — no existing test moved; pedantic clippy
+on `tcl-compiler`, no `#[allow]` added, and `cargo fmt`;
+`value-transfers` (no pin moved, no generated page changed) and
+`--check` (20 clean, 19 waived, 90 pinned across 36 files, 6607 rows);
+`registry-axes --check` (896 pinned across 147 files, unchanged);
 `owner-resolution` passes; `dialect-drift` 8 sites, none new; `cargo
 check --workspace` clean.
 
@@ -8623,7 +8641,6 @@ has the witnesses):
   lattice texts when every word is exact, and take its roles when every
   operand they make a `VarWrite` is a literal word: the command itself
   reads the values, and a computed name is still no place.
-
 - **D165 — An existence query decides from the rung, with the post-pass's
   two held abstentions.** `info exists` and `array exists` read the
   place's fact where they run (VT8.2), and the rung's entry rules and
@@ -8643,6 +8660,18 @@ has the witnesses):
   post-pass did. A name the function only asks about has no SSA symbol,
   so the run gives it a slot past the symbols; its version map is
   untouched.
+- **D166 — The guard refines every place the solver tracks.** The guard
+  refines every place the solver tracks, on both edges, with no exclusion
+  list. The soundness argument for an externally mutable place is the
+  barrier reset, not an exclusion: a TclOO instance variable, an iRules
+  cross-event name and an interpreter-set special variable can only
+  change without a visible statement across a barrier or an up-frame, and
+  VT8.1 already turns every place `MayBound` there, so a refinement never
+  survives the point at which another actor could act. Excluding those
+  places would make W210 report the canonical `if {[info exists
+  ::errorInfo]} {puts $::errorInfo}` and the TclOO `if {[info exists x]}
+  {return $x}` idioms once slice 11 removes the old
+  `collect_existence_guards` callers, which is the wrong trade.
 
 ### Open questions for the owner
 

@@ -287,6 +287,34 @@ pub struct SccpResult {
     /// Per executable block, the existence fact of every symbol at its
     /// exit, indexed by the symbol: what its terminator reads.
     pub existence_exits: HashMap<BlockId, Vec<Existence>>,
+    /// The block-qualified existence facts: for a block and the version of
+    /// a place live at its entry, the fact the place holds there where it
+    /// differs from the version's own — a guard's refinement, or a clobber
+    /// since the definition. [`Self::existence_at`] reads it before the
+    /// per-version map.
+    pub existence_entries: HashMap<(BlockId, ValueKey), Existence>,
+    /// The existence refinements of the function's guarded edges, one per
+    /// edge and place.
+    pub refinements: Vec<EdgeRefinement>,
+}
+
+/// A fact that holds on one CFG edge, and on from its target until the
+/// place is defined again or a barrier or an up-frame clobbers it, for one
+/// SSA version (`docs/design/compiler/value-transfers.md` § *Edge
+/// refinement*). In slice 8 the domain is `FactDomain::Existence` alone.
+#[derive(Debug, Clone, PartialEq)]
+pub struct EdgeRefinement {
+    /// The guarded edge: the branch block and the block the edge enters.
+    pub edge: (BlockId, BlockId),
+    /// The version the refinement narrows: the place's version at the
+    /// branch block's exit.
+    pub key: ValueKey,
+    /// The domain it narrows.
+    pub domain: tcl_registry::value_transfer::FactDomain,
+    /// The narrowed fact.
+    pub fact: tcl_registry::value_transfer::DomainFact,
+    /// What the refinement rests on.
+    pub evidence: tcl_registry::value_transfer::DependencyEvidence,
 }
 
 impl SccpResult {
@@ -303,6 +331,18 @@ impl SccpResult {
     ) -> Option<Existence> {
         let index = u32::try_from(index).ok()?;
         self.existence_reads.get(&(block, index, symbol)).copied()
+    }
+
+    /// The existence fact the version `key` holds at `block`'s entry, for a
+    /// version live there: the block-qualified fact where a guard's
+    /// refinement or a clobber since the definition changed it, else the
+    /// version's own; `None` is unavailable.
+    #[must_use]
+    pub fn existence_at(&self, block: BlockId, key: ValueKey) -> Option<Existence> {
+        self.existence_entries
+            .get(&(block, key))
+            .or_else(|| self.existence.get(&key))
+            .copied()
     }
 
     /// The existence fact `symbol`'s place holds at `block`'s exit, where
@@ -682,8 +722,11 @@ pub fn sccp_with_builtin_folds(
     );
 
     let template_plans = driver.template_plans(ssa, &values, &executable_blocks);
-    let (existence, existence_reads, existence_exits) =
-        existence.map_or_else(Default::default, |run| (run.versions, run.reads, run.exits));
+    let (existence, existence_reads, existence_exits, existence_entries, refinements) = existence
+        .map_or_else(Default::default, |run| {
+            let entries = run.block_qualified(ssa);
+            (run.versions, run.reads, run.exits, entries, run.refinements)
+        });
     SccpResult {
         values,
         executable_blocks,
@@ -693,6 +736,8 @@ pub fn sccp_with_builtin_folds(
         existence,
         existence_reads,
         existence_exits,
+        existence_entries,
+        refinements,
         ..driver.take_run_facts()
     }
 }
@@ -997,6 +1042,12 @@ struct ExistenceRun {
     /// The slots past the SSA's symbols: each place only an existence
     /// query names, which the run carries like any other.
     query_only: HashMap<String, Symbol>,
+    /// The guarded edges' refinements.
+    refinements: Vec<EdgeRefinement>,
+    /// The refinements by edge: each place's slot and its refined fact.
+    by_edge: HashMap<(BlockId, BlockId), Vec<(usize, Existence)>>,
+    /// Each executable block's entry state.
+    entry_states: HashMap<BlockId, Vec<Existence>>,
 }
 
 /// Join `incoming` into `state`, place by place.
@@ -1087,6 +1138,16 @@ impl ExistenceRun {
                 }
             }
         }
+        let refinements = edge_refinements(cfg, ssa, (registry, entry.config), &query_only);
+        let mut by_edge: HashMap<(BlockId, BlockId), Vec<(usize, Existence)>> = HashMap::new();
+        for refinement in &refinements {
+            if let tcl_registry::value_transfer::DomainFact::Existence(fact) = &refinement.fact {
+                by_edge
+                    .entry(refinement.edge)
+                    .or_default()
+                    .push((refinement.key.0.0 as usize, *fact));
+            }
+        }
         let handler_regions = handler_regions(cfg);
         let in_regions = handler_regions.values().flatten().copied().collect();
         // Version 0 of each SSA place is what the frame enters with; a
@@ -1107,6 +1168,9 @@ impl ExistenceRun {
             versions,
             reads: HashMap::new(),
             query_only,
+            refinements,
+            by_edge,
+            entry_states: HashMap::new(),
         }
     }
 
@@ -1121,6 +1185,7 @@ impl ExistenceRun {
         changed: &mut bool,
     ) -> ExistenceAt<'r> {
         let state = self.block_entry(cfg, block, incoming);
+        self.entry_states.insert(block, state.clone());
         for phi in &ssa_block.phis {
             let fact = state
                 .get(phi.name.0 as usize)
@@ -1159,7 +1224,7 @@ impl ExistenceRun {
                 .get(&pred)
                 .is_some_and(|b| b.successors().contains(&block));
             if normal && let Some(exit) = self.exits.get(&pred) {
-                join_state(&mut state, exit);
+                join_state(&mut state, &self.arriving((pred, block), exit));
             }
             if cfg.exception_edges.contains(&(pred, block)) {
                 for region in self.handler_regions.get(&block).into_iter().flatten() {
@@ -1170,6 +1235,53 @@ impl ExistenceRun {
             }
         }
         state
+    }
+
+    /// `exit`, the state a predecessor leaves with, as it arrives along
+    /// `edge`: each refinement of the edge narrows its place.
+    fn arriving<'e>(
+        &self,
+        edge: (BlockId, BlockId),
+        exit: &'e [Existence],
+    ) -> std::borrow::Cow<'e, [Existence]> {
+        let Some(facts) = self.by_edge.get(&edge) else {
+            return std::borrow::Cow::Borrowed(exit);
+        };
+        let mut state = exit.to_vec();
+        for &(slot, fact) in facts {
+            if let Some(place) = state.get_mut(slot) {
+                *place = narrowed(*place, fact);
+            }
+        }
+        std::borrow::Cow::Owned(state)
+    }
+
+    /// The block-qualified facts: for each executable block and the version
+    /// of each place live at its entry, the fact the place holds there
+    /// where it differs from the fact the version was established with. A
+    /// slot past the SSA's symbols has no version, so it has none.
+    fn block_qualified(&self, ssa: &SsaFunction) -> HashMap<(BlockId, ValueKey), Existence> {
+        let mut out = HashMap::new();
+        for (&block, state) in &self.entry_states {
+            let live = ssa
+                .blocks
+                .get(&block)
+                .map(|ssa_block| &ssa_block.entry_versions);
+            for (slot, &here) in (0u32..).zip(state) {
+                let symbol = Symbol(slot);
+                let version = live
+                    .and_then(|versions| versions.get(&symbol))
+                    .copied()
+                    .unwrap_or(0);
+                let key = (symbol, version);
+                if here != Existence::Pending
+                    && self.versions.get(&key).is_some_and(|&own| own != here)
+                {
+                    out.insert((block, key), here);
+                }
+            }
+        }
+        out
     }
 
     /// Record `fact` for `key`, joined with what an earlier sweep recorded;
@@ -1202,6 +1314,168 @@ impl ExistenceRun {
         }
         changed
     }
+}
+
+/// The fact a refinement to `fact` leaves at a place that holds `current`:
+/// `fact` where it narrows the place — a may-bound place to anything, a
+/// place bound as either kind to one kind — and `current` otherwise. A
+/// refinement the place contradicts rides an edge the query did not decide
+/// although the place has a fact, as for a special variable the host binds
+/// (D165), so the place keeps its fact.
+const fn narrowed(current: Existence, fact: Existence) -> Existence {
+    match (current, fact) {
+        (Existence::MayBound, _) | (Existence::Bound(BindingKind::Either), Existence::Bound(_)) => {
+            fact
+        }
+        _ => current,
+    }
+}
+
+/// The existence facts a condition states on its true and on its false
+/// edge, each naming its place by the query's word.
+type EdgeFacts = (Vec<(String, Existence)>, Vec<(String, Existence)>);
+
+/// The places one condition states an existence fact about, on its true
+/// and on its false edge (`docs/design/compiler/value-transfers.md` §
+/// *Edge refinement*): an existence query's own ([`query_facts`]), `!`
+/// swapping the edges, `C1 && C2` both true-edge answers on its true edge
+/// and `C1 || C2` both false-edge answers on its false edge.
+fn condition_facts(
+    node: &crate::expr_ast::ExprNode,
+    registry: &CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+) -> EdgeFacts {
+    use crate::expr_ast::{BinOp, ExprNode, UnaryOp};
+    match node {
+        ExprNode::Unary {
+            op: UnaryOp::Not | UnaryOp::WordNot,
+            operand,
+        } => {
+            let (on_true, on_false) = condition_facts(operand, registry, config);
+            (on_false, on_true)
+        }
+        ExprNode::Binary {
+            op: BinOp::And,
+            left,
+            right,
+        } => {
+            let (mut on_true, _) = condition_facts(left, registry, config);
+            on_true.extend(condition_facts(right, registry, config).0);
+            (on_true, Vec::new())
+        }
+        ExprNode::Binary {
+            op: BinOp::Or,
+            left,
+            right,
+        } => {
+            let (_, mut on_false) = condition_facts(left, registry, config);
+            on_false.extend(condition_facts(right, registry, config).1);
+            (Vec::new(), on_false)
+        }
+        ExprNode::Command { text, .. } => crate::existence_query::in_text(text, registry, config)
+            .map_or_else(Default::default, |(name, kind)| query_facts(&name, kind)),
+        _ => Default::default(),
+    }
+}
+
+/// The places one existence query states a fact about, on its true and on
+/// its false edge. `info exists` of a whole place binds it on the true
+/// edge, as either kind, and unbinds it on the false edge; of a literal
+/// element it binds the element as a scalar and its array as an array on
+/// the true edge and unbinds the element on the false edge; of an element
+/// under a computed key it binds the array, when the base is a bareword,
+/// on the true edge. `array exists` of a whole place binds it as an array
+/// on the true edge and states nothing on the false edge, where the place
+/// may be a scalar or absent; of an element it states nothing.
+fn query_facts(name: &str, kind: crate::existence_query::ExistenceKind) -> EdgeFacts {
+    use crate::existence_query::ExistenceKind;
+    let computed = name.contains('$') || name.contains('[');
+    let base = place_base(name);
+    match kind {
+        _ if computed => match (kind, crate::existence_query::computed_element_base(name)) {
+            (ExistenceKind::AnyVariable, Some(base)) => (
+                vec![(base.to_owned(), Existence::Bound(BindingKind::Array))],
+                Vec::new(),
+            ),
+            _ => Default::default(),
+        },
+        ExistenceKind::AnyVariable if base == name => (
+            vec![(name.to_owned(), Existence::Bound(BindingKind::Either))],
+            vec![(name.to_owned(), Existence::Unbound)],
+        ),
+        ExistenceKind::AnyVariable => (
+            vec![
+                (name.to_owned(), Existence::Bound(BindingKind::Scalar)),
+                (base.to_owned(), Existence::Bound(BindingKind::Array)),
+            ],
+            vec![(name.to_owned(), Existence::Unbound)],
+        ),
+        ExistenceKind::Array if base == name => (
+            vec![(name.to_owned(), Existence::Bound(BindingKind::Array))],
+            Vec::new(),
+        ),
+        ExistenceKind::Array => Default::default(),
+    }
+}
+
+/// The existence refinements of the function's guarded edges
+/// ([`EdgeRefinement`]): each branch whose condition states a fact about a
+/// place the rung carries ([`condition_facts`]) refines the place on that
+/// edge. Every place is refined, the externally mutable ones included
+/// (D166): another scope, method, event or the host acts on one only
+/// across a barrier or an up-frame, where the rung makes every place
+/// may-bound again, so no refinement survives the point at which another
+/// actor could act.
+fn edge_refinements(
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    (registry, config): (&CommandRegistry, tcl_lexer::LexerConfig),
+    query_only: &HashMap<String, Symbol>,
+) -> Vec<EdgeRefinement> {
+    use tcl_registry::value_transfer::{DependencyEvidence, DomainFact, FactDomain};
+    let mut out = Vec::new();
+    for (&block_id, block) in &cfg.blocks {
+        let Some(Terminator::Branch {
+            condition,
+            true_target,
+            false_target,
+            ..
+        }) = &block.terminator
+        else {
+            continue;
+        };
+        if true_target == false_target {
+            continue;
+        }
+        let (on_true, on_false) = condition_facts(condition, registry, config);
+        let exit_versions = ssa
+            .blocks
+            .get(&block_id)
+            .map(|ssa_block| &ssa_block.exit_versions);
+        for (target, facts) in [(*true_target, on_true), (*false_target, on_false)] {
+            for (place, fact) in facts {
+                let Some(symbol) = ssa
+                    .var_symbol(&place)
+                    .or_else(|| query_only.get(&place).copied())
+                else {
+                    continue;
+                };
+                let version = exit_versions
+                    .and_then(|versions| versions.get(&symbol))
+                    .copied()
+                    .unwrap_or(0);
+                out.push(EdgeRefinement {
+                    edge: (block_id, target),
+                    key: (symbol, version),
+                    domain: FactDomain::Existence,
+                    fact: DomainFact::Existence(fact),
+                    evidence: DependencyEvidence::default(),
+                });
+            }
+        }
+    }
+    out.sort_by_key(|refinement| (refinement.edge.0.0, refinement.edge.1.0, refinement.key.0.0));
+    out
 }
 
 /// The places an existence query names that no SSA symbol holds, sorted: a
@@ -2922,6 +3196,178 @@ mod tests {
         assert_eq!(decided.kind, BranchFactKind::Applied);
         let dead = f.cfg.block_id(&decided.not_taken_target).expect("the arm");
         assert!(!f.sccp.executable_blocks.contains(&dead));
+    }
+
+    /// The existence facts each `puts` reading `name` finds, in source
+    /// order.
+    fn puts_reads(f: &crate::compilation_unit::FunctionUnit, name: &str) -> Vec<Existence> {
+        let symbol = f.ssa.var_symbol(name).expect("the place is an SSA symbol");
+        let mut reads: Vec<(u32, Existence)> = f
+            .sccp
+            .existence_reads
+            .iter()
+            .filter(|((_, _, read), _)| *read == symbol)
+            .filter_map(|(&(block, index, _), &fact)| {
+                let statement = f
+                    .cfg
+                    .blocks
+                    .get(&block)?
+                    .statements
+                    .get(usize::try_from(index).ok()?)?;
+                matches!(statement, Statement::Call { command, .. }
+                    if command.trim_start_matches("::") == "puts")
+                .then(|| (statement.span().start(), fact))
+            })
+            .collect();
+        reads.sort_by_key(|&(start, _)| start);
+        reads.into_iter().map(|(_, fact)| fact).collect()
+    }
+
+    /// The existence guard refines its edges (VT8.3): on a may-bound place
+    /// the true edge of `[info exists x]` carries `Bound(Either)` and the
+    /// false edge `Unbound`, `!` swaps the two, and past the merge the
+    /// place is may-bound again. A `global` alias is refined like any
+    /// other place (D166).
+    #[test]
+    fn the_existence_guard_refines_its_edges() {
+        use tcl_registry::value_transfer::DomainFact;
+        let registry = CommandRegistry::build_default();
+        let cu = crate::compilation_unit::CompilationUnit::build_for(
+            "proc f {c} { if {$c} { set x 1 }; if {[info exists x]} { puts $x } else { puts none }; puts $x }\n\
+             proc g {c} { if {$c} { set x 1 }; if {![info exists x]} { puts none } else { puts $x }; puts $x }\n\
+             proc h {} { global x; if {[info exists x]} { puts $x } else { puts none }; puts $x }\n",
+            &registry,
+            false,
+        );
+        for proc in ["::f", "::g", "::h"] {
+            let f = cu.function(proc).expect("procedure analysed");
+            assert_eq!(
+                puts_reads(f, "x"),
+                vec![Existence::Bound(BindingKind::Either), Existence::MayBound],
+                "{proc}: the guarded read is bound, the read past the merge may-bound"
+            );
+            assert_eq!(
+                f.sccp.refinements.len(),
+                2,
+                "{proc}: {:?}",
+                f.sccp.refinements
+            );
+            let unbound = f
+                .sccp
+                .refinements
+                .iter()
+                .find(|refinement| refinement.fact == DomainFact::Existence(Existence::Unbound))
+                .unwrap_or_else(|| panic!("{proc}: {:?}", f.sccp.refinements));
+            assert_eq!(
+                f.sccp.existence_at(unbound.edge.1, unbound.key),
+                Some(Existence::Unbound),
+                "{proc}: the other arm holds the place unbound"
+            );
+        }
+    }
+
+    /// The two canonical idioms read their place bound through the edge
+    /// refinement alone (D166), which is the fact W210 reads (VT8.4):
+    /// `if {[info exists ::errorInfo]} {puts $::errorInfo}` at the top level
+    /// and in a procedure, and a `TclOO` instance variable's `if {[info
+    /// exists x]} {return $x}` — spelled with absolute heads, which keep a
+    /// method body analysable (its namespace is the receiver's).
+    #[test]
+    fn the_refinement_alone_reads_the_idioms_bound() {
+        let registry = CommandRegistry::build_default();
+        let cu = crate::compilation_unit::CompilationUnit::build_for(
+            "if {[info exists ::errorInfo]} {puts $::errorInfo}\n\
+             proc p {} { if {[info exists ::errorInfo]} {puts $::errorInfo} }\n\
+             oo::class create C {\n variable x\n \
+             method m {} { ::if {[::info exists x]} {::return $x}; ::return none }\n}\n",
+            &registry,
+            false,
+        );
+        for unit in ["::top", "::p"] {
+            let f = cu.function(unit).expect("unit analysed");
+            assert_eq!(
+                puts_reads(f, "::errorInfo"),
+                vec![Existence::Bound(BindingKind::Either)],
+                "{unit}"
+            );
+        }
+        let m = cu.methods.values().next().expect("the method analysed");
+        let x = m.ssa.var_symbol("x").expect("x");
+        let returned: Vec<Existence> = m
+            .cfg
+            .blocks
+            .iter()
+            .filter_map(|(&id, block)| match &block.terminator {
+                Some(Terminator::Return {
+                    value: Some(value), ..
+                }) if value == "${x}" => m.sccp.existence_at_exit(id, x),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(returned, vec![Existence::Bound(BindingKind::Either)]);
+    }
+
+    /// A refinement never survives a barrier (D166): an instance variable
+    /// its guard refines bound reads bound before `eval $script`, which
+    /// lowers to a barrier, and may-bound after it — another method may
+    /// have unset it there.
+    #[test]
+    fn a_barrier_ends_the_refinement() {
+        let registry = CommandRegistry::build_default();
+        let cu = crate::compilation_unit::CompilationUnit::build_for(
+            "oo::class create C {\n variable x\n \
+             method m {script} { ::if {[::info exists x]} { ::puts $x; ::eval $script; ::puts $x } }\n}\n",
+            &registry,
+            false,
+        );
+        let m = cu.methods.values().next().expect("the method analysed");
+        assert!(
+            m.cfg
+                .blocks
+                .values()
+                .flat_map(|block| block.statements.iter())
+                .any(|statement| matches!(statement, Statement::Barrier { .. })),
+            "the witness needs `eval $script` to lower to a barrier"
+        );
+        assert_eq!(
+            puts_reads(m, "x"),
+            vec![Existence::Bound(BindingKind::Either), Existence::MayBound]
+        );
+    }
+
+    /// The negated guard on a special variable refines one edge: at the
+    /// top level of a Tcl 8.6 script `errorCode` enters may-bound — startup
+    /// binds it only under 8.4 — and `if {![info exists errorCode]}` holds it
+    /// unbound on the edge where the query is false, bound on the other,
+    /// and may-bound again past the merge.
+    #[test]
+    fn a_negated_guard_refines_a_special_variable_on_one_edge() {
+        use tcl_registry::value_transfer::DomainFact;
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let cu = crate::compilation_unit::CompilationUnit::build_for_dialect(
+            "if {![info exists errorCode]} { puts none } else { puts $errorCode }\nputs $errorCode\n",
+            registry,
+            false,
+            "tcl8.6",
+        );
+        let top = cu.function("::top").expect("top level analysed");
+        let unbound: Vec<&EdgeRefinement> = top
+            .sccp
+            .refinements
+            .iter()
+            .filter(|refinement| refinement.fact == DomainFact::Existence(Existence::Unbound))
+            .collect();
+        let [unbound] = unbound.as_slice() else {
+            panic!("one edge is refined unbound: {:?}", top.sccp.refinements);
+        };
+        assert_eq!(
+            top.sccp.existence_at(unbound.edge.1, unbound.key),
+            Some(Existence::Unbound)
+        );
+        assert_eq!(
+            puts_reads(top, "errorCode"),
+            vec![Existence::Bound(BindingKind::Either), Existence::MayBound]
+        );
     }
 
     #[test]
