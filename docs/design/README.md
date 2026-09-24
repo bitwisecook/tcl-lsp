@@ -83,10 +83,13 @@ passes, and ownership matrices.
   which the registry can drive the analyser, codegen, and the runtimes —
   the four decided rulings, the description contract's three descriptors
   (clause grammar, member effect, option effect) behind one derived query
-  per axis, **built** in step 2; the still-**proposal** identity and
-  backing contracts — the four rungs of a pack claim reaching emitted
-  code with the site claim and pack fact stamp each rung records, and the
-  dialect, package, and C-extension follow-ons.
+  per axis, **built** in step 2; step 3's trust ruling (`WorkspaceTrust`
+  gates pack hook-body execution, never authority) and stub ruling (the
+  six `StubFlags` on their catalogue fields, nearest-wins), also **built**;
+  the still-**proposal** identity and backing contracts — the four rungs
+  of a pack claim reaching emitted code with the site claim and pack fact
+  stamp each rung records, and the dialect, package, and C-extension
+  follow-ons.
 - [value-transfers-review.md](compiler/value-transfers-review.md) — review
   of the value-transfer and consumer-contract proposals: registry-owned
   specialisation, shared expression/regexp evaluation, correctness findings,

@@ -102,12 +102,15 @@ User-facing compiler troubleshooting and how-tos live in
   generators, and both runtimes; the four decided rulings the build takes
   as settled; the description contract's three descriptors — clause
   grammar, member effect, and option effect over a closed axis catalogue —
-  behind one derived query per axis, **built** in step 2; the
-  still-**proposal** identity and backing contracts: the four rungs of a
-  pack claim reaching emitted code, with the site claim and pack fact
-  stamp each rung records and its admission check; `RuntimeBacking` and
-  the identity kind codegen chooses from it; and the dialect, package, and
-  C-extension follow-ons.
+  behind one derived query per axis, **built** in step 2; step 3's trust
+  ruling (`WorkspaceTrust`, plumbed from the LSP client, gates pack
+  hook-body execution and nothing else — authority is never gated) and
+  stub ruling (the six `StubFlags` on their catalogue fields, nearest-wins
+  role resolution), also **built**; the still-**proposal** identity and
+  backing contracts: the four rungs of a pack claim reaching emitted code,
+  with the site claim and pack fact stamp each rung records and its
+  admission check; `RuntimeBacking` and the identity kind codegen chooses
+  from it; and the dialect, package, and C-extension follow-ons.
 - [value-transfers-review.md](value-transfers-review.md) — review of those
   proposals against registry-owned specialisation, with shared expression
   and regexp evaluation, analysis/diagnostic separation, correctness findings,
