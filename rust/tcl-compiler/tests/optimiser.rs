@@ -2812,8 +2812,11 @@ fn a_dead_assignment_whose_value_can_raise_is_kept() {
         let out = optimised(src, TCL);
         assert!(out.contains(kept), "{why}: the statement stays: {out}");
     }
+}
 
-    // Precision: a value that cannot raise is still deleted.
+/// Precision for the rule above: a value that cannot raise is still deleted.
+#[test]
+fn a_dead_assignment_whose_value_cannot_raise_is_still_deleted() {
     for (why, src) in [
         ("a literal", "proc p {} {\n    set y 1\n    puts hi\n}\n"),
         (
@@ -2823,6 +2826,11 @@ fn a_dead_assignment_whose_value_can_raise_is_kept() {
         (
             "a copy of a parameter",
             "proc p {v} {\n    set y $v\n    puts hi\n}\n",
+        ),
+        // A method binds its arguments on entry too (found in review).
+        (
+            "a copy of a method argument",
+            "oo::class create C {\n    method uses {v} {\n        ::set unused $v\n        ::return 2\n    }\n}\n",
         ),
         (
             "a variable set on both branches",

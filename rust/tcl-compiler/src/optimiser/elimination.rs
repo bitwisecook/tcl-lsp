@@ -315,10 +315,16 @@ impl<'a> RaiseProof<'a> {
         let registry = ctx.registry.unwrap_or_else(|| {
             tcl_registry::model::ingress::static_context_for("tcl8.6").commands()
         });
+        // A proc or a method binds its parameters on entry.
         let params = ctx
             .ir_module
-            .and_then(|m| m.procedures.get(&fu.name))
-            .map(|p| p.params.clone())
+            .and_then(|m| {
+                m.procedures
+                    .get(&fu.name)
+                    .map(|p| &p.params)
+                    .or_else(|| m.methods.get(&fu.name).map(|d| &d.params))
+            })
+            .cloned()
             .unwrap_or_default();
         let mut sites = HashMap::new();
         for block in fu.ssa.blocks.values() {
