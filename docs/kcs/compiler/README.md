@@ -35,6 +35,10 @@ contract. This index does not duplicate that contract.
   numerals, the integer tower, and non-ASCII operands answer per release,
   and a profile naming none gets the unanimous answer or a recorded
   decline the Explorer's `sccp` view shows.
+- [kcs-qa-why-does-a-regexp-sometimes-not-fold.md](kcs-qa-why-does-a-regexp-sometimes-not-fold.md)
+  — the dissector's typed three-way match result, why a `Stopped` search
+  declines instead of folding to no-match, and the compile/cache budgets
+  that bound the work before the engine starts.
 - [kcs-qa-why-does-a-renamed-command-stop-folding.md](kcs-qa-why-does-a-renamed-command-stop-folding.md)
   — a command the module shadows, renames, or aliases is no longer
   evaluated with its builtin semantics: the shared lattice declines with

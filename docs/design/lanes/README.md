@@ -67,8 +67,19 @@ checkpoint compiling.
   host-environment confinement, the memoised path's evaluator generation
   and content-keyed cache, the workspace overlay reaching every
   per-procedure query, the request and iteration budgets, `-native`
-  resolution for every family, and the four-surface round trip) have
-  landed; slice 5, destructuring and structured bodies, is next.
+  resolution for every family, and the four-surface round trip), and
+  slice 5 (destructuring and structured bodies: ordered `Write` /
+  `Preserve` / `Unbind` / `MayWrite` / `WriteElement` storage outcomes
+  applied per place in execution order for `regexp`, `regsub`, `scan`,
+  `binary scan`, `lassign` and `array set`; the regexp owner's typed
+  match / no-match / decline result, so an exhausted search raises rather
+  than folding to no-match; `folded_types`' representation evidence;
+  `dict with`, `dict update` and a loop header's structural plan; the
+  `subst` template-word plan, which its folders, extract-proc and the
+  dynamic-name barrier read instead of walking; the stored existence
+  branch fact and W210's preserve-outcome reads; W100's proven produced
+  set; and hover, inlay hints, semantic tokens and document links reading
+  proven values) have landed; slice 8, the existence rung, is next.
 - [consumer-contracts.md](consumer-contracts.md) — step 1 of
   [registry-consumer-contracts.md](../compiler/registry-consumer-contracts.md)
   § *Build order*: step 1 (the four rulings taken as decided, and the

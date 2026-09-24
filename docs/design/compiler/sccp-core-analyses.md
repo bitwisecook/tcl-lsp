@@ -195,6 +195,7 @@ ConstantBranch {
     value: true,
     taken_target: "if_then_3".into(),
     not_taken_target: "if_next_4".into(),
+    kind: BranchFactKind::Applied,
 }
 ```
 
@@ -206,6 +207,15 @@ triggering site.
 - The not-taken target's edge is never added to `executable_edges`, so the
   target is unreachable unless some other executable edge reaches it.
 - O112 (constant condition elimination) is triggered.
+
+Since slice 5, every `ConstantBranch` carries a `kind: BranchFactKind` —
+`Applied` for a branch the SCCP fixpoint itself decided, `Proven` for one
+the existence post-pass below folds, and `Selected` (unused before slice
+6) for a case-selection record. An emitter reads only the kind it owns —
+`emit_constant_branch_diagnostics` the `Applied` facts, the analyser's
+existence I230 the `Proven` ones — and never re-derives the proof from a
+frame of its own, so `compiler_checks.rs` reports whichever kind is
+stored without asking which pass produced it.
 
 ### Existence-check folding (`info exists` / `array exists`)
 
@@ -248,6 +258,30 @@ Abstentions, each declining the fold rather than guessing:
   "never defined, therefore absent" fold;
 - a name that is not a bare `[A-Za-z0-9_]` local: a qualified name
   (`::ns::X`) may be populated outside the function's view.
+
+### Preserve outcomes (`SccpResult::preserved`)
+
+Since slice 5, a definition whose statement left its place untouched — a
+destructuring writer's declared `Preserve` outcome, such as `regexp` /
+`scan` / `binary scan` on a no-match or an exhausted field, or a pack
+command's declared `write_or_preserve` — is recorded in
+`SccpResult::preserved`, keyed by the definition and mapped to the
+*version before the statement*: the block's latest earlier definition,
+else the block's entry version, else the root. A `<cond>` statement (the
+condition immediately before a branch) gets no outcome of its own; the
+definitions it reads are preserved when the shared engine decided that
+branch and every nested command it ran answered without a store.
+
+`analyser/diagnostics/dataflow.rs`'s undef trace (W210 on a read, a
+`return`, or a condition's no-match arm; W213 on an `unset`) reads
+through a preserved definition to the version `SccpResult::preserved`
+names, replacing the private `regexp` / `scan` no-match prover slice 5
+retires: a no-match no longer needs its own read-before-set logic, only
+the general trace over the fact every declared preserve outcome states.
+A nested conditional writer (`regexp` in a word or a condition) records
+its targets as read the same way the statement form does
+(`ir_helpers::variable_write_effects_from_commands`), so the optimiser
+never deletes the store a no-match preserves there either.
 
 ### Unreachable blocks
 
@@ -422,3 +456,6 @@ SCCP determines `x₁ = Const(Int(5))`:
 - [GLOSSARY.md — SCCP, Lattice, Liveness](../../GLOSSARY.md#sccp)
 - [cfg-ssa-fact-model.md](cfg-ssa-fact-model.md)
 - [downstream-pass-contracts.md](downstream-pass-contracts.md)
+- [value-transfers.md](value-transfers.md) — the outcome kinds (`Write` /
+  `Preserve` / `Unbind` / `MayWrite` / `WriteElement`), `FoldedType` and
+  the template-word plan every `SccpResult` field above answers from

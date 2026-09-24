@@ -352,6 +352,11 @@ under [`compiler/`](compiler/README.md).
   under Tcl 8.6, another under 9.0, and not at all under a vendor dialect:
   the direct route runs the shared core under the target's release, and a
   profile naming no release gets only the answer every release gives.
+- [kcs-qa-why-does-a-regexp-sometimes-not-fold.md](compiler/kcs-qa-why-does-a-regexp-sometimes-not-fold.md)
+  — why a literal pattern against a proven subject can still answer
+  `overdefined`: the engine's typed `Matched`/`NoMatch`/`Stopped` result,
+  why a `Stopped` search declines rather than folds to no-match, and the
+  compile and cache budgets that bound the work before it starts.
 - [kcs-qa-why-does-a-renamed-command-stop-folding.md](compiler/kcs-qa-why-does-a-renamed-command-stop-folding.md)
   — why `incr n` stops folding once the file defines `proc incr` or renames
   `incr`: the lattice evaluates a command only while the module's own

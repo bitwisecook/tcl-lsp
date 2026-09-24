@@ -87,6 +87,33 @@ this definition ever execute? — which is a much larger effort for a low payoff
 
 The conservative register-anything-defined behaviour is the right trade-off.
 
+## Accepted — a regexp match past the dissector's cap declines rather than approximates
+
+`tcl-regex`'s dissection (VT5.3) walks a repeat's iterations and a
+concatenation's items in loops with a backward finish table, skips a
+subtree without a capture, and closes an unbounded repeat's reach with a
+worklist — but it still stops rather than approximate once a pattern's
+structure exceeds its depth cap, and the engine's own fuel and depth
+limits (`ExecLimits`) can also stop a search outright. Each of the three
+ways the engine can finish — `Matched`, `NoMatch`, or `Stopped` — is
+answered honestly: a stopped search is never folded as a no-match (an
+exhausted-fuel decline answering `0` was the bug the typed three-way
+result fixes), and `regexp` / `regsub` / `switch -regexp` / `lsearch
+-regexp` raise the command's own real error for it
+(`error while matching regular expression: …`), matching what `tclsh`
+does when a pattern is too expensive to run.
+
+Why the cap is not simply raised: a regular expression's worst-case
+matching cost is exponential in the source `tclsh` links against too, so
+raising the cap moves the cliff edge rather than removing it, and every
+release the profile spans must agree on the answer — a capture the cap
+lets through on one release and cuts off on another is a soundness bug
+disguised as a precision one. The `AnalysisMatch::charge` bound keeps a
+compile's cost proportional to its declared length squared, and the
+pattern cache is bounded (4 MiB, coldest evicted first) rather than
+grown, for the same reason: precision here trades against the budget
+every other route shares, not against effort available to spend once.
+
 ## Accepted — `upvar` alias identity is name-based, not relational
 
 Two distinct local alias names can genuinely alias the same caller variable

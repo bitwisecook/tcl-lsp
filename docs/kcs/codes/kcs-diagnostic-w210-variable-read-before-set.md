@@ -179,6 +179,25 @@ proc main {} {
 }
 ```
 
+## A `regexp` or `scan` that does not match still keeps what was there
+
+`regexp`, `scan`, and `binary scan` leave a target exactly as it was when
+nothing in the input reaches it — a `regexp` that does not match, or a
+`scan` field past the point the input runs out. Reading the target
+afterwards reads whatever was set before the call, not the call itself,
+so the check follows the read back to that earlier assignment as usual:
+
+```tcl
+proc f {s} {
+    set a before
+    regexp {(x)(y)} $s a b   ;# a and b are untouched when $s does not match
+    puts $a                  ;# not flagged — before is still there
+}
+```
+
+Without the `set a before` line first, `$a` is still flagged: a no-match
+preserves whatever was there, and an unset variable stays unset.
+
 ## Computed variable names silence the check
 
 Tcl can compute a variable's *name* at run time:

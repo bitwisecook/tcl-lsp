@@ -8,7 +8,12 @@ under `rust/tcl-compiler/src/optimiser/`, with GVN in `src/gvn.rs`.
 
 - `manager.rs` orchestrates the pass sequence and groups findings.
 - `propagation.rs` performs constant, copy, load, and command-substitution
-  propagation, including O100–O103 and related literal folds.
+  propagation, including O100–O103 and related literal folds. Since
+  slice 5, O100's use-site and use-in-return forwards, O103's return
+  fold and O127's skip each check `SccpResult::materialises` first: a
+  value a route constructed rather than read from the source (`binary
+  format`'s byte array) is never spelled into the rewritten program, so
+  the optimised source keeps the command that built it.
 - `expr_simplify.rs`, `branch_folding.rs`, and `pattern_recognition.rs`
   implement expression and structural rewrites.
 - `elimination.rs` owns dead-code, dead-store, and scope-aware elimination;

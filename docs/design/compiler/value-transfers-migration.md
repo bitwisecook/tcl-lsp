@@ -515,12 +515,21 @@ each is a consumer of the interface once it exists:
   map`, `lindex`, or `dict get`.
 - **Literal-only editor features.** `tcl-lsp-core`'s hover
   (`literal_at_token`), inlay hints (`collect_format_string_hints`), and
-  the regexp / format / clock / binary semantic-token families emit only
-  over a literal word: `set fmt "%-20s %d"; format $fmt …` gets no hover,
-  no `int:` label, and a flat `string` token. These are the first editor
-  consumers of the lattice and `folded_types`; a computed pattern is
-  explained as computed at its use, never painted at a token range it does
-  not have.
+  the regexp / format / clock / binary semantic-token families emitted
+  only over a literal word: `set fmt "%-20s %d"; format $fmt …` got no
+  hover, no `int:` label, and a flat `string` token. Since slice 5
+  (VT5.17), hover and inlay hints fall back to `proven_word_value` and
+  `FunctionUnit::word_at` for the pattern/format family once the literal
+  check fails, gated on the token's own kind so a computed word is never
+  rescanned as if its text were the literal pattern; `$fmt` now shows the
+  format table on hover and the value it formats gets its `int:` label.
+  The semantic-token families stay literal-only by design — a computed
+  word falls back to its plain classification rather than a wrong
+  specific paint, which a regression test now pins rather than leaving
+  implicit. These were the first editor consumers of the lattice and
+  `folded_types`; a computed pattern outside the format family is still
+  explained as computed at its use, never painted at a token range it
+  does not have.
 
 ### Debt on other axes, by the axis it belongs to
 

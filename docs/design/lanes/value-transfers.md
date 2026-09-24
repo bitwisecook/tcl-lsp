@@ -537,6 +537,67 @@ that family's abstention and nothing else, and one on a `semantics`,
 `evaluate` or `facts` statement is a notice that nothing this build ships
 holds it.
 
+## Status (2026-09-24): slice 5 landed
+
+The opus items (VT5.1 to VT5.12, VT5.15, VT5.16, VT5.18) landed across
+fifteen commits, `316ee045` to `3c6714b4`, each its own checkpoint (§
+*Plan for slices 2–13* › *Slice 5* › *Record (2026-09-23): the opus items
+of slice 5*, D141–D155). A second implementer then ran the five sonnet
+items the coordinator held back, one commit each, in the given order:
+`674d2910` (VT5.13), `c2b8c741` (VT5.14), `50ce88a6` (VT5.17), `4b676994`
+(VT5.19),
+and this docs commit, `wip(value-transfers): slice 5 — destructuring and
+structured bodies` (VT5.20, the landing) (§ *Slice 5* › *Record
+(2026-09-24): the sonnet items of slice 5*, D156). Between VT5.17 and
+VT5.19 the coordinator fast-forwarded the branch over the
+consumer-contracts lane's `cc-step2` merge (`50ce88a6` → `d9d9868b`, 96
+files, green under `make rust-check`): `AnalysisContext::surface_query`
+landed in `value_transfer/context.rs`, and that lane's own edit to
+`rust/xtask/src/value_transfers.rs` lowered `analyser/commands.rs` and
+`analyser/oo.rs` off the ratchet and `lowering/mod.rs` to 1, with the
+ledger's row in `value-transfers-migration.md` moving in the same merge —
+VT5.19 and VT5.20 ran their gates against that merged baseline, not
+VT5.17's. § *Checkpoints and landing* has the plan's anticipated
+checkpoint grouping; every item landed as its own commit instead, which
+is the more granular, equally valid form the protocol's "commit at each
+coherent point" rule allows.
+
+Green at the landing, the full R6 suite plus every standing gate, run
+after VT5.20's docs (§ *Slice 5* › *Record (2026-09-24)*'s "Green at
+VT5.20" paragraph has the complete counts per crate):
+
+- `cargo check --workspace --all-targets`: clean;
+- `cargo test -p tcl-regex -p tcl-cmd-core -p tcl-vm -p tcl-registry -p
+  tcl-compiler -p tcl-explorer -p tcl-lsp-core -p tcl-lsp-db -p tcl-cli -p
+  xtask`: every crate green (tcl-compiler alone: 9757 passed across 68
+  binaries) except one pre-existing, unrelated failure — `tcl-vm`'s
+  `builtins_e2e::ensemble_subcommand_words_resolve_like_tclsh` expects
+  `encoding system` to answer `utf-8` and gets `iso8859-1` because this
+  container's locale is `POSIX`, not because of anything this lane or
+  slice 5 touches (`tcl-vm` is not a file any VT5.x item names);
+- pedantic clippy and `cargo fmt -- --check` clean on every crate the
+  slice's sonnet items touched (`tcl-registry`, `tcl-lsp-core`,
+  `tcl-compiler`, `tcl-cli`, `tcl-lsp-db`, `xtask`), no `#[allow]` added
+  anywhere in the slice;
+- `cargo xtask value-transfers --check`: 20 files clean, 16 sites waived,
+  83 pinned across 34 ratcheted files, 6607 inventory rows;
+- `cargo xtask registry-axes --check`: 7831 vocabulary words, 6 files
+  clean, 5 waived, 956 pinned across 157 ratcheted files;
+- `cargo xtask pack-goldens`: 24 packs, 0 rewritten;
+- `bash scripts/dev/test-nextest-binary-shards.sh`: ok (no new test
+  binary this slice needed a shard row);
+- `cargo xtask kcs-index-links`: "KCS docs checks passed";
+- `cargo xtask owner-resolution`: OK, 45 owner rows.
+
+Left to later slices: slice 8, the existence rung, is next (§ *Plan for
+slices 2–13* below); slices 6 and 7 are not this lane's numbering to
+land. The findings table's #2056, #2057, #2118, #2132–#2134, #2141,
+#2142 and #2144 stay assigned to the slices that already name them.
+
+Closes #2055. Pins #2051 (closed on rust by #2225). Pins the span half of
+#2143 (Q3: the W123 half was not assigned here, so this landing does not
+claim it).
+
 ## Plan for slices 2–13
 
 The delivery plan for the rest of
@@ -3921,7 +3982,12 @@ rust/tcl-compiler/src/ssa.rs`:
   `dynamic`, `script_regions`, `reads` and `escapes` from `word_structure`.
   The driver records one `TemplatePlanRecord { span: Span, plan:
   TemplateWordPlan }` per `subst` statement in `SccpResult::template_plans`,
-  which `rebase_function_unit` shifts in the same change.
+  which `rebase_function_unit` shifts in the same change. (VT5.20: VT5.10
+  (D154) grows this to `TemplatePlanRecord { span, command: String,
+  switches: Option<Vec<String>>, plan }` — the command as spelled and each
+  switch's proven spelling, `None` when one is unproven, which the W102
+  narrowing's advice reads; the tree's shape is current as of slice 5's
+  landing.)
 - **Tests**: `the_template_plan_answers_the_fourteen_witnesses`
   (`value_transfers.rs`, the page's fourteen programs as plan fixtures);
   `template_witnesses_match_every_release_on_path` (`differential_fold.rs`,
@@ -4642,6 +4708,7 @@ rows; 1070 pinned across 163 files); `cargo check --workspace` clean.
 | VT5.14 | `wip(value-transfers): slice 5 — the no-route writers` | `MayWriteSemantics { targets: &'static [ArgRole], reason: NoRouteReason }` (`value_transfer/builtins.rs`, new): `route` is `EvalRoute::None { reason }`, `identity` the shared spelling `"may_write"` (parallels `UnbindSemantics`'s one shared identity), and `store_targets` scans the declared roles — inert for these commands today (`call_defs` widens before it reads `store_targets` for a `None` route) but not decorative, since a future direct route reuses it unchanged. Declared: `FILE_STAT`/`FILE_LSTAT` (`file stat`, `file lstat`, `NoRouteReason::Platform`), `FILE_TEMPFILE` (`file tempfile`, `Platform`), `GETS` (`gets`, `chan gets`, `Declared`), `VWAIT` (`vwait`, `Declared`), `TK_OPTION_MENU` (`tk_optionMenu`, `Declared`), `TRACE` (`trace add`/`remove`/`variable`/`vdelete`, `Callback` — D156). `ForeachLineSemantics` (new, unit struct): `structure` answers `PlanAnswer::Iterate` over one `BinderName::Operand` binder and `IterableKind::Vendor { collection, cardinality: None }` for the filename operand, under `InvocationLayout::Source` only — `tcl-compiler`'s structured lowering (`lower_foreach_line`) turns every statically-bodied call into a plain `Statement::Foreach` before this declaration is ever consulted, and the CFG's own synthetic loop header always names its command `foreach`/`lmap`/`dict for`/`dict map` (`cfg_lower.rs`'s `fe_cmd`), never `foreachLine`, so the `Iterate` plan is read only for the dynamic-body fallback call; `IterableKind::List` is not used for it — the operand is a filename, and reading it as a list would misreport the name as the file's contents. Twelve `KNOWN_GAPS` rows removed (`xtask/src/value_transfers.rs`); `NoRouteReason::Platform` added (D156) | `route_stamps_match_the_pinned_set` (`tcl-registry/tests/value_transfers.rs`) gains the twelve stamps (`route_label`'s `NoRouteReason::Platform` arm, `"none:platform"`); every existing `value_transfers.rs` test unchanged |
 | VT5.17 | `wip(value-transfers): slice 5 — the editor consumers` | Deviation, recorded here since the item's own wording ("gets hover on `$fmt`") does not match the tree: `hover_impl`'s `variable_position_hover` tier is *definitive* for a `$`-led read (its own doc comment: answering the wrong kind of card is "worse than none"), so it always wins over `registry_pattern_format_hover` for a cursor on `$fmt` itself — there is no tier reordering that keeps that invariant and also lets the format tier answer first. Instead `variable_hover`'s read branch now also asks `registry_pattern_format_hover` for this same position and appends its markdown to `var_hover_text` as a fourth, optional section (`format_info`), the same additive shape the card's existing intrep/taint sections already use — never replacing the "Variable" card, only extending it. `pattern_format_hover_for_command` itself gains `proven_text_at_token` (a `CompilationUnit` built at most once per call, lazily, only once a literal read fails — the same construction `infer_var_type_and_taint` already uses for a `$var` hover) tried through `function_units_in_order`'s existing top-level-then-procs order; extracted `format_hover_for_command` to stay under clippy's line budget. `inlay_hints.rs`: `collect_type_hints` and `collect_format_string_hints` now share one `CompilationUnit`, built once in `inlay_hints_in_program` (previously two, one per family); `collect_format_string_hints`'s literal branch is now gated on `tok.kind` being `Str`/`Esc` — its own `format_content_range` merely strips a delimiter *if present* and does not itself refuse a `$`/`[`-led token, so before this fix a computed word's raw source text (`"$fmt"`) was scanned for `%`-specifiers and silently found none, never reaching any fallback; the proven fallback (`cu.functions().find_map(word_at → proven_word_value)`) anchors every specifier at the token's own end, since a computed word carries no in-source span of the *value's* text to place them at; folded `collect_binary_hints` and the sprintf/clock/regsub match arms into one `emit_format_specifier_hints`, parameterised by a `position_at` closure (`cstart + offset` for a literal, a fixed anchor for a proven one) — the refactor `emit_format_specifier_hints`'s own argument count forced (`FormatHintCtx`, bundling `range`/`source`/`line_index`/`profile`). `semantic_tokens.rs`: verified, production-unchanged — `insert_format_overrides` marks a format-role argument by its registry *position* regardless of literalness, and each family's own sub-tokeniser already "falls back to the default classification" when it finds no specifier in the token's own bytes, so a computed word (whose own text is just `"$fmt"`) already renders as a plain `variable` token today; "a computed pattern is explained at its use" is `hover.rs`'s job, and "never painted at a token range it does not have" was already true here — a permanent regression test pins it rather than changing anything. `regexp`'s own family needed nothing further: `tcl_compiler::regex_source` already traces a pattern to its originating literal for semantic tokens, a pre-existing, separate mechanism this item does not touch. `document_links.rs`'s `speclib` and `include` sites (`document_link_root_pack`) each gain `// value-transfer-ok: irreducible — the pack grammar's own statements`, dropping its pin 2 → 0; moved from `RATCHET` to `CLEAN_FILES` (`xtask/src/value_transfers.rs`) and its ledger row removed (`value-transfers-migration.md`) | `hover_explains_a_computed_format_string`, `var_hover_text_appends_proven_format_info` (`hover.rs`); `inlay_hints_label_a_computed_format_string` (`inlay_hints.rs`); `a_computed_format_word_falls_back_to_its_plain_classification` (`semantic_tokens.rs`); each with its negative (an unproven `$fmt` draws nothing extra); every existing hover/inlay-hints/semantic-tokens/document-links test unchanged |
 | VT5.19 | `wip(value-transfers): slice 5 — the slice's witnesses` | Three compiler witnesses (`value_transfer_witnesses.rs`, appended): `the_no_match_preserve_witness` (#2051's plain program — VT5.11 already pins the condition/word forms in a diagnostics-focused test; this one reads the lattice directly via `last_value` and prints under every release); `the_partial_scan_witness` (`scan "12" "%d %d" a b` as its own statement — nested in `set n [scan …]`, both `a` and `b` were `Overdefined`, since a value-position nested invocation's stores answer under the effect-free policy `fold_cmd_subst_routes` documents, which has no definition for them to land on, an outcome unrelated to what a partial scan proves; `a` folds typed `Int`, as `%d` built it, not `text("12")`); `the_repeated_target_witness` (deviation: the interface page's own "`lassign … a a`" is 8.5+ and raises under a tclsh8.4 on `PATH`, so this reads the same "last position wins" fact through `regexp`'s match-variable list — `(a)(b)` against `ab` into `x x` — which every release shares). One CLI witness (`value_transfers_cli.rs`): `explore_sccp_prints_folded_types`, the exit line's own `binary format` program beside `format`'s and `list`'s constructed types (VT5.2) and a plain literal's absent type line, so "types" is not one route's alone. One parity witness (`value_transfer_parity.rs`): `destructuring_agrees_on_both_paths`, the same three commands plus `array set` (whose element write is part of the parity though `arr` itself carries no scalar value), value for value, on `tcl8.6` and `tcl9.0`. Every expected value hand-verified against `/root/.local/bin/tclsh8.4` to `9.1` before being written into a test (D-none: no new decision, an oracle check) | `the_no_match_preserve_witness`, `the_partial_scan_witness`, `the_repeated_target_witness` (`value_transfer_witnesses.rs`); `explore_sccp_prints_folded_types` (`value_transfers_cli.rs`); `destructuring_agrees_on_both_paths` (`value_transfer_parity.rs`); every existing witness, CLI and parity test unchanged |
+| VT5.20 | `wip(value-transfers): slice 5 — destructuring and structured bodies` (landing) | Docs only, no Rust file touched. The nine design pages the item names: `pass-fact-ownership-matrix.md` and `downstream-pass-contracts.md` gain the `proven.rs` per-function pass and its consumers (already done at VT5.17's checkpoint, verified here); `sccp-core-analyses.md` gains the `BranchFactKind` explanation and a `SccpResult::preserved` section; `constant-folding-type-inference.md` gains the destructuring-writers section; `optimisation-passes.md` documents `SccpResult::materialises` gating O100/O103/O127; `precision-limitations.md` gains the regexp-cap "Accepted" entry; `value-transfers-migration.md`'s ratchet table is verified byte-equal to `RATCHET` (the cc-step2 merge already kept the two in sync) and its "dataflow sites this design owns" § *Literal-only editor features* bullet is corrected — stale since VT5.17 gave hover and inlay hints a proven-value fallback for the format family; `value-transfers.md` checked against D141/D142/D145/D151–D155 and found already accurate, no edit needed. Two KCS diagnostic notes gain sections (W102's proven-switch narrowing, W210's preserve-outcome section); a new KCS note, `kcs-qa-why-does-a-regexp-sometimes-not-fold.md`, is indexed in both `docs/kcs/README.md` and `docs/kcs/compiler/README.md`. The lane doc's own VT5.8 item text is corrected: the page's `TemplatePlanRecord { span, plan }` grows to the tree's `{ span, command, switches, plan }` at VT5.10 (D154) — this row, D156, and this status section. `docs/design/lanes/README.md`'s in-flight line marks slice 5 landed, slice 8 next. `diagnostics-calculation.md` / `diagnostics-integration.md` stay drafted in the lane doc for the diagnostic-policy lane (B-DP4), unchanged — not this lane's files to edit | none (docs); G4 not triggered (no generated-catalogue text changed) |
 
 Green at VT5.14: `cargo test -p tcl-registry` 36 (`value_transfers.rs`) +
 the crate's other suites, all passed, 0 failed (`route_stamps_match_the_pinned_set`
@@ -4698,7 +4765,39 @@ no shard row needed); `cargo xtask value-transfers --check` and
 `registry-axes --check` unchanged from the post-merge baseline above;
 `pack-goldens` (24 packs, 0 rewritten); `cargo check --workspace` clean.
 
-### Slice 8 — the existence rung
+Green at VT5.20 (docs only): `cargo xtask kcs-index-links` — "KCS docs
+checks passed" (the new note indexed in both `docs/kcs/README.md` and
+`docs/kcs/compiler/README.md`, every link resolves); `cargo xtask
+owner-resolution` — OK, 45 owner rows (grown from 44 by the cc-step2
+merge, not this item); `cargo xtask value-transfers --check` and
+`registry-axes --check` unchanged from the post-merge baseline (20
+clean, 16 waived, 83 pinned across 34 files, 6607 rows; 6 clean, 5
+waived, 956 pinned across 157 files) — the ratchet table in
+`value-transfers-migration.md` was already equal to `RATCHET` before this
+item touched the file, confirming the cc-step2 merge kept G1's ledger
+half green; `pack-goldens` (24 packs, 0 rewritten); `cargo check
+--workspace --all-targets` clean. The landing's own full battery, run
+after VT5.20's docs: `cargo test -p tcl-regex -p tcl-cmd-core -p tcl-vm
+-p tcl-registry -p tcl-compiler -p tcl-explorer -p tcl-lsp-core -p
+tcl-lsp-db -p tcl-cli -p xtask` (R6's suite) — every crate green except
+one pre-existing, unrelated failure: `tcl-vm`'s `builtins_e2e::
+ensemble_subcommand_words_resolve_like_tclsh` asserts `encoding system`
+answers `utf-8`, and this container's locale is `POSIX`/`C`
+(`LC_CTYPE=POSIX`), so it answers `iso8859-1` instead; `tcl-vm` is not a
+file any VT5.x item touches or any item's own suite names, and the
+assertion is about the host's default encoding, not a value-transfer
+fact. tcl-compiler: `--lib` 6499 passed, 2 ignored, 0 failed, plus every
+one of its 66 integration-test files and its doctests ok, 0 failed (68
+binaries, 9757 tests total, including every exit-evidence witness named
+above); tcl-registry: `--lib`
+924 passed, every other binary ok (`value_transfers.rs`'s 36 among them);
+tcl-explorer, tcl-lsp-db (`--lib` 102), tcl-lsp-core (`--lib` 2349), and
+tcl-cli (128 across its binaries, including the CLI's built `tcl` binary
+run by `explore_sccp_prints_folded_types`) all ok, 0 failed; tcl-regex,
+tcl-cmd-core and xtask all ok, 0 failed. `cargo clippy -p tcl-registry -p
+tcl-lsp-core -p tcl-compiler -p tcl-cli -p tcl-lsp-db -p xtask
+--all-targets --no-deps -- -D warnings` clean, no `#[allow]` added; `cargo
+fmt` (the same six crates) `-- --check` clean, no diff.
 
 #### Goal and exit
 
