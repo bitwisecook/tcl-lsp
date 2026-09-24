@@ -948,6 +948,51 @@ impl FunctionUnit {
         u32::try_from((i64::from(pos) + self.base_offset).max(0)).unwrap_or(u32::MAX)
     }
 
+    /// The statement and word of this unit whose source range is `span`
+    /// (absolute, as [`Self::abs_span`] gives it), when a call in a block
+    /// the solver reached wrote it: the address
+    /// [`crate::value_transfer::proven_word_value`] reads. A word is matched
+    /// by its whole range or by its representative token's, `0` being the
+    /// command's own.
+    #[must_use]
+    pub fn word_at(
+        &self,
+        span: tcl_lexer::Span,
+    ) -> Option<(crate::value_transfer::StatementId, usize)> {
+        let mut blocks: Vec<crate::cfg::BlockId> =
+            self.sccp.executable_blocks.iter().copied().collect();
+        blocks.sort_unstable();
+        blocks.into_iter().find_map(|block| {
+            let statements = &self.cfg.blocks.get(&block)?.statements;
+            statements
+                .iter()
+                .enumerate()
+                .find_map(|(index, statement)| {
+                    let crate::ir::Statement::Call {
+                        tokens: Some(tokens),
+                        ..
+                    } = statement
+                    else {
+                        return None;
+                    };
+                    if tokens.synthetic.is_some() {
+                        return None;
+                    }
+                    let word = (0..tokens.argv.len().max(tokens.word_exprs.len())).find(|&at| {
+                        tokens
+                            .word_exprs
+                            .get(at)
+                            .is_some_and(|word| self.abs_span(word.source().span) == span)
+                            || tokens
+                                .argv
+                                .get(at)
+                                .is_some_and(|&token| self.abs_span(token) == span)
+                    })?;
+                    Some((crate::value_transfer::StatementId { block, index }, word))
+                })
+        })
+    }
+
     /// Populate memory-SSA on demand in `context`. Returns `self` for
     /// chaining.
     #[must_use]

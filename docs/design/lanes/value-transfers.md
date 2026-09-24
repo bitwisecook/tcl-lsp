@@ -4311,6 +4311,7 @@ item; the grouping stays the plan's account of what lands together.
 | VT5.7 | `wip(value-transfers): slice 5 — structural plans` | `DictWithSemantics` and `DictUpdateSemantics` (`value_transfer/body.rs`, new) answering `PlanAnswer::Body` — the binders a projection on body entry (the proven keys of the dictionary, or of the nested one a key path names, for `dict with`; the declared variables for `dict update`), the body in the caller's frame, `Reconcile::WriteBackKeys` of the dictionary operand, `CompletionProtocol::TclBody`, no route — declared on both subcommands and so on their `::tcl::dict::` spellings (D137); `IterationSemantics` answers the source layout (one binder per var-list name, one list, the body, `break` and `continue` absorbed, nothing bound on zero iterations) (D138); the driver's loop header binds each binder the elements it takes, so a two-binder `foreach` is two finite inputs (D139); G1's four `dict` body rows gone and the inventory regenerated. Not done: the `DictWith` hook's retirement and `handle_dict_with_command` reading the binders wait for CC2.13 (D140) | `dict_with_binds_the_proven_keys`, `the_source_layout_answers_an_iteration_plan` (`value_transfers.rs`); `dict_with_binds_the_keys_tclsh_binds` (`differential_fold.rs`: the variables five dictionaries and key paths bind on body entry are the plan's binders, and the page's program answers `done` and leaves `d` as `a 2`, on tclsh 8.5.19, 8.6.18, 9.0.4 and 9.1b0); `a_loop_header_binds_each_binder_its_elements` (`value_transfer.rs`); `the_mirror_pairs_decline_as_correlated` asserts both quotients decline `correlated-sets` (D64's deferral closed); `route_stamps_match_the_pinned_set` gains the four body stamps; `the_loop_header_projects_to_the_declared_iteration_plan`'s source-layout row reads the new answer (a call without its body is the command's error, where it read "not yet described") |
 | VT5.12 | `wip(value-transfers): slice 5 — the branch fact records its kind` | `BranchFactKind { Proven, Selected, Applied }` (`sccp.rs`) on `ConstantBranch`: the solver's decided branches are `Applied`, the existence post-pass's folds `Proven`, and `Selected` waits for slice 6's selection record; `emit_constant_branch_diagnostics` reads the `Applied` facts and `emit_existence_constant_branch_diagnostics` the `Proven` ones, and no longer reruns `existence_constant_branches` (the analyser's `BodyFrame::existence_frame` went with its one caller); `compiler_checks.rs` already reported every stored fact and needed nothing (D141) | `the_existence_branch_fact_is_stored_once` (`analyser/diagnostics/tests.rs`: the kinds as stored, one I230 per stored fact, a unit whose proven fact is removed reports nothing for it, and under iRules no I230 for a variable another event sets); every other I230, I231 and `info_exists_*` test unchanged |
 | VT5.11 | `wip(value-transfers): slice 5 — W210 reads preserve outcomes` | `SccpResult::preserved` (`sccp.rs`): each definition its statement left untouched — every store the evaluated outcome makes to its place a `Preserve` (`DefAnswer::preserved`), a pack command's declared preserve included — with the version its place held before the statement, and each definition a condition's `<cond>` statement reads first when the shared engine decided that condition, every nested command it ran having answered without a store (D142); the undef trace reads through a preserved definition to that version (`PhiUndefCtx::preserved`), so W210 on a read, a `return` or a condition's no-match arm, and W213 on an `unset`, come from the general read-before-set pass, counted only in executable blocks and past the name-level condition-write suppression the fact answers (`UndefSuppression::preserved_undef`, `suppresses_read`) (D143); the private prover is gone — `emit_provably_unset_w210`, its embedded-condition walk, `regexp_scan_no_match`, `skip_options` and the literal-substring matcher — G1's `dataflow.rs` 4 → 2 with its ledger row, `registry-axes`' 17 → 9; a conditional writer nested in a word or a condition reads its targets as the statement form does (`ir_helpers::variable_write_effects_from_commands`), so the optimiser keeps the store a no-match preserves there too (D144) | `w210_reads_a_no_match_preserve_outcome` (`analyser/diagnostics/tests.rs`: W210 at `$a` after `regexp {(x)(y)} zz a b`, on `return $b`, and in `if {![regexp {x} y -> v]}`'s arm; none after a matching subject or a `set` before the call, or in the arm when `v` was set first — each checked on tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1b0); `a_no_match_keeps_the_store_it_preserves` (compiler witnesses: #2051's program and the condition and word forms keep `set … before` under every dialect, no O109, no W210 or W220 naming it, and the original and optimised programs print the same under tclsh 8.4 to 9.1); `a_pack_declared_preserve_holds_the_prior_version` (a `write_or_preserve` pack command's preserved definition names the root in one procedure and the `set` in the other); changed by the mandate ("W210 follows any registry-declared preserve outcome"): `fp_sty_11_binary_scan_many_vars_no_false_w210` reads an input that fills its twenty fields, and its empty input is now the true positive tclsh reports (`can't read "t"` on every release); every other `w210_*`, `emit_cfg_ssa_diagnostics_w210_*`, `fp_rbs_02_*`, `fp_sty_10_*` and `scan_predicate_w210_*` test unchanged |
+| VT5.15 | `wip(value-transfers): slice 5 — one query for a proven word` | `value_transfer::proven_word_value(fu, statement, word, config)`: the exact value a call's word has at that statement from the lattice alone — a literal word's text; a substituted word's decoded runs and variable reads at the statement's use versions, concatenated; the folded type its definition states for a whole-word read — and `None` for a command substitution, a finite or unknown read, an expansion, a respelled word or an unreached block; `StatementId { block, index }` and `FunctionUnit::word_at(span)`, the address a consumer holding a word's source range reads it at (D145) | `proven_word_value_reads_the_lattice_at_the_statement` (`value_transfer.rs`: `$f` after `set f %d` is `%d`, never `$f`; `$n` after `set n [string length abc]` is `3` typed int; `"x$f"` is `x%d`; `7` is itself; a `[…]` word and the command word are `None`; `$f` after an `if` redefines it is `None`) |
 
 A container restart ended the first implementer at VT5.5, uncommitted;
 a second implementer took the opus items over from VT5.5 on (VT5.5, VT5.6,
@@ -4325,6 +4326,16 @@ three `scan` answers were wrong against every oracle from 8.5 (`scan -1
 compared non-ASCII witnesses against a misread script (D133); the two doc
 comments the oracle contradicted were corrected, and the per-byte charges
 the page states were added. Nothing was backed out.
+
+Green at VT5.15:
+
+- tests: `tcl-compiler`'s unit tests, the witness binary and the two
+  architecture binaries together 6536 passed, 2 ignored, no failure (the
+  item adds an entry point nothing else calls yet);
+- pedantic clippy (`--no-deps --all-targets -D warnings`) on
+  `tcl-compiler`, no `#[allow]` added; `rustfmt` on the touched files;
+- `cargo xtask value-transfers --check` and `registry-axes --check`
+  unchanged; `cargo check --workspace` clean.
 
 Green at VT5.11:
 
@@ -7880,6 +7891,21 @@ has the witnesses):
   registry's trait over the recovered words; that is also the use D142's
   `<cond>` fact reads. The hunk is in `ir_helpers.rs`, a file the plan
   does not name, and is the whole of this lane's change there.
+
+- **D145 — A proven word is the lattice's, read with the caller's
+  grammar.** `proven_word_value` takes the document's `LexerConfig`
+  beside the plan's three arguments: a function unit keeps no grammar,
+  and a literal run's backslashes decode by release. It re-runs nothing —
+  a word holding a command substitution is `None` even where the
+  substitution is pure — so a consumer reports only what the lattice
+  proved at that statement; a value computed by a command reaches it
+  through the variable the command's result was stored in (`set o
+  [string tolower -ALL]; lsearch $o …`), which the lattice already
+  evaluated under the module's trust. `StatementId` is the statement's
+  block and index, which the CFG and SSA blocks share, and
+  `FunctionUnit::word_at` finds it from a word's source range or its
+  representative token's, for the consumers (VT5.16, VT5.17) that hold a
+  span rather than a statement.
 
 ### Open questions for the owner
 

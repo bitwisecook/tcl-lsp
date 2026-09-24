@@ -1631,6 +1631,103 @@ impl<'a> LatticeDriver<'a> {
 
 static EMPTY_NAMES: BTreeSet<String> = BTreeSet::new();
 
+/// One statement of a function unit: the block it sits in and its index
+/// there, in the CFG block and the SSA block alike.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct StatementId {
+    /// The block.
+    pub block: crate::cfg::BlockId,
+    /// The statement's index in the block.
+    pub index: usize,
+}
+
+/// The exact value a word of a statement has at that statement, with its
+/// folded type — the lattice's answer, never a token relabelled as a
+/// literal. `word` counts the call's words from the command's own (`0`,
+/// never an operand here): a literal word is its text, and a substituted
+/// word its literal runs and variable reads, each read at the statement's
+/// use version, concatenated. A word the lattice holds no exact value for
+/// — a command substitution, a read of a finite set or an unknown value,
+/// an expansion, a word respelled after lowering — is `None`, as is any
+/// word of a statement the solver never reached. Only a whole-word
+/// variable read carries a folded type, the one its definition states.
+/// `config` is the document's grammar, which the literal runs are decoded
+/// under: the unit does not keep one.
+#[must_use]
+pub fn proven_word_value(
+    fu: &crate::compilation_unit::FunctionUnit,
+    statement: StatementId,
+    word: usize,
+    config: LexerConfig,
+) -> Option<(ExactValue, Option<FoldedType>)> {
+    if !fu.sccp.executable_blocks.contains(&statement.block) {
+        return None;
+    }
+    let call = fu
+        .cfg
+        .blocks
+        .get(&statement.block)?
+        .statements
+        .get(statement.index)?;
+    let at = fu
+        .ssa
+        .blocks
+        .get(&statement.block)?
+        .statements
+        .get(statement.index)?;
+    let Statement::Call { args, tokens, .. } = call else {
+        return None;
+    };
+    let arguments = call_arguments(args, tokens.as_ref(), &config);
+    let argument = arguments.get(word.checked_sub(1)?)?;
+    match argument.source {
+        OperandSource::BracedLiteral | OperandSource::Literal => {
+            Some((ExactValue::from_literal(&argument.text), None))
+        }
+        OperandSource::Substituted => proven_substitution(&argument.text, &at.uses, fu, config),
+        OperandSource::Unknown => None,
+    }
+}
+
+/// [`proven_word_value`] of a substituted word: its literal runs decoded,
+/// each variable read at the use version `uses` gives it, and nothing else.
+fn proven_substitution(
+    text: &str,
+    uses: &HashMap<Symbol, Version>,
+    fu: &crate::compilation_unit::FunctionUnit,
+    config: LexerConfig,
+) -> Option<(ExactValue, Option<FoldedType>)> {
+    use tcl_lexer::word_parts::{SubstFlags, WordBody, WordPart as Part, decompose};
+    let read = |name: &str| -> Option<(ExactValue, ValueKey)> {
+        let symbol = fu.ssa.var_symbol(name)?;
+        let key = (symbol, *uses.get(&symbol)?);
+        match fu.sccp.values.get(&key)? {
+            LatticeValue::Const(value) => Some((const_to_exact(value), key)),
+            _ => None,
+        }
+    };
+    if let Some(name) = simple_var_ref_name(text) {
+        let (value, key) = read(name)?;
+        return Some((value, fu.sccp.folded_types.get(&key).cloned()));
+    }
+    let parts = match decompose(text.as_bytes(), SubstFlags::default(), config) {
+        WordBody::Literal(bytes) => return Some((exact_of_bytes(bytes.to_vec()), None)),
+        WordBody::Parts(parts) => parts,
+    };
+    let mut bytes = Vec::with_capacity(text.len());
+    for part in parts {
+        match part {
+            Part::Text(run) => bytes.extend_from_slice(&run),
+            Part::Variable(reference) => {
+                let (value, _) = read(&variable_name(&reference).ok()?)?;
+                bytes.extend_from_slice(&value.bytes);
+            }
+            Part::Command(_) | Part::ParseError(_) => return None,
+        }
+    }
+    Some((exact_of_bytes(bytes), None))
+}
+
 /// The inputs of an expression a rewrite evaluates outside a solver run:
 /// its `$name` reads answer from `constants`, a nested command declines, and
 /// a math function asks the driver's binding service under the rewrite's
@@ -3089,6 +3186,57 @@ mod tests {
             text("v1"),
             "a dynamic key may have hit the element"
         );
+    }
+
+    /// `proven_word_value` reads the lattice at the statement (VT5.15): a
+    /// word reading a variable a `set` gave a literal is that literal, one
+    /// reading a route's result carries the folded type the route states, a
+    /// quoted word is its runs and reads concatenated and a literal word its
+    /// text; the `$f` token is never the text `$f`. A word the lattice cannot
+    /// pin is `None`: a command substitution, and the same `$f` after a
+    /// branch redefines it.
+    #[test]
+    fn proven_word_value_reads_the_lattice_at_the_statement() {
+        let source = "proc p {c} {\n    set f %d\n    set n [string length abc]\n    \
+                      format $f $n \"x$f\" 7 [string length ab]\n    \
+                      if {$c} { set f %s }\n    format $f 1\n}\n";
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let config = LexerConfig::for_profile(registry.profile());
+        let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
+            source, registry, false, "tcl8.6",
+        );
+        let function = unit.procedures.get("::p").expect("the procedure");
+        // The span of `word` in the first place `call` is written.
+        let word_at = |call: &str, word: &str| {
+            let start = source.find(call).expect("the call") + call.find(word).expect("the word");
+            function
+                .word_at(Span::new(
+                    u32::try_from(start).expect("offset"),
+                    u32::try_from(start + word.len()).expect("offset"),
+                ))
+                .expect("a word of a reached call")
+        };
+        let (first, word) = word_at("format $f $n", "$f");
+        assert_eq!(word, 1);
+        let value = |statement: StatementId, word: usize| {
+            proven_word_value(function, statement, word, config)
+                .map(|(value, folded)| (String::from_utf8(value.bytes).expect("text"), folded))
+        };
+        assert_eq!(value(first, 1), Some(("%d".to_owned(), None)));
+        let (length, folded) = value(first, 2).expect("the route's result");
+        assert_eq!(length, "3");
+        assert_eq!(
+            folded.and_then(|folded| folded.intrep),
+            Some(tcl_registry::TclType::Int)
+        );
+        assert_eq!(value(first, 3), Some(("x%d".to_owned(), None)));
+        assert_eq!(value(first, 4), Some(("7".to_owned(), None)));
+        assert_eq!(value(first, 5), None, "a command substitution");
+        assert_eq!(value(first, 0), None, "the command word");
+        let (second, word) = word_at("format $f 1", "$f");
+        assert_eq!(word, 1);
+        assert_ne!(second, first);
+        assert_eq!(value(second, 1), None, "a branch redefines `f`");
     }
 
     /// A loop header binds each binder of its plan the elements it is
