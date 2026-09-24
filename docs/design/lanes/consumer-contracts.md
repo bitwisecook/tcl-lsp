@@ -2585,9 +2585,10 @@ everything else in this lane is independent of both.
   registry's own tests call `effects`. Reason: the plan's one-checkpoint
   alias, for a concurrent lane mid-edit.
 - **D2.43** The loader's `member_row` (CC2.5) was 103 lines, which the
-  pedantic `too_many_lines` rejects; the blank row moved to
-  `blank_member`. Reason: the step's clippy gate, and the function is this
-  lane's.
+  pedantic `too_many_lines` rejects. The coordinator's d89c7ea0 split its
+  named flags into `member_named_flag` on the main branch while CC2.8 split
+  the blank row out; after the rebase the CC2.8 split was dropped, so the
+  main branch's fix is the only one. Reason: one fix per defect.
 - **D2.44** The verbs name words by index, and the thunk, not the body,
   builds each fact from the call's own words. Reason: a body sees a
   computed word as the empty string, so only the host knows it is computed;
