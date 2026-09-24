@@ -41,7 +41,6 @@ use std::borrow::Cow;
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
-use rustc_hash::FxHashSet;
 use tcl_lexer::{LexerConfig, Span, TokenType};
 use tcl_registry::hooks::LoweringHookId;
 use tcl_registry::value_transfer::builtins::ExpressionRoute;
@@ -62,7 +61,6 @@ use tcl_registry::{
 };
 
 use crate::analyses::{ConstValue, LatticeValue, MAX_CONSTSET_SIZE};
-use crate::cfg::Function as CfgFunction;
 use crate::codegen::helpers::split_list_values;
 use crate::command_binding::CommandTrustSnapshot;
 use crate::expr_ast::ExprNode;
@@ -402,6 +400,13 @@ pub(crate) struct LatticeDriver<'a> {
     /// the terminator. `None` for a run that computes no existence (a
     /// re-run, a detached evaluation), whose reads are `Unavailable`.
     existence: RefCell<Option<Vec<Existence>>>,
+    /// The rung's slots past the SSA's symbols: a place only an existence
+    /// query names (`if {[info exists x]}` with no other `x`).
+    existence_places: RefCell<HashMap<String, Symbol>>,
+    /// Whether the run is the document's initial global frame, where an
+    /// existence query about a registry special variable decides nothing:
+    /// the host, not the script, binds it.
+    existence_initial_global: bool,
 }
 
 /// The lattice value of one member-wise evaluation: the constant `pick`
@@ -779,6 +784,8 @@ impl<'a> LatticeDriver<'a> {
             request: RefCell::new(request),
             iteration: RefCell::new(iteration),
             existence: RefCell::new(None),
+            existence_places: RefCell::new(HashMap::new()),
+            existence_initial_global: trace.existence.is_some_and(|entry| entry.initial_global),
         }
     }
 
@@ -929,11 +936,100 @@ impl<'a> LatticeDriver<'a> {
     /// is no symbol of the function.
     fn existence_fact(&self, ssa: &SsaFunction, name: &str) -> FactView {
         ssa.var_symbol(name)
+            .or_else(|| self.existence_places.borrow().get(name).copied())
             .and_then(|symbol| self.existence_now(symbol))
             .map_or(
                 FactView::Top(DeclineReason::Unavailable(self.context.tier)),
                 |fact| FactView::Domain(DomainFact::Existence(fact)),
             )
+    }
+
+    /// Hand the driver the rung's slots past the SSA's symbols: each place
+    /// only an existence query names, and the slot the run keeps it in.
+    pub(crate) fn existence_places(&self, places: HashMap<String, Symbol>) {
+        *self.existence_places.borrow_mut() = places;
+    }
+
+    /// The existence query `kind` over its source words (VT8.2): a literal
+    /// name reads its place, and an element name its array; a computed key
+    /// leaves a bareword array fixed, so `Params($k)` asks about `Params` as
+    /// a literal element does. Any other computed name decides nothing.
+    fn existence_answer(
+        &self,
+        kind: crate::existence_query::ExistenceKind,
+        (words, texts): (&[InvocationWord<'_>], &[&str]),
+        ssa: &SsaFunction,
+    ) -> LiftedAnswer {
+        match (words, texts) {
+            ([_, InvocationWord::Literal(name)], _) => {
+                let base = crate::sccp::place_base(name);
+                self.existence_of(kind, base, base != *name, ssa)
+            }
+            ([_, InvocationWord::Dynamic], [_, text]) => {
+                crate::existence_query::computed_element_base(text)
+                    .map_or(LiftedAnswer::Declined(DeclineReason::NotExact), |base| {
+                        self.existence_of(kind, base, true, ssa)
+                    })
+            }
+            _ => LiftedAnswer::Declined(DeclineReason::NotExact),
+        }
+    }
+
+    /// `info exists NAME` / `array exists NAME` over the existence rung at
+    /// the current point (VT8.2), for the place `base` — an `element` query
+    /// names its array: a bound place exists, one bound as an array is an
+    /// array, one bound as a scalar is no array, and an unbound one is
+    /// neither; an element exists only in an array, so an unbound array
+    /// holds none, whatever the key. Anything else decides nothing —
+    /// `MayBound`, `Bound(Either)` for `array exists`, an element of an
+    /// array that may exist, a run with no rung (`Unavailable`, never read
+    /// as unbound), and a special variable in the initial global frame,
+    /// which the host rather than the script binds.
+    fn existence_of(
+        &self,
+        kind: crate::existence_query::ExistenceKind,
+        base: &str,
+        element: bool,
+        ssa: &SsaFunction,
+    ) -> LiftedAnswer {
+        use crate::existence_query::ExistenceKind;
+        let host_bound = self.existence_initial_global
+            && self
+                .registry
+                .special_var_in_dialect(
+                    base,
+                    Some(tcl_registry::special_vars::surface_query_for_profile(
+                        self.registry.profile(),
+                    )),
+                )
+                .is_some();
+        if host_bound {
+            return LiftedAnswer::Declined(DeclineReason::EscapingPlace);
+        }
+        let fact = match self.existence_fact(ssa, base) {
+            FactView::Domain(DomainFact::Existence(fact)) => fact,
+            FactView::Top(reason) => return LiftedAnswer::Declined(reason),
+            _ => return LiftedAnswer::Declined(DeclineReason::Unsupported),
+        };
+        let exists = match (kind, element, fact) {
+            (_, _, Existence::Pending) => return LiftedAnswer::Pending,
+            (_, _, Existence::Unbound)
+            | (ExistenceKind::Array, false, Existence::Bound(BindingKind::Scalar)) => false,
+            (ExistenceKind::AnyVariable, false, Existence::Bound(_))
+            | (ExistenceKind::Array, false, Existence::Bound(BindingKind::Array)) => true,
+            _ => return LiftedAnswer::Declined(DeclineReason::Unsupported),
+        };
+        LiftedAnswer::Evaluated(vec![Box::new(InvocationOutcome {
+            completion: CompletionOutcome::Normal,
+            result: ExactValueOrUnavailable::Exact(ExactValue::int(i64::from(exists))),
+            ordered_stores: Vec::new(),
+            types: TypeFacts {
+                result: Some(TclType::Boolean),
+                per_target: Vec::new(),
+                shapes: Vec::new(),
+            },
+            evidence: DependencyEvidence::default(),
+        })])
     }
 
     /// What the run recorded beside the lattice, at its end: the route
@@ -1789,8 +1885,18 @@ impl<'a> LatticeDriver<'a> {
         let texts: Vec<&str> = cooked.iter().map(|arg| arg.text.as_ref()).collect();
         let words: Vec<InvocationWord<'_>> = cooked.iter().map(ArgWord::word).collect();
         let resolved = self.resolve(head, &words)?;
-        let semantics = resolved.semantics.value.semantics()?;
         let binding = binding_of(head, resolved.canonical_command);
+        // An existence query reads the rung, not a route (VT8.2).
+        if let Some(kind) = crate::existence_query::kind_of(resolved.semantics.operation) {
+            return Some(ScriptRun {
+                head: head.to_owned(),
+                route: None,
+                answer: self.existence_answer(kind, (&words, &texts), ssa),
+                binding,
+                rebound: false,
+            });
+        }
+        let semantics = resolved.semantics.value.semantics()?;
         let view = view_of(&resolved, &texts, &words, InvocationLayout::Source);
         let inputs = LatticeInputs {
             driver: self,
@@ -3378,55 +3484,6 @@ fn simple_var_ref_name(text: &str) -> Option<&str> {
     name.bytes()
         .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b':')
         .then_some(name)
-}
-
-/// Every name the function's calls unbind by literal — the existence
-/// fold's unbind fact — from each call's resolved existence transfer.
-pub(crate) fn unbound_names(cfg: &CfgFunction, registry: &CommandRegistry) -> FxHashSet<String> {
-    let mut out = FxHashSet::default();
-    let context = AnalysisContext::detached(registry.profile());
-    let mut budget = Budget::unbounded();
-    for block in cfg.blocks.values() {
-        for stmt in &block.statements {
-            let Statement::Call { args, .. } = stmt else {
-                continue;
-            };
-            let head = stmt.canonical_command_or_source();
-            let texts: Vec<&str> = args.iter().map(String::as_str).collect();
-            let words: Vec<InvocationWord<'_>> = texts.iter().copied().map(word_of).collect();
-            let Some(resolved) = registry
-                .resolve_structured_invocation(
-                    InvocationWords::structured(InvocationWord::Literal(head), &words),
-                    registry.own_surface_query(),
-                )
-                .resolved()
-            else {
-                continue;
-            };
-            let Some(semantics) = resolved.semantics.value.semantics() else {
-                continue;
-            };
-            let inputs = StructureInputs::new(
-                view_of(&resolved, &texts, &words, InvocationLayout::Source),
-                &context,
-            );
-            let TransferAnswer::Existence(transfer) =
-                semantics.transfer(FactDomain::Existence, &inputs, &mut budget)
-            else {
-                continue;
-            };
-            for path in &transfer.paths {
-                for (target, outcome) in &path.outcomes {
-                    if *outcome == ExistenceOutcome::Unbind
-                        && let Ok(place) = inputs.place(target.0)
-                    {
-                        out.insert(place.name);
-                    }
-                }
-            }
-        }
-    }
-    out
 }
 
 /// Inputs for a structure-only question over source words: literal words

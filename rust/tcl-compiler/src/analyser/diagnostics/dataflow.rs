@@ -1670,8 +1670,8 @@ file; this call falls through to the 'unknown' handler."
         &mut self,
         fu: &crate::compilation_unit::FunctionUnit,
     ) {
-        // The solver's decided branches: a proven condition is
-        // [`Self::emit_existence_constant_branch_diagnostics`]'s.
+        // The solver's decided branches — an existence query among them
+        // since slice 8, decided inside the fixed point.
         for branch in fu
             .sccp
             .constant_branches
@@ -1765,56 +1765,6 @@ file; this call falls through to the 'unknown' handler."
                     span,
                     message,
                     // I230/I231 are observational (LSP `Information`).
-                    Severity::Info,
-                ));
-        }
-    }
-
-    /// I230 — the `[info exists X]` / `[array exists X]` conditions the
-    /// existence post-pass proved.
-    ///
-    /// SCCP cannot fold these (the predicate lowers to an opaque
-    /// `ExprNode::Command`, and SCCP has no parameter or existence facts), so
-    /// `FunctionUnit::build` proves them with
-    /// [`crate::sccp::existence_constant_branches`] over the frame's entry
-    /// facts and stores each in `sccp.constant_branches` as a
-    /// [`crate::sccp::BranchFactKind::Proven`] fact — the one the optimiser's
-    /// O101 fold and DCE read too. This emitter reads the stored facts and
-    /// never reruns the proof (`docs/design/compiler/value-transfers.md`
-    /// § *Branch facts*), so what the unit dropped — an iRules cross-event
-    /// variable's fold — is not reported either; the solver's decided
-    /// branches are [`Self::emit_constant_branch_diagnostics`]'s.
-    pub(super) fn emit_existence_constant_branch_diagnostics(
-        &mut self,
-        fu: &crate::compilation_unit::FunctionUnit,
-    ) {
-        let branches = fu
-            .sccp
-            .constant_branches
-            .iter()
-            .filter(|branch| branch.kind == crate::sccp::BranchFactKind::Proven);
-        for cb in branches {
-            let Some(span) = cb.span.map(|s| fu.abs_span(s)) else {
-                continue;
-            };
-            let message = if cb.value {
-                format!(
-                    "Condition '{}' is always true; the alternate branch is unreachable",
-                    cb.condition,
-                )
-            } else {
-                format!(
-                    "Condition '{}' is always false; the alternate branch is unreachable",
-                    cb.condition,
-                )
-            };
-            self.result
-                .diagnostics
-                .push(crate::analyser::types::Diagnostic::new(
-                    DiagCode::I230,
-                    span,
-                    message,
-                    // I230 is observational (LSP `Information`).
                     Severity::Info,
                 ));
         }

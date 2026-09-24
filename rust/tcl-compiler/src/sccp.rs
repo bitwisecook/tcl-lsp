@@ -178,9 +178,9 @@ fn cv_eq(a: &ConstValue, b: &ConstValue) -> bool {
 /// reruns the proof to learn it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BranchFactKind {
-    /// The condition is proven, and reachability was not updated from it:
-    /// the existence post-pass's `[info exists X]` / `[array exists X]`
-    /// folds, which `executable_blocks` does not reflect.
+    /// The condition is proven, and reachability was not updated from it.
+    /// Since slice 8 the solver decides an existence query inside the fixed
+    /// point, as an `Applied` fact, so no producer states this kind today.
     Proven,
     /// An arm is selected that the CFG has no edge of its own for.
     Selected,
@@ -603,6 +603,9 @@ pub fn sccp_with_builtin_folds(
     let existence = trace
         .existence
         .map(|entry| ExistenceRun::new(cfg, ssa, entry, &escaping, trace.registry));
+    if let Some(run) = &existence {
+        driver.existence_places(run.query_only.clone());
+    }
 
     let executable_blocks: HashSet<BlockId> = cfg
         .blocks
@@ -991,6 +994,9 @@ struct ExistenceRun {
     versions: HashMap<ValueKey, Existence>,
     /// The fact each statement finds at each place it reads.
     reads: HashMap<(BlockId, u32, Symbol), Existence>,
+    /// The slots past the SSA's symbols: each place only an existence
+    /// query names, which the run carries like any other.
+    query_only: HashMap<String, Symbol>,
 }
 
 /// Join `incoming` into `state`, place by place.
@@ -1025,7 +1031,17 @@ impl ExistenceRun {
         escaping: &HashSet<String>,
         registry: &CommandRegistry,
     ) -> Self {
-        let names = ssa.var_names();
+        // The SSA's symbols, then a slot per place only an existence query
+        // names, in that order, so a symbol's slot is its index.
+        let symbols = ssa.var_names().len();
+        let extra = query_only_places(cfg, ssa, registry, entry.config);
+        let mut names: Vec<String> = ssa.var_names().to_vec();
+        names.extend(extra.iter().cloned());
+        let query_only: HashMap<String, Symbol> = extra
+            .into_iter()
+            .zip(symbols..)
+            .filter_map(|(name, slot)| Some((name, Symbol(u32::try_from(slot).ok()?))))
+            .collect();
         let mutable: Vec<bool> = names
             .iter()
             .map(|name| {
@@ -1073,9 +1089,10 @@ impl ExistenceRun {
         }
         let handler_regions = handler_regions(cfg);
         let in_regions = handler_regions.values().flatten().copied().collect();
-        // Version 0 of each place is what the frame enters with.
+        // Version 0 of each SSA place is what the frame enters with; a
+        // query-only slot has no version.
         let versions = (0u32..)
-            .zip(&entry_state)
+            .zip(entry_state.iter().take(symbols))
             .map(|(symbol, fact)| ((Symbol(symbol), 0), *fact))
             .collect();
         Self {
@@ -1089,6 +1106,7 @@ impl ExistenceRun {
             through: HashMap::new(),
             versions,
             reads: HashMap::new(),
+            query_only,
         }
     }
 
@@ -1184,6 +1202,44 @@ impl ExistenceRun {
         }
         changed
     }
+}
+
+/// The places an existence query names that no SSA symbol holds, sorted: a
+/// name the function only asks `info exists` or `array exists` about — `if
+/// {[info exists x]}` with no other mention of `x` — or the array an
+/// element query asks about, which the query reads (an element exists only
+/// in an array). Each takes a slot past the SSA's symbols, so the rung
+/// carries it from the entry through every clobber like any other place.
+fn query_only_places(
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    registry: &CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+) -> Vec<String> {
+    let mut texts: Vec<String> = Vec::new();
+    for block in cfg.blocks.values() {
+        for statement in &block.statements {
+            match statement {
+                Statement::AssignExpr { expr, .. } => {
+                    crate::ir_helpers::collect_expr_commands(expr, &mut texts);
+                }
+                Statement::AssignValue { value, .. } => texts.push(value.clone()),
+                _ => {}
+            }
+        }
+        if let Some(Terminator::Branch { condition, .. }) = &block.terminator {
+            crate::ir_helpers::collect_expr_commands(condition, &mut texts);
+        }
+    }
+    let mut places: Vec<String> = texts
+        .iter()
+        .filter_map(|text| crate::existence_query::in_text(text, registry, config))
+        .map(|(name, _)| place_base(&name).to_owned())
+        .filter(|place| ssa.var_symbol(place).is_none())
+        .collect();
+    places.sort_unstable();
+    places.dedup();
+    places
 }
 
 /// The fact a place named `name` enters an unaliased frame with: a
@@ -1291,7 +1347,7 @@ fn statement_clobber(
 
 /// The variable that holds the place `name`: the array for an element
 /// `base(key)`, the name itself otherwise.
-fn place_base(name: &str) -> &str {
+pub(crate) fn place_base(name: &str) -> &str {
     name.split_once('(')
         .filter(|_| name.ends_with(')'))
         .map_or(name, |(base, _)| base)
@@ -2004,368 +2060,6 @@ fn record_condition_preserves(
             driver.record_preserved((var, ver), Some(prior));
         }
     }
-}
-
-/// Every variable name the function assigns, and every name a call unbinds
-/// by literal — the two whole-body facts [`existence_constant_branches`]
-/// folds against. A `Call`'s `defs` cover the commands that define a name
-/// without an assignment statement (`global` / `variable` / `upvar`,
-/// `regexp -inline` match vars, …); the unbind fact is each call's resolved
-/// existence transfer ([`crate::value_transfer::unbound_names`]), so no
-/// command is recognised by its spelling here.
-fn scan_defined_and_unbound(
-    cfg: &CfgFunction,
-    registry: &tcl_registry::CommandRegistry,
-) -> (FxHashSet<String>, FxHashSet<String>) {
-    let mut defined: FxHashSet<String> = FxHashSet::default();
-    for block in cfg.blocks.values() {
-        for stmt in &block.statements {
-            match stmt {
-                Statement::AssignConst { name, .. }
-                | Statement::AssignExpr { name, .. }
-                | Statement::AssignValue { name, .. }
-                | Statement::Incr { name, .. } => {
-                    let n = crate::naming::normalise_var_name(name);
-                    if !n.is_empty() {
-                        defined.insert(n.to_string());
-                    }
-                }
-                Statement::Call { defs, .. } => {
-                    for d in defs {
-                        defined.insert(d.clone());
-                    }
-                }
-                _ => {}
-            }
-        }
-    }
-    (defined, crate::value_transfer::unbound_names(cfg, registry))
-}
-
-/// The entry facts one function frame contributes to the existence fold
-/// ([`existence_constant_branches`]), sourced from the typed IR for whichever
-/// kind of body it is — a [`crate::ir::Procedure`], a
-/// [`crate::ir::MethodDef`], or neither (the top level, a lambda).
-///
-/// Bundled rather than passed positionally so a new fact reaches both
-/// consumers of the fold — the analyser's I230 and the optimiser's O101 — by
-/// construction: the two build the same struct from the same IR, so they
-/// cannot drift on, say, method parameters.
-#[derive(Clone, Copy, Default)]
-pub struct ExistenceFrame<'a> {
-    /// The body's formal parameter names: bound on entry as scalars, so
-    /// they exist for `info exists` and never for `array exists`.
-    /// Empty for the top level and for any body with no parameter list.
-    pub params: &'a [String],
-    /// Names auto-bound to out-of-frame *object* storage on entry — a
-    /// `TclOO` method body's [`crate::ir::MethodDef::instance_vars`].
-    /// `None` for every body kind that has none.
-    pub object_state: Option<&'a HashSet<String>>,
-    /// Whether this body is the document's **initial global frame** (the
-    /// compilation unit's top level).  Only there does the frame share the
-    /// interpreter's own globals, so only there must the fold abstain on the
-    /// registry's special variables — a procedure-local `argv` is an ordinary
-    /// fresh Tcl name and keeps folding.
-    pub initial_global: bool,
-}
-
-/// The array base name of an existence query written as an element guard —
-/// `Some("Params")` for `Params(key)` (any element spelling, including a
-/// dynamic `Params($k)`), `None` for every other shape.  Only a simple local
-/// base qualifies: a namespaced array (`::env(PATH)`) may be populated
-/// outside the function's view.
-///
-/// Deliberately **not**
-/// [`split_element_ref`](tcl_syntax::naming::split_element_ref):
-/// this is a narrower *fold-safety* predicate, and its extra tests — non-empty
-/// base, bareword base — are the point. The owner admits the zero-length array
-/// name `(k)` that `TclObjLookupVarEx` admits, which is not a name this fold
-/// may reason about.
-fn array_element_base(var: &str) -> Option<&str> {
-    let (base, rest) = var.split_once('(')?;
-    if base.is_empty() || !rest.ends_with(')') {
-        return None;
-    }
-    base.bytes()
-        .all(|b| b.is_ascii_alphanumeric() || b == b'_')
-        .then_some(base)
-}
-
-/// Fold `[info exists X]` / `[array exists X]`
-/// if-conditions into [`ConstantBranch`] entries for the
-/// false-positive-free cases — a parameter always exists, as a **scalar**
-/// (`info exists` → `true`, `array exists` → `false`); a never-defined
-/// non-parameter never exists (`false`); an element guard `X(elem)` on an
-/// array this body never touches never exists (`false` — the guard is decided
-/// on the *array* name, with the same abstentions as a simple name, so the
-/// element key may even be dynamic).
-/// `![info exists X]` flips the value.
-///
-/// SCCP itself can't fold these (the predicate is an opaque
-/// `ExprNode::Command`, and SCCP has neither parameter nor existence
-/// facts), so this runs as a post-pass with the frame's own facts.  The
-/// result feeds both the analyser's I230 (constant condition) and the
-/// optimiser's O101 (constant-branch fold / DCE).  Only simple local
-/// names are folded, and only in functions free of opaque barriers (an
-/// unknown command could `unset` or `upvar`-define the variable).
-/// Scope-alias locals (`global` / `variable` / `upvar` / `namespace
-/// upvar` bindings) are never folded — their existence tracks the
-/// linked out-of-frame variable.  In the **initial global frame**
-/// ([`ExistenceFrame::initial_global`]) the registry's special variables join
-/// them for the same reason: that frame is the interpreter's own global
-/// namespace, whose startup bindings and runtime-materialised entries the
-/// body's assignment scan cannot see.
-///
-/// `dynamic_names` carries the function's
-/// [dynamic-name barrier](crate::dynamic_names) and gates each direction
-/// independently:
-///
-/// - a **dynamic write** (`set $switch {}`) can define *any* name, so the
-///   "never defined here, therefore absent" fold is no longer provable;
-/// - a **dynamic destroy** (`unset $n`) can remove *any* name, so even the
-///   "it's a parameter, therefore present" fold is no longer provable.
-///
-/// Both abstain by declining the fold, which silences I230 and leaves O101
-/// with nothing to fold — say less rather than say something wrong.
-///
-/// [`ExistenceFrame::object_state`] carries the frame's *auto-bound*
-/// out-of-frame names — a `TclOO` method body's
-/// [`crate::ir::MethodDef::instance_vars`].
-/// A class-level `variable x` declaration binds `x` in **every**
-/// method's frame with no `variable` statement in the body itself, so
-/// [`crate::optimiser::elimination::scan_scope_aliases`] (which only sees the
-/// body's own commands) cannot find it — the name looks like a never-defined
-/// local, which the fold would otherwise call "always absent".  It is not:
-/// existence is per-instance runtime state, set by whichever method or
-/// constructor assigned it first.  tclsh 9.0.4 and 8.6.14 agree:
-///
-/// ```tcl
-/// oo::class create C { variable x; constructor {} { set x 1 }
-///                      method m {} { info exists x } }   ;# [C new] m → 1
-/// oo::class create D { variable x
-///                      method m {} { info exists x } }   ;# [D new] m → 0
-/// oo::class create F { variable x; method setit {} { set x 42 }
-///                      method m {} { info exists x } }
-/// set f [F new]; $f m   ;# → 0
-/// $f setit; $f m        ;# → 1
-/// ```
-///
-/// The declaration alone does not create the variable, but *any earlier call
-/// on the same instance* may have — a dynamic fact no per-method analysis can
-/// decide, so these names join `aliased` and never fold either way.
-///
-/// A method parameter that *collides* with an instance-variable name is the
-/// exception, and still folds `true`: the parameter shadows the class-level
-/// declaration completely, and writes through it never reach object state
-/// (again identical on 9.0.4 and 8.6.14).
-///
-/// ```tcl
-/// oo::class create A { variable x; constructor {} { set x 42 }
-///                      method m {x} { set r [info exists x]; set x 9; return $r }
-///                      method peek {} { return $x } }
-/// set a [A new]; $a m hello   ;# → 1
-/// $a peek                     ;# → 42, untouched by the method's `set x 9`
-/// ```
-///
-/// This also holds for a *defaulted* parameter called with no argument
-/// (`method m {{x def}} …` → `info exists x` is 1 and `$x` is `def`), and
-/// when the instance variable was never assigned at all.
-#[must_use]
-pub fn existence_constant_branches(
-    cfg: &CfgFunction,
-    frame: ExistenceFrame<'_>,
-    registry: &tcl_registry::CommandRegistry,
-    dynamic_names: crate::dynamic_names::DynamicNameBarrier,
-    config: tcl_lexer::LexerConfig,
-) -> Vec<ConstantBranch> {
-    let mut out = Vec::new();
-    if cfg.blocks.values().any(|b| {
-        b.statements
-            .iter()
-            .any(|s| matches!(s, Statement::Barrier { .. } | Statement::UpFrame { .. }))
-    }) {
-        return out;
-    }
-    let (defined, unset) = scan_defined_and_unbound(cfg, registry);
-    // Locals bound to out-of-frame storage (`global` / `variable` / `upvar` /
-    // `namespace upvar`): whether such a name exists depends on the *linked*
-    // variable, which this function cannot see, so its existence query must
-    // never fold either way.  `global` / `variable` / `upvar` escape via
-    // `defined` already (their `Call::defs` carry the alias local), but
-    // `namespace upvar` lowers with empty defs — tclsh 8.6:
-    // `namespace eval ns {variable s ok}; proc t {} {namespace upvar ns s a;
-    // info exists a}; t` → 1 (and → 0 when `ns::s` is unset), the exact
-    // `::safe::CheckInterp` guard shape (safe.tcl:109).  The scanner also
-    // returns `trace` targets, which only widens the skip — conservative,
-    // never a false fold.
-    let mut aliased = crate::optimiser::elimination::scan_scope_aliases(cfg, registry);
-    // Object state is aliased the same way, minus a visible binding command:
-    // `TclOO` links every class-level `variable` declaration into each method
-    // frame at entry, so the body's own command scan cannot see it.
-    //
-    // A formal parameter of the same name is the one exception: it shadows the
-    // class-level declaration outright, so the name is an ordinary local that
-    // always exists and must keep folding `true`.  tclsh 9.0.4 / 8.6.14 agree
-    // — the parameter wins completely, and writes to it do **not** reach
-    // object state:
-    //
-    //   oo::class create A { variable x; constructor {} { set x 42 }
-    //                        method m {x} { set r [info exists x]  ;# → 1
-    //                                       set x 9; return $r }
-    //                        method peek {} { return $x } }
-    //   set a [A new]; $a m hello   ;# → 1  ($x inside m is "hello")
-    //   $a peek                     ;# → 42, unchanged by `set x 9`
-    //
-    // Only the *object-state* half yields to parameters.  The
-    // command-derived aliases keep full precedence: an explicit `global` /
-    // `variable` / `upvar` / `namespace upvar` / `my variable` on a name that
-    // is already a parameter is a runtime error on both runtimes (`variable
-    // "x" already exists`), so it never legally co-occurs, while a variable
-    // *trace* on a parameter does — and a trace callback can unset its own
-    // target, which is exactly why `scan_scope_aliases` includes trace
-    // targets and why they must go on abstaining.
-    if let Some(instance_vars) = frame.object_state {
-        aliased.extend(
-            instance_vars
-                .iter()
-                .filter(|name| !frame.params.iter().any(|p| p == *name))
-                .cloned(),
-        );
-    }
-    // The document's initial global frame *is* the interpreter's global
-    // namespace, so every name the special-variable registry recognises there
-    // is out-of-frame runtime state exactly like object state above.
-    // Some are bound before user code (`argv`, `env`, `tcl_platform`,
-    // `auto_path`), some are materialised by a later runtime event this body
-    // cannot see (`errorInfo` after a `catch`, `auto_index` after an
-    // auto-load), and some by a read trace (`tcl_precision` on Tcl 8.x) — none
-    // is provably absent merely because the body never assigned it, and
-    // tclsh 8.4.20 / 8.5.19 / 8.6.14 / 9.0.4 / 9.1b0 all answer
-    // `info exists argv` → 1 at the top level.  Folding them "always absent"
-    // produced a false I230 and, worse, an O101 rewrite of
-    // `if {[info exists argv]} …` to `if {0} …`.
-    //
-    // The set is dialect-versioned registry data, so a release that drops a
-    // variable (`tcl_precision` in Tcl 9) or a dialect that never had one
-    // (iRules has no `argv`) keeps folding it.  Inside a procedure the name is
-    // an ordinary local and still folds; an explicit `global argv` there is
-    // already covered by the scope-alias skip above.
-    if frame.initial_global {
-        aliased.extend(
-            registry
-                .special_vars_for_dialect(Some(
-                    tcl_registry::special_vars::surface_query_for_profile(registry.profile()),
-                ))
-                .map(|spec| spec.name.to_owned()),
-        );
-    }
-    for block in cfg.blocks.values() {
-        let Some(Terminator::Branch {
-            condition,
-            true_target,
-            false_target,
-            span: Some(span),
-            ..
-        }) = &block.terminator
-        else {
-            continue;
-        };
-        let Some(crate::existence_query::ExistenceQuery { var, negated, kind }) =
-            crate::existence_query::in_expr(condition, registry, config)
-        else {
-            continue;
-        };
-        let exists = if let Some(base) = array_element_base(&var) {
-            // An array-element guard on a never-touched array is provably
-            // false: no element of `a` can exist when nothing
-            // in this barrier-free body ever created `a` — tclsh 9.0.4 /
-            // 8.6.16: `proc f {} { info exists Params(key) }` → 0.  The
-            // decision is about the *array* name alone, so a dynamic element
-            // key (`Params($k)`) folds just as well, and the base takes the
-            // same abstentions as a simple name: scope-alias / instance-state
-            // (`aliased`), a dynamic write that may have created any name,
-            // and any touch of the base — a `set a(x) …` element write, an
-            // `array set` / `upvar`-style whole-array def, either spelling.
-            // A parameter base abstains outright: the parameter itself is a
-            // scalar, and the fold stays strictly one-sided here rather than
-            // reason about unset-and-remake shapes.
-            if aliased.contains(base)
-                || frame.params.iter().any(|p| p == base)
-                || dynamic_names.writes
-                || defined
-                    .iter()
-                    .any(|d| d == base || d.strip_prefix(base).is_some_and(|r| r.starts_with('(')))
-            {
-                continue;
-            }
-            false
-        } else {
-            // Namespaced globals may be populated outside the function's
-            // view — only fold simple local names.
-            if var.is_empty() || !var.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_') {
-                continue;
-            }
-            // A scope-alias local's existence tracks the linked variable —
-            // never fold it (see the `aliased` collection above).
-            if aliased.contains(var.as_str()) {
-                continue;
-            }
-            if frame.params.iter().any(|p| p == &var) {
-                // A literal `unset x` already blocks this; a computed
-                // `unset $n` can name the parameter just as well
-                // (tclsh 9.0.4 / 8.6.14: `proc f {p n} {unset $n; info exists p}`
-                // → `0` for `f hello p`), so the barrier blocks it too.
-                if unset.contains(var.as_str()) || dynamic_names.destroys {
-                    continue;
-                }
-                // Which constant depends on the spelling.  A
-                // parameter is bound as a *scalar* on entry — Tcl has no
-                // pass-an-array-by-value — so `array exists PARAM` is
-                // provably **false** where `info exists PARAM` is true.
-                // Nothing in a barrier-free body can turn the parameter into
-                // an array without first removing the scalar binding, and a
-                // literal `unset` / a dynamic destroy already abstained above
-                // (`set p(k) …` and `array set p …` on a live scalar are
-                // runtime errors, not conversions).
-                //
-                // tclsh-proof (8.6.16 / 9.0.4):
-                //   proc f {a} { if {[array exists a]} { puts yes } else { puts no } }
-                //   f 1                                        ;# → no
-                //   proc g {a} { array set a {x 1} }
-                //   g 1  ;# → can't set "a(x)": variable isn't array
-                matches!(kind, crate::existence_query::ExistenceKind::AnyVariable)
-            } else if !defined.contains(&var) {
-                // `set $switch {}` may have defined exactly this name — the
-                // argparse idiom.
-                if dynamic_names.writes {
-                    continue;
-                }
-                false
-            } else {
-                continue;
-            }
-        };
-        let value = exists ^ negated;
-        let (true_name, false_name) = (
-            cfg.block_name(*true_target).to_owned(),
-            cfg.block_name(*false_target).to_owned(),
-        );
-        let (taken, not_taken) = if value {
-            (true_name, false_name)
-        } else {
-            (false_name, true_name)
-        };
-        out.push(ConstantBranch {
-            block: block.name.clone(),
-            span: Some(*span),
-            condition: crate::expr_ast::expr_text(condition),
-            value,
-            taken_target: taken,
-            not_taken_target: not_taken,
-            kind: BranchFactKind::Proven,
-        });
-    }
-    out
 }
 
 /// Evaluate the lattice value produced by an SSA statement's
@@ -3204,6 +2898,30 @@ mod tests {
             "UpFrame may define `created`, so info exists must not fold: {:?}",
             f.sccp.constant_branches
         );
+    }
+
+    /// `set x 1; unset x; info exists x` decides 0 inside the fixed point
+    /// (VT8.2): the query reads the rung, the branch is an `Applied` fact,
+    /// and its true arm is unreachable. tclsh 8.4 to 9.1 print `no`.
+    #[test]
+    fn set_unset_info_exists_decides_zero() {
+        let registry = CommandRegistry::build_default();
+        let cu = crate::compilation_unit::CompilationUnit::build_for(
+            "proc f {} { set x 1; unset x; if {[info exists x]} { puts yes } else { puts no } }",
+            &registry,
+            false,
+        );
+        let f = cu.function("::f").expect("procedure analysed");
+        let decided = f
+            .sccp
+            .constant_branches
+            .iter()
+            .find(|branch| branch.condition == "[info exists x]")
+            .unwrap_or_else(|| panic!("the query decides: {:?}", f.sccp.constant_branches));
+        assert!(!decided.value);
+        assert_eq!(decided.kind, BranchFactKind::Applied);
+        let dead = f.cfg.block_id(&decided.not_taken_target).expect("the arm");
+        assert!(!f.sccp.executable_blocks.contains(&dead));
     }
 
     #[test]

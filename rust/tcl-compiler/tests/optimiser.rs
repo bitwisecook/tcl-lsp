@@ -2341,10 +2341,14 @@ fn a_structural_body_is_not_the_enclosing_statements_surface() {
 /// The `for` case is the widest: its condition contributed neither reads nor
 /// writes at all, so the store was deleted *and* the stale literal forwarded
 /// into the loop body.
+///
+/// Since value-transfers slice 8 the existence rung decides `[info exists
+/// x]` inside the fixed point, so the first program's condition folds to `1`
+/// (O101) — a sound rewrite that still prints `yes` — and the store it read
+/// stays.
 #[test]
 fn a_condition_substitution_reads_the_frames_variables() {
     for src in [
-        "proc p {} {\n  set x 1\n  if {[info exists x]} { puts yes }\n}\np\n",
         "proc p {} { set n 5; if {[incr n]} { puts $n } }\np\n",
         "proc p {} { set s foo; while {[string length [append s bar]] < 12} { puts $s } }\np\n",
     ] {
@@ -2355,6 +2359,13 @@ fn a_condition_substitution_reads_the_frames_variables() {
             opt_codes(src, TCL)
         );
     }
+    let exists_src = "proc p {} {\n  set x 1\n  if {[info exists x]} { puts yes }\n}\np\n";
+    assert_eq!(
+        optimised(exists_src, TCL),
+        "proc p {} {\n  set x 1\n  if {1} { puts yes }\n}\np\n",
+        "only the decided query folds, and the store it read stays: {:?}",
+        opt_codes(exists_src, TCL)
+    );
 
     // The `for` case keeps one legitimate rewrite — `set i 0` really is an
     // unused variable — so it is asserted on the store the condition reads

@@ -7091,14 +7091,13 @@ fn i230_message_keeps_braced_var_spelling() {
 }
 
 /// The existence branch fact is stored once, with its kind (VT5.12;
-/// `docs/design/compiler/value-transfers.md` § *Branch facts*): the unit
-/// stores the post-pass's `[info exists X]` fold as a `Proven` fact and the
-/// solver's decided branch as `Applied`, and I230 reports each from the
-/// stored fact without rerunning the proof — a unit whose proven fact is
-/// gone reports nothing for it. So a fold the unit drops is not reported
-/// either: under iRules `[info exists ans_cleared]` in one event is not
-/// decided when another event sets the variable, the optimiser's rule,
-/// where the analyser's own rerun had reported it always false.
+/// `docs/design/compiler/value-transfers.md` § *Branch facts*). Since
+/// slice 8 (VT8.2) the solver decides `[info exists X]` inside the fixed
+/// point, so the unit stores it as an `Applied` fact like any decided
+/// branch — reachability follows it — and I230 reports each stored fact
+/// once. Under iRules `[info exists ans_cleared]` in one event is not
+/// decided when another event sets the variable, which enters `MayBound`
+/// there, and a name no handler binds still is.
 #[test]
 fn the_existence_branch_fact_is_stored_once() {
     use crate::sccp::BranchFactKind;
@@ -7113,26 +7112,27 @@ fn the_existence_branch_fact_is_stored_once() {
         .map(|branch| (branch.condition.as_str(), branch.kind))
         .collect();
     assert!(
-        kinds.contains(&("[info exists b]", BranchFactKind::Proven))
+        kinds.contains(&("[info exists b]", BranchFactKind::Applied))
             && kinds.contains(&("1", BranchFactKind::Applied)),
         "{kinds:?}"
+    );
+    let decided = function
+        .sccp
+        .constant_branches
+        .iter()
+        .find(|branch| branch.condition == "[info exists b]")
+        .expect("the existence branch");
+    assert!(
+        function
+            .cfg
+            .block_id(&decided.not_taken_target)
+            .is_some_and(|id| !function.sccp.executable_blocks.contains(&id)),
+        "the dead arm is unreachable"
     );
     assert_eq!(
         codes_for(src).iter().filter(|code| *code == "I230").count(),
         2,
         "one I230 per stored fact"
-    );
-    let mut dropped = function.clone();
-    dropped
-        .sccp
-        .constant_branches
-        .retain(|branch| branch.kind != BranchFactKind::Proven);
-    let mut analyser = Analyser::new();
-    analyser.emit_existence_constant_branch_diagnostics(&dropped);
-    assert!(
-        analyser.result.diagnostics.is_empty(),
-        "the emitter reran the proof: {:?}",
-        analyser.result.diagnostics
     );
 
     let irule = "when HTTP_REQUEST {\n    set ans_cleared 1\n}\nwhen HTTP_RESPONSE {\n    \
@@ -7284,14 +7284,18 @@ fn info_exists_element_fold_survives_an_unrelated_array() {
 }
 
 #[test]
-fn info_exists_does_not_fold_unset_parameter() {
-    // A parameter that is `unset` before the check can't be assumed
-    // to exist.
-    let codes = codes_for("proc f {a} { unset a; if {[info exists a]} { puts hi } }");
-    assert!(
-        !codes.contains(&"I230".to_string()),
-        "unset parameter must not fold true; got {codes:?}",
+fn info_exists_folds_an_unset_parameter_false() {
+    // A parameter that is `unset` before the check no longer exists: the
+    // existence rung reads the `unset`, so the guard folds always false and
+    // never the parameter's entry "always true" — tclsh 8.4.20 to 9.1b0:
+    // `proc f {a} { unset a; info exists a }; f 1` → 0.
+    let msgs = i230_messages("proc f {a} { unset a; if {[info exists a]} { puts hi } }");
+    assert_eq!(
+        msgs.len(),
+        1,
+        "an unset parameter's guard folds once; got {msgs:?}"
     );
+    assert!(msgs[0].contains("always false"), "got {msgs:?}");
 }
 
 #[test]

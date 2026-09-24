@@ -118,10 +118,8 @@
 //!   much larger question — the same one that puts `eval` / `uplevel` out of
 //!   scope above.
 //! - Unknown-command blindness already has an owner.  A `$cmd …` statement
-//!   lowers to [`Statement::Barrier`], and
-//!   [`existence_constant_branches`](crate::sccp::existence_constant_branches)
-//!   bails on a function containing any barrier before it consults these flags
-//!   at all.
+//!   lowers to [`Statement::Barrier`], which the existence rung already
+//!   treats as touching every place, before it consults these flags at all.
 //! - Raising a flag would be wildly over-broad: `$obj method`, `$cmd arg`, and
 //!   every `TclOO` dispatch would silence `W210` / `W211` / `W220` / `I230`
 //!   and switch off `O101` / `O109` / `O126` for the whole function.  An

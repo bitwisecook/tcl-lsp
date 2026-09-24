@@ -209,55 +209,43 @@ triggering site.
 - O112 (constant condition elimination) is triggered.
 
 Since slice 5, every `ConstantBranch` carries a `kind: BranchFactKind` —
-`Applied` for a branch the SCCP fixpoint itself decided, `Proven` for one
-the existence post-pass below folds, and `Selected` (unused before slice
-6) for a case-selection record. An emitter reads only the kind it owns —
-`emit_constant_branch_diagnostics` the `Applied` facts, the analyser's
-existence I230 the `Proven` ones — and never re-derives the proof from a
-frame of its own, so `compiler_checks.rs` reports whichever kind is
-stored without asking which pass produced it.
+`Applied` for a branch the SCCP fixpoint itself decided, `Proven` for a
+condition proven without updating reachability, and `Selected` (unused
+before slice 6) for a case-selection record. Since slice 8 an existence
+query is decided inside the fixed point, so its branch is `Applied` like
+any other and no producer states `Proven` today. An emitter reads only the
+kind it owns — `emit_constant_branch_diagnostics` the `Applied` facts — and
+never re-derives the proof from a frame of its own, so `compiler_checks.rs`
+reports whichever kind is stored without asking which pass produced it.
 
 ### Existence-check folding (`info exists` / `array exists`)
 
-`existence_constant_branches` (`rust/tcl-compiler/src/sccp.rs`) runs as a
-**post-pass** over the CFG, not inside the SCCP fixpoint: the predicate is an
-opaque `ExprNode::Command` and SCCP holds neither parameter nor existence
-facts.  It contributes extra `ConstantBranch` entries for the
-false-positive-free cases, feeding the analyser's `I230` and the optimiser's
-`O101`.
+Since slice 8 (VT8.2) an existence query decides inside the fixed point.
+`[info exists NAME]` and `[array exists NAME]` — recognised by the
+resolved operation (`IntrinsicId::InfoExists` / `ArrayExists`, through
+`existence_query::kind_of`), never by spelling — answer through the
+driver's nested service as a read of the existence rung below at the
+point the condition or word is evaluated: a `Bound(_)` place exists for
+`info exists`, a `Bound(Array)` one is an array for `array exists` and a
+`Bound(Scalar)` one is not, and an `Unbound` place is neither. An element
+query reads its array: an unbound array holds no element, and any other
+fact decides nothing about one. A computed key leaves a bareword array
+fixed, so `[info exists Params($k)]` reads `Params` too
+(`existence_query::computed_element_base`). `MayBound`, `Bound(Either)`
+for `array exists`, a run without the rung (`Unavailable`, never read as
+unbound), any other computed name, and a registry special variable in the
+initial global frame — which the host binds, not the script — decide
+nothing. A name the
+function only asks about gets a rung slot of its own past the SSA's
+symbols, so a clobber reaches it like any other place.
 
-The decision is **flow-insensitive**, taken against two whole-body scans
-(`scan_defined_and_unset`: every name the body assigns, and every name a
-literal `unset` names) plus the `ExistenceFrame` — the body's formal
-`params` and, for a `TclOO` method, its `object_state`.
-`existence_query::in_expr` (`rust/tcl-compiler/src/existence_query.rs`)
-recognises exactly `[info exists NAME]` / `[array exists NAME]`, optionally
-under a `!`; anything embedded in a larger expression is declined.
-
-- **parameter** — always bound, and bound as a *scalar*: `info exists` folds
-  `true`, `array exists` folds `false` (issue #1239).
-- **never assigned anywhere in the body** — folds `false` for either
-  spelling.
-- **assigned somewhere in the body** — no fold at all.  The scan is
-  flow-insensitive, so "defined somewhere" does not prove "defined here".
-- **element guard `X(elem)`** on an array the body never touches — folds
-  `false` (issue #1173).  The decision is about the *array* name, so a
-  dynamic key (`Params($k)`) folds just as well.
-
-Abstentions, each declining the fold rather than guessing:
-
-- any `Statement::Barrier` anywhere in the function disables the whole pass —
-  an unknown command could `unset` or `upvar`-define the variable;
-- a scope-alias local (`global` / `variable` / `upvar` / `namespace upvar` /
-  a `trace` target, from `optimiser::elimination::scan_scope_aliases`) — its
-  existence tracks the linked out-of-frame variable;
-- a `TclOO` method's instance variables, unless a formal parameter of the
-  same name shadows the declaration outright;
-- a literal `unset` of a parameter, or `DynamicNameBarrier::destroys`, blocks
-  the "parameter is present" fold; `DynamicNameBarrier::writes` blocks the
-  "never defined, therefore absent" fold;
-- a name that is not a bare `[A-Za-z0-9_]` local: a qualified name
-  (`::ns::X`) may be populated outside the function's view.
+The decided condition is an ordinary `Applied` branch: it updates
+`executable_blocks`, so O107, taint, shimmer and the reachability-gated
+checks see the dead arm, and the analyser's I230 and the optimiser's O101
+read the one fact. The abstentions the post-pass it replaces kept by hand
+— a barrier or `UpFrame`, a scope alias, an instance variable, a
+connection-scoped iRules name, a computed write or destroy — are the
+rung's entry rules and clobbers.
 
 ### The existence rung (`SccpResult::existence`)
 

@@ -374,9 +374,9 @@ pub struct FunctionUnit {
     /// run time (`set $var v` / `[set $name]` / `unset $n`).
     ///
     /// Three flags, no name set — a dynamic access clobbers the whole name
-    /// space, so the consumers ([`crate::sccp::existence_constant_branches`]'s
-    /// existence fold, the W210 / W211 / W220 emitters, and the optimiser's
-    /// O101 / O109 / O126) read it in `O(1)` and abstain.  See
+    /// space, so the consumers (the existence rung's clobbers, the W210 /
+    /// W211 / W220 emitters, and the optimiser's O101 / O109 / O126) read it
+    /// in `O(1)` and abstain.  See
     /// [`crate::dynamic_names`].
     pub dynamic_names: crate::dynamic_names::DynamicNameBarrier,
     /// Single source of truth for the deep-analysis complexity guard: when
@@ -841,7 +841,7 @@ impl FunctionUnit {
         // profile, which is not the document's grammar for a pack-layered
         // registry or `tk`.
         let dynamic_names = crate::dynamic_names::dynamic_name_barrier(&cfg, registry, config);
-        let mut sccp = crate::sccp::sccp_with_builtin_folds(
+        let sccp = crate::sccp::sccp_with_builtin_folds(
             &cfg,
             &ssa,
             param_constants,
@@ -870,26 +870,6 @@ impl FunctionUnit {
                 trust: crate::sccp::FoldTrust::ObservedBindings,
             }),
         );
-        // Surface `[info exists X]` / `[array exists X]`
-        // folds (parameter → exists, never-defined non-param → absent)
-        // as constant branches so the optimiser's O101 fold / DCE sees
-        // them. The analyser's I230 uses the same fold via
-        // `existence_constant_branches`; the SCCP pass proper has no
-        // parameter/existence facts to fold them itself.  A method body's
-        // instance variables are handed over too, so the fold abstains on
-        // object state instead of calling it absent.
-        sccp.constant_branches
-            .extend(crate::sccp::existence_constant_branches(
-                &cfg,
-                crate::sccp::ExistenceFrame {
-                    params: existence.params,
-                    object_state: existence.object_state,
-                    initial_global: existence.initial_global,
-                },
-                registry,
-                dynamic_names,
-                config,
-            ));
         let types = propagate_types(
             &cfg,
             &ssa,
@@ -1911,7 +1891,7 @@ impl CompilationUnit {
             cache,
             options.config,
         );
-        let mut procedures = built.procedures;
+        let procedures = built.procedures;
         let body_unit_context = BodyUnitContext {
             registry,
             known_class_set: &known_class_set,
@@ -1923,7 +1903,6 @@ impl CompilationUnit {
         let methods = Self::build_method_units(&ir_module, &extra_callers, body_unit_context);
         let body_units = Self::build_body_units(&ir_module, &extra_callers, body_unit_context);
         let connection_scope = Self::build_connection_scope(&procedures);
-        Self::drop_cross_event_existence_folds(&mut procedures, connection_scope.as_ref());
         Self {
             source: source.to_owned(),
             ir_module,
@@ -2127,42 +2106,6 @@ impl CompilationUnit {
                 (qname.clone(), fu)
             })
             .collect()
-    }
-
-    /// Cross-event existence post-pass: `existence_constant_branches` runs per
-    /// function and folds `[info exists VAR]` → false for any VAR not defined
-    /// *in that event*. That is unsound for an iRules cross-event variable
-    /// (set in another `when` handler), so drop those folds from `::when::*`
-    /// procs once the connection scope is known — otherwise O101 rewrites
-    /// `if {[info exists ans_cleared]}` to `if {0}` even though a sibling event
-    /// set it (a miscompile).
-    fn drop_cross_event_existence_folds(
-        procedures: &mut HashMap<String, FunctionUnit>,
-        connection_scope: Option<&crate::connection_scope::ConnectionScope>,
-    ) {
-        let Some(cs) = connection_scope else {
-            return;
-        };
-        let cross: HashSet<&str> = cs
-            .cross_event_defs
-            .iter()
-            .chain(cs.cross_event_imports.iter())
-            .map(String::as_str)
-            .collect();
-        if cross.is_empty() {
-            return;
-        }
-        for (qn, fu) in procedures.iter_mut() {
-            if !qn.starts_with("::when::") {
-                continue;
-            }
-            fu.sccp.constant_branches.retain(|cb| {
-                let mut vars = HashSet::new();
-                crate::connection_scope::scan_info_exists(&cb.condition, &mut vars);
-                // Keep the fold only if it does not query a cross-event var.
-                !vars.iter().any(|v| cross.contains(v.as_str()))
-            });
-        }
     }
 
     /// Populate [`InterproceduralAnalysis`] via

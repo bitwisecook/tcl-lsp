@@ -776,7 +776,6 @@ generated inventory's route *owner* column is the same fact read from
 | Handler | Where | Keyed by | Retires in | Waiver |
 |---|---|---|---|---|
 | the loop header's per-element `ConstSet` transfer over a literal, lattice, or folded list, one set per binder of the plan (slice 5, VT5.7: the source layout answers the plan too) | `rust/tcl-compiler/src/value_transfer.rs`, `evaluate_call` | `PlanAnswer::Iterate` from the explicit `foreach` / `lmap` declaration | slice 12 — the exact exit state | none needed: generic over the plan |
-| the `unset` fold's name set, from each call's existence transfer | `rust/tcl-compiler/src/value_transfer.rs`, `unbound_names`; `sccp::scan_defined_and_unbound` | `TransferAnswer::Existence` from the `DESTROYS_VARIABLE` derivation | slice 8 — the existence rung deletes `scan_defined_and_unbound` and `existence_constant_branches` | none needed |
 | `static_loops::parse_literal_value` — the simulator's literal ingress, aligned with the one round-trip rule but still its own copy; its `Incr` arm now runs the registry's route | `rust/tcl-compiler/src/static_loops.rs` | typed `Statement::Incr` | slice 12 — `LoopEnumeration` over exact values | the typed arm is shape, not a name; no waiver |
 
 Every run consults the module's command trust, under one of two stances
