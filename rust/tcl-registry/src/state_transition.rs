@@ -67,6 +67,24 @@ pub enum StateTransitionDomain {
     ObjectDispatch,
 }
 
+impl StateTransitionDomain {
+    /// Every domain, in declaration order — the vocabulary a pack's `widen`
+    /// row names domains from.
+    pub const ALL: &'static [Self] = &[
+        Self::CommandBindings,
+        Self::VariableCells,
+        Self::Namespaces,
+        Self::CommandResolution,
+        Self::InterpreterTopology,
+        Self::InterpreterPolicy,
+        Self::Interpreters,
+        Self::CommandTraces,
+        Self::ExecutionTraces,
+        Self::VariableTraces,
+        Self::ObjectDispatch,
+    ];
+}
+
 /// A command, variable, namespace, interpreter, or frame-name subject.
 ///
 /// Literal source words retain their exact Tcl value. Non-literal words never
@@ -795,7 +813,11 @@ impl StateTransitions {
         }
     }
 
-    fn widen(&mut self, subject: TransitionSubject, domains: &[StateTransitionDomain]) {
+    /// Widen `domains` for `subject`, merged into the widening this list
+    /// already holds for that subject — the one way an abstention is
+    /// recorded, so a resolver's own and a descriptor's rules never repeat
+    /// one subject.
+    pub(crate) fn widen(&mut self, subject: TransitionSubject, domains: &[StateTransitionDomain]) {
         if domains.is_empty() {
             return;
         }
@@ -1334,6 +1356,113 @@ pub mod command_binding {
     }
 }
 
+/// The domains a variable-cell alias can invalidate: which cell a name
+/// reaches, and the traces that fire on it — what `upvar`, `global` and
+/// `variable` widen for a dynamic operand, and what an abstained alias fact
+/// widens.
+pub const VARIABLE_ALIAS_DOMAINS: &[StateTransitionDomain] = &[
+    StateTransitionDomain::VariableCells,
+    StateTransitionDomain::VariableTraces,
+];
+
+/// The resolver a `state_transitions … resolver from-frame-effect`
+/// declaration derives from a command's `frame_effect` of
+/// [`crate::frame_effect::FrameArgLayout::AliasPairs`] layout, one per
+/// level-word policy (`docs/design/spec-dsl-examples/README.md`,
+/// "Derivations, exactly"): the level word is located as the policy says,
+/// and each `otherVar myVar` pair after it becomes a
+/// [`VariableCellAliasTransition`] against the frame the level selects.
+///
+/// Two abstentions are the derivation's own, and each widens
+/// [`VARIABLE_ALIAS_DOMAINS`] for the word it could not read rather than
+/// stating a narrower fact: a dynamic level word aborts the whole
+/// derivation (no alias for the call, not "assume the default frame"), and
+/// a dynamic member of a pair skips that pair while the pairs after it still
+/// resolve. A call whose word count an expansion hides states nothing.
+#[must_use]
+pub fn alias_pairs_resolver(
+    level_word: crate::frame_effect::FrameLevelWord,
+) -> StateTransitionResolver {
+    use crate::frame_effect::FrameLevelWord;
+    match level_word {
+        FrameLevelWord::None => alias_pairs_without_level,
+        FrameLevelWord::ArityParity => alias_pairs_by_arity_parity,
+        FrameLevelWord::LeadingProbe => alias_pairs_by_leading_probe,
+    }
+}
+
+fn alias_pairs_without_level(arguments: InvocationArguments<'_>) -> StateTransitions {
+    alias_pairs(arguments, crate::frame_effect::FrameLevelWord::None)
+}
+
+fn alias_pairs_by_arity_parity(arguments: InvocationArguments<'_>) -> StateTransitions {
+    alias_pairs(arguments, crate::frame_effect::FrameLevelWord::ArityParity)
+}
+
+fn alias_pairs_by_leading_probe(arguments: InvocationArguments<'_>) -> StateTransitions {
+    alias_pairs(arguments, crate::frame_effect::FrameLevelWord::LeadingProbe)
+}
+
+fn alias_pairs(
+    arguments: InvocationArguments<'_>,
+    level_word: crate::frame_effect::FrameLevelWord,
+) -> StateTransitions {
+    use crate::frame_effect::{FrameArgLayout, FrameEffectSpec};
+    let mut transitions = StateTransitions::default();
+    let Some(len) = arguments.exact_argv_len() else {
+        return transitions;
+    };
+    let frame = FrameEffectSpec {
+        level_word,
+        layout: FrameArgLayout::AliasPairs,
+    };
+    // A leading probe decides presence by the first word's text; a computed
+    // first word is the level only when a further word follows it.
+    let taken = frame
+        .level_word_len_for_argument_count(len)
+        .unwrap_or_else(|| match arguments.literal_at(0) {
+            Some(word) => frame.level_word_len(&[word, ""][..len.min(2)]),
+            None => usize::from(len >= 2),
+        });
+    let level = match taken {
+        0 => CallerFrameSelection::DefaultCaller,
+        _ => match TransitionSubject::from_argument(arguments, 0) {
+            Some(level @ TransitionSubject::Literal(_)) => CallerFrameSelection::Explicit(level),
+            Some(dynamic) => {
+                transitions.widen(dynamic, VARIABLE_ALIAS_DOMAINS);
+                return transitions;
+            }
+            None => return transitions,
+        },
+    };
+    for other in (taken..len).step_by(2) {
+        let (Some(variable), Some(local)) = (
+            TransitionSubject::from_argument(arguments, other),
+            TransitionSubject::from_argument(arguments, other + 1),
+        ) else {
+            continue;
+        };
+        if let Some(dynamic) = [&variable, &local]
+            .into_iter()
+            .find(|subject| subject.literal().is_none())
+        {
+            transitions.widen(dynamic.clone(), VARIABLE_ALIAS_DOMAINS);
+            continue;
+        }
+        transitions.push(StateTransition::VariableCellAlias(
+            VariableCellAliasTransition {
+                local,
+                target: VariableAliasTarget::CallerSelectedFrame {
+                    frame: level.clone(),
+                    variable,
+                },
+                writes_value: false,
+            },
+        ));
+    }
+    transitions
+}
+
 /// Return the local name Tcl gives a namespace-qualified variable reference.
 ///
 /// `global ::pkg::counter` and `variable ::pkg::counter` bind a current-frame
@@ -1358,6 +1487,110 @@ pub fn local_alias_name(subject: &TransitionSubject) -> TransitionSubject {
 mod tests {
     use super::*;
     use crate::{InvocationWord, InvocationWords};
+
+    /// The alias facts a `from-frame-effect` resolver derives, and its two
+    /// abstentions (`docs/design/spec-dsl-examples/README.md`, "Derivations,
+    /// exactly"): a computed level word aborts the whole call, and a
+    /// computed pair member skips its pair while the next pair resolves —
+    /// each widening the variable-cell domains for the word it could not
+    /// read.
+    #[test]
+    fn derived_alias_pairs_abstain_on_computed_words_and_widen() {
+        use crate::frame_effect::FrameLevelWord;
+        let resolve = |level_word, words: &[InvocationWord<'_>]| {
+            alias_pairs_resolver(level_word)(InvocationArguments::structured(words))
+        };
+        let alias = |local: &str, frame: CallerFrameSelection, variable: &str| {
+            StateTransition::VariableCellAlias(VariableCellAliasTransition {
+                local: TransitionSubject::Literal(local.to_owned()),
+                target: VariableAliasTarget::CallerSelectedFrame {
+                    frame,
+                    variable: TransitionSubject::Literal(variable.to_owned()),
+                },
+                writes_value: false,
+            })
+        };
+        let widen = |argument_index| {
+            StateTransition::Widen(StateTransitionWidening {
+                domains: VARIABLE_ALIAS_DOMAINS.to_vec(),
+                subject: TransitionSubject::Unknown {
+                    argument_index,
+                    word_kind: InvocationWordKind::Dynamic,
+                },
+            })
+        };
+        let facts = |transitions: StateTransitions| -> Vec<StateTransition> {
+            transitions
+                .facts()
+                .iter()
+                .map(|fact| fact.transition.clone())
+                .collect()
+        };
+        let level = |word: &str| {
+            CallerFrameSelection::Explicit(TransitionSubject::Literal(word.to_owned()))
+        };
+
+        // `upvar`'s layout: an odd word count carries the level word.
+        assert_eq!(
+            facts(resolve(
+                FrameLevelWord::ArityParity,
+                &[
+                    InvocationWord::Literal("1"),
+                    InvocationWord::Literal("a"),
+                    InvocationWord::Literal("b"),
+                    InvocationWord::Dynamic,
+                    InvocationWord::Literal("d"),
+                    InvocationWord::Literal("e"),
+                    InvocationWord::Literal("f"),
+                ]
+            )),
+            [
+                alias("b", level("1"), "a"),
+                widen(3),
+                alias("f", level("1"), "e")
+            ]
+        );
+        assert_eq!(
+            facts(resolve(
+                FrameLevelWord::ArityParity,
+                &[InvocationWord::Literal("a"), InvocationWord::Literal("b")]
+            )),
+            [alias("b", CallerFrameSelection::DefaultCaller, "a")]
+        );
+        // A computed level word: no alias for the call, not the default frame.
+        assert_eq!(
+            facts(resolve(
+                FrameLevelWord::ArityParity,
+                &[
+                    InvocationWord::Dynamic,
+                    InvocationWord::Literal("a"),
+                    InvocationWord::Literal("b"),
+                ]
+            )),
+            [widen(0)]
+        );
+        // A leading probe reads the level from the first word's text.
+        assert_eq!(
+            facts(resolve(
+                FrameLevelWord::LeadingProbe,
+                &[
+                    InvocationWord::Literal("#0"),
+                    InvocationWord::Literal("a"),
+                    InvocationWord::Literal("b"),
+                ]
+            )),
+            [alias("b", level("#0"), "a")]
+        );
+        // An expansion hides the pairs: nothing is stated.
+        assert!(
+            resolve(
+                FrameLevelWord::None,
+                &[InvocationWord::Expanded, InvocationWord::Literal("b")]
+            )
+            .facts()
+            .is_empty()
+        );
+    }
 
     const VARIABLE_DOMAINS: &[StateTransitionDomain] = &[
         StateTransitionDomain::VariableCells,

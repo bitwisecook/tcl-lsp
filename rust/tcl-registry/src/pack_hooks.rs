@@ -70,6 +70,10 @@ use crate::literal_validation::{LiteralArgumentValidation, LiteralArgumentValida
 use crate::spec::{
     ArgRoleResolver, CommandPrefixResolver, ConstraintsHook, ContextGate, ScriptTimingResolver,
 };
+use crate::state_transition::{
+    CallerFrameSelection, StateTransition, StateTransitionResolver, StateTransitions,
+    TransitionSubject, VARIABLE_ALIAS_DOMAINS, VariableAliasTarget, VariableCellAliasTransition,
+};
 use crate::value_transfer::{
     ContextDependency, DeclaredStructure, EvalRoute, EvaluatorGeneration, ImplementationBudget,
 };
@@ -84,7 +88,7 @@ use crate::value_transfer::{
 /// folders loses the 65th's behaviour, never its facts.
 pub const SLOTS_PER_FAMILY: usize = 64;
 
-/// The ten hook families, which is what fixes a hook's calling convention:
+/// The hook families, which is what fixes a hook's calling convention:
 /// its emitter verbs, what silence means, and whether it may run on a call
 /// carrying a non-literal word.
 ///
@@ -124,11 +128,18 @@ pub enum HookFamily {
     /// VALUE`, `write TARGET VALUE` and `preserve TARGET`
     /// (`docs/design/compiler/value-evaluation.md` § *The body verbs*).
     Evaluate,
+    /// `state_transitions { resolver … }` — emits `alias LOCAL TARGET
+    /// ?-level LEVEL?` and `namespace-variable NAME`, word indices each, and
+    /// so states variable-cell alias facts and nothing else
+    /// (`docs/design/compiler/registry-consumer-contracts.md` § *The two hook
+    /// bodies that remain*): no verb reaches the command-binding,
+    /// interpreter, object-dispatch or trace families.
+    StateTransitionResolver,
 }
 
 /// Every family, in declaration order — the index a slot's family contributes
 /// to the per-family tables.
-pub const HOOK_FAMILIES: [HookFamily; 12] = [
+pub const HOOK_FAMILIES: [HookFamily; 13] = [
     HookFamily::ArgRoleResolver,
     HookFamily::CommandPrefixResolver,
     HookFamily::ScriptTimingResolver,
@@ -141,6 +152,7 @@ pub const HOOK_FAMILIES: [HookFamily; 12] = [
     HookFamily::OptionArity,
     HookFamily::Constraints,
     HookFamily::Evaluate,
+    HookFamily::StateTransitionResolver,
 ];
 
 impl HookFamily {
@@ -169,6 +181,7 @@ impl HookFamily {
                 "arg-count",
             ],
             Self::Evaluate => &["fold", "write", "preserve"],
+            Self::StateTransitionResolver => &["alias", "namespace-variable"],
         }
     }
 
@@ -192,6 +205,7 @@ impl HookFamily {
             Self::Constraints => "no report",
             // Silence establishes nothing: the evaluation declines.
             Self::Evaluate => "a decline",
+            Self::StateTransitionResolver => "no transitions",
         }
     }
 
@@ -228,6 +242,7 @@ impl HookFamily {
             Self::OptionArity => "options.arity_hook",
             Self::Constraints => "constraints",
             Self::Evaluate => "evaluate",
+            Self::StateTransitionResolver => "state_transitions.resolver",
         }
     }
 
@@ -245,6 +260,7 @@ impl HookFamily {
             Self::OptionArity => 9,
             Self::Constraints => 10,
             Self::Evaluate => 11,
+            Self::StateTransitionResolver => 12,
         }
     }
 }
@@ -474,6 +490,10 @@ pub const SEMANTICS_NATIVE: &[(&str, DeclaredStructure)] = &[];
 /// `-expression` are different, already-closed catalogues of their own
 /// (`NativeEvalId::ALL`, `LanguageProfileId::ALL`), not `SCOPE::FIELD` ids.
 pub const EVALUATE_NATIVE: &[(&str, EvalRoute)] = &[];
+
+/// See [`ARG_ROLE_RESOLVER_NATIVE`]. `state_transitions { resolver -native
+/// ID }`.
+pub const STATE_TRANSITION_RESOLVER_NATIVE: &[(&str, StateTransitionResolver)] = &[];
 
 /// See [`ARG_ROLE_RESOLVER_NATIVE`]. `facts -native ID`: checked, not
 /// stored — nothing reads a pack's facts yet — so the table records only
@@ -830,7 +850,7 @@ pub struct EvaluationAnswer {
 /// What a hook invocation produced: the emitter verb it called, or an
 /// abstention.
 ///
-/// One enum for all ten families because the *protocol* is one protocol; the
+/// One enum for every family because the *protocol* is one protocol; the
 /// thunk that receives it knows its family and converts, applying that
 /// family's silence to [`Self::Abstain`] and to any answer of the wrong shape
 /// (a host bug must degrade, not mis-answer).
@@ -869,6 +889,38 @@ pub enum HookAnswer {
     /// `fold` / `write` / `preserve` — an `evaluate` body's answer, every
     /// declared target spoken for.
     Evaluation(EvaluationAnswer),
+    /// `alias …` / `namespace-variable …` — a `state_transitions` resolver
+    /// body's facts, by word index, in call order.
+    Transitions(Vec<PackTransition>),
+}
+
+/// One fact a `state_transitions` resolver body stated, by the index of the
+/// words it names. The thunk reads each index against the call's own words,
+/// so a computed word is known for what it is: its fact abstains and widens
+/// [`VARIABLE_ALIAS_DOMAINS`] rather than naming a cell. Only the variable
+/// alias family has a verb, which is what keeps a pack body from stating a
+/// command-binding, interpreter, object-dispatch or trace fact.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PackTransition {
+    /// `alias LOCAL TARGET ?-level LEVEL?` — the word at `local` names a
+    /// current-frame variable bound to the variable the word at `target`
+    /// names in the caller's frame, or in the frame the level word at
+    /// `level` selects (`upvar`'s fact).
+    Alias {
+        /// The local variable's word.
+        local: usize,
+        /// The target variable's word.
+        target: usize,
+        /// The level word, when the call names one.
+        level: Option<usize>,
+    },
+    /// `namespace-variable NAME` — the word at `name` names a variable of the
+    /// current namespace the call binds locally under its tail (`variable`'s
+    /// fact).
+    NamespaceVariable {
+        /// The variable's word.
+        name: usize,
+    },
 }
 
 /// The hook host, as the registry sees it.
@@ -1830,6 +1882,79 @@ fn constraints_thunk<const N: u16>(
     }
 }
 
+/// The `state_transitions` resolver family's thunk: the body's facts, read
+/// against the call's own words.
+fn state_transition_thunk<const N: u16>(arguments: InvocationArguments<'_>) -> StateTransitions {
+    let words = structured_words(arguments);
+    match dispatch(
+        HookSlot {
+            family: HookFamily::StateTransitionResolver,
+            index: N,
+        },
+        &call_of(&words, None),
+    ) {
+        HookAnswer::Transitions(stated) => pack_transitions(arguments, &stated),
+        _ => StateTransitions::default(),
+    }
+}
+
+/// The facts a resolver body's verbs state, in call order. A fact naming a
+/// word past the call names nothing and is dropped; a fact naming a computed
+/// word abstains and widens [`VARIABLE_ALIAS_DOMAINS`] for that word — the
+/// family's contract that an abstention widens rather than narrows.
+fn pack_transitions(
+    arguments: InvocationArguments<'_>,
+    stated: &[PackTransition],
+) -> StateTransitions {
+    let mut transitions = StateTransitions::default();
+    for &fact in stated {
+        match stated_alias(arguments, fact) {
+            Ok(alias) => transitions.push(StateTransition::VariableCellAlias(alias)),
+            Err(Some(computed)) => transitions.widen(computed, VARIABLE_ALIAS_DOMAINS),
+            Err(None) => {}
+        }
+    }
+    transitions
+}
+
+/// The alias `fact` states over `arguments`, or why it states none:
+/// `Err(Some(word))` for the first computed word it names, `Err(None)` for a
+/// word past the call.
+fn stated_alias(
+    arguments: InvocationArguments<'_>,
+    fact: PackTransition,
+) -> Result<VariableCellAliasTransition, Option<TransitionSubject>> {
+    let literal = |index: usize| match TransitionSubject::from_argument(arguments, index) {
+        Some(subject @ TransitionSubject::Literal(_)) => Ok(subject),
+        other => Err(other),
+    };
+    Ok(match fact {
+        PackTransition::Alias {
+            local,
+            target,
+            level,
+        } => VariableCellAliasTransition {
+            local: literal(local)?,
+            target: VariableAliasTarget::CallerSelectedFrame {
+                frame: match level {
+                    None => CallerFrameSelection::DefaultCaller,
+                    Some(level) => CallerFrameSelection::Explicit(literal(level)?),
+                },
+                variable: literal(target)?,
+            },
+            writes_value: false,
+        },
+        PackTransition::NamespaceVariable { name } => {
+            let variable = literal(name)?;
+            VariableCellAliasTransition {
+                local: crate::state_transition::local_alias_name(&variable),
+                target: VariableAliasTarget::CurrentNamespace { variable },
+                writes_value: false,
+            }
+        }
+    })
+}
+
 /// The 64 slot indices, handed to a macro that needs one item per slot.
 macro_rules! with_slot_indices {
     ($table:ident) => {
@@ -1868,6 +1993,8 @@ macro_rules! slot_tables {
             [$(option_arity_thunk::<$index>),*];
         static CONSTRAINTS_THUNKS: [crate::spec::ConstraintsHook; SLOTS_PER_FAMILY] =
             [$(constraints_thunk::<$index>),*];
+        static STATE_TRANSITION_THUNKS: [StateTransitionResolver; SLOTS_PER_FAMILY] =
+            [$(state_transition_thunk::<$index>),*];
     };
 }
 
@@ -1945,6 +2072,13 @@ pub fn constraints_fn(slot: HookSlot) -> Option<crate::spec::ConstraintsHook> {
     thunk_index(slot, HookFamily::Constraints).map(|index| CONSTRAINTS_THUNKS[index])
 }
 
+/// The `state_transitions` resolver function pointer for `slot`.
+#[must_use]
+pub fn state_transition_resolver_fn(slot: HookSlot) -> Option<StateTransitionResolver> {
+    thunk_index(slot, HookFamily::StateTransitionResolver)
+        .map(|index| STATE_TRANSITION_THUNKS[index])
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2007,6 +2141,80 @@ mod tests {
         assert!(gate(&["x"]));
         install_host(Rc::new(FixedHost(HookAnswer::SinkSuppressed)));
         assert!(!gate(&["x"]));
+        clear_host();
+    }
+
+    /// A resolver body's facts are read against the call's own words: a
+    /// literal alias becomes an alias fact; a fact naming a computed word
+    /// abstains and widens the variable-cell domains for that word; a fact
+    /// naming a word past the call names nothing; and silence is no
+    /// transitions. No verb can state any family but the alias one.
+    #[test]
+    fn a_resolver_body_states_alias_facts_and_widens_where_it_abstains() {
+        use crate::state_transition::{
+            CallerFrameSelection, StateTransition, StateTransitionWidening, VariableAliasTarget,
+            VariableCellAliasTransition,
+        };
+        let slot = allocate(
+            HookFamily::StateTransitionResolver,
+            &HookInputs::unrestricted(),
+        )
+        .expect("a resolver slot is available");
+        let resolver = state_transition_resolver_fn(slot).expect("the slot's family matches");
+        install_host(Rc::new(FixedHost(HookAnswer::Transitions(vec![
+            PackTransition::Alias {
+                local: 2,
+                target: 1,
+                level: Some(0),
+            },
+            PackTransition::NamespaceVariable { name: 3 },
+            PackTransition::Alias {
+                local: 9,
+                target: 1,
+                level: None,
+            },
+        ]))));
+        let words = [
+            InvocationWord::Literal("#0"),
+            InvocationWord::Literal("other"),
+            InvocationWord::Literal("mine"),
+            InvocationWord::Dynamic,
+        ];
+        let transitions = resolver(InvocationArguments::structured(&words));
+        let facts: Vec<&StateTransition> = transitions
+            .facts()
+            .iter()
+            .map(|fact| &fact.transition)
+            .collect();
+        assert_eq!(
+            facts,
+            [
+                &StateTransition::VariableCellAlias(VariableCellAliasTransition {
+                    local: TransitionSubject::Literal("mine".to_owned()),
+                    target: VariableAliasTarget::CallerSelectedFrame {
+                        frame: CallerFrameSelection::Explicit(TransitionSubject::Literal(
+                            "#0".to_owned()
+                        )),
+                        variable: TransitionSubject::Literal("other".to_owned()),
+                    },
+                    writes_value: false,
+                }),
+                &StateTransition::Widen(StateTransitionWidening {
+                    domains: VARIABLE_ALIAS_DOMAINS.to_vec(),
+                    subject: TransitionSubject::Unknown {
+                        argument_index: 3,
+                        word_kind: InvocationWordKind::Dynamic,
+                    },
+                }),
+            ]
+        );
+        install_host(Rc::new(FixedHost(HookAnswer::Abstain)));
+        assert!(
+            resolver(InvocationArguments::structured(&words))
+                .facts()
+                .is_empty(),
+            "silence is no transitions"
+        );
         clear_host();
     }
 

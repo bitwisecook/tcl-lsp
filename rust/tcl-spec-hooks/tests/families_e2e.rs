@@ -625,3 +625,94 @@ fn a_write_to_a_non_target_raises() {
         "{log:?}"
     );
 }
+
+/// The `state_transitions` resolver family, entered through the registry's
+/// own function pointer: a body states variable-cell alias facts by word
+/// index — `alias LOCAL TARGET ?-level LEVEL?` against the frame a level
+/// word selects, `namespace-variable NAME` against the current namespace —
+/// and a fact naming a computed word abstains and widens rather than naming
+/// a cell. A body reaching for any other family's fact has no verb to call:
+/// `command-binding` is not defined in its sandbox, so the body raises
+/// `invalid command name` on its first call and states nothing at all, not
+/// even the alias after it (negative).
+#[test]
+fn a_state_transition_body_emits_alias_facts_only() {
+    use tcl_registry::state_transition::{
+        CallerFrameSelection, StateTransition, TransitionSubject, VariableAliasTarget,
+        VariableCellAliasTransition,
+    };
+    let literal = |word: &str| TransitionSubject::Literal(word.to_owned());
+    let slot = one_hook(HookProgram::new(
+        "mylib::link",
+        HookFamily::StateTransitionResolver,
+        "alias 2 1 -level 0\nnamespace-variable 3\nnamespace-variable 4\n",
+    ));
+    let resolver = pack_hooks::state_transition_resolver_fn(slot).expect("a resolver thunk");
+    let words = [
+        InvocationWord::Literal("#0"),
+        InvocationWord::Literal("total"),
+        InvocationWord::Literal("sum"),
+        InvocationWord::Literal("::app::count"),
+        InvocationWord::Dynamic,
+    ];
+    let transitions = resolver(InvocationArguments::structured(&words));
+    let facts: Vec<&StateTransition> = transitions
+        .facts()
+        .iter()
+        .map(|fact| &fact.transition)
+        .collect();
+    assert_eq!(facts.len(), 3, "{facts:#?}");
+    assert_eq!(
+        facts[0],
+        &StateTransition::VariableCellAlias(VariableCellAliasTransition {
+            local: literal("sum"),
+            target: VariableAliasTarget::CallerSelectedFrame {
+                frame: CallerFrameSelection::Explicit(literal("#0")),
+                variable: literal("total"),
+            },
+            writes_value: false,
+        })
+    );
+    assert_eq!(
+        facts[1],
+        &StateTransition::VariableCellAlias(VariableCellAliasTransition {
+            local: literal("count"),
+            target: VariableAliasTarget::CurrentNamespace {
+                variable: literal("::app::count"),
+            },
+            writes_value: false,
+        })
+    );
+    assert!(
+        matches!(facts[2], StateTransition::Widen(widening)
+            if widening.domains == tcl_registry::state_transition::VARIABLE_ALIAS_DOMAINS),
+        "the computed word's fact widens: {facts:#?}"
+    );
+    pack_hooks::clear_host();
+
+    let host = Rc::new(tclvm_host());
+    let installed = host.install_pack_hooks(PackPrograms::new("mylib").with(HookProgram::new(
+        "mylib::bind",
+        HookFamily::StateTransitionResolver,
+        "command-binding define 0\nalias 1 0\n",
+    )));
+    pack_hooks::install_host(Rc::clone(&host) as Rc<dyn pack_hooks::PackHookHost>);
+    let resolver = installed[0]
+        .slot
+        .and_then(pack_hooks::state_transition_resolver_fn)
+        .expect("the body installs: the verb is looked up when it runs");
+    let words = [InvocationWord::Literal("f"), InvocationWord::Literal("g")];
+    assert!(
+        resolver(InvocationArguments::structured(&words))
+            .facts()
+            .is_empty(),
+        "a body that reaches for a command-binding fact states nothing"
+    );
+    let log = host.error_log();
+    assert!(
+        log.iter()
+            .any(|line| line.contains("invalid command name \"command-binding\"")),
+        "{log:?}"
+    );
+    pack_hooks::clear_host();
+}

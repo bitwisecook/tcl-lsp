@@ -420,7 +420,7 @@ the descriptor's own field names, so nothing new has to be learnt:
 | `clause_grammar` | `head {slots} ?-timing T?`, `repeated KEYWORD {slots} ?-timing T? ?-pattern completion-code\|error-code-prefix? ?-conditional? ?-optional-keyword? ?-available V?`*, `once ?KEYWORD? {slots} ?-timing T?`*, `group N ?-timing T?`*, `tail ?KEYWORD? {slots} ?-timing T?`, `fallthrough_body WORD`, `default_clause ROW\|tail ?-final-only?`, `selection first-match\|all`; timings `selected\|always\|per-iteration\|init\|next\|protected`; a slot is `ROLE`, `?noise?` or `{ROLE optional}` |
 | `event_requires` | `client_side`, `server_side`, `transport`, `profiles`, `also_in`, `init_only`, `flow`, `capability` |
 | `world_effects` | `composition`, `access …`*, `callback -kinds {…} -reentrancy R`, `resolver`, `dynamic_fallback` |
-| `state_transitions` | `composition`, `argument_shape`, `resolver`, `widen -operands L -domains {…}`*, `covers SOURCE -domains {…}`*, `commit` |
+| `state_transitions` | `composition Extend\|Replace`, `argument_shape Independent\|Positional`, `resolver none\|from-frame-effect\|-native ID\|{words ctx} {…}`, `widen -operands EveryArgument\|{Indices N …}\|{Strided FIRST STRIDE} -domains {…}`*, `covers SOURCE -domains {…}`*, `commit OnOkOnly\|MayCommitBeforeAbruptCompletion` |
 | `object_class NAME` | `superclasses`, `allow_unknown_methods`, `method_prefix_matching`, `method NAME { … }`* (a `subcommand` body) |
 | `definition_body` | `family`, `member KEYWORD … -effect E ?-shift S?`*, `member_option KEYWORD POS VALUE -role R ?-visibility V?`*, `implicit_vars`, `member_body_namespace_path`, `builtin_type_methods`, `builtin_object_method …`*, `builtin_terminating_methods`, `member_body_command …`*, `bare_word_construction`, `dynamic_method_dispatch`, `manufacturer …`*, `unknown_dispatch_method`, `property_accessor_methods`; effects `{callable -receiver R -role K ?-name N? ?-params N? ?-body N?}`, `{forward ?-name N? ?-prefix N?}`, `{state-declaration per-instance\|per-type\|option}`, `{relation superclass\|mixin\|filter}`, `visibility`, `retraction`, `{init-script ?-body N? -timing at-definition\|at-construction}`, `configuration` |
 | `body_scope` | `name`, `include_sibling_definitions`, `allow_unknown_commands`, `command NAME { … }`* |
@@ -518,7 +518,10 @@ declares, a closed keyword — `arg_role_resolver from-manufacturers`,
 The tenth of those fields — the option-arity hook — is a *flag* on an
 option row rather than a property statement, so it is written
 `-arity-hook {words ctx} { … }` (or `-arity-hook -native ID`).
-Everything in the rest of this section applies to it unchanged.
+Everything in the rest of this section applies to it unchanged. So does
+the resolver row of a `state_transitions` block, written `resolver
+{words ctx} { … }` inside the block: its body states variable-cell alias
+facts and nothing else (the verb table below).
 
 ### Inputs
 
@@ -608,8 +611,8 @@ precisely to stay inside the range where 8.x and 9.x agree, and
 ### Outputs: the emitter protocol
 
 **Every hook's own return value is ignored.** Each family injects one to
-six verbs; calling none is an abstention. One protocol for all eleven hook
-families, so "what does silence mean" has one answer per family and it is
+six verbs; calling none is an abstention. One protocol for every hook
+family, so "what does silence mean" has one answer per family and it is
 always the conservative one.
 
 | field | verbs | silence means |
@@ -624,6 +627,20 @@ always the conservative one.
 | `clause_shape_check` | `missing-expr ?after?`, `missing-body after`, `extra-words first` | the shape is accepted |
 | `constraints` | readers `option-present OPTION`, `option-value OPTION`, `literal N`, `arg-count`; emitters `invalid SLOT MESSAGE ?-conflict?`, `abstain` | no report |
 | option-arity hook (`-arity-hook`) | `consume N ?-invalid MESSAGE?` | consume one word |
+| `state_transitions` `resolver` | `alias LOCAL TARGET ?-level LEVEL?`, `namespace-variable NAME` — word indices | no transitions |
+
+The `state_transitions` resolver is the one family whose verbs name words
+rather than values: `alias 1 0 -level 2` says the word at 1 names a local
+bound to the variable the word at 0 names, in the frame the level word at
+2 selects (`upvar`'s fact), and `namespace-variable 0` says the word at 0
+names a current-namespace variable the call binds locally (`variable`'s).
+The host reads each index against the call's own words, so a fact naming a
+computed word abstains and widens the variable-cell domains instead of
+naming a cell, and a fact naming a word past the call names nothing. No
+verb reaches the command-binding, interpreter, object-dispatch or trace
+families — those decide binding and realm identity, which is the compiler's
+own proof — so a body that calls `command-binding` raises `invalid command
+name` and states nothing.
 
 Returning early (`return`) is the ordinary way to abstain, which is why
 the emitter protocol beats returning a value: `if {…} return` reads
@@ -847,14 +864,23 @@ exactly: `args.first()` → `manufacturer(word)` → `definition_body_at` →
 **`state_transitions … resolver from-frame-effect`.** The rule is: read
 the command's own `frame_effect`; take the level word from its
 `-level-word` policy; then walk the remaining words as the `-layout`
-says. Two policies must be pinned because they are where an
-implementation would silently differ from the shipped resolver
-(`upvar_state_transitions` in `upvar_.rs`):
+says — `AliasPairs` is the one layout that states alias facts, so any
+other (or no `frame_effect` at all) leaves nothing to derive, a notice,
+and no resolver. A subcommand's `from-frame-effect` reads its command's
+frame effect, and either may be written first. Two policies must be
+pinned because they are where an implementation would silently differ
+from the shipped resolver (`upvar_state_transitions` in `upvar_.rs`,
+which states an alias with an unknown subject instead):
 
-- **A dynamic level word aborts the whole derivation** — zero
+- **A dynamic level word aborts the whole derivation** — zero alias
   transitions for the call, not "assume the default frame".
 - **A dynamic member of an alias pair skips that pair and continues** —
   the pairs after it still produce transitions.
+
+Each abstention widens the variable-cell domains for the word it could
+not read, which is the resolver contract every pack-declared
+`state_transitions` resolver keeps
+(`tcl_registry::state_transition::alias_pairs_resolver`).
 
 **`clause_grammar`.** Derives both `arg_role_resolver` and
 `clause_shape_check` — the registry walks the declared descriptor, so
@@ -902,7 +928,7 @@ the summary is:
 | `completion` | a compiler proof obligation, not a description of the command. See the rationale below. |
 | `dispatch_dependencies` | specialisation-proof machinery whose meaning is defined by the optimiser; `fields.md` itself says "leave unset". |
 | `data_collection`, `bpf_op` | shared named descriptors, referenced by name — the boundary spec-packs.md's bucket 2 draws. `data_collection`'s descriptor is paired with protocol machinery outside the registry; `bpf_op` is a closed compiler catalogue. |
-| the `resolver` of `world_effects` / `state_transitions` | a function producing typed transition facts, so the resolver itself is `-native`, `none`, or a derivation keyword. **And the surrounding plain data is not authorable either, today** — `world_effects_value` and `state_transitions_value` read the `composition` row and drop every other row with a notice. This entry used to claim the opposite; [`spec-packs.md`](../registry/spec-packs.md) § What a pack still cannot say has always stated it correctly ("documented vocabulary the loader does not yet read"). The rows below are the vocabulary, not what lands. |
+| the `resolver` of `world_effects`, and the non-alias facts of `state_transitions` | a function producing typed effect or transition facts. `world_effects`' resolver is `-native`, `none`, or a derivation keyword, and `world_effects_value` still reads only the `composition` row, dropping the others with a notice. `state_transitions` loads every row, and its `resolver` may be a body — but that body states variable-cell alias facts only; a command-binding, interpreter, object-dispatch or trace fact stays `-native` ([`spec-packs.md`](../registry/spec-packs.md) § What a pack still cannot say). |
 
 ### Why `completion` is excluded and `const_fold` is not
 
@@ -1142,10 +1168,10 @@ What each port loses, if anything, against its `.rs`.
 | `switch` | **complete** | — |
 | `if` | **complete, and smaller** | two hook functions (~110 lines of Rust) became a four-row grammar — in the shipped spec too; the walk agrees with the retired `walk_if` on its whole test matrix |
 | `string` (4 subcommands) | **near-complete** | `string is`'s `const_fold_versioned` stays `-native`. Its Rust is a version-aware classifier (per-class availability floors, 8.x/9.x magnitude caps, radix prefixes, digit separators, ambiguous-form bail-outs); a Tcl body would be a re-implementation, not a port. `length` / `map` / `range` port fully — but see the note below. |
-| `oo::class` | **partial** | the three subcommands' `state_transitions` resolvers stay `-native`: they emit typed `CommandBinding::Define` + `ObjectDispatch::Create` facts, and the DSL has no vocabulary for constructing transition facts. Everything around them (composition, argument shape, widening rules, effect coverage, commit) is data and ports. `arg_role_resolver` is *removed*, derived from the `manufacturer` rows — a **derivation claim**, not a transcription, and one that must be **proved, not assumed**: `oo_class_arg_roles` reads `TCLOO_GRAMMAR.manufacturers`, while the port's rows are `TCLOO_ROOT_CLASS_MANUFACTURERS`. The two tables differ on `new`'s visibility and agree on every keyword and body index *today*, which is what makes the derivation correct now and not correct by construction. A loader must diff them; a future divergence must fail the equivalence gate. |
+| `oo::class` | **partial** | the three subcommands' `state_transitions` resolvers stay `-native`: they emit typed `CommandBinding::Define` + `ObjectDispatch::Create` facts, and a resolver body states variable-cell alias facts only. Everything around them (composition, argument shape, widening rules, effect coverage, commit) is data, ports, and loads; the three ids name nothing this build ships, so the port's descriptors load without their resolvers. `arg_role_resolver` is *removed*, derived from the `manufacturer` rows — a **derivation claim**, not a transcription, and one that must be **proved, not assumed**: `oo_class_arg_roles` reads `TCLOO_GRAMMAR.manufacturers`, while the port's rows are `TCLOO_ROOT_CLASS_MANUFACTURERS`. The two tables differ on `new`'s visibility and agree on every keyword and body index *today*, which is what makes the derivation correct now and not correct by construction. A loader must diff them; a future divergence must fail the equivalence gate. |
 | `uri::geturl` + `http::geturl` | **complete** | — |
 | `HTTP::header` | **complete** | including the shipped spec's `credential_arg 2` on `insert`/`replace`, carried verbatim. Design review verified it is **not** an off-by-one: the W310 consumer (`security.rs::emit_w310_hardcoded_credentials`) indexes with the *subcommand word at 0* (`args[0]` = `insert`, `args[1]` = header name, `args[2]` = value), so `2` is the value slot as consumed — the schema help text's "index after the subcommand word" is the erroneous half. A loader must store this field verbatim, **not** re-base it to after-subcommand coordinates |
-| `upvar` | **near-complete** | `state_transitions.resolver` becomes `from-frame-effect`. That is a *derivation claim*, not a transcription: it asserts that the alias facts `upvar_state_transitions` produces are exactly determined by `AliasPairs` + `ArityParity`. Reading the Rust, they are — but an implementation must prove it, not assume it, and must match the two abstention policies pinned under "Derivations, exactly". |
+| `upvar` | **near-complete** | `state_transitions.resolver` becomes `from-frame-effect`. That is a *derivation claim*, not a transcription: it asserts that the alias facts `upvar_state_transitions` produces are exactly determined by `AliasPairs` + `ArityParity`. On literal words they are; on a computed word the derivation takes the two abstentions pinned under "Derivations, exactly", where the shipped resolver states the alias with an unknown subject — the derivation widens instead, which is the pack contract. |
 | `snit::type` + `SNIT_GRAMMAR` | **complete** | all 14 `DefinitionBodyGrammar` fields, 15 member rows, 6 built-in object methods, the `install` member-body command with its handle binding, and the single `create` manufacturer, transcribed field for field. The one field that is a function pointer in the Rust — `bare_word_construction_hint` — becomes data (`-hint-values {%AUTO%} -hint-prefixes {.}`), which is a transcription of a two-clause boolean, not a derivation. Deliberate omissions, each equal to the Rust default: `member_body_namespace_path` (`&[]`), `builtin_terminating_methods` (`&[]`), `unknown_dispatch_method` (`None`), `property_accessor_methods` (`&[]`). `snit::widget` / `snit::widgetadaptor` are **not** ported: they carry `SNIT_WIDGET_GRAMMAR`, a second constant differing in `implicit_vars` and `member_body_commands` only. |
 | `return` | **complete** | including the option-arity hook: `errorstack_value`'s four outcomes port one-for-one, with `string is list` standing in for `split_list_raw`'s `Ok`/`Err` because the sandbox has no `catch` (the two agree on which words are lists). `arg_role_resolver` and `context_gate` are Tcl bodies; `lowering_hook` / `inline_codegen_hook` stay `-native`, which is the closed-catalogue rule, not a loss. The three-example `examples` string is one `example` block, not three rows — see the newline rule. |
 
@@ -1267,7 +1293,7 @@ schema order. "excluded" rows carry the reason.
 | `command_table_effect` | `command_table_effect DefinesProcedure\|RenamesCommands\|CreatesAliases` |  |
 | `side_effects` | `side_effect TARGET ?-reads? ?-writes? ?-side S? ?-dialects {…}? ?-introduced V? ?-deprecated V? ?-retired V?` | one row per effect; the three releases are `SideEffect.lifecycle` |
 | `world_effects` | `world_effects none\|NAME\|{ … }` | block carries composition / access / callback / dynamic_fallback; `resolver` is reference-only. **Only `composition` is loaded**; the rest is documented vocabulary dropped with a notice |
-| `state_transitions` | `state_transitions NAME\|{ … }` | block carries composition / argument_shape / widen / covers / commit; `resolver` takes `none`, `from-frame-effect`, or `-native ID`. **Only `composition` is loaded**; the rest is documented vocabulary dropped with a notice |
+| `state_transitions` | `state_transitions NAME\|{ … }` | block carries composition / argument_shape / widen / covers / commit, every row loaded; `resolver` takes `none`, `from-frame-effect`, `-native ID`, or a body whose verbs are `alias LOCAL TARGET ?-level LEVEL?` / `namespace-variable NAME` (variable-cell alias facts only); no call = no transitions |
 | `dispatch_dependencies` | **excluded** | specialisation-proof machinery whose meaning is defined by the optimiser, not by the command; fields.md itself says "leave unset" |
 | `result_stability` | `result_stability Unknown\|ReferentiallyTransparent\|Volatile\|{ReadsVersionedWorld {D …}}` |  |
 | `literal_argument_validator` | `literal_argument_validator {words ctx} { … }` \| `-native ID` | emitter verbs `invalid …` / `abstain REASON`; no call = valid |
@@ -1402,7 +1428,7 @@ schema order. "excluded" rows carry the reason.
 | `format_string_type` | `format_string_type Sprintf\|Clock\|Binary\|Regsub` |  |
 | `side_effects` | `side_effect TARGET ?-reads? ?-writes? ?-side S? ?-dialects {…}?` | one row per effect |
 | `world_effects` | `world_effects none\|NAME\|{ … }` | block carries composition / access / callback / dynamic_fallback; `resolver` is reference-only. **Only `composition` is loaded**; the rest is documented vocabulary dropped with a notice |
-| `state_transitions` | `state_transitions NAME\|{ … }` | block carries composition / argument_shape / widen / covers / commit; `resolver` takes `none`, `from-frame-effect`, or `-native ID`. **Only `composition` is loaded**; the rest is documented vocabulary dropped with a notice |
+| `state_transitions` | `state_transitions NAME\|{ … }` | block carries composition / argument_shape / widen / covers / commit, every row loaded; `resolver` takes `none`, `from-frame-effect`, `-native ID`, or a body whose verbs are `alias LOCAL TARGET ?-level LEVEL?` / `namespace-variable NAME` (variable-cell alias facts only); no call = no transitions |
 | `dispatch_dependencies` | **excluded** | specialisation-proof machinery whose meaning is defined by the optimiser, not by the command; fields.md itself says "leave unset" |
 | `result_stability` | `result_stability Unknown\|ReferentiallyTransparent\|Volatile\|{ReadsVersionedWorld {D …}}` |  |
 | `literal_argument_validator` | `literal_argument_validator {words ctx} { … }` \| `-native ID` | emitter verbs `invalid …` / `abstain REASON`; no call = valid |

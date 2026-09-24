@@ -482,6 +482,10 @@ pub const OPTION_ARITY_NATIVE: &[Variant] = &[];
 /// [`tcl_registry::pack_hooks::CONSTRAINTS_NATIVE`].
 pub const CONSTRAINTS_NATIVE: &[Variant] = &[];
 
+/// [`tcl_registry::pack_hooks::STATE_TRANSITION_RESOLVER_NATIVE`] —
+/// `state_transitions { resolver -native ID }`.
+pub const STATE_TRANSITION_RESOLVER_NATIVE: &[Variant] = &[];
+
 /// [`tcl_registry::pack_hooks::SEMANTICS_NATIVE`] — `semantics -native ID`.
 pub const SEMANTICS_NATIVE: &[Variant] = &[];
 

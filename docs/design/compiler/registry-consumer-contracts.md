@@ -1021,12 +1021,22 @@ analyser:
   and the abstention widens through `StateTransitionWidening` rather than
   producing a narrower fact.
 
-  That reverses `state_transitions_value` in
-  `rust/tcl-spectcl/src/loader.rs`, which reads the `composition` row,
-  drops `argument_shape`, `resolver`, `widen`, `covers`, and `commit` with
-  a notice, and records in its own comment that "the resolver in
+  That reversed `state_transitions_value` in
+  `rust/tcl-spectcl/src/loader.rs`, which read the `composition` row,
+  dropped `argument_shape`, `resolver`, `widen`, `covers`, and `commit`
+  with a notice, and recorded in its own comment that "the resolver in
   particular is reference-only by design". So it is a **ruling**, narrower
-  than the four in § *Rulings* and decided with them. *The reason*: the
+  than the four in § *Rulings* and decided with them. Step 2 built it:
+  the loader reads every row, and a `resolver {words ctx} { … }` body is
+  `HookFamily::StateTransitionResolver`, whose two verbs — `alias LOCAL
+  TARGET ?-level LEVEL?` and `namespace-variable NAME` — name words by
+  index; the thunk reads each against the call's own words, so a computed
+  word's fact widens `VariableCells` and `VariableTraces` instead, and the
+  family has no verb for any other fact. A namespace variable a call
+  declares is the alias `variable` states to the current namespace's cell,
+  so no verb builds a `NamespaceTransition` yet; `from-frame-effect`
+  derives the alias pairs a command's `frame_effect` lays out, with the
+  same abstentions. *The reason*: the
   alias family is the one whose answer is a pure function of literal
   words, its consumer — the generic scope-alias application — is already
   generic, and refusing it leaves a vendor `upvar`-alike unauthorable

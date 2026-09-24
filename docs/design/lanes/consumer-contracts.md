@@ -70,6 +70,7 @@ CC2.10, CC2.13, CC2.15) are dispatched separately after the opus items.
 | CC2.4 `MemberEffect` in the registry | landed | `wip(consumer-contracts): step 2 — member effects and the studio round trip` | the page's types verbatim plus `WrapperShift` (D2.31); `MemberSpec::effect` required on every constructor; every TclOO, snit, itcl, `SpecTcl` and `SslicTcl` member states one; `DefinitionBodyGrammar::member_row` (D2.32), `MemberArity::parse`, `MemberEffect::natural_receiver`, the `.tclspec` spellings; sweep `every_member_carries_an_effect_that_agrees_with_its_roles` (D2.33) and `no_member_effect_names_a_family`; eleven `definer.rs` unit rows |
 | CC2.5 `definition_body` and `semantic_operation` leave `GAPS` | landed | same checkpoint as CC2.4 | loader `-effect` / `-shift` on `member`, `member_option` rows, `family SpecTcl\|SslicTcl` (D2.35); studio seeds a shipped grammar by name — by data, not pointer (D2.34) — or the whole block, `semantic_operation` as `{kind, detail}`; both renderers write both; the two `GAPS` rows deleted; `DefinitionBody` / `SemanticOperation` field kinds, catalogues, help, examples, form (D2.36); `snit-type.tclspec` gains `-effect` on every row; the `oo-class` / `snit-type` golden hashes regenerated |
 | CC2.8 the derived-query layer | landed | `wip(consumer-contracts): step 2 — the derived-query layer` | `CommandRegistry::invocation(words, ctx)`; `ResolvedInvocation` carries its `SurfaceQuery` and selection; `arg_roles`, `pattern_args`, `case_invocation`, `frame_effect`, `return_type`, `effects` added, `clause_plan` / `option_effects` / `substitutions_performed` lose the `dialect` parameter; one rule per query shared with the by-name functions (`arg_roles_in`, `command_prefixes_in`, `pattern_args_in`, `layout_is_proven_in`); `derived_queries_agree_with_the_by_name_answers`; D2.37–D2.43 |
+| CC2.14 the `state_transitions` resolver family in the loader | landed | `wip(consumer-contracts): step 2 — the state-transition resolver family` | `HookFamily::StateTransitionResolver` (thirteenth family: `alias LOCAL TARGET ?-level LEVEL?`, `namespace-variable NAME`, silence "no transitions", field `state_transitions.resolver`); `PackTransition`, the thunk and `STATE_TRANSITION_RESOLVER_NATIVE`; `alias_pairs_resolver` for `from-frame-effect`; the loader reads every `state_transitions` row; 21 corpus notices and the two port goldens move; D2.44–D2.49 |
 
 ### Behavioural deltas accepted in step 2
 
@@ -106,6 +107,15 @@ CC2.10, CC2.13, CC2.15) are dispatched separately after the opus items.
   now with the `SpecTcl` and `SslicTcl` document grammars carried row by row.
   The `oo-class` and `snit-type` pack goldens' spec hashes moved (the
   `MemberSpec` literal gained two fields); no EDA pack declares a grammar.
+
+- CC2.14: a pack's `state_transitions` block loads every row
+  (`argument_shape`, `resolver`, `widen`, `covers`, `commit` beside
+  `composition`), where each was dropped with "not yet loadable"; a value a
+  row cannot read is dropped with its own notice. The `oo-class` port's
+  three `resolver -native` ids now read `SCOPE::state_transitions.resolver`
+  and name nothing this build ships (three notices); the `upvar` port's
+  `from-frame-effect` derives. The corpus baseline loses 21 notices and
+  gains those three; the `oo-class` and `upvar` goldens move.
 
 ### CC2.6 — what the next items and the value-transfers lane read
 
@@ -264,6 +274,37 @@ CC2.10, CC2.13, CC2.15) are dispatched separately after the opus items.
 - **Nothing consumes the queries yet.** Every compiler, analyser and editor
   call site still asks the by-name functions; CC2.9–CC2.12 move them, and
   the by-name functions go as their last callers do.
+
+### CC2.14 — what the next items read
+
+- **The family.** `HookFamily::StateTransitionResolver` (index 12,
+  `HOOK_FAMILIES: [HookFamily; 13]`): verbs `alias LOCAL TARGET ?-level
+  LEVEL?` and `namespace-variable NAME`, word indices each; silence "no
+  transitions"; not literal-only. `HookAnswer::Transitions(Vec<PackTransition>)`
+  and `pack_hooks::state_transition_resolver_fn(slot)`; the thunk reads each
+  index against the call's own `InvocationArguments`: a literal alias is a
+  `VariableCellAliasTransition` (`CallerSelectedFrame` for `alias`, the
+  current namespace's cell under its tail for `namespace-variable`), a
+  computed word widens `VARIABLE_ALIAS_DOMAINS` (`VariableCells`,
+  `VariableTraces`) instead, an index past the call names nothing (D2.44,
+  D2.45).
+- **The derivation.** `state_transition::alias_pairs_resolver(level_word)`
+  — the `from-frame-effect` resolver for an `AliasPairs` frame effect, with
+  the README's two abstentions, each widening (D2.46). The loader installs it
+  at the command's seal (`derive_transitions_from_frame_effect`), for the
+  command and its subcommands.
+- **The loader.** `state_transitions_value` reads `composition`,
+  `argument_shape`, `resolver none|from-frame-effect|-native ID|{words ctx}
+  {…}`, `widen -operands EveryArgument|{Indices N …}|{Strided F S} -domains
+  {…}`, `covers SOURCE -domains {…}`, `commit`; a body is a `HookDecl` with
+  field `state_transitions.resolver` and the abstaining placeholder until
+  `tcl_spectcl::hooks` binds its slot; a form binds no body (D2.47).
+  `StateTransitionDomain::ALL` is the domain vocabulary.
+- **What CC2.12 consumes.** A pack command's alias facts arrive through
+  `ResolvedInvocation::state_transitions()` exactly as a shipped command's
+  do; a dynamic level or name word in a pack resolver states no alias for
+  that fact (CC2.12's negative test), where the shipped `upvar` states one
+  with an unknown subject.
 
 ## Plan for steps 2–10
 
@@ -2547,6 +2588,51 @@ everything else in this lane is independent of both.
   pedantic `too_many_lines` rejects; the blank row moved to
   `blank_member`. Reason: the step's clippy gate, and the function is this
   lane's.
+- **D2.44** The verbs name words by index, and the thunk, not the body,
+  builds each fact from the call's own words. Reason: a body sees a
+  computed word as the empty string, so only the host knows it is computed;
+  reading the index there makes "abstain and widen on a dynamic word" the
+  family's guarantee rather than each author's discipline, and the typed
+  `PackTransition` has no variant for any other family.
+- **D2.45** `namespace-variable NAME` states the alias `variable` states —
+  a local under the name's tail bound to the current namespace's cell — and
+  no verb builds a `NamespaceTransition`. Reason: the tree has no namespace
+  transition for a variable declaration (`variable_state_transitions`
+  states it as a `VariableCellAlias` with a `CurrentNamespace` target), and
+  the ruling permits namespace facts without requiring them; a namespace
+  verb is a later need's.
+- **D2.46** `from-frame-effect` takes the README's pinned abstentions (a
+  computed level word aborts the call; a computed pair member skips its
+  pair) and widens for each, where the shipped `upvar_state_transitions`
+  states the alias with an unknown subject. Reason: the page's resolver
+  contract ("abstains … widens rather than producing a narrower fact") is
+  the pack's, and CC2.12's negative witness needs a pack alias with a
+  computed level word to bind nothing; the shipped resolver keeps its own
+  answer. It is registry code (`alias_pairs_resolver`, one fn per level-word
+  policy) because a resolver pointer cannot carry the frame effect.
+- **D2.47** A `-native` resolver id is `SCOPE::state_transitions.resolver`
+  (the `SCOPE::FIELD` rule the loader's other tables use, and the field
+  `HookFamily::field` names), looked up in
+  `STATE_TRANSITION_RESOLVER_NATIVE`, which ships empty like most families'
+  tables; the `oo-class` port's ids were respelt to that form. A form's
+  resolver may be `none` or `-native ID` only — forms bind no body and own no
+  frame effect. Reason: one id rule; populating the table with the shipped
+  resolvers is not this item's.
+- **D2.48** The studio keeps `state_transitions` one `DraftOpaque` `GAPS`
+  row; its spelling now lists the rows, and
+  `a_state_transitions_resolver_body_survives_a_form_edit` proves the
+  author's block — resolver body included — is carried forward verbatim.
+  The plan's "the row shrinks to the resolver's `-native` form" is not
+  taken: a draft holds no hook body for any family (every body survives by
+  the pack store's carry-forward of its whole statement), so drafting the
+  plain rows while the resolver stayed opaque would make a form edit write
+  a block without the author's body. Reason: shrinking the row needs hook
+  bodies in drafts, a studio change beyond this item — recorded as
+  remaining.
+- **D2.49** `callback-inventory --check` is unchanged: a pack resolver body
+  is a hook body, not a Tcl callback position in a shipped spec, so it adds
+  no inventory row or tier. The plan's "a new executable position tier" did
+  not materialise.
 - **D3.1** `WorkspaceTrust` lives in `tcl_dialect::model::environment`
   beside `Provenance`; `Tier` is unchanged and the trust rides `PackFile`,
   `MergedPack`, `EvalOptions`, `EvalSnapshotKey` and the cache key.

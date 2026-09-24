@@ -319,6 +319,9 @@ fn bind_command(spec: &mut CommandSpec, pack: &str, family: HookFamily, slot: Ho
         }
         HookFamily::Constraints => spec.constraints = pack_hooks::constraints_fn(slot),
         HookFamily::Evaluate => spec.semantics = bind_semantics(spec.semantics, pack, slot),
+        HookFamily::StateTransitionResolver => {
+            bind_transition_resolver(spec.state_transitions.as_mut(), slot);
+        }
         // An option's `-arity-hook` never hangs off the command itself.
         HookFamily::OptionArity => {}
     }
@@ -353,6 +356,9 @@ fn bind_subcommand(sub: &mut SubCommand, bindings: &[Binding<'_>]) {
                 HookFamily::Evaluate => {
                     sub.semantics = bind_semantics(sub.semantics, pack, slot);
                 }
+                HookFamily::StateTransitionResolver => {
+                    bind_transition_resolver(sub.state_transitions.as_mut(), slot);
+                }
                 // The loader declares no other family on a subcommand row.
                 HookFamily::TaintSinkGate
                 | HookFamily::ContextGate
@@ -371,6 +377,18 @@ fn bind_subcommand(sub: &mut SubCommand, bindings: &[Binding<'_>]) {
     }
     if let Some(options) = options {
         sub.options = Box::leak(options.into_boxed_slice());
+    }
+}
+
+/// A `state_transitions` block's resolver body bound to `slot`: the
+/// descriptor keeps its plain rows and takes the slot's thunk in place of
+/// the loader's abstaining placeholder.
+fn bind_transition_resolver(
+    descriptor: Option<&mut tcl_registry::state_transition::StateTransitionDescriptor>,
+    slot: HookSlot,
+) {
+    if let Some(descriptor) = descriptor {
+        descriptor.resolver = pack_hooks::state_transition_resolver_fn(slot);
     }
 }
 
