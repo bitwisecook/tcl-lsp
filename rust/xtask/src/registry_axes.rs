@@ -74,25 +74,9 @@ use rustc_lexer::{LiteralKind, TokenKind};
 use tcl_registry::CommandRegistry;
 use tcl_registry::hover::OptionSpec;
 
-use crate::util::repo_root;
+use crate::util::{ANALYSIS_TIER_ROOTS, repo_root};
 
 const REPORT_PATH: &str = "docs/generated/registry-axes.md";
-
-/// The roots the lint scans — the value-transfer gate's analysis and tooling
-/// tiers. The registry is outside them by construction: it is where the
-/// vocabulary lives.
-const LINT_ROOTS: &[&str] = &[
-    "rust/tcl-compiler/src",
-    "rust/tcl-lsp-core/src",
-    "rust/tcl-mcp/src",
-    "rust/tcl-cli/src",
-    "rust/tcl-diagram/src",
-    "rust/tcl-irules/src",
-    "rust/tcl-irule-test/src",
-    "rust/tcl-bigip/src",
-    "rust/tcl-sslictcl/src",
-    "rust/tcl-syntax/src",
-];
 
 /// The axes a waiver may name: the migration plan's § *Debt on other axes*
 /// destinations for vocabulary sites, and the sanctioned exception.
@@ -109,7 +93,9 @@ const AXES: &[&str] = &[
 /// The build steps and value-transfer slices that have landed. A waiver whose
 /// expiry names one of them is stale: the change that was to retire the site
 /// has shipped without it. A lane bumps this when its step or slice lands.
-const LANDED: &[&str] = &["step 1", "slice 1", "slice 2", "slice 3", "slice 4"];
+const LANDED: &[&str] = &[
+    "step 1", "step 2", "slice 1", "slice 2", "slice 3", "slice 4",
+];
 
 /// The files the lint holds clean: every site waived or gone. A step that
 /// rewrites a file adds it here with its pin removed; a file never leaves.
@@ -500,7 +486,7 @@ fn is_scanned(rel: &str) -> bool {
 
 fn lint(root: &Path, vocabulary: &Vocabulary) -> Lint {
     let mut files = Vec::new();
-    for dir in LINT_ROOTS {
+    for dir in ANALYSIS_TIER_ROOTS {
         collect_rs_files(&root.join(dir), &mut files);
     }
     files.sort();
@@ -1331,11 +1317,11 @@ mod tests {
                 .contains("no expiry")
         );
         assert!(
-            parse_waiver("options — the scan; until step 2")
-                .is_ok_and(|w| w.axis == "options" && w.until == "step 2")
+            parse_waiver("options — the scan; until step 3")
+                .is_ok_and(|w| w.axis == "options" && w.until == "step 3")
         );
         assert!(
-            parse_waiver("colour — x; until step 2")
+            parse_waiver("colour — x; until step 3")
                 .unwrap_err()
                 .contains("unknown axis")
         );
@@ -1356,7 +1342,7 @@ mod tests {
                 .contains("not `step N`")
         );
         // Found on the line, in the block above, and above an enclosing match.
-        let src = "// registry-axis-ok: clause_grammar — the walk; until step 2\nfn f(w: &str) -> bool { w == \"else\" }\nfn g(w: &str) -> bool { w == \"then\" } // registry-axis-ok: irreducible — Tcl grammar; until never\n// registry-axis-ok: definition_body — the arm table; until step 2\nfn h(w: &str) -> u8 {\n    match w {\n        \"method\" => 1,\n        _ => 0,\n    }\n}\nfn i(w: &str) -> bool { w == \"set\" }\n";
+        let src = "// registry-axis-ok: clause_grammar — the walk; until step 3\nfn f(w: &str) -> bool { w == \"else\" }\nfn g(w: &str) -> bool { w == \"then\" } // registry-axis-ok: irreducible — Tcl grammar; until never\n// registry-axis-ok: definition_body — the arm table; until step 3\nfn h(w: &str) -> u8 {\n    match w {\n        \"method\" => 1,\n        _ => 0,\n    }\n}\nfn i(w: &str) -> bool { w == \"set\" }\n";
         let comments = line_comments(src);
         let hits = scan(src, &sample());
         assert_eq!(hits.len(), 4);
@@ -1381,7 +1367,7 @@ mod tests {
 
     #[test]
     fn an_enclosing_match_carries_its_arms_waiver() {
-        let src = "fn h(w: &str) -> u8 {\n    // registry-axis-ok: definition_body — the arm table; until step 2\n    match w {\n        \"method\" => 1,\n        _ => 0,\n    }\n}\n";
+        let src = "fn h(w: &str) -> u8 {\n    // registry-axis-ok: definition_body — the arm table; until step 3\n    match w {\n        \"method\" => 1,\n        _ => 0,\n    }\n}\n";
         let comments = line_comments(src);
         let hits = scan(src, &sample());
         assert_eq!(hits.len(), 1);

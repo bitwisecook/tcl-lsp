@@ -82,9 +82,13 @@ checkpoint compiling.
   proven values) have landed; slice 8, the existence rung, is in
   progress item by item in the tracking document's § *Slice 8* ›
   *Record (2026-09-24): the opus items of slice 8*.
-- [consumer-contracts.md](consumer-contracts.md) — step 1 of
+- [consumer-contracts.md](consumer-contracts.md) — step 1 and step 2 of
   [registry-consumer-contracts.md](../compiler/registry-consumer-contracts.md)
   § *Build order*: step 1 (the four rulings taken as decided, and the
-  documents whose stated rule they replace repaired) has landed; step 2,
-  the description contract, is in progress item by item in the tracking
-  document's § *Step 2 — progress*.
+  documents whose stated rule they replace repaired) and step 2 (the
+  description contract — `ClauseGrammarSpec`, `MemberEffect`, and
+  `OptionEffect`, each behind one derived query, and every consumer this
+  build order names moved onto them) have landed, item by item in the
+  tracking document's § *Step 2 — progress*; step 3 (trust gates
+  execution; stub flags reach their fields), planned in the tracking
+  document's § *Plan for steps 2–10*, has not started.

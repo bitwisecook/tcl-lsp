@@ -97,15 +97,16 @@ User-facing compiler troubleshooting and how-tos live in
   changes for every analysis, optimisation, and diagnostic, the third-party
   tiers, the drift gate, and the validation matrix.
 - [registry-consumer-contracts.md](registry-consumer-contracts.md) —
-  **proposal** companion: the description, identity, and backing contracts
-  under which the registry and `.tclspec` packs can drive the analyser,
-  both code generators, and both runtimes; the four decided rulings the
-  build takes as settled; the three descriptors the analyser
-  lacks — clause grammar, member effect, and option effect over a closed
-  axis catalogue — behind one derived query per axis; the four rungs of a
-  pack claim reaching emitted code, with the site claim and pack fact stamp
-  each rung records and its admission check; `RuntimeBacking` and the
-  identity kind codegen chooses from it; and the dialect, package, and
+  companion: the description, identity, and backing contracts under which
+  the registry and `.tclspec` packs can drive the analyser, both code
+  generators, and both runtimes; the four decided rulings the build takes
+  as settled; the description contract's three descriptors — clause
+  grammar, member effect, and option effect over a closed axis catalogue —
+  behind one derived query per axis, **built** in step 2; the
+  still-**proposal** identity and backing contracts: the four rungs of a
+  pack claim reaching emitted code, with the site claim and pack fact
+  stamp each rung records and its admission check; `RuntimeBacking` and
+  the identity kind codegen chooses from it; and the dialect, package, and
   C-extension follow-ons.
 - [value-transfers-review.md](value-transfers-review.md) — review of those
   proposals against registry-owned specialisation, with shared expression

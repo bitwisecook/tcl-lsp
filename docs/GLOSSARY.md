@@ -298,33 +298,41 @@ See also: [Command registry](design/compiler/command-registry.md).
 
 ### Clause grammar
 
-The proposed registry descriptor for the word grammar of a clause chain —
-`if` / `elseif` / `else`, `try` / `on` / `trap` / `finally`, `for`,
-`while`, the `foreach` family, `catch` — naming each clause's keyword,
-its slots and their argument roles, when its body runs, its lifecycle, and
-how many clauses one call selects. It gives locations and grammar and
-nothing executable: first-match dispatch, list iteration, and completion
-belong to the [value-transfer](#value-transfer) interface's structural
-plan, declared beside it and never inferred from the slots. Proposed as
-`ClauseGrammarSpec` on `CommandSpec`, read through one derived
-`clause_plan` query so no consumer walks clause keywords itself.
+The registry descriptor for the word grammar of a clause chain — `if` /
+`elseif` / `else`, `try` / `on` / `trap` / `finally`, `for`, `while`, the
+`foreach` family, `catch` — naming each clause's keyword, its slots and
+their argument roles, when its body runs, its lifecycle, and how many
+clauses one call selects. It gives locations and grammar and nothing
+executable: first-match dispatch, list iteration, and completion belong to
+the [value-transfer](#value-transfer) interface's structural plan, declared
+beside it and never inferred from the slots. Built in step 2 as
+`ClauseGrammarSpec` on `CommandSpec` (and `SubCommand`, for `dict for` and
+its siblings), read through one derived `clause_plan` query so no consumer
+outside the registry walks clause keywords itself;
+`CommandSpec::clause_shape_check` remains only as the escape hatch for a
+chain no grammar can spell. See `ClauseGrammarSpec` in
+`tcl_registry::clause_grammar`.
 
-See also: [Registry consumer contracts § The clause-grammar descriptor](design/compiler/registry-consumer-contracts.md#the-clause-grammar-descriptor).
+See also: [Registry consumer contracts § The clause-grammar descriptor](design/compiler/registry-consumer-contracts.md#the-clause-grammar-descriptor),
+[How do I find where a clause shape comes from?](kcs/compiler/kcs-qa-where-does-a-clause-shape-come-from.md).
 
 ### Option effect
 
-The proposed declaration on an option row of what the option's presence
-does to the call: it disables or selects a value on a closed axis
-(substitution kind, pattern language, case sensitivity, selection mode),
-suppresses a role the command's own layout would otherwise assign, changes
-how many trailing words the option scan reserves, or ends option parsing.
-Options over one axis share a family whose base says whether a selection
-also turns the other values off, and one derived `option_effects` query
+The declaration on an option row of what the option's presence does to
+the call: it disables or selects a value on a closed axis (substitution
+kind, pattern language, case sensitivity, selection mode), suppresses a
+role the command's own layout would otherwise assign, changes how many
+trailing words the option scan reserves, or ends option parsing. Options
+over one axis share a family whose base says whether a selection also
+turns the other values off, and one derived `option_effects` query
 answers for a resolved call, in place of the two native resolvers that
-read a command's own option table today. Proposed as `OptionEffect` on
-`OptionSpec`.
+used to read a command's own option table by name. Built in step 2 as
+`OptionEffect` on `OptionSpec`; `subst`'s two substitution families and
+`lsearch`'s pattern-language family are its two shipped families. See
+`OptionEffect` in `tcl_registry::option_effect`.
 
-See also: [Registry consumer contracts § Options with semantic effects](design/compiler/registry-consumer-contracts.md#options-with-semantic-effects).
+See also: [Registry consumer contracts § Options with semantic effects](design/compiler/registry-consumer-contracts.md#options-with-semantic-effects),
+[How do I declare an option effect in a `.tclspec` pack?](kcs/kcs-howto-declare-an-option-effect-in-a-tclspec-pack.md).
 
 ### Lifecycle (registry)
 
@@ -394,17 +402,21 @@ See also: [Command registry](design/compiler/command-registry.md).
 
 ### Member effect
 
-The proposed declaration of what one member word of a definition body
-does: a callable member with its receiver side, its lifecycle role, and
-its name, parameter, and body slots; a dispatch redirect; a state
-declaration with its scope; a contribution to an ancestry or interposition
-slot; a visibility change; or a retraction. The vocabulary is closed and
+The declaration of what one member word of a definition body does: a
+callable member with its receiver side, its lifecycle role, and its name,
+parameter, and body slots; a dispatch redirect; a state declaration with
+its scope; a contribution to an ancestry or interposition slot; a
+visibility change; or a retraction. The vocabulary is closed and
 family-neutral — no variant names `TclOO`, snit, or itcl — and
-`MemberKind` stays the layout fact beside it. Proposed as `MemberEffect`
-on `MemberSpec`, read through one derived `member_rows` query.
+`MemberKind` stays the layout fact beside it. Built in step 2 as
+`MemberEffect` on `MemberSpec`, read through one derived `member_rows`
+query that the class hierarchy, method arity, and `my` dispatch all fold
+over generically instead of each hand-matching member keywords. See
+`MemberEffect` in `tcl_registry::definer`.
 
 See also: [Registry consumer contracts § The member-effect descriptor](design/compiler/registry-consumer-contracts.md#the-member-effect-descriptor),
-[ObjectClassSpec](#objectclassspec).
+[ObjectClassSpec](#objectclassspec),
+[How do I find what a member effect says?](kcs/compiler/kcs-qa-what-does-a-member-effect-say.md).
 
 ### Symbol-definer command
 
