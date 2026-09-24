@@ -2736,6 +2736,111 @@ fn a_quoted_expression_operand_is_folded_to_its_substituted_value() {
 /// Both read the operand through `ExprNode::String`, which spans the quoted
 /// and the braced spelling and keeps its delimiters; both treated every
 /// string as inert. Measured on tclsh 8.6.18 (#2118, found in review).
+/// A dead assignment whose value can raise is not dead: deleting it drops the
+/// error the program stops on. tclsh 8.6.18 raises for each of these (and
+/// 8.4.20, 9.0.4 and 9.1b0 agree); O126, O109 and O108 deleted the statement
+/// and the program printed `hi` (#2249).
+#[test]
+fn a_dead_assignment_whose_value_can_raise_is_kept() {
+    for (why, src, kept) in [
+        (
+            "an unset variable",
+            "proc p {} {\n    set y $x\n    puts hi\n}\n",
+            "set y $x",
+        ),
+        (
+            "an unset variable in a command word",
+            "proc p {} {\n    set y [lindex $x 0]\n    puts hi\n}\n",
+            "set y [lindex $x 0]",
+        ),
+        (
+            "an unset variable in quotes",
+            "proc p {} {\n    set y \"$x\"\n    puts hi\n}\n",
+            "set y \"$x\"",
+        ),
+        (
+            "an unset element",
+            "proc p {} {\n    set y $a(k)\n    puts hi\n}\n",
+            "set y $a(k)",
+        ),
+        (
+            "a name `upvar` links",
+            "proc p {} {\n    upvar 1 v v\n    set y $v\n    puts hi\n}\n",
+            "set y $v",
+        ),
+        (
+            "an array read as a scalar",
+            "proc p {} {\n    set a(k) 1\n    set y $a\n    puts hi\n}\n",
+            "set y $a",
+        ),
+        (
+            "a variable a `catch` may leave unset",
+            "proc p {} {\n    catch {set x [error boom]}\n    set y $x\n    puts hi\n}\n",
+            "set y $x",
+        ),
+        (
+            "a variable set on one branch only",
+            "proc p {c} {\n    if {$c} {set x 1}\n    set y $x\n    puts hi\n}\n",
+            "set y $x",
+        ),
+        (
+            "a `regexp` output variable",
+            "proc p {s} {\n    regexp {(z)} $s -> x\n    set y $x\n    puts hi\n}\n",
+            "set y $x",
+        ),
+        (
+            "an `unset` variable",
+            "proc p {} {\n    set x 1\n    unset x\n    set y $x\n    puts hi\n}\n",
+            "set y $x",
+        ),
+        (
+            "`expr` arithmetic on a parameter",
+            "proc p {v} {\n    set y [expr {$v + 1}]\n    puts hi\n}\n",
+            "set y [expr {$v + 1}]",
+        ),
+        (
+            "`expr` division by zero",
+            "proc p {} {\n    set y [expr {1/0}]\n    puts hi\n}\n",
+            "set y [expr {1/0}]",
+        ),
+        (
+            "an overwritten store of an unset variable (O109)",
+            "proc p {} {\n    set y $x\n    set y 1\n    return $y\n}\n",
+            "set y $x",
+        ),
+    ] {
+        let out = optimised(src, TCL);
+        assert!(out.contains(kept), "{why}: the statement stays: {out}");
+    }
+
+    // Precision: a value that cannot raise is still deleted.
+    for (why, src) in [
+        ("a literal", "proc p {} {\n    set y 1\n    puts hi\n}\n"),
+        (
+            "a copy of a set local",
+            "proc p {} {\n    set x [clock seconds]\n    set y $x\n    puts hi\n}\n",
+        ),
+        (
+            "a copy of a parameter",
+            "proc p {v} {\n    set y $v\n    puts hi\n}\n",
+        ),
+        (
+            "a variable set on both branches",
+            "proc p {c} {\n    if {$c} {set x 1} else {set x 2}\n    set y $x\n    puts hi\n}\n",
+        ),
+        (
+            "`expr` SCCP folds to a constant",
+            "proc p {} {\n    set a 1\n    set y [expr {$a + 1}]\n    puts hi\n}\n",
+        ),
+    ] {
+        assert!(
+            opt_fires(src, TCL, "O126"),
+            "{why}: the unused store goes: {:?}",
+            opt_codes(src, TCL)
+        );
+    }
+}
+
 #[test]
 fn a_quoted_expression_operand_is_not_inert() {
     // The caller-evidence half: `id 9` is a call site, so `v` is not the
