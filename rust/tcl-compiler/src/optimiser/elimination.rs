@@ -309,20 +309,23 @@ enum DefSite {
 }
 
 impl<'a> RaiseProof<'a> {
-    fn new(ctx: &PassContext<'a>, fu: &'a FunctionUnit) -> Self {
+    /// `enclosing_class` is set only for a `TclOO` method unit.
+    fn new(ctx: &PassContext<'a>, fu: &'a FunctionUnit, enclosing_class: Option<&str>) -> Self {
         // Alias recognition is registry-driven; a registry-less context (unit
         // tests) falls back to the cached default.
         let registry = ctx.registry.unwrap_or_else(|| {
             tcl_registry::model::ingress::static_context_for("tcl8.6").commands()
         });
-        // A proc or a method binds its parameters on entry.
+        // A proc or a method binds its parameters on entry. A proc and a
+        // method may share a qualified name, so the unit's kind picks the map.
         let params = ctx
             .ir_module
             .and_then(|m| {
-                m.procedures
-                    .get(&fu.name)
-                    .map(|p| &p.params)
-                    .or_else(|| m.methods.get(&fu.name).map(|d| &d.params))
+                if enclosing_class.is_some() {
+                    m.methods.get(&fu.name).map(|d| &d.params)
+                } else {
+                    m.procedures.get(&fu.name).map(|p| &p.params)
+                }
             })
             .cloned()
             .unwrap_or_default();
@@ -723,7 +726,7 @@ fn emit_dead_stores_and_unused(
         .registry
         .unwrap_or_else(|| tcl_registry::model::ingress::static_context_for("tcl8.6").commands());
     let scope_aliases = scan_scope_aliases(&fu.cfg, scan_registry);
-    let raise_proof = RaiseProof::new(ctx, fu);
+    let raise_proof = RaiseProof::new(ctx, fu, purity.enclosing_class);
     // Caller-locals this function passes by name to an
     // upvar callee — not dead/unused even when the name-level SSA sees
     // no read (the callee reads/writes it through the alias).
@@ -957,7 +960,7 @@ fn emit_adce(
     };
     let (consumer_stmt_keys, keep_forever) = build_adce_consumers(fu);
     let stmt_to_defs = build_stmt_to_defs(fu);
-    let raise_proof = RaiseProof::new(ctx, fu);
+    let raise_proof = RaiseProof::new(ctx, fu, enclosing_class);
     let removed = run_adce_fixpoint(
         fu,
         baseline,

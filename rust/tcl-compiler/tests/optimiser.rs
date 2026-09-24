@@ -2729,13 +2729,6 @@ fn a_quoted_expression_operand_is_folded_to_its_substituted_value() {
     }
 }
 
-/// Tcl substitutes inside a `"…"` expression operand, so a call written there
-/// is a call the statement runs — for the caller-evidence walk and for the
-/// variable-effect walk alike.
-///
-/// Both read the operand through `ExprNode::String`, which spans the quoted
-/// and the braced spelling and keeps its delimiters; both treated every
-/// string as inert. Measured on tclsh 8.6.18 (#2118, found in review).
 /// A dead assignment whose value can raise is not dead: deleting it drops the
 /// error the program stops on. tclsh 8.6.18 raises for each of these (and
 /// 8.4.20, 9.0.4 and 9.1b0 agree); O126, O109 and O108 deleted the statement
@@ -2804,6 +2797,11 @@ fn a_dead_assignment_whose_value_can_raise_is_kept() {
             "set y [expr {1/0}]",
         ),
         (
+            "a method sharing its name with a proc binds only its own parameters",
+            "namespace eval C { proc m {x} {} }\noo::class create C {\n    method m {} {\n        ::set unused $x\n        ::return 2\n    }\n}\n",
+            "::set unused $x",
+        ),
+        (
             "an overwritten store of an unset variable (O109)",
             "proc p {} {\n    set y $x\n    set y 1\n    return $y\n}\n",
             "set y $x",
@@ -2849,6 +2847,13 @@ fn a_dead_assignment_whose_value_cannot_raise_is_still_deleted() {
     }
 }
 
+/// Tcl substitutes inside a `"…"` expression operand, so a call written there
+/// is a call the statement runs — for the caller-evidence walk and for the
+/// variable-effect walk alike.
+///
+/// Both read the operand through `ExprNode::String`, which spans the quoted
+/// and the braced spelling and keeps its delimiters; both treated every
+/// string as inert. Measured on tclsh 8.6.18 (#2118, found in review).
 #[test]
 fn a_quoted_expression_operand_is_not_inert() {
     // The caller-evidence half: `id 9` is a call site, so `v` is not the
