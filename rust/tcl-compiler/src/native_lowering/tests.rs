@@ -439,6 +439,25 @@ fn expression_operators_without_a_native_shape_use_the_runtime_operator() {
     assert!(count(&function, |op| matches!(op, NativeOp::DynamicBinary { .. })) >= 1);
 }
 
+/// A braced operand's backslash-newline folds in Tcl and not in Jim, so
+/// native lowering hands the expression to the runtime rather than push the
+/// raw bytes as a constant (#2227, found in review).
+#[test]
+fn a_braced_operand_with_a_line_continuation_goes_to_the_runtime() {
+    let (function, _) =
+        lower("set q [expr {{a\\\n    b} eq {a b}}]\n", native_config()).expect("lowers");
+    assert_eq!(
+        count(&function, |op| matches!(op, NativeOp::ExprEval { .. })),
+        1
+    );
+    let (function, _) = lower("set q [expr {{ab} eq {ab}}]\n", native_config()).expect("lowers");
+    assert_eq!(
+        count(&function, |op| matches!(op, NativeOp::ExprEval { .. })),
+        0,
+        "a braced operand without one is still a constant"
+    );
+}
+
 #[test]
 fn a_command_inside_an_expression_goes_to_the_runtime_expression_intrinsic() {
     let (function, _) =

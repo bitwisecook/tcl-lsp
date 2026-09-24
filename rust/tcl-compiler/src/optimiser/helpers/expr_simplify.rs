@@ -166,7 +166,9 @@ fn node_provably_numeric(node: &ExprNode, numeric: NumericCtx<'_>) -> bool {
     };
     match node {
         ExprNode::Literal { .. } => true,
-        ExprNode::String { text, .. } => is_numeric_string_in_every_release(text),
+        ExprNode::String { text, .. } => {
+            fixed_operand_text(text).is_some_and(is_numeric_string_in_every_release)
+        }
         ExprNode::Var { name, .. } => ctx.numeric.contains(name.as_str()),
         _ => false,
     }
@@ -181,7 +183,8 @@ fn node_provably_integer(node: &ExprNode, numeric: NumericCtx<'_>) -> bool {
         return true;
     };
     match node {
-        ExprNode::Literal { text, .. } | ExprNode::String { text, .. } => is_integer_string(text),
+        ExprNode::Literal { text, .. } => is_integer_string(text),
+        ExprNode::String { text, .. } => fixed_operand_text(text).is_some_and(is_integer_string),
         ExprNode::Var { name, .. } => ctx.integer.contains(name.as_str()),
         _ => false,
     }
@@ -212,8 +215,9 @@ fn node_provably_integer(node: &ExprNode, numeric: NumericCtx<'_>) -> bool {
 /// the proof.
 fn node_cannot_be_nan(node: &ExprNode, numeric: NumericCtx<'_>) -> bool {
     match node {
-        ExprNode::Literal { text, .. } | ExprNode::String { text, .. } => {
-            !is_nan_string_in_any_release(text)
+        ExprNode::Literal { text, .. } => !is_nan_string_in_any_release(text),
+        ExprNode::String { text, .. } => {
+            fixed_operand_text(text).is_some_and(|value| !is_nan_string_in_any_release(value))
         }
         ExprNode::Var { name, .. } => {
             numeric.is_some_and(|ctx| ctx.integer.contains(name.as_str()))
@@ -241,6 +245,15 @@ fn is_nan_string_in_any_release(text: &str) -> bool {
 /// Strip the surrounding `"…"` / `{…}` delimiters (if any) from an `expr`
 /// literal or a propagated constant's value text, for the numeric
 /// classifiers below.
+/// A string operand's value when the proofs here may read it: `None` for one
+/// that substitutes, whose value is unknown (`"$x" == 1` is a numeric compare
+/// when `x` is `1.0`, and `"$x"` may be `NaN`), and for a value that itself
+/// holds a quote or brace, which [`strip_literal_delims`] would misread
+/// (#2227, found in review).
+fn fixed_operand_text(text: &str) -> Option<&str> {
+    tcl_syntax::expr::fixed_string_operand(text).filter(|value| !value.contains(['"', '{', '}']))
+}
+
 fn strip_literal_delims(text: &str) -> &str {
     text.trim()
         .trim_start_matches(['"', '{'])
@@ -1518,7 +1531,8 @@ fn streq_promote_node(node: &ExprNode) -> Option<ExprNode> {
 /// numeric nor a boolean word qualifies; everything else (variables, command
 /// substitutions, arithmetic) is conservatively rejected.
 fn node_provably_non_numeric(node: &ExprNode) -> bool {
-    matches!(node, ExprNode::String { text, .. } if !is_numeric_or_boolean_string(text))
+    matches!(node, ExprNode::String { text, .. }
+        if fixed_operand_text(text).is_some_and(|value| !is_numeric_or_boolean_string(value)))
 }
 
 /// Whether the (delimiter-stripped) text parses as a number **or** is one of
@@ -1592,10 +1606,13 @@ fn expr_has_command_subst_at(node: &ExprNode, depth: u32) -> bool {
                 || expr_has_command_subst_at(false_branch, depth + 1)
         }
         ExprNode::Call { args, .. } => args.iter().any(|a| expr_has_command_subst_at(a, depth + 1)),
+        // A `"…"` operand substitutes, so a `[cmd]` in it runs: O110 rewrote
+        // `expr {"[incr x]" && 0}` to `0`, losing the `incr` (#2227, found in
+        // review).
+        ExprNode::String { text, .. } => crate::word_subst::quoted_operand_body(text).is_some(),
         ExprNode::Literal { .. }
         | ExprNode::Var { .. }
         | ExprNode::Raw { .. }
-        | ExprNode::String { .. }
         // A word, not an expression: it holds no command substitution.
         | ExprNode::CompiledWord { .. } => false,
     }

@@ -250,6 +250,23 @@ entry point, or gate moves without this contract being updated.
   `NumValue<B>` for both engines and the const-folder, with the two release
   axes (`MathFuncSince`, `IntWidth`) and the typed refusals (`MathFuncError`)
   owned here rather than re-derived per engine.
+  `quoted_string_body` is the one rule for which `ExprNode::String` operands
+  substitute: the variant keeps both spellings with their delimiters, and
+  only `"…"` substitutes. The walk hands `ExprOps::string` that answer, so
+  the VM substitutes only a quoted operand and the const-folder declines one
+  it cannot substitute. A braced operand is not quite raw: its
+  backslash-newlines fold even inside braces, so the engines pass it through
+  `backslash::collapse_brace_continuations`, and the const-folder, which
+  does not know whether the dialect folds (Jim keeps the bytes), declines one
+  that carries a backslash-newline. `fixed_string_operand` (and
+  `fixed_string_body` for the walk's stripped body) answers "is this operand
+  its own value in every dialect": the const-folder, native lowering and the
+  F5 XC translator read a constant only through it. Codegen, taint and the
+  `uri_split` hint read the quoted/braced split through
+  `quoted_string_body`; the hint rejects a quoted operand that substitutes
+  (`$`, `[`) but reads its backslash escapes as written, the form its regex
+  classifier expects. The compiler's substitution walks read the same rule
+  (#2227).
 - `rand` — the Park-Miller `rand()`/`srand()` generator both engines call
   (step, seed nudge, and C's reciprocal-multiply scaling). Only seed storage
   and the first-seed policy are per engine (#1432).

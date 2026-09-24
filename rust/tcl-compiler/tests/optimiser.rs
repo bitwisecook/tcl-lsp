@@ -2668,6 +2668,67 @@ fn o122_still_converts_past_a_nested_call_to_another_proc() {
     }
 }
 
+/// A `"…"` expression operand's value is its text after substitution, so a
+/// folder that cannot substitute must not fold it. Measured on tclsh 8.6.18
+/// and 9.0.4, which agree (#2227).
+#[test]
+fn a_quoted_expression_operand_is_folded_to_its_substituted_value() {
+    // tclsh prints `pre5`; O103 folded the call to the text `pre$x`.
+    let value = "proc a {} { set x 5; return [expr {\"pre$x\"}] }\nputs [a]\n";
+    assert!(
+        !optimised(value, TCL).contains("pre$x}"),
+        "the operand is `pre5`, not its spelling: {}",
+        optimised(value, TCL)
+    );
+
+    // tclsh prints `five`; the condition folded false and O112 removed the
+    // live branch.
+    let branch =
+        "proc a {} { set x 5; if {\"$x\" eq \"5\"} { return five }; return other }\nputs [a]\n";
+    assert!(
+        optimised(branch, TCL).contains("five"),
+        "`\"$x\" eq \"5\"` is true: {}",
+        optimised(branch, TCL)
+    );
+
+    // A call in the operand runs: tclsh prints `7` then `nine`.
+    let call = "proc id {v} { return $v }\nproc a {} { if {\"[id 9]\" eq \"9\"} { return nine }; return other }\nputs [id 7]\nputs [a]\n";
+    assert!(
+        optimised(call, TCL).contains("nine"),
+        "the operand is `9`: {}",
+        optimised(call, TCL)
+    );
+
+    // A braced operand folds its backslash-newline, so the call returns the
+    // three characters `a b`: tclsh prints `3`, and the fold of the raw bytes
+    // printed `5` (found in review).
+    let continued = "proc a {} { return [expr {{a\\\n b}}] }\nset r [a]\nputs [string length $r]\n";
+    assert!(
+        !opt_fires(continued, TCL, "O103"),
+        "the braced operand's value is not its bytes: {}",
+        optimised(continued, TCL)
+    );
+
+    // Precision: a braced operand is literal, and a quoted one with nothing
+    // to substitute is its text; both still fold.
+    for (src, folded) in [
+        (
+            "proc a {} { return [expr {{pre$x}}] }\nputs [a]\n",
+            "puts {pre$x}",
+        ),
+        (
+            "proc a {} { return [expr {\"abc\"}] }\nputs [a]\n",
+            "puts abc",
+        ),
+    ] {
+        assert!(
+            optimised(src, TCL).contains(folded),
+            "{src:?} still folds: {}",
+            optimised(src, TCL)
+        );
+    }
+}
+
 /// Tcl substitutes inside a `"…"` expression operand, so a call written there
 /// is a call the statement runs — for the caller-evidence walk and for the
 /// variable-effect walk alike.
@@ -2694,6 +2755,66 @@ fn a_quoted_expression_operand_is_not_inert() {
         !opt_fires(effect, TCL, "O102"),
         "a store cannot be forwarded across a write the operand performs: {:?}",
         opt_codes(effect, TCL)
+    );
+
+    // The side-effect gates: a `[cmd]` in a quoted operand runs, so no pass
+    // may drop the statement that holds it. tclsh 8.6.18 prints `1` for each;
+    // O110, O113 and O126 each printed `0` (#2227, found in review).
+    for (why, src) in [
+        (
+            "O110 on `&& 0`",
+            "proc p {} {\n    set x 0\n    set y [expr {\"[incr x]\" && 0}]\n    return $x\n}\n",
+        ),
+        (
+            "O113 on a constant-false condition",
+            "proc p {} {\n    set x 0\n    if {\"[incr x]\" && 0} {}\n    return $x\n}\n",
+        ),
+        (
+            "O126 on an unused store",
+            "proc p {} {\n    set x 0\n    set y [expr {\"[incr x]\"}]\n    return $x\n}\n",
+        ),
+    ] {
+        assert!(
+            optimised(src, TCL).contains("incr x"),
+            "{why}: the `incr` runs: {}",
+            optimised(src, TCL)
+        );
+    }
+    // Nor may a rewrite read a substituting operand's spelling as its value:
+    // `"$x"` may be `1.0` or `NaN`. tclsh 8.6.18 and 9.0.4 print `1`, `1`
+    // and `0` for these at `p 1.0`, `r NaN` and `s NaN`; O120 and the
+    // inversion rewrote them to `eq`, `>=` and `eq` (#2227, found in review).
+    for (why, src, kept) in [
+        (
+            "O120 on a numeric compare",
+            "proc p {x} {\n    return [expr {\"$x\" == 1}]\n}\n",
+            "==",
+        ),
+        (
+            "the inversion of an ordered compare",
+            "proc r {x} {\n    return [expr {!(\"$x\" < 1)}]\n}\n",
+            "<",
+        ),
+        (
+            "O120 on a self-compare",
+            "proc s {x} {\n    return [expr {\"$x\" == \"$x\"}]\n}\n",
+            "==",
+        ),
+    ] {
+        assert!(
+            optimised(src, TCL).contains(kept),
+            "{why}: {}",
+            optimised(src, TCL)
+        );
+    }
+
+    // Nor is an overwritten store whose operand runs a command a dead store
+    // to report: W220 offered to delete the `incr`.
+    let store = "proc p {} {\n    set x 0\n    set y [expr {\"[incr x]\"}]\n    set y 2\n    return \"$x$y\"\n}\n";
+    assert!(
+        !analyser_codes(store, TCL).contains(&"W220".to_owned()),
+        "the store runs `incr x`: {:?}",
+        analyser_codes(store, TCL)
     );
 
     // Precision: the braced spelling really is inert, and still folds.

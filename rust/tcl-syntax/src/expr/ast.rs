@@ -398,6 +398,44 @@ pub enum ExprNode {
     },
 }
 
+/// The body of a `"…"` [`ExprNode::String`] operand, or `None` for a `{…}`
+/// one.
+///
+/// The variant spans both spellings and keeps its delimiters, and only the
+/// quoted form substitutes `$var`, `[cmd]` and backslashes: tclsh 8.6.18 and
+/// 9.0.4 print `pre5` for `set x 5; expr {"pre$x"}` and `pre$x` for the
+/// braced `{pre$x}`. Every consumer that reduces the variant to a value or
+/// walks its substitutions reads this one rule.
+#[must_use]
+pub fn quoted_string_body(text: &str) -> Option<&str> {
+    text.strip_prefix('"')?.strip_suffix('"')
+}
+
+/// A string operand's body when it is its value in every dialect: a `"…"`
+/// body with nothing to substitute, or a `{…}` body with no backslash-newline
+/// (which folds to a space in Tcl and stays as written in Jim). `None` when
+/// substitution or the dialect decides the value, so a consumer that needs a
+/// constant declines instead of reading the spelling.
+#[must_use]
+pub fn fixed_string_body(body: &str, substitutes: bool) -> Option<&str> {
+    let fixed = if substitutes {
+        !body.contains(['$', '[', '\\'])
+    } else {
+        !body.contains("\\\n")
+    };
+    fixed.then_some(body)
+}
+
+/// [`fixed_string_body`] for an [`ExprNode::String`]'s source text.
+#[must_use]
+pub fn fixed_string_operand(text: &str) -> Option<&str> {
+    match quoted_string_body(text) {
+        Some(body) => fixed_string_body(body, true),
+        None => crate::word_rules::whole_braced_word(text)
+            .and_then(|body| fixed_string_body(body, false)),
+    }
+}
+
 impl ExprNode {
     /// Recursively extract variable names from this expression AST.
     ///
@@ -596,7 +634,7 @@ impl ExprNode {
 
     fn collect_quoted_string_spans(&self, out: &mut Vec<(ExprOffset, ExprOffset)>) {
         match self {
-            Self::String { text, start, end } if text.starts_with('"') => {
+            Self::String { text, start, end } if quoted_string_body(text).is_some() => {
                 out.push((*start, *end));
             }
             Self::Binary { left, right, .. } => {

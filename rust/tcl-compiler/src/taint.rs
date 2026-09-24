@@ -1359,7 +1359,7 @@ fn expr_command_taint<S: std::hash::BuildHasher>(
         // counts; a braced `{…}` string is literal (no substitution) and is
         // skipped to avoid a false positive.
         ExprNode::String { text, .. } => {
-            if text.trim_start().starts_with('"') {
+            if tcl_syntax::expr::quoted_string_body(text).is_some() {
                 word_taint(text, uses, taints, ctx)
             } else {
                 TaintLattice::clean()
