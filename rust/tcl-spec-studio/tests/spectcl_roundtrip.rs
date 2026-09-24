@@ -245,12 +245,14 @@ fn diffs(rendered: &Value, shipped: &Value) -> Vec<Diff> {
 
 /// Whether a notice is the loader's *policy report* rather than a degradation.
 ///
-/// Naming a lowering or codegen hook is reported by design — "this changes how
-/// the compiler translates the command, not just what the editor knows about
+/// Naming a lowering hook is reported by design — "this changes how the
+/// compiler translates the command, not just what the editor knows about
 /// it" — so a pack the renderer wrote faithfully still raises it. Every other
-/// notice means a declaration was dropped, and the gate fails on those.
+/// notice means a declaration was dropped, and the gate fails on those. (A
+/// codegen-axis stamp raises nothing here: whether it survives is the stamp
+/// rejection rule's call at a pack's load, `tcl_spectcl::stamps`.)
 fn is_policy_report(message: &str) -> bool {
-    message.contains("names a lowering hook") || message.contains("names a codegen hook")
+    message.contains("names a lowering hook")
 }
 
 /// What one command's round trip produced.
@@ -411,6 +413,32 @@ fn arity_windows_survive_the_round_trip() {
     // The plain arity is untouched by the windows beside it.
     assert_eq!(trip.reloaded["arity"]["min"], serde_json::json!(1));
     assert_eq!(trip.reloaded["arity"]["max"], serde_json::json!(1));
+}
+
+/// `alias_of` survives render → load → re-seed.
+///
+/// No shipped spec declares it — it names the builtin a *pack* command is —
+/// so the whole-surface trip never meets it, as with arity windows. This
+/// drives one pack command that does.
+#[test]
+fn alias_of_survives_the_round_trip() {
+    let spec = tcl_registry::CommandSpec {
+        name: "vendor::unpack",
+        arity: tcl_registry::arity::Arity::at_least(1),
+        alias_of: Some("lassign"),
+        ..tcl_registry::CommandSpec::DEFAULT
+    };
+    let draft = Value::Object(draft::from_command_spec(&spec));
+    let trip = round_trip(&draft);
+
+    assert!(trip.notices.is_empty(), "{:?}\n{}", trip.notices, trip.text);
+    assert!(trip.text.contains("alias_of lassign"), "{}", trip.text);
+    assert_eq!(
+        trip.reloaded["alias_of"],
+        serde_json::json!("lassign"),
+        "{}",
+        trip.text
+    );
 }
 
 /// A declared `semantics` / `evaluate` plan is plain data — like

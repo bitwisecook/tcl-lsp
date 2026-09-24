@@ -56,11 +56,13 @@
 //! returns a [`SymbolMap`].  It relies on the analyser tracking
 //! `$var` references inside `[…]` command substitutions and braced
 //! `expr` bodies so a rename never rewrites a declaration without
-//! its body references.  Renaming is fenced by registry-declared
-//! observability facts:
+//! its body references.  Renaming is fenced by the observability facts
+//! of the document's command surface — the catalogue's, and the ones a
+//! `# tcl-lsp: stub` declaration's flags state:
 //!
 //! * Scopes containing a dynamic-barrier command (`upvar`, `eval`,
-//!   `trace`, … — [`Traits::CREATES_DYNAMIC_BARRIER`]) or a
+//!   `trace`, a `-barrier` stub, … —
+//!   [`Traits::CREATES_DYNAMIC_BARRIER`]) or a
 //!   variable-name introspection ([`Traits::INTROSPECTS_BY_NAME`],
 //!   e.g. `info locals` / `info vars` / `info exists`) are left
 //!   untouched.
@@ -934,8 +936,12 @@ fn static_subcommand_word<'s>(
 
 /// Compute every rename barrier the script's invocations impose.
 ///
-/// All observability knowledge is registry data — traits on command
-/// and subcommand specs — never a spelled command name:
+/// All observability knowledge is command-surface data — traits on command
+/// and subcommand specs, and the traits a document's `# tcl-lsp: stub`
+/// flags state for the commands it declares (`-barrier` is
+/// `CREATES_DYNAMIC_BARRIER`, `-scope_alias` is `CREATES_SCOPE_ALIAS`) —
+/// never a spelled command name. A declared name answers from its
+/// declaration (nearest wins; a declaration has no subcommands):
 ///
 /// * [`Traits::CREATES_DYNAMIC_BARRIER`] (command level) bars the
 ///   containing scope, as before.
@@ -965,6 +971,8 @@ fn find_rename_barriers(
     let mut out = RenameBarriers::default();
     let scope_at =
         |offset: u32| scope_label_at_offset(&analysis.global_scope, offset, "::", include_global);
+    let declared = tcl_compiler::analyser::types::build_declared_surface(&analysis.stub_commands);
+    let surface = tcl_registry::model::DocumentCommandSurface::new(registry, Some(&declared));
     for inv in &analysis.command_invocations {
         if inv.indirect {
             // A computed command head can spell any proc name at runtime.
@@ -979,25 +987,31 @@ fn find_rename_barriers(
         // positioned read.
         let written = inv.name.trim_start_matches(':');
         let head = identities.head_words(written, inv.range.start()).resolved;
-        let Some(spec) = registry.get(head) else {
+        let Some(traits) = surface.traits(head) else {
             continue;
         };
-        if spec.traits.contains(Traits::CREATES_DYNAMIC_BARRIER)
+        if traits.contains(Traits::CREATES_DYNAMIC_BARRIER)
             && let Some(label) = scope_at(inv.range.start())
         {
             out.scopes.insert(label);
         }
-        if spec.traits.contains(Traits::CREATES_SCOPE_ALIAS) {
+        if traits.contains(Traits::CREATES_SCOPE_ALIAS) {
             out.global_variables = true;
         }
-        if spec.traits.contains(Traits::ALIASES_CALLER_FRAME)
-            || spec.traits.contains(Traits::EVALUATES_IN_SHIFTED_FRAME)
+        if traits.contains(Traits::ALIASES_CALLER_FRAME)
+            || traits.contains(Traits::EVALUATES_IN_SHIFTED_FRAME)
         {
             out.all_variable_scopes = true;
         }
-        if spec.traits.contains(Traits::REFLECTS_COMMAND_NAMES) {
+        if traits.contains(Traits::REFLECTS_COMMAND_NAMES) {
             out.procs = true;
         }
+        if surface.declares(head) {
+            continue;
+        }
+        let Some(spec) = registry.get(head) else {
+            continue;
+        };
 
         // Subcommand-level observability.
         let var_subs = Traits::INTROSPECTS_BY_NAME | Traits::TARGETS_VARIABLE_BY_NAME;

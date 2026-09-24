@@ -324,10 +324,12 @@
 5	tcl-spec-studio::web_contract	test	tcl-spec-studio	web_contract
 5	tcl-spectcl	lib	tcl-spectcl	tcl_spectcl
 5	tcl-spectcl::ambient_environment_floor	test	tcl-spectcl	ambient_environment_floor
+5	tcl-spectcl::codegen_stamps	test	tcl-spectcl	codegen_stamps
 5	tcl-spectcl::eda_environment_packs	test	tcl-spectcl	eda_environment_packs
 5	tcl-spectcl::environment_registration	test	tcl-spectcl	environment_registration
 5	tcl-spectcl::golden_packs	test	tcl-spectcl	golden_packs
 5	tcl-spectcl::surface_roster_trust	test	tcl-spectcl	surface_roster_trust
+5	tcl-spectcl::workspace_trust	test	tcl-spectcl	workspace_trust
 5	tcl-syntax::variable_resolution_conformance	test	tcl-syntax	variable_resolution_conformance
 5	tcl-version	lib	tcl-version	tcl_version
 5	tcl-vm-cli::bin/tclvm	bin	tcl-vm-cli	tclvm

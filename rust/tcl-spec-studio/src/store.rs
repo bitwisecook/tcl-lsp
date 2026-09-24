@@ -501,11 +501,11 @@ impl PackStore {
     /// What an untrusted tier would refuse this document for, as
     /// `(line, why)` — E-R2 asked of the snapshot rather than of the load.
     ///
-    /// A **hypothetical**, deliberately: `Tier::Workspace` is
-    /// `Provenance::WorkspaceTrusted` today (§6.4 keys the untrusted class on
-    /// the editor's Workspace Trust state, which nothing on the discovery
-    /// path is told — redesign §11.1 O9), so a workspace pack that overrides
-    /// a shipped command still loads. This answers the question the author
+    /// A **hypothetical**, deliberately: a workspace pack the editor trusts
+    /// is `Provenance::WorkspaceTrusted` (§6.4 keys the untrusted class on
+    /// the editor's Workspace Trust state, which reaches discovery on
+    /// `DiscoveryOptions::workspace_trust`), so one that overrides a shipped
+    /// command loads for its author. This answers the question the author
     /// wants answered anyway: *would* an untrusted workspace refuse this?
     ///
     /// `None` for every pack that touches nothing reserved, which is nearly
@@ -697,6 +697,27 @@ impl PackStore {
         self.patch
             .as_ref()
             .and_then(|patch| tcl_spectcl::provenance_violation(&patch.pack, Tier::StudioOverride))
+    }
+
+    /// The codegen-axis stamps a workspace load of this document would drop,
+    /// as `(line, why)` on each declaring command's row: the stamp rejection
+    /// rule (`tcl_spectcl::stamps`) refuses every one outside a bundled pack.
+    /// The installed world ([`Self::pack_set`]) already drops them; the
+    /// document keeps the rows as written, so this is where an author learns
+    /// they will not change emitted code.
+    #[must_use]
+    pub fn stamp_refusals(&self) -> Vec<(u32, String)> {
+        stamp_refusals_at(&self.pack, Tier::Workspace)
+    }
+
+    /// [`Self::stamp_refusals`] for the standing patch, at the override tier
+    /// it layers from.
+    #[must_use]
+    pub fn patch_stamp_refusals(&self) -> Vec<(u32, String)> {
+        self.patch
+            .as_ref()
+            .map(|patch| stamp_refusals_at(&patch.pack, Tier::StudioOverride))
+            .unwrap_or_default()
     }
 
     /// Install `patch` as this document's standing patch pack, replacing any
@@ -1450,10 +1471,27 @@ impl PackStore {
 /// `tcl_spectcl::pack::load` — same commands, same declarations, at the tier
 /// the pack really layers from.
 fn merged(name: &str, pack: &Pack, tier: Tier) -> MergedPack {
+    // The studio evaluates its buffer trusted — the author's own file, as its
+    // `EvalOptions` say — whichever tier it layers from.
+    let trust = tcl_dialect::model::WorkspaceTrust::Trusted;
+    // The stamp rejection rule, as a load at `tier` applies it: the installed
+    // world drops every codegen-axis stamp that load would, while the
+    // document, and every draft seeded from it, keeps the rows as written
+    // ([`PackStore::stamp_refusals`] reports them).
+    let provenance = tcl_spectcl::PackEnvironmentTier::of(tier, trust).provenance();
+    let mut commands = pack.commands.clone();
+    for command in &mut commands {
+        tcl_spectcl::stamps::admit_codegen_stamps(
+            command,
+            provenance,
+            tcl_spectcl::stamps::shipped(),
+        );
+    }
     MergedPack {
         name: name.to_owned(),
         dsl_version: pack.dsl_version.clone(),
         tier,
+        trust,
         files: vec![std::path::PathBuf::from(format!("{name}.tclspec"))],
         display_name: pack.display_name.clone(),
         file_extensions: pack.file_extensions.clone(),
@@ -1462,8 +1500,38 @@ fn merged(name: &str, pack: &Pack, tier: Tier) -> MergedPack {
         environments: pack.environments.clone(),
         dialects: pack.dialects.clone(),
         surface_rosters: pack.surface_rosters.clone(),
-        commands: pack.commands.clone(),
+        commands,
     }
+}
+
+/// What a load of `pack` at `tier` refuses under the stamp rejection rule
+/// (`tcl_spectcl::stamps`), as `(line, why)` on each declaring command's row
+/// — the same warning the load publishes on the pack file.
+fn stamp_refusals_at(pack: &Pack, tier: Tier) -> Vec<(u32, String)> {
+    let provenance =
+        tcl_spectcl::PackEnvironmentTier::of(tier, tcl_dialect::model::WorkspaceTrust::Trusted)
+            .provenance();
+    pack.commands
+        .iter()
+        .flat_map(|command| {
+            tcl_spectcl::stamps::stamp_refusals(
+                command.spec,
+                provenance,
+                tcl_spectcl::stamps::shipped(),
+            )
+            .into_iter()
+            .map(move |refusal| (command.line, refusal.message()))
+        })
+        .collect()
+}
+
+/// `(line, why)` rows as a surface reads them.
+fn line_reasons_json(rows: &[(u32, String)]) -> Value {
+    Value::Array(
+        rows.iter()
+            .map(|(line, why)| json!({ "line": line, "reason": why }))
+            .collect(),
+    )
 }
 
 // The resolution facade
@@ -1720,6 +1788,9 @@ impl<'a> Resolution<'a> {
                 .store
                 .untrusted_tier_refusal()
                 .map(|(line, why)| json!({ "line": line, "reason": why })),
+            // The codegen-axis stamps a workspace load drops (the stamp
+            // rejection rule): reported here, never removed from the text.
+            "stamp_refusals": line_reasons_json(&self.store.stamp_refusals()),
             // E-R12: whether this document is a program the studio must not
             // rewrite, and what patch pack currently stands over it.
             "programmed": self.store.programmed().map(|why| json!({
@@ -1734,6 +1805,7 @@ impl<'a> Resolution<'a> {
                     .store
                     .patch_untrusted_tier_refusal()
                     .map(|(line, why)| json!({ "line": line, "reason": why })),
+                "stamp_refusals": line_reasons_json(&self.store.patch_stamp_refusals()),
             })),
             "standing_overrides": standing_overrides_json(&self.store.standing_overrides()),
             "commands": self.pack_index(),
@@ -3193,5 +3265,41 @@ command add_parameter {\narity 1..\n}\n}\n";
         // which is what makes the report meaningful rather than theoretical.
         let override_tier = PackStore::from_source_at_tier(store.source(), Tier::StudioOverride);
         assert!(override_tier.commands().is_empty());
+    }
+
+    /// A codegen-axis stamp is authorable — the document and its draft keep
+    /// the row — but the installed world drops it, as a workspace load does,
+    /// and the report says so on the command's row. Only the stamp goes.
+    #[test]
+    fn a_stamp_is_kept_in_the_document_and_dropped_from_the_installed_world() {
+        let store = PackStore::from_source(
+            "speclib vendor 2.0 {\n    command vendor::unpack {\n        arity 2..\n        \
+             alias_of lassign\n        codegen_hook -native Lassign\n    }\n}\n",
+        );
+        let draft = store.draft("vendor::unpack").expect("a draft");
+        assert!(
+            draft
+                .get("codegen_hook")
+                .is_some_and(|value| !value.is_null()),
+            "the draft keeps the row as written: {draft:?}"
+        );
+        assert_eq!(
+            store.stamp_refusals(),
+            vec![(
+                2,
+                "`codegen_hook Lassign` refused for `vendor::unpack`: a trusted workspace pack \
+                 may not name a codegen catalogue member; only a bundled pack may carry \
+                 `alias_of lassign`'s own stamp"
+                    .to_owned()
+            )]
+        );
+        assert!(store.patch_stamp_refusals().is_empty());
+
+        let registry =
+            tcl_spectcl::install::registry_for_dialect_with_packs("tcl8.6", &store.pack_set());
+        let installed = registry.get("vendor::unpack").expect("installed");
+        assert_eq!(installed.codegen_hook, None, "the installed world drops it");
+        assert_eq!(installed.arity.min, 2, "and keeps every other fact");
+        assert_eq!(installed.alias_of, Some("lassign"));
     }
 }

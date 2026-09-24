@@ -1503,6 +1503,11 @@ pub struct FunctionAsm {
     /// Exact user-procedure bindings whose bodies were copied into this
     /// function by an executable inlining transform.
     pub procedure_bindings: Vec<tcl_runtime_api::ProcedureBindingIdentity>,
+    /// The spec-pack facts this function's specialised sites rest on
+    /// ([`tcl_runtime_api::SiteClaim`]): admission requires every claim's
+    /// stamp among the pack facts the VM holds. Empty for a function no pack
+    /// fact reached, which admits on its bindings alone.
+    pub site_claims: Vec<tcl_runtime_api::SiteClaim>,
 }
 
 /// An inlined command body's instruction range and the `errorInfo` frame the

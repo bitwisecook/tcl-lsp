@@ -7,7 +7,7 @@
 #
 #     <pack file>\t<severity>\t<context>\t<message>
 #
-# tab-separated, sorted, one line per occurrence — 25 of them today, in six
+# tab-separated, sorted, one line per occurrence — 30 of them today, in seven
 # groups. `tests/spec_corpus.rs`
 # compares the notices of every pack against this file as a multiset and fails
 # on any difference in either direction, so a notice that gets fixed must also
@@ -36,12 +36,20 @@
 #       object-class method's hook body has no slot to bind to yet, so the
 #       field abstains.
 #
-#   `names a lowering hook` / `names a codegen hook` (6, the `foreach`, `if`,
-#       `return`, `switch` and `upvar` ports) — deliberate. A pack naming a
-#       *native* lowering or codegen hook changes how the compiler translates a
-#       command, so the loader warns and installs it anyway. These five ports
-#       are ports of shipped specs that legitimately carry those hooks; a
-#       private pack getting the same warning is being told something true.
+#   `names a lowering hook` (5, the `foreach`, `if`, `return`, `switch` and
+#       `upvar` ports) — deliberate. A pack naming a *native* lowering hook
+#       changes how the compiler translates a command, so the loader warns and
+#       installs it anyway. These five ports are ports of shipped specs that
+#       legitimately carry those hooks; a private pack getting the same
+#       warning is being told something true.
+#
+#   `… refused for …` (6, the `return`, `string` and `upvar` ports) — the
+#       stamp rejection rule, working. The ports copy their shipped specs'
+#       codegen-axis stamps (`inline_codegen_hook`, `codegen_hook`, and
+#       `semantic_operation {Intrinsic …}` on `string`'s `length`, `is` and
+#       `range`), and a workspace pack may not stamp at all — only a bundled
+#       pack may, as its `alias_of` target's own. Each stamp is dropped and
+#       said on its command's row; the command loads with every other fact.
 #
 #   ``world_effects` row … is not yet loadable` (6, the `oo-class` port) —
 #       the loader's own words: the `world_effects` block's rows beside
@@ -77,7 +85,12 @@ docs/design/spec-dsl-examples/oo-class.tclspec	Warning	command oo::class / subco
 docs/design/spec-dsl-examples/oo-class.tclspec	Warning	command oo::class / subcommand new	`state_transitions.resolver -native oo::class::new::state_transitions.resolver` names nothing this build ships; the statement installs nothing
 docs/design/spec-dsl-examples/oo-class.tclspec	Warning	command oo::class / subcommand new	`world_effects` row `callback` is not yet loadable; dropped
 docs/design/spec-dsl-examples/oo-class.tclspec	Warning	command oo::class / subcommand new	`world_effects` row `dynamic_fallback` is not yet loadable; dropped
+docs/design/spec-dsl-examples/return.tclspec	Warning	command return	`inline_codegen_hook Return` refused for `return`: a trusted workspace pack may not name a codegen catalogue member; the stamp would have to sit on `alias_of return`
 docs/design/spec-dsl-examples/return.tclspec	Warning	command return	names a lowering hook: this changes how the compiler translates the command, not just what the editor knows about it
+docs/design/spec-dsl-examples/string.tclspec	Warning	command string	`inline_codegen_hook String` refused for `string`: a trusted workspace pack may not name a codegen catalogue member; the stamp would have to sit on `alias_of string`
+docs/design/spec-dsl-examples/string.tclspec	Warning	command string	`semantic_operation {Intrinsic StringIs}` refused for `string is`: a trusted workspace pack may not name a codegen catalogue member; the stamp would have to sit on `alias_of string`
+docs/design/spec-dsl-examples/string.tclspec	Warning	command string	`semantic_operation {Intrinsic StringLength}` refused for `string length`: a trusted workspace pack may not name a codegen catalogue member; the stamp would have to sit on `alias_of string`
+docs/design/spec-dsl-examples/string.tclspec	Warning	command string	`semantic_operation {Intrinsic StringRange}` refused for `string range`: a trusted workspace pack may not name a codegen catalogue member; the stamp would have to sit on `alias_of string`
 docs/design/spec-dsl-examples/switch.tclspec	Warning	command switch	names a lowering hook: this changes how the compiler translates the command, not just what the editor knows about it
-docs/design/spec-dsl-examples/upvar.tclspec	Warning	command upvar	names a codegen hook: this changes how the compiler translates the command, not just what the editor knows about it
+docs/design/spec-dsl-examples/upvar.tclspec	Warning	command upvar	`codegen_hook Upvar` refused for `upvar`: a trusted workspace pack may not name a codegen catalogue member; the stamp would have to sit on `alias_of upvar`
 docs/design/spec-dsl-examples/upvar.tclspec	Warning	command upvar	names a lowering hook: this changes how the compiler translates the command, not just what the editor knows about it

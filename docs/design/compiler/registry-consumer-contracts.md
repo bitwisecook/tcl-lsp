@@ -7,22 +7,24 @@ the companion to [value-transfers.md](value-transfers.md), which states
 the consumer interface for one axis (values), and to
 [value-evaluation.md](value-evaluation.md), which states how an answer on
 that axis is computed. This page places the value axis among the others
-and holds the rest of the programme: the three descriptors the analyser
-lacks — a clause grammar, a member effect, and an option effect that
-retires the two native resolvers over a command's own option table — and
-the identity and backing contracts a code generator or a runtime needs
-before a pack claim can change *emitted code*. Analysis facts wait for
+and holds the rest of the programme: the three descriptors step 2 of
+§ *Build order* gave the analyser — a clause grammar, a member effect, and
+an option effect that retired the two native resolvers over a command's
+own option table — and the identity and backing contracts a code
+generator or a runtime needs before a pack claim can change *emitted
+code*. Analysis facts wait for
 none of it — under the rulings recorded in the interface contract, a
 loaded pack's facts are authoritative for analysis and optimisation as
 soon as they are loaded, and the direct, expression, and private-pack
 slices proceed without deciding anything here.
 
-> **Status — decided rulings; the description vocabulary built, the rest
-> proposed.** The five rulings — the four in § *Rulings* and the narrower
-> one in § *The two hook bodies that remain* — are the owner's decisions,
-> and the build takes them as settled. Every identifier, count, and file
-> path on this page was checked against the tree. Step 2 of § *Build
-> order* built the description contract's vocabulary, under these names:
+> **Status — decided rulings; the description vocabulary and the first
+> half of the identity contract built, the rest proposed.** The five
+> rulings — the four in § *Rulings* and the narrower one in § *The two
+> hook bodies that remain* — are the owner's decisions, and the build
+> takes them as settled. Every identifier, count, and file path on this
+> page was checked against the tree. Step 2 of § *Build order* built the
+> description contract's vocabulary, under these names:
 >
 > - **Clause grammar** — `ClauseGrammarSpec`, `ClauseRow`,
 >   `ClauseRowShape`, `ClauseSlot`, `HandlerMatch`, `ClauseTiming`,
@@ -43,15 +45,41 @@ slices proceed without deciding anything here.
 >   `ResolvedInvocation`, `InvocationWords` and `EffectFootprint`, and
 >   `template_plan` is the value axis's.
 >
+> Step 3 adds `WorkspaceTrust` (`tcl_dialect::model`), the trust
+> ruling's one input, carried on `DiscoveryOptions::workspace_trust`, and
+> gates hook-body execution on it: `tcl_spectcl::hooks::hook_bodies_run`
+> decides it, `hooks::plan_for` gives an untrusted workspace pack's bodies
+> no slot, and the load reports each as a `hooks::DormantHook` on the pack
+> file. It also lands the stub ruling: a `# tcl-lsp: stub` declaration's
+> six flags reach `DeclaredCommand::traits` and
+> `DeclaredCommand::side_effects`, and `DocumentCommandSurface` answers
+> nearest-wins — `traits`, `invocation_traits` and `side_effects` beside
+> the role queries, under the security floor.
+>
+> Step 4 builds the first half of the identity contract.
+> `CommandSpec::alias_of`, the `alias_of NAME` declaration naming the
+> shipped builtin a pack command is, is the target the loader's stamp
+> rejection rule reads (`tcl_spectcl::stamps`) — a codegen-axis stamp
+> survives only on a bundled pack's command whose `alias_of` names the
+> shipped builtin carrying it, and every other is dropped with a warning
+> on its row — and the identity codegen records at such a site: the
+> target's (`ResolvedCall::stamp_identity`), which the VM admits through
+> its alias hop. A site whose emitted code rests on a pack's facts
+> records them — `SiteClaim::PackFacts` for a constant a pack's
+> `const_fold` computed, `SiteClaim::BuiltinAlias` for a binding reached
+> through `alias_of`, each carrying the pack's `PackFactStamp`
+> (`tcl_runtime_api`) in `FunctionAsm::site_claims` — and the VM admits
+> the unit only while it holds that stamp (`Vm::set_pack_facts`).
+>
 > The rest of the vocabulary is proposed and names nothing in the
 > workspace:
 >
-> - **Identity and backing** — `SiteClaim`, `PackFactStamp`,
->   `RuntimeBacking` with the `runtime_backing` field, `BodySource`,
->   `IdentityKind`, `CodegenCapability`, `ArtefactIdentityManifest`, and
->   the `alias_of` declaration.
-> - **Packages and trust** — `SpecDirective`, `DependencyTier`,
->   `WorkspaceTrust`, and the `tcl spec test` verb.
+> - **Identity and backing** — the `ReferenceBody` and
+>   `ShippedImplementation` claims, `RuntimeBacking` with the
+>   `runtime_backing` field, `BodySource`, `IdentityKind`,
+>   `CodegenCapability`, and `ArtefactIdentityManifest`.
+> - **Packages** — `SpecDirective`, `DependencyTier`, and the `tcl spec
+>   test` verb.
 >
 > `AnalysisContext`, `AnalysisInputs`, `PlanAnswer`, `OperandId`,
 > `TemplateWordPlan`, and `EvalAnswer` are
@@ -217,16 +245,21 @@ the workspace does not control.
 and maps a workspace pack to `Provenance::WorkspaceTrusted` or
 `Provenance::WorkspaceUntrusted`, which makes the latter reachable from
 discovery for the first time (the redesign's § *11.1 Owner decisions
-pending*, item O9). The two identical `untrusted(…)` predicates —
+pending* carried it as item O9 until step 3 closed it). The two identical
+`untrusted(…)` predicates —
 `rust/tcl-spectcl/src/loader/eval.rs` over a `Tier` and
 `rust/tcl-registry/src/model/registration.rs` over a `Provenance` —
 collapse into one, exported from `tcl-registry` and called by the loader,
 so the answer is the same at every entry point; the `EvalOptions::tier`
 doc comment that still calls `Tier::Workspace` an untrusted class is
 corrected to name the trust state instead of the discovery location.
+The dormant-hook abstention sits where slots are assigned:
+`tcl_spectcl::hooks::plan_for` gives an untrusted workspace pack's bodies
+no slot, so each field keeps the loader's abstaining placeholder and
 `rust/tcl-spec-hooks/src/host.rs` — the hook host that owns the per-pack
-engines and the containment — gains the dormant-hook abstention, and
-`spectcl_check`'s tier parameter (redesign item O4) reports it. Documents:
+engines and the containment — never learns the trust state or sees the
+text; `spectcl_check`'s tier parameter (redesign item O4) reports it.
+Documents:
 [../registry/spec-packs.md](../registry/spec-packs.md) § *Workspace trust:
 the setting is gated, the workspace tier is not* records the split, and
 [../registry/dialect-and-package-registry-redesign.md](../registry/dialect-and-package-registry-redesign.md)
@@ -256,11 +289,11 @@ literally, and the authority ruling withdraws exactly that reading.
 Keeping it for stubs would make the narrower declaration — one the author
 wrote about their own file, in their own file — weaker than the pack
 declaration they could write beside it, which is a distinction no author
-can predict. The flags are the visible cost: `parse_stub_flags` in
-`rust/tcl-compiler/src/analyser/utils.rs` parses all six and
-`StubCommandDef::to_declared_command` deliberately does not carry them,
+can predict. The flags were the visible cost: `parse_stub_flags` in
+`rust/tcl-compiler/src/analyser/utils.rs` parsed all six and
+`StubCommandDef::to_declared_command` deliberately did not carry them,
 its doc comment saying the set "has never had a consumer", so a user who
-writes `-pure` gets nothing.
+wrote `-pure` got nothing.
 
 **Consequences.** `DeclaredCommand` grows the declared behavioural facts
 beside its `arguments`, and each flag lands on the field its catalogue
@@ -270,10 +303,27 @@ subcommand level), `-mutator` as a declared `SideEffect` write,
 `Traits::HAS_LOOP_BODY`, `-scope_alias` on `Traits::CREATES_SCOPE_ALIAS`,
 and `-unsafe` on `Traits::UNSAFE` together with
 `Traits::SAFE_INTERP_HIDDEN`. `DocumentCommandSurface`'s role lookup stops
-unioning and resolves nearest-wins; `memory_ssa.rs`'s `CLOBBER_TRAITS`,
-`ssa.rs`'s scope-alias discriminator, and `unit_scope.rs`'s alias walk
-then see a stubbed command the way they see a catalogued one. Code
-predicates: the union in `DocumentCommandSurface`, the flag drop in
+unioning and resolves nearest-wins, and the consumers of those fields ask
+it: `unit_scope.rs`'s alias walk, the loop-termination checks, lowering's
+read-before-write, side-effect classification in the interprocedural
+summary, the safe-interpreter gate, and the minifier's rename barriers see
+a stubbed command the way they see a catalogued one. `-mutator` lands as
+the read-modify-write shape `lset` states — `Traits::READS_BEFORE_WRITE`
+beside a `SideEffect` that reads and writes the variable — because a write
+alone would kill the store the command reads. Three readers are
+deferred residue, not design: `ssa.rs`'s barrier-def walk
+(`registry_barrier_defs`) and scope-alias discriminator, and
+`memory_ssa.rs`'s clobber verdict (`is_clobber` over `CLOBBER_TRAITS`),
+still ask the catalogue alone, because reaching them means threading the
+document's surface through `compilation_unit.rs`, which the value-transfers
+lane holds. Until then a stub's declared roles miss the barrier-def walk —
+a call the lowering keeps as a barrier because its stub declares a `body`
+word writes no def for its `var` word, and a later read of that variable
+draws a false `W210` — and a redeclared catalogued name is walked with the
+catalogue's roles. Once the file is free, the walk takes a declared name's
+roles from the surface, and memory SSA clobbers for a declared name unless
+its declaration states `PURE`, the same conservative reading side-effect
+classification gives a declaration that states nothing. Code predicates: the union in `DocumentCommandSurface`, the flag drop in
 `to_declared_command`, and the `Provenance::WorkspaceUntrusted` class a
 sidecar ingests at — which becomes a provenance label for explanation, not
 a precision class.
@@ -360,16 +410,16 @@ The registry surface is far richer than the analyser's dispatch uses.
 
 | Fact | Registry | Analyser |
 |---|---|---|
-| analyser hook variants | 43 (`AnalyserHookId`, `rust/tcl-registry/src/hooks.rs`) | most exist because a descriptor is missing or unconsumed; the residue is short |
+| analyser hook variants | 32 (`AnalyserHookId`, `rust/tcl-registry/src/hooks.rs`), down from 43: step 2 retired the eleven whose handler knew only a position or a keyword a descriptor now states (`Try`, `For`, `DictFor`, `DictUpdate`, `Incr`, `Append`, `Lappend`, `Upvar`, `NamespaceUpvar`, `Global`, `Variable`) | the residue is analyser policy over typed facts — procedure definition, the dynamic-target and namespace domains, the interpreter-domain stack, rename epochs, member routing, literal-iteration simulation, the case-list walk and the completion protocol, package-index bookkeeping, `source` and `load` — plus three on the migration ledger (`Set`, `DictWith`, `RegexPatternCapture`), command-specific and left for the value axis to retire; a retired command falls to the dispatch tail's generic reads |
 | scope and interpreter transitions | resolvers on `upvar`, `global`, `variable`, `namespace`, `interp` (`rust/tcl-registry/src/state_transition.rs`), and a pack's `state_transitions` resolver | since step 2 the dispatch tail applies every `VariableCellAliasTransition` an invocation states (`apply_state_transitions`, over the call's source words: `global`, `variable`, `upvar`, `namespace upvar`, a pack command's alias facts) and `interp create` — direct, or the nested `[interp create …]` a `set` binds — reads its `InterpreterTransition::Create`; the namespace family still has no consumer there; `frame_effect` is read only for alias-pair layout and level parsing (`param_traits.rs`, `diagnostics/usage.rs`); the command-binding family only by `interp alias` and the static-proc proof |
 | loop and bind positions | roles and strided `repeated_args` | since step 2 one binder (`handle_var_binding_command`) binds every `LoopVarList` and `VarWrite` position the roles name — `foreach` (which keeps its literal-iteration simulation), `lmap`, `dict for` / `map` / `update`, `array for`, `incr`, `append`, `lappend`, `lassign`, … — and `package require` / `provide` / `ifneeded` read the roles their subcommands declare |
 | OO member effect | the member-effect descriptor (`MemberSpec::effect`, `MemberEffect`, in `rust/tcl-registry/src/definer.rs`) since step 2, beside the layout (`MemberKind`: `Flat`, `Wrapper`, `FlagKeyed`) and `arg_roles`, `slot`, `retraction`, `visibility_effect`, `surface`; every TclOO, snit, itcl, `SpecTcl` and `SslicTcl` member states one, and `DefinitionBodyGrammar::member_row` answers a statement's row | since step 2 one `match` on the row's effect (`member_landing`) routes the `TclOO` fold and the snit and itcl walkers, `MethodKind::from_effect` names the lowering's frames, and the providers read the recorded member; `property`'s flag words and snit's type-body implicit variable are the axis's residue in `analyser/oo.rs` |
-| clause grammar | the clause-grammar descriptor (`ClauseGrammarSpec`, `rust/tcl-registry/src/clause_grammar.rs`), on `CommandSpec` and `SubCommand` since step 2: ten shipped grammars, one registry walk answering the roles and the clause-shape defect, and the loader reading the same type | since step 2 the lowering (`lower_if`, `lower_try`), `handle_try_command`, the generic body walk's depths, the stray-keyword report, the CFG's `on ok` edge and `signature_scan/walker.rs` read the plan; the editor refactors and `tcl-mcp`'s `datagroup.rs` still walk keywords |
+| clause grammar | the clause-grammar descriptor (`ClauseGrammarSpec`, `rust/tcl-registry/src/clause_grammar.rs`), on `CommandSpec` and `SubCommand` since step 2: ten shipped grammars, one registry walk answering the roles and the clause-shape defect, and the loader reading the same type | since step 2 the lowering (`lower_if`, `lower_try`), the generic body walk (each body's depths by its clause's timing, and a clause's variable list — `try`'s handlers, whose `handle_try_command` step 2 retired), the stray-keyword report, the CFG's `on ok` edge, `signature_scan/walker.rs`, the editor refactors (`if_to_switch.rs`, `refactor/datagroup.rs`) and `tcl-mcp`'s `datagroup.rs` read the plan |
 | option-selected semantics | the option-effect descriptor (`OptionSpec::effect`, `option_effect_families`, `option_effect.rs`), which replaced the two native resolvers over a command's own option table — `substitution_resolver` and `lsearch_pattern_args` — in step 2; `pattern_arg_resolver` remains an escape hatch no shipped spec sets | three consumers ask `CommandRegistry::substitutions_performed` correctly; the dynamic-name barrier and the `inner_head_performs_substitution` gate read only the trait, and `push_substituted_commands` re-walks a braced template for regions the answer does not carry |
 
-Three descriptors are missing, and all three are specified below. The rest
-is consumer migration, through the generic operations the interface
-contract names.
+Three descriptors were missing; step 2 built all three, and each is
+specified below. The rest is consumer migration, through the generic
+operations the interface contract names.
 
 - Scope aliases become one generic application of the
   `VariableCellAliasTransition` the registry already emits; namespace and
@@ -606,23 +656,28 @@ refactors (`refactor/if_to_switch.rs`, `refactor/datagroup.rs`), and
 semantic-token classifier read the slot's `noise` word for the `then`
 distinction they draw by hand.
 
-*As built in step 2 (CC2.9).* The compiler consumers read the plan:
-`lower_if` and `lower_try` through `ResolvedInvocation::clause_walk`, whose
-walk compares the words' *values* (so the fall-through marker is exact) and,
-where a computed word stands where it compares one, abstains with the inert
-reading the lowering needs to defer the construct as the retired keyword
-walk did; `TryHandler::kind` is the row's `HandlerMatch`; `cfg_lower.rs`'s
-`on ok` edge reads `HandlerMatch::CompletionCode` and the registry's
-completion-code parse (`try` declares no default clause, so `is_default`
-never applies); `handle_try_command` walks the plan by timing, and the
-generic body walk sets each body's depth from its clause's timing —
-`for`'s handler retired onto it; the stray-keyword report asks
-`clause_grammar::owner_of_keyword`; `signature_scan/walker.rs` reads each
-clause's script word; and the registry's own `try_control_invocation`
+*As built in step 2 (CC2.9, CC2.10, CC2.13).* The compiler consumers read
+the plan: `lower_if` and `lower_try` through
+`ResolvedInvocation::clause_walk`, whose walk compares the words' *values*
+(so the fall-through marker is exact) and, where a computed word stands
+where it compares one, abstains with the inert reading the lowering needs
+to defer the construct as the retired keyword walk did; `TryHandler::kind`
+is the row's `HandlerMatch`; `cfg_lower.rs`'s `on ok` edge reads
+`HandlerMatch::CompletionCode` and the registry's completion-code parse
+(`try` declares no default clause, so `is_default` never applies); the
+generic body walk sets each body's depth from its clause's timing and binds
+every variable-list operand a clause fills — `for`'s handler retired onto it
+first, and `handle_try_command` after it, so a `try` handler body is
+`Selected`, conditional and control flow alike; the stray-keyword report
+asks `clause_grammar::owner_of_keyword`; `signature_scan/walker.rs` reads
+each clause's script word; and the registry's own `try_control_invocation`
 parses the plan rather than the keywords. A marker falls through to the next
 *selected* clause only — never to `finally` — and `ClausePlan::falls_through`
-names a marker with no clause to fall to. The editor tiers are step 2's
-next item.
+names a marker with no clause to fall to. The editor tiers read it too:
+`if_to_switch.rs` takes `lower_if`'s shape, `refactor/datagroup.rs` and
+`tcl-mcp`'s `datagroup.rs` read the plan and `CaseListSpec`, and recovery,
+the minifier and the semantic-token classifier read the option effects,
+subcommand tables and member kinds where they matched spellings.
 
 **The `.tclspec` row shape** extends the block the loader already reads
 ([../spec-dsl-examples/if.tclspec](../spec-dsl-examples/if.tclspec) is
@@ -1290,9 +1345,9 @@ extract-proc (`rust/tcl-lsp-core/src/refactor/`) keep their call.
 `lsearch_.rs` keeps its options and drops `lsearch_pattern_args`;
 `pattern_arg_resolver` stays on `CommandSpec` only for a pattern layout no
 axis can express. The Tcl 9.1 positive family carries the release gate its options carry,
-so Rust and `.tclspec` declare one thing (the loader's `option -effect` /
-`option_effect_family` spelling is the step's next item, CC2.7, and until it
-lands the studio draft records only that a spec declares families):
+so Rust and `.tclspec` declare one thing (the loader reads the same
+descriptor as `option -effect` and `option_effect_family`, and the studio
+drafts, renders and round-trips both):
 
 ```tcl
 command subst {
@@ -1346,10 +1401,11 @@ separate field at all.
 **The studio field.** Both `substitution_resolver` and
 `pattern_arg_resolver` lost their `GapKind::Excluded` rows: the first left
 `CommandSpec`, and the second is an escape hatch no shipped spec sets.
-`option -effect` / `option_effect_family` join the option-row form with the
-loader spelling (`rust/tcl-spec-studio/tests/option_row_editing.rs` is that
-form's gate); until then `option_effect_families` is a transient
-`DraftOpaque` row and an option row's `effect` is not drafted.
+`option -effect` / `option_effect_family` joined the option-row form with
+the loader spelling in step 2 (`rust/tcl-spec-studio/tests/option_row_editing.rs`
+is that form's gate): an option row's `effect` is drafted and written back,
+and `option_effect_families` has its generator and reverse parser, so
+neither carries a `GAPS` row.
 
 **Tests.** `rust/tcl-registry/src/substitution.rs`'s own unit rows —
 including `tp_no_switches_runs_every_substitution` — became rows of the
@@ -1398,17 +1454,24 @@ error.
   through `register_spec_builtin` in `runtime/rust/src/cmd_string.rs`) and
   `execute_intrinsic` implements one of the 28 `IntrinsicId` members. Its
   guard resolves through `CommandRegistry::build_default()` with no pack
-  overlay. Emitted modules carry no identity: no ABI version, no dialect
-  pin, no registry generation, no pack hashes.
-- The loader accepts `codegen_hook`, `inline_codegen_hook`, and
-  `semantic_operation {Intrinsic …}` stamps on any pack command from any
-  tier (`rust/tcl-spectcl/src/loader.rs`). Every production VM embedder
-  compiles through the un-overlaid profile generation, so the stamp is inert
-  there; on the language server's optimise path the emitter would specialise
-  and the VM would recompile plain. Neither outcome is tested, and both
-  become witnesses of § *The loader's stamp rejection rule*: a refused
-  stamp under the tier gate, and an accepted one whose recorded identity
-  the VM's alias hop resolves.
+  overlay. Its emitted modules carry no identity: no ABI version, no
+  dialect pin, no registry generation, no pack hashes.
+- A pack's `codegen_hook`, `inline_codegen_hook`, and `semantic_operation
+  {Intrinsic …}` stamps survive the load only as a bundled pack's
+  `alias_of` target's own, and are dropped with a warning naming the
+  provenance and the target everywhere else (§ *The loader's stamp
+  rejection rule*, `rust/tcl-spectcl/src/stamps.rs`); the refused stamp
+  under the tier gate is that section's first witness. No production VM
+  runs code compiled against a pack: the `tclvm` engine compiles through
+  `build_default` and the debugger through the profile's shared
+  generation, `tcl compile` and the Explorer compile against the
+  discovered set and run nothing, and the language server compiles no
+  bytecode — its optimise path is the source-to-source optimiser. So an
+  admitted stamp is inert in production, and the second witness compiles
+  one directly: the emitter specialises it and records the alias target's
+  identity and the pack facts behind it, which the VM's alias hop and its
+  held facts admit (`rust/tcl-spectcl/tests/codegen_stamps.rs`; rungs 1
+  and 2 below).
 - The BPF backend is a third closed catalogue (`bpf_op`) with no id table
   for packs to resolve against (the redesign's § *11.2 Deferred model
   items*, D3), and the engine interface excludes it by rule; it joins the
@@ -1446,8 +1509,8 @@ and lifetime argument.
 | Rung | The pack states | Attestation at admission | State |
 |---|---|---|---|
 | 0 | arity and roles | none needed; generic dispatch | exists, sound |
-| 1 | purity, effects, types, transfers, evaluators | none possible at run time; the fact is authoritative for analysis by ruling; what emitted code can check is the binding | evaluators exist; the answer protocol does not |
-| 2 | this command is a shipped builtin | the live binding is that builtin | `-override` exists; `alias_of` is new vocabulary |
+| 1 | purity, effects, types, transfers, evaluators | none possible at run time; the fact is authoritative for analysis by ruling; what emitted code can check is the binding, and the pack facts it was compiled under | evaluators exist; the answer protocol does not; a constant a pack's `const_fold` computed claims the pack's facts, checked at admission |
+| 2 | this command is a shipped builtin | the live binding is that builtin | `alias_of` decides which codegen stamps a bundled pack keeps, and codegen records the target's identity and claims the pack's facts, checked at admission |
 | 3 | a reference Tcl body | exact definition match of the live proc | the admission seam exists; no spec field |
 | 4 | a runtime implementation ships with the package | the runtime reports what it loaded; the artefact pins it | no `runtime_backing` field, no bundler |
 
@@ -1480,14 +1543,27 @@ flowchart LR
 ### What the artefact records per rung
 
 One claim per specialised site, and the rung is the variant. Rung 0
-records nothing because there is nothing a generic dispatch can get wrong.
+records nothing because there is nothing a generic dispatch can get wrong:
+a unit with no claims is the rung-0 case, and no variant stands for it.
+
+Rungs 1 and 2 are built (step 4). `SiteClaim` and `PackFactStamp` live in
+`rust/tcl-runtime-api/src/site_claim.rs`, and `FunctionAsm::site_claims`
+carries a function's claims beside its `command_bindings`. Codegen records
+`PackFacts` where a spec an installed pack supplied answered a constant
+fold (`rust/tcl-compiler/src/const_subst.rs`), and `BuiltinAlias` where a
+binding's identity came through `alias_of` (`ResolvedCall::stamp_identity`
+answered the target). `rust/tcl-compiler/src/site_claims.rs` builds both
+from the origin the installer records beside each spec it inserts
+(`CommandRegistry::pack_origin`, `rust/tcl-registry/src/pack_origin.rs`),
+the registry's overlay generation, and the compiling thread's evaluator
+revision. Rungs 3 and 4's variants are steps 8's and 7's.
 
 ```rust,ignore
-/// Proposed. What a specialised site carries in the artefact.
+/// What a specialised site carries in the artefact. Rungs 1 and 2 are
+/// built; rungs 3 and 4 are proposed.
 enum SiteClaim {
-    /// Rung 0. Generic dispatch; no claim, no admission check.
-    Generic,
-    /// Rung 1. The pack facts this site's specialisation rests on.
+    /// Rung 1. The pack facts this site's specialisation rests on — a
+    /// constant a pack's `const_fold` computed at compile time.
     PackFacts(PackFactStamp),
     /// Rung 2. The command the pack said this is, as the identity the
     /// VM's alias hop resolves — the *target's* identity, never the pack
@@ -1496,15 +1572,15 @@ enum SiteClaim {
         binding: CommandBindingIdentity,
         facts: PackFactStamp,
     },
-    /// Rung 3. A reference Tcl body, plus the backing that says a proc is
-    /// the right thing to compare against at all.
+    /// Proposed. Rung 3. A reference Tcl body, plus the backing that says
+    /// a proc is the right thing to compare against at all.
     ReferenceBody {
         procedure: ProcedureBindingIdentity,
         backing: RuntimeBacking,
         facts: PackFactStamp,
     },
-    /// Rung 4. A shipped implementation, and the identity kind codegen
-    /// chose from the backing.
+    /// Proposed. Rung 4. A shipped implementation, and the identity kind
+    /// codegen chose from the backing.
     ShippedImplementation {
         backing: RuntimeBacking,
         identity: IdentityKind,
@@ -1513,13 +1589,16 @@ enum SiteClaim {
 }
 
 /// Which pack facts a site rests on, so a changed pack invalidates the
-/// artefact rather than silently changing its meaning.
+/// artefact rather than silently changing its meaning. Built.
 struct PackFactStamp {
     /// The pack's name as `PackSet` holds it.
     pack: String,
-    /// The pack's content hash — the same value `EvalSnapshotKey` interns.
-    content_hash: [u8; 32],
-    /// `speclib`'s version word, so a vocabulary meaning change
+    /// The content hash of the pack file that declared the command — the
+    /// `u64` xxh3 its `EvalSnapshotKey` interns, folded with the hash of
+    /// every file an `include` row brought in.
+    content_hash: u64,
+    /// The loader's vocabulary version (`VOCABULARY_VERSION`, which the
+    /// snapshot key interns too), so a change in what a word means
     /// invalidates even at an unchanged content hash.
     vocabulary_version: String,
     /// The registry overlay generation the site compiled under.
@@ -1579,10 +1658,16 @@ otherwise.
 | Rung | Checked at admission | By | Refused when |
 |---|---|---|---|
 | 0 | nothing | — | never |
-| 1 | the stamp's content hash, vocabulary version, and overlay generation equal the loaded pack's; the evaluator revision equals the installed one | the VM's admission path, against the pinned generation | a pack changed, an overlay changed, or a revision moved |
-| 2 | `command_binding_matches` re-resolves the recorded identity, follows one prefix-free alias hop, and accepts a `Command::Builtin` whose identity matches or a registry TclOO root | `rust/tcl-vm/src/interp.rs` | a proc, a host command, an ensemble, a shimmed C command, or any execution trace |
+| 1 | every claim's `PackFactStamp` is one the VM holds, compared whole: pack, content hash, vocabulary version, overlay generation, and evaluator revision | the admission check in `rust/tcl-vm/src/interp.rs` (`function_command_bindings_match`), against the facts the embedder set with `Vm::set_pack_facts` — `PackSet::fact_stamps` for the set its registry installs | a pack changed, an overlay changed, a revision moved, or the VM holds no facts for the pack |
+| 2 | `command_binding_matches` re-resolves the recorded identity, follows one prefix-free alias hop, and accepts a `Command::Builtin` whose identity matches or a registry TclOO root; the claim's stamp is held, as for rung 1 | `rust/tcl-vm/src/interp.rs` | a proc, a host command, an ensemble, a shimmed C command, any execution trace, or a changed pack |
 | 3 | `procedure_binding_matches` compares creation name, parameters, and body text against the live proc, *and* the backing is `TclBody` | `rust/tcl-vm/src/interp.rs` plus the backing query | the body differs, or the backing is `ShippedBuiltin`, `HostNative`, or `None` — a proc is then a model of a C command, not the command |
 | 4 | the runtime's loaded report equals the claimed backing, and the artefact's manifest matches the runtime's own context pin | the runtime's backing query and `ArtefactIdentityManifest` | the report names a different backing, or the manifest disagrees on ABI version, environment, release, packs, or the intrinsic-table hash |
+
+Rungs 1 and 2's checks are built (step 4). `Vm::set_pack_facts` replaces
+the facts a VM holds and advances its compilation-deopt epoch, so a unit
+admitted under the old facts is checked again at its next entry or
+source-command boundary. A VM that holds none admits exactly the units that
+claim nothing, which is every unit compiled without a pack.
 
 Rung 3's extra conjunct is the one that is easy to lose: an exact body
 match is a true statement about a proc and says nothing about whether the
@@ -1591,29 +1676,37 @@ command whose backing is `HostNative` or `None`.
 
 ### The loader's stamp rejection rule
 
-The loader accepts `codegen_hook`, `inline_codegen_hook`, and
-`semantic_operation {Intrinsic …}` on any pack command from any tier
-(`rust/tcl-spectcl/src/loader.rs`). One rule replaces that, stated once
-and applied at registration:
+One rule decides whether a pack's *codegen-axis stamp* — `codegen_hook`,
+`inline_codegen_hook`, or `semantic_operation {Intrinsic …}`, on the
+command, one of its subcommands, or one of its invocation forms — reaches
+a registry. `rust/tcl-spectcl/src/stamps.rs` states it once; the load
+applies it to every merged command (`pack::load_sources`), the Spec Studio
+to the world it installs, and the install asserts that no stamp the gate
+refuses survives:
 
 1. **A codegen-axis stamp must be the target's own.** A stamp is admitted
    only when the command it is declared on resolves — through an
    `alias_of` declaration, not through a name match — to the shipped
-   builtin whose spec carries that same hook identity.
-   `CodegenHookId::Lassign` on a pack's `vendor::unpack` is refused unless
-   that command declares `alias_of lassign`, and the refusal names the
-   target it would have had to name.
-2. **A tier gate decides who may stamp at all.** The per-tier capability
-   matrix admits a codegen-axis stamp from `Provenance::BuiltIn` and
-   `Provenance::BundledPack`, and refuses it from `User`,
-   `WorkspaceTrusted`, `WorkspaceUntrusted`, `StudioOverride`, and
-   `Document` with the provenance named — the shape
-   `rust/tcl-spectcl/src/loader/eval.rs`'s E-R2 refusals already have.
+   builtin whose spec carries that same hook identity at the same site:
+   the command itself, its subcommand of the same name, or its form of the
+   same name. `CodegenHookId::Lassign` on a pack's `vendor::unpack` is
+   refused unless that command declares `alias_of lassign`, and the
+   refusal names the target it would have had to name.
+2. **A tier gate decides who may stamp at all.** A codegen-axis stamp is
+   admitted from `Provenance::BuiltIn` and `Provenance::BundledPack`
+   (`stamps_admitted_from`) and refused from `User`, `WorkspaceTrusted`,
+   `WorkspaceUntrusted`, `StudioOverride`, and `Document` with the
+   provenance named — the shape `rust/tcl-spectcl/src/loader/eval.rs`'s
+   E-R2 refusals have. Step 6's per-tier capability matrix takes this gate
+   over as its codegen row.
 3. **Refusal drops the stamp and nothing else.** The command still loads
-   with every analysis fact it declared, and the refusal is a notice
-   published on the pack file with the provenance and the target named.
-   That keeps the authority ruling intact: a refused stamp never costs the
-   author an analysis fact.
+   with every analysis fact it declared, and the refusal is a warning
+   published on the command's row of the pack file with the provenance and
+   the target named. That keeps the authority ruling intact: a refused
+   stamp never costs the author an analysis fact. The authoring tools
+   preview the same refusals — `spectcl_check`'s `stamp_refusals` for the
+   install it describes, and the Spec Studio's store report for the
+   workspace tier — while the document keeps the rows as written.
 4. **The floor is take-shipped for the whole axis.**
    `rust/tcl-registry/src/security_floor.rs` protects `codegen_hook` and
    `inline_codegen_hook` on overrides and nothing else, so an override
@@ -1622,10 +1715,12 @@ and applied at registration:
    take-shipped list, together with `native_lowering`, `bpf_op`, and
    `runtime_backing`.
 
+Rules 1 to 3 are built (step 4); rule 4 is step 6's.
+
 - **Rung 1** is where analysis facts live, and the analyser needs nothing
   from this page to use them. For *emitted code* the artefact records
-  `PackFactStamp`, so a changed pack invalidates the artefact rather than
-  silently changing its meaning. The floor
+  `PackFactStamp` (`SiteClaim::PackFacts`, built), so a changed pack
+  invalidates the artefact rather than silently changing its meaning. The floor
   (`rust/tcl-registry/src/security_floor.rs`) is a codegen-axis contract
   about which stamps may change emitted code, not a trust gate on analysis
   facts, and § *The loader's stamp rejection rule* above is what widens it.
@@ -1633,13 +1728,22 @@ and applied at registration:
   under the real shell and diffs it against the pack's declared facts, is
   a quality tool for shipped packs, not a prerequisite for a workspace
   author's facts.
-- **Rung 2** needs two corrections. `registry_codegen_hook` in
-  `rust/tcl-compiler/src/codegen/emitter/bytecoded.rs` records the resolved
-  spec's own name as the identity, so for a pack command the VM's alias hop
-  can never match; codegen records the alias target's identity instead, and
-  the loader refuses a stamp whose hook is not the target builtin's own.
-  The declaration that names the target is `alias_of NAME` on the pack
-  command, which is new vocabulary and the only admissible source: the
+- **Rung 2** needed two corrections, and both are built. The loader
+  refuses a stamp whose hook is not the target builtin's own (rule 1
+  above). And codegen records the alias target's identity where it used to
+  record the pack command's own name, which the VM's alias hop could never
+  match: `ResolvedCall::stamp_identity` (`rust/tcl-registry/src/codegen_stamp.rs`)
+  answers the target exactly where the target's own spec carries the stamp
+  at the same site, and `registry_codegen_hook`
+  (`rust/tcl-compiler/src/codegen/emitter/bytecoded.rs`) and the inline path
+  (`codegen/cmd_subst.rs`) record it, claiming beside it the pack facts
+  that made the target admissible (`SiteClaim::BuiltinAlias`). Only there: an `-override` keeps a
+  shipped command's codegen hook through the floor whatever `alias_of` it
+  declares, and recording an unrelated target would let a runtime alias of
+  the builtin's name to that target admit the builtin's code for another
+  command, so such a site records its own name. The declaration that names
+  the target is `alias_of NAME` on the pack command, the only admissible
+  source: the
   realm learns aliases from script statements
   (`rust/tcl-compiler/src/realm.rs`), and that knowledge is a candidate,
   never proof, so it may seed a suggestion in the studio and never admit a
@@ -1987,16 +2091,17 @@ and come before any runtime guard work.
 - `rust/tcl-registry/src/hooks.rs` — `AnalyserHookId`, `CodegenHookId`, `InlineCodegenHookId`, `LoweringHookId`
 - `rust/tcl-registry/src/state_transition.rs`, `frame_effect.rs`, `definer.rs`, `special_vars.rs`, `security_floor.rs`, `intrinsic.rs` — the descriptors the analyser under-consumes, the codegen-axis floor, and the intrinsic catalogue
 - `rust/tcl-registry/src/clause_shape.rs`, `spec.rs`, `repeated.rs`, `relation.rs` — `ClauseShapeError`, `CaseListSpec`, `OptionSpec`, `option_relations`, `reserved_trailing_words`, `RepeatedArgLayout`, `Relation::evaluate`
-- `rust/tcl-registry/src/substitution.rs`, `patterns.rs` — `subst_substitutions` and `lsearch_pattern_args`, the two native resolvers over a command's own option table
+- `rust/tcl-registry/src/substitution.rs`, `patterns.rs` — the substitution kinds and `option_selected_pattern_args`, which replaced `subst_substitutions` and `lsearch_pattern_args`, the two native resolvers over a command's own option table, with projections of the option-effect walk
 - `rust/tcl-registry/src/definer.rs` — `DefinitionBodyGrammar`, `MemberSpec`, `MemberKind`, `SlotSpec`, `MemberRetraction`, `MemberVisibility`, `DeclaredMemberVisibility`, `member_body_indices_in`
 - `rust/tcl-registry/src/model/declaration.rs`, `registration.rs` — `DeclaredCommand`, `DocumentCommandSurface`, and the second `untrusted(…)` predicate
 - `rust/tcl-registry/src/traits.rs` — `Traits::PURE`, `CREATES_SCOPE_ALIAS`, `CREATES_DYNAMIC_BARRIER`, `HAS_LOOP_BODY`, `UNSAFE`, `SAFE_INTERP_HIDDEN`, `CLAUSE_KEYWORDS_WITHOUT_COMMAND_SPEC`, `CLAUSE_NOISE_KEYWORDS`
-- `rust/tcl-compiler/src/analyser/handlers.rs`, `oo.rs`, `commands.rs`, `dispatch.rs`, `param_traits.rs`, `utils.rs`, `types.rs` — the hook dispatch, `apply_oo_subcommand_in`'s eleven arms, `handle_try_command`, `orphaned_keyword_parent`, `parse_stub_flags`, and `StubCommandDef::to_declared_command`
+- `rust/tcl-compiler/src/analyser/handlers.rs`, `oo.rs`, `commands.rs`, `dispatch.rs`, `param_traits.rs`, `utils.rs`, `types.rs` — the hook dispatch and its generic tail (`apply_state_transitions`, `handle_var_binding_command`, `dispatch_body_arguments`), `member_landing` and `apply_oo_subcommand_in`, `parse_stub_flags`, and `StubCommandDef::to_declared_command`
 - `rust/tcl-compiler/src/lowering/structured.rs`, `lowering/mod.rs`, `ir.rs`, `executable_ir.rs`, `cfg_builder/cfg_lower.rs`, `signature_scan/walker.rs` — `lower_if`, `lower_try`, `MethodKind::from_str_lossy`, `TryHandler`, `IfClause`, and the remaining clause-keyword walks
 - `rust/tcl-compiler/src/dynamic_names.rs`, `analyser/diagnostics/security.rs` — the substitution barrier and W102
 - `rust/tcl-compiler/src/codegen/emitter/bytecoded.rs`, `codegen/cmd_subst.rs`, `codegen/statements.rs`, `codegen/values.rs` — the typed hook dispatch and the residual by-name sites
 - `rust/tcl-compiler/src/realm.rs`, `command_binding.rs` — alias knowledge and binding validity
-- `rust/tcl-runtime-api/src/lib.rs`, `guard.rs`, `codegen_abi.rs` — `CommandBindingIdentity`, `ProcedureBindingIdentity`, `GuardIdentity`, the ABI descriptor table
+- `rust/tcl-runtime-api/src/lib.rs`, `guard.rs`, `codegen_abi.rs`, `site_claim.rs` — `CommandBindingIdentity`, `ProcedureBindingIdentity`, `GuardIdentity`, the ABI descriptor table, `SiteClaim` and `PackFactStamp`
+- `rust/tcl-compiler/src/site_claims.rs`, `rust/tcl-registry/src/pack_origin.rs`, `codegen_stamp.rs` — the claims codegen records, the pack origin they are built from, and the one "same stamp, same site" predicate
 - `rust/tcl-vm/src/interp.rs`, `exec.rs`, `command.rs`, `cmd_string.rs`, `environment.rs` — `command_binding_matches`, `procedure_binding_matches`, `guarded_commands`, `bump_cmd_epoch`, registration, the pin
 - `runtime/rust/src/interp.rs`, `codegen_abi.rs`, `cmd_string.rs`, `builtins.rs`, `capi.rs` — the WASM runtime's guard table, `execute_intrinsic`, `register_spec_builtin`, `invalidate_command_environment`, and the C surface
 - `rust/tcl-spectcl/src/loader.rs`, `loader/eval.rs`, `loader/environment_block.rs`, `discovery.rs`, `install.rs` — what a pack may write, tier to provenance, discovery, and the floor's application
@@ -2018,7 +2123,7 @@ and come before any runtime guard work.
 - `rust/tcl-spectcl/tests/spec_corpus.rs` — every shipped pack loaded, analysed, and run through the hook host at budget; a loading and containment gate, not a value oracle
 - `rust/tcl-spectcl/src/loader.rs` — `native_hook_tables_cover_their_catalogues`, the gate the argument-role hook body keeps
 - `rust/tcl-spec-studio/tests/spectcl_ports.rs` — `the_clause_grammar_derivation_agrees_with_the_shipped_walk`, widened to every grammar-carrying command
-- `rust/tcl-spec-studio/tests/spectcl_roundtrip.rs` — the round trip that loses the `semantic_operation` and `definition_body` `GAPS` rows
+- `rust/tcl-spec-studio/tests/spectcl_roundtrip.rs` — the round trip that loses the `semantic_operation` and `definition_body` `GAPS` rows, and carries `alias_of` (`alias_of_survives_the_round_trip`)
 - `rust/tcl-spec-studio/tests/option_row_editing.rs` — the option-row form that gains `-effect` and `option_effect_family`
 - `rust/tcl-registry/tests/registry_sweep.rs` — the descriptor agreement rules, beside `repeated_arg_layouts_never_pair_conditional_binding_with_an_ssa_def_role`
 - `rust/tcl-registry/tests/tcl91_dialect.rs` — the availability of `subst`'s positive option family
@@ -2026,6 +2131,8 @@ and come before any runtime guard work.
 - `rust/tcl-lsp-server/tests/preview_tickets_e2e.rs` — the definer spelling that reaches every provider with no consumer edit
 - `rust/tcl-cshim/tests/pkga_e2e.rs` — the byte-for-byte expectations captured against Tcl 9.0.4's own `tcl.h`, the shared conformance vectors for both C legs
 - `rust/tcl-spectcl/tests/i6_security_floor.rs` — the floor the take-shipped extension widens
+- `rust/tcl-spectcl/tests/workspace_packs.rs`, `codegen_stamps.rs` — the stamp rejection rule's two witnesses: a refused stamp under the tier gate, and a bundled `alias_of` stamp whose recorded target identity the VM admits through its alias hop (refused for a proc at the pack name); and the claims' admission: a changed pack refuses the site, and a pack's fold is admitted only under its facts
+- `rust/tcl-vm/tests/command_mutation_deopt_e2e.rs` — `a_rung_zero_module_is_admitted_under_a_changed_pack_set`, the claims check's rung-0 floor
 
 ## Related docs
 

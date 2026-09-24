@@ -75,9 +75,10 @@ Run it through `mcp__tcl-lsp__spectcl_check` — the spec-author Claude Code
 skill does this for you automatically. It parses the pack for real and
 reports, per command, which fields your declaration actually set; every
 dropped or misspelled word, with the line it was on; every hook you
-declared and whether it is cheap to call repeatedly; and any name
-collision with a shipped command. Fix every notice — a dropped word is
-otherwise silent. The MCP tool is the only validator; `tcl spec` itself has
+declared and whether it is cheap to call repeatedly; any name collision
+with a shipped command; and any codegen row the pack's tier may not keep
+([why a codegen hook is refused](kcs-qa-why-was-my-pack-codegen-hook-refused.md)).
+Fix every notice — a dropped word is otherwise silent. The MCP tool is the only validator; `tcl spec` itself has
 `import`, `upgrade`, and `export`.
 
 ### The server loads your pack automatically

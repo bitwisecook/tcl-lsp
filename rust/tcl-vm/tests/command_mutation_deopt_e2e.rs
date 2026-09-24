@@ -3147,3 +3147,42 @@ fn procedure_consumers_preserve_a_missing_typed_compiler_capability() {
         assert_eq!(completion.result.to_str().as_ref(), CAUSE, "{source}");
     }
 }
+
+/// A module compiled with no spec pack claims nothing, so the pack facts a
+/// VM holds cannot refuse it: it is admitted as compiled under no facts,
+/// under one pack set's, and under a changed set's — the rung-1 check never
+/// turns a rung-0 module plain.
+#[test]
+fn a_rung_zero_module_is_admitted_under_a_changed_pack_set() {
+    let module = BytecodeCompileService::default()
+        .compile("set l {a b c}\nset n [llength $l]\nlindex $l $n")
+        .expect("module compiles");
+    assert!(module.top_level.site_claims.is_empty());
+    assert!(
+        !module.top_level.command_bindings.is_empty(),
+        "specialised code, whose bindings admission checks"
+    );
+    let stamp = |content_hash| tcl_runtime_api::PackFactStamp {
+        pack: "vendor".to_owned(),
+        content_hash,
+        vocabulary_version: "2".to_owned(),
+        overlay_generation: 9,
+        evaluator_revision: 0,
+    };
+
+    let mut vm = Vm::new();
+    let fast_calls = Rc::new(Cell::new(0));
+    let plain_calls = Rc::new(Cell::new(0));
+    vm.set_compiler(Box::new(CountingCompilerSvc {
+        inner: BytecodeCompileService::default(),
+        fast_calls: Rc::clone(&fast_calls),
+        plain_calls: Rc::clone(&plain_calls),
+    }));
+    for facts in [Vec::new(), vec![stamp(1)], vec![stamp(2)]] {
+        vm.set_pack_facts(facts);
+        let completion = vm.run_module(&module);
+        assert_eq!(completion.code, Code::Ok, "{completion:?}");
+        assert_eq!(completion.result.to_str().as_ref(), "");
+    }
+    assert_eq!(plain_calls.get(), 0, "admitted as compiled every time");
+}

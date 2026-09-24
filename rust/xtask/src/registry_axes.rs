@@ -94,7 +94,8 @@ const AXES: &[&str] = &[
 /// expiry names one of them is stale: the change that was to retire the site
 /// has shipped without it. A lane bumps this when its step or slice lands.
 const LANDED: &[&str] = &[
-    "step 1", "step 2", "slice 1", "slice 2", "slice 3", "slice 4", "slice 5", "slice 8",
+    "step 1", "step 2", "step 3", "step 4", "slice 1", "slice 2", "slice 3", "slice 4", "slice 5",
+    "slice 8",
 ];
 
 /// The files the lint holds clean: every site waived or gone. A step that
@@ -1317,11 +1318,11 @@ mod tests {
                 .contains("no expiry")
         );
         assert!(
-            parse_waiver("options — the scan; until step 3")
-                .is_ok_and(|w| w.axis == "options" && w.until == "step 3")
+            parse_waiver("options — the scan; until step 5")
+                .is_ok_and(|w| w.axis == "options" && w.until == "step 5")
         );
         assert!(
-            parse_waiver("colour — x; until step 3")
+            parse_waiver("colour — x; until step 5")
                 .unwrap_err()
                 .contains("unknown axis")
         );
@@ -1342,7 +1343,7 @@ mod tests {
                 .contains("not `step N`")
         );
         // Found on the line, in the block above, and above an enclosing match.
-        let src = "// registry-axis-ok: clause_grammar — the walk; until step 3\nfn f(w: &str) -> bool { w == \"else\" }\nfn g(w: &str) -> bool { w == \"then\" } // registry-axis-ok: irreducible — Tcl grammar; until never\n// registry-axis-ok: definition_body — the arm table; until step 3\nfn h(w: &str) -> u8 {\n    match w {\n        \"method\" => 1,\n        _ => 0,\n    }\n}\nfn i(w: &str) -> bool { w == \"set\" }\n";
+        let src = "// registry-axis-ok: clause_grammar — the walk; until step 5\nfn f(w: &str) -> bool { w == \"else\" }\nfn g(w: &str) -> bool { w == \"then\" } // registry-axis-ok: irreducible — Tcl grammar; until never\n// registry-axis-ok: definition_body — the arm table; until step 5\nfn h(w: &str) -> u8 {\n    match w {\n        \"method\" => 1,\n        _ => 0,\n    }\n}\nfn i(w: &str) -> bool { w == \"set\" }\n";
         let comments = line_comments(src);
         let hits = scan(src, &sample());
         assert_eq!(hits.len(), 4);
@@ -1367,7 +1368,7 @@ mod tests {
 
     #[test]
     fn an_enclosing_match_carries_its_arms_waiver() {
-        let src = "fn h(w: &str) -> u8 {\n    // registry-axis-ok: definition_body — the arm table; until step 3\n    match w {\n        \"method\" => 1,\n        _ => 0,\n    }\n}\n";
+        let src = "fn h(w: &str) -> u8 {\n    // registry-axis-ok: definition_body — the arm table; until step 5\n    match w {\n        \"method\" => 1,\n        _ => 0,\n    }\n}\n";
         let comments = line_comments(src);
         let hits = scan(src, &sample());
         assert_eq!(hits.len(), 1);

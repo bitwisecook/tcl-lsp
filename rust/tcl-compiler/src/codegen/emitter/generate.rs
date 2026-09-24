@@ -1074,6 +1074,9 @@ fn finalize_function(
             .collect::<BTreeSet<_>>()
             .into_iter()
             .collect(),
+        site_claims: std::mem::take(&mut ctx.site_claim_requirements)
+            .into_iter()
+            .collect(),
     }
 }
 

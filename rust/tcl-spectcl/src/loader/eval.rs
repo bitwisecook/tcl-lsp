@@ -72,13 +72,14 @@
 //!   notice, and excludes the snapshot from
 //!   [`crate::cache::evaluate_pack_cached`]'s memoisation.
 //! - **E-R2**: provenance gates what a registration call may touch. For an
-//!   untrusted tier (workspace or Spec Studio override), a `command`
-//!   claiming a compiled name with `-override`, a `dialect` block (compiled
-//!   dialect axes), or an `environment` block claiming a reserved compiled
-//!   name fails the load with an error naming the provenance class —
-//!   reusing the same reserved-name check `environment_block` performs.
+//!   untrusted provenance (a workspace the editor has not trusted, or a Spec
+//!   Studio override), a `command` claiming a compiled name with `-override`,
+//!   a `dialect` block (compiled dialect axes), or an `environment` block
+//!   claiming a reserved compiled name fails the load with an error naming
+//!   the provenance class — reusing the same reserved-name check
+//!   `environment_block` performs.
 //! - **Snapshot caching seam**: [`EvalSnapshotKey`] = (content hash,
-//!   [`crate::VOCABULARY_VERSION`], [`LOADER_EVAL_VERSION`], tier). This
+//!   [`crate::VOCABULARY_VERSION`], [`LOADER_EVAL_VERSION`], tier, trust). This
 //!   module computes the identity and nothing more: both storage tiers live
 //!   in [`crate::cache`], which is the one door production code loads a pack
 //!   through. Target-dependent packs (E-R1) are never stored.
@@ -100,33 +101,39 @@ use super::{
 };
 use crate::discovery::Tier;
 use crate::export::{Registration, synth_word};
-use tcl_dialect::model::SpecSurface;
+use tcl_dialect::model::{SpecSurface, WorkspaceTrust};
 
 /// The evaluation loader's own version, part of the snapshot cache key: a
 /// change to how evaluation captures or replays invalidates every cached
 /// evaluated snapshot exactly once, independent of the vocabulary version.
 pub const LOADER_EVAL_VERSION: u32 = 2;
 
-/// How to evaluate a pack: the provenance tier gating registrations (E-R2)
-/// and the sandbox budget.
+/// How to evaluate a pack: the provenance tier and trust state gating
+/// registrations (E-R2), and the sandbox budget.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct EvalOptions {
     /// The tier the pack loads from. Whether its registrations are gated by
     /// E-R2's untrusted rules — no reserved compiled name, no compiled
     /// dialect axis — is [`Provenance::is_untrusted`]'s answer about the
     /// provenance [`super::PackEnvironmentTier::provenance`] maps this tier
-    /// to, never a property of the tier itself.
+    /// and [`Self::trust`] to, never a property of the tier alone.
     ///
-    /// Today that makes [`Tier::StudioOverride`] untrusted and
-    /// [`Tier::Workspace`] **trusted**: the latter maps to
-    /// [`Provenance::WorkspaceTrusted`] because nothing on the discovery
-    /// path is told the editor's Workspace Trust state yet (redesign ledger
-    /// item O9). This comment used to name both tiers as untrusted, which
-    /// was wrong for the first one it named (#2139).
+    /// That makes [`Tier::StudioOverride`] untrusted whatever the editor
+    /// says, and [`Tier::Workspace`] untrusted exactly when the editor has
+    /// not trusted the workspace ([`Provenance::WorkspaceUntrusted`]); a
+    /// trusted workspace is [`Provenance::WorkspaceTrusted`] and may
+    /// `-override` a shipped command. This comment once named both tiers
+    /// untrusted outright, which the discovery location never decided
+    /// (#2139).
     ///
     /// [`Provenance::is_untrusted`]: tcl_dialect::model::Provenance::is_untrusted
     /// [`Provenance::WorkspaceTrusted`]: tcl_dialect::model::Provenance::WorkspaceTrusted
+    /// [`Provenance::WorkspaceUntrusted`]: tcl_dialect::model::Provenance::WorkspaceUntrusted
     pub tier: Tier,
+    /// The editor's Workspace Trust state the pack loads under. Only the
+    /// workspace tier reads it ([`Tier::trust_under`]); the default, a client
+    /// that reports nothing, is trusted.
+    pub trust: WorkspaceTrust,
     /// The budgets evaluation runs under.
     pub config: PackEvalConfig,
     /// Whether the static fast path may short-circuit the interpreter for a
@@ -145,6 +152,7 @@ impl Default for EvalOptions {
     fn default() -> Self {
         Self {
             tier: Tier::Bundled,
+            trust: WorkspaceTrust::Trusted,
             config: PackEvalConfig::default(),
             static_fast_path: true,
         }
@@ -153,8 +161,9 @@ impl Default for EvalOptions {
 
 /// The identity an evaluated snapshot caches under (deep dive §1.1): the
 /// file bytes, the vocabulary, the evaluation loader build, and the
-/// provenance tier (which gates what the evaluation was allowed to
-/// register, so it is part of the answer's identity).
+/// provenance — the tier and the trust state, which together gate what the
+/// evaluation was allowed to register, so both are part of the answer's
+/// identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct EvalSnapshotKey {
     /// xxh3 of the pack source bytes.
@@ -165,16 +174,21 @@ pub struct EvalSnapshotKey {
     pub loader_eval_version: u32,
     /// The provenance tier the pack evaluated under.
     pub tier: Tier,
+    /// The trust state the tier read ([`Tier::trust_under`]): the editor's
+    /// for a workspace pack, trusted for every other tier, so an untrusted
+    /// workspace's snapshot never answers for a trusted one's.
+    pub trust: WorkspaceTrust,
 }
 
 /// The snapshot cache key for one source under one set of options.
 #[must_use]
 pub fn eval_snapshot_key(source: &str, options: &EvalOptions) -> EvalSnapshotKey {
     EvalSnapshotKey {
-        content_hash: xxhash_rust::xxh3::xxh3_64(source.as_bytes()),
+        content_hash: content_hash(source),
         vocabulary: crate::VOCABULARY_VERSION,
         loader_eval_version: LOADER_EVAL_VERSION,
         tier: options.tier,
+        trust: options.tier.trust_under(options.trust),
     }
 }
 
@@ -225,6 +239,7 @@ const ROW_WORDS: &[&str] = &[
     "safe_on_uninit",
     "deprecated_replacement",
     "deprecated_replacement_drop_in",
+    "alias_of",
     "xc_translatable",
     "arg",
     "repeat",
@@ -688,6 +703,10 @@ struct State {
     /// Content hashes on the current inclusion path, the root source
     /// first — the determinism contract's cycle key.
     include_stack: Vec<u64>,
+    /// The content hash of every fragment an `include` row evaluated, in
+    /// inclusion order — what the commands' content hash folds in beside
+    /// the root file's own ([`pack_content_hash`]).
+    included: Vec<u64>,
     /// Whether an included fragment is currently being evaluated: the
     /// verbatim index describes the *root* file, so line-keyed lookups
     /// must not fire inside an included one.
@@ -1316,7 +1335,7 @@ fn stage_include(
         }
     };
     let text = text.strip_prefix('\u{feff}').unwrap_or(&text).to_owned();
-    let hash = xxhash_rust::xxh3::xxh3_64(text.as_bytes());
+    let hash = content_hash(&text);
     {
         let mut st = state.borrow_mut();
         if st.include_stack.contains(&hash) {
@@ -1347,6 +1366,7 @@ fn stage_include(
             return Ok(());
         }
         st.include_stack.push(hash);
+        st.included.push(hash);
         st.base_lines.push(1);
     }
     let was_in_include = {
@@ -1629,6 +1649,9 @@ pub fn evaluate_pack_in(
     options: &EvalOptions,
     include: Option<Rc<super::IncludeContext>>,
 ) -> Pack {
+    // The file's own content hash, taken before the prologue is stripped:
+    // the value its snapshot key interns (`eval_snapshot_key`).
+    let root = content_hash(source);
     // The file entry point treats a leading byte-order mark as a prologue,
     // exactly as `pack_statements` does.
     let source = source.strip_prefix('\u{feff}').unwrap_or(source);
@@ -1643,7 +1666,8 @@ pub fn evaluate_pack_in(
     if options.static_fast_path
         && let Some(state) = drive_file_statically(source, include.clone())
     {
-        return replay(state, options);
+        let hash = pack_content_hash(root, &state.included);
+        return with_content_hash(replay(state, options), hash);
     }
 
     let state = new_state(source, include);
@@ -1672,9 +1696,41 @@ pub fn evaluate_pack_in(
         .unwrap_or_default();
 
     match outcome {
-        Ok(()) => replay(state, options),
+        Ok(()) => {
+            let hash = pack_content_hash(root, &state.included);
+            with_content_hash(replay(state, options), hash)
+        }
         Err(failure) => failed_pack(&state, &failure),
     }
+}
+
+/// xxh3 of a pack source's bytes — the one hashing rule the snapshot key,
+/// the include-cycle key, and a pack-fact stamp all use.
+#[must_use]
+pub(crate) fn content_hash(source: &str) -> u64 {
+    xxhash_rust::xxh3::xxh3_64(source.as_bytes())
+}
+
+/// The content hash a pack's commands carry: the root file's own when it
+/// included nothing, otherwise one xxh3 over the root's hash and each
+/// included fragment's in inclusion order, so an edit to an included file
+/// moves it too.
+fn pack_content_hash(root: u64, included: &[u64]) -> u64 {
+    if included.is_empty() {
+        return root;
+    }
+    let bytes: Vec<u8> = std::iter::once(root)
+        .chain(included.iter().copied())
+        .flat_map(u64::to_le_bytes)
+        .collect();
+    xxhash_rust::xxh3::xxh3_64(&bytes)
+}
+
+fn with_content_hash(mut pack: Pack, hash: u64) -> Pack {
+    for command in &mut pack.commands {
+        command.content_hash = hash;
+    }
+    pack
 }
 
 /// The staging state one load starts from.
@@ -1684,7 +1740,7 @@ fn new_state(source: &str, include: Option<Rc<super::IncludeContext>>) -> Rc<Ref
         let mut st = state.borrow_mut();
         st.verbatim = VerbatimIndex::of(source);
         st.include = include;
-        st.include_stack = vec![xxhash_rust::xxh3::xxh3_64(source.as_bytes())];
+        st.include_stack = vec![content_hash(source)];
     }
     state
 }
@@ -1773,37 +1829,6 @@ fn failed_pack(state: &State, failure: &PackEvalFailure) -> Pack {
 
 // Replay
 
-/// Whether this tier's registrations are gated by E-R2's untrusted rules.
-///
-/// The class itself is [`Provenance::is_untrusted`]'s to decide — this is
-/// only the tier-to-provenance step, through the map
-/// [`super::PackEnvironmentTier::provenance`] already owns, so the loader
-/// and the registration layer cannot disagree about what a tier means.
-/// Before the class was derived, the loader called `Tier::Workspace`
-/// untrusted while the environment model called the same tier
-/// [`Provenance::WorkspaceTrusted`].
-///
-/// Redesign §6.4 keys the workspace half on the **editor's Workspace Trust
-/// state**, not on where the file was discovered: a *trusted* workspace pack
-/// may `-override` a shipped command — that is the collision policy
-/// [`crate::install`] implements, tests, and reports through
-/// [`crate::pack::collision_notices`] — and only an *untrusted* workspace
-/// needs "explicit trusted opt-in". Nothing on the discovery path is told
-/// the trust state yet (redesign ledger item **O9**), so the untrusted class
-/// is reachable today through the live Spec Studio override tier; the day
-/// the editor's trust state is plumbed, it arrives as a tier whose
-/// provenance is [`Provenance::WorkspaceUntrusted`] and this predicate
-/// already answers for it.
-///
-/// [`Provenance::is_untrusted`]: tcl_dialect::model::Provenance::is_untrusted
-/// [`Provenance::WorkspaceTrusted`]: tcl_dialect::model::Provenance::WorkspaceTrusted
-/// [`Provenance::WorkspaceUntrusted`]: tcl_dialect::model::Provenance::WorkspaceUntrusted
-fn untrusted(tier: Tier) -> bool {
-    super::PackEnvironmentTier::of(tier)
-        .provenance()
-        .is_untrusted()
-}
-
 /// The compiled command surface a workspace pack may not shadow: the
 /// permissive all-Tcl view, the same registry the collision policy
 /// consults.
@@ -1812,54 +1837,97 @@ fn compiled_command_exists(name: &str) -> bool {
 }
 
 /// The first E-R2 violation in a pack's registration record **as if** the
-/// pack were untrusted at `tier`: the line it was declared on, and a
-/// notice-ready message naming the provenance class.
+/// pack were untrusted at `tier` — for the workspace tier, as if the editor
+/// had not trusted the workspace: the line it was declared on, and a
+/// notice-ready message naming the provenance class, in the conditional
+/// ("the pack would not be loaded from …"), since the pack it is asked of
+/// has loaded.
 ///
-/// Deliberately unconditional — it answers the hypothetical, so `tier` only
-/// supplies the class the message names. That is what the caller wants:
-/// reading the **record** rather than the evaluator's own staging lets the
-/// verdict be asked of a snapshot that has already loaded, which is how an
-/// authoring tool (`spectcl_check`, the Spec Studio's
+/// It answers the hypothetical, so `tier` supplies the class the message
+/// names, and the one thing it does not assume is a trust state the tier
+/// cannot have: the bundled and user tiers are trusted whatever the editor
+/// says ([`Tier::trust_under`]), the load never refuses them, and so neither
+/// does this — `None` there, by the same [`tcl_registry::model::untrusted`]
+/// predicate the load's own gate in [`replay`] asks. That is what the caller
+/// wants: reading the **record** rather than the evaluator's own staging lets
+/// the verdict be asked of a snapshot that has already loaded, which is how
+/// an authoring tool (`spectcl_check`, the Spec Studio's
 /// `untrusted_tier_refusal`) tells its user "this loads for you, and would
 /// be refused from an untrusted workspace" without evaluating the pack a
-/// second time. The load's own gate is in [`replay`], under [`untrusted`].
+/// second time.
 #[must_use]
 pub fn provenance_violation(pack: &Pack, tier: Tier) -> Option<(u32, String)> {
-    provenance_violation_in(&pack.registrations, tier)
+    let hypothetical = super::PackEnvironmentTier::of(tier, WorkspaceTrust::Untrusted);
+    if !tcl_registry::model::untrusted(hypothetical.provenance()) {
+        return None;
+    }
+    provenance_violation_in(&pack.registrations, hypothetical, Verdict::Previewed)
 }
 
-fn provenance_violation_in(registrations: &[Registration], tier: Tier) -> Option<(u32, String)> {
+/// Whether an E-R2 message reports the load's own refusal or an authoring
+/// tool's preview of one — the same finding, told in the mood that is true
+/// where it is read.
+#[derive(Debug, Clone, Copy)]
+enum Verdict {
+    /// The load refused the pack, so it is not loaded.
+    Refused,
+    /// The pack loaded; an untrusted install of it would not.
+    Previewed,
+}
+
+impl Verdict {
+    /// One E-R2 message: what the row does, where the pack loads from (the
+    /// load's own tier, or the tier the preview imagines), and the rule an
+    /// untrusted pack may not break.
+    fn message(self, fact: &str, connective: &str, class: &str, rule: &str) -> String {
+        match self {
+            Self::Refused => format!(
+                "{fact}{connective} this pack loads from the {class} tier; an untrusted pack \
+                 may not {rule}, so the pack is not loaded (design E-R2)"
+            ),
+            Self::Previewed => format!(
+                "{fact}; an untrusted pack may not {rule}, so the pack would not be loaded \
+                 from the {class} tier (design E-R2)"
+            ),
+        }
+    }
+}
+
+fn provenance_violation_in(
+    registrations: &[Registration],
+    tier: super::PackEnvironmentTier,
+    verdict: Verdict,
+) -> Option<(u32, String)> {
     let class = tier.label();
     for reg in registrations {
         match reg.word() {
             "command" if reg.has_flag("-override") && compiled_command_exists(reg.arg(1)) => {
                 return Some((
                     reg.line(),
-                    format!(
-                        "command `{}` declares `-override` for a compiled command \
-                         name, but this pack loads from the {class} tier; an \
-                         untrusted pack may not shadow compiled family names, so \
-                         the pack is not loaded (design E-R2)",
-                        reg.arg(1)
+                    verdict.message(
+                        &format!(
+                            "command `{}` declares `-override` for a compiled command name",
+                            reg.arg(1)
+                        ),
+                        ", but",
+                        class,
+                        "shadow compiled family names",
                     ),
                 ));
             }
             "dialect" => {
                 return Some((
                     reg.line(),
-                    format!(
-                        "`dialect {}` declares compiled dialect axes, but this pack \
-                         loads from the {class} tier; an untrusted pack may not alter \
-                         dialect axes, so the pack is not loaded (design E-R2)",
-                        reg.arg(1)
+                    verdict.message(
+                        &format!("`dialect {}` declares compiled dialect axes", reg.arg(1)),
+                        ", but",
+                        class,
+                        "alter dialect axes",
                     ),
                 ));
             }
             "environment" => {
-                if let Some(reserved) = environment_block::reserved_name_for(
-                    reg.arg(1),
-                    super::PackEnvironmentTier::of(tier),
-                ) {
+                if let Some(reserved) = environment_block::reserved_name_for(reg.arg(1), tier) {
                     let verb = if reg.has_flag("-extend") {
                         // §6.4: altering a canonical environment — detection
                         // rows and placements included — needs a trusted
@@ -1870,12 +1938,15 @@ fn provenance_violation_in(registrations: &[Registration], tier: Tier) -> Option
                     };
                     return Some((
                         reg.line(),
-                        format!(
-                            "`environment {}` {verb} `{reserved}`, a compiled \
-                             environment name, and this pack loads from the {class} \
-                             tier; an untrusted pack may not touch reserved names, so \
-                             the pack is not loaded (design E-R2)",
-                            reg.arg(1)
+                        verdict.message(
+                            &format!(
+                                "`environment {}` {verb} `{reserved}`, a compiled \
+                                 environment name",
+                                reg.arg(1)
+                            ),
+                            ", and",
+                            class,
+                            "touch reserved names",
                         ),
                     ));
                 }
@@ -1934,9 +2005,14 @@ fn replay(state: State, options: &EvalOptions) -> Pack {
     let registrations = record_nodes(&state.pack_nodes);
 
     // E-R2: provenance gates what the registrations may touch, and a
-    // violation is transactional — the whole pack is discarded.
-    if untrusted(options.tier)
-        && let Some((line, message)) = provenance_violation_in(&registrations, options.tier)
+    // violation is transactional — the whole pack is discarded. The one
+    // `untrusted` predicate (`tcl_registry::model::untrusted`) is the tree's
+    // single door onto `Provenance::is_untrusted`; this loader no longer
+    // keeps its own copy of the same match (#2139).
+    let tier = super::PackEnvironmentTier::of(options.tier, options.trust);
+    if tcl_registry::model::untrusted(tier.provenance())
+        && let Some((line, message)) =
+            provenance_violation_in(&registrations, tier, Verdict::Refused)
     {
         let error = LoadError::Provenance(message.clone());
         pack.notices.push(Notice {

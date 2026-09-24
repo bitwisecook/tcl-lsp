@@ -3296,9 +3296,9 @@ impl<'r> Lowerer<'r> {
         // the read on its subcommand, so `interp alias {} ds {} dict set`
         // reaches `dict`'s `set` and must read `d` as `dict set` does — O109
         // had deleted the store feeding `ds d k v`, and the program printed
-        // `k v` where tclsh 8.5 to 9.1 print `a 1 k v`.
-        let reads_before_write = self
-            .registry
+        // `k v` where tclsh 8.5 to 9.1 print `a 1 k v`. Asked of the
+        // document's surface, so a stub's `-mutator` states the same read.
+        let reads_before_write = surface
             .invocation_traits(&role_cmd, &role_args_ref, None)
             .contains(tcl_registry::Traits::READS_BEFORE_WRITE);
 
@@ -5777,6 +5777,42 @@ mod tests {
         assert!(
             m.oo_evidence.unretained_executable_roots,
             "the unrepresented initialise script must remain explicit evidence"
+        );
+    }
+
+    // TN: `self constructor` / `self destructor` name no member (tclsh
+    // 8.6.18, 9.0.4 and 9.1: `invalid command name "constructor"`), so
+    // neither lifts a unit (step 2, CC2.11: the keyword match lifted both) —
+    // while the instance-side spellings beside them do.
+    #[test]
+    fn tcloo_self_constructor_and_destructor_lift_no_unit() {
+        let src = "oo::class create S {\n\
+                   \x20   self constructor {} { set a 1 }\n\
+                   \x20   self destructor { set b 2 }\n\
+                   \x20   method m {} { return 3 }\n\
+                   }\n";
+        let m = lower_to_ir(src, &reg());
+        assert!(
+            m.methods
+                .values()
+                .all(|d| !matches!(d.kind, MethodKind::Constructor | MethodKind::Destructor)),
+            "methods: {:?}",
+            m.methods.keys().collect::<Vec<_>>()
+        );
+        assert!(m.methods.contains_key("::S::m"));
+        let src = "oo::class create T {\n\
+                   \x20   constructor {} { set a 1 }\n\
+                   \x20   destructor { set b 2 }\n\
+                   }\n";
+        let m = lower_to_ir(src, &reg());
+        assert_eq!(
+            m.methods["::T::<constructor>"].kind,
+            MethodKind::Constructor
+        );
+        assert!(
+            m.methods.values().any(|d| d.kind == MethodKind::Destructor),
+            "methods: {:?}",
+            m.methods.keys().collect::<Vec<_>>()
         );
     }
 

@@ -2776,6 +2776,7 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
     }
     text(out, ctx, draft, "deprecated_replacement");
     flag(out, ctx, draft, "deprecated_replacement_drop_in");
+    text(out, ctx, draft, "alias_of");
 
     // Descriptors.
     out.gap();

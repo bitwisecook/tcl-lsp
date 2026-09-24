@@ -966,9 +966,13 @@ gate rather than pass silently.
   `analyser_hook`, `return_type_hook`, `semantic_operation`, `bpf_op`) —
   bucket 2 of
   spec-packs.md's hook plan: a pack reuses named hooks, it cannot add to
-  them. Naming a *lowering* or *codegen* hook is reported at load, since
-  it changes how the compiler translates the command rather than what the
-  editor knows about it.
+  them. Naming a *lowering* hook is reported at load, since it changes how
+  the compiler translates the command rather than what the editor knows
+  about it. A *codegen-axis stamp* — `codegen_hook`, `inline_codegen_hook`,
+  or `semantic_operation {Intrinsic …}` — goes further: it survives only on
+  a bundled pack's command whose `alias_of` names the shipped builtin that
+  carries it, and the load drops it everywhere else with a warning naming
+  the provenance and the target (the stamp rejection rule).
 - `command NAME -override { … }` claims a name a shipped spec already
   has; without it, shipped wins and the collision is reported.
 
@@ -1399,6 +1403,7 @@ schema order. "excluded" rows carry the reason.
 | `xc_translatable` | `xc_translatable yes\|no` | argument required — absent means unset |
 | `deprecated_replacement` | `deprecated_replacement NAME` |  |
 | `deprecated_replacement_drop_in` | `deprecated_replacement_drop_in ?yes\|no?` |  |
+| `alias_of` | `alias_of NAME` | the shipped builtin this pack command is — the target whose own codegen-axis stamps a bundled pack may carry (`docs/design/compiler/registry-consumer-contracts.md` § "The loader's stamp rejection rule") |
 | `byte_array_payload` | `byte_array_payload -replace-data-index N ?-message-flag-shift?` |  |
 | `byte_array_effect` | `byte_array_effect None\|Transparent\|Coerces\|CaseFolds\|Encodes\|{Rebinarifies N}` |  |
 | `definition_body` | `definition_body NAME\|{ … }` | a shipped grammar by name (`tcloo`, `tcloo-configurable`, `snit`, `snit-widget`, `itcl`), a pack `descriptor`, or the inline block — see "Definer grammars and scoped bodies" |

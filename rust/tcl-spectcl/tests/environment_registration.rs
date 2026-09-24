@@ -52,7 +52,12 @@ fn a_pack_declared_environment_becomes_resolvable_with_its_facts() {
     assert!(pack.notices.is_empty(), "{:?}", pack.notices);
     let before = resolve_environment("tcl9.0").identity.generation;
 
-    let outcome = register_pack_environments(&pack, Tier::User).expect("registration succeeds");
+    let outcome = register_pack_environments(
+        &pack,
+        Tier::User,
+        tcl_dialect::model::WorkspaceTrust::Trusted,
+    )
+    .expect("registration succeeds");
     assert_eq!(outcome.declared, 1);
     assert_eq!(outcome.extended, 0);
     let generation = outcome.generation.expect("something registered");
@@ -115,7 +120,12 @@ fn a_pack_declared_environment_becomes_resolvable_with_its_facts() {
     assert!(tcl_registry::model::is_known_environment_name("vivaldi"));
 
     // Idempotent re-registration: a pack reload replaces, never stacks.
-    register_pack_environments(&pack, Tier::User).expect("re-registration succeeds");
+    register_pack_environments(
+        &pack,
+        Tier::User,
+        tcl_dialect::model::WorkspaceTrust::Trusted,
+    )
+    .expect("re-registration succeeds");
     let resolved = resolve_environment("vivaldi-shell-tcl");
     assert_eq!(
         resolved
@@ -150,8 +160,12 @@ fn reserved_and_untrusted_claims_fail_with_the_provenance_error() {
          }\n",
     );
     assert!(pack.notices.is_empty(), "{:?}", pack.notices);
-    let error = register_pack_environments(&pack, Tier::Workspace)
-        .expect_err("a workspace tier may not extend a compiled environment");
+    let error = register_pack_environments(
+        &pack,
+        Tier::Workspace,
+        tcl_dialect::model::WorkspaceTrust::Trusted,
+    )
+    .expect_err("a workspace tier may not extend a compiled environment");
     assert!(
         matches!(
             &error,
@@ -207,8 +221,12 @@ fn a_trusted_extension_of_a_compiled_environment_is_additive() {
          }\n",
     );
     assert!(pack.notices.is_empty(), "{:?}", pack.notices);
-    let outcome =
-        register_pack_environments(&pack, Tier::Bundled).expect("a bundled extension lands");
+    let outcome = register_pack_environments(
+        &pack,
+        Tier::Bundled,
+        tcl_dialect::model::WorkspaceTrust::Trusted,
+    )
+    .expect("a bundled extension lands");
     assert_eq!(outcome.extended, 1);
 
     let resolved = resolve_environment("synopsys-eda-tcl");

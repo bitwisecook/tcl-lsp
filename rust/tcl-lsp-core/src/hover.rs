@@ -3432,8 +3432,8 @@ fn infer_var_type_and_taint(
 ) -> (Option<String>, Option<String>) {
     // Inline `# tcl-lsp: stub` declarations only — hover holds the buffer's
     // text, not its path, so the sidecar half of the surface is out of reach
-    // here (and a sidecar-declared role can only widen, never narrow, what
-    // the inferred intrep shows).
+    // here, and a command only a sidecar declares answers as the catalogue
+    // has it.
     let declared =
         tcl_compiler::analyser::utils::document_declared_surface(source, None, profile.name);
     let unit = CompilationUnit::build_with_options(

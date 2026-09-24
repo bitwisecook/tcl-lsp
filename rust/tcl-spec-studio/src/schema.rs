@@ -1248,7 +1248,7 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Pattern-argument resolver",
         OPTS,
         FieldKind::RustExpr {
-            hint: "Some(lsearch_pattern_args)",
+            hint: "Some(my_pattern_resolver)",
         },
         "Native hook selecting pattern positions and languages for a concrete call.",
     ),
@@ -1333,6 +1333,15 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         DEPRECATION,
         FieldKind::Bool,
         "Whether the replacement accepts the deprecated argument list unchanged.",
+    ),
+    f(
+        "alias_of",
+        "Alias of",
+        IDENTITY,
+        FieldKind::OptText,
+        "The shipped builtin this pack command is — the only admissible source \
+         of a builtin identity for a pack command. Unset for every shipped \
+         command and every pack command that names no target.",
     ),
     f(
         "byte_array_payload",

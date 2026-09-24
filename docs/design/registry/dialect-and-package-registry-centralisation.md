@@ -329,10 +329,14 @@ under every pin.
   `Provenance::Document` for a buffer and `Provenance::WorkspaceUntrusted`
   for a sidecar), `DeclaredSurface` (the per-document generation) and
   `DocumentCommandSurface` (the one door). Cache invalidation rides the
-  document's own text and lsp-db's `sidecar_stubs_epoch` input. The role
-  lookup **unions** the catalogue's answer with the document's: an
-  untrusted addition may improve assistance and can never weaken a
-  shipped analysis fact.
+  document's own text and lsp-db's `sidecar_stubs_epoch` input. The
+  surface answers **nearest-wins**: for a name the document declares, the
+  declaration's roles, traits and side effects answer — its flags land on
+  the fields a catalogue command states them on — beneath the shipped
+  command's security traits and side effects (invariant I6); the catalogue
+  answers every other name
+  ([../contracts/dialect-stubs.md](../contracts/dialect-stubs.md)
+  § *Stubs are declarations*).
 - **R2 — the variable axis is part of the model.** Special variables are
   family/build-sensitive (Jim's `env`, picol 2's capital-initial
   globals); `special_vars.rs`'s table should become declarations

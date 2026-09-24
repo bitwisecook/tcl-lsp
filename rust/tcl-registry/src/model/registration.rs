@@ -156,9 +156,23 @@ pub fn provenance_label(provenance: Provenance) -> &'static str {
         Provenance::User => "user",
         Provenance::WorkspaceTrusted => "trusted workspace",
         Provenance::WorkspaceUntrusted => "untrusted workspace",
-        Provenance::StudioOverride => "studio override",
+        // The discovery tier's own label (`tcl_spectcl::Tier::label`), so a
+        // report naming both the provenance and the tier spells the class once.
+        Provenance::StudioOverride => "Spec Studio override",
         Provenance::Document => "document",
     }
+}
+
+/// Whether a definition of this provenance is gated by §6.4's untrusted
+/// rules (design E-R2) — the one exported door onto
+/// [`Provenance::is_untrusted`], re-exported as `tcl_registry::model::untrusted`.
+/// Before it existed, `tcl-spectcl`'s loader kept its own copy of the same
+/// three-variant match over a discovery tier rather than a provenance
+/// (#2139); it now calls this one, so the loader and the registration layer
+/// can no longer disagree about what "untrusted" means.
+#[must_use]
+pub fn untrusted(provenance: Provenance) -> bool {
+    provenance.is_untrusted()
 }
 
 impl std::fmt::Display for EnvironmentRegistrationError {
@@ -1191,5 +1205,34 @@ mod tests {
         .expect("registration succeeds");
         let after = resolve_environment("tcl9.0").identity.generation;
         assert!(after > before, "generation must move: {before} -> {after}");
+    }
+
+    /// The one exported predicate names exactly §6.4's three untrusted
+    /// classes, and agrees with [`Provenance::is_untrusted`] for every
+    /// variant — there is no second reading to drift from it (#2139).
+    #[test]
+    fn the_one_untrusted_predicate_names_the_three_classes() {
+        for provenance in [
+            Provenance::BuiltIn,
+            Provenance::BundledPack,
+            Provenance::User,
+            Provenance::WorkspaceTrusted,
+            Provenance::WorkspaceUntrusted,
+            Provenance::StudioOverride,
+            Provenance::Document,
+        ] {
+            assert_eq!(
+                untrusted(provenance),
+                provenance.is_untrusted(),
+                "{provenance:?}"
+            );
+        }
+        assert!(untrusted(Provenance::WorkspaceUntrusted));
+        assert!(untrusted(Provenance::StudioOverride));
+        assert!(untrusted(Provenance::Document));
+        assert!(!untrusted(Provenance::BuiltIn));
+        assert!(!untrusted(Provenance::BundledPack));
+        assert!(!untrusted(Provenance::User));
+        assert!(!untrusted(Provenance::WorkspaceTrusted));
     }
 }

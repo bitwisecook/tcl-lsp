@@ -7210,7 +7210,7 @@ async fn log_publish_timing(
 
 /// Which event asked for a `SpecTcl` pack reload.
 ///
-/// The reload itself is identical for all three — the trigger exists so the
+/// The reload itself is identical for all four — the trigger exists so the
 /// **startup** one can be told apart from the others, which is what
 /// [`STARTUP_RELOAD_HOLD_ENV`] needs: only the startup reload honours the
 /// test-only hold that forces the two-reload interleaving this module is
@@ -7224,6 +7224,10 @@ enum ReloadTrigger {
     WatchedFile,
     /// `tclLsp.specPacks` may have moved, so the discovery inputs did.
     Config,
+    /// The client reported a different Workspace Trust state, so a workspace
+    /// pack's hook bodies start or stop running. The pack-set key mixes the
+    /// state, so the reload re-installs even though no file moved.
+    Trust,
 }
 
 /// The workspace's published pack set, stamped with the reload generation that
@@ -7631,6 +7635,16 @@ pub struct Backend {
     /// `tclLsp.specPacks` — extra `.tclspec` files or directories to load as
     /// `SpecTcl` packs, on top of the ones discovery finds by convention.
     spec_pack_paths: Mutex<Vec<String>>,
+    /// The editor's Workspace Trust state for the open folders — what decides
+    /// whether a workspace pack's hook bodies run
+    /// (`docs/design/registry/spec-packs.md` § *Workspace trust*).
+    ///
+    /// Only the client says it: `initializationOptions.workspaceTrust` at
+    /// start, and a top-level `workspaceTrust` in a `didChangeConfiguration`
+    /// push when the editor grants trust ([`workspace_trust_in`]). Never a
+    /// pulled or synchronised `tclLsp` setting, which a workspace's own
+    /// settings file can write. A client that says nothing is trusted.
+    workspace_trust: Mutex<tcl_dialect::model::WorkspaceTrust>,
     /// The workspace's loaded `SpecTcl` packs (`docs/design/registry/spec-packs.md`).
     ///
     /// Workspace scope, deliberately: the set is loaded at `initialized` and
@@ -9132,6 +9146,7 @@ impl Backend {
             extra_commands: Mutex::new(Vec::new()),
             signature_help_disabled_commands: Mutex::new(Vec::new()),
             spec_pack_paths: Mutex::new(Vec::new()),
+            workspace_trust: Mutex::new(tcl_dialect::model::WorkspaceTrust::default()),
             spec_packs: Arc::new(Mutex::new(PublishedPackSet::default())),
             spec_pack_reload: Arc::new(Mutex::new(())),
             spec_pack_reload_seq: std::sync::atomic::AtomicU64::new(0),
@@ -11371,10 +11386,18 @@ impl Backend {
     /// dropped silently rather than failing the entire
     /// initialise — the server keeps starting up with whatever
     /// valid entries it could pull from the editor.
+    ///
+    /// `workspaceTrust: "trusted" | "untrusted"` is the editor's Workspace
+    /// Trust state ([`workspace_trust_in`]). Read here, before `initialized`
+    /// starts the first pack load, so an untrusted workspace's hook bodies
+    /// never run even once; a client that sends nothing is trusted.
     async fn apply_initialization_options(&self, params: &InitializeParams) {
         let Some(opts) = &params.initialization_options else {
             return;
         };
+        if let Some(trust) = workspace_trust_in(opts) {
+            *self.workspace_trust.lock().await = trust;
+        }
         // `folderDialects` map (per-folder dialect overrides).
         if let Some(entries) = opts
             .as_object()
@@ -12960,6 +12983,7 @@ impl Backend {
             extra_commands: _,
             signature_help_disabled_commands: _,
             spec_pack_paths: _,
+            workspace_trust: _,
             spec_packs: _,
             spec_pack_reload: _,
             spec_pack_reload_seq: _,
@@ -21039,12 +21063,14 @@ impl Backend {
     }
 
     /// What [`tcl_spectcl::discover`] should look at for this workspace:
-    /// every open folder, plus whatever `tclLsp.specPacks` names.
+    /// every open folder, plus whatever `tclLsp.specPacks` names, and the
+    /// editor's Workspace Trust state the workspace tier loads under.
     ///
     /// The user and bundled tiers take their defaults — the platform config
     /// directory and the shipped loadables — so a workspace need declare
     /// nothing to get them.
     async fn spec_pack_discovery(&self) -> tcl_spectcl::DiscoveryOptions {
+        let workspace_trust = *self.workspace_trust.lock().await;
         let workspace_roots: Vec<PathBuf> = self
             .workspace_folders
             .lock()
@@ -21076,6 +21102,7 @@ impl Backend {
             workspace_roots,
             configured,
             folder_configured,
+            workspace_trust,
             ..tcl_spectcl::DiscoveryOptions::default()
         }
     }
@@ -21163,7 +21190,11 @@ impl Backend {
             // and the shipped EDA loadables have to come from the embedded
             // copy. A plain load would leave every EDA command unknown in
             // exactly those clients.
-            let loaded = tcl_spectcl::bundled::load_discovered_in(pack_store.as_ref(), &files);
+            let loaded = tcl_spectcl::bundled::load_discovered_in(
+                pack_store.as_ref(),
+                &files,
+                options.workspace_trust,
+            );
             // The test seam, and the only place it can go: the snapshot is
             // taken, the publish has not happened, so the world is free to
             // change underneath a view that is already stale. The signal goes
@@ -23724,6 +23755,19 @@ impl LanguageServer for Backend {
             .or_else(|| params.settings.get("dialect"))
             .and_then(serde_json::Value::as_str)
             .map(str::to_owned);
+        // The editor's Workspace Trust state, when the client pushes it — VS
+        // Code does when the user grants trust. Top-level only: a `tclLsp`
+        // section here is the synchronised settings, which the workspace's
+        // own settings file can write (`workspace_trust_in`).
+        let trust_changed = match workspace_trust_in(&params.settings) {
+            Some(trust) => {
+                let mut current = self.workspace_trust.lock().await;
+                let changed = *current != trust;
+                *current = trust;
+                changed
+            }
+            None => false,
+        };
         let analyser_inputs_guard = self.analyser_inputs_gate.write().await;
         if let Some(d) = dialect {
             *self.default_dialect.lock().await = d;
@@ -23755,6 +23799,13 @@ impl LanguageServer for Backend {
         // keystroke.
         self.invalidate_diag_inputs();
         drop(analyser_inputs_guard);
+        // A trust change starts or stops a workspace pack's hook bodies. The
+        // pack-set key mixes the state, so this reload re-installs with no
+        // file moved, and every open document re-analyses against the bodies
+        // that now run — or no longer do.
+        if trust_changed && self.reload_spec_packs(ReloadTrigger::Trust).await {
+            self.reschedule_all_open_documents().await;
+        }
         // VS Code (and the e2e harness) push an empty/partial payload as a
         // signal to re-pull the full resolved config via
         // `workspace/configuration`.  Always re-pull so `features.*`, the
@@ -27643,6 +27694,26 @@ fn settings_non_ascii_mode(settings: &serde_json::Value) -> Option<NonAsciiMode>
         .or_else(|| settings.get("tclLsp.style.nonAscii"))
         .and_then(serde_json::Value::as_str)
         .map(parse_non_ascii_mode)
+}
+
+/// The editor's Workspace Trust state a client message states, when it
+/// states one: a top-level `workspaceTrust` of `"trusted"` or `"untrusted"`,
+/// in `initializationOptions` or in a `didChangeConfiguration` push.
+///
+/// Top-level only, and never read from a `tclLsp` section: VS Code's
+/// configuration sync pushes the whole resolved `tclLsp` section, and a pull
+/// answers it, both from every settings layer — the workspace's own
+/// `.vscode/settings.json` among them — so a nested key would let an
+/// untrusted workspace declare itself trusted. A client extension writes the
+/// top-level key itself, from the editor's own state. Anything else is no
+/// statement: the state stays what it was, trusted when nothing was ever
+/// said.
+fn workspace_trust_in(payload: &serde_json::Value) -> Option<tcl_dialect::model::WorkspaceTrust> {
+    match payload.get("workspaceTrust")?.as_str()? {
+        "trusted" => Some(tcl_dialect::model::WorkspaceTrust::Trusted),
+        "untrusted" => Some(tcl_dialect::model::WorkspaceTrust::Untrusted),
+        _ => None,
+    }
 }
 
 /// The wire severity for a shared [`tcl_core_types::Severity`], as every
@@ -35838,6 +35909,7 @@ mod tests {
             extra_commands: Mutex::new(Vec::new()),
             signature_help_disabled_commands: Mutex::new(Vec::new()),
             spec_pack_paths: Mutex::new(Vec::new()),
+            workspace_trust: Mutex::new(tcl_dialect::model::WorkspaceTrust::default()),
             spec_packs: Arc::new(Mutex::new(PublishedPackSet::default())),
             spec_pack_reload: Arc::new(Mutex::new(())),
             spec_pack_reload_seq: std::sync::atomic::AtomicU64::new(0),
@@ -38158,6 +38230,65 @@ mod tests {
         assert!(
             backend.disabled_diagnostics.lock().await.contains("W211"),
             "W211 should be disabled by the inline settings",
+        );
+    }
+
+    /// The editor's Workspace Trust state reaches pack discovery from the two
+    /// places a client states it — `initializationOptions.workspaceTrust` and a
+    /// top-level `workspaceTrust` push — and from nowhere a workspace's own
+    /// settings file can write. The negative: `tclLsp.workspaceTrust` inside
+    /// a pushed `tclLsp` section (what VS Code's configuration sync sends, from
+    /// every settings layer) changes nothing. A client that says nothing is
+    /// trusted.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn workspace_trust_comes_from_the_client_and_never_from_a_setting() {
+        use tcl_dialect::model::WorkspaceTrust;
+        let owned = test_backend();
+        let backend = &owned;
+        let trust = move || async move { backend.spec_pack_discovery().await.workspace_trust };
+        assert_eq!(trust().await, WorkspaceTrust::Trusted, "absent is trusted");
+
+        backend
+            .apply_initialization_options(&InitializeParams {
+                initialization_options: Some(serde_json::json!({
+                    "workspaceTrust": "untrusted",
+                })),
+                ..InitializeParams::default()
+            })
+            .await;
+        assert_eq!(trust().await, WorkspaceTrust::Untrusted);
+
+        // Each push ends in the coalesced configuration reload, which fails
+        // fast against the detached socket; the timeout is a backstop.
+        let push = move |settings: serde_json::Value| {
+            crate::rt::timeout(
+                std::time::Duration::from_secs(60),
+                backend.did_change_configuration(DidChangeConfigurationParams { settings }),
+            )
+        };
+        push(serde_json::json!({ "tclLsp": { "workspaceTrust": "trusted" } }))
+            .await
+            .expect("did_change_configuration should not hang");
+        push(serde_json::json!({ "tclLsp.workspaceTrust": "trusted" }))
+            .await
+            .expect("did_change_configuration should not hang");
+        assert_eq!(
+            trust().await,
+            WorkspaceTrust::Untrusted,
+            "a synchronised setting cannot grant trust"
+        );
+
+        push(serde_json::json!({ "workspaceTrust": "trusted" }))
+            .await
+            .expect("did_change_configuration should not hang");
+        assert_eq!(trust().await, WorkspaceTrust::Trusted, "the client's grant");
+        push(serde_json::json!({ "workspaceTrust": "sometimes" }))
+            .await
+            .expect("did_change_configuration should not hang");
+        assert_eq!(
+            trust().await,
+            WorkspaceTrust::Trusted,
+            "an unreadable value is no statement"
         );
     }
 

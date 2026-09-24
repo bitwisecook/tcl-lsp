@@ -84,6 +84,7 @@
 use std::collections::BTreeSet;
 
 use serde_json::{Map, Value, json};
+use tcl_dialect::model::WorkspaceTrust;
 use tcl_registry::CommandRegistry;
 use tcl_registry::pack_hooks::HookInputs;
 use tcl_registry::spec::CommandSpec;
@@ -138,11 +139,33 @@ fn ctx_key_in_shape(key: &str) -> bool {
 /// evaluation can see — [`load_error`](tcl_spectcl::LoadError) for the four transactional
 /// failures (a determinism denial naming its axis, a blown budget naming its
 /// axis, a Tcl error, a provenance refusal), the target-dependence flag, and
-/// the workspace-tier provenance verdict below.
+/// the `tier`/`trust` provenance preview below.
+///
+/// The pack is always **evaluated** as trusted — the file is the author's
+/// own, and the authority ruling makes its declarative facts authoritative
+/// regardless of trust, so every command, notice, and hook the pack declares
+/// is reported whatever `tier`/`trust` name. `tier` (`bundled`, `user`,
+/// `workspace`, or `studio-override`; default `workspace`, the tier a
+/// workspace `.tclspec` file actually installs at) and `trust` (`trusted` or
+/// `untrusted`; default `trusted`) instead choose which install this report
+/// *previews*, over that one evaluated snapshot rather than a second,
+/// possibly-discarding evaluation: `untrusted_tier_refusal` is the E-R2
+/// refusal `tier` would draw from an untrusted install (never for the
+/// bundled or user tier, which no trust state makes untrusted), and
+/// `dormant_hooks` is every hook body that stays dormant under the
+/// `(tier, trust)` pair's provenance (redesign O4) — empty when that
+/// provenance is itself untrusted and refuses the pack, since a pack that
+/// does not load holds nothing dormant. `stamp_refusals` is, on the same
+/// terms, every codegen-axis stamp that install drops under the stamp
+/// rejection rule ([`tcl_spectcl::stamps`]): all of them outside a bundled
+/// pack, and a bundled pack's too unless its command's `alias_of` names the
+/// shipped builtin that carries the stamp.
 pub fn spectcl_check(args: &Value) -> Value {
     let source = args.get("source").and_then(Value::as_str).unwrap_or("");
     let dialect = crate::tools::declared_dialect(args);
     let registry = tcl_spectcl::bundled::registry_for_dialect(&dialect);
+    let tier = declared_tier(args);
+    let trust = declared_trust(args);
 
     let pack = evaluate_pack(source);
 
@@ -168,13 +191,13 @@ pub fn spectcl_check(args: &Value) -> Value {
         .collect();
     // The provenance verdict the *author's* tier does not raise. Checking
     // evaluates a pack as trusted, because the file is the author's own; a
-    // pack lands in a workspace or a Spec Studio override, where E-R2 refuses
-    // a `-override` on a compiled name, a `dialect` block, or a reserved
-    // `environment` name outright. Reporting it here is the difference
-    // between finding that out now and finding it out when the pack silently
-    // fails to load in an editor.
-    let provenance = tcl_spectcl::provenance_violation(&pack, Tier::Workspace);
-    if let Some((line, message)) = &provenance {
+    // pack lands at `tier` (default the workspace tier a `.tclspec` file
+    // actually installs at), where E-R2 refuses a `-override` on a compiled
+    // name, a `dialect` block, or a reserved `environment` name outright.
+    // Reporting it here is the difference between finding that out now and
+    // finding it out when the pack silently fails to load in an editor.
+    let tier_refusal = tcl_spectcl::provenance_violation(&pack, tier);
+    if let Some((line, message)) = &tier_refusal {
         notices.push(json!({
             "line": line,
             "context": "pack",
@@ -182,6 +205,11 @@ pub fn spectcl_check(args: &Value) -> Value {
             "reason": message,
         }));
     }
+    let provenance = tcl_spectcl::PackEnvironmentTier::of(tier, trust).provenance();
+    let InstallPreview {
+        dormant_hooks,
+        stamp_refusals,
+    } = install_preview(&pack, provenance, tier_refusal.is_some());
     let collisions: Vec<Value> = pack
         .commands
         .iter()
@@ -222,7 +250,10 @@ pub fn spectcl_check(args: &Value) -> Value {
         "collisions": collisions,
         "load_error": pack.load_error.as_ref().map(ToString::to_string),
         "target_dependent": pack.target_dependent,
-        "untrusted_tier_refusal": provenance.as_ref().map(|(_, message)| message.clone()),
+        "untrusted_tier_refusal": tier_refusal.as_ref().map(|(_, message)| message.clone()),
+        "provenance": tcl_registry::model::provenance_label(provenance),
+        "dormant_hooks": dormant_hooks,
+        "stamp_refusals": stamp_refusals,
         "summary": {
             "commands": pack.commands.len(),
             "notices": notice_count,
@@ -232,7 +263,117 @@ pub fn spectcl_check(args: &Value) -> Value {
             "evaluate_findings": evaluate_finding_count,
             "collisions": collisions.len(),
             "shadowed_commands": shadowed,
+            "dormant_hooks": dormant_hooks.len(),
+            "stamp_refusals": stamp_refusals.len(),
         },
+    })
+}
+
+/// What the install a `(tier, trust)` pair describes does to the pack's
+/// executable half: the hook bodies it holds dormant and the codegen-axis
+/// stamps it drops.
+struct InstallPreview {
+    dormant_hooks: Vec<Value>,
+    stamp_refusals: Vec<Value>,
+}
+
+/// The [`InstallPreview`] at `provenance` — the pair's own, which the report
+/// names so an author sees which install this preview is of. `dormant_hooks`
+/// gates on it (D3.12: only an untrusted workspace holds bodies dormant), and
+/// `stamp_refusals` is the stamp rejection rule's verdict under it, the
+/// warnings the load would publish on each command's row. When that
+/// provenance is itself untrusted and refuses the pack (`refused`), the pack
+/// does not load there at all, so both are empty — the report says one thing
+/// about one install.
+fn install_preview(
+    pack: &tcl_spectcl::Pack,
+    provenance: tcl_dialect::model::Provenance,
+    refused: bool,
+) -> InstallPreview {
+    if refused && tcl_registry::model::untrusted(provenance) {
+        return InstallPreview {
+            dormant_hooks: Vec::new(),
+            stamp_refusals: Vec::new(),
+        };
+    }
+    let dormant_hooks = tcl_spectcl::hooks::dormant_hooks(&pack.name, &pack.commands, provenance)
+        .iter()
+        .map(dormant_hook_json)
+        .collect();
+    let stamp_refusals = pack
+        .commands
+        .iter()
+        .flat_map(|command| {
+            tcl_spectcl::stamps::stamp_refusals(
+                command.spec,
+                provenance,
+                tcl_spectcl::stamps::shipped(),
+            )
+            .into_iter()
+            .map(move |refusal| {
+                json!({
+                    "command": command.spec.name,
+                    "line": command.line,
+                    "message": refusal.message(),
+                })
+            })
+        })
+        .collect();
+    InstallPreview {
+        dormant_hooks,
+        stamp_refusals,
+    }
+}
+
+/// The `tier` argument's spelling of [`Tier::StudioOverride`] — the one
+/// tier whose own label ("Spec Studio override") is prose rather than a
+/// token an argument can carry.
+const STUDIO_OVERRIDE_ARGUMENT: &str = "studio-override";
+
+/// The four `tier` argument values the schema advertises: each discovery
+/// tier's own [`Tier::label`], and [`STUDIO_OVERRIDE_ARGUMENT`].
+pub(crate) const TIER_ARGUMENTS: [&str; 4] = [
+    Tier::Bundled.label(),
+    Tier::User.label(),
+    Tier::Workspace.label(),
+    STUDIO_OVERRIDE_ARGUMENT,
+];
+
+/// The tier `tier`/`trust` name, from the MCP arguments: the tier a
+/// workspace `.tclspec` file actually installs at by default, the other
+/// three discovery tiers on request, each by its own label.
+fn declared_tier(args: &Value) -> Tier {
+    let Some(named) = args.get("tier").and_then(Value::as_str) else {
+        return Tier::Workspace;
+    };
+    if named == STUDIO_OVERRIDE_ARGUMENT {
+        return Tier::StudioOverride;
+    }
+    [Tier::Bundled, Tier::User, Tier::Workspace]
+        .into_iter()
+        .find(|tier| tier.label() == named)
+        .unwrap_or(Tier::Workspace)
+}
+
+/// The editor's Workspace Trust state to preview `dormant_hooks` under —
+/// trusted by default, since the file is the author's own and that is what
+/// checking it has always meant.
+fn declared_trust(args: &Value) -> WorkspaceTrust {
+    match args.get("trust").and_then(Value::as_str) {
+        Some("untrusted") => WorkspaceTrust::Untrusted,
+        _ => WorkspaceTrust::Trusted,
+    }
+}
+
+/// One dormant hook, as `spectcl_check` reports it: the same fact
+/// [`tcl_spectcl::PackNotice::dormant`] turns into a load-time notice, keyed
+/// so an author can find the row.
+fn dormant_hook_json(hook: &tcl_spectcl::hooks::DormantHook) -> Value {
+    json!({
+        "command": hook.command,
+        "field": hook.field,
+        "line": hook.line,
+        "message": tcl_spectcl::PackNotice::dormant(hook).message,
     })
 }
 
@@ -402,6 +543,7 @@ fn hook_json(hook: &HookDecl, spec: &CommandSpec) -> Value {
     json!({
         "owner": owner_label(&hook.owner),
         "field": hook.field,
+        "line": hook.line,
         "family": family_key(hook.family),
         "source": kind,
         "detail": detail,
@@ -969,6 +1111,36 @@ speclib timed 1.2 {
             result["commands"][0]["hooks"][0]["family"],
             "script_timing_resolver"
         );
+    }
+
+    /// A pack-authored `state_transitions` resolver body is a hook like any
+    /// other family's: reported under the family's field spelling, with the
+    /// two verbs its sandbox defines and what its silence means.
+    #[test]
+    fn a_state_transition_resolver_is_reported_as_a_hook() {
+        let source = r"
+speclib linked 2.1 {
+    command linked::alias {
+        arity 2
+        state_transitions {
+            argument_shape Positional
+            resolver {words ctx} { alias 1 0 }
+        }
+    }
+}
+";
+        let result = check(source, "tcl9.0");
+        assert_eq!(result["notices"], json!([]), "{result}");
+        assert_eq!(
+            strings(&result["commands"][0]["hook_families"]),
+            vec!["state_transitions.resolver"]
+        );
+        let hook = &result["commands"][0]["hooks"][0];
+        assert_eq!(hook["family"], "state_transitions.resolver", "{hook}");
+        assert_eq!(hook["field"], "state_transitions.resolver", "{hook}");
+        assert_eq!(hook["source"], "body", "{hook}");
+        assert_eq!(hook["verbs"], json!(["alias", "namespace-variable"]));
+        assert_eq!(hook["silence_means"], "no transitions");
     }
 
     /// A body that declares nothing may read anything, and is never cached —
@@ -1540,6 +1712,42 @@ speclib mylib 1.0 {
         assert!(classes.contains(&"provenance"), "{result}");
     }
 
+    /// The bundled and user tiers are trusted whatever the editor says, and
+    /// the load never refuses them, so a preview at either draws no refusal
+    /// — even for an `-override` of a compiled command the workspace tier
+    /// would refuse — while the workspace default still does.
+    #[test]
+    fn a_bundled_or_user_tier_draws_no_refusal() {
+        let source =
+            "speclib sneaky 2.0 {\n    command lsort -override {\n        arity 1..\n    }\n}\n";
+        for (tier, provenance) in [("bundled", "bundled"), ("user", "user")] {
+            let result = dispatch(
+                "spectcl_check",
+                &json!({ "source": source, "dialect": "tcl9.0", "tier": tier }),
+            )
+            .expect("spectcl_check tool");
+            assert_eq!(
+                result["untrusted_tier_refusal"],
+                Value::Null,
+                "{tier}: {result}"
+            );
+            assert_eq!(result["provenance"], provenance, "{tier}: {result}");
+            let classes: Vec<&str> = result["notices"]
+                .as_array()
+                .expect("notices")
+                .iter()
+                .filter_map(|n| n["class"].as_str())
+                .collect();
+            assert!(!classes.contains(&"provenance"), "{tier}: {result}");
+            assert_eq!(result["summary"]["commands"], 1, "{tier}: {result}");
+        }
+        let workspace = check(source, "tcl9.0");
+        assert!(
+            workspace["untrusted_tier_refusal"].is_string(),
+            "the workspace default still previews the refusal: {workspace}"
+        );
+    }
+
     /// A pack that touches nothing reserved carries no refusal.
     #[test]
     fn an_ordinary_pack_carries_no_tier_refusal() {
@@ -1548,6 +1756,160 @@ speclib mylib 1.0 {
         assert_eq!(result["target_dependent"], json!(false), "{result}");
         assert_eq!(result["load_error"], Value::Null, "{result}");
     }
+
+    /// `tier`/`trust` default to `workspace`/`trusted` — the tier a
+    /// workspace `.tclspec` file actually installs at, previewed as if the
+    /// editor already trusts it — so a call naming neither answers exactly
+    /// as an explicit `workspace`/`trusted` call does, and the two fields
+    /// this item adds are present but vacuous at that default: no hook is
+    /// dormant, and the provenance names a trusted workspace.
+    #[test]
+    fn the_default_tier_and_trust_equal_an_explicit_workspace_trusted_call() {
+        let default = dispatch(
+            "spectcl_check",
+            &json!({ "source": VALID, "dialect": "tcl9.0" }),
+        )
+        .expect("spectcl_check tool");
+        let explicit = dispatch(
+            "spectcl_check",
+            &json!({
+                "source": VALID,
+                "dialect": "tcl9.0",
+                "tier": "workspace",
+                "trust": "trusted",
+            }),
+        )
+        .expect("spectcl_check tool");
+        assert_eq!(
+            default, explicit,
+            "default must equal an explicit workspace/trusted call"
+        );
+        assert_eq!(default["provenance"], "trusted workspace", "{default}");
+        assert_eq!(default["dormant_hooks"], json!([]), "{default}");
+        assert_eq!(default["summary"]["dormant_hooks"], 0, "{default}");
+    }
+
+    /// A `const_fold` body checked as `trust: untrusted` (tier still the
+    /// `workspace` default): the pack loads there, its body is held dormant,
+    /// and its command is still fully reported — holding a body dormant
+    /// costs no analysis fact.
+    #[test]
+    fn trust_untrusted_lists_the_hook_as_dormant() {
+        let result = dispatch(
+            "spectcl_check",
+            &json!({ "source": STRLEN_FOLD, "dialect": "tcl9.0", "trust": "untrusted" }),
+        )
+        .expect("spectcl_check tool");
+        assert_eq!(result["provenance"], "untrusted workspace", "{result}");
+        assert_eq!(result["untrusted_tier_refusal"], Value::Null, "{result}");
+        let dormant = result["dormant_hooks"].as_array().expect("dormant_hooks");
+        assert_eq!(dormant.len(), 1, "{result}");
+        assert_eq!(dormant[0]["command"], "trustfold::strlen", "{result}");
+        assert_eq!(dormant[0]["field"], "const_fold", "{result}");
+        assert_eq!(result["summary"]["dormant_hooks"], 1, "{result}");
+        assert_eq!(result["summary"]["commands"], 1, "{result}");
+        assert_eq!(result["load_error"], Value::Null, "{result}");
+    }
+
+    /// The same body beside an `-override` of a compiled command, checked as
+    /// `trust: untrusted`: that install refuses the whole pack, so the
+    /// report names the refusal and no dormant body — a pack that does not
+    /// load holds nothing dormant. The author's own check still reports both
+    /// commands (the authority ruling: the preview costs no analysis fact).
+    #[test]
+    fn a_pack_the_untrusted_install_refuses_holds_no_dormant_hook() {
+        let source = STRLEN_FOLD.replace(
+            "\n}\n",
+            "\n    command lsort -override {\n        arity 1..\n    }\n}\n",
+        );
+        let result = dispatch(
+            "spectcl_check",
+            &json!({ "source": source, "dialect": "tcl9.0", "trust": "untrusted" }),
+        )
+        .expect("spectcl_check tool");
+        assert_eq!(result["provenance"], "untrusted workspace", "{result}");
+        let refusal = result["untrusted_tier_refusal"]
+            .as_str()
+            .unwrap_or_default();
+        assert!(refusal.contains("design E-R2"), "{result}");
+        assert!(
+            refusal.contains("would not be loaded from the untrusted workspace tier"),
+            "{result}"
+        );
+        assert_eq!(result["dormant_hooks"], json!([]), "{result}");
+        assert_eq!(result["summary"]["dormant_hooks"], 0, "{result}");
+        assert_eq!(result["summary"]["commands"], 2, "{result}");
+        assert_eq!(result["load_error"], Value::Null, "{result}");
+
+        // Negative control: the trusted install loads the pack, so the
+        // refusal is only the preview's, and still no body is dormant there
+        // because a trusted workspace runs it.
+        let trusted = check(&source, "tcl9.0");
+        assert!(trusted["untrusted_tier_refusal"].is_string(), "{trusted}");
+        assert_eq!(trusted["dormant_hooks"], json!([]), "{trusted}");
+    }
+
+    /// The stamp rejection rule, previewed: a workspace install drops a
+    /// codegen-axis stamp even on `alias_of lassign`, a bundled one admits
+    /// it there, and a bundled one naming a target that does not carry it
+    /// drops it and names the target that does.
+    #[test]
+    fn stamp_refusals_preview_the_install_the_pair_describes() {
+        let unpack = |target: &str| {
+            format!(
+                "speclib vendor 2.0 {{\n    command vendor::unpack {{\n        arity 2..\n        \
+                 alias_of {target}\n        codegen_hook -native Lassign\n    }}\n}}\n"
+            )
+        };
+        let at = |source: &str, tier: &str| {
+            dispatch(
+                "spectcl_check",
+                &json!({ "source": source, "dialect": "tcl9.0", "tier": tier }),
+            )
+            .expect("spectcl_check tool")
+        };
+
+        let workspace = at(&unpack("lassign"), "workspace");
+        let refusals = workspace["stamp_refusals"]
+            .as_array()
+            .expect("stamp_refusals");
+        assert_eq!(refusals.len(), 1, "{workspace}");
+        assert_eq!(refusals[0]["command"], "vendor::unpack", "{workspace}");
+        assert_eq!(refusals[0]["line"], 2, "{workspace}");
+        assert_eq!(
+            refusals[0]["message"],
+            "`codegen_hook Lassign` refused for `vendor::unpack`: a trusted workspace pack may not \
+             name a codegen catalogue member; only a bundled pack may carry `alias_of lassign`'s \
+             own stamp",
+            "{workspace}"
+        );
+        assert_eq!(workspace["summary"]["stamp_refusals"], 1, "{workspace}");
+        // The author's own check still reports the stamp as a field set.
+        assert_eq!(workspace["summary"]["commands"], 1, "{workspace}");
+
+        let bundled = at(&unpack("lassign"), "bundled");
+        assert_eq!(bundled["stamp_refusals"], json!([]), "{bundled}");
+
+        let wrong = at(&unpack("lsort"), "bundled");
+        let refusals = wrong["stamp_refusals"].as_array().expect("stamp_refusals");
+        assert_eq!(refusals.len(), 1, "{wrong}");
+        let message = refusals[0]["message"].as_str().unwrap_or_default();
+        assert!(
+            message.contains("`alias_of lsort` names a shipped command that does not carry it")
+                && message.ends_with("the stamp would have to sit on `alias_of lassign`"),
+            "{wrong}"
+        );
+    }
+
+    /// One `const_fold` body — the hook the dormancy previews are about.
+    const STRLEN_FOLD: &str = "speclib trustfold 2.2 {\n    \
+         command trustfold::strlen {\n        \
+             arity 1\n        \
+             arg 0 -role Value\n        \
+             const_fold -inputs {words} {words ctx} {\n            \
+                 fold [string length [lindex $words 0]]\n        \
+             }\n    \
+         }\n}\n";
 
     // ── spectcl_expand ────────────────────────────────────────────────
 

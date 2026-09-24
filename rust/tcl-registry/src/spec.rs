@@ -1992,6 +1992,26 @@ pub struct CommandSpec {
     /// (`"(removed)"`) — those keep the message-only deprecation warning.
     pub deprecated_replacement_drop_in: bool,
 
+    /// The shipped builtin this pack command **is** — the only admissible
+    /// source of a builtin identity for a pack command, never inferred
+    /// from a realm alias (`rust/tcl-compiler/src/realm.rs` learns
+    /// aliases from script statements, which is a candidate, never
+    /// proof, so it may seed a Spec Studio suggestion and never admit a
+    /// site). `None` for every shipped command and every pack command
+    /// that declares no target.
+    ///
+    /// The stamp rejection rule (`tcl_spectcl::stamps`) reads it: a
+    /// codegen-axis stamp (`codegen_hook`, `inline_codegen_hook`,
+    /// `semantic_operation Intrinsic(…)`) on a pack command survives the
+    /// load only from a bundled pack, and only when this field names the
+    /// shipped builtin whose spec carries that same stamp at the same site
+    /// (`docs/design/compiler/registry-consumer-contracts.md` § *The
+    /// loader's stamp rejection rule*). Codegen reads it through
+    /// [`crate::ResolvedCall::stamp_identity`]: a site specialised on a
+    /// stamp this field's target carries records the target's identity, so
+    /// the VM's alias hop from the pack name to the builtin admits it.
+    pub alias_of: Option<&'static str>,
+
     /// `<proto>::payload` byte-array layout — `Some` when this command's
     /// getter returns raw bytes (a binary source) and its `replace` form is a
     /// byte sink, for the S110 byte-array-corruption check. `None` = not a
@@ -2438,6 +2458,7 @@ impl CommandSpec {
         xc_translatable: None,
         deprecated_replacement: None,
         deprecated_replacement_drop_in: false,
+        alias_of: None,
         byte_array_payload: None,
         byte_array_effect: crate::byte_array_effect::ByteArrayEffect::None,
         definition_body: None,

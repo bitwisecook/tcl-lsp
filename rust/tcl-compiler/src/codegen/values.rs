@@ -92,6 +92,9 @@ impl CodegenCtx<'_> {
             for binding in &fold.command_bindings {
                 self.require_command_binding(binding);
             }
+            for claim in &fold.site_claims {
+                self.require_site_claim(claim);
+            }
             // The fold consumes a real command invocation. Retain its own
             // replay boundary so a command-table mutation in an earlier
             // argument of the enclosing active command cannot make these

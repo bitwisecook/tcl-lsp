@@ -46,8 +46,11 @@ use tcl_dialect::DialectProfile;
 use tcl_registry::registry::CommandRegistry;
 
 use crate::hooks;
-use crate::pack::{PackSet, installs_over};
+use crate::loader::PackCommand;
+use crate::pack::{MergedPack, PackSet, installs_over};
+use tcl_registry::pack_origin::PackOrigin;
 use tcl_registry::security_floor::SecurityFloor;
+use tcl_registry::spec::CommandSpec;
 
 /// The registry for `profile` with `packs` installed.
 ///
@@ -139,7 +142,19 @@ fn install_into(
         for special in &pack.special_vars {
             registry.insert_special_var(special.spec);
         }
+        let provenance = pack.provenance();
         for command in &pack.commands {
+            // The stamp rejection rule runs where a set is assembled
+            // (`pack::load_sources`, and the studio's own set): no
+            // codegen-axis stamp reaches a registry from a provenance whose
+            // tier gate refuses one.
+            debug_assert!(
+                crate::stamps::stamps_admitted_from(provenance)
+                    || !crate::stamps::carries_stamp(command.spec),
+                "a codegen-axis stamp on `{}` survived from a {} pack",
+                command.spec.name,
+                tcl_registry::model::provenance_label(provenance),
+            );
             if context.required_package_available(command.spec.required_package)
                 && installs_over(command, registry)
             {
@@ -149,16 +164,35 @@ fn install_into(
                 // strip `exec`'s TAINT_SINK and silence taint diagnostics
                 // about the repository that shipped the pack. The floor is not
                 // keyed on the tier: see `security_floor`'s module docs.
-                match registry.get(specialised.name) {
+                let installed = match registry.get(specialised.name) {
                     Some(shipped) => {
                         let mut merged = specialised.clone();
                         SecurityFloor::of(shipped).apply(&mut merged);
-                        registry.insert(merged);
+                        merged
                     }
-                    None => registry.insert(specialised.clone()),
-                }
+                    None => specialised.clone(),
+                };
+                let installed: &'static CommandSpec = Box::leak(Box::new(installed));
+                registry.insert_static(installed);
+                // Which pack it came from: a site specialised on it stamps
+                // these facts, and a VM admits the site only while it holds
+                // the same ones (`PackSet::fact_stamps`).
+                registry.insert_pack_origin(installed, pack_origin(pack, command));
             }
         }
+    }
+}
+
+/// The origin `command` of `pack` installs with — the pack's name, the
+/// content hash of the source that declared it, and the vocabulary it was
+/// read under. [`PackSet::fact_stamps`] builds a VM's held facts from the
+/// same answer, so a site's stamp and the facts held for its pack set agree
+/// by construction.
+pub(crate) fn pack_origin(pack: &MergedPack, command: &PackCommand) -> PackOrigin {
+    PackOrigin {
+        pack: pack.name.clone(),
+        content_hash: command.content_hash,
+        vocabulary_version: crate::VOCABULARY_VERSION.to_owned(),
     }
 }
 

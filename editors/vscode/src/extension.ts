@@ -51,6 +51,7 @@ import {
   DEFAULT_DIALECT,
   EDITOR_SETTINGS_AFFECTING_FEATURES,
   LspWorkspaceEdit,
+  registerWorkspaceTrustGrant,
   resolveAllFeatureToggles,
   workspaceEditFromLsp,
 } from "./clientCore";
@@ -290,6 +291,10 @@ export async function activate(context: ExtensionContext) {
   }
 
   client = new LanguageClient("tcl-lsp", "Tcl Language Server", serverOptions, clientOptions);
+  // The server starts with the trust state in its `initializationOptions`; a
+  // grant after that is pushed, so a workspace pack's hook bodies start
+  // running without a restart.
+  context.subscriptions.push(registerWorkspaceTrustGrant(client));
 
   // Status bar: dialect indicator
 

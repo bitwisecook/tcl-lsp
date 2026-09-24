@@ -3003,12 +3003,15 @@ impl StubCommandDef {
     /// the registry's own [`tcl_registry::model::role_for_word`], so a
     /// declared argument and a catalogue argument are the same fact.
     ///
-    /// [`Self::from_sidecar`] chooses the §6.4 trust class: a workspace
+    /// [`Self::from_sidecar`] chooses the §6.4 provenance label: a workspace
     /// `.tcl.stubs` file is [`Provenance::WorkspaceUntrusted`], an inline
-    /// block in the analysed buffer is [`Provenance::Document`]. The
-    /// directive's trailing flag set is deliberately **not** carried: it
-    /// has never had a consumer, and R1's principle P-C says a fact comes
-    /// back with the consumer that needs it.
+    /// block in the analysed buffer is [`Provenance::Document`].
+    ///
+    /// The trailing flags land on the fields a catalogue command states the
+    /// same facts on ([`Self::declared_traits`],
+    /// [`Self::declared_side_effects`]), so every consumer that reads those
+    /// fields through [`tcl_registry::model::DocumentCommandSurface`] sees a
+    /// stubbed command the way it sees a catalogued one.
     ///
     /// [`Provenance::WorkspaceUntrusted`]: tcl_dialect::model::Provenance::WorkspaceUntrusted
     /// [`Provenance::Document`]: tcl_dialect::model::Provenance::Document
@@ -3032,6 +3035,63 @@ impl StubCommandDef {
                 Provenance::Document
             },
         )
+        .with_traits(self.declared_traits())
+        .with_side_effects(self.declared_side_effects())
+    }
+
+    /// The traits the flags state, each on the field its catalogue
+    /// counterpart uses: `-barrier` is [`Traits::CREATES_DYNAMIC_BARRIER`],
+    /// `-loop` [`Traits::HAS_LOOP_BODY`], `-pure` [`Traits::PURE`], `-unsafe`
+    /// [`Traits::UNSAFE`] with [`Traits::SAFE_INTERP_HIDDEN`] (as `exec`
+    /// states them), `-scope_alias` [`Traits::CREATES_SCOPE_ALIAS`], and
+    /// `-mutator` [`Traits::READS_BEFORE_WRITE`] — the read half of a
+    /// read-modify-write, which `lset` states beside the effect
+    /// [`Self::declared_side_effects`] gives.
+    ///
+    /// [`Traits::CREATES_DYNAMIC_BARRIER`]: tcl_registry::Traits::CREATES_DYNAMIC_BARRIER
+    /// [`Traits::HAS_LOOP_BODY`]: tcl_registry::Traits::HAS_LOOP_BODY
+    /// [`Traits::PURE`]: tcl_registry::Traits::PURE
+    /// [`Traits::UNSAFE`]: tcl_registry::Traits::UNSAFE
+    /// [`Traits::SAFE_INTERP_HIDDEN`]: tcl_registry::Traits::SAFE_INTERP_HIDDEN
+    /// [`Traits::CREATES_SCOPE_ALIAS`]: tcl_registry::Traits::CREATES_SCOPE_ALIAS
+    /// [`Traits::READS_BEFORE_WRITE`]: tcl_registry::Traits::READS_BEFORE_WRITE
+    #[must_use]
+    pub fn declared_traits(&self) -> tcl_registry::Traits {
+        use tcl_registry::Traits;
+        const FIELDS: [(StubFlags, Traits); 6] = [
+            (StubFlags::BARRIER, Traits::CREATES_DYNAMIC_BARRIER),
+            (StubFlags::LOOP, Traits::HAS_LOOP_BODY),
+            (StubFlags::PURE, Traits::PURE),
+            (
+                StubFlags::UNSAFE,
+                Traits::UNSAFE.union(Traits::SAFE_INTERP_HIDDEN),
+            ),
+            (StubFlags::SCOPE_ALIAS, Traits::CREATES_SCOPE_ALIAS),
+            (StubFlags::MUTATOR, Traits::READS_BEFORE_WRITE),
+        ];
+        FIELDS
+            .iter()
+            .filter(|(flag, _)| self.flags.contains(*flag))
+            .fold(Traits::empty(), |traits, (_, field)| traits.union(*field))
+    }
+
+    /// The side effects the flags state: `-mutator` reads and writes a
+    /// variable — the [`SideEffectTarget::Variable`] effect `lset` and
+    /// `lappend` declare for the target they mutate.
+    ///
+    /// [`SideEffectTarget::Variable`]: tcl_registry::side_effects::SideEffectTarget::Variable
+    #[must_use]
+    pub fn declared_side_effects(&self) -> Vec<tcl_registry::side_effects::SideEffect> {
+        use tcl_registry::side_effects::{SideEffect, SideEffectTarget};
+        if !self.flags.contains(StubFlags::MUTATOR) {
+            return Vec::new();
+        }
+        vec![SideEffect {
+            target: SideEffectTarget::Variable,
+            reads: true,
+            writes: true,
+            ..SideEffect::DEFAULT
+        }]
     }
 }
 

@@ -79,6 +79,7 @@ pub mod install;
 pub mod loader;
 pub mod pack;
 pub mod registration;
+pub mod stamps;
 pub mod surface_roster_conversion;
 pub mod upgrade;
 

@@ -567,8 +567,10 @@ message. See [W139](../../kcs/codes/kcs-diagnostic-w139-retired-at-resolved-vers
   (`$XDG_CACHE_HOME/tcl-lsp/spectcl/` and platform equivalents): a pack's
   evaluated snapshot is written keyed by `EvalSnapshotKey` — a
   non-cryptographic hash of the pack source **plus the SpecTcl vocabulary
-  version, the loader-eval version and the tier** — so an edited pack or
-  an upgraded server recompiles exactly once. The cache is disposable by
+  version, the loader-eval version, the tier and the workspace trust
+  state** — so an edited pack or an upgraded server recompiles exactly
+  once, and an untrusted workspace's snapshot never answers for a trusted
+  one's. The cache is disposable by
   contract: delete it and nothing breaks but first-load time; a corrupt or
   stale entry falls back to a fresh evaluation, never an error.
 - **CLI and MCP.** `tcl spec import` derives version ranges for a
@@ -578,8 +580,11 @@ message. See [W139](../../kcs/codes/kcs-diagnostic-w139-retired-at-resolved-vers
   §6); `tcl spec export` renders a pack as canonical SpecTcl — its
   expansion, if it is a program. The MCP server carries `spectcl_check`
   (evaluate a pack and report notices, `load_error`, target-dependence,
-  and what the workspace tier would refuse), `spectcl_expand` (`spec
-  export` over MCP), and `spec_import`. There is no CLI `spec check`
+  and — for a caller-chosen `tier`/`trust` pair, defaulting to a trusted
+  workspace — the provenance an `-override`/`dialect`/reserved-name
+  declaration would be refused under and which hook bodies stay dormant),
+  `spectcl_expand` (`spec export` over MCP), and `spec_import`. There is no
+  CLI `spec check`
   verb. The `spec-author` skill emits the DSL for the private-library
   path.
 
@@ -672,13 +677,39 @@ as a declared-but-unbound hook does, and each dormant hook is reported on
 the pack file. Pack *evaluation* stays ungated, because its only input is
 the pack itself, it runs once per `EvalSnapshotKey` under the budget, and
 the frozen snapshot is what carries the declarative facts authority
-protects. The trust state arrives from the LSP client as one input,
-`WorkspaceTrust`; a client that does not report it is treated as trusted.
-The loader today maps every workspace pack to
-`Provenance::WorkspaceTrusted` and the hook host runs a body under the
-sandbox whatever the workspace's trust state; step 3 of
-[../compiler/registry-consumer-contracts.md](../compiler/registry-consumer-contracts.md)
-§ *Build order* plumbs the input and gates the bodies.
+protects. The trust state is one input, `WorkspaceTrust`
+(`tcl_dialect::model`), carried on `DiscoveryOptions::workspace_trust` into
+the load; a client that does not report it is treated as trusted. The
+loader maps a workspace pack to `Provenance::WorkspaceTrusted` or
+`Provenance::WorkspaceUntrusted` by it — `MergedPack::provenance`, the E-R2
+gate and the evaluated snapshot's cache key all read it, so a pack in an
+untrusted workspace that `-override`s a compiled name is refused as a Spec
+Studio override's is, with every declarative fact of an unrefused pack
+reaching the registry either way.
+
+The language server takes the state from the client alone:
+`initializationOptions.workspaceTrust` (`"trusted"` or `"untrusted"`) at
+`initialize`, before the first pack load, and a top-level `workspaceTrust`
+in a `workspace/didChangeConfiguration` push when the editor grants trust,
+which reloads the packs (the pack-set key mixes the state, so the reload
+re-installs with no file moved). It never reads the state from a `tclLsp`
+setting: VS Code's configuration sync pushes that section, and a
+`workspace/configuration` pull answers it, from every settings layer — the
+workspace's own `.vscode/settings.json` among them — so a nested key would
+let an untrusted workspace declare itself trusted. The VS Code extension
+sends `workspace.isTrusted`; the other editors send nothing and are
+trusted. In an untrusted workspace `tcl_spectcl::hooks::plan_for` gives the
+workspace tier's bodies no slot, so each field keeps the loader's
+abstaining placeholder — the declared-but-unbound abstention — and the hook
+host never sees the text, while `pack::load_sources` reports each dormant
+body once, as an information notice on the row that declares it, with the
+message "`FIELD` is dormant: the workspace is not trusted, so this hook body
+does not run and the command keeps its declarative facts". Only bodies are
+gated: a `-native ID` runs shipped code the pack only names, and a
+derivation (`clause_grammar`, `from-frame-effect`) is the loader's own. A
+Spec Studio override's bodies run — the tier is untrusted for registration,
+but it is the author's own live edit. The user's answer is
+[why is my pack hook dormant](../../kcs/kcs-qa-why-is-my-pack-hook-dormant.md).
 
 What makes the ungated evaluation safe is the sandbox, not trust: a pack's
 executable surface is its evaluation and its hook bodies, both pure
@@ -886,6 +917,26 @@ alias `variable` states to the current namespace's cell, so no verb
 builds a `NamespaceTransition` today. A fact naming a computed word
 abstains and widens the variable-cell domains instead of naming a cell,
 and no verb reaches the four forbidden families.
+
+Naming an *existing* specialisation is not open either where it changes
+emitted code. A **codegen-axis stamp** — `codegen_hook`,
+`inline_codegen_hook`, or `semantic_operation {Intrinsic …}`, on a
+command, a subcommand, or a form — survives the load only on a bundled
+pack's command whose `alias_of NAME` names the shipped builtin carrying
+that same stamp at the same site. From the user, workspace, or Spec Studio
+tier, or on a command with no such target, the load drops the stamp and
+publishes a warning on the command's row naming the provenance and the
+`alias_of` the stamp would have had to sit on; the command keeps every
+other fact it declared
+([../compiler/registry-consumer-contracts.md](../compiler/registry-consumer-contracts.md)
+§ *The loader's stamp rejection rule*). Bytecode specialised through an
+admitted stamp, or folded to a constant by a pack's `const_fold`, records
+the pack's name, content hash and vocabulary version with the overlay
+generation it compiled under, and the VM runs it only while it holds the
+same facts: an edited pack turns such a site back to ordinary dispatch
+rather than changing what it computes (§ *What the artefact records per
+rung* there).
+
 The `world_effects` block rows stay documented vocabulary the loader does
 not read, a library-defined completion code scoped to one command's body
 has no spelling, and a method-scoped taint sink is a registry change

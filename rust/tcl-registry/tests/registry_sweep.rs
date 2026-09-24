@@ -1011,6 +1011,78 @@ fn sweep_deprecated_drop_in_replacements_resolve() {
     );
 }
 
+/// Every spec's `alias_of`, when set, must name a command that actually
+/// resolves *in the same registry* — the identity the loader's stamp
+/// rejection rule (CC4.2) will trust and codegen (CC4.3) will record at a
+/// specialised site. No shipped spec declares one yet (step 4 has landed
+/// only the field, `docs/design/lanes/consumer-contracts.md` D4.1), so the
+/// live half sweeps forward-looking; the synthetic half pins what the live
+/// half would catch — an unknown target, and a target real only in another
+/// dialect's family.
+///
+/// registry-metadata: `alias_of` is registry data with no codegen effect
+/// yet.
+#[test]
+fn alias_of_names_a_shipped_command_of_the_same_family() {
+    for &dname in LOADABLE_DIALECTS {
+        let reg = registry_for_dialect(dname);
+        let names: Vec<String> = reg.command_names().map(ToOwned::to_owned).collect();
+        for name in &names {
+            let Some(spec) = reg.get(name) else { continue };
+            let Some(target) = spec.alias_of else {
+                continue;
+            };
+            assert!(
+                reg.get(target).is_some(),
+                "{dname}/{name}: alias_of {target:?} is not a registered command"
+            );
+        }
+    }
+
+    // Positive: a pack command naming a real shipped command resolves —
+    // proving the live sweep's own `reg.get(target).is_some()` assertion
+    // is meaningful, not vacuously true.
+    let mut with_real_target = CommandRegistry::build_default();
+    with_real_target.insert(tcl_registry::CommandSpec {
+        name: "vendor::unpack",
+        alias_of: Some("lsort"),
+        ..tcl_registry::CommandSpec::DEFAULT
+    });
+    let real_target = with_real_target
+        .get("vendor::unpack")
+        .and_then(|spec| spec.alias_of)
+        .expect("the fixture just declared it");
+    assert!(
+        with_real_target.get(real_target).is_some(),
+        "lsort must be a real shipped command for this fixture to prove anything"
+    );
+
+    // Negative: an unknown target does not resolve — what the live sweep
+    // above would fail on if a real spec ever declared one.
+    let mut with_unknown_target = CommandRegistry::build_default();
+    with_unknown_target.insert(tcl_registry::CommandSpec {
+        name: "vendor::unpack",
+        alias_of: Some("not_a_real_command_zzz"),
+        ..tcl_registry::CommandSpec::DEFAULT
+    });
+    let unknown_target = with_unknown_target
+        .get("vendor::unpack")
+        .and_then(|spec| spec.alias_of)
+        .expect("the fixture just declared it");
+    assert!(
+        with_unknown_target.get(unknown_target).is_none(),
+        "an unknown alias_of target must not silently resolve"
+    );
+
+    // Negative: "of the same family" — a command real only in another
+    // dialect does not resolve in the plain Tcl registry.
+    let plain = CommandRegistry::build_default();
+    assert!(
+        plain.get("HTTP::header").is_none(),
+        "HTTP::header is an f5-irules command; it must not resolve in the plain Tcl family"
+    );
+}
+
 /// Sweep the whole trait lattice through `commands_with_trait` in a few
 /// dialects, asserting the membership listing is self-consistent with each
 /// command's own `traits.contains`.

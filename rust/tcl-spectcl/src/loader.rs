@@ -749,8 +749,8 @@ pub enum HookOwner {
     },
 }
 
-/// One declared hook: what it is attached to, which field, which family, and
-/// the text or name that supplies it.
+/// One declared hook: what it is attached to, which field, which family, the
+/// text or name that supplies it, and where it was written.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HookDecl {
     /// What the hook hangs off.
@@ -761,6 +761,14 @@ pub struct HookDecl {
     pub family: HookFamily,
     /// Body text, native id, or derivation keyword.
     pub source: HookSource,
+    /// The line of the row that declares it: the hook property, the
+    /// `option` row carrying an `-arity-hook`, a `state_transitions`
+    /// block's `resolver` row, the `evaluate` statement a declared
+    /// implementation came from, or the `clause_grammar` a derivation reads.
+    /// A notice about the hook itself — a dormant body in an untrusted
+    /// workspace ([`crate::hooks::dormant_hooks`]) — goes here, in the file
+    /// the merge records on the command.
+    pub line: u32,
 }
 
 // The abstaining implementations installed for every pack-declared hook until
@@ -865,6 +873,12 @@ pub struct PackCommand {
     /// during the merge, so every command in a [`crate::MergedPack`] carries
     /// exact `(file, line)` attribution even when the pack spans many files.
     pub file: std::path::PathBuf,
+    /// The content hash of the source the command was declared in: the xxh3
+    /// of the pack file's bytes — the value its [`EvalSnapshotKey`] interns —
+    /// folded with every fragment an `include` row brought in, so an edit
+    /// to either moves it. The pack-fact stamp a specialised site records
+    /// is built from it.
+    pub content_hash: u64,
 }
 
 /// A loaded `.tclspec` pack.
@@ -4243,7 +4257,8 @@ fn case_list_block(stmts: &[Stmt], log: &mut Log) -> CaseListSpec {
 
 /// Record the two hook behaviours a `clause_grammar` derives, as derivations:
 /// the registry's walk answers both, so neither is installed as a hook.
-fn record_clause_grammar_derivations(hooks: &mut Vec<HookDecl>, owner: &HookOwner) {
+/// `line` is the `clause_grammar` row's.
+fn record_clause_grammar_derivations(hooks: &mut Vec<HookDecl>, owner: &HookOwner, line: u32) {
     for (field, family) in [
         ("arg_role_resolver", HookFamily::ArgRoleResolver),
         ("clause_shape_check", HookFamily::ClauseShapeCheck),
@@ -4255,6 +4270,7 @@ fn record_clause_grammar_derivations(hooks: &mut Vec<HookDecl>, owner: &HookOwne
             source: HookSource::Derived {
                 keyword: "clause_grammar".to_owned(),
             },
+            line,
         });
     }
 }
@@ -5719,6 +5735,8 @@ struct CommandAcc {
     event_requirement_forms: Vec<EventRequirementForm>,
     hooks: Vec<HookDecl>,
     clause_grammar: Option<&'static ClauseGrammarSpec>,
+    /// The line of the `clause_grammar` row `clause_grammar` came from.
+    clause_grammar_line: u32,
     declarations: semantics::Declarations,
 }
 
@@ -5773,7 +5791,11 @@ fn command_from_parts(
         // the derivation is recorded for what it is.
         if let Some(grammar) = acc.clause_grammar {
             spec.clause_grammar = Some(grammar);
-            record_clause_grammar_derivations(&mut acc.hooks, &HookOwner::Command);
+            record_clause_grammar_derivations(
+                &mut acc.hooks,
+                &HookOwner::Command,
+                acc.clause_grammar_line,
+            );
             check_clause_grammar(grammar, line, log);
         }
         derive_transitions_from_frame_effect(
@@ -5865,6 +5887,9 @@ fn command_from_parts(
             degraded: log.assistance_unknown,
             line,
             file: std::path::PathBuf::new(),
+            // Set for every command once the whole evaluation is known
+            // (`evaluate_pack_in`), which is the only place the bytes are.
+            content_hash: 0,
         })
     })
 }
@@ -6205,6 +6230,7 @@ fn apply_command_stmt(
         "deprecated_replacement_drop_in" => {
             spec.deprecated_replacement_drop_in = parse_flag(stmt.tail());
         }
+        "alias_of" => spec.alias_of = Some(leak_str(&value)),
         "xc_translatable" => {
             spec.xc_translatable = parse_tristate(&value);
             if spec.xc_translatable.is_none() {
@@ -6374,12 +6400,13 @@ fn apply_command_stmt(
             let scope = log.command.clone();
             spec.state_transitions =
                 state_transitions_value(stmt, tables, &scope, log).map(|(descriptor, source)| {
-                    if let Some(source) = source {
+                    if let Some((source, line)) = source {
                         acc.hooks.push(HookDecl {
                             owner: HookOwner::Command,
                             field: HookFamily::StateTransitionResolver.field(),
                             family: HookFamily::StateTransitionResolver,
                             source,
+                            line,
                         });
                     }
                     descriptor
@@ -6493,6 +6520,7 @@ fn apply_command_stmt(
                     field: "options.arity_hook",
                     family: HookFamily::OptionArity,
                     source,
+                    line: stmt.line,
                 });
             }
             acc.options.push(option);
@@ -6538,7 +6566,10 @@ fn apply_command_stmt(
         "case_list" => spec.case_list = case_list_value(stmt, tables, log),
         "definition_body" => spec.definition_body = definition_body_value(stmt, tables, log),
         "manufacturer" => acc.manufacturers.push(manufacturer_row(stmt, log)),
-        "clause_grammar" => acc.clause_grammar = clause_grammar_value(stmt, log),
+        "clause_grammar" => {
+            acc.clause_grammar = clause_grammar_value(stmt, log);
+            acc.clause_grammar_line = stmt.line;
+        }
         "binds_handle" => {
             spec.binds_handle = parse_handle_binding(&value, stmt.line, log).map(leak_one);
         }
@@ -6571,16 +6602,10 @@ fn apply_command_stmt(
                 );
             }
         }
-        "codegen_hook" => {
-            spec.codegen_hook = native_id(stmt, CODEGEN_HOOKS, "codegen hook", log);
-            if spec.codegen_hook.is_some() {
-                log.say(
-                    stmt.line,
-                    "names a codegen hook: this changes how the compiler translates \
-                     the command, not just what the editor knows about it",
-                );
-            }
-        }
+        // A codegen-axis stamp is read as written; whether it survives is
+        // the stamp rejection rule's call, made on the merged command at its
+        // provenance (`crate::stamps`), which reports a refusal on this row.
+        "codegen_hook" => spec.codegen_hook = native_id(stmt, CODEGEN_HOOKS, "codegen hook", log),
         "inline_codegen_hook" => {
             spec.inline_codegen_hook =
                 native_id(stmt, INLINE_CODEGEN_HOOKS, "inline codegen hook", log);
@@ -6688,6 +6713,7 @@ fn apply_command_stmt(
                 field,
                 family,
                 source,
+                line: stmt.line,
             });
         }
 
@@ -7190,13 +7216,14 @@ fn world_effects_value(
 /// `namespace-variable NAME` and nothing else, so a pack states variable-cell
 /// alias facts only (`docs/design/compiler/registry-consumer-contracts.md`
 /// § *The two hook bodies that remain*). A row this build cannot read is
-/// dropped with a notice.
+/// dropped with a notice. The hook source comes back with its `resolver`
+/// row's line.
 fn state_transitions_value(
     stmt: &Stmt,
     tables: &PackTables,
     scope: &str,
     log: &mut Log,
-) -> Option<(StateTransitionDescriptor, Option<HookSource>)> {
+) -> Option<(StateTransitionDescriptor, Option<(HookSource, u32)>)> {
     const COMPOSITIONS: &[StateTransitionComposition] = &[
         StateTransitionComposition::Replace,
         StateTransitionComposition::Extend,
@@ -7247,7 +7274,9 @@ fn state_transitions_value(
                 }
             }
             "resolver" => {
-                (descriptor.resolver, resolver) = transition_resolver_row(stmt, scope, log);
+                let source;
+                (descriptor.resolver, source) = transition_resolver_row(stmt, scope, log);
+                resolver = source.map(|source| (source, stmt.line));
             }
             "widen" => widening.extend(widening_row(stmt, log)),
             "covers" => coverage.extend(coverage_row(stmt, log)),
@@ -7470,7 +7499,7 @@ fn form_state_transitions(
     let (mut descriptor, source) = state_transitions_value(stmt, tables, path, log)?;
     if matches!(
         source,
-        Some(HookSource::Body { .. } | HookSource::Derived { .. })
+        Some((HookSource::Body { .. } | HookSource::Derived { .. }, _))
     ) {
         log.say(
             stmt.line,
@@ -7867,7 +7896,11 @@ fn apply_subcommand_stmt(
         "clause_grammar" => {
             sub.clause_grammar = clause_grammar_value(stmt, log);
             if sub.clause_grammar.is_some() {
-                record_clause_grammar_derivations(hooks, &HookOwner::Subcommand(owner.to_owned()));
+                record_clause_grammar_derivations(
+                    hooks,
+                    &HookOwner::Subcommand(owner.to_owned()),
+                    stmt.line,
+                );
             }
         }
         "detail" => sub.detail = leak_str(&value),
@@ -8008,6 +8041,7 @@ fn apply_subcommand_stmt(
                     field: "options.arity_hook",
                     family: HookFamily::OptionArity,
                     source,
+                    line: stmt.line,
                 });
             }
             acc.options.push(option);
@@ -8101,12 +8135,13 @@ fn apply_subcommand_stmt(
             let scope = format!("{}::{owner}", log.command);
             sub.state_transitions =
                 state_transitions_value(stmt, tables, &scope, log).map(|(descriptor, source)| {
-                    if let Some(source) = source {
+                    if let Some((source, line)) = source {
                         hooks.push(HookDecl {
                             owner: HookOwner::Subcommand(owner.to_owned()),
                             field: HookFamily::StateTransitionResolver.field(),
                             family: HookFamily::StateTransitionResolver,
                             source,
+                            line,
                         });
                     }
                     descriptor
@@ -8191,6 +8226,7 @@ fn apply_subcommand_stmt(
                 field,
                 family,
                 source,
+                line: stmt.line,
             });
         }
         _ => log.unknown_property(stmt),
@@ -10647,10 +10683,21 @@ mod tests {
         assert_eq!(environment.world_policy, WorldPolicy::AmbientPlusRequire);
         assert_eq!(environment.file_extensions[0].extension.as_ref(), "xdc");
 
-        let definition = environment.to_definition(PackEnvironmentTier::Workspace);
+        let definition = environment.to_definition(PackEnvironmentTier::Workspace(
+            tcl_dialect::model::WorkspaceTrust::Trusted,
+        ));
         assert_eq!(definition.id.as_str(), "vivado-tcl");
         assert_eq!(definition.display_name.as_ref(), "Xilinx Vivado");
         assert_eq!(definition.provenance, Provenance::WorkspaceTrusted);
+        // The editor's trust state is what decides the workspace's class.
+        assert_eq!(
+            environment
+                .to_definition(PackEnvironmentTier::Workspace(
+                    tcl_dialect::model::WorkspaceTrust::Untrusted,
+                ))
+                .provenance,
+            Provenance::WorkspaceUntrusted
+        );
         assert_eq!(
             definition.core.expect("a core selector").default_release,
             Release::TCL_8_6

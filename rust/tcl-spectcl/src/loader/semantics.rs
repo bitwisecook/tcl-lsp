@@ -114,6 +114,8 @@ struct Implementation {
     capability: EvaluatorCapability,
     params: Vec<String>,
     body: String,
+    /// The `evaluate` statement's line, which the `evaluate` hook carries.
+    line: u32,
 }
 
 impl Declarations {
@@ -202,11 +204,11 @@ impl Declarations {
     }
 
     /// The scope's declaration, and the implementation body to bind as its
-    /// `evaluate` hook when it has one.
+    /// `evaluate` hook when it has one, with its `evaluate` statement's line.
     pub(super) fn declaration(
         &self,
         scope: &Scope<'_>,
-    ) -> (SemanticsDeclaration, Option<HookSource>) {
+    ) -> (SemanticsDeclaration, Option<(HookSource, u32)>) {
         if self.is_empty() {
             return (SemanticsDeclaration::Inherited, None);
         }
@@ -228,14 +230,17 @@ impl Declarations {
                     capability: implementation.capability,
                     slot: None,
                 }),
-                Some(HookSource::Body {
-                    params: implementation.params.clone(),
-                    body: implementation.body.clone(),
-                    // The body reads its declared inputs, which arrive as
-                    // the call's words: content, so the answer is keyed by
-                    // them.
-                    inputs: HookInputs::declared([HookInput::Words]),
-                }),
+                Some((
+                    HookSource::Body {
+                        params: implementation.params.clone(),
+                        body: implementation.body.clone(),
+                        // The body reads its declared inputs, which arrive as
+                        // the call's words: content, so the answer is keyed by
+                        // them.
+                        inputs: HookInputs::declared([HookInput::Words]),
+                    },
+                    implementation.line,
+                )),
             ),
         };
         let declared: &'static DeclaredSemantics = leak_one(DeclaredSemantics {
@@ -310,15 +315,21 @@ pub(super) fn option_flags(stmt: &Stmt, log: &mut Log) -> (Stmt, Option<OptionEv
 }
 
 /// Replace `owner`'s `evaluate` hook in `hooks` with `body`'s, so the hook
-/// list always holds the body of the scope's latest `evaluate` statement.
-pub(super) fn rebind(hooks: &mut Vec<HookDecl>, owner: &HookOwner, body: Option<HookSource>) {
+/// list always holds the body of the scope's latest `evaluate` statement, at
+/// that statement's line.
+pub(super) fn rebind(
+    hooks: &mut Vec<HookDecl>,
+    owner: &HookOwner,
+    body: Option<(HookSource, u32)>,
+) {
     hooks.retain(|hook| !(hook.field == EVALUATE_FIELD && hook.owner == *owner));
-    if let Some(source) = body {
+    if let Some((source, line)) = body {
         hooks.push(HookDecl {
             owner: owner.clone(),
             field: EVALUATE_FIELD,
             family: HookFamily::Evaluate,
             source,
+            line,
         });
     }
 }
@@ -737,6 +748,7 @@ fn read_implementation(stmt: &Stmt, log: &mut Log) -> Option<Implementation> {
         },
         params,
         body: text,
+        line: stmt.line,
     })
 }
 

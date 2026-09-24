@@ -72,29 +72,61 @@ struct LoopShape {
     body: usize,
 }
 
-/// The loop shape of `name`, or `None` when it is not a conditional loop.
+/// The loop shape of `name` invoked with `args`, or `None` when it is not a
+/// conditional loop.
 ///
-/// Whether a command *is* a loop is the registry's answer
-/// ([`tcl_registry::CommandRegistry::is_loop_command`], reading
-/// `HAS_LOOP_BODY`), and the shape is read off its declared argument roles:
-/// the `Expr` word is the condition, the last `Body` word after it is the loop
-/// body, and a `Body` on either side of the condition is the C-style init and
-/// step.  A pack-declared loop therefore reaches W240 / W241 / W242 with no
-/// command name written here.
+/// Whether a command *is* a loop is the command surface's answer — the
+/// `HAS_LOOP_BODY` trait, which a catalogue command states in its spec and a
+/// document's stub states with `-loop` — and the shape is read off its
+/// argument roles: the `Expr` word is the condition, the last `Body` word
+/// after it is the loop body, and a `Body` on either side of the condition is
+/// the C-style init and step. A pack-declared or stub-declared loop therefore
+/// reaches W240 / W241 / W242 with no command name written here. A name the
+/// document declares answers from its declaration alone (nearest wins), so a
+/// stub that redeclares `while` without `-loop` is not a loop.
 ///
 /// The literal `while` / `for` positions survive only as the registry-less
 /// fallback, the same shape [`is_loop_exit_command`] documents: an analyse
 /// with no registry still checks the two core loops.
-fn loop_shape(name: &str, registry: Option<&tcl_registry::CommandRegistry>) -> Option<LoopShape> {
-    let Some(registry) = registry else {
+fn loop_shape(
+    name: &str,
+    args: &[String],
+    surface: Option<&tcl_registry::model::DocumentCommandSurface<'_>>,
+) -> Option<LoopShape> {
+    use tcl_registry::arg_role::ArgRole;
+    let Some(surface) = surface else {
         return core_loop_shape(name);
     };
+    if surface.declares(name) {
+        if !surface
+            .traits(name)
+            .is_some_and(|traits| traits.contains(tcl_registry::Traits::HAS_LOOP_BODY))
+        {
+            return None;
+        }
+        let words: Vec<&str> = args.iter().map(String::as_str).collect();
+        return conditional_loop_shape([ArgRole::Expr, ArgRole::Body].into_iter().flat_map(
+            |role| {
+                surface
+                    .arg_indices_for_role(name, &words, role)
+                    .into_iter()
+                    .map(move |index| (index, role))
+            },
+        ));
+    }
+    let registry = surface.commands();
     let Some(spec) = registry.get(name) else {
         return core_loop_shape(name);
     };
     registry
         .is_loop_command(name)
-        .then(|| conditional_loop_shape(spec))
+        .then(|| {
+            conditional_loop_shape(
+                spec.arg_roles
+                    .iter()
+                    .map(|&(index, role)| (usize::from(index), role)),
+            )
+        })
         .flatten()
 }
 
@@ -122,14 +154,16 @@ fn core_loop_shape(name: &str) -> Option<LoopShape> {
 /// roles, or `None` when it has no single boolean-condition word — `foreach`
 /// and `lmap` iterate a list rather than testing a condition, so nothing here
 /// applies to them.
-fn conditional_loop_shape(spec: &tcl_registry::spec::CommandSpec) -> Option<LoopShape> {
+fn conditional_loop_shape(
+    roles: impl IntoIterator<Item = (usize, tcl_registry::arg_role::ArgRole)>,
+) -> Option<LoopShape> {
     let mut cond = None;
     let mut bodies: Vec<usize> = Vec::new();
-    for &(index, role) in spec.arg_roles {
+    for (index, role) in roles {
         match role {
             tcl_registry::arg_role::ArgRole::Expr if cond.is_some() => return None,
-            tcl_registry::arg_role::ArgRole::Expr => cond = Some(usize::from(index)),
-            tcl_registry::arg_role::ArgRole::Body => bodies.push(usize::from(index)),
+            tcl_registry::arg_role::ArgRole::Expr => cond = Some(index),
+            tcl_registry::arg_role::ArgRole::Body => bodies.push(index),
             _ => {}
         }
     }
@@ -146,20 +180,22 @@ fn conditional_loop_shape(spec: &tcl_registry::spec::CommandSpec) -> Option<Loop
 
 /// W240 (constant-false condition → dead body) / W241 (constant-true
 /// condition whose body never leaves the loop → provably infinite) for every
-/// registry-declared conditional loop — see [`loop_shape`].  The loop-exit set
-/// is registry-driven too — see [`is_loop_exit_command`].  `args` /
-/// `arg_tokens` exclude the command name.
+/// conditional loop the document's command surface declares — catalogued or
+/// stub-declared, see [`loop_shape`].  The loop-exit set is the catalogue's —
+/// see [`is_loop_exit_command`].  `args` / `arg_tokens` exclude the command
+/// name.
 pub(crate) fn loop_termination_diagnostics(
     cmd_name: &str,
     args: &[String],
     arg_tokens: &[Token],
-    registry: Option<&tcl_registry::CommandRegistry>,
+    surface: Option<&tcl_registry::model::DocumentCommandSurface<'_>>,
     lexer_config: tcl_lexer::LexerConfig,
     grammar: &tcl_dialect::LexerGrammar,
 ) -> Vec<Diagnostic> {
-    let Some(shape) = loop_shape(cmd_name, registry) else {
+    let Some(shape) = loop_shape(cmd_name, args, surface) else {
         return Vec::new();
     };
+    let registry = surface.map(tcl_registry::model::DocumentCommandSurface::commands);
     // An under-applied call is an arity diagnostic, not a termination one.
     if args.len() <= shape.body || arg_tokens.len() <= shape.body {
         return Vec::new();
@@ -1443,7 +1479,9 @@ mod tests {
             &name,
             command.args(),
             command.arg_tokens(),
-            Some(registry),
+            Some(&tcl_registry::model::DocumentCommandSurface::new(
+                registry, None,
+            )),
             config(),
             &tcl_dialect::LexerGrammar::default(),
         )
@@ -1464,6 +1502,56 @@ mod tests {
         // The control that makes the trait load-bearing: the same argument
         // shape without it runs its body once and is not a loop.
         assert!(loop_codes("peek 1 {puts hi}", &registry).is_empty());
+    }
+
+    /// The W240 / W241 codes for `src`, under the catalogue plus the one
+    /// inline `stub` declaration a document states.
+    fn declared_loop_codes(stub: &str, src: &str) -> Vec<DiagCode> {
+        let declared = crate::analyser::utils::document_declared_surface(
+            &format!("# tcl-lsp: stubs-begin\n# tcl-lsp: stub {stub}\n# tcl-lsp: stubs-end\n"),
+            None,
+            "tcl8.6",
+        );
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let surface = tcl_registry::model::DocumentCommandSurface::new(registry, Some(&declared));
+        let command = sole_command(src, config()).expect("one command");
+        let name = command.texts.first().expect("a command word").clone();
+        super::loop_termination_diagnostics(
+            &name,
+            command.args(),
+            command.arg_tokens(),
+            Some(&surface),
+            config(),
+            &tcl_dialect::LexerGrammar::default(),
+        )
+        .iter()
+        .map(|d| d.code)
+        .collect()
+    }
+
+    #[test]
+    fn a_document_declaration_answers_the_loop_question_for_its_name() {
+        // A stub's `-loop` is the `HAS_LOOP_BODY` a pack command states, and
+        // its `cond:expr body:body` words are the shape.
+        let spin = "spin {cond:expr body:body}";
+        assert_eq!(
+            declared_loop_codes(&format!("{spin} -loop"), "spin 1 {puts hi}"),
+            [DiagCode::W241]
+        );
+        assert_eq!(
+            declared_loop_codes(&format!("{spin} -loop"), "spin 0 {puts hi}"),
+            [DiagCode::W240]
+        );
+        assert!(declared_loop_codes(spin, "spin 1 {puts hi}").is_empty());
+        // Nearest wins: a document that redeclares `while` answers for it, so
+        // a declaration stating no loop body is not a loop, and one stating
+        // it is.
+        let redeclared = "while {cond:expr body:body}";
+        assert!(declared_loop_codes(redeclared, "while 1 {puts hi}").is_empty());
+        assert_eq!(
+            declared_loop_codes(&format!("{redeclared} -loop"), "while 1 {puts hi}"),
+            [DiagCode::W241]
+        );
     }
 
     #[test]

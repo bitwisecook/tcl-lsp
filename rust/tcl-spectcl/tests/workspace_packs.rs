@@ -286,3 +286,224 @@ fn a_workspace_pack_shadows_the_user_tier_copy_of_the_same_name() {
 
     let _ = std::fs::remove_dir_all(&root);
 }
+
+// ─────────────────────── the stamp rejection rule ───────────────────────
+
+/// A pack command stamped with `lassign`'s own codegen hook: `vendor::unpack
+/// LIST VAR…` is the builtin by another name, if `alias_of` says so.
+fn unpack_pack(alias_of: Option<&str>) -> String {
+    let alias = alias_of.map_or_else(String::new, |target| format!("        alias_of {target}\n"));
+    format!(
+        "speclib vendor 2.0 {{\n    \
+             command vendor::unpack {{\n        \
+                 arity 2..\n        \
+                 arg 0 -role Value\n        \
+                 arg 1 -role VarWrite\n\
+         {alias}        \
+                 codegen_hook -native Lassign\n    \
+             }}\n\
+         }}\n"
+    )
+}
+
+/// Load `source` as the one pack file of `tier` under `trust`.
+fn load_one(
+    name: &str,
+    source: &str,
+    tier: Tier,
+    trust: tcl_dialect::model::WorkspaceTrust,
+) -> PackSet {
+    let root = scratch(name);
+    let path = root.join("vendor.tclspec");
+    std::fs::write(&path, source).expect("write pack");
+    let origin = match tier {
+        Tier::Bundled => tcl_spectcl::discovery::Origin::Bundled,
+        Tier::User => tcl_spectcl::discovery::Origin::UserDir,
+        Tier::StudioOverride => tcl_spectcl::discovery::Origin::StudioOverride,
+        Tier::Workspace => tcl_spectcl::discovery::Origin::DotDir,
+    };
+    pack::load_under(&[tcl_spectcl::PackFile { tier, path, origin }], trust)
+}
+
+/// The notices the stamp rule raised: the warnings on `command vendor::unpack`.
+fn stamp_notices(set: &PackSet) -> Vec<&tcl_spectcl::PackNotice> {
+    set.notices
+        .iter()
+        .filter(|n| n.context == "command vendor::unpack" && n.message.contains(" refused for "))
+        .collect()
+}
+
+fn unpack(set: &PackSet) -> &tcl_spectcl::PackCommand {
+    set.packs[0]
+        .command("vendor::unpack")
+        .expect("the command loads whatever happens to its stamp")
+}
+
+/// Rule 1 and rule 2 at once: a trusted workspace pack stamps a pack command
+/// that names no target. The stamp is dropped with one warning on the
+/// command's row, and the warning names the provenance and the `alias_of`
+/// target the stamp would have had to sit on — the shipped command whose own
+/// spec carries `CodegenHookId::Lassign`.
+#[test]
+fn a_workspace_stamp_without_alias_of_is_refused_and_names_the_target() {
+    use tcl_dialect::model::WorkspaceTrust;
+    let set = load_one(
+        "stamp-no-alias",
+        &unpack_pack(None),
+        Tier::Workspace,
+        WorkspaceTrust::Trusted,
+    );
+    let notices = stamp_notices(&set);
+    assert_eq!(notices.len(), 1, "{:#?}", set.notices);
+    assert_eq!(notices[0].severity, tcl_spectcl::pack::Severity::Warning);
+    assert_eq!(
+        notices[0].line,
+        unpack(&set).line,
+        "on the command's own row"
+    );
+    assert_eq!(
+        notices[0].message,
+        "`codegen_hook Lassign` refused for `vendor::unpack`: a trusted workspace pack may not \
+         name a codegen catalogue member; the stamp would have to sit on `alias_of lassign`"
+    );
+    assert_eq!(unpack(&set).spec.codegen_hook, None, "the stamp is dropped");
+}
+
+/// Rule 2 alone: naming the right target does not let a non-bundled pack
+/// stamp. Every tier the gate refuses says so with its own provenance, and
+/// the command keeps its `alias_of` — only the stamp goes.
+#[test]
+fn a_workspace_stamp_with_alias_of_is_refused_by_the_tier_gate() {
+    use tcl_dialect::model::WorkspaceTrust;
+    let source = unpack_pack(Some("lassign"));
+    for (tier, trust, label) in [
+        (
+            Tier::Workspace,
+            WorkspaceTrust::Trusted,
+            "a trusted workspace",
+        ),
+        (
+            Tier::Workspace,
+            WorkspaceTrust::Untrusted,
+            "an untrusted workspace",
+        ),
+        (Tier::User, WorkspaceTrust::Trusted, "a user"),
+        (
+            Tier::StudioOverride,
+            WorkspaceTrust::Trusted,
+            "a Spec Studio override",
+        ),
+    ] {
+        let set = load_one("stamp-tier-gate", &source, tier, trust);
+        let notices = stamp_notices(&set);
+        assert_eq!(notices.len(), 1, "{label}: {:#?}", set.notices);
+        assert_eq!(
+            notices[0].message,
+            format!(
+                "`codegen_hook Lassign` refused for `vendor::unpack`: {label} pack may not name \
+                 a codegen catalogue member; only a bundled pack may carry `alias_of lassign`'s \
+                 own stamp"
+            )
+        );
+        let command = unpack(&set);
+        assert_eq!(command.spec.codegen_hook, None, "{label}");
+        assert_eq!(command.spec.alias_of, Some("lassign"), "{label}");
+    }
+}
+
+/// Rule 3: a refusal costs the author no analysis fact. The refused
+/// command's arity, argument roles and target survive the load and the
+/// install, and the stripped spec differs from the loader's only in the
+/// dropped stamp.
+#[test]
+fn a_refused_stamp_costs_no_analysis_fact() {
+    use tcl_dialect::model::WorkspaceTrust;
+    let source = unpack_pack(Some("lassign"));
+    let set = load_one(
+        "stamp-costs-nothing",
+        &source,
+        Tier::Workspace,
+        WorkspaceTrust::Trusted,
+    );
+    assert_eq!(stamp_notices(&set).len(), 1, "{:#?}", set.notices);
+
+    let declared = tcl_spectcl::evaluate_pack(&source);
+    let as_written = declared
+        .command("vendor::unpack")
+        .expect("the pack declares it")
+        .spec;
+    assert_eq!(
+        as_written.codegen_hook,
+        Some(tcl_registry::hooks::CodegenHookId::Lassign),
+        "the loader reads the stamp as written"
+    );
+    let stripped = unpack(&set).spec;
+    let without_the_stamp = tcl_registry::CommandSpec {
+        codegen_hook: None,
+        ..as_written.clone()
+    };
+    assert_eq!(
+        format!("{stripped:?}"),
+        format!("{without_the_stamp:?}"),
+        "only the stamp differs"
+    );
+
+    let registry = tcl_spectcl::install::registry_for_dialect_with_packs("tcl8.6", &set);
+    let installed = registry.get("vendor::unpack").expect("installed");
+    assert_eq!(installed.codegen_hook, None);
+    assert_eq!(installed.arity.min, 2);
+    assert_eq!(installed.alias_of, Some("lassign"));
+    let words = ["$pair", "first"];
+    assert_eq!(
+        registry.arg_indices_for_role("vendor::unpack", &words, tcl_registry::ArgRole::Value),
+        vec![0]
+    );
+    assert_eq!(
+        registry.arg_indices_for_role("vendor::unpack", &words, tcl_registry::ArgRole::VarWrite),
+        vec![1]
+    );
+}
+
+/// The one admitted shape: a bundled pack whose command declares `alias_of
+/// lassign` may carry `lassign`'s own stamp, loaded through the bundled
+/// door on a `specs/` directory and installed as written. The negative: the
+/// same pack naming `alias_of lsort` — a shipped command that carries no
+/// such stamp — is refused by rule 1 even at the bundled tier, and the
+/// refusal still names `lassign`.
+#[test]
+fn a_bundled_stamp_on_an_alias_of_target_is_admitted() {
+    let root = scratch("stamp-bundled");
+    let specs = root.join("specs");
+    std::fs::create_dir_all(&specs).expect("specs dir");
+    std::fs::write(specs.join("vendor.tclspec"), unpack_pack(Some("lassign"))).expect("write");
+
+    let set = tcl_spectcl::bundled::load_from(&specs);
+    assert_eq!(set.packs[0].tier, Tier::Bundled);
+    assert!(stamp_notices(&set).is_empty(), "{:#?}", set.notices);
+    assert_eq!(
+        unpack(&set).spec.codegen_hook,
+        Some(tcl_registry::hooks::CodegenHookId::Lassign),
+        "admitted: the stamp is lassign's own, and the pack ships with the server"
+    );
+    let registry = tcl_spectcl::bundled::registry_for_dialect_from("tcl8.6", &set);
+    assert_eq!(
+        registry
+            .get("vendor::unpack")
+            .expect("installed")
+            .codegen_hook,
+        Some(tcl_registry::hooks::CodegenHookId::Lassign)
+    );
+
+    std::fs::write(specs.join("vendor.tclspec"), unpack_pack(Some("lsort"))).expect("rewrite");
+    let wrong = tcl_spectcl::bundled::load_from(&specs);
+    let notices = stamp_notices(&wrong);
+    assert_eq!(notices.len(), 1, "{:#?}", wrong.notices);
+    assert_eq!(
+        notices[0].message,
+        "`codegen_hook Lassign` refused for `vendor::unpack`: `alias_of lsort` names a shipped \
+         command that does not carry it; the stamp would have to sit on `alias_of lassign`"
+    );
+    assert_eq!(unpack(&wrong).spec.codegen_hook, None);
+
+    let _ = std::fs::remove_dir_all(&root);
+}

@@ -17,6 +17,12 @@ The word a script calls the command by — exactly as it is typed in Tcl, includ
 
 On a subcommand this is the subcommand word itself (`length` in `string length`).
 
+### `alias_of` — Alias of
+
+*command only* — The shipped builtin this pack command is — the only admissible source of a builtin identity for a pack command. Unset for every shipped command and every pack command that names no target.
+
+The shipped builtin this pack command *is* — `lassign` for a `vendor::unpack` that behaves exactly like it. The only admissible source of a builtin identity for a pack command: a codegen stamp (`codegen_hook`, `inline_codegen_hook`, an intrinsic `semantic_operation`) survives only as the builtin this names carries it, and only in a bundled pack — anywhere else the load drops it with a warning. A site specialised on such a stamp records the builtin's identity, so the compiled code runs where the pack name is an alias of that builtin. Unset for a shipped command, or a pack command that claims no builtin identity.
+
 ## Availability
 
 Where and when the command exists: which dialects ship it, which package must be required first, and the version that introduced, deprecated, or removed it. This group is what makes "unknown command", "needs Tcl 8.6", and "missing package require" accurate — for most third-party commands it is the highest-value group after the name and arity.

@@ -54,6 +54,7 @@ import {
   DEFAULT_DIALECT,
   EDITOR_SETTINGS_AFFECTING_FEATURES,
   LspWorkspaceEdit,
+  registerWorkspaceTrustGrant,
   resolveAllFeatureToggles,
   workspaceEditFromLsp,
 } from "./clientCore";
@@ -261,6 +262,9 @@ async function startSession(context: ExtensionContext): Promise<Session | undefi
     },
     buildClientOptions(diffSuppressor, ANY_SCHEME),
   );
+  // As on the desktop: the trust state rides `initializationOptions`, and a
+  // grant after start-up is pushed so a workspace pack's hook bodies run.
+  disposables.push(registerWorkspaceTrustGrant(client));
 
   const started = await startWithTimeout(client, workerUri);
   if (!started) {

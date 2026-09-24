@@ -81,23 +81,33 @@ Wrap in `?...?` to mark as optional: `?-filter?`, `?count:value?`.
 
 The trailing flag set is parsed into the analyser-side `StubFlags` bitflags
 (`analyser/types.rs`). Each flag is a declared behavioural fact about the
-command, and it lands on the field its catalogue counterpart uses, so a
-stubbed command reads the way a catalogued one does. The recognised words
-are:
+command, and it lands on the field its catalogue counterpart uses:
+`StubCommandDef::declared_traits` and `declared_side_effects` put it on
+`DeclaredCommand::traits` and `DeclaredCommand::side_effects`, and
+`DocumentCommandSurface::traits`, `invocation_traits` and `side_effects`
+answer it, so a stubbed command reads the way a catalogued one does to every
+consumer that asks the surface. The recognised words are:
 
-| Flag | Meaning | Catalogue field |
-|---|---|---|
-| `-barrier` | creates a dynamic barrier | `Traits::CREATES_DYNAMIC_BARRIER` |
-| `-loop` | has a loop body | `Traits::HAS_LOOP_BODY` |
-| `-pure` | no side effects | `Traits::PURE` |
-| `-mutator` | mutates its target | a declared `SideEffect` write |
-| `-unsafe` | unsafe in a safe interpreter | `Traits::UNSAFE` with `Traits::SAFE_INTERP_HIDDEN` |
-| `-scope_alias` | creates a scope alias | `Traits::CREATES_SCOPE_ALIAS` |
+| Flag | Meaning | Catalogue field | What reads it |
+|---|---|---|---|
+| `-barrier` | creates a dynamic barrier | `Traits::CREATES_DYNAMIC_BARRIER` | the minifier's rename barriers (`find_rename_barriers`): the scope the command runs in keeps its local names, as around `vwait` |
+| `-loop` | has a loop body | `Traits::HAS_LOOP_BODY` | the loop-termination checks (`bounds_checks::loop_shape`): with an `expr` condition and a `body` word, a constant-false condition is `W240` and a constant-true one whose body never leaves the loop is `W241`, as for `while` |
+| `-pure` | no side effects | `Traits::PURE` | side-effect classification (`side_effects::classify_side_effects_in`): the call is pure, so a procedure that only calls it is pure in the interprocedural summary and the unused result of calling that procedure can go (`O126`) |
+| `-mutator` | reads and rewrites its target | `Traits::READS_BEFORE_WRITE`, and a declared `SideEffect` reading and writing `SideEffectTarget::Variable` | lowering reads the target before the write, as it does for `lset` and `lappend`, so the store feeding it stays live (no `O109`); side-effect classification states the variable effect instead of the unknown write |
+| `-unsafe` | unsafe in a safe interpreter | `Traits::UNSAFE` with `Traits::SAFE_INTERP_HIDDEN` | the safe-interpreter gate: a call inside a safe interpreter's evaluation body is `W129`, as `exec` is |
+| `-scope_alias` | creates a scope alias | `Traits::CREATES_SCOPE_ALIAS` | the call-site scan (`unit_scope::note_surface_var_writes`): every name the command takes is bound to a cell another body may write, so a later `$name` dispatch is not read as a known literal and the parameter fold is withheld (`I230`), as for `upvar`; the minifier leaves global names alone |
 
-`StubCommandDef::to_declared_command` today does not carry the set onto the
-declaration, so a user who writes `-pure` gets nothing from it; step 3 of
-[registry-consumer-contracts.md](../compiler/registry-consumer-contracts.md)
-§ *Build order* gives the six flags their consumers.
+A stub with no flags states no behaviour, and side-effect classification
+treats it exactly as an undeclared command: an unknown read and write, never
+pure.
+
+Three consumers still read these facts off the catalogue alone, so a stub's
+flags do not reach them yet: the optimiser's own elimination gate and GVN (a
+`-pure` call's unused result goes only through the interprocedural summary,
+so `set a [mypure $x]` written directly is kept), SSA's barrier-def walk
+(which reads no declared role either), and memory SSA's clobber verdict
+(which treats every command the catalogue lacks as clobbering, flags or
+not — the conservative answer).
 
 ## Expression stubs
 
@@ -170,10 +180,14 @@ Two properties are load-bearing:
   declares, and the catalogue answers everywhere else. `security_floor`'s
   monotone merge (invariant I6) still holds over it, because that floor is a
   security contract rather than a precision cap.
-  `DocumentCommandSurface`'s role lookup today unions the catalogue's answer
-  with the document's; step 3 of
-  [registry-consumer-contracts.md](../compiler/registry-consumer-contracts.md)
-  § *Build order* resolves it nearest-wins.
+  `DocumentCommandSurface` answers nearest-wins: `arg_indices_for_role`,
+  `command_prefixes`, `traits`, `invocation_traits` and `side_effects` read
+  the declaration alone for a name the document declares, so a stub that
+  redeclares `after {ms script}` states that its second word is a value and
+  the catalogue's `Body` role is not assigned. `traits` and `side_effects`
+  keep a redeclared shipped command's security traits and side effects
+  beneath the declaration's own — the floor `SecurityFloor::apply` holds a
+  pack override to — so a stub cannot take `exec`'s `UNSAFE` away.
 
 The declared surface is what feeds parameter-trait inference, role lookup, and
 command-resolution for stubbed commands. Cache invalidation rides the ordinary
@@ -260,7 +274,10 @@ draft declared.
 | `rust/tcl-compiler/src/interprocedural.rs` | `ScanCtx::surface`, `scan_role_code_arguments` |
 | `rust/tcl-compiler/src/unit_scope.rs` | `CallSiteScanCtx::surface`, `note_surface_var_writes` |
 | `rust/tcl-compiler/src/analyser/state.rs` | `Analyser::command_surface` |
-| `rust/tcl-compiler/src/analyser/types.rs` | `StubCommandDef`, `StubArgDef`, `StubExprDef`, `StubFlags` |
+| `rust/tcl-compiler/src/analyser/types.rs` | `StubCommandDef`, `StubArgDef`, `StubExprDef`, `StubFlags`, `declared_traits`, `declared_side_effects` |
+| `rust/tcl-compiler/src/side_effects.rs` | `classify_side_effects_in` |
+| `rust/tcl-compiler/src/analyser/bounds_checks.rs` | `loop_shape` |
+| `rust/tcl-lsp-core/src/minify.rs` | `find_rename_barriers` |
 | `rust/tcl-registry/src/model/declaration.rs` | `DeclaredCommand`, `DeclaredArgument`, `DeclaredSurface`, `DocumentCommandSurface`, `role_for_word` |
 | `rust/tcl-spec-studio/src/render_stub.rs` | stub rendering |
 | `samples/` | example sidecar and inline stub files |
