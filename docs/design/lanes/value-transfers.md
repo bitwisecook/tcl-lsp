@@ -624,7 +624,11 @@ chain at anything but a literal `set`, so an absent-start `lappend` /
 `append` chain (the O104 / O130 row's own claim) did not fold — the
 `FunctionLattice` gains an `existence_before` query and the chain may now
 anchor at the absent cell's own first write. Both are recorded in
-VT8.10's commit and neither moved an existing test's expectation.
+VT8.10's commit and neither moved an existing test's expectation. The
+anchor took `try_fold_chain_at` to 101 lines, past pedantic clippy's
+limit, which the per-crate `--no-deps` lint missed and `make rust-check`'s
+workspace lint caught: `wip(value-transfers): slice 8 — chain_fold under
+the line limit` moves it into its own `chain_anchor`, behaviour unchanged.
 
 Green at the landing, the review checklist's suite plus every standing
 gate, run after VT8.11's docs:

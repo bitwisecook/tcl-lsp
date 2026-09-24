@@ -497,6 +497,34 @@ fn classify_write(stmt: &Statement, chains: Chains<'_>) -> Option<Write> {
     }
 }
 
+/// The state a write chain starts from at `stmt`: the variable, its string
+/// value, and its list elements once a `lappend` has read it as a list. A
+/// chain anchors at a literal `set`, or at the absent cell's own first
+/// write: the release rule creates the cell in every release for `append`
+/// and `lappend` (§ *Existence*'s release table), so a place the existence
+/// rung proves `Unbound` immediately before this statement starts the chain
+/// exactly as an implicit `set var ""` would (the O104 / O130 row's "an
+/// absent-start chain folds through the value at the last write").
+fn chain_anchor(
+    stmt: &Statement,
+    chains: Chains<'_>,
+) -> Option<(String, String, Option<Vec<String>>)> {
+    let write = classify_write(stmt, chains)?;
+    let absent = !matches!(write, Write::Set { .. })
+        && chains
+            .lattice
+            .existence_before(stmt.span(), write_var(&write))
+            == Some(tcl_registry::value_transfer::Existence::Unbound);
+    match write {
+        Write::Set { var, value } => Some((var, value, None)),
+        Write::Append { var, pieces, .. } if absent => Some((var, pieces.concat(), None)),
+        Write::Lappend { var, elements, .. } if absent => {
+            Some((var, String::new(), Some(elements)))
+        }
+        Write::Append { .. } | Write::Lappend { .. } => None,
+    }
+}
+
 /// Attempt to fold a write-chain starting at `stmts[start]`. Returns the
 /// number of statements consumed (the run length) when a fold fires, else
 /// `None`.
@@ -506,29 +534,7 @@ fn try_fold_chain_at(
     start: usize,
     chains: Chains<'_>,
 ) -> Option<usize> {
-    let (var, mut chain_value, mut elements) = match classify_write(&stmts[start], chains)? {
-        Write::Set { var, value } => (var, value, None),
-        // A chain may also anchor at the absent cell's own first write: the
-        // release rule creates the cell in every release for `append` and
-        // `lappend` (§ *Existence*'s release table), so a place the
-        // existence rung proves `Unbound` immediately before this statement
-        // starts the chain exactly as an implicit `set var ""` would (the
-        // O104 / O130 row's "an absent-start chain folds through the value
-        // at the last write").
-        write @ (Write::Append { .. } | Write::Lappend { .. })
-            if chains
-                .lattice
-                .existence_before(stmts[start].span(), write_var(&write))
-                == Some(tcl_registry::value_transfer::Existence::Unbound) =>
-        {
-            match write {
-                Write::Append { var, pieces, .. } => (var, pieces.concat(), None),
-                Write::Lappend { var, elements, .. } => (var, String::new(), Some(elements)),
-                Write::Set { .. } => unreachable!("matched above"),
-            }
-        }
-        _ => return None,
-    };
+    let (var, mut chain_value, mut elements) = chain_anchor(&stmts[start], chains)?;
     let mut writes = vec![start];
     let mut last_word: Option<String> = None;
 
