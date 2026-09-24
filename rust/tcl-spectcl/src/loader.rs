@@ -6222,6 +6222,7 @@ fn apply_command_stmt(
         "deprecated_replacement_drop_in" => {
             spec.deprecated_replacement_drop_in = parse_flag(stmt.tail());
         }
+        "alias_of" => spec.alias_of = Some(leak_str(&value)),
         "xc_translatable" => {
             spec.xc_translatable = parse_tristate(&value);
             if spec.xc_translatable.is_none() {

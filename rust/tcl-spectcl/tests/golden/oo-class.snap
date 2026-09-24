@@ -20,4 +20,4 @@ notice command oo::class / subcommand createWithNamespace 25 presentation `world
 notice command oo::class / subcommand createWithNamespace 26 presentation `world_effects` row `dynamic_fallback` is not yet loadable; dropped
 notice command oo::class / subcommand createWithNamespace 161 presentation `state_transitions.resolver -native oo::class::createWithNamespace::state_transitions.resolver` names nothing this build ships; the statement installs nothing
 commands 1
-command oo::class line 29 overrides false degraded false spec 64c89f48c1d8ef1f hooks c48db11365c078da grammar 715ea0deb6f6f5f9
+command oo::class line 29 overrides false degraded false spec 80f028f6eb55ce4b hooks c48db11365c078da grammar 715ea0deb6f6f5f9

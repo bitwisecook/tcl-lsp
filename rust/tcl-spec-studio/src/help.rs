@@ -1011,6 +1011,14 @@ helper.",
 points at the replacement and leaves the arguments to the author.",
     ),
     (
+        "alias_of",
+        "The shipped builtin this pack command *is* — `lassign` for a \
+`vendor::unpack` that behaves exactly like it. The only admissible source \
+of a builtin identity for a pack command; a codegen stamp is admitted \
+only for the command this names. Unset for a shipped command, or a pack \
+command that claims no builtin identity.",
+    ),
+    (
         "byte_array_payload",
         "F5 only: describes a `<proto>::payload`-style command's layout so \
 the binary-data corruption check (string operations applied to raw \

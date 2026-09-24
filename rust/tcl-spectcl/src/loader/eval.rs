@@ -239,6 +239,7 @@ const ROW_WORDS: &[&str] = &[
     "safe_on_uninit",
     "deprecated_replacement",
     "deprecated_replacement_drop_in",
+    "alias_of",
     "xc_translatable",
     "arg",
     "repeat",

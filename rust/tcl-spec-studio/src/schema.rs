@@ -1335,6 +1335,15 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Whether the replacement accepts the deprecated argument list unchanged.",
     ),
     f(
+        "alias_of",
+        "Alias of",
+        IDENTITY,
+        FieldKind::OptText,
+        "The shipped builtin this pack command is — the only admissible source \
+         of a builtin identity for a pack command. Unset for every shipped \
+         command and every pack command that names no target.",
+    ),
+    f(
         "byte_array_payload",
         "Byte-array payload",
         ADVANCED,

@@ -1,4 +1,4 @@
-# Lane: consumer contracts — steps 1, 2 and 3 landed; the plan for steps 2–10
+# Lane: consumer contracts — steps 1–3 landed, step 4 in progress; the plan for steps 2–10
 
 ## Goal
 
@@ -779,6 +779,43 @@ against the landed tree with evidence:
 - CC3.4: `spectcl_check` gains `tier` and `trust` arguments and two output
   fields, `provenance` and `dormant_hooks`; every existing field's value at
   the defaults (`tier: "workspace"`, `trust: "trusted"`) is unchanged.
+
+## Step 4 — progress
+
+Item order follows § *Plan for steps 2–10* › *Step 4* § *Ordering and
+checkpoints*: CC4.1 (sonnet) first, on its own; CC4.2–CC4.4 (opus) are
+handed off unstarted below.
+
+| Item | State | Checkpoint | Notes |
+|---|---|---|---|
+| CC4.1 `alias_of` | landed | `wip(consumer-contracts): step 4 — alias_of` | `CommandSpec::alias_of: Option<&'static str>` beside `deprecated_replacement`/`deprecated_replacement_drop_in` (the same shape, so every one of the ~3888 existing `CommandSpec { … }` literals keeps compiling through `..CommandSpec::DEFAULT`), doc: "the shipped builtin this pack command is; the only admissible source of a builtin identity for a pack command; never inferred from a realm alias" — D4.1 confirmed exactly: a field only, no consumer. `rust/tcl-spectcl/src/loader.rs`'s `apply_command_stmt` gains `"alias_of" => spec.alias_of = Some(leak_str(&value))`, and `loader/eval.rs`'s `ROW_WORDS` gains `"alias_of"` so the Tcl-evaluated pack path captures the row too — the two halves the crate's own module doc calls "exactly one loader" share this per-row apply match. Studio surfaces: `schema.rs` (`IDENTITY` category, `FieldKind::OptText`), `draft.rs` (`opt_str(spec.alias_of)`), `render_spectcl.rs` (`text(out, ctx, draft, "alias_of")`, renders `alias_of NAME`), `coverage.rs`'s witness pattern and `Field` table (`Surface::Key("alias_of")`, no `GAPS` row) — plus two surfaces the plan's "the four surfaces" phrase did not name, each gated by its own completeness test that failed at compile or test time until filled (D4.6): `examples/fields_core.rs` (an Identity-section worked example over a pack command, `vendor::unpack`, since no *shipped* command can ever carry a pack-only field) and `relations.rs` (`STANDALONE`, "declared vocabulary only" — no sibling field exists to cluster with yet). `docs/references/command-spec/fields.md` regenerated (`UPDATE_REFERENCE=1 cargo test -p tcl-spec-studio --test reference_doc`); `docs/design/spec-dsl-examples/README.md`'s keyword table gains the `alias_of NAME` row. Tests: `rust/tcl-registry/tests/registry_sweep.rs`'s `alias_of_names_a_shipped_command_of_the_same_family` — a live, forward-looking sweep over every `LOADABLE_DIALECTS` registry (0 shipped specs declare it yet, so this checks nothing today and everything the day one does) plus three synthetic `CommandRegistry::build_default()` + `.insert()` fixtures: a real target resolves, an unknown target does not, and a command real only in another dialect (`HTTP::header`) does not resolve in the plain Tcl family — the "of the same family" qualifier. `spectcl_roundtrip.rs` needed no new test: `every_command_in_every_dialect_round_trips_through_spectcl` and `the_twelve_port_fixtures_render_and_reload_as_themselves` already exercise every field generically once the loader and renderer speak it, and both passed unmodified. Gates: `cargo test -p tcl-registry` (928 lib and all 21 binaries, `registry_sweep` 39 — one more than the 38 baseline), `-p tcl-spectcl` (every binary, `golden_packs` included), `-p tcl-spec-studio` (198 lib and all binaries, `reference_doc` included), `-p tcl-compiler --lib` (6508, 2 ignored), `-p tcl-lsp-core --lib` (2350), `-p tcl-mcp` (111), `-p tcl-cli` (every binary); `cargo check --workspace --all-targets`; clippy (`-p tcl-registry -p tcl-spectcl -p tcl-spec-studio --all-targets`) and `cargo fmt` clean; `registry-axes --check` OK (7831 / 16 / 42 / 896 across 147, unchanged — the new test's string comparisons trip no site); `value-transfers --check` unchanged; `pack-goldens` rewrote all 25 snapshots (every command's `spec` digest moved once, since the digest hashes `CommandSpec`'s whole `Debug` text and every spec now carries `alias_of: None,` — `hooks`/`grammar` digests untouched, the same mechanical shape CC3.3's `HookDecl::line` addition moved 8 of them for) and `--check` passes; `kcs-index-links` green; `dialect-drift` at its 8; `retired-api-gate`'s two pre-existing hits (`side_effects.rs`, unrelated, unchanged since `250edd5b`) remain the only gate not clean, out of this item's scope (recorded at the step 3 landing). Deviations: the plan names `render_spectcl.rs` / `schema.rs` / `help.rs` / `draft.rs` / `coverage.rs` as "the four surfaces" (five names for four surfaces plus the witness); the tree's own completeness gates added two more, `examples.rs` and `relations.rs`, each already enforced for every other `CommandSpec` field and newly enforced for this one the moment it existed — filled rather than bypassed (D4.6). D4.1, D4.6 |
+
+### CC4.1 — what the next items read
+
+- **The field.** `CommandSpec::alias_of: Option<&'static str>` — `None`
+  for a shipped command and for a pack command declaring no target; the
+  loader's `apply_command_stmt` match arm and `ROW_WORDS` entry are the
+  only two sites that write it outside the studio surfaces. Nothing reads
+  it yet (D4.1): the catalogue's codegen-axis dispatch (`codegen_hook`,
+  `inline_codegen_hook`, `semantic_operation Intrinsic(…)`) is unaffected,
+  and `realm.rs`'s alias facts remain the only thing that infers an alias
+  from script statements — a candidate the studio may one day seed a
+  suggestion from, never a source `alias_of` reads or admits from.
+- **For CC4.2 (the stamp rejection rule).** The registry sweep's own
+  positive/negative fixtures
+  (`CommandRegistry::build_default()` + `.insert(CommandSpec { alias_of:
+  Some(…), ..CommandSpec::DEFAULT })`) are the pattern a
+  `rust/tcl-spectcl/tests/workspace_packs.rs` test can reuse for a pack
+  command that does or does not declare the stamped hook's own target.
+  `leak_str` is how `apply_command_stmt` already turns a row's second word
+  into the `&'static str` the field holds; `admit_codegen_stamps` (CC4.2's
+  own, not yet written) reads `command.spec.alias_of` the same way a
+  consumer reads any other `CommandSpec` field.
+- **Not yet wired (residue, unaffected by this item).**
+  `optimiser/elimination.rs`, GVN, `ssa.rs` and `memory_ssa.rs` still
+  classify every command from the catalogue alone (D3.22, step 3);
+  `alias_of` is a codegen-identity fact, not an analysis one, so nothing
+  about that residue changes here.
 
 ## Plan for steps 2–10
 
@@ -3626,6 +3663,21 @@ everything else in this lane is independent of both.
   `GAPS` row). **D4.5** `SiteClaim`, `PackFactStamp`, `IdentityKind` and
   the manifest live in `tcl-runtime-api`; `FunctionAsm` carries
   `site_claims`.
+- **D4.6** The plan's "the four surfaces" (`render_spectcl.rs`,
+  `schema.rs`, `help.rs`, `draft.rs`, over `coverage.rs`'s completeness
+  gate) is what a new `CommandSpec` field must reach to be authorable and
+  documented — but not the whole of what the tree enforces. Two more
+  surfaces, each with its own completeness test, are equally mandatory
+  and were not named: `examples/fields_core.rs` (`every_field_has_a_valid_example`
+  — every schema field needs a worked snippet; `alias_of`'s uses a pack
+  command, `vendor::unpack`, since no *shipped* command can ever carry a
+  pack-only field, unlike every neighbouring example that shows a real
+  one) and `relations.rs` (`every_field_is_clustered_or_declared_standalone`
+  — `alias_of` is `STANDALONE`, since nothing else interacts with it
+  until CC4.2 reads it). `alias_of`'s `schema.rs` category is `IDENTITY`,
+  not `deprecated_replacement`'s `DEPRECATION`, matching the page's own
+  three-contract framing (description, identity, backing) rather than the
+  nearest existing field of the same shape.
 - **D5.1** Guard identities are keyed by command-token generation and the
   `CommandEnvironment` domain invalidates per token; the interpreter and
   object-dispatch domains stay whole-domain.

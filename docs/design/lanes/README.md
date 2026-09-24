@@ -98,4 +98,6 @@ checkpoint compiling.
   review's fixes applied after it) and § *Step 3 — progress*; step 4
   (identity: `alias_of`, the alias target's identity, the stamp rule,
   `SiteClaim`), planned in the tracking document's § *Plan for steps
-  2–10*, has not started.
+  2–10*, is in progress item by item in the tracking document's § *Step
+  4 — progress*: CC4.1 (`alias_of` as a `CommandSpec` field, with no
+  consumer yet) has landed.

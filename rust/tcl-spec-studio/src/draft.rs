@@ -2283,6 +2283,7 @@ fn command_advanced(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
         "deprecated_replacement_drop_in".into(),
         json!(spec.deprecated_replacement_drop_in),
     );
+    d.insert("alias_of".into(), opt_str(spec.alias_of));
     d.insert(
         "byte_array_payload".into(),
         spec.byte_array_payload

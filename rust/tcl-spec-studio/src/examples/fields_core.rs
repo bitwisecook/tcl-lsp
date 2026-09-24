@@ -50,6 +50,18 @@ pub(super) const ENTRIES: &[(&str, Example)] = &[
             ],
         },
     ),
+    (
+        "alias_of",
+        Example {
+            code: "vendor::unpack {a b} $items",
+            focuses: &[focus(
+                0,
+                "vendor::unpack",
+                "a pack command declaring alias_of lassign — a specialised \
+                 codegen site records lassign's identity, never this name",
+            )],
+        },
+    ),
     // Availability
     (
         "surface",

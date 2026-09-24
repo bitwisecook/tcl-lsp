@@ -1399,6 +1399,7 @@ schema order. "excluded" rows carry the reason.
 | `xc_translatable` | `xc_translatable yes\|no` | argument required — absent means unset |
 | `deprecated_replacement` | `deprecated_replacement NAME` |  |
 | `deprecated_replacement_drop_in` | `deprecated_replacement_drop_in ?yes\|no?` |  |
+| `alias_of` | `alias_of NAME` | the shipped builtin this pack command is — declared vocabulary only until a codegen-axis stamp reads it (`docs/design/compiler/registry-consumer-contracts.md` § "The loader's stamp rejection rule") |
 | `byte_array_payload` | `byte_array_payload -replace-data-index N ?-message-flag-shift?` |  |
 | `byte_array_effect` | `byte_array_effect None\|Transparent\|Coerces\|CaseFolds\|Encodes\|{Rebinarifies N}` |  |
 | `definition_body` | `definition_body NAME\|{ … }` | a shipped grammar by name (`tcloo`, `tcloo-configurable`, `snit`, `snit-widget`, `itcl`), a pack `descriptor`, or the inline block — see "Definer grammars and scoped bodies" |

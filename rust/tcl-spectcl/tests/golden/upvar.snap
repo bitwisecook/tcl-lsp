@@ -13,4 +13,4 @@ notices 2
 notice command upvar 44 presentation names a lowering hook: this changes how the compiler translates the command, not just what the editor knows about it
 notice command upvar 45 presentation names a codegen hook: this changes how the compiler translates the command, not just what the editor knows about it
 commands 1
-command upvar line 16 overrides false degraded false spec b35ed4c14f41a130 hooks 0e9154028cee36a5 grammar 715ea0deb6f6f5f9
+command upvar line 16 overrides false degraded false spec 3fbe22a2bb46f77f hooks 0e9154028cee36a5 grammar 715ea0deb6f6f5f9
