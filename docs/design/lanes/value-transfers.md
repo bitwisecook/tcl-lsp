@@ -4639,6 +4639,23 @@ so `cargo xtask value-transfers --check` and `registry-axes --check` stay
 at the baseline (19 clean, 14 waived, 91 pinned across 37 files, 6607
 rows; 1070 pinned across 163 files); `cargo check --workspace` clean.
 
+| VT5.14 | `wip(value-transfers): slice 5 — the no-route writers` | `MayWriteSemantics { targets: &'static [ArgRole], reason: NoRouteReason }` (`value_transfer/builtins.rs`, new): `route` is `EvalRoute::None { reason }`, `identity` the shared spelling `"may_write"` (parallels `UnbindSemantics`'s one shared identity), and `store_targets` scans the declared roles — inert for these commands today (`call_defs` widens before it reads `store_targets` for a `None` route) but not decorative, since a future direct route reuses it unchanged. Declared: `FILE_STAT`/`FILE_LSTAT` (`file stat`, `file lstat`, `NoRouteReason::Platform`), `FILE_TEMPFILE` (`file tempfile`, `Platform`), `GETS` (`gets`, `chan gets`, `Declared`), `VWAIT` (`vwait`, `Declared`), `TK_OPTION_MENU` (`tk_optionMenu`, `Declared`), `TRACE` (`trace add`/`remove`/`variable`/`vdelete`, `Callback` — D156). `ForeachLineSemantics` (new, unit struct): `structure` answers `PlanAnswer::Iterate` over one `BinderName::Operand` binder and `IterableKind::Vendor { collection, cardinality: None }` for the filename operand, under `InvocationLayout::Source` only — `tcl-compiler`'s structured lowering (`lower_foreach_line`) turns every statically-bodied call into a plain `Statement::Foreach` before this declaration is ever consulted, and the CFG's own synthetic loop header always names its command `foreach`/`lmap`/`dict for`/`dict map` (`cfg_lower.rs`'s `fe_cmd`), never `foreachLine`, so the `Iterate` plan is read only for the dynamic-body fallback call; `IterableKind::List` is not used for it — the operand is a filename, and reading it as a list would misreport the name as the file's contents. Twelve `KNOWN_GAPS` rows removed (`xtask/src/value_transfers.rs`); `NoRouteReason::Platform` added (D156) | `route_stamps_match_the_pinned_set` (`tcl-registry/tests/value_transfers.rs`) gains the twelve stamps (`route_label`'s `NoRouteReason::Platform` arm, `"none:platform"`); every existing `value_transfers.rs` test unchanged |
+
+Green at VT5.14: `cargo test -p tcl-registry` 36 (`value_transfers.rs`) +
+the crate's other suites, all passed, 0 failed (`route_stamps_match_the_pinned_set`
+and `shipped_builtins_stay_on_the_direct_route` among them); `cargo
+clippy -p tcl-registry -p xtask --all-targets --no-deps -- -D warnings`
+clean, no `#[allow]` added; `cargo fmt -p tcl-registry -p xtask` applied
+(import ordering only). `cargo xtask value-transfers` (twelve rows'
+`has_semantics` flips true, their gap note changes from "writes a
+variable, no semantics" to "descriptor without a route" — the same
+classification `foreach_in_collection`/`append_to_collection` already
+carry, so no new `KNOWN_GAPS` row replaces the twelve removed) and
+`--check` (19 clean, 14 waived, 91 pinned across 37 files, 6607 rows,
+unchanged — no scanned consumer file touched); `registry-axes --check`
+(1070 pinned across 163 files, unchanged); `pack-goldens` (24 packs, 0
+rewritten); `cargo check --workspace` clean.
+
 ### Slice 8 — the existence rung
 
 #### Goal and exit
@@ -8212,6 +8229,35 @@ has the witnesses):
   `a_novariables_subst_of_a_dynamic_template_does_not_blind_reads`, would
   state the opposite of what the test asserts, so the test is
   `a_computed_template_blinds_reads_while_it_substitutes`.
+
+- **D156 — `NoRouteReason` gains `Platform`.** VT5.14's item text names
+  `PLATFORM` as the route-decline reason for the `file` forms
+  (`file stat`, `file lstat`, `file tempfile`), but the tree's
+  `NoRouteReason` (`value_transfer/decline.rs`) had only `Declared`,
+  `Unauthored`, `FormUnsupported`, and `Callback` — `PLATFORM` existed
+  only as `Needs::PLATFORM` and `Axis::Platform`, a release-axis payload
+  answering a different question (which axis a route cannot read, not why
+  a command has no route at all). The item adds the variant it names
+  rather than reusing one of the four that answers something else: a
+  `stat` call or a temporary file's name is the host platform's to decide,
+  never derivable from the source, which none of `Declared` (an author's
+  abstention), `Unauthored` (unwritten), `FormUnsupported` (a form the
+  route does not model) or `Callback` (a command prefix runs later) says.
+  `MayWriteSemantics` (VT5.14, `value_transfer/builtins.rs`) declares it
+  for the three `file` forms; `gets`, `chan gets`, `vwait`, and
+  `tk_optionMenu` keep `Declared`, matching the item text's "the channel,
+  event-loop and widget forms"; `trace add`/`remove`/`variable`/`vdelete`
+  take `Callback` — the item text describes them separately
+  ("declare `TransferAnswer::Generic` with no route") because they
+  install a `commandPrefix` the same way `regsub -command` does (VT5.4,
+  `NoRouteReason::Callback`), not because they need a second semantics
+  type: `MayWriteSemantics` does not override `transfer`, so its inherited
+  default is already `TransferAnswer::Generic`, and reusing the one type
+  for all eleven `MayWrite`-shaped commands avoids a second, behaviourally
+  identical struct (`store_targets`'s override, read only by an evaluated
+  outcome's validation, is inert for every `EvalRoute::None` command
+  either way — `call_defs` (`tcl-compiler/src/value_transfer.rs`) returns
+  `widened(defs)` before it is ever read).
 
 ### Open questions for the owner
 

@@ -889,49 +889,6 @@ fn target_roles(
 /// semantics, `append` and `lappend` derive theirs, and `const`, `lset`,
 /// `ledit` and `lpop` wait for the existence rung and the new list cores.
 const KNOWN_GAPS: &[(&str, &str)] = &[
-    // Slice 5, destructuring and structured bodies.
-    ("file stat", "slice 5 — the array-valued structured write"),
-    ("file lstat", "slice 5 — the array-valued structured write"),
-    (
-        "foreachLine",
-        "slice 5 — the iteration plan's binder over a file source",
-    ),
-    (
-        "gets",
-        "slice 5 — the may-write outcome of a value the source decides",
-    ),
-    (
-        "chan gets",
-        "slice 5 — the may-write outcome of a value the source decides",
-    ),
-    (
-        "file tempfile",
-        "slice 5 — the may-write outcome of a value the source decides",
-    ),
-    (
-        "vwait",
-        "slice 5 — the may-write outcome of a value the event loop decides",
-    ),
-    (
-        "tk_optionMenu",
-        "slice 5 — the may-write outcome of a value the widget decides",
-    ),
-    (
-        "trace add",
-        "slice 5 — the may-write outcome that marks a traced place externally mutable",
-    ),
-    (
-        "trace remove",
-        "slice 5 — the may-write outcome that marks a traced place externally mutable",
-    ),
-    (
-        "trace variable",
-        "slice 5 — the may-write outcome that marks a traced place externally mutable",
-    ),
-    (
-        "trace vdelete",
-        "slice 5 — the may-write outcome that marks a traced place externally mutable",
-    ),
     // Slice 8, the existence rung.
     (
         "const",

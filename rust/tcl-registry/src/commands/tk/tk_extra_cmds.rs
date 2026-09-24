@@ -67,13 +67,18 @@ pub fn specs() -> Vec<CommandSpec> {
             "Get or set the binding tags used for a window.",
             &[],
         ),
-        cmd(
-            "tk_optionMenu",
-            Arity::at_least(3),
-            &["tk_optionMenu pathName varName value ?value ...?"],
-            "Create an option-menubutton whose value is linked to a variable.",
-            &[(1, ArgRole::VarWrite)],
-        ),
+        CommandSpec {
+            semantics: SemanticsDeclaration::Declared(
+                &crate::value_transfer::builtins::TK_OPTION_MENU,
+            ),
+            ..cmd(
+                "tk_optionMenu",
+                Arity::at_least(3),
+                &["tk_optionMenu pathName varName value ?value ...?"],
+                "Create an option-menubutton whose value is linked to a variable.",
+                &[(1, ArgRole::VarWrite)],
+            )
+        },
         cmd(
             "tk_dialog",
             Arity::at_least(5),

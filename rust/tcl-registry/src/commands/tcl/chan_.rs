@@ -607,6 +607,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "chan gets channelId ?varName?",
         return_type: Some(TclType::String),
         arg_roles: &[(0, ArgRole::Channel), (1, ArgRole::VarWrite)],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::GETS),
         side_effects: &[
             SideEffect {
                 target: SideEffectTarget::FileIo,

@@ -26,17 +26,21 @@
 //! here ([`ExpressionRoute::assemble`]) and is evaluated by the driver's
 //! engine adapter, which feeds the shared engine the analysis services.
 
+use crate::arg_role::ArgRole;
+use crate::frame_effect::FrameLevel;
 use crate::types::TclType;
 
 use super::CommandSemantics;
 use super::answers::{
-    CompletionOutcome, DependencyEvidence, EvalAnswer, ExactValue, ExactValueOrUnavailable,
-    InvocationOutcome, RouteIdentity, TransferAnswer, TypeFacts,
+    Binder, BinderName, BindingKind, BodyPlan, CompletionOutcome, CompletionProtocol,
+    DependencyEvidence, EvalAnswer, ExactValue, ExactValueOrUnavailable, ExitRule,
+    InvocationOutcome, IterableKind, IterationPlan, PlanAnswer, RouteIdentity, TransferAnswer,
+    TypeFacts,
 };
 use super::const_ops::{ConstOps, ConstValue, Needs, TargetSemantics};
 use super::context::Budget;
-use super::decline::{Axis, DeclineReason};
-use super::inputs::{AnalysisInputs, FactDomain, OperandId, WordPart};
+use super::decline::{Axis, DeclineReason, NoRouteReason};
+use super::inputs::{AnalysisInputs, FactDomain, InvocationLayout, OperandId, TargetId, WordPart};
 use super::route::{EvalRoute, LanguageProfileId, NativeEvalId};
 
 /// The revision of the registry-owned `string range` evaluator.
@@ -937,5 +941,153 @@ impl CommandSemantics for ExpressionRoute {
             .collect();
         reads.sort_unstable();
         reads
+    }
+}
+
+/// A command declared to write its named targets with no route to
+/// evaluate the written value: `evaluate` declines with the given
+/// reason, and the driver's conservative fallback — the same one an
+/// undeclared write already took — is what actually widens each target
+/// (VT5.14; the classification is new, the lattice answer is not).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MayWriteSemantics {
+    /// The roles whose operands this call may write.
+    pub targets: &'static [ArgRole],
+    /// Why no route reads the written value.
+    pub reason: NoRouteReason,
+}
+
+/// `file stat name varName`.
+pub static FILE_STAT: MayWriteSemantics = MayWriteSemantics {
+    targets: &[ArgRole::VarWrite],
+    reason: NoRouteReason::Platform,
+};
+
+/// `file lstat name varName`: the same platform-decided array as `stat`.
+pub static FILE_LSTAT: MayWriteSemantics = FILE_STAT;
+
+/// `file tempfile ?nameVar? ?template?`: the platform names the file.
+pub static FILE_TEMPFILE: MayWriteSemantics = MayWriteSemantics {
+    targets: &[ArgRole::VarWrite],
+    reason: NoRouteReason::Platform,
+};
+
+/// `gets channelId ?varName?` / `chan gets channelId ?varName?`: the
+/// channel's next line is a value the source decides.
+pub static GETS: MayWriteSemantics = MayWriteSemantics {
+    targets: &[ArgRole::VarWrite],
+    reason: NoRouteReason::Declared,
+};
+
+/// `vwait varName`: the event loop writes `varName` from whichever event
+/// fires first.
+pub static VWAIT: MayWriteSemantics = MayWriteSemantics {
+    targets: &[ArgRole::VarWrite],
+    reason: NoRouteReason::Declared,
+};
+
+/// `tk_optionMenu pathName varName value ?value ...?`: the widget writes
+/// `varName` from the option the user picks.
+pub static TK_OPTION_MENU: MayWriteSemantics = MayWriteSemantics {
+    targets: &[ArgRole::VarWrite],
+    reason: NoRouteReason::Declared,
+};
+
+/// `trace add|remove|variable|vdelete … commandPrefix`: the traced place
+/// becomes externally mutable through the callback the call installs —
+/// `NoRouteReason::Callback`, the same reason `regsub -command` declares
+/// — and `transfer` keeps its inherited `TransferAnswer::Generic`, the
+/// same answer an unclassified write already took.
+pub static TRACE: MayWriteSemantics = MayWriteSemantics {
+    targets: &[ArgRole::VarWrite],
+    reason: NoRouteReason::Callback,
+};
+
+impl CommandSemantics for MayWriteSemantics {
+    fn identity(&self) -> &'static str {
+        "may_write"
+    }
+
+    fn route(&self) -> EvalRoute {
+        EvalRoute::None {
+            reason: self.reason,
+        }
+    }
+
+    fn store_targets(&self, input: &dyn AnalysisInputs) -> Vec<TargetId> {
+        let view = input.invocation();
+        self.targets
+            .iter()
+            .flat_map(|role| view.operands_with_role(*role))
+            .map(TargetId)
+            .collect()
+    }
+}
+
+/// The completion codes `foreachLine`'s loop body absorbs, as `foreach`'s
+/// does (TIP 670's reference implementation is a `foreach`-shaped `while`
+/// over `gets`).
+const FOREACH_LINE_ABSORBED: &[crate::completion::CompletionCode] = &[
+    crate::completion::CompletionCode::Break,
+    crate::completion::CompletionCode::Continue,
+];
+
+/// `foreachLine varName filename body`: the same loop shape `foreach`
+/// declares, over the file `filename` names rather than a Tcl list — a
+/// source no route reads (TIP 670). The structured lowering (`tcl-compiler`'s
+/// `lower_foreach_line`) already turns every statically-bodied call into a
+/// plain `Statement::Foreach`, so this plan is read only for the dynamic-body
+/// fallback call the registry still resolves by name.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct ForeachLineSemantics;
+
+/// `foreachLine`.
+pub static FOREACH_LINE: ForeachLineSemantics = ForeachLineSemantics;
+
+impl CommandSemantics for ForeachLineSemantics {
+    fn identity(&self) -> &'static str {
+        "iterate:foreach_line"
+    }
+
+    fn route(&self) -> EvalRoute {
+        EvalRoute::None {
+            reason: NoRouteReason::Unauthored,
+        }
+    }
+
+    fn structure(&self, input: &dyn AnalysisInputs) -> PlanAnswer {
+        let view = input.invocation();
+        let InvocationLayout::Source = view.layout else {
+            // The CFG's own synthetic loop header always names its command
+            // `foreach`/`lmap`/`dict for`/`dict map` (`cfg_lower.rs`), never
+            // the originating surface command, so this specialisation is
+            // never asked for a `LoopHeader` plan today.
+            return PlanAnswer::NoStructure;
+        };
+        let first = view.argument_offset;
+        if view.operands.len() != first + 3 {
+            return PlanAnswer::Declined(DeclineReason::WrongRepresentation);
+        }
+        PlanAnswer::Iterate(IterationPlan {
+            binders: vec![Binder {
+                name: BinderName::Operand(OperandId(first)),
+                kind: BindingKind::Scalar,
+            }],
+            // Not `IterableKind::List`: the operand is a filename, and
+            // reading it as a list would misreport the file's own name as
+            // its contents. `Vendor` is the shared "opaque collection, no
+            // known cardinality" shape.
+            iterable: IterableKind::Vendor {
+                collection: OperandId(first + 1),
+                cardinality: None,
+            },
+            body: Some(BodyPlan {
+                body: OperandId(first + 2),
+                frame: FrameLevel::Relative(0),
+            }),
+            exit: ExitRule::Exhaustion,
+            zero_iterations_bind: false,
+            completion: CompletionProtocol::Absorb(FOREACH_LINE_ABSORBED),
+        })
     }
 }

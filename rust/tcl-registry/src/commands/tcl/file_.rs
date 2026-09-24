@@ -304,6 +304,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "file lstat name ?varName?",
         return_type: Some(TclType::String),
         arg_roles: &[(1, ArgRole::VarWrite)],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::FILE_LSTAT),
         side_effects: &[
             SideEffect {
                 target: SideEffectTarget::FileIo,
@@ -525,6 +526,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "file stat name ?varName?",
         return_type: Some(TclType::String),
         arg_roles: &[(1, ArgRole::VarWrite)],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::FILE_STAT),
         side_effects: &[
             SideEffect {
                 target: SideEffectTarget::FileIo,
@@ -590,6 +592,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         return_type: Some(TclType::Channel),
         mutator: true,
         arg_roles: &[(0, ArgRole::VarWrite)],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::FILE_TEMPFILE),
         surface: Some(SpecSurface::TCL86_PLUS),
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,

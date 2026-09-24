@@ -1329,6 +1329,7 @@ fn pinned_route_stamps() -> BTreeSet<(String, &'static str, &'static str)> {
         ("array set", "direct:array-set", "registry"),
         ("binary format", "direct:binary-format", "registry"),
         ("binary scan", "direct:binary-scan", "registry"),
+        ("chan gets", "none:declared", "-"),
         ("dict append", "direct:dict-append", "registry"),
         ("dict incr", "direct:dict-incr", "registry"),
         ("dict lappend", "direct:dict-lappend", "registry"),
@@ -1337,9 +1338,14 @@ fn pinned_route_stamps() -> BTreeSet<(String, &'static str, &'static str)> {
         ("dict update", "none:unauthored", "-"),
         ("dict with", "none:unauthored", "-"),
         ("expr", "expression:tcl.expr", "-"),
+        ("file lstat", "none:platform", "-"),
+        ("file stat", "none:platform", "-"),
+        ("file tempfile", "none:platform", "-"),
         ("foreach", "none:unauthored", "-"),
+        ("foreachLine", "none:unauthored", "-"),
         ("foreach_in_collection", "none:declared", "-"),
         ("format", "direct:format-template", "registry"),
+        ("gets", "none:declared", "-"),
         ("incr", "direct:cell-increment", "registry"),
         ("lappend", "direct:cell-list-append", "registry"),
         ("lassign", "direct:list-assign", "registry"),
@@ -1354,7 +1360,13 @@ fn pinned_route_stamps() -> BTreeSet<(String, &'static str, &'static str)> {
         ("string length", "direct:string-length", "registry"),
         ("string range", "direct:string-range", "registry"),
         ("subst", "none:unauthored", "-"),
+        ("tk_optionMenu", "none:declared", "-"),
+        ("trace add", "none:callback", "-"),
+        ("trace remove", "none:callback", "-"),
+        ("trace variable", "none:callback", "-"),
+        ("trace vdelete", "none:callback", "-"),
         ("unset", "none:unauthored", "-"),
+        ("vwait", "none:declared", "-"),
     ]
     .into_iter()
     .map(|(name, route, owner)| (name.to_owned(), route, owner))
@@ -1472,6 +1484,7 @@ fn route_label(route: EvalRoute) -> &'static str {
             NoRouteReason::Declared => "none:declared",
             NoRouteReason::FormUnsupported => "none:form-unsupported",
             NoRouteReason::Callback => "none:callback",
+            NoRouteReason::Platform => "none:platform",
         },
     }
 }

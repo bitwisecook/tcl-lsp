@@ -257,6 +257,7 @@ pub fn spec() -> CommandSpec {
         // (see `traits` above) is the safety net that keeps an untracked
         // second or third varName from ever being silently mis-renamed.
         arg_roles: &[(0, ArgRole::VarWrite)],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::VWAIT),
         // The value observed after the wait is whatever the event handler
         // stored — unknowable statically — so the written variable is typed
         // overdefined, never from vwait's own (empty-string) return type.

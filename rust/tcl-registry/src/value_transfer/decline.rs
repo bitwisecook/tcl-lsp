@@ -87,6 +87,10 @@ pub enum NoRouteReason {
     /// The form runs a callback (`regsub -command`, a `-command`
     /// comparison), which needs a declared route of its own.
     Callback,
+    /// The value is the host platform's to decide (a `stat` call, a
+    /// temporary file's name): never satisfiable from the source alone
+    /// (`Axis::Platform`, `Needs::PLATFORM`).
+    Platform,
 }
 
 impl NoRouteReason {
@@ -98,6 +102,7 @@ impl NoRouteReason {
             Self::Unauthored => "unauthored",
             Self::FormUnsupported => "form-unsupported",
             Self::Callback => "callback",
+            Self::Platform => "platform",
         }
     }
 }
