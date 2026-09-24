@@ -41,7 +41,7 @@ use super::answers::{
 };
 use super::context::Budget;
 use super::decline::DeclineReason;
-use super::inputs::{AnalysisInputs, FactDomain, FactView, OperandId, TargetId};
+use super::inputs::{AnalysisInputs, DomainFact, FactDomain, FactView, OperandId, TargetId};
 use super::route::{EvalRoute, NativeEvalId};
 
 const NORMAL: &[CompletionCode] = &[CompletionCode::Ok];
@@ -208,5 +208,105 @@ impl CommandSemantics for CellWriteSemantics {
                 }
             }
         }
+    }
+}
+
+/// `const name value` (from 9.0, TIP 677): the creation of a constant,
+/// whose value is the program's only where the place is absent. `const`
+/// creates its variable only where none exists — over an ordinary variable
+/// it raises (`can't make constant "x": variable already exists`), and
+/// over a constant it keeps the old value (tclsh 9.0 and 9.1: `const c 5;
+/// const c 7; set c` is 5) — so an unbound place is written and any other
+/// declines. The call returns the empty string, and on its normal
+/// completion the place is bound as a scalar either way.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ConstWriteSemantics;
+
+/// `const name value`.
+pub static CONST_WRITE: ConstWriteSemantics = ConstWriteSemantics;
+
+impl ConstWriteSemantics {
+    /// The written place and the value's operand: the one `VarWrite`
+    /// operand and the operand after it, last.
+    fn form(input: &dyn AnalysisInputs) -> Option<(TargetId, OperandId)> {
+        let view = input.invocation();
+        let target = view.operands_with_role(ArgRole::VarWrite).next()?;
+        let value = OperandId(target.0 + 1);
+        (value.0 + 1 == view.operands.len()).then_some((TargetId(target), value))
+    }
+}
+
+impl CommandSemantics for ConstWriteSemantics {
+    fn identity(&self) -> &'static str {
+        NativeEvalId::ConstWrite.as_str()
+    }
+
+    fn route(&self) -> EvalRoute {
+        EvalRoute::Direct {
+            id: NativeEvalId::ConstWrite,
+        }
+    }
+
+    fn transfer(
+        &self,
+        domain: FactDomain,
+        input: &dyn AnalysisInputs,
+        _budget: &mut Budget,
+    ) -> TransferAnswer {
+        let Some((target, _)) = Self::form(input) else {
+            return TransferAnswer::Declined(DeclineReason::Unsupported);
+        };
+        if domain != FactDomain::Existence {
+            return TransferAnswer::Generic;
+        }
+        TransferAnswer::Existence(ExistenceTransfer {
+            paths: vec![CompletionPath {
+                completion: CompletionCodeDomain::Exact(NORMAL),
+                outcomes: vec![(target, ExistenceOutcome::Bind(BindingKind::Scalar))],
+            }],
+        })
+    }
+
+    fn evaluate(&self, input: &dyn AnalysisInputs, _budget: &mut Budget) -> EvalAnswer {
+        let Some((target, value)) = Self::form(input) else {
+            return EvalAnswer::Declined(DeclineReason::Unsupported);
+        };
+        let place = match input.place(target.0) {
+            Ok(place) => place,
+            Err(reason) => return EvalAnswer::Declined(reason),
+        };
+        // Only the absent place is a value: an existing variable raises and
+        // an existing constant keeps its value, neither of which the route
+        // models.
+        match input.prior_store(&place, FactDomain::Existence) {
+            FactView::Domain(DomainFact::Existence(super::answers::Existence::Unbound)) => {}
+            FactView::Domain(DomainFact::Existence(super::answers::Existence::Pending)) => {
+                return EvalAnswer::Pending;
+            }
+            _ => return EvalAnswer::Declined(DeclineReason::Unsupported),
+        }
+        let value = match input.operand(value, FactDomain::ExactValue).exact() {
+            Ok(value) => value,
+            Err(answer) => return answer,
+        };
+        let written = CellWriteSemantics::type_of(&value);
+        EvalAnswer::Evaluated(Box::new(InvocationOutcome {
+            completion: CompletionOutcome::Normal,
+            result: ExactValueOrUnavailable::Exact(ExactValue::text("")),
+            ordered_stores: vec![StoreOutcome::Write { target, value }],
+            types: TypeFacts {
+                result: Some(TclType::String),
+                per_target: vec![(target, written)],
+                shapes: Vec::new(),
+            },
+            evidence: DependencyEvidence {
+                route: Some(RouteIdentity {
+                    route: CONST_WRITE.route(),
+                    implementation: CONST_WRITE.identity(),
+                    revision: REVISION,
+                }),
+                ..DependencyEvidence::default()
+            },
+        }))
     }
 }

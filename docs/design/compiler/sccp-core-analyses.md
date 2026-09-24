@@ -309,6 +309,15 @@ evaluates to 1 under `tcl8.5` onwards and declines with `UnboundPlace` under
 `tcl8.4` and a profile spanning both; the `dict` keyed updates create an
 absent dictionary the same way.
 
+Three writers read it the same way (slice 8, VT8.8). `const` (from 9.0)
+writes its value only into an `Unbound` place: over an existing variable
+it raises and over an existing constant it keeps the old value, so any
+other place declines, and the place is bound as a scalar after it either
+way. `array unset` without a pattern unbinds an array but leaves a scalar
+or an absent name alone — it never raises — so it reads the prior fact,
+and a place that may be either widens; with a pattern the array stays.
+`array default` (from 9.0) may bind its name as an array.
+
 ### Preserve outcomes (`SccpResult::preserved`)
 
 Since slice 5, a definition whose statement left its place untouched — a

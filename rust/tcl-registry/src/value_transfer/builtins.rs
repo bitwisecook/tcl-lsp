@@ -991,6 +991,16 @@ pub static GETS: MayWriteSemantics = MayWriteSemantics {
     kind: Some(BindingKind::Scalar),
 };
 
+/// `array default exists|get|set|unset arrayName ?value?` (from 9.0): `set`
+/// makes the name an array when it is absent (`array default set d 7`
+/// leaves an empty array `d`), the other verbs keep the place, and none
+/// writes an element's value.
+pub static ARRAY_DEFAULT: MayWriteSemantics = MayWriteSemantics {
+    targets: &[ArgRole::VarWrite],
+    reason: NoRouteReason::Declared,
+    kind: Some(BindingKind::Array),
+};
+
 /// `vwait varName`: the event loop writes `varName` from whichever event
 /// fires first. The wait also ends on an unset (`Tcl_VwaitObjCmd` traces
 /// `TCL_TRACE_UNSETS` too: `set x 1; after 0 {unset x}; vwait x` leaves no

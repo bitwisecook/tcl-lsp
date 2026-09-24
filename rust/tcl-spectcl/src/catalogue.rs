@@ -503,6 +503,7 @@ pub const NATIVE_EVAL_IDS: &[Variant] = &[
     v("CellAppend", "the cell append behind append"),
     v("CellListAppend", "the cell list-append behind lappend"),
     v("CellWrite", "the exact-value write behind set"),
+    v("ConstWrite", "the constant's creation behind const"),
     v("DictSet", "dict set"),
     v("DictUnset", "dict unset"),
     v("DictIncr", "dict incr"),

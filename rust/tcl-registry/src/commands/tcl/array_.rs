@@ -131,6 +131,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "array default subcommand arrayName args...",
         return_type: Some(TclType::String),
         arg_roles: &[(1, ArgRole::VarWrite)],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::ARRAY_DEFAULT),
         // `default set` (create-on-demand) and `default unset` mutate; `get`
         // /`exists` only read. The single flat entry covers all four verbs,
         // so this declares the union per the read/write field docs.
@@ -318,6 +319,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "array unset arrayName ?pattern?",
         return_type: Some(TclType::String),
         arg_roles: &[(0, ArgRole::VarWrite)],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::unbind::ARRAY_UNSET),
         mutator: true,
         // `Tcl_ArrayObjCmd` (tclVar.c, `ArrayUnsetCmd`) destroys matching
         // elements — or the whole array in the pattern-less form — via the

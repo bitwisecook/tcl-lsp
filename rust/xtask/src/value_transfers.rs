@@ -1004,19 +1004,6 @@ fn target_roles(
 /// semantics, `append` and `lappend` derive theirs, and `const`, `lset`,
 /// `ledit` and `lpop` wait for the existence rung and the new list cores.
 const KNOWN_GAPS: &[(&str, &str)] = &[
-    // Slice 8, the existence rung.
-    (
-        "const",
-        "slice 8 — the write that fails on an existing variable reads the existence rung",
-    ),
-    (
-        "array unset",
-        "slice 8 — the unbind spelling's storage outcome in the existence rung",
-    ),
-    (
-        "array default",
-        "slice 8 — the absent-cell release rule reads the array's default",
-    ),
     // Slice 10, completion paths.
     (
         "catch",

@@ -333,6 +333,9 @@ pub enum NativeEvalId {
     /// The exact-value write behind `set`: write the value and return it,
     /// or return the value the cell holds.
     CellWrite,
+    /// The constant's creation behind `const` (from 9.0): write the value
+    /// into an absent place and return the empty string.
+    ConstWrite,
     /// `dict set`: the dictionary with a value at a key path.
     DictSet,
     /// `dict unset`: the dictionary without the key at a key path.
@@ -386,6 +389,7 @@ impl NativeEvalId {
         Self::CellAppend,
         Self::CellListAppend,
         Self::CellWrite,
+        Self::ConstWrite,
         Self::DictSet,
         Self::DictUnset,
         Self::DictIncr,
@@ -413,6 +417,7 @@ impl NativeEvalId {
             Self::CellAppend => "cell-append",
             Self::CellListAppend => "cell-list-append",
             Self::CellWrite => "cell-write",
+            Self::ConstWrite => "const-write",
             Self::DictSet => "dict-set",
             Self::DictUnset => "dict-unset",
             Self::DictIncr => "dict-incr",
@@ -441,6 +446,7 @@ impl NativeEvalId {
             | Self::CellAppend
             | Self::CellListAppend
             | Self::CellWrite
+            | Self::ConstWrite
             | Self::DictSet
             | Self::DictUnset
             | Self::DictIncr

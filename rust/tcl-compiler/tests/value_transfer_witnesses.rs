@@ -2457,6 +2457,59 @@ fn the_percent_n_count_witness() {
     prints_under_every_release(bound, "0\n");
 }
 
+/// `const` writes only an absent place (VT8.8): the first `const c 5`
+/// writes 5 into the absent `c` and the second keeps it — tclsh 9.0 and
+/// 9.1 print 5 twice — so the lattice holds 5 after the first and no value
+/// after the second, and `tcl opt` never prints 7. `set x 1; const x 2`
+/// raises on both releases, and the route declines it.
+#[test]
+fn const_writes_only_an_absent_place() {
+    let source = "proc p {} {\n    const c 5\n    puts $c\n    const c 7\n    puts $c\n}\np\n";
+    let raises = "proc q {} {\n    set x 1\n    const x 2\n}\nq\n";
+    for dialect in ["tcl9.0", "tcl9.1"] {
+        let unit = unit_of(source, dialect);
+        assert_eq!(
+            value_at(&unit, "::p", "c", 1).and_then(lattice_text),
+            Some("5".to_owned()),
+            "{dialect}: the absent place takes the value"
+        );
+        assert_eq!(
+            value_at(&unit, "::p", "c", 2).and_then(lattice_text),
+            None,
+            "{dialect}: an existing constant keeps a value the route does not model"
+        );
+        let (rewritten, rewrites) = optimised(source, dialect);
+        assert!(
+            !rewritten.contains("puts 7"),
+            "{dialect}: {rewritten}\n{rewrites:#?}"
+        );
+        assert!(
+            answers_for(&unit_of(raises, dialect), "::q", "const")
+                .iter()
+                .all(|answer| answer.starts_with("declined")),
+            "{dialect}: an existing variable declines"
+        );
+    }
+    for (series, tclsh) in releases_on_path() {
+        if !series.starts_with('9') {
+            continue;
+        }
+        let (rewritten, _) = optimised(source, &dialect_of(series));
+        for program in [source, rewritten.as_str()] {
+            assert_eq!(
+                run_script(&tclsh, program),
+                Some((true, "5\n5\n".to_owned())),
+                "tclsh{series}:\n{program}"
+            );
+        }
+        assert_eq!(
+            run_script(&tclsh, raises).map(|(ok, _)| ok),
+            Some(false),
+            "tclsh{series}: const over an existing variable raises"
+        );
+    }
+}
+
 /// The repeated-target witness: a call whose declared targets name the
 /// same place twice composes in execution order, so the last position's
 /// value wins. `lassign`'s repeated-target form (the interface page's own

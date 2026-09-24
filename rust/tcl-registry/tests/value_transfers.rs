@@ -1392,6 +1392,158 @@ fn each_may_write_declaration_answers_a_may_bind_of_its_target() {
     }
 }
 
+/// `const` (VT8.8) binds only an absent place: over an unbound place it
+/// writes the value and returns the empty string; over any other place it
+/// declines, since an existing variable raises and an existing constant
+/// keeps its value (tclsh 9.0 and 9.1: `const c 5; const c 7; set c` is 5,
+/// `set x 1; const x 2` raises `can't make constant "x": variable already
+/// exists`). Its existence transfer binds a scalar on the normal path.
+#[test]
+fn const_binds_only_an_absent_place() {
+    use tcl_registry::value_transfer::{BindingKind, DomainFact, Existence};
+    let reg = CommandRegistry::build_default();
+    let resolved = resolve_semantics(reg.get("const").expect("const"), None, None);
+    let semantics = resolved.semantics().expect("a declared route");
+    assert_eq!(semantics.identity(), "const-write");
+    let with_prior = |fact: Existence| {
+        let mut inputs = TestInputs::new(
+            "const",
+            vec![
+                literal("c", Some(ArgRole::VarWrite)),
+                literal("5", Some(ArgRole::Value)),
+            ],
+        );
+        inputs.prior.insert(
+            "c".to_owned(),
+            FactView::Domain(DomainFact::Existence(fact)),
+        );
+        inputs
+    };
+    let absent = with_prior(Existence::Unbound);
+    let EvalAnswer::Evaluated(outcome) = semantics.evaluate(&absent, &mut Budget::unbounded())
+    else {
+        panic!("an absent place is written");
+    };
+    assert_eq!(
+        outcome.result,
+        ExactValueOrUnavailable::Exact(ExactValue::from_literal(""))
+    );
+    assert_eq!(
+        outcome.ordered_stores,
+        vec![StoreOutcome::Write {
+            target: TargetId(OperandId(0)),
+            value: ExactValue::from_literal("5"),
+        }]
+    );
+    for fact in [
+        Existence::Bound(BindingKind::Scalar),
+        Existence::MayBound,
+        Existence::Bound(BindingKind::Either),
+    ] {
+        assert_eq!(
+            semantics.evaluate(&with_prior(fact), &mut Budget::unbounded()),
+            EvalAnswer::Declined(DeclineReason::Unsupported),
+            "{fact:?}"
+        );
+    }
+    match semantics.transfer(FactDomain::Existence, &absent, &mut Budget::unbounded()) {
+        TransferAnswer::Existence(transfer) => assert_eq!(
+            transfer.paths[0].outcomes,
+            vec![(
+                TargetId(OperandId(0)),
+                ExistenceOutcome::Bind(BindingKind::Scalar)
+            )]
+        ),
+        other => panic!("{other:?}"),
+    }
+}
+
+/// `array unset` (VT8.8): without a pattern it unbinds an array and keeps
+/// a scalar or an absent name, which it leaves alone without raising
+/// (tclsh 8.4 to 9.1: `set s 1; array unset s` leaves `s`); a place that
+/// may be either keeps the generic widening. With a pattern the array
+/// stays. `array default` (from 9.0) may bind its name as an array.
+#[test]
+fn array_unset_unbinds_only_an_array() {
+    use tcl_registry::value_transfer::{BindingKind, DomainFact, Existence};
+    let reg = CommandRegistry::build_default();
+    let array = reg.get("array").expect("array");
+    let unset = resolve_semantics(array, Some(array.subcommand("unset").expect("unset")), None);
+    let unset = unset.semantics().expect("a declared semantics");
+    let run = |words: Vec<OperandView<'static>>, fact: Existence| {
+        let mut inputs = TestInputs::new("array", words);
+        inputs.prior.insert(
+            "a".to_owned(),
+            FactView::Domain(DomainFact::Existence(fact)),
+        );
+        unset.transfer(FactDomain::Existence, &inputs, &mut Budget::unbounded())
+    };
+    let outcome = |answer: TransferAnswer| match answer {
+        TransferAnswer::Existence(transfer) => Some(transfer.paths[0].outcomes.clone()),
+        TransferAnswer::Generic => None,
+        other => panic!("{other:?}"),
+    };
+    let whole = || {
+        vec![
+            literal("unset", None),
+            literal("a", Some(ArgRole::VarWrite)),
+        ]
+    };
+    let target = TargetId(OperandId(1));
+    for (fact, want) in [
+        (
+            Existence::Bound(BindingKind::Array),
+            Some(ExistenceOutcome::Unbind),
+        ),
+        (
+            Existence::Bound(BindingKind::Scalar),
+            Some(ExistenceOutcome::Preserve),
+        ),
+        (Existence::Unbound, Some(ExistenceOutcome::Preserve)),
+        (Existence::Bound(BindingKind::Either), None),
+    ] {
+        assert_eq!(
+            outcome(run(whole(), fact)),
+            want.map(|want| vec![(target, want)]),
+            "{fact:?}"
+        );
+    }
+    let patterned = vec![
+        literal("unset", None),
+        literal("a", Some(ArgRole::VarWrite)),
+        literal("k*", None),
+    ];
+    assert_eq!(
+        outcome(run(patterned, Existence::Bound(BindingKind::Array))),
+        Some(vec![(target, ExistenceOutcome::Preserve)])
+    );
+    let default = resolve_semantics(
+        array,
+        Some(array.subcommand("default").expect("default")),
+        None,
+    );
+    let default = default.semantics().expect("a declared semantics");
+    let inputs = TestInputs::new(
+        "array",
+        vec![
+            literal("default", None),
+            literal("set", None),
+            literal("a", Some(ArgRole::VarWrite)),
+            literal("7", None),
+        ],
+    );
+    match default.transfer(FactDomain::Existence, &inputs, &mut Budget::unbounded()) {
+        TransferAnswer::Existence(transfer) => assert_eq!(
+            transfer.paths[0].outcomes,
+            vec![(
+                TargetId(OperandId(2)),
+                ExistenceOutcome::MayBind(BindingKind::Array)
+            )]
+        ),
+        other => panic!("{other:?}"),
+    }
+}
+
 /// The synthetic loop header projects to the declared iteration protocol:
 /// one list iterable at operand 0, the header's binders in order.
 #[test]
@@ -1489,10 +1641,13 @@ fn pinned_route_stamps() -> BTreeSet<(String, &'static str, &'static str)> {
         ("::tcl::dict::with", "none:unauthored", "-"),
         ("append", "direct:cell-append", "registry"),
         ("append_to_collection", "none:declared", "-"),
+        ("array default", "none:declared", "-"),
         ("array set", "direct:array-set", "registry"),
+        ("array unset", "none:unauthored", "-"),
         ("binary format", "direct:binary-format", "registry"),
         ("binary scan", "direct:binary-scan", "registry"),
         ("chan gets", "none:declared", "-"),
+        ("const", "direct:const-write", "registry"),
         ("dict append", "direct:dict-append", "registry"),
         ("dict incr", "direct:dict-incr", "registry"),
         ("dict lappend", "direct:dict-lappend", "registry"),
@@ -1622,6 +1777,7 @@ fn route_label(route: EvalRoute) -> &'static str {
             NativeEvalId::CellAppend => "direct:cell-append",
             NativeEvalId::CellListAppend => "direct:cell-list-append",
             NativeEvalId::CellWrite => "direct:cell-write",
+            NativeEvalId::ConstWrite => "direct:const-write",
             NativeEvalId::DictSet => "direct:dict-set",
             NativeEvalId::DictUnset => "direct:dict-unset",
             NativeEvalId::DictIncr => "direct:dict-incr",

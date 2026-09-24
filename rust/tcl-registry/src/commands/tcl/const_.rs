@@ -43,6 +43,7 @@ pub fn spec() -> CommandSpec {
         arity: Arity::new(2, 2),
         assigns_variable_at: Some(0),
         arg_roles: &[(0, ArgRole::VarWrite)],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::cell_write::CONST_WRITE),
         return_type: Some(TclType::String),
         side_effects: &[SideEffect {
             target: SideEffectTarget::Variable,
