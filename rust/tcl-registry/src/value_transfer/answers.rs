@@ -71,14 +71,18 @@ pub enum PlanAnswer {
     },
     /// An iteration protocol.
     Iterate(IterationPlan),
-    /// A case list with its selection contract. An arm is `(pattern,
-    /// body)`; a `None` body is a `-` arm.
+    /// A case list with its selection contract: produced from the
+    /// command's `CaseListSpec` for `switch`
+    /// ([`super::selection::SwitchSemantics`]); consumed by the `Selection`
+    /// transfer, O112, `switch_body_is_selected`, `static_loops::exec_switch`
+    /// and I231.
     CaseList {
         /// The subject operand.
         subject: OperandId,
-        /// The arms, in order.
-        arms: Vec<(OperandId, Option<OperandId>)>,
-        /// The spelling of the final-default arm, when the grammar has one.
+        /// The arms, in order, where the invocation writes them.
+        arms: CaseArms,
+        /// The fall-through body's spelling (`-`), when the grammar has
+        /// one: an arm whose body it is runs the next arm's body.
         fallthrough: Option<&'static str>,
         /// The selection semantics.
         selection: SelectionContract,
@@ -249,6 +253,20 @@ pub enum CompletionProtocol {
     },
 }
 
+/// Where a case list's arms are written. The page's shape,
+/// `Vec<(OperandId, Option<OperandId>)>`, is the inline form's alone: the
+/// one-word form's patterns and bodies are elements of a single operand
+/// that no `OperandId` names (VT6.2).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CaseArms {
+    /// Each pattern and body its own word, in order: `(pattern, body)`, a
+    /// `None` body an arm spelled with the fall-through body.
+    Words(Vec<(OperandId, Option<OperandId>)>),
+    /// One clause-list word whose value, read as a list, pairs up as the
+    /// patterns and bodies in order.
+    List(OperandId),
+}
+
 /// The selection semantics of a case list.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SelectionContract {
@@ -346,12 +364,25 @@ pub enum RepresentationEvidence {
     Constructed(TclType),
 }
 
-/// One selected-edge fact per member of a finite subject: the selected arm
-/// index, or `None` for the default path.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// One selected-edge fact per member of a finite subject, produced by the
+/// `Selection` transfer ([`super::selection::SwitchSemantics`]); consumed
+/// by the selection record and the consumers that read it. The three
+/// vectors run in member order, one entry per member.
+#[derive(Debug, Clone, PartialEq)]
 pub struct SelectionFact {
-    /// Per member of the subject, in member order.
+    /// The arm whose pattern matched — a final `default` among them — or
+    /// `None` when no pattern did and no body runs.
     pub selected: Vec<Option<usize>>,
+    /// The arm whose body runs: the selected arm's, or through a
+    /// fall-through body the next arm's that has one; `None` with
+    /// `selected`. VT6.2 adds it beside the page's `selected`, because a
+    /// pattern that never matches can still supply the body a preceding
+    /// `-` arm reaches.
+    pub bodies: Vec<Option<usize>>,
+    /// The writes the selection makes before its body runs — the
+    /// `-indexvar` value, then the `-matchvar` one, each a `Write` of its
+    /// option's variable word — in the command's order.
+    pub writes: Vec<Vec<StoreOutcome>>,
 }
 
 /// The existence fact at one place.

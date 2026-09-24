@@ -1702,6 +1702,7 @@ fn pinned_route_stamps() -> BTreeSet<(String, &'static str, &'static str)> {
         ("string length", "direct:string-length", "registry"),
         ("string range", "direct:string-range", "registry"),
         ("subst", "none:unauthored", "-"),
+        ("switch", "none:unauthored", "-"),
         ("tk_optionMenu", "none:declared", "-"),
         ("trace add", "none:callback", "-"),
         ("trace remove", "none:callback", "-"),
@@ -3654,5 +3655,266 @@ fn a_template_plan_joins_proven_switches_and_reads_indexes() {
             .map(|region| region.script.script.as_str())
             .collect::<Vec<_>>(),
         ["set b"]
+    );
+}
+
+/// `switch words…` under `dialect` (`tcl` is the lenient sink, which names
+/// no release) over literal words, the operand at `subject` holding `fact`
+/// when one is given: the inputs a selection runs over.
+fn switch_inputs<'a>(
+    dialect: &str,
+    words: &[&'a str],
+    subject: Option<(usize, FactView)>,
+) -> TestInputs<'a> {
+    let operands = words.iter().map(|&text| literal(text, None)).collect();
+    let mut inputs = TestInputs::new("switch", operands);
+    if let Some((index, fact)) = subject {
+        inputs.operands.insert(index, fact);
+    }
+    let profile = tcl_dialect::DialectProfile::find(dialect)
+        .or_else(|| (dialect == "tcl").then(tcl_dialect::DialectProfile::plain_tcl));
+    inputs.context = AnalysisContext::detached(profile);
+    inputs
+}
+
+/// A selection as the selected arms, the arms whose bodies run, and each
+/// member's writes as `(operand, written text)`.
+type SelectionRead = (
+    Vec<Option<usize>>,
+    Vec<Option<usize>>,
+    Vec<Vec<(usize, String)>>,
+);
+
+/// The `Selection` transfer of `switch words…` under `dialect`, read as a
+/// [`SelectionRead`], or the decline.
+fn switch_selection(
+    dialect: &str,
+    words: &[&str],
+    subject: Option<(usize, FactView)>,
+) -> Result<SelectionRead, DeclineReason> {
+    let reg = CommandRegistry::build_default();
+    let semantics = resolve_semantics(reg.get("switch").expect("switch"), None, None);
+    let semantics = semantics.semantics().expect("switch's selection contract");
+    let inputs = switch_inputs(dialect, words, subject);
+    match semantics.transfer(FactDomain::Selection, &inputs, &mut Budget::evaluation()) {
+        TransferAnswer::Selection(fact) => Ok((
+            fact.selected,
+            fact.bodies,
+            fact.writes
+                .into_iter()
+                .map(|writes| {
+                    writes
+                        .into_iter()
+                        .map(|store| match store {
+                            StoreOutcome::Write { target, value } => {
+                                ((target.0).0, String::from_utf8(value.bytes).expect("text"))
+                            }
+                            other => panic!("unexpected store {other:?}"),
+                        })
+                        .collect()
+                })
+                .collect(),
+        )),
+        TransferAnswer::Declined(reason) => Err(reason),
+        other => panic!("not a selection: {other:?}"),
+    }
+}
+
+/// No write for any member of a one-member selection.
+fn no_writes() -> Vec<Vec<(usize, String)>> {
+    vec![Vec::new()]
+}
+
+/// The plan `switch`'s `CaseListSpec` reads: the inline form names each
+/// pair, a `-` arm with no body; the one-word form names its clause list.
+fn the_case_list_plan_names_each_form() {
+    use tcl_registry::value_transfer::CaseArms;
+    let reg = CommandRegistry::build_default();
+    let semantics = resolve_semantics(reg.get("switch").expect("switch"), None, None);
+    let semantics = semantics.semantics().expect("switch's selection contract");
+    let PlanAnswer::CaseList { subject, arms, .. } = semantics.structure(&switch_inputs(
+        "tcl8.6",
+        &["-glob", "--", "x", "a*", "-", "b", "B"],
+        None,
+    )) else {
+        panic!("a case list");
+    };
+    assert_eq!(subject, OperandId(2));
+    assert_eq!(
+        arms,
+        CaseArms::Words(vec![
+            (OperandId(3), None),
+            (OperandId(5), Some(OperandId(6)))
+        ])
+    );
+    let PlanAnswer::CaseList { arms, .. } =
+        semantics.structure(&switch_inputs("tcl8.6", &["x", "a A"], None))
+    else {
+        panic!("a case list");
+    };
+    assert_eq!(arms, CaseArms::List(OperandId(1)));
+}
+
+/// What every release selects alike: ordered first match, the final
+/// `default` (a non-final one is a literal pattern), a `-` arm supplying
+/// the next body, a `ConstSet` subject per member, and a malformed regexp
+/// declining.
+fn every_release_selects_alike(dialect: &str) {
+    assert_eq!(
+        switch_selection(
+            dialect,
+            &["-glob", "--", "abc", "a* A ab* B default D"],
+            None
+        ),
+        Ok((vec![Some(0)], vec![Some(0)], no_writes())),
+        "{dialect}"
+    );
+    assert_eq!(
+        switch_selection(
+            dialect,
+            &["-exact", "--", "zzz", "a", "A", "default", "D"],
+            None
+        ),
+        Ok((vec![Some(1)], vec![Some(1)], no_writes())),
+        "{dialect}"
+    );
+    assert_eq!(
+        switch_selection(dialect, &["--", "zzz", "default", "A", "b", "B"], None),
+        Ok((vec![None], vec![None], no_writes())),
+        "{dialect}"
+    );
+    assert_eq!(
+        switch_selection(dialect, &["-glob", "--", "x", "x - y Y"], None),
+        Ok((vec![Some(0)], vec![Some(1)], no_writes())),
+        "{dialect}"
+    );
+    let members = FactView::Finite(
+        vec![
+            ExactValue::from_literal("a"),
+            ExactValue::from_literal("b"),
+            ExactValue::from_literal("z"),
+        ],
+        None,
+    );
+    assert_eq!(
+        switch_selection(
+            dialect,
+            &["-exact", "--", "$s", "a", "A", "b", "B"],
+            Some((2, members))
+        ),
+        Ok((
+            vec![Some(0), Some(1), None],
+            vec![Some(0), Some(1), None],
+            vec![Vec::new(), Vec::new(), Vec::new()]
+        )),
+        "{dialect}"
+    );
+    assert_eq!(
+        switch_selection(dialect, &["-regexp", "--", "abc", "( A"], None),
+        Err(DeclineReason::WrongRepresentation),
+        "{dialect}"
+    );
+}
+
+/// What 8.5 onwards selects: the captures — the index variable's write,
+/// then the match variable's; the default arm's empty write — `-nocase`,
+/// and a subject spelled like an option in the one-word form.
+fn from_85_the_captures_and_nocase_select(dialect: &str) {
+    assert_eq!(
+        switch_selection(
+            dialect,
+            &[
+                "-regexp",
+                "-matchvar",
+                "m",
+                "-indexvar",
+                "i",
+                "--",
+                "abc",
+                "(a)(x)?b M"
+            ],
+            None
+        ),
+        Ok((
+            vec![Some(0)],
+            vec![Some(0)],
+            vec![vec![
+                (4, "{0 1} {0 0} {-1 -1}".to_owned()),
+                (2, "ab a {}".to_owned())
+            ]]
+        )),
+        "{dialect}"
+    );
+    assert_eq!(
+        switch_selection(
+            dialect,
+            &["-regexp", "-matchvar", "m", "--", "abc", "x X default D"],
+            None
+        ),
+        Ok((vec![Some(1)], vec![Some(1)], vec![vec![(2, String::new())]])),
+        "{dialect}"
+    );
+    assert_eq!(
+        switch_selection(dialect, &["-nocase", "--", "ABC", "abc A"], None),
+        Ok((vec![Some(0)], vec![Some(0)], no_writes())),
+        "{dialect}"
+    );
+    assert_eq!(
+        switch_selection(
+            dialect,
+            &["-glob", "$s", "a A default D"],
+            Some((1, FactView::Exact(ExactValue::from_literal("-x"), None)))
+        ),
+        Ok((vec![Some(1)], vec![Some(1)], no_writes())),
+        "{dialect}"
+    );
+}
+
+/// `switch` declares its selection contract (VT6.2; § *`switch`*, step 2):
+/// the case-list plan its `CaseListSpec` reads — each arm a pair of words,
+/// or the elements of one clause-list word — and, per member of a proven
+/// subject, the arm the shared core selects: ordered first match, the final
+/// `default` (a non-final one is a literal pattern), a `-` arm supplying
+/// the body of an arm whose pattern never matches, the regexp mode's
+/// captures as `Write`s of the `-indexvar` and `-matchvar` words, and a
+/// `ConstSet` subject one entry per member. A malformed regexp, an option
+/// the release lacks, a subject that release scans as an option, and 9.1's
+/// `-integer` decline. Each answer is tclsh 8.4.20 to 9.1b0's
+/// (`switch_witnesses_match_every_release_on_path`).
+#[test]
+fn switch_selection_runs_the_shared_core() {
+    the_case_list_plan_names_each_form();
+    for dialect in ["tcl8.4", "tcl8.6", "tcl9.0", "tcl9.1", "tcl"] {
+        every_release_selects_alike(dialect);
+    }
+    for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+        from_85_the_captures_and_nocase_select(dialect);
+    }
+    // 8.4 has no `-nocase` and scans every leading word spelled like an
+    // option, and a profile naming no release reads both ways.
+    let dashed = || Some((1, FactView::Exact(ExactValue::from_literal("-x"), None)));
+    for dialect in ["tcl8.4", "tcl"] {
+        assert!(
+            switch_selection(dialect, &["-nocase", "--", "ABC", "abc A"], None).is_err(),
+            "{dialect}"
+        );
+        assert!(
+            switch_selection(dialect, &["-glob", "$s", "a A default D"], dashed()).is_err(),
+            "{dialect}"
+        );
+    }
+    // With two arms after the subject every release scans it.
+    assert!(
+        switch_selection(
+            "tcl8.6",
+            &["-glob", "$s", "a", "A", "default", "D"],
+            dashed()
+        )
+        .is_err()
+    );
+    // 9.1's `-integer` is not the core's comparison.
+    assert_eq!(
+        switch_selection("tcl9.1", &["-integer", "--", "1", "1 A"], None),
+        Err(DeclineReason::Unsupported)
     );
 }

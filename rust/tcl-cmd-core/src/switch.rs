@@ -42,7 +42,9 @@ use tcl_syntax::value::ValueOps;
 
 use crate::error::CmdError;
 use crate::prefix::OptionTable;
-use crate::regex::{NO_MATCH, RegMatch, RegexEngine, RegexFlags, decode_utf8};
+use crate::regex::{
+    AnalysisMatch, NO_MATCH, RegMatch, RegexEngine, RegexFailure, RegexFlags, Run, decode_utf8,
+};
 
 /// The matching mode (`-exact` is the default).
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -65,6 +67,12 @@ pub struct Options<V> {
     pub match_var: Option<V>,
     /// TIP #75 `-indexvar` target (the `{start end}` pair list; regexp only).
     pub index_var: Option<V>,
+    /// Index, in the name-stripped args, of the word naming the `-matchvar`
+    /// target — the place a caller's write lands on.
+    pub match_var_at: Option<usize>,
+    /// Index, in the name-stripped args, of the word naming the `-indexvar`
+    /// target.
+    pub index_var_at: Option<usize>,
     /// Index, in the name-stripped args, of the `string` to switch on.
     pub value_index: usize,
 }
@@ -112,6 +120,8 @@ where
     let mut nocase = false;
     let mut match_var: Option<V> = None;
     let mut index_var: Option<V> = None;
+    let mut match_var_at: Option<usize> = None;
+    let mut index_var_at: Option<usize> = None;
 
     let mut i = 0;
     // Leave the string plus at least one pattern/body word unparsed; `--` ends it.
@@ -141,8 +151,10 @@ where
                 }
                 if idx == OPT_INDEXV {
                     index_var = Some(args[i].clone());
+                    index_var_at = Some(i);
                 } else {
                     match_var = Some(args[i].clone());
+                    match_var_at = Some(i);
                 }
             }
             _ => {
@@ -176,6 +188,8 @@ where
         nocase,
         match_var,
         index_var,
+        match_var_at,
+        index_var_at,
         value_index: i,
     })
 }
@@ -204,7 +218,9 @@ pub enum Selection<V> {
 /// `-indexvar` values.
 ///
 /// # Errors
-/// A malformed `-regexp` pattern (the engine's compile error).
+/// A malformed `-regexp` pattern (the engine's compile error), and a search
+/// that established neither a match nor a no-match, raised as the error it
+/// is — never read as a pattern that did not match.
 pub fn select<O, E, V>(
     ops: &mut O,
     opts: &Options<V>,
@@ -214,6 +230,52 @@ pub fn select<O, E, V>(
 where
     O: ValueOps<Value = V>,
     E: RegexEngine,
+    E::Regex: 'static,
+    V: Clone,
+{
+    select_run::<O, E, V>(ops, opts, value, patterns, &mut Run::Runtime).map_err(|failure| {
+        CmdError::new(String::from_utf8_lossy(&failure.into_error().0).into_owned())
+    })
+}
+
+/// [`select`] on the analysis path: a `-regexp` pattern compiled through the
+/// thread's bounded pattern cache, each search run under `analysis`' limits,
+/// and a search that established neither a match nor a no-match — or matched
+/// with an approximate span — kept typed as [`RegexFailure::Declined`] rather
+/// than raised. Only a completed match or a completed no-match selects, so an
+/// arm is never chosen, or passed over, on a search that was cut short.
+///
+/// # Errors
+/// [`RegexFailure::Declined`] for a pattern that does not compile, a refused
+/// compile charge, an exhausted or cancelled search, or an approximate span.
+pub fn select_analysis<O, E, V>(
+    ops: &mut O,
+    opts: &Options<V>,
+    value: &V,
+    patterns: &[V],
+    analysis: &mut AnalysisMatch<'_>,
+) -> Result<Selection<V>, RegexFailure>
+where
+    O: ValueOps<Value = V>,
+    E: RegexEngine,
+    E::Regex: 'static,
+    V: Clone,
+{
+    select_run::<O, E, V>(ops, opts, value, patterns, &mut Run::Analysis(analysis))
+}
+
+/// The one selection algorithm both paths run.
+fn select_run<O, E, V>(
+    ops: &mut O,
+    opts: &Options<V>,
+    value: &V,
+    patterns: &[V],
+    run: &mut Run<'_, '_>,
+) -> Result<Selection<V>, RegexFailure>
+where
+    O: ValueOps<Value = V>,
+    E: RegexEngine,
+    E::Regex: 'static,
     V: Clone,
 {
     let npairs = patterns.len();
@@ -264,17 +326,15 @@ where
                     nocase: opts.nocase,
                     ..RegexFlags::default()
                 };
-                let mut re = E::compile(pat.as_bytes(), flags).map_err(|d| compile_error(&d))?;
+                let re = run.compile::<E>(pat.as_bytes(), flags)?;
                 let value_bytes = ops.as_bytes(value);
                 let (cps, byteoff) = decode_utf8(&value_bytes);
-                let answer = E::exec(&mut re, &cps, 0, false);
+                let answer = run.exec::<E>(&re, &cps, 0, false);
                 if let crate::regex::RegexpPrecision::Declined(decline) = answer {
-                    // A search cut short selects no arm: it is raised, not
-                    // read as a pattern that did not match.
-                    let error = decline.into_error();
-                    return Err(CmdError::new(
-                        String::from_utf8_lossy(&error.0).into_owned(),
-                    ));
+                    // A search cut short selects no arm: the runtime raises
+                    // it and the analysis path declines, never reading it
+                    // as a pattern that did not match.
+                    return Err(RegexFailure::Declined(decline));
                 }
                 if let Some(m) = answer.match_vector() {
                     let writes = regexp_writes(ops, opts, &m, &value_bytes, &byteoff);
@@ -390,13 +450,6 @@ fn double_option(arg: &str, found_name: &str) -> CmdError {
 
 fn mode_restriction(opt: &str) -> CmdError {
     CmdError::new(format!("{opt} option requires -regexp option"))
-}
-
-fn compile_error(detail: &[u8]) -> CmdError {
-    CmdError::new(format!(
-        "cannot compile regular expression pattern: {}",
-        String::from_utf8_lossy(detail)
-    ))
 }
 
 #[cfg(test)]
@@ -523,6 +576,8 @@ mod tests {
             nocase: false,
             match_var: None,
             index_var: None,
+            match_var_at: None,
+            index_var_at: None,
             value_index: 0,
         }
     }

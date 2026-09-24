@@ -820,7 +820,8 @@ replaces it. Later items build on the shapes in the *Wins* column.
 | `Binder { name: OperandId, … }` | `name: BinderName { Operand(OperandId), Declared(String) }` | code | `try`'s and `catch`'s declared binders have no operand |
 | `IterationPlan::body: BodyPlan` | `body: Option<BodyPlan>` | code | the synthetic loop header carries no body operand |
 | `DependencyEvidence::route: RouteIdentity` | `Option<RouteIdentity>` | code | `Default` for a detached evaluation |
-| `SelectionFact` (fields unstated) | `SelectionFact { selected: Vec<Option<usize>> }` | code | one selected arm (or none) per subject member |
+| `SelectionFact` (fields unstated) | `SelectionFact { selected: Vec<Option<usize>> }` | code, extended in VT6.2 with `bodies` and `writes` (D177) | one selected arm (or none) per subject member |
+| `PlanAnswer::CaseList { arms: Vec<(OperandId, Option<OperandId>)>, … }` | the same | code, `arms: CaseArms` from VT6.2 (D176) | the one-word form's arms are elements of one operand |
 | `EvaluatorCapability { identity, host, target, inputs, depends, budget: tcl_engine_api::Budget, completion }` | `EvaluatorCapability { identity: &'static str }` (`route.rs`) | page, extended in VT4.3 with `&'static` slices and a registry-side `ImplementationBudget` | `EvalRoute` is `Copy` and `tcl-registry` does not depend on `tcl-engine-api` |
 | `Interp::set_dialect_profile` | `Vm::set_dialect_profile` (`rust/tcl-vm/src/interp.rs:1656`) | code | naming only |
 | `Engine::set_release(&mut self, profile: &'static DialectProfile)` | `tcl-engine-api` is "deliberately dependency-free" (its `Cargo.toml`) | code: `set_release(&mut self, profile: &str)`, the profile's name, resolved by the engine through the registry's dialect ingress (`resolve_known_environment(…).catalogue_profile()`, VT4.1, D76) | a `tcl-dialect` dependency would break the crate's stated design |
@@ -5538,6 +5539,17 @@ unchanged.
   malformed regexp declining.
 - **Gates**: G2, G7, G8, G9.
 - **Model**: opus. **Size**: M. **After**: slice 5 (`RegexpPrecision`).
+- **Deviations** (D176 to D178): the plan's `arms` is `CaseArms`, because
+  the one-word form's patterns and bodies are elements of one operand no
+  `OperandId` names; `SelectionFact` gains `bodies` and `writes` beside
+  `selected`, because the body a `-` arm reaches and the capture writes
+  are part of what a consumer must reproduce; the regexp mode runs through
+  a new `tcl_cmd_core::switch::select_analysis` (the plan names `select`,
+  which raises what it cannot decide and runs outside the evaluation's
+  meter), and the core's `Options` records where each capture variable's
+  word sits; and two release rules the core does not know — 8.4's
+  unbounded option scan, and option rows a profile naming no release
+  cannot read alike — are applied beside it.
 
 ##### VT6.3 — the selection record
 
@@ -5734,6 +5746,37 @@ across 147 files, 36 waived, 16 clean), both unchanged; `pack-goldens`
 (25 packs, 0 rewritten); `retired-api-gate`, `owner-resolution` (45 rows)
 and `kcs-index-links` pass; `dialect-drift` 8 sites, none new; `cargo
 check --workspace` clean.
+
+| Item | Commit | What landed | Its tests |
+|---|---|---|---|
+| VT6.2 | ``wip(value-transfers): slice 6 — `switch` declares its selection contract`` | `SwitchSemantics` (`value_transfer/selection.rs`, new: identity `case-list:switch`, route `none:unauthored`, `evaluate` declining `NotAValue`), declared on `switch` over its own `CaseListSpec`, option table and surface (`switch_.rs`'s `SEMANTICS`). `structure` answers `PlanAnswer::CaseList { subject, arms, fallthrough, selection }` from `CaseListSpec::invocation` over the operands' spellings, with the option rows the target admits — `arms` a `CaseArms` (D176), `SelectionContract { mode, nocase, final_default }` from the layout and the descriptor. `transfer(FactDomain::Selection, …)` answers `SelectionFact { selected, bodies, writes }` (D177), one entry per member of an `Exact` or `Finite` subject: every other word exact, the clause-list word split under the target's list rules, the command's own pre-match errors (an empty list, a pattern with no body, a final `-`) declining, the core's `parse_options` over each member's values confirming the plan's subject, mode and case folding, and the new `select_analysis` choosing the arm, the `-` fall-through resolved to the next arm with a body and the capture writes landing on their variable words (D178). `tcl-cmd-core`: `select` and `select_analysis` share `select_run` over the regexp owner's `Run` (now `pub(crate)`), so the runtime's messages are unchanged; `Options` gains `match_var_at` and `index_var_at`. The registry's `regex.rs` shares `metered` and `failure_reason` with the new module. The generated value-transfers inventory gains the `switch` row, and the pinned route set gains `switch` | `switch_selection_runs_the_shared_core` (`value_transfers.rs`, new: the plan in both forms; ordered first match, the final and a non-final `default`, a `-` arm supplying the next body, a `ConstSet` subject per member and a malformed regexp declining, under 8.4 to 9.1 and a profile naming no release; the captures as the `-indexvar` then the `-matchvar` word's writes, the default arm's empty write, `-nocase` and a dash-spelled subject in the one-word form from 8.5; the declines — `-nocase` and a dash-spelled subject under 8.4 and an unnamed release, a dash-spelled subject every release scans, 9.1's `-integer`); `switch_witnesses_match_every_release_on_path` (`differential_fold.rs`, new: 18 witnesses against tclsh 8.4.20 to 9.1b0, the plan's five first, then the glob grammar's edges — the selection answers where tclsh does, bar a dash-spelled literal subject the plan's layout abstains on, and declines wherever tclsh raises); `an_option_free_call_selects_through_the_core` (`selection.rs`, new); `route_stamps_match_the_pinned_set` gains the `switch` row. No existing test moved |
+
+Green at VT6.2: `tcl-registry` and `tcl-cmd-core` 1382 passed across
+their binaries; `tcl-compiler` 9791 passed, 6 ignored across its 67
+binaries, and 7 doctests; `tcl-lsp-core --lib` 2350; `tcl-lsp-db --lib`
+103; `tcl-cli`, `tcl-explorer`, `tcl-spectcl` and `xtask` pass; `tcl-vm`
+passes but for five tests that read the host's system encoding
+(`iso8859-1` in this container, where they expect `utf-8`:
+`ensemble_subcommand_words_resolve_like_tclsh`, `encoding_command` and
+the three `word_value_resolution_e2e` vectors), none touching `switch` —
+`cmd_control_e2e`'s `switch` cases pass through the shared `select_run`;
+no existing test moved; workspace clippy (`--all-targets -D warnings`),
+no `#[allow]` added, and `cargo fmt --check`; `value-transfers`
+(regenerated: the inventory's `switch` row) and `--check` (22 clean, 19
+waived, 83 pinned across 34 files, 6607 rows); `registry-axes --check`
+(893 pinned across 147 files, 36 waived, 16 clean), unchanged;
+`pack-goldens` (25 packs, 0 rewritten); `retired-api-gate` and
+`owner-resolution` pass; `dialect-drift` 8 sites, none new; `cargo
+check --workspace` clean.
+
+Found, not modelled: 9.1b0's byte-compiled `switch` reads only a bare
+`-` as the fall-through body — `IsFallthroughToken` (`tclCompCmdsSZ.c`)
+measures the word token with its quotes or braces — so `switch -- a a
+"-" b {puts B}` runs `-` as a command there (`invalid command name "-"`),
+where 8.4.20 to 9.0.4, and 9.1b0's own interpreted path, read the word's
+value. The selection follows the documented rule; the witness harness
+spells the body bare. A regression in a beta, for the coordinator to
+file upstream.
 
 ### Slice 9 — nested writes in expressions
 
@@ -9055,6 +9098,46 @@ has the witnesses):
   one function, `with_whole_variable_operands`. Only an operand resolves:
   the parser makes `Raw` only for a whole unparsed condition, which stays
   undecided.
+- **D176 — A case list's arms are `CaseArms`** (VT6.2). The page's
+  `arms: Vec<(OperandId, Option<OperandId>)>` names the inline form's
+  words; the one-word form's patterns and bodies are the elements of one
+  operand, which no `OperandId` names. `CaseArms::Words` keeps the page's
+  pairs, a `None` body an arm spelled with the fall-through body;
+  `CaseArms::List` names the clause-list word, whose value the transfer
+  splits under the target's list rules. The plan's `fallthrough` field's
+  doc said it spelled the final-default arm; it spells the fall-through
+  body, and the doc now says so.
+- **D177 — The selection fact carries the body that runs and the
+  writes** (VT6.2). `selected` alone does not say which body runs — a
+  pattern that never matches can supply the body a preceding `-` arm
+  reaches (the design's § *`switch`*, step 2) — and the regexp mode's
+  `-indexvar` and `-matchvar` writes happen before that body. So
+  `SelectionFact` holds, per member, `selected`, `bodies` (the arm whose
+  body runs) and `writes` (`Write` outcomes on the options' variable
+  words, the index variable's first as the core makes them), and loses
+  `Eq`, an `ExactValue` carrying a double. The core's `Options` records
+  where each variable word sits (`match_var_at`, `index_var_at`), so a
+  write lands on its operand rather than on a name matched back to one.
+- **D178 — The selection runs on the analysis path under the release's
+  option scan** (VT6.2). The core's `select` runs a regexp search under
+  the engine's own budget and raises what it cannot decide; the new
+  `select_analysis` shares its algorithm (`select_run`, over the regexp
+  owner's `Run`) and compiles through the thread's bounded pattern cache
+  and searches under the evaluation's meter, a search that established
+  nothing — or an approximate span — declining the fact. The layout is
+  the registry's: `CaseListSpec::invocation` over the spellings, with the
+  option rows the target admits, and under a profile naming no release
+  only the rows every release has, so `-nocase` and the capture options
+  decline there. The core's `parse_options` over each member's values must
+  then read the same subject, mode and case folding, or the fact
+  declines — which also catches a dash-spelled subject value every release
+  scans as an option (two arms or more after it). Two rules the core does
+  not know apply beside it: before 8.5 every leading word spelled like an
+  option is scanned (`Tcl_SwitchObjCmd`'s unbounded loop), so a subject
+  value starting with `-` that no `--` precedes declines under a profile
+  that may be 8.4; and 9.1's `-integer` (`CaseMatchMode::Other`) is not
+  the core's comparison. A non-ASCII subject or pattern is admitted only
+  where the target decodes source as UTF-8.
 
 ### Open questions for the owner
 

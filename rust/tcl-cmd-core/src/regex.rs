@@ -449,7 +449,7 @@ impl From<RegexError> for RegexFailure {
 
 impl RegexFailure {
     /// The runtime's reading: a decline is raised as the error it is.
-    fn into_error(self) -> RegexError {
+    pub(crate) fn into_error(self) -> RegexError {
         match self {
             Self::Error(error) => error,
             Self::Declined(decline) => decline.into_error(),
@@ -457,8 +457,9 @@ impl RegexFailure {
     }
 }
 
-/// How one `regexp` / `regsub` run compiles its pattern and matches.
-enum Run<'a, 'c> {
+/// How one `regexp` / `regsub` / `switch -regexp` run compiles its pattern
+/// and matches.
+pub(crate) enum Run<'a, 'c> {
     /// The runtime: a fresh compile, the engine's own budget.
     Runtime,
     /// The analysis path: the thread's bounded cache, the caller's charge
@@ -471,7 +472,7 @@ impl Run<'_, '_> {
     /// cache answers first; a miss charges the pattern's length squared —
     /// the parser's worst case — before it compiles, and a refused charge is
     /// `Cancelled`, never a partial entry.
-    fn compile<E: RegexEngine>(
+    pub(crate) fn compile<E: RegexEngine>(
         &mut self,
         pattern: &[u8],
         flags: RegexFlags,
@@ -511,7 +512,7 @@ impl Run<'_, '_> {
     /// One search. On the analysis path it runs under the caller's limits,
     /// and a match with an approximate span declines: a capture consumer
     /// needs exact captures.
-    fn exec<E: RegexEngine>(
+    pub(crate) fn exec<E: RegexEngine>(
         &self,
         re: &RefCell<E::Regex>,
         cps: &[i32],

@@ -1963,3 +1963,287 @@ fn template_witnesses_match_every_release_on_path() {
         eprintln!("no tclsh on PATH: template_witnesses_match_every_release_on_path ran nothing");
     }
 }
+
+/// One `switch` witness: the words before the subject, the subject, the
+/// arms as `(pattern, whether its body is the fall-through body)`, whether
+/// the arms are one clause-list word, and the variables read back after it.
+type SwitchWitness = (
+    &'static [&'static str],
+    &'static str,
+    &'static [(&'static str, bool)],
+    bool,
+    &'static [&'static str],
+);
+
+/// The selection witnesses (VT6.2), the plan's five first — ordered
+/// patterns, the final default, a `-` arm whose next pattern never matches
+/// supplying its body, regexp captures, a malformed regexp — each measured
+/// on tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1b0: the captures and
+/// `-nocase` raise `bad option` on 8.4, and a subject spelled like an
+/// option is one there.
+const SWITCH_WITNESSES: &[SwitchWitness] = &[
+    (
+        &["-glob", "--"],
+        "abc",
+        &[("a*", false), ("ab*", false), ("default", false)],
+        true,
+        &[],
+    ),
+    (
+        &["-exact", "--"],
+        "zzz",
+        &[("a", false), ("default", false)],
+        false,
+        &[],
+    ),
+    (
+        &["-glob", "--"],
+        "x",
+        &[("x", true), ("y", false)],
+        true,
+        &[],
+    ),
+    (
+        &["-regexp", "-matchvar", "m", "-indexvar", "i", "--"],
+        "abc",
+        &[("(a)(x)?b", false)],
+        true,
+        &["m", "i"],
+    ),
+    (&["-regexp", "--"], "abc", &[("(", false)], true, &[]),
+    (
+        &["--"],
+        "zzz",
+        &[("default", false), ("b", false)],
+        false,
+        &[],
+    ),
+    (&["-nocase", "--"], "ABC", &[("abc", false)], true, &[]),
+    (
+        &["-regexp", "-matchvar", "m", "--"],
+        "abc",
+        &[("x", false), ("default", false)],
+        true,
+        &["m"],
+    ),
+    (
+        &["-glob"],
+        "-x",
+        &[("a", false), ("default", false)],
+        true,
+        &[],
+    ),
+    (
+        &["-glob"],
+        "-x",
+        &[("a", false), ("default", false)],
+        false,
+        &[],
+    ),
+    (
+        &["-regexp", "--"],
+        "aXb",
+        &[("a.b", true), ("zz", false), ("q", false)],
+        false,
+        &[],
+    ),
+    (&["-exact"], "b", &[("a", false), ("b", false)], true, &[]),
+    (&["-glob", "--"], "a[b", &[("a\\[*", false)], true, &[]),
+    (
+        &["-regexp", "-nocase", "--"],
+        "ABC",
+        &[("^a", false)],
+        true,
+        &[],
+    ),
+    // The glob grammar's edges, which every release reads alike.
+    (
+        &["-glob", "--"],
+        "m",
+        &[("[z-a]", false), ("default", false)],
+        true,
+        &[],
+    ),
+    (
+        &["-glob", "--"],
+        "b",
+        &[("[!a]", false), ("default", false)],
+        false,
+        &[],
+    ),
+    (
+        &["-glob", "--"],
+        "[a",
+        &[("[a", false), ("default", false)],
+        true,
+        &[],
+    ),
+    (
+        &["-glob", "--"],
+        "a",
+        &[("[a", false), ("default", false)],
+        true,
+        &[],
+    ),
+];
+
+/// The words `switch` receives for `witness`, each body `body(arm)` or the
+/// fall-through body.
+fn switch_words(
+    (before, subject, arms, list, _): SwitchWitness,
+    body: impl Fn(usize) -> String,
+) -> Vec<String> {
+    let clauses: Vec<String> = arms
+        .iter()
+        .enumerate()
+        .flat_map(|(arm, &(pattern, falls))| {
+            [
+                pattern.to_owned(),
+                if falls { "-".to_owned() } else { body(arm) },
+            ]
+        })
+        .collect();
+    let mut words: Vec<String> = before.iter().map(|&word| word.to_owned()).collect();
+    words.push(subject.to_owned());
+    if list {
+        let mut rendered = Vec::new();
+        for (index, clause) in clauses.iter().enumerate() {
+            if index != 0 {
+                rendered.push(b' ');
+            }
+            tcl_syntax::list::append_list_element(&mut rendered, clause.as_bytes(), index == 0);
+        }
+        words.push(String::from_utf8(rendered).expect("text"));
+    } else {
+        words.extend(clauses);
+    }
+    words
+}
+
+/// What `switch`'s selection answers for `witness` under `profile`: the arm
+/// whose body runs (`none` when none does), then each observed variable —
+/// its written value, or `<unset>` — or `None` when the selection declines.
+fn switch_route(
+    reg: &CommandRegistry,
+    profile: Option<&'static tcl_dialect::DialectProfile>,
+    witness: SwitchWitness,
+) -> Option<Vec<String>> {
+    use tcl_registry::value_transfer::{
+        Budget, FactDomain, LiteralInputs, StoreOutcome, TransferAnswer, resolve_semantics,
+    };
+    let semantics = resolve_semantics(reg.get("switch").expect("switch"), None, None);
+    let semantics = semantics.semantics().expect("switch's selection contract");
+    let words = switch_words(witness, |arm| format!("B{arm}"));
+    let args: Vec<&str> = words.iter().map(String::as_str).collect();
+    let inputs = LiteralInputs::new("switch", None, &args, profile);
+    let TransferAnswer::Selection(fact) =
+        semantics.transfer(FactDomain::Selection, &inputs, &mut Budget::evaluation())
+    else {
+        return None;
+    };
+    assert_eq!(fact.selected.len(), 1, "one member");
+    let mut seen = vec![fact.bodies[0].map_or_else(|| "none".to_owned(), |arm| arm.to_string())];
+    for name in witness.4 {
+        let written = fact.writes[0].iter().rev().find_map(|store| match store {
+            StoreOutcome::Write { target, value } if args[(target.0).0] == *name => {
+                Some(String::from_utf8(value.bytes.clone()).expect("text"))
+            }
+            _ => None,
+        });
+        seen.push(written.unwrap_or_else(|| "<unset>".to_owned()));
+    }
+    Some(seen)
+}
+
+/// What `tclsh` answers for the same witness, one line per value, or
+/// `None` when the command raises.
+fn switch_oracle(tclsh: &str, witness: SwitchWitness) -> Option<Vec<String>> {
+    use std::fmt::Write as _;
+    let words = switch_words(witness, |arm| format!("set __body {arm}"));
+    let mut script = String::from("set __body none\nif {[catch {switch");
+    for word in &words {
+        script.push(' ');
+        // A fall-through body is spelled bare: 9.1b0's byte-compiled
+        // `switch` reads only a bare `-` as one (`IsFallthroughToken` in
+        // `tclCompCmdsSZ.c` measures the word with its delimiters), where
+        // 8.4 to 9.0, and 9.1's own interpreted path, read the value.
+        if word == "-" {
+            script.push('-');
+        } else {
+            script.push_str(&tcl_quoted_word(word));
+        }
+    }
+    script.push_str("}]} {exit 1}\nputs $__body\n");
+    let _ = writeln!(
+        script,
+        "foreach __name {{{}}} {{\n\
+         if {{[info exists $__name]}} {{puts [set $__name]}} else {{puts <unset>}}\n\
+         }}",
+        witness.4.join(" ")
+    );
+    match run_tcl(tclsh, &script)? {
+        (true, out) => Some(out.lines().map(str::to_owned).collect()),
+        (false, _) => None,
+    }
+}
+
+/// `switch`'s selection (VT6.2), per release found on `PATH`, each under
+/// that release's profile against the real `tclsh`: when the selection
+/// answers, the body it names runs and the variables it writes hold what
+/// it wrote; when `tclsh` raises, the selection declines; the plan's
+/// witnesses answer under every release that runs them, the captures from
+/// 8.5.
+#[test]
+fn switch_witnesses_match_every_release_on_path() {
+    // The plan's witnesses, which every release that runs them answers.
+    const REQUIRED: [usize; 5] = [0, 1, 2, 3, 4];
+    let reg = CommandRegistry::build_default();
+    let mut releases = 0usize;
+    for version in tcl_dialect::TclVersion::ALL {
+        let Some(tclsh) = find_tclsh(version.version_string()) else {
+            continue;
+        };
+        releases += 1;
+        let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name());
+        let mut agreed = 0usize;
+        for (index, &witness) in SWITCH_WITNESSES.iter().enumerate() {
+            let want = switch_oracle(&tclsh, witness);
+            let got = switch_route(&reg, profile, witness);
+            match (&want, &got) {
+                (Some(want), Some(got)) => {
+                    assert_eq!(
+                        got,
+                        want,
+                        "tclsh{}: switch {:?}",
+                        version.version_string(),
+                        switch_words(witness, |arm| format!("B{arm}"))
+                    );
+                    agreed += 1;
+                }
+                (None, Some(got)) => panic!(
+                    "tclsh{} raises on switch {:?}, the selection answered {got:?}",
+                    version.version_string(),
+                    switch_words(witness, |arm| format!("B{arm}"))
+                ),
+                (Some(_), None) => assert!(
+                    !REQUIRED.contains(&index),
+                    "tclsh{}: the selection declined the witness switch {:?}",
+                    version.version_string(),
+                    switch_words(witness, |arm| format!("B{arm}"))
+                ),
+                (None, None) => {}
+            }
+        }
+        // 8.4 raises on the captures and `-nocase`; every other release
+        // answers all but the subject spelled like an option, which the
+        // plan's layout abstains on.
+        assert!(
+            agreed >= 7,
+            "tclsh{}: only {agreed} witnesses agreed",
+            version.version_string()
+        );
+    }
+    if releases == 0 {
+        eprintln!("no tclsh on PATH: the selection witnesses were not exercised");
+    }
+}

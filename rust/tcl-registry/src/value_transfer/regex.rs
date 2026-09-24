@@ -130,7 +130,7 @@ fn start_decline(args: &[String]) -> Option<DeclineReason> {
 /// # Errors
 ///
 /// The budget's limit when the work spent exceeds what it had left.
-fn metered<R>(
+pub(super) fn metered<R>(
     ops: &mut ConstOps<'_>,
     run: impl FnOnce(&mut ConstOps<'_>, &mut AnalysisMatch<'_>) -> R,
 ) -> Result<R, DeclineReason> {
@@ -165,7 +165,7 @@ fn metered<R>(
 /// it is a decline; an exhausted, too-deep or approximate search is
 /// `Approximate`; a form the core does not implement is `Unsupported`; a
 /// stopped one is the cancelled request's.
-fn failure_reason(ops: &ConstOps<'_>, failure: &RegexFailure) -> DeclineReason {
+pub(super) fn failure_reason(ops: &ConstOps<'_>, failure: &RegexFailure) -> DeclineReason {
     if let Some(fault) = ops.fault() {
         return fault;
     }

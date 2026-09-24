@@ -56,11 +56,12 @@ pub mod literal;
 mod publication;
 pub mod regex;
 pub mod route;
+pub mod selection;
 pub mod template;
 pub mod unbind;
 
 pub use answers::{
-    Binder, BinderName, BindingKind, BodyPlan, CompletionOutcome, CompletionPath,
+    Binder, BinderName, BindingKind, BodyPlan, CaseArms, CompletionOutcome, CompletionPath,
     CompletionProtocol, DependencyEvidence, EvalAnswer, ExactValue, ExactValueOrUnavailable,
     Existence, ExistenceOutcome, ExistenceTransfer, ExitRule, FactBounds, HandlerMatch,
     HandlerPlan, InvocationOutcome, IterableKind, IterationPlan, NumericValue, PlanAnswer,

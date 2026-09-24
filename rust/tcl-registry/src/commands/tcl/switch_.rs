@@ -235,6 +235,16 @@ const OPTIONS: &[OptionSpec] = &[
     },
 ];
 
+/// `switch`'s selection contract: its case-list grammar and option table,
+/// with the command's own surface, read by the value-transfer layer's
+/// `Selection` transfer through the shared switch core.
+static SEMANTICS: crate::value_transfer::selection::SwitchSemantics =
+    crate::value_transfer::selection::SwitchSemantics {
+        case_list: CaseListSpec::SWITCH,
+        options: OPTIONS,
+        surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
+    };
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "switch",
@@ -296,6 +306,7 @@ pub fn spec() -> CommandSpec {
         option_effect_families: FAMILIES,
         case_list: Some(&CaseListSpec::SWITCH),
         analyser_hook: Some(crate::hooks::AnalyserHookId::Switch),
+        semantics: SemanticsDeclaration::Declared(&SEMANTICS),
         ..CommandSpec::DEFAULT
     }
 }
