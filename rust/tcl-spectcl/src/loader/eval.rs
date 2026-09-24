@@ -1787,33 +1787,6 @@ fn failed_pack(state: &State, failure: &PackEvalFailure) -> Pack {
 
 // Replay
 
-/// Whether a pack loading from this tier under this trust state has its
-/// registrations gated by E-R2's untrusted rules.
-///
-/// The class itself is [`Provenance::is_untrusted`]'s to decide — this is
-/// only the tier-and-trust-to-provenance step, through the map
-/// [`super::PackEnvironmentTier::provenance`] already owns, so the loader
-/// and the registration layer cannot disagree about what a tier means.
-/// Before the class was derived, the loader called `Tier::Workspace`
-/// untrusted while the environment model called the same tier
-/// [`Provenance::WorkspaceTrusted`].
-///
-/// Redesign §6.4 keys the workspace half on the **editor's Workspace Trust
-/// state**, not on where the file was discovered: a *trusted* workspace pack
-/// may `-override` a shipped command — that is the collision policy
-/// [`crate::install`] implements, tests, and reports through
-/// [`crate::pack::collision_notices`] — and only an *untrusted* workspace
-/// ([`Provenance::WorkspaceUntrusted`], reached through
-/// [`crate::DiscoveryOptions::workspace_trust`]) is refused. The live Spec
-/// Studio override tier is untrusted whatever the editor says.
-///
-/// [`Provenance::is_untrusted`]: tcl_dialect::model::Provenance::is_untrusted
-/// [`Provenance::WorkspaceTrusted`]: tcl_dialect::model::Provenance::WorkspaceTrusted
-/// [`Provenance::WorkspaceUntrusted`]: tcl_dialect::model::Provenance::WorkspaceUntrusted
-fn untrusted(tier: super::PackEnvironmentTier) -> bool {
-    tier.provenance().is_untrusted()
-}
-
 /// The compiled command surface a workspace pack may not shadow: the
 /// permissive all-Tcl view, the same registry the collision policy
 /// consults.
@@ -1833,7 +1806,8 @@ fn compiled_command_exists(name: &str) -> bool {
 /// authoring tool (`spectcl_check`, the Spec Studio's
 /// `untrusted_tier_refusal`) tells its user "this loads for you, and would
 /// be refused from an untrusted workspace" without evaluating the pack a
-/// second time. The load's own gate is in [`replay`], under [`untrusted`].
+/// second time. The load's own gate is in [`replay`], under
+/// [`tcl_registry::model::untrusted`].
 #[must_use]
 pub fn provenance_violation(pack: &Pack, tier: Tier) -> Option<(u32, String)> {
     provenance_violation_in(
@@ -1948,9 +1922,12 @@ fn replay(state: State, options: &EvalOptions) -> Pack {
     let registrations = record_nodes(&state.pack_nodes);
 
     // E-R2: provenance gates what the registrations may touch, and a
-    // violation is transactional — the whole pack is discarded.
+    // violation is transactional — the whole pack is discarded. The one
+    // `untrusted` predicate (`tcl_registry::model::untrusted`) is the tree's
+    // single door onto `Provenance::is_untrusted`; this loader no longer
+    // keeps its own copy of the same match (#2139).
     let tier = super::PackEnvironmentTier::of(options.tier, options.trust);
-    if untrusted(tier)
+    if tcl_registry::model::untrusted(tier.provenance())
         && let Some((line, message)) = provenance_violation_in(&registrations, tier)
     {
         let error = LoadError::Provenance(message.clone());

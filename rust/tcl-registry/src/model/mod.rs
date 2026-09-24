@@ -102,7 +102,7 @@ pub use tcllib::{TCLLIB_MODULES, TcllibModule, module_version_set, tcllib_module
 pub use registration::{
     EnvironmentExtension, EnvironmentRegistrationError, EnvironmentSource, RejectedSource,
     SyncOutcome, live_environments, provenance_label, register_environments,
-    sync_environment_sources,
+    sync_environment_sources, untrusted,
 };
 pub use surface::{
     BuildCapability, CapabilityPredicate, PackageId, Provider, SurfaceDeclaration,
