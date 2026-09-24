@@ -10470,6 +10470,80 @@ fn w210_empty_dict_with_return_fires_but_known_key_silent() {
     );
 }
 
+/// The `dict with` / `dict update` key harvest reads the registry's body
+/// plan (VT5.18). A key path descends before the keys bind: `dict with d a
+/// {}` over `{a {x 1}}` binds `x`, not `a` (tclsh 8.5 to 9.1 return `1`,
+/// and raise `can't read "y"` for a key the path does not hold); a key path
+/// over a dictionary the analysis does not know leaves the shape unknown;
+/// the qualified spelling is the same plan; and a `dict update` variable is
+/// bound only when the dictionary holds its key (`can't read "v"`
+/// otherwise).
+#[test]
+fn w210_dict_body_keys_come_from_the_plan() {
+    let path = w210_codes("proc f {} { set d {a {x 1}}\n dict with d a {}\n return $x }");
+    assert!(path.is_empty(), "a key path's keys bind; got {path:?}");
+    let beside = w210_codes("proc f {} { set d {a {x 1}}\n dict with d a {}\n return $y }");
+    assert!(
+        beside.iter().any(|m| m.contains("'y'")),
+        "a key the path does not hold is unbound; got {beside:?}"
+    );
+    let unknown = w210_codes("proc f {d} { dict with d a {}\n return $x }");
+    assert!(
+        unknown.is_empty(),
+        "an unknown dictionary's key path is unknown shape; got {unknown:?}"
+    );
+    let qualified = w210_codes("proc f {} { set d {a 1}\n ::tcl::dict::with d {}\n return $a }");
+    assert!(
+        qualified.is_empty(),
+        "the qualified spelling binds; got {qualified:?}"
+    );
+    let qualified_missing =
+        w210_codes("proc f {} { set d {a 1}\n ::tcl::dict::with d {}\n return $b }");
+    assert!(
+        qualified_missing.iter().any(|m| m.contains("'b'")),
+        "the qualified spelling binds only its keys; got {qualified_missing:?}"
+    );
+    let present = w210_codes("proc f {} { set d {k 1}\n dict update d k v {}\n return $v }");
+    assert!(present.is_empty(), "a present key binds; got {present:?}");
+    let absent = w210_codes("proc f {} { set d {j 1}\n dict update d k v {}\n return $v }");
+    assert!(
+        absent.iter().any(|m| m.contains("'v'")),
+        "an absent key leaves its variable unbound; got {absent:?}"
+    );
+}
+
+/// W307 reads the element and body bindings from outcomes, the lattice and
+/// the plan (VT5.18): a `dict with` key path binds the nested dictionary's
+/// keys (the spelling harvest read the outer dictionary's); an `array set`
+/// over a lattice-constant list binds its elements; and in a function with
+/// a barrier, which widens every value it holds, a literal `array set` or
+/// `set arr(k)` still states its element write. A dispatch on a known
+/// command is silent and one on a non-command still fires.
+#[test]
+fn w307_reads_element_and_body_bindings() {
+    let w307 = |src: &str| {
+        let mut a = Analyser::new();
+        a.analyse(src, "tcl")
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W307)
+            .count()
+    };
+    let path = "proc f {d} { dict with d a { $cmd hi } }\n";
+    assert_eq!(w307(&format!("{path}f {{a {{cmd puts}}}}\n")), 0);
+    assert_eq!(w307(&format!("{path}f {{a {{cmd notACommand}}}}\n")), 1);
+    let pairs = |value: &str| {
+        format!("proc f {{}} {{ set pairs {{run {value}}}\n array set h $pairs\n $h(run) hello }}")
+    };
+    assert_eq!(w307(&pairs("puts")), 0);
+    assert_eq!(w307(&pairs("notACommand")), 1);
+    let barrier = |write: &str| format!("proc f {{x}} {{ {write}\n eval $x\n $h(run) hello }}");
+    assert_eq!(w307(&barrier("array set h {run puts}")), 0);
+    assert_eq!(w307(&barrier("array set h {run notACommand}")), 1);
+    assert_eq!(w307(&barrier("set h(run) puts")), 0);
+    assert_eq!(w307(&barrier("set h(run) notACommand")), 1);
+}
+
 #[test]
 fn w210_qualified_variable_alias_tail_return_silent() {
     // FP-RBS-04: `variable ${name}::graphAttr` declares the local alias

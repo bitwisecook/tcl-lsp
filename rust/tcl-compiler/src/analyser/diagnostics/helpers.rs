@@ -962,15 +962,18 @@ fn concat_barrier_words(tokens: &crate::ir::CommandTokens, first: usize) -> Opti
 
 /// `dict with` / `dict update` key-aware suppression: record the dict-var
 /// names and, when the dict value is a same-block literal (or an
-/// interprocedurally-propagated SCCP const), its keys.  A value that resolves
+/// interprocedurally-propagated SCCP const), the variables the registry's
+/// plan binds from it on entry — each key `dict with` finds, each `dict
+/// update` variable whose key the dictionary holds.  A value that resolves
 /// to neither marks the dict shape unknown.
 fn harvest_dict_with_suppression(
     fu: &crate::compilation_unit::FunctionUnit,
     considered: &HashSet<BlockId>,
     s: &mut UndefSuppression,
-    rules: tcl_syntax::word_rules::WordValueRules,
+    registry: &tcl_registry::CommandRegistry,
 ) {
     use crate::ir::Statement;
+    use crate::value_transfer::{DictBinder, dict_body, dict_body_operand};
     for &bn in considered {
         let Some(block) = fu.cfg.blocks.get(&bn) else {
             continue;
@@ -981,17 +984,13 @@ fn harvest_dict_with_suppression(
             else {
                 continue;
             };
-            let is_dict = command == "dict" || stmt.canonical_command_or_source() == "::dict";
-            if !is_dict {
+            // Whether the call's declared plan binds a dictionary's keys into
+            // its body — asked of the registry, not of the spelling.
+            let Some(dict) = dict_body_operand(registry, command, args) else {
                 continue;
-            }
-            if args.first().map(String::as_str) != Some("with")
-                && args.first().map(String::as_str) != Some("update")
-            {
-                continue;
-            }
+            };
             s.has_dict_with = true;
-            let Some(dict_var) = args.get(1) else {
+            let Some(dict_var) = args.get(dict) else {
                 s.dict_with_any_unknown = true;
                 continue;
             };
@@ -1035,40 +1034,36 @@ fn harvest_dict_with_suppression(
                     }
                 }
             }
-            match literal {
-                Some(v) => {
-                    let elems = crate::tcl_expr_eval::split_tcl_list(&v, rules);
-                    if args.first().map(String::as_str) == Some("update") {
-                        // `dict update d k1 v1 k2 v2 … BODY` binds each value-var
-                        // vN to the value of key kN *inside the body* — but only
-                        // when kN is present in the dict (tclsh: an absent key
-                        // leaves vN unset). So a read of vN is suppressed exactly
-                        // when kN is a known-present key. args[2..len-1] are the
-                        // key/value pairs; the final arg is the BODY.
-                        let present: HashSet<&str> =
-                            elems.iter().step_by(2).map(String::as_str).collect();
-                        let end = args.len().saturating_sub(1);
-                        let mut i = 2;
-                        while i + 1 < end {
-                            if present.contains(args[i].as_str()) {
-                                let valvar =
-                                    crate::naming::normalise_var_name(&args[i + 1]).to_string();
-                                if !valvar.is_empty() {
-                                    s.dict_with_known_keys.insert(valvar);
-                                }
-                            }
-                            i += 2;
-                        }
-                    } else {
-                        // `dict with`: the body binds each present key as a local.
-                        for (i, key) in elems.into_iter().enumerate() {
-                            if i % 2 == 0 {
-                                s.dict_with_known_keys.insert(key);
-                            }
+            let Some(binders) = literal
+                .as_deref()
+                .and_then(|literal| dict_body(registry, command, args, literal))
+            else {
+                s.dict_with_any_unknown = true;
+                continue;
+            };
+            for binder in binders {
+                match binder {
+                    // `dict with`: the body binds each key the dictionary holds.
+                    DictBinder::Key { name, .. } => {
+                        s.dict_with_known_keys.insert(name);
+                    }
+                    // `dict update d k1 v1 …`: `vN` is bound only when the
+                    // dictionary holds `kN` (tclsh leaves it unset otherwise),
+                    // so a read of it is suppressed exactly then.
+                    DictBinder::Variable {
+                        variable,
+                        bound: true,
+                        ..
+                    } => {
+                        let valvar = args
+                            .get(variable)
+                            .map_or("", |word| crate::naming::normalise_var_name(word));
+                        if !valvar.is_empty() {
+                            s.dict_with_known_keys.insert(valvar.to_string());
                         }
                     }
+                    DictBinder::Variable { .. } => {}
                 }
-                None => s.dict_with_any_unknown = true,
             }
         }
     }
@@ -1149,7 +1144,9 @@ pub(super) fn build_undef_suppression(
         loop_entry_only_undef,
         ..Default::default()
     };
-    harvest_dict_with_suppression(fu, considered, &mut s, rules);
+    if let Some(registry) = registry {
+        harvest_dict_with_suppression(fu, considered, &mut s, registry);
+    }
 
     // Names with a concrete (version > 0) statement or phi definition — a
     // dict-with scope never suppresses these (they are genuinely set).

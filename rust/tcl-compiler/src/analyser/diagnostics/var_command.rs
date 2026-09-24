@@ -1306,7 +1306,7 @@ impl Analyser {
 
         // Aggregate constant-string knowledge (var name → flat CONST/CONSTSET
         // value set) across every function in the CompilationUnit.
-        let all_constsets = aggregate_constsets(cu, self.word_rules());
+        let all_constsets = aggregate_constsets(cu, self.registry.as_deref());
 
         // Build the "known commands" universe — registry + user procs + class
         // tail names.
@@ -2518,15 +2518,6 @@ fn is_callback_array_slot(var_name: &str) -> bool {
         .any(|suffix| k.ends_with(suffix))
 }
 
-/// Harvest direct single-element array assignments — `set arr(key) <literal>`,
-/// which lowers to an `AssignValue { name: "arr(key)", value }` (the scalar
-/// `set_literal_body` path excludes `(`-bearing names) — into the constset map
-/// keyed by `arr(key)`. The SSA const collector keys on scalar SSA variables
-/// and does not track array elements, and `harvest_array_set_constants` only
-/// covers the `array set` list form; this covers the single-element form so the
-/// W307 callback-array suppression can see the slot's concrete value
-/// (FP-OBJ-10 SCCP-evidence override). Also accepts the `AssignConst` / generic
-/// `Call "set"` shapes defensively.
 /// Harvest `(table-base, literal value, value span)` triples
 /// from the dispatch-table constructors whose value text is recoverable in
 /// the source — `set arr(k) value` / `array set arr {k v …}` /
@@ -2641,37 +2632,46 @@ fn harvest_table_command_value_spans(
     out
 }
 
-fn harvest_array_element_set_constants(
+/// Harvest the element writes each statement states itself into the
+/// constset map keyed by `arr(key)`: a literal `set arr(k) v` (the lowering's
+/// `AssignConst` / `AssignValue` to an element name), and each element a
+/// call's registry route writes over its literal words (`array set arr {k v
+/// …}`, [`crate::value_transfer::literal_element_writes`]). The lattice
+/// holds these in a function without a barrier and loses them in one with
+/// a barrier, which widens every value the function holds; the W307
+/// callback-array suppression reads the statement's own write either way
+/// (FP-OBJ-10 SCCP-evidence override).
+fn harvest_element_writes(
     cu: &crate::compilation_unit::CompilationUnit,
     out: &mut HashMap<String, HashSet<String>>,
+    registry: &tcl_registry::CommandRegistry,
 ) {
     use crate::ir::Statement;
     let is_literal = |s: &str| !s.contains('$') && !s.contains('[');
-    // `TclObjLookupVarEx`'s element rule, from the one owner rather than a
-    // local re-spelling of its two char tests.
-    let is_array_elem = |name: &str| tcl_syntax::naming::split_element_ref(name).is_some();
+    // `TclObjLookupVarEx`'s element rule, from the one owner.
+    let is_element = |name: &str| tcl_syntax::naming::split_element_ref(name).is_some();
     let units = std::iter::once(&cu.top_level).chain(cu.procedures.values());
     for fu in units {
         for block in fu.cfg.blocks.values() {
             for stmt in &block.statements {
                 match stmt {
-                    Statement::AssignValue { name, value, .. }
-                        if is_array_elem(name) && is_literal(value) =>
-                    {
+                    Statement::AssignConst { name, value, .. } if is_element(name) => {
                         out.entry(name.clone()).or_default().insert(value.clone());
                     }
-                    Statement::AssignConst { name, value, .. } if is_array_elem(name) => {
+                    Statement::AssignValue { name, value, .. }
+                        if is_element(name) && is_literal(value) =>
+                    {
                         out.entry(name.clone()).or_default().insert(value.clone());
                     }
                     Statement::Call { command, args, .. }
-                        if command == "set"
-                            && args.len() == 2
-                            && is_array_elem(&args[0])
-                            && is_literal(&args[1]) =>
-                    {
-                        out.entry(args[0].clone())
-                            .or_default()
-                            .insert(args[1].clone());
+                    | Statement::Barrier { command, args, .. } => {
+                        for (array, key, value) in
+                            crate::value_transfer::literal_element_writes(registry, command, args)
+                        {
+                            out.entry(format!("{array}({key})"))
+                                .or_default()
+                                .insert(value);
+                        }
                     }
                     _ => {}
                 }
@@ -2680,86 +2680,54 @@ fn harvest_array_element_set_constants(
     }
 }
 
-fn harvest_array_set_constants(
-    cu: &crate::compilation_unit::CompilationUnit,
-    out: &mut HashMap<String, HashSet<String>>,
-    rules: tcl_syntax::word_rules::WordValueRules,
-) {
-    use crate::ir::Statement;
-    let units = std::iter::once(&cu.top_level).chain(cu.procedures.values());
-    for fu in units {
-        for block in fu.cfg.blocks.values() {
-            for stmt in &block.statements {
-                let (Statement::Call { command, args, .. }
-                | Statement::Barrier { command, args, .. }) = stmt
-                else {
-                    continue;
-                };
-                let is_array =
-                    command == "array" || stmt.canonical_command_or_source() == "::array";
-                if !is_array || args.first().map(String::as_str) != Some("set") || args.len() < 3 {
-                    continue;
-                }
-                let arr_name = &args[1];
-                let items = crate::tcl_expr_eval::split_tcl_list(&args[2], rules);
-                if !items.len().is_multiple_of(2) {
-                    continue;
-                }
-                for pair in items.as_chunks::<2>().0 {
-                    let elem_name = format!("{arr_name}({})", pair[0]);
-                    out.entry(elem_name).or_default().insert(pair[1].clone());
-                }
-            }
-        }
-    }
-}
-
-/// Harvest `dict with d { … }` unpacked variable values: when `d` is a known
-/// literal dict (via SCCP CONST at param entry — usually from call-site
-/// constant propagation), the body sees each dict key as a local variable
-/// bound to its value.  Register those bindings so a `$cmd hi` dispatch inside
-/// the body checks `cmd`'s value against the known-command set.
+/// Harvest the bindings a dictionary body makes on entry — `dict with d {…}`
+/// over a dictionary the lattice knows at the statement: each key the
+/// registry's plan binds is a local of the body holding its value, so a `$cmd
+/// hi` dispatch inside the body checks `cmd`'s value against the
+/// known-command set. The dictionary is read at the version the statement
+/// uses, a parameter's interprocedural literal among them.
 fn harvest_dict_with_constants(
     cu: &crate::compilation_unit::CompilationUnit,
     out: &mut HashMap<String, HashSet<String>>,
-    rules: tcl_syntax::word_rules::WordValueRules,
+    registry: &tcl_registry::CommandRegistry,
 ) {
     use crate::ir::Statement;
+    use crate::value_transfer::{DictBinder, dict_body, dict_body_operand};
     let units = std::iter::once(&cu.top_level).chain(cu.procedures.values());
     for fu in units {
-        for block in fu.cfg.blocks.values() {
-            for stmt in &block.statements {
+        for (block_id, block) in &fu.cfg.blocks {
+            let Some(ssa_block) = fu.ssa.blocks.get(block_id) else {
+                continue;
+            };
+            for (index, stmt) in block.statements.iter().enumerate() {
                 let (Statement::Barrier { command, args, .. }
                 | Statement::Call { command, args, .. }) = stmt
                 else {
                     continue;
                 };
-                let is_dict = command == "dict" || stmt.canonical_command_or_source() == "::dict";
-                if !is_dict || args.first().map(String::as_str) != Some("with") {
-                    continue;
-                }
-                let Some(dict_var) = args.get(1) else {
+                let Some(dict) = dict_body_operand(registry, command, args) else {
                     continue;
                 };
-                let dvar = crate::naming::normalise_var_name(dict_var);
-                // The call-site-propagated literal lands at the param entry (v0).
-                let Some(crate::analyses::LatticeValue::Const(
-                    crate::analyses::ConstValue::String(dict_text),
-                )) = fu
-                    .ssa
-                    .var_symbol(dvar)
-                    .and_then(|s| fu.sccp.values.get(&(s, 0)))
+                let dictionary = args.get(dict).and_then(|word| {
+                    let symbol = fu.ssa.var_symbol(crate::naming::normalise_var_name(word))?;
+                    let version = *ssa_block.statements.get(index)?.uses.get(&symbol)?;
+                    match fu.sccp.values.get(&(symbol, version))? {
+                        crate::analyses::LatticeValue::Const(value) => {
+                            crate::value_transfer::const_text(value)
+                        }
+                        _ => None,
+                    }
+                });
+                let Some(binders) = dictionary
+                    .as_deref()
+                    .and_then(|dictionary| dict_body(registry, command, args, dictionary))
                 else {
                     continue;
                 };
-                let items = crate::tcl_expr_eval::split_tcl_list(dict_text, rules);
-                if !items.len().is_multiple_of(2) {
-                    continue;
-                }
-                for pair in items.as_chunks::<2>().0 {
-                    out.entry(pair[0].clone())
-                        .or_default()
-                        .insert(pair[1].clone());
+                for binder in binders {
+                    if let DictBinder::Key { name, value } = binder {
+                        out.entry(name).or_default().insert(value);
+                    }
                 }
             }
         }
@@ -2828,12 +2796,12 @@ fn build_tainted_by_scope(
 }
 
 /// Aggregate constant-string knowledge (var name → flat CONST/CONSTSET value
-/// set) across the top level, every proc, and every method body of `cu`, then
-/// fold in `array set` / array-element / `dict with` literal constants.  Used
-/// by the W307 non-literal-command-name check.
+/// set) across the top level, every proc, and every method body of `cu`,
+/// then fold in the element writes each statement states and the keys a
+/// `dict with` binds.  Used by the W307 non-literal-command-name check.
 fn aggregate_constsets(
     cu: &crate::compilation_unit::CompilationUnit,
-    rules: tcl_syntax::word_rules::WordValueRules,
+    registry: Option<&tcl_registry::CommandRegistry>,
 ) -> std::collections::HashMap<String, HashSet<String>> {
     let mut all_constsets: std::collections::HashMap<String, HashSet<String>> =
         std::collections::HashMap::new();
@@ -2861,9 +2829,10 @@ fn aggregate_constsets(
         collect_from(fu, &mut all_constsets);
     }
 
-    harvest_array_set_constants(cu, &mut all_constsets, rules);
-    harvest_array_element_set_constants(cu, &mut all_constsets);
-    harvest_dict_with_constants(cu, &mut all_constsets, rules);
+    if let Some(registry) = registry {
+        harvest_element_writes(cu, &mut all_constsets, registry);
+        harvest_dict_with_constants(cu, &mut all_constsets, registry);
+    }
     all_constsets
 }
 

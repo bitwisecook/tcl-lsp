@@ -161,13 +161,13 @@ const RATCHET: &[(&str, usize)] = &[
     ("rust/tcl-compiler/src/analyser/commands.rs", 12),
     ("rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs", 9),
     ("rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs", 1),
-    ("rust/tcl-compiler/src/analyser/diagnostics/helpers.rs", 10),
+    ("rust/tcl-compiler/src/analyser/diagnostics/helpers.rs", 6),
     ("rust/tcl-compiler/src/analyser/diagnostics/security.rs", 8),
     ("rust/tcl-compiler/src/analyser/diagnostics/usage.rs", 6),
     ("rust/tcl-compiler/src/analyser/diagnostics/validity.rs", 22),
     (
         "rust/tcl-compiler/src/analyser/diagnostics/var_command.rs",
-        12,
+        7,
     ),
     (
         "rust/tcl-compiler/src/analyser/diagnostics/version_gate.rs",

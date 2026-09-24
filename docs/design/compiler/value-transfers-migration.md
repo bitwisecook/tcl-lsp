@@ -804,10 +804,9 @@ which waives the sites by axis.
 | `rust/tcl-compiler/src/analyser/class_lattice.rs` | 3 | the `definition_body` axis — `oo::objdefine`, `oo::copy`, and `info` by name |
 | `rust/tcl-compiler/src/analyser/commands.rs` | 1 | the `case_list` axis — the orphaned-keyword parent table (`else` / `elseif` / `then`, `on` / `trap` / `finally`) |
 | `rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs` | 2 | slice 8 retires the `unset` scans |
-| `rust/tcl-compiler/src/analyser/diagnostics/helpers.rs` | 6 | slice 5 — the `dict with` / `dict update` key harvest; the `unset` and binder checks follow with slices 8 and 13 |
+| `rust/tcl-compiler/src/analyser/diagnostics/helpers.rs` | 5 | slices 8 and 13 — the `unset` and binder checks |
 | `rust/tcl-compiler/src/analyser/diagnostics/security.rs` | 2 | the `return_type` axis — a `pattern_type` conditional on `-regexp` absorbs the `switch`-specific ReDoS scan |
 | `rust/tcl-compiler/src/analyser/diagnostics/validity.rs` | 2 | the `traits` axis — `unset` beside the `DESTROYS_VARIABLE` query, `matchclass` by its lifecycle field |
-| `rust/tcl-compiler/src/analyser/diagnostics/var_command.rs` | 3 | slice 5 — the container harvesters for W307 / W308 read structured writes |
 | `rust/tcl-compiler/src/analyser/irules_event_checks.rs` | 7 | slice 12 — the loop-bound reader; the `static::`, `log`, and `global` checks are `special_vars` / `side_effects` debt |
 | `rust/tcl-compiler/src/analyser/oo.rs` | 4 | the `definition_body` axis — the `variable` / `typevariable` / `proc` / `constructor` / `destructor` keywords |
 | `rust/tcl-compiler/src/analyser/param_traits.rs` | 1 | slice 13 — the summary's `Name` outcomes replace the two-command copy tracker |

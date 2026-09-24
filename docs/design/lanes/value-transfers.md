@@ -4313,6 +4313,7 @@ item; the grouping stays the plan's account of what lands together.
 | VT5.11 | `wip(value-transfers): slice 5 — W210 reads preserve outcomes` | `SccpResult::preserved` (`sccp.rs`): each definition its statement left untouched — every store the evaluated outcome makes to its place a `Preserve` (`DefAnswer::preserved`), a pack command's declared preserve included — with the version its place held before the statement, and each definition a condition's `<cond>` statement reads first when the shared engine decided that condition, every nested command it ran having answered without a store (D142); the undef trace reads through a preserved definition to that version (`PhiUndefCtx::preserved`), so W210 on a read, a `return` or a condition's no-match arm, and W213 on an `unset`, come from the general read-before-set pass, counted only in executable blocks and past the name-level condition-write suppression the fact answers (`UndefSuppression::preserved_undef`, `suppresses_read`) (D143); the private prover is gone — `emit_provably_unset_w210`, its embedded-condition walk, `regexp_scan_no_match`, `skip_options` and the literal-substring matcher — G1's `dataflow.rs` 4 → 2 with its ledger row, `registry-axes`' 17 → 9; a conditional writer nested in a word or a condition reads its targets as the statement form does (`ir_helpers::variable_write_effects_from_commands`), so the optimiser keeps the store a no-match preserves there too (D144) | `w210_reads_a_no_match_preserve_outcome` (`analyser/diagnostics/tests.rs`: W210 at `$a` after `regexp {(x)(y)} zz a b`, on `return $b`, and in `if {![regexp {x} y -> v]}`'s arm; none after a matching subject or a `set` before the call, or in the arm when `v` was set first — each checked on tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1b0); `a_no_match_keeps_the_store_it_preserves` (compiler witnesses: #2051's program and the condition and word forms keep `set … before` under every dialect, no O109, no W210 or W220 naming it, and the original and optimised programs print the same under tclsh 8.4 to 9.1); `a_pack_declared_preserve_holds_the_prior_version` (a `write_or_preserve` pack command's preserved definition names the root in one procedure and the `set` in the other); changed by the mandate ("W210 follows any registry-declared preserve outcome"): `fp_sty_11_binary_scan_many_vars_no_false_w210` reads an input that fills its twenty fields, and its empty input is now the true positive tclsh reports (`can't read "t"` on every release); every other `w210_*`, `emit_cfg_ssa_diagnostics_w210_*`, `fp_rbs_02_*`, `fp_sty_10_*` and `scan_predicate_w210_*` test unchanged |
 | VT5.15 | `wip(value-transfers): slice 5 — one query for a proven word` | `value_transfer::proven_word_value(fu, statement, word, config)`: the exact value a call's word has at that statement from the lattice alone — a literal word's text; a substituted word's decoded runs and variable reads at the statement's use versions, concatenated; the folded type its definition states for a whole-word read — and `None` for a command substitution, a finite or unknown read, an expansion, a respelled word or an unreached block; `StatementId { block, index }` and `FunctionUnit::word_at(span)`, the address a consumer holding a word's source range reads it at (D145) | `proven_word_value_reads_the_lattice_at_the_statement` (`value_transfer.rs`: `$f` after `set f %d` is `%d`, never `$f`; `$n` after `set n [string length abc]` is `3` typed int; `"x$f"` is `x%d`; `7` is itself; a `[…]` word and the command word are `None`; `$f` after an `if` redefines it is `None`) |
 | VT5.16 | `wip(value-transfers): slice 5 — the literal-only diagnostics read proven values` | the walk keeps each call with a word a literal-only check could not read — a variable read, or a substituted word with no command substitution (`ProvenSite`, `analyser/diagnostics/proven.rs`, recorded by one hunk in `commands.rs`); once the unit exists the pass substitutes each word the lattice proves at its statement (`proven_word_value`, through an index of the unit's call words by span) and runs the checks again: W121, W127, W137, W138, W145 (subcommand and option words), W146, W200, W202 and W303 keep only what they report at a proven word, with no fix; W147 and W152 evaluate the declared relations over the proven option words and keep what the written words did not draw; W230 and W232 keep what the index checks draw over a proven list or string and did not draw over the written one; a verdict the arity flush settles (W146, W147, W152) settles through the same user-resolution rule (`settle_builtin_verdicts`, factored out of `flush_arity_diagnostics`) (D146); IRULE4004 hoists a value that reads no variable and that the lattice proves; IRULE3101 checks a proven setter value as a literal — `find_setter_constraint_warnings` takes the unit's values, and `tcl-lsp-core`'s `graphs.rs` passes them; IRULE3103 reads any proven constant, a condition's variable operand included (D147); W141 and a computed subcommand word stay out of reach (D148) | `literal_only_checks_read_proven_words` (`analyser/diagnostics/tests.rs`: for each of W121, W127, W137, W138, W145, W146, W147, W152, W200, W202, W230, W232 and W303, the row's program reports at the proven word, or over the relation's options, or at the literal index, and the same call over a parameter draws nothing); `a_proven_word_is_reported_once_beside_a_written_one`; `irule4004_proven_command_value_is_hoistable` (`irules_checks.rs`); `irule3101_reads_the_proven_path` (#2055's program is clean, a proven `a` still warns) and `irule3103_reads_a_proven_operand` (`tests/taint.rs`); changed by the mandate (#2055): `irule3101_pure_var_ref_always_warns_without_safe_colour` warns over a value two arms set, and its proven `/safe` is clean; every other test of these codes unchanged |
+| VT5.18 | `wip(value-transfers): slice 5 — the container harvesters read structured writes` | W307's constant sets read the writes each statement states and the plans rather than the spellings: `var_command.rs`'s three harvesters go — a literal `set arr(k) v` is the lowering's own element assignment, `array set` (and any route's element write) is the `WriteElement` outcome its registry route states over the call's literal words (`value_transfer::literal_element_writes`), and a `dict with` binds the keys `DictWithSemantics` declares over the dictionary the lattice holds at the version the statement reads, with each key's value at the plan's key path (D150); `helpers.rs`'s W210 key harvest finds a dictionary body by its plan whatever the dictionary holds (`value_transfer::dict_body_operand`, over a probe dictionary that holds the key path the plan reads) and reads the plan's binders over a known one (`value_transfer::dict_body`): each key `dict with` binds at its key path, and each `dict update` variable whose literal key the dictionary holds (D149); G1's `var_command.rs` 3 → 0 (clean) and `helpers.rs` 6 → 5 with the ledger's rows, `registry-axes`' 12 → 7 and 10 → 6 | `a_dictionary_body_is_found_by_its_plan` (`value_transfer.rs`: both spellings, a key path over an unknown dictionary, a repeated key's last value, a path the dictionary lacks, and `dict update`'s literal and dynamic keys); `w210_dict_body_keys_come_from_the_plan` (`analyser/diagnostics/tests.rs`: a key path binds its nested keys, an unknown dictionary's key path stays unknown shape, `::tcl::dict::with` is the same plan, and `dict update` binds only a present key — each program's answer checked on tclsh 8.5.19, 8.6.18, 9.0.4 and 9.1b0); `w307_reads_element_and_body_bindings` (a key path's nested key, a lattice-constant `array set`, and a literal `array set` or `set arr(k)` in a function with a barrier, each silent over `puts` and firing over a non-command); changed: `dict with d a {…}` over `{a {x 1}}` binds `x`, where the spelling harvest bound `a`, so the false W210 on `$x` after it and the false W307 on a `$cmd` dispatch inside it are gone; every other W210, W307 and W308 test unchanged |
 
 A container restart ended the first implementer at VT5.5, uncommitted;
 a second implementer took the opus items over from VT5.5 on (VT5.5, VT5.6,
@@ -4327,6 +4328,34 @@ three `scan` answers were wrong against every oracle from 8.5 (`scan -1
 compared non-ASCII witnesses against a misread script (D133); the two doc
 comments the oracle contradicted were corrected, and the per-byte charges
 the page states were added. Nothing was backed out.
+
+Green at VT5.18:
+
+- tests: `tcl-compiler`, `tcl-lsp-core` and `tcl-cli` together 13434
+  passed, 6 ignored, no failure — no existing expectation moved;
+  `samples_optimiser_profiles_are_regenerated` among them, no sample
+  moved;
+- pedantic clippy (`--no-deps --all-targets -D warnings`) on
+  `tcl-compiler` and `xtask`, no `#[allow]` added; `rustfmt` on the
+  touched files;
+- `cargo xtask value-transfers` (`var_command.rs` 3 → 0, clean;
+  `helpers.rs` 6 → 5) and `--check` (18 clean, 13 waived, 92 pinned across
+  38 files, 6607 rows), `registry-axes --check` (`var_command.rs` 12 → 7,
+  `helpers.rs` 10 → 6; 1072 pinned across 163 files), `pack-goldens
+  --check` (24 packs, no snapshot moved), `cargo check --workspace` clean.
+
+Found and left, outside this item: `harvest_table_command_value_spans`
+(the dispatch-table references rename follows) still spells `set arr(k)`,
+`array set` and `dict set` — in a tuple match the G1 scan does not
+recognise, so the file reads clean with it — because it needs each
+value's token span, which no outcome carries; the W210 harvest's
+same-block literal fallback reads through an intervening write of the
+dictionary (`set d {a 1}; dict unset d a; dict with d {puts $a}` binds
+`a`, where tclsh raises `can't read "a"`), since the lattice that knows
+the version the statement reads is widened by the `dict with` barrier;
+and `::tcl::dict::with` draws W002 ("disabled in the active dialect
+profile") and a W211 on its dictionary under `tcl8.6`, where `dict with`
+draws neither — the analyser's own reading of the qualified spelling.
 
 Green at VT5.16:
 
@@ -7964,6 +7993,44 @@ has the witnesses):
   shared lattice yet, so the plan's "propagated or `[string tolower
   CONST]` option value" is met for the propagated value; a route that
   lands makes the other follow with no change here.
+- **D149 — A dictionary body is found by its plan over a dictionary that
+  holds its key path.** `DictWithSemantics` declines over a dictionary the
+  analysis does not know (D137), so its plan alone cannot say that a `dict
+  with` over a parameter is one — and the W210 harvest must know, to keep
+  its unknown-shape stance there. The consumer asks the structure question
+  twice. The first asks over a probe dictionary, the least one holding,
+  each inside the one before, the exact words the plan read on its way to
+  its dictionary: that settles the plan's shape (the dictionary operand,
+  the body) and binds nothing, for `dict with` under any key path and for
+  `dict update`, whose plan reads no dictionary. The second asks over the
+  dictionary the lattice or a same-block literal gives, and reads each
+  declared key's value at the key path the plan read. A dictionary lacking
+  the key path is the command's error, and the harvest keeps the
+  unknown-shape stance for it. The spelling harvest read the outer
+  dictionary's keys under a key path; the plan's are the nested
+  dictionary's, as tclsh binds them. A `dict update` variable is bound when
+  its key word is literal and the dictionary holds it: the key operand
+  before each variable, which a binder cannot say (D137), is the one piece
+  of the form's layout the consumer keeps.
+- **D150 — W307's element writes are the statements' own.** The lattice
+  holds `set arr(k) v` and `array set` element values in a function
+  without a barrier, but a barrier widens every value its function holds
+  (`dict with` is one), so a lattice-only reader loses the element writes
+  the spelling harvest read in such a function. The flow-insensitive
+  constant sets read each statement's own write: the lowering's element
+  assignment for `set arr(k) v`, and each `WriteElement` outcome a registry
+  route states over the call's literal words — run only for a call with a
+  declared store target, under the evaluation budget. A lattice-constant
+  `array set` operand harvests its elements from the lattice where the
+  function has no barrier. A `dict set` reaches the constant sets only
+  through a `dict with` that reads the dictionary, at the version the
+  statement reads: in the same function the barrier widens it, and the
+  interprocedural pass fills a parameter only from a literal argument word
+  (`set d {}; dict set d cmd puts; s $d` leaves `s`'s dictionary
+  overdefined), so the plan's "a lattice-constant `dict set` operand
+  harvests its keys" holds where the lattice carries the value, and follows
+  with no change here when the interprocedural pass carries a constant
+  argument.
 
 ### Open questions for the owner
 

@@ -100,6 +100,7 @@ const LINT_ROOTS: &[&str] = &[
 const CLEAN_FILES: &[&str] = &[
     "rust/tcl-compiler/src/analyser/bounds_checks.rs",
     "rust/tcl-compiler/src/analyser/diagnostics/usage.rs",
+    "rust/tcl-compiler/src/analyser/diagnostics/var_command.rs",
     "rust/tcl-compiler/src/cfg_builder/mod.rs",
     "rust/tcl-compiler/src/command_binding.rs",
     "rust/tcl-compiler/src/compilation_unit.rs",
@@ -129,13 +130,9 @@ const RATCHET: &[(&str, usize)] = &[
     ("rust/tcl-compiler/src/analyser/class_lattice.rs", 3),
     ("rust/tcl-compiler/src/analyser/commands.rs", 1),
     ("rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs", 2),
-    ("rust/tcl-compiler/src/analyser/diagnostics/helpers.rs", 6),
+    ("rust/tcl-compiler/src/analyser/diagnostics/helpers.rs", 5),
     ("rust/tcl-compiler/src/analyser/diagnostics/security.rs", 2),
     ("rust/tcl-compiler/src/analyser/diagnostics/validity.rs", 2),
-    (
-        "rust/tcl-compiler/src/analyser/diagnostics/var_command.rs",
-        3,
-    ),
     ("rust/tcl-compiler/src/analyser/irules_event_checks.rs", 7),
     ("rust/tcl-compiler/src/analyser/oo.rs", 4),
     ("rust/tcl-compiler/src/analyser/param_traits.rs", 1),

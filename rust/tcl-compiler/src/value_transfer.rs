@@ -2731,10 +2731,10 @@ pub(crate) fn resolved_cell_update(
         .resolved()?;
     let semantics = resolved.semantics.value.semantics()?;
     let context = AnalysisContext::detached(registry.profile());
-    let inputs = StructureInputs {
-        view: view_of(&resolved, &texts, &words, InvocationLayout::Source),
-        context: &context,
-    };
+    let inputs = StructureInputs::new(
+        view_of(&resolved, &texts, &words, InvocationLayout::Source),
+        &context,
+    );
     match semantics.structure(&inputs) {
         PlanAnswer::CellReadModifyWrite {
             target, operation, ..
@@ -2947,10 +2947,10 @@ pub(crate) fn unbound_names(cfg: &CfgFunction, registry: &CommandRegistry) -> Fx
             let Some(semantics) = resolved.semantics.value.semantics() else {
                 continue;
             };
-            let inputs = StructureInputs {
-                view: view_of(&resolved, &texts, &words, InvocationLayout::Source),
-                context: &context,
-            };
+            let inputs = StructureInputs::new(
+                view_of(&resolved, &texts, &words, InvocationLayout::Source),
+                &context,
+            );
             let TransferAnswer::Existence(transfer) =
                 semantics.transfer(FactDomain::Existence, &inputs, &mut budget)
             else {
@@ -2975,6 +2975,47 @@ pub(crate) fn unbound_names(cfg: &CfgFunction, registry: &CommandRegistry) -> Fx
 struct StructureInputs<'a> {
     view: ResolvedInvocationView<'a>,
     context: &'a AnalysisContext,
+    /// What a prior store reads.
+    prior: Prior<'a>,
+    /// The operands the plan has read as exact values, in the order it read
+    /// them.
+    exact_reads: RefCell<Vec<OperandId>>,
+}
+
+/// What a structure question reads as the prior value of a place.
+#[derive(Clone, Copy)]
+enum Prior<'a> {
+    /// Nothing: the question has no store to read.
+    Unavailable,
+    /// The value the caller knows, for the one place a plan reads (a body
+    /// plan's dictionary).
+    Known(&'a str),
+    /// The least dictionary holding, each inside the one before, the exact
+    /// words the plan read before it: any key path the plan descends
+    /// exists and holds no key, so the plan answers its shape and binds
+    /// nothing.
+    KeyPath,
+}
+
+impl<'a> StructureInputs<'a> {
+    fn new(view: ResolvedInvocationView<'a>, context: &'a AnalysisContext) -> Self {
+        Self {
+            view,
+            context,
+            prior: Prior::Unavailable,
+            exact_reads: RefCell::default(),
+        }
+    }
+
+    /// The texts of the operands the plan has read as exact values, in the
+    /// order it read them.
+    fn exact_read_texts(&self) -> Vec<&'a str> {
+        self.exact_reads
+            .borrow()
+            .iter()
+            .filter_map(|&id| self.view.operand(id).map(|operand| operand.text))
+            .collect()
+    }
 }
 
 impl AnalysisInputs for StructureInputs<'_> {
@@ -2988,6 +3029,7 @@ impl AnalysisInputs for StructureInputs<'_> {
                 if domain == FactDomain::ExactValue
                     && operand.kind == InvocationWordKind::Literal =>
             {
+                self.exact_reads.borrow_mut().push(id);
                 FactView::Exact(ExactValue::from_literal(operand.text), None)
             }
             _ => FactView::Top(DeclineReason::NotExact),
@@ -3008,8 +3050,23 @@ impl AnalysisInputs for StructureInputs<'_> {
         FactView::Top(DeclineReason::Unavailable(AnalysisTier::Structure))
     }
 
-    fn prior_store(&self, _place: &PlaceRef, _domain: FactDomain) -> FactView {
-        FactView::Top(DeclineReason::Unavailable(AnalysisTier::Structure))
+    fn prior_store(&self, _place: &PlaceRef, domain: FactDomain) -> FactView {
+        match self.prior {
+            Prior::Known(prior) if domain == FactDomain::ExactValue => {
+                FactView::Exact(ExactValue::from_literal(prior), None)
+            }
+            Prior::KeyPath if domain == FactDomain::ExactValue => {
+                let dictionary = self
+                    .exact_read_texts()
+                    .into_iter()
+                    .rev()
+                    .fold(String::new(), |inner, key| {
+                        tcl_syntax::list::join_list([key, inner.as_str()])
+                    });
+                FactView::Exact(ExactValue::from_literal(&dictionary), None)
+            }
+            _ => FactView::Top(DeclineReason::Unavailable(AnalysisTier::Structure)),
+        }
     }
 
     fn word_structure(&self, _id: OperandId) -> Result<WordStructure, DeclineReason> {
@@ -3031,6 +3088,190 @@ impl AnalysisInputs for StructureInputs<'_> {
     fn context(&self) -> &AnalysisContext {
         self.context
     }
+}
+
+/// One variable a dictionary body binds on entry ([`dict_body`]).
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum DictBinder {
+    /// A key the dictionary holds, bound to the variable of its name, with
+    /// the value it binds.
+    Key {
+        /// The key and variable name.
+        name: String,
+        /// The key's value.
+        value: String,
+    },
+    /// The variable operand at `variable`, bound to the value of the key
+    /// operand before it when the dictionary holds that key.
+    Variable {
+        /// The variable operand's argument index.
+        variable: usize,
+        /// Whether the dictionary holds the key, so the variable is bound on
+        /// entry.
+        bound: bool,
+    },
+}
+
+/// The dictionary operand, the binders and the key path of the plan `head
+/// args…` declares, when it binds a dictionary's keys into its body and
+/// writes them back (`dict with`, `dict update`, under whichever spelling
+/// the registry resolves), asked over `prior`. The key path is the exact
+/// words the plan read on its way to the dictionary's keys.
+fn dict_body_plan(
+    registry: &CommandRegistry,
+    head: &str,
+    args: &[String],
+    prior: Prior<'_>,
+) -> Option<(
+    OperandId,
+    Vec<tcl_registry::value_transfer::Binder>,
+    Vec<String>,
+)> {
+    let texts: Vec<&str> = args.iter().map(String::as_str).collect();
+    let words: Vec<InvocationWord<'_>> = texts.iter().copied().map(word_of).collect();
+    let resolved = registry
+        .resolve_structured_invocation(
+            InvocationWords::structured(InvocationWord::Literal(head), &words),
+            registry.own_surface_query(),
+        )
+        .resolved()?;
+    let semantics = resolved.semantics.value.semantics()?;
+    let context = AnalysisContext::detached(registry.profile());
+    let mut inputs = StructureInputs::new(
+        view_of(&resolved, &texts, &words, InvocationLayout::Source),
+        &context,
+    );
+    inputs.prior = prior;
+    let PlanAnswer::Body {
+        binders,
+        reconcile: tcl_registry::value_transfer::Reconcile::WriteBackKeys(dict),
+        ..
+    } = semantics.structure(&inputs)
+    else {
+        return None;
+    };
+    let path = inputs
+        .exact_read_texts()
+        .into_iter()
+        .map(str::to_owned)
+        .collect();
+    Some((dict, binders, path))
+}
+
+/// The argument index of the dictionary variable when the plan `head
+/// args…` declares binds a dictionary's keys into its body and writes them
+/// back — whatever the dictionary holds, so a call whose keys the analysis
+/// cannot name is still found.
+pub(crate) fn dict_body_operand(
+    registry: &CommandRegistry,
+    head: &str,
+    args: &[String],
+) -> Option<usize> {
+    dict_body_plan(registry, head, args, Prior::KeyPath).map(|(dict, ..)| dict.0)
+}
+
+/// What the dictionary body `head args…` binds on entry when its
+/// dictionary holds `dictionary`: each key the plan declares, with its
+/// value at the plan's key path, and each variable operand, with whether
+/// the dictionary holds its key. `None` when the call is no dictionary
+/// body, or its dictionary does not hold the key path (the command's
+/// error).
+pub(crate) fn dict_body(
+    registry: &CommandRegistry,
+    head: &str,
+    args: &[String],
+    dictionary: &str,
+) -> Option<Vec<DictBinder>> {
+    let (_, binders, path) = dict_body_plan(registry, head, args, Prior::Known(dictionary))?;
+    let level = path.iter().try_fold(dictionary.to_owned(), |level, key| {
+        dict_value_at(&level, key)
+    })?;
+    Some(
+        binders
+            .into_iter()
+            .filter_map(|binder| match binder.name {
+                BinderName::Declared(name) => {
+                    let value = dict_value_at(&level, &name)?;
+                    Some(DictBinder::Key { name, value })
+                }
+                // `dict update d k v …`: the variable takes the value of the
+                // key word before it, which must be literal to be looked up.
+                BinderName::Operand(id) => id.0.checked_sub(1).map(|key| DictBinder::Variable {
+                    variable: id.0,
+                    bound: args.get(key).is_some_and(|word| {
+                        matches!(word_of(word), InvocationWord::Literal(_))
+                            && dict_value_at(&level, word).is_some()
+                    }),
+                }),
+            })
+            .collect(),
+    )
+}
+
+/// The value `key` maps to in the dictionary `text`: the last pair's, as
+/// `dict get` reads a list with a repeated key.
+fn dict_value_at(text: &str, key: &str) -> Option<String> {
+    let elements = tcl_syntax::list::split_list(text).ok()?;
+    if !elements.len().is_multiple_of(2) {
+        return None;
+    }
+    elements
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .rev()
+        .find(|[held, _]| held.as_ref() == key)
+        .map(|[_, value]| value.to_string())
+}
+
+/// The element writes the call `head args…` states over its literal words:
+/// each `(array, key, value)` its registry route's outcome writes by key
+/// (`array set arr {k v …}`). The lattice holds the same writes in a
+/// function without a barrier, and loses them in one with a barrier, which
+/// widens every value the function holds; a flow-insensitive reader takes
+/// the statement's own. Only a call with a declared store target is run.
+pub(crate) fn literal_element_writes(
+    registry: &CommandRegistry,
+    head: &str,
+    args: &[String],
+) -> Vec<(String, String, String)> {
+    let texts: Vec<&str> = args.iter().map(String::as_str).collect();
+    let words: Vec<InvocationWord<'_>> = texts.iter().copied().map(word_of).collect();
+    let Some(resolved) = registry
+        .resolve_structured_invocation(
+            InvocationWords::structured(InvocationWord::Literal(head), &words),
+            registry.own_surface_query(),
+        )
+        .resolved()
+    else {
+        return Vec::new();
+    };
+    let Some(semantics) = resolved.semantics.value.semantics() else {
+        return Vec::new();
+    };
+    let context = AnalysisContext::detached(registry.profile());
+    let inputs = StructureInputs::new(
+        view_of(&resolved, &texts, &words, InvocationLayout::Source),
+        &context,
+    );
+    if semantics.store_targets(&inputs).is_empty() {
+        return Vec::new();
+    }
+    let EvalAnswer::Evaluated(outcome) = semantics.evaluate(&inputs, &mut Budget::evaluation())
+    else {
+        return Vec::new();
+    };
+    outcome
+        .ordered_stores
+        .into_iter()
+        .filter_map(|store| match store {
+            StoreOutcome::WriteElement { target, key, value } => {
+                let array = inputs.place(target.0).ok()?.name;
+                Some((array, key, String::from_utf8(value.bytes).ok()?))
+            }
+            _ => None,
+        })
+        .collect()
 }
 
 /// Split a command-substitution body into `(head_word, rest)`. `rest` is
@@ -3288,6 +3529,64 @@ mod tests {
             holds("c", &set_of(&["y", "w"])),
             "{:?}",
             function.sccp.values
+        );
+    }
+
+    /// A dictionary body is found by its plan whatever its dictionary holds
+    /// (VT5.18): the probe's dictionary holds the key path the plan reads,
+    /// so `dict with d a b {…}` over a dictionary the analysis does not know
+    /// is still one, under either spelling. Over a known dictionary the
+    /// declared keys are read at the key path, which a dictionary lacking
+    /// it fails as the command does, and a `dict update` variable is bound
+    /// only when the dictionary holds its key.
+    #[test]
+    fn a_dictionary_body_is_found_by_its_plan() {
+        let registry = CommandRegistry::build_default();
+        let args =
+            |words: &[&str]| -> Vec<String> { words.iter().map(|&word| word.to_owned()).collect() };
+        let operand = |head: &str, words: &[&str]| dict_body_operand(&registry, head, &args(words));
+        assert_eq!(operand("dict", &["with", "d", "{}"]), Some(1));
+        assert_eq!(operand("dict", &["with", "d", "a", "b", "{}"]), Some(1));
+        assert_eq!(operand("::tcl::dict::with", &["d", "a", "{}"]), Some(0));
+        assert_eq!(operand("dict", &["update", "d", "k", "v", "{}"]), Some(1));
+        assert_eq!(operand("dict", &["set", "d", "k", "v"]), None);
+        assert_eq!(operand("foreach", &["x", "{1 2}", "{}"]), None);
+        let key = |name: &str, value: &str| DictBinder::Key {
+            name: name.to_owned(),
+            value: value.to_owned(),
+        };
+        let body = |head: &str, words: &[&str], dictionary: &str| {
+            dict_body(&registry, head, &args(words), dictionary)
+        };
+        assert_eq!(
+            body("dict", &["with", "d", "{}"], "x 1 y 2 x 3"),
+            Some(vec![key("x", "3"), key("y", "2")])
+        );
+        assert_eq!(
+            body("dict", &["with", "d", "a", "{}"], "a {x 1} b {y 2}"),
+            Some(vec![key("x", "1")])
+        );
+        assert_eq!(body("dict", &["with", "d", "z", "{}"], "a {x 1}"), None);
+        assert_eq!(
+            body(
+                "dict",
+                &["update", "d", "k", "v", "j", "w", "$m", "u", "{}"],
+                "k 1 $m 2"
+            ),
+            Some(vec![
+                DictBinder::Variable {
+                    variable: 3,
+                    bound: true
+                },
+                DictBinder::Variable {
+                    variable: 5,
+                    bound: false
+                },
+                DictBinder::Variable {
+                    variable: 7,
+                    bound: false
+                },
+            ])
         );
     }
 
