@@ -56,8 +56,12 @@ slices proceed without deciding anything here.
 > the role queries, under the security floor.
 >
 > Step 4 has begun: `CommandSpec::alias_of`, the `alias_of NAME`
-> declaration naming the shipped builtin a pack command is, exists as a
-> field with its loader row and studio surfaces, and nothing reads it yet.
+> declaration naming the shipped builtin a pack command is, is the target
+> the loader's stamp rejection rule reads (`tcl_spectcl::stamps`) — a
+> codegen-axis stamp survives only on a bundled pack's command whose
+> `alias_of` names the shipped builtin carrying it, and every other is
+> dropped with a warning on its row. Codegen does not yet record the
+> target's identity.
 >
 > The rest of the vocabulary is proposed and names nothing in the
 > workspace:
@@ -1443,15 +1447,18 @@ error.
   guard resolves through `CommandRegistry::build_default()` with no pack
   overlay. Emitted modules carry no identity: no ABI version, no dialect
   pin, no registry generation, no pack hashes.
-- The loader accepts `codegen_hook`, `inline_codegen_hook`, and
-  `semantic_operation {Intrinsic …}` stamps on any pack command from any
-  tier (`rust/tcl-spectcl/src/loader.rs`). Every production VM embedder
-  compiles through the un-overlaid profile generation, so the stamp is inert
-  there; on the language server's optimise path the emitter would specialise
-  and the VM would recompile plain. Neither outcome is tested, and both
-  become witnesses of § *The loader's stamp rejection rule*: a refused
-  stamp under the tier gate, and an accepted one whose recorded identity
-  the VM's alias hop resolves.
+- A pack's `codegen_hook`, `inline_codegen_hook`, and `semantic_operation
+  {Intrinsic …}` stamps survive the load only as a bundled pack's
+  `alias_of` target's own, and are dropped with a warning naming the
+  provenance and the target everywhere else (§ *The loader's stamp
+  rejection rule*, `rust/tcl-spectcl/src/stamps.rs`); the refused stamp
+  under the tier gate is that section's first witness. Every production VM
+  embedder compiles through the un-overlaid profile generation, so an
+  admitted stamp is inert there. On the language server's optimise path the
+  emitter specialises it, but records the pack command's own name as the
+  identity, so the VM recompiles plain: the second witness, an accepted
+  stamp whose recorded identity the VM's alias hop resolves, waits for
+  codegen to record the alias target (rung 2 below).
 - The BPF backend is a third closed catalogue (`bpf_op`) with no id table
   for packs to resolve against (the redesign's § *11.2 Deferred model
   items*, D3), and the engine interface excludes it by rule; it joins the
@@ -1490,7 +1497,7 @@ and lifetime argument.
 |---|---|---|---|
 | 0 | arity and roles | none needed; generic dispatch | exists, sound |
 | 1 | purity, effects, types, transfers, evaluators | none possible at run time; the fact is authoritative for analysis by ruling; what emitted code can check is the binding | evaluators exist; the answer protocol does not |
-| 2 | this command is a shipped builtin | the live binding is that builtin | `-override` exists; `alias_of` is a field nothing reads yet |
+| 2 | this command is a shipped builtin | the live binding is that builtin | `alias_of` decides which codegen stamps a bundled pack keeps; codegen records the pack command's own name |
 | 3 | a reference Tcl body | exact definition match of the live proc | the admission seam exists; no spec field |
 | 4 | a runtime implementation ships with the package | the runtime reports what it loaded; the artefact pins it | no `runtime_backing` field, no bundler |
 
@@ -1634,29 +1641,37 @@ command whose backing is `HostNative` or `None`.
 
 ### The loader's stamp rejection rule
 
-The loader accepts `codegen_hook`, `inline_codegen_hook`, and
-`semantic_operation {Intrinsic …}` on any pack command from any tier
-(`rust/tcl-spectcl/src/loader.rs`). One rule replaces that, stated once
-and applied at registration:
+One rule decides whether a pack's *codegen-axis stamp* — `codegen_hook`,
+`inline_codegen_hook`, or `semantic_operation {Intrinsic …}`, on the
+command, one of its subcommands, or one of its invocation forms — reaches
+a registry. `rust/tcl-spectcl/src/stamps.rs` states it once; the load
+applies it to every merged command (`pack::load_sources`), the Spec Studio
+to the world it installs, and the install asserts that no stamp the gate
+refuses survives:
 
 1. **A codegen-axis stamp must be the target's own.** A stamp is admitted
    only when the command it is declared on resolves — through an
    `alias_of` declaration, not through a name match — to the shipped
-   builtin whose spec carries that same hook identity.
-   `CodegenHookId::Lassign` on a pack's `vendor::unpack` is refused unless
-   that command declares `alias_of lassign`, and the refusal names the
-   target it would have had to name.
-2. **A tier gate decides who may stamp at all.** The per-tier capability
-   matrix admits a codegen-axis stamp from `Provenance::BuiltIn` and
-   `Provenance::BundledPack`, and refuses it from `User`,
-   `WorkspaceTrusted`, `WorkspaceUntrusted`, `StudioOverride`, and
-   `Document` with the provenance named — the shape
-   `rust/tcl-spectcl/src/loader/eval.rs`'s E-R2 refusals already have.
+   builtin whose spec carries that same hook identity at the same site:
+   the command itself, its subcommand of the same name, or its form of the
+   same name. `CodegenHookId::Lassign` on a pack's `vendor::unpack` is
+   refused unless that command declares `alias_of lassign`, and the
+   refusal names the target it would have had to name.
+2. **A tier gate decides who may stamp at all.** A codegen-axis stamp is
+   admitted from `Provenance::BuiltIn` and `Provenance::BundledPack`
+   (`stamps_admitted_from`) and refused from `User`, `WorkspaceTrusted`,
+   `WorkspaceUntrusted`, `StudioOverride`, and `Document` with the
+   provenance named — the shape `rust/tcl-spectcl/src/loader/eval.rs`'s
+   E-R2 refusals have. Step 6's per-tier capability matrix takes this gate
+   over as its codegen row.
 3. **Refusal drops the stamp and nothing else.** The command still loads
-   with every analysis fact it declared, and the refusal is a notice
-   published on the pack file with the provenance and the target named.
-   That keeps the authority ruling intact: a refused stamp never costs the
-   author an analysis fact.
+   with every analysis fact it declared, and the refusal is a warning
+   published on the command's row of the pack file with the provenance and
+   the target named. That keeps the authority ruling intact: a refused
+   stamp never costs the author an analysis fact. The authoring tools
+   preview the same refusals — `spectcl_check`'s `stamp_refusals` for the
+   install it describes, and the Spec Studio's store report for the
+   workspace tier — while the document keeps the rows as written.
 4. **The floor is take-shipped for the whole axis.**
    `rust/tcl-registry/src/security_floor.rs` protects `codegen_hook` and
    `inline_codegen_hook` on overrides and nothing else, so an override
@@ -1664,6 +1679,8 @@ and applied at registration:
    `semantic_operation`, and `state_transitions`. All four join the
    take-shipped list, together with `native_lowering`, `bpf_op`, and
    `runtime_backing`.
+
+Rules 1 to 3 are built (step 4); rule 4 is step 6's.
 
 - **Rung 1** is where analysis facts live, and the analyser needs nothing
   from this page to use them. For *emitted code* the artefact records
@@ -1676,13 +1693,14 @@ and applied at registration:
   under the real shell and diffs it against the pack's declared facts, is
   a quality tool for shipped packs, not a prerequisite for a workspace
   author's facts.
-- **Rung 2** needs two corrections. `registry_codegen_hook` in
+- **Rung 2** needs two corrections. The loader refuses a stamp whose hook
+  is not the target builtin's own (rule 1 above, built). And
+  `registry_codegen_hook` in
   `rust/tcl-compiler/src/codegen/emitter/bytecoded.rs` records the resolved
   spec's own name as the identity, so for a pack command the VM's alias hop
-  can never match; codegen records the alias target's identity instead, and
-  the loader refuses a stamp whose hook is not the target builtin's own.
+  can never match; codegen records the alias target's identity instead.
   The declaration that names the target is `alias_of NAME` on the pack
-  command, which is new vocabulary and the only admissible source: the
+  command, the only admissible source: the
   realm learns aliases from script statements
   (`rust/tcl-compiler/src/realm.rs`), and that knowledge is a candidate,
   never proof, so it may seed a suggestion in the studio and never admit a

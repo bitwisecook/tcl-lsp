@@ -181,6 +181,10 @@ symptom with several possible causes worth telling apart. See rule 13 in
   — why a workspace spec pack's hook bodies do not run until the editor
   trusts the folder, what keeps working meanwhile, and how to trust the
   workspace in VS Code.
+- [kcs-qa-why-was-my-pack-codegen-hook-refused.md](kcs-qa-why-was-my-pack-codegen-hook-refused.md)
+  — why a spec pack's `codegen_hook`, `inline_codegen_hook`, or intrinsic
+  `semantic_operation` row draws a warning outside a bundled pack or
+  without a matching `alias_of`, and why the command still works.
 - [kcs-qa-when-is-a-proc-parameter-treated-as-a-constant.md](kcs-qa-when-is-a-proc-parameter-treated-as-a-constant.md)
   — when the analyser binds a procedure parameter to a compile-time
   literal from its call sites, which indirect calls (`$cmd args`, callback

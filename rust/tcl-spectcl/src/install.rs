@@ -139,7 +139,19 @@ fn install_into(
         for special in &pack.special_vars {
             registry.insert_special_var(special.spec);
         }
+        let provenance = pack.provenance();
         for command in &pack.commands {
+            // The stamp rejection rule runs where a set is assembled
+            // (`pack::load_sources`, and the studio's own set): no
+            // codegen-axis stamp reaches a registry from a provenance whose
+            // tier gate refuses one.
+            debug_assert!(
+                crate::stamps::stamps_admitted_from(provenance)
+                    || !crate::stamps::carries_stamp(command.spec),
+                "a codegen-axis stamp on `{}` survived from a {} pack",
+                command.spec.name,
+                tcl_registry::model::provenance_label(provenance),
+            );
             if context.required_package_available(command.spec.required_package)
                 && installs_over(command, registry)
             {

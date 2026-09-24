@@ -99,5 +99,6 @@ checkpoint compiling.
   (identity: `alias_of`, the alias target's identity, the stamp rule,
   `SiteClaim`), planned in the tracking document's § *Plan for steps
   2–10*, is in progress item by item in the tracking document's § *Step
-  4 — progress*: CC4.1 (`alias_of` as a `CommandSpec` field, with no
-  consumer yet) has landed.
+  4 — progress*: CC4.1 (`alias_of` as a `CommandSpec` field) and CC4.2
+  (the loader's stamp rejection rule: a codegen-axis stamp survives only
+  as a bundled pack's `alias_of` target's own) have landed.

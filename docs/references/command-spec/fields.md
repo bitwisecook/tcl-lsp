@@ -21,7 +21,7 @@ On a subcommand this is the subcommand word itself (`length` in `string length`)
 
 *command only* — The shipped builtin this pack command is — the only admissible source of a builtin identity for a pack command. Unset for every shipped command and every pack command that names no target.
 
-The shipped builtin this pack command *is* — `lassign` for a `vendor::unpack` that behaves exactly like it. The only admissible source of a builtin identity for a pack command; a codegen stamp is admitted only for the command this names. Unset for a shipped command, or a pack command that claims no builtin identity.
+The shipped builtin this pack command *is* — `lassign` for a `vendor::unpack` that behaves exactly like it. The only admissible source of a builtin identity for a pack command: a codegen stamp (`codegen_hook`, `inline_codegen_hook`, an intrinsic `semantic_operation`) survives only as the builtin this names carries it, and only in a bundled pack — anywhere else the load drops it with a warning. Unset for a shipped command, or a pack command that claims no builtin identity.
 
 ## Availability
 

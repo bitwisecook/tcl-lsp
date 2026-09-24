@@ -256,6 +256,18 @@ pub const CLUSTERS: &[Cluster] = &[
         ],
     },
     Cluster {
+        name: "Builtin identity",
+        why: "Which shipped builtin a pack command is, and the codegen-axis \
+              stamps a bundled pack may carry on it only as that builtin's own \
+              — the stamp rejection rule reads them together.",
+        members: &[
+            "alias_of",
+            "codegen_hook",
+            "inline_codegen_hook",
+            "semantic_operation",
+        ],
+    },
+    Cluster {
         name: "Documentation",
         why: "What an author reads on hover, and the call shapes that back it.",
         members: &[
@@ -343,19 +355,10 @@ pub const CLUSTERS: &[Cluster] = &[
 ///
 /// Listed rather than omitted: a field with no cluster is a decision, and the
 /// coverage test below fails by name until one is made.
-pub const STANDALONE: &[(&str, &str)] = &[
-    (
-        "name",
-        "the command word itself — every other field is about it",
-    ),
-    (
-        "alias_of",
-        "declared vocabulary only — the codegen-axis fields it will gate \
-         (codegen_hook, inline_codegen_hook, semantic_operation) read the \
-         catalogue as before until the loader's stamp rejection rule \
-         consumes it",
-    ),
-];
+pub const STANDALONE: &[(&str, &str)] = &[(
+    "name",
+    "the command word itself — every other field is about it",
+)];
 
 /// A named group of settings that are read together.
 #[derive(Debug, Clone, Copy)]

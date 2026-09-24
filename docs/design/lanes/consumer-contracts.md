@@ -803,12 +803,13 @@ against the landed tree with evidence:
 ## Step 4 — progress
 
 Item order follows § *Plan for steps 2–10* › *Step 4* § *Ordering and
-checkpoints*: CC4.1 (sonnet) first, on its own; CC4.2–CC4.4 (opus) are
-handed off unstarted below.
+checkpoints*: CC4.1 (sonnet) first, on its own; then the opus items in
+order, CC4.2, CC4.3, CC4.4, each its own checkpoint.
 
 | Item | State | Checkpoint | Notes |
 |---|---|---|---|
 | CC4.1 `alias_of` | landed | `wip(consumer-contracts): step 4 — alias_of` | `CommandSpec::alias_of: Option<&'static str>` beside `deprecated_replacement`/`deprecated_replacement_drop_in` (the same shape, so every one of the ~3888 existing `CommandSpec { … }` literals keeps compiling through `..CommandSpec::DEFAULT`), doc: "the shipped builtin this pack command is; the only admissible source of a builtin identity for a pack command; never inferred from a realm alias" — D4.1 confirmed exactly: a field only, no consumer. `rust/tcl-spectcl/src/loader.rs`'s `apply_command_stmt` gains `"alias_of" => spec.alias_of = Some(leak_str(&value))`, and `loader/eval.rs`'s `ROW_WORDS` gains `"alias_of"` so the Tcl-evaluated pack path captures the row too — the two halves the crate's own module doc calls "exactly one loader" share this per-row apply match. Studio surfaces: `schema.rs` (`IDENTITY` category, `FieldKind::OptText`), `draft.rs` (`opt_str(spec.alias_of)`), `render_spectcl.rs` (`text(out, ctx, draft, "alias_of")`, renders `alias_of NAME`), `coverage.rs`'s witness pattern and `Field` table (`Surface::Key("alias_of")`, no `GAPS` row) — plus two surfaces the plan's "the four surfaces" phrase did not name, each gated by its own completeness test that failed at compile or test time until filled (D4.6): `examples/fields_core.rs` (an Identity-section worked example over a pack command, `vendor::unpack`, since no *shipped* command can ever carry a pack-only field) and `relations.rs` (`STANDALONE`, "declared vocabulary only" — no sibling field exists to cluster with yet). `docs/references/command-spec/fields.md` regenerated (`UPDATE_REFERENCE=1 cargo test -p tcl-spec-studio --test reference_doc`); `docs/design/spec-dsl-examples/README.md`'s keyword table gains the `alias_of NAME` row. Tests: `rust/tcl-registry/tests/registry_sweep.rs`'s `alias_of_names_a_shipped_command_of_the_same_family` — a live, forward-looking sweep over every `LOADABLE_DIALECTS` registry (0 shipped specs declare it yet, so this checks nothing today and everything the day one does) plus three synthetic `CommandRegistry::build_default()` + `.insert()` fixtures: a real target resolves, an unknown target does not, and a command real only in another dialect (`HTTP::header`) does not resolve in the plain Tcl family — the "of the same family" qualifier. `spectcl_roundtrip.rs` needed no new test: `every_command_in_every_dialect_round_trips_through_spectcl` and `the_twelve_port_fixtures_render_and_reload_as_themselves` already exercise every field generically once the loader and renderer speak it, and both passed unmodified. Gates: `cargo test -p tcl-registry` (928 lib and all 21 binaries, `registry_sweep` 39 — one more than the 38 baseline), `-p tcl-spectcl` (every binary, `golden_packs` included), `-p tcl-spec-studio` (198 lib and all binaries, `reference_doc` included), `-p tcl-compiler --lib` (6508, 2 ignored), `-p tcl-lsp-core --lib` (2350), `-p tcl-mcp` (111), `-p tcl-cli` (every binary); `cargo check --workspace --all-targets`; clippy (`-p tcl-registry -p tcl-spectcl -p tcl-spec-studio --all-targets`) and `cargo fmt` clean; `registry-axes --check` OK (7831 / 16 / 42 / 896 across 147, unchanged — the new test's string comparisons trip no site); `value-transfers --check` unchanged; `pack-goldens` rewrote all 25 snapshots (every command's `spec` digest moved once, since the digest hashes `CommandSpec`'s whole `Debug` text and every spec now carries `alias_of: None,` — `hooks`/`grammar` digests untouched, the same mechanical shape CC3.3's `HookDecl::line` addition moved 8 of them for) and `--check` passes; `kcs-index-links` green; `dialect-drift` at its 8; `retired-api-gate`'s two pre-existing hits (`side_effects.rs`, unrelated, unchanged since `250edd5b`) remain the only gate not clean, out of this item's scope (recorded at the step 3 landing). Deviations: the plan names `render_spectcl.rs` / `schema.rs` / `help.rs` / `draft.rs` / `coverage.rs` as "the four surfaces" (five names for four surfaces plus the witness); the tree's own completeness gates added two more, `examples.rs` and `relations.rs`, each already enforced for every other `CommandSpec` field and newly enforced for this one the moment it existed — filled rather than bypassed (D4.6). D4.1, D4.6 |
+| CC4.2 the stamp rejection rule | landed | `wip(consumer-contracts): step 4 — the stamp rejection rule` | `rust/tcl-spectcl/src/stamps.rs` (new): `Stamp` (`Codegen`, `InlineCodegen`, `Intrinsic`), `StampSite` (`Command`, `Subcommand(name)`, `Form(name)`), `RefusalReason` (`TierGate`, `NoAliasOf`, `UnknownTarget`, `NotTheTargetsOwn`), `StampRefusal` with `message()`; `stamps_admitted_from(provenance)` (rule 2: `BuiltIn`, `BundledPack`), `carries_stamp(spec)`, `shipped()` (the lenient all-Tcl store, D4.7), `stamp_refusals(spec, provenance, shipped)` (pure — the previews read it) and the plan's `admit_codegen_stamps(command: &mut PackCommand, provenance, shipped) -> Vec<StampRefusal>`, which strips through a memo keyed by the original spec's address and the exact drops (D4.10). Rule 1 at every site a stamp can sit — the command, each subcommand, each `command_forms` entry — against the target's same-named site (D4.8); the refusal names the first shipped carrier by name, at the same site when one exists (D4.9). `pack::load_sources` applies it to every merged command at `MergedPack::provenance()` and pushes `PackNotice::stamp_refused` (the command's row, context `command NAME`, `Severity::Warning`) per refusal — the plan's message verbatim for a trusted workspace pack with no target: "`codegen_hook Lassign` refused for `vendor::unpack`: a trusted workspace pack may not name a codegen catalogue member; the stamp would have to sit on `alias_of lassign`". `loader.rs`: the "names a codegen hook" `log.say` is gone (the rule's notice replaces it); the lowering-hook notice stays. `install.rs`: `debug_assert!` that no stamp survives from a provenance `stamps_admitted_from` refuses. Beyond the plan's files (D4.11): the Spec Studio assembles its own set (`store.rs`'s `merged()`), so it applies the rule to the world it installs — the document and its drafts keep the rows — and reports `PackStore::stamp_refusals` / `patch_stamp_refusals` as `stamp_refusals` in the store view (and its `patch` object); `spectcl_check` reports `stamp_refusals` for the pair's install beside `dormant_hooks`, both from a new `install_preview` helper (the function had crossed clippy's line limit), empty where the install refuses the pack (D3.27); the Studio's `relations.rs` files `alias_of` in a new "Builtin identity" cluster with the three stamp fields, its help text states the rule, and its worked example takes `lassign`'s word order (D4.12); `alias_of`'s own doc comment in `spec.rs` states the rule as built. Tests: `workspace_packs.rs` gains the plan's four — `a_workspace_stamp_without_alias_of_is_refused_and_names_the_target` (the plan's message, on the command's line, the stamp dropped), `a_workspace_stamp_with_alias_of_is_refused_by_the_tier_gate` (trusted and untrusted workspace, user and Spec Studio override, each naming its provenance; `alias_of` kept), `a_refused_stamp_costs_no_analysis_fact` (the stripped spec's `Debug` rendering equals the loader's with only `codegen_hook` cleared; installed arity, `alias_of`, `Value` and `VarWrite` roles survive), `a_bundled_stamp_on_an_alias_of_target_is_admitted` (through `bundled::load_from` on a temp `specs/`: no notice, the stamp installed; the negative: `alias_of lsort` refused by rule 1, naming `lassign`); `stamps.rs` unit tests for a subcommand stamp (admitted through `alias_of string`, refused without it, naming `string`), a form stamp with an unknown target, the gate and a stamp nothing ships, and the memo (a second strip returns the same pointer); `spectcl.rs` `stamp_refusals_preview_the_install_the_pair_describes`; `store.rs` `a_stamp_is_kept_in_the_document_and_dropped_from_the_installed_world`. Moved: `spectcl_roundtrip.rs`'s `is_policy_report` loses its dead codegen branch; `spec_corpus_baseline.txt` re-blessed — the upvar port's "names a codegen hook" line gone, six refusals added (the `return`, `string` and `upvar` ports copy their shipped specs' stamps at the workspace tier: `inline_codegen_hook Return`, `inline_codegen_hook String`, `semantic_operation {Intrinsic …}` on `string`'s `is`, `length` and `range`, `codegen_hook Upvar`), 30 lines in seven groups, the header's group text updated; `pack-goldens` rewrote `upvar.snap` only (the notice gone; no `spec` digest moved — the golden renders the loader's pack, stamps as written). Gates: `cargo test -p tcl-spectcl --no-fail-fast` (lib 192, was 188; `workspace_packs` 9, was 5; `spec_corpus` 5, `golden_packs` 3, `i6_security_floor` 2 and every other binary), `-p tcl-spec-studio --no-fail-fast` (lib 199, was 198; `reference_doc` with `fields.md` regenerated; `spectcl_roundtrip` and every other binary), `-p tcl-mcp` (114, was 113); `cargo check --workspace --all-targets`; clippy (`-p tcl-spectcl -p tcl-spec-studio -p tcl-mcp -p tcl-registry --all-targets`) and `cargo fmt` clean; `pack-goldens --check` (25), `spec_corpus` baseline, `registry-axes --check` (7831 / 16 / 40 / 896 across 147) and `value-transfers --check` unchanged, `retired-api-gate` / `owner-resolution` (45) OK, `kcs-index-links` green, `dialect-drift` at its 8. Docs: the design page's § *The loader's stamp rejection rule* states rules 1–3 as built (the site precision, `stamps_admitted_from`, the warning on the command's row, the previews; rule 4 stays step 6's), § *Codegen and the registry today*'s bullet, the rung-2 table cell and bullet, and the status box — every "today" sentence about the loader accepting stamps from any tier is gone; `spec-packs.md` § *What a pack still cannot say* gains the rule; `spec-dsl-examples/README.md`'s load-policy bullet and `alias_of` row; KCS `kcs-qa-why-was-my-pack-codegen-hook-refused.md` (User, all-editors), indexed, and linked from `kcs-howto-write-a-tclspec-pack.md`. Deviations: the rule covers subcommand and form stamps (D4.8); the refused-with-target remedy wording (D4.9); the memo (D4.10); the Studio and MCP previews (D4.11); the Studio relation, help and example (D4.12). D4.7–D4.12 |
 
 ### CC4.1 — what the next items read
 
@@ -836,6 +837,27 @@ handed off unstarted below.
   classify every command from the catalogue alone (D3.22, step 3);
   `alias_of` is a codegen-identity fact, not an analysis one, so nothing
   about that residue changes here.
+
+### Behavioural deltas accepted in step 4
+
+- CC4.2: a codegen-axis stamp (`codegen_hook`, `inline_codegen_hook`,
+  `semantic_operation {Intrinsic …}`) in a user, workspace, or Spec Studio
+  pack is dropped at load, with one warning on its command's row naming
+  the provenance and the `alias_of` target it would have had to sit on;
+  before, a `codegen_hook` loaded with a "names a codegen hook" warning and
+  the other two loaded silently. A bundled pack's stamp is dropped the same
+  way unless its command's `alias_of` names the shipped builtin carrying
+  it (no shipped pack carries one). The command keeps every other fact.
+- CC4.2: the loader's "names a codegen hook" notice is gone: the `upvar`
+  port's golden loses it, and the corpus baseline trades it for the six
+  refusals of the `return`, `string` and `upvar` ports.
+- CC4.2: `spectcl_check` gains `stamp_refusals`, and the Spec Studio's
+  store view gains `stamp_refusals` (and the same in its `patch` object);
+  the Studio's installed world — its Test tab — drops the stamps a
+  workspace load drops.
+- CC4.2: in the Spec Studio, `alias_of` joins a "Builtin identity" field
+  cluster with the three stamp fields, and its help text and worked
+  example change; the generated field reference follows.
 
 ## Plan for steps 2–10
 
@@ -3740,6 +3762,59 @@ everything else in this lane is independent of both.
   not `deprecated_replacement`'s `DEPRECATION`, matching the page's own
   three-contract framing (description, identity, backing) rather than the
   nearest existing field of the same shape.
+- **D4.7** The rule's "shipped" registry is `stamps::shipped()` —
+  `environment::lenient_store()`, the permissive all-Tcl view the E-R2 gate
+  already treats as "a compiled command". A load is dialect-free, and the
+  identity a stamp claims is the builtin's name in every release that has
+  it; a release without the target never binds to it at run time, so the
+  specialised site is refused there by the ordinary binding check.
+- **D4.8** Rule 1 covers every site a stamp can sit: the command, each
+  subcommand, and each `command_forms` entry (`CommandForm` carries
+  `codegen_hook` and `semantic_operation`; `SubSubCommand` carries none). A
+  site's stamp is admitted only as the target's own at the same site — the
+  command itself, its subcommand of the same name, its form of the same
+  name — which is where codegen's resolution (`resolve_call`: form over
+  subcommand over command) would read it. The plan named the command-level
+  fields only; a subcommand or form stamp would otherwise pass both rules.
+  `semantic_operation` is policed for `Intrinsic(…)` only; `Invoke` and
+  `StructuredLowering(…)` are the floor's business (rule 4, step 6).
+- **D4.9** A refusal reads "`STAMP` refused for SITE: WHY; REMEDY". WHY is
+  the tier gate with the provenance label (the plan's wording, with "an"
+  before "untrusted workspace"), or rule 1's missing, unknown, or foreign
+  `alias_of`. REMEDY names the shipped carrier — the first command by name
+  that carries the stamp at the same site, else anywhere in its spec — as
+  "the stamp would have to sit on `alias_of T`"; when the command already
+  names that target (the tier gate refused it anyway) it reads "only a
+  bundled pack may carry `alias_of T`'s own stamp", and when nothing
+  shipped carries the stamp, it says so. The notice sits on the command's
+  row (the plan's choice); a stamp row carries no line of its own.
+- **D4.10** Stripping is memoised on the original spec's address and the
+  exact stamps dropped. Every spec a `PackCommand` holds is `&'static` —
+  leaked by the loader or compiled in, never freed — so its address is its
+  identity for the process, and the drops alone decide the clone. The
+  loader's snapshot cache returns an unchanged pack's original specs on
+  every reload, so the plan's per-reload leak risk is closed rather than
+  noted: a reload, or a Studio preview rebuilt per query, reuses the one
+  clone. The exceptions are the packs the snapshot cache does not hold — a
+  target-dependent pack, a pack with `include` rows — which the loader
+  re-evaluates, and re-leaks, on every load anyway; their clones follow
+  the same count.
+- **D4.11** The rule reaches the two authoring previews, because the
+  loader notice it replaces reached them. The Spec Studio assembles its
+  installed set itself (`merged()`), not through `load_sources`, so it
+  applies the rule there — without it, the install's assertion would fire
+  on any authored stamp, and the Test tab would specialise what a real
+  load drops — while the document and its drafts keep the rows (an editor
+  must not delete what its author wrote); `PackStore::stamp_refusals`
+  reports them in the store view. `spectcl_check` reports `stamp_refusals`
+  for the pair's install beside `dormant_hooks`, empty where that install
+  refuses the pack (D3.27).
+- **D4.12** The Studio's `relations.rs` moves `alias_of` from `STANDALONE`
+  (D4.6: nothing read it) into a new "Builtin identity" cluster with
+  `codegen_hook`, `inline_codegen_hook` and `semantic_operation`, which the
+  rule now reads together. The field's worked example takes `lassign`'s
+  word order, the list first (`vendor::unpack $items first second`); the
+  plan's `vendor::unpack {a b} $l` puts the names first, as `foreach` does.
 - **D5.1** Guard identities are keyed by command-token generation and the
   `CommandEnvironment` domain invalidates per token; the interpreter and
   object-dispatch domains stay whole-domain.

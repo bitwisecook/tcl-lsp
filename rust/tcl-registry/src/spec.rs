@@ -2000,15 +2000,14 @@ pub struct CommandSpec {
     /// site). `None` for every shipped command and every pack command
     /// that declares no target.
     ///
-    /// Declared vocabulary only: nothing yet reads this field to change
-    /// emitted code. From CC4.2, a codegen-axis stamp (`codegen_hook`,
-    /// `inline_codegen_hook`, `semantic_operation Intrinsic(…)`) on a pack
-    /// command is admitted only when this field names the shipped
-    /// builtin whose spec carries that same hook identity, and codegen
-    /// (CC4.3) records the *target's* identity at a specialised site,
-    /// never the pack command's own name
+    /// The stamp rejection rule (`tcl_spectcl::stamps`) reads it: a
+    /// codegen-axis stamp (`codegen_hook`, `inline_codegen_hook`,
+    /// `semantic_operation Intrinsic(…)`) on a pack command survives the
+    /// load only from a bundled pack, and only when this field names the
+    /// shipped builtin whose spec carries that same stamp at the same site
     /// (`docs/design/compiler/registry-consumer-contracts.md` § *The
-    /// loader's stamp rejection rule*).
+    /// loader's stamp rejection rule*). Codegen does not read it yet: a
+    /// specialised site records the pack command's own name.
     pub alias_of: Option<&'static str>,
 
     /// `<proto>::payload` byte-array layout — `Some` when this command's

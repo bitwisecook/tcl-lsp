@@ -245,12 +245,14 @@ fn diffs(rendered: &Value, shipped: &Value) -> Vec<Diff> {
 
 /// Whether a notice is the loader's *policy report* rather than a degradation.
 ///
-/// Naming a lowering or codegen hook is reported by design — "this changes how
-/// the compiler translates the command, not just what the editor knows about
+/// Naming a lowering hook is reported by design — "this changes how the
+/// compiler translates the command, not just what the editor knows about
 /// it" — so a pack the renderer wrote faithfully still raises it. Every other
-/// notice means a declaration was dropped, and the gate fails on those.
+/// notice means a declaration was dropped, and the gate fails on those. (A
+/// codegen-axis stamp raises nothing here: whether it survives is the stamp
+/// rejection rule's call at a pack's load, `tcl_spectcl::stamps`.)
 fn is_policy_report(message: &str) -> bool {
-    message.contains("names a lowering hook") || message.contains("names a codegen hook")
+    message.contains("names a lowering hook")
 }
 
 /// What one command's round trip produced.

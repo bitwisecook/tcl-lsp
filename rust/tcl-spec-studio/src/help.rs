@@ -1014,9 +1014,12 @@ points at the replacement and leaves the arguments to the author.",
         "alias_of",
         "The shipped builtin this pack command *is* — `lassign` for a \
 `vendor::unpack` that behaves exactly like it. The only admissible source \
-of a builtin identity for a pack command; a codegen stamp is admitted \
-only for the command this names. Unset for a shipped command, or a pack \
-command that claims no builtin identity.",
+of a builtin identity for a pack command: a codegen stamp \
+(`codegen_hook`, `inline_codegen_hook`, an intrinsic \
+`semantic_operation`) survives only as the builtin this names carries it, \
+and only in a bundled pack — anywhere else the load drops it with a \
+warning. Unset for a shipped command, or a pack command that claims no \
+builtin identity.",
     ),
     (
         "byte_array_payload",

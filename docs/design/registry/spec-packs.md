@@ -917,6 +917,20 @@ alias `variable` states to the current namespace's cell, so no verb
 builds a `NamespaceTransition` today. A fact naming a computed word
 abstains and widens the variable-cell domains instead of naming a cell,
 and no verb reaches the four forbidden families.
+
+Naming an *existing* specialisation is not open either where it changes
+emitted code. A **codegen-axis stamp** — `codegen_hook`,
+`inline_codegen_hook`, or `semantic_operation {Intrinsic …}`, on a
+command, a subcommand, or a form — survives the load only on a bundled
+pack's command whose `alias_of NAME` names the shipped builtin carrying
+that same stamp at the same site. From the user, workspace, or Spec Studio
+tier, or on a command with no such target, the load drops the stamp and
+publishes a warning on the command's row naming the provenance and the
+`alias_of` the stamp would have had to sit on; the command keeps every
+other fact it declared
+([../compiler/registry-consumer-contracts.md](../compiler/registry-consumer-contracts.md)
+§ *The loader's stamp rejection rule*).
+
 The `world_effects` block rows stay documented vocabulary the loader does
 not read, a library-defined completion code scoped to one command's body
 has no spelling, and a method-scoped taint sink is a registry change

@@ -6594,16 +6594,10 @@ fn apply_command_stmt(
                 );
             }
         }
-        "codegen_hook" => {
-            spec.codegen_hook = native_id(stmt, CODEGEN_HOOKS, "codegen hook", log);
-            if spec.codegen_hook.is_some() {
-                log.say(
-                    stmt.line,
-                    "names a codegen hook: this changes how the compiler translates \
-                     the command, not just what the editor knows about it",
-                );
-            }
-        }
+        // A codegen-axis stamp is read as written; whether it survives is
+        // the stamp rejection rule's call, made on the merged command at its
+        // provenance (`crate::stamps`), which reports a refusal on this row.
+        "codegen_hook" => spec.codegen_hook = native_id(stmt, CODEGEN_HOOKS, "codegen hook", log),
         "inline_codegen_hook" => {
             spec.inline_codegen_hook =
                 native_id(stmt, INLINE_CODEGEN_HOOKS, "inline codegen hook", log);

@@ -43,6 +43,7 @@ use tcl_registry::registry::CommandRegistry;
 use crate::discovery::{Origin, PackFile, Tier};
 use crate::hooks::{DormantHook, dormant_hooks};
 use crate::loader::{Notice, Pack, PackCommand};
+use crate::stamps::StampRefusal;
 
 /// How loudly a notice should be shown. Every notice is a *degradation*, never
 /// a failure — the pack still loads — so nothing here is an error.
@@ -95,6 +96,23 @@ impl PackNotice {
             context: "pack".to_owned(),
             message: message.into(),
             severity,
+        }
+    }
+
+    /// The warning a refused codegen-axis stamp draws
+    /// ([`crate::stamps`]): on the declaring command's row, naming the
+    /// stamp, the provenance or the rule that refused it, and the target the
+    /// stamp would have had to sit on. A warning, because something the
+    /// author wrote was dropped — though only the stamp: the command loads
+    /// with every analysis fact it declared.
+    #[must_use]
+    pub fn stamp_refused(command: &PackCommand, refusal: &StampRefusal) -> Self {
+        Self {
+            path: command.file.clone(),
+            line: command.line,
+            context: format!("command {}", command.spec.name),
+            message: refusal.message(),
+            severity: Severity::Warning,
         }
     }
 
@@ -422,13 +440,25 @@ pub(crate) fn load_sources(
             ));
         }
 
-        let merged = merge_group(
+        let mut merged = merge_group(
             &name,
             winning_tier,
             winning_tier.trust_under(trust),
             winners,
             &mut notices,
         );
+        // The stamp rejection rule, on the merged commands: a codegen-axis
+        // stamp survives only as a bundled pack's `alias_of` target's own,
+        // and each one dropped is said on its command's row. Only the stamp
+        // goes; the command keeps every analysis fact it declared.
+        let provenance = merged.provenance();
+        for command in &mut merged.commands {
+            for refusal in
+                crate::stamps::admit_codegen_stamps(command, provenance, crate::stamps::shipped())
+            {
+                notices.push(PackNotice::stamp_refused(command, &refusal));
+            }
+        }
         // The execution half of the trust ruling, said where the author
         // looks: each body an untrusted workspace holds dormant, on its own
         // row. `hooks::plan_for` reads the same list and allocates none of

@@ -1417,7 +1417,7 @@ const BASELINE_HEADER: &str = "\
 #
 #     <pack file>\\t<severity>\\t<context>\\t<message>
 #
-# tab-separated, sorted, one line per occurrence — 25 of them today, in six
+# tab-separated, sorted, one line per occurrence — 30 of them today, in seven
 # groups. `tests/spec_corpus.rs`
 # compares the notices of every pack against this file as a multiset and fails
 # on any difference in either direction, so a notice that gets fixed must also
@@ -1446,12 +1446,20 @@ const BASELINE_HEADER: &str = "\
 #       object-class method's hook body has no slot to bind to yet, so the
 #       field abstains.
 #
-#   `names a lowering hook` / `names a codegen hook` (6, the `foreach`, `if`,
-#       `return`, `switch` and `upvar` ports) — deliberate. A pack naming a
-#       *native* lowering or codegen hook changes how the compiler translates a
-#       command, so the loader warns and installs it anyway. These five ports
-#       are ports of shipped specs that legitimately carry those hooks; a
-#       private pack getting the same warning is being told something true.
+#   `names a lowering hook` (5, the `foreach`, `if`, `return`, `switch` and
+#       `upvar` ports) — deliberate. A pack naming a *native* lowering hook
+#       changes how the compiler translates a command, so the loader warns and
+#       installs it anyway. These five ports are ports of shipped specs that
+#       legitimately carry those hooks; a private pack getting the same
+#       warning is being told something true.
+#
+#   `… refused for …` (6, the `return`, `string` and `upvar` ports) — the
+#       stamp rejection rule, working. The ports copy their shipped specs'
+#       codegen-axis stamps (`inline_codegen_hook`, `codegen_hook`, and
+#       `semantic_operation {Intrinsic …}` on `string`'s `length`, `is` and
+#       `range`), and a workspace pack may not stamp at all — only a bundled
+#       pack may, as its `alias_of` target's own. Each stamp is dropped and
+#       said on its command's row; the command loads with every other fact.
 #
 #   ``world_effects` row … is not yet loadable` (6, the `oo-class` port) —
 #       the loader's own words: the `world_effects` block's rows beside

@@ -155,7 +155,11 @@ fn ctx_key_in_shape(key: &str) -> bool {
 /// `dormant_hooks` is every hook body that stays dormant under the
 /// `(tier, trust)` pair's provenance (redesign O4) — empty when that
 /// provenance is itself untrusted and refuses the pack, since a pack that
-/// does not load holds nothing dormant.
+/// does not load holds nothing dormant. `stamp_refusals` is, on the same
+/// terms, every codegen-axis stamp that install drops under the stamp
+/// rejection rule ([`tcl_spectcl::stamps`]): all of them outside a bundled
+/// pack, and a bundled pack's too unless its command's `alias_of` names the
+/// shipped builtin that carries the stamp.
 pub fn spectcl_check(args: &Value) -> Value {
     let source = args.get("source").and_then(Value::as_str).unwrap_or("");
     let dialect = crate::tools::declared_dialect(args);
@@ -201,22 +205,11 @@ pub fn spectcl_check(args: &Value) -> Value {
             "reason": message,
         }));
     }
-    // The `(tier, trust)` pair's provenance — what `dormant_hooks` gates on
-    // (D3.12: only an untrusted workspace holds bodies dormant) and what the
-    // report names so an author sees which install this preview is of. When
-    // that provenance is itself untrusted, the refusal above is this
-    // install's own, the pack does not load there, and no body of it is
-    // dormant — the report says one thing about one install.
     let provenance = tcl_spectcl::PackEnvironmentTier::of(tier, trust).provenance();
-    let refused_here = tcl_registry::model::untrusted(provenance) && tier_refusal.is_some();
-    let dormant_hooks: Vec<Value> = if refused_here {
-        Vec::new()
-    } else {
-        tcl_spectcl::hooks::dormant_hooks(&pack.name, &pack.commands, provenance)
-            .iter()
-            .map(dormant_hook_json)
-            .collect()
-    };
+    let InstallPreview {
+        dormant_hooks,
+        stamp_refusals,
+    } = install_preview(&pack, provenance, tier_refusal.is_some());
     let collisions: Vec<Value> = pack
         .commands
         .iter()
@@ -260,6 +253,7 @@ pub fn spectcl_check(args: &Value) -> Value {
         "untrusted_tier_refusal": tier_refusal.as_ref().map(|(_, message)| message.clone()),
         "provenance": tcl_registry::model::provenance_label(provenance),
         "dormant_hooks": dormant_hooks,
+        "stamp_refusals": stamp_refusals,
         "summary": {
             "commands": pack.commands.len(),
             "notices": notice_count,
@@ -270,8 +264,65 @@ pub fn spectcl_check(args: &Value) -> Value {
             "collisions": collisions.len(),
             "shadowed_commands": shadowed,
             "dormant_hooks": dormant_hooks.len(),
+            "stamp_refusals": stamp_refusals.len(),
         },
     })
+}
+
+/// What the install a `(tier, trust)` pair describes does to the pack's
+/// executable half: the hook bodies it holds dormant and the codegen-axis
+/// stamps it drops.
+struct InstallPreview {
+    dormant_hooks: Vec<Value>,
+    stamp_refusals: Vec<Value>,
+}
+
+/// The [`InstallPreview`] at `provenance` — the pair's own, which the report
+/// names so an author sees which install this preview is of. `dormant_hooks`
+/// gates on it (D3.12: only an untrusted workspace holds bodies dormant), and
+/// `stamp_refusals` is the stamp rejection rule's verdict under it, the
+/// warnings the load would publish on each command's row. When that
+/// provenance is itself untrusted and refuses the pack (`refused`), the pack
+/// does not load there at all, so both are empty — the report says one thing
+/// about one install.
+fn install_preview(
+    pack: &tcl_spectcl::Pack,
+    provenance: tcl_dialect::model::Provenance,
+    refused: bool,
+) -> InstallPreview {
+    if refused && tcl_registry::model::untrusted(provenance) {
+        return InstallPreview {
+            dormant_hooks: Vec::new(),
+            stamp_refusals: Vec::new(),
+        };
+    }
+    let dormant_hooks = tcl_spectcl::hooks::dormant_hooks(&pack.name, &pack.commands, provenance)
+        .iter()
+        .map(dormant_hook_json)
+        .collect();
+    let stamp_refusals = pack
+        .commands
+        .iter()
+        .flat_map(|command| {
+            tcl_spectcl::stamps::stamp_refusals(
+                command.spec,
+                provenance,
+                tcl_spectcl::stamps::shipped(),
+            )
+            .into_iter()
+            .map(move |refusal| {
+                json!({
+                    "command": command.spec.name,
+                    "line": command.line,
+                    "message": refusal.message(),
+                })
+            })
+        })
+        .collect();
+    InstallPreview {
+        dormant_hooks,
+        stamp_refusals,
+    }
 }
 
 /// The `tier` argument's spelling of [`Tier::StudioOverride`] — the one
@@ -1796,6 +1847,58 @@ speclib mylib 1.0 {
         let trusted = check(&source, "tcl9.0");
         assert!(trusted["untrusted_tier_refusal"].is_string(), "{trusted}");
         assert_eq!(trusted["dormant_hooks"], json!([]), "{trusted}");
+    }
+
+    /// The stamp rejection rule, previewed: a workspace install drops a
+    /// codegen-axis stamp even on `alias_of lassign`, a bundled one admits
+    /// it there, and a bundled one naming a target that does not carry it
+    /// drops it and names the target that does.
+    #[test]
+    fn stamp_refusals_preview_the_install_the_pair_describes() {
+        let unpack = |target: &str| {
+            format!(
+                "speclib vendor 2.0 {{\n    command vendor::unpack {{\n        arity 2..\n        \
+                 alias_of {target}\n        codegen_hook -native Lassign\n    }}\n}}\n"
+            )
+        };
+        let at = |source: &str, tier: &str| {
+            dispatch(
+                "spectcl_check",
+                &json!({ "source": source, "dialect": "tcl9.0", "tier": tier }),
+            )
+            .expect("spectcl_check tool")
+        };
+
+        let workspace = at(&unpack("lassign"), "workspace");
+        let refusals = workspace["stamp_refusals"]
+            .as_array()
+            .expect("stamp_refusals");
+        assert_eq!(refusals.len(), 1, "{workspace}");
+        assert_eq!(refusals[0]["command"], "vendor::unpack", "{workspace}");
+        assert_eq!(refusals[0]["line"], 2, "{workspace}");
+        assert_eq!(
+            refusals[0]["message"],
+            "`codegen_hook Lassign` refused for `vendor::unpack`: a trusted workspace pack may not \
+             name a codegen catalogue member; only a bundled pack may carry `alias_of lassign`'s \
+             own stamp",
+            "{workspace}"
+        );
+        assert_eq!(workspace["summary"]["stamp_refusals"], 1, "{workspace}");
+        // The author's own check still reports the stamp as a field set.
+        assert_eq!(workspace["summary"]["commands"], 1, "{workspace}");
+
+        let bundled = at(&unpack("lassign"), "bundled");
+        assert_eq!(bundled["stamp_refusals"], json!([]), "{bundled}");
+
+        let wrong = at(&unpack("lsort"), "bundled");
+        let refusals = wrong["stamp_refusals"].as_array().expect("stamp_refusals");
+        assert_eq!(refusals.len(), 1, "{wrong}");
+        let message = refusals[0]["message"].as_str().unwrap_or_default();
+        assert!(
+            message.contains("`alias_of lsort` names a shipped command that does not carry it")
+                && message.ends_with("the stamp would have to sit on `alias_of lassign`"),
+            "{wrong}"
+        );
     }
 
     /// One `const_fold` body — the hook the dormancy previews are about.
