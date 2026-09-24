@@ -2986,8 +2986,10 @@ fn collect_var_refs(
         let (start, end) = (tok.span.start() as usize, tok.span.end() as usize);
         match tok.kind {
             TokenType::Var => {
-                // A `${name}` span stops before its closing brace.
-                let close = usize::from(tok.content_offset == 2);
+                // A `${name}` span stops before its closing brace, but the
+                // empty `${}` span already covers it.
+                let close =
+                    usize::from(tok.content_offset == 2 && src.get(start..end) != Some("${}"));
                 out.push(VarRef {
                     start: base + start,
                     end: base + end + close,
@@ -3770,6 +3772,24 @@ mod tests {
             ("café $x", "café 5"),
             ("é\\t$x€", "é\\t5€"),
             ("v:[string length é$x]", "v:[string length é5]"),
+        ] {
+            assert_eq!(
+                substitute_dollar_refs(text, &c, tcl_lexer::LexerConfig::default()).as_deref(),
+                Some(want),
+                "{text}"
+            );
+        }
+    }
+
+    #[test]
+    fn substitute_dollar_refs_ends_the_empty_braced_name_at_its_brace() {
+        let mut c = std::collections::HashMap::new();
+        c.insert(String::new(), "5".into());
+        for (text, want) in [
+            ("a=${}b", "a=5b"),
+            ("a=${}", "a=5"),
+            ("${}${}", "55"),
+            ("v:[list ${}]c", "v:[list 5]c"),
         ] {
             assert_eq!(
                 substitute_dollar_refs(text, &c, tcl_lexer::LexerConfig::default()).as_deref(),
