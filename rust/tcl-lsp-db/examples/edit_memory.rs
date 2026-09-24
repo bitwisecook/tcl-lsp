@@ -153,7 +153,7 @@ fn main() {
         }
     }
 
-    report_ingredients(&db, edits);
+    report_ingredients(&mut db, edits);
 
     // Is the query graph holding it?  Drop the database and re-measure: salsa's
     // interned garbage collector recycles slots (the counts above plateau), so a
@@ -175,7 +175,7 @@ fn main() {
 /// (The `bytes` column is stack size only — these ingredients define no
 /// `heap_size`, so the `Arc` payloads behind them are not counted. Read it as a
 /// relative signal, never as a memory total.)
-fn report_ingredients(db: &TclDatabase, edits: u32) {
+fn report_ingredients(db: &mut TclDatabase, edits: u32) {
     let usage = <dyn salsa::Database>::memory_usage(db);
 
     let mut structs: Vec<_> = usage

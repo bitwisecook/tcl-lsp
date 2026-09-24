@@ -2881,7 +2881,11 @@ fn visit_string_interpolation(
     if is_whole_word_cmd_subst(inside) {
         return;
     }
-    let Some(rewritten) = substitute_dollar_refs(inside, constants, ctx.braced_var()) else {
+    let Some(rewritten) = substitute_dollar_refs(
+        inside,
+        constants,
+        tcl_lexer::LexerConfig::for_profile(ctx.dialect),
+    ) else {
         return;
     };
     if rewritten == inside {
@@ -2900,115 +2904,108 @@ fn visit_string_interpolation(
     ));
 }
 
-/// Scan `text` for `$name` / `${name}` references and replace
-/// each with the corresponding literal from `constants`, rejecting
-/// any value that would re-introduce new substitutions. Returns
-/// `None` when any `$` is seen whose name is not a known
-/// constant (a partial substitution would be worse than no
-/// substitution).
+/// Scan `text` — the inside of a quoted word — for `$name` / `${name}`
+/// references and replace each with the corresponding literal from
+/// `constants`, rejecting any value that would re-introduce new
+/// substitutions. Returns `None` when any reference names something that is
+/// not a known constant (a partial substitution would be worse than no
+/// substitution), or when the word does not lex.
+///
+/// The references are the lexer's own `Var` tokens, so only what Tcl
+/// substitutes is rewritten: a command substitution is lexed as the script it
+/// is, and a braced word in it (`"b:[list {$x}]"`) is a `Str` token whose
+/// `$x` stays (#2250), while a `{` inside a quoted word of that script
+/// (`"q:[list "foo {$x}"]"`) is literal text and its `$x` is substituted.
+/// Unchanged text is copied as `&str` slices, so a multi-byte character keeps
+/// its bytes (#2251).
 fn substitute_dollar_refs(
     text: &str,
     constants: &std::collections::HashMap<String, String>,
-    braced_var: tcl_dialect::BracedVarStyle,
+    config: tcl_lexer::LexerConfig,
 ) -> Option<String> {
-    let bytes = text.as_bytes();
+    let word = format!("\"{text}\"");
+    let mut refs = Vec::new();
+    collect_var_refs(&word, config, 0, 0, &mut refs)?;
+    refs.sort_unstable_by_key(|r| r.start);
     let mut out = String::with_capacity(text.len());
-    let mut i = 0;
-    // Command-substitution nesting depth. A `$var` inside a `"…[cmd $var]…"`
-    // command substitution is a *command argument*, not literal string text:
-    // its value is re-parsed into words, so a multi-word value (e.g. the list
-    // `{a b c}`) would split one argument into several — a miscompile. Track
-    // the depth so those occurrences are held to the single-word bar.
-    let mut cmd_depth = 0u32;
-    while i < bytes.len() {
-        if bytes[i] == b'\\' {
-            // Copy a two-char backslash-escape verbatim.
-            if i + 1 < bytes.len() {
-                out.push(bytes[i] as char);
-                out.push(bytes[i + 1] as char);
-                i += 2;
-            } else {
-                out.push('\\');
-                i += 1;
-            }
-            continue;
-        }
-        if bytes[i] == b'[' {
-            cmd_depth += 1;
-            out.push('[');
-            i += 1;
-            continue;
-        }
-        if bytes[i] == b']' {
-            cmd_depth = cmd_depth.saturating_sub(1);
-            out.push(']');
-            i += 1;
-            continue;
-        }
-        if bytes[i] != b'$' {
-            out.push(bytes[i] as char);
-            i += 1;
-            continue;
-        }
-        // `$` — parse the var name.
-        i += 1;
-        if i >= bytes.len() {
-            return None;
-        }
-        let (name, new_i) = if bytes[i] == b'{' {
-            // The name starts just past the `${`; its closer is the shared
-            // owner's, under this document's release rule. Reading it with a
-            // fixed first-`}` scan would name a *different* variable than the
-            // one the lexer spanned, letting this rewrite inline the constant
-            // of some other name into the string.
-            let start = i + 1;
-            let tcl_lexer::BracedVarEnd::Closed(end) =
-                tcl_lexer::braced_var_name_end(bytes, start, braced_var)
-            else {
-                return None;
-            };
-            (
-                std::str::from_utf8(&bytes[start..end]).ok()?.to_owned(),
-                end + 1,
-            )
-        } else {
-            let start = i;
-            let mut end = start;
-            while end < bytes.len() {
-                let b = bytes[end];
-                if b.is_ascii_alphanumeric() || b == b'_' {
-                    end += 1;
-                } else if b == b':' && end + 1 < bytes.len() && bytes[end + 1] == b':' {
-                    end += 2;
-                } else {
-                    break;
-                }
-            }
-            if start == end {
-                return None;
-            }
-            (
-                std::str::from_utf8(&bytes[start..end]).ok()?.to_owned(),
-                end,
-            )
-        };
-        let value = constants.get(&name)?;
+    let mut copied = 0;
+    for r in refs {
+        // Offsets are into `word`, one past `text`'s.
+        let (start, end) = (r.start - 1, r.end - 1);
+        let value = constants.get(&r.name)?;
         if value.contains(['$', '[', '\\', '"']) {
             return None;
         }
         // Inside a `[…]` command substitution the value becomes a command
         // word, so it must be a single self-contained word — a value with
         // whitespace (a list literal like `tran 1n 100n uic`) would split
-        // into multiple arguments. Bail rather than propagate, leaving the
-        // `$var` in place. Plain string-text
-        // occurrences (`cmd_depth == 0`) inline the value verbatim as before.
-        if cmd_depth > 0 && !is_value_safe_bare_word(value) {
+        // into multiple arguments. Plain string-text occurrences
+        // (`cmd_depth == 0`) inline the value verbatim.
+        if r.cmd_depth > 0 && !is_value_safe_bare_word(value) {
             return None;
         }
+        out.push_str(text.get(copied..start)?);
         out.push_str(value);
-        i = new_i;
+        copied = end;
     }
+    out.push_str(text.get(copied..)?);
     Some(out)
+}
+
+/// One variable substitution [`substitute_dollar_refs`] may rewrite: its byte
+/// range in the lexed word, the variable it names, and how many command
+/// substitutions enclose it.
+struct VarRef {
+    start: usize,
+    end: usize,
+    name: String,
+    cmd_depth: u32,
+}
+
+/// Collect the `Var` tokens of `src` (a script or a quoted word, lexed under
+/// `config`) at offset `base` into `out`, recursing into each command
+/// substitution's script. A braced word is a `Str` token and holds none.
+/// `None` when the text does not lex or holds a substitution this rewrite
+/// cannot map (Jim's `$(…)`).
+fn collect_var_refs(
+    src: &str,
+    config: tcl_lexer::LexerConfig,
+    base: usize,
+    cmd_depth: u32,
+    out: &mut Vec<VarRef>,
+) -> Option<()> {
+    use tcl_lexer::TokenType;
+    if crate::depth_guard::MAX_BRACKET_TEXT_DEPTH.exceeded(cmd_depth) {
+        return None;
+    }
+    let sm = tcl_lexer::SourceMap::new(src);
+    let tokens = tcl_lexer::Lexer::with_config(src, config)
+        .tokenise_all()
+        .ok()?;
+    for tok in tokens {
+        let (start, end) = (tok.span.start() as usize, tok.span.end() as usize);
+        match tok.kind {
+            TokenType::Var => {
+                // A `${name}` span stops before its closing brace, but the
+                // empty `${}` span already covers it.
+                let close =
+                    usize::from(tok.content_offset == 2 && src.get(start..end) != Some("${}"));
+                out.push(VarRef {
+                    start: base + start,
+                    end: base + end + close,
+                    name: sm.token_text(tok).to_owned(),
+                    cmd_depth,
+                });
+            }
+            TokenType::Cmd => {
+                let inner = start + usize::from(tok.content_offset);
+                collect_var_refs(sm.token_text(tok), config, base + inner, cmd_depth + 1, out)?;
+            }
+            TokenType::ExprSugar => return None,
+            _ => {}
+        }
+    }
+    Some(())
 }
 
 /// Return the variable name inside a `$var` or `${var}` word, or
@@ -3374,23 +3371,27 @@ mod tests {
     #[test]
     fn substitute_dollar_refs_follows_the_release_close_rule() {
         use tcl_dialect::BracedVarStyle::{FirstClose, Tcl9Nesting};
+        let braced = |braced_var| tcl_lexer::LexerConfig {
+            braced_var,
+            ..tcl_lexer::LexerConfig::default()
+        };
         let mut c = std::collections::HashMap::new();
         c.insert("a{b}c".to_owned(), "NESTED".to_owned());
         c.insert("a{b".to_owned(), "FIRST".to_owned());
 
         // 9.x names `a{b}c`; the whole reference is consumed.
         assert_eq!(
-            substitute_dollar_refs("v=${a{b}c}", &c, Tcl9Nesting).as_deref(),
+            substitute_dollar_refs("v=${a{b}c}", &c, braced(Tcl9Nesting)).as_deref(),
             Some("v=NESTED")
         );
         // 8.x names `a{b`, and `c}` stays as literal word text.
         assert_eq!(
-            substitute_dollar_refs("v=${a{b}c}", &c, FirstClose).as_deref(),
+            substitute_dollar_refs("v=${a{b}c}", &c, braced(FirstClose)).as_deref(),
             Some("v=FIRSTc}")
         );
         // An unterminated reference declines the whole rewrite rather than
         // inventing a name that runs to end-of-input.
-        assert!(substitute_dollar_refs("v=${a{b", &c, Tcl9Nesting).is_none());
+        assert!(substitute_dollar_refs("v=${a{b", &c, braced(Tcl9Nesting)).is_none());
     }
 
     #[test]
@@ -3723,14 +3724,79 @@ mod tests {
         let mut c = std::collections::HashMap::new();
         c.insert("x".into(), "42".into());
         assert_eq!(
-            substitute_dollar_refs("a${x}b", &c, tcl_dialect::BracedVarStyle::default()).as_deref(),
+            substitute_dollar_refs("a${x}b", &c, tcl_lexer::LexerConfig::default()).as_deref(),
             Some("a42b"),
         );
         // Missing var → None (cannot partially substitute).
         assert!(
-            substitute_dollar_refs("$unknown", &c, tcl_dialect::BracedVarStyle::default())
-                .is_none()
+            substitute_dollar_refs("$unknown", &c, tcl_lexer::LexerConfig::default()).is_none()
         );
+    }
+
+    /// Inside a command substitution a braced word substitutes nothing, so
+    /// its `$x` stays; a `$x` elsewhere, including one after a mid-word
+    /// brace, is inlined. tclsh 8.4.20 through 9.1b0 print `b:{$x}`,
+    /// `b:{a $x b}`, `m:a{5}` and `w:{5} {$x} 5` for these (#2250).
+    #[test]
+    fn substitute_dollar_refs_leaves_a_braced_word_in_a_cmd_sub_as_written() {
+        let mut c = std::collections::HashMap::new();
+        c.insert("x".into(), "5".into());
+        let sub = |text: &str| substitute_dollar_refs(text, &c, tcl_lexer::LexerConfig::default());
+        for (text, want) in [
+            ("b:[list {$x}]", "b:[list {$x}]"),
+            ("b:[list {a $x b}]", "b:[list {a $x b}]"),
+            ("b:[list [list {$x}]]", "b:[list [list {$x}]]"),
+            ("s:[set y 1;list {$x}]", "s:[set y 1;list {$x}]"),
+            ("c:[list {a]b} $x]", "c:[list {a]b} 5]"),
+            ("b:[list {a\\}b $x}]", "b:[list {a\\}b $x}]"),
+            ("m:[list a{$x}]", "m:[list a{5}]"),
+            ("w:{$x} [list {$x}] $x", "w:{5} [list {$x}] 5"),
+            // A `{` inside a quoted word of the substituted script is literal
+            // text, and Tcl substitutes the `$x` after it (found in review).
+            ("q:[list \"foo {$x}\"]", "q:[list \"foo {5}\"]"),
+            ("q:[list \"a]b\" $x]", "q:[list \"a]b\" 5]"),
+        ] {
+            assert_eq!(sub(text).as_deref(), Some(want), "{text}");
+        }
+        // A braced word that never closes rewrites nothing.
+        assert!(sub("b:[list {$x]").is_none_or(|r| r == "b:[list {$x]"));
+    }
+
+    /// Unchanged text keeps its bytes: copying a byte at a time as `char`
+    /// turned `é` into `Ã©` (#2251).
+    #[test]
+    fn substitute_dollar_refs_keeps_non_ascii_text() {
+        let mut c = std::collections::HashMap::new();
+        c.insert("x".into(), "5".into());
+        for (text, want) in [
+            ("café $x", "café 5"),
+            ("é\\t$x€", "é\\t5€"),
+            ("v:[string length é$x]", "v:[string length é5]"),
+        ] {
+            assert_eq!(
+                substitute_dollar_refs(text, &c, tcl_lexer::LexerConfig::default()).as_deref(),
+                Some(want),
+                "{text}"
+            );
+        }
+    }
+
+    #[test]
+    fn substitute_dollar_refs_ends_the_empty_braced_name_at_its_brace() {
+        let mut c = std::collections::HashMap::new();
+        c.insert(String::new(), "5".into());
+        for (text, want) in [
+            ("a=${}b", "a=5b"),
+            ("a=${}", "a=5"),
+            ("${}${}", "55"),
+            ("v:[list ${}]c", "v:[list 5]c"),
+        ] {
+            assert_eq!(
+                substitute_dollar_refs(text, &c, tcl_lexer::LexerConfig::default()).as_deref(),
+                Some(want),
+                "{text}"
+            );
+        }
     }
 
     #[test]
@@ -3741,27 +3807,19 @@ mod tests {
         // A multi-word value in plain string text inlines verbatim (it stays
         // part of the one string word).
         assert_eq!(
-            substitute_dollar_refs("x=$lst", &c, tcl_dialect::BracedVarStyle::default()).as_deref(),
+            substitute_dollar_refs("x=$lst", &c, tcl_lexer::LexerConfig::default()).as_deref(),
             Some("x=a b c"),
         );
         // The SAME value inside a `[…]` command substitution would split one
         // argument into several — bail, keeping `$lst`.
         assert!(
-            substitute_dollar_refs(
-                "r: [lsearch $lst x]",
-                &c,
-                tcl_dialect::BracedVarStyle::default()
-            )
-            .is_none()
+            substitute_dollar_refs("r: [lsearch $lst x]", &c, tcl_lexer::LexerConfig::default())
+                .is_none()
         );
         // A single-word value inside a cmd-sub is still safe to inline.
         assert_eq!(
-            substitute_dollar_refs(
-                "r: [expr $n + 1]",
-                &c,
-                tcl_dialect::BracedVarStyle::default()
-            )
-            .as_deref(),
+            substitute_dollar_refs("r: [expr $n + 1]", &c, tcl_lexer::LexerConfig::default())
+                .as_deref(),
             Some("r: [expr 5 + 1]"),
         );
     }
