@@ -41,6 +41,7 @@ use tcl_dialect::model::{Provenance, WorkspaceTrust};
 use tcl_registry::registry::CommandRegistry;
 
 use crate::discovery::{Origin, PackFile, Tier};
+use crate::hooks::{DormantHook, dormant_hooks};
 use crate::loader::{Notice, Pack, PackCommand};
 
 /// How loudly a notice should be shown. Every notice is a *degradation*, never
@@ -51,7 +52,8 @@ pub enum Severity {
     /// definition, an unreadable file. Worth fixing.
     Warning,
     /// Something the loader decided, correctly, that the author may not have
-    /// expected: a shipped name left alone, a shadowed tier.
+    /// expected: a shipped name left alone, a shadowed tier, a hook body an
+    /// untrusted workspace holds dormant.
     Information,
 }
 
@@ -93,6 +95,25 @@ impl PackNotice {
             context: "pack".to_owned(),
             message: message.into(),
             severity,
+        }
+    }
+
+    /// The notice a hook body held dormant by an untrusted workspace draws:
+    /// once per hook, on the row that declares it, never once per call. It
+    /// is information, not a warning — nothing is wrong with the pack, and
+    /// granting the workspace trust is what runs the body.
+    #[must_use]
+    pub fn dormant(hook: &DormantHook) -> Self {
+        Self {
+            path: hook.file.clone(),
+            line: hook.line,
+            context: format!("command {}", hook.command),
+            message: format!(
+                "`{}` is dormant: the workspace is not trusted, so this hook body does not \
+                 run and the command keeps its declarative facts",
+                hook.field
+            ),
+            severity: Severity::Information,
         }
     }
 }
@@ -401,13 +422,23 @@ pub(crate) fn load_sources(
             ));
         }
 
-        packs.push(merge_group(
+        let merged = merge_group(
             &name,
             winning_tier,
             winning_tier.trust_under(trust),
             winners,
             &mut notices,
-        ));
+        );
+        // The execution half of the trust ruling, said where the author
+        // looks: each body an untrusted workspace holds dormant, on its own
+        // row. `hooks::plan_for` reads the same list and allocates none of
+        // them a slot.
+        notices.extend(
+            dormant_hooks(&merged.name, &merged.commands, merged.provenance())
+                .iter()
+                .map(PackNotice::dormant),
+        );
+        packs.push(merged);
     }
 
     // Cross-pack collisions, once every pack is merged — the only point where

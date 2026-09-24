@@ -93,4 +93,6 @@ checkpoint compiling.
   applied after it; step 3 (trust gates execution; stub flags reach their
   fields), planned in the tracking document's § *Plan for steps 2–10*, is
   in progress item by item in the tracking document's § *Step 3 —
-  progress*.
+  progress*: CC3.1 (the Workspace Trust state through discovery,
+  provenance and the cache key) and CC3.3 (the client wire, hook bodies
+  gated on it, and the dormant notice) have landed.

@@ -24,14 +24,17 @@
 //! [`Provenance::WorkspaceTrusted`] or [`Provenance::WorkspaceUntrusted`].
 //! Authority never reads it — an untrusted pack's declarative facts reach the
 //! registry exactly as a trusted one's do — while the registration gates
-//! (E-R2) and the snapshot identity do.
+//! (E-R2), the snapshot identity and the execution of hook bodies do.
 
 use std::path::PathBuf;
+use std::rc::Rc;
 
 use tcl_dialect::model::{Provenance, WorkspaceTrust};
 use tcl_registry::arg_role::ArgRole;
+use tcl_registry::pack_hooks;
 use tcl_spectcl::discovery::{DiscoveryOptions, Origin, PackFile, Tier};
-use tcl_spectcl::pack::{self, PackSet};
+use tcl_spectcl::hooks;
+use tcl_spectcl::pack::{self, PackSet, Severity};
 use tcl_spectcl::{EvalOptions, eval_snapshot_key};
 
 const D: &str = "tcl8.6";
@@ -249,4 +252,189 @@ fn the_snapshot_key_distinguishes_trust() {
         set_key(WorkspaceTrust::Trusted),
         set_key(WorkspaceTrust::Untrusted)
     );
+}
+
+/// A pack with three hook bodies — a `const_fold`, an option's `-arity-hook`
+/// and a declared implementation (the `evaluate` statement, rebound by the
+/// `facts` statement after it) — beside a `clause_grammar`, whose two
+/// derived hooks are not bodies. Lines are 1-based from `speclib`.
+const HOOKED: &str = "speclib trustfold 2.2 {\n\
+    \x20   command trustfold::strlen {\n\
+    \x20       arity 1\n\
+    \x20       arg 0 -role Value\n\
+    \x20       const_fold -inputs {words} {words ctx} {\n\
+    \x20           fold [string length [lindex $words 0]]\n\
+    \x20       }\n\
+    \x20   }\n\
+    \x20   command trustfold::pick {\n\
+    \x20       arity 1..\n\
+    \x20       option -width -arity-hook {words ctx} {\n\
+    \x20           consume 2\n\
+    \x20       }\n\
+    \x20   }\n\
+    \x20   command trustfold::label {\n\
+    \x20       arity 1\n\
+    \x20       semantics {\n\
+    \x20           effects {no_store_writes no_external_io}\n\
+    \x20           result -semantic string\n\
+    \x20       }\n\
+    \x20       evaluate -implementation trustfold.label.v1 -host bounded_tcl {\n\
+    \x20           inputs {arg 0 exact}\n\
+    \x20           depends {tcl_profile implementation_identity}\n\
+    \x20           body {name} { fold [string cat label: $name] }\n\
+    \x20       }\n\
+    \x20       facts {\n\
+    \x20           result -string_segments {{constant label:} {operand 0}}\n\
+    \x20       }\n\
+    \x20   }\n\
+    \x20   command trustfold::guarded {\n\
+    \x20       arity 1\n\
+    \x20       clause_grammar {\n\
+    \x20           head {Body} -timing protected\n\
+    \x20       }\n\
+    \x20   }\n\
+    }\n";
+
+/// The bodies of [`HOOKED`], as `(command, field, line)`.
+const HOOKED_BODIES: [(&str, &str, u32); 3] = [
+    ("trustfold::strlen", "const_fold", 5),
+    ("trustfold::pick", "options.arity_hook", 11),
+    ("trustfold::label", "evaluate", 21),
+];
+
+/// What `trustfold::strlen abcde` folds to in the registry `packs` install.
+fn strlen_fold(packs: &PackSet) -> Option<String> {
+    let registry = tcl_spectcl::install::registry_for_dialect_with_packs(D, packs);
+    let fold = registry
+        .get("trustfold::strlen")
+        .and_then(|spec| spec.const_fold)
+        .expect("the command reaches the registry with a const_fold field");
+    fold(&["abcde"])
+}
+
+/// In a workspace the editor has not trusted, no pack hook body runs: the
+/// plan allocates none a slot, the installed field keeps the loader's
+/// abstaining placeholder, and each body is reported once, on its own row,
+/// as information. The derived hooks are not bodies and draw nothing. The
+/// negative: the same pack trusted draws no notice, binds every body, and
+/// folds.
+#[test]
+fn an_untrusted_pack_installs_no_hook_body_and_reports_each_as_dormant() {
+    let untrusted = load(Tier::Workspace, "hooked", HOOKED, WorkspaceTrust::Untrusted);
+    let notices: Vec<(u32, &str, &str)> = untrusted
+        .notices
+        .iter()
+        .map(|notice| {
+            assert_eq!(
+                notice.severity,
+                Severity::Information,
+                "a dormant hook is information, not a warning: {notice:?}"
+            );
+            assert_eq!(notice.path, file(Tier::Workspace, "hooked").path);
+            (
+                notice.line,
+                notice.context.as_str(),
+                notice.message.as_str(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        notices.len(),
+        HOOKED_BODIES.len(),
+        "one notice per body, none for the derived hooks: {notices:#?}"
+    );
+    for ((line, context, message), (command, field, want_line)) in notices.iter().zip(HOOKED_BODIES)
+    {
+        assert_eq!(*line, want_line, "{field} is reported on its own row");
+        assert_eq!(*context, format!("command {command}"));
+        assert!(
+            message.starts_with(&format!(
+                "`{field}` is dormant: the workspace is not trusted"
+            )),
+            "{message}"
+        );
+    }
+
+    let plan = hooks::plan_for(&untrusted);
+    assert!(plan.is_empty(), "no body has a slot");
+    assert!(plan.packs().iter().all(|pack| pack.programs.is_empty()));
+    let dormant: Vec<(&str, &str, u32)> = plan
+        .dormant()
+        .iter()
+        .map(|hook| (hook.command.as_str(), hook.field, hook.line))
+        .collect();
+    assert_eq!(
+        dormant, HOOKED_BODIES,
+        "the plan lists what the load reports"
+    );
+    assert!(plan.dormant().iter().all(|hook| hook.pack == "trustfold"));
+
+    // The negative: trusted, the same pack says nothing and binds all three.
+    let trusted = load(Tier::Workspace, "hooked", HOOKED, WorkspaceTrust::Trusted);
+    assert!(
+        trusted.notices.is_empty(),
+        "the pack loads cleanly: {:#?}",
+        trusted.notices
+    );
+    let plan = hooks::plan_for(&trusted);
+    assert!(plan.dormant().is_empty());
+    let slots: Vec<_> = plan
+        .packs()
+        .iter()
+        .flat_map(|pack| pack.programs.iter().map(|program| program.slot))
+        .collect();
+    assert_eq!(slots.len(), HOOKED_BODIES.len());
+    assert!(slots.iter().all(Option::is_some), "every body is bound");
+
+    // With a host on this thread serving the trusted plan, the trusted
+    // install folds and the untrusted one still abstains: its field is the
+    // placeholder, which no host is ever asked about.
+    let host = Rc::new(tcl_spec_hooks::tclvm_host());
+    for programs in plan.packs() {
+        let installed = host.install_pack_hooks(programs.clone());
+        assert!(
+            installed.iter().all(|entry| entry.declined.is_none()),
+            "{installed:?}"
+        );
+    }
+    pack_hooks::install_host(host);
+    assert_eq!(strlen_fold(&trusted), Some("5".to_owned()));
+    assert_eq!(strlen_fold(&untrusted), None);
+    pack_hooks::clear_host();
+}
+
+/// Only an untrusted workspace holds its bodies dormant. A Spec Studio
+/// override is untrusted for registration — it may not `-override` a
+/// compiled name — and still runs: it is the author's own live edit.
+#[test]
+fn only_an_untrusted_workspace_holds_its_bodies_dormant() {
+    for provenance in [
+        Provenance::BuiltIn,
+        Provenance::BundledPack,
+        Provenance::User,
+        Provenance::WorkspaceTrusted,
+        Provenance::StudioOverride,
+        Provenance::Document,
+    ] {
+        assert!(hooks::hook_bodies_run(provenance), "{provenance:?} runs");
+    }
+    assert!(!hooks::hook_bodies_run(Provenance::WorkspaceUntrusted));
+    assert!(Provenance::StudioOverride.is_untrusted());
+
+    // Through the load: every tier but the workspace ignores the state.
+    for tier in [Tier::Bundled, Tier::User, Tier::StudioOverride] {
+        let packs = load(tier, "hooked-tier", HOOKED, WorkspaceTrust::Untrusted);
+        assert!(
+            hooks::plan_for(&packs).dormant().is_empty(),
+            "{tier:?} bodies run"
+        );
+        assert!(
+            packs
+                .notices
+                .iter()
+                .all(|notice| !notice.message.contains("is dormant")),
+            "{tier:?}: {:#?}",
+            packs.notices
+        );
+    }
 }

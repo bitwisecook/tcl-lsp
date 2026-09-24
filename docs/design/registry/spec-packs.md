@@ -682,11 +682,31 @@ loader maps a workspace pack to `Provenance::WorkspaceTrusted` or
 gate and the evaluated snapshot's cache key all read it, so a pack in an
 untrusted workspace that `-override`s a compiled name is refused as a Spec
 Studio override's is, with every declarative fact of an unrefused pack
-reaching the registry either way. The language server does not yet read
-the client's state, and the hook host still runs a body under the sandbox
-whatever the state says; step 3 of
-[../compiler/registry-consumer-contracts.md](../compiler/registry-consumer-contracts.md)
-§ *Build order* wires the client and gates the bodies.
+reaching the registry either way.
+
+The language server takes the state from the client alone:
+`initializationOptions.workspaceTrust` (`"trusted"` or `"untrusted"`) at
+`initialize`, before the first pack load, and a top-level `workspaceTrust`
+in a `workspace/didChangeConfiguration` push when the editor grants trust,
+which reloads the packs (the pack-set key mixes the state, so the reload
+re-installs with no file moved). It never reads the state from a `tclLsp`
+setting: VS Code's configuration sync pushes that section, and a
+`workspace/configuration` pull answers it, from every settings layer — the
+workspace's own `.vscode/settings.json` among them — so a nested key would
+let an untrusted workspace declare itself trusted. The VS Code extension
+sends `workspace.isTrusted`; the other editors send nothing and are
+trusted. In an untrusted workspace `tcl_spectcl::hooks::plan_for` gives the
+workspace tier's bodies no slot, so each field keeps the loader's
+abstaining placeholder — the declared-but-unbound abstention — and the hook
+host never sees the text, while `pack::load_sources` reports each dormant
+body once, as an information notice on the row that declares it, with the
+message "`FIELD` is dormant: the workspace is not trusted, so this hook body
+does not run and the command keeps its declarative facts". Only bodies are
+gated: a `-native ID` runs shipped code the pack only names, and a
+derivation (`clause_grammar`, `from-frame-effect`) is the loader's own. A
+Spec Studio override's bodies run — the tier is untrusted for registration,
+but it is the author's own live edit. The user's answer is
+[why is my pack hook dormant](../../kcs/kcs-qa-why-is-my-pack-hook-dormant.md).
 
 What makes the ungated evaluation safe is the sandbox, not trust: a pack's
 executable surface is its evaluation and its hook bodies, both pure

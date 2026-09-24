@@ -707,6 +707,108 @@ fn without_the_pack_the_same_call_site_does_not_fold() {
     let _ = std::fs::remove_dir_all(&root);
 }
 
+/// A server rooted at `root` whose client reports the workspace untrusted,
+/// as VS Code does for a folder the user has not trusted: the `initialize`
+/// handshake carries `initializationOptions.workspaceTrust`.
+fn untrusted_at_root(root: &Path) -> Lsp {
+    let mut lsp = Lsp::spawn(json!({ "features": { "linkedEditingRange": true } }));
+    let root_uri = file_uri(root);
+    lsp.request(
+        "initialize",
+        json!({
+            "processId": std::process::id(),
+            "rootUri": root_uri,
+            "workspaceFolders": [{ "uri": root_uri, "name": "e2e" }],
+            "capabilities": {},
+            "clientInfo": { "name": "tcl-lsp-e2e", "version": "1.0" },
+            "initializationOptions": { "workspaceTrust": "untrusted" },
+        }),
+    );
+    lsp.notify("initialized", json!({}));
+    lsp
+}
+
+/// The dormant-hook notices among a pack file's diagnostics.
+fn dormant_notices(diagnostics: &[Value]) -> Vec<&Value> {
+    diagnostics
+        .iter()
+        .filter(|d| {
+            d.get("message")
+                .and_then(Value::as_str)
+                .is_some_and(|m| m.contains("is dormant"))
+        })
+        .collect()
+}
+
+/// In a workspace the editor has not trusted, a pack's `const_fold` body does
+/// not run: the call site does not fold, and the body's row carries an
+/// information notice saying why. Granting trust — the client's top-level
+/// `workspaceTrust` push — reloads the packs with no file moved: the notice
+/// clears and the same call site folds.
+#[test]
+fn granting_trust_reloads_and_installs_the_bodies() {
+    let root = workspace("trust-grant");
+    let pack = root.join(".tcl-lsp/folder.tclspec");
+    write(&pack, FOLDER_PACK);
+    let doc = root.join("app.tcl");
+    write(&doc, FOLDER_SOURCE);
+
+    let mut lsp = untrusted_at_root(&root);
+    let uri = file_uri(&doc);
+    lsp.open_ready(&uri, FOLDER_SOURCE);
+    await_pack_named(&mut lsp, "folder");
+
+    let pack_uri = file_uri(&pack);
+    let diagnostics =
+        lsp.await_diagnostics_settled(&pack_uri, std::time::Duration::from_secs(15), |diags| {
+            !dormant_notices(diags).is_empty()
+        });
+    let [notice] = dormant_notices(&diagnostics)[..] else {
+        panic!("one body, one notice: {diagnostics:#?}");
+    };
+    assert_eq!(
+        notice.get("severity").and_then(Value::as_i64),
+        Some(3),
+        "information, not a warning: {notice:#?}"
+    );
+    assert_eq!(
+        notice
+            .get("range")
+            .and_then(|r| r.get("start"))
+            .and_then(|p| p.get("line"))
+            .and_then(Value::as_i64),
+        Some(5),
+        "on the `const_fold` row (1-based line 6): {notice:#?}"
+    );
+    let result = lsp.execute_command("tcl-lsp.optimiseDocument", json!([uri, "full"]));
+    assert!(
+        offers(&result, "O129")
+            .iter()
+            .all(|(replacement, _)| replacement != "5"),
+        "a dormant body folds nothing: {result:#?}"
+    );
+
+    lsp.notify(
+        "workspace/didChangeConfiguration",
+        json!({ "settings": { "workspaceTrust": "trusted" } }),
+    );
+    let cleared =
+        lsp.await_diagnostics_settled(&pack_uri, std::time::Duration::from_secs(30), |diags| {
+            dormant_notices(diags).is_empty()
+        });
+    assert!(cleared.is_empty(), "{cleared:#?}");
+    let result = lsp.execute_command("tcl-lsp.optimiseDocument", json!([uri, "full"]));
+    assert!(
+        offers(&result, "O129")
+            .iter()
+            .any(|(replacement, _)| replacement == "5"),
+        "trusted, the body runs and folds; got:\n{}",
+        optimised(&result)
+    );
+
+    let _ = std::fs::remove_dir_all(&root);
+}
+
 /// The value-transfer page's executable example as a workspace pack
 /// (`rust/tcl-compiler/tests/fixtures/value_transfers/tenant.tclspec`, its
 /// first declaration): `tenant::label NAME` answers `PREFIX` then the name,

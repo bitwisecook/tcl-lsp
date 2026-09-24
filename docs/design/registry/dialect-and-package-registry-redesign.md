@@ -895,13 +895,19 @@ capability-specific:
   keep the shipped value — so a four-line workspace pack declaring
   `command exec -override { arity 1.. }` cannot strip `exec`'s
   `TAINT_SINK` (`rust/tcl-spectcl/tests/i6_security_floor.rs`). The floor
-  is deliberately not tier-keyed, and stays so once the editor's Workspace
-  Trust state reaches discovery (§11 O9): it is a security contract over
+  is deliberately not tier-keyed, and stays so now that the editor's
+  Workspace Trust state reaches discovery: it is a security contract over
   every tier rather than a trust ranking between them;
-- the workspace and studio tiers cannot `-override` a compiled command
-  name, extend a compiled environment, declare a `dialect` block, or claim
-  a reserved environment name — refused at registration with the
-  provenance named;
+- an untrusted workspace's packs and the studio tier cannot `-override` a
+  compiled command name, extend a compiled environment, declare a `dialect`
+  block, or claim a reserved environment name — refused at registration
+  with the provenance named;
+- in a workspace the editor has not trusted, no pack hook body runs: the
+  pack's declarative facts install as above, and each dormant body is
+  reported on the pack file
+  ([registry-consumer-contracts.md](../compiler/registry-consumer-contracts.md)
+  § *Ruling — trust gates execution, not authority*; the client wire is
+  [spec-packs.md](spec-packs.md) § *Workspace trust*);
 - per-pack consent for security-weakening overrides and the "which tier
   won this fact" hover field are not built (§11 O8).
 
@@ -953,7 +959,6 @@ of a programmed pack back into a program; an ahead-of-time `.tclspec` →
 | O5 | **The iRules surface as a pack.** Six of the seven prerequisite words have loader readers, so the deferral is a standing choice rather than a blocked one | The iRules command surface stays compiled Rust. The dialect (grammar, structure) and the closed-world policy stay compiled either way, so nothing about correctness rides on it | An owner decision to schedule it |
 | O7 | **`primary` for a multi-target project.** The primary is the environment's, always; a declared range never moves it | Multi-target projects cannot choose which release assistance answers under. Compatibility checking evaluates the whole set, so this is an assistance-quality gap | An owner answer plus the settings/directive surface to carry it |
 | O8 | **Per-pack trust consent and provenance in hover.** The registration-time tier gate exists; the consent surface and the "which tier won this fact" hover do not | A workspace pack cannot be granted security-fact overrides at all, which is the safe direction | An owner ruling on where consent is recorded, then the config surface and the hover field |
-| O9 | **Workspace Trust reaches discovery, not yet the client.** `DiscoveryOptions::workspace_trust` carries `WorkspaceTrust` into the load, where a workspace pack becomes `Provenance::WorkspaceTrusted` or `Provenance::WorkspaceUntrusted` and E-R2 reads the class; but no LSP client sends the state yet, so every workspace is trusted in practice and hook bodies run whatever it says; the security floor (§6.4) holds regardless | O8, and any rule that must distinguish a trusted workspace from an untrusted one in an editor | The client wire (`initializationOptions.workspaceTrust`, the `tclLsp.workspaceTrust` setting) and the hook-body gate — step 3 of [registry-consumer-contracts.md](../compiler/registry-consumer-contracts.md) § *Build order*. What trust gates is decided: execution, not authority, with a non-reporting client treated as trusted (§ *Rulings* there) |
 
 ### 11.2 Deferred model items
 

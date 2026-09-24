@@ -587,8 +587,8 @@ predicate CC3.2 collapses.
 | Item | State | Checkpoint | Notes |
 |---|---|---|---|
 | CC3.1 `WorkspaceTrust` through discovery, provenance and the cache key | landed | `wip(consumer-contracts): step 3 — workspace trust through discovery, provenance and the cache key` | `tcl_dialect::model::WorkspaceTrust { Trusted (default), Untrusted }` beside `Provenance`, with `workspace_provenance()` (D3.1); `DiscoveryOptions::workspace_trust` (default trusted); `Tier::trust_under` — the workspace tier reads the state, every other tier is trusted; the trust rides the load, not `PackFile` (D3.5): `pack::load_under`, `pack::load_in_memory_under`, `bundled::load_discovered_in(store, files, trust)`, with `load`, `load_in_memory`, `load_discovered` and `load_embedded` the trusted doors the CLI and MCP already call, so neither needed an edit; `MergedPack::trust` and `MergedPack::provenance()`; `PackEnvironmentTier::Workspace(WorkspaceTrust)` with `of(tier, trust)` and `label()` (D3.6), so registration (`register_pack_set`, the dialect and roster conversions, `untrusted_compiled_extension`) and `to_definition` carry the pack's own class; `register_pack_environments` / `register_environments` take the trust; `EvalOptions::trust`, `EvalSnapshotKey::trust` and the `tier` doc comment naming the trust state; `untrusted(PackEnvironmentTier)` gates E-R2 on the pair, and the refusal names "untrusted workspace" (D3.8); `cache::{key_for, evaluate_pack_cached, evaluate_pack_including, snapshot_memoised}` take the trust, `entry_key` and the pack-set key mix it (D3.7); the server passes `options.workspace_trust`, still the default until CC3.3 sets it. Tests: `rust/tcl-spectcl/tests/workspace_trust.rs` (new; shard `5 tcl-spectcl::workspace_trust`) — `an_untrusted_workspace_pack_is_workspace_untrusted_provenance` (and the user tier stays `User`), `an_untrusted_workspace_pack_still_declares_its_facts` (arity, `Body` / `Value` roles and a `Declared` semantics reach the installed registry, equal under both states), `an_untrusted_workspace_pack_cannot_override_a_compiled_name` (the negative: `-override lsort` refused naming "untrusted workspace", the shipped `lsort` standing; trusted, it loads), `a_client_that_reports_nothing_is_trusted` (the three defaults, and a discovered `.tcl-lsp/` pack loading as `WorkspaceTrusted` with its override), `the_snapshot_key_distinguishes_trust` (snapshot key, entry key and set key split for the workspace tier, not for bundled); `cache.rs`'s key and identity tests gain the trust rows; `surface_roster_trust.rs` pins both states; `loader.rs`'s environment test pins `to_definition` under both; `tcl-dialect`'s trust-class test pins the default and the map. Gates: `cargo test -p tcl-spectcl` (every binary: lib 188, `workspace_trust` 5, …), `-p tcl-dialect --lib` (153), `-p tcl-spec-studio --lib` (198); `cargo check --workspace --all-targets`; clippy (`-p tcl-dialect -p tcl-spectcl -p tcl-spec-studio -p tcl-lsp-server`) and `cargo fmt` clean; `verify-nextest-binary-shards.py --metadata-only` (327 targets) and `test-nextest-binary-shards.sh` green; `registry-axes` / `value-transfers --check` unchanged; `pack-goldens --check` (25) unchanged; `kcs-index-links` green; `dialect-drift` at its 8. Docs: `spec-packs.md` § *Workspace trust* (the loader maps by the state; the client wire and the hook gate still to come) and the cache bullet; the redesign's O9 narrowed, not closed (D3.9); the design page's status box moves `WorkspaceTrust` to built. Deviations: the brief's order runs CC3.1 before CC3.5 (the plan put CC3.5 first); the trust rides the load (D3.5) and the tier value (D3.6) rather than `PackFile` and a `provenance(trust)` parameter; no `cache::VERSION` exists to bump (D3.7); O9 closes with CC3.3 (D3.9); the MCP and CLI callers needed no edit (D3.5) |
-| CC3.3 hook bodies gated; the dormant notice | next | `wip(consumer-contracts): step 3 — dormant hook bodies` | opus |
-| CC3.5 the six `StubFlags` on their catalogue fields; nearest-wins | not started | `wip(consumer-contracts): step 3 — stub flags reach their fields` | opus |
+| CC3.3 hook bodies gated; the dormant notice | landed | `wip(consumer-contracts): step 3 — dormant hook bodies` | `HookDecl::line` — the declaring row: the hook property, the `option` row carrying an `-arity-hook`, the `state_transitions` block's `resolver` row (`state_transitions_value` returns `(HookSource, u32)`), the `evaluate` statement (`semantics.rs`'s `Implementation::line`, carried through `declaration()` into `rebind`, so a later `facts` or `option -evaluate` rebind keeps it), the `clause_grammar` row (`CommandAcc::clause_grammar_line`) — D3.11; `hooks::hook_bodies_run(provenance)` (only `WorkspaceUntrusted` is dormant; the studio override runs, D3.12), `hooks::DormantHook { pack, command, field, file, line }` and `hooks::dormant_hooks(pack, commands, provenance)` over the private `bodies()` iterator `programs_of` also reads, so the bodies a trusted workspace runs are the ones an untrusted one reports; `plan_for` gives a dormant pack's bodies no slot (no `PackPrograms` at all) and lists them in `HookPlan::dormant()`, so `specialise` leaves the loader's abstaining placeholder and the host never sees the text; `pack::load_sources` pushes `PackNotice::dormant` for each, `Severity::Information`, context `command NAME`, the plan's message verbatim, at the hook's own line in the command's file; `golden::positionless` zeroes the lines the `hooks` digest reads (D3.13). Server: `Backend::workspace_trust`; `workspace_trust_in` reads a **top-level** `workspaceTrust` (`"trusted"` / `"untrusted"`, anything else no statement) from `initializationOptions` (in `apply_initialization_options`, before `initialized`'s first load) and from a `didChangeConfiguration` push, never from a `tclLsp` section (D3.10); a change reloads through `ReloadTrigger::Trust` and reschedules every open document; `spec_pack_discovery` sets `workspace_trust`. VS Code (`clientCore.ts`, both hosts): `initializationOptions` is a function returning `{ workspaceTrust }` from `workspace.isTrusted`, and `registerWorkspaceTrustGrant` pushes `{ settings: { workspaceTrust } }` on `onDidGrantWorkspaceTrust`, registered before `client.start()` (D3.14); `package.json`'s `untrustedWorkspaces` description and `INSTALL-editors.md` say the bodies stay dormant. Tests: `workspace_trust.rs` — `an_untrusted_pack_installs_no_hook_body_and_reports_each_as_dormant` (a `const_fold`, an `-arity-hook` and an `evaluate -implementation` body beside a `clause_grammar`: three information notices at lines 5, 11 and 21, none for the derivations; `plan_for` empty with the three in `dormant()`; the negative: trusted, no notice, three slots, and with a host on the thread the trusted install folds `abcde` to `5` while the untrusted one still abstains) and `only_an_untrusted_workspace_holds_its_bodies_dormant` (every `Provenance` but `WorkspaceUntrusted` runs; the bundled, user and studio tiers ignore the state through the load); server unit `workspace_trust_comes_from_the_client_and_never_from_a_setting` (absent is trusted; `initializationOptions` sets untrusted; the negative: `{"tclLsp":{"workspaceTrust":"trusted"}}` and the flat-dotted `tclLsp.workspaceTrust` change nothing; the top-level push grants; an unreadable value is no statement); e2e `spec_packs::granting_trust_reloads_and_installs_the_bodies` (an untrusted client: one information notice on the `const_fold` row, no `O129` fold; the top-level grant push clears the notice and the same call site folds to `5`); `hooks.rs`'s `a_declared_body_replaces_the_abstaining_placeholder` unchanged (the preserve). Gates: `cargo test -p tcl-spectcl --no-fail-fast` (lib 188 and all 19 binaries, `workspace_trust` 7, `golden_packs` 3), `-p tcl-lsp-server --lib` (594), `--test e2e spec_packs::` (31) and `config::` (26); `cargo check --workspace`; clippy (`-p tcl-spectcl -p tcl-lsp-server`) and `cargo fmt` clean; `tsc --noEmit -p editors/vscode`, eslint and prettier on the three changed `.ts` files; `pack-goldens` rewrote 8 snapshots (`foreach`, `if`, `oo-class`, `return`, `string`, `switch`, `upf`, `upvar` — the `hooks` digests only) and `--check` passes; `registry-axes` (7831 / 16 / 40 / 896 across 147) and `value-transfers --check` (20 / 19 / 90 across 36 / 6607) unchanged; `callback-inventory --check` unchanged (no new tier); `kcs-index-links` green; `dialect-drift` at its 8. Docs: `spec-packs.md` § *Workspace trust* (the wire, the gate, the notice, what is not a body); the design page's status box and the ruling's consequences (the abstention sits in `plan_for`, the host never learns the state); the redesign's O9 row removed (closed, D3.9), § 6.4 gains the execution bullet and its E-R2 bullet names the untrusted workspace; KCS `kcs-qa-why-is-my-pack-hook-dormant.md` (User, all-editors, a VS Code sub-heading), indexed. Deviations: the wire is top-level, not `tclLsp.workspaceTrust` (D3.10); the grant test is an e2e test, since no unit test drives `reload_spec_packs` — the unit test pins the wire and its forgery negative; `HookPlan::dormant` is `Vec<DormantHook>` (file and line beside the plan's `(pack, command, field)`), so the notice and the plan read one list; `npm test` not run (it downloads and launches a VS Code build) — the type-check, eslint and prettier stand in; `cargo test -p tcl-spec-hooks` not run (the crate depends on none of the changed crates, and `containment_e2e.rs` is untouched); `semantics.rs` (the value-transfers lane's slice-4 file, B1) gains three small hunks, no caller in `loader.rs` changed shape |
+| CC3.5 the six `StubFlags` on their catalogue fields; nearest-wins | next | `wip(consumer-contracts): step 3 — stub flags reach their fields` | opus |
 | CC3.2 one `untrusted` predicate | not started | — | sonnet, dispatched separately |
 | CC3.4 `spectcl_check`'s tier and trust | not started | — | sonnet, dispatched separately |
 
@@ -623,6 +623,45 @@ predicate CC3.2 collapses.
   loader's private shim); the checklist's looser `"fn untrusted"` also
   matches `untrusted_compiled_extension` and the studio's
   `untrusted_tier_refusal`, which are not predicates.
+
+### CC3.3 — what the next items read
+
+- **For CC3.4 (`spectcl_check`'s `dormant_hooks`).** The tool evaluates a
+  single `Pack`, not a `PackSet`, so it cannot ask `HookPlan`; the one
+  list is `tcl_spectcl::hooks::dormant_hooks(&pack.name, &pack.commands,
+  provenance)` with `provenance = PackEnvironmentTier::of(tier,
+  trust).provenance()` — empty unless the pair is an untrusted workspace.
+  Each `DormantHook` carries `command`, `field` and `line` (its `file` is
+  empty for an unmerged pack); `PackNotice::dormant(&hook).message` is the
+  load's wording, if the tool wants the same sentence.
+  `hooks::hook_bodies_run(provenance)` is the predicate. `HookDecl::line`
+  is new, so `spectcl.rs`'s `hook_json` may report it.
+- **For CC3.2.** Nothing CC3.3 added reads `untrusted` or
+  `Provenance::is_untrusted`: dormancy is `provenance ==
+  WorkspaceUntrusted`, deliberately narrower (D3.12), so collapsing the
+  registration predicate moves no CC3.3 answer.
+- **For the landing.** The server's trust state is `Backend::workspace_trust`,
+  set only by `workspace_trust_in` (top-level key); `getEffectiveConfig`
+  does not report it. The two design indexes' lines for the page
+  (`docs/design/README.md`, `docs/design/compiler/README.md`) still read
+  "built in step 2" and do not name the trust gate.
+
+### Behavioural deltas accepted in step 3
+
+- CC3.1: every on-disk compiled-pack cache entry key moved once (the trust
+  byte), so the cache rebuilds on the first load; unobservable (D3.7).
+- CC3.3: in a VS Code workspace the user has not trusted, a workspace
+  pack's hook bodies do not run — each field keeps its abstaining
+  placeholder — and each is reported once as an information notice on its
+  own row; the declarative facts are unchanged, and a grant re-installs
+  with no restart. Every other editor sends no state and is trusted, so
+  nothing moves there.
+- CC3.3: the pack goldens' `hooks` digests moved once for the eight packs
+  that declare hooks (`HookDecl` gained its line, and the digest reads it
+  zeroed); no `spec` or `grammar` digest moved.
+- CC3.3: VS Code's Restricted Mode description for the extension now says
+  a workspace pack's hook bodies stay dormant until the workspace is
+  trusted.
 
 ## Plan for steps 2–10
 
@@ -3310,6 +3349,55 @@ everything else in this lane is independent of both.
   "plumbing the LSP client's Workspace Trust state to `discovery`", and
   the client half — the server reading `initializationOptions` and the VS
   Code client sending it — is CC3.3's.
+- **D3.10** The client's trust wire is `initializationOptions.workspaceTrust`
+  and a **top-level** `workspaceTrust` in a `didChangeConfiguration` push —
+  not `tclLsp.workspaceTrust`, which the plan and D3.2 name — and the
+  server never reads the state from a pulled or synchronised `tclLsp`
+  section. Reason: the VS Code client sets `synchronize.configurationSection:
+  "tclLsp"`, so `vscode-languageclient` pushes the whole resolved `tclLsp`
+  section on every change, and a `workspace/configuration` pull answers it,
+  from every settings layer — the untrusted workspace's own
+  `.vscode/settings.json` among them, and an undeclared key is not a
+  restricted setting — so a nested key would let an untrusted workspace
+  grant itself trust. No sync ever produces a top-level key besides
+  `tclLsp`; only extension code writes one, from `workspace.isTrusted`.
+  Refines D3.2; the negative is pinned by
+  `workspace_trust_comes_from_the_client_and_never_from_a_setting`.
+- **D3.11** `HookDecl::line` is the declaring row's line, and for a
+  `state_transitions` resolver the `resolver` row's, not the block's; an
+  `evaluate` hook carries its `evaluate` statement's line from
+  `semantics.rs`'s `Implementation` through `declaration()` into `rebind`,
+  so a later `facts` or `option -evaluate` statement that rebinds the hook
+  does not move it. Reason: the notice goes where the author wrote the
+  body; a caller-side `stmt.line` would name whichever statement rebound
+  it last. The change to the value-transfers lane's slice-4 file (B1) is
+  three hunks behind one tuple, and no `loader.rs` caller changed shape.
+- **D3.12** A body is dormant exactly when its pack's provenance is
+  `Provenance::WorkspaceUntrusted` (`hooks::hook_bodies_run`), not whenever
+  `Provenance::is_untrusted` answers: a Spec Studio override is untrusted
+  for registration (E-R2) but runs its bodies. Only `HookSource::Body`
+  hooks are gated; a `-native ID` runs shipped code the pack only names, and
+  a derivation is the loader's own. Reason: the ruling gates the one
+  surface whose inputs the workspace chooses — a body run per query on the
+  analysed document's words, from a folder the editor has not trusted; the
+  studio override is the author's own live edit, and its answering is what
+  the studio shows. One list, `hooks::dormant_hooks`, over the `bodies()`
+  iterator `programs_of` also reads, feeds both the notice and
+  `HookPlan::dormant` (D3.3's one fact).
+- **D3.13** The golden `hooks` digest reads the hooks with their lines
+  zeroed (`golden::positionless`). Reason:
+  `every_shipped_pack_upgrades_to_2_0_and_loads_identically` compares a 2.0
+  rewrite modulo positions (the command's `line` is its wildcard), and a
+  line inside the digest broke that for every pack with a hook; the digest
+  says which hooks a command declares, the `line` column says where.
+- **D3.14** The VS Code client's `initializationOptions` is a function, so
+  each start — the first and every restart — reads `workspace.isTrusted`
+  afresh, and the grant listener (`registerWorkspaceTrustGrant`, in
+  `clientCore.ts` for both hosts) is registered before `client.start()`.
+  Reason: the checklist's race — a grant during start-up — is covered by
+  the client holding a notification until its connection is up, and VS
+  Code never withdraws trust within a session (withdrawing reloads the
+  window, which restarts the server with the new state).
 - **D4.1** `alias_of` is a `CommandSpec` field only. **D4.2** The stamp
   rule runs in `pack::load_sources` on the loaded command. **D4.3**
   `PackFactStamp::content_hash` is the `u64` xxh3 the snapshot key

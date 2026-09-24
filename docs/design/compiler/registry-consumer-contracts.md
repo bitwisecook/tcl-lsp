@@ -44,7 +44,11 @@ slices proceed without deciding anything here.
 >   `template_plan` is the value axis's.
 >
 > Step 3 adds `WorkspaceTrust` (`tcl_dialect::model`), the trust
-> ruling's one input, carried on `DiscoveryOptions::workspace_trust`.
+> ruling's one input, carried on `DiscoveryOptions::workspace_trust`, and
+> gates hook-body execution on it: `tcl_spectcl::hooks::hook_bodies_run`
+> decides it, `hooks::plan_for` gives an untrusted workspace pack's bodies
+> no slot, and the load reports each as a `hooks::DormantHook` on the pack
+> file.
 >
 > The rest of the vocabulary is proposed and names nothing in the
 > workspace:
@@ -220,16 +224,21 @@ the workspace does not control.
 and maps a workspace pack to `Provenance::WorkspaceTrusted` or
 `Provenance::WorkspaceUntrusted`, which makes the latter reachable from
 discovery for the first time (the redesign's § *11.1 Owner decisions
-pending*, item O9). The two identical `untrusted(…)` predicates —
+pending* carried it as item O9 until step 3 closed it). The two identical
+`untrusted(…)` predicates —
 `rust/tcl-spectcl/src/loader/eval.rs` over a `Tier` and
 `rust/tcl-registry/src/model/registration.rs` over a `Provenance` —
 collapse into one, exported from `tcl-registry` and called by the loader,
 so the answer is the same at every entry point; the `EvalOptions::tier`
 doc comment that still calls `Tier::Workspace` an untrusted class is
 corrected to name the trust state instead of the discovery location.
+The dormant-hook abstention sits where slots are assigned:
+`tcl_spectcl::hooks::plan_for` gives an untrusted workspace pack's bodies
+no slot, so each field keeps the loader's abstaining placeholder and
 `rust/tcl-spec-hooks/src/host.rs` — the hook host that owns the per-pack
-engines and the containment — gains the dormant-hook abstention, and
-`spectcl_check`'s tier parameter (redesign item O4) reports it. Documents:
+engines and the containment — never learns the trust state or sees the
+text; `spectcl_check`'s tier parameter (redesign item O4) reports it.
+Documents:
 [../registry/spec-packs.md](../registry/spec-packs.md) § *Workspace trust:
 the setting is gated, the workspace tier is not* records the split, and
 [../registry/dialect-and-package-registry-redesign.md](../registry/dialect-and-package-registry-redesign.md)

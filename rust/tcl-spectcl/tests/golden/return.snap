@@ -12,4 +12,4 @@ registrations 2
 notices 1
 notice command return 74 presentation names a lowering hook: this changes how the compiler translates the command, not just what the editor knows about it
 commands 1
-command return line 35 overrides false degraded false spec 44cd0079cfcf4d50 hooks c736f86e54c816fb grammar 715ea0deb6f6f5f9
+command return line 35 overrides false degraded false spec 44cd0079cfcf4d50 hooks ce7d86d810cd77d7 grammar 715ea0deb6f6f5f9

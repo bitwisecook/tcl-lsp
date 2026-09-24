@@ -50,22 +50,50 @@
 //! Only bodies. A `-native ID` names engine code the pack cannot supply and a
 //! derivation keyword (`from-manufacturers`, `clause_grammar`) is the loader's
 //! own business; both keep the loader's installed behaviour untouched.
+//!
+//! ## What a workspace must be trusted for
+//!
+//! A body runs only for a pack whose provenance lets it
+//! ([`hook_bodies_run`]): in a workspace the editor has not marked trusted,
+//! [`plan_for`] allocates the pack's bodies no slot, so [`specialise`] leaves
+//! the loader's abstaining placeholder — the abstention a declared-but-unbound
+//! hook gives — while every declarative fact the pack states is installed as
+//! before. The same list, [`dormant_hooks`], is what the load reports on the
+//! pack file (`docs/design/compiler/registry-consumer-contracts.md` § *Ruling
+//! — trust gates execution, not authority*).
 
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, LazyLock, Mutex};
 
+use tcl_dialect::model::Provenance;
 use tcl_registry::hover::{OptionArity, OptionSpec, OptionValue};
 use tcl_registry::pack_hooks::{self, HookFamily, HookSlot};
 use tcl_registry::spec::{CommandSpec, SubCommand};
 use tcl_registry::value_transfer::{DeclaredSemantics, SemanticsDeclaration};
 use tcl_spec_hooks::{HookOwner, HookProgram, PackPrograms, tclvm_host};
 
-use crate::loader::{HookOwner as DeclOwner, HookSource, PackCommand};
+use crate::loader::{HookDecl, HookOwner as DeclOwner, HookSource, PackCommand};
 use crate::pack::PackSet;
 
 // The adapter: HookDecl → HookProgram
+
+/// Every hook **body** `commands` declare, beside the command it hangs off:
+/// what the host would run. A `-native ID` names engine code the pack cannot
+/// supply and a derivation keyword is the loader's own business, so neither
+/// is one. [`programs_of`] and [`dormant_hooks`] both read this, so the hooks
+/// a trusted workspace runs are exactly the ones an untrusted one reports.
+fn bodies(commands: &[PackCommand]) -> impl Iterator<Item = (&PackCommand, &HookDecl)> {
+    commands.iter().flat_map(|command| {
+        command
+            .hooks
+            .iter()
+            .filter(|hook| matches!(hook.source, HookSource::Body { .. }))
+            .map(move |hook| (command, hook))
+    })
+}
 
 /// One pack's declared hook **bodies**, as the host takes them.
 ///
@@ -82,34 +110,90 @@ pub fn programs_of(
     let mut programs = PackPrograms::new(pack);
     dsl_version.clone_into(&mut programs.dsl_version);
     content_hash.clone_into(&mut programs.content_hash);
-    for command in commands {
-        for hook in &command.hooks {
-            // Only a Tcl body crosses: `-native ID` names engine code and a
-            // derivation keyword is the loader's own business.
-            let HookSource::Body {
-                params,
-                body,
-                inputs,
-            } = &hook.source
-            else {
-                continue;
-            };
-            programs.programs.push(HookProgram {
-                command: command.spec.name.to_owned(),
-                owner: owner_of(&hook.owner),
-                family: hook.family,
-                parameters: params.clone(),
-                body: body.clone(),
-                inputs: inputs.clone(),
-                slot: None,
-                // A declared implementation answers for the release the call
-                // is analysed under, so its body runs on an engine pinned to
-                // that release (D74).
-                release_pinned: hook.family == HookFamily::Evaluate,
-            });
-        }
+    for (command, hook) in bodies(commands) {
+        let HookSource::Body {
+            params,
+            body,
+            inputs,
+        } = &hook.source
+        else {
+            continue;
+        };
+        programs.programs.push(HookProgram {
+            command: command.spec.name.to_owned(),
+            owner: owner_of(&hook.owner),
+            family: hook.family,
+            parameters: params.clone(),
+            body: body.clone(),
+            inputs: inputs.clone(),
+            slot: None,
+            // A declared implementation answers for the release the call is
+            // analysed under, so its body runs on an engine pinned to that
+            // release (D74).
+            release_pinned: hook.family == HookFamily::Evaluate,
+        });
     }
     programs
+}
+
+// Execution gated on trust
+
+/// Whether a pack hook body of `provenance` runs — the execution half of the
+/// trust ruling (`docs/design/compiler/registry-consumer-contracts.md`
+/// § *Ruling — trust gates execution, not authority*).
+///
+/// Only a workspace the editor has not marked trusted holds its bodies
+/// dormant: a body runs per query on words the analysed document supplies,
+/// so it is the one pack surface whose inputs an untrusted workspace would
+/// choose. A Spec Studio override is untrusted for registration (it may not
+/// `-override` a compiled name) but runs — it is the author's own live edit,
+/// and its bodies answering is what the studio shows. Authority reads none
+/// of this: a dormant pack's declarative facts reach the registry unchanged.
+#[must_use]
+pub fn hook_bodies_run(provenance: Provenance) -> bool {
+    provenance != Provenance::WorkspaceUntrusted
+}
+
+/// A declared hook body that does not run, because its pack's provenance
+/// holds it dormant ([`hook_bodies_run`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DormantHook {
+    /// The pack that declares it.
+    pub pack: String,
+    /// The command it hangs off.
+    pub command: String,
+    /// The field it would fill (`const_fold`, `options.arity_hook`,
+    /// `state_transitions.resolver`, `evaluate`, …).
+    pub field: &'static str,
+    /// The file that declares it — the merge's record on the command, empty
+    /// for a pack evaluated from a source with no path.
+    pub file: PathBuf,
+    /// The line of the row that declares it ([`HookDecl::line`]).
+    pub line: u32,
+}
+
+/// The hook bodies `commands` declare that stay dormant for a pack named
+/// `pack` of `provenance`: every one when its bodies do not run, none
+/// otherwise. What the load reports ([`crate::pack::PackNotice::dormant`])
+/// and what [`HookPlan::dormant`] lists.
+#[must_use]
+pub fn dormant_hooks(
+    pack: &str,
+    commands: &[PackCommand],
+    provenance: Provenance,
+) -> Vec<DormantHook> {
+    if hook_bodies_run(provenance) {
+        return Vec::new();
+    }
+    bodies(commands)
+        .map(|(command, hook)| DormantHook {
+            pack: pack.to_owned(),
+            command: command.spec.name.to_owned(),
+            field: hook.field,
+            file: command.file.clone(),
+            line: hook.line,
+        })
+        .collect()
 }
 
 fn owner_of(owner: &DeclOwner) -> HookOwner {
@@ -134,18 +218,28 @@ fn owner_of(owner: &DeclOwner) -> HookOwner {
 #[derive(Debug, Clone, Default)]
 pub struct HookPlan {
     packs: Vec<PackPrograms>,
+    dormant: Vec<DormantHook>,
 }
 
 impl HookPlan {
-    /// One [`PackPrograms`] per pack, each program carrying its slot — what a
-    /// thread's host loads.
+    /// One [`PackPrograms`] per pack whose bodies run, each program carrying
+    /// its slot — what a thread's host loads. A pack whose bodies are dormant
+    /// has none here: its hooks are in [`Self::dormant`].
     #[must_use]
     pub fn packs(&self) -> &[PackPrograms] {
         &self.packs
     }
 
-    /// `true` when no pack declared a hook body, which is the common case and
-    /// the one that costs nothing.
+    /// Every body the plan allocated no slot because its pack's workspace is
+    /// untrusted ([`dormant_hooks`]) — what `spectcl_check` reports.
+    #[must_use]
+    pub fn dormant(&self) -> &[DormantHook] {
+        &self.dormant
+    }
+
+    /// `true` when no pack has a hook body to run, which is the common case
+    /// and the one that costs nothing. Dormant bodies do not count: a host
+    /// would have nothing to serve for them.
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.packs.iter().all(|pack| pack.programs.is_empty())
@@ -189,6 +283,16 @@ pub fn plan_for(packs: &PackSet) -> Arc<HookPlan> {
     let hash = format!("{:016x}", packs.key);
     let mut built = HookPlan::default();
     for pack in &packs.packs {
+        // An untrusted workspace's bodies get no slot, so `specialise` leaves
+        // the loader's abstaining placeholder on each field and no host ever
+        // sees the text. The pack's declarative facts install regardless.
+        let provenance = pack.provenance();
+        if !hook_bodies_run(provenance) {
+            built
+                .dormant
+                .extend(dormant_hooks(&pack.name, &pack.commands, provenance));
+            continue;
+        }
         let mut programs = programs_of(&pack.name, &pack.dsl_version, &hash, &pack.commands);
         // A family with no slots left installs no hook at all: the command
         // keeps its declarative facts, which is the documented degradation and

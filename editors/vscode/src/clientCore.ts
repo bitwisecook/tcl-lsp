@@ -38,11 +38,46 @@
  */
 
 import { Range, Uri, workspace, WorkspaceEdit } from "vscode";
-import type { LanguageClientOptions } from "vscode-languageclient";
+import type { Disposable } from "vscode";
+import type { BaseLanguageClient, LanguageClientOptions } from "vscode-languageclient";
 import type { DiffDiagnosticsSuppressor } from "./diffAnalysis";
 import { TCL_LANGUAGE_IDS } from "./languageIds";
 
 export const DEFAULT_DIALECT = "tcl8.6";
+
+/**
+ * The editor's Workspace Trust state, as the server reads it.
+ *
+ * Sent as `initializationOptions.workspaceTrust` at every start, and pushed as
+ * a **top-level** `workspaceTrust` in `workspace/didChangeConfiguration` when
+ * the user grants trust ({@link registerWorkspaceTrustGrant}). Never a
+ * `tclLsp` setting: the configuration sync sends that section from every
+ * settings layer, the workspace's own `.vscode/settings.json` among them, so
+ * an untrusted workspace could claim trust through it. In an untrusted
+ * workspace the server installs a spec pack's declarative facts but runs none
+ * of its hook bodies (docs/design/registry/spec-packs.md, "Workspace trust").
+ */
+export function workspaceTrustState(): "trusted" | "untrusted" {
+  return workspace.isTrusted ? "trusted" : "untrusted";
+}
+
+/**
+ * Tell the server when the user grants Workspace Trust, so a workspace pack's
+ * hook bodies start running without a restart.
+ *
+ * Registered before `client.start()`: a grant during start-up is sent once
+ * the connection is up (the client holds a notification until then), and the
+ * `initializationOptions` of any later restart read the state afresh. VS Code
+ * never withdraws trust within a session — that reloads the window, and the
+ * server starts again with the new state.
+ */
+export function registerWorkspaceTrustGrant(client: BaseLanguageClient): Disposable {
+  return workspace.onDidGrantWorkspaceTrust(() => {
+    void client.sendNotification("workspace/didChangeConfiguration", {
+      settings: { workspaceTrust: workspaceTrustState() },
+    });
+  });
+}
 
 // LSP wire types, for the server commands that answer with an edit of their own
 // rather than through a protocol request (the BIG-IP partition rename).
@@ -227,6 +262,9 @@ export function buildClientOptions(
         schemes ? schemes.map((scheme) => ({ scheme, language })) : [{ language }],
       ),
     ],
+    // A function, so every start — the first and each restart — reads the
+    // trust state as it is then.
+    initializationOptions: () => ({ workspaceTrust: workspaceTrustState() }),
     synchronize: {
       configurationSection: "tclLsp",
       // No `fileEvents` watchers here on purpose. The server registers
