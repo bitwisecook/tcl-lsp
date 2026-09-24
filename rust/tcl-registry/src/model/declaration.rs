@@ -38,18 +38,33 @@
 //!   axis](tcl_dialect::model::VersionAxisId::document) — a buffer has no
 //!   release train, so the declaration holds for as long as it is written;
 //! - the **provenance** is [`Provenance::Document`] for an inline block
-//!   and [`Provenance::WorkspaceUntrusted`] for a sidecar: the two lowest
-//!   trust classes in §6.4's lattice, so a declaration may add assistance
-//!   and can never weaken a shipped analysis fact;
+//!   and [`Provenance::WorkspaceUntrusted`] for a sidecar — a label for
+//!   explanation, binding selection and invalidation, not a precision
+//!   class: the declaration's facts are believed either way;
 //! - the **argument roles** are the registry's own [`ArgRole`], resolved
 //!   by the registry's own role-word table ([`role_for_word`]), so a stub
-//!   argument and a catalogue argument are the same kind of fact.
+//!   argument and a catalogue argument are the same kind of fact;
+//! - the **behavioural facts** a stub's flags state land on the fields a
+//!   catalogue command states them on — [`Traits`] and [`SideEffect`]s
+//!   ([`DeclaredCommand::traits`], [`DeclaredCommand::side_effects`]).
 //!
 //! [`DeclaredSurface`] is the per-document generation of those rows, and
 //! [`DocumentCommandSurface`] is **the** door onto the command surface one
 //! document analyses against: catalogue generation plus that document's own
 //! declarations, asked once. No consumer consults the catalogue and then a
 //! second table.
+//!
+//! ## Nearest wins
+//!
+//! A declaration is a workspace-authored fact on the same footing as a
+//! shipped spec (`docs/design/compiler/registry-consumer-contracts.md`
+//! § *Ruling — a stub sidecar is a workspace-authored fact*), so for a name
+//! the document declares, the declaration answers — its roles, its traits,
+//! its side effects — and the catalogue answers every other name. The one
+//! exception is the security floor (invariant I6): a declaration that
+//! redeclares a shipped command keeps that command's security traits and its
+//! side effects beneath its own, exactly as a pack override does
+//! ([`SecurityFloor`]).
 //!
 //! ## Why the availability check is context-free
 //!
@@ -64,12 +79,16 @@
 //! pins that equivalence against the real context queries rather than
 //! asserting it in prose.
 
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 
-use tcl_dialect::model::{ItemHistory, Provenance, VersionAxisId, VersionSet};
+use tcl_dialect::model::{ItemHistory, Provenance, SurfaceQuery, VersionAxisId, VersionSet};
 
 use crate::arg_role::{AppendedArity, ArgRole};
 use crate::model::surface::{CapabilityPredicate, Provider, SurfaceDeclaration};
+use crate::security_floor::SecurityFloor;
+use crate::side_effects::SideEffect;
+use crate::traits::Traits;
 
 /// Map a stub directive's role word to the registry's own [`ArgRole`], or
 /// `None` when the word names no role.
@@ -128,13 +147,23 @@ pub struct DeclaredCommand {
     pub name: String,
     /// Parameters in declaration order.
     pub arguments: Vec<DeclaredArgument>,
+    /// The behavioural traits the declaration states, on the fields a
+    /// catalogue command states the same facts on — a stub's `-pure` is
+    /// [`Traits::PURE`], its `-loop` [`Traits::HAS_LOOP_BODY`]. Empty for a
+    /// declaration that states none.
+    pub traits: Traits,
+    /// The side effects the declaration states — a stub's `-mutator` is a
+    /// read and a write of
+    /// [`SideEffectTarget::Variable`](crate::side_effects::SideEffectTarget::Variable).
+    pub side_effects: Vec<SideEffect>,
     /// The §4.1 surface row this declaration ingested as.
     pub declaration: SurfaceDeclaration,
 }
 
 impl DeclaredCommand {
     /// Declare `name` with `arguments`, provided by the document itself at
-    /// `provenance`.
+    /// `provenance`, stating no traits and no side effects
+    /// ([`Self::with_traits`] and [`Self::with_side_effects`] add them).
     ///
     /// `provenance` is the source's trust class —
     /// [`Provenance::Document`] for an inline `# tcl-lsp: stub` block,
@@ -144,6 +173,8 @@ impl DeclaredCommand {
         Self {
             name,
             arguments,
+            traits: Traits::empty(),
+            side_effects: Vec::new(),
             declaration: SurfaceDeclaration {
                 provider: Provider::Document,
                 applicable: whole_document_axis(),
@@ -152,6 +183,20 @@ impl DeclaredCommand {
                 provenance,
             },
         }
+    }
+
+    /// The same declaration, stating `traits`.
+    #[must_use]
+    pub fn with_traits(mut self, traits: Traits) -> Self {
+        self.traits = traits;
+        self
+    }
+
+    /// The same declaration, stating `side_effects`.
+    #[must_use]
+    pub fn with_side_effects(mut self, side_effects: Vec<SideEffect>) -> Self {
+        self.side_effects = side_effects;
+        self
     }
 
     /// The trust class of the source that declared this command.
@@ -314,48 +359,115 @@ impl<'a> DocumentCommandSurface<'a> {
             .map(|(name, _)| name)
     }
 
+    /// The document's own declaration of `name`, when it has one — the row
+    /// every nearest-wins answer below reads first.
+    fn declaration(&self, name: &str) -> Option<&'a DeclaredCommand> {
+        self.declared.and_then(|surface| surface.get(name))
+    }
+
     /// The command-prefix positions of `name` over the whole surface, each
-    /// with the arity it appends to the callback.
+    /// with the arity it appends to the callback — nearest wins, as
+    /// [`Self::arg_indices_for_role`].
     ///
-    /// The prefix twin of [`Self::arg_indices_for_role`], and widening in the
-    /// same way. A declaration carries a position but no arity, so it
-    /// contributes [`AppendedArity::Unknown`] — the arity-inert default,
-    /// which names the callback for reference and reachability consumers
-    /// without asserting a count no declaration stated.
+    /// A declaration carries a position but no arity, so it answers
+    /// [`AppendedArity::Unknown`] — the arity-inert default, which names the
+    /// callback for reference and reachability consumers without asserting a
+    /// count no declaration stated.
     #[must_use]
     pub fn command_prefixes(&self, name: &str, args: &[&str]) -> Vec<(usize, AppendedArity)> {
-        let mut prefixes = self.commands.command_prefixes(name, args);
-        if let Some(declared) = self.declared.and_then(|surface| surface.get(name)) {
-            for index in declared.arg_indices_for_role(ArgRole::CommandPrefix, args.len()) {
-                if !prefixes.iter().any(|&(at, _)| at == index) {
-                    prefixes.push((index, AppendedArity::Unknown));
-                }
-            }
-            prefixes.sort_by_key(|&(index, _)| index);
+        match self.declaration(name) {
+            Some(declared) => declared
+                .arg_indices_for_role(ArgRole::CommandPrefix, args.len())
+                .into_iter()
+                .map(|index| (index, AppendedArity::Unknown))
+                .collect(),
+            None => self.commands.command_prefixes(name, args),
         }
-        prefixes
     }
 
     /// The argument indices of `name` carrying `role`, over the whole
-    /// surface.
+    /// surface — nearest wins.
     ///
-    /// The document's declaration **adds to** the catalogue's answer, it
-    /// does not replace it. That is §6.4's rule for the lowest trust
-    /// classes read literally: a document or untrusted-workspace
-    /// declaration "may improve assistance, never weaken shipped analysis
-    /// facts", so a stub that happens to shadow a shipped name can add a
-    /// role position but can never take one away.
+    /// For a name the document declares, the declaration alone answers: a
+    /// stub is a workspace-authored fact on the same footing as a shipped
+    /// spec, so one that redeclares a catalogued command narrows its roles to
+    /// what the author wrote rather than unioning with the catalogue's. Every
+    /// other name is the catalogue's.
     #[must_use]
     pub fn arg_indices_for_role(&self, name: &str, args: &[&str], role: ArgRole) -> Vec<usize> {
-        let mut indices = self.commands.arg_indices_for_role(name, args, role);
-        if let Some(declared) = self.declared.and_then(|surface| surface.get(name)) {
-            for index in declared.arg_indices_for_role(role, args.len()) {
-                if !indices.contains(&index) {
-                    indices.push(index);
-                }
-            }
+        match self.declaration(name) {
+            Some(declared) => declared.arg_indices_for_role(role, args.len()),
+            None => self.commands.arg_indices_for_role(name, args, role),
         }
-        indices
+    }
+
+    /// The behavioural traits of `name` over the whole surface — nearest
+    /// wins, under the security floor.
+    ///
+    /// A declaration answers with the traits it states, plus the security
+    /// traits of the shipped command it redeclares, if any (invariant I6:
+    /// the floor is a security contract, not a precision cap, so a stub can
+    /// no more drop `exec`'s `UNSAFE` than a pack override can). Every other
+    /// name answers the catalogue's command-level traits; `None` when
+    /// neither the document nor the catalogue knows it.
+    #[must_use]
+    pub fn traits(&self, name: &str) -> Option<Traits> {
+        let shipped = self.commands.get(name).map(|spec| spec.traits);
+        match self.declaration(name) {
+            Some(declared) => Some(
+                declared
+                    .traits
+                    .union(shipped.map_or_else(Traits::empty, SecurityFloor::security_traits)),
+            ),
+            None => shipped,
+        }
+    }
+
+    /// The traits one invocation of `name` carries — [`Self::traits`] for a
+    /// declared command, which has no subcommands to refine them, and the
+    /// catalogue's
+    /// [`invocation_traits`](crate::registry::CommandRegistry::invocation_traits)
+    /// (the command's traits unioned with the resolved subcommand's)
+    /// otherwise.
+    #[must_use]
+    pub fn invocation_traits(
+        &self,
+        name: &str,
+        args: &[&str],
+        query: Option<SurfaceQuery<'_>>,
+    ) -> Traits {
+        if self.declaration(name).is_some() {
+            return self.traits(name).unwrap_or_default();
+        }
+        self.commands.invocation_traits(name, args, query)
+    }
+
+    /// The side effects of `name` over the whole surface — nearest wins,
+    /// under the security floor.
+    ///
+    /// A declaration answers with the effects it states, and a declaration
+    /// that redeclares a shipped command keeps that command's effects too:
+    /// the floor unions set-valued facts ([`SecurityFloor::apply`]). Every
+    /// other name answers the catalogue's command-level effects; `None` when
+    /// neither the document nor the catalogue knows it.
+    #[must_use]
+    pub fn side_effects(&self, name: &str) -> Option<Cow<'a, [SideEffect]>> {
+        let shipped = self.commands.get(name).map(|spec| spec.side_effects);
+        match self.declaration(name) {
+            Some(declared) => Some(match shipped {
+                Some(shipped) if !shipped.is_empty() => {
+                    let mut effects = declared.side_effects.clone();
+                    for effect in shipped {
+                        if !effects.contains(effect) {
+                            effects.push(*effect);
+                        }
+                    }
+                    Cow::Owned(effects)
+                }
+                _ => Cow::Borrowed(declared.side_effects.as_slice()),
+            }),
+            None => shipped.map(Cow::Borrowed),
+        }
     }
 }
 
@@ -496,15 +608,6 @@ mod tests {
             view.arg_indices_for_role("my_eval", &["{...}"], ArgRole::Body),
             vec![0],
         );
-        // A declaration shadowing a shipped name adds to the catalogue's
-        // role answer and never removes one (§6.4's untrusted-tier rule).
-        let mut shadowing = DeclaredSurface::new();
-        shadowing.declare(declared("while", &[("script", ArgRole::Body)]));
-        let shadow_view = DocumentCommandSurface::new(registry, Some(&shadowing));
-        let shipped = registry.arg_indices_for_role("while", &["1", "{...}"], ArgRole::Body);
-        let widened = shadow_view.arg_indices_for_role("while", &["1", "{...}"], ArgRole::Body);
-        assert!(shipped.iter().all(|index| widened.contains(index)));
-        assert!(widened.contains(&0));
         assert!(view.declares("my_eval"));
         assert!(!view.declares("while"));
         // `while cond body` — the catalogue's own answer, unchanged.
@@ -512,6 +615,90 @@ mod tests {
             view.arg_indices_for_role("while", &["1", "{...}"], ArgRole::Body),
             registry.arg_indices_for_role("while", &["1", "{...}"], ArgRole::Body),
         );
+    }
+
+    /// A declaration that redeclares a catalogued name answers alone —
+    /// nearest wins — so the catalogue's role the declaration omits is not
+    /// assigned. `while cond body` puts its body at 1; a stub writing
+    /// `{script:body cond}` puts it at 0, and 1 is a plain value.
+    #[test]
+    fn a_redeclared_name_answers_nearest_wins() {
+        let registry = crate::cache::registry_for_profile(tcl_dialect::DialectProfile::plain_tcl());
+        let args = ["{...}", "1"];
+        assert_eq!(
+            registry.arg_indices_for_role("while", &args, ArgRole::Body),
+            vec![1]
+        );
+        let mut shadowing = DeclaredSurface::new();
+        shadowing.declare(declared(
+            "while",
+            &[("script", ArgRole::Body), ("cond", ArgRole::Value)],
+        ));
+        let view = DocumentCommandSurface::new(registry, Some(&shadowing));
+        assert_eq!(
+            view.arg_indices_for_role("while", &args, ArgRole::Body),
+            vec![0],
+            "the declaration's role, and not the catalogue's as well"
+        );
+        assert!(
+            view.arg_indices_for_role("while", &args, ArgRole::Expr)
+                .is_empty(),
+            "the catalogue's condition the declaration omits is not assigned"
+        );
+        assert!(view.command_prefixes("while", &args).is_empty());
+    }
+
+    /// A declaration's traits and side effects answer for the name it
+    /// declares, and a redeclared shipped command keeps its security traits
+    /// and effects beneath them (I6); an undeclared name is the catalogue's,
+    /// and a name neither knows has no answer.
+    #[test]
+    fn declared_traits_and_effects_answer_under_the_security_floor() {
+        use crate::side_effects::SideEffectTarget;
+        let registry = crate::cache::registry_for_profile(tcl_dialect::DialectProfile::plain_tcl());
+        let mutation = SideEffect {
+            target: SideEffectTarget::Variable,
+            reads: true,
+            writes: true,
+            ..SideEffect::DEFAULT
+        };
+        let mut surface = DeclaredSurface::new();
+        surface.declare(
+            declared("my_fold", &[("x", ArgRole::Value)])
+                .with_traits(Traits::PURE)
+                .with_side_effects(vec![mutation]),
+        );
+        surface.declare(declared("exec", &[("cmd", ArgRole::Value)]).with_traits(Traits::PURE));
+        let view = DocumentCommandSurface::new(registry, Some(&surface));
+
+        assert_eq!(view.traits("my_fold"), Some(Traits::PURE));
+        assert_eq!(
+            view.invocation_traits("my_fold", &["a"], None),
+            Traits::PURE
+        );
+        assert_eq!(
+            view.side_effects("my_fold").as_deref(),
+            Some(&[mutation][..])
+        );
+
+        let shipped = registry.get("exec").expect("exec ships");
+        let floor = SecurityFloor::security_traits(shipped.traits);
+        assert!(floor.contains(Traits::UNSAFE), "exec's floor holds UNSAFE");
+        let exec = view.traits("exec").expect("declared");
+        assert!(exec.contains(Traits::PURE) && exec.contains(floor));
+        assert!(
+            shipped.side_effects.iter().all(|effect| view
+                .side_effects("exec")
+                .is_some_and(|effects| effects.contains(effect))),
+            "the shipped effects stay beneath the declaration"
+        );
+
+        assert_eq!(
+            view.traits("while"),
+            registry.get("while").map(|spec| spec.traits)
+        );
+        assert_eq!(view.traits("no_such_command"), None);
+        assert!(view.side_effects("no_such_command").is_none());
     }
 
     /// A surface with no declarations is exactly the catalogue.

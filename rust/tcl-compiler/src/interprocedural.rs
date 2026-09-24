@@ -1873,13 +1873,16 @@ fn scan_call_facts(command: &str, args: &[String], ctx: ScanCtx<'_>, facts: &mut
         facts.direct_calls.insert(target.clone());
     } else {
         // Side-effect classification is dialect-agnostic here
-        // (`classify_side_effects` is called with no dialect): a
+        // (`classify_side_effects_in` is called with no dialect): a
         // command's effect profile reflects what it *does*,
         // not which dialect it is valid in. (The document `dialect` still
         // drives the lexer above so `[cmd …]` / bodies tokenise correctly.)
         // This is why e.g. `log`/`puts` resolve to their LOG_IO/FILE_IO
         // hints — impure but region-free — even under a Tcl dialect.
-        let ci = classify_side_effects(registry, resolved, args, None, None);
+        // Classified against the document's surface, so a stub's `-pure`
+        // or `-mutator` states the effect a catalogue spec would.
+        let surface = ctx.surface();
+        let ci = classify_side_effects_in(&surface, resolved, args, None, None);
         if ci.dynamic_barrier {
             facts.has_barrier = true;
             facts.local_pure = false;
@@ -1895,7 +1898,10 @@ fn scan_call_facts(command: &str, args: &[String], ctx: ScanCtx<'_>, facts: &mut
         if !ci.pure {
             facts.local_pure = false;
         }
-        if registry.get(resolved).is_none() {
+        // A command the document declares is known — its declaration is
+        // a workspace-authored fact, classified above — so only a name
+        // neither the catalogue nor the document knows is an unknown call.
+        if registry.get(resolved).is_none() && !surface.declares(resolved) {
             facts.has_unknown_calls = true;
             facts.local_pure = false;
         }
@@ -3033,7 +3039,7 @@ fn compute_transitive_calls(root: &str, local: &HashMap<String, LocalFacts>) -> 
     visited
 }
 
-use crate::side_effects::classify_side_effects;
+use crate::side_effects::classify_side_effects_in;
 
 #[cfg(test)]
 mod tests {

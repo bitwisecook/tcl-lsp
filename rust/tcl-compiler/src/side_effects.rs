@@ -823,6 +823,86 @@ pub fn classify_side_effects(
     fallback_unknown_write(dialect)
 }
 
+/// Classify the side effects of a command invocation against one
+/// document's command surface — the catalogue plus the document's own
+/// `# tcl-lsp: stub` declarations.
+///
+/// A name the document declares answers from its declaration (nearest
+/// wins): the facts a stub's flags state, read in the order
+/// [`classify_side_effects`] reads a catalogue spec's — see
+/// [`classify_declared`]. Every other name, and every call with a
+/// `callee_summary`, is [`classify_side_effects`] over the catalogue.
+#[must_use]
+pub fn classify_side_effects_in(
+    surface: &tcl_registry::model::DocumentCommandSurface<'_>,
+    command: &str,
+    args: &[String],
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    callee_summary: Option<&CalleeSummary>,
+) -> CommandSideEffects {
+    if callee_summary.is_none() && surface.declares(command) {
+        return classify_declared(surface, command, dialect);
+    }
+    classify_side_effects(surface.commands(), command, args, dialect, callee_summary)
+}
+
+/// The side effects of a command the document declares, read off the facts
+/// its declaration states in the order [`classify_side_effects`] reads a
+/// catalogue spec's: an eval-like barrier trait first, then `PURE` (its
+/// stated effects surfaced read-only, as a pure catalogue command's hints
+/// are), then the stated effects, and the conservative unknown write for a
+/// declaration that states none — so a stub with no flags classifies exactly
+/// as an undeclared command does.
+///
+/// The traits and effects come from
+/// [`DocumentCommandSurface`](tcl_registry::model::DocumentCommandSurface),
+/// so a declaration that redeclares a shipped command keeps that command's
+/// security traits and side effects beneath its own (invariant I6).
+fn classify_declared(
+    surface: &tcl_registry::model::DocumentCommandSurface<'_>,
+    command: &str,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+) -> CommandSideEffects {
+    let traits = surface.traits(command).unwrap_or_default();
+    if traits.intersects(Traits::EVALUATES_CODE | Traits::CREATES_BARRIER) {
+        return CommandSideEffects {
+            effects: vec![SideEffect::new(SideEffectTarget::Unknown, true, true)],
+            dynamic_barrier: true,
+            dialect: dialect.map(|profile| profile.name.to_owned()),
+            ..CommandSideEffects::default()
+        };
+    }
+    let stated = surface.side_effects(command).unwrap_or_default();
+    if traits.contains(Traits::PURE) {
+        return CommandSideEffects {
+            effects: stated
+                .iter()
+                .map(|effect| {
+                    let mut effect = lift_registry_effect(*effect, dialect);
+                    effect.reads = true;
+                    effect.writes = false;
+                    effect
+                })
+                .collect(),
+            pure: true,
+            deterministic: true,
+            dialect: dialect.map(|profile| profile.name.to_owned()),
+            ..CommandSideEffects::default()
+        };
+    }
+    if stated.is_empty() {
+        return fallback_unknown_write(dialect);
+    }
+    CommandSideEffects {
+        effects: stated
+            .iter()
+            .map(|effect| lift_registry_effect(*effect, dialect))
+            .collect(),
+        dialect: dialect.map(|profile| profile.name.to_owned()),
+        ..CommandSideEffects::default()
+    }
+}
+
 /// Translate an interprocedural [`CalleeSummary`] into a
 /// [`CommandSideEffects`].
 fn classify_from_callee_summary(
@@ -1667,5 +1747,60 @@ mod tests {
         assert_eq!(cse.effects_on_side(ConnectionSide::Client).len(), 1);
         assert_eq!(cse.effects_on_side(ConnectionSide::Server).len(), 1);
         assert_eq!(cse.effects_in_scope(StorageScope::Global).len(), 0);
+    }
+
+    /// A command the document declares classifies from the facts its
+    /// declaration states — nearest wins — and a declaration stating none
+    /// classifies exactly as an undeclared command does; every other name is
+    /// the catalogue's.
+    #[test]
+    fn a_declared_command_classifies_from_its_declaration() {
+        use tcl_dialect::model::Provenance;
+        use tcl_registry::model::{DeclaredCommand, DeclaredSurface, DocumentCommandSurface};
+        let registry = CommandRegistry::build_default();
+        let declare =
+            |name: &str| DeclaredCommand::new(name.to_owned(), Vec::new(), Provenance::Document);
+        let mut declared = DeclaredSurface::new();
+        declared.declare(declare("my_pure").with_traits(Traits::PURE));
+        declared.declare(
+            declare("my_mut")
+                .with_traits(Traits::READS_BEFORE_WRITE)
+                .with_side_effects(vec![RegistrySideEffect {
+                    target: RegistryTarget::Variable,
+                    reads: true,
+                    writes: true,
+                    ..RegistrySideEffect::DEFAULT
+                }]),
+        );
+        declared.declare(declare("my_plain"));
+        let surface = DocumentCommandSurface::new(&registry, Some(&declared));
+        let classify = |name: &str, args: &[String]| {
+            classify_side_effects_in(&surface, name, args, None, None)
+        };
+
+        let pure = classify("my_pure", &[]);
+        assert!(pure.pure && pure.deterministic && pure.effects.is_empty());
+
+        let mutator = classify("my_mut", &[]);
+        assert!(!mutator.pure);
+        assert!(mutator.reads_target(SideEffectTarget::Variable));
+        assert!(mutator.writes_target(SideEffectTarget::Variable));
+        assert!(
+            !mutator.affects_target(SideEffectTarget::Unknown),
+            "the stated effect, not the conservative unknown write"
+        );
+
+        assert_eq!(
+            classify("my_plain", &[]),
+            classify_side_effects(&registry, "no_such_command", &[], None, None),
+            "a declaration stating no behaviour is as conservative as no declaration"
+        );
+
+        let set_args = ["x".to_owned(), "1".to_owned()];
+        assert_eq!(
+            classify("set", &set_args),
+            classify_side_effects(&registry, "set", &set_args, None, None),
+            "an undeclared name is the catalogue's"
+        );
     }
 }

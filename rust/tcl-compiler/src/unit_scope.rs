@@ -511,14 +511,15 @@ fn note_surface_var_writes(
             out.note_write_word(word);
         }
     }
-    let Some(spec) = surface.commands().get(bare) else {
-        return;
-    };
     // `global` / `variable` / `upvar` bind *every* name in a vararg list to
-    // an outer-scope variable another body may write — the registry marks
-    // exactly these with `CREATES_SCOPE_ALIAS`, because the per-argument
-    // list is not expressible as fixed role indices.
-    if spec.traits.contains(Traits::CREATES_SCOPE_ALIAS) {
+    // an outer-scope variable another body may write — the surface marks
+    // exactly these with `CREATES_SCOPE_ALIAS` (a document's stub states it
+    // with `-scope_alias`), because the per-argument list is not expressible
+    // as fixed role indices.
+    if surface
+        .traits(bare)
+        .is_some_and(|traits| traits.contains(Traits::CREATES_SCOPE_ALIAS))
+    {
         for word in args {
             out.note_write_word(word);
         }

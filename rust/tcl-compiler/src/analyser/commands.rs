@@ -541,27 +541,24 @@ impl Analyser {
     /// within the line budget.
     fn safe_interp_visibility_gate(&mut self, cmd_name: &str, cmd_tok: Token) -> bool {
         // Safe-interpreter visibility gate: inside a
-        // safe interpreter's evaluation body, a command whose registry spec
-        // is safe-hidden (`Traits::SAFE_INTERP_HIDDEN`) — or was
+        // safe interpreter's evaluation body, a command the surface marks
+        // safe-hidden (`Traits::SAFE_INTERP_HIDDEN`) — or was
         // `interp hide`-den — and not re-exposed raises `invalid command
         // name` in C *before* any effect happens.  Flag it (W129) and skip
         // the command entirely: no invocation record, no handler dispatch,
         // no source / package / definition edges built from a call that
-        // never executes.  The set membership is registry data; no command
-        // name appears here.
+        // never executes.  The set membership is surface data — a catalogue
+        // spec, or a stub's `-unsafe` — and no command name appears here.
         let Some(ctx) = self.safe_interp_stack.last() else {
             return false;
         };
         let bare = cmd_name.trim_start_matches(':');
         let spec_hidden = ctx.base_hidden
-            && self
-                .registry
-                .as_deref()
-                .and_then(|r| r.get(bare))
-                .is_some_and(|spec| {
-                    spec.traits
-                        .contains(tcl_registry::Traits::SAFE_INTERP_HIDDEN)
-                });
+            && self.registry.as_deref().is_some_and(|registry| {
+                self.command_surface(registry)
+                    .traits(bare)
+                    .is_some_and(|traits| traits.contains(tcl_registry::Traits::SAFE_INTERP_HIDDEN))
+            });
         let hidden =
             (spec_hidden || ctx.hidden_extra.contains(bare)) && !ctx.exposed.contains(bare);
         if !hidden {
@@ -1802,7 +1799,8 @@ impl Analyser {
     ///
     /// Grouped so the shared per-command dispatch stays readable; each check
     /// is independent and every one of them takes the registry rather than
-    /// recognising a command by name.
+    /// recognising a command by name. The loop checks take the document's
+    /// command surface, so a stub declaring `-loop` is checked as `while` is.
     fn emit_bounds_family_diagnostics(
         &mut self,
         cmd_name: &str,
@@ -1811,11 +1809,12 @@ impl Analyser {
     ) {
         let registry = self.registry.as_deref();
         let grammar = self.grammar();
+        let surface = registry.map(|registry| self.command_surface(registry));
         let loop_diags = super::bounds_checks::loop_termination_diagnostics(
             cmd_name,
             args,
             arg_tokens,
-            registry,
+            surface.as_ref(),
             self.lexer_config(),
             &grammar,
         );

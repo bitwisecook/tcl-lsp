@@ -561,12 +561,11 @@ fn extract_var_name(text: &str) -> Option<&str> {
 }
 
 /// Resolve a command's per-arg roles over the document's one command
-/// surface.  Picks the `arg_role_resolver` callback first, then static
-/// `arg_roles`, then sub-command-level roles, and adds whatever the
-/// document declares for the same name (gap ruling R1) — the surface
-/// unions the two, so a declaration widens a shipped command's role set
-/// and never narrows it.  When two roles claim the same index the later
-/// role in the iteration order below wins.
+/// surface.  A name the document declares answers with its declaration's
+/// roles alone (gap ruling R1, nearest wins); any other name with the
+/// catalogue's — the `arg_role_resolver` callback first, then static
+/// `arg_roles`, then sub-command-level roles.  When two roles claim the
+/// same index the later role in the iteration order below wins.
 fn resolve_arg_roles(
     command: &str,
     args: &[String],

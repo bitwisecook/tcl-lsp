@@ -19,12 +19,19 @@
 //! A `# tcl-lsp: stub` declaration states the same kind of fact a registry
 //! `CommandSpec` does, so its argument roles must reach the same consumers by
 //! the same path: `arg_role_resolver` → `arg_roles` → the query every
-//! consumer asks, widened by the document's own `DeclaredSurface`.
+//! consumer asks, answered by the document's own `DeclaredSurface` for the
+//! names it declares.
 //!
 //! Two consumers are pinned here — the call-graph builder (a `script:body`
 //! word is a script whose calls are edges of the caller) and the variable
 //! analyser (a `var` word is a definition, so a later read is not W210) —
 //! each beside the registry command whose behaviour the stub must match.
+//!
+//! The directive's flags state behavioural facts on the fields a catalogue
+//! command states them on, so each flag is pinned the same way: beside the
+//! registry command whose finding the flagged stub draws, and beside the same
+//! stub without the flag, which draws nothing. A declaration that redeclares
+//! a catalogued command answers alone — nearest wins.
 
 use tcl_compiler::analyser::Analyser;
 use tcl_lsp_core::graphs;
@@ -568,5 +575,268 @@ fn a_stub_callback_naming_another_proc_leaves_the_fold_standing() {
         codes(source).contains(&"I230".to_owned()),
         "a callback naming another proc must not withhold helper's fold; got {:?}",
         codes(source)
+    );
+}
+
+// ─────────────────────── flags → catalogue fields ────────────────────────
+
+// Each flag lands on the field its catalogue counterpart states the same
+// fact on, so each pair below is a registry command's finding, the stub
+// that states the same fact drawing it, and the same stub without the flag
+// drawing nothing — a stub that states no behaviour reads exactly as an
+// undeclared command.
+
+/// `source` behind an inline stub block declaring `stub`.
+fn stubbed(stub: &str, source: &str) -> String {
+    format!("# tcl-lsp: stubs-begin\n# tcl-lsp: stub {stub}\n# tcl-lsp: stubs-end\n{source}")
+}
+
+/// Every optimisation code `source` draws, over a unit built as the server
+/// builds one: the document's own declarations reach the lowering and the
+/// interprocedural summary.
+fn optimisation_codes(source: &str) -> Vec<String> {
+    use tcl_compiler::compilation_unit::{CompilationUnit, UnitBuildOptions};
+    let profile = tcl_registry::model::ingress::resolve_environment(DIALECT).analyser_profile();
+    let registry = tcl_registry::model::ingress::static_context_for(DIALECT).commands();
+    let declared = tcl_compiler::analyser::utils::document_declared_surface(source, None, DIALECT);
+    let unit = CompilationUnit::build_with_options(
+        source,
+        UnitBuildOptions {
+            registry,
+            defer_top_level: false,
+            config: tcl_lexer::LexerConfig::for_profile(Some(profile)),
+            dialect: Some(profile),
+            external_call_sites: None,
+            declared_commands: Some(&declared),
+        },
+    )
+    .with_interprocedural(registry, Some(profile));
+    tcl_compiler::optimiser::optimise_unit(&unit, registry, Some(profile))
+        .iter()
+        .map(|o| o.code.as_str().to_owned())
+        .collect()
+}
+
+/// `label` returns what `inner` makes of its argument, and `main` drops the
+/// result of calling it — removable exactly when `inner` is pure.
+fn pure_wrapper(inner: &str) -> String {
+    format!(
+        "proc label {{x}} {{ return [{inner} $x] }}\n\
+         proc main {{}} {{\n    set a [label abc]\n    return 1\n}}\n"
+    )
+}
+
+/// `-pure` is `Traits::PURE`: the interprocedural summary classifies the
+/// call as a pure one, so `label` is pure and the unused result of calling
+/// it goes (O126) as it does over `string length`.
+#[test]
+fn a_pure_stub_keeps_its_caller_pure() {
+    let registry = optimisation_codes(&pure_wrapper("string length"));
+    assert!(
+        registry.contains(&"O126".to_owned()),
+        "the registry baseline: a pure wrapper's unused result goes; got {registry:?}"
+    );
+    let flagged = optimisation_codes(&stubbed("mypure {x} -pure", &pure_wrapper("mypure")));
+    assert!(
+        flagged.contains(&"O126".to_owned()),
+        "a `-pure` stub is pure to the summary; got {flagged:?}"
+    );
+    let flagless = optimisation_codes(&stubbed("mypure {x}", &pure_wrapper("mypure")));
+    assert!(
+        !flagless.contains(&"O126".to_owned()),
+        "without `-pure` the call may do anything, so the result stays; got {flagless:?}"
+    );
+}
+
+/// `set x 1`, then `command` naming `x`, then a read of `x`.
+fn store_then(command: &str) -> String {
+    format!("proc p {{}} {{\n    set x 1\n    {command}\n    return $x\n}}\n")
+}
+
+/// `-mutator` is the read-modify-write shape `lappend` states: a read of the
+/// target before the write, so the store feeding it is live (no O109).
+#[test]
+fn a_mutator_stub_keeps_the_store_it_reads() {
+    let registry = optimisation_codes(&store_then("lappend x 2"));
+    assert!(
+        !registry.contains(&"O109".to_owned()),
+        "the registry baseline: `lappend` reads the store it extends; got {registry:?}"
+    );
+    let flagged = optimisation_codes(&stubbed("mymut {v:var} -mutator", &store_then("mymut x")));
+    assert!(
+        !flagged.contains(&"O109".to_owned()),
+        "a `-mutator` stub reads its target before writing it; got {flagged:?}"
+    );
+    let flagless = optimisation_codes(&stubbed("mymut {v:var}", &store_then("mymut x")));
+    assert!(
+        flagless.contains(&"O109".to_owned()),
+        "without `-mutator` the declared write kills the store; got {flagless:?}"
+    );
+}
+
+/// The minified form of `source`, local names compacted.
+fn compacted(source: &str) -> String {
+    let registry = CommandRegistry::build_default();
+    let profile = tcl_registry::model::ingress::resolve_environment(DIALECT).analyser_profile();
+    tcl_lsp_core::minify::minify_tcl_compact(source, profile, false, &registry).0
+}
+
+/// A local set, `command` run, and the local read back.
+fn local_around(command: &str) -> String {
+    format!("proc main {{}} {{\n    set local 1\n    {command}\n    return $local\n}}\n")
+}
+
+/// `-barrier` is `Traits::CREATES_DYNAMIC_BARRIER`: the scope the command runs
+/// in may be observed by name, so the minifier leaves its locals' names
+/// alone, as it does around `vwait`.
+#[test]
+fn a_barrier_stub_fences_its_scope_from_renaming() {
+    let registry = compacted(&local_around("vwait ::done"));
+    assert!(
+        registry.contains("$local"),
+        "the registry baseline: a dynamic barrier fences the scope; got {registry:?}"
+    );
+    let flagged = compacted(&stubbed("spy {} -barrier", &local_around("spy")));
+    assert!(
+        flagged.contains("$local"),
+        "a `-barrier` stub fences the scope it runs in; got {flagged:?}"
+    );
+    let flagless = compacted(&stubbed("spy {}", &local_around("spy")));
+    assert!(
+        !flagless.contains("$local"),
+        "without `-barrier` the local is compacted; got {flagless:?}"
+    );
+}
+
+/// `-loop` is `Traits::HAS_LOOP_BODY`: with a declared condition and body, the
+/// command is a conditional loop to W240 / W241, as `while` is.
+#[test]
+fn a_loop_stub_is_checked_as_a_loop() {
+    let body = |call: &str| format!("proc main {{}} {{\n    set n 0\n    {call}\n}}\n");
+    assert!(
+        codes(&body("while 1 {incr n}")).contains(&"W241".to_owned()),
+        "the registry baseline: a constant-true loop with no exit is W241"
+    );
+    let flagged = |call: &str| codes(&stubbed("spin {cond:expr body:body} -loop", &body(call)));
+    assert!(
+        flagged("spin 1 {incr n}").contains(&"W241".to_owned()),
+        "a `-loop` stub's constant-true condition with no exit is W241; got {:?}",
+        flagged("spin 1 {incr n}")
+    );
+    assert!(
+        flagged("spin 0 {incr n}").contains(&"W240".to_owned()),
+        "a `-loop` stub's constant-false condition is W240; got {:?}",
+        flagged("spin 0 {incr n}")
+    );
+    assert!(
+        !flagged("spin 1 {incr n; break}").contains(&"W241".to_owned()),
+        "a body that leaves the loop is not provably infinite"
+    );
+    let flagless = codes(&stubbed(
+        "spin {cond:expr body:body}",
+        &body("spin 1 {incr n}"),
+    ));
+    assert!(
+        !flagless.iter().any(|code| code == "W240" || code == "W241"),
+        "without `-loop` the body may run once, so nothing is claimed; got {flagless:?}"
+    );
+}
+
+/// `helper`'s one literal caller passes `prod`; `main` also calls whatever
+/// `cb` holds, having run `alias` over it. `cb` holds `other` unless the
+/// alias binds it to a variable the scan cannot see.
+fn aliased_dispatch(alias: &str) -> String {
+    format!(
+        "proc helper {{mode}} {{\n    if {{$mode eq \"prod\"}} {{ set x 1 }} else {{ set x 2 }}\n}}\n\
+         proc other {{m}} {{ puts $m }}\n\
+         proc main {{}} {{\n    helper prod\n    set cb other\n    {alias}\n    $cb dev\n}}\n"
+    )
+}
+
+/// `-scope_alias` is `Traits::CREATES_SCOPE_ALIAS`: the names the command
+/// takes are bound to cells another body may write, as `upvar` binds them, so
+/// `cb` no longer holds a known literal and `$cb dev` may be a call of
+/// `helper` — the fold is withheld (no I230).
+#[test]
+fn a_scope_alias_stub_aliases_its_local() {
+    let registry = codes(&aliased_dispatch("upvar 1 outer cb"));
+    assert!(
+        !registry.contains(&"I230".to_owned()),
+        "the registry baseline: `upvar` makes `cb` unknown; got {registry:?}"
+    );
+    let flagged = codes(&stubbed(
+        "link_var {other local} -scope_alias",
+        &aliased_dispatch("link_var outer cb"),
+    ));
+    assert!(
+        !flagged.contains(&"I230".to_owned()),
+        "a `-scope_alias` stub makes `cb` unknown as `upvar` does; got {flagged:?}"
+    );
+    let flagless = codes(&stubbed(
+        "link_var {other local}",
+        &aliased_dispatch("link_var outer cb"),
+    ));
+    assert!(
+        flagless.contains(&"I230".to_owned()),
+        "without `-scope_alias`, `cb` still holds `other` and the fold stands; got {flagless:?}"
+    );
+}
+
+/// `run` evaluated inside a safe interpreter.
+fn in_safe_interp(run: &str) -> String {
+    format!("set s [interp create -safe]\ninterp eval $s {{{run}}}\n")
+}
+
+/// `-unsafe` is `Traits::UNSAFE` with `Traits::SAFE_INTERP_HIDDEN`, as `exec`
+/// states them: inside a safe interpreter the command is hidden, so calling
+/// it is W129.
+#[test]
+fn an_unsafe_stub_is_hidden_in_a_safe_interpreter() {
+    let registry = codes(&in_safe_interp("exec ls"));
+    assert!(
+        registry.contains(&"W129".to_owned()),
+        "the registry baseline: `exec` is hidden in a safe interpreter; got {registry:?}"
+    );
+    let flagged = codes(&stubbed(
+        "run_shell {cmd} -unsafe",
+        &in_safe_interp("run_shell ls"),
+    ));
+    assert!(
+        flagged.contains(&"W129".to_owned()),
+        "an `-unsafe` stub is hidden as `exec` is; got {flagged:?}"
+    );
+    let flagless = codes(&stubbed("run_shell {cmd}", &in_safe_interp("run_shell ls")));
+    assert!(
+        !flagless.contains(&"W129".to_owned()),
+        "without `-unsafe` nothing says the command is hidden; got {flagless:?}"
+    );
+}
+
+// ─────────────────────────────── nearest wins ─────────────────────────────
+
+/// A stub that redeclares a catalogued command answers alone: `after ms
+/// script` runs its script, but a document declaring `after {ms script}`
+/// states that its second word is a value, and the catalogue's `Body` role it
+/// omits is not assigned — so `on_row` is no longer a callee of `main`. The
+/// same stub stating the role keeps the edge.
+#[test]
+fn a_stub_that_redeclares_a_catalogued_command_answers_nearest_wins() {
+    let source = "proc on_row {} { puts row }\nproc main {} {\n    after 100 { on_row }\n}\n";
+    assert!(
+        calls(source, "::main", "::on_row"),
+        "the catalogue's `after` runs its script; got {:?}",
+        edges(source)
+    );
+    let narrowed = stubbed("after {ms script}", source);
+    assert!(
+        !calls(&narrowed, "::main", "::on_row"),
+        "the declaration's roles answer, not the catalogue's as well; got {:?}",
+        edges(&narrowed)
+    );
+    let restated = stubbed("after {ms script:body}", source);
+    assert!(
+        calls(&restated, "::main", "::on_row"),
+        "a declaration stating the role keeps it; got {:?}",
+        edges(&restated)
     );
 }

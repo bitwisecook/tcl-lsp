@@ -48,7 +48,11 @@ slices proceed without deciding anything here.
 > gates hook-body execution on it: `tcl_spectcl::hooks::hook_bodies_run`
 > decides it, `hooks::plan_for` gives an untrusted workspace pack's bodies
 > no slot, and the load reports each as a `hooks::DormantHook` on the pack
-> file.
+> file. It also lands the stub ruling: a `# tcl-lsp: stub` declaration's
+> six flags reach `DeclaredCommand::traits` and
+> `DeclaredCommand::side_effects`, and `DocumentCommandSurface` answers
+> nearest-wins — `traits`, `invocation_traits` and `side_effects` beside
+> the role queries, under the security floor.
 >
 > The rest of the vocabulary is proposed and names nothing in the
 > workspace:
@@ -268,11 +272,11 @@ literally, and the authority ruling withdraws exactly that reading.
 Keeping it for stubs would make the narrower declaration — one the author
 wrote about their own file, in their own file — weaker than the pack
 declaration they could write beside it, which is a distinction no author
-can predict. The flags are the visible cost: `parse_stub_flags` in
-`rust/tcl-compiler/src/analyser/utils.rs` parses all six and
-`StubCommandDef::to_declared_command` deliberately does not carry them,
+can predict. The flags were the visible cost: `parse_stub_flags` in
+`rust/tcl-compiler/src/analyser/utils.rs` parsed all six and
+`StubCommandDef::to_declared_command` deliberately did not carry them,
 its doc comment saying the set "has never had a consumer", so a user who
-writes `-pure` gets nothing.
+wrote `-pure` got nothing.
 
 **Consequences.** `DeclaredCommand` grows the declared behavioural facts
 beside its `arguments`, and each flag lands on the field its catalogue
@@ -282,9 +286,19 @@ subcommand level), `-mutator` as a declared `SideEffect` write,
 `Traits::HAS_LOOP_BODY`, `-scope_alias` on `Traits::CREATES_SCOPE_ALIAS`,
 and `-unsafe` on `Traits::UNSAFE` together with
 `Traits::SAFE_INTERP_HIDDEN`. `DocumentCommandSurface`'s role lookup stops
-unioning and resolves nearest-wins; `memory_ssa.rs`'s `CLOBBER_TRAITS`,
-`ssa.rs`'s scope-alias discriminator, and `unit_scope.rs`'s alias walk
-then see a stubbed command the way they see a catalogued one. Code
+unioning and resolves nearest-wins, and the consumers of those fields ask
+it: `unit_scope.rs`'s alias walk, the loop-termination checks, lowering's
+read-before-write, side-effect classification in the interprocedural
+summary, the safe-interpreter gate, and the minifier's rename barriers see
+a stubbed command the way they see a catalogued one. `-mutator` lands as
+the read-modify-write shape `lset` states — `Traits::READS_BEFORE_WRITE`
+beside a `SideEffect` that reads and writes the variable — because a write
+alone would kill the store the command reads. `memory_ssa.rs`'s
+`CLOBBER_TRAITS` and `ssa.rs`'s scope-alias discriminator stay on the
+catalogue: SSA's barrier-def walk reads no declared role, so a stubbed
+command's barrier carries no def for the discriminator to withhold, and
+memory SSA's verdict on a command the catalogue lacks is already the
+conservative "clobbers", which no flag but `-pure` could lift. Code
 predicates: the union in `DocumentCommandSurface`, the flag drop in
 `to_declared_command`, and the `Provenance::WorkspaceUntrusted` class a
 sidecar ingests at — which becomes a provenance label for explanation, not

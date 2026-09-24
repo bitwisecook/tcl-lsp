@@ -600,9 +600,10 @@ explicit.
   `Provider::Document`, the `VersionAxisId::document()` axis,
   `Provenance::Document` for a buffer and `Provenance::WorkspaceUntrusted`
   for a sidecar, read through the one `DocumentCommandSurface` door. The
-  surface's role lookup unions the catalogue's answer with the document's:
-  an untrusted addition may improve assistance and can never weaken a
-  shipped analysis fact.
+  surface answers nearest-wins: a name the document declares is answered
+  by its declaration — roles, traits and side effects — beneath the
+  shipped command's security traits and side effects (invariant I6), and
+  every other name by the catalogue.
 
 ### 4.2 The binding layer — realms and knowledge
 

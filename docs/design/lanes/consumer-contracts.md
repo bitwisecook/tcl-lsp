@@ -588,7 +588,7 @@ predicate CC3.2 collapses.
 |---|---|---|---|
 | CC3.1 `WorkspaceTrust` through discovery, provenance and the cache key | landed | `wip(consumer-contracts): step 3 — workspace trust through discovery, provenance and the cache key` | `tcl_dialect::model::WorkspaceTrust { Trusted (default), Untrusted }` beside `Provenance`, with `workspace_provenance()` (D3.1); `DiscoveryOptions::workspace_trust` (default trusted); `Tier::trust_under` — the workspace tier reads the state, every other tier is trusted; the trust rides the load, not `PackFile` (D3.5): `pack::load_under`, `pack::load_in_memory_under`, `bundled::load_discovered_in(store, files, trust)`, with `load`, `load_in_memory`, `load_discovered` and `load_embedded` the trusted doors the CLI and MCP already call, so neither needed an edit; `MergedPack::trust` and `MergedPack::provenance()`; `PackEnvironmentTier::Workspace(WorkspaceTrust)` with `of(tier, trust)` and `label()` (D3.6), so registration (`register_pack_set`, the dialect and roster conversions, `untrusted_compiled_extension`) and `to_definition` carry the pack's own class; `register_pack_environments` / `register_environments` take the trust; `EvalOptions::trust`, `EvalSnapshotKey::trust` and the `tier` doc comment naming the trust state; `untrusted(PackEnvironmentTier)` gates E-R2 on the pair, and the refusal names "untrusted workspace" (D3.8); `cache::{key_for, evaluate_pack_cached, evaluate_pack_including, snapshot_memoised}` take the trust, `entry_key` and the pack-set key mix it (D3.7); the server passes `options.workspace_trust`, still the default until CC3.3 sets it. Tests: `rust/tcl-spectcl/tests/workspace_trust.rs` (new; shard `5 tcl-spectcl::workspace_trust`) — `an_untrusted_workspace_pack_is_workspace_untrusted_provenance` (and the user tier stays `User`), `an_untrusted_workspace_pack_still_declares_its_facts` (arity, `Body` / `Value` roles and a `Declared` semantics reach the installed registry, equal under both states), `an_untrusted_workspace_pack_cannot_override_a_compiled_name` (the negative: `-override lsort` refused naming "untrusted workspace", the shipped `lsort` standing; trusted, it loads), `a_client_that_reports_nothing_is_trusted` (the three defaults, and a discovered `.tcl-lsp/` pack loading as `WorkspaceTrusted` with its override), `the_snapshot_key_distinguishes_trust` (snapshot key, entry key and set key split for the workspace tier, not for bundled); `cache.rs`'s key and identity tests gain the trust rows; `surface_roster_trust.rs` pins both states; `loader.rs`'s environment test pins `to_definition` under both; `tcl-dialect`'s trust-class test pins the default and the map. Gates: `cargo test -p tcl-spectcl` (every binary: lib 188, `workspace_trust` 5, …), `-p tcl-dialect --lib` (153), `-p tcl-spec-studio --lib` (198); `cargo check --workspace --all-targets`; clippy (`-p tcl-dialect -p tcl-spectcl -p tcl-spec-studio -p tcl-lsp-server`) and `cargo fmt` clean; `verify-nextest-binary-shards.py --metadata-only` (327 targets) and `test-nextest-binary-shards.sh` green; `registry-axes` / `value-transfers --check` unchanged; `pack-goldens --check` (25) unchanged; `kcs-index-links` green; `dialect-drift` at its 8. Docs: `spec-packs.md` § *Workspace trust* (the loader maps by the state; the client wire and the hook gate still to come) and the cache bullet; the redesign's O9 narrowed, not closed (D3.9); the design page's status box moves `WorkspaceTrust` to built. Deviations: the brief's order runs CC3.1 before CC3.5 (the plan put CC3.5 first); the trust rides the load (D3.5) and the tier value (D3.6) rather than `PackFile` and a `provenance(trust)` parameter; no `cache::VERSION` exists to bump (D3.7); O9 closes with CC3.3 (D3.9); the MCP and CLI callers needed no edit (D3.5) |
 | CC3.3 hook bodies gated; the dormant notice | landed | `wip(consumer-contracts): step 3 — dormant hook bodies` | `HookDecl::line` — the declaring row: the hook property, the `option` row carrying an `-arity-hook`, the `state_transitions` block's `resolver` row (`state_transitions_value` returns `(HookSource, u32)`), the `evaluate` statement (`semantics.rs`'s `Implementation::line`, carried through `declaration()` into `rebind`, so a later `facts` or `option -evaluate` rebind keeps it), the `clause_grammar` row (`CommandAcc::clause_grammar_line`) — D3.11; `hooks::hook_bodies_run(provenance)` (only `WorkspaceUntrusted` is dormant; the studio override runs, D3.12), `hooks::DormantHook { pack, command, field, file, line }` and `hooks::dormant_hooks(pack, commands, provenance)` over the private `bodies()` iterator `programs_of` also reads, so the bodies a trusted workspace runs are the ones an untrusted one reports; `plan_for` gives a dormant pack's bodies no slot (no `PackPrograms` at all) and lists them in `HookPlan::dormant()`, so `specialise` leaves the loader's abstaining placeholder and the host never sees the text; `pack::load_sources` pushes `PackNotice::dormant` for each, `Severity::Information`, context `command NAME`, the plan's message verbatim, at the hook's own line in the command's file; `golden::positionless` zeroes the lines the `hooks` digest reads (D3.13). Server: `Backend::workspace_trust`; `workspace_trust_in` reads a **top-level** `workspaceTrust` (`"trusted"` / `"untrusted"`, anything else no statement) from `initializationOptions` (in `apply_initialization_options`, before `initialized`'s first load) and from a `didChangeConfiguration` push, never from a `tclLsp` section (D3.10); a change reloads through `ReloadTrigger::Trust` and reschedules every open document; `spec_pack_discovery` sets `workspace_trust`. VS Code (`clientCore.ts`, both hosts): `initializationOptions` is a function returning `{ workspaceTrust }` from `workspace.isTrusted`, and `registerWorkspaceTrustGrant` pushes `{ settings: { workspaceTrust } }` on `onDidGrantWorkspaceTrust`, registered before `client.start()` (D3.14); `package.json`'s `untrustedWorkspaces` description and `INSTALL-editors.md` say the bodies stay dormant. Tests: `workspace_trust.rs` — `an_untrusted_pack_installs_no_hook_body_and_reports_each_as_dormant` (a `const_fold`, an `-arity-hook` and an `evaluate -implementation` body beside a `clause_grammar`: three information notices at lines 5, 11 and 21, none for the derivations; `plan_for` empty with the three in `dormant()`; the negative: trusted, no notice, three slots, and with a host on the thread the trusted install folds `abcde` to `5` while the untrusted one still abstains) and `only_an_untrusted_workspace_holds_its_bodies_dormant` (every `Provenance` but `WorkspaceUntrusted` runs; the bundled, user and studio tiers ignore the state through the load); server unit `workspace_trust_comes_from_the_client_and_never_from_a_setting` (absent is trusted; `initializationOptions` sets untrusted; the negative: `{"tclLsp":{"workspaceTrust":"trusted"}}` and the flat-dotted `tclLsp.workspaceTrust` change nothing; the top-level push grants; an unreadable value is no statement); e2e `spec_packs::granting_trust_reloads_and_installs_the_bodies` (an untrusted client: one information notice on the `const_fold` row, no `O129` fold; the top-level grant push clears the notice and the same call site folds to `5`); `hooks.rs`'s `a_declared_body_replaces_the_abstaining_placeholder` unchanged (the preserve). Gates: `cargo test -p tcl-spectcl --no-fail-fast` (lib 188 and all 19 binaries, `workspace_trust` 7, `golden_packs` 3), `-p tcl-lsp-server --lib` (594), `--test e2e spec_packs::` (31) and `config::` (26); `cargo check --workspace`; clippy (`-p tcl-spectcl -p tcl-lsp-server`) and `cargo fmt` clean; `tsc --noEmit -p editors/vscode`, eslint and prettier on the three changed `.ts` files; `pack-goldens` rewrote 8 snapshots (`foreach`, `if`, `oo-class`, `return`, `string`, `switch`, `upf`, `upvar` — the `hooks` digests only) and `--check` passes; `registry-axes` (7831 / 16 / 40 / 896 across 147) and `value-transfers --check` (20 / 19 / 90 across 36 / 6607) unchanged; `callback-inventory --check` unchanged (no new tier); `kcs-index-links` green; `dialect-drift` at its 8. Docs: `spec-packs.md` § *Workspace trust* (the wire, the gate, the notice, what is not a body); the design page's status box and the ruling's consequences (the abstention sits in `plan_for`, the host never learns the state); the redesign's O9 row removed (closed, D3.9), § 6.4 gains the execution bullet and its E-R2 bullet names the untrusted workspace; KCS `kcs-qa-why-is-my-pack-hook-dormant.md` (User, all-editors, a VS Code sub-heading), indexed. Deviations: the wire is top-level, not `tclLsp.workspaceTrust` (D3.10); the grant test is an e2e test, since no unit test drives `reload_spec_packs` — the unit test pins the wire and its forgery negative; `HookPlan::dormant` is `Vec<DormantHook>` (file and line beside the plan's `(pack, command, field)`), so the notice and the plan read one list; `npm test` not run (it downloads and launches a VS Code build) — the type-check, eslint and prettier stand in; `cargo test -p tcl-spec-hooks` not run (the crate depends on none of the changed crates, and `containment_e2e.rs` is untouched); `semantics.rs` (the value-transfers lane's slice-4 file, B1) gains three small hunks, no caller in `loader.rs` changed shape |
-| CC3.5 the six `StubFlags` on their catalogue fields; nearest-wins | next | `wip(consumer-contracts): step 3 — stub flags reach their fields` | opus |
+| CC3.5 the six `StubFlags` on their catalogue fields; nearest-wins | landed | `wip(consumer-contracts): step 3 — stub flags reach their fields` | `DeclaredCommand::traits: Traits` and `side_effects: Vec<SideEffect>`, `new` unchanged, builders `with_traits` / `with_side_effects` (D3.4); `StubCommandDef::to_declared_command` carries the flags through `declared_traits` (`-barrier` → `CREATES_DYNAMIC_BARRIER`, `-loop` → `HAS_LOOP_BODY`, `-pure` → `PURE`, `-unsafe` → `UNSAFE | SAFE_INTERP_HIDDEN`, `-scope_alias` → `CREATES_SCOPE_ALIAS`, `-mutator` → `READS_BEFORE_WRITE`) and `declared_side_effects` (`-mutator` → a `Variable` read and write, D3.15), and its "has never had a consumer" doc sentence goes; `DocumentCommandSurface` answers nearest-wins: `arg_indices_for_role` and `command_prefixes` read the declaration alone for a declared name (the union is gone), and the new `traits`, `invocation_traits` and `side_effects` (`Option<Cow<[SideEffect]>>`, D3.16) answer the declaration's facts under the security floor — a redeclared shipped command keeps `SecurityFloor::security_traits` and its effects beneath them (D3.17). Consumers moved onto the surface: `bounds_checks::loop_shape` / `loop_termination_diagnostics` take `Option<&DocumentCommandSurface>` (the analyser passes `command_surface`), a declared name's loop-ness is `HAS_LOOP_BODY` off `traits` and its shape its `Expr` / `Body` roles (D3.21); `unit_scope::note_surface_var_writes` reads `CREATES_SCOPE_ALIAS` off `surface.traits`; `lower_default`'s read-before-write asks `surface.invocation_traits`; `side_effects::classify_side_effects_in(surface, …)` with `classify_declared` (the catalogue's order; a declaration stating nothing is `fallback_unknown_write`), which the interprocedural call scan uses, and a declared name is not an unknown call there (D3.18); the analyser's `safe_interp_visibility_gate` reads `SAFE_INTERP_HIDDEN` off `command_surface(registry).traits`; the minifier's `find_rename_barriers` builds the surface from `analysis.stub_commands` and reads its command-level traits nearest-wins (D3.23). Tests: `stub_arg_roles.rs` gains `a_pure_stub_keeps_its_caller_pure` (O126 on `set a [label abc]` through a wrapper proc, beside `string length`; flagless keeps it, D3.19), `a_mutator_stub_keeps_the_store_it_reads` (no O109, beside `lappend`; flagless draws it), `a_barrier_stub_fences_its_scope_from_renaming` (the compacted output keeps `$local`, beside `vwait`; flagless compacts it, D3.20), `a_loop_stub_is_checked_as_a_loop` (W241 / W240, `break` clears W241, beside `while`; flagless draws neither, D3.21), `a_scope_alias_stub_aliases_its_local` (I230 withheld, beside `upvar`; flagless folds), `an_unsafe_stub_is_hidden_in_a_safe_interpreter` (W129, beside `exec`; flagless none) and `a_stub_that_redeclares_a_catalogued_command_answers_nearest_wins` (`stub after {ms script}` drops `main → on_row`, `{ms script:body}` keeps it); `declaration.rs` gains `a_redeclared_name_answers_nearest_wins` and `declared_traits_and_effects_answer_under_the_security_floor` (a redeclared `exec` keeps `UNSAFE` and its effects), and `one_door_answers_catalogue_and_document` loses its union assertions; `side_effects.rs` gains `a_declared_command_classifies_from_its_declaration` (the flagless declaration equals the undeclared answer; an undeclared name equals `classify_side_effects`); `bounds_checks.rs` gains `a_document_declaration_answers_the_loop_question_for_its_name` (a redeclared `while` without `-loop` is not a loop). Gates: `cargo test -p tcl-registry` (lib 927 and all 19 binaries), `-p tcl-compiler --lib` (6508, 2 ignored) and `--test analyser` (504), `-p tcl-lsp-core --test stub_arg_roles` (31), `--lib` (2350) and `--test minify_residual` (39); `cargo check --workspace`; clippy (`-p tcl-registry -p tcl-compiler -p tcl-lsp-core --all-targets`) and `cargo fmt` clean; `registry-axes` (7831 / 16 / 40 / 896 across 147) and `value-transfers` (20 / 19 / 90 across 36 / 6607) pins unchanged, both ledgers regenerated for moved lines; `pack-goldens --check` (25) unchanged; `kcs-index-links` green; `dialect-drift` at its 8. Docs: `dialect-stubs.md` § *Flags* (each flag's field and consumer; the flagless answer; the catalogue-only residue) and § *Stubs are declarations* (nearest-wins as built, the floor) — both "today" sentences gone — and its key-files table; KCS `kcs-howto-annotate-commands-with-stubs.md` gains § *Flags* and § *Stubbing a command tcl-lsp already knows*; the design page's status box and the stub ruling's consequences (the consumers built, `-mutator`'s shape, SSA and memory SSA left on the catalogue with the reason); the centralisation plan's R1 and the redesign's stub bullet, whose union sentences now state nearest-wins; four code comments that said a sidecar's roles "can only widen" (`param_traits.rs`'s `resolve_arg_roles`, `graphs.rs`'s `document_unit`, `hover.rs`, `tcl-lsp-db`'s compiler-diagnostics path). Deviations: `-mutator` is the read-modify-write shape, not a write-only effect (D3.15); `side_effects` returns `Cow` and `invocation_traits` joins it (D3.16); the `-pure`, `-barrier` and `-loop` tests are renamed to the findings the tree has (D3.19–D3.21); `ssa.rs` and `memory_ssa.rs` are not wired (D3.22) |
 | CC3.2 one `untrusted` predicate | not started | — | sonnet, dispatched separately |
 | CC3.4 `spectcl_check`'s tier and trust | not started | — | sonnet, dispatched separately |
 
@@ -646,6 +646,29 @@ predicate CC3.2 collapses.
   (`docs/design/README.md`, `docs/design/compiler/README.md`) still read
   "built in step 2" and do not name the trust gate.
 
+### CC3.5 — what the next items read
+
+- **The one door.** `DocumentCommandSurface::{traits, invocation_traits,
+  side_effects}` beside the role queries; a consumer that reads a trait or
+  an effect of a command a document may declare asks the surface, never
+  `registry.get(name).traits`. `DocumentCommandSurface::declares(name)` is
+  how a consumer tells a declared name from a catalogued one where it must
+  (the minifier's subcommand observability, `classify_side_effects_in`).
+- **Residue, each with its reason in D3.19 and D3.22–D3.23.** The direct
+  O108 / O126 gate in `optimiser/elimination.rs` and GVN's purity
+  (`gvn.rs`) still call `classify_side_effects` over the catalogue, so a
+  `-pure` call's unused result goes only through a wrapper procedure's
+  summary — `classify_side_effects_in` is the door they move onto once
+  `elimination.rs` is free of VT8.5 and the pass context carries the unit's
+  `declared_commands`. `ssa.rs`'s `registry_barrier_defs` and
+  `uses_in_barrier`, and `memory_ssa.rs`'s `is_clobber`, read the
+  catalogue only. The loop-exit set (`TERMINATES_BLOCK`) and the
+  interprocedural `INVOKES_USER_PROC` head read traits no flag states and
+  stay on the catalogue.
+- **For the landing.** The two design indexes' lines for the page still
+  read "built in step 2"; they name neither the trust gate nor the stub
+  flags.
+
 ### Behavioural deltas accepted in step 3
 
 - CC3.1: every on-disk compiled-pack cache entry key moved once (the trust
@@ -662,6 +685,22 @@ predicate CC3.2 collapses.
 - CC3.3: VS Code's Restricted Mode description for the extension now says
   a workspace pack's hook bodies stay dormant until the workspace is
   trusted.
+- CC3.5: each stub flag now has an effect — `-loop` draws W240 / W241 on a
+  declared condition and body, `-pure` makes a procedure that only calls
+  the command pure (so O126 can remove an unused call of it), `-mutator`
+  keeps the store the command reads (no O109), `-unsafe` draws W129 inside
+  a safe interpreter, `-scope_alias` makes the names it takes unknown to
+  the call-site scan (I230 withheld), and `-barrier` fences the minifier's
+  renaming of the scope it runs in. A stub with no flags classifies as an
+  undeclared command does.
+- CC3.5: a stub that redeclares a catalogued command answers alone for it —
+  its roles, prefixes, traits and effects — beneath the shipped command's
+  security traits and side effects: `stub after {ms script}` no longer
+  makes `after`'s script a call-graph body.
+- CC3.5: in the interprocedural summary a call of a stub-declared command
+  is no longer an unknown call (`has_unknown_calls`, the Explorer's
+  `hasUnknownCalls`); its purity is still decided by its classification,
+  so a flagless stub leaves its caller impure as before.
 
 ## Plan for steps 2–10
 
@@ -3398,6 +3437,80 @@ everything else in this lane is independent of both.
   the client holding a notification until its connection is up, and VS
   Code never withdraws trust within a session (withdrawing reloads the
   window, which restarts the server with the new state).
+- **D3.15** `-mutator` lands as the read-modify-write shape `lset` and
+  `lappend` state — `Traits::READS_BEFORE_WRITE` beside a `SideEffect` that
+  reads and writes `SideEffectTarget::Variable` — not the plan's write-only
+  `SideEffect`. Reason: a write alone is what a `var` role already states
+  (lowering's def), so the flag would change nothing; the store before a
+  mutator survives only because the command reads it, and lowering's
+  `reads_own_defs` reads `READS_BEFORE_WRITE` off the invocation's traits.
+- **D3.16** `DocumentCommandSurface::side_effects` returns
+  `Option<Cow<'a, [SideEffect]>>`, not `Option<&[SideEffect]>`, and
+  `invocation_traits(name, args, query)` joins `traits`. Reason: the floor
+  unions a redeclared shipped command's effects beneath the declaration's,
+  an owned slice when both are non-empty, and a surface is built per
+  analysis, so the per-generation leak `union_leaked` uses has no place
+  here; `invocation_traits` is what lowering's read-before-write asks, and
+  a declaration, having no subcommands, answers it with `traits`.
+- **D3.17** Nearest-wins holds under the floor: for a declared name
+  `traits` is the declaration's ∪ `SecurityFloor::security_traits` of the
+  shipped command it redeclares, and `side_effects` the declaration's ∪ the
+  shipped command's; roles, prefixes and every other trait are the
+  declaration's alone. Reason: invariant I6, applied exactly as a pack
+  override meets it (`SecurityFloor::apply`'s set-valued union), so a stub
+  can no more take `exec`'s `UNSAFE` away than a pack can.
+- **D3.18** A declared command's side effects are classified from its
+  declaration (`classify_side_effects_in` → `classify_declared`) in the
+  catalogue's order — eval-like barrier traits, `PURE` (its stated effects
+  read-only), the stated effects — and a declaration stating none is
+  `fallback_unknown_write`, the undeclared answer. The interprocedural scan
+  counts a declared command as known (`has_unknown_calls` stays false).
+  Reason: the ruling makes a stub a workspace-authored fact; the preserve —
+  a flagless stub is as conservative as before — holds because the
+  classification, not the unknown-call bit, decides `local_pure`, and the
+  compiler only reports `has_unknown_calls` (the Explorer and the db
+  serialise it).
+- **D3.19** The `-pure` test is `a_pure_stub_keeps_its_caller_pure` — O126
+  on `set a [label abc]`, `label` a procedure returning `[mypure $x]` — not
+  `a_pure_stub_in_statement_position_is_reported_unused`. Reason: the tree
+  has no pure-statement finding even for a catalogued pure command, and the
+  direct O108 / O126 gate on `set a [mypure …]` is `optimiser/elimination.rs`'s
+  `classify_side_effects` over the catalogue — the value-transfers lane's
+  in-flight file (VT8.5), left untouched, so the direct gate is residue
+  (probed: the direct call keeps its `set` with or without `-pure`).
+- **D3.20** The `-barrier` test is `a_barrier_stub_fences_its_scope_from_renaming`
+  (the minifier), not W210 silence. Reason: W210 is not silenced by a
+  catalogued `CREATES_DYNAMIC_BARRIER` command either (`vwait`, `uplevel 1
+  $s`; probed — only `eval $s` silences it, through `EVALUATES_CODE`), so
+  the plan's pair would have pinned a behaviour no catalogued command has.
+  `find_rename_barriers` is `CREATES_DYNAMIC_BARRIER`'s one consumer in the
+  tree.
+- **D3.21** The `-loop` test is `a_loop_stub_is_checked_as_a_loop` (W240 /
+  W241), not `a_loop_stub_bumps_the_loop_body_depth`. Reason: no
+  loop-body-depth counter exists; `HAS_LOOP_BODY`'s analyser consumer is
+  `bounds_checks::loop_shape`, the plan's "W240 family". A declared name
+  answers the loop question from its declaration alone, so a stub
+  redeclaring `while` without `-loop` is not a loop.
+- **D3.22** `ssa.rs` (`:625`, `:1693`) and `memory_ssa.rs` (`is_clobber`)
+  are not wired. Reason: `registry_barrier_defs` withholds barrier defs
+  the catalogue's `VarWrite` / `LoopVarList` roles produce, and a
+  stub-declared command has none there, so reading the discriminator off
+  the surface changes no def; `uses_in_barrier` reads a *subcommand's*
+  `creates_scope_alias`, which a declaration cannot state. `is_clobber`
+  answers "clobbers" for every command the catalogue lacks; answering from
+  the surface would make every flagless stub a non-clobber — less
+  conservative than before, against the preserve — and only `-pure` could
+  honestly lift it. Threading a surface into `build_ssa_with_config` and
+  `build_memory_ssa` also runs through `compilation_unit.rs` (VT8.7's
+  file).
+- **D3.23** The minifier builds the document's surface from
+  `analysis.stub_commands` (`build_declared_surface`), reads a head's
+  command-level traits off it, and skips subcommand observability for a
+  declared name. The loop-exit set (`TERMINATES_BLOCK`) and the
+  interprocedural `INVOKES_USER_PROC` head stay on the catalogue. Reason:
+  those traits are ones no flag states, so nearest-wins could only drop
+  them from a redeclared `return` or `call` — a W241 false positive or a
+  lost call edge — where the catalogue's reading is the conservative one.
 - **D4.1** `alias_of` is a `CommandSpec` field only. **D4.2** The stamp
   rule runs in `pack::load_sources` on the loaded command. **D4.3**
   `PackFactStamp::content_hash` is the `u64` xxh3 the snapshot key

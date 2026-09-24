@@ -3643,7 +3643,8 @@ pub fn compiler_check_diagnostics_uncached(
 ) -> CompilerDiagnostics {
     let dialect_opt = tcl_lsp_core::stated_profile_for_dialect(dialect);
     // No `SourceFile` here means no path, so only the document's own inline
-    // block is reachable; a sidecar-declared role can only widen the answer.
+    // block is reachable; a command only a sidecar declares answers as the
+    // catalogue has it.
     let declared = tcl_compiler::analyser::utils::document_declared_surface(text, None, dialect);
     let cu = CompilationUnit::build_with_options(
         text,

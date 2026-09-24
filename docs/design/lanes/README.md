@@ -94,5 +94,7 @@ checkpoint compiling.
   fields), planned in the tracking document's § *Plan for steps 2–10*, is
   in progress item by item in the tracking document's § *Step 3 —
   progress*: CC3.1 (the Workspace Trust state through discovery,
-  provenance and the cache key) and CC3.3 (the client wire, hook bodies
-  gated on it, and the dormant notice) have landed.
+  provenance and the cache key), CC3.3 (the client wire, hook bodies
+  gated on it, and the dormant notice) and CC3.5 (the six stub flags on
+  their catalogue fields, and the document's declaration answering
+  nearest-wins) have landed.

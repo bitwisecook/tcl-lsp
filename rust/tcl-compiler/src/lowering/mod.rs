@@ -3296,9 +3296,9 @@ impl<'r> Lowerer<'r> {
         // the read on its subcommand, so `interp alias {} ds {} dict set`
         // reaches `dict`'s `set` and must read `d` as `dict set` does — O109
         // had deleted the store feeding `ds d k v`, and the program printed
-        // `k v` where tclsh 8.5 to 9.1 print `a 1 k v`.
-        let reads_before_write = self
-            .registry
+        // `k v` where tclsh 8.5 to 9.1 print `a 1 k v`. Asked of the
+        // document's surface, so a stub's `-mutator` states the same read.
+        let reads_before_write = surface
             .invocation_traits(&role_cmd, &role_args_ref, None)
             .contains(tcl_registry::Traits::READS_BEFORE_WRITE);
 
