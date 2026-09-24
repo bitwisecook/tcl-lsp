@@ -210,6 +210,20 @@ pub struct ConstantBranch {
     pub kind: BranchFactKind,
 }
 
+/// The template-word plan one executable `subst` call declares
+/// (`docs/design/compiler/value-transfers.md` § *The template-word plan*),
+/// read over the settled lattice, so a switch's proven value reads as its
+/// spelling.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TemplatePlanRecord {
+    /// The template word's token span in the document — for a braced word
+    /// from its `{` to its content's end; the plan's own spans are offsets
+    /// from its start (a braced template's content from 1).
+    pub span: tcl_lexer::Span,
+    /// The plan.
+    pub plan: tcl_registry::value_transfer::TemplateWordPlan,
+}
+
 /// Full SCCP result: per-SSA-value lattice entries, the set of
 /// reachable blocks, the set of reachable edges, and
 /// constant-folded branch annotations for reachable blocks.
@@ -246,6 +260,10 @@ pub struct SccpResult {
     /// version's value and exists exactly when it does, so a read of one
     /// whose prior version is unset is a read before set.
     pub preserved: HashMap<ValueKey, crate::ssa::Version>,
+    /// Each executable `subst` call's template-word plan, in source order —
+    /// what W102, the template folders, extract-proc and the dynamic-name
+    /// barrier read instead of walking the template themselves.
+    pub template_plans: Vec<TemplatePlanRecord>,
 }
 
 impl SccpResult {
@@ -599,11 +617,13 @@ pub fn sccp_with_builtin_folds(
         },
     );
 
+    let template_plans = driver.template_plans(ssa, &values, &executable_blocks);
     SccpResult {
         values,
         executable_blocks,
         executable_edges,
         constant_branches,
+        template_plans,
         ..driver.take_run_facts()
     }
 }

@@ -56,6 +56,7 @@ pub mod literal;
 mod publication;
 pub mod regex;
 pub mod route;
+pub mod template;
 pub mod unbind;
 
 pub use answers::{

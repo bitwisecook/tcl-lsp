@@ -6172,6 +6172,7 @@ mod tests {
             route_tally: crate::value_transfer::RouteTally::default(),
             folded_types: HashMap::new(),
             preserved: HashMap::new(),
+            template_plans: Vec::new(),
             values: HashMap::new(),
             executable_blocks: blocks.iter().copied().collect(),
             executable_edges: HashSet::new(),

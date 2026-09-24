@@ -4314,6 +4314,7 @@ item; the grouping stays the plan's account of what lands together.
 | VT5.15 | `wip(value-transfers): slice 5 — one query for a proven word` | `value_transfer::proven_word_value(fu, statement, word, config)`: the exact value a call's word has at that statement from the lattice alone — a literal word's text; a substituted word's decoded runs and variable reads at the statement's use versions, concatenated; the folded type its definition states for a whole-word read — and `None` for a command substitution, a finite or unknown read, an expansion, a respelled word or an unreached block; `StatementId { block, index }` and `FunctionUnit::word_at(span)`, the address a consumer holding a word's source range reads it at (D145) | `proven_word_value_reads_the_lattice_at_the_statement` (`value_transfer.rs`: `$f` after `set f %d` is `%d`, never `$f`; `$n` after `set n [string length abc]` is `3` typed int; `"x$f"` is `x%d`; `7` is itself; a `[…]` word and the command word are `None`; `$f` after an `if` redefines it is `None`) |
 | VT5.16 | `wip(value-transfers): slice 5 — the literal-only diagnostics read proven values` | the walk keeps each call with a word a literal-only check could not read — a variable read, or a substituted word with no command substitution (`ProvenSite`, `analyser/diagnostics/proven.rs`, recorded by one hunk in `commands.rs`); once the unit exists the pass substitutes each word the lattice proves at its statement (`proven_word_value`, through an index of the unit's call words by span) and runs the checks again: W121, W127, W137, W138, W145 (subcommand and option words), W146, W200, W202 and W303 keep only what they report at a proven word, with no fix; W147 and W152 evaluate the declared relations over the proven option words and keep what the written words did not draw; W230 and W232 keep what the index checks draw over a proven list or string and did not draw over the written one; a verdict the arity flush settles (W146, W147, W152) settles through the same user-resolution rule (`settle_builtin_verdicts`, factored out of `flush_arity_diagnostics`) (D146); IRULE4004 hoists a value that reads no variable and that the lattice proves; IRULE3101 checks a proven setter value as a literal — `find_setter_constraint_warnings` takes the unit's values, and `tcl-lsp-core`'s `graphs.rs` passes them; IRULE3103 reads any proven constant, a condition's variable operand included (D147); W141 and a computed subcommand word stay out of reach (D148) | `literal_only_checks_read_proven_words` (`analyser/diagnostics/tests.rs`: for each of W121, W127, W137, W138, W145, W146, W147, W152, W200, W202, W230, W232 and W303, the row's program reports at the proven word, or over the relation's options, or at the literal index, and the same call over a parameter draws nothing); `a_proven_word_is_reported_once_beside_a_written_one`; `irule4004_proven_command_value_is_hoistable` (`irules_checks.rs`); `irule3101_reads_the_proven_path` (#2055's program is clean, a proven `a` still warns) and `irule3103_reads_a_proven_operand` (`tests/taint.rs`); changed by the mandate (#2055): `irule3101_pure_var_ref_always_warns_without_safe_colour` warns over a value two arms set, and its proven `/safe` is clean; every other test of these codes unchanged |
 | VT5.18 | `wip(value-transfers): slice 5 — the container harvesters read structured writes` | W307's constant sets read the writes each statement states and the plans rather than the spellings: `var_command.rs`'s three harvesters go — a literal `set arr(k) v` is the lowering's own element assignment, `array set` (and any route's element write) is the `WriteElement` outcome its registry route states over the call's literal words (`value_transfer::literal_element_writes`), and a `dict with` binds the keys `DictWithSemantics` declares over the dictionary the lattice holds at the version the statement reads, with each key's value at the plan's key path (D150); `helpers.rs`'s W210 key harvest finds a dictionary body by its plan whatever the dictionary holds (`value_transfer::dict_body_operand`, over a probe dictionary that holds the key path the plan reads) and reads the plan's binders over a known one (`value_transfer::dict_body`): each key `dict with` binds at its key path, and each `dict update` variable whose literal key the dictionary holds (D149); G1's `var_command.rs` 3 → 0 (clean) and `helpers.rs` 6 → 5 with the ledger's rows, `registry-axes`' 12 → 7 and 10 → 6 | `a_dictionary_body_is_found_by_its_plan` (`value_transfer.rs`: both spellings, a key path over an unknown dictionary, a repeated key's last value, a path the dictionary lacks, and `dict update`'s literal and dynamic keys); `w210_dict_body_keys_come_from_the_plan` (`analyser/diagnostics/tests.rs`: a key path binds its nested keys, an unknown dictionary's key path stays unknown shape, `::tcl::dict::with` is the same plan, and `dict update` binds only a present key — each program's answer checked on tclsh 8.5.19, 8.6.18, 9.0.4 and 9.1b0); `w307_reads_element_and_body_bindings` (a key path's nested key, a lattice-constant `array set`, and a literal `array set` or `set arr(k)` in a function with a barrier, each silent over `puts` and firing over a non-command); changed: `dict with d a {…}` over `{a {x 1}}` binds `x`, where the spelling harvest bound `a`, so the false W210 on `$x` after it and the false W307 on a `$cmd` dispatch inside it are gone; every other W210, W307 and W308 test unchanged |
+| VT5.8 | `wip(value-transfers): slice 5 — the template-word plan` | `TemplateSemantics` (`value_transfer/template.rs`, new; `template:subst`, route none) declared on `subst` over its own switch table: `structure` answers `PlanAnswer::TemplateWord` — the kinds from `option_effects` over each switch's proven value (an exact value its spelling, a finite set joined per member, an unproven switch every kind), read at every release the profile names, a spelling that raises contributing nothing, the releases reading one differently `ReleaseAmbiguous(Availability(9.1))`, every spelling raising `WrongRepresentation` (D151); `braced`, `dynamic`, the script regions (caller's frame), the reads outside them and the escapes from the template's word structure decomposed under the kinds, an array index substituting every kind whatever the switches say, every span an offset into the word, and a template `subst` rejects the command's error (D152); the driver records one `TemplatePlanRecord { span, plan }` per executable trusted `subst` call over the settled lattice (`SccpResult::template_plans`, the template word's token span), which `rebase_function_unit` shifts; the inventory's `subst` row declared | `the_template_plan_answers_the_fourteen_witnesses`, `the_positive_switches_are_9_1s`, `a_template_plan_joins_proven_switches_and_reads_indexes` (`value_transfers.rs`: the page's programs as plan fixtures under `tcl8.4` to `tcl9.1` and the spanning `tcl`); `template_witnesses_match_every_release_on_path` (`differential_fold.rs`: the fourteen programs and four more — an array index, `-nobackslashes` over `\$`, and an unclosed bracket with and without `-nocommands` — under tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1b0 — where tclsh raises the plan is the command's error, where it answers the kinds are the ones tclsh runs, probed one at a time, and the output rebuilt from the plan's escapes, reads and regions is the output tclsh prints; the three 9.1-only rows answer on 9.1b0 alone); `a_subst_call_records_its_template_plan` (`value_transfer.rs`: `set opt -novariables; subst $opt {hello $name}` reads no `name`); `route_stamps_match_the_pinned_set` gains `subst`; `rebase_shifted_unit_spans_match_fresh` carries a `subst` and fails without the shift; the `tp_*` and `fp_*` tests in `substitution.rs` unchanged |
 
 A container restart ended the first implementer at VT5.5, uncommitted;
 a second implementer took the opus items over from VT5.5 on (VT5.5, VT5.6,
@@ -4328,6 +4329,27 @@ three `scan` answers were wrong against every oracle from 8.5 (`scan -1
 compared non-ASCII witnesses against a misread script (D133); the two doc
 comments the oracle contradicted were corrected, and the per-byte charges
 the page states were added. Nothing was backed out.
+
+Green at VT5.8:
+
+- tests: `tcl-registry`, `tcl-compiler`, `tcl-lsp-core` and `tcl-cli`
+  together 14660 passed, 6 ignored, no failure — no existing expectation
+  moved; `samples_optimiser_profiles_are_regenerated` among them, no
+  sample moved; after the rejected-template decline, the registry's
+  template tests and the differential (now eighteen programs) again;
+- pedantic clippy (`--no-deps --all-targets -D warnings`) on
+  `tcl-registry` and `tcl-compiler`, no `#[allow]` added; `rustfmt` on
+  the touched files;
+- `cargo xtask value-transfers` (the inventory's `subst` row declared,
+  `template:subst`, route none) and `--check` (18 clean, 13 waived, 92
+  pinned across 38 files, 6607 rows), `registry-axes --check` (1072
+  pinned), `pack-goldens` (G2 for the new declaration: 24 packs, no
+  snapshot rewritten), `cargo check --workspace` clean.
+
+Found and left, outside this item: `tcl_lexer::word_parts::decompose`
+scans an array index under the caller's flags, where `Tcl_ParseVarName`
+scans it with every kind, so under `-nocommands` the `[b]` in `$a([b])`
+comes back as text; the plan rescans each index itself.
 
 Green at VT5.18:
 
@@ -8031,6 +8053,45 @@ has the witnesses):
   harvests its keys" holds where the lattice carries the value, and follows
   with no change here when the interprocedural pass carries a constant
   argument.
+- **D151 — The template plan reads the switch table the command
+  declares, per proven spelling and per release.** `TemplateSemantics`
+  holds `subst`'s own options, families and trailing reservation — the
+  static sits beside the spec in `subst_.rs`, the one hunk there besides
+  the `semantics` field, because `commands::tcl` keeps its specs private
+  from `value_transfer` — and runs `option_effects` over each combination
+  of the switches' proven spellings at each release the profile names: its
+  own release for a plain or vendor profile, every modelled release for a
+  profile that declares none (the lenient `tcl`). A spelling that raises at
+  a release — a switch the release lacks, an ambiguous prefix, the two
+  families together, a word the switch run stops at before the template —
+  contributes nothing, and the rest join, a kind on in any being on; the
+  releases reading one spelling differently decline `ReleaseAmbiguous`
+  with the gated option's row (9.1's), and every spelling raising is the
+  command's error, `WrongRepresentation`. A switch the lattice does not
+  prove, or more than 64 combinations, reads as every kind. The
+  declaration has no route, so the driver's `[subst …]` fold still falls
+  back to the registry engine exactly as before.
+- **D152 — A template is decomposed only when the source spells it, and
+  its spans are the word's.** A braced word, or a bare or quoted one the
+  parser leaves literal, is decomposed under the kinds by the lexer's one
+  word-parts owner; a word the parser substitutes is `dynamic` and names
+  no read, region or escape, since its value is computed. Every span is an
+  offset into the word as `word_structure` reports it — a braced word's
+  content from 1 — and so is a region's `base_offset`; the record carries
+  the template word's token span (from `{` to the content's end, the span
+  W102 anchors at today), so a rebase shifts the record alone. An array
+  index substitutes every kind whatever the switches say
+  (`Tcl_ParseVarName` parses it with `TCL_SUBST_ALL`: `subst -nocommands
+  {$a([set b])}` runs `set b` and reads `a(5)` on 8.4 to 9.1), so its reads
+  and scripts are recorded before the element read they key, and an index
+  the template computes is its source text in `VariableRead::element`. The
+  driver records a plan for a trusted `Call` to a command that performs
+  substitution, in an executable block, over the settled lattice; a
+  `[subst …]` inside another command's word is no statement and has no
+  record yet. A template holding a construct `subst` rejects (`subst
+  {a[set b}` raises `missing close-bracket` on 8.4 to 9.1) is the
+  command's error: the plan declines `WrongRepresentation` rather than
+  describing the part `subst` substitutes before it raises.
 
 ### Open questions for the owner
 

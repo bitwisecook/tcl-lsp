@@ -704,6 +704,70 @@ impl<'a> LatticeDriver<'a> {
     /// What the run recorded beside the lattice, at its end: the route
     /// explanations and tally, the folded types and the preserved
     /// definitions, in an otherwise empty result.
+    /// The template-word plan each executable call declares, over the
+    /// settled lattice — a switch's proven value reads as its spelling —
+    /// with the template word's span, in source order. Only a trusted call
+    /// to a command that performs substitution is asked.
+    pub(crate) fn template_plans<S: std::hash::BuildHasher>(
+        &self,
+        ssa: &SsaFunction,
+        values: &HashMap<ValueKey, LatticeValue, S>,
+        executable_blocks: &HashSet<crate::cfg::BlockId, S>,
+    ) -> Vec<crate::sccp::TemplatePlanRecord> {
+        let mut records = Vec::new();
+        for (block_id, block) in &ssa.blocks {
+            if !executable_blocks.contains(block_id) {
+                continue;
+            }
+            for stmt_ssa in &block.statements {
+                let Statement::Call {
+                    args,
+                    tokens: Some(tokens),
+                    foreach_groups: None,
+                    ..
+                } = &stmt_ssa.statement
+                else {
+                    continue;
+                };
+                let head = stmt_ssa.statement.canonical_command_or_source();
+                if tokens.argv.len() != args.len() + 1 || !self.trusted(head) {
+                    continue;
+                }
+                let cooked = call_arguments(args, Some(tokens), &self.lexer_config);
+                let texts: Vec<&str> = cooked.iter().map(|arg| arg.text.as_ref()).collect();
+                let words: Vec<InvocationWord<'_>> = cooked.iter().map(ArgWord::word).collect();
+                let Some(resolved) = self.resolve(head, &words) else {
+                    continue;
+                };
+                if !resolved
+                    .semantics
+                    .traits
+                    .contains(tcl_registry::Traits::PERFORMS_SUBSTITUTION)
+                {
+                    continue;
+                }
+                let Some(semantics) = resolved.semantics.value.semantics() else {
+                    continue;
+                };
+                let inputs = LatticeInputs {
+                    driver: self,
+                    view: view_of(&resolved, &texts, &words, InvocationLayout::Source),
+                    uses: &stmt_ssa.uses,
+                    values,
+                    ssa,
+                    sources: cooked.iter().map(|arg| arg.source).collect(),
+                };
+                if let PlanAnswer::TemplateWord(plan) = semantics.structure(&inputs)
+                    && let Some(&span) = tokens.argv.get(plan.operand.0 + 1)
+                {
+                    records.push(crate::sccp::TemplatePlanRecord { span, plan });
+                }
+            }
+        }
+        records.sort_by_key(|record| (record.span.start(), record.span.end()));
+        records
+    }
+
     pub(crate) fn take_run_facts(&self) -> crate::sccp::SccpResult {
         crate::sccp::SccpResult {
             explanations: self.take_explanations(),
@@ -3588,6 +3652,53 @@ mod tests {
                 },
             ])
         );
+    }
+
+    /// The driver records each executable `subst` call's template-word
+    /// plan over the settled lattice (VT5.8): `set opt -novariables; subst
+    /// $opt {hello $name}` reads the proven switch, so the template's
+    /// `$name` is no read (tclsh 8.4 to 9.1 print `hello $name`); each record
+    /// carries its template word's token span, the plan's own spans offsets
+    /// into it; a call in a block the solver never reaches is not recorded.
+    #[test]
+    fn a_subst_call_records_its_template_plan() {
+        use tcl_registry::substitution::SubstitutionKinds;
+        let source = "proc p {} {\n    set opt -novariables\n    subst $opt {hello $name}\n    \
+                      subst -nocommands {a$b}\n    if {0} { subst {dead $x} }\n}\n";
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
+            source, registry, false, "tcl8.6",
+        );
+        let function = unit.procedures.get("::p").expect("the procedure");
+        let records = &function.sccp.template_plans;
+        let word = |text: &str| {
+            let start = source.find(text).expect("the word");
+            let at = |offset: usize| u32::try_from(offset).expect("a short source");
+            Span::new(at(start), at(start + text.len()))
+        };
+        assert_eq!(
+            records.iter().map(|record| record.span).collect::<Vec<_>>(),
+            // A braced word's token runs from its `{` to its content's end.
+            [word("{hello $name"), word("{a$b")],
+            "{records:?}"
+        );
+        assert_eq!(
+            records[0].plan.kinds,
+            SubstitutionKinds {
+                backslashes: true,
+                commands: true,
+                variables: false,
+            }
+        );
+        assert!(records[0].plan.reads.is_empty(), "{records:?}");
+        assert!(records[0].plan.braced && !records[0].plan.dynamic);
+        let reads: Vec<(&str, Span)> = records[1]
+            .plan
+            .reads
+            .iter()
+            .map(|read| (read.name.as_str(), read.span))
+            .collect();
+        assert_eq!(reads, [("b", Span::new(2, 4))]);
     }
 
     #[test]

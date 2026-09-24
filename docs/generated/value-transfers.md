@@ -793,6 +793,7 @@ Every command, subcommand, and declaring form, resolved through the value-transf
 | `struct::set subtract` | subcommand | bpf, expect, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | none | — | — | no | — | pure, no route | — |
 | `struct::set symdiff` | subcommand | bpf, expect, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | none | — | — | no | — | pure, no route | — |
 | `struct::set union` | subcommand | bpf, expect, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | none | — | — | no | — | pure, no route | — |
+| `subst` | command | bpf, cadence-eda-tcl, expect, f5-iapps, f5-irules, f5-tmsh, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | declared (command) · `template:subst` | none (unauthored) | — | no | — | — | — |
 | `tcl::idna decode` | subcommand | bpf, spectcl, sslictcl, tcl9.0, tcl9.1, tk | none | — | — | no | — | pure, no route | — |
 | `tcl::idna encode` | subcommand | bpf, spectcl, sslictcl, tcl9.0, tcl9.1, tk | none | — | — | no | — | pure, no route | — |
 | `tcl::idna puny` | subcommand | bpf, spectcl, sslictcl, tcl9.0, tcl9.1, tk | none | — | — | no | — | pure, no route | — |
@@ -1103,25 +1104,25 @@ Commands and subcommands that declare no semantics, write no variable, and decla
 
 | Dialect | Rows |
 |---|---|
-| bpf | 2628 |
-| cadence-eda-tcl | 1201 |
-| expect | 2546 |
-| f5-iapps | 1027 |
-| f5-irules | 1110 |
-| f5-tmsh | 1008 |
-| intel-quartus-eda-tcl | 2582 |
-| mentor-eda-tcl | 2843 |
-| microchip-libero-eda-tcl | 2763 |
-| spectcl | 2721 |
-| sslictcl | 2666 |
-| synopsys-eda-tcl | 2748 |
-| tcl8.4 | 978 |
-| tcl8.5 | 2357 |
-| tcl8.6 | 2532 |
-| tcl9.0 | 2604 |
-| tcl9.1 | 2618 |
-| tk | 2635 |
-| xilinx-eda-tcl | 3295 |
+| bpf | 2627 |
+| cadence-eda-tcl | 1200 |
+| expect | 2545 |
+| f5-iapps | 1026 |
+| f5-irules | 1109 |
+| f5-tmsh | 1007 |
+| intel-quartus-eda-tcl | 2581 |
+| mentor-eda-tcl | 2842 |
+| microchip-libero-eda-tcl | 2762 |
+| spectcl | 2720 |
+| sslictcl | 2665 |
+| synopsys-eda-tcl | 2747 |
+| tcl8.4 | 977 |
+| tcl8.5 | 2356 |
+| tcl8.6 | 2531 |
+| tcl9.0 | 2603 |
+| tcl9.1 | 2617 |
+| tk | 2634 |
+| xilinx-eda-tcl | 3294 |
 
 ## Hand-written command knowledge outside the registry
 

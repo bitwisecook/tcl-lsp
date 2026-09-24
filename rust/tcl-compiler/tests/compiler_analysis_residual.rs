@@ -987,9 +987,11 @@ fn rebase_shifted_unit_spans_match_fresh() {
     //   * incr / expr (Incr + ExprEval spans)
     //   * a `for` loop populates cfg.loop_nodes (LoopNode span + for_stmt)
     //   * `if {1}` folds an SCCP constant branch (sccp.constant_branches span)
+    //   * `subst` records a template-word plan (sccp.template_plans span)
     let body = "\
 proc p {items} {
     set total 0
+    subst -nocommands {total $total}
     foreach it $items { incr total }
     for {set i 0} {$i < 2} {incr i} { set acc [expr {$i * 2}] }
     if {1} { set always 1 } else { set never 0 }

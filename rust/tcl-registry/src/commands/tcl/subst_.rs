@@ -211,6 +211,16 @@ const RELATIONS: &[OptionRelation] = &[
     forbids_positive("-novariables"),
 ];
 
+/// The template-word plan over this command's own switch table
+/// (`docs/design/compiler/value-transfers.md` § *The template-word plan*).
+static TEMPLATE: crate::value_transfer::template::TemplateSemantics =
+    crate::value_transfer::template::TemplateSemantics::new(
+        "template:subst",
+        OPTIONS,
+        FAMILIES,
+        RESERVED_TRAILING_WORDS,
+    );
+
 /// Fold a literal `subst string`.
 ///
 /// `subst` performs variable, command, and backslash substitution on
@@ -315,6 +325,7 @@ pub fn spec() -> CommandSpec {
         options: OPTIONS,
         side_effects: SIDE_EFFECTS,
         taint_sink_gate: Some(subst_evaluates_commands),
+        semantics: SemanticsDeclaration::Declared(&TEMPLATE),
         ..CommandSpec::DEFAULT
     }
 }
