@@ -335,7 +335,7 @@ fn drive_edit_session(durability: InputDurability, max_edits: u32) -> Session {
         edits_driven = edit;
     }
 
-    let slots = <dyn salsa::Database>::memory_usage(&db)
+    let slots = <dyn salsa::Database>::memory_usage(&mut db)
         .structs
         .iter()
         .map(|info| (info.debug_name().to_owned(), info.count()))
