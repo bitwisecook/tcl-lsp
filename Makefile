@@ -633,6 +633,16 @@ TY_VERSION      := 0.0.78
 PYRIGHT_VERSION := 1.1.411
 PYTEST_VERSION  := 9.1.1
 
+# The cached typecheck/test venv is not a distributable report build.  Its
+# native extension must therefore not carry the checkout's mutable Git stamp:
+# source-identical commits may safely share the cache, and generated reports
+# never escape this environment. Keep this marker in python-engine-source-hash
+# so changing the cache provenance policy rebuilds an existing venv.
+PY_ENGINE_CACHE_VERSION      := 0.1.0
+PY_ENGINE_CACHE_GIT_HASH     := 0000000000000000000000000000000000000000
+PY_ENGINE_CACHE_GIT_DESCRIBE := python-engine-cache
+PY_ENGINE_CACHE_PROVENANCE   := cache-neutral-v1
+
 # The typecheck venv installs f5report — which maturin-compiles the native
 # `_engine` extension — plus pytest, so ty and pyright resolve every import for
 # real instead of suppressing `unresolved-import`. The Sublime host APIs
@@ -664,11 +674,15 @@ py-venv: ## Build the typecheck venv (f5report + native _engine + pytest)
 	@# (~4 min), so gate it on a content hash of the package tree: ty/pyright
 	@# read the committed `_engine.pyi` stub, never the compiled module, so the
 	@# venv needs a rebuild when the Python package or any local Rust input
-	@# compiled into its native extension changes.
+	@# compiled into its native extension changes. Its provenance is fixed below:
+	@# this cache only serves checks/tests and is never a report-artifact input.
 	@cd $(ROOT) && \
 	  stamp="$(PY_VENV)/.f5report-src-hash"; \
 	  hash=$$($(MAKE) --no-print-directory python-engine-source-hash); \
 	  if [ ! -f "$$stamp" ] || [ "$$(cat "$$stamp")" != "$$hash" ]; then \
+	    TCL_LSP_VERSION=$(PY_ENGINE_CACHE_VERSION) \
+	    GIT_HASH=$(PY_ENGINE_CACHE_GIT_HASH) \
+	    GIT_DESCRIBE=$(PY_ENGINE_CACHE_GIT_DESCRIBE) \
 	    uv pip install --python $(PY_VENV) --quiet \
 	        --reinstall-package f5report ./rust/bigip-report-gen/python pytest==$(PYTEST_VERSION) || exit; \
 	    printf '%s' "$$hash" > "$$stamp"; \
@@ -681,7 +695,12 @@ python-engine-source-hash: ## Hash every source/build input compiled into the f5
 	  files=$$(scripts/dev/python-engine-source-files.sh) && \
 	  { printf '%s\n' "$$files"; \
 	    printf '%s\n' "$$files" | git hash-object --stdin-paths; \
-	    printf '%s\n' "pytest=$(PYTEST_VERSION)"; \
+	    printf '%s\n' \
+	      "pytest=$(PYTEST_VERSION)" \
+	      "cache-version=$(PY_ENGINE_CACHE_VERSION)" \
+	      "cache-git-hash=$(PY_ENGINE_CACHE_GIT_HASH)" \
+	      "cache-git-describe=$(PY_ENGINE_CACHE_GIT_DESCRIBE)" \
+	      "provenance=$(PY_ENGINE_CACHE_PROVENANCE)"; \
 	  } | git hash-object --stdin
 
 typecheck-py: py-venv ## Type-check every tracked Python file (ty + pyright)
@@ -694,6 +713,8 @@ typecheck-py: py-venv ## Type-check every tracked Python file (ty + pyright)
 
 test-py-engine: py-venv ## Test the native f5report query-engine binding
 	@echo "==> Testing the native Python query-engine binding"
+	@cd $(ROOT) && $(PY_VENV)/bin/python -c \
+	    'import f5report._engine as engine; assert engine.__version__ == "$(PY_ENGINE_CACHE_VERSION)+g$(PY_ENGINE_CACHE_GIT_HASH)"; assert engine.__git_hash__ == "$(PY_ENGINE_CACHE_GIT_HASH)"; assert engine.__git_describe__ == "$(PY_ENGINE_CACHE_GIT_DESCRIBE)"'
 	@cd $(ROOT) && $(PY_VENV)/bin/pytest -q rust/bigip-report-gen/python/tests/test_engine.py
 
 # The lsp_e2e suite is native: rust/tcl-lsp-server/tests/*_e2e.rs, run by

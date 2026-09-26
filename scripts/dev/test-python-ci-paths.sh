@@ -118,14 +118,23 @@ for required in \
     rust/bigip-report-gen/python/src/lib.rs \
     rust/bigip-report-gen/frontend/dist/report.js \
     rust/tcl-bigip-query/src/value.rs \
+    rust/tcl-syntax/tests/data/namespace_op_vectors.txt \
     Cargo.toml Makefile rust-toolchain.toml \
     scripts/dev/python-engine-package-paths.txt; do
     grep -Fxq "$required" "$listed_file" \
         || fail "native-engine source identity omits $required"
 done
-if grep -Fxq editors/vscode/src/extension.ts "$listed_file"; then
-    fail "native-engine source identity includes unrelated VS Code source"
-fi
+for excluded in \
+    editors/vscode/src/extension.ts \
+    rust/bigip-report-gen/python/tests/test_engine.py \
+    rust/tcl-compiler/tests/codegen.rs \
+    rust/tcl-bigip/examples/dump_apl.rs; do
+    if grep -Fxq "$excluded" "$listed_file"; then
+        fail "native-engine source identity includes non-compilation input $excluded"
+    fi
+done
+grep -Fq 'cargo metadata --locked --format-version 1' "$SOURCE_FILES" \
+    || fail "native-engine source identity does not derive exact Cargo target roots"
 
 printf '%s\n' '../outside' > "$manifest_probe"
 if TCL_LSP_PYTHON_ENGINE_PACKAGE_MANIFEST=$manifest_probe \
@@ -157,6 +166,28 @@ grep -Fq "engine=\$(make --no-print-directory python-engine-source-hash)" "$WORK
     || fail "CI cache key does not use the native-engine source identity"
 grep -Fq 'hash=$$($(MAKE) --no-print-directory python-engine-source-hash)' "$REPO_ROOT/Makefile" \
     || fail "local venv stamp does not use the native-engine source identity"
+grep -Fq 'PY_ENGINE_CACHE_PROVENANCE   := cache-neutral-v1' "$REPO_ROOT/Makefile" \
+    || fail "native-engine cache does not declare its fixed provenance mode"
+grep -Fq 'TCL_LSP_VERSION=$(PY_ENGINE_CACHE_VERSION)' "$REPO_ROOT/Makefile" \
+    || fail "native-engine cache does not neutralise the engine version"
+grep -Fq 'GIT_HASH=$(PY_ENGINE_CACHE_GIT_HASH)' "$REPO_ROOT/Makefile" \
+    || fail "native-engine cache does not neutralise Git hash provenance"
+grep -Fq 'GIT_DESCRIBE=$(PY_ENGINE_CACHE_GIT_DESCRIBE)' "$REPO_ROOT/Makefile" \
+    || fail "native-engine cache does not neutralise Git describe provenance"
+for identity in \
+    '"cache-version=$(PY_ENGINE_CACHE_VERSION)"' \
+    '"cache-git-hash=$(PY_ENGINE_CACHE_GIT_HASH)"' \
+    '"cache-git-describe=$(PY_ENGINE_CACHE_GIT_DESCRIBE)"' \
+    '"provenance=$(PY_ENGINE_CACHE_PROVENANCE)"'; do
+    grep -Fq "$identity" "$REPO_ROOT/Makefile" \
+        || fail "native-engine cache identity omits $identity"
+done
+grep -Fq 'assert engine.__version__ == "$(PY_ENGINE_CACHE_VERSION)+g$(PY_ENGINE_CACHE_GIT_HASH)"' "$REPO_ROOT/Makefile" \
+    || fail "native-engine cache version is not checked in its cache-specific test path"
+grep -Fq 'assert engine.__git_hash__ == "$(PY_ENGINE_CACHE_GIT_HASH)"' "$REPO_ROOT/Makefile" \
+    || fail "native-engine cache Git hash is not checked in its cache-specific test path"
+grep -Fq 'assert engine.__git_describe__ == "$(PY_ENGINE_CACHE_GIT_DESCRIBE)"' "$REPO_ROOT/Makefile" \
+    || fail "native-engine cache Git describe is not checked in its cache-specific test path"
 grep -Fq 'run: make test-py-engine' "$WORKFLOW" \
     || fail "Python CI does not run the native-engine binding tests"
 
