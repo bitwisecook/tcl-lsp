@@ -30,6 +30,7 @@
 #![forbid(unsafe_code)]
 
 pub mod config_ini;
+mod environment_notice;
 /// The exit watchdog that backstops `Server::serve` returning promptly once
 /// the session is over. Native only: it wraps `tokio::io::Stdin` and hard
 /// exits the process, neither of which apply to a browser worker.
@@ -7494,6 +7495,12 @@ pub struct Backend {
     /// Snapshot of [`client_supports_relative_watch_patterns`], read by
     /// [`Backend::refresh_external_pack_watchers`] long after `initialize`.
     client_supports_relative_watch_patterns: std::sync::atomic::AtomicBool,
+    /// The one-time explanation shown when a document resolves to a tool
+    /// environment (Vivado, Quartus, …), with the state that keeps it to once
+    /// per environment per session and never again after a dismissal. Shared
+    /// with the task that presents it, so no lock of the backend's is held
+    /// while the client is awaited. See [`environment_notice`].
+    environment_notice: Arc<environment_notice::EnvironmentNotice>,
     /// Per-URI cache of the last semantic-token stream we served — its
     /// `resultId` and the packed integer data.  Lets
     /// `textDocument/semanticTokens/full/delta` answer with a minimal
@@ -8775,6 +8782,11 @@ impl Backend {
             Vec::new(),
         );
         let diagnostic_publisher = Arc::new(DiagnosticPublisher::new(client.clone()));
+        // What the user asked not to be told again is read once, here.
+        let environment_notice = Arc::new(environment_notice::EnvironmentNotice::load(
+            store.as_ref(),
+            core_tcl_install::user_notices_path(),
+        ));
         Self {
             client,
             diagnostic_publisher,
@@ -8840,6 +8852,7 @@ impl Backend {
             closed_diag_order: Arc::new(Mutex::new(VecDeque::new())),
             client_supports_pull_diagnostics: std::sync::atomic::AtomicBool::new(false),
             client_supports_relative_watch_patterns: std::sync::atomic::AtomicBool::new(false),
+            environment_notice,
             last_semantic_tokens: Arc::new(Mutex::new(HashMap::new())),
             semantic_tokens_refresh_asked: Arc::new(Mutex::new(HashMap::new())),
             workspace_class_analyses: Arc::new(Mutex::new(HashMap::new())),
@@ -10600,6 +10613,7 @@ impl Backend {
                 (doc.text.clone(), doc.revision)
             };
             self.invalidate_live_publication(std::iter::once(uri));
+            self.notify_environment_kind(&new_dialect);
             if self
                 .commit_live_dialect(operation, uri, &changed.0, &new_dialect, changed.1)
                 .await
@@ -11058,6 +11072,9 @@ impl Backend {
         if let Some(overrides) = settings_severity_overrides(opts) {
             *self.severity_overrides.lock().await = overrides;
         }
+        if let Some(flag) = settings_environment_kind_enabled(opts) {
+            self.environment_notice.set_enabled(flag);
+        }
     }
 
     /// Resolve the dialect string a freshly opened document should
@@ -11293,6 +11310,25 @@ impl Backend {
             .authoring_query()
             .packages
             .contains(&"bigip")
+    }
+
+    /// Offer the tool-environment explanation for a document that resolves to
+    /// `dialect`, if that is a tool environment (see [`environment_notice`]).
+    ///
+    /// Only decides whether there is anything to offer, then hands the rest to
+    /// its own task: the message awaits the client, and neither the document
+    /// map nor an edit turn may be held across that.
+    fn notify_environment_kind(&self, dialect: &str) {
+        let Some(resolved) = tcl_registry::model::resolve_known_environment(dialect) else {
+            return;
+        };
+        if !self.environment_notice.wants(&resolved.definition) {
+            return;
+        }
+        crate::rt::spawn(
+            Arc::clone(&self.environment_notice)
+                .offer(self.client.clone(), Arc::clone(&resolved.definition)),
+        );
     }
 
     /// Look up the per-folder dialect override for `uri`,
@@ -12608,6 +12644,7 @@ impl Backend {
             db_config: _,
             client_supports_pull_diagnostics: _,
             client_supports_relative_watch_patterns: _,
+            environment_notice: _,
             class_factory_generation: _,
             semantic_tokens_refresh_pending: _,
             warm_task: _,
@@ -18086,6 +18123,9 @@ impl Backend {
             "optimiser_profile": optimiser_profile,
             "library_paths": library_paths,
             "workspace_scan_max_files": workspace_scan_max_files,
+            // Session-wide: whether the tool-environment explanation may be
+            // shown (`tclLsp.notifications.environmentKind`).
+            "notifications_environment_kind": self.environment_notice.enabled(),
             "spec_packs": spec_packs,
             "spec_packs_loaded": spec_packs_loaded,
             "pack_file_extensions": pack_file_extensions,
@@ -18382,6 +18422,10 @@ impl Backend {
     /// omitted keys keep their last-applied value.
     async fn pull_and_apply_config(&self) {
         self.pull_and_apply_config_values().await;
+        // Whatever the client answered, the setting that decides whether a
+        // notice may be shown is applied as far as it will be, so a notice
+        // waiting on the first pull can decide.
+        self.environment_notice.mark_config_settled();
         // Both applies can move a document's dialect: `apply_global_config`
         // rewrites the session `default_dialect`, and `apply_folder_configs`
         // replaces the per-folder `tclLsp.dialect` map.  Every already-open
@@ -18869,6 +18913,12 @@ impl Backend {
             .and_then(serde_json::Value::as_bool)
         {
             *self.shimmer_enabled.lock().await = flag;
+        }
+        // `tclLsp.notifications.environmentKind` — whether the tool-environment
+        // explanation may be shown. Read when a notice is about to go out, so
+        // a change applies to the next one without a restart.
+        if let Some(flag) = settings_environment_kind_enabled(cfg) {
+            self.environment_notice.set_enabled(flag);
         }
         if let Some(profile) = cfg
             .get("optimiser")
@@ -23200,6 +23250,10 @@ impl LanguageServer for Backend {
             client_supports_relative_watch_patterns(&params),
             std::sync::atomic::Ordering::Relaxed,
         );
+        self.environment_notice.set_client_capabilities(
+            client_supports_message_action_items(&params),
+            client_supports_show_document(&params),
+        );
         let position_encoding = negotiate_position_encoding(&params);
         if client_lacks_utf16_support(&params) {
             // The client advertised position encodings without UTF-16. The
@@ -23233,6 +23287,9 @@ impl LanguageServer for Backend {
         self.client
             .log_message(MessageType::INFO, "tcl-lsp-server initialised")
             .await;
+        if let Some(warning) = self.environment_notice.take_load_warning() {
+            self.client.log_message(MessageType::WARNING, warning).await;
+        }
         // Pull the resolved `tclLsp` config once the client is ready so
         // feature toggles / optimiser switch / analyser knobs are in effect
         // before the first request.
@@ -23341,6 +23398,7 @@ impl LanguageServer for Backend {
         })
         .await;
         drop(turn);
+        self.notify_environment_kind(&dialect_for_diags);
 
         // Await only after releasing the global barrier. This wait holds no
         // other store or edit turn, so a pre-existing index reader/writer
@@ -23552,7 +23610,10 @@ impl LanguageServer for Backend {
         if let Some(overrides) = settings_severity_overrides(&params.settings) {
             *self.severity_overrides.lock().await = overrides;
         }
-        // The three writes above land immediately, ahead of the coalesced
+        if let Some(flag) = settings_environment_kind_enabled(&params.settings) {
+            self.environment_notice.set_enabled(flag);
+        }
+        // The writes above land immediately, ahead of the coalesced
         // re-pull below, so they retire the scheduler's cached inputs on their
         // own — the flat MCP-bridge payload is the only thing that carries them
         // and it must not need a second notification to take effect on the next
@@ -27465,6 +27526,22 @@ fn settings_non_ascii_mode(settings: &serde_json::Value) -> Option<NonAsciiMode>
         .map(parse_non_ascii_mode)
 }
 
+/// Extract `tclLsp.notifications.environmentKind` from a settings payload,
+/// accepting the nested (`{"tclLsp":{"notifications":{"environmentKind":false}}}`),
+/// the unwrapped (`{"notifications":{"environmentKind":false}}`) and the
+/// flat-dotted (`{"tclLsp.notifications.environmentKind":false}`) shapes.
+/// `None` when the payload does not carry it, so the current value stands.
+fn settings_environment_kind_enabled(settings: &serde_json::Value) -> Option<bool> {
+    let nested = settings
+        .get("tclLsp")
+        .unwrap_or(settings)
+        .get("notifications")
+        .and_then(|v| v.get("environmentKind"));
+    nested
+        .or_else(|| settings.get("tclLsp.notifications.environmentKind"))
+        .and_then(serde_json::Value::as_bool)
+}
+
 /// Extract the disabled diagnostic codes from a settings payload — the
 /// `tclLsp.diagnostics.<CODE>` booleans whose value is `false`. Accepts
 /// the nested object (`{"tclLsp":{"diagnostics":{"W001":false}}}`) and
@@ -30702,6 +30779,28 @@ fn client_supports_relative_watch_patterns(params: &InitializeParams) -> bool {
         .unwrap_or(false)
 }
 
+/// Whether the client can render the actions of a `window/showMessageRequest`
+/// (`window.showMessage.messageActionItem`). Without it the notice is a plain
+/// `window/showMessage`, which every client renders.
+fn client_supports_message_action_items(params: &InitializeParams) -> bool {
+    params
+        .capabilities
+        .window
+        .as_ref()
+        .and_then(|w| w.show_message.as_ref())
+        .is_some_and(|m| m.message_action_item.is_some())
+}
+
+/// Whether the client can open a URL for the server (`window.showDocument`).
+fn client_supports_show_document(params: &InitializeParams) -> bool {
+    params
+        .capabilities
+        .window
+        .as_ref()
+        .and_then(|w| w.show_document.as_ref())
+        .is_some_and(|d| d.support)
+}
+
 /// The `workspace/foldingRange/refresh` server→client request (LSP 3.18).
 ///
 /// `ls-types` 0.0.6 predates this method, so it is declared locally to be sent
@@ -33058,6 +33157,108 @@ mod tests {
         assert!(!client_supports_relative_watch_patterns(
             &InitializeParams::default()
         ));
+    }
+
+    #[test]
+    fn message_capability_detection() {
+        use tower_lsp_server::ls_types::{
+            ClientCapabilities, MessageActionItemCapabilities, ShowDocumentClientCapabilities,
+            ShowMessageRequestClientCapabilities, WindowClientCapabilities,
+        };
+        let params_with = |window: Option<WindowClientCapabilities>| InitializeParams {
+            capabilities: ClientCapabilities {
+                window,
+                ..ClientCapabilities::default()
+            },
+            ..InitializeParams::default()
+        };
+        let none = InitializeParams::default();
+        assert!(!client_supports_message_action_items(&none));
+        assert!(!client_supports_show_document(&none));
+
+        // `showMessage` without `messageActionItem` cannot render actions.
+        let bare_show_message = params_with(Some(WindowClientCapabilities {
+            show_message: Some(ShowMessageRequestClientCapabilities::default()),
+            ..WindowClientCapabilities::default()
+        }));
+        assert!(!client_supports_message_action_items(&bare_show_message));
+
+        let actions = params_with(Some(WindowClientCapabilities {
+            show_message: Some(ShowMessageRequestClientCapabilities {
+                message_action_item: Some(MessageActionItemCapabilities::default()),
+            }),
+            ..WindowClientCapabilities::default()
+        }));
+        assert!(client_supports_message_action_items(&actions));
+        assert!(!client_supports_show_document(&actions));
+
+        // `showDocument` counts only when its `support` flag is set.
+        let document = |support| {
+            params_with(Some(WindowClientCapabilities {
+                show_document: Some(ShowDocumentClientCapabilities { support }),
+                ..WindowClientCapabilities::default()
+            }))
+        };
+        assert!(client_supports_show_document(&document(true)));
+        assert!(!client_supports_show_document(&document(false)));
+    }
+
+    #[test]
+    fn environment_kind_setting_is_read_from_every_payload_shape() {
+        let off = Some(false);
+        // Nested under `tclLsp`, unwrapped, and flat-dotted.
+        for payload in [
+            serde_json::json!({ "tclLsp": { "notifications": { "environmentKind": false } } }),
+            serde_json::json!({ "notifications": { "environmentKind": false } }),
+            serde_json::json!({ "tclLsp.notifications.environmentKind": false }),
+        ] {
+            assert_eq!(
+                settings_environment_kind_enabled(&payload),
+                off,
+                "{payload}"
+            );
+        }
+        assert_eq!(
+            settings_environment_kind_enabled(
+                &serde_json::json!({ "tclLsp": { "notifications": { "environmentKind": true } } })
+            ),
+            Some(true)
+        );
+        // Anything else says nothing, so the current value stands.
+        for payload in [
+            serde_json::json!({}),
+            serde_json::json!({ "tclLsp": { "notifications": {} } }),
+            serde_json::json!({ "notifications": { "highlightingHealth": false } }),
+            serde_json::json!({ "notifications": { "environmentKind": "no" } }),
+            serde_json::Value::Null,
+        ] {
+            assert_eq!(
+                settings_environment_kind_enabled(&payload),
+                None,
+                "{payload}"
+            );
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn environment_kind_setting_reaches_the_notice() {
+        let backend = test_backend();
+        assert!(backend.environment_notice.enabled(), "on unless set off");
+        backend
+            .apply_global_config(
+                &serde_json::json!({ "notifications": { "environmentKind": false } }),
+            )
+            .await;
+        assert!(!backend.environment_notice.enabled());
+        // A pull that does not carry the key leaves the last value in force.
+        backend.apply_global_config(&serde_json::json!({})).await;
+        assert!(!backend.environment_notice.enabled());
+        backend
+            .apply_global_config(
+                &serde_json::json!({ "notifications": { "environmentKind": true } }),
+            )
+            .await;
+        assert!(backend.environment_notice.enabled());
     }
 
     #[test]
@@ -36701,6 +36902,7 @@ mod tests {
             closed_diag_order: Arc::new(Mutex::new(VecDeque::new())),
             client_supports_pull_diagnostics: std::sync::atomic::AtomicBool::new(false),
             client_supports_relative_watch_patterns: std::sync::atomic::AtomicBool::new(false),
+            environment_notice: Arc::new(environment_notice::EnvironmentNotice::in_memory()),
             last_semantic_tokens: Arc::new(Mutex::new(HashMap::new())),
             semantic_tokens_refresh_asked: Arc::new(Mutex::new(HashMap::new())),
             workspace_class_analyses: Arc::new(Mutex::new(HashMap::new())),
