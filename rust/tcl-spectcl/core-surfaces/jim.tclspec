@@ -2,14 +2,14 @@
 # Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
-# Jim Tcl's inherited command surface — design Q6, ruled 2026-08-28.
+# Jim Tcl's inherited command surface.
 #
 # `Family::Jim`'s ancestry edge is a `Lineage::Reimplementation` anchored at
 # Tcl 8.6: "a small footprint reimplementation of the Tcl scripting
 # language" implementing "a significant subset of the Tcl 8.6 command set"
-# (jim_tcl.txt, INTRODUCTION). P6 used that edge to delete the jim branch's
-# 76 hand-written core command specs — but an edge alone inherits the whole
-# ancestor surface, and a *subset* inherited wholesale over-admits
+# (jim_tcl.txt, INTRODUCTION). The edge is how Jim reaches the shared core
+# command specs without a copy of its own — but an edge alone inherits the
+# whole ancestor surface, and a *subset* inherited wholesale over-admits
 # everything outside it. This file is the subset, written out.
 #
 # It is not a discoverable loadable. A `specs/` directory a user or a

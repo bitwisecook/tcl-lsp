@@ -1085,15 +1085,38 @@ than staying silent.
 ### Automatic dialect detection
 
 The dialect is selected automatically using the following priority chain
-(highest to lowest):
+(highest to lowest); the contract is
+[dialect-detection.md](docs/design/contracts/dialect-detection.md):
 
-1. **Editor language ID** -- opening a file as `tcl-irule`, `tcl84`, etc.
-   selects the matching dialect immediately.  (The version-pinned VS Code
-   language ids are undotted -- `tcl84`, `tcl85`, `tcl86`, `tcl90`, `tcl91` -- because
-   VS Code cannot carry a `configurationDefaults` override for a language id
-   containing a `.`.  The *dialect* names below keep their dots, and the server
-   still accepts the dotted `tcl8.4`-style id other editors send.)
-2. **File extension** -- each profile in the catalog owns its extensions:
+1. **Explicit override** -- `tcl-lsp.setDocumentDialectOverride` for one
+   URI, or `tcl-lsp.setSessionDialectOverride` for the session.
+2. **Editor language ID** -- opening a file as `tcl-irule`, `tcl84`,
+   `tcl-jim`, etc. selects the matching dialect immediately.  (The
+   version-pinned VS Code language ids are undotted -- `tcl84`, `tcl85`,
+   `tcl86`, `tcl90`, `tcl91` -- because VS Code cannot carry a
+   `configurationDefaults` override for a language id containing a `.`.
+   The *dialect* names keep their dots, and the server still accepts the
+   dotted `tcl8.4`-style id other editors send.)  A file opened as plain
+   `tcl` goes on to the content tiers below.
+3. **Comment directive** -- a `# tcl-dialect: <name>` comment in the
+   first 5 lines of a file pins the dialect for that file. The name is any
+   environment name or alias (`tcl8.4`, `f5-irules`, `tk`, `wish`,
+   `jimsh`, `vivado`, a name a loaded SpecTcl pack declares); an unknown
+   name is ignored:
+
+   ```tcl
+   # tcl-dialect: tcl8.4
+   set x 1
+   ```
+4. **Shebang** -- each environment's shebang words: `#!/usr/bin/env
+   tclsh8.5` selects `tcl8.5`, `#!/usr/bin/expect` selects `expect`,
+   `#!/usr/bin/env jimsh` selects `jim`, `#!/usr/bin/wish` selects `tk`.
+5. **Tcl version guard** -- a `package require Tcl 8.5` or
+   `package vsatisfies [package require Tcl] 8.5` pins the release.
+6. **Content signature** -- an iRules `when EVENT {` clause, or a
+   whole-word tool marker (`iapp::`, `tmsh::`, `synth_design`,
+   `compile_ultra`, `set_db`, `project_new`, `vsim`, `spawn`, …).
+7. **File extension** -- each environment owns its extensions:
    `.irul`/`.irule`/`.irules` → `f5-irules`,
    `.iapp`/`.iappimpl`/`.impl` → `f5-iapps`, `.tmsh` → `f5-tmsh`,
    `.scf` → `f5-bigip`, `.exp`/`.expect` → `expect`,
@@ -1107,25 +1130,17 @@ The dialect is selected automatically using the following priority chain
    those extensions with the editor itself as the pack loads, so the file
    opens as Tcl in the first place — see
    [A file extension my SpecTcl pack claims opens as plain text](docs/kcs/kcs-issue-a-pack-claimed-file-extension-opens-as-plain-text.md).
-3. **Comment directive** -- a `# tcl-dialect: <name>` comment in the
-   first 5 lines of a file pins the dialect for that file. The name is any
-   environment name or alias (`tcl8.4`, `f5-irules`, `tk`, `wish`, a name a
-   loaded SpecTcl pack declares); an unknown name is ignored:
+8. **User setting** -- the `tclLsp.dialect` configuration value (per
+   folder, per workspace, or from the XDG `config.ini`) is the default for
+   files that have no per-file hint. A value that names no environment is
+   reported as a warning in the server log and the fallback applies.
+9. **Fallback** -- `tcl8.6` when nothing else matches.
 
-   ```tcl
-   # tcl-dialect: tcl8.4
-   set x 1
-   ```
-4. **Shebang** -- `#!/usr/bin/env tclsh8.5` selects `tcl8.5`;
-   `#!/usr/bin/expect` selects `expect`; `#!/usr/bin/env jimsh` selects `jim`;
-   `#!/usr/bin/wish` selects `tk`.
-5. **User setting** -- the `tclLsp.dialect` configuration value acts as the
-   default for files that have no per-file hint.
-6. **Hardcoded fallback** -- `tcl8.6` when nothing else matches.
-
-Per-file hints (directive, shebang, extension) always take priority over
-the global setting, so different files in the same workspace can target
-different Tcl versions without manual switching.
+Content outranks the filename: a `.tcl` file's contents are a stronger
+signal than its name, so the guard and signature tiers sit above the
+extension. Per-file hints always take priority over the setting, so
+different files in the same workspace can target different Tcl versions
+without manual switching.
 
 ### Dialect command stubs
 

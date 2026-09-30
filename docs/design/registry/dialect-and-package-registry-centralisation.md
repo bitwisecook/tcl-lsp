@@ -190,13 +190,17 @@ context and asks `placement_is_ambient`; every generator `--check` is
 byte-identical.
 
 `tcl spec` has three verbs — `import`, `upgrade`, `export`; `spectcl_check`
-exists only as the MCP tool (redesign §11 D18, R7). What deliberately
-stays are the `DialectProfile::all()` **enumerations** — the CLI's
-`--dialect` possible values and its unknown-dialect message, the MCP
-`dialect_schema` enum, the studio's picker, `registry-dump
---all-dialects`' Tcl-release list — because the environment list has
-different contents and no `short_name`; those are the payload rows T1 /
-T3 / T6 / T7, a user-visible change rather than a refactor.
+exists only as the MCP tool (redesign §11 D18, R7). Every user-visible dialect list reads the environment registry: the
+CLI's `--dialect` possible values and its unknown-dialect message, the
+MCP `dialect_schema` enum, the studio's labels, `listDialects` and the
+generated editor manifests all take `EnvironmentRegistry::selectable()`
+(or its generation-0 form), and `cargo xtask catalogue-callers --check`
+holds `DialectProfile::all()` to an allowlist of identity-key callers
+([contracts/environment-selection.md](../contracts/environment-selection.md)).
+`registry-dump --all-dialects` and the studio's `browsable_dialects()`
+remain catalogue-keyed (T3, T7): the studio resolves through
+`catalogue_dialect_or_default`, which would sink `jim` and `tk` to the
+`tcl9.0` built-ins.
 
 ## 3. The retirement ledger
 
@@ -227,10 +231,8 @@ user-facing change (redesign §11 D15).
 | F6 | Environment-blind workspace index symbols (no dialect/environment field on any symbol), so cross-file arity, W123 suppression, and cross-document definition let an `f5-irules` proc satisfy a `tcl9.0` call | realm/environment-keyed index rows feeding the four-tier known-anywhere model |
 | F7 | `DocumentEnvironment::context_registry`'s silent un-overlaid fallback on a pack-overlay cache miss | fail-closed rebuild-or-error on a generation miss |
 | F8 | The `dialect: String` shape of the salsa `SourceFile` input (every read resolves through the seam; `LexerCfgKey` and `ProcBodyKey` already intern the resolved environment id and derive the whole `LexerConfig` from it) | `(environment id, generation, overlay hash, targets)` keys |
-| F9 | `listDialects` enumerating `DialectProfile::all()` (all four validators — `folderDialects`, folder `tclLsp.dialect`, `setDialect`, `setSessionDialectOverride` — are one `resolve_environment`) | `listEnvironments` over the environment registry |
 | F10 | W120's fix-from-whole-file and the package-require code action's name-matching gate | assistance-labelled diagnostics; edits gated on `Must`/`May` declarations and the `PackageResolver` |
 | F11 | `TclVersion::from_dialect` in W123 refinement (`tcl-lsp-server/src/lib.rs`) | target `VersionSet` evaluation with honest `Unknown` on guard straddles |
-| F12 | The hand-written Sublime `_SYNTAX_DIALECT_MAP` (`editors/sublime-text/plugin.py`) | a generated projection plus a drift gate |
 
 ### Compiler / analyser
 
@@ -309,10 +311,8 @@ under every pin.
 
 | # | Still in the tree | Replacement |
 |---|---|---|
-| T1 | `dialect_possible_values()`'s enumeration and the unknown-dialect message (the ingest validator is `resolve_known_environment`) | environment name+alias enumeration |
 | T3 | `registry-dump --all-dialects`'s single-`tcl8.6`-registry shortcut and its `const_fold_version` family list | per-family enumeration over the catalogue |
 | T4 | Hardcoded `tcl8.6` defaults (CLI `combined_effective_dialect`, VS Code `contextPack`, clap args), marked `// T4:` at their sites | the configured default environment |
-| T6 | MCP `dialect_schema`'s enum; `spectcl_check`'s `availability_mask` bit test (it takes the threaded target's mask through the seam) | environment enumeration; `targets ⊆ applicable` collision checking |
 | T7 | Studio's `DIALECT_BITS` editor, dialect-string APIs, `SOURCE_DIALECT_KEY`, and the dialect-as-language-id client (document close/reopen on change) | provider/`VersionSet` editing, environment ids, a generic contributed LSP identity |
 | T8 | `render_spectcl`'s `is_dialect_set` conflation of availability with `safe_on_uninit` (ruling R4) | distinct spellings |
 | T10 | `callback-surfaces` `name@dialect+dialect` row ids (and the `.chain(tk())` special case); re-keying regenerates the committed JSON | environment/provider-keyed ids |

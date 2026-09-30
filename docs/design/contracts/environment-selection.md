@@ -4,8 +4,7 @@ How a user names what they are writing, and how every surface that shows
 or accepts that name stays in step. Companion to
 [dialect-detection.md](dialect-detection.md) (which tier wins) and
 [registry/dialect-and-package-registry-redesign.md](../registry/dialect-and-package-registry-redesign.md)
-(the model). This contract is the user-visible half the redesign left as
-ledger rows D15 and D17-J.
+(the model).
 
 ## The rule
 
@@ -15,12 +14,10 @@ One vocabulary, one resolver, two enumeration mechanisms, and nothing else.
   (`tcl_dialect::model::EnvironmentDefinition`, held in the
   `EnvironmentRegistry`). The user-facing spellings `tclLsp.dialect`,
   `# tcl-dialect:`, `--dialect`, `tcl-lsp.setDialect` and the picker title
-  "Select Dialect" are permanent: they are how users already write the
-  name, and renaming them buys nothing.
+  "Select Dialect" are permanent: they are how users write the name.
 - **Resolver.** Every ingress resolves through
   `tcl_registry::model::ingress::resolve_environment` (validating form
-  `resolve_known_environment`). This already holds; the contract forbids a
-  second path.
+  `resolve_known_environment`). There is no second path.
 - **Enumeration.** A list of names shown to a user comes from exactly one
   of two places:
   1. **Runtime lists** read the live registry at the moment they are
@@ -32,13 +29,19 @@ One vocabulary, one resolver, two enumeration mechanisms, and nothing else.
      compiled registry (generation 0: the built-ins plus the bundled-pack
      seed) and gated by `--check` in `make xtask-check`: every editor
      manifest, settings schema, language table and README snippet, the AI
-     manifest, the README environment table and
-     `docs/generated/environments.md`.
+     prompt manifest, the README environment tables and
+     `docs/generated/environments.md`. `make codegen` runs every generator
+     in write mode.
 
   There is no third mechanism. `DialectProfile::all()` is the lexer's and
   the editors' *identity key*, never a user-facing list; the
   `catalogue-callers` gate holds its call sites to an allowlist so one
   cannot creep back in.
+
+The selectable set is `EnvironmentRegistry::selectable()` (live) and
+`compiled_selectable()` (generation 0): every registry entry except the
+lenient `tcl` sink, `Language` before `Packages`, canonical id ascending
+within a kind. A fallback is not a choice, so the sink is never listed.
 
 ## Kind
 
@@ -47,15 +50,16 @@ Each environment declares an `EnvironmentKind`:
 | Kind | Meaning | Members |
 |---|---|---|
 | `Language` | The thing being written is this language: its grammar, or its core command vocabulary, is the identity | `tcl8.4`–`tcl9.1`, `f5-irules`, `f5-iapps`, `f5-tmsh`, `f5-bigip`, `jim`, `bpf`, `expect`, `spectcl`, `sslictcl` |
-| `Packages` | A stock Tcl release with library packages loaded: a tool shell | `tk`, the six EDA environments, every pack-declared environment (default) |
+| `Packages` | A stock Tcl release with library packages loaded: a tool shell | `tk`, the six EDA environments, every pack-declared environment (the default) |
 
 Kind is **declared, not derived**. No rule over the existing fields
 separates `bpf` (a language whose surface is a package over a Tcl 9.0
 core) from `tk` (a package over a Tcl 8.x core); the classification is a
 judgement, so it is a field, and the compiler makes every environment
-state one. The pack vocabulary gains `kind language|packages` inside an
-`environment` block; an omitted `kind` in a pack means `packages`, because
-a pack-declared environment is by construction a base plus packages.
+state one. The pack vocabulary has `kind language|packages` and
+`short_name TEXT` inside an `environment` block; an omitted `kind` means
+`packages`, because a pack-declared environment is by construction a base
+plus packages.
 
 Kind drives three things and nothing else: the grouping in every picker,
 the description string beside each name, and whether the notice below may
@@ -66,9 +70,9 @@ Pickers keep the word **dialect** and show two groups, *Dialects* and *Tcl
 
 ## Display names and aliases
 
-The six EDA environments are named for the tool a user runs, and gain the
-spellings users type. Canonical ids and language ids are unchanged; the
-names and aliases are pack data in each `specs/eda_*.tclspec`
+The six EDA environments are named for the tool a user runs, and carry the
+spellings users type. Canonical ids and language ids are the stable keys;
+the names and aliases are pack data in each `specs/eda_*.tclspec`
 `environment` block, and the bundled seed and catalogue row follow them.
 
 | Id | `display_name` | `short_name` | Aliases |
@@ -87,49 +91,54 @@ name, alias or editor identity; the registry index rejects the collision.
 
 ## Description strings
 
-Derived, never authored:
+Derived, never authored, by `EnvironmentDefinition::description`:
 
 - `Language`: the environment's `display_name`.
-- `Packages`: `{display_name} — Tcl {core release} + {ambient packages}`,
-  e.g. `Xilinx Vivado — Tcl 8.5 + vivado, sdc, upf`.
+- `Packages`: `{display_name} — Tcl {core release} + {ambient packages}`
+  in the pack's declaration order, and the packs list the tool package
+  first: `Xilinx Vivado — Tcl 8.5 + vivado, sdc, upf`.
 
 Every generated enum description, picker line and status-bar tooltip uses
-this one function (`EnvironmentDefinition::description`).
+this one function. `DEFAULT_ENVIRONMENT_ID` (`tcl8.6`) is the one source
+of every generated and server-side default.
 
 ## Jim
 
-`jim` becomes reachable from every surface by the general rule, plus four
-Jim-specific changes:
+`jim` is reachable from every surface by the general rule, plus four
+Jim-specific facts:
 
-1. `tcl-jim` joins the fixed contributed editor-identity set and the `jim`
+1. `tcl-jim` is in the fixed contributed editor-identity set and the `jim`
    environment claims it, so the generators emit a Jim language mode in
    every editor that has language modes.
 2. The shebang detection tier reads each environment's `shebang_words`
-   (`jimsh` → `jim`, `wish` → `tk`, `tclsh` → the versioned Tcl release)
-   instead of a hand-written `tclsh`/`wish` parser. Editors whose
-   manifests support a first-line pattern get one generated from the same
-   words.
+   (`jimsh` → `jim`, `wish` → `tk`, `tclsh8.5` / `wish8.5` → `tcl8.5`,
+   `expect` → `expect`); editors whose manifests support a first-line
+   pattern get one generated from the same words.
 3. A `jim` document's authoring scope carries its **own** family ahead of
-   its ancestry anchor (`AuthoringScope::core` and `SurfaceQuery::core`
-   become an ordered list; `surface_admits` accepts nearest first). This
-   is redesign D17-J and is what lets Jim's own commands — `loop`,
-   `range`, `lsubst`, `alias`, `local`, `upcall`, `ref`/`getref`/`setref`,
-   `os.*`, `class`/`super`, … — and a Jim-specific `proc name args
-   ?statics? body` spec shadow the inherited Tcl 8.6 rows.
-4. Jim's additions are a second built-in pack beside `jim.tclspec`,
-   measured the same way (`info commands` in a `jimsh` built from each
-   upstream tag 0.76–0.84), with `available {jim 0.xx-}` windows. Jim's
-   `class` is a `DefinitionBodyGrammar` plus a `DefinerFamily` arm, per
-   the registry invariant; a `proc` whose name is a two-word list defines
-   the two-word command.
+   its ancestry anchor: `AuthoringScope::core` and `SurfaceQuery::core`
+   are ordered lists (`CorePoints`), `surface_admits` accepts a row from
+   either, and both resolution paths rank the nearer point first. A
+   `Core(Jim)` row therefore resolves for a `jim` document and shadows an
+   inherited Tcl row of the same head; every other family has a
+   single-point scope and is unaffected.
+4. Jim's own commands are the compiled-in pack
+   `rust/tcl-spectcl/core-surfaces/jim-own-surface.tclspec`, registered
+   unconditionally at `Provenance::BuiltIn` beside the inherited-surface
+   roster `jim.tclspec`, with `available {jim FIRST-LAST}` windows measured
+   from `info commands` in a `jimsh` built from each upstream tag
+   0.76–0.84. It carries Jim's `proc name arglist ?statics? body`
+   (`ArgRole::StaticVarList`), `class` as `DefinerFamily::JimClass` whose
+   members are two-word commands, `loop`'s two windowed forms, and the
+   n-ary arithmetic commands. A `proc` whose name is a two-word list
+   defines the two-word command in every dialect.
 
 ## The notice
 
 When a document's effective environment has kind `Packages` **and**
 `Provenance::BundledPack` — the six EDA shells, and any tool shell a
-future bundled pack declares — the server tells the user once what that
-means. `tk` and workspace- or user-tier pack environments never trigger
-it. The server owns it: the environment catalogue is the server's, and a
+bundled pack declares — the server tells the user once what that means.
+`tk` and workspace- or user-tier pack environments never trigger it. The
+server owns it: the environment catalogue is the server's, and a
 server-sent message renders in every editor with no client code.
 
 - **Transport.** `window/showMessageRequest` when the client advertises
@@ -152,41 +161,42 @@ server-sent message renders in every editor with no client code.
   one-time explanation of a classification, and is the one scoped
   exception to that silence, recorded there.
 
-## Backwards compatibility
+## Compatibility of stored names
 
-- **Canonical ids never change.** `xilinx-eda-tcl` stays `xilinx-eda-tcl`;
-  the same is true of every language id (`tcl-xilinx`, …). A directive,
+- **Canonical ids are stable.** `xilinx-eda-tcl` is `xilinx-eda-tcl`; the
+  same holds for every language id (`tcl-xilinx`, …). A directive,
   `.tcl-lsp.ini`, `config.ini`, `settings.json` or `folderDialects` entry
-  written today resolves tomorrow. New spellings are `alias` rows only.
-- **Unknown names.** A directive tier abstains (unchanged). A folder
-  setting is validated and dropped (unchanged). A session-scope
-  `tclLsp.dialect` is now validated too: an unknown value logs a WARNING
-  naming the valid set and falls back to the default, instead of
-  silently resolving to the lenient `tcl` sink. The CLI rejects it with
-  the full list (unchanged, list widened).
+  resolves by canonical id or alias. New spellings are `alias` rows only.
+- **Unknown names.** A directive tier abstains. A folder setting is
+  validated and dropped. A session-scope `tclLsp.dialect` is validated: an
+  unknown value logs a WARNING naming the selectable set and the default
+  applies. The CLI rejects an unknown value listing the selectable ids.
 - **Settings schemas** enumerate canonical ids only; aliases are for
   directives and the CLI, so a stored value never fails schema validation.
 - **Sidecar stubs** (`<name>.tcl.stubs`) are found by the raw configured
-  name (unchanged).
+  name.
 
-## Deferred, deliberately
+## Not modelled
 
-- Retiring the `DialectProfile` catalogue as the lexer key (redesign D5,
-  centralisation C1, ~200 call sites). This contract makes the catalogue
-  invisible, not absent.
-- Free composition ("`tcl8.6` plus `vivado`") through `EnvironmentOverlay`.
-  Tracked as a follow-up; kind `Packages` is the presentational half.
-- Per-package version windows (D17-P) and a `ToolVersion` setting.
-- The vendor rows' single-release pinning (`available {tcl 8.5}`).
+- The `DialectProfile` catalogue remains the lexer's and the editors'
+  identity key (retiring it is redesign D5 / centralisation C1). This
+  contract makes it invisible, not absent.
+- There is no free composition ("`tcl8.6` plus `vivado`");
+  `EnvironmentOverlay` has no production caller. Kind `Packages` is the
+  presentational half of that story.
+- Per-package version windows are parsed and dropped (redesign D17-P);
+  there is no `ToolVersion` setting.
+- The vendor rows pin one release (`available {tcl 8.5}`).
 
 ## Gates
 
 | Gate | Holds |
 |---|---|
-| `cargo xtask catalogue-callers --check` | `DialectProfile::all()` has no caller outside the allowlist |
-| `cargo xtask gen-editor-dialects --check` | VS Code / JetBrains / Sublime enums and labels match the compiled registry |
-| `cargo xtask gen-editor-extensions --check` | languages, extensions, first-line patterns, activation events match; also runs in write mode from `make codegen` |
-| `cargo xtask gen-editor-configs --check` | Zed `language_ids`, Neovim, Helix, Emacs and Sublime tables and README snippets, `INSTALL-editors.md` |
-| `cargo xtask gen-environment-docs --check` | README environment table, `docs/generated/environments.md`, `ai/prompts/manifest.json` |
-| `every_runtime_enumeration_is_the_registry` (test) | each runtime list equals the registry's canonical set |
-| `cargo run --example dialect_surface` (differential) | the Jim scope change moves no non-Jim command |
+| `cargo xtask catalogue-callers --check` | `DialectProfile::all()`, `KNOWN_DIALECTS` and `available_dialects(` have no caller outside the allowlist |
+| `cargo xtask gen-editor-dialects --check` | VS Code / JetBrains / Sublime enums, labels and defaults match the compiled registry |
+| `cargo xtask gen-editor-extensions --check` | languages, extensions, first-line patterns, activation events, semantic-token scopes and `when` clauses match |
+| `cargo xtask gen-editor-configs --check` | Zed `extension.toml`, the Zed / Helix / Emacs / Neovim / Sublime guides, Neovim Lua and `INSTALL-editors.md` regions match |
+| `cargo xtask gen-environment-docs --check` | README environment tables, `docs/generated/environments.md`, the KCS lists and `ai/prompts/manifest.json` match |
+| `cargo xtask gen-ai-diagnostics --check` | the VS Code chat catalogue matches |
+| `every_runtime_enumeration_is_the_registry` (tests, one per crate) | each runtime list equals the selectable canonical-id set |
+| `cargo run --example dialect_surface` (differential) | a Jim change moves no non-Jim command |

@@ -108,20 +108,20 @@ set x 1
 ## Shebang detection
 
 The first line only is checked, and only when it starts with `#!`. The line is
-lower-cased first, so matching is case-insensitive.
+lower-cased first, so matching is case-insensitive. Each word on the line is
+looked up, at word boundaries, against every environment's `shebang_words` in
+the live registry; the first environment that owns the word wins.
 
-- The word `expect` anywhere on the line (at word boundaries) → `expect`.
-  `#!/usr/bin/expect` and `#!/usr/bin/env expect` both match.
-- Otherwise, `tclsh<major>.<minor>` or `wish<major>.<minor>` — the shell
-  name at a left word boundary, followed by digits, a `.`, digits, and a right
-  word boundary. The version must then be exactly one of `8.4`, `8.5`, `8.6`,
-  `9.0`, or `9.1` to name a dialect. `wish` contributes only the version: Tk
-  is a library in this model, not a dialect.
+- `expect` → `expect` (`#!/usr/bin/expect` and `#!/usr/bin/env expect`).
+- `jimsh` → `jim`.
+- `wish` → `tk`; `tclsh<major>.<minor>` and `wish<major>.<minor>` → the
+  Tcl release of that version (`tclsh8.5` and `wish8.5` both select
+  `tcl8.5`), because each release environment lists both spellings.
 
-A plain `#!/usr/bin/tclsh` or `#!/usr/bin/wish` without a version number does
-not select a specific dialect and falls through to the next tier. So does a version this
-project does not model (`tclsh8.3`, `tclsh9.2`) — an unmodelled version is an
-abstention, not an error.
+A plain `#!/usr/bin/tclsh` names the lenient `tcl` sink, which owns no
+shebang word, so it selects nothing and falls through to the next tier. So
+does a version this project does not model (`tclsh8.3`, `tclsh9.2`) — an
+unmodelled version is an abstention, not an error.
 
 ## Per-document override (`tcl-lsp.setDocumentDialectOverride`)
 
@@ -145,7 +145,11 @@ nothing there.
 ## User setting (`tclLsp.dialect`)
 
 This setting acts as the default dialect for files that have no per-file
-hint.  Set it in your editor configuration:
+hint. A session-scope value is validated with `resolve_known_environment`:
+a value that names no environment is not stored, the server logs a WARNING
+naming it and the selectable ids, and the default applies; a folder-scope
+value that names no environment is dropped. Set it in your editor
+configuration:
 
 **VS Code** (`.vscode/settings.json`):
 ```json
@@ -192,17 +196,21 @@ Dialect is re-evaluated when:
 
 ## Editor language ID mapping
 
-`Backend::dialect_from_language_id` maps five ids by hand (`tcl` → `tcl8.6`,
-`tcl-apl` → `f5-iapps`, `tcl-bpf` → `bpf`, `tcl-libero` →
-`microchip-libero-eda-tcl`, `tcl-spec` → `spectcl`) and resolves every other
-id through `tcl_registry::model::resolve_known_environment`, keeping only a
-*contributed identity* — an environment's canonical id or its declared editor
-id, never a legacy alias such as `irules`. Each row's alternatives land on the
-same dialect.
+`Backend::dialect_from_language_id` treats the bare `tcl` id as the
+detection trigger (the content tiers run, and `DEFAULT_ENVIRONMENT_ID`
+applies when none fires) and resolves every other id through
+`tcl_registry::model::resolve_language_id`: first the
+`EditorLanguageIdentityId::SELECTING` table (`tcl-apl` → `f5-iapps`,
+`tcl-bpf` → `bpf`, `tcl-libero` → `microchip-libero-eda-tcl`, `tcl-spec` →
+`spectcl`), then `resolve_known_environment` keeping only a *contributed
+identity* — an environment's canonical id or its declared editor id, never
+a plain alias such as `irules`. Each row's alternatives land on the same
+dialect.
 
 | Language ID | Dialect |
 |-------------|---------|
 | `tcl`, `tcl8.6`, `tcl86` | `tcl8.6` |
+| `tcl-jim`, `jim` | `jim` |
 | `tcl8.4`, `tcl84` | `tcl8.4` |
 | `tcl8.5`, `tcl85` | `tcl8.5` |
 | `tcl9.0`, `tcl90` | `tcl9.0` |
