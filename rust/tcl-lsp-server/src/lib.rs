@@ -11313,12 +11313,12 @@ impl Backend {
     /// back to the session default.
     fn dialect_from_language_id(language_id: &str) -> Option<LanguageDialect> {
         // Every editor sends the bare `tcl` id for a plain `.tcl` buffer; it
-        // names no version, and 8.6 is the fallback the rest of the
-        // resolution chain is written against. (The `tcl` *environment* is
-        // the lenient whole-ladder one, which is a different answer.) It is
-        // the detection trigger, not an environment selection.
+        // names no version, and the default environment is the fallback the
+        // rest of the resolution chain is written against. (The `tcl`
+        // *environment* is the lenient whole-ladder one, which is a different
+        // answer.) It is the detection trigger, not an environment selection.
         let language_id = if language_id == "tcl" {
-            "tcl8.6"
+            tcl_dialect::model::DEFAULT_ENVIRONMENT_ID
         } else {
             language_id
         };
@@ -27424,7 +27424,7 @@ fn non_ascii_mode_str(mode: NonAsciiMode) -> serde_json::Value {
 
 /// The session dialect before any `tclLsp.dialect` is configured, and the one a
 /// configured value that names no environment falls back to.
-const DEFAULT_SESSION_DIALECT: &str = "tcl8.6";
+const DEFAULT_SESSION_DIALECT: &str = tcl_dialect::model::DEFAULT_ENVIRONMENT_ID;
 
 /// The canonical ids of the selectable environments, comma-separated, read from
 /// the live registry: what a message that rejects a dialect spelling offers
