@@ -309,6 +309,9 @@ pub struct Language {
     pub dialect: Option<String>,
     /// Interpreter words a shebang line names to select the language.
     pub shebang_words: Vec<String>,
+    /// Whether this is one of the [`EXTRA_LANGUAGES`]: a language that selects
+    /// an environment without being its editor identity.
+    pub is_extra: bool,
     scopes: ScopeShape,
 }
 
@@ -341,6 +344,7 @@ fn language_of(environment: &EnvironmentDefinition, id: &str) -> Language {
         configuration: None,
         dialect: Some(environment.id.to_string()),
         shebang_words: strings(&environment.server_detection.shebang_words),
+        is_extra: false,
         scopes: scope_shape(environment),
     }
 }
@@ -357,6 +361,7 @@ fn extra_language(extra: &ExtraLanguage) -> Result<Language> {
         configuration: Some(extra.configuration.to_owned()),
         dialect: Some(dialect.to_owned()),
         shebang_words: Vec::new(),
+        is_extra: true,
         scopes: extra.scopes,
     })
 }
@@ -395,6 +400,7 @@ pub fn languages() -> Result<Vec<Language>> {
         configuration: None,
         dialect: None,
         shebang_words: strings(&lenient.server_detection.shebang_words),
+        is_extra: false,
         scopes: ScopeShape::TclWithObjects,
     });
     for environment in EnvironmentRegistry::compiled_selectable() {
@@ -1146,7 +1152,9 @@ pub fn language_of_environment<'a>(
     let identity = EnvironmentRegistry::compiled()
         .resolve(environment)?
         .editor_identity?;
-    langs.iter().find(|l| l.id == identity.as_str())
+    langs
+        .iter()
+        .find(|l| !l.is_extra && l.id == identity.as_str())
 }
 
 /// The `config.toml` of each Zed language directory, repo-relative.

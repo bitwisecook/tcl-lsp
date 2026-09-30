@@ -27,44 +27,57 @@ Add to your `init.el`:
 ;; F5 iRules / iApps and Expect dialects never engage. The `:language-id` in
 ;; each `eglot-server-programs` entry sets the id the server keys its dialect
 ;; on (see `dialect_from_language_id`).
+;; <generated: emacs-modes>
+(define-derived-mode expect-mode tcl-mode "Expect")
+(define-derived-mode f5-iapps-mode tcl-mode "iApps")
 (define-derived-mode f5-irules-mode tcl-mode "iRules")
-(define-derived-mode f5-iapps-mode  tcl-mode "iApp")
-(define-derived-mode f5-tmsh-mode   tcl-mode "tmsh")
-(define-derived-mode expect-mode    tcl-mode "Expect")
+(define-derived-mode f5-tmsh-mode tcl-mode "tmsh")
+(define-derived-mode jim-tcl-mode tcl-mode "Jim")
 
-;; The extensions each profile owns in the dialect catalogue.
-(add-to-list 'auto-mode-alist '("\\.irul\\(es?\\)?\\'" . f5-irules-mode)) ; .irul / .irule / .irules
-(add-to-list 'auto-mode-alist '("\\.\\(iapp\\|iappimpl\\|impl\\)\\'" . f5-iapps-mode))
-(add-to-list 'auto-mode-alist '("\\.apl\\'"            . f5-iapps-mode)) ; the iApp presentation language
-(add-to-list 'auto-mode-alist '("\\.tmsh\\'"           . f5-tmsh-mode))
+;; The extensions, file names and interpreters each derived mode owns.
 (add-to-list 'auto-mode-alist '("\\.\\(exp\\|expect\\)\\'" . expect-mode))
+(add-to-list 'interpreter-mode-alist '("expect" . expect-mode))
+(add-to-list 'auto-mode-alist '("\\.\\(iapp\\|iappimpl\\|impl\\|apl\\)\\'" . f5-iapps-mode))
+(add-to-list 'auto-mode-alist '("/presentation\\'" . f5-iapps-mode))
+(add-to-list 'auto-mode-alist '("\\.\\(irul\\|irule\\|irules\\)\\'" . f5-irules-mode))
+(add-to-list 'auto-mode-alist '("\\.tmsh\\'" . f5-tmsh-mode))
+(add-to-list 'interpreter-mode-alist '("jimsh" . jim-tcl-mode))
 
-;; Plain `tcl-mode` for the rest of the family. These need no derived mode:
-;; the server's own detection routes them — a `.tclspec` by its `speclib`
-;; wrapper, a `.sslictcl` by its `sslictcl` header, an EDA script by its vendor
-;; commands, a `bigip.conf` by name — so sending languageId "tcl" costs nothing
-;; but the mode line.
-(add-to-list 'auto-mode-alist '("\\.\\(tclspec\\|sslictcl\\|test\\)\\'" . tcl-mode))
-(add-to-list 'auto-mode-alist
-             '("\\.\\(sdc\\|upf\\|xdc\\|qsf\\|qpf\\|qip\\|do\\|globals\\)\\'" . tcl-mode))
-(add-to-list 'auto-mode-alist '("\\(\\.scf\\|/bigip\\(_[a-z]+\\)?\\.conf\\)\\'" . tcl-mode))
+;; Plain `tcl-mode` for the rest of the family. The server routes these from
+;; their own name or content, so sending languageId "tcl" costs nothing but
+;; the mode line.
+(dolist (ext '("tcl" "tk" "itcl" "tm" "test" "scf" "tclspec" "sslictcl"
+               "globals" "qsf" "qpf" "qip" "do" "sdc" "upf" "xdc"))
+  (add-to-list 'auto-mode-alist
+               (cons (concat "\\." ext "\\'") 'tcl-mode)))
+(dolist (name '("bigip.conf" "bigip_base.conf" "bigip_gtm.conf"
+                "bigip_script.conf" "bigip_user.conf"))
+  (add-to-list 'auto-mode-alist
+               (cons (concat "/" (regexp-quote name) "\\'") 'tcl-mode)))
+;; </generated>
 
+;; <generated: emacs-eglot>
 (with-eval-after-load 'eglot
   (add-to-list 'eglot-server-programs
                '(tcl-mode . ("/path/to/tcl-lsp-server")))
   (add-to-list 'eglot-server-programs
-               '((f5-irules-mode :language-id "f5-irules") . ("/path/to/tcl-lsp-server")))
+               '((expect-mode :language-id "tcl-expect") . ("/path/to/tcl-lsp-server")))
   (add-to-list 'eglot-server-programs
-               '((f5-iapps-mode :language-id "f5-iapps") . ("/path/to/tcl-lsp-server")))
+               '((f5-iapps-mode :language-id "tcl-iapp") . ("/path/to/tcl-lsp-server")))
   (add-to-list 'eglot-server-programs
-               '((f5-tmsh-mode :language-id "f5-tmsh") . ("/path/to/tcl-lsp-server")))
+               '((f5-irules-mode :language-id "tcl-irule") . ("/path/to/tcl-lsp-server")))
   (add-to-list 'eglot-server-programs
-               '((expect-mode :language-id "expect") . ("/path/to/tcl-lsp-server"))))
+               '((f5-tmsh-mode :language-id "tcl-tmsh") . ("/path/to/tcl-lsp-server")))
+  (add-to-list 'eglot-server-programs
+               '((jim-tcl-mode :language-id "tcl-jim") . ("/path/to/tcl-lsp-server"))))
+;; </generated>
 
+;; <generated: emacs-hooks>
 ;; Auto-start on Tcl and the dialect modes
-(dolist (h '(tcl-mode-hook f5-irules-mode-hook f5-iapps-mode-hook
-             f5-tmsh-mode-hook expect-mode-hook))
+(dolist (h '(tcl-mode-hook expect-mode-hook f5-iapps-mode-hook
+             f5-irules-mode-hook f5-tmsh-mode-hook jim-tcl-mode-hook))
   (add-hook h #'eglot-ensure))
+;; </generated>
 ```
 
 ## lsp-mode
@@ -86,21 +99,34 @@ Pass settings via eglot workspace configuration:
 
 ```elisp
 (setq-default eglot-workspace-configuration
-              '(:tclLsp (:dialect "tcl8.6"   ;; tcl8.4 | tcl8.5 | tcl8.6 | tcl9.0 | tcl9.1 | f5-irules | f5-iapps | f5-tmsh | f5-bigip | bpf | expect | spectcl | sslictcl | cadence-eda-tcl | intel-quartus-eda-tcl | mentor-eda-tcl | microchip-libero-eda-tcl | synopsys-eda-tcl | xilinx-eda-tcl
+              '(:tclLsp (:dialect "tcl8.6"
                          :formatting (:indentSize 4 :maxLineLength 120))))
 ```
 
-`.apl` (and `.irul` / `.irule` / `.irules` / `.iapp` / `.iappimpl` / `.impl` /
-`.tmsh` / `.exp` / `.expect`) files are handled by the dialect
-derived modes in the eglot setup above, which send the correct `languageId` —
-do **not** also map `.apl` to plain `tcl-mode`, or it would analyse as tcl8.6.
+<!-- <generated: emacs-dialects> -->
+`:dialect` takes any of `bpf`, `expect`, `f5-bigip`, `f5-iapps`, `f5-irules`,
+`f5-tmsh`, `jim`, `spectcl`, `sslictcl`, `tcl8.4`, `tcl8.5`, `tcl8.6`,
+`tcl9.0`, `tcl9.1`, `cadence-eda-tcl`, `intel-quartus-eda-tcl`,
+`mentor-eda-tcl`, `microchip-libero-eda-tcl`, `synopsys-eda-tcl`, `tk` and
+`xilinx-eda-tcl`.
+<!-- </generated> -->
 
-Everything else the catalogue owns rides plain `tcl-mode`: `.tclspec`,
-`.sslictcl`, `.test`, the EDA suffixes and the BIG-IP config files have no ambiguity the
-`languageId` needs to resolve, because the server detects them from their own
-content or filename. The authoritative list is the dialect catalogue —
-`cargo xtask gen-editor-extensions --check` gates the editors that can be
-generated; this README is prose beside it.
+<!-- <generated: emacs-notes> -->
+`.exp`, `.expect`, `.iapp`, `.iappimpl`, `.impl`, `.apl`, `.irul`, `.irule`,
+`.irules` and `.tmsh` files are handled by the derived modes in the eglot
+setup above, which send the correct `languageId` — do **not** also map them
+to plain `tcl-mode`, or they would analyse as `tcl8.6`.
+
+Everything else the registry owns rides plain `tcl-mode`: `.tcl`, `.tk`,
+`.itcl`, `.tm`, `.test`, `.scf`, `.tclspec`, `.sslictcl`, `.globals`, `.qsf`,
+`.qpf`, `.qip`, `.do`, `.sdc`, `.upf` and `.xdc`, and the BIG-IP configuration
+file names. The server detects those from their own content or file name, so
+the `languageId` has no ambiguity to resolve.
+
+The `auto-mode-alist`, `interpreter-mode-alist` and `eglot-server-programs`
+forms above are generated from the environment registry by `cargo xtask
+gen-editor-configs`; CI fails if they drift.
+<!-- </generated> -->
 
 ## Known issues
 

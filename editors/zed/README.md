@@ -24,15 +24,19 @@ Zed's command palette and select this directory.
 
 ## File and dialect tracking
 
-The `languages/*/config.toml` suffix lists are generated from tcl-lsp's Rust
-dialect catalogue by `cargo xtask gen-editor-extensions`; a drift gate in
-`make xtask-check` fails when a dialect or suffix is added without
+The `languages/*/config.toml` suffix lists are generated from tcl-lsp's
+environment registry by `cargo xtask gen-editor-extensions`, and the language
+table in `extension.toml` by `cargo xtask gen-editor-configs`; drift gates in
+`make xtask-check` fail when an environment or suffix is added without
 regenerating. The APL and BIG-IP tree-sitter grammars live in this repository
 under `grammars/` and are fetched by commit — bump the `rev` in
 `extension.toml` whenever either changes.
 
-The server detects the dialect from the file name and content. To force one,
-add a Zed setting such as:
+The server detects the dialect from the file name and content. Jim Tcl has no
+Zed language of its own: a Jim script opens as Tcl, and the server's shebang
+tier selects `jim` from a `#!/usr/bin/env jimsh` line. A Jim script without
+that line takes a `# tcl-dialect: jim` comment or the `dialect` setting. To
+force a dialect, add a Zed setting such as:
 
 ```json
 {
@@ -48,9 +52,13 @@ add a Zed setting such as:
 }
 ```
 
-Supported profiles include Tcl 8.4–9.1, F5 iRules/iApps/tmsh/BIG-IP,
-Expect, SpecTcl, SslicTcl, BPF, and the EDA Tcl dialects represented in the
-catalogue.
+<!-- <generated: zed-dialects> -->
+`tclLsp.dialect` takes any of `bpf`, `expect`, `f5-bigip`, `f5-iapps`,
+`f5-irules`, `f5-tmsh`, `jim`, `spectcl`, `sslictcl`, `tcl8.4`, `tcl8.5`,
+`tcl8.6`, `tcl9.0`, `tcl9.1`, `cadence-eda-tcl`, `intel-quartus-eda-tcl`,
+`mentor-eda-tcl`, `microchip-libero-eda-tcl`, `synopsys-eda-tcl`, `tk` and
+`xilinx-eda-tcl`.
+<!-- </generated> -->
 
 ## Platforms
 

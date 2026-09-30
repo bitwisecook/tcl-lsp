@@ -188,6 +188,18 @@ pub fn replace_marked_block(text: &str, begin: &str, end: &str, body: &str) -> R
     ))
 }
 
+/// Replace the body of the generated region called `name`: the lines between
+/// the one holding `<generated: name>` and the next one holding
+/// `</generated>`. Both marker lines stay, in whatever comment syntax the
+/// file gives them, so prose around a region survives a regeneration.
+///
+/// # Errors
+/// When the region's markers are missing.
+pub fn replace_generated_region(text: &str, name: &str, body: &str) -> Result<String> {
+    let begin = format!("<generated: {name}>");
+    replace_marked_block(text, &begin, "</generated>", body)
+}
+
 /// Placeholder registry entry (`irules_disabled.rs`) marking a command as
 /// unavailable in iRules — never a real command name to project into a
 /// generated editor grammar/query. Shared by every generator that walks
@@ -270,6 +282,17 @@ mod tests {
         );
         assert!(replace_marked_block(text, "// begin y", "// end x", "").is_err());
         assert!(replace_marked_block(text, "// begin x", "// end y", "").is_err());
+    }
+
+    #[test]
+    fn a_generated_region_is_found_by_name_in_any_comment_syntax() {
+        let text =
+            "; <generated: one>\nold\n; </generated>\n-- <generated: two>\nkept\n-- </generated>\n";
+        assert_eq!(
+            replace_generated_region(text, "one", "new\n").unwrap(),
+            "; <generated: one>\nnew\n; </generated>\n-- <generated: two>\nkept\n-- </generated>\n"
+        );
+        assert!(replace_generated_region(text, "three", "").is_err());
     }
 
     #[test]

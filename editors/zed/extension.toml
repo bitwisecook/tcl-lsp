@@ -30,7 +30,9 @@ rev = "850a72ab6436e06645b33b11cfa60cbdb04b1f01"
 
 [language_servers.tcl-lsp]
 name = "tcl-lsp"
-languages = ["Tcl", "iRules", "iApps", "APL", "TMSH", "Expect"]
+# <generated: zed-languages> the `name` of each `languages/*/config.toml`
+languages = ["Tcl", "Expect", "iApps", "iRules", "TMSH", "APL"]
+# </generated>
 
 # Bridge Zed's language *names* to the `languageId` strings the server
 # recognises in `dialect_from_language_id` / `dialect_for_open`. Without this
@@ -50,12 +52,14 @@ languages = ["Tcl", "iRules", "iApps", "APL", "TMSH", "Expect"]
 # `.tmsh` — is the real fix and needs the query generator to grow a target, so
 # the mapping stays as-is.
 [language_servers.tcl-lsp.language_ids]
+# <generated: zed-language-ids> one row per `languages/*/config.toml`
 "Tcl" = "tcl"
-"iRules" = "tcl-irule"
-"iApps" = "tcl-iapp"
-"APL" = "tcl-apl"
-"TMSH" = "tcl-bigip"
 "Expect" = "tcl-expect"
+"iApps" = "tcl-iapp"
+"iRules" = "tcl-irule"
+"TMSH" = "tcl-bigip"
+"APL" = "tcl-apl"
+# </generated>
 
 # The APL and BIG-IP grammars live in this repo (`grammars/tree-sitter-*`).
 # Zed fetches a grammar from a git repository at a rev, so they are referenced

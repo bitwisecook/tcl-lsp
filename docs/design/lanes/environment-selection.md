@@ -181,16 +181,22 @@ detection removed; JetBrains `DIALECT_OPTIONS` + `DEFAULT_DIALECT` +
 descriptions and default; EDA packs list tool packages first; allowlist
 28 → 25; `make codegen` runs `gen-editor-extensions`.
 
-Not done: `gen-editor-configs` (Zed `extension.toml`, Zed/Helix/Emacs/
-Neovim/Sublime READMEs, Neovim Lua, `INSTALL-editors.md`; a draft
-`rust/xtask/src/gen_editor_configs.rs` plus `util.rs`
-`replace_generated_region` and an `editor_extensions.rs` `Language::is_extra`
-edit sit uncommitted in the 1c worktree and as a copy in the session
-scratchpad `lane-1c-uncommitted/`); `gen-environment-docs` (README tables,
+`gen-editor-configs` fills marker regions (`<generated: name>` …
+`</generated>`, in the file's own comment syntax) in Zed `extension.toml`
+(language table and `language_ids`), the Zed, Helix, Emacs, Neovim and Sublime
+READMEs, `tcl_lsp.lua` and `INSTALL-editors.md`: Helix `[[language]]` blocks
+(one per environment with an extension or shebang word, `language-id` = the
+editor identity), Emacs derived modes / `auto-mode-alist` /
+`interpreter-mode-alist` / eglot rows (`jim-tcl-mode`, `:language-id
+"tcl-jim"`) / hooks, Neovim `vim.filetype.add` extensions and a shebang
+`pattern`, the dialect lists and defaults. The Emacs forms evaluate in a real
+Emacs; the TOML parses; the Lua is unrun (no Neovim here). Makefile:
+`generate` (so `codegen`) writes it and `xtask-check` gates it.
+
+Not done: `gen-environment-docs` (README tables,
 `docs/generated/environments.md`, `ai/prompts/manifest.json` — **the old
 `prompt_manifest_gaps` gate was removed, so nothing checks the manifest
-until this lands**, and it still lacks `jim`/`tk`); Makefile `codegen` and
-`xtask-check` wiring for both; `make help` lines; `.PHONY`.
+until this lands**, and it still lacks `jim`/`tk`); its Makefile wiring.
 
 For 1d (owns `lib.rs`): `DEFAULT_SESSION_DIALECT` (`lib.rs` ~:27427) and
 the bare-`tcl` literal (~:11321) should read `DEFAULT_ENVIRONMENT_ID`;

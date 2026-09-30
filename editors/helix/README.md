@@ -25,69 +25,38 @@ tcl-lsp is not yet in
 command = "/path/to/tcl-lsp-server"
 args = []
 
-# Core Tcl / Tk. Sends languageId "tcl" → the server's default dialect.
+# <generated: helix-languages> one block per environment with a file type or shebang of its own
+# Plain Tcl and Tk. Sends languageId "tcl": the server detects the dialect.
 [[language]]
 name = "tcl"
 scope = "source.tcl"
 file-types = ["tcl", "tk", "itcl", "tm", "test"]
+shebangs = ["tclsh"]
 comment-tokens = ["#"]
 indent = { tab-width = 4, unit = "    " }
 language-servers = ["tcl-lsp"]
 auto-pairs = { "{" = "}", "[" = "]", "(" = ")", "\"" = "\"" }
 
-# The dialect-specific file types need their OWN language entry so Helix sends a
-# distinct `language-id` — routing every extension through `name = "tcl"` sends
-# languageId "tcl", which the server maps to tcl8.6, so F5 iRules / iApps and
-# Expect analysis never engages. `language-id` sets the LSP id the server keys
-# its dialect on (see `dialect_from_language_id`).
-[[language]]
-name = "f5-irules"
-language-id = "f5-irules"
-scope = "source.tcl"
-file-types = ["irul", "irule", "irules"]
-comment-tokens = ["#"]
-indent = { tab-width = 4, unit = "    " }
-language-servers = ["tcl-lsp"]
-auto-pairs = { "{" = "}", "[" = "]", "(" = ")", "\"" = "\"" }
+# Each environment that owns a file type or a shebang interpreter gets a
+# language entry of its own, so Helix sends a distinct `language-id`: the id
+# the server resolves to that environment.
 
-[[language]]
-name = "f5-iapps"
-language-id = "f5-iapps"
-scope = "source.tcl"
-file-types = ["iapp", "iappimpl", "impl", "apl"]
-comment-tokens = ["#"]
-indent = { tab-width = 4, unit = "    " }
-language-servers = ["tcl-lsp"]
-auto-pairs = { "{" = "}", "[" = "]", "(" = ")", "\"" = "\"" }
-
+# Expect
 [[language]]
 name = "expect"
-language-id = "expect"
+language-id = "tcl-expect"
 scope = "source.tcl"
 file-types = ["exp", "expect"]
+shebangs = ["expect"]
 comment-tokens = ["#"]
 indent = { tab-width = 4, unit = "    " }
 language-servers = ["tcl-lsp"]
 auto-pairs = { "{" = "}", "[" = "]", "(" = ")", "\"" = "\"" }
 
-[[language]]
-name = "f5-tmsh"
-language-id = "f5-tmsh"
-scope = "source.tcl"
-file-types = ["tmsh"]
-comment-tokens = ["#"]
-indent = { tab-width = 4, unit = "    " }
-language-servers = ["tcl-lsp"]
-auto-pairs = { "{" = "}", "[" = "]", "(" = ")", "\"" = "\"" }
-
-# BIG-IP configuration. A `.scf` is not Tcl, but an `ltm rule` body inside one
-# is, and the server walks it as iRules — so the file routes here like any
-# other. The canonical `bigip.conf` / `bigip_base.conf` basenames have no
-# useful extension to match on, and Helix keys `file-types` on extension only,
-# so those are reached by the server's own basename routing once opened.
+# F5 BIG-IP
 [[language]]
 name = "f5-bigip"
-language-id = "f5-bigip"
+language-id = "tcl-bigip"
 scope = "source.tcl"
 file-types = ["scf"]
 comment-tokens = ["#"]
@@ -95,11 +64,54 @@ indent = { tab-width = 4, unit = "    " }
 language-servers = ["tcl-lsp"]
 auto-pairs = { "{" = "}", "[" = "]", "(" = ")", "\"" = "\"" }
 
-# SpecTcl command packs — the `.tclspec` files that declare commands for a
-# private library. They are Tcl, so they route through the same server.
+# F5 iApps
+[[language]]
+name = "f5-iapps"
+language-id = "tcl-iapp"
+scope = "source.tcl"
+file-types = ["iapp", "iappimpl", "impl", "apl"]
+comment-tokens = ["#"]
+indent = { tab-width = 4, unit = "    " }
+language-servers = ["tcl-lsp"]
+auto-pairs = { "{" = "}", "[" = "]", "(" = ")", "\"" = "\"" }
+
+# F5 iRules
+[[language]]
+name = "f5-irules"
+language-id = "tcl-irule"
+scope = "source.tcl"
+file-types = ["irul", "irule", "irules"]
+comment-tokens = ["#"]
+indent = { tab-width = 4, unit = "    " }
+language-servers = ["tcl-lsp"]
+auto-pairs = { "{" = "}", "[" = "]", "(" = ")", "\"" = "\"" }
+
+# F5 tmsh Scripts
+[[language]]
+name = "f5-tmsh"
+language-id = "tcl-tmsh"
+scope = "source.tcl"
+file-types = ["tmsh"]
+comment-tokens = ["#"]
+indent = { tab-width = 4, unit = "    " }
+language-servers = ["tcl-lsp"]
+auto-pairs = { "{" = "}", "[" = "]", "(" = ")", "\"" = "\"" }
+
+# Jim Tcl
+[[language]]
+name = "jim"
+language-id = "tcl-jim"
+scope = "source.tcl"
+shebangs = ["jimsh"]
+comment-tokens = ["#"]
+indent = { tab-width = 4, unit = "    " }
+language-servers = ["tcl-lsp"]
+auto-pairs = { "{" = "}", "[" = "]", "(" = ")", "\"" = "\"" }
+
+# SpecTcl
 [[language]]
 name = "spectcl"
-language-id = "spectcl"
+language-id = "tclspec"
 scope = "source.tcl"
 file-types = ["tclspec"]
 comment-tokens = ["#"]
@@ -107,9 +119,7 @@ indent = { tab-width = 4, unit = "    " }
 language-servers = ["tcl-lsp"]
 auto-pairs = { "{" = "}", "[" = "]", "(" = ")", "\"" = "\"" }
 
-# SslicTcl TLS declarations — the `.sslictcl` files that state a deployment's
-# certificates, endpoints, and assurance policy. They are Tcl, so they route
-# through the same server.
+# SslicTcl
 [[language]]
 name = "sslictcl"
 language-id = "sslictcl"
@@ -120,12 +130,65 @@ indent = { tab-width = 4, unit = "    " }
 language-servers = ["tcl-lsp"]
 auto-pairs = { "{" = "}", "[" = "]", "(" = ")", "\"" = "\"" }
 
-# EDA tooling. The file types are the ones the dialect catalogue owns; a vendor
-# script saved as plain `.tcl` still needs a `# tcl-dialect:` comment or the
-# `dialect` setting, since `.tcl` itself names no vendor.
+# Tcl 8.4
+[[language]]
+name = "tcl8.4"
+language-id = "tcl84"
+scope = "source.tcl"
+shebangs = ["tclsh8.4", "wish8.4"]
+comment-tokens = ["#"]
+indent = { tab-width = 4, unit = "    " }
+language-servers = ["tcl-lsp"]
+auto-pairs = { "{" = "}", "[" = "]", "(" = ")", "\"" = "\"" }
+
+# Tcl 8.5
+[[language]]
+name = "tcl8.5"
+language-id = "tcl85"
+scope = "source.tcl"
+shebangs = ["tclsh8.5", "wish8.5"]
+comment-tokens = ["#"]
+indent = { tab-width = 4, unit = "    " }
+language-servers = ["tcl-lsp"]
+auto-pairs = { "{" = "}", "[" = "]", "(" = ")", "\"" = "\"" }
+
+# Tcl 8.6
+[[language]]
+name = "tcl8.6"
+language-id = "tcl86"
+scope = "source.tcl"
+shebangs = ["tclsh8.6", "wish8.6"]
+comment-tokens = ["#"]
+indent = { tab-width = 4, unit = "    " }
+language-servers = ["tcl-lsp"]
+auto-pairs = { "{" = "}", "[" = "]", "(" = ")", "\"" = "\"" }
+
+# Tcl 9.0
+[[language]]
+name = "tcl9.0"
+language-id = "tcl90"
+scope = "source.tcl"
+shebangs = ["tclsh9.0", "wish9.0"]
+comment-tokens = ["#"]
+indent = { tab-width = 4, unit = "    " }
+language-servers = ["tcl-lsp"]
+auto-pairs = { "{" = "}", "[" = "]", "(" = ")", "\"" = "\"" }
+
+# Tcl 9.1
+[[language]]
+name = "tcl9.1"
+language-id = "tcl91"
+scope = "source.tcl"
+shebangs = ["tclsh9.1", "wish9.1"]
+comment-tokens = ["#"]
+indent = { tab-width = 4, unit = "    " }
+language-servers = ["tcl-lsp"]
+auto-pairs = { "{" = "}", "[" = "]", "(" = ")", "\"" = "\"" }
+
+# Cadence Genus / Innovus / Xcelium
 [[language]]
 name = "cadence-eda-tcl"
-language-id = "cadence-eda-tcl"
+language-id = "tcl-cadence"
 scope = "source.tcl"
 file-types = ["globals"]
 comment-tokens = ["#"]
@@ -133,9 +196,10 @@ indent = { tab-width = 4, unit = "    " }
 language-servers = ["tcl-lsp"]
 auto-pairs = { "{" = "}", "[" = "]", "(" = ")", "\"" = "\"" }
 
+# Intel Quartus Prime
 [[language]]
 name = "intel-quartus-eda-tcl"
-language-id = "intel-quartus-eda-tcl"
+language-id = "tcl-quartus"
 scope = "source.tcl"
 file-types = ["qsf", "qpf", "qip"]
 comment-tokens = ["#"]
@@ -143,9 +207,10 @@ indent = { tab-width = 4, unit = "    " }
 language-servers = ["tcl-lsp"]
 auto-pairs = { "{" = "}", "[" = "]", "(" = ")", "\"" = "\"" }
 
+# Siemens Questa / ModelSim
 [[language]]
 name = "mentor-eda-tcl"
-language-id = "mentor-eda-tcl"
+language-id = "tcl-mentor"
 scope = "source.tcl"
 file-types = ["do"]
 comment-tokens = ["#"]
@@ -153,9 +218,10 @@ indent = { tab-width = 4, unit = "    " }
 language-servers = ["tcl-lsp"]
 auto-pairs = { "{" = "}", "[" = "]", "(" = ")", "\"" = "\"" }
 
+# Synopsys DC / PrimeTime / ICC2 / Formality
 [[language]]
 name = "synopsys-eda-tcl"
-language-id = "synopsys-eda-tcl"
+language-id = "tcl-synopsys"
 scope = "source.tcl"
 file-types = ["sdc", "upf"]
 comment-tokens = ["#"]
@@ -163,28 +229,47 @@ indent = { tab-width = 4, unit = "    " }
 language-servers = ["tcl-lsp"]
 auto-pairs = { "{" = "}", "[" = "]", "(" = ")", "\"" = "\"" }
 
+# Tk
+[[language]]
+name = "tk"
+language-id = "tk"
+scope = "source.tcl"
+shebangs = ["wish"]
+comment-tokens = ["#"]
+indent = { tab-width = 4, unit = "    " }
+language-servers = ["tcl-lsp"]
+auto-pairs = { "{" = "}", "[" = "]", "(" = ")", "\"" = "\"" }
+
+# Xilinx Vivado
 [[language]]
 name = "xilinx-eda-tcl"
-language-id = "xilinx-eda-tcl"
+language-id = "tcl-xilinx"
 scope = "source.tcl"
 file-types = ["xdc"]
 comment-tokens = ["#"]
 indent = { tab-width = 4, unit = "    " }
 language-servers = ["tcl-lsp"]
 auto-pairs = { "{" = "}", "[" = "]", "(" = ")", "\"" = "\"" }
+# </generated>
 ```
 
-Every `file-types` list above is generated from the dialect catalogue by
-`cargo xtask gen-editor-extensions`, and CI fails if it drifts — so this block
-stays in step with what the server actually routes. Do not hand-edit them;
-adding a profile that owns extensions without a block here is a hard error in
-the generator.
+The `[[language]]` blocks above are generated from the environment registry by
+`cargo xtask gen-editor-configs`, and CI fails if they drift — so this block
+stays in step with what the server actually routes. Do not hand-edit them. An
+environment that owns an extension or a shebang interpreter gets a block of its
+own; each block's `language-id` is the language id VS Code sends for the same
+environment.
 
-`bpf` and `microchip-libero-eda-tcl` own no file extension, so they have no
-entry. Select them per file with a `# tcl-dialect:` comment or per workspace
-with the `dialect` setting below. The BIG-IP config *basenames*
-(`bigip.conf`, `bigip_base.conf`, …) have no extension for Helix to key on
-either; the server recognises them by name once the file is open.
+Helix keys `file-types` on extension only, so a vendor script saved as plain
+`.tcl` still needs a `# tcl-dialect:` comment or the `dialect` setting below,
+and the BIG-IP config *basenames* (`bigip.conf`, `bigip_base.conf`, …) are
+reached by the server's own basename routing once the file is open.
+
+<!-- <generated: helix-unlisted> -->
+`bpf` and `microchip-libero-eda-tcl` have no file extension or shebang word of
+their own, so they have no entry. Select them per file with a `# tcl-dialect:`
+comment or per workspace with the `dialect` setting below.
+<!-- </generated> -->
 
 ## Settings
 
@@ -192,10 +277,12 @@ Pass workspace settings via the `config` key:
 
 ```toml
 [language-server.tcl-lsp.config.tclLsp]
-# Valid dialects: tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, f5-irules, f5-iapps,
-# f5-tmsh, f5-bigip, bpf, expect, spectcl, sslictcl, cadence-eda-tcl,
+# <generated: helix-dialects>
+# Valid dialects: bpf, expect, f5-bigip, f5-iapps, f5-irules, f5-tmsh, jim,
+# spectcl, sslictcl, tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, cadence-eda-tcl,
 # intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl,
-# synopsys-eda-tcl, xilinx-eda-tcl
+# synopsys-eda-tcl, tk, xilinx-eda-tcl
+# </generated>
 dialect = "tcl8.6"
 
 [language-server.tcl-lsp.config.tclLsp.formatting]

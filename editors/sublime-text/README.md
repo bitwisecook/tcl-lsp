@@ -36,9 +36,14 @@ definition and references, document symbols, formatting, rename, code actions,
 semantic highlighting, signature help, folding, inlay hints, and call
 hierarchy.
 
+<!-- <generated: sublime-dialects> -->
 The default dialect is Tcl 8.6. Change `settings.tclLsp.dialect` in LSP-Tcl's
-settings for Tcl 8.4–9.1, F5 iRules/iApps/tmsh/BIG-IP, Expect, SpecTcl,
-SslicTcl, BPF, or supported EDA Tcl dialects.
+settings to one of `bpf`, `expect`, `f5-bigip`, `f5-iapps`, `f5-irules`,
+`f5-tmsh`, `jim`, `spectcl`, `sslictcl`, `tcl8.4`, `tcl8.5`, `tcl8.6`,
+`tcl9.0`, `tcl9.1`, `cadence-eda-tcl`, `intel-quartus-eda-tcl`,
+`mentor-eda-tcl`, `microchip-libero-eda-tcl`, `synopsys-eda-tcl`, `tk` and
+`xilinx-eda-tcl`.
+<!-- </generated> -->
 
 LSP-Tcl deliberately ships no key bindings, context menu, custom syntax,
 completions, or snippets. Use the base LSP package's command palette commands
