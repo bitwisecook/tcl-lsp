@@ -57,18 +57,24 @@ Status: `todo` / `wip` / `done`. Line numbers are as surveyed on
 
 ### Runtime enumerations (→ registry read)
 
+All done (1b). `EnvironmentRegistry::selectable()` / `compiled_selectable()` /
+`tcl_registry::model::selectable_environments()` are the one set (21 ids;
+`LENIENT_ENVIRONMENT_ID` names the excluded sink). `listDialects` entries:
+`{name, display_name, short_name, kind, description, aliases,
+editor_language_id, extensions:[{extension, display_name}]}`;
+`getEffectiveConfig` adds `dialect_id`, `dialect_kind`
+(`"language"|"packages"`), `dialect_description`, `dialect_provenance`
+(`"built-in"|"bundled-pack"|"user-pack"|"workspace-pack"|"studio-override"|"document"`).
+Language-id remaps are `EditorLanguageIdentityId::SELECTING` +
+`tcl_registry::model::resolve_language_id`. Session `tclLsp.dialect` is
+validated; unknown → WARNING `logMessage` + default. `KNOWN_DIALECTS` and
+`available_dialects()` removed; allowlist 35 → 28.
+
 | Site | Status |
 |---|---|
-| `rust/tcl-cli/src/cli.rs:43-59` `dialect_possible_values` (+ hand `tk`) | todo |
-| `rust/tcl-cli-support/src/input.rs:218-246` `resolve_dialect`, `known_dialect_names` | todo |
-| `rust/tcl-mcp/src/tools.rs:1336-1351` `dialect_schema`; `main.rs:114-125` | todo |
-| `rust/tcl-lsp-server/src/lib.rs:18241-18270` `listDialects` (catalogue only, no client uses it) | todo |
-| `lib.rs:17977-18089` `getEffectiveConfig` labels via `catalogue_profile()` | todo |
-| `lib.rs:27392-27406` `unknown_dialect_error` | todo |
-| `lib.rs:11314-11356` `dialect_from_language_id` hand remaps (`tcl-apl`, `tcl-bpf`, `tcl-libero`, `tcl-spec`) | todo |
-| `lib.rs:18929-18932`, `:23494-23507` session `tclLsp.dialect` stored raw | todo |
-| `rust/tcl-spectcl/src/catalogue.rs:447-457` studio labels | todo |
-| `rust/tcl-dialect/src/profile.rs:1735-1755` `KNOWN_DIALECTS` duplicate | todo |
+| CLI possible values / unknown-name message; MCP enum and `valid_dialects`; `listDialects`; `getEffectiveConfig`; `unknown_dialect_error`; language-id remaps; session validation; studio `DIALECTS` labels; `KNOWN_DIALECTS` | done (1b) |
+| `tcl_spec_studio::browsable_dialects()` — still the 19 catalogue profiles because the studio resolves through `catalogue_dialect_or_default`, which would sink `jim`/`tk` to `tcl9.0` built-ins; stays on the allowlist | deferred, reasoned |
+| f5-cli `--dialect` is a free `String` through the lenient resolver | unchanged |
 
 ### Generated artefacts (→ re-keyed generator + gate)
 
