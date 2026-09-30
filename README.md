@@ -97,13 +97,14 @@ All editors connect to the native Rust binary `tcl-lsp-server` over stdio
 `.irule`, `.irules`, `.iapp`, `.iappimpl`, `.impl`, `.tmsh`, `.scf` — and the
 EDA vendors' constraint and script suffixes — `.sdc`, `.upf`, `.xdc`, `.qsf`,
 `.qpf`, `.qip`, `.do`, `.globals`. Every editor's registration list is
-generated from one catalogue (`cargo xtask gen-editor-extensions`), so they
-never disagree.
+generated from the environment registry (`cargo xtask gen-editor-extensions`
+and `cargo xtask gen-editor-configs`), so they never disagree.
 
 Two further axes: whole filenames — `bigip.conf` and its siblings are
 recognised by *name*, since a bare `.conf` belongs to every unrelated config
 file, and a file named `presentation` (no extension) is APL — and shebangs,
-`#!/usr/bin/tclsh`, `#!/usr/bin/wish`, and `#!/usr/bin/expect`, where a
+`#!/usr/bin/tclsh`, `#!/usr/bin/wish`, `#!/usr/bin/expect`, and
+`#!/usr/bin/jimsh`, where a
 versioned shell name (`tclsh8.6`, `wish9.0`) also pins the release.
 Per-file `# tcl-dialect:` comment directives pin a specific dialect.
 Every `tcl` CLI verb applies the same detection (directive, shebang,
@@ -900,31 +901,75 @@ these same notes.
 
 ### Every supported dialect
 
-Each dialect profile gates which commands exist, which are deprecated, and
-which options and subcommands are valid. The list mirrors the profile
-catalogue (`DialectProfile::all`) in `rust/tcl-dialect`.
+Each dialect gates which commands exist, which are deprecated, and which
+options and subcommands are valid. The tables mirror the environment registry
+in `rust/tcl-dialect`, and `cargo xtask gen-environment-docs` regenerates them.
 
-| Dialect | What it models |
-|---|---|
-| `tcl8.4` | Tcl 8.4 core commands |
-| `tcl8.5` | Tcl 8.5 (adds `{*}`, `lassign`, `dict`, …) |
-| `tcl8.6` | Tcl 8.6 (adds `try`/`finally`, `tailcall`, coroutines) — **the default** |
-| `tcl9.0` | Tcl 9.0 (adds `lpop`, zipfs, updated `encoding`) |
-| `tcl9.1` | Tcl 9.1 (superset of 9.0; adds the `unicode` and `timer` ensembles and `subst`'s positive `-backslashes`/`-commands`/`-variables` options) |
-| `expect` | Expect: `spawn`, `expect`, `send`, `interact` and related commands |
-| `bpf` | BPF-Tcl, the eBPF packet-matching dialect |
-| `spectcl` | SpecTcl command packs (`.tclspec`): the declarations that teach the registry a private library |
-| `sslictcl` | SslicTcl TLS declarations (`.sslictcl`): certificates, endpoints, trust programs, and assurance policy, read and never evaluated |
-| `f5-irules` | F5 iRules (embedded Tcl 8.4.6): HTTP/SSL/DNS/LB namespaces, event-validity checks, taint analysis, `static::` scoping — see [README-f5.md](README-f5.md) |
-| `f5-iapps` | F5 iApps — iApp templates and implementation scripts |
-| `f5-bigip` | F5 BIG-IP `bigip.conf` / `.scf` objects |
-| `f5-tmsh` | F5 tmsh scripts: the `tmsh::` surface on a Tcl 8.5 base |
-| `cadence-eda-tcl` | Cadence EDA (Genus, Innovus, Tempus, Xcelium) |
-| `intel-quartus-eda-tcl` | Intel Quartus Prime |
-| `mentor-eda-tcl` | Mentor/Siemens EDA (ModelSim, Questa, Calibre) |
-| `microchip-libero-eda-tcl` | Microchip Libero SoC |
-| `synopsys-eda-tcl` | Synopsys EDA (Design Compiler, PrimeTime, ICC2, Formality), including the SDC constraint base |
-| `xilinx-eda-tcl` | AMD/Xilinx EDA (Vivado, Vitis) |
+<!-- <generated: environment-tables> -->
+**Dialects**
+
+| Dialect | Name | Also accepted as | Detected from |
+|---|---|---|---|
+| `bpf` | BPF | none | none |
+| `expect` | Expect | none | extensions `.exp`, `.expect`; shebang `expect` |
+| `f5-bigip` | F5 BIG-IP | none | extension `.scf`; file names `bigip.conf`, `bigip_base.conf`, `bigip_gtm.conf`, `bigip_script.conf`, `bigip_user.conf` |
+| `f5-iapps` | F5 iApps | none | extensions `.iapp`, `.iappimpl`, `.impl`, `.apl`; file name `presentation` |
+| `f5-irules` | F5 iRules | `irules`, `tcl-irule` | extensions `.irul`, `.irule`, `.irules` |
+| `f5-tmsh` | F5 tmsh Scripts | none | extension `.tmsh` |
+| `jim` | Jim Tcl | `jimsh`, `jimtcl` | shebang `jimsh` |
+| `spectcl` | SpecTcl | `tcl-spec`, `tclspec` | extension `.tclspec` |
+| `sslictcl` | SslicTcl | `sslic-tcl`, `tls-sslictcl` | extension `.sslictcl` |
+| `tcl8.4` | Tcl 8.4 | none | shebangs `tclsh8.4`, `wish8.4` |
+| `tcl8.5` | Tcl 8.5 | none | shebangs `tclsh8.5`, `wish8.5` |
+| `tcl8.6` (default) | Tcl 8.6 | none | shebangs `tclsh8.6`, `wish8.6` |
+| `tcl9.0` | Tcl 9.0 | none | shebangs `tclsh9.0`, `wish9.0` |
+| `tcl9.1` | Tcl 9.1 | none | shebangs `tclsh9.1`, `wish9.1` |
+
+**Tcl + packages**
+
+| Dialect | Name | Tcl and packages | Also accepted as | Detected from |
+|---|---|---|---|---|
+| `cadence-eda-tcl` | Cadence Genus / Innovus / Xcelium | Tcl 8.4 + cadence-genus, cadence-common, cadence-innovus, cadence-xcelium, sdc, upf | `genus`, `innovus` | extension `.globals` |
+| `intel-quartus-eda-tcl` | Intel Quartus Prime | Tcl 8.5 + quartus-project, quartus-flow, quartus-sta, quartus-sdc-ext, quartus-report, quartus-device, quartus-misc, sdc, upf | `quartus` | extensions `.qsf`, `.qpf`, `.qip` |
+| `mentor-eda-tcl` | Siemens Questa / ModelSim | Tcl 8.6 + questa, questa-formal, calibre, sdc, upf | `questa`, `modelsim` | extension `.do` |
+| `microchip-libero-eda-tcl` | Microchip Libero SoC | Tcl 8.5 + libero, sdc, upf | `libero` | none |
+| `synopsys-eda-tcl` | Synopsys DC / PrimeTime / ICC2 / Formality | Tcl 8.6 + synopsys-dc, synopsys-pt, synopsys-icc2, synopsys-fm, synopsys, sdc, upf | `dc_shell`, `primetime` | extensions `.sdc`, `.upf` |
+| `tk` | Tk | Tcl 8.6 + Tk | `wish` | shebang `wish` |
+| `xilinx-eda-tcl` | Xilinx Vivado | Tcl 8.5 + vivado, sdc, upf | `vivado` | extension `.xdc` |
+
+Files with the extensions `.tcl`, `.tk`, `.itcl`, `.tm`, and `.test` name no
+dialect of their own. Detection, a `# tcl-dialect:` comment, or the
+`tclLsp.dialect` setting chooses one.
+[docs/generated/environments.md](docs/generated/environments.md) lists every
+environment with its core, packages, and language id.
+<!-- </generated> -->
+
+What sets them apart:
+
+- **Tcl releases.** `tcl8.4` has the core commands. `tcl8.5` adds `{*}`,
+  `lassign`, and `dict`. `tcl8.6` adds `try`/`finally`, `tailcall`, and
+  coroutines, and is **the default**. `tcl9.0` adds `lpop`, zipfs, and the
+  updated `encoding`. `tcl9.1` is a superset of 9.0 that adds the `unicode` and
+  `timer` ensembles and `subst`'s positive `-backslashes`, `-commands`, and
+  `-variables` options.
+- **`jim`** is Jim Tcl, a small reimplementation of Tcl with commands of its
+  own (`loop`, `range`, `lsubst`, `alias`, `local`, `class`, and more) and
+  `proc` static variables.
+- **`f5-irules`** is F5 iRules on an embedded Tcl 8.4.6: HTTP, SSL, DNS, and
+  load-balancing namespaces, event-validity checks, taint analysis, and
+  `static::` scoping. See [README-f5.md](README-f5.md). `f5-iapps` covers iApp
+  templates and implementation scripts, `f5-bigip` covers `bigip.conf` and
+  `.scf` objects, and `f5-tmsh` covers tmsh scripts: the `tmsh::` surface on a
+  Tcl 8.5 base.
+- **`expect`** adds `spawn`, `expect`, `send`, `interact`, and related
+  commands. **`bpf`** is BPF-Tcl, the eBPF packet-matching dialect.
+- **`spectcl`** covers SpecTcl command packs (`.tclspec`), the declarations that
+  teach the registry a private library. **`sslictcl`** covers SslicTcl TLS
+  declarations (`.sslictcl`): certificates, endpoints, trust programs, and
+  assurance policy, read and never evaluated.
+- **Tcl + packages** environments are a Tcl release with a tool's library
+  packages loaded, so the tool's own commands are known without a
+  `package require`. `tk` is Tk on Tcl 8.6.
 
 Pick one per file with a `# tcl-dialect:` comment, per project in
 configuration, or let detection choose — see
@@ -985,8 +1030,8 @@ comes with one shell and not another is then floored — and excused from
 
 ### Dialect profiles
 
-Switch between Tcl 8.4/8.5/8.6/9.0/9.1, F5 iRules, F5 iApps, F5 tmsh, and EDA
-tooling profiles. F5 iRules metadata follows BIG-IP command/event
+Switch between Tcl 8.4/8.5/8.6/9.0/9.1, Jim Tcl, F5 iRules, F5 iApps, F5 tmsh,
+and EDA tooling profiles. F5 iRules metadata follows BIG-IP command/event
 source data, including profile aliases used by newer namespaces and events,
 shared TLS helper profiles such as `PERSIST`, and protocol namespace layer
 metadata that stays aligned with the enabling profile stack. The configured
@@ -1072,7 +1117,8 @@ The dialect is selected automatically using the following priority chain
    set x 1
    ```
 4. **Shebang** -- `#!/usr/bin/env tclsh8.5` selects `tcl8.5`;
-   `#!/usr/bin/expect` selects `expect`.
+   `#!/usr/bin/expect` selects `expect`; `#!/usr/bin/env jimsh` selects `jim`;
+   `#!/usr/bin/wish` selects `tk`.
 5. **User setting** -- the `tclLsp.dialect` configuration value acts as the
    default for files that have no per-file hint.
 6. **Hardcoded fallback** -- `tcl8.6` when nothing else matches.

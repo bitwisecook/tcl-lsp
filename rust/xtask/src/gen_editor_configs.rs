@@ -81,20 +81,20 @@ const WRAP_WIDTH: usize = 78;
 
 /// What every render reads: the editor language model and the selectable
 /// environments.
-struct Model {
-    langs: Vec<Language>,
-    environments: &'static [Arc<EnvironmentDefinition>],
+pub struct Model {
+    pub langs: Vec<Language>,
+    pub environments: &'static [Arc<EnvironmentDefinition>],
 }
 
 /// What an editor can key an environment's files on.
-struct Registration {
-    extensions: Vec<String>,
-    filenames: Vec<String>,
-    shebang_words: Vec<String>,
+pub struct Registration {
+    pub extensions: Vec<String>,
+    pub filenames: Vec<String>,
+    pub shebang_words: Vec<String>,
 }
 
 impl Model {
-    fn load() -> Result<Self> {
+    pub fn load() -> Result<Self> {
         Ok(Self {
             langs: languages()?,
             environments: EnvironmentRegistry::compiled_selectable(),
@@ -104,7 +104,7 @@ impl Model {
     /// The file extensions and shebang words of `environment`: its own
     /// language's, plus the extra languages that select it (the iApp
     /// presentation language rides the iApps environment).
-    fn registration(&self, environment: &EnvironmentDefinition) -> Registration {
+    pub fn registration(&self, environment: &EnvironmentDefinition) -> Registration {
         let id = environment.id.as_str();
         let own = language_of_environment(&self.langs, id);
         let mut extensions = own.map_or_else(
@@ -222,7 +222,7 @@ fn shebang_stem(word: &str) -> String {
 /// `words` laid out greedily, one space apart, on lines that stay within
 /// [`WRAP_WIDTH`] counting the prefix; the first line starts with
 /// `first_prefix`.
-fn wrap_words(first_prefix: &str, prefix: &str, words: &[String]) -> String {
+pub fn wrap_words(first_prefix: &str, prefix: &str, words: &[String]) -> String {
     let mut out = String::new();
     let mut line = first_prefix.to_owned();
     let mut fresh = true;
@@ -246,7 +246,7 @@ fn wrap_words(first_prefix: &str, prefix: &str, words: &[String]) -> String {
 
 /// Prose wrapped to [`WRAP_WIDTH`]; a word never splits, so an inline code
 /// span without a space in it stays whole.
-fn wrap_text(text: &str) -> String {
+pub fn wrap_text(text: &str) -> String {
     let words: Vec<String> = text.split_whitespace().map(str::to_owned).collect();
     wrap_words("", "", &words)
 }
@@ -266,8 +266,9 @@ fn comma_separated(items: &[String], trailing: bool) -> Vec<String> {
         .collect()
 }
 
-/// `` `a`, `b` and `c` ``: names as inline code, English-list separated.
-fn code_sentence_list<S: AsRef<str>>(names: &[S]) -> String {
+/// `` `a`, `b`, and `c` ``: names as inline code in a sentence, with the
+/// Oxford comma.
+pub fn code_sentence_list<S: AsRef<str>>(names: &[S]) -> String {
     let coded: Vec<String> = names
         .iter()
         .map(|name| format!("`{}`", name.as_ref()))
@@ -275,7 +276,8 @@ fn code_sentence_list<S: AsRef<str>>(names: &[S]) -> String {
     match coded.as_slice() {
         [] => String::new(),
         [one] => one.clone(),
-        [init @ .., last] => format!("{} and {last}", init.join(", ")),
+        [one, two] => format!("{one} and {two}"),
+        [init @ .., last] => format!("{}, and {last}", init.join(", ")),
     }
 }
 

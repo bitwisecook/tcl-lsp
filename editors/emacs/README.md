@@ -107,21 +107,21 @@ Pass settings via eglot workspace configuration:
 `:dialect` takes any of `bpf`, `expect`, `f5-bigip`, `f5-iapps`, `f5-irules`,
 `f5-tmsh`, `jim`, `spectcl`, `sslictcl`, `tcl8.4`, `tcl8.5`, `tcl8.6`,
 `tcl9.0`, `tcl9.1`, `cadence-eda-tcl`, `intel-quartus-eda-tcl`,
-`mentor-eda-tcl`, `microchip-libero-eda-tcl`, `synopsys-eda-tcl`, `tk` and
+`mentor-eda-tcl`, `microchip-libero-eda-tcl`, `synopsys-eda-tcl`, `tk`, and
 `xilinx-eda-tcl`.
 <!-- </generated> -->
 
 <!-- <generated: emacs-notes> -->
 `.exp`, `.expect`, `.iapp`, `.iappimpl`, `.impl`, `.apl`, `.irul`, `.irule`,
-`.irules` and `.tmsh` files are handled by the derived modes in the eglot
+`.irules`, and `.tmsh` files are handled by the derived modes in the eglot
 setup above, which send the correct `languageId` — do **not** also map them
 to plain `tcl-mode`, or they would analyse as `tcl8.6`.
 
 Everything else the registry owns rides plain `tcl-mode`: `.tcl`, `.tk`,
 `.itcl`, `.tm`, `.test`, `.scf`, `.tclspec`, `.sslictcl`, `.globals`, `.qsf`,
-`.qpf`, `.qip`, `.do`, `.sdc`, `.upf` and `.xdc`, and the BIG-IP configuration
-file names. The server detects those from their own content or file name, so
-the `languageId` has no ambiguity to resolve.
+`.qpf`, `.qip`, `.do`, `.sdc`, `.upf`, and `.xdc`, and the BIG-IP
+configuration file names. The server detects those from their own content or
+file name, so the `languageId` has no ambiguity to resolve.
 
 The `auto-mode-alist`, `interpreter-mode-alist` and `eglot-server-programs`
 forms above are generated from the environment registry by `cargo xtask

@@ -55,6 +55,10 @@
 //!   the Helix, Emacs, Neovim and Sublime guides' configuration and dialect
 //!   lists, and `INSTALL-editors.md`'s extension lists from the environment
 //!   registry (`--check` to verify instead of write).
+//! - `gen-environment-docs` — generate the README dialect tables,
+//!   `docs/generated/environments.md`, the dialect-selection KCS note's lists,
+//!   and `ai/prompts/manifest.json` from the environment registry (`--check`
+//!   to verify instead of write).
 //! - `number-drift` — flag hand-rolled Tcl radix-prefix recognition outside
 //!   `tcl_syntax::number`, and verify expression boundaries use
 //!   `tcl_dialect::scan_expr_number`.
@@ -95,6 +99,7 @@ mod gen_editor_catalogs;
 mod gen_editor_configs;
 mod gen_editor_dialects;
 mod gen_editor_settings;
+mod gen_environment_docs;
 mod gen_irule_test_data;
 mod gen_jetbrains;
 mod gen_tmlanguage_keywords;
@@ -253,6 +258,16 @@ enum Command {
     GenEditorConfigs {
         /// Verify the committed regions are in sync instead of rewriting them;
         /// exit non-zero on drift.
+        #[arg(long)]
+        check: bool,
+    },
+
+    /// Generate the README dialect tables, `docs/generated/environments.md`,
+    /// the dialect-selection KCS note's lists, and the AI prompt manifest from
+    /// the compiled environment registry.
+    GenEnvironmentDocs {
+        /// Verify the committed documentation and manifest are in sync instead
+        /// of rewriting them; exit non-zero on drift.
         #[arg(long)]
         check: bool,
     },
@@ -508,6 +523,7 @@ fn main() -> anyhow::Result<ExitCode> {
         Command::GenBundledEnvironments { check } => gen_bundled_environments::run(check),
         Command::GenEditorConfigs { check } => gen_editor_configs::run(check),
         Command::GenEditorDialects { check } => gen_editor_dialects::run(check),
+        Command::GenEnvironmentDocs { check } => gen_environment_docs::run(check),
         Command::GenIruleTestData { check } => gen_irule_test_data::run(check),
         Command::GenZedQueries { check } => gen_zed_queries::run(check),
         Command::GenTmlanguageKeywords { check } => gen_tmlanguage_keywords::run(check),

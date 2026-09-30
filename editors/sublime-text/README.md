@@ -41,7 +41,7 @@ The default dialect is Tcl 8.6. Change `settings.tclLsp.dialect` in LSP-Tcl's
 settings to one of `bpf`, `expect`, `f5-bigip`, `f5-iapps`, `f5-irules`,
 `f5-tmsh`, `jim`, `spectcl`, `sslictcl`, `tcl8.4`, `tcl8.5`, `tcl8.6`,
 `tcl9.0`, `tcl9.1`, `cadence-eda-tcl`, `intel-quartus-eda-tcl`,
-`mentor-eda-tcl`, `microchip-libero-eda-tcl`, `synopsys-eda-tcl`, `tk` and
+`mentor-eda-tcl`, `microchip-libero-eda-tcl`, `synopsys-eda-tcl`, `tk`, and
 `xilinx-eda-tcl`.
 <!-- </generated> -->
 
