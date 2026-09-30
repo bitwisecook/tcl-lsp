@@ -115,7 +115,7 @@ Status: `todo` / `wip` / `done`. Line numbers are as surveyed on
 
 | Site | Status |
 |---|---|
-| `rust/tcl-registry/src/model/context.rs` `surface_admits`, `AuthoringScope::core`, `SurfaceQuery::core` (D17-J) | todo |
+| `rust/tcl-registry/src/model/context.rs` `surface_admits`, `AuthoringScope::core`, `SurfaceQuery::core` (D17-J) — `CorePoints`, nearest-first in `best_visible`; `ContextRegistry::resolve_command` (assembly.rs) tie-break not yet nearest-first; ledger row D17-J still reads open | done (2a) |
 | `rust/tcl-spectcl/core-surfaces/jim.tclspec` (roster; additions pack beside it) | todo |
 | `proc` spec for Jim (statics), `class`/`super` grammar, two-word proc names | todo |
 | W002 cross-family wording (`system` is `commands/expect/system.rs`) | todo |
