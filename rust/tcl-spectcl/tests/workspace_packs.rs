@@ -325,7 +325,15 @@ fn load_one(
         Tier::StudioOverride => tcl_spectcl::discovery::Origin::StudioOverride,
         Tier::Workspace => tcl_spectcl::discovery::Origin::DotDir,
     };
-    pack::load_under(&[tcl_spectcl::PackFile { tier, path, origin }], trust)
+    pack::load_under(
+        &[tcl_spectcl::PackFile {
+            tier,
+            path,
+            origin,
+            dependency_tier: None,
+        }],
+        trust,
+    )
 }
 
 /// The notices the stamp rule raised: the warnings on `command vendor::unpack`.
@@ -539,4 +547,243 @@ fn a_pack_text_backing_is_reported_at_load() {
     assert_eq!(notice.line, 4, "the command's own row");
 
     let _ = std::fs::remove_dir_all(&root);
+}
+
+// ─────────────────────── the capability gate ───────────────────────
+
+/// A pack command that says everything the capability gate polices: it names
+/// `lassign`'s own stamp, says it is `alias_of lassign`, and declares the
+/// builtin as its backing.
+fn packaged_pack(speclib: &str) -> String {
+    format!(
+        "speclib {speclib} 1.0 {{\n    \
+             command {speclib}::unpack {{\n        \
+                 arity 2..\n        \
+                 arg 0 -role Value\n        \
+                 arg 1 -role VarWrite\n        \
+                 alias_of lassign\n        \
+                 runtime_backing shipped-builtin lassign\n        \
+                 codegen_hook -native Lassign\n    \
+             }}\n\
+         }}\n"
+    )
+}
+
+/// A workspace as `tcl pkg install` leaves one. The root package `myapp`
+/// requires `direct` and, for development, `devdep`; `direct` requires `deep`.
+/// The root and every dependency ship a pack under a `speclib` of their own
+/// name, with a manifest beside it, and `myapp_requires` is the root
+/// manifest's `require` lines.
+fn stage_packages(name: &str, myapp_requires: &str) -> PathBuf {
+    use tcl_pkg_model::lockfile::{LockFile, LockedPackage, SourceSpec, serialise};
+    let root = scratch(name);
+    let write = |path: PathBuf, text: &str| {
+        std::fs::create_dir_all(path.parent().expect("parent")).expect("dirs");
+        std::fs::write(path, text).expect("write");
+    };
+    write(
+        root.join("tclpkg.tcl"),
+        &format!("package myapp\nversion 1.0.0\n{myapp_requires}dev-require devdep 1.0.0\n"),
+    );
+    write(root.join("myapp.tclspec"), &packaged_pack("myapp"));
+    let mut lock = LockFile::new("myapp", ">=8.6");
+    for (package, requires, dev) in [
+        ("direct", vec!["deep@1.0.0"], false),
+        ("deep", vec![], false),
+        ("devdep", vec![], true),
+    ] {
+        let dir = root.join(format!("lib/{package}-1.0.0"));
+        write(
+            dir.join("tclpkg.tcl"),
+            &format!("package {package}\nversion 1.0.0\n"),
+        );
+        write(
+            dir.join(format!("{package}.tclspec")),
+            &packaged_pack(package),
+        );
+        lock.packages.push(LockedPackage {
+            name: package.to_owned(),
+            version: "1.0.0".to_owned(),
+            source: SourceSpec::new("tarball", ""),
+            integrity: String::new(),
+            size: 0,
+            requires: requires.into_iter().map(str::to_owned).collect(),
+            provides: Vec::new(),
+            license: String::new(),
+            dev,
+        });
+    }
+    write(root.join("tclpkg.lock"), &serialise(&lock));
+    root
+}
+
+/// `speclib::unpack` as the load left it, and the messages the load raised
+/// on its row, in message order.
+fn loaded<'a>(set: &'a PackSet, speclib: &str) -> (&'a tcl_spectcl::PackCommand, Vec<&'a str>) {
+    let name = format!("{speclib}::unpack");
+    let command = set
+        .packs
+        .iter()
+        .find(|pack| pack.name == speclib)
+        .and_then(|pack| pack.command(&name))
+        .unwrap_or_else(|| panic!("`{name}` loads: {:#?}", set.notices));
+    let context = format!("command {name}");
+    let mut messages: Vec<&str> = set
+        .notices
+        .iter()
+        .filter(|notice| notice.context == context)
+        .map(|notice| notice.message.as_str())
+        .collect();
+    messages.sort_unstable();
+    (command, messages)
+}
+
+const LASSIGN_STAMP_REFUSED: &str = "`codegen_hook Lassign` refused for `{}::unpack`: a trusted workspace pack may not name a \
+     codegen catalogue member; only a bundled pack may carry `alias_of lassign`'s own stamp";
+
+fn stamp_refused_for(speclib: &str) -> String {
+    LASSIGN_STAMP_REFUSED.replace("{}", speclib)
+}
+
+/// A package reached only through another's requirements may not say `alias_of`
+/// or a backing: both are dropped, each with a warning on the command's row
+/// that names the tier, and the command keeps every analysis fact it
+/// declared. A development dependency is no nearer. The stamp goes too — by
+/// the provenance gate, which every workspace pack meets first, so the notice
+/// names that gate.
+#[test]
+fn a_transitive_dependencys_alias_of_is_dropped() {
+    let root = stage_packages("capability-transitive", "require direct 1.0.0\n");
+    let set = load_workspace(&root);
+
+    for (speclib, article) in [("deep", "a transitive"), ("devdep", "a development")] {
+        let (command, messages) = loaded(&set, speclib);
+        assert_eq!(
+            messages,
+            vec![
+                format!(
+                    "`alias_of lassign` refused for `{speclib}::unpack`: {article} dependency's \
+                     pack may not declare `alias_of`; only the workspace's own package and its \
+                     direct dependencies may"
+                ),
+                stamp_refused_for(speclib),
+                format!(
+                    "`runtime_backing shipped-builtin lassign` refused for `{speclib}::unpack`: \
+                     {article} dependency's pack may not declare a `runtime_backing`; only the \
+                     workspace's own package and its direct dependencies may"
+                ),
+            ],
+            "{speclib}"
+        );
+        assert_eq!(command.spec.alias_of, None, "{speclib}");
+        assert_eq!(
+            command.spec.runtime_backing,
+            tcl_registry::RuntimeBacking::None
+        );
+        assert_eq!(command.spec.codegen_hook, None, "{speclib}");
+        assert_eq!(
+            command.spec.arity.min, 2,
+            "{speclib}: the arity is untouched"
+        );
+        assert!(
+            set.notices
+                .iter()
+                .filter(|n| n.context == format!("command {speclib}::unpack"))
+                .all(|n| n.severity == pack::Severity::Warning),
+            "{speclib}"
+        );
+
+        let registry = tcl_spectcl::install::registry_for_dialect_with_packs("tcl8.6", &set);
+        let installed = registry
+            .get(&format!("{speclib}::unpack"))
+            .expect("installed");
+        assert_eq!(installed.alias_of, None, "{speclib}: nothing installed");
+        assert_eq!(
+            installed.runtime_backing,
+            tcl_registry::RuntimeBacking::None
+        );
+        assert_eq!(installed.arity.min, 2, "{speclib}");
+    }
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// A direct dependency keeps `alias_of` and a backing but no stamp. The
+/// negative is the workspace's own package, the one tier the capability
+/// matrix gives everything: it keeps both declarations, and its stamp is
+/// refused only by the provenance gate, which the capability cannot lift.
+#[test]
+fn a_direct_dependency_keeps_alias_of_but_not_a_stamp() {
+    let root = stage_packages("capability-direct", "require direct 1.0.0\n");
+    let set = load_workspace(&root);
+
+    for speclib in ["direct", "myapp"] {
+        let (command, messages) = loaded(&set, speclib);
+        assert_eq!(command.spec.alias_of, Some("lassign"), "{speclib}");
+        assert_eq!(
+            command.spec.runtime_backing,
+            tcl_registry::RuntimeBacking::shipped("lassign"),
+            "{speclib}"
+        );
+        assert_eq!(command.spec.codegen_hook, None, "{speclib}: no stamp");
+        assert_eq!(
+            messages,
+            vec![stamp_refused_for(speclib)],
+            "{speclib}: one notice, and it is the provenance gate's"
+        );
+    }
+
+    let registry = tcl_spectcl::install::registry_for_dialect_with_packs("tcl8.6", &set);
+    let installed = registry.get("direct::unpack").expect("installed");
+    assert_eq!(installed.alias_of, Some("lassign"));
+    assert_eq!(
+        installed.runtime_backing,
+        tcl_registry::RuntimeBacking::shipped("lassign")
+    );
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// The gate reads the graph, so moving a package in it moves what its pack
+/// may say — and the pack set's key with it, or the cached registry would
+/// keep serving the old answer: `deep` loses its `alias_of` while only
+/// `direct` requires it, and keeps it once the workspace requires it too.
+#[test]
+fn a_package_moving_in_the_graph_changes_what_its_pack_loads() {
+    let root = stage_packages("capability-moves", "require direct 1.0.0\n");
+    let far = load_workspace(&root);
+    assert_eq!(loaded(&far, "deep").0.spec.alias_of, None);
+
+    std::fs::write(
+        root.join("tclpkg.tcl"),
+        "package myapp\nversion 1.0.0\nrequire direct 1.0.0\nrequire deep 1.0.0\n\
+         dev-require devdep 1.0.0\n",
+    )
+    .expect("rewrite the manifest");
+    let near = load_workspace(&root);
+    assert_eq!(loaded(&near, "deep").0.spec.alias_of, Some("lassign"));
+    assert_ne!(
+        far.key, near.key,
+        "a tier is part of what a pack set is, as an edit is"
+    );
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// A pack no package ships — one under `.tcl-lsp/` — has no tier, so the
+/// matrix does not narrow it: it keeps its backing as well as its `alias_of`.
+#[test]
+fn a_pack_no_package_ships_is_not_narrowed() {
+    use tcl_dialect::model::WorkspaceTrust;
+    let set = load_one(
+        "capability-none",
+        &packaged_pack("vendor"),
+        Tier::Workspace,
+        WorkspaceTrust::Trusted,
+    );
+    let (command, messages) = loaded(&set, "vendor");
+    assert_eq!(command.dependency_tier, None);
+    assert_eq!(command.spec.alias_of, Some("lassign"));
+    assert_eq!(
+        command.spec.runtime_backing,
+        tcl_registry::RuntimeBacking::shipped("lassign")
+    );
+    assert_eq!(messages, vec![stamp_refused_for("vendor")]);
 }

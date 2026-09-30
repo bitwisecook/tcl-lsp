@@ -90,6 +90,7 @@ fn loaded(path: &Path, source: &str) -> Vec<String> {
             tier: Tier::Workspace,
             path: path.to_path_buf(),
             origin: Origin::DotDir,
+            dependency_tier: None,
         },
         source.to_owned(),
     )]);

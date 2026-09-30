@@ -1273,6 +1273,7 @@ and CC6.3, each its own checkpoint.
 | Item | State | Checkpoint | Notes |
 |---|---|---|---|
 | CC6.1 the floor widens | landed | `wip(consumer-contracts): step 6 — the floor widens` | `rust/tcl-registry/src/security_floor.rs`: `SecurityFloor::apply` takes `lowering_hook`, `analyser_hook`, `semantic_operation`, `state_transitions`, `native_lowering` and `bpf_op` from the shipped command beside the two codegen hooks it already kept, through the same `take_shipped` (the shipped value wins wherever the shipped command has one; all six types are `Copy`, so no new merge shape), `MERGED_FIELDS` lists them, and `every_security_bearing_field_is_in_the_floor` names the six explicitly in a `matches!` beside its `taint` / `codegen` / `side_effect` / `credential` filter, since none of their names carries those words. The module and `apply` docs state the codegen and dispatch axis as a contract about the closed catalogues, not a trust gate on analysis facts (D6.4). Tests: `rust/tcl-spectcl/tests/i6_security_floor.rs` gains the plan's six rows, each first proving the override took effect (its own `arity 7..9` window installed, so what survives of the shipped spec is the floor's doing) — `a_workspace_override_cannot_swap_the_lowering_hook` (`while`'s `While` against `lowering_hook -native If`), `…_swap_the_analyser_hook` (`source`'s `Source` against `Rename`), `…_swap_the_semantic_operation` (`puts`'s `Intrinsic(ChannelWrite)` against `Invoke`), `…_swap_the_state_transitions` (`join`'s descriptor against a restated one, compared by `Debug` since the type has no `PartialEq`), `…_drop_the_native_lowering` (`break`) and `…_drop_the_bpf_op` (the `bpf` dialect's `pass`); the last two fields have no loader statement, so their rows lose them the only way a pack can, by replacing the command and saying nothing (D6.5). Two registry unit tests: `the_floor_takes_the_shipped_codegen_and_dispatch_axis` (all six, on a hand-built shipped spec) and `the_floor_adds_nothing_the_shipped_command_lacks` (the negative: a shipped command with none of the six leaves an override's own value alone, the registry-level twin of the unchanged `the_floor_does_not_invent_facts_for_a_new_command`). A mutation check — the six `take_shipped` lines commented out — fails all six integration rows and the unit test, and dropping `"bpf_op"` from `MERGED_FIELDS` fails the field scan. Nothing existing moved: no shipped or bundled pack overrides a command, and every test that installs an override passes unmodified. Gates: `cargo test -p tcl-spectcl --test i6_security_floor` (8, was 2), `-p tcl-registry` (lib 943, was 941, and every binary) and `-p tcl-spectcl` (lib 192 and every binary, `workspace_packs`, `codegen_stamps`, `golden_packs` included), `-p tcl-spec-studio` (lib 199 and every binary) and `-p tcl-mcp` (114); `cargo check --workspace --all-targets`; clippy (`-p tcl-registry -p tcl-spectcl --all-targets --no-deps -- -D warnings`) and `cargo fmt` clean; `registry-axes --check` (7831 / 16 / 36 / 893 across 147, unchanged), `value-transfers --check` (22 / 19 / 83 across 34, 6607 rows), `pack-goldens --check` (25), `retired-api-gate`, `owner-resolution` (45), `kcs-index-links` green, `dialect-drift` at its 8. Docs: `spec-packs.md` § *Workspace trust* floor sentence, the design page's rule 4 (now built for the six, `runtime_backing` step 7's) with its status box, the BPF bullet's tense and the anchors, and the pack howto `docs/kcs/kcs-howto-write-a-tclspec-pack.md` (an override keeps the shipped taint facts and compiler-side identity, silently). D6.4, D6.5 |
+| CC6.2 `DependencyTier` and `CodegenCapability` | landed | `wip(consumer-contracts): step 6 — the dependency-tier capability matrix` | **The types.** `rust/tcl-dialect/src/model/environment.rs`: `DependencyTier` (`Root`, `Direct`, `Transitive`, `Development`, with `label`) beside `Provenance` and `WorkspaceTrust`, exported from `tcl_dialect::model` (D6.7). `rust/tcl-registry/src/model/capability.rs` (new): `CodegenCapability { tier, codegen_stamps, runtime_backing, builtin_alias, reference_body }` with `for_tier`, the page's matrix (`Root` everything; `Direct` a backing and an alias, no stamp, no body; `Transitive` and `Development` nothing), `DependencyTier` re-exported, and `ReferenceBodies { Forbidden, AnySource }` for the fourth field (D6.10). **The model crate.** `rust/tcl-pkg-model` (new workspace member): `errors.rs`, `json.rs`, `version.rs`, `manifest.rs` and `lockfile.rs` move from `tcl-pkg` with `git mv`, `tcl-pkg` re-exports the five (its own modules and `tcl-cli` keep their paths, as for `tcl-userdirs`), `LockFile::stamp`, the model's one use of the clock, becomes `tcl_pkg::stamp_lockfile` so the model has no `chrono`, `LockedPackage::required_names` is new, and `tier.rs` (new) is `dependency_tier(root_manifest, lockfile, package) -> Option<DependencyTier>` (D6.6, D6.8). The plan's `tcl-pkg` dependency was measured first and refused: `cargo tree` puts 33 more crates in the server's build (39 in the Explorer's and the Studio's) — `ureq`, `rustls`, `zip`, `tar`, `tcl-sandbox` among them — and `cargo check --target wasm32-unknown-unknown -p tcl-sandbox` fails (`wait-timeout` builds for `unix` and `windows` only), which would break `tcl-lsp-server-wasm`, `tcl-lsp-server-wasi`, `tcl-explorer-wasm` and `tcl-spec-studio-wasm` without `cargo check --workspace` seeing it, since none is a workspace member; the layout rules also keep a developer-tool crate out of the pack loader's graph. **Discovery.** `PackFile::dependency_tier: Option<DependencyTier>` (the last field, so the sort is unchanged; the 31 `PackFile` literals in nine crates' sources and tests gain `dependency_tier: None`), set by `discovery::assign_dependency_tiers` for the files of `Origin::BesideManifest` only. A file's package is the one whose manifest is nearest above it; the project root is the *outermost* directory inside the workspace folder holding both a `tclpkg.tcl` and a `tclpkg.lock` — not the plan's nearest, because an installed dependency's directory can hold a pair of its own and the nearest pair would let it name itself the root of its own graph; the package is `Root` when its directory is the project root, and otherwise the tier is `dependency_tier` of the project's manifest and lockfile for the package the manifest beside the file names. No lockfile, an unlisted package and a file that does not read leave `None` (D6.8). Read through the `SourceStore`, like the packs, so a browser host places its packs the same way. **The loader.** `PackCommand::dependency_tier`, set by the merge beside `file`; `pack::set_key` mixes each file's tier (a package moving in the graph is as much a change as an edit, or the cached registry would keep the old answer); `stamps.rs`: `RefusalReason::Capability(tier)` — a stamp must pass the provenance gate and then the capability gate (`stamps_admitted`, `capability_admits_stamps`), the provenance the reason named when both refuse — and the second gate for the two declarations, `Declaration` (`AliasOf`, `RuntimeBacking`), `DeclarationRefusal`, `declaration_refusals` and `admit_declarations`, run in `pack::load_sources` after the stamp rule so rule 1 still reads `alias_of`; each refusal is a warning on the command's row naming the tier ("`alias_of lassign` refused for `dep::unpack`: a transitive dependency's pack may not declare `alias_of`; only the workspace's own package and its direct dependencies may"), and only the declaration goes. The strip is memoised on the spec's address and a `Drops` set (stamps, `alias_of`, `runtime_backing`); `install_into`'s assertion asks both gates; `stamp_refusals` gains the tier parameter, and the Studio's and `spectcl_check`'s previews pass `None` (D6.9). Tests: `rust/tcl-pkg-model/src/tier.rs` (6): `a_package_the_root_requires_is_direct`, `a_package_reached_only_through_another_is_transitive`, `a_package_named_only_in_dev_require_is_development`, `a_regular_route_outranks_a_development_one`, `a_stale_entry_is_transitive_and_an_unlisted_package_has_no_tier` and `a_cycle_in_the_lockfile_terminates`. `rust/tcl-registry/src/model/capability.rs` (3): `the_matrix_is_the_pages` (every tier's row, cell by cell), `a_capability_names_its_own_tier` and `distance_never_widens_a_capability` (down the order a tier keeps or loses a right, never gains one). `rust/tcl-spectcl/src/discovery.rs` (6): `a_packs_package_is_placed_by_the_lockfiles_graph`, `no_lockfile_and_no_listing_mean_no_tier`, `a_dependency_shipping_its_own_lockfile_does_not_become_a_root` (the outermost-pair rule), `only_a_pack_beside_a_manifest_has_a_tier`, `an_unreadable_manifest_or_lockfile_leaves_no_tier` and `a_host_filled_store_places_its_packs_too` (an in-memory `SourceStore`, no disk). `rust/tcl-spectcl/src/stamps.rs` (7): `the_capability_gate_refuses_a_stamp_the_provenance_gate_admits`, `a_stamp_must_pass_both_gates`, `the_matrix_decides_which_declarations_a_command_may_keep`, `the_remedy_names_the_tiers_the_matrix_permits`, `a_refusal_names_the_declaration_the_command_and_the_tier`, `a_dropped_declaration_costs_no_other_fact` and `a_repeated_declaration_refusal_reuses_its_stripped_spec`. `rust/tcl-spectcl/tests/workspace_packs.rs` (4 new, 14 in all, was 10): the plan's `a_transitive_dependencys_alias_of_is_dropped` and `a_direct_dependency_keeps_alias_of_but_not_a_stamp` (its negative half loads the workspace's own package, `Root`, which keeps both declarations and loses the stamp to the provenance gate alone), `a_package_moving_in_the_graph_changes_what_its_pack_loads` (the lockfile edited between two loads; the set's key moves with it) and `a_pack_no_package_ships_is_not_narrowed`. `rust/tcl-lsp-server/src/lib.rs` (1): `a_manifest_or_lockfile_change_reloads_the_packs` (D6.11). **Mutation checks** (19, each one line or arm changed, the tests that must fail named beforehand; in 18 every named test failed, and the exception is the graph-walk mutation under `tier.rs`). `tier.rs`: a root requirement no longer `Direct`, a development requirement outranking a regular route, development reachability dropped and an unlisted package given a tier each fail their own test; the graph walk following no edge fails the two development tests and *not* the transitive test named for it, which cannot tell a package the walk reaches from one merely listed, since both are `Transitive` (D6.8): the transitive test pins the answer and the two development tests pin the walk. `capability.rs`: a direct dependency permitted a stamp fails `the_matrix_is_the_pages`; a transitive tier given a direct one's rights fails it and `distance_never_widens_a_capability`. `discovery.rs`: no tier assigned fails all six discovery tests; the nearest rather than the outermost project root fails `a_dependency_shipping_its_own_lockfile_does_not_become_a_root` alone; every origin placed fails `only_a_pack_beside_a_manifest_has_a_tier` alone. `stamps.rs`: the capability gate admitting every stamp fails the two stamp tests; refusing no declaration fails four; the stamp rule ignoring the command's tier fails `the_capability_gate_refuses_a_stamp_the_provenance_gate_admits` alone; an alias always permitted fails five. `pack.rs`: the merge not recording the tier fails `a_transitive_dependencys_alias_of_is_dropped` and `a_package_moving_in_the_graph_changes_what_its_pack_loads`; the key ignoring the tier fails the second alone; the load never running the declaration gate fails both. The server: `partition_watched_file_changes` no longer flagging a manifest or lockfile, and `is_package_metadata_file` forgetting the lockfile, each fail `a_manifest_or_lockfile_change_reloads_the_packs`. Nothing existing moved: no test expectation changed. `Cargo.lock` gains `tcl-pkg-model` and `tcl-pkg` loses `regex`, `tcl-lexer` and `tcl-syntax`; the shard table gains the new crate's lib row (329 targets, `verify-nextest-binary-shards.py` passing). Gates: `cargo test -p tcl-pkg-model` (39: the six new and the 33 that moved), `-p tcl-pkg` (lib 53, was 86 before the 33 moved out, and `manifest_env_drift` 2), `-p tcl-cli-support` (19), `-p tcl-registry` (lib 949, was 946, and every binary), `-p tcl-spectcl` (lib 210, was 197; `workspace_packs` 14, was 10; `codegen_stamps` 7, `i6_security_floor` 10, `golden_packs` 3, `spec_corpus` 5, `workspace_trust` 7 and every other binary), `-p tcl-spec-studio` (lib 199 and every binary), `-p tcl-mcp` (114), `-p tcl-lsp-db` (lib 103 and every binary), `-p tcl-lsp-core` (lib 2350), `-p tcl-dialect` (lib 153), `-p tcl-compiler` (lib 6546, `analyser` 505, `cfg` 17, `value_transfer_witnesses` 64, `codegen` 164), `-p tcl-lsp-server --lib` (595, was 594), `-p tcl-cli` (lib 27, `cli` 50, `compile_verbs` 11, `explorer_gui` 2, `pkg_verbs` 13, `spec_verbs` 18, `value_transfers_cli` 8) and `-p xtask` (237); `cargo check --workspace --all-targets`, `cargo clippy --workspace --all-targets -- -D warnings` and `cargo fmt --all -- --check` clean, no new `#[allow]`; `registry-axes --check` (7831 / 16 / 36 / 893 across 147, unchanged), `value-transfers --check` (22 / 19 / 83 across 34, 6607 rows, unchanged), `pack-goldens --check` (25), `command-backing --check` (389), `retired-api-gate` and `owner-resolution` (45) OK, `kcs-index-links` green, `dialect-drift` at its 8 sites. Docs: `spec-packs.md` (the workspace-trust section's second gate), the design page (the status paragraph and both not-built lists, rule 2, the packages table's tier row, the capability code block with `ReferenceBodies`, the composition paragraph with the outermost-lockfile rule and its binding residual, the anchors), `docs/GLOSSARY.md` (*Dependency tier and codegen capability*, and its index row), `docs/kcs/kcs-qa-why-was-a-declaration-dropped-from-my-dependencys-pack.md` (new, indexed in `docs/kcs/README.md`), `docs/kcs/kcs-howto-write-a-tclspec-pack.md`, `project-layout.md` (the model crate beside `tcl-userdirs`), `tclpkg/architecture.md`, `tclpkg-contracts.md` and `spec-dsl-examples/README.md`. Deviations: the model crate, not `tcl-pkg` (D6.6); `DependencyTier` in `tcl-dialect`, not `tcl-pkg` (D6.7); the outermost lockfile, not the nearest (D6.8); `ReferenceBodies`, not `Option<BodySource>` (D6.10); a server reload trigger beyond the plan's files (D6.11). D6.6–D6.11 |
 
 ### CC6.1 — what the next items read
 
@@ -1289,8 +1290,57 @@ and CC6.3, each its own checkpoint.
 - **Residue, reported.** The floor reads `CommandSpec` fields only: the
   same fields on a `SubCommand` or a form are not restored (D6.4).
 
+### CC6.2 — what the next items read
+
+- **For CC6.3.** Nothing in the item touches the overlay. The compile
+  service's `LexerConfig::default()` (`compile_service.rs:125`) is still one
+  of the eight `dialect-drift` sites.
+- **For CC7.2 (the backing query).** A `runtime_backing` from a transitive or
+  development dependency's pack never reaches a spec: the load drops it, with
+  a warning naming the tier, before the merge is installed. The query needs no
+  tier logic. A `Root` or `Direct` package's backing does reach the registry,
+  and the floor still keeps a shipped command's against any override.
+- **For CC8.x (reference bodies, the manifest `spec` directive).** The
+  manifest and lockfile live in `rust/tcl-pkg-model/src/` now, not
+  `rust/tcl-pkg/src/` (D6.6): `ManifestAst::spec` and the lockfile's pack hash
+  are edits there, and `tcl_pkg` re-exports the modules. `tier::dependency_tier`
+  is the derivation `SpecDirective::requested_tier` clamps against, and
+  `DependencyTier` is `tcl_dialect::model::DependencyTier`. A reference body
+  joins the load gate as one more `Declaration` variant and one more `Drops`
+  field beside `alias_of` and `runtime_backing` in `stamps.rs`;
+  `CodegenCapability::reference_body` is `ReferenceBodies` already. The
+  lockfile hash of each pack is what closes D6.8's residual: today a pack's
+  package is the one its manifest names, and a manifest that names a package
+  the lockfile does not list gets no tier.
+- **For anything that builds a `PackFile`.** The struct gained
+  `dependency_tier`; a literal takes `dependency_tier: None` unless the caller
+  is discovery. Every literal in the tree, 31 in nine crates, takes it in this
+  commit.
+- **Reported, not fixed.** The wasm hosts' own lockfiles
+  (`rust/tcl-spec-studio-wasm/Cargo.lock` and the three beside it) are already
+  stale at `dc7a138c` — `cargo metadata --locked` there fails, `tcl-spectcl`'s
+  `tcl-runtime-api` edge from step 4 is missing — and this commit adds
+  `tcl-pkg-model` to their graphs, so they need regenerating together; they
+  are not workspace members and not this lane's. `spectcl_check` and the
+  Studio's store view report stamp refusals for a `(tier, trust)` pair and do
+  not show a capability refusal, since neither sees a lockfile. `cargo test -p
+  tcl-spectcl --lib` failed once in three runs at `cache::tests::the_two_tiers_share_one_identity`
+  (`cache.rs:997`, the entry count read 2 where it expects 1) and passed in
+  every other; no lib test this item adds loads a pack, so it looks like an
+  older race with a test that loads one without the cache lock.
+
 ### Behavioural deltas accepted in step 6
 
+- CC6.2: a `.tclspec` beside a `tclpkg.tcl` whose package a `tclpkg.lock`
+  lists as a transitive or development dependency loses its commands'
+  `alias_of` and `runtime_backing` at load, each with a warning on the
+  command's row; a direct dependency's pack keeps both and loses any codegen
+  stamp (which every workspace-tier pack already lost); the workspace's own
+  package's pack keeps everything the provenance gate leaves it. A pack found
+  any other way, in a project with no lockfile, or for a package the lockfile
+  does not list, is unchanged. The server reloads the packs when a
+  `tclpkg.tcl` or `tclpkg.lock` changes. No shipped or bundled pack sits
+  beside a manifest, so nothing a user runs today changes without a lockfile.
 - CC6.1: an `-override` of a shipped command, from any tier, keeps the
   shipped command's `lowering_hook`, `analyser_hook`, `semantic_operation`,
   `state_transitions`, `native_lowering` and `bpf_op` wherever the shipped
@@ -4604,7 +4654,8 @@ everything else in this lane is independent of both.
   the floor in CC7.1. **D6.2** `DependencyTier` is defined in `tcl-pkg`
   and re-exported by `tcl-registry`'s `model::capability`; `tcl-spectcl`
   depends on `tcl-pkg` for the manifest and lockfile data model only.
-  **D6.3** An overlay miss is an error at the ingress.
+  **D6.3** An overlay miss is an error at the ingress. (D6.2 is amended
+  by D6.6 and D6.7 below.)
 - **D6.4** The widened floor keeps the floor's existing shape and reach:
   command-level values only, and the shipped value wins wherever the
   shipped command has one. It reads `CommandSpec` fields, so the same fields
@@ -4629,6 +4680,96 @@ everything else in this lane is independent of both.
   first asserts the override took effect (its `arity 7..9`, a window no
   shipped command has), so a green row means the floor restored the value
   rather than the override never having installed.
+- **D6.6** `tcl-spectcl` reads the manifest and lockfile through a new leaf
+  crate, `tcl-pkg-model`, not through `tcl-pkg` (D6.2's dependency). The
+  plan's own risk clause said to check the build graph, and the graph
+  answers it. `tcl-pkg` in `tcl-spectcl`'s dependencies puts 33 more crates
+  in `tcl-lsp-server`'s build and 39 in `tcl-explorer`'s and
+  `tcl-spec-studio`'s — `ureq`, `rustls`, `webpki-roots`, `zip`, `tar`,
+  `xattr`, `tcl-sandbox` — and `cargo check --target
+  wasm32-unknown-unknown -p tcl-sandbox` fails (`wait-timeout` compiles for
+  `unix` and `windows` only, "cannot find module or crate `imp`"), so every
+  wasm host that loads packs (`tcl-lsp-server-wasm`, `tcl-lsp-server-wasi`,
+  `tcl-explorer-wasm`, `tcl-spec-studio-wasm`) would stop building — outside
+  the workspace, where `cargo check --workspace` never sees it. The layout
+  contract (`project-layout.md` rule 5) also keeps a developer-tool crate out
+  of a pack loader's graph, and `tcl-userdirs` is the precedent for lifting
+  the shared part into a leaf. What moves, by `git mv`: `errors.rs`,
+  `json.rs`, `version.rs`, `manifest.rs` and `lockfile.rs`; `tier.rs` is new.
+  `tcl-pkg` re-exports the five modules as it re-exports `tcl-userdirs`, so
+  the package manager's own modules and `tcl-cli` keep their paths (the
+  layout contract asks for direct imports; a re-export is what the
+  precedent does, and it keeps this diff to the crate boundary).
+  `LockFile::stamp`, the model's one use of the clock, becomes
+  `tcl_pkg::stamp_lockfile`, so the model needs no `chrono`. The step 8
+  plan's `rust/tcl-pkg/src/manifest.rs` and `lockfile.rs` are
+  `rust/tcl-pkg-model/src/` files now.
+- **D6.7** `DependencyTier` is defined in `tcl_dialect::model`, beside
+  `Provenance` and `WorkspaceTrust`, and re-exported by `tcl-registry`'s
+  `model::capability` (D6.2 said `tcl-pkg`). `tcl-registry` cannot depend on
+  `tcl-pkg`, and a dependency on the model crate would put `regex` and
+  `serde_json` under every crate; `tcl-pkg-model` needs the enum for
+  `tier.rs` and step 8's `SpecDirective::requested_tier`, and `tcl-dialect`
+  is the lowest crate all three reach.
+- **D6.8** How discovery reads a tier. The plan says "the nearest
+  `tclpkg.lock`"; the tier is read from the *outermost* directory, inside
+  the workspace folder and at or above the package, that holds both a
+  `tclpkg.tcl` and a `tclpkg.lock`. An installed dependency's directory can
+  hold a manifest and a lockfile of its own (its tarball can carry any file),
+  and the nearest pair would let a dependency name itself the root of its own
+  graph — the one distance the matrix exists to deny it. A file's package is
+  the one whose manifest is nearest above it; the package is `Root` when its
+  directory *is* the project root (a fact about where a directory sits, never
+  about a name a manifest claims), and otherwise the tier is
+  `tier::dependency_tier` of the project's manifest and lockfile for the
+  package the file's own manifest names. The graph rules: named in `require`
+  is `Direct` whatever else requires it; reached through the `require` graph
+  is `Transitive`; named in `dev-require` only, or reached only from there,
+  is `Development`; listed but reached from neither (a stale entry) is
+  `Transitive`, the least a listed package gets; not listed is `None`. No
+  lockfile, an unlisted package, and a manifest or lockfile that does not
+  read leave `None`, as the plan says, and a pack with no tier is not
+  narrowed. Only a file found `BesideManifest` is placed: a pack named in
+  `tclLsp.specPacks` is the user's own choice of it. Residual, recorded on
+  the design page: a manifest names its own package, so a dependency that
+  names itself a package the lockfile does not list is unlimited; the
+  lockfile hash of each pack that step 8 adds is what binds a pack file to
+  the package it claims.
+- **D6.9** The gate's shape. Two functions in `stamps.rs`, run in
+  `pack::load_sources` on every merged command after the merge has recorded
+  the declaring file's tier on `PackCommand::dependency_tier`. Stamps first,
+  through `stamp_refusals`, which gains the tier: the provenance gate is
+  asked first and names itself when both refuse (an author reads it off where
+  the pack sits; every pack that has a tier is a workspace-tier file, so in
+  the product it is the reason named), then the capability gate
+  (`RefusalReason::Capability`, "only the workspace's own package may"), then
+  rule 1. Then `admit_declarations` drops `alias_of` and a `runtime_backing`
+  other than `none`, after the stamp rule, so rule 1 still reads the
+  `alias_of` a refused stamp would have needed. Each refusal is a warning on
+  the command's row that names the declaration and the tier; the command keeps
+  every other fact. The strip is one memo keyed by the spec's address and a
+  `Drops` set. `pack::set_key` mixes a file's tier: a package moving in the
+  lockfile's graph changes what its packs load, and the registry cache is
+  keyed by the set's key. `install_into`'s assertion asks both gates. The
+  Studio's and `spectcl_check`'s previews pass `None` — they see no lockfile —
+  and so do not show a capability refusal.
+- **D6.10** `CodegenCapability::reference_body` is `ReferenceBodies
+  { Forbidden, AnySource }`, not the page's `Option<BodySource>`.
+  `BodySource`'s variants carry data (a path, a text), so a capability
+  cannot hold "from which source"; no tier is allowed one source and not the
+  other; and a fourth `bool` trips `clippy::struct_excessive_bools`, which
+  the plan's "no new `#[allow]`" forbids answering. A tier that gains one
+  source without the other adds its variant. Nothing reads the field yet
+  (reference bodies are step 8's); the matrix test holds its values.
+- **D6.11** The server reloads the packs when a `tclpkg.tcl` or a
+  `tclpkg.lock` changes (beyond the plan's files). Discovery now reads both,
+  so a lockfile rewritten by `tcl pkg install` changes what a dependency's
+  pack may declare with no `.tclspec` moving; without a trigger the old tiers
+  would stand until the next reload, and a stale tier that is *nearer* than
+  the graph now says is the unsafe direction. The manifest is a `.tcl` file
+  the source watcher already reports, and it stays an indexed Tcl source; the
+  lockfile gets a watcher of its own (`**/tclpkg.lock`). Both set the pack
+  reload flag `partition_watched_file_changes` already had.
 - **D7.1** `HANDLER_EXTRA`, `STDLIB`, `NOT_REQUIRED` become
   `runtime_backing` rows; `KNOWN_UNBACKED` stays as the drift waiver;
   `xtask` links `tcl-runtime` and `tcl-vm` to ask `backing_report()`.

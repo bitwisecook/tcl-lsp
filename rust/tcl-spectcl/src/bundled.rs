@@ -148,6 +148,7 @@ fn embedded_sources() -> Vec<(PackFile, String)> {
                 tier: Tier::Bundled,
                 path: PathBuf::from(format!("<embedded>/{name}")),
                 origin: Origin::Bundled,
+                dependency_tier: None,
             };
             (file, (*text).to_owned())
         })
@@ -573,6 +574,7 @@ mod tests {
             tier: Tier::Workspace,
             path: workspace.clone(),
             origin: Origin::Setting,
+            dependency_tier: None,
         }];
         let set = load_discovered(&files);
 
@@ -602,6 +604,7 @@ mod tests {
             tier: Tier::Bundled,
             path: bundled,
             origin: Origin::Bundled,
+            dependency_tier: None,
         }]);
 
         assert!(

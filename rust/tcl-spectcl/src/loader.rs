@@ -880,6 +880,13 @@ pub struct PackCommand {
     /// to either moves it. The pack-fact stamp a specialised site records
     /// is built from it.
     pub content_hash: u64,
+    /// How far the package that ships the declaring file sits from the
+    /// workspace root ([`crate::discovery::PackFile::dependency_tier`]);
+    /// `None` as the loader builds it, and for a command no package ships.
+    /// The merge fills it in beside [`Self::file`], the two facts about the
+    /// file only it knows, and the capability gate reads it
+    /// ([`crate::stamps`]).
+    pub dependency_tier: Option<tcl_dialect::model::DependencyTier>,
 }
 
 /// A loaded `.tclspec` pack.
@@ -5920,6 +5927,7 @@ fn command_from_parts(
             // Set for every command once the whole evaluation is known
             // (`evaluate_pack_in`), which is the only place the bytes are.
             content_hash: 0,
+            dependency_tier: None,
         })
     })
 }

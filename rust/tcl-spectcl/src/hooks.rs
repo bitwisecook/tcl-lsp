@@ -637,6 +637,7 @@ speclib hooked 1 {
             tier: Tier::Workspace,
             path,
             origin: Origin::DotDir,
+            dependency_tier: None,
         }])
     }
 

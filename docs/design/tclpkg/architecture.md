@@ -139,12 +139,15 @@ colour, the check/cross/warning symbols, and the canonical `--json` mode.
 
 ## File-path anchors
 
-- `rust/tcl-pkg/src/lib.rs` — public API surface
-- `rust/tcl-pkg/src/manifest.rs` — whitelisted-directive manifest parser
-- `rust/tcl-pkg/src/lockfile.rs` — lockfile I/O
-- `rust/tcl-pkg/src/json.rs` — canonical JSON emitter
+- `rust/tcl-pkg/src/lib.rs` — public API surface; re-exports the data-model
+  modules below
+- `rust/tcl-pkg-model/src/manifest.rs` — whitelisted-directive manifest parser
+- `rust/tcl-pkg-model/src/lockfile.rs` — lockfile I/O
+- `rust/tcl-pkg-model/src/json.rs` — canonical JSON emitter
+- `rust/tcl-pkg-model/src/tier.rs` — a package's dependency tier, from the
+  lockfile's graph and the root manifest's requirements
 - `rust/tcl-pkg/src/resolver.rs` — MVS resolver
-- `rust/tcl-pkg/src/version.rs` — version type and ordering
+- `rust/tcl-pkg-model/src/version.rs` — version type and ordering
 - `rust/tcl-pkg/src/cas.rs` — CAS and integrity hashing
 - `rust/tcl-pkg/src/fetchers.rs` — tarball / git / path fetchers
 - `rust/tcl-pkg/src/installer.rs` — resolve → fetch → store → materialise
@@ -154,7 +157,7 @@ colour, the check/cross/warning symbols, and the canonical `--json` mode.
 - `rust/tcl-pkg/src/exec.rs` — the single external-execution chokepoint
 - `rust/tcl-pkg/src/policy.rs`, `hooks.rs` — operator policy and lifecycle hooks
 - `rust/tcl-pkg/src/ui.rs` — CLI output helpers
-- `rust/tcl-pkg/src/errors.rs` — error types; the CLI prints `Display` verbatim
+- `rust/tcl-pkg-model/src/errors.rs` — error types; the CLI prints `Display` verbatim
 - `rust/tcl-cli/src/commands/pkg.rs`, `venv.rs` — verb handlers
 - `rust/tcl-cli/src/cli.rs` — the `pkg` / `venv` subcommand definitions
 

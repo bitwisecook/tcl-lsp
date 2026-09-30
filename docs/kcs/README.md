@@ -185,6 +185,10 @@ symptom with several possible causes worth telling apart. See rule 13 in
   — why a spec pack's `codegen_hook`, `inline_codegen_hook`, or intrinsic
   `semantic_operation` row draws a warning outside a bundled pack or
   without a matching `alias_of`, and why the command still works.
+- [kcs-qa-why-was-a-declaration-dropped-from-my-dependencys-pack.md](kcs-qa-why-was-a-declaration-dropped-from-my-dependencys-pack.md)
+  — why a spec pack shipped by a dependency loses its `alias_of` or
+  `runtime_backing` row unless the package is your own or one your manifest
+  requires directly, and what still works.
 - [kcs-qa-when-is-a-proc-parameter-treated-as-a-constant.md](kcs-qa-when-is-a-proc-parameter-treated-as-a-constant.md)
   — when the analyser binds a procedure parameter to a compile-time
   literal from its call sites, which indirect calls (`$cmd args`, callback

@@ -248,6 +248,7 @@ fn a_workspace_stamp_is_refused_and_specialises_nothing() {
             tier: tcl_spectcl::Tier::Workspace,
             path: scratch("workspace").join("vendor.tclspec"),
             origin: tcl_spectcl::discovery::Origin::DotDir,
+            dependency_tier: None,
         },
         unpack_pack("lassign"),
     )]);

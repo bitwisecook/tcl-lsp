@@ -4524,20 +4524,29 @@ dependencies = [
  "base64 0.23.1",
  "chrono",
  "flate2",
- "regex",
  "serde",
  "serde_json",
  "sha2 0.11.0",
  "tar",
  "tcl-dialect",
- "tcl-lexer",
+ "tcl-pkg-model",
  "tcl-registry",
  "tcl-sandbox",
- "tcl-syntax",
  "tcl-userdirs",
  "toml",
  "ureq",
  "zip",
+]
+
+[[package]]
+name = "tcl-pkg-model"
+version = "0.1.0"
+dependencies = [
+ "regex",
+ "serde_json",
+ "tcl-dialect",
+ "tcl-lexer",
+ "tcl-syntax",
 ]
 
 [[package]]
@@ -4624,6 +4633,7 @@ dependencies = [
  "tcl-engine-tclvm",
  "tcl-lexer",
  "tcl-lsp-core",
+ "tcl-pkg-model",
  "tcl-registry",
  "tcl-runtime-api",
  "tcl-spec-hooks",

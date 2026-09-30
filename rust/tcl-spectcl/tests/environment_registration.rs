@@ -281,6 +281,7 @@ speclib picolpack 2.0 {
             tier: tcl_spectcl::Tier::User,
             path: PathBuf::from("/probe/picolpack.tclspec"),
             origin: Origin::UserDir,
+            dependency_tier: None,
         },
         SOURCE.to_owned(),
     )]);

@@ -362,6 +362,7 @@ fn tenant_pack_with_body(body: Option<&str>) -> tcl_spectcl::PackSet {
             tier: tcl_spectcl::Tier::Workspace,
             path: std::path::PathBuf::from("/workspace/.tcl-lsp/tenant.tclspec"),
             origin: tcl_spectcl::discovery::Origin::DotDir,
+            dependency_tier: None,
         },
         source,
     )]);

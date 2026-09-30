@@ -70,6 +70,7 @@ fn workspace_file(path: &Path) -> PackFile {
         path: path.to_path_buf(),
         tier: Tier::Workspace,
         origin: Origin::DotDir,
+        dependency_tier: None,
     }
 }
 

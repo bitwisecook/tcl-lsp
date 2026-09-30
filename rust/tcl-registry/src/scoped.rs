@@ -343,7 +343,7 @@ pub const REPORT_DEFSTYLE_ENV: ScopedCommandEnv = ScopedCommandEnv {
 //
 // A manifest is a Tcl script evaluated in a deprivileged interpreter that
 // defines exactly these directive commands (see
-// `rust/tcl-pkg/src/manifest.rs`, `DIRECTIVES` + `apply_directive`, which is
+// `rust/tcl-pkg-model/src/manifest.rs`, `DIRECTIVES` + `apply_directive`, which is
 // the runtime source of truth for names and arities — a drift test in
 // `tcl-pkg` asserts the two stay aligned).  Several directives shadow real
 // Tcl/Tk commands (`package`, `entry`), so the environment must *replace*

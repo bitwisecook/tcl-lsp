@@ -85,6 +85,18 @@ slices proceed without deciding anything here.
 > through any override, from any tier, beside the two codegen hooks it
 > already kept (rule 4 of § *The loader's stamp rejection rule*).
 >
+> The capability gate is built. `tcl_dialect::model::DependencyTier` says how
+> far the package that ships a pack sits from the workspace root — the
+> workspace's own package, a direct dependency, a transitive one, or a
+> development one — and discovery reads it from the `tclpkg.lock` beside the
+> project's manifest, never from what a package's own manifest claims
+> (`PackFile::dependency_tier`, through `tcl-pkg-model`, the crate the
+> manifest and lockfile live in). `tcl_registry::model::CodegenCapability`
+> is the matrix over it, and `tcl_spectcl::stamps` applies it beside the
+> provenance gate: a codegen-axis stamp must pass both, and `alias_of` and a
+> `runtime_backing` other than `none` are dropped, with a warning naming the
+> tier, from a transitive or development dependency's pack.
+>
 > The backing fact is built. `CommandSpec::runtime_backing`
 > (`tcl_registry::RuntimeBacking`, with `BodySource`) is declared on every
 > core Tcl command as the row of `docs/generated/wasm-command-backing.md` that
@@ -97,10 +109,9 @@ slices proceed without deciding anything here.
 > the workspace:
 >
 > - **Identity and backing** — the `ReferenceBody` and
->   `ShippedImplementation` claims, `IdentityKind`, `CodegenCapability`, and
+>   `ShippedImplementation` claims, `IdentityKind`, and
 >   `ArtefactIdentityManifest`.
-> - **Packages** — `SpecDirective`, `DependencyTier`, and the `tcl spec
->   test` verb.
+> - **Packages** — `SpecDirective` and the `tcl spec test` verb.
 >
 > `AnalysisContext`, `AnalysisInputs`, `PlanAnswer`, `OperandId`,
 > `TemplateWordPlan`, and `EvalAnswer` are the types
@@ -1742,8 +1753,10 @@ refuses survives:
    (`stamps_admitted_from`) and refused from `User`, `WorkspaceTrusted`,
    `WorkspaceUntrusted`, `StudioOverride`, and `Document` with the
    provenance named — the shape `rust/tcl-spectcl/src/loader/eval.rs`'s
-   E-R2 refusals have. Step 6's per-tier capability matrix takes this gate
-   over as its codegen row.
+   E-R2 refusals have. For a pack a package ships, the capability matrix in
+   § *Dialects and packages* narrows it further, and a stamp must pass both:
+   `stamp_refusals` names the provenance when both refuse, and the tier when
+   only the capability does.
 3. **Refusal drops the stamp and nothing else.** The command still loads
    with every analysis fact it declared, and the refusal is a warning
    published on the command's row of the pack file with the provenance and
@@ -1945,7 +1958,7 @@ exists, and never a silent choice of one row.
 | package version windows | validated and dropped; nothing gates on a package release | carry name and version in `SurfaceQuery::packages` |
 | the shared compilation unit | `compilation_unit` resolves the un-overlaid registry, and an uninstalled overlay falls back silently | close both together, keyed on the analysis context; delivering the overlay to the compile service is a prerequisite for every rung above zero *for emitted code*, and the private-pack slice closes the analysis half |
 | implemented in C, Tcl, or built in | no declaration anywhere | `RuntimeBacking` on the package placement row for the registry and on the manifest and lockfile for the package manager; evidence, not proof; consumed by the resolver's load edge, realm binding knowledge, and the container generator |
-| packages shipping specs | de facto beside a `tclpkg.tcl` manifest and in library installs, undeclared and unverified; a pack from any tier may name codegen-axis facts with only a notice | the `spec` directive below, with its lockfile hash, its dependency tier, and the per-tier capability matrix enforced at load for the *codegen* axis; native-identity resolution for the body families; and `tcl spec test`, which runs the package's implementation under the package manager's sandbox policy, never at editor load |
+| packages shipping specs | de facto beside a `tclpkg.tcl` manifest and in library installs, undeclared and unverified. Discovery places a pack beside a manifest by the lockfile's graph (`PackFile::dependency_tier`), and the load applies the capability matrix to its codegen-axis stamps, `alias_of` and `runtime_backing`; a package declares no pack and no tier of its own, and the lockfile holds no hash of a pack | the `spec` directive below, with its lockfile hash and its requested tier; the matrix extended to reference bodies; native-identity resolution for the body families; and `tcl spec test`, which runs the package's implementation under the package manager's sandbox policy, never at editor load |
 
 The manifest side of that last row, in the shapes `rust/tcl-pkg` already
 uses — `ManifestAst` for the directive, `LockedPackage` for the hash:
@@ -1963,7 +1976,10 @@ struct SpecDirective {
 }
 
 /// How far the package sits from the workspace root. Resolution computes
-/// it; the manifest cannot claim a nearer one.
+/// it; the manifest cannot claim a nearer one. Built
+/// (`tcl_dialect::model::DependencyTier`, beside `Provenance` and
+/// `WorkspaceTrust`, the lowest crate the package manager, the registry and
+/// the pack loader all reach).
 enum DependencyTier {
     /// The workspace's own package — the pack the author is editing.
     Root,
@@ -1971,24 +1987,34 @@ enum DependencyTier {
     Direct,
     /// Reached only through another package's `requires`.
     Transitive,
-    /// Named in `dev_requires` only.
+    /// Named in `dev_requires` only, or reached only through such a package.
     Development,
 }
 
-/// What each tier may name. Enforced at load, per axis, with the
-/// provenance in the notice.
+/// What each tier may name. Built (`tcl_registry::model::CodegenCapability`,
+/// `CodegenCapability::for_tier`); enforced at load, with the tier in the
+/// notice.
 struct CodegenCapability {
     tier: DependencyTier,
     /// May name a member of a closed code-generation catalogue
-    /// (`codegen_hook`, `inline_codegen_hook`, `semantic_operation`,
-    /// `native_lowering`, `bpf_op`).
+    /// (`codegen_hook`, `inline_codegen_hook`, `semantic_operation`).
     codegen_stamps: bool,
     /// May declare `runtime_backing` other than `None`.
     runtime_backing: bool,
     /// May declare `alias_of`, which is what rung 2 rests on.
     builtin_alias: bool,
-    /// May supply a reference body, and from which `BodySource`.
-    reference_body: Option<BodySource>,
+    /// Which reference bodies it may supply. Not built: nothing consults it.
+    reference_body: ReferenceBodies,
+}
+
+/// Which reference bodies a tier's packs may supply. The design's question
+/// is "from which `BodySource`", and no tier is allowed one source and not
+/// the other, so the two answers the matrix gives are these; a tier that
+/// gains one source without the other adds its variant.
+enum ReferenceBodies {
+    Forbidden,
+    /// The package's own installed source, or text carried in the pack.
+    AnySource,
 }
 ```
 
@@ -2009,7 +2035,21 @@ The two gates compose and do not overlap. The `Provenance` gate in
 discovery tier may stamp the codegen axis at all; `CodegenCapability`
 narrows that further for a pack a *package* ships, because a dependency's
 distance from the root is a fact the discovery tier cannot express. A
-declaration must pass both.
+declaration must pass both. A pack found beside a `tclpkg.tcl` carries the
+tier of the package that ships it (`PackFile::dependency_tier`), which
+discovery reads through the same closed-file store as the packs: the tier
+the project's `tclpkg.lock` gives the package named by the manifest beside
+the file, where the project is the *outermost* directory inside the
+workspace folder holding both a manifest and a lockfile. The outermost, not
+the nearest: an installed dependency's directory can hold a manifest and a
+lockfile of its own, and the nearest pair would let it name itself a root. A
+file found any other way, a package the lockfile does not list, a project
+with no lockfile, and a manifest or lockfile that does not read all leave
+the pack with no tier, and a pack with no tier is not narrowed. The gate
+does not bind a pack file to the package the lockfile lists: a manifest
+names its own package, so a dependency that names itself a package the
+lockfile does not list is unlimited. The lockfile hash of each pack
+described below is what would bind the two, and it is not built.
 
 ## C Tcl extensions
 
@@ -2151,7 +2191,7 @@ and come before any runtime guard work.
 - `rust/tcl-registry/src/clause_shape.rs`, `spec.rs`, `repeated.rs`, `relation.rs` — `ClauseShapeError`, `CaseListSpec`, `OptionSpec`, `option_relations`, `reserved_trailing_words`, `RepeatedArgLayout`, `Relation::evaluate`
 - `rust/tcl-registry/src/substitution.rs`, `patterns.rs` — the substitution kinds and `option_selected_pattern_args`, which replaced `subst_substitutions` and `lsearch_pattern_args`, the two native resolvers over a command's own option table, with projections of the option-effect walk
 - `rust/tcl-registry/src/definer.rs` — `DefinitionBodyGrammar`, `MemberSpec`, `MemberKind`, `SlotSpec`, `MemberRetraction`, `MemberVisibility`, `DeclaredMemberVisibility`, `member_body_indices_in`
-- `rust/tcl-registry/src/model/declaration.rs`, `registration.rs` — `DeclaredCommand`, `DocumentCommandSurface`, and the one `untrusted(…)` predicate
+- `rust/tcl-registry/src/model/declaration.rs`, `registration.rs`, `capability.rs` — `DeclaredCommand`, `DocumentCommandSurface`, the one `untrusted(…)` predicate, and `CodegenCapability` with its `for_tier` matrix
 - `rust/tcl-registry/src/traits.rs` — `Traits::PURE`, `CREATES_SCOPE_ALIAS`, `CREATES_DYNAMIC_BARRIER`, `HAS_LOOP_BODY`, `UNSAFE`, `SAFE_INTERP_HIDDEN`, `CLAUSE_KEYWORDS_WITHOUT_COMMAND_SPEC`, `CLAUSE_NOISE_KEYWORDS`
 - `rust/tcl-compiler/src/analyser/handlers.rs`, `oo.rs`, `commands.rs`, `dispatch.rs`, `param_traits.rs`, `utils.rs`, `types.rs` — the hook dispatch and its generic tail (`apply_state_transitions`, `handle_var_binding_command`, `dispatch_body_arguments`), `member_landing` and `apply_oo_subcommand_in`, `parse_stub_flags`, and `StubCommandDef::to_declared_command`
 - `rust/tcl-compiler/src/lowering/structured.rs`, `lowering/mod.rs`, `ir.rs`, `executable_ir.rs`, `cfg_builder/cfg_lower.rs`, `signature_scan/walker.rs` — `lower_if`, `lower_try`, `MethodKind::from_str_lossy`, `TryHandler`, `IfClause`, and the remaining clause-keyword walks
@@ -2162,14 +2202,14 @@ and come before any runtime guard work.
 - `rust/tcl-compiler/src/site_claims.rs`, `rust/tcl-registry/src/pack_origin.rs`, `codegen_stamp.rs` — the claims codegen records, the pack origin they are built from, and the one "same stamp, same site" predicate
 - `rust/tcl-vm/src/interp.rs`, `exec.rs`, `command.rs`, `cmd_string.rs`, `environment.rs` — `command_binding_matches`, `procedure_binding_matches`, `guarded_commands`, `bump_cmd_epoch`, registration, the pin
 - `runtime/rust/src/interp.rs`, `codegen_abi.rs`, `cmd_string.rs`, `builtins.rs`, `capi.rs` — the WASM runtime's guard table, `execute_intrinsic`, `register_spec_builtin`, `invalidate_command_environment`, and the C surface
-- `rust/tcl-spectcl/src/loader.rs`, `loader/eval.rs`, `loader/environment_block.rs`, `discovery.rs`, `install.rs` — what a pack may write, tier to provenance, discovery, and the floor's application
+- `rust/tcl-spectcl/src/loader.rs`, `loader/eval.rs`, `loader/environment_block.rs`, `discovery.rs`, `install.rs`, `stamps.rs` — what a pack may write, tier to provenance, discovery and the dependency tier it reads beside a manifest, the floor's application, and the two gates a stamp or a declaration must pass
 - `rust/tcl-registry/src/runtime_backing.rs`, `rust/tcl-spectcl/src/backing.rs` — `RuntimeBacking` and `BodySource`, and `BackingSyntax`, the one spelling of the `runtime_backing` statement for the loader and the Spec Studio
 - `rust/tcl-spec-hooks/src/sandbox.rs`, `pack_eval.rs`, `host.rs` — the hook whitelist, the pack evaluator, and the hook host with its per-pack engines, budgets, and context keys
 - `rust/tcl-spec-studio/src/render_spectcl.rs`, `render_rs.rs`, `coverage.rs`, `schema.rs`, `draft.rs`, `help.rs` — `GAPS`, `GapKind`, the `.rs` contribution export, and the four studio surfaces
 - `rust/tcl-vm/src/compiled.rs` — `CompiledUnit`, `CompilerProvenance`, and the generations an identity manifest joins
 - `rust/tcl-engine-api/src/lib.rs`, `rust/tcl-engine-tclvm/src/lib.rs`, `rust/tcl-cshim/src/lib.rs`, `rust/tcl-cshim/src/ffi.rs`, `rust/tcl-cshim/src/obj.rs`, `rust/tcl-cshim/include/tclshim.h` — the engine interface, its one implementation, `Interp::load_static` and its `Loaded` report, the 34 exported symbols, and the header
 - `rust/tcl-dialect/src/version.rs`, `profile.rs`, `rust/tcl-registry/src/model/ingress.rs`, `rust/tcl-lsp-db/src/lib.rs` — the release, the pin, the overlay ingress, and the salsa registry queries
-- `rust/tcl-pkg/src/manifest.rs`, `lockfile.rs`, `docker.rs` — the package manager's data model and the container generator
+- `rust/tcl-pkg-model/src/manifest.rs`, `lockfile.rs`, `tier.rs`, `rust/tcl-pkg/src/docker.rs` — the package manager's data model and the derivation of a package's dependency tier, which the pack loader reads too, and the container generator
 - `rust/xtask/src/command_backing.rs`, `gen_irule_test_data.rs`, `docs/generated/wasm-command-backing.md` — the backing gate, its four classification lists, the registry-generated iRules mocks, and the rendered report
 - `rust/tcl-irule-test/tcl/command_mocks.tcl`, `_mock_stubs.tcl` — the simulator's hand-written and generated command backing
 
@@ -2190,7 +2230,7 @@ and come before any runtime guard work.
 - `rust/tcl-lsp-server/tests/preview_tickets_e2e.rs` — the definer spelling that reaches every provider with no consumer edit
 - `rust/tcl-cshim/tests/pkga_e2e.rs` — the byte-for-byte expectations captured against Tcl 9.0.4's own `tcl.h`, the shared conformance vectors for both C legs
 - `rust/tcl-spectcl/tests/i6_security_floor.rs` — the floor and its take-shipped extension
-- `rust/tcl-spectcl/tests/workspace_packs.rs`, `codegen_stamps.rs` — the stamp rejection rule's two witnesses: a refused stamp under the tier gate, and a bundled `alias_of` stamp whose recorded target identity the VM admits through its alias hop (refused for a proc at the pack name); and the claims' admission: a changed pack refuses the site, and a pack's fold is admitted only under its facts
+- `rust/tcl-spectcl/tests/workspace_packs.rs`, `codegen_stamps.rs` — the stamp rejection rule's two witnesses: a refused stamp under the tier gate, and a bundled `alias_of` stamp whose recorded target identity the VM admits through its alias hop (refused for a proc at the pack name); the claims' admission: a changed pack refuses the site, and a pack's fold is admitted only under its facts; and, in `workspace_packs.rs`, the capability gate: `a_transitive_dependencys_alias_of_is_dropped` and `a_direct_dependency_keeps_alias_of_but_not_a_stamp`
 - `rust/tcl-vm/tests/command_mutation_deopt_e2e.rs` — `a_rung_zero_module_is_admitted_under_a_changed_pack_set`, the claims check's rung-0 floor
 
 ## Related docs

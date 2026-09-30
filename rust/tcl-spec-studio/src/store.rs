@@ -1517,6 +1517,7 @@ fn stamp_refusals_at(pack: &Pack, tier: Tier) -> Vec<(u32, String)> {
             tcl_spectcl::stamps::stamp_refusals(
                 command.spec,
                 provenance,
+                None,
                 tcl_spectcl::stamps::shipped(),
             )
             .into_iter()

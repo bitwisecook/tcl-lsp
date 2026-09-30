@@ -135,9 +135,10 @@ and removing them from the reserved list in the same change.
 
 | Area | File |
 |---|---|
-| Manifest | `rust/tcl-pkg/src/manifest.rs` |
-| Resolver | `rust/tcl-pkg/src/resolver.rs`, `version.rs` |
-| Lockfile | `rust/tcl-pkg/src/lockfile.rs`, `json.rs` |
+| Manifest | `rust/tcl-pkg-model/src/manifest.rs` |
+| Resolver | `rust/tcl-pkg/src/resolver.rs`, `rust/tcl-pkg-model/src/version.rs` |
+| Lockfile | `rust/tcl-pkg-model/src/lockfile.rs`, `json.rs` |
+| Dependency tier | `rust/tcl-pkg-model/src/tier.rs` |
 | CAS + integrity | `rust/tcl-pkg/src/cas.rs` |
 | Fetchers / installer | `rust/tcl-pkg/src/fetchers.rs`, `installer.rs`, `hooks.rs` |
 | Registry client | `rust/tcl-pkg/src/registry.rs` |

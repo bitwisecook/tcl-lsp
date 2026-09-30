@@ -146,10 +146,10 @@ fn install_into(
         for command in &pack.commands {
             // The stamp rejection rule runs where a set is assembled
             // (`pack::load_sources`, and the studio's own set): no
-            // codegen-axis stamp reaches a registry from a provenance whose
-            // tier gate refuses one.
+            // codegen-axis stamp reaches a registry from a provenance, or a
+            // package, whose gate refuses one.
             debug_assert!(
-                crate::stamps::stamps_admitted_from(provenance)
+                crate::stamps::stamps_admitted(provenance, command.dependency_tier)
                     || !crate::stamps::carries_stamp(command.spec),
                 "a codegen-axis stamp on `{}` survived from a {} pack",
                 command.spec.name,
@@ -229,6 +229,7 @@ mod tests {
             tier: Tier::Workspace,
             path,
             origin: Origin::DotDir,
+            dependency_tier: None,
         }])
     }
 

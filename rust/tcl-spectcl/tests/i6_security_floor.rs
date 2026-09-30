@@ -26,6 +26,7 @@ fn packs_from(dir: &std::path::Path, source: &str) -> tcl_spectcl::pack::PackSet
         tier: Tier::Workspace,
         path,
         origin: Origin::DotDir,
+        dependency_tier: None,
     }])
 }
 

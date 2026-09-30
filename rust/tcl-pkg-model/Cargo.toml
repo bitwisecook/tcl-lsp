@@ -17,9 +17,9 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 [package]
-name = "tcl-pkg"
+name = "tcl-pkg-model"
 publish.workspace = true
-description = "The tclpkg package manager: manifest, MVS resolver, lockfile, CAS, fetchers, venv, docker"
+description = "The tclpkg data model: manifest, lockfile, versions, errors, and a package's dependency tier — the part of the package manager the pack loader reads"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -28,25 +28,13 @@ repository.workspace = true
 authors.workspace = true
 
 [dependencies]
+# `DependencyTier` lives with `Provenance` and `WorkspaceTrust`, the lowest
+# crate the package manager, the registry and the pack loader all reach.
 tcl-dialect = { path = "../tcl-dialect" }
-# The manifest, lockfile, version and error types, re-exported below: the
-# pack loader reads the same ones and cannot depend on this crate.
-tcl-pkg-model = { path = "../tcl-pkg-model" }
-tcl-sandbox = { path = "../tcl-sandbox" }
-tcl-userdirs = { path = "../tcl-userdirs" }
-serde = { version = "1", features = ["derive"] }
+tcl-lexer = { path = "../tcl-lexer" }
+tcl-syntax = { path = "../tcl-syntax" }
+regex = "1"
 serde_json = "1"
-toml = "1"
-sha2 = "0.11"
-base64 = "0.23"
-flate2 = "1"
-tar = "0.4"
-zip = { version = "8", default-features = false, features = ["deflate"] }
-ureq = "3"
-chrono = { version = "0.4", default-features = false, features = ["clock"] }
 
 [lints]
 workspace = true
-
-[dev-dependencies]
-tcl-registry = { path = "../tcl-registry" }

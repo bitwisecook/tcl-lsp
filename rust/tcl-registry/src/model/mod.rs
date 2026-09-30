@@ -59,6 +59,9 @@
 //!   realm scan produces these values, and the [`assembly`] selection
 //!   primitives enforce the binding-proof rule (I4) over the carried
 //!   context.
+//! - [`capability`] — [`CodegenCapability`]: what the packs of a package at
+//!   each [`DependencyTier`] may declare, the capability gate the pack
+//!   loader applies beside its provenance gate.
 //!
 //! Everything here lands **alongside** the old `SpecSurface`-mask registry:
 //! nothing existing is wrapped or shimmed, and the equivalence sweeps in
@@ -67,6 +70,7 @@
 
 pub mod assembly;
 pub mod binding;
+pub mod capability;
 pub mod context;
 pub mod declaration;
 pub mod ingress;
@@ -83,6 +87,7 @@ pub use assembly::{
 pub use binding::{
     BindingKnowledge, BindingTarget, PackageState, PackageStateMap, PackageTransition, SpecKey,
 };
+pub use capability::{CodegenCapability, DependencyTier, ReferenceBodies};
 pub use context::{
     AuthoringScope, ContextQueries, FloorMap, KeyedVersions, ResolvedContext, core_tcl_floor,
     ladder_releases_in, requirement_spelling, specificity_breadth, targets_from_clauses,

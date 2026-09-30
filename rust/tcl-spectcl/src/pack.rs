@@ -116,6 +116,26 @@ impl PackNotice {
         }
     }
 
+    /// The warning a declaration the package's distance from the root
+    /// forbids draws ([`crate::stamps::admit_declarations`]): on the
+    /// declaring command's row, naming the declaration and the tier. A
+    /// warning, because something the author wrote was dropped — though only
+    /// that declaration: the command loads with every analysis fact it
+    /// declared.
+    #[must_use]
+    pub fn declaration_refused(
+        command: &PackCommand,
+        refusal: &crate::stamps::DeclarationRefusal,
+    ) -> Self {
+        Self {
+            path: command.file.clone(),
+            line: command.line,
+            context: format!("command {}", command.spec.name),
+            message: refusal.message(),
+            severity: Severity::Warning,
+        }
+    }
+
     /// The notice a hook body held dormant by an untrusted workspace draws:
     /// once per hook, on the row that declares it, never once per call. It
     /// is information, not a warning — nothing is wrong with the pack, and
@@ -505,6 +525,11 @@ pub(crate) fn load_sources(
             {
                 notices.push(PackNotice::stamp_refused(command, &refusal));
             }
+            // The capability gate's other two declarations, on the same
+            // command: what a package too far from the root may not say.
+            for refusal in crate::stamps::admit_declarations(command) {
+                notices.push(PackNotice::declaration_refused(command, &refusal));
+            }
         }
         // A body carried in the pack is the one backing that goes stale
         // without anyone touching the pack, so it is said at load.
@@ -856,6 +881,7 @@ fn merge_group(
             // The merge is the only layer that knows which file a command came
             // from, so this is where that gets recorded.
             command.file.clone_from(&file.path);
+            command.dependency_tier = file.dependency_tier;
             if let Some((first_path, first_line)) = first_seen.get(command.spec.name) {
                 notices.push(PackNotice {
                     path: file.path.clone(),
@@ -893,10 +919,11 @@ fn merge_group(
 
 /// The content key for a whole pack set.
 ///
-/// Covers, in order, every file's tier, trust state, path and byte content,
-/// plus the vocabulary version and loader build — so moving a pack between
-/// tiers, the editor granting or withdrawing trust in the workspace, or
-/// upgrading the server, is as much a change as editing it.
+/// Covers, in order, every file's tier, trust state, dependency tier, path and
+/// byte content, plus the vocabulary version and loader build — so moving a
+/// pack between tiers, its package moving in the lockfile's graph, the editor
+/// granting or withdrawing trust in the workspace, or upgrading the server, is
+/// as much a change as editing it.
 fn set_key(sources: &[(PackFile, String)], trust: WorkspaceTrust) -> u64 {
     if sources.is_empty() {
         return 0;
@@ -906,6 +933,9 @@ fn set_key(sources: &[(PackFile, String)], trust: WorkspaceTrust) -> u64 {
     for (file, source) in sources {
         hasher.update(&[file.tier as u8]);
         hasher.update(&[file.tier.trust_under(trust) as u8]);
+        // A package moving in the lockfile's graph changes what its packs may
+        // declare, so it changes the set as much as an edit does.
+        hasher.update(&[file.dependency_tier.map_or(0, |tier| tier as u8 + 1)]);
         hasher.update(file.path.to_string_lossy().as_bytes());
         hasher.update(&[0]);
         hasher.update(source.as_bytes());
@@ -1009,6 +1039,7 @@ mod tests {
             tier: Tier::Workspace,
             path,
             origin: Origin::DotDir,
+            dependency_tier: None,
         }
     }
 
@@ -1112,12 +1143,14 @@ mod tests {
                 tier: Tier::StudioOverride,
                 path: studio,
                 origin: Origin::StudioOverride,
+                dependency_tier: None,
             },
             workspace_file(ws.clone()),
             PackFile {
                 tier: Tier::User,
                 path: user.clone(),
                 origin: Origin::UserDir,
+                dependency_tier: None,
             },
         ]);
         assert_eq!(set.packs.len(), 1);

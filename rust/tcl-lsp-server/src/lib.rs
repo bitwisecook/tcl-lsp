@@ -21038,6 +21038,14 @@ impl Backend {
                         kind: all_kinds,
                     },
                     FileSystemWatcher {
+                        // The lockfile a pack's dependency tier is read from.
+                        // `tclpkg.tcl` beside it is a `.tcl` file, so the source
+                        // watcher above reports it; `did_change_watched_files`
+                        // reloads the packs for either.
+                        glob_pattern: GlobPattern::String(PACKAGE_LOCKFILE_GLOB.to_owned()),
+                        kind: all_kinds,
+                    },
+                    FileSystemWatcher {
                         // The project config the layered settings live-reload
                         // from ([`is_config_file`]). Registered here rather than
                         // left to each client's own `synchronize.fileEvents`, so
@@ -27479,6 +27487,26 @@ fn is_spec_pack_file(uri: &Uri) -> bool {
         .is_some_and(|path| tcl_spectcl::discovery::is_pack_file(&path))
 }
 
+/// Watcher glob for the lockfile a pack's dependency tier is read from
+/// ([`is_package_metadata_file`]). The manifest beside it is a `.tcl` file, so
+/// the source watcher already reports it.
+const PACKAGE_LOCKFILE_GLOB: &str = "**/tclpkg.lock";
+
+/// `true` when `uri` names a package manifest or lockfile: the files a pack's
+/// dependency tier is read from at discovery, so a change to one changes what
+/// the packs beside a manifest may declare without any pack file moving.
+fn is_package_metadata_file(uri: &Uri) -> bool {
+    uri.to_file_path()
+        .and_then(|path| {
+            path.file_name()
+                .map(|name| name.to_string_lossy().into_owned())
+        })
+        .is_some_and(|name| {
+            name.eq_ignore_ascii_case(tcl_spectcl::discovery::PACKAGE_MANIFEST)
+                || name.eq_ignore_ascii_case(tcl_spectcl::discovery::PACKAGE_LOCKFILE)
+        })
+}
+
 fn is_config_file(uri: &Uri) -> bool {
     let s = uri.as_str();
     s.ends_with("/.tcl-lsp.ini")
@@ -27508,6 +27536,11 @@ fn is_sidecar_stubs_file(uri: &Uri) -> bool {
 fn partition_watched_file_changes(changes: Vec<FileEvent>) -> WatchedFileChanges {
     let mut partition = WatchedFileChanges::default();
     for change in changes {
+        // A manifest also goes on as the Tcl source it is; the lockfile is
+        // no source at all. Either moving can change a pack's tier.
+        if is_package_metadata_file(&change.uri) {
+            partition.spec_pack_changed = true;
+        }
         if is_config_file(&change.uri) {
             partition.config_changed = true;
         } else if is_sidecar_stubs_file(&change.uri) {
@@ -27540,7 +27573,8 @@ struct WatchedFileChanges {
     config_changed: bool,
     /// A `.tcl.stubs` sidecar moved.
     sidecar_changed: bool,
-    /// A `.tclspec` `SpecTcl` pack moved.
+    /// A `.tclspec` `SpecTcl` pack moved, or a `tclpkg.tcl` / `tclpkg.lock`
+    /// did, which is where the tier of the package shipping a pack is read from.
     spec_pack_changed: bool,
     /// The Tcl source files, one entry per URI, with its last event kind.
     last_kind: HashMap<Uri, FileChangeType>,
@@ -42604,6 +42638,43 @@ proc p {} {
         );
     }
 
+    /// A pack's dependency tier is read from the manifest and lockfile beside
+    /// it, so either moving reloads the packs although no `.tclspec` did. The
+    /// lockfile is no Tcl source and has a watcher of its own
+    /// ([`PACKAGE_LOCKFILE_GLOB`]); the manifest is reported by the source
+    /// watcher and stays an indexed Tcl source as well.
+    #[test]
+    fn a_manifest_or_lockfile_change_reloads_the_packs() {
+        let changed = |uri: &Uri| {
+            partition_watched_file_changes(vec![FileEvent {
+                uri: uri.clone(),
+                typ: FileChangeType::CHANGED,
+            }])
+        };
+        let lockfile: Uri = "file:///w/tclpkg.lock".parse().unwrap();
+        let manifest: Uri = "file:///w/lib/json-1.0.0/tclpkg.tcl".parse().unwrap();
+        assert!(is_package_metadata_file(&lockfile));
+        assert!(is_package_metadata_file(&manifest));
+
+        let partition = changed(&lockfile);
+        assert!(partition.spec_pack_changed);
+        assert!(
+            partition.last_kind.is_empty(),
+            "a lockfile is no Tcl source"
+        );
+        let partition = changed(&manifest);
+        assert!(partition.spec_pack_changed);
+        assert!(partition.last_kind.contains_key(&manifest));
+
+        // Negative: other lockfiles and other Tcl files move no pack.
+        for other in ["file:///w/other.lock", "file:///w/lib/x.tcl"] {
+            let other: Uri = other.parse().unwrap();
+            assert!(!is_package_metadata_file(&other), "{other:?}");
+            assert!(!changed(&other).spec_pack_changed, "{other:?}");
+        }
+        assert_eq!(PACKAGE_LOCKFILE_GLOB, "**/tclpkg.lock");
+    }
+
     #[test]
     fn is_skipped_scan_dir_skips_vendor_and_hidden() {
         assert!(is_skipped_scan_dir(Path::new("/a/.git")));
@@ -51771,6 +51842,7 @@ proc p {} {
                 tier: tcl_spectcl::Tier::Workspace,
                 path: std::path::PathBuf::from("/workspace/.tcl-lsp/mylib.tclspec"),
                 origin: tcl_spectcl::discovery::Origin::DotDir,
+                dependency_tier: None,
             },
             "speclib mylib 1.0 {\n    command mylib::put {\n        arity 1\n        \
              arg 0 -role VarWrite\n    }\n}\n"

@@ -648,6 +648,7 @@ fn load_one(pack: &ShippedPackFile) -> (PackSet, Duration) {
         tier: pack.tier,
         path: pack.path.clone(),
         origin: pack.origin,
+        dependency_tier: None,
     };
     let started = Instant::now();
     let set = tcl_spectcl::pack::load(std::slice::from_ref(&file));
@@ -1674,6 +1675,7 @@ fn drive_hostile_pack() -> Containment {
         tier: Tier::Workspace,
         path: fixture,
         origin: Origin::DotDir,
+        dependency_tier: None,
     }]);
     assert!(
         set.notices.is_empty(),
