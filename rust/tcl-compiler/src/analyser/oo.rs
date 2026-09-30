@@ -1800,6 +1800,218 @@ impl Analyser {
         true
     }
 
+    /// Handle a `JimClass` definer — `class NAME ?BASES? VARS` — recording the
+    /// class as a [`ClassDef`] with its base classes and the instance
+    /// variables `VARS` names.
+    ///
+    /// `VARS` is a dictionary of every instance variable and its initial
+    /// value, not a script, so it is read for its keys and never walked as a
+    /// body. The class defines no member itself: methods arrive later, through
+    /// [`Self::handle_jim_class_member_call`] or a two-word `proc`
+    /// ([`Self::record_two_word_proc_member`]).
+    pub(super) fn handle_jim_class_command(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+    ) -> bool {
+        if !self
+            .definition_grammar(cmd_name)
+            .is_some_and(|grammar| grammar.family == tcl_registry::definer::DefinerFamily::JimClass)
+        {
+            return false;
+        }
+        // The definer's own arity is 2 or 3; any other shape is left to the
+        // arity check.
+        if !(2..=3).contains(&args.len()) || arg_tokens.len() != args.len() {
+            return false;
+        }
+        let ns_prefix = self.command_resolution_namespace(scope_path);
+        let qualified = super::handlers::qualify(&ns_prefix, &args[0]);
+        let simple = crate::naming::key_tail(&qualified).to_string();
+        let name_span = arg_tokens[0].span;
+        // **W314** — the class name has no absolute written form.
+        self.emit_w314_no_absolute_name(&args[0], name_span);
+
+        let vars_at = args.len() - 1;
+        let rules = self.word_rules();
+        let mut inheritance_unknown = false;
+        let mut words_of = |text: &str| -> Vec<String> {
+            if crate::naming::is_dynamic_word(text) {
+                inheritance_unknown = true;
+                return Vec::new();
+            }
+            rules
+                .split_list(text)
+                .map(|elements| elements.iter().map(ToString::to_string).collect())
+                .unwrap_or_default()
+        };
+        let superclasses = if args.len() == 3 {
+            words_of(&args[1])
+        } else {
+            Vec::new()
+        };
+        let own_variables: Vec<String> = words_of(&args[vars_at]).into_iter().step_by(2).collect();
+        // A derived class's variable dictionary is its bases' merged with its
+        // own, so a method body sees every inherited instance variable too.
+        let mut variables: Vec<String> = Vec::new();
+        for base in &superclasses {
+            let Some(base_class) = self
+                .resolve_user_class(base)
+                .and_then(|base_q| self.result.all_classes.get(&base_q))
+            else {
+                continue;
+            };
+            for variable in &base_class.variables {
+                if !variables.contains(variable) {
+                    variables.push(variable.clone());
+                }
+            }
+        }
+        for variable in own_variables {
+            if !variables.contains(&variable) {
+                variables.push(variable);
+            }
+        }
+
+        let doc = std::mem::take(&mut self.last_comment);
+        let class = ClassDef {
+            name: simple,
+            qualified_name: qualified.clone(),
+            name_span,
+            body_span: arg_tokens[vars_at].span,
+            metaclass: cmd_name.to_string(),
+            metaclass_provenance: super::types::MetaclassProvenance::Observed,
+            superclasses,
+            variables,
+            inheritance_unknown,
+            doc,
+            ..Default::default()
+        };
+        self.register_defined_class(qualified, class, scope_path);
+        true
+    }
+
+    /// Handle `CLASS member …` where `CLASS` is a `JimClass` class and `member`
+    /// is one of its definer's own members (`CLASS method NAME ARGS BODY`),
+    /// recording the member on the class and walking its body with the class
+    /// variables and the grammar's implicit variables (`self`) bound.
+    pub(super) fn handle_jim_class_member_call(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+    ) -> bool {
+        let Some(keyword) = args.first() else {
+            return false;
+        };
+        if arg_tokens.len() != args.len() {
+            return false;
+        }
+        let Some(class_q) = self.resolve_user_class(cmd_name) else {
+            return false;
+        };
+        let Some(grammar) = self
+            .class_definer_grammar(&class_q)
+            .filter(|grammar| grammar.family == tcl_registry::definer::DefinerFamily::JimClass)
+        else {
+            return false;
+        };
+        let Some(member) = grammar.member(keyword) else {
+            return false;
+        };
+        let Some(mut class_def) = self.result.all_classes.remove(&class_q) else {
+            return false;
+        };
+        let member_args = &args[1..];
+        let member_tokens = &arg_tokens[1..];
+        let parameter_indices: Vec<usize> = member
+            .indices_for_call_in(
+                member_args,
+                Some(self.analysis_context().context().authoring_query()),
+                ArgRole::ParamList,
+            )
+            .collect();
+        super::diagnostics::emit_invalid_formal_parameter_list_diagnostics(
+            self,
+            member_args,
+            member_tokens,
+            &parameter_indices,
+        );
+        let mut seed_vars = class_def.variables.clone();
+        seed_vars.extend(grammar.implicit_vars.iter().map(ToString::to_string));
+        let mut ctx = ClassBodyCtx {
+            grammar,
+            class_def: &mut class_def,
+            class_qualified: &class_q,
+            scope_path,
+        };
+        let form = MemberForm {
+            member,
+            kind: "method",
+            label: "",
+            visibility: "public",
+        };
+        self.extract_class_member(member_args, member_tokens, &mut ctx, &seed_vars, &form);
+        self.register_defined_class(class_q, class_def, scope_path);
+        true
+    }
+
+    /// Record a `proc` whose name is the two-element list `{CLASS member}` as a
+    /// method of `CLASS` when `CLASS` is a class of a family that stores its
+    /// members as two-word commands
+    /// ([`tcl_registry::definer::DefinerFamily::members_are_two_word_commands`]).
+    ///
+    /// The procedure is itself the two-word command `{CLASS member}` — every
+    /// dialect defines that — so this only adds the class-side fact. The
+    /// method has no class variables and no `self` in its body: a raw
+    /// definition is not wrapped by the class command's `method`. A class
+    /// written after the `proc` is not seen.
+    pub(super) fn record_two_word_proc_member(
+        &mut self,
+        proc_name: &str,
+        proc: &super::types::ProcDef,
+        scope_path: &[usize],
+    ) {
+        let Ok(words) = self.word_rules().split_list(proc_name) else {
+            return;
+        };
+        let [class_word, member_word] = words.as_slice() else {
+            return;
+        };
+        let Some(class_q) = self.resolve_user_class(class_word) else {
+            return;
+        };
+        if !self
+            .class_definer_grammar(&class_q)
+            .is_some_and(|grammar| grammar.family.members_are_two_word_commands())
+        {
+            return;
+        }
+        let Some(mut class_def) = self.result.all_classes.remove(&class_q) else {
+            return;
+        };
+        let name = member_word.to_string();
+        class_def.methods.insert(
+            name.clone(),
+            MethodDef {
+                name,
+                params: proc.params.clone(),
+                params_computed: proc.params_computed,
+                name_span: proc.name_span,
+                body_span: proc.body_span,
+                kind: "method".to_string(),
+                is_self_method: false,
+                visibility: "public".to_string(),
+                doc: proc.doc.clone(),
+                forward_target: None,
+            },
+        );
+        self.register_defined_class(class_q, class_def, scope_path);
+    }
+
     /// Parse an itcl class body: `inherit` → superclasses, `variable` / `common`
     /// → instance/class variables, `method` / `proc` / `constructor` /
     /// `destructor` → method scopes.  Two passes (so a method can reference any

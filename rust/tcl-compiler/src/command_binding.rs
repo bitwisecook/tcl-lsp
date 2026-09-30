@@ -3305,7 +3305,8 @@ fn stmt_gen(stmt: &Statement, state: &mut State, registry: &CommandRegistry) {
 /// The command a registry-described class definer creates, when this call
 /// is a creation: `METACLASS create NAME …` / `METACLASS createWithNamespace
 /// NAME …` for the `TclOo` family (gated on `IS_OO_METACLASS`, mirroring the
-/// analyser's dual gate), `DEFINER NAME BODY` for snit/itcl.  `None` for
+/// analyser's dual gate), `DEFINER NAME BODY` for snit/itcl and
+/// `DEFINER NAME ?BASES? VARS` for a Jim class.  `None` for
 /// non-definers, `new` (auto-named), or a dynamic name.
 fn definer_created_command(
     registry: &CommandRegistry,
@@ -3325,9 +3326,9 @@ fn definer_created_command(
             let method = registry.exported_manufacturer_method(cmd, args.first()?)?;
             args.get(usize::from(method.names_instance_at?))?
         }
-        tcl_registry::definer::DefinerFamily::Snit | tcl_registry::definer::DefinerFamily::Itcl => {
-            args.first()?
-        }
+        tcl_registry::definer::DefinerFamily::Snit
+        | tcl_registry::definer::DefinerFamily::Itcl
+        | tcl_registry::definer::DefinerFamily::JimClass => args.first()?,
         tcl_registry::definer::DefinerFamily::SpecTcl
         | tcl_registry::definer::DefinerFamily::SslicTcl => return None,
     };

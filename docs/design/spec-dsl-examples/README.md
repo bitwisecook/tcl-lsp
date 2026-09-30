@@ -891,7 +891,7 @@ it is not itself a loadable block; the loadable one is the snit port:
 
 ```tcl
 definition_body {
-    family Snit                              ;# TclOo | Snit | Itcl
+    family Snit                              ;# TclOo | Snit | Itcl | JimClass
     member method     -roles {0 Name 1 ParamList 2 Body}
     member superclass -all-refs Class -slot Set
     member variable   -all-vars -slot Append -dedup

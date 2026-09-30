@@ -730,6 +730,21 @@ pub(super) fn handle_itcl_class(
     emit_class(&texts[1], argv[1], argv[2], ns_prefix, result);
 }
 
+/// Record a Jim `class NAME ?BASES? VARS` as a class so `NAME new` types the
+/// receiving variable `OBJECT(NAME)`. The variable dictionary, which stands in
+/// for the body, is the last word.
+pub(super) fn handle_jim_class(
+    texts: &[String],
+    argv: &[Token],
+    ns_prefix: &str,
+    result: &mut SignatureScanResult,
+) {
+    if texts.len() < 3 || argv.len() != texts.len() {
+        return;
+    }
+    emit_class(&texts[1], argv[1], argv[argv.len() - 1], ns_prefix, result);
+}
+
 /// Record a snit type/widget/widgetadaptor as a class so its instance-creating
 /// constructor (`Name create obj` / `Name %AUTO%`) types the receiving variable
 /// `OBJECT(Name)`.  Same `DEFINER Name Body` shape as itcl.

@@ -25,6 +25,7 @@ use std::collections::BTreeSet;
 
 use tcl_dialect::model::{Family, SpecProvider, SurfaceQuery, surface_admits};
 use tcl_registry::ArgRole;
+use tcl_registry::definer::DefinerFamily;
 use tcl_registry::model::resolve_environment;
 use tcl_registry::spec::CommandSpec;
 
@@ -299,6 +300,36 @@ fn the_bare_limit_loop_form_starts_at_0_81() {
     for release in LADDER {
         assert!(admitted("bounds", release), "{release}");
         assert!(admitted("stepped", release), "{release}");
+    }
+}
+
+/// `class` carries the Jim class grammar: one declared member, a `new`
+/// manufacturer, an open member set and `self` in every method body. Its
+/// second and third words are a base list and a variable dictionary, so no
+/// word is a script to walk.
+#[test]
+fn class_carries_the_jim_class_grammar_and_no_body_word() {
+    let specs = declared();
+    let class = specs
+        .iter()
+        .find(|spec| spec.name == "class")
+        .expect("class is declared");
+    let grammar = class.definition_body.expect("a definition grammar");
+    assert_eq!(grammar.family, DefinerFamily::JimClass);
+    assert!(grammar.member("method").is_some());
+    assert!(grammar.manufacturer("new").is_some());
+    assert!(grammar.dynamic_method_dispatch);
+    assert_eq!(grammar.implicit_vars, ["self"]);
+
+    let generation = jim();
+    let store = generation.commands();
+    for words in [&["Point", "{x 0}"][..], &["Point", "Base", "{x 0}"][..]] {
+        assert!(
+            store
+                .arg_indices_for_role("class", words, ArgRole::Body)
+                .is_empty(),
+            "{words:?}"
+        );
     }
 }
 

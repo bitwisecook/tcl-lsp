@@ -1289,6 +1289,8 @@ impl Analyser {
             return self.handle_oo_class_command(cmd_name, args, arg_tokens, scope_path, cmd_tok)
                 || self.handle_snit_type_command(cmd_name, args, arg_tokens, scope_path)
                 || self.handle_itcl_class_command(cmd_name, args, arg_tokens, scope_path)
+                || self.handle_jim_class_command(cmd_name, args, arg_tokens, scope_path)
+                || self.handle_jim_class_member_call(cmd_name, args, arg_tokens, scope_path)
                 || self.handle_interp_handle_eval_command(cmd_name, args, arg_tokens, scope_path);
         };
         match hook {
@@ -3733,7 +3735,10 @@ impl Analyser {
                     let _claimed = self
                         .handle_oo_class_command(&cmd_name, args, arg_tokens, scope_path, cmd_tok)
                         || self.handle_snit_type_command(&cmd_name, args, arg_tokens, scope_path)
-                        || self.handle_itcl_class_command(&cmd_name, args, arg_tokens, scope_path);
+                        || self.handle_itcl_class_command(&cmd_name, args, arg_tokens, scope_path)
+                        || self.handle_jim_class_command(&cmd_name, args, arg_tokens, scope_path)
+                        || self
+                            .handle_jim_class_member_call(&cmd_name, args, arg_tokens, scope_path);
                 }
                 Some(_) => {}
             }
@@ -4595,7 +4600,7 @@ impl Analyser {
     /// Resolve a class reference (`Dog`, `::Dog`, or a
     /// namespace-relative form) to its qualified name when it
     /// names a user-defined class.
-    fn resolve_user_class(&self, name: &str) -> Option<String> {
+    pub(super) fn resolve_user_class(&self, name: &str) -> Option<String> {
         // Exact / canonical-global / unique-tail via the shared call-site
         // resolver.  A first-`HashMap`-hit `c.name == name` scan instead
         // picks an arbitrary same-tailed class across namespaces.

@@ -22,6 +22,7 @@
 //! dialect's answers.
 
 use tcl_compiler::analyser::Analyser;
+use tcl_compiler::analyser::types::AnalysisResult;
 use tcl_compiler::signature_scan::extract_signatures;
 use tcl_core_types::DiagCode;
 use tcl_registry::model::resolve_environment;
@@ -29,15 +30,18 @@ use tcl_registry::model::resolve_environment;
 /// One diagnostic: its code and the source text it covers.
 type Finding = (DiagCode, String);
 
-fn analyse_with(source: &str, per_item: bool) -> Vec<Finding> {
+fn run(source: &str, per_item: bool) -> AnalysisResult {
     tcl_spectcl::core_surfaces::ensure();
     let dialect = tcl_registry::dialects::detect_dialect(source, None, "tcl");
     let mut analyser = Analyser::new();
-    let result = if per_item {
+    if per_item {
         analyser.analyse_per_item(source, dialect)
     } else {
         analyser.analyse(source, dialect)
-    };
+    }
+}
+
+fn findings_of(result: &AnalysisResult, source: &str) -> Vec<Finding> {
     result
         .diagnostics
         .iter()
@@ -48,11 +52,20 @@ fn analyse_with(source: &str, per_item: bool) -> Vec<Finding> {
         .collect()
 }
 
+fn analyse_with(source: &str, per_item: bool) -> Vec<Finding> {
+    findings_of(&run(source, per_item), source)
+}
+
+/// Whether `code` is a hint about a variable or parameter nothing reads.
+fn is_unused_variable_hint(code: DiagCode) -> bool {
+    matches!(code, DiagCode::W211 | DiagCode::W214 | DiagCode::W220)
+}
+
 /// The findings that are not a hint about an unused variable.
 fn substantive(findings: Vec<Finding>) -> Vec<Finding> {
     findings
         .into_iter()
-        .filter(|(code, _)| !matches!(code, DiagCode::W211 | DiagCode::W220))
+        .filter(|(code, _)| !is_unused_variable_hint(*code))
         .collect()
 }
 
@@ -165,7 +178,8 @@ fn the_signature_scan_reads_the_four_word_definition() {
     assert!(body.contains("return $x"), "{body}");
 }
 
-/// A Tcl registry places the three-word definition exactly as before.
+/// A Tcl registry places the three-word definition at the name, the parameter
+/// list and the body.
 #[test]
 fn the_signature_scan_reads_the_three_word_definition_under_tcl() {
     tcl_spectcl::core_surfaces::ensure();
@@ -176,4 +190,162 @@ fn the_signature_scan_reads_the_three_word_definition_under_tcl() {
     assert_eq!(pair.params.len(), 2);
     let body = &source[pair.body_range.start() as usize..pair.body_range.end() as usize];
     assert!(body.contains("return $a$b"), "{body}");
+}
+
+/// `class NAME {vars}` records the class, its metaclass and the instance
+/// variables the dictionary names; the dictionary is read for its keys and
+/// never walked as a script.
+#[test]
+fn a_class_records_the_variables_its_dictionary_names() {
+    let source = jim("class Point {x 0 y 0}\nputs [Point new]\n");
+    for per_item in [false, true] {
+        let result = run(&source, per_item);
+        assert_eq!(findings_of(&result, &source), vec![], "{source}");
+        let class = &result.all_classes["::Point"];
+        assert_eq!(class.variables, ["x", "y"]);
+        assert_eq!(class.metaclass, "class");
+        assert!(class.superclasses.is_empty());
+    }
+}
+
+/// A derived class names its bases and inherits their instance variables: the
+/// variable dictionary of a derived class is its bases' merged with its own.
+#[test]
+fn a_derived_class_inherits_its_bases_variables() {
+    let source = jim("class Point {x 0 y 0}\nclass Point3 Point {z 0}\n");
+    let result = run(&source, false);
+    let derived = &result.all_classes["::Point3"];
+    assert_eq!(derived.superclasses, ["Point"]);
+    assert_eq!(derived.variables, ["x", "y", "z"]);
+}
+
+/// A base-class list or a variable dictionary that is computed leaves the
+/// class's inheritance unknown rather than guessed.
+#[test]
+fn a_computed_class_definition_leaves_its_inheritance_unknown() {
+    let source = jim("class Dyn $bases $vars\n");
+    let result = run(&source, false);
+    assert!(result.all_classes["::Dyn"].inheritance_unknown);
+}
+
+/// The definer's own arity is enforced: `class` needs a name and a variable
+/// dictionary.
+#[test]
+fn a_class_without_its_variable_dictionary_is_an_arity_error() {
+    let source = jim("class Lonely\n");
+    assert_eq!(
+        analyse_with(&source, false),
+        vec![(DiagCode::E002, "class Lonely".to_owned())]
+    );
+}
+
+/// `CLASS method NAME ARGS BODY` adds a method whose body is walked with the
+/// class variables, the inherited ones and `self` bound.
+#[test]
+fn a_method_body_sees_the_instance_variables_and_self() {
+    let source = jim("class Point {x 0 y 0}\nclass Point3 Point {z 0}\n\
+         Point method norm {} { return [expr {abs($x) + abs($y)}] }\n\
+         Point3 method who {} { not_a_command_anywhere $self $x $z }\n");
+    for per_item in [false, true] {
+        let result = run(&source, per_item);
+        assert!(
+            findings_of(&result, &source)
+                .contains(&(DiagCode::W123, "not_a_command_anywhere".to_owned())),
+            "the body is walked: {source}"
+        );
+        assert!(result.all_classes["::Point"].methods.contains_key("norm"));
+        assert!(result.all_classes["::Point3"].methods.contains_key("who"));
+        for variable in [
+            "::Point::norm::x",
+            "::Point::norm::self",
+            "::Point3::who::x",
+        ] {
+            assert!(
+                result.all_variables.contains_key(variable),
+                "{variable} is bound in the method body: {:?}",
+                result.all_variables.keys().collect::<Vec<_>>()
+            );
+        }
+    }
+}
+
+/// A raw `proc {CLASS M} …` is a method too, and — not being wrapped by the
+/// class command's `method` — sees neither the class variables nor `self`.
+#[test]
+fn a_raw_two_word_proc_is_a_method_without_the_class_variables() {
+    let source = jim("class Point {x 0}\nproc {Point move} {dx} { return $dx }\n");
+    let result = run(&source, false);
+    assert_eq!(findings_of(&result, &source), vec![], "{source}");
+    assert!(result.all_classes["::Point"].methods.contains_key("move"));
+    assert!(!result.all_variables.contains_key("Point move::x"));
+    assert!(!result.all_variables.contains_key("Point move::self"));
+}
+
+/// `set obj [CLASS new]` types the variable, so `$obj method` is a dispatch on
+/// the class rather than a non-literal command head, and the members the
+/// class has not declared abstain: any `{CLASS word}` command is a method.
+#[test]
+fn an_object_is_typed_by_its_class_and_its_member_set_is_open() {
+    let source = jim("class Point {x 0}\nproc {Point move} {dx} { return $dx }\n\
+         set p [Point new {x 5}]\nputs [$p move 1]\nputs [$p get x]\nputs [$p undeclared]\n");
+    for per_item in [false, true] {
+        let result = run(&source, per_item);
+        assert_eq!(findings_of(&result, &source), vec![], "{source}");
+        assert_eq!(result.instance_classes["p"], "::Point");
+    }
+}
+
+/// A `proc` named by a two-element list defines that two-word command in every
+/// dialect: a call whose head is the same list resolves, another list does not,
+/// and the arity is the procedure's.
+#[test]
+fn a_two_element_proc_name_defines_a_two_word_command_in_every_dialect() {
+    for dialect in ["tcl8.4", "tcl8.6", "tcl9.0", "jim"] {
+        let source = format!(
+            "# tcl-dialect: {dialect}\nproc {{a b}} {{x}} {{ return $x }}\n{{a b}} 1\n{{a c}} 1\n{{a b}}\n"
+        );
+        let found: Vec<Finding> = substantive(analyse_with(&source, false));
+        let codes: Vec<DiagCode> = found.iter().map(|(code, _)| *code).collect();
+        assert_eq!(
+            codes,
+            [DiagCode::W123, DiagCode::E002],
+            "{dialect}: {found:?}"
+        );
+    }
+}
+
+/// The signature scan records a Jim class, whether or not it names a base, so
+/// a cross-file `NAME new` types its receiver.
+#[test]
+fn the_signature_scan_records_a_jim_class_with_or_without_bases() {
+    tcl_spectcl::core_surfaces::ensure();
+    let generation = resolve_environment("jim").default_context_registry();
+    let source = "class Point {x 0}\nclass Point3 Point {z 0}\n";
+    let scan = extract_signatures(source, generation.commands());
+    let mut classes: Vec<&str> = scan.classes.keys().map(String::as_str).collect();
+    classes.sort_unstable();
+    assert_eq!(classes, ["::Point", "::Point3"]);
+    // The body is the variable dictionary, not the base-class word before it.
+    let derived = &scan.classes["::Point3"];
+    let dictionary = source.find("{z 0}").expect("the dictionary is written");
+    assert_eq!(derived.body_range.start() as usize, dictionary);
+}
+
+/// Under another dialect `class` is not Jim's: nothing is recorded as a class
+/// and the word is reported.
+#[test]
+fn a_tcl_document_has_no_jim_class() {
+    let source = tcl86("class Point {x 0 y 0}\nset p [Point new]\n");
+    let result = run(&source, false);
+    assert!(
+        result.all_classes.is_empty(),
+        "{:?}",
+        result.all_classes.keys()
+    );
+    assert!(
+        findings_of(&result, &source)
+            .iter()
+            .any(|(code, _)| *code == DiagCode::W123),
+        "{source}"
+    );
 }

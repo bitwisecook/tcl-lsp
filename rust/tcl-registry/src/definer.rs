@@ -879,6 +879,19 @@ pub enum DefinerFamily {
     Snit,
     /// [incr Tcl] `itcl::class` (and the bare `class` alias).
     Itcl,
+    /// Jim Tcl's `class NAME ?BASES? {vars}` (`oo.tcl`, shipped with every
+    /// `jimsh`).
+    ///
+    /// The class body is a dictionary of the instance variables and their
+    /// initial values, not a script of member declarations, so the definer
+    /// declares no `Body` word. Members arrive afterwards, as
+    /// `NAME method M ARGS BODY` or as a raw `proc {NAME M} ARGS BODY`: a
+    /// member is stored as the two-word command `{NAME M}`, and an object is a
+    /// command that dispatches to whichever `{NAME word}` exists — so the
+    /// member set is open at run time ([`DefinitionBodyGrammar::dynamic_method_dispatch`]).
+    /// The grammar's `members` name the class-command calls that declare one
+    /// ([`Self::members_are_two_word_commands`]).
+    JimClass,
     /// `SpecTcl` — the `.tclspec` spec-pack DSL's own declaration bodies
     /// (`speclib … { … }`, `command … { … }`, `hover { … }`, …).
     ///
@@ -931,7 +944,16 @@ impl DefinerFamily {
     /// predicate instead of maintaining their own family lists.
     #[must_use]
     pub const fn manufactures_runtime_commands(self) -> bool {
-        matches!(self, Self::TclOo | Self::Snit | Self::Itcl)
+        matches!(self, Self::TclOo | Self::Snit | Self::Itcl | Self::JimClass)
+    }
+
+    /// Whether a class of this family stores each member as the two-word
+    /// command `{CLASS member}`, so that a `proc` named by that two-element
+    /// list is also a member of the class. Jim's `oo.tcl` builds every method,
+    /// and every built-in the class command answers to, this way.
+    #[must_use]
+    pub const fn members_are_two_word_commands(self) -> bool {
+        matches!(self, Self::JimClass)
     }
 
     /// Registry-owned current-namespace policy for executable member bodies.
@@ -939,7 +961,7 @@ impl DefinerFamily {
     pub const fn member_current_namespace(self) -> MemberCurrentNamespace {
         match self {
             Self::TclOo => MemberCurrentNamespace::RuntimeReceiver,
-            Self::Snit | Self::Itcl | Self::SpecTcl | Self::SslicTcl => {
+            Self::Snit | Self::Itcl | Self::JimClass | Self::SpecTcl | Self::SslicTcl => {
                 MemberCurrentNamespace::DefinedEntity
             }
         }
@@ -1404,6 +1426,7 @@ impl DefinitionBodyGrammar {
             // "exported" a declaration-only family has.
             DefinerFamily::Snit
             | DefinerFamily::Itcl
+            | DefinerFamily::JimClass
             | DefinerFamily::SpecTcl
             | DefinerFamily::SslicTcl => true,
         }
@@ -2709,11 +2732,29 @@ mod tests {
             DefinerFamily::TclOo,
             DefinerFamily::Snit,
             DefinerFamily::Itcl,
+            DefinerFamily::JimClass,
         ] {
             assert!(family.manufactures_runtime_commands());
         }
         for family in [DefinerFamily::SpecTcl, DefinerFamily::SslicTcl] {
             assert!(!family.manufactures_runtime_commands());
+        }
+    }
+
+    /// Only Jim's `oo.tcl` stores a member as a two-word command; the other
+    /// class systems keep members in their own tables, so a `proc` whose name
+    /// is a two-element list is never a member of theirs.
+    #[test]
+    fn only_a_jim_class_stores_its_members_as_two_word_commands() {
+        assert!(DefinerFamily::JimClass.members_are_two_word_commands());
+        for family in [
+            DefinerFamily::TclOo,
+            DefinerFamily::Snit,
+            DefinerFamily::Itcl,
+            DefinerFamily::SpecTcl,
+            DefinerFamily::SslicTcl,
+        ] {
+            assert!(!family.members_are_two_word_commands());
         }
     }
 

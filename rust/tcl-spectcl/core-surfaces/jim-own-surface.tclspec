@@ -818,16 +818,55 @@ speclib jim-own-surface 2.0 {
 
     # ---- object system ---------------------------------------------------------
 
+    # `class` is `oo.tcl`'s proc, in every `jimsh` from 0.76 (measured: 2 or 3
+    # words at every release, the base classes being the optional middle one).
+    # It defines the command `classname` and the two-word commands
+    # `{classname new}`, `{classname method}`, `{classname methods}`,
+    # `{classname vars}`, `{classname classvars}`, `{classname classname}`,
+    # `{classname finalize}`, `{classname destroy}`, `{classname get}` and
+    # `{classname eval}`, plus `{classname constructor}` and
+    # `{classname defaultconstructor}` from 0.82 and `{classname baseclass}`
+    # when it names a base class. `classvars` is a dictionary, not a script, so
+    # the definer has no `Body` word; the members are added afterwards, by
+    # `classname method M ARGS BODY` or by a raw `proc {classname M} ARGS BODY`,
+    # and an object dispatches to whichever `{classname word}` exists, so the
+    # member set is open at run time.
+    #
+    # `method` is the only member the grammar names: it is the class command's
+    # own definer, and its body sees the class variables and `self`. A raw
+    # two-word `proc` also adds a member, without either.
+
     command class {
         available {jim 0.76-}
+        traits {CREATES_BARRIER CREATES_DYNAMIC_BARRIER}
         arity 2..3
         defines_command_at 0
         arg 0 -role Name
+        side_effect InterpState -writes
         form Default {class classname ?baseclasses? classvars}
         hover {
             summary {Define a class: a command named classname whose instances hold the listed variables.}
             synopsis {class classname ?baseclasses? classvars}
+            description {classvars is a dictionary of every instance variable and its initial value. Methods are added with classname method name arglist body, in which the instance variables and $self are visible, or with a proc named as the two-word list {classname name}, which has neither. classname new makes an object; the object is a command that runs whichever {classname word} exists.}
             source {Jim Tcl}
+        }
+
+        definition_body {
+            family JimClass
+            member method -roles {0 Name 1 ParamList 2 Body}
+            implicit_vars {self}
+            dynamic_method_dispatch
+            manufacturer new -constructor-args-from 1
+            builtin_object_method get       -detail {the value of an instance variable}
+            builtin_object_method eval      -detail {run a script with the instance variables visible}
+            builtin_object_method destroy   -detail {delete the object}
+            builtin_object_method vars      -detail {the sorted instance variable names}
+            builtin_object_method classvars -detail {the class variables with their initial values}
+            builtin_object_method classname -detail {the name of the class}
+            builtin_object_method methods   -detail {every command named for the class: methods and built-ins}
+            builtin_object_method method    -receiver ClassObject -detail {define a method on the class}
+            builtin_object_method new       -receiver ClassObject -detail {construct an object}
+            builtin_object_method finalize  -receiver ClassObject -detail {the collector's hook that destroys an unreferenced object}
         }
     }
 

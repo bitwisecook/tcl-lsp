@@ -1962,6 +1962,7 @@ impl Analyser {
         // name. The full qualified name is still on
         // ``ProcDef.qualified_name`` for callers that need it.
         self.register_proc_definition(&qualified, &proc, name_span);
+        self.record_two_word_proc_member(&resolved_name, &proc, scope_path);
         let simple_key = proc.name.clone();
         let path = scope_path.to_vec();
         if let Some(scope) = super::scope::scope_at_mut(&mut self.result.global_scope, &path) {
@@ -9592,7 +9593,7 @@ impl Analyser {
 
     /// Keep the global class index and the enclosing lexical scope's class
     /// map in lockstep for any definition form that has produced a class fact.
-    fn register_defined_class(
+    pub(super) fn register_defined_class(
         &mut self,
         qualified: String,
         class_def: super::types::ClassDef,

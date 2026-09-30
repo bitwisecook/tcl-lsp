@@ -4043,6 +4043,7 @@ fn definition_body_block(stmts: &[Stmt], log: &mut Log) -> DefinitionBodyGrammar
                     DefinerFamily::TclOo,
                     DefinerFamily::Snit,
                     DefinerFamily::Itcl,
+                    DefinerFamily::JimClass,
                 ];
                 if let Some(family) =
                     enum_by_name(FAMILIES, &value, "definer family", stmt.line, log)
