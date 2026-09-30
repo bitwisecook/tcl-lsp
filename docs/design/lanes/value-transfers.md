@@ -5884,6 +5884,22 @@ pinned across 147 files, 36 waived, 16 clean), both unchanged;
 `owner-resolution` (45 rows) and `kcs-index-links` pass; `dialect-drift`
 8 sites, none new; `cargo check --workspace --all-targets` clean.
 
+| Item | Commit | What landed | Its tests |
+|---|---|---|---|
+| VT6.8 | `wip(value-transfers): slice 6 — the slice's witnesses` | Tests only; no source file moves. `value_transfers_cli.rs` gains program (4) through the shipped binary, the selection line, and the two consumers the slice's behavioural-delta table names, with a small `tclsh` oracle of its own (`run_tclsh`, `tclshs_from`: a release from the form's first on that has a `tclsh<series>` on `PATH`, reported on stderr when none is) and `diagnostics_at`, which reads `tcl diag --json` under either of its exit statuses — it exits 1 when it reports a warning or an error. `value_transfer_witnesses.rs` gains the loop witness. Program (4)'s fall-through form spells its `-` bare, the one spelling every release reads alike (D179). Deviations: beyond the plan's two tests, the loop and iRules consumers' CLI witness and the compiler-level loop witness, which no other test drives through the binary or under every dialect | `program_four_reaches_diag_and_opt_in_every_form` (`value_transfers_cli.rs`, new: for the exact, `-glob`, `-regexp`, `-nocase` and shared-body forms `tcl diag --json --dialect tcl8.6` reports I231 at `baz`'s pattern — line 3, and `qux`'s at line 4 in the shared form — and `tcl opt --profile full --dialect tcl8.6` leaves `puts always`, no `switch` and O112 among its rewrites; the original and the optimised program each print `always` under every tclsh release from the form's first on, 8.4 for all but `-nocase`, 8.5's; negative: under `tcl8.4` and `tk`, which may be 8.4, `-nocase` reports no arm and `tcl opt` keeps the statement, and tclsh 8.4 raises on the option); `explore_sccp_prints_the_selection` (new: over program (4)'s `-glob` form the text view prints `selection: default`, `bodies: default` and `arm never selected: baz`; a matching subject prints `selection: arm 0`, a two-member subject `selection: arm 1, arm 0`, a `-` group `selection: arm 0` with `bodies: arm 1`; a parameter subject prints no selection, and a braced `-` body in the separate-words form prints one under `tcl8.6` and `tcl9.0` and none under `tcl9.1` and `tk`); `diag_reads_the_decided_loop_header_and_the_dead_respond` (new: `while {$n}` over `set n 0` is W240 and `while {$go}` over `set go 1` W241, neither drawing W242, which a loop over a parameter still does under `--enable W242`; an iRule's `HTTP::header` after an `if {0}` respond reports no IRULE1201 through `--dialect f5-irules`, after a live respond one); `a_decided_loop_header_gives_w240_or_w241` (compiler witnesses, new: four W240 programs — at the top level, in a procedure, a `for` whose first test fails, a literal `while 0` — report W240 alone under every analysed dialect and print `done` under tclsh 8.4 to 9.1, before and after the optimiser; four W241 programs report W241 alone; a parameter bound keeps W242 and a header with a reachable `break` reports none). No existing test moved |
+
+Green at VT6.8: `tcl-compiler` 9831 passed, 6 ignored across its 67
+binaries, and 7 doctests; `tcl-explorer` 105; `tcl-cli` 132 across its
+binaries (`cli` 50, `value_transfers_cli` 11); `tcl-lsp-db` 129 (103 in
+the library, 26 across its integration binaries); workspace clippy
+(`--all-targets -D warnings`), no `#[allow]` added, and `cargo fmt
+--check`; `value-transfers --check` (22 clean, 19 waived, 83 pinned across
+34 files, 6607 rows) and `registry-axes --check` (893 pinned across 147
+files, 36 waived, 16 clean), both unchanged; `pack-goldens` (25 packs, 0
+rewritten), `retired-api-gate`, `owner-resolution` (45 rows) and
+`kcs-index-links` pass; `dialect-drift` 8 sites, none new; `cargo check
+--workspace --all-targets` clean.
+
 ### Slice 9 — nested writes in expressions
 
 #### Goal and exit

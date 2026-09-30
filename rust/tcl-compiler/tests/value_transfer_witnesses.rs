@@ -3283,6 +3283,58 @@ fn a_selection_fact_folds_no_condition_beside_it() {
     prints_under_every_release(source, "A\nX\nA\n");
 }
 
+/// A loop whose header the solver decides is reported from that fact: W240
+/// where the header is false at entry, W241 where it is true at every test
+/// and nothing leaves the loop, and either replaces W242's hint that a
+/// counter is never modified. Each W240 program prints only `done` under
+/// tclsh 8.4 to 9.1, before and after the optimiser: the body never runs.
+/// The infinite loops are not run. A header nothing decides keeps W242, and
+/// one with an exit the flow graph or the body's text finds draws none.
+#[test]
+fn a_decided_loop_header_gives_w240_or_w241() {
+    let codes = |source: &str, dialect: &str| -> Vec<String> {
+        let mut found: Vec<String> = tcl_compiler::analyser::Analyser::new()
+            .analyse(source, dialect)
+            .diagnostics
+            .iter()
+            .map(|d| d.code.to_string())
+            .filter(|code| matches!(code.as_str(), "W240" | "W241" | "W242"))
+            .collect();
+        found.sort();
+        found
+    };
+    let never = [
+        "set n 0\nwhile {$n} {puts never}\nputs done\n",
+        "proc p {} {set n 0; while {$n} {puts never}; return done}\nputs [p]\n",
+        "for {set i 0} {$i < 0} {incr i} {puts never}\nputs done\n",
+        "set n 0\nwhile 0 {puts never}\nputs done\n",
+    ];
+    for source in never {
+        for dialect in DIALECTS {
+            assert_eq!(codes(source, dialect), ["W240"], "{dialect}\n{source}");
+        }
+        prints_under_every_release(source, "done\n");
+    }
+    let infinite = [
+        "set go 1\nwhile {$go} {puts x}\n",
+        "proc p {} {set go 1; while {$go} {puts x}}\n",
+        "for {set i 0} {$i < 10} {} {puts hi}\n",
+        "while 1 {puts x}\n",
+    ];
+    for source in infinite {
+        for dialect in DIALECTS {
+            assert_eq!(codes(source, dialect), ["W241"], "{dialect}\n{source}");
+        }
+    }
+    let undecided = "proc p {n} {\n    while {$n} {puts x}\n}\n";
+    let left =
+        "proc p {} {\n    set go 1\n    while {$go} {if {[gets stdin] eq \"q\"} {break}}\n}\n";
+    for dialect in DIALECTS {
+        assert_eq!(codes(undecided, dialect), ["W242"], "{dialect}");
+        assert!(codes(left, dialect).is_empty(), "{dialect}");
+    }
+}
+
 /// `case` lowers as an opaque glob selection over its own contract (D180),
 /// where it had lowered as an exact-mode `switch` that never skipped `in`:
 /// the one-word form compared `a*` as a string — I231 on the arm that runs
