@@ -5866,6 +5866,24 @@ packs, 0 rewritten), `retired-api-gate`, `owner-resolution` (45 rows) and
 `kcs-index-links` pass; `dialect-drift` 8 sites, none new; `cargo check
 --workspace --all-targets` clean.
 
+| Item | Commit | What landed | Its tests |
+|---|---|---|---|
+| VT6.6 | `wip(value-transfers): slice 6 — the iRules flow checks read applied reachability` | The iRules checks read the solver's reachability wherever they walk (D187), all in `irules_checks.rs`. IRULE1201 and IRULE1202 (`find_http_flow_warnings`) and IRULE5002 and IRULE5004 (`find_unguarded_drop_warnings`) walk a `::when::` procedure's structured IR body, so each takes `unreached_statements(fu)` — the spans of the statements only non-executable blocks hold — into its `FlowDispatch`, and `flow_step` leaves the path states as they were for such a statement: a respond, redirect, drop or `DNS::return` that never runs commits and leaves nothing. IRULE4002 (`find_generic_static_name_warnings`) skips non-executable blocks. IRULE4004's write counts (`find_hoistable_set_warnings`) count only the blocks a solved event proves reachable, a complexity-guarded event, which has no solver run, counting all of its blocks as before. The collect-flow scan's side-switch descent (`scan_side_switch_body`, IRULE1005 to IRULE1008 through a `clientside`, `serverside` or `peer` body) builds a `FunctionUnit` over the body's lowering and skips the blocks it proves unreachable; the event-level scan and IRULE3102 already did. Deltas: `when HTTP_REQUEST {if {0} {HTTP::respond 200}; HTTP::header insert X-Custom val}` and its `set flag 0` form report no IRULE1201 (was one), nor does a `while {0}` body, a `switch` arm the subject rules out, or a header command after an `if {1} {return}`; a second `HTTP::respond` in a dead arm reports no IRULE1202; a `drop`, `reject`, `discard` or `DNS::return` in a dead arm no IRULE5002 or IRULE5004; a `set static::debug` in a dead arm no IRULE4002, the warning landing on the write that runs; a `TCP::collect` in a dead arm of a `clientside` body no IRULE1007; and IRULE4004 reports one finding more where the only other write of a variable is in an arm the solver proves dead (`set svc foo; if {0} {set svc bar}`). Deviations: the two structured walks read reachability by statement span, not by block, because they walk the IR (D187); the side-switch bodies, which had no solver run, get one; a path is not pruned where the solver decided its branch, so `drop; if {1} {event disable all}` still warns through the condition-false path, as it did | `irule1201_ignores_a_respond_in_a_dead_arm` (`irules_checks.rs`, new: the literal `if {0}`, the `set flag 0` variant, a dead `redirect`, a dead `else`, a `while {0}` body, a `switch` arm the subject rules out and a header command after an `if {1} {return}` report nothing; negative: a respond in an `if {1}`, in an `if {$x}`, behind a `set flag 1`, in the `else` of an `if {0}` and in the arm a `switch` subject selects each still report IRULE1201); `irule1202_ignores_a_respond_in_a_dead_arm` (new: a dead second respond, a dead first one and a dead `HTTP::redirect` report nothing; a live `if {1}` and `if {$x}` second respond report IRULE1202); `irule5002_ignores_a_drop_in_a_dead_arm` (new: a `drop`, `reject` or `discard` in `if {0}`, in an `if {$flag}` after `set flag 0` and in a `while {0}` body reports nothing, in an `if {1}` or `if {$x}` it reports IRULE5002) and `irule5004_ignores_a_dns_return_in_a_dead_arm` (new: a `DNS::return` in `if {0}` reports nothing, in `if {$x}` IRULE5004); `irule4002_ignores_a_static_in_a_dead_arm` (new: the dead write reports nothing, the live one does, and with a dead write first the warning lands on the write that runs); `irule4004_counts_only_the_writes_that_run` (new: a second write in a dead arm, in the same event or another, leaves the first hoistable; a live one, `if {1}` or `if {$x}`, does not); `irule1007_ignores_a_collect_in_a_dead_side_switch_arm` (new: a `TCP::collect` in `clientside {if {$x} {…}}` reports IRULE1007, in `if {0}` none, and a `TCP::payload` in a dead arm of a `serverside` body no IRULE1006). All seven fail before the change. No existing test moved |
+
+Green at VT6.6: `tcl-compiler` 9830 passed, 6 ignored across its 67
+binaries, and 7 doctests; `tcl-explorer` 105; `tcl-cli` 129 across its
+binaries (`cli` 50, `value_transfers_cli` 8); `tcl-lsp-db` 129 (103 in
+the library, 26 across its integration binaries); `tcl-mcp` 114;
+`tcl-lsp-core` 3575 across its 34 binaries (2350 in the library) and 3
+doctests; `tcl-lsp-server` 2238 (594 in the library, 1600 in `e2e`);
+workspace clippy (`--all-targets -D warnings`), no `#[allow]` added, and
+`cargo fmt --check`; `value-transfers --check` (22 clean, 19 waived, 83
+pinned across 34 files, 6607 rows) and `registry-axes --check` (893
+pinned across 147 files, 36 waived, 16 clean), both unchanged;
+`pack-goldens` (25 packs, 0 rewritten), `retired-api-gate`,
+`owner-resolution` (45 rows) and `kcs-index-links` pass; `dialect-drift`
+8 sites, none new; `cargo check --workspace --all-targets` clean.
+
 ### Slice 9 — nested writes in expressions
 
 #### Goal and exit
@@ -9448,6 +9466,45 @@ has the witnesses):
   `for {set i 0} {$i < 10} {} {puts hi}` reports W241 where W242 was; and
   `for {set i 0} {$i < 0} {incr i} {puts hi}` reports W240 where nothing
   was, the step modifying the counter.
+
+- **D187 — the iRules flow checks read applied reachability, by
+  statement where they walk the IR** (VT6.6). Two walks read the structured
+  IR body of a `::when::` procedure, not the CFG's blocks — IRULE1201 and
+  IRULE1202 (`find_http_flow_warnings`) and IRULE5002 and IRULE5004
+  (`find_unguarded_drop_warnings`) — so neither can skip a block. Each
+  takes the unit's `unreached_statements`: the spans of the statements only
+  blocks the solver proved unreachable hold (a statement any executable
+  block holds is reached, and one the graph does not hold at all — a body
+  it keeps as one call — is not listed), and a step over such a statement
+  leaves the path states as they were (`FlowDispatch::unreached`). The
+  branch shapes are untouched: an `if` keeps its condition-false path and a
+  loop its zero-iteration path, so a walk states the same paths minus the
+  effects of statements that never run. A path is not pruned where the
+  solver decided the branch — `if {1} {event disable all}` after a `drop`
+  still leaves a condition-false path with the drop unguarded — which is a
+  precision these walks never had and no item asked for. The walks over the
+  CFG's blocks read `executable_blocks` as the IRULE3102 and collect walks
+  already do: IRULE4002 skips a block the solver proves unreachable, and
+  IRULE4004's write counts, which take every write of every event so that a
+  second write anywhere disqualifies the first, count only the blocks a
+  solved event proves reachable, a complexity-guarded event — with no
+  solver run to prove anything — still counting all of its blocks. A
+  `clientside`, `serverside` or `peer` body is a script the collect-flow
+  scan lowers on its own (`scan_side_switch_body`); it now builds a
+  `FunctionUnit` over that lowering and skips the blocks the unit proves
+  unreachable, so IRULE1005 to IRULE1008 read the reachability inside the
+  body as they read it in the event around it. Deltas: `if {0} {HTTP::respond
+  200}; HTTP::header insert X-Custom val` reports no IRULE1201, nor does the
+  `set flag 0` form, a `while {0}` body, a dead `switch` arm, or a header
+  command after an `if {1} {return}`; a second `HTTP::respond` in a dead arm
+  reports no IRULE1202; a `drop` or `DNS::return` in a dead arm no IRULE5002
+  or IRULE5004; a `set static::debug` in a dead arm no IRULE4002, the
+  warning landing on the write that runs; a `TCP::collect` in a dead arm of a
+  `clientside` body no IRULE1007. IRULE4004 reports one finding more where
+  the only other write of a variable sits in an arm the solver proves dead
+  (`set svc foo; if {0} {set svc bar}`), because that write never runs; the
+  migration page's "fewer findings in dead arms" does not say so, and the
+  write counts are among the walks the item names.
 
 ### Open questions for the owner
 

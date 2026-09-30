@@ -46,7 +46,7 @@ use tcl_registry::side_effects::{ConnectionSide, SideEffectTarget};
 use tcl_registry::{CommandRegistry, Traits};
 
 use crate::cfg_builder::build_cfg_with_registry_and_config;
-use crate::compilation_unit::CompilationUnit;
+use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::ir::{Script, Statement};
 use crate::lowering::lower_to_ir_with_config;
 use crate::sccp::cfg_order;
@@ -550,6 +550,7 @@ pub fn find_unguarded_drop_warnings(
         let Some(proc) = cu.ir_module.procedures.get(&fu.name) else {
             continue;
         };
+        let unreached = unreached_statements(fu);
         let finals = walk_flow(
             &proc.body,
             &[DropFlowState::default()],
@@ -557,6 +558,7 @@ pub fn find_unguarded_drop_warnings(
                 out: &mut out,
                 leaf: &leaf,
                 dedupe: &dedupe_drop_states,
+                unreached: &unreached,
             },
             None,
         );
@@ -856,8 +858,20 @@ fn scan_side_switch_body(
         tcl_lexer::LexerConfig::from_grammar(tcl_dialect::DialectProfile::irules().grammar);
     let module = lower_to_ir_with_config(body_text, registry, irules_config);
     let cfg_module = build_cfg_with_registry_and_config(&module, false, registry, irules_config);
-    for bn in cfg_order(&cfg_module.top_level) {
-        let Some(block) = cfg_module.top_level.blocks.get(&bn) else {
+    // The body is a script of its own: solve it, so a block it proves
+    // unreachable counts for nothing, as in the enclosing event.
+    let unit = FunctionUnit::build(
+        "::side_switch",
+        cfg_module.top_level,
+        &[],
+        registry,
+        irules_config,
+    );
+    for bn in cfg_order(&unit.cfg) {
+        if !unit.sccp.executable_blocks.contains(&bn) {
+            continue;
+        }
+        let Some(block) = unit.cfg.blocks.get(&bn) else {
             continue;
         };
         for stmt in &block.statements {
@@ -1142,6 +1156,7 @@ pub fn find_http_flow_warnings(
         let Some(proc) = cu.ir_module.procedures.get(&fu.name) else {
             continue;
         };
+        let unreached = unreached_statements(fu);
         let leaf = |st: &HttpFlowState, stmt: &Statement, out: &mut Vec<IrulesCheckWarning>| {
             match http_flow_stmt_command(stmt) {
                 Some((cmd, span)) => apply_http_flow_command(*st, cmd, span, bare_event, out),
@@ -1158,6 +1173,7 @@ pub fn find_http_flow_warnings(
                 out: &mut out,
                 leaf: &leaf,
                 dedupe: &dedupe_flow_states,
+                unreached: &unreached,
             },
             None,
         );
@@ -1272,6 +1288,29 @@ struct FlowDispatch<'a, L, D> {
     out: &'a mut Vec<IrulesCheckWarning>,
     leaf: &'a L,
     dedupe: &'a D,
+    /// The statements the solver proved never run ([`unreached_statements`]):
+    /// a step over one leaves the states as they were.
+    unreached: &'a HashSet<Span>,
+}
+
+/// The spans of the statements of `fu` that only blocks the solver proved
+/// unreachable hold. A statement the flow graph does not hold at all (a body
+/// it keeps as one call) is not here, and neither is one any executable
+/// block holds.
+fn unreached_statements(fu: &FunctionUnit) -> HashSet<Span> {
+    let mut held = HashSet::new();
+    let mut reached = HashSet::new();
+    for (id, block) in &fu.cfg.blocks {
+        let live = fu.sccp.executable_blocks.contains(id);
+        for span in block.statements.iter().map(|stmt| fu.abs_span(stmt.span())) {
+            held.insert(span);
+            if live {
+                reached.insert(span);
+            }
+        }
+    }
+    held.retain(|span| !reached.contains(span));
+    held
 }
 
 fn walk_flow<S, L, D>(
@@ -1317,6 +1356,9 @@ where
     L: Fn(&S, &Statement, &mut Vec<IrulesCheckWarning>) -> S,
     D: Fn(Vec<S>) -> Vec<S>,
 {
+    if fd.unreached.contains(&stmt.span()) {
+        return Some(states.to_vec());
+    }
     let one = std::slice::from_ref;
     Some(match stmt {
         Statement::Return { .. } => return None,
@@ -1499,12 +1541,16 @@ pub fn find_hoistable_set_warnings(
     let mut write_counts = HashMap::<String, usize>::new();
     // Count every lowered event, including one whose deeper analyses hit the
     // complexity guard. A skipped handler is not evidence that no second write
-    // exists there.
+    // exists there; only a block the solver proved unreachable, which a
+    // guarded event has no solver run to prove, counts for nothing.
     for fu in cu.functions() {
         if !fu.name.starts_with("::when::") {
             continue;
         }
-        for block in fu.cfg.blocks.values() {
+        for (id, block) in &fu.cfg.blocks {
+            if !fu.complexity_guarded && !fu.sccp.executable_blocks.contains(id) {
+                continue;
+            }
             for stmt in &block.statements {
                 match stmt {
                     Statement::AssignConst { name, .. }
@@ -1675,6 +1721,9 @@ pub fn find_generic_static_name_warnings(
             continue;
         }
         for bn in cfg_order(&fu.cfg) {
+            if !fu.sccp.executable_blocks.contains(&bn) {
+                continue;
+            }
             let Some(block) = fu.cfg.blocks.get(&bn) else {
                 continue;
             };
@@ -1987,6 +2036,42 @@ mod tests {
         assert!(
             drop_codes("when CLIENT_ACCEPTED { if {$x} { drop; return } else { reject; return } }")
                 .is_empty()
+        );
+    }
+
+    /// A drop or DNS answer in a block the solver proves unreachable leaves
+    /// nothing unguarded; a live arm's still does.
+    #[test]
+    fn irule5002_ignores_a_drop_in_a_dead_arm() {
+        for source in [
+            "when CLIENT_ACCEPTED { if {0} { drop } }",
+            "when CLIENT_ACCEPTED { set flag 0; if {$flag} { reject } }",
+            "when CLIENT_ACCEPTED { while {0} { discard } }",
+        ] {
+            assert!(
+                drop_codes(source).is_empty(),
+                "{source}: {:?}",
+                drop_codes(source)
+            );
+        }
+        for source in [
+            "when CLIENT_ACCEPTED { if {1} { drop } }",
+            "when CLIENT_ACCEPTED { if {$x} { drop } }",
+        ] {
+            assert!(
+                drop_codes(source).contains(&"IRULE5002".to_owned()),
+                "{source}: {:?}",
+                drop_codes(source),
+            );
+        }
+    }
+
+    #[test]
+    fn irule5004_ignores_a_dns_return_in_a_dead_arm() {
+        assert!(drop_codes("when DNS_REQUEST { if {0} { DNS::return \"1.2.3.4\" } }").is_empty());
+        assert!(
+            drop_codes("when DNS_REQUEST { if {$x} { DNS::return \"1.2.3.4\" } }")
+                .contains(&"IRULE5004".to_owned())
         );
     }
 
@@ -2385,6 +2470,31 @@ mod tests {
         );
     }
 
+    /// A collect or payload read inside a `clientside` / `serverside` body,
+    /// in an arm of that body the solver proves unreachable, is not seen.
+    #[test]
+    fn irule1007_ignores_a_collect_in_a_dead_side_switch_arm() {
+        let live =
+            flow_warnings("when CLIENT_ACCEPTED { clientside { if {$x} { TCP::collect 1024 } } }");
+        assert!(
+            live.iter().any(|w| w.code == DiagCode::Irule1007),
+            "expected IRULE1007, got {live:?}",
+        );
+        let dead =
+            flow_warnings("when CLIENT_ACCEPTED { clientside { if {0} { TCP::collect 1024 } } }");
+        assert!(
+            !dead.iter().any(|w| w.code == DiagCode::Irule1007),
+            "no IRULE1007 expected, got {dead:?}",
+        );
+        let dead_payload = flow_warnings(
+            "when CLIENT_ACCEPTED { serverside { set n 0; if {$n} { TCP::payload } } }",
+        );
+        assert!(
+            !dead_payload.iter().any(|w| w.code == DiagCode::Irule1006),
+            "no IRULE1006 expected, got {dead_payload:?}",
+        );
+    }
+
     #[test]
     fn nested_side_switch_warning_keeps_its_absolute_source_span() {
         let source = "when CLIENT_ACCEPTED {\n  serverside {\n    TCP::payload\n  }\n}";
@@ -2673,6 +2783,82 @@ mod tests {
         );
     }
 
+    /// A respond or redirect in a block the solver proves unreachable commits
+    /// no response, so an HTTP command after it is not issued after one, and
+    /// an HTTP command in such a block is issued after none; a live arm's
+    /// respond still commits.
+    #[test]
+    fn irule1201_ignores_a_respond_in_a_dead_arm() {
+        for source in [
+            "when HTTP_REQUEST { if {0} { HTTP::respond 200 }; HTTP::header insert X-Custom val }",
+            "when HTTP_REQUEST { set flag 0; if {$flag} { HTTP::respond 200 }; \
+             HTTP::header insert X-Custom val }",
+            "when HTTP_REQUEST { if {0} { HTTP::redirect \"https://example.com/\" }; \
+             HTTP::header insert X-Custom val }",
+            "when HTTP_REQUEST { if {1} { log local0. ok } else { HTTP::respond 200 }; \
+             HTTP::header insert X-Custom val }",
+            "when HTTP_REQUEST { while {0} { HTTP::respond 200 }; \
+             HTTP::header insert X-Custom val }",
+            "when HTTP_REQUEST { set mode b; \
+             switch $mode { a { HTTP::respond 200 } default { log local0. other } }; \
+             HTTP::header insert X-Custom val }",
+            "when HTTP_REQUEST { HTTP::respond 200; if {1} { return }; \
+             HTTP::header insert X-Custom val }",
+        ] {
+            assert!(
+                http_codes(source).is_empty(),
+                "{source}: {:?}",
+                http_codes(source)
+            );
+        }
+        for source in [
+            "when HTTP_REQUEST { if {1} { HTTP::respond 200 }; HTTP::header insert X-Custom val }",
+            "when HTTP_REQUEST { set flag 1; if {$flag} { HTTP::respond 200 }; \
+             HTTP::header insert X-Custom val }",
+            "when HTTP_REQUEST { if {$x} { HTTP::respond 200 }; HTTP::header insert X-Custom val }",
+            "when HTTP_REQUEST { if {0} { log local0. no } else { HTTP::respond 200 }; \
+             HTTP::header insert X-Custom val }",
+            "when HTTP_REQUEST { set mode a; \
+             switch $mode { a { HTTP::respond 200 } default { log local0. other } }; \
+             HTTP::header insert X-Custom val }",
+        ] {
+            assert!(
+                http_codes(source).contains(&"IRULE1201".to_owned()),
+                "{source}: {:?}",
+                http_codes(source),
+            );
+        }
+    }
+
+    /// A second response in an arm that never runs is not a second response,
+    /// and a first one that never runs commits nothing for the second to
+    /// follow.
+    #[test]
+    fn irule1202_ignores_a_respond_in_a_dead_arm() {
+        for source in [
+            "when HTTP_REQUEST { HTTP::respond 200; if {0} { HTTP::respond 404 } }",
+            "when HTTP_REQUEST { if {0} { HTTP::respond 200 }; HTTP::respond 404 }",
+            "when HTTP_REQUEST { set flag 0; \
+             if {$flag} { HTTP::redirect \"https://example.com/\" }; HTTP::respond 404 }",
+        ] {
+            assert!(
+                http_codes(source).is_empty(),
+                "{source}: {:?}",
+                http_codes(source)
+            );
+        }
+        for source in [
+            "when HTTP_REQUEST { HTTP::respond 200; if {1} { HTTP::respond 404 } }",
+            "when HTTP_REQUEST { HTTP::respond 200; if {$x} { HTTP::respond 404 } }",
+        ] {
+            assert!(
+                http_codes(source).contains(&"IRULE1202".to_owned()),
+                "{source}: {:?}",
+                http_codes(source),
+            );
+        }
+    }
+
     #[test]
     fn bare_redirect_commits_response() {
         // The bare iRules `redirect` (not just `HTTP::redirect`) commits a
@@ -2804,6 +2990,36 @@ mod tests {
         );
     }
 
+    /// A second write in a block the solver proves unreachable never runs,
+    /// so the first is still the variable's only write; one that runs, or
+    /// might, keeps the assignment where it is.
+    #[test]
+    fn irule4004_counts_only_the_writes_that_run() {
+        for source in [
+            "when HTTP_REQUEST { set svc foo; if {0} { set svc bar } }",
+            "when HTTP_REQUEST { set svc foo }\nwhen HTTP_RESPONSE { if {0} { set svc bar } }",
+        ] {
+            assert!(
+                hoist_warnings(source)
+                    .iter()
+                    .any(|w| w.code == DiagCode::Irule4004),
+                "{source}"
+            );
+        }
+        for source in [
+            "when HTTP_REQUEST { set svc foo; if {1} { set svc bar } }",
+            "when HTTP_REQUEST { set svc foo; if {$x} { set svc bar } }",
+            "when HTTP_REQUEST { set svc foo }\nwhen HTTP_RESPONSE { if {$x} { set svc bar } }",
+        ] {
+            assert!(
+                !hoist_warnings(source)
+                    .iter()
+                    .any(|w| w.code == DiagCode::Irule4004),
+                "{source}"
+            );
+        }
+    }
+
     #[test]
     fn irule4004_array_and_static_destinations_abstain() {
         let ws = hoist_warnings(
@@ -2896,6 +3112,27 @@ mod tests {
             ws.iter().filter(|w| w.code == DiagCode::Irule4002).count(),
             1,
             "expected a single deduplicated IRULE4002, got {ws:?}",
+        );
+    }
+
+    /// A generic `static::` name written only in a block the solver proves
+    /// unreachable collides with nothing; the warning lands on the write
+    /// that runs.
+    #[test]
+    fn irule4002_ignores_a_static_in_a_dead_arm() {
+        assert!(generic_warnings("when RULE_INIT { if {0} { set static::debug 1 } }").is_empty());
+        assert!(
+            generic_warnings("when RULE_INIT { if {$x} { set static::debug 1 } }")
+                .iter()
+                .any(|w| w.code == DiagCode::Irule4002)
+        );
+        let source = "when RULE_INIT { if {0} { set static::debug 1 }; set static::debug 2 }";
+        let ws = generic_warnings(source);
+        assert_eq!(ws.len(), 1, "got {ws:?}");
+        let span = ws[0].span;
+        assert_eq!(
+            &source[span.start() as usize..span.end() as usize],
+            "set static::debug 2"
         );
     }
 
