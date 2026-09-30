@@ -87,14 +87,6 @@ const ALLOWED: &[(&str, &str)] = &[
         "tests: the MCP environment seam agrees with every catalogue profile",
     ),
     (
-        "rust/tcl-mcp/src/main.rs",
-        "the server blurb names the catalogued dialect families",
-    ),
-    (
-        "rust/tcl-mcp/src/tools.rs",
-        "the `dialect_schema` enum and the tool-schema tests",
-    ),
-    (
         "rust/tcl-registry/examples/dialect_surface.rs",
         "the availability differential walks every catalogue profile",
     ),
