@@ -81,17 +81,20 @@ passes, and ownership matrices.
 - [registry-consumer-contracts.md](compiler/registry-consumer-contracts.md)
   — companion: the description, identity, and backing contracts under
   which the registry can drive the analyser, codegen, and the runtimes —
-  the four decided rulings, the description contract's three descriptors
+  the four decided rulings; the description contract's three descriptors
   (clause grammar, member effect, option effect) behind one derived query
-  per axis, **built** in step 2; step 3's trust ruling (`WorkspaceTrust`
-  gates pack hook-body execution, never authority) and stub ruling (the
-  six `StubFlags` on their catalogue fields, nearest-wins), also **built**;
-  step 4's half of the identity contract — `alias_of`, the loader's stamp
-  rejection rule, codegen recording the alias target's identity, and the
-  site claim and pack fact stamp rungs 1 and 2 record, checked at the
-  VM's admission — **built**; the still-**proposal** rest — rungs 3 and 4
-  of a pack claim reaching emitted code, the backing contract, and the
-  dialect, package, and C-extension follow-ons.
+  per axis, **built**; the trust ruling (`WorkspaceTrust` gates pack
+  hook-body execution, never authority) and the stub ruling (the six
+  `StubFlags` on their catalogue fields, nearest-wins), **built**; the
+  first half of the identity contract — `alias_of`, the loader's stamp
+  rejection rule, codegen recording the alias target's identity, the site
+  claim and pack fact stamp that rungs 1 and 2 record and the VM checks at
+  admission, and per-member guard identities that both runtimes keep across
+  command mutations — **built**; the take-shipped floor and the
+  `runtime_backing` fact on every core command, **built**; the rest —
+  rungs 3 and 4 of a pack claim reaching emitted code, the runtimes'
+  backing query, the intrinsic families, the artefact manifest, and the
+  dialect, package, and C-extension follow-ons — **not built**.
 - [value-transfers-review.md](compiler/value-transfers-review.md) — review
   of the value-transfer and consumer-contract proposals: registry-owned
   specialisation, shared expression/regexp evaluation, correctness findings,

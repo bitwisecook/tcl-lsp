@@ -90,7 +90,7 @@ checkpoint compiling.
   `Unavailable`) have landed; slice 6, branch integration and optional
   rewrites, is in progress, item by item in the tracking document's §
   *Plan for slices 2–13*.
-- [consumer-contracts.md](consumer-contracts.md) — steps 1 to 4 of
+- [consumer-contracts.md](consumer-contracts.md) — steps 1 to 5 of
   [registry-consumer-contracts.md](../compiler/registry-consumer-contracts.md)
   § *Build order*: step 1 (the four rulings taken as decided, and the
   documents whose stated rule they replace repaired), step 2 (the
@@ -101,23 +101,28 @@ checkpoint compiling.
   hook-body execution gated on it with the dormant-hook notice, and the
   one `untrusted` predicate; stub flags reach their fields — the six
   `StubFlags` on their catalogue fields with nearest-wins role
-  resolution, and `spectcl_check`'s `tier`/`trust` preview) and step 4
+  resolution, and `spectcl_check`'s `tier`/`trust` preview), step 4
   (identity — `alias_of` as the one source of a pack command's builtin
   identity; the loader's stamp rejection rule, under which a codegen-axis
   stamp survives only as a bundled pack's `alias_of` target's own; codegen
   recording that target's identity, which the VM admits through its alias
   hop; and `SiteClaim` with its `PackFactStamp`, so a site resting on a
   pack's facts claims them and the VM admits it only while it holds the
-  same facts) have landed, item by item in the tracking document's
-  § *Step 2 — progress* (with the review's fixes applied after it),
-  § *Step 3 — progress* and § *Step 4 — progress*; step 5 (persisted
-  guard identities, per-member semantics keys, the Explorer record) is
-  in progress, item by item in the tracking document's § *Step 5 —
-  progress*, planned in its § *Plan for steps 2–10*: the per-member
-  semantics keys have landed. Step 6 (the take-shipped floor, the
-  capability matrix, the overlay to the compile service) is in progress
-  too, in § *Step 6 — progress*: the floor over the whole codegen and
-  dispatch axis has landed. So is step 7 (identities from the pinned
-  generation, `runtime_backing`, the intrinsic families, the manifest, the
-  runtime context), in § *Step 7 — progress*: `runtime_backing` on the
-  spec, declared on every core command, has landed.
+  same facts) and step 5 (persisted guard identities, per-member
+  semantics keys, the Explorer record — one `guard_semantics_key` per
+  `IntrinsicId` member; both runtimes' guard identities held under the
+  command's token generation and read through the guarded name's current
+  binding, so a definition, rename, alias or profile pin of another command
+  no longer costs every guarded intrinsic its fast path; and every premise
+  the sealed native i64 addition rejects recorded on the plan and shown by
+  the Explorer's new `aot` view) have landed, item by item in the tracking
+  document's § *Step 2 — progress* (with the review's fixes applied after
+  it), § *Step 3 — progress*, § *Step 4 — progress* and § *Step 5 —
+  progress*, planned in its § *Plan for steps 2–10*. Step 6 (the
+  take-shipped floor, the capability matrix, the overlay to the compile
+  service) is in progress, in § *Step 6 — progress*: the floor over the
+  whole codegen and dispatch axis has landed. So is step 7 (identities from
+  the pinned generation, `runtime_backing`, the intrinsic families, the
+  manifest, the runtime context), in § *Step 7 — progress*:
+  `runtime_backing` on the spec, declared on every core command, has
+  landed.

@@ -18,13 +18,11 @@ loaded pack's facts are authoritative for analysis and optimisation as
 soon as they are loaded, and the direct, expression, and private-pack
 slices proceed without deciding anything here.
 
-> **Status — decided rulings; the description vocabulary and the first
-> half of the identity contract built, the rest proposed.** The five
-> rulings — the four in § *Rulings* and the narrower one in § *The two
-> hook bodies that remain* — are the owner's decisions, and the build
-> takes them as settled. Every identifier, count, and file path on this
-> page was checked against the tree. Step 2 of § *Build order* built the
-> description contract's vocabulary, under these names:
+> **What is built.** The five rulings — the four in § *Rulings* and the
+> narrower one in § *The two hook bodies that remain* — are the owner's
+> decisions, and the build takes them as settled. Every identifier, count,
+> and file path on this page was checked against the tree. The
+> description contract's vocabulary is built, under these names:
 >
 > - **Clause grammar** — `ClauseGrammarSpec`, `ClauseRow`,
 >   `ClauseRowShape`, `ClauseSlot`, `HandlerMatch`, `ClauseTiming`,
@@ -45,18 +43,18 @@ slices proceed without deciding anything here.
 >   `ResolvedInvocation`, `InvocationWords` and `EffectFootprint`, and
 >   `template_plan` is the value axis's.
 >
-> Step 3 adds `WorkspaceTrust` (`tcl_dialect::model`), the trust
-> ruling's one input, carried on `DiscoveryOptions::workspace_trust`, and
-> gates hook-body execution on it: `tcl_spectcl::hooks::hook_bodies_run`
-> decides it, `hooks::plan_for` gives an untrusted workspace pack's bodies
-> no slot, and the load reports each as a `hooks::DormantHook` on the pack
-> file. It also lands the stub ruling: a `# tcl-lsp: stub` declaration's
-> six flags reach `DeclaredCommand::traits` and
+> The trust ruling and the stub ruling are built. `WorkspaceTrust`
+> (`tcl_dialect::model`) is the trust ruling's one input, carried on
+> `DiscoveryOptions::workspace_trust`, and it gates hook-body execution:
+> `tcl_spectcl::hooks::hook_bodies_run` decides it, `hooks::plan_for` gives
+> an untrusted workspace pack's bodies no slot, and the load reports each
+> as a `hooks::DormantHook` on the pack file. A `# tcl-lsp: stub`
+> declaration's six flags reach `DeclaredCommand::traits` and
 > `DeclaredCommand::side_effects`, and `DocumentCommandSurface` answers
 > nearest-wins — `traits`, `invocation_traits` and `side_effects` beside
 > the role queries, under the security floor.
 >
-> Step 4 builds the first half of the identity contract.
+> The first half of the identity contract is built.
 > `CommandSpec::alias_of`, the `alias_of NAME` declaration naming the
 > shipped builtin a pack command is, is the target the loader's stamp
 > rejection rule reads (`tcl_spectcl::stamps`) — a codegen-axis stamp
@@ -69,31 +67,34 @@ slices proceed without deciding anything here.
 > `const_fold` computed, `SiteClaim::BuiltinAlias` for a binding reached
 > through `alias_of`, each carrying the pack's `PackFactStamp`
 > (`tcl_runtime_api`) in `FunctionAsm::site_claims` — and the VM admits
-> the unit only while it holds that stamp (`Vm::set_pack_facts`).
+> the unit only while it holds that stamp (`Vm::set_pack_facts`). On the
+> runtime side, `IntrinsicId::guard_semantics_key` is one key per member —
+> the member's own `stable_id`, its row of `SEMANTICS_REVISION`, and a
+> release variant — so a member whose guarded contract moves invalidates
+> its own guards and no other's, and both runtimes keep a guard's
+> identities under the command's token generation and read them through
+> the guarded name's current binding: a guard survives the definition,
+> rename or alias of another command and the profile pin, follows its
+> command through `rename` and `interp hide`, and is dropped when its
+> command is replaced, shadowed from the calling namespace, deleted or
+> hidden.
 >
-> Step 5 has begun on the runtime side of the identity contract:
-> `IntrinsicId::guard_semantics_key` is one key per member — the member's
-> own `stable_id`, its row of `SEMANTICS_REVISION`, and a release variant —
-> so a member whose guarded contract moves invalidates its own guards and
-> no other's.
+> The take-shipped floor is built: `SecurityFloor::apply` keeps a shipped
+> command's `lowering_hook`, `analyser_hook`, `semantic_operation`,
+> `state_transitions`, `native_lowering`, `bpf_op` and `runtime_backing`
+> through any override, from any tier, beside the two codegen hooks it
+> already kept (rule 4 of § *The loader's stamp rejection rule*).
 >
-> Step 6 has begun with the take-shipped floor: `SecurityFloor::apply`
-> keeps a shipped command's `lowering_hook`, `analyser_hook`,
-> `semantic_operation`, `state_transitions`, `native_lowering`, `bpf_op` and
-> `runtime_backing` through any override, from any tier, beside the two
-> codegen hooks it already kept (rule 4 of § *The loader's stamp rejection
-> rule*).
->
-> Step 7 has begun with the backing fact. `CommandSpec::runtime_backing`
+> The backing fact is built. `CommandSpec::runtime_backing`
 > (`tcl_registry::RuntimeBacking`, with `BodySource`) is declared on every
 > core Tcl command as the row of `docs/generated/wasm-command-backing.md` that
 > names it, `tcl_spectcl::BackingSyntax` reads and spells the `runtime_backing`
 > statement, and the iRule-test stub generator emits a mock only for a command
-> whose backing is `None` or `HostNative`. The runtimes' backing query, the
-> intrinsic families, and the manifest are still proposed.
+> whose backing is `None` or `HostNative`.
 >
-> The rest of the vocabulary is proposed and names nothing in the
-> workspace:
+> The runtimes' backing query, the intrinsic families, and the manifest
+> are not built. Nor is the rest of the vocabulary, which names nothing in
+> the workspace:
 >
 > - **Identity and backing** — the `ReferenceBody` and
 >   `ShippedImplementation` claims, `IdentityKind`, `CodegenCapability`, and
@@ -102,12 +103,12 @@ slices proceed without deciding anything here.
 >   test` verb.
 >
 > `AnalysisContext`, `AnalysisInputs`, `PlanAnswer`, `OperandId`,
-> `TemplateWordPlan`, and `EvalAnswer` are
-> [value-transfers.md](value-transfers.md)'s proposed names, used here as
-> that page spells them; its `HandlerPlan` carries this page's
-> `HandlerMatch` per `try` handler. Nothing on this page is a
-> prerequisite of the consumer interface, the direct or expression routes,
-> or the private-pack slice in
+> `TemplateWordPlan`, and `EvalAnswer` are the types
+> [value-transfers.md](value-transfers.md) defines, held in
+> `tcl_registry::value_transfer` and used here as that page spells them; its
+> `HandlerPlan` carries this page's `HandlerMatch` per `try` handler. Nothing
+> on this page is a prerequisite of the consumer interface, the direct or
+> expression routes, or the private-pack slice in
 > [value-transfers-migration.md](value-transfers-migration.md).
 
 Read it before extending `CommandSpec` with a fact a code generator or a
