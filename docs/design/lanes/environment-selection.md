@@ -155,8 +155,10 @@ git. Before the final commit:
   actions; the `showMessage` fallback covers it either way, and
   `make test-jetbrains` needs the multi-GB SDK, so 1d verifies with a fake
   client and VS Code only.
-- Whether `sleep` is a Jim core command or an extension in every measured
-  build (2b measures rather than assumes).
+- Resolved: `sleep seconds` is present in every `jimsh` 0.76–0.84 build, and
+  no Jim command is package-gated (`Jim_InitStaticExtensions` runs at
+  start-up). Evidence in the session scratchpad `jim-evidence/`
+  (`jim-only-commands.md`, `proc-statics.md`, `oo.md`, `SUMMARY.md`).
 - Which grammar codegen reaches for a runtime pack-declared environment
   (`grammar_of_dialect_name(profile.name)` may fall to the default) —
   noted by the survey, out of this lane's scope, to be filed.
