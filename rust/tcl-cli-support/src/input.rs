@@ -218,8 +218,9 @@ pub fn combined_effective_dialect(
 /// A name the compiled environments know resolves at once. Any other name is
 /// looked up again after the workspace and user packs are discovered and
 /// published, because a pack may declare it: an environment a pack declares is
-/// in the live registry from then on. The argument parsers accept any string
-/// for that reason, and this is the only place the value is checked.
+/// in the live registry from then on. The argument parsers accept any
+/// non-empty string for that reason, and this is the only place the value is
+/// checked.
 ///
 /// # Errors
 ///

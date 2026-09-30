@@ -1331,14 +1331,28 @@ fn every_dialect_flag_reaches_the_one_resolver() {
 }
 
 /// `tcl diag --help` lists the canonical ids with their descriptions although
-/// the argument gates no value.
+/// the argument gates no value, and says the list is not exhaustive.
 #[test]
 fn the_dialect_help_lists_the_canonical_ids() {
     let help = String::from_utf8(run_tcl(&["diag", "--help"])).expect("help is UTF-8");
     for name in ["tcl8.6", "f5-irules", "jim", "tk", "xilinx-eda-tcl"] {
         assert!(help.contains(&format!("- {name}: ")), "{name}: {help}");
     }
-    assert!(help.contains("discovered `.tclspec` packs"), "{help}");
+    let flowed = help.split_whitespace().collect::<Vec<_>>().join(" ");
+    assert!(flowed.contains("discovered `.tclspec` packs"), "{help}");
+}
+
+/// The shell completion scripts still offer the canonical ids as `--dialect`
+/// values, though the argument accepts any name.
+#[test]
+fn the_completion_scripts_offer_the_canonical_ids() {
+    for shell in ["bash", "zsh", "fish"] {
+        let script =
+            String::from_utf8(run_tcl(&["completion", shell])).expect("a completion script");
+        for name in ["tcl8.6", "f5-irules", "xilinx-eda-tcl"] {
+            assert!(script.contains(name), "{shell}: {name}");
+        }
+    }
 }
 
 /// A scratch workspace, removed on drop.

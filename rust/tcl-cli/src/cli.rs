@@ -28,34 +28,76 @@
 
 use std::path::PathBuf;
 
-use clap::{Args, Parser, Subcommand};
+use std::ffi::OsStr;
+
+use clap::builder::{NonEmptyStringValueParser, PossibleValue, TypedValueParser};
+use clap::{Arg, Args, Command as ClapCommand, Parser, Subcommand};
 use tcl_dialect::model::{DEFAULT_ENVIRONMENT_ID, EnvironmentRegistry};
 
-/// The long help of a `--dialect` argument: `lead`, the canonical ids of the
-/// compiled selectable environment set each with its description, then the
-/// spellings accepted beyond them.
+/// The value parser of every `--dialect` argument: any non-empty string,
+/// unchanged, that advertises the compiled selectable ids.
 ///
-/// Help text rather than a value gate. clap builds its parsers while the
-/// command line is parsed, before any discovered pack has registered an
-/// environment, so a parser built from the compiled set would refuse the
-/// environments a workspace or user pack declares and the `selecting_identities`
-/// language ids. [`tcl_cli_support::resolve_dialect`] is the one validator: it
-/// runs after the packs are published and reads the live registry.
+/// It advertises and never gates. clap builds its parsers while the command
+/// line is parsed, before any discovered pack has registered an environment,
+/// so a parser that refused what the compiled set lacks would refuse the
+/// environments a workspace or user pack declares, and the aliases and
+/// `selecting_identities` language ids no list shows.
+/// [`tcl_cli_support::resolve_dialect`] is the one validator: it runs after
+/// the packs are published and reads the live registry.
+///
+/// What it advertises is what clap renders as the argument's possible values
+/// and what `tcl completion` offers: one value per canonical id, helped by the
+/// environment's description.
+#[derive(Clone, Copy, Debug)]
+struct DialectValues {
+    /// Also advertise `all`, the `help` filter's "every dialect".
+    with_all: bool,
+}
+
+impl DialectValues {
+    /// A `--dialect` that names one environment.
+    fn environment() -> Self {
+        Self { with_all: false }
+    }
+
+    /// `tcl help --dialect`, which also takes `all`.
+    fn filter() -> Self {
+        Self { with_all: true }
+    }
+}
+
+impl TypedValueParser for DialectValues {
+    type Value = String;
+
+    fn parse_ref(
+        &self,
+        cmd: &ClapCommand,
+        arg: Option<&Arg>,
+        value: &OsStr,
+    ) -> Result<String, clap::Error> {
+        NonEmptyStringValueParser::new().parse_ref(cmd, arg, value)
+    }
+
+    fn possible_values(&self) -> Option<Box<dyn Iterator<Item = PossibleValue> + '_>> {
+        let all = self
+            .with_all
+            .then(|| PossibleValue::new("all").help("Every dialect (no filtering)"));
+        let ids = EnvironmentRegistry::compiled_selectable()
+            .iter()
+            .map(|environment| {
+                PossibleValue::new(environment.id.as_str()).help(environment.description())
+            });
+        Some(Box::new(all.into_iter().chain(ids)))
+    }
+}
+
+/// The long help of a `--dialect` argument: `lead`, then the spellings accepted
+/// beyond the advertised ids. clap renders the ids themselves, from
+/// [`DialectValues`], after this text.
 fn dialect_help(lead: &str) -> String {
-    let ids = EnvironmentRegistry::compiled_selectable()
-        .iter()
-        .map(|environment| {
-            format!(
-                "- {}: {}",
-                environment.id.as_str(),
-                environment.description()
-            )
-        })
-        .collect::<Vec<_>>()
-        .join("\n");
     format!(
-        "{lead}\n\nDialects:\n{ids}\n\nAliases, editor language ids and the environments \
-         that discovered `.tclspec` packs declare are accepted too."
+        "{lead} Aliases, editor language ids and the environments that discovered \
+         `.tclspec` packs declare are accepted as well as the values listed."
     )
 }
 
@@ -103,6 +145,7 @@ pub struct InputArgs {
     #[arg(
         long,
         value_name = "DIALECT",
+        value_parser = DialectValues::environment(),
         long_help = dialect_help(
             "Dialect profile for parsing and registry lookups. Defaults to \
              auto-detection (a `# tcl-dialect:` directive, shebang, content \
@@ -277,6 +320,7 @@ pub enum Command {
         #[arg(
             long,
             value_name = "DIALECT",
+            value_parser = DialectValues::environment(),
             long_help = dialect_help(
                 "Dialect profile. Defaults to auto-detection over the left-hand \
                  input (directive, shebang, content signals, then extension), \
@@ -367,6 +411,7 @@ pub enum Command {
             long,
             default_value = DEFAULT_ENVIRONMENT_ID,
             value_name = "DIALECT",
+            value_parser = DialectValues::environment(),
             long_help = dialect_help("Dialect profile for command metadata lookup.")
         )]
         dialect: String,
@@ -387,6 +432,7 @@ pub enum Command {
             long,
             default_value = "all",
             value_name = "DIALECT",
+            value_parser = DialectValues::filter(),
             long_help = dialect_help(
                 "Filter help matches by dialect context. `all` matches every dialect."
             )
@@ -469,6 +515,7 @@ pub enum Command {
             long,
             default_value = DEFAULT_ENVIRONMENT_ID,
             value_name = "DIALECT",
+            value_parser = DialectValues::environment(),
             long_help = dialect_help("Dialect profile to snapshot.")
         )]
         dialect: String,
@@ -754,6 +801,7 @@ pub struct SpecImportArgs {
         long,
         default_value = DEFAULT_ENVIRONMENT_ID,
         value_name = "DIALECT",
+        value_parser = DialectValues::environment(),
         long_help = dialect_help("Dialect profile every snapshot is analysed as.")
     )]
     pub dialect: String,
@@ -870,6 +918,7 @@ pub enum PkgCommand {
         #[arg(
             long,
             value_name = "DIALECT",
+            value_parser = DialectValues::environment(),
             long_help = dialect_help("Dialect profile override (default: detect per file).")
         )]
         dialect: Option<String>,
@@ -1205,24 +1254,16 @@ pub enum DockerCommand {
 
 #[cfg(test)]
 mod tests {
-    use super::{Cli, dialect_help};
+    use super::{Cli, DialectValues};
+    use clap::builder::{PossibleValue, TypedValueParser};
     use clap::{Arg, Command, CommandFactory};
     use tcl_dialect::model::{DEFAULT_ENVIRONMENT_ID, EnvironmentRegistry};
 
-    /// The `- id: description` lines `dialect_help` lists.
-    fn listed_lines(help: &str) -> Vec<&str> {
-        help.lines()
-            .skip_while(|line| *line != "Dialects:")
-            .skip(1)
-            .take_while(|line| !line.is_empty())
-            .collect()
-    }
-
     /// Every `--dialect` argument in the command tree, with its verb.
-    fn dialect_arguments<'a>(command: &'a Command, found: &mut Vec<(&'a str, &'a Arg)>) {
+    fn dialect_arguments<'a>(command: &'a Command, found: &mut Vec<(&'a Command, &'a Arg)>) {
         for arg in command.get_arguments() {
             if arg.get_id() == "dialect" {
-                found.push((command.get_name(), arg));
+                found.push((command, arg));
             }
         }
         for verb in command.get_subcommands() {
@@ -1230,33 +1271,59 @@ mod tests {
         }
     }
 
-    /// The help lists the registry's selectable canonical ids in selectable
-    /// order, each with the environment's description — never a hand list,
-    /// never the lenient sink.
-    #[test]
-    fn every_runtime_enumeration_is_the_registry() {
-        let expected: Vec<String> = EnvironmentRegistry::compiled_selectable()
+    /// The registry's selectable canonical ids in selectable order, each with
+    /// the environment's description.
+    fn selectable() -> Vec<(String, String)> {
+        EnvironmentRegistry::compiled_selectable()
             .iter()
             .map(|environment| {
-                format!(
-                    "- {}: {}",
-                    environment.id.as_str(),
-                    environment.description()
+                (
+                    environment.id.as_str().to_owned(),
+                    environment.description(),
                 )
             })
-            .collect();
-        assert_eq!(listed_lines(&dialect_help("lead")), expected);
+            .collect()
     }
 
-    /// No `--dialect` argument gates its value, because the packs that declare
-    /// further environments are not discovered until after the command line
-    /// is parsed, and every one of them lists the registry's ids in its help.
+    fn named(values: impl Iterator<Item = PossibleValue>) -> Vec<(String, String)> {
+        values
+            .map(|value| {
+                (
+                    value.get_name().to_owned(),
+                    value
+                        .get_help()
+                        .map(ToString::to_string)
+                        .unwrap_or_default(),
+                )
+            })
+            .collect()
+    }
+
+    /// The advertised values are the registry's selectable canonical ids in
+    /// selectable order, each helped by the environment's description — never
+    /// a hand list, never the lenient sink — and the `help` filter adds `all`
+    /// first.
     #[test]
-    fn every_dialect_argument_lists_the_registry_and_gates_nothing() {
+    fn every_runtime_enumeration_is_the_registry() {
+        let environment = DialectValues::environment();
+        assert_eq!(
+            named(environment.possible_values().expect("ids are advertised")),
+            selectable()
+        );
+        let filter = DialectValues::filter();
+        let filter = named(filter.possible_values().expect("ids are advertised"));
+        assert_eq!(filter[0].0, "all");
+        assert_eq!(filter[1..], selectable());
+    }
+
+    /// Every `--dialect` argument advertises the registry's ids (and the `help`
+    /// filter also `all`).
+    #[test]
+    fn every_dialect_argument_advertises_the_registry() {
         let command = Cli::command();
         let mut found = Vec::new();
         dialect_arguments(&command, &mut found);
-        let verbs: Vec<&str> = found.iter().map(|(verb, _)| *verb).collect();
+        let verbs: Vec<&str> = found.iter().map(|(verb, _)| verb.get_name()).collect();
         for verb in [
             "diag",
             "diff",
@@ -1268,23 +1335,58 @@ mod tests {
         ] {
             assert!(verbs.contains(&verb), "`{verb}` has a --dialect argument");
         }
-        let expected = dialect_help("");
-        let listed = listed_lines(&expected);
         for (verb, arg) in found {
-            assert!(
-                arg.get_possible_values().is_empty(),
-                "`{verb} --dialect` names no fixed value set"
-            );
-            let help = arg
-                .get_long_help()
-                .unwrap_or_else(|| panic!("`{verb} --dialect` has long help"))
-                .to_string();
-            assert_eq!(listed_lines(&help), listed, "{verb}");
+            let advertised = named(arg.get_possible_values().into_iter());
+            let ids = if verb.get_name() == "help" {
+                assert_eq!(advertised[0].0, "all");
+                &advertised[1..]
+            } else {
+                &advertised[..]
+            };
+            assert_eq!(ids, selectable(), "{}", verb.get_name());
         }
     }
 
-    /// `tcl diag --help` shows the ids, the defaults stay the registry's
-    /// default environment, and the sentence about further spellings is there.
+    /// No `--dialect` argument gates its value: a name the compiled set lacks
+    /// still parses, because the packs that declare further environments are
+    /// discovered only after the command line is parsed. An empty value names
+    /// nothing and is the one refusal.
+    #[test]
+    fn no_dialect_argument_gates_its_value() {
+        let verbs: [&[&str]; 7] = [
+            &["diag", "--source", "x"],
+            &["diff"],
+            &["command-info", "puts"],
+            &["help"],
+            &["registry-dump"],
+            &["pkg", "discover"],
+            &["spec", "import"],
+        ];
+        for verb in verbs {
+            for dialect in ["mypack-shell", "tcl-bpf", "vivado", "nonsense"] {
+                let mut argv = vec!["tcl"];
+                argv.extend(verb);
+                argv.extend(["--dialect", dialect]);
+                Cli::command()
+                    .try_get_matches_from(&argv)
+                    .unwrap_or_else(|error| panic!("{argv:?}: {error}"));
+            }
+            let mut argv = vec!["tcl"];
+            argv.extend(verb);
+            argv.extend(["--dialect", ""]);
+            assert!(
+                Cli::command().try_get_matches_from(&argv).is_err(),
+                "{argv:?}"
+            );
+        }
+        Cli::command()
+            .try_get_matches_from(["tcl", "help", "--dialect", "all"])
+            .expect("the help filter takes `all`");
+    }
+
+    /// `tcl diag --help` lists the ids with their descriptions and says the
+    /// list is not exhaustive, and the defaults stay the registry's default
+    /// environment.
     #[test]
     fn the_rendered_help_names_the_ids_and_the_defaults() {
         let mut command = Cli::command();
@@ -1293,17 +1395,14 @@ mod tests {
             .expect("the diag verb")
             .render_long_help()
             .to_string();
-        for environment in EnvironmentRegistry::compiled_selectable() {
+        for (id, _) in selectable() {
             assert!(
-                rendered.contains(&format!("- {}: ", environment.id.as_str())),
-                "the help omits `{}`",
-                environment.id
+                rendered.contains(&format!("- {id}: ")),
+                "the help omits `{id}`: {rendered}"
             );
         }
-        assert!(
-            rendered.contains("discovered `.tclspec` packs"),
-            "{rendered}"
-        );
+        let flowed = rendered.split_whitespace().collect::<Vec<_>>().join(" ");
+        assert!(flowed.contains("discovered `.tclspec` packs"), "{rendered}");
 
         let command = Cli::command();
         for verb in ["command-info", "registry-dump"] {
