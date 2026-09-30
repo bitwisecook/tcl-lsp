@@ -333,6 +333,36 @@ fn class_carries_the_jim_class_grammar_and_no_body_word() {
     }
 }
 
+/// A Tcl command `jimsh` has never had resolves nowhere in a `jim` document:
+/// the assembled generation and the point query the analyser resolves a
+/// written head with both apply the roster, and both still resolve a command
+/// the roster lists.
+#[test]
+fn both_resolution_paths_apply_the_roster() {
+    let generation = jim();
+    let store = generation.commands();
+    for absent in ["coroutine", "yield", "trace", "chan", "case"] {
+        assert!(
+            generation.resolve_command(absent).is_none(),
+            "{absent}: the assembled generation"
+        );
+        assert!(
+            generation.context().resolve_spec(store, absent).is_none(),
+            "{absent}: the point query"
+        );
+    }
+    for present in ["set", "lmap", "dict", "proc", "loop"] {
+        assert!(
+            generation.resolve_command(present).is_some(),
+            "{present}: the assembled generation"
+        );
+        assert!(
+            generation.context().resolve_spec(store, present).is_some(),
+            "{present}: the point query"
+        );
+    }
+}
+
 /// The arithmetic commands take no operator-command trait, which would hide
 /// them from a family whose math operators are not command heads.
 #[test]

@@ -106,5 +106,5 @@ pub use registration::{
 };
 pub use surface::{
     BuildCapability, CapabilityPredicate, PackageId, Provider, SurfaceDeclaration,
-    declarations_for_spec,
+    declarations_for_spec, package_hosting_families,
 };

@@ -1212,6 +1212,18 @@ impl Analyser {
         {
             return;
         }
+        // "Disabled here" needs a dialect that has the command and that this
+        // document's world is related to: a `tcl8.4` document writing a `tcl8.6`
+        // command, a `jim` document writing a Tcl command Jim's roster omits.
+        // A name only an unrelated environment offers — Expect's `system` in a
+        // `jim` document — is not disabled here, it is unknown here: W123
+        // reports it, as it would any other name nothing defines.
+        if registry
+            .providers_in_any_dialect(bare)
+            .is_some_and(|offered| !generation.context().is_related_to_a_provider_of(offered))
+        {
+            return;
+        }
         // An earlier *unconditional* user proc with this name shadows the
         // would-be-disabled built-in at the call site.
         let qualified = crate::naming::normalise_qualified_name(bare);

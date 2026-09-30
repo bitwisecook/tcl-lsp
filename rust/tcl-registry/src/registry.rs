@@ -733,6 +733,18 @@ impl EffectiveRegistrySemantics {
 struct AllDialectCommandNames {
     known: FxHashSet<&'static str>,
     rootable: FxHashSet<&'static str>,
+    providers: FxHashMap<&'static str, NameProviders>,
+}
+
+/// Who offers a command name across the compiled-in universe — see
+/// [`CommandRegistry::providers_in_any_dialect`].
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct NameProviders {
+    /// Some spec of this name states no surface, so it is offered to every
+    /// dialect and no family is unrelated to it.
+    pub unrestricted: bool,
+    /// The providers the surface rows of every spec of this name name.
+    pub providers: Vec<SpecProvider>,
 }
 
 fn all_dialect_command_names() -> &'static AllDialectCommandNames {
@@ -740,6 +752,7 @@ fn all_dialect_command_names() -> &'static AllDialectCommandNames {
     NAMES.get_or_init(|| {
         let mut known: FxHashSet<&'static str> = FxHashSet::default();
         let mut rootable: FxHashSet<&'static str> = FxHashSet::default();
+        let mut providers: FxHashMap<&'static str, NameProviders> = FxHashMap::default();
         let mut add = |specs: Vec<CommandSpec>| {
             for spec in specs {
                 // Normalise away a leading `::` so a spec registered only in
@@ -753,6 +766,17 @@ fn all_dialect_command_names() -> &'static AllDialectCommandNames {
                 known.insert(name);
                 if name.contains("::") || !spec.traits.contains(Traits::TCLOO_METHOD_CONTEXT) {
                     rootable.insert(name);
+                }
+                let offered = providers.entry(name).or_default();
+                match spec.surface {
+                    None => offered.unrestricted = true,
+                    Some(rows) => {
+                        for row in rows {
+                            if !offered.providers.contains(&row.provider) {
+                                offered.providers.push(row.provider);
+                            }
+                        }
+                    }
                 }
             }
         };
@@ -780,7 +804,11 @@ fn all_dialect_command_names() -> &'static AllDialectCommandNames {
         // unknown-command report on a user's `proc arity` call into a
         // misleading dialect-availability one — the exact opposite of the
         // context-sensitivity the SpecTcl grammars exist to provide.
-        AllDialectCommandNames { known, rootable }
+        AllDialectCommandNames {
+            known,
+            rootable,
+            providers,
+        }
     })
 }
 
@@ -1591,6 +1619,27 @@ impl CommandRegistry {
             Some(unrooted) => names.rootable.contains(unrooted),
             None => names.known.contains(name),
         }
+    }
+
+    /// Who offers `name` across every compiled-in dialect: the providers its
+    /// specs' surface rows name, and whether any spec of the name is offered
+    /// to every dialect. `None` exactly when
+    /// [`Self::known_in_any_dialect`] is `false`.
+    ///
+    /// The other half of the W002 question. "Exists in some dialect, not this
+    /// one" says the name is disabled here only when this document's
+    /// environment stands in some relation to the dialect that has it; a name
+    /// only an unrelated environment offers (Expect's `system` in a Jim
+    /// document) is unknown here, not disabled here. The universe is the one
+    /// [`Self::known_in_any_dialect`] reads, so a runtime pack's own names are
+    /// absent from both.
+    #[must_use]
+    pub fn providers_in_any_dialect(&self, name: &str) -> Option<&'static NameProviders> {
+        if !self.known_in_any_dialect(name) {
+            return None;
+        }
+        let unrooted = name.strip_prefix("::").unwrap_or(name);
+        all_dialect_command_names().providers.get(unrooted)
     }
 
     /// Look up a command spec by name (dialect-agnostic).
@@ -10321,6 +10370,35 @@ mod tests {
         );
         assert_eq!(reg.procedure_definition_words("proc", &["f"]), None);
         assert_eq!(reg.procedure_definition_words("no_such_head", &[]), None);
+    }
+
+    /// The providers of a name across the compiled-in universe: Expect's
+    /// `system` is offered by that package alone, `dict` by a core Tcl
+    /// window, a name nothing defines by nobody.
+    #[test]
+    fn providers_in_any_dialect_names_who_offers_a_command() {
+        let reg = CommandRegistry::build_default();
+        let system = reg
+            .providers_in_any_dialect("system")
+            .expect("system is Expect's");
+        assert!(!system.unrestricted);
+        assert_eq!(system.providers, [SpecProvider::Package("expect")]);
+
+        let dict = reg.providers_in_any_dialect("dict").expect("dict is Tcl's");
+        assert!(
+            dict.providers.contains(&SpecProvider::Core(Family::Tcl)),
+            "{dict:?}"
+        );
+
+        assert!(
+            reg.providers_in_any_dialect("no_such_command_anywhere")
+                .is_none()
+        );
+        assert_eq!(
+            reg.providers_in_any_dialect("::dict"),
+            reg.providers_in_any_dialect("dict"),
+            "a rooted spelling names the same providers"
+        );
     }
 
     #[test]

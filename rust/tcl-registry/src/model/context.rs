@@ -55,8 +55,10 @@ use tcl_dialect::{LibraryVersionOverrides, TclVersion};
 use crate::hover::OptionSpec;
 use crate::model::surface::{
     BuildCapability, CapabilityPredicate, Provider, SurfaceDeclaration, VENDOR_SURFACE_PACKAGES,
-    is_closed_world_package, is_placement_gated_package, vendor_surface_package,
+    is_closed_world_package, is_placement_gated_package, package_hosting_families,
+    vendor_surface_package,
 };
+use crate::registry::NameProviders;
 use tcl_dialect::model::{CorePoints, SurfaceQuery, surface_admits};
 // The vendor-surface summary payload: plain registry-derived data, not
 // part of the retiring profile trait, so both faces answer with the one
@@ -479,6 +481,46 @@ impl ResolvedContext {
         self.placement(package).is_some()
     }
 
+    /// Whether a command offered by `offered` could be *meant for* this
+    /// document's world: some provider of the name stands in a relation to
+    /// the environment's core family.
+    ///
+    /// The distinction W002 needs. A name offered to a related world — a
+    /// `tcl8.4` document writing a `tcl8.6` command, a `jim` document writing
+    /// a Tcl command Jim's roster omits, a `tcl8.6` document writing an iRules
+    /// command — is *disabled here*. A name only an unrelated world offers
+    /// (`system`, Expect's, in a `jim` document) is simply unknown here.
+    ///
+    /// - a core provider is related when its family is on one derivation line
+    ///   with the document's ([`Family::on_one_line_with`]);
+    /// - a package provider is related when this environment can host the
+    ///   package, or the document's family shares packages with a family that
+    ///   ships it ([`Family::shares_packages_with`] — a fork does, a
+    ///   reimplementation does not). A package no compiled environment ships
+    ///   relates to everything, as a spec that states no surface does.
+    ///
+    /// A context with no core runtime of its own relates to everything.
+    #[must_use]
+    pub fn is_related_to_a_provider_of(&self, offered: &NameProviders) -> bool {
+        let Some(core) = self.environment.core else {
+            return true;
+        };
+        if offered.unrestricted || offered.providers.is_empty() {
+            return true;
+        }
+        offered.providers.iter().any(|provider| match provider {
+            SpecProvider::Core(family) => core.family.on_one_line_with(*family),
+            SpecProvider::Package(package) => {
+                let hosts = package_hosting_families(package);
+                hosts.is_empty()
+                    || self.can_host_package(package)
+                    || hosts
+                        .iter()
+                        .any(|host| core.family.shares_packages_with(*host))
+            }
+        })
+    }
+
     /// Whether `provider` is active here: a core provider iff it is the
     /// environment's core family **or a fork ancestor of it** (a
     /// fork-of-Tcl core embeds the fork point's Tcl core, measurements
@@ -771,7 +813,41 @@ impl ResolvedContext {
     ) -> Option<&'static CommandSpec> {
         registry
             .get_for_surface(name, Some(self.authoring_query()))
-            .filter(|spec| self.spec_available(spec))
+            .filter(|spec| self.spec_available(spec) && self.roster_admits(name, spec))
+    }
+
+    /// The enumerated half of inherit-then-override (design **Q6**) for one
+    /// spec: a spec that reaches this document only through an ancestor's
+    /// core row survives when that ancestor's roster lists the name.
+    ///
+    /// The assembled generation applies the roster when it admits a spec
+    /// (`ContextRegistry::assemble`); a query over a store that is not that
+    /// generation, which is how the analyser resolves a written head, applies
+    /// it here, so both answer alike: a `jim` document has no `coroutine`.
+    /// A spec with a row of the document's own family, or a package row, or
+    /// no row at all, is not the roster's to filter.
+    fn roster_admits(&self, name: &str, spec: &CommandSpec) -> bool {
+        let Some(rows) = spec.surface else {
+            return true;
+        };
+        let query = self.authoring_query();
+        let mut any_row_reaches_here = false;
+        for row in rows {
+            if !surface_admits(std::slice::from_ref(row), Some(&query)) {
+                continue;
+            }
+            any_row_reaches_here = true;
+            let passes = match row.provider {
+                SpecProvider::Core(source) => {
+                    self.inherited_surface_admits(name, &Provider::Core(source))
+                }
+                SpecProvider::Package(_) => true,
+            };
+            if passes {
+                return true;
+            }
+        }
+        !any_row_reaches_here
     }
 
     /// Whether `sub` (of `spec`) is available here — the old

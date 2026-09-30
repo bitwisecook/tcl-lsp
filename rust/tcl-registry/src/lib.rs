@@ -284,8 +284,8 @@ pub use presentation::ArgPresentation;
 pub use profile_queries::VendorSurface;
 pub use registry::{
     CommandRegistry, EffectiveCommandSemantics, EffectiveRegistrySemantics, FormatStringArg,
-    MethodDispatchKind, ProcedureWords, ResolvedCall, ResolvedTerminator, TryClauseKind,
-    TryCompletionSelector, TryControlClause, TryControlInvocation,
+    MethodDispatchKind, NameProviders, ProcedureWords, ResolvedCall, ResolvedTerminator,
+    TryClauseKind, TryCompletionSelector, TryControlClause, TryControlInvocation,
 };
 pub use relation::{
     Relation, RelationFactSource, RelationKind, RelationMode, RelationTermKind, RelationVerdict,
