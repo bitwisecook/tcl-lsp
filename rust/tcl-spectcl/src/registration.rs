@@ -261,6 +261,7 @@ fn register_pack_dialects(packs: &PackSet) -> (usize, usize, Vec<DialectRejectio
     // model-side call replaces the whole store, so a set that declared no
     // roster of its own must still hand Jim's back or it would retire it.
     let mut rosters = crate::core_surfaces::builtin_rosters();
+    let _ = crate::core_surfaces::register_builtin_commands();
     for pack in &packs.packs {
         let provenance = PackEnvironmentTier::of(pack.tier).provenance();
         rosters.extend(crate::surface_roster_conversion::to_inherited_surfaces(
@@ -314,6 +315,7 @@ pub fn retire_pack_environments() -> PackSetRegistration {
     // The compiled-in core surfaces are not the pack channel's to retire.
     let _ =
         tcl_dialect::model::register_inherited_surfaces(crate::core_surfaces::builtin_rosters());
+    let _ = crate::core_surfaces::register_builtin_commands();
     PackSetRegistration {
         generation: outcome.generation,
         changed: outcome.changed,

@@ -246,6 +246,10 @@
       "location": "option -implementation value"
     },
     {
+      "owner": "defer",
+      "location": "arg[0]"
+    },
+    {
       "owner": "defer::autowith",
       "location": "arg[0]"
     },
@@ -532,6 +536,18 @@
     {
       "owner": "log::lvCmdForall",
       "location": "arg[0]"
+    },
+    {
+      "owner": "loop form bounds",
+      "location": "arg[3]"
+    },
+    {
+      "owner": "loop form limit",
+      "location": "arg[2]"
+    },
+    {
+      "owner": "loop form stepped",
+      "location": "arg[4]"
     },
     {
       "owner": "math::calculus::boundaryValueSecondOrder",

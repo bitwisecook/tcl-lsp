@@ -425,9 +425,10 @@ pub fn context_for_profile(profile: &DialectProfile) -> Arc<ContextRegistry> {
     resolve_environment(profile.name).default_context_registry()
 }
 
-/// The promotion key: the environment's canonical id and both generation
-/// axes an un-overlaid assembly answers under.
-type PromotionKey = (String, u64, u64);
+/// The promotion key: the environment's canonical id and the three
+/// generation axes an un-overlaid assembly answers under — the environment
+/// registry's, the surface rosters', and the core-surface specs'.
+type PromotionKey = (String, u64, u64, u64);
 
 /// The surface-roster generation `environment`'s answers move with — `0`
 /// for an environment no roster can reach.
@@ -472,8 +473,8 @@ static LEAKED_GENERATIONS: OnceLock<Mutex<FxHashMap<PromotionKey, &'static Conte
 ///
 /// The key is therefore the whole of what an un-overlaid assembly
 /// answers under: [`crate::model::assembly`]'s generation key minus the
-/// keyed versions and the overlay, which are fixed here. Both axes only
-/// move on a real change, so the promotion still leaks a clone of the
+/// keyed versions and the overlay, which are fixed here. Every axis only
+/// moves on a real change, so the promotion still leaks a clone of the
 /// generation's `Arc` — eight bytes — never a copy of the assembly.
 ///
 /// This is what lets the LSP providers keep their `&'static` registry
@@ -488,6 +489,7 @@ pub fn static_context_for(name: &str) -> &'static ContextRegistry {
         environment.id().to_owned(),
         environment.identity.generation,
         roster_axis_of(&environment),
+        crate::cache::core_surface_generation(),
     );
     let leaked = LEAKED_GENERATIONS.get_or_init(|| Mutex::new(FxHashMap::default()));
     if let Some(view) = leaked

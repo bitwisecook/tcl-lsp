@@ -1453,6 +1453,33 @@ impl CommandRegistry {
         self.insert_static(Box::leak(Box::new(spec)));
     }
 
+    /// A copy of this registry with `specs` indexed after every spec already
+    /// under their names.
+    ///
+    /// The copy shares every `&'static CommandSpec` with the original and
+    /// records nothing as an authored overlay: `specs` are a family's own
+    /// compiled-in surface, not a pack's contribution. Landing last makes a
+    /// dialect-blind [`Self::get`] answer with the family's own row, which is
+    /// what a registry assembled for that family's documents wants; every
+    /// availability-aware query ranks by the query's core points and is
+    /// unaffected by registration order.
+    #[must_use]
+    pub(crate) fn with_core_surface(&self, specs: &[&'static CommandSpec]) -> Self {
+        let mut by_name = self.by_name.clone();
+        for spec in specs {
+            by_name.entry(spec.name).or_default().push(spec);
+        }
+        Self {
+            by_name,
+            overlay_specs: self.overlay_specs.clone(),
+            loaded_layers: self.loaded_layers.clone(),
+            profile: self.profile,
+            ambient_packages: self.ambient_packages.clone(),
+            document_grammar: self.document_grammar,
+            effective_semantics: OnceLock::new(),
+        }
+    }
+
     /// Insert an authored overlay spec the caller already owns permanently —
     /// no copy, no leak.
     ///

@@ -41,7 +41,8 @@
 # `upcall`, `xtrace`, `ref`/`getref`/`setref`, the `os.*` and `json::*`
 # rows, and the arithmetic command forms `+ - * /` — are not here. A roster
 # names what the *ancestor* provides; an addition is a spec of its own, and
-# says `available {jim 0.81-}`. A `jim` document asks at two points, its own
+# says `available {jim 0.81-}`. They are in `jim-own-surface.tclspec` beside
+# this file. A `jim` document asks at two points, its own
 # family first and the `(tcl 8.6)` ancestry anchor second: the anchor is how
 # the shared core specs reach it, the own-family point is how a `Core(Jim)`
 # row does, and where both offer one command the Jim row is the one

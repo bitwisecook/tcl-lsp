@@ -1,0 +1,861 @@
+# tcl-lsp — a language server and toolchain for Tcl
+# Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Jim Tcl's own command surface: the commands `jimsh` has and `tclsh8.6` does
+# not, or has in a different shape. `jim.tclspec` beside this file names what
+# Jim inherits from Tcl; this pack is what Jim adds.
+#
+# Like that roster it is compiled into the binary (`core_surfaces.rs`) and
+# registered unconditionally, so a `specs/` directory a user or a distribution
+# controls cannot delete Jim's own commands.
+#
+# ## Windows
+#
+# Every window below is the first and last release whose `jimsh` lists the
+# name in `info commands`, read from a build of each upstream tag 0.76-0.84:
+#
+#     ./configure --full && make jimsh
+#     ./jimsh -e 'foreach c [lsort [info commands -all]] { puts $c }'
+#
+# No name is gated behind a `package require`: `Jim_InitStaticExtensions` runs
+# when the interpreter starts, so every extension's commands exist from the
+# first line of a script and `package require oo` adds none. A window is a
+# release range and nothing else, written in requirement syntax where the
+# upper bound is exclusive: `{jim 0.76-0.78}` is 0.76 and 0.77. The one build
+# axis is `--minimal`, which compiles out `binary`, `ensemble`, `json::*`,
+# `load_ssl_certs`, `tcl::prefix` and `zlib`; the capability vocabulary covers
+# no per-extension configure flag, so those rows are stated unconditionally, as
+# `binary` and `zlib` are on the roster.
+#
+# ## Argument shapes
+#
+# A shape is the usage string `jimsh` prints for the newest release that has
+# the command, corrected where a `proc` wrapper quotes another command:
+# `curry` reports `alias`'s usage, `lambda` reports `proc`'s, and `ensemble`
+# documents `?-automap prefix?` although its usage line says `?arg ...?`.
+#
+# ## What is deliberately absent
+#
+# Internal helpers that `jimsh` lists only because a library proc is public by
+# accident: `lambda.finalizer`, `glob.explode`, `glob.glob`, `glob.globdir`,
+# `binary::nextarg`, `json::encode.*` (0.79-0.80), `tcl::autocomplete` and
+# `tcl::stdhint` (the interactive shell's own hooks). `debug` is a stub that
+# answers `unsupported` at every release that has it.
+#
+# `stdin`, `stdout` and `stderr` are channel handles whose method vocabulary
+# is `aio`'s, which grew from 20 methods at 0.76 to 34 at 0.84; they are stated
+# as commands with an open member set rather than with that vocabulary.
+#
+# `parray`, `timerate` and `tcl::prefix` also exist in Tcl 8.6 with another
+# shape. The rows here are Jim's; a `jim` document selects them ahead of any
+# Tcl row (its own family is the nearer core point), and a Tcl document never
+# sees them.
+
+speclib jim-own-surface 2.0 {
+
+    # ---- arithmetic in command form -----------------------------------
+    # `expr` is not needed for `+ 1 2`: every operand is a number, and the
+    # result is a number (`+` alone is 0, `*` alone is 1, `- 5` is -5,
+    # `/ 2` is 0.5).
+
+    command + {
+        available {jim 0.76-}
+        traits {PURE}
+        arity 0..
+        form Default {+ ?number ...?}
+        hover {
+            summary {Add numbers; no arguments gives 0.}
+            synopsis {+ ?number ...?}
+            source {Jim Tcl}
+        }
+    }
+
+    command - {
+        available {jim 0.76-}
+        traits {PURE}
+        arity 1..
+        form Default {- number ?number ...?}
+        hover {
+            summary {Subtract the later numbers from the first; a single argument is negated.}
+            synopsis {- number ?number ...?}
+            source {Jim Tcl}
+        }
+    }
+
+    command * {
+        available {jim 0.76-}
+        traits {PURE}
+        arity 0..
+        form Default {* ?number ...?}
+        hover {
+            summary {Multiply numbers; no arguments gives 1.}
+            synopsis {* ?number ...?}
+            source {Jim Tcl}
+        }
+    }
+
+    command / {
+        available {jim 0.76-}
+        traits {PURE}
+        arity 1..
+        form Default {/ number ?number ...?}
+        hover {
+            summary {Divide the first number by the later ones; a single argument gives its reciprocal.}
+            synopsis {/ number ?number ...?}
+            source {Jim Tcl}
+        }
+    }
+
+    # ---- control flow --------------------------------------------------
+    # `loop` reads its own start: `first` is mandatory before 0.81, so the
+    # three-argument form is a 0.81 addition, and from then the bounds are
+    # integer expressions. The limit is exclusive and a negative `incr`
+    # counts down.
+    #
+    # The body is the last word, and its index moves with the arity. Two
+    # readers need it. The role walk reads the `repeat` row: a group anchored
+    # to the end of the call (`-optional-leading`) with a stride longer than
+    # any call is one word wide, the last. The callback inventory and the
+    # form-aware readers read the `refine` rows, one per arity.
+
+    command loop {
+        available {jim 0.76-}
+        traits {CONTROL_FLOW HAS_LOOP_BODY NEVER_INLINE_BODY}
+        arity 3..5
+        body_kind Structural
+        arg 0 -role VarWrite
+        repeat Body -from 2 -stride 250 -optional-leading
+
+        refine limit {
+            arity 3
+            available {jim 0.81-}
+            arg 0 -role VarWrite
+            arg 2 -role Body
+        }
+        refine bounds {
+            arity 4
+            arg 0 -role VarWrite
+            arg 3 -role Body
+        }
+        refine stepped {
+            arity 5
+            arg 0 -role VarWrite
+            arg 4 -role Body
+        }
+
+        form Default {loop var ?first? limit ?incr? body} -available {jim 0.81-}
+        form Default {loop var first limit ?incr? body} -available {jim 0.76-0.81}
+
+        hover {
+            summary {Run a body for each integer from first up to, but not including, limit.}
+            synopsis {loop var ?first? limit ?incr? body}
+            description {first defaults to 0 and incr to 1; a negative incr counts down while var is greater than limit. Before 0.81 first is required and the bounds are plain integers; from 0.81 they are integer expressions. Editing var inside the body does not change the iteration count. break and continue apply.}
+            source {Jim Tcl}
+        }
+    }
+
+    command sleep {
+        available {jim 0.76-}
+        arity 1
+        form Default {sleep seconds}
+        hover {
+            summary {Sleep for a number of seconds, which may be fractional.}
+            synopsis {sleep seconds}
+            source {Jim Tcl}
+        }
+    }
+
+    command range {
+        available {jim 0.76-}
+        traits {PURE}
+        arity 1..3
+        return_type List
+        form Default {range ?start? end ?step?}
+        hover {
+            summary {A list of integers from start up to, but not including, end.}
+            synopsis {range ?start? end ?step?}
+            source {Jim Tcl}
+        }
+    }
+
+    command lsubst {
+        available {jim 0.84-}
+        arity 1..2
+        return_type List
+        option -line -detail {Split the string into lines and substitute each as a list element.}
+        form Default {lsubst ?-line? string}
+        hover {
+            summary {Build a list from a string using substitution rules.}
+            synopsis {lsubst ?-line? string}
+            source {Jim Tcl}
+        }
+    }
+
+    command rand {
+        available {jim 0.76-}
+        arity 0..2
+        form Default {rand ?min? ?max?}
+        hover {
+            summary {A random integer: below the maximum, or from min up to but not including max.}
+            synopsis {rand ?min? ?max?}
+            source {Jim Tcl}
+        }
+    }
+
+    # ---- commands, aliases and closures ---------------------------------
+
+    command alias {
+        available {jim 0.76-}
+        arity 2..
+        defines_command_at 0
+        arg 0 -role Name
+        arg 1 -role CommandNameProbe
+        form Default {alias newname command ?args ...?}
+        hover {
+            summary {Define newname as a command that calls command with the given leading arguments.}
+            synopsis {alias newname command ?args ...?}
+            source {Jim Tcl}
+        }
+    }
+
+    command local {
+        available {jim 0.76-}
+        arity 1..
+        form Default {local cmd ?args ...?}
+        hover {
+            summary {Run a command and delete the command it names when the calling proc exits.}
+            synopsis {local cmd ?args ...?}
+            source {Jim Tcl}
+        }
+    }
+
+    command upcall {
+        available {jim 0.76-}
+        arity 1..
+        form Default {upcall cmd ?args ...?}
+        hover {
+            summary {Call the definition a command had before local hid it.}
+            synopsis {upcall cmd ?args ...?}
+            source {Jim Tcl}
+        }
+    }
+
+    command curry {
+        available {jim 0.76-}
+        arity 1..
+        arg 0 -role CommandNameProbe
+        form Default {curry command ?arg ...?}
+        hover {
+            summary {Return a new command that calls command with the given leading arguments.}
+            synopsis {curry command ?arg ...?}
+            source {Jim Tcl}
+        }
+    }
+
+    command lambda {
+        available {jim 0.76-}
+        arity 2..3
+        refine plain {
+            arity 2
+            arg 0 -role ParamList
+            arg 1 -role OpaqueScript
+        }
+        refine statics {
+            arity 3
+            arg 0 -role ParamList
+            arg 1 -role ParamList
+            arg 2 -role OpaqueScript
+        }
+        form Default {lambda arglist ?statics? body}
+        hover {
+            summary {Return an anonymous command with the given parameters, optional static variables and body.}
+            synopsis {lambda arglist ?statics? body}
+            source {Jim Tcl}
+        }
+    }
+
+    command function {
+        available {jim 0.76-}
+        arity 1
+        form Default {function value}
+        hover {
+            summary {Return its argument, so that local can mark a lambda as procedure-local.}
+            synopsis {function value}
+            source {Jim Tcl}
+        }
+    }
+
+    command defer {
+        available {jim 0.78-}
+        traits {DEFERS_BODY}
+        arity 1
+        arg 0 -role Body
+        form Default {defer script}
+        hover {
+            summary {Run a script when the calling proc, or the interpreter, exits.}
+            synopsis {defer script}
+            source {Jim Tcl}
+        }
+    }
+
+    command ensemble {
+        available {jim 0.82-}
+        arity 1..3
+        defines_command_at 0
+        arg 0 -role Name
+        form Default {ensemble command ?-automap prefix?}
+        hover {
+            summary {Make command dispatch its first word to a command named prefix followed by that word.}
+            synopsis {ensemble command ?-automap prefix?}
+            description {The prefix defaults to the command name and a space, which is the two-word command convention: proc {test open} ...; ensemble test.}
+            source {Jim Tcl}
+        }
+    }
+
+    # ---- references and collection ---------------------------------------
+
+    command ref {
+        available {jim 0.76-}
+        arity 2..3
+        form Default {ref string tag ?finalizer?}
+        hover {
+            summary {Create a reference to a string; the finalizer runs when the reference is collected.}
+            synopsis {ref string tag ?finalizer?}
+            source {Jim Tcl}
+        }
+    }
+
+    command getref {
+        available {jim 0.76-}
+        arity 1
+        form Default {getref reference}
+        hover {
+            summary {The string a reference holds.}
+            synopsis {getref reference}
+            source {Jim Tcl}
+        }
+    }
+
+    command setref {
+        available {jim 0.76-}
+        arity 2
+        form Default {setref reference newValue}
+        hover {
+            summary {Replace the string a reference holds.}
+            synopsis {setref reference newValue}
+            source {Jim Tcl}
+        }
+    }
+
+    command collect {
+        available {jim 0.76-}
+        arity 0
+        form Default {collect}
+        hover {
+            summary {Collect unreferenced references now; returns how many were collected.}
+            synopsis {collect}
+            source {Jim Tcl}
+        }
+    }
+
+    command finalize {
+        available {jim 0.76-}
+        arity 1..2
+        form Default {finalize reference ?finalizerProc?}
+        hover {
+            summary {Read or replace the finalizer of a reference; an empty finalizer removes it.}
+            synopsis {finalize reference ?finalizerProc?}
+            source {Jim Tcl}
+        }
+    }
+
+    # ---- introspection and debugging ---------------------------------------
+
+    command timerate {
+        available {jim 0.82-}
+        traits {CONTROL_FLOW HAS_LOOP_BODY DYNAMIC_EVAL_BODY}
+        arity 1..2
+        arg 0 -role Body
+        form Default {timerate script ?milliseconds?}
+        hover {
+            summary {Time a script and return a dict of us_per_iter, iters_per_sec, count and elapsed_us.}
+            synopsis {timerate script ?milliseconds?}
+            description {Not Tcl's timerate: no -direct, -calibrate or -overhead options, and the result is a dict rather than a formatted list.}
+            source {Jim Tcl}
+        }
+    }
+
+    command xtrace {
+        available {jim 0.81-}
+        arity 1
+        arg 0 -role CommandNameProbe
+        form Default {xtrace callback}
+        hover {
+            summary {Call a command for every executed command; an empty callback removes the trace.}
+            synopsis {xtrace callback}
+            source {Jim Tcl}
+        }
+    }
+
+    command stacktrace {
+        available {jim 0.76-}
+        arity 0..2
+        form Default {stacktrace ?firstlevel? ?lastlevel?}
+        hover {
+            summary {The live stack trace as a list of proc, file, line and command groups.}
+            synopsis {stacktrace ?firstlevel? ?lastlevel?}
+            description {Before 0.83 this was a proc taking ?skip? and before 0.84 it accepted ?skip? ?last?.}
+            source {Jim Tcl}
+        }
+    }
+
+    command stackdump {
+        available {jim 0.76-}
+        arity 1
+        form Default {stackdump stacktrace}
+        hover {
+            summary {Format a stack trace list as readable text.}
+            synopsis {stackdump stacktrace}
+            source {Jim Tcl}
+        }
+    }
+
+    command errorInfo {
+        available {jim 0.76-}
+        arity 1..2
+        form Default {errorInfo msg ?stacktrace?}
+        hover {
+            summary {Format an error message and stack trace as file:line text.}
+            synopsis {errorInfo msg ?stacktrace?}
+            description {A command, unrelated to Tcl's errorInfo variable.}
+            source {Jim Tcl}
+        }
+    }
+
+    command exists {
+        available {jim 0.76-}
+        arity 1..2
+        option -command -detail {Test for a command.}
+        option -proc -detail {Test for a proc.}
+        option -alias -detail {Test for an alias.}
+        option -channel -available {jim 0.84-} -detail {Test for a channel handle.}
+        option -var -detail {Test for a variable; the default.}
+        form Default {exists ?-command|-proc|-alias|-channel|-var? name}
+        hover {
+            summary {Report 0 or 1 for whether a variable, command, proc, alias or channel exists.}
+            synopsis {exists ?-command|-proc|-alias|-channel|-var? name}
+            source {Jim Tcl}
+        }
+    }
+
+    command env {
+        available {jim 0.76-}
+        arity 0..2
+        form Default {env ?varName? ?default?}
+        hover {
+            summary {The whole environment, one variable, or one variable with a default.}
+            synopsis {env ?varName? ?default?}
+            source {Jim Tcl}
+        }
+    }
+
+    command parray {
+        available {jim 0.76-}
+        traits {WHOLE_ARRAY_ARG OVERRIDABLE_LIBRARY_PROC}
+        arity 1..
+        arg 0 -role VarRead
+        form Default {parray arrayname ?pattern? ?puts? ?arg ...?}
+        hover {
+            summary {Print an array's elements, through puts or a command of your choice.}
+            synopsis {parray arrayname ?pattern? ?puts? ?arg ...?}
+            description {Jim's parray takes a command prefix in place of puts; before 0.84 the arguments end at ?puts?.}
+            source {Jim Tcl}
+        }
+    }
+
+    command tcl::prefix {
+        available {jim 0.76-}
+        arity 1..
+        subcommand all {
+            arity 2
+            detail {Every table entry that begins with the string.}
+        }
+        subcommand longest {
+            arity 2
+            detail {The longest common prefix of the table entries that begin with the string.}
+        }
+        subcommand match {
+            arity 2..
+            detail {The unique table entry the string abbreviates.}
+        }
+        form Default {tcl::prefix subcommand ?arg ...?}
+        hover {
+            summary {Prefix-matching utility commands.}
+            synopsis {tcl::prefix subcommand ?arg ...?}
+            source {Jim Tcl}
+        }
+    }
+
+    # ---- processes and the operating system ---------------------------------
+
+    command os.fork {
+        available {jim 0.76-}
+        arity 0
+        form Default {os.fork}
+        hover {
+            summary {Fork the process; the child pid in the parent, 0 in the child.}
+            synopsis {os.fork}
+            source {Jim Tcl}
+        }
+    }
+
+    command os.gethostname {
+        available {jim 0.76-}
+        arity 0
+        form Default {os.gethostname}
+        hover {
+            summary {The name of this host.}
+            synopsis {os.gethostname}
+            source {Jim Tcl}
+        }
+    }
+
+    command os.getids {
+        available {jim 0.76-}
+        arity 0
+        form Default {os.getids}
+        hover {
+            summary {The process's user and group ids as a uid, euid, gid, egid list.}
+            synopsis {os.getids}
+            source {Jim Tcl}
+        }
+    }
+
+    command os.uptime {
+        available {jim 0.76-}
+        arity 0
+        form Default {os.uptime}
+        hover {
+            summary {Seconds since boot.}
+            synopsis {os.uptime}
+            source {Jim Tcl}
+        }
+    }
+
+    command os.umask {
+        available {jim 0.84-}
+        arity 0..1
+        form Default {os.umask ?newmask?}
+        hover {
+            summary {Set the file creation mask and return the previous one.}
+            synopsis {os.umask ?newmask?}
+            source {Jim Tcl}
+        }
+    }
+
+    command os.wait {
+        available {jim 0.76-0.78}
+        arity 1..2
+        option -nohang -detail {Return at once if the child has not finished.}
+        form Default {os.wait ?-nohang? pid}
+        hover {
+            summary {Wait for a child process; replaced by wait at 0.78.}
+            synopsis {os.wait ?-nohang? pid}
+            source {Jim Tcl}
+        }
+    }
+
+    command wait {
+        available {jim 0.78-}
+        arity 0..2
+        option -nohang -detail {Return at once if the child has not finished.}
+        form Default {wait ?-nohang? ?pid?}
+        hover {
+            summary {Reap finished background children, or wait for one and return its status.}
+            synopsis {wait ?-nohang? ?pid?}
+            source {Jim Tcl}
+        }
+    }
+
+    command pipe {
+        available {jim 0.78-}
+        arity 0
+        form Default {pipe}
+        hover {
+            summary {Create a pipe and return its read and write channel handles.}
+            synopsis {pipe}
+            source {Jim Tcl}
+        }
+    }
+
+    command popen {
+        available {jim 0.76-}
+        arity 1..2
+        form Default {popen cmd ?mode?}
+        hover {
+            summary {Open a command as a channel handle, for reading unless mode starts with w.}
+            synopsis {popen cmd ?mode?}
+            source {Jim Tcl}
+        }
+    }
+
+    command kill {
+        available {jim 0.76-}
+        arity 1..2
+        form Default {kill ?SIG|-0? pid}
+        hover {
+            summary {Send a signal to a process; -0 only tests that it exists.}
+            synopsis {kill ?SIG|-0? pid}
+            source {Jim Tcl}
+        }
+    }
+
+    command alarm {
+        available {jim 0.76-}
+        arity 1
+        form Default {alarm seconds}
+        hover {
+            summary {Deliver SIGALRM after a number of seconds.}
+            synopsis {alarm seconds}
+            source {Jim Tcl}
+        }
+    }
+
+    command signal {
+        available {jim 0.76-}
+        arity 1..
+        subcommand handle {
+            arity 0..
+            detail {Trap the signals and record them for check and throw.}
+        }
+        subcommand ignore {
+            arity 0..
+            detail {Ignore the signals.}
+        }
+        subcommand default {
+            arity 0..
+            detail {Restore the default action.}
+        }
+        subcommand check {
+            arity 0..
+            detail {Return, and with -clear reset, the signals seen.}
+        }
+        subcommand throw {
+            arity 0..1
+            detail {Raise the signal as an error in the caller.}
+        }
+        subcommand block {
+            available {jim 0.79-}
+            arity 0..
+            detail {Block delivery of the signals.}
+        }
+        form Default {signal subcommand ?arg ...?}
+        hover {
+            summary {Handle, ignore, block or check signals.}
+            synopsis {signal subcommand ?arg ...?}
+            source {Jim Tcl}
+        }
+    }
+
+    command syslog {
+        available {jim 0.76-}
+        arity 1..
+        option -facility -takes facility -detail {The syslog facility.}
+        option -ident -takes string -detail {The identity prefixed to each message.}
+        option -options -takes int -detail {The openlog options.}
+        form Default {syslog ?-facility cron|daemon|...? ?-ident string? ?-options int? ?debug|info|...? message}
+        hover {
+            summary {Write a message to the system log.}
+            synopsis {syslog ?-facility cron|daemon|...? ?-ident string? ?-options int? ?debug|info|...? message}
+            source {Jim Tcl}
+        }
+    }
+
+    command readdir {
+        available {jim 0.76-}
+        arity 1..2
+        return_type List
+        option -nocomplain -detail {Return an empty list instead of an error for an unreadable directory.}
+        form Default {readdir ?-nocomplain? dirPath}
+        hover {
+            summary {The entries of a directory, without . and ..}
+            synopsis {readdir ?-nocomplain? dirPath}
+            source {Jim Tcl}
+        }
+    }
+
+    command load_ssl_certs {
+        available {jim 0.77-}
+        arity 1
+        form Default {load_ssl_certs dir}
+        hover {
+            summary {Load trusted certificates from a directory for SSL channels.}
+            synopsis {load_ssl_certs dir}
+            source {Jim Tcl}
+        }
+    }
+
+    # ---- binary packing and JSON ---------------------------------------------
+
+    command pack {
+        available {jim 0.76-}
+        arity 4..5
+        arg 0 -role VarWrite
+        form Default {pack varName value -intle|-intbe|-floatle|-floatbe|-str bitwidth ?bitoffset?}
+        hover {
+            summary {Pack a value into a variable as a bit field.}
+            synopsis {pack varName value -intle|-intbe|-floatle|-floatbe|-str bitwidth ?bitoffset?}
+            source {Jim Tcl}
+        }
+    }
+
+    command unpack {
+        available {jim 0.76-}
+        arity 4
+        form Default {unpack binvalue -intbe|-intle|-uintbe|-uintle|-floatbe|-floatle|-str bitpos bitwidth}
+        hover {
+            summary {Extract a bit field from a binary value.}
+            synopsis {unpack binvalue -intbe|-intle|-uintbe|-uintle|-floatbe|-floatle|-str bitpos bitwidth}
+            source {Jim Tcl}
+        }
+    }
+
+    command json::decode {
+        available {jim 0.79-}
+        arity 1..
+        option -index -detail {Return an index-keyed list.}
+        option -null -takes nullvalue -detail {The value a JSON null decodes to.}
+        option -schema -detail {Return the schema of the document.}
+        form Default {json::decode ?-index? ?-null nullvalue? ?-schema? json}
+        hover {
+            summary {Decode JSON into nested Tcl lists and dicts.}
+            synopsis {json::decode ?-index? ?-null nullvalue? ?-schema? json}
+            source {Jim Tcl}
+        }
+    }
+
+    command json::encode {
+        available {jim 0.79-}
+        arity 1..2
+        form Default {json::encode value ?schema?}
+        hover {
+            summary {Encode a Tcl value as JSON, following a schema of str, num, bool, obj, list or mixed.}
+            synopsis {json::encode value ?schema?}
+            source {Jim Tcl}
+        }
+    }
+
+    command json::subencode {
+        available {jim 0.81-}
+        arity 2..3
+        form Default {json::subencode type value ?schema?}
+        hover {
+            summary {Encode one value of a given schema type as JSON.}
+            synopsis {json::subencode type value ?schema?}
+            source {Jim Tcl}
+        }
+    }
+
+    # ---- object system ---------------------------------------------------------
+
+    command class {
+        available {jim 0.76-}
+        arity 2..3
+        defines_command_at 0
+        arg 0 -role Name
+        form Default {class classname ?baseclasses? classvars}
+        hover {
+            summary {Define a class: a command named classname whose instances hold the listed variables.}
+            synopsis {class classname ?baseclasses? classvars}
+            source {Jim Tcl}
+        }
+    }
+
+    command super {
+        available {jim 0.76-}
+        arity 1..
+        form Default {super method ?arg ...?}
+        hover {
+            summary {Call a method of the last base class on the current object.}
+            synopsis {super method ?arg ...?}
+            source {Jim Tcl}
+        }
+    }
+
+    command tree {
+        available {jim 0.76-}
+        arity 0..
+        dynamic_surface
+        form Default {tree ?cmd? ?arg ...?}
+        hover {
+            summary {Create a tree object, or call a tree method.}
+            synopsis {tree ?cmd? ?arg ...?}
+            source {Jim Tcl}
+        }
+    }
+
+    # ---- tainting ---------------------------------------------------------------
+
+    command taint {
+        available {jim 0.84-}
+        arity 1
+        arg 0 -role VarRead
+        form Default {taint varname}
+        hover {
+            summary {Mark a variable as tainted.}
+            synopsis {taint varname}
+            source {Jim Tcl}
+        }
+    }
+
+    command untaint {
+        available {jim 0.84-}
+        arity 1
+        arg 0 -role VarRead
+        form Default {untaint varname}
+        hover {
+            summary {Clear the taint mark of a variable.}
+            synopsis {untaint varname}
+            source {Jim Tcl}
+        }
+    }
+
+    # ---- standard channels -------------------------------------------------------
+
+    command stdin {
+        available {jim 0.76-}
+        arity 1..
+        dynamic_surface
+        form Default {stdin command ?arg ...?}
+        hover {
+            summary {The standard input channel handle.}
+            synopsis {stdin command ?arg ...?}
+            source {Jim Tcl}
+        }
+    }
+
+    command stdout {
+        available {jim 0.76-}
+        arity 1..
+        dynamic_surface
+        form Default {stdout command ?arg ...?}
+        hover {
+            summary {The standard output channel handle.}
+            synopsis {stdout command ?arg ...?}
+            source {Jim Tcl}
+        }
+    }
+
+    command stderr {
+        available {jim 0.76-}
+        arity 1..
+        dynamic_surface
+        form Default {stderr command ?arg ...?}
+        hover {
+            summary {The standard error channel handle.}
+            synopsis {stderr command ?arg ...?}
+            source {Jim Tcl}
+        }
+    }
+}

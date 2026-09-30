@@ -21,8 +21,12 @@
 //! Q1 ruled that the shipped command surfaces stay native Rust, with one
 //! carve-out: Jim's. Its surface is *authored as `SpecTcl` and loaded*,
 //! because what it has to say — "of Tcl 8.6's commands, Jim implements
-//! these" — is a roster, and a roster written as Rust is a second
-//! catalogue to keep in step with the first.
+//! these, and adds these" — is a roster and a list of commands, and a roster
+//! written as Rust is a second catalogue to keep in step with the first.
+//!
+//! Two packs carry it. `jim.tclspec` names the Tcl commands Jim inherits (an
+//! `include from tcl into jim` roster); `jim-own-surface.tclspec` is the
+//! commands Jim adds, each with the release window it was measured in.
 //!
 //! ## Why this is not a discoverable pack
 //!
@@ -40,6 +44,15 @@
 //! read by the one loader, exercising the same words a third-party pack
 //! would — without being a file anyone can take away.
 //!
+//! ## Where the commands go
+//!
+//! A roster narrows an ancestor's surface and registers with the dialect
+//! model ([`builtin_rosters`]). Commands register with the registry
+//! ([`builtin_commands`]) as a family's own compiled-in surface, not as a
+//! pack overlay: an overlay is built per pack set and reaches only the
+//! catalogue profiles, while a `jim` document is served by a store of its
+//! own family that must carry these commands whatever pack set is loaded.
+//!
 //! ## Ordering
 //!
 //! [`ensure`] is idempotent and cheap after the first call.
@@ -51,23 +64,37 @@
 use std::sync::OnceLock;
 
 use tcl_dialect::model::{InheritedSurface, Provenance};
+use tcl_registry::spec::CommandSpec;
 
-use crate::loader::PackSurfaceRoster;
+use crate::loader::{Pack, PackSurfaceRoster};
 
 /// The core surface packs' `SpecTcl` sources, by the name their notices
 /// report against.
-const CORE_SURFACES: &[(&str, &str)] =
-    &[("jim.tclspec", include_str!("../core-surfaces/jim.tclspec"))];
+const CORE_SURFACES: &[(&str, &str)] = &[
+    ("jim.tclspec", include_str!("../core-surfaces/jim.tclspec")),
+    (
+        "jim-own-surface.tclspec",
+        include_str!("../core-surfaces/jim-own-surface.tclspec"),
+    ),
+];
 
-/// The roster rows the compiled-in sources declare, parsed once.
-fn rows() -> &'static [PackSurfaceRoster] {
-    static ROWS: OnceLock<Vec<PackSurfaceRoster>> = OnceLock::new();
-    ROWS.get_or_init(|| {
+/// The compiled-in packs, evaluated once, in source order.
+fn packs() -> &'static [Pack] {
+    static PACKS: OnceLock<Vec<Pack>> = OnceLock::new();
+    PACKS.get_or_init(|| {
         CORE_SURFACES
             .iter()
-            .flat_map(|(_, source)| crate::loader::evaluate_pack(source).surface_rosters)
+            .map(|(_, source)| crate::loader::evaluate_pack(source))
             .collect()
     })
+}
+
+/// The roster rows the compiled-in sources declare, parsed once.
+fn rows() -> Vec<PackSurfaceRoster> {
+    packs()
+        .iter()
+        .flat_map(|pack| pack.surface_rosters.iter().cloned())
+        .collect()
 }
 
 /// The compiled-in rosters, as the model's own data.
@@ -77,10 +104,33 @@ fn rows() -> &'static [PackSurfaceRoster] {
 /// owned set to hand to the sync.
 #[must_use]
 pub fn builtin_rosters() -> Vec<InheritedSurface> {
-    crate::surface_roster_conversion::to_inherited_surfaces(rows(), Provenance::BuiltIn)
+    crate::surface_roster_conversion::to_inherited_surfaces(&rows(), Provenance::BuiltIn)
 }
 
-/// Register the compiled-in rosters, if nothing has registered any yet.
+/// The commands the compiled-in sources declare, in source order.
+///
+/// Each spec is the loader's own interned `&'static` value, so a caller can
+/// register the same set repeatedly and the registry recognises it as
+/// unchanged.
+#[must_use]
+pub fn builtin_commands() -> Vec<&'static CommandSpec> {
+    packs()
+        .iter()
+        .flat_map(|pack| pack.commands.iter().map(|command| command.spec))
+        .collect()
+}
+
+/// Register the compiled-in commands with the registry as their families' own
+/// surface. Registering the set again changes nothing.
+///
+/// Returns the registry's core-surface generation after the call.
+#[must_use]
+pub fn register_builtin_commands() -> u64 {
+    tcl_registry::register_core_surface_specs(builtin_commands())
+}
+
+/// Register the compiled-in rosters and commands, if nothing has registered
+/// them yet.
 ///
 /// The entry point for a process that never publishes a pack set — a
 /// test, a tool reading the catalogue directly. A process that *does*
@@ -90,6 +140,7 @@ pub fn ensure() {
     static DONE: OnceLock<()> = OnceLock::new();
     DONE.get_or_init(|| {
         let _ = tcl_dialect::model::register_inherited_surfaces(builtin_rosters());
+        let _ = register_builtin_commands();
     });
 }
 
@@ -146,6 +197,44 @@ mod tests {
                 "{absent} is in `tclsh8.6` and not in any `jimsh` 0.76-0.84"
             );
         }
+    }
+
+    /// Both compiled-in packs evaluate without a notice or a load error, and
+    /// declare no hook body: a hook needs a per-pack-set host these packs are
+    /// never loaded with, so one would abstain without saying so.
+    #[test]
+    fn the_compiled_in_packs_load_clean_and_declare_no_hook_bodies() {
+        for ((name, _), pack) in CORE_SURFACES.iter().zip(packs()) {
+            assert!(pack.load_error.is_none(), "{name}: {:?}", pack.load_error);
+            assert!(pack.notices.is_empty(), "{name}: {:?}", pack.notices);
+            for command in &pack.commands {
+                assert!(
+                    command.hooks.is_empty(),
+                    "{name}: `{}` declares a hook body",
+                    command.spec.name
+                );
+            }
+        }
+        assert!(
+            packs()[0].commands.is_empty(),
+            "the roster pack declares no commands"
+        );
+        assert_eq!(
+            builtin_commands().len(),
+            59,
+            "Jim's own commands: every measured name a script calls"
+        );
+    }
+
+    /// The commands register once: the same set again is the same
+    /// generation, so republishing a pack set does not invalidate every jim
+    /// registry generation.
+    #[test]
+    fn registering_the_compiled_in_commands_is_idempotent() {
+        let first = register_builtin_commands();
+        assert_eq!(register_builtin_commands(), first);
+        ensure();
+        assert_eq!(register_builtin_commands(), first);
     }
 
     /// The two names that arrived mid-ladder keep their windows through

@@ -34,7 +34,8 @@ and without rebuilding it for every tcl-lsp release.
 
 SpecTcl is the authoring format for every command surface that is not a
 core: the EDA vendor libraries ship as bundled loadables, Jim's command
-roster is a compiled-in pack (`rust/tcl-spectcl/core-surfaces/jim.tclspec`),
+roster and its own commands are compiled-in packs
+(`rust/tcl-spectcl/core-surfaces/jim.tclspec` and `jim-own-surface.tclspec`),
 and private packs load the same DSL. The shipped cores — `commands/{tcl,
 irules}` and the stdlib, tcllib, Tk, iApps and Expect surfaces — stay
 native Rust; there is no ahead-of-time `.tclspec` → `.rs` path.
@@ -804,6 +805,17 @@ Jim's own roster is compiled into the binary
 (`rust/tcl-spectcl/core-surfaces/jim.tclspec`) rather than shipped in
 `specs/`, because `specs/` is *replaceable* — right for a vendor library,
 wrong for a core surface.
+
+The commands Jim adds are the second compiled-in pack,
+`jim-own-surface.tclspec`: one `command` per name `jimsh` has and `tclsh`
+lacks, each `available {jim FIRST-LAST}` on the windows measured from a build
+of every upstream tag 0.76–0.84 (no Jim command is gated behind a package).
+Its specs are registered with the registry as the family's own surface
+(`tcl_registry::register_core_surface_specs`), not installed as a pack
+overlay: the registry assembled for a `jim` document extends the shared store
+with them, and no other environment's store carries them. A pack hook body
+needs a host built per pack set, which a compiled-in pack never has, so these
+packs declare none.
 
 ## The acceptance rubric
 
