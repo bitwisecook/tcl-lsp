@@ -178,6 +178,7 @@ impl Publication {
         }
         EvalAnswer::Evaluated(Box::new(InvocationOutcome {
             completion: CompletionOutcome::Normal,
+            nested_writes: Vec::new(),
             result: ExactValueOrUnavailable::Exact(result),
             ordered_stores,
             types: TypeFacts {

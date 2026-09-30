@@ -390,6 +390,52 @@ impl EvaluationState {
             policy,
         }
     }
+
+    /// What the state's own writes say of the place `name`: a read consults
+    /// them before the analysis inputs at the program point.
+    #[must_use]
+    pub fn written(&self, name: &str) -> WrittenPlace {
+        written_in(&self.writes, name)
+    }
+}
+
+/// What an evaluation's writes, in order, say of one place.
+#[derive(Debug, Clone, PartialEq)]
+pub enum WrittenPlace {
+    /// No write names the place or storage it shares: the analysis inputs
+    /// at the program point answer.
+    Untouched,
+    /// The last write left exactly this value.
+    Exact(ExactValue),
+    /// A write reached the place, or the array or element it shares
+    /// storage with, and left no value a read can use.
+    Unknown,
+}
+
+/// [`EvaluationState::written`] over any ordered writes: the last write
+/// naming the place decides, a preserve changes nothing, a write that only
+/// shares storage with it (an element of the array a read names, or the
+/// array of the element it names) leaves it unknown, and a write that may
+/// have happened, or an unbind, leaves no value.
+#[must_use]
+pub fn written_in(writes: &[(PlaceRef, StoreOutcome)], name: &str) -> WrittenPlace {
+    let read = PlaceRef::scalar(name);
+    let mut fact = WrittenPlace::Untouched;
+    for (place, store) in writes {
+        let left = match store {
+            StoreOutcome::Preserve { .. } => continue,
+            StoreOutcome::Write { value, .. } | StoreOutcome::WriteElement { value, .. } => {
+                WrittenPlace::Exact(value.clone())
+            }
+            StoreOutcome::Unbind { .. } | StoreOutcome::MayWrite { .. } => WrittenPlace::Unknown,
+        };
+        if place.name == name {
+            fact = left;
+        } else if place.overlaps_as_element_and_base(&read) {
+            fact = WrittenPlace::Unknown;
+        }
+    }
+    fact
 }
 
 /// Read-only view of what the analyser has proven at this program point.

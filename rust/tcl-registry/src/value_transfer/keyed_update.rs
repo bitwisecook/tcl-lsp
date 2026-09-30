@@ -207,6 +207,7 @@ impl KeyedUpdateSemantics {
         };
         EvalAnswer::Evaluated(Box::new(InvocationOutcome {
             completion: CompletionOutcome::Normal,
+            nested_writes: Vec::new(),
             result: ExactValueOrUnavailable::Exact(value.clone()),
             ordered_stores: vec![StoreOutcome::Write { target, value }],
             types: Self::type_facts(target),

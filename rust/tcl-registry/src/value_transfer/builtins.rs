@@ -80,6 +80,7 @@ fn pure_outcome(
 ) -> EvalAnswer {
     EvalAnswer::Evaluated(Box::new(InvocationOutcome {
         completion: CompletionOutcome::Normal,
+        nested_writes: Vec::new(),
         result: ExactValueOrUnavailable::Exact(value),
         ordered_stores: Vec::new(),
         types: TypeFacts {
@@ -176,6 +177,7 @@ impl StringRangeSemantics {
         };
         EvalAnswer::Evaluated(Box::new(InvocationOutcome {
             completion: CompletionOutcome::Normal,
+            nested_writes: Vec::new(),
             result: ExactValueOrUnavailable::Exact(value),
             ordered_stores: Vec::new(),
             types: TypeFacts {

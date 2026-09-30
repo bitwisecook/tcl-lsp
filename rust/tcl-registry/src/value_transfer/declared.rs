@@ -525,6 +525,7 @@ impl DeclaredSemantics {
             .collect();
         EvalAnswer::Evaluated(Box::new(InvocationOutcome {
             completion: CompletionOutcome::Normal,
+            nested_writes: Vec::new(),
             result,
             ordered_stores,
             types: TypeFacts {

@@ -2415,6 +2415,7 @@ fn validate_outcome_rejects_a_store_to_a_non_target() {
     };
     let outcome = |stores: Vec<StoreOutcome>| InvocationOutcome {
         completion: CompletionOutcome::Normal,
+        nested_writes: Vec::new(),
         result: ExactValueOrUnavailable::Exact(ExactValue::int(1)),
         ordered_stores: stores,
         types: TypeFacts::default(),
@@ -2493,6 +2494,114 @@ fn validate_outcome_rejects_a_store_to_a_non_target() {
         validate_outcome(&plan, &declared, &failed),
         Err(DeclineReason::MalformedAnswer)
     );
+
+    // The count runs across the writes its substitutions made and then its
+    // own stores.
+    failed.nested_writes = vec![(PlaceRef::scalar("n"), write(0))];
+    assert_eq!(validate_outcome(&plan, &declared, &failed), Ok(()));
+    failed.completion = CompletionOutcome::Error {
+        written: 3,
+        message: ExactValueOrUnavailable::Exact(ExactValue::text("boom")),
+        error_code: ExactValueOrUnavailable::Exact(ExactValue::text("NONE")),
+    };
+    assert_eq!(
+        validate_outcome(&plan, &declared, &failed),
+        Err(DeclineReason::MalformedAnswer)
+    );
+}
+
+/// The ordered evaluation state's read rule (`docs/design/compiler/
+/// value-transfers.md` § `expr`): the last write naming a place decides what
+/// a read of it holds, a preserve changes nothing, a write that only shares
+/// storage with the place (an element of the array a read names, or the array
+/// of the element it names) leaves it unknown, a may-write or an unbind
+/// leaves no value, and a place no write reaches is the program point's.
+#[test]
+fn the_ordered_state_reads_its_own_writes_first() {
+    use tcl_registry::value_transfer::{FactBounds, NestedPolicy, WrittenPlace, written_in};
+    let target = TargetId(OperandId(0));
+    let write = |value: &str| StoreOutcome::Write {
+        target,
+        value: ExactValue::text(value),
+    };
+    let mut state = EvaluationState::new(NestedPolicy::LocalWrites);
+    assert_eq!(state.written("x"), WrittenPlace::Untouched);
+
+    state.writes.push((PlaceRef::scalar("x"), write("1")));
+    state.writes.push((PlaceRef::scalar("y"), write("9")));
+    state.writes.push((PlaceRef::scalar("x"), write("2")));
+    assert_eq!(
+        state.written("x"),
+        WrittenPlace::Exact(ExactValue::text("2")),
+        "the last write decides"
+    );
+    assert_eq!(
+        state.written("y"),
+        WrittenPlace::Exact(ExactValue::text("9"))
+    );
+    assert_eq!(
+        state.written("z"),
+        WrittenPlace::Untouched,
+        "a place no write reaches"
+    );
+
+    state
+        .writes
+        .push((PlaceRef::scalar("x"), StoreOutcome::Preserve { target }));
+    assert_eq!(
+        state.written("x"),
+        WrittenPlace::Exact(ExactValue::text("2")),
+        "a preserve changes nothing"
+    );
+
+    state.writes.push((
+        PlaceRef::scalar("x"),
+        StoreOutcome::MayWrite {
+            target,
+            facts: FactBounds {
+                existence: tcl_registry::value_transfer::Existence::MayBound,
+                intrep: None,
+                shape: None,
+                segments: None,
+                taint: None,
+            },
+        },
+    ));
+    assert_eq!(state.written("x"), WrittenPlace::Unknown, "a may-write");
+    state.writes.push((PlaceRef::scalar("x"), write("3")));
+    assert_eq!(
+        state.written("x"),
+        WrittenPlace::Exact(ExactValue::text("3")),
+        "a later write decides again"
+    );
+    state
+        .writes
+        .push((PlaceRef::scalar("x"), StoreOutcome::Unbind { target }));
+    assert_eq!(state.written("x"), WrittenPlace::Unknown, "an unbind");
+
+    // An element and its array share storage: a write to one leaves a read
+    // of the other unknown, and a read of another element untouched.
+    let element = |key: &str| PlaceRef {
+        name: format!("a({key})"),
+        kind: tcl_registry::value_transfer::PlaceKind::Element {
+            base: "a".to_owned(),
+            key: key.to_owned(),
+        },
+    };
+    let writes = vec![(
+        element("k"),
+        StoreOutcome::WriteElement {
+            target,
+            key: "k".to_owned(),
+            value: ExactValue::text("v"),
+        },
+    )];
+    assert_eq!(
+        written_in(&writes, "a(k)"),
+        WrittenPlace::Exact(ExactValue::text("v"))
+    );
+    assert_eq!(written_in(&writes, "a"), WrittenPlace::Unknown);
+    assert_eq!(written_in(&writes, "a(j)"), WrittenPlace::Untouched);
 }
 
 /// The regexp owner's route for `command words…` over literal operands,

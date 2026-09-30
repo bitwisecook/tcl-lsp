@@ -53,8 +53,9 @@ use std::collections::HashMap;
 
 use tcl_dialect::{NumberSyntax, StringCharacterModel};
 use tcl_registry::value_transfer::{
-    AnalysisInputs, Axis, Budget, BudgetLimit, DeclineReason, EvalAnswer, EvaluationState,
-    ExactValue, ExactValueOrUnavailable, FactDomain, NumericValue, RepresentationEvidence,
+    AnalysisInputs, Axis, Budget, BudgetLimit, CompletionOutcome, DeclineReason, EvalAnswer,
+    EvaluationState, ExactValue, ExactValueOrUnavailable, FactDomain, NumericValue,
+    RepresentationEvidence, WrittenPlace,
 };
 
 use crate::expr_ast::{BinOp, ExprNode, UnaryOp};
@@ -1563,6 +1564,9 @@ pub(crate) enum ExprStop {
     Pending,
     /// No value, for the recorded reason.
     Declined(DeclineReason),
+    /// A nested invocation did not complete normally: the evaluation ends
+    /// with that completion and the writes made so far.
+    Ended,
 }
 
 impl ExprStop {
@@ -1589,6 +1593,10 @@ pub enum ExprAnswer {
     Pending,
     /// No value, for the recorded reason.
     Declined(DeclineReason),
+    /// The evaluation ended on a nested invocation that did not complete
+    /// normally, with that completion: no value, and the writes the state
+    /// holds are the ones that ran before it.
+    Ended(Box<CompletionOutcome>),
 }
 
 /// The environment the services' value model never reads: every `$name`
@@ -1615,6 +1623,8 @@ pub(crate) struct ExprServices<'a> {
     /// The first stop an infallible hook raised (a comparison over an
     /// operand the target's integer tower cannot read).
     stopped: Option<DeclineReason>,
+    /// The completion a nested invocation ended the evaluation with.
+    ended: Option<CompletionOutcome>,
     /// The document's lexer configuration, for a quoted operand's
     /// substitution.
     lexer: tcl_lexer::LexerConfig,
@@ -1636,6 +1646,7 @@ impl<'a> ExprServices<'a> {
             fold: FoldOps::for_services(FoldPolicy::default()),
             widens: Some(true),
             stopped: None,
+            ended: None,
             lexer: tcl_lexer::LexerConfig::for_profile(profile),
         }
     }
@@ -1817,13 +1828,20 @@ impl tcl_syntax::expr::ExprOps for ExprServices<'_> {
             .map_err(|_| ExprStop::Declined(DeclineReason::NotText))
     }
 
+    /// A read consults the state's own writes before the inputs at the
+    /// program point: after `[incr x]` the next `$x` is the incremented
+    /// value.
     fn var(&mut self, name: &str) -> Result<FoldValue, ExprStop> {
         self.checkpoint()?;
-        let value = self
-            .inputs
-            .variable(name, FactDomain::ExactValue)
-            .exact()
-            .map_err(|answer| ExprStop::of_answer(&answer))?;
+        let value = match self.state.written(name) {
+            WrittenPlace::Exact(value) => value,
+            WrittenPlace::Unknown => return Err(ExprStop::Declined(DeclineReason::NotExact)),
+            WrittenPlace::Untouched => self
+                .inputs
+                .variable(name, FactDomain::ExactValue)
+                .exact()
+                .map_err(|answer| ExprStop::of_answer(&answer))?,
+        };
         Self::operand_of(&value)
     }
 
@@ -1833,6 +1851,10 @@ impl tcl_syntax::expr::ExprOps for ExprServices<'_> {
             EvalAnswer::Evaluated(outcome) => outcome,
             answer => return Err(ExprStop::of_answer(&answer)),
         };
+        if outcome.completion != CompletionOutcome::Normal {
+            self.ended = Some(outcome.completion);
+            return Err(ExprStop::Ended);
+        }
         match &outcome.result {
             ExactValueOrUnavailable::Exact(value) => Self::operand_of(value),
             ExactValueOrUnavailable::Unavailable(_) => {
@@ -1968,6 +1990,12 @@ pub(crate) fn evaluate_expression(
         Ok(value) => value,
         Err(ExprStop::Pending) => return ExprAnswer::Pending,
         Err(ExprStop::Declined(reason)) => return ExprAnswer::Declined(reason),
+        Err(ExprStop::Ended) => {
+            return services.ended.take().map_or(
+                ExprAnswer::Declined(DeclineReason::Unsupported),
+                |completion| ExprAnswer::Ended(Box::new(completion)),
+            );
+        }
     };
     if let Some(reason) = services.stopped {
         return ExprAnswer::Declined(reason);

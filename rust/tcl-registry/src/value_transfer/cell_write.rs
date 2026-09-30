@@ -104,6 +104,7 @@ impl CellWriteSemantics {
             .collect();
         EvalAnswer::Evaluated(Box::new(InvocationOutcome {
             completion: CompletionOutcome::Normal,
+            nested_writes: Vec::new(),
             result: ExactValueOrUnavailable::Exact(result),
             ordered_stores: stores,
             types: TypeFacts {
@@ -292,6 +293,7 @@ impl CommandSemantics for ConstWriteSemantics {
         let written = CellWriteSemantics::type_of(&value);
         EvalAnswer::Evaluated(Box::new(InvocationOutcome {
             completion: CompletionOutcome::Normal,
+            nested_writes: Vec::new(),
             result: ExactValueOrUnavailable::Exact(ExactValue::text("")),
             ordered_stores: vec![StoreOutcome::Write { target, value }],
             types: TypeFacts {

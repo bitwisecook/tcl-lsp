@@ -48,12 +48,12 @@ use tcl_registry::value_transfer::{
     AnalysisContext, AnalysisInputs, AnalysisTier, BinderName, BindingIdentity, BindingKind,
     BodyRegion, Budget, BudgetLimit, CaseArms, CommandSemantics, CompletionOutcome, DeclineReason,
     DependencyEvidence, DomainFact, EvalAnswer, EvalRoute, EvaluationState, EvaluatorOwner,
-    ExactValue, ExactValueOrUnavailable, Existence, ExistenceOutcome, FactDomain, FactView,
-    InvocationLayout, InvocationOutcome, IterableKind, LanguageProfileId, LiftedAnswer,
+    ExactValue, ExactValueOrUnavailable, Existence, ExistenceOutcome, FactBounds, FactDomain,
+    FactView, InvocationLayout, InvocationOutcome, IterableKind, LanguageProfileId, LiftedAnswer,
     NestedPolicy, NumericValue, OperandId, OperandView, PlaceKind, PlaceRef, PlanAnswer,
     RepresentationEvidence, ResolvedInvocationView, RouteIdentity, SelectionFact, StoreOutcome,
     TargetId, TransferAnswer, TypeFacts, ValueIdentity, ValueShape, WordPart, WordStructure,
-    evaluate_lifted, validate_outcome,
+    WrittenPlace, evaluate_lifted, validate_outcome, written_in,
 };
 use tcl_registry::{
     ArgRole, CommandRegistry, InvocationWord, InvocationWordKind, InvocationWords,
@@ -369,6 +369,14 @@ impl FoldedType {
         }
     }
 }
+
+/// The lattice at one program point: the versions a statement reads, the
+/// value each version holds, and the function they belong to.
+type Lattice<'a, S1, S2> = (
+    &'a HashMap<Symbol, Version, S1>,
+    &'a HashMap<ValueKey, LatticeValue, S2>,
+    &'a SsaFunction,
+);
 
 /// The driver's per-run state: the registry the unit resolves against, the
 /// whole-module trust fact when the caller holds one, the fold policy, the
@@ -995,17 +1003,17 @@ impl<'a> LatticeDriver<'a> {
         &self,
         kind: crate::existence_query::ExistenceKind,
         (words, texts): (&[InvocationWord<'_>], &[&str]),
-        ssa: &SsaFunction,
+        (ssa, prior): (&SsaFunction, &[(PlaceRef, StoreOutcome)]),
     ) -> LiftedAnswer {
         match (words, texts) {
             ([_, InvocationWord::Literal(name)], _) => {
                 let base = crate::sccp::place_base(name);
-                self.existence_of(kind, base, base != *name, ssa)
+                self.existence_of(kind, base, base != *name, (ssa, prior))
             }
             ([_, InvocationWord::Dynamic], [_, text]) => {
                 crate::existence_query::computed_element_base(text)
                     .map_or(LiftedAnswer::Declined(DeclineReason::NotExact), |base| {
-                        self.existence_of(kind, base, true, ssa)
+                        self.existence_of(kind, base, true, (ssa, prior))
                     })
             }
             _ => LiftedAnswer::Declined(DeclineReason::NotExact),
@@ -1029,9 +1037,14 @@ impl<'a> LatticeDriver<'a> {
         kind: crate::existence_query::ExistenceKind,
         base: &str,
         element: bool,
-        ssa: &SsaFunction,
+        (ssa, prior): (&SsaFunction, &[(PlaceRef, StoreOutcome)]),
     ) -> LiftedAnswer {
         use crate::existence_query::ExistenceKind;
+        // An evaluation that has already written the place, or its array,
+        // has moved it off the rung's point: the query decides nothing.
+        if !matches!(written_in(prior, base), WrittenPlace::Untouched) {
+            return LiftedAnswer::Declined(DeclineReason::StatefulNested);
+        }
         let host_bound = self.existence_initial_global
             && self
                 .registry
@@ -1060,6 +1073,7 @@ impl<'a> LatticeDriver<'a> {
         };
         LiftedAnswer::Evaluated(vec![Box::new(InvocationOutcome {
             completion: CompletionOutcome::Normal,
+            nested_writes: Vec::new(),
             result: ExactValueOrUnavailable::Exact(ExactValue::int(i64::from(exists))),
             ordered_stores: Vec::new(),
             types: TypeFacts {
@@ -1122,6 +1136,7 @@ impl<'a> LatticeDriver<'a> {
                 };
                 let inputs = LatticeInputs {
                     driver: self,
+                    prior_writes: Vec::new(),
                     view: view_of(&resolved, &texts, &words, InvocationLayout::Source),
                     uses: &stmt_ssa.uses,
                     values,
@@ -1242,6 +1257,7 @@ impl<'a> LatticeDriver<'a> {
         let semantics = resolved.semantics.value.semantics()?;
         let inputs = LatticeInputs {
             driver: self,
+            prior_writes: Vec::new(),
             view: view_of(&resolved, &texts, &words, InvocationLayout::Source),
             uses: &stmt_ssa.uses,
             values,
@@ -1442,6 +1458,7 @@ impl<'a> LatticeDriver<'a> {
         let view = view_of(&resolved, &texts, &words, InvocationLayout::Source);
         let inputs = LatticeInputs {
             driver: self,
+            prior_writes: Vec::new(),
             view,
             uses,
             values,
@@ -1610,26 +1627,7 @@ impl<'a> LatticeDriver<'a> {
         if outcome.completion != CompletionOutcome::Normal {
             return Err(DeclineReason::Unsupported);
         }
-        let mut placed: Vec<(PlaceRef, &StoreOutcome)> =
-            Vec::with_capacity(outcome.ordered_stores.len());
-        for store in &outcome.ordered_stores {
-            let place = match store {
-                StoreOutcome::WriteElement { target, key, .. } => {
-                    element_place(&input.place(target.0)?, key)?
-                }
-                _ => input.place(store.target().0)?,
-            };
-            if placed
-                .iter()
-                .any(|(seen, _)| seen.overlaps_as_element_and_base(&place))
-            {
-                return Err(DeclineReason::OverlappingTargets);
-            }
-            if self.is_traced(&place) {
-                return Err(DeclineReason::TracedPlace);
-            }
-            placed.push((place, store));
-        }
+        let placed = self.placed_stores(outcome, input)?;
         let steps: Vec<(PlaceRef, ExistenceStep)> = placed
             .iter()
             .map(|(place, store)| (place.clone(), store_existence(store)))
@@ -1685,6 +1683,54 @@ impl<'a> LatticeDriver<'a> {
                 }
             })
             .collect())
+    }
+
+    /// Each of an outcome's ordered stores with the place it names, in
+    /// execution order: an element write's target resolves to the element
+    /// of its array, so two spellings of one cell are one place.
+    ///
+    /// # Errors
+    ///
+    /// A target that is no place (`DynamicName`, `EscapingPlace` from the
+    /// resolver); an element write beside its array's base write
+    /// (`OverlappingTargets`); and a traced place (`TracedPlace`), whose
+    /// trace runs on the write and can observe or rewrite the others.
+    fn placed_stores<'o>(
+        &self,
+        outcome: &'o InvocationOutcome,
+        input: &dyn AnalysisInputs,
+    ) -> Result<Vec<(PlaceRef, &'o StoreOutcome)>, DeclineReason> {
+        let mut placed: Vec<(PlaceRef, &StoreOutcome)> =
+            Vec::with_capacity(outcome.ordered_stores.len());
+        for store in &outcome.ordered_stores {
+            let place = match store {
+                StoreOutcome::WriteElement { target, key, .. } => {
+                    element_place(&input.place(target.0)?, key)?
+                }
+                _ => input.place(store.target().0)?,
+            };
+            if placed
+                .iter()
+                .any(|(seen, _)| seen.overlaps_as_element_and_base(&place))
+            {
+                return Err(DeclineReason::OverlappingTargets);
+            }
+            if self.is_traced(&place) {
+                return Err(DeclineReason::TracedPlace);
+            }
+            placed.push((place, store));
+        }
+        Ok(placed)
+    }
+
+    /// Whether the ordered evaluation state can own a write to `place`:
+    /// local to the frame, so no other frame or trace can write or observe
+    /// it while the evaluation runs — not traced, not escaping, and not an
+    /// element of an array that is.
+    fn state_owns(&self, place: &PlaceRef) -> bool {
+        !self.is_traced(place)
+            && !self.is_escaping(place)
+            && !self.is_escaping(&PlaceRef::scalar(place.base()))
     }
 
     /// Whether a trace can observe `place`: the module names it in a trace,
@@ -1794,6 +1840,7 @@ impl<'a> LatticeDriver<'a> {
         );
         let inputs = LatticeInputs {
             driver: self,
+            prior_writes: Vec::new(),
             view,
             uses,
             values,
@@ -1903,6 +1950,7 @@ impl<'a> LatticeDriver<'a> {
         let view = view_of(&resolved, &texts, &words, InvocationLayout::Source);
         let mut inputs = LatticeInputs {
             driver: self,
+            prior_writes: Vec::new(),
             view,
             uses,
             values,
@@ -1965,7 +2013,11 @@ impl<'a> LatticeDriver<'a> {
         ssa: &SsaFunction,
     ) -> Option<(LatticeValue, Option<FoldedType>)> {
         let inner = value.strip_prefix('[')?.strip_suffix(']')?;
-        let run = self.run_script(inner, uses, values, ssa)?;
+        let run = self.run_script(
+            inner,
+            (uses, values, ssa),
+            (Vec::new(), NestedPolicy::EffectFreeOnly),
+        )?;
         // Binding validity comes first: after `rename list mylist` or a
         // shadowing `proc format …` anywhere in the unit, `[list a 1]` is a
         // call to something else entirely, and the const-fold engine the
@@ -2011,12 +2063,16 @@ impl<'a> LatticeDriver<'a> {
     /// registry-owned evaluator, the expression engine, or a transitional
     /// handler. `None` when the script is not one command the registry
     /// resolves to a declaration.
+    ///
+    /// `prior` holds the writes the enclosing evaluations made before the
+    /// command runs, which its reads consult first, and `policy` says
+    /// whether the writes it makes are placed ([`ScriptRun::writes`]) for
+    /// the caller to apply.
     fn run_script<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
         &self,
         script: &str,
-        uses: &HashMap<Symbol, Version, S1>,
-        values: &HashMap<ValueKey, LatticeValue, S2>,
-        ssa: &SsaFunction,
+        (uses, values, ssa): Lattice<'_, S1, S2>,
+        (prior, policy): (Vec<(PlaceRef, StoreOutcome)>, NestedPolicy),
     ) -> Option<ScriptRun> {
         let commands =
             crate::segmenter::segment_commands_with_offset_and_config(script, 0, self.lexer_config);
@@ -2032,6 +2088,7 @@ impl<'a> LatticeDriver<'a> {
                 head: head.to_owned(),
                 route: None,
                 answer: LiftedAnswer::Declined(DeclineReason::RebindingSuspected),
+                writes: Vec::new(),
                 binding: binding_of(head, head),
                 rebound: true,
             });
@@ -2056,7 +2113,8 @@ impl<'a> LatticeDriver<'a> {
             return Some(ScriptRun {
                 head: head.to_owned(),
                 route: None,
-                answer: self.existence_answer(kind, (&words, &texts), ssa),
+                answer: self.existence_answer(kind, (&words, &texts), (ssa, &prior)),
+                writes: Vec::new(),
                 binding,
                 rebound: false,
             });
@@ -2065,6 +2123,7 @@ impl<'a> LatticeDriver<'a> {
         let view = view_of(&resolved, &texts, &words, InvocationLayout::Source);
         let inputs = LatticeInputs {
             driver: self,
+            prior_writes: prior,
             view,
             uses,
             values,
@@ -2072,12 +2131,38 @@ impl<'a> LatticeDriver<'a> {
             sources: cooked.iter().map(|arg| arg.source).collect(),
         };
         let route = semantics.route();
-        let answer = match route {
+        let answer = self.route_answer(semantics, &inputs, (&binding, policy));
+        let (answer, writes) = match policy {
+            NestedPolicy::EffectFreeOnly => (answer, Vec::new()),
+            NestedPolicy::LocalWrites => self.placed_answer(semantics, &inputs, answer),
+        };
+        Some(ScriptRun {
+            head: head.to_owned(),
+            route: Some(route),
+            answer,
+            writes,
+            binding,
+            rebound: false,
+        })
+    }
+
+    /// The answer of `semantics`'s declared route over `inputs`, lifted
+    /// over one finite input: a registry-owned evaluator, the expression
+    /// engine over the analysis services, or a declared implementation.
+    /// `binding` is the head the answer rests on, and `nested` the policy the
+    /// expression engine admits nested invocations under.
+    fn route_answer(
+        &self,
+        semantics: &dyn CommandSemantics,
+        inputs: &dyn AnalysisInputs,
+        (binding, nested): (&BindingIdentity, NestedPolicy),
+    ) -> LiftedAnswer {
+        match semantics.route() {
             EvalRoute::Direct { id } => {
                 self.enter_direct();
                 match id.owner() {
                     EvaluatorOwner::Registry => {
-                        evaluate_lifted(semantics, &inputs, &mut self.budget(), MAX_CONSTSET_SIZE)
+                        evaluate_lifted(semantics, inputs, &mut self.budget(), MAX_CONSTSET_SIZE)
                     }
                     // No compiler-owned evaluator remains: a route the
                     // registry does not own evaluates nothing here.
@@ -2093,7 +2178,7 @@ impl<'a> LatticeDriver<'a> {
                 // driver asks it first.
                 match semantics
                     .as_declared()
-                    .and_then(|declared| declared.option_decline(&inputs))
+                    .and_then(|declared| declared.option_decline(inputs))
                 {
                     Some(EvalAnswer::Pending) => LiftedAnswer::Pending,
                     Some(EvalAnswer::Declined(reason)) => LiftedAnswer::Declined(reason),
@@ -2101,9 +2186,10 @@ impl<'a> LatticeDriver<'a> {
                         let expression = ExpressionEvaluation {
                             expression: Expression::Assembled(ExpressionRoute { language }),
                             policy: self.policy,
+                            nested,
                             head: Some(binding.clone()),
                         };
-                        evaluate_lifted(&expression, &inputs, &mut self.budget(), MAX_CONSTSET_SIZE)
+                        evaluate_lifted(&expression, inputs, &mut self.budget(), MAX_CONSTSET_SIZE)
                     }
                 }
             }
@@ -2112,38 +2198,83 @@ impl<'a> LatticeDriver<'a> {
             // and runs the body in this thread's host.
             EvalRoute::Implementation(_) => {
                 self.enter_implementation();
-                evaluate_lifted(semantics, &inputs, &mut self.budget(), MAX_CONSTSET_SIZE)
+                evaluate_lifted(semantics, inputs, &mut self.budget(), MAX_CONSTSET_SIZE)
             }
+        }
+    }
+
+    /// `answer` with each evaluated outcome's writes placed, in execution
+    /// order: the writes its substitutions made, then its own ordered
+    /// stores, each resolved to its place after the structural check a
+    /// statement's outcome passes ([`validate_outcome`]). An outcome with a
+    /// store that names no place the state can name — a computed one, an
+    /// element beside its array, a traced place — is `StatefulNested`.
+    fn placed_answer(
+        &self,
+        semantics: &dyn CommandSemantics,
+        inputs: &dyn AnalysisInputs,
+        answer: LiftedAnswer,
+    ) -> (LiftedAnswer, Vec<Vec<(PlaceRef, StoreOutcome)>>) {
+        let LiftedAnswer::Evaluated(outcomes) = &answer else {
+            return (answer, Vec::new());
         };
-        Some(ScriptRun {
-            head: head.to_owned(),
-            route: Some(route),
-            answer,
-            binding,
-            rebound: false,
-        })
+        let plan = semantics.structure(inputs);
+        let targets = semantics.store_targets(inputs);
+        let mut writes = Vec::with_capacity(outcomes.len());
+        for outcome in outcomes {
+            let own = validate_outcome(&plan, &targets, outcome).and_then(|()| {
+                self.placed_stores(outcome, inputs)
+                    .map_err(|_| DeclineReason::StatefulNested)
+            });
+            match own {
+                Ok(own) => {
+                    let mut all = outcome.nested_writes.clone();
+                    all.extend(own.into_iter().map(|(place, store)| (place, store.clone())));
+                    writes.push(all);
+                }
+                Err(reason) => return (LiftedAnswer::Declined(reason), Vec::new()),
+            }
+        }
+        (answer, writes)
     }
 
     /// The nested-substitution service: `script`'s one command under
     /// `state`'s policy, its binding and every binding its answer rests on
-    /// recorded in the state's evidence. Only an effect-free outcome is
-    /// admitted — any store is `StatefulNested` — and an outcome that
-    /// differs between the members of a finite input declines as
-    /// correlated: the host evaluation holds one value per operand.
+    /// recorded in the state's evidence. An outcome that differs between
+    /// the members of a finite input declines as correlated: the host
+    /// evaluation holds one value per operand.
+    ///
+    /// Under [`NestedPolicy::EffectFreeOnly`] only an effect-free outcome is
+    /// admitted — any store is `StatefulNested`. Under
+    /// [`NestedPolicy::LocalWrites`] the outcome's writes are applied to
+    /// the state in order, so the next read sees them, when the state can
+    /// own every place it writes ([`Self::state_owns`]) and its completion
+    /// is exact: a normal one applies every write, an error one the writes
+    /// that ran before it, and any other write or completion is
+    /// `StatefulNested`. The command reads what the state and `from`'s
+    /// enclosing evaluations have written first.
     fn nested_answer<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
         &self,
         script: &str,
         state: &mut EvaluationState,
-        uses: &HashMap<Symbol, Version, S1>,
-        values: &HashMap<ValueKey, LatticeValue, S2>,
-        ssa: &SsaFunction,
+        from: &LatticeInputs<'_, S1, S2>,
     ) -> EvalAnswer {
         let depth = self.nesting.get();
         if depth >= Budget::EVALUATION_DEPTH {
             return EvalAnswer::Declined(DeclineReason::Budget(BudgetLimit::Depth));
         }
         self.nesting.set(depth + 1);
-        let run = self.run_script(script, uses, values, ssa);
+        let prior: Vec<(PlaceRef, StoreOutcome)> = from
+            .prior_writes
+            .iter()
+            .chain(&state.writes)
+            .cloned()
+            .collect();
+        let run = self.run_script(
+            script,
+            (from.uses, from.values, from.ssa),
+            (prior, state.policy),
+        );
         self.nesting.set(depth);
         let Some(run) = run else {
             return EvalAnswer::Declined(DeclineReason::Unsupported);
@@ -2154,20 +2285,73 @@ impl<'a> LatticeDriver<'a> {
             LiftedAnswer::Declined(reason) => return EvalAnswer::Declined(reason),
             LiftedAnswer::Evaluated(outcomes) => outcomes,
         };
-        if outcomes.iter().any(|outcome| outcome.has_stores()) {
+        if state.policy == NestedPolicy::EffectFreeOnly
+            && outcomes.iter().any(|outcome| outcome.has_stores())
+        {
             return EvalAnswer::Declined(DeclineReason::StatefulNested);
         }
-        let mut outcomes = outcomes.into_iter();
-        let Some(first) = outcomes.next() else {
+        // A run that placed no writes (an effect-free one) has none per
+        // outcome.
+        let mut placed = run.writes.into_iter();
+        let mut members = outcomes
+            .into_iter()
+            .map(|outcome| (outcome, placed.next().unwrap_or_default()));
+        let Some((first, first_writes)) = members.next() else {
             return EvalAnswer::Declined(DeclineReason::Unsupported);
         };
-        if outcomes.any(|outcome| outcome.result != first.result) {
+        if members.any(|(outcome, writes)| {
+            outcome.result != first.result
+                || outcome.completion != first.completion
+                || writes != first_writes
+        }) {
             return EvalAnswer::Declined(DeclineReason::CorrelatedSets);
+        }
+        if state.policy == NestedPolicy::LocalWrites {
+            match self.admitted_writes(&first_writes, &first.completion) {
+                Ok(ran) => state.writes.extend(first_writes.into_iter().take(ran)),
+                Err(reason) => return EvalAnswer::Declined(reason),
+            }
         }
         for binding in &first.evidence.bindings {
             record_binding(&mut state.evidence, binding.clone());
         }
         EvalAnswer::Evaluated(first)
+    }
+
+    /// How many of a nested outcome's `placed` writes the ordered state
+    /// applies, or why it cannot apply them: a write the state can own
+    /// (`Write`, `WriteElement`) and a preserve, which leaves its place as
+    /// it was; nothing else. The completion is exact when it is the normal
+    /// one, which ran every write, or an error, which ran the first
+    /// `written` of them.
+    ///
+    /// # Errors
+    ///
+    /// `StatefulNested` for a write to a place the state cannot own, a
+    /// may-write or an unbind, and any completion but the two above.
+    fn admitted_writes(
+        &self,
+        placed: &[(PlaceRef, StoreOutcome)],
+        completion: &CompletionOutcome,
+    ) -> Result<usize, DeclineReason> {
+        let ran = match completion {
+            CompletionOutcome::Normal => placed.len(),
+            CompletionOutcome::Error { written, .. } => (*written).min(placed.len()),
+            CompletionOutcome::Code { .. } => return Err(DeclineReason::StatefulNested),
+        };
+        for (place, store) in &placed[..ran] {
+            let admitted = match store {
+                StoreOutcome::Preserve { .. } => true,
+                StoreOutcome::Write { .. } | StoreOutcome::WriteElement { .. } => {
+                    self.state_owns(place)
+                }
+                StoreOutcome::Unbind { .. } | StoreOutcome::MayWrite { .. } => false,
+            };
+            if !admitted {
+                return Err(DeclineReason::StatefulNested);
+            }
+        }
+        Ok(ran)
     }
 
     /// A fused `set name [expr {…}]` (`AssignExpr`): the parsed expression
@@ -2192,6 +2376,7 @@ impl<'a> LatticeDriver<'a> {
         let expression = ExpressionEvaluation {
             expression: Expression::Parsed(expr),
             policy: self.policy,
+            nested: NestedPolicy::EffectFreeOnly,
             head: Some(binding_of(
                 head,
                 command_binding.map_or("expr", |binding| binding.identity.as_str()),
@@ -2222,6 +2407,7 @@ impl<'a> LatticeDriver<'a> {
         let expression = ExpressionEvaluation {
             expression: Expression::Parsed(condition),
             policy: self.policy,
+            nested: NestedPolicy::EffectFreeOnly,
             head: None,
         };
         let answer = self.evaluate_expression_at(&expression, uses, values, ssa);
@@ -2279,6 +2465,7 @@ impl<'a> LatticeDriver<'a> {
     ) -> LiftedAnswer {
         let inputs = LatticeInputs {
             driver: self,
+            prior_writes: Vec::new(),
             view: ResolvedInvocationView {
                 canonical_command: "expr",
                 subcommand: None,
@@ -2473,6 +2660,7 @@ pub(crate) fn evaluate_expression_detached(
     let expression = ExpressionEvaluation {
         expression: Expression::Parsed(node),
         policy,
+        nested: NestedPolicy::EffectFreeOnly,
         head: None,
     };
     let inputs = DetachedExpressionInputs {
@@ -2526,6 +2714,11 @@ struct ScriptRun {
     route: Option<EvalRoute>,
     /// The route's answer, lifted over one finite input.
     answer: LiftedAnswer,
+    /// Each evaluated outcome's writes, in execution order and resolved to
+    /// their places: its substitutions' first, then its own stores. Made
+    /// only for a run under [`NestedPolicy::LocalWrites`], one entry per
+    /// outcome of `answer`.
+    writes: Vec<Vec<(PlaceRef, StoreOutcome)>>,
     /// The binding the answer rests on.
     binding: BindingIdentity,
     /// Whether the head no longer denotes its registry command.
@@ -2587,10 +2780,10 @@ fn truth_of(result: &ExactValueOrUnavailable) -> Option<bool> {
     }
 }
 
-/// A pure outcome: `value` as the result, no store, and the evidence of the
-/// route that computed it.
-fn pure_outcome(
-    value: ExactValue,
+/// An expression's outcome before its writes and completion: `result`, no
+/// store, and the evidence of the route that computed it.
+fn expression_outcome(
+    result: ExactValueOrUnavailable,
     route: EvalRoute,
     implementation: &'static str,
     revision: u64,
@@ -2598,7 +2791,8 @@ fn pure_outcome(
 ) -> InvocationOutcome {
     InvocationOutcome {
         completion: CompletionOutcome::Normal,
-        result: ExactValueOrUnavailable::Exact(value),
+        nested_writes: Vec::new(),
+        result,
         ordered_stores: Vec::new(),
         types: TypeFacts::default(),
         evidence: DependencyEvidence {
@@ -2631,6 +2825,9 @@ struct ExpressionEvaluation<'e> {
     expression: Expression<'e>,
     /// The value semantics the engine evaluates under.
     policy: FoldPolicy,
+    /// Which nested operations the evaluation admits: only effect-free
+    /// ones, or writes to places its state can own.
+    nested: NestedPolicy,
     /// The `expr` binding the answer rests on; a branch condition is read
     /// by its command's own expression parser and rests on none.
     head: Option<BindingIdentity>,
@@ -2692,7 +2889,7 @@ impl CommandSemantics for ExpressionEvaluation<'_> {
             }
             Expression::Parsed(node) => *node,
         };
-        let mut state = EvaluationState::new(NestedPolicy::EffectFreeOnly);
+        let mut state = EvaluationState::new(self.nested);
         if let Some(head) = &self.head {
             record_binding(&mut state.evidence, head.clone());
         }
@@ -2700,23 +2897,53 @@ impl CommandSemantics for ExpressionEvaluation<'_> {
             let mut services = ExprServices::new(input, &mut state, budget);
             evaluate_expression(node, &mut services, self.policy)
         };
-        match answer {
-            ExprAnswer::Pending => EvalAnswer::Pending,
-            ExprAnswer::Declined(reason) => EvalAnswer::Declined(reason),
-            ExprAnswer::Value(value) => {
-                let mut outcome = pure_outcome(
-                    value,
-                    self.route(),
-                    self.identity(),
-                    ExpressionRoute::REVISION,
-                    state.evidence.bindings,
-                );
-                outcome.evidence.numerals = self.policy.numbers;
-                outcome.evidence.release =
-                    tcl_registry::value_transfer::TargetSemantics::of(self.policy.dialect).release;
-                EvalAnswer::Evaluated(Box::new(outcome))
-            }
-        }
+        let (result, completion) = match answer {
+            ExprAnswer::Pending => return EvalAnswer::Pending,
+            ExprAnswer::Declined(reason) => return EvalAnswer::Declined(reason),
+            ExprAnswer::Value(value) => (
+                ExactValueOrUnavailable::Exact(value),
+                CompletionOutcome::Normal,
+            ),
+            // The evaluation ended on a nested error: the writes the state
+            // holds are the ones that ran before it, and the outcome has no
+            // value.
+            ExprAnswer::Ended(ended) => match *ended {
+                CompletionOutcome::Error {
+                    message,
+                    error_code,
+                    ..
+                } => (
+                    ExactValueOrUnavailable::Unavailable(FactBounds {
+                        existence: Existence::MayBound,
+                        intrep: None,
+                        shape: None,
+                        segments: None,
+                        taint: None,
+                    }),
+                    CompletionOutcome::Error {
+                        written: state.writes.len(),
+                        message,
+                        error_code,
+                    },
+                ),
+                CompletionOutcome::Normal | CompletionOutcome::Code { .. } => {
+                    return EvalAnswer::Declined(DeclineReason::StatefulNested);
+                }
+            },
+        };
+        let mut outcome = expression_outcome(
+            result,
+            self.route(),
+            self.identity(),
+            ExpressionRoute::REVISION,
+            state.evidence.bindings,
+        );
+        outcome.completion = completion;
+        outcome.nested_writes = state.writes;
+        outcome.evidence.numerals = self.policy.numbers;
+        outcome.evidence.release =
+            tcl_registry::value_transfer::TargetSemantics::of(self.policy.dialect).release;
+        EvalAnswer::Evaluated(Box::new(outcome))
     }
 }
 
@@ -3156,6 +3383,10 @@ struct LatticeInputs<'a, S1, S2> {
     ssa: &'a SsaFunction,
     /// How each operand's word substitutes, in operand order.
     sources: Vec<OperandSource>,
+    /// The writes the enclosing evaluations have made before this
+    /// invocation runs, in order: a read consults them before the lattice
+    /// at the program point (the ordered evaluation state's rule, § `expr`).
+    prior_writes: Vec<(PlaceRef, StoreOutcome)>,
 }
 
 impl<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher> LatticeInputs<'_, S1, S2> {
@@ -3219,8 +3450,15 @@ impl<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher> LatticeInputs<'_, S
         }
     }
 
-    /// The lattice fact for `name` at this statement's use version.
+    /// The lattice fact for `name` at this statement's use version, after
+    /// the writes the enclosing evaluations made: the last of them decides
+    /// what the name holds.
     fn named_fact(&self, name: &str) -> FactView {
+        match written_in(&self.prior_writes, name) {
+            WrittenPlace::Exact(value) => return FactView::Exact(value, None),
+            WrittenPlace::Unknown => return FactView::Top(DeclineReason::NotExact),
+            WrittenPlace::Untouched => {}
+        }
         let Some(sym) = self.ssa.var_symbol(name) else {
             return FactView::Top(DeclineReason::NotExact);
         };
@@ -3232,6 +3470,19 @@ impl<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher> LatticeInputs<'_, S
             .map_or(FactView::Pending, |value| {
                 lattice_to_fact(value, Some(identity_of((sym, ver))))
             })
+    }
+
+    /// The existence fact the enclosing evaluations' writes leave `name`
+    /// in, when they reached it: a write binds it, and any other touch
+    /// (an unbind, an element of its array) states nothing.
+    fn written_existence(&self, name: &str) -> Option<FactView> {
+        match written_in(&self.prior_writes, name) {
+            WrittenPlace::Untouched => None,
+            WrittenPlace::Exact(_) => Some(FactView::Domain(DomainFact::Existence(
+                Existence::Bound(BindingKind::Scalar),
+            ))),
+            WrittenPlace::Unknown => Some(FactView::Top(DeclineReason::StatefulNested)),
+        }
     }
 }
 
@@ -3288,15 +3539,25 @@ impl<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher> AnalysisInputs
     fn variable(&self, name: &str, domain: FactDomain) -> FactView {
         match domain {
             FactDomain::ExactValue => self.named_fact(name),
-            FactDomain::Existence => self.driver.existence_fact(self.ssa, name),
+            FactDomain::Existence => self
+                .written_existence(name)
+                .unwrap_or_else(|| self.driver.existence_fact(self.ssa, name)),
             _ => FactView::Top(DeclineReason::Unavailable(self.driver.context.tier)),
         }
     }
 
     fn prior_store(&self, place: &PlaceRef, domain: FactDomain) -> FactView {
         match domain {
-            FactDomain::ExactValue => {}
-            FactDomain::Existence => return self.driver.existence_fact(self.ssa, &place.name),
+            FactDomain::ExactValue => match written_in(&self.prior_writes, &place.name) {
+                WrittenPlace::Exact(value) => return FactView::Exact(value, None),
+                WrittenPlace::Unknown => return FactView::Top(DeclineReason::NotExact),
+                WrittenPlace::Untouched => {}
+            },
+            FactDomain::Existence => {
+                return self
+                    .written_existence(&place.name)
+                    .unwrap_or_else(|| self.driver.existence_fact(self.ssa, &place.name));
+            }
             _ => return FactView::Top(DeclineReason::Unavailable(self.driver.context.tier)),
         }
         let Some(sym) = self.ssa.var_symbol(&place.name) else {
@@ -3363,8 +3624,7 @@ impl<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher> AnalysisInputs
     }
 
     fn nested(&self, script: &str, state: &mut EvaluationState) -> EvalAnswer {
-        self.driver
-            .nested_answer(script, state, self.uses, self.values, self.ssa)
+        self.driver.nested_answer(script, state, self)
     }
 
     fn math_function(&self, name: &str) -> Result<BindingIdentity, DeclineReason> {
@@ -5128,6 +5388,7 @@ mod tests {
         let expression = ExpressionEvaluation {
             expression: Expression::Parsed(&node),
             policy: FoldPolicy::default(),
+            nested: NestedPolicy::EffectFreeOnly,
             head: Some(binding_of("expr", "expr")),
         };
         let ssa = SsaFunction::trivial("::p", crate::cfg::BlockId(0), vec!["entry".into()]);
@@ -5158,6 +5419,271 @@ mod tests {
                 ("string", "string"),
                 ("abs", "::tcl::mathfunc::abs")
             ]
+        );
+    }
+
+    /// `text` over a frame where `x` holds 1 and `::g` is a global the
+    /// function names, evaluated under `nested` by a detached driver that
+    /// trusts every builtin.
+    fn evaluate_over_x(text: &str, nested: NestedPolicy) -> LiftedAnswer {
+        let registry = CommandRegistry::build_default();
+        let mutations = crate::command_binding::ModuleCommandMutations::default();
+        let driver = LatticeDriver::detached(
+            Some(BuiltinFoldInputs {
+                registry: &registry,
+                mutations: &mutations,
+                dialect: None,
+                defining_class: None,
+                registry_engine: false,
+                trust: crate::sccp::FoldTrust::ObservedBindings,
+            }),
+            FoldPolicy::default(),
+        );
+        let node = crate::expr_parser::parse_expr_for_profile(text, None);
+        let expression = ExpressionEvaluation {
+            expression: Expression::Parsed(&node),
+            policy: FoldPolicy::default(),
+            nested,
+            head: None,
+        };
+        let mut ssa = SsaFunction::trivial("::p", crate::cfg::BlockId(0), vec!["entry".into()]);
+        let x = ssa.intern_var("x");
+        let g = ssa.intern_var("::g");
+        let uses: HashMap<Symbol, Version> = HashMap::from([(x, 1), (g, 1)]);
+        let values: HashMap<ValueKey, LatticeValue> = HashMap::from([
+            ((x, 1), LatticeValue::Const(ConstValue::Int(1))),
+            ((g, 1), LatticeValue::Const(ConstValue::Int(5))),
+        ]);
+        driver.evaluate_expression_at(&expression, &uses, &values, &ssa)
+    }
+
+    /// Each nested write of an outcome as `(place, value)`, in order.
+    type Written = Vec<(String, String)>;
+
+    /// An evaluated answer's one outcome as its result and its nested
+    /// writes.
+    fn result_and_writes(answer: &LiftedAnswer) -> (String, Written) {
+        let LiftedAnswer::Evaluated(outcomes) = answer else {
+            panic!("the expression evaluates: {answer:?}");
+        };
+        let [outcome] = outcomes.as_slice() else {
+            panic!("one outcome: {outcomes:?}");
+        };
+        let ExactValueOrUnavailable::Exact(result) = &outcome.result else {
+            panic!("an exact result: {outcome:?}");
+        };
+        let writes = outcome
+            .nested_writes
+            .iter()
+            .map(|(place, store)| match store {
+                StoreOutcome::Write { value, .. } => (
+                    place.name.clone(),
+                    String::from_utf8_lossy(&value.bytes).into_owned(),
+                ),
+                other => panic!("a write: {other:?}"),
+            })
+            .collect();
+        (String::from_utf8_lossy(&result.bytes).into_owned(), writes)
+    }
+
+    /// Under `LocalWrites` a nested write is applied to the evaluation's
+    /// state in order, so the next read sees it: over `x` = 1,
+    /// `$x + [incr x] + $x` reads 1, then 2 (the value is 5), and the state
+    /// holds the one write. A branch the engine never reaches applies
+    /// nothing, and the final value of a place written twice is the last.
+    #[test]
+    fn local_writes_apply_in_order() {
+        let ordered =
+            |text: &str| result_and_writes(&evaluate_over_x(text, NestedPolicy::LocalWrites));
+        let write = |place: &str, value: &str| (place.to_owned(), value.to_owned());
+        let cases: [(&str, &str, Written); 7] = [
+            ("$x + [incr x] + $x", "5", vec![write("x", "2")]),
+            ("0 && [incr x]", "0", vec![]),
+            ("$x + [set x 10] + $x", "21", vec![write("x", "10")]),
+            (
+                "[incr x] + [incr x]",
+                "5",
+                vec![write("x", "2"), write("x", "3")],
+            ),
+            ("$x ? [incr x] : [incr x 10]", "2", vec![write("x", "2")]),
+            ("!$x ? [incr x] : [incr x 10]", "11", vec![write("x", "11")]),
+            // A quoted operand substitutes its variables and commands in
+            // order under the same state.
+            ("\"$x [incr x]\" eq {1 2}", "1", vec![write("x", "2")]),
+        ];
+        for (text, result, writes) in cases {
+            assert_eq!(ordered(text), (result.to_owned(), writes), "{text}");
+        }
+    }
+
+    /// The same programs under `EffectFreeOnly` decline as stateful where a
+    /// nested command writes, and a write the state cannot own — a global —
+    /// declines under `LocalWrites` too.
+    #[test]
+    fn a_nested_write_outside_the_state_declines() {
+        for text in [
+            "$x + [incr x] + $x",
+            "$x + [set x 10] + $x",
+            "[incr x] + [incr x]",
+        ] {
+            assert_eq!(
+                evaluate_over_x(text, NestedPolicy::EffectFreeOnly),
+                LiftedAnswer::Declined(DeclineReason::StatefulNested),
+                "{text}"
+            );
+        }
+        // Never reached: no write, so the effect-free policy answers.
+        let (result, writes) = result_and_writes(&evaluate_over_x(
+            "0 && [incr x]",
+            NestedPolicy::EffectFreeOnly,
+        ));
+        assert_eq!((result.as_str(), writes.len()), ("0", 0));
+        for policy in [NestedPolicy::EffectFreeOnly, NestedPolicy::LocalWrites] {
+            assert_eq!(
+                evaluate_over_x("$x + [incr ::g]", policy),
+                LiftedAnswer::Declined(DeclineReason::StatefulNested),
+                "{policy:?}"
+            );
+        }
+    }
+
+    /// Inputs whose nested script `boom` raises an error after the writes
+    /// made so far, and which answer every other request through `inner`.
+    struct RaisesOnBoom<'a>(&'a dyn AnalysisInputs);
+
+    impl AnalysisInputs for RaisesOnBoom<'_> {
+        fn invocation(&self) -> &ResolvedInvocationView<'_> {
+            self.0.invocation()
+        }
+
+        fn operand(&self, id: OperandId, domain: FactDomain) -> FactView {
+            self.0.operand(id, domain)
+        }
+
+        fn place(&self, id: OperandId) -> Result<PlaceRef, DeclineReason> {
+            self.0.place(id)
+        }
+
+        fn variable(&self, name: &str, domain: FactDomain) -> FactView {
+            self.0.variable(name, domain)
+        }
+
+        fn prior_store(&self, place: &PlaceRef, domain: FactDomain) -> FactView {
+            self.0.prior_store(place, domain)
+        }
+
+        fn word_structure(&self, id: OperandId) -> Result<WordStructure, DeclineReason> {
+            self.0.word_structure(id)
+        }
+
+        fn body(&self, id: OperandId) -> Result<BodyRegion, DeclineReason> {
+            self.0.body(id)
+        }
+
+        fn nested(&self, script: &str, state: &mut EvaluationState) -> EvalAnswer {
+            if script != "boom" {
+                return self.0.nested(script, state);
+            }
+            EvalAnswer::Evaluated(Box::new(InvocationOutcome {
+                completion: CompletionOutcome::Error {
+                    written: 0,
+                    message: ExactValueOrUnavailable::Exact(ExactValue::text("mid")),
+                    error_code: ExactValueOrUnavailable::Exact(ExactValue::text("NONE")),
+                },
+                nested_writes: Vec::new(),
+                result: ExactValueOrUnavailable::Exact(ExactValue::text("")),
+                ordered_stores: Vec::new(),
+                types: TypeFacts::default(),
+                evidence: DependencyEvidence::default(),
+            }))
+        }
+
+        fn math_function(&self, name: &str) -> Result<BindingIdentity, DeclineReason> {
+            self.0.math_function(name)
+        }
+
+        fn context(&self) -> &AnalysisContext {
+            self.0.context()
+        }
+    }
+
+    /// An error completion ends the evaluation with that completion and the
+    /// writes so far: `[incr x] + [boom]` over `x` = 1 leaves the increment
+    /// in the state and no value, and the error names the writes that ran
+    /// before it. The lattice publishes nothing for it: the outcome has no
+    /// exact result.
+    #[test]
+    fn an_error_completion_ends_the_evaluation_with_the_writes_so_far() {
+        let registry = CommandRegistry::build_default();
+        let mutations = crate::command_binding::ModuleCommandMutations::default();
+        let driver = LatticeDriver::detached(
+            Some(BuiltinFoldInputs {
+                registry: &registry,
+                mutations: &mutations,
+                dialect: None,
+                defining_class: None,
+                registry_engine: false,
+                trust: crate::sccp::FoldTrust::ObservedBindings,
+            }),
+            FoldPolicy::default(),
+        );
+        let node = crate::expr_parser::parse_expr_for_profile("[incr x] + [boom] + [incr x]", None);
+        let expression = ExpressionEvaluation {
+            expression: Expression::Parsed(&node),
+            policy: FoldPolicy::default(),
+            nested: NestedPolicy::LocalWrites,
+            head: None,
+        };
+        let mut ssa = SsaFunction::trivial("::p", crate::cfg::BlockId(0), vec!["entry".into()]);
+        let x = ssa.intern_var("x");
+        let uses: HashMap<Symbol, Version> = HashMap::from([(x, 1)]);
+        let values: HashMap<ValueKey, LatticeValue> =
+            HashMap::from([((x, 1), LatticeValue::Const(ConstValue::Int(1)))]);
+        let inputs = LatticeInputs {
+            driver: &driver,
+            prior_writes: Vec::new(),
+            view: ResolvedInvocationView {
+                canonical_command: "expr",
+                subcommand: None,
+                form: None,
+                layout: InvocationLayout::Source,
+                operands: Vec::new(),
+                argument_offset: 0,
+            },
+            uses: &uses,
+            values: &values,
+            ssa: &ssa,
+            sources: Vec::new(),
+        };
+        let EvalAnswer::Evaluated(outcome) =
+            expression.evaluate(&RaisesOnBoom(&inputs), &mut driver.budget())
+        else {
+            panic!("the evaluation ends with an outcome");
+        };
+        assert!(
+            matches!(
+                &outcome.completion,
+                CompletionOutcome::Error { written: 1, message: ExactValueOrUnavailable::Exact(m), .. }
+                    if m.bytes == b"mid"
+            ),
+            "{:?}",
+            outcome.completion
+        );
+        assert!(matches!(
+            outcome.result,
+            ExactValueOrUnavailable::Unavailable(_)
+        ));
+        let writes: Vec<(&str, &StoreOutcome)> = outcome
+            .nested_writes
+            .iter()
+            .map(|(place, store)| (place.name.as_str(), store))
+            .collect();
+        assert!(
+            matches!(
+                writes.as_slice(),
+                [("x", StoreOutcome::Write { value, .. })] if value.as_int() == Some(2)
+            ),
+            "{writes:?}"
         );
     }
 

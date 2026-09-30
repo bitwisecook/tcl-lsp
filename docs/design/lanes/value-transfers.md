@@ -6228,6 +6228,94 @@ Pins #2141 (closed on rust by #2215).
 | O100 / O102 forward the nested store's value past the expression | #2141's contract point |
 | `command_substitution_is_none` becomes `command_substitution_evaluates_through_the_nested_service` | the exit ("flips"); Q2 |
 
+#### Record (2026-09-30): slice 9
+
+One implementer runs slice 9 item by item, each its own commit, in the order
+the plan's checkpoints group them — VT9.1, VT9.3, VT9.4, then VT9.2, VT9.5
+and VT9.6, the landing — and not in numeric order: VT9.2 lets the lattice
+hold a value for the definition a nested write makes, and VT9.3 must already
+keep every consumer from forwarding that value into a read the same
+statement's write precedes. The decisions are D188 onward in § *Decisions
+taken*. The run stopped after VT9.1 at the coordinator's request, for the
+slice 6 review's rework, which changes `ssa.rs` and `sccp.rs`; § *The state
+the next items start from* below is what the run found and drafted before it
+stopped.
+
+| Item | Commit | What landed | Its tests |
+|---|---|---|---|
+| VT9.1 | ``wip(value-transfers): slice 9 — the ordered state admits local writes`` | registry: `EvaluationState::written` and `written_in` over a new `WrittenPlace` (`inputs.rs`) — the last write naming a place decides its value, a preserve changes nothing, and a write that shares storage without naming it (an element beside its array), a may-write and an unbind leave it unknown (D189); `InvocationOutcome::nested_writes` (`answers.rs`), the state's writes as resolved `(place, store)` pairs applied ahead of `ordered_stores`, which `has_stores` counts and `validate_outcome`'s error prefix counts first (D188; the eleven construction sites gained `nested_writes: Vec::new()`). compiler: `ExprServices::var` reads the state's writes before the inputs, and `command` ends the evaluation at a nested outcome that did not complete normally (`ExprStop::Ended`, `ExprAnswer::Ended`, D191), which `ExpressionEvaluation` — it gains `nested: NestedPolicy` — turns into an outcome whose completion is `Error { written }` with the state's writes as `nested_writes`; `LatticeInputs` gains `prior_writes`, read by `named_fact`, `prior_store` and the existence reads, so a nested command sees the writes made before it; `LatticeDriver::nested_answer` applies a nested outcome's writes to the state under `LocalWrites` (`admitted_writes`, `state_owns`; D190) and answers under `EffectFreeOnly` exactly as before; `run_script` takes the enclosing writes and the policy and places each outcome's writes (`placed_answer`, with `placed_stores` factored out of `apply_outcome` and `route_answer` out of `run_script`); an existence query declines once the evaluation has written its place. No caller passes `LocalWrites` yet, so every answer is `EffectFreeOnly`'s and no existing test moved | `local_writes_apply_in_order` (`value_transfer.rs`, new: over `x` = 1, `$x + [incr x] + $x` is 5 with `x` written 2, `0 && [incr x]` is 0 with no write, `$x + [set x 10] + $x` is 21, `[incr x] + [incr x]` is 5 with `x` written 2 then 3, the ternary evaluates its taken arm only, and a quoted operand substitutes its variable and command in order); `a_nested_write_outside_the_state_declines` (new: `EffectFreeOnly` declines the writing programs `StatefulNested`, `0 && [incr x]` still answers, and `$x + [incr ::g]` declines under both policies); `an_error_completion_ends_the_evaluation_with_the_writes_so_far` (new, over a scripted nested service, because no route yields an error completion yet: the outcome is `Error { written: 1 }` with `x` written 2 and no exact result); `the_ordered_state_reads_its_own_writes_first` (`tests/value_transfers.rs`, new); `validate_outcome_rejects_a_store_to_a_non_target` extended with the error prefix counted across the nested writes. Mutation checks, each reverted: `ExprServices::var` ignoring the state, `nested_answer` applying no write, `state_owns` admitting every place, `command` not ending on an error completion, `written_in` ignoring shared storage, and the error prefix not counting nested writes each fail the test that names them |
+
+Green at VT9.1: `tcl-registry` 1276 passed across its binaries and a
+doctest (`value_transfers` 45); `tcl-compiler` 9834 passed, 6 ignored across
+its 67 binaries, and 7 doctests (the lib 6560, `value_transfer_witnesses`
+67) — no existing test moved; workspace clippy (`--all-targets -D
+warnings`), no `#[allow]` added, and `cargo fmt --check`;
+`value-transfers --check` (22 clean, 19 waived, 83 pinned across 34 files,
+6607 rows) and `registry-axes --check` (893 pinned across 147 files, 36
+waived, 16 clean), both unchanged; `pack-goldens`, `retired-api-gate`,
+`owner-resolution` (45 rows) and `kcs-index-links` pass; `dialect-drift` 8
+sites, none new.
+
+##### The state the next items start from
+
+What the run read and drafted after VT9.1, none of it built or committed
+(the drafts are `vt93_apply.py` and `vt92_apply.py` in the run's scratchpad,
+written against this tree; the rework moves their anchors, so they are notes,
+not patches):
+
+- **The shapes.** A statement that embeds a command which writes the frame
+  gets a synthetic `<upvar-invalidate>` call ahead of it, defining the
+  written names and reading the read-before-write ones
+  (`cfg_builder/mod.rs`: `embedded_subst_extras`, `upvar_invalidated`,
+  `push_embedded_control_effects`); a `Call` host holds them in its own
+  `defs` and `reads` instead, with no call of its own. `expr {…}` alone is
+  an `ExprEval`, `set r [expr {…}]` an `AssignExpr`, `set r [expr "…"]` an
+  `AssignValue`, `expr "…"` and `puts [expr {…}]` are `Call`s, `return [expr
+  {…}]` a `Return` whose call is the block's last statement, and a condition
+  gets a `<cond>` call. The call and its host share one span and are
+  adjacent.
+- **VT9.3's gap, reproduced.** Under `tcl opt --profile full`, 8.4 to 9.1,
+  O109 deletes `set x 1` and the optimised program raises `can't read "x"`
+  in `puts [expr {$x + [set x 10] + $x}]`, in the `set r […]` form, in `if
+  {$x + [set x 10] > 3}`, in `return [expr {$x + [set x 10]}]` and in `incr
+  x [expr {$x + [set x 10]}]` (the examples page's `puts` program is the
+  first). A `Call` host loses the read to the final def filter of
+  `uses_of_classified` (`x` is among its merged defs and is not read before
+  written), and any other host reads `x` at the version after its call's
+  definition, so nothing reads the version before it. An older bug of the
+  same family, found on the way: `proc foo {a b c} {puts "$a $b $c"}; set x
+  1; foo $x [incr x] $x` prints `1 2 2` and, optimised, `1 2 1`, because
+  O102 forwards `x`'s constant into both `$x` argv words.
+- **VT9.3's plan.** `uses_of_classified` reclassifies a read of a place the
+  statement's own nested commands write (the registry's write projection over
+  `evaluated_command_substitutions`) as a by-name use, kept through the def
+  filter, so no pass rewrites it and its store stays live; the synthetic call
+  (and a `<cond>` call, from the condition's variables) reads those names
+  too, for the version before the write. Both `p` and `q` already print
+  right; the test is `a_braced_expr_read_keeps_its_store`, with the forms
+  above and the `foo` program beside it.
+- **VT9.2's plan.** The solver evaluates the pair once, at the call
+  (`sccp_process_statements` keeps the host's answer for the next statement),
+  from `host.uses` and `call.uses` with each place the call defines set to
+  `prior_version` (an unseeded root read is dropped, not waited for); the
+  host is found by adjacency and span (D192, the plan's carried index
+  departed from). The call's definitions take the state's last write per
+  place and `Preserve` for a place no write reached, so `0 && [incr x]`
+  leaves `x#2` the value of `x#1` (`SccpResult::preserved`); a write to a
+  place the call does not define declines. `AssignExpr` and `ExprEval` run
+  the parsed expression under `LocalWrites`; an `AssignValue` that is one
+  `[expr …]` runs `run_script` under it. A quoted or multi-word `expr`
+  operand needs the words evaluated once, in order, under one state: the
+  draft gives `LatticeInputs` a `Words::Ordered` memo, `AnalysisInputs` a
+  defaulted `word_state`, and `ExpressionEvaluation` starts its state from
+  it, because `assemble` reads an operand more than once. Everything else —
+  conditions, `Return`, a `Call` host, value-position substitutions other
+  than `expr` — keeps `EffectFreeOnly`.
+- **Left for the sonnet items.** `a_nested_write_outside_the_state_declines`
+  exists at the driver; at program level an escaping global's read fails
+  first (`not-exact`), so the witness asserts the statement is not folded and
+  the optimised program prints as the original.
+
 ### Slice 10 — completion paths
 
 #### Goal and exit
@@ -9673,6 +9761,67 @@ has the witnesses):
   (`set svc foo; if {0} {set svc bar}`), because that write never runs; the
   migration page's "fewer findings in dead arms" does not say so, and the
   write counts are among the walks the item names.
+
+Taken while slice 9 was executed (§ *Slice 9* › *Record (2026-09-30):
+slice 9* has the witnesses):
+
+- **D188 — Nested writes ride on the outcome as resolved places** (VT9.1).
+  The page says the state's writes become the invocation's ordered stores,
+  but a `StoreOutcome` names its place by a `TargetId`, an operand of the
+  invocation that ran it, and the write of a nested `[incr x]` names an
+  operand of `incr`, not of the `expr` around it: a consumer that resolved
+  it through the outer inputs would read another word. So
+  `InvocationOutcome` gains `nested_writes: Vec<(PlaceRef, StoreOutcome)>` —
+  the pairs `EvaluationState::writes` already holds — applied ahead of
+  `ordered_stores`; `has_stores` counts them, and an error completion's
+  `written` counts across them and then the ordered stores, which
+  `validate_outcome` checks. The stores' types are not carried: a definition
+  a nested write makes states no folded type.
+- **D189 — The read rule is the registry's, and `variable` keeps its
+  program-point meaning** (VT9.1). `AnalysisInputs::variable` has no state
+  parameter, so "`variable` consults `writes` first" is
+  `EvaluationState::written` / `written_in` (`inputs.rs`), one function with
+  two readers: `ExprServices::var`, state first and then the inputs, and the
+  lattice inputs' overlay (`LatticeInputs::prior_writes`, read by
+  `named_fact`, `prior_store` and the existence reads), which is how a nested
+  command sees the writes made before it. The last write naming a place
+  decides; a preserve changes nothing; a write that only shares storage with
+  it (an element beside its array), a may-write and an unbind leave it
+  unknown, which declines.
+- **D190 — What `LocalWrites` admits** (VT9.1). A nested outcome's writes are
+  applied when every one is a preserve, of any place, or a `Write` or
+  `WriteElement` to a place the state owns (`LatticeDriver::state_owns`: not
+  traced, not escaping, and not an element of an array that is); an error
+  completion applies the first `written` of them. A may-write, an unbind, a
+  completion code that is not an error, a store to a place no resolver can
+  name (a computed name, an element beside its array) and a traced or
+  escaping place are `StatefulNested` — placement failures map to it rather
+  than keep their own reason, as the page's "any other outcome" reads. The
+  policy admits every outcome `EffectFreeOnly` does, a preserve being
+  admitted whatever it names. An existence query declines once the
+  evaluation has touched its place (`[info exists x]` after `[set x 1]` is
+  `StatefulNested`), and the enclosing writes' existence reads answer
+  `Bound(Scalar)` for a write. The members of a finite input must agree on
+  result, completion and writes, or the answer is `CorrelatedSets`, as
+  before.
+- **D191 — An ended evaluation is an answer, not a decline** (VT9.1). A
+  nested outcome that did not complete normally ends the evaluation at that
+  command (`ExprStop::Ended`, `ExprAnswer::Ended`), and `ExpressionEvaluation`
+  turns an error into an outcome whose completion is `Error { written }`,
+  with the state's writes and no exact result. No route in the tree yields an
+  error completion (`error` has no semantics; VT10.1 makes a core's
+  `CmdError` one), so the path is pinned with a scripted nested service, and
+  the driver still publishes nothing for it: `apply_outcome` declines any
+  non-normal completion (D107) until slice 10 publishes per path.
+- **D192 — The host of an embedded call is found by adjacency and span**
+  (VT9.2, decided while reading, not yet built). The plan has the synthetic
+  call carry its host's index. The builder emits the call immediately before
+  its host and gives both the host's span, which is what D169 already
+  identifies them by, and an index recorded at build time is stale the moment
+  anything is inserted between them, so the solver reads the pair off the
+  block instead: a call with the marker, followed by a statement that is not a
+  call of that kind and has the same span. `SyntheticMarker` and the IR stay
+  as they are.
 
 ### Open questions for the owner
 
