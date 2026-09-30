@@ -68,52 +68,6 @@ fn has_word(haystack: &str, word: &str) -> bool {
     false
 }
 
-/// The interpreter names a Tcl shebang may spell, each of which may carry a
-/// `<x.y>` version suffix: the Tcl shell and the Tk shell.
-///
-/// `wish` is here because a `#!/usr/bin/wish8.6` script is a Tcl 8.6 script by
-/// the same reasoning `tclsh8.6` is — Tk is a *library* in this model, not a
-/// dialect profile, so the shell name only ever contributes the version.
-/// A bare `#!/usr/bin/wish` therefore still falls through to
-/// the content tiers, exactly as a bare `tclsh` does.
-const SHEBANG_TCL_SHELLS: &[&str] = &["tclsh", "wish"];
-
-/// Extract `<x.y>` from a `…\b(tclsh|wish)<x.y>\b…` shebang (input already
-/// lowercased).
-fn shebang_tclsh_version(lower: &str) -> Option<String> {
-    SHEBANG_TCL_SHELLS
-        .iter()
-        .find_map(|shell| shebang_shell_version(lower, shell))
-}
-
-/// [`shebang_tclsh_version`] for one interpreter name.
-fn shebang_shell_version(lower: &str, shell: &str) -> Option<String> {
-    let bytes = lower.as_bytes();
-    let mut i = 0;
-    while let Some(off) = lower[i..].find(shell) {
-        let start = i + off;
-        let before = start == 0 || !is_word_byte(bytes[start - 1]);
-        let mut j = start + shell.len();
-        let d1 = j;
-        while j < bytes.len() && bytes[j].is_ascii_digit() {
-            j += 1;
-        }
-        if before && j > d1 && j < bytes.len() && bytes[j] == b'.' {
-            j += 1;
-            let d2 = j;
-            while j < bytes.len() && bytes[j].is_ascii_digit() {
-                j += 1;
-            }
-            let after = j == bytes.len() || !is_word_byte(bytes[j]);
-            if j > d2 && after {
-                return Some(lower[d1..j].to_string());
-            }
-        }
-        i = start + 1;
-    }
-    None
-}
-
 /// Extract a leading `<major>.<minor>` version from `s` — one or more digits, a
 /// `.`, and one or more digits. Trailing content (a patchlevel `.z`, a `-`
 /// range suffix, whitespace) is ignored, so `"9.0"`, `"9.0.3"`, and `"8.5-9.0"`
@@ -988,18 +942,37 @@ fn detect_from_content(head: &str) -> Option<&'static str> {
     None
 }
 
-/// The dialect named by a `#!…` shebang on the first line (`expect`, or a
-/// versioned `tclsh<x.y>` / `wish<x.y>`), or `None`.
+/// The environment a `#!…` shebang on the first line names, or `None`.
+///
+/// Every environment declares the interpreter words that select it
+/// (`DetectionFacts::shebang_words`: `jimsh`, `wish`, `expect`,
+/// `tclsh8.6`, `wish9.0`); a word selects its environment when it appears
+/// in the line delimited by non-word bytes, so `wish` does not match
+/// `wish8.6` and `tclsh8.6` does not match `tclsh8.60`.
+///
+/// The lenient `tcl` environment names its unversioned shell `tclsh`, but a
+/// bare `tclsh` says nothing about the release, so that word selects
+/// nothing here and the content tiers decide.
 fn shebang_dialect(source: &str) -> Option<&'static str> {
     let first = source.lines().next()?;
     if !first.starts_with("#!") {
         return None;
     }
     let lower = first.to_ascii_lowercase();
-    if has_word(&lower, "expect") {
-        return Some("expect");
-    }
-    shebang_tclsh_version(&lower).and_then(|ver| tcl_version_dialect(&ver))
+    let registry = crate::model::environments();
+    let lenient = crate::model::resolve_environment("").definition;
+    registry
+        .definitions()
+        .iter()
+        .filter(|definition| definition.id != lenient.id)
+        .find(|definition| {
+            definition
+                .server_detection
+                .shebang_words
+                .iter()
+                .any(|word| has_word(&lower, word))
+        })
+        .map(|definition| intern_environment_id(definition.id.as_str()))
 }
 
 /// The *content-borne* dialect signals, in the priority the project wants:
@@ -1029,7 +1002,8 @@ fn detect_content_signals(head: &str) -> Option<&'static str> {
 /// Heuristics are applied in this priority order, most-trusted first:
 /// 1. an explicit `# tcl-dialect: <name>` directive (first
 ///    [`DIALECT_DIRECTIVE_SCAN_LINES`] lines);
-/// 2. the `#!…` shebang (`expect`, `tclsh<x.y>`, `wish<x.y>`);
+/// 2. the `#!…` shebang, read against every environment's `shebang_words`
+///    (`expect`, `jimsh`, `wish`, `tclsh<x.y>`, `wish<x.y>`);
 /// 3. a tokenised `package require ?-exact? Tcl <x.y>` or `package vsatisfies
 ///    [package require Tcl] <x.y>` version guard;
 /// 4. content signatures — iRules `when EVENT {`, F5 `tmsh::` / iApp, EDA-tool
@@ -1081,8 +1055,8 @@ pub fn detect_dialect(source: &str, filename: Option<&str>, default: &'static st
 
 /// Detect a Tcl dialect from a script's *content* — used when no explicit
 /// dialect is configured. Checks, in priority order: a `# tcl-dialect:`
-/// directive (first [`DIALECT_DIRECTIVE_SCAN_LINES`] lines), a
-/// `#!…tclsh<x.y>` / `#!…wish<x.y>` / `#!…expect` shebang (first line), then a
+/// directive (first [`DIALECT_DIRECTIVE_SCAN_LINES`] lines), a shebang
+/// (first line) naming one of the environments' interpreter words, then a
 /// tokenised
 /// `package require ?-exact? Tcl <x.y>` or `package vsatisfies [package require
 /// Tcl] <x.y>` version guard over the first [`DETECT_SCAN_BYTES`] bytes.
@@ -1095,18 +1069,8 @@ pub fn detect_dialect_from_source(source: &str) -> Option<&'static str> {
     if let Some(d) = detect_dialect_directive(source) {
         return Some(d);
     }
-    if let Some(first) = source.lines().next()
-        && first.starts_with("#!")
-    {
-        let lower = first.to_ascii_lowercase();
-        if has_word(&lower, "expect") {
-            return Some("expect");
-        }
-        if let Some(ver) = shebang_tclsh_version(&lower)
-            && let Some(d) = tcl_version_dialect(&ver)
-        {
-            return Some(d);
-        }
+    if let Some(d) = shebang_dialect(source) {
+        return Some(d);
     }
     let head = scan_head(source);
     let scan =
@@ -1334,29 +1298,62 @@ mod detect_tests {
         );
     }
 
-    /// The Tk shell names a Tcl version exactly as `tclsh` does.
-    /// Tk is modelled as a library, not a dialect, so a `wish` shebang
-    /// contributes only its version — and a *bare* `wish` contributes nothing,
-    /// falling through to the content tiers like a bare `tclsh`.
+    /// A versioned Tk shell names its Tcl release exactly as `tclsh` does;
+    /// a bare `wish` is the Tk environment, and a bare `tclsh` names no
+    /// release and so falls through to the content tiers.
     #[test]
-    fn a_wish_shebang_names_its_tcl_version() {
+    fn a_wish_shebang_names_the_tk_shell_or_its_tcl_version() {
+        for (source, expected) in [
+            ("#!/usr/bin/wish8.6\nbutton .b\n", "tcl8.6"),
+            ("#!/usr/bin/env wish9.0\nbutton .b\n", "tcl9.0"),
+            ("#!/usr/bin/wish\nbutton .b\n", "tk"),
+            ("#!/usr/bin/env wish\nbutton .b\n", "tk"),
+            ("#!/usr/bin/tclsh8.4\nputs hi\n", "tcl8.4"),
+            ("#!/usr/bin/tclsh\nputs hi\n", DEF),
+        ] {
+            assert_eq!(detect_dialect(source, None, DEF), expected, "{source}");
+        }
+    }
+
+    #[test]
+    fn a_jimsh_shebang_names_jim() {
+        for line in [
+            "#!/usr/bin/jimsh",
+            "#!/usr/bin/env jimsh",
+            "#!/usr/local/bin/jimsh -",
+        ] {
+            assert_eq!(
+                detect_dialect(&format!("{line}\nputs hi\n"), None, DEF),
+                "jim",
+                "{line}"
+            );
+        }
         assert_eq!(
-            detect_dialect("#!/usr/bin/wish8.6\nbutton .b\n", None, DEF),
-            "tcl8.6"
+            super::detect_dialect_from_source("#!/usr/bin/jimsh\n"),
+            Some("jim")
         );
+        // The interpreter word is delimited: a longer name is another program.
         assert_eq!(
-            detect_dialect("#!/usr/bin/env wish9.0\nbutton .b\n", None, DEF),
-            "tcl9.0"
-        );
-        // Bare `wish`: no version, no opinion.
-        assert_eq!(
-            detect_dialect("#!/usr/bin/wish\nbutton .b\n", None, DEF),
+            detect_dialect("#!/usr/bin/jimshell\nputs hi\n", None, DEF),
             DEF
         );
-        // The `tclsh` half is unchanged.
+    }
+
+    /// A shebang outranks a version guard, and a directive outranks the
+    /// shebang.
+    #[test]
+    fn the_shebang_tier_sits_between_the_directive_and_the_content_tiers() {
         assert_eq!(
-            detect_dialect("#!/usr/bin/tclsh8.4\nputs hi\n", None, DEF),
-            "tcl8.4"
+            detect_dialect("#!/usr/bin/jimsh\npackage require Tcl 8.6\n", None, DEF),
+            "jim"
+        );
+        assert_eq!(
+            detect_dialect(
+                "#!/usr/bin/jimsh\n# tcl-dialect: tcl8.5\nputs hi\n",
+                None,
+                DEF
+            ),
+            "tcl8.5"
         );
     }
 

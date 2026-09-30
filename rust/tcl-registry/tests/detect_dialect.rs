@@ -55,6 +55,27 @@ fn shebang_env_expect() {
 }
 
 #[test]
+fn shebang_jimsh() {
+    assert_eq!(detect("#!/usr/bin/jimsh\nset x 1\n"), Some("jim"));
+}
+
+#[test]
+fn shebang_env_jimsh() {
+    assert_eq!(detect("#!/usr/bin/env jimsh\nset x 1\n"), Some("jim"));
+}
+
+#[test]
+fn shebang_wish_is_tk_and_versioned_wish_is_its_release() {
+    assert_eq!(detect("#!/usr/bin/wish\nbutton .b\n"), Some("tk"));
+    assert_eq!(detect("#!/usr/bin/env wish\nbutton .b\n"), Some("tk"));
+    assert_eq!(detect("#!/usr/bin/wish8.6\nbutton .b\n"), Some("tcl8.6"));
+    assert_eq!(
+        detect("#!/usr/bin/env wish9.0\nbutton .b\n"),
+        Some("tcl9.0")
+    );
+}
+
+#[test]
 fn directive_tcl84() {
     assert_eq!(detect("# tcl-dialect: tcl8.4\nset x 1\n"), Some("tcl8.4"));
 }
