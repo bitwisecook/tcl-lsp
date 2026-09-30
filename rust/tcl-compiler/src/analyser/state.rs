@@ -419,9 +419,8 @@ pub struct Analyser {
     /// A number rather than a registry handle, deliberately: the analyser must
     /// not depend on the pack loader (which depends on *it*), and a `u64`
     /// travels through a salsa input and a config struct with no new edge at
-    /// all. [`Self::profile_registry`] turns it into the registry, falling
-    /// back to the un-overlaid one when nothing has been installed under that
-    /// key.
+    /// all. [`Self::profile_registry`] turns it into the registry, reading the
+    /// un-overlaid one until something has been installed under that key.
     ///
     /// It is load-bearing since the EDA vendor libraries became bundled
     /// `.tclspec` loadables (`docs/design/registry/spec-packs.md`): without it a
@@ -1676,11 +1675,13 @@ impl Analyser {
     /// exists.
     ///
     /// **Look-up only.** Building an overlay entry needs the pack
-    /// *contents*, which only the loader has, so a miss falls back to the
+    /// *contents*, which only the loader has, so a miss reads the
     /// un-overlaid generation rather than caching a pack-less one under
-    /// the pack's key forever. A miss means the packs are not installed
-    /// yet — the state the process was in a moment ago — so the fallback
-    /// is the honest answer, not a wrong one.
+    /// the pack's key forever
+    /// ([`crate::environment_ingress::analysis_registry`]). An analysis
+    /// advises and runs again once the packs are installed, so that is the
+    /// honest answer for the window in between; code that compiles reads the
+    /// overlay through a door that reports the miss.
     #[must_use]
     pub fn profile_registry(&self) -> std::sync::Arc<tcl_registry::registry::CommandRegistry> {
         std::sync::Arc::clone(self.analysis_context().commands())
@@ -1701,7 +1702,7 @@ impl Analyser {
         let environment = crate::environment_ingress::resolve_environment(self.profile.name);
         let keyed =
             crate::environment_ingress::DocumentEnvironment::keyed_versions(&self.library_versions);
-        environment.context_registry(&keyed, self.pack_overlay)
+        crate::environment_ingress::analysis_registry(&environment, &keyed, self.pack_overlay)
     }
 
     /// Resolve `dialect` at a walk ingress: stash
@@ -1717,7 +1718,8 @@ impl Analyser {
         self.unit_profile = Some(environment.unit_profile());
         let keyed =
             crate::environment_ingress::DocumentEnvironment::keyed_versions(&self.library_versions);
-        let generation = environment.context_registry(&keyed, self.pack_overlay);
+        let generation =
+            crate::environment_ingress::analysis_registry(&environment, &keyed, self.pack_overlay);
         let tk_ambient = generation.context().ambient_package("Tk");
         self.context = Some(generation);
         self.environment = Some(environment);
@@ -2648,7 +2650,8 @@ impl Analyser {
         let environment = crate::environment_ingress::resolve_environment(dialect);
         let keyed =
             crate::environment_ingress::DocumentEnvironment::keyed_versions(&self.library_versions);
-        let generation = environment.context_registry(&keyed, self.pack_overlay);
+        let generation =
+            crate::environment_ingress::analysis_registry(&environment, &keyed, self.pack_overlay);
         let known: std::collections::HashSet<&str> =
             generation.commands().command_names().collect();
         let recovery_cmds = crate::segmenter::segment_commands_with_recovery_and_config(

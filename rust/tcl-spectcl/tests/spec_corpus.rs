@@ -680,6 +680,7 @@ fn analyse_legacy(source: &str, dialect: &str, overlay: u64) -> AnalysisOutput {
     let registry = std::sync::Arc::clone(
         tcl_registry::model::ingress::resolve_environment(dialect)
             .context_registry(&tcl_registry::model::KeyedVersions::default(), overlay)
+            .expect("the corpus installs the overlay before it asks")
             .commands(),
     );
     let optimisations = optimise_raw(source, &registry, Some(dialect));
@@ -702,6 +703,7 @@ fn analyse_shared(source: &str, dialect: &str, overlay: u64) -> AnalysisOutput {
     let registry = Arc::clone(
         environment
             .context_registry(&tcl_registry::model::KeyedVersions::default(), overlay)
+            .expect("the corpus installs the overlay before it asks")
             .commands(),
     );
     let unit_profile = environment.unit_profile();

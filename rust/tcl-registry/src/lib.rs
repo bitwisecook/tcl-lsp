@@ -258,7 +258,9 @@ pub use arity::Arity;
 pub use bigip::{BigipObjectSpec, BigipPropertySpec, BigipRegistry, ValueKind};
 pub use body_kind::{BodyInterpreter, BodyKind};
 pub use byte_array_effect::ByteArrayEffect;
-pub use cache::{default_registry, registry_for_profile_with_overlay, safe_interp_hidden_commands};
+pub use cache::{
+    default_registry, overlay_epoch, registry_for_profile_with_overlay, safe_interp_hidden_commands,
+};
 pub use clause_grammar::{
     ClauseAbstention, ClauseGrammarSpec, ClauseKeyword, ClausePlan, ClauseRow, ClauseRowId,
     ClauseRowShape, ClauseSelection, ClauseSlot, ClauseTiming, DefaultClause, LoopPhase,

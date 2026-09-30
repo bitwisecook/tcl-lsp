@@ -493,6 +493,72 @@ fn a_site_compiled_through_the_service_stamps_the_bases_overlay_generation() {
     );
 }
 
+/// The seam the workspace's overlay reaches the compiler through: a service
+/// built for the profile and the key the packs were installed under compiles
+/// against that very generation, so a site resting on a pack claims it and
+/// stamps the same overlay generation the owned projection above does — both
+/// rungs, an alias site and a pack's fold over an overridden builtin. A key
+/// nothing installed builds no service, and a service does not compile once
+/// its generation is not installed for the profile it is asked for: it does
+/// not fall back to the registry the pack is missing from.
+#[test]
+fn a_service_for_the_packs_overlay_compiles_against_the_generation_they_installed() {
+    let profile = tcl_spectcl::environment::profile_for_dialect("tcl9.0");
+    let through_the_overlay = |set: &PackSet, source: &str| {
+        BytecodeCompileService::for_profile_with_overlay(profile, set.key)
+            .expect("the packs' overlay is installed")
+            .compile_for_profile(source, profile)
+            .expect("compiles")
+    };
+
+    let (set, _registry) = bundled("overlay-alias", "lassign");
+    assert_ne!(set.key, 0);
+    let held = facts(&set);
+    assert_eq!(held.len(), 1, "one pack file: {held:#?}");
+    let module = through_the_overlay(&set, USE);
+    assert_eq!(
+        module.top_level.site_claims,
+        vec![SiteClaim::BuiltinAlias {
+            binding: CommandBindingIdentity::new("vendor::unpack", "lassign"),
+            facts: held[0].clone(),
+        }],
+        "{:#?}",
+        module.top_level
+    );
+
+    let (set, _registry) = bundled_source("overlay-fold", FOLD_PACK);
+    let held = facts(&set);
+    assert_eq!(held.len(), 1, "one pack file: {held:#?}");
+    let module = through_the_overlay(&set, "set n [llength {a b c}]\nset n\n");
+    assert_eq!(
+        module.top_level.site_claims,
+        vec![SiteClaim::PackFacts(held[0].clone())],
+        "{:#?}",
+        module.top_level
+    );
+
+    // Nothing installed this key: no service, and the miss names it.
+    let missing = 0x0BAD_0BAD;
+    let miss = BytecodeCompileService::for_profile_with_overlay(profile, missing)
+        .err()
+        .expect("nothing installed the overlay");
+    assert_eq!(miss.overlay, missing);
+    assert_eq!(miss.environment, "tcl9.0");
+
+    // The pack is installed for `tcl9.0` and not for `tcl8.6`, so the service
+    // does not compile for 8.6 either, rather than compile it plain.
+    let service = BytecodeCompileService::for_profile_with_overlay(profile, set.key)
+        .expect("installed for 9.0");
+    let older = tcl_spectcl::environment::profile_for_dialect("tcl8.6");
+    let refused = service
+        .compile_for_profile(USE, older)
+        .expect_err("no generation for 8.6 under this overlay");
+    assert!(
+        refused.0.contains("tcl8.6") && refused.0.contains("not installed"),
+        "{refused:?}"
+    );
+}
+
 /// The negative: a proc at the pack name is not the builtin, so the VM
 /// refuses the specialised site and recompiles the module plain — the proc
 /// runs, where the specialised `lassign` code would have assigned `1 2` —

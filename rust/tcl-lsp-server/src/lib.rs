@@ -4092,6 +4092,19 @@ async fn sync_evaluator_epoch(db: &TrackedMutex<tcl_lsp_db::TclDatabase>) {
     tcl_lsp_db::set_evaluator_epoch(&mut db, epoch);
 }
 
+/// Make the registry cache's overlay epoch the salsa input
+/// `tcl_lsp_db::OverlayEpoch`, which every query that resolves a pack overlay
+/// reads. The cache is process-wide state the database cannot see change, so
+/// a unit memoised while a workspace's packs were not installed — or against a
+/// generation the cache has since retired — is asked again once the epoch
+/// moves. Compare-then-set, like [`sync_evaluator_epoch`]: a sync that finds
+/// the overlays unchanged writes nothing.
+async fn sync_overlay_epoch(db: &TrackedMutex<tcl_lsp_db::TclDatabase>) {
+    let epoch = tcl_registry::overlay_epoch();
+    let mut db = db.lock().await;
+    tcl_lsp_db::set_overlay_epoch(&mut db, epoch);
+}
+
 /// Base analysis: the cancellable salsa `file_analysis_incremental` query, off
 /// the LSP event loop — the whole-file per-item walk that dominates the deep
 /// pass and feeds *both* the workspace-independent fast tier and the deep tier.
@@ -4483,6 +4496,25 @@ async fn compute_project_diags(
     }
 }
 
+/// Say once, on the server's log, that a workspace's packs are not installed
+/// where a query needed them: the compiler checks and the optimiser's rewrites
+/// wait for the packs, and analysis and highlighting read the plain registry
+/// meanwhile. Each distinct miss the database has recorded is reported one
+/// time, however many queries hit it.
+fn report_overlay_misses() {
+    for miss in tcl_lsp_db::take_overlay_misses() {
+        eprintln!("{}", overlay_miss_message(&miss));
+    }
+}
+
+/// The log line for one overlay miss: which overlay, and what waits for it.
+fn overlay_miss_message(miss: &tcl_registry::model::OverlayMiss) -> String {
+    format!(
+        "tcl-lsp: {miss}; the compiler checks and optimisations wait for the packs to \
+         install, and analysis and highlighting read the plain registry meanwhile"
+    )
+}
+
 /// Optimiser / compiler-checks diagnostics, also off the event loop via the
 /// cancellable salsa `compiler_check_diagnostics` query: the unit's
 /// per-procedure lattices are memoised by `function_lattice` and shared with
@@ -4508,10 +4540,12 @@ async fn compute_compiler_diags(
         let snapshot = db.snapshot("compute_compiler_diags").await;
         match crate::rt::spawn_blocking(move || {
             with_pack_hooks(|| {
-                salsa::Cancelled::catch(|| {
+                let diagnostics = salsa::Cancelled::catch(|| {
                     tcl_lsp_db::compiler_check_diagnostics(&*snapshot, file, config)
                 })
-                .ok()
+                .ok();
+                report_overlay_misses();
+                diagnostics
             })
         })
         .await
@@ -11180,6 +11214,9 @@ impl Backend {
                 tcl_lsp_db::document_compilation_unit_for(&*snapshot, file, config)
             })
             .ok()
+            // `None` from the query is an abstention: the workspace's packs
+            // are not installed, so there is no unit to hand back.
+            .flatten()
         }))
     }
 
@@ -21301,8 +21338,10 @@ impl Backend {
             })
             .await;
             // The analyser reads the key off the salsa config, so publish it
-            // before anything re-analyses.
+            // before anything re-analyses, with the overlay epoch that says
+            // the generations behind it are installed.
             self.sync_db_config().await;
+            sync_overlay_epoch(&self.db).await;
         }
         if changed {
             // The publish above moved the process's evaluator epoch, whether
@@ -42673,6 +42712,67 @@ proc p {} {
             assert!(!changed(&other).spec_pack_changed, "{other:?}");
         }
         assert_eq!(PACKAGE_LOCKFILE_GLOB, "**/tclpkg.lock");
+    }
+
+    /// A unit the database declined to build for want of a workspace's packs
+    /// is built once the packs are installed and the server syncs the overlay
+    /// epoch, with the document and its config untouched: the epoch is what
+    /// tells the database the registry cache changed.
+    #[tokio::test]
+    async fn syncing_the_overlay_epoch_lets_an_abstained_unit_build() {
+        const OVERLAY: u64 = 0x5E71_0001;
+        let db = TrackedMutex::new("db", tcl_lsp_db::TclDatabase::default());
+        let (file, config) = {
+            let db = db.lock().await;
+            let file = tcl_lsp_db::SourceFile::new(
+                &*db,
+                "set x 1\nputs $x\n".to_owned(),
+                "tcl9.0".to_owned(),
+                None,
+            );
+            let config = tcl_lsp_db::AnalyserConfig::new(
+                &*db,
+                Vec::new(),
+                NonAsciiMode::Default,
+                Vec::new(),
+                None,
+                None,
+                OVERLAY,
+                Vec::new(),
+                Vec::new(),
+            );
+            (file, config)
+        };
+        let has_unit = || async {
+            let db = db.lock().await;
+            tcl_lsp_db::document_compilation_unit_for(&*db, file, config).is_some()
+        };
+        assert!(!has_unit().await, "nothing installed the overlay");
+
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").expect("catalogue profile");
+        let _installed = tcl_registry::registry_for_profile_with_overlay(profile, OVERLAY, |_| {});
+        sync_overlay_epoch(&db).await;
+        assert!(has_unit().await, "installed and synced, the unit builds");
+    }
+
+    /// A workspace whose packs are not installed is one line on the log: the
+    /// overlay and the dialect it was asked for, and what waits for it.
+    #[test]
+    fn an_overlay_miss_is_reported_with_its_key_and_what_waits() {
+        let message = overlay_miss_message(&tcl_registry::model::OverlayMiss {
+            environment: "tcl9.0".to_owned(),
+            overlay: 0xC0FF_EE01,
+        });
+        assert!(message.contains("0xc0ffee01"), "{message}");
+        assert!(message.contains("`tcl9.0`"), "{message}");
+        assert!(
+            message.contains("compiler checks and optimisations wait"),
+            "{message}"
+        );
+        assert!(
+            message.contains("highlighting read the plain registry"),
+            "{message}"
+        );
     }
 
     #[test]

@@ -80,7 +80,7 @@ pub mod surface;
 pub mod tcllib;
 
 pub use assembly::{
-    ContextRegistry, registry_for_environment, registry_for_environment_if_built,
+    ContextRegistry, OverlayMiss, registry_for_environment, registry_for_environment_if_built,
     resolve_call_in_context, resolve_invocation_in_context, resolve_invocation_words_in_context,
     side_effect_hints_in_context,
 };

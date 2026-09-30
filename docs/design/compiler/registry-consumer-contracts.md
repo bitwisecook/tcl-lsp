@@ -1514,6 +1514,33 @@ error.
   identity and the pack facts behind it, which the VM's alias hop and its
   held facts admit (`rust/tcl-spectcl/tests/codegen_stamps.rs`; rungs 1
   and 2 below).
+- **The workspace overlay reaches a compile by its key, and a miss stops
+  the compile.** A non-zero overlay is the key a pack set's registry
+  generation was installed under, and only the pack loader can build one, so
+  every consumer looks it up. `DocumentEnvironment::context_registry`
+  (`rust/tcl-registry/src/model/ingress.rs`) answers a generation nothing
+  installed with an `OverlayMiss`, not the plain generation under another
+  name, and each consumer answers it for itself.
+  `BytecodeCompileService::for_profile_with_overlay`
+  (`rust/tcl-compiler/src/compile_service.rs`) looks the generation up for
+  every compile, and returns a `CompileError` naming the overlay once it is
+  gone, or for a profile the packs are not installed for.
+  `tcl_lsp_db::compilation_unit` answers `None` — no unit, and with it no
+  checks and no rewrites — records the miss once for the host to log
+  (`take_overlay_misses`), and reads an overlay epoch
+  (`tcl_registry::overlay_epoch`, mirrored as the input
+  `tcl_lsp_db::OverlayEpoch`) that the host moves when it installs the packs,
+  so an overlay installed a moment later is found, by the unit and by
+  everything that read it, when the epoch moves; the database holds the
+  generations it has resolved, so a per-procedure query keeps the registry its
+  unit started with when the process cache retires the key.
+  The analyser and the token queries only advise and run again once the
+  packs arrive, so they read the plain registry meanwhile
+  (`analysis_registry`, `token_registry`). No shipped host builds a service
+  through the overlay door: the `tclvm` engine takes an owned registry, and
+  the language server's optimise path reads the registry the workspace's
+  packs were installed into (`Backend::registry_for_dialect`), which cannot
+  miss.
 - The BPF backend is a third closed catalogue (`bpf_op`) with no id table
   for packs to resolve against (the redesign's § *11.2 Deferred model
   items*, D3), and the engine interface excludes it by rule; it is on the
@@ -1895,10 +1922,9 @@ This is the runtime programme. Nothing on the analyser side waits for it.
   TclOO fast path is guardable.
 - **The runtime pin becomes a context** — environment, release point,
   build, package floors, and overlay generation — resolved through the same
-  ingress the compiler uses, with an overlay miss treated as an error rather
-  than the silent fallback to overlay zero in
-  `rust/tcl-registry/src/model/ingress.rs`. It is the runtime's counterpart
-  of the analysis context. The `namespace` and `trace` subcommand gates
+  ingress the compiler uses, at which an overlay miss is an error
+  (`OverlayMiss`) and never a fallback to overlay zero. It is the runtime's
+  counterpart of the analysis context. The `namespace` and `trace` subcommand gates
   take their profile from the pinned dialect profile, not from the release
   name.
 - **Artefacts carry an identity manifest.** For bytecode that is an
@@ -1967,7 +1993,7 @@ exists, and never a silent choice of one row.
 |---|---|---|
 | release for versioned evaluation | `TclVersion::from_profile` still answers only for the five plain Tcl profile names — untouched by the value-transfer lane's slice 4 (`docs/design/compiler/value-evaluation.md` § *Target semantics*, decision D72) — so every *other* vendor-profile consumer of it evaluates under the invariant subset; a deliberate guardrail until the routes are verified against real shells. The value-transfer route's own base-release rule no longer waits on this row: `TargetSemantics::of` reads `DialectProfile::runtime_version` directly, so iRules already evaluates under its declared 8.4 base and a vendor pack that diverges on an axis blocks the fold by declaring the axis (ruling 8, D72) | feed the environment's point through the evidence gate, per measured row, never by name; the hook context already carries `dialect` and `tcl-version` keys, the gap is the value for vendor profiles |
 | package version windows | validated and dropped; nothing gates on a package release | carry name and version in `SurfaceQuery::packages` |
-| the shared compilation unit | `compilation_unit` resolves the un-overlaid registry, and an uninstalled overlay falls back silently | close both together, keyed on the analysis context; delivering the overlay to the compile service is a prerequisite for every rung above zero *for emitted code*, and the private-pack slice closes the analysis half |
+| the shared compilation unit | `compilation_unit` resolves the overlay's registry, keyed on the analysis context, and abstains with no unit when the overlay is not installed; `BytecodeCompileService::for_profile_with_overlay` gives the compile service the same generation and declines to compile without it. No shipped host builds that service: the `tclvm` engine takes an owned registry and the language server compiles no bytecode | a host that runs code compiled against a workspace's packs takes the overlay by key through that door; delivering it is a prerequisite for every rung above zero *for emitted code* |
 | implemented in C, Tcl, or built in | no declaration anywhere | `RuntimeBacking` on the package placement row for the registry and on the manifest and lockfile for the package manager; evidence, not proof; consumed by the resolver's load edge, realm binding knowledge, and the container generator |
 | packages shipping specs | de facto beside a `tclpkg.tcl` manifest and in library installs, undeclared and unverified. Discovery places a pack beside a manifest by the lockfile's graph (`PackFile::dependency_tier`), and the load applies the capability matrix to its codegen-axis stamps, `alias_of` and `runtime_backing`; a package declares no pack and no tier of its own, and the lockfile holds no hash of a pack | the `spec` directive below, with its lockfile hash and its requested tier; the matrix extended to reference bodies; native-identity resolution for the body families; and `tcl spec test`, which runs the package's implementation under the package manager's sandbox policy, never at editor load |
 
@@ -2219,7 +2245,7 @@ and come before any runtime guard work.
 - `rust/tcl-spec-studio/src/render_spectcl.rs`, `render_rs.rs`, `coverage.rs`, `schema.rs`, `draft.rs`, `help.rs` — `GAPS`, `GapKind`, the `.rs` contribution export, and the four studio surfaces
 - `rust/tcl-vm/src/compiled.rs` — `CompiledUnit`, `CompilerProvenance`, and the generations an identity manifest joins
 - `rust/tcl-engine-api/src/lib.rs`, `rust/tcl-engine-tclvm/src/lib.rs`, `rust/tcl-cshim/src/lib.rs`, `rust/tcl-cshim/src/ffi.rs`, `rust/tcl-cshim/src/obj.rs`, `rust/tcl-cshim/include/tclshim.h` — the engine interface, its one implementation, `Interp::load_static` and its `Loaded` report, the 34 exported symbols, and the header
-- `rust/tcl-dialect/src/version.rs`, `profile.rs`, `rust/tcl-registry/src/model/ingress.rs`, `rust/tcl-lsp-db/src/lib.rs` — the release, the pin, the overlay ingress, and the salsa registry queries
+- `rust/tcl-dialect/src/version.rs`, `profile.rs`, `rust/tcl-registry/src/model/ingress.rs`, `assembly.rs`, `rust/tcl-compiler/src/compile_service.rs`, `rust/tcl-lsp-db/src/lib.rs` — the release, the pin, the overlay ingress and its `OverlayMiss`, the compile service's overlay door, and the salsa registry queries
 - `rust/tcl-pkg-model/src/manifest.rs`, `lockfile.rs`, `tier.rs`, `rust/tcl-pkg/src/docker.rs` — the package manager's data model and the derivation of a package's dependency tier, which the pack loader reads too, and the container generator
 - `rust/xtask/src/command_backing.rs`, `gen_irule_test_data.rs`, `docs/generated/wasm-command-backing.md` — the backing gate, its four classification lists, the registry-generated iRules mocks, and the rendered report
 - `rust/tcl-irule-test/tcl/command_mocks.tcl`, `_mock_stubs.tcl` — the simulator's hand-written and generated command backing
@@ -2243,6 +2269,7 @@ and come before any runtime guard work.
 - `rust/tcl-spectcl/tests/i6_security_floor.rs` — the floor and its take-shipped extension
 - `rust/tcl-spectcl/tests/workspace_packs.rs`, `codegen_stamps.rs` — the stamp rejection rule's two witnesses: a refused stamp under the tier gate, and a bundled `alias_of` stamp whose recorded target identity the VM admits through its alias hop (refused for a proc at the pack name); the claims' admission: a changed pack refuses the site, and a pack's fold is admitted only under its facts; and, in `workspace_packs.rs`, the capability gate: `a_transitive_dependencys_alias_of_is_dropped` and `a_direct_dependency_keeps_alias_of_but_not_a_stamp`
 - `rust/tcl-vm/tests/command_mutation_deopt_e2e.rs` — `a_rung_zero_module_is_admitted_under_a_changed_pack_set`, the claims check's rung-0 floor
+- `rust/tcl-registry/src/model/ingress.rs`, `rust/tcl-compiler/src/compile_service.rs`, `rust/tcl-lsp-db/tests/overlay_generations.rs`, `dialect_seam.rs`, `rust/tcl-spectcl/tests/codegen_stamps.rs` — the overlay miss: `an_uninstalled_overlay_is_an_error_not_the_plain_generation`, the service's `a_service_whose_overlay_is_gone_declines_every_compile` and `a_service_for_the_packs_overlay_compiles_against_the_generation_they_installed`, the database's abstention, retry and retired-generation tests, and `the_compilation_unit_sees_the_packs_commands`
 
 ## Related docs
 

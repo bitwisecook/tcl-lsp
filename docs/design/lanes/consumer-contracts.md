@@ -1115,7 +1115,7 @@ against the landed tree with evidence:
   4's review fix, SF3) drives; `CommandRegistry::set_overlay` is `pub(crate)` and
   the registry is not `Clone`, so CC6.3's `RegistryTarget::Overlay` replaces that
   route rather than wrapping it. `BytecodeCompileService::new` builds its
-  `config` with `LexerConfig::default()` (`compile_service.rs:125`), one of the
+  `config` with `LexerConfig::default()` (`compile_service.rs:165`), one of the
   eight `dialect-drift` sites, and stays that while the gate's baseline is 8.
   CC6.2's capability matrix gives a `Transitive` or `Development` pack nothing,
   which should include `runtime_backing` (CC7.1's field) beside `alias_of`, the
@@ -1147,11 +1147,11 @@ against the landed tree with evidence:
   quoted form `return "\101"` answers `\101` too, and the defect does not
   depend on the release: it reproduces at 8.6 and at 9.0. It is the fuzz
   campaign's two findings, filed as issue #2291, and independent of the guard
-  tables. The
-  runtime crate's `cmd_misc.rs:210` (`encoding_ensemble_resolves_like_tclsh`)
-  reads the host locale and fails under an empty `LANG`, as `tcl-vm`'s
-  `encoding_command` test does (issue #2271); `scripts/dev/ensure-test-deps.sh:982`
-  still says `wasi-sdk-25` in a comment where the pin is 34.0. The runtime's
+  tables. The runtime crate's `cmd_misc.rs:210`
+  (`encoding_ensemble_resolves_like_tclsh`) reads the host locale and fails under
+  an empty `LANG`, as `tcl-vm`'s `encoding_command` test does (issue #2271);
+  `scripts/dev/ensure-test-deps.sh:982` still says `wasi-sdk-25` in a comment
+  where the pin is 34.0. The runtime's
   `namespace forget` of a command imported from the global namespace removes
   nothing: `ns_forget` (`runtime/rust/src/cmd_namespace.rs`, ~491) joins the
   source namespace's qualified name, `::` for the global one, to `::` and the
@@ -1293,6 +1293,7 @@ and CC6.3, each its own checkpoint.
 |---|---|---|---|
 | CC6.1 the floor widens | landed | `wip(consumer-contracts): step 6 — the floor widens` | `rust/tcl-registry/src/security_floor.rs`: `SecurityFloor::apply` takes `lowering_hook`, `analyser_hook`, `semantic_operation`, `state_transitions`, `native_lowering` and `bpf_op` from the shipped command beside the two codegen hooks it already kept, through the same `take_shipped` (the shipped value wins wherever the shipped command has one; all six types are `Copy`, so no new merge shape), `MERGED_FIELDS` lists them, and `every_security_bearing_field_is_in_the_floor` names the six explicitly in a `matches!` beside its `taint` / `codegen` / `side_effect` / `credential` filter, since none of their names carries those words. The module and `apply` docs state the codegen and dispatch axis as a contract about the closed catalogues, not a trust gate on analysis facts (D6.4). Tests: `rust/tcl-spectcl/tests/i6_security_floor.rs` gains the plan's six rows, each first proving the override took effect (its own `arity 7..9` window installed, so what survives of the shipped spec is the floor's doing) — `a_workspace_override_cannot_swap_the_lowering_hook` (`while`'s `While` against `lowering_hook -native If`), `…_swap_the_analyser_hook` (`source`'s `Source` against `Rename`), `…_swap_the_semantic_operation` (`puts`'s `Intrinsic(ChannelWrite)` against `Invoke`), `…_swap_the_state_transitions` (`join`'s descriptor against a restated one, compared by `Debug` since the type has no `PartialEq`), `…_drop_the_native_lowering` (`break`) and `…_drop_the_bpf_op` (the `bpf` dialect's `pass`); the last two fields have no loader statement, so their rows lose them the only way a pack can, by replacing the command and saying nothing (D6.5). Two registry unit tests: `the_floor_takes_the_shipped_codegen_and_dispatch_axis` (all six, on a hand-built shipped spec) and `the_floor_adds_nothing_the_shipped_command_lacks` (the negative: a shipped command with none of the six leaves an override's own value alone, the registry-level twin of the unchanged `the_floor_does_not_invent_facts_for_a_new_command`). A mutation check — the six `take_shipped` lines commented out — fails all six integration rows and the unit test, and dropping `"bpf_op"` from `MERGED_FIELDS` fails the field scan. Nothing existing moved: no shipped or bundled pack overrides a command, and every test that installs an override passes unmodified. Gates: `cargo test -p tcl-spectcl --test i6_security_floor` (8, was 2), `-p tcl-registry` (lib 943, was 941, and every binary) and `-p tcl-spectcl` (lib 192 and every binary, `workspace_packs`, `codegen_stamps`, `golden_packs` included), `-p tcl-spec-studio` (lib 199 and every binary) and `-p tcl-mcp` (114); `cargo check --workspace --all-targets`; clippy (`-p tcl-registry -p tcl-spectcl --all-targets --no-deps -- -D warnings`) and `cargo fmt` clean; `registry-axes --check` (7831 / 16 / 36 / 893 across 147, unchanged), `value-transfers --check` (22 / 19 / 83 across 34, 6607 rows), `pack-goldens --check` (25), `retired-api-gate`, `owner-resolution` (45), `kcs-index-links` green, `dialect-drift` at its 8. Docs: `spec-packs.md` § *Workspace trust* floor sentence, the design page's rule 4 (now built for the six, `runtime_backing` step 7's) with its status box, the BPF bullet's tense and the anchors, and the pack howto `docs/kcs/kcs-howto-write-a-tclspec-pack.md` (an override keeps the shipped taint facts and compiler-side identity, silently). D6.4, D6.5 |
 | CC6.2 `DependencyTier` and `CodegenCapability` | landed | `wip(consumer-contracts): step 6 — the dependency-tier capability matrix` | **The types.** `rust/tcl-dialect/src/model/environment.rs`: `DependencyTier` (`Root`, `Direct`, `Transitive`, `Development`, with `label`) beside `Provenance` and `WorkspaceTrust`, exported from `tcl_dialect::model` (D6.7). `rust/tcl-registry/src/model/capability.rs` (new): `CodegenCapability { tier, codegen_stamps, runtime_backing, builtin_alias, reference_body }` with `for_tier`, the page's matrix (`Root` everything; `Direct` a backing and an alias, no stamp, no body; `Transitive` and `Development` nothing), `DependencyTier` re-exported, and `ReferenceBodies { Forbidden, AnySource }` for the fourth field (D6.10). **The model crate.** `rust/tcl-pkg-model` (new workspace member): `errors.rs`, `json.rs`, `version.rs`, `manifest.rs` and `lockfile.rs` move from `tcl-pkg` with `git mv`, `tcl-pkg` re-exports the five (its own modules and `tcl-cli` keep their paths, as for `tcl-userdirs`), `LockFile::stamp`, the model's one use of the clock, becomes `tcl_pkg::stamp_lockfile` so the model has no `chrono`, `LockedPackage::required_names` is new, and `tier.rs` (new) is `dependency_tier(root_manifest, lockfile, package) -> Option<DependencyTier>` (D6.6, D6.8). The plan's `tcl-pkg` dependency was measured first and refused: `cargo tree` puts 33 more crates in the server's build (39 in the Explorer's and the Studio's) — `ureq`, `rustls`, `zip`, `tar`, `tcl-sandbox` among them — and `cargo check --target wasm32-unknown-unknown -p tcl-sandbox` fails (`wait-timeout` builds for `unix` and `windows` only), which would break `tcl-lsp-server-wasm`, `tcl-lsp-server-wasi`, `tcl-explorer-wasm` and `tcl-spec-studio-wasm` without `cargo check --workspace` seeing it, since none is a workspace member; the layout rules also keep a developer-tool crate out of the pack loader's graph. **Discovery.** `PackFile::dependency_tier: Option<DependencyTier>` (the last field, so the sort is unchanged; the 31 `PackFile` literals in nine crates' sources and tests gain `dependency_tier: None`), set by `discovery::assign_dependency_tiers` for the files of `Origin::BesideManifest` only. A file's package is the one whose manifest is nearest above it; the project root is the *outermost* directory inside the workspace folder holding both a `tclpkg.tcl` and a `tclpkg.lock` — not the plan's nearest, because an installed dependency's directory can hold a pair of its own and the nearest pair would let it name itself the root of its own graph; the package is `Root` when its directory is the project root, and otherwise the tier is `dependency_tier` of the project's manifest and lockfile for the package the manifest beside the file names. No lockfile, an unlisted package and a file that does not read leave `None` (D6.8). Read through the `SourceStore`, like the packs, so a browser host places its packs the same way. **The loader.** `PackCommand::dependency_tier`, set by the merge beside `file`; `pack::set_key` mixes each file's tier (a package moving in the graph is as much a change as an edit, or the cached registry would keep the old answer); `stamps.rs`: `RefusalReason::Capability(tier)` — a stamp must pass the provenance gate and then the capability gate (`stamps_admitted`, `capability_admits_stamps`), the provenance the reason named when both refuse — and the second gate for the two declarations, `Declaration` (`AliasOf`, `RuntimeBacking`), `DeclarationRefusal`, `declaration_refusals` and `admit_declarations`, run in `pack::load_sources` after the stamp rule so rule 1 still reads `alias_of`; each refusal is a warning on the command's row naming the tier ("`alias_of lassign` refused for `dep::unpack`: a transitive dependency's pack may not declare `alias_of`; only the workspace's own package and its direct dependencies may"), and only the declaration goes. The strip is memoised on the spec's address and a `Drops` set (stamps, `alias_of`, `runtime_backing`); `install_into`'s assertion asks both gates; `stamp_refusals` gains the tier parameter, and the Studio's and `spectcl_check`'s previews pass `None` (D6.9). Tests: `rust/tcl-pkg-model/src/tier.rs` (6): `a_package_the_root_requires_is_direct`, `a_package_reached_only_through_another_is_transitive`, `a_package_named_only_in_dev_require_is_development`, `a_regular_route_outranks_a_development_one`, `a_stale_entry_is_transitive_and_an_unlisted_package_has_no_tier` and `a_cycle_in_the_lockfile_terminates`. `rust/tcl-registry/src/model/capability.rs` (3): `the_matrix_is_the_pages` (every tier's row, cell by cell), `a_capability_names_its_own_tier` and `distance_never_widens_a_capability` (down the order a tier keeps or loses a right, never gains one). `rust/tcl-spectcl/src/discovery.rs` (6): `a_packs_package_is_placed_by_the_lockfiles_graph`, `no_lockfile_and_no_listing_mean_no_tier`, `a_dependency_shipping_its_own_lockfile_does_not_become_a_root` (the outermost-pair rule), `only_a_pack_beside_a_manifest_has_a_tier`, `an_unreadable_manifest_or_lockfile_leaves_no_tier` and `a_host_filled_store_places_its_packs_too` (an in-memory `SourceStore`, no disk). `rust/tcl-spectcl/src/stamps.rs` (7): `the_capability_gate_refuses_a_stamp_the_provenance_gate_admits`, `a_stamp_must_pass_both_gates`, `the_matrix_decides_which_declarations_a_command_may_keep`, `the_remedy_names_the_tiers_the_matrix_permits`, `a_refusal_names_the_declaration_the_command_and_the_tier`, `a_dropped_declaration_costs_no_other_fact` and `a_repeated_declaration_refusal_reuses_its_stripped_spec`. `rust/tcl-spectcl/tests/workspace_packs.rs` (4 new, 14 in all, was 10): the plan's `a_transitive_dependencys_alias_of_is_dropped` and `a_direct_dependency_keeps_alias_of_but_not_a_stamp` (its negative half loads the workspace's own package, `Root`, which keeps both declarations and loses the stamp to the provenance gate alone), `a_package_moving_in_the_graph_changes_what_its_pack_loads` (the lockfile edited between two loads; the set's key moves with it) and `a_pack_no_package_ships_is_not_narrowed`. `rust/tcl-lsp-server/src/lib.rs` (1): `a_manifest_or_lockfile_change_reloads_the_packs` (D6.11). **Mutation checks** (19, each one line or arm changed, the tests that must fail named beforehand; in 18 every named test failed, and the exception is the graph-walk mutation under `tier.rs`). `tier.rs`: a root requirement no longer `Direct`, a development requirement outranking a regular route, development reachability dropped and an unlisted package given a tier each fail their own test; the graph walk following no edge fails the two development tests and *not* the transitive test named for it, which cannot tell a package the walk reaches from one merely listed, since both are `Transitive` (D6.8): the transitive test pins the answer and the two development tests pin the walk. `capability.rs`: a direct dependency permitted a stamp fails `the_matrix_is_the_pages`; a transitive tier given a direct one's rights fails it and `distance_never_widens_a_capability`. `discovery.rs`: no tier assigned fails all six discovery tests; the nearest rather than the outermost project root fails `a_dependency_shipping_its_own_lockfile_does_not_become_a_root` alone; every origin placed fails `only_a_pack_beside_a_manifest_has_a_tier` alone. `stamps.rs`: the capability gate admitting every stamp fails the two stamp tests; refusing no declaration fails four; the stamp rule ignoring the command's tier fails `the_capability_gate_refuses_a_stamp_the_provenance_gate_admits` alone; an alias always permitted fails five. `pack.rs`: the merge not recording the tier fails `a_transitive_dependencys_alias_of_is_dropped` and `a_package_moving_in_the_graph_changes_what_its_pack_loads`; the key ignoring the tier fails the second alone; the load never running the declaration gate fails both. The server: `partition_watched_file_changes` no longer flagging a manifest or lockfile, and `is_package_metadata_file` forgetting the lockfile, each fail `a_manifest_or_lockfile_change_reloads_the_packs`. Nothing existing moved: no test expectation changed. `Cargo.lock` gains `tcl-pkg-model` and `tcl-pkg` loses `regex`, `tcl-lexer` and `tcl-syntax`; the shard table gains the new crate's lib row (329 targets, `verify-nextest-binary-shards.py` passing). Gates: `cargo test -p tcl-pkg-model` (39: the six new and the 33 that moved), `-p tcl-pkg` (lib 53, was 86 before the 33 moved out, and `manifest_env_drift` 2), `-p tcl-cli-support` (19), `-p tcl-registry` (lib 949, was 946, and every binary), `-p tcl-spectcl` (lib 210, was 197; `workspace_packs` 14, was 10; `codegen_stamps` 7, `i6_security_floor` 10, `golden_packs` 3, `spec_corpus` 5, `workspace_trust` 7 and every other binary), `-p tcl-spec-studio` (lib 199 and every binary), `-p tcl-mcp` (114), `-p tcl-lsp-db` (lib 103 and every binary), `-p tcl-lsp-core` (lib 2350), `-p tcl-dialect` (lib 153), `-p tcl-compiler` (lib 6546, `analyser` 505, `cfg` 17, `value_transfer_witnesses` 64, `codegen` 164), `-p tcl-lsp-server --lib` (595, was 594), `-p tcl-cli` (lib 27, `cli` 50, `compile_verbs` 11, `explorer_gui` 2, `pkg_verbs` 13, `spec_verbs` 18, `value_transfers_cli` 8) and `-p xtask` (237); `cargo check --workspace --all-targets`, `cargo clippy --workspace --all-targets -- -D warnings` and `cargo fmt --all -- --check` clean, no new `#[allow]`; `registry-axes --check` (7831 / 16 / 36 / 893 across 147, unchanged), `value-transfers --check` (22 / 19 / 83 across 34, 6607 rows, unchanged), `pack-goldens --check` (25), `command-backing --check` (389), `retired-api-gate` and `owner-resolution` (45) OK, `kcs-index-links` green, `dialect-drift` at its 8 sites. Docs: `spec-packs.md` (the workspace-trust section's second gate), the design page (the status paragraph and both not-built lists, rule 2, the packages table's tier row, the capability code block with `ReferenceBodies`, the composition paragraph with the outermost-lockfile rule and its binding residual, the anchors), `docs/GLOSSARY.md` (*Dependency tier and codegen capability*, and its index row), `docs/kcs/kcs-qa-why-was-a-declaration-dropped-from-my-dependencys-pack.md` (new, indexed in `docs/kcs/README.md`), `docs/kcs/kcs-howto-write-a-tclspec-pack.md`, `project-layout.md` (the model crate beside `tcl-userdirs`), `tclpkg/architecture.md`, `tclpkg-contracts.md` and `spec-dsl-examples/README.md`. Deviations: the model crate, not `tcl-pkg` (D6.6); `DependencyTier` in `tcl-dialect`, not `tcl-pkg` (D6.7); the outermost lockfile, not the nearest (D6.8); `ReferenceBodies`, not `Option<BodySource>` (D6.10); a server reload trigger beyond the plan's files (D6.11). D6.6–D6.11 |
+| CC6.3 the overlay reaches the compile service; a miss fails closed | landed | `wip(consumer-contracts): step 6 — overlay misses fail closed` | **The door.** `rust/tcl-registry/src/model/assembly.rs`: `OverlayMiss { environment, overlay }` (`Display`, `Error`, exported from `tcl_registry::model`), and `registry_for_environment_if_built` returns `Result<Arc<ContextRegistry>, OverlayMiss>`; `ingress.rs`: `DocumentEnvironment::context_registry` returns the same, `plain_context_registry` is new and infallible (overlay `0` cannot miss) and `default_context_registry` goes through it, so nothing around the overlay lookup falls back (`grep unwrap_or` in `ingress.rs` finds the environment-name resolution, the library-version override and one test helper, none on the overlay lookup); `cache.rs`'s docs say the door's callers answer a miss themselves. **The consumers** (D6.12) are told apart by what a wrong answer costs. *Advising* consumers read the plain generation by a door named for it: the analyser's three overlay reads go through `environment_ingress::analysis_registry` and its per-item walk through `plain_context_registry`, and the two semantic-token queries through `token_registry` in `tcl-lsp-db`. *Compiling* consumers decline. `BytecodeCompileService` gains `RegistryTarget::Overlay { profile, overlay }` and `for_profile_with_overlay(profile, overlay) -> Result<Self, OverlayMiss>` (overlay `0` is `for_profile`): the generation is looked up again for every compile, every entry point returns a `CompileError` naming the overlay when it is gone, an explicit-profile compile looks the service's overlay up for the profile asked for, and `RegistryTarget::registry` and `registry_for_profile` return `Result` with a `?` at the four compile paths (D6.16). In `tcl-lsp-db`, `TclDb::registry_with_overlay` returns `Result`, `compilation_unit` and `proc_taint_solve` return `Option`, `compiler_check_diagnostics` answers no checks and no optimisations, `file_analysis_incremental` supplies no override, and `document_compilation_unit_for` is an `Option`; the abstention reads the overlay epoch — `tcl_registry::overlay_epoch` (`cache.rs`: it moves when an overlay generation is installed or a sweep retires one), mirrored as the salsa input `tcl_lsp_db::OverlayEpoch` that `unit_registry` reads for every non-zero overlay and the host moves with `set_overlay_epoch` (the server does, beside its key publish, in `sync_overlay_epoch`) — so an overlay installed later is found when the epoch moves, by the unit and by everything that read it; a first design that called salsa's `report_untracked_read` instead was measured to re-run the unit and leave the analysis on its memoised answer, and was replaced (D6.14). Each distinct miss is recorded once (`take_overlay_misses`) and reported by the server (`report_overlay_misses`, on stderr with its worker faults). The database holds the generations its queries resolve (`OverlayGenerations`, 64, process-wide) so a per-procedure query, which reads `nested_registry`, finds the generation its unit started with when the process cache retires the key (D6.15). The server's other change is `.flatten()` on the unit handle. **The plan's server file did not apply**: `optimise_document_command` builds no compile service, because it has none — it hands `optimise_under_policy` the registry `registry_for_dialect` installs the overlay into, which cannot miss (D6.13); the exit evidence for it is the two existing e2e tests that run the optimiser under a workspace pack, run here and green. Tests: `rust/tcl-registry/src/model/ingress.rs` `an_uninstalled_overlay_is_an_error_not_the_plain_generation` (the plan's; the old test's fallback half is its inversion, and `context_registries_carry_the_expected_stores` keeps the rest); `rust/tcl-compiler/src/compile_service.rs` (3) `a_service_for_an_uninstalled_overlay_is_not_built`, `a_service_over_an_installed_overlay_compiles_its_commands` (an overlay-only command is a known binding to the service and unknown to the plain one, for its own profile and another release's) and `a_service_whose_overlay_is_gone_declines_every_compile` (all eight compile entries); `environment_ingress.rs` `an_analysis_reads_the_plain_generation_until_its_overlay_installs`; `rust/tcl-lsp-db/tests/dialect_seam.rs` (2) `the_compilation_unit_sees_the_packs_commands` (the plan's: a real pack's `VarWrite` roles define `a` in the unit; the key set to `0`, the unit is rebuilt without it; set back, it sees it again) and `the_analysis_reads_the_packs_once_they_install`; `rust/tcl-lsp-db/tests/overlay_generations.rs` (new binary, 4, serialised because one of them fills the process caches) `an_uninstalled_overlay_yields_no_unit_and_no_findings` (with a control that the same document has a unit and rewrites under no overlay, and one record for two queries that missed), `an_abstention_runs_again_once_the_overlay_is_installed` (the unit and the checks and rewrites that read it, after the epoch moves and not before), `the_token_query_reads_the_plain_registry_for_a_miss` and `a_retired_generation_still_serves_the_queries_that_resolved_it`; `rust/tcl-registry/src/cache.rs` `installing_and_retiring_an_overlay_moves_the_epoch`; `rust/tcl-spectcl/tests/codegen_stamps.rs` `a_service_for_the_packs_overlay_compiles_against_the_generation_they_installed` (a real pack through the door: the alias site and the fold claim their pack facts and stamp the overlay generation, as the owned projection's do; a key nothing installed builds no service; a service for `tcl9.0`'s pack declines a compile for `tcl8.6`); `rust/tcl-lsp-server/src/lib.rs` (2) `an_overlay_miss_is_reported_with_its_key_and_what_waits` and `syncing_the_overlay_epoch_lets_an_abstained_unit_build`. **Mutation checks** (18, each one line or arm changed and the tests that must fail named beforehand, run over the final tree; in 14 exactly the named tests failed and in four — G5, H1, H4 and H6 — others failed as well, as listed). `ingress.rs`: the door answering a miss with the plain generation (F1) fails `an_uninstalled_overlay_is_an_error_not_the_plain_generation`. `environment_ingress.rs`: the analysis door with no fallback (G1) fails `an_analysis_reads_the_plain_generation_until_its_overlay_installs`. `compile_service.rs`: the service's default registry (G2) and its per-profile registry (G3) each falling back to the plain generation fail `a_service_whose_overlay_is_gone_declines_every_compile`; a service built over an overlay nothing installed (G4) fails `a_service_for_an_uninstalled_overlay_is_not_built`; the service looking overlay `0` up whatever its key (G5) fails all three service tests; a per-profile compile using the service's own profile instead of the one asked for (G6) fails `a_service_for_the_packs_overlay_compiles_against_the_generation_they_installed`. `tcl-lsp-db`: the unit falling back to the plain registry on a miss (H1) fails `an_uninstalled_overlay_yields_no_unit_and_no_findings` and `an_abstention_runs_again_once_the_overlay_is_installed`; an overlay lookup that reads no epoch (H2) fails the second and `the_analysis_reads_the_packs_once_they_install`; the database holding no generations (H3) fails `a_retired_generation_still_serves_the_queries_that_resolved_it`; every miss recorded again (H4) fails the first and `the_token_query_reads_the_plain_registry_for_a_miss`; the token query with no plain fallback (H5) fails its own test; the unit ignoring the overlay (H6) fails `the_compilation_unit_sees_the_packs_commands`, `an_uninstalled_overlay_yields_no_unit_and_no_findings` and three more; an epoch written whether or not it moved (E1) fails `an_abstention_runs_again_once_the_overlay_is_installed`. `cache.rs`: an install that does not move the epoch (R1) and a sweep that does not (R2) each fail `installing_and_retiring_an_overlay_moves_the_epoch`. The server: not syncing the epoch after a reload (S1) fails `syncing_the_overlay_epoch_lets_an_abstained_unit_build`, and a miss report that omits what waits (I1) fails `an_overlay_miss_is_reported_with_its_key_and_what_waits`. The first design of the abstention, salsa's `report_untracked_read`, is not among them: it was measured wrong before these were written (D6.14). Moved: `assembly.rs`'s `pack_overlays_thread_through_the_generation_door` asserts the `OverlayMiss` value where it asserted `is_none()`; `context_registries_carry_the_expected_stores` (`ingress.rs`) and its twin in `environment_ingress.rs` lose the fallback assertion (the named tests are its inversion); `spec_corpus.rs` (2) and the lib tests of `tcl-lsp-db` and `compile_service.rs` take an `.expect` where the door became fallible, `value_transfer_parity.rs` reads its units through `installed_unit`; the shard table gains `tcl-lsp-db::overlay_generations`. Gates: `cargo test -p tcl-registry` (lib 951, was 949; 1281 with every binary and the doctest), `-p tcl-compiler` (lib 6550, was 6546; all 66 integration binaries, 3271 tests, `analyser` 505, `cfg` 17, `codegen` 164, `value_transfer_witnesses` 64, `wasm_real_link` 13 and `wasm_tiers` 7 among them), `-p tcl-lsp-db` (lib 103; `dialect_seam` 5, was 3; `overlay_generations` 4, new; 135 in all), `-p tcl-spectcl` (lib 210; `codegen_stamps` 8, was 7; `i6_security_floor` 10; `workspace_packs` 14; `spec_corpus` 5; 365 in all), `-p tcl-lsp-server` (lib 597, was 595; `e2e` 1600, `preview_tickets_e2e` 24, `smoke` 14, `stdio_deadlock` 6), `-p tcl-mcp` (114) and `-p tcl-lsp-core --lib` (2350) green; `cargo check --workspace --all-targets`, `cargo clippy --workspace --all-targets -- -D warnings` and `cargo fmt --all -- --check` clean, no new `#[allow]`; `registry-axes --check` (7831 / 16 / 36 / 893 across 147, unchanged), `value-transfers --check` (22 / 19 / 83 across 34, 6607 rows, unchanged), `pack-goldens --check` (25), `command-backing --check` (389), `retired-api-gate`, `owner-resolution` (45) and `kcs-index-links` green, `dialect-drift` at its 8 sites (`compile_service.rs`'s `LexerConfig::default()` moved from line 125 to 165), and `verify-nextest-binary-shards.py --partition-count 5 --metadata-only` proves 330 targets (`tcl-lsp-db::overlay_generations` is the one new row). Docs: the design page (the *Codegen and the registry today* bullet on the overlay, the runtime-pin bullet, the plumbing-gap row for the shared compilation unit, the file-path and test anchors), `dialect-and-package-registry-centralisation.md` (its F7 row goes, the fail-closed overlay row joins its tests, and the not-built sentence loses it), `value-evaluation.md` (a unit is not built against a fallback), `kcs-qa-is-the-command-registry-fixed-at-compile-time.md` (a miss is an `OverlayMiss` and what each consumer does with it). Deviations: the server file of the plan (D6.13); the analysis-versus-compile split of what the door's callers do with the error (D6.12); the overlay epoch, the generation holder and the once-only record with its stderr report, none in the plan, each what "diagnostic-free abstention, logged once" needs to hold when a query runs again (D6.14, D6.15). D6.12–D6.16 |
 
 ### CC6.1 — what the next items read
 
@@ -1312,7 +1313,7 @@ and CC6.3, each its own checkpoint.
 ### CC6.2 — what the next items read
 
 - **For CC6.3.** Nothing in the item touches the overlay. The compile
-  service's `LexerConfig::default()` (`compile_service.rs:125`) is still one
+  service's `LexerConfig::default()` (`compile_service.rs:165`) is still one
   of the eight `dialect-drift` sites.
 - **For CC7.2 (the backing query).** A `runtime_backing` from a transitive or
   development dependency's pack never reaches a spec: the load drops it, with
@@ -1348,8 +1349,55 @@ and CC6.3, each its own checkpoint.
   every other; no lib test this item adds loads a pack, so it looks like an
   older race with a test that loads one without the cache lock.
 
+### CC6.3 — what the next items read
+
+- **For a host that compiles bytecode against a workspace's packs.**
+  `BytecodeCompileService::for_profile_with_overlay(profile, key)` is the door,
+  with `key` the `PackSet::key` the packs were installed under. The packs have to
+  be installed for each profile the service is asked to compile for, and the
+  service declines a compile for one they are not installed for (D6.16). No
+  shipped host uses the door yet (D6.13): `tcl-engine-tclvm`'s `with_registry`
+  takes an owned registry, which is what `codegen_stamps.rs`'s first service test
+  still compiles through.
+- **For CC7.5's runtime context pin.** The pin's overlay generation is looked up
+  at `DocumentEnvironment::context_registry`, and a miss is an `OverlayMiss` to
+  take as an error, as the plan says. `analysis_registry` is for what advises and
+  runs again, and a pin is neither.
+- **For a new query in `tcl-lsp-db` that reads an overlay registry.** A query
+  that builds a unit resolves through `unit_registry` at its top, which reads
+  the `OverlayEpoch` input, and abstains through `abstain` on a miss (D6.14); a
+  per-procedure query reads `nested_registry` (D6.15). Do not put a plain
+  fallback below the unit query: the result would be memoised under the pack's
+  key. A host that installs an overlay after a query has missed on it moves the
+  epoch with `set_overlay_epoch(db, tcl_registry::overlay_epoch())`.
+- **For a caller of the unit queries.** `document_compilation_unit_for` and
+  `compilation_unit` answer `None` when the packs are not installed; the server's
+  handle flattens it, and the tests that install their overlay first `.expect`
+  it. `document_compilation_unit` (no overlay) still answers an `Arc`.
+- **Reported, not fixed.** In the window a miss leaves, the analyser's own
+  CFG/SSA tail builds a unit against the plain registry, because the shared unit
+  query declined to build one; that analysis is corrected when the host moves
+  the overlay epoch, which runs the unit query again and so the analysis that
+  reads it. The server's line for a miss goes to stderr, where its worker faults
+  already go, not to `window/logMessage`. `OverlayGenerations` is first in first
+  out, not least recently used; with 64 entries and one per
+  `(environment, overlay)` the difference is not reachable. The compile
+  service's `LexerConfig::default()`, one of the eight `dialect-drift` sites,
+  moved to `compile_service.rs:165` with this item's additions, and the two
+  earlier notes that cite its line are updated.
+
 ### Behavioural deltas accepted in step 6
 
+- CC6.3: a pack overlay nothing has installed no longer gives the editor a
+  compilation unit built against the plain registry. Until the packs are
+  installed for the document's dialect, the compiler checks and the optimiser's
+  hints for a document under that key are absent, the miss is logged once on
+  the server's stderr, and analysis and highlighting read the plain registry as
+  they did. The server installs the overlay before it publishes the key, so the
+  window is a reload racing a pass at the superseded key; with the packs
+  installed nothing changes. `BytecodeCompileService::for_profile_with_overlay`
+  is new, and no shipped host builds one; a compile through it for a generation
+  that is not installed is a `CompileError`, not a plain compile.
 - CC6.2: a `.tclspec` beside a `tclpkg.tcl` whose package a `tclpkg.lock`
   lists as a transitive or development dependency loses its commands'
   `alias_of` and `runtime_backing` at load, each with a warning on the
@@ -4814,6 +4862,105 @@ everything else in this lane is independent of both.
   the source watcher already reports, and it stays an indexed Tcl source; the
   lockfile gets a watcher of its own (`**/tclpkg.lock`). Both set the pack
   reload flag `partition_watched_file_changes` already had.
+- **D6.12** The overlay miss is answered by each consumer of the door, not by
+  the door. The plan: `context_registry` and `registry_for_environment_if_built`
+  return `Result<Arc<ContextRegistry>, OverlayMiss>`, and the test at
+  `ingress.rs:796` is inverted — done, as `an_uninstalled_overlay_is_an_error_not_the_plain_generation`
+  (the old test's first half stays as `context_registries_carry_the_expected_stores`),
+  and `plain_context_registry` is the new infallible door for overlay `0`. What
+  the plan did not say is what each caller does with the error, and they are not
+  alike. What produces something a host compiles or a user is offered as an
+  edit — the compile service, `compilation_unit` and the checks and rewrites
+  built on it — declines (D6.14, D6.16). What only advises and runs again when
+  the packs arrive — the analyser's three overlay reads (`analysis_context`,
+  `resolve_walk_environment`, the incremental re-analysis) and the two
+  semantic-token queries — reads the plain generation through a door named for
+  it (`environment_ingress::analysis_registry`, `token_registry` in `tcl-lsp-db`),
+  so no `unwrap_or` sits at the ingress and the fallback survives only where it
+  is right. The line is drawn by what a wrong answer costs: a diagnostic pass
+  without the packs is corrected by the re-analysis a reload triggers (the e2e
+  `the_bundled_eda_loadables_make_their_vendor_commands_known` waits for
+  exactly that settle), while a unit built without them is memoised under the
+  pack's key and is where the optimiser's rewrites come from. The analysis
+  re-runs when the overlay epoch moves because `file_analysis_incremental` reads
+  the unit query, which reads it (`the_analysis_reads_the_packs_once_they_install`).
+- **D6.13** The server's optimise path builds no compile service. The plan's
+  Files list has `optimise_document_command` build the service with
+  `spec_pack_key`; there is no service there to build. The command hands
+  `core_report::optimise_under_policy` the registry `Backend::registry_for_dialect`
+  returns, which installs the workspace's overlay itself
+  (`registry_for_dialect_with_packs`) and so cannot miss, and the language
+  server compiles no bytecode (the design page's words since D4.20). So the
+  item delivers the door — `RegistryTarget::Overlay`,
+  `BytecodeCompileService::for_profile_with_overlay` — with its tests through a
+  real pack in `codegen_stamps.rs`, and the exit evidence "the server's optimise
+  path compiles under the workspace overlay" is the two e2e tests that already
+  ran it, `a_pack_const_fold_body_folds_a_call_site_in_the_optimiser` and its
+  negative `without_the_pack_the_same_call_site_does_not_fold`
+  (`rust/tcl-lsp-server/tests/e2e/spec_packs.rs`), run and green. No shipped host
+  builds a service through the door: the `tclvm` engine takes an owned
+  registry and the debugger the profile's shared generation. The server's
+  changes are at the two ends of the unit query: the handle takes `None` from
+  `document_compilation_unit_for`, the compiler-checks pass reports each
+  recorded miss, and a pack reload moves the overlay epoch beside its key
+  publish (D6.14).
+- **D6.14** How `compilation_unit` abstains, and how it is asked again. It
+  returns `Option<Arc<CompilationUnit>>`; `proc_taint_solve` returns an `Option`
+  too; `compiler_check_diagnostics` answers no checks and no optimisations;
+  `file_analysis_incremental` supplies no override, and the analyser builds its
+  own against the registry it reads; `document_compilation_unit_for` is an
+  `Option`, and `document_compilation_unit` (no overlay, so no miss) keeps its
+  `Arc`. The abstaining path reads nothing an installation of the packs moves,
+  so it would stand for every revision that leaves `(file, cfg, overlay)`
+  alone. The first design made it volatile with salsa's `report_untracked_read`
+  and was measured wrong: the query itself ran again at the next revision, but
+  a re-executed volatile query whose value changed keeps its old `changed_at`,
+  so `file_analysis_incremental` and everything else that had read the `None`
+  stayed on the answer memoised without the packs — an analysis of a pack
+  command stayed a W123 after the overlay was installed and a revision ran. So
+  the overlay is an input, as the evaluator epoch is (D104):
+  `tcl_registry::overlay_epoch` moves whenever an overlay generation is
+  installed and whenever a sweep retires one, `tcl_lsp_db::OverlayEpoch` is
+  the salsa input that mirrors it, `unit_registry` reads it for every non-zero
+  overlay, and a host installs the packs and then moves it with
+  `set_overlay_epoch` — the server does, beside its key publish
+  (`sync_overlay_epoch`). Compare-then-set, so a sync that finds nothing moved
+  invalidates nothing, and everything that resolved an overlay — the unit, its
+  per-procedure queries, the analysis and the tokens that read it — depends on
+  it at any depth (`an_abstention_runs_again_once_the_overlay_is_installed`,
+  `the_analysis_reads_the_packs_once_they_install`,
+  `syncing_the_overlay_epoch_lets_an_abstained_unit_build`). Until the epoch
+  moves the abstention stands: a database cannot see the cache change, only its
+  inputs. "Logged once": `tcl-lsp-db` has no logger, and the server sends a
+  worker's faults to stderr with `eprintln!`, so the database records each
+  distinct `(environment, overlay)` miss once in a process-wide log,
+  `take_overlay_misses`, and `compute_compiler_diags` reports what it finds.
+- **D6.15** The queries hold the overlay generations they resolve (beyond the
+  plan). A unit is built by per-procedure queries that each look the registry up
+  again, and the process cache retires overlay generations past 64 entries,
+  keeping only the key being built — so a reload that lands while a pass at the
+  superseded key is running would hand the per-procedure queries a miss the unit
+  never saw. `OverlayGenerations` (64 entries, first in first out, process-wide)
+  keeps what `registry_with_overlay` resolved and answers from it first; a
+  generation is content-addressed by its key, so serving one the cache has
+  dropped is never stale (`a_retired_generation_still_serves_the_queries_that_resolved_it`).
+  It is process-wide because the cache it backs up is, and because the crate's
+  tests build `TclDatabase { storage }` by literal at 21 sites. The per-procedure
+  queries read it through `nested_registry`, which stops with the miss in its
+  message for a key no unit query resolved — a caller error no production path
+  reaches, since a per-procedure query runs only inside a unit or a
+  re-verification of one. The alternative, a plain registry inside a memoised
+  per-procedure query, would put a lattice computed without the packs under the
+  pack's key, which is the fault the item removes.
+- **D6.16** `BytecodeCompileService::for_profile_with_overlay` returns
+  `Result<Self, OverlayMiss>` and looks the generation up again at every
+  compile. A built service can outlive its generation, and a compile through it
+  then declines with a `CompileError` naming the overlay, on every compile entry,
+  instead of compiling plain. A compile for another profile than the service's
+  uses the service's overlay for the profile asked for: the packs are installed
+  per profile, so a service for `tcl9.0` asked to compile for `tcl8.6` finds no
+  generation and declines. Overlay `0` is `for_profile`. `RegistryTarget::registry`
+  and `registry_for_profile` return `Result`, and the four compile paths take `?`.
 - **D7.1** `HANDLER_EXTRA`, `STDLIB`, `NOT_REQUIRED` become
   `runtime_backing` rows; `KNOWN_UNBACKED` stays as the drift waiver;
   `xtask` links `tcl-runtime` and `tcl-vm` to ask `backing_report()`.

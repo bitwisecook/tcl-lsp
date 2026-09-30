@@ -55,6 +55,7 @@
 2	tcl-lsp-core::semantic_tokens	test	tcl-lsp-core	semantic_tokens
 2	tcl-lsp-db::compiler_check_corpus	test	tcl-lsp-db	compiler_check_corpus
 2	tcl-lsp-db::dialect_seam	test	tcl-lsp-db	dialect_seam
+2	tcl-lsp-db::overlay_generations	test	tcl-lsp-db	overlay_generations
 2	tcl-pkg	lib	tcl-pkg	tcl_pkg
 2	tcl-pkg-model	lib	tcl-pkg-model	tcl_pkg_model
 2	tcl-regex::collating_names_oracle	test	tcl-regex	collating_names_oracle

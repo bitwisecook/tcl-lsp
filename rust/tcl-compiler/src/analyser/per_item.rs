@@ -531,11 +531,10 @@ impl Analyser {
             self.environment
                 .as_ref()
                 .expect("resolved at the top of per_item_setup")
-                .context_registry(
+                .plain_context_registry(
                     &crate::environment_ingress::DocumentEnvironment::keyed_versions(
                         &self.library_versions,
                     ),
-                    0,
                 )
                 .commands(),
         ));

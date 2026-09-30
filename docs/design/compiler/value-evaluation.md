@@ -1347,8 +1347,8 @@ overlay too, so a procedure body lowers against the unit's own surface.
 construction and at every mutation) and `overlay_generation` (stamped by
 `registry_for_profile_with_overlay`) both reach `AnalysisContextKey::for_module`
 from the registry the unit resolved against, so a unit built against an
-overlay — or against the un-overlaid fallback of one not built yet — keys
-every lattice by exactly that registry. Left open by this alone: a
+overlay keys every lattice by exactly that registry; an overlay not installed
+yet builds no unit at all. Left open by this alone: a
 worker's thread-local `EvaluatorGeneration` (D94) is deliberately *not*
 a salsa input — `compilation_unit` is memoised on its inputs, and a
 generation is not one, so a unit built on one worker is served to another
