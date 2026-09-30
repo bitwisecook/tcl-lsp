@@ -5846,6 +5846,26 @@ rewritten), `retired-api-gate`, `owner-resolution` (45 rows) and
 `kcs-index-links` pass; `dialect-drift` 8 sites, none new; `cargo check
 --workspace --all-targets` clean.
 
+| Item | Commit | What landed | Its tests |
+|---|---|---|---|
+| VT6.7 | `wip(value-transfers): slice 6 — W240 and W241 from the loop header's branch fact` | The walk queues each conditional loop it examines instead of reporting it (D186): `loop_termination_candidate` (`bounds_checks.rs`; `loop_termination_diagnostics` stays as a test-only wrapper over the text's verdict) yields a `LoopTerminationCandidate { cmd_name, condition_span, lexical, body_may_exit }`, `lexical` a `LexicalVerdict` (`Dead`, `Infinite(reason)`, `Unprovable(variable)`, `Silent`), and `emit_bounds_family_diagnostics` (`commands.rs`) pushes it on `Analyser::loop_candidates` (`state.rs`, cleared with the run's other queues). The per-function pass resolves the queue in `emit_branch_fact_diagnostics` (`analyser/diagnostics/dataflow.rs`, beside I230 and I231; `resolve_loop_terminations`): `header_fact` reads the unit's `Applied` branch fact at the condition word's span — false is `HeaderFact::Never`, true is `Always { exits }`, `exits` from `loop_exit_is_executable` (the loop's end block executable, which a `break` makes so, or an executable path from the body's first block to a `return` terminator) — and `LoopTerminationCandidate::resolve` reports W240 for `Never`, W241 for `Always { exits: false }` when the body's text holds no exit command either (`body_may_exit`, for the `break` inside a `catch` body the CFG does not lower), and nothing for any other `Always`; each decided verdict replaces the lexical W242. A loop no unit decides stays queued and `flush_loop_terminations`, called after `emit_cfg_ssa_diagnostics` in `run_diagnostic_emitters`, reports it as its text says, so a parameter bound, a stub-declared loop the CFG keeps as a call, a loop inside an opaque `catch` body and a complexity-guarded body draw what they drew. The incremental path carries the queue: `BodyFragment.loop_candidates` (`per_item.rs`) is captured by `analyse_proc_body_isolated`, shifted by `rebase_fragment_pending` and extended onto the shell by `graft_fragment_pending`. Deltas: `set n 0; while {$n} {puts x}` W240 (was W242); `set go 1; while {$go} {puts x}` W241 (was W242); `for {set i 0} {$i < 10} {} {puts hi}` W241 (was W242); `for {set i 0} {$i < 0} {incr i} {puts hi}` W240 (was silent); a variable header true with an exit on some path is silent (was W242). Deviations: the plan's `loop_span` is not recorded (D186); `Infinite` and `Unprovable` carry the reason and the variable, and `body_may_exit` is added, for the text's half of the exit question; beyond the item's three files, `dataflow.rs` holds the resolution where the plan named `diagnostics.rs`, whose call site (`emit_branch_fact_diagnostics`) needed no change, and `state.rs` and `per_item.rs` carry the queue. The generated inventory's nine `bounds_checks.rs` `arg_roles` line numbers moved | `w240_and_w241_read_the_branch_fact` (`bounds_checks.rs`, new: `while {$n}` over `set n 0` W240 and `while {$go}` over `set go 1` W241, at the top level and in a procedure; a `for` whose counter never moves W241 and one whose first test fails W240; the literal forms with their own messages; a `break`, a `return`, an `error` and a `break` inside a `catch` body each keep a true header silent; negative: a parameter bound, an unset variable, keep W242 and a counter the body advances is silent); `loop_verdicts_agree_across_the_whole_file_and_per_item_walks` (new: two decided loops, an undecided one and a top-level one report the same codes at the same offsets from `analyse` and `analyse_per_item`; it fails when `graft_fragment_pending` does not extend the queue). Moved by the mandate (#2057: W240 to W242 read the branch fact, and a decided verdict suppresses W242): `w242_counter_not_modified`'s `for` case keeps its empty step but bounds the loop by `$n`, which nothing decides, where a literal bound is now W241; the `UNPROVABLE_LOOP` fixture of `diag_seeds_the_default_off_codes_like_the_editor` (`tcl-cli/tests/cli.rs`) and of the default-off test in `tcl-mcp/src/tools.rs` (`set i 0; while {$i < 3} {puts $i}` is a loop the solver proves infinite, W241) becomes a procedure looping `$i < $n` over its parameter. Every other loop test unchanged (the rest of `bounds_checks.rs`, `stub_arg_roles.rs`'s loop-declaration test, the e2e W241 cases) |
+
+Green at VT6.7: `tcl-compiler` 9823 passed, 6 ignored across its 67
+binaries, and 7 doctests; `tcl-explorer` 105; `tcl-cli` 129 across its
+binaries (`cli` 50, `value_transfers_cli` 8); `tcl-lsp-db` 129 (103 in
+the library, 26 across its integration binaries); `tcl-mcp` 114;
+`tcl-lsp-core` 3575 across its 34 binaries (2350 in the library) and 3
+doctests; `tcl-lsp-server` 2238 (its `e2e` binary failed one test,
+`workspace_symbol_waits_out_the_startup_scan`, once while the other
+lane's build loaded the machine, and passed when rerun alone); workspace
+clippy (`--all-targets -D warnings`), no `#[allow]` added, and `cargo fmt
+--check`; `value-transfers --check` (22 clean, 19 waived, 83 pinned across
+34 files, 6607 rows) and `registry-axes --check` (893 pinned across 147
+files, 36 waived, 16 clean), the second unchanged; `pack-goldens` (25
+packs, 0 rewritten), `retired-api-gate`, `owner-resolution` (45 rows) and
+`kcs-index-links` pass; `dialect-drift` 8 sites, none new; `cargo check
+--workspace --all-targets` clean.
+
 ### Slice 9 — nested writes in expressions
 
 #### Goal and exit
@@ -9384,6 +9404,50 @@ has the witnesses):
   <pattern>` where it printed a branch. I231 for a decided flattened arm
   stays the `Applied` fact's (`emit_constant_branch_diagnostics`); a new
   emitter, `emit_selected_arm_diagnostics`, reports the `Selected` ones.
+
+- **D186 — a loop's termination verdicts wait for the header's branch
+  fact** (VT6.7). The walk no longer reports W240, W241 or W242 where it
+  meets a conditional loop: `loop_termination_candidate`
+  (`bounds_checks.rs`) yields a `LoopTerminationCandidate` — the command,
+  the condition word's span, what the text says (`LexicalVerdict`: `Dead`
+  for a constant-false literal, `Infinite` for a constant-true literal whose
+  body never leaves the loop or for a `for` counter that never reaches its
+  bound, `Unprovable` for a counter nothing modifies, `Silent`) and whether
+  the body holds, in command position, a command that leaves the loop
+  (`body_may_exit`) — and `emit_bounds_family_diagnostics` queues it on
+  `Analyser::loop_candidates`. The plan's `loop_span` is not recorded: the
+  header's `Applied` branch fact is keyed by the condition word's span, and
+  whether the loop can be left is answered by reachability, so a second
+  span names nothing the resolution reads. The per-function pass resolves
+  the queue where it reads the unit's other branch facts
+  (`emit_branch_fact_diagnostics`, beside I230 and I231):
+  `header_fact` finds the `Applied` fact at the condition's span, false is
+  W240, and true is W241 when no exit is executable — the loop's end block
+  is (a `break` reaches it, the header's own false edge being the one that
+  is never taken) or an executable path from the body reaches a `return`
+  terminator (`return`, `error`, `exit`, `throw`) — *and* the body's text
+  holds no exit either, the second half being the one path the graph
+  cannot see: a `break` inside a `catch` body it does not lower. A decided
+  verdict replaces W242, which says the solver could not prove the loop
+  ends; a header true at every test with an exit reachable draws nothing,
+  where the text's counter check would have drawn W242 for a counter the
+  loop never advances. What no unit decides stays queued and
+  `flush_loop_terminations` — after `emit_cfg_ssa_diagnostics` in
+  `run_diagnostic_emitters`, before the disabled-code filter, the dedupe
+  and the sort — reports it as its text says, so a parameter bound, a
+  loop the solver never reached (inside an opaque `catch` body), a guarded
+  body, and a stub-declared loop command the CFG keeps as a call draw what
+  they drew before. The per-item path carries the queue as it carries
+  every other walk-recorded one: `BodyFragment` holds a body's candidates,
+  `rebase_fragment_pending` shifts their spans and
+  `graft_fragment_pending` extends the shell's queue, without which a loop
+  inside a proc body was resolved by no unit and reported nothing on the
+  incremental path. Deltas: `set n 0; while {$n} {puts x}` reports W240
+  where W242 was (the counter `n` is never modified, which the text said);
+  `set go 1; while {$go} {puts x}` reports W241 where W242 was;
+  `for {set i 0} {$i < 10} {} {puts hi}` reports W241 where W242 was; and
+  `for {set i 0} {$i < 0} {incr i} {puts hi}` reports W240 where nothing
+  was, the step modifying the counter.
 
 ### Open questions for the owner
 

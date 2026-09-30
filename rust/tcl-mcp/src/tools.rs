@@ -2595,9 +2595,13 @@ mod policy_tests {
     /// A read of a variable nothing set: W210.
     const UNSET_READ: &str = "puts $y\n";
 
-    /// A `while` whose counter the body never touches: W242, the one code the
-    /// catalogue declares default-off.
-    const UNPROVABLE_LOOP: &str = "set i 0\nwhile {$i < 3} {\n    puts $i\n}\n";
+    /// A `while` whose counter the body never touches, against a bound the
+    /// solver cannot decide (a parameter, so no header fact settles it): W242,
+    /// the one code the catalogue declares default-off. Against a literal
+    /// bound the header is decided true at every test and the loop draws W241
+    /// instead.
+    const UNPROVABLE_LOOP: &str =
+        "proc p {n} {\n    set i 0\n    while {$i < $n} {\n        puts $i\n    }\n}\n";
 
     /// A constant expression O101 folds; a global stays a live store.
     const FOLDING: &str = "set x [expr {1 + 2}]\n";

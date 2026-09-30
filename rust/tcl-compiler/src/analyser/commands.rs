@@ -1790,8 +1790,10 @@ impl Analyser {
             site.scope_path,
         );
     }
-    /// The bounds family for one dispatch site: W240 / W241 loop termination,
-    /// W230 / W232 index bounds, W231 `lset` bounds, and W232 string indices.
+    /// The bounds family for one dispatch site: the loop-termination
+    /// candidate (W240 / W241 / W242, resolved once the CFG/SSA pass has the
+    /// solver's branch facts), W230 / W232 index bounds, W231 `lset` bounds,
+    /// and W232 string indices.
     ///
     /// Grouped so the shared per-command dispatch stays readable; each check
     /// is independent and every one of them takes the registry rather than
@@ -1806,14 +1808,16 @@ impl Analyser {
         let registry = self.registry.as_deref();
         let grammar = self.grammar();
         let surface = registry.map(|registry| self.command_surface(registry));
-        let loop_diags = super::bounds_checks::loop_termination_diagnostics(
+        if let Some(candidate) = super::bounds_checks::loop_termination_candidate(
             cmd_name,
             args,
             arg_tokens,
             surface.as_ref(),
             self.lexer_config(),
             &grammar,
-        );
+        ) {
+            self.loop_candidates.push(candidate);
+        }
         let numbers = grammar.numbers;
         let idx_diags = super::bounds_checks::list_index_diagnostics(
             cmd_name,
@@ -1833,7 +1837,6 @@ impl Analyser {
         );
         let str_diags =
             super::bounds_checks::string_index_diagnostics(cmd_name, args, arg_tokens, numbers);
-        self.result.diagnostics.extend(loop_diags);
         self.result.diagnostics.extend(idx_diags);
         self.result.diagnostics.extend(lset_diags);
         self.result.diagnostics.extend(str_diags);

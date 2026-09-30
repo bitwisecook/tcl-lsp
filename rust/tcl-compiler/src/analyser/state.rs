@@ -517,6 +517,12 @@ pub struct Analyser {
     /// not read, which the CFG/SSA pass checks again over the words' proven
     /// values.
     pub(super) proven_sites: Vec<super::diagnostics::ProvenSite>,
+    /// The conditional loops the walk examined, each with what its text says
+    /// about its termination (W240 / W241 / W242). The CFG/SSA pass resolves
+    /// each against its unit's branch fact at the condition's span
+    /// ([`Self::resolve_loop_terminations`]); what no unit decides is
+    /// reported by [`Self::flush_loop_terminations`] as its text says.
+    pub(super) loop_candidates: Vec<super::bounds_checks::LoopTerminationCandidate>,
     /// Proven W147 option conflicts whose `OptionRelation` is version-gated
     /// — decided post-walk by [`Self::flush_gated_option_conflicts`], which
     /// promotes the ones the resolved floor actually has onto
@@ -1565,6 +1571,7 @@ impl Analyser {
             version_gate_sites: Vec::new(),
             dsl_gate_sites: Vec::new(),
             proven_sites: Vec::new(),
+            loop_candidates: Vec::new(),
             pending_option_conflicts: Vec::new(),
             pending_gated_arity: Vec::new(),
             pending_gated_bare_ensemble: Vec::new(),
@@ -3046,6 +3053,7 @@ impl Analyser {
         self.emit_package_require_ordering_hints(&diag_registry);
         self.emit_variable_usage_diagnostics();
         self.emit_cfg_ssa_diagnostics(source);
+        self.flush_loop_terminations();
         self.flush_objdefine_abort_diagnostics();
         self.emit_lexer_warning_diagnostics();
         self.emit_w116_w117_stub_shadows();
@@ -3220,6 +3228,7 @@ impl Analyser {
         // deferred calls into the next.
         self.deferred_class_creations.clear();
         self.proven_sites.clear();
+        self.loop_candidates.clear();
         self.pending_bareword_dispatch_sites = None;
         self.line_offsets = None;
         self.cached_line_index = tcl_lexer::LineIndex::new("");

@@ -41,12 +41,74 @@ use super::helpers::{
     collect_existence_guards, find_dotted_quads, is_ident_continue, is_word_byte, phi_can_undef,
     source_slice,
 };
+use crate::analyser::bounds_checks::HeaderFact;
 use crate::analyser::state::Analyser;
 use crate::analyser::types::Severity;
 use crate::analyser::utils::param_name_spans;
 use crate::compilation_unit::ExistencePoint;
 use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::expr_ast::ExprNode;
+
+/// The solver's decision at the loop header whose condition word spans
+/// `span` in `fu`, from its `Applied` branch fact: `None` where the unit did
+/// not decide it (the header is not reached, or its condition varies).
+fn header_fact(
+    fu: &crate::compilation_unit::FunctionUnit,
+    span: tcl_lexer::Span,
+) -> Option<HeaderFact> {
+    let branch = fu.sccp.constant_branches.iter().find(|branch| {
+        branch.kind == crate::sccp::BranchFactKind::Applied
+            && branch.span.map(|found| fu.abs_span(found)) == Some(span)
+    })?;
+    if !branch.value {
+        return Some(HeaderFact::Never);
+    }
+    Some(HeaderFact::Always {
+        exits: loop_exit_is_executable(fu, &branch.taken_target, &branch.not_taken_target),
+    })
+}
+
+/// Whether an executable path leaves the loop whose body starts at block
+/// `body` and whose exit is block `end`: a `break` reaches `end` (the
+/// header's own false edge is never taken, the branch being decided), or a
+/// block of the loop ends the procedure — a `return`, `error`, `exit` or
+/// `throw`. A block the graph cannot name is taken to exit.
+fn loop_exit_is_executable(
+    fu: &crate::compilation_unit::FunctionUnit,
+    body: &str,
+    end: &str,
+) -> bool {
+    let (Some(start), Some(end)) = (fu.cfg.block_id(body), fu.cfg.block_id(end)) else {
+        return true;
+    };
+    if fu.sccp.executable_blocks.contains(&end) {
+        return true;
+    }
+    let mut successors: std::collections::HashMap<crate::cfg::BlockId, Vec<crate::cfg::BlockId>> =
+        std::collections::HashMap::new();
+    for &(from, to) in &fu.sccp.executable_edges {
+        successors.entry(from).or_default().push(to);
+    }
+    let mut seen = HashSet::from([start]);
+    let mut pending = vec![start];
+    while let Some(block) = pending.pop() {
+        let ends_the_procedure = fu.cfg.blocks.get(&block).is_some_and(|block| {
+            matches!(
+                block.terminator,
+                Some(crate::cfg::Terminator::Return { .. })
+            )
+        });
+        if ends_the_procedure {
+            return true;
+        }
+        for &next in successors.get(&block).into_iter().flatten() {
+            if seen.insert(next) {
+                pending.push(next);
+            }
+        }
+    }
+    false
+}
 
 /// The read-only name/guard/suppression context for the `return`-value
 /// phi-from-undef W210 pass ([`Analyser::emit_return_phi_undef_w210`]):
@@ -1896,16 +1958,47 @@ file; this call falls through to the 'unknown' handler."
         }
     }
 
-    /// I230 and I231 from the unit's stored branch facts: the decided
-    /// branches ([`Self::emit_constant_branch_diagnostics`]) and the arms of
-    /// an opaque `switch` no member of the subject runs
-    /// ([`Self::emit_selected_arm_diagnostics`]).
+    /// I230, I231 and the loop-termination verdicts from the unit's stored
+    /// branch facts: the decided branches
+    /// ([`Self::emit_constant_branch_diagnostics`]), the arms of an opaque
+    /// `switch` no member of the subject runs
+    /// ([`Self::emit_selected_arm_diagnostics`]), and each loop's header
+    /// ([`Self::resolve_loop_terminations`]).
     pub(super) fn emit_branch_fact_diagnostics(
         &mut self,
         fu: &crate::compilation_unit::FunctionUnit,
     ) {
         self.emit_constant_branch_diagnostics(fu);
         self.emit_selected_arm_diagnostics(fu);
+        self.resolve_loop_terminations(fu);
+    }
+
+    /// Resolve each loop the walk examined that `fu` decides against the
+    /// unit's branch fact at its condition span
+    /// ([`crate::analyser::bounds_checks::LoopTerminationCandidate::resolve`]).
+    /// A header false at entry is W240, one true at every test with no
+    /// executable exit is W241, and either suppresses W242. A loop the unit
+    /// does not decide stays queued for another unit, or for
+    /// [`Self::flush_loop_terminations`].
+    pub(super) fn resolve_loop_terminations(&mut self, fu: &crate::compilation_unit::FunctionUnit) {
+        for candidate in std::mem::take(&mut self.loop_candidates) {
+            match header_fact(fu, candidate.condition_span) {
+                Some(header) => self
+                    .result
+                    .diagnostics
+                    .extend(candidate.resolve(Some(header))),
+                None => self.loop_candidates.push(candidate),
+            }
+        }
+    }
+
+    /// Report every loop no unit decided as its text says: a constant-false
+    /// literal, a constant-true one whose body never leaves the loop, a
+    /// `for` counter that never terminates, or a counter nothing modifies.
+    pub(in crate::analyser) fn flush_loop_terminations(&mut self) {
+        for candidate in std::mem::take(&mut self.loop_candidates) {
+            self.result.diagnostics.extend(candidate.resolve(None));
+        }
     }
 
     /// I231 for each arm of an opaque `switch` the solver's selection never
