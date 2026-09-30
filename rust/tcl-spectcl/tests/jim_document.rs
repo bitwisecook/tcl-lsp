@@ -331,6 +331,77 @@ fn the_signature_scan_records_a_jim_class_with_or_without_bases() {
     assert_eq!(derived.body_range.start() as usize, dictionary);
 }
 
+/// A Jim program that defines a class, gives it a two-word method with a
+/// static, and uses the class, a `loop` and `sleep` — the commands a `jimsh`
+/// script writes that `tclsh` has no word for.
+const JIM_PROGRAM: &str = "class system {model \"\"}
+proc {system model} {} {{model \"\"}} {
+    return $model
+}
+loop i 0 3 { puts $i }
+sleep 0.1
+set s [system new]
+puts [$s model]
+";
+
+/// The whole program is accepted by a `jim` document: whatever it reports is
+/// a hint about a variable nothing reads, on both analyser tiers.
+#[test]
+fn a_jim_program_draws_only_unused_variable_hints() {
+    let source = jim(JIM_PROGRAM);
+    for findings in both_tiers(&source) {
+        assert_eq!(substantive(findings), vec![], "{source}");
+    }
+}
+
+/// The same text under `tcl8.6` is a different program: Tcl's `proc` takes
+/// three words, so the four-word definition is an arity error, and `loop` and
+/// `sleep` are not Tcl's commands.
+#[test]
+fn the_same_program_under_tcl_is_rejected() {
+    let source = tcl86(JIM_PROGRAM);
+    for findings in both_tiers(&source) {
+        let on =
+            |code: DiagCode, text: &str| findings.iter().any(|f| *f == (code, text.to_owned()));
+        assert!(
+            findings
+                .iter()
+                .any(|(code, text)| *code == DiagCode::E003 && text.contains("return $model")),
+            "the four-word proc: {findings:?}"
+        );
+        assert!(
+            findings
+                .iter()
+                .any(|(code, text)| *code == DiagCode::W123 && text == "loop"),
+            "loop is not a Tcl command: {findings:?}"
+        );
+        assert!(on(DiagCode::W123, "sleep"), "{findings:?}");
+    }
+}
+
+/// `loop i 0 3 {…}` is flagged under `tcl8.6` and accepted under `jim`, where
+/// its body is walked as the loop body it is.
+#[test]
+fn loop_is_flagged_under_tcl_and_accepted_under_jim() {
+    let program = "loop i 0 3 { puts $i }\nloop k 2 { puts $k }\n";
+    let jim_findings = analyse_with(&jim(program), false);
+    assert_eq!(jim_findings, vec![], "{jim_findings:?}");
+    let tcl_findings = analyse_with(&tcl86(program), false);
+    assert!(
+        tcl_findings
+            .iter()
+            .any(|(code, text)| *code == DiagCode::W123 && text == "loop"),
+        "{tcl_findings:?}"
+    );
+
+    let unknown_in_body = jim("loop i 0 3 { not_a_command_anywhere $i }\n");
+    assert_eq!(
+        analyse_with(&unknown_in_body, false),
+        vec![(DiagCode::W123, "not_a_command_anywhere".to_owned())],
+        "the body is a script: {unknown_in_body}"
+    );
+}
+
 /// Under another dialect `class` is not Jim's: nothing is recorded as a class
 /// and the word is reported.
 #[test]
