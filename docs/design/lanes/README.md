@@ -49,4 +49,6 @@ checkpoint compiling.
 
 ## In flight
 
-None.
+- [environment-selection.md](environment-selection.md) — every dialect
+  surface reads the environment registry; Jim selectable everywhere; EDA
+  shells presented as Tcl plus packages (#2166).
