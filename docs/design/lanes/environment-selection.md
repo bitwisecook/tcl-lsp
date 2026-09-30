@@ -160,6 +160,46 @@ git. Before the final commit:
   `used to`, `legacy`, `migrat`, `2166`, and rewrite each hit to describe
   behaviour, not history.
 
+## Generators and editors (1c) — state
+
+Done: `gen-editor-dialects`, `gen-editor-extensions`, `gen-ai-diagnostics`
+re-keyed on `compiled_selectable()`; `tcl-apl` is the one explicit extra
+language (`EXTRA_LANGUAGES`, dialect from `SELECTING`); `ZED_LANGUAGES`
+replaces `DIALECT_SURFACES` and feeds `gen-zed-queries`;
+`DEFAULT_ENVIRONMENT_ID = "tcl8.6"` in `tcl-dialect` feeds every generated
+default; VS Code `package.json` fully regenerated (`enumItemLabels`,
+`enumDescriptions`, `tcl-jim` language, `firstLine` from shebang words,
+one `semanticTokenScopes` block per language, `when` regex
+`/^(?:sslictcl|tcl)/` with a structural check); VS Code client picker from
+`listDialects` with two separators (`dialectChoices.ts`, `dialectPicker.ts`),
+status bar from `getEffectiveConfig.dialect_short_name`, client-side
+detection removed; JetBrains `DIALECT_OPTIONS` + `DEFAULT_DIALECT` +
+`IRULE_LANGUAGE_ID` generated (Kotlin uncompiled); Sublime enum with
+descriptions and default; EDA packs list tool packages first; allowlist
+28 → 25; `make codegen` runs `gen-editor-extensions`.
+
+Not done: `gen-editor-configs` (Zed `extension.toml`, Zed/Helix/Emacs/
+Neovim/Sublime READMEs, Neovim Lua, `INSTALL-editors.md`; a draft
+`rust/xtask/src/gen_editor_configs.rs` plus `util.rs`
+`replace_generated_region` and an `editor_extensions.rs` `Language::is_extra`
+edit sit uncommitted in the 1c worktree and as a copy in the session
+scratchpad `lane-1c-uncommitted/`); `gen-environment-docs` (README tables,
+`docs/generated/environments.md`, `ai/prompts/manifest.json` — **the old
+`prompt_manifest_gaps` gate was removed, so nothing checks the manifest
+until this lands**, and it still lacks `jim`/`tk`); Makefile `codegen` and
+`xtask-check` wiring for both; `make help` lines; `.PHONY`.
+
+For 1d (owns `lib.rs`): `DEFAULT_SESSION_DIALECT` (`lib.rs` ~:27427) and
+the bare-`tcl` literal (~:11321) should read `DEFAULT_ENVIRONMENT_ID`;
+`tclLsp.notifications.environmentKind` belongs in the hand-written General
+settings section beside `highlightingHealth`. Observed, not changed:
+`tcl-mcp/src/tools.rs:37` and `tcl-spec-studio/src/environment.rs:42` each
+default to `tcl9.0`.
+
+Unverified: VS Code test host (ENOSPC before it ran; partition counts
+978→968 / 977→967 computed statically); Kotlin edits; `(?:a|b)` in real
+VS Code `when` clauses.
+
 ## Gate notes
 
 - `cargo xtask dialect-drift` fails on eight pre-existing sites in
