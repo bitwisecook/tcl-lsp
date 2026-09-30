@@ -46,6 +46,9 @@
 //!   documents exactly the builtins `tcl-bigip-query` registers.
 //! - `bigip-data-schema` — verify the hand-maintained BIG-IP object-spec data
 //!   is internally consistent.
+//! - `catalogue-callers` — hold every spelling of `DialectProfile::all()` and
+//!   `KNOWN_DIALECTS` to an allowlist (`--check` is accepted for symmetry; the
+//!   gate only verifies).
 //! - `gen-editor-catalogs` — generate the VS Code iRules-event catalog JSON
 //!   from the registry (`--check` to verify instead of write).
 //! - `number-drift` — flag hand-rolled Tcl radix-prefix recognition outside
@@ -73,6 +76,7 @@ mod callback_coverage;
 mod callback_inventory;
 #[path = "smoke_targets.rs"]
 mod cargo_smoke;
+mod catalogue_callers;
 mod command_backing;
 mod diag_emission;
 mod diag_tables;
@@ -360,6 +364,17 @@ enum Command {
         check: bool,
     },
 
+    /// Hold every caller of `DialectProfile::all()` and `KNOWN_DIALECTS` to
+    /// the allowlist in `rust/xtask/src/catalogue_callers.rs`: a list of names
+    /// shown to a user reads the environment registry, not the catalogue.
+    #[command(name = "catalogue-callers")]
+    CatalogueCallers {
+        /// Accepted for symmetry with the other gates (the gate always
+        /// verifies; it never rewrites).
+        #[arg(long)]
+        check: bool,
+    },
+
     /// Verify that the shared semantic-owner contract resolves to live source
     /// files, public entry points, and registered Makefile drift gates.
     #[command(name = "owner-resolution")]
@@ -490,6 +505,7 @@ fn main() -> anyhow::Result<ExitCode> {
         Command::SegmentationDrift { check } => Ok(segmentation_drift::run(check)),
         Command::RetiredApiGate { check } => Ok(retired_api_gate::run(check)),
         Command::RuntimeStdlib => runtime_stdlib::run(),
+        Command::CatalogueCallers { check } => Ok(catalogue_callers::run(check)),
         Command::OwnerResolution => owner_resolution::run(),
         Command::PackGoldens { check } => Ok(pack_goldens::run(check)),
         Command::SslictclData {
