@@ -1921,6 +1921,33 @@ The order of delivery, each step with its own contract:
    no optimisation code is reserved for them until the ordered-matching,
    completion, source-edit mapping, and proof contracts are implemented.
 
+Step 2's fact is recorded once per statement: `SccpResult::selections`
+(`rust/tcl-compiler/src/sccp.rs`) holds a `SelectionRecord { span,
+arm_pattern_spans, fact }` for each executable opaque `Statement::Switch`
+whose command — the identity the lowering records at the statement's span
+in `cfg.command_binding_sites` — the module trusts and whose `Selection`
+transfer answers over the settled lattice. The fact's arm indices count
+the command's pattern and body pairs, and `arm_pattern_spans` holds the
+statement's arms in order, so the index one past them names the final
+`default` the statement keeps as its default body
+(`SelectionRecord::is_default`); a record is made only where the plan
+reads the statement's own subject and clause count.
+
+Two release rules apply beside the core. 9.1b0's byte-compiled `switch`
+reads only a bare `-` as the fall-through body and runs a quoted or braced
+`-` as a command, where its interpreted path — and 8.4 to 9.0 on both
+paths — read the word's value; so under a profile that may be 9.1, a
+member whose selection reaches an arm with such a body declines the whole
+fact with `ReleaseAmbiguous` on the availability axis. The one-word form
+compares element content on both paths and is not affected. And Tcl's own
+`case` (8.4 to 8.6, and the iRules 8.4 base) declares a contract of its
+own over `tcl_cmd_core::case::select` — glob matching, a pattern word
+holding whitespace or a backslash read as a list of patterns, `default` a
+fallback wherever it stands, no fall-through body — and lowers through the
+same hook as an opaque glob selection, the `in` word skipped; a pattern it
+would split as a list, a substituted pattern, and a `default` before the
+last clause are barriers, because the IR arm cannot hold them.
+
 A `case_list` descriptor establishes locations and grammar. A private
 dispatch-table command receives Tcl `switch` execution semantics only when
 its registry declaration names that semantic contract explicitly;
@@ -2593,6 +2620,8 @@ unit-level lattice evaluates.
 - `rust/tcl-compiler/src/optimiser/helpers/expr_simplify.rs`, `optimiser/propagation.rs` — `instcombine_expr_typed`, `reassociate_node`, the partial-simplification owners
 - `rust/tcl-compiler/src/cfg_builder/cfg_lower.rs` — `lower_switch`, `switch_subject_operand`, `lower_opaque_switch`, `lower_try`, `push_try_handler_exception_edges`
 - `rust/tcl-cmd-core/src/switch.rs`, `regex.rs` — `parse_options`, `select`, `RegexpResult::Count`
+- `rust/tcl-cmd-core/src/case.rs` — `select`, `splits_as_list`: `case`'s selection
+- `rust/tcl-registry/src/value_transfer/selection.rs` — `SwitchSemantics`, `CaseSemantics`, the `Selection` transfer
 - `rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs` — `emit_provably_unset_w210`, `emit_existence_constant_branch_diagnostics`, `emit_read_before_set_diagnostics`, `record_chain_w210_uses`, `emit_unused_variable_diagnostics`, `existence_query_vars`, `existence_exempt`
 - `rust/tcl-compiler/src/analyser/diagnostics/helpers.rs` — `collect_existence_guards`, `block_dominated_by`, `whole_unset_names`, `phi_can_undef`
 - `rust/tcl-compiler/src/analyser/diagnostics/security.rs` — `emit_w102_subst_injection`, `substitution_narrowing_switches`

@@ -1615,11 +1615,38 @@ pub fn serialise_dominators(result: &ExplorerResult) -> Value {
     )
 }
 
+/// One selection record of the SCCP view (VT6.3): the statement's range,
+/// each kept arm's pattern range, and per member the arm selected and the
+/// arm whose body runs — the final `default` pair by that name, since the
+/// statement keeps it as its default body — with the count of its writes.
+fn selection_json(
+    record: &tcl_compiler::sccp::SelectionRecord,
+    li: &LineIndex,
+    source: &str,
+) -> Value {
+    let label = |arm: &Option<usize>| match arm {
+        Some(arm) if record.is_default(*arm) => "default".to_owned(),
+        Some(arm) => format!("arm {arm}"),
+        None => "none".to_owned(),
+    };
+    json!({
+        "range": range_dict(record.span, li, source),
+        "armPatterns": record
+            .arm_pattern_spans
+            .iter()
+            .map(|span| range_dict(*span, li, source))
+            .collect::<Vec<_>>(),
+        "selected": record.fact.selected.iter().map(label).collect::<Vec<_>>(),
+        "bodies": record.fact.bodies.iter().map(label).collect::<Vec<_>>(),
+        "writes": record.fact.writes.iter().map(Vec::len).collect::<Vec<_>>(),
+    })
+}
+
 /// Serialise the complete SCCP lattice and executable CFG facts. The SSA CFG
 /// tab intentionally keeps a compact annotation; this view is the durable
-/// proof surface for constants, reachability, executable edges, and — per
-/// statement — the value-transfer route the resolved invocation declared
-/// and how it answered.
+/// proof surface for constants, reachability, executable edges, each opaque
+/// case list's selection and — per statement — the value-transfer route the
+/// resolved invocation declared and how it answered.
 #[must_use]
 pub fn serialise_sccp(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
     Value::Array(
@@ -1692,6 +1719,13 @@ pub fn serialise_sccp(result: &ExplorerResult, li: &LineIndex, source: &str) -> 
                         "range": range_dict(explanation.span, li, source),
                     }))
                     .collect();
+                let selections: Vec<Value> = snap
+                    .unit
+                    .sccp
+                    .selections
+                    .iter()
+                    .map(|record| selection_json(record, li, source))
+                    .collect();
                 let tally = &snap.unit.sccp.route_tally;
                 json!({
                     "name": snap.name,
@@ -1700,6 +1734,7 @@ pub fn serialise_sccp(result: &ExplorerResult, li: &LineIndex, source: &str) -> 
                     "executableBlocks": executable_blocks,
                     "executableEdges": executable_edges,
                     "constantBranches": branches,
+                    "selections": selections,
                     "routes": routes,
                     "routeTally": {
                         "direct": tally.direct,
@@ -4176,6 +4211,36 @@ mod tests {
         assert_eq!(tally["direct"], 1);
         assert_eq!(tally["expression"], 2);
         assert_eq!(tally["implementation"], 0);
+    }
+
+    /// The SCCP view carries each opaque case-list statement's selection
+    /// (VT6.3): program (4)'s `-glob` form selects its final `default`,
+    /// which the view names as such, against the one pattern span the
+    /// statement keeps — `baz`'s.
+    #[test]
+    fn sccp_reports_the_selection() {
+        let source = "proc p {} {\n    set acc \"\"; append acc foo; append acc bar\n    \
+                      switch -glob -- $acc {\n        baz     { puts never }\n        \
+                      default { puts always }\n    }\n}\n";
+        let result = run_pipeline(source, "tcl8.6");
+        let sccp = serialise_result(&result)["sccp"].clone();
+        let proc_view = sccp
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|f| f["name"] == "::p")
+            .expect("the procedure's view");
+        let selections = proc_view["selections"].as_array().expect("selections");
+        assert_eq!(selections.len(), 1, "{proc_view:#}");
+        let selection = &selections[0];
+        assert_eq!(selection["selected"], json!(["default"]));
+        assert_eq!(selection["bodies"], json!(["default"]));
+        assert_eq!(selection["writes"], json!([0]));
+        assert_eq!(selection["range"]["startLine"], 2);
+        let patterns = selection["armPatterns"].as_array().expect("arm patterns");
+        assert_eq!(patterns.len(), 1);
+        assert_eq!(patterns[0]["startLine"], 3);
+        assert_eq!(patterns[0]["startCol"], 8);
     }
 
     /// Each value the SCCP view lists carries the folded type the

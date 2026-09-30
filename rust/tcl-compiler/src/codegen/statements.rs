@@ -518,11 +518,13 @@ impl CodegenCtx<'_> {
 
             // Opaque (glob/regexp/fall-through) switch: the CFG builder keeps
             // it as a single statement rather than expanding arm blocks, so
-            // emit a generic `switch` invoke — tclsh 9.0's un-compiled approach
-            // for these modes.
+            // emit a generic invoke of the command it spells — tclsh 9.0's
+            // un-compiled approach for these modes. A `case` list lowers
+            // through the same statement and invokes `case`.
             Statement::Switch {
                 raw_args,
                 raw_arg_braced,
+                command,
                 ..
             } => {
                 // Each word goes out the way it was written. A braced word is
@@ -553,9 +555,9 @@ impl CodegenCtx<'_> {
                         Vec::new(),
                         None,
                     );
-                    self.emit_call_stmt("switch", raw_args, Some(&toks), used_generic_invoke);
+                    self.emit_call_stmt(command, raw_args, Some(&toks), used_generic_invoke);
                 } else {
-                    self.emit_call_stmt("switch", raw_args, None, used_generic_invoke);
+                    self.emit_call_stmt(command, raw_args, None, used_generic_invoke);
                 }
             }
 

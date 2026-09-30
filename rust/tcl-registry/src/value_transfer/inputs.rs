@@ -335,6 +335,12 @@ pub enum WordPart {
 pub struct WordStructure {
     /// Whether the word is brace-quoted.
     pub braced: bool,
+    /// Whether the word is double-quoted. A word neither braced nor quoted
+    /// is spelled bare: the one spelling 9.1b0's byte-compiled `switch`
+    /// reads a fall-through body by (`super::selection`). Inputs record it
+    /// for a word with nothing to substitute; a substituted word's reading
+    /// is its parts'.
+    pub quoted: bool,
     /// The word's parts, in order.
     pub parts: Vec<WordPart>,
 }

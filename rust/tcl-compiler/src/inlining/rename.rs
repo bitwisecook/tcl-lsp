@@ -475,6 +475,8 @@ fn rewrite_switch(stmt: &Statement, rename: &HashMap<String, String>) -> Stateme
         nocase,
         raw_args,
         raw_arg_braced,
+        raw_arg_quoted,
+        command,
         patterns_braced,
     } = stmt
     else {
@@ -514,6 +516,8 @@ fn rewrite_switch(stmt: &Statement, rename: &HashMap<String, String>) -> Stateme
         nocase: *nocase,
         raw_args: raw_args.clone(),
         raw_arg_braced: raw_arg_braced.clone(),
+        raw_arg_quoted: raw_arg_quoted.clone(),
+        command: command.clone(),
         patterns_braced: *patterns_braced,
     }
 }

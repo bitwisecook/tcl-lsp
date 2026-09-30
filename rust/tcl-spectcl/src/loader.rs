@@ -4198,6 +4198,11 @@ fn case_list_block(stmts: &[Stmt], log: &mut Log) -> CaseListSpec {
         keyword_patterns_require_final: false,
         optional_subject_separator: None,
         warn_unbraced_bodies: false,
+        // Unless the block says otherwise, a pack's case list compares
+        // exactly where no option row selects a mode, and reads each
+        // pattern word as one pattern.
+        default_mode: tcl_registry::spec::CaseMatchMode::Exact,
+        pattern_words: tcl_registry::spec::PatternWords::Single,
     };
     for stmt in stmts {
         let value = stmt.word_text(1).to_owned();
@@ -4244,6 +4249,30 @@ fn case_list_block(stmts: &[Stmt], log: &mut Log) -> CaseListSpec {
                 spec.optional_subject_separator = Some(leak_str(&value));
             }
             "warn_unbraced_bodies" => spec.warn_unbraced_bodies = parse_flag(stmt.tail()),
+            // A specialised comparison is an option row's, never the
+            // default a clause makes.
+            "default_mode" => match tcl_registry::spec::CaseMatchMode::from_spelling(&value)
+                .filter(|mode| *mode != tcl_registry::spec::CaseMatchMode::Other)
+            {
+                Some(mode) => spec.default_mode = mode,
+                None => log.say(
+                    stmt.line,
+                    format!(
+                        "`case_list` row `default_mode` takes `exact`, `glob` or `regexp`, not \
+                         `{value}`; kept `exact`"
+                    ),
+                ),
+            },
+            "pattern_words" => match tcl_registry::spec::PatternWords::from_spelling(&value) {
+                Some(reading) => spec.pattern_words = reading,
+                None => log.say(
+                    stmt.line,
+                    format!(
+                        "`case_list` row `pattern_words` takes `single` or `lists`, not \
+                         `{value}`; kept `single`"
+                    ),
+                ),
+            },
             "keyword_patterns" => {
                 spec.keyword_patterns = leak_strs(&list_words(&value));
                 spec.keyword_patterns_require_final =
@@ -8455,8 +8484,8 @@ mod tests {
     /// Every row is given a value that differs from the field's
     /// zero/empty default, so a field the block cannot reach fails here.
     /// `keyword_patterns` carries two fields (its `-final-only` flag sets
-    /// `keyword_patterns_require_final`), which is why sixteen rows author
-    /// seventeen fields. The five command-level switch rows the block once
+    /// `keyword_patterns_require_final`), which is why eighteen rows author
+    /// nineteen fields. The five command-level switch rows the block once
     /// read (`exact_option` … `end_options_option`) are option rows'
     /// effects now, and the block drops each with a notice.
     #[test]
@@ -8475,7 +8504,8 @@ mod tests {
              allow_omitted_final_body 1; \
              keyword_patterns {default} -final-only; \
              warn_unbraced_bodies 1; \
-             optional_subject_separator -- } } }",
+             optional_subject_separator --; \
+             default_mode glob; pattern_words lists } } }",
         );
         assert!(pack.notices.is_empty(), "{:?}", pack.notices);
         let case = pack.command("demo").unwrap().spec.case_list.unwrap();
@@ -8506,6 +8536,8 @@ mod tests {
         assert!(case.keyword_patterns_require_final);
         assert!(case.warn_unbraced_bodies);
         assert_eq!(case.optional_subject_separator, Some("--"));
+        assert_eq!(case.default_mode, tcl_registry::spec::CaseMatchMode::Glob);
+        assert_eq!(case.pattern_words, tcl_registry::spec::PatternWords::Lists);
 
         // …and the list above is the whole struct. Counted from the
         // definition rather than from `Debug`, whose field *values*
@@ -8522,8 +8554,8 @@ mod tests {
             .filter(|line| line.starts_with("    pub ") && line.contains(':'))
             .count();
         assert_eq!(
-            fields, 17,
-            "`CaseListSpec` has {fields} fields; the assertions above cover 17 — a new field needs a `case_list` row and an assertion here"
+            fields, 19,
+            "`CaseListSpec` has {fields} fields; the assertions above cover 19 — a new field needs a `case_list` row and an assertion here"
         );
     }
 
@@ -8545,6 +8577,31 @@ mod tests {
         );
         let case = pack.command("demo").unwrap().spec.case_list.unwrap();
         assert_eq!(case.subject_args, 1);
+    }
+
+    /// `default_mode` names one of the three comparisons a case list's
+    /// clauses make, and `pattern_words` one of the two readings of a
+    /// pattern word; any other word — the specialised `other` comparison
+    /// among them, which only an option row selects — is told so and the
+    /// block keeps the exact comparison and the single pattern.
+    #[test]
+    fn an_unknown_case_list_reading_keeps_the_default() {
+        let pack = evaluate_pack(
+            "speclib probe 1.1 { command demo { case_list { \
+             subject_args 1; default_mode other; pattern_words many } } }",
+        );
+        for row in ["`default_mode` takes", "`pattern_words` takes"] {
+            assert!(
+                pack.notices
+                    .iter()
+                    .any(|notice| notice.message.contains(row)),
+                "{row}: {:?}",
+                pack.notices
+            );
+        }
+        let case = pack.command("demo").unwrap().spec.case_list.unwrap();
+        assert_eq!(case.default_mode, tcl_registry::spec::CaseMatchMode::Exact);
+        assert_eq!(case.pattern_words, tcl_registry::spec::PatternWords::Single);
     }
 
     /// #2140: `world_effects` loads its `composition` row and drops every

@@ -46,7 +46,7 @@ use tcl_registry::hooks::LoweringHookId;
 use tcl_registry::value_transfer::builtins::ExpressionRoute;
 use tcl_registry::value_transfer::{
     AnalysisContext, AnalysisInputs, AnalysisTier, BinderName, BindingIdentity, BindingKind,
-    BodyRegion, Budget, BudgetLimit, CommandSemantics, CompletionOutcome, DeclineReason,
+    BodyRegion, Budget, BudgetLimit, CaseArms, CommandSemantics, CompletionOutcome, DeclineReason,
     DependencyEvidence, DomainFact, EvalAnswer, EvalRoute, EvaluationState, EvaluatorOwner,
     ExactValue, ExactValueOrUnavailable, Existence, ExistenceOutcome, FactDomain, FactView,
     InvocationLayout, InvocationOutcome, IterableKind, LanguageProfileId, LiftedAnswer,
@@ -1154,6 +1154,107 @@ impl<'a> LatticeDriver<'a> {
         records
     }
 
+    /// The selection each executable opaque case-list statement makes over
+    /// the settled lattice (VT6.3): the command its binding site names
+    /// ([`binding_at`], D181) — trusted, and resolved over the statement's
+    /// words — asked for its `Selection` transfer, the words read as the
+    /// lowering recorded them ([`switch_arguments`]) and the variables at
+    /// the statement's use versions. The fact's arm indices count the
+    /// command's pattern and body pairs, which the record reads against the
+    /// statement's arms and its final `default` (D182), so a statement whose
+    /// plan does not read the statement's own subject (an inliner's renamed
+    /// one) or its own clause count, whose words' delimiters the lowering
+    /// did not record, or whose transfer declines, records nothing.
+    pub(crate) fn selection_records<S: std::hash::BuildHasher>(
+        &self,
+        cfg: &crate::cfg::Function,
+        ssa: &SsaFunction,
+        values: &HashMap<ValueKey, LatticeValue, S>,
+        executable_blocks: &HashSet<crate::cfg::BlockId, S>,
+    ) -> Vec<crate::sccp::SelectionRecord> {
+        let mut records = Vec::new();
+        for (block_id, block) in &ssa.blocks {
+            if !executable_blocks.contains(block_id) {
+                continue;
+            }
+            for stmt_ssa in &block.statements {
+                let Statement::Switch {
+                    span,
+                    subject,
+                    arms,
+                    default_body,
+                    raw_args,
+                    raw_arg_braced,
+                    raw_arg_quoted,
+                    ..
+                } = &stmt_ssa.statement
+                else {
+                    continue;
+                };
+                if raw_arg_braced.len() != raw_args.len() || raw_arg_quoted.len() != raw_args.len()
+                {
+                    continue;
+                }
+                let Some(head) = binding_at(cfg, *span) else {
+                    continue;
+                };
+                if !self.trusted(head) {
+                    continue;
+                }
+                let cooked = switch_arguments(
+                    raw_args,
+                    (raw_arg_braced, raw_arg_quoted),
+                    &self.lexer_config,
+                );
+                let texts: Vec<&str> = cooked.iter().map(|arg| arg.text.as_ref()).collect();
+                let words: Vec<InvocationWord<'_>> = cooked.iter().map(ArgWord::word).collect();
+                let Some(resolved) = self.resolve(head, &words) else {
+                    continue;
+                };
+                let Some(semantics) = resolved.semantics.value.semantics() else {
+                    continue;
+                };
+                let inputs = LatticeInputs {
+                    driver: self,
+                    view: view_of(&resolved, &texts, &words, InvocationLayout::Source),
+                    uses: &stmt_ssa.uses,
+                    values,
+                    ssa,
+                    sources: cooked.iter().map(|arg| arg.source).collect(),
+                };
+                let PlanAnswer::CaseList {
+                    subject: at,
+                    arms: plan_arms,
+                    ..
+                } = semantics.structure(&inputs)
+                else {
+                    continue;
+                };
+                let clauses = arms.len() + usize::from(default_body.is_some());
+                if raw_args.get(at.0) != Some(subject)
+                    || plan_clause_count(
+                        &inputs,
+                        &plan_arms,
+                        WordValueRules::from_config(&self.lexer_config),
+                    ) != Some(clauses)
+                {
+                    continue;
+                }
+                if let TransferAnswer::Selection(fact) =
+                    semantics.transfer(FactDomain::Selection, &inputs, &mut self.budget())
+                {
+                    records.push(crate::sccp::SelectionRecord {
+                        span: *span,
+                        arm_pattern_spans: arms.iter().map(|arm| arm.pattern_span).collect(),
+                        fact,
+                    });
+                }
+            }
+        }
+        records.sort_by_key(|record| (record.span.start(), record.span.end()));
+        records
+    }
+
     pub(crate) fn take_run_facts(&self) -> crate::sccp::SccpResult {
         crate::sccp::SccpResult {
             explanations: self.take_explanations(),
@@ -1918,7 +2019,9 @@ impl<'a> LatticeDriver<'a> {
             .zip(seg.arg_single_token())
             .zip(seg.args())
             .map(|((token, &single), text)| {
-                ArgWord::of_token(text, token.kind, single, &self.lexer_config)
+                // A quoted-opening token counts its `"` as a delimiter byte.
+                let quoted = token.kind == TokenType::Esc && token.content_offset > 0;
+                ArgWord::of_token(text, (token.kind, quoted), single, &self.lexer_config)
             })
             .collect();
         let texts: Vec<&str> = cooked.iter().map(|arg| arg.text.as_ref()).collect();
@@ -2222,7 +2325,7 @@ pub fn proven_word_value(
     let arguments = call_arguments(args, tokens.as_ref(), &config);
     let argument = arguments.get(word.checked_sub(1)?)?;
     match argument.source {
-        OperandSource::BracedLiteral | OperandSource::Literal => {
+        OperandSource::BracedLiteral | OperandSource::Literal | OperandSource::QuotedLiteral => {
             Some((ExactValue::from_literal(&argument.text), None))
         }
         OperandSource::Substituted => proven_substitution(&argument.text, &at.uses, fu, config),
@@ -2653,9 +2756,14 @@ pub(crate) fn literal_token_value<'t>(
 enum OperandSource {
     /// A single braced word: its content is its value.
     BracedLiteral,
-    /// A bare or quoted word with nothing to substitute: its cooked text is
-    /// its value.
+    /// A bare word with nothing to substitute — or, in a statement with no
+    /// token snapshot, a word taken as spelled: its cooked text is its
+    /// value.
     Literal,
+    /// A double-quoted word with nothing to substitute: its cooked text is
+    /// its value. Apart from [`Self::Literal`] because 9.1b0's byte-compiled
+    /// `switch` reads a quoted fall-through body as a command.
+    QuotedLiteral,
     /// A bare or quoted word with substitutions, spelled as the source
     /// wrote its content: the value is the parts' values concatenated.
     Substituted,
@@ -2681,7 +2789,12 @@ impl<'t> ArgWord<'t> {
     /// its cooked value, a `{*}` word expands, and any other word is
     /// dynamic — substituted from its spelling unless it is a braced
     /// compound, whose spelling is not its source.
-    fn of_token(text: &'t str, kind: TokenType, single: bool, config: &LexerConfig) -> Self {
+    fn of_token(
+        text: &'t str,
+        (kind, quoted): (TokenType, bool),
+        single: bool,
+        config: &LexerConfig,
+    ) -> Self {
         if kind == TokenType::Expand {
             return Self::spelled(text, InvocationWordKind::Expanded, OperandSource::Unknown);
         }
@@ -2691,6 +2804,8 @@ impl<'t> ArgWord<'t> {
                 kind: InvocationWordKind::Literal,
                 source: if kind == TokenType::Str {
                     OperandSource::BracedLiteral
+                } else if quoted {
+                    OperandSource::QuotedLiteral
                 } else {
                     OperandSource::Literal
                 },
@@ -2765,9 +2880,14 @@ fn call_arguments<'t>(
             if expanded {
                 ArgWord::spelled(text, InvocationWordKind::Expanded, OperandSource::Unknown)
             } else if tokens.argv_texts[at] == *text {
+                // A quoted word's span opens at its `"`, so it runs past its
+                // content; a bare word's is its spelling.
+                let span = tokens.argv[at];
+                let quoted = tokens.argv_kinds[at] == TokenType::Esc
+                    && (span.end() - span.start()) as usize > text.len();
                 ArgWord::of_token(
                     text,
-                    tokens.argv_kinds[at],
+                    (tokens.argv_kinds[at], quoted),
                     tokens.single_token_word[at],
                     config,
                 )
@@ -2776,6 +2896,86 @@ fn call_arguments<'t>(
             }
         })
         .collect()
+}
+
+/// A case-list statement's words as its lowering recorded them
+/// (`Statement::Switch`'s `raw_args` with the per-word braced and quoted
+/// flags, which the caller has checked cover every word): a braced word's
+/// content is its value, with backslash-newlines collapsed; a bare or
+/// quoted word with nothing to substitute is its escapes decoded, its
+/// source saying which of the two it was; any other word is substituted
+/// from its spelling.
+fn switch_arguments<'t>(
+    raw_args: &'t [String],
+    (braced, quoted): (&[bool], &[bool]),
+    config: &LexerConfig,
+) -> Vec<ArgWord<'t>> {
+    raw_args
+        .iter()
+        .enumerate()
+        .map(|(index, text)| {
+            if braced.get(index).copied().unwrap_or(false) {
+                return ArgWord {
+                    text: WordValueRules::from_config(config).collapse_braced_word(text),
+                    kind: InvocationWordKind::Literal,
+                    source: OperandSource::BracedLiteral,
+                };
+            }
+            match word_of(text) {
+                InvocationWord::Literal(_) => ArgWord {
+                    text: tcl_lexer::backslash_subst_in(text, config.escapes),
+                    kind: InvocationWordKind::Literal,
+                    source: if quoted.get(index).copied().unwrap_or(false) {
+                        OperandSource::QuotedLiteral
+                    } else {
+                        OperandSource::Literal
+                    },
+                },
+                _ => ArgWord::spelled(
+                    text,
+                    InvocationWordKind::Dynamic,
+                    OperandSource::Substituted,
+                ),
+            }
+        })
+        .collect()
+}
+
+/// The command a statement's binding site names (D181): the registry
+/// identity the lowering recorded at the statement's own span, when every
+/// site there names the same one — the canonical command a
+/// `Statement::Switch`, which keeps no resolved name of its own, was lowered
+/// for.
+fn binding_at(cfg: &crate::cfg::Function, span: Span) -> Option<&str> {
+    let mut identities = cfg
+        .command_binding_sites
+        .iter()
+        .filter(|site| site.span == span)
+        .map(|site| site.binding.identity.as_str());
+    let first = identities.next()?;
+    identities.all(|other| other == first).then_some(first)
+}
+
+/// How many pattern and body pairs a case-list plan reads: the inline
+/// form's pairs, or the clause-list word's exact value split under the
+/// document's list rules — `None` where that word has no exact value or is
+/// not a list of pairs, which the transfer declines too.
+fn plan_clause_count(
+    inputs: &dyn AnalysisInputs,
+    arms: &CaseArms,
+    rules: WordValueRules,
+) -> Option<usize> {
+    match arms {
+        CaseArms::Words(pairs) => Some(pairs.len()),
+        CaseArms::List(list) => {
+            let FactView::Exact(value, _) = inputs.operand(*list, FactDomain::ExactValue) else {
+                return None;
+            };
+            let text = String::from_utf8(value.bytes).ok()?;
+            let elements = rules.split_list(&text).ok()?.len();
+            elements.is_multiple_of(2).then_some(elements / 2)
+        }
+    }
 }
 
 /// The resolver's projection of `resolved` over `texts`: the canonical
@@ -3073,14 +3273,25 @@ impl<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher> AnalysisInputs
             // The content starts one past the opening brace.
             Some(OperandSource::BracedLiteral) => Ok(WordStructure {
                 braced: true,
+                quoted: false,
                 parts: whole(1),
             }),
             Some(OperandSource::Literal) => Ok(WordStructure {
                 braced: false,
+                quoted: false,
                 parts: whole(0),
             }),
+            // The content starts one past the opening quote.
+            Some(OperandSource::QuotedLiteral) => Ok(WordStructure {
+                braced: false,
+                quoted: true,
+                parts: whole(1),
+            }),
+            // A substituted word's reading is its parts'; its quoting is
+            // not recorded.
             Some(OperandSource::Substituted) => Ok(WordStructure {
                 braced: false,
+                quoted: false,
                 parts: word_parts(operand.text, self.driver.lexer_config)?,
             }),
             Some(OperandSource::Unknown) | None => Err(DeclineReason::NotExact),
@@ -3931,6 +4142,7 @@ pub fn literal_template_plan(
                 id,
                 WordStructure {
                     braced: false,
+                    quoted: false,
                     parts: vec![WordPart::Literal {
                         span: Span::new(0, u32::try_from(text.len()).unwrap_or(u32::MAX)),
                         text: (*text).to_owned(),
@@ -3944,6 +4156,7 @@ pub fn literal_template_plan(
                         id,
                         WordStructure {
                             braced: false,
+                            quoted: false,
                             parts,
                         },
                     ),
@@ -4351,6 +4564,124 @@ mod tests {
             .map(|read| (read.name.as_str(), read.span))
             .collect();
         assert_eq!(reads, [("b", Span::new(2, 4))]);
+    }
+
+    /// The selection records of `::p` in `source` under `dialect`.
+    fn selections_of(source: &str, dialect: &str) -> Vec<crate::sccp::SelectionRecord> {
+        let registry = tcl_registry::model::ingress::static_context_for(dialect).commands();
+        let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
+            source, registry, false, dialect,
+        );
+        unit.procedures
+            .get("::p")
+            .expect("the procedure")
+            .sccp
+            .selections
+            .clone()
+    }
+
+    /// The driver records each executable opaque case-list statement's
+    /// selection over the settled lattice (VT6.3): the record's arm indices
+    /// count the command's pattern and body pairs against the statement's
+    /// arms, whose pattern spans it keeps in order, so the index one past
+    /// them names the final `default` the statement keeps as its default
+    /// body (D182) — `abc` selects `a*`, a literal `zzz` the default, and a
+    /// finite subject one arm per member. A subject with no proven value,
+    /// and a flattened exact switch, which is no statement at all, record
+    /// nothing; `case`'s statement records through the command its binding
+    /// site names (D181). Each answer is tclsh 8.6.18's.
+    #[test]
+    fn an_opaque_switch_records_its_selection() {
+        let source = "proc p {x} {\n\
+                      set s abc\n\
+                      switch -glob -- $s {a* {set r A} default {set r D}}\n\
+                      switch -glob -- zzz {a* {set r A} default {set r D}}\n\
+                      switch -glob -- $x {a* {set r A} default {set r D}}\n\
+                      if {$x} {set t b} else {set t a}\n\
+                      switch -glob -- $t {a {set r A} b {set r B} default {set r D}}\n\
+                      switch -- $s {abc {set r A} default {set r D}}\n\
+                      case abc in a* {set r A} default {set r D}\n\
+                      }\n";
+        let records = selections_of(source, "tcl8.6");
+        let at = |nth: usize, text: &str| {
+            let start = source.match_indices(text).nth(nth).expect("the word").0;
+            let at = |offset: usize| u32::try_from(offset).expect("a short source");
+            Span::new(at(start), at(start + text.len()))
+        };
+        assert_eq!(records.len(), 4, "{records:#?}");
+        // `abc` selects the first arm, whose body runs.
+        assert_eq!(records[0].fact.selected, [Some(0)]);
+        assert_eq!(records[0].fact.bodies, [Some(0)]);
+        assert_eq!(records[0].arm_pattern_spans, [at(0, "a*")]);
+        assert!(!records[0].is_default(0));
+        // A literal subject no pattern matches selects the default: the
+        // index one past the kept arms.
+        assert_eq!(records[1].fact.selected, [Some(1)]);
+        assert_eq!(records[1].arm_pattern_spans, [at(1, "a*")]);
+        assert!(records[1].is_default(1));
+        // A finite subject records one arm per member.
+        let mut members = records[2].fact.selected.clone();
+        members.sort_unstable();
+        assert_eq!(members, [Some(0), Some(1)]);
+        assert_eq!(
+            records[2].arm_pattern_spans,
+            [at(0, "a {set r A} b"), at(0, "b {set r B}")]
+                .map(|span| Span::new(span.start(), span.start() + 1))
+        );
+        // `case` records through its binding site; its statement spans the
+        // whole command.
+        assert_eq!(records[3].fact.selected, [Some(0)]);
+        assert_eq!(records[3].span.start(), at(0, "case abc").start());
+        assert!(
+            records
+                .iter()
+                .all(|record| record.fact.writes.iter().all(Vec::is_empty))
+        );
+    }
+
+    /// A delimited fall-through body reads two ways on 9.1b0 (D179), and
+    /// the statement carries each word's delimiters to the transfer: `a`
+    /// falls through a quoted or braced `-` into `b`'s body under 8.6 and
+    /// 9.0, and no selection is recorded under a profile that may be 9.1;
+    /// a bare `-` records under every one.
+    #[test]
+    fn a_delimited_fallthrough_body_records_no_selection_under_91() {
+        for (body, under_91) in [("\"-\"", false), ("{-}", false), ("-", true)] {
+            let source =
+                format!("proc p {{}} {{\nset s a\nswitch -glob -- $s a {body} b {{set r B}}\n}}\n");
+            for dialect in ["tcl8.6", "tcl9.0", "tcl9.1", "tcl"] {
+                let records = selections_of(&source, dialect);
+                let recorded = matches!(dialect, "tcl8.6" | "tcl9.0") || under_91;
+                assert_eq!(records.len(), usize::from(recorded), "{dialect}: {body}");
+                if recorded {
+                    assert_eq!(records[0].fact.selected, [Some(0)], "{dialect}: {body}");
+                    assert_eq!(records[0].fact.bodies, [Some(1)], "{dialect}: {body}");
+                }
+            }
+        }
+    }
+
+    /// A module that defines its own `switch` is not trusted to select as
+    /// the builtin does: its opaque statement stays, and records nothing.
+    #[test]
+    fn a_redefined_switch_records_no_selection() {
+        let source = "proc switch {args} {return x}\n\
+                      proc p {} {\nswitch -glob -- abc {a* {set r A} default {set r D}}\n}\n";
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
+            source, registry, false, "tcl8.6",
+        );
+        let function = unit.procedures.get("::p").expect("the procedure");
+        assert!(
+            function
+                .ssa
+                .blocks
+                .values()
+                .flat_map(|block| &block.statements)
+                .any(|statement| matches!(statement.statement, Statement::Switch { .. })),
+            "the opaque statement"
+        );
+        assert!(function.sccp.selections.is_empty());
     }
 
     #[test]

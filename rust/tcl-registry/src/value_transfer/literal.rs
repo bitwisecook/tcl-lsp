@@ -84,15 +84,36 @@ impl<'a> LiteralInputs<'a> {
 
     /// Operand `id` as a brace-quoted word: its structure is its text as one
     /// literal run from offset 1, past the opening brace — what a template
-    /// plan decomposes. Any other operand's structure is unavailable.
+    /// plan decomposes. An operand given no structure has none.
     #[must_use]
     pub fn with_braced(self, id: OperandId) -> Self {
+        self.with_literal(id, true, false)
+    }
+
+    /// Operand `id` as a double-quoted word with nothing to substitute: its
+    /// text as one literal run from offset 1, past the opening quote.
+    #[must_use]
+    pub fn with_quoted(self, id: OperandId) -> Self {
+        self.with_literal(id, false, true)
+    }
+
+    /// Operand `id` as a bare word with nothing to substitute: its text as
+    /// one literal run from offset 0.
+    #[must_use]
+    pub fn with_bare(self, id: OperandId) -> Self {
+        self.with_literal(id, false, false)
+    }
+
+    /// Operand `id`'s text as one literal run, delimited as said.
+    fn with_literal(self, id: OperandId, braced: bool, quoted: bool) -> Self {
         let text = self.view.operand(id).map_or("", |operand| operand.text);
-        let end = u32::try_from(text.len()).map_or(u32::MAX, |len| len.saturating_add(1));
+        let start = u32::from(braced || quoted);
+        let end = u32::try_from(text.len()).map_or(u32::MAX, |len| len.saturating_add(start));
         let structure = WordStructure {
-            braced: true,
+            braced,
+            quoted,
             parts: vec![WordPart::Literal {
-                span: tcl_lexer::Span::new(1, end),
+                span: tcl_lexer::Span::new(start, end),
                 text: text.to_owned(),
             }],
         };

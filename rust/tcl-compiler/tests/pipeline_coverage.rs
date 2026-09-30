@@ -549,6 +549,8 @@ mod defs_from_ir_script_arms {
         let s = Script::from_statements(vec![Statement::Switch {
             subject_braced: false,
             raw_arg_braced: Vec::new(),
+            raw_arg_quoted: Vec::new(),
+            command: "switch".into(),
             span: Span::new(0, 40),
             subject: "$x".into(),
             subject_span: Span::new(7, 9),

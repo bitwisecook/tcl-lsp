@@ -1812,6 +1812,7 @@ mod tests {
             folded_types: HashMap::new(),
             preserved: HashMap::new(),
             template_plans: Vec::new(),
+            selections: Vec::new(),
             existence: HashMap::new(),
             existence_reads: HashMap::new(),
             existence_exits: HashMap::new(),

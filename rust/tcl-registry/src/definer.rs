@@ -3107,6 +3107,8 @@ const SPECTCL_CASE_LIST_MEMBERS: &[MemberSpec] = &[
     setting_word("allow_omitted_final_body"),
     setting_word("keyword_patterns"),
     setting_word("warn_unbraced_bodies"),
+    setting_word("default_mode"),
+    setting_word("pattern_words"),
 ];
 
 /// The six scalars of an `event_requires { … }` block.

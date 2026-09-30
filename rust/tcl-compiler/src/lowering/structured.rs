@@ -158,6 +158,82 @@ fn braced_word_flags(
         .collect()
 }
 
+/// Per argument, whether the word was double-quoted: its representative
+/// token opens at the `"` (a quoted-opening `Esc` token counts the quote as
+/// a delimiter byte) or runs inside the quotes.
+fn quoted_word_flags(arg_tokens: &[tcl_lexer::Token], len: usize) -> Vec<bool> {
+    (0..len)
+        .map(|i| {
+            arg_tokens.get(i).is_some_and(|token| {
+                token.in_quote || (token.kind == TokenType::Esc && token.content_offset > 0)
+            })
+        })
+        .collect()
+}
+
+/// The IR's mode for a case list's own comparison, or `None` for a
+/// specialised one the statement cannot carry.
+const fn switch_mode_of(mode: tcl_registry::spec::CaseMatchMode) -> Option<SwitchMode> {
+    match mode {
+        tcl_registry::spec::CaseMatchMode::Exact => Some(SwitchMode::Exact),
+        tcl_registry::spec::CaseMatchMode::Glob => Some(SwitchMode::Glob),
+        tcl_registry::spec::CaseMatchMode::Regexp => Some(SwitchMode::Regexp),
+        tcl_registry::spec::CaseMatchMode::Other => None,
+    }
+}
+
+/// Where a case list's options end and how its clauses compare, as
+/// `(subject_index, mode, nocase)`; `Err` is the reason the whole command
+/// defers to the runtime. A command with option rows scans them
+/// ([`parse_switch_options`]); one with none (`case`) scans no word as an
+/// option — its subject is the first word — and every clause compares as
+/// its descriptor states, `Tcl_CaseObjCmd`'s glob for `case`.
+fn case_list_head(
+    case: &CaseListSpec,
+    reads_options: bool,
+    args: &[String],
+) -> Result<(usize, SwitchMode, bool), &'static str> {
+    if !reads_options {
+        let mode =
+            switch_mode_of(case.default_mode).ok_or("case list with a specialised comparison")?;
+        return Ok((0, mode, false));
+    }
+    let (i, mode, nocase, unknown) = parse_switch_options(args);
+    // An unrecognised / arg-taking option (`-foo`, `-matchvar`, …): bail to
+    // the runtime `switch`, which validates options and does the var writes.
+    if unknown {
+        return Err("switch with non-inlined option");
+    }
+    Ok((i, mode, nocase))
+}
+
+/// Why the IR's arm cannot hold a clause of a case list, when one cannot:
+/// under a descriptor whose pattern words may be lists (`case`), a pattern
+/// the command splits as one ([`CaseListSpec::pattern_is_list`]) or whose
+/// value the source does not state, which may be one; and, under one whose
+/// keyword pattern counts wherever it stands, a keyword before the last
+/// clause — the IR keeps the fallback as its default body, which runs only
+/// after every arm.
+fn case_list_unrepresentable(case: &CaseListSpec, pairs: &[SwitchPair]) -> Option<&'static str> {
+    let is_list = |pair: &SwitchPair| {
+        case.pattern_is_list(&pair.pattern)
+            || (case.pattern_words == tcl_registry::spec::PatternWords::Lists
+                && !pair.pattern_braced
+                && (pair.pattern.contains('$') || pair.pattern.contains('[')))
+    };
+    if pairs.iter().any(is_list) {
+        return Some("case pattern list");
+    }
+    let early_keyword = pairs.split_last().is_some_and(|(_, rest)| {
+        rest.iter()
+            .any(|pair| case.keyword_patterns.contains(&pair.pattern.as_str()))
+    });
+    if !case.keyword_patterns_require_final && early_keyword {
+        return Some("case keyword pattern before the last clause");
+    }
+    None
+}
+
 /// Parse switch options, returning `(first_non_option_index, mode, nocase,
 /// unknown)`. `unknown` is set when a leading `-word` is not one of the options
 /// the compiler inlines (`-exact`/`-glob`/`-regexp`/`-nocase`/`--`) — an
@@ -989,11 +1065,18 @@ impl Lowerer<'_> {
     // local arena state.
     /// The case list `seg`'s command declares — its fall-through body and its
     /// keyword patterns are the registry's, never spellings in the lowering.
-    fn case_list_of(&self, seg: &SegmentedCommand) -> Option<&'static CaseListSpec> {
+    /// The call's case-list descriptor, and whether its command reads any
+    /// option rows — `case` has none, so no word of it is an option.
+    fn case_list_of(&self, seg: &SegmentedCommand) -> Option<(&'static CaseListSpec, bool)> {
         let arg_refs: Vec<&str> = seg.args().iter().map(String::as_str).collect();
         self.registry
             .resolve_call(seg.name(), &arg_refs, self.registry.own_surface_query())
-            .and_then(|resolved| resolved.spec.case_list)
+            .and_then(|resolved| {
+                resolved
+                    .spec
+                    .case_list
+                    .map(|case| (case, !resolved.spec.options.is_empty()))
+            })
     }
 
     /// Build the `(arms, default_body, default_span)` triple from
@@ -1085,17 +1168,14 @@ impl Lowerer<'_> {
         if args.len() < 2 {
             return self.barrier(seg, "malformed switch");
         }
-        let Some(case) = self.case_list_of(seg) else {
+        let Some((case, reads_options)) = self.case_list_of(seg) else {
             return self.barrier(seg, "switch without a case list");
         };
 
-        let (mut i, mode, nocase, unknown) = parse_switch_options(args);
-
-        // An unrecognised / arg-taking option (`-foo`, `-matchvar`, …): bail to
-        // the runtime `switch`, which validates options and does the var writes.
-        if unknown {
-            return self.barrier(seg, "switch with non-inlined option");
-        }
+        let (mut i, mode, nocase) = match case_list_head(case, reads_options, args) {
+            Ok(head) => head,
+            Err(reason) => return self.barrier(seg, reason),
+        };
         if i >= args.len() {
             return self.barrier(seg, "malformed switch options");
         }
@@ -1110,6 +1190,19 @@ impl Lowerer<'_> {
         // substitute.
         let subject_braced = word_is_braced(arg_tokens, arg_single, i);
         i += 1;
+        // The descriptor's literal separator (`case string ?in? …`), skipped
+        // when the word's value is it, as `Tcl_CaseObjCmd`'s `strcmp` does. A
+        // word there whose value the source does not state could be it.
+        if let Some(separator) = case.optional_subject_separator
+            && i < args.len()
+        {
+            if !super::seg_word_is_static_literal(seg, i + 1) || args[i].contains('\\') {
+                return self.barrier(seg, "case list separator is computed");
+            }
+            if args[i] == separator {
+                i += 1;
+            }
+        }
         if i >= args.len() {
             return self.barrier(seg, "switch missing arms");
         }
@@ -1183,6 +1276,9 @@ impl Lowerer<'_> {
             }
         }
 
+        if let Some(reason) = case_list_unrepresentable(case, &pairs) {
+            return self.barrier(seg, reason);
+        }
         let (arms, default_body, default_span) =
             self.build_switch_arms(case, &pairs, arg_tokens, namespace);
 
@@ -1198,6 +1294,8 @@ impl Lowerer<'_> {
             nocase,
             raw_args: args.to_vec(),
             raw_arg_braced: braced_word_flags(arg_tokens, arg_single, args.len()),
+            raw_arg_quoted: quoted_word_flags(arg_tokens, args.len()),
+            command: seg.name().to_owned(),
             patterns_braced,
         }
     }
@@ -1435,6 +1533,114 @@ mod tests {
                 m.top_level.statements[0],
             );
         }
+    }
+
+    /// `case` lowers through the switch hook on its own descriptor (D180):
+    /// no word is an option, the `in` word is skipped, and every clause is
+    /// a glob comparison — an opaque glob `Statement::Switch` naming `case`
+    /// in each form, its final `default` the default body.
+    #[test]
+    fn case_lowers_as_an_opaque_glob_selection() {
+        for src in [
+            "case abc in a* {puts A} default {puts D}",
+            "case abc a* {puts A} default {puts D}",
+            "case abc in {a* {puts A} default {puts D}}",
+            "case abc {a* {puts A} default {puts D}}",
+        ] {
+            let m = lower_to_ir(src, &reg());
+            let Statement::Switch {
+                subject,
+                arms,
+                default_body,
+                mode,
+                nocase,
+                command,
+                ..
+            } = &m.top_level.statements[0]
+            else {
+                panic!(
+                    "expected a Switch for {src:?}, got {:?}",
+                    m.top_level.statements[0]
+                );
+            };
+            assert_eq!(subject, "abc", "{src:?}");
+            assert_eq!(*mode, SwitchMode::Glob, "{src:?}");
+            assert!(!nocase, "{src:?}");
+            assert_eq!(command, "case", "{src:?}");
+            let patterns: Vec<&str> = arms.iter().map(|arm| arm.pattern.as_str()).collect();
+            assert_eq!(patterns, ["a*"], "{src:?}");
+            assert!(default_body.is_some(), "{src:?}");
+        }
+    }
+
+    /// A `case` clause the IR arm cannot hold lowers to a barrier, so the
+    /// runtime command runs it: a pattern `case` splits as a list, a
+    /// substituted pattern that may be one, a `default` before the last
+    /// clause (a fallback wherever it stands), and a word after the subject
+    /// whose value may be the `in` separator.
+    #[test]
+    fn case_clauses_the_arm_cannot_hold_are_barriers() {
+        for src in [
+            "case abc in {x a*} {puts L} default {puts D}",
+            "case abc in {a\\*} {puts E}",
+            "case abc {{x a*} {puts L}}",
+            "case abc in $p {puts P}",
+            "case abc in default {puts D} a* {puts A}",
+            "case abc $w a* {puts A}",
+        ] {
+            let m = lower_to_ir(src, &reg());
+            assert!(
+                matches!(&m.top_level.statements[0], Statement::Barrier { .. }),
+                "expected a barrier for {src:?}, got {:?}",
+                m.top_level.statements[0],
+            );
+        }
+    }
+
+    /// From 9.0 there is no `case` command, so nothing lowers it (D180).
+    #[test]
+    fn case_does_not_lower_under_9() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
+        let m = crate::lowering::lower_to_ir_with_dialect(
+            "case abc in a* {puts A}",
+            registry,
+            tcl_lexer::LexerConfig::default(),
+            Some(profile),
+        );
+        assert!(
+            !matches!(&m.top_level.statements[0], Statement::Switch { .. }),
+            "{:?}",
+            m.top_level.statements[0]
+        );
+    }
+
+    /// Each word's delimiters reach the statement: per word, whether it was
+    /// braced (`raw_arg_braced`) or double-quoted (`raw_arg_quoted`), so a
+    /// bare `-` body is told apart from a quoted or braced one (D179).
+    #[test]
+    fn a_switch_records_how_each_word_was_delimited() {
+        let m = lower_to_ir("switch -glob -- $x a \"-\" b - c {-} d {puts d}", &reg());
+        let Statement::Switch {
+            raw_args,
+            raw_arg_braced,
+            raw_arg_quoted,
+            ..
+        } = &m.top_level.statements[0]
+        else {
+            panic!("expected a Switch, got {:?}", m.top_level.statements[0]);
+        };
+        assert_eq!(raw_args.len(), 11, "{raw_args:?}");
+        let flagged = |flags: &[bool]| -> Vec<usize> {
+            flags
+                .iter()
+                .enumerate()
+                .filter_map(|(index, &flag)| flag.then_some(index))
+                .collect()
+        };
+        assert_eq!(flagged(raw_arg_quoted), [4], "{raw_args:?}");
+        assert_eq!(flagged(raw_arg_braced), [8, 10], "{raw_args:?}");
     }
 
     // `patterns_braced` distinguishes a literal-pattern

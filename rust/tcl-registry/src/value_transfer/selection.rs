@@ -31,12 +31,21 @@
 //! the clause list — and a pattern that cannot be evaluated declines the
 //! whole fact, so a consumer never reads a selection one member of the
 //! subject might not make.
+//!
+//! `case`, `switch`'s obsolete 8.x ancestor, declares its own contract over
+//! the same plan ([`CaseSemantics`]): no options, glob matching, pattern
+//! lists, a `default` fallback wherever it stands, and no fall-through body,
+//! through the shared `tcl_cmd_core::case::select`.
 
 use tcl_cmd_core::switch::{Mode, Options, Selection, parse_options, select_analysis};
 use tcl_dialect::model::SpecSurface;
 use tcl_dialect::{DialectProfile, TclVersion};
 use tcl_regex::cmd_core::AreEngine;
 use tcl_syntax::value::ValueOps;
+
+use super::answers::ExactValue;
+use super::decline::Axis;
+use super::inputs::WordPart;
 
 use crate::hover::OptionSpec;
 use crate::invocation_words::InvocationWordKind;
@@ -47,7 +56,7 @@ use super::answers::{
     CaseArms, EvalAnswer, PlanAnswer, SelectionContract, SelectionFact, StoreOutcome,
     TransferAnswer,
 };
-use super::const_ops::{ConstOps, ConstValue, Needs, TargetSemantics};
+use super::const_ops::{ConstOps, ConstValue, Needs, TargetSemantics, WorkUnits};
 use super::context::{AnalysisContext, Budget};
 use super::decline::{DeclineReason, NoRouteReason};
 use super::inputs::{AnalysisInputs, FactDomain, FactView, InvocationLayout, OperandId, TargetId};
@@ -91,7 +100,7 @@ impl CommandSemantics for SwitchSemantics {
     }
 
     fn structure(&self, input: &dyn AnalysisInputs) -> PlanAnswer {
-        self.plan(input)
+        case_list_plan(&self.case_list, self.options, self.surface, input)
     }
 
     fn transfer(
@@ -116,85 +125,149 @@ impl CommandSemantics for SwitchSemantics {
     }
 }
 
-impl SwitchSemantics {
-    /// The option rows `context`'s target reads alike: under a named
-    /// release, the rows its surface admits; with none named, only the
-    /// rows every release has, because a row some releases lack is a bad
-    /// option to them.
-    fn options_for(&self, context: &AnalysisContext) -> Vec<&'static OptionSpec> {
-        let named = TargetSemantics::of(context.profile).release.is_some();
-        let query = context.profile.map(DialectProfile::surface_query);
-        self.options
-            .iter()
-            .filter(|option| {
-                if named {
-                    option.supports_dialect(query, self.surface)
-                } else {
-                    option.surface.is_none()
-                }
+/// The option rows `context`'s target reads alike: under a named release,
+/// the rows its surface admits; with none named, only the rows every
+/// release has, because a row some releases lack is a bad option to them.
+fn options_for(
+    options: &'static [OptionSpec],
+    surface: Option<&'static [SpecSurface]>,
+    context: &AnalysisContext,
+) -> Vec<&'static OptionSpec> {
+    let named = TargetSemantics::of(context.profile).release.is_some();
+    let query = context.profile.map(DialectProfile::surface_query);
+    options
+        .iter()
+        .filter(|option| {
+            if named {
+                option.supports_dialect(query, surface)
+            } else {
+                option.surface.is_none()
+            }
+        })
+        .collect()
+}
+
+/// The case-list plan: the release-aware layout `case_list` reads over the
+/// operands' spellings, with the option rows the target admits — the
+/// subject, the arms, the match mode and case folding the rows select, or
+/// the descriptor's own comparison. An expanded or opaque word, a layout
+/// the descriptor abstains on, and the synthetic loop-header layout
+/// decline.
+fn case_list_plan(
+    case_list: &CaseListSpec,
+    options: &'static [OptionSpec],
+    surface: Option<&'static [SpecSurface]>,
+    input: &dyn AnalysisInputs,
+) -> PlanAnswer {
+    let view = input.invocation();
+    if !matches!(view.layout, InvocationLayout::Source) {
+        return PlanAnswer::Declined(DeclineReason::Unsupported);
+    }
+    let first = view.argument_offset;
+    let operands = view.operands.get(first..).unwrap_or_default();
+    if operands.iter().any(|operand| {
+        matches!(
+            operand.kind,
+            InvocationWordKind::Expanded | InvocationWordKind::Opaque
+        )
+    }) {
+        return PlanAnswer::Declined(DeclineReason::NotExact);
+    }
+    let words: Vec<&str> = operands.iter().map(|operand| operand.text).collect();
+    let options = options_for(options, surface, input.context());
+    let query = input.context().profile.map(DialectProfile::surface_query);
+    let Some(layout) = case_list.invocation(&words, &options, query) else {
+        return PlanAnswer::Declined(DeclineReason::WrongRepresentation);
+    };
+    let Some(subject) = layout.subject_index else {
+        return PlanAnswer::Declined(DeclineReason::Unsupported);
+    };
+    let arms = match (layout.clause_list_index, layout.inline_clause_start) {
+        (Some(list), _) => CaseArms::List(OperandId(first + list)),
+        (None, Some(start)) => CaseArms::Words(
+            (start..words.len().saturating_sub(1))
+                .step_by(2)
+                .map(|pattern| {
+                    let body = pattern + 1;
+                    let falls_through = Some(words[body]) == case_list.fallthrough_body;
+                    (
+                        OperandId(first + pattern),
+                        (!falls_through).then_some(OperandId(first + body)),
+                    )
+                })
+                .collect(),
+        ),
+        (None, None) => return PlanAnswer::Declined(DeclineReason::Unsupported),
+    };
+    PlanAnswer::CaseList {
+        subject: OperandId(first + subject),
+        arms,
+        fallthrough: case_list.fallthrough_body,
+        selection: SelectionContract {
+            mode: layout.mode,
+            nocase: layout.nocase,
+            final_default: !case_list.keyword_patterns.is_empty(),
+        },
+    }
+}
+
+/// The members of a proven subject: one for an exact value, each of a
+/// finite set's, or the reason there are none.
+fn subject_members(
+    input: &dyn AnalysisInputs,
+    subject: OperandId,
+) -> Result<Vec<ExactValue>, DeclineReason> {
+    match input.operand(subject, FactDomain::ExactValue) {
+        FactView::Exact(value, _) => Ok(vec![value]),
+        FactView::Finite(values, _) => Ok(values),
+        FactView::Top(reason) => Err(reason),
+        FactView::Pending => Err(DeclineReason::NotExact),
+        FactView::Domain(_) => Err(DeclineReason::MalformedAnswer),
+    }
+}
+
+/// Whether operand `id`'s word reads as its value on every path the
+/// releases run it on (D179). 9.1b0's byte-compiled `switch` recognises a
+/// fall-through body only as a bare word (`IsFallthroughToken`,
+/// `tclCompCmdsSZ.c`, measures the word token with its quotes or braces),
+/// its interpreted path by value, and a word with a substitution sends the
+/// whole command to the interpreted path. So a literal written braced or
+/// quoted — or a word whose structure the inputs do not give — reads two
+/// ways there.
+fn read_by_value_everywhere(input: &dyn AnalysisInputs, id: OperandId) -> bool {
+    input.word_structure(id).is_ok_and(|structure| {
+        !(structure.braced || structure.quoted)
+            || structure.parts.iter().any(|part| {
+                matches!(
+                    part,
+                    WordPart::VariableRead { .. } | WordPart::Script { .. }
+                )
             })
-            .collect()
-    }
+    })
+}
 
-    /// The case-list plan: the release-aware layout `case_list` reads over
-    /// the operands' spellings — the subject, the arms, the match mode and
-    /// case folding the option rows select. An expanded or opaque word, a
-    /// layout the descriptor abstains on, and the synthetic loop-header
-    /// layout decline.
-    fn plan(&self, input: &dyn AnalysisInputs) -> PlanAnswer {
-        let view = input.invocation();
-        if !matches!(view.layout, InvocationLayout::Source) {
-            return PlanAnswer::Declined(DeclineReason::Unsupported);
-        }
-        let first = view.argument_offset;
-        let operands = view.operands.get(first..).unwrap_or_default();
-        if operands.iter().any(|operand| {
-            matches!(
-                operand.kind,
-                InvocationWordKind::Expanded | InvocationWordKind::Opaque
-            )
-        }) {
-            return PlanAnswer::Declined(DeclineReason::NotExact);
-        }
-        let words: Vec<&str> = operands.iter().map(|operand| operand.text).collect();
-        let options = self.options_for(input.context());
-        let query = input.context().profile.map(DialectProfile::surface_query);
-        let Some(layout) = self.case_list.invocation(&words, &options, query) else {
-            return PlanAnswer::Declined(DeclineReason::WrongRepresentation);
-        };
-        let Some(subject) = layout.subject_index else {
-            return PlanAnswer::Declined(DeclineReason::Unsupported);
-        };
-        let arms = match (layout.clause_list_index, layout.inline_clause_start) {
-            (Some(list), _) => CaseArms::List(OperandId(first + list)),
-            (None, Some(start)) => CaseArms::Words(
-                (start..words.len().saturating_sub(1))
-                    .step_by(2)
-                    .map(|pattern| {
-                        let body = pattern + 1;
-                        let falls_through = Some(words[body]) == self.case_list.fallthrough_body;
-                        (
-                            OperandId(first + pattern),
-                            (!falls_through).then_some(OperandId(first + body)),
-                        )
-                    })
-                    .collect(),
-            ),
-            (None, None) => return PlanAnswer::Declined(DeclineReason::Unsupported),
-        };
-        PlanAnswer::CaseList {
-            subject: OperandId(first + subject),
-            arms,
-            fallthrough: self.case_list.fallthrough_body,
-            selection: SelectionContract {
-                mode: layout.mode,
-                nocase: layout.nocase,
-                final_default: self.case_list.keyword_patterns_require_final
-                    && !self.case_list.keyword_patterns.is_empty(),
-            },
-        }
+/// Per arm, whether its body is the fall-through spelling a release that
+/// may be 9.1 reads two ways (D179): only a body word of the separate-words
+/// form can be delimited, and only under a profile that may be 9.1.
+fn delimited_fallthroughs(
+    input: &dyn AnalysisInputs,
+    arms: &CaseArms,
+    bodies: &[bool],
+    may_be_91: bool,
+) -> Vec<bool> {
+    match arms {
+        CaseArms::Words(pairs) if may_be_91 => pairs
+            .iter()
+            .zip(bodies)
+            .map(|((pattern, _), &falls)| {
+                falls && !read_by_value_everywhere(input, OperandId(pattern.0 + 1))
+            })
+            .collect(),
+        _ => vec![false; bodies.len()],
     }
+}
 
+impl SwitchSemantics {
     /// The selection fact: the plan's layout, confirmed by the shared
     /// core's own option scan over the words' values for every member of
     /// the subject, and the core's selection per member.
@@ -208,7 +281,7 @@ impl SwitchSemantics {
             arms,
             selection,
             ..
-        } = self.plan(input)
+        } = self.structure(input)
         else {
             return Err(DeclineReason::Unsupported);
         };
@@ -216,18 +289,12 @@ impl SwitchSemantics {
         if selection.mode == CaseMatchMode::Other {
             return Err(DeclineReason::Unsupported);
         }
-        let members = match input.operand(subject, FactDomain::ExactValue) {
-            FactView::Exact(value, _) => vec![value],
-            FactView::Finite(values, _) => values,
-            FactView::Top(reason) => return Err(reason),
-            FactView::Pending => return Err(DeclineReason::NotExact),
-            FactView::Domain(_) => return Err(DeclineReason::MalformedAnswer),
-        };
+        let members = subject_members(input, subject)?;
         let view = input.invocation();
         let first = view.argument_offset;
-        let bounded_scan = TargetSemantics::of(input.context().profile)
-            .release
-            .is_some_and(|release| release >= TclVersion::V8_5);
+        let release = TargetSemantics::of(input.context().profile).release;
+        let bounded_scan = release.is_some_and(|release| release >= TclVersion::V8_5);
+        let may_be_91 = release.is_none_or(|release| release >= TclVersion::V9_1);
         let mut ops = ConstOps::admit(input.context(), budget, NEEDS)?;
         // The core's argv, name-stripped: every word but the subject exactly.
         let mut argv = Vec::with_capacity(view.operands.len() - first);
@@ -239,10 +306,12 @@ impl SwitchSemantics {
             });
         }
         let at = subject.0 - first;
-        let (patterns, bodies) = clauses(&mut ops, &arms, &argv, first)?;
+        let fallthrough = self.case_list.fallthrough_body;
+        let (patterns, bodies) = clauses(&mut ops, &arms, (&argv, first), fallthrough)?;
         for pattern in &patterns {
             ops.admissible_text(pattern)?;
         }
+        let two_ways = delimited_fallthroughs(input, &arms, &bodies, may_be_91);
         let mut fact = SelectionFact {
             selected: Vec::with_capacity(members.len()),
             bodies: Vec::with_capacity(members.len()),
@@ -282,6 +351,11 @@ impl SwitchSemantics {
                     let body = (index..bodies.len())
                         .find(|&arm| !bodies[arm])
                         .ok_or(DeclineReason::WrongRepresentation)?;
+                    if two_ways[index..body].contains(&true) {
+                        return Err(DeclineReason::ReleaseAmbiguous(Axis::Availability(
+                            SpecSurface::TCL91[0],
+                        )));
+                    }
                     fact.selected.push(Some(index));
                     fact.bodies.push(Some(body));
                     written.push(write_targets(&options, writes, first)?);
@@ -305,6 +379,126 @@ impl SwitchSemantics {
     }
 }
 
+/// The axes `case`'s selection reads: the source decoding of a non-ASCII
+/// word, and the list rules its clause-list word and its pattern lists
+/// split under.
+const CASE_NEEDS: Needs = Needs::SOURCE_ENCODING.union(Needs::LIST_RENDERING);
+
+/// `case`'s selection contract (Tcl 8.4 to 8.6, and iRules on their 8.4
+/// base): the same case-list plan as `switch`, read with no option rows,
+/// and the clause `Tcl_CaseObjCmd` runs per member of a proven subject
+/// through the shared `tcl_cmd_core::case::select` — glob matching, a
+/// pattern word holding whitespace or a backslash a list of patterns, a
+/// `default` fallback wherever it stands, and no fall-through body, so the
+/// arm selected is the arm whose body runs and nothing is written.
+#[derive(Debug, Clone, Copy)]
+pub struct CaseSemantics {
+    /// The case-list grammar the plan reads.
+    pub case_list: CaseListSpec,
+    /// The command's own surface.
+    pub surface: Option<&'static [SpecSurface]>,
+}
+
+impl CommandSemantics for CaseSemantics {
+    fn identity(&self) -> &'static str {
+        "case-list:case"
+    }
+
+    fn route(&self) -> EvalRoute {
+        EvalRoute::None {
+            reason: NoRouteReason::Unauthored,
+        }
+    }
+
+    fn structure(&self, input: &dyn AnalysisInputs) -> PlanAnswer {
+        case_list_plan(&self.case_list, &[], self.surface, input)
+    }
+
+    fn transfer(
+        &self,
+        domain: FactDomain,
+        input: &dyn AnalysisInputs,
+        budget: &mut Budget,
+    ) -> TransferAnswer {
+        if domain != FactDomain::Selection {
+            return TransferAnswer::Generic;
+        }
+        match self.selection(input, budget) {
+            Ok(fact) => TransferAnswer::Selection(fact),
+            Err(reason) => TransferAnswer::Declined(reason),
+        }
+    }
+
+    /// The command has structure but no value of its own: its result is
+    /// the selected body's.
+    fn evaluate(&self, _input: &dyn AnalysisInputs, _budget: &mut Budget) -> EvalAnswer {
+        EvalAnswer::Declined(DeclineReason::NotAValue)
+    }
+}
+
+impl CaseSemantics {
+    /// The selection fact: every clause word exact, the clause-list word
+    /// split under the target's list rules, and the core's clause per
+    /// member. A word after the subject that the plan read as a pattern
+    /// but whose value is the separator (`in`) is one the command skips,
+    /// so the plan is not the command's and the fact declines.
+    fn selection(
+        &self,
+        input: &dyn AnalysisInputs,
+        budget: &mut Budget,
+    ) -> Result<SelectionFact, DeclineReason> {
+        let PlanAnswer::CaseList { subject, arms, .. } = self.structure(input) else {
+            return Err(DeclineReason::Unsupported);
+        };
+        let members = subject_members(input, subject)?;
+        let first = input.invocation().argument_offset;
+        let next = OperandId(subject.0 + 1);
+        if let (Some(separator), CaseArms::Words(pairs)) =
+            (self.case_list.optional_subject_separator, &arms)
+            && pairs.first().is_some_and(|(pattern, _)| *pattern == next)
+            && exact(input, next)?.as_utf8() == Some(separator)
+        {
+            return Err(DeclineReason::Unsupported);
+        }
+        let mut ops = ConstOps::admit(input.context(), budget, CASE_NEEDS)?;
+        let argv = (first..input.invocation().operands.len())
+            .map(|index| {
+                if index == subject.0 {
+                    Ok(ConstValue::text(""))
+                } else {
+                    exact(input, OperandId(index))
+                }
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let clauses = clause_words(&mut ops, &arms, (&argv, first), None)?;
+        for pattern in clauses.iter().step_by(2) {
+            ops.admissible_text(pattern)?;
+        }
+        let mut fact = SelectionFact {
+            selected: Vec::with_capacity(members.len()),
+            bodies: Vec::with_capacity(members.len()),
+            writes: Vec::with_capacity(members.len()),
+        };
+        // One unit per pattern word each member may try, beside what the
+        // core's pattern-list splits charge.
+        let patterns = WorkUnits::try_from(clauses.len().div_ceil(2)).unwrap_or(WorkUnits::MAX);
+        for member in &members {
+            let member = ConstValue::from_exact(member);
+            ops.admissible_text(&member)?;
+            ops.charge(patterns)?;
+            let chosen = tcl_cmd_core::case::select(&mut ops, &member, &clauses)
+                .map_err(|error| ops.decline(&error))?;
+            fact.selected.push(chosen);
+            fact.bodies.push(chosen);
+            fact.writes.push(Vec::new());
+        }
+        if let Some(fault) = ops.fault() {
+            return Err(fault);
+        }
+        Ok(fact)
+    }
+}
+
 /// Operand `id`'s exact value, or the reason it has none.
 fn exact(input: &dyn AnalysisInputs, id: OperandId) -> Result<ConstValue, DeclineReason> {
     match input.operand(id, FactDomain::ExactValue) {
@@ -316,18 +510,18 @@ fn exact(input: &dyn AnalysisInputs, id: OperandId) -> Result<ConstValue, Declin
     }
 }
 
-/// The patterns, and per arm whether its body is the fall-through body,
-/// as the command reads them before it matches: the clause-list word split
-/// under the target's list rules, or the words themselves. An empty list,
-/// a pattern with no body, and a final fall-through body are the
-/// command's own errors, raised before any pattern is tried.
-fn clauses(
+/// The clause words as the command reads them: the clause-list word split
+/// under the target's list rules, or the pattern and body words
+/// themselves, an arm the plan read as spelled with the fall-through body
+/// carrying that spelling. An empty list and a pattern with no body are
+/// the command's own errors.
+fn clause_words(
     ops: &mut ConstOps<'_>,
     arms: &CaseArms,
-    argv: &[ConstValue],
-    first: usize,
-) -> Result<(Vec<ConstValue>, Vec<bool>), DeclineReason> {
-    let words: Vec<ConstValue> = match arms {
+    (argv, first): (&[ConstValue], usize),
+    fallthrough: Option<&str>,
+) -> Result<Vec<ConstValue>, DeclineReason> {
+    Ok(match arms {
         CaseArms::List(list) => {
             let elements = ops
                 .list_elements(&argv[list.0 - first])
@@ -341,20 +535,34 @@ fn clauses(
             .iter()
             .flat_map(|(pattern, body)| {
                 let body = body.map_or_else(
-                    // An arm the plan read as spelled with the fall-through
-                    // body: the word itself is that body.
-                    || ConstValue::text("-"),
+                    || ConstValue::text(fallthrough.unwrap_or_default()),
                     |body| argv[body.0 - first].clone(),
                 );
                 [argv[pattern.0 - first].clone(), body]
             })
             .collect(),
-    };
+    })
+}
+
+/// The patterns, and per arm whether its body is the descriptor's
+/// fall-through spelling, as the command reads them before it matches. A
+/// final fall-through body is the command's own error, raised before any
+/// pattern is tried.
+fn clauses(
+    ops: &mut ConstOps<'_>,
+    arms: &CaseArms,
+    argv: (&[ConstValue], usize),
+    fallthrough: Option<&str>,
+) -> Result<(Vec<ConstValue>, Vec<bool>), DeclineReason> {
+    let words = clause_words(ops, arms, argv, fallthrough)?;
     let (patterns, bodies): (Vec<ConstValue>, Vec<bool>) = words
         .as_chunks::<2>()
         .0
         .iter()
-        .map(|pair| (pair[0].clone(), pair[1].as_utf8() == Some("-")))
+        .map(|pair| {
+            let falls = fallthrough.is_some() && pair[1].as_utf8() == fallthrough;
+            (pair[0].clone(), falls)
+        })
         .unzip();
     if bodies.last().is_none_or(|&falls| falls) {
         return Err(DeclineReason::WrongRepresentation);

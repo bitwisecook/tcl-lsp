@@ -4301,6 +4301,8 @@ mod tests {
         Statement::Switch {
             subject_braced: false,
             raw_arg_braced: Vec::new(),
+            raw_arg_quoted: Vec::new(),
+            command: "switch".into(),
             span: Span::new(0, 40),
             subject: subject.into(),
             subject_span: Span::new(0, 1),

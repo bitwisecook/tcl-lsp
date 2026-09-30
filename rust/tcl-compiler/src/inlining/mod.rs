@@ -1417,6 +1417,8 @@ fn rewrite_switch_stmt(
         nocase,
         raw_args,
         raw_arg_braced,
+        raw_arg_quoted,
+        command,
         patterns_braced,
     } = stmt
     else {
@@ -1475,6 +1477,8 @@ fn rewrite_switch_stmt(
         vec![Statement::Switch {
             subject_braced: *subject_braced,
             raw_arg_braced: raw_arg_braced.clone(),
+            raw_arg_quoted: raw_arg_quoted.clone(),
+            command: command.clone(),
             span: *span,
             subject: subject.clone(),
             subject_span: *subject_span,
@@ -1934,6 +1938,8 @@ fn substitute_irreturn_stmt(stmt: &Statement, result_var: &str) -> Statement {
             nocase,
             raw_args,
             raw_arg_braced,
+            raw_arg_quoted,
+            command,
             patterns_braced,
         } => Statement::Switch {
             subject_braced: *subject_braced,
@@ -1959,6 +1965,8 @@ fn substitute_irreturn_stmt(stmt: &Statement, result_var: &str) -> Statement {
             nocase: *nocase,
             raw_args: raw_args.clone(),
             raw_arg_braced: raw_arg_braced.clone(),
+            raw_arg_quoted: raw_arg_quoted.clone(),
+            command: command.clone(),
             patterns_braced: *patterns_braced,
         },
         other => other.clone(),

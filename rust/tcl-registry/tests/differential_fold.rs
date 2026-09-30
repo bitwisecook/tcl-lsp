@@ -1767,6 +1767,7 @@ impl tcl_registry::value_transfer::AnalysisInputs for TemplateInputs<'_> {
         let end = u32::try_from(template.len() + 1).expect("a short template");
         Ok(WordStructure {
             braced: true,
+            quoted: false,
             parts: vec![WordPart::Literal {
                 span: tcl_lexer::Span::new(1, end),
                 text: template.to_owned(),
@@ -2135,7 +2136,19 @@ fn switch_route(
     let semantics = semantics.semantics().expect("switch's selection contract");
     let words = switch_words(witness, |arm| format!("B{arm}"));
     let args: Vec<&str> = words.iter().map(String::as_str).collect();
-    let inputs = LiteralInputs::new("switch", None, &args, profile);
+    // Each word delimited as the oracle spells it: `-` bare, every other
+    // word quoted.
+    let inputs = args.iter().enumerate().fold(
+        LiteralInputs::new("switch", None, &args, profile),
+        |inputs, (index, &word)| {
+            let id = tcl_registry::value_transfer::OperandId(index);
+            if word == "-" {
+                inputs.with_bare(id)
+            } else {
+                inputs.with_quoted(id)
+            }
+        },
+    );
     let TransferAnswer::Selection(fact) =
         semantics.transfer(FactDomain::Selection, &inputs, &mut Budget::evaluation())
     else {
@@ -2245,5 +2258,294 @@ fn switch_witnesses_match_every_release_on_path() {
     }
     if releases == 0 {
         eprintln!("no tclsh on PATH: the selection witnesses were not exercised");
+    }
+}
+
+/// Run `script` from a file under `tclsh`, returning `(exit_ok, stdout)`.
+/// Unlike [`run_tcl`], whose stdin commands are each compiled, a script
+/// file's own top-level commands run on the interpreted path.
+fn run_tcl_file(tclsh: &str, script: &str) -> Option<(bool, String)> {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    static NEXT: AtomicUsize = AtomicUsize::new(0);
+    let path = std::env::temp_dir().join(format!(
+        "differential-fold-{}-{}.tcl",
+        std::process::id(),
+        NEXT.fetch_add(1, Ordering::Relaxed)
+    ));
+    std::fs::write(&path, script).ok()?;
+    let output = Command::new(tclsh)
+        .arg(&path)
+        .stderr(Stdio::null())
+        .output();
+    let _ = std::fs::remove_file(&path);
+    let output = output.ok()?;
+    Some((
+        output.status.success(),
+        String::from_utf8_lossy(&output.stdout).into_owned(),
+    ))
+}
+
+/// A fall-through body spelled `-` reads two ways on 9.1b0 when it is
+/// quoted (D179): its byte-compiled `switch` — here inside a procedure —
+/// recognises only a bare `-` (`IsFallthroughToken` in `tclCompCmdsSZ.c`
+/// measures the word with its quotes) and runs a quoted one as a command,
+/// where its interpreted path — a script file's own top level — reads the
+/// word's value and falls through, as 8.4.20 to 9.0.4 do on both paths.
+/// So the selection declines the quoted form under a profile that may be
+/// 9.1 (`tcl9.1`, and `tcl`, which names no release) and decides it under
+/// `tcl8.6` and `tcl9.0`, the body it names being the one those releases
+/// run; the bare form decides under every one of them.
+#[test]
+fn a_quoted_fallthrough_body_reads_two_ways_on_91() {
+    use tcl_registry::value_transfer::{
+        Axis, Budget, DeclineReason, FactDomain, LiteralInputs, OperandId, TransferAnswer,
+        resolve_semantics,
+    };
+    let reg = CommandRegistry::build_default();
+    let semantics = resolve_semantics(reg.get("switch").expect("switch"), None, None);
+    let semantics = semantics.semantics().expect("switch's selection contract");
+    let words = ["-glob", "--", "a", "a", "-", "b", "B"];
+    let bodies = |dialect: &str, quoted: bool| {
+        let profile = tcl_dialect::DialectProfile::find(dialect);
+        let inputs = (0..words.len()).fold(
+            LiteralInputs::new("switch", None, &words, profile),
+            |inputs, index| {
+                if index == 4 && !quoted {
+                    inputs.with_bare(OperandId(index))
+                } else {
+                    inputs.with_quoted(OperandId(index))
+                }
+            },
+        );
+        match semantics.transfer(FactDomain::Selection, &inputs, &mut Budget::evaluation()) {
+            TransferAnswer::Selection(fact) => Ok(fact.bodies),
+            TransferAnswer::Declined(reason) => Err(reason),
+            other => panic!("{dialect}: {other:?}"),
+        }
+    };
+    let ambiguous = Err(DeclineReason::ReleaseAmbiguous(Axis::Availability(
+        tcl_dialect::model::SpecSurface::TCL91[0],
+    )));
+    for dialect in ["tcl9.1", "tcl"] {
+        assert_eq!(bodies(dialect, true), ambiguous, "{dialect}: quoted");
+        assert_eq!(bodies(dialect, false), Ok(vec![Some(1)]), "{dialect}: bare");
+    }
+    for dialect in ["tcl8.6", "tcl9.0"] {
+        assert_eq!(
+            bodies(dialect, true),
+            Ok(vec![Some(1)]),
+            "{dialect}: quoted"
+        );
+        assert_eq!(bodies(dialect, false), Ok(vec![Some(1)]), "{dialect}: bare");
+    }
+
+    // The oracle: the arm's body, `B`, or the error of running `-`.
+    let in_proc = |body: &str| {
+        format!(
+            "proc p {{}} {{switch -glob -- a a {body} b {{return B}}}}\n\
+             if {{[catch p result]}} {{puts error}} else {{puts $result}}\n"
+        )
+    };
+    let at_top = |body: &str| format!("puts [switch -glob -- a a {body} b {{set _ B}}]\n");
+    let mut releases = 0usize;
+    for (series, quoted_in_proc) in [("8.6", "B"), ("9.0", "B"), ("9.1", "error")] {
+        let Some(tclsh) = find_tclsh(series) else {
+            continue;
+        };
+        releases += 1;
+        for (body, in_proc_prints) in [("\"-\"", quoted_in_proc), ("-", "B")] {
+            assert_eq!(
+                run_tcl_file(&tclsh, &in_proc(body)),
+                Some((true, format!("{in_proc_prints}\n"))),
+                "tclsh{series}: {body} inside a procedure"
+            );
+            assert_eq!(
+                run_tcl_file(&tclsh, &at_top(body)),
+                Some((true, "B\n".to_owned())),
+                "tclsh{series}: {body} at the top level"
+            );
+        }
+    }
+    if releases == 0 {
+        eprintln!("no tclsh on PATH: the two 9.1 paths were not compared");
+    }
+}
+
+/// One `case` witness: the subject, whether the `in` word follows it, the
+/// patterns in order (arm `N`'s body sets `__body` to `N`), whether the
+/// clauses are one list word, and whether the final pattern has no body.
+type CaseWitness = (&'static str, bool, &'static [&'static str], bool, bool);
+
+/// The `case` witnesses (D180), each measured on tclsh 8.4.20, 8.5.19 and
+/// 8.6.18, which answer every one alike: glob patterns, the `in` word and
+/// the one-word form, a literal pattern, pattern lists and a backslash that
+/// makes a pattern one, `default` wherever it stands and matched literally,
+/// the last `default` winning, a list's `default` element no fallback, `-`
+/// an ordinary pattern, no match, the missing body raised only when the
+/// scan reaches it, and a malformed pattern list raising.
+const CASE_WITNESSES: &[CaseWitness] = &[
+    ("abc", true, &["a*", "default"], false, false),
+    ("zzz", true, &["a*", "default"], false, false),
+    ("abc", false, &["a*", "default"], false, false),
+    ("abc", false, &["a*", "default"], true, false),
+    ("abc", true, &["a*", "default"], true, false),
+    ("abc", true, &["abc"], false, false),
+    ("abc", true, &["x a*", "default"], false, false),
+    ("abc", true, &["a\\*", "default"], false, false),
+    ("a*", true, &["a\\*", "default"], false, false),
+    ("zzz", true, &["default", "a"], false, false),
+    ("default", true, &["default", "def*"], false, false),
+    ("abc", true, &["-", "default"], false, false),
+    ("abc", true, &["q"], false, false),
+    ("abc", true, &["a b"], false, false),
+    ("a b", true, &["a b", "default"], false, false),
+    ("a b", true, &["{a b}", "default"], false, false),
+    ("abc", true, &["", "default"], false, false),
+    ("", true, &["", "default"], false, false),
+    ("abc", true, &["[a-c]*"], false, false),
+    ("abc", true, &["A*", "default"], false, false),
+    ("abc", true, &["a*\\", "default"], false, false),
+    ("zzz", true, &["default", "default"], false, false),
+    ("abc", true, &["default x", "a*"], false, false),
+    ("zzz", true, &["default x", "b*"], false, false),
+    ("in", true, &["in", "default"], false, false),
+    ("abc", false, &["-", "default"], false, false),
+    ("abc", true, &["a {"], false, false),
+    ("zzz", true, &["a*", "b*"], false, true),
+    // The plan abstains on these two, which tclsh answers: the missing
+    // body the scan never reaches, and a subject spelled like an option.
+    ("abc", true, &["a*", "b*"], false, true),
+    ("-x", true, &["-*"], false, false),
+];
+
+/// The witnesses the plan abstains on: the last two.
+const CASE_ABSTAINS: usize = 2;
+
+/// The words `case` receives for `witness`, each body `body(arm)`.
+fn case_words(
+    (subject, separated, patterns, list, dangling): CaseWitness,
+    body: impl Fn(usize) -> String,
+) -> Vec<String> {
+    let mut clauses = Vec::new();
+    for (arm, &pattern) in patterns.iter().enumerate() {
+        clauses.push(pattern.to_owned());
+        if !(dangling && arm + 1 == patterns.len()) {
+            clauses.push(body(arm));
+        }
+    }
+    let mut words = vec![subject.to_owned()];
+    if separated {
+        words.push("in".to_owned());
+    }
+    if list {
+        let mut rendered = Vec::new();
+        for (index, clause) in clauses.iter().enumerate() {
+            if index != 0 {
+                rendered.push(b' ');
+            }
+            tcl_syntax::list::append_list_element(&mut rendered, clause.as_bytes(), index == 0);
+        }
+        words.push(String::from_utf8(rendered).expect("text"));
+    } else {
+        words.extend(clauses);
+    }
+    words
+}
+
+/// The arm whose body `case`'s selection runs for `witness` under
+/// `profile` (`none` when none does), or `None` when it declines.
+fn case_route(
+    reg: &CommandRegistry,
+    profile: Option<&'static tcl_dialect::DialectProfile>,
+    witness: CaseWitness,
+) -> Option<String> {
+    use tcl_registry::value_transfer::{
+        Budget, FactDomain, LiteralInputs, TransferAnswer, resolve_semantics,
+    };
+    let semantics = resolve_semantics(reg.get("case").expect("case"), None, None);
+    let semantics = semantics.semantics().expect("case's selection contract");
+    let words = case_words(witness, |arm| format!("B{arm}"));
+    let args: Vec<&str> = words.iter().map(String::as_str).collect();
+    let inputs = LiteralInputs::new("case", None, &args, profile);
+    let TransferAnswer::Selection(fact) =
+        semantics.transfer(FactDomain::Selection, &inputs, &mut Budget::evaluation())
+    else {
+        return None;
+    };
+    assert_eq!(fact.selected.len(), 1, "one member");
+    assert_eq!(fact.selected, fact.bodies, "no fall-through body");
+    assert!(fact.writes.iter().all(Vec::is_empty), "no writes");
+    Some(fact.bodies[0].map_or_else(|| "none".to_owned(), |arm| arm.to_string()))
+}
+
+/// What `tclsh` answers for the same witness, or `None` when it raises.
+fn case_oracle(tclsh: &str, witness: CaseWitness) -> Option<String> {
+    let words = case_words(witness, |arm| format!("set __body {arm}"));
+    let mut script = String::from("set __body none\nif {[catch {case");
+    for word in &words {
+        script.push(' ');
+        script.push_str(&tcl_quoted_word(word));
+    }
+    script.push_str("}]} {exit 1}\nputs -nonewline $__body\n");
+    match run_tcl(tclsh, &script)? {
+        (true, out) => Some(out),
+        (false, _) => None,
+    }
+}
+
+/// `case`'s selection (D180) against the real `tclsh` of each release that
+/// has the command — 8.4, 8.5 and 8.6, each under its own profile, and the
+/// iRules profile on its 8.4 base (ruling 8): where tclsh answers, the
+/// selection names the body tclsh runs, or abstains on the two witnesses
+/// the plan's layout does not read; where tclsh raises, the selection
+/// declines. From 9.0 there is no `case` to select with.
+#[test]
+fn case_witnesses_match_every_release_on_path() {
+    let reg = CommandRegistry::build_default();
+    let mut releases = 0usize;
+    for (series, dialect) in [
+        ("8.4", "tcl8.4"),
+        ("8.5", "tcl8.5"),
+        ("8.6", "tcl8.6"),
+        ("8.4", "f5-irules"),
+    ] {
+        let Some(tclsh) = find_tclsh(series) else {
+            continue;
+        };
+        releases += 1;
+        let profile = tcl_dialect::DialectProfile::find(dialect);
+        assert!(profile.is_some(), "{dialect}");
+        for (index, &witness) in CASE_WITNESSES.iter().enumerate() {
+            let want = case_oracle(&tclsh, witness);
+            let got = case_route(&reg, profile, witness);
+            let words = case_words(witness, |arm| format!("B{arm}"));
+            let abstains = index >= CASE_WITNESSES.len() - CASE_ABSTAINS;
+            match (&want, &got) {
+                (Some(want), Some(got)) => {
+                    assert_eq!(got, want, "tclsh{series} ({dialect}): case {words:?}");
+                    assert!(!abstains, "{dialect}: case {words:?} no longer abstains");
+                }
+                (None, Some(got)) => {
+                    panic!("tclsh{series} raises on case {words:?}, the selection answered {got}")
+                }
+                (Some(_), None) => assert!(
+                    abstains,
+                    "tclsh{series} ({dialect}): the selection declined case {words:?}"
+                ),
+                (None, None) => {}
+            }
+        }
+    }
+    for series in ["9.0", "9.1"] {
+        if let Some(tclsh) = find_tclsh(series) {
+            assert_eq!(
+                run_tcl(&tclsh, "puts [catch {case a in a {}} m]$m"),
+                Some((true, "1invalid command name \"case\"\n".to_owned())),
+                "tclsh{series} has no case"
+            );
+        }
+    }
+    if releases == 0 {
+        eprintln!("no tclsh on PATH: the case witnesses were not exercised");
     }
 }

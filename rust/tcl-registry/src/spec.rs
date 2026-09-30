@@ -397,6 +397,49 @@ pub struct CaseListSpec {
     /// substituted word cannot be told apart from a first pattern. `None` for
     /// every descriptor without one.
     pub optional_subject_separator: Option<&'static str>,
+    /// The comparison a clause makes when no option selects one: `switch`'s
+    /// exact match, and the glob match `case` always makes
+    /// (`Tcl_CaseObjCmd` calls `Tcl_StringMatch`) and Expect's patterns
+    /// default to.
+    pub default_mode: CaseMatchMode,
+    /// How the command reads a pattern word: as one pattern, or — `case` —
+    /// as a list of patterns when it holds whitespace or a backslash.
+    pub pattern_words: PatternWords,
+}
+
+/// How a case list reads one pattern word.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PatternWords {
+    /// Every pattern word is one pattern: `switch`, Expect.
+    Single,
+    /// A pattern word holding whitespace or a backslash is a list of
+    /// patterns, any of which selects its clause, and one holding neither is
+    /// one pattern — `case`'s `Tcl_CaseObjCmd`, which splits such a word with
+    /// `Tcl_SplitList` and matches each element.
+    Lists,
+}
+
+impl PatternWords {
+    /// Every reading, in `.tclspec` vocabulary order.
+    pub const ALL: &'static [Self] = &[Self::Single, Self::Lists];
+
+    /// The `.tclspec` spelling of this reading.
+    #[must_use]
+    pub const fn spelling(self) -> &'static str {
+        match self {
+            Self::Single => "single",
+            Self::Lists => "lists",
+        }
+    }
+
+    /// The reading `word` spells, or `None` for any other word.
+    #[must_use]
+    pub fn from_spelling(word: &str) -> Option<Self> {
+        Self::ALL
+            .iter()
+            .copied()
+            .find(|reading| reading.spelling() == word)
+    }
 }
 
 /// Registry-owned position/arity shape for an outer clause-list selector.
@@ -510,6 +553,8 @@ impl CaseListSpec {
         keyword_patterns_require_final: true,
         optional_subject_separator: None,
         warn_unbraced_bodies: true,
+        default_mode: CaseMatchMode::Exact,
+        pattern_words: PatternWords::Single,
     };
 
     /// The obsolete Tcl 8.x `case string ?in? { pat body … }` shape.
@@ -542,6 +587,8 @@ impl CaseListSpec {
         keyword_patterns_require_final: false,
         optional_subject_separator: Some("in"),
         warn_unbraced_bodies: true,
+        default_mode: CaseMatchMode::Glob,
+        pattern_words: PatternWords::Lists,
     };
 
     /// The Expect `expect { ?-flags? pat body … }` shape.
@@ -583,6 +630,8 @@ impl CaseListSpec {
         keyword_patterns_require_final: false,
         optional_subject_separator: None,
         warn_unbraced_bodies: false,
+        default_mode: CaseMatchMode::Glob,
+        pattern_words: PatternWords::Single,
     };
 
     /// Parse and validate this case-list command's option/subject/clause
@@ -596,7 +645,7 @@ impl CaseListSpec {
         options: &[&crate::hover::OptionSpec],
         dialect: Option<SurfaceQuery<'_>>,
     ) -> Option<CaseInvocation> {
-        let mut mode = CaseMatchMode::Exact;
+        let mut mode = self.default_mode;
         let mut saw_match_mode = false;
         let mut nocase = false;
         let mut saw_regex_value_option = false;
@@ -962,6 +1011,15 @@ impl CaseListSpec {
     pub fn is_keyword_pattern(self, pattern: &str, index: usize, total: usize) -> bool {
         self.keyword_patterns.contains(&pattern)
             && (!self.keyword_patterns_require_final || index + 1 == total)
+    }
+
+    /// Whether the command reads the pattern word whose value is `pattern`
+    /// as a list of patterns rather than as one: only under a descriptor
+    /// whose pattern words may be lists ([`PatternWords::Lists`]), by the
+    /// shared `case` core's rule (`tcl_cmd_core::case::splits_as_list`).
+    #[must_use]
+    pub fn pattern_is_list(self, pattern: &str) -> bool {
+        self.pattern_words == PatternWords::Lists && tcl_cmd_core::case::splits_as_list(pattern)
     }
 }
 

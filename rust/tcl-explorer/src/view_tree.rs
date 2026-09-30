@@ -524,6 +524,24 @@ fn build_dominators(d: &Value) -> Vec<ViewNode> {
     }
 }
 
+/// One selection record's leaf (VT6.3): the arm each member selects, the
+/// arm whose body runs, and the statement's line.
+fn selection_leaf(selection: &Value) -> ViewNode {
+    ViewNode::leaf(
+        format!("selection: {}", join_str_array(&selection["selected"])),
+        vec![
+            det("bodies", join_str_array(&selection["bodies"])),
+            det(
+                "line",
+                selection["range"]["startLine"]
+                    .as_u64()
+                    .map_or_else(|| "?".to_owned(), |line| (line + 1).to_string()),
+            ),
+        ],
+        Some("blue"),
+    )
+}
+
 fn build_sccp(d: &Value) -> Vec<ViewNode> {
     let mut out = Vec::new();
     for f in arr(d, "sccp") {
@@ -579,6 +597,7 @@ fn build_sccp(d: &Value) -> Vec<ViewNode> {
                 Some("blue"),
             ));
         }
+        children.extend(arr(f, "selections").iter().map(selection_leaf));
         for route in arr(f, "routes") {
             let answer = s(route, "answer");
             let colour = if answer.starts_with("evaluated") {

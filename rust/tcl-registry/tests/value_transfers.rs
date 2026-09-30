@@ -208,6 +208,7 @@ fn expression_assembly_follows_the_word_kinds() {
         0,
         WordStructure {
             braced: true,
+            quoted: false,
             parts: vec![WordPart::Literal {
                 span: span(1, 7),
                 text: "$a * 2".to_owned(),
@@ -228,6 +229,7 @@ fn expression_assembly_follows_the_word_kinds() {
         0,
         WordStructure {
             braced: false,
+            quoted: true,
             parts: vec![
                 WordPart::VariableRead {
                     span: span(0, 4),
@@ -1670,6 +1672,7 @@ fn pinned_route_stamps() -> BTreeSet<(String, &'static str, &'static str)> {
         ("array unset", "none:unauthored", "-"),
         ("binary format", "direct:binary-format", "registry"),
         ("binary scan", "direct:binary-scan", "registry"),
+        ("case", "none:unauthored", "-"),
         ("chan gets", "none:declared", "-"),
         ("const", "direct:const-write", "registry"),
         ("dict append", "direct:dict-append", "registry"),
@@ -3253,6 +3256,7 @@ fn template_plan_of(
         last,
         WordStructure {
             braced: true,
+            quoted: false,
             parts: vec![WordPart::Literal {
                 span: tcl_lexer::Span::new(1, 1 + small(template.len())),
                 text: template.to_owned(),
@@ -3489,6 +3493,7 @@ fn the_template_plan_answers_the_fourteen_witnesses() {
         1,
         WordStructure {
             braced: false,
+            quoted: false,
             parts: vec![WordPart::VariableRead {
                 span: span(0, 2),
                 name: "t".to_owned(),
@@ -3692,10 +3697,39 @@ fn switch_selection(
     words: &[&str],
     subject: Option<(usize, FactView)>,
 ) -> Result<SelectionRead, DeclineReason> {
+    selection_of("switch", dialect, words, subject, Vec::new())
+}
+
+/// A literal operand's structure, delimited as said: its text as one run
+/// from offset 0, or from 1 past a brace or a quote.
+fn delimited(text: &str, braced: bool, quoted: bool) -> WordStructure {
+    let start = u32::from(braced || quoted);
+    WordStructure {
+        braced,
+        quoted,
+        parts: vec![WordPart::Literal {
+            span: tcl_lexer::Span::new(start, start + small(text.len())),
+            text: text.to_owned(),
+        }],
+    }
+}
+
+/// The `Selection` transfer of `command words…` under `dialect`, with the
+/// operands' structures where given, read as a [`SelectionRead`], or the
+/// decline.
+fn selection_of(
+    command: &str,
+    dialect: &str,
+    words: &[&str],
+    subject: Option<(usize, FactView)>,
+    structures: Vec<(usize, WordStructure)>,
+) -> Result<SelectionRead, DeclineReason> {
     let reg = CommandRegistry::build_default();
-    let semantics = resolve_semantics(reg.get("switch").expect("switch"), None, None);
-    let semantics = semantics.semantics().expect("switch's selection contract");
-    let inputs = switch_inputs(dialect, words, subject);
+    let semantics = resolve_semantics(reg.get(command).expect(command), None, None);
+    let semantics = semantics.semantics().expect("a selection contract");
+    let mut inputs = switch_inputs(dialect, words, subject);
+    inputs.view.canonical_command = if command == "case" { "case" } else { "switch" };
+    inputs.structures.extend(structures);
     match semantics.transfer(FactDomain::Selection, &inputs, &mut Budget::evaluation()) {
         TransferAnswer::Selection(fact) => Ok((
             fact.selected,
@@ -3915,6 +3949,138 @@ fn switch_selection_runs_the_shared_core() {
     // 9.1's `-integer` is not the core's comparison.
     assert_eq!(
         switch_selection("tcl9.1", &["-integer", "--", "1", "1 A"], None),
+        Err(DeclineReason::Unsupported)
+    );
+}
+
+/// 9.1b0's byte-compiled `switch` reads only a bare `-` as the fall-through
+/// body, its interpreted path the word's value (D179): measured on tclsh
+/// 9.1b0, `switch -glob -- a a "-" b {…}` runs `-` as a command inside a
+/// procedure and falls through at a script's top level, where 8.4.20 to
+/// 9.0.4 fall through on both paths. So under a profile that may be 9.1 a
+/// member whose selection reaches a quoted or braced `-` body — selecting
+/// its arm, or falling through into it — declines the whole fact on the
+/// availability axis; a bare `-`, a substituted word, the one-word form's
+/// elements, and a member that never reaches the arm still decide.
+#[test]
+fn a_delimited_fallthrough_body_reads_two_ways_under_91() {
+    let words = ["-glob", "--", "a", "a", "-", "b", "B"];
+    let ambiguous = Err(DeclineReason::ReleaseAmbiguous(Axis::Availability(
+        tcl_dialect::model::SpecSurface::TCL91[0],
+    )));
+    let decided = Ok((vec![Some(0)], vec![Some(1)], vec![Vec::new()]));
+    for (braced, quoted) in [(false, true), (true, false)] {
+        let body = || vec![(4, delimited("-", braced, quoted))];
+        for dialect in ["tcl9.1", "tcl"] {
+            assert_eq!(
+                selection_of("switch", dialect, &words, None, body()),
+                ambiguous,
+                "{dialect} braced {braced} quoted {quoted}"
+            );
+        }
+        for dialect in ["tcl8.4", "tcl8.6", "tcl9.0"] {
+            assert_eq!(
+                selection_of("switch", dialect, &words, None, body()),
+                decided,
+                "{dialect} braced {braced} quoted {quoted}"
+            );
+        }
+        // A member that selects the next arm directly never reads it.
+        let direct = ["-glob", "--", "b", "a", "-", "b", "B"];
+        assert_eq!(
+            selection_of("switch", "tcl9.1", &direct, None, body()),
+            Ok((vec![Some(1)], vec![Some(1)], vec![Vec::new()]))
+        );
+    }
+    // A bare `-` reads alike on both paths.
+    for dialect in ["tcl9.1", "tcl", "tcl8.6"] {
+        assert_eq!(
+            selection_of(
+                "switch",
+                dialect,
+                &words,
+                None,
+                vec![(4, delimited("-", false, false))]
+            ),
+            decided,
+            "{dialect}"
+        );
+    }
+    // A word with a substitution sends the command to the interpreted path.
+    let substituted = WordStructure {
+        braced: false,
+        quoted: true,
+        parts: vec![WordPart::VariableRead {
+            span: tcl_lexer::Span::new(1, 3),
+            name: "d".to_owned(),
+            element: None,
+        }],
+    };
+    assert_eq!(
+        selection_of(
+            "switch",
+            "tcl9.1",
+            &["-glob", "--", "a", "a", "\"$d\"", "b", "B"],
+            Some((4, FactView::Exact(ExactValue::from_literal("-"), None))),
+            vec![(4, substituted)]
+        ),
+        decided
+    );
+    // The one-word form's elements are read by content on both paths, and
+    // a body whose structure is not given is not known to be bare.
+    assert_eq!(
+        selection_of(
+            "switch",
+            "tcl9.1",
+            &["-glob", "--", "a", "a {-} b B"],
+            None,
+            Vec::new()
+        ),
+        decided
+    );
+    assert_eq!(
+        selection_of("switch", "tcl9.1", &words, None, Vec::new()),
+        ambiguous
+    );
+}
+
+/// `case` declares its own selection contract (D180): no options, glob
+/// matching, a pattern word holding whitespace or a backslash a list of
+/// patterns, a `default` fallback wherever it stands and still matched
+/// literally, the first match winning, and no fall-through body. Each
+/// answer is tclsh 8.4.20 to 8.6.18's (`case_witnesses_match_every_release_on_path`);
+/// `case` is not a command from 9.0.
+#[test]
+fn case_selection_runs_tcl_case_obj_cmd() {
+    let case = |words: &[&str]| selection_of("case", "tcl8.6", words, None, Vec::new());
+    let arm = |arm: usize| Ok((vec![Some(arm)], vec![Some(arm)], vec![Vec::new()]));
+    assert_eq!(case(&["abc", "in", "a*", "Y", "default", "N"]), arm(0));
+    assert_eq!(case(&["abc", "a*", "Y", "default", "N"]), arm(0));
+    assert_eq!(case(&["abc", "a* Y default N"]), arm(0));
+    assert_eq!(case(&["zzz", "in", "a*", "Y", "default", "N"]), arm(1));
+    assert_eq!(case(&["abc", "in", "abc", "X"]), arm(0));
+    assert_eq!(case(&["abc", "in", "x a*", "L", "default", "N"]), arm(0));
+    assert_eq!(case(&["abc", "in", "a\\*", "E", "default", "N"]), arm(0));
+    assert_eq!(case(&["zzz", "in", "default", "D", "a", "A"]), arm(0));
+    assert_eq!(
+        case(&["default", "in", "default", "D", "def*", "X"]),
+        arm(0)
+    );
+    assert_eq!(case(&["abc", "in", "-", "D", "default", "N"]), arm(1));
+    assert_eq!(
+        case(&["abc", "in", "q", "Q"]),
+        Ok((vec![None], vec![None], vec![Vec::new()]))
+    );
+    // A word after the subject whose value is the separator is one the
+    // command skips: the plan read it as a pattern, so the fact declines.
+    assert_eq!(
+        selection_of(
+            "case",
+            "tcl8.6",
+            &["abc", "$w", "a*", "Y"],
+            Some((1, FactView::Exact(ExactValue::from_literal("in"), None))),
+            Vec::new()
+        ),
         Err(DeclineReason::Unsupported)
     );
 }

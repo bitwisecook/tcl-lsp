@@ -916,23 +916,44 @@ fn assert_span_carrying_eq(got: &FunctionUnit, want: &FunctionUnit, ctx: &str) {
     );
 }
 
+/// The registry and profile every rebase build runs under: `D`'s, on the
+/// memoised and the fresh path alike, so the lattice evaluates under a
+/// target — the routes that fold and a case list's selection need one.
+fn rebase_target() -> (
+    &'static CommandRegistry,
+    &'static tcl_dialect::DialectProfile,
+) {
+    (
+        static_context_for(D).commands(),
+        tcl_registry::model::ingress::resolve_environment(D).analyser_profile(),
+    )
+}
+
+/// A fresh whole-file build of `source` under the rebase target: the ground
+/// truth a rebased unit is compared against.
+fn fresh_unit(source: &str) -> CompilationUnit {
+    let (registry, profile) = rebase_target();
+    CompilationUnit::build_for_profile(source, registry, false, profile)
+}
+
 /// Build a `FunctionUnit` for every proc via a position-independent memo whose
 /// cache is seeded on `base` and reused on `shifted`, so the shifted procs hit
-/// and the builder rebases their offset-0 units to the new positions.
+/// and the builder rebases their offset-0 units to the new positions. Each
+/// memoised unit is built as the language server's memo builds one: under the
+/// request's analysis context and the command trust its snapshot records.
 fn rebased_units(base: &str, shifted: &str) -> (CompilationUnit, CompilationUnit) {
-    use std::collections::HashMap;
-    let registry = reg();
+    use std::collections::{BTreeSet, HashMap, HashSet};
+    let (registry, profile) = rebase_target();
+    let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
     let mut cache: HashMap<String, FunctionUnit> = HashMap::new();
     let build = |s: &str, cache: &mut HashMap<String, FunctionUnit>| -> CompilationUnit {
         CompilationUnit::build_for_memoized(
             s,
             tcl_compiler::compilation_unit::UnitBuildOptions {
-                registry: &registry,
+                registry,
                 defer_top_level: false,
-                config: tcl_lexer::LexerConfig::default(),
-                dialect: Some(
-                    tcl_registry::model::ingress::resolve_environment(D).analyser_profile(),
-                ),
+                config,
+                dialect: Some(profile),
                 external_call_sites: None,
                 declared_commands: None,
             },
@@ -948,7 +969,7 @@ fn rebased_units(base: &str, shifted: &str) -> (CompilationUnit, CompilationUnit
                     req.qname,
                     req.body,
                     true,
-                    &registry,
+                    registry,
                     req.plain_command_dispatch,
                     (
                         req.upvar_procs.clone(),
@@ -956,17 +977,32 @@ fn rebased_units(base: &str, shifted: &str) -> (CompilationUnit, CompilationUnit
                         req.global_write_procs.clone(),
                         req.command_bindings.clone(),
                     ),
-                    tcl_lexer::LexerConfig::default(),
+                    req.lexer_config,
                 );
                 let pc =
                     tcl_compiler::compilation_unit::decode_param_constants(req.param_constants);
-                let fu = FunctionUnit::build_with_param_constants(
+                let known_classes: HashSet<String> = req.known_classes.iter().cloned().collect();
+                let traced_variables: BTreeSet<String> =
+                    req.traced_variables.iter().cloned().collect();
+                let command_trust = req.analysis_context.bindings.to_mutations();
+                let fu = FunctionUnit::build_with_param_constants_and_classes_under(
                     req.qname,
                     cfg,
                     req.params,
-                    &registry,
+                    tcl_compiler::compilation_unit::UnitDialect {
+                        registry,
+                        config: req.lexer_config,
+                    },
                     pc.as_ref(),
-                    tcl_lexer::LexerConfig::default(),
+                    &known_classes,
+                    tcl_compiler::compilation_unit::ModuleAnalysisFacts {
+                        trace: tcl_compiler::compilation_unit::ModuleTraceFacts {
+                            traced_variables: &traced_variables,
+                            has_dynamic_variable_trace: req.has_dynamic_variable_trace,
+                        },
+                        analysis_context: req.analysis_context,
+                        command_trust: &command_trust,
+                    },
                 );
                 cache.insert(key, fu.clone());
                 fu
@@ -988,10 +1024,15 @@ fn rebase_shifted_unit_spans_match_fresh() {
     //   * a `for` loop populates cfg.loop_nodes (LoopNode span + for_stmt)
     //   * `if {1}` folds an SCCP constant branch (sccp.constant_branches span)
     //   * `subst` records a template-word plan (sccp.template_plans span)
+    //   * an opaque `switch` over a constant subject records its selection
+    //     (sccp.selections: the statement span and each arm's pattern span);
+    //     a literal subject, since the `try` body's unknown `risky` may reach
+    //     every local through `upvar`, so no local of `p` stays constant
     let body = "\
 proc p {items} {
     set total 0
     subst -nocommands {total $total}
+    switch -glob -- abc { a* { set zero 1 } default { set zero 0 } }
     foreach it $items { incr total }
     for {set i 0} {$i < 2} {incr i} { set acc [expr {$i * 2}] }
     if {1} { set always 1 } else { set never 0 }
@@ -1009,11 +1050,20 @@ proc p {items} {
     let shifted = format!("set a 0\nset b 1\n# comment\nset c 2\n{body}");
     let (_cu_base, cu_shifted) = rebased_units(body, &shifted);
     // A fresh whole-file build at the shifted position is the ground truth.
-    let cu_fresh = CompilationUnit::build_for(&shifted, &reg(), false);
+    let cu_fresh = fresh_unit(&shifted);
 
     let got = cu_shifted.function("::p").expect("rebased proc");
     let want = cu_fresh.function("::p").expect("fresh proc");
-    assert_span_carrying_eq(got, want, "shifted foreach/try/finally/uplevel/for/if");
+    assert_eq!(
+        want.sccp.selections.len(),
+        1,
+        "the opaque switch records its selection"
+    );
+    assert_span_carrying_eq(
+        got,
+        want,
+        "shifted foreach/try/finally/uplevel/for/if/switch",
+    );
 }
 
 #[test]
@@ -1033,7 +1083,7 @@ proc q {n} {
 ";
     let shifted = format!("# pad\n# pad2\nset top 9\n{body}");
     let (_b, cu_shifted) = rebased_units(body, &shifted);
-    let cu_fresh = CompilationUnit::build_for(&shifted, &reg(), false);
+    let cu_fresh = fresh_unit(&shifted);
     assert_span_carrying_eq(
         cu_shifted.function("::q").expect("rebased"),
         cu_fresh.function("::q").expect("fresh"),
@@ -1049,7 +1099,7 @@ fn rebase_zero_delta_is_noop() {
     // arms in both `rebase_function_unit` and `rebase_script`.)
     let body = "proc z {} { set x 1\n set y [expr {$x + 1}]\n return $y }\n";
     let (cu_base, _shifted) = rebased_units(body, body);
-    let cu_fresh = CompilationUnit::build_for(body, &reg(), false);
+    let cu_fresh = fresh_unit(body);
     assert_span_carrying_eq(
         cu_base.function("::z").expect("memoised"),
         cu_fresh.function("::z").expect("fresh"),

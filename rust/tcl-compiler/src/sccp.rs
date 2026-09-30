@@ -229,6 +229,39 @@ pub struct TemplatePlanRecord {
     pub plan: tcl_registry::value_transfer::TemplateWordPlan,
 }
 
+/// The selection one executable opaque case-list statement makes
+/// (`docs/design/compiler/value-transfers.md` § *`switch`*, step 2): the arm
+/// each member of its proven subject selects, recorded against the arms'
+/// pattern spans. Never applied reachability — the statement's arms have no
+/// blocks of their own — and never a guess: the fact is the command's own
+/// `Selection` transfer over the settled lattice, and a statement whose
+/// transfer declines records nothing.
+///
+/// The fact counts the command's pattern and body pairs in order
+/// ([`SelectionFact`](tcl_registry::value_transfer::SelectionFact));
+/// `arm_pattern_spans` holds the pattern span of each arm the statement
+/// keeps, in the same order. The statement keeps a final `default` pair as
+/// its default body rather than an arm, so an arm index equal to
+/// `arm_pattern_spans.len()` names that default ([`Self::is_default`]).
+#[derive(Debug, Clone, PartialEq)]
+pub struct SelectionRecord {
+    /// The statement's span.
+    pub span: tcl_lexer::Span,
+    /// Each kept arm's pattern span, in order.
+    pub arm_pattern_spans: Vec<tcl_lexer::Span>,
+    /// The selection.
+    pub fact: tcl_registry::value_transfer::SelectionFact,
+}
+
+impl SelectionRecord {
+    /// Whether arm index `arm` names the final `default` pair — the
+    /// statement's default body, which has no pattern span of its own.
+    #[must_use]
+    pub fn is_default(&self, arm: usize) -> bool {
+        arm == self.arm_pattern_spans.len()
+    }
+}
+
 /// Full SCCP result: per-SSA-value lattice entries, the set of
 /// reachable blocks, the set of reachable edges, and
 /// constant-folded branch annotations for reachable blocks.
@@ -269,6 +302,9 @@ pub struct SccpResult {
     /// what W102, the template folders, extract-proc and the dynamic-name
     /// barrier read instead of walking the template themselves.
     pub template_plans: Vec<TemplatePlanRecord>,
+    /// Each executable opaque case-list statement's selection over the
+    /// settled lattice, in source order (VT6.3).
+    pub selections: Vec<SelectionRecord>,
     /// Per SSA value, the existence rung
     /// (`docs/design/compiler/value-transfers.md` § *Existence*): whether
     /// the place is bound where the version is established — by its
@@ -722,18 +758,19 @@ pub fn sccp_with_builtin_folds(
         existence.as_ref().map(|run| &run.exits),
     );
 
-    let template_plans = driver.template_plans(ssa, &values, &executable_blocks);
     let (existence, existence_reads, existence_exits, existence_entries, refinements) = existence
         .map_or_else(Default::default, |run| {
             let entries = run.block_qualified(ssa);
             (run.versions, run.reads, run.exits, entries, run.refinements)
         });
     SccpResult {
+        // The post-passes read the settled lattice before it moves in.
+        template_plans: driver.template_plans(ssa, &values, &executable_blocks),
+        selections: driver.selection_records(cfg, ssa, &values, &executable_blocks),
         values,
         executable_blocks,
         executable_edges,
         constant_branches,
-        template_plans,
         existence,
         existence_reads,
         existence_exits,

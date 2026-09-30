@@ -1439,6 +1439,16 @@ pub enum Statement {
         /// Empty when the flags are unknown (a hand-built statement), which the
         /// emitter reads as "none braced" — the prior behaviour.
         raw_arg_braced: Vec<bool>,
+        /// Per-[`Self::Switch::raw_args`] "this word was double-quoted" flags,
+        /// beside [`Self::Switch::raw_arg_braced`]: a word neither braced nor
+        /// quoted was spelled bare, which is how 9.1b0's byte-compiled
+        /// `switch` recognises a fall-through body — so the selection record
+        /// reads a quoted `-` apart from a bare one. Empty when unknown.
+        raw_arg_quoted: Vec<bool>,
+        /// The command as the source spells it: `switch`, or another
+        /// case-list command lowered through the same hook (`case`). The
+        /// generic invoke of an opaque form names it.
+        command: String,
         /// `true` when the arms came from a single braced
         /// `{pat body …}` block — patterns are literal list elements
         /// with no substitution. `false` when supplied as separate
@@ -2457,6 +2467,8 @@ mod tests {
         let stmt = Statement::Switch {
             subject_braced: false,
             raw_arg_braced: Vec::new(),
+            raw_arg_quoted: Vec::new(),
+            command: "switch".into(),
             span: Span::new(0, 80),
             subject: "$cmd".into(),
             subject_span: Span::new(7, 11),

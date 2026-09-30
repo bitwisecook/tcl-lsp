@@ -13106,6 +13106,8 @@ mod tests {
             keyword_patterns_require_final: false,
             optional_subject_separator: None,
             warn_unbraced_bodies: false,
+            default_mode: crate::spec::CaseMatchMode::Exact,
+            pattern_words: crate::spec::PatternWords::Single,
         };
         let options = [
             OptionSpec {

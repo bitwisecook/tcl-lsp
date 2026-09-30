@@ -529,6 +529,8 @@ fn switch_glob_emits_generic_invoke_not_jump_table() {
         Script::from_statements(vec![Statement::Switch {
             subject_braced: false,
             raw_arg_braced: Vec::new(),
+            raw_arg_quoted: Vec::new(),
+            command: "switch".into(),
             span: sp(),
             subject: "$x".into(),
             subject_span: sp(),

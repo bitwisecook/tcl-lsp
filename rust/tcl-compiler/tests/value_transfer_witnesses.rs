@@ -3142,3 +3142,68 @@ fn the_flattened_form_yields_o107() {
     }
     prints_under_every_release(negative, "hit\n");
 }
+
+/// `case` lowers as an opaque glob selection over its own contract (D180),
+/// where it had lowered as an exact-mode `switch` that never skipped `in`:
+/// the one-word form compared `a*` as a string — I231 on the arm that runs
+/// and O112 keeping the default — and the separate-words form with `in`
+/// was a barrier. Now `a*` and a literal pattern each select the first arm
+/// — the selection record says so under 8.4, 8.6 and the iRules profile —
+/// no I231 claims the live arm is dead, and the optimiser leaves `puts yes`,
+/// which tclsh 8.4 to 8.6 print before and after it. From 9.0 there is no
+/// `case`: nothing lowers it, so nothing is recorded or folded.
+#[test]
+fn case_selects_its_glob_arm() {
+    for clauses in [
+        "in a* {puts yes} default {puts no}",
+        "in abc {puts yes} default {puts no}",
+        "{a* {puts yes} default {puts no}}",
+    ] {
+        let source = format!("proc p {{}} {{\n    case abc {clauses}\n}}\np\n");
+        for dialect in ["tcl8.4", "tcl8.6", "f5-irules"] {
+            let unit = unit_of(&source, dialect);
+            let records = &unit
+                .procedures
+                .get("::p")
+                .expect("the procedure")
+                .sccp
+                .selections;
+            assert_eq!(records.len(), 1, "{dialect}: {source}");
+            assert_eq!(records[0].fact.selected, [Some(0)], "{dialect}: {source}");
+            assert!(
+                !reports(&source, dialect, DiagCode::I231),
+                "{dialect}: {source}"
+            );
+            let (rewritten, rewrites) = optimised(&source, dialect);
+            assert!(
+                rewritten.contains("puts yes") && !rewritten.contains("puts no"),
+                "{dialect}: {source}\n{rewritten}\n{rewrites:#?}"
+            );
+        }
+        let unit = unit_of(&source, "tcl9.0");
+        let function = unit.procedures.get("::p").expect("the procedure");
+        assert!(function.sccp.selections.is_empty(), "tcl9.0: {source}");
+        assert!(
+            !function
+                .ssa
+                .blocks
+                .values()
+                .flat_map(|block| &block.statements)
+                .any(|statement| matches!(statement.statement, Statement::Switch { .. })),
+            "tcl9.0: {source}"
+        );
+        for (series, tclsh) in releases_on_path() {
+            if !series.starts_with("8.") {
+                continue;
+            }
+            let (rewritten, _) = optimised(&source, &dialect_of(series));
+            for program in [source.as_str(), rewritten.as_str()] {
+                assert_eq!(
+                    run_script(&tclsh, program),
+                    Some((true, "yes\n".to_owned())),
+                    "tclsh{series}:\n{program}"
+                );
+            }
+        }
+    }
+}

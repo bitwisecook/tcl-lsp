@@ -5718,6 +5718,8 @@ Closes #2056. Closes #2057.
 | the loop simulator honours `switch`'s mode | step 2 of § *`switch`* |
 | IRULE1201 ignores a respond in a dead arm | #2056 |
 | a constant `while` condition gives W240 or W241 instead of W242 | #2057 |
+| `case` lowers as an opaque glob selection over its own contract, the `in` word skipped, where it lowered as an exact-mode `switch` (its glob patterns compared as strings: I231 on the arm that runs, O112 keeping the default) or, with `in`, as a barrier; a pattern it would split as a list, a substituted pattern and a non-final `default` are barriers | the coordinator's ruling (D180); `case_selects_its_glob_arm` against tclsh 8.4.20 to 8.6.18 |
+| under a profile that may be 9.1, a `switch` whose selection reaches a quoted or braced `-` body records no selection | the coordinator's ruling (D179); `a_quoted_fallthrough_body_reads_two_ways_on_91` against tclsh 8.6.18, 9.0.4 and 9.1b0 |
 
 #### Record (2026-09-24): the opus items of slice 6
 
@@ -5777,6 +5779,35 @@ where 8.4.20 to 9.0.4, and 9.1b0's own interpreted path, read the word's
 value. The selection follows the documented rule; the witness harness
 spells the body bare. A regression in a beta, for the coordinator to
 file upstream.
+
+The coordinator then ruled on it and on a `case` miscompile found beside
+it, both built with VT6.3 (D179, D180). The implementer who began VT6.3
+stopped mid-item; a second one finished it from the uncommitted draft,
+read whole against the item and the plan, and stopped at its checkpoint
+when the coordinator narrowed the scope to VT6.3: VT6.4, VT6.5 and VT6.7
+are handed on.
+
+| Item | Commit | What landed | Its tests |
+|---|---|---|---|
+| VT6.3 | `wip(value-transfers): slice 6 — the selection record` | `SelectionRecord { span, arm_pattern_spans, fact }` with `is_default(arm)` (`sccp.rs`) and `SccpResult::selections`, in source order. `LatticeDriver::selection_records` (`value_transfer.rs`, the `template_plans` post-pass's shape) records one per executable opaque `Statement::Switch`: the command its binding site names (`binding_at` over `cfg.command_binding_sites`, D181), trusted, resolved over the statement's words as the lowering recorded them (`switch_arguments`, over `raw_args` and the per-word `raw_arg_braced` and new `raw_arg_quoted`), its plan reading the statement's own subject and clause count (`plan_clause_count`, the list word split under the document's rules), and its `Selection` transfer answering; an arm index counts the command's pairs, `arm_pattern_spans` holds one span per arm the statement keeps, and the index one past them is the final `default` (D182). `rebase_function_unit` shifts the record's span and every pattern span. The Explorer's `sccp` view carries `selections` (`selection_json`: the range, `armPatterns`, per member the selected arm and the arm whose body runs — `arm N`, `default` or `none` — and the count of writes) and the tree view a `selection:` leaf (`selection_leaf`). With it land the coordinator's two rulings: D179 — `WordStructure::quoted`, `LiteralInputs::with_quoted` and `with_bare`, the compiler's `OperandSource::QuotedLiteral`, and `SwitchSemantics` declining `ReleaseAmbiguous(Availability(9.1))` for a member reaching a delimited `-` body under a profile that may be 9.1 (`delimited_fallthroughs`), `clauses()` reading the descriptor's own fall-through spelling; and D180 — `CaseListSpec::default_mode` and `pattern_words` (`PatternWords`, `pattern_is_list`) with their SpecTcl rows, the new core `tcl_cmd_core::case` (`select`, `splits_as_list`), `CaseSemantics` declared on `case` (identity `case-list:case`, route none), and the lowering reading option rows, the `in` separator and the comparison from the registry (`case_list_head`, `case_list_unrepresentable`), `Statement::Switch::command` naming what codegen invokes. No consumer reads the record yet: O112, `switch_body_is_selected` and `exec_switch` are VT6.4's, I231 VT6.5's. Deviations: beyond the item's five files, the rulings' files — `tcl-cmd-core` (`case.rs`, new), the registry's `spec.rs`, `case_.rs`, `selection.rs`, `inputs.rs`, `literal.rs`, `definer.rs` and a `registry.rs` test, the SpecTcl loader and the studio's coverage, the compiler's `ir.rs`, `lowering/structured.rs`, `codegen/statements.rs`, the inliner's two switch rewrites and every hand-built `Statement::Switch` or `SccpResult` in tests; the design pages' § *`switch`* and core table, and the DSL README's `case_list` row. `PatternWords` is a two-variant enum where the ruling named a flag: a fourth boolean on `CaseListSpec` is past pedantic clippy's `struct_excessive_bools`. `lower_switch`'s option scan moved into `case_list_head`, the SCCP result takes the two post-passes in its literal, and the Explorer's two views take a helper each, to stay under the line limit. The rebase harness (`rebased_units`) now builds the memoised and the fresh unit alike under `tcl8.6` with the request's analysis context, as the language server's memo does: under the registry with no profile it ran before, no route has a target and no selection can be made. | `an_opaque_switch_records_its_selection` (`value_transfer.rs`, new: `abc` selecting `a*`, a literal `zzz` the default at the index one past the kept arm — `is_default` — and a finite subject one arm per member, each pattern span checked, and `case` recorded through its binding site; a parameter subject and a flattened exact switch record nothing); `a_delimited_fallthrough_body_records_no_selection_under_91` (new: a quoted and a braced `-` record under `tcl8.6` and `tcl9.0` and not under `tcl9.1` or `tcl`, a bare `-` under all four); `a_redefined_switch_records_no_selection` (new: the statement stays and records nothing); `rebase_shifted_unit_spans_match_fresh` (its body gains `switch -glob -- abc {…}`, asserts the record exists, and fails without the shift); `serialise::tests::sccp_reports_the_selection` (new: program (4)'s `-glob` form selects `default` against `baz`'s pattern range); `case_lowers_as_an_opaque_glob_selection`, `case_clauses_the_arm_cannot_hold_are_barriers`, `case_does_not_lower_under_9` and `a_switch_records_how_each_word_was_delimited` (`lowering/structured.rs`, new); `case_selects_its_glob_arm` (compiler witnesses, new: `case abc in a* …`, `in abc` and the one-word form under `tcl8.4`, `tcl8.6` and `f5-irules` record arm 0, draw no I231 and optimise to `puts yes`, printed by tclsh 8.4.20 to 8.6.18 before and after; nothing lowers under `tcl9.0`); `a_delimited_fallthrough_body_reads_two_ways_under_91` and `case_selection_runs_tcl_case_obj_cmd` (`value_transfers.rs`, new); `a_quoted_fallthrough_body_reads_two_ways_on_91` (`differential_fold.rs`, new: the selection declines the quoted form under `tcl9.1` and `tcl` and decides it under `tcl8.6` and `tcl9.0`; on tclsh 9.1b0 the quoted form raises inside a procedure and prints `B` at a script file's top level, where 8.6.18 and 9.0.4 print `B` on both and the bare form prints `B` everywhere); `case_witnesses_match_every_release_on_path` (new: 30 witnesses against tclsh 8.4.20, 8.5.19, 8.6.18 and the iRules profile on 8.4.20, two of them abstentions, every raise a decline; tclsh 9.0.4 and 9.1b0 have no `case`); `case_selects_as_tcl_case_obj_cmd_does` and `a_pattern_holding_whitespace_or_a_backslash_is_a_list` (`case.rs`, new); `an_unknown_case_list_reading_keeps_the_default` (SpecTcl loader, new). Moved: `route_stamps_match_the_pinned_set` gains `case` (mandate: D180, `case` declares semantics), and `shipped_builtins_stay_on_the_direct_route` with it; `case_list_rows_author_every_descriptor_field_issue_2140` authors 19 fields (mandate: the native/SpecTcl parity rule); the golden `switch.snap` is rewritten (its spec digest covers the two fields); `switch_witnesses_match_every_release_on_path` states each word's delimiters as its oracle spells them, no expectation moved |
+
+Green at VT6.3: `tcl-compiler` 9808 passed, 6 ignored across its 67
+binaries, and 7 doctests; `tcl-registry` 1261 across its binaries and a
+doctest, `tcl-cmd-core` 133 and a doctest; `tcl-explorer` 104; `tcl-cli`
+129 across its binaries (`cli` 50, `value_transfers_cli` 8);
+`tcl-spectcl` 331, 1 ignored — one run of its `cache` test hit
+`Directory not empty` clearing the per-user cache directory another
+worktree's run was writing, and passed on three reruns and the whole
+library's; `tcl-spec-studio` 294; `tcl-lsp-core --lib` 2350 and
+`tcl-lsp-db --lib` 103, as at VT6.1; workspace clippy (`--all-targets -D
+warnings`), no `#[allow]` added, and `cargo fmt --check`;
+`value-transfers` (regenerated: the inventory's `case` row) and
+`--check` (22 clean, 19 waived, 83 pinned across 34 files, 6607 rows);
+`registry-axes --check` (893 pinned across 147 files, 36 waived, 16
+clean), unchanged; `pack-goldens` (25 packs; `switch.snap` rewritten
+with the commit, then 0); `retired-api-gate`, `owner-resolution` (45
+rows) and `kcs-index-links` pass; `dialect-drift` 8 sites, none new;
+`cargo check --workspace --all-targets` clean.
 
 ### Slice 9 — nested writes in expressions
 
@@ -9138,6 +9169,100 @@ has the witnesses):
   that may be 8.4; and 9.1's `-integer` (`CaseMatchMode::Other`) is not
   the core's comparison. A non-ASCII subject or pattern is admitted only
   where the target decodes source as UTF-8.
+- **D179 — A delimited fall-through body reads two ways on 9.1** (VT6.3,
+  the coordinator's ruling). 9.1b0's byte-compiled `switch`
+  (`TclCompileSwitchCmd`) tells a fall-through body by
+  `IsFallthroughToken`, which measures the word token with its
+  delimiters, so only a bare `-` falls through there: a quoted `"-"` or a
+  braced `{-}` body runs `-` as a command (`invalid command name "-"`).
+  The interpreted `Tcl_SwitchObjCmd` reads the word's value and falls
+  through, as 8.4.20 to 9.0.4 do on both paths. Measured on tclsh 9.1b0:
+  inside a procedure the quoted and braced forms raise and the bare one
+  runs the next body; at a main script file's own top level all three run
+  it; the commands of a `source`d file and of stdin are compiled and
+  raise; a substituted arm word sends the whole command to the
+  interpreted path; and the one-word form's elements are read by content
+  (`TclFindElement`) on both. So under a profile that may be 9.1 — a named
+  9.1 or later, or one naming no release — a member whose selection
+  selects an arm with such a body, or falls through into one, declines
+  the whole fact with `ReleaseAmbiguous(Availability(9.1))`; under 8.4 to
+  9.0 alone the body still falls through. `WordStructure` gains `quoted`,
+  and a body reads by value on every path only when its structure is
+  known and it is bare, or it carries a substitution; an unreadable
+  structure counts as delimited. The compiler's `OperandSource` splits the
+  bare `Literal` from `QuotedLiteral`, whose structure answers `quoted`
+  with its content from offset 1 (it had answered `whole(0)` like a bare
+  word's); `Statement::Switch` records `raw_arg_quoted` beside
+  `raw_arg_braced`; and `clauses()` reads the descriptor's own
+  fall-through spelling instead of a hard-coded `-`. This supersedes
+  VT6.2's "Found, not modelled" paragraph.
+- **D180 — `case` declares its own selection contract and lowers as an
+  opaque glob selection** (VT6.3, the coordinator's ruling). `case` —
+  8.4 to 8.6 and the iRules 8.4 base, no command from 9.0 — lowered as an
+  exact-mode `switch` that never skipped `in`: `case abc {a* …}`
+  flattened to a dispatch comparing `a*` as a string (I231 on the arm
+  that runs, O112 keeping the default), and `case abc in …` was a barrier
+  or, in the one-word form, lowered `in` as a pattern. `CaseListSpec`
+  gains `default_mode` (the comparison a clause makes with no option
+  selecting one: `Exact` for `switch`, `Glob` for `case` and Expect) and
+  `pattern_words` (`Lists`: a pattern word holding whitespace or a
+  backslash is a list of patterns; a two-variant enum rather than a flag,
+  the descriptor's fourth boolean being past pedantic clippy's limit),
+  each with a SpecTcl `case_list` row (`default_mode exact|glob|regexp`,
+  `pattern_words single|lists`) so the native and
+  pack surfaces keep parity. A new core, `tcl_cmd_core::case`, copies
+  `Tcl_CaseObjCmd`'s selection — the same loop in 8.4.20, 8.5.19 and
+  8.6.18: a case-sensitive glob per clause, a pattern word that
+  `splits_as_list` matched element by element, a single `default` the
+  fallback wherever it stands (the last one winning) and still matched
+  literally where it stands, the first match winning, the missing final
+  body raised only when the scan reaches it, and no fall-through body.
+  `CaseSemantics` (`case-list:case`, route none) answers the shared plan
+  read with no option rows and the core's selection per member, charging
+  a unit per pattern word, and declines where the plan read as a pattern
+  a word whose value is the `in` separator. The lowering takes from the
+  registry whether the command has option rows (one with none scans no
+  word as an option), the separator (skipped where a static word's value
+  is it; a word there whose value the source does not state is a
+  barrier) and the descriptor's comparison, so the exact-match chain is
+  gone: a clause the IR arm cannot hold — a pattern `case` splits as a
+  list (`CaseListSpec::pattern_is_list`, over the core's rule), a
+  substituted pattern, a `default` before the last clause — is a barrier,
+  and anything else is an opaque glob `Statement::Switch` whose new
+  `command` field names `case`, which codegen invokes with the words as
+  written. Today's O112 matcher is glob-aware, so `case abc in a* {puts
+  yes} …` now folds to `puts yes`; I231 and O112 read the selection record
+  from VT6.4 and VT6.5. Under 9.x `case` does not resolve, so nothing
+  lowers or folds it. Expect's descriptor also defaults to glob, which no
+  behaviour reads today: every reader of a case list's mode asks only
+  whether it is `Regexp`, and Expect declares no selection contract.
+- **D181 — The selection record finds its command at its binding site**
+  (VT6.3). A `Statement::Switch` keeps no resolved command identity: the
+  switch lowering hook serves `switch` and `case` alike, and the
+  statement's `command` field is the source spelling codegen invokes, not
+  a registry identity. The lowering records, at the statement's own span,
+  the command binding it consumed (`record_consumed_command_binding`), so
+  the post-pass (`LatticeDriver::selection_records`, the `template_plans`
+  pattern) reads the canonical identity from `cfg.command_binding_sites`
+  where every site at that span names the same one (`binding_at`),
+  applies the driver's trust check, resolves the command over the
+  statement's words as the lowering recorded them (`switch_arguments`),
+  and asks its declared semantics for the `Selection` transfer. A module
+  that rebinds `switch` records nothing.
+- **D182 — A record's arm index names the statement's arm, or its final
+  `default`** (VT6.3). The fact's `selected` and `bodies` count the
+  command's pattern and body pairs in order; the statement keeps every
+  pair as an arm but a final keyword pattern, which it keeps as its
+  default body with no pattern span. So `arm_pattern_spans` holds one span
+  per arm the statement keeps, and an index equal to its length names the
+  final `default` (`SelectionRecord::is_default`). The post-pass records
+  only where that holds by construction: the lowering recorded every
+  word's delimiters, the plan reads the statement's own subject (an
+  inliner renames `subject` but not `raw_args`), and the plan's clause
+  count — the inline pairs, or the clause-list word's exact value split by
+  the list owner — is the statement's arms plus its default. `-matchvar`
+  and `-indexvar` never reach a `Statement::Switch` (the lowering makes
+  them a barrier), so a record's `writes` are empty today.
 
 ### Open questions for the owner
 
