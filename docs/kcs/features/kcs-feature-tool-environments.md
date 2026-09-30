@@ -75,8 +75,9 @@ The server reads `config.ini` when the editor answers its request for settings
 read `[notifications] environment_kind`. Use the editor setting there instead.
 
 An editor that sends the setting itself wins over `config.ini`. Your **Don't
-show again** choices are saved in `notices.ini` under your state folder
-(`~/.local/state/tcl-lsp/` on Linux). Delete a line, or the file, to see the
+show again** choices are saved as one empty file per environment in
+`notices/environment-kind/` under your state folder
+(`~/.local/state/tcl-lsp/` on Linux). Delete a file, or the folder, to see the
 message again.
 
 ## Options
@@ -106,4 +107,4 @@ create_clock -period 10 [get_ports clk]
 - [Extension Settings and Server Control](kcs-feature-extension-settings.md)
 - [How does tcl-lsp load configuration?](../kcs-qa-how-tcl-lsp-loads-configuration.md)
 - [Environment selection](../../design/contracts/environment-selection.md) — the design behind the grouping and the message
-- [Configuration file reference](../../design/contracts/xdg-config.md) — where `config.ini` and `notices.ini` live
+- [Configuration file reference](../../design/contracts/xdg-config.md) — where `config.ini` and the dismissal files live

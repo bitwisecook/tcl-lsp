@@ -16,8 +16,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Unit tests for the tool-environment notice: its text, its state file, and
-//! which environments earn it.
+//! Unit tests for the tool-environment notice: its text, its dismissal markers,
+//! and which environments earn it.
 
 use super::*;
 
@@ -154,200 +154,10 @@ fn only_the_six_bundled_tool_shells_qualify() {
     }
 }
 
-#[test]
-fn dismissed_ids_read_a_comma_or_whitespace_list() {
-    let file = "[dismissed]\nenvironment-kind = xilinx-eda-tcl, synopsys-eda-tcl\n";
-    assert_eq!(
-        dismissed_ids(&parse_ini(file)),
-        ids(&["xilinx-eda-tcl", "synopsys-eda-tcl"])
-    );
-    let spaced =
-        "[dismissed]\nenvironment-kind =\n    xilinx-eda-tcl\n    mentor-eda-tcl xilinx-eda-tcl\n";
-    assert_eq!(
-        dismissed_ids(&parse_ini(spaced)),
-        ids(&["xilinx-eda-tcl", "mentor-eda-tcl"])
-    );
-}
-
-#[test]
-fn an_empty_or_unrelated_file_dismisses_nothing() {
-    for file in [
-        "",
-        "\n\n",
-        "[other]\nenvironment-kind = xilinx-eda-tcl\n",
-        "[dismissed]\nsomething-else = xilinx-eda-tcl\n",
-        "environment-kind = xilinx-eda-tcl\n",
-        "not an ini file at all {{{",
-    ] {
-        assert!(dismissed_ids(&parse_ini(file)).is_empty(), "{file:?}");
-    }
-}
-
-#[test]
-fn the_state_file_round_trips() {
-    let listed = ids(&["xilinx-eda-tcl", "synopsys-eda-tcl"]);
-    let text = render_notices(Vec::new(), &listed);
-    assert_eq!(dismissed_ids(&parse_ini(&text)), listed);
-    assert!(
-        text.contains("environment-kind = xilinx-eda-tcl, synopsys-eda-tcl\n"),
-        "{text}"
-    );
-    // Rendering what was parsed changes nothing that matters.
-    let again = render_notices(parse_ini(&text), &listed);
-    assert_eq!(dismissed_ids(&parse_ini(&again)), listed);
-    assert_eq!(again, text);
-}
-
-#[test]
-fn rewriting_keeps_what_another_server_version_recorded() {
-    let file = "[dismissed]\n\
-                environment-kind = xilinx-eda-tcl\n\
-                future-notice = a, b\n\
-                \n\
-                [seen]\n\
-                tour =\n\
-                \x20   one\n\
-                \x20   two\n";
-    let text = render_notices(parse_ini(file), &ids(&["xilinx-eda-tcl", "mentor-eda-tcl"]));
-    let sections = parse_ini(&text);
-    assert_eq!(
-        dismissed_ids(&sections),
-        ids(&["xilinx-eda-tcl", "mentor-eda-tcl"])
-    );
-    let dismissed = sections
-        .iter()
-        .find(|section| section.name == "dismissed")
-        .expect("dismissed section");
-    assert!(
-        dismissed
-            .entries
-            .iter()
-            .any(|(key, value)| key == "future-notice" && value == "a, b"),
-        "{text}"
-    );
-    let entries_of = |sections: &[Section]| {
-        sections
-            .iter()
-            .find(|section| section.name == "seen")
-            .expect("seen section")
-            .entries
-            .clone()
-    };
-    assert_eq!(entries_of(&sections), entries_of(&parse_ini(file)));
-}
-
-#[test]
-fn a_dismissal_is_written_and_read_back_at_start_up() {
-    let dir = scratch_dir("write-back");
-    let path = dir.join("state").join("notices.ini");
-    let notice = EnvironmentNotice::new(Some(path.clone()), ids(&["xilinx-eda-tcl"]));
-    notice.persist().expect("write the state file");
-    let content = std::fs::read_to_string(&path).expect("state file exists");
-    assert!(
-        content.contains("environment-kind = xilinx-eda-tcl\n"),
-        "{content}"
-    );
-
-    let reloaded = EnvironmentNotice::load(&crate::vfs::NativeStore, Some(path));
-    assert!(reloaded.take_load_warning().is_none());
-    assert!(!reloaded.wants(&environment("xilinx-eda-tcl")));
-    assert!(reloaded.wants(&environment("synopsys-eda-tcl")));
-    let _ = std::fs::remove_dir_all(dir);
-}
-
-#[test]
-fn two_sessions_dismissing_different_environments_both_stick() {
-    let dir = scratch_dir("two-writers");
-    let path = dir.join("notices.ini");
-    EnvironmentNotice::new(Some(path.clone()), ids(&["xilinx-eda-tcl"]))
-        .persist()
-        .expect("first session writes");
-    EnvironmentNotice::new(Some(path.clone()), ids(&["synopsys-eda-tcl"]))
-        .persist()
-        .expect("second session writes");
-    let content = std::fs::read_to_string(&path).expect("state file exists");
-    assert_eq!(
-        dismissed_ids(&parse_ini(&content)),
-        ids(&["xilinx-eda-tcl", "synopsys-eda-tcl"]),
-        "{content}"
-    );
-    let _ = std::fs::remove_dir_all(dir);
-}
-
-#[test]
-fn a_dismissal_another_server_overwrites_is_written_again() {
-    let dir = scratch_dir("lost-update");
-    let path = dir.join("notices.ini");
-    let mut renames = 0;
-    // The other server read the file before this one renamed, then renamed its
-    // own list over ours.
-    persist_ids(&path, &ids(&["xilinx-eda-tcl"]), || {
-        renames += 1;
-        if renames == 1 {
-            let other = render_notices(Vec::new(), &ids(&["synopsys-eda-tcl"]));
-            write_atomically(&path, &other).expect("the other server renames over ours");
-        }
-    })
-    .expect("write the state file");
-    assert_eq!(renames, 2, "one retry, then it stops");
-    let content = std::fs::read_to_string(&path).expect("state file exists");
-    let mut stored = dismissed_ids(&parse_ini(&content));
-    stored.sort();
-    assert_eq!(
-        stored,
-        ids(&["synopsys-eda-tcl", "xilinx-eda-tcl"]),
-        "{content}"
-    );
-    let _ = std::fs::remove_dir_all(dir);
-}
-
-#[test]
-fn a_write_that_stuck_is_not_repeated() {
-    let dir = scratch_dir("stuck");
-    let path = dir.join("notices.ini");
-    let mut renames = 0;
-    persist_ids(&path, &ids(&["xilinx-eda-tcl"]), || renames += 1).expect("write the state file");
-    assert_eq!(renames, 1);
-    let _ = std::fs::remove_dir_all(dir);
-}
-
-#[test]
-fn the_retry_is_bounded_when_the_file_keeps_losing_the_id() {
-    let dir = scratch_dir("bounded");
-    let path = dir.join("notices.ini");
-    let mut renames = 0;
-    persist_ids(&path, &ids(&["xilinx-eda-tcl"]), || {
-        renames += 1;
-        write_atomically(&path, &render_notices(Vec::new(), &[])).expect("the file is emptied");
-    })
-    .expect("giving up is not a failure");
-    assert_eq!(renames, PERSIST_ATTEMPTS);
-    let _ = std::fs::remove_dir_all(dir);
-}
-
-#[test]
-fn the_scratch_file_is_named_for_the_process_and_renamed_away() {
-    let path = Path::new("state").join("notices.ini");
-    let scratch = scratch_path(&path);
-    let name = scratch
-        .file_name()
-        .and_then(|name| name.to_str())
-        .expect("a file name");
-    assert!(
-        name.starts_with(&format!("notices.ini.{}.", std::process::id())),
-        "{name}"
-    );
-    assert_eq!(
-        scratch.extension().and_then(|ext| ext.to_str()),
-        Some("tmp")
-    );
-    assert_eq!(scratch.parent(), path.parent());
-
-    let dir = scratch_dir("scratch-name");
-    let target = dir.join("notices.ini");
-    write_atomically(&target, "[dismissed]\n").expect("write");
-    let names: Vec<String> = std::fs::read_dir(&dir)
-        .expect("list the directory")
+/// The marker file names in `dir`, sorted.
+fn marker_names(dir: &Path) -> Vec<String> {
+    let mut names: Vec<String> = std::fs::read_dir(dir)
+        .expect("list the marker directory")
         .map(|entry| {
             entry
                 .expect("entry")
@@ -356,28 +166,159 @@ fn the_scratch_file_is_named_for_the_process_and_renamed_away() {
                 .into_owned()
         })
         .collect();
-    assert_eq!(names, ["notices.ini"], "no scratch file is left behind");
+    names.sort();
+    names
+}
+
+#[test]
+fn a_dismissal_is_one_empty_marker_named_for_the_environment() {
+    let dir = scratch_dir("marker");
+    let markers = dir.join("notices").join("environment-kind");
+    let notice = EnvironmentNotice::new(Some(markers.clone()), Vec::new());
+    notice
+        .persist("xilinx-eda-tcl")
+        .expect("record the dismissal");
+    assert_eq!(marker_names(&markers), ["xilinx-eda-tcl"]);
+    let marker = markers.join("xilinx-eda-tcl");
+    assert!(marker.is_file());
+    assert_eq!(std::fs::metadata(&marker).expect("metadata").len(), 0);
     let _ = std::fs::remove_dir_all(dir);
 }
 
 #[test]
-fn a_missing_state_file_is_the_ordinary_first_run() {
+fn a_dismissal_is_recorded_and_read_back_at_start_up() {
+    let dir = scratch_dir("write-back");
+    let notices = dir.join("state").join("notices");
+    let notice = EnvironmentNotice::new(
+        Some(notices.join("environment-kind")),
+        ids(&["xilinx-eda-tcl"]),
+    );
+    notice
+        .persist("xilinx-eda-tcl")
+        .expect("record the dismissal");
+
+    let reloaded = EnvironmentNotice::load(&crate::vfs::NativeStore, Some(notices));
+    assert!(reloaded.take_load_warning().is_none());
+    assert!(!reloaded.wants(&environment("xilinx-eda-tcl")));
+    assert!(reloaded.wants(&environment("synopsys-eda-tcl")));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn an_existing_marker_means_already_dismissed() {
+    let dir = scratch_dir("already");
+    let markers = dir.join("environment-kind");
+    let notice = EnvironmentNotice::new(Some(markers.clone()), Vec::new());
+    notice.persist("xilinx-eda-tcl").expect("first dismissal");
+    notice
+        .persist("xilinx-eda-tcl")
+        .expect("a second dismissal of the same environment is success");
+    assert_eq!(marker_names(&markers), ["xilinx-eda-tcl"]);
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn two_sessions_dismissing_different_environments_both_stick() {
+    let dir = scratch_dir("two-writers");
+    let markers = dir.join("environment-kind");
+    EnvironmentNotice::new(Some(markers.clone()), Vec::new())
+        .persist("xilinx-eda-tcl")
+        .expect("first session records");
+    EnvironmentNotice::new(Some(markers.clone()), Vec::new())
+        .persist("synopsys-eda-tcl")
+        .expect("second session records");
+    assert_eq!(
+        marker_names(&markers),
+        ["synopsys-eda-tcl", "xilinx-eda-tcl"]
+    );
+    let reloaded = EnvironmentNotice::load(&crate::vfs::NativeStore, Some(dir.clone()));
+    assert!(!reloaded.wants(&environment("xilinx-eda-tcl")));
+    assert!(!reloaded.wants(&environment("synopsys-eda-tcl")));
+    assert!(reloaded.wants(&environment("mentor-eda-tcl")));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn simultaneous_dismissals_all_stick() {
+    let dir = scratch_dir("simultaneous");
+    let markers = dir.join("environment-kind");
+    let wanted = [
+        "cadence-eda-tcl",
+        "intel-quartus-eda-tcl",
+        "mentor-eda-tcl",
+        "microchip-libero-eda-tcl",
+        "synopsys-eda-tcl",
+        "xilinx-eda-tcl",
+    ];
+    let start = std::sync::Barrier::new(wanted.len() * 2);
+    std::thread::scope(|scope| {
+        // Every environment is dismissed by two servers at once.
+        for id in wanted.into_iter().chain(wanted) {
+            let (markers, start) = (&markers, &start);
+            scope.spawn(move || {
+                start.wait();
+                record_dismissal(markers, id).expect("record the dismissal");
+            });
+        }
+    });
+    assert_eq!(marker_names(&markers), wanted);
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn an_id_that_is_not_a_plain_file_name_is_refused() {
+    let dir = scratch_dir("unsafe-name");
+    let markers = dir.join("environment-kind");
+    for id in [
+        "",
+        ".hidden",
+        "../escape",
+        "a/b",
+        r"a\b",
+        "with space",
+        "tcl:8.6",
+    ] {
+        let error = record_dismissal(&markers, id).expect_err(id);
+        assert_eq!(error.kind(), std::io::ErrorKind::InvalidInput, "{id:?}");
+    }
+    assert!(!markers.exists(), "nothing was created");
+    assert!(!dir.join("escape").exists());
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn only_files_in_the_marker_directory_are_dismissals() {
+    let dir = scratch_dir("only-files");
+    let markers = dir.join("environment-kind");
+    std::fs::create_dir_all(markers.join("mentor-eda-tcl")).expect("a directory, not a marker");
+    std::fs::write(markers.join("xilinx-eda-tcl"), "").expect("a marker");
+    let notice = EnvironmentNotice::load(&crate::vfs::NativeStore, Some(dir.clone()));
+    assert!(notice.take_load_warning().is_none());
+    assert!(!notice.wants(&environment("xilinx-eda-tcl")));
+    assert!(notice.wants(&environment("mentor-eda-tcl")));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn a_missing_marker_directory_is_the_ordinary_first_run() {
     let dir = scratch_dir("missing");
-    let notice = EnvironmentNotice::load(&crate::vfs::NativeStore, Some(dir.join("notices.ini")));
+    let notice = EnvironmentNotice::load(&crate::vfs::NativeStore, Some(dir.join("notices")));
     assert!(notice.take_load_warning().is_none());
     assert!(notice.wants(&environment("xilinx-eda-tcl")));
     let _ = std::fs::remove_dir_all(dir);
 }
 
 #[test]
-fn an_unreadable_state_file_warns_once_and_dismisses_nothing() {
+fn an_unreadable_marker_directory_warns_once_and_dismisses_nothing() {
     let dir = scratch_dir("unreadable");
-    let path = dir.join("notices.ini");
-    std::fs::write(&path, [0xff, 0xfe, 0x00, 0x9f]).expect("write a file that is not UTF-8");
-    let notice = EnvironmentNotice::load(&crate::vfs::NativeStore, Some(path));
+    let notices = dir.join("notices");
+    std::fs::create_dir_all(&notices).expect("create the notices directory");
+    // A file where the directory belongs cannot be listed, whoever runs the test.
+    std::fs::write(notices.join("environment-kind"), "").expect("write a file in its place");
+    let notice = EnvironmentNotice::load(&crate::vfs::NativeStore, Some(notices));
     assert!(notice.wants(&environment("xilinx-eda-tcl")));
     let warning = notice.take_load_warning().expect("a warning");
-    assert!(warning.contains("notices.ini"), "{warning}");
+    assert!(warning.contains("environment-kind"), "{warning}");
     assert!(
         notice.take_load_warning().is_none(),
         "the warning is given once"
@@ -389,7 +330,9 @@ fn an_unreadable_state_file_warns_once_and_dismisses_nothing() {
 fn a_session_with_no_state_directory_still_dismisses_in_memory() {
     let notice = EnvironmentNotice::load(&crate::vfs::NativeStore, None);
     assert!(notice.take_load_warning().is_none());
-    notice.persist().expect("nothing to write is not a failure");
+    notice
+        .persist("xilinx-eda-tcl")
+        .expect("nothing to write is not a failure");
 }
 
 #[test]
@@ -420,14 +363,24 @@ fn the_setting_defaults_on_and_toggles_live() {
 }
 
 #[test]
-fn the_state_file_lives_under_the_xdg_state_home() {
+fn the_markers_live_under_the_xdg_state_home() {
     let dir = scratch_dir("xdg-state");
-    let expected = dir.join("tcl-lsp").join("notices.ini");
+    let notices = dir.join("tcl-lsp").join("notices");
     temp_env::with_var("XDG_STATE_HOME", Some(&dir), || {
         assert_eq!(
-            tcl_lsp_core::tcl_install::user_notices_path(),
-            Some(expected.clone())
+            tcl_lsp_core::tcl_install::user_notices_dir(),
+            Some(notices.clone())
         );
     });
+    let notice = EnvironmentNotice::new(Some(notices.join("environment-kind")), Vec::new());
+    notice
+        .persist("xilinx-eda-tcl")
+        .expect("record the dismissal");
+    assert!(
+        notices
+            .join("environment-kind")
+            .join("xilinx-eda-tcl")
+            .is_file()
+    );
     let _ = std::fs::remove_dir_all(dir);
 }

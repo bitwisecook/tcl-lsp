@@ -31,9 +31,11 @@
 //! `window.showMessage.messageActionItem`, plain `window/showMessage`
 //! otherwise. *Learn more* opens the KCS note (`window/showDocument`, or the
 //! URL on the log channel when the client cannot show a document); *Don't
-//! show again* is recorded in `notices.ini` under the per-user state directory
-//! ([`tcl_lsp_core::tcl_install::user_notices_path`]), so the choice follows
-//! the user across editors.
+//! show again* is recorded as one empty marker file per environment under the
+//! per-user state directory
+//! ([`tcl_lsp_core::tcl_install::user_notices_dir`]), so the choice follows
+//! the user across editors. A marker is created, never rewritten, so two
+//! servers recording different dismissals share no write.
 //!
 //! This is the one scoped exception to the silence `config-precedence.md`
 //! keeps about ignored settings: it explains a classification rather than
@@ -49,7 +51,6 @@ use tcl_dialect::model::{EnvironmentDefinition, EnvironmentKind, Provenance};
 use tower_lsp_server::Client;
 use tower_lsp_server::ls_types::{MessageActionItem, MessageType, ShowDocumentParams, Uri};
 
-use crate::config_ini::{Section, parse_ini};
 use crate::vfs::SourceStore;
 
 /// The KCS note *Learn more* opens.
@@ -61,11 +62,9 @@ pub(crate) const LEARN_MORE: &str = "Learn more";
 /// The action that records the dismissal.
 pub(crate) const DONT_SHOW_AGAIN: &str = "Don't show again";
 
-/// The `notices.ini` section that lists what the user has dismissed.
-const DISMISSED_SECTION: &str = "dismissed";
-
-/// The key in [`DISMISSED_SECTION`] that lists dismissed environment ids.
-const DISMISSED_KEY: &str = "environment-kind";
+/// The subdirectory of the notices directory that holds this notice's markers:
+/// one empty file per dismissed environment, named for its id.
+const ENVIRONMENT_KIND_DIRECTORY: &str = "environment-kind";
 
 /// How long a notice waits for the first configuration pull before it decides
 /// whether the setting switches it off.
@@ -112,76 +111,11 @@ pub(crate) fn notice_text(definition: &EnvironmentDefinition) -> String {
     )
 }
 
-/// The environment ids `[dismissed] environment-kind` lists, in file order.
-///
-/// Ids are separated by commas and/or whitespace. A file with no such section
-/// or key dismisses nothing.
-fn dismissed_ids(sections: &[Section]) -> Vec<String> {
-    let mut ids: Vec<String> = Vec::new();
-    let listed = sections
-        .iter()
-        .filter(|section| section.name == DISMISSED_SECTION)
-        .flat_map(|section| &section.entries)
-        .filter(|(key, _)| key == DISMISSED_KEY)
-        .flat_map(|(_, value)| value.split(|c: char| c == ',' || c.is_whitespace()))
-        .filter(|id| !id.is_empty());
-    for id in listed {
-        if !ids.iter().any(|known| known == id) {
-            ids.push(id.to_owned());
-        }
-    }
-    ids
-}
-
-/// `notices.ini` text that lists `ids` under `[dismissed] environment-kind`,
-/// carrying every other section and key of `sections` through unchanged.
-///
-/// Other keys survive because the file is shared by every editor's server, and
-/// a newer server may record notices an older one does not know.
-fn render_notices(mut sections: Vec<Section>, ids: &[String]) -> String {
-    let list = ids.join(", ");
-    match sections
-        .iter_mut()
-        .find(|section| section.name == DISMISSED_SECTION)
-    {
-        Some(section) => {
-            // Every `environment-kind` entry collapses into the first, which
-            // holds the whole list.
-            section.entries.retain(|(key, _)| key != DISMISSED_KEY);
-            section.entries.insert(0, (DISMISSED_KEY.to_owned(), list));
-        }
-        None => sections.insert(
-            0,
-            Section {
-                name: DISMISSED_SECTION.to_owned(),
-                entries: vec![(DISMISSED_KEY.to_owned(), list)],
-            },
-        ),
-    }
-    let mut out = String::from(
-        "# Written by tcl-lsp: notices you asked not to be shown again.\n\
-         # Delete a line, or the file, to be told again.\n",
-    );
-    for section in &sections {
-        out.push_str("\n[");
-        out.push_str(&section.name);
-        out.push_str("]\n");
-        for (key, value) in &section.entries {
-            // A multi-line value continues on indented lines.
-            out.push_str(key);
-            out.push_str(" = ");
-            out.push_str(&value.replace('\n', "\n    "));
-            out.push('\n');
-        }
-    }
-    out
-}
-
 /// Ids the server has dismissed or shown, guarded by one lock so a claim reads
 /// and writes both together.
 #[derive(Debug)]
 struct Seen {
-    /// Dismissed by the user, in the order they were dismissed.
+    /// Dismissed by the user.
     dismissed: Vec<String>,
     /// Shown this session, whatever the reply.
     shown: Vec<String>,
@@ -194,9 +128,10 @@ struct Seen {
 /// its state and never borrows the backend across an await on the client.
 #[derive(Debug)]
 pub(crate) struct EnvironmentNotice {
-    /// Where dismissals are persisted; `None` when the platform has no home
-    /// for it, in which case a dismissal lasts for the session only.
-    path: Option<PathBuf>,
+    /// The directory holding one marker file per dismissed environment; `None`
+    /// when the platform has no home for it, in which case a dismissal lasts
+    /// for the session only.
+    markers: Option<PathBuf>,
     /// `tclLsp.notifications.environmentKind`.
     enabled: AtomicBool,
     /// The client advertised `window.showMessage.messageActionItem`.
@@ -205,16 +140,17 @@ pub(crate) struct EnvironmentNotice {
     show_document: AtomicBool,
     /// Flips to `true` once the first configuration pull has been applied.
     config_settled: tokio::sync::watch::Sender<bool>,
-    /// A problem reading `notices.ini` at start-up, reported once.
+    /// A problem reading the marker directory at start-up, reported once.
     load_warning: Mutex<Option<String>>,
     seen: Mutex<Seen>,
 }
 
 impl EnvironmentNotice {
-    /// State that persists dismissals at `path`, starting from `dismissed`.
-    fn new(path: Option<PathBuf>, dismissed: Vec<String>) -> Self {
+    /// State that records dismissals as markers in `markers`, starting from
+    /// `dismissed`.
+    fn new(markers: Option<PathBuf>, dismissed: Vec<String>) -> Self {
         Self {
-            path,
+            markers,
             enabled: AtomicBool::new(true),
             message_action_items: AtomicBool::new(false),
             show_document: AtomicBool::new(false),
@@ -233,30 +169,40 @@ impl EnvironmentNotice {
         Self::new(None, Vec::new())
     }
 
-    /// Read the dismissals from `path` once, at start-up.
+    /// Read the dismissals from the marker directory under `notices_dir` once,
+    /// at start-up: each file in it is a dismissed environment id.
     ///
-    /// A missing file dismisses nothing. A file that cannot be read (bad
-    /// permissions, not UTF-8) also dismisses nothing and leaves one warning
-    /// for [`Self::take_load_warning`]; the file is never an error the session
-    /// depends on.
-    pub(crate) fn load(store: &dyn SourceStore, path: Option<PathBuf>) -> Self {
-        let Some(file) = path.clone() else {
+    /// A missing directory dismisses nothing. A directory that cannot be read
+    /// (bad permissions, not a directory) also dismisses nothing and leaves
+    /// one warning for [`Self::take_load_warning`]; the directory is never an
+    /// error the session depends on.
+    pub(crate) fn load(store: &dyn SourceStore, notices_dir: Option<PathBuf>) -> Self {
+        let Some(markers) = notices_dir.map(|dir| dir.join(ENVIRONMENT_KIND_DIRECTORY)) else {
             return Self::new(None, Vec::new());
         };
-        match store.read_to_string(&file) {
-            Ok(content) => Self::new(path, dismissed_ids(&parse_ini(&content))),
+        match store.read_dir(&markers) {
+            Ok(entries) => {
+                let mut dismissed: Vec<String> = entries
+                    .iter()
+                    .filter(|entry| !entry.is_dir)
+                    .filter_map(|entry| entry.path.file_name()?.to_str().map(str::to_owned))
+                    .collect();
+                dismissed.sort();
+                Self::new(Some(markers), dismissed)
+            }
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                Self::new(path, Vec::new())
+                Self::new(Some(markers), Vec::new())
             }
             Err(error) => {
-                let notice = Self::new(path, Vec::new());
+                let warning = format!(
+                    "tcl-lsp: could not read {}: {error}; notices you dismissed may be shown again",
+                    markers.display()
+                );
+                let notice = Self::new(Some(markers), Vec::new());
                 *notice
                     .load_warning
                     .lock()
-                    .unwrap_or_else(PoisonError::into_inner) = Some(format!(
-                    "tcl-lsp: could not read {}: {error}; notices you dismissed may be shown again",
-                    file.display()
-                ));
+                    .unwrap_or_else(PoisonError::into_inner) = Some(warning);
                 notice
             }
         }
@@ -395,7 +341,8 @@ impl EnvironmentNotice {
             }
         }
         let notice = Arc::clone(self);
-        let written = crate::rt::spawn_blocking(move || notice.persist()).await;
+        let id = id.to_owned();
+        let written = crate::rt::spawn_blocking(move || notice.persist(&id)).await;
         let failure = match written {
             Ok(Ok(())) => return,
             Ok(Err(error)) => error.to_string(),
@@ -409,89 +356,55 @@ impl EnvironmentNotice {
             .await;
     }
 
-    /// Rewrite `notices.ini` with this session's dismissals merged into what is
-    /// on disk at that moment, so two editors dismissing different environments
-    /// both stick. Written to a sibling file and renamed into place, so a reader
-    /// never sees half a file.
+    /// Record the dismissal of `id` as a marker file in the marker directory.
     ///
     /// This writes with `std::fs` where the start-up read goes through the
-    /// [`SourceStore`]: the store only reads, and holds the files a host
-    /// supplies rather than the user's state directory. The path is `None`
-    /// wherever the host has no such directory (off-native), so a write only
-    /// ever reaches a real file system.
-    fn persist(&self) -> std::io::Result<()> {
-        let Some(path) = self.path.as_deref() else {
-            return Ok(());
-        };
-        let session = self
-            .seen
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .dismissed
-            .clone();
-        persist_ids(path, &session, || {})
+    /// [`SourceStore`]: the store has no create-new write, and holds the files
+    /// a host supplies rather than the user's state directory. The directory
+    /// is `None` wherever the host has no such directory (off-native), so a
+    /// write only ever reaches a real file system.
+    fn persist(&self, id: &str) -> std::io::Result<()> {
+        match self.markers.as_deref() {
+            Some(markers) => record_dismissal(markers, id),
+            None => Ok(()),
+        }
     }
 }
 
-/// How many times [`persist_ids`] writes the merged list.
-const PERSIST_ATTEMPTS: usize = 2;
-
-/// Merge `session` into the file at `path` and check that it stuck.
+/// Create the marker for `id` in `markers`, creating the directory first.
 ///
-/// Reading, merging and renaming is not one atomic step: two servers that read
-/// the file before either renames each write a list that lacks the other's id,
-/// and the later rename drops the earlier one's. So after each rename the file
-/// is read back, and if an id of `session` is missing the merge runs once more
-/// against what the other writer left, up to [`PERSIST_ATTEMPTS`] writes.
-/// `after_rename` runs after each rename, before the read back.
-fn persist_ids(
-    path: &Path,
-    session: &[String],
-    mut after_rename: impl FnMut(),
-) -> std::io::Result<()> {
-    for _ in 0..PERSIST_ATTEMPTS {
-        let on_disk = std::fs::read_to_string(path).unwrap_or_default();
-        let sections = parse_ini(&on_disk);
-        let mut merged = dismissed_ids(&sections);
-        for id in session {
-            if !merged.contains(id) {
-                merged.push(id.clone());
-            }
-        }
-        write_atomically(path, &render_notices(sections, &merged))?;
-        after_rename();
-        let stored = std::fs::read_to_string(path).unwrap_or_default();
-        let stored = dismissed_ids(&parse_ini(&stored));
-        if session.iter().all(|id| stored.contains(id)) {
-            break;
-        }
+/// The marker is created with create-new semantics and is never written to, so
+/// recording a dismissal shares no write with any other server: two servers
+/// dismissing different environments create different files, and two
+/// dismissing the same one agree. A marker that already exists means the
+/// environment is already dismissed, which is success.
+fn record_dismissal(markers: &Path, id: &str) -> std::io::Result<()> {
+    if !is_marker_name(id) {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            format!("`{id}` is not usable as a marker file name"),
+        ));
     }
-    Ok(())
+    std::fs::create_dir_all(markers)?;
+    match std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(markers.join(id))
+    {
+        Err(error) if error.kind() != std::io::ErrorKind::AlreadyExists => Err(error),
+        _ => Ok(()),
+    }
 }
 
-/// Write `content` to `path` through a temporary sibling, creating the
-/// directory first.
-fn write_atomically(path: &Path, content: &str) -> std::io::Result<()> {
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-    let scratch = scratch_path(path);
-    std::fs::write(&scratch, content)?;
-    std::fs::rename(&scratch, path).inspect_err(|_| {
-        let _ = std::fs::remove_file(&scratch);
-    })
-}
-
-/// The temporary sibling [`write_atomically`] writes through, named for the
-/// process and the moment of writing so two servers writing at once never share
-/// a scratch file.
-fn scratch_path(path: &Path) -> PathBuf {
-    let stamp = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |elapsed| elapsed.as_nanos());
-    let mut scratch = path.as_os_str().to_owned();
-    scratch.push(format!(".{}.{stamp}.tmp", std::process::id()));
-    PathBuf::from(scratch)
+/// Whether `id` is safe to use as a file name in the marker directory: an
+/// environment id is letters, digits and `-`, `_` or `.`, and never names a
+/// hidden file or a path.
+fn is_marker_name(id: &str) -> bool {
+    !id.is_empty()
+        && !id.starts_with('.')
+        && id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'))
 }
 
 #[cfg(test)]

@@ -162,20 +162,33 @@ fn wait_for_setting(lsp: &mut Lsp, want: bool) {
     }
 }
 
-/// `notices.ini` under `state`, once it lists `needle`.
-fn saved_notices(state: &Path, needle: &str) -> String {
-    let file = state.join("tcl-lsp").join("notices.ini");
+/// The marker directory the server keeps dismissals in under `state`.
+fn marker_dir(state: &Path) -> PathBuf {
+    state
+        .join("tcl-lsp")
+        .join("notices")
+        .join("environment-kind")
+}
+
+/// The dismissal markers under `state`, sorted, once `needle` is among them.
+fn saved_markers(state: &Path, needle: &str) -> Vec<String> {
+    let dir = marker_dir(state);
     let deadline = Instant::now() + scaled_timeout(WAIT);
     loop {
-        if let Ok(content) = std::fs::read_to_string(&file)
-            && content.contains(needle)
-        {
-            return content;
+        if let Ok(entries) = std::fs::read_dir(&dir) {
+            let mut names: Vec<String> = entries
+                .flatten()
+                .map(|entry| entry.file_name().to_string_lossy().into_owned())
+                .collect();
+            names.sort();
+            if names.iter().any(|name| name == needle) {
+                return names;
+            }
         }
         assert!(
             Instant::now() < deadline,
-            "{} never listed {needle}",
-            file.display()
+            "{} never held a marker for {needle}",
+            dir.display()
         );
         std::thread::sleep(Duration::from_millis(10));
     }
@@ -213,12 +226,9 @@ fn dont_show_again_is_saved_and_only_that_environment_stays_quiet() {
         lsp.choose_message_action(Some("Don't show again"));
         open_vivado(&mut lsp);
         lsp.await_server_request(ASK, WAIT, 0);
-        let saved = saved_notices(&state, "xilinx-eda-tcl");
-        assert!(saved.contains("[dismissed]"), "{saved}");
-        assert!(
-            saved.contains("environment-kind = xilinx-eda-tcl\n"),
-            "{saved}"
-        );
+        assert_eq!(saved_markers(&state, "xilinx-eda-tcl"), ["xilinx-eda-tcl"]);
+        let marker = marker_dir(&state).join("xilinx-eda-tcl");
+        assert_eq!(std::fs::metadata(&marker).expect("a marker file").len(), 0);
     }
 
     // A fresh session reads that state: Vivado stays quiet, Synopsys still asks.
@@ -230,22 +240,26 @@ fn dont_show_again_is_saved_and_only_that_environment_stays_quiet() {
     assert!(message_of(&ask).contains("(synopsys-eda-tcl)"), "{ask}");
     let all = asks(&lsp);
     assert_eq!(all.len(), 1, "Vivado was dismissed: {all:?}");
-    let saved = saved_notices(&state, "xilinx-eda-tcl");
-    assert!(!saved.contains("synopsys-eda-tcl"), "{saved}");
+    assert_eq!(
+        saved_markers(&state, "xilinx-eda-tcl"),
+        ["xilinx-eda-tcl"],
+        "asking about Synopsys records nothing"
+    );
     let _ = std::fs::remove_dir_all(state);
 }
 
 #[test]
-fn an_unreadable_state_file_is_one_warning_and_the_notice_still_asks() {
+fn an_unreadable_marker_directory_is_one_warning_and_the_notice_still_asks() {
     let state = scratch_dir("unreadable");
-    let file = state.join("tcl-lsp").join("notices.ini");
-    std::fs::create_dir_all(file.parent().expect("a parent directory")).expect("create state");
-    std::fs::write(&file, [0xff, 0xfe, 0x00, 0x9f]).expect("write a file that is not UTF-8");
+    let markers = marker_dir(&state);
+    std::fs::create_dir_all(markers.parent().expect("a parent directory")).expect("create state");
+    // A file where the directory belongs cannot be listed, whoever runs the test.
+    std::fs::write(&markers, "").expect("write a file in place of the directory");
     let state_env = [("XDG_STATE_HOME", state.to_str().expect("UTF-8 path"))];
     let reply = json!({ "features": { "linkedEditingRange": true } });
 
     let mut lsp = start(&reply, &reply, &full_client(), &state_env, None);
-    let warning = lsp.await_log(&["could not read", "notices.ini"], WAIT, 0);
+    let warning = lsp.await_log(&["could not read", "environment-kind"], WAIT, 0);
     assert!(warning.contains("may be shown again"), "{warning}");
     open_vivado(&mut lsp);
     lsp.await_server_request(ASK, WAIT, 0);

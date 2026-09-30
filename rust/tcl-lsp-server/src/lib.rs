@@ -8779,7 +8779,7 @@ impl Backend {
         // What the user asked not to be told again is read once, here.
         let environment_notice = Arc::new(environment_notice::EnvironmentNotice::load(
             store.as_ref(),
-            core_tcl_install::user_notices_path(),
+            core_tcl_install::user_notices_dir(),
         ));
         Self {
             client,

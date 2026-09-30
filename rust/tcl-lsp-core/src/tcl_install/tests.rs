@@ -212,12 +212,12 @@ fn config_path_precedence_is_platform_native() {
 }
 
 #[test]
-fn notices_path_precedence_is_platform_native() {
+fn notices_dir_precedence_is_platform_native() {
     use std::ffi::OsStr;
     // XDG_STATE_HOME wins on every platform, ahead of the platform default.
     for (is_windows, is_macos) in [(false, false), (false, true), (true, false)] {
         assert_eq!(
-            notices_path_for(
+            notices_dir_for(
                 Some(OsStr::new("/x/state")),
                 Some(OsStr::new(r"C:\Local")),
                 Some(OsStr::new("/home/me")),
@@ -225,12 +225,12 @@ fn notices_path_precedence_is_platform_native() {
                 is_macos,
                 false,
             ),
-            Some(PathBuf::from("/x/state/tcl-lsp/notices.ini"))
+            Some(PathBuf::from("/x/state/tcl-lsp/notices"))
         );
     }
     // Linux/BSD/WSL → ~/.local/state.
     assert_eq!(
-        notices_path_for(
+        notices_dir_for(
             None,
             None,
             Some(OsStr::new("/home/me")),
@@ -238,11 +238,11 @@ fn notices_path_precedence_is_platform_native() {
             false,
             false
         ),
-        Some(PathBuf::from("/home/me/.local/state/tcl-lsp/notices.ini"))
+        Some(PathBuf::from("/home/me/.local/state/tcl-lsp/notices"))
     );
     // macOS → ~/Library/Application Support.
     assert_eq!(
-        notices_path_for(
+        notices_dir_for(
             None,
             None,
             Some(OsStr::new("/Users/me")),
@@ -251,18 +251,18 @@ fn notices_path_precedence_is_platform_native() {
             false
         ),
         Some(PathBuf::from(
-            "/Users/me/Library/Application Support/tcl-lsp/notices.ini"
+            "/Users/me/Library/Application Support/tcl-lsp/notices"
         ))
     );
     // Windows → %LOCALAPPDATA%.
     let local = r"C:\Users\me\AppData\Local";
     assert_eq!(
-        notices_path_for(None, Some(OsStr::new(local)), None, true, false, false),
-        Some(PathBuf::from(local).join("tcl-lsp").join("notices.ini"))
+        notices_dir_for(None, Some(OsStr::new(local)), None, true, false, false),
+        Some(PathBuf::from(local).join("tcl-lsp").join("notices"))
     );
     // MSYS2 / Cygwin → the POSIX default, even with LOCALAPPDATA present.
     assert_eq!(
-        notices_path_for(
+        notices_dir_for(
             None,
             Some(OsStr::new(local)),
             Some(OsStr::new("/home/me")),
@@ -270,11 +270,11 @@ fn notices_path_precedence_is_platform_native() {
             false,
             true,
         ),
-        Some(PathBuf::from("/home/me/.local/state/tcl-lsp/notices.ini"))
+        Some(PathBuf::from("/home/me/.local/state/tcl-lsp/notices"))
     );
     // Empty XDG_STATE_HOME is ignored; no home means no path.
     assert_eq!(
-        notices_path_for(
+        notices_dir_for(
             Some(OsStr::new("")),
             None,
             Some(OsStr::new("/home/me")),
@@ -282,12 +282,9 @@ fn notices_path_precedence_is_platform_native() {
             false,
             false,
         ),
-        Some(PathBuf::from("/home/me/.local/state/tcl-lsp/notices.ini"))
+        Some(PathBuf::from("/home/me/.local/state/tcl-lsp/notices"))
     );
-    assert_eq!(
-        notices_path_for(None, None, None, false, false, false),
-        None
-    );
+    assert_eq!(notices_dir_for(None, None, None, false, false, false), None);
 }
 
 #[test]

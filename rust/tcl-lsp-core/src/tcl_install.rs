@@ -33,8 +33,8 @@
 //!   read the LSP's own config: the `libraryPaths`
 //!   key in the platform-native user config (`config.ini`, `[global]` section)
 //!   and the per-workspace `.tcl-lsp.ini` (`[project]` section), plus the
-//!   editor's `tclLsp.libraryPaths`. [`user_notices_path`] is the sibling
-//!   per-user *state* file: the server writes it, the user does not edit it.
+//!   editor's `tclLsp.libraryPaths`. [`user_notices_dir`] is the sibling
+//!   per-user *state* directory: the server writes it, the user does not edit it.
 
 use std::path::{Path, PathBuf};
 
@@ -248,24 +248,26 @@ fn config_path_for(
     Some(home.join(".config").join("tcl-lsp").join("config.ini"))
 }
 
-/// Filename of the per-user notice state.
-pub const NOTICES_FILENAME: &str = "notices.ini";
+/// Name of the per-user notice state directory.
+pub const NOTICES_DIRNAME: &str = "notices";
 
-/// The per-user notice state file (`notices.ini`), which records what the user
-/// has asked not to be told again:
+/// The per-user notice state directory (`notices`), which records what the
+/// user has asked not to be told again. Each notice kind is a subdirectory and
+/// each dismissal one empty marker file in it, so recording a dismissal never
+/// rewrites a file another server may be writing:
 ///
-/// * `$XDG_STATE_HOME/tcl-lsp/notices.ini` when `XDG_STATE_HOME` is set,
-/// * Windows (native): `%LOCALAPPDATA%\tcl-lsp\notices.ini`,
-/// * Windows under MSYS2 / Cygwin (`MSYSTEM` set): `~/.local/state/tcl-lsp/notices.ini`,
-/// * macOS: `~/Library/Application Support/tcl-lsp/notices.ini`,
-/// * else (Linux/BSD/WSL): `~/.local/state/tcl-lsp/notices.ini`.
+/// * `$XDG_STATE_HOME/tcl-lsp/notices` when `XDG_STATE_HOME` is set,
+/// * Windows (native): `%LOCALAPPDATA%\tcl-lsp\notices`,
+/// * Windows under MSYS2 / Cygwin (`MSYSTEM` set): `~/.local/state/tcl-lsp/notices`,
+/// * macOS: `~/Library/Application Support/tcl-lsp/notices`,
+/// * else (Linux/BSD/WSL): `~/.local/state/tcl-lsp/notices`.
 ///
 /// State is separate from configuration: the user edits `config.ini`, the
-/// server writes `notices.ini`. `None` when the home or local-appdata
+/// server writes the markers. `None` when the home or local-appdata
 /// directory can't be determined.
 #[must_use]
-pub fn user_notices_path() -> Option<PathBuf> {
-    notices_path_for(
+pub fn user_notices_dir() -> Option<PathBuf> {
+    notices_dir_for(
         std::env::var_os("XDG_STATE_HOME").as_deref(),
         std::env::var_os("LOCALAPPDATA").as_deref(),
         std::env::var_os("HOME").as_deref(),
@@ -275,11 +277,11 @@ pub fn user_notices_path() -> Option<PathBuf> {
     )
 }
 
-/// Pure core of [`user_notices_path`], with the same shape as
+/// Pure core of [`user_notices_dir`], with the same shape as
 /// [`config_path_for`]: the environment values and platform flags are
 /// arguments, so the precedence is testable without mutating the process
 /// environment.
-fn notices_path_for(
+fn notices_dir_for(
     xdg_state_home: Option<&std::ffi::OsStr>,
     local_appdata: Option<&std::ffi::OsStr>,
     home: Option<&std::ffi::OsStr>,
@@ -290,10 +292,10 @@ fn notices_path_for(
     if let Some(xdg) = xdg_state_home
         && !xdg.is_empty()
     {
-        return Some(PathBuf::from(xdg).join("tcl-lsp").join(NOTICES_FILENAME));
+        return Some(PathBuf::from(xdg).join("tcl-lsp").join(NOTICES_DIRNAME));
     }
     if is_windows && !posix_compat_windows {
-        return local_appdata.map(|a| PathBuf::from(a).join("tcl-lsp").join(NOTICES_FILENAME));
+        return local_appdata.map(|a| PathBuf::from(a).join("tcl-lsp").join(NOTICES_DIRNAME));
     }
     let home = PathBuf::from(home?);
     if is_macos {
@@ -301,14 +303,14 @@ fn notices_path_for(
             home.join("Library")
                 .join("Application Support")
                 .join("tcl-lsp")
-                .join(NOTICES_FILENAME),
+                .join(NOTICES_DIRNAME),
         );
     }
     Some(
         home.join(".local")
             .join("state")
             .join("tcl-lsp")
-            .join(NOTICES_FILENAME),
+            .join(NOTICES_DIRNAME),
     )
 }
 

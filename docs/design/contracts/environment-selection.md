@@ -169,12 +169,16 @@ server-sent message renders in every editor with no client code.
   again once dismissed. The sending task holds no document or analyser
   lock, and waits for the first configuration pull (bounded at 30 s) before
   consulting the setting, so a document restored at start-up cannot show
-  the notice to a user who has switched it off. Dismissals persist in
-  `$XDG_STATE_HOME/tcl-lsp/notices.ini` (`[dismissed] environment-kind =
-  xilinx-eda-tcl, …`; `~/.local/state` by default, the platform's state
-  directory on macOS and Windows) so the choice follows the user across
-  editors; the file is read once at start-up and rewritten atomically on
-  dismissal, keeping other sections.
+  the notice to a user who has switched it off. A dismissal is one empty
+  marker file per environment,
+  `$XDG_STATE_HOME/tcl-lsp/notices/environment-kind/<environment id>`
+  (`~/.local/state` by default, the platform's state directory on macOS and
+  Windows), so the choice follows the user across editors. The directory is
+  listed once at start-up; a dismissal creates its marker with create-new
+  semantics and never rewrites a file, so two servers dismissing different
+  environments share no write, and an existing marker means already dismissed.
+  A missing directory dismisses nothing; an unreadable one logs one warning.
+  The layout is in [xdg-config.md](xdg-config.md) § *Notice state directory*.
 - **Off switch.** `tclLsp.notifications.environmentKind` (default `true`)
   in editor settings — read from the `workspace/configuration` pull,
   `initializationOptions` and `didChangeConfiguration`, applied live — and
