@@ -256,20 +256,19 @@ fn register_pack_dialects(packs: &PackSet) -> (usize, usize, Vec<DialectRejectio
             }
         }
     }
-    // Q6: the surface rosters ride the same set-wide sync, and the
-    // compiled-in core surfaces are folded in on every publication — the
-    // model-side call replaces the whole store, so a set that declared no
-    // roster of its own must still hand Jim's back or it would retire it.
-    let mut rosters = crate::core_surfaces::builtin_rosters();
-    let _ = crate::core_surfaces::register_builtin_commands();
+    // The surface rosters ride the same set-wide sync, and the compiled-in
+    // core surfaces are folded in on every publication: the model-side call
+    // replaces the whole store, so a set that declared no roster of its own
+    // must still hand Jim's back or it would retire it.
+    let mut pack_rosters = Vec::new();
     for pack in &packs.packs {
         let provenance = PackEnvironmentTier::of(pack.tier).provenance();
-        rosters.extend(crate::surface_roster_conversion::to_inherited_surfaces(
+        pack_rosters.extend(crate::surface_roster_conversion::to_inherited_surfaces(
             &pack.surface_rosters,
             provenance,
         ));
     }
-    let roster_outcome = tcl_dialect::model::register_inherited_surfaces(rosters);
+    let roster_outcome = crate::core_surfaces::register_with(pack_rosters);
     refused.extend(
         roster_outcome
             .rejected
@@ -313,9 +312,7 @@ pub fn retire_pack_environments() -> PackSetRegistration {
     let outcome = tcl_registry::model::sync_environment_sources(Vec::new());
     let _ = tcl_dialect::model::register_dynamic_families(Vec::new(), Vec::new());
     // The compiled-in core surfaces are not the pack channel's to retire.
-    let _ =
-        tcl_dialect::model::register_inherited_surfaces(crate::core_surfaces::builtin_rosters());
-    let _ = crate::core_surfaces::register_builtin_commands();
+    let _ = crate::core_surfaces::register_with(Vec::new());
     PackSetRegistration {
         generation: outcome.generation,
         changed: outcome.changed,

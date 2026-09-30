@@ -1035,6 +1035,54 @@ impl Lsp {
         self.await_diagnostics_version(uri, None, DEFAULT_TIMEOUT)
     }
 
+    /// Block until the first `publishDiagnostics` for `uri` arrives and return
+    /// its diagnostics, whatever later publishes replace it with.
+    ///
+    /// For a test about what a document is *first* told: the server
+    /// republishes as start-up work completes, so the settled result cannot
+    /// say whether the first one was right.
+    pub fn await_first_diagnostics(&self, uri: &str, timeout: Duration) -> Vec<Value> {
+        let deadline = Instant::now() + scaled_timeout(timeout);
+        let mut notes = self.shared.notifications.lock().unwrap();
+        loop {
+            let first = notes.iter().find_map(|note| {
+                if note.get("method").and_then(Value::as_str)
+                    != Some("textDocument/publishDiagnostics")
+                {
+                    return None;
+                }
+                let params = note.get("params")?;
+                if params.get("uri").and_then(Value::as_str) != Some(uri) {
+                    return None;
+                }
+                Some(
+                    params
+                        .get("diagnostics")
+                        .and_then(Value::as_array)
+                        .cloned()
+                        .unwrap_or_default(),
+                )
+            });
+            if let Some(diagnostics) = first {
+                return diagnostics;
+            }
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                drop(notes);
+                panic!(
+                    "no publishDiagnostics for {uri:?} within {timeout:?}{}",
+                    latency_barrier_timeout_note()
+                );
+            }
+            let (guard, _) = self
+                .shared
+                .notify_cv
+                .wait_timeout(notes, remaining)
+                .unwrap();
+            notes = guard;
+        }
+    }
+
     /// Block until the most recent `publishDiagnostics` for `uri` satisfies
     /// `settled`, returning it.
     ///

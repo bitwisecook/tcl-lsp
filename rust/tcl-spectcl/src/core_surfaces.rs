@@ -55,15 +55,23 @@
 //!
 //! ## Ordering
 //!
-//! [`ensure`] is idempotent and cheap after the first call.
+//! [`ensure`] seeds the dialect model and the registry once per process and
+//! costs a lock and a flag after that. Every path that hands a consumer a
+//! registry or a pack set goes through it — [`crate::install::registry_with_packs`],
+//! [`crate::bundled::packs`], [`crate::registration::publish_pack_set`] — and
+//! the language server calls it in its `initialize` handler, before any
+//! client message can open a document. A document analysed before the first
+//! pack set is loaded therefore sees the surface a document analysed after
+//! it does.
+//!
 //! [`crate::registration::publish_pack_set`] folds these rosters in with
-//! whatever the loaded set declares, so the model-side sync (which
-//! replaces the whole store) can never drop them; [`ensure`] covers the
-//! callers that never publish a set at all.
+//! whatever the loaded set declares, so the model-side sync (which replaces
+//! the whole store) can never drop them, and a seed that runs after a
+//! publication leaves the published rosters in place.
 
-use std::sync::OnceLock;
+use std::sync::{Mutex, MutexGuard, OnceLock, PoisonError};
 
-use tcl_dialect::model::{InheritedSurface, Provenance};
+use tcl_dialect::model::{InheritedSurface, InheritedSurfaceRegistration, Provenance};
 use tcl_registry::spec::CommandSpec;
 
 use crate::loader::{Pack, PackSurfaceRoster};
@@ -129,19 +137,48 @@ pub fn register_builtin_commands() -> u64 {
     tcl_registry::register_core_surface_specs(builtin_commands())
 }
 
+/// Whether the compiled-in rosters and commands have been registered.
+///
+/// Held across each registration as well as read, so a seed and a
+/// publication never interleave: whichever runs second sees the flag and the
+/// roster store the first one left.
+static SEEDED: Mutex<bool> = Mutex::new(false);
+
+fn seeded() -> MutexGuard<'static, bool> {
+    SEEDED.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
+/// Register the compiled-in rosters followed by `pack_rosters`, and the
+/// compiled-in commands, and record that both are in.
+fn seed(seeded: &mut bool, pack_rosters: Vec<InheritedSurface>) -> InheritedSurfaceRegistration {
+    let mut rosters = builtin_rosters();
+    rosters.extend(pack_rosters);
+    let outcome = tcl_dialect::model::register_inherited_surfaces(rosters);
+    let _ = register_builtin_commands();
+    *seeded = true;
+    outcome
+}
+
+/// Register the compiled-in rosters together with the ones a pack set
+/// declares, replacing the model's whole roster store, and the compiled-in
+/// commands with the registry.
+pub(crate) fn register_with(pack_rosters: Vec<InheritedSurface>) -> InheritedSurfaceRegistration {
+    seed(&mut seeded(), pack_rosters)
+}
+
 /// Register the compiled-in rosters and commands, if nothing has registered
 /// them yet.
 ///
-/// The entry point for a process that never publishes a pack set — a
-/// test, a tool reading the catalogue directly. A process that *does*
-/// publish goes through [`crate::registration::publish_pack_set`], which
-/// folds these in on every publication rather than racing this.
+/// The compiled-in surface is part of the state a process starts from, so
+/// every constructor that hands out a registry calls this rather than leaving
+/// it to whichever consumer happens to publish a pack set. A call after a
+/// publication changes nothing: the publication registered the same rosters
+/// alongside the set's own.
 pub fn ensure() {
-    static DONE: OnceLock<()> = OnceLock::new();
-    DONE.get_or_init(|| {
-        let _ = tcl_dialect::model::register_inherited_surfaces(builtin_rosters());
-        let _ = register_builtin_commands();
-    });
+    let mut seeded = seeded();
+    if !*seeded {
+        let _ = seed(&mut seeded, Vec::new());
+    }
 }
 
 #[cfg(test)]

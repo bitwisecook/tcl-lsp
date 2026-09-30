@@ -69,7 +69,9 @@
 2	tcl-spectcl::export	test	tcl-spectcl	export
 2	tcl-spectcl::i6_security_floor	test	tcl-spectcl	i6_security_floor
 2	tcl-spectcl::jim_document	test	tcl-spectcl	jim_document
+2	tcl-spectcl::jim_generation_zero	test	tcl-spectcl	jim_generation_zero
 2	tcl-spectcl::jim_own_surface	test	tcl-spectcl	jim_own_surface
+2	tcl-spectcl::jim_seed_after_publish	test	tcl-spectcl	jim_seed_after_publish
 2	tcl-spectcl::pack_is_real_tcl	test	tcl-spectcl	pack_is_real_tcl
 2	tcl-spectcl::pack_torture	test	tcl-spectcl	pack_torture
 2	tcl-spectcl::roster_reload_static_view	test	tcl-spectcl	roster_reload_static_view

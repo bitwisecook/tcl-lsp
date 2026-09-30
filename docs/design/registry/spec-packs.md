@@ -813,7 +813,12 @@ of every upstream tag 0.76–0.84 (no Jim command is gated behind a package).
 Its specs are registered with the registry as the family's own surface
 (`tcl_registry::register_core_surface_specs`), not installed as a pack
 overlay: the registry assembled for a `jim` document extends the shared store
-with them, and no other environment's store carries them. A pack hook body
+with them, and no other environment's store carries them. They are registered
+by `tcl_spectcl::core_surfaces::ensure`, which every constructor that hands a
+consumer a registry or a pack set calls (`registry_with_packs`,
+`bundled::packs`, `publish_pack_set`) and which the language server calls in its
+`initialize` handler, so a `jim` document analysed before the first pack set
+loads resolves Jim's commands like one analysed after it. A pack hook body
 needs a host built per pack set, which a compiled-in pack never has, so these
 packs declare none.
 

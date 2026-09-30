@@ -23231,6 +23231,11 @@ impl Backend {
 
 impl LanguageServer for Backend {
     async fn initialize(&self, params: InitializeParams) -> jsonrpc::Result<InitializeResult> {
+        // A document can be opened, and analysed, before the start-up pack
+        // reload has published anything; the compiled-in core surfaces are
+        // part of what it is analysed against either way, so they are in
+        // before the client can send one.
+        tcl_spectcl::core_surfaces::ensure();
         self.apply_workspace_folders(&params).await;
         self.apply_initialization_options(&params).await;
         // Push is the sole diagnostics channel by default: pull is opt-in and

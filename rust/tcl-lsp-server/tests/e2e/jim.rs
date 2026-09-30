@@ -169,6 +169,43 @@ fn the_jim_program_draws_only_hints_as_a_tcl_jim_document() {
     }
 }
 
+/// Whether the server has logged a message containing `needle`.
+fn logged(lsp: &Lsp, needle: &str) -> bool {
+    lsp.notifications().iter().any(|note| {
+        note["method"] == "window/logMessage"
+            && note["params"]["message"]
+                .as_str()
+                .is_some_and(|message| message.contains(needle))
+    })
+}
+
+/// The first diagnostics a `tcl-jim` document is published with are already
+/// right: Jim's own commands and `proc` form are part of the surface the
+/// server starts from, not something a later pack reload supplies.
+///
+/// The startup pack reload is held on its snapshot, so no pack set is
+/// published while the document is opened and analysed, and the test reads the
+/// first publish rather than the settled one.
+#[test]
+fn the_first_publish_for_a_tcl_jim_document_needs_no_pack_reload() {
+    let hold = scaled_timeout(Duration::from_secs(5))
+        .as_millis()
+        .to_string();
+    let mut lsp = Lsp::tcl_with_env(&[("TCL_LSP_TEST_STARTUP_RELOAD_HOLD_MS", hold.as_str())]);
+    let uri = unique_uri("tcl");
+    lsp.open_document_lang(&uri, JIM_PROGRAM, "tcl-jim", 1);
+    let first = lsp.await_first_diagnostics(&uri, Duration::from_secs(30));
+    assert!(
+        !logged(&lsp, "pack(s)"),
+        "the start-up reload published before the first diagnostics arrived, \
+         so this run proves nothing: {first:#?}"
+    );
+    let present = codes(&first);
+    for code in ["E003", "W002", "W123", "W210"] {
+        assert!(!present.contains(code), "{code} reported: {first:#?}");
+    }
+}
+
 /// The same text under Tcl 8.6 has a four-word `proc` and commands Tcl does not
 /// have.
 #[test]
