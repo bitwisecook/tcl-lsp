@@ -458,7 +458,6 @@ impl EnvironmentDefinition {
     }
 }
 
-
 /// Target adjustments an overlay applies.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct TargetChanges {
