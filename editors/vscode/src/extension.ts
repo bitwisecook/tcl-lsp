@@ -500,6 +500,10 @@ export async function activate(context: ExtensionContext) {
 }
 
 export async function deactivate(): Promise<void> {
+  if (dialectRefreshTimer) {
+    clearTimeout(dialectRefreshTimer);
+    dialectRefreshTimer = undefined;
+  }
   if (client) {
     await client.stop();
   }
@@ -818,7 +822,11 @@ function scheduleDialectRefresh(document: TextDocument): void {
  * commands.  Purely client-side — it tells the server nothing.
  */
 function setActiveDialect(dialect: DialectChoice): void {
-  if (activeDialect.name === dialect.name && activeDialect.shortLabel === dialect.shortLabel) {
+  if (
+    activeDialect.name === dialect.name &&
+    activeDialect.shortLabel === dialect.shortLabel &&
+    activeDialect.description === dialect.description
+  ) {
     return;
   }
   activeDialect = dialect;
