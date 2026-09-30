@@ -212,6 +212,85 @@ fn config_path_precedence_is_platform_native() {
 }
 
 #[test]
+fn notices_path_precedence_is_platform_native() {
+    use std::ffi::OsStr;
+    // XDG_STATE_HOME wins on every platform, ahead of the platform default.
+    for (is_windows, is_macos) in [(false, false), (false, true), (true, false)] {
+        assert_eq!(
+            notices_path_for(
+                Some(OsStr::new("/x/state")),
+                Some(OsStr::new(r"C:\Local")),
+                Some(OsStr::new("/home/me")),
+                is_windows,
+                is_macos,
+                false,
+            ),
+            Some(PathBuf::from("/x/state/tcl-lsp/notices.ini"))
+        );
+    }
+    // Linux/BSD/WSL → ~/.local/state.
+    assert_eq!(
+        notices_path_for(
+            None,
+            None,
+            Some(OsStr::new("/home/me")),
+            false,
+            false,
+            false
+        ),
+        Some(PathBuf::from("/home/me/.local/state/tcl-lsp/notices.ini"))
+    );
+    // macOS → ~/Library/Application Support.
+    assert_eq!(
+        notices_path_for(
+            None,
+            None,
+            Some(OsStr::new("/Users/me")),
+            false,
+            true,
+            false
+        ),
+        Some(PathBuf::from(
+            "/Users/me/Library/Application Support/tcl-lsp/notices.ini"
+        ))
+    );
+    // Windows → %LOCALAPPDATA%.
+    let local = r"C:\Users\me\AppData\Local";
+    assert_eq!(
+        notices_path_for(None, Some(OsStr::new(local)), None, true, false, false),
+        Some(PathBuf::from(local).join("tcl-lsp").join("notices.ini"))
+    );
+    // MSYS2 / Cygwin → the POSIX default, even with LOCALAPPDATA present.
+    assert_eq!(
+        notices_path_for(
+            None,
+            Some(OsStr::new(local)),
+            Some(OsStr::new("/home/me")),
+            true,
+            false,
+            true,
+        ),
+        Some(PathBuf::from("/home/me/.local/state/tcl-lsp/notices.ini"))
+    );
+    // Empty XDG_STATE_HOME is ignored; no home means no path.
+    assert_eq!(
+        notices_path_for(
+            Some(OsStr::new("")),
+            None,
+            Some(OsStr::new("/home/me")),
+            false,
+            false,
+            false,
+        ),
+        Some(PathBuf::from("/home/me/.local/state/tcl-lsp/notices.ini"))
+    );
+    assert_eq!(
+        notices_path_for(None, None, None, false, false, false),
+        None
+    );
+}
+
+#[test]
 fn project_config_path_is_dot_tcl_lsp_ini() {
     let root = Path::new("/ws/project");
     assert_eq!(

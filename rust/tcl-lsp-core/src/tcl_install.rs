@@ -33,7 +33,8 @@
 //!   read the LSP's own config: the `libraryPaths`
 //!   key in the platform-native user config (`config.ini`, `[global]` section)
 //!   and the per-workspace `.tcl-lsp.ini` (`[project]` section), plus the
-//!   editor's `tclLsp.libraryPaths`.
+//!   editor's `tclLsp.libraryPaths`. [`user_notices_path`] is the sibling
+//!   per-user *state* file: the server writes it, the user does not edit it.
 
 use std::path::{Path, PathBuf};
 
@@ -245,6 +246,70 @@ fn config_path_for(
         );
     }
     Some(home.join(".config").join("tcl-lsp").join("config.ini"))
+}
+
+/// Filename of the per-user notice state.
+pub const NOTICES_FILENAME: &str = "notices.ini";
+
+/// The per-user notice state file (`notices.ini`), which records what the user
+/// has asked not to be told again:
+///
+/// * `$XDG_STATE_HOME/tcl-lsp/notices.ini` when `XDG_STATE_HOME` is set,
+/// * Windows (native): `%LOCALAPPDATA%\tcl-lsp\notices.ini`,
+/// * Windows under MSYS2 / Cygwin (`MSYSTEM` set): `~/.local/state/tcl-lsp/notices.ini`,
+/// * macOS: `~/Library/Application Support/tcl-lsp/notices.ini`,
+/// * else (Linux/BSD/WSL): `~/.local/state/tcl-lsp/notices.ini`.
+///
+/// State is separate from configuration: the user edits `config.ini`, the
+/// server writes `notices.ini`. `None` when the home or local-appdata
+/// directory can't be determined.
+#[must_use]
+pub fn user_notices_path() -> Option<PathBuf> {
+    notices_path_for(
+        std::env::var_os("XDG_STATE_HOME").as_deref(),
+        std::env::var_os("LOCALAPPDATA").as_deref(),
+        std::env::var_os("HOME").as_deref(),
+        cfg!(target_os = "windows"),
+        cfg!(target_os = "macos"),
+        std::env::var_os("MSYSTEM").is_some(),
+    )
+}
+
+/// Pure core of [`user_notices_path`], with the same shape as
+/// [`config_path_for`]: the environment values and platform flags are
+/// arguments, so the precedence is testable without mutating the process
+/// environment.
+fn notices_path_for(
+    xdg_state_home: Option<&std::ffi::OsStr>,
+    local_appdata: Option<&std::ffi::OsStr>,
+    home: Option<&std::ffi::OsStr>,
+    is_windows: bool,
+    is_macos: bool,
+    posix_compat_windows: bool,
+) -> Option<PathBuf> {
+    if let Some(xdg) = xdg_state_home
+        && !xdg.is_empty()
+    {
+        return Some(PathBuf::from(xdg).join("tcl-lsp").join(NOTICES_FILENAME));
+    }
+    if is_windows && !posix_compat_windows {
+        return local_appdata.map(|a| PathBuf::from(a).join("tcl-lsp").join(NOTICES_FILENAME));
+    }
+    let home = PathBuf::from(home?);
+    if is_macos {
+        return Some(
+            home.join("Library")
+                .join("Application Support")
+                .join("tcl-lsp")
+                .join(NOTICES_FILENAME),
+        );
+    }
+    Some(
+        home.join(".local")
+            .join("state")
+            .join("tcl-lsp")
+            .join(NOTICES_FILENAME),
+    )
 }
 
 /// Filename of the per-project config.

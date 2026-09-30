@@ -3857,6 +3857,13 @@
             "description": "Warn when semantic highlighting can't reach a Tcl file (wrong language association, or semantic highlighting disabled), which leaves grammar-only colouring that mis-highlights keywords inside braced string arguments. Each notice can also be dismissed permanently via its 'Don't show again' button.",
             "order": 5
           },
+          "tclLsp.notifications.environmentKind": {
+            "scope": "window",
+            "type": "boolean",
+            "default": true,
+            "description": "Show a one-time notice explaining that a tool environment such as Vivado or Quartus is a Tcl release plus library packages, not a separate dialect. The notice can also be dismissed permanently via its 'Don't show again' button, and switched off for editors without a settings UI with 'environment_kind = false' under [notifications] in config.ini.",
+            "order": 5
+          },
           "tclLsp.suppressDiagnosticsInDiffEditors": {
             "scope": "resource",
             "type": "boolean",
