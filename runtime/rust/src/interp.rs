@@ -12160,8 +12160,7 @@ mod tests {
     /// `::tcl::build-info` reports the pinned release's build identity, and
     /// splits its fields the way C does — `patchlevel` up to the `+`,
     /// `version` up to the second `.`. Measured: `tclsh9.0` answers
-    /// `9.0.4` / `9.0`, and `tclsh9.1` answers `9.1b0` / `9.1b0` (its patch
-    /// level has no second `.`, so `version` runs to the `+`).
+    /// `9.0.4` / `9.0`, and `tclsh9.1` answers `9.1.0` / `9.1`.
     #[cfg(have_tommath)]
     #[test]
     fn build_info_follows_the_pinned_release() {
@@ -12169,7 +12168,7 @@ mod tests {
 
         for (version, patchlevel, short) in [
             (TclVersion::V9_0, &b"9.0.4"[..], &b"9.0"[..]),
-            (TclVersion::V9_1, &b"9.1b0"[..], &b"9.1b0"[..]),
+            (TclVersion::V9_1, &b"9.1.0"[..], &b"9.1"[..]),
         ] {
             leak_free(|i| {
                 i.set_runtime_version(version);

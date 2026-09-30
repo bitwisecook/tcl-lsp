@@ -317,12 +317,11 @@ impl TclVersion {
     /// `.0`, which is the honest answer: the line's semantics are modelled,
     /// no specific build is.
     ///
-    /// 9.1's reference build is a *beta*, and C spells its patch level
-    /// `9.1b0` — a two-component version with a beta suffix, not a third
-    /// numeric component (`tclsh9.1`: `info patchlevel` → `9.1b0`,
-    /// `::tcl::build-info patchlevel` → `9.1b0`). `package vsatisfies 9.1b0
-    /// 9.1` is `1` on every release that can parse the string (8.5+), so the
-    /// suffix is a legitimate version, not a display decoration.
+    /// A pinned pre-release is spelt the way C spells it — the 9.1 beta was
+    /// `9.1b0`, a two-component version with a beta suffix rather than a third
+    /// numeric component — and `package vsatisfies 9.1b0 9.1` is `1` on every
+    /// release that can parse the string (8.5+), so such a suffix is a
+    /// legitimate version, not a display decoration.
     #[must_use]
     pub fn patchlevel(self) -> &'static str {
         REFERENCE_PATCHLEVELS[self.reference_index()]
@@ -353,7 +352,7 @@ impl TclVersion {
     /// | 8.5.19 | `8.5.19` | — | — | — |
     /// | 8.6.14 | `8.6.14` | — | `1.1.0` | — |
     /// | 9.0.4 | `9.0.4` | `9.0.4` | `1.3.1` | `1.3.1` |
-    /// | 9.1b0 | `9.1b0` | `9.1b0` | `1.3.1` | `1.3.1` |
+    /// | 9.1.0 | `9.1.0` | `9.1.0` | `1.3.1` | `1.3.1` |
     ///
     /// Three release facts sit in that table, and every one of them changes
     /// what a script sees:
