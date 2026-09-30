@@ -697,6 +697,118 @@ but found by the same audit (its own "Open" entry).
 
 Closes #2133. Pins #2132 (closed on rust by #2220).
 
+## Status (2026-09-30): slice 6 landed
+
+The first three items landed as their own checkpoints before this
+sequence began: VT6.1 (`15930d1d`, the whole-variable `Raw` subject),
+VT6.2 (`2383550c`, `switch` declares its selection contract) and VT6.3
+(`7b9b4064`, the selection record), with D175 to D182. One implementer then
+ran the rest in the order VT6.4, VT6.5, VT6.7, VT6.6, VT6.8 — the two
+consumers of the one selection first, then the loop header's branch fact,
+then the iRules checks, then the witnesses — each its own checkpoint:
+`9d44d4c1` (VT6.4), `cb96bc04` (VT6.5), `2c9d802b` (VT6.7), `a59316ec`
+(VT6.6) and `6ee592d0` (VT6.8), and this docs commit,
+`wip(value-transfers): slice 6 — branch integration and optional rewrites`
+(VT6.9, the landing). The decisions are D183 to D187 in § *Decisions taken*,
+the records § *Plan for slices 2–13* › *Slice 6* › *Record (2026-09-24): the
+opus items of slice 6*.
+
+Behaviour changes, as the plan's landing message states them: program (4)
+gives O112 and I231 in every form of `switch` and O107 in the flattened
+one; IRULE1201 ignores a respond in a dead arm; a constant `while` condition
+gives W240 or W241 instead of W242. Beyond them: I231 reports the arms of
+every opaque form the solver proves unselected, an arm passing its body on
+with `-` judged by the body it leads to (D185); a `switch` the solver never
+analysed — inside an opaque `catch` body — is no longer folded by O112, which
+had read it through a flow-insensitive projection (D183); a `for` whose
+first test fails is W240 and one whose counter never moves is W241 (D186);
+IRULE4004 reports one finding more where the only other write of a variable
+is dead (D187); and a quoted or braced `-` body under a profile that may be
+9.1 records no selection (D179).
+
+Two things the plan did not say. The plan's review checklist item R6 asks
+that "every O112 test" stay byte-identical, and four could not: the plan's
+own item makes O112 fire for `-glob`, `-regexp`, `-nocase` and fall-through
+forms, where `switch_regexp_mode_is_skipped`,
+`structure_elimination_switch` and
+`computed_creation_switch_supports_registry_modes_and_fallthrough` asserted
+it did not, and `the_flattened_form_yields_o107` had to read O107 from the
+passes' raw findings beside O112, which subsumes its rewrite once the
+findings are applied together; each moved against the mandate its row names
+in VT6.4's record, and `switch_dispatch_branches_are_skipped` is unchanged.
+And a `Selected` fact stored beside a branch is a soundness hazard for
+every consumer that reads the stored facts by their block: branch folding,
+which keys a fact by the block holding the statement — the block that also
+ends in the next `if`'s branch — would have rewritten that `if`'s condition
+to the fact's `false`. `a_selection_fact_folds_no_condition_beside_it`
+witnesses it (the O101 it draws without the skip), and D185 lists the
+consumers audited.
+
+Green at the landing, the review checklist's suite plus every standing gate,
+run after VT6.9's docs (VT6.9's own Green paragraph above has the counts):
+
+- `cargo check --workspace --all-targets`: clean;
+- `cargo test -p tcl-registry -p tcl-compiler -p tcl-explorer -p tcl-cli`,
+  with `-p tcl-lsp-db -p xtask` beside them: `tcl-compiler` 9831 passed
+  across 67 binaries, 6 ignored, and 7 doctests; `tcl-registry` 1275 and a
+  doctest; `tcl-explorer` 105; `tcl-cli` 132; `tcl-lsp-db` 129, 5
+  ignored; `xtask` 237 — no failure; and, in addition, since the slice's
+  consumers reach every diagnostic and code action, `tcl-lsp-core` 3575 and 3
+  doctests, `tcl-lsp-server` 2238 and `tcl-mcp` 114 at VT6.6's run, whose one
+  transient failure, `workspace_symbol_waits_out_the_startup_scan` in the
+  server's `e2e` binary, passed when rerun alone and is not this slice's (a
+  startup-scan timing test run while the machine was loaded);
+- pedantic clippy (`--workspace --all-targets -D warnings`) after every
+  item, no `#[allow]` added anywhere in the slice — the functions the new
+  lines pushed past the line limit were split instead — and `cargo fmt`;
+- `cargo xtask value-transfers --check`: 22 files clean, 19 sites waived, 83
+  pinned across 34 ratcheted files, 6607 inventory rows, the report
+  regenerated once (VT6.7's line-number moves in `bounds_checks.rs`);
+- `cargo xtask registry-axes --check`: 7831 vocabulary words, 16 files
+  clean, 36 sites waived, 893 pinned across 147 ratcheted files, the report
+  regenerated once (VT6.4's one moved line) — `LANDED` gaining `"slice 6"`
+  expires no `until slice N` waiver, so the counts do not move;
+- `cargo xtask pack-goldens`: 25 packs, 0 rewritten;
+- `cargo xtask kcs-index-links`: "KCS docs checks passed";
+- `cargo xtask owner-resolution`: OK, 45 owner rows;
+- `cargo xtask retired-api-gate`: OK;
+- `cargo xtask dialect-drift`: 8 sites, the eight pre-existing upstream ones,
+  none new;
+- `scripts/dev/verify-nextest-binary-shards.py --metadata-only`: the shard
+  manifest covers the workspace's 328 test targets (the slice adds none).
+
+R1: no non-test consumer matches `"switch"` or a mode spelling — searched in
+`structure_elimination.rs`, `static_loops.rs`, `handlers.rs`,
+`value_transfer.rs` and `sccp.rs`; the selection goes through
+`tcl_cmd_core::switch` behind `SwitchSemantics`; no file is newly ratcheted
+(`selection.rs` and `case.rs` are clean by rule). R7: a selection is never
+applied reachability without a real edge (`an_unreached_arm_is_a_selected_branch_fact`
+asserts every block stays executable), an approximate regexp match never
+selects (a malformed pattern declines, in `switch_selection_runs_the_shared_core`),
+and a `ConstSet` subject keeps every member's arm.
+
+Left to later slices: bounded-loop enumeration (slice 12) still owes
+`static_loops.rs` its arithmetic and `resolve_switch_subject`, and seeds
+W240–W242's `for` counter check from the plan's bound and step in place of
+the `set v INT` text scan; predicate refinement (slice 11) and the rest are
+as the plan has them. Arm-deletion edits stay unreserved until the ordered-
+matching, completion, source-edit mapping and proof contracts exist.
+
+Found and left, outside this slice's scope: the incremental path
+(`analyse_per_item`) loses every literal-only check that reads a proven word
+inside a procedure body, because `BodyFragment`
+(`rust/tcl-compiler/src/analyser/per_item.rs`) carries no
+`Analyser::proven_sites` — VT5.16's queue, which the walk records and the
+per-function pass replays. `proc p {} {set l {a b c}; lindex $l 9}` reports
+W230 from `Analyser::analyse` and nothing from `analyse_per_item`, and `proc
+p {input} {set re {(a+)+$}; regexp $re $input}` drops its W303 the same way;
+the top-level program `set re {(a+)+$}; regexp $re abc` agrees on both.
+`loop_verdicts_agree_across_the_whole_file_and_per_item_walks` covers the
+loop queue this slice added, and the same carry — the field, its capture in
+`analyse_proc_body_isolated`, the graft, the rebase — is the fix.
+
+Closes #2056. Closes #2057.
+
 ## Plan for slices 2–13
 
 The delivery plan for the rest of
@@ -5896,6 +6008,46 @@ the library, 26 across its integration binaries); workspace clippy
 --check`; `value-transfers --check` (22 clean, 19 waived, 83 pinned across
 34 files, 6607 rows) and `registry-axes --check` (893 pinned across 147
 files, 36 waived, 16 clean), both unchanged; `pack-goldens` (25 packs, 0
+rewritten), `retired-api-gate`, `owner-resolution` (45 rows) and
+`kcs-index-links` pass; `dialect-drift` 8 sites, none new; `cargo check
+--workspace --all-targets` clean.
+
+| Item | Commit | What landed | Its tests |
+|---|---|---|---|
+| VT6.9 | `wip(value-transfers): slice 6 — branch integration and optional rewrites` (landing) | Docs and one constant; no test binary is added. `LANDED` (`rust/xtask/src/registry_axes.rs`) gains `"slice 6"`; no waiver names slice 6, so none expires and `docs/generated/registry-axes.md` is unchanged. The design pages describe the code as it is, in current-state prose, per the owner's ruling for every file outside this directory: `sccp-core-analyses.md` — the `BranchFactKind` paragraph is rewritten for the kinds each producer states and each reader takes, and § *Loop headers* and § *Selection records* are new; `optimisation-passes.md` — O107 and O112 in § *Pass ownership* and the O107–O109 / O112 row; `pass-fact-ownership-matrix.md` — a row for the selection post-pass, a row for the loop-termination candidates, and the `irules_checks.rs` row; `value-transfers.md` § *`switch`* — its form table said `Raw` never decides and `-regexp` never folds, so the table, the diagram and the delivery-order list are rewritten to what the code does; `value-transfers-migration.md` — the slice's entry, the `sccp.rs`, `static_loops.rs`, O107, O112, I230 / I231, IRULE and W240–W242 rows, and four anchors, its ledger and ratchet table unchanged since slice 6 retires no handler and pins no file; `data-structure-reference.md`'s `SccpResult` row. KCS notes: I231's gains § *Every form of `switch`*, W240, W241 and W242's the decided-header cases, and IRULE1201, IRULE1202, IRULE4002, IRULE4004, IRULE5002 and IRULE5004's a dead-arm limit. `docs/design/lanes/README.md`'s in-flight paragraph moves slice 6 to the landed list, and this document gains § *Status (2026-09-30): slice 6 landed*. The rows drafted for the diagnostic-policy lane's owner documents (B-DP4) follow this table. Deviations: none from the plan's file list beyond `data-structure-reference.md` and the four KCS notes for the iRules codes VT6.6 changed | none (docs and one constant); G1 (`value-transfers --check`, unchanged), G5, G6 and the shard manifest proof (`verify-nextest-binary-shards.py --metadata-only`, 328 targets) green; G3 (no new test binary) and G4 (no catalogue text changed) not triggered |
+
+Rows for the diagnostic-policy lane's owner documents (B-DP4), drafted here
+and committed after that lane's slice 10:
+
+- `diagnostics-calculation.md`, § *Deep tier*, the compiler-checks row
+  (slice 6): the same lattice's branch facts carry a kind — the `Applied`
+  facts I230, and I231 for a flattened `switch`, read; the `Selected` facts
+  the solver's selection records give an opaque `switch` (`-glob`,
+  `-regexp`, `-nocase`, a fall-through arm, `case`), which I231 reports the
+  unselected arms of and which drop no block; and the loop header's
+  `Applied` fact, which W240 and W241 read in place of the condition's text,
+  either replacing W242 — and the iRules flow checks read the blocks and
+  statements the same run proves reachable.
+- `diagnostics-integration.md`, § *Failure modes*: "a per-function pass that
+  resolves a queue the analyser's walk records (the loop-termination
+  candidates) missing from the incremental path — `BodyFragment` carries
+  each such queue and `rebase_fragment_pending` and `graft_fragment_pending`
+  move it, and `loop_verdicts_agree_across_the_whole_file_and_per_item_walks`
+  pins the two paths' agreement"; § *Anchors*:
+  `rust/tcl-compiler/src/analyser/per_item.rs`.
+
+Green at VT6.9, run after the docs: `tcl-registry` 1275 passed and a
+doctest across its binaries, and `xtask` 237, both run for the landing;
+`tcl-compiler` 9831 passed, 6 ignored across its 67 binaries, and 7
+doctests, `tcl-explorer` 105, `tcl-cli` 132 (`cli` 50, `value_transfers_cli`
+11) and `tcl-lsp-db` 129 as VT6.8's run left them — no Rust source of
+theirs changes in this commit — and `tcl-mcp` 114, `tcl-lsp-core` 3575
+across its 34 binaries and 3 doctests, and `tcl-lsp-server` 2238 as VT6.6's
+run left them; workspace clippy (`--all-targets -D warnings`), no `#[allow]`
+added anywhere in the slice, and `cargo fmt --check`; `value-transfers
+--check` (22 clean, 19 waived, 83 pinned across 34 files, 6607 rows) and
+`registry-axes --check` (893 pinned across 147 files, 36 waived, 16 clean),
+both unchanged from the slice's start; `pack-goldens` (25 packs, 0
 rewritten), `retired-api-gate`, `owner-resolution` (45 rows) and
 `kcs-index-links` pass; `dialect-drift` 8 sites, none new; `cargo check
 --workspace --all-targets` clean.

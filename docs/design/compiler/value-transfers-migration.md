@@ -184,14 +184,19 @@ executes that runtime.
    and the review's D162–D164) are
    [value-transfers.md (lane)](../lanes/value-transfers.md) § *Plan for
    slices 2–13* › *Slice 5*.
-6. **Branch integration and optional rewrites.** The exact whole-variable
-   `Raw` resolution; selection facts for opaque forms through
-   `tcl_cmd_core::switch`; O112, the analyser's `switch_body_is_selected`,
-   and `static_loops::exec_switch` consuming them; applied reachability only
-   with real lowering or explicit arm blocks; arm-deletion edits only once
-   their proof and source-edit contracts exist, with no code reserved
-   until then. *Exit:* program (4) yields O112 and I231 on the dead arm for
-   every form, and O107 on its body for the flattened form.
+6. **Branch integration and optional rewrites.** A whole-variable
+   `switch` subject resolves from the lattice when the name owner proves it
+   is exactly one variable reference; opaque forms get one selection fact
+   through `tcl_cmd_core::switch`, recorded against the arms' pattern spans;
+   O112, the analyser's `switch_body_is_selected`, and
+   `static_loops::exec_switch` read it in place of three private matchers,
+   and I231 reports the arms it never selects; applied reachability only
+   with real lowering or explicit arm blocks, so an opaque form drops no
+   block; arm-deletion edits only once their proof and source-edit
+   contracts exist, with no code reserved until then. The iRules flow
+   checks read applied reachability, and W240 and W241 read the loop
+   header's branch fact. *Exit:* program (4) yields O112 and I231 on the
+   dead arm for every form, and O107 on its body for the flattened form.
 7. **Broader execution and runtime consumers.** The declared executable
    catalogue grows with independent oracle evidence — the iRules pure
    functions as shared cores registered into the simulator, the tcllib
@@ -294,7 +299,7 @@ semantic type and shape per value, distinct from representation evidence.
 | Module | Fact it produces | Constant relationship today | Under this design |
 |---|---|---|---|
 | `analyses.rs` | the lattice vocabulary | — | unchanged; `analyses::ConstantBranch`, `ReadBeforeSet`, `UnusedVariable` are dead duplicates and go |
-| `sccp.rs` | the lattice, reachability, constant branches | the seven name-keyed sites | the transfer driver replaces `try_fold_cmd_subst`'s arms and the `Incr` / `foreach` / `unset` arms; exact ingress; `folded_types`; `evaluate_branch` gains the lazy command resolver and per-member finite-set evaluation; the branch fact records its kind; `scan_defined_and_unset` and `existence_constant_branches` are deleted for the existence rung (slice 8), `loop_summary_decision` reads the enumeration's exit state (slice 12), and the per-value map gains the `(BlockId, ValueKey)` lookup for edge refinements — the existence domain's in slice 8 (`SccpResult::existence_at`), the value domains' in slice 11 |
+| `sccp.rs` | the lattice, reachability, constant branches | the seven name-keyed sites | the transfer driver replaces `try_fold_cmd_subst`'s arms and the `Incr` / `foreach` / `unset` arms; exact ingress; `folded_types`; `evaluate_branch` gains the lazy command resolver, per-member finite-set evaluation and the whole-variable `Raw` operand; the branch fact records its kind, and the solver states one selection record per opaque `switch`; `scan_defined_and_unset` and `existence_constant_branches` are deleted for the existence rung, `loop_summary_decision` reads the enumeration's exit state, and the per-value map gains the `(BlockId, ValueKey)` lookup for edge refinements — the existence domain's (`SccpResult::existence_at`), then the value domains' |
 | `const_subst.rs` | `[cmd …]` folds through `const_fold` | the engine | becomes the driver's word-resolution, binding-validity, nesting, and escape layer for every specialisation; `ResolvedConstSubst::command_bindings` is the evidence shape the outcome carries |
 | `type_infer.rs` | the type lattice | reads `values` for `lindex` indices and list literals; types `Statement::Incr` as `Int`; since slice 3 joins `folded_types`, stops re-splitting `Const(String)` lists, and `expr_call_type` reads a math function's type from `MathFuncSpec::result_class`, its own table gone (`tcl-syntax`, VT3.5) | none |
 | `types.rs`, `value_shapes.rs`, `word_expr.rs` | vocabulary and word helpers | — | none |
@@ -307,7 +312,7 @@ semantic type and shape per value, distinct from representation evidence.
 | `tcl_expr_eval.rs` | expression evaluation under `FoldPolicy` | the evaluator; since slice 3 the full value result, lazy `var` / `command` / `call` services over the analysis inputs (`ExprServices`, `pub(crate)` — D47), `rand` / `srand` still the one name check | none |
 | `word_subst.rs` | nested `[cmd …]` lift | feeds nested-word folding; since slice 3 a lifted call is `expr` by the registry's `EXPR_CONCATENATES_ARGS` trait, not the spelling, as `optimiser/end_offset.rs` already resolved it | none |
 | `subst_nocommands.rs` | `[subst -nocommands]` evaluation | its own const map | reads the `const_map` its two callers pass — lowering's const map from `eval_subst_nocommands_body`, the factory bindings from `specialise_factories.rs` — and from slice 5 consumes the template-word plan's `reads` and `escapes` instead of scanning the template again; it is the materialisation for the commands-off case |
-| `static_loops.rs` | post-loop environment for a bounded `for` | its own `StaticValue` lattice, `parse_literal_value` (the exact ingress: `010` and `+5` stay text), and `resolve_switch_subject`; since slice 2 its `incr` runs the registry's route; `exec_switch` ignores the mode | becomes `LoopEnumeration` (slice 12): `exec_statement` applies each statement's registry-owned `evaluate` over exact values with existence, `exec_switch` consumes the `Selection` fact, the three private helpers are gone, and the cap is a `Budget` decline that publishes nothing |
+| `static_loops.rs` | post-loop environment for a bounded `for` | its own `StaticValue` lattice, `parse_literal_value` (the exact ingress: `010` and `+5` stay text), and `resolve_switch_subject`; its `incr` runs the registry's route, and `exec_switch` asks the statement's own command for its `Selection` transfer over the simulator's environment, so the mode, `-nocase` and fall-through arms are honoured and a statement whose words were not recorded ends the simulation | becomes `LoopEnumeration`: `exec_statement` applies each statement's registry-owned `evaluate` over exact values with existence, the three private helpers are gone, and the cap is a `Budget` decline that publishes nothing |
 | `loops.rs` | the natural-loop forest | reads reachability | none |
 | `dynamic_names.rs` | the name-blindness barrier | a gate; `template_word_is_substituted` reads only the trait, and a dynamic write or destroy blinds the whole function | every transfer still runs under it; from slice 5 it reads `dynamic && kinds.variables` and `script_regions` from the template-word plan, so `subst -novariables $t` stops blinding every read, and from slice 8 the barrier is flow-sensitive in the existence domain: a dynamic write turns every `Unbound` place `MayBound` from that statement on, a dynamic destroy every `Bound` place |
 | `existence_query.rs` | `[info exists]` recognition through `IntrinsicId` | the exemplar | unchanged as a recogniser, and the existence domain's front: from slice 8 it answers through the expression route's `nested` service as a read of `FactDomain::Existence`, so the condition decides inside the fixed point and the post-pass — `existence_constant_branches`, its second run in `emit_existence_constant_branch_diagnostics`, the reachability gate in `emit_constant_branch_diagnostics`, and `drop_cross_event_existence_folds` — becomes one path |
@@ -347,12 +352,12 @@ and a diagnostic is never that proof.
 | O103 | `propagation.rs` two shapes | `ProcSummary`, `trusts_proc_binding`, `evaluate_proc_with_constants` | the argument-sensitive path folds string-building callees at once; the summary path after `summarise_returns` reads a lattice under the staged fixed point; slice 13's `TransferSummary` gives the re-run its `Name`-parameter seeds and the caller the callee's outcomes, so `[rec 4]` folds and `bump n` decides |
 | O104, O130 | `chain_fold.rs` | since slice 2 the classifier dispatches on the resolved cell update, gated on the observed binding of the statement's own head, and a `$var` piece folds through the lattice value it holds; a piece that needs backslash substitution ends the run; an unrelated statement between the writes is tolerated, and the chain must start at a literal `set` | a chain starting at an absent cell folds through the value at the last write (the existence rung, slice 8); coercion, traces, errors, and the implicit result are preserved |
 | O105, O106 | `rust/tcl-compiler/src/gvn.rs` | reachability | unchanged; same value is not same observable computation |
-| O107 | `elimination.rs` | `executable_blocks` | more arms decide; applied reachability only, never a selection fact |
+| O107 | `elimination.rs` | `executable_blocks`: the blocks applied reachability drops, a flattened `switch`'s dead arms among them; a selection never drops a block, so an opaque form's arms are I231's alone | unchanged: applied reachability only, never a selection fact |
 | O108 | `elimination.rs` ADCE | def-use, `assignment_safe_to_delete_with_effect`; since slice 8 an existence read — `[info exists x]`, `[array exists x]`, an unbind — is an SSA use of the version it observes, so the pair behind `[info exists b]` (#2132) stays; a dead `incr` is removable only when its own route explanation never declined `unbound-place` (the release rule finding a spanned release that raises rather than creating the absent cell), so it is retained under a profile spanning 8.4 and removed under one that does not | a cell update in statement position is removable only under the totality proof of permission 3: old value proven well-formed, place proven bound, no trace; a direct-route pure command in statement position likewise; an unbind statement is never removed |
 | O109, O126 | `elimination.rs`, `manager.rs` coupling | def-use, twelve guards; since slice 2 a nested cell update's read is an SSA use (#2050), and a call records the names its callee's global-write summary holds as observed, so a store the callee may read stays (#2214) | guard 2 generalises; `collect_rmw_hidden_reads` shrinks because the read is an SSA use; slice 8 adds the existence read as a use, so the #2132 store and the `incr n` behind `[info exists n]` stay; slice 9 makes a read inside a braced `expr` a use of the version it reads; slice 10 makes a store ahead of a partial write dead only when the prefix rule proves it |
 | O110 | `expr_simplify.rs` | operand types | reassociation consumes the type and target proofs; the floating-point counterexample is a fixed regression; residuals are typed, never rendered constants |
 | O111 | `rust/tcl-lsp-core/src/diagnostic_report.rs` `brace_expr_hints` | none; it reads the analyser's W100 findings as the unbraced-expression fact — W100 is a fact code, computed whatever a layer says — and no policy | a producer over the unbraced-expression fact, emitting a `Finding` at the same span for every unbraced expression, with policy deciding W100 and O111 independently — the rule [diagnostic-policy.md](diagnostic-policy.md) § *Producers that change* states; built by that design's slice 8 |
-| O112 | `structure_elimination.rs` | its own `Env` projection, whose conditions since slice 3's review fixes are decided on the shared expression route (`decide_condition_detached`) under the rewrite's whole-module trust; `resolve_subject`, `pattern_matches` | consumes the selection facts; the first-unfoldable-clause and `catch`-descent limits are removed |
+| O112 | `structure_elimination.rs` | its own `Env` projection for `if`, `while` and `for`, whose conditions are decided on the shared expression route (`decide_condition_detached`) under the rewrite's whole-module trust; a `switch` only from the solver's decision — the selection record at the statement for an opaque form, the applied branches of the dispatch chain for a flattened one — and only where every member of the subject runs one body, so a `switch` the solver never analysed, inside an opaque `catch` body, is left alone; no private subject resolution or arm matching remains | consumes the selection facts in place of a private matcher |
 | O113, O117, O120 | `branch_folding.rs`, `expr_simplify.rs` | operand types | benefit from `folded_types`; integer versus float and target rules stay explicit; W110 is not an edit certificate |
 | O114, O119 | `pattern_recognition.rs` | all-versions `Int` typing | benefit from `folded_types`; none required |
 | O115 | four sites | `trusts("expr")` | none |
@@ -383,7 +388,7 @@ for each, with the tool's observed behaviour today.
 
 | Code | Producer | What it reads | Under this design |
 |---|---|---|---|
-| I230, I231 | `analyser/diagnostics/dataflow.rs` | `constant_branches` + `executable_blocks`; the existence fold re-run | every decided arm and every `switch` form through the stored branch fact and its kind; conditions with command substitutions; the existence fold runs once (slice 8); a refined edge and an enumerated loop's exit state decide more conditions (slices 11 and 12), and I230 then agrees with the optimiser on the programs where only `tcl opt` decides today |
+| I230, I231 | `analyser/diagnostics/dataflow.rs` | `constant_branches` by kind + `executable_blocks`: I230 and a flattened `switch`'s I231 from the `Applied` facts, an opaque form's I231 from the `Selected` facts (`emit_selected_arm_diagnostics`); the existence fold runs once | every decided arm and every `switch` form through the stored branch fact and its kind; conditions with command substitutions; a refined edge and an enumerated loop's exit state decide more conditions, and I230 then agrees with the optimiser on the programs where only `tcl opt` decides today |
 | O100 (hint) | `compiler_checks.rs` `from_constant_branch` | every `ConstantBranch` | more branches |
 | W124 | `dataflow.rs` `emit_invalid_ip_diagnostics` | every `Const(String)` in `values` | computed `format` / `string cat` / `append` results; the literal-substring anchoring with whole-statement fallback stays the model for a computed value |
 | W233, W230–W232 (dynamic half) | `dataflow.rs` → `interval_bounds.rs` | `values` + reachability | tighter intervals from `incr` chains and computed lengths; the same "whole interval outside the range" rule |
@@ -395,7 +400,7 @@ for each, with the tool's observed behaviour today.
 | T100–T106, IRULE3001–3004, W313 | `taint.rs` | reachability and φ edges; never `values` | unchanged; colour flows through write outcomes |
 | IRULE3101 | `taint.rs` `find_setter_constraint_warnings` | reachability + a literal-only prefix check | a `Const(String)` subject is checked directly, removing the false positive on `set p /a; HTTP::path $p` |
 | IRULE3103 | `uri_split.rs` | `values` (`Const(String)` only) | computed operands |
-| IRULE1005–1008, 1201, 1202, 3102, 4002, 4004, 5002, 5004 | `irules_checks.rs` | two of the checks consult `executable_blocks`; the response-commit walk behind IRULE1201 does not, so a respond in a dead arm still commits | every check consumes applied reachability; fewer findings in dead arms |
+| IRULE1005–1008, 1201, 1202, 3102, 4002, 4004, 5002, 5004 | `irules_checks.rs` | every check consumes applied reachability: the walks over the flow graph skip a block outside `executable_blocks`, the two over the structured IR (IRULE1201 and 1202, IRULE5002 and 5004) skip a statement only unreachable blocks hold, IRULE4004's write counts count only writes that run, and a `clientside`, `serverside` or `peer` body gets a solver run of its own, so a respond in a dead arm commits nothing | unchanged: fewer findings in dead arms |
 | W201 | `path_concat.rs` via `compiler_checks.rs` | reachability, rendered properties, taints | exact flags on computed values |
 
 ### Codes that are literal-only today and would gain
@@ -409,7 +414,7 @@ for each, with the tool's observed behaviour today.
 | W303 | verbatim `args[idx]` in pattern collection | `set re {(a+)+$}; regexp $re $s` — the analyser already resolves that shape for highlighting and not for the ReDoS check |
 | W230, W232 (syntactic half) | `has_subst` / `!is_literal_index` | `set l {a b c}; lindex $l 9` through a computed container length |
 | W102 | a computed switch word makes the call unreadable, so `substitutions_performed` answers `SubstitutionKinds::ALL` and the narrowing advice names every kind | `set opt -novariables; subst $opt {hello $name}` narrows to `$var` exactly as the literal spelling does, from the template-word plan's `kinds` (slice 5) |
-| W240–W242 | "intentionally shallow" literal condition text; `bounds_checks.rs` seeds from `set v INT` and `incr v ?INT?` read as text, so `set i $start` disables the check | `set n 0; while {$n} {…}` through the branch fact, and the iteration plan's bound and step in place of the text scan (slice 12) |
+| W240–W242 | the loop header's branch fact decides a header the solver proves — `set n 0; while {$n} {…}` is W240, `set go 1; while {$go} {…}` is W241, neither W242 — and a header nothing decides keeps the condition text's verdict; `bounds_checks.rs` still seeds a `for` counter's bound from `set v INT` and `incr v ?INT?` read as text, so `set i $start` disables that check | the iteration plan's bound and step in place of the text scan |
 | W138, W200, W202 | literal format strings | a computed `format` / `binary format` template |
 | IRULE4004 | `value.contains('$') \|\| value.contains('[')` | a `set x [string range CONST 0 3]` in a per-request event becomes hoistable |
 
@@ -899,6 +904,8 @@ workloads, per the evaluation contract's budget section.
 - `rust/tcl-compiler/src/optimiser/propagation.rs`, `branch_folding.rs`, `structure_elimination.rs`, `elimination.rs`, `chain_fold.rs`, `end_offset.rs`, `manager.rs` — the consumers
 - `rust/tcl-compiler/src/static_loops.rs`, `intervals.rs`, `interval_bounds.rs`, `type_infer.rs`, `unit_scope.rs`, `interprocedural.rs` — the analyses with private `incr` or literal-only models
 - `rust/tcl-compiler/src/analyser/handlers.rs`, `commands.rs`, `bounds_checks.rs`, `irules_event_checks.rs`, `param_traits.rs`, `diagnostics/dataflow.rs`, `diagnostics/var_command.rs`, `diagnostics/helpers.rs` — the analyser's dataflow sites
+- `rust/tcl-compiler/src/irules_checks.rs` — the iRules flow checks, each reading applied reachability
+- `rust/tcl-cmd-core/src/switch.rs`, `case.rs` — the selection cores `switch` and `case` declare
 - `rust/tcl-compiler/src/existence_query.rs`, `const_subst.rs`, `world_state_ssa.rs` — the clean exemplars
 - `rust/tcl-compiler/src/subst_nocommands.rs`, `specialise_factories.rs`, `dynamic_names.rs`, `lowering/mod.rs`, `rust/tcl-lsp-core/src/refactor/` (`extract_proc.rs`, `mod.rs`) — the template-word consumers
 - `rust/tcl-compiler/src/cfg_builder/mod.rs` (`emit_opaque_catch`, `lower_try_dispatch`, the `<upvar-invalidate>` def) and `cfg_builder/cfg_lower.rs` (`push_try_handler_exception_edges`) — the default and the faithful-exceptions body builds
@@ -917,6 +924,8 @@ workloads, per the evaluation contract's budget section.
 - `rust/tcl-compiler/src/optimiser/branch_folding.rs` — `switch_dispatch_branches_are_skipped`
 - `rust/tcl-compiler/src/sccp.rs` — `sccp_folds_post_loop_branch_via_static_summary` and the `existence_fold_abstains_*` tests, the slice 8 and 12 baselines
 - `rust/tcl-compiler/src/analyser/diagnostics/tests.rs` — the `info_exists_*`, `emit_cfg_ssa_diagnostics_w210_*`, `w213_*`, and `w102_*` tests
+- `rust/tcl-compiler/tests/value_transfer_witnesses.rs` — `program_four_yields_o112_and_i231_for_every_form`, `the_flattened_form_yields_o107`, `a_selection_fact_folds_no_condition_beside_it` and `a_decided_loop_header_gives_w240_or_w241`
+- `rust/tcl-cli/tests/value_transfers_cli.rs` — `program_four_reaches_diag_and_opt_in_every_form`, `explore_sccp_prints_the_selection` and `diag_reads_the_decided_loop_header_and_the_dead_respond`
 - `rust/tcl-registry/tests/differential_fold.rs`, `analyser_hooks.rs` — the oracle and the pinned-set shape
 - `rust/tcl-registry/tests/value_transfers.rs` — the derivation agreement, the three declaration states at every scope, the slice-one increment, and the pinned route set
 - `rust/tcl-spec-hooks/tests/const_fold_e2e.rs`, `rust/tcl-spectcl/tests/spec_corpus.rs` — O129 from a pack body; every shipped pack through the host

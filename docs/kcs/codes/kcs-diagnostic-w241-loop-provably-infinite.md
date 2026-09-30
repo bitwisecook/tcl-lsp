@@ -24,6 +24,12 @@ terminate. It reports **`W241`** in these cases:
   no `break`, and nothing that terminates the enclosing block or frame
   (`return` / `error` / `exit` / `throw` / `tailcall`). A `continue`
   does *not* count: it restarts the loop, so the loop is still infinite.
+- A loop whose condition the analyser proves true at every test, though it is
+  not a literal — `set go 1; while {$go} {...}`, or a `for` whose counter the
+  step never changes (`for {set i 0} {$i < 10} {} {...}`) — and which no path
+  leaves. An exit the analyser can find, in the flow graph or in the text of
+  the body (a `break` inside a `catch` body, say), keeps the loop from being
+  reported.
 - A `for {set v INT} {$v OP INT} {incr v INT}` where the
   counter cannot reach the bound:
   - `incr v 0` — the counter never changes.
@@ -53,6 +59,11 @@ for {set i 0} {$i < 10} {incr i -1} {
 
 for {set i 0} {$i != 10} {incr i 3} {
     puts "skips 10"
+}
+
+set go 1
+while {$go} {
+    puts "still forever"
 }
 ```
 

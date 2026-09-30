@@ -18,16 +18,27 @@ under `rust/tcl-compiler/src/optimiser/`, with GVN in `src/gvn.rs`.
   implement expression and structural rewrites.
 - `elimination.rs` owns dead-code, dead-store, and scope-aware elimination;
   optimiser-authoritative O109 findings also feed Explorer dead-store views.
-  Since slice 8, a store is removable only when no value read and no
-  existence read of its version remains (`[info exists x]`, `[array exists
-  x]` and an unbind all count), an unbind statement is never removed, and a
-  dead `incr` on a place the existence rung proves unbound is removable only
-  when its own route explanation never declined `unbound-place` — the
-  release rule finding a release the target profile spans that raises
-  rather than creating the cell, so its completion is not total.
-  `structure_elimination.rs` removes constant-condition compound statements
-  (O112); `method_barrier.rs` decides which TclOO methods propagation must
-  leave alone.
+  A store is removable only when no value read and no existence read of its
+  version remains (`[info exists x]`, `[array exists x]` and an unbind all
+  count), an unbind statement is never removed, and a dead `incr` on a place
+  the existence rung proves unbound is removable only when its own route
+  explanation never declined `unbound-place` — the release rule finding a
+  release the target profile spans that raises rather than creating the
+  cell, so its completion is not total. O107 removes the blocks applied
+  reachability drops: a flattened `switch`'s dead arm, whose blocks the
+  dispatch chain gives it, and never an opaque form's, whose arms have no
+  blocks (I231 reports both).
+  `structure_elimination.rs` removes the compound statements the solver's
+  facts decide (O112): an `if`, `while` or `for` condition on the shared
+  expression route over the propagated environment, and a `switch` from the
+  decision the solver made for it — the selection record at the statement
+  for an opaque form (`-glob`, `-regexp`, `-nocase`, a fall-through arm,
+  `case`), the applied branches of the dispatch chain for a flattened one
+  ([sccp-core-analyses.md](sccp-core-analyses.md) § *Selection records*). It
+  folds a `switch` only where every member of the subject runs one body, and
+  leaves alone one the solver never analysed — a statement inside an opaque
+  `catch` body has neither a record nor a chain. `method_barrier.rs` decides
+  which TclOO methods propagation must leave alone.
 - `code_sinking.rs`, `tail_call.rs`, `unused_procs.rs`, `chain_fold.rs`, and
   `end_offset.rs` implement their named specialised rewrites.
 - `gvn.rs` handles value-numbering and CSE candidates. A Tcl command call is
@@ -100,7 +111,7 @@ paired O111 hint also have production sites outside that enum.
 |---|---|---|
 | O100–O103 | SSA values and uses, SCCP constants (a command's value through its registry-declared route, under the module's command trust; `expr`'s own route is the shared engine's full value, so a string or boolean result folds beside a numeric one, and O101 and the return and call-site folds re-ask that route under the rewrite's whole-module trust rather than a private folder), type facts, command binding, variable observability, and interprocedural call facts | Material inputs to the common direct-call, slot, and native-integer proofs. AOT consumes the retained analyses, never the emitted rewrite or its O-code. |
 | O105–O106 | Registry-derived invocation legality, effects, mutable-world barriers, dominance, and loop structure | The invocation-legality primitives also serve executable semantic analysis. The common AOT selector does not consume GVN, PRE, CSE, or LICM candidates. |
-| O107–O109, O112, and O126 | SCCP reachability, SSA def-use (a nested cell update's read is a use of the store it reads, an existence read — `[info exists x]`, `[array exists x]`, an unbind — is an SSA use of the version it observes since slice 8, and a call observes the names its callee's global-write summary holds), place/alias facts, and effect tests; O112 decides a condition on the shared expression route under the rewrite's whole-module trust, so it never decides past the target's tower or over a math function the module rebinds | Inputs overlap with conservative AOT reasoning, but DCE, dead-store, and structure-elimination results are not AOT evidence. Current AOT does not use an O107 reachability decision to erase a region or an O109 result to erase storage. |
+| O107–O109, O112, and O126 | SCCP reachability, SSA def-use (a nested cell update's read is a use of the store it reads, an existence read — `[info exists x]`, `[array exists x]`, an unbind — is an SSA use of the version it observes, and a call observes the names its callee's global-write summary holds), place/alias facts, and effect tests; O112 decides a condition on the shared expression route under the rewrite's whole-module trust, so it never decides past the target's tower or over a math function the module rebinds, and a `switch` only from the solver's selection, so an arm the solver did not select is never folded | Inputs overlap with conservative AOT reasoning, but DCE, dead-store, and structure-elimination results are not AOT evidence. Current AOT does not use an O107 reachability decision to erase a region or an O109 result to erase storage. |
 | O110, O113, and O114 | Tcl expression parsing, type facts, and integer semantics | Native-integer proof reuses the common expression/type/range substrate. It does not consume expression rewrites or the `incr` suggestion. Since slice 3, O110's additive/multiplicative regrouping (`reassociate_node`) requires every variable term to be a proven-integer type; a closed subtree still folds regardless, but an unproven float term (`set x 10000000000000000.0; expr {$x + 1 + 2}`) is left alone rather than regrouped, because floating-point addition is not associative (`value-transfers-migration.md`'s O110 row and its Partial-knowledge row). |
 | O116, O118, and O129 | Registry const-fold identities, result stability, command-binding trust, traces, and shared Tcl primitives | Guarded intrinsic planning overlaps with those registry and dispatch facts. A compile-time folded value or O129 finding cannot authorise live intrinsic dispatch. |
 | O104, O111, O115, O117, O119, O120, O128, and O130 | Primarily source-form, readability, or local pattern evidence; O104/O130 classify a chain by the registry's resolved cell update, fold a `$var` piece through the lattice, and consult variable observability before folding writes | No material result currently feeds semantic AOT. A later selector may reuse a common parser or primitive, but must construct its own typed proof. |

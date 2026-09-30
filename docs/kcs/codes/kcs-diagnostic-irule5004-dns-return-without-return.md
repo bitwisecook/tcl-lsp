@@ -44,6 +44,11 @@ DNS::return** as a code action:
 when DNS_REQUEST { DNS::return "1.2.3.4"; return }
 ```
 
+## Limits
+
+A `DNS::return` in a branch the analyser proves never runs is not reported;
+one in a branch that might run still is.
+
 ## How to suppress
 
 Add `# noqa: IRULE5004` on the line **above** the offending command.

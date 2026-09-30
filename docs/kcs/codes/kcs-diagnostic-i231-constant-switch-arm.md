@@ -19,7 +19,8 @@ match?
 
 ## Why
 
-When the value a `switch` dispatches on is a compile-time constant, the analyser
+When the value a `switch` dispatches on is a compile-time constant — a literal,
+or a variable the analyser proves holds one value at the `switch` — the analyser
 knows exactly which arm will match, so the remaining arms are dead code:
 
 ```tcl
@@ -40,6 +41,38 @@ A constant `if` / `elseif` chain reports its sibling code
 [`I230`](kcs-diagnostic-i230-constant-existence-check.md) instead; `I231` is the
 `switch`-specific variant. Once a branch is known dead, the optimiser can drop
 it ([`O107`](kcs-optimisation-o107-unreachable-dead-code.md)).
+
+### Every form of `switch`
+
+The same holds for a `-glob`, `-regexp` or `-nocase` switch, one with a
+fall-through arm (`a -`), and Tcl's `case`, over a subject the analyser proves.
+It works out which arm the command would select, by the command's own matching
+rules, and reports each arm that never runs at its pattern:
+
+```tcl
+set acc ""
+append acc foo
+append acc bar
+switch -glob -- $acc {
+    baz     { puts never }    ;# I231: Switch arm 'baz' is never selected
+    default { puts always }
+}
+```
+
+An arm that passes its body on with `-` is judged by the body it leads to, so
+the alternates of a body that runs are not reported, and `default` is never
+reported. The analyser makes no selection when it cannot be sure which arm
+runs: a subject that varies, a pattern it cannot decide, a `-nocase` under a
+profile that may be Tcl 8.4, or a quoted or braced `-` body in the
+separate-words form under a profile that may be Tcl 9.1, whose compiled and
+interpreted paths read that word differently.
+
+These forms have no block of their own for an arm, so nothing is dropped as
+unreachable code ([`O107`](kcs-optimisation-o107-unreachable-dead-code.md) does
+not fire); the optimiser instead folds the whole `switch` down to the body that
+runs (`O112`). The exact form without a fall-through arm is a chain of
+comparisons, so its dead arms are unreachable blocks and `O107` removes their
+bodies too.
 
 ## Fix
 

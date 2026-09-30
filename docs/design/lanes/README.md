@@ -79,17 +79,25 @@ checkpoint compiling.
   dynamic-name barrier read instead of walking; the stored existence
   branch fact and W210's preserve-outcome reads; W100's proven produced
   set; and hover, inlay hints, semantic tokens and document links reading
-  proven values), and slice 8 (the existence rung: a flow-sensitive
-  bound / unbound / may-bound fact per place and per SSA version, owned
-  by the solver and fed by storage outcomes, the entry states, the join,
+  proven values), and slice 6 (branch integration: the whole-variable
+  `switch` subject read from the lattice, so the flattened form decides per
+  arm; one selection fact for each opaque form — `-glob`, `-regexp`,
+  `-nocase`, a fall-through arm, `case` — from the shared `switch` core,
+  which O112, the analyser's selected-body test and the loop simulator read
+  in place of three private matchers, and of which I231 reports the
+  unselected arms without dropping a block; W240 and W241 reading the loop
+  header's branch fact, either replacing W242; and the iRules flow checks
+  reading applied reachability), and slice 8 (the existence rung: a
+  flow-sensitive bound / unbound / may-bound fact per place and per SSA
+  version, owned by the solver and fed by storage outcomes, the entry
+  states, the join,
   the absent-cell release rule, `[info exists]` and `[array exists]`
   deciding inside the fixed point through the expression route, and the
   guard narrowing as an edge refinement; W210, W211, W213, W214, O108,
   O109, I230, O101 and S100 consume the one fact; `const`, `array unset`
   and `array default` have semantics; a fast-tier request reads
-  `Unavailable`) have landed; slice 6, branch integration and optional
-  rewrites, is in progress, item by item in the tracking document's §
-  *Plan for slices 2–13*.
+  `Unavailable`) have landed; the slices after them are planned item by
+  item in the tracking document's § *Plan for slices 2–13*.
 - [consumer-contracts.md](consumer-contracts.md) — steps 1 to 4 of
   [registry-consumer-contracts.md](../compiler/registry-consumer-contracts.md)
   § *Build order*: step 1 (the four rulings taken as decided, and the

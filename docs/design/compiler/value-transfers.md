@@ -1862,45 +1862,47 @@ The CFG builder flattens only an exact, case-sensitive, no-fall-through
 `switch` into a dispatch chain of `StrEq` branches; glob, regexp,
 `-nocase`, and any fall-through arm stay one opaque `Statement::Switch`,
 and `lower_opaque_switch` stores that structured statement in one block —
-it creates no CFG block per arm. Even in the flattened form a
-whole-variable subject lowers to `ExprNode::Raw`, deliberately, because
-`Raw` is the only operand that preserves a backslash-bearing `${…}` name
-under both 8.x and 9.x close rules, and `Raw` cannot be evaluated.
+it creates no CFG block per arm. A flattened form's whole-variable subject
+lowers to `ExprNode::Raw`, deliberately, because `Raw` is the only operand
+that preserves a backslash-bearing `${…}` name under both 8.x and 9.x close
+rules.
 
-| Form | O112 (structured IR) | O107 / I231 (CFG) |
-|---|---|---|
-| exact, literal subject | fires | fires |
-| exact, `$var` subject | fires when `var` is constant | never — `Raw` |
-| exact + `-nocase`, or a fall-through arm | fires | never — opaque |
-| `-glob` | fires (`pattern_matches` is glob-aware) | never — opaque |
-| `-regexp` | never (bails) | never |
+| Form | Decided through | O112 | I231 | O107 |
+|---|---|---|---|---|
+| exact, literal or `$var` subject | the dispatch chain's `Applied` branches, one per arm | fires | fires | fires on a dead arm's body |
+| `-glob`, `-regexp`, `-nocase`, a fall-through arm, `case` | the selection record at the statement | fires | fires, from a `Selected` fact | never — no block stands for an arm |
+
+Each needs a subject the solver proves — a `Const`, or a `ConstSet` every
+member of which the selection can decide. A subject it does not prove is
+left alone by all three, and O101 stays suppressed on the synthetic
+dispatch chain.
 
 ```mermaid
 flowchart LR
-    SRC["set x b<br/>switch $x { a {A} b {B} default {D} }"] -->|lowers| C1["StrEq(Raw $x, &quot;a&quot;)<br/>Raw: unevaluable today"]
-    C1 -->|true| A["arm A<br/>I231 · O107 after step 1"]
-    C1 -->|false| C2["StrEq(Raw $x, &quot;b&quot;)<br/>→ Const(&quot;b&quot;) after step 1"]
+    SRC["set x b<br/>switch $x { a {A} b {B} default {D} }"] -->|lowers| C1["StrEq(Raw $x, &quot;a&quot;)<br/>Raw read from the lattice as one variable"]
+    C1 -->|true| A["arm A<br/>dead · I231 · O107"]
+    C1 -->|false| C2["StrEq(Raw $x, &quot;b&quot;)<br/>Const(&quot;b&quot;)"]
     C2 -->|true| B["arm B · taken"]
-    C2 -->|false| D["default body D<br/>not taken · O107"]
-    OP["opaque forms: -glob · -regexp · -nocase · a - body<br/>Statement::Switch, one block today"] -->|subject Const or ConstSet| SEL["step 2 · selection facts<br/>tcl_cmd_core::switch::select over the arms:<br/>ordered first match, fall-through, default,<br/>captures, option parsing, match errors"]
-    SEL --> CONS["consumers of one selected-edge fact<br/>O112 · analyser switch_body_is_selected ·<br/>static_loops::exec_switch · I231"]
-    SEL -. only with real lowering or explicit arm blocks .-> CFG["step 3 · applied reachability<br/>executable_blocks · O107"]
+    C2 -->|false| D["default body D<br/>dead · O107"]
+    OP["opaque forms: -glob · -regexp · -nocase · a - body · case<br/>Statement::Switch, one block"] -->|subject Const or ConstSet| SEL["selection record<br/>tcl_cmd_core::switch::select over the arms:<br/>ordered first match, fall-through, default,<br/>captures, option parsing, match errors"]
+    SEL --> CONS["consumers of one selected-arm fact<br/>O112 · analyser switch_body_is_selected ·<br/>static_loops::exec_switch · I231"]
+    SEL -. no block stands for an arm .-> NOCFG["no applied reachability<br/>no O107 · no arm deletion"]
 ```
 
-The order of delivery, each step with its own contract:
+The contract has three parts:
 
 1. **The exact whole-variable case.** `evaluate_branch` resolves a `Raw`
    operand from the lattice only when the existing word and variable-name
-   owners prove the operand is exactly one variable reference; arbitrary
-   `Raw` text never becomes executable because one synthetic operand uses
-   that variant. The flattened form then decides per arm for a constant
-   subject, `executable_blocks` drops the dead arm bodies, O107 and I231
-   fire, and O101 stays suppressed on the synthetic chain as today.
+   owners prove the operand is exactly one variable reference
+   (`whole_variable_operand`); arbitrary `Raw` text never becomes executable
+   because one synthetic operand uses that variant. The flattened form then
+   decides per arm for a constant subject, `executable_blocks` drops the dead
+   arm bodies, and O107 and I231 fire.
 2. **Selection facts for opaque forms.** For a `Statement::Switch` whose
    subject is `Const` or a `ConstSet`, arm selection is computed by the
    existing owner — `tcl_cmd_core::switch::{parse_options, select}` in
-   `rust/tcl-cmd-core/src/switch.rs`, which already implements exact, glob,
-   and regexp selection and capture construction over `RegexEngine` — and
+   `rust/tcl-cmd-core/src/switch.rs`, which implements exact, glob, and
+   regexp selection and capture construction over `RegexEngine` — and
    recorded as a structured-arm fact against the arm's `pattern_span`. The
    registry-declared selection semantics include ordered first-match
    behaviour, the final-default rule, fall-through to a following body, regexp
@@ -1911,17 +1913,20 @@ The order of delivery, each step with its own contract:
    writes across every member and retains error possibilities when a
    pattern cannot be evaluated. O112, the analyser's
    `switch_body_is_selected`, and `static_loops::exec_switch` consume that
-   one fact instead of three private matchers; the runtime adapters'
-   remaining steps — fall-through body resolution and body execution — are
-   modelled by the analysis adapter too.
-3. **CFG integration and edits.** Applied reachability for an opaque form
-   needs either real lowering support or explicit arm blocks; a post-pass
-   cannot remove blocks that do not exist. Source edits that delete an arm
-   are optional presentation work after the semantics are established, and
-   no optimisation code is reserved for them until the ordered-matching,
+   one fact instead of private matchers, a consumer that holds words rather
+   than a lattice asking the same transfer through
+   `value_transfer::literal_selection`; the runtime adapters' remaining steps
+   — fall-through body resolution and body execution — are modelled by the
+   analysis adapter too.
+3. **No applied reachability, no edits.** Applied reachability for an opaque
+   form needs either real lowering support or explicit arm blocks, and a
+   post-pass cannot remove blocks that do not exist, so a selection is stated
+   beside the block and applies nothing. Source edits that delete an arm are
+   optional presentation work after the semantics are established, and no
+   optimisation code is reserved for them until the ordered-matching,
    completion, source-edit mapping, and proof contracts are implemented.
 
-Step 2's fact is recorded once per statement: `SccpResult::selections`
+The selection fact is recorded once per statement: `SccpResult::selections`
 (`rust/tcl-compiler/src/sccp.rs`) holds a `SelectionRecord { span,
 arm_pattern_spans, fact }` for each executable opaque `Statement::Switch`
 whose command — the identity the lowering records at the statement's span

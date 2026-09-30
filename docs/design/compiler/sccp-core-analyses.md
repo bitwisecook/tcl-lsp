@@ -207,16 +207,90 @@ triggering site.
 - The not-taken target's edge is never added to `executable_edges`, so the
   target is unreachable unless some other executable edge reaches it.
 - O112 (constant condition elimination) is triggered.
+- A `while` or `for` header is one of these branches: W240 and W241 read its
+  fact at the condition word's span (§ *Loop headers*).
 
-Since slice 5, every `ConstantBranch` carries a `kind: BranchFactKind` —
-`Applied` for a branch the SCCP fixpoint itself decided, `Proven` for a
-condition proven without updating reachability, and `Selected` (unused
-before slice 6) for a case-selection record. Since slice 8 an existence
-query is decided inside the fixed point, so its branch is `Applied` like
-any other and no producer states `Proven` today. An emitter reads only the
-kind it owns — `emit_constant_branch_diagnostics` the `Applied` facts — and
-never re-derives the proof from a frame of its own, so `compiler_checks.rs`
-reports whichever kind is stored without asking which pass produced it.
+Every `ConstantBranch` carries a `kind: BranchFactKind`. `Applied` is a
+branch the SCCP fixpoint itself decided — an `if`, `while` or `for`
+condition, an exact `switch`'s dispatch chain, an existence query.
+`Proven` is a condition proven without updating reachability; no producer
+states it today. `Selected` is an arm of an opaque `switch` that no member
+of the subject runs the body of (§ *Selection records*): it has no block of
+its own, so `taken_target` and `not_taken_target` are empty, `value` is
+`false`, `span` is the arm's pattern, and nothing is applied to
+`executable_blocks`. An emitter reads only the kind it owns —
+`emit_constant_branch_diagnostics` the `Applied` facts,
+`emit_selected_arm_diagnostics` the `Selected` ones — and never re-derives
+the proof from a frame of its own, so `compiler_checks.rs` reports whichever
+kind is stored without asking which pass produced it. A consumer that reads
+every stored fact by its block reads the kind too: the O100 hint in
+`compiler_checks.rs` is for a branch only, and branch folding skips a
+`Selected` fact, whose block also ends in the next `if`'s branch.
+
+### Loop headers
+
+A conditional loop's header is an ordinary branch. The analyser's walk queues
+each loop it examines with what the loop's text says, and the per-function
+pass resolves the queue against the unit's `Applied` fact at the loop's
+condition span (`HeaderFact`): a header false at entry is W240, and one true
+at every test is W241 when no executable path leaves the loop — the loop's
+end block is executable, which a `break` makes so, or a path from the body
+reaches a `return` — and the body's text holds no exit command either, which
+covers the `break` inside a `catch` body the CFG does not lower. Either
+verdict replaces W242, the hint that a counter is never modified. A loop no
+unit decides — its header is not reached, its condition varies, a
+stub-declared loop command the CFG keeps as a call, a complexity-guarded
+body — keeps the verdict its text gives, reported after the pass.
+
+### Selection records (`SccpResult::selections`)
+
+A `switch` the CFG builder does not flatten — `-glob`, `-regexp`, `-nocase`,
+a fall-through arm, and `case` — stays one `Statement::Switch` in one block,
+and the solver states its decision beside the block rather than in it. After
+the fixed point, `LatticeDriver::selection_facts` (`value_transfer.rs`)
+visits each executable opaque `Statement::Switch` and asks the command its
+binding site names (`cfg.command_binding_sites`, trusted by the module) for
+its `Selection` transfer over the settled lattice: a `SelectionFact {
+selected, bodies, writes }` with one entry per member of an exact or finite
+subject — the arm each member's pattern selects, the arm whose body runs (the
+two differ across a `-` fall-through), and the capture writes. The answer is
+recorded only where the command's structural plan reads the statement's own
+subject and clause count, and a member the transfer declines — a pattern it cannot decide, a
+`-nocase` a profile spanning 8.4 may not have, a quoted or braced `-` body
+under a profile that may be 9.1, whose compiled and interpreted paths read
+the word two ways — declines the whole fact and records nothing.
+
+```rust
+SelectionRecord {
+    span: statement_span,
+    arm_pattern_spans: vec![…],          // one per arm the statement keeps
+    fact: SelectionFact { selected, bodies, writes },
+}
+```
+
+An arm index counts the command's pattern and body pairs, and the index one
+past `arm_pattern_spans` is the final `default` the statement keeps as its
+default body (`SelectionRecord::is_default`). Beside each record the pass
+states a `Selected` branch fact for every arm no member runs the body of. An
+arm that passes its body on with `-` is judged by the body it leads to, so
+the alternates of a running body are not reported, and the final `default`,
+which has no pattern span, never is.
+
+The exact, case-sensitive form without a fall-through arm needs no record:
+the CFG builder flattens it into a dispatch chain of `StrEq` branches, and
+`evaluate_branch` reads a whole-variable subject from the lattice when the
+name owner proves the operand is exactly one variable reference
+(`whole_variable_operand`), so each arm is an `Applied` branch and the dead
+arms' blocks leave `executable_blocks`.
+
+Consumers read the one decision. O112 folds a `switch` only from it: the
+record at the statement's span for an opaque form, the `Applied` facts of the
+chain for a flattened one. The analyser's `switch_body_is_selected` and the
+loop simulator's `exec_switch`, which hold words rather than a lattice, ask
+the same `Selection` transfer through `value_transfer::literal_selection` and
+`statement_selection`. I231 reports each `Selected` arm. A selection never
+applies reachability, because no block stands for an arm: O107 does not fire
+for an opaque form, and no edit deletes an arm.
 
 ### Existence-check folding (`info exists` / `array exists`)
 
