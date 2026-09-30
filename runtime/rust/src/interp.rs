@@ -1873,12 +1873,20 @@ impl Interp {
     }
 
     /// Verify live command identity and issue a guard over `domains`.
+    ///
+    /// A request for a registry intrinsic must cover the domains its family
+    /// requires ([`tcl_registry::IntrinsicId::family`]) whatever the caller
+    /// asked for: a Family-B member reaches the variable store, so its guard is
+    /// refused while a variable trace exists and stales when one is added.
     pub fn prepare_command_guard(
         &self,
         name: &[u8],
         expected: GuardIdentity,
         domains: GuardDomains,
     ) -> Result<GuardToken, GuardError> {
+        if !domains.covers(tcl_registry::IntrinsicId::required_guard_domains(expected)) {
+            return Err(GuardError::DomainsInsufficient);
+        }
         let traces = self.traces.borrow();
         if (domains.contains(GuardDomain::CommandTrace) && !traces.cmd_traces.is_empty())
             || (domains.contains(GuardDomain::VariableTrace) && !traces.traces.is_empty())
@@ -10753,6 +10761,56 @@ mod tests {
             assert!(i.release_command_guard(token));
             assert!(!i.release_command_guard(token));
             assert!(!i.check_command_guard(token, b"guarded"));
+        });
+    }
+
+    /// A request for a Family-B intrinsic covers the variable-trace domain or
+    /// is refused, whatever the caller asked for, and a Value member needs no
+    /// such domain. Covered, the guard is refused while a variable trace
+    /// exists and goes stale when one is added.
+    #[test]
+    fn a_family_b_guard_request_must_cover_the_variable_trace_domain() {
+        use tcl_registry::IntrinsicId;
+        leak_free(|i| {
+            let version = i.runtime_version();
+            let identity = |member: IntrinsicId| {
+                GuardIdentity::registry_intrinsic_with_semantics(
+                    member.stable_id(),
+                    member.guard_semantics_key(version),
+                )
+            };
+            let (stores, value) = (
+                identity(IntrinsicId::DictSet),
+                identity(IntrinsicId::ListLength),
+            );
+            i.register_guarded_builtin(b"stores", guarded_builtin, stores);
+            i.register_guarded_builtin(b"pure", guarded_builtin, value);
+            let command = GuardDomains::one(GuardDomain::CommandEnvironment);
+            let traced = command.with(GuardDomain::VariableTrace);
+
+            assert_eq!(
+                i.prepare_command_guard(b"stores", stores, command),
+                Err(GuardError::DomainsInsufficient)
+            );
+            let token = i
+                .prepare_command_guard(b"pure", value, command)
+                .expect("a Value member requires no variable-trace domain");
+            assert!(i.release_command_guard(token));
+
+            let token = i
+                .prepare_command_guard(b"stores", stores, traced)
+                .expect("a request covering the family's domain");
+            assert!(i.check_command_guard_identity(token, b"stores", stores));
+            assert_eq!(
+                i.eval_str(b"trace add variable watched write callback"),
+                Code::Ok
+            );
+            assert!(!i.check_command_guard_identity(token, b"stores", stores));
+            assert_eq!(
+                i.prepare_command_guard(b"stores", stores, traced),
+                Err(GuardError::PrerequisiteUnsatisfied)
+            );
+            assert!(i.prepare_command_guard(b"pure", value, command).is_ok());
         });
     }
 

@@ -1600,6 +1600,7 @@ exit) last.
 | Item | State | Checkpoint | Notes |
 |---|---|---|---|
 | CC7.1 `RuntimeBacking` on the spec | landed | `wip(consumer-contracts): step 7 — RuntimeBacking on the spec` | `rust/tcl-registry/src/runtime_backing.rs` (new): `RuntimeBacking` (`ShippedBuiltin { identity }`, `TclBody { source }`, `HostNative`, `None` — the default) and `BodySource` (`PackageSource { relative_path }`, `PackText { text }` — the text is carried, D7.3), with `shipped`, `package_source` and `is_none`; `CommandSpec::runtime_backing`, `CommandSpec::DEFAULT` says `None`, `RuntimeBacking` and `BodySource` reach the prelude and the crate root. **The rows.** The report's 389 core Tcl commands each declare what the report says: 324 `ShippedBuiltin` (the 282 handler and native rows and the 42 known-gap rows, whose target state it is, D7.5), 11 `TclBody`/`PackageSource` (`init.tcl` 7, `package.tcl` 3, `parray.tcl` 1 — the stdlib rows) and 54 `None` (the not-required rows, by default). A mechanical pass placed the 128 standard spec literals; seven builders needed hand edits — `mathop_generated` (the two qualified spellings `ShippedBuiltin`, the bare operator word `None`), `mathfunc_generated` (both spellings), `dict::qualified_specs`, `oo_helpers::qualified_specs` (shipped where the bare twin is, so the `ooutil` twins declare none), and the `corotype`, `zipfs` and `list_math_91` factories; the identity is the spec's own name as the spec spells it, `::` kept (D7.4). **The floor.** `runtime_backing` joins `SecurityFloor::apply` (a non-`None` shipped backing wins), `MERGED_FIELDS` and the field scan (D6.1). **The statement.** `rust/tcl-spectcl/src/backing.rs` (new) — `BackingSyntax` with `parse`, `parse_spelling`, `spelling`, `from_backing` and `leak` — is the one spelling of the five `runtime_backing` statements (`none`, `host-native`, `shipped-builtin ID`, `tcl-body {-package-source PATH}`, `tcl-body {-pack-text {TEXT}}`) for the loader (`apply_command_stmt`'s new arm and `eval.rs`'s `ROW_WORDS`, the two halves of the one loader), the Studio's draft and both its renderers; a statement that does not read is dropped with a warning and claims nothing. `PackNotice::pack_text_backing` — an Information notice on the command's row, raised in `pack::load_sources` beside the stamp refusals — reports a `-pack-text` body at load (D7.7). **The Studio.** `FieldKind::RuntimeBacking` (`IDENTITY` category, sharing the `text` wire tag, so the front-end needs no new editor and `every_field_kind_has_a_front_end_editor` stays green), `draft.rs` (the spelling), `render_spectcl.rs`'s `runtime_backing_row` (re-spelled through the parser, so the row is always one the loader reads back), `render_rs.rs`'s `runtime_backing_expr`, `help.rs`, `coverage.rs`'s witness and `Field` row, `relations.rs` (the "Builtin identity" cluster) and `examples/fields_core.rs` (D7.6); `docs/references/command-spec/fields.md` regenerated. **The generator.** `gen_irule_test_data.rs` emits a stub only for a command whose backing is `None` or `HostNative`; the plan expected the output byte-identical, and it is not: 46 entries for shared Tcl core commands and `pkg::create` drop, all dead (D7.8). **The ports.** Nine ports of shipped core commands declare `runtime_backing shipped-builtin NAME` (D7.9). Tests: `registry_sweep.rs`'s `every_core_command_declares_a_backing` reads the committed report and holds the spec to it in both directions — the row's kind, the identity equal to the name, the stdlib file the note names — and requires every non-core spec in the Tcl table to declare nothing (a mutation check, one declaration removed, fails it naming the command); `i6_security_floor.rs` gains `a_workspace_override_cannot_swap_the_runtime_backing` (`lindex` against `host-native` and `none`) and `a_new_command_keeps_the_backing_it_declares`; `security_floor.rs`'s unit rows cover it; `eval_loader.rs`'s `runtime_backing_reads_each_shape_through_both_paths` (five shapes, an unstated one, two that do not read — through the static fast path and the interpreter); `workspace_packs.rs`'s `a_pack_text_backing_is_reported_at_load`; `spectcl_roundtrip.rs`'s `runtime_backing_survives_the_round_trip` (five backings, one with unbalanced braces, and `none` writing no row); `backing.rs`'s four unit rows. Moved: `spectcl_ports.rs`'s `every_port_loads_and_matches_its_shipped_spec` (the ports now declare it, D7.9); `_mock_stubs.tcl` (D7.8); `pack-goldens` rewrote all 25 snapshots (every `spec` digest moved once, as for `alias_of`; the nine edited ports' notice lines moved by one). Gates: `cargo test -p tcl-registry` (lib 946, was 943; `registry_sweep` 40, was 39; every other binary), `-p tcl-spectcl` (lib 196, was 192; `eval_loader` 26, was 25; `i6_security_floor` 10, was 8; `workspace_packs` 10, was 9; `codegen_stamps`, `golden_packs`, `spec_corpus` and every other binary), `-p tcl-spec-studio` (lib 199; `spectcl_roundtrip` 10, was 9; `spectcl_ports` 11; `reference_doc` regenerated; every other binary), `-p xtask -p tcl-mcp -p tcl-cli` (480), `-p tcl-irule-test` (28, against the regenerated stubs), `-p tcl-compiler -p tcl-lsp-core --lib` (6531, 2 ignored; 2350); `runtime/rust`'s `cargo check --tests` clean; `cargo check --workspace --all-targets`; clippy (`-p tcl-registry -p tcl-spectcl -p tcl-spec-studio -p xtask --all-targets --no-deps -- -D warnings`) and `cargo fmt` clean; `registry-axes --check` (7831 / 16 / 36 / 893 across 147, unchanged), `value-transfers --check` (22 / 19 / 83 across 34, 6607 rows), `pack-goldens --check` (25), `gen-irule-test-data --check`, `command-backing --check` (389 commands, unchanged), `callback-inventory --check`, `audit-option-dialects --check` (114), `retired-api-gate`, `owner-resolution` (45), `kcs-index-links` green, `dialect-drift` at its 8. Docs: the design page (status box, the rung table's row 4, the rung-4 `RuntimeBacking` block with its `PackText { text }`, the rung-4 bullet, rule 4, the registration bullet), `docs/GLOSSARY.md` § *Runtime backing*, `spec-packs.md` § *What a pack still cannot say*, `spec-dsl-examples/README.md` (the keyword row and the override bullet), `irule-test-framework.md` decision rule 1. No KCS note: nothing a user runs changes today. Deviations: the text `PackText` carries (D7.3); the identity (D7.4); the rows and their test (D7.5); one spelling for six consumers, and the Studio kind sharing the `text` tag (D7.6); the notice's seat (D7.7); the generator's output moves (D7.8); the ports (D7.9). D7.3–D7.9 |
+| CC7.3 the intrinsic table by family | landed | `wip(consumer-contracts): step 7 — the intrinsic families` | `rust/tcl-registry/src/intrinsic.rs`: `IntrinsicFamily` (`Value`; `FamilyB { domain: GuardDomain, fires_traces }`, with the two constants `STORES` and `OBSERVES_AND_FIRES`), `IntrinsicId::family` (an exhaustive per-member match with no wildcard, arms grouped by family), `IntrinsicFamily::guard_domains` and `fires_traces`, `IntrinsicId::from_guard_identity` and `required_guard_domains`; the crate gains a direct dependency on `tcl-runtime-api` for `GuardDomain` (it was in its graph through `tcl-cmd-core`, so no crate joins any graph). **The table.** 14 `Value` members (`llength`, `lindex`, `lrange`, `lreplace`, `linsert`, `list`, `concat`, `dict get` and `string` `index`, `range`, `equal`, `compare`, `replace`, `length`) and 14 `FamilyB`, every one under `VariableTrace`: `lassign`, `lset`, the five `dict` updates, `string is`, `regexp`, `info exists`, the three array queries and `puts` (D7.10); `fires_traces` only on `info exists` and the array queries, which `tclsh` 8.4 to 9.0 and `tcl-vm` answer with a read trace and an array trace respectively, and `runtime/rust` answers for the array queries only (reported). **The consumers** (D7.11). `tcl-runtime-api/src/guard.rs`: `GuardDomains::union` and `covers`, `GuardIdentity::registry_stable_id` (inverts both identity forms), `GuardError::DomainsInsufficient`, and the `VariableTrace` doc names the family. `tcl-compiler/src/backend_registry.rs`: `guard_domains_for_intrinsic` (the dispatch domains plus the family's), read by `mixed_region_plan.rs` where a guarded plan is built and where it is validated. Both runtimes' `prepare_command_guard` refuse a request that does not cover the family's domains, before any other check. No `SEMANTICS_REVISION` row moves (D7.12). Tests: `intrinsic.rs`'s `every_member_names_a_family` (the two lists, spelled out), `trace_firing_members_are_family_b` (the four) and `a_guard_request_must_cover_its_members_family_domains` (both identity forms across the five releases, a foreign vocabulary, an unknown id); `guard.rs`'s `a_registry_identity_names_its_intrinsic_in_both_forms` and `a_set_covers_exactly_the_domains_it_contains`; `backend_registry.rs`'s `an_intrinsics_guard_domains_add_its_familys_to_its_dispatch_dependencies`; in each runtime `a_family_b_guard_request_must_cover_the_variable_trace_domain` (a `DictSet` identity refused without the domain, a `ListLength` one issued without it, the covered `DictSet` request refused while a variable trace exists and stale once one is added); `tcl-vm`'s `every_trace_firing_intrinsic_fires_a_trace_here`. Mutation checks, each reverted and each failing its test: `ListLength` moved to Family B (`every_member_names_a_family`), `ArraySize` unmarked (`trace_firing_members_are_family_b`), Family B requiring no domain (`a_guard_request_must_cover_its_members_family_domains`, the compile-side test, and both runtimes' test), `registry_stable_id` ignoring the packed form and `covers` answering on any overlap (the two `guard.rs` tests), the check removed from each runtime's `prepare_command_guard` (that runtime's test), `ListLength` marked as firing (`every_trace_firing_intrinsic_fires_a_trace_here` panics naming it). Moved: nothing; the lockfiles that list `tcl-registry` gain one edge (the root's and `runtime/rust`'s by cargo, `bigip-query-wasm`, `bigip-report-gen/wasm` and `tcl-vm-wasm` by `cargo metadata --offline`, `bigip-report-gen/python` by hand); the four host lockfiles that were already stale (`tcl-explorer-wasm`, `tcl-lsp-server-wasi`, `tcl-lsp-server-wasm`, `tcl-spec-studio-wasm`) are left for the regeneration step 6 reported. Gates: `cargo test -p tcl-registry` (lib 954, was 951; `registry_sweep` 40; every other binary), `-p tcl-runtime-api` (lib 31, was 29), `-p tcl-compiler` (lib 6551, 2 ignored, was 6550; `codegen_integration` 17, `wasm_codegen` 45; `wasm_real_link` 13 and `wasm_tiers` 7 against the real runtime with `TCL_REQUIRE_WASM_LINK=1`), `-p tcl-vm` (lib 102, was 100; every other binary, `command_mutation_deopt_e2e` 76), `runtime/rust` (lib 708, was 707; its 12 integration binaries); `cargo check --workspace --all-targets`; clippy (`--workspace --all-targets -- -D warnings`), `cargo fmt --all` and `runtime/rust`'s `cargo fmt` clean; `registry-axes --check` (7831 / 16 / 36 / 893 across 147, unchanged), `value-transfers --check` (22 / 19 / 83 across 34, 6607 rows), `pack-goldens --check` (25), `command-backing --check` (389), `owner-resolution` (45), `retired-api-gate`, `kcs-index-links`, `dialect-drift` at its 8. Docs: the design page's status box and its intrinsic-table bullet, `family-b-routing.md` § 3 (*Intrinsic families*) and § 4 (one row), `docs/GLOSSARY.md` § *Guard identity*. Deviations: the classification and the `puts` domain (D7.10); the consumers, where the plan names `codegen_abi.rs` and `tcl-vm` (D7.11); no revision bump (D7.12); § 4 had no gap row to close (D7.13). D7.10–D7.13 |
 
 ### CC7.1 — what the next items read
 
@@ -1630,6 +1631,27 @@ exit) last.
   raise the `-pack-text` notice, which `pack::load_sources` raises for a
   pack the server loads (D7.7).
 
+### CC7.3 — what the next items read
+
+- **For CC7.4.** `IntrinsicId::family` is a `const fn` over a `Copy` enum, so
+  `intrinsic_table_hash` hashes `(stable_id, family, guard_semantics_variants())`
+  over `IntrinsicId::ALL` (D7.12). The family wants one stable byte spelling for
+  that, written where the hash is built and tested there: `Value`, or `FamilyB`
+  with the domain's discriminant and the `fires_traces` flag. `GuardDomain` is
+  `#[repr(u8)]` with explicit discriminants, which are the ABI's `domains` bits'
+  positions and so stable.
+- **For CC7.2.** The sweep attests identities and never issues guards, so the
+  family does not reach it. A sweep that attests every command whose spec
+  declares an intrinsic (`string` only, today) widens no fast path: `execute_intrinsic`
+  serves `StringLength` alone, and a guard request for any other member declines
+  at the runtime's own check.
+- **Reported, not fixed.** `runtime/rust`'s `info exists` runs no read trace:
+  `proc note {n1 n2 op} {lappend ::fired $op}; set v 1; trace add variable v read
+  note; info exists v; puts [set ::fired]` prints `read` under `tclsh` 8.4 to 9.0
+  and `tclvm`, and nothing under the runtime (`cmd_info.rs`'s `info_exists`, over
+  `VarStore::exists`, which takes `&self`). The array queries fire their array
+  traces in all three.
+
 ### Behavioural deltas accepted in step 7
 
 - CC7.1: `CommandSpec` gains `runtime_backing`, so every command's `Debug`
@@ -1642,6 +1664,12 @@ exit) last.
   `_mock_stubs.tcl` reads 933 stub actions, was 979.
 - CC7.1: the Spec Studio gains a "Runtime backing" field in the Identity
   group, edited as text in the statement's own spelling.
+- CC7.3: a guard request for a Family-B intrinsic that omits the
+  variable-trace domain is refused by both runtimes (`GuardError::DomainsInsufficient`);
+  before, it was issued if the identity matched. No compiler emits one, so no
+  module a user runs changes. `GuardError` gains a variant, `GuardDomains` two
+  methods and `GuardIdentity` one, and `tcl-registry` a direct dependency on
+  `tcl-runtime-api`.
 
 ## Plan for steps 2–10
 
@@ -5196,6 +5224,50 @@ everything else in this lane is independent of both.
   document but a line to transcribe — `if`, `foreach`, `switch`, `lsort`,
   `string`, `upvar`, `return`, `oo::class` and `subst` each gain
   `runtime_backing shipped-builtin NAME`.
+- **D7.10** The family is the widest reach of a member under any invocation
+  form, which gives 14 `Value` and 14 `FamilyB` members (the page's "about
+  half"). `string is` (its `-failindex` stores, which is why its spec is not
+  `pure`) and `regexp` (its match variables store through the adapter) are
+  Family B although a call without those words touches nothing; classifying
+  by the common form would let a later fast path skip a trace the rest of the
+  forms run. Every Family-B member takes `GuardDomain::VariableTrace`, `puts`
+  included: the lattice has no channel domain, and adding one is a lattice
+  change (D5.13's reasoning), not this item's. `fires_traces` marks the four
+  members that run a variable's traces while only *observing* it (`info
+  exists` a read trace, `array exists`, `names` and `size` an array trace),
+  measured with `tclsh` 8.4, 8.5, 8.6 and 9.0; a storing member's write
+  traces are the store's and are not marked, although `lset`, `dict set` and
+  the rest do run read and write traces in C Tcl. `tcl-vm` answers all four;
+  `runtime/rust` answers the array queries and not `info exists`, which runs
+  no read trace there (reported, and stated in `family-b-routing.md` § 4),
+  so the cross-check test lives in the VM and the runtime keeps its existing
+  `array_trace_oracle.rs`.
+- **D7.11** Neither runtime had a per-call table of guard domains for the
+  family to replace: `tcl_codegen_guard_prepare` takes the mask the compiler
+  sends, and the VM's `prepare_command_guard` has no production caller. The
+  family is read where a domain is decided, which is two places. The compiler
+  builds a guarded plan's domains as the dispatch dependencies' plus the
+  member's family's (`guard_domains_for_intrinsic`), and both runtimes'
+  `prepare_command_guard` refuse a request that omits a domain the identity's
+  family requires (`GuardError::DomainsInsufficient`), so a module from a
+  compiler that forgot the variable-trace domain declines instead of taking a
+  fast path over a variable store that has a trace on it. The plan's
+  "registration derives the domain" is read as issuance: a registration
+  attests an identity and has no domain to derive. Only `StringLength`, a
+  `Value` member, is guarded today, so no emitted request changes.
+- **D7.12** No `SEMANTICS_REVISION` row rises. CC5.1's rule raises a member's
+  row when what a compiled fast path may assume of it changes, and nothing is
+  compiled against a Family-B member's contract: the boxed fast path is
+  `StringLength`'s alone and neither runtime executes another intrinsic. The
+  requirement is additive and refused at issuance, so a module asking for an
+  under-covered guard declines whether or not its identity moves. CC7.4's
+  table hash covers the family as well as `guard_semantics_variants()`, so a
+  later change to the classification is visible to the manifest without a
+  row bump.
+- **D7.13** `family-b-routing.md` § 4 had no gap row for the family split to
+  close: the page mentioned no intrinsic at all. § 3 gains the *Intrinsic
+  families* subsection, stated as the code is, and § 4 gains the one gap this
+  item measured, `info exists` in `runtime/rust`.
 - **D8.1** `Engine::set_release` is slice 4's. **D8.2** `docker.rs` stays
   registry-free; `tcl docker create` computes native extensions.
 - **D9.1** Versioned stamps are `StampWindow<T>` slices mirroring

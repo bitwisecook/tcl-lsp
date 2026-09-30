@@ -2767,12 +2767,20 @@ impl Vm {
     /// Verify the live command identity and snapshot the requested mutation
     /// domains. Any active trace in a requested trace domain conservatively
     /// refuses issuance; an epoch snapshot is not an absence proof.
+    ///
+    /// A request for a registry intrinsic must cover the domains its family
+    /// requires ([`tcl_registry::IntrinsicId::family`]) whatever the caller
+    /// asked for: a Family-B member reaches the variable store, so its guard is
+    /// refused while a variable trace exists and stales when one is added.
     pub fn prepare_command_guard(
         &self,
         name: &str,
         expected: GuardIdentity,
         domains: GuardDomains,
     ) -> Result<GuardToken, GuardError> {
+        if !domains.covers(tcl_registry::IntrinsicId::required_guard_domains(expected)) {
+            return Err(GuardError::DomainsInsufficient);
+        }
         if (domains.contains(GuardDomain::CommandTrace)
             && !(self.cmd_traces.is_empty() && self.exec_traces.is_empty()))
             || (domains.contains(GuardDomain::VariableTrace) && !self.var_traces.is_empty())
@@ -13304,6 +13312,89 @@ mod family_b_tests {
         assert!(vm.release_command_guard(token));
         assert!(!vm.release_command_guard(token));
         assert!(!vm.check_command_guard(token, "guarded"));
+    }
+
+    /// A request for a Family-B intrinsic covers the variable-trace domain or
+    /// is refused, whatever the caller asked for, and a Value member needs no
+    /// such domain. Covered, the guard is refused while a variable trace
+    /// exists and goes stale when one is added.
+    #[test]
+    fn a_family_b_guard_request_must_cover_the_variable_trace_domain() {
+        use tcl_registry::IntrinsicId;
+        let mut vm = Vm::new();
+        let version = vm.runtime_version();
+        let identity = |member: IntrinsicId| {
+            GuardIdentity::registry_intrinsic_with_semantics(
+                member.stable_id(),
+                member.guard_semantics_key(version),
+            )
+        };
+        let (stores, value) = (
+            identity(IntrinsicId::DictSet),
+            identity(IntrinsicId::ListLength),
+        );
+        vm.register_guarded_builtin("stores", guarded_builtin, stores);
+        vm.register_guarded_builtin("pure", guarded_builtin, value);
+        let command = GuardDomains::one(GuardDomain::CommandEnvironment);
+        let traced = command.with(GuardDomain::VariableTrace);
+
+        assert_eq!(
+            vm.prepare_command_guard("stores", stores, command),
+            Err(GuardError::DomainsInsufficient)
+        );
+        let token = vm
+            .prepare_command_guard("pure", value, command)
+            .expect("a Value member requires no variable-trace domain");
+        assert!(vm.release_command_guard(token));
+
+        let token = vm
+            .prepare_command_guard("stores", stores, traced)
+            .expect("a request covering the family's domain");
+        assert!(vm.check_command_guard(token, "stores"));
+        vm.add_var_trace(
+            "watched",
+            vec!["write".to_owned()],
+            "callback".to_owned(),
+            false,
+        );
+        assert!(!vm.check_command_guard(token, "stores"));
+        assert_eq!(
+            vm.prepare_command_guard("stores", stores, traced),
+            Err(GuardError::PrerequisiteUnsatisfied)
+        );
+        assert!(vm.prepare_command_guard("pure", value, command).is_ok());
+    }
+
+    /// The registry's members that only observe a variable and still run its
+    /// traces do so here: `info exists` a read trace, the array queries an
+    /// array trace, as `tclsh` does.
+    #[test]
+    fn every_trace_firing_intrinsic_fires_a_trace_here() {
+        use tcl_registry::IntrinsicId;
+        for member in IntrinsicId::ALL
+            .iter()
+            .copied()
+            .filter(|member| member.family().fires_traces())
+        {
+            let (setup, op, command) = match member {
+                IntrinsicId::InfoExists => ("set v 1", "read", "info exists v"),
+                IntrinsicId::ArrayExists => ("array set v {k 1}", "array", "array exists v"),
+                IntrinsicId::ArrayNames => ("array set v {k 1}", "array", "array names v"),
+                IntrinsicId::ArraySize => ("array set v {k 1}", "array", "array size v"),
+                other => panic!("{other:?} fires traces and needs a probe here"),
+            };
+            let mut vm = Vm::new();
+            vm.set_compiler(Box::new(BytecodeCompileService::default()));
+            eval_value(
+                &mut vm,
+                &format!(
+                    "proc note {{n1 n2 op}} {{lappend ::fired $op}}; set ::fired {{}}; \
+                     {setup}; trace add variable v {op} note"
+                ),
+            );
+            eval_value(&mut vm, command);
+            assert_eq!(eval_value(&mut vm, "set ::fired"), op, "{member:?}");
+        }
     }
 
     /// A guard is bound to its command's token. A definition, rename or alias

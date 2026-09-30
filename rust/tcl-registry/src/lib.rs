@@ -187,7 +187,7 @@ pub mod prelude {
         OptionArity, OptionSpec, OptionValue, OptionValueHook, OptionValueOutcome, ScriptTiming,
         VariableScope, first_positional_index, leading_option_specs,
     };
-    pub use crate::intrinsic::IntrinsicId;
+    pub use crate::intrinsic::{IntrinsicFamily, IntrinsicId};
     pub use crate::invocation_words::{CommandPrefixArguments, InvocationArguments};
     pub use crate::lifecycle::{Lifecycle, LifecycleState};
     pub use crate::literal_validation::{
@@ -291,7 +291,7 @@ pub use handle_binding::{
     BoundHandle, HandleBindingSpec, HandleClassSource, HandleKeyword, HandleName,
 };
 pub use hover::{ArgValue, CallbackTaintInput, ScriptTiming, VariableScope};
-pub use intrinsic::IntrinsicId;
+pub use intrinsic::{IntrinsicFamily, IntrinsicId};
 pub use invocation_words::{
     CommandPrefixArguments, InvocationArgument, InvocationArguments, InvocationWord,
     InvocationWordKind, InvocationWords, VariableReadProjection, VariableWriteProjection,

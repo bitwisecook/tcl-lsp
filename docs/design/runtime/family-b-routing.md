@@ -325,7 +325,45 @@ value only ever appends valid UTF-8). `lappend` is byte-exact for free: it
 manipulates list *element values*, never their string rep. This is the
 `ValueOps` byte rung, which `binary` also builds on.
 
+### Intrinsic families
+
+The registry classifies each of its 28 `IntrinsicId` members by the state a
+fast path for it may reach (`IntrinsicId::family`,
+`rust/tcl-registry/src/intrinsic.rs`), and a guard request has to cover what
+the classification requires.
+
+- **`Value`** (14) — `llength`, `lindex`, `lrange`, `lreplace`, `linsert`,
+  `list`, `concat`, `dict get` and the `string` functions `index`, `range`,
+  `equal`, `compare`, `replace` and `length`. Each is a function of its
+  argument values over a shared core, and reaches no variable or channel
+  state.
+- **`FamilyB`** (14) — `lassign`, `lset`, the `dict` updates (`set`, `unset`,
+  `incr`, `append`, `lappend`), `string is`, `regexp`, `info exists`, the
+  array queries (`array exists`, `names`, `size`) and `puts`. Each reaches the
+  variable store or a channel through the runtime's adapter, and takes the
+  `VariableTrace` guard domain: the lattice has no channel domain, so `puts`
+  shares it. The family is the widest reach under any invocation form, which
+  is why `string is` (its `-failindex` stores) and `regexp` (its match
+  variables store) are here although a call without those words touches
+  nothing.
+- **`fires_traces`** marks the members that run a variable's traces while only
+  observing it: `info exists` a read trace, the array queries an array trace.
+  A member that stores runs its write traces as part of the store and is not
+  marked. `tclsh` 8.4 to 9.0 and `tcl-vm` do so for all four.
+
+The compiler adds the family's domains to a guarded plan
+(`guard_domains_for_intrinsic` in `rust/tcl-compiler/src/backend_registry.rs`),
+and both runtimes' `prepare_command_guard` refuse a request that omits them
+with `GuardError::DomainsInsufficient`, so the domain does not depend on the
+caller. A Family-B guard is then issued only while no variable trace exists,
+and a trace added afterwards makes it stale.
+
 ## 4. Known contract gaps
+
+- `info exists` runs a variable's read trace in C Tcl and in `tcl-vm`.
+  `runtime/rust`'s does not: `trace add variable v read cb; info exists v`
+  leaves the callback uncalled. The array queries fire their array traces in
+  both runtimes.
 
 - The array-element methods (`get_elem`/`set_elem`/`unset_elem`/`exists_elem`)
   honour the `FrameId` they are given on both runtimes. `VarStore::array_keys`

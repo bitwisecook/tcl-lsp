@@ -1149,7 +1149,11 @@ Compiled code that wants to take an intrinsic fast path asks the runtime to
 attest the identity of the live command first, and falls back to generic
 dispatch when it cannot. This is intrinsic guard *eligibility*, distinct
 from the command-binding provenance check (`command_binding_matches`) that
-re-resolves every specialised site at admission. Both runtimes derive
+re-resolves every specialised site at admission. An intrinsic also belongs to a
+family (`IntrinsicId::family`): a `Value` member computes from its arguments
+alone, and a Family-B member reaches a runtime's variable store or channel
+and so takes the variable-trace domain, which a guard request for it must
+cover or the runtime refuses it. Both runtimes derive
 identities through `register_spec_builtin` for one command today and key
 them by the command's token generation: a guard's check resolves the
 guarded name afresh and needs an attestation at the token it reaches, so

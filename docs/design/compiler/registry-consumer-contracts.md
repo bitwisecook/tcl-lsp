@@ -118,9 +118,16 @@ slices proceed without deciding anything here.
 > statement, and the iRule-test stub generator emits a mock only for a command
 > whose backing is `None` or `HostNative`.
 >
-> The runtimes' backing query, the intrinsic families, and the manifest
-> are not built. Nor is the rest of the vocabulary, which names nothing in
-> the workspace:
+> The intrinsic table is split by family. `IntrinsicId::family`
+> (`tcl_registry::IntrinsicFamily`) classifies each of the 28 members as a
+> `Value` function over the shared cores or a `FamilyB` operation over a
+> runtime's variable-store or channel adapter, which takes the
+> variable-trace guard domain and, for `info exists` and the array queries,
+> runs the variable's traces while observing it. A guard request for a
+> member covers its family's domains, or a runtime refuses it.
+>
+> The runtimes' backing query and the manifest are not built. Nor is the
+> rest of the vocabulary, which names nothing in the workspace:
 >
 > - **Identity and backing** — the `ReferenceBody` and
 >   `ShippedImplementation` claims, `IdentityKind`, and
@@ -1919,14 +1926,21 @@ This is the runtime programme. Nothing on the analyser side waits for it.
   `RuntimeBacking` rows on the specs, its registration scan becomes the
   query, and `docs/generated/wasm-command-backing.md` becomes the query's
   rendered report so the drift gate still fails on a changed row.
-- **The intrinsic table splits by family.** About half the 28
-  `IntrinsicId` members are value functions over the shared cores. The
-  rest are Family-B operations over each runtime's variable-store and
-  channel adapters under the variable-trace guard domain, and `info exists`
-  and the array operations fire traces. `guard_semantics_key` is one key
-  per member, so a member whose semantics move invalidates its own guards
-  and no others (step 5 built it; the family split is step 7's): it packs
-  the member's own stable identity, its row of `SEMANTICS_REVISION`, and a
+- **The intrinsic table splits by family.** Half the 28 `IntrinsicId`
+  members are value functions over the shared cores
+  (`IntrinsicFamily::Value`). The other fourteen are Family-B operations
+  over each runtime's variable-store and channel adapters
+  (`IntrinsicFamily::FamilyB { domain, fires_traces }`), under the
+  variable-trace guard domain, and `info exists` and the array queries fire
+  traces. The family is the widest reach of a member under any invocation
+  form, so `string is` (whose `-failindex` stores) and `regexp` (whose match
+  variables store) are Family B. The compiler adds a member's family domain
+  to a guarded plan's dispatch domains (`guard_domains_for_intrinsic`), and
+  each runtime's `prepare_command_guard` refuses a request that omits it
+  (`GuardError::DomainsInsufficient`), so the domain never depends on the
+  caller. `guard_semantics_key` is one key per member, so a member whose
+  semantics move invalidates its own guards and no others: it packs the
+  member's own stable identity, its row of `SEMANTICS_REVISION`, and a
   release variant, which only `StringLength` — the one member the releases
   count differently — has more than one of. The VM's interpreter and
   object-dispatch guard domains stay permanently poisoned, which is why no

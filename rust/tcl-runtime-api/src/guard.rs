@@ -69,7 +69,9 @@ pub enum GuardDomain {
     /// and binding, renaming or deleting the `unknown` command moves it in
     /// neither.
     UnknownHandling = 2,
-    /// Variable trace registration.
+    /// Variable trace registration. The domain of every Family-B intrinsic,
+    /// whose operations reach a runtime's variable store: a guard over it is
+    /// issued only while no variable trace exists and stales when one is added.
     VariableTrace = 3,
     /// Command and execution trace registration.
     CommandTrace = 4,
@@ -132,6 +134,18 @@ impl GuardDomains {
         self.0 & (1_u16 << domain as u8) != 0
     }
 
+    /// Every domain of either set.
+    #[must_use]
+    pub const fn union(self, other: Self) -> Self {
+        Self(self.0 | other.0)
+    }
+
+    /// Whether this set contains every domain of `required`.
+    #[must_use]
+    pub const fn covers(self, required: Self) -> bool {
+        self.0 & required.0 == required.0
+    }
+
     /// Whether no domains were selected.
     #[must_use]
     pub const fn is_empty(self) -> bool {
@@ -178,6 +192,20 @@ impl GuardIdentity {
             REGISTRY_INTRINSIC_IDENTITY_NAMESPACE,
             ((stable_id as u64) << 32) | semantics_key as u64,
         )
+    }
+
+    /// The stable intrinsic ID a registry identity was built from, or `None`
+    /// for an identity of another vocabulary. Inverts both
+    /// [`Self::registry_intrinsic`] and
+    /// [`Self::registry_intrinsic_with_semantics`]: a packed identity carries
+    /// the ID in its high half, a bare one is the ID itself.
+    #[must_use]
+    pub fn registry_stable_id(self) -> Option<u32> {
+        if self.namespace != REGISTRY_INTRINSIC_IDENTITY_NAMESPACE {
+            return None;
+        }
+        let packed = self.value >> 32;
+        u32::try_from(if packed == 0 { self.value } else { packed }).ok()
     }
 
     /// The identity-vocabulary namespace.
@@ -227,6 +255,8 @@ pub enum GuardError {
     IdentityUnavailable,
     /// The live implementation does not have the identity expected by codegen.
     IdentityMismatch,
+    /// The requested domains leave out one the identity's family requires.
+    DomainsInsufficient,
     /// Live mutable state does not satisfy a fast path's entry prerequisites.
     PrerequisiteUnsatisfied,
     /// At least one requested domain has been permanently poisoned.
@@ -241,6 +271,7 @@ impl fmt::Display for GuardError {
             Self::EmptyDomains => "a guard must protect at least one domain",
             Self::IdentityUnavailable => "the live guard identity is unavailable",
             Self::IdentityMismatch => "the live implementation identity does not match",
+            Self::DomainsInsufficient => "the requested domains omit one the identity requires",
             Self::PrerequisiteUnsatisfied => "live state does not satisfy guard prerequisites",
             Self::Poisoned => "a requested guard domain is poisoned",
             Self::TokenExhausted => "the guard token sequence is exhausted",
@@ -488,6 +519,31 @@ mod tests {
             manager.prepare(EXPECTED, Some(EXPECTED), COMMAND),
             Err(GuardError::Poisoned)
         );
+    }
+
+    #[test]
+    fn a_registry_identity_names_its_intrinsic_in_both_forms() {
+        assert_eq!(
+            GuardIdentity::registry_intrinsic(0x0306).registry_stable_id(),
+            Some(0x0306)
+        );
+        let packed = GuardIdentity::registry_intrinsic_with_semantics(0x0306, (0x0306 << 16) | 2);
+        assert_eq!(packed.registry_stable_id(), Some(0x0306));
+        assert_eq!(GuardIdentity::new(2, 0x0306).registry_stable_id(), None);
+        assert_eq!(
+            GuardIdentity::new(2, 0x0306 << 32).registry_stable_id(),
+            None
+        );
+    }
+
+    #[test]
+    fn a_set_covers_exactly_the_domains_it_contains() {
+        let variable = GuardDomains::one(GuardDomain::VariableTrace);
+        let both = COMMAND.union(variable);
+        assert!(both.covers(COMMAND) && both.covers(variable) && both.covers(both));
+        assert!(!COMMAND.covers(both) && !variable.covers(COMMAND));
+        assert!(COMMAND.covers(GuardDomains::EMPTY));
+        assert_eq!(COMMAND.union(GuardDomains::EMPTY), COMMAND);
     }
 
     #[test]
