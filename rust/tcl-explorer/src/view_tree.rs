@@ -1731,6 +1731,164 @@ fn build_world_ssa(d: &Value) -> Vec<ViewNode> {
         .collect()
 }
 
+// --- AOT plan ---
+
+/// The AOT plan: what the WASM emitter selected, the guarded candidates each
+/// invocation considered, and every premise the sealed native addition
+/// rejected.
+fn build_aot(d: &Value) -> Vec<ViewNode> {
+    let plan = &d["aot"];
+    if !plan.is_object() {
+        return Vec::new();
+    }
+    let mut children = Vec::new();
+    let decline = &plan["semanticDecline"];
+    if decline.is_object() {
+        children.push(ViewNode::leaf(
+            format!("semantic decline: {}", s(decline, "kind")),
+            vec![det("reason", s(decline, "detailKind"))],
+            Some("yellow"),
+        ));
+    }
+    children.push(aot_regions(plan));
+    children.push(aot_native_add(plan));
+    let detail = [
+        ("operation", s(plan, "operation")),
+        ("region plan", s(plan, "regionPlanStatus")),
+    ]
+    .into_iter()
+    .filter(|(_, value)| !value.is_empty())
+    .map(|(key, value)| det(key, value))
+    .collect();
+    vec![ViewNode::branch(
+        format!("plan: {}", s(plan, "kind")),
+        detail,
+        children,
+        Some("cyan"),
+    )]
+}
+
+fn aot_regions(plan: &Value) -> ViewNode {
+    let regions: Vec<ViewNode> = arr(plan, "regions")
+        .iter()
+        .map(|region| {
+            let candidates: Vec<ViewNode> = arr(region, "candidates")
+                .iter()
+                .map(aot_candidate)
+                .collect();
+            let operation = jstr(&region["operation"]["id"]);
+            ViewNode::branch(
+                format!(
+                    "region {} · {}",
+                    jstr(&region["node"]),
+                    s(region, "selectedKind")
+                ),
+                if operation.is_empty() {
+                    Vec::new()
+                } else {
+                    vec![det("operation", operation)]
+                },
+                candidates,
+                None,
+            )
+        })
+        .collect();
+    ViewNode::branch(
+        format!("regions ({})", regions.len()),
+        Vec::new(),
+        regions,
+        Some("blue"),
+    )
+}
+
+fn aot_candidate(candidate: &Value) -> ViewNode {
+    if s(candidate, "decision") == "selected" {
+        return ViewNode::leaf(
+            format!("{}: selected", s(candidate, "kind")),
+            Vec::new(),
+            Some("green"),
+        );
+    }
+    ViewNode::leaf(
+        format!(
+            "{}: declined, {}",
+            s(candidate, "kind"),
+            s(candidate, "reason")
+        ),
+        Vec::new(),
+        Some("dim"),
+    )
+}
+
+fn aot_native_add(plan: &Value) -> ViewNode {
+    let native = &plan["nativeI64Add"];
+    if native.is_object() {
+        return ViewNode::leaf(
+            "native i64 add: selected",
+            vec![
+                det("callee", s(native, "callee")),
+                det("operands", jstr(&native["operands"])),
+                det("boundary", jstr(&native["boundaryOperation"]["id"])),
+                det(
+                    "closed program statements",
+                    s(native, "closedProgramStatements"),
+                ),
+            ],
+            Some("green"),
+        );
+    }
+    let premises: Vec<ViewNode> = arr(plan, "nativeDeclines")
+        .iter()
+        .map(aot_native_decline)
+        .collect();
+    ViewNode::branch(
+        format!("native i64 add: declined ({} premises)", premises.len()),
+        Vec::new(),
+        premises,
+        Some("yellow"),
+    )
+}
+
+/// One rejected premise. The label carries the premise, its pass when it is
+/// one, and the reason; the rows carry what the label does not.
+fn aot_native_decline(decline: &Value) -> ViewNode {
+    let detail = &decline["detail"];
+    let subject = match detail.get("pass").and_then(Value::as_str) {
+        Some(pass) => format!("{} {pass}", s(decline, "premise")),
+        None => s(decline, "premise"),
+    };
+    let mut rows: Vec<(String, String)> = detail
+        .as_object()
+        .into_iter()
+        .flatten()
+        .filter(|(key, _)| key.as_str() != "pass")
+        .map(|(key, value)| det(key, jstr(value)))
+        .collect();
+    rows.extend(
+        arr(decline, "sites")
+            .iter()
+            .map(|site| det("site", aot_site_label(site))),
+    );
+    ViewNode::leaf(
+        format!("{subject}: {}", s(decline, "reason")),
+        rows,
+        Some("yellow"),
+    )
+}
+
+fn aot_site_label(site: &Value) -> String {
+    let nested = match site["nestedArgument"].as_u64() {
+        Some(argument) => format!(", argument {argument}"),
+        None => String::new(),
+    };
+    format!(
+        "{} block {} statement {}{nested}",
+        s(site, "function"),
+        s(site, "block"),
+        s(site, "statementIndex")
+    )
+}
+
 /// Build the [`ViewNode`] forest for `view` from serialised `data`.
 /// An unknown view id yields an empty forest.
 #[must_use]
@@ -1740,6 +1898,7 @@ pub fn build_view(view: &str, data: &Value) -> Vec<ViewNode> {
         "cfg" => build_cfg(arr(data, "cfgPreSsa"), false),
         "ssa" => build_cfg(arr(data, "cfgPostSsa"), true),
         "worldSsa" => build_world_ssa(data),
+        "aot" => build_aot(data),
         "dominators" => build_dominators(data),
         "sccp" => build_sccp(data),
         "liveness" => build_liveness(data),
@@ -1971,6 +2130,45 @@ mod tests {
                 .children
                 .iter()
                 .any(|n| n.label.starts_with("header"))
+        );
+    }
+
+    /// A selected native addition reads as a selection, with what it proved,
+    /// rather than as an empty list of rejected premises.
+    #[test]
+    fn aot_view_names_a_selected_native_add() {
+        let d = serde_json::json!({ "aot": {
+            "kind": "native-i64-add",
+            "operation": "intrinsic",
+            "semanticDecline": null,
+            "regionPlanStatus": "available",
+            "regions": [],
+            "nativeDeclines": [],
+            "nativeI64Add": {
+                "callee": "::add",
+                "operands": [2, 4],
+                "boundaryOperation": { "kind": "intrinsic", "id": "channel-write" },
+                "frameElided": true,
+                "closedProgramStatements": 4,
+            },
+        } });
+        let nodes = build_view("aot", &d);
+        let labels: Vec<&str> = nodes[0]
+            .children
+            .iter()
+            .map(|child| child.label.as_str())
+            .collect();
+        assert_eq!(labels, ["regions (0)", "native i64 add: selected"]);
+        let selected = &nodes[0].children[1];
+        assert!(
+            selected
+                .detail
+                .contains(&("callee".to_owned(), "::add".to_owned()))
+        );
+        assert!(
+            selected
+                .detail
+                .contains(&("boundary".to_owned(), "channel-write".to_owned()))
         );
     }
 

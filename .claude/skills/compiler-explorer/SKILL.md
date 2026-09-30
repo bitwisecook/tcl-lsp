@@ -68,7 +68,7 @@ The full catalogue (`VIEW_META` in `rust/tcl-explorer/src/views.rs`):
 `intervals`, `bounds`, `dataflow`, `interproc`, `unitScope`, `rendered`, `opt`,
 `optimiserPasses`, `gvn`, `shimmer`, `taint`, `taintFacts`, `irules`,
 `connectionScope`, `eventOrder`, `callouts`, `asm`, `asmOpt`, `wasm`,
-`wasmOpt`, `semanticOptimisations`.
+`wasmOpt`, `aot`, `semanticOptimisations`.
 
 `interproc` additionally reports each procedure's **param constants** — the
 caller-uniform-literal SCCP seed it was analysed under. That line is the first

@@ -151,10 +151,23 @@ A complete semantic-AOT implementation records, per region:
 This record is required for Explorer output, ablation tests, and bug reports.
 The current `MixedRegionPlan` satisfies it for guarded intrinsic candidates,
 including `pass-disabled` and typed proof declines. Common direct/slot/native
-analyses also retain typed decisions, and a selected native add is serialised,
-but a failed native-add composition currently falls through to the ordinary
-top-level generic/general plan without serialising every rejected native
-premise. That observability gap must close before widening native selection.
+analyses also retain typed decisions. A selected native add is the plan's
+selection. A native add the compile did not select leaves the ordinary
+top-level generic/general plan carrying a `NativeDecline { premise, reason,
+sites }` for every premise it evaluated and found wanting, beside the region
+plan: the options' premises (the target's plan policy, the packaging, the
+sealed environment, and each of the five passes the add consumes) and each
+common proof's answer (excluded surfaces, the direct call and its body, the
+closed-program accounting, the frame, the actuals, the boundary, the integer
+proof, and the operands), with the direct call sites each concerned. The
+premises are evaluated independently, so the record names every obstacle
+rather than the first; a premise whose input another premise rejects is not
+evaluated, since the obstacle is the one already recorded. While none of the
+five passes is enabled the add has not been asked for, no proof is built, and
+the record is the options' premises alone. Selection and record are one
+derivation (`rust/tcl-compiler/src/codegen/wasm/native_add.rs`), so they cannot
+disagree. The Explorer's `aot` view and `tcl explore --show aot --text` print
+the record.
 
 ## Plan shape and mixed lowering
 

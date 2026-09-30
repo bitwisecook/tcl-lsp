@@ -1016,6 +1016,7 @@ and CC5.2 last, each its own checkpoint.
 | Item | State | Checkpoint | Notes |
 |---|---|---|---|
 | CC5.1 one semantics key per member | landed | `wip(consumer-contracts): step 5 — one semantics key per member` | `rust/tcl-registry/src/intrinsic.rs`: `const SEMANTICS_REVISION: [(IntrinsicId, u32); 28]`, one explicit row per member (every row `0`, matched by `stable_id`, never by declaration order; the array length is the catalogue's, so a member added without a row does not compile). `guard_semantics_key` is `semantics_key(release_variant(runtime), &SEMANTICS_REVISION)` — a key packs three disjoint fields, the member's own `stable_id` (bits 16–31), its revision (bits 2–15) and the release variant (bits 0–1, `RUNTIME_INVARIANT_SEMANTICS` for every member but `StringLength`, which keeps its three: 8.4/8.5 BMP, 8.6 UTF-16, 9.x scalar) (D5.2). `guard_semantics_variants` is an exhaustive per-member match with no wildcard, each arm a `const { &[…] }` block over the `member_keys!` macro, so it keeps its `&'static [u32]` signature and a new member must say which releases it is versioned across (D5.4); `revision_in` panics on a member with no row, at compile time through those blocks. The shared `INVARIANT_SEMANTICS` and `VERSIONED_STRING_SEMANTICS` slices are gone. `revision_in` and `semantics_key` take the revision table as a parameter so a test can bump one row of a copy. Every key is now non-zero, so every intrinsic's guard identity takes the packed form (the stable id in the high half of the identity's 64-bit value, the key in the low half), where a release-invariant member's used to be its bare stable id: each identity value moves once, and no persisted artefact holds one (D5.3). Tests (`intrinsic.rs`, 13 in the file, was 5): the plan's `every_member_has_a_distinct_semantics_key` (no key answered by two members on any of the five releases, no key on two members' variant lists, none zero) and `bumping_one_members_revision_moves_no_other_key` (for each of the 28 members, at revision 1 and at the field's maximum: every one of that member's keys moves, no other member's does), plus `the_revision_table_names_every_member_exactly_once`, `the_variants_are_exactly_the_keys_the_releases_answer` (pins `guard_semantics_variants` to `guard_semantics_key` across all five releases), `a_key_names_its_member_in_its_high_field`, `a_bumped_member_still_collides_with_no_other`, `a_revision_beyond_its_field_is_refused` (`should_panic`) and `string_length_answers_three_keys_across_five_releases`. The runtime and VM tests that call `guard_semantics_key` are unchanged and pass; the plan's "one literal `0x0306`-style assertion" does not exist as a key literal — the only one is `stable_ids_round_trip_without_ordinal_dependence`'s on `stable_id()`, which does not move (D5.5). Gates: `cargo test -p tcl-registry --no-fail-fast` (lib 941, was 933, and every binary), `-p tcl-vm --lib guard` (8), `-p tcl-compiler --lib mixed_region_plan` (8), and `runtime/rust`'s own `cargo test --lib -- guard intrinsic` (15; a standalone workspace, built with its own `target/`); `-p tcl-compiler --test wasm_tiers --test wasm_real_link` (6, 13) pass, but every real-link case skips loudly in this container — no `wasm32-wasip1` target, and no libtommath under the worktree's `tmp/` — so the identity check is covered by the runtime crate's `codegen_abi` tests and the planner's `mixed_region_plan` tests rather than by a linked module; `cargo check --workspace --all-targets`; clippy (`-p tcl-registry --all-targets --no-deps -- -D warnings`) and `cargo fmt -p tcl-registry` clean; `registry-axes --check` (7831 / 16 / 36 / 893 across 147, unchanged), `value-transfers --check` (22 / 19 / 83 across 34, 6607 rows — the value-transfers lane's own figures, moved by its merged commits), `pack-goldens --check` (25), `retired-api-gate`, `owner-resolution` (45), `kcs-index-links` green, `dialect-drift` at its 8. No KCS note: nothing a user runs changes. Docs: the design page's status box and its "intrinsic table splits by family" bullet, `docs/GLOSSARY.md` § *Guard identity*. D5.2–D5.5 |
+| CC5.3 the Explorer observability record | landed | `wip(consumer-contracts): step 5 — the AOT decline record` | `select_native_i64_add_plan` returned `None` at the first premise that failed, so a compile that did not select the sealed native i64 addition fell to the generic or general plan and said nothing of why. The composition moves to `rust/tcl-compiler/src/codegen/wasm/native_add.rs` (new; the function and its six helpers leave `pipeline.rs`, D5.9) and is rebuilt as one derivation of selection and record: `native_add::select` evaluates every premise, records each one it finds wanting as a `NativeDecline`, and returns `Ok(selection)` only where none is rejected, so the two cannot disagree. **The types** are in `common_aot_plan.rs`, where the plan puts them: `NativePremise` (`SemanticPlans`, `Packaging`, `SealedProgram`, `Pass(id)`, `Coverage`, `DirectCall`, `DirectBody`, `ClosedProgram`, `Frame`, `Actuals`, `Boundary`, `NativeInteger`, `Operands`), `NativeDeclineReason` (26 variants; each wrapped typed reason keeps its own `as_str`) and `NativeDecline { premise, reason, sites }` (D5.7); `as_str` is added to the four typed declines that had none (`DirectProcBodyDecline`, `CommonAotCoverageDecline`, `ClosedProgramCoverageDecline`, `NativeIntegerDeclineReason`). **The plan** `WasmCodegenPlan::GenericInvoke` and `::General` gain `native_declines: Vec<NativeDecline>`, with the accessor `WasmCodegenPlan::native_declines()` (empty for `NativeI64Add`); `mixed_region_plan.rs` is untouched: the addition is a whole-program top-level selection that needs the unit, registry and options, which the region plan's builder does not have (D5.6). **Evaluation.** The options' premises (target plan policy, packaging, sealed environment, each of the five passes) are always evaluated; while none of the five passes is enabled the addition has not been asked for and no proof is built, so the record is those premises alone (D5.8: measured on a 300-statement, 150-procedure script in a debug build, `CommonAotProofPlan::build` costs 410 ms of `compile_wasm`'s 446 ms and about a fifth of the 1.9 s unit build, for every caller: `tcl compwasm`, the MCP tool, the fuzz harness). Once a pass is enabled the unit-level premises (excluded surfaces, the closed-program accounting) and, per direct call site, the direct call, its body, the closed-program shape, the frame's two flags, both actuals, the boundary, the integer proof (cached per callee) and the operands are each evaluated independently; a premise whose input another rejects is not evaluated. Entries dedupe on (premise, reason) and collect their sites, so the record is bounded by premises, not by calls; a unit with no call to its own procedure records `direct-call: no-direct-call`. **The Explorer.** `codegenPlan` gains `nativeDeclines` (`premise`, `reason`, `detail`, `sites`), and the plan the `wasm` header carries is repeated once, unchanged, as `data.aot`; the plan's "`aot` view" did not exist (the `wasm` text view prints only the WAT and function headers, `codegenPlan` was JSON-only, and `--show aot` matched no view), so `views.rs` gains the `aot` descriptor (`AOT Plan`, group `codegen`, `Tree`) and `view_tree.rs` its builder, which `render_all` and the TUI pick up from `tree_view_ids()` and the browser and editor panels show through their structured fallback (D5.10). `meta.views` is 36, was 35. Tests: `native_add.rs` (8) — `a_selected_addition_records_no_decline`, `an_addition_nobody_asked_for_records_the_options_premises_alone`, `a_hosted_compile_names_the_environment_the_passes_and_what_they_take_down` (five entries, the call named), `a_rejected_body_records_each_premise_it_takes_down` (the `native-integer` pass off: body, frame and the integer proof, each at the call), `a_surviving_statement_rejects_the_closed_program_and_the_actuals_it_hides`, `a_program_without_a_procedure_call_names_the_missing_call`, `a_second_call_to_the_callee_is_recorded_at_both_sites` and `the_target_and_its_packaging_are_premises_too`; the plan's `wasm_tiers.rs::a_failed_native_add_names_every_rejected_premise` (public API: the selected program rejects nothing, the same program hosted with two passes off names five premises and the call); the explorer text snapshots the plan asks for, `render.rs`'s `aot_text_lists_every_rejected_native_premise` (the six premises of an untouched Explorer) and `aot_text_follows_the_pass_selection` (seven, with the cascade a missing pass causes), `serialise.rs`'s `aot_view_carries_the_plan_and_every_rejected_native_premise` (the JSON, typed, with the site) and `view_tree.rs`'s `aot_view_names_a_selected_native_add`. Mutation checks: recording only the first rejected premise fails seven of the eight `native_add` tests (the selected case alone passes) and the `wasm_tiers` test; serialising `nativeDeclines` as `[]` fails both text snapshots and the JSON test. Moved: `serialise.rs`'s `meta_lists_all_dialects_views_and_severities` (36 views) and `wasm_view_exposes_common_native_i64_selection_evidence` (a selected plan's `nativeDeclines` is `[]`); every existing native add test passes unmodified (`pipeline.rs`'s four, the explorer's selection-evidence test, `wasm_codegen`, `wasm_execute`), and the real-link native rows skip loudly here (no `wasm32-wasip1` target), so the emitted module is covered by the pipeline tests that inspect its WAT. Gates: `cargo test -p tcl-compiler --no-fail-fast` (lib 6546, 2 ignored, was 6538; `wasm_tiers` 7, was 6; `wasm_real_link` 13, skipping loudly; `wasm_codegen` 45, `wasm_execute` 4, `codegen` 164, `codegen_integration` 17 and every other binary), `-p tcl-explorer` (lib 108, was 104), `-p tcl-cli --no-fail-fast` (lib 27, `cli` 50, `compile_verbs` 11, `explorer_gui` 2, `pkg_verbs` 13, `spec_verbs` 18, `value_transfers_cli` 8); `tcl-explorer-wasm` is outside the workspace (wasm32, its own lockfile) and reads only keys this item adds to; `cargo check --workspace --all-targets`; `cargo clippy --workspace --all-targets -- -D warnings` and `cargo fmt --all` clean, no new `#[allow]`; `registry-axes --check` (7831 / 16 / 36 / 893 across 147, unchanged: the moved `ChannelWrite` and `Set` matches trip no site), `value-transfers --check` (22 / 19 / 83 across 34, 6607 rows, unchanged), `pack-goldens --check` (25), `command-backing --check` (389), `retired-api-gate` and `owner-resolution` (45) OK, `kcs-index-links` green, `dialect-drift` at its 8 sites. Docs: `semantic-aot-optimisation.md` (the observability paragraph states the record as built), `wasm-explorer-view.md` (`nativeDeclines`, `data.aot` and the `aot` view), `kcs-feature-compiler-explorer.md` (an *AOT plan* section), the `compiler-explorer` skill's view catalogue. Deviations: the record sits on `WasmCodegenPlan`, not `MixedRegionPlan` (D5.6); `NativeDecline` gains `sites` (D5.7); the record is complete only once a pass is enabled (D5.8); the composition has its own module (D5.9); the `aot` view is created here (D5.10). D5.6–D5.10 |
 
 ### CC5.1 — what the next items read
 
@@ -1033,6 +1034,23 @@ and CC5.2 last, each its own checkpoint.
   moves it, and the accessors are already public. The tests' `bumped` and
   `keys_under` helpers show the shape of a table-parameterised check.
 
+### CC5.3 — what the next items read
+
+- **For CC5.2.** Nothing: the record concerns the AOT plan, and CC5.2's
+  identities are the runtimes' guard tables.
+- **For widening native selection (CC7.3 and later).** A new consumer of a
+  common proof adds its premises where the addition's are: a `NativePremise`
+  and the reasons it can be rejected for in `common_aot_plan.rs`, and an
+  evaluation in `native_add.rs` that records the rejection instead of
+  returning early. `native_add::select` returning `Ok` is the only selection,
+  so a premise that is evaluated but not recorded is a bug the record's tests
+  catch by name. The Explorer needs no change for a new premise: `aot` prints
+  whatever `nativeDeclines` holds.
+- **For the Explorer.** `data.aot` is the `wasm` header's plan; an options
+  path that compiles sealed (the Explorer compiles hosted) would show
+  `native i64 add: selected` there, a branch `aot_view_names_a_selected_native_add`
+  covers with hand-built JSON.
+
 ### Behavioural deltas accepted in step 5
 
 - CC5.1: every intrinsic's guard identity value changes once, because
@@ -1041,6 +1059,17 @@ and CC5.2 last, each its own checkpoint.
   `guard_semantics_key`, so nothing a user runs differs; a module compiled
   by the previous compiler and linked against a runtime from this tree
   fails the identity check and takes generic dispatch.
+- CC5.3: a compile that does not select the sealed native i64 addition
+  records every premise it rejected on the plan (`WasmCodegenPlan::native_declines`,
+  `codegenPlan.nativeDeclines`), where it recorded nothing; while none of the
+  five passes the addition consumes is enabled, the record is the options'
+  premises alone. `compile_wasm` builds the common proof plan when any one of
+  the five is enabled, where it built it only with all five enabled, sealed and
+  not standalone; a compile enabling one to four passes pays for the proofs.
+- CC5.3: the Explorer gains an `aot` view (`AOT Plan`; `meta.views` is 36)
+  and the `aot` payload, and `tcl explore --show aot --text` prints the plan
+  and the rejected premises. `WasmCodegenPlan::GenericInvoke` and `::General`
+  gain a field, which no pattern in the tree spelled out.
 
 ## Step 6 — progress
 
@@ -4253,6 +4282,53 @@ everything else in this lane is independent of both.
   on `stable_id()`, which does not move; no test asserts a key or an
   identity as a literal (`git grep` for `registry_intrinsic` and `<< 32`
   finds none in a test), so the runtime and VM tests stand as the plan says.
+- **D5.6** The rejected-premise record lives on `WasmCodegenPlan`, in the
+  two variants that did not select the addition (`native_declines`), not on
+  `MixedRegionPlan`. `semantic-aot-optimisation.md` says the addition is a
+  separate top-level selection that deliberately requires exact closed
+  coverage of its whole script and that the region plan holds no native
+  variant; the composition also needs the unit, the registry and the compile
+  options, none of which `MixedRegionPlan::build` (an `ExecutableFunction` in,
+  a plan out) or `mixed_plan_with_optimisations` has. The types are in
+  `common_aot_plan.rs` as the plan says; `mixed_region_plan.rs` is untouched.
+- **D5.7** `NativeDecline` is `{ premise, reason, sites }`, the plan's two
+  fields and the direct call sites the premise was rejected at. A premise
+  about a call is rejected per call, and a unit with two calls must say which;
+  entries dedupe on (premise, reason) and collect their sites, so the record
+  is bounded by the premises and not by the number of calls. `sites` is empty
+  for a premise about the options or the unit.
+- **D5.8** Every premise is evaluated independently, but the unit's proofs
+  are built only once a pass the addition consumes is enabled. A premise whose
+  input another premise rejects is not evaluated, since its obstacle is the
+  one already recorded. All five passes exist only for the addition (the
+  pass table in `semantic-aot-optimisation.md`), so while none is enabled it
+  has not been asked for and the record is the options' premises alone.
+  Building the common proof plan always would multiply `compile_wasm`'s own
+  cost by about twelve on a 300-statement, 150-procedure script (a debug
+  build: 410 ms of 446 ms, about a fifth of the 1.9 s unit build), for every
+  caller, and its direct-call collection is the dominant part. So "every
+  rejected premise" holds for a compile that asked for the addition; the
+  options' premises are always complete. Before, the proofs were built only
+  with all five passes enabled, sealed, semantic-first and not standalone;
+  they are now built with any one enabled.
+- **D5.9** The composition moves to `codegen/wasm/native_add.rs`. It is one
+  responsibility (the premises the emitter's one native selection composes),
+  and rebuilding it to record every premise rewrote it whole; keeping it in
+  `pipeline.rs` would have grown that file by the record's bookkeeping. The
+  selection is unchanged: the same premises in the same reading, and every
+  existing native add test passes unmodified.
+- **D5.10** The plan's "`aot` view" did not exist. The `wasm` text view prints
+  only the module's WAT and per-function headers, `codegenPlan` was reachable
+  only in `--json` and the browser panel, and `tcl explore --show aot` matched
+  no view. The item adds it: descriptor `aot` (`AOT Plan`, group `codegen`,
+  `Tree`), payload `aot` (the `wasm` header's `codegenPlan` on its own,
+  serialised once and cloned so the two cannot disagree), and a builder in
+  `view_tree.rs` that shows the plan kind, the semantic decline, each region's
+  guarded candidates and the addition's selection or its rejected premises.
+  `render_all` and the TUI take every `Tree` view from `tree_view_ids()`, and
+  the browser and editor panels reconcile tabs from `meta.views` and show a
+  view with no bespoke renderer through their structured fallback, so no
+  front-end changes; `meta.views` is 36.
 - **D6.1** CC6.1 covers the six existing fields; `runtime_backing` joins
   the floor in CC7.1. **D6.2** `DependencyTier` is defined in `tcl-pkg`
   and re-exported by `tcl-registry`'s `model::capability`; `tcl-spectcl`
