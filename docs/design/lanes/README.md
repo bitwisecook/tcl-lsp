@@ -111,6 +111,7 @@ checkpoint compiling.
   same facts) have landed, item by item in the tracking document's
   § *Step 2 — progress* (with the review's fixes applied after it),
   § *Step 3 — progress* and § *Step 4 — progress*; step 5 (persisted
-  guard identities, per-member semantics keys, the Explorer record),
-  planned in the tracking document's § *Plan for steps 2–10*, has not
-  started.
+  guard identities, per-member semantics keys, the Explorer record) is
+  in progress, item by item in the tracking document's § *Step 5 —
+  progress*, planned in its § *Plan for steps 2–10*: the per-member
+  semantics keys have landed.

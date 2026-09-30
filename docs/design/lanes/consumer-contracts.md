@@ -1,4 +1,4 @@
-# Lane: consumer contracts — steps 1–4 landed; the plan for steps 2–10
+# Lane: consumer contracts — steps 1–4 landed, step 5 in progress; the plan for steps 2–10
 
 ## Goal
 
@@ -1005,6 +1005,41 @@ against the landed tree with evidence:
   (`project_for_profile`) keeps the base's overlay generation and pack
   origins, so its `AnalysisContextKey` carries the overlay generation
   where it carried none.
+
+## Step 5 — progress
+
+Item order follows § *Plan for steps 2–10* › *Step 5* § *Ordering and
+checkpoints*: CC5.1 (sonnet) first, on its own; then the opus items, CC5.3
+and CC5.2 last, each its own checkpoint.
+
+| Item | State | Checkpoint | Notes |
+|---|---|---|---|
+| CC5.1 one semantics key per member | landed | `wip(consumer-contracts): step 5 — one semantics key per member` | `rust/tcl-registry/src/intrinsic.rs`: `const SEMANTICS_REVISION: [(IntrinsicId, u32); 28]`, one explicit row per member (every row `0`, matched by `stable_id`, never by declaration order; the array length is the catalogue's, so a member added without a row does not compile). `guard_semantics_key` is `semantics_key(release_variant(runtime), &SEMANTICS_REVISION)` — a key packs three disjoint fields, the member's own `stable_id` (bits 16–31), its revision (bits 2–15) and the release variant (bits 0–1, `RUNTIME_INVARIANT_SEMANTICS` for every member but `StringLength`, which keeps its three: 8.4/8.5 BMP, 8.6 UTF-16, 9.x scalar) (D5.2). `guard_semantics_variants` is an exhaustive per-member match with no wildcard, each arm a `const { &[…] }` block over the `member_keys!` macro, so it keeps its `&'static [u32]` signature and a new member must say which releases it is versioned across (D5.4); `revision_in` panics on a member with no row, at compile time through those blocks. The shared `INVARIANT_SEMANTICS` and `VERSIONED_STRING_SEMANTICS` slices are gone. `revision_in` and `semantics_key` take the revision table as a parameter so a test can bump one row of a copy. Every key is now non-zero, so every intrinsic's guard identity takes the packed form (the stable id in the high half of the identity's 64-bit value, the key in the low half), where a release-invariant member's used to be its bare stable id: each identity value moves once, and no persisted artefact holds one (D5.3). Tests (`intrinsic.rs`, 13 in the file, was 5): the plan's `every_member_has_a_distinct_semantics_key` (no key answered by two members on any of the five releases, no key on two members' variant lists, none zero) and `bumping_one_members_revision_moves_no_other_key` (for each of the 28 members, at revision 1 and at the field's maximum: every one of that member's keys moves, no other member's does), plus `the_revision_table_names_every_member_exactly_once`, `the_variants_are_exactly_the_keys_the_releases_answer` (pins `guard_semantics_variants` to `guard_semantics_key` across all five releases), `a_key_names_its_member_in_its_high_field`, `a_bumped_member_still_collides_with_no_other`, `a_revision_beyond_its_field_is_refused` (`should_panic`) and `string_length_answers_three_keys_across_five_releases`. The runtime and VM tests that call `guard_semantics_key` are unchanged and pass; the plan's "one literal `0x0306`-style assertion" does not exist as a key literal — the only one is `stable_ids_round_trip_without_ordinal_dependence`'s on `stable_id()`, which does not move (D5.5). Gates: `cargo test -p tcl-registry --no-fail-fast` (lib 941, was 933, and every binary), `-p tcl-vm --lib guard` (8), `-p tcl-compiler --lib mixed_region_plan` (8), and `runtime/rust`'s own `cargo test --lib -- guard intrinsic` (15; a standalone workspace, built with its own `target/`); `-p tcl-compiler --test wasm_tiers --test wasm_real_link` (6, 13) pass, but every real-link case skips loudly in this container — no `wasm32-wasip1` target, and no libtommath under the worktree's `tmp/` — so the identity check is covered by the runtime crate's `codegen_abi` tests and the planner's `mixed_region_plan` tests rather than by a linked module; `cargo check --workspace --all-targets`; clippy (`-p tcl-registry --all-targets --no-deps -- -D warnings`) and `cargo fmt -p tcl-registry` clean; `registry-axes --check` (7831 / 16 / 36 / 893 across 147, unchanged), `value-transfers --check` (22 / 19 / 83 across 34, 6607 rows — the value-transfers lane's own figures, moved by its merged commits), `pack-goldens --check` (25), `retired-api-gate`, `owner-resolution` (45), `kcs-index-links` green, `dialect-drift` at its 8. No KCS note: nothing a user runs changes. Docs: the design page's status box and its "intrinsic table splits by family" bullet, `docs/GLOSSARY.md` § *Guard identity*. D5.2–D5.5 |
+
+### CC5.1 — what the next items read
+
+- **For CC5.2.** The identity values are opaque to invalidation: both
+  runtimes still build a command's identity set in `register_spec_builtin`
+  from `guard_semantics_variants()`, and the guard check still compares
+  `GuardIdentity` values, so a per-token guard table keys on whatever the
+  set holds. Within one build an identity moves only when a member's
+  `SEMANTICS_REVISION` row rises.
+- **For CC7.3.** A family split that changes a member's guard domain or
+  trace behaviour is a change to what a fast path may assume, so it raises
+  that member's row; the keys of every other member stay put.
+- **For CC7.4.** `intrinsic_table_hash` can hash `(stable_id,
+  guard_semantics_variants())` over `IntrinsicId::ALL`: every revision bump
+  moves it, and the accessors are already public. The tests' `bumped` and
+  `keys_under` helpers show the shape of a table-parameterised check.
+
+### Behavioural deltas accepted in step 5
+
+- CC5.1: every intrinsic's guard identity value changes once, because
+  every key is now non-zero and a non-zero key is packed beside the stable
+  id (D5.3). Both runtimes and the WASM planner derive the value through
+  `guard_semantics_key`, so nothing a user runs differs; a module compiled
+  by the previous compiler and linked against a runtime from this tree
+  fails the identity check and takes generic dispatch.
 
 ## Plan for steps 2–10
 
@@ -4085,6 +4120,48 @@ everything else in this lane is independent of both.
 - **D5.1** Guard identities are keyed by command-token generation and the
   `CommandEnvironment` domain invalidates per token; the interpreter and
   object-dispatch domains stay whole-domain.
+- **D5.2** A guarded semantics key packs three disjoint fields: the
+  member's own `stable_id` (bits 16–31), its `SEMANTICS_REVISION` row (bits
+  2–15, so a revision up to 16383) and the release variant (bits 0–1). The
+  identity, `GuardIdentity::registry_intrinsic_with_semantics`, already
+  carries the stable id in its high half, so the key repeats it on
+  purpose: the plan's `every_member_has_a_distinct_semantics_key` is a
+  claim about the key alone, and a key read without its identity (a
+  manifest field, an Explorer line, an entry of `guard_semantics_variants`)
+  then names its member. A revision alone would start at `0` for every
+  member and collide; a hash would not be readable. The widths are asserted
+  where the key is built, at compile time for the live table (the constant
+  blocks of `guard_semantics_variants` evaluate them), and the largest
+  stable id today, `0x0801`, leaves the 16-bit field most of its room.
+- **D5.3** Every intrinsic's guard identity value moves once. A
+  release-invariant member's key was `0`, which
+  `registry_intrinsic_with_semantics` folds to the bare stable id; every key
+  is now non-zero, so every identity takes the packed form. No persisted
+  artefact holds a value — `git grep` finds them computed only by the two
+  runtimes, the WASM planner and their tests, all through
+  `guard_semantics_key` — and a mismatch fails in the conservative
+  direction: a module compiled by the previous compiler and linked against
+  a runtime from this tree fails the identity check and takes generic
+  dispatch. CC7.4's `intrinsic_table_hash` is what refuses such a module up
+  front.
+- **D5.4** `guard_semantics_variants` is an exhaustive per-member match with
+  no wildcard, each arm a `const { &[…] }` block, so the lists stay
+  `&'static [u32]` (the signature both runtimes already call) with no
+  runtime table, and a member added to the catalogue must say which releases
+  it is versioned across instead of inheriting the invariant contract.
+  `guard_semantics_key` keeps a wildcard for the release variant
+  (`release_variant`: `StringLength` by string character model, otherwise
+  `RUNTIME_INVARIANT_SEMANTICS`), and
+  `the_variants_are_exactly_the_keys_the_releases_answer` pins the two
+  functions to each other across all five releases. A member with no
+  `SEMANTICS_REVISION` row panics in `revision_in`, at compile time through
+  those blocks.
+- **D5.5** The plan's "the one literal `0x0306`-style assertion is updated"
+  found nothing to update. The tree's only `0x0306` outside `stable_id`
+  itself is `stable_ids_round_trip_without_ordinal_dependence`'s assertion
+  on `stable_id()`, which does not move; no test asserts a key or an
+  identity as a literal (`git grep` for `registry_intrinsic` and `<< 32`
+  finds none in a test), so the runtime and VM tests stand as the plan says.
 - **D6.1** CC6.1 covers the six existing fields; `runtime_backing` joins
   the floor in CC7.1. **D6.2** `DependencyTier` is defined in `tcl-pkg`
   and re-exported by `tcl-registry`'s `model::capability`; `tcl-spectcl`

@@ -1141,11 +1141,14 @@ KCS tag: `ipa`.
 
 The stable identity a runtime attaches to a command it registered from a
 registry spec — `GuardIdentity` in `rust/tcl-runtime-api/src/guard.rs`, an
-intrinsic's stable id packed with its release-semantics key. Compiled code
-that wants to take an intrinsic fast path asks the runtime to attest the
-identity of the live command first, and falls back to generic dispatch
-when it cannot. This is intrinsic guard *eligibility*, distinct from the
-command-binding provenance check (`command_binding_matches`) that
+intrinsic's stable id packed with its semantics key. The key is one per
+intrinsic (the intrinsic's own stable id, its revision, and a release
+variant that only `string length` has more than one of), so an intrinsic
+whose guarded contract changes invalidates its own guards and no other's.
+Compiled code that wants to take an intrinsic fast path asks the runtime to
+attest the identity of the live command first, and falls back to generic
+dispatch when it cannot. This is intrinsic guard *eligibility*, distinct
+from the command-binding provenance check (`command_binding_matches`) that
 re-resolves every specialised site at admission. Both runtimes derive
 identities through `register_spec_builtin` for one command today and clear
 their guard tables on every command-environment mutation, including the

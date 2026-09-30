@@ -71,6 +71,12 @@ slices proceed without deciding anything here.
 > (`tcl_runtime_api`) in `FunctionAsm::site_claims` — and the VM admits
 > the unit only while it holds that stamp (`Vm::set_pack_facts`).
 >
+> Step 5 has begun on the runtime side of the identity contract:
+> `IntrinsicId::guard_semantics_key` is one key per member — the member's
+> own `stable_id`, its row of `SEMANTICS_REVISION`, and a release variant —
+> so a member whose guarded contract moves invalidates its own guards and
+> no other's.
+>
 > The rest of the vocabulary is proposed and names nothing in the
 > workspace:
 >
@@ -1806,11 +1812,14 @@ This is the runtime programme. Nothing on the analyser side waits for it.
   `IntrinsicId` members are value functions over the shared cores. The
   rest are Family-B operations over each runtime's variable-store and
   channel adapters under the variable-trace guard domain, and `info exists`
-  and the array operations fire traces. `guard_semantics_key` versions only
-  `StringLength`, and it widens to one key per member before the table
-  grows, so a member whose semantics move invalidates its own guards and
-  no others; the VM's interpreter and object-dispatch guard domains stay
-  permanently poisoned, which is why no TclOO fast path is guardable.
+  and the array operations fire traces. `guard_semantics_key` is one key
+  per member, so a member whose semantics move invalidates its own guards
+  and no others (step 5 built it; the family split is step 7's): it packs
+  the member's own stable identity, its row of `SEMANTICS_REVISION`, and a
+  release variant, which only `StringLength` — the one member the releases
+  count differently — has more than one of. The VM's interpreter and
+  object-dispatch guard domains stay permanently poisoned, which is why no
+  TclOO fast path is guardable.
 - **The runtime pin becomes a context** — environment, release point,
   build, package floors, and overlay generation — resolved through the same
   ingress the compiler uses, with an overlay miss treated as an error rather
