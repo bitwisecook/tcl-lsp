@@ -40,14 +40,34 @@ fn allocate_guard_token(counter: &AtomicU64) -> Option<GuardToken> {
 pub const REGISTRY_INTRINSIC_IDENTITY_NAMESPACE: u32 = 1;
 
 /// Mutable interpreter domain whose stability can protect a fast path.
+///
+/// `CommandEnvironment`, `Namespace` and `UnknownHandling` describe how a name
+/// reaches a command, not what a command is bound to. Each runtime moves them
+/// together, never one alone, and on no command definition, rename, alias,
+/// import, hide or expose: a guard reads its own command's attestation at
+/// validation, so mutating that command invalidates that command's guards and
+/// no other's.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[repr(u8)]
 pub enum GuardDomain {
-    /// Command definitions, renames, aliases, and imports.
+    /// The command lookup environment as a whole. The WASM runtime moves it
+    /// on `namespace path`, `namespace export`, `namespace unknown`,
+    /// `namespace delete`, a `namespace forget` that removes an imported
+    /// command, the creation of a `TclOO` class or object, and the creation and
+    /// deletion of a child interpreter; not on `namespace import`, nor on a
+    /// `namespace eval` that creates a namespace. The VM moves it on
+    /// `namespace path`, on making an interpreter safe, on `interp
+    /// marktrusted` and on deleting a child interpreter, and on nothing else
+    /// (issue #2292).
     CommandEnvironment = 0,
-    /// Namespace lookup paths and namespace membership.
+    /// Namespace lookup paths and structure. Moves with
+    /// [`Self::CommandEnvironment`], on the events listed there.
     Namespace = 1,
-    /// Namespace and interpreter unknown-command handling.
+    /// Namespace and interpreter unknown-command handling. Moves with
+    /// [`Self::CommandEnvironment`], on the events listed there:
+    /// `namespace unknown` reaches it in the WASM runtime and not in the VM,
+    /// and binding, renaming or deleting the `unknown` command moves it in
+    /// neither.
     UnknownHandling = 2,
     /// Variable trace registration.
     VariableTrace = 3,

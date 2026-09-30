@@ -1535,20 +1535,31 @@ Both runtimes key their *intrinsic guard* table by command token
 generation and keep it across command-environment mutations:
 `bump_cmd_epoch` in `rust/tcl-vm/src/interp.rs` and
 `invalidate_command_environment` in `runtime/rust/src/interp.rs` no longer
-touch it. A guard over `CommandEnvironment` depends on its command's token
-and on no other: every check resolves the guarded name afresh and requires
-an attestation at the generation it reaches, so mutating one command
-invalidates that command's guards and no other's, as
+touch it. A guard over `CommandEnvironment` depends on its own command's
+token, on no other command's, and on the lookup events named below: every
+check resolves the guarded name afresh and requires an attestation at the
+generation it reaches, so mutating one command invalidates that command's
+guards and no other's, as
 `an_unrelated_mutation_keeps_the_guard_and_a_rebinding_drops_it` pins in
 each runtime. The WASM runtime's `string length` guard over the registry's
 base domains survives an unrelated `proc`, `rename` and `interp alias`, and
 falls back once `string` is rebound
 (`guarded_intrinsic_guards_survive_unrelated_command_mutation`,
 `guarded_boxed_intrinsic_runs_and_falls_back_against_the_real_runtime` in
-`rust/tcl-compiler/tests/wasm_real_link.rs`). The domains that describe the
-lookup environment itself still move on their own events — namespace paths,
-imports and namespace lifecycle, interpreter topology — and a trace
-registration moves its trace domain; the VM's interpreter and
+`rust/tcl-compiler/tests/wasm_real_link.rs`). The three domains that
+describe the lookup environment itself — `CommandEnvironment`, `Namespace` and
+`UnknownHandling` — move together, on namespace and interpreter events only,
+and never on a command's definition, rename, alias, import, hide or expose.
+The WASM runtime moves them on `namespace path`, `namespace export`,
+`namespace unknown`, `namespace delete`, a `namespace forget` that removes an
+imported command, the creation of a `TclOO` class or object, and the creation
+and deletion of a child interpreter; it leaves them alone when `namespace
+eval` creates a namespace, on `namespace import`, and when the `unknown`
+command is bound, renamed or deleted. The VM moves them on `namespace path`,
+on making an interpreter safe, on `interp marktrusted` and on deleting a child
+interpreter, and on nothing else, so a `namespace delete`, `namespace export`
+or `namespace unknown` leaves a VM token over them valid (issue #2292). A
+trace registration moves its trace domain; the VM's interpreter and
 object-dispatch domains stay permanently poisoned. A profile pin keeps the
 attestations, and the identity's semantics key decides whether a token
 survives it. Attaching an identity by name after registration is not proof

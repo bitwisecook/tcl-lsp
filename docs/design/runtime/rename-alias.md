@@ -214,11 +214,14 @@ attestation once `string` has been renamed away, and finds it again if the
 command is renamed back.  Nothing about a rename touches another command's
 guard, and neither `move_bound_command` nor `delete_bound_command` moves a
 guard domain's epoch; `invalidate_command_environment` is for the events
-that change the lookup environment itself (`namespace path`, import and
-forget, namespace lifecycle, interpreter topology).  A compiled artefact's
-binding identities are a third mechanism again: they are re-resolved at
-admission rather than cached, so a rename changes what they resolve to and
-not whether they are checked
+that change the lookup environment itself: `namespace path`, `namespace
+export`, `namespace unknown`, `namespace delete`, a `namespace forget` that
+removes an imported command, the creation of a `TclOO` class or object, and
+the creation and deletion of a child interpreter (`namespace import` and a
+`namespace eval` that creates a namespace are not among them).  A compiled
+artefact's binding identities are a third mechanism again: they are
+re-resolved at admission rather than cached, so a rename changes what they
+resolve to and not whether they are checked
 ([../compiler/registry-consumer-contracts.md](../compiler/registry-consumer-contracts.md)
 § *Codegen and the registry today*).
 
