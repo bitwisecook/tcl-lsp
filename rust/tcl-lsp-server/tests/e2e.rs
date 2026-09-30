@@ -49,6 +49,8 @@ mod document_symbols;
 mod edit_tracking_stress;
 #[path = "e2e/editor_features.rs"]
 mod editor_features;
+#[path = "e2e/environment_notice.rs"]
+mod environment_notice;
 #[path = "e2e/hover.rs"]
 mod hover;
 #[path = "e2e/invariants.rs"]
