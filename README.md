@@ -858,6 +858,7 @@ Every feature has a KCS note: what it does, how to use it, and its settings.
 | Feature | Note |
 |---|---|
 | Dialect Selection | [`dialect-selection`](docs/kcs/features/kcs-feature-dialect-selection.md) |
+| Tool Environments | [`tool-environments`](docs/kcs/features/kcs-feature-tool-environments.md) |
 | tcllib package coverage | [`tcllib-package-coverage`](docs/kcs/features/kcs-feature-tcllib-package-coverage.md) |
 | Package Management | [`package-management`](docs/kcs/features/kcs-feature-package-management.md) |
 | Package Scaffolding | [`package-scaffolding`](docs/kcs/features/kcs-feature-package-scaffolding.md) |

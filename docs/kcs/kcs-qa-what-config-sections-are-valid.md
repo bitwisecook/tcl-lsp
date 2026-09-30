@@ -209,6 +209,24 @@ a per-folder `.tcl-lsp.ini` value for a *secondary* root has no effect.
 Editors set the same thing as `tclLsp.workspaceScan.maxFiles`, and
 changing it re-runs the scan without a restart.
 
+### `[notifications]`
+
+Which one-time messages the server may show.
+
+- `environment_kind` — boolean, default `true`. The message that
+  explains a tool environment such as Vivado or Quartus as a Tcl release
+  plus library packages. Set it to `false` to hide it in an editor with
+  no settings screen.
+
+```ini
+[notifications]
+environment_kind = false
+```
+
+Editors set the same thing as `tclLsp.notifications.environmentKind`, and
+an editor that sends it wins over the global `config.ini`. See
+[Tool Environments](features/kcs-feature-tool-environments.md).
+
 ### `[packages]` and `[packages.provides]`
 
 How the modelled interpreter loads packages.

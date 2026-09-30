@@ -40,6 +40,44 @@ An MSYS2 or Cygwin shell is identified by `MSYSTEM` being set and is treated as
 a POSIX environment, so it takes the XDG branch rather than `%APPDATA%`. WSL2
 is an ordinary Linux target and needs no special case.
 
+## Notice state file
+
+Beside the config file the server keeps one file of **state**: what the user
+has asked not to be told again. It is written by the server, never merged as a
+settings layer, and never edited to configure anything.
+
+| Platform | Default path | Override |
+|----------|-------------|----------|
+| **Linux / BSD / WSL2** | `~/.local/state/tcl-lsp/notices.ini` | `$XDG_STATE_HOME/tcl-lsp/notices.ini` |
+| **macOS** | `~/Library/Application Support/tcl-lsp/notices.ini` | `$XDG_STATE_HOME/tcl-lsp/notices.ini` |
+| **Windows** (native) | `%LOCALAPPDATA%\tcl-lsp\notices.ini` | `$XDG_STATE_HOME/tcl-lsp/notices.ini` |
+| **MSYS2 / Cygwin** | `~/.local/state/tcl-lsp/notices.ini` | `$XDG_STATE_HOME/tcl-lsp/notices.ini` |
+
+`tcl_lsp_core::tcl_install::user_notices_path` resolves it beside
+`user_config_path`, with the same shape: its pure core `notices_path_for` takes
+the environment values and platform flags as arguments. A non-empty
+`$XDG_STATE_HOME` wins on every platform.
+
+```ini
+[dismissed]
+environment-kind = xilinx-eda-tcl, synopsys-eda-tcl
+```
+
+`environment-kind` lists the tool environments whose notice
+([environment-selection.md](environment-selection.md) § *The notice*) the user
+chose *Don't show again* for, separated by commas or whitespace. The server
+reads the file once, when it starts. A dismissal rewrites it: the server
+merges its own dismissals into what is on disk at that moment, so two editors
+dismissing different environments both stick, and writes through a sibling file
+renamed into place. Sections and keys it does not know are carried through
+unchanged, because several editors, each bundling its own server, share the
+file.
+
+A missing file dismisses nothing and is the normal first run. A file the server
+cannot read dismisses nothing and logs one warning; a failed write logs one
+warning and the dismissal holds for the rest of the session. A platform with no
+home directory keeps dismissals in memory only.
+
 ## Project-level config file
 
 In addition to the global file above, tcl-lsp looks for a
@@ -278,6 +316,21 @@ non-integer. Changing it re-runs the scan
 (`Backend::apply_workspace_scan_budget`), the same treatment a `libraryPaths`
 change gets.
 
+### `[notifications]`
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `environment_kind` | bool | `true` | Show the one-time notice that explains a tool environment (Vivado, Quartus, …) as a Tcl release plus library packages |
+
+The file form of the editor setting `tclLsp.notifications.environmentKind`
+(`environmentKind` is accepted too, so exported settings paste back), for
+editors with no settings UI. It layers like every other key, so an editor that
+sends the setting wins over the global file and `.tcl-lsp.ini` wins over both.
+The setting is session scoped: the primary root's merged configuration is what
+applies. Why this is the one message that reports on a classification, and the
+only exception to the silence about ignored settings, is in
+[config-precedence.md](config-precedence.md).
+
 ### `[packages]` / `[packages.provides]`
 
 How the modelled interpreter loads packages: `preferLatest` sets the starting
@@ -323,6 +376,8 @@ max_files = 6000
 |---|---|
 | INI parsing, layer sections, deep merge | `rust/tcl-lsp-server/src/config_ini.rs` — `settings_from_ini`, `Layer`, `merge_settings` |
 | Config-path resolution | `rust/tcl-lsp-core/src/tcl_install.rs` — `user_config_path`, `project_config_path`, `config_path_for`, `library_paths_from_ini` |
+| Notice state path | `rust/tcl-lsp-core/src/tcl_install.rs` — `user_notices_path`, `notices_path_for` |
+| Notice state file, notice text, presentation | `rust/tcl-lsp-server/src/environment_notice.rs` |
 | Layer application | `rust/tcl-lsp-server/src/lib.rs` — `Backend::apply_global_config`, and the folder-scoped overlay `Backend::resolved_feature_toggles` |
 | Effective-config query | `rust/tcl-lsp-server/src/lib.rs` — `get_effective_config_command` |
 | Inline / file-level suppression | `rust/tcl-compiler/src/analyser/utils.rs` — `parse_noqa_line_suppressions`, `apply_preceding_noqa` |
