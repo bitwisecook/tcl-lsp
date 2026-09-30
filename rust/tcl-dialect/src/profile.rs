@@ -203,13 +203,13 @@ pub struct DialectProfile {
     /// separate string-keyed tables would (design doc §2.4).
     pub aliases: &'static [&'static str],
     /// The full human-facing name shown in settings menus and pickers
-    /// (`"Synopsys EDA Tcl"`, `"Tcl 8.6"`). The catalogue is the single
+    /// (`"Xilinx Vivado"`, `"Tcl 8.6"`). The catalogue is the single
     /// source for editor presentation: `cargo xtask gen-editor-dialects`
     /// projects this into every editor's dialect list, so adding a
     /// profile ships its label everywhere at once.
     pub display_name: &'static str,
     /// A compact label for tight UI (the compiler-explorer dropdown,
-    /// status bars): `"Synopsys EDA"`, `"iRules"`. Never empty — repeats
+    /// status bars): `"Vivado"`, `"iRules"`. Never empty — repeats
     /// [`Self::display_name`] where no shorter form exists.
     pub short_name: &'static str,
     /// The editor language id this dialect's files open under, where the
@@ -418,9 +418,9 @@ static CATALOG: [DialectProfile; 19] = [
     },
     DialectProfile {
         name: "cadence-eda-tcl",
-        aliases: &[],
-        display_name: "Cadence EDA Tcl",
-        short_name: "Cadence EDA",
+        aliases: &["genus", "innovus"],
+        display_name: "Cadence Genus / Innovus / Xcelium",
+        short_name: "Cadence",
         editor_language_id: Some("tcl-cadence"),
         filenames: &[],
         file_extensions: &[DialectFileExtension {
@@ -731,9 +731,9 @@ static CATALOG: [DialectProfile; 19] = [
     },
     DialectProfile {
         name: "intel-quartus-eda-tcl",
-        aliases: &[],
-        display_name: "Intel Quartus EDA Tcl",
-        short_name: "Intel Quartus",
+        aliases: &["quartus"],
+        display_name: "Intel Quartus Prime",
+        short_name: "Quartus",
         editor_language_id: Some("tcl-quartus"),
         filenames: &[],
         file_extensions: &[
@@ -815,9 +815,9 @@ static CATALOG: [DialectProfile; 19] = [
     },
     DialectProfile {
         name: "mentor-eda-tcl",
-        aliases: &[],
-        display_name: "Mentor EDA Tcl",
-        short_name: "Mentor EDA",
+        aliases: &["questa", "modelsim"],
+        display_name: "Siemens Questa / ModelSim",
+        short_name: "Questa",
         editor_language_id: Some("tcl-mentor"),
         filenames: &[],
         file_extensions: &[DialectFileExtension {
@@ -872,9 +872,9 @@ static CATALOG: [DialectProfile; 19] = [
     },
     DialectProfile {
         name: "microchip-libero-eda-tcl",
-        aliases: &[],
-        display_name: "Microchip Libero EDA Tcl",
-        short_name: "Microchip Libero",
+        aliases: &["libero"],
+        display_name: "Microchip Libero SoC",
+        short_name: "Libero",
         editor_language_id: Some("tcl-microchip"),
         filenames: &[],
         file_extensions: &[],
@@ -1008,9 +1008,9 @@ static CATALOG: [DialectProfile; 19] = [
     },
     DialectProfile {
         name: "synopsys-eda-tcl",
-        aliases: &[],
-        display_name: "Synopsys EDA Tcl",
-        short_name: "Synopsys EDA",
+        aliases: &["dc_shell", "primetime"],
+        display_name: "Synopsys DC / PrimeTime / ICC2 / Formality",
+        short_name: "Synopsys",
         editor_language_id: Some("tcl-synopsys"),
         filenames: &[],
         file_extensions: &[
@@ -1231,9 +1231,9 @@ static CATALOG: [DialectProfile; 19] = [
     },
     DialectProfile {
         name: "xilinx-eda-tcl",
-        aliases: &[],
-        display_name: "Xilinx EDA Tcl",
-        short_name: "Xilinx EDA",
+        aliases: &["vivado"],
+        display_name: "Xilinx Vivado",
+        short_name: "Vivado",
         editor_language_id: Some("tcl-xilinx"),
         filenames: &[],
         file_extensions: &[DialectFileExtension {

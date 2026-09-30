@@ -36146,6 +36146,8 @@ mod tests {
             ("tcl-spec", "spectcl"),
             ("spectcl", "spectcl"),
             ("sslictcl", "sslictcl"),
+            ("tcl-jim", "jim"),
+            ("jim", "jim"),
             ("tk", "tk"),
         ] {
             assert_eq!(

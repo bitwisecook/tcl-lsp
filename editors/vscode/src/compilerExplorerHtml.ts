@@ -940,24 +940,24 @@ body {
     <select id="dialect">
       <!-- @generated:dialect-options:begin -- cargo xtask gen-editor-dialects -->
       <option value="bpf">BPF</option>
-      <option value="cadence-eda-tcl">Cadence EDA</option>
+      <option value="cadence-eda-tcl">Cadence</option>
       <option value="expect">Expect</option>
       <option value="f5-bigip">BIG-IP</option>
       <option value="f5-iapps">iApps</option>
       <option value="f5-irules">iRules</option>
       <option value="f5-tmsh">tmsh</option>
-      <option value="intel-quartus-eda-tcl">Intel Quartus</option>
-      <option value="mentor-eda-tcl">Mentor EDA</option>
-      <option value="microchip-libero-eda-tcl">Microchip Libero</option>
+      <option value="intel-quartus-eda-tcl">Quartus</option>
+      <option value="mentor-eda-tcl">Questa</option>
+      <option value="microchip-libero-eda-tcl">Libero</option>
       <option value="spectcl">SpecTcl</option>
       <option value="sslictcl">SslicTcl</option>
-      <option value="synopsys-eda-tcl">Synopsys EDA</option>
+      <option value="synopsys-eda-tcl">Synopsys</option>
       <option value="tcl8.4">Tcl 8.4</option>
       <option value="tcl8.5">Tcl 8.5</option>
       <option value="tcl8.6" selected>Tcl 8.6</option>
       <option value="tcl9.0">Tcl 9.0</option>
       <option value="tcl9.1">Tcl 9.1</option>
-      <option value="xilinx-eda-tcl">Xilinx EDA</option>
+      <option value="xilinx-eda-tcl">Vivado</option>
       <!-- @generated:dialect-options:end -->
     </select>
     <div class="spinner" id="spinner"></div>

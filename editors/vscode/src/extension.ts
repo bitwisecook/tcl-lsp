@@ -112,24 +112,24 @@ export function isAiEnabled(): boolean {
 // @generated:dialect-labels:begin
 const DIALECT_LABELS: Record<string, string> = {
   bpf: "BPF",
-  "cadence-eda-tcl": "Cadence EDA Tcl",
+  "cadence-eda-tcl": "Cadence Genus / Innovus / Xcelium",
   expect: "Expect",
   "f5-bigip": "F5 BIG-IP",
   "f5-iapps": "F5 iApps",
   "f5-irules": "F5 iRules",
   "f5-tmsh": "F5 tmsh Scripts",
-  "intel-quartus-eda-tcl": "Intel Quartus EDA Tcl",
-  "mentor-eda-tcl": "Mentor EDA Tcl",
-  "microchip-libero-eda-tcl": "Microchip Libero EDA Tcl",
+  "intel-quartus-eda-tcl": "Intel Quartus Prime",
+  "mentor-eda-tcl": "Siemens Questa / ModelSim",
+  "microchip-libero-eda-tcl": "Microchip Libero SoC",
   spectcl: "SpecTcl",
   sslictcl: "SslicTcl",
-  "synopsys-eda-tcl": "Synopsys EDA Tcl",
+  "synopsys-eda-tcl": "Synopsys DC / PrimeTime / ICC2 / Formality",
   "tcl8.4": "Tcl 8.4",
   "tcl8.5": "Tcl 8.5",
   "tcl8.6": "Tcl 8.6",
   "tcl9.0": "Tcl 9.0",
   "tcl9.1": "Tcl 9.1",
-  "xilinx-eda-tcl": "Xilinx EDA Tcl",
+  "xilinx-eda-tcl": "Xilinx Vivado",
 };
 // @generated:dialect-labels:end
 

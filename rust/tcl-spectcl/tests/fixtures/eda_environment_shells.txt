@@ -3,8 +3,13 @@
         id: EnvironmentId(
             "cadence-eda-tcl",
         ),
-        aliases: [],
-        display_name: "Cadence EDA Tcl",
+        aliases: [
+            "genus",
+            "innovus",
+        ],
+        display_name: "Cadence Genus / Innovus / Xcelium",
+        short_name: "Cadence",
+        kind: Packages,
         editor_identity: Some(
             EditorLanguageIdentityId(
                 "tcl-cadence",
@@ -120,8 +125,12 @@
         id: EnvironmentId(
             "intel-quartus-eda-tcl",
         ),
-        aliases: [],
-        display_name: "Intel Quartus EDA Tcl",
+        aliases: [
+            "quartus",
+        ],
+        display_name: "Intel Quartus Prime",
+        short_name: "Quartus",
+        kind: Packages,
         editor_identity: Some(
             EditorLanguageIdentityId(
                 "tcl-quartus",
@@ -265,8 +274,13 @@
         id: EnvironmentId(
             "mentor-eda-tcl",
         ),
-        aliases: [],
-        display_name: "Mentor EDA Tcl",
+        aliases: [
+            "questa",
+            "modelsim",
+        ],
+        display_name: "Siemens Questa / ModelSim",
+        short_name: "Questa",
+        kind: Packages,
         editor_identity: Some(
             EditorLanguageIdentityId(
                 "tcl-mentor",
@@ -375,8 +389,12 @@
         id: EnvironmentId(
             "microchip-libero-eda-tcl",
         ),
-        aliases: [],
-        display_name: "Microchip Libero EDA Tcl",
+        aliases: [
+            "libero",
+        ],
+        display_name: "Microchip Libero SoC",
+        short_name: "Libero",
+        kind: Packages,
         editor_identity: Some(
             EditorLanguageIdentityId(
                 "tcl-microchip",
@@ -467,8 +485,13 @@
         id: EnvironmentId(
             "synopsys-eda-tcl",
         ),
-        aliases: [],
-        display_name: "Synopsys EDA Tcl",
+        aliases: [
+            "dc_shell",
+            "primetime",
+        ],
+        display_name: "Synopsys DC / PrimeTime / ICC2 / Formality",
+        short_name: "Synopsys",
+        kind: Packages,
         editor_identity: Some(
             EditorLanguageIdentityId(
                 "tcl-synopsys",
@@ -595,8 +618,12 @@
         id: EnvironmentId(
             "xilinx-eda-tcl",
         ),
-        aliases: [],
-        display_name: "Xilinx EDA Tcl",
+        aliases: [
+            "vivado",
+        ],
+        display_name: "Xilinx Vivado",
+        short_name: "Vivado",
+        kind: Packages,
         editor_identity: Some(
             EditorLanguageIdentityId(
                 "tcl-xilinx",

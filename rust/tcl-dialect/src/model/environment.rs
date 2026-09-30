@@ -77,16 +77,13 @@ impl std::fmt::Display for EnvironmentId {
 }
 
 /// A member of the FIXED, contributed editor language identity set: the
-/// language ids the shipped editor extensions actually contribute, seeded
-/// from `editors/vscode/src/languageIds.ts`'s
-/// `TCL_LANGUAGE_IDS` block. Dynamic server environments *select among*
-/// these; they can never mint a new one.
+/// language ids the editor extensions contribute. Dynamic server
+/// environments *select among* these; they can never mint a new one.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct EditorLanguageIdentityId(&'static str);
 
 impl EditorLanguageIdentityId {
-    /// The contributed set, verbatim from the generated
-    /// `TCL_LANGUAGE_IDS` block.
+    /// The contributed set.
     pub const CONTRIBUTED: &'static [&'static str] = &[
         "tcl",
         "tcl-cadence",
@@ -94,6 +91,7 @@ impl EditorLanguageIdentityId {
         "tcl-bigip",
         "tcl-iapp",
         "tcl-irule",
+        "tcl-jim",
         "tcl-tmsh",
         "tcl-quartus",
         "tcl-mentor",
@@ -296,6 +294,43 @@ impl Provenance {
     }
 }
 
+/// What an environment is, for presentation.
+///
+/// Every definition states one; no rule over the other fields separates
+/// `bpf` (a language whose surface is a package over a Tcl 9.0 core) from
+/// `tk` (a package over a Tcl 8.x core), so the classification is data.
+///
+/// Kind is display metadata only: it shapes
+/// [`EnvironmentDefinition::description`] and is read by presentation
+/// surfaces. It never influences resolution, grammar or availability.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum EnvironmentKind {
+    /// The thing being written is this language: its grammar, or its core
+    /// command vocabulary, is the identity.
+    Language,
+    /// A stock Tcl release with library packages loaded — a tool shell.
+    Packages,
+}
+
+impl EnvironmentKind {
+    /// The pack-vocabulary spelling (`kind language|packages`).
+    #[must_use]
+    pub const fn word(self) -> &'static str {
+        match self {
+            Self::Language => "language",
+            Self::Packages => "packages",
+        }
+    }
+
+    /// The kind a pack-vocabulary word names.
+    #[must_use]
+    pub fn from_word(word: &str) -> Option<Self> {
+        [Self::Language, Self::Packages]
+            .into_iter()
+            .find(|kind| kind.word() == word)
+    }
+}
+
 /// One environment definition (§3.3) — dynamic data, held behind `Arc`,
 /// identified by `(id, generation, overlay hash)`, never by pointer.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -307,6 +342,11 @@ pub struct EnvironmentDefinition {
     pub aliases: Vec<Arc<str>>,
     /// The human-facing name.
     pub display_name: Arc<str>,
+    /// The compact name for tight UI (`Vivado`, `Jim`).
+    pub short_name: Arc<str>,
+    /// Whether the environment is a language or a Tcl release with
+    /// packages loaded — presentation only, see [`EnvironmentKind`].
+    pub kind: EnvironmentKind,
     /// The contributed editor identity this environment's documents open
     /// under, when one is dedicated.
     pub editor_identity: Option<EditorLanguageIdentityId>,
@@ -341,6 +381,40 @@ impl EnvironmentDefinition {
     pub fn point(&self) -> Option<crate::model::DialectPoint> {
         self.core
             .map(|core| crate::model::DialectPoint::new(core.default_release, core.build))
+    }
+
+    /// The one-line description shown beside the environment's name in
+    /// every picker, generated enum description and status tooltip.
+    ///
+    /// Derived from the definition, never authored: a `Language` reads as
+    /// its display name; a `Packages` environment reads as its display name,
+    /// the core release, and the ambient packages in declaration order
+    /// (`Xilinx Vivado — Tcl 8.5 + sdc, upf, vivado`).
+    #[must_use]
+    pub fn description(&self) -> String {
+        if self.kind == EnvironmentKind::Language {
+            return self.display_name.to_string();
+        }
+        let base = self.core.map(|core| {
+            let family = match core.family {
+                Family::Tcl => "Tcl",
+                other => other.name(),
+            };
+            format!("{family} {}", core.default_release)
+        });
+        let packages: Vec<&str> = self
+            .expected_packages
+            .iter()
+            .filter(|placement| placement.ambient)
+            .map(|placement| placement.package.as_ref())
+            .collect();
+        let detail = match (base, packages.is_empty()) {
+            (Some(base), true) => base,
+            (Some(base), false) => format!("{base} + {}", packages.join(", ")),
+            (None, false) => packages.join(", "),
+            (None, true) => return self.display_name.to_string(),
+        };
+        format!("{} — {detail}", self.display_name)
     }
 }
 
@@ -764,6 +838,8 @@ fn ladder_environments() -> Vec<EnvironmentDefinition> {
         id: EnvironmentId::new(&format!("tcl{}", release.as_str())),
         aliases: Vec::new(),
         display_name: arc(&format!("Tcl {release}")),
+        short_name: arc(&format!("Tcl {release}")),
+        kind: EnvironmentKind::Language,
         editor_identity: EditorLanguageIdentityId::new(editor_id),
         core: Some(tcl_core(release)),
         targets: tcl_line(release),
@@ -788,7 +864,10 @@ fn ladder_environments() -> Vec<EnvironmentDefinition> {
         ],
         policy_defaults: open_policy(Some(release)),
         server_detection: DetectionFacts {
-            shebang_words: vec![arc(&format!("tclsh{release}"))],
+            shebang_words: vec![
+                arc(&format!("tclsh{release}")),
+                arc(&format!("wish{release}")),
+            ],
             ..DetectionFacts::default()
         },
         help_terms: arcs(&["tcl", "tk"]),
@@ -804,6 +883,8 @@ fn plain_tcl_environment() -> EnvironmentDefinition {
         id: EnvironmentId::new("tcl"),
         aliases: Vec::new(),
         display_name: arc("Tcl"),
+        short_name: arc("Tcl"),
+        kind: EnvironmentKind::Language,
         editor_identity: EditorLanguageIdentityId::new("tcl"),
         core: Some(tcl_core(Release::TCL_9_0)),
         targets: tcl_full_ladder(),
@@ -856,6 +937,8 @@ fn tk_environment() -> EnvironmentDefinition {
         id: EnvironmentId::new("tk"),
         aliases: arcs(&["wish"]),
         display_name: arc("Tk"),
+        short_name: arc("Tk"),
+        kind: EnvironmentKind::Packages,
         editor_identity: None,
         core: Some(tcl_core(Release::TCL_8_6)),
         targets: tcl_full_ladder(),
@@ -878,32 +961,22 @@ fn tk_environment() -> EnvironmentDefinition {
 }
 
 /// The `jim` environment (aliases `jimsh`, `jimtcl`) — **one** row for
-/// the whole nine-release ladder, which is P6's headline collapse.
+/// the whole nine-release ladder.
 ///
-/// The old model needed nine `jim0.76`–`jim0.84` catalogue profiles for
-/// one reason: a profile carries exactly one resolved `LexerGrammar`, so
-/// a release that differed in a single axis needed its own row, and ten
-/// user-facing surfaces each grew nine lines. Here the grammar is a
-/// function of `(family, release, build)`
-/// ([`crate::model::family::grammar`]), so the environment names the
-/// family and the ladder, and a project picks its point on the ladder
-/// with `# tcl-lsp: supports jim 0.81-0.84` — the §5.4 range machinery,
-/// on the `jim` core axis, unchanged.
+/// A catalogue profile carries exactly one resolved `LexerGrammar`, which
+/// would need a row per release. Here the grammar is a function of
+/// `(family, release, build)` ([`crate::model::family::grammar`]), so the
+/// environment names the family and the ladder, and a project picks its
+/// point on the ladder with `# tcl-lsp: supports jim 0.81-0.84` — the §5.4
+/// range machinery, on the `jim` core axis.
 ///
-/// Three deliberate absences:
+/// It claims the contributed `tcl-jim` editor identity, and has two
+/// deliberate absences:
 ///
-/// - **No editor identity.** A server may select among the
-///   identities the shipped extensions contribute and can never mint a
-///   new one. No editor contributes a `tcl-jim` id today, so this
-///   environment carries `None` exactly as `tk` and `bpf` do, and the
-///   jim rows the branch added to ten user-facing catalogues are simply
-///   not needed to make `# tcl-dialect: jim` resolve.
 /// - **No release-pinned siblings.** `jim0.84` is not an environment
 ///   name; it is a target on this environment's axis.
 /// - **No expected packages.** Jim's command surface rides its ancestry
-///   edge from Tcl 8.6 ([`Family::ancestry`]) — inherit-then-override
-///   rather than the 76 hand-re-authored core commands the branch paid
-///   for. The override half is design **Q6**'s jim surface pack.
+///   edge from Tcl 8.6 ([`Family::ancestry`]) — inherit-then-override.
 ///
 /// The targets span the whole ladder, so the core axis takes **no point
 /// primary** and answers under §5.4's permissive no-primary rule —
@@ -914,7 +987,9 @@ fn jim_environment() -> EnvironmentDefinition {
         id: EnvironmentId::new("jim"),
         aliases: arcs(&["jimsh", "jimtcl"]),
         display_name: arc("Jim Tcl"),
-        editor_identity: None,
+        short_name: arc("Jim"),
+        kind: EnvironmentKind::Language,
+        editor_identity: EditorLanguageIdentityId::new("tcl-jim"),
         core: Some(CoreProfileSelector {
             family: Family::Jim,
             default_release: Release::JIM_0_84,
@@ -937,6 +1012,8 @@ fn irules_environment() -> EnvironmentDefinition {
         id: EnvironmentId::new("f5-irules"),
         aliases: arcs(&["irules", "tcl-irule"]),
         display_name: arc("F5 iRules"),
+        short_name: arc("iRules"),
+        kind: EnvironmentKind::Language,
         editor_identity: EditorLanguageIdentityId::new("tcl-irule"),
         core: Some(CoreProfileSelector {
             family: Family::F5Irules,
@@ -969,6 +1046,8 @@ fn iapps_environment() -> EnvironmentDefinition {
         id: EnvironmentId::new("f5-iapps"),
         aliases: Vec::new(),
         display_name: arc("F5 iApps"),
+        short_name: arc("iApps"),
+        kind: EnvironmentKind::Language,
         editor_identity: EditorLanguageIdentityId::new("tcl-iapp"),
         // Per measurement (`docs/design/f5/bigip-irule-parser-measurements.md`
         // §4a): the 8.5 baseline hypothesis is falsified — `IAppImplementation`
@@ -1011,6 +1090,8 @@ fn tmsh_environment() -> EnvironmentDefinition {
         id: EnvironmentId::new("f5-tmsh"),
         aliases: Vec::new(),
         display_name: arc("F5 tmsh Scripts"),
+        short_name: arc("tmsh"),
+        kind: EnvironmentKind::Language,
         editor_identity: EditorLanguageIdentityId::new("tcl-tmsh"),
         // CORRECTED by measurement
         // (`docs/design/f5/bigip-irule-parser-measurements.md` §4a): the
@@ -1052,6 +1133,8 @@ fn bigip_environment() -> EnvironmentDefinition {
         id: EnvironmentId::new("f5-bigip"),
         aliases: Vec::new(),
         display_name: arc("F5 BIG-IP"),
+        short_name: arc("BIG-IP"),
+        kind: EnvironmentKind::Language,
         editor_identity: EditorLanguageIdentityId::new("tcl-bigip"),
         core: None,
         targets: reqs(VersionAxisId::package("f5-bigip-schema"), &["0-"]),
@@ -1083,6 +1166,8 @@ fn expect_environment() -> EnvironmentDefinition {
         id: EnvironmentId::new("expect"),
         aliases: Vec::new(),
         display_name: arc("Expect"),
+        short_name: arc("Expect"),
+        kind: EnvironmentKind::Language,
         editor_identity: EditorLanguageIdentityId::new("tcl-expect"),
         core: Some(tcl_core(Release::TCL_8_6)),
         targets: tcl_line(Release::TCL_8_6),
@@ -1107,6 +1192,8 @@ fn spectcl_environment() -> EnvironmentDefinition {
         id: EnvironmentId::new("spectcl"),
         aliases: arcs(&["tcl-spec", "tclspec"]),
         display_name: arc("SpecTcl"),
+        short_name: arc("SpecTcl"),
+        kind: EnvironmentKind::Language,
         editor_identity: EditorLanguageIdentityId::new("tclspec"),
         core: Some(tcl_core(Release::TCL_9_0)),
         targets: tcl_line(Release::TCL_9_0),
@@ -1133,6 +1220,8 @@ fn sslictcl_environment() -> EnvironmentDefinition {
         id: EnvironmentId::new("sslictcl"),
         aliases: arcs(&["sslic-tcl", "tls-sslictcl"]),
         display_name: arc("SslicTcl"),
+        short_name: arc("SslicTcl"),
+        kind: EnvironmentKind::Language,
         editor_identity: EditorLanguageIdentityId::new("sslictcl"),
         core: Some(tcl_core(Release::TCL_9_0)),
         targets: tcl_line(Release::TCL_9_0),
@@ -1160,6 +1249,8 @@ fn bpf_environment() -> EnvironmentDefinition {
         id: EnvironmentId::new("bpf"),
         aliases: Vec::new(),
         display_name: arc("BPF"),
+        short_name: arc("BPF"),
+        kind: EnvironmentKind::Language,
         editor_identity: None,
         core: Some(tcl_core(Release::TCL_9_0)),
         targets: tcl_line(Release::TCL_9_0),
@@ -1292,6 +1383,10 @@ pub struct BundledEnvironmentRow {
     pub id: &'static str,
     /// `display_name`, defaulting to the id.
     pub display_name: &'static str,
+    /// `short_name`, defaulting to the display name.
+    pub short_name: &'static str,
+    /// The `kind` word, defaulting to `packages`.
+    pub kind: EnvironmentKind,
     /// `alias` rows.
     pub aliases: &'static [&'static str],
     /// `editor_identity`, a contributed id.
@@ -1383,6 +1478,8 @@ impl BundledEnvironmentRow {
             id: EnvironmentId::new(self.id),
             aliases: arcs(self.aliases),
             display_name: arc(self.display_name),
+            short_name: arc(self.short_name),
+            kind: self.kind,
             editor_identity: self.editor_identity.and_then(EditorLanguageIdentityId::new),
             core,
             targets,
@@ -1587,13 +1684,15 @@ mod tests {
             let point = Version::parse(release.as_str()).expect("jim releases spell versions");
             assert!(jim.targets.contains(&point), "{release}");
         }
-        assert!(
-            jim.editor_identity.is_none(),
-            "no editor contributes a jim language id"
+        assert_eq!(
+            jim.editor_identity.map(EditorLanguageIdentityId::as_str),
+            Some("tcl-jim"),
+            "jim opens under its own contributed language id"
         );
+        assert_eq!(jim.short_name.as_ref(), "Jim");
         assert!(
             jim.expected_packages.is_empty(),
-            "the jim surface rides the ancestry edge, not a placement (Q6)"
+            "the jim surface rides the ancestry edge, not a placement"
         );
         assert_eq!(jim.policy_defaults.closed_world, WorldPolicy::Open);
         assert_eq!(
@@ -1767,6 +1866,7 @@ mod tests {
             ("tcl8.4", Some("tcl84")),
             ("tcl9.1", Some("tcl91")),
             ("f5-irules", Some("tcl-irule")),
+            ("jim", Some("tcl-jim")),
             ("spectcl", Some("tclspec")),
             ("sslictcl", Some("sslictcl")),
             ("tk", None),
@@ -1784,6 +1884,175 @@ mod tests {
         }
         assert!(EditorLanguageIdentityId::new("tcl-apl").is_some());
         assert!(EditorLanguageIdentityId::new("not-a-language").is_none());
+    }
+
+    /// The kind of every compiled environment is a stated judgement:
+    /// `bpf` is a language over a Tcl 9.0 core, `tk` is a package over a
+    /// Tcl 8.x core, and nothing derives one from the other fields.
+    #[test]
+    fn every_compiled_environment_states_its_kind() {
+        const LANGUAGES: &[&str] = &[
+            "tcl",
+            "tcl8.4",
+            "tcl8.5",
+            "tcl8.6",
+            "tcl9.0",
+            "tcl9.1",
+            "f5-irules",
+            "f5-iapps",
+            "f5-tmsh",
+            "f5-bigip",
+            "jim",
+            "bpf",
+            "expect",
+            "spectcl",
+            "sslictcl",
+        ];
+        const PACKAGES: &[&str] = &[
+            "tk",
+            "xilinx-eda-tcl",
+            "intel-quartus-eda-tcl",
+            "mentor-eda-tcl",
+            "microchip-libero-eda-tcl",
+            "synopsys-eda-tcl",
+            "cadence-eda-tcl",
+        ];
+        let registry = EnvironmentRegistry::compiled();
+        for definition in registry.definitions() {
+            let id = definition.id.as_str();
+            let expected = match (LANGUAGES.contains(&id), PACKAGES.contains(&id)) {
+                (true, false) => EnvironmentKind::Language,
+                (false, true) => EnvironmentKind::Packages,
+                other => panic!("{id}: not stated as exactly one kind ({other:?})"),
+            };
+            assert_eq!(definition.kind, expected, "{id}");
+        }
+        assert_eq!(
+            registry.definitions().len(),
+            LANGUAGES.len() + PACKAGES.len()
+        );
+    }
+
+    #[test]
+    fn the_kind_words_round_trip() {
+        for kind in [EnvironmentKind::Language, EnvironmentKind::Packages] {
+            assert_eq!(EnvironmentKind::from_word(kind.word()), Some(kind));
+        }
+        assert_eq!(EnvironmentKind::from_word("Packages"), None);
+        assert_eq!(EnvironmentKind::from_word(""), None);
+    }
+
+    /// A `Language` describes itself by its display name alone.
+    #[test]
+    fn a_language_describes_itself_by_name() {
+        let registry = EnvironmentRegistry::compiled();
+        for (id, description) in [
+            ("jim", "Jim Tcl"),
+            ("f5-irules", "F5 iRules"),
+            ("tcl8.6", "Tcl 8.6"),
+            ("expect", "Expect"),
+        ] {
+            assert_eq!(registry.resolve(id).expect(id).description(), description);
+        }
+    }
+
+    /// A `Packages` environment names its core release and its ambient
+    /// packages in declaration order; hosted packages are not ambient and
+    /// are left out.
+    #[test]
+    fn a_tool_shell_describes_its_core_and_ambient_packages() {
+        let registry = EnvironmentRegistry::compiled();
+        assert_eq!(
+            registry
+                .resolve("xilinx-eda-tcl")
+                .expect("xilinx")
+                .description(),
+            "Xilinx Vivado — Tcl 8.5 + sdc, upf, vivado"
+        );
+        let tk = registry.resolve("tk").expect("tk");
+        assert_eq!(tk.description(), "Tk — Tcl 8.6 + Tk");
+        assert!(
+            tk.expected_packages
+                .iter()
+                .any(|placement| !placement.ambient && &*placement.package == "Itcl"),
+            "Itcl is hosted on tk, so the description omits it"
+        );
+
+        let mut bare = (*tk).clone();
+        bare.expected_packages.clear();
+        assert_eq!(bare.description(), "Tk — Tcl 8.6");
+        bare.core = None;
+        assert_eq!(bare.description(), "Tk");
+    }
+
+    /// Kind is presentation: two definitions that differ only in kind
+    /// resolve, and describe their core, identically.
+    #[test]
+    fn kind_does_not_change_what_an_environment_resolves_to() {
+        let registry = EnvironmentRegistry::compiled();
+        let tk = registry.resolve("tk").expect("tk");
+        let mut as_language = (*tk).clone();
+        as_language.kind = EnvironmentKind::Language;
+        assert_eq!(as_language.core, tk.core);
+        assert_eq!(as_language.point(), tk.point());
+        assert_eq!(as_language.expected_packages, tk.expected_packages);
+        assert_eq!(as_language.policy_defaults, tk.policy_defaults);
+    }
+
+    /// An alias selects an environment; it never spells a package another
+    /// environment places, so a name read as either resolves one way.
+    /// (An alias may equal a package its own environment places — the
+    /// tool's shell and the tool's package share the tool's name.)
+    #[test]
+    fn an_alias_never_spells_another_environments_package() {
+        let registry = EnvironmentRegistry::compiled();
+        for definition in registry.definitions() {
+            for alias in &definition.aliases {
+                for other in registry.definitions() {
+                    if other.id == definition.id {
+                        continue;
+                    }
+                    assert!(
+                        !other
+                            .expected_packages
+                            .iter()
+                            .any(|placement| placement.package.eq_ignore_ascii_case(alias)),
+                        "alias `{alias}` of `{}` is a package `{}` places",
+                        definition.id,
+                        other.id
+                    );
+                }
+            }
+        }
+    }
+
+    /// Shebang words select one environment each: two environments
+    /// claiming a word would make the shebang tier's answer depend on
+    /// registration order.
+    #[test]
+    fn a_shebang_word_selects_one_environment() {
+        let registry = EnvironmentRegistry::compiled();
+        let mut claimed: HashMap<&str, &str> = HashMap::new();
+        for definition in registry.definitions() {
+            for word in &definition.server_detection.shebang_words {
+                let previous = claimed.insert(word, definition.id.as_str());
+                assert!(
+                    previous.is_none(),
+                    "`{word}` is claimed by `{}` and `{:?}`",
+                    definition.id,
+                    previous
+                );
+            }
+        }
+        for (word, owner) in [
+            ("jimsh", "jim"),
+            ("wish", "tk"),
+            ("expect", "expect"),
+            ("tclsh8.5", "tcl8.5"),
+            ("wish9.0", "tcl9.0"),
+        ] {
+            assert_eq!(claimed.get(word), Some(&owner), "{word}");
+        }
     }
 
     #[test]
@@ -1915,6 +2184,14 @@ mod tests {
                 definition.display_name.as_ref(),
                 profile.display_name,
                 "{id}"
+            );
+            assert_eq!(definition.short_name.as_ref(), profile.short_name, "{id}");
+            let aliases: Vec<&str> = definition.aliases.iter().map(AsRef::as_ref).collect();
+            assert_eq!(aliases, profile.aliases, "{id}");
+            assert_eq!(
+                definition.kind,
+                EnvironmentKind::Packages,
+                "{id}: a vendor shell is a Tcl release with packages"
             );
             assert_eq!(
                 definition

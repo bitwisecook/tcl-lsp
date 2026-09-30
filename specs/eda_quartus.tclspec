@@ -46,7 +46,9 @@ speclib eda_quartus 2.0 {
 display_name {Intel Quartus Prime}
 
 environment intel-quartus-eda-tcl {
-    display_name    {Intel Quartus EDA Tcl}
+    display_name    {Intel Quartus Prime}
+    short_name      {Quartus}
+    kind            packages
     core            tcl 8.5
     version_ceiling 8.5
     editor_identity tcl-quartus
@@ -59,6 +61,7 @@ environment intel-quartus-eda-tcl {
     ambient         quartus-report keyed ToolVersion
     ambient         quartus-device keyed ToolVersion
     ambient         quartus-misc keyed ToolVersion
+    alias           quartus
     file_extension  qsf -name {Quartus Settings File}
     file_extension  qpf -name {Quartus Project File}
     file_extension  qip -name {Quartus IP File}

@@ -685,8 +685,8 @@ mod tests {
     /// Every test that syncs takes this first.
     static SYNCING: Mutex<()> = Mutex::new(());
     use tcl_dialect::model::{
-        CoreProfileSelector, DetectionFacts, EnvironmentId, EnvironmentPolicy, Family, KeyedAxis,
-        Placement, Release, VersionAxisId, VersionSet, WorldPolicy,
+        CoreProfileSelector, DetectionFacts, EnvironmentId, EnvironmentKind, EnvironmentPolicy,
+        Family, KeyedAxis, Placement, Release, VersionAxisId, VersionSet, WorldPolicy,
     };
 
     fn arc(text: &str) -> Arc<str> {
@@ -698,6 +698,8 @@ mod tests {
             id: EnvironmentId::new(id),
             aliases: Vec::new(),
             display_name: arc(id),
+            short_name: arc(id),
+            kind: EnvironmentKind::Packages,
             editor_identity: None,
             core: Some(CoreProfileSelector {
                 family: Family::Tcl,

@@ -65,10 +65,11 @@ pub use dynamic::{
 pub use environment::{
     BundledCore, BundledEnvironmentRow, BundledPlacement, BundledVersion, ConfigurationOrigin,
     CoreProfileSelector, DetectionFacts, EditorLanguageIdentityId, EnvironmentDefinition,
-    EnvironmentId, EnvironmentIdentity, EnvironmentOverlay, EnvironmentOverlayError,
-    EnvironmentPolicy, EnvironmentRegistry, EnvironmentRegistryError, FileExtensionClaim,
-    KeyedAxis, PackageChanges, PackagePlacement, Placement, Provenance, TargetChanges, WorldPolicy,
-    bundled_pack_definitions, compiled_definitions, release_line, reserved_against,
+    EnvironmentId, EnvironmentIdentity, EnvironmentKind, EnvironmentOverlay,
+    EnvironmentOverlayError, EnvironmentPolicy, EnvironmentRegistry, EnvironmentRegistryError,
+    FileExtensionClaim, KeyedAxis, PackageChanges, PackagePlacement, Placement, Provenance,
+    TargetChanges, WorldPolicy, bundled_pack_definitions, compiled_definitions, release_line,
+    reserved_against,
 };
 pub use expr_grammar::{
     ExprArity, ExprGrammar, ExprSubstitution, MathFunc, MathFuncSet, PrecedenceTable, WordOperator,

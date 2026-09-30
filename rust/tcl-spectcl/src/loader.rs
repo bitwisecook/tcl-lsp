@@ -6788,7 +6788,7 @@ mod tests {
 
     use tcl_dialect::BracedVarStyle;
     use tcl_dialect::model::SpecSurface;
-    use tcl_dialect::model::{BuildProfileId, Provenance, Release, WorldPolicy};
+    use tcl_dialect::model::{BuildProfileId, EnvironmentKind, Provenance, Release, WorldPolicy};
 
     use super::*;
 
@@ -8760,6 +8760,69 @@ mod tests {
         );
         let terms: Vec<&str> = definition.help_terms.iter().map(AsRef::as_ref).collect();
         assert_eq!(terms, ["vivado", "xilinx", "fpga"]);
+    }
+
+    /// `kind` and `short_name` load and convert; a block that states
+    /// neither is a base release plus packages, named by its display name.
+    #[test]
+    fn kind_and_short_name_rows_load_and_convert() {
+        let pack = evaluate_pack(
+            "speclib probe 2.0 {\n \
+             environment probe-language {\n display_name {Probe Language}\n \
+             short_name {Probe}\n kind language\n core tcl 8.6\n }\n \
+             environment probe-shell {\n display_name {Probe Shell}\n \
+             core tcl 8.6\n }\n \
+             environment probe-bare {\n core tcl 8.6\n kind packages\n }\n}",
+        );
+        assert!(pack.notices.is_empty(), "{:?}", pack.notices);
+        assert_eq!(pack.environments.len(), 3);
+
+        let language = pack.environments[0].to_definition(PackEnvironmentTier::Workspace);
+        assert_eq!(language.kind, EnvironmentKind::Language);
+        assert_eq!(language.short_name.as_ref(), "Probe");
+        assert_eq!(language.description(), "Probe Language");
+
+        let shell = pack.environments[1].to_definition(PackEnvironmentTier::Workspace);
+        assert_eq!(shell.kind, EnvironmentKind::Packages, "packages by default");
+        assert_eq!(shell.short_name.as_ref(), "Probe Shell", "the display name");
+
+        let bare = pack.environments[2].to_definition(PackEnvironmentTier::Workspace);
+        assert_eq!(bare.kind, EnvironmentKind::Packages);
+        assert_eq!(bare.short_name.as_ref(), "probe-bare", "the id");
+    }
+
+    /// An unknown kind word is ignored with a notice: kind is presentation,
+    /// so the environment still loads and resolves.
+    #[test]
+    fn an_unknown_kind_word_is_ignored_with_a_notice() {
+        let pack = evaluate_pack(
+            "speclib probe 2.0 {\n environment probe-shell {\n core tcl 8.6\n \
+             kind dialect\n }\n}",
+        );
+        assert_eq!(pack.environments.len(), 1, "the block still loads");
+        assert_eq!(pack.environments[0].kind, EnvironmentKind::Packages);
+        assert!(
+            pack.notices.iter().any(|n| n
+                .message
+                .contains("`kind dialect` is not an environment kind")),
+            "{:?}",
+            pack.notices
+        );
+    }
+
+    /// An `-extend` block is additive and may not restate the owner's
+    /// identity rows, `kind` and `short_name` among them.
+    #[test]
+    fn an_extend_block_cannot_restate_kind_or_short_name() {
+        for row in ["kind language", "short_name {Probe}"] {
+            let pack = evaluate_pack(&format!(
+                "speclib probe 2.0 {{\n environment tcl8.6 -extend {{\n {row}\n }}\n}}"
+            ));
+            assert!(
+                pack.environments.is_empty(),
+                "`{row}`: the block is rejected"
+            );
+        }
     }
 
     /// A ceiling off the core's ladder, or with no compiled core to sit on,

@@ -122,7 +122,8 @@ fn directive_resolves_a_registered_environment() {
     use std::sync::Arc;
     use tcl_dialect::model::{
         BuildProfileId, CoreProfileSelector, DetectionFacts, EnvironmentDefinition, EnvironmentId,
-        EnvironmentPolicy, Family, Provenance, Release, VersionAxisId, VersionSet, WorldPolicy,
+        EnvironmentKind, EnvironmentPolicy, Family, Provenance, Release, VersionAxisId, VersionSet,
+        WorldPolicy,
     };
     use tcl_registry::model::{EnvironmentSource, sync_environment_sources};
 
@@ -132,6 +133,8 @@ fn directive_resolves_a_registered_environment() {
         id: EnvironmentId::new("directive-probe-shell"),
         aliases: vec![Arc::from("probe-shell")],
         display_name: Arc::from("Directive Probe"),
+        short_name: Arc::from("Probe"),
+        kind: EnvironmentKind::Packages,
         editor_identity: None,
         core: Some(CoreProfileSelector {
             family: Family::Tcl,

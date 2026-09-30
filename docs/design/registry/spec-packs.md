@@ -724,12 +724,14 @@ rows, in the order the shipped blocks write them:
 | row | meaning |
 |---|---|
 | `display_name {TEXT}` | the human-facing name (defaults to the id) |
+| `short_name {TEXT}` | the compact name for tight UI (defaults to the display name) |
+| `kind language\|packages` | what the environment is, for presentation: `language` when the thing written is this language, `packages` when it is a Tcl release with library packages loaded (defaults to `packages`). It is presentation metadata — `EnvironmentDefinition::description` reads it — and never changes resolution, grammar or availability. A word that names neither is ignored with a notice |
 | `core FAMILY RELEASE ?-build PROFILE?` | the base release; a compiled family or a `dialect` block the pack declares |
 | `version_ceiling RELEASE` | the upper-bound release for option gating, on the core's ladder |
 | `editor_identity ID` | one of the **contributed** editor language ids — an environment selects, never mints |
 | `ambient PACKAGE VERSION\|tracks-base\|keyed KEY` | a package present with no `package require`; `keyed` names an external version axis (`ToolVersion`, `SdcVersion`, `UpfVersion`, `BigipVersion`) |
 | `hosted PACKAGE REQUIREMENT` | an installable package, floored on its own axis |
-| `alias NAME` | a retired or convenience spelling that resolves here |
+| `alias NAME` | a retired or convenience spelling that resolves here; never a package name another environment places or a pack provides |
 | `file_extension EXT ?-name TEXT?`, `filename NAME`, `signature TEXT` | server-side detection facts |
 | `policy open\|closed\|ambient-plus-require` | resolution strictness |
 | `help_terms {WORD …}` | the lower-case terms `tcl help --dialect` filters the knowledge base by |

@@ -26,6 +26,8 @@
 //! ```text
 //! environment vivado-tcl {
 //!     display_name    {Xilinx Vivado}
+//!     short_name      {Vivado}
+//!     kind            packages
 //!     core            tcl 8.6
 //!     ambient         Vivado keyed ToolVersion
 //!     hosted          Tk 8.5-
@@ -69,8 +71,9 @@ use std::sync::Arc;
 use tcl_dialect::model::{BuildProfileId, Family, Release};
 use tcl_dialect::model::{
     CoreProfileSelector, DetectionFacts, EditorLanguageIdentityId, EnvironmentDefinition,
-    EnvironmentId, EnvironmentPolicy, FileExtensionClaim, KeyedAxis, PackagePlacement, Placement,
-    Provenance, VersionAxisId, VersionSet, WorldPolicy, release_line, reserved_against,
+    EnvironmentId, EnvironmentKind, EnvironmentPolicy, FileExtensionClaim, KeyedAxis,
+    PackagePlacement, Placement, Provenance, VersionAxisId, VersionSet, WorldPolicy, release_line,
+    reserved_against,
 };
 
 use super::{Log, Stmt, block, next_text};
@@ -173,6 +176,12 @@ pub struct PackEnvironment {
     pub aliases: Vec<String>,
     /// `display_name TEXT`, defaulting to the id.
     pub display_name: Option<String>,
+    /// `short_name TEXT`, defaulting to the display name.
+    pub short_name: Option<String>,
+    /// `kind language|packages`, defaulting to [`EnvironmentKind::Packages`]:
+    /// a pack-declared environment is a base release plus packages unless it
+    /// says it is a language.
+    pub kind: EnvironmentKind,
     /// The validated `editor_identity ID`, when one resolved. An unknown
     /// id keeps the row (a notice) but drops the routing — §6.1's
     /// presentation rule, since an editor identity only decides which
@@ -228,10 +237,13 @@ impl PackEnvironment {
             || VersionSet::empty(VersionAxisId::core(Family::Tcl)),
             |core| release_line(core.family, core.default_release),
         );
+        let display_name = self.display_name.as_deref().unwrap_or(&self.id);
         EnvironmentDefinition {
             id: EnvironmentId::new(&self.id),
             aliases: self.aliases.iter().map(|a| Arc::from(a.as_str())).collect(),
-            display_name: Arc::from(self.display_name.as_deref().unwrap_or(&self.id)),
+            display_name: Arc::from(display_name),
+            short_name: Arc::from(self.short_name.as_deref().unwrap_or(display_name)),
+            kind: self.kind,
             editor_identity: self.editor_identity,
             core: self.core,
             targets,
@@ -377,6 +389,8 @@ pub(super) fn parse_rows(
         extends,
         aliases: Vec::new(),
         display_name: None,
+        short_name: None,
+        kind: EnvironmentKind::Packages,
         editor_identity: None,
         core: None,
         pack_core: None,
@@ -486,6 +500,8 @@ fn read_row(
                 | "alias"
                 | "editor_identity"
                 | "display_name"
+                | "short_name"
+                | "kind"
                 | "help_terms"
                 | "version_ceiling"
         )
@@ -502,6 +518,11 @@ fn read_row(
     }
     match stmt.word_text(0) {
         "display_name" => environment.display_name = Some(stmt.word_text(1).to_owned()),
+        "short_name" => match stmt.word_text(1) {
+            "" => log.say(stmt.line, "`short_name` needs a name"),
+            name => environment.short_name = Some(name.to_owned()),
+        },
+        "kind" => kind_row(environment, stmt, log),
         "alias" => match stmt.word_text(1) {
             "" => log.say(stmt.line, "`alias` needs a name"),
             alias => environment.aliases.push(alias.to_owned()),
@@ -565,6 +586,23 @@ fn read_row(
         }
     }
     true
+}
+
+/// `kind language|packages`. A word that names neither keeps the default
+/// with a notice: kind is presentation, and never decides whether the
+/// environment resolves.
+fn kind_row(environment: &mut PackEnvironment, stmt: &Stmt, log: &mut Log) {
+    let word = stmt.word_text(1);
+    match EnvironmentKind::from_word(word) {
+        Some(kind) => environment.kind = kind,
+        None => log.say(
+            stmt.line,
+            format!(
+                "`kind {word}` is not an environment kind (`language`, `packages`); \
+                 the row is ignored"
+            ),
+        ),
+    }
 }
 
 /// `editor_identity ID`: an unknown id keeps the row without routing

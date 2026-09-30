@@ -486,6 +486,8 @@ pub struct EnvironmentDefinition {
     id: EnvironmentId,                     // canonical, reserved or namespaced
     aliases: Vec<Arc<str>>,                // "irules", "tcl-irule", "wish", …
     display_name: Arc<str>,
+    short_name: Arc<str>,                  // compact name for tight UI
+    kind: EnvironmentKind,                 // Language | Packages — presentation only
     editor_identity: Option<EditorLanguageIdentityId>, // from the FIXED contributed set
     core: Option<CoreProfileSelector>,     // family + build profile + default release
     targets: VersionSet,                   // per-axis target sets — §5.4
@@ -520,7 +522,7 @@ has left the workspace retires its environments — unlike the loaded
 extensions, and filename patterns are extension-manifest contribution
 points, fixed at install time. `EditorLanguageIdentity` is a fixed,
 generated, contributed set (`tcl`, `tcl84`…`tcl91`, `tcl-irule`,
-`tcl-iapp`, `tcl-bigip`, `tclspec`, `sslictcl`, the six `tcl-<vendor>`
+`tcl-iapp`, `tcl-bigip`, `tcl-jim`, `tclspec`, `sslictcl`, the six `tcl-<vendor>`
 ids, …), and dynamic server environments *select among* them. A pack may
 request detection patterns; the editor adapter reports whether it can
 apply them (VS Code: workspace `files.associations`; JetBrains: IDE-global

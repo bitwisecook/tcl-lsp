@@ -89,7 +89,7 @@
       {
         "id": "tcl-cadence",
         "aliases": [
-          "Cadence EDA Tcl",
+          "Cadence Genus / Innovus / Xcelium",
           "cadence"
         ],
         "extensions": [
@@ -174,7 +174,7 @@
       {
         "id": "tcl-quartus",
         "aliases": [
-          "Intel Quartus EDA Tcl",
+          "Intel Quartus Prime",
           "quartus"
         ],
         "extensions": [
@@ -187,7 +187,7 @@
       {
         "id": "tcl-mentor",
         "aliases": [
-          "Mentor EDA Tcl",
+          "Siemens Questa / ModelSim",
           "mentor"
         ],
         "extensions": [
@@ -198,7 +198,7 @@
       {
         "id": "tcl-microchip",
         "aliases": [
-          "Microchip Libero EDA Tcl",
+          "Microchip Libero SoC",
           "microchip"
         ],
         "configuration": "./language-configuration.json"
@@ -226,7 +226,7 @@
       {
         "id": "tcl-synopsys",
         "aliases": [
-          "Synopsys EDA Tcl",
+          "Synopsys DC / PrimeTime / ICC2 / Formality",
           "synopsys"
         ],
         "extensions": [
@@ -273,7 +273,7 @@
       {
         "id": "tcl-xilinx",
         "aliases": [
-          "Xilinx EDA Tcl",
+          "Xilinx Vivado",
           "xilinx"
         ],
         "extensions": [
@@ -3359,24 +3359,24 @@
             ],
             "enumDescriptions": [
               "BPF dialect",
-              "Cadence EDA Tcl dialect",
+              "Cadence Genus / Innovus / Xcelium dialect",
               "Expect dialect",
               "F5 BIG-IP dialect",
               "F5 iApps dialect",
               "F5 iRules dialect",
               "F5 tmsh Scripts dialect",
-              "Intel Quartus EDA Tcl dialect",
-              "Mentor EDA Tcl dialect",
-              "Microchip Libero EDA Tcl dialect",
+              "Intel Quartus Prime dialect",
+              "Siemens Questa / ModelSim dialect",
+              "Microchip Libero SoC dialect",
               "SpecTcl dialect",
               "SslicTcl dialect",
-              "Synopsys EDA Tcl dialect",
+              "Synopsys DC / PrimeTime / ICC2 / Formality dialect",
               "Tcl 8.4 dialect",
               "Tcl 8.5 dialect",
               "Tcl 8.6 dialect",
               "Tcl 9.0 dialect",
               "Tcl 9.1 dialect",
-              "Xilinx EDA Tcl dialect"
+              "Xilinx Vivado dialect"
             ],
             "description": "Default dialect for files without a shebang or ``# tcl-dialect:`` comment directive. Per-file hints (shebang, comment directive, file extension) take priority over this setting.",
             "order": 2

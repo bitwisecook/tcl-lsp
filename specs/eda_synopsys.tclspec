@@ -22,7 +22,9 @@ speclib eda_synopsys 2.0 {
 display_name {Synopsys EDA Shells}
 
 environment synopsys-eda-tcl {
-    display_name    {Synopsys EDA Tcl}
+    display_name    {Synopsys DC / PrimeTime / ICC2 / Formality}
+    short_name      {Synopsys}
+    kind            packages
     core            tcl 8.6
     version_ceiling 8.6
     editor_identity tcl-synopsys
@@ -33,6 +35,8 @@ environment synopsys-eda-tcl {
     ambient         synopsys-icc2 keyed ToolVersion
     ambient         synopsys-fm keyed ToolVersion
     ambient         synopsys keyed ToolVersion
+    alias           dc_shell
+    alias           primetime
     file_extension  sdc -name {Synopsys Design Constraints}
     file_extension  upf -name {Unified Power Format}
     help_terms      {synopsys dc_shell design_compiler primetime icc2 formality}

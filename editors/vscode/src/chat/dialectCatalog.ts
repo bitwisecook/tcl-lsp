@@ -37,7 +37,7 @@ export interface DialectEntry {
 
 export const DIALECT_CATALOG: readonly DialectEntry[] = [
   { name: "bpf", label: "BPF", extensions: [] },
-  { name: "cadence-eda-tcl", label: "Cadence EDA Tcl", extensions: ["globals"] },
+  { name: "cadence-eda-tcl", label: "Cadence Genus / Innovus / Xcelium", extensions: ["globals"] },
   { name: "expect", label: "Expect", extensions: ["exp", "expect"] },
   { name: "f5-bigip", label: "F5 BIG-IP", extensions: ["scf"] },
   { name: "f5-iapps", label: "F5 iApps", extensions: ["iapp", "iappimpl", "impl"] },
@@ -45,20 +45,24 @@ export const DIALECT_CATALOG: readonly DialectEntry[] = [
   { name: "f5-tmsh", label: "F5 tmsh Scripts", extensions: ["tmsh"] },
   {
     name: "intel-quartus-eda-tcl",
-    label: "Intel Quartus EDA Tcl",
+    label: "Intel Quartus Prime",
     extensions: ["qsf", "qpf", "qip"],
   },
-  { name: "mentor-eda-tcl", label: "Mentor EDA Tcl", extensions: ["do"] },
-  { name: "microchip-libero-eda-tcl", label: "Microchip Libero EDA Tcl", extensions: [] },
+  { name: "mentor-eda-tcl", label: "Siemens Questa / ModelSim", extensions: ["do"] },
+  { name: "microchip-libero-eda-tcl", label: "Microchip Libero SoC", extensions: [] },
   { name: "spectcl", label: "SpecTcl", extensions: ["tclspec"] },
   { name: "sslictcl", label: "SslicTcl", extensions: ["sslictcl"] },
-  { name: "synopsys-eda-tcl", label: "Synopsys EDA Tcl", extensions: ["sdc", "upf"] },
+  {
+    name: "synopsys-eda-tcl",
+    label: "Synopsys DC / PrimeTime / ICC2 / Formality",
+    extensions: ["sdc", "upf"],
+  },
   { name: "tcl8.4", label: "Tcl 8.4", extensions: [] },
   { name: "tcl8.5", label: "Tcl 8.5", extensions: [] },
   { name: "tcl8.6", label: "Tcl 8.6", extensions: [] },
   { name: "tcl9.0", label: "Tcl 9.0", extensions: [] },
   { name: "tcl9.1", label: "Tcl 9.1", extensions: [] },
-  { name: "xilinx-eda-tcl", label: "Xilinx EDA Tcl", extensions: ["xdc"] },
+  { name: "xilinx-eda-tcl", label: "Xilinx Vivado", extensions: ["xdc"] },
 ];
 
 /** Canonical dialect name to display label. */
