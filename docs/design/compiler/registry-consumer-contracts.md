@@ -97,6 +97,20 @@ slices proceed without deciding anything here.
 > `runtime_backing` other than `none` are dropped, with a warning naming the
 > tier, from a transitive or development dependency's pack.
 >
+> The workspace overlay reaches the compile service, and a miss fails closed.
+> An overlay is the key a pack set's registry generation was installed under;
+> `DocumentEnvironment::context_registry` answers a key nothing installed
+> with an `OverlayMiss`, never the plain generation under another name.
+> `BytecodeCompileService::for_profile_with_overlay` looks the generation up
+> for every compile and declines with a `CompileError` once it is gone;
+> `tcl_lsp_db::compilation_unit` builds no unit, so the compiler checks and
+> the optimiser's rewrites that read one are absent until the packs install;
+> the analyser and the semantic tokens, which only advise and run again when
+> the packs arrive, read the plain registry meanwhile. No shipped host builds
+> a service through the overlay door: the `tclvm` engine takes an owned
+> registry, and the language server's optimise path reads the registry the
+> workspace's packs were installed into.
+>
 > The backing fact is built. `CommandSpec::runtime_backing`
 > (`tcl_registry::RuntimeBacking`, with `BodySource`) is declared on every
 > core Tcl command as the row of `docs/generated/wasm-command-backing.md` that
@@ -1804,19 +1818,16 @@ refuses survives:
    install it describes, and the Spec Studio's store report for the
    workspace tier — while the document keeps the rows as written.
 4. **The floor is take-shipped for the whole axis.**
-   `rust/tcl-registry/src/security_floor.rs` protected `codegen_hook` and
-   `inline_codegen_hook` on overrides and nothing else, so an override
-   from any tier could still swap `lowering_hook`, `analyser_hook`,
-   `semantic_operation`, and `state_transitions`. All four join the
-   take-shipped list, together with `native_lowering`, `bpf_op`, and
-   `runtime_backing`: an override keeps the shipped command's value for
-   each whenever the shipped command has one. The floor reads
-   command-level values, as it does for the two codegen hooks; the same
-   fields on a subcommand or a form are not restored, and the stamp rule
-   above already covers the stamps among them.
+   `SecurityFloor::apply` (`rust/tcl-registry/src/security_floor.rs`) keeps
+   a shipped command's `codegen_hook`, `inline_codegen_hook`,
+   `lowering_hook`, `analyser_hook`, `semantic_operation`,
+   `state_transitions`, `native_lowering`, `bpf_op`, and `runtime_backing`
+   through any override, from any tier: an override keeps the shipped
+   command's value for each whenever the shipped command has one. The floor
+   reads command-level values; the same fields on a subcommand or a form are
+   not restored, and the stamp rule above covers only the stamps among them.
 
-Rules 1 to 3 are built (step 4); rule 4 is built too: the six fields that
-existed (step 6), and `runtime_backing` with its field (step 7).
+Rules 1 to 4 are built.
 
 - **Rung 1** is where analysis facts live, and the analyser needs nothing
   from this page to use them. For *emitted code* the artefact records

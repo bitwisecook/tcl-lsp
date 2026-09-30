@@ -90,11 +90,15 @@ passes, and ownership matrices.
   rejection rule, codegen recording the alias target's identity, the site
   claim and pack fact stamp that rungs 1 and 2 record and the VM checks at
   admission, and per-member guard identities that both runtimes keep across
-  command mutations — **built**; the take-shipped floor and the
-  `runtime_backing` fact on every core command, **built**; the rest —
-  rungs 3 and 4 of a pack claim reaching emitted code, the runtimes'
-  backing query, the intrinsic families, the artefact manifest, and the
-  dialect, package, and C-extension follow-ons — **not built**.
+  command mutations — **built**; the take-shipped floor over a shipped
+  command's codegen and dispatch axis and the `runtime_backing` fact on
+  every core command, **built**; the dependency-tier capability matrix
+  that narrows what a package's pack may declare, and the workspace
+  overlay reaching the compile service with a missing generation an
+  error, **built**; the rest — rungs 3 and 4 of a pack claim reaching
+  emitted code, the runtimes' backing query, the intrinsic families, the
+  artefact manifest, and the dialect, package, and C-extension follow-ons
+  — **not built**.
 - [value-transfers-review.md](compiler/value-transfers-review.md) — review
   of the value-transfer and consumer-contract proposals: registry-owned
   specialisation, shared expression/regexp evaluation, correctness findings,
