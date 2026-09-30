@@ -3165,57 +3165,122 @@ fn the_flattened_form_yields_o107() {
     prints_under_every_release(negative, "hit\n");
 }
 
-/// Program (4) — `switch` over the string two appends build — folds to its
-/// `default` in every form: the exact form through its dispatch chain, and the
-/// `-glob`, `-regexp`, `-nocase` and fall-through forms through the
-/// selection record the solver makes at the statement, where the subject has
-/// the version the statement reads. The optimised program prints `always`
-/// under tclsh 8.4 to 9.1 (`-nocase` from 8.5).
+/// Program (4) — `switch` over the string two appends build — yields O112
+/// and I231 on the dead arm in every form. The exact form decides through its
+/// dispatch chain, which also drops the arm's body (O107); the `-glob`,
+/// `-regexp`, `-nocase` and fall-through forms decide through the selection
+/// record the solver makes at the statement, where the subject has the version
+/// the statement reads, and report the arm as a selection fact: no block is
+/// dropped, O107 does not fire and no O100 hints at a branch. `-nocase` is
+/// 8.5's, so a profile that may be 8.4 leaves it alone. The optimised program
+/// prints `always` under tclsh 8.4 to 9.1 (`-nocase` from 8.5).
 #[test]
-fn program_four_folds_in_every_form() {
+fn program_four_yields_o112_and_i231_for_every_form() {
     let build = "set acc \"\"; append acc foo; append acc bar\n";
     let arms = "{\n    baz     { puts never }\n    default { puts always }\n}\n";
-    let folds = |source: &str, dialect: &str| {
-        let (rewritten, rewrites) = optimised(source, dialect);
-        assert!(
-            rewrites.iter().any(|o| o.code == DiagCode::O112)
-                && !rewritten.contains("puts never")
-                && !rewritten.contains("switch"),
-            "{dialect}: O112 leaves `puts always`:\n{source}\n{rewritten}\n{rewrites:#?}"
-        );
-    };
-    for (options, first) in [
-        ("", "8.4"),
-        ("-glob ", "8.4"),
-        ("-regexp ", "8.4"),
-        ("-nocase ", "8.5"),
-    ] {
-        let source = format!("{build}switch {options}-- $acc {arms}");
+    // `baz -` shares `qux`'s body; the `-` is spelled bare, the one spelling
+    // every release reads alike.
+    let shared = "{\n    baz     -\n    qux     { puts never }\n    default { puts always }\n}\n";
+    let forms = [
+        (format!("{build}switch -- $acc {arms}"), "8.4", true),
+        (format!("{build}switch -glob -- $acc {arms}"), "8.4", false),
+        (
+            format!("{build}switch -regexp -- $acc {arms}"),
+            "8.4",
+            false,
+        ),
+        (
+            format!("{build}switch -nocase -- $acc {arms}"),
+            "8.5",
+            false,
+        ),
+        (format!("{build}switch -- $acc {shared}"), "8.4", false),
+    ];
+    for (source, first, flattened) in forms {
+        let dead = |word: &str| u32::try_from(source.find(word).expect("an arm")).expect("offset");
+        let mut dead_arms = vec![dead("baz")];
+        if source.contains("qux") {
+            dead_arms.push(dead("qux"));
+        }
         for dialect in DIALECTS {
-            // `-nocase` is 8.5's: a profile that may be 8.4 leaves it alone.
-            let has_it = first == "8.4" || !matches!(dialect, "tcl8.4" | "f5-irules" | "tcl");
-            if has_it {
-                folds(&source, dialect);
-            } else {
+            let has_the_form = first == "8.4" || !matches!(dialect, "tcl8.4" | "f5-irules" | "tcl");
+            let diagnostics = tcl_compiler::analyser::Analyser::new()
+                .analyse(&source, dialect)
+                .diagnostics;
+            let registry = static_context_for(dialect).commands();
+            let raw = optimise_raw(&source, registry, Some(dialect));
+            if !has_the_form {
                 assert!(
-                    !rewrites_of(&source, dialect)
+                    !raw.iter().any(|o| o.code == DiagCode::O112)
+                        && !diagnostics.iter().any(|d| d.code == DiagCode::I231),
+                    "{dialect}: no selection is made\n{source}"
+                );
+                continue;
+            }
+            for &arm in &dead_arms {
+                assert!(
+                    diagnostics
                         .iter()
-                        .any(|o| o.code == DiagCode::O112),
-                    "{dialect}: {source}"
+                        .any(|d| d.code == DiagCode::I231 && d.span.start() == arm),
+                    "{dialect}: I231 on the dead arm at {arm}\n{source}\n{diagnostics:#?}"
+                );
+            }
+            let (rewritten, rewrites) = optimised(&source, dialect);
+            assert!(
+                rewrites.iter().any(|o| o.code == DiagCode::O112)
+                    && !rewritten.contains("puts never")
+                    && !rewritten.contains("switch"),
+                "{dialect}: O112 leaves `puts always`\n{source}\n{rewritten}\n{rewrites:#?}"
+            );
+            assert_eq!(
+                raw.iter().any(|o| o.code == DiagCode::O107),
+                flattened,
+                "{dialect}: O107 on the dead body only where the CFG has the arm's block\n{source}\n{raw:#?}"
+            );
+            if !flattened {
+                let unit = unit_of(&source, dialect);
+                let top = &unit.top_level;
+                assert_eq!(
+                    top.sccp.executable_blocks.len(),
+                    top.cfg.blocks.len(),
+                    "{dialect}: no block is dropped\n{source}"
+                );
+                let profile = resolve_environment(dialect).analyser_profile();
+                let checks =
+                    tcl_compiler::compiler_checks::run_all_checks(&unit, registry, Some(profile));
+                assert!(
+                    checks.iter().all(|check| check.code != DiagCode::O100),
+                    "{dialect}: a selection fact hints at no branch\n{source}\n{checks:#?}"
                 );
             }
         }
         prints_under_releases_from(&source, "always\n", first);
     }
-    // `baz -` shares `qux`'s body; the `-` is spelled bare, the one spelling
-    // every release reads alike.
-    let source = format!(
-        "{build}switch -- $acc {{\n    baz     -\n    qux     {{ puts never }}\n    default {{ puts always }}\n}}\n"
-    );
+}
+
+/// A selection fact names an arm no branch leads to, so it folds no
+/// condition: the statement's block also ends in the `if`'s branch, and a
+/// fact keyed by that block had rewritten `if {$x}` to `if {0}`. The procedure
+/// is called with both a true and a false argument, so `x` is no constant.
+/// tclsh 8.4 to 9.1 print `A`, `X` and `A` for the program, before and after
+/// the optimiser.
+#[test]
+fn a_selection_fact_folds_no_condition_beside_it() {
+    let source = "proc p {x} {\n    set s abc\n    switch -glob -- $s {a* {puts A} b* {puts B}}\n    if {$x} {puts X}\n}\np 1\np 0\n";
     for dialect in DIALECTS {
-        folds(&source, dialect);
+        let registry = static_context_for(dialect).commands();
+        let raw = optimise_raw(source, registry, Some(dialect));
+        assert!(
+            !raw.iter().any(|o| o.code == DiagCode::O101),
+            "{dialect}: no condition folds\n{raw:#?}"
+        );
+        let (rewritten, _) = optimised(source, dialect);
+        assert!(
+            rewritten.contains("if {$x}") && !rewritten.contains("switch"),
+            "{dialect}: the switch folds, the condition stays\n{rewritten}"
+        );
     }
-    prints_under_every_release(&source, "always\n");
+    prints_under_every_release(source, "A\nX\nA\n");
 }
 
 /// `case` lowers as an opaque glob selection over its own contract (D180),

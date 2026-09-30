@@ -1155,104 +1155,127 @@ impl<'a> LatticeDriver<'a> {
     }
 
     /// The selection each executable opaque case-list statement makes over
-    /// the settled lattice (VT6.3): the command its binding site names
-    /// ([`binding_at`], D181) — trusted, and resolved over the statement's
-    /// words — asked for its `Selection` transfer, the words read as the
-    /// lowering recorded them ([`switch_arguments`]) and the variables at
-    /// the statement's use versions. The fact's arm indices count the
-    /// command's pattern and body pairs, which the record reads against the
-    /// statement's arms and its final `default` (D182), so a statement whose
-    /// plan does not read the statement's own subject (an inliner's renamed
-    /// one) or its own clause count, whose words' delimiters the lowering
-    /// did not record, or whose transfer declines, records nothing.
-    pub(crate) fn selection_records<S: std::hash::BuildHasher>(
+    /// the settled lattice ([`Self::selection_of`]), in source order, and the
+    /// `Selected` branch fact of every arm that no member of a statement's
+    /// subject reaches ([`unreached_arm_facts`]).
+    pub(crate) fn selection_facts<S: std::hash::BuildHasher>(
         &self,
         cfg: &crate::cfg::Function,
         ssa: &SsaFunction,
         values: &HashMap<ValueKey, LatticeValue, S>,
         executable_blocks: &HashSet<crate::cfg::BlockId, S>,
-    ) -> Vec<crate::sccp::SelectionRecord> {
+    ) -> (
+        Vec<crate::sccp::SelectionRecord>,
+        Vec<crate::sccp::ConstantBranch>,
+    ) {
         let mut records = Vec::new();
+        let mut unreached = Vec::new();
         for (block_id, block) in &ssa.blocks {
             if !executable_blocks.contains(block_id) {
                 continue;
             }
             for stmt_ssa in &block.statements {
-                let Statement::Switch {
-                    span,
-                    subject,
-                    arms,
-                    default_body,
-                    raw_args,
-                    raw_arg_braced,
-                    raw_arg_quoted,
-                    ..
-                } = &stmt_ssa.statement
-                else {
+                let Some(record) = self.selection_of(cfg, ssa, values, stmt_ssa) else {
                     continue;
                 };
-                if raw_arg_braced.len() != raw_args.len() || raw_arg_quoted.len() != raw_args.len()
-                {
-                    continue;
+                if let Statement::Switch { arms, .. } = &stmt_ssa.statement {
+                    unreached.extend(unreached_arm_facts(
+                        cfg.block_name(*block_id),
+                        &record,
+                        arms,
+                    ));
                 }
-                let Some(head) = binding_at(cfg, *span) else {
-                    continue;
-                };
-                if !self.trusted(head) {
-                    continue;
-                }
-                let cooked = switch_arguments(
-                    raw_args,
-                    (raw_arg_braced, raw_arg_quoted),
-                    &self.lexer_config,
-                );
-                let texts: Vec<&str> = cooked.iter().map(|arg| arg.text.as_ref()).collect();
-                let words: Vec<InvocationWord<'_>> = cooked.iter().map(ArgWord::word).collect();
-                let Some(resolved) = self.resolve(head, &words) else {
-                    continue;
-                };
-                let Some(semantics) = resolved.semantics.value.semantics() else {
-                    continue;
-                };
-                let inputs = LatticeInputs {
-                    driver: self,
-                    view: view_of(&resolved, &texts, &words, InvocationLayout::Source),
-                    uses: &stmt_ssa.uses,
-                    values,
-                    ssa,
-                    sources: cooked.iter().map(|arg| arg.source).collect(),
-                };
-                let PlanAnswer::CaseList {
-                    subject: at,
-                    arms: plan_arms,
-                    ..
-                } = semantics.structure(&inputs)
-                else {
-                    continue;
-                };
-                let clauses = arms.len() + usize::from(default_body.is_some());
-                if raw_args.get(at.0) != Some(subject)
-                    || plan_clause_count(
-                        &inputs,
-                        &plan_arms,
-                        WordValueRules::from_config(&self.lexer_config),
-                    ) != Some(clauses)
-                {
-                    continue;
-                }
-                if let TransferAnswer::Selection(fact) =
-                    semantics.transfer(FactDomain::Selection, &inputs, &mut self.budget())
-                {
-                    records.push(crate::sccp::SelectionRecord {
-                        span: *span,
-                        arm_pattern_spans: arms.iter().map(|arm| arm.pattern_span).collect(),
-                        fact,
-                    });
-                }
+                records.push(record);
             }
         }
         records.sort_by_key(|record| (record.span.start(), record.span.end()));
-        records
+        unreached.sort_by_key(|fact| fact.span.map(|span| (span.start(), span.end())));
+        (records, unreached)
+    }
+
+    /// The selection one case-list statement makes over the settled
+    /// lattice: the command its binding site names ([`binding_at`]) — trusted,
+    /// and resolved over the statement's words — asked for its `Selection`
+    /// transfer, the words read as the lowering recorded them
+    /// ([`switch_arguments`]) and the variables at the statement's use
+    /// versions. The fact's arm indices count the command's pattern and body
+    /// pairs, which the record reads against the statement's arms and its
+    /// final `default`, so a statement whose plan does not read the
+    /// statement's own subject (an inliner's renamed one) or its own clause
+    /// count, whose words' delimiters the lowering did not record, or whose
+    /// transfer declines, has none.
+    fn selection_of<S: std::hash::BuildHasher>(
+        &self,
+        cfg: &crate::cfg::Function,
+        ssa: &SsaFunction,
+        values: &HashMap<ValueKey, LatticeValue, S>,
+        stmt_ssa: &SsaStatement,
+    ) -> Option<crate::sccp::SelectionRecord> {
+        let Statement::Switch {
+            span,
+            subject,
+            arms,
+            default_body,
+            raw_args,
+            raw_arg_braced,
+            raw_arg_quoted,
+            ..
+        } = &stmt_ssa.statement
+        else {
+            return None;
+        };
+        if raw_arg_braced.len() != raw_args.len() || raw_arg_quoted.len() != raw_args.len() {
+            return None;
+        }
+        let head = binding_at(cfg, *span)?;
+        if !self.trusted(head) {
+            return None;
+        }
+        let cooked = switch_arguments(
+            raw_args,
+            (raw_arg_braced, raw_arg_quoted),
+            &self.lexer_config,
+        );
+        let texts: Vec<&str> = cooked.iter().map(|arg| arg.text.as_ref()).collect();
+        let words: Vec<InvocationWord<'_>> = cooked.iter().map(ArgWord::word).collect();
+        let resolved = self.resolve(head, &words)?;
+        let semantics = resolved.semantics.value.semantics()?;
+        let inputs = LatticeInputs {
+            driver: self,
+            view: view_of(&resolved, &texts, &words, InvocationLayout::Source),
+            uses: &stmt_ssa.uses,
+            values,
+            ssa,
+            sources: cooked.iter().map(|arg| arg.source).collect(),
+        };
+        let PlanAnswer::CaseList {
+            subject: at,
+            arms: plan_arms,
+            ..
+        } = semantics.structure(&inputs)
+        else {
+            return None;
+        };
+        let clauses = arms.len() + usize::from(default_body.is_some());
+        if raw_args.get(at.0) != Some(subject)
+            || plan_clause_count(
+                &inputs,
+                &plan_arms,
+                WordValueRules::from_config(&self.lexer_config),
+            ) != Some(clauses)
+        {
+            return None;
+        }
+        let TransferAnswer::Selection(fact) =
+            semantics.transfer(FactDomain::Selection, &inputs, &mut self.budget())
+        else {
+            return None;
+        };
+        Some(crate::sccp::SelectionRecord {
+            span: *span,
+            arm_pattern_spans: arms.iter().map(|arm| arm.pattern_span).collect(),
+            fact,
+        })
     }
 
     pub(crate) fn take_run_facts(&self) -> crate::sccp::SccpResult {
@@ -2976,6 +2999,43 @@ fn plan_clause_count(
             elements.is_multiple_of(2).then_some(elements / 2)
         }
     }
+}
+
+/// The `Selected` branch fact of each arm of `arms` whose body no member of
+/// `record`'s subject runs: `block` holds the statement, the fact's span is
+/// the arm's pattern, its condition the pattern's text, its value `false`, and
+/// it has no target — no block stands for an arm. An arm that passes its body
+/// on with `-` is judged by the body it leads to, so the alternate patterns of
+/// a running body are not reported, and the final `default`, which has no
+/// pattern, never is.
+fn unreached_arm_facts(
+    block: &str,
+    record: &crate::sccp::SelectionRecord,
+    arms: &[crate::ir::SwitchArm],
+) -> Vec<crate::sccp::ConstantBranch> {
+    if record.fact.selected.is_empty() {
+        return Vec::new();
+    }
+    let body_of = |index: usize| {
+        arms[index..]
+            .iter()
+            .position(|arm| !arm.fallthrough)
+            .map_or(arms.len(), |offset| index + offset)
+    };
+    arms.iter()
+        .enumerate()
+        .zip(&record.arm_pattern_spans)
+        .filter(|((index, _), _)| !record.fact.bodies.contains(&Some(body_of(*index))))
+        .map(|((_, arm), span)| crate::sccp::ConstantBranch {
+            block: block.to_owned(),
+            span: Some(*span),
+            condition: arm.pattern.clone(),
+            value: false,
+            taken_target: String::new(),
+            not_taken_target: String::new(),
+            kind: crate::sccp::BranchFactKind::Selected,
+        })
+        .collect()
 }
 
 /// The resolver's projection of `resolved` over `texts`: the canonical
@@ -4820,6 +4880,59 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// Each arm no member of the subject runs the body of is a `Selected`
+    /// branch fact — no target, `false`, its pattern's text and span, and
+    /// the block holding the statement — beside the record, and no
+    /// reachability is applied for it: every block stays executable and no
+    /// decided branch appears. The final `default` has no pattern, so it is
+    /// never one; an arm a `-` body passes through to a running body is not.
+    #[test]
+    fn an_unreached_arm_is_a_selected_branch_fact() {
+        use crate::sccp::BranchFactKind;
+        let source = "proc p {} {\n\
+                      set s abc\n\
+                      switch -glob -- $s {a* {set r A} b* {set r B} default {set r D}}\n\
+                      switch -glob -- $s {a* - z* {set r A} y* {set r B}}\n\
+                      }\n";
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
+            source, registry, false, "tcl8.6",
+        );
+        let function = unit.procedures.get("::p").expect("the procedure");
+        let facts = &function.sccp.constant_branches;
+        assert!(
+            facts
+                .iter()
+                .all(|fact| fact.kind == BranchFactKind::Selected)
+        );
+        let patterns: Vec<&str> = facts.iter().map(|fact| fact.condition.as_str()).collect();
+        // `abc` selects `a*` (and, through `-`, `z*`'s body) in the second
+        // statement: only `y*` is never run there.
+        assert_eq!(patterns, ["b*", "y*"], "{facts:#?}");
+        let start = source.find("b* {").expect("the arm");
+        let at = |offset: usize| u32::try_from(offset).expect("a short source");
+        assert_eq!(facts[0].span, Some(Span::new(at(start), at(start + 2))));
+        for fact in facts {
+            assert!(
+                !fact.value && fact.taken_target.is_empty() && fact.not_taken_target.is_empty()
+            );
+            assert!(
+                function
+                    .cfg
+                    .block_by_name(&fact.block)
+                    .is_some_and(|block| block
+                        .statements
+                        .iter()
+                        .any(|statement| matches!(statement, Statement::Switch { .. }))),
+                "the block holding the statement: {fact:?}"
+            );
+        }
+        assert_eq!(
+            function.sccp.executable_blocks.len(),
+            function.cfg.blocks.len()
+        );
     }
 
     /// A module that defines its own `switch` is not trusted to select as

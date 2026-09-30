@@ -7151,6 +7151,78 @@ fn the_existence_branch_fact_is_stored_once() {
     );
 }
 
+/// I231 on an opaque `switch` reports each arm whose body no member of the
+/// proven subject runs, at its pattern, from the unit's `Selected` branch
+/// facts: the arm a pattern selects, the arms a `-` body passes through to a
+/// running body and the final `default` are not reported; a subject the
+/// lattice does not prove, code that cannot run and a form a release does
+/// not have report nothing. Each selection is tclsh 8.6's.
+#[test]
+fn an_opaque_switch_reports_the_arms_it_never_selects() {
+    let reported = |source: &str, dialect: &str| -> Vec<u32> {
+        let mut starts: Vec<u32> = Analyser::new()
+            .analyse(source, dialect)
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::I231)
+            .map(|d| d.span.start())
+            .collect();
+        starts.sort_unstable();
+        starts
+    };
+    let at = |source: &str, words: &[&str]| -> Vec<u32> {
+        words
+            .iter()
+            .map(|word| u32::try_from(source.find(word).expect("an arm")).expect("an offset"))
+            .collect()
+    };
+    let arms = "-glob -- $s {\n a* {puts A}\n b* {puts B}\n c* {puts C}\n default {puts D}\n }";
+    let with = |subject: &str| format!("proc p {{}} {{\n set s {subject}\n switch {arms}\n}}\n");
+    let selects_a = with("abc");
+    assert_eq!(
+        reported(&selects_a, "tcl8.6"),
+        at(&selects_a, &["b*", "c*"])
+    );
+    let selects_default = with("zzz");
+    assert_eq!(
+        reported(&selects_default, "tcl8.6"),
+        at(&selects_default, &["a*", "b*", "c*"])
+    );
+
+    // `a1 -` passes its body on to `a2`'s: the group runs when either matches.
+    let group = |subject: &str| {
+        format!(
+            "proc p {{}} {{\n set s {subject}\n switch -glob -- $s {{\n a1 - a2 {{puts S}}\n b {{puts B}}\n default {{puts D}}\n }}\n}}\n"
+        )
+    };
+    let runs = group("a2");
+    assert_eq!(reported(&runs, "tcl8.6"), at(&runs, &["b {"]));
+    let skips = group("zzz");
+    assert_eq!(reported(&skips, "tcl8.6"), at(&skips, &["a1", "a2", "b {"]));
+
+    // A finite subject: an arm any member reaches is not reported.
+    let finite = "proc p {c} {\n if {$c} {set t a} else {set t b}\n switch -glob -- $t {\n a {puts A}\n b {puts B}\n c {puts C}\n default {puts D}\n }\n}\n";
+    assert_eq!(reported(finite, "tcl8.6"), at(finite, &["c {"]));
+
+    // `case` reads its own contract, and is gone from 9.0.
+    let case = "proc p {} {\n case abc in a* {puts A} b* {puts B} default {puts D}\n}\n";
+    assert_eq!(reported(case, "tcl8.6"), at(case, &["b*"]));
+    assert!(reported(case, "tcl9.0").is_empty());
+
+    // Nothing is proven about a parameter, and dead code is not analysed.
+    let unknown = "proc p {s} {\n switch -glob -- $s {a* {puts A} b* {puts B}}\n}\n";
+    assert!(reported(unknown, "tcl8.6").is_empty());
+    let dead = "proc p {} {\n return\n switch -glob -- abc {a* {puts A} b* {puts B}}\n}\n";
+    assert!(reported(dead, "tcl8.6").is_empty());
+
+    // A quoted `-` body of the separate-words form reads two ways on 9.1b0,
+    // and `abc` selects the arm that has one: no selection there, so nothing
+    // is reported; 9.0 reads it by value and falls through into `b*`'s body.
+    let quoted = "proc p {} {\n set s abc\n switch -glob -- $s a* \"-\" b* {puts B} c* {puts C} default {puts D}\n}\n";
+    assert_eq!(reported(quoted, "tcl9.0"), at(quoted, &["c*"]));
+    assert!(reported(quoted, "tcl9.1").is_empty());
+}
+
 #[test]
 fn info_exists_folds_false_for_never_defined_local() {
     // A never-defined non-parameter never

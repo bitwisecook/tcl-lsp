@@ -1896,6 +1896,51 @@ file; this call falls through to the 'unknown' handler."
         }
     }
 
+    /// I230 and I231 from the unit's stored branch facts: the decided
+    /// branches ([`Self::emit_constant_branch_diagnostics`]) and the arms of
+    /// an opaque `switch` no member of the subject runs
+    /// ([`Self::emit_selected_arm_diagnostics`]).
+    pub(super) fn emit_branch_fact_diagnostics(
+        &mut self,
+        fu: &crate::compilation_unit::FunctionUnit,
+    ) {
+        self.emit_constant_branch_diagnostics(fu);
+        self.emit_selected_arm_diagnostics(fu);
+    }
+
+    /// I231 for each arm of an opaque `switch` the solver's selection never
+    /// runs the body of — the `Selected` branch facts. The arms have no
+    /// blocks of their own, so nothing is dropped and no reachability is
+    /// applied: the statement stays one call, and only the pattern that can
+    /// never be the one selected is reported, at its span.
+    pub(super) fn emit_selected_arm_diagnostics(
+        &mut self,
+        fu: &crate::compilation_unit::FunctionUnit,
+    ) {
+        for arm in fu
+            .sccp
+            .constant_branches
+            .iter()
+            .filter(|branch| branch.kind == crate::sccp::BranchFactKind::Selected)
+        {
+            let Some(span) = arm.span else {
+                continue;
+            };
+            self.result
+                .diagnostics
+                .push(crate::analyser::types::Diagnostic::new(
+                    DiagCode::I231,
+                    fu.abs_span(span),
+                    format!(
+                        "Switch arm '{}' is never selected; this arm is unreachable",
+                        arm.condition,
+                    ),
+                    // I230/I231 are observational (LSP `Information`).
+                    Severity::Info,
+                ));
+        }
+    }
+
     /// W126 — channel-argument validation.
     ///
     /// Walks every

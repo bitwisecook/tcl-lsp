@@ -5826,6 +5826,26 @@ line shift, `handlers.rs` 1966 → 1968), both unchanged in count;
 `owner-resolution` (45 rows) and `kcs-index-links` pass; `dialect-drift`
 8 sites, none new; `cargo check --workspace --all-targets` clean.
 
+| Item | Commit | What landed | Its tests |
+|---|---|---|---|
+| VT6.5 | `wip(value-transfers): slice 6 — I231 on an opaque form` | The selection post-pass (`LatticeDriver::selection_facts`, which replaces `selection_records`; its per-statement half is `selection_of`) states, beside each record, a `Selected` `ConstantBranch` for every arm no member of the subject runs the body of (`unreached_arm_facts`, D185), appended to `SccpResult::constant_branches`: the block holding the statement, the pattern's span and text, `value` `false`, no target — nothing is applied to `executable_blocks`, so no block is dropped and O107 does not fire. `emit_selected_arm_diagnostics` (`analyser/diagnostics/dataflow.rs`, called after `emit_constant_branch_diagnostics`) reports I231 for each at its pattern: "Switch arm '<pattern>' is never selected; this arm is unreachable". An arm passing its body on with `-` is judged by the body it leads to, and the final `default`, which has no pattern span, is never reported. The consumers that read every stored fact read its kind: `function_nontaint_checks` (`compiler_checks.rs`) hints O100 only at a branch, and branch folding (`branch_folding.rs`) neither counts a `Selected` fact's block among the folded ones nor folds a condition by it — the statement's block also ends in the next `if`'s branch, which a fact keyed by that block would have rewritten. The Explorer's `constantBranches` state each fact's `kind` (`BranchFactKind::label`), its annotation says the arm is never selected, and its text views print `arm never selected: <pattern>`. Beyond the item's two files: `sccp.rs` (the label, the field docs, the result's assembly), `value_transfer.rs`, `branch_folding.rs`, `analyser/diagnostics.rs` (the call), and `tcl-explorer`'s `serialise.rs` and `view_tree.rs` | `program_four_folds_in_every_form` becomes the plan's `program_four_yields_o112_and_i231_for_every_form` (compiler witnesses: the exact, `-glob`, `-regexp`, `-nocase` and shared-body forms of program (4) each report I231 on `baz`'s pattern — and on `qux`'s in the shared form — leave `puts always`, and print `always` before and after the optimiser under tclsh 8.4 to 9.1, `-nocase` from 8.5; the flattened form alone has O107 among the passes' raw findings, and an opaque form drops no block and draws no O100; a profile that may be 8.4 makes no `-nocase` selection at all); `an_opaque_switch_reports_the_arms_it_never_selects` (analyser diagnostics tests, new: the selected arm, the default, a `-` group that runs and one that does not, a finite subject, `case` under 8.6 and 9.0, a parameter subject, dead code, and the quoted `-` body under 9.0 and 9.1); `an_unreached_arm_is_a_selected_branch_fact` (`value_transfer.rs`, new: the fact's fields, and every block stays executable); `a_selection_fact_folds_no_condition_beside_it` (compiler witnesses, new: fails with the O101 the fact would draw when branch folding does not skip it; tclsh 8.4 to 9.1 print `A`, `X`, `A`); `serialise::tests::sccp_reports_the_unreached_arms` (Explorer, new). No existing test moved |
+
+Green at VT6.5: `tcl-compiler` 9821 passed, 6 ignored across its 67
+binaries, and 7 doctests; `tcl-explorer` 105; `tcl-cli` 129 across its
+binaries (`cli` 50, `value_transfers_cli` 8); `tcl-lsp-db` 129 (103 in
+the library, 26 across its integration binaries); workspace clippy
+(`--all-targets -D warnings`), no `#[allow]` added — two functions the
+new lines pushed past the line limit were split instead
+(`sccp_with_builtin_folds` gave up `escaping_names`,
+`emit_cfg_ssa_diagnostics_for_function_full` calls
+`emit_branch_fact_diagnostics`) — and `cargo fmt --check`;
+`value-transfers --check` (22 clean, 19 waived, 83 pinned across 34
+files, 6607 rows) and `registry-axes --check` (893 pinned across 147
+files, 36 waived, 16 clean), both unchanged; `pack-goldens` (25 packs, 0
+rewritten), `retired-api-gate`, `owner-resolution` (45 rows) and
+`kcs-index-links` pass; `dialect-drift` 8 sites, none new; `cargo check
+--workspace --all-targets` clean.
+
 ### Slice 9 — nested writes in expressions
 
 #### Goal and exit
@@ -9337,6 +9357,33 @@ has the witnesses):
   clause count or the arm is not decided. Regexp mode is decided too: the
   old walk abstained on it. `Statement::Switch::command`, the spelling the
   statement was written with, is the head the query resolves.
+- **D185 — an arm's `Selected` fact is judged by the body it leads to**
+  (VT6.5). The post-pass that makes the selection record states, beside
+  it, one `Selected` `ConstantBranch` for each arm no member of the subject
+  runs the body of (`unreached_arm_facts`): `block` the block holding the
+  statement, `span` the arm's pattern, `condition` its text, `value`
+  `false`, both targets empty — no block stands for an arm, so nothing is
+  applied to `executable_blocks` and O107 has nothing to drop. An arm that
+  passes its body on with `-` is judged by the body it leads to (the first
+  arm from it on that has one, or the final `default`), not by its own
+  pattern: `a1 - a2 {S}` over `a2` runs `S`, so `a1`, an alternate of a
+  running body, is not reported. That refines the hand-off's rule ("flag an
+  arm only if no member's `selected` or `bodies` names it") to a subset of
+  what it flags: the plain rule reports `a1` there, and reports `b` of `a -
+  b - c {S}` over `a` or `c` but not over `b`, an asymmetry between the
+  alternates of one body that the group rule does not have; every arm the
+  group rule reports is one the plain rule reports too. The final
+  `default` has no pattern span and is never reported. Because `constant_branches` also feeds consumers that read a
+  fact as a branch, each reads the kind: `function_nontaint_checks` hints
+  O100 only at an `Applied` (or `Proven`) branch; branch folding skips a
+  `Selected` fact in both its `folded` block set and its fold loop, without
+  which the block's own terminator — the `if` a statement before it shares
+  the block with — would be rewritten by the fact's `false` (the witness
+  `a_selection_fact_folds_no_condition_beside_it` fails without it); the
+  Explorer states the kind (`kind`) and prints `arm never selected:
+  <pattern>` where it printed a branch. I231 for a decided flattened arm
+  stays the `Applied` fact's (`emit_constant_branch_diagnostics`); a new
+  emitter, `emit_selected_arm_diagnostics`, reports the `Selected` ones.
 
 ### Open questions for the owner
 

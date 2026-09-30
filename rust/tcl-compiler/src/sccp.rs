@@ -182,29 +182,48 @@ pub enum BranchFactKind {
     /// Since slice 8 the solver decides an existence query inside the fixed
     /// point, as an `Applied` fact, so no producer states this kind today.
     Proven,
-    /// An arm is selected that the CFG has no edge of its own for.
+    /// A statement selects among arms the CFG has no edge of its own for (an
+    /// opaque `switch`): the fact names an arm no member of the subject
+    /// reaches, and applies no reachability — no block is dropped for it.
     Selected,
     /// The solver decided the branch and applied it to the executable
     /// blocks and edges.
     Applied,
 }
 
+impl BranchFactKind {
+    /// The kind's name, as the Explorer states it.
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Proven => "proven",
+            Self::Selected => "selected",
+            Self::Applied => "applied",
+        }
+    }
+}
+
 /// A branch whose condition SCCP determined to be constant.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConstantBranch {
-    /// CFG block containing the branch.
+    /// CFG block containing the branch — for a [`BranchFactKind::Selected`]
+    /// fact, the block holding the statement.
     pub block: String,
     /// Source span of the branch terminator (its condition
-    /// expression when known). Used by diagnostic aggregators to
-    /// point editors and CLIs at the triggering site.
+    /// expression when known) — a `Selected` fact's is its arm's pattern.
+    /// Used by diagnostic aggregators to point editors and CLIs at the
+    /// triggering site.
     pub span: Option<tcl_lexer::Span>,
-    /// Condition text for diagnostic reporting.
+    /// Condition text for diagnostic reporting; a `Selected` fact's is the
+    /// arm's pattern.
     pub condition: String,
-    /// Evaluated boolean value.
+    /// Evaluated boolean value; a `Selected` fact is always `false` — the
+    /// arm is not selected.
     pub value: bool,
-    /// Target reached when the condition holds.
+    /// Target reached when the condition holds; empty for a `Selected`
+    /// fact, since no block stands for an arm.
     pub taken_target: String,
-    /// Target skipped.
+    /// Target skipped; empty for a `Selected` fact.
     pub not_taken_target: String,
     /// Which branch fact this is.
     pub kind: BranchFactKind,
@@ -654,22 +673,7 @@ pub fn sccp_with_builtin_folds(
         .map_or_else(tcl_dialect::LexerGrammar::default, |p| p.grammar);
     seed_live_in_roots(cfg, ssa, &mut values, grammar);
 
-    // Global / namespace / upvar-aliased / traced variables are shared mutable
-    // state observable and writable from other scopes, traces, and source
-    // files. Their value is therefore never a compile-time constant: folding
-    // through one would be unsound across any opaque call (`set ::g 5; mut;
-    // expr {$::g + 1}` must NOT fold to 6 — `mut` may have rewritten `::g`).
-    // Force every such definition to OVERDEFINED so SCCP never propagates a
-    // constant through it; the read is still tracked for liveness. The check
-    // consults the whole-function (flow-insensitive) view of the
-    // `var_observability` alias/trace lattice, widened by any whole-module
-    // fact the caller supplies (`extra_escaping`) and by the whole-module
-    // `traced_variables` fact — the latter also catches a trace installed by
-    // a *called* proc, which the single-`CfgFunction` view here cannot see.
-    let mut escaping = crate::var_observability::analyse_var_observability(cfg, trace.registry)
-        .escaping_var_names();
-    escaping.extend(extra_escaping.iter().cloned());
-    escaping.extend(trace.traced_variables.iter().cloned());
+    let escaping = escaping_names(cfg, &trace, extra_escaping);
     // Every command-specific answer below comes from the registry's
     // declaration for the resolved invocation, through one driver whose
     // context is this run's identity.
@@ -743,7 +747,7 @@ pub fn sccp_with_builtin_folds(
         executable_edges,
         existence,
     } = state;
-    let constant_branches = collect_constant_branches(
+    let mut constant_branches = collect_constant_branches(
         cfg,
         ssa,
         &values,
@@ -763,10 +767,13 @@ pub fn sccp_with_builtin_folds(
             let entries = run.block_qualified(ssa);
             (run.versions, run.reads, run.exits, entries, run.refinements)
         });
+    let (selections, unreached_arms) =
+        driver.selection_facts(cfg, ssa, &values, &executable_blocks);
+    constant_branches.extend(unreached_arms);
     SccpResult {
         // The post-passes read the settled lattice before it moves in.
         template_plans: driver.template_plans(ssa, &values, &executable_blocks),
-        selections: driver.selection_records(cfg, ssa, &values, &executable_blocks),
+        selections,
         values,
         executable_blocks,
         executable_edges,
@@ -778,6 +785,31 @@ pub fn sccp_with_builtin_folds(
         refinements,
         ..driver.take_run_facts()
     }
+}
+
+/// The names whose value is never a compile-time constant.
+///
+/// Global / namespace / upvar-aliased / traced variables are shared mutable
+/// state observable and writable from other scopes, traces, and source
+/// files, so folding through one would be unsound across any opaque call
+/// (`set ::g 5; mut; expr {$::g + 1}` must NOT fold to 6 — `mut` may have
+/// rewritten `::g`). SCCP forces every such definition to `Overdefined` so it
+/// never propagates a constant through one; the read is still tracked for
+/// liveness. The set is the whole-function (flow-insensitive) view of the
+/// `var_observability` alias/trace lattice, widened by any whole-module fact
+/// the caller supplies (`extra_escaping`) and by the whole-module
+/// `traced_variables` fact — the latter also catches a trace installed by a
+/// *called* proc, which the single-`CfgFunction` view cannot see.
+fn escaping_names(
+    cfg: &CfgFunction,
+    trace: &TraceInputs<'_>,
+    extra_escaping: &HashSet<String>,
+) -> HashSet<String> {
+    let mut escaping = crate::var_observability::analyse_var_observability(cfg, trace.registry)
+        .escaping_var_names();
+    escaping.extend(extra_escaping.iter().cloned());
+    escaping.extend(trace.traced_variables.iter().cloned());
+    escaping
 }
 
 /// The read-only context one solver sweep runs each block under.

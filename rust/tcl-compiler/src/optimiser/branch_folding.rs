@@ -49,7 +49,7 @@ use tcl_core_types::DiagCode;
 use crate::cfg::Terminator;
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::expr_ast::{BinOp, ExprNode};
-use crate::sccp::ConstantBranch;
+use crate::sccp::{BranchFactKind, ConstantBranch};
 
 use super::helpers::expr_simplify::{
     OperandTypes, instcombine_expr_typed, operand_types, substitute_expr_constants,
@@ -106,10 +106,13 @@ fn propagate_into_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
     // Numeric-type context so identity rewrites (`$x + 0` → `$x`, etc.) on a
     // branch condition fire only when the dropped operand is provably numeric.
     let numeric = operand_types(fu);
+    // A `Selected` fact is no branch: its block holds a statement, and the
+    // terminator it ends in is some other condition's to fold.
     let folded: HashSet<String> = fu
         .sccp
         .constant_branches
         .iter()
+        .filter(|cb| cb.kind != BranchFactKind::Selected)
         .map(|cb| cb.block.clone())
         .collect();
 
@@ -285,7 +288,12 @@ fn fold_constant_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
     // `constant_branches` to begin with. O102 `run_load_forwarding` is the
     // one pass that still needs its own check, since it runs an independent
     // def-use-chain scan that never consults `fu.sccp` at all.
-    for cb in &fu.sccp.constant_branches {
+    for cb in fu
+        .sccp
+        .constant_branches
+        .iter()
+        .filter(|cb| cb.kind != BranchFactKind::Selected)
+    {
         let Some(block) = fu.cfg.block_by_name(&cb.block) else {
             continue;
         };
