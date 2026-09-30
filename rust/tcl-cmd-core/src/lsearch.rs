@@ -47,6 +47,7 @@
 
 use core::cmp::Ordering;
 
+use tcl_dialect::TclVersion;
 use tcl_syntax::value::ValueOps;
 
 use tcl_syntax::list::split_list;
@@ -181,6 +182,7 @@ struct Opts {
 pub fn lsearch<O: ValueOps, E: RegexEngine>(
     ops: &mut O,
     args: &[O::Value],
+    version: TclVersion,
 ) -> Result<O::Value, LsearchError> {
     let n = args.len();
     if n < 2 {
@@ -323,7 +325,7 @@ pub fn lsearch<O: ValueOps, E: RegexEngine>(
     let mut re = if o.mode == SearchMode::Regexp {
         let flags = RegexFlags {
             nocase: o.nocase,
-            ..RegexFlags::default()
+            ..RegexFlags::for_release(version)
         };
         Some(E::compile(&pattern, flags).map_err(|d| {
             let mut m = b"cannot compile regular expression pattern: ".to_vec();

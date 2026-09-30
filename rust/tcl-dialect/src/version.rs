@@ -440,6 +440,15 @@ impl TclVersion {
         matches!(self, Self::V9_0 | Self::V9_1)
     }
 
+    /// Whether an ARE accepts `\z` as a synonym for the `\Z` end-of-string
+    /// anchor. Tcl 9.1.0 added it (`regc_lex.c`, ticket fbc56b259e); tclsh
+    /// 8.4.20 through 9.0.4 and the 9.1b0 beta reject it as `invalid escape \
+    /// sequence`.
+    #[must_use]
+    pub const fn regex_z_anchor(self) -> bool {
+        matches!(self, Self::V9_1)
+    }
+
     /// The release-defined conversion used when a string is consumed as raw
     /// binary data. See [`ByteStringEncoding`] for the Tcl 8/Tcl 9 split.
     #[must_use]
